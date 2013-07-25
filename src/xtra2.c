@@ -3545,12 +3545,20 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
 				if (o_ptr->marked)
 				{
 					char o_name[80];
+					char weight[80] = "";
 
 					/* Not boring */
 					boring = FALSE;
 
 					/* Obtain an object description */
 					object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+
+					if (o_ptr->weight)
+					{
+						int wgt = o_ptr->weight * o_ptr->number;
+						sprintf(weight, " (%d.%1d lb)", wgt / 10, wgt % 10);
+					}
+
 
 					/* Describe the object */
 					if (p_ptr->wizard)
@@ -3562,7 +3570,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
 					else
 					{
 						strnfmt(out_val, sizeof(out_val),
-								"%s%s%s%s %s [%s]", s1, s2, s3, o_name, more, info);
+								"%s%s%s%s%s %s [%s]", s1, s2, s3, o_name, weight, more, info);
 					}
 
 					prt(out_val, 0, 0);
