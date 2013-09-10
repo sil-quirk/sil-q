@@ -2625,7 +2625,7 @@ static void dungeon(void)
 	if ((p_ptr->depth == MORGOTH_DEPTH) && p_ptr->truce)
 	{
 		msg_print("There is a strange tension in the air.");
-		if (p_ptr->skill_use[S_PER] >= 15) msg_print("You feel that Morgoth's servants are reluctant to attack before he delivers judgment.");	
+		msg_print("You feel that Morgoth's servants are reluctant to attack before he delivers judgement.");
 	}
 
 	/*** Process this dungeon level ***/
