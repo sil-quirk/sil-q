@@ -407,6 +407,12 @@ void do_cmd_activate_staff(object_type *default_o_ptr, int default_item)
 		}
 	}
 
+	if (o_ptr->ident & (IDENT_EMPTY))
+	{
+		msg_print("The staff has no charges left.");
+		return;
+	}
+
 	/* Take a turn */
 	p_ptr->energy_use = 100;
 
