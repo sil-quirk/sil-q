@@ -996,7 +996,13 @@ extern void ident_on_wield(object_type *o_ptr)
 	{
 		notice = TRUE;
 	}
-    
+
+	// Also always identify tunneling since it's never ambiguous.
+	if (f1 & (TR1_TUNNEL))
+	{
+		notice = TRUE;
+	}
+
 	if (o_ptr->name1 || o_ptr->name2)
 	{
 		// For special items and artefacts, we need to ignore the flags that are basic 
