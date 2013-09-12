@@ -1042,6 +1042,11 @@ extern void ident_on_wield(object_type *o_ptr)
 		notice = TRUE;
 		msg_print("It speeds your movement.");
 	}
+	else if (f2 & (TR2_REGEN))
+	{
+		notice = TRUE;
+		msg_print("You notice that you are recovering much faster than usual.");
+	}
 
 	else if (f1 & (TR1_DAMAGE_SIDES))
 	{
@@ -1531,7 +1536,7 @@ extern void ident_passive(void)
 				notice = TRUE;
 				my_strcpy(effect_string, "You notice that you are recovering much faster than usual.", sizeof (effect_string));
 			}
-			else if ((f2 & (TR2_AGGRAVATE)))
+			else if (f2 & (TR2_AGGRAVATE))
 			{
 				notice = TRUE;
 				my_strcpy(effect_string, "You notice that you are enraging your enemies.", sizeof (effect_string));
