@@ -4335,7 +4335,9 @@ errr file_character(cptr name, bool full)
 	char o_name[80];
 	
 	char buf[1024];
-	
+
+	ability_type *b_ptr;
+
 	int holder;
 	
 	bool challenges = FALSE;
@@ -4512,9 +4514,27 @@ errr file_character(cptr name, bool full)
 		/* Describe random object attributes */
 		identify_random_gen(o_ptr);
 	}
-	fprintf(fff, "\n");
-	
-	fprintf(fff, "\n  [Notes]\n\n");
+
+	// Dump abilities.
+	fprintf(fff, "\n\n  [Abilities]\n\n");
+	for (i = 0; i < z_info->b_max; i++)
+	{
+		b_ptr = &b_info[i];
+
+		if (!b_ptr->name) continue;
+
+		if (p_ptr->innate_ability[b_ptr->skilltype][b_ptr->abilitynum])
+		{
+			if (b_ptr->skilltype == S_PER && b_ptr->abilitynum == PER_BANE && p_ptr->bane_type > 0)
+			{
+				fprintf(fff, "%s-%s\n", bane_name[p_ptr->bane_type], (b_name + b_ptr->name));
+			}
+			else
+				fprintf(fff, "%s\n", (b_name + b_ptr->name));
+		}
+	}
+
+	fprintf(fff, "\n\n  [Notes]\n\n");
 	
 	/*dump notes to character file*/
 	i = 0;

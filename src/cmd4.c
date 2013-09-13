@@ -752,7 +752,7 @@ static u32b bane_flag[] =
 	RF3_DRAGON
 };
 
-static char *bane_name[] =
+char *bane_name[] =
 {
 	"Nothing",
 	"Orc",

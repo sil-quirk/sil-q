@@ -425,6 +425,7 @@ extern void do_cmd_character_sheet(void);
 extern void do_cmd_change_song(void);
 extern int ability_index(int skilltype, int abilitynum);
 extern int elf_bane_bonus(monster_type *m_ptr);
+extern char *bane_name[];
 extern int bane_bonus(monster_type *m_ptr);
 extern int spider_bane_bonus(void);
 extern void do_cmd_ability_screen(void);
