@@ -2827,9 +2827,6 @@ void show_help_screen(int i)
 			else				c_put_str(TERM_WHITE, "^t",  row, col - 1);
 			c_put_str(TERM_SLATE, "throw (auto-target)", row, col + 2);
 			row++;
-			c_put_str(TERM_WHITE, "k",                      row, col);
-			c_put_str(TERM_SLATE, "destroy",                row, col + 2);
-			row++;
 			c_put_str(TERM_WHITE, "{",                      row, col);
 			c_put_str(TERM_SLATE, "inscribe",               row, col + 2);
 			row++;

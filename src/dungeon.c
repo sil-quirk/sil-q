@@ -895,11 +895,11 @@ static void process_command(void)
 		}
 
 		/* Destroy an item */
-		case 'k':
-		{
-			do_cmd_destroy();
-			break;
-		}
+		//case 'k':
+		//{
+		//	do_cmd_destroy();
+		//	break;
+		//}
 
 		/* Equipment list */
 		case 'e':
