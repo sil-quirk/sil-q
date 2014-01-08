@@ -5315,6 +5315,15 @@ static bool run_test(void)
 		{
 			/* Primary option */
 			p_ptr->run_cur_dir = option;
+
+                        /* Stop in the doorway of a room */
+                        row = py + 2*ddy[option];
+                        col = px + 2*ddx[option];
+                        if ((cave_info[row][col] & CAVE_MARK) &&
+                            !cave_wall_bold(row,col))
+			{
+			        return (TRUE);
+			}
 			
 			/* Hack -- allow curving */
 			p_ptr->run_old_dir = option2;
