@@ -1,0 +1,27 @@
+# File: graf-x11.prf
+
+
+# Font stuff
+%:font-x11.prf
+
+
+# Color palette - Graphics
+#
+# [there used to be definitions for colours 16-31 here]
+
+# Hack -- initialization
+?:[NOT [EQU $SYS xxx]]
+
+# Standard file
+?:[EQU $GRAF old]
+%:graf-xxx.prf
+
+# New tiles
+?:[EQU $GRAF new]
+%:graf-new.prf
+
+# David Gervais tiles
+?:[EQU $GRAF david]
+%:graf-dvg.prf
+
+?:1

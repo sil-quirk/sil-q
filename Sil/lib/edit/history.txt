@@ -1,0 +1,282 @@
+# File: history.txt
+#
+# This file is used to create the "lib/data/history.raw" file, which is
+# used to initialize the "player history" information for Sil.
+#
+# Do not modify this file unless you know exactly what you are doing,
+# unless you wish to risk possible system crashes and broken savefiles.
+#
+# === Understanding history.txt ===
+#
+# N: primary index : secondary index : probability : house
+# D: description
+#
+# 'N' the primary index represents the type of descriptive text
+#     being generated (e.g. a Dwarven profession) and the secondary
+#     index gives the particular thing within this type (e.g. craftsman).
+#     The probability is the highest value of a random number from 1 to 100
+#     that will lead to this choice (so these increase through a type).
+#     Note that the races (race.txt) give primary indices into this table.
+#
+# 'D' A piece of descriptive text
+#
+# Background information (see below)
+#
+# Chart progression by race:
+#
+#  Noldor         -->  1 -->  2 -->  3 --> 50 --> 51 --> 52
+#  Sindar         -->  4 -->  5 --> 54 --> 55 --> 56
+#  Edain          --> 21 --> 22 --> 23 --> 25 --> 26 --> 27 --> 28
+#  Naugrim        --> 16 --> 17 --> 18 --> 57 --> 58 --> 59 --> 60 --> 61
+#
+#
+# * Note that this table *must* be correct or drastic errors may occur!
+#
+# * Note that the "spacing" in the "description" lines is very important!
+
+
+# Version stamp (required)
+
+V:1.3.0
+
+
+# Noldor history
+
+N:1:2:30:0
+D:You are one of several children
+N:1:2:60:0
+D:You are one of two children
+N:1:2:95:0
+D:You are the only child
+N:1:50:100:0
+D:You awoke on the shores of lake Cuivienen.
+
+N:2:3:20:0
+D:of an archer
+N:2:3:40:0
+D:of a warrior
+N:2:3:60:0
+D:of a smith
+N:2:3:95:0
+D:of a bard
+N:2:3:100:0
+D:of a prince
+
+N:3:50:100:1
+D:from the house of Feanor.
+N:3:50:100:2
+D:from the house of Fingolfin.
+N:3:50:100:3
+D:from the house of Finarfin.
+
+
+# Sindar history
+
+N:4:5:30:0
+D:You are one of several children
+N:4:5:60:0
+D:You are one of two children
+N:4:5:95:0
+D:You are the only child
+N:4:54:100:0
+D:You awoke on the shores of lake Cuivienen.
+
+N:5:54:35:0
+D:of a Sindar archer.
+N:5:54:50:0
+D:of a Sindar warrior.
+N:5:54:60:0
+D:of a Sindar smith.
+N:5:54:95:0
+D:of a Sindar bard.
+N:5:54:99:0
+D:of a Sindar prince.
+N:5:54:100:0
+D:of a Sindar king.
+
+
+# Naugrim History
+
+N:16:17:25:0
+D:You are one of two children of a Dwarven
+N:16:17:100:0
+D:You are the only child of a Dwarven
+
+N:17:18:5:0
+D:Outcast.
+N:17:18:50:0
+D:Craftsman.
+N:17:18:70:0
+D:Warrior.
+N:17:18:99:0
+D:Smith.
+N:17:18:100:0
+D:Prince.
+
+N:18:57:10:0
+D:You are the black sheep of the family.
+N:18:57:85:0
+D:You are a credit to the family.
+N:18:57:100:0
+D:You were a well liked child.
+
+
+
+# Edain History
+
+N:21:22:5:0
+D:You are the illegitimate and unacknowledged child
+N:21:22:7:0
+D:You are the illegitimate but acknowledged child
+N:21:22:70:0
+D:You are one of several children
+N:21:22:90:0
+D:You are the first child
+N:21:22:100:0
+D:You are the only child
+
+N:22:23:30:0
+D:of a farmer.
+N:22:23:60:0
+D:of a craftsman.
+N:22:23:80:0
+D:of an archer.
+N:22:23:99:0
+D:of a warrior.
+N:22:23:100:0
+D:of a prince.
+
+
+N:23:25:10:0
+D:You are the black sheep of the family.
+N:23:25:80:0
+D:You are a credit to the family.
+N:23:25:100:0
+D:You were a well liked child.
+
+
+# Edain Description
+
+N:25:26:20:0
+D:You have dark brown eyes,
+N:25:26:60:0
+D:You have brown eyes,
+N:25:26:70:0
+D:You have hazel eyes,
+N:25:26:80:0
+D:You have green eyes,
+N:25:26:90:0
+D:You have blue eyes,
+N:25:26:100:0
+D:You have blue-gray eyes,
+
+N:26:27:70:0
+D:straight
+N:26:27:90:0
+D:wavy
+N:26:27:100:0
+D:curly
+
+N:27:28:30:0
+D:black hair,
+N:27:28:70:0
+D:brown hair,
+N:27:28:80:0
+D:auburn hair,
+N:27:28:90:0
+D:red hair,
+N:27:28:100:0
+D:golden hair,
+
+N:28:0:30:0
+D:and an average complexion.
+N:28:0:80:0
+D:and an average complexion.
+N:28:0:90:0
+D:and a fair complexion.
+N:28:0:100:0
+D:and a very fair complexion.
+
+
+# Noldor description
+
+N:50:51:85:0
+D:You have light grey eyes,
+N:50:51:95:0
+D:You have light blue eyes,
+N:50:51:100:0
+D:You have light green eyes,
+
+N:51:52:75:0
+D:straight
+N:51:52:100:0
+D:wavy
+
+N:52:0:90:3
+D:golden hair, and a fair complexion.
+N:52:0:70:0
+D:black hair, and a fair complexion.
+N:52:0:80:0
+D:brown hair, and a fair complexion.
+N:52:0:88:0
+D:auburn hair, and a fair complexion.
+N:52:0:95:0
+D:golden hair, and a fair complexion.
+N:52:0:100:0
+D:silver hair, and a fair complexion.
+
+
+# Sindar description
+
+N:54:55:85:0
+D:You have light grey eyes,
+N:54:55:95:0
+D:You have light blue eyes,
+N:54:55:100:0
+D:You have light green eyes,
+
+N:55:56:75:0
+D:straight
+N:55:56:100:0
+D:wavy
+
+N:56:0:70:0
+D:black hair, and a fair complexion.
+N:56:0:80:0
+D:brown hair, and a fair complexion.
+N:56:0:88:0
+D:auburn hair, and a fair complexion.
+N:56:0:95:0
+D:golden hair, and a fair complexion.
+N:56:0:100:0
+D:silver hair, and a fair complexion.
+
+
+# Naugrim description
+
+N:57:58:100:0
+D:You have dark brown eyes,
+
+N:58:59:90:0
+D:straight
+N:58:59:100:0
+D:wavy
+
+N:59:60:75:0
+D:black hair,
+N:59:60:100:0
+D:brown hair,
+
+N:60:61:40:0
+D:a one foot beard,
+N:60:61:80:0
+D:a two foot beard,
+N:60:61:98:0
+D:a three foot beard,
+N:60:61:100:0
+D:a four foot beard,
+
+N:61:0:70:0
+D:and a dark complexion.
+N:61:0:100:0
+D:and a ruddy complexion.

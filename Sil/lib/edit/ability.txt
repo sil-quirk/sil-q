@@ -1,0 +1,659 @@
+# File: ability.txt
+#
+# This file is used to create the "lib/data/ability.raw" file, which is
+# used to initialize the "ability" information for Sil.
+#
+# Do not modify this file unless you know exactly what you are doing,
+# unless you wish to risk possible system crashes and broken savefiles.
+#
+#
+# === Understanding ability.txt ===
+#
+# N: ability number : ability name
+# I: skill number : ability value : level requirement
+# P: prerequisite skill number / prerequisite ability value : ...
+# D: description
+#
+# 'N' indicates the beginning of an entry. The serial number must
+#     increase for each new ability.
+#
+# 'I' is the skill number (melee = 1 etc), ability number in this skill
+#     and the level requirement for the ability
+#
+# 'P' is the prerequisite abilities if any
+#
+# 'D' is a textual description of the ability
+
+
+
+# Version stamp (required)
+
+V:1.3.0
+
+# Melee ---------------------------------------------
+
+N:0:Power
+I:0:0:1
+D:Gives a bonus of +1 damage sides to your melee attacks, but makes it
+D: harder to score critical hits (increasing the base required by 1).
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:1:Finesse
+I:0:1:2
+D:Lowers the base number needed to get critical hits with melee
+D: from 7 to 6.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:2:Throwing Mastery
+I:0:2:3
+D:Gives a +5 bonus to throwing attacks and prevents thrown items breaking.
+T:31:0:99  # Gloves
+#          # + all throwing items (hard coded)
+
+N:3:Polearm Mastery
+I:0:3:4
+D:Gives you +1 to attack with polearms (spears & glaives)
+D: and lets you set them to receive free attacks on advancing enemies
+D: when you wait (z or 5).
+T:31:0:99  # Gloves
+#          # + all Polearms (hard coded)
+
+N:4:Charge
+I:0:4:5
+D:When you attack an opponent immediately after moving towards it,
+D: your attack is calculated as if you you had 3 points more
+D: strength and dexterity.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:30:0:99  # Boots
+
+N:5:Follow-Through
+I:0:5:6
+P:0/0:0/1
+D:Allows you to continue your attack if you kill an opponent,
+D: moving onto the next adjacent enemy.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:6:Zone of Control
+I:0:6:7
+P:0/1:0/3
+D:You get a free attack whenever an opponent moves between two
+D: squares which are adjacent to you.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:7:Subtlety
+I:0:7:8
+P:0/1
+D:Lowers the base number needed to get critical hits with melee
+D: by 2 points, when you are using a one handed weapon with the
+D: other hand free.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:8:Momentum
+I:0:8:9
+P:0/4:0/5
+D:Doubles the upper limit on the amount of strength bonus you can get
+D: with a weapon of a given weight. It becomes 1 point per 0.5 lbs.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:9:Rapid Attack
+I:0:9:10
+P:0/7:3/3
+D:Grants you an extra melee attack, but your attacks
+D: are calculated as if you had 3 points less strength and dexterity.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:10:Two Weapon Fighting
+I:0:10:11
+P:0/1:2/2
+D:Allows you to wield a one-handed weapon in your off-hand for an extra attack
+D: (calculated as if you had 3 points less strength and dexterity).
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:11:Knock Back
+I:0:11:12
+P:0/0:0/4
+D:You have a chance to knock enemies back a square in melee depending
+D: upon your effective strength and your opponent's constitution.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:12:Whirlwind Attack
+I:0:12:13
+P:0/5
+D:Allows you to attack all adjacent enemies if there are no
+D: adjacent walls or rubble.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:13:Strength
+I:0:13:20
+P:0/8:0/11
+D:You gain a point of strength.
+
+
+# Archery ---------------------------------------------
+
+N:20:Careful Shot
+I:1:0:1
+D:Halves the chance of breaking arrows.
+T:19:0:99  # Bows
+T:31:1:1   # Gloves (leather gloves only)
+
+N:21:Precision
+I:1:1:3
+D:Lowers the base number needed to get critical hits with archery
+D: from 7 to 6.
+T:19:0:99  # Bows
+T:31:1:1   # Gloves (leather gloves only)
+
+N:22:Point Blank Archery
+I:1:2:4
+P:1/0
+D:The monster you are firing at cannot get an attack of opportunity.
+T:19:0:99  # Bows
+T:31:1:1   # Gloves (leather gloves only)
+
+N:23:Versatility
+I:1:3:5
+D:If you have more skill points in archery than in melee, you gain a bonus
+D: to melee of half the difference between them.
+T:19:0:99  # Bows
+T:31:1:1   # Gloves (leather gloves only)
+
+N:24:Crippling Shot
+I:1:4:6
+P:1/1
+D:Your critical hits sometimes temporarily slow monsters
+D: (depending on the level of critical and the monster's Will).
+T:19:0:99  # Bows
+T:31:1:1   # Gloves (leather gloves only)
+
+N:25:Flaming Arrows
+I:1:5:7
+D:Your arrows do an extra die of damage against most targets,
+D: but they always break.
+T:19:0:99  # Bows
+T:31:1:1   # Gloves (leather gloves only)
+
+N:26:Rapid Fire
+I:1:6:8
+P:1/1
+D:Lets you fire two arrows per round, but they are calculated as
+D: if you had 3 points less strength and dexterity.
+T:19:0:99  # Bows
+T:31:1:1   # Gloves (leather gloves only)
+
+N:27:Dexterity
+I:1:7:10
+P:1/3:1/5
+D:You gain a point of dexterity.
+
+# Evasion ---------------------------------------------
+
+N:40:Dodging
+I:2:0:2
+D:Gives you a +3 bonus to evasion if you moved on your last
+D: turn.
+T:30:0:99  # Boots
+
+N:41:Blocking
+I:2:1:3
+D:Doubles the protection roll for your shield against all ranged
+D: attacks, and against melee as well if you waited last turn (z or 5).
+T:34:0:99  # Shields
+
+N:42:Parry
+I:2:2:4
+D:Doubles the evasion bonus granted by your primary melee weapon.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:43:Crowd Fighting
+I:2:3:5
+D:Halves the bonus opponents get for surrounding you.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:44:Leaping
+I:2:4:6
+D:You can leap over a chasm, pit, or false floor if you moved
+D: towards it the previous turn.
+T:30:0:99  # Boots
+
+N:45:Sprinting
+I:2:5:7
+P:2/0:2/4
+D:You start moving more quickly if you run four or more squares
+D: in roughly the same direction.
+T:30:0:99  # Boots
+
+N:46:Flanking
+I:2:6:8
+D:Gives you a free attack on an opponent if you step from a square
+D: which is adjacent to it, to another square which is adjacent
+D: to it.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:47:Heavy Armour Use
+I:2:7:9
+P:2/1:2/3
+D:Gives you [1dX] protection, where X is your total armour weight
+D: divided by 15 lbs.
+T:36:0:99  # Soft Armour
+T:37:0:99  # Mail
+
+N:48:Riposte
+I:2:8:10
+P:2/2
+D:It gives you a free attack on an opponent who misses you by
+D: at least 10 + the weight of your weapon (only once
+D: per round).
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:49:Controlled Retreat
+I:2:9:11
+P:2/1:2/6
+D:Gives you a free attack on an opponent when you step away
+D: from it, but only if you did not move the previous round.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:50:Dexterity
+I:2:10:20
+D:You gain a point of dexterity.
+
+# Stealth ---------------------------------------------
+
+N:60:Disguise
+I:3:0:3
+D:Halves any bonuses that awake but unwary enemies have
+D: to notice you due to you being in their line of sight.
+T:35:0:99  # Cloak
+T:36:0:99  # Soft Armour
+
+N:61:Assassination
+I:3:1:4
+D:Gives you a melee bonus against non-alert creatures
+D: equal to your stealth score.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:62:Cruel Blow
+I:3:2:5
+P:3/1
+D:Your critical hits sometimes confuse monsters with the pain
+D: (depending on the level of critical and the monster's Will).
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:63:Opportunist
+I:3:3:6
+P:3/1:0/5
+D:You get a free attack whenever an adjacent opponent
+D: moves away from you.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:64:Exchange Places
+I:3:4:7
+P:3/0:2/3
+D:Allows you to use the 'X' command to exchange places with
+D: an adjacent enemy (who gets a free attack on you as you pass).
+T:30:0:99  # Boots
+
+N:65:Vanish
+I:3:5:8
+P:3/0
+D:Gives a +10 stealth bonus towards making enemies become unwary
+D: when you are out of their line of sight.
+T:35:0:99  # Cloak
+T:36:0:99  # Soft Armour
+
+N:66:Dexterity
+I:3:6:11
+D:You gain a point of dexterity.
+
+# Perception ---------------------------------------------
+
+N:80:Eye for Detail
+I:4:0:1
+D:Gives you a bonus of +5 for finding traps and secret doors.
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+T:39:0:99  # Light Source
+
+N:81:Focused attack
+I:4:1:2
+D:Gives you a bonus of half your Perception score to your
+D: attacks if you passed the previous turn.
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+
+N:82:Keen Senses
+I:4:2:3
+D:Allows you to see enemies who are just beyond the edge of a
+D: pool of light, and gives a +5 bonus to spot 'invisible' creatures.
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+T:39:0:99  # Light Source
+
+N:83:Lore-Keeper
+I:4:3:4
+D:Lets you tell the difference between mere special items
+D: and artifacts, as well as which items are cursed.
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+
+N:84:Concentration
+I:4:4:5
+P:4/1
+D:Gives you a +1 bonus to attack for every consecutive round
+D: spent attacking the same enemy (to a maximum of Perception/2).
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+
+N:85:Bane
+I:4:5:6
+D:You receive a bonus to all skill rolls against
+D: a selected category of enemy. The bonus increases as
+D: you kill more.
+
+N:86:Lore-Master
+I:4:6:7
+P:4/3
+D:You can immediately identify every item and have full knowledge
+D: of all your opponents.
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+
+N:87:Listen
+I:4:7:8
+P:4/2
+D:Gives you a chance each turn to detect enemies that you
+D: cannot see (including around corners and through doors).
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+
+N:88:Master Hunter
+I:4:8:9
+P:4/4:4/5
+D:Gives you an attack bonus of +1 for each time you have killed
+D: an opponent of the same type (up to a maximum of Perception/4).
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+
+N:89:Grace
+I:4:9:10
+D:You gain a point of grace.
+
+# Will ---------------------------------------------
+
+N:100:Channeling
+I:5:0:2
+D:Gives you bonuses to using staves and horns
+D: (+5 to skill checks, always know charges, half voice cost).
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+
+N:101:Mind Over Body
+I:5:1:3
+D:Makes you grow hungry at just one third the normal rate.
+
+N:102:Curse Breaking
+I:5:2:4
+D:Allows you to break the curses on items when you
+D: attempt to take them off.
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+
+N:103:Inner Light
+I:5:3:5
+D:Increases the intensity of light within your light radius by 1 point
+D: (without increasing the radius).
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+T:39:0:99  # Light Source
+
+N:104:Clarity
+I:5:4:5
+D:Gives you resistance to confusion, stunning, and hallucination.
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+
+N:105:Hardiness
+I:5:5:6
+D:Gives you [1dX] additional protection, where X = Will/6.
+
+N:106:Poison Resistance
+I:5:6:7
+P:5/1:5/5
+D:Gives you resistance to poison.
+
+N:107:Strength in Adversity
+I:5:7:8
+P:5/1:5/3
+D:Gives you bonuses to Strength and Grace when seriously injured:
+D: +1 when less than or equal to 50% health, +2 when 25%.
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+T:36:0:99  # Soft Armour
+T:37:0:99  # Mail
+T:40:0:99  # Amulet
+
+N:108:Critical Resistance
+I:5:8:9
+P:5/2:5/5
+D:Raises the base number enemies need to get critical hits against
+D: you by 1 per 5 points of Will.
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+T:36:0:99  # Soft Armour
+T:37:0:99  # Mail
+T:40:0:99  # Amulet
+
+N:109:Majesty
+I:5:9:9
+P:5/0:5/3
+D:Lowers monster morale by half the difference between your Will and theirs.
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+
+N:110:Constitution
+I:5:10:12
+P:5/6:5/8
+D:You gain a point of constitution.
+
+# Smithing ---------------------------------------------
+
+N:120:Weaponsmith
+I:6:0:2
+D:Allows you to create weapons.
+T:21:8:8   # Hafted (War Hammer only)
+T:31:0:99  # Gloves
+
+N:121:Armoursmith
+I:6:1:3
+D:Allows you to create armour.
+T:21:8:8   # Hafted (War Hammer only)
+T:31:0:99  # Gloves
+
+N:122:Jeweller
+I:6:2:4
+D:Allows you to create rings, amulets, and light sources.
+T:31:0:99  # Gloves
+
+N:123:Enchantment
+I:6:3:5
+D:Allows you to create {special} items.
+T:21:8:8   # Hafted (War Hammer only)
+T:31:0:99  # Gloves
+
+N:124:Artistry
+I:6:4:6
+P:6/0:6/1
+D:Allows you to create items with bonuses to attack, evasion,
+D: damage, or protection.
+T:21:8:8   # Hafted (War Hammer only)
+T:31:0:99  # Gloves
+
+N:125:Artifice
+I:6:5:8
+P:6/2:6/3
+D:Allows you to create highly customised artifacts.
+T:21:8:8   # Hafted (War Hammer only)
+T:31:0:99  # Gloves
+
+N:126:Masterpiece
+I:6:6:9
+P:6/3
+D:Allows you to create items that are more difficult than usual.
+D: Doing so drains your smithing skill for each excess point.
+T:21:8:8   # Hafted (War Hammer only)
+T:31:0:99  # Gloves
+
+N:127:Grace
+I:6:7:10
+P:6/5
+D:You gain a point of grace.
+
+# Song ---------------------------------------------
+
+N:140:Song of Elbereth
+I:7:0:1
+D:Causes fear in nearby servants of Morgoth.
+T:33:0:99  # Crown
+T:40:0:99  # Amulet
+
+N:141:Song of Slaying
+I:7:1:2
+D:Gives you a bonus to attack that increases
+D: for each kill, and then fades away over time.
+T:33:0:99  # Crown
+T:40:0:99  # Amulet
+
+N:142:Song of Silence
+I:7:2:3
+D:Dampens all nearby sounds, making it harder for
+D: opponents to hear you and each other.
+T:33:0:99  # Crown
+T:40:0:99  # Amulet
+
+N:143:Song of Freedom
+I:7:3:4
+P:7/0
+D:Discovers and overcomes nearby doors, traps, and rubble.
+T:33:0:99  # Crown
+T:40:0:99  # Amulet
+
+N:144:Song of the Trees
+I:7:4:5
+D:Increases your light level by 1 point per 5 points
+D: of Song.
+T:33:0:99  # Crown
+T:40:0:99  # Amulet
+
+N:145:Song of Aule
+I:7:5:6
+D:Gives you a bonus of +1 to Smithing per 4 points
+D: of Song.
+T:33:0:99  # Crown
+T:40:0:99  # Amulet
+
+N:146:Song of Staying
+I:7:6:7
+P:7/1:7/4
+D:Gives you a bonus of +X to Will and [1dX] protection,
+D: where X = Song/3.
+T:33:0:99  # Crown
+T:40:0:99  # Amulet
+
+N:147:Song of Lorien
+I:7:7:8
+P:7/2
+D:Gradually puts nearby opponents to sleep.
+T:33:0:99  # Crown
+T:40:0:99  # Amulet
+
+N:148:Song of Este
+I:7:8:9
+P:7/4
+D:Provides a bonus to your regeneration and your recovery
+D: from all negative timed effects (such as confusion or poison)
+D: with every 4 points of Song.
+T:33:0:99  # Crown
+T:40:0:99  # Amulet
+
+N:149:Song of Sharpness
+I:7:9:10
+P:7/1:7/5
+D:Your attacks ignore 2% of your opponent's armour per point of Song.
+D: Works for edged weapons, axes, polearms, and arrows.
+T:33:0:99  # Crown
+T:40:0:99  # Amulet
+
+N:150:Song of Mastery
+I:7:10:11
+P:7/0:7/7
+D:Occasionally prevents nearby opponents from moving or acting.
+T:33:0:99  # Crown
+T:40:0:99  # Amulet
+
+N:151:Woven Themes
+I:7:11:12
+D:Allows you to add a 'minor theme' to your song. This means you
+D: can have the effect of a second song, but at half your normal Song score.
+T:33:0:99  # Crown
+T:40:0:99  # Amulet
+
+N:152:Grace
+I:7:12:15
+D:You gain a point of grace.
+

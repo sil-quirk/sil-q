@@ -1,0 +1,342 @@
+# File: pref-mac.prf
+
+#
+# This file is included by "pref.prf" when "main-mac.c" is used.
+#
+# See "lib/help/command.txt" and "src/files.c" for more information.
+#
+#
+# Macro Trigger configuration
+#
+# T:<trigger template>:<modifiers>:<modifier name1>:<modifier name2>:....
+# '&' in <trigger template> specifies location of modifier character.
+# '#' in <trigger template> specifies location of key code.
+#
+# If <trigger template> is null string, all trigger definition will be cleared.
+
+T:&x#:CSOX:control-:shift-:option-:command-
+
+# T:<trigger name>:<keycode>:<keycode with shiftkey>
+# '\' in <trigger name> is escape character.
+
+#
+# These keycodes come from <HIToolbox/Events.h>.
+
+T:KP_Decimal:41
+T:KP_Multiply:43
+T:KP_Add:45
+T:KP_Clear:47
+T:KP_Divide:4B
+T:KP_Enter:4C
+T:KP_Subtract:4E
+T:KP_Equal:51
+T:KP_0:52
+T:KP_1:53
+T:KP_2:54
+T:KP_3:55
+T:KP_4:56
+T:KP_5:57
+T:KP_6:58
+T:KP_7:59
+T:KP_8:5B
+T:KP_9:5C
+T:F1:7A
+T:F2:78
+T:F3:63
+T:F4:76
+T:F5:60
+T:F6:61
+T:F7:62
+T:F8:64
+T:F9:65
+T:F10:6D
+T:F11:67
+T:F12:6F
+T:F13:69
+T:F14:6B
+T:F15:71
+T:Help:72
+T:Home:73
+T:Page_Up:74
+T:Delete:75
+T:End:77
+T:Page_Down:79
+T:Left:7B
+T:Right:7C
+T:Down:7D
+T:Up:7E
+T:Backspace:33
+
+T:A:00
+T:S:01
+T:D:02
+T:F:03
+T:H:04
+T:G:05
+T:Z:06
+T:X:07
+T:C:08
+T:V:09
+T:B:0B
+T:Q:0C
+T:W:0D
+T:E:0E
+T:R:0F
+T:Y:10
+T:T:11
+T:1:12
+T:2:13
+T:3:14
+T:4:15
+T:6:16
+T:5:17
+T:=:18
+T:9:19
+T:7:1A
+T:-:1B
+T:8:1C
+T:0:1D
+T:]:1E
+T:O:1F
+T:U:20
+T:[:21
+T:I:22
+T:P:23
+T:L:25
+T:J:26
+T:':27
+T:K:28
+T:::29
+T:\:2A
+T:,:2B
+T:/:2C
+T:N:2D
+T:M:2E
+T:.:2F
+T:`:32
+
+
+# Hack: For some reason Enter is producing a ^C character instead of a return.
+#       This macro changes that send a return instead.
+A:\r
+P:^C
+
+
+##### Simple Macros #####
+
+# Ideally I'd have Option-number-keys and Control-number-keys work too
+# but I don't know the keycodes for the number-keys (on the top row).
+
+###########################
+#
+# Directed Walking
+# 
+# 789
+# 4 6  - these walk in the specified direction
+# 123
+#
+#  5   - rest
+
+A:0
+P:\[KP_0]
+
+A:1
+P:\[KP_1]
+
+A:2
+P:\[KP_2]
+P:\[Down]
+
+A:3
+P:\[KP_3]
+
+A:4
+P:\[KP_4]
+P:\[Left]
+
+A:5
+P:\[KP_5]
+
+A:6
+P:\[KP_6]
+P:\[Right]
+
+A:7
+P:\[KP_7]
+
+A:8
+P:\[KP_8]
+P:\[Up]
+
+A:9
+P:\[KP_9]
+
+
+###########################
+#
+# Shift-Direction -- Directed Running
+# 
+# 789
+# 4 6  - these run in the specified direction
+# 123
+#
+#  5   - rest until needed
+
+A:.1
+P:\[shift-KP_1]
+
+A:.2
+P:\[shift-KP_2]
+P:\[shift-Down]
+
+A:.3
+P:\[shift-KP_3]
+
+A:.4
+P:\[shift-KP_4]
+P:\[shift-Left]
+
+A:Z
+P:\[shift-KP_5]
+
+A:.6
+P:\[shift-KP_6]
+P:\[shift-Right]
+
+A:.7
+P:\[shift-KP_7]
+
+A:.8
+P:\[shift-KP_8]
+P:\[shift-Up]
+
+A:.9
+P:\[shift-KP_9]
+
+
+###########################
+#
+# Option-Direction -- Directed firing from the 1st quiver
+# 
+# 789
+# 4 6  - these fire in the specified direction
+# 123
+#
+# 5/0   - picks the target or closest monster and fires at it
+#
+# Known bug on UK Keyboard Macs, where Option-3 gives # symbol instead.
+# In this case Option-3 doesn't work and you need Shift-3
+
+
+A:\\ff
+P:\[option-KP_0]
+
+A:\\f1
+P:\[option-KP_1]
+
+A:\\f2
+P:\[option-KP_2]
+P:\[option-Down]
+
+A:\\f3
+P:\[option-KP_3]
+
+A:\\f4
+P:\[option-KP_4]
+P:\[option-Left]
+
+A:\\ff
+P:\[option-KP_5]
+
+A:\\f6
+P:\[option-KP_6]
+P:\[option-Right]
+
+A:\\f7
+P:\[option-KP_7]
+
+A:\\f8
+P:\[option-KP_8]
+P:\[option-Up]
+
+A:\\f9
+P:\[option-KP_9]
+
+
+# Option-z -- Fire from 1st quiver at target, or nearest monster
+
+A:\\ff
+P:\[option-z]
+
+
+###########################
+#
+# Control-Direction -- Interact with terrain in chosen direction
+# 
+# 789
+# 456
+# 123
+
+
+A:\\/1
+P:\[control-KP_1]
+
+A:\\/2
+P:\[control-KP_2]
+P:\[control-Down]
+
+A:\\/3
+P:\[control-KP_3]
+
+A:\\/4
+P:\[control-KP_4]
+P:\[control-Left]
+
+A:\\/5
+P:\[control-KP_5]
+
+A:\\/6
+P:\[control-KP_6]
+P:\[control-Right]
+
+A:\\/7
+P:\[control-KP_7]
+
+A:\\/8
+P:\[control-KP_8]
+P:\[control-Up]
+
+A:\\/9
+P:\[control-KP_9]
+
+
+
+# Diagonals via 'fn' key (useful for laptops)
+
+A:7
+P:\[Page_Up]
+
+A:1
+P:\[Home]
+
+A:3
+P:\[Page_Down]
+
+A:9
+P:\[End]
+
+
+# Running on diagonals via 'fn' key (useful for laptops)
+
+A:.7
+P:\[shift-Page_Up]
+
+A:.1
+P:\[shift-Home]
+
+A:.3
+P:\[shift-Page_Down]
+
+A:.9
+P:\[shift-End]
+

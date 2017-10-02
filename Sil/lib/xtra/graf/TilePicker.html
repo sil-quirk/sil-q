@@ -1,0 +1,153 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<title>Ed's Tile Picker</title>
+
+	<script type="text/javascript">
+		var tw, th;
+		var x, y;
+
+		function toggleOptions() {
+			if (divOptions.style.display == "none") {
+				divOptions.style.display = "";
+				divImg.style.display = "none";
+				divSelection.style.display = "none";
+				txtIndex.value = "";
+				btnMode.innerHTML = "Ready";
+				header.innerHTML = "Options";
+			}
+			else {
+				divOptions.style.display = "none";
+				img.src = txtImage.value;
+				divImg.style.display = "";
+				divSelection.style.display = "";
+				btnMode.innerHTML = "Options";
+				header.innerHTML = "Pick a tile!";
+				tw = parseInt(txtTileWidth.value);
+				th = parseInt(txtTileHeight.value);
+				reticule.style.width = tw + "px";
+				reticule.style.height = th + "px";
+			}
+		}
+
+		function imgMoused(event, sender) {
+			x = parseInt((event.x - img.x + document.body.scrollLeft) / tw);
+			y = parseInt((event.y - img.y + document.body.scrollTop) / th);
+			reticule.style.left = (x * tw + img.x) + "px";
+			reticule.style.top = (y * th + img.y) + "px";
+			reticule.style.display = "";
+		}
+
+		function reticuleMoused(event, sender) {
+			reticule.style.display = "";
+		}
+
+		function imgClicked(event, sender) {
+			var result;
+			if (rbLTR.checked) {
+				result = y * parseInt(img.width / tw) + x;
+				if (!chkZero.checked)
+					result += 1;
+			}
+			else if (rbTopdown.checked) {
+				result = x * parseInt(img.height / th) + y;
+				if (!chkZero.checked)
+					result += 1;
+			}
+			else if (rbXY.checked) {
+				result = x + ", " + y;
+			}
+			copyToClipboard(result);
+		}
+
+		function copyToClipboard(text) {
+			txtIndex.value = text;
+			if (document.execCommand) // IE, chrome
+			{
+				txtIndex.select();
+				document.execCommand("Copy");
+				return true;
+			}
+			else if (unsafeWindow) // firefox, mozilla
+			{
+				unsafeWindow.netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+				var clipboardHelper = Components.classes["@mozilla.org/widget/clipboardhelper;1"].getService(Components.interfaces.nsIClipboardHelper);
+				clipboardHelper.copyString(text);
+				return true;
+			}
+			else // no can do :(
+			{
+				return false;
+			}
+		}		
+	</script>
+
+</head>
+<body style="background-color: Black; color: white; font-family: Sans-Serif">
+	<h1>
+		Ed's Tile Picker
+	</h1>
+	<h2 id="header">
+		Options
+	</h2>
+	<div id="divOptions">
+		<table>
+			<tr>
+				<td>
+					Image
+				</td>
+				<td>
+					<input id="txtImage" type="text" />
+				</td>
+			</tr>
+			<tr>
+				<td>
+					Tile Size
+				</td>
+				<td>
+					<input id="txtTileWidth" type="text" value="32" />
+					x
+					<input id="txtTileHeight" type="text" value="32" />
+					px
+				</td>
+			</tr>
+			<tr>
+				<td>
+					Index Mode
+				</td>
+				<td>
+					<input id="rbLTR" type="radio" value="Left to Right" name="rblIndexMode" checked="checked" />Left
+					to Right<br />
+					<input id="rbTopdown" type="radio" name="rblIndexMode" value="Top Down" />Top Down
+					<br />
+					<input id="rbXY" type="radio" name="rblIndexMode" value="X, Y" />X, Y
+				</td>
+			</tr>
+			<tr>
+				<td>
+					Zero Indexed
+				</td>
+				<td>
+					<input id="chkZero" type="checkbox" />
+				</td>
+			</tr>
+		</table>
+	</div>
+	<div>
+		<button id="btnMode" onclick="toggleOptions();">
+			Ready</button></div>
+	<div id="divSelection" style="display: none">
+		Last Tile Selected: <input type="text" id="txtIndex" disabled="disabled"></label><br />
+		This value is copied into the clipboard if your browser supports this functionality.<br />
+		Note: You may need to set your browser's zoom level to 100% for the selection to work properly.
+	</div>
+	<div id="divImg">
+		<img id="img" onmousemove="imgMoused(event, this)" onmouseout="reticule.style.display = 'none';"
+			onclick="imgClicked(event, this);" style="border: solid 1px white" />
+		<div id="reticule" style="display: none; border: solid 1px white; position: absolute;
+			left: 0px; top: 0px;" onmousemove="reticuleMoused(event, this);" onclick="imgClicked(event, this);">
+		</div>
+	</div>
+	<div id="zoom_level_detector" style="left:100px;height:1em;position:absolute;font-size:16px;"></div>
+</body>
+</html>

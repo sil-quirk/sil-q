@@ -1,0 +1,46 @@
+#!/bin/sh
+
+# Describe attempt
+echo "Launching Sil..."
+sleep 2
+
+# Main window
+SIL_X11_FONT_0=10x20;   export SIL_X11_FONT_0
+SIL_X11_AT_X_0=0;       export SIL_X11_AT_X_0
+SIL_X11_AT_Y_0=0;       export SIL_X11_AT_Y_0
+
+# Inventory window
+SIL_X11_FONT_1=6x12;    export SIL_X11_FONT_1
+SIL_X11_AT_X_1=810;     export SIL_X11_AT_X_1
+SIL_X11_AT_Y_1=217;     export SIL_X11_AT_Y_1
+SIL_X11_COLS_1=70;      export SIL_X11_COLS_1
+SIL_X11_ROWS_1=25;      export SIL_X11_ROWS_1
+
+# Equipment window
+SIL_X11_FONT_2=6x12;    export SIL_X11_FONT_2
+SIL_X11_AT_X_2=810;     export SIL_X11_AT_X_2
+SIL_X11_AT_Y_2=0;       export SIL_X11_AT_Y_2
+SIL_X11_COLS_2=70;      export SIL_X11_COLS_2
+SIL_X11_ROWS_2=16;      export SIL_X11_ROWS_2
+
+# Combat Rolls window
+SIL_X11_FONT_3=6x12;    export SIL_X11_FONT_3
+SIL_X11_AT_X_3=810;     export SIL_X11_AT_X_3
+SIL_X11_AT_Y_3=545;     export SIL_X11_AT_Y_3
+SIL_X11_COLS_3=70;      export SIL_X11_COLS_3
+SIL_X11_ROWS_3=18;      export SIL_X11_ROWS_3
+
+# Monster Recall window
+SIL_X11_FONT_4=6x12;    export SIL_X11_FONT_4
+SIL_X11_AT_X_4=0;       export SIL_X11_AT_X_4
+SIL_X11_AT_Y_4=519;     export SIL_X11_AT_Y_4
+SIL_X11_COLS_4=133;     export SIL_X11_COLS_4
+SIL_X11_ROWS_4=21;      export SIL_X11_ROWS_4
+
+# Could add more windows here...
+
+# Gamma correction
+SIL_X11_GAMMA=142;      export SIL_X11_GAMMA
+
+# Launch SIL
+./sil -mx11 -- -n5 &

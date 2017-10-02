@@ -1,0 +1,995 @@
+- Sil 1.3 ----------------------------------------------------------------------------------------------
+
+- broke savefile compatibility
+	- sorry about this
+	- it needs to happen every now and then and I schedule it for the 1.X.0 releases
+
+- monsters
+	- large changes to the early game monsters
+		- many new monsters
+		- replaced many of the more generic early monsters as many players had requested
+		- a few changes to some later game monsters
+	- stopped the Orc warrior "chain charging"
+		- it used to be that swapping with another orc counted as movement, setting up a charge
+		- it no longer does (in line with how the player abilities work)
+		- also anything that makes them skip a turn interrupts their charging
+			- (such as when they become aware of you)
+	- Gave Boldog resistance to fear (from his spear)
+
+- new mac version
+	- replaced the old Carbon version with a Cocoa version
+	- the old version was really out of date and wouldn't compile or run on recent systems
+	- this should also remove some stubborn old bugs (see bugfixes)
+	- this version isn’t perfect (e.g. some minor problems with displaying text)
+		- but it does allow Sil to run on all new systems
+
+- objects
+	- horns
+		- no longer require a will check to use
+		- this is because they all require a will check to have an effect anyway
+
+- abilities
+	- made Leaping easier to acquire
+		- it no longer has a pre-requisite
+		- it now acts as a pre-requisite to Sprinting
+	- Channelling now halves the voice cost for blowing horns
+
+- smithing
+	- now allows artefact rings to have bonuses to attack, evasion, and protection
+		- (since there are regular rings with these)
+	- removed the ability to add Grace to artefact cloaks
+		- (just a minor nerf to the extreme +Grace smiths)
+
+- tunnelling
+	- attempting to tunnel but failing now takes a turn if you are confused
+		- otherwise control-dir in a corridor would effectively overcome confusion
+
+- bugfixes
+	- stopped Great Cold-Drakes and Scatha the Worm having radius 40 light (!)
+	- fixed the 'could not find a vault at 100ft depth' bug
+	- control-t no longer aims successfully for throwing while confused
+	- smithing gloves of treachery now correctly forces a <-1> penalty to strength
+	- now correctly displays 'cut' status on the first turn on a new dungeon level
+	- fixed a bug where channeling's +5 bonus didn't apply to horns of force
+	- hopefully fixed various bugs with the Mac version
+		- crash on startup
+		- requiring admin password sometimes when opening saved games
+
+
+- Sil 1.2.1 ----------------------------------------------------------------------------------------------
+
+- monster songs
+	- made Morgoth's Song of Piercing a bit easier to resist (+5 bonus)
+	- fixed Morgoth's Song score to 20
+		- it no longer increases by 5 when his crown comes off like his Will does
+	- the Song of Silence now reduces monsters' Song Score by a quarter of the Player's Song Score
+
+- abilities
+	- reworked some of the pre-requisites for the Will Abilities
+		- notably Hardiness is less essential and Constitution is a bit harder to get
+	- added Parry as an alternate pre-req for Two Weapon Fighting
+	- increased the Song skill requirement for the point of Grace from 13 to 15
+
+- smithing
+	- you can now try out creating any item without the required smithing abilities
+		- things that you can't do without an additional ability are shown in red
+	- there are no known bugs with smithing remaining
+	- modified the stat costs for horns (used to all cost grace)
+
+- dungeon generation
+	- significantly more flexibility in vault generation
+		- vaults can now appear rotated as well as reflected
+		- vaults now can have flags for extra traps, webs, rotation, debugging
+	- improved trap placement
+		- now much more likely to appear in interesting places
+		- so it can now be worth actually searching for them in some cases
+	- chasms can no longer be generated before 150 ft 
+		- (to make sure you can get to the guaranteed forge!)
+	- halved the chance of locked doors
+		- now 8% of all doors are locked, 4% are jammed
+
+- dungeon features
+	- chasms
+		- staffs of freedom and song of freedom can now close chasms
+			- but the difficulty is extremely high: 
+				- 20 + number of adjacent chasm squares for the staff
+				- 25 + number of adjacent chasm squares for the song
+			- it therefore tends to close in from the edges
+	- secret doors
+		- tunnelling into them now gives you a (random) closed door instead of a broken door
+		- to avoid it sometimes being better to not find a secret door than to find it
+	- broken doors
+		- changed their symbol to '.', so they are more distinct from open doors and less confusing
+
+- objects
+	- made herbs of restoration a bit more common early
+
+- artefacts
+	- made the new mithril artefacts (Starlight and Silverhand) more rare (as originally intended)
+
+- bugfixes
+	- fixed two smithing bugs
+		- one had to do with re-choosing an enchantment after modifying the numbers
+		- one had to do with abilities disappearing or duplicating on artefacts
+	- fixed a terrible bug with the monster ability 'Exchange Places' 
+		- which could cause you to be sent out of the dungeon if you killed the cat warrior who was exchanging
+	- removed one of the messages when automatically picking up a thrown/fired item
+	- fixed a bug where cancelling some but not all free attacks with a '!a' weapon didn't use up any time
+	- fixed a bug where Woven Themes was having the effect of the removed ability Unwavering Voice
+	- players were (again) getting the Opportunist free attack when an enemy was pushed with Knock Back
+	- no longer takes any time to tunnel if you aren't going to be successful
+		- i.e. it is more like realising you can't, than like trying and failing
+	- fleeing monsters can no longer get free attacks of any kind
+	- monsters that are frozen by song of mastery no longer get free attacks of any kind
+	- can now automatically identify the Ring of Barahir (and perhaps others) by the Ability it grants
+
+
+- Sil 1.2.0 ----------------------------------------------------------------------------------------------
+
+- broke savefile compatibility
+	- sorry about this
+	- it needs to happen every now and then and I schedule it for the 1.X.0 releases
+
+- many of the small improvements in this version are from the Sil variant: mpa-sil
+	- I've noted this below where I remember -- apologies for those I've forgotten to credit
+
+- monster abilities
+	- monsters can now have some of the abilities that the player can get
+		- such as Charge, Cruel Blow, etc.
+	- Morgoth and Gorthaur have songs of power
+
+- added chasms to the dungeon
+	- these block movement of you and most enemies, but not sight or line of fire
+
+- added a player AI inspired by the Angband Borg
+	- called the 'automaton'
+	- it serves no real purpose, but people might want to try experimenting with its code and parameters
+		- and see how deep they can get it to go
+
+- abilities
+	- Throwing Mastery now prevents thrown items from breaking
+	- Two Weapon Fighting no longer allows you to wield 'hand and a half' weapons in your off-hand
+	- Knock Back
+		- now requires there to be no monster in the square the creature is knocked into
+			- so orcs don't get swapped in corridors etc
+		- it now takes weapon weight into account in determining your effective strength
+			- so you will want a heavy enough weapon to get your full strength bonus
+	- Point Blank Shot now completely prevents the attack of opportunity from the
+	  enemy you just shot at, instead of 50% chance for all adjacent enemies
+	- Skill requirements reduced on several early Evasion Abilities
+	- Added the Evasion Ability: Leaping 
+	- Flanking no longer requires Dodging (though the latter still works well with it)
+	- Heavy Armour use now has an alternative pre-requisite of Crowd Fighting
+	- Lore-master no longer identifies chest traps (via mpa-sil)
+	- Majesty now takes the monster's Will into account
+		- instead of reducing morale by Will/4...
+		- it reduces it by half the difference between your Will and theirs
+	- Song of Sharpness now lowers enemy protection by 2% per point of Song
+		- this is usually a smaller effect than the old rules
+	- Song of Mastery is now slightly cheaper to make the skill point progression simpler
+	- Unwavering Voice has been removed
+		- having non-song abilities in the Song tree limits the ability for people to learn many songs
+		- and this was the weakest one in terms of game mechanics
+	- Woven Themes now makes the minor theme use (Song / 2) instead of (Song - 5)
+		- this makes it worse in most cases
+		- but this means more people will use Song abilities to get actual songs
+		- made slightly more expensive to make the skill point progression simpler
+
+- smithing
+	- can now create horns using 'Jeweller'
+	- the difficulties of making mithril items have been reduced a lot
+	- 'slays' no longer cost a strength point to add to a weapon
+		- it was too steep a cost for the early game, making no-one add them
+	- artefact arrows now have half the difficulty
+		- it was crazy costing you as much for 1 arrow as for 24 or a regular equipment piece
+	- fixed several of the smithing bugs
+		- the game is now clear that you can only use one of Enchant or Artifice per item
+			- this removes the worst smithing bugs
+		- fixed a bug with artefact rings and amulets forgetting their special bonuses sometimes
+		- I think the only remaining bugs are glitches surrounding abilities on artefacts disappearing or duplicating
+			- the work around is to only add abilities to artefacts immediately before the end
+
+- items
+	- weights	
+		- randomised weights for weapons and armour are now less fine grained (via mpa-sil)
+			- they come in multiples of 0.5 lb instead of 0.1 lb
+		- other weights tweaked a bit to match (e.g. potions from 0.4 lb to 0.5 lb)
+	- increased chance of generating out of depth items from 1 in 10 to 1 in 7
+	- identification
+		- there is no longer a perception check when identifying items by use 
+			- (you automatically pass if you get the opportunity)
+		- identification of passive abilities now occurs twice as quickly
+	- reduced the late game frequencies of many potions/herbs
+		- people typically had far too many of them by the throne room
+	- horns
+		- changed trumpets to horns
+			- changed colours, descriptions, adjectives
+			- dramatically reduced weight
+		- added the Horn of Force, which knocks back enemies in its path
+	- vampiric weapons no longer drain life from nonliving monsters
+	- herbs of rage
+		- now make you completely immune to fear
+			- previously it was just resistance, but the possibility of frightened rage was silly
+		- you can no longer identify monsters via the recall window
+	- staffs of treasures now display non-subdued Deathblades
+	- bows
+		- Shortbows now native to 50 ft instead of 100 ft
+			- so archers should be a bit easier to start
+		- Longbows
+			- now native to 150 ft instead of 350 ft
+				- to give players a better choice of archery style through the game
+			- no longer get the [-1] penalty
+				- it was a bit fiddly and too few archers were using them anyway
+		- Dragon-horn Bows are now 1d9 2.0lb
+			- a bit like deathblades or the old longbows
+			- they should be more tempting to the majority of archers who find them now
+	- throwing items (daggers, spears, throwing axes)
+		- now found in slightly larger stacks
+		- removed some of the special item types they could get that required wielding
+		- made an automatic throwing command: control-t
+			- throws the first throwing item in your inventory at your target or closest monster
+			- akin to "ff"
+	- artefacts
+		- made the Greatsword of Saithnar a bit less good
+		- made the Shortsword of Galadriel rarer
+		- tweaked the stats of the Helm of Curufin
+			- it had (-1) instead of [-1] only because 5 years ago that was how all helms were...
+		- the Cloak of Maglor now grants Song of the Trees
+			- as Unwavering Voice was removed
+
+- display
+	- molds are now always visible once sighted for the first time (via mpa-sil?)
+	- made the darkest shade of grey (d1) a bit darker
+		- needed to tell it apart more clearly from the others
+	- visual display of hits on monsters changed
+		- there is no longer a colour difference when doing more than 10 damage
+		- instead, there is a colour difference when killing an opponent
+	- significantly improved the self knowledge screen to show the quantitative effects
+		- including the details of stacked levels of an attribute
+		- now also identifies items if the item granting the power is known
+			- (e.g. slay orc on melee weapon) (via mpa-sil)
+	- weapon and armour weights are now shown when you walk over them (via mpa-sil?)
+	- gave more detail in the in-game descriptions of some abilities (via mpa-sil)
+	- if you are in a pit or web, this is now displayed in the status line
+	- adjusted the 'notes' display
+		- to let it fit slightly longer notes
+		- and changed self-made notes so that the last few words don't automatically flow to the next line
+			- which makes it easier to manually write long multi-line notes without looking ragged
+	- falls now correctly display the character of the thing that made you fall in the combat rolls window
+		- e.g. the staircase or the false floor
+	- abbreviate "Health" and "Voice" when you have more than 100 points of it (via mpa-sil)
+
+- interface
+	- removed "always pickup" and "prompt before picking things up" options
+		- the former let you get free turns and wasn't really any easier than manual pickup
+			- (since you want to pick up less than half of things and need a keystroke either way)
+		- the latter was only needed with the former
+	- added an user interface option to 'Forgo bonus attacks on unwary enemies'
+		- this used to be always on, but can now be toggled
+		- I've made sure it covers *all* bonus attacks (I'd missed Rapid Fire and maybe another)
+	- targetting
+		- firing an arrow 'ff' when the target is a location that is now out of line of fire, no longer fires
+		- added an automatic throwing command that throws the first throwing item in inventory at the first target
+		- both firing and throwing no longer automatically choose a target if it is out of range
+	- you can now inscribe your melee weapon with "!a" somewhere in the inscription (via mpa-sil?)
+		- this will trigger a warning every time you try to attack with it
+		- good for pacifists, extreme stealth characters, and smithing equipment
+	- you will also be similarly warned if trying to attack with a shovel or bare-handed
+	- monster memory now explains that touch attacks ignore armour
+	- you are notified when entering greater vaults (via mpa-sil)
+
+- monsters
+	- unified how monster mana works
+		- they each have a capacity of 15 points of 'mana'
+		- it regenerates 1 point per round (if not singing)
+		- casting a spell uses 10
+		- starting a song uses 1 per round 
+			- and monsters only decide to start if they have at least 10
+	- made the check for monsters to bash down doors the same as for the player
+		- I don't know how this had got out of sync
+		- it is now easier for monsters to bash doors
+	- allowed weaker monsters to rarely (1 in 10) push past stronger ones
+		- necessary for the new pathfinding code
+	- orc warriors
+		- now come in smaller groups
+		- also have the Ability 'Charge'
+	- easterlings
+		- easterling archers
+			- their longbows now do 2d7 instead of the old-fashioned 1d11
+		- easterling warriors
+			- have the Ability 'Flanking'
+		- Uldor, the Accursed is now an archer rather than a melee specialist
+			- makes him more different, and good to have an archer unique
+			- has the Ability 'Crippling Shot'
+		- Ulfang, the Black
+			- has the Ability 'Opportunist'
+		- Maeglin
+			- has the Ability 'Riposte'
+	- cats
+		- cat warriors
+			- have the Ability 'Exchange Places'
+		- Tevildo
+			- has the Ability 'Cruel Blow'
+			- and has melee reduced a little to compensate
+	- trolls
+		- all types have the Ability 'Knock Back'
+		- Dagorhir, the Elfbane
+			- now has the Ability 'Elf-Bane'
+			- his base att/evn was lowered a bit to compensate
+	- worm masses
+		- now become unwary properly when you are far enough away (like other monsters)
+		- since they don't breed when unwary, this should help with worm mass explosions
+		- their crawl attacks no longer halve your armour (unneeded complexity)
+			- but I've slightly increased damage to partially compensate
+	- raukar
+		- sulraukar are now easier to kill
+			- reduced evasion and protection
+		- ringraukar
+			- increased damage
+		- kemenraukar
+			- reduced evasion
+			- adjusted their AI slightly to weakly prefer open space to breaking through a wall
+	- shadow spiders
+		- reduced health (slightly), evasion, and melee
+		- they seemed to be a bit too tough, but you will still want to remember to run away!
+	- Thuringwethil is now coloured red to make her more distinct
+	- Gorthaur
+		- has gained a Song
+	- Morgoth
+		- has gained two Songs
+		- and a point of Con to make him slightly more resilient
+
+- vaults
+	- added many new vaults, including many designed by Clouded and some by HallucinationMushroom (from the Forum)
+	- made vaults a little more common, including earlier in the dungeon
+	- removed iron walls (a.k.a. permanent rock)
+		- it wasn't really needed and we weren't doing anything interesting with it
+
+- traps
+	- removed amnesia gas traps due to player frustration
+	- removed flame traps from chests as they just encouraged dropping your flammable goods (via mpa-sil)
+
+- other
+	- digging
+		- you no longer need to be wielding a digger to dig with it
+			- carrying it in your backpack is enough
+			- this saves some turns (and tedium) when digging
+			- but to balance this digging now provokes attacks of opportunity from adjacent enemies (like archery)
+		- the strength requirements have been changed (via mpa-sil)
+			- you now need Str 1 to clear rubble, Str 2 to break quartz, and Str 3 to break granite
+			- it no longer depends upon the digger weight (as there was no clean way to do so)
+	- stealth
+		- reduced the difficulty of having monsters lose track of you (become unwary again)
+			- previously you had to beat them at their perception roll by 30
+			- now it is by 25
+			- Vanish still give +10 to this roll
+		- passing the turn in stealth mode doesn't suffer the speed penalty
+			- so it is no longer advantageous to toggle stealth mode on and off if you want to pass
+			- the word 'slow' is still displayed but that relates to the next action, not the last one
+	- unified and clarified the stacking behaviour of numerous effects on the player and monsters
+		- almost everything that can stack, does stack
+			- all temporary effects (except entrancement): add new duration to the existing duration
+			- speed: stacks but the final score is limited to be between 1 and 3
+			- elemental resistances: x levels of (net) resistance means damage/x
+			                         x levels of (net) vulnerability means damage*x
+			- sustains: +10x bonus to Will check
+			- resist fear, blindness, confusion, stun, hallucination: +10x bonus to Will check
+			- free action: +10x bonus to Will check
+			- see invisible: +10x bonus to Perception check
+			- aggravate: unwary monsters get +10x to perception check
+			- regeneration: your regeneration rate is (1 + x) times normal
+			- danger: monsters are generated as x levels deeper
+			- cowardice: damage threshold to trigger fear is 10/x
+			- haunted: x% chance per turn of generating a wraith
+			- hunger: each level triples the rate, each level of slow digestion divides it by three.
+			- sharpness: Amount from song (song*2 %) is added to amount from weapon (0%, 50%, or 100%)
+			- slays/brands: each valid one adds a die of damage
+			- light: your equipment levels add up to produce your light radius
+				- light from sources on the floor, or monsters, or lit rooms, add their light levels on that square
+		- things that don't stack
+			- tunnelling: you tunnel with the best digger available, multiple diggers don't stack
+			- abilities: multiple copies of an Ability (such as Sprinting) don't stack
+			- entrancement: cannot affect you when you are already entranced
+		- monster effects
+			- morale effects: all add together
+			- temporary effects: add new duration to the existing duration
+	- the extra deep monsters generated during the escape now come from a wider range of levels
+		- to add more variety to the escape
+	- you no longer gain double experience for finding artefacts and unique monsters
+		- it was a bit unnecessary...
+	- removed the 'crown' screen at the end of the game
+		- it was left-over from Angband and seemed out of place
+		- if enough people want something like that, perhaps a better version could be added
+
+- Dungeon
+	- more stairs on the really big levels
+	- more chance that a shaft is placed instead of a stair
+	- these things should make the escape a bit faster
+
+- bugfixes
+	- chests weren't generating their contents properly
+	- minor changes to some vaults to stop generating chests in locations where their items would disappear
+	- off-hand weapons were using the wrong damage sides when making a charge attack
+	- the boots of Irime now give the right self-knowledge text
+	- when extra deep monsters are generated on a level in the pursuit, this no longer includes territorial ones
+	- you can no longer see what items a creature is standing on if you detect it with staff of foes or listen
+	- you can no longer see what items a creature is carrying unless you can see its square directly
+	- monsters that can't use stairs will no longer try to flee to them
+	- fixed the problem in debug mode where looking at newly generated monsters could print garbage strings
+	- fixed the game taking a turn when declining to attack during the 'truce'
+	- fixed the game taking a turn when you aborted an attempt to blow a horn (via mpa-sil)
+	- fixed the game giving a turn of poison/regeneration/etc when you save via Control-X (!)
+	- fixed a bug with two-weapon fighting where the off-hand penalty was only (-2) (via mpa-sil)
+	- fixed a bug with removing autoinscriptions from one item type accidentally removing all of them (via mpa-sil)
+	- off-hand weapon weight was counting for heavy armour use (via mpa-sil)
+	- Feanorian lamps and lesser jewels granting brightness now auto-identify properly
+
+
+- Sil 1.1.1 ----------------------------------------------------------------------------------------------
+
+- abilities
+	- Stun has been removed
+		- it was the least interesting melee ability and makes way for a new one:
+	- Momentum is a new Melee ability
+		- it allows you to use your strength to full effect on lighter melee weapons
+		- it works by doubling the effective weapon weight for the purposes of capping the str bonus
+	- Cruel Blow and Crippling Shot now allow the monster to make a Will check to avoid the effect
+		- the difficulty is 4 times your level of critical hit
+		- you can now trigger these on a level one critical hit, but have more chance for higher levels
+		- it is a lot easier to trigger these against low Will enemies
+	- Knock Back now has a different trigger
+		- you now roll a skill roll of your strength*2 vs your opponents con*2
+			- you get the effective strength modifiers from charge, rapid attack etc
+			- you get a +4 bonus for wielding you weapon with two hands
+		- Giants, Morgoth etc are now quite a bit harder to knock back, and small things are easy
+	- Opportunist now lets you have one last blow as an enemy tries to flee through the stairs
+		- very satisfying if you slay them and get their items
+
+- combat system
+	- simplified the limits on how many damage sides your strength can add
+		- now it is always a limit equal to the weapon weight in pounds
+			- so any 4 lb item can have up to 4 bonus damage sides from strength
+		- used to be a side per 0.5 lb for thrown weapons and per 1.5 lb for two handed weapons
+		- this will make Charge go better with two handed weapons again
+		- it will also make throwing daggers and axes a bit less good again
+			- if they are too bad we can revisit this with some extra bonus
+
+- display
+	- renamed "Long Corslets" to "Hauberks" (a term used occasionally in the works of Tolkien)
+	- fixed some minor anachronisms in artefact and monster descriptions
+		- including renaming Earendil's bow as he didn't have it at the time of Sil
+	- new automatic notes for
+		- falling through false floors
+		- falling through trapped stairs
+		- encountering uniques for the first time
+	- {special} item types you know about are now displayed in the object knowledge menu
+		- useful for narrowing down the options when you find a new {special} item
+
+- interface
+	- allowed 't' to select closest/target when aiming
+		- makes throwing a little bit easier as you can leave a finger on the 't' key
+		- just as you can with 'f' and firing
+		- (note for keypad users: '5' also works)
+
+- dungeon
+	- decreased the chance of trapped stairs during the ascent
+	- made Glyphs of Warding harder for monsters to break
+		- they used to require a successful monster Will check against difficulty 17
+		- now against difficulty 20
+			- this is very hard
+			- the first creature that can break it at all is Delthaur at 700 ft
+		- I encourage people to try to exploit these and see if they are too good
+
+- monsters
+	- Silent Watchers can no longer keep you permanently knocked out
+		- the maximum amount of time they will knock you out for is 5 turns
+		- this is how it was always meant to be
+		- sorry to those who never regained consciousness! 
+	- Balrogs now drop an extra item when slain
+	- Shadow mold spores were treated as mixed elemental (dark) damage in some parts of the code and pure in others
+		- this resulted in some misleading info in the hit rolls window
+		- I've moved them to simply do mixed elemental damage
+			- i.e. an extra die when you are not-resistant
+			- it would have been much harder to make them the only melee pure elemental attack
+
+- songs
+	- bonuses from songs can now never be negative
+	- the Song of Este now always at least doubles your regeneration
+
+- items
+	- changed bow damage from (1d7), (1d9), (2d7) into (1d7), (2d5), (3d3)
+		- now very similar to the swords
+		- should make extreme archery against Morgoth less powerful
+	- made Dragon-horn Longbows twice as common as before
+	- staffs of light appear earlier, where they might be a bit more useful
+	- staffs of sanctity are a touch more likely to appear deeper in the dungeon
+	- lesser jewels appear earlier and no longer break when thrown
+	- moved Galvorn Armour from [-1, 2d4] to [-1, 1d8] to be more different to Mithril Corslets
+
+- {special} items
+	- spider-slaying weapons now also glow if a web is (very) near
+
+- artefacts
+	- added:
+		- The Mithril Helm of Ecthelion (for Psi)
+		- The Kite Shield of the Swan
+		- The Hauberk of Nevrast
+		- The Boots of Irime
+		- The Mail Corslet of Gundor
+	- modified:
+		- The Shortbow of Celegorm
+		- The Spear of Ogbar
+		- The Great Axe of Nogrod
+	- made some artefacts about 50% rarer:
+		- The Corslet of Fingon
+		- The Robe of Idril
+		- The Hauberk of Maedhros
+
+- removed tridents
+	- they weren't useful and weren't really used in combat in Beleriand
+
+- bug fixes
+	- many monsters were having occasional trouble with doors due to a subtle off by one error
+	- the Polearm Mastery bonus attack couldn't trigger Knock Back properly
+		- this should now be a powerful combination
+	- sometimes guaranteed good or great items (particularly greaves) were failing to become {special}
+	- feanorian lamps of brightness and lesser jewels of brightness didn't glow enough on the ground
+	- wielding a proficient weapon (e.g. axes for dwarves) used to give a bonus to throwing a different weapon
+
+- platform specific
+	- linux version
+		- changing the fonts or gamma in the silx file should now work properly in X11
+
+- Sil 1.1 ----------------------------------------------------------------------------------------------
+
+- broke savefile compatibility
+
+- getting silmarils
+	- it is now easier to cut out the first Silmaril
+	- your weapon can now break on either the second or the third Silmaril
+	- you no longer suffer the rapid attack penalties when cutting if you have that ability active
+
+- elemental damage
+	- for pure elemental damage (breaths and things as opposed to melee with elements)
+		- you now get your resistance before your protection roll
+		- used to be the other way around
+		- you have always only had a limited amount of prot for such attacks
+			- e.g. rings of prot, hardiness, song of staying, (& shields for fire/cold)
+			- now these sources of prot actually matter a bit when you have resistance
+	- added elemental vulnerabilities
+		- these are very rare, and they lower your resistance by one level
+		- if it is a level below no resistance, you take double damage, then triple etc.
+
+- monsters
+	- many changes, including the following...
+	- balrogs:
+		- added five more, giving a full complement of seven
+		- they are rare, but *very* dangerous
+	- giants:
+		- lowered perception substantially
+		- changed the colours, and flavour text and a few stats for Nan and Gilim
+	- orcs:
+		- improved Boldog's melee and damage by 1
+		- improved Orcobal's melee and damage by 1
+		- corrected 'Othrond' to 'Othrod'
+			- not sure where that mistake came from!
+			- gave him an extra 1 to melee to compensate him for the indignity
+	- cats:
+		- lowered cat warrior health by 2d4 (20%)
+		- lowered Umuiyan's health by 1d4, to put him into the progression
+		- moved Umuiyan from shortbow (1d7) to longbow (1d9)
+		- improved the archery score of cat assassins by 2
+		- lowered will substantially
+	- wolves:
+		- minor modifications of attack and evasion to put them into a unified pattern
+		- lowered the non-unique's health across the board (to 6d4, 8d4, 10d4, 12d4, 14d4)
+		- increased the health of Gorthaur and Carcharoth
+		- increased the damage of Gorthaur
+		- lowered the armour of wargs (from [2d4] to [1d4])
+	- trolls:
+		- increased health and melee slightly
+		- lowered will and perception substantially
+	- insects/centipedes:
+		- unified health to 2d4
+			- a decrease for centipedes and dragonflies
+			- an increase for hummerhorns
+			- these creatures gain their defence from evasion/prot rather than health
+			- (also worth noting: bats are 2d4 as well, birds are 1d4)
+	- spiders:
+		- increased the melee and damage of Ancient Spider attacks
+		- increased the melee and damage of Ungoliant's attacks
+		- increased the health of most late-game spiders
+		- increased Shelob's darkness radius and damage
+	- molds:
+		- made violet molds half as common as before
+			- now a quarter as common as other mold types
+	- humans and elves:
+		- reduced easterling archers' archery skill by 1
+		- improved easterling uniques' melee skill by 1
+		- increased Maeglin's melee and evasion
+	- serpents:
+		- added slightly erratic movement to all of them (25% chance)
+		- ancient serpents
+			- removed the elemental auras
+				- they were a bit confusing and too easy to force monsters to take damage
+			- now have [6d4] instead of [7d4]
+			- do an extra 2d4 breath damage do compensate
+	- dragons:
+		- can no longer make you forget the map
+		- this ability is now unique to Mewlips
+	- valar:
+		- increased Morgoth's will and perception after you knock his crown off
+			- due to him taking you more seriously as a threat
+				- and the need to challenge you!
+	- stone creatures no longer destroy staircases if they die on top of them
+	- Shadows and Hithraukar now pass under closed doors
+		- Shadows no longer pass through walls
+			- there are now no invisible wall-passing creatures!
+
+- combat
+	- you now lose the stealth bonus against an enemy for the second/third attacks 
+	  if they are woken up by the first attack
+	- entrancement effects can no longer be 'chained'
+		- you cannot be entranced while already entranced
+		- you cannot be entranced if you haven't had a turn since last entranced
+	- fixed a message bug when throwing potions
+
+- stealth
+	- monsters can now become less alert if they are out of sight and fail a check to spot you by more than 30
+		- they lose a point of alertness for every point more than 30 that they fail by
+		- they won't fall asleep though
+	- Vanish is now implemented as a +10 bonus to this check
+
+- abilities
+	- Vanish: see above
+	- you can no longer get an Opportunist attack when knocking a monster back
+	- you now stop singing a song if you remove an item which was granting you that ability
+	- Charge has been made quite a bit weaker, and also more interesting
+		- it was by some distance the most overpowered ability, and should still be good
+		- it no longer doubles your weapon dice
+		- instead, your attack counts as if you have +3 Dex and +3 Str
+			- a bit like an opposite of rapid attack
+		- the ideal weapon for charging will thus be heavier than the ideal for normal attacks 
+		- also charge no longer works if you are moving slowly (at speed 1)
+	- Zone of Control, Opportunist, Flanking, Controlled Retreat
+		- no longer work on unwary monsters or monsters during the 'truce'
+		- as this was almost always not what the player wanted
+	- a few fixes to Exchange Places
+		- can no longer be done unless the creature is visible (removes exploits)
+		- can no longer be done from within a web/pit
+		- now triggers traps if you end up in one
+	- Blocking now always works against all ranged attacks (fire breath, arrows, boulders etc)
+		- thanks to Angloki for the idea
+		- it still requires you to pass to get the bonus against melee attacks
+		- it is also now an alternate pre-requisite for controlled retreat
+	- fixed some oddities in the build up of the bonus to attack for Concentration
+		- i.e. it didn't work for certain free attacks you made in the opponent's turn
+		- now it builds the bonus by +1 if you made at least one attack since the start of your last turn
+	- Song of Aule now gives a bonus of Song/4 instead of Song/5
+		- who says we're just trying to make smithing less good?
+	- Crippling Shot now no longer works on critical resistant monsters
+
+- smithing
+	- made forges appear a bit more regularly throughout the dungeon
+		- this should help a lot in avoiding games with too few forges
+	- increased the cost of the 'speed' attribute from 25 to 30 (at Psi's suggestion!)
+	- increased the cost of stat points by 20% (the base has moved from 10 to 12)
+	- increased the cost of damage sides by 25% (from 12 to 15)
+	- increased the cost of brands, slays, sharpness
+	- no longer get any benefits for putting penalties on items
+		- it seemed cool, but just lead to them being put on Gloves of Smithing an the like
+		- the one exception is Danger, which leads to quite a large difficulty reduction (-5)
+	- there is now a discount of 20% on the difficulties of robes, crowns, sceptres
+		- they now make good artefacts...
+	- you can now make all special item types including the bad ones
+	- the first forge is now guaranteed to be a normal forge with three charges
+		- to avoid the temptation to start-scum
+	- you are now asked to confirm spending points of smithing when making a masterpiece
+
+- items
+	- fixed a bug where blowing a trumpet of blasting could *heal* you
+		- if your protection was higher than the earthquake damage
+	- staffs of self-knowledge now show attributes of your off-hand weapon (if any)
+	- dropped permanent lights now glow properly (at some point this stopped working)
+	- chest contents generation slightly simplified (more chance of jewellery now)
+	- removed halberds
+		- while undeniably cool, they are more a late medieval swiss weapon
+		- there are still glaives (which are mentioned in Tolkien) and Celebrist is now one
+		- changed the glaive stats to halfway between the old Glaive and Halberd
+	- renamed: 'leather gloves' to 'gloves', 'leather boots' to 'boots', 'steel greaves' to 'greaves'
+	- removed rings of attention/wrath
+		- enough wrath items already, especially with our other changes
+	- removed amulet of danger
+		- same reason, and there is a new cursed replacement amulet...
+	- removed rings of True Sight
+		- there are enough other True Sight types
+	- improved Mithril Helms and Mithril Greaves
+		- now all mithril items are better in at least one combat attribute
+		- not merely weight and ignoring acid
+
+- {special} items
+	- adjusted the depths and rarities across the board
+	- added several new special item types, including cursed ones
+	- made some large changes to the special items types
+		- changed the single type slaying items (Orc Slaying etc)
+			- most now slay two types of monster and are named for a place
+			- Final Rest instead has Free Action on it
+			- note that 'of Gondolin' now refers to the orc/troll weapon
+				- since the blades from Gondolin in the books glowed when orcs were near
+				- the old 'of Gondolin' weapons are no more, though 'of Nargothrond' is similar
+		- removed (Avenger)
+			- though there is a new artefact shortsword with riposte
+		- added a sticky curse to (Vampiric)
+		- removed 'of Brilliance'
+			- these were introduced before slaying weapons glowed and it is inelegant to have both
+		- removed Boots of Slowness
+			- just too nasty
+		- removed Gloves of Agility
+			- special gloves were too similar to rings
+		- removed Gloves of Clumsiness
+		- changed Gloves of Weakness to Gloves of Treachery
+			- now with a nice bonus...
+		- changed name of Gloves of Power to Gloves of Strength
+		- added Gloves of Swordplay
+			- to compete with Gloves of Strength
+	- fixed a bug where some special weapons wielded from the floor wouldn't glow properly
+	- fixed the auto-identification of lanterns of brightness when refuelling them
+	- unified the True Sight types of helms and light sources
+		- so identifying one identifies them all
+		- this had slipped past me before
+
+- artefacts
+	- added 21 new artefacts
+	- realised that quite a few of the artefact weapons were just too crazy and toned them back
+	- added descriptions for those artefacts which didn't have them
+	- set Calris aflame like all good Balrog swords should be, and made other changes to it
+		- we think it is really strong now and people are crazy not to be using it more...
+
+- dungeon
+	- added some T-intersections in the corridors
+	- fixed two bugs in dungeon generation which could lead to doubled and tripled doors
+	- no rubble generated before 200 ft anymore
+
+- traps
+	- made false floors half as common as other traps
+	- webs can no longer be generated in dead ends
+
+- food
+	- it is now harder to get gorged (so it can't happen unless already 'full')
+	- the gorged effect wears off even faster
+
+- interface
+	- added an onscreen main menu with all the interface commands
+		- it can be accessed with (m) or (Escape)
+			- the latter can be turned off if you find it annoying
+		- I intend this to be the main way to access many of these commands
+			- and in future versions I will remove direct access to some:
+				- e.g. Colours, Macros, Knowledge, Options, ...
+				- but not Character Sheet, Save, ...
+		- comment on the Angband Forum if you have concerns about this
+	- added back in the 'auto_more' option
+		- (I still wouldn't want to use it though!)
+	- stopped it wasting a turn when you try to pick something up and nothing is present
+		- also improved some interface oddities surrounding 'pick things up by default'
+	- stopped it wasting a turn when you decide not to make anything at a forge
+	- fixed bug with being warned about dropping your shield when you wouldn't have to do so
+	- added prompt warning you about being forced to drop your two handed weapon when wielding a shield
+	- the object knowledge screen now displays potion/herb/staff etc types that you have seen in previous games
+		- this is useful for the process of elimination...
+	- fixed some interface bugs for smithing:
+		- the name of an artefact is no longer reset when returning to the artefact submenu
+		- selecting menu options via their letters now works properly
+
+- display
+	- the iron crown no longer shows up multiple times in the knowledge menu
+	- fixed some issues relating to Morgoth before and after being uncrowned
+	- staffs now display how many times they have been used when unidentified
+	- fixed a bug with the combat rolls window
+		- it wasn't displaying the old info correctly in many cases
+	- creating any object at a forge is now noted in the notes section
+		- including the stats and weight
+	- slight modification of messages for failing to tunnel
+	- fixed a bug where the player would identify their off-hand weapon when their main weapon struck truly
+
+- platform specific
+	- linux version
+		- X11 now supports solid block walls and highlighted unwary/sleeping creatures
+		- X11 now supports the initial menu and more user friendly loading of characters
+		- GCU now makes the map quadrant of its virtual terms as large as possible
+			- thanks to bron for the patch!
+	- mac version
+		- can now easily open savefiles generated on other platforms (e.g. competition saves)
+
+- challenge modes
+	- all of these were buggy!
+		- no artefact mode no longer generates monster-specific artefacts
+			- like Spear of Boldog etc
+		- straight down mode now works correctly
+		- disconnected stairs mode now works correctly
+
+- behind the scenes
+	- notes are no longer temporarily stored in 'notes files'
+	- this should finally put an end to all the problems with these files!
+	- fixed some potential bugs in targetting, dungeon generation, hallucination
+
+- thanks
+	- thanks go to many of the denizens of angband.oook.cz for their suggestions and bug finding
+		- this really does help to improve the game!
+	- thanks also go to our wonderful beta test team
+		- I have no idea how they played so many games so quickly
+
+
+
+- Sil 1.0.2 ----------------------------------------------------------------------------------------------
+
+- linux version
+	- X11, GCU & CAP should work now
+		- GCU & CAP are fairly unplayable though (mainly due to lack of decent colours)
+	- fixed Makefile.std
+	- removed a crash straight after launching due to a default filename being set
+	- fixed colours for X11 (no more green dungeon walls!)
+
+- races/houses
+	- adjusted the dwarven race/houses slightly
+	- added a new Sindar house
+	- now all houses add a similar level of bonus to the race
+		- 1 stat point, and 1 affinity
+
+- items
+	- made Mattocks a bit less damaging (5d2 from 6d2)
+		- but left the artefact mattock as is!
+	- changed Shovels from 3d1 to 2d2
+	- daggers of accompaniment
+		- no longer go into your off-hand before being identified
+		- can no longer be switched out leaving two weapons without the ability
+	- handles artefact lanterns better
+	- made some artefacts a bit less common:
+		- knife of Nargil
+		- Orcrist
+		- Axe of Hurin
+	- wrath now stacks
+	- danger now stacks
+	- danger now affects you even from your inventory
+		- this is odd, but otherwise it is so clearly best to remove the item
+		  for one turn when descending the stairs
+
+- status effects
+	- fear
+		- trying to attack while afraid no longer costs you a turn
+		- throwing items now also fails when afraid
+	- stunning
+		- now capped at 105 for all causes
+		- so at most 5 turns knocked out before you can act again
+		- fixed bug where knock out / entrancement wasn't setting evasion to [-5]
+
+- monsters
+	- made uniques who were famous only in later ages less common
+	- made crebain much less damaging 1d5 -> 1d3
+	- changed the Will levels of many monsters, spreading them out more
+	- Morgoth is now immune to Elbereth
+	- 'auras' of Ancient Serpents
+		- now damage monsters as well as you
+		- now explained better in monster recall
+
+- smithing
+	- difficulty of forging things in the 'minor slots' is increased by 20%
+		- rings, light, cloak, gloves, boots, arrows
+		- the 'major slots' are:
+			- weapon, bow, amulet, body armour, shield, helmet
+	- difficulty is no longer reduced for two handed weapons
+	- the time taken is now proportional to the difficulty
+	- the bonus from Song of Aule is reduced from Song/3 to Song/5
+	- fixed bug where display of experience wasn't changed when it was used up
+	- changed light source radius to not depend on the special value (pval)
+		- now can make Feanorian Lamp of Grace <+1> without reducing its radius
+
+- interface
+	- changed key for options in creation menu from (=) to (O) to match normal play
+
+- display
+	- added a 'previous round' of rolls to the combat rolls window
+	- fixed the bug with deleting the hunger display on minimum height terminal windows
+	- added the . for empty floors on the mini screenshot when you die
+
+- notes
+	- stopped saying you have 'found' the further versions of the iron crown
+	- 'subdued' deathblades instead of 'destroyed'
+
+- endgame
+	- monsters now get a +5 bonus to perception during the escape as they are vigilant
+	- Morgoth will no longer leave the Throne Room
+	- The monsters coming through the stairs during the pursuit are now always powerful ones
+	- There are now many more monsters in the pursuit when carrying 2 or 3 Silmarils
+	- minor changes to the method for knocking off the crown 
+		- (now takes two, slightly smaller hits)
+	- fixed bug where you used to get the curse message even when failing to get the silmaril
+
+- dungeon
+	- fixed a bug where an up-shaft was incorrectly created for you when stairs crumbled
+	- rubble can now be cleared by staffs of freedom and song of freedom
+
+- abilities
+	- Lore-master now correctly displays monster Will and Perception in the monster memory
+	- the bonus from Song of Slaying now decays more slowly
+		- it now decays at the old speed when not being sung
+		- and half that speed when being sung
+	- Song of Elbereth now costs 1 point of voice per round
+	- monsters that are resistant to criticals are now immune to Cruel Blow
+
+- skills
+	- easier to spot dungeon traps
+		- -5 difficulty compared with version 1.0.1
+
+- misc
+	- interacting with your own square when there is nothing there no longer takes a turn
+
+- Sil 1.0.1 ----------------------------------------------------------------------------------------------
+
+- interface
+	- corrected the keypad in the (?) screen
+	- made Angband-like keyset use (+) instead of (/)
+	- brought back the (M) map command due to popular request
+	- using torches and lanterns now refuels your current one by default (if you are already wielding one)
+		- if you want to swap torches/lanterns, just remove the existing one first
+		- it now warns you about overfueling
+
+- display
+	- added a 'Score' line to the character dumps to help with the Angband ladder
+	- made the combat rolls window more compact and more flexible
+	- removed monster health, alertness and morale info for the target if out of sight
+	- fixed display of "Mindless"
+	- fixed display of hits doing 10 damage
+	- stopped printing an empty description for one handed weapons
+	- added weights of weapons to character dumps
+	- fixed display of dates
+	- now shows artefacts' abilities in the Artefact info screen
+	- now tags the finding of an artefact with the level you identify it on
+		- but *also* shows the level it was found on if that was different
+	- no longer tells you that you didn't enter a greater vault if you didn't discover the vault
+		- but you still can never find that vault again
+	- now displays the correct depth for the note about missing a greater vault
+		- instead of the new depth you went to from that level
+	- adds a small screenshot to character dumps for dead characters
+
+- potion of true sight now gives (temporary) resistance to blindness
+
+- reduced the Will of cat-type creatures
+	- making them more vulnerable to being put to sleep/terrified
+
+- abilities
+	- fixed the second prerequisite for Strength (to Knock Back)
+	- made the Song of Aule cost only 1/3 of a point of voice per turn
+	- the Song of Freedom now disarms and unlocks chests
+	- the Song of Freedom now has all its difficulty levels in skill checks reduced by 5
+
+- items
+	- added Lesser Jewels
+	- fixed a bug where items with different prot values could be stacked together
+	- fixed a bug where weapons of Fury gave Knock Back instead of Whirlwind
+		- and daggers of accompaniment gave Rapid Attack instead of Two Weapon Fighting
+	- allows {special} items to stack before being identified if they have the same type
+		- most useful for found stacks of {special} throwing items
+	- staves of revelations now work in the Throne Room (if you get one there, good luck to you!)
+
+- artefacts
+	- some minor changes to rarity and to the artefacts themselves
+
+- monsters
+	- decreased the evasion of the Cat warrior family of creatures by a small amount
+
+- traps
+	- change "trap doors" to "false floors"
+		- trap doors are a bit too comic in flavour
+		- the effect is basically the same
+		- tweaked to avoid ever killing characters with the damage
+
+- staircases
+	- no longer take 100 turns of food and game clock
+	- the forcing downwards time limits still avoid the infinite levels problem
+	- the 'stair-scumming' problem of going up and down repeatedly is now avoided with trapped stairs
+	- trapped stairs
+		- there is a chance that the stairs give way beneath you like a trap door / false floor
+		- this chance is miniscule or even zero in normal play
+		- but it goes up the more you use the stairs in quick succession
+		- attempts to stairscum will quickly lead to being injured on a level with no escape 
+		- we think this is pretty difficult to abuse..

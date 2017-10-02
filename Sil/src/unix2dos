@@ -1,0 +1,21 @@
+#!/bin/sh
+
+if [ "$1" = "" ]
+then
+ echo "Usage: $0 filename1 filename2...."
+ exit
+fi
+
+FILES="$@"
+
+changeit () {
+  OLDNAME="$file"
+  NEWNAME="$file.tmp_$$"
+  awk '{sub("\r$",""); printf "%s\r\n", $0}' $OLDNAME > $NEWNAME
+  mv $NEWNAME $OLDNAME
+ }
+
+for file in $FILES
+do
+ changeit
+done

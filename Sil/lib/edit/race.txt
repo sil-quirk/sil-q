@@ -1,0 +1,129 @@
+# File: race.txt
+#
+# This file is used to create the "lib/data/race.raw" file, which is
+# used to initialize the "player race" information for Sil.
+#
+# Do not modify this file unless you know exactly what you are doing,
+# unless you wish to risk possible system crashes and broken savefiles.
+#
+#
+# === Understanding race.txt ===
+#
+# N: race number : race name
+# S: str : dex : con : gra
+# I: history : agebase : agemax
+# H: hgtmale : modhgtmale : hgtfemale : modhgtfemale
+# W: wgtmale : modwgtmale : wgtfemale : modwgtfemale
+# F: racial flags
+# E: tval : sval : min : max
+#
+# 'N' indicates the beginning of an entry. The serial number must
+#     increase for each new race.
+#
+# 'S' is for the stat modifiers - strength, dexterity, constitution, grace.
+#
+# 'I' is for info - starting point of the player history, base age,
+#     max age.
+#
+# 'H' is height info - base height (males), mod height (males),
+#     base height (females), mod height (females).
+#
+# 'W' is weight info - base weight (males), mod weight (males),
+#     base weight (females), mod weight (females).
+#
+# 'F' is for racial flags.
+#
+# 'E' is for starting equipment - tval of the item, sval of the item,
+#     minimum amount, maximum amount.
+
+
+# Version stamp (required)
+
+V:1.3.0
+
+# - Noldor:
+#   - The deep elves
+#   - Stat modifers  0 +1 +2 +2
+#   - Blade proficiency = a bonus of 1 to melee when wielding '|' weapons
+#   - Arc affinity = a bonus of 1 to archery and a free ability
+
+N:0:Noldor
+S:0:1:2:2
+I:1:20:4865
+H:82:4:70:2
+W:165:10:153:10
+C:1|2|3
+F:BLADE_PROFICIENCY | ARC_AFFINITY
+E:39:0:3:4     # ~ Wooden Torches (3-4)
+E:80:37:3:3    # , Fragment of Lembas (3)
+D:The Noldor are known as the 'Deep-elves', for they are the
+D: most learned and inventive of the elven kindreds. They saw
+D: the light of the Two Trees in Valinor and gained much in
+D: lore and skill. They are tall and lithe, yet so strong
+D: of spirit that they can endure vast hardship. Their
+D: hair is mostly dark and their eyes grey.
+
+# - Sindar:
+#   - The grey elves
+#   - Stat modifers  -1 +1 +2 +1
+#   - Blade proficiency = a bonus of 1 to melee when wielding '|' weapons
+#   - Arc affinity = a bonus of 1 to archery and a free ability
+
+N:1:Sindar
+S:-1:1:2:1
+I:4:20:4865
+H:77:4:68:2
+W:159:10:153:10
+C:4|10
+F:BLADE_PROFICIENCY | ARC_AFFINITY
+E:39:0:3:4     # ~ Wooden Torches (3-4)
+E:80:37:3:3    # , Fragment of Lembas (3)
+D:The Sindar are the 'Grey-elves' who never saw the blessed light of
+D: the Two Trees, but who found an echo of it in their queen,
+D: Melian the Maiar. They are less learned and powerful than the
+D: Noldor, but have fair voices and are gifted in song.
+
+# - Naugrim:
+#   - The dwarves
+#   - Stat modifers  0 -1 +3 +1
+#   - Axe proficiency = a bonus of 1 to melee when wielding an axe
+#   - Arc penalty = a penalty of -1 to archery and abilities cost 500 more
+#   - Smt affinity = a bonus of 1 to smithing and a free ability
+
+N:2:Naugrim
+S:0:-1:3:1
+I:16:35:180
+H:51:3:49:2
+W:160:10:150:10
+C:5|6
+F:AXE_PROFICIENCY | ARC_PENALTY | SMT_AFFINITY
+E:39:0:3:4     # ~ Wooden Torches (3-4)
+E:80:35:5:5    # , Pieces of Dark Bread (5)
+D:The dwarves are stone-hard and stubborn, fast in friendship
+D: and in enmity. They live long, far beyond the span of Men
+D: but not for ever. They are short in stature, deep-breasted
+D: and stout in the leg, and their beards are long. They were
+D: named the 'Naugrim' by the Sindar, meaning 'the stunted people'.
+
+
+# - Edain:
+#   - The mortal men of the first age
+#   - Stat modifers  0 0 0 0
+
+N:3:Edain
+S:0:0:0:0
+I:21:15:45
+H:75:4:68:2
+W:176:14:156:14
+C:7|8|9
+E:39:0:3:4     # ~ Wooden Torches (3-4)
+E:80:35:5:5    # , Pieces of Dark Bread (5)
+D:The Edain are the Men of Beleriand. They gained much from
+D: dealings with the Noldor, and grew more long lived than their
+D: kin beyond the mountains.
+D: However, compared to the elves they were more frail, and more easily
+D: slain by weapon or mischance.
+D: The Edain dwell in the north of
+D: Beleriand and help the Noldor to contain Morgoth's power.
+
+

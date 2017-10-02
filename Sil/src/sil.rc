@@ -1,0 +1,129 @@
+/* File: sil.rc */
+
+ANGBAND MENU
+{
+	POPUP "&File"
+	{
+		MENUITEM "&New", 100
+		MENUITEM "&Open...", 101
+		MENUITEM SEPARATOR
+		MENUITEM "&Save", 110
+		MENUITEM SEPARATOR
+		MENUITEM "E&xit", 130
+	}
+
+	POPUP "&Window"
+	{
+		POPUP "&Visibility"
+		{
+			MENUITEM "Sil", 200
+			MENUITEM "Inventory", 201
+			MENUITEM "Equipment", 202
+			MENUITEM "Combat Rolls", 203
+			MENUITEM "Recall", 204
+			MENUITEM "Character", 205
+			MENUITEM "Messages", 206
+			MENUITEM "Monster List", 207
+		}
+
+		POPUP "&Font"
+		{
+			MENUITEM "Sil", 210
+			MENUITEM "Inventory", 211
+			MENUITEM "Equipment", 212
+			MENUITEM "Combat Rolls", 213
+			MENUITEM "Recall", 214
+			MENUITEM "Character", 215
+			MENUITEM "Messages", 216
+			MENUITEM "Monster List", 217
+		}
+
+		MENUITEM SEPARATOR
+
+		POPUP "Bizarre Display"
+		{
+			MENUITEM "Sil", 230
+			MENUITEM "Inventory", 231
+			MENUITEM "Equipment", 232
+			MENUITEM "Combat Rolls", 233
+			MENUITEM "Recall", 234
+			MENUITEM "Character", 235
+			MENUITEM "Messages", 236
+			MENUITEM "Monster List", 237
+		}
+
+		POPUP "Increase Tile Width"
+		{
+			MENUITEM "Sil", 240
+			MENUITEM "Inventory", 241
+			MENUITEM "Equipment", 242
+			MENUITEM "Combat Rolls", 243
+			MENUITEM "Recall", 244
+			MENUITEM "Character", 245
+			MENUITEM "Messages", 246
+			MENUITEM "Monster List", 247
+		}
+
+		POPUP "Decrease Tile Width"
+		{
+			MENUITEM "Sil", 250
+			MENUITEM "Inventory", 251
+			MENUITEM "Equipment", 252
+			MENUITEM "Combat Rolls", 253
+			MENUITEM "Recall", 254
+			MENUITEM "Character", 255
+			MENUITEM "Messages", 256
+			MENUITEM "Monster List", 257
+		}
+
+		POPUP "Increase Tile Height"
+		{
+			MENUITEM "Sil", 260
+			MENUITEM "Inventory", 261
+			MENUITEM "Equipment", 262
+			MENUITEM "Combat Rolls", 263
+			MENUITEM "Recall", 264
+			MENUITEM "Character", 265
+			MENUITEM "Messages", 266
+			MENUITEM "Monster List", 267
+		}
+
+		POPUP "Decrease Tile Height"
+		{
+			MENUITEM "Sil", 270
+			MENUITEM "Inventory", 271
+			MENUITEM "Equipment", 272
+			MENUITEM "Combat Rolls", 273
+			MENUITEM "Recall", 274
+			MENUITEM "Character", 275
+			MENUITEM "Messages", 276
+			MENUITEM "Monster List", 277
+		}
+	}
+
+	POPUP "&Options"
+	{
+		POPUP "&Graphics (not working yet)"
+		{
+			MENUITEM "&None", 400
+			MENUITEM "&Old tiles", 401
+			MENUITEM "&Adam Bolt's tiles", 402
+			MENUITEM "&David Gervais' tiles", 403
+			MENUITEM "&Bigtile mode", 409
+		}
+
+		MENUITEM "&Sound", 410
+		MENUITEM SEPARATOR
+		MENUITEM "Low Priority", 420
+		MENUITEM "Activate Screensaver", 430
+		MENUITEM "&Map", 440
+	}
+
+	POPUP "&Help"
+	{
+		MENUITEM "&Contents", 901
+	}
+}
+
+ANGBAND ICON "sil.ico"
+

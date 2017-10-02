@@ -1,0 +1,482 @@
+# File: terrain.txt
+#
+# This file is used to create the "lib/data/terrain.raw" file, which is
+# used to initialize the "terrain feature" information for Sil.
+#
+# Do not modify this file unless you know exactly what you are doing,
+# unless you wish to risk possible system crashes and broken savefiles.
+#
+#
+# === Understanding terrain.txt ===
+#
+# N : serial number : terrain name
+# G : symbol : color
+# M : feature to mimic
+#
+# 'N' indicates the beginning of an entry. The serial number must
+#     increase for each new item.
+#
+# 'G' is for graphics - symbol and color. There are 16 colors, as
+#     follows:
+#
+#     D - Dark Gray    w - White          s - Gray          o - Orange
+#     r - Red          g - Green          b - Blue          u - Brown
+#     d - Black        W - Light Gray     v - Violet        y - Yellow
+#     R - Light Red    G - Light Green    B - Light Blue    U - Light Brown
+#
+# 'M' is the index of a feature to mimic.
+#
+#
+# === Important notes ===
+#
+# Note that the terrain feature are grouped into very regular groups,
+# such that each of the bits in the feature type conveys information.
+#
+# Note that terrain feature zero contains the "darkness" picture.
+
+# Version stamp (required)
+
+V:1.3.0
+
+
+# 0x00 --> <darkness>
+
+N:0:<darkness>
+G: :w
+
+
+# 0x01 --> open floor
+
+N:1:open floor
+G:.:W
+
+# 0x02 --> unused
+
+N:2:chasm
+G:%:D
+
+# 0x03 --> glyph of warding
+
+N:3:glyph of warding
+G:;:G1
+
+# 0x04 --> open door
+
+N:4:open door
+G:':U
+
+# 0x05 --> broken door
+
+N:5:broken door
+G:.:U
+
+# 0x06 --> unused
+
+N:6:unused
+G:1:s
+
+# 0x07 --> unused
+
+N:7:unused
+G:1:s
+
+# 0x08 --> unused
+
+N:8:unused
+G:1:s
+
+# 0x09 --> unused
+
+N:9:unused
+G:1:s
+
+# 0x0A --> unused
+
+N:10:unused
+G:1:s
+
+# 0x0B --> unused
+
+N:11:unused
+G:1:s
+
+# 0x0C --> unused
+
+N:12:unused
+G:1:s
+
+# 0x0D --> unused
+
+N:13:unused
+G:1:s
+
+# 0x0E --> unused
+
+N:14:unused
+G:1:s
+
+# 0x0F --> unused
+
+N:15:unused
+G:1:s
+
+# 0x10 --> visible trap -- false floor
+
+N:16:false floor
+G:^:U
+
+# 0x11 --> visible trap -- open pit
+
+N:17:pit
+G:^:s
+
+# 0x12 --> visible trap -- spiked pit
+
+N:18:spiked pit
+G:^:W
+
+# 0x13 --> visible trap -- dart
+
+N:19:dart trap
+G:^:v1
+
+# 0x14 --> visible trap -- gas -- confusion
+
+N:20:gas trap
+G:^:G1
+
+# 0x15 --> visible trap -- gas -- memory
+
+N:21:gas trap
+G:^:B1
+
+# 0x16 --> visible trap -- alarm
+
+N:22:alarm trap
+G:^:U1
+
+# 0x17 --> visible trap -- flash
+
+N:23:flash trap
+G:^:y
+
+# 0x18 --> visible trap -- caltrops
+
+N:24:caltrop field
+G:^:w
+
+# 0x19 --> visible trap -- roost
+
+N:25:roost
+G:^:D1
+
+# 0x1A --> visible trap - web
+
+N:26:web
+G:^:D
+
+# 0x1B --> visible trap -- deadfall
+
+N:27:deadfall trap
+G:^:r
+
+# 0x1C --> visible trap -- acid
+
+N:28:discoloured spot
+G:^:u
+
+# 0x1D --> unused
+
+N:29: unused
+G:1:s
+
+# 0x1E --> unused
+
+N:30:unused
+G:1:s
+
+# 0x1F --> unused
+
+N:31:unused
+G:1:s
+
+# 0x20 --> locked door (power 0) -- aka a normal door
+
+N:32:door
+G:+:U
+M:32
+
+# 0x21 --> locked door (power 1)
+
+N:33:locked door
+G:+:U
+M:32
+
+# 0x22 --> locked door (power 2)
+
+N:34:locked door
+G:+:U
+M:32
+
+# 0x23 --> locked door (power 3)
+
+N:35:locked door
+G:+:U
+M:32
+
+# 0x24 --> locked door (power 4)
+
+N:36:locked door
+G:+:U
+M:32
+
+# 0x25 --> locked door (power 5)
+
+N:37:locked door
+G:+:U
+M:32
+
+# 0x26 --> locked door (power 6)
+
+N:38:locked door
+G:+:U
+M:32
+
+# 0x27 --> locked door (power 7)
+
+N:39:locked door
+G:+:U
+M:32
+
+# 0x28 --> jammed door (power 0)
+
+N:40:jammed door
+G:+:U1
+M:32
+
+# 0x29 --> jammed door (power 1)
+
+N:41:jammed door
+G:+:U1
+M:32
+
+# 0x2A --> jammed door (power 2)
+
+N:42:jammed door
+G:+:U1
+M:32
+
+# 0x2B --> jammed door (power 3)
+
+N:43:jammed door
+G:+:U1
+M:32
+
+# 0x2C --> jammed door (power 4)
+
+N:44:jammed door
+G:+:U1
+M:32
+
+# 0x2D --> jammed door (power 5)
+
+N:45:jammed door
+G:+:U1
+M:32
+
+# 0x2E --> jammed door (power 6)
+
+N:46:jammed door
+G:+:U1
+M:32
+
+# 0x2F --> jammed door (power 7)
+
+N:47:jammed door
+G:+:U1
+M:32
+
+# 0x30 --> secret door
+
+N:48:secret door
+G:#:W1
+M:56
+
+# 0x31 --> pile of rubble
+
+N:49:pile of rubble
+G:::s
+
+# 0x32 --> unused
+
+N:50:unused
+G:1:s
+
+# 0x33 --> quartz vein
+
+N:51:quartz vein
+G:%:w
+
+# 0x34 --> unused
+
+N:52:unused
+G:1:s
+
+# 0x35 --> unused
+
+N:53:unused
+G:1:s
+
+# 0x36 --> unused
+
+N:54:unused
+G:1:s
+
+# 0x37 --> unused
+
+N:55:unused
+G:1:s
+
+# 0x38 --> granite wall -- basic
+
+N:56:granite wall
+G:#:W1
+
+# 0x39 --> granite wall -- inner
+
+N:57:granite wall
+G:#:W1
+M:56
+
+# 0x3A --> granite wall -- outer
+
+N:58:granite wall
+G:#:W1
+M:56
+
+# 0x3B --> granite wall -- solid
+
+N:59:granite wall
+G:#:W1
+M:56
+
+# 0x3C --> unused
+
+N:60:unused
+G:1:s
+
+# 0x3D --> unused
+
+N:61:unused
+G:1:s
+
+# 0x3E --> unused
+
+N:62:unused
+G:1:s
+
+# 0x3F --> granite wall -- permanent
+
+N:63:granite wall
+G:#:W1
+M:56
+
+# 0x40 --> forge -- 0 uses
+
+N:64:forge (exhausted)
+G:0:s
+
+# 0x41 --> forge -- 1 use
+
+N:65:forge (1 use remaining)
+G:0:s
+
+# 0x42 --> forge -- 2 uses
+
+N:66:forge (2 uses remaining)
+G:0:s
+
+# 0x43 --> forge -- 3 uses
+
+N:67:forge (3 uses remaining)
+G:0:s
+
+# 0x44 --> forge -- 4 uses
+
+N:68:forge (4 uses remaining)
+G:0:s
+
+# 0x45 --> forge -- 5 uses
+
+N:69:forge (5 uses remaining)
+G:0:s
+
+# 0x46 --> good forge -- 0 uses
+
+N:70:enchanted forge (exhausted)
+G:0:y1
+
+# 0x47 --> good forge -- 1 use
+
+N:71:enchanted forge (1 use remaining)
+G:0:y1
+
+# 0x48 --> good forge -- 2 uses
+
+N:72:enchanted forge (2 uses remaining)
+G:0:y1
+
+# 0x49 --> good forge -- 3 uses
+
+N:73:enchanted forge (3 uses remaining)
+G:0:y1
+
+# 0x4A --> good forge -- 4 uses
+
+N:74:enchanted forge (4 uses remaining)
+G:0:y1
+
+# 0x4B --> good forge -- 5 uses
+
+N:75:enchanted forge (5 uses remaining)
+G:0:y1
+
+# 0x4C --> unique forge -- 0 uses
+
+N:76:forge 'Orodruth' (exhausted)
+G:0:D
+
+# 0x4D --> unique forge -- 1 use
+
+N:77:forge 'Orodruth' (1 use remaining)
+G:0:r
+
+# 0x4E --> unique forge -- 2 uses
+
+N:78:forge 'Orodruth' (2 uses remaining)
+G:0:r
+
+# 0x4F --> unique forge -- 3 uses
+
+N:79:forge 'Orodruth' (3 uses remaining)
+G:0:r
+
+# 0x50 --> up stairs (perm)
+
+N:80:up staircase
+G:<:W
+
+# 0x51 --> down stairs (perm)
+
+N:81:down staircase
+G:>:W
+
+# 0x52 --> up shaft (perm)
+
+N:82:up shaft
+G:<:D
+
+# 0x53 --> down shaft (perm)
+
+N:83:down shaft
+G:>:D

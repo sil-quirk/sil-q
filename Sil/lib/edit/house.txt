@@ -1,0 +1,145 @@
+# File: house.txt
+#
+# This file is used to create the "lib/data/house.raw" file, which is
+# used to initialize the "player house" information for Sil.
+#
+# Do not modify this file unless you know exactly what you are doing,
+# unless you wish to risk possible system crashes and broken savefiles.
+#
+#
+# === Understanding house.txt ===
+#
+# N: house number : house name
+# A: alternate house name
+# B: short house name
+# F: house flag
+# S: str : dex : con : gra
+#
+# 'N' indicates the beginning of an entry. The serial number must
+#     increase for each new house.
+#
+# 'A' is the alternate house name, so it can be used in the form:
+#     Caranthir of <house name>
+#
+# 'B' is the short house name when it needs to be displayed in
+#     a small space.
+#
+# 'F' is the house flags, which modify certain skills
+#
+# 'S' is the bonuses to stats: Str, Dex, Con, Gra
+
+
+# Version stamp (required)
+
+V:1.3.0
+
+N:0:Houseless
+A:Houseless
+B:Houseless
+S:0:0:0:0
+D:
+
+N:1:House of Feanor
+A:Feanor's House
+B:Feanor
+F:SMT_AFFINITY
+S:0:1:0:0
+D:Feanor was the greatest of the Noldor, though proud and
+D: unyielding. He created the Silmarils which Morgoth later
+D: stole, and he led his house across the sea to Beleriand
+D: in pursuit. Those of Feanor's house are fiery in temper,
+D: but capable of great works of beauty.
+
+N:2:House of Fingolfin
+A:Fingolfin's House
+B:Fingolfin
+F:WIL_AFFINITY
+S:0:0:1:0
+D:Fingolfin led his house into Beleriand to protect its
+D: peoples from the shadow of Morgoth. Betrayed by the
+D: Feanorians, they had to come through the icy wastes of the north.
+D: Their people are the most hardy and valiant, most
+D: feared by the orcs and hated by Morgoth.
+
+N:3:House of Finarfin
+A:Finarfin's House
+B:Finarfin
+F:PER_AFFINITY
+S:0:0:0:1
+D:Finarfin himself did not come to Beleriand, but many of his house
+D: made the journey under Fingolfin's banner. They are the
+D: fairest and wisest of the Noldor. All have golden hair as
+D: a mark of their Vanyarin ancestry.
+
+N:4:Of Doriath
+A:Doriath
+B:Doriath
+F:SNG_AFFINITY
+S:0:0:0:1
+D:Most Sindar dwell in the forests of Doriath. Thingol is their
+D: king, and rules from Menegroth with Melian at his side.
+D: Her power hides Doriath from the servants of Morgoth, allowing
+D: the Sindar to hunt and feast as in the days before his shadow grew.
+
+N:5:House of Nogrod
+A:Nogrod
+B:Nogrod
+F:SMT_AFFINITY
+S:0:1:0:0
+D:Nogrod, the 'Hollowbold', is a dwarven stronghold beneath the
+D: Blue Mountains. The forges burn brightly in its deep mansions
+D: and the smiths of Nogrod are matchless in all Beleriand.
+
+N:6:House of Belegost
+A:Belegost
+B:Belegost
+F:WIL_AFFINITY
+S:1:0:0:0
+D:Belegost, the 'Great Fortress', is a dwarven citadel in the
+D: northern ranges of the Blue Mountains. Its stout warriors
+D: are legendary for their strength and for the fearsome
+D: iron masks they wear to battle.
+
+N:7:House of Beor
+A:Beor's House
+B:Beor
+F:EVN_AFFINITY
+S:0:0:0:1
+D:Those of Beor's house are steadfast in endurance of hardship
+D: and sorrow, slow to tears and to laughter; their fortitude needs
+D: no hope to sustain it. For the most part they have brown hair
+D: with brown or grey eyes.
+
+N:8:People of Haleth
+A:Haleth's People
+B:Haleth
+F:STL_AFFINITY
+S:0:1:0:0
+D:The people of Haleth are not eager for lore, and use few words;
+D: for they do not love great concourse of men, and many among them
+D: delight in solitude, wandering free in the greenwoods. For the most
+D: part they are small in stature, with dark hair and dark eyes.
+
+N:9:House of Hador
+A:Hador's House
+B:Hador
+F:MEL_AFFINITY
+S:1:0:0:0
+D:Those of Hador's house are quick to wrath and laughter,
+D: fierce in battle, generous to friend and foe, swift in resolve,
+D: fast in loyalty and joyous in heart. For the most part they are
+D: tall, with flaxen or golden hair, blue-grey eyes and fair skin.
+
+# New Sindar House: should be moved into order when I next break savefile
+# compatibility (v 1.1?)
+
+N:10:Of the Falas
+A:the Falas
+B:Falathrim
+F:ARC_AFFINITY
+S:0:1:0:0
+D:When Thingol met with Melian under the wheeling stars, many of his folk
+D: despaired of finding him again and journeyed to the shore, the Falas,
+D: to set sail to Valinor. Some tarried there and dwelt in the havens on the
+D: edge of Middle-Earth with their lord, Cirdan, the shipbuilder.
+

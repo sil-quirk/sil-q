@@ -1,0 +1,41 @@
+#
+# File: Makefile.src
+#
+# A makefile which includes the current object files, hopefully includable
+# across a range of different makefiles, to cut down on maintenance.
+#
+
+NAME = Sil
+VERSION = 1.3.0
+COPYRIGHT = half & Scatha
+PROG = sil
+
+HEADERS = \
+  	h-basic.h \
+  	h-define.h h-type.h h-system.h h-config.h \
+  	angband.h \
+  	config.h defines.h types.h externs.h \
+  	z-term.h z-rand.h z-util.h z-virt.h z-form.h
+
+ZFILES =   z-util.o z-virt.o z-form.o z-rand.o z-term.o 
+MAINFILES =   main-cap.o main-gcu.o main-x11.o maid-x11.o \
+	     main-gtk.o main.o
+
+WINMAINFILES = \
+        win/faangband.res \
+        main-win.o \
+        win/readdib.o \
+        win/readpng.o \
+        win/scrnshot.o \
+	win/win-layout.o
+
+ANGFILES = \
+  	 variable.o tables.o util.o cave.o \
+  	 object1.o object2.o monster1.o monster2.o \
+  	 xtra1.o xtra2.o spells1.o spells2.o \
+  	 melee1.o melee2.o save.o files.o \
+  	 cmd1.o cmd2.o cmd3.o cmd4.o cmd5.o cmd6.o \
+  	 birth.o load.o squelch.o \
+  	 wizard1.o wizard2.o obj-info.o \
+  	 generate.o dungeon.o init1.o init2.o randart.o \
+  	 use-obj.o automaton.o

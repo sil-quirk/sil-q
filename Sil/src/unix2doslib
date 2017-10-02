@@ -1,0 +1,4 @@
+#!/bin/sh
+
+./unix2dos ../lib/*/*.txt
+./unix2dos ../lib/*/*.prf

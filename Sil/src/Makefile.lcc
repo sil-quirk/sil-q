@@ -1,0 +1,1104 @@
+#
+# Makefile for Sil using the lcc32 compiler
+#
+
+#
+# Change these paths if necessary
+#
+SIL_PATH = C:\Sil\src
+LCC_PATH = C:\lcc
+
+
+#
+# You shouldn't need to change anything below
+#
+
+SRCDIR = $(SIL_PATH)\src
+LINKER = $(LCC_PATH)\bin\lcclnk.exe
+CC     = $(LCC_PATH)\bin\lcc.exe
+RC     = $(LCC_PATH)\bin\lrc.exe
+LIBS   = $(LCC_PATH)\lib\winmm.lib
+CFLAGS = -I$(LCC_PATH) 
+
+
+OBJS=\
+	z-virt.obj \
+	z-util.obj \
+	z-term.obj \
+	z-rand.obj \
+	z-form.obj \
+	xtra2.obj \
+	xtra1.obj \
+	wizard2.obj \
+	wizard1.obj \
+	variable.obj \
+	util.obj \
+	use-obj.obj \
+	tables.obj \
+	spells2.obj \
+	spells1.obj \
+	save.obj \
+	readdib.obj \
+	randart.obj \
+	object2.obj \
+	object1.obj \
+	obj-info.obj \
+	monster2.obj \
+	monster1.obj \
+	melee2.obj \
+	melee1.obj \
+	main-win.obj \
+	main.obj \
+	load.obj \
+	init2.obj \
+	init1.obj \
+	generate.obj \
+	files.obj \
+	dungeon.obj \
+	cmd6.obj \
+	cmd5.obj \
+	cmd4.obj \
+	cmd3.obj \
+	cmd2.obj \
+	cmd1.obj \
+	cave.obj \
+	birth.obj \
+	automaton.obj \
+	sil.res
+
+sil.exe:	$(OBJS)
+	$(LINKER)  -subsystem windows -o $(SIL_PATH)\sil.exe $(OBJS) $(LIBS)
+
+# Build Z-VIRT.C
+Z-VIRT_C=\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+
+z-virt.obj: $(Z-VIRT_C) $(SRCDIR)\z-virt.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\z-virt.c
+
+# Build Z-UTIL.C
+Z-UTIL_C=\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+
+z-util.obj: $(Z-UTIL_C) $(SRCDIR)\z-util.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\z-util.c
+
+# Build Z-TERM.C
+Z-TERM_C=\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+
+z-term.obj: $(Z-TERM_C) $(SRCDIR)\z-term.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\z-term.c
+
+# Build Z-RAND.C
+Z-RAND_C=\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+
+z-rand.obj: $(Z-RAND_C) $(SRCDIR)\z-rand.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\z-rand.c
+
+# Build Z-FORM.C
+Z-FORM_C=\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+
+z-form.obj: $(Z-FORM_C) $(SRCDIR)\z-form.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\z-form.c
+
+# Build XTRA2.C
+XTRA2_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+xtra2.obj: $(XTRA2_C) $(SRCDIR)\xtra2.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\xtra2.c
+
+# Build XTRA1.C
+XTRA1_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+	$(SRCDIR)\angband.h\
+
+xtra1.obj: $(XTRA1_C) $(SRCDIR)\xtra1.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\xtra1.c
+
+# Build WIZARD2.C
+WIZARD2_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+	$(SRCDIR)\angband.h\
+
+wizard2.obj: $(WIZARD2_C) $(SRCDIR)\wizard2.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\wizard2.c
+
+# Build WIZARD1.C
+WIZARD1_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+wizard1.obj: $(WIZARD1_C) $(SRCDIR)\wizard1.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\wizard1.c
+
+# Build VARIABLE.C
+VARIABLE_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+variable.obj: $(VARIABLE_C) $(SRCDIR)\variable.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\variable.c
+
+# Build UTIL.C
+UTIL_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+util.obj: $(UTIL_C) $(SRCDIR)\util.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\util.c
+
+# Build USE-OBJ.C
+USE-OBJ_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+use-obj.obj: $(USE-OBJ_C) $(SRCDIR)\use-obj.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\use-obj.c
+
+# Build TABLES.C
+TABLES_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+tables.obj: $(TABLES_C) $(SRCDIR)\tables.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\tables.c
+
+# Build SPELLS2.C
+SPELLS2_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+spells2.obj: $(SPELLS2_C) $(SRCDIR)\spells2.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\spells2.c
+
+# Build SPELLS1.C
+SPELLS1_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+spells1.obj: $(SPELLS1_C) $(SRCDIR)\spells1.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\spells1.c
+
+# Build SAVE.C
+SAVE_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+save.obj: $(SAVE_C) $(SRCDIR)\save.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\save.c
+
+# Build READDIB.C
+READDIB_C=\
+	$(SRCDIR)\readdib.h\
+
+readdib.obj: $(READDIB_C) $(SRCDIR)\readdib.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\readdib.c
+
+# Build RANDART.C
+RANDART_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+	$(SRCDIR)\init.h\
+	$(SRCDIR)\h-basic.h\
+
+randart.obj: $(RANDART_C) $(SRCDIR)\randart.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\randart.c
+
+# Build OBJECT2.C
+OBJECT2_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+object2.obj: $(OBJECT2_C) $(SRCDIR)\object2.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\object2.c
+
+# Build OBJECT1.C
+OBJECT1_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+object1.obj: $(OBJECT1_C) $(SRCDIR)\object1.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\object1.c
+
+# Build OBJ-INFO.C
+OBJ-INFO_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+obj-info.obj: $(OBJ-INFO_C) $(SRCDIR)\obj-info.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\obj-info.c
+
+# Build MONSTER2.C
+MONSTER2_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+monster2.obj: $(MONSTER2_C) $(SRCDIR)\monster2.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\monster2.c
+
+# Build MONSTER1.C
+MONSTER1_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+monster1.obj: $(MONSTER1_C) $(SRCDIR)\monster1.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\monster1.c
+
+# Build MELEE2.C
+MELEE2_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+melee2.obj: $(MELEE2_C) $(SRCDIR)\melee2.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\melee2.c
+
+# Build MELEE1.C
+MELEE1_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+melee1.obj: $(MELEE1_C) $(SRCDIR)\melee1.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\melee1.c
+
+# Build MAIN-WIN.C
+MAIN-WIN_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+	$(SRCDIR)\readdib.h\
+
+main-win.obj: $(MAIN-WIN_C) $(SRCDIR)\main-win.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\main-win.c
+
+# Build MAIN.C
+MAIN_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+main.obj: $(MAIN_C) $(SRCDIR)\main.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\main.c
+	$(SRCDIR)\externs.h\
+
+# Build LOAD.C
+LOAD_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\init.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+load.obj: $(LOAD_C) $(SRCDIR)\load.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\load.c
+
+
+# Build INIT2.C
+INIT2_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+	$(SRCDIR)\init.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\angband.h\
+
+init2.obj: $(INIT2_C) $(SRCDIR)\init2.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\init2.c
+
+# Build INIT1.C
+INIT1_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+	$(SRCDIR)\init.h\
+	$(SRCDIR)\h-basic.h\
+
+init1.obj: $(INIT1_C) $(SRCDIR)\init1.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\init1.c
+
+# Build GENERATE.C
+GENERATE_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+generate.obj: $(GENERATE_C) $(SRCDIR)\generate.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\generate.c
+
+# Build FILES.C
+FILES_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+files.obj: $(FILES_C) $(SRCDIR)\files.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\files.c
+
+# Build DUNGEON.C
+DUNGEON_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+dungeon.obj: $(DUNGEON_C) $(SRCDIR)\dungeon.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\dungeon.c
+
+# Build CMD6.C
+CMD6_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+	$(SRCDIR)\angband.h\
+
+cmd6.obj: $(CMD6_C) $(SRCDIR)\cmd6.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\cmd6.c
+
+# Build CMD5.C
+CMD5_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+	$(SRCDIR)\angband.h\
+
+cmd5.obj: $(CMD5_C) $(SRCDIR)\cmd5.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\cmd5.c
+
+# Build CMD4.C
+CMD4_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+cmd4.obj: $(CMD4_C) $(SRCDIR)\cmd4.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\cmd4.c
+
+# Build CMD3.C
+CMD3_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+cmd3.obj: $(CMD3_C) $(SRCDIR)\cmd3.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\cmd3.c
+
+# Build CMD2.C
+CMD2_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+cmd2.obj: $(CMD2_C) $(SRCDIR)\cmd2.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\cmd2.c
+
+# Build CMD1.C
+CMD1_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+cmd1.obj: $(CMD1_C) $(SRCDIR)\cmd1.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\cmd1.c
+
+# Build CAVE.C
+CAVE_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+cave.obj: $(CAVE_C) $(SRCDIR)\cave.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\cave.c
+
+# Build BIRTH.C
+BIRTH_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+birth.obj: $(BIRTH_C) $(SRCDIR)\birth.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\birth.c
+
+# Build AUTOMATON.C
+AUTOMATON_C=\
+	$(SRCDIR)\angband.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\h-config.h\
+	$(SRCDIR)\h-system.h\
+	$(SRCDIR)\h-type.h\
+	$(SRCDIR)\h-define.h\
+	$(SRCDIR)\z-util.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-virt.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-form.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-rand.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\z-term.h\
+	$(SRCDIR)\h-basic.h\
+	$(SRCDIR)\config.h\
+	$(SRCDIR)\defines.h\
+	$(SRCDIR)\types.h\
+	$(SRCDIR)\externs.h\
+
+automaton.obj: $(AUTOMATON_C) $(SRCDIR)\automaton.c
+	$(CC) -c $(CFLAGS) $(SRCDIR)\automaton.c
+
+# Build sil.res
+SIL_RC=\
+	$(SRCDIR)\sil.ico\
+
+sil.res:	$(SIL_RC) $(SRCDIR)\sil.rc
+	$(RC) -I$(SRCDIR) $(SRCDIR)\sil.rc
+

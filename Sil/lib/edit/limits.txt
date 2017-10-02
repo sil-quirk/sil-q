@@ -1,0 +1,85 @@
+# File: limits.txt
+#
+# This file is used to create the "lib/data/limits.raw" file, which is
+# used to initialize the "array sizes" information for Sil.
+#
+# Do not modify this file unless you know exactly what you are doing,
+# unless you wish to risk possible system crashes and broken savefiles.
+#
+# These numbers are all actually the maximum + 1, (except for the artifact 
+# non-total numbers)
+
+
+# Version stamp (required)
+
+V:1.3.0
+
+
+# Maximum number of feature types
+M:F:86
+
+# Maximum number of object kinds
+M:K:600
+
+# Maximum number of abilities
+M:B:240
+
+# Maximum number of total artifacts
+#
+# M:A:special:normal:random:self-made
+#
+#   special artifacts:     (1 to this number - 1)
+#   normal artifacts:      ((special) to (special + this number - 1))
+#   random artifacts:      ((normal artifacts) to (normal artfiacts + this number - 1))
+#   self-made artfiacts:   ((random artifacts) to (random artifacts + this number - 1))
+#   total artifacts        = special + normal + random + self-made
+#
+# changing these numbers will almost always break savefile compatibility
+#
+M:A:20:180:1:50
+
+# Maximum number of special item types
+M:E:145
+
+# Maximum number of monster races
+M:R:656
+
+# Maximum number of permanent maintainer ghost templates (in *angband/lib/bones)
+M:G:19
+
+# Maximum number of vaults
+M:V:500
+
+# Maximum number of player races
+M:P:4
+
+# Maximum number of player houses
+M:C:11
+
+# Maximum number of player history lines
+M:H:165
+
+# Maximum number of quests (including a slot for random quests)
+M:Q:4
+
+# Maximum number of flavors
+M:L:310
+
+# Maximum number of objects on the level
+M:O:512
+
+# Previously we had the maximum number of monsters on the level here
+# but it has been made into a compile-time #define
+
+#
+# Array sizes (in bytes) for some initialization stuff
+#
+
+# Size of the "fake" array for reading in names of monsters, objects,
+# artifacts, store-owners, player-races, ...
+M:N:20480
+
+# Size of the "fake" array for reading in the descriptions of monsters,
+# vaults, and the player-histories
+M:T:65440
+

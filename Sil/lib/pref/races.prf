@@ -1,0 +1,19 @@
+# File: races.prf
+
+#
+# This file loads specific race "sub-files" 
+#
+
+?:[EQU $RACE Noldor]
+%:noldor.prf
+
+?:[EQU $RACE Sindar]
+%:sindar.prf
+
+?:[EQU $RACE Naugrim]
+%:naugrim.prf
+
+?:[EQU $RACE Edain]
+%:edain.prf
+?:1
+

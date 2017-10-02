@@ -1,0 +1,1865 @@
+# File: artefact.txt
+#
+# This file is used to create the 'lib/data/artefact.raw' file, which
+# is used to initialize the 'artefact' information for Sil.
+#
+# Do not modify this file unless you know exactly what you are doing,
+# unless you wish to risk possible system crashes and broken savefiles.
+#
+#
+# === Understanding artefact.txt ===
+#
+# N: serial number : item name
+# G: char : attr
+# I: tval : sval : pval
+# B: skilltype / abilitynum : ...
+# W: depth : rarity : weight : cost
+# P: attack bonus : damage dice : evasion bonus : protection dice
+# F: flag | flag | etc
+# D: text
+#
+# 'N' indicates the beginning of an entry. The serial number must
+#     increase for each new item.
+#
+# 'G' is for graphics overrides, if any. The char is the symbol 
+#     and the attr the colour. (See object.txt)
+#
+# 'I' is for basic information. The tval is for the type of item, the
+#     sval identifies the subtype and the pval indicates the amount of
+#     effect the item has, if applicable.
+#     (See object.txt)
+#
+# 'B' is for granted abilities, represented as pairs of skill 
+#     numbers and ability numbers. (See ability.txt)
+#
+# 'W' is for extra information. Depth is the depth the object is
+#     normally found at, rarity determines how common the object is,
+#     weight is in tenth-pounds and cost is the item's value.
+#
+# 'P' is for power information. The item's bonuses to attack and
+#     evasion, as well as its damage and protection dice.
+#     Note that for non-weapons, adding damage dice will not
+#     help with melee, only with the thrown damage.
+#
+# 'F' is for flags. These are fairly self-explanatory. As many 
+#     F: lines may be used as are needed to specify all the flags
+#     and flags are separated by the '|' symbol.
+#
+# 'D' is a textual description of the artefact.
+# 
+# === Important Notes ===
+#
+# (1) The artefact indexes are defined in 'defines.h', and must not be changed.
+#
+# (2) Any changes or additions to the file will have influence on randarts
+#     and may break savefile compatibility for old savegames with randarts.  If
+#     using random artefacts, finish your existing game before making any
+#     changes to the artefact.txt file at all.
+#
+# (3) Removing any artefact, or changing its 'base' type (as defined by
+#     the tval and sval entries in the 'I:' line), will break savefile
+#     compatibility for ALL savefiles.
+#
+# (4) Adding a new artefact, or changing the powers of existing ones, will
+#     NOT affect savefile compatibility for games with the standard artefact set:
+#     it is perfectly safe to do this. (If your new artefact is a new kind of
+#     object, or a new one at the end of the file, you must also amend object.txt
+#     or limits.txt.)
+#
+#
+#
+# === Ideas for Artefacts ===
+#
+# Regarding the dating and cut-offs for the items, Beren and Luthien stole a
+# Silmaril in FA 469, so I'd like to keep roughly to this date.
+#
+# Elves
+# * Feanor		(crown - smithing, fire, will, aggravate)
+#   * Maedhros		(hauberk - combat bonuses, res fire, res poison)
+#   * Maglor		(cloak - song, restore voice)
+#   * Celegorm		(bow - will, slay wolf/spider)
+#   * Caranthir		(leather - stealth, dark, rage)
+#   * Curufin		(helm - perception, stealth, will, res confusion)
+#     * Celebrimbor	(gloves - smithing, free action)
+#   * Amrod		(short sword - perception, stealth)
+#   * Amras		(broken sword - perception, stealth, fire)
+# * Fingolfin		('ringil' - rcold, light) (shield - con, rfear)
+#   * Fingon		(corslet - resist fear, con)
+#     * Gil-galad	('aeglos' - cold)
+#   * Turgon		('glamdring' - will, slay orc/troll/rauko/dragon)
+#     * Idril		(robe - speed)	
+#       * Earendil	(elessar - con, regenerate, heal) (bow - dex, slay dragon)
+#   * Aredhel		(robe - sustain grace, free action, res dark)
+#     * Maeglin	        (galvorn armour - hunger, channelling, res poison)
+# - Finarfin
+#   * Finrod		(boots - good evasion, free action)
+#   * Angrod		(round shield - res stun, res conf, res fire)
+#     * Orodreth	(greaves - dex, res fire)
+#   * Aegnor
+#   * Galadriel
+# * Thingol		(cloak - grey, rfire, rcold, free act) (Aranruth - will, rfear, danger)
+#   * Luthien		(shadow cloak - res dark, sust gra, stealth)
+# * also...
+#   * Daeron		(? - song, hunger)
+#   - Celeborn
+#   * Beleg		(Dailir - bonuses) (Belthronding - dex, stealth, shot)
+#   * Eol		('Ang' - sharpness, danger) ('Ang' - sharpness, hunger)
+#   * Ecthelion
+#   * Tinfang Gelion	(? - song)
+#
+# Men
+# * Beor		(studded leather - resist poison, resist dark)
+#   * Beren		(dagmor - grace, res fear, res dark)
+#   * Barahir		(Ring - free action, res poison)
+#   * Tuor		(Dramborleg - slay orc/troll/rauko)
+# - Marach
+#   * Hador		(shield - res cold, res lightning)
+#   * Hurin		(battle axe - con, will, resist fear, slay troll, rage)
+#     * Turin		(dragon helm - str, will, rfear, rstun) (Anglachel - sharp, danger)
+#   - Gloredhel
+# * Halmir		(staff - sustain str/con, res poison)
+#
+# Dwarves
+# * Azaghal		(dagger - slay dragon, res fear, res fire)
+# * Durin		(mail corslet - res fire, res cold, regenerate)
+# * Telchar		(hammer - smithing, sust str, res fire)
+# * Gamil Zirak		(gloves - smithing, res fire)
+#
+# Powers
+# * Melian
+#
+# Places
+# * Sirion
+# * Taur-nu-fuin
+# * Belegost
+# * Nogrod		(great axe - slay orc/troll/rauko, res fire)
+# * Amon Rudh
+# - Taur-im-Duinath
+# * Nargothrond
+# - Mithrim
+# * Brethil
+# - Ossiriand
+# - Gorgoroth
+# - Khazad-Dum
+#
+#
+# The following is from First Age Angband and could be incorporated:
+#
+# The Iron Helm of Vinyamar (Set Item)
+#
+#D:The helm left by Turgon in Vinyamar for the messenger of Ulmo.  Crowned by 
+#D:three swan's feathers, it greatens the heart and clarifies the purpose of 
+#D:the one who wears it.
+#
+# Also, a Shadow Cloak of Ulmo could be added to complete the Vinyamar set
+
+
+
+# Version stamp (required)
+
+V:1.3.0
+
+#################################################################
+# Here is the list of 'Special' artefacts. 
+# They can be:
+#   - Rings
+#   - Amulets
+#   - Light Sources
+# Only artefacts 1 to 19 may be of these types.
+# Artefacts from index number 20 onwards must be Armour or Weapons.
+
+
+## The Ring of Barahir
+## 1st age
+## (ability 7/8 is Song of Este)
+
+N:1:of Barahir
+I:45:32:0
+W:10:20:1:5000
+P:0:0d0:0:0d0
+F:FREE_ACT | RES_POIS
+F:INSTA_ART
+B:7/8
+D:A ring shaped into twinned serpents with eyes of emerald meeting
+D: beneath a crown of flowers. It was given to Barahir of Beor's House
+D: by Finrod Felagund the Noldorin Prince. It is a symbol of loyalty and
+D: faithfulness.
+
+
+## The Ring of Melian
+## 1st age namesake
+## (ability 5/0 is Channeling)
+
+N:2:of Melian
+I:45:30:7
+W:14:30:1:50000
+P:0:0d0:0:0d0
+F:PERCEPTION
+F:INSTA_ART
+B:5/0
+D:A ring that once graced the hand of Melian, Queen
+D: of Doriath and one of the Powers of the World.
+D: Above all else, she is famed for her insight.
+
+
+## The Amulet of Tinfang Gelion
+## 1st age namesake
+## (ability 7/11 is Woven Themes)
+
+N:3:of Tinfang Gelion
+I:40:10:2
+W:12:20:1:5000
+P:0:0d0:0:0d0
+F:SONG
+F:INSTA_ART
+B:7/11
+D:A delicate necklace traced with intricate designs.
+D: Clasping it around your neck fills you memories of
+D: great heroes and a desire to sing of their deeds.
+
+
+## The Pearl 'Nimphelos' (amulet slot)
+## 1st age
+
+N:4:'Nimphelos'
+I:40:13:2
+W:12:20:1:5000
+P:0:0d0:0:0d0
+F:GRA | SUST_GRA
+F:INSTA_ART
+D:The greatest pearl from the Bay of Balar, its sheen was as starlight on the
+D: foam of the sea.  It was given to the chieftain of the Dwarves of Belegost
+D: by Thingol Greycloak, King of Doriath.
+
+
+## The Jewel 'Elessar' (amulet slot)
+## 1st age
+## (ability 5/7 is Strength in Adversity)
+
+N:5:'Elessar'
+I:40:16:1
+W:14:20:1:7000
+P:0:0d0:0:0d0
+F:CON | REGEN
+F:INSTA_ART
+B:5/7
+D:A beautiful green jewel made by Enerdhil in the Hidden City.
+D: In it is trapped the light of the Sun, and any who look through it
+D: can see the withered and old as if they were young and supple once more.
+
+
+## The Necklace of the Dwarves (amulet slot)
+## 1st age
+
+N:6:of the Dwarves
+I:40:12:1
+W:16:30:1:10000
+P:0:0d0:0:0d0
+F:CON | GRA
+F:INSTA_ART
+D:The Nauglamir; a carencet of gold set with a multitude of shining gems
+D: of Valinor. It was made by the dwarves of Ered Luin for Finrod Felagund. 
+
+
+
+#################################################################
+# Here is the list of 'Normal' artefacts. 
+# They can be Armour or Weapons.
+# They use indices 20 - 139.
+
+
+##### Soft Armor #####
+
+
+## The Filthy Rag of Dungalef
+## 1st age namesake
+## (ability 3/0 is Disguise)
+## (ability 3/5 is Vanish)
+
+N:20:of Dungalef
+I:36:1:1
+W:5:10:20:5000
+P:0:0d0:+1:1d0
+B:3/0:3/5
+F:STEALTH
+D:The elf-king Felagund wrought a spell over this cloth, that
+D: he might pass for an orc and evade the watchful eye of Thu.
+
+
+## The Robe of Aredhel
+## 1st age
+
+N:21:of Aredhel
+G:(:w
+I:36:2:0
+W:8:10:30:25000
+P:0:0d0:+3:1d0
+F:FREE_ACT | SUST_GRA
+D:The White Lady of the Noldor once wore this robe, cut of the
+D: finest white cloth and hemmed with silver thread.
+
+
+## The Robe of Idril Celebrindal
+## 1st age namesake
+
+N:22:of Idril Celebrindal
+I:36:2:0
+W:16:18:30:25000
+P:0:0d0:0:1d0
+F:SPEED
+D:A robe of the only child of Turgon, and light of Gondolin.
+D: The soft folds of smooth cloth invigorate you and fill
+D: you with thoughts of the swift eagles of Manwe.
+
+
+## The Leather Armour of Gorlim
+## 1st age namesake
+## (ability 3/4 is Exchange Places)
+
+N:24:of Gorlim
+I:36:4:0
+W:3:15:70:45000
+P:0:0d0:0:1d5
+F:FEAR
+B:3/4
+D:This armour is black with the memory of treachery.
+D: It was worn by Gorlim, called the Unhappy,
+D: who betrayed Barahir to Gorthaur for lying
+D: promises about his dead wife.
+
+
+## The Leather Armour of Caranthir
+## 1st age namesake
+
+N:25:of Caranthir
+I:36:4:4
+W:8:15:60:45000
+P:0:0d0:1:1d4
+F:STEALTH | DARKNESS
+D:Caranthir the Dark was the harshest of Feanor's sons
+D: and quick to anger.
+
+
+## The Leather Armour, 'Catskin'
+## (ability 2/6 is Flanking)
+## (ability 4/2 is Keen Senses)
+
+N:26:'Catskin'
+I:36:4:0
+W:10:30:50:45000
+P:0:0d0:0:1d4
+B:2/6:4/2
+D:This leather looks strangely proportioned, but when you
+D: don it it fits perfectly. You feel a desire to hunt.
+
+
+## The Studded Leather Armour of Beor
+## 1st age namesake
+## (ability 5/3 is Inner Light)
+
+N:28:of Beor
+I:36:7:0
+W:8:20:120:35000
+P:0:0d0:-1:1d6
+F:RES_POIS | SUST_GRA
+B:5/3
+D:An well-used old set of armour. At first glance, there is
+D: nothing remarkable about it, but then one realises it has
+D: been lovingly cared for, and expertly made. It gladdens
+D: the heart in the dark places of the world.
+
+
+## The Studded Leather of Aegnor
+## 1st age namesake
+## (ability 4/4 is Concentration)
+
+N:29:of Aegnor
+I:36:7:1
+W:4:30:100:35000
+P:1:0d0:-2:1d6
+F:WILL
+B:4/4
+D:Crafted for Aegnor, a Noldorin prince who loved a mortal.
+D: It lends its wearer determination and sureness of heart.
+
+
+## The Galvorn Armour of Maeglin
+## 1st age
+## (automatic drop -- don't move)
+
+N:32:of Maeglin
+I:36:11:3
+W:15:1:70:45000
+P:0:0d0:-1:1d8
+F:SMITHING | RES_POIS
+F:HUNGER
+F:INSTA_ART
+D:Supple but harder than serpent-scale, this shining black
+D: armour was wrought years ago by the master smith Eol,
+D: and given as a gift to his son, Maeglin.
+
+
+
+##### Hard Armor #####
+
+
+## The Mail Corslet of Fingon
+## 1st age namesake
+
+N:34:of Fingon
+I:37:4:1
+W:8:25:260:105000
+P:0:0d0:-3:2d4
+F:RES_FEAR | CON | GRA
+D:A bright mail corslet worn by Fingon, the eldest son of Fingolfin.
+
+
+## The Mail Corslet of Durin
+## 1st age namesake
+
+N:35:of Durin
+I:37:4:0
+W:13:30:280:105000
+P:-1:0d0:-3:3d3
+F:RES_FIRE | RES_COLD | REGEN
+D:Durin was the father of the longbeards of Khazad-Dum,
+D: and his wealth almost without equal. This is one of his
+D: exquisite suits of mail, armour to protect a King.
+
+
+## The Hauberk of Maedhros
+## 1st age namesake
+
+N:36:of Maedhros
+I:37:6:0
+W:13:12:330:105000
+P:-2:0d0:-3:2d6
+F:RES_FIRE | RES_POIS
+D:A suit of mail once worn by Maedhros, eldest son of Feanor.
+D: When he was taken into Angband by Morgoth's servants
+D: and hung by his right hand from Thangorodrim, his armour was
+D: stripped from him and stored in Morgoth's iron vaults.
+
+
+## The Hauberk of Amon Rudh
+## 1st age namesake
+## (ability 5/8 is Critical Resistance)
+
+N:37:of Amon Rudh
+I:37:6:0
+W:13:15:300:25000
+P:-1:0d0:-4:2d6
+B:5/8
+D:Hard are the people who live around the hill Amon
+D: Rudh, and hard is the armour they wear.
+
+
+## The Mail Corslet of Gundor
+## 1st age
+## (ability 2/3 is Crowd Fighting)
+
+N:39:of Gundor
+I:37:4:1
+W:5:30:350:25000
+P:-1:0d0:-1:2d4
+F:STR
+B:2/3
+D:The mail of Gundor, son of Hador. It gives the wearer
+D: strength to walk among a host of foes.
+
+
+## The Hauberk of Nevrast
+## 1st age (Vinyamar set)
+
+N:40:of Nevrast
+I:37:6:0
+W:11:18:500:25000
+P:-2:0d0:-4:2d8
+F:SUST_GRA | SUST_STR
+D:When Turgon departed Vinyamar in Nevrast, he left this armour, and
+D: strange destiny has led it far from those halls. Its is crafted with a
+D: double layer of mail, which makes it too heavy for many, but turns
+D: many a blow that might cleave through a lesser suit.
+
+
+## The Mithril Corslet 'Starlight'
+## (ability 7/0 is Song of Elbereth)
+
+N:41:'Starlight'
+I:37:20:1
+W:16:10:120:50000
+P:0:0d0:-1:2d4
+F:RES_FEAR | RES_BLIND
+F:PERCEPTION | SONG
+B:7/0
+D:This exquisite coat is wrought from tiny rings of mithril,
+D: almost too small to see, that twinkle in torchlight just
+D: as the stars of Varda twinkle in the night sky.
+
+
+##### Shields #####
+
+
+## The Round Shield of Angrod
+## 1st age namesake
+
+N:42:of Angrod
+G:):b
+I:34:3:0
+W:10:10:50:25000
+P:0:0d0:0:1d4
+F:RES_STUN | RES_CONFU | RES_FIRE
+D:A gleaming metal shield, once borne by Angrod, Prince
+D: of the Noldor.
+
+
+## The Round shield of Glorfindel
+## 1st age namesake
+## (ability 0/4 is Charge)
+
+N:43:of Glorfindel
+I:34:3:0
+W:8:20:60:25000
+P:0:0d0:1:1d4
+B:0/4
+D:The shield of Glorfindel, a hero of Gondolin.
+D: He was ever at the front of battle, leading
+D: elves to take swift vengeance upon their foes.
+
+
+## The Kite Shield of Hador
+## 1st age namesake
+
+N:45:of Hador
+G:):r
+I:34:5:0
+W:8:12:90:25000
+P:-1:0d0:0:1d6
+F:RES_FIRE | RES_COLD
+D:The famed shield of Hador 'Goldenhead', great
+D: leader of the folk of Marach, and lord of Dor-lomin.
+
+
+## The Kite Shield of Fingolfin
+## 1st age
+
+N:46:of Fingolfin
+G:):b1
+I:34:5:1
+W:13:15:70:25000
+P:-2:0d0:0:1d8
+F:CON | SUST_CON | RES_FEAR
+D:A shining blue shield, set with crystals. It was borne by
+D: Fingolfin, high-king of the Noldor.
+
+
+## The Mithril Shield of Valinor
+## 1st age namesake
+
+N:47:of Valinor
+G:):w
+I:34:10:1
+W:18:12:30:25000
+P:0:0d0:1:1d6
+F:LIGHT | GRA
+D:Shining like the full moon, this shield bears the device of
+D: the Blessed Realm. It gladdens your heart.
+
+
+## The Kite Shield of the Swan
+## 1st age (Vinyamar set)
+
+N:48:of the Swan
+G:):b
+I:34:5:4
+W:10:15:70:25000
+P:-2:0d0:0:1d7
+F:WILL | SUST_CON | SUST_DEX
+D:A long tapering shield of elven design, wrought of wood overlaid with plates
+D: of metal and bearing the design of a swan's wing on a blue field.
+D: Untarnished by long years waiting in Turgon's deserted halls of Vinyamar,
+D: it conveys the same powers of endurance to its bearer.
+
+
+##### Edged Weapons #####
+
+
+## The Broken Sword of Amras
+## 1st age namesake
+
+N:50:of Amras
+I:23:2:2
+W:4:12:10:50000
+P:1:1d5:0:0d0
+F:BRAND_FIRE | RES_FIRE
+F:STEALTH | PERCEPTION
+D:This was the hunting blade of Amras, son of Feanor,
+D: and matched that of his twin Amrod. When the Feanoreans
+D: arrived on the shores of Beleriand and burned their stolen
+D: ships, young Amras lay still aboard and was burnt therein.
+D: The flames seared and broke his blade as well, but it was
+D: retrieved afterwards as a token of memory and found to have
+D: been changed by the fire.
+
+
+## The Dagger of Nargil
+## 1st age
+
+N:52:of Nargil
+I:23:4:0
+W:7:20:5:50000
+P:5:1d5:0:0d0
+F:SHARPNESS
+F:THROWING
+D:'...the knife of the north, in Nogrod smithied.'
+
+
+## The Dagger of Azaghal
+## 1st age
+
+N:53:of Azaghal
+I:23:4:0
+W:13:8:10:50000
+P:1:1d6:0:0d0
+F:SLAY_DRAGON | RES_FIRE | RES_FEAR
+F:THROWING
+D:Azaghal, Dwarf-king of Belegost, fell before Glaurung in the Battle of
+D: Unnumbered Tears, but with his final stroke he dealt Glaurung such a
+D: blow that the Father of Dragons fled the field with all his kin, and
+D: was at first believed to be mortally wounded.
+
+
+## The Dagger 'Angrist'
+## 1st age
+
+N:54:'Angrist'
+I:23:4:0
+W:14:4:5:100000
+P:0:1d5:0:0d0
+F:SHARPNESS2
+F:THROWING
+D:Forged from meteoric iron by Telchar, greatest of Dwarven smiths, 
+D: this dagger slices through metal as easily as flesh, earning its
+D: name: 'Iron Cleaver'.
+
+
+## The Shortsword of Amrod
+## 1st age namesake
+
+N:58:of Amrod
+I:23:10:2
+W:8:10:15:15000
+P:1:1d7:1:0d0
+F:STEALTH | PERCEPTION | FREE_ACT
+D:The hunting blade of Amrod, son of Feanor.
+D: When drawn from its sheath, the wielder's movements are
+D: reduced to a whisper and his senses sharpen.
+
+
+## The Shortsword 'Dagmor'
+## 1st age
+
+N:59:'Dagmor'
+I:23:10:1
+W:12:10:20:15000
+P:2:1d8:1:0d0
+F:RES_FEAR | GRA | LIGHT
+D:The 'dark-slayer'; a short blade borne by Beren, son of Barahir.
+
+
+## The Shortsword of Galadriel
+## 1st age namesake
+## (ability 2/8 is Riposte)
+
+N:60:of Galadriel
+I:23:10:0
+W:9:30:20:30000
+P:0:1d8:3:0d0
+F:SUST_GRA
+B:2/8
+D:This sword was taken up by Galadriel, princess
+D: of the Noldor, in defence of her kinsfolk the Teleri
+D: when the Feanorians turned on them for their ships
+D: at far-off Alqualonde.
+
+
+## The Longsword 'Orcrist'
+## 1st age
+
+N:64:'Orcrist'
+I:23:17:2
+W:10:20:30:40000
+P:2:2d5:2:0d0
+F:SLAY_ORC | SLAY_TROLL | PERCEPTION
+D:This gleaming blade, mate to Glamdring, is called simply
+D: "Biter" by orcs who came to know its power all too well.
+
+
+## The Longsword 'Glamdring'
+## 1st age
+
+N:65:'Glamdring'
+I:23:17:2
+W:14:20:30:40000
+P:2:2d5:2:0d0
+F:SLAY_ORC | SLAY_TROLL | SLAY_DRAGON | SLAY_RAUKO | WILL
+D:This bright blade was forged by Enerdhil of Gondolin
+D: and borne by Turgon, lord of the hidden city. Its edge
+D: is the bane of many of Morgoth's servants.
+
+
+## The Longsword 'Narsil'
+## 1st age
+
+N:66:'Narsil'
+I:23:17:0
+W:12:30:25:80000
+P:0:2d6:1:0d0
+F:LIGHT
+F:RES_FIRE | RES_COLD
+D:The sword of the sun and the moon. It was forged by the
+D: great dwarf-smith Telchar of Nogrod, and will have
+D: a great part to play in future events.
+
+
+## The Longsword 'Aranruth'
+## 1st age
+
+N:67:'Aranruth'
+I:23:17:3
+W:20:30:40:50000
+P:3:2d6:1:0d0
+F:WILL | RES_FEAR
+F:DANGER
+D:The beautiful sword of Thingol, justly named 'King's Ire'.  You are
+D: filled with unshakeable confidence when you clasp its jeweled hilt.
+
+
+## The Bastard Sword 'Anglachel'
+## 1st age
+
+N:70:'Anglachel'
+G:|:D
+I:23:21:0
+W:15:15:50:100000
+P:1:3d3:1:0d0
+F:SHARPNESS | DANGER
+D:Forged of black meteoric iron by the Eol the Dark Elf, 
+D:it is the twin to Anguirel and was given to Thingol in exchange for 
+D:suffering Eol to live in Nan Elmoth.
+
+
+## The Bastard Sword 'Anguirel'
+## 1st age
+
+N:71:'Anguirel'
+G:|:D
+I:23:21:0
+W:15:15:50:100000
+P:1:3d3:1:0d0
+F:SHARPNESS | HUNGER
+D:Forged of black meteoric iron by the Eol the Dark Elf, 
+D:it is the twin to Anglachel.
+
+
+## The Greatsword 'Glend'
+## 1st age
+## (automatic drop -- don't move)
+
+N:74:'Glend'
+I:23:25:1
+W:12:1:120:100000
+P:-1:3d6:1:0d0
+F:STR | SUST_STR
+F:INSTA_ART
+D:The long deadly blade of Nan, the Giant.
+
+
+## The Greatsword of Saithnar
+## 1st age
+
+N:75:of Saithnar
+I:23:25:0
+W:17:15:70:100000
+P:0:3d5:1:0d0
+F:SHARPNESS | SLAY_UNDEAD | HAUNTED | SEE_INVIS
+D:A shining greatsword, inlaid with runes of silver.
+
+
+## The Greatsword 'Calris'
+## from Iron Crown Enterprises (originally)
+## and one of the most interesting artefacts in (the game) Angband
+
+N:76:'Calris'
+G:|:r
+I:23:25:1
+W:15:15:110:100000
+P:-5:3d7:1:0d0
+F:CON | BRAND_FIRE | LIGHT
+F:VUL_COLD | LIGHT_CURSE
+D:A cruel and heavy blade, wreathed in undying flames. It was originally
+D: forged for the great Valarauko, Gothmog, to break any dissension amongst
+D: the hosts of Morgoth.
+
+
+## The Mithril Longsword 'Celeg Aithorn'
+## 1st age
+
+N:80:'Celeg Aithorn'
+I:23:28:0
+W:20:10:20:50000
+P:1:2d5:1:0d0
+F:BRAND_ELEC | SHARPNESS
+D:'...the sweeping sickle of the slashing tempest,
+D: the lambent lightning's leaping falchion
+D: even Celeg Aithorn that shall cleave the world.'
+
+
+## The Mithril Longsword 'Ringil'
+## 1st age
+
+N:81:'Ringil'
+I:23:28:1
+W:20:7:20:300000
+P:3:2d5:3:0d0
+F:BRAND_COLD | LIGHT
+D:The weapon of Fingolfin, High King of the Noldor; it shines like a
+D: column of ice lit by light unquenchable.  Morgoth came but
+D: unwillingly to meet it of old; his lame foot will remind him of its
+D: might should he face it again.
+
+
+## The Deathblade 'Delmereth'
+## original to Sil
+## (automatic drop -- don't move)
+
+N:84:'Delmereth'
+I:23:15:2
+W:18:1:20:500000
+P:+3:1d9:+1:0d0
+F:STEALTH | VAMPIRIC | HUNGER
+F:INSTA_ART
+D:Though this dark blade is held to your will now, you feel it writhe
+D: with resentment. It will happily take out its anger on any before
+D: you, though.
+
+
+##### Polearms #####
+
+
+## The Spear of Boldog
+## 1st age
+## (automatic drop -- don't move)
+
+N:86:of Boldog
+G:/:s
+I:22:1:0
+W:8:1:50:30000
+P:0:1d10:0:0d0
+F:RES_FEAR | SLAY_WOLF
+F:THROWING
+F:INSTA_ART
+D:The iron spear of Boldog, a fierce captain of the orcs.
+
+
+## The Spear 'Aeglos'
+## 1st or 2nd age (not mentioned before 2nd age)
+
+N:87:'Aeglos'
+I:22:1:0
+W:14:15:30:140000
+P:1:1d9:0:0d0
+F:BRAND_COLD
+F:THROWING
+D:The mighty spear of Gil-galad, famed as "Snow-point" in the songs of
+D: Elves.
+
+
+## The Great Spear of Ogbar
+## 1st age
+
+N:89:of Ogbar
+I:22:2:0
+W:10:30:60:60000
+P:1:1d13:1:0d0
+F:SHARPNESS | SLAY_SPIDER
+D:A long spear, with a point like a sharp thorn of steel.
+
+
+## The Great Spear of Melkor
+## 1st age
+
+N:90:of Melkor
+G:/:D
+I:22:2:-1
+W:15:20:80:100000
+P:-1:1d14:1:0d0
+F:GRA | BRAND_POIS
+F:VUL_POIS | LIGHT_CURSE 
+D:A mighty black spear, once wielded by the Lord of Darkness
+D: himself as he came to Valinor in wrath. Its envenomed bite pierced
+D: the Two Trees with wounds that would not heal.
+
+
+## The Battle Axe 'Dramborleg'
+## 1st age
+
+N:93:'Dramborleg'
+I:22:12:0
+W:12:15:50:21000
+P:-2:3d5:0:0d0
+F:SLAY_RAUKO | SLAY_ORC | SLAY_TROLL
+D:A heavy axe wrought in the forges of Gondolin. Its name
+D: is 'Thudder-sharp' for it strikes with the force of a club
+D: but cuts like a sword.
+
+
+## The Battle Axe of Hurin
+## 1st age
+## (ability 7/1 is Song of Slaying)
+
+N:94:of Hurin
+I:22:12:1
+W:15:20:45:90000
+P:-3:3d5:0:0d0
+B:7/1
+F:CON | WILL | SLAY_TROLL | RES_FEAR
+D:Wielded by Hurin Thalion, last lord of Dor-Lomin at the Battle of
+D: Tears Unnumbered.  He stood alone, his friends and kinsmen dead about
+D: him, his axe smoking in the black blood of Gothmog's troll-guard.  No
+D: less than seventy times, as he slew his foes, did he utter his mighty
+D: war-cry: "Aure entuluva!" - "Day shall come again!"
+
+
+## The Great Axe of Nogrod
+## 1st age namesake
+
+N:95:of Nogrod
+I:22:13:1
+W:18:15:110:150000
+P:-4:4d5:0:0d0
+F:SLAY_RAUKO
+F:STR | RES_FIRE
+D:Forged by Gamil Zirak in days long gone, this giant axe
+D: was for many years an heirloom of the dwarven city of Nogrod.
+D: It grants its wielder strength to wield it and the power to
+D: fight some of Morgoth's foulest servants.
+
+
+## The Glaive of Gaurin
+## 1st age
+
+N:99:of Gaurin
+I:22:4:3
+W:10:30:80:50000
+P:-2:2d9:1:0d0
+F:TUNNEL | SHARPNESS
+D:'...the glaive of Gaurin whose gleaming stroke
+D: did rive the rocks of Rodrim's hall.'
+
+
+## The Glaive of the Sirion
+## 1st age namesake
+## (ability 3/3 is Opportunist)
+## (ability 0/6 is Zone of Control)
+
+N:100:of the Sirion
+I:22:4:3
+W:10:20:70:50000
+P:-1:2d10:1:0d0
+B:0/6:3/3
+D:Like the waters of its namesake river, this fine blade
+D: is ever in motion. In combat, it seems to flow into
+D: every opening, no matter how brief.
+
+
+## The Glaive 'Celebrist'
+## original to Sil
+
+N:101:'Celebrist'
+I:22:4:1
+W:10:20:50:22000
+P:-1:2d9:2:0d0
+F:DEX | FREE_ACT | NEG_CON
+D:A beautiful blade on a long shaft of dark wood. It feels lively
+D: in your hands, its point guiding itself to where it is needed.
+
+
+
+##### Blunt Weapons #####
+
+
+## The Quarterstaff of Halmir
+## 1st age namesake
+## (ability 7/3 is Song of Freedom)
+
+N:104:of Halmir
+I:21:3:3
+W:5:30:40:250000
+P:0:2d4:3:0d0
+F:SUST_STR | SUST_CON | RES_POIS
+B:7/3
+D:Halmir, who once bore this staff, was a chieftain among men,
+D: and resolute always against the power of Morgoth.
+
+
+## The War Hammer of Telchar
+## 1st age namesake
+
+N:107:of Telchar
+I:21:8:3
+W:11:20:45:250000
+P:0:4d1:0:0d0
+F:SMITHING | SUST_STR | RES_FIRE
+D:The great hammer of Telchar, mighty smith of Nogrod.
+D: Its hard steel rung against both dwarf-forge and orc-shield.
+
+
+## The Sceptre of Thu
+## 1st age
+## (ability 7/10 is Song of Mastery)
+
+N:110:of Thu
+G:\:D
+I:21:9:2
+W:20:20:40:50000
+P:0:2d4:0:0d0
+F:GRA | DANGER | HAUNTED
+B:7/10
+D:'Men called him Thu, and as a god
+D: in after days beneath his rod
+D: bewildered bowed to him, and made
+D: his ghastly temples in the shade.'
+
+
+##### Digging Tools #####
+
+## The Mattock 'Burkfelek'
+## original to Sil
+
+N:114:'Burkfelek'
+I:20:3:3
+W:20:10:110:30000
+P:-4:6d2:0:0d0
+F:TUNNEL
+D:A mighty Dwarven mattock, forged by Gamil Zirak of old,
+D: and enchanted for both battle and mine.
+
+
+
+##### Helms/Crowns #####
+
+## The Helm of Curufin
+## 1st age namesake
+## (ability 4/7 is Listen)
+
+N:118:of Curufin
+I:32:5:2
+W:15:10:45:45000
+P:0:0d0:-1:1d2
+F:PERCEPTION | STEALTH | RES_CONFU | DANGER
+B:4/7
+D:A helm worn by Curufin, son of Feanor, whose dark schemes
+D: snared many in Beleriand.
+
+
+## The Great Helm of Dor-Lomin
+## 1st age
+
+N:120:of Dor-Lomin
+I:32:6:1
+W:20:15:90:300000
+P:0:0d0:-2:1d4
+F:STR | RES_FEAR | RES_STUN | WILL
+D:The legendary dragon helm of Hador's House, an object of dread to the
+D: servants of Morgoth.
+
+
+## The Great Helm of Utumno
+## age of the lamps namesake
+
+N:121:of Utumno
+G:]:D
+I:32:6:2
+W:20:30:100:10000
+P:0:0d0:-2:1d4
+F:CON
+F:NEG_GRA | VUL_FIRE | LIGHT_CURSE
+D:A great black helm, wrought in years
+D: forgotten in Morgoth's first stronghold.
+D: It offers power, but bends the will of the one who
+D: wears it to its own dark purposes.
+
+
+## The Dwarf Mask of the Dwarrowdelf
+## (ability 5/7 is Strength in Adversity)
+
+N:122:of the Dwarrowdelf
+I:32:7:2
+W:16:10:70:600000
+P:0:0d0:-2:1d3
+F:WILL | RES_FIRE
+B:5/7
+D:A large ornate helm, with curving horns.
+D: It makes you determined
+D: to fight on, no matter the circumstances.
+
+
+## Mithril Helm of Ecthelion
+## 1st age
+## added for Psi -- our first great smith
+## (ability 7/6 is Song of Staying)
+
+N:123:of Ecthelion
+G:]:w
+I:32:8:2
+W:16:12:40:25000
+P:1:0d0:-1:1d3
+F:SONG | RES_FIRE | RES_FEAR
+B:7/6
+D:A beautiful helm, wrought of mithril and inlaid with white stones.
+D: It rises gracefully to a tall point as sharp as any spear. 
+
+
+## The Crown of Daeron
+## 1st age
+
+N:125:of Daeron
+G:]:g
+I:33:11:4
+W:14:30:5:600000
+P:0:0d0:0:1d0
+F:SONG
+D: '... Daeron the Dark with ferny crown
+D: played with bewildering wizard's art
+D: music for breaking of the heart.'
+
+
+## The Crown of Dark Secrets
+## Inspired by an artefact Psi forged for many of his characters
+## (ability 4/6 is Loremaster)
+
+N:126:of Dark Secrets
+G:]:D
+I:33:11:1
+W:10:15:40:10000
+P:0:0d0:0:0d0
+F:DANGER | GRA
+B:4/6
+D:This crown has elegant curves of some dark metal, which
+D: draw the eye and hold the mind. When you put it on it
+D: whispers to you, telling you of forgotten secrets and
+D: ways of power.
+
+
+## The Jewelled Crown of Feanor
+## 1st age namesake
+
+N:129:of Feanor
+I:33:12:3
+W:20:15:35:300000
+P:0:0d0:0:1d1
+F:SMITHING | WILL | RES_FIRE | SEE_INVIS | LIGHT
+F:AGGRAVATE
+D:The crown of Feanor, greatest of the Noldor. It is beautifully wrought
+D: with many shining jewels of Valinor, whose light is a challenge to those born
+D: of darkness. Though his flaws ran deep, this crown is a reminder of his
+D: greatness.
+D: "Dear-bought those songs shall be accounted, and yet shall be
+D: well-bought.  For the price could be no other."
+
+
+##### Cloaks #####
+
+
+## The Cloak of Maglor
+## 1st age namesake
+## (ability 7/4 is Song of the Trees)
+
+N:131:of Maglor
+G:(:b
+I:35:1:2
+W:13:10:20:35000
+P:0:0d0:1:0d0
+F:SONG
+B:7/4
+D:A cloak worn by Maglor, the mighty singer, and gentlest of Feanor's sons.
+
+
+## The Cloak of Thingol
+## 1st age
+
+N:132:of Thingol
+G:(:s
+I:35:1:1
+W:20:20:15:35000
+P:0:0d0:2:0d0
+F:RES_FIRE | RES_COLD | FREE_ACT
+D:By what black treachery the fabled grey cloak of Elu Thingol has come
+D: to the hoards of Angband, you cannot say.
+
+
+## The Shadow Cloak of Luthien
+## 1st age
+## (ability 7/7 is Song of Lorien)
+
+N:134:of Luthien
+I:35:6:4
+W:13:10:10:45000
+P:0:0d0:4:0d0
+F:STEALTH | DARKNESS | SUST_GRA
+B:7/7
+D:A shadowy cloak, woven from soft elven-hair.
+D: It was made by Luthien Tinuviel, the most
+D: beautiful being who ever knew death.
+
+
+## The Wolf-Hame of Draugluin
+## 1st age
+## (automatic drop -- don't move)
+## (ability 3/0 is Disguise)
+
+N:137:of Draugluin
+I:35:20:2
+W:20:1:130:500000
+P:-3:0d0:-3:1d4
+B:3/0
+F:STEALTH
+F:INSTA_ART
+D:The coat of Draugluin, sire of werewolves. If you cast this
+D: over yourself you may deceive some of the enemy's servants.
+
+
+## The Bat-Fell of Thuringwethil
+## 1st age
+## (automatic drop -- don't move)
+## (ability 3/0 is Disguise)
+
+N:138:of Thuringwethil
+I:35:21:2
+W:23:1:50:500000
+P:-1:0d0:+2:0d0
+B:3/0
+F:STEALTH
+F:INSTA_ART
+D:With its great black wings, might this remnant of the vampire
+D: let you pass as a messenger journeying to Morgoth?
+
+
+##### Bows #####
+
+## The Shortbow of Celegorm
+## 1st age namesake
+
+N:142:of Celegorm
+I:19:12:-1
+W:7:10:20:9000
+P:1:1d9:0:0d0
+F:SLAY_WOLF | GRA
+D:The bow of Celegorm the great huntsman, third son of Feanor,
+D: who in days of old hunted with Orome himself.
+
+
+## The Shortbow 'Death's Sting'
+## Original to Sil
+## (ability 1/4 is Crippling Shot)
+
+N:143:'Death's Sting'
+I:19:12:0
+W:10:15:10:9000
+P:1:1d7:0:0d0
+B:1/4
+D:An unassuming if well-fashioned bow, but when you take
+D: aim with it you find your eye drawn particularly to
+D: vulnerable places in your foe's armour.
+
+
+## The Longbow 'Belthronding'
+## 1st age
+
+N:145:'Belthronding'
+G:}:D
+I:19:13:1
+W:14:10:30:35000
+P:1:2d7:0:0d0
+F:PERCEPTION
+D:The great bow of Beleg Cuthalion, made of black yew and strung with
+D: elven hair that faintly shimmers a pale clear gold.
+
+
+## The Longbow 'Wyrm's End'
+## Original to Sil
+## (ability 1/5 is Flaming Arrows)
+
+N:146:'Wyrm's End'
+I:19:13:0
+W:16:25:60:35000
+P:0:2d7:0:0d0
+B:1/5
+D:A massive longbow, almost too large to draw. But when it does
+D: release an arrow it flies with great force -- and with fire.
+
+
+## The Dragon-horn Bow of Avernien
+## 1st age
+## Avernien was where Earendil was equipped (after the events of Sil)
+
+N:148:of Avernien
+I:19:14:0
+W:20:3:20:35000
+P:1:1d9:0:0d0
+F:RADIANCE | SLAY_DRAGON
+D:A large exquisite bow fashioned from a single horn of a slain
+D: dragon. Many are the blessings of the Eldar laid over it.
+
+
+##### Arrows #####
+
+
+## The Arrow 'Dailir'
+## 1st age
+
+N:150:'Dailir'
+G:-:u
+I:17:1:0
+W:7:40:1:20000
+P:+11:0d0:0:0d0
+D:The unerring arrow of Beleg Cuthalion.
+
+
+##### Boots #####
+
+## The Pair of Boots of Finrod
+## 1st age namesake
+
+N:154:of Finrod
+I:30:1:0
+W:15:10:20:40000
+P:0:0d0:3:1d1
+F:FREE_ACT
+D:Finrod Felagund, once King of Nargathrond, was one of the
+D: the greatest, and the wisest, of the Noldor. These fine boots
+D: were made for him for riding, but they are just as nimble on
+D: the ground, letting you pass through combat as a dance.
+
+
+## The Pair of Boots of Taur-nu-fuin
+## 1st age namesake
+## (ability 4/8 is Master Hunter)
+
+N:155:of Taur-nu-Fuin
+I:30:1:2
+W:12:15:20:25000
+P:0:0d0:1:1d1
+F:STEALTH | PERCEPTION
+B:4/8
+D:These boots have helped more than one escape from the
+D: dread forest of Taur-nu-Fuin.
+
+
+## The Pair of Boots of Irime
+## 1st age namesake
+
+N:156:of Irime
+I:30:1:0
+W:5:20:15:25000
+P:0:0d0:1:1d1
+F:RADIANCE | SUST_DEX
+D:Made in Valinor for Irime, sister of Fingolfin and Finarfin, these fine boots
+D: are woven with a unique enchantment that causes the wearer's very footsteps to
+D: glow with a clear white light for hours after they pass by.
+
+
+## The Pair of Greaves of Orodreth
+## 1st age namesake
+
+N:158:of Orodreth
+I:30:2:1
+W:10:20:70:12000
+P:0:0d0:-1:1d2
+F:DEX | RES_FIRE
+D:Forged for the Elf-prince Orodreth, these fine greaves were made
+D: for battle against the Balrogs, demons of fire, in the early
+D: years of the Wars of Beleriand.
+
+
+## The Pair of Greaves of the Helcaraxe
+## 1st age namesake
+
+N:159:of the Helcaraxe
+I:30:2:0
+W:14:20:80:12000
+P:0:0d0:-1:1d3
+F:RES_COLD
+F:SUST_STR | SUST_CON | SUST_DEX | SUST_GRA
+D:Among all the deeds of the Noldor, it is said
+D: none have been more hard-won than the crossing
+D: of the ice of the Helcaraxe.
+
+
+##### Gloves #####
+
+## The Set of Gloves of Celebrimbor
+## 1st age namesake
+
+N:162:of Celebrimbor
+I:31:1:4
+W:10:15:5:36000
+P:0:0d0:0:1d1
+F:SMITHING | FREE_ACT
+D:A pair of gloves worn by the great Celebrimbor, jewelsmith of Nargothrond,
+D: who would one day forge the rings of power.
+
+
+## The Set of Gloves of Rumil
+## (ability 0/7 is Subtlety)
+
+N:163:of Rumil
+I:31:1:1
+W:8:25:5:36000
+P:0:0d0:0:1d0
+F:GRA
+B:0/7
+D:A supple pair of leather gloves.
+D: They lend you subtlety of hand and mind.
+
+
+## The Gloves of Brethil
+## 1st age namesake
+## (ability 0/2 is Throwing Mastery)
+
+N:164:of Brethil
+I:31:1:0
+W:5:20:10:20000
+P:1:0d0:0:1d0
+F:SUST_DEX
+B:0/2
+D:The fabled hunting gloves of the forest of Brethil.
+D: They are little to look at, but when you don them
+D: your hand is swift and accurate.
+
+
+## The Set of Gauntlets of Gamil Zirak
+## 1st age namesake
+
+N:166:of Gamil Zirak
+I:31:2:3
+W:15:15:40:40000
+P:-1:0d0:0:1d2
+F:SMITHING | RES_FIRE
+D:The iron-shod gauntlets of Gamil Zirak, dwarf-smith of old, who
+D: taught Telchar the arts of the forge.
+
+
+## The Mithril Gauntlets 'Silverhand'
+## (ability 6/2 is Jeweller)
+
+N:167:'Silverhand'
+I:31:3:1
+W:15:10:10:20000
+P:0:0d0:0:1d2
+F:DEX
+B:6/2
+D:These wondrous gloves are as hard as iron, yet as
+D: supple as fine leather. The hands that wear them
+D: can move more delicately and swiftly than if bare.
+
+
+##### Lights #####
+
+## The Lesser Jewel of Finwe
+## 1st age namesake
+
+N:170:of Finwe
+G:*:o
+I:39:2:2
+W:6:10:1:10000
+P:0:0d0:0:0d0
+F:RES_FIRE | LIGHT
+D:When Morgoth slew Finwe, High King of the Noldor, he
+D: took many jewels from his treasuries. Most are now
+D: lost to the Unlight, but this one shines yet pure.
+
+
+##### Morgoth Artefacts #####
+
+
+## The Massive Iron Crown of Morgoth (no Silmarils)
+## 1st age
+## (automatic drop -- don't move)
+
+N:175:of Morgoth
+I:33:50:0
+W:20:1:4000:10000000
+P:0:0d0:0:0d0:0
+F:INDESTRUCTIBLE
+F:INSTA_ART 
+D:Once containing much of the power of he who is the mightiest among the
+D: Ainur, this plain iron crown now bears just three empty sockets:
+D: holes where should be stars.
+
+
+## The Massive Iron Crown of Morgoth (one Silmaril)
+## 1st age
+## (automatic drop -- don't move)
+
+N:176:of Morgoth
+I:33:50:4
+W:20:1:4000:10000000
+P:0:0d0:0:0d0:0
+F:INDESTRUCTIBLE
+F:INSTA_ART 
+D:Containing much of the power of he who is the mightiest among the
+D: Ainur, this plain iron crown has mounted upon it the sole remaining
+D: Silmaril, greatest treasure of Middle-Earth.
+
+
+## The Massive Iron Crown of Morgoth (two Silmarils)
+## 1st age
+## (automatic drop -- don't move)
+
+N:177:of Morgoth
+I:33:50:5
+W:20:1:4000:10000000
+P:0:0d0:0:0d0:0
+F:INDESTRUCTIBLE
+F:INSTA_ART 
+D:Containing much of the power of he who is the mightiest among the
+D: Ainur, this plain iron crown has mounted upon it the two remaining
+D: Silmarils, greatest treasures of Middle-Earth.
+
+
+## The Massive Iron Crown of Morgoth (three Silmarils)
+## 1st age
+## (automatic drop -- don't move)
+
+N:178:of Morgoth
+I:33:50:6
+W:20:1:4000:10000000
+P:0:0d0:0:0d0:0
+F:INDESTRUCTIBLE
+F:INSTA_ART 
+D:Containing much of the power of he who is the mightiest among the
+D: Ainur, this plain iron crown has mounted upon it the three
+D: Silmarils, greatest treasures of Middle-Earth. To attempt to cut
+D: a Silmaril from the crown, stand over it and press (k).
+
+
+## The Mighty Hammer 'Grond'
+## 1st age
+## (automatic drop -- don't move)
+
+N:179:'Grond'
+I:21:50:3
+W:20:1:1000:500000
+P:-9:6d5:0:0d0
+F:TUNNEL
+F:INSTA_ART
+D:The mighty Hammer of the Underworld, blackened by dark sorceries,
+D: whose wielder holds the lives of all Morgoth's servants
+D: in his hand.
+
+
+
+##### Smithing Template Artefacts #####
+##
+## These provide the limits on which flags can appear on which tvals
+##
+## The following additions are hard coded in the source:
+##   - Throwing items get Perfect Balance
+##   - War Hammers get Smithing
+
+## The Ultimate TV_SWORD
+
+N:182:'Ultimate'
+I:23:0:0
+F:STR | DEX | CON | GRA | NEG_STR | NEG_DEX | NEG_CON | NEG_GRA
+F:ARCHERY | STEALTH | PERCEPTION | WILL | SONG
+F:TUNNEL | SHARPNESS | VAMPIRIC
+F:SLAY_ORC | SLAY_TROLL | SLAY_WOLF | SLAY_SPIDER
+F:SLAY_UNDEAD | SLAY_RAUKO | SLAY_DRAGON
+F:BRAND_ELEC | BRAND_FIRE | BRAND_COLD | BRAND_POIS
+F:SUST_STR | SUST_DEX | SUST_CON | SUST_GRA
+F:RES_FIRE | RES_COLD | RES_POIS
+F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
+F:SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT
+F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+## The Ultimate TV_POLEARM
+
+N:183:'Ultimate'
+I:22:0:0
+F:STR | DEX | CON | GRA | NEG_STR | NEG_DEX | NEG_CON | NEG_GRA
+F:ARCHERY | STEALTH | PERCEPTION | WILL | SONG
+F:TUNNEL | SHARPNESS | VAMPIRIC
+F:SLAY_ORC | SLAY_TROLL | SLAY_WOLF | SLAY_SPIDER
+F:SLAY_UNDEAD | SLAY_RAUKO | SLAY_DRAGON
+F:BRAND_ELEC | BRAND_FIRE | BRAND_COLD | BRAND_POIS
+F:SUST_STR | SUST_DEX | SUST_CON | SUST_GRA
+F:RES_FIRE | RES_COLD | RES_POIS
+F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
+F:SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT
+F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+## The Ultimate TV_HAFTED
+
+N:184:'Ultimate'
+I:21:0:0
+F:STR | DEX | CON | GRA | NEG_STR | NEG_DEX | NEG_CON | NEG_GRA
+F:ARCHERY | STEALTH | PERCEPTION | WILL | SONG
+F:TUNNEL
+F:SLAY_ORC | SLAY_TROLL | SLAY_WOLF | SLAY_SPIDER
+F:SLAY_UNDEAD | SLAY_RAUKO | SLAY_DRAGON
+F:BRAND_ELEC | BRAND_FIRE | BRAND_COLD | BRAND_POIS
+F:SUST_STR | SUST_DEX | SUST_CON | SUST_GRA
+F:RES_FIRE | RES_COLD | RES_POIS
+F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
+F:SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT
+F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+## The Ultimate TV_DIGGING
+
+N:185:'Ultimate'
+I:20:0:0
+F:STR | DEX | CON | NEG_STR | NEG_DEX | NEG_CON
+F:WILL
+F:VAMPIRIC
+F:SLAY_ORC | SLAY_TROLL | SLAY_WOLF | SLAY_SPIDER
+F:SLAY_UNDEAD | SLAY_RAUKO | SLAY_DRAGON
+F:BRAND_ELEC | BRAND_FIRE | BRAND_COLD | BRAND_POIS
+F:SUST_STR | SUST_DEX | SUST_CON
+F:RES_FIRE | RES_COLD | RES_POIS
+F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
+F:SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT
+F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+## The Ultimate TV_BOW
+
+N:186:'Ultimate'
+I:19:0:0
+F:SLAY_ORC | SLAY_TROLL | SLAY_WOLF | SLAY_SPIDER
+F:SLAY_UNDEAD | SLAY_RAUKO | SLAY_DRAGON
+F:RADIANCE
+F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART
+
+
+## The Ultimate TV_ARROW
+
+N:187:'Ultimate'
+I:17:0:0
+F:SHARPNESS
+F:SLAY_ORC | SLAY_TROLL | SLAY_WOLF | SLAY_SPIDER
+F:SLAY_UNDEAD | SLAY_RAUKO | SLAY_DRAGON
+F:BRAND_ELEC | BRAND_FIRE | BRAND_COLD | BRAND_POIS
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+## The Ultimate TV_RING
+
+N:188:'Ultimate'
+I:45:0:0
+F:STR | DEX | NEG_STR | NEG_DEX
+F:ARCHERY | STEALTH | PERCEPTION
+F:DAMAGE_SIDES
+F:TUNNEL
+F:SUST_STR | SUST_DEX
+F:RES_FIRE | RES_COLD | RES_POIS
+F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
+F:SLOW_DIGEST | REGEN | SEE_INVIS | FREE_ACT | SPEED
+F:HUNGER | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+## The Ultimate TV_AMULET
+
+N:189:'Ultimate'
+I:40:0:0
+F:CON | GRA | NEG_CON | NEG_GRA
+F:ARCHERY | STEALTH | PERCEPTION | WILL | SONG
+F:SUST_CON | SUST_GRA
+F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
+F:SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT
+F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+## The Ultimate TV_LIGHT
+
+N:190:'Ultimate'
+I:39:0:0
+F:GRA | NEG_GRA
+F:PERCEPTION | WILL
+F:SUST_GRA
+F:RES_FEAR | RES_BLIND | RES_HALLU
+F:LIGHT | SEE_INVIS
+F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+## The Ultimate TV_SOFT_ARMOR
+
+N:191:'Ultimate'
+I:36:0:0
+F:STR | DEX | CON | GRA | NEG_STR | NEG_DEX | NEG_CON | NEG_GRA
+F:ARCHERY | STEALTH | PERCEPTION | WILL | SONG
+F:SUST_STR | SUST_DEX | SUST_CON | SUST_GRA
+F:RES_FIRE | RES_COLD | RES_POIS
+F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
+F:SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT | SPEED
+F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+## The Ultimate TV_MAIL
+
+N:192:'Ultimate'
+I:37:0:0
+F:STR | DEX | CON | GRA | NEG_STR | NEG_DEX | NEG_CON | NEG_GRA
+F:ARCHERY | STEALTH | PERCEPTION | WILL | SONG
+F:SUST_STR | SUST_DEX | SUST_CON | SUST_GRA
+F:RES_FIRE | RES_COLD | RES_POIS
+F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
+F:SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT | SPEED
+F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+## The Ultimate TV_CLOAK
+
+N:193:'Ultimate'
+I:35:0:0
+F:DEX | CON | NEG_DEX | NEG_CON
+F:STEALTH | SONG
+F:SUST_DEX | SUST_CON
+F:RES_FIRE | RES_COLD
+F:RES_FEAR | RES_CONFU | RES_STUN | RES_HALLU
+F:SLOW_DIGEST | LIGHT | REGEN | FREE_ACT
+F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+## The Ultimate TV_SHIELD
+
+N:194:'Ultimate'
+I:34:0:0
+F:STR | CON | NEG_STR | NEG_CON
+F:WILL
+F:SUST_STR | SUST_CON
+F:RES_FIRE | RES_COLD | RES_POIS
+F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN
+F:LIGHT | REGEN | FREE_ACT
+F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+## The Ultimate TV_HELM
+
+N:195:'Ultimate'
+I:32:0:0
+F:STR | CON | GRA | NEG_STR | NEG_CON | NEG_GRA
+F:PERCEPTION | WILL
+F:SUST_STR | SUST_CON | SUST_GRA
+F:RES_FIRE | RES_COLD | RES_POIS
+F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
+F:LIGHT | REGEN | SEE_INVIS
+F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+## The Ultimate TV_CROWN
+
+N:196:'Ultimate'
+I:33:0:0
+F:GRA | NEG_GRA
+F:PERCEPTION | WILL | SONG
+F:SUST_GRA
+F:RES_FIRE | RES_COLD | RES_POIS
+F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
+F:LIGHT | REGEN | SEE_INVIS
+F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+## The Ultimate TV_GLOVES
+
+N:197:'Ultimate'
+I:31:0:0
+F:STR | DEX | NEG_STR | NEG_DEX
+F:ARCHERY | SMITHING
+F:DAMAGE_SIDES
+F:TUNNEL
+F:SUST_STR | SUST_DEX
+F:FREE_ACT
+F:HUNGER | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+## The Ultimate TV_BOOTS
+
+N:198:'Ultimate'
+I:30:0:0
+F:DEX | NEG_DEX
+F:STEALTH
+F:SUST_DEX
+F:RES_FIRE | RES_COLD | RES_POIS
+F:FREE_ACT | SPEED
+F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
+F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
+F:INSTA_ART 
+
+
+# List of all relevant flags...
+#
+#F:STR | DEX | CON | GRA | NEG_STR | NEG_DEX | NEG_CON | NEG_GRA
+#F:ARCHERY | STEALTH | PERCEPTION | WILL | SMITHING | SONG
+#F:DAMAGE_SIDES
+#F:TUNNEL | SHARPNESS | VAMPIRIC
+#F:SLAY_ORC | SLAY_TROLL | SLAY_WOLF | SLAY_SPIDER
+#F:SLAY_UNDEAD | SLAY_RAUKO | SLAY_DRAGON
+#F:BRAND_ELEC | BRAND_FIRE | BRAND_COLD | BRAND_POIS
+#F:SUST_STR | SUST_DEX | SUST_CON | SUST_GRA
+#F:RES_FIRE | RES_COLD | RES_POIS
+#F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
+#F:RADIANCE | SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT | SPEED
+#F:HUNGER | DARKNESS | SLOWNESS | DANGER | AGGRAVATE | LIGHT_CURSE
+#F:INSTA_ART 
+
+
+#################################################################
+# The 'Random' artefacts come next.
+# They use indices 150 - 199.
+# But they are automatically generated so aren't listed here.
+
+
+#################################################################
+# The 'Self-made' artefacts come next.
+# They use indices 200 - 249.
+# But they are automatically generated so aren't listed here.
+
+
+
