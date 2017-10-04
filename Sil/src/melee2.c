@@ -5567,6 +5567,9 @@ void monster_perception(bool player_centered, bool main_roll, int difficulty)
 			// deal with bane ability (theoretically should modify player roll, but this is equivalent)
 			m_perception -= bane_bonus(m_ptr);
 
+			// monsters on earlier levels are a little less alert
+			m_perception -= (MORGOTH_DEPTH - p_ptr->depth) / 5;
+
             // increase morale for the Elf-Bane ability
             m_perception += elf_bane_bonus(m_ptr);
             

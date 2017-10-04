@@ -3185,8 +3185,7 @@ static int breakage_chance(const object_type *o_ptr, bool hit_wall)
 		/* Rarely break */
 		default:
 		{
-            if (p_ptr->active_ability[S_MEL][MEL_THROWING]) p = 0;
-            else                                            p = 5;
+			p = 5;
             
 			break;
 		}
@@ -3358,6 +3357,7 @@ void do_cmd_fire(int quiver)
 	int total_evasion_mod = 0;
 	int hit_result = 0;
 	int crit_bonus_dice = 0, slay_bonus_dice = 0;
+	int crippling_blow_multiplier = 0;
 	int total_dd = 0, total_ds = 0;
 	int dam = 0, prt = 0, prt_percent = 100;
 	int net_dam = 0;
@@ -3869,7 +3869,10 @@ void do_cmd_fire(int quiver)
 						// Deal with crippling shot ability
 						if (p_ptr->active_ability[S_ARC][ARC_CRIPPLING] && (crit_bonus_dice >= 1) && (net_dam > 0) && !(r_ptr->flags1 & (RF1_RES_CRIT)))
 						{
-							if (skill_check(PLAYER, crit_bonus_dice * 4, monster_skill(m_ptr, S_WIL), m_ptr) > 0)
+							// Slightly magical. Function that caps out before 20 (Morgoth will) but grows
+							// quickly early on, and doesn't need math.h
+							crippling_blow_multiplier = (20 - (40 / (crit_bonus_dice + 2)));
+							if (skill_check(PLAYER, crippling_blow_multiplier, monster_skill(m_ptr, S_WIL), m_ptr) > 0)
 							{
 								msg_format("Your shot cripples %^s!", m_name);
 								
@@ -4369,9 +4372,6 @@ void do_cmd_throw(bool automatic)
 	attack_mod += axe_bonus(i_ptr);
 	attack_mod += polearm_bonus(i_ptr);
 	
-	// bonus for throwing proficiency ability
-	if (p_ptr->active_ability[S_MEL][MEL_THROWING]) attack_mod += 5;
-
 	/* Take a turn */
 	p_ptr->energy_use = 100;
 

@@ -70,9 +70,6 @@ byte strength_modified_ds(const object_type *o_ptr, int str_adjustment)
 			divisor = 10;
 		}
 		
-		// apply the Momentum ability
-		if (p_ptr->active_ability[S_MEL][MEL_MOMENTUM]) divisor /= 2;
-		
 		/* limit the strength sides bonus by weapon weight */
 		if ((str_to_mds > 0) && (str_to_mds > (o_ptr->weight / divisor)))
 		{

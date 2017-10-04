@@ -109,6 +109,7 @@
 #
 # Men
 # * Beor		(studded leather - resist poison, resist dark)
+#   * Andreth           (robe - song, sust gra)
 #   * Beren		(dagmor - grace, res fear, res dark)
 #   * Barahir		(Ring - free action, res poison)
 #   * Tuor		(Dramborleg - slay orc/troll/rauko)
@@ -271,19 +272,16 @@ D: of Valinor. It was made by the dwarves of Ered Luin for Finrod Felagund.
 ##### Soft Armor #####
 
 
-## The Filthy Rag of Dungalef
-## 1st age namesake
-## (ability 3/0 is Disguise)
-## (ability 3/5 is Vanish)
+## The Robe of Andreth
+## 1st age
 
-N:20:of Dungalef
-I:36:1:1
-W:5:10:20:5000
-P:0:0d0:+1:1d0
-B:3/0:3/5
-F:STEALTH
-D:The elf-king Felagund wrought a spell over this cloth, that
-D: he might pass for an orc and evade the watchful eye of Thu.
+N:20:of Andreth
+I:36:2:2
+W:5:10:30:25000
+P:0:0d0:+2:1d0
+F:SONG | SUST_GRA
+D:This robe was once worn by Andreth, wise-woman of Beor's House.
+D: It is a deep rich green and patterned with golden thread.
 
 
 ## The Robe of Aredhel

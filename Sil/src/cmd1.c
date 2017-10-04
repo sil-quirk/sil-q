@@ -10,7 +10,6 @@
 
 #include "angband.h"
 
-
 void new_wandering_flow(monster_type *m_ptr, int ty, int tx)
 {	
 	int y, x, i;
@@ -2195,6 +2194,10 @@ extern int prt_after_sharpness(const object_type *o_ptr, u32b *noticed_flag)
 	return protection;
 }
 
+bool is_normal_attack(int attack_type)
+{
+	return (attack_type == ATT_MAIN) || (attack_type == ATT_FLANKING) || (attack_type == ATT_CONTROLLED_RETREAT) || (attack_type == ATT_IMPALE);
+}
 
 /*
  * Search a single square for hidden things 
@@ -3207,8 +3210,7 @@ bool valid_charge(int fy, int fx, int attack_type)
 	int deltay = fy - p_ptr->py;
 	int deltax = fx - p_ptr->px;
 	
-	if (p_ptr->active_ability[S_MEL][MEL_CHARGE] && (p_ptr->pspeed > 1) &&
-	    ((attack_type == ATT_MAIN) || (attack_type == ATT_FLANKING) || (attack_type == ATT_CONTROLLED_RETREAT)))
+	if (p_ptr->active_ability[S_MEL][MEL_CHARGE] && (p_ptr->pspeed > 1) && is_normal_attack(attack_type))
 	{ 
 		// try all three directions
 		for (i = -1; i <= 1; i++)
@@ -3240,8 +3242,7 @@ void possible_follow_through(int fy, int fx, int attack_type)
 	int deltax = fx - p_ptr->px;
 	
 	if (p_ptr->active_ability[S_MEL][MEL_FOLLOW_THROUGH] && !(p_ptr->confused) &&
-	    ((attack_type == ATT_MAIN) || (attack_type == ATT_FLANKING) || 
-		 (attack_type == ATT_CONTROLLED_RETREAT) || (attack_type == ATT_FOLLOW_THROUGH)))
+	    (is_normal_attack(attack_type) || (attack_type == ATT_FOLLOW_THROUGH)))
 	{
         // look through adjacent squares in an anticlockwise direction
         for (i = 1; i < 8; i++)
@@ -3471,6 +3472,7 @@ void py_attack_aux(int y, int x, int attack_type)
 	int attack_mod = 0, total_attack_mod = 0, total_evasion_mod = 0;
 	int hit_result = 0;
 	int crit_bonus_dice = 0, slay_bonus_dice = 0;
+	int cruel_blow_multiplier = 0;
 	int dam = 0, prt = 0;
 	int net_dam = 0;
 	int prt_percent = 100;
@@ -3621,7 +3623,7 @@ void py_attack_aux(int y, int x, int attack_type)
 	}
 	
 	// Attack types that take place in the opponents' turns only allow a single attack
-	if ((attack_type != ATT_MAIN) && (attack_type != ATT_FLANKING) && (attack_type != ATT_CONTROLLED_RETREAT))
+	if (!is_normal_attack(attack_type))
 	{
 		blows = 1;
 		
@@ -3680,7 +3682,7 @@ void py_attack_aux(int y, int x, int attack_type)
 
 		// reward melee attacks on sleeping monsters by characters with the asssassination ability
 		// (only when a main, flanking, or controlled retreat attack, and not charging)
-		if (((attack_type == ATT_MAIN) || (attack_type == ATT_FLANKING) || (attack_type == ATT_CONTROLLED_RETREAT)) && !charge)
+		if ((is_normal_attack(attack_type)) && !charge)
 		{
 			stealth_bonus = stealth_melee_bonus(m_ptr);
 		}
@@ -3716,8 +3718,18 @@ void py_attack_aux(int y, int x, int attack_type)
 			
 			dam = damroll(total_dice, mds);
 			prt = damroll(r_ptr->pd, r_ptr->ps);
-
 			prt_percent = prt_after_sharpness(o_ptr, &noticed_flag);
+
+			if (p_ptr->active_ability[S_MEL][MEL_SMASHING_BLOW])
+			{
+				prt_percent -= o_ptr->weight / 2;
+			}
+
+			if (prt_percent < 0)
+			{
+				prt_percent = 0;
+			}
+
 			prt = (prt * prt_percent) / 100;
 			
 			net_dam = dam - prt;
@@ -3739,6 +3751,10 @@ void py_attack_aux(int y, int x, int attack_type)
 				if (charge)
 				{
 					message_format(MSG_HIT, m_ptr->r_idx, "You charge %s%s", m_name, punctuation);
+				}
+				else if (attack_type == ATT_IMPALE)
+				{
+					message_format(MSG_HIT, m_ptr->r_idx, "You impale %s%s", m_name, punctuation);
 				}
 				else
 				{
@@ -3848,7 +3864,10 @@ void py_attack_aux(int y, int x, int attack_type)
 				// Deal with cruel blow ability
 				if (p_ptr->active_ability[S_STL][STL_CRUEL_BLOW] && (crit_bonus_dice > 0) && (net_dam > 0) && !(r_ptr->flags1 & (RF1_RES_CRIT)))
 				{
-					if (skill_check(PLAYER, crit_bonus_dice * 4, monster_skill(m_ptr, S_WIL), m_ptr) > 0)
+					// Slightly magical. Function that caps out before 20 (Morgoth will) but grows
+					// quickly early on, and doesn't need math.h
+					cruel_blow_multiplier = (20 - (40 / (crit_bonus_dice + 2)));
+					if (skill_check(PLAYER, cruel_blow_multiplier, monster_skill(m_ptr, S_WIL), m_ptr) > 0)
 					{
 						msg_format("%^s reels in pain!", m_name);
 						
@@ -3915,31 +3934,26 @@ void py_attack_aux(int y, int x, int attack_type)
 
 bool whirlwind_possible(void)
 {
-	int d, dir, y, x;
-		
 	if (!p_ptr->active_ability[S_MEL][MEL_WHIRLWIND_ATTACK])
 	{
 		return (FALSE);
 	}
-	
-	 // check adjacent squares for impassable squares
-	 for (d = 0; d < 8; d++)
-	 {
-		 dir = cycle[d];
-		 
-		 y = p_ptr->py + ddy[dir];
-		 x = p_ptr->px + ddx[dir];
-		 
-		 if (!cave_floor_bold(y,x))
-		 {
-			 return (FALSE);
-		 }
-	 }
 		 
 	return (TRUE);
 }
 
 
+bool can_impale()
+{
+	bool has_impale_skill = p_ptr->active_ability[S_MEL][MEL_IMPALE];
+
+	object_type *o_ptr = &inventory[INVEN_WIELD];
+
+	bool has_polearm = (o_ptr->tval == TV_POLEARM);
+	bool has_big_sword = (o_ptr->tval == TV_SWORD) && ((k_info[o_ptr->k_idx].flags3 & TR3_TWO_HANDED));
+
+	return has_impale_skill & (has_polearm | has_big_sword);
+}
 
 
 void py_attack(int y, int x, int attack_type)
@@ -3948,6 +3962,9 @@ void py_attack(int y, int x, int attack_type)
 	
 	// store the action type
 	p_ptr->previous_action[0] = ACTION_MISC;
+
+	dir = dir_from_delta(y - p_ptr->py, x - p_ptr->px);
+	dir0 = chome[dir];
 	
 	if ((p_ptr->rage || whirlwind_possible()) && (adj_mon_count(p_ptr->py, p_ptr->px) > 1) && !p_ptr->afraid)
 	{
@@ -3959,12 +3976,7 @@ void py_attack(int y, int x, int attack_type)
 		{
 			msg_print("You strike out at everything around you!");
 		}
-		
-		dir = dir_from_delta(y - p_ptr->py, x - p_ptr->px);
-		
-		/* Extract cycle index */
-		dir0 = chome[dir];
-		
+
 		// attack the adjacent squares in sequence
 		for (i = 0; i < 8; i++)
 		{
@@ -3982,6 +3994,21 @@ void py_attack(int y, int x, int attack_type)
 				if (p_ptr->rage)                                                                        py_attack_aux(yy, xx, ATT_RAGE);
 				else if ((i == 0) || !forgo_attacking_unwary || (m_ptr->alertness >= ALERTNESS_ALERT))  py_attack_aux(yy, xx, ATT_WHIRLWIND);
 			}
+		}
+	}
+	else if (can_impale())
+	{
+		yy = y + ddy[dir];
+		xx = x + ddx[dir];
+
+		if (cave_m_idx[yy][xx] > 0)
+		{
+			py_attack_aux(y, x, ATT_IMPALE);
+			py_attack_aux(yy, xx, ATT_IMPALE);
+		}
+		else
+		{
+			py_attack_aux(y, x, attack_type);
 		}
 	}
 	else
@@ -5247,5 +5274,4 @@ void run_step(int dir)
 	/* Move the player */
 	move_player(p_ptr->run_cur_dir);
 }
-
 

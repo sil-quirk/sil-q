@@ -4319,13 +4319,6 @@ bool applicable_ability(ability_type *b_ptr, object_type *o_ptr)
 		}
 	}
 	
-	// Throwing Mastery is OK for throwing items
-	object_flags(o_ptr, &f1, &f2, &f3);
-	if (f3 & TR3_THROWING)
-	{
-		if ((b_ptr->skilltype == S_MEL) && (b_ptr->abilitynum == MEL_THROWING)) ok = TRUE;
-	}
-
 	// Polearm Mastery is OK for Polearms
 	object_flags(o_ptr, &f1, &f2, &f3);
 	if (f3 & TR3_POLEARM)

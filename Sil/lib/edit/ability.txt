@@ -50,11 +50,14 @@ T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:31:0:99  # Gloves
 
-N:2:Throwing Mastery
+N:2:Knock Back
 I:0:2:3
-D:Gives a +5 bonus to throwing attacks and prevents thrown items breaking.
+D:You have a chance to knock enemies back a square in melee depending
+D: upon your effective strength and your opponent's constitution.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
 T:31:0:99  # Gloves
-#          # + all throwing items (hard coded)
 
 N:3:Polearm Mastery
 I:0:3:4
@@ -105,15 +108,12 @@ T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:31:0:99  # Gloves
 
-N:8:Momentum
+N:8:Impale
 I:0:8:9
-P:0/4:0/5
-D:Doubles the upper limit on the amount of strength bonus you can get
-D: with a weapon of a given weight. It becomes 1 point per 0.5 lbs.
-T:21:0:99  # Hafted
+P:0/0:0/3
+D:When using a polearm or greatsword you can strike through or past
+D: opponents to attack an opponent behind.
 T:22:0:99  # Polearms
-T:23:0:99  # Swords
-T:31:0:99  # Gloves
 
 N:9:Rapid Attack
 I:0:9:10
@@ -135,21 +135,20 @@ T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:31:0:99  # Gloves
 
-N:11:Knock Back
+N:11:Smashing Blow
 I:0:11:12
 P:0/0:0/4
-D:You have a chance to knock enemies back a square in melee depending
-D: upon your effective strength and your opponent's constitution.
+D:Allows your attacks to partially ignore your opponents' armor. Heavier
+D: weapons break through armor more effectively.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
-T:31:0:99  # Gloves
+T:31:2:3   # Gauntlets and mithril gauntlets
 
 N:12:Whirlwind Attack
 I:0:12:13
 P:0/5
-D:Allows you to attack all adjacent enemies if there are no
-D: adjacent walls or rubble.
+D:Allows you to attack all adjacent enemies.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -157,7 +156,6 @@ T:31:0:99  # Gloves
 
 N:13:Strength
 I:0:13:20
-P:0/8:0/11
 D:You gain a point of strength.
 
 
@@ -588,7 +586,6 @@ T:40:0:99  # Amulet
 
 N:143:Song of Freedom
 I:7:3:4
-P:7/0
 D:Discovers and overcomes nearby doors, traps, and rubble.
 T:33:0:99  # Crown
 T:40:0:99  # Amulet

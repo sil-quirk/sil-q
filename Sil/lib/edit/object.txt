@@ -205,15 +205,20 @@ F:INSTA_ART
 
 ##### The Normal Item Types #####
 
+#### Jewel here as it replaces the former worst armor ####
+
+N:21:& Lesser Jewel~
+G:*:B
+I:39:2:0
+W:3:20:1:1000
+P:0:0d0:0:0d0:0
+A:3/20
+D:An enchanted glowing jewel, akin to a Silmaril, but much less
+D: powerful.
+D: You can equip it as a light source with a radius of 1 square.
+D: It will shine forever.
+
 ##### Armor #####
-
-N:21:& Filthy Rag~
-G:(:D
-I:36:1:0
-W:1:0:20:1
-P:0:0d0:0:1d0
-A:1/2
-
 
 N:22:& Robe~
 G:(:b
@@ -732,7 +737,7 @@ D: It may also be used to fuel another lantern, up to a maximum of
 D: 7,000 turns of light.
 
 
-# Lesser Jewel is at index 500
+# Lesser Jewel is at index 21
 
 
 N:130:& Feanorian Lamp~
@@ -2187,17 +2192,4 @@ D:40.
 # New items sometimes have to go down here if there were not enough
 # indices to fit them in the right place, since moving indices around
 # breaks savefile compatibility.
-
-N:500:& Lesser Jewel~
-G:*:B
-I:39:2:0
-W:3:20:1:1000
-P:0:0d0:0:0d0:0
-A:3/20
-D:An enchanted glowing jewel, akin to a Silmaril, but much less
-D: powerful.
-D: You can equip it as a light source with a radius of 1 square.
-D: It will shine forever.
-
-
 

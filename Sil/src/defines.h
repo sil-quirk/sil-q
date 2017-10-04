@@ -453,16 +453,16 @@
  */
 #define	MEL_POWER					 0
 #define	MEL_FINESSE					 1
-#define	MEL_THROWING				 2
+#define	MEL_KNOCK_BACK				 2
 #define	MEL_POLEARMS				 3
 #define	MEL_CHARGE					 4
 #define	MEL_FOLLOW_THROUGH			 5
 #define	MEL_ZONE_OF_CONTROL			 6
 #define	MEL_CONTROL					 7
-#define	MEL_MOMENTUM				 8
+#define	MEL_IMPALE				 8
 #define	MEL_RAPID_ATTACK			 9
 #define	MEL_TWO_WEAPON				10
-#define	MEL_KNOCK_BACK				11
+#define	MEL_SMASHING_BLOW				11
 #define	MEL_WHIRLWIND_ATTACK		12
 #define	MEL_STR						13
 
@@ -584,6 +584,7 @@
 #define ATT_WHIRLWIND			8
 #define ATT_RAGE				9
 #define ATT_OPPORTUNITY         10  /* i.e. attacks of opportunity when monsters exchange places with you etc */
+#define ATT_IMPALE			11
 
 /*
  * Maximum number of "normal" pack slots, and the index of the "overflow"
