@@ -740,6 +740,9 @@ static bool solid_rock(int y1, int x1, int y2, int x2)
 {
 	int y, x;
 
+	if (x2 >= MAX_DUNGEON_WID || y2 >= MAX_DUNGEON_HGT)
+		return (FALSE);
+
 	for (y = y1; y <= y2; y++)
 	{
 		for (x = x1; x <= x2; x++)
@@ -3332,6 +3335,7 @@ static bool cave_gen(void)
 		
 		if (!room_build(6))
 		{
+			p_ptr->fixed_forge_count--;
 			p_ptr->force_forge = FALSE;
 
 			if (cheat_room) msg_format("failed.");
