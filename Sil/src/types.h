@@ -893,7 +893,7 @@ struct player_type
 	u16b stairs_taken;	/* The number of times stairs have been used */
 	u16b staircasiness;	/* Gets higher when stairs are taken and slowly decays */
 
-	u16b forge_drought;	/* The number of turns since the last forge was generated */
+	u16b fixed_forge_count;	/* The number of mandatory forges that have been generated */
 	u16b forge_count;	/* The number of forges that have been generated */
 
 	byte stealth_mode;	/* Stealth mode */

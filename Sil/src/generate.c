@@ -3320,12 +3320,15 @@ static bool cave_gen(void)
 	/* No rooms yet */
 	dun->cent_n = 0;
 
-	// guarantee a forge if one hasn't been generated in a while
-	//if (cheat_room) msg_format("Forge Drought = %d.", p_ptr->forge_drought);
-	if ((p_ptr->forge_drought >= rand_range(2000, 5000)) && (playerturn > 0))
+	if (cheat_room) msg_format("Fixed forge count is %d.", p_ptr->fixed_forge_count);
+	if (cheat_room) msg_format("Forge count is %d.", p_ptr->forge_count);
+
+	// guarantee a forge at 100, 300, 500, 700, 900
+	if ((4 * p_ptr->fixed_forge_count) < (p_ptr->depth - 1) || p_ptr->fixed_forge_count > p_ptr->forge_count)
 	{
 		if (cheat_room) msg_format("Trying to force a forge:");
 		p_ptr->force_forge = TRUE;
+		p_ptr->fixed_forge_count++;
 		
 		if (!room_build(6))
 		{
@@ -3913,8 +3916,6 @@ void generate_cave(void)
 		{
 			if (cave_forge_bold(y,x))
 			{
-				// reset the time since the last forge when an interesting room with a forge is generated
-				p_ptr->forge_drought = 0;
 				p_ptr->forge_count++;
 			}
 		}

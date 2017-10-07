@@ -834,7 +834,7 @@ static errr rd_extra(void)
 	rd_s16b(&p_ptr->confused);
 	rd_s16b(&p_ptr->food);
 	rd_u16b(&p_ptr->stairs_taken);
-	rd_u16b(&p_ptr->forge_drought);
+	rd_u16b(&p_ptr->fixed_forge_count);
 	rd_u16b(&p_ptr->forge_count);
 	rd_s16b(&p_ptr->energy);
 	rd_s16b(&p_ptr->fast);

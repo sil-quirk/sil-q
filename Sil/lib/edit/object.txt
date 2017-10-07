@@ -475,7 +475,7 @@ N:86:& Quarterstaff~
 G:\:U
 I:21:3:0
 W:1:0:40:200
-P:0:2d3:2:0d0
+P:0:2d4:2:0d0
 A:1/4
 F:TWO_HANDED
 
@@ -928,13 +928,13 @@ A:12/3
 F:FREE_ACT | EASY_KNOW
 
 
-N:160:Damage
+N:160:Archery
 G:=:d
 I:45:10:0
 W:13:0:1:500
 P:0:0d0:0:0d0
 A:13/3
-F:DAMAGE_SIDES
+F:ARCHERY
 
 
 #N:161:True Sight

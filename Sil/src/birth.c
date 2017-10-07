@@ -603,7 +603,7 @@ static void player_wipe(void)
 	p_ptr->staircasiness = 0;
 
 	// reset the forge info
-	p_ptr->forge_drought = 5000;
+	p_ptr->fixed_forge_count = 0;
 	p_ptr->forge_count = 0;
 
 	/*re-set the thefts counter*/

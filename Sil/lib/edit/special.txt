@@ -290,9 +290,10 @@ F:BRAND_POIS
 
 N:34:of Murder
 W:0:1:0:2000
-C:0:0:0:0:0:0:0
+C:0:0:0:0:0:0:2
 T:23:4:4
 B:3/1
+F:STEALTH
 
 
 # Daggers only
@@ -330,6 +331,36 @@ W:0:1:0:3000
 C:0:0:0:0:0:0:0
 T:21:9:9
 F:BRAND_FIRE | LIGHT
+
+
+# Quarterstaffs only
+# (ability 2/4 is Leaping)
+
+N:39:of Vaulting
+W:4:1:0:2000
+C:0:0:0:0:0:0:0
+T:21:3:3
+B:2/4
+
+
+# Warhammers only
+# (ability 0/11 is Smashing Blow)
+
+N:40:of Crushing
+W:9:6:0:10000
+C:0:0:1:0:0:0:0
+T:21:8:8
+B:0/11
+
+
+# Polearms only
+# (ability 0/8 is Impale)
+
+N:41:of Piercing
+W:9:6:0:10000
+C:0:0:1:0:0:0:0
+T:22:1:4
+B:0/8
 
 
 ###
@@ -403,7 +434,6 @@ W:0:2:0:3000
 C:0:0:0:0:0:0:0
 T:33:0:99
 B:7/10
-
 
 ###
 

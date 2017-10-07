@@ -2279,9 +2279,6 @@ static void process_player(void)
 		p_ptr->staircasiness -= amount;
 	}
 	
-	/* Increase the time since the last forge */
-	p_ptr->forge_drought++;
-	
 	/* Regeneration ability */
     regen_multiplier = p_ptr->regenerate + 1;
 	
