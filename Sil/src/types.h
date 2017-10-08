@@ -434,6 +434,9 @@ struct monster_lore
 	s16b psights;			/* Count sightings of this monster in this life */
 	s16b tsights;			/* Count sightings of this monster in all lives */
 
+	s16b pscares;			/* Count monsters scared off the level in this life */
+	s16b tscares;			/* Count monsters scared off the level in all lives */
+
 	s16b pkills;			/* Count monsters killed in this life */
 	s16b tkills;			/* Count monsters killed in all lives */
 

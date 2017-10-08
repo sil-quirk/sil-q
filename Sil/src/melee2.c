@@ -4870,6 +4870,18 @@ static void process_monster(monster_type *m_ptr)
 
 				// removes the monster if it is still alive
 				delete_monster(ty, tx);
+
+				// Player gains some experience from non-unique monsters
+				if (!(r_ptr->flags1 & RF1_UNIQUE))
+				{
+					gain_exp(adjusted_mon_exp(r_ptr, TRUE));
+
+					/* Count scares this life */
+					if (l_ptr->pscares < MAX_SHORT) l_ptr->pkills++;
+
+					/* Count scares in all lives */
+					if (l_ptr->tscares < MAX_SHORT) l_ptr->tkills++;
+				}
 				
 				return;
 			}

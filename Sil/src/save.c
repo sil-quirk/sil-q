@@ -588,6 +588,8 @@ static void wr_lore(int r_idx)
 	wr_s16b(l_ptr->deaths);
 	wr_s16b(l_ptr->psights);
 	wr_s16b(l_ptr->tsights);
+	wr_s16b(l_ptr->pscares);
+	wr_s16b(l_ptr->tscares);
 	wr_s16b(l_ptr->pkills);
 	wr_s16b(l_ptr->tkills);
 

@@ -544,6 +544,8 @@ static void rd_lore(int r_idx)
 	rd_s16b(&l_ptr->deaths);
 	rd_s16b(&l_ptr->psights);
 	rd_s16b(&l_ptr->tsights);
+	rd_s16b(&l_ptr->pscares);
+	rd_s16b(&l_ptr->tscares);
 	rd_s16b(&l_ptr->pkills);
 	rd_s16b(&l_ptr->tkills);
 
