@@ -1421,20 +1421,17 @@ B:0/7
 D:A supple pair of leather gloves.
 D: They lend you subtlety of hand and mind.
 
+## The Set of Gauntlets 'Azdulag'
+## (ability 0/2 is Knockback)
 
-## The Gloves of Brethil
-## 1st age namesake
-## (ability 0/2 is Throwing Mastery)
-
-N:164:of Brethil
-I:31:1:0
-W:5:20:10:20000
-P:1:0d0:0:1d0
-F:SUST_DEX
+N:165:'Azdulag'
+I:31:2:1
+W:10:12:50:60000
+P:0:0d0:-1:2d1
+F:STR | DARKNESS | RES_BLIND
 B:0/2
-D:The fabled hunting gloves of the forest of Brethil.
-D: They are little to look at, but when you don them
-D: your hand is swift and accurate.
+D:The brutal gauntlets forged by Morgoth for the great orc-chieftain Gorgdaz,
+D: who perished along with many of Morgoth's host at Dagor-nuin-Giliath.
 
 
 ## The Set of Gauntlets of Gamil Zirak
