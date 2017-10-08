@@ -436,12 +436,6 @@ void do_cmd_activate_staff(object_type *default_o_ptr, int default_item)
 	/* Base chance of success */
 	score = p_ptr->skill_use[S_WIL];
 
-	// bonus to roll for 'channeling' ability
-	if (p_ptr->active_ability[S_WIL][WIL_CHANNELING])
-	{
-		score += 5;
-	}
-
 	// Base difficulty
 	difficulty = lev / 2;
 
@@ -457,7 +451,7 @@ void do_cmd_activate_staff(object_type *default_o_ptr, int default_item)
 	}
 
 	/* Notice empty staffs */
-	if (o_ptr->pval <= 0)
+	if ((o_ptr->pval <= 1 && (!p_ptr->active_ability[S_WIL][WIL_CHANNELING])) || o_ptr->pval <= 0)
 	{
 		flush();
 		msg_print("The staff has no charges left.");
@@ -495,8 +489,15 @@ void do_cmd_activate_staff(object_type *default_o_ptr, int default_item)
 	/* Hack -- some uses are "free" */
 	if (!use_charge) return;
 
-	/* Use a single charge */
-	o_ptr->pval--;
+	/* Use a single charge if channeling, otherwise double */
+	if (p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+	{
+		o_ptr->pval--;
+	}
+	else
+	{
+		o_ptr->pval -= CHANNELING_CHARGE_MULTIPLIER;
+	}
 
 	// mark times used
 	o_ptr->xtra1++;
@@ -587,12 +588,6 @@ void do_cmd_activate(void)
 
 	/* Base chance of success */
 	score = p_ptr->skill_use[S_WIL];
-
-	// bonus to roll for 'channeling' ability
-	if (p_ptr->active_ability[S_WIL][WIL_CHANNELING])
-	{
-		score += 5;
-	}
 
 	// Base difficulty
 	difficulty = lev / 2;

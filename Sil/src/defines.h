@@ -2451,7 +2451,6 @@
  */
 #define HIDE_RANGE      15
 
-
 /*
  * Morale-based stances that a monster could be in
  */
@@ -2459,6 +2458,10 @@
 #define STANCE_CONFIDENT		2
 #define STANCE_AGGRESSIVE		3
 
+/*
+ * Extra charges multiplier for Channeling
+ */
+#define CHANNELING_CHARGE_MULTIPLIER 2
 
 #define LEV_THEME_HEAD				11
 #define LEV_THEME_CREEPING_COIN		0   /*creeping coins*/

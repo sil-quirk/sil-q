@@ -1890,26 +1890,28 @@ static bool make_artefact(object_type *o_ptr, bool allow_insta)
  */
 static void charge_staff(object_type *o_ptr)
 {
+	int mult = CHANNELING_CHARGE_MULTIPLIER;
+
 	switch (o_ptr->sval)
 	{
-		case SV_STAFF_SECRETS:				o_ptr->pval = damroll(4,2); break;
-		case SV_STAFF_IMPRISONMENT:			o_ptr->pval = damroll(4,2); break;
-		case SV_STAFF_FREEDOM:				o_ptr->pval = damroll(4,2); break;
-		case SV_STAFF_LIGHT:				o_ptr->pval = damroll(4,2); break;
-		case SV_STAFF_SANCTITY:				o_ptr->pval = damroll(2,2); break;
-		case SV_STAFF_UNDERSTANDING:		o_ptr->pval = damroll(2,2); break;
-		case SV_STAFF_REVELATIONS:			o_ptr->pval = damroll(4,2); break;
-		case SV_STAFF_TREASURES:			o_ptr->pval = damroll(2,2); break;
-		case SV_STAFF_FOES:					o_ptr->pval = damroll(4,2); break;
-		case SV_STAFF_SLUMBER:				o_ptr->pval = damroll(4,2); break;
-		case SV_STAFF_MAJESTY:				o_ptr->pval = damroll(4,2); break;
-		case SV_STAFF_SELF_KNOWLEDGE:		o_ptr->pval = damroll(2,2); break;
-		case SV_STAFF_WARDING:				o_ptr->pval = damroll(2,2); break;
-		case SV_STAFF_EARTHQUAKES:			o_ptr->pval = damroll(2,2); break;
-		case SV_STAFF_RECHARGING:			o_ptr->pval = damroll(2,2); break;
+		case SV_STAFF_SECRETS:				o_ptr->pval = mult * damroll(4,2); break;
+		case SV_STAFF_IMPRISONMENT:			o_ptr->pval = mult * damroll(4,2); break;
+		case SV_STAFF_FREEDOM:				o_ptr->pval = mult * damroll(4,2); break;
+		case SV_STAFF_LIGHT:				o_ptr->pval = mult * damroll(4,2); break;
+		case SV_STAFF_SANCTITY:				o_ptr->pval = mult * damroll(2,2); break;
+		case SV_STAFF_UNDERSTANDING:		o_ptr->pval = mult * damroll(2,2); break;
+		case SV_STAFF_REVELATIONS:			o_ptr->pval = mult * damroll(4,2); break;
+		case SV_STAFF_TREASURES:			o_ptr->pval = mult * damroll(2,2); break;
+		case SV_STAFF_FOES:					o_ptr->pval = mult * damroll(4,2); break;
+		case SV_STAFF_SLUMBER:				o_ptr->pval = mult * damroll(4,2); break;
+		case SV_STAFF_MAJESTY:				o_ptr->pval = mult * damroll(4,2); break;
+		case SV_STAFF_SELF_KNOWLEDGE:		o_ptr->pval = mult * damroll(2,2); break;
+		case SV_STAFF_WARDING:				o_ptr->pval = mult * damroll(2,2); break;
+		case SV_STAFF_EARTHQUAKES:			o_ptr->pval = mult * damroll(2,2); break;
+		case SV_STAFF_RECHARGING:			o_ptr->pval = mult * damroll(2,2); break;
 		
-		case SV_STAFF_SUMMONING:			o_ptr->pval = damroll(6,2); break;
-		case SV_STAFF_ENTRAPMENT:			o_ptr->pval = damroll(6,2); break;
+		case SV_STAFF_SUMMONING:			o_ptr->pval = mult * damroll(6,2); break;
+		case SV_STAFF_ENTRAPMENT:			o_ptr->pval = mult * damroll(6,2); break;
 	}
 }
 
@@ -4273,6 +4275,7 @@ void place_forge(int y, int x)
  */
 void inven_item_charges(int item)
 {
+	int visible_charges = 0;
 	object_type *o_ptr = &inventory[item];
 
 	/* Require staff */
@@ -4281,9 +4284,16 @@ void inven_item_charges(int item)
 	/* Require known item */
 	if (!object_known_p(o_ptr)) return;
 
+	visible_charges = o_ptr->pval;
+
+	if (!p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+	{
+		visible_charges /= CHANNELING_CHARGE_MULTIPLIER;
+	}
+
 	/* Print a message */
-	msg_format("You have %d charge%s remaining.", o_ptr->pval,
-	           (o_ptr->pval != 1) ? "s" : "");
+	msg_format("You have %d charge%s remaining.", visible_charges,
+	           (visible_charges != 1) ? "s" : "");
 }
 
 
@@ -4416,6 +4426,7 @@ void inven_item_optimize(int item)
  */
 void floor_item_charges(int item)
 {
+	int visible_charges = 0;
 	object_type *o_ptr = &o_list[item];
 
 	/* Require staff */
@@ -4424,9 +4435,16 @@ void floor_item_charges(int item)
 	/* Require known item */
 	if (!object_known_p(o_ptr)) return;
 
+	visible_charges = o_ptr->pval;
+
+	if (!p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+	{
+		visible_charges /= CHANNELING_CHARGE_MULTIPLIER;
+	}
+
 	/* Print a message */
-	msg_format("There are %d charge%s remaining.", o_ptr->pval,
-	           (o_ptr->pval != 1) ? "s" : "");
+	msg_format("There are %d charge%s remaining.", visible_charges,
+	           (visible_charges != 1) ? "s" : "");
 }
 
 

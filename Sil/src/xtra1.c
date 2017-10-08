@@ -2857,6 +2857,11 @@ void update_lore_aux(object_type *o_ptr)
 	{
 		ident(o_ptr);
 	}
+	if (!object_known_p(o_ptr) && p_ptr->active_ability[S_WIL][WIL_CHANNELING] && (o_ptr->tval == TV_HORN || o_ptr->tval == TV_STAFF))
+	{
+		ident(o_ptr);
+	}
+
 	
 	// Mark new identified artefacts/specials and gain experience for them
 	if (object_known_p(o_ptr) && !p_ptr->leaving)

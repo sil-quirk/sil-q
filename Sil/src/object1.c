@@ -1117,14 +1117,22 @@ void object_desc(char *buf, size_t max, const object_type *o_ptr, int pref, int 
 	/* Hack -- Staffs have charges */
 	if (o_ptr->tval == TV_STAFF)
 	{
-		if ((known || p_ptr->active_ability[S_WIL][WIL_CHANNELING]))
+		if (known)
 		{
 			/* Dump " (N charges)" */
 			object_desc_chr_macro(t, ' ');
 			object_desc_chr_macro(t, p1);
+
+			if (p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+			{
+				object_desc_num_macro(t, o_ptr->pval);
+			}
+			else
+			{
+				object_desc_num_macro(t, o_ptr->pval / CHANNELING_CHARGE_MULTIPLIER);
+			}
 			
 			/*write out the word charge(s) as appropriate*/
-			object_desc_num_macro(t, o_ptr->pval);
 			object_desc_str_macro(t, " charge");
 			if (o_ptr->pval != 1)
 			{

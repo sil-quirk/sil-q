@@ -436,8 +436,7 @@ D:You gain a point of grace.
 
 N:100:Channeling
 I:5:0:2
-D:Gives you bonuses to using staves and horns
-D: (+5 to skill checks, always know charges, half voice cost).
+D:You automatically recognise all staves and horns and can use them twice as efficiently.
 T:32:0:99  # Helm
 T:33:0:99  # Crown
 
