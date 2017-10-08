@@ -1253,14 +1253,14 @@ D: blindness, resist hallucination, and see
 D: invisible creatures for 10d4 turns. 
 
 
-N:321:Slow Poison
+N:321:Antidote
 G:!:d
 I:75:8:100
 W:2:0:5:100
 P:0:0d0:0:0d0
 A:2/1:12/1
 F:EASY_KNOW
-D:It halves the severity of any current poisoning.
+D:It cures any current poisoning.
 
 
 N:322:Quickness

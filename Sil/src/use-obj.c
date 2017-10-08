@@ -244,11 +244,11 @@ static bool quaff_potion(object_type *o_ptr, bool *ident)
 			break;
 		}
 
-		case SV_POTION_SLOW_POISON:
+		case SV_POTION_ANTIDOTE:
 		{
 			if (p_ptr->poisoned)
 			{
-				set_poisoned(p_ptr->poisoned / 2);
+				set_poisoned(0);
 				*ident = TRUE;
 			}
 			break;
