@@ -4401,7 +4401,7 @@ static void process_monster(monster_type *m_ptr)
 	{
 		if (skill_check(PLAYER,
 		                ability_bonus(S_SNG, SNG_MASTERY),
-			            monster_skill(m_ptr, S_WIL) + 5 + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx),
+			            monster_skill(m_ptr, S_WIL) + 3 + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx),
 						m_ptr) > 0)
 		{
             
