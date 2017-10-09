@@ -69,17 +69,6 @@
 
 #undef term
 
-
-#ifdef HAVE_CAN_CHANGE_COLOR
-
-/*
- * Try redefining the colors at startup.
- */
-#define REDEFINE_COLORS
-
-#endif /* HAVE_CAN_CHANGE_COLOR */
-
-
 /*
  * Hack -- try to guess which systems use what commands
  * Hack -- allow one of the "USE_Txxxxx" flags to be pre-set.
@@ -99,18 +88,6 @@
 #  endif
 # endif
 #endif
-
-/*
- * Hack -- Amiga uses "fake curses" and cannot do any of this stuff
- */
-#if defined(AMIGA)
-# undef USE_TPOSIX
-# undef USE_TERMIO
-# undef USE_TCHARS
-#endif
-
-
-
 
 /*
  * POSIX stuff
@@ -240,17 +217,16 @@ static int active = 0;
 static int can_use_color = FALSE;
 
 /*
- * Software flag -- we are allowed to change the colors
- */
-static int can_fix_color = FALSE;
-
-/*
  * Simple Angband to Curses color conversion table
  */
 static int colortable[16];
 
 #endif
 
+/*
+ * Background color we should draw with; either BLACK or DEFAULT
+ */
+static int bg_color = COLOR_BLACK;
 
 
 /*
@@ -703,6 +679,26 @@ static errr Term_xtra_gcu_event(int v)
 
 #endif	/* USE_GETCH */
 
+static int scale_color(int i, int j, int scale)
+{
+    return (angband_color_table[i][j] * (scale - 1) + 127) / 255;
+}
+
+static int create_color(int i, int scale)
+{
+    int r = scale_color(i, 1, scale);
+    int g = scale_color(i, 2, scale);
+    int b = scale_color(i, 3, scale);
+    int rgb = 16 + scale * scale * r + scale * g + b;
+    /* In the case of white and black we need to use the ANSI colors */
+    if (r == g && g == b)
+    {
+        if (b == 0) rgb = 0;
+        if (b == scale) rgb = 15;
+    }
+    return rgb;
+}
+
 /*
  * React to changes
  */
@@ -710,21 +706,28 @@ static errr Term_xtra_gcu_react(void)
 {
 
 #ifdef A_COLOR
-
-	int i;
-
-	/* Cannot handle color redefinition */
-	if (!can_fix_color) return (0);
-
-	/* Set the colors */
-	for (i = 0; i < 16; i++)
-	{
-		/* Set one color (note scaling) */
-		init_color(i,
-                           angband_color_table[i][1] * 1000 / 255,
-		           angband_color_table[i][2] * 1000 / 255,
-		           angband_color_table[i][3] * 1000 / 255);
-	}
+    if (COLORS == 256 || COLORS == 88)
+    {
+        /* CTK: I snagged this color handling from current Vanilla */
+        /* If we have more than 16 colors, find the best matches. These numbers
+        * correspond to xterm/rxvt's builtin color numbers--they do not
+        * correspond to curses' constants OR with curses' color pairs.
+        *
+        * XTerm has 216 (6*6*6) RGB colors, with each RGB setting 0-5.
+        * RXVT has 64 (4*4*4) RGB colors, with each RGB setting 0-3.
+        *
+        * Both also have the basic 16 ANSI colors, plus some extra grayscale
+        * colors which we do not use.
+        */
+        int i;
+        int scale = COLORS == 256 ? 6 : 4;
+        for (i = 0; i < 16; i++)
+        {
+            int fg = create_color(i, scale);
+            init_pair(i + 1, fg, bg_color);
+            colortable[i] = COLOR_PAIR(i + 1) | A_NORMAL;
+        }
+    }
 
 #endif
 
@@ -1003,6 +1006,9 @@ errr init_gcu(int argc, char **argv)
 	/* Initialize */
 	if (initscr() == NULL) return (-1);
 
+	/* RAW */
+	raw();
+
 	/* Activate hooks */
 	quit_aux = hook_quit;
 	core_aux = hook_quit;
@@ -1020,6 +1026,7 @@ errr init_gcu(int argc, char **argv)
 	if (arg_graphics)
 	{
 		use_graphics = GRAPHICS_PSEUDO;
+
 		ANGBAND_GRAF = "pseudo";
 	}
 
@@ -1034,50 +1041,19 @@ errr init_gcu(int argc, char **argv)
 	can_use_color = ((start_color() != ERR) && has_colors() &&
 	                 (COLORS >= 8) && (COLOR_PAIRS >= 8));
 
-#ifdef REDEFINE_COLORS
-
-	/* Can we change colors? */
-	can_fix_color = (can_use_color && can_change_color() &&
-	                 (COLORS >= 16) && (COLOR_PAIRS > 8));
-
-#endif
-
-	/* Attempt to use customized colors */
-	if (can_fix_color)
-	{
-		/* Prepare the color pairs */
-		for (i = 1; i <= 8; i++)
-		{
-			/* Reset the color */
-			if (init_pair(i, i - 1, 0) == ERR)
-			{
-				quit("Color pair init failed");
-			}
-
-			/* Set up the colormap */
-			colortable[i - 1] = (COLOR_PAIR(i) | A_NORMAL);
-			colortable[i + 7] = (COLOR_PAIR(i) | A_BRIGHT);
-		}
-
-		/* Take account of "gamma correction" XXX XXX XXX */
-
-		/* Prepare the "Angband Colors" */
-		Term_xtra_gcu_react();
-	}
-
 	/* Attempt to use colors */
-	else if (can_use_color)
+	if (can_use_color)
 	{
 		/* Color-pair 0 is *always* WHITE on BLACK */
 
 		/* Prepare the color pairs */
-		init_pair(1, COLOR_RED,     COLOR_BLACK);
-		init_pair(2, COLOR_GREEN,   COLOR_BLACK);
-		init_pair(3, COLOR_YELLOW,  COLOR_BLACK);
-		init_pair(4, COLOR_BLUE,    COLOR_BLACK);
-		init_pair(5, COLOR_MAGENTA, COLOR_BLACK);
-		init_pair(6, COLOR_CYAN,    COLOR_BLACK);
-		init_pair(7, COLOR_BLACK,   COLOR_BLACK);
+		init_pair(1, COLOR_RED,     bg_color);
+		init_pair(2, COLOR_GREEN,   bg_color);
+		init_pair(3, COLOR_YELLOW,  bg_color);
+		init_pair(4, COLOR_BLUE,    bg_color);
+		init_pair(5, COLOR_MAGENTA, bg_color);
+		init_pair(6, COLOR_CYAN,    bg_color);
+		init_pair(7, COLOR_BLACK,   bg_color);
 
 		/* Prepare the colors */
 		colortable[0] = (COLOR_PAIR(7) | A_NORMAL);	/* Black */
