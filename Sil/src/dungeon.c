@@ -2206,6 +2206,11 @@ static void process_player(void)
 		take_hit(amount, "a fatal wound");
 	}
 
+	if (p_ptr->unwounded == 0 && !p_ptr->active_ability[S_WIL][WIL_IMMORTAL_COURAGE])
+	{
+		take_hit(p_ptr->chp, "loss of the will to live");
+	}
+
 	/* Reduce the wrath counter */
 	if (p_ptr->wrath)
 	{
@@ -3154,6 +3159,7 @@ void play_game(bool new_game)
 				message_flush();
 
 				/* Cheat death */
+				p_ptr->unwounded = 1;
 				p_ptr->is_dead = FALSE;
 
 				/* Restore hit points */

@@ -546,8 +546,20 @@ void take_hit(int dam, cptr kb_str)
 	/* Window stuff */
 	p_ptr->window |= (PW_PLAYER_0);
 
-	/* Dead player */
-	if (p_ptr->chp <= 0)
+        /* Dead player */
+	if (p_ptr->active_ability[S_WIL][WIL_IMMORTAL_COURAGE])
+	{
+		if (p_ptr->chp <= 0 && p_ptr->unwounded == 1)
+		{
+			message(MSG_DEATH, 0, "The blow brings you to your knees. You know your wounds are mortal.");
+			message_flush();
+			p_ptr->mhp = p_ptr->skill_use[S_WIL];
+			p_ptr->chp = p_ptr->skill_use[S_WIL];
+			p_ptr->unwounded = 0;
+		}
+	}
+
+	if (p_ptr->chp <= 0 || (p_ptr->unwounded == 0 && !p_ptr->active_ability[S_WIL][WIL_IMMORTAL_COURAGE]))
 	{
 		/* Hack -- Note death */
 		message(MSG_DEATH, 0, "You die.");

@@ -829,7 +829,7 @@ struct player_type
 	s16b age;			/* Character's age */
 	s16b ht;			/* Height */
 	s16b wt;			/* Weight */
-	s16b sc;			/* Social Class */
+	s16b unwounded;		/* Mortally wounded? */
 
 	s16b max_depth;		/* Max depth */
 	s16b depth;			/* Cur depth */

@@ -4874,13 +4874,13 @@ static void process_monster(monster_type *m_ptr)
 				// Player gains some experience from non-unique monsters
 				if (!(r_ptr->flags1 & RF1_UNIQUE))
 				{
-					gain_exp(adjusted_mon_exp(r_ptr, TRUE));
+					gain_exp(1 + adjusted_mon_exp(r_ptr, FALSE) / (l_ptr->pscares + 1));
 
 					/* Count scares this life */
-					if (l_ptr->pscares < MAX_SHORT) l_ptr->pkills++;
+					if (l_ptr->pscares < MAX_SHORT) l_ptr->pscares++;
 
 					/* Count scares in all lives */
-					if (l_ptr->tscares < MAX_SHORT) l_ptr->tkills++;
+					if (l_ptr->tscares < MAX_SHORT) l_ptr->tscares++;
 				}
 				
 				return;

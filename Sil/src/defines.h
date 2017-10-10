@@ -211,7 +211,6 @@
 #define MAX_DEPTH		128
 #define MORGOTH_DEPTH	 20
 
-
 /*
  * Locations of various monsters in the monster.txt file
  */
@@ -522,13 +521,13 @@
  * Will abilities 
  */
 #define	WIL_CHANNELING				 0
-#define	WIL_MIND_OVER_BODY			 1
+#define	WIL_STRENGTH_IN_ADVERSITY		 1
 #define	WIL_CURSE_BREAKING			 2
 #define	WIL_INNER_LIGHT				 3
-#define	WIL_CLARITY					 4
+#define	WIL_INDOMITABLE				 4
 #define	WIL_HARDINESS				 5
 #define	WIL_POISON_RESISTANCE		 6
-#define	WIL_STRENGTH_IN_ADVERSITY	 7
+#define	WIL_IMMORTAL_COURAGE		 7
 #define	WIL_CRITICAL_RESISTANCE		 8
 #define	WIL_MAJESTY					 9
 #define	WIL_CON						10
@@ -697,6 +696,9 @@
 
 #define ROW_EXP			8
 #define COL_EXP			0	/* "EXP xxxxxxxx" */
+
+#define ROW_MORTAL_WOUND	9
+#define COL_MORTAL_WOUND	0
 
 #define ROW_HP			10
 #define COL_HP			0	/* "HP xxxxxxxxx" */

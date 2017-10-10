@@ -113,9 +113,6 @@ static void get_history_aux(void)
 		/* Enter the next chart */
 		chart = h_info[i].next;
 	}
-
-	/* Save the social class */
-	p_ptr->sc = 1;
 }
 
 /*
@@ -1602,6 +1599,7 @@ static bool player_birth_aux_2(void)
 
 		/* Fully healed */
 		p_ptr->chp = p_ptr->mhp;
+		p_ptr->unwounded = 1;
 
 		/* Fully rested */
 		calc_voice();

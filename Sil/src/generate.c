@@ -3326,8 +3326,8 @@ static bool cave_gen(void)
 	if (cheat_room) msg_format("Fixed forge count is %d.", p_ptr->fixed_forge_count);
 	if (cheat_room) msg_format("Forge count is %d.", p_ptr->forge_count);
 
-	// guarantee a forge at 100, 300, 500, 700, 900
-	if ((4 * p_ptr->fixed_forge_count) < (p_ptr->depth - 1) || p_ptr->fixed_forge_count > p_ptr->forge_count)
+	// guarantee a forge at 100, 500, 900
+	if ((8 * p_ptr->fixed_forge_count) <= (p_ptr->depth - 2) || p_ptr->fixed_forge_count > p_ptr->forge_count)
 	{
 		if (cheat_room) msg_format("Trying to force a forge:");
 		p_ptr->force_forge = TRUE;
@@ -3457,7 +3457,7 @@ static bool cave_gen(void)
 	{
 		(void)alloc_monster(FALSE, FALSE);
 	}
-	
+
 	// place Morgoth if on the run
 	if (p_ptr->on_the_run && !p_ptr->morgoth_slain)
 	{

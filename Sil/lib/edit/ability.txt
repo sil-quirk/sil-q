@@ -440,9 +440,15 @@ D:You automatically recognise all staves and horns and can use them twice as eff
 T:32:0:99  # Helm
 T:33:0:99  # Crown
 
-N:101:Mind Over Body
+N:101:Strength in Adversity
 I:5:1:3
-D:Makes you grow hungry at just one third the normal rate.
+D:Gives you bonuses to Strength, Dexterity and Grace when seriously injured:
+D: +1 when less than or equal to 50% health, +2 when 25%.
+T:32:0:99  # Helm
+T:33:0:99  # Crown
+T:36:0:99  # Soft Armour
+T:37:0:99  # Mail
+T:40:0:99  # Amulet
 
 N:102:Curse Breaking
 I:5:2:4
@@ -461,7 +467,8 @@ T:39:0:99  # Light Source
 
 N:104:Clarity
 I:5:4:5
-D:Gives you resistance to confusion, stunning, and hallucination.
+D:Gives you resistance to fear, confusion, stunning, and hallucination.
+D: Slows hunger to one third the normal rate.
 T:32:0:99  # Helm
 T:33:0:99  # Crown
 
@@ -474,15 +481,11 @@ I:5:6:7
 P:5/1:5/5
 D:Gives you resistance to poison.
 
-N:107:Strength in Adversity
+N:107:Immortal Courage
 I:5:7:8
-P:5/1:5/3
-D:Gives you bonuses to Strength and Grace when seriously injured:
-D: +1 when less than or equal to 50% health, +2 when 25%.
-T:32:0:99  # Helm
-T:33:0:99  # Crown
-T:36:0:99  # Soft Armour
-T:37:0:99  # Mail
+P:5/1
+D:You do not die when your health reaches zero, but become
+D: mortally wounded instead, with health equal to your Will.
 T:40:0:99  # Amulet
 
 N:108:Critical Resistance
@@ -505,7 +508,6 @@ T:33:0:99  # Crown
 
 N:110:Constitution
 I:5:10:12
-P:5/6:5/8
 D:You gain a point of constitution.
 
 # Smithing ---------------------------------------------

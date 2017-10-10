@@ -834,7 +834,7 @@ static void wr_extra(void)
 	wr_u16b(p_ptr->staircasiness);
 
 	/* More info */
-	wr_s16b(p_ptr->sc);
+	wr_s16b(p_ptr->unwounded);
 
 	wr_byte(p_ptr->song1);
 	wr_byte(p_ptr->song2);

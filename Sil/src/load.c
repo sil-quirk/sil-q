@@ -824,7 +824,7 @@ static errr rd_extra(void)
 	rd_u16b(&p_ptr->staircasiness);
 
 	/* More info */
-	rd_s16b(&p_ptr->sc);
+	rd_s16b(&p_ptr->unwounded);
 
 	/* Read the flags */
 	rd_byte(&p_ptr->song1);

@@ -235,7 +235,7 @@ D: by Thingol Greycloak, King of Doriath.
 
 ## The Jewel 'Elessar' (amulet slot)
 ## 1st age
-## (ability 5/7 is Strength in Adversity)
+## (ability 5/1 is Strength in Adversity)
 
 N:5:'Elessar'
 I:40:16:1
@@ -243,7 +243,7 @@ W:14:20:1:7000
 P:0:0d0:0:0d0
 F:CON | REGEN
 F:INSTA_ART
-B:5/7
+B:5/1
 D:A beautiful green jewel made by Enerdhil in the Hidden City.
 D: In it is trapped the light of the Sun, and any who look through it
 D: can see the withered and old as if they were young and supple once more.
@@ -1090,14 +1090,14 @@ D: wears it to its own dark purposes.
 
 
 ## The Dwarf Mask of the Dwarrowdelf
-## (ability 5/7 is Strength in Adversity)
+## (ability 5/1 is Strength in Adversity)
 
 N:122:of the Dwarrowdelf
 I:32:7:2
 W:16:10:70:600000
 P:0:0d0:-2:1d3
 F:WILL | RES_FIRE
-B:5/7
+B:5/1
 D:A large ornate helm, with curving horns.
 D: It makes you determined
 D: to fight on, no matter the circumstances.

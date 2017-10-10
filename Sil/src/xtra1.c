@@ -412,10 +412,27 @@ static void prt_hp(void)
 	int len;
 	byte color;
 
-	if (p_ptr->mhp >= 100)  put_str("Hth        ", ROW_HP, COL_HP);
-	else                    put_str("Health      ", ROW_HP, COL_HP);
-    
+	if (p_ptr->unwounded == 0)
+	{
+		c_put_str(TERM_RED, "Will        ", ROW_HP, COL_HP);
+		c_put_str(TERM_RED, "   Mortal Wound", ROW_MORTAL_WOUND, COL_MORTAL_WOUND);
+	}
+	else if (p_ptr->mhp >= 100)
+	{
+		put_str("Hth        ", ROW_HP, COL_HP);
+	}
+	else
+	{
+		put_str("Health      ", ROW_HP, COL_HP);
+	}
+
 	len = sprintf(tmp, "%d:%d", p_ptr->chp, p_ptr->mhp);
+
+	if (p_ptr->unwounded == 0)
+	{
+		c_put_str(TERM_RED, tmp, ROW_HP, COL_HP + 12 - len);
+		return;
+	}
 
 	c_put_str(TERM_L_GREEN, tmp, ROW_HP, COL_HP + 12 - len);
 
@@ -1438,9 +1455,9 @@ extern void calc_voice(void)
 	
 	/* Get voice value */
 	// 20 + a compounding 20% bonus per point of gra
-	
+
 	tmp = 20 * 100;
-		
+
 	if (p_ptr->stat_use[A_GRA] >= 0)
 	{
 		for (i = 0; i < p_ptr->stat_use[A_GRA]; i++)
@@ -1501,25 +1518,34 @@ static void calc_hitpoints(void)
 	int i;
 	int tmp;
 
-	/* Get hitpoint value */
-	// 20 + a compounding 20% bonus per point of con
 	
-	tmp = 20 * 100;
-	if (p_ptr->stat_use[A_CON] >= 0)
+	if (p_ptr->active_ability[S_WIL][WIL_IMMORTAL_COURAGE] && p_ptr->unwounded == 0)
 	{
-		for (i = 0; i < p_ptr->stat_use[A_CON]; i++)
-		{
-			tmp = tmp * 12 / 10;
-		}
+		mhp = p_ptr->skill_use[S_WIL];
 	}
 	else
 	{
-		for (i = 0; i < -(p_ptr->stat_use[A_CON]); i++)
+
+		/* Get hitpoint value */
+		// 20 + a compounding 20% bonus per point of con
+
+		tmp = 20 * 100;
+		if (p_ptr->stat_use[A_CON] >= 0)
 		{
-			tmp = tmp * 10 / 12;
+			for (i = 0; i < p_ptr->stat_use[A_CON]; i++)
+			{
+				tmp = tmp * 12 / 10;
+			}
 		}
+		else
+		{
+			for (i = 0; i < -(p_ptr->stat_use[A_CON]); i++)
+			{
+				tmp = tmp * 10 / 12;
+			}
+		}
+		mhp = tmp / 100;
 	}
-	mhp = tmp / 100;
 	
 	/* New maximum hitpoints */
 	if (p_ptr->mhp != mhp)
@@ -2327,16 +2353,18 @@ static void calc_bonuses(void)
 	if (p_ptr->active_ability[S_WIL][WIL_STRENGTH_IN_ADVERSITY])
 	{
 		// if <= 50% health, give a bonus to strength and grace
-		if (health_level(p_ptr->chp, p_ptr->mhp) <= HEALTH_BADLY_WOUNDED)
+		if (health_level(p_ptr->chp, p_ptr->mhp) <= HEALTH_BADLY_WOUNDED || p_ptr->unwounded == 0)
 		{
 			p_ptr->stat_misc_mod[A_STR]++;
+			p_ptr->stat_misc_mod[A_DEX]++;
 			p_ptr->stat_misc_mod[A_GRA]++;
 		}
 
 		// if <= 25% health, give an extra bonus
-		if (health_level(p_ptr->chp, p_ptr->mhp) <= HEALTH_ALMOST_DEAD)
+		if (health_level(p_ptr->chp, p_ptr->mhp) <= HEALTH_ALMOST_DEAD || p_ptr->unwounded == 0)
 		{
 			p_ptr->stat_misc_mod[A_STR]++;
+			p_ptr->stat_misc_mod[A_DEX]++;
 			p_ptr->stat_misc_mod[A_GRA]++;
 		}
 	}
@@ -2443,18 +2471,14 @@ static void calc_bonuses(void)
 		p_ptr->stat_misc_mod[A_STR] -= 1;
 	}
 	
-	// decrease food consumption with 'mind over body' ability
-	if (p_ptr->active_ability[S_WIL][WIL_MIND_OVER_BODY])
-	{
-		p_ptr->hunger -= 1;
-	}
-
-	// provide resist_confusion, resist_stunning and resist_hallucinaton with 'clarity' ability
-	if (p_ptr->active_ability[S_WIL][WIL_CLARITY])
+	// 'Indomitable' ability provides resist_fear, resist_confusion, resist_stunning and resist_hallucination as well as slowing hunger
+	if (p_ptr->active_ability[S_WIL][WIL_INDOMITABLE])
 	{
 		p_ptr->resist_confu += 1;
+		p_ptr->resist_fear += 1;
 		p_ptr->resist_stun += 1;
 		p_ptr->resist_hallu += 1;
+		p_ptr->hunger -= 1;
 	}
 
 	/*** Handle stats ***/
@@ -2765,6 +2789,12 @@ static void calc_bonuses(void)
     /* Always redraw terrain */
     p_ptr->redraw |= (PR_TERRAIN);
     
+	if (p_ptr->skill_use[S_WIL] != old_skill_use[S_WIL])
+	{
+		// IMMORTAL_COURAGE
+		p_ptr->update |= (PU_HP);
+	}
+
 	/* Redraw melee (if needed) */
 	if ((p_ptr->skill_use[S_MEL] != old_skill_use[S_MEL]) || (p_ptr->mdd != old_mdd) || (p_ptr->mds != old_mds) || 
 															 (p_ptr->mdd2 != old_mdd2) || (p_ptr->mds2 != old_mds2))
