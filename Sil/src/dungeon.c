@@ -2249,8 +2249,8 @@ static void process_player(void)
 		i *= int_exp(3,p_ptr->hunger);
 	}
 	
-	/* Digest quickly when gorged */
-	if (p_ptr->food >= PY_FOOD_MAX) i *= 9;
+	/* Digest very quickly when gorged */
+	if (p_ptr->food >= PY_FOOD_MAX) i *= 50;
 		
 	/* Digest some food */
 	(void)set_food(p_ptr->food - i);

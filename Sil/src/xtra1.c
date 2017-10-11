@@ -415,7 +415,7 @@ static void prt_hp(void)
 	if (p_ptr->unwounded == 0)
 	{
 		c_put_str(TERM_RED, "Will        ", ROW_HP, COL_HP);
-		c_put_str(TERM_RED, "   Mortal Wound", ROW_MORTAL_WOUND, COL_MORTAL_WOUND);
+		c_put_str(TERM_RED, "Mortally Wounded", ROW_MORTAL_WOUND, COL_MORTAL_WOUND);
 	}
 	else if (p_ptr->mhp >= 100)
 	{
@@ -607,10 +607,9 @@ static void prt_hunger(void)
 		c_put_str(TERM_L_GREEN, "Full    ", ROW_HUNGRY, COL_HUNGRY);
 	}
 
-	/* Gorged */
 	else
 	{
-		c_put_str(TERM_GREEN, "Gorged  ", ROW_HUNGRY, COL_HUNGRY);
+		c_put_str(TERM_GREEN, "Full    ", ROW_HUNGRY, COL_HUNGRY);
 	}
 }
 

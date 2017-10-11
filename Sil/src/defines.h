@@ -691,14 +691,14 @@
 #define ROW_NAME		1
 #define COL_NAME		0	/* <race name> */
 
+#define ROW_MORTAL_WOUND	2
+#define COL_MORTAL_WOUND	0
+
 #define ROW_STAT		3
 #define COL_STAT		0	/* "xxx   xxxxxx" */
 
 #define ROW_EXP			8
 #define COL_EXP			0	/* "EXP xxxxxxxx" */
-
-#define ROW_MORTAL_WOUND	9
-#define COL_MORTAL_WOUND	0
 
 #define ROW_HP			10
 #define COL_HP			0	/* "HP xxxxxxxxx" */
@@ -737,7 +737,7 @@
 #define COL_STEALTH		0	/* <stealth> */
 
 #define ROW_HUNGRY		(Term->hgt - 1)
-#define COL_HUNGRY		0	/* "Starving" "Weak" / "Hungry" / "Full" / "Gorged" */
+#define COL_HUNGRY		0	/* "Starving" "Weak" / "Hungry" / "Full" */
 
 #define ROW_BLIND		(Term->hgt - 1)
 #define COL_BLIND		9	/* "Blind" */

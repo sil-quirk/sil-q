@@ -1390,7 +1390,7 @@ bool set_food(int v)
 		old_aux = 4;
 	}
 
-	/* Gorged */
+	/* Replete */
 	else
 	{
 		old_aux = 5;
@@ -1426,7 +1426,7 @@ bool set_food(int v)
 		new_aux = 4;
 	}
 
-	/* Gorged */
+	/* Replete */
 	else
 	{
 		new_aux = 5;
@@ -1466,11 +1466,10 @@ bool set_food(int v)
 				break;
 			}
 
-			/* Bloated */
+			/* Replete */
 			case 5:
 			{
-				msg_print("You have gorged yourself!");
-				msg_print("You can't eat or drink any more until you recover.");
+				msg_print("You are as full as you can be.");
 				break;
 			}
 		}
@@ -1516,7 +1515,7 @@ bool set_food(int v)
 			/* Full */
 			case 4:
 			{
-				msg_print("You are no longer gorged.");
+				msg_print("You feel comfortably full.");
 				break;
 			}
 		}
