@@ -2187,6 +2187,12 @@
 #define ALERTNESS_VERY_ALERT	 10
 #define ALERTNESS_MAX			 20
 
+/*
+ * Blow success: miss, hit, damage
+ */
+#define ATTACK_MISSED	0
+#define ATTACK_HIT	1
+#define ATTACK_DAMAGED	2
 
 /*** Monster flags ***/
 

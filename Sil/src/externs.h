@@ -354,7 +354,7 @@ extern int focused_attack_bonus(void);
 extern int master_hunter_bonus(monster_type *m_ptr);
 extern bool knock_back(int y1, int x1, int y2, int x2);
 extern void attack_punctuation(char *punctuation, int net_dam, int crit_bonus_dice);
-extern void py_attack_aux(int y, int x, int attack_type);
+extern int py_attack_aux(int y, int x, int attack_type);
 extern void py_attack(int y, int x, int attack_type);
 extern void flanking_or_retreat(int y, int x);
 extern void move_player(int dir);

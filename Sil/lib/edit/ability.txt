@@ -148,7 +148,9 @@ T:31:2:3   # Gauntlets and mithril gauntlets
 N:12:Whirlwind Attack
 I:0:12:13
 P:0/5
-D:Allows you to attack all adjacent enemies.
+D:Allows you to attack all adjacent enemies. If you miss an enemy you attack
+D: the next and so on until you damage one or have attacked all of them.
+D: Half the time you do damage you continue your attack.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
