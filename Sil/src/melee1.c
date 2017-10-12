@@ -2813,12 +2813,26 @@ void display_combat_rolls(void)
 				
 				if (combat_rolls[round][i].att_type == COMBAT_ROLL_ROLL)
 				{
-					net_dam =   combat_rolls[round][i].dam - combat_rolls[round][i].prot;
-					
-					if (net_dam > 0)
+					int bonus_dam = (MIN(combat_rolls[round][i].dam, combat_rolls[round][i].prot)) *
+						    BLUNT_WEAPON_ARMOR_DAMAGE_MULTIPLIER;
+
+					net_dam = combat_rolls[round][i].dam - combat_rolls[round][i].prot;
+					if (net_dam < 0) net_dam = 0;
+
+					if (net_dam > 0 || bonus_dam > 0)
 					{
-						strnfmt(buf, sizeof (buf), "%4d", net_dam);
-						Term_addstr(-1, a_net_dam, buf);
+						if (combat_rolls[round][i].dam_type == GF_BLUNT && bonus_dam > 0)
+						{
+
+							strnfmt(buf, sizeof (buf), "%4d +%2d", net_dam, bonus_dam);
+							Term_addstr(-1, a_net_dam, buf);
+						}
+						else
+						{
+
+							strnfmt(buf, sizeof (buf), "%4d", net_dam);
+							Term_addstr(-1, a_net_dam, buf);
+						}
 					}
 					else
 					{

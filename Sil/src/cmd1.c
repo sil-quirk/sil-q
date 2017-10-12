@@ -3485,6 +3485,7 @@ int py_attack_aux(int y, int x, int attack_type)
 	int stealth_bonus = 0;
     int monster_ripostes = 0;
 	int effective_strength;
+	int damage_type = GF_HURT;
 
 	monster_type *m_ptr;
 	monster_race *r_ptr;
@@ -3734,12 +3735,18 @@ int py_attack_aux(int y, int x, int attack_type)
 			}
 
 			prt = (prt * prt_percent) / 100;
-			
+
 			net_dam = dam - prt;
-			
+
 			/* No negative damage */
 			if (net_dam < 0) net_dam = 0;
 			if (net_dam > 0) attack_result = ATTACK_DAMAGED;
+
+			if (o_ptr->tval == TV_HAFTED)
+			{
+				net_dam += (MIN(prt, dam) * BLUNT_WEAPON_ARMOR_DAMAGE_MULTIPLIER);
+				damage_type = GF_BLUNT;
+			}
 
 			// determine the punctuation for the attack ("...", ".", "!" etc)
 			attack_punctuation(punctuation, net_dam, crit_bonus_dice);
@@ -3768,7 +3775,7 @@ int py_attack_aux(int y, int x, int attack_type)
 			}
 			
 			update_combat_rolls2(total_dice, mds, dam, r_ptr->pd, r_ptr->ps, 
-			                     prt, prt_percent, GF_HURT, TRUE); 
+			                     prt, prt_percent, damage_type, TRUE); 
 			
 			// determine the player's score for knocking an opponent backwards if they have the ability
             // first calculate their strength including modifiers for this attack
