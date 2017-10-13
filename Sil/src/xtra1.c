@@ -1941,8 +1941,8 @@ int ability_bonus(int skilltype, int abilitynum)
 			}
 			case SNG_ESTE:
 			{
-				bonus = skill / 4;
-				if (bonus < 2) bonus = 2;
+				bonus = skill / 3;
+				if (bonus < 3) bonus = 3;
 				break;
 			}
 			case SNG_SHARPNESS:
@@ -2631,7 +2631,13 @@ static void calc_bonuses(void)
 	{
 		p_ptr->free_act += 1;
 	}
-
+	if (singing(SNG_ESTE))
+	{
+		p_ptr->sustain_dex += 1;
+		p_ptr->sustain_str += 1;
+		p_ptr->sustain_con += 1;
+		p_ptr->sustain_gra += 1;
+	}
 	
 	/*** Finalise all skills other than combat skills  (as bows/weapons must be analysed first) ***/
 	
