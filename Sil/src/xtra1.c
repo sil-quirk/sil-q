@@ -2474,7 +2474,7 @@ static void calc_bonuses(void)
 	if (p_ptr->active_ability[S_WIL][WIL_INDOMITABLE])
 	{
 		p_ptr->resist_confu += 1;
-		p_ptr->resist_fear += 1;
+		p_ptr->resist_fear += 2;
 		p_ptr->resist_stun += 1;
 		p_ptr->resist_hallu += 1;
 		p_ptr->hunger -= 1;

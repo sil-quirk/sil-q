@@ -466,7 +466,7 @@ T:32:0:99  # Helm
 T:33:0:99  # Crown
 T:39:0:99  # Light Source
 
-N:104:Clarity
+N:104:Indomitable
 I:5:4:5
 D:Gives you resistance to fear, confusion, stunning, and hallucination.
 D: Slows hunger to one third the normal rate.
