@@ -541,6 +541,9 @@ static byte darken(byte a, byte c)
 	// don't darken the symbols for traps
 	if (c == '^') return (a);
 
+	// or chasms or shafts
+	if (((c == '%') || (c == '>') || (c == '<')) && a == TERM_L_DARK) return (a);
+
 	if (a == TERM_WHITE)                    return (TERM_SLATE);
 	if (a == TERM_L_WHITE)                  return (TERM_L_DARK);
 	if (a == TERM_SLATE)                    return (TERM_L_DARK);
