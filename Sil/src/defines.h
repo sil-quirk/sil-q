@@ -1107,7 +1107,6 @@
 #define SV_DAGGER					4	/* 1d4 */
 #define SV_CURVED_SWORD				7	/* 2d5 */
 #define SV_SHORT_SWORD				10	/* 1d8 */
-#define SV_DEATHBLADE				15	/* 1d10 */
 #define SV_LONG_SWORD				17	/* 2d5 */
 #define SV_BASTARD_SWORD			21	/* 3d3 */
 #define SV_GREAT_SWORD				25	/* 3d5 */

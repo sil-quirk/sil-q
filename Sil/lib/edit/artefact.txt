@@ -827,21 +827,6 @@ D: unwillingly to meet it of old; his lame foot will remind him of its
 D: might should he face it again.
 
 
-## The Deathblade 'Delmereth'
-## original to Sil
-## (automatic drop -- don't move)
-
-N:84:'Delmereth'
-I:23:15:2
-W:18:1:20:500000
-P:+3:1d9:+1:0d0
-F:STEALTH | VAMPIRIC | HUNGER
-F:INSTA_ART
-D:Though this dark blade is held to your will now, you feel it writhe
-D: with resentment. It will happily take out its anger on any before
-D: you, though.
-
-
 ##### Polearms #####
 
 

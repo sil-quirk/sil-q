@@ -251,15 +251,7 @@
 #     - can't open doors
 #     - young: 5d4 prot, 8d4 health, 6d4 breath
 #     - ancient: 7d4 prot, 10d4 health, 8d4 breath, surrounded by cloud
-#
-# - |   (deathblades)
-#     - quick
-#     - short sighted
-#     - can't open doors
-#     - immune to most things
-#     - resistant to criticals
-#     - 5d4 prot, 10d4 health
-#
+##
 # - f   (cat warriors)
 #     - groups
 #     - quick
@@ -704,6 +696,33 @@ B:STING:CONFUSE:(+13,1d7)
 F:FLYING | RAND_25 | RAND_50 | FRIENDS | TERRITORIAL
 D:A giant buzzing wasp, its stinger drips venom.
 
+
+N:84:Balcmeg, the Relentless
+W:8:20
+G:o:o
+I:2:16d4:0
+A:15:8:1:9
+P:[+4,4d4]
+B:HIT:HURT:(+8,3d8)
+F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART | ORC
+F:DROP_100 | UNIQUE_FRIEND | DROP_GOOD | HURT_LITE
+D:A huge champion of the orcs, clad in thick black armor
+D: and carrying a shield and much-notched axe. He is
+D: scarred of face and his eyes are small and baleful.
+
+
+N:85:Lug, the Grotesque
+W:8:20
+G:o:v
+I:2:11d4:0
+A:15:8:1:6
+P:[+14,2d4]
+B:HIT:HURT:(+16,1d9)
+F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART | ORC
+F:DROP_100 | UNIQUE_FRIEND | DROP_GOOD | HURT_LITE
+D:A small and exceptionally ugly orc, wearing dark leather
+D: and carrying a short broad blade which he tosses from
+D: one hand to the other with unsettling dexterity.
 
 
 
@@ -1180,19 +1199,6 @@ D:A chill hangs in the air around this figure which is
 D: almost that of a person. A cold gleaming blade is in its hand.
 
 
-N:144:Deathblade
-W:14:8
-G:|:D
-I:3:6d4:0
-A:0:10:20:10
-P:[+17,5d4]
-B:HIT:HURT:(+24,1d9)
-F:DROP_CHOSEN | SHORT_SIGHTED
-F:NO_FEAR | RES_POIS | RES_COLD | RES_FIRE
-F:NO_CONF | NO_SLEEP | RES_CRIT
-D:A black blade, wreathed in shadow.
-
-
 # (Delthaur = abominable horror)
 
 N:145:Delthaur, Balrog of Terror
@@ -1295,21 +1301,6 @@ D:It is as though a great cat stood like a man.
 D: You cannot tell whether its long scything claws
 D: could be natural. It moves with astonishing
 D: speed and agility.
-
-
-N:155:The Deathblade 'Delmereth'
-W:15:50
-G:|:D
-I:3:10d4:0
-A:0:10:20:13
-P:[+19,5d4]
-B:HIT:HURT:(+30,1d9)
-F:UNIQUE | DROP_CHOSEN | SHORT_SIGHTED
-F:RES_COLD | RES_FIRE
-F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
-D:You are filled with dread as you look upon this black blade.
-D: You know not who forged it, or how.
-D: 'Horror-feast' is its name. You can feel its hunger.
 
 
 ##### 16 #####

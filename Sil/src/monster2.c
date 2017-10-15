@@ -3451,7 +3451,7 @@ void message_pain(int m_idx, int dam)
 			msg_print("You hear a unnatural cry.");
 	}
 	
-	// m, w, | are silent
+	// m, w are silent
 }
 
 

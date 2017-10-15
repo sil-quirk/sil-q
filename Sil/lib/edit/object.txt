@@ -353,13 +353,6 @@ P:0:1d7:1:0d0
 A:2/1:12/1
 
 
-# Deathblades get bonuses in a different way to most items.
-# A coin is flipped until it comes up tails. It gets +1 melee
-# for each time it came up heads.
-#
-# They are not very Tolkienian, but are a homage to Dungeons of Doom
-# (an ancient roguelike for Mac that everyone else seems to have forgotten)
-
 N:63:& Deathblade~
 G:|:D
 I:23:15:0

@@ -1978,31 +1978,6 @@ void drop_loot(monster_type *m_ptr)
 			// create the Iron Crown of Morgoth
 			create_chosen_artefact(ART_MORGOTH_3, y, x, TRUE);
 		}
-		
-		// Drop Deathblade treasures
-		else if (r_ptr->d_char == '|')
-		{
-			if (!birth_no_artefacts && (r_ptr->flags1 & (RF1_UNIQUE)))
-			{
-				// create the Deathblade 'Delmereth'
-				create_chosen_artefact(ART_DELMERETH, y, x, TRUE);
-			}
-			else
-			{
-				/* Get local object */
-				i_ptr = &object_type_body;
-				
-				/* Mega-Hack -- Prepare deathblade */
-				object_prep(i_ptr, lookup_kind(TV_SWORD, SV_DEATHBLADE));
-				
-				// otherwise just apply_magic to give a chance of being fine or special (not artefact)
-				apply_magic(i_ptr, object_level, FALSE, FALSE, FALSE, FALSE);
-				
-				/* Drop it in the dungeon */
-				drop_near(i_ptr, -1, y, x);
-			}
-			
-		}
 		// Drop Galvorn Armour of Maeglin
 		else if (r_ptr->d_char == '@')
 		{
@@ -2206,9 +2181,8 @@ void monster_death(int m_idx)
 		monster_desc_race(real_name, sizeof(real_name), m_ptr->r_idx);
 			
 		/* Write note */
-		if (monster_nonliving(r_ptr) && (r_ptr->d_char == '|'))	my_strcpy(note2, format("Subdued %s", real_name), sizeof (note2));
-		else if (monster_nonliving(r_ptr))						my_strcpy(note2, format("Destroyed %s", real_name), sizeof (note2));
-		else													my_strcpy(note2, format("Slew %s", real_name), sizeof (note2));
+		if (monster_nonliving(r_ptr))				my_strcpy(note2, format("Destroyed %s", real_name), sizeof (note2));
+		else							my_strcpy(note2, format("Slew %s", real_name), sizeof (note2));
 		
  		do_cmd_note(note2, p_ptr->depth);
 	}
@@ -2396,17 +2370,8 @@ bool mon_take_hit(int m_idx, int dam, cptr note, int who)
 		/* Death by Physical attack -- non-living monster */
 		else if (monster_nonliving(r_ptr))
 		{
-			// special message for deathblades
-			if (r_ptr->d_char == '|')
-			{
-				if (who < 0)	message_format(MSG_KILL, m_ptr->r_idx, "You have subdued %s.", m_name);
-				else			message_format(MSG_KILL, m_ptr->r_idx, "%^s has been subdued.", m_name);
-			}
-			else
-			{
-				if (who < 0)	message_format(MSG_KILL, m_ptr->r_idx, "You have destroyed %s.", m_name);
-				else			message_format(MSG_KILL, m_ptr->r_idx, "%^s has been destroyed.", m_name);
-			}
+			if (who < 0)		message_format(MSG_KILL, m_ptr->r_idx, "You have destroyed %s.", m_name);
+			else			message_format(MSG_KILL, m_ptr->r_idx, "%^s has been destroyed.", m_name);
 		}
 
 		/* Death by Physical attack -- living monster */

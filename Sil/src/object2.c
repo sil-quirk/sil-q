@@ -2581,13 +2581,6 @@ void apply_magic(object_type *o_ptr, int lev, bool okay, bool good, bool great, 
 		case TV_POLEARM:
 		case TV_BOW:
 		{
-			// deathblades don't have normal fine and special types
-			if ((o_ptr->tval == TV_SWORD) && (o_ptr->sval == SV_DEATHBLADE))
-			{
-				while (one_in_(2)) o_ptr->att++;
-				break;
-			}
-			
 			// deal with special items
 			if (special)
 			{
