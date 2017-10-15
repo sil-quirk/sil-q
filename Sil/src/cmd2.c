@@ -3173,9 +3173,6 @@ static int breakage_chance(const object_type *o_ptr, bool hit_wall)
 		{
 			p = 20;
 			
-			// halved chance if careful
-			if (p_ptr->active_ability[S_ARC][ARC_CAREFUL]) p /= 2;
-			
 			// 100% chance if flaming arrows
 			if (p_ptr->active_ability[S_ARC][ARC_FLAMING]) p = 100;
 			
@@ -3643,10 +3640,10 @@ void do_cmd_fire(int quiver)
 			{
 				m_ptr = &mon_list[cave_m_idx[y][x]];
 				r_ptr = &r_info[m_ptr->r_idx];
-                
-                // record the co-ordinates of the first monster in line of fire
-                if (first_y == 0) first_y = y;
-                if (first_x == 0) first_x = x;
+
+				// record the co-ordinates of the first monster in line of fire
+				if (first_y == 0) first_y = y;
+				if (first_x == 0) first_x = x;
 				
 				// Determine the player's attack score after all modifiers
 				total_attack_mod = total_player_attack(m_ptr, attack_mod);
@@ -3681,6 +3678,13 @@ void do_cmd_fire(int quiver)
 					if (m_ptr->ml) target_set_monster(cave_m_idx[y][x]);
 				}
 				
+				// Aim improved if monster is fleeing. If firing into several fleeing monsters,
+				// the chance of hitting one is high.
+				if (p_ptr->active_ability[S_ARC][ARC_ROUT] && m_ptr->stance == STANCE_FLEEING)
+				{
+					total_attack_mod += 5;
+				}
+
 				// Determine the monster's evasion after all modifiers
 				total_evasion_mod = total_monster_evasion(m_ptr, TRUE);
 				

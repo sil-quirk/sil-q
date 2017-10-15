@@ -163,11 +163,11 @@ D:You gain a point of strength.
 
 # Archery ---------------------------------------------
 
-N:20:Careful Shot
-I:1:0:1
-D:Halves the chance of breaking arrows.
+N:20:Rout
+I:1:0:2
+D:Firing at fleeing monsters is calculated as if you had 5 points
+D: more of dexterity.
 T:19:0:99  # Bows
-T:31:1:1   # Gloves (leather gloves only)
 
 N:21:Precision
 I:1:1:3
@@ -178,7 +178,6 @@ T:31:1:1   # Gloves (leather gloves only)
 
 N:22:Point Blank Archery
 I:1:2:4
-P:1/0
 D:The monster you are firing at cannot get an attack of opportunity.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
@@ -196,14 +195,12 @@ P:1/1
 D:Your critical hits sometimes temporarily slow monsters
 D: (depending on the level of critical and the monster's Will).
 T:19:0:99  # Bows
-T:31:1:1   # Gloves (leather gloves only)
 
 N:25:Flaming Arrows
 I:1:5:7
 D:Your arrows do an extra die of damage against most targets,
 D: but they always break.
 T:19:0:99  # Bows
-T:31:1:1   # Gloves (leather gloves only)
 
 N:26:Rapid Fire
 I:1:6:8
