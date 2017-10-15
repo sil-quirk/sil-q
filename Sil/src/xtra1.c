@@ -1518,7 +1518,7 @@ static void calc_hitpoints(void)
 	int tmp;
 
 	
-	if (p_ptr->active_ability[S_WIL][WIL_IMMORTAL_COURAGE] && p_ptr->unwounded == 0)
+	if (p_ptr->active_ability[S_WIL][WIL_DEFIANCE] && p_ptr->unwounded == 0)
 	{
 		mhp = p_ptr->skill_use[S_WIL];
 	}
@@ -2796,7 +2796,7 @@ static void calc_bonuses(void)
     
 	if (p_ptr->skill_use[S_WIL] != old_skill_use[S_WIL])
 	{
-		// IMMORTAL_COURAGE
+		// DEFIANCE
 		p_ptr->update |= (PU_HP);
 	}
 

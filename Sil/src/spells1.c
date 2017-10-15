@@ -547,7 +547,7 @@ void take_hit(int dam, cptr kb_str)
 	p_ptr->window |= (PW_PLAYER_0);
 
         /* Dead player */
-	if (p_ptr->active_ability[S_WIL][WIL_IMMORTAL_COURAGE])
+	if (p_ptr->active_ability[S_WIL][WIL_DEFIANCE])
 	{
 		if (p_ptr->chp <= 0 && p_ptr->unwounded == 1)
 		{
@@ -559,7 +559,7 @@ void take_hit(int dam, cptr kb_str)
 		}
 	}
 
-	if (p_ptr->chp <= 0 || (p_ptr->unwounded == 0 && !p_ptr->active_ability[S_WIL][WIL_IMMORTAL_COURAGE]))
+	if (p_ptr->chp <= 0 || (p_ptr->unwounded == 0 && !p_ptr->active_ability[S_WIL][WIL_DEFIANCE]))
 	{
 		/* Hack -- Note death */
 		message(MSG_DEATH, 0, "You die.");

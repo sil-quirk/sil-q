@@ -166,7 +166,7 @@ D:You gain a point of strength.
 N:20:Rout
 I:1:0:2
 D:Firing at fleeing monsters is calculated as if you had 5 points
-D: more of dexterity.
+D: more dexterity.
 T:19:0:99  # Bows
 
 N:21:Precision
@@ -479,7 +479,7 @@ I:5:6:7
 P:5/1:5/5
 D:Gives you resistance to poison.
 
-N:107:Immortal Courage
+N:107:Defiance
 I:5:7:8
 P:5/1
 D:You do not die when your health reaches zero, but become
