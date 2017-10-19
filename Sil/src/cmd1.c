@@ -3545,7 +3545,7 @@ int py_attack_aux(int y, int x, int attack_type)
 
     // inscribing an object with "!a" produces prompts to confirm that you with to attack with it
     // idea and code from MarvinPA
-    if (o_ptr->obj_note && !p_ptr->truce)
+    if (o_ptr->obj_note && !p_ptr->truce && m_ptr->ml)
     {
         cptr s;
         /* Find a '!' */
