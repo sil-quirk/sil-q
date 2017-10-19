@@ -1409,6 +1409,7 @@ D: They lend you subtlety of hand and mind.
 ## The Set of Gauntlets 'Azdulag'
 ## (ability 0/2 is Knockback)
 
+
 N:165:'Azdulag'
 I:31:2:1
 W:10:12:50:60000

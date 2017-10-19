@@ -484,6 +484,9 @@ I:5:7:8
 P:5/1
 D:You do not die when your health reaches zero, but become
 D: mortally wounded instead, with health equal to your Will.
+D: Your health will never again recover beyond this, and
+D: abilities that trigger at low health will be permanently
+D: on.
 T:40:0:99  # Amulet
 
 N:108:Critical Resistance
