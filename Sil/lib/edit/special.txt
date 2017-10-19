@@ -337,27 +337,26 @@ F:BRAND_FIRE | LIGHT
 # (ability 2/4 is Leaping)
 
 N:39:of Vaulting
-W:4:1:0:2000
+W:0:1:0:2000
 C:0:0:0:0:0:0:0
 T:21:3:3
 B:2/4
 
 
 # Warhammers only
-# (ability 0/11 is Smashing Blow)
 
 N:40:of Crushing
-W:9:4:0:10000
-C:0:0:1:0:0:0:0
+W:14:8:0:10000
+C:0:0:1:0:0:0:1
 T:21:8:8
-B:0/11
+F:STR
 
 
 # Polearms only
 # (ability 0/8 is Impale)
 
 N:41:of Piercing
-W:9:4:0:10000
+W:4:2:0:10000
 C:0:0:1:0:0:0:0
 T:22:1:4
 B:0/8
@@ -366,7 +365,7 @@ B:0/8
 # Quarterstaves only
 
 N:42:of Calacirya
-W:8:3:0:8000
+W:6:3:0:8000
 C:0:0:0:0:0:0:1
 T:21:3:3
 F:WILL | SONG
@@ -374,8 +373,8 @@ F:WILL | SONG
 
 # Quarterstaves only
 
-N:43:of Helcaraxe
-W:8:3:0:8000
+N:43:of the Helcaraxe
+W:6:3:0:8000
 C:0:0:0:0:0:0:1
 T:21:3:3
 F:DEX | RES_COLD

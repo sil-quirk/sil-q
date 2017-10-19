@@ -135,15 +135,13 @@ T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:31:0:99  # Gloves
 
-N:11:Smashing Blow
+N:11:Coup de Grace
 I:0:11:12
-P:0/0:0/4
-D:Allows your attacks to partially ignore your opponents' armor. Heavier
-D: weapons break through armor more effectively.
+D:Attacks on enemies who have less health than the sum of your Strength and
+D: Dexterity kill them instantly.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
-T:31:2:3   # Gauntlets and mithril gauntlets
 
 N:12:Whirlwind Attack
 I:0:12:13
