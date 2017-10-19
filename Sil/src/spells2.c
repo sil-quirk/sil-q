@@ -2973,7 +2973,7 @@ void earthquake(int cy, int cx, int pit_y, int pit_x, int r, int who)
 					}
 					
 					// do the damage and check for death
-					killed = mon_take_hit(cave_m_idx[y][x], damage, NULL, who);
+					killed = mon_take_hit(cave_m_idx[y][x], net_dam, NULL, who);
 					
 					// special effects for survivors
 					if (!killed)
