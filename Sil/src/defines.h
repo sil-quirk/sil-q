@@ -221,7 +221,7 @@
 #define R_IDX_BARROW_WIGHT		112
 #define R_IDX_ALDOR             117
 #define R_IDX_EASTERLING_SPY	121
-#define R_IDX_OATHWRAITH        152
+#define R_IDX_OATHWRAITH        153
 #define R_IDX_CAT_WARRIOR		154
 #define R_IDX_YOUNG_COLD_DRAKE  164
 #define R_IDX_CAT_ASSASSIN		175

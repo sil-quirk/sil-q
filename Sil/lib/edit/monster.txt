@@ -1268,6 +1268,7 @@ D:A great serpent with scales of gleaming emerald.
 D: Noxious vapours surround it.
 
 
+# Can't move from idx 153, used by monster Song of Oaths
 N:153:Oathwraith
 W:15:4
 G:W:D
