@@ -1414,7 +1414,7 @@ N:165:'Azdulag'
 I:31:2:1
 W:10:12:50:60000
 P:0:0d0:-1:2d1
-F:STR | DARKNESS | RES_BLIND
+F:STR | DARKNESS
 B:0/2
 D:The brutal gauntlets forged by Morgoth for the great orc-chieftain Gorgdaz,
 D: who perished along with many of Morgoth's host at Dagor-nuin-Giliath.

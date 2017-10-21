@@ -1819,7 +1819,7 @@
 #define TR3_ACTIVATE        0x00400000L /* Item can be activated */
 #define TR3_INSTA_ART       0x00800000L /* Item makes an artefact */
 #define TR3_EASY_KNOW       0x01000000L /* Item is known if aware */
-#define TR3_TR3XXX11        0x02000000L /* xxx */
+#define TR3_MORE_SPECIAL    0x02000000L /* Item has a better chance of being special */
 #define TR3_TR3XXX12        0x04000000L /* xxx */
 #define TR3_HAND_AND_A_HALF 0x08000000L /* Item is a hand and a half weapon */
 #define TR3_TWO_HANDED      0x10000000L /* Item is a two handed weapon */

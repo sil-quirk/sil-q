@@ -2500,6 +2500,8 @@ void apply_magic(object_type *o_ptr, int lev, bool okay, bool good, bool great, 
 	bool fine = FALSE;
 	bool special = FALSE;
 
+	object_kind *k_ptr = &k_info[o_ptr->k_idx];
+
 	/* Maximum "level" for various things */
 	if (lev > MAX_DEPTH - 1) lev = MAX_DEPTH - 1;
 		
@@ -2571,6 +2573,9 @@ void apply_magic(object_type *o_ptr, int lev, bool okay, bool good, bool great, 
 		return;
 	}
 
+	if (k_ptr->flags3 & (TR3_MORE_SPECIAL)) {
+		if (percent_chance(20))	special = TRUE;
+	}
 
 	/* Apply magic */
 	switch (o_ptr->tval)

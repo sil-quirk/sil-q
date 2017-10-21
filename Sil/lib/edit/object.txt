@@ -332,8 +332,8 @@ G:|:w
 I:23:4:0
 W:1:0:5:10
 P:0:1d5:0:0d0
-A:1/2:10/1
-F:THROWING
+A:1/1:10/1
+F:THROWING | MORE_SPECIAL
 
 
 N:57:& Curved Sword~
@@ -348,42 +348,34 @@ D:A crude blade, but better than none. It is curved in the orcish style.
 N:60:& Shortsword~
 G:|:w
 I:23:10:0
-W:2:0:15:90
+W:1:0:15:90
 P:0:1d7:1:0d0
-A:2/1:12/1
-
-
-N:63:& Deathblade~
-G:|:D
-I:23:15:0
-W:10:0:20:300
-P:0:1d9:1:0d0
-F:IGNORE_ALL | NO_SMITHING
+A:1/1:12/1
 
 
 N:64:& Longsword~
 G:|:W
 I:23:17:0
-W:3:0:30:300
+W:4:0:30:300
 P:0:2d5:1:0d0
-A:3/1:5/1:10/1
+A:4/1:14/1
 
 
 N:67:& Bastard Sword~
 G:|:W
 I:23:21:0
-W:4:0:40:350
+W:6:0:40:350
 P:-2:3d3:1:0d0
-A:4/2:10/2
+A:6/2:14/2
 F:HAND_AND_A_HALF
 
 
 N:68:& Greatsword~
 G:|:W
 I:23:25:0
-W:5:0:70:775
+W:4:0:70:775
 P:-2:3d5:1:0d0
-A:5/1:15/1
+A:4/1:14/1
 F:TWO_HANDED
 
 
@@ -412,7 +404,7 @@ G:/:U
 I:22:1:0
 W:2:0:30:36
 P:-1:1d9:0:0d0
-A:2/1:10/2
+A:1/1:10/4
 F:THROWING | HAND_AND_A_HALF | POLEARM
 
 
@@ -421,25 +413,25 @@ G:/:u
 I:22:2:0
 W:4:0:60:36
 P:-1:1d13:1:0d0
-A:4/2:12/2
+A:4/2:12/4
 F:TWO_HANDED | POLEARM
 
 
 N:74:& Glaive~
 G:/:s
 I:22:4:0
-W:9:0:70:363
+W:8:0:70:363
 P:-2:2d9:1:0d0
-A:9/2
+A:8/2:16/2
 F:TWO_HANDED | POLEARM
 
 
 N:76:& Throwing Axe~
 G:/:s
 I:22:11:0
-W:5:0:15:150
+W:1:0:15:150
 P:0:2d4:0:0d0
-A:5/1:15/1
+A:1/1
 F:THROWING | AXE
 
 
@@ -455,9 +447,9 @@ F:HAND_AND_A_HALF | AXE
 N:81:& Great Axe~
 G:/:s
 I:22:13:0
-W:10:0:100:334
+W:8:0:100:334
 P:-4:4d4:0:0d0
-A:10/2:15/1
+A:8/2:15/1
 F:TWO_HANDED | AXE
 
 
@@ -476,19 +468,19 @@ F:TWO_HANDED
 N:89:& War Hammer~
 G:\:D1
 I:21:8:0
-W:5:0:50:225
+W:6:0:50:225
 P:-3:4d1:0:0d0
-A:5/3
+A:6/3
 F:HAND_AND_A_HALF
 
 
 N:90:& Sceptre~
 G:\:y1
 I:21:9:0
-W:6:0:40:1000
+W:1:0:40:1000
 P:0:2d3:0:0d0
-A:6/10:13/3
-F:ENCHANTABLE
+A:1/10:10/20
+F:ENCHANTABLE | MORE_SPECIAL
 
 
 ##### Digging Tools #####
@@ -562,7 +554,7 @@ I:33:11:0
 W:7:0:30:1000
 P:0:0d0:0:1d0
 A:7/10:14/2
-F:IGNORE_ALL | ENCHANTABLE
+F:IGNORE_ALL | ENCHANTABLE | MORE_SPECIAL
 
 
 N:105:& Jewelled Crown~
@@ -571,7 +563,7 @@ I:33:12:0
 W:8:0:30:2000
 P:0:0d0:0:1d0
 A:8/10:16/2
-F:IGNORE_ALL | ENCHANTABLE
+F:IGNORE_ALL | ENCHANTABLE | MORE_SPECIAL
 
 
 
@@ -1271,7 +1263,7 @@ G:!:d
 I:75:10:100
 W:12:0:5:100
 P:0:0d0:0:0d0
-A:12/1
+A:12/1:16/1
 F:EASY_KNOW
 D:It grants you temporary resistance to fire and cold for 20d4 turns.
 
