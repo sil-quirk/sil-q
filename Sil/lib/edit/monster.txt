@@ -700,7 +700,7 @@ D:A giant buzzing wasp, its stinger drips venom.
 N:84:Balcmeg, the Relentless
 W:8:20
 G:o:o
-I:2:16d4:0
+I:2:15d4:0
 A:15:8:1:9
 P:[+4,4d4]
 B:HIT:HURT:(+8,3d8)
@@ -716,10 +716,10 @@ W:8:20
 G:o:v
 I:2:11d4:0
 A:15:8:1:6
-P:[+14,2d4]
-B:HIT:HURT:(+16,1d9)
-F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART | ORC
-F:DROP_100 | UNIQUE_FRIEND | DROP_GOOD | HURT_LITE
+P:[+16,2d4]
+B:HIT:HURT:(+22,1d9)
+F:UNIQUE | MALE | OPEN_DOOR | UNLOCK_DOOR | SMART | ORC
+F:DROP_100 | UNIQUE_FRIEND | DROP_GOOD | HURT_LITE | CRUEL_BLOW
 D:A small and exceptionally ugly orc, wearing dark leather
 D: and carrying a short broad blade which he tosses from
 D: one hand to the other with unsettling dexterity.
