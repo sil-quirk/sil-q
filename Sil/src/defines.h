@@ -770,9 +770,11 @@
 
 #define OB_GEN_MODE_NORMAL		0
 #define OB_GEN_MODE_CHEST		11
+#define OB_GEN_MODE_SKELETON		12
 #define OB_GEN_MODE_RANDART		13
 
 #define CHEST_LEVEL			130
+#define SKELETON_LEVEL			131
 
 
 /*
@@ -1002,7 +1004,9 @@
 
 /*themed drops*/
 #define DROP_TYPE_UNTHEMED				0
-#define DROP_TYPE_NOT_USELESS			1
+
+#define DROP_TYPE_NOT_DAMAGED				1
+
 #define DROP_TYPE_POTION				2
 #define DROP_TYPE_STAFF					3
 #define DROP_TYPE_SHIELD				4
@@ -1018,6 +1022,8 @@
 #define DROP_TYPE_JEWELRY				14
 #define DROP_TYPE_CHEST					15
 #define DROP_TYPE_DIGGING				16
+
+#define DROP_TYPE_DAMAGED				17
 
 
 /*** Object "tval" and "sval" codes ***/
@@ -1038,7 +1044,7 @@
  */
 
 #define TV_NOTE          2	/* ~ Tutorial notes                      */
-#define TV_USELESS       3	/* ~ Skeletons, etc                      */
+#define TV_SKELETON      3	/* ~ Skeletons                           */
 #define TV_METAL		 4	/* ~ Piece of mithril                    */
 #define TV_CHEST         7	/* ~ Chests                              */
 #define TV_ARROW        17	/* - Arrows								 */
@@ -1066,10 +1072,10 @@
 #define TV_EASTER       81  /* , Easter Eggs (replacement for herbs) */
 
 
-/* The "sval" codes for TV_USELESS */
-#define SV_USELESS_ORC_SKEL		0	/*  */
-#define SV_USELESS_HUMAN_SKEL	1	/*  */
-#define SV_USELESS_ELF_SKEL		2	/*  */
+/* The "sval" codes for TV_SKELETON */
+#define SV_SKELETON_ORC		0	/*  */
+#define SV_SKELETON_HUMAN	1	/*  */
+#define SV_SKELETON_ELF		2	/*  */
 
 /* The "sval" codes for TV_METAL */
 #define SV_METAL_MITHRIL		0	/*  */
@@ -1103,7 +1109,6 @@
 
 /* The "sval" codes for TV_SWORD */
 
-#define SV_BROKEN_SWORD				2	/* 1d4 */
 #define SV_DAGGER					4	/* 1d4 */
 #define SV_CURVED_SWORD				7	/* 2d5 */
 #define SV_SHORT_SWORD				10	/* 1d8 */
@@ -1115,11 +1120,13 @@
 
 
 /* The "sval" codes for TV_SHIELD */
+#define SV_BROKEN_SHIELD		 1
 #define SV_ROUND_SHIELD			 3
 #define SV_KITE_SHIELD			 5
 #define SV_MITHRIL_SHIELD		10
 
 /* The "sval" codes for TV_HELM */
+#define SV_RUSTY_HELM			1
 #define SV_HELM					5
 #define SV_GREAT_HELM			6
 #define SV_DWARF_MASK			7
@@ -1132,6 +1139,7 @@
 #define SV_PAIR_OF_LEATHER_BOOTS		1
 #define SV_PAIR_OF_STEEL_GREAVES		2
 #define SV_PAIR_OF_MITHRIL_GREAVES		3
+#define SV_PAIR_OF_SHABBY_BOOTS			4
 
 /* The "sval" codes for TV_CLOAK */
 #define SV_CLOAK					1
@@ -1145,7 +1153,6 @@
 #define SV_SET_OF_GAUNTLETS			2
 
 /* The "sval" codes for TV_SOFT_ARMOR */
-#define SV_FILTHY_RAG				1
 #define SV_ROBE						2
 #define SV_LEATHER_ARMOR			4
 #define SV_STUDDED_LEATHER			7
@@ -1198,7 +1205,7 @@
 #define SV_RING_WARMTH				7
 #define SV_RING_ACCURACY			8
 #define SV_RING_FREE_ACTION			9
-#define SV_RING_DAMAGE				10
+#define SV_RING_ARCHERY				10
 #define SV_RING_TRUE_SIGHT			11
 #define SV_RING_VENOM				12
 #define SV_RING_HUNGER				21
@@ -1794,7 +1801,7 @@
 #define TR2_RESISTANCE  (TR2_RES_COLD | TR2_RES_FIRE | TR2_RES_ELEC)
 
 
-#define TR3_TR3XXX1         0x00000001L /* xxx */
+#define TR3_DAMAGED         0x00000001L /* xxx */
 #define TR3_TR3XXX2         0x00000002L /* xxx */
 #define TR3_TR3XXX3         0x00000004L /* xxx */
 #define TR3_TR3XXX4         0x00000008L /* xxx */

@@ -641,7 +641,7 @@ extern void wipe_o_list(void);
 extern s16b o_pop(void);
 extern object_type* get_first_object(int y, int x);
 extern object_type* get_next_object(const object_type *o_ptr);
-extern errr get_obj_num_prep(void);
+extern void get_obj_num_prep(void);
 extern s16b get_obj_num(int level);
 extern void object_known(object_type *o_ptr);
 extern void object_aware(object_type *o_ptr);

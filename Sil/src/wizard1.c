@@ -101,7 +101,7 @@ static const grouper group_item[] =
 
 	{ TV_LIGHT,			"Various" },
 	{ TV_FLASK,			NULL },
-	{ TV_USELESS,		NULL },
+	{ TV_SKELETON,		NULL },
 	{ TV_METAL,			NULL },
 
 	{ 0, "" }

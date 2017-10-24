@@ -1045,7 +1045,7 @@ static void do_qual_squelch(void)
 
 static tval_desc raw_tvals[] =
 {
-	{TV_USELESS, "Useless Items"},
+	{TV_SKELETON, "Skeletons"},
 	{TV_METAL, "Pieces of Metal"},
 	{TV_CHEST, "Chests"},
 	{TV_ARROW, "Arrows"},
@@ -1449,7 +1449,7 @@ static int do_ego_item_squelch(void)
 
 void init_tv_to_type(void)
 {
-  tv_to_type[TV_USELESS]=TYPE_MISC;
+  tv_to_type[TV_SKELETON]=TYPE_MISC;
   tv_to_type[TV_CHEST]=TYPE_MISC;
   tv_to_type[TV_ARROW]=TYPE_AMMO;
   tv_to_type[TV_BOW]=TYPE_BOW;

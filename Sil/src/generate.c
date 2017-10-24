@@ -2417,7 +2417,7 @@ static bool build_vault(int y0, int x0, vault_type *v_ptr, bool flip_d)
 				case '*':
 				{
 					object_level = p_ptr->depth + dieroll(4);
-					place_object(y, x, FALSE, FALSE, DROP_TYPE_NOT_USELESS);
+					place_object(y, x, FALSE, FALSE, DROP_TYPE_NOT_DAMAGED);
 					object_level = original_object_level;
 					break;
 				}
@@ -2426,7 +2426,7 @@ static bool build_vault(int y0, int x0, vault_type *v_ptr, bool flip_d)
 				case '&':
 				{
 					object_level = p_ptr->depth + dieroll(4);
-					place_object(y, x, TRUE, FALSE, DROP_TYPE_NOT_USELESS);
+					place_object(y, x, TRUE, FALSE, DROP_TYPE_NOT_DAMAGED);
 					object_level = original_object_level;
 					break;
 				}
@@ -2458,11 +2458,13 @@ static bool build_vault(int y0, int x0, vault_type *v_ptr, bool flip_d)
 						/* Wipe the object */
 						object_wipe(i_ptr);
 						
-						if (one_in_(3)) k_idx = lookup_kind(TV_USELESS, SV_USELESS_HUMAN_SKEL);
-						else			k_idx = lookup_kind(TV_USELESS, SV_USELESS_ELF_SKEL);
-												
+						if (one_in_(3)) k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_HUMAN);
+						else		k_idx = lookup_kind(TV_SKELETON, SV_SKELETON_ELF);
+
 						/* Prepare the item */
 						object_prep(i_ptr, k_idx);
+
+						i_ptr->pval = 1;
 						
 						/* Drop it in the dungeon */
 						drop_near(i_ptr, -1, y, x);

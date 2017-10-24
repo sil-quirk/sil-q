@@ -2111,10 +2111,8 @@ int ps_max(bool assume_artistry)
 			
 			if (artistry)	ps += 1;
 
-			// cloaks, robes and filthy rags cannot get extra protection sides
-			if ((smith_o_ptr->tval == TV_CLOAK) || 
-			    ((smith_o_ptr->tval == TV_SOFT_ARMOR) && (smith_o_ptr->sval == SV_FILTHY_RAG)) ||
-				((smith_o_ptr->tval == TV_SOFT_ARMOR) && (smith_o_ptr->sval == SV_ROBE)) )
+			// cloaks and robes cannot get extra protection sides
+			if ((smith_o_ptr->tval == TV_CLOAK) || ((smith_o_ptr->tval == TV_SOFT_ARMOR) && (smith_o_ptr->sval == SV_ROBE)) )
 			{
 				ps = 0;
 			}
@@ -8592,6 +8590,10 @@ void do_cmd_note(char *note, int what_depth)
 	{
 		my_strcpy(depths, "   Chest", sizeof (depths));
 	}
+	else if (what_depth == SKELETON_LEVEL)
+	{
+		my_strcpy(depths, "   Skeleton", sizeof (depths));
+	}
 	else
 	{
 		comma_number(depths, what_depth * 50);
@@ -9946,7 +9948,7 @@ void apply_magic_fake(object_type *o_ptr)
 				}
 
 				/* Ring of damage */
-				case SV_RING_DAMAGE:
+				case SV_RING_ARCHERY:
 				{
 					if (o_ptr->pval < 1) o_ptr->pval = 1;
 					

@@ -474,7 +474,7 @@ static const tval_desc tvals[] =
 	{ TV_HORN,              "Horn"                 },
 	{ TV_CHEST,             "Chest"                },
 	{ TV_FLASK,             "Flask"                },
-	{ TV_USELESS,           "Useless"              },
+	{ TV_SKELETON,          "Skeleton"             },
 	{ TV_METAL,             "Piece of Metal"       },
 	{ TV_NOTE,              "Note"                 },
 	{ 0,                    NULL                   }

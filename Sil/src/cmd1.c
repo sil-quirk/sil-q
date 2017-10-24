@@ -2556,8 +2556,6 @@ void py_pickup(void)
 	/* Scan the pile of objects */
 	for (this_o_idx = cave_o_idx[py][px]; this_o_idx; this_o_idx = next_o_idx)
 	{
-		bool do_not_pickup = FALSE;
-
 		/* Get the object */
 		o_ptr = &o_list[this_o_idx];
 
@@ -2576,13 +2574,6 @@ void py_pickup(void)
 		{
 			next_o_idx = 0;
 			continue;
-		}
-
-		/*some items are marked to never pickup*/
-		if ((k_info[o_ptr->k_idx].squelch == NO_SQUELCH_NEVER_PICKUP)
-		    && object_aware_p(o_ptr))
-		{
-			do_not_pickup = TRUE;
 		}
 
 		/* Note that the pack is too full */

@@ -2110,7 +2110,7 @@ void drop_loot(monster_type *m_ptr)
 		}
 		
 		/* Make an object */
-		else if (!make_object(i_ptr, good, great, DROP_TYPE_NOT_USELESS)) continue;
+		else if (!make_object(i_ptr, good, great, DROP_TYPE_NOT_DAMAGED)) continue;
 		
 		/* Assume seen XXX XXX XXX */
 		dump_item++;

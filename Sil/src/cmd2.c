@@ -820,6 +820,132 @@ static void chest_trap(int y, int x, s16b o_idx)
 	}
 }
 
+static bool generate_poor_quality_object(object_type *o_ptr)
+{
+	bool search_failed = FALSE;
+
+	int object_roll = dieroll(5);
+
+	if (object_roll == 0)
+	{
+		object_prep(o_ptr, lookup_kind(TV_ARROW, SV_NORMAL_ARROW));
+	}
+	else if (object_roll == 1)
+	{
+		object_prep(o_ptr, lookup_kind(TV_LIGHT, SV_LIGHT_TORCH));
+		o_ptr->timeout = rand_range(400, 800);
+	}
+	else
+	{
+		search_failed = !make_object(o_ptr, FALSE, FALSE, DROP_TYPE_DAMAGED);
+		if (!search_failed) object_known(o_ptr);
+	}
+
+	return search_failed;
+}
+
+/*
+ * Attempt to search the given skeleton at the given location
+ *
+ * Assumes there is no monster blocking the destination
+ */
+static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
+{
+	bool search_failed = TRUE;
+	int drop_result = 0;
+
+	object_generation_mode = OB_GEN_MODE_SKELETON;
+	object_type *o_ptr = &o_list[o_idx];
+
+	// Searched already
+	if (o_ptr->pval == 0)
+	{
+		return;
+	}
+
+	object_type *i_ptr;
+	object_type object_type_body;
+	i_ptr = &object_type_body;
+
+	switch (o_ptr->sval)
+	{
+	case SV_SKELETON_ELF:
+		drop_result = dieroll(6);
+		break;
+	case SV_SKELETON_HUMAN:
+		drop_result = dieroll(6) + 1;
+		break;
+	case SV_SKELETON_ORC:
+		drop_result = 6;
+		break;
+	}
+
+	switch(drop_result)
+	{
+	case 1:
+		search_failed = !make_object(i_ptr, FALSE, FALSE, DROP_TYPE_BOW);
+		break;
+	case 2:
+		search_failed = !make_object(i_ptr, FALSE, FALSE, DROP_TYPE_CLOAK);
+		break;
+	case 3:
+		search_failed = !make_object(i_ptr, FALSE, FALSE, DROP_TYPE_BOOTS);
+		break;
+	case 4:
+		search_failed = !make_object(i_ptr, FALSE, FALSE, DROP_TYPE_WEAPON);
+		break;
+	case 5:
+		search_failed = !make_object(i_ptr, FALSE, FALSE, DROP_TYPE_GLOVES);
+		break;
+	default:
+		search_failed = generate_poor_quality_object(i_ptr);
+	}
+
+	o_ptr->pval = 0;
+
+	object_generation_mode = OB_GEN_MODE_NORMAL;
+
+	if (search_failed)
+	{
+		msg_print("You failed to find anything among the bones.");
+	}
+	else
+	{
+		if (i_ptr->k_idx)
+		{
+			msg_print("You find something among the bones!");
+
+			if (i_ptr->tval != TV_ARROW)
+			{
+				i_ptr->number = 1;
+			}
+			else
+			{
+				i_ptr->number = dieroll(4) + 2;
+				msg_format("You gather up %d arrows.", i_ptr->number);
+			}
+
+			int slot;
+			char o_name[80];
+
+			/* Carry the object */
+			slot = inven_carry(i_ptr);
+
+			/* Get the object again */
+			i_ptr = &inventory[slot];
+
+			/* Describe the object */
+			object_desc(o_name, sizeof(o_name), i_ptr, TRUE, 3);
+
+			/* Message */
+			if (slot >= 0)	msg_format("You have %s (%c).", o_name, index_to_label(slot));
+
+			// Break the truce if creatures see
+			break_truce(FALSE);
+		}
+	}
+}
+
 
 /*
  * Attempt to open the given chest at the given location
@@ -2687,6 +2813,7 @@ void do_cmd_alter(void)
 	
 	bool chest_trap = FALSE;
 	bool chest_present = FALSE;
+	bool skeleton_present = FALSE;
 
 	bool more = FALSE;
 
@@ -2741,6 +2868,10 @@ void do_cmd_alter(void)
 			chest_present = TRUE;
 
 			if ((o_ptr->pval > 0) && chest_traps[o_ptr->pval] && object_known_p(o_ptr)) chest_trap = TRUE;
+		}
+		else if (o_ptr->tval == TV_SKELETON)
+		{
+			skeleton_present = TRUE;
 		}
 	}
 
@@ -2799,6 +2930,13 @@ void do_cmd_alter(void)
 	{
 		/* Disarm */
 		more = do_cmd_open_chest(y, x, cave_o_idx[y][x]);
+	}
+
+	/* Search a skeleton */
+	else if (skeleton_present)
+	{
+		/* Disarm */
+		do_cmd_search_skeleton(y, x, cave_o_idx[y][x]);
 	}
 	
 	/* Close open doors */
@@ -3147,7 +3285,6 @@ static int breakage_chance(const object_type *o_ptr, bool hit_wall)
 		/* Always break */
 		case TV_FLASK:
 		case TV_POTION:
-		case TV_USELESS:
 		{
 			p = 100;
 			break;

@@ -407,7 +407,7 @@ static flag_name info_flags[] =
  * Object flags 3
  */
 
-	{"TR3XXX1", TR3, TR3_TR3XXX1},
+	{"DAMAGED", TR3, TR3_DAMAGED},
 	{"TR3XXX2", TR3, TR3_TR3XXX2},
 	{"TR3XXX3", TR3, TR3_TR3XXX3},
 	{"TR3XXX4", TR3, TR3_TR3XXX4},

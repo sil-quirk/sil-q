@@ -646,7 +646,7 @@ void object_desc(char *buf, size_t max, const object_type *o_ptr, int pref, int 
 	switch (o_ptr->tval)
 	{
 		/* Some objects are easy to describe */
-		case TV_USELESS:
+		case TV_SKELETON:
 		case TV_METAL:
 		case TV_NOTE:
 		case TV_FLASK:
@@ -936,8 +936,20 @@ void object_desc(char *buf, size_t max, const object_type *o_ptr, int pref, int 
 	if (mode < 1) goto object_desc_done;
 
 
-	/* Hack -- Chests must be described in detail */
-	if (o_ptr->tval == TV_CHEST)
+	/* Hack -- Chests and skeletons must be described in detail */
+	if (o_ptr->tval == TV_SKELETON)
+	{
+		cptr tail = "";
+
+		/* May be "searched" */
+		if (!o_ptr->pval)
+		{
+			tail = " (searched)";
+		}
+
+		object_desc_str_macro(t, tail);
+	}
+	else if (o_ptr->tval == TV_CHEST)
 	{
 		cptr tail = "";
 

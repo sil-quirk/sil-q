@@ -669,8 +669,8 @@ bool hates_acid(const object_type *o_ptr)
 			return (TRUE);
 		}
 
-		/* Useless */
-		case TV_USELESS:
+		/* Skeleton */
+		case TV_SKELETON:
 		{
 			return (TRUE);
 		}
