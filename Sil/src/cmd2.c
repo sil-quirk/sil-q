@@ -2338,7 +2338,7 @@ static bool do_cmd_disarm_aux(int y, int x)
 	{
 		case FEAT_TRAP_FALSE_FLOOR:
 		{
-			power = 6;
+			power = 1;
 			break;
 		}
 		case FEAT_TRAP_PIT:
@@ -2406,7 +2406,7 @@ static bool do_cmd_disarm_aux(int y, int x)
 		}
 		case FEAT_TRAP_ACID:
 		{
-			power = 5;
+			power = 1;
 			break;
 		}
 	}

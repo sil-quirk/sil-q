@@ -2259,7 +2259,7 @@ void search_square(int y, int x, int dist, int searching)
 		}
 
 		// Determine the base score
-		score = p_ptr->skill_use[S_PER];
+		score = p_ptr->skill_use[S_PER] + cave_light[y][x];
 		
 		// If using the search command give a score bonus
 		if (searching) score += 5;
@@ -2287,12 +2287,12 @@ void search_square(int y, int x, int dist, int searching)
 		// Give various penalties
 		if (p_ptr->blind || no_light() || p_ptr->image)     difficulty +=  5;   // can't see properly
 		if (p_ptr->confused)								difficulty +=  5;   // confused
-		if (dist == 2)										difficulty +=  5;   // distance 2
-		if (dist == 3)										difficulty += 10;   // distance 3
-		if (dist == 4)										difficulty += 15;   // distance 4
-		if cave_trap_bold(y,x)								difficulty +=  5;   // dungeon trap
-		if (cave_feat[y][x] == FEAT_SECRET)					difficulty += 10;   // secret door
-		if (chest_trap_present)								difficulty += 15;   // chest trap
+		if (dist == 2)				difficulty +=  2;   // distance 2
+		if (dist == 3)				difficulty +=  4;   // distance 3
+		if (dist == 4)				difficulty +=  8;   // distance 4
+		if cave_trap_bold(y,x)			difficulty +=  5;   // dungeon trap
+		if (cave_feat[y][x] == FEAT_SECRET)	difficulty += 10;   // secret door
+		if (chest_trap_present)			difficulty += 15;   // chest trap
 		//if (cave_info[y][x] & (CAVE_ICKY))				difficulty +=  2;   // inside least/lesser/greater vaults
 
 		// Spider bane bonus helps to find webs
