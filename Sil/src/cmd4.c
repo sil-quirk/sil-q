@@ -1525,7 +1525,6 @@ typedef struct smithing_cost_type
     int armoursmith;
     int jeweller;
     int enchantment;
-    int artistry;
     int artifice;
 } smithing_cost_type;
 
@@ -1747,19 +1746,17 @@ int att_valid(void)
 /*
  * Determines the maximum legal attack bonus for an item.
  */
-int att_max(bool assume_artistry)
+int att_max()
 {
 	object_kind *k_ptr = &k_info[smith_o_ptr->k_idx];
 	ego_item_type *e_ptr = &e_info[smith_o_ptr->name2];
 	int att = 0;
-    bool artistry = assume_artistry || p_ptr->active_ability[S_SMT][SMT_FINE];
 	
 	switch (smith_o_ptr->tval)
 	{
 		case TV_ARROW:
 		{
-			att = 0;
-			if (artistry)               att += 3;
+			att = 3;
 			if (smith_o_ptr->name1)     att += 8;
 			if (smith_o_ptr->name2)     att = 0;
 			break;
@@ -1770,8 +1767,7 @@ int att_max(bool assume_artistry)
 		case TV_DIGGING:
 		case TV_BOW:
 		{
-			att = k_ptr->att;
-			if (artistry)               att += 1;
+			att = k_ptr->att + 1;
 			if (smith_o_ptr->name2)		att += e_ptr->max_att;
 			if (smith_o_ptr->name1)		att += 4;
 			break;
@@ -1784,8 +1780,7 @@ int att_max(bool assume_artistry)
 		case TV_SOFT_ARMOR:
 		case TV_MAIL:
 		{
-			att = k_ptr->att;
-			if (artistry)               att += 1;
+			att = k_ptr->att + 1;
 			if (att > 0)				att =  0;
 			if (smith_o_ptr->name2)		att += e_ptr->max_att;
 			if (smith_o_ptr->name1)		att += 1;
@@ -1793,8 +1788,7 @@ int att_max(bool assume_artistry)
 		}
 		case TV_GLOVES:
 		{
-			att = k_ptr->att;
-			if (artistry)               att += 1;
+			att = k_ptr->att + 1;
 			if (att > 0)				att =  0;
 			if (smith_o_ptr->name2)		att += e_ptr->max_att;
 			if (smith_o_ptr->name1)		att += 2;
@@ -1877,12 +1871,11 @@ int ds_valid(void)
 /*
  * Determines the maximum legal damage sides for an item.
  */
-int ds_max(bool assume_artistry)
+int ds_max()
 {
 	object_kind *k_ptr = &k_info[smith_o_ptr->k_idx];
 	ego_item_type *e_ptr = &e_info[smith_o_ptr->name2];
 	int ds = 0;
-    bool artistry = assume_artistry || p_ptr->active_ability[S_SMT][SMT_FINE];
 	
 	switch (smith_o_ptr->tval)
 	{
@@ -1892,8 +1885,7 @@ int ds_max(bool assume_artistry)
 		case TV_DIGGING:
 		case TV_BOW:
 		{
-			ds = k_ptr->ds;
-			if (artistry)                               ds += 1;
+			ds = k_ptr->ds + 1;
 			if (smith_o_ptr->name2)						ds += e_ptr->to_ds;
 			if (smith_o_ptr->name1)						ds += 2;
 			break;
@@ -1969,12 +1961,11 @@ int evn_valid(void)
 /*
  * Determines the maximum legal evasion bonus for an item.
  */
-int evn_max(bool assume_artistry)
+int evn_max()
 {
 	object_kind *k_ptr = &k_info[smith_o_ptr->k_idx];
 	ego_item_type *e_ptr = &e_info[smith_o_ptr->name2];
 	int evn = 0;
-    bool artistry = assume_artistry || p_ptr->active_ability[S_SMT][SMT_FINE];
     
 	switch (smith_o_ptr->tval)
 	{
@@ -1987,8 +1978,7 @@ int evn_max(bool assume_artistry)
 		case TV_SOFT_ARMOR:
 		case TV_MAIL:
 		{
-			evn = k_ptr->evn;
-			if (artistry)                               evn += 1;
+			evn = k_ptr->evn + 1;
 			if (smith_o_ptr->name2)						evn += e_ptr->max_evn;
 			if (smith_o_ptr->name1)						evn += 1;
 			break;
@@ -2088,14 +2078,12 @@ int ps_valid(void)
 /*
  * Determines the maximum legal protection sides for an item.
  */
-int ps_max(bool assume_artistry)
+int ps_max()
 {
 	object_kind *k_ptr = &k_info[smith_o_ptr->k_idx];
 	ego_item_type *e_ptr = &e_info[smith_o_ptr->name2];
 	int ps = 0;
-    
-    bool artistry = assume_artistry || p_ptr->active_ability[S_SMT][SMT_FINE];
-	
+
 	switch (smith_o_ptr->tval)
 	{
 		case TV_BOOTS:
@@ -2107,14 +2095,16 @@ int ps_max(bool assume_artistry)
 		case TV_SOFT_ARMOR:
 		case TV_MAIL:
 		{
-			ps = k_ptr->ps;
-			
-			if (artistry)	ps += 1;
+			ps = k_ptr->ps + 1;
 
 			// cloaks and robes cannot get extra protection sides
 			if ((smith_o_ptr->tval == TV_CLOAK) || ((smith_o_ptr->tval == TV_SOFT_ARMOR) && (smith_o_ptr->sval == SV_ROBE)) )
 			{
 				ps = 0;
+			}
+			if ((smith_o_ptr->tval == TV_MAIL) && (smith_o_ptr->sval == SV_LONG_CORSLET))
+			{
+				ps += 1;
 			}
 			
 			if (smith_o_ptr->name2) ps += e_ptr->to_ps;
@@ -2593,7 +2583,6 @@ int object_difficulty(object_type *o_ptr)
     smithing_cost.armoursmith = 0;
     smithing_cost.jeweller = 0;
     smithing_cost.enchantment = 0;
-    smithing_cost.artistry = 0;
     smithing_cost.artifice = 0;
     
 	// extract object flags
@@ -2650,7 +2639,6 @@ int object_difficulty(object_type *o_ptr)
 		dif_mod(x, 5, &dif_inc);
 		dif_inc = (dif_inc - old_di) / 2;
 	}
-	
 	// normal costs for other items
 	else
 	{
@@ -2665,35 +2653,47 @@ int object_difficulty(object_type *o_ptr)
 	x = (o_ptr->ds - k_ptr->ds);
 	dif_mod(x, 8 + o_ptr->dd, &dif_inc);
 
+
 	// protection bonus
 	base = (k_ptr->ps > 0) ? ((k_ptr->ps + 1) * k_ptr->pd) : 0;
 	new = (o_ptr->ps > 0) ? ((o_ptr->ps + 1) * o_ptr->pd) : 0;
 	x = new - base;
-	dif_mod(x, 4, &dif_inc);
+
+	// special costs for protection sides on hauberks
+	if ((smith_o_ptr->tval == TV_MAIL) && (smith_o_ptr->sval == SV_LONG_CORSLET) && (x > 0))
+	{
+		dif_mod(x, 1, &dif_inc);
+		dif_inc += 4;
+	}
+	else
+	{
+		dif_mod(x, 4, &dif_inc);
+	}
+
 
 	// weapon modifiers
-	if (f1 & TR1_SLAY_ORC)			{	dif_inc += 5;	}
+	if (f1 & TR1_SLAY_ORC)			{	dif_inc += 4;	}
 	if (f1 & TR1_SLAY_TROLL)		{	dif_inc += 5;	}
-	if (f1 & TR1_SLAY_WOLF)			{	dif_inc += 6;	}
-	if (f1 & TR1_SLAY_SPIDER)		{	dif_inc += 6;	}
-	if (f1 & TR1_SLAY_UNDEAD)		{	dif_inc += 6;	}
-	if (f1 & TR1_SLAY_RAUKO)		{	dif_inc += 7;	}
-	if (f1 & TR1_SLAY_DRAGON)		{	dif_inc += 7;	}
-	
-	if (f1 & TR1_BRAND_COLD)		{	dif_inc += 24;	smithing_cost.str += 2;	brands++; }
-	if (f1 & TR1_BRAND_FIRE)		{	dif_inc += 20;	smithing_cost.str += 2;	brands++; }
+	if (f1 & TR1_SLAY_WOLF)			{	dif_inc += 5;	}
+	if (f1 & TR1_SLAY_SPIDER)		{	dif_inc += 5;	}
+	if (f1 & TR1_SLAY_UNDEAD)		{	dif_inc += 5;	}
+	if (f1 & TR1_SLAY_RAUKO)		{	dif_inc += 6;	}
+	if (f1 & TR1_SLAY_DRAGON)		{	dif_inc += 6;	}
+
+	if (f1 & TR1_BRAND_COLD)		{	dif_inc += 18;	smithing_cost.str += 2;	brands++; }
+	if (f1 & TR1_BRAND_FIRE)		{	dif_inc += 14;	smithing_cost.str += 2;	brands++; }
 	if (f1 & TR1_BRAND_POIS)		{	dif_inc += 16;	smithing_cost.str += 2;	brands++; }
-	if (brands > 1)					{	dif_inc += (brands-1) * 20;						  }
+	if (brands > 1)				{	dif_inc += (brands-1) * 20;  }
 	
-	if (f1 & TR1_SHARPNESS)			{	dif_inc += 20;	smithing_cost.str += 2;	}
+	if (f1 & TR1_SHARPNESS)			{	dif_inc += 24;	smithing_cost.str += 2;	}
 	if (f1 & TR1_SHARPNESS2)		{	dif_inc += 40;	smithing_cost.str += 4;	} // not available in smithing
-	if (f1 & TR1_VAMPIRIC)			{	dif_inc += 10;	smithing_cost.str += 2;	}
+	if (f1 & TR1_VAMPIRIC)			{	dif_inc += 8;	smithing_cost.str += 1;	}
 	
 	// pval dependent bonuses
 	if (f1 & TR1_TUNNEL)
 	{
 		x = o_ptr->pval - k_ptr->pval;
-		dif_mod(x, 10, &dif_inc);
+		dif_mod(x, 8, &dif_inc);
 		smithing_cost.str += (x > 0) ? x : 0;
 	}
 	if (o_ptr->pval != 0)
@@ -2722,35 +2722,35 @@ int object_difficulty(object_type *o_ptr)
 	}
 	
 	// Sustains
-	if (f2 & TR2_SUST_STR)		{	dif_inc += 3;	smithing_cost.str += 1;	}
-	if (f2 & TR2_SUST_DEX)		{	dif_inc += 3;	smithing_cost.dex += 1;	}
-	if (f2 & TR2_SUST_CON)		{	dif_inc += 3;	smithing_cost.con += 1;	}
-	if (f2 & TR2_SUST_GRA)		{	dif_inc += 3;	smithing_cost.gra += 1;	}
+	if (f2 & TR2_SUST_STR)		{	dif_inc += 2; }
+	if (f2 & TR2_SUST_DEX)		{	dif_inc += 2; }
+	if (f2 & TR2_SUST_CON)		{	dif_inc += 2; }
+	if (f2 & TR2_SUST_GRA)		{	dif_inc += 2; }
 	
 	// Abilities
-	if (f2 & TR2_SLOW_DIGEST) 	{	dif_inc += 4;							}
+	if (f2 & TR2_SLOW_DIGEST) 	{	dif_inc += 2; }
 	if (f2 & TR2_RADIANCE) 		{	dif_inc += 8;	smithing_cost.gra += 1;	}
-	if (f2 & TR2_LIGHT)			{	dif_inc += 8;	smithing_cost.gra += 1;	}
+	if (f2 & TR2_LIGHT)		{	dif_inc += 8;	smithing_cost.gra += 1;	}
 	if (f2 & TR2_REGEN) 		{	dif_inc += 8;	smithing_cost.con += 1;	}
-	if (f2 & TR2_SEE_INVIS) 	{	dif_inc += 8;							}
-	if (f2 & TR2_FREE_ACT) 		{	dif_inc += 8;							}
-	if (f2 & TR2_SPEED)			{	dif_inc += 30;	smithing_cost.con += 5;	}
+	if (f2 & TR2_SEE_INVIS) 	{	dif_inc += 8;	}
+	if (f2 & TR2_FREE_ACT) 		{	dif_inc += 7;	}
+	if (f2 & TR2_SPEED)		{	dif_inc += 30;	smithing_cost.con += 5;	}
 	
 	// Elemental Resistances
-	if (f2 & TR2_RES_COLD)		{	dif_inc += 8;	smithing_cost.con += 1;	}
-	if (f2 & TR2_RES_FIRE)		{	dif_inc += 8;	smithing_cost.con += 1;	}
-	if (f2 & TR2_RES_POIS)		{	dif_inc += 8;	smithing_cost.con += 1;	}
-	if (f2 & TR2_RES_DARK)		{	dif_inc += 8;	smithing_cost.gra += 1;	}
+	if (f2 & TR2_RES_COLD)		{	dif_inc += 7;	smithing_cost.con += 1;	}
+	if (f2 & TR2_RES_FIRE)		{	dif_inc += 7;	smithing_cost.con += 1;	}
+	if (f2 & TR2_RES_POIS)		{	dif_inc += 7;	smithing_cost.con += 1;	}
+	if (f2 & TR2_RES_DARK)		{	dif_inc += 7;	smithing_cost.gra += 1;	}
 	
 	// Other Resistances
-	if (f2 & TR2_RES_BLIND)		{	dif_inc += 6;							}
-	if (f2 & TR2_RES_CONFU)		{	dif_inc += 6;							}
-	if (f2 & TR2_RES_STUN)		{	dif_inc += 3;							}
-	if (f2 & TR2_RES_FEAR)		{	dif_inc += 3;							}
-	if (f2 & TR2_RES_HALLU)		{	dif_inc += 3;							}
+	if (f2 & TR2_RES_BLIND)		{	dif_inc += 4;	}
+	if (f2 & TR2_RES_CONFU)		{	dif_inc += 4;	}
+	if (f2 & TR2_RES_STUN)		{	dif_inc += 2;	}
+	if (f2 & TR2_RES_FEAR)		{	dif_inc += 2;	}
+	if (f2 & TR2_RES_HALLU)		{	dif_inc += 2;	}
 
 	// Penalty Flags
-	if (f2 & TR2_FEAR)			{	dif_dec += 0;	}
+	if (f2 & TR2_FEAR)		{	dif_dec += 0;	}
 	if (f2 & TR2_HUNGER)		{	dif_dec += 0;	}
 	if (f2 & TR2_DARKNESS)		{	dif_dec += 0;	}
 	if (f2 & TR2_DANGER)		{	dif_dec += 5;	} // only Danger counts
@@ -2764,15 +2764,14 @@ int object_difficulty(object_type *o_ptr)
 	// Abilities
 	for (i = 0; i < o_ptr->abilities; i++)
 	{
-		dif_inc += 5 + (&b_info[ability_index(o_ptr->skilltype[i],o_ptr->abilitynum[i])])->level / 2;
-		smithing_cost.exp += 500;
+		int level = (&b_info[ability_index(o_ptr->skilltype[i],o_ptr->abilitynum[i])])->level;
+
+		dif_inc += 4 + (level / 2);
+		smithing_cost.exp += 100 * level;
 	}
-	
-	// Mithirl
-	if (k_ptr->flags3 & TR3_MITHRIL)	{	smithing_cost.mithril += o_ptr->weight;	}
-	
+
 	// Penalty for being an artefact
-	if (o_ptr->name1)					{	smithing_cost.uses += 2;	}
+	if (o_ptr->name1)			{	smithing_cost.uses += 2;	}
 	
 	// Cap the difficulty reduction at 8
 	if (dif_dec > 8) dif_dec = 8;
@@ -2806,7 +2805,14 @@ int object_difficulty(object_type *o_ptr)
 	// Decreased difficulties for easily enchatable items
 	if (k_ptr->flags3 & (TR3_ENCHANTABLE))
 	{
-		dif_mult -= 20;
+		dif_mult -= 40;
+	}
+
+	// Mithril
+	if (k_ptr->flags3 & TR3_MITHRIL)
+	{
+		smithing_cost.mithril += o_ptr->weight;
+		dif_mult -= 10;
 	}
 	
 	// Apply the difficulty multiplier
@@ -2846,12 +2852,13 @@ int object_difficulty(object_type *o_ptr)
     {
 		smithing_cost.enchantment = 1;
     }
-    if ((att_valid() && (smith_o_ptr->att > att_max(FALSE))) ||
-        (ds_valid() && (smith_o_ptr->ds > ds_max(FALSE))) ||
-        (evn_valid() && (smith_o_ptr->evn > evn_max(FALSE))) ||
-        (ps_valid() && (smith_o_ptr->ps > ps_max(FALSE))))
+    if (p_ptr->active_ability[S_SMT][SMT_EXPERTISE])
     {
-		smithing_cost.artistry = 1;
+		smithing_cost.str /= 2;
+		smithing_cost.dex /= 2;
+		smithing_cost.con /= 2;
+		smithing_cost.gra /= 2;
+		smithing_cost.exp /= 2;
     }
     
 	return (dif);
@@ -2950,6 +2957,7 @@ void prt_object_difficulty(void)
 {
 	int dif;
 	char buf[80];
+	int turn_multiplier = 10;
 	int costs = 0;
 	byte attr;
 	bool affordable = TRUE;
@@ -2999,11 +3007,6 @@ void prt_object_difficulty(void)
     if (smithing_cost.enchantment)
     {
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, TERM_RED, "Enchantment");
-        costs++;
-    }
-    if (smithing_cost.artistry)
-    {
-        Term_putstr(COL_SMT4 + 2, 10 + costs, -1, TERM_RED, "Artistry");
         costs++;
     }
     if (smithing_cost.artifice)
@@ -3141,9 +3144,13 @@ void prt_object_difficulty(void)
 		Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
 		costs++;
 	}
+	if (p_ptr->active_ability[S_SMT][SMT_EXPERTISE])
+	{
+		turn_multiplier /= 2;
+	}
 	
 	attr = TERM_SLATE;
-	sprintf(buf, "%d Turns", MAX(10, dif * 10));
+	sprintf(buf, "%d Turns", MAX(10, dif * turn_multiplier));
 	Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
 	costs++;
 	
@@ -3181,7 +3188,7 @@ bool affordable(object_type *o_ptr)
 	if (forge_uses(p_ptr->py,p_ptr->px) < smithing_cost.uses) can_afford = FALSE;
     
     if (smithing_cost.weaponsmith || smithing_cost.armoursmith || smithing_cost.jeweller ||
-        smithing_cost.enchantment || smithing_cost.artistry || smithing_cost.artifice) can_afford = FALSE;
+        smithing_cost.enchantment || smithing_cost.artifice) can_afford = FALSE;
 
 	return (can_afford);
 }
@@ -3580,22 +3587,17 @@ int numbers_menu_aux(int *highlight)
 	byte attr[SMT_NUM_MENU_MAX];
 	bool valid[SMT_NUM_MENU_MAX];
 	bool can_afford[SMT_NUM_MENU_MAX];
-    bool needs_art[SMT_NUM_MENU_MAX] = {FALSE};
 	
 	// clear the right of the screen
 	wipe_screen_from(COL_SMT2);
 	
-	valid[SMT_NUM_MENU_I_ATT-1]     = att_valid() && (smith_o_ptr->att < att_max(TRUE));
-    needs_art[SMT_NUM_MENU_I_ATT-1] = att_valid() && !(smith_o_ptr->att < att_max(FALSE));
+	valid[SMT_NUM_MENU_I_ATT-1]     = att_valid() && (smith_o_ptr->att < att_max());
 	valid[SMT_NUM_MENU_D_ATT-1]     = att_valid() && (smith_o_ptr->att > att_min());
-	valid[SMT_NUM_MENU_I_DS-1]      = ds_valid() && (smith_o_ptr->ds < ds_max(TRUE));
-    needs_art[SMT_NUM_MENU_I_DS-1]  = ds_valid() && !(smith_o_ptr->ds < ds_max(FALSE));
+	valid[SMT_NUM_MENU_I_DS-1]      = ds_valid() && (smith_o_ptr->ds < ds_max());
 	valid[SMT_NUM_MENU_D_DS-1]      = ds_valid() && (smith_o_ptr->ds > ds_min());
-	valid[SMT_NUM_MENU_I_EVN-1]     = evn_valid() && (smith_o_ptr->evn < evn_max(TRUE));
-    needs_art[SMT_NUM_MENU_I_EVN-1]  = evn_valid() && !(smith_o_ptr->evn < evn_max(FALSE));
+	valid[SMT_NUM_MENU_I_EVN-1]     = evn_valid() && (smith_o_ptr->evn < evn_max());
 	valid[SMT_NUM_MENU_D_EVN-1]     = evn_valid() && (smith_o_ptr->evn > evn_min());
-	valid[SMT_NUM_MENU_I_PS-1]      = ps_valid() && (smith_o_ptr->ps < ps_max(TRUE));
-    needs_art[SMT_NUM_MENU_I_PS-1]  = ps_valid() && !(smith_o_ptr->ps < ps_max(FALSE));
+	valid[SMT_NUM_MENU_I_PS-1]      = ps_valid() && (smith_o_ptr->ps < ps_max());
 	valid[SMT_NUM_MENU_D_PS-1]      = ps_valid() && (smith_o_ptr->ps > ps_min());
 	valid[SMT_NUM_MENU_I_PVAL-1]    = pval_valid() && (smith_o_ptr->pval < pval_max());
 	valid[SMT_NUM_MENU_D_PVAL-1]    = pval_valid() && (smith_o_ptr->pval > pval_min());
@@ -3615,7 +3617,7 @@ int numbers_menu_aux(int *highlight)
 			object_copy(smith_o_ptr, smith3_o_ptr);
 		}
 		
-		attr[i] = valid[i] ? (needs_art[i] ? TERM_RED : (can_afford[i] ? TERM_WHITE : TERM_SLATE)) : TERM_L_DARK;
+		attr[i] = valid[i] ? (can_afford[i] ? TERM_WHITE : TERM_SLATE) : TERM_L_DARK;
 	}
 	
 	Term_putstr(COL_SMT2,  2, -1, attr[SMT_NUM_MENU_I_ATT-1],  "a) increase attack bonus");
@@ -5353,6 +5355,13 @@ void do_cmd_smithing_screen(void)
 	
 	if (create)
 	{
+		int turn_multiplier = 10;
+
+		if (p_ptr->active_ability[S_SMT][SMT_EXPERTISE])
+		{
+			turn_multiplier /= 2;
+		}
+
 		// Display a message
 		msg_print("You begin your work.");
 		
@@ -5370,7 +5379,7 @@ void do_cmd_smithing_screen(void)
 		else
 		{
 			// Set smithing counter
-			p_ptr->smithing = MAX(10, object_difficulty(smith_o_ptr) * 10);
+			p_ptr->smithing = MAX(10, object_difficulty(smith_o_ptr) * turn_multiplier);
 			
 			// Also set the smithing leftover counter (to allow you to resume if interrupted)
 			p_ptr->smithing_leftover = p_ptr->smithing;

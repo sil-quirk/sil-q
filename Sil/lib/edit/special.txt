@@ -580,11 +580,19 @@ C:0:0:0:0:0:0:0
 T:30:1:1
 B:2/4
 
+# boots only
+
+N:115:of Nimbleness
+W:15:8:18:0
+C:0:0:0:0:0:0:1
+T:30:1:1
+F:DEX
+
 
 ###
 
 
-N:115:of Treacherous Paths
+N:116:of Treacherous Paths
 W:5:3:18:0
 C:0:0:0:0:0:0:0
 T:30:0:99

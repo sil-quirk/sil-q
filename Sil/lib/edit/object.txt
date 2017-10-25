@@ -358,9 +358,9 @@ F:THROWING | MORE_SPECIAL
 N:57:& Curved Sword~
 G:|:s
 I:23:7:0
-W:1:0:40:10
+W:2:0:40:10
 P:-1:2d5:1:0d0
-A:1/2
+A:2/2
 D:A crude blade, but better than none. It is curved in the orcish style.
 
 
@@ -421,7 +421,7 @@ F:IGNORE_ALL | TWO_HANDED | MITHRIL
 N:71:& Spear~
 G:/:U
 I:22:1:0
-W:2:0:30:36
+W:1:0:30:36
 P:-1:1d9:0:0d0
 A:1/1:10/4
 F:THROWING | HAND_AND_A_HALF | POLEARM
@@ -457,9 +457,9 @@ F:THROWING | AXE
 N:77:& Battle Axe~
 G:/:s
 I:22:12:0
-W:3:0:45:304
+W:4:0:45:304
 P:-3:3d4:0:0d0
-A:3/1:10/1
+A:4/1:10/1
 F:HAND_AND_A_HALF | AXE
 
 
@@ -1648,7 +1648,7 @@ I:32:1:0
 W:1:0:50:15
 P:0:0d0:-2:1d1
 A:1/1
-F:DAMAGED
+F:DAMAGED | NO_SMITHING
 
 N:421:& Pair~ of Shabby Boots
 G:]:U
@@ -1656,7 +1656,7 @@ I:30:4:0
 W:1:0:20:7
 P:0:0d0:-1:1d1
 A:1/1
-F:DAMAGED
+F:DAMAGED | NO_SMITHING
 
 N:422:& Broken Shield~
 G:):s
@@ -1664,7 +1664,7 @@ I:34:1:0
 W:1:0:50:50
 P:-2:0d0:0:1d2
 A:1/1
-F:DAMAGED
+F:DAMAGED | NO_SMITHING
 
 N:451:& Note~
 G:~:W1
@@ -2118,7 +2118,7 @@ D: to press (,). Your character knows how to forge armour,
 D: and how to enchant it. Find the forge through this door and
 D: create a set of boots of speed. As with most enchantment you
 D: have to lend a piece of yourself to make these, in this case the
-D: price is 500 experience points.
+D: price is 700 experience points.
 
 
 N:485:& Note~

@@ -534,32 +534,31 @@ D:Allows you to create {special} items.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 
-N:124:Artistry
-I:6:4:6
-P:6/0:6/1
-D:Allows you to create items with bonuses to attack, evasion,
-D: damage, or protection.
-T:21:8:8   # Hafted (War Hammer only)
-T:31:0:99  # Gloves
-
 N:125:Artifice
-I:6:5:8
+I:6:4:6
 P:6/2:6/3
 D:Allows you to create highly customised artifacts.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 
-N:126:Masterpiece
-I:6:6:9
+N:126:Expertise
+I:6:5:7
+P:6/3
+D:Reduces the time taken to forge an item by half.
+D: Also halves all experience and stat costs, rounding down odd numbers.
+T:21:8:8   # Hafted (War Hammer only)
+T:31:0:99  # Gloves
+
+N:127:Masterpiece
+I:6:6:8
 P:6/3
 D:Allows you to create items that are more difficult than usual.
 D: Doing so drains your smithing skill for each excess point.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 
-N:127:Grace
+N:128:Grace
 I:6:7:10
-P:6/5
 D:You gain a point of grace.
 
 # Song ---------------------------------------------
