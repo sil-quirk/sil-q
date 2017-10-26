@@ -380,10 +380,11 @@ T:32:0:99  # Helm
 T:33:0:99  # Crown
 T:39:0:99  # Light Source
 
-N:83:Lore-Keeper
+N:83:Alchemy
 I:4:3:4
-D:Lets you tell the difference between mere special items
-D: and artifacts, as well as which items are cursed.
+D:Lets you determine the purpose of all herbs and potions you encounter,
+D: as well as staves and horns. Allows you to spot curses on enchanted 
+D: items.
 T:32:0:99  # Helm
 T:33:0:99  # Crown
 
@@ -400,11 +401,12 @@ D:You receive a bonus to all skill rolls against
 D: a selected category of enemy. The bonus increases as
 D: you kill more.
 
-N:86:Lore-Master
+N:86:Forewarned
 I:4:6:7
 P:4/3
-D:You can immediately identify every item and have full knowledge
-D: of all your opponents.
+D:You have full knowledge of all your opponents.
+D: If your base Perception exceeds your Evasion, you gain a bonus to your
+D: Evasion of one quarter your Perception score.
 T:32:0:99  # Helm
 T:33:0:99  # Crown
 
@@ -530,7 +532,8 @@ T:31:0:99  # Gloves
 
 N:123:Enchantment
 I:6:3:5
-D:Allows you to create {special} items.
+D:Allows you to create {special} items and determine
+D: what enchantments exist on items you encounter.
 T:21:8:8   # Hafted (War Hammer only)
 T:31:0:99  # Gloves
 

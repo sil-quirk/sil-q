@@ -153,7 +153,7 @@ void pseudo_id(object_type *o_ptr)
 	if (object_known_p(o_ptr)) return;
 
 	/* Check for a feeling */
-	if (p_ptr->active_ability[S_PER][PER_LORE1])
+	if (p_ptr->active_ability[S_PER][PER_ALCHEMY])
 	{
 		feel = value_check_aux2(o_ptr);
 	}

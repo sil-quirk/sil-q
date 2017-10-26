@@ -2642,16 +2642,16 @@ int object_difficulty(object_type *o_ptr)
 	// normal costs for other items
 	else
 	{
-		dif_mod(x, 5, &dif_inc);
+		dif_mod(x, 6, &dif_inc);
 	}
 	
 	// evasion bonus
 	x = o_ptr->evn - k_ptr->evn;
-	dif_mod(x, 5, &dif_inc);
+	dif_mod(x, 6, &dif_inc);
 	
 	// damage bonus
 	x = (o_ptr->ds - k_ptr->ds);
-	dif_mod(x, 8 + o_ptr->dd, &dif_inc);
+	dif_mod(x, 9 + o_ptr->dd, &dif_inc);
 
 
 	// protection bonus
@@ -2687,7 +2687,7 @@ int object_difficulty(object_type *o_ptr)
 	
 	if (f1 & TR1_SHARPNESS)			{	dif_inc += 24;	smithing_cost.str += 2;	}
 	if (f1 & TR1_SHARPNESS2)		{	dif_inc += 40;	smithing_cost.str += 4;	} // not available in smithing
-	if (f1 & TR1_VAMPIRIC)			{	dif_inc += 8;	smithing_cost.str += 1;	}
+	if (f1 & TR1_VAMPIRIC)			{	dif_inc += 6;	smithing_cost.str += 1;	}
 	
 	// pval dependent bonuses
 	if (f1 & TR1_TUNNEL)
@@ -2734,7 +2734,7 @@ int object_difficulty(object_type *o_ptr)
 	if (f2 & TR2_REGEN) 		{	dif_inc += 8;	smithing_cost.con += 1;	}
 	if (f2 & TR2_SEE_INVIS) 	{	dif_inc += 8;	}
 	if (f2 & TR2_FREE_ACT) 		{	dif_inc += 7;	}
-	if (f2 & TR2_SPEED)		{	dif_inc += 30;	smithing_cost.con += 5;	}
+	if (f2 & TR2_SPEED)		{	dif_inc += 40;	smithing_cost.con += 5;	}
 	
 	// Elemental Resistances
 	if (f2 & TR2_RES_COLD)		{	dif_inc += 7;	smithing_cost.con += 1;	}
@@ -2805,7 +2805,7 @@ int object_difficulty(object_type *o_ptr)
 	// Decreased difficulties for easily enchatable items
 	if (k_ptr->flags3 & (TR3_ENCHANTABLE))
 	{
-		dif_mult -= 40;
+		dif_mult -= 30;
 	}
 
 	// Mithril
@@ -8998,7 +8998,7 @@ static int collect_artefacts(int grp_cur, int object_idx[])
 {
 	int i, object_cnt = 0;
 	bool *okay;
-	bool know_all = cheat_know || p_ptr->active_ability[S_PER][PER_LORE2];
+	bool know_all = cheat_know || p_ptr->active_ability[S_SMT][SMT_ENCHANTMENT];
 
 	/* Get a list of x_char in this group */
 	byte group_tval = object_group_tval[grp_cur];
@@ -9018,7 +9018,7 @@ static int collect_artefacts(int grp_cur, int object_idx[])
 		/* Skip "empty" artefacts */
 		if (a_ptr->tval + a_ptr->sval == 0) continue;
 
-		/* Skip "unfound" artefacts, unless in wizard mode or with Lore Mastery or cheating */
+		/* Skip "unfound" artefacts, unless in wizard mode or with Enchantment or cheating */
 		if (!know_all && !p_ptr->wizard && !a_ptr->found_num) continue;
 
 		/* Skip "ungenerated" artefacts, unless with Lore Mastery or cheating */
@@ -9633,7 +9633,7 @@ static int collect_monsters(int grp_cur, monster_list_entry *mon_idx, int mode)
 		if (grp_unique && !(unique)) continue;
 
 		/* Require known monsters */
-		if (!(mode & 0x02) && (!cheat_know) && (!p_ptr->active_ability[S_PER][PER_LORE2]) && (!(l_ptr->tsights))) continue;
+		if (!(mode & 0x02) && (!cheat_know) && (!p_ptr->active_ability[S_PER][PER_FOREWARNED]) && (!(l_ptr->tsights))) continue;
 
 		// Ignore monsters that can't be generated
 		if (r_ptr->level > 25) continue;
@@ -9694,8 +9694,8 @@ static void display_monster_list(int col, int row, int per_page, monster_list_en
 				}
 			}
 			
-			// increase the uniques count anyway for loremasters or cheaters
-			else if (p_ptr->active_ability[S_PER][PER_LORE2] || cheat_know)
+			// increase the uniques count anyway for forewarned or cheaters
+			else if (p_ptr->active_ability[S_PER][PER_FOREWARNED] || cheat_know)
 			{
 				known_uniques++;
 			}

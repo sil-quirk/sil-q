@@ -2687,6 +2687,12 @@ static void calc_bonuses(void)
 		p_ptr->skill_misc_mod[S_MEL] += (p_ptr->skill_base[S_ARC] - p_ptr->skill_base[S_MEL]) / 2;
 	}
 	
+	// deal with the 'Forewarned' ability
+	if (p_ptr->active_ability[S_PER][PER_FOREWARNED] && (p_ptr->skill_base[S_PER] > p_ptr->skill_base[S_EVN]))
+	{
+		p_ptr->skill_misc_mod[S_EVN] += p_ptr->skill_base[S_PER] / 4;
+	}
+
 	/* generate the melee dice/sides from weapon, to_mdd, to_mds and strength */
 	p_ptr->mdd = total_mdd(o_ptr);
 	p_ptr->mds = total_mds(o_ptr, p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? -3 : 0);
@@ -2837,7 +2843,7 @@ static void calc_bonuses(void)
 	/* Hack -- handle "xtra" mode */
 	if (character_xtra) return;
 
-	if (p_ptr->active_ability[S_PER][PER_LORE1])
+	if (p_ptr->active_ability[S_PER][PER_ALCHEMY])
 	{
 		pseudo_id_everything();
 	}
@@ -2886,18 +2892,26 @@ void notice_stuff(void)
  */
 void update_lore_aux(object_type *o_ptr)
 {
-	// identify seen items with Lore-Master
-	if (!object_known_p(o_ptr) && p_ptr->active_ability[S_PER][PER_LORE2] &&
-        (o_ptr->tval != TV_CHEST))
+	// identify seen items
+	if (!object_known_p(o_ptr))
 	{
-		ident(o_ptr);
-	}
-	if (!object_known_p(o_ptr) && p_ptr->active_ability[S_WIL][WIL_CHANNELING] && (o_ptr->tval == TV_HORN || o_ptr->tval == TV_STAFF))
-	{
-		ident(o_ptr);
+		bool alchemy = p_ptr->active_ability[S_PER][PER_ALCHEMY];
+		bool channeling = p_ptr->active_ability[S_WIL][WIL_CHANNELING];
+		bool enchantment = p_ptr->active_ability[S_SMT][SMT_ENCHANTMENT];
+
+		bool staffOrHorn = o_ptr->tval == TV_HORN || o_ptr->tval == TV_STAFF;
+		bool foodOrPotion = o_ptr->tval == TV_FOOD || o_ptr->tval == TV_POTION;
+		bool enchantedItem = !staffOrHorn && !foodOrPotion &&
+				o_ptr->tval != TV_CHEST && o_ptr->tval != TV_SKELETON;
+
+		if ((channeling && staffOrHorn) ||
+                    (alchemy && (staffOrHorn || foodOrPotion)) ||
+                    (enchantment && enchantedItem))
+		{
+			ident(o_ptr);
+		}
 	}
 
-	
 	// Mark new identified artefacts/specials and gain experience for them
 	if (object_known_p(o_ptr) && !p_ptr->leaving)
 	{

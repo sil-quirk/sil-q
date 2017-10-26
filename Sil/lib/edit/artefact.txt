@@ -581,25 +581,6 @@ D: it conveys the same powers of endurance to its bearer.
 
 ##### Edged Weapons #####
 
-
-## The Broken Sword of Amras
-## 1st age namesake
-
-N:50:of Amras
-I:23:2:2
-W:4:12:10:50000
-P:1:1d5:0:0d0
-F:BRAND_FIRE | RES_FIRE
-F:STEALTH | PERCEPTION
-D:This was the hunting blade of Amras, son of Feanor,
-D: and matched that of his twin Amrod. When the Feanoreans
-D: arrived on the shores of Beleriand and burned their stolen
-D: ships, young Amras lay still aboard and was burnt therein.
-D: The flames seared and broke his blade as well, but it was
-D: retrieved afterwards as a token of memory and found to have
-D: been changed by the fire.
-
-
 ## The Dagger of Nargil
 ## 1st age
 
@@ -617,8 +598,8 @@ D:'...the knife of the north, in Nogrod smithied.'
 
 N:53:of Azaghal
 I:23:4:0
-W:13:8:10:50000
-P:1:1d6:0:0d0
+W:13:8:5:50000
+P:3:1d6:0:0d0
 F:SLAY_DRAGON | RES_FIRE | RES_FEAR
 F:THROWING
 D:Azaghal, Dwarf-king of Belegost, fell before Glaurung in the Battle of
@@ -828,6 +809,21 @@ D: might should he face it again.
 
 
 ##### Polearms #####
+
+##
+## The Spear 'Dugrakh'
+##
+
+N:85:'Dugrakh'
+I:22:1:0
+W:6:10:25:50000
+P:0:1d9:0:0d0
+F:REGEN | SEE_INVIS | RES_COLD | RES_FIRE
+F:AGGRAVATE | THROWING
+D:A weapon forged long ago in Utumno by Sauron,
+D: soon after he declared allegiance to Melkor and departed
+D: the Blessed Realms. Black-hafted, with a bronze head,
+D: it throws no shadow.
 
 
 ## The Spear of Boldog
