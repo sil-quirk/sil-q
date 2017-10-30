@@ -598,7 +598,7 @@ static bool play_instrument(object_type *o_ptr, bool *ident)
 	{
 		case SV_HORN_TERROR:
 		{
-			if (fire_beam(GF_FEAR, dir, 0, 0, will_score)) *ident = TRUE;
+			if (fire_arc(GF_FEAR, dir, 0, 0, will_score, 3, 90)) *ident = TRUE;
 
 			/* Make a lot of noise */
 			monster_perception(TRUE, FALSE, -10);
@@ -608,122 +608,107 @@ static bool play_instrument(object_type *o_ptr, bool *ident)
             
 		case SV_HORN_THUNDER:
 		{
-			if (fire_beam(GF_SOUND, dir, 4, 4, will_score)) *ident = TRUE;
+			if (fire_arc(GF_SOUND, dir, 10, 4, will_score, 3, 90)) *ident = TRUE;
 
 			/* Make a lot of noise */
 			monster_perception(TRUE, FALSE, -20);
 			
 			break;
 		}
-            
-        case SV_HORN_FORCE:
-        {
-            int path_n;
-            u16b path_g[256];
-            int n = 0;
-            int monsters_in_path[256];
-            int i, y, x, ty, tx, ty2, tx2;
-            
-            // fires a beam so it looks like all other horns
-			fire_beam(GF_NOTHING, dir, 0, 0, will_score);
-			
-            // reset the list of monsters in the path
-            for (i = 0; i < 256; i++)
-            {
-                monsters_in_path[i] = -1;
-            }
-            
-            /* Predict the "target" location */
-            ty = p_ptr->py + 99 * ddy[dir];
-            tx = p_ptr->px + 99 * ddx[dir];
-            
-            /* Check for "target request" */
-            if ((dir == 5) && target_okay(0))
-            {
-                ty = p_ptr->target_row;
-                tx = p_ptr->target_col;
-            }
-            
-            ty2 = ty;
-            tx2 = tx;
-            
-            /* Calculate the path */
-            path_n = project_path(path_g, MAX_RANGE, p_ptr->py, p_ptr->px, &ty2, &tx2, PROJECT_THRU);
-            
-            /* Project along the path */
-            for (i = 0; i < path_n; ++i)
-            {
-                int ny = GRID_Y(path_g[i]);
-                int nx = GRID_X(path_g[i]);
-                
-                /* Hack -- Stop before hitting walls */
-                if (!cave_floor_bold(ny, nx))
-                {
-                    break;
-                }
-                
-                /* Advance */
-                y = ny;
-                x = nx;
-                
-                // record any monsters encountered on the way
-                if (cave_m_idx[y][x] > 0)
-                {
-                    monsters_in_path[n] = cave_m_idx[y][x];
-                    n++;
-                }
-            }
-            
-            // knock back the monsters encountered, starting at the back of the beam
-            for (i = n-1; i >= 0; i--)
-            {
-                if (monsters_in_path[i] > 0)
-                {
-                    monster_type *m_ptr = &mon_list[monsters_in_path[i]];
-                    char m_name[80];
-                    
-                    // Get the monster name
-                    monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 
-                    // skill check of Will+10 vs Con*2
-                    if (skill_check(PLAYER, will_score + 10, monster_stat(m_ptr, A_CON) * 2, m_ptr) > 0)
-                    {
-                        if (m_ptr->ml)
-                        {
-                            // message for visible pushes
-                            msg_format("%^s is blown backwards by the force.", m_name);
-                            
-                            // identify horn if a visible enemy is pushed back
-                           *ident = TRUE;
-                        }
-                        
-                        // knock the monster back
-                        knock_back(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx);
-                        
-                        // Alert the monster
-                        make_alert(m_ptr);
-                    }
-                    
-                    else
-                    {
-                        if (m_ptr->ml)
-                        {
-                            // message for visible pushes
-                            msg_format("%^s holds firm against the force of the blast.", m_name);
-                            
-                            // identify horn if a visible enemy is pushed back
-                            *ident = TRUE;
-                        }
-                    }
-                }
-            }
-            
+		case SV_HORN_FORCE:
+		{
+			int i, j, k;
+			int direction = chome[dir];
+
+			for (i = -1; i < 2; ++i)
+			{
+				for (j = 3; j > 0; --j)
+				{
+					int knock_back_dir = cycle[direction + i];
+
+					int y = p_ptr->py + j * ddy[knock_back_dir];
+					int x = p_ptr->px + j * ddx[knock_back_dir];
+
+					if (cave_m_idx[y][x] <= 0) continue;
+
+					monster_type *m_ptr = &mon_list[cave_m_idx[y][x]];
+					char m_name[80];
+
+					// Get the monster name
+					monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+
+					// skill check of Will+10 vs Con*2
+					if (skill_check(PLAYER, will_score + 10, monster_stat(m_ptr, A_CON) * 2, m_ptr) > 0)
+					{
+						bool knocked_monster_back = FALSE;
+
+						for (k = 3; k > j; --k)
+						{
+							if (knock_back(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx))
+							{
+								knocked_monster_back = TRUE;
+							}
+						}
+
+						if (knocked_monster_back)
+						{
+							if (m_ptr->ml)
+							{
+								// message for visible pushes
+								msg_format("%^s is blown backwards by the force.", m_name);
+
+								// identify horn if a visible enemy is pushed back
+								*ident = TRUE;
+							}
+
+							m_ptr->energy = 0;
+							m_ptr->stunned = will_score / j;
+
+							// Alert the monster
+							make_alert(m_ptr);
+						}
+						else
+						{
+							if (m_ptr->ml)
+							{
+								// message for visible pushes
+								msg_format("%^s is staggered by the force.", m_name);
+
+								// identify horn if a visible enemy is pushed back
+								*ident = TRUE;
+							}
+
+							m_ptr->energy = 0;
+							m_ptr->stunned = (will_score * 2) / j;
+
+							// Alert the monster
+							make_alert(m_ptr);
+						}
+					}
+					else
+					{
+						if (m_ptr->ml)
+						{
+							// message for visible pushes
+							msg_format("%^s holds firm against the force of the blast.", m_name);
+
+							// identify horn if a visible enemy is pushed back
+							*ident = TRUE;
+						}
+					}
+				}
+			}
+
+			// fires a beam so it looks like all other horns
+			fire_arc(GF_NOTHING, dir, 0, 0, will_score, 3, 90);
+
 			/* Make a lot of noise */
 			monster_perception(TRUE, FALSE, -20);
 			
 			break;
-        }    
-            
+		}
+
 		case SV_HORN_BLASTING:
 		{
 			if (dir == DIRECTION_UP)
@@ -814,7 +799,7 @@ static bool play_instrument(object_type *o_ptr, bool *ident)
 			}
 			else
 			{
-				if (blast(dir, 4, 4, will_score)) *ident = TRUE;
+				if(fire_arc(GF_KILL_WALL, dir, 0, 0, will_score, 3, 90)) *ident = TRUE;
 			}
 
 			/* Make a lot of noise */
@@ -826,7 +811,7 @@ static bool play_instrument(object_type *o_ptr, bool *ident)
         case SV_HORN_WARNING:
 		{
             // fires an inert beam so it looks like all other horns
-			fire_beam(GF_NOTHING, dir, 0, 0, will_score);
+			fire_arc(GF_NOTHING, dir, 0, 0, will_score, 3, 90);
 			
 			/* Make a lot of noise */
 			monster_perception(TRUE, FALSE, -40);
@@ -1177,9 +1162,7 @@ static bool activate_object(object_type *o_ptr)
 
 			case ACT_STONE_TO_MUD:
 			{
-				msg_format("Your %s pulsates...", o_name);
-				if (!get_aim_dir(&dir, 0)) return FALSE;
-				blast(dir, 4, 4, 0);
+				//Removed
 				break;
 			}
 

@@ -810,7 +810,6 @@ extern void cave_temp_mark(int y, int x, bool room);
 extern void spread_cave_temp(int y1, int x1, int range, bool room);
 extern bool explosion(int who, int rad, int y0, int x0, int dd, int ds, int dif, int typ);
 extern bool light_line(int dir);
-extern bool blast(int dir, int dd, int ds, int dif);
 extern bool destroy_door(int dir);
 extern bool disarm_trap(int dir);
 extern bool curse_armor(void);

@@ -403,7 +403,7 @@ D: you kill more.
 
 N:86:Forewarned
 I:4:6:7
-P:4/3
+P:4/1:4/4
 D:You have full knowledge of all your opponents.
 D: If your base Perception exceeds your Evasion, you gain a bonus to your
 D: Evasion of one quarter your Perception score.

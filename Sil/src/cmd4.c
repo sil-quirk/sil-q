@@ -2812,7 +2812,6 @@ int object_difficulty(object_type *o_ptr)
 	if (k_ptr->flags3 & TR3_MITHRIL)
 	{
 		smithing_cost.mithril += o_ptr->weight;
-		dif_mult -= 10;
 	}
 	
 	// Apply the difficulty multiplier

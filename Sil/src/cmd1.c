@@ -3998,10 +3998,10 @@ void py_attack(int y, int x, int attack_type)
 		{
 			if (clockwise)  dir = cycle[dir0+i];
 			else            dir = cycle[dir0-i];
-							
+
 			yy = p_ptr->py + ddy[dir];
 			xx = p_ptr->px + ddx[dir];
-			
+
 			if (cave_m_idx[yy][xx] > 0)
 			{
 				monster_type *m_ptr = &mon_list[cave_m_idx[yy][xx]];

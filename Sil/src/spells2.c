@@ -3607,12 +3607,6 @@ bool light_line(int dir)
 	return (fire_bolt_beam_special(GF_LIGHT, dir, 6, 4, -1, MAX_RANGE, flg));
 }
 
-bool blast(int dir, int dd, int ds, int dif)
-{
-	u32b flg = PROJECT_BEAM | PROJECT_GRID | PROJECT_ITEM;
-	return (fire_bolt_beam_special(GF_KILL_WALL, dir, dd, ds, dif, MAX_RANGE, flg));
-}
-
 bool destroy_door(int dir)
 {
 	u32b flg = PROJECT_BEAM | PROJECT_GRID | PROJECT_ITEM;

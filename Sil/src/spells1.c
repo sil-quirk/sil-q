@@ -1782,133 +1782,71 @@ static bool project_f(int who, int y, int x, int dist, int dd, int ds, int dif, 
 			/* Permanent walls */
 			if (cave_feat[y][x] == FEAT_WALL_PERM) break;
 
-            /* Granite */
-            if (cave_feat[y][x] >= FEAT_WALL_EXTRA)
-            {
-                // skill check of Will vs 10
-                if (skill_check(PLAYER, dif, 10, NULL) > 0)
-                {
-                    /* Message */
-                    if (cave_info[y][x] & (CAVE_MARK))
-                    {
-                        msg_print("The wall shatters!");
-                        obvious = TRUE;
-                    }
-                    
-                    /* Forget the wall */
-                    cave_info[y][x] &= ~(CAVE_MARK);
-                    
-                    /* Destroy the wall */
-                    cave_set_feat(y, x, FEAT_RUBBLE);
-                }
-                
-                // if Will check fails
-                else
-                {
-                    /* Message */
-                    if (cave_info[y][x] & (CAVE_MARK))
-                    {
-                        msg_print("You fail to blow hard enough to shatter the wall.");
-                        obvious = TRUE;
-                    }
-                }
-            }
-            
-            /* Quartz */
-            else if (cave_feat[y][x] >= FEAT_QUARTZ)
-            {
-                // skill check of Will vs 10
-                if (skill_check(PLAYER, dif, 10, NULL) > 0)
-                {
-                    /* Message */
-                    if (cave_info[y][x] & (CAVE_MARK))
-                    {
-                        msg_print("The vein shatters!");
-                        obvious = TRUE;
-                    }
-                    
-                    /* Forget the wall */
-                    cave_info[y][x] &= ~(CAVE_MARK);
-                    
-                    /* Destroy the wall */
-                    cave_set_feat(y, x, FEAT_RUBBLE);
-                }
-                
-                // if Will check fails
-                else
-                {
-                    /* Message */
-                    if (cave_info[y][x] & (CAVE_MARK))
-                    {
-                        msg_print("You fail to blow hard enough to shatter the quartz.");
-                        obvious = TRUE;
-                    }
-                }
-            }
-            
-            /* Rubble */
-            else if (cave_feat[y][x] == FEAT_RUBBLE)
-            {
-                // skill check of Will vs 10
-                if (skill_check(PLAYER, dif, 10, NULL) > 0)
-                {
-                    /* Message */
-                    if (cave_info[y][x] & (CAVE_MARK))
-                    {
-                        msg_print("The rubble is blown away!");
-                        obvious = TRUE;
-                    }
-                    
-                    /* Forget the wall */
-                    cave_info[y][x] &= ~(CAVE_MARK);
-                    
-                    /* Destroy the rubble */
-                    cave_set_feat(y, x, FEAT_FLOOR);
-                }
-                
-                // if Will check fails
-                else
-                {
-                    /* Message */
-                    if (cave_info[y][x] & (CAVE_MARK))
-                    {
-                        msg_print("You fail to blow hard enough to smash the rubble.");
-                        obvious = TRUE;
-                    }
-                }
-            }
-            
-            /* Destroy doors (and secret doors) */
-            else if (cave_any_closed_door_bold(y,x))
-            {
-                // skill check of Will vs 10
-                if (skill_check(PLAYER, dif, 10, NULL) > 0)
-                {
-                    /* Hack -- special message */
-                    if (cave_info[y][x] & (CAVE_MARK))
-                    {
-                        msg_print("The door is blown from its hinges!");
-                        obvious = TRUE;
-                    }
-                    
-                    /* Forget the wall */
-                    cave_info[y][x] &= ~(CAVE_MARK);
-                    
-                    /* Destroy the feature */
-                    cave_set_feat(y, x, FEAT_BROKEN);
-                }
-            
-                // if Will check fails
-                else
-                {
-                    /* Hack -- special message */
-                    if (cave_info[y][x] & (CAVE_MARK))
-                    {
-                        msg_print("You fail to blow hard enough to force the door open.");
-                        obvious = TRUE;
-                    }
-                }
-            }
+			/* Granite */
+			if (cave_feat[y][x] >= FEAT_WALL_EXTRA && skill_check(PLAYER, dif, 14, NULL) > 0)
+			{
+				/* Message */
+				if (cave_info[y][x] & (CAVE_MARK))
+				{
+					msg_print("The wall shatters!");
+					obvious = TRUE;
+				}
+
+				/* Forget the wall */
+				cave_info[y][x] &= ~(CAVE_MARK);
+
+				/* Destroy the wall */
+				cave_set_feat(y, x, FEAT_RUBBLE);
+			}
+			/* Quartz */
+			else if (cave_feat[y][x] >= FEAT_QUARTZ && skill_check(PLAYER, dif, 12, NULL) > 0)
+			{
+				/* Message */
+				if (cave_info[y][x] & (CAVE_MARK))
+				{
+					msg_print("The vein shatters!");
+					obvious = TRUE;
+				}
+
+				/* Forget the wall */
+				cave_info[y][x] &= ~(CAVE_MARK);
+
+				/* Destroy the wall */
+				cave_set_feat(y, x, FEAT_RUBBLE);
+			}
+			/* Rubble */
+			else if (cave_feat[y][x] == FEAT_RUBBLE && skill_check(PLAYER, dif, 10, NULL) > 0)
+			{
+				/* Message */
+				if (cave_info[y][x] & (CAVE_MARK))
+				{
+					msg_print("The rubble is blown away!");
+					obvious = TRUE;
+				}
+
+				/* Forget the wall */
+				cave_info[y][x] &= ~(CAVE_MARK);
+
+				/* Destroy the rubble */
+				cave_set_feat(y, x, FEAT_FLOOR);
+			}
+
+			/* Destroy doors (and secret doors) */
+			else if (cave_any_closed_door_bold(y,x) && skill_check(PLAYER, dif, 8, NULL) > 0)
+			{
+				/* Hack -- special message */
+				if (cave_info[y][x] & (CAVE_MARK))
+				{
+					msg_print("The door is blown from its hinges!");
+					obvious = TRUE;
+				}
+
+				/* Forget the wall */
+				cave_info[y][x] &= ~(CAVE_MARK);
+
+				/* Destroy the feature */
+				cave_set_feat(y, x, FEAT_BROKEN);
+			}
 
 			/* Update the visuals */
 			p_ptr->update |= (PU_UPDATE_VIEW | PU_MONSTERS);

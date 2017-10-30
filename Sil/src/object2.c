@@ -2542,8 +2542,9 @@ void apply_magic(object_type *o_ptr, int lev, bool okay, bool good, bool great, 
 	/* Assume no rolls */
 	artefact_rolls = 0;
 
-	/* Get 2 rolls if special */
-	if (special) artefact_rolls = 2;
+	if (special) artefact_rolls = 1;
+
+	if (great) artefact_rolls = 3;
 
 	/* Get 8 rolls if good and great are both set */
 	if ((good) && (great)) artefact_rolls = 8;

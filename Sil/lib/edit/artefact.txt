@@ -302,7 +302,7 @@ D: finest white cloth and hemmed with silver thread.
 
 N:22:of Idril Celebrindal
 I:36:2:0
-W:16:18:30:25000
+W:18:30:30:25000
 P:0:0d0:0:1d0
 F:SPEED
 D:A robe of the only child of Turgon, and light of Gondolin.
@@ -331,7 +331,7 @@ D: promises about his dead wife.
 
 N:25:of Caranthir
 I:36:4:4
-W:8:15:60:45000
+W:8:10:60:45000
 P:0:0d0:1:1d4
 F:STEALTH | DARKNESS
 D:Caranthir the Dark was the harshest of Feanor's sons
@@ -344,7 +344,7 @@ D: and quick to anger.
 
 N:26:'Catskin'
 I:36:4:0
-W:10:30:50:45000
+W:10:10:50:45000
 P:0:0d0:0:1d4
 B:2/6:4/2
 D:This leather looks strangely proportioned, but when you
@@ -373,7 +373,7 @@ D: the heart in the dark places of the world.
 
 N:29:of Aegnor
 I:36:7:1
-W:4:30:100:35000
+W:4:10:100:35000
 P:1:0d0:-2:1d6
 F:WILL
 B:4/4
@@ -595,13 +595,15 @@ D:'...the knife of the north, in Nogrod smithied.'
 
 ## The Dagger of Azaghal
 ## 1st age
+## (ability 4/1 is Focused Attack)
 
 N:53:of Azaghal
-I:23:4:0
+I:23:4:3
 W:13:8:5:50000
-P:3:1d6:0:0d0
-F:SLAY_DRAGON | RES_FIRE | RES_FEAR
+P:0:1d6:0:0d0
+F:PERCEPTION | SLAY_DRAGON | RES_FIRE | RES_FEAR
 F:THROWING
+B:4/1
 D:Azaghal, Dwarf-king of Belegost, fell before Glaurung in the Battle of
 D: Unnumbered Tears, but with his final stroke he dealt Glaurung such a
 D: blow that the Father of Dragons fled the field with all his kin, and
@@ -692,7 +694,7 @@ D: is the bane of many of Morgoth's servants.
 
 N:66:'Narsil'
 I:23:17:0
-W:12:30:25:80000
+W:12:20:25:80000
 P:0:2d6:1:0d0
 F:LIGHT
 F:RES_FIRE | RES_COLD
@@ -706,7 +708,7 @@ D: a great part to play in future events.
 
 N:67:'Aranruth'
 I:23:17:3
-W:20:30:40:50000
+W:20:20:40:50000
 P:3:2d6:1:0d0
 F:WILL | RES_FEAR
 F:DANGER
@@ -786,7 +788,7 @@ D: the hosts of Morgoth.
 
 N:80:'Celeg Aithorn'
 I:23:28:0
-W:20:10:20:50000
+W:20:20:20:50000
 P:1:2d5:1:0d0
 F:BRAND_ELEC | SHARPNESS
 D:'...the sweeping sickle of the slashing tempest,
@@ -974,7 +976,7 @@ D: in your hands, its point guiding itself to where it is needed.
 
 N:104:of Halmir
 I:21:3:3
-W:5:30:40:250000
+W:2:10:40:250000
 P:0:2d4:3:0d0
 F:SUST_STR | SUST_CON | RES_POIS
 B:7/3
@@ -992,6 +994,19 @@ P:0:4d1:0:0d0
 F:SMITHING | SUST_STR | RES_FIRE
 D:The great hammer of Telchar, mighty smith of Nogrod.
 D: Its hard steel rung against both dwarf-forge and orc-shield.
+
+
+## The War Hammer of Aule's Wrath
+
+N:108:of Aule's Wrath
+I:21:8:1
+W:20:20:70:250000
+P:0:4d2:0:0d0
+F:SMITHING | STR | CON | SLAY_RAUKO | RES_FIRE | DANGER | AGGRAVATE
+D:The hammer carried by mighty Rog from Valinor and lost in the retreat
+D: that followed the Dagor Bragollach. Made by Aule in the days
+D: following the destruction of the Two Trees, it has a haft and head of
+D: black iron banded about with red gold.
 
 
 ## The Sceptre of Thu
@@ -1018,7 +1033,7 @@ D: his ghastly temples in the shade.'
 
 N:114:'Burkfelek'
 I:20:3:3
-W:20:10:110:30000
+W:20:8:110:30000
 P:-4:6d2:0:0d0
 F:TUNNEL
 D:A mighty Dwarven mattock, forged by Gamil Zirak of old,
@@ -1060,7 +1075,7 @@ D: servants of Morgoth.
 N:121:of Utumno
 G:]:D
 I:32:6:2
-W:20:30:100:10000
+W:20:20:100:10000
 P:0:0d0:-2:1d4
 F:CON
 F:NEG_GRA | VUL_FIRE | LIGHT_CURSE
@@ -1112,23 +1127,6 @@ F:SONG
 D: '... Daeron the Dark with ferny crown
 D: played with bewildering wizard's art
 D: music for breaking of the heart.'
-
-
-## The Crown of Dark Secrets
-## Inspired by an artefact Psi forged for many of his characters
-## (ability 4/6 is Loremaster)
-
-N:126:of Dark Secrets
-G:]:D
-I:33:11:1
-W:10:15:40:10000
-P:0:0d0:0:0d0
-F:DANGER | GRA
-B:4/6
-D:This crown has elegant curves of some dark metal, which
-D: draw the eye and hold the mind. When you put it on it
-D: whispers to you, telling you of forgotten secrets and
-D: ways of power.
 
 
 ## The Jewelled Crown of Feanor
@@ -1272,7 +1270,7 @@ D: elven hair that faintly shimmers a pale clear gold.
 
 N:146:'Wyrm's End'
 I:19:13:0
-W:16:25:60:35000
+W:16:20:60:35000
 P:0:2d7:0:0d0
 B:1/5
 D:A massive longbow, almost too large to draw. But when it does
@@ -1450,7 +1448,7 @@ D: can move more delicately and swiftly than if bare.
 N:170:of Finwe
 G:*:o
 I:39:2:2
-W:6:10:1:10000
+W:4:5:1:10000
 P:0:0d0:0:0d0
 F:RES_FIRE | LIGHT
 D:When Morgoth slew Finwe, High King of the Noldor, he
