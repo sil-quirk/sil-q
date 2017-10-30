@@ -2690,7 +2690,7 @@ static void calc_bonuses(void)
 	// deal with the 'Forewarned' ability
 	if (p_ptr->active_ability[S_PER][PER_FOREWARNED] && (p_ptr->skill_base[S_PER] > p_ptr->skill_base[S_EVN]))
 	{
-		p_ptr->skill_misc_mod[S_EVN] += p_ptr->skill_base[S_PER] / 4;
+		p_ptr->skill_misc_mod[S_EVN] += p_ptr->skill_use[S_PER] / 4;
 	}
 
 	/* generate the melee dice/sides from weapon, to_mdd, to_mds and strength */
