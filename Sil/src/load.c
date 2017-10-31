@@ -1843,7 +1843,7 @@ bool load_player(void)
 
 		/* Allow this */
 		p_ptr->restoring = FALSE;
-		return (FALSE);////
+		return (TRUE);
 	}
 
 	/* Close the file */
