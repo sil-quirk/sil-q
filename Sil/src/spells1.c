@@ -4229,7 +4229,11 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds, i
 
 void add_wrath(void)
 {
-	int new_wrath = 100;
+	int new_wrath = 200;
+
+	if (new_wrath < p_ptr->wrath)
+		new_wrath = 20000 / p_ptr->wrath;
+
 	p_ptr->update |= (PU_BONUS);
 	p_ptr->redraw |= (PR_SONG);
 
@@ -4238,7 +4242,7 @@ void add_wrath(void)
 
 int slaying_song_bonus(void)
 {
-	return ((ability_bonus(S_SNG, SNG_SLAYING) * p_ptr->wrath + 999) / 1000);
+	return (((ability_bonus(S_SNG, SNG_SLAYING) + 3) * p_ptr->wrath + 999) / 1000);
 }
 
 /*

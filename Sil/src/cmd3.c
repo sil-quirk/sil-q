@@ -1183,7 +1183,7 @@ void do_cmd_destroy(void)
 			else
 			{
 				msg_print("You decide to try to prise out a Silmaril after all.");
-				
+
 				prise_silmaril();
 				
 				/* Take a turn */

@@ -2219,11 +2219,11 @@ static void process_player(void)
 		// half as fast if still singing the song
 		if (singing(SNG_SLAYING))
 		{
-			p_ptr->wrath -= MAX(amount/2, 1);
+			p_ptr->wrath -= MAX(amount/4, 1);
 		}
 		else
 		{
-			p_ptr->wrath -= MAX(amount, 1);
+			p_ptr->wrath -= MAX(amount/2, 1);
 		}
 		p_ptr->update |= (PU_BONUS);
 		p_ptr->redraw |= (PR_SONG);

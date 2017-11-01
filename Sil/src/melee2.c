@@ -88,10 +88,10 @@ static void find_range(monster_type *m_ptr)
 	}
 	
 	// Deal with the 'truce' on Morgoth's level (overrides everything else)
-	if (p_ptr->truce && (m_ptr->min_range < 5))
+	if (p_ptr->truce && (m_ptr->min_range < 25))
 	{ 
-		m_ptr->min_range = 5;
-		m_ptr->best_range = 5;
+		m_ptr->min_range = 25;
+		m_ptr->best_range = 25;
 	}
 }
 

@@ -2182,9 +2182,9 @@ D: eyes.
 N:251:Morgoth, Lord of Darkness
 W:25:1
 G:V:D
-I:2:240d4:7
+I:2:250d4:7
 A:10:10:0:20
-P:[+20,6d4]
+P:[+20,5d4]
 B:HIT:SHATTER:(+20,6d10)
 F:UNIQUE | QUESTOR | MALE
 F:OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR

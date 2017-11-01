@@ -337,7 +337,7 @@ void random_unseen_floor(int *ry, int *rx)
  */
 bool no_light(void)
 {
-	return (!player_can_see_bold(p_ptr->py, p_ptr->px));
+	return cave_light[p_ptr->py][p_ptr->px] <= 0;
 }
 
 

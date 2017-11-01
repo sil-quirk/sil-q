@@ -171,7 +171,7 @@ void new_wandering_destination(monster_type *m_ptr, monster_type *leader_ptr)
 
 void drop_iron_crown(monster_type *m_ptr, const char *msg)
 {
-	int i, near_y, near_x;
+	int i, j, near_y, near_x;
 	
 	if ((&a_info[ART_MORGOTH_3])->cur_num == 0)
 	{
@@ -189,12 +189,12 @@ void drop_iron_crown(monster_type *m_ptr, const char *msg)
 		// drop it there
 		create_chosen_artefact(ART_MORGOTH_3, near_y, near_x, TRUE);
 		
-		// lower Morgoth's protection, remove his light source, increase his will and perception
+		// lower Morgoth's protection, remove his light source, increase his will and perception and evasion
 		(&r_info[R_IDX_MORGOTH])->pd -= 1;
 		(&r_info[R_IDX_MORGOTH])->light = 0;
 		(&r_info[R_IDX_MORGOTH])->wil += 5;
 		(&r_info[R_IDX_MORGOTH])->per += 5;
-
+		(&r_info[R_IDX_MORGOTH])->evn += 2;
 	}
 }
 
