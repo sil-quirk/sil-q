@@ -1945,9 +1945,9 @@ int ability_bonus(int skilltype, int abilitynum)
 				if (bonus < 3) bonus = 3;
 				break;
 			}
-			case SNG_SHARPNESS:
+			case SNG_DELVINGS:
 			{
-				bonus = skill * 2;
+				bonus = skill;
 				break;
 			}
 			case SNG_MASTERY:
@@ -2561,7 +2561,7 @@ static void calc_bonuses(void)
 				case SNG_STAYING:	song_noise += 4; break;
 				case SNG_LORIEN:	song_noise += 4; break;
 				case SNG_ESTE:		song_noise += 4; break;
-				case SNG_SHARPNESS:	song_noise += 8; break;
+				case SNG_DELVINGS:	song_noise += 4; break;
 				case SNG_MASTERY:	song_noise += 8; break;
 			}		
 		}

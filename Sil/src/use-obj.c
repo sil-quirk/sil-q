@@ -593,7 +593,7 @@ static bool play_instrument(object_type *o_ptr, bool *ident)
 	
 	msg_print("You sound a loud note on the horn.");
 	
-	/* Analyze the rod */
+	/* Analyze the horn */
 	switch (o_ptr->sval)
 	{
 		case SV_HORN_TERROR:
@@ -799,7 +799,7 @@ static bool play_instrument(object_type *o_ptr, bool *ident)
 			}
 			else
 			{
-				if(fire_arc(GF_KILL_WALL, dir, 0, 0, will_score, 3, 90)) *ident = TRUE;
+				if(fire_arc(GF_KILL_WALL, dir, 8, 4, will_score, 3, 90)) *ident = TRUE;
 			}
 
 			/* Make a lot of noise */

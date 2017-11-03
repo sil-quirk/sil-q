@@ -629,11 +629,12 @@ D: with every 3 points of Song. Sustains your stats.
 T:33:0:99  # Crown
 T:40:0:99  # Amulet
 
-N:149:Song of Sharpness
+N:149:Song of Delvings
 I:7:9:10
-P:7/1:7/5
-D:Your attacks ignore 2% of your opponent's armour per point of Song.
-D: Works for edged weapons, axes, polearms, and arrows.
+D:Sharpens your understanding of your surroundings.
+D: Every turn terrain adjacent to already known areas has a
+D: chance of becoming known proportional to your Song skill.
+D: You may also learn of movements made by creatures of stone.
 T:33:0:99  # Crown
 T:40:0:99  # Amulet
 

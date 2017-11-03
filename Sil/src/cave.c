@@ -3932,7 +3932,39 @@ void update_smell(void)
 }
 
 
+void map_feature(int y, int x)
+{
+	int i;
 
+	if (!in_bounds_fully(y,x)) return;
+
+	/* All non-walls are "checked", including rubble */
+	if ((cave_feat[y][x] < FEAT_WALL_HEAD) ||
+		(cave_stair_bold(y,x)) || (cave_feat[y][x] == FEAT_RUBBLE) || cave_forge_bold(y,x) || (cave_feat[y][x] == FEAT_CHASM))
+	{
+		/* Memorize normal features */
+		if ((cave_feat[y][x] >= FEAT_DOOR_HEAD) ||
+			(cave_stair_bold(y,x)) || (cave_feat[y][x] == FEAT_RUBBLE) || cave_forge_bold(y,x) || (cave_feat[y][x] == FEAT_CHASM))
+		{
+			/* Memorize the feature */
+			cave_info[y][x] |= (CAVE_MARK);
+		}
+
+		/* Memorize adjacent walls */
+		for (i = 0; i < 8; i++)
+		{
+			int yy = y + ddy_ddd[i];
+			int xx = x + ddx_ddd[i];
+
+			/* Memorize walls (etc) */
+			if (cave_wall_bold(yy,xx))
+			{
+				/* Memorize the walls */
+				cave_info[yy][xx] |= (CAVE_MARK);
+			}
+		}
+	}
+}
 
 /*
  * Map the dungeon ala "magic mapping"
@@ -3942,42 +3974,14 @@ void update_smell(void)
  */
 void map_area(void)
 {
-	int i, x, y;
+	int x, y;
 
 	/* Scan that area */
 	for (y = 1; y < MAX_DUNGEON_HGT; y++)
 	{
 		for (x = 1; x < MAX_DUNGEON_WID ; x++)
 		{
-			if (in_bounds_fully(y, x))
-			{
-				/* All non-walls are "checked", including rubble */
-				if ((cave_feat[y][x] < FEAT_WALL_HEAD) ||
-					(cave_stair_bold(y,x)) || (cave_feat[y][x] == FEAT_RUBBLE) || cave_forge_bold(y,x) || (cave_feat[y][x] == FEAT_CHASM)) 
-				{
-					/* Memorize normal features */
-					if ((cave_feat[y][x] >= FEAT_DOOR_HEAD) ||
-						(cave_stair_bold(y,x)) || (cave_feat[y][x] == FEAT_RUBBLE) || cave_forge_bold(y,x) || (cave_feat[y][x] == FEAT_CHASM))
-					{
-						/* Memorize the feature */
-						cave_info[y][x] |= (CAVE_MARK);
-					}
-					
-					/* Memorize adjacent walls */
-					for (i = 0; i < 8; i++)
-					{
-						int yy = y + ddy_ddd[i];
-						int xx = x + ddx_ddd[i];
-						
-						/* Memorize walls (etc) */
-						if (cave_wall_bold(yy,xx))
-						{
-							/* Memorize the walls */
-							cave_info[yy][xx] |= (CAVE_MARK);
-						}
-					}
-				}				
-			}
+			map_feature(y, x);
 		}
 	}
 

@@ -298,6 +298,7 @@ extern void update_view(void);
 extern int flow_dist(int which_flow, int y, int x);
 extern void update_flow(int cy, int cx, int which_flow);
 extern void update_smell(void);
+extern void map_feature(int y, int x);
 extern void map_area(void);
 extern void wiz_light(void);
 extern void wiz_dark(void);

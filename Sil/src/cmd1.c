@@ -2177,17 +2177,6 @@ extern int prt_after_sharpness(const object_type *o_ptr, u32b *noticed_flag)
 		*noticed_flag = maybe_notice_slay(o_ptr, TR1_SHARPNESS2);
 		protection = 0;
 	}
-	
-	// Song of sharpness
-	if (singing(SNG_SHARPNESS))
-	{
-		int tval = o_ptr->tval;
-				
-		if ((tval == TV_SWORD) || (tval == TV_POLEARM) || (tval == TV_ARROW))
-		{
-			protection -= ability_bonus(S_SNG, SNG_SHARPNESS);
-		}
-	}
     
     if (protection < 0) protection = 0;
 	
