@@ -857,7 +857,7 @@ static bool item_tester_hook_destroy(const object_type *o_ptr)
 /*
  *  Shatter the player's wielded weapon.
  */
-void shatter_weapon(int silnum)
+void shatter_weapon()
 {
 	int i;
 	object_type   *w_ptr = &inventory[INVEN_WIELD];
@@ -867,10 +867,7 @@ void shatter_weapon(int silnum)
 			
 	/* Get the basic name of the object */
 	object_desc(w_name, sizeof(w_name), w_ptr, FALSE, 0);
-	
-	if (silnum == 2)	msg_print("You strive to free a second Silmaril, but it is not fated to be.");
-	else				msg_print("You strive to free a third Silmaril, but it is not fated to be.");
-	
+
 	msg_format("As you strike the crown, your %s shatters into innumerable pieces.", w_name);
 	
 	// make more noise
@@ -907,17 +904,24 @@ void prise_silmaril(void)
 
 	cptr freed_msg = NULL; // default to soothe compiler warnings
 
-	bool freed = FALSE;
+	byte silmaril = 0;
 
 	int slot = 0;
+
+	bool freed = FALSE;
 	
+	// damage check
 	int dam = 0;
 	int prt = 0;
 	int net_dam = 0;
 	int prt_percent = 0;
 	int hit_result = 0;
 	int crit_bonus_dice = 0;
-	int pd = 0;
+	int pd = 20;
+
+	// will check
+	bool will_test_passed = FALSE;
+
 	int noise = 0;
 	u32b dummy_noticed_flag;
 	
@@ -928,29 +932,24 @@ void prise_silmaril(void)
 
 	// the Crown is on the ground
 	o_ptr = &o_list[cave_o_idx[p_ptr->py][p_ptr->px]];
-				
+
 	switch (o_ptr->name1)
 	{
 		case ART_MORGOTH_3:
 		{
-			pd = 15;
 			noise = 5;
 			freed_msg = "You have freed a Silmaril!";
 			break;
 		}
 		case ART_MORGOTH_2:
 		{
-			pd = 25;
 			noise = 10;
-						
-			if (p_ptr->crown_shatter)	freed_msg = "The fates be damned! You free a second Silmaril.";
-			else						freed_msg = "You free a second Silmaril.";
+			freed_msg = "You free a second Silmaril.";
 			
 			break;
 		}
 		case ART_MORGOTH_1:
 		{
-			pd = 30;
 			noise = 15;
 			
 			freed_msg = "You free the final Silmaril. You have a very bad feeling about this.";
@@ -962,82 +961,113 @@ void prise_silmaril(void)
 		}
 	}
 	
-	/* Get the weapon */
-	w_ptr = &inventory[INVEN_WIELD];
+	if (o_ptr->xtra1 & FIRST_SILMARIL)
+	{
+		/* Get the weapon */
+		w_ptr = &inventory[INVEN_WIELD];
 
-	// undo rapid attack penalties
-	if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
-	{
-		// undo strength adjustment to the attack
-		mds = total_mds(w_ptr, 0);
-		
-		// undo the dexterity adjustment to the attack
-		attack_mod += 3;
+		// undo rapid attack penalties
+		if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
+		{
+			// undo strength adjustment to the attack
+			mds = total_mds(w_ptr, 0);
+
+			// undo the dexterity adjustment to the attack
+			attack_mod += 3;
+		}
+
+		// reward focused attack ability (if applicable)
+		attack_mod += focused_attack_bonus();
+
+		/* Test for hit */
+		hit_result = hit_roll(attack_mod, 0, PLAYER, NULL, TRUE);
+
+		/* Make some noise */
+		stealth_score -= noise;
+
+		// Determine damage
+		if (hit_result > 0)
+		{
+			crit_bonus_dice = crit_bonus(hit_result, w_ptr->weight, &r_info[R_IDX_MORGOTH], S_MEL, FALSE);
+
+			dam = damroll(p_ptr->mdd + crit_bonus_dice, mds);
+			prt = damroll(pd, 4);
+
+			prt_percent = prt_after_sharpness(w_ptr, &dummy_noticed_flag);
+			prt = (prt * prt_percent) / 100;
+			net_dam = dam - prt;
+
+			/* No negative damage */
+			if (net_dam < 0) net_dam = 0;
+
+			update_combat_rolls2(p_ptr->mdd + crit_bonus_dice, mds, dam, pd, 4, prt, prt_percent, GF_HURT, TRUE);
+		}
+
+		if (net_dam > 0)
+		{
+			silmaril = FIRST_SILMARIL;
+		}
 	}
-	
-	/* Test for hit */
-	hit_result = hit_roll(attack_mod, 0, PLAYER, NULL, TRUE);
-	
-	/* Make some noise */
-	stealth_score -= noise;
-	
-	// Determine damage
-	if (hit_result > 0)
+	if ((o_ptr->xtra1 & SECOND_SILMARIL) && !silmaril)
 	{
-		crit_bonus_dice = crit_bonus(hit_result, w_ptr->weight, &r_info[R_IDX_MORGOTH], S_MEL, FALSE);
-		
-		dam = damroll(p_ptr->mdd + crit_bonus_dice, mds);
-		prt = damroll(pd, 4);
-		
-		prt_percent = prt_after_sharpness(w_ptr, &dummy_noticed_flag);
-		prt = (prt * prt_percent) / 100;
-		net_dam = dam - prt;
-		
-		/* No negative damage */
-		if (net_dam < 0) net_dam = 0;
-		
-		//update_combat_rolls1b(PLAYER, TRUE);
-		update_combat_rolls2(p_ptr->mdd + crit_bonus_dice, mds, dam, pd, 4, prt, prt_percent, GF_HURT, TRUE);
+		int will = p_ptr->skill_use[S_WIL];
+		int difficulty = 25;
+		int will_roll = dieroll(10);
+		int crown_roll = dieroll(10);
+
+		update_combat_rolls1(PLAYER, &r_info[R_IDX_MORGOTH], TRUE, will, will_roll, difficulty, crown_roll);
+		update_combat_rolls2(0, 0, 0, 0, 0, 0, 0, GF_HURT, TRUE);
+
+		if (will + will_roll > difficulty + crown_roll)
+		{
+			msg_print("Your will undaunted by the Silmaril's glare, you pry it loose.");
+			silmaril = SECOND_SILMARIL;
+		}
 	}
-	
+	if ((o_ptr->xtra1 & THIRD_SILMARIL) && !silmaril)
+	{
+		int hunger = 8 - (p_ptr->food / 1000);
+		int difficulty = 10;
+		int hunger_roll = dieroll(10);
+		int crown_roll = dieroll(10);
+
+		update_combat_rolls1(PLAYER, &r_info[R_IDX_MORGOTH], TRUE, hunger, hunger_roll, difficulty, crown_roll);
+		update_combat_rolls2(0, 0, 0, 0, 0, 0, 0, GF_HURT, TRUE);
+
+		if (hunger + hunger_roll > difficulty + crown_roll)
+		{
+			msg_print("Hunger and desire combine as you grasp the Silmaril.");
+			silmaril = THIRD_SILMARIL;
+		}
+	}
 	
 	// if you succeed in prising out a Silmaril...
-	if (net_dam > 0)
+	if (silmaril != 0)
 	{
 		freed = TRUE;
-		
-		switch (o_ptr->name1)
+
+		if (o_ptr->name1 == ART_MORGOTH_1)
 		{
-			case ART_MORGOTH_3:
+			p_ptr->cursed = TRUE;
+		}
+
+		if (silmaril == FIRST_SILMARIL)
+		{
+			if(!p_ptr->crown_shatter && one_in_(2))
 			{
-				break;
+				shatter_weapon(2);
+				freed = FALSE;
 			}
-			case ART_MORGOTH_2:
+			else
 			{
-				if (!p_ptr->crown_shatter && one_in_(2))
-				{
-					shatter_weapon(2);
-					freed = FALSE;
-				}
-				break;
-			}
-			case ART_MORGOTH_1:
-			{
-				if (!p_ptr->crown_shatter)
-				{
-					shatter_weapon(3);
-					freed = FALSE;
-				}
-				else
-				{
-					p_ptr->cursed = TRUE;
-				}
-				break;
+				msg_print("With a mighty effort you rend the crown.");
 			}
 		}
-		
+
 		if (freed)
 		{
+			int silmarils = o_ptr->xtra1;
+
 			// change its type to that of the crown with one less silmaril
 			o_ptr->name1--;
 			
@@ -1046,6 +1076,7 @@ void prise_silmaril(void)
 			
 			// modify the existing crown
 			object_into_artefact(o_ptr, a_ptr);
+			o_ptr->xtra1 = silmarils & ~silmaril;
 			
 			// report success
 			msg_print(freed_msg);
@@ -1080,16 +1111,26 @@ void prise_silmaril(void)
 	else
 	{
 		msg_print("Try though you might, you were unable to free a Silmaril.");
-		msg_print("Perhaps you should try again or use a different weapon.");
 
-		if (pd == 15) msg_print("(The combat rolls window shows what is happening.)");
+		if (o_ptr->xtra1 & FIRST_SILMARIL)
+		{
+			msg_print("Perhaps you should try again or use a different weapon.");
+		}
+		else if (o_ptr->xtra1 & SECOND_SILMARIL)
+		{
+			msg_print("You steel yourself for another attempt.");
+		}
+		else if (o_ptr->xtra1 & THIRD_SILMARIL)
+		{
+			msg_print("It resists your desire.");
+		}
 
 		// Break the truce if creatures see
 		break_truce(FALSE);
 	}
 
 	// check for taking of final Silmaril
-	if ((pd == 30) && freed)
+	if (o_ptr->name1 == ART_MORGOTH_1 && freed)
 	{
 		msg_print("Until you escape you must now roll twice for every skill check, taking the worse result each time.");
 		msg_print("You hear a cry of veangance echo through the iron hells.");

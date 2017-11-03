@@ -717,7 +717,7 @@ G:o:v
 I:2:11d4:0
 A:15:8:1:6
 P:[+16,2d4]
-B:HIT:HURT:(+22,1d9)
+B:HIT:HURT:(+21,1d8)
 F:UNIQUE | MALE | OPEN_DOOR | UNLOCK_DOOR | SMART | ORC
 F:DROP_100 | UNIQUE_FRIEND | DROP_GOOD | HURT_LITE | CRUEL_BLOW
 D:A small and exceptionally ugly orc, wearing dark leather
@@ -2182,7 +2182,7 @@ D: eyes.
 N:251:Morgoth, Lord of Darkness
 W:25:1
 G:V:D
-I:2:250d4:7
+I:2:250d5:7
 A:10:10:0:20
 P:[+20,5d4]
 B:HIT:SHATTER:(+20,6d10)

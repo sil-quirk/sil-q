@@ -1565,11 +1565,21 @@ bool make_attack_normal(monster_type *m_ptr)
 				/* Visible monsters */
 				if (m_ptr->ml && !p_ptr->confused)
 				{
+					bool quake_anyway = FALSE;
+					int damage = m_ptr->maxhp - m_ptr->hp;
+
 					/* Disturbing */
 					disturb(1, 0);
 
+					// Extra earthquakes as more damaged
+					// (really for Morgoth, who has more
+					// health to lose) - binomial
+					// distribution means low probabilty
+					// at first, gradually increasing
+					quake_anyway = damage > damroll(2, 1000);
+
 					// deal with earthquakes if they miss you by 1 or 2 or 3 points
-					if ((effect == RBE_SHATTER) && (hit_result > -3))
+					if (((effect == RBE_SHATTER) && (hit_result > -3)) || quake_anyway)
 					{
 						/* Message */
 						msg_format("%^s just misses you.", m_name);
