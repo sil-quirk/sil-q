@@ -1122,7 +1122,7 @@ I:55:17:0
 W:7:0:50:0
 P:0:0d0:0:0d0
 A:7/6
-D:It summons 2d4 monsters out of sight on the current level. 
+D:It summons monsters to the stairs on the current level. 
 
 
 N:211:Entrapment
@@ -1131,7 +1131,7 @@ I:55:18:0
 W:9:0:50:0
 P:0:0d0:0:0d0
 A:9/6
-D:It produces 2d4 new traps on the current level. 
+D:It produces new traps on the current level. 
 
 
 ##### Horns #####

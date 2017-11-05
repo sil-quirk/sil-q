@@ -4951,19 +4951,19 @@ void change_song(int song)
 			}
 			break;
 		}
-		case SNG_ESTE:
+		case SNG_SWIFTNESS:
 		{
 			if (song_to_change == 1)
 			{
-				msg_print("You begin a song about gentle growth and recovery.");
+				msg_print("You begin a song about fleet-footed Nessa, faster than the deer.");
 			}
 			else if (old_song == SNG_NOTHING)
 			{
-				msg_print("You add a minor theme about gentle growth and recovery.");
+				msg_print("You add a minor theme about fleet-footed Nessa, faster than the deer.");
 			}
 			else
 			{
-				msg_print("You change your minor theme to one about gentle growth and recovery.");
+				msg_print("You change your minor theme to one about fleet-footed Nessa, faster than the deer.");
 			}
 			break;
 		}
@@ -5289,9 +5289,12 @@ void sing(void)
 
 				break;
 			}
-			case SNG_ESTE:
+			case SNG_SWIFTNESS:
 			{
-				cost += 1;
+				cost += 4;
+
+				p_ptr->fast = MAX(p_ptr->fast + 1, 2);
+
 				break;
 			}
 			case SNG_DELVINGS:

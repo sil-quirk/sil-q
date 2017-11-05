@@ -621,11 +621,10 @@ D:Gradually puts nearby opponents to sleep.
 T:33:0:99  # Crown
 T:40:0:99  # Amulet
 
-N:148:Song of Este
+N:148:Song of Nessa
 I:7:8:9
-D:Provides a bonus to your regeneration and your recovery
-D: from all negative timed effects (such as confusion or poison)
-D: with every 3 points of Song. Sustains your stats.
+P:7/3
+D:Speeds your movement at a high cost to Voice.
 T:33:0:99  # Crown
 T:40:0:99  # Amulet
 

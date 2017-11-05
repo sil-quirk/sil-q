@@ -172,7 +172,7 @@ V:1.3.1
 
 ## The Ring of Barahir
 ## 1st age
-## (ability 7/8 is Song of Este)
+## (ability 7/6 is Song of Staying)
 
 N:1:of Barahir
 I:45:32:0
@@ -180,7 +180,7 @@ W:10:20:1:5000
 P:0:0d0:0:0d0
 F:FREE_ACT | RES_POIS
 F:INSTA_ART
-B:7/8
+B:7/6
 D:A ring shaped into twinned serpents with eyes of emerald meeting
 D: beneath a crown of flowers. It was given to Barahir of Beor's House
 D: by Finrod Felagund the Noldorin Prince. It is a symbol of loyalty and

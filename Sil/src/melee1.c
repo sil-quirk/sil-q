@@ -2121,16 +2121,7 @@ bool make_attack_ranged(monster_type *m_ptr, int attack)
 		{
 			disturb(0, 0);
 			
-			// special message for Mewlips
-			if ((r_ptr->d_char == 'H') && (r_ptr->d_attr == TERM_UMBER))
-			{
-				if (blind) msg_format("%^s rings its bell.", m_name);
-				else msg_format("%^s rings its bell.", m_name);
-			}
-			else
-			{
-				msg_format("%^s tries to blank your mind.", m_name);
-			}
+			msg_format("%^s tries to blank your mind.", m_name);
 			
 			if (saving_throw(m_ptr, 0))
 			{

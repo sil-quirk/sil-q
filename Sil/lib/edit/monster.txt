@@ -549,14 +549,15 @@ D:A type of crow, specially bred by the forces of evil as spies.
 N:64:Mewlip
 W:6:3
 G:H:u
-I:2:14d4:0
+I:2:12d4:0
 A:15:5:3:6
 P:[+4,2d4]
-B:CLAW:WOUND:(+8,3d4)
+B:CLAW:WOUND:(+9,3d4)
+B:TOUCH:BLIND:(+4)
 F:DROP_100 | OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR | SMART
 F:NO_FEAR
-S:SPELL_PCT_20
-S:SCARE | FORGET
+S:SPELL_PCT_10
+S:SCARE
 D:An evil swamp dwelling creature that feeds on the bones
 D: of those who draw near.
 

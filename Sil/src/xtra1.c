@@ -1939,10 +1939,9 @@ int ability_bonus(int skilltype, int abilitynum)
 				bonus = skill;
 				break;
 			}
-			case SNG_ESTE:
+			case SNG_SWIFTNESS:
 			{
-				bonus = skill / 3;
-				if (bonus < 3) bonus = 3;
+				bonus = skill;
 				break;
 			}
 			case SNG_DELVINGS:
@@ -2560,7 +2559,7 @@ static void calc_bonuses(void)
 				case SNG_AULE:		song_noise += 8; break;
 				case SNG_STAYING:	song_noise += 4; break;
 				case SNG_LORIEN:	song_noise += 4; break;
-				case SNG_ESTE:		song_noise += 4; break;
+				case SNG_SWIFTNESS:	song_noise += 8; break;
 				case SNG_DELVINGS:	song_noise += 4; break;
 				case SNG_MASTERY:	song_noise += 8; break;
 			}		
@@ -2631,14 +2630,7 @@ static void calc_bonuses(void)
 	{
 		p_ptr->free_act += 1;
 	}
-	if (singing(SNG_ESTE))
-	{
-		p_ptr->sustain_dex += 1;
-		p_ptr->sustain_str += 1;
-		p_ptr->sustain_con += 1;
-		p_ptr->sustain_gra += 1;
-	}
-	
+
 	/*** Finalise all skills other than combat skills  (as bows/weapons must be analysed first) ***/
 	
 	p_ptr->skill_use[S_STL] = p_ptr->skill_base[S_STL] + p_ptr->skill_equip_mod[S_STL] + 

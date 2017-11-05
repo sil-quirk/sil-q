@@ -2298,11 +2298,6 @@ static void process_player(void)
 	if (p_ptr->poisoned) regen_multiplier = 0;
 	if (p_ptr->cut) regen_multiplier = 0;
 
-	if (singing(SNG_ESTE))
-	{
-		regen_multiplier *= ability_bonus(S_SNG, SNG_ESTE);
-	}
-	
 	/* Regenerate Hit Points if needed */
 	if (p_ptr->chp < p_ptr->mhp)
 	{
@@ -2311,14 +2306,7 @@ static void process_player(void)
 	
 	/*** Timeout Various Things ***/
 
-	if (singing(SNG_ESTE))
-	{
-		amount = ability_bonus(S_SNG, SNG_ESTE);
-	}
-	else
-	{
-		amount = 1;
-	}
+	amount = 1;
 
 	/* Hack -- Hallucinating */
 	if (p_ptr->image)
@@ -2371,9 +2359,10 @@ static void process_player(void)
 	/* Slow */
 	if (p_ptr->slow)
 	{
-		if (singing(SNG_FREEDOM)) amount = ability_bonus(S_SNG, SNG_FREEDOM);
-		
-		(void)set_slow(p_ptr->slow - amount);
+		if (singing(SNG_FREEDOM))
+			(void)set_slow(p_ptr->slow - ability_bonus(S_SNG, SNG_FREEDOM));
+		else
+			(void)set_slow(p_ptr->slow - 1);
 	}
 
 	/* Rage */
@@ -2467,13 +2456,13 @@ static void process_player(void)
 		p_ptr->consecutive_attacks = 0;
 		p_ptr->last_attack_m_idx = 0;
 	}
-	
+
 	// boots of radiance
 	if (inventory[INVEN_FEET].k_idx)
 	{
 		u32b f1, f2, f3;
 		object_type *o_ptr = &inventory[INVEN_FEET];
-		
+
 		/* Extract the flags */
 		object_flags(o_ptr, &f1, &f2, &f3);
 
@@ -2499,7 +2488,7 @@ static void process_player(void)
 			}
 		}
 	}
-	
+
 	playerturn++;
 
 	/* Window stuff */
