@@ -830,7 +830,7 @@ static errr rd_extra(void)
 	rd_byte(&p_ptr->song1);
 	rd_byte(&p_ptr->song2);
 	rd_s16b(&p_ptr->song_duration);
-	rd_s16b(&p_ptr->wrath);
+	rd_s16b(&p_ptr->unused);
 	rd_s16b(&p_ptr->blind);
 	rd_s16b(&p_ptr->entranced);
 	rd_s16b(&p_ptr->confused);

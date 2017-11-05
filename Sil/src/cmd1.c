@@ -3828,13 +3828,7 @@ int py_attack_aux(int y, int x, int attack_type)
 						ident_weapon_by_use(o_ptr, m_ptr, TR1_VAMPIRIC);
 					}
 				}
-				
-				// gain wrath if singing song of slaying
-				if (singing(SNG_SLAYING))
-				{
-					add_wrath();
-				}
-				
+
 				// deal with 'follow_through' ability
 				possible_follow_through(y, x, attack_type);
 				

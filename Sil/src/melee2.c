@@ -1,5 +1,3 @@
-/* File: melee2.c */
-
 /*
  * Copyright (c) 2001 Leon Marrick & Bahman Rabii, Ben Harrison,
  * James E. Wilson, Robert A. Koeneke
@@ -21,6 +19,27 @@
  * character, and closer to him than this distance.
  */
 #define TURN_RANGE      3
+
+/*
+ * Tests if a monster is affected by Song of Challenge and if so how seriously.
+ */
+int challenge_check(monster_type *m_ptr)
+{
+	monster_race *r_ptr = &r_info[m_ptr->r_idx];
+	int challenge = ability_bonus(S_SNG, SNG_CHALLENGE);
+	int resistance = monster_skill(m_ptr, S_WIL);
+
+	if (!singing(SNG_CHALLENGE) ||
+		m_ptr->stance != STANCE_AGGRESSIVE ||
+		(r_ptr->flags3 & (RF3_NO_CONF)) ||
+		m_ptr->r_idx == R_IDX_MORGOTH) return 0;
+
+	// Adjust to work best against low-will monsters.
+	resistance = (resistance * resistance) / 5;
+
+	// adjust difficulty by the distance to the monster
+	return skill_check(PLAYER, challenge, resistance + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx), m_ptr);
+}
 
 /*
  * Calculate minimum and desired combat ranges.  -BR-
@@ -86,7 +105,19 @@ static void find_range(monster_type *m_ptr)
 			m_ptr->min_range = m_ptr->best_range - 1;
 		}
 	}
-	
+
+	if (challenge_check(m_ptr) > 0)
+	{
+		char m_name[80];
+		monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+		if (m_ptr->ml && m_ptr->mana > MON_MANA_MAX / 5)
+			msg_format("%^s is agitated by your song.", m_name);
+
+		m_ptr->mana = 0;
+		m_ptr->best_range = 0;
+		m_ptr->min_range = 0;
+	}
+
 	// Deal with the 'truce' on Morgoth's level (overrides everything else)
 	if (p_ptr->truce && (m_ptr->min_range < 25))
 	{ 
@@ -398,6 +429,12 @@ static int choose_ranged_attack(int m_idx)
 
 	/* No spells left */
 	if (!f4) return (0);
+
+	/* Ranged attacks are less likely if the monster is affected by Song of Challenge. */
+	if (challenge_check(m_ptr) > 0)
+	{
+		return (0);
+	}
 
 	/* Spells we can not afford */
 	remove_expensive_spells(m_idx, &f4);
@@ -3499,7 +3536,6 @@ void monster_exchange_places(monster_type *m_ptr)
     }
 }
 
-
 /*
  * Process a monster's move.
  *
@@ -3865,7 +3901,6 @@ static void process_move(monster_type *m_ptr, int ty, int tx, bool bash)
 				/* Kill the monster */
 				delete_monster(ny, nx);
 			}
-
 			/* Swap with or push aside the other monster */
 			else
 			{
@@ -4667,7 +4702,7 @@ static void process_monster(monster_type *m_ptr)
 
 		/* Cannot use ranged attacks during the truce. */
 		if (p_ptr->truce) chance = 0;
-		
+
 		/* Stunned monsters use ranged attacks half as often. */
 		if ((chance) && (m_ptr->stunned)) chance /= 2;
 
@@ -5142,6 +5177,12 @@ void calc_stance(monster_type *m_ptr)
 	if ((r_ptr->flags3 & (RF3_NO_FEAR)) && (m_ptr->tmp_morale >= 0))
 	{
 		stances[0] = STANCE_CONFIDENT;
+	}
+
+	// Song of Challenge makes non-fleeing monsters attack overconfidently
+	if (singing(SNG_CHALLENGE) && m_ptr->morale > 20 && !(r_ptr->flags3 & (RF3_NO_CONF)))
+	{
+		stances[1] = STANCE_AGGRESSIVE;
 	}
 
 	// Mindless monsters just attack

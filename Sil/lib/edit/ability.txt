@@ -572,10 +572,10 @@ D:Causes fear in nearby servants of Morgoth.
 T:33:0:99  # Crown
 T:40:0:99  # Amulet
 
-N:141:Song of Slaying
+N:141:Song of Challenge
 I:7:1:2
-D:Gives you a bonus to attack that increases
-D: for each kill, and then fades away over time.
+D:Causes weak-willed foes to attack without regard to strategy.
+D: Enemies with ranged weapons will close to melee range.
 T:33:0:99  # Crown
 T:40:0:99  # Amulet
 
@@ -608,7 +608,6 @@ T:40:0:99  # Amulet
 
 N:146:Song of Staying
 I:7:6:7
-P:7/1:7/4
 D:Gives you a bonus of +X to Will and [1dX] protection,
 D: where X = Song/3.
 T:33:0:99  # Crown

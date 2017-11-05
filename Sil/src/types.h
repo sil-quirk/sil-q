@@ -906,7 +906,7 @@ struct player_type
 
 	byte song1;			/* Current song */
 	byte song2;			/* Current minor theme */
-	s16b wrath;			/* The counter for the song of slaying */
+	s16b unused;			/* For the future */
 	s16b song_duration;	/* The duration of the current song */
 
 	s16b player_hp[PY_MAX_LEVEL];	/* HP Array */

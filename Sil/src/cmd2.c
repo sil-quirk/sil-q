@@ -3963,18 +3963,8 @@ void do_cmd_fire(int quiver)
 					
 					display_hit(y, x, net_dam, GF_HURT, fatal_blow);
 					
-					// if this was the killing shot
-					if (fatal_blow)
-					{
-						// gain wrath if singing song of slaying
-						if (singing(SNG_SLAYING))
-						{
-							add_wrath();
-						}
-					}
-					
-					// if it is still alive
-					else
+					// if this wasn't the killing shot
+					if (!fatal_blow)
 					{
 						// there is at least one target left on the trajectory
 						targets_remaining = TRUE;
@@ -4750,12 +4740,6 @@ void do_cmd_throw(bool automatic)
 				if (!potion_effect)
 				{
 					 fatal_blow = (mon_take_hit(cave_m_idx[y][x], net_dam, note_dies, -1));
-					 
-					// gain wrath if singing song of slaying
-					if (fatal_blow && singing(SNG_SLAYING))
-					{
-						add_wrath();
-					}
 				}
 
 				display_hit(y, x, net_dam, GF_HURT, fatal_blow);

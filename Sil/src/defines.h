@@ -548,7 +548,7 @@
  * Songs 
  */
 #define	SNG_ELBERETH				 0
-#define	SNG_SLAYING					 1
+#define	SNG_CHALLENGE					 1
 #define	SNG_SILENCE					 2
 #define	SNG_FREEDOM					 3
 #define	SNG_TREES					 4

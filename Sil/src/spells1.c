@@ -4227,24 +4227,6 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds, i
 	return (notice);
 }
 
-void add_wrath(void)
-{
-	int new_wrath = 200;
-
-	if (new_wrath < p_ptr->wrath)
-		new_wrath = 20000 / p_ptr->wrath;
-
-	p_ptr->update |= (PU_BONUS);
-	p_ptr->redraw |= (PR_SONG);
-
-	p_ptr->wrath += new_wrath;
-}
-
-int slaying_song_bonus(void)
-{
-	return (((ability_bonus(S_SNG, SNG_SLAYING) + 3) * p_ptr->wrath + 999) / 1000);
-}
-
 /*
  *  Do the effects of Song of Freedom
  */
@@ -4794,12 +4776,6 @@ void change_song(int song)
 		
 		return;
 	}
-	
-	// Reset wrath counter if stopping singing of slaying
-	//if (old_song == SNG_SLAYING)
-	//{
-	//	p_ptr->wrath = 0;
-	//}
 
 	// Reset the song duration counter if changing major theme
 	if (song_to_change == 1)
@@ -4838,19 +4814,19 @@ void change_song(int song)
 			}
 			break;
 		}
-		case SNG_SLAYING:
+		case SNG_CHALLENGE:
 		{
 			if (song_to_change == 1)
 			{
-				msg_print("You begin a song of fury and dread.");
+				msg_print("You begin a strident song of mockery and scorn.");
 			}
 			else if (old_song == SNG_NOTHING)
 			{
-				msg_print("You add a minor theme of fury and dread.");
+				msg_print("You add a minor theme of mockery and scorn.");
 			}
 			else
 			{
-				msg_print("You change your minor theme to one of fury and dread.");
+				msg_print("You change your minor theme to one of mockery and scorn.");
 			}
 			break;
 		}
@@ -5042,6 +5018,42 @@ bool known_to_delvings(int y, int x)
 {
 	if (!in_bounds(y,x)) return FALSE;
 	return ((cave_info[y][x] & CAVE_MARK) || (cave_info[y][x] & CAVE_SEEN));
+}
+
+void sing_song_of_challenge(int score)
+{
+	int i;
+
+	/* Scan all other monsters */
+	for (i = mon_max - 1; i >= 1; i--)
+	{
+		int resistance;
+		int result;
+
+		/* Access the monster */
+		monster_type *m_ptr = &mon_list[i];
+		monster_race *r_ptr = &r_info[m_ptr->r_idx];
+		monster_lore *l_ptr = &l_list[m_ptr->r_idx];
+
+		/* Ignore dead monsters */
+		if (!m_ptr->r_idx) continue;
+
+		resistance = monster_skill(m_ptr, S_WIL);
+
+		// adjust difficulty by the distance to the monster
+		result = skill_check(PLAYER, score, resistance + 3 + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx), m_ptr);
+
+		/* If successful, alert the monster and make it more aggressive */
+		if (result > 0)
+		{
+			set_alertness(m_ptr, m_ptr->alertness + result);
+			// boost morale and check for the monster turning aggressive
+			m_ptr->tmp_morale = MAX(m_ptr->tmp_morale, 60);
+			calc_morale(m_ptr);
+			calc_stance(m_ptr);
+		}
+	}
+
 }
 
 void sing_song_of_delvings(int score)
@@ -5250,9 +5262,12 @@ void sing(void)
 
 				break;
 			}
-			case SNG_SLAYING:
+			case SNG_CHALLENGE:
 			{
 				if ((p_ptr->song_duration % 3) == type - 1) cost += 1;
+
+				sing_song_of_challenge(score);
+
 				break;
 			}
 			case SNG_SILENCE:

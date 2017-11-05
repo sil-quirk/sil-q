@@ -2211,24 +2211,6 @@ static void process_player(void)
 		take_hit(p_ptr->chp, "loss of the will to live");
 	}
 
-	/* Reduce the wrath counter */
-	if (p_ptr->wrath)
-	{
-		amount = (p_ptr->wrath / 100) * (p_ptr->wrath / 100);
-		
-		// half as fast if still singing the song
-		if (singing(SNG_SLAYING))
-		{
-			p_ptr->wrath -= MAX(amount/4, 1);
-		}
-		else
-		{
-			p_ptr->wrath -= MAX(amount/2, 1);
-		}
-		p_ptr->update |= (PU_BONUS);
-		p_ptr->redraw |= (PR_SONG);
-	}
-	
 	/*** Check the Food, and Regenerate ***/
 
 	/* Basic digestion rate */

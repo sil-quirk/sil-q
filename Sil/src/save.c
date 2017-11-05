@@ -839,7 +839,7 @@ static void wr_extra(void)
 	wr_byte(p_ptr->song1);
 	wr_byte(p_ptr->song2);
 	wr_s16b(p_ptr->song_duration);
-	wr_s16b(p_ptr->wrath); 
+	wr_s16b(p_ptr->unused);
 	wr_s16b(p_ptr->blind);
 	wr_s16b(p_ptr->entranced);
 	wr_s16b(p_ptr->confused);

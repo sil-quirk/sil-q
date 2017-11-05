@@ -499,8 +499,7 @@ static void prt_song(void)
 	char *song1_name = b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name;
 	char *song2_name = b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name;
 	char buf[80];
-	int slaying_bonus = slaying_song_bonus();
-	
+
 	// wipe old songs
 	put_str("             ", ROW_SONG, COL_SONG);
 	put_str("             ", ROW_SONG + 1, COL_SONG);
@@ -515,21 +514,6 @@ static void prt_song(void)
 	if (p_ptr->song2 != SNG_NOTHING)
 	{
 		c_put_str(TERM_BLUE, song2_name + 8, ROW_SONG + 1, COL_SONG);
-	}
-	
-	// show the slaying score
-	if (slaying_bonus > 0)
-	{
-		sprintf(buf, "+%d", slaying_bonus);
-		
-		if (p_ptr->song1 == SNG_SLAYING)
-		{
-			c_put_str(TERM_L_BLUE, buf, ROW_SONG, COL_SONG + 8);
-		}
-		else if (p_ptr->song2 == SNG_SLAYING)
-		{
-			c_put_str(TERM_BLUE, buf, ROW_SONG + 1, COL_SONG + 8);
-		}
 	}
 }
 
@@ -1904,9 +1888,9 @@ int ability_bonus(int skilltype, int abilitynum)
 				bonus = skill;
 				break;
 			}
-			case SNG_SLAYING:
+			case SNG_CHALLENGE:
 			{
-				bonus = skill / 2;
+				bonus = skill;
 				break;
 			}
 			case SNG_SILENCE:
@@ -2552,7 +2536,7 @@ static void calc_bonuses(void)
 			{
 				case SNG_NOTHING:	song_noise += 0; break;
 				case SNG_ELBERETH:	song_noise += 8; break;
-				case SNG_SLAYING:	song_noise += 8; break;
+				case SNG_CHALLENGE:	song_noise += 12; break;
 				case SNG_SILENCE:	song_noise += 0; break;
 				case SNG_FREEDOM:	song_noise += 4; break;
 				case SNG_TREES:		song_noise += 4; break;
@@ -2613,11 +2597,6 @@ static void calc_bonuses(void)
 							  p_ptr->skill_stat_mod[S_SNG] + p_ptr->skill_misc_mod[S_SNG];
 
 	// Apply song effects that modify skills
-	if (singing(SNG_SLAYING))
-	{
-		p_ptr->skill_misc_mod[S_MEL] += slaying_song_bonus();
-		p_ptr->skill_misc_mod[S_ARC] += slaying_song_bonus();
-	}
 	if (singing(SNG_AULE))
 	{
 		p_ptr->skill_misc_mod[S_SMT] += ability_bonus(S_SNG, SNG_AULE);

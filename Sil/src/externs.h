@@ -732,8 +732,6 @@ extern void disease(int *damage);
 extern bool apply_disenchant(int mode);
 extern bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds, int dif, int typ,
 			 u32b flg, int degrees, bool uniform);
-extern void add_wrath(void);
-extern int  slaying_song_bonus(void);
 extern void song_of_binding(monster_type *m_ptr);
 extern void song_of_piercing(monster_type *m_ptr);
 extern void song_of_oaths(monster_type *m_ptr);
