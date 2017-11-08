@@ -44,13 +44,13 @@
 /*
  * Name of the version/variant
  */
-#define VERSION_NAME "Sil"
+#define VERSION_NAME "Sil-Q"
 
 
 /*
  * Current version string
  */
-#define VERSION_STRING	"1.3.1-q"
+#define VERSION_STRING	"1.3.2-q"
 
 
 /*
@@ -58,7 +58,7 @@
  */
 #define VERSION_MAJOR	1
 #define VERSION_MINOR	3
-#define VERSION_PATCH	1
+#define VERSION_PATCH	2
 #define VERSION_EXTRA	0
 
 
@@ -67,7 +67,7 @@
  */
 #define OLD_VERSION_MAJOR	1
 #define OLD_VERSION_MINOR	3
-#define OLD_VERSION_PATCH	1
+#define OLD_VERSION_PATCH	2
 
 
 /*

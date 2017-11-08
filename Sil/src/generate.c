@@ -305,7 +305,7 @@ static int choose_up_stairs(void)
 {
 	if (p_ptr->depth >= 2)
 	{
-		if (one_in_(2)) return (FEAT_LESS_SHAFT);
+		if (one_in_(2) || p_ptr->on_the_run) return (FEAT_LESS_SHAFT);
 	}
 
 	return (FEAT_LESS);
@@ -319,7 +319,7 @@ static int choose_down_stairs(void)
 {
 	if (p_ptr->depth < MORGOTH_DEPTH - 2)
 	{
-		if (one_in_(2)) return (FEAT_MORE_SHAFT);
+		if (one_in_(2) || p_ptr->on_the_run) return (FEAT_MORE_SHAFT);
 	}
 
 	return (FEAT_MORE);
@@ -1707,6 +1707,8 @@ static bool connect_rooms_stairs(void)
 	
     int width;
 	int stairs = 0;
+	int initial_up = FEAT_LESS;
+	int initial_down = FEAT_MORE;
 	
 	bool joined;
 
@@ -1806,10 +1808,16 @@ static bool connect_rooms_stairs(void)
     if (width <= 3)         stairs = 1;
     else if (width == 4)    stairs = 2;
     else                    stairs = 4;
+
+	if (p_ptr->on_the_run)
+	{
+		initial_down = FEAT_MORE_SHAFT;
+		stairs *= 2;
+	}
     
 	if ((p_ptr->create_stair == FEAT_MORE) || (p_ptr->create_stair == FEAT_MORE_SHAFT))
 		stairs--;
-	if (!(alloc_stairs(FEAT_MORE, stairs)))
+	if (!(alloc_stairs(initial_down, stairs)))
 	{
 		if (cheat_room) msg_format("Failed to place down stairs.");
 
@@ -1821,10 +1829,16 @@ static bool connect_rooms_stairs(void)
     if (width <= 3)         stairs = 1;
     else if (width == 4)    stairs = 2;
     else                    stairs = 4;
+
+	if (p_ptr->on_the_run)
+	{
+		initial_up = FEAT_LESS_SHAFT;
+		stairs *= 2;
+	}
     
     if ((p_ptr->create_stair == FEAT_LESS) || (p_ptr->create_stair == FEAT_LESS_SHAFT))
 		stairs--;
-	if (!(alloc_stairs(FEAT_LESS, stairs)))
+	if (!(alloc_stairs(initial_up, stairs)))
 	{
 		if (cheat_room) msg_format("Failed to place up stairs.");
 
