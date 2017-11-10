@@ -2600,6 +2600,7 @@ static void calc_bonuses(void)
 	if (singing(SNG_AULE))
 	{
 		p_ptr->skill_misc_mod[S_SMT] += ability_bonus(S_SNG, SNG_AULE);
+		p_ptr->resist_fire += 1;
 	}
 	if (singing(SNG_STAYING))
 	{

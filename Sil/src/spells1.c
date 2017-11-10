@@ -4883,15 +4883,15 @@ void change_song(int song)
 		{
 			if (song_to_change == 1)
 			{
-				msg_print("You begin a song of great enchantment.");
+				msg_print("You begin a song of the hammer and the forge's fire.");
 			}
 			else if (old_song == SNG_NOTHING)
 			{
-				msg_print("You add a minor theme of great enchantment.");
+				msg_print("You add a minor theme of the hammer and the forge's fire.");
 			}
 			else
 			{
-				msg_print("You change your minor theme to one of great enchantment.");
+				msg_print("You change your minor theme to one of the hammer and the forge's fire.");
 			}
 			break;
 		}
