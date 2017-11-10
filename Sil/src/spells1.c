@@ -5080,13 +5080,15 @@ void sing_song_of_delvings(int score)
 		for (x = min_x; x < max_x; ++x)
 		{
 			bool neighbour_known = FALSE;
+			int distance_from_player = (distance(py, px, y, x));
+			int adjusted_score = (score * 3) - distance_from_player;
 
 			for (yy = y - 1; yy <= y + 1; ++yy)
 			{
 				for (xx = x - 1; xx <= x + 1; ++xx)
 				{
 					int chance = dieroll(1000);
-					if (known_to_delvings(yy, xx) && chance < score)
+					if (known_to_delvings(yy, xx) && chance < adjusted_score)
 						neighbour_known = TRUE;
 				}
 			}

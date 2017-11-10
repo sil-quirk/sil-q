@@ -704,7 +704,7 @@ G:o:o
 I:2:15d4:0
 A:15:8:1:9
 P:[+4,4d4]
-B:HIT:HURT:(+8,3d8)
+B:HIT:HURT:(+8,3d7)
 F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART | ORC
 F:DROP_100 | UNIQUE_FRIEND | DROP_GOOD | HURT_LITE
 D:A huge champion of the orcs, clad in thick black armor
@@ -718,7 +718,7 @@ G:o:v
 I:2:11d4:0
 A:15:8:1:6
 P:[+16,2d4]
-B:HIT:HURT:(+21,1d8)
+B:HIT:HURT:(+21,1d7)
 F:UNIQUE | MALE | OPEN_DOOR | UNLOCK_DOOR | SMART | ORC
 F:DROP_100 | UNIQUE_FRIEND | DROP_GOOD | HURT_LITE | CRUEL_BLOW
 D:A small and exceptionally ugly orc, wearing dark leather

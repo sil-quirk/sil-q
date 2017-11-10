@@ -814,7 +814,6 @@ D: might should he face it again.
 
 ##
 ## The Spear 'Dugrakh'
-## (ability 0/3 is Polearm Mastery)
 ##
 
 N:85:'Dugrakh'
@@ -823,7 +822,6 @@ W:6:10:25:50000
 P:0:1d9:0:0d0
 F:REGEN | SEE_INVIS | RES_COLD | RES_FIRE
 F:AGGRAVATE | THROWING
-B:0/3
 D:A weapon forged long ago in Utumno by Sauron,
 D: soon after he declared allegiance to Melkor and departed
 D: the Blessed Realms. Black-hafted, with a bronze head,
@@ -871,16 +869,14 @@ D:A long spear, with a point like a sharp thorn of steel.
 
 ## The Great Spear of Melkor
 ## 1st age
-## (ability 0/8 is Impale)
 
 N:90:of Melkor
 G:/:D
 I:22:2:-1
 W:15:20:80:100000
-P:-1:1d14:2:0d0
-B:0/8
+P:-1:1d15:1:0d0
 F:GRA | BRAND_POIS
-F:SHARPNESS | VUL_POIS | LIGHT_CURSE 
+F:FREE_ACT | VUL_POIS | LIGHT_CURSE 
 D:A mighty black spear, once wielded by the Lord of Darkness
 D: himself as he came to Valinor in wrath. Its envenomed bite pierced
 D: the Two Trees with wounds that would not heal.

@@ -1004,8 +1004,6 @@ struct player_type
 	
 	s16b new_spells;		/* Number of spells available */
 
-	bool heavy_wield;	/* Heavy weapon */
-
 	s16b cur_light;		/* Radius of light (if any) */
 	s16b old_light;		/* Radius of light last turn (if any) */
 
