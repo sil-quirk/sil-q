@@ -538,7 +538,7 @@ bool cave_exist_mon(monster_race *r_ptr, int y, int x, bool occupied_ok, bool ca
 	}
 
 	/* Glyphs -- must break first */
-	if (feat == FEAT_GLYPH) return (FALSE);
+	if (cave_glyph(y, x)) return (FALSE);
 
 
 	/*** Check passability of various features. ***/
@@ -723,7 +723,8 @@ int cave_passable_mon(monster_type *m_ptr, int y, int x, bool *bash)
 			//}
 
 			// Some monsters can simply pass through doors
-			if (r_ptr->flags2 & (RF2_PASS_DOOR) || (r_ptr->flags2 & (RF2_PASS_WALL)))
+			if ((r_ptr->flags2 & (RF2_PASS_DOOR) || (r_ptr->flags2 & (RF2_PASS_WALL))) &&
+				!cave_glyph(y, x))
 			{
 				return (move_chance);
 			}
@@ -743,8 +744,23 @@ int cave_passable_mon(monster_type *m_ptr, int y, int x, bool *bash)
 			/* Monster can open doors */
 			if (r_ptr->flags2 & (RF2_OPEN_DOOR))
 			{
-				/* Closed doors and secret doors */
-				if ((feat == FEAT_DOOR_HEAD) || (feat == FEAT_SECRET))
+				if (feat == FEAT_WARDED)
+				{
+					// simulated Will check
+					unlock_chance = success_chance(10, monster_skill(m_ptr, S_WIL), 20);
+				}
+				else if (feat == FEAT_WARDED2)
+				{
+					// simulated Will check
+					unlock_chance = success_chance(10, monster_skill(m_ptr, S_WIL), 25);
+				}
+				else if (feat == FEAT_WARDED3)
+				{
+					// simulated Will check
+					unlock_chance = success_chance(10, monster_skill(m_ptr, S_WIL), 30);
+				}
+	/* Closed doors and secret doors */
+				else if ((feat == FEAT_DOOR_HEAD) || (feat == FEAT_SECRET))
 				{
 					/*
 					 * Note:  This section will have to be rewritten if
@@ -785,26 +801,44 @@ int cave_passable_mon(monster_type *m_ptr, int y, int x, bool *bash)
 			{
 				int difficulty, skill;
 
-				/* Door difficulty (power + 2) */
-				/*
-				 * XXX - just because a door is difficult to unlock
-				 * shouldn't mean that it's hard to bash.  Until the
-				 * character door bashing code is changed, however,
-				 * we'll stick with this.
-				 */
-				difficulty = ((feat - FEAT_DOOR_HEAD) % 8);
+				if (feat == FEAT_WARDED)
+				{
+					// simulated Will check
+					bash_chance = success_chance(10, monster_skill(m_ptr, S_WIL), 20);
+				}
+				else if (feat == FEAT_WARDED2)
+				{
+					// simulated Will check
+					bash_chance = success_chance(10, monster_skill(m_ptr, S_WIL), 25);
+				}
+				else if (feat == FEAT_WARDED3)
+				{
+					// simulated Will check
+					unlock_chance = success_chance(10, monster_skill(m_ptr, S_WIL), 30);
+				}
+				else
+				{
+					/* Door difficulty (power + 2) */
+					/*
+					 * XXX - just because a door is difficult to unlock
+					 * shouldn't mean that it's hard to bash.  Until the
+					 * character door bashing code is changed, however,
+					 * we'll stick with this.
+					 */
+					difficulty = ((feat - FEAT_DOOR_HEAD) % 8);
 
-				/*
-				 * Calculate bashing ability (ie effective strength)
-				 */
-				skill = monster_stat(m_ptr, A_STR) * 2;
+					/*
+					 * Calculate bashing ability (ie effective strength)
+					 */
+					skill = monster_stat(m_ptr, A_STR) * 2;
 
-				/*
-				 * Note that
-				 * monsters "fall" into the entranceway in the same
-				 * turn that they bash the door down.
-				 */
-				bash_chance = success_chance(10, skill, difficulty);
+					/*
+					 * Note that
+					 * monsters "fall" into the entranceway in the same
+					 * turn that they bash the door down.
+					 */
+					bash_chance = success_chance(10, skill, difficulty);
+				}
 			}
 
 			/*
@@ -3136,8 +3170,7 @@ static bool make_move(monster_type *m_ptr, int *ty, int *tx, bool fear,
 			}
 
 			/* XXX XXX -- Sometimes attempt to break glyphs. */
-			if ((cave_feat[ny][nx] == FEAT_GLYPH) && (!fear) &&
-			    (one_in_(5)))
+			if (cave_glyph(ny, nx) && (!fear) && (one_in_(5)))
 			{
 				break;
 			}
@@ -3772,6 +3805,15 @@ static void process_move(monster_type *m_ptr, int ty, int tx, bool bash)
 			/* Doors */
 			else if (cave_any_closed_door_bold(ny, nx))
 			{
+				if (cave_glyph(ny, nx))
+				{
+					/* Handle doors in sight */
+					if (player_can_see_bold(ny, nx))
+					{
+						msg_print("Your ward on the door is broken!");
+					}
+				}
+
 				/* Monster passes through doors */
 				if (r_ptr->flags2 & (RF2_PASS_DOOR))
 				{

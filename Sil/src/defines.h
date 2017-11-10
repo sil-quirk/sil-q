@@ -555,7 +555,7 @@
 #define	SNG_AULE					 5
 #define	SNG_STAYING					 6
 #define	SNG_LORIEN					 7
-#define	SNG_SWIFTNESS					 8
+#define	SNG_THRESHOLDS					 8
 #define	SNG_DELVINGS				 9
 #define	SNG_MASTERY					10
 #define	SNG_WOVEN_THEMES			11
@@ -909,6 +909,9 @@
 #define FEAT_GLYPH		0x03
 #define FEAT_OPEN		0x04
 #define FEAT_BROKEN		0x05
+#define FEAT_WARDED		0x06
+#define FEAT_WARDED2		0x07
+#define FEAT_WARDED3		0x08
 #define FEAT_CLOSED 	0x20  /*door*/
 
 /*stairs moved to make way for adventurers guild*/
@@ -3251,8 +3254,11 @@
  * Open or broken doors don't count.
  */
 #define cave_known_closed_door_bold(Y,X) \
-    ((cave_feat[Y][X] >= FEAT_DOOR_HEAD) && \
-     (cave_feat[Y][X] <= FEAT_DOOR_TAIL))
+    (((cave_feat[Y][X] >= FEAT_DOOR_HEAD) && \
+      (cave_feat[Y][X] <= FEAT_DOOR_TAIL)) || \
+      (cave_feat[Y][X] == FEAT_WARDED) || \
+      (cave_feat[Y][X] == FEAT_WARDED2) || \
+      (cave_feat[Y][X] == FEAT_WARDED3))
 
 /*
  * Determine if a "legal" grid is a closed door.
@@ -3261,9 +3267,19 @@
 #define cave_any_closed_door_bold(Y,X) \
    (((cave_feat[Y][X] >= FEAT_DOOR_HEAD) && \
      (cave_feat[Y][X] <= FEAT_DOOR_TAIL)) || \
-     (cave_feat[Y][X] == FEAT_SECRET))
+     (cave_feat[Y][X] == FEAT_SECRET) || \
+     (cave_feat[Y][X] == FEAT_WARDED) || \
+     (cave_feat[Y][X] == FEAT_WARDED2) || \
+     (cave_feat[Y][X] == FEAT_WARDED3))
 
-
+/*
+ * Determine if a "legal" grid is a glyph or warded door.
+ */
+#define cave_glyph(Y,X) \
+   ((cave_feat[Y][X] == FEAT_WARDED) || \
+    (cave_feat[Y][X] == FEAT_WARDED2) || \
+    (cave_feat[Y][X] == FEAT_WARDED3) || \
+    (cave_feat[Y][X] == FEAT_GLYPH))
 
 /*
  * Determine if a "legal" grid is within "los" of the player

@@ -579,7 +579,7 @@ int total_player_evasion(monster_type *m_ptr, bool archery)
 	
 	// reward successful use of the dodging ability 
 	evn += dodging_bonus();
-	
+
 	// reward successful use of the bane ability
 	evn += bane_bonus(m_ptr);
 

@@ -70,20 +70,20 @@ G:':U
 N:5:broken door
 G:.:U
 
-# 0x06 --> unused
+# 0x06 --> warded door (power 1)
 
-N:6:unused
-G:1:s
+N:6:warded door
+G:+:G
 
-# 0x07 --> unused
+# 0x07 --> warded door (power 2)
 
-N:7:unused
-G:1:s
+N:7:warded door
+G:+:B
 
-# 0x08 --> unused
+# 0x08 --> warded door (power 3)
 
-N:8:unused
-G:1:s
+N:8:warded door
+G:+:v
 
 # 0x09 --> unused
 

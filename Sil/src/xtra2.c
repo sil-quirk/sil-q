@@ -3143,7 +3143,7 @@ static bool target_set_interactive_accept(int y, int x)
 		if (cave_feat[y][x] == FEAT_CHASM) return (TRUE);
         
 		/* Notice glyphs */
-		if (cave_feat[y][x] == FEAT_GLYPH) return (TRUE);
+		if (cave_glyph(y, x)) return (TRUE);
 
 		/* Notice forges */
 		if (cave_forge_bold(y,x)) return (TRUE);

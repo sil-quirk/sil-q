@@ -66,7 +66,7 @@ void teleport_away(int m_idx, int dis)
 			if (!cave_empty_bold(ny, nx)) continue;
 
 			/* Hack -- no teleport onto glyph of warding */
-			if (cave_feat[ny][nx] == FEAT_GLYPH) continue;
+			if (cave_glyph(ny, nx)) continue;
 
 			/* No teleporting into vaults and such */
 			/* if (cave_info[ny][nx] & (CAVE_ICKY)) continue; */
@@ -294,7 +294,7 @@ void teleport_towards(int oy, int ox, int ny, int nx)
 		if (cave_empty_bold(y, x))
 		{
 			/*Don't allow monster to teleport onto glyphs*/
-			if (cave_feat[y][x] == FEAT_GLYPH) continue;
+			if (cave_glyph(y, x)) continue;
 
 			/* Calculate distance between target and current grid */
 			dist = distance(ny, nx, y, x);
@@ -4230,7 +4230,7 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds, i
 /*
  *  Do the effects of Song of Freedom
  */
-void song_of_freedom(int score)
+void sing_song_of_freedom(int score)
 {
     int y, x;
     int base_difficulty, difficulty;
@@ -4927,19 +4927,19 @@ void change_song(int song)
 			}
 			break;
 		}
-		case SNG_SWIFTNESS:
+		case SNG_THRESHOLDS:
 		{
 			if (song_to_change == 1)
 			{
-				msg_print("You begin a song about fleet-footed Nessa, faster than the deer.");
+				msg_print("You begin a song of ways guarded and impassable.");
 			}
 			else if (old_song == SNG_NOTHING)
 			{
-				msg_print("You add a minor theme about fleet-footed Nessa, faster than the deer.");
+				msg_print("You add a minor theme of ways guarded and impassable.");
 			}
 			else
 			{
-				msg_print("You change your minor theme to one about fleet-footed Nessa, faster than the deer.");
+				msg_print("You change your minor theme to one of ways guarded and impassable.");
 			}
 			break;
 		}
@@ -5081,7 +5081,7 @@ void sing_song_of_delvings(int score)
 		{
 			bool neighbour_known = FALSE;
 			int distance_from_player = (distance(py, px, y, x));
-			int adjusted_score = (score * 3) - distance_from_player;
+			int adjusted_score = score - distance_from_player;
 
 			for (yy = y - 1; yy <= y + 1; ++yy)
 			{
@@ -5280,7 +5280,7 @@ void sing(void)
 			case SNG_FREEDOM:
 			{
 				if ((p_ptr->song_duration % 3) == type - 1) cost += 1;
-                song_of_freedom(score);
+				sing_song_of_freedom(score);
 				break;
 			}
 			case SNG_TREES:
@@ -5306,11 +5306,9 @@ void sing(void)
 
 				break;
 			}
-			case SNG_SWIFTNESS:
+			case SNG_THRESHOLDS:
 			{
-				cost += 4;
-
-				p_ptr->fast = MAX(p_ptr->fast + 1, 2);
+				cost += 1;
 
 				break;
 			}

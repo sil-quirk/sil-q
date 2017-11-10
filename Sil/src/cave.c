@@ -4189,7 +4189,8 @@ void cave_set_feat(int y, int x, int feat)
 	cave_feat[y][x] = feat;
 
 	/* Handle "wall/door" grids */
-	if ((feat >= FEAT_DOOR_HEAD) && (feat <= FEAT_WALL_TAIL))
+	if (((feat >= FEAT_DOOR_HEAD) && (feat <= FEAT_WALL_TAIL)) ||
+		feat == FEAT_WARDED || feat == FEAT_WARDED2 || feat == FEAT_WARDED3)
 	{
 		cave_info[y][x] |= (CAVE_WALL);
 	}

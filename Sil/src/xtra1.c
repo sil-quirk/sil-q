@@ -503,7 +503,7 @@ static void prt_song(void)
 	// wipe old songs
 	put_str("             ", ROW_SONG, COL_SONG);
 	put_str("             ", ROW_SONG + 1, COL_SONG);
-	
+
 	// show the first song
 	if (p_ptr->song1 != SNG_NOTHING)
 	{
@@ -1923,14 +1923,14 @@ int ability_bonus(int skilltype, int abilitynum)
 				bonus = skill;
 				break;
 			}
-			case SNG_SWIFTNESS:
+			case SNG_THRESHOLDS:
 			{
 				bonus = skill;
 				break;
 			}
 			case SNG_DELVINGS:
 			{
-				bonus = skill;
+				bonus = skill * 3;
 				break;
 			}
 			case SNG_MASTERY:
@@ -2365,7 +2365,7 @@ static void calc_bonuses(void)
 	{
 		p_ptr->resist_pois += 1;
 	}
-	
+
 	/*** Temporary flags ***/
 
 	/* Apply temporary "stun" */
@@ -2543,7 +2543,7 @@ static void calc_bonuses(void)
 				case SNG_AULE:		song_noise += 8; break;
 				case SNG_STAYING:	song_noise += 4; break;
 				case SNG_LORIEN:	song_noise += 4; break;
-				case SNG_SWIFTNESS:	song_noise += 8; break;
+				case SNG_THRESHOLDS:	song_noise += 4; break;
 				case SNG_DELVINGS:	song_noise += 4; break;
 				case SNG_MASTERY:	song_noise += 8; break;
 			}		
@@ -2608,6 +2608,14 @@ static void calc_bonuses(void)
 	if (singing(SNG_FREEDOM))
 	{
 		p_ptr->free_act += 1;
+	}
+	if (singing(SNG_THRESHOLDS))
+	{
+		int feat = cave_feat[p_ptr->py][p_ptr->px];
+		if (feat == FEAT_BROKEN || feat == FEAT_OPEN)
+		{
+			p_ptr->skill_misc_mod[S_EVN] += ability_bonus(S_SNG, SNG_THRESHOLDS) / 3;
+		}
 	}
 
 	/*** Finalise all skills other than combat skills  (as bows/weapons must be analysed first) ***/

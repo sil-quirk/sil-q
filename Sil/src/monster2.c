@@ -2276,7 +2276,7 @@ bool place_monster_one(int y, int x, int r_idx, bool slp, bool ignore_depth, mon
 	if (!cave_empty_bold(y, x)) return (FALSE);
 
 	/* Hack -- no creation on glyph of warding */
-	if (cave_feat[y][x] == FEAT_GLYPH) return (FALSE);
+	if (cave_glyph(y, x)) return (FALSE);
 
 	/* Handle failure of the "get_mon_num()" function */
 	if (!r_idx) return (FALSE);
@@ -3246,7 +3246,7 @@ bool summon_specific(int y1, int x1, int lev, int type)
 		if (!cave_empty_bold(y, x)) continue;
 
 		/* Hack -- no summon on glyph of warding */
-		if (cave_feat[y][x] == FEAT_GLYPH) continue;
+		if (cave_glyph(y, x)) continue;
 
 		/* Okay */
 		break;
