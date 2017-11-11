@@ -30,7 +30,12 @@ byte total_mdd(const object_type *o_ptr)
 	}
 	/* add the modifiers */
 	dd += p_ptr->to_mdd;
-	
+
+	if (p_ptr->active_ability[S_WIL][WIL_VENGEANCE])
+	{
+		dd += p_ptr->vengeance;
+	}
+
 	return (dd);
 }
 
@@ -412,12 +417,7 @@ static void prt_hp(void)
 	int len;
 	byte color;
 
-	if (p_ptr->unwounded == 0)
-	{
-		c_put_str(TERM_RED, "Will        ", ROW_HP, COL_HP);
-		c_put_str(TERM_RED, "Mortally Wounded", ROW_MORTAL_WOUND, COL_MORTAL_WOUND);
-	}
-	else if (p_ptr->mhp >= 100)
+	if (p_ptr->mhp >= 100)
 	{
 		put_str("Hth        ", ROW_HP, COL_HP);
 	}
@@ -427,12 +427,6 @@ static void prt_hp(void)
 	}
 
 	len = sprintf(tmp, "%d:%d", p_ptr->chp, p_ptr->mhp);
-
-	if (p_ptr->unwounded == 0)
-	{
-		c_put_str(TERM_RED, tmp, ROW_HP, COL_HP + 12 - len);
-		return;
-	}
 
 	c_put_str(TERM_L_GREEN, tmp, ROW_HP, COL_HP + 12 - len);
 
@@ -1501,35 +1495,26 @@ static void calc_hitpoints(void)
 	int i;
 	int tmp;
 
-	
-	if (p_ptr->active_ability[S_WIL][WIL_DEFIANCE] && p_ptr->unwounded == 0)
+	/* Get hitpoint value */
+	// 20 + a compounding 20% bonus per point of con
+
+	tmp = 20 * 100;
+	if (p_ptr->stat_use[A_CON] >= 0)
 	{
-		mhp = p_ptr->skill_use[S_WIL];
+		for (i = 0; i < p_ptr->stat_use[A_CON]; i++)
+		{
+			tmp = tmp * 12 / 10;
+		}
 	}
 	else
 	{
-
-		/* Get hitpoint value */
-		// 20 + a compounding 20% bonus per point of con
-
-		tmp = 20 * 100;
-		if (p_ptr->stat_use[A_CON] >= 0)
+		for (i = 0; i < -(p_ptr->stat_use[A_CON]); i++)
 		{
-			for (i = 0; i < p_ptr->stat_use[A_CON]; i++)
-			{
-				tmp = tmp * 12 / 10;
-			}
+			tmp = tmp * 10 / 12;
 		}
-		else
-		{
-			for (i = 0; i < -(p_ptr->stat_use[A_CON]); i++)
-			{
-				tmp = tmp * 10 / 12;
-			}
-		}
-		mhp = tmp / 100;
 	}
-	
+	mhp = tmp / 100;
+
 	/* New maximum hitpoints */
 	if (p_ptr->mhp != mhp)
 	{
@@ -2335,7 +2320,7 @@ static void calc_bonuses(void)
 	if (p_ptr->active_ability[S_WIL][WIL_STRENGTH_IN_ADVERSITY])
 	{
 		// if <= 50% health, give a bonus to strength and grace
-		if (health_level(p_ptr->chp, p_ptr->mhp) <= HEALTH_BADLY_WOUNDED || p_ptr->unwounded == 0)
+		if (health_level(p_ptr->chp, p_ptr->mhp) <= HEALTH_BADLY_WOUNDED)
 		{
 			p_ptr->stat_misc_mod[A_STR]++;
 			p_ptr->stat_misc_mod[A_DEX]++;
@@ -2343,7 +2328,7 @@ static void calc_bonuses(void)
 		}
 
 		// if <= 25% health, give an extra bonus
-		if (health_level(p_ptr->chp, p_ptr->mhp) <= HEALTH_ALMOST_DEAD || p_ptr->unwounded == 0)
+		if (health_level(p_ptr->chp, p_ptr->mhp) <= HEALTH_ALMOST_DEAD)
 		{
 			p_ptr->stat_misc_mod[A_STR]++;
 			p_ptr->stat_misc_mod[A_DEX]++;
@@ -2780,12 +2765,6 @@ static void calc_bonuses(void)
     /* Always redraw terrain */
     p_ptr->redraw |= (PR_TERRAIN);
     
-	if (p_ptr->skill_use[S_WIL] != old_skill_use[S_WIL])
-	{
-		// DEFIANCE
-		p_ptr->update |= (PU_HP);
-	}
-
 	/* Redraw melee (if needed) */
 	if ((p_ptr->skill_use[S_MEL] != old_skill_use[S_MEL]) || (p_ptr->mdd != old_mdd) || (p_ptr->mds != old_mds) || 
 															 (p_ptr->mdd2 != old_mdd2) || (p_ptr->mds2 != old_mds2))

@@ -3980,9 +3980,8 @@ void do_cmd_fire(int quiver)
 					
 					// hit the monster, check for death
 					fatal_blow = mon_take_hit(cave_m_idx[y][x], net_dam, note_dies, -1);
-					
 					display_hit(y, x, net_dam, GF_HURT, fatal_blow);
-					
+
 					// if this wasn't the killing shot
 					if (!fatal_blow)
 					{

@@ -603,6 +603,9 @@ static void player_wipe(void)
 	p_ptr->fixed_forge_count = 0;
 	p_ptr->forge_count = 0;
 
+	// No vengeance at birth
+	p_ptr->vengeance = 0;
+
 	/*re-set the thefts counter*/
 	recent_failed_thefts = 0;
 
@@ -1599,7 +1602,6 @@ static bool player_birth_aux_2(void)
 
 		/* Fully healed */
 		p_ptr->chp = p_ptr->mhp;
-		p_ptr->unwounded = 1;
 
 		/* Fully rested */
 		calc_voice();

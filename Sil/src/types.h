@@ -829,7 +829,7 @@ struct player_type
 	s16b age;			/* Character's age */
 	s16b ht;			/* Height */
 	s16b wt;			/* Weight */
-	s16b unwounded;		/* Mortally wounded? */
+	s16b unused2;		/* Spare */
 
 	s16b max_depth;		/* Max depth */
 	s16b depth;			/* Cur depth */
@@ -904,9 +904,10 @@ struct player_type
 
 	byte self_made_arts;	/* Number of self-made artefacts so far */
 
+	s16b vengeance;			/* Vengeance counter */
+
 	byte song1;			/* Current song */
 	byte song2;			/* Current minor theme */
-	s16b unused;			/* For the future */
 	s16b song_duration;	/* The duration of the current song */
 
 	s16b player_hp[PY_MAX_LEVEL];	/* HP Array */

@@ -1436,6 +1436,11 @@ bool make_attack_normal(monster_type *m_ptr)
 				}
 			}
 
+			if (net_dam > 0 && p_ptr->active_ability[S_WIL][WIL_VENGEANCE])
+			{
+				p_ptr->vengeance = 1;
+			}
+
 			update_combat_rolls2(dd + crit_bonus_dice + elem_bonus_dice, ds, dam, -1, -1, prt, prt_percent, dam_type, TRUE); 
 		
 			display_hit(p_ptr->py, p_ptr->px, net_dam, dam_type, p_ptr->is_dead);

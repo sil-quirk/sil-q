@@ -824,13 +824,13 @@ static errr rd_extra(void)
 	rd_u16b(&p_ptr->staircasiness);
 
 	/* More info */
-	rd_s16b(&p_ptr->unwounded);
+	rd_s16b(&p_ptr->unused2);
 
 	/* Read the flags */
 	rd_byte(&p_ptr->song1);
 	rd_byte(&p_ptr->song2);
 	rd_s16b(&p_ptr->song_duration);
-	rd_s16b(&p_ptr->unused);
+	rd_s16b(&p_ptr->vengeance);
 	rd_s16b(&p_ptr->blind);
 	rd_s16b(&p_ptr->entranced);
 	rd_s16b(&p_ptr->confused);

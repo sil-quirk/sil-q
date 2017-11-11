@@ -479,19 +479,16 @@ I:5:6:7
 P:5/1:5/5
 D:Gives you resistance to poison.
 
-N:107:Defiance
+N:107:Vengeance
 I:5:7:8
 P:5/1
-D:You do not die when your health reaches zero, but become
-D: mortally wounded instead, with health equal to your Will.
-D: Your health will never again recover beyond this, and
-D: abilities that trigger at low health will be permanently
-D: on.
+D:When you are damaged by an enemy, an additional damage die is added
+D: to your next successful strike. This effect does not stack.
 T:40:0:99  # Amulet
 
 N:108:Critical Resistance
 I:5:8:9
-P:5/2:5/5
+P:5/5
 D:Raises the base number enemies need to get critical hits against
 D: you by 1 per 5 points of Will.
 T:32:0:99  # Helm
@@ -630,10 +627,10 @@ T:40:0:99  # Amulet
 
 N:149:Song of Delvings
 I:7:9:10
-D:Sharpens your understanding of your surroundings.
-D: Every turn terrain adjacent to already known areas has a
+D:Every turn terrain adjacent to already known areas has a
 D: chance of becoming known proportional to your Song skill.
 D: You may also learn of movements made by creatures of stone.
+T:20:0:99  # Shovels and Mattocks
 T:33:0:99  # Crown
 T:40:0:99  # Amulet
 

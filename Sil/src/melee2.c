@@ -111,7 +111,9 @@ static void find_range(monster_type *m_ptr)
 		char m_name[80];
 		monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 		if (m_ptr->ml && m_ptr->mana > MON_MANA_MAX / 5)
+		{
 			msg_format("%^s is agitated by your song.", m_name);
+		}
 
 		m_ptr->mana = 0;
 		m_ptr->best_range = 0;
@@ -4561,6 +4563,16 @@ static void process_monster(monster_type *m_ptr)
 	// Morgoth is always active during the escape
 	// Sil-y: but this might be irrelevant as he can be unwary...
 	if ((m_ptr->r_idx == R_IDX_MORGOTH) && p_ptr->on_the_run) m_ptr->mflag |= (MFLAG_ACTV);
+
+	if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_ALMOST_DEAD &&
+		one_in_(m_ptr->hp / 20))
+	{
+		msg_print("Morgoth grows desperate!");
+		message_flush();
+
+		(&r_info[R_IDX_MORGOTH])->evn += 3;
+		(&r_info[R_IDX_MORGOTH])->blow[0].att += 4;
+	}
 
 	// Pursuing creatures are always active at the Gates
 	if ((r_ptr->level > 17) && (p_ptr->depth == 0)) m_ptr->mflag |= (MFLAG_ACTV);

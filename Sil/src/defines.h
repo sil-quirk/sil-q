@@ -527,7 +527,7 @@
 #define	WIL_INDOMITABLE				4
 #define	WIL_HARDINESS				5
 #define	WIL_POISON_RESISTANCE			6
-#define	WIL_DEFIANCE				7
+#define	WIL_VENGEANCE				7
 #define	WIL_CRITICAL_RESISTANCE			8
 #define	WIL_MAJESTY				9
 #define	WIL_CON					10

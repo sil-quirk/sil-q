@@ -3798,6 +3798,7 @@ int py_attack_aux(int y, int x, int attack_type)
 
 			// damage, check for death
 			fatal_blow = mon_take_hit(cave_m_idx[y][x], net_dam, NULL, -1);
+			p_ptr->vengeance = 0;
 
 			// use different colours depending on whether knock back triggered
 			if (do_knock_back)

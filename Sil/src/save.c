@@ -834,12 +834,12 @@ static void wr_extra(void)
 	wr_u16b(p_ptr->staircasiness);
 
 	/* More info */
-	wr_s16b(p_ptr->unwounded);
+	wr_s16b(p_ptr->unused2);
 
 	wr_byte(p_ptr->song1);
 	wr_byte(p_ptr->song2);
 	wr_s16b(p_ptr->song_duration);
-	wr_s16b(p_ptr->unused);
+	wr_s16b(p_ptr->vengeance);
 	wr_s16b(p_ptr->blind);
 	wr_s16b(p_ptr->entranced);
 	wr_s16b(p_ptr->confused);
