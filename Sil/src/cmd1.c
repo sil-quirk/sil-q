@@ -4298,7 +4298,7 @@ void move_player(int dir)
 		{
             // leapable things: chasms, known pits, known false floors
             if (((cave_feat[y][x] == FEAT_CHASM) && !climbable(p_ptr->py, p_ptr->px, y, x)) ||
-                ((cave_pit_bold(y,x) || (cave_feat[y][x] == FEAT_TRAP_FALSE_FLOOR)) && !cave_floorlike_bold(y,x)))
+                ((cave_trap_bold(y,x)) && !cave_floorlike_bold(y,x)))
             {
                 char prompt[80];
                 int i;
