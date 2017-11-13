@@ -245,9 +245,10 @@ T:31:0:99  # Gloves
 
 N:44:Leaping
 I:2:4:6
-D:You can leap over a chasm, pit, or false floor if you moved
-D: towards it the previous turn.
+D:You can leap over a chasm or trap if you moved
+D: towards it the previous turn. (Roosts and webs are not leapable).
 T:30:0:99  # Boots
+T:21:3:3   # Quarterstaves
 
 N:45:Sprinting
 I:2:5:7
@@ -482,8 +483,8 @@ D:Gives you resistance to poison.
 N:107:Vengeance
 I:5:7:8
 P:5/1
-D:When you are damaged by an enemy, an additional damage die is added
-D: to your next successful strike. This effect does not stack.
+D:When you are damaged in melee by an enemy, an additional damage
+D: die is added to your next successful strike. This effect does not stack.
 T:40:0:99  # Amulet
 
 N:108:Critical Resistance

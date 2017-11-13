@@ -2579,44 +2579,43 @@ void show_help_screen(int i)
 
 			row += 6;
 
-			c_put_str(TERM_SLATE, "Use shift or . to move continuously",            row, col);
+			c_put_str(TERM_SLATE, "Use shift or . to move continuously", row, col);
 			c_put_str(TERM_WHITE, "shift",   row, col + 4);
 			c_put_str(TERM_WHITE, ".",   row, col + 13);
 			row++;			
-			c_put_str(TERM_SLATE, "- direction 5 or z rests until healed",                  row, col + 2);
+			c_put_str(TERM_SLATE, "- direction 5 or z rests until healed", row, col + 2);
 			row++;
 			row++;
 			
-			c_put_str(TERM_SLATE, "Use control or / to interact with a square:",            row, col);
+			c_put_str(TERM_SLATE, "Use control or / to interact with a square:", row, col);
 			c_put_str(TERM_WHITE, "control",   row, col + 4);
 			if (angband_keyset)	c_put_str(TERM_WHITE, "+",  row, col + 15);
 			else				c_put_str(TERM_WHITE, "/",  row, col + 15);
 			row++;
 			
-			c_put_str(TERM_SLATE, "- tunnels through rubble/walls",                  row, col + 2);
+			c_put_str(TERM_SLATE, "- tunnels through rubble/walls", row, col + 2);
 			row++;
-			c_put_str(TERM_SLATE, "- closes open doors",                      row, col + 2);
+			c_put_str(TERM_SLATE, "- closes open doors", row, col + 2);
 			row++;
-			c_put_str(TERM_SLATE, "- bashes closed doors",                    row, col + 2);
+			c_put_str(TERM_SLATE, "- bashes closed doors", row, col + 2);
 			row++;
-			c_put_str(TERM_SLATE, "- disarms floor traps",                    row, col + 2);
+			c_put_str(TERM_SLATE, "- disarms floor traps", row, col + 2);
 			row++;
-			c_put_str(TERM_SLATE, "- disarms/opens chests",              row, col + 2);
+			c_put_str(TERM_SLATE, "- disarms/opens chests and searches skeletons", row, col + 2);
 			row++;
-			c_put_str(TERM_SLATE, "- attacks monsters without moving",        row, col + 2);
+			c_put_str(TERM_SLATE, "- attacks monsters without moving", row, col + 2);
 			row++;
 			row++;
-			c_put_str(TERM_SLATE, "Interacting with your own square also:",                  row, col);
+			c_put_str(TERM_SLATE, "Interacting with your own square also:", row, col);
 			row++;
-			c_put_str(TERM_SLATE, "- picks up an item",                      row, col + 2);
+			c_put_str(TERM_SLATE, "- picks up an item", row, col + 2);
 			row++;
-			c_put_str(TERM_SLATE, "- uses a staircase/forge",                    row, col + 2);
+			c_put_str(TERM_SLATE, "- uses a staircase/forge", row, col + 2);
 			row++;
 			c_put_str(TERM_SLATE, "- can be done by pressing ,",                    row, col + 2);
-			c_put_str(TERM_WHITE, ",",                                       row, col + 28);
+			c_put_str(TERM_WHITE, ",", row, col + 28);
 			row++;
 			row++;
-
 			
 			row = 3;
 			col = 52;
@@ -2720,6 +2719,11 @@ void show_help_screen(int i)
 			row++;
 			c_put_str(TERM_L_UMBER, "'",               row, col);
 			c_put_str(TERM_WHITE,   "open door",        row, col + 2);
+			row++;
+			c_put_str(TERM_L_GREEN, "+",               row, col);
+			c_put_str(TERM_L_BLUE, "+",               row, col + 1);
+			c_put_str(TERM_VIOLET, "+",               row, col + 2);
+			c_put_str(TERM_WHITE,   "warded doors",      row, col + 4);
 			row++;
 			c_put_str(TERM_L_WHITE, ">",               row, col);
 			c_put_str(TERM_WHITE,   "staircase down",   row, col + 2);

@@ -4564,14 +4564,25 @@ static void process_monster(monster_type *m_ptr)
 	// Sil-y: but this might be irrelevant as he can be unwary...
 	if ((m_ptr->r_idx == R_IDX_MORGOTH) && p_ptr->on_the_run) m_ptr->mflag |= (MFLAG_ACTV);
 
-	if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_ALMOST_DEAD &&
-		one_in_(m_ptr->hp / 20))
+	if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_BADLY_WOUNDED &&
+		p_ptr->morgoth_state < 1)
+	{
+		msg_print("Morgoth grows angry.");
+		message_flush();
+
+		p_ptr->morgoth_state++;
+		(&r_info[R_IDX_MORGOTH])->evn += 4;
+		(&r_info[R_IDX_MORGOTH])->blow[0].att += 6;
+	}
+	else if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_ALMOST_DEAD &&
+		p_ptr->morgoth_state < 2)
 	{
 		msg_print("Morgoth grows desperate!");
 		message_flush();
 
-		(&r_info[R_IDX_MORGOTH])->evn += 3;
-		(&r_info[R_IDX_MORGOTH])->blow[0].att += 4;
+		p_ptr->morgoth_state++;
+		(&r_info[R_IDX_MORGOTH])->evn += 4;
+		(&r_info[R_IDX_MORGOTH])->blow[0].att += 6;
 	}
 
 	// Pursuing creatures are always active at the Gates

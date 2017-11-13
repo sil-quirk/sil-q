@@ -824,7 +824,7 @@ static errr rd_extra(void)
 	rd_u16b(&p_ptr->staircasiness);
 
 	/* More info */
-	rd_s16b(&p_ptr->unused2);
+	rd_s16b(&p_ptr->morgoth_state);
 
 	/* Read the flags */
 	rd_byte(&p_ptr->song1);

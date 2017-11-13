@@ -606,6 +606,9 @@ static void player_wipe(void)
 	// No vengeance at birth
 	p_ptr->vengeance = 0;
 
+	// Morgoth unhurt
+	p_ptr->morgoth_state = 0;
+
 	/*re-set the thefts counter*/
 	recent_failed_thefts = 0;
 

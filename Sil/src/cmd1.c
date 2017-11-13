@@ -4296,9 +4296,10 @@ void move_player(int dir)
 		/* Check before walking on known traps/chasms on movement */
 		if ((!p_ptr->confused) && (cave_info[y][x] & (CAVE_MARK)))
 		{
-            // leapable things: chasms, known pits, known false floors
+            // leapable things: chasms, traps (except roosts and webs)
             if (((cave_feat[y][x] == FEAT_CHASM) && !climbable(p_ptr->py, p_ptr->px, y, x)) ||
-                ((cave_trap_bold(y,x)) && !cave_floorlike_bold(y,x)))
+                (((cave_trap_bold(y,x)) && !cave_floorlike_bold(y,x)) &&
+		 !(cave_feat[y][x] == FEAT_TRAP_ROOST || cave_feat[y][x] == FEAT_TRAP_WEB)))
             {
                 char prompt[80];
                 int i;
