@@ -324,6 +324,11 @@ static errr rd_item(object_type *o_ptr)
 		rd_byte(&o_ptr->abilitynum[i]);
 	}
 
+	rd_s32b(&o_ptr->unused1);
+	rd_s32b(&o_ptr->unused2);
+	rd_s32b(&o_ptr->unused3);
+	rd_s32b(&o_ptr->unused4);
+
 	// 8 spare bytes
 	strip_bytes(8);
 		
@@ -966,6 +971,11 @@ static errr rd_extra(void)
 	
 	/* Current player turn */
 	rd_s32b(&playerturn);
+
+	rd_s32b(&p_ptr->unused1);
+	rd_s32b(&p_ptr->unused2);
+	rd_s32b(&p_ptr->unused3);
+	rd_s32b(&p_ptr->unused4);
 
 	return (0);
 }

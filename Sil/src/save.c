@@ -493,7 +493,12 @@ static void wr_item(const object_type *o_ptr)
 		wr_byte(o_ptr->skilltype[i]);
 		wr_byte(o_ptr->abilitynum[i]);
 	}
-	
+
+	wr_s32b(o_ptr->unused1);
+	wr_s32b(o_ptr->unused2);
+	wr_s32b(o_ptr->unused3);
+	wr_s32b(o_ptr->unused4);
+
 	// 8 spare bytes
 	wr_u32b(0L);
 	wr_u32b(0L);
@@ -955,6 +960,11 @@ static void wr_extra(void)
 	/* Current turn */
 	wr_s32b(turn);
 	wr_s32b(playerturn);
+
+	wr_s32b(p_ptr->unused1);
+	wr_s32b(p_ptr->unused2);
+	wr_s32b(p_ptr->unused3);
+	wr_s32b(p_ptr->unused4);
 }
 
 

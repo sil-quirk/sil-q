@@ -609,6 +609,11 @@ static void player_wipe(void)
 	// Morgoth unhurt
 	p_ptr->morgoth_state = 0;
 
+	p_ptr->unused1 = 0;
+	p_ptr->unused2 = 0;
+	p_ptr->unused3 = 0;
+	p_ptr->unused4 = 0;
+
 	/*re-set the thefts counter*/
 	recent_failed_thefts = 0;
 

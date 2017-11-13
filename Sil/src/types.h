@@ -558,6 +558,11 @@ struct object_type
 	byte abilities;	    // Number of abilities
 	byte skilltype[8];  // Skill-types for the granted abilities (8 = 4 for object base + 4 for special or artefact)
 	byte abilitynum[8]; // Ability numbers for these
+
+	s32b unused1; // Room for expansion without breaking savefiles
+	s32b unused2; // Room for expansion without breaking savefiles
+	s32b unused3; // Room for expansion without breaking savefiles
+	s32b unused4; // Room for expansion without breaking savefiles
 };
 
 
@@ -1076,6 +1081,11 @@ struct player_type
 	s16b hunger;		/* Hunger rate */
 	
 	byte artefacts;		/* Number of artefacts generated so far */
+
+	s32b unused1; // Room for expansion without breaking savefiles
+	s32b unused2; // Room for expansion without breaking savefiles
+	s32b unused3; // Room for expansion without breaking savefiles
+	s32b unused4; // Room for expansion without breaking savefiles
 };
 
 
