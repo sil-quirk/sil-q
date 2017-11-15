@@ -1,0 +1,4 @@
+*.o
+*.raw
+src/sil
+.DS_Store
