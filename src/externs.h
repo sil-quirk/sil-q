@@ -401,7 +401,6 @@ extern void do_cmd_equip(void);
 extern void do_cmd_wield(object_type *default_o_ptr, int default_item);
 extern void do_cmd_takeoff(object_type *default_o_ptr, int default_item);
 extern void do_cmd_drop(void);
-extern void shatter_weapon(int silnum);
 extern void prise_silmaril(void);
 extern void do_cmd_destroy(void);
 extern void do_cmd_observe(void);

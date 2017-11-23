@@ -919,9 +919,6 @@ void prise_silmaril(void)
 	int crit_bonus_dice = 0;
 	int pd = 20;
 
-	// will check
-	bool will_test_passed = FALSE;
-
 	int noise = 0;
 	u32b dummy_noticed_flag;
 	
