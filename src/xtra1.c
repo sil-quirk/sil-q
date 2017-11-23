@@ -2862,10 +2862,16 @@ void update_lore_aux(object_type *o_ptr)
 		bool foodOrPotion = o_ptr->tval == TV_FOOD || o_ptr->tval == TV_POTION;
 		bool enchantedItem = !staffOrHorn && !foodOrPotion &&
 				o_ptr->tval != TV_CHEST && o_ptr->tval != TV_SKELETON;
+		// Artefacts are identified on sight as they always have the same effects
+		bool artefact = o_ptr->name1;
+		// Miruvor/Orcish Liquor ID'd on sight as they always have the same flavour
+		bool knownPotion = o_ptr->tval == TV_POTION &&
+			(o_ptr->sval == SV_POTION_MIRUVOR ||
+			 o_ptr->sval == SV_POTION_ORCISH_LIQUOR);
 
-		if ((channeling && staffOrHorn) ||
+		if ((channeling && staffOrHorn) || knownPotion ||
                     (alchemy && (staffOrHorn || foodOrPotion)) ||
-                    (enchantment && enchantedItem))
+                    (enchantment && enchantedItem) || artefact)
 		{
 			ident(o_ptr);
 		}
