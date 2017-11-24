@@ -919,9 +919,6 @@ void prise_silmaril(void)
 	int crit_bonus_dice = 0;
 	int pd = 20;
 
-	// will check
-	bool will_test_passed = FALSE;
-
 	int noise = 0;
 	u32b dummy_noticed_flag;
 	
@@ -1132,8 +1129,7 @@ void prise_silmaril(void)
 	// check for taking of final Silmaril
 	if (o_ptr->name1 == ART_MORGOTH_1 && freed)
 	{
-		msg_print("Until you escape you must now roll twice for every skill check, taking the worse result each time.");
-		msg_print("You hear a cry of veangance echo through the iron hells.");
+		msg_print("You hear a cry of vengeance echo through the iron hells.");
 		wake_all_monsters(0);
 	}
 }

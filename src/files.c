@@ -2827,9 +2827,6 @@ void show_help_screen(int i)
 			else				c_put_str(TERM_WHITE, "^t",  row, col - 1);
 			c_put_str(TERM_SLATE, "throw (auto-target)", row, col + 2);
 			row++;
-			c_put_str(TERM_WHITE, "k",                      row, col);
-			c_put_str(TERM_SLATE, "destroy",                row, col + 2);
-			row++;
 			c_put_str(TERM_WHITE, "{",                      row, col);
 			c_put_str(TERM_SLATE, "inscribe",               row, col + 2);
 			row++;
@@ -4335,7 +4332,9 @@ errr file_character(cptr name, bool full)
 	char o_name[80];
 	
 	char buf[1024];
-	
+
+	ability_type *b_ptr;
+
 	int holder;
 	
 	bool challenges = FALSE;
@@ -4512,9 +4511,79 @@ errr file_character(cptr name, bool full)
 		/* Describe random object attributes */
 		identify_random_gen(o_ptr);
 	}
-	fprintf(fff, "\n");
-	
-	fprintf(fff, "\n  [Notes]\n\n");
+
+	// Dump abilities.
+	fprintf(fff, "\n\n  [Abilities]\n\n");
+	for (i = 0; i < z_info->b_max; i++)
+	{
+		b_ptr = &b_info[i];
+
+		if (!b_ptr->name) continue;
+
+		if (p_ptr->innate_ability[b_ptr->skilltype][b_ptr->abilitynum])
+		{
+			if (b_ptr->skilltype == S_PER && b_ptr->abilitynum == PER_BANE && p_ptr->bane_type > 0)
+			{
+				fprintf(fff, "%s-%s\n", bane_name[p_ptr->bane_type], (b_name + b_ptr->name));
+			}
+			else
+				fprintf(fff, "%s\n", (b_name + b_ptr->name));
+		}
+	}
+
+	// Dump found artefacts if dead.
+	if (p_ptr->is_dead)
+	{
+		fprintf(fff, "\n\n  [Artefacts]\n\n");
+
+		// Just go to the end of the normal artefacts list, don't also grab
+		// forged artefacts.
+		for (i = 0; i < z_info->art_norm_max; i++)
+		{
+			char o_name[120];
+			artefact_type *a_ptr;
+			object_type *o_ptr;
+			object_type object_type_body;
+			o_ptr = &object_type_body;
+
+			a_ptr = &a_info[i];
+			if (a_ptr->cur_num == 0) continue;
+
+			make_fake_artefact(o_ptr, i);
+			object_desc_spoil(o_name, sizeof(o_name), o_ptr, TRUE, 0);
+
+			fprintf(fff, "%s %s\n", o_name, a_ptr->found_num > 0 ? "(found)" : "");
+		}
+	}
+
+	fprintf(fff, "\n\n  [Enemies]\n\n");
+
+	for (i = 1; i < z_info->r_max - 1; i++)
+	{
+		monster_race *r_ptr = &r_info[i];
+		monster_lore *l_ptr = &l_list[i];
+
+		if (!l_ptr->psights && !l_ptr->pkills) {
+			continue;
+		}
+
+		if (r_ptr->flags1 & (RF1_UNIQUE))
+		{
+			/* Print a message */
+			fprintf(fff, "  %-7s %s \n",
+			l_ptr->pkills ? "(slain)" : "(seen)",
+					(r_name + r_ptr->name));
+		}
+		else
+		{
+			/* Print a message */
+			fprintf(fff, "%3d /%3d  %-40s\n",
+					l_ptr->pkills, l_ptr->psights, (r_name + r_ptr->name));
+		}
+	}
+
+
+	fprintf(fff, "\n\n  [Notes]\n\n");
 	
 	/*dump notes to character file*/
 	i = 0;
@@ -4712,6 +4781,29 @@ static void close_game_aux(void)
 	// cure hallucination and rage
 	p_ptr->rage = 0;
 	p_ptr->image = 0;
+
+	// Automatic character dump
+	char curr_time[30], sheet[60];
+	time_t ct = time((time_t*)0);
+	(void)strftime(curr_time, 30, "%Y%m%d-%H%M%S.txt", localtime(&ct));
+	sprintf(sheet, "%s-%s", op_ptr->full_name, curr_time);
+	errr err;
+	// Save the screen
+	screen_save();
+	// Dump a character file
+	err = file_character(sheet, FALSE);
+	// Load the screen
+	screen_load();
+	// Check result
+	if (err)
+	{
+		// Clear screen
+		Term_clear();
+		// Warning
+		msg_print("Automatic character dump failed!");
+		// Flush messages
+		message_flush();
+	}
 
 	/* You are dead */
 	print_tomb(&the_score);

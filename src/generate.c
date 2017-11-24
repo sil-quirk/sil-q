@@ -3491,10 +3491,12 @@ static bool cave_gen(void)
 		}
 	}
 
-	// add a curved sword near the player if this is the beginning of the game
-	if (playerturn == 0)
+	/* Put some objects in rooms */	
+	obj_room_gen = 3 * mon_gen / 4;
+	if (obj_room_gen > 0) 
 	{
-		place_item_randomly(TV_SWORD, SV_CURVED_SWORD, TRUE);
+		// currently ignoring the above...
+		alloc_object(ALLOC_SET_ROOM, ALLOC_TYP_OBJECT, obj_room_gen, FALSE);
 	}
 
 	return (TRUE);

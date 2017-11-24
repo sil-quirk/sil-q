@@ -996,7 +996,13 @@ extern void ident_on_wield(object_type *o_ptr)
 	{
 		notice = TRUE;
 	}
-    
+
+	// Also always identify tunneling since it's never ambiguous.
+	if (f1 & (TR1_TUNNEL))
+	{
+		notice = TRUE;
+	}
+
 	if (o_ptr->name1 || o_ptr->name2)
 	{
 		// For special items and artefacts, we need to ignore the flags that are basic 
@@ -1035,6 +1041,11 @@ extern void ident_on_wield(object_type *o_ptr)
 	{
 		notice = TRUE;
 		msg_print("It speeds your movement.");
+	}
+	else if (f2 & (TR2_REGEN))
+	{
+		notice = TRUE;
+		msg_print("You notice that you are recovering much faster than usual.");
 	}
 
 	else if (f1 & (TR1_DAMAGE_SIDES))
@@ -1525,7 +1536,7 @@ extern void ident_passive(void)
 				notice = TRUE;
 				my_strcpy(effect_string, "You notice that you are recovering much faster than usual.", sizeof (effect_string));
 			}
-			else if ((f2 & (TR2_AGGRAVATE)))
+			else if (f2 & (TR2_AGGRAVATE))
 			{
 				notice = TRUE;
 				my_strcpy(effect_string, "You notice that you are enraging your enemies.", sizeof (effect_string));
@@ -2415,6 +2426,7 @@ void py_pickup_aux(int o_idx)
 	int slot;
 
 	char o_name[80];
+	char depth[80];
 	object_type *o_ptr;
 
 	o_ptr = &o_list[o_idx];
@@ -2427,6 +2439,16 @@ void py_pickup_aux(int o_idx)
 
 		/* Get the object again */
 		o_ptr = &inventory[slot];
+
+		// Inscribe consumables with current depth.
+		if (!object_known_p(o_ptr)
+			&& !o_ptr->obj_note
+			&& (o_ptr->tval == TV_POTION
+				|| o_ptr->tval == TV_FOOD))
+		{
+			sprintf(depth, "%d ft", p_ptr->depth * 50);
+			add_autoinscription(o_ptr->k_idx, depth);
+		}
 
 		/* Describe the object */
 		object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
@@ -2551,6 +2573,8 @@ void py_pickup(void)
 
 	char o_name[80];
 
+	bool done_pickup = FALSE;
+
  	/* Automatically destroy squelched items in pile if necessary */
 	do_squelch_pile(py, px);
 
@@ -2576,6 +2600,38 @@ void py_pickup(void)
 			next_o_idx = 0;
 			continue;
 		}
+		// Special case for prising Silmarils from the Iron Crown of Morgoth
+		if ((o_ptr->name1 >= ART_MORGOTH_1) && (o_ptr->name1 <= ART_MORGOTH_3))
+		{
+			// Select the melee weapon
+			o_ptr = &inventory[INVEN_WIELD];
+
+			// No weapon
+			if (!o_ptr->k_idx)
+			{
+				msg_print("To prise a Silmaril from the crown, you would need to wield a weapon.");
+			}
+
+			// Wielding a weapon
+			else
+			{
+				if (get_check("Will you try to prise a Silmaril from the Iron Crown? "))
+				{
+					prise_silmaril();
+
+					/* Take a turn */
+					p_ptr->energy_use = 100;
+
+					// store the action type
+					p_ptr->previous_action[0] = ACTION_MISC;
+
+					return;
+				}
+			}
+
+			continue;
+		}
+
 
 		/* Note that the pack is too full */
 		if (!inven_carry_okay(o_ptr))
@@ -2603,8 +2659,15 @@ void py_pickup(void)
         
 		/* Pick up the object */
 		py_pickup_aux(this_o_idx);
+		done_pickup = TRUE;
 	}
 
+	// Don't spend a turn if we couldn't pick anything up.
+	if (!done_pickup)
+	{
+		p_ptr->previous_action[0] = ACTION_NOTHING;
+		p_ptr->energy_use = 0;
+	}
 }
 
 
@@ -5252,6 +5315,15 @@ static bool run_test(void)
 		{
 			/* Primary option */
 			p_ptr->run_cur_dir = option;
+
+                        /* Stop in the doorway of a room */
+                        row = py + 2*ddy[option];
+                        col = px + 2*ddx[option];
+                        if ((cave_info[row][col] & CAVE_MARK) &&
+                            !cave_wall_bold(row,col))
+			{
+			        return (TRUE);
+			}
 			
 			/* Hack -- allow curving */
 			p_ptr->run_old_dir = option2;

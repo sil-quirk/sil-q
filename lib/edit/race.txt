@@ -54,7 +54,8 @@ H:82:4:70:2
 W:165:10:153:10
 C:1|2|3
 F:BLADE_PROFICIENCY | ARC_AFFINITY
-E:39:0:3:4     # ~ Wooden Torches (3-4)
+E:23:7:1:1     # | Curved Sword
+E:39:0:4:4     # ~ Wooden Torches (4)
 E:80:37:3:3    # , Fragment of Lembas (3)
 D:The Noldor are known as the 'Deep-elves', for they are the
 D: most learned and inventive of the elven kindreds. They saw
@@ -76,7 +77,8 @@ H:77:4:68:2
 W:159:10:153:10
 C:4|10
 F:BLADE_PROFICIENCY | ARC_AFFINITY
-E:39:0:3:4     # ~ Wooden Torches (3-4)
+E:23:7:1:1     # | Curved Sword
+E:39:0:4:4     # ~ Wooden Torches (4)
 E:80:37:3:3    # , Fragment of Lembas (3)
 D:The Sindar are the 'Grey-elves' who never saw the blessed light of
 D: the Two Trees, but who found an echo of it in their queen,
@@ -97,7 +99,8 @@ H:51:3:49:2
 W:160:10:150:10
 C:5|6
 F:AXE_PROFICIENCY | ARC_PENALTY | SMT_AFFINITY
-E:39:0:3:4     # ~ Wooden Torches (3-4)
+E:23:7:1:1     # | Curved Sword
+E:39:0:4:4     # ~ Wooden Torches (4)
 E:80:35:5:5    # , Pieces of Dark Bread (5)
 D:The dwarves are stone-hard and stubborn, fast in friendship
 D: and in enmity. They live long, far beyond the span of Men
@@ -116,7 +119,8 @@ I:21:15:45
 H:75:4:68:2
 W:176:14:156:14
 C:7|8|9
-E:39:0:3:4     # ~ Wooden Torches (3-4)
+E:23:7:1:1     # | Curved Sword
+E:39:0:4:4     # ~ Wooden Torches (4)
 E:80:35:5:5    # , Pieces of Dark Bread (5)
 D:The Edain are the Men of Beleriand. They gained much from
 D: dealings with the Noldor, and grew more long lived than their

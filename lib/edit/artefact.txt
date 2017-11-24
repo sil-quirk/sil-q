@@ -1516,8 +1516,7 @@ F:INDESTRUCTIBLE
 F:INSTA_ART 
 D:Containing much of the power of he who is the mightiest among the
 D: Ainur, this plain iron crown has mounted upon it the three
-D: Silmarils, greatest treasures of Middle-Earth. To attempt to cut
-D: a Silmaril from the crown, stand over it and press (k).
+D: Silmarils, greatest treasures of Middle-Earth.
 
 
 ## The Mighty Hammer 'Grond'

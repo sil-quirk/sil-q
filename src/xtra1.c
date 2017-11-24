@@ -2499,8 +2499,13 @@ static void calc_bonuses(void)
 	if (p_ptr->pspeed < 1) p_ptr->pspeed = 1;
 	if (p_ptr->pspeed > 3) p_ptr->pspeed = 3;
 	
-	// Increase food consumption if regenerating
-	if (p_ptr->regenerate) p_ptr->hunger += 1;
+	// Increase food consumption if (actively) regenerating.
+	// note that each item with the speed flag has already increased hunger
+	if (p_ptr->regenerate &&
+		(p_ptr->chp < p_ptr->mhp || p_ptr->csp < p_ptr->msp))
+	{
+		p_ptr->hunger += 1;
+	}
 
 	/* armour weight (not inventory weight reduces stealth */
 	/* by 1 point per 10 pounds (rounding down) */
@@ -2862,10 +2867,16 @@ void update_lore_aux(object_type *o_ptr)
 		bool foodOrPotion = o_ptr->tval == TV_FOOD || o_ptr->tval == TV_POTION;
 		bool enchantedItem = !staffOrHorn && !foodOrPotion &&
 				o_ptr->tval != TV_CHEST && o_ptr->tval != TV_SKELETON;
+		// Artefacts are identified on sight as they always have the same effects
+		bool artefact = o_ptr->name1;
+		// Miruvor/Orcish Liquor ID'd on sight as they always have the same flavour
+		bool knownPotion = o_ptr->tval == TV_POTION &&
+			(o_ptr->sval == SV_POTION_MIRUVOR ||
+			 o_ptr->sval == SV_POTION_ORCISH_LIQUOR);
 
-		if ((channeling && staffOrHorn) ||
+		if ((channeling && staffOrHorn) || knownPotion ||
                     (alchemy && (staffOrHorn || foodOrPotion)) ||
-                    (enchantment && enchantedItem))
+                    (enchantment && enchantedItem) || artefact)
 		{
 			ident(o_ptr);
 		}

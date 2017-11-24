@@ -670,6 +670,9 @@ static void player_outfit(void)
 			object_prep(i_ptr, k_idx);
 			i_ptr->number = (byte)rand_range(e_ptr->min, e_ptr->max);
 
+			// Make it always the typical weight (for weapons).
+			i_ptr->weight = k_info[i_ptr->k_idx].weight;
+
 			//object_aware(i_ptr);
 			//object_known(i_ptr);
 		}

@@ -752,7 +752,7 @@ static u32b bane_flag[] =
 	RF3_DRAGON
 };
 
-static char *bane_name[] =
+char *bane_name[] =
 {
 	"Nothing",
 	"Orc",
@@ -5060,7 +5060,7 @@ int smithing_menu_aux(int *highlight)
                                  (smith_o_ptr->tval != TV_HORN) &&
                                  (p_ptr->self_made_arts < z_info->art_self_made_max - z_info->art_rand_max - 2);
 	valid[SMT_MENU_NUMBERS-1]  = (smith_o_ptr->tval != 0);
-	valid[SMT_MENU_MELT-1]     = mithril_items_carried() && cave_forge_bold(p_ptr->py, p_ptr->px) && (forge_uses(p_ptr->py, p_ptr->px) > 0);
+	valid[SMT_MENU_MELT-1]     = mithril_items_carried() && cave_forge_bold(p_ptr->py, p_ptr->px);
 	valid[SMT_MENU_ACCEPT-1]   = affordable(smith_o_ptr) && cave_forge_bold(p_ptr->py, p_ptr->px) && (forge_uses(p_ptr->py, p_ptr->px) > 0);
 	
 

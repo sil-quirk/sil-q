@@ -1823,13 +1823,6 @@ void describe_floor_object(void)
         /* Disturb */
         disturb(0,0);
     }
-    
-    // special explanation the first time you step over the crown
-    if ((o_ptr->name1 == ART_MORGOTH_3) && !(p_ptr->crown_hint))
-    {
-        msg_print("To attempt to prise a Silmaril from the crown, use the 'destroy' command (which is 'k' by default).");
-        p_ptr->crown_hint = TRUE;
-    }
 }
 
 
