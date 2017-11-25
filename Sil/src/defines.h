@@ -1212,7 +1212,7 @@
 #define SV_RING_WARMTH				7
 #define SV_RING_ACCURACY			8
 #define SV_RING_FREE_ACTION			9
-#define SV_RING_ARCHERY				10
+#define SV_RING_COWARDICE			10
 #define SV_RING_TRUE_SIGHT			11
 #define SV_RING_VENOM				12
 #define SV_RING_HUNGER				21

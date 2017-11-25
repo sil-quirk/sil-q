@@ -2119,14 +2119,6 @@ static void a_m_aux_3(object_type *o_ptr, int level)
 					break;
 				}
 
-				/* Ring of damage */
-				case SV_RING_ARCHERY:
-				{
-					/* Bonus to archery  */
-					o_ptr->pval = (level + dieroll(10)) / 10 + 1;
-					break;
-				}
-
 				/* Ring of Accuracy */
 				case SV_RING_ACCURACY:
 				{
