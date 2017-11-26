@@ -277,7 +277,7 @@ D: of Valinor. It was made by the dwarves of Ered Luin for Finrod Felagund.
 
 N:20:of Andreth
 I:36:2:2
-W:5:10:30:25000
+W:4:10:30:25000
 P:0:0d0:+2:1d0
 F:SONG | SUST_GRA
 D:This robe was once worn by Andreth, wise-woman of Beor's House.
@@ -290,7 +290,7 @@ D: It is a deep rich green and patterned with golden thread.
 N:21:of Aredhel
 G:(:w
 I:36:2:0
-W:8:10:30:25000
+W:6:10:30:25000
 P:0:0d0:+3:1d0
 F:FREE_ACT | SUST_GRA
 D:The White Lady of the Noldor once wore this robe, cut of the
@@ -598,7 +598,7 @@ D:'...the knife of the north, in Nogrod smithied.'
 ## (ability 4/1 is Focused Attack)
 
 N:53:of Azaghal
-I:23:4:3
+I:23:4:7
 W:13:8:5:50000
 P:0:1d6:0:0d0
 F:PERCEPTION | SLAY_DRAGON | RES_FIRE | RES_FEAR
@@ -897,7 +897,7 @@ D: but cuts like a sword.
 
 ## The Battle Axe of Hurin
 ## 1st age
-## (ability 7/1 is Song of Slaying)
+## (ability 7/1 is Song of Challenge)
 
 N:94:of Hurin
 I:22:12:1
@@ -912,10 +912,10 @@ D: less than seventy times, as he slew his foes, did he utter his mighty
 D: war-cry: "Aure entuluva!" - "Day shall come again!"
 
 
-## The Great Axe of Nogrod
+## The Great Axe of Dolmed
 ## 1st age namesake
 
-N:95:of Nogrod
+N:95:of Dolmed
 I:22:13:1
 W:18:15:110:150000
 P:-4:4d5:0:0d0

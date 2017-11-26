@@ -569,7 +569,44 @@ static void chest_death(int y, int x, s16b o_idx)
 
 	if (o_ptr->sval == SV_CHEST_PRESENT)
 	{
-		number = 1;
+		time_t c = time((time_t *)0);
+		struct tm *tp = localtime(&c);
+		int day = tp->tm_mday;
+
+		int artefacts[] = 
+		{
+			53, 20, 156, 150, 104, 3,
+			163, 42, 58, 28, 101, 125,
+			76, 64, 122, 95, 167, 90, 114, 
+			45, 26, 143, 118, 54, 
+			108, 166, 155, 40, 120, 41, 134
+		};
+
+		int a_idx = artefacts[day - 1];
+
+		artefact_type *a_ptr = &a_info[a_idx];
+
+		/* Ignore "empty" artefacts */
+		if (a_ptr->tval + a_ptr->sval == 0) return;
+
+		create_chosen_artefact(a_idx, p_ptr->py, p_ptr->px, FALSE);
+
+		/* Reset the object level */
+		object_level = original_object_level;
+
+		/* No longer opening a chest */
+		object_generation_mode = OB_GEN_MODE_NORMAL;
+
+		/* Empty */
+		o_ptr->pval = 0;
+
+		/*Paranoia, delete chest theme*/
+		o_ptr->xtra1 = 0;
+
+		/* Known */
+		object_known(o_ptr);
+
+		return;
 	}
 	
 	/* Drop some objects (non-chests) */
@@ -594,10 +631,6 @@ static void chest_death(int y, int x, s16b o_idx)
 		if ((o_ptr->sval == SV_CHEST_SMALL_JEWELLED) || (o_ptr->sval == SV_CHEST_LARGE_JEWELLED))
 		{
 			quality += 10;
-		}
-		if (o_ptr->sval == SV_CHEST_PRESENT)
-		{
-			quality += 20;
 		}
 		
 		/* Regular objects in chests will become quite
@@ -966,26 +999,6 @@ static bool do_cmd_open_chest(int y, int x, s16b o_idx)
 
 	time_t c;      // time variables
 	struct tm *tp; //
-
-	if (o_ptr->sval == SV_CHEST_PRESENT)
-	{		
-		c = time((time_t *)0);
-		tp = localtime(&c);
-		
-		// cause problems opening presents before Christmas day
-		if ((tp->tm_mon == 11) && (tp->tm_mday >= 20) && (tp->tm_mday < 25))// && !((tp->tm_mday == 24) && (strncmp(tp->tm_zone,"CET",4) == 0)))
-		{
-			if (get_check("Are you sure you wish to open your present before Christmas? "))
-			{
-				msg_print("You have a very bad feeling about this.");
-				p_ptr->cursed = TRUE;
-			}
-			else
-			{
-				return (FALSE);
-			}
-		}
-	}
 
 	/* Attempt to unlock it */
 	if (o_ptr->pval > 0)
