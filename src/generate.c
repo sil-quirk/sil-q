@@ -1830,7 +1830,7 @@ static bool connect_rooms_stairs(void)
     else if (width == 4)    stairs = 2;
     else                    stairs = 4;
 
-	if (p_ptr->on_the_run)
+	if (p_ptr->on_the_run && p_ptr->depth >= 2)
 	{
 		initial_up = FEAT_LESS_SHAFT;
 		stairs *= 2;
