@@ -4569,30 +4569,25 @@ static void process_monster(monster_type *m_ptr)
 	{
 		msg_print("Morgoth grows angry.");
 		message_flush();
-
-		p_ptr->morgoth_state++;
-		(&r_info[R_IDX_MORGOTH])->evn += 4;
-		(&r_info[R_IDX_MORGOTH])->blow[0].att += 8;
+		p_ptr->morgoth_state = 1;
+		anger_morgoth();
 	}
 	else if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_BADLY_WOUNDED &&
 		p_ptr->morgoth_state < 2)
 	{
 		msg_print("Morgoth grows more angry.");
 		message_flush();
-
-		p_ptr->morgoth_state++;
-		(&r_info[R_IDX_MORGOTH])->evn += 4;
-		(&r_info[R_IDX_MORGOTH])->blow[0].att += 8;
+		p_ptr->morgoth_state = 2;
+		anger_morgoth();
 	}
 	else if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_ALMOST_DEAD &&
 		p_ptr->morgoth_state < 3)
 	{
-		msg_print("Morgoth grows desperate!");
+		msg_print("Morgoth grows desperate.");
 		message_flush();
-
-		p_ptr->morgoth_state++;
-		(&r_info[R_IDX_MORGOTH])->evn += 8;
-		(&r_info[R_IDX_MORGOTH])->blow[0].att += 4;
+		p_ptr->morgoth_state = 3;
+		anger_morgoth();
+		anger_morgoth();
 	}
 
 	// Pursuing creatures are always active at the Gates

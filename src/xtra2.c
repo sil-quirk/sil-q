@@ -2133,6 +2133,17 @@ void drop_loot(monster_type *m_ptr)
 
 
 /*
+ * Makes Morgoth progressively more dangerous.
+ */
+void anger_morgoth()
+{
+	(&r_info[R_IDX_MORGOTH])->evn += 2;
+	(&r_info[R_IDX_MORGOTH])->blow[0].att += 4;
+	(&r_info[R_IDX_MORGOTH])->wil += 2;
+	(&r_info[R_IDX_MORGOTH])->per += 2;
+}
+
+/*
  * Handle the "death" of a monster.
  *
  * Disperse treasures centered at the monster location based on the
