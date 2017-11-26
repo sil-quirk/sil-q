@@ -4535,7 +4535,7 @@ void song_of_piercing(monster_type *m_ptr)
     char m_name[80];
     cptr description;
     
-    int song_skill = 20; // Morgoth's song skill. If more monsters get songs I'll put this in monster.txt
+    int song_skill = m_ptr->wil; // Use Will as song skill
 
     /* Get the monster name */
     monster_desc(m_name, sizeof(m_name), m_ptr, 0x80);

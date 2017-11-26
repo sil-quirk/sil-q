@@ -891,6 +891,7 @@ void shatter_weapon(int silnum)
 			{
 				msg_print("A shard strikes Morgoth upon his cheek.");
 				set_alertness(m_ptr, ALERTNESS_VERY_ALERT);
+				anger_morgoth();
 			}
 		}
 	}
@@ -917,7 +918,7 @@ void prise_silmaril(void)
 	int prt_percent = 0;
 	int hit_result = 0;
 	int crit_bonus_dice = 0;
-	int pd = 0;
+	int pd = 10;
 	int noise = 0;
 	u32b dummy_noticed_flag;
 	
@@ -933,14 +934,12 @@ void prise_silmaril(void)
 	{
 		case ART_MORGOTH_3:
 		{
-			pd = 15;
 			noise = 5;
 			freed_msg = "You have freed a Silmaril!";
 			break;
 		}
 		case ART_MORGOTH_2:
 		{
-			pd = 25;
 			noise = 10;
 						
 			if (p_ptr->crown_shatter)	freed_msg = "The fates be damned! You free a second Silmaril.";
@@ -950,7 +949,6 @@ void prise_silmaril(void)
 		}
 		case ART_MORGOTH_1:
 		{
-			pd = 30;
 			noise = 15;
 			
 			freed_msg = "You free the final Silmaril. You have a very bad feeling about this.";
@@ -1019,6 +1017,25 @@ void prise_silmaril(void)
 					shatter_weapon(2);
 					freed = FALSE;
 				}
+				else
+				{
+					
+					/* Process monsters */
+					for (int i = 1; i < mon_max; i++)
+					{
+						monster_type *m_ptr = &mon_list[i];
+						
+						/* If Morgoth, then anger him */
+						if (m_ptr->r_idx == R_IDX_MORGOTH && m_ptr->alertness >= ALERTNESS_ALERT)
+						{
+							if ((m_ptr->cdis <= 5) && los(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx))
+							{
+								msg_print("Morgoth howls with rage!");
+								anger_morgoth();
+							}
+						}
+					}
+				}
 				break;
 			}
 			case ART_MORGOTH_1:
@@ -1080,20 +1097,17 @@ void prise_silmaril(void)
 	else
 	{
 		msg_print("Try though you might, you were unable to free a Silmaril.");
-		msg_print("Perhaps you should try again or use a different weapon.");
-
-		if (pd == 15) msg_print("(The combat rolls window shows what is happening.)");
 
 		// Break the truce if creatures see
 		break_truce(FALSE);
 	}
 
 	// check for taking of final Silmaril
-	if ((pd == 30) && freed)
+	if (o_ptr->name1 == ART_MORGOTH_0)
 	{
-		msg_print("Until you escape you must now roll twice for every skill check, taking the worse result each time.");
-		msg_print("You hear a cry of veangance echo through the iron hells.");
+		msg_print("You hear a cry of vengeance echo through the iron hells.");
 		wake_all_monsters(0);
+		anger_morgoth();
 	}
 }
 
