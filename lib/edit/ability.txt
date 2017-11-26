@@ -163,7 +163,7 @@ D:You gain a point of strength.
 
 N:20:Rout
 I:1:0:2
-D:Firing at fleeing monsters is calculated as if you had 5 points
+D:Firing at fleeing monsters is calculated as if you had 3 points
 D: more dexterity.
 T:19:0:99  # Bows
 
