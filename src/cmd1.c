@@ -175,8 +175,6 @@ void drop_iron_crown(monster_type *m_ptr, const char *msg)
 	
 	if ((&a_info[ART_MORGOTH_3])->cur_num == 0)
 	{
-		object_type *o_ptr;
-
 		msg_print(msg);
 		
 		// choose a nearby location, but not his own square
@@ -190,8 +188,6 @@ void drop_iron_crown(monster_type *m_ptr, const char *msg)
 		
 		// drop it there
 		create_chosen_artefact(ART_MORGOTH_3, near_y, near_x, TRUE);
-		o_ptr = &o_list[cave_o_idx[near_y][near_x]];
-		o_ptr->xtra1 = FIRST_SILMARIL | SECOND_SILMARIL | THIRD_SILMARIL;
 		
 		// lower Morgoth's protection, remove his light source, increase his will and perception and evasion
 		(&r_info[R_IDX_MORGOTH])->pd -= 1;

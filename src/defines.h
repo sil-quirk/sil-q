@@ -996,10 +996,6 @@
 
 #define ART_ULTIMATE		182
 
-// Flags for the Silmarils in the crown
-#define FIRST_SILMARIL		1
-#define SECOND_SILMARIL		2
-#define THIRD_SILMARIL		4
 
 /*
  * Maximum length of artefact names
