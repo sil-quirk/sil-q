@@ -1438,6 +1438,7 @@ bool make_attack_normal(monster_type *m_ptr)
 
 			if (net_dam > 0 && p_ptr->active_ability[S_WIL][WIL_VENGEANCE])
 			{
+				msg_print("You feel vengeful!");
 				p_ptr->vengeance = 1;
 			}
 

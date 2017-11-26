@@ -101,7 +101,7 @@ N:7:Subtlety
 I:0:7:8
 P:0/1
 D:Lowers the base number needed to get critical hits with melee
-D: by 2 points, when you are using a one handed weapon with the
+D: by 3 points, when you are using a one handed weapon with the
 D: other hand free.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms

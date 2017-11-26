@@ -844,7 +844,7 @@ int crit_bonus(int hit_result, int weight, const monster_race *r_ptr, int skill_
 			
 		// Can have improved criticals for melee with one handed weapons
 		if ((skill_type == S_MEL) && p_ptr->active_ability[S_MEL][MEL_CONTROL] &&
-			!thrown && !two_handed_melee() && !inventory[INVEN_ARM].k_idx)					crit_seperation -= 20;
+			!thrown && !two_handed_melee() && !inventory[INVEN_ARM].k_idx)					crit_seperation -= 30;
 		
 		// Can have inferior criticals for melee
 		if ((skill_type == S_MEL) && p_ptr->active_ability[S_MEL][MEL_POWER])				crit_seperation += 10;

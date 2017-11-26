@@ -720,7 +720,7 @@ A:15:8:1:6
 P:[+16,2d4]
 B:HIT:HURT:(+16,1d7)
 F:UNIQUE | MALE | OPEN_DOOR | UNLOCK_DOOR | SMART | ORC
-F:DROP_100 | UNIQUE_FRIEND | DROP_GOOD | HURT_LITE | CRUEL_BLOW
+F:DROP_100 | UNIQUE_FRIEND | DROP_GREAT | HURT_LITE | CRUEL_BLOW
 D:A small and exceptionally ugly orc, wearing dark leather
 D: and carrying a short broad blade which he tosses from
 D: one hand to the other with unsettling dexterity.
