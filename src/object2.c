@@ -799,9 +799,6 @@ void object_known(object_type *o_ptr)
 	/* The object is not "sensed" */
 	o_ptr->ident &= ~(IDENT_SENSE);
 
-	/* Clear the "Empty" info */
-	o_ptr->ident &= ~(IDENT_EMPTY);
-
 	/* Now we know about the item */
 	o_ptr->ident |= (IDENT_KNOWN);
 }
