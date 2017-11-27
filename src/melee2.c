@@ -34,8 +34,8 @@ int challenge_check(monster_type *m_ptr)
 		(r_ptr->flags3 & (RF3_NO_CONF)) ||
 		m_ptr->r_idx == R_IDX_MORGOTH) return 0;
 
-	// Adjust to work best against low-will monsters.
-	resistance = (resistance * resistance) / 5;
+	// Adjust to work best against lower-will monsters.
+	resistance = (resistance * resistance) / 7;
 
 	// adjust difficulty by the distance to the monster
 	return skill_check(PLAYER, challenge, resistance + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx), m_ptr);
