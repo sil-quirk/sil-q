@@ -1979,7 +1979,6 @@ int calc_hesitance(monster_type *m_ptr)
 	int fx = m_ptr->fx;
 	int hesitance = 1;
 	monster_race *r_ptr = &r_info[m_ptr->r_idx];
-	monster_type *n_ptr;
 
 	// gain hesitance for up to one nearby similar monster
 	// who isn't yet engaged in combat
@@ -1991,8 +1990,6 @@ int calc_hesitance(monster_type *m_ptr)
 			{
 				if (cave_m_idx[fy+y][fx+x] > 0)
 				{
-					n_ptr = &mon_list[cave_m_idx[fy+y][fx+x]];
-					
 					if (similar_monsters(fy, fx, fy+y, fx+x) &&
 					    (distance(fy+y,fx+x,p_ptr->py,p_ptr->px) > 1) && (hesitance < 2))
 					{

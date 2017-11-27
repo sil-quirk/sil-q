@@ -2170,8 +2170,6 @@ static bool project_m(int who, int y, int x, int dd, int ds, int dif, int typ, u
 	monster_type *who_ptr = (who == -1) ? PLAYER : &mon_list[who]; // Sil-y
 	bool who_vis = (who == -1) ? TRUE : who_ptr->ml;
 
-	cptr name;
-	
 	int dam = damroll(dd, ds);
 
 	// Monster's skill modifier
@@ -2241,7 +2239,6 @@ static bool project_m(int who, int y, int x, int dd, int ds, int dif, int typ, u
 	m_ptr = &mon_list[cave_m_idx[y][x]];
 	r_ptr = &r_info[m_ptr->r_idx];
 	l_ptr = &l_list[m_ptr->r_idx];
-	name = (r_name + r_ptr->name);
 	if (m_ptr->ml) seen = TRUE;
 
 	/* Get the monster name*/
@@ -5019,7 +5016,6 @@ void sing_song_of_challenge(int score)
 
 		/* Access the monster */
 		monster_type *m_ptr = &mon_list[i];
-		monster_race *r_ptr = &r_info[m_ptr->r_idx];
 
 		/* Ignore dead monsters */
 		if (!m_ptr->r_idx) continue;

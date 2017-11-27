@@ -492,7 +492,6 @@ static void prt_song(void)
 {
 	char *song1_name = b_name + (&b_info[ability_index(S_SNG, p_ptr->song1)])->name;
 	char *song2_name = b_name + (&b_info[ability_index(S_SNG, p_ptr->song2)])->name;
-	char buf[80];
 
 	// wipe old songs
 	put_str("             ", ROW_SONG, COL_SONG);
