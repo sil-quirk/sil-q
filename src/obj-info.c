@@ -469,7 +469,7 @@ static bool describe_misc_magic(const object_type *o_ptr, u32b f2, u32b f3)
 	if (f2 & (TR2_SLOW_DIGEST))								good[gc++] = "reduces your need for food";
 	if ((f2 & (TR2_RADIANCE)) && (o_ptr->tval == TV_BOW))	good[gc++] = "fires shining arrows";
 	if ((f2 & (TR2_RADIANCE)) && (o_ptr->tval == TV_BOOTS))	good[gc++] = "lights your path behind you";
-	if (f2 & (TR2_REGEN))									good[gc++] = "speeds your regeneration (which also increases your hunger)";
+	if (f2 & (TR2_REGEN))									good[gc++] = "speeds your regeneration (which increases your hunger while active)";
 
 	/* Describe */
 	output_desc_list("It ", good, gc);
