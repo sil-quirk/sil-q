@@ -68,7 +68,7 @@ G:':U
 # 0x05 --> broken door
 
 N:5:broken door
-G:.:U
+G:':s
 
 # 0x06 --> warded door (power 1)
 
