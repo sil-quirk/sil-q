@@ -992,6 +992,12 @@ extern void ident_on_wield(object_type *o_ptr)
 	{
 		notice = TRUE;
 	}
+
+	// Currently tunneling is an unambiguous ego on mattocks, so auto-ID
+	if (f1 & TR1_TUNNEL)
+	{
+		notice = TRUE;
+	}
     
 	if (o_ptr->name1 || o_ptr->name2)
 	{

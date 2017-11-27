@@ -2179,7 +2179,7 @@ static void process_player(void)
 	update_smell();
 
 	/* possibly identify passive abilities every so often*/
-	if (one_in_(500))
+	if (one_in_(100))
 	{
 		ident_passive();
 	}
