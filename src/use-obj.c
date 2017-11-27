@@ -60,8 +60,10 @@ static bool eat_food(object_type *o_ptr, bool *ident)
 
 		case SV_FOOD_HEALING:
 		{
-			if (set_cut(p_ptr->cut / 2)) *ident = TRUE;
-			if (hp_player(50, TRUE, TRUE)) *ident = TRUE;
+			msg_print("It has the bitter taste of medicine.");
+			*ident = TRUE;
+			set_cut(p_ptr->cut / 2);
+			hp_player(50, TRUE, TRUE);
 			break;
 		}
 
@@ -214,8 +216,10 @@ static bool quaff_potion(object_type *o_ptr, bool *ident)
 
 		case SV_POTION_HEALING:
 		{
-			if (set_cut(p_ptr->cut / 2)) *ident = TRUE;
-			if (hp_player(50, TRUE, TRUE)) *ident = TRUE;
+			msg_print("It has the bitter taste of medicine.");
+			*ident = TRUE;
+			set_cut(p_ptr->cut / 2);
+			hp_player(50, TRUE, TRUE);
 			break;
 		}
 		
