@@ -2603,7 +2603,8 @@ static void calc_bonuses(void)
 		int feat = cave_feat[p_ptr->py][p_ptr->px];
 		if (feat == FEAT_BROKEN || feat == FEAT_OPEN)
 		{
-			p_ptr->skill_misc_mod[S_EVN] += ability_bonus(S_SNG, SNG_THRESHOLDS) / 3;
+			p_ptr->skill_misc_mod[S_EVN] += ability_bonus(S_SNG, SNG_THRESHOLDS) / 4;
+			p_ptr->skill_misc_mod[S_MEL] += ability_bonus(S_SNG, SNG_THRESHOLDS) / 4;
 		}
 	}
 

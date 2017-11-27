@@ -622,7 +622,7 @@ N:148:Song of Thresholds
 I:7:8:9
 D:Doors you close while singing this song are warded against
 D: your enemies. When defending a threshold, you gain a bonus
-D: of +1 to Evasion for every 3 points of Song.
+D: of +1 to Evasion and Melee for every 4 points of Song.
 T:33:0:99  # Crown
 T:40:0:99  # Amulet
 

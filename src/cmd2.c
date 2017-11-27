@@ -2066,7 +2066,7 @@ static bool do_cmd_tunnel_aux(int y, int x)
             return (FALSE);
         }
     }
-    
+
     // get the short name of the item
     object_desc(o_name, sizeof(o_name), digger_ptr, FALSE, -1);
         
