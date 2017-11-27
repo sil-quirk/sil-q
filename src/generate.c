@@ -3351,16 +3351,13 @@ static bool cave_gen(void)
 		
 		if (!room_build(6))
 		{
-			p_ptr->fixed_forge_count--;
-			p_ptr->force_forge = FALSE;
-
 			if (cheat_room) msg_format("failed.");
 
+			p_ptr->fixed_forge_count--;
 			return (FALSE);
 		}
 
 		if (cheat_room) msg_format("succeeded.");
-		p_ptr->force_forge = FALSE;
 	}
 	
 	/* Build some rooms */
@@ -3408,6 +3405,7 @@ static bool cave_gen(void)
 	if (dun->cent_n < ROOM_MIN)
 	{
 		if (cheat_room) msg_format("Not enough rooms.");
+		if (p_ptr->force_forge) p_ptr->fixed_forge_count--;
 		return (FALSE);
 	}
 
@@ -3416,6 +3414,7 @@ static bool cave_gen(void)
 	if (!connect_rooms_stairs())
 	{
 		if (cheat_room) msg_format("Couldn't connect the rooms.");
+		if (p_ptr->force_forge) p_ptr->fixed_forge_count--;
 		return (FALSE);
 	}
 	
@@ -3436,6 +3435,7 @@ static bool cave_gen(void)
 	if (!place_rubble_player())
 	{
 		if (cheat_room) msg_format("Couldn't place, rubble, or player.");
+		if (p_ptr->force_forge) p_ptr->fixed_forge_count--;
 		return (FALSE);
 	}
 
@@ -3443,6 +3443,7 @@ static bool cave_gen(void)
 	if (!check_connectivity())
 	{
 		if (cheat_room) msg_format("Failed connectivity.");
+		if (p_ptr->force_forge) p_ptr->fixed_forge_count--;
 		return (FALSE);
 	}
 	
@@ -3496,6 +3497,8 @@ static bool cave_gen(void)
 	{
 		place_item_randomly(TV_SWORD, SV_CURVED_SWORD, TRUE);
 	}
+
+	p_ptr->force_forge = FALSE;
 
 	return (TRUE);
 }
