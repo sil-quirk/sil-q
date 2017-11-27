@@ -4534,6 +4534,32 @@ errr file_character(cptr name, bool full)
 		}
 	}
 
+	fprintf(fff, "\n\n  [Enemies]\n\n");
+
+	for (i = 1; i < z_info->r_max - 1; i++)
+	{
+		monster_race *r_ptr = &r_info[i];
+		monster_lore *l_ptr = &l_list[i];
+
+		if (!l_ptr->psights && !l_ptr->pkills) {
+			continue;
+		}
+
+		if (r_ptr->flags1 & (RF1_UNIQUE))
+		{
+			/* Print a message */
+			fprintf(fff, "  %-7s %s \n",
+			l_ptr->pkills ? "(slain)" : "(seen)",
+					(r_name + r_ptr->name));
+		}
+		else
+		{
+			/* Print a message */
+			fprintf(fff, "%3d /%3d  %-40s\n",
+					l_ptr->pkills, l_ptr->psights, (r_name + r_ptr->name));
+		}
+	}
+
 	fprintf(fff, "\n\n  [Notes]\n\n");
 	
 	/*dump notes to character file*/
