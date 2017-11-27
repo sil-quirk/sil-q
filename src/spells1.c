@@ -5074,7 +5074,7 @@ void sing_song_of_delvings(int score)
 			{
 				for (xx = x - 1; xx <= x + 1; ++xx)
 				{
-					int chance = dieroll(1000);
+					int chance = dieroll(20);
 					if (known_to_delvings(yy, xx) && chance < adjusted_score)
 						neighbour_known = TRUE;
 				}
@@ -5117,6 +5117,32 @@ void sing_song_of_delvings(int score)
 				else
 				{
 					map_feature(y, x);
+				}
+			}
+			if (cave_stair_bold(y,x) || cave_forge_bold(y,x))
+			{
+				// Special case for stairs and forges - if we know a square within
+				// a distance of 5 along an axis, we spot them.
+				int i, j;
+				int start_y = MAX(min_y, y - 5);
+				int end_y = MIN(max_y, y + 5);
+				int start_x = MAX(min_x, x - 5);
+				int end_x = MIN(max_x, x + 5);
+
+				for (j = start_y; j < end_y; ++j)
+				{
+					if (delvings[(j * x_range) + dx] == TRUE)
+					{
+						map_feature(y, x);
+					}
+				}
+
+				for (i = start_x; i < end_x; ++i)
+				{
+					if (delvings[(dy * x_range) + i] == TRUE)
+					{
+						map_feature(y, x);
+					}
 				}
 			}
 		}
