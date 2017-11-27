@@ -2174,7 +2174,7 @@ void monster_death(int m_idx)
 	{
 		p_ptr->morgoth_slain = TRUE;
 		msg_print("BUG: Morgoth has been defeated in combat.");
-		msg_print("But this is not possible within the fates Illuvatar has decreed.");
+		msg_print("But this is not possible within the fates Iluvatar has decreed.");
 		msg_print("Please post an 'ultimate bug-report' on http://angband.oook.cz/forum/ explaining how this happened.");
 		msg_print("But for now, let's run with it, since it's undeniably impressive.");
 
