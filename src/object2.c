@@ -4273,7 +4273,7 @@ void place_forge(int y, int x)
 		power = MAX(power, p);
 	}
 
-	uses = damroll(2,2);
+	uses = 2 + damroll(1,2);
 
 	// to prevent start-scumming on the initial forge
 	if (p_ptr->depth <= 2)
