@@ -2546,6 +2546,7 @@ void py_pickup(void)
 {
 	int py = p_ptr->py;
 	int px = p_ptr->px;
+	bool done_pickup = FALSE;
 
 	s16b this_o_idx, next_o_idx = 0;
 
@@ -2605,8 +2606,15 @@ void py_pickup(void)
         
 		/* Pick up the object */
 		py_pickup_aux(this_o_idx);
+
+		done_pickup = TRUE;
 	}
 
+	if (!done_pickup)
+	{
+		p_ptr->previous_action[0] = ACTION_NOTHING;
+		p_ptr->energy_use = 0;
+	}
 }
 
 
