@@ -4713,6 +4713,29 @@ static void close_game_aux(void)
 	p_ptr->rage = 0;
 	p_ptr->image = 0;
 
+	// Automatic character dump
+	char curr_time[30], sheet[60];
+	time_t ct = time((time_t*)0);
+	(void)strftime(curr_time, 30, "%Y%m%d-%H%M%S.txt", localtime(&ct));
+	sprintf(sheet, "%s-%s", op_ptr->full_name, curr_time);
+	errr err;
+	// Save the screen
+	screen_save();
+	// Dump a character file
+	err = file_character(sheet, FALSE);
+	// Load the screen
+	screen_load();
+	// Check result
+	if (err)
+	{
+		// Clear screen
+		Term_clear();
+		// Warning
+		msg_print("Automatic character dump failed!");
+		// Flush messages
+		message_flush();
+	}
+
 	/* You are dead */
 	print_tomb(&the_score);
 
