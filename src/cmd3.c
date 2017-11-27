@@ -1106,6 +1106,7 @@ void prise_silmaril(void)
 	if (o_ptr->name1 == ART_MORGOTH_0)
 	{
 		msg_print("You hear a cry of vengeance echo through the iron hells.");
+		msg_print("You feel your doom awaiting you.");
 		wake_all_monsters(0);
 		anger_morgoth();
 	}
