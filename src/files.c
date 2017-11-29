@@ -3502,7 +3502,7 @@ int score_points(high_score *score)
 	// points from depth (01 0 00000 to 40 0 00000)
 	if (silmarils == 0)
 	{
-		points += depth_factor * atoi(score->cur_dun);
+		points += depth_factor * atoi(score->max_dun);
 	}
 	else
 	{
