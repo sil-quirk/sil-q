@@ -10,6 +10,26 @@
 
 #include "angband.h"
 
+static const char *races[] = {"Noldor","Sindar","Naugrim","Edain",};
+static const char *houses[] = {"Houseless","Feanor","Fingolfin","Finarfin","Doriath","Nogrod","Belegost","Beor","Haleth","Hador","Falas" };
+
+void updatecharinfoS(void)
+{
+	//File Output + Lookup Tables
+	char tmp_Path[1024];
+	FILE *oFile;
+	int curDepth = p_ptr->max_depth * 50 ;
+	path_build(tmp_Path, sizeof(tmp_Path), ANGBAND_DIR_USER, "CharOutput.txt");
+	oFile = fopen(tmp_Path, "w");
+	fprintf(oFile, "{\n");
+	fprintf(oFile, "race: \"%s\",\n", races[p_ptr->prace]);
+	fprintf(oFile, "class: \"%s\",\n", houses[p_ptr->phouse]);
+	fprintf(oFile, "mDepth: \"%i\",\n", curDepth);
+	fprintf(oFile, "isDead: \"%i\",\n", p_ptr->is_dead);
+	fprintf(oFile, "killedBy: \"%s\"\n", p_ptr->died_from);
+	fprintf(oFile, "}");
+	fclose(oFile);
+}
 
 #ifdef FUTURE_SAVEFILES
 
@@ -965,6 +985,8 @@ static void wr_extra(void)
 	wr_s32b(p_ptr->unused2);
 	wr_s32b(p_ptr->unused3);
 	wr_s32b(p_ptr->unused4);
+
+	updatecharinfoS();
 }
 
 
