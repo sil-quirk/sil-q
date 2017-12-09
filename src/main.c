@@ -161,6 +161,12 @@ static void create_user_dir(void)
 
 #ifdef USE_PRIVATE_SAVE_PATH
 	/* Build the path to the scores sub-directory */
+	path_build(dirpath, sizeof(dirpath), subdirpath, "data");
+
+	/* Create the directory */
+	mkdir(dirpath, 0700);
+
+	/* Build the path to the scores sub-directory */
 	path_build(dirpath, sizeof(dirpath), subdirpath, "scores");
 
 	/* Create the directory */
