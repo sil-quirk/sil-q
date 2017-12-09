@@ -307,11 +307,9 @@
  * OPTION: Create and use a hidden directory in the users home directory
  * for storing pref-files and character-dumps.
  */
-
-# ifdef PRIVATE_USER_PATH
-#  define PRIVATE_USER_PATH "~/.sil"
-# endif /* PRIVATE_USER_PATH */
-
+#if defined(USE_PRIVATE_SAVE_PATH) && !defined(PRIVATE_USER_PATH)
+# define PRIVATE_USER_PATH "~/.sil"
+#endif
 
 /*
  * On multiuser systems, add the "uid" to savefile names
@@ -429,5 +427,3 @@
 # define VERIFY_CHECKSUMS
 # define VERIFY_TIMESTAMP
 #endif
-
-
