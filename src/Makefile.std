@@ -5,7 +5,7 @@
 #
 # Note that you may have to make modifications below according
 # to your machine, available libraries, compilation options,
-# and your "visual module" of choice. 
+# and your "visual module" of choice.
 #
 # To do so, make sure the appropriate section of "Variations" is
 # uncommented (and only that section).
@@ -114,35 +114,40 @@ CC = gcc
 ##
 ## Standard -- "main-x11.c" & "main-gcu.c"
 ##
-CFLAGS = -Wall -O1 -pipe -g -D"USE_X11" -D"USE_GCU"
+DEFINES= -D"USE_X11" -D"USE_GCU"
+CFLAGS = -std=c99 -Wall -O1 -pipe -g
 LIBS = -lX11 -lcurses
 
 
 ##
 ## Variation -- "main-x11.c" & "main-gcu.c" (for Mac OS X)
 ##
-#CFLAGS = -Wall -O1 -pipe -g -D"USE_X11" -D"USE_GCU"
+#DEFINES= -D"USE_X11" -D"USE_GCU"
+#CFLAGS = -std=c99 -Wall -O1 -pipe -g
 #LIBS = -L/usr/X11/lib -lX11 -lcurses
 
 
 ##
 ## Variation -- "main-x11.c"
 ##
-#CFLAGS = -Wall -O1 -pipe -g -D"USE_X11"
+#DEFINES= -D"USE_X11"
+#CFLAGS = -std=c99 -Wall -O1 -pipe -g
 #LIBS = -lX11
 
 
 ##
 ## Variation -- "main-x11.c" (for Mac OS X)
 ##
-#CFLAGS = -Wall -O1 -pipe -g -D"USE_X11"
+#DEFINES= -D"USE_X11"
+#CFLAGS = -std=c99 -Wall -O1 -pipe -g
 #LIBS = -L/usr/X11/lib -lX11
 
 
 ##
 ## Variation -- "main-gcu.c"
 ##
-#CFLAGS = -Wall -O1 -pipe -g -D"USE_GCU"
+#DEFINES= -D"USE_GCU"
+#CFLAGS = -std=c99 -Wall -O1 -pipe -g
 #LIBS = -lcurses
 
 
@@ -150,21 +155,24 @@ LIBS = -lX11 -lcurses
 ## Variation -- "main-gtk.c" & "main-gcu.c"
 ## Note: gtk-config adds GTK and X11 includes and libraries as appropriate.
 ##
-#CFLAGS = -Wall -O `gtk-config --cflags` -g -D"USE_GTK" -D"USE_GCU"
+#DEFINES= -D"USE_GTK" -D"USE_GCU"
+#CFLAGS = -std=c99 -Wall -O `gtk-config --cflags` -g
 #LIBS = `gtk-config --libs` -lcurses
 
 
 ##
 ## Variation -- "main-x11.c" & "main-cap.c
 ##
-#CFLAGS = -Wall -O1 -pipe -g -D"USE_X11" -D"USE_CAP"
+#DEFINES= -D"USE_X11" -D"USE_CAP"
+#CFLAGS = -std=c99 -Wall -O1 -pipe -g
 #LIBS = -lX11
 
 
 ##
 ## Variation -- "main-cap.c" (works on simple vt100 terminals)
 ##
-#CFLAGS = -Wall -O1 -pipe -g -D"USE_CAP" -D"USE_HARDCODE"
+#DEFINES= -D"USE_CAP" -D"USE_HARDCODE"
+#CFLAGS = -std=c99 -Wall -O1 -pipe -g
 
 
 ##
@@ -173,9 +181,9 @@ LIBS = -lX11 -lcurses
 ## Allows the use of Sil in the console using ncurses,
 ## as well as under X11.
 ##
+#DEFINES= -D"USE_X11" -D"USE_GCU" -D"USE_NCURSES"
 #CFLAGS = -I/usr/X11R6/include -I/usr/include/ncurses -Wall \
-#         -O2 -fno-strength-reduce \
-#         -D"USE_X11" -D"USE_GCU" -D"USE_NCURSES"
+#		  -O2 -fno-strength-reduce
 #LIBS = -L/usr/X11R6/lib -lXaw -lXext -lSM -lICE -lXmu -lXt -lX11 -lncurses
 
 
@@ -184,7 +192,8 @@ LIBS = -lX11 -lcurses
 ##
 ## Allows the use of Sil in the console using curses.
 ##
-#CFLAGS = -Wall -O2 -fno-strength-reduce -pipe -D"USE_GCU"
+#DEFINES= -D"USE_GCU"
+#CFLAGS = -std=c99 -Wall -O2 -fno-strength-reduce -pipe
 #LIBS = -lcurses
 
 
@@ -193,7 +202,8 @@ LIBS = -lX11 -lcurses
 ##
 ## Allows the use of Sil in X11 using the Athena Widget set.
 ##
-#CFLAGS = -Wall -O2 -fno-strength-reduce -pipe -g -D"USE_XAW"
+#DEFINES= -D"USE_XAW"
+#CFLAGS = -std=c99 -Wall -O2 -fno-strength-reduce -pipe -g
 #LIBS = -L/usr/X11R6/lib -lXaw -lXext -lSM -lICE -lXmu -lXt -lX11
 
 
@@ -201,9 +211,8 @@ LIBS = -lX11 -lcurses
 ## Variation -- this might work better than the suggestion above
 ##
 #CFLAGS = -I/usr/include/ncurses \
-#         -Wall -O2 -fno-strength-reduce -fomit-frame-pointer \
-#         -D"USE_X11" -D"USE_GCU" \
-#         -D"USE_TPOSIX" -D"USE_CURS_SET"
+#		 -std=c99 -Wall -O2 -fno-strength-reduce -fomit-frame-pointer
+#DEFINES= -D"USE_X11" -D"USE_GCU" -D"USE_TPOSIX" -D"USE_CURS_SET"
 #LIBS = -lX11 -lncurses
 #LDFLAGS = -s
 
@@ -218,30 +227,33 @@ LIBS = -lX11 -lcurses
 ##
 ## Variation -- compile for SGI Indigo runnig Irix
 ##
-#CFLAGS = -Wall -O1 -pipe -g -D"USE_X11" -D"USE_GCU" -D"SGI"
+#DEFINES= -D"USE_X11" -D"USE_GCU" -D"SGI"
+#CFLAGS = -std=c99 -Wall -O1 -pipe -g
 #LIBS = -lX11 -lcurses -ltermcap -lsun
 
 
 ##
 ## Variation -- compile for Dec ALPHA OSF/1 v2.0
 ##
-#CC     = cc
+#CC = cc
 ##CFLAGS = -std -O -g3 -Olimit 4000 -D"USE_X11" -D"USE_GCU"
 #CFLAGS = -std -g -D"USE_X11" -D"USE_GCU"
-#LIBS   = -lX11 -lcurses -ltermcap -lrpcsvc
+#LIBS = -lX11 -lcurses -ltermcap -lrpcsvc
 
 
 ##
 ## Variation -- compile for Interactive Unix (ISC) systems
 ##
-#CFLAGS = -Wall -O1 -pipe -g -D"USE_X11" -D"USE_GCU" -D"ISC"
+#DEFINES= -D"USE_X11" -D"USE_GCU" -D"ISC"
+#CFLAGS = -std=c99 -Wall -O1 -pipe -g
 #LIBS = -lX11 -lcurses -lnsl_s -linet -lcposix
 
 
 ##
 ## Variation -- Support fat binaries under NEXTSTEP
 ##
-#CFLAGS = -Wall -O1 -pipe -g -D"USE_GCU" -arch m68k -arch i386
+#DEFINES= -D"USE_GCU"
+#CFLAGS = -std=c99 -Wall -O1 -pipe -g -arch m68k -arch i386
 #LIBS = -lcurses -ltermcap
 
 
@@ -265,7 +277,7 @@ install: sil
 #
 
 sil: $(OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o sil $(OBJS) $(LIBS)
+	$(CC) $(CFLAGS) $(DEFINES) $(LDFLAGS) -o sil $(OBJS) $(LIBS)
 
 
 #
@@ -310,7 +322,7 @@ files.o: files.c $(INCS)
 generate.o: generate.c $(INCS)
 init1.o: init1.c $(INCS) init.h
 init2.o: init2.c $(INCS) init.h
-load.o: load.c $(INCS)  init.h
+load.o: load.c $(INCS) init.h
 maid-x11.o: maid-x11.c $(INCS) maid-x11.h
 main-cap.o: main-cap.c $(INCS) main.h
 main-gcu.o: main-gcu.c $(INCS) main.h
