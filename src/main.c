@@ -675,7 +675,7 @@ int main(int argc, char *argv[])
 				switch (choice)
 				{
 					case 1:
-						path_build(savefile, sizeof(buf), ANGBAND_DIR_APEX, "tutorial");
+						path_build(savefile, sizeof(buf), ANGBAND_DIR_XTRA, "tutorial");
 						game_in_progress = TRUE;
 						new_game = FALSE;
 						break;
