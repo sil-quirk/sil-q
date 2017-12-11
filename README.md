@@ -1,6 +1,11 @@
-================================================================================
-Compiling Instructions
-================================================================================
+# Sil-q
+Sil-q is a computer role-playing game with a strong emphasis on discovery and
+tactical combat. It has a simple but rich combat system which allows for a
+great variety of choice.
+
+Sil-q continues the development of Sil which hasn't been updated for a while.
+
+## Compiling Instructions
 
 Compiling Sil is not very difficult, and has been tested on Macintosh,
 Windows and Linux.
@@ -22,9 +27,7 @@ this file for advice on your specific system.
    in the Sil folder as well.
 
 
-==========================================================
-Linux or Unix with gcc  (tested with Sil)
-==========================================================
+### Linux or Unix with gcc  (tested with Sil)
 
    There are several different unix setups for Sil:
 
@@ -34,7 +37,7 @@ Linux or Unix with gcc  (tested with Sil)
 
 1. Mess with the Makefile:
 
-   Edit Makefile.std in the src directory. 
+   Edit Makefile.std in the src directory.
    Look for the section listing multiple "Variations".
    Choose the variation that you like best.
    Remove the # comments from that section's code.
@@ -49,16 +52,14 @@ Linux or Unix with gcc  (tested with Sil)
    Go back to the Sil folder and start Sil with "sil".
 
 
-==========================================================
-Mac OS X   (tested with Sil)
-==========================================================
+### Mac OS X   (tested with Sil)
 
 1. Compile Sil: 
 
    Open a new window in Terminal.
    Go to the src directory.
    Run "make -f Makefile.crb install". 
-   Sil should now be compiled and installed into the Sil folder.  
+   Sil should now be compiled and installed into the Sil folder.
    (Alternatively you could try the Sil.xcodeproj file,
    which may also work -- it is what the main developer uses)
 
@@ -67,9 +68,7 @@ Mac OS X   (tested with Sil)
    Go back to the Sil folder and double click on Sil.
 
 
-==========================================================
-Windows with Cygwin   (tested with Sil)
-==========================================================
+### Windows with Cygwin   (tested with Sil)
 
 1. Getting the free Cygwin compiler: 
 
@@ -93,9 +92,7 @@ Windows with Cygwin   (tested with Sil)
    Go back to the Sil folder and run Sil.exe. 
 
 
-==========================================================
-Windows with lcc-win32   (untested)
-==========================================================
+### Windows with lcc-win32   (untested)
 
 1. Getting the free lcc-win32 compiler: 
 
@@ -146,9 +143,7 @@ Windows with lcc-win32   (untested)
    folder from that. The affected files are .txt .hlp & .prf
 
 
-==========================================================
-Windows with lcc-win32 -- using command line (untested)
-==========================================================
+### Windows with lcc-win32 -- using command line (untested)
 
 1. Get the free lcc-win32 compiler:
 
@@ -181,9 +176,7 @@ Windows with lcc-win32 -- using command line (untested)
    folder from that. The affected files are .txt .hlp & .prf
 
 
-==========================================================
-Windows with Borland C++ 5.5 commandline tools  (untested)
-==========================================================
+### Windows with Borland C++ 5.5 commandline tools  (untested)
 
 1. Get the free commandline tools:
 
@@ -217,9 +210,7 @@ Windows with Borland C++ 5.5 commandline tools  (untested)
    folder from that. The affected files are .txt .hlp & .prf
 
 
-==========================================================
-DOS + DJGPP  (untested)
-==========================================================
+### DOS + DJGPP  (untested)
 
 1. Install DJGPP:
 
