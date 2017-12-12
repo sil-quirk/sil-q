@@ -5687,14 +5687,14 @@ void monster_perception(bool player_centered, bool main_roll, int difficulty)
 			// deal with bane ability (theoretically should modify player roll, but this is equivalent)
 			m_perception -= bane_bonus(m_ptr);
 
-			// monsters on earlier levels are a little less alert
-			m_perception -= (MORGOTH_DEPTH - p_ptr->depth) / 5;
-
             // increase morale for the Elf-Bane ability
             m_perception += elf_bane_bonus(m_ptr);
             
 			// monsters are looking more carefully during the escape
 			if (p_ptr->on_the_run) m_perception += 5;
+			// otherwise monsters on earlier levels are a little less alert
+			else m_perception -= ((MORGOTH_DEPTH - p_ptr->depth) / 5) - 1;
+
 			
 			// monsters that are already alert get a penalty to the roll to stop them getting *too* alert
 			if (m_ptr->alertness >= ALERTNESS_ALERT) m_perception -= m_ptr->alertness;
