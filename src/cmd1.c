@@ -3703,7 +3703,7 @@ int py_attack_aux(int y, int x, int attack_type)
 		total_evasion_mod = total_monster_evasion(m_ptr, FALSE);
 				
 		coup_de_grace = p_ptr->active_ability[S_MEL][MEL_COUP_DE_GRACE] &&
-				m_ptr && m_ptr->hp <= (p_ptr->stat_use[A_STR] + p_ptr->stat_use[A_DEX]);
+				m_ptr && m_ptr->hp <= (p_ptr->skill_use[S_MEL]);
 
 		if (!coup_de_grace)
 		{
@@ -3744,7 +3744,7 @@ int py_attack_aux(int y, int x, int attack_type)
 
 			/* No negative damage */
 			if (net_dam < 0) net_dam = 0;
-			if (net_dam > 0) attack_result = ATTACK_DAMAGED;
+			if (net_dam > 0 || coup_de_grace) attack_result = ATTACK_DAMAGED;
 
 			if (o_ptr->tval == TV_HAFTED)
 			{

@@ -137,8 +137,8 @@ T:31:0:99  # Gloves
 
 N:11:Coup de Grace
 I:0:11:12
-D:Attacks on enemies who have less health than the sum of your Strength and
-D: Dexterity kill them instantly.
+D:Attacks on enemies who have less health than your Melee score kill them
+D: outright without rolling to hit or to damage.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
