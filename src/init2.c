@@ -134,10 +134,6 @@ void init_file_paths(char *path)
 	/*** Build the sub-directory names ***/
 	
 	/* Build a path name */
-	strcpy(tail, "data");
-	ANGBAND_DIR_DATA = string_make(path);
-	
-	/* Build a path name */
 	strcpy(tail, "edit");
 	ANGBAND_DIR_EDIT = string_make(path);
 	
@@ -162,6 +158,11 @@ void init_file_paths(char *path)
 #endif /* PRIVATE_USER_PATH */
 	
 #ifdef USE_PRIVATE_SAVE_PATH
+	/* Build the path to the user specific sub-directory */
+	path_build(buf, sizeof(buf), ANGBAND_DIR_USER, "data");
+
+	/* Build a relative path name */
+	ANGBAND_DIR_DATA = string_make(buf);
 	
 	/* Build the path to the user specific sub-directory */
 	path_build(buf, sizeof(buf), ANGBAND_DIR_USER, "scores");
@@ -177,6 +178,10 @@ void init_file_paths(char *path)
 	
 #else /* USE_PRIVATE_SAVE_PATH */
 	
+	/* Build a path name */
+	strcpy(tail, "data");
+	ANGBAND_DIR_DATA = string_make(path);
+
 	/* Build a path name */
 	strcpy(tail, "apex");
 	ANGBAND_DIR_APEX = string_make(path);

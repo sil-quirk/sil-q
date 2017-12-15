@@ -161,6 +161,12 @@ static void create_user_dir(void)
 
 #ifdef USE_PRIVATE_SAVE_PATH
 	/* Build the path to the scores sub-directory */
+	path_build(dirpath, sizeof(dirpath), subdirpath, "data");
+
+	/* Create the directory */
+	mkdir(dirpath, 0700);
+
+	/* Build the path to the scores sub-directory */
 	path_build(dirpath, sizeof(dirpath), subdirpath, "scores");
 
 	/* Create the directory */
@@ -675,7 +681,7 @@ int main(int argc, char *argv[])
 				switch (choice)
 				{
 					case 1:
-						path_build(savefile, sizeof(buf), ANGBAND_DIR_APEX, "tutorial");
+						path_build(savefile, sizeof(buf), ANGBAND_DIR_XTRA, "tutorial");
 						game_in_progress = TRUE;
 						new_game = FALSE;
 						break;
