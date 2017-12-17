@@ -3711,6 +3711,16 @@ int py_attack_aux(int y, int x, int attack_type)
 			hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
 		}
 
+		if (hit_result <= 0 && p_ptr->active_ability[S_MEL][MEL_ANTICIPATE] && m_ptr->stance == STANCE_AGGRESSIVE)
+		{
+			// Reroll on miss twice
+			hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
+
+			if (hit_result <= 0) hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
+
+			if (hit_result > 0 && !(r_ptr->flags2 & (RF2_MINDLESS))) msg_format("You anticipate %s's aggression.", m_name);
+		}
+
 		/* If the attack connects... */
 		if (hit_result > 0 || coup_de_grace)
 		{
@@ -3775,7 +3785,7 @@ int py_attack_aux(int y, int x, int attack_type)
 				/* Message */
 				if (coup_de_grace)
 				{
-					message_format(MSG_HIT, m_ptr->r_idx, "You deliver a killing blow to %s%s", m_name, punctuation);
+					message_format(MSG_HIT, m_ptr->r_idx, "You deliver a killing blow to %s.", m_name);
 				}
 				else if (charge)
 				{

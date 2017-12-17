@@ -135,9 +135,13 @@ T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:31:0:99  # Gloves
 
-N:11:Placeholder
+N:11:Anticipate
 I:0:11:12
-D:Placeholder skill
+P:0/1:7/1
+D:Missed attacks on opponents with an Aggressive stance are rerolled up to twice.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
 
 N:12:Whirlwind Attack
 I:0:12:13
@@ -581,8 +585,8 @@ T:40:0:99  # Amulet
 
 N:141:Song of Challenge
 I:7:1:2
-D:Causes weak-willed foes to attack without regard to strategy.
-D: Enemies with ranged weapons will close to melee range.
+D:Causes weak-willed foes to attack aggressively without regard to 
+D: strategy. Enemies with ranged weapons will close to melee range.
 T:33:0:99  # Crown
 T:40:0:99  # Amulet
 

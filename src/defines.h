@@ -461,6 +461,7 @@
 #define	MEL_IMPALE				 8
 #define	MEL_RAPID_ATTACK			 9
 #define	MEL_TWO_WEAPON				10
+#define	MEL_ANTICIPATE				11
 #define	MEL_WHIRLWIND_ATTACK		12
 #define	MEL_STR						13
 
