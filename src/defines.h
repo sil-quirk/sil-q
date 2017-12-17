@@ -461,7 +461,6 @@
 #define	MEL_IMPALE				 8
 #define	MEL_RAPID_ATTACK			 9
 #define	MEL_TWO_WEAPON				10
-#define	MEL_COUP_DE_GRACE				11
 #define	MEL_WHIRLWIND_ATTACK		12
 #define	MEL_STR						13
 
@@ -501,7 +500,8 @@
 #define	STL_OPPORTUNIST				 3
 #define	STL_EXCHANGE_PLACES			 4
 #define	STL_VANISH					 5
-#define	STL_DEX						 6
+#define	STL_COUP_DE_GRACE				 6
+#define	STL_DEX						 7
 
 /* 
  * Perception abilities 

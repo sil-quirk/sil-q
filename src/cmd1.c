@@ -3702,8 +3702,8 @@ int py_attack_aux(int y, int x, int attack_type)
 		// Determine the monster's evasion score after all modifiers
 		total_evasion_mod = total_monster_evasion(m_ptr, FALSE);
 				
-		coup_de_grace = p_ptr->active_ability[S_MEL][MEL_COUP_DE_GRACE] &&
-				m_ptr && m_ptr->hp <= (p_ptr->skill_use[S_MEL]);
+		coup_de_grace = p_ptr->active_ability[S_STL][STL_COUP_DE_GRACE] &&
+				m_ptr && m_ptr->hp <= (p_ptr->skill_use[S_STL]);
 
 		if (!coup_de_grace)
 		{

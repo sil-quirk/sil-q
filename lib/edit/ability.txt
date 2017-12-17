@@ -135,13 +135,9 @@ T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:31:0:99  # Gloves
 
-N:11:Coup de Grace
+N:11:Placeholder
 I:0:11:12
-D:Attacks on enemies who have less health than your Melee score kill them
-D: outright without rolling to hit or to damage.
-T:21:0:99  # Hafted
-T:22:0:99  # Polearms
-T:23:0:99  # Swords
+D:Placeholder skill
 
 N:12:Whirlwind Attack
 I:0:12:13
@@ -207,6 +203,7 @@ D:Lets you fire two arrows per round, but they are calculated as
 D: if you had 3 points less strength and dexterity.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
+T:45:0:99  # Ring
 
 N:27:Dexterity
 I:1:7:10
@@ -352,9 +349,17 @@ D:Gives a +10 stealth bonus towards making enemies become unwary
 D: when you are out of their line of sight.
 T:35:0:99  # Cloak
 T:36:0:99  # Soft Armour
+T:45:0:99  # Ring
 
-N:66:Dexterity
+N:66:Coup de Grace
 I:3:6:11
+D:Attacks on enemies who have less health than your Stealth score
+D: kill them outright without rolling to hit or to damage.
+P:3/2
+T:23:4:4   # Daggers
+
+N:67:Dexterity
+I:3:7:12
 D:You gain a point of dexterity.
 
 # Perception ---------------------------------------------
@@ -388,6 +393,7 @@ D: as well as staves and horns. Allows you to spot curses on enchanted
 D: items.
 T:32:0:99  # Helm
 T:33:0:99  # Crown
+T:45:0:99  # Ring
 
 N:84:Concentration
 I:4:4:5
@@ -409,6 +415,8 @@ D: If your base Perception exceeds your Evasion, you gain a bonus to your
 D: Evasion of one quarter your Perception score.
 T:32:0:99  # Helm
 T:33:0:99  # Crown
+T:39:0:99  # Light Source
+T:40:0:99  # Amulet
 
 N:87:Listen
 I:4:7:8
@@ -425,6 +433,7 @@ D:Gives you an attack bonus of +1 for each time you have killed
 D: an opponent of the same type (up to a maximum of Perception/4).
 T:32:0:99  # Helm
 T:33:0:99  # Crown
+T:30:0:99  # Boots
 
 N:89:Grace
 I:4:9:10
@@ -437,6 +446,7 @@ I:5:0:2
 D:You automatically recognise all staves and horns and can use them twice as efficiently.
 T:32:0:99  # Helm
 T:33:0:99  # Crown
+T:45:0:99  # Ring
 
 N:101:Strength in Adversity
 I:5:1:3
