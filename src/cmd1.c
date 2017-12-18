@@ -3647,7 +3647,7 @@ int py_attack_aux(int y, int x, int attack_type)
 	}
 	
 	// Attack types that take place in the opponents' turns only allow a single attack
-	if (!is_normal_attack(attack_type))
+	if (!is_normal_attack(attack_type) && attack_type != ATT_WHIRLWIND)
 	{
 		blows = 1;
 		
