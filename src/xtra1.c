@@ -1654,6 +1654,7 @@ bool weapon_glows(object_type *o_ptr)
 		if ((f1 & (TR1_SLAY_ORC)) && (r_ptr->flags3 & (RF3_ORC)))			target = TRUE;
 		if ((f1 & (TR1_SLAY_TROLL)) && (r_ptr->flags3 & (RF3_TROLL)))		target = TRUE;
 		if ((f1 & (TR1_SLAY_DRAGON)) && (r_ptr->flags3 & (RF3_DRAGON)))		target = TRUE;
+		// No glow for Morgoth's weapons that slay men and elves
 		
 		// skip inapplicable monsters
 		if (!target) continue;

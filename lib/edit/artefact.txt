@@ -820,7 +820,7 @@ N:85:'Dugrakh'
 I:22:1:0
 W:6:10:25:50000
 P:0:1d9:0:0d0
-F:REGEN | SEE_INVIS | RES_COLD | RES_FIRE
+F:REGEN | SLAY_MAN_OR_ELF | SEE_INVIS
 F:AGGRAVATE | THROWING
 D:A weapon forged long ago in Utumno by Sauron,
 D: soon after he declared allegiance to Melkor and departed

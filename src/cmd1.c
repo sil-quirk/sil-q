@@ -916,6 +916,9 @@ void slay_desc(char *description, u32b flag, const monster_type *m_ptr)
 		case TR1_SLAY_TROLL:
         	sprintf(description, "strikes truly");
 			break;
+		case TR1_SLAY_MAN_OR_ELF:
+        	sprintf(description, "strikes truly");
+			break;
 		case TR1_BRAND_ELEC:
         	sprintf(description, "shocks %s with the force of lightning", m_name);
 			break;
@@ -2049,6 +2052,22 @@ int slay_bonus(const object_type *o_ptr, const monster_type *m_ptr, u32b *notice
 
 				*noticed_flag = maybe_notice_slay(o_ptr, TR1_SLAY_DRAGON);
 			}
+
+			/* Slay Men and Elves */
+			if ((f1 & (TR1_SLAY_MAN_OR_ELF)) &&
+			    (r_ptr->flags3 & (RF3_MAN)) || (r_ptr->flags3 & (RF3_ELF)))
+			{
+				if (m_ptr->ml)
+				{
+					l_ptr->flags3 |= (RF3_MAN);
+					l_ptr->flags3 |= (RF3_ELF);
+				}
+
+				slay_bonus_dice += 1;
+
+				*noticed_flag = maybe_notice_slay(o_ptr, TR1_SLAY_MAN_OR_ELF);
+			}
+
 
 			/* Brand (Elec) */
 			if (f1 & (TR1_BRAND_ELEC))

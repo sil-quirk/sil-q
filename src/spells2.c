@@ -949,6 +949,18 @@ void self_knowledge(void)
             good[i] = TRUE;
             i++;
 		}
+		if (f1 & (TR1_SLAY_MAN_OR_ELF))
+		{
+            identify[INVEN_WIELD] = TRUE;
+            strnfmt(s[i], 80, "Your weapon is especially effective against men");
+            strnfmt(t[i], 80, "(+1 damage die)");
+            good[i] = TRUE;
+            i++;
+            strnfmt(s[i], 80, "Your weapon is especially effective against elves");
+            strnfmt(t[i], 80, "(+1 damage die)");
+            good[i] = TRUE;
+            i++;
+		}
 	}
 
 	// *******************************************
@@ -1079,7 +1091,20 @@ void self_knowledge(void)
             strnfmt(t[i], 80, "(+1 damage die)");
             good[i] = TRUE;
             i++;
-		}	}
+		}	
+		if (f1 & (TR1_SLAY_MAN_OR_ELF))
+		{
+            identify[INVEN_WIELD] = TRUE;
+            strnfmt(s[i], 80, "Your off-hand weapon is especially effective against men");
+            strnfmt(t[i], 80, "(+1 damage die)");
+            good[i] = TRUE;
+            i++;
+            strnfmt(s[i], 80, "Your off-hand weapon is especially effective against elves");
+            strnfmt(t[i], 80, "(+1 damage die)");
+            good[i] = TRUE;
+            i++;
+		}
+	}
 	
 	// *******************************************
 	// Do some analysis just on the wielded bow
@@ -1179,6 +1204,18 @@ void self_knowledge(void)
 		{
             identify[INVEN_BOW] = TRUE;
             strnfmt(s[i], 80, "Your bow is especially effective against the undead");
+            strnfmt(t[i], 80, "(+1 damage die)");
+            good[i] = TRUE;
+            i++;
+		}
+		if (f1 & (TR1_SLAY_MAN_OR_ELF))
+		{
+            identify[INVEN_WIELD] = TRUE;
+            strnfmt(s[i], 80, "Your bow is especially effective against men");
+            strnfmt(t[i], 80, "(+1 damage die)");
+            good[i] = TRUE;
+            i++;
+            strnfmt(s[i], 80, "Your bow is especially effective against elves");
             strnfmt(t[i], 80, "(+1 damage die)");
             good[i] = TRUE;
             i++;

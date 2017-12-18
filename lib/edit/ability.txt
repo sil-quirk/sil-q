@@ -137,7 +137,7 @@ T:31:0:99  # Gloves
 
 N:11:Anticipate
 I:0:11:12
-P:0/1:7/1
+P:0/0:7/1
 D:Missed attacks on opponents with an Aggressive stance are rerolled up to twice.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms

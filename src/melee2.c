@@ -4149,6 +4149,11 @@ static void process_move(monster_type *m_ptr, int ty, int tx, bool bash)
 				if (f1 & (TR1_SLAY_UNDEAD))  flg3 |= (RF3_UNDEAD);
 				if (f1 & (TR1_SLAY_WOLF))    flg3 |= (RF3_WOLF);
 				if (f1 & (TR1_SLAY_SPIDER))  flg3 |= (RF3_SPIDER);
+				if (f1 & (TR1_SLAY_MAN_OR_ELF)) 
+				{
+					flg3 |= (RF3_MAN);
+					flg3 |= (RF3_ELF);
+				}
 
 				/* Don't pick up cursed items */
 				if ((r_ptr->flags2 & (RF2_TAKE_ITEM)) && (cursed_p(o_ptr) || broken_p(o_ptr)))

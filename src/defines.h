@@ -1743,7 +1743,7 @@
 #define TR1_WIL             0x00001000L /* WIL += "pval" */
 #define TR1_SMT             0x00002000L /* SMT += "pval" */
 #define TR1_SNG             0x00004000L /* SNG += "pval" */
-#define TR1_TR1XXX1         0x00008000L /* xxx */
+#define TR1_SLAY_MAN_OR_ELF    0x00008000L /* Weapon slays humans and elves */
 #define TR1_DAMAGE_SIDES	0x00010000L /* damage sides += "pval" */
 #define TR1_TUNNEL          0x00020000L /* Tunnel += "pval" */
 #define TR1_SHARPNESS       0x00040000L /* Weapon ignores half of protection */
@@ -1961,7 +1961,7 @@
 
 #define TR1_SLAY_MASK \
 	(TR1_SLAY_SPIDER | TR1_SLAY_UNDEAD | TR1_SLAY_RAUKO | TR1_SLAY_ORC | TR1_SLAY_TROLL | \
-         TR1_SLAY_WOLF | TR1_SLAY_DRAGON)
+         TR1_SLAY_WOLF | TR1_SLAY_DRAGON | TR1_SLAY_MAN_OR_ELF)
 
 #define TR2_SLAY_MASK \
 	(0L)
@@ -2331,8 +2331,8 @@
 #define RF3_UNDEAD			0x00000020	/* Undead */
 #define RF3_SPIDER			0x00000040	/* Spider */
 #define RF3_WOLF			0x00000080	/* Wolf */
-#define RF3_RF3XXX1			0x00000100	/* (?) */
-#define RF3_RF3XXX2			0x00000200	/* (?) */
+#define RF3_MAN				0x00000100	/* Man */
+#define RF3_ELF				0x00000200	/* Elf */
 #define RF3_RF3XXX3			0x00000400	/* Non-Vocal (?) */
 #define RF3_RF3XXX4			0x00000800	/* Non-Living (?) */
 #define RF3_HURT_LITE		0x00001000	/* Hurt by lite */
@@ -2413,7 +2413,7 @@
 
 #define RF3_RACE_MASK \
 	(RF3_ORC | RF3_TROLL | RF3_SERPENT | RF3_DRAGON | \
-	 RF3_RAUKO | RF3_UNDEAD | RF3_SPIDER | RF3_WOLF)
+	 RF3_RAUKO | RF3_UNDEAD | RF3_SPIDER | RF3_WOLF | RF3_MAN | RF3_ELF)
 
 
 /*

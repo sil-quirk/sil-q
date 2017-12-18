@@ -205,6 +205,11 @@ static bool describe_slay(const object_type *o_ptr, u32b f1)
 	if (f1 & (TR1_SLAY_DRAGON))	slays[slcnt++] = "dragons";
 	if (f1 & (TR1_SLAY_RAUKO))	slays[slcnt++] = "raukar";
 	if (f1 & (TR1_SLAY_UNDEAD))	slays[slcnt++] = "undead";
+	if (f1 & (TR1_SLAY_MAN_OR_ELF))
+	{
+		slays[slcnt++] = "men";
+		slays[slcnt++] = "elves";
+	}
 
 	/* Describe */
 	if (slcnt)

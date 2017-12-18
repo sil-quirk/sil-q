@@ -1165,6 +1165,8 @@ static void describe_monster_movement(int r_idx, const monster_lore *l_ptr)
 	else if (l_ptr->flags3 & RF3_ORC) text_out_c(TERM_L_BLUE, " orc");
 	else if (l_ptr->flags3 & RF3_WOLF) text_out_c(TERM_L_BLUE, " wolf");
 	else if (l_ptr->flags3 & RF3_SPIDER) text_out_c(TERM_L_BLUE, " spider");
+	else if (l_ptr->flags3 & RF3_MAN) text_out_c(TERM_L_BLUE, " man");
+	else if (l_ptr->flags3 & RF3_ELF) text_out_c(TERM_L_BLUE, " elf");
 	else text_out(" creature");
 
 	/* Describe location */
