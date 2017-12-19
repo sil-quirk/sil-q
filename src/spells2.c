@@ -2089,6 +2089,11 @@ bool recharge(int num)
 	/* Attempt to Recharge a staff, or handle failure to recharge . */
 	if (o_ptr->tval == TV_STAFF)
 	{
+		if (o_ptr->sval == SV_STAFF_RECHARGING && p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+		{
+			num /= 2;
+		}
+
 		/* Recharge the staff. */
 		o_ptr->pval += num;
 				
