@@ -703,6 +703,8 @@ static void rd_options(void)
 	/* Analyze the options */
 	for (n = 0; n < ANGBAND_TERM_MAX; n++)
 	{
+		op_ptr->window_flag[n] = 0;
+
 		/* Analyze the options */
 		for (i = 0; i < 32; i++)
 		{
