@@ -378,7 +378,7 @@ D: attract attention. It has a crude spear.
 
 # Can't move from idx 32, used by monster ability HATCH_SPIDER
 N:32:Spider hatchling
-W:3:1
+W:3:4
 G:m:U
 I:2:1d4:0
 A:15:2:8:2
@@ -404,6 +404,19 @@ S:BRTH_COLD
 D:A snake the length of a man, with hard blue scales.
 D: There is a chill in the air around it.
 
+
+N:34:Brood spider
+W:3:1
+G:M:U
+I:1:8d4:0
+A:10:6:2:4
+P:[+3,3d4]
+B:BITE:POISON:(+10,2d6)
+F:SPIDER | TERRITORIAL | RES_POIS
+S:SPELL_PCT_10
+S:HATCH_SPIDER
+D:A huge ponderous spider with clusters of eggs on its back.
+D: Its hairy mandibles are wet with a dark fluid.
 
 ##### 4 #####
 
@@ -445,19 +458,6 @@ B:PECK:BLIND:(+10,1d5)
 F:FRIEND | FLYING | RAND_25
 D:A dark creature, related to the crow. It pecks at any exposed flesh,
 D: especially the face and eyes.
-
-N:44:Brood spider
-W:4:1
-G:M:U
-I:1:16d4:0
-A:10:5:2:4
-P:[+1,2d4]
-B:BITE:POISON:(+6,3d3)
-F:SPIDER | TERRITORIAL
-S:SPELL_PCT_10
-S:HATCH_SPIDER
-D:A huge ponderous spider with clusters of eggs on its back.
-D: Its hairy mandibles are wet with a dark fluid.
 
 
 ##### 5 #####

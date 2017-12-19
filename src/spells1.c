@@ -4700,8 +4700,11 @@ void hatch_spider(monster_type* m_ptr)
 	/* Get the monster name */
 	monster_desc(m_name, sizeof(m_name), m_ptr, 0x80);
 
-	msg_format("An egg on %s's back hatches.", m_name);
+	if (m_ptr->ml) msg_format("An egg on %s's back hatches.", m_name);
 	reproduce_monster(cave_m_idx[m_ptr->fy][m_ptr->fx], R_IDX_SPIDER_HATCHLING);
+
+	// Monster still gets to attack next turn
+	m_ptr->energy += 50;
 }
 
 /*
