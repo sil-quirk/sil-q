@@ -3290,10 +3290,10 @@ bool summon_specific(int y1, int x1, int lev, int type)
  *
  * Note that "reproduction" REQUIRES empty space.
  */
-bool multiply_monster(int m_idx)
+bool reproduce_monster(int old_m_idx, int new_r_idx)
 {
-	monster_type *m_ptr = &mon_list[m_idx];
-	monster_race *r_ptr = &r_info[m_ptr->r_idx];
+	monster_type *old_m_ptr = &mon_list[old_m_idx];
+	monster_race *new_r_ptr = &r_info[new_r_idx];
 
  	int i, y, x;
 
@@ -3305,14 +3305,14 @@ bool multiply_monster(int m_idx)
 	/* Scan the adjacent floor grids */
 	for (i = 0; i < 8; i++)
 	{
-		y = m_ptr->fy + ddy_ddd[i];
-		x = m_ptr->fx + ddx_ddd[i];
+		y = old_m_ptr->fy + ddy_ddd[i];
+		x = old_m_ptr->fx + ddx_ddd[i];
 
 		/* Must be fully in bounds */
 		if (!in_bounds_fully(y, x)) continue;
 
 		/* This grid is OK for this monster (should monsters be able to dig?) */
-		if (cave_exist_mon(r_ptr, y, x, FALSE, FALSE))
+		if (cave_exist_mon(new_r_ptr, y, x, FALSE, FALSE))
 		{
 			/* Save this grid */
 			grid[grids++] = GRID(y, x);
@@ -3330,7 +3330,7 @@ bool multiply_monster(int m_idx)
 	x = GRID_X(grid[i]);
 
 	/* Create a new monster (awake, no groups) */
-	result = place_monster_aux(y, x, m_ptr->r_idx, FALSE, FALSE);
+	result = place_monster_aux(y, x, new_r_idx, FALSE, FALSE);
 
  	/* Result */
  	return (result);

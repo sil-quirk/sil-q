@@ -376,6 +376,7 @@ D: The miserable creature tries to stay away from you and
 D: attract attention. It has a crude spear.
 
 
+# Can't move from idx 32, used by monster ability HATCH_SPIDER
 N:32:Spider hatchling
 W:3:1
 G:m:U
@@ -444,6 +445,19 @@ B:PECK:BLIND:(+10,1d5)
 F:FRIEND | FLYING | RAND_25
 D:A dark creature, related to the crow. It pecks at any exposed flesh,
 D: especially the face and eyes.
+
+N:44:Brood spider
+W:4:1
+G:M:U
+I:1:16d4:0
+A:10:5:2:4
+P:[+1,2d4]
+B:BITE:POISON:(+6,3d3)
+F:SPIDER | TERRITORIAL
+S:SPELL_PCT_10
+S:HATCH_SPIDER
+D:A huge ponderous spider with clusters of eggs on its back.
+D: Its hairy mandibles are wet with a dark fluid.
 
 
 ##### 5 #####
@@ -936,7 +950,7 @@ A:15:2:0:7
 P:[+5,1d4]
 B:HIT:HURT:(+6,4d9)
 F:DROP_100 | OPEN_DOOR | BASH_DOOR | SMART
-S:SPELL_PCT_10 | POW_6
+S:SPELL_PCT_15 | POW_6
 S:BOULDER
 D:As tall as three men, this hulking opponent is crudely
 D: armed with a great club.
@@ -1330,7 +1344,7 @@ I:2:10d4:0
 A:10:7:0:12
 P:[+12,4d4]
 B:HIT:SHATTER:(+11,4d8)
-F:BASH_DOOR | KILL_WALL | STONE | RAUKO | SMART
+F:BASH_DOOR | TUNNEL_WALL | STONE | RAUKO | SMART
 F:RES_COLD | RES_FIRE
 F:RES_POIS | RES_CRIT
 D:It seems the very stone from which Angband is hewn
@@ -1585,7 +1599,7 @@ W:18:1
 G:R:R
 I:2:4d4:3
 A:10:8:2:14
-P:[+15,2d4]
+P:[+17,2d4]
 B:HIT:FIRE:(+26,4d10)
 F:BASH_DOOR | SMART
 F:RAUKO | RES_FIRE | HURT_COLD
@@ -1689,7 +1703,7 @@ I:1:70d4:0
 A:5:5:0:12
 P:[+7,6d4]
 B:CRUSH:ACID:(+17,5d10)
-F:BASH_DOOR | KILL_WALL | REGENERATE | MINDLESS | TERRITORIAL
+F:BASH_DOOR | TUNNEL_WALL | REGENERATE | MINDLESS | TERRITORIAL
 F:RAND_25 | RAND_50 | FORCE_DEPTH
 D:'Far, far below the deepest delvings of the Dwarves, the world is
 D: gnawed by nameless things...' It is as a vast grub,

@@ -4744,7 +4744,7 @@ static void process_monster(monster_type *m_ptr)
 		if ((k <= 3) && (one_in_(k * 8)))
 		{
 			/* Try to multiply */
-			if (multiply_monster(cave_m_idx[m_ptr->fy][m_ptr->fx]))
+			if (reproduce_monster(cave_m_idx[m_ptr->fy][m_ptr->fx], m_ptr->r_idx))
 			{
 				/* Take note if visible */
 				if (m_ptr->ml)

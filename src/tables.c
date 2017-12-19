@@ -1284,7 +1284,7 @@ byte spell_info_RF4[32][3]=
 	{ MON_MANA_COST,     0,     0},        /* RF4_SNG_PIERCING */
     { MON_MANA_COST,     0,     0},        /* RF4_SNG_OATHS */
     
-	{             0,     0,     0},        /* RF4_XXX20 */
+	{ MON_MANA_COST,     0,     0},        /* RF4_HATCH_SPIDER */
 	{             0,     0,     0},        /* RF4_XXX21 */
 	{             0,     0,     0},        /* RF4_XXX22 */
 	{             0,     0,     0},        /* RF4_XXX23 */
@@ -1329,7 +1329,7 @@ byte spell_desire_RF4[32][2] =
 	{   0,    0}, /* RF4_SNG_PIERCING */
 	{  50,  100}, /* RF4_SNG_OATHS */
     
-	{ 0,   100}, /* RF4_XXX20 */
+	{ 50,   100}, /* RF4_HATCH_SPIDER */
 	{ 0,   100}, /* RF4_XXX21 */
 	{ 0,   100}, /* RF4_XXX22 */
 	{ 0,   100}, /* RF4_XXX23 */

@@ -836,7 +836,7 @@ void self_knowledge(void)
 		{
             identify[INVEN_WIELD] = TRUE;
             strnfmt(s[i], 80, "Your weapon cuts easily through armour");
-            strnfmt(t[i], 80, "(ignore 50% of protection)");
+            strnfmt(t[i], 80, "(ignore 50\% of protection)");
             good[i] = TRUE;
             i++;
 		}
@@ -845,7 +845,7 @@ void self_knowledge(void)
 		{
             identify[INVEN_WIELD] = TRUE;
             strnfmt(s[i], 80, "Your weapon cuts exceptionally easily through armour");
-            strnfmt(t[i], 80, "(ignore 100% of protection)");
+            strnfmt(t[i], 80, "(ignore 100\% of protection)");
             good[i] = TRUE;
             i++;
 		}
@@ -980,7 +980,7 @@ void self_knowledge(void)
 		{
             identify[INVEN_ARM] = TRUE;
             strnfmt(s[i], 80, "Your off-hand weapon cuts easily through armour");
-            strnfmt(t[i], 80, "(ignore 50% of protection)");
+            strnfmt(t[i], 80, "(ignore 50\% of protection)");
             good[i] = TRUE;
             i++;
 		}
@@ -988,7 +988,7 @@ void self_knowledge(void)
 		{
             identify[INVEN_ARM] = TRUE;
             strnfmt(s[i], 80, "Your off-hand weapon cuts exceptionally easily through armour");
-            strnfmt(t[i], 80, "(ignore 100% of protection)");
+            strnfmt(t[i], 80, "(ignore 100\% of protection)");
             good[i] = TRUE;
             i++;
 		}

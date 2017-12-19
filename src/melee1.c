@@ -2243,6 +2243,13 @@ bool make_attack_ranged(monster_type *m_ptr, int attack)
 			break;
 		}
 
+        /* RF4_HATCH_SPIDER */
+		case 96+19:
+		{
+            hatch_spider(m_ptr);
+
+			break;
+		}
 		/* Paranoia */
 		default:
 		{

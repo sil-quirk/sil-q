@@ -4693,6 +4693,17 @@ void song_of_oaths(monster_type *m_ptr)
 }
 
 
+void hatch_spider(monster_type* m_ptr)
+{
+	char m_name[80];
+
+	/* Get the monster name */
+	monster_desc(m_name, sizeof(m_name), m_ptr, 0x80);
+
+	msg_format("An egg on %s's back hatches.", m_name);
+	reproduce_monster(cave_m_idx[m_ptr->fy][m_ptr->fx], R_IDX_SPIDER_HATCHLING);
+}
+
 /*
  *  Allows you to change the song you are singing to a new one.
  *  If you have the ability 'woven themes' and try to sing a different song, 

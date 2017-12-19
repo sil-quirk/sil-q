@@ -598,7 +598,7 @@ extern bool place_monster_aux(int y, int x, int r_idx, bool slp, bool grp);
 extern bool place_monster(int y, int x, bool slp, bool grp, bool vault);
 extern bool alloc_monster(bool on_stairs, bool force_undead);
 extern bool summon_specific(int y1, int x1, int lev, int type);
-extern bool multiply_monster(int m_idx);
+extern bool reproduce_monster(int old_m_idx, int new_r_idx);
 extern void message_pain(int m_idx, int dam);
 
 /* obj-info.c */
@@ -736,6 +736,7 @@ extern bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, in
 extern void song_of_binding(monster_type *m_ptr);
 extern void song_of_piercing(monster_type *m_ptr);
 extern void song_of_oaths(monster_type *m_ptr);
+extern void hatch_spider(monster_type *m_ptr);
 extern void change_song(int song);
 extern bool singing(int song);
 extern void sing(void);
