@@ -2642,7 +2642,7 @@ int object_difficulty(object_type *o_ptr)
 	// normal costs for other items
 	else
 	{
-		dif_mod(x, 6, &dif_inc);
+		dif_mod(x, 5, &dif_inc);
 	}
 	
 	// evasion bonus
@@ -2651,7 +2651,7 @@ int object_difficulty(object_type *o_ptr)
 	
 	// damage bonus
 	x = (o_ptr->ds - k_ptr->ds);
-	dif_mod(x, 9 + o_ptr->dd, &dif_inc);
+	dif_mod(x, 7 + o_ptr->dd, &dif_inc);
 
 
 	// protection bonus
@@ -2672,13 +2672,13 @@ int object_difficulty(object_type *o_ptr)
 
 
 	// weapon modifiers
-	if (f1 & TR1_SLAY_ORC)			{	dif_inc += 4;	}
-	if (f1 & TR1_SLAY_TROLL)		{	dif_inc += 5;	}
-	if (f1 & TR1_SLAY_WOLF)			{	dif_inc += 5;	}
-	if (f1 & TR1_SLAY_SPIDER)		{	dif_inc += 5;	}
-	if (f1 & TR1_SLAY_UNDEAD)		{	dif_inc += 5;	}
-	if (f1 & TR1_SLAY_RAUKO)		{	dif_inc += 6;	}
-	if (f1 & TR1_SLAY_DRAGON)		{	dif_inc += 6;	}
+	if (f1 & TR1_SLAY_ORC)			{	dif_inc += 3;	}
+	if (f1 & TR1_SLAY_TROLL)		{	dif_inc += 3;	}
+	if (f1 & TR1_SLAY_WOLF)			{	dif_inc += 3;	}
+	if (f1 & TR1_SLAY_SPIDER)		{	dif_inc += 4;	}
+	if (f1 & TR1_SLAY_UNDEAD)		{	dif_inc += 3;	}
+	if (f1 & TR1_SLAY_RAUKO)		{	dif_inc += 4;	}
+	if (f1 & TR1_SLAY_DRAGON)		{	dif_inc += 4;	}
 
 	if (f1 & TR1_BRAND_COLD)		{	dif_inc += 18;	smithing_cost.str += 2;	brands++; }
 	if (f1 & TR1_BRAND_FIRE)		{	dif_inc += 14;	smithing_cost.str += 2;	brands++; }
@@ -2731,16 +2731,15 @@ int object_difficulty(object_type *o_ptr)
 	if (f2 & TR2_SLOW_DIGEST) 	{	dif_inc += 2; }
 	if (f2 & TR2_RADIANCE) 		{	dif_inc += 8;	smithing_cost.gra += 1;	}
 	if (f2 & TR2_LIGHT)		{	dif_inc += 8;	smithing_cost.gra += 1;	}
-	if (f2 & TR2_REGEN) 		{	dif_inc += 8;	smithing_cost.con += 1;	}
-	if (f2 & TR2_SEE_INVIS) 	{	dif_inc += 8;	}
-	if (f2 & TR2_FREE_ACT) 		{	dif_inc += 7;	}
+	if (f2 & TR2_REGEN) 		{	dif_inc += 6;	}
+	if (f2 & TR2_SEE_INVIS) 	{	dif_inc += 7;	}
+	if (f2 & TR2_FREE_ACT) 		{	dif_inc += 6;	}
 	if (f2 & TR2_SPEED)		{	dif_inc += 40;	smithing_cost.con += 5;	}
 	
 	// Elemental Resistances
 	if (f2 & TR2_RES_COLD)		{	dif_inc += 7;	smithing_cost.con += 1;	}
 	if (f2 & TR2_RES_FIRE)		{	dif_inc += 7;	smithing_cost.con += 1;	}
 	if (f2 & TR2_RES_POIS)		{	dif_inc += 7;	smithing_cost.con += 1;	}
-	if (f2 & TR2_RES_DARK)		{	dif_inc += 7;	smithing_cost.gra += 1;	}
 	
 	// Other Resistances
 	if (f2 & TR2_RES_BLIND)		{	dif_inc += 4;	}
