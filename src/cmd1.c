@@ -3263,7 +3263,8 @@ void possible_follow_through(int fy, int fx, int attack_type)
 	int deltax = fx - p_ptr->px;
 	
 	if (p_ptr->active_ability[S_MEL][MEL_FOLLOW_THROUGH] && !(p_ptr->confused) &&
-	    (is_normal_attack(attack_type) || (attack_type == ATT_FOLLOW_THROUGH)))
+	    (is_normal_attack(attack_type) || (attack_type == ATT_FOLLOW_THROUGH) || 
+	    (attack_type == ATT_WHIRLWIND)))
 	{
         // look through adjacent squares in an anticlockwise direction
         for (i = 1; i < 8; i++)
@@ -4053,23 +4054,14 @@ void py_attack(int y, int x, int attack_type)
 
 					monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 
+					if (i != 0) msg_print("You continue your attack!");
+
 					result = py_attack_aux(yy, xx, ATT_WHIRLWIND);
 					if (result == ATTACK_DAMAGED)
 					{
 						if (!lucky) break;
-						else msg_format("Your weapon tears into %s and keeps going!", m_name);
-					}
-					else if (result == ATTACK_HIT)
-					{
-						msg_format("Your weapon bounces off %s.", m_name);
-					}
-					else
-					{
-						msg_format("Your weapon whirls past %s.", m_name);
 					}
 				}
-
-				if (i == 7) msg_print("You finish your swing.");
 			}
 		}
 	}
