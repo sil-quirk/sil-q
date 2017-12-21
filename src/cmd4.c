@@ -2749,16 +2749,20 @@ int object_difficulty(object_type *o_ptr)
 	if (f2 & TR2_RES_HALLU)		{	dif_inc += 2;	}
 
 	// Penalty Flags
-	if (f2 & TR2_FEAR)		{	dif_dec += 0;	}
-	if (f2 & TR2_HUNGER)		{	dif_dec += 0;	}
-	if (f2 & TR2_DARKNESS)		{	dif_dec += 0;	}
 	if (f2 & TR2_DANGER)		{	dif_dec += 5;	} // only Danger counts
-	if (f2 & TR2_AGGRAVATE)		{	dif_dec += 0;	}
-	if (f2 & TR2_HAUNTED)		{	dif_dec += 0;	}
-	if (f2 & TR2_VUL_COLD)		{	dif_dec += 0;	}
-	if (f2 & TR2_VUL_FIRE)		{	dif_dec += 0;	}
-	if (f2 & TR2_VUL_POIS)		{	dif_dec += 0;	}
-	
+
+	// Count the other curses only for known items which aren't smithing gear...
+	if (!o_ptr->name1)
+	{
+		if (f2 & TR2_DARKNESS)		{	dif_dec += 3;	}
+		if (f2 & TR2_AGGRAVATE)		{	dif_dec += 3;	}
+		if (f2 & TR2_HAUNTED)		{	dif_dec += 5;	}
+		if (f2 & TR2_VUL_COLD)		{	dif_dec += 4;	}
+		if (f2 & TR2_VUL_FIRE)		{	dif_dec += 4;	}
+		if (f2 & TR2_VUL_POIS)		{	dif_dec += 4;	}
+		if (f3 & TR3_LIGHT_CURSE)	{	dif_dec += 2;	}
+
+	}
 
 	// Abilities
 	for (i = 0; i < o_ptr->abilities; i++)
