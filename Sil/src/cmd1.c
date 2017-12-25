@@ -1262,6 +1262,14 @@ extern void ident_on_wield(object_type *o_ptr)
 		}
 	}
 
+	// identify the item types that grant abilities
+	else if (k_ptr->abilities > 0)
+	{
+		notice = TRUE;
+		msg_format("You have gained the ability '%s'.", 
+			   b_name + (&b_info[ability_index(k_ptr->skilltype[0], k_ptr->abilitynum[0])])->name);
+	}
+
 	// identify the special item types that grant abilities
 	else if (o_ptr->name2)
 	{

@@ -1053,7 +1053,7 @@ void prise_silmaril(void)
 
 		if (silmaril == FIRST_SILMARIL)
 		{
-			if(!p_ptr->crown_shatter && one_in_(2))
+			if(!p_ptr->crown_shatter && one_in_(2) && o_ptr->name1 != ART_MORGOTH_3)
 			{
 				shatter_weapon(2);
 				freed = FALSE;

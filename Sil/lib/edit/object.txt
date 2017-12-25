@@ -932,13 +932,15 @@ A:12/3
 F:FREE_ACT | EASY_KNOW
 
 
-N:160:Archery
+# (ability 2/0 is Dodging)
+N:160:Cowardice
 G:=:d
 I:45:10:0
 W:7:0:1:500
 P:0:0d0:0:0d0
 A:7/3
-F:ARCHERY
+F:FEAR | EASY_KNOW | LIGHT_CURSE
+B:2/0
 
 
 #N:161:True Sight

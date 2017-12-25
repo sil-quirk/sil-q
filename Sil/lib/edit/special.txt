@@ -97,12 +97,13 @@ T:36:0:99
 F:STEALTH
 
 
-# robes only
+# Shields and heavy armour
 
-N:6:of Permanence
-W:0:1:0:1000
+N:6:of Nogrod
+W:0:4:0:1000
 C:0:0:0:0:0:0:0
-T:36:2:2
+T:34:0:99
+T:37:0:99
 F:SUST_STR | SUST_DEX | SUST_CON | SUST_GRA
 F:IGNORE_ALL
 

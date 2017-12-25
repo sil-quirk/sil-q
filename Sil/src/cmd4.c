@@ -9955,14 +9955,6 @@ void apply_magic_fake(object_type *o_ptr)
 					break;
 				}
 
-				/* Ring of damage */
-				case SV_RING_ARCHERY:
-				{
-					if (o_ptr->pval < 1) o_ptr->pval = 1;
-					
-					break;
-				}
-
 				/* Ring of Accuracy */
 				case SV_RING_ACCURACY:
 				{
