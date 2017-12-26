@@ -1664,7 +1664,7 @@ N:422:& Broken Shield~
 G:):s
 I:34:1:0
 W:1:0:50:50
-P:-2:0d0:0:1d2
+P:-1:0d0:0:1d2
 A:1/1
 F:DAMAGED | NO_SMITHING
 
