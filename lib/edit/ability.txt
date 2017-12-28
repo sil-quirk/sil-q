@@ -470,6 +470,7 @@ N:102:Curse Breaking
 I:5:2:4
 D:Allows you to break the curses on items when you
 D: attempt to take them off.
+T:40:0:99  # Amulet
 T:32:0:99  # Helm
 T:33:0:99  # Crown
 
@@ -481,14 +482,17 @@ T:32:0:99  # Helm
 T:33:0:99  # Crown
 T:39:0:99  # Light Source
 T:36:0:99  # Soft Armour
+T:21:9:9   # Sceptre
 
 N:104:Indomitable
 I:5:4:5
 D:Gives you resistance to fear, confusion, stunning, and hallucination.
 D: Slows hunger to one third the normal rate.
+T:40:0:99  # Amulet
 T:32:0:99  # Helm
 T:33:0:99  # Crown
 T:37:0:99  # Mail
+T:21:9:9   # Sceptre
 
 N:105:Hardiness
 I:5:5:6
@@ -505,6 +509,7 @@ P:5/1
 D:When you are damaged in melee by an enemy, an additional damage
 D: die is added to your next successful strike. This effect does not stack.
 T:40:0:99  # Amulet
+T:33:0:99  # Crown
 
 N:108:Critical Resistance
 I:5:8:9
@@ -523,6 +528,8 @@ P:5/0:5/3
 D:Lowers monster morale by half the difference between your Will and theirs.
 T:32:0:99  # Helm
 T:33:0:99  # Crown
+T:36:2:2   # Robe
+T:21:9:9   # Sceptre
 
 N:110:Constitution
 I:5:10:12
