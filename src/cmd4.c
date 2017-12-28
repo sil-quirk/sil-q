@@ -2641,7 +2641,7 @@ int object_difficulty(object_type *o_ptr)
 	// normal costs for other items
 	else
 	{
-		dif_mod(x, 5, &dif_inc);
+		dif_mod(x, 6, &dif_inc);
 	}
 	
 	// evasion bonus
@@ -2650,7 +2650,7 @@ int object_difficulty(object_type *o_ptr)
 	
 	// damage bonus
 	x = (o_ptr->ds - k_ptr->ds);
-	dif_mod(x, 7 + o_ptr->dd, &dif_inc);
+	dif_mod(x, 6 + o_ptr->dd, &dif_inc);
 
 
 	// protection bonus
@@ -2662,11 +2662,11 @@ int object_difficulty(object_type *o_ptr)
 	if ((smith_o_ptr->tval == TV_MAIL) && (smith_o_ptr->sval == SV_LONG_CORSLET) && (x > 0))
 	{
 		dif_mod(x, 1, &dif_inc);
-		dif_inc += 4;
+		dif_inc += 3;
 	}
 	else
 	{
-		dif_mod(x, 4, &dif_inc);
+		dif_mod(x, 3, &dif_inc);
 	}
 
 
@@ -2736,13 +2736,13 @@ int object_difficulty(object_type *o_ptr)
 	if (f2 & TR2_SPEED)		{	dif_inc += 40;	smithing_cost.con += 5;	}
 	
 	// Elemental Resistances
-	if (f2 & TR2_RES_COLD)		{	dif_inc += 7;	smithing_cost.con += 1;	}
-	if (f2 & TR2_RES_FIRE)		{	dif_inc += 7;	smithing_cost.con += 1;	}
-	if (f2 & TR2_RES_POIS)		{	dif_inc += 7;	smithing_cost.con += 1;	}
+	if (f2 & TR2_RES_COLD)		{	dif_inc += 5;	}
+	if (f2 & TR2_RES_FIRE)		{	dif_inc += 5;	}
+	if (f2 & TR2_RES_POIS)		{	dif_inc += 5;	}
 	
 	// Other Resistances
-	if (f2 & TR2_RES_BLIND)		{	dif_inc += 4;	}
-	if (f2 & TR2_RES_CONFU)		{	dif_inc += 4;	}
+	if (f2 & TR2_RES_BLIND)		{	dif_inc += 3;	}
+	if (f2 & TR2_RES_CONFU)		{	dif_inc += 3;	}
 	if (f2 & TR2_RES_STUN)		{	dif_inc += 2;	}
 	if (f2 & TR2_RES_FEAR)		{	dif_inc += 2;	}
 	if (f2 & TR2_RES_HALLU)		{	dif_inc += 2;	}
