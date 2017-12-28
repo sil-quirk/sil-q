@@ -552,13 +552,13 @@
 #define	SNG_ELBERETH				 0
 #define	SNG_CHALLENGE					 1
 #define	SNG_SILENCE					 2
-#define	SNG_FREEDOM					 3
+#define	SNG_DELVINGS				 3
 #define	SNG_TREES					 4
-#define	SNG_AULE					 5
+#define	SNG_FREEDOM					 5
 #define	SNG_STAYING					 6
 #define	SNG_LORIEN					 7
 #define	SNG_THRESHOLDS					 8
-#define	SNG_DELVINGS				 9
+#define	SNG_AULE					 9
 #define	SNG_MASTERY					10
 #define	SNG_WOVEN_THEMES			11
 #define	SNG_GRA						12

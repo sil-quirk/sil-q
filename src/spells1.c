@@ -4249,7 +4249,7 @@ void sing_song_of_freedom(int score)
                 /* Disarm/Unlock traps */
                 if (o_ptr->pval > 0)
                 {
-                    difficulty = base_difficulty + 5 + flow_dist(FLOW_PLAYER_NOISE, y, x);
+                    difficulty = base_difficulty + flow_dist(FLOW_PLAYER_NOISE, y, x);
                     if (skill_check(PLAYER, score, difficulty, NULL) > 0)
                     {
                         /* Disarm or Unlock */
@@ -4264,13 +4264,13 @@ void sing_song_of_freedom(int score)
             // Chasm
             else if (cave_feat[y][x] == FEAT_CHASM)
             {
-                closed_chasm |= close_chasm(y, x, score - flow_dist(FLOW_PLAYER_NOISE, y, x) - 5);
+                closed_chasm |= close_chasm(y, x, score - flow_dist(FLOW_PLAYER_NOISE, y, x));
             }
             
             /* Invisible trap */
             else if (cave_trap_bold(y, x) && (cave_info[y][x] & (CAVE_HIDDEN)))
             {
-                difficulty = base_difficulty + 5 + flow_dist(FLOW_PLAYER_NOISE, y, x);
+                difficulty = base_difficulty + flow_dist(FLOW_PLAYER_NOISE, y, x);
                 if (skill_check(PLAYER, score, difficulty, NULL) > 0)
                 {
                     /* Remove the trap */
@@ -4281,7 +4281,7 @@ void sing_song_of_freedom(int score)
             /* Visible trap */
             else if (cave_trap_bold(y,x))
             {
-                difficulty = base_difficulty + 5 + flow_dist(FLOW_PLAYER_NOISE, y, x);
+                difficulty = base_difficulty + flow_dist(FLOW_PLAYER_NOISE, y, x);
                 if (skill_check(PLAYER, score, difficulty, NULL) > 0)
                 {
                     /* Remove the trap */
@@ -4297,7 +4297,7 @@ void sing_song_of_freedom(int score)
             /* Secret door */
             else if (cave_feat[y][x] == FEAT_SECRET)
             {
-                difficulty = base_difficulty + 0 + flow_dist(FLOW_PLAYER_NOISE, y, x);
+                difficulty = base_difficulty + flow_dist(FLOW_PLAYER_NOISE, y, x);
                 if (skill_check(PLAYER, score, difficulty, NULL) > 0)
                 {
                     /* Pick a door */
@@ -4317,7 +4317,7 @@ void sing_song_of_freedom(int score)
             /* Stuck door */
             else if ((cave_feat[y][x] >= FEAT_DOOR_HEAD + 0x08) && (cave_feat[y][x] <= FEAT_DOOR_TAIL))
             {
-                difficulty = base_difficulty + 0 + flow_dist(FLOW_PLAYER_NOISE, y, x);
+                difficulty = base_difficulty + flow_dist(FLOW_PLAYER_NOISE, y, x);
                 result = skill_check(PLAYER, score, difficulty, NULL);
                 if (result > 0)
                 {
@@ -4332,7 +4332,7 @@ void sing_song_of_freedom(int score)
             /* Locked door */
             else if ((cave_feat[y][x] >= FEAT_DOOR_HEAD + 0x01) && (cave_feat[y][x] <= FEAT_DOOR_HEAD + 0x07))
             {
-                difficulty = base_difficulty + 0 + flow_dist(FLOW_PLAYER_NOISE, y, x);
+                difficulty = base_difficulty + flow_dist(FLOW_PLAYER_NOISE, y, x);
                 result = skill_check(PLAYER, score, difficulty, NULL);
                 if (result > 0)
                 {
@@ -4358,7 +4358,7 @@ void sing_song_of_freedom(int score)
                 }
                 noise_dist++;
                 
-                difficulty = base_difficulty + 5 + noise_dist;
+                difficulty = base_difficulty + noise_dist;
                 result = skill_check(PLAYER, score, difficulty, NULL);
                 if (result > 0)
                 {

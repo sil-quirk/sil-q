@@ -1908,7 +1908,7 @@ int ability_bonus(int skilltype, int abilitynum)
 			}
 			case SNG_AULE:
 			{
-				bonus = skill / 4;
+				bonus = skill / 8;
 				break;
 			}
 			case SNG_STAYING:
@@ -1928,7 +1928,7 @@ int ability_bonus(int skilltype, int abilitynum)
 			}
 			case SNG_DELVINGS:
 			{
-				bonus = skill;
+				bonus = skill * 2;
 				break;
 			}
 			case SNG_MASTERY:
@@ -2008,6 +2008,23 @@ bool sprinting(void)
 	}
 	
 	return (turns >= 4);
+}
+
+/* Calculate stats */
+void calc_stats(void)
+{
+	for (int i = 0; i < A_MAX; i++)
+	{
+		/* Extract the new "stat_use" value for the stat */
+		p_ptr->stat_use[i] = p_ptr->stat_base[i] + p_ptr->stat_equip_mod[i]
+		                     + p_ptr->stat_drain[i] + p_ptr->stat_misc_mod[i];
+
+		/* cap to -9 and 20 */
+		if (p_ptr->stat_use[i] < BASE_STAT_MIN)
+			p_ptr->stat_use[i] = BASE_STAT_MIN;
+		else if (p_ptr->stat_use[i] > BASE_STAT_MAX)
+			p_ptr->stat_use[i] = BASE_STAT_MAX;
+	}
 }
 
 /*
@@ -2462,20 +2479,7 @@ static void calc_bonuses(void)
 	}
 
 	/*** Handle stats ***/
-
-	/* Calculate stats */
-	for (i = 0; i < A_MAX; i++)
-	{
-		/* Extract the new "stat_use" value for the stat */
-		p_ptr->stat_use[i] = p_ptr->stat_base[i] + p_ptr->stat_equip_mod[i]
-		                     + p_ptr->stat_drain[i] + p_ptr->stat_misc_mod[i];
-
-		/* cap to -9 and 20 */
-		if (p_ptr->stat_use[i] < BASE_STAT_MIN)
-			p_ptr->stat_use[i] = BASE_STAT_MIN;
-		else if (p_ptr->stat_use[i] > BASE_STAT_MAX)
-			p_ptr->stat_use[i] = BASE_STAT_MAX;
-	}
+	calc_stats();
 
 	/*** Analyze weight ***/
 
@@ -2600,6 +2604,10 @@ static void calc_bonuses(void)
 	// Apply song effects that modify skills
 	if (singing(SNG_AULE))
 	{
+		p_ptr->stat_misc_mod[A_STR] += ability_bonus(S_SNG, SNG_AULE);
+		// recalculate stats
+		calc_stats();
+
 		p_ptr->skill_misc_mod[S_SMT] += ability_bonus(S_SNG, SNG_AULE);
 		p_ptr->resist_fire += 1;
 	}
