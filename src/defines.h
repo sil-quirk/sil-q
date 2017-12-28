@@ -1445,16 +1445,20 @@
 /*
  * Bit flags for the "target_set" function
  *
- *	KILL: Target monsters
+ *	KILL: Target monsters to kill
  *	LOOK: Describe grid fully
  *	XTRA: Currently unused flag
  *	GRID: Select from all grids
+ *	LIST_OBJECT: List objects in sight
+ *	LIST_MONSTER: List monsters in sight
  */
 #define TARGET_KILL		0x01
 #define TARGET_LOOK		0x02
 #define TARGET_XTRA		0x04
 #define TARGET_GRID		0x08
 #define TARGET_WIZ		0x10
+#define TARGET_LIST_OBJECT	0x20
+#define TARGET_LIST_MONSTER	0x40
 
 
 /*

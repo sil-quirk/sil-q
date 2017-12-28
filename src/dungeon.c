@@ -1375,6 +1375,18 @@ static void process_command(void)
 			do_cmd_save_screen();
 			break;
 		}
+
+		case '[':
+		{
+			do_cmd_view_monsters();
+			break;
+		}
+
+		case ']':
+		{
+			do_cmd_view_objects();
+			break;
+		}
         
 		/* Hack -- Unknown command */
 		default:

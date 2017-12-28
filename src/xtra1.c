@@ -955,6 +955,67 @@ byte health_attr(int current, int max)
 }
 
 /*
+ * Gets a text string denoting the alertness level / stance into a buffer, along with the associated colour.
+ */
+bool get_alertness_text(monster_type *m_ptr, int text_size, char* text, int* color)
+{
+	monster_race *r_ptr = &r_info[m_ptr->r_idx];
+
+	if (m_ptr->alertness < ALERTNESS_UNWARY)
+	{
+		my_strcpy(text, "Sleeping", text_size);
+		*color = TERM_BLUE;
+	}
+	else if (m_ptr->alertness < ALERTNESS_ALERT)
+	{
+		my_strcpy(text, "Unwary", text_size);
+		*color = TERM_L_BLUE;
+	}
+	else
+	{
+		if (r_ptr->flags2 & (RF2_MINDLESS))
+		{
+			my_strcpy(text, "Mindless", text_size);
+			*color = TERM_L_DARK;
+		}
+		else
+		{
+			char morale_buf[6];
+
+			if (m_ptr->stance == STANCE_FLEEING)
+			{
+				my_strcpy(text, "Fleeing", text_size);
+				*color = TERM_VIOLET;
+			}
+			else if (m_ptr->stance == STANCE_CONFIDENT)
+			{
+				my_strcpy(text, "Confident", text_size);
+				*color = TERM_L_WHITE;
+			}
+			else if (m_ptr->stance == STANCE_AGGRESSIVE)
+			{
+				my_strcpy(text, "Aggress", text_size);
+				*color = TERM_L_WHITE;
+			}
+
+			// sometimes (only in debugging?) we are looking at a monster before it has a stance
+			// in this case return FALSE so we don't print the strings
+			else
+			{
+				return FALSE;
+			}
+
+			if (m_ptr->morale >= 0)	sprintf(morale_buf, " %d", (m_ptr->morale + 9) / 10);
+			else			sprintf(morale_buf, " %d", m_ptr->morale / 10);
+
+			strncat(text, morale_buf, text_size - strlen(text));
+		}
+	}
+
+	return TRUE;
+}
+
+/*
  * Redraw the "monster health bar"
  *
  * The "monster health bar" provides visual feedback on the "health"
@@ -1007,11 +1068,10 @@ static void health_redraw(void)
 	else
 	{
 		int len;
-		char tmp[20];
+		int color;
 		char buf[20];
 
 		monster_type *m_ptr = &mon_list[p_ptr->health_who];
-		monster_race *r_ptr = &r_info[m_ptr->r_idx];
 
 		/* Default to almost dead */
 		byte attr = health_attr(m_ptr->hp, m_ptr->maxhp);
@@ -1038,56 +1098,9 @@ static void health_redraw(void)
 
 		Term_erase(COL_INFO, ROW_INFO+1, 12);
 
-		if (m_ptr->alertness < ALERTNESS_UNWARY)
-		{
-			my_strcpy(buf, "Sleeping", sizeof(tmp));
-			attr = TERM_BLUE;
-		}
-		else if (m_ptr->alertness < ALERTNESS_ALERT)
-		{
-			my_strcpy(buf, "Unwary", sizeof(tmp));
-			attr = TERM_L_BLUE;
-		}
-		else
-		{
-			if (r_ptr->flags2 & (RF2_MINDLESS))
-			{
-				my_strcpy(buf, "Mindless", sizeof(tmp));
-				attr = TERM_L_DARK;
-			}
-			else
-			{
-				if (m_ptr->stance == STANCE_FLEEING)
-				{
-					my_strcpy(tmp, "Fleeing", sizeof(tmp));
-					attr = TERM_VIOLET;
-				}
-				else if (m_ptr->stance == STANCE_CONFIDENT)
-				{
-					my_strcpy(tmp, "Confident", sizeof(tmp));
-					attr = TERM_L_WHITE;
-				}
-				else if (m_ptr->stance == STANCE_AGGRESSIVE)
-				{
-					my_strcpy(tmp, "Aggress", sizeof(tmp));
-					attr = TERM_L_WHITE;
-				}
-                
-                // sometimes (only in debugging?) we are looking at a monster before it has a stance
-                // in this case just exit and don't do anything (to avoid printing uninitialised strings!)
-                else
-                {
-					return;
-                }
-				
-				if (m_ptr->morale >= 0)	sprintf(buf, "%s %d", tmp, (m_ptr->morale + 9) / 10);
-				else					sprintf(buf, "%s %d", tmp, m_ptr->morale / 10);
-			}
+		if (!get_alertness_text(m_ptr, sizeof(buf), buf, &color)) return;
 
-		}
-		
-		Term_putstr(COL_INFO+(13-strlen(buf))/2, ROW_INFO+1, MIN(strlen(buf),12), attr, buf);
-
+		Term_putstr(COL_INFO+(13-strlen(buf))/2, ROW_INFO+1, MIN(strlen(buf),12), color, buf);
 	}
 	
 	

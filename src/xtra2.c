@@ -3113,7 +3113,7 @@ static s16b target_pick(int y1, int x1, int dy, int dx)
 /*
  * Hack -- determine if a given location is "interesting"
  */
-static bool target_set_interactive_accept(int y, int x)
+static bool determine_location_is_interesting(int y, int x)
 {
 	object_type *o_ptr;
 
@@ -3186,7 +3186,7 @@ static bool target_set_interactive_accept(int y, int x)
  *
  * Return the number of target_able monsters in the set.
  */
-void target_set_interactive_prepare(int mode, int range)
+void get_sorted_target_list(int mode, int range)
 {
 	int y, x;
 
@@ -3204,7 +3204,7 @@ void target_set_interactive_prepare(int mode, int range)
 			// Previously required LOS, but this is now ignored...
 
 			/* Require "interesting" contents */
-			if (!target_set_interactive_accept(y, x)) continue;
+			if (!determine_location_is_interesting(y, x)) continue;
 
 			/* Special mode */
 			if (mode & (TARGET_KILL))
@@ -3217,6 +3217,15 @@ void target_set_interactive_prepare(int mode, int range)
 				
 				// possibly restrict the distance from the player
 				if ((range > 0) && (distance(p_ptr->py, p_ptr->px, y, x) > range)) continue;
+			}
+			else if (mode & (TARGET_LIST_MONSTER))
+			{
+				/* Must contain a monster */
+				if (!(cave_m_idx[y][x] > 0)) continue;
+			}
+			else if (mode & (TARGET_LIST_OBJECT))
+			{
+				if (!(cave_o_idx[y][x] > 0)) continue;
 			}
 
 			/* Save the location */
@@ -3873,7 +3882,7 @@ bool target_set_interactive(int mode, int range)
 
 	
 	/* Prepare the "temp" array */
-	target_set_interactive_prepare(mode, range);
+	get_sorted_target_list(mode, range);
 
 	/* Start near the player */
 	m = 0;
@@ -4043,7 +4052,7 @@ bool target_set_interactive(int mode, int range)
 					if (change_panel(d))
 					{
 						/* Recalculate interesting grids */
-						target_set_interactive_prepare(mode, range);
+						get_sorted_target_list(mode, range);
 
 						/* Find a new monster */
 						i = target_pick(old_y, old_x, ddy[d], ddx[d]);
@@ -4052,7 +4061,7 @@ bool target_set_interactive(int mode, int range)
 						if ((i < 0) && modify_panel(old_wy, old_wx))
 						{
 							/* Recalculate interesting grids */
-							target_set_interactive_prepare(mode, range);
+							get_sorted_target_list(mode, range);
 						}
 
 						/* Handle stuff */
@@ -4215,7 +4224,7 @@ bool target_set_interactive(int mode, int range)
 					handle_stuff();
 
 					/* Recalculate interesting grids */
-					target_set_interactive_prepare(mode, range);
+					get_sorted_target_list(mode, range);
 				}
 			}
 		}
@@ -4532,7 +4541,7 @@ bool target_set_interactive(int mode, int range)
 					handle_stuff();
 					
 					/* Recalculate interesting grids */
-					target_set_interactive_prepare(mode, range);
+					get_sorted_target_list(mode, range);
 				}
 			}
 		}
@@ -4694,7 +4703,7 @@ bool get_aim_dir(int *dp, int range)
 				else
 				{
 					/* Prepare the "temp" array */
-					target_set_interactive_prepare(TARGET_KILL, range);
+					get_sorted_target_list(TARGET_KILL, range);
 					
 					/* Monster */
 					if (temp_n)

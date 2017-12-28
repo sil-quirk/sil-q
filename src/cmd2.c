@@ -4408,7 +4408,7 @@ void do_cmd_throw(bool automatic)
         else
         {
             /* Prepare the "temp" array */
-            target_set_interactive_prepare(TARGET_KILL, tdis);
+            get_sorted_target_list(TARGET_KILL, tdis);
             
             /* Monster */
             if (temp_n)
