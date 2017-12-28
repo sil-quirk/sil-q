@@ -223,6 +223,7 @@ D: turn.
 T:30:0:99  # Boots
 T:36:0:99  # Soft Armour
 T:35:0:99  # Cloak
+T:45:0:99  # Ring
 
 N:41:Blocking
 I:2:1:3
