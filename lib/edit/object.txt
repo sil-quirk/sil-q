@@ -938,7 +938,7 @@ G:=:d
 I:45:10:0
 W:7:0:1:500
 P:0:0d0:0:0d0
-A:7/3
+A:7/8
 F:FEAR | EASY_KNOW | LIGHT_CURSE
 B:2/0
 
