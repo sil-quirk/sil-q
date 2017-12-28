@@ -616,9 +616,9 @@ T:35:0:99  # Cloak
 
 N:143:Song of Delvings
 I:7:3:4
-D:Every turn terrain adjacent to already known areas has a
-D: chance of becoming known proportional to your Song skill.
-D: You may also learn of movements made by creatures of stone.
+D:Reveals terrain adjacent to already known areas and shows
+D: movements made by creatures of stone. Lowers tunneling
+D: difficulty by 1 point per 6 points of Song.
 T:20:0:99  # Shovels and Mattocks
 T:33:0:99  # Crown
 T:40:0:99  # Amulet

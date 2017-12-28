@@ -2131,6 +2131,11 @@ static bool do_cmd_tunnel_aux(int y, int x)
         }
 	}
     
+	if (singing(SNG_DELVINGS))
+	{
+		difficulty -= ability_bonus(S_SNG, SNG_DELVINGS) / 6;
+	}
+
 	/* test for success */
 	if ((difficulty <= digging_score) && (difficulty <= p_ptr->stat_use[A_STR]))
 	{

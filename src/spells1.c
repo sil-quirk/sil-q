@@ -5083,7 +5083,7 @@ void sing_song_of_delvings(int score)
 			{
 				for (xx = x - 1; xx <= x + 1; ++xx)
 				{
-					int chance = dieroll(20);
+					int chance = damroll(2, 6);
 					if (known_to_delvings(yy, xx) && chance < adjusted_score)
 						neighbour_known = TRUE;
 				}
