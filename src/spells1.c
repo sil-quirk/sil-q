@@ -509,8 +509,38 @@ static u16b bolt_pict(int y, int x, int ny, int nx, int typ)
 	return (PICT(a,c));
 }
 
+/*
+ * Allows items that have the CHEAT_DEATH flag to save the player
+ */
+void attempt_to_cheat_death(void)
+{
+	char o_name[80];
 
+	/* Scan the equipment */
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+        {
+                object_type *o_ptr = &inventory[i];
+		object_kind *k_ptr;
 
+                /* Skip non-objects */
+                if (!o_ptr->k_idx) continue;
+		k_ptr = &k_info[o_ptr->k_idx];
+
+		/* If player is dead, save them at the cost of the item */
+		if (k_ptr->flags3 & TR3_CHEAT_DEATH && p_ptr->chp <= 0)
+		{
+			p_ptr->chp = 1;
+
+			/* Get a description */
+			object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+
+			inven_item_increase(i, -1);
+			inven_item_optimize(i);
+
+			msg_format("Your %s breaks into two pieces!", o_name);
+		}
+	}
+}
 
 /*
  * Decreases players hit points and sets death flag if necessary
@@ -539,6 +569,8 @@ void take_hit(int dam, cptr kb_str)
 
 	/* Hurt the player */
 	p_ptr->chp -= dam;
+
+	attempt_to_cheat_death();
 
 	/* Display the hitpoints */
 	p_ptr->redraw |= (PR_HP);

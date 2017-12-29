@@ -770,14 +770,13 @@ D: It will shine forever.
 ##### Amulets #####
 
 
-N:132:Adornment
+N:132:Last Chances
 G:":d
 I:40:0:0
 W:7:0:1:20
 P:0:0d0:0:0d0
 A:7/3
-F:EASY_KNOW
-D:It is very beautiful and finely wrought.
+F:CHEAT_DEATH | EASY_KNOW
 
 
 N:133:Constitution
