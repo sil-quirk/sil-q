@@ -530,6 +530,16 @@ void attempt_to_cheat_death(void)
 		if (k_ptr->flags3 & TR3_CHEAT_DEATH && p_ptr->chp <= 0)
 		{
 			p_ptr->chp = 1;
+			p_ptr->energy += 100;
+			set_blind(0);
+			set_confused(0);
+			set_poisoned(0);
+			set_afraid(0);
+			set_entranced(0);
+			set_image(0);
+			set_stun(0);
+			set_cut(0);
+			set_slow(0);
 
 			/* Get a description */
 			object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);

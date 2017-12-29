@@ -10595,7 +10595,7 @@ struct view_object_data_line
 	char name[60];
 };
 
-void show_nearby_monsters()
+void show_nearby_monsters(bool line_of_sight_only)
 {
 	view_monster_data_line lines[MAX_VIEW_LINES];
 
@@ -10615,7 +10615,8 @@ void show_nearby_monsters()
 		int name_length;
 
 		if (j >= 20) break;
-		if (!player_has_los_bold(temp_y[i], temp_x[i])) break;
+		if (!m_ptr->ml) break;
+		if (!player_has_los_bold(temp_y[i], temp_x[i]) && line_of_sight_only) break;
 
 		memset(lines[j].direction, '\0', sizeof(lines[j].direction));
 		memset(lines[j].name, '\0', sizeof(lines[j].name));
@@ -10677,7 +10678,7 @@ void show_nearby_monsters()
 
 }
 
-void show_nearby_objects()
+void show_nearby_objects(bool line_of_sight_only)
 {
 	view_object_data_line lines[MAX_VIEW_LINES];
 
@@ -10696,7 +10697,7 @@ void show_nearby_objects()
 		int name_length;
 
 		if (j >= 20) break;
-		if (!player_has_los_bold(temp_y[i], temp_x[i])) break;
+		if (!player_has_los_bold(temp_y[i], temp_x[i]) && line_of_sight_only) break;
 
 		memset(lines[j].direction, '\0', sizeof(lines[j].direction));
 		memset(lines[j].name, '\0', sizeof(lines[j].name));
@@ -10763,21 +10764,37 @@ void show_nearby_objects()
 
 void do_cmd_view_monsters()
 {
-	screen_save();
-	/* Show the prompt */
-	show_nearby_monsters();
-	prt("Visible monsters (press any key to continue):", 0, 0);
-	inkey();
-	screen_load();
+	char get_char = '[';
+	bool show_los = TRUE;
+
+	while (get_char == '[')
+	{
+		screen_save();
+		show_nearby_monsters(show_los);
+		/* Show the prompt */
+		if (show_los) 	prt("Monsters you can see (press [ to toggle):", 0, 0);
+		else		prt("Monsters on screen (press [ to toggle):", 0, 0);
+		get_char = inkey();
+		show_los = !show_los;
+		screen_load();
+	}
 }
 
 void do_cmd_view_objects()
 {
-	screen_save();
-	/* Show the prompt */
-	show_nearby_objects();
-	prt("Visible objects (press any key to continue):", 0, 0);
-	inkey();
-	screen_load();
+	char get_char = ']';
+	bool show_los = TRUE;
+
+	while (get_char == ']')
+	{
+		screen_save();
+		show_nearby_objects(show_los);
+		/* Show the prompt */
+		if (show_los) 	prt("Objects you can see (press ] to toggle):", 0, 0);
+		else		prt("Objects on screen (press ] to toggle):", 0, 0);
+		get_char = inkey();
+		show_los = !show_los;
+		screen_load();
+	}
 }
 
