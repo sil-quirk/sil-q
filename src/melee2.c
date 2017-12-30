@@ -4473,9 +4473,40 @@ static void process_monster(monster_type *m_ptr)
 
 	/* Will the monster move randomly? */
 	bool random_move = FALSE;
-    
-    // assume we are not under the influence of the Song of Mastery
-    m_ptr->skip_this_turn = FALSE;
+
+	// Morgoth is always active during the escape
+	// Sil-y: but this might be irrelevant as he can be unwary...
+	if ((m_ptr->r_idx == R_IDX_MORGOTH) && p_ptr->on_the_run) m_ptr->mflag |= (MFLAG_ACTV);
+
+	// do this before Mastery and Lorien effects kick in...
+	if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_WOUNDED &&
+		p_ptr->morgoth_state < 1)
+	{
+		msg_print("Morgoth grows angry.");
+		message_flush();
+		p_ptr->morgoth_state = 1;
+		anger_morgoth();
+	}
+	else if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_BADLY_WOUNDED &&
+		p_ptr->morgoth_state < 2)
+	{
+		msg_print("Morgoth grows more angry.");
+		message_flush();
+		p_ptr->morgoth_state = 2;
+		anger_morgoth();
+	}
+	else if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_ALMOST_DEAD &&
+		p_ptr->morgoth_state < 3)
+	{
+		msg_print("Morgoth grows desperate.");
+		message_flush();
+		p_ptr->morgoth_state = 3;
+		anger_morgoth();
+		anger_morgoth();
+	}
+ 
+	// assume we are not under the influence of the Song of Mastery
+	m_ptr->skip_this_turn = FALSE;
 
 	// first work out if the song of mastery stops the monster's turn
 	if (singing(SNG_MASTERY))
@@ -4536,7 +4567,7 @@ static void process_monster(monster_type *m_ptr)
     }
     // put in a default for this turn
     m_ptr->previous_action[0] = ACTION_MISC;
-    
+   
 	// unwary but awake monsters can wander around the dungeon
 	if (m_ptr->alertness < ALERTNESS_ALERT)
 	{
@@ -4561,36 +4592,6 @@ static void process_monster(monster_type *m_ptr)
 
 	// monsters that are fleeing are active, otherwise they can't get far enough away
 	if (m_ptr->stance == STANCE_FLEEING) m_ptr->mflag |= (MFLAG_ACTV);
-
-	// Morgoth is always active during the escape
-	// Sil-y: but this might be irrelevant as he can be unwary...
-	if ((m_ptr->r_idx == R_IDX_MORGOTH) && p_ptr->on_the_run) m_ptr->mflag |= (MFLAG_ACTV);
-
-	if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_WOUNDED &&
-		p_ptr->morgoth_state < 1)
-	{
-		msg_print("Morgoth grows angry.");
-		message_flush();
-		p_ptr->morgoth_state = 1;
-		anger_morgoth();
-	}
-	else if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_BADLY_WOUNDED &&
-		p_ptr->morgoth_state < 2)
-	{
-		msg_print("Morgoth grows more angry.");
-		message_flush();
-		p_ptr->morgoth_state = 2;
-		anger_morgoth();
-	}
-	else if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_ALMOST_DEAD &&
-		p_ptr->morgoth_state < 3)
-	{
-		msg_print("Morgoth grows desperate.");
-		message_flush();
-		p_ptr->morgoth_state = 3;
-		anger_morgoth();
-		anger_morgoth();
-	}
 
 	// Pursuing creatures are always active at the Gates
 	if ((r_ptr->level > 17) && (p_ptr->depth == 0)) m_ptr->mflag |= (MFLAG_ACTV);
