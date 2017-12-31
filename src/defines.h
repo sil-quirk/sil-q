@@ -1792,7 +1792,7 @@
 #define TR2_REGEN           0x00020000L /* Regeneration */
 #define TR2_SEE_INVIS       0x00040000L /* See Invis */
 #define TR2_FREE_ACT        0x00080000L /* Free action */
-#define TR2_TR2XXX1         0x00100000L /* xxx */
+#define TR2_TRAITOR         0x00100000L /* Item will betray user */
 #define TR2_SPEED           0x00200000L /* Speed += 1 */
 #define TR2_FEAR            0x00400000L /* Causes fear when you take damage */
 #define TR2_HUNGER          0x00800000L /* Hunger */

@@ -346,6 +346,22 @@ bool monster_charge(monster_type *m_ptr)
 }
 
 /*
+ * Returns true if an item is a "traitor" item.
+ */
+bool is_traitor_item(int item_slot)
+{
+	u32b f1, f2, f3;
+	if (item_slot >= INVEN_WIELD && item_slot < INVEN_TOTAL)
+	{
+		object_type *o_ptr = &inventory[item_slot];
+		object_flags(o_ptr, &f1, &f2, &f3);
+		if (f2 & TR2_TRAITOR) return TRUE;
+	}
+
+	return FALSE;
+}
+
+/*
  * Attack the player via physical attacks.
  */
 bool make_attack_normal(monster_type *m_ptr)
@@ -405,6 +421,8 @@ bool make_attack_normal(monster_type *m_ptr)
 	// introduce a new code block to all us to declare all these variables
 	if (TRUE)
 	{
+		bool betrayal_wield = FALSE;
+		bool betrayal_arm = FALSE;
 		bool pure_dam = FALSE;
 		bool visible = FALSE;
 		bool obvious = FALSE;
@@ -626,6 +644,33 @@ bool make_attack_normal(monster_type *m_ptr)
 			// now calculate net_dam, taking (modified) protection into account
 			prt = (prt * prt_percent) / 100;
 			net_dam = (dam - prt > 0) ? (dam - prt) : 0;
+
+			// Traitor items may expose their users to big (non-lethal) hits
+			betrayal_wield = is_traitor_item(INVEN_WIELD);
+			betrayal_arm = is_traitor_item(INVEN_ARM);
+
+			if ((betrayal_wield || betrayal_arm) && one_in_(50) &&
+			    health_level(p_ptr->chp, p_ptr->mhp) >= HEALTH_BADLY_WOUNDED)
+			{
+				int max_dam = (dd + crit_bonus_dice + elem_bonus_dice) * ds;
+				int net_max_dam = max_dam - prt;
+
+				if (net_max_dam > 0 &&
+				    health_level(p_ptr->chp - net_max_dam, p_ptr->mhp) <= HEALTH_ALMOST_DEAD)
+				{
+					/* Select the weapon or shield */
+					o_ptr = betrayal_wield ? &inventory[INVEN_WIELD] : &inventory[INVEN_ARM];
+
+					/* Describe */
+					object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+
+					msg_format("Your %s feels suddenly heavy! You fail to %s the blow!", o_name, betrayal_wield ? "parry" : "block");
+					net_dam = MAX(net_max_dam, p_ptr->chp - dieroll(4));
+					dam = net_dam + prt;
+
+					ident_betrayal(o_ptr);
+				}
+			}
 
 			/* Message */
 			if (act)
@@ -1496,61 +1541,73 @@ bool make_attack_normal(monster_type *m_ptr)
 					}
 				}
 			}
-            
-            // deal with Cruel Blow
-            if ((r_ptr->flags2 & (RF2_CRUEL_BLOW)) && (crit_bonus_dice >= 1) && (net_dam > 0))
-            {
-                // Sil-y: ideally we'd use a call to allow_player_confuse() here, but that doesn't
-                //        work as it can't take the level of the critical into account.
-                //        Sadly my solution doesn't let you ID confusion resistance items.
-                int difficulty = p_ptr->skill_use[S_WIL] + (p_ptr->resist_confu * 10);
-                
-                if (skill_check(m_ptr, crit_bonus_dice * 4, difficulty, PLAYER) > 0)
-                {
-                    // remember that the monster can do this
-                    if (m_ptr->ml)  l_ptr->flags2 |= (RF2_CRUEL_BLOW);
-                    
-                    msg_format("You reel in pain!");
-                    
-                    // confuse the player
-                    set_confused(p_ptr->confused + crit_bonus_dice);
-                }
-            }
 
-            // deal with Knock Back
-            if (r_ptr->flags2 & (RF2_KNOCK_BACK))
-            {
-                // only happens on the main attack (so that bites don't knock you back)
-                if (b == 0)
-                {
-                    // determine if the player is knocked back
-                    if (skill_check(m_ptr, monster_stat(m_ptr, A_STR) * 2, p_ptr->stat_use[A_CON] * 2, PLAYER) > 0)
-                    {
-                        // do the knocking back
-                        knock_back(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px);
-                        
-                        // remember that the monster can do this
-                        if (m_ptr->ml)  l_ptr->flags2 |= (RF2_KNOCK_BACK);
-                    }
-                }
-            }
-            
-            // deal with cowardice
-			if ((p_ptr->cowardice > 0) && (net_dam >= 10 / p_ptr->cowardice))
+			// deal with Cruel Blow
+			if ((r_ptr->flags2 & (RF2_CRUEL_BLOW)) && (crit_bonus_dice >= 1) && (net_dam > 0))
 			{
-                if (!p_ptr->afraid)
-                {
-                    if (allow_player_fear(m_ptr))
-                    {
-                        set_afraid(p_ptr->afraid + damroll(10,4));
-                        set_fast(p_ptr->fast + damroll(5,4));
-                        
-                        // give the player a chance to identify what is causing it
-                        ident_cowardice();
-                    }
-                }
+				// Sil-y: ideally we'd use a call to allow_player_confuse() here, but that doesn't
+				//        work as it can't take the level of the critical into account.
+				//        Sadly my solution doesn't let you ID confusion resistance items.
+				int difficulty = p_ptr->skill_use[S_WIL] + (p_ptr->resist_confu * 10);
+
+				if (skill_check(m_ptr, crit_bonus_dice * 4, difficulty, PLAYER) > 0)
+				{
+					// remember that the monster can do this
+					if (m_ptr->ml)  l_ptr->flags2 |= (RF2_CRUEL_BLOW);
+
+					msg_format("You reel in pain!");
+
+					// confuse the player
+					set_confused(p_ptr->confused + crit_bonus_dice);
+				}
 			}
 
+			// deal with Knock Back
+			if (r_ptr->flags2 & (RF2_KNOCK_BACK))
+			{
+			// only happens on the main attack (so that bites don't knock you back)
+				if (b == 0)
+				{
+					// determine if the player is knocked back
+					if (skill_check(m_ptr, monster_stat(m_ptr, A_STR) * 2, p_ptr->stat_use[A_CON] * 2, PLAYER) > 0)
+					{
+						// do the knocking back
+						knock_back(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px);
+
+						// remember that the monster can do this
+						if (m_ptr->ml)  l_ptr->flags2 |= (RF2_KNOCK_BACK);
+					}
+				}
+			}
+
+			// deal with cowardice
+			if ((p_ptr->cowardice > 0) && (net_dam >= 10 / p_ptr->cowardice))
+			{
+				if (!p_ptr->afraid)
+				{
+				    if (allow_player_fear(m_ptr))
+				    {
+					set_afraid(p_ptr->afraid + damroll(10,4));
+					set_fast(p_ptr->fast + damroll(5,4));
+					
+					// give the player a chance to identify what is causing it
+					ident_cowardice();
+				    }
+				}
+			}
+
+			if (is_traitor_item(INVEN_HEAD) && one_in_(50) &&
+			    health_level(p_ptr->chp, p_ptr->mhp) <= HEALTH_BADLY_WOUNDED)
+			{
+				o_ptr = &inventory[INVEN_HEAD];
+
+				/* Describe */
+				object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+
+				msg_format("Your %s twists to cover your eyes!", o_name);
+				set_blind(p_ptr->blind + damroll(3, 2));
+				ident_betrayal(o_ptr);
+			}
 		}
 
 		/* Monster missed player */

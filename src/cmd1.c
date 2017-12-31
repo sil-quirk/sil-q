@@ -1564,6 +1564,83 @@ extern void ident_passive(void)
 	return;
 }
 
+extern void ident_betrayal(const object_type *o_ptr)
+{
+	u32b f1, f2, f3;
+
+	bool notice = FALSE;
+
+	char o_full_name[80];
+	char o_short_name[80];
+
+	/* Extract the item flags */
+	object_flags(o_ptr, &f1, &f2, &f3);
+	
+	if (!object_known_p(o_ptr))
+	{
+		if ((f2 & (TR2_TRAITOR)))
+		{
+			notice = TRUE;
+		}
+	}
+	
+	if (notice)
+	{
+		/* Short, pre-identification object description */
+		object_desc(o_short_name, sizeof(o_short_name), o_ptr, FALSE, 0);
+		
+		/* identify the object */
+		ident(o_ptr);
+		
+		/* Full object description */
+		object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
+		
+		/* Print the messages */
+		msg_format("You realize that your %s is %s.", o_short_name, o_full_name);
+		
+		return;
+	}
+}
+
+extern void ident_cheat_death(const object_type *o_ptr)
+{
+	u32b f1, f2, f3;
+
+	bool notice = FALSE;
+
+	char o_full_name[80];
+	char o_short_name[80];
+
+	/* Extract the item flags */
+	object_flags(o_ptr, &f1, &f2, &f3);
+	
+	if (!object_known_p(o_ptr))
+	{
+		if ((f3 & (TR3_CHEAT_DEATH)))
+		{
+			notice = TRUE;
+		}
+	}
+	
+	if (notice)
+	{
+		/* Short, pre-identification object description */
+		object_desc(o_short_name, sizeof(o_short_name), o_ptr, FALSE, 0);
+		
+		/* identify the object */
+		ident(o_ptr);
+		
+		/* Full object description */
+		object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
+		
+		/* Print the messages */
+		msg_format("You realize that your %s is %s.", o_short_name, o_full_name);
+		
+		return;
+	}
+}
+
+
 
 extern void ident_see_invisible(const monster_type *m_ptr)
 {

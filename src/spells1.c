@@ -519,15 +519,13 @@ void attempt_to_cheat_death(void)
 	/* Scan the equipment */
         for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
         {
-                object_type *o_ptr = &inventory[i];
-		object_kind *k_ptr;
+		u32b f1, f2, f3;
 
-                /* Skip non-objects */
-                if (!o_ptr->k_idx) continue;
-		k_ptr = &k_info[o_ptr->k_idx];
+                object_type *o_ptr = &inventory[i];
+		object_flags(o_ptr, &f1, &f2, &f3);
 
 		/* If player is dead, save them at the cost of the item */
-		if (k_ptr->flags3 & TR3_CHEAT_DEATH && p_ptr->chp <= 0)
+		if (f3 & TR3_CHEAT_DEATH && p_ptr->chp <= 0)
 		{
 			p_ptr->chp = 1;
 			p_ptr->energy += 100;
@@ -544,10 +542,11 @@ void attempt_to_cheat_death(void)
 			/* Get a description */
 			object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
 
+			msg_format("Your %s breaks into two pieces!", o_name);
+			ident_cheat_death(o_ptr);
+
 			inven_item_increase(i, -1);
 			inven_item_optimize(i);
-
-			msg_format("Your %s breaks into two pieces!", o_name);
 		}
 	}
 }

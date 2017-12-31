@@ -497,6 +497,7 @@ static bool describe_misc_magic(const object_type *o_ptr, u32b f2, u32b f3)
 	if (f2 & (TR2_SLOWNESS))   bad[bc++] = "slows your movement";
 	if (f2 & (TR2_AGGRAVATE))  bad[bc++] = "enrages nearby creatures";
 	if (f2 & (TR2_HAUNTED))	   bad[bc++] = "draws wraiths to your level";
+	if (f2 & (TR2_TRAITOR))	   bad[bc++] = "may betray you when you need it most";
 
 	/* Deal with cursed stuff */
 	if (cursed_p(o_ptr))
