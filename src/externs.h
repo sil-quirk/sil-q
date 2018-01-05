@@ -335,8 +335,8 @@ extern void ident(object_type *o_ptr);
 extern void ident_on_wield(object_type *o_ptr);
 extern void ident_resist(u32b flag);
 extern void ident_passive(void);
-extern void ident_betrayal(const object_type *o_ptr);
-extern void ident_cheat_death(const object_type *o_ptr);
+extern void ident_betrayal(object_type *o_ptr);
+extern void ident_cheat_death(object_type *o_ptr);
 extern void ident_see_invisible(const monster_type *m_ptr);
 extern void ident_haunted(void);
 extern void ident_cowardice(void);
@@ -552,6 +552,7 @@ extern void update_combat_rolls1(const monster_type *m_ptr1, const monster_type 
 extern void update_combat_rolls1b(const monster_type *m_ptr1, const monster_type *m_ptr2, bool vis);
 extern void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps, int prot, int prt_percent, int dam_type, bool melee);
 extern void display_combat_rolls(void);
+extern void do_betrayal_ring_amulet();
 
 /* melee2.c */
 extern int adj_mon_count(int y, int x);

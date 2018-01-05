@@ -1564,7 +1564,7 @@ extern void ident_passive(void)
 	return;
 }
 
-extern void ident_betrayal(const object_type *o_ptr)
+extern void ident_betrayal(object_type *o_ptr)
 {
 	u32b f1, f2, f3;
 
@@ -1602,7 +1602,7 @@ extern void ident_betrayal(const object_type *o_ptr)
 	}
 }
 
-extern void ident_cheat_death(const object_type *o_ptr)
+extern void ident_cheat_death(object_type *o_ptr)
 {
 	u32b f1, f2, f3;
 
@@ -2132,7 +2132,7 @@ int slay_bonus(const object_type *o_ptr, const monster_type *m_ptr, u32b *notice
 
 			/* Slay Men and Elves */
 			if ((f1 & (TR1_SLAY_MAN_OR_ELF)) &&
-			    (r_ptr->flags3 & (RF3_MAN)) || (r_ptr->flags3 & (RF3_ELF)))
+			    ((r_ptr->flags3 & (RF3_MAN)) || (r_ptr->flags3 & (RF3_ELF))))
 			{
 				if (m_ptr->ml)
 				{

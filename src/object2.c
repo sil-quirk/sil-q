@@ -3901,7 +3901,6 @@ void drop_near(object_type *j_ptr, int chance, int y, int x)
 		return;
 	}
 
-	// make sure to trigger the lore master ability
 	update_stuff();
 
 	/* Sound */

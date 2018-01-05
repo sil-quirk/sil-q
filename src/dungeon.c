@@ -1704,6 +1704,8 @@ static void process_player(void)
 
 		/*** Other checks ***/
 
+		do_betrayal_ring_amulet();
+
 		// Make the stealth-modified noise (has to occur after monsters have had a chance to move)
 		monster_perception(TRUE, TRUE, stealth_score);
 

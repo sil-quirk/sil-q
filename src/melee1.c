@@ -361,6 +361,104 @@ bool is_traitor_item(int item_slot)
 	return FALSE;
 }
 
+void do_betrayal_ring_amulet()
+{
+	object_type *o_ptr = NULL;
+	object_type object_type_body;
+
+	int item = 0;
+
+	if (is_traitor_item(INVEN_LEFT)) item = INVEN_LEFT;
+	if (is_traitor_item(INVEN_RIGHT)) item = INVEN_RIGHT;
+	if (is_traitor_item(INVEN_NECK)) item = INVEN_NECK;
+
+	if (item == 0) return;
+
+	get_sorted_target_list(TARGET_KILL, 4);
+
+	if (temp_n > 4 && one_in_(1000 / temp_n) && !p_ptr->truce)
+	{
+		int i;
+		bool fell_in_chasm = FALSE;
+		char o_name[120];
+		object_type *i_ptr;
+		int near_y = p_ptr->py;
+		int near_x = p_ptr->px;
+
+		item = inven_takeoff(item, 1);
+		o_ptr = &inventory[item];
+
+		/* Describe */
+		object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+
+		if (item == INVEN_NECK) msg_format("Your %s comes loose from its chain and falls!", o_name);
+		else msg_format("Your %s slips from your finger and rolls away!", o_name);
+
+		for (i = 0; i < temp_n; ++i)
+		{
+			int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
+			monster_type *m_ptr = &mon_list[m_idx];
+
+			set_alertness(m_ptr, ALERTNESS_VERY_ALERT);
+		}
+
+		for (i = 0; i < 8; i++)
+		{
+			/* Get the location */
+			int yy = p_ptr->py + ddy_ddd[i];
+			int xx = p_ptr->px + ddx_ddd[i];
+
+			// count the chasms
+			if (cave_feat[yy][xx] == FEAT_CHASM)
+			{
+				msg_format("Your %s falls into a chasm!", o_name);
+				fell_in_chasm = TRUE;
+				break;
+			}
+		}
+
+		if (!fell_in_chasm)
+		{
+			/* Get local object */
+			i_ptr = &object_type_body;
+
+			/* Obtain local object */
+			object_copy(i_ptr, o_ptr);
+			i_ptr->number = 1;
+
+			for (i = 0; i < 1000; i++)
+			{
+				near_y = p_ptr->py + rand_range(-3,3);
+				near_x = p_ptr->px + rand_range(-3,3);
+
+				if (cave_floor_bold(near_y,near_x)) break;
+			}
+
+			drop_near(i_ptr, 0, near_y, near_x);
+		}
+
+		inven_item_increase(item, -1);
+		inven_item_optimize(item);
+	}
+}
+
+void do_betrayal_helm_crown()
+{
+	if (is_traitor_item(INVEN_HEAD) && one_in_(50) &&
+	    health_level(p_ptr->chp, p_ptr->mhp) <= HEALTH_BADLY_WOUNDED)
+	{
+		object_type *o_ptr = &inventory[INVEN_HEAD];
+		char o_name[120];
+
+		/* Describe */
+		object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+
+		msg_format("Your %s twists to cover your eyes!", o_name);
+		set_blind(p_ptr->blind + damroll(3, 2));
+		ident_betrayal(o_ptr);
+	}
+}
+
 /*
  * Attack the player via physical attacks.
  */
@@ -1596,18 +1694,7 @@ bool make_attack_normal(monster_type *m_ptr)
 				}
 			}
 
-			if (is_traitor_item(INVEN_HEAD) && one_in_(50) &&
-			    health_level(p_ptr->chp, p_ptr->mhp) <= HEALTH_BADLY_WOUNDED)
-			{
-				o_ptr = &inventory[INVEN_HEAD];
-
-				/* Describe */
-				object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
-
-				msg_format("Your %s twists to cover your eyes!", o_name);
-				set_blind(p_ptr->blind + damroll(3, 2));
-				ident_betrayal(o_ptr);
-			}
+			do_betrayal_helm_crown();
 		}
 
 		/* Monster missed player */
