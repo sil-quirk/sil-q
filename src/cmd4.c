@@ -2735,7 +2735,7 @@ int object_difficulty(object_type *o_ptr)
 	if (f2 & TR2_SEE_INVIS) 	{	dif_inc += 7;	}
 	if (f2 & TR2_FREE_ACT) 		{	dif_inc += 6;	}
 	if (f2 & TR2_SPEED)		{	dif_inc += 40;	smithing_cost.con += 5;	}
-	if (f3 & TR3_CHEAT_DEATH) 	{	dif_inc += 4;	}
+	if (f3 & TR3_CHEAT_DEATH) 	{	dif_inc += 14;	}
 	
 	// Elemental Resistances
 	if (f2 & TR2_RES_COLD)		{	dif_inc += 5;	}
