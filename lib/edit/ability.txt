@@ -615,12 +615,9 @@ T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:143:Song of Delvings
+N:143:Song of Freedom
 I:7:3:4
-D:Reveals terrain adjacent to already known areas and shows
-D: movements made by creatures of stone. Lowers tunneling
-D: difficulty by 1 point per 6 points of Song.
-T:20:0:99  # Shovels and Mattocks
+D:Discovers and overcomes nearby doors, traps, and rubble.
 T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
@@ -634,9 +631,10 @@ T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:39:0:99  # Light Source
 
-N:145:Song of Freedom
+N:145:Song of Aule
 I:7:5:6
-D:Discovers and overcomes nearby doors, traps, and rubble.
+D:Gives you a bonus of +1 to Smithing per 4 points
+D: of Song and resistance to fire.
 T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
@@ -666,13 +664,12 @@ T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:149:Song of Aule
+N:149:Song of Delvings
 I:7:9:10
-D:Gives you a bonus of +1 to Smithing and Strength per 8 points
-D: of Song and resistance to fire.
-T:33:0:99  # Crown
-T:40:0:99  # Amulet
-T:35:0:99  # Cloak
+D:Reveals terrain adjacent to already known areas and shows
+D: movements made by creatures of stone. Lowers tunneling
+D: difficulty by 1 point per 6 points of Song.
+T:20:0:99  # Shovels and Mattocks
 
 N:150:Song of Mastery
 I:7:10:11
