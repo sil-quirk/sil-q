@@ -261,6 +261,19 @@ F:INSTA_ART
 D:The Nauglamir; a carencet of gold set with a multitude of shining gems
 D: of Valinor. It was made by the dwarves of Ered Luin for Finrod Felagund. 
 
+## The Ring of Mairon
+## (ability 3/5 is Vanish)
+
+N:7:of Mairon
+I:45:31:3
+W:12:18:1:10000
+P:0:0d0:0:0d0
+F:STEALTH | SONG | DARKNESS | TRAITOR | SEE_INVIS
+F:INSTA_ART
+B:3/5
+D:This ring was wrought by Mairon under Melkor's tuition, while Mairon
+D: pretended still to be faithful to the Valar. Shadows twist and weave about
+D: its surface, and it is deathly cold.
 
 
 #################################################################
@@ -716,20 +729,6 @@ D:The beautiful sword of Thingol, justly named 'King's Ire'.  You are
 D: filled with unshakeable confidence when you clasp its jeweled hilt.
 
 
-## The Bastard Sword 'Anglachel'
-## 1st age
-
-N:70:'Anglachel'
-G:|:D
-I:23:21:0
-W:15:15:50:100000
-P:1:3d3:1:0d0
-F:SHARPNESS | DANGER
-D:Forged of black meteoric iron by the Eol the Dark Elf, 
-D:it is the twin to Anguirel and was given to Thingol in exchange for 
-D:suffering Eol to live in Nan Elmoth.
-
-
 ## The Bastard Sword 'Anguirel'
 ## 1st age
 
@@ -737,8 +736,8 @@ N:71:'Anguirel'
 G:|:D
 I:23:21:0
 W:15:15:50:100000
-P:1:3d3:1:0d0
-F:SHARPNESS | HUNGER
+P:1:3d4:1:0d0
+F:SHARPNESS | TRAITOR
 D:Forged of black meteoric iron by the Eol the Dark Elf, 
 D:it is the twin to Anglachel.
 

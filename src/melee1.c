@@ -747,7 +747,7 @@ bool make_attack_normal(monster_type *m_ptr)
 			betrayal_wield = is_traitor_item(INVEN_WIELD);
 			betrayal_arm = is_traitor_item(INVEN_ARM);
 
-			if ((betrayal_wield || betrayal_arm) && one_in_(50) &&
+			if ((betrayal_wield || betrayal_arm) && one_in_(100) &&
 			    health_level(p_ptr->chp, p_ptr->mhp) >= HEALTH_BADLY_WOUNDED)
 			{
 				int max_dam = (dd + crit_bonus_dice + elem_bonus_dice) * ds;
