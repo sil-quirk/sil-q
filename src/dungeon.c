@@ -336,6 +336,8 @@ static void regenhp(int regen_multiplier)
 {
 	int old_chp;
 
+	if (singing(SNG_VALOUR)) return;
+
 	// exit immediately if the multiplier is zero (avoids div by zero error)
 	if (regen_multiplier == 0) return;
 	

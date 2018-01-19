@@ -70,7 +70,7 @@ T:31:0:99  # Gloves
 N:4:Charge
 I:0:4:5
 D:When you attack an opponent immediately after moving towards it,
-D: your attack is calculated as if you you had 3 points more
+D: your attack is calculated as if you had 3 points more
 D: strength and dexterity.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
@@ -631,13 +631,13 @@ T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:39:0:99  # Light Source
 
-N:145:Song of Aule
+N:145:Song of Delvings
 I:7:5:6
-D:Gives you a bonus of +1 to Smithing per 4 points
-D: of Song and resistance to fire.
-T:33:0:99  # Crown
-T:40:0:99  # Amulet
-T:35:0:99  # Cloak
+D:Reveals terrain adjacent to already known areas and shows
+D: features concealed in the stonework including traps and
+D: secret doors. Lowers tunneling difficulty by 1 point per
+D: 6 points of Song.
+T:20:0:99  # Shovels and Mattocks
 
 N:146:Song of Staying
 I:7:6:7
@@ -664,12 +664,16 @@ T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:149:Song of Delvings
+N:149:Song of Valour
 I:7:9:10
-D:Reveals terrain adjacent to already known areas and shows
-D: movements made by creatures of stone. Lowers tunneling
-D: difficulty by 1 point per 6 points of Song.
-T:20:0:99  # Shovels and Mattocks
+P:7/1:7/6
+D:A desperate song of heroism. Increases Strength and
+D: Dexterity by 5 points. Your strikes may stun opponents
+D: whose Will is less than your Song score. Drains health
+D: as well as voice.
+T:33:0:99  # Crown
+T:40:0:99  # Amulet
+T:35:0:99  # Cloak
 
 N:150:Song of Mastery
 I:7:10:11

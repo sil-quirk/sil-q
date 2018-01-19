@@ -667,7 +667,7 @@ static bool play_instrument(object_type *o_ptr, bool *ident)
 							}
 
 							m_ptr->energy = 0;
-							m_ptr->stunned = will_score / j;
+							stun_monster(m_ptr, will_score / j);
 
 							// Alert the monster
 							make_alert(m_ptr);
@@ -684,7 +684,7 @@ static bool play_instrument(object_type *o_ptr, bool *ident)
 							}
 
 							m_ptr->energy = 0;
-							m_ptr->stunned = (will_score * 2) / j;
+							stun_monster(m_ptr, (will_score * 2) / j);
 
 							// Alert the monster
 							make_alert(m_ptr);

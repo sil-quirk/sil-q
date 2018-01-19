@@ -3031,7 +3031,7 @@ void earthquake(int cy, int cx, int pit_y, int pit_x, int r, int who)
 						
 						else
 						{
-							m_ptr->stunned += net_dam * 4;
+							stun_monster(m_ptr, net_dam * 4);
 						}
 						
 						// Alert it

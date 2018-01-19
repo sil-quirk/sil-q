@@ -258,7 +258,6 @@ void teleport_player_to(int ny, int nx)
 	handle_stuff();
 }
 
-
 /*
  * Teleport monster to a grid near the given location.  This function is
  * used in the monster spell "TELE_SELF_TO", to allow monsters both to
@@ -397,10 +396,14 @@ void teleport_player_level()
 
 }
 
-
-
-
-
+/*
+ * Stuns a monster, making sure not to overflow the stun counter.
+ */
+void stun_monster(monster_type *m_ptr, int stun)
+{
+	int new_stun = m_ptr->stunned + stun;
+	m_ptr->stunned = MAX(new_stun, 255);
+}
 
 /*
  * Return a color to use for the bolt/ball spells
@@ -2559,7 +2562,7 @@ static bool project_m(int who, int y, int x, int dd, int ds, int dif, int typ, u
 					if (seen) l_ptr->flags3 |= (RF3_HURT_LITE);
 					
 					// do stunning
-					m_ptr->stunned += dam;
+					stun_monster(m_ptr, dam);
 					
 					/*possibly update the monster health bar*/
 					if (p_ptr->health_who == cave_m_idx[m_ptr->fy][m_ptr->fx])
@@ -2800,8 +2803,6 @@ static bool project_m(int who, int y, int x, int dd, int ds, int dif, int typ, u
 		if (m_ptr->stunned) note = " is more dazed.";
 		else                note = " is dazed.";
 
-        tmp = m_ptr->stunned + do_stun;
-        
 		/*some creatures are resistant to stunning*/
 		if (r_ptr->flags3 & RF3_NO_STUN)
 		{
@@ -2813,7 +2814,7 @@ static bool project_m(int who, int y, int x, int dd, int ds, int dif, int typ, u
 		}
 
 		/* Apply stun */
-		else m_ptr->stunned += (tmp < 200) ? tmp : 200;
+		else stun_monster(m_ptr, do_stun);
 
 		/*possibly update the monster health bar*/
 		if (p_ptr->health_who == cave_m_idx[m_ptr->fy][m_ptr->fx])
@@ -4918,22 +4919,6 @@ void change_song(int song)
 			msg_print("A memory of their light wells up around you.");
 			break;
 		}
-		case SNG_AULE:
-		{
-			if (song_to_change == 1)
-			{
-				msg_print("You begin a song of the hammer and the forge's fire.");
-			}
-			else if (old_song == SNG_NOTHING)
-			{
-				msg_print("You add a minor theme of the hammer and the forge's fire.");
-			}
-			else
-			{
-				msg_print("You change your minor theme to one of the hammer and the forge's fire.");
-			}
-			break;
-		}
 		case SNG_STAYING:
 		{
 			if (song_to_change == 1)
@@ -4995,6 +4980,22 @@ void change_song(int song)
 			else
 			{
 				msg_print("You change your minor theme to one about the rocky bones of the earth.");
+			}
+			break;
+		}
+		case SNG_VALOUR:
+		{
+			if (song_to_change == 1)
+			{
+				msg_print("You begin a desperate song of daring uncounted odds.");
+			}
+			else if (old_song == SNG_NOTHING)
+			{
+				msg_print("You add a minor theme of daring uncounted odds.");
+			}
+			else
+			{
+				msg_print("You change your minor theme to one of daring uncounted odds.");
 			}
 			break;
 		}
@@ -5149,27 +5150,13 @@ void sing_song_of_delvings(int score)
 
 			if (delvings[(dy * x_range) + dx] == TRUE)
 			{
-				if (cave_m_idx[y][x] > 0)
+				map_feature(y, x);
+				if (cave_feat[y][x] == FEAT_SECRET && known_to_delvings(y,x)) 
 				{
-					monster_type *m_ptr = &mon_list[cave_m_idx[y][x]];
-					monster_race *r_ptr;
-					r_ptr = &r_info[m_ptr->r_idx];
-
-					if (r_ptr->flags3 & RF3_STONE)
-					{
-						/* Hack -- Detect the monster */
-						m_ptr->mflag |= (MFLAG_MARK | MFLAG_SHOW);
-
-						/* Update the monster */
-						update_mon(cave_m_idx[y][x], FALSE);
-					}
-				}
-				else
-				{
-					map_feature(y, x);
+					place_closed_door(y,x);
 				}
 			}
-			if (cave_stair_bold(y,x) || cave_forge_bold(y,x))
+			if (cave_stair_bold(y,x) || cave_forge_bold(y,x) || cave_trap_bold(y,x))
 			{
 				// Special case for stairs and forges - if we know a square within
 				// a distance of 5 along an axis, we spot them.
@@ -5184,6 +5171,7 @@ void sing_song_of_delvings(int score)
 					if (delvings[(j * x_range) + dx] == TRUE)
 					{
 						map_feature(y, x);
+						if (cave_trap_bold(y, x)) reveal_trap(y, x);
 					}
 				}
 
@@ -5192,6 +5180,7 @@ void sing_song_of_delvings(int score)
 					if (delvings[(dy * x_range) + i] == TRUE)
 					{
 						map_feature(y, x);
+						if (cave_trap_bold(y, x)) reveal_trap(y, x);
 					}
 				}
 			}
@@ -5288,12 +5277,20 @@ void sing(void)
 	int song = p_ptr->song1; // a default to soothe compilation warnings
 	int score = 0;
 	int cost = 0;
+	int blood_cost = 0;
+	bool heart_burst = FALSE;
 
 	if (p_ptr->song1 == SNG_NOTHING)
 		return;
+
+	if ((p_ptr->chp <= 1) && (p_ptr->song1 == SNG_VALOUR || p_ptr->song2 == SNG_VALOUR))
+	{
+		msg_print("You feel your heart is about to burst!");
+		heart_burst = TRUE;
+	}
 		
 	// abort song if out of voice, lost the ability to weave themes, or lost either song ability
-	if ((p_ptr->csp < 1) || 
+	if ((p_ptr->csp < 1) || heart_burst ||
 	    ((p_ptr->song2 != SNG_NOTHING) && !p_ptr->active_ability[S_SNG][SNG_WOVEN_THEMES]) ||
 	    (!p_ptr->active_ability[S_SNG][p_ptr->song1]) ||
 	    ((p_ptr->song2 != SNG_NOTHING) && !p_ptr->active_ability[S_SNG][p_ptr->song2]))
@@ -5351,11 +5348,6 @@ void sing(void)
 				if ((p_ptr->song_duration % 3) == type - 1) cost += 1;
 				break;
 			}
-			case SNG_AULE:
-			{
-				if ((p_ptr->song_duration % 3) == type - 1) cost += 1;
-				break;
-			}
 			case SNG_STAYING:
 			{
 				cost += 1;
@@ -5383,6 +5375,13 @@ void sing(void)
 
 				break;
 			}
+			case SNG_VALOUR:
+			{
+				cost += 1;
+				blood_cost += 1;
+
+				break;
+			}
 			case SNG_MASTERY:
 			{
 				cost += 1;
@@ -5393,9 +5392,13 @@ void sing(void)
 	
 	// pay the price of the singing
 	if (p_ptr->csp >= cost)		p_ptr->csp -= cost;
-	else						p_ptr->csp = 0;
+	else				p_ptr->csp = 0;
 	
+	if (p_ptr->chp > blood_cost)	p_ptr->chp -= blood_cost;
+	else				p_ptr->chp = 1;
+
 	p_ptr->redraw |= (PR_VOICE);
+	p_ptr->redraw |= (PR_HP);
 }
 
 

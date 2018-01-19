@@ -1906,11 +1906,6 @@ int ability_bonus(int skilltype, int abilitynum)
 				bonus = skill / 5;
 				break;
 			}
-			case SNG_AULE:
-			{
-				bonus = skill / 4;
-				break;
-			}
 			case SNG_STAYING:
 			{
 				bonus = skill / 3;
@@ -1927,6 +1922,11 @@ int ability_bonus(int skilltype, int abilitynum)
 				break;
 			}
 			case SNG_DELVINGS:
+			{
+				bonus = skill;
+				break;
+			}
+			case SNG_VALOUR:
 			{
 				bonus = skill;
 				break;
@@ -2008,6 +2008,23 @@ bool sprinting(void)
 	}
 	
 	return (turns >= 4);
+}
+
+/* Calculate stats */
+void calc_stats(void)
+{
+	for (int i = 0; i < A_MAX; i++)
+	{
+		/* Extract the new "stat_use" value for the stat */
+		p_ptr->stat_use[i] = p_ptr->stat_base[i] + p_ptr->stat_equip_mod[i]
+		                     + p_ptr->stat_drain[i] + p_ptr->stat_misc_mod[i];
+
+		/* cap to -9 and 20 */
+		if (p_ptr->stat_use[i] < BASE_STAT_MIN)
+			p_ptr->stat_use[i] = BASE_STAT_MIN;
+		else if (p_ptr->stat_use[i] > BASE_STAT_MAX)
+			p_ptr->stat_use[i] = BASE_STAT_MAX;
+	}
 }
 
 /*
@@ -2462,20 +2479,7 @@ static void calc_bonuses(void)
 	}
 
 	/*** Handle stats ***/
-
-	/* Calculate stats */
-	for (i = 0; i < A_MAX; i++)
-	{
-		/* Extract the new "stat_use" value for the stat */
-		p_ptr->stat_use[i] = p_ptr->stat_base[i] + p_ptr->stat_equip_mod[i]
-		                     + p_ptr->stat_drain[i] + p_ptr->stat_misc_mod[i];
-
-		/* cap to -9 and 20 */
-		if (p_ptr->stat_use[i] < BASE_STAT_MIN)
-			p_ptr->stat_use[i] = BASE_STAT_MIN;
-		else if (p_ptr->stat_use[i] > BASE_STAT_MAX)
-			p_ptr->stat_use[i] = BASE_STAT_MAX;
-	}
+	calc_stats();
 
 	/*** Analyze weight ***/
 
@@ -2541,11 +2545,11 @@ static void calc_bonuses(void)
 				case SNG_SILENCE:	song_noise += 0; break;
 				case SNG_FREEDOM:	song_noise += 4; break;
 				case SNG_TREES:		song_noise += 4; break;
-				case SNG_AULE:		song_noise += 8; break;
 				case SNG_STAYING:	song_noise += 4; break;
 				case SNG_LORIEN:	song_noise += 4; break;
 				case SNG_THRESHOLDS:	song_noise += 4; break;
 				case SNG_DELVINGS:	song_noise += 4; break;
+				case SNG_VALOUR:		song_noise += 12; break;
 				case SNG_MASTERY:	song_noise += 8; break;
 			}		
 		}
@@ -2565,7 +2569,6 @@ static void calc_bonuses(void)
 	p_ptr->skill_misc_mod[S_WIL] += affinity_level(S_WIL);
 	p_ptr->skill_misc_mod[S_SMT] += affinity_level(S_SMT);
 	p_ptr->skill_misc_mod[S_SNG] += affinity_level(S_SNG);
-	
 
 	/*** Modify skills by ability scores ***/
 
@@ -2598,11 +2601,6 @@ static void calc_bonuses(void)
 							  p_ptr->skill_stat_mod[S_SNG] + p_ptr->skill_misc_mod[S_SNG];
 
 	// Apply song effects that modify skills
-	if (singing(SNG_AULE))
-	{
-		p_ptr->skill_misc_mod[S_SMT] += ability_bonus(S_SNG, SNG_AULE);
-		p_ptr->resist_fire += 1;
-	}
 	if (singing(SNG_STAYING))
 	{
 		p_ptr->skill_misc_mod[S_WIL] += ability_bonus(S_SNG, SNG_STAYING);
@@ -2619,6 +2617,22 @@ static void calc_bonuses(void)
 			p_ptr->skill_misc_mod[S_EVN] += ability_bonus(S_SNG, SNG_THRESHOLDS) / 4;
 			p_ptr->skill_misc_mod[S_MEL] += ability_bonus(S_SNG, SNG_THRESHOLDS) / 4;
 		}
+	}
+
+	// this has to go before calculation of DEX-based skills
+	// so we have to temporarily add the Grace bonus
+	if (singing(SNG_VALOUR))
+	{
+		p_ptr->stat_misc_mod[A_STR] += 5;
+		p_ptr->stat_misc_mod[A_DEX] += 5;
+		// recalculate stats
+		calc_stats();
+
+		// Needs redone as DEX has changed
+		p_ptr->skill_stat_mod[S_MEL] = p_ptr->stat_use[A_DEX];
+		p_ptr->skill_stat_mod[S_ARC] = p_ptr->stat_use[A_DEX];
+		p_ptr->skill_stat_mod[S_EVN] = p_ptr->stat_use[A_DEX];
+		p_ptr->skill_stat_mod[S_STL] = p_ptr->stat_use[A_DEX];
 	}
 
 	/*** Finalise all skills other than combat skills  (as bows/weapons must be analysed first) ***/
