@@ -2549,7 +2549,7 @@ static void calc_bonuses(void)
 				case SNG_LORIEN:	song_noise += 4; break;
 				case SNG_THRESHOLDS:	song_noise += 4; break;
 				case SNG_DELVINGS:	song_noise += 4; break;
-				case SNG_VALOUR:		song_noise += 12; break;
+				case SNG_VALOUR:	song_noise += 12; break;
 				case SNG_MASTERY:	song_noise += 8; break;
 			}		
 		}
@@ -2623,8 +2623,8 @@ static void calc_bonuses(void)
 	// so we have to temporarily add the Grace bonus
 	if (singing(SNG_VALOUR))
 	{
-		p_ptr->stat_misc_mod[A_STR] += 5;
-		p_ptr->stat_misc_mod[A_DEX] += 5;
+		p_ptr->stat_misc_mod[A_STR] += 3;
+		p_ptr->stat_misc_mod[A_DEX] += 3;
 		// recalculate stats
 		calc_stats();
 

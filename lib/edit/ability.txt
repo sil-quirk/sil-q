@@ -668,7 +668,7 @@ N:149:Song of Valour
 I:7:9:10
 P:7/1:7/6
 D:A desperate song of heroism. Increases Strength and
-D: Dexterity by 5 points. Your strikes may stun opponents
+D: Dexterity by 3 points. Your strikes may stun opponents
 D: whose Will is less than your Song score. Drains health
 D: as well as voice.
 T:33:0:99  # Crown
