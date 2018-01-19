@@ -2138,7 +2138,7 @@ void drop_loot(monster_type *m_ptr)
 void anger_morgoth()
 {
 	(&r_info[R_IDX_MORGOTH])->evn += 2;
-	(&r_info[R_IDX_MORGOTH])->blow[0].att += 4;
+	(&r_info[R_IDX_MORGOTH])->blow[0].att += 5;
 	(&r_info[R_IDX_MORGOTH])->wil += 2;
 	(&r_info[R_IDX_MORGOTH])->per += 2;
 }
