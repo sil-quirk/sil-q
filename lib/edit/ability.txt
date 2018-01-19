@@ -511,6 +511,7 @@ P:5/1
 D:When you are damaged in melee by an enemy, an additional damage
 D: die is added to your next successful strike. This effect does not stack.
 T:40:0:99  # Amulet
+T:32:0:99  # Helm
 T:33:0:99  # Crown
 
 N:108:Critical Resistance

@@ -511,17 +511,15 @@ D: as the stars of Varda twinkle in the night sky.
 ##### Shields #####
 
 
-## The Round Shield of Angrod
-## 1st age namesake
+## The Round Shield of the Bloody Hand
 
-N:42:of Angrod
-G:):b
-I:34:3:0
-W:10:10:50:25000
-P:0:0d0:0:1d4
-F:RES_STUN | RES_CONFU | RES_FIRE
-D:A gleaming metal shield, once borne by Angrod, Prince
-D: of the Noldor.
+N:42:of the Bloody Hand
+I:34:3:1
+W:6:8:60:25000
+P:0:0d0:1:1d4
+F:STR | DAMAGE_SIDES | TRAITOR
+D:An black shield with scalloped edges. It bears the
+D: emblem of a white hand dripping blood.
 
 
 ## The Round shield of Glorfindel
@@ -1054,6 +1052,17 @@ B:4/7
 D:A helm worn by Curufin, son of Feanor, whose dark schemes
 D: snared many in Beleriand.
 
+## The Helm of the Oathbreaker
+## (ability 5/7 is Vengeance)
+
+N:119:of the Oathbreaker
+I:32:5:2
+W:5:10:15:45000
+P:0:0d0:0:1d3
+F:TRAITOR | LIGHT_CURSE
+B:5/7
+D:A helm wrought of grey metal and the dull bones of some forgotten
+D: orc who once raised his blade against his master.
 
 ## The Great Helm of Dor-Lomin
 ## 1st age
@@ -1125,7 +1134,6 @@ F:SONG
 D: '... Daeron the Dark with ferny crown
 D: played with bewildering wizard's art
 D: music for breaking of the heart.'
-
 
 ## The Jewelled Crown of Feanor
 ## 1st age namesake
