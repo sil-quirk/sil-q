@@ -399,8 +399,6 @@ N:83:Concentration
 I:4:3:4
 D:Gives you a +1 bonus to attack for every consecutive round
 D: spent attacking the same enemy (to a maximum of Perception/2).
-T:21:0:99  # Hafted
-T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:32:0:99  # Helm
 T:33:0:99  # Crown
