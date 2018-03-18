@@ -10615,8 +10615,8 @@ void show_nearby_monsters(bool line_of_sight_only)
 		int name_length;
 
 		if (j >= 20) break;
-		if (!m_ptr->ml) break;
-		if (!player_has_los_bold(temp_y[i], temp_x[i]) && line_of_sight_only) break;
+		if (!m_ptr->ml) continue;
+		if (!player_has_los_bold(temp_y[i], temp_x[i]) && line_of_sight_only) continue;
 
 		memset(lines[j].direction, '\0', sizeof(lines[j].direction));
 		memset(lines[j].name, '\0', sizeof(lines[j].name));
@@ -10697,7 +10697,7 @@ void show_nearby_objects(bool line_of_sight_only)
 		int name_length;
 
 		if (j >= 20) break;
-		if (!player_has_los_bold(temp_y[i], temp_x[i]) && line_of_sight_only) break;
+		if (!player_can_see_bold(temp_y[i], temp_x[i]) && line_of_sight_only) continue;
 
 		memset(lines[j].direction, '\0', sizeof(lines[j].direction));
 		memset(lines[j].name, '\0', sizeof(lines[j].name));
