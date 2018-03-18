@@ -2659,11 +2659,15 @@ int object_difficulty(object_type *o_ptr)
 	new = (o_ptr->ps > 0) ? ((o_ptr->ps + 1) * o_ptr->pd) : 0;
 	x = new - base;
 
-	// special costs for protection sides on hauberks
+	// special costs for protection sides on hauberks and rings
 	if ((smith_o_ptr->tval == TV_MAIL) && (smith_o_ptr->sval == SV_LONG_CORSLET) && (x > 0))
 	{
 		dif_mod(x, 1, &dif_inc);
-		dif_inc += 3;
+		dif_inc += 2;
+	}
+	else if ((o_ptr->tval == TV_RING) && (x > 0))
+	{
+		dif_mod(x, 2, &dif_inc);
 	}
 	else
 	{
