@@ -1240,7 +1240,7 @@ void object_desc(char *buf, size_t max, const object_type *o_ptr, int pref, int 
 	}
 
 	/* Use "cursed" if the item is known to be cursed */
-	else if (cursed_p(o_ptr) && (known || p_ptr->active_ability[S_PER][PER_ALCHEMY]))
+	else if (cursed_p(o_ptr) && (known || p_ptr->active_ability[S_PER][PER_FOREWARNED]))
 	{
 		v = "cursed";
 	}
