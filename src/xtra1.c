@@ -210,7 +210,7 @@ int polearm_bonus(const object_type *o_ptr)
 	
 	if (p_ptr->active_ability[S_MEL][MEL_POLEARMS] && (f3 & (TR3_POLEARM)))
 	{
-	    bonus += 1;
+	    bonus += 2;
 	}
 	
 	return bonus;
