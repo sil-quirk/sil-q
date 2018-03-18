@@ -1201,7 +1201,7 @@
 
 /* The sval codes for TV_RING */
 #define SV_RING_PERCEPTION			0
-#define SV_RING_SUSTENANCE			1
+#define SV_RING_ERED_LUIN			1
 #define SV_RING_EVASION				2
 #define SV_RING_PROTECTION			3
 #define SV_RING_STR					4

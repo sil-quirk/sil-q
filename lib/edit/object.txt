@@ -860,13 +860,13 @@ A:5/3
 F:PERCEPTION
 
 
-N:151:Sustenance
+N:151:Ered Luin
 G:=:d
 I:45:1:0
 W:7:0:1:150
 P:0:0d0:0:0d0
-A:7/3
-F:SLOW_DIGEST | EASY_KNOW
+A:4/8
+F:WILL | RES_FEAR | RES_CONFU
 
 
 N:152:Evasion

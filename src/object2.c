@@ -2200,6 +2200,14 @@ static void a_m_aux_3(object_type *o_ptr, int level)
 
 					break;
 				}
+
+				/* Ring of Ered Luin */
+				case SV_RING_ERED_LUIN:
+				{
+					/* Bonus to will */
+					o_ptr->pval = (level + dieroll(10)) / 20 + 1;
+					break;
+				}
 			}
 
 			break;

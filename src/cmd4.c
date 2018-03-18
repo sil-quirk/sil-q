@@ -9999,6 +9999,14 @@ void apply_magic_fake(object_type *o_ptr)
 								
 					break;
 				}
+
+				/* Ring of Ered Luin */
+				case SV_RING_ERED_LUIN:
+				{
+					/* Bonus to will */
+					if (o_ptr->pval < 1) o_ptr->pval = 1;
+					break;
+				}
 			}
 
 			/*break for TVAL-Rings*/
