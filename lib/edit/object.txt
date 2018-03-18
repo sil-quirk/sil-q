@@ -1039,7 +1039,7 @@ G:_:d
 I:55:6:0
 W:10:0:50:400
 P:0:0d0:0:0d0
-A:10/2:15/1
+A:8/2:14/1
 D:It identifies an item. 
 D: (This may be aborted without using up a charge.) 
 
@@ -1094,7 +1094,7 @@ G:_:d
 I:55:12:0
 W:7:0:50:400
 P:0:0d0:0:0d0
-A:7/2
+A:4/1
 D:It lets you know all of your abilities.
 
 
