@@ -414,6 +414,17 @@ void self_knowledge(void)
         if (t1 & (TR1_STL)) stl += o_ptr->pval;
 	}
 
+	if (f2 & TR2_TRAITOR)
+	{
+            strnfmt(s[i], 80, "You feel doom hastening toward you");
+            i++;
+	}
+
+	if (f3 & TR3_CHEAT_DEATH)
+	{
+            strnfmt(s[i], 80, "You are protected from serious harm");
+            i++;
+	}
 
 	if (p_ptr->pspeed < 2)
 	{
