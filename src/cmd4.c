@@ -2621,11 +2621,25 @@ int object_difficulty(object_type *o_ptr)
 		// base item
 		dif_inc += k_ptr->level / 2;
 	}
-		
-	// unsual weight
-    if (o_ptr->weight == 0)                 weight_factor = 1100;
-	else if (o_ptr->weight > k_ptr->weight)	weight_factor = 100 * o_ptr->weight / k_ptr->weight;
-	else                                    weight_factor = 100 * k_ptr->weight / o_ptr->weight;
+
+	// unusual weight
+	if (o_ptr->weight == 0)
+	{
+		weight_factor = 1100;
+	}
+	else if (o_ptr->weight > k_ptr->weight)
+	{
+		weight_factor = 100 * o_ptr->weight / k_ptr->weight;
+	}
+	else
+	{
+		int low_weight_adjust;
+		weight_factor = 100 * k_ptr->weight / o_ptr->weight;
+		low_weight_adjust = (weight_factor - 100) * (o_ptr->ds / 4);
+
+		if (o_ptr->weight < 150) weight_factor = weight_factor + low_weight_adjust;
+	}
+
 	dif_inc += (weight_factor - 100) / 10;
 
 	// attack bonus
@@ -2643,16 +2657,19 @@ int object_difficulty(object_type *o_ptr)
 	else
 	{
 		dif_mod(x, 6, &dif_inc);
+		if (x > 0) dif_inc -= 1;
 	}
 	
 	// evasion bonus
 	x = o_ptr->evn - k_ptr->evn;
 	dif_mod(x, 6, &dif_inc);
+	if (x > 0) dif_inc -= 1;
 	
 	// damage bonus
 	x = (o_ptr->ds - k_ptr->ds);
-	dif_mod(x, 6 + o_ptr->dd, &dif_inc);
-
+	// dd used to be a factor here, but a shortsword is far more breakable than a great axe
+	dif_mod(x, 8, &dif_inc);
+	if (x > 0) dif_inc -= 5;
 
 	// protection bonus
 	base = (k_ptr->ps > 0) ? ((k_ptr->ps + 1) * k_ptr->pd) : 0;
