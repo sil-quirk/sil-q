@@ -2878,11 +2878,11 @@ int object_difficulty(object_type *o_ptr)
     }
     if (p_ptr->active_ability[S_SMT][SMT_EXPERTISE])
     {
-		smithing_cost.str /= 2;
-		smithing_cost.dex /= 2;
-		smithing_cost.con /= 2;
-		smithing_cost.gra /= 2;
-		smithing_cost.exp /= 2;
+		smithing_cost.str = 0;
+		smithing_cost.dex = 0;
+		smithing_cost.con = 0;
+		smithing_cost.gra = 0;
+		smithing_cost.exp = 0;
     }
     
 	return (dif);
