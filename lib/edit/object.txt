@@ -785,7 +785,7 @@ G:":d
 I:40:0:0
 W:7:0:1:20
 P:0:0d0:0:0d0
-A:7/3
+A:6/8
 F:CHEAT_DEATH | EASY_KNOW
 
 
@@ -834,9 +834,6 @@ W:16:0:1:30000
 P:0:0d0:0:0d0
 A:16/6
 F:GRA | SUST_GRA | LIGHT
-
-
-##
 
 
 N:138:Haunted Dreams

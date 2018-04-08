@@ -2591,7 +2591,7 @@ int object_difficulty(object_type *o_ptr)
     // special rules for horns
     if (o_ptr->tval == TV_HORN)
     {
-        dif_inc += k_ptr->level;
+        dif_inc += k_ptr->level - 1;
         switch (o_ptr->sval)
         {
             case SV_HORN_TERROR:    smithing_cost.gra += 1; break;
@@ -2684,12 +2684,14 @@ int object_difficulty(object_type *o_ptr)
 	}
 	else if ((o_ptr->tval == TV_RING) && (x > 0))
 	{
-		dif_mod(x, 2, &dif_inc);
+		dif_mod(x, 1, &dif_inc);
+		dif_inc += 4;
 	}
 	else
 	{
 		dif_mod(x, 3, &dif_inc);
 	}
+
 
 
 	// weapon modifiers
@@ -2726,13 +2728,13 @@ int object_difficulty(object_type *o_ptr)
 		if (f1 & TR1_DEX)			{	dif_mod(x, 12, &dif_inc);	smithing_cost.dex += x;		}
 		if (f1 & TR1_CON)			{	dif_mod(x, 12, &dif_inc);	smithing_cost.con += x;		}
 		if (f1 & TR1_GRA)			{	dif_mod(x, 12, &dif_inc);	smithing_cost.gra += x;		}
-		if (f1 & TR1_MEL)			{	dif_mod(x, 4, &dif_inc);	smithing_cost.exp += x*100;	}
-		if (f1 & TR1_ARC)			{	dif_mod(x, 4, &dif_inc);	smithing_cost.exp += x*100;	}
-		if (f1 & TR1_STL)			{	dif_mod(x, 4, &dif_inc);	smithing_cost.exp += x*100;	}
-		if (f1 & TR1_PER)			{	dif_mod(x, 4, &dif_inc);	smithing_cost.exp += x*100;	}
-		if (f1 & TR1_WIL)			{	dif_mod(x, 4, &dif_inc);	smithing_cost.exp += x*100;	}
-		if (f1 & TR1_SMT)			{	dif_mod(x, 4, &dif_inc);	smithing_cost.exp += x*100;	}
-		if (f1 & TR1_SNG)			{	dif_mod(x, 4, &dif_inc);	smithing_cost.exp += x*100;	}
+		if (f1 & TR1_MEL)			{	dif_mod(x, 4, &dif_inc);	}
+		if (f1 & TR1_ARC)			{	dif_mod(x, 4, &dif_inc);	}
+		if (f1 & TR1_STL)			{	dif_mod(x, 4, &dif_inc);	}
+		if (f1 & TR1_PER)			{	dif_mod(x, 2, &dif_inc);	}
+		if (f1 & TR1_WIL)			{	dif_mod(x, 3, &dif_inc);	}
+		if (f1 & TR1_SMT)			{	dif_mod(x, 4, &dif_inc);	}
+		if (f1 & TR1_SNG)			{	dif_mod(x, 4, &dif_inc);	}
 
 		x = (o_ptr->pval < 0) ? o_ptr->pval : 0;
 
@@ -2752,11 +2754,11 @@ int object_difficulty(object_type *o_ptr)
 	if (f2 & TR2_SLOW_DIGEST) 	{	dif_inc += 2; }
 	if (f2 & TR2_RADIANCE) 		{	dif_inc += 8;	smithing_cost.gra += 1;	}
 	if (f2 & TR2_LIGHT)		{	dif_inc += 8;	smithing_cost.gra += 1;	}
-	if (f2 & TR2_REGEN) 		{	dif_inc += 6;	}
+	if (f2 & TR2_REGEN) 		{	dif_inc += 8;	}
 	if (f2 & TR2_SEE_INVIS) 	{	dif_inc += 7;	}
 	if (f2 & TR2_FREE_ACT) 		{	dif_inc += 6;	}
 	if (f2 & TR2_SPEED)		{	dif_inc += 40;	smithing_cost.con += 5;	}
-	if (f3 & TR3_CHEAT_DEATH) 	{	dif_inc += 14;	}
+	if (f3 & TR3_CHEAT_DEATH) 	{	dif_inc += 13;	}
 	
 	// Elemental Resistances
 	if (f2 & TR2_RES_COLD)		{	dif_inc += 5;	}
