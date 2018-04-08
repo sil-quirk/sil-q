@@ -438,7 +438,7 @@ T:33:0:99  # Crown
 
 N:88:Master Hunter
 I:4:8:9
-P:4/4:4/5
+P:4/3:4/5
 D:Gives you an attack bonus of +1 for each time you have killed
 D: an opponent of the same type (up to a maximum of Perception/4).
 T:32:0:99  # Helm

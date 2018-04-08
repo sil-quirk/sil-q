@@ -2388,7 +2388,7 @@ void search_square(int y, int x, int dist, int searching)
 		if (p_ptr->confused)								difficulty +=  5;   // confused
 		if (dist == 2)				difficulty +=  2;   // distance 2
 		if (dist == 3)				difficulty +=  4;   // distance 3
-		if (dist == 4)				difficulty +=  8;   // distance 4
+		if (dist == 4)				difficulty +=  6;   // distance 4
 		if cave_trap_bold(y,x)			difficulty +=  5;   // dungeon trap
 		if (cave_feat[y][x] == FEAT_SECRET)	difficulty += 10;   // secret door
 		if (chest_trap_present)			difficulty += 15;   // chest trap
