@@ -3602,7 +3602,6 @@ int py_attack_aux(int y, int x, int attack_type)
 	bool rapid_attack = FALSE;
 	bool off_hand_blow = FALSE;
 	bool fatal_blow = FALSE;
-	bool coup_de_grace = FALSE;
 
 	u32b f1, f2, f3; // the weapon's flags
 
@@ -3799,15 +3798,6 @@ int py_attack_aux(int y, int x, int attack_type)
 		// Determine the monster's evasion score after all modifiers
 		total_evasion_mod = total_monster_evasion(m_ptr, FALSE);
 				
-		coup_de_grace = p_ptr->active_ability[S_STL][STL_COUP_DE_GRACE] &&
-				m_ptr && m_ptr->hp <= (p_ptr->skill_use[S_STL]);
-
-		if (!coup_de_grace)
-		{
-			/* Test for hit */
-			hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
-		}
-
 		if (hit_result <= 0 && p_ptr->active_ability[S_MEL][MEL_ANTICIPATE] && m_ptr->stance == STANCE_AGGRESSIVE)
 		{
 			// Reroll on miss twice
@@ -3819,7 +3809,7 @@ int py_attack_aux(int y, int x, int attack_type)
 		}
 
 		/* If the attack connects... */
-		if (hit_result > 0 || coup_de_grace)
+		if (hit_result > 0)
 		{
 			attack_result = ATTACK_HIT;
 
@@ -3851,7 +3841,7 @@ int py_attack_aux(int y, int x, int attack_type)
 
 			/* No negative damage */
 			if (net_dam < 0) net_dam = 0;
-			if (net_dam > 0 || coup_de_grace) attack_result = ATTACK_DAMAGED;
+			if (net_dam > 0) attack_result = ATTACK_DAMAGED;
 
 			if (o_ptr->tval == TV_HAFTED)
 			{
@@ -3862,15 +3852,8 @@ int py_attack_aux(int y, int x, int attack_type)
 			// determine the punctuation for the attack ("...", ".", "!" etc)
 			attack_punctuation(punctuation, net_dam, crit_bonus_dice);
 			
-			if (coup_de_grace)
-			{
-				net_dam = m_ptr->hp;
-			}
-			else
-			{
-				update_combat_rolls2(total_dice, mds, dam, r_ptr->pd, r_ptr->ps,
-						     prt, prt_percent, damage_type, TRUE);
-			}
+			update_combat_rolls2(total_dice, mds, dam, r_ptr->pd, r_ptr->ps,
+					     prt, prt_percent, damage_type, TRUE);
 
 			/* Special message for visible unalert creatures */
 			if (stealth_bonus)
@@ -3880,11 +3863,7 @@ int py_attack_aux(int y, int x, int attack_type)
 			else
 			{
 				/* Message */
-				if (coup_de_grace)
-				{
-					message_format(MSG_HIT, m_ptr->r_idx, "You deliver a killing blow to %s.", m_name);
-				}
-				else if (charge)
+				if (charge)
 				{
 					message_format(MSG_HIT, m_ptr->r_idx, "You charge %s%s", m_name, punctuation);
 				}

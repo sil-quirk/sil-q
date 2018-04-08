@@ -360,16 +360,8 @@ T:35:0:99  # Cloak
 T:36:0:99  # Soft Armour
 T:45:0:99  # Ring
 
-N:66:Coup de Grace
+N:66:Dexterity
 I:3:6:11
-D:Attacks on enemies who have less health than your Stealth score
-D: kill them outright without rolling to hit or to damage.
-P:3/2
-T:23:4:4   # Daggers
-
-N:67:Dexterity
-I:3:7:12
-D:You gain a point of dexterity.
 
 # Perception ---------------------------------------------
 

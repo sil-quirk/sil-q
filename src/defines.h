@@ -502,8 +502,7 @@
 #define	STL_OPPORTUNIST				 3
 #define	STL_EXCHANGE_PLACES			 4
 #define	STL_VANISH					 5
-#define	STL_COUP_DE_GRACE				 6
-#define	STL_DEX						 7
+#define	STL_DEX						 6
 
 /* 
  * Perception abilities 
