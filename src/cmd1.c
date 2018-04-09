@@ -3798,6 +3798,7 @@ int py_attack_aux(int y, int x, int attack_type)
 		// Determine the monster's evasion score after all modifiers
 		total_evasion_mod = total_monster_evasion(m_ptr, FALSE);
 				
+		hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
 		if (hit_result <= 0 && p_ptr->active_ability[S_MEL][MEL_ANTICIPATE] && m_ptr->stance == STANCE_AGGRESSIVE)
 		{
 			// Reroll on miss twice
