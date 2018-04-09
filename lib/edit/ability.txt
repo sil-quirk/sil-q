@@ -173,6 +173,7 @@ D:Lowers the base number needed to get critical hits with archery
 D: from 7 to 6.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
+T:45:0:99  # Ring
 
 N:22:Point Blank Archery
 I:1:2:4
@@ -313,6 +314,7 @@ D:Halves any bonuses that awake but unwary enemies have
 D: to notice you due to you being in their line of sight.
 T:35:0:99  # Cloak
 T:36:0:99  # Soft Armour
+T:45:0:99  # Ring
 
 N:61:Assassination
 I:3:1:4
@@ -350,6 +352,7 @@ D:Allows you to use the 'X' command to exchange places with
 D: an adjacent enemy (who gets a free attack on you as you pass).
 T:30:0:99  # Boots
 T:36:0:99  # Soft Armour
+T:40:0:99  # Amulet
 
 N:65:Vanish
 I:3:5:8
@@ -371,13 +374,17 @@ D:Gives you a bonus of +5 for finding traps and secret doors.
 T:32:0:99  # Helm
 T:33:0:99  # Crown
 T:39:0:99  # Light Source
+T:40:0:99  # Amulet
 
 N:81:Focused attack
 I:4:1:2
 D:Gives you a bonus of half your Perception score to your
 D: attacks if you passed the previous turn.
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
 T:32:0:99  # Helm
 T:33:0:99  # Crown
+T:40:0:99  # Amulet
 
 N:82:Keen Senses
 I:4:2:3
@@ -386,15 +393,16 @@ D: pool of light, and gives a +5 bonus to spot 'invisible' creatures.
 T:32:0:99  # Helm
 T:33:0:99  # Crown
 T:39:0:99  # Light Source
+T:40:0:99  # Amulet
 
 N:83:Concentration
 I:4:3:4
 D:Gives you a +1 bonus to attack for every consecutive round
 D: spent attacking the same enemy (to a maximum of Perception/2).
-T:23:0:99  # Swords
 T:32:0:99  # Helm
 T:33:0:99  # Crown
 T:36:0:99  # Soft Armour
+T:40:0:99  # Amulet
 
 N:84:Alchemy
 I:4:4:5
@@ -436,6 +444,7 @@ D: an opponent of the same type (up to a maximum of Perception/4).
 T:32:0:99  # Helm
 T:33:0:99  # Crown
 T:30:0:99  # Boots
+T:19:0:99  # Bows
 
 N:89:Grace
 I:4:9:10
@@ -467,6 +476,7 @@ D: attempt to take them off.
 T:40:0:99  # Amulet
 T:32:0:99  # Helm
 T:33:0:99  # Crown
+T:45:0:99  # Ring
 
 N:103:Inner Light
 I:5:3:5
@@ -525,6 +535,7 @@ T:32:0:99  # Helm
 T:33:0:99  # Crown
 T:36:2:2   # Robe
 T:21:9:9   # Sceptre
+T:40:0:99  # Amulet
 
 N:110:Constitution
 I:5:10:12
