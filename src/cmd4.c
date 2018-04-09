@@ -10052,6 +10052,13 @@ void apply_magic_fake(object_type *o_ptr)
 					break;
 				}
 
+				/* Amulet of the Vigilant Eye */
+				case SV_AMULET_VIGILANT_EYE:
+				{
+					if (o_ptr->pval < 1) o_ptr->pval = 1;
+					break;
+				}
+
 				default: break;
 
 			}

@@ -2249,6 +2249,13 @@ static void a_m_aux_3(object_type *o_ptr, int level)
 					break;
 				}
 
+				/* Amulet of the Vigilant Eye */
+				case SV_AMULET_VIGILANT_EYE:
+				{
+					/* Bonus to perception */
+					o_ptr->pval = (level + dieroll(10)) / 10 + 1;
+					break;
+				}
 			}
 
 			break;

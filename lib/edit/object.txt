@@ -845,6 +845,16 @@ A:9/3
 F:HAUNTED | SEE_INVIS | EASY_KNOW
 
 
+# (ability 4/2 is Keen Senses)
+N:139:the Vigilant Eye
+G:":d
+I:40:7:0
+W:4:0:1:0
+P:0:0d0:0:0d0
+A:4/8
+F:PERCEPTION | RES_HALLU
+B:4/2
+
 ##### Rings #####
 
 
