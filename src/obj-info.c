@@ -390,6 +390,20 @@ static bool describe_polearmness(u32b f3)
 	return (FALSE);
 }
 
+/*
+ * Describe the 'bluntness' of a weapon
+ */
+static bool describe_bluntness(const object_type *o_ptr)
+{
+	if (o_ptr->tval == TV_HAFTED)
+	{
+		p_text_out("It is a blunt weapon.  It can harm foes through their armour.  ");
+		return (TRUE);
+	}
+	
+	return (FALSE);
+}
+
 
 
 /*
@@ -797,6 +811,7 @@ bool object_info_out(const object_type *o_ptr)
 	if (describe_handedness(o_ptr, ff3))				something = TRUE;
 	if (describe_polearmness(ff3))						something = TRUE;
 	if (describe_archery(o_ptr))						something = TRUE;
+	if (describe_bluntness(o_ptr))						something = TRUE;
 
 	
 	/* We are done. */
