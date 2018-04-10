@@ -557,7 +557,9 @@ T:31:0:99  # Gloves
 
 N:122:Jeweller
 I:6:2:4
-D:Allows you to create rings, amulets, and light sources.
+D:Allows you to create rings, amulets, horns and light
+D: sources and identify rings, amulets, horns and light
+D: sources you encounter.
 T:31:0:99  # Gloves
 
 N:123:Enchantment
