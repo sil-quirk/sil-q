@@ -115,6 +115,8 @@ static void find_range(monster_type *m_ptr)
 			msg_format("%^s is agitated by your song.", m_name);
 		}
 
+		m_ptr->tmp_morale = MAX(m_ptr->tmp_morale, 30);
+
 		m_ptr->mana = 0;
 		m_ptr->best_range = 0;
 		m_ptr->min_range = 0;
@@ -5252,8 +5254,8 @@ void calc_stance(monster_type *m_ptr)
 		stances[0] = STANCE_CONFIDENT;
 	}
 
-	// Song of Challenge makes non-fleeing monsters attack overconfidently
-	if (singing(SNG_CHALLENGE) && m_ptr->morale > 20 && !(r_ptr->flags3 & (RF3_NO_CONF)))
+	// Song of Challenge makes monsters attack overconfidently
+	if (singing(SNG_CHALLENGE) && m_ptr->morale > 50 && !(r_ptr->flags3 & (RF3_NO_CONF)))
 	{
 		stances[1] = STANCE_AGGRESSIVE;
 	}

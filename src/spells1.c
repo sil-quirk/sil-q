@@ -5079,14 +5079,14 @@ void sing_song_of_challenge(int score)
 		resistance = monster_skill(m_ptr, S_WIL);
 
 		// adjust difficulty by the distance to the monster
-		result = skill_check(PLAYER, score, resistance + 3 + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx), m_ptr);
+		result = skill_check(PLAYER, score, resistance + 5 + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx), m_ptr);
 
 		/* If successful, alert the monster and make it more aggressive */
 		if (result > 0)
 		{
 			set_alertness(m_ptr, m_ptr->alertness + result);
 			// boost morale and check for the monster turning aggressive
-			m_ptr->tmp_morale = MAX(m_ptr->tmp_morale, 60);
+			m_ptr->tmp_morale = MAX(m_ptr->tmp_morale, 30);
 			calc_morale(m_ptr);
 			calc_stance(m_ptr);
 		}
