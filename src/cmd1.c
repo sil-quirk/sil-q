@@ -3718,7 +3718,7 @@ int py_attack_aux(int y, int x, int attack_type)
 		blows++;
 		rapid_attack = TRUE;
 	}
-	if (p_ptr->mds2 > 0)
+	if (p_ptr->mds2 > 0 && attack_type != ATT_IMPALE)
 	{
 		blows++;
 	}
@@ -3754,7 +3754,7 @@ int py_attack_aux(int y, int x, int attack_type)
 		}
 
 		// adjust for off-hand weapon if it is being used
-		if ((num == blows) && (num != 1) && (p_ptr->mds2 > 0))
+		if ((num == blows) && (num != 1) && (p_ptr->mds2 > 0) && attack_type != ATT_IMPALE)
 		{
 			off_hand_blow = TRUE;
 			rapid_attack = FALSE;
