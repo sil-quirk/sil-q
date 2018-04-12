@@ -510,8 +510,8 @@
 #define	PER_EYE_FOR_DETAIL			 0
 #define	PER_FOCUSED_ATTACK			 1
 #define	PER_KEEN_SENSES				 2
-#define	PER_ALCHEMY				 3
-#define	PER_CONCENTRATION			 4
+#define	PER_CONCENTRATION			 3
+#define	PER_ALCHEMY				 4
 #define	PER_BANE				 5
 #define	PER_FOREWARNED				 6
 #define	PER_LISTEN				 7
