@@ -2487,7 +2487,7 @@ static bool project_m(int who, int y, int x, int dd, int ds, int dif, int typ, u
 			if (r_ptr->flags3 & (RF3_NO_SLEEP))  resistance += 100;
 
 			// adjust difficulty by the distance to the monster
-			result = skill_check(who_ptr, dif - distance(p_ptr->py, p_ptr->px, y, x), resistance, m_ptr);
+			result = skill_check(who_ptr, dif  + 5 - distance(p_ptr->py, p_ptr->px, y, x), resistance, m_ptr);
 			
 			/* If successful, (partially) put the monster to sleep */
 			if (result > 0)
