@@ -376,7 +376,7 @@ void do_betrayal_ring_amulet()
 
 	get_sorted_target_list(TARGET_KILL, 4);
 
-	if (temp_n > 4 && one_in_(1000 / temp_n) && !p_ptr->truce)
+	if (temp_n > 4 && one_in_(100 / temp_n) && !p_ptr->truce)
 	{
 		int i;
 		bool fell_in_chasm = FALSE;
@@ -444,7 +444,7 @@ void do_betrayal_ring_amulet()
 
 void do_betrayal_helm_crown()
 {
-	if (is_traitor_item(INVEN_HEAD) && one_in_(50) &&
+	if (is_traitor_item(INVEN_HEAD) && one_in_(20) &&
 	    health_level(p_ptr->chp, p_ptr->mhp) <= HEALTH_BADLY_WOUNDED)
 	{
 		object_type *o_ptr = &inventory[INVEN_HEAD];
@@ -747,7 +747,7 @@ bool make_attack_normal(monster_type *m_ptr)
 			betrayal_wield = is_traitor_item(INVEN_WIELD);
 			betrayal_arm = is_traitor_item(INVEN_ARM);
 
-			if ((betrayal_wield || betrayal_arm) && one_in_(100) &&
+			if ((betrayal_wield || betrayal_arm) && one_in_(20) &&
 			    health_level(p_ptr->chp, p_ptr->mhp) >= HEALTH_BADLY_WOUNDED)
 			{
 				int max_dam = (dd + crit_bonus_dice + elem_bonus_dice) * ds;
