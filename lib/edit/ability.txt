@@ -678,8 +678,8 @@ I:7:9:10
 P:7/1:7/6
 D:A desperate song of heroism. Increases Strength and
 D: Dexterity by 3 points. Your strikes may stun opponents
-D: whose Will is less than your Song score. Drains health
-D: as well as voice.
+D: depending on their Will and your Song score. Drains 
+D: health as well as voice.
 T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
