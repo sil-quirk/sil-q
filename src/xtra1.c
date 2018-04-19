@@ -1926,7 +1926,7 @@ int ability_bonus(int skilltype, int abilitynum)
 				bonus = skill;
 				break;
 			}
-			case SNG_VALOUR:
+			case SNG_FIERCE_BLOWS:
 			{
 				bonus = skill;
 				break;
@@ -2549,7 +2549,7 @@ static void calc_bonuses(void)
 				case SNG_LORIEN:	song_noise += 4; break;
 				case SNG_THRESHOLDS:	song_noise += 4; break;
 				case SNG_DELVINGS:	song_noise += 4; break;
-				case SNG_VALOUR:	song_noise += 12; break;
+				case SNG_FIERCE_BLOWS:	song_noise += 12; break;
 				case SNG_MASTERY:	song_noise += 8; break;
 			}		
 		}
@@ -2617,22 +2617,6 @@ static void calc_bonuses(void)
 			p_ptr->skill_misc_mod[S_EVN] += ability_bonus(S_SNG, SNG_THRESHOLDS) / 3;
 			p_ptr->skill_misc_mod[S_MEL] += ability_bonus(S_SNG, SNG_THRESHOLDS) / 3;
 		}
-	}
-
-	// this has to go before calculation of DEX-based skills
-	// so we have to temporarily add the Grace bonus
-	if (singing(SNG_VALOUR))
-	{
-		p_ptr->stat_misc_mod[A_STR] += 3;
-		p_ptr->stat_misc_mod[A_DEX] += 3;
-		// recalculate stats
-		calc_stats();
-
-		// Needs redone as DEX has changed
-		p_ptr->skill_stat_mod[S_MEL] = p_ptr->stat_use[A_DEX];
-		p_ptr->skill_stat_mod[S_ARC] = p_ptr->stat_use[A_DEX];
-		p_ptr->skill_stat_mod[S_EVN] = p_ptr->stat_use[A_DEX];
-		p_ptr->skill_stat_mod[S_STL] = p_ptr->stat_use[A_DEX];
 	}
 
 	/*** Finalise all skills other than combat skills  (as bows/weapons must be analysed first) ***/

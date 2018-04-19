@@ -643,18 +643,19 @@ D:Reveals terrain adjacent to already known areas and shows
 D: features concealed in the stonework including traps and
 D: secret doors. Lowers tunneling difficulty by 1 point per
 D: 6 points of Song.
-T:33:0:99   # Crown
-T:40:0:99   # Amulet
-T:35:0:99   # Cloak
+T:33:0:99  # Crown
+T:40:0:99  # Amulet
+T:35:0:99  # Cloak
 T:20:0:99  # Shovels and Mattocks
 
 N:146:Song of Staying
 I:7:6:7
 D:Gives you a bonus of +X to Will and [1dX] protection,
 D: where X = Song/3.
-T:33:0:99  # Crown
-T:40:0:99  # Amulet
+T:32:0:99  # Helm
+T:34:0:99  # Shields
 T:35:0:99  # Cloak
+T:45:0:99  # Ring
 
 N:147:Song of Lorien
 I:7:7:8
@@ -673,16 +674,17 @@ T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:149:Song of Valour
+N:149:Song of Fierce Blows
 I:7:9:10
 P:7/1:7/6
-D:A desperate song of heroism. Increases Strength and
-D: Dexterity by 3 points. Your strikes may stun opponents
-D: depending on their Will and your Song score. Drains 
-D: health as well as voice.
-T:33:0:99  # Crown
-T:40:0:99  # Amulet
-T:35:0:99  # Cloak
+D:Your strikes may stun opponents depending on their Will and
+D: your Song score. Stunned opponents are reduced to rolling
+D: half of their damage dice while the song is in effect.
+D: Heavy and blunt weapons stun opponents for longer.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:34:0:99  # Shields
 
 N:150:Song of Mastery
 I:7:10:11

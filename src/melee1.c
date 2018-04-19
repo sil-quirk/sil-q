@@ -532,6 +532,7 @@ bool make_attack_normal(monster_type *m_ptr)
 		bool no_crit = FALSE;
 		int crit_bonus_dice = 0;
 		int elem_bonus_dice = 0;
+		int total_damage_dice = 0;
 		
 		int dam = 0, prt = 0;
 		int net_dam = 0;
@@ -566,7 +567,7 @@ bool make_attack_normal(monster_type *m_ptr)
             total_attack_mod += 3;
             ds += 3;
         }
-	
+
 		// determine the player's evasion score
 		total_evasion_mod = total_player_evasion(m_ptr, FALSE);
 
@@ -732,8 +733,12 @@ bool make_attack_normal(monster_type *m_ptr)
 			/* certain attacks can't do criticals */
 			if (no_crit) crit_bonus_dice = 0;
 			
+			total_damage_dice = dd + crit_bonus_dice + elem_bonus_dice;
+
+			if (singing(SNG_FIERCE_BLOWS) && m_ptr->stunned) total_damage_dice /= 2;
+
 			/* Roll out the damage */
-			dam = damroll(dd + crit_bonus_dice + elem_bonus_dice, ds);
+			dam = damroll(total_damage_dice, ds);
 			
 			/* Determine the armour based damage-reduction for the player */
 			/* Note that some attack types should ignore this             */
@@ -1585,7 +1590,7 @@ bool make_attack_normal(monster_type *m_ptr)
 				p_ptr->vengeance = 1;
 			}
 
-			update_combat_rolls2(dd + crit_bonus_dice + elem_bonus_dice, ds, dam, -1, -1, prt, prt_percent, dam_type, TRUE); 
+			update_combat_rolls2(total_damage_dice, ds, dam, -1, -1, prt, prt_percent, dam_type, TRUE); 
 		
 			display_hit(p_ptr->py, p_ptr->px, net_dam, dam_type, p_ptr->is_dead);
 

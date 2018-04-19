@@ -402,7 +402,7 @@ void teleport_player_level()
 void stun_monster(monster_type *m_ptr, int stun)
 {
 	int new_stun = m_ptr->stunned + stun;
-	m_ptr->stunned = MAX(new_stun, 255);
+	m_ptr->stunned = MIN(new_stun, 255);
 }
 
 /*
@@ -4983,19 +4983,19 @@ void change_song(int song)
 			}
 			break;
 		}
-		case SNG_VALOUR:
+		case SNG_FIERCE_BLOWS:
 		{
 			if (song_to_change == 1)
 			{
-				msg_print("You begin a desperate song of daring uncounted odds.");
+				msg_print("You begin a song of foes stricken and shields broken.");
 			}
 			else if (old_song == SNG_NOTHING)
 			{
-				msg_print("You add a minor theme of daring uncounted odds.");
+				msg_print("You add a minor theme of foes stricken and shields broken.");
 			}
 			else
 			{
-				msg_print("You change your minor theme to one of daring uncounted odds.");
+				msg_print("You change your minor theme to one of foes stricken and shields broken.");
 			}
 			break;
 		}
@@ -5277,20 +5277,12 @@ void sing(void)
 	int song = p_ptr->song1; // a default to soothe compilation warnings
 	int score = 0;
 	int cost = 0;
-	int blood_cost = 0;
-	bool heart_burst = FALSE;
 
 	if (p_ptr->song1 == SNG_NOTHING)
 		return;
 
-	if ((p_ptr->chp <= 1) && (p_ptr->song1 == SNG_VALOUR || p_ptr->song2 == SNG_VALOUR))
-	{
-		msg_print("You feel your heart is about to burst!");
-		heart_burst = TRUE;
-	}
-		
 	// abort song if out of voice, lost the ability to weave themes, or lost either song ability
-	if ((p_ptr->csp < 1) || heart_burst ||
+	if ((p_ptr->csp < 1) ||
 	    ((p_ptr->song2 != SNG_NOTHING) && !p_ptr->active_ability[S_SNG][SNG_WOVEN_THEMES]) ||
 	    (!p_ptr->active_ability[S_SNG][p_ptr->song1]) ||
 	    ((p_ptr->song2 != SNG_NOTHING) && !p_ptr->active_ability[S_SNG][p_ptr->song2]))
@@ -5375,10 +5367,9 @@ void sing(void)
 
 				break;
 			}
-			case SNG_VALOUR:
+			case SNG_FIERCE_BLOWS:
 			{
 				cost += 1;
-				blood_cost += 1;
 
 				break;
 			}
@@ -5393,9 +5384,6 @@ void sing(void)
 	// pay the price of the singing
 	if (p_ptr->csp >= cost)		p_ptr->csp -= cost;
 	else				p_ptr->csp = 0;
-	
-	if (p_ptr->chp > blood_cost)	p_ptr->chp -= blood_cost;
-	else				p_ptr->chp = 1;
 
 	p_ptr->redraw |= (PR_VOICE);
 	p_ptr->redraw |= (PR_HP);

@@ -3949,7 +3949,7 @@ int py_attack_aux(int y, int x, int attack_type)
 				{
 					knocked = knock_back(p_ptr->py, p_ptr->px, y, x);
  				}
-				if (singing(SNG_VALOUR) && skill_check(PLAYER, ability_bonus(S_SNG, SNG_VALOUR), monster_skill(m_ptr, S_WIL), m_ptr) > 0 && !(r_ptr->flags2 & RF2_MINDLESS))
+				if (singing(SNG_FIERCE_BLOWS) && skill_check(PLAYER, ability_bonus(S_SNG, SNG_FIERCE_BLOWS), monster_skill(m_ptr, S_WIL), m_ptr) > 0 && !(r_ptr->flags2 & RF2_MINDLESS))
 				{
 					if (r_ptr->flags3 & RF3_NO_STUN)
 					{
@@ -3960,8 +3960,14 @@ int py_attack_aux(int y, int x, int attack_type)
 					}
 					else
 					{
-						stun_monster(m_ptr, ability_bonus(S_SNG, SNG_VALOUR) / 4);
-						msg_format("Your mighty blow stuns %s!", m_name);
+						int stun_period = weapon_weight / 5;
+						if (o_ptr->tval == TV_HAFTED) stun_period *= 2;
+
+						if (stun_period > 1)
+						{
+							stun_monster(m_ptr, stun_period);
+							msg_format("Your fierce blow stuns %s.", m_name);
+						}
 					}
 				}
 

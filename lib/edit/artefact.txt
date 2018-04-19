@@ -928,7 +928,7 @@ D: fight some of Morgoth's foulest servants.
 
 N:99:of Gaurin
 I:22:4:3
-W:10:30:80:50000
+W:12:30:80:50000
 P:-2:2d9:1:0d0
 F:TUNNEL | SHARPNESS
 D:'...the glaive of Gaurin whose gleaming stroke
@@ -955,7 +955,7 @@ D: every opening, no matter how brief.
 
 N:101:'Celebrist'
 I:22:4:1
-W:10:20:50:22000
+W:6:20:50:22000
 P:-1:2d9:2:0d0
 F:DEX | FREE_ACT | NEG_CON
 D:A beautiful blade on a long shaft of dark wood. It feels lively
