@@ -1007,7 +1007,7 @@ G:_:d
 I:55:1:0
 W:6:0:50:400
 P:0:0d0:0:0d0
-A:6/3
+A:5/3
 D:It may shut and lock all doors in line of sight.
 
 
@@ -1101,7 +1101,7 @@ G:_:d
 I:55:12:0
 W:7:0:50:400
 P:0:0d0:0:0d0
-A:4/1
+A:2/3
 D:It lets you know all of your abilities.
 
 
@@ -1139,7 +1139,7 @@ G:_:d
 I:55:17:0
 W:7:0:50:0
 P:0:0d0:0:0d0
-A:7/6
+A:3/3
 D:It summons monsters to the stairs on the current level. 
 
 
@@ -1148,7 +1148,7 @@ G:_:d
 I:55:18:0
 W:9:0:50:0
 P:0:0d0:0:0d0
-A:9/6
+A:3/3
 D:It produces new traps on the current level. 
 
 
