@@ -862,6 +862,7 @@ static bool generate_poor_quality_object(object_type *o_ptr)
 	if (object_roll == 1)
 	{
 		object_prep(o_ptr, lookup_kind(TV_ARROW, SV_NORMAL_ARROW));
+		object_known(o_ptr);
 	}
 	else if (object_roll == 2)
 	{
