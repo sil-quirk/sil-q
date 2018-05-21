@@ -1926,7 +1926,7 @@ int ability_bonus(int skilltype, int abilitynum)
 				bonus = skill;
 				break;
 			}
-			case SNG_FIERCE_BLOWS:
+			case SNG_OVERWHELMING:
 			{
 				bonus = skill;
 				break;
@@ -2549,7 +2549,7 @@ static void calc_bonuses(void)
 				case SNG_LORIEN:	song_noise += 4; break;
 				case SNG_THRESHOLDS:	song_noise += 4; break;
 				case SNG_DELVINGS:	song_noise += 4; break;
-				case SNG_FIERCE_BLOWS:	song_noise += 12; break;
+				case SNG_OVERWHELMING:	song_noise += 12; break;
 				case SNG_MASTERY:	song_noise += 8; break;
 			}		
 		}

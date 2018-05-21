@@ -557,7 +557,7 @@
 #define	SNG_STAYING					6
 #define	SNG_LORIEN					7
 #define	SNG_THRESHOLDS					8
-#define	SNG_FIERCE_BLOWS				9
+#define	SNG_OVERWHELMING				9
 #define	SNG_MASTERY					10
 #define	SNG_WOVEN_THEMES			11
 #define	SNG_GRA						12

@@ -674,12 +674,12 @@ T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:149:Song of Fierce Blows
+N:149:Song of Overwhelming
 I:7:9:10
 P:7/1:7/6
-D:Your strikes may stun opponents depending on their Will and
-D: your Song score. Stunned opponents are reduced to rolling
-D: half of their damage dice while the song is in effect.
+D:Strikes may stun opponents depending on their Will and
+D: your Song score. Stunned opponents roll only half of
+D: their damage dice while the song is in effect.
 D: Heavy and blunt weapons stun opponents for longer.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms

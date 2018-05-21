@@ -3949,7 +3949,7 @@ int py_attack_aux(int y, int x, int attack_type)
 				{
 					knocked = knock_back(p_ptr->py, p_ptr->px, y, x);
  				}
-				if (singing(SNG_FIERCE_BLOWS) && skill_check(PLAYER, ability_bonus(S_SNG, SNG_FIERCE_BLOWS), monster_skill(m_ptr, S_WIL), m_ptr) > 0 && !(r_ptr->flags2 & RF2_MINDLESS))
+				if (singing(SNG_OVERWHELMING) && skill_check(PLAYER, ability_bonus(S_SNG, SNG_OVERWHELMING), monster_skill(m_ptr, S_WIL), m_ptr) > 0 && !(r_ptr->flags2 & RF2_MINDLESS))
 				{
 					if (r_ptr->flags3 & RF3_NO_STUN)
 					{

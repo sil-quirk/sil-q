@@ -4983,7 +4983,7 @@ void change_song(int song)
 			}
 			break;
 		}
-		case SNG_FIERCE_BLOWS:
+		case SNG_OVERWHELMING:
 		{
 			if (song_to_change == 1)
 			{
@@ -5367,7 +5367,7 @@ void sing(void)
 
 				break;
 			}
-			case SNG_FIERCE_BLOWS:
+			case SNG_OVERWHELMING:
 			{
 				cost += 1;
 

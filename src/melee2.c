@@ -4782,7 +4782,7 @@ static void process_monster(monster_type *m_ptr)
 		if ((chance) && (m_ptr->stunned)) chance /= 2;
 
 		/* Smitten monsters get no ranged attacks. */
-		if (singing(SNG_FIERCE_BLOWS) && m_ptr->stunned) chance = 0;
+		if (singing(SNG_OVERWHELMING) && m_ptr->stunned) chance = 0;
 
 		/* Monster can use ranged attacks */
 		if ((chance) && percent_chance(chance))
