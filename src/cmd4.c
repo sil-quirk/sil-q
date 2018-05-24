@@ -2810,7 +2810,7 @@ int object_difficulty(object_type *o_ptr)
 	switch (wield_slot(o_ptr))
 	{
 		//case INVEN_WIELD:
-		//case INVEN_BOW:
+		case INVEN_BOW:
 		case INVEN_LEFT:
 		case INVEN_RIGHT:
 		//case INVEN_NECK:
