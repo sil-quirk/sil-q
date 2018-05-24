@@ -1231,6 +1231,7 @@ F:EASY_KNOW
 D:It banishes all fear, cures a quarter of your health, and stuns you
 D: (for 2d4 turns).
 
+
 N:316:Esgalduin
 G:!:d
 I:75:3:100
@@ -1239,12 +1240,13 @@ P:0:0d0:0:0d0
 A:4/3:12/6
 D:It restores a quarter of your voice.
 
+
 N:317:Clarity
 G:!:d
 I:75:4:100
 W:6:0:5:100
 P:0:0d0:0:0d0
-A:6/2:13/1
+A:3/1:13/1
 F:EASY_KNOW
 D:It cures stunning, confusion, and hallucination; and ends
 D: your rage. 
@@ -1506,7 +1508,7 @@ G:,:d
 I:80:1:0
 W:5:0:1:50
 P:0:0d0:0:0d0
-A:5/2:15/1
+A:3/2:13/1
 F:EASY_KNOW
 D:It provides nourishment for about 2000 turns
 D: under normal conditions. 

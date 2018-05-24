@@ -807,6 +807,16 @@ D: unwillingly to meet it of old; his lame foot will remind him of its
 D: might should he face it again.
 
 
+N:83:'Ungoliant's Lament'
+I:23:30:0
+W:8:20:40:30000
+P:0:3d6:2:0d0
+F:SLAY_SPIDER | LIGHT | FREE_ACT
+D:A long gently glowing blade with a handle clad in red leather.
+D: Many spiders of the Ered Gorgoroth were slain by it in the days following
+D: the arrival of the Noldor in Beleriand.
+
+
 ##### Polearms #####
 
 ##
