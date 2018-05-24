@@ -393,9 +393,10 @@ N:195:75:2
 G:!:u
 D:Murky Brown
 
-N:196:75
-G:!:B
-D:Azure
+# Fixed: Esgalduin
+N:196:75:3
+G:!:W1
+D:Limpid
 
 N:197:75
 G:!:b
@@ -493,4 +494,7 @@ N:220:75
 G:!:b
 D:Sparkling Blue
 
+N:221:75
+G:!:B
+D:Azure
 

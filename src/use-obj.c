@@ -183,7 +183,7 @@ static bool quaff_potion(object_type *o_ptr, bool *ident)
 			{
 				p_ptr->csp = p_ptr->msp;
 				p_ptr->csp_frac = 0;
-				msg_print("Your feel your power renew.");
+				msg_print("You feel your power renew.");
 				p_ptr->redraw |= (PR_VOICE);
 				p_ptr->window |= (PW_PLAYER_0);
 			}
@@ -204,7 +204,27 @@ static bool quaff_potion(object_type *o_ptr, bool *ident)
 			*ident = TRUE;
 			break;
 		}
-		
+
+		case SV_POTION_ESGALDUIN:
+		{
+			msg_print("It is the cold clear water of mystic Esgalduin.");
+			*ident = TRUE;
+
+			if (p_ptr->csp < p_ptr->msp)
+			{
+				int added = p_ptr->msp / 4;
+				p_ptr->csp = p_ptr->csp + added;
+
+				if (p_ptr->csp > p_ptr->msp) p_ptr->csp = p_ptr->msp;
+
+				p_ptr->csp_frac = 0;
+				msg_print("You feel your power renew.");
+				p_ptr->redraw |= (PR_VOICE);
+				p_ptr->window |= (PW_PLAYER_0);
+			}
+			break;
+		}
+
 		case SV_POTION_CLARITY:
 		{
 			if (set_stun(0)) *ident = TRUE;
@@ -229,7 +249,7 @@ static bool quaff_potion(object_type *o_ptr, bool *ident)
 			{
 				p_ptr->csp = p_ptr->msp;
 				p_ptr->csp_frac = 0;
-				msg_print("Your feel your power renew.");
+				msg_print("You feel your power renew.");
 				p_ptr->redraw |= (PR_VOICE);
 				p_ptr->window |= (PW_PLAYER_0);
 				*ident = TRUE;

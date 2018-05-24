@@ -1252,6 +1252,7 @@
 /* The "sval" codes for TV_POTION */
 #define SV_POTION_MIRUVOR			0
 #define SV_POTION_ORCISH_LIQUOR		2
+#define SV_POTION_ESGALDUIN			3
 #define SV_POTION_CLARITY			4
 #define SV_POTION_HEALING			5
 #define SV_POTION_VOICE				6
