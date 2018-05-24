@@ -2098,21 +2098,8 @@ static void a_m_aux_3(object_type *o_ptr, int level)
 				case SV_RING_DEX:
 				{
 					/* Stat bonus */
-					o_ptr->pval = (level + dieroll(10)) / 10 - 1;
+					o_ptr->pval = (level + dieroll(15)) / 20;
 					
-					// maximum of +1
-					//if (o_ptr->pval > 1) o_ptr->pval = 1;
-
-					/* Cursed */
-					if (o_ptr->pval < 0)
-					{
-						/* Broken */
-						o_ptr->ident |= (IDENT_BROKEN);
-
-						/* Cursed */
-						o_ptr->ident |= (IDENT_CURSED);
-					}
-
 					break;
 				}
 
@@ -2120,7 +2107,7 @@ static void a_m_aux_3(object_type *o_ptr, int level)
 				case SV_RING_ACCURACY:
 				{
 					/* Bonus to attack */
-					o_ptr->att = (level + dieroll(10)) / 7 - 1;
+					o_ptr->att = (level + dieroll(10)) / 9;
 					
 					// can't be zero
 					if (o_ptr->att == 0)
@@ -2155,24 +2142,14 @@ static void a_m_aux_3(object_type *o_ptr, int level)
 				case SV_RING_EVASION:
 				{
 					/* Bonus to evasion */
-					o_ptr->evn = (level + dieroll(10)) / 7 - 1;
+					o_ptr->evn = (level + dieroll(10)) / 9;
 					
 					// can't be zero
 					if (o_ptr->evn == 0)
 					{
 						o_ptr->evn = +1;
 					}
-			
-					/* Cursed */
-					if (o_ptr->evn < 0)
-					{
-						/* Broken */
-						o_ptr->ident |= (IDENT_BROKEN);
-						
-						/* Cursed */
-						o_ptr->ident |= (IDENT_CURSED);
-					}
-					
+
 					break;
 				}
 
@@ -2180,24 +2157,14 @@ static void a_m_aux_3(object_type *o_ptr, int level)
 				case SV_RING_PERCEPTION:
 				{
 					/* Bonus to perception */
-					o_ptr->pval = (level + dieroll(10)) / 5 - 1;
+					o_ptr->pval = (level + dieroll(10)) / 7;
 					
 					// can't be zero
 					if (o_ptr->pval == 0)
 					{
 						o_ptr->pval = +1;
 					}
-			
-					/* Cursed */
-					if (o_ptr->pval < 0)
-					{
-						/* Broken */
-						o_ptr->ident |= (IDENT_BROKEN);
-						
-						/* Cursed */
-						o_ptr->ident |= (IDENT_CURSED);
-					}
-
+	
 					break;
 				}
 
@@ -2223,20 +2190,7 @@ static void a_m_aux_3(object_type *o_ptr, int level)
 				case SV_AMULET_GRA:
 				{
 					/* Stat bonus */
-					o_ptr->pval = (level + dieroll(10)) / 10 - 1;
-					
-					// maximum of +1
-					//if (o_ptr->pval > 1) o_ptr->pval = 1;
-
-					/* Cursed */
-					if (o_ptr->pval < 0)
-					{
-						/* Broken */
-						o_ptr->ident |= (IDENT_BROKEN);
-
-						/* Cursed */
-						o_ptr->ident |= (IDENT_CURSED);
-					}
+					o_ptr->pval = (level + dieroll(15)) / 20;
 
 					break;
 				}
