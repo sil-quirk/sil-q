@@ -3493,14 +3493,17 @@ void attacks_of_opportunity(int neutralized_y, int neutralized_x)
             if ((m_ptr->alertness >= ALERTNESS_ALERT) && !m_ptr->confused && (m_ptr->stance != STANCE_FLEEING) && !(r_ptr->flags2 & (RF2_MINDLESS))
                 && !m_ptr->skip_next_turn && !m_ptr->skip_this_turn)
             {
-                opportunity_attacks++;
+		int evn = p_ptr->skill_use[S_EVN];
+		opportunity_attacks++;
+
+		if (opportunity_attacks == 1)
+		{
+			msg_print("You provoke attacks of opportunity from adjacent enemies!");
+		}
                 
-                if (opportunity_attacks == 1)
-                {
-                    msg_print("You provoke attacks of opportunity from adjacent enemies!");
-                }
-                
-                make_attack_normal(m_ptr);
+		p_ptr->skill_use[S_EVN] = evn / 2;
+		make_attack_normal(m_ptr);
+		p_ptr->skill_use[S_EVN] = evn;
             }
         }
     }
