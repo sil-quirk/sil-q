@@ -210,6 +210,8 @@ static bool quaff_potion(object_type *o_ptr, bool *ident)
 			msg_print("It is the cold clear water of mystic Esgalduin.");
 			*ident = TRUE;
 
+			set_tmp_per(p_ptr->tmp_per + damroll(20,4));
+
 			if (p_ptr->csp < p_ptr->msp)
 			{
 				int added = p_ptr->msp / 4;

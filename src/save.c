@@ -866,7 +866,7 @@ static void wr_extra(void)
 	wr_s16b(p_ptr->tmp_con);
 	wr_s16b(p_ptr->tmp_gra);
 	wr_s16b(p_ptr->tim_invis);
-	wr_s16b(p_ptr->word_recall);
+	wr_s16b(p_ptr->tmp_per);
 	wr_s16b(p_ptr->darkened);
 	wr_s16b(p_ptr->oppose_fire);
 	wr_s16b(p_ptr->oppose_cold);

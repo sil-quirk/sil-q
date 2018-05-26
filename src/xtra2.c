@@ -833,6 +833,56 @@ bool set_tmp_gra(int v)
 
 
 /*
+ * Set "p_ptr->tmp_per", notice observable changes
+ */
+bool set_tmp_per(int v)
+{
+	bool notice = FALSE;
+
+	/* Hack -- Force good values */
+	v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
+
+	/* Open */
+	if (v)
+	{
+		if (!p_ptr->tmp_per)
+		{
+			msg_print("You feel your perceptions sharpen.");
+			notice = TRUE;
+		}
+	}
+
+	/* Shut */
+	else
+	{
+		if (p_ptr->tmp_per)
+		{
+			msg_print("Your perception returns to normal.");
+			notice = TRUE;
+		}
+	}
+
+	/* Use the value */
+	p_ptr->tmp_per = v;
+
+	/* Nothing to notice */
+	if (!notice) return (FALSE);
+
+	/* Disturb */
+	disturb(0, 0);
+
+	/* Recalculate bonuses */
+	p_ptr->update |= (PU_BONUS);
+
+	/* Handle stuff */
+	handle_stuff();
+
+	/* Result */
+	return (TRUE);
+}
+
+
+/*
  * Set "p_ptr->tim_invis", notice observable changes
  *
  * Note the use of "PU_MONSTERS", which is needed because

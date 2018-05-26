@@ -450,12 +450,6 @@ void do_cmd_search(void)
  */
 void do_cmd_toggle_stealth(void)
 {
-    if (p_ptr->climbing)
-    {
-        msg_print("You cannot use stealth mode while climbing.");
-        return;
-    }
-        
 	/* Stop stealth mode */
 	if (p_ptr->stealth_mode)
 	{

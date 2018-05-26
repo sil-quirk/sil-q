@@ -859,7 +859,7 @@ static errr rd_extra(void)
 	rd_s16b(&p_ptr->tmp_con);
 	rd_s16b(&p_ptr->tmp_gra);
 	rd_s16b(&p_ptr->tim_invis);
-	rd_s16b(&p_ptr->word_recall);
+	rd_s16b(&p_ptr->tmp_per);
 	rd_s16b(&p_ptr->darkened);
 	rd_s16b(&p_ptr->oppose_fire);
 	rd_s16b(&p_ptr->oppose_cold);

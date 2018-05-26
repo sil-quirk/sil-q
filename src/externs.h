@@ -996,6 +996,7 @@ extern bool set_tmp_dex(int v);
 extern bool set_tmp_con(int v);
 extern bool set_tmp_gra(int v);
 extern bool set_protevil(int v);
+extern bool set_tmp_per(int v);
 extern bool set_tim_invis(int v);
 extern bool set_darkened(int v);
 extern bool set_oppose_fire(int v);

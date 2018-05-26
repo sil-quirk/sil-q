@@ -2386,6 +2386,12 @@ static void process_player(void)
 		(void)set_tmp_gra(p_ptr->tmp_gra - 1);
 	}
 
+	/* Temporary Perception */
+	if (p_ptr->tmp_per)
+	{
+		(void)set_tmp_per(p_ptr->tmp_per - 1);
+	}
+
 	/* Oppose Fire */
 	if (p_ptr->oppose_fire)
 	{
@@ -3165,17 +3171,6 @@ void play_game(bool new_game)
 
 				/* Hack -- Prevent starvation */
 				(void)set_food(PY_FOOD_FULL - 1);
-
-				/* Hack -- cancel recall */
-				if (p_ptr->word_recall)
-				{
-					/* Message */
-					msg_print("A tension leaves the air around you...");
-					message_flush();
-
-					/* Hack -- Prevent recall */
-					p_ptr->word_recall = 0;
-				}
 
 				/* Note cause of death XXX XXX XXX */
 				my_strcpy(p_ptr->died_from, "Cheating death", sizeof (p_ptr->died_from));

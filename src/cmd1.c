@@ -4251,41 +4251,6 @@ void flanking_or_retreat(int y, int x)
 }
 
 /*
- * Is it valid to climb from (y1,x1) to (y2,x2)
- */
-bool climbable(int y1, int x1, int y2, int x2)
-{
-    //int i;
-    //int walls = 0;
-    //int yy, xx;
-    
-    int a = y1 + x1 + y2 + x2;  // Sil-y: soothing complilation warnings
-    a = 0;                      // Sil-y: soothing complilation warnings
-    return (FALSE);             // Sil-x: no climbing in this version
-
-    // at least one must be a chasm
-    //if ((cave_feat[y1][x1] != FEAT_CHASM) && (cave_feat[y2][x2] != FEAT_CHASM)) return (FALSE);
-                
-    /* Count adjacent walls */
-    //
-    //for (i = 0; i < 8; i++)
-    //{
-    //    yy = y2 + ddy_ddd[i];
-    //    xx = x2 + ddx_ddd[i];
-        
-        // Note that rubble doesn't count
-    //    if (cave_wall_bold(yy,xx) && (cave_feat[yy][xx] != FEAT_RUBBLE))
-    //    {
-            // count the walls
-    //        walls++;
-    //    }
-    //}
-    
-    //if (walls > 0)  return (TRUE);
-    //else            return (FALSE);
-}
-
-/*
  * Move player in the given direction, with the given "pickup" flag.
  *
  * This routine should only be called when energy has been expended.
@@ -4302,8 +4267,6 @@ void move_player(int dir)
     int ox = p_ptr->px;
     
 	int y, x;
-    
-    bool climb = FALSE;
     
 	/* Find the result of moving */
 	y = py + ddy[dir];
@@ -4413,7 +4376,7 @@ void move_player(int dir)
 		if ((!p_ptr->confused) && (cave_info[y][x] & (CAVE_MARK)))
 		{
             // leapable things: chasms, traps (except roosts and webs)
-            if (((cave_feat[y][x] == FEAT_CHASM) && !climbable(p_ptr->py, p_ptr->px, y, x)) ||
+            if ((cave_feat[y][x] == FEAT_CHASM) ||
                 (((cave_trap_bold(y,x)) && !cave_floorlike_bold(y,x)) &&
 		 !(cave_feat[y][x] == FEAT_TRAP_ROOST || cave_feat[y][x] == FEAT_TRAP_WEB)))
             {
@@ -4637,9 +4600,6 @@ void move_player(int dir)
 		// do flanking or controlled retreat attack if any
 		flanking_or_retreat(y, x);
 
-        // check whether the player can climb to the new square
-        climb = climbable(py, px, y, x);
-        
 		/* Move player */
 		monster_swap(py, px, y, x);
 
@@ -4685,28 +4645,10 @@ void move_player(int dir)
 			cave_info[y][x] |= (CAVE_MARK);
 			lite_spot(y, x);
 		}
-		
-        // check for climbing
-        if (climb)
-        {
-            if ((cave_feat[oy][ox] != FEAT_CHASM) && (cave_feat[y][x] == FEAT_CHASM))
-            {
-                msg_print("You begin your climb.");
-            }
-        }
-        
-        // check for ending a climb
-        if (p_ptr->climbing)
-        {
-            if ((cave_feat[oy][ox] == FEAT_CHASM) && (cave_feat[y][x] != FEAT_CHASM))
-            {
-                msg_print("You are back to solid ground.");
-            }
-        }
-
+	
         
 		/* Set off traps */
-        if (cave_trap_bold(y,x) || ((cave_feat[y][x] == FEAT_CHASM) && !climb))
+        if (cave_trap_bold(y,x))
 		{
 			// If it is hidden
 			if (cave_info[y][x] & (CAVE_HIDDEN))

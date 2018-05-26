@@ -892,7 +892,7 @@ struct player_type
 	s16b oppose_cold;	/* Timed -- oppose cold */
 	s16b oppose_pois;	/* Timed -- oppose poison */
 
-	s16b word_recall;	/* Word of recall counter */
+	s16b tmp_per;		/* Timed -- Perception */
 
 	s16b energy;		/* Current energy */
 

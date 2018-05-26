@@ -534,6 +534,13 @@ void self_knowledge(void)
         good[i] = TRUE;
         i++;
 	}
+	if (p_ptr->tmp_per)
+	{
+        strnfmt(s[i], 80, "Your perceptions are heightened");
+        strnfmt(t[i], 80, "(+10 Perception)");
+        good[i] = TRUE;
+        i++;
+	}
 
 	if (p_ptr->cowardice > 0)
 	{
