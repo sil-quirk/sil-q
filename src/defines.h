@@ -507,7 +507,7 @@
 /* 
  * Perception abilities 
  */
-#define	PER_EYE_FOR_DETAIL			 0
+#define	PER_QUICK_STUDY				 0
 #define	PER_FOCUSED_ATTACK			 1
 #define	PER_KEEN_SENSES				 2
 #define	PER_CONCENTRATION			 3

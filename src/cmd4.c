@@ -419,7 +419,11 @@ bool prereqs(int skilltype, int abilitynum)
 	
 	b_ptr = &b_info[ability_index(skilltype,abilitynum)];
 	
-	if (p_ptr->skill_base[skilltype] < b_ptr->level) return (FALSE);
+	if (p_ptr->skill_base[skilltype] < b_ptr->level &&
+	    !(p_ptr->active_ability[S_PER][PER_QUICK_STUDY] && (p_ptr->skill_base[S_PER] >= b_ptr->level)))
+	{
+		return (FALSE);
+	}
 	
 	if (b_ptr->prereqs > 0)
 	{

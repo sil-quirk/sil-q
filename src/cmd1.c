@@ -2363,9 +2363,6 @@ void search_square(int y, int x, int dist, int searching)
 		// If using the search command give a score bonus
 		if (searching) score += 5;
 		
-		// Eye for Detail ability
-		if (p_ptr->active_ability[S_PER][PER_EYE_FOR_DETAIL]) score += 5;
-		
 		// Determine the base difficulty
 		if (chest_trap_present)
 		{

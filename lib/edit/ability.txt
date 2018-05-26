@@ -368,12 +368,12 @@ I:3:6:11
 
 # Perception ---------------------------------------------
 
-N:80:Eye for Detail
+N:80:Quick Study
 I:4:0:1
-D:Gives you a bonus of +5 for finding traps and secret doors.
-T:32:0:99  # Helm
+D:Allows you to take abilities without meeting the skill
+D: prerequisite as long as the skill prerequisite is lower
+D: than or equal to your base Perception score.
 T:33:0:99  # Crown
-T:39:0:99  # Light Source
 T:40:0:99  # Amulet
 
 N:81:Focused attack

@@ -5101,6 +5101,8 @@ void sing_song_of_delvings(int score)
 
 	int px = p_ptr->px;
 	int py = p_ptr->py;
+
+	score += 4;
 	int range = score;
 
 	min_y = MAX(1, py - range);
