@@ -499,8 +499,8 @@
 #define	STL_DISGUISE				 0
 #define	STL_ASSASSINATION			 1
 #define	STL_CRUEL_BLOW				 2
-#define	STL_OPPORTUNIST				 3
-#define	STL_EXCHANGE_PLACES			 4
+#define	STL_EXCHANGE_PLACES			 3
+#define	STL_OPPORTUNIST				 4
 #define	STL_VANISH					 5
 #define	STL_DEX						 6
 

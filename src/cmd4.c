@@ -2641,7 +2641,10 @@ int object_difficulty(object_type *o_ptr)
 		weight_factor = 100 * k_ptr->weight / o_ptr->weight;
 		low_weight_adjust = (weight_factor - 100) * (o_ptr->ds / 4);
 
-		if (o_ptr->weight < 150) weight_factor = weight_factor + low_weight_adjust;
+		if (o_ptr->weight < 15) 
+		{
+			weight_factor = weight_factor + low_weight_adjust;
+		}
 	}
 
 	dif_inc += (weight_factor - 100) / 10;

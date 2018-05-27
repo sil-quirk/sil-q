@@ -335,8 +335,17 @@ T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:31:0:99  # Gloves
 
-N:63:Opportunist
+N:63:Exchange Places
 I:3:3:6
+P:3/0:2/3
+D:Allows you to use the 'X' command to exchange places with
+D: an adjacent enemy (who gets a free attack on you as you pass).
+T:30:0:99  # Boots
+T:36:0:99  # Soft Armour
+T:40:0:99  # Amulet
+
+N:64:Opportunist
+I:3:4:7
 P:3/1:0/5
 D:You get a free attack whenever an adjacent opponent
 D: moves away from you.
@@ -344,15 +353,6 @@ T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:31:0:99  # Gloves
-
-N:64:Exchange Places
-I:3:4:7
-P:3/0:2/3
-D:Allows you to use the 'X' command to exchange places with
-D: an adjacent enemy (who gets a free attack on you as you pass).
-T:30:0:99  # Boots
-T:36:0:99  # Soft Armour
-T:40:0:99  # Amulet
 
 N:65:Vanish
 I:3:5:8
@@ -364,7 +364,9 @@ T:36:0:99  # Soft Armour
 T:45:0:99  # Ring
 
 N:66:Dexterity
+P:3/0:3/1
 I:3:6:11
+D:You gain a point of dexterity.
 
 # Perception ---------------------------------------------
 
