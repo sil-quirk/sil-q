@@ -3796,8 +3796,8 @@ void do_cmd_fire(int quiver)
 			}
 			
 			/* If the bow has 'radiance', then light the square being passed over */
-			noticed_radiance = do_radiance(y, x, j_ptr);
-			
+			noticed_radiance = do_radiance(y, x, j_ptr) | noticed_radiance;
+
 			/* Only do visuals if the player can "see" the missile */
 			if (panel_contains(y, x) && player_can_see_bold(y, x))
 			{
