@@ -419,13 +419,12 @@ bool prereqs(int skilltype, int abilitynum)
 	
 	b_ptr = &b_info[ability_index(skilltype,abilitynum)];
 	
-	if (p_ptr->skill_base[skilltype] < b_ptr->level &&
-	    !(p_ptr->active_ability[S_PER][PER_QUICK_STUDY] && (p_ptr->skill_base[S_PER] >= b_ptr->level)))
+	if (p_ptr->skill_base[skilltype] < b_ptr->level)
 	{
 		return (FALSE);
 	}
 	
-	if (b_ptr->prereqs > 0)
+	if (b_ptr->prereqs > 0 && !(p_ptr->active_ability[S_PER][PER_QUICK_STUDY]))
 	{
 		for (i = 0; i < b_ptr->prereqs; i++)
 		{
@@ -1161,29 +1160,38 @@ int abilities_menu2(int skilltype, int *highlight)
 					strnfmt(buf, 80, "%d skill points", b_ptr->level);
 					Term_putstr(COL_DESCRIPTION + 2, 12, -1, TERM_SLATE, buf);
 				}
-				for (j = 0; j < b_ptr->prereqs; j++)
+
+				if (!p_ptr->active_ability[S_PER][PER_QUICK_STUDY])
 				{
-					if (j == 0)
+					for (j = 0; j < b_ptr->prereqs; j++)
 					{
-						strnfmt(buf, 80, "%s", b_name + (&b_info[ability_index(b_ptr->prereq_skilltype[j], b_ptr->prereq_abilitynum[j])])->name);
-					}
-					else
-					{
-						strnfmt(buf, 80, "or %s", b_name + (&b_info[ability_index(b_ptr->prereq_skilltype[j], b_ptr->prereq_abilitynum[j])])->name);
-					}
-					Term_putstr(COL_DESCRIPTION + 2, 13 + j, -1, TERM_L_DARK, buf);
-					if (p_ptr->innate_ability[b_ptr->prereq_skilltype[j]][b_ptr->prereq_abilitynum[j]])
-					{
-						strnfmt(buf, 80, "%s", b_name + (&b_info[ability_index(b_ptr->prereq_skilltype[j], b_ptr->prereq_abilitynum[j])])->name);
 						if (j == 0)
 						{
-							Term_putstr(COL_DESCRIPTION + 2, 13 + j, -1, TERM_SLATE, buf);
+							strnfmt(buf, 80, "%s", b_name + (&b_info[ability_index(b_ptr->prereq_skilltype[j], b_ptr->prereq_abilitynum[j])])->name);
 						}
 						else
 						{
-							Term_putstr(COL_DESCRIPTION + 5, 13 + j, -1, TERM_SLATE, buf);
+							strnfmt(buf, 80, "or %s", b_name + (&b_info[ability_index(b_ptr->prereq_skilltype[j], b_ptr->prereq_abilitynum[j])])->name);
+						}
+						Term_putstr(COL_DESCRIPTION + 2, 13 + j, -1, TERM_L_DARK, buf);
+						if (p_ptr->innate_ability[b_ptr->prereq_skilltype[j]][b_ptr->prereq_abilitynum[j]])
+						{
+							strnfmt(buf, 80, "%s", b_name + (&b_info[ability_index(b_ptr->prereq_skilltype[j], b_ptr->prereq_abilitynum[j])])->name);
+							if (j == 0)
+							{
+								Term_putstr(COL_DESCRIPTION + 2, 13 + j, -1, TERM_SLATE, buf);
+							}
+							else
+							{
+								Term_putstr(COL_DESCRIPTION + 5, 13 + j, -1, TERM_SLATE, buf);
+							}
 						}
 					}
+				}
+				else if (b_ptr->prereqs > 0)
+				{
+					strnfmt(buf, 80, "Quick Study");
+					Term_putstr(COL_DESCRIPTION + 2, 13, -1, TERM_GREEN, buf);
 				}
 
 				if (prereqs(skilltype, b_ptr->abilitynum))

@@ -372,9 +372,8 @@ D:You gain a point of dexterity.
 
 N:80:Quick Study
 I:4:0:1
-D:Allows you to take abilities without meeting the skill
-D: prerequisite as long as the skill prerequisite is lower
-D: than or equal to your base Perception score.
+D:Allows you to take advanced abilities when you don't have the
+D: prerequisite abilities.
 T:33:0:99  # Crown
 T:40:0:99  # Amulet
 
