@@ -566,18 +566,11 @@ static bool use_staff(object_type *o_ptr, bool *ident)
 			break;
 		}
 		
-		case SV_STAFF_ENTRAPMENT:
+		case SV_STAFF_SHADOWS:
 		{
-			int ry, rx;
-
-			for (k = 0; k < damroll(2,4); k++)
-			{
-				random_unseen_floor(&ry, &rx);
-				(void) place_trap(ry, rx);
-			}
+			if (darken_area(4, 4, 7)) *ident = TRUE;
 			break;
 		}
-
 
 	}
 

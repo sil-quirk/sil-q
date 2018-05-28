@@ -1932,7 +1932,7 @@ static void charge_staff(object_type *o_ptr)
 		case SV_STAFF_RECHARGING:			o_ptr->pval = mult * damroll(2,2); break;
 		
 		case SV_STAFF_SUMMONING:			o_ptr->pval = mult * damroll(6,2); break;
-		case SV_STAFF_ENTRAPMENT:			o_ptr->pval = mult * damroll(6,2); break;
+		case SV_STAFF_SHADOWS:				o_ptr->pval = mult * damroll(4,2); break;
 	}
 }
 

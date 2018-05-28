@@ -1238,7 +1238,7 @@
 #define SV_STAFF_EARTHQUAKES	14
 #define SV_STAFF_RECHARGING		16
 #define SV_STAFF_SUMMONING		17
-#define SV_STAFF_ENTRAPMENT		18
+#define SV_STAFF_SHADOWS		18
 
 
 /* The "sval" codes for TV_HORN */

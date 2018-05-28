@@ -1143,13 +1143,14 @@ A:3/3
 D:It summons monsters to the stairs on the current level. 
 
 
-N:211:Entrapment
+N:211:Shadows
 G:_:d
 I:55:18:0
 W:9:0:50:0
 P:0:0d0:0:0d0
 A:3/3
-D:It produces new traps on the current level. 
+D:It darkens an area with a radius of 7 squares, plus the entire room
+D: if you are currently in one.
 
 
 ##### Horns #####
