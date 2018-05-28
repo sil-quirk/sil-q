@@ -2767,7 +2767,7 @@ int object_difficulty(object_type *o_ptr)
 	
 	// Abilities
 	if (f2 & TR2_SLOW_DIGEST) 	{	dif_inc += 2; }
-	if (f2 & TR2_RADIANCE) 		{	dif_inc += 8;	smithing_cost.gra += 1;	}
+	if (f2 & TR2_RADIANCE) 		{	dif_inc += 9;	smithing_cost.gra += 1;	}
 	if (f2 & TR2_LIGHT)		{	dif_inc += 8;	smithing_cost.gra += 1;	}
 	if (f2 & TR2_REGEN) 		{	dif_inc += 8;	}
 	if (f2 & TR2_SEE_INVIS) 	{	dif_inc += 7;	}

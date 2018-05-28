@@ -4019,6 +4019,21 @@ void do_cmd_fire(int quiver)
 						{
 							make_alert(m_ptr);
 						}
+
+						if (((j_ptr->name1 && (a_info[j_ptr->name1].flags2 & (TR2_RADIANCE))) ||
+						     (j_ptr->name2 && (e_info[j_ptr->name2].flags2 & (TR2_RADIANCE)))) &&
+						      r_ptr->flags3 & RF3_HURT_LITE &&
+						      net_dam > 5 &&
+						      one_in_(monster_skill(m_ptr, S_WIL)))
+						{
+							bool known_radiance = object_known_p(j_ptr) || noticed_radiance;
+							if (m_ptr->ml && known_radiance)
+							{
+								msg_format("%^s contorts as the shining arrow strikes it!", m_name);
+							}
+
+							stun_monster(m_ptr, net_dam);
+						}
 						
 						// Morgoth drops his iron crown if he is hit for 10 or more net damage twice
 						if ((m_ptr->r_idx == R_IDX_MORGOTH) && ((&a_info[ART_MORGOTH_3])->cur_num == 0))
