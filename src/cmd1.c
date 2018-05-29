@@ -4645,7 +4645,7 @@ void move_player(int dir)
 	
         
 		/* Set off traps */
-        if (cave_trap_bold(y,x))
+        if (cave_trap_bold(y,x) || (cave_feat[y][x] == FEAT_CHASM))
 		{
 			// If it is hidden
 			if (cave_info[y][x] & (CAVE_HIDDEN))
