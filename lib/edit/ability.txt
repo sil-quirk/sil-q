@@ -684,7 +684,7 @@ D: their damage dice while the song is in effect.
 D: Heavy and blunt weapons stun opponents for longer.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
-T:23:0:99  # Swords
+T:23:7:99  # Swords (not daggers)
 T:34:0:99  # Shields
 
 N:150:Song of Mastery

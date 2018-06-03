@@ -162,7 +162,7 @@ F:AGGRAVATE
 
 ##### Weapons #####
 
-# Includes bows
+# Includes bows but not daggers
 
 N:21:of Gondolin
 W:0:2:10:1000
@@ -170,7 +170,7 @@ C:0:0:0:0:0:0:0
 T:19:0:99
 T:21:8:8
 T:22:0:99
-T:23:0:99
+T:23:7:99
 F:SLAY_ORC | SLAY_TROLL
 
 
@@ -182,7 +182,7 @@ C:0:0:0:0:0:0:0
 T:19:0:99
 T:21:8:8
 T:22:0:99
-T:23:0:99
+T:23:7:99
 F:SLAY_SPIDER | SLAY_WOLF
 
 
@@ -194,7 +194,7 @@ C:0:0:0:0:0:0:0
 T:19:0:99
 T:21:8:8
 T:22:0:99
-T:23:0:99
+T:23:7:99
 F:SLAY_RAUKO | SLAY_DRAGON
 
 
@@ -203,7 +203,7 @@ W:7:2:0:2000
 C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:0:99
-T:23:0:99
+T:23:7:99
 F:SLAY_UNDEAD | FREE_ACT
 
 
@@ -232,7 +232,7 @@ T:23:7:99
 F:IGNORE_ALL
 
 
-# All but broken swords, daggers, curved swords, quarterstaves, sceptres, throwing axes
+# All but daggers, curved swords, quarterstaves, sceptres, throwing axes
 # (ability 0/5 is Follow-Through)
 
 N:27:of Hador's House
@@ -245,7 +245,7 @@ T:23:10:99
 B:0/5
 
 
-# All but broken swords, daggers, curved swords, quarterstaves, sceptres, throwing axes
+# All but daggers, curved swords, quarterstaves, sceptres, throwing axes
 # (ability 0/12 is Whirlwind Attack)
 
 N:28:of Fury
@@ -263,7 +263,7 @@ F:AGGRAVATE | LIGHT_CURSE
 
 N:30:of Shadows
 W:6:5:0:1000
-C:0:0:0:0:0:0:3
+C:0:0:1:0:0:0:3
 T:23:7:99
 F:DARKNESS | SONG
 
@@ -311,7 +311,7 @@ B:0/10
 
 N:36:of the Vanyar
 W:10:1:0:3000
-C:0:0:0:0:0:0:1
+C:1:0:1:0:0:0:1
 T:22:1:2
 F:GRA | LIGHT
 
@@ -366,7 +366,7 @@ B:0/8
 # Quarterstaves only
 
 N:42:of Calacirya
-W:6:3:0:8000
+W:2:3:0:8000
 C:0:0:0:0:0:0:1
 T:21:3:3
 F:WILL | SONG
@@ -375,10 +375,19 @@ F:WILL | SONG
 # Quarterstaves only
 
 N:43:of the Helcaraxe
-W:6:3:0:8000
+W:2:3:0:8000
 C:0:0:0:0:0:0:1
 T:21:3:3
 F:DEX | RES_COLD
+
+
+# Daggers only
+
+N:44:of Cuivienen
+W:0:1:0:6000
+C:0:0:1:0:0:0:0
+T:23:4:4
+F:LIGHT | SUST_GRA | SUST_DEX
 
 
 ###
