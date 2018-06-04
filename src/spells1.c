@@ -5356,7 +5356,7 @@ void sing(void)
 			}
 			case SNG_THRESHOLDS:
 			{
-				cost += 1;
+				if ((p_ptr->song_duration % 2) == type - 1) cost += 1;
 
 				break;
 			}
