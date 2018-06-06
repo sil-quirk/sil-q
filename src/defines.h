@@ -410,6 +410,7 @@
  * Player constants
  */
 #define PY_START_EXP	5000	/* Starting exp */
+#define PY_FIXED_EXP	50000	/* Starting exp */
 #define PY_MAX_EXP	99999999L	/* Maximum exp */
 #define PY_MAX_LEVEL	50		/* Maximum level */
 
@@ -2637,15 +2638,7 @@
 #define OPT_birth_ironman			(OPT_BIRTH+4)
 // xxx birth_no_stores
 #define OPT_birth_no_artefacts		(OPT_BIRTH+6)
-// xxx birth_rand_artefacts
-// xxx birth_no_stacking
-// xxx birth_take_notes	
-// xxx birth_force_small_lev
-// xxx birth_retain_squelch
-// xxx birth_no_quests
-// xxx birth_no_player_ghosts
-// xxx birth_no_store_services
-// xxx birth_no_xtra_artefacts
+#define OPT_birth_fixed_exp		(OPT_BIRTH+7)
 
 /* xxx xxx */
 #define OPT_cheat_peek				(OPT_CHEAT+0)
@@ -2781,11 +2774,7 @@
 #define birth_ironman			op_ptr->opt[OPT_birth_ironman]
 // xxx birth_no_stores
 #define birth_no_artefacts		op_ptr->opt[OPT_birth_no_artefacts]
-// xxx birth_rand_artefacts
-
-// xxx birth_no_stacking
-// xxx birth_take_notes
-// xxx birth_force_small_lev
+#define birth_fixed_exp			op_ptr->opt[OPT_birth_fixed_exp]
 // xxx birth_retain_squelch
 // xxx birth_no_quests
 // xxx birth_no_player ghosts

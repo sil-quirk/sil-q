@@ -57,14 +57,24 @@ struct birth_menu
 	cptr text;
 };
 
+static int get_start_xp(void)
+{
+	if (birth_fixed_exp)
+	{
+		return PY_FIXED_EXP;
+	}
+	else
+	{
+		return PY_START_EXP;
+	}
+}
 
 /*
  * Generate some info that the auto-roller ignores
  */
 static void get_extra(void)
 {
-	/* Experience */
-	p_ptr->new_exp = p_ptr->exp = PY_START_EXP;
+	p_ptr->new_exp = p_ptr->exp = get_start_xp();
 
 	/* Player is not singing */
 	p_ptr->song1 = SNG_NOTHING;
@@ -1600,7 +1610,7 @@ static bool player_birth_aux_2(void)
 			continue;
 		}
 
-		p_ptr->new_exp = p_ptr->exp = PY_START_EXP;
+		p_ptr->new_exp = p_ptr->exp = get_start_xp();
 
 		/* Calculate the bonuses and hitpoints */
 		p_ptr->update |= (PU_BONUS | PU_HP);

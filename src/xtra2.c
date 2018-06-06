@@ -1685,6 +1685,11 @@ void check_experience(void)
  */
 void gain_exp(s32b amount)
 {
+	if (birth_fixed_exp)
+	{
+		return;
+	}
+
 	/* Gain some experience */
 	p_ptr->exp += amount;
 	p_ptr->new_exp += amount;

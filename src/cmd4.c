@@ -6238,6 +6238,41 @@ extern void do_cmd_options_aux(int page, cptr info)
 				break;
 			}
 		}
+
+		if (birth_fixed_exp && playerturn == 0)
+		{
+			int total_exp = PY_FIXED_EXP;
+			p_ptr->new_exp = total_exp;
+			p_ptr->exp = total_exp;
+			check_experience();
+		}
+		else if (!birth_fixed_exp && playerturn == 0)
+		{
+			int i, j;
+			int total_exp = PY_START_EXP;
+			p_ptr->new_exp = total_exp;
+			p_ptr->exp = total_exp;
+			check_experience();
+
+			/* Clear the base values of the skills */
+			for (i = 0; i < A_MAX; i++) p_ptr->skill_base[i] = 0;
+
+			/* Clear the abilities */
+			for (i = 0; i < S_MAX; i++)
+			{
+				for (j = 0; j < ABILITIES_MAX; j++)
+				{
+					p_ptr->innate_ability[i][j] = FALSE;
+					p_ptr->active_ability[i][j] = FALSE;
+				}
+			}
+
+			/* Calculate the bonuses */
+			p_ptr->update |= (PU_BONUS);
+
+			/* Set the redraw flag for everything */
+			p_ptr->redraw |= (PR_EXP | PR_BASIC);
+		}
 	}
 }
 

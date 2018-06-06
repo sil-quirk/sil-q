@@ -399,11 +399,11 @@ cptr option_text[OPT_MAX] =
 	NULL,						/* xxx birth_maximize */
 	"birth_discon_stair",	/* OPT_birth_discon_stair */
 	"birth_ironman",			/* OPT_birth_ironman */
-	NULL,						/* xxx birth_no_stores */
+	NULL,
 	"birth_no_artefacts",		/* OPT_birth_no_artefacts */
-	NULL,						/* xxx birth_rand_artefacts */
-	NULL,						/* xxx birth_no_stacking */
- 	NULL,						/* xxx birth_auto_notes */
+	"birth_fixed_exp",				/* OPT_birth_fixed_exp */
+	NULL,						/* xxx */
+	NULL,						/* xxx */
  	NULL,						/* xxx birth_force_small_lev */
 	NULL,						/* xxx birth_retain_squelch */
 	NULL,						/* xxx birth_no_quests*/
@@ -663,10 +663,11 @@ cptr option_desc[OPT_MAX] =
 	NULL,										/* xxx birth_maximize */
 	"Disconnected stairs",						/* OPT_birth_discon_stair */
 	"Straight down (no up stairs until endgame)",/* OPT_birth_ironman */
-	NULL,										/* xxx birth_no_stores */
+	NULL,
 	"No artefacts",								/* OPT_birth_no_artefacts */
-	NULL,										/* xxx birth_rand_artefacts */
-	NULL,										/* xxx birth_no_stacking */
+	"Fixed XP - gain 50K at start and nothing after",				/* OPT_birth_fixed_exp */
+	NULL,										/* xxx */
+	NULL,										/* xxx */
  	NULL,										/* xxx birth_take_notes */
  	NULL,										/* xxx birth_force_small_lev */
 	NULL,										/* xxx birth_retain_squelch*/
@@ -928,11 +929,11 @@ const bool option_norm[OPT_MAX] =
 	FALSE,		/* xxx birth_maximize */
 	FALSE,		/* OPT_birth_discon_stair */
 	FALSE,		/* OPT_birth_ironman */
-	FALSE,		/* xxx birth_no_stores */
+	FALSE,		/* xxx */
 	FALSE,		/* OPT_birth_no_artefacts */
-	FALSE,		/* xxx birth_rand_artefacts */
-	FALSE,		/* xxx birth_no_stacking */
-	FALSE,		/* xxx birth_take_notes */
+	FALSE,		/* OPT_birth_fixed_exp */
+	FALSE,		/* xxx */ 
+	FALSE,		/* xxx */
 	FALSE,		/* xxx birth_force_small_lev */
 	FALSE,		/* xxx birth_retain_squelch */
 	FALSE,		/* xxx OPT_birth_no_quests*/
@@ -1189,8 +1190,7 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] =
 		OPT_birth_discon_stair,
 		OPT_birth_ironman,
 		OPT_birth_no_artefacts,
-		OPT_NONE,
-		OPT_NONE,
+		OPT_birth_fixed_exp,
 		OPT_NONE,
 		OPT_NONE,
 		OPT_NONE,
