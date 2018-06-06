@@ -385,9 +385,9 @@ F:DEX | RES_COLD
 
 N:44:of Cuivienen
 W:0:1:0:6000
-C:0:0:1:0:0:0:0
+C:0:0:0:0:0:0:1
 T:23:4:4
-F:LIGHT | SUST_GRA | SUST_DEX
+F:LIGHT | SUST_GRA | SUST_DEX | SONG
 
 
 ###
