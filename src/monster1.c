@@ -1350,7 +1350,7 @@ void describe_monster(int r_idx, bool spoilers)
 	monster_lore *l_ptr = &l_list[r_idx];
 
 	/* Cheat -- know everything */
-	if ((cheat_know) || p_ptr->active_ability[S_PER][PER_FOREWARNED])
+	if ((cheat_know) || know_monster_info)
 	{
 		/* XXX XXX XXX */
 
@@ -1375,7 +1375,7 @@ void describe_monster(int r_idx, bool spoilers)
 	}
 
 	/* Cheat -- know everything */
-	if ((cheat_know) || p_ptr->active_ability[S_PER][PER_FOREWARNED] || spoilers)
+	if ((cheat_know) || know_monster_info || spoilers)
 	{
 		cheat_monster_lore(r_idx, &lore);
 	}
@@ -1415,7 +1415,7 @@ void describe_monster(int r_idx, bool spoilers)
 	text_out("\n");
 
 	/* Cheat -- know everything */
-	if ((cheat_know) || p_ptr->active_ability[S_PER][PER_FOREWARNED])
+	if ((cheat_know) || know_monster_info)
 	{
 		/* Hack -- restore memory */
 		COPY(l_ptr, &save_mem, monster_lore);

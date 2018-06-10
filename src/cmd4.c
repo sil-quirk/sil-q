@@ -9709,7 +9709,7 @@ static int collect_monsters(int grp_cur, monster_list_entry *mon_idx, int mode)
 		if (grp_unique && !(unique)) continue;
 
 		/* Require known monsters */
-		if (!(mode & 0x02) && (!cheat_know) && (!p_ptr->active_ability[S_PER][PER_FOREWARNED]) && (!(l_ptr->tsights))) continue;
+		if (!(mode & 0x02) && (!cheat_know) && (!know_monster_info) && (!(l_ptr->tsights))) continue;
 
 		// Ignore monsters that can't be generated
 		if (r_ptr->level > 25) continue;
@@ -9771,7 +9771,7 @@ static void display_monster_list(int col, int row, int per_page, monster_list_en
 			}
 			
 			// increase the uniques count anyway for forewarned or cheaters
-			else if (p_ptr->active_ability[S_PER][PER_FOREWARNED] || cheat_know)
+			else if (know_monster_info || cheat_know)
 			{
 				known_uniques++;
 			}

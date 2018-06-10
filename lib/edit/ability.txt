@@ -421,9 +421,9 @@ D: you kill more.
 
 N:86:Forewarned
 I:4:6:7
-D:You have full knowledge of all your opponents and can tell when an item
-D: is cursed.  If your base Perception exceeds your Evasion, you gain a
+D:If your base Perception exceeds your Evasion, you gain a
 D: bonus to your Evasion of one third your Perception score.
+D: You can also determine when an item is cursed.
 T:32:0:99  # Helm
 T:33:0:99  # Crown
 T:39:0:99  # Light Source

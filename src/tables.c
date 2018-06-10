@@ -338,7 +338,7 @@ cptr option_text[OPT_MAX] =
 	"run_avoid_center",			/* OPT_run_avoid_center */
 	NULL,						/* xxx scroll_target */
 	"auto_more",				/* OPT_auto_more */
-	NULL,						/* xxx toggle_exp*/
+	"know_monster_info",			/* OPT_know_monster_info */
 	"always_show_list",			/* OPT_always_show_list */
 	"easy_main_menu",			/* OPT_easy_main_menu */
 	NULL,						/* xxx verify_leave_quests*/
@@ -602,7 +602,7 @@ cptr option_desc[OPT_MAX] =
 	"Avoid centering while running",			/* OPT_run_avoid_center */
 	NULL,										/* xxx scroll_target */
 	"Automatically dismiss '-more-' messages",	/* OPT_auto_more */
-	NULL,										/* xxx toggle_xp */
+	"Know all monster info",			/* OPT_know_monster_info */
 	"Automatically display drop-down lists",	/* OPT_auto_display_lists */
 	"Use the Escape key to access the main menu",	/* OPT_easy_main_menu */
 	NULL,										/* xxx verify_leave_quest */
@@ -867,7 +867,7 @@ const bool option_norm[OPT_MAX] =
 	FALSE,		/* OPT_run_avoid_center */
 	FALSE,		/* xxx scroll_target */
 	FALSE,		/* OPT_auto_more */
-	FALSE,		/* xxx toggle_xp */
+	FALSE,		/* OPT_know_monster_info */
 	FALSE,		/* OPT_auto_display_lists */
 	TRUE,		/* OPT_easy_main_menu */
 	FALSE,		/* xxx verify_quest_leave */
@@ -1071,7 +1071,7 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] =
 		OPT_hjkl_movement,
 		OPT_angband_keyset,
 		OPT_hitpoint_warning,
-		OPT_NONE,
+		OPT_know_monster_info,
 		OPT_NONE,
 		OPT_NONE,
 		OPT_NONE,

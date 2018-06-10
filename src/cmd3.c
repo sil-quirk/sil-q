@@ -2209,7 +2209,7 @@ void do_cmd_query_symbol(void)
 		monster_lore *l_ptr = &l_list[i];
 
 		/* Nothing to recall */
-		if (!cheat_know && !l_ptr->tsights && !p_ptr->active_ability[S_PER][PER_FOREWARNED]) continue;
+		if (!cheat_know && !l_ptr->tsights && !know_monster_info) continue;
 
 		/* Require non-unique monsters if needed */
 		if (norm && (r_ptr->flags1 & (RF1_UNIQUE))) continue;

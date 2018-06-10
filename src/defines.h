@@ -2620,7 +2620,7 @@
 #define OPT_run_avoid_center		69
 // xxx scroll_target
 #define OPT_auto_more				71
-// xxx toggle_xp
+#define OPT_know_monster_info			72
 #define OPT_auto_display_lists		73
 #define OPT_easy_main_menu			74
 // xxx verify_leave_quest
@@ -2757,7 +2757,7 @@
 #define run_avoid_center		op_ptr->opt[OPT_run_avoid_center]
 // xxx scroll_target
 #define auto_more				op_ptr->opt[OPT_auto_more]
-// xxx toggle_xp
+#define know_monster_info		op_ptr->opt[OPT_know_monster_info]
 #define auto_display_lists		op_ptr->opt[OPT_auto_display_lists]
 #define easy_main_menu			op_ptr->opt[OPT_easy_main_menu]
 #define display_hits			op_ptr->opt[OPT_display_hits]
