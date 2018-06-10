@@ -6070,7 +6070,6 @@ extern void do_cmd_options_aux(int page, cptr info)
 		}
 	}
 
-
 	/* Clear screen */
 	Term_clear();
 
@@ -6246,7 +6245,7 @@ extern void do_cmd_options_aux(int page, cptr info)
 			p_ptr->exp = total_exp;
 			check_experience();
 		}
-		else if (!birth_fixed_exp && playerturn == 0)
+		else if (!birth_fixed_exp && playerturn == 0 && p_ptr->exp >= PY_FIXED_EXP)
 		{
 			int i, j;
 			int total_exp = PY_START_EXP;
