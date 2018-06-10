@@ -50,15 +50,15 @@
 /*
  * Current version string
  */
-#define VERSION_STRING	"1.3.3"
+#define VERSION_STRING	"1.4.0"
 
 
 /*
  * Current version numbers
  */
 #define VERSION_MAJOR	1
-#define VERSION_MINOR	3
-#define VERSION_PATCH	3
+#define VERSION_MINOR	4
+#define VERSION_PATCH	0
 #define VERSION_EXTRA	0
 
 
@@ -66,8 +66,8 @@
  * Oldest version number that can still be imported
  */
 #define OLD_VERSION_MAJOR	1
-#define OLD_VERSION_MINOR	3
-#define OLD_VERSION_PATCH	2
+#define OLD_VERSION_MINOR	4
+#define OLD_VERSION_PATCH	0
 
 
 /*
