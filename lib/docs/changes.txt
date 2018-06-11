@@ -1,3 +1,130 @@
+- Sil-Q 1.4 ----------------------------------------------------------------------------------------------
+
+- broke savefile compatibility
+
+- monsters
+	- New spider early on
+	- Lug and Balcmeg appear as new uniques
+	- Deathswords are gone
+	- Tunnelling monsters now never move as fast as when walking
+	- Mewlips no longer maprot (they do however blind)
+	- Giants throw boulders more often
+	- Throneroom crowds shy away from you more on your entry
+	- Morgoth is substantially harder to kill: he grows angrier as you hurt him or steal Sils
+
+- Mac unsupported
+	- Sorry, I don't have a Mac to test with
+	- Amiga also now not supported
+
+- objects
+	- Filthy rags and broken swords removed
+	- Quarterstaff, spear and war hammer base stats tweaked
+	- Daggers, sceptres, robes and crowns have new flag that increases the chance of
+	  having special abilities
+	- Robes default to +1 Evasion
+	- Skeletons are now searchable like chests
+		- Orc skeletons will sometimes provide damaged armour - this is to aid early
+		  survivability, as this is still an upgrade on having nothing
+	- New rings and amulets
+	- Potions of Slow Poison become Antidote, which cures poison
+	- New potion increases perception, restores some voice
+	- Staff of Entrapment becomes Staff of Shadows (the former did not ID at all)
+	- Horns now affect a cone instead of a straight line
+	- Cursed negative stat jewellery removed
+	- Staff of Slumber boosted, now uses same effect calculation as Staff of Majesty
+	- Various drop depths readjusted
+
+- mechanics
+	- Blunt weapon damage is not fully absorbed by armour
+	- Defence is now halved against attacks of opportunity made against point blank archery
+	- Stealth is boosted a little at early levels and lowers as you descend
+	- Monsters scared from the level yield a (little) experience
+	- Gorged status gone - you can overeat without losing the ability to eat more
+	- All stairs are shafts during the escape
+	- Traps easier to detect and disarm
+	- Passive identification is faster
+
+- UI and game options
+	- [ and ] keys to view monsters and objects added
+	- You can now start with 50K XP - but no more will be gained on your descent
+	- Knowledge of monster stats is toggleable in the options menu
+	- Character dumps are automatically made at death and have many more things in them (mpa-sil)
+	- Healing items ID when not hurt (mpa-sil)
+	- Broken doors recoloured to grey, use same door glyph (mpa-sil?)
+	- Belegost auto-IDs (mpa-sil?)
+
+- enchantments, artefacts and effects
+	- New enchantments on items available and existing weaker enchantments tweaked
+	- Artefacts added and removed - mostly to replace item types that had gone, some additions
+	  to flesh out under-represented weapons and some weak artefacts tweaked to be more useful
+	- Betrayal curse added
+	- Artefact rarities tweaked so some very not-broken artefacts show up less rarely
+
+- smithing
+	- Most costs massively overhauled
+		- Aim is to make smithing more competitive mid-game, less broken late-game. Sharpness
+		  and speed more expensive, brands and slays and resists less so. Many other changes.
+	- Forges guaranteed to have at least 3 uses
+	- Guaranteed forges spawned at 100', 500', 900'.
+	- Negative effects on enchanted items (not artificed ones) again provide a cost discount
+	- Mithril can be melted at used forges (mpa-sil)
+	- Many abilities can be added to items which couldn't be added before (most artefacts are 
+	  craftable again)
+
+- abilities
+	- Many very significant changes - see the manual!
+		- Melee
+			- Throwing Mastery and Momentum gone
+			- Knockback moved into Throwing Mastery's place
+			- Impale and Anticipate added
+			- Whirlwind Attack changed
+			- Finesse strengthened
+			- Polearm Mastery strengthened
+			- Strength prereqs removed
+		- Archery
+			- Careful Shot gone
+			- Rout added
+		- Evasion
+			- Leaping now leaps all traps that aren't roosts and webs
+		- Stealth
+			- Exchange Places and Opportunist exchange places
+			- Dex point has Disguise/Assassination as prereqs
+		- Perception
+			- Eye for Detail, Lore-Keeper, Lore-Master gone
+			- Quick Study, Alchemy, Forewarned added
+		- Will
+			- Mind Over Body gone
+			- Vengeance added
+			- Strength in Adversity dropped to Mind Over Body slot, strengthened
+			- Channeling changed
+			- Clarity becomes Indomitable, adds resistance to fear and slow digestion
+			- Con point has prereqs removed
+		- Smithing
+			- Artistry gone, effects available by default
+			- Expertise added
+			- Jeweller lets you identify jewellery, Enchantment enchanted items
+			- Grace point has prereqs removed
+		- Song
+			- Song of Slaying, Song of Aule, Song of Este, Song of Sharpness gone
+			- Song of Challenge, Song of Delvings, Song of Thresholds, Song of Overwhelming added
+
+- bugfixes
+	- Many including
+		- memory corruption issue
+		- screen centering (mpa-sil)
+		- !a inscription no longer alerts you to invisible foes
+		- monsters protected from earthquakes (ebering-sil)
+		- chasms and shafts no longer invisible when out of line of sight on gcu
+		- light calculation with trap detection
+		- stop in doorway when running (mpa-sil)
+		- picking up with a full inventory no longer wastes a turn (mpa-sil?)
+		- using empty staves no longer wastes a turn (mpa-sil)
+		- regeneration only increases hunger when active (mpa-sil)
+		- score fairer to survivors who fail to bring back any Silmarils
+		- window management fix (bron)
+		- song of oaths (ebering-sil?)
+		- typos and textual misdirections
+
 - Sil 1.3 ----------------------------------------------------------------------------------------------
 
 - broke savefile compatibility
