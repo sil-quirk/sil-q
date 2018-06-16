@@ -18,7 +18,7 @@
 
 - objects
 	- Filthy rags and broken swords removed
-	- Quarterstaff, spear and war hammer base stats tweaked
+	- Quarterstaff, spear, great spear, glaive and war hammer base stats tweaked
 	- Daggers, sceptres, robes and crowns have new flag that increases the chance of
 	  having special abilities
 	- Robes default to +1 Evasion

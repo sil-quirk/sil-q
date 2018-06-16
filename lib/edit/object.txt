@@ -441,7 +441,7 @@ N:72:& Great Spear~
 G:/:u
 I:22:2:0
 W:4:0:60:36
-P:-1:1d13:1:0d0
+P:1:1d13:1:0d0
 A:4/2:12/4
 F:TWO_HANDED | POLEARM
 
@@ -450,7 +450,7 @@ N:74:& Glaive~
 G:/:s
 I:22:4:0
 W:8:0:70:363
-P:-2:2d9:1:0d0
+P:-1:2d9:1:0d0
 A:8/2:16/2
 F:TWO_HANDED | POLEARM
 
