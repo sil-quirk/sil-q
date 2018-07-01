@@ -4075,10 +4075,10 @@ bool can_impale()
 
 	object_type *o_ptr = &inventory[INVEN_WIELD];
 
-	bool has_polearm = (o_ptr->tval == TV_POLEARM);
+	bool has_polearm = !!(k_info[o_ptr->k_idx].flags3 & TR3_POLEARM);
 	bool has_big_sword = (o_ptr->tval == TV_SWORD) && ((k_info[o_ptr->k_idx].flags3 & TR3_TWO_HANDED));
 
-	return has_impale_skill & (has_polearm | has_big_sword);
+	return has_impale_skill && (has_polearm || has_big_sword);
 }
 
 
