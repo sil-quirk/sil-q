@@ -117,7 +117,7 @@ T:22:0:99  # Polearms
 
 N:9:Rapid Attack
 I:0:9:10
-P:0/7:3/3
+P:0/7:3/4
 D:Grants you an extra melee attack, but your attacks
 D: are calculated as if you had 3 points less strength and dexterity.
 T:21:0:99  # Hafted
