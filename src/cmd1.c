@@ -307,15 +307,20 @@ void set_alertness(monster_type *m_ptr, int alertness)
 				// Dump a message
 				msg_format("%^s falls asleep.", m_name);
 				
-				// Morgoth drops his iron crown if he falls asleep
-				if (m_ptr->r_idx == R_IDX_MORGOTH)
-				{
-					drop_iron_crown(m_ptr, "His crown slips from off his brow and falls to the ground nearby.");
-				}
-
 				// redisplay the monster
 				redisplay = TRUE;
 			}
+			if (m_ptr->r_idx == R_IDX_MORGOTH)
+			{
+				// Dump a message
+				msg_format("%^s falls asleep.", m_name);
+				
+				// redisplay the monster
+				redisplay = TRUE;
+
+				drop_iron_crown(m_ptr, "His crown slips from off his brow and falls to the ground nearby.");
+			}
+
 		}
 		else if ((m_ptr->alertness >= ALERTNESS_ALERT) && (alertness < ALERTNESS_ALERT))
 		{
