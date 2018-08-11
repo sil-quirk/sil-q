@@ -690,7 +690,6 @@ cptr option_desc[OPT_MAX] =
 	NULL,										/* xxx */
 	NULL,										/* xxx */
 	NULL,										/* xxx */
-	NULL,										/* xxx */
 	"Debug: Peek into object creation",			/* OPT_cheat_peek */
 	"Debug: Peek into monster creation",		/* OPT_cheat_hear */
 	"Debug: Peek into dungeon creation",		/* OPT_cheat_room */
