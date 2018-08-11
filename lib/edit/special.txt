@@ -648,14 +648,14 @@ F:STR
 ###
 
 
-# (ability 3/3 is Opportunist)
+# (ability 3/4 is Opportunist)
 
 N:126:of Treachery
 W:0:4:13:0
 C:0:0:0:0:0:0:1
 T:31:0:99
 F:STR | LIGHT_CURSE
-B:3/3
+B:3/4
 
 
 

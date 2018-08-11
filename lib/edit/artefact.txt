@@ -325,14 +325,14 @@ D: you with thoughts of the swift eagles of Manwe.
 
 ## The Leather Armour of Gorlim
 ## 1st age namesake
-## (ability 3/4 is Exchange Places)
+## (ability 3/3 is Exchange Places)
 
 N:24:of Gorlim
 I:36:4:0
 W:3:15:70:45000
 P:0:0d0:0:1d5
 F:FEAR
-B:3/4
+B:3/3
 D:This armour is black with the memory of treachery.
 D: It was worn by Gorlim, called the Unhappy,
 D: who betrayed Barahir to Gorthaur for lying
@@ -965,14 +965,14 @@ D: did rive the rocks of Rodrim's hall.'
 
 ## The Glaive of the Sirion
 ## 1st age namesake
-## (ability 3/3 is Opportunist)
+## (ability 3/4 is Opportunist)
 ## (ability 0/6 is Zone of Control)
 
 N:100:of the Sirion
 I:22:4:3
 W:10:20:70:50000
 P:0:2d10:1:0d0
-B:0/6:3/3
+B:0/6:3/4
 D:Like the waters of its namesake river, this fine blade
 D: is ever in motion. In combat, it seems to flow into
 D: every opening, no matter how brief.
