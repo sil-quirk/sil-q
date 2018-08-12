@@ -2400,6 +2400,7 @@ bool make_attack_ranged(monster_type *m_ptr, int attack)
 			{
 				if (o_ptr->sval == SV_LIGHT_TORCH) msg_print("Your torch sputters.");
 				else if (o_ptr->sval == SV_LIGHT_LANTERN) msg_print("Your lantern sputters.");
+				message_flush();
 				
 				o_ptr->timeout -= damroll(20,20);
 				if (o_ptr->timeout < 1) o_ptr->timeout = 1;

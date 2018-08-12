@@ -466,6 +466,11 @@ extern int light_penalty(const monster_type *m_ptr)
 	if (r_ptr->flags3 & (RF3_HURT_LITE))
 	{
 		penalty = (cave_light[m_ptr->fy][m_ptr->fx] - 2);
+		if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT)
+		{
+			penalty += 3;
+		}
+
 		if (penalty < 0) penalty = 0;
 	}
 	
@@ -4604,6 +4609,15 @@ void move_player(int dir)
 
 		/* Move player */
 		monster_swap(py, px, y, x);
+
+		if (cave_feat[y][x] == FEAT_SUNLIGHT && cave_feat[py][px] != FEAT_SUNLIGHT)
+		{
+			msg_print("You step into a patch of sunlight.");
+		}
+		else if (cave_feat[y][x] != FEAT_SUNLIGHT && cave_feat[py][px] == FEAT_SUNLIGHT)
+		{
+			msg_print("You step out of the sunlight.");
+		}
 
 		/* New location */
 		y = py = p_ptr->py;

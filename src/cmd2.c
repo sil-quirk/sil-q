@@ -2451,9 +2451,6 @@ static bool do_cmd_disarm_aux(int y, int x)
 		}
 	}
 	
-	/* Prevent glyphs of warding granting exp. */
-	if (cave_feat[y][x] == FEAT_GLYPH) power = 0;
-
 	// Base difficulty is the trap power
 	difficulty = power;
 

@@ -760,7 +760,7 @@
 #define COL_SPEED		56	/* "Slow" or "Fast" */
 
 #define ROW_TERRAIN		(Term->hgt - 1)
-#define COL_TERRAIN		61	/* "Web" or "Pit" */
+#define COL_TERRAIN		61	/* "Web" or "Pit" or "Sunlight" */
 
 #define ROW_DEPTH		(Term->hgt - 1)
 #define COL_DEPTH		72	/* "Lev NNN" / "NNNN ft" */
@@ -914,9 +914,9 @@
 #define FEAT_WARDED		0x06
 #define FEAT_WARDED2		0x07
 #define FEAT_WARDED3		0x08
+#define FEAT_SUNLIGHT 		0x09
 #define FEAT_CLOSED 	0x20  /*door*/
 
-/*stairs moved to make way for adventurers guild*/
 #define FEAT_LESS		0x50
 #define FEAT_MORE		0x51
 

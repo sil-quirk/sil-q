@@ -862,13 +862,17 @@ static void prt_terrain(void)
 	{
 		c_put_str(TERM_ORANGE, "Pit", ROW_TERRAIN, COL_TERRAIN);
 	}
-    else if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_TRAP_WEB)
-    {
+	else if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_TRAP_WEB)
+	{
 		c_put_str(TERM_ORANGE, "Web", ROW_TERRAIN, COL_TERRAIN);
-    }
+	}
+	else if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT)
+	{
+		c_put_str(TERM_YELLOW, "Sunlight", ROW_TERRAIN, COL_TERRAIN);
+	}
 	else
 	{
-		put_str("   ", ROW_TERRAIN, COL_TERRAIN);
+		put_str("        ", ROW_TERRAIN, COL_TERRAIN);
 	}
 }
 
@@ -1163,7 +1167,7 @@ static void prt_frame_extra(void)
 	prt_afraid();
 	prt_poisoned();
 	prt_cut();
-    prt_terrain();
+	prt_terrain();
     
 	/* State */
 	prt_state();

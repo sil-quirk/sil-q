@@ -1855,7 +1855,6 @@ static bool connect_rooms_stairs(void)
     // add any chasms if needed
     build_chasms();
 
-
 	return (TRUE);
 
 }
@@ -3196,6 +3195,59 @@ static void basic_granite(void)
 	}
 }
 
+void make_patch_of_sunlight(int y, int x)
+{
+	int m, n, floor;
+
+	if (cave_info[y][x] & CAVE_GLOW)
+	{
+		floor = 0;
+		for (n = (y - 1); n <= (y + 1); n++)
+		{
+			for (m = (x - 1); m <= (x + 1); m++)
+			{
+				if (cave_feat[n][m] == FEAT_FLOOR) floor++;
+			}
+		}
+		if (floor > 6)
+		{
+			cave_set_feat(y, x, FEAT_RUBBLE);
+			for (n = (y - 1); n <= (y + 1); n++)
+			{
+				for (m = (x - 1); m <= (x + 1); m++)
+				{
+					if ((cave_info[n][m] & CAVE_GLOW) && cave_feat[n][m] == FEAT_FLOOR && one_in_(4))
+					{
+						cave_set_feat(n, m, FEAT_SUNLIGHT);
+					}
+				}
+			}
+		}
+	}
+
+}
+
+void make_patches_of_sunlight()
+{
+	int i, x, y, floor;
+
+	// bunch near the player
+	for (i = 0; i < 40; ++i)
+	{
+		y = rand_range(p_ptr->py - 5, p_ptr->py + 5);
+		x = rand_range(p_ptr->px - 5, p_ptr->px + 5);
+		make_patch_of_sunlight(y, x);
+	}
+
+	// and a few scattered over the first level
+	for (i = 0; i < 20; ++i)
+	{
+		y = rand_range(10, p_ptr->cur_map_hgt - 10);
+		x = rand_range(10, p_ptr->cur_map_wid - 10);
+		make_patch_of_sunlight(y, x);
+	}
+}
+
 /*
  * Generate a new dungeon level
  *
@@ -3362,6 +3414,8 @@ static bool cave_gen(void)
 	{
 		// smaller number of monsters at 50ft
 		mon_gen = dun->cent_n / 2;
+		// game start
+		if (p_ptr->stairs_taken == 0) make_patches_of_sunlight();
 	}
 	else
 	{

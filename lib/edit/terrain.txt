@@ -50,7 +50,7 @@ G: :w
 N:1:open floor
 G:.:W
 
-# 0x02 --> unused
+# 0x02 --> chasm
 
 N:2:chasm
 G:%:D
@@ -85,10 +85,10 @@ G:+:B
 N:8:warded door
 G:+:v
 
-# 0x09 --> unused
+# 0x09 --> sunlight
 
-N:9:unused
-G:1:s
+N:9: patch of sunlight
+G:.:y
 
 # 0x0A --> unused
 

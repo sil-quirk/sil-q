@@ -3128,7 +3128,6 @@ void update_view(void)
 				bonus_light = 1;
 			}
 
-			
 			// Don't darken/brighten the centre square too much
 			// if (dist == 0) dist++;
 			

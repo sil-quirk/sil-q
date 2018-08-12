@@ -681,12 +681,16 @@ int cave_passable_mon(monster_type *m_ptr, int y, int x, bool *bash)
 			 move_chance = break_chance;
 		
 	}
-
-    // only flying creatures can pass chasms
-    if (cave_feat[y][x] == FEAT_CHASM)
-    {
-        if (!(r_ptr->flags2 & (RF2_FLYING)))   return (0);
-    }
+	// only flying creatures can pass chasms
+	else if (feat == FEAT_CHASM)
+	{
+		if (!(r_ptr->flags2 & (RF2_FLYING)))   return (0);
+	}
+	// Light sensitive creatures and undead cannot pass sunlight
+	else if (feat == FEAT_SUNLIGHT)
+	{
+		if ((r_ptr->flags3 & (RF3_HURT_LITE)) || (r_ptr->flags3 & (RF3_UNDEAD)))   return (0);
+	}
 
 
 	/*** Check passability of various features. ***/
