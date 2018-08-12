@@ -338,7 +338,7 @@ F:BRAND_FIRE | LIGHT
 # (ability 2/4 is Leaping)
 
 N:39:of Vaulting
-W:0:1:0:2000
+W:0:6:0:2000
 C:0:0:0:0:0:0:0
 T:21:3:3
 B:2/4
@@ -366,19 +366,19 @@ B:0/8
 # Quarterstaves only
 
 N:42:of Calacirya
-W:2:3:0:8000
-C:0:0:0:0:0:0:1
+W:0:4:0:8000
+C:0:0:2:0:0:0:3
 T:21:3:3
-F:WILL | SONG
+F:WILL | SONG | LIGHT
 
 
 # Quarterstaves only
 
 N:43:of the Helcaraxe
-W:2:3:0:8000
-C:0:0:0:0:0:0:1
+W:0:4:0:8000
+C:0:0:2:0:0:0:1
 T:21:3:3
-F:DEX | RES_COLD
+F:CON | RES_COLD
 
 
 # Daggers only
