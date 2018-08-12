@@ -3403,12 +3403,6 @@ static bool cave_gen(void)
 		}
 	}
 
-	// add a curved sword near the player if this is the beginning of the game
-	if (playerturn == 0)
-	{
-		place_item_randomly(TV_SWORD, SV_CURVED_SWORD, TRUE);
-	}
-
 	p_ptr->force_forge = FALSE;
 
 	return (TRUE);
