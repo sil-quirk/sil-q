@@ -313,7 +313,7 @@ W:1:1
 G:C:u
 I:3:6d4:0
 A:20:4:3:1
-P:[+2,1d4]
+P:[+1,1d4]
 B:BITE:HURT:(+1,2d4)
 F:FRIENDS | RAND_25 | WOLF
 D:This ragged wolf is part of the orcish packs.
@@ -322,15 +322,29 @@ D:This ragged wolf is part of the orcish packs.
 N:12:Tanglethorn
 W:1:1
 G:&:s
-I:2:8d4:0
+I:2:4d4:0
 A:0:0:0:0
-P:[-5,2d4]
+P:[-5,1d4]
 B:THORN:WOUND:(+5,3d3)
 F:NEVER_MOVE | MINDLESS | FRIEND | HURT_FIRE
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | NO_CRIT
 D:'... great writhing, tangled brambles sprawled. Some had long stabbing
 D: thorns, some hooked barbs that rent like knives.'
 
+N:13:Phantom
+W:1:1
+G:W:s
+I:1:2d4:0
+A:0:2:8:2
+P:[+8]
+B:TOUCH:TERRIFY:(+12)
+F:INVISIBLE
+F:RAND_50 | UNDEAD | HURT_LITE | RES_COLD 
+F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP 
+S:SPELL_PCT_50
+S:DIM
+D:A faded presence that perhaps once was man or elf,
+D: but is now an insubstantial thing of necromancy and shadow.
 
 ##### 2 #####
 
@@ -408,9 +422,9 @@ D: There is a chill in the air around it.
 N:34:Brood spider
 W:3:1
 G:M:U
-I:1:8d4:0
+I:1:10d4:0
 A:10:6:2:4
-P:[+3,3d4]
+P:[+2,2d4]
 B:BITE:POISON:(+10,2d6)
 F:SPIDER | TERRITORIAL | RES_POIS
 S:SPELL_PCT_10
@@ -567,11 +581,10 @@ I:2:12d4:0
 A:15:5:3:2
 P:[+4,2d4]
 B:CLAW:WOUND:(+9,3d4)
-B:TOUCH:BLIND:(+1)
 F:DROP_100 | OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR | SMART
 F:NO_FEAR
-S:SPELL_PCT_10
-S:SCARE
+S:SPELL_PCT_15
+S:SCARE | DIM
 D:An evil swamp dwelling creature that feeds on the bones
 D: of those who draw near.
 

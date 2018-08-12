@@ -67,7 +67,7 @@ static void find_range(monster_type *m_ptr)
 		if (r_ptr->flags1 & (RF1_NEVER_MOVE)) m_ptr->min_range += 3;
 
 		/* Spellcasters that don't strike never like to get too close */
-		if (r_ptr->flags1 & (RF1_NEVER_BLOW)) m_ptr->min_range += 3;
+		if (r_ptr->flags1 & (RF1_NEVER_BLOW)) m_ptr->min_range += 6;
 		
 		// Spies have a high minimum range
 		if ((r_ptr->flags2 & (RF2_SMART)) && (r_ptr->flags4 & (RF4_SHRIEK)) && (m_ptr->stance != STANCE_AGGRESSIVE))

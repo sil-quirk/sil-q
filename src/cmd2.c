@@ -851,12 +851,11 @@ static bool generate_poor_quality_object(object_type *o_ptr)
 {
 	bool search_failed = FALSE;
 
-	int object_roll = dieroll(8);
+	int object_roll = dieroll(5);
 
 	if (object_roll == 1)
 	{
 		object_prep(o_ptr, lookup_kind(TV_ARROW, SV_NORMAL_ARROW));
-		object_known(o_ptr);
 	}
 	else if (object_roll == 2)
 	{
@@ -866,7 +865,6 @@ static bool generate_poor_quality_object(object_type *o_ptr)
 	else if (object_roll == 3)
 	{
 		object_prep(o_ptr, lookup_kind(TV_CLOAK, SV_CLOAK));
-		object_known(o_ptr);
 	}
 	else if (object_roll == 4)
 	{
@@ -875,9 +873,9 @@ static bool generate_poor_quality_object(object_type *o_ptr)
 	else
 	{
 		search_failed = !make_object(o_ptr, FALSE, FALSE, DROP_TYPE_DAMAGED);
-		if (!search_failed) object_known(o_ptr);
 	}
 
+	if (!search_failed) object_known(o_ptr);
 	return search_failed;
 }
 

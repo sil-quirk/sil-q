@@ -672,6 +672,7 @@ static void player_outfit(void)
 		{
 			/* Get the object_kind */
 			s16b k_idx = lookup_kind(e_ptr->tval, e_ptr->sval);
+			object_kind *k_ptr = &k_info[k_idx];
 
 			/* Valid item? */
 			if (!k_idx) continue;
@@ -679,9 +680,7 @@ static void player_outfit(void)
 			/* Prepare the item */
 			object_prep(i_ptr, k_idx);
 			i_ptr->number = (byte)rand_range(e_ptr->min, e_ptr->max);
-
-			//object_aware(i_ptr);
-			//object_known(i_ptr);
+			i_ptr->weight = k_ptr->weight;
 		}
 
 		/* Check the slot */
@@ -706,10 +705,10 @@ static void player_outfit(void)
 			object_copy(o_ptr, i_ptr);
 
 			/* Modify quantity */
-			o_ptr->number = 1;
+			if (o_ptr->tval != TV_ARROW) o_ptr->number = 1;
 
 			/* Decrease the item */
-			inven_item_increase(inven_slot, -1);
+			inven_item_increase(inven_slot, -(o_ptr->number));
 			inven_item_optimize(inven_slot);
 
 			/* Increment the equip counter by hand */

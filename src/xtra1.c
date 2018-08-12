@@ -2992,7 +2992,6 @@ void update_lore(void)
  */
 void update_stuff(void)
 {
-	// always handle the Lore-Keeper ability
 	update_lore();
 
 	/* Update stuff */

@@ -207,6 +207,7 @@ static void describe_monster_spells(int r_idx, const monster_lore *l_ptr)
 	if (l_ptr->flags4 & (RF4_CONF))			vp[vn++] = "confuse";
 	if (l_ptr->flags4 & (RF4_HOLD))			vp[vn++] = "entrance";
 	if (l_ptr->flags4 & (RF4_SLOW))			vp[vn++] = "slow";
+	if (l_ptr->flags4 & (RF4_DIM))			vp[vn++] = "dim torches and lanterns";
 
 	m = vn;
 
@@ -548,7 +549,7 @@ static void describe_monster_abilities(int r_idx, const monster_lore *l_ptr)
     if (l_ptr->flags4 & (RF4_SNG_BINDING))        vp[vn++] = "song of binding";
     if (l_ptr->flags4 & (RF4_SNG_PIERCING))       vp[vn++] = "song of piercing";
     if (l_ptr->flags4 & (RF4_SNG_OATHS))          vp[vn++] = "song of oaths";
-    if (l_ptr->flags4 & (RF4_HATCH_SPIDER))          vp[vn++] = "hatch spider";
+    if (l_ptr->flags4 & (RF4_HATCH_SPIDER))       vp[vn++] = "hatch spider";
    
     /* Describe Abilities */
 	if (vn)

@@ -2365,11 +2365,53 @@ bool make_attack_ranged(monster_type *m_ptr, int attack)
 			}
 			break;
 		}
-            
-        // Sil-x: only songs after this point as 96+RF4_SNG_HEAD is used in the spell code to distinguish songs from non-songs
-            
-        /* RF4_SNG_BINDING */
+ 
+        /* RF4_HATCH_SPIDER */
 		case 96+16:
+		{
+            hatch_spider(m_ptr);
+
+			break;
+		}
+
+	/* RF4_DIM */
+		case 96+17:
+		{
+			object_type *o_ptr = &inventory[INVEN_LITE];
+			int roll = dieroll(4);
+			disturb(0, 0);
+
+			switch (roll)
+			{
+			case 1:
+				msg_format("%^s whispers of the cold beneath the earth.", m_name);
+				break;
+			case 2:
+				msg_format("%^s whispers of dusk turning into night.", m_name);
+				break;
+			case 3:
+				msg_format("%^s whispers of flames burning low in a gathering darkness.", m_name);
+				break;
+			default:
+				msg_format("%^s whispers of an ancient gloom.", m_name);
+			}
+
+			if (o_ptr->tval == TV_LIGHT && o_ptr->timeout > 0)
+			{
+				if (o_ptr->sval == SV_LIGHT_TORCH) msg_print("Your torch sputters.");
+				else if (o_ptr->sval == SV_LIGHT_LANTERN) msg_print("Your lantern sputters.");
+				
+				o_ptr->timeout -= damroll(20,20);
+				if (o_ptr->timeout < 1) o_ptr->timeout = 1;
+			}
+
+			break;
+		}
+
+        // Sil-x: only songs after this point as 96+RF4_SNG_HEAD is used in the spell code to distinguish songs from non-songs
+           
+        /* RF4_SNG_BINDING */
+		case 96+18:
 		{
             song_of_binding(m_ptr);
 
@@ -2377,7 +2419,7 @@ bool make_attack_ranged(monster_type *m_ptr, int attack)
 		}
             
         /* RF4_SNG_PIERCING */
-		case 96+17:
+		case 96+19:
 		{
             song_of_piercing(m_ptr);
             
@@ -2385,21 +2427,14 @@ bool make_attack_ranged(monster_type *m_ptr, int attack)
 		}
 
         /* RF4_SNG_OATHS */
-		case 96+18:
+		case 96+20:
 		{
             song_of_oaths(m_ptr);
             
 			break;
 		}
 
-        /* RF4_HATCH_SPIDER */
-		case 96+19:
-		{
-            hatch_spider(m_ptr);
-
-			break;
-		}
-		/* Paranoia */
+	/* Paranoia */
 		default:
 		{
 			msg_print("A monster tried to cast a spell that has not yet been defined.");
