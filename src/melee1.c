@@ -86,7 +86,7 @@ extern int protection_roll(int typ, bool melee)
 	
 	if (singing(SNG_STAYING))
 	{
-		prt += damroll(1, MAX(1, ability_bonus(S_SNG, SNG_STAYING)));
+		prt += damroll(2, 2);
 	}
 	
 	if (p_ptr->active_ability[S_WIL][WIL_HARDINESS])
@@ -158,7 +158,7 @@ extern int p_min(int typ, bool melee)
 	{
 		if (ability_bonus(S_SNG, SNG_STAYING) > 0)
 		{
-			prt += 1;
+			prt += 2;
 		}
 	}
 	
@@ -230,7 +230,7 @@ extern int p_max(int typ, bool melee)
 	
 	if (singing(SNG_STAYING))
 	{
-		prt += ability_bonus(S_SNG, SNG_STAYING);
+		prt += 4;
 	}
 	
 	if (p_ptr->active_ability[S_WIL][WIL_HARDINESS])

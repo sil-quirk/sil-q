@@ -1906,7 +1906,7 @@ int ability_bonus(int skilltype, int abilitynum)
 			}
 			case SNG_STAYING:
 			{
-				bonus = skill / 3;
+				bonus = skill;
 				break;
 			}
 			case SNG_LORIEN:
@@ -2534,7 +2534,7 @@ static void calc_bonuses(void)
 				case SNG_SILENCE:	song_noise += 0; break;
 				case SNG_FREEDOM:	song_noise += 4; break;
 				case SNG_TREES:		song_noise += 4; break;
-				case SNG_STAYING:	song_noise += 4; break;
+				case SNG_STAYING:	song_noise += 8; break;
 				case SNG_LORIEN:	song_noise += 4; break;
 				case SNG_THRESHOLDS:	song_noise += 4; break;
 				case SNG_DELVINGS:	song_noise += 4; break;

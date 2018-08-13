@@ -651,8 +651,8 @@ T:20:0:99  # Shovels and Mattocks
 
 N:146:Song of Staying
 I:7:6:7
-D:Gives you a bonus of +X to Will and [1dX] protection,
-D: where X = Song/3.
+D:Gives you a bonus to Will equal to your Song score and
+D: [2d2] protection.
 T:32:0:99  # Helm
 T:34:0:99  # Shields
 T:35:0:99  # Cloak
