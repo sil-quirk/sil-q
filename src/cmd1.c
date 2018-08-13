@@ -3956,27 +3956,6 @@ int py_attack_aux(int y, int x, int attack_type)
 				{
 					knocked = knock_back(p_ptr->py, p_ptr->px, y, x);
  				}
-				if (singing(SNG_OVERWHELMING) && skill_check(PLAYER, ability_bonus(S_SNG, SNG_OVERWHELMING), monster_skill(m_ptr, S_WIL), m_ptr) > 0 && !(r_ptr->flags2 & RF2_MINDLESS))
-				{
-					if (r_ptr->flags3 & RF3_NO_STUN)
-					{
-						monster_lore *l_ptr = &l_list[m_ptr->r_idx];
-
-						/*mark the lore*/
-						if (m_ptr->ml) l_ptr->flags3 |= (RF3_NO_STUN);
-					}
-					else
-					{
-						int stun_period = weapon_weight / 5;
-						if (o_ptr->tval == TV_HAFTED) stun_period *= 2;
-
-						if (stun_period > 1)
-						{
-							stun_monster(m_ptr, stun_period);
-							msg_format("Your fierce blow stuns %s.", m_name);
-						}
-					}
-				}
 
 				// Morgoth drops his iron crown if he is hit for 10 or more net damage twice
 				if ((m_ptr->r_idx == R_IDX_MORGOTH) && ((&a_info[ART_MORGOTH_3])->cur_num == 0))

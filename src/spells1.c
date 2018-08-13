@@ -5272,6 +5272,51 @@ void sing_song_of_lorien(int score)
 	}
 }
 
+void overwhelm(int score, monster_type *m_ptr)
+{
+	char m_name[80];
+	monster_race *r_ptr = &r_info[m_ptr->r_idx];
+
+	// Get monster name
+	monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+
+	if (skill_check(PLAYER, score, monster_skill(m_ptr, S_WIL), m_ptr) > 0 && !(r_ptr->flags2 & RF2_MINDLESS))
+	{
+		if (r_ptr->flags3 & RF3_NO_STUN)
+		{
+			monster_lore *l_ptr = &l_list[m_ptr->r_idx];
+
+			/*mark the lore*/
+			if (m_ptr->ml) l_ptr->flags3 |= (RF3_NO_STUN);
+		}
+		else
+		{
+			if (!m_ptr->stunned) msg_format("%^s hears your song and shrinks back.", m_name);
+			stun_monster(m_ptr, damroll(2, 6));
+		}
+	}
+}
+
+void sing_song_of_overwhelming(int score)
+{
+	int py = p_ptr->py;
+	int px = p_ptr->px;
+
+	int i;
+
+	for (i = 0; i < 8; ++i)
+	{
+		int y = p_ptr->py + ddy_ddd[i];
+		int x = p_ptr->px + ddx_ddd[i];
+
+		if (cave_m_idx[y][x] > 0)
+		{
+			monster_type *m_ptr = &mon_list[cave_m_idx[y][x]];
+			overwhelm(score, m_ptr);
+		}
+	}
+}
+
 void sing(void)
 {
 	int type;
@@ -5371,6 +5416,8 @@ void sing(void)
 			case SNG_OVERWHELMING:
 			{
 				cost += 1;
+
+				sing_song_of_overwhelming(score);
 
 				break;
 			}
