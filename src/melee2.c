@@ -88,7 +88,20 @@ static void find_range(monster_type *m_ptr)
 	/* Now find preferred range */
 	m_ptr->best_range = m_ptr->min_range;
 
-	if ((r_ptr->freq_ranged > 15) && (m_ptr->r_idx != R_IDX_MORGOTH))
+	if (challenge_check(m_ptr) > 0)
+	{
+		char m_name[80];
+		monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+		if (m_ptr->ml)
+		{
+			msg_format("%^s is agitated by your song.", m_name);
+		}
+
+		m_ptr->mana = 0;
+		m_ptr->best_range = 0;
+		m_ptr->min_range = 0;
+	}
+	else if ((r_ptr->freq_ranged > 15) && (m_ptr->r_idx != R_IDX_MORGOTH))
 	{
 		/* Breathers like range 2  */
 		if ((r_ptr->flags4 & (RF4_BREATH_MASK)) &&
@@ -104,22 +117,6 @@ static void find_range(monster_type *m_ptr)
 			if (m_ptr->best_range > 8) m_ptr->best_range = 8;
 			m_ptr->min_range = m_ptr->best_range - 1;
 		}
-	}
-
-	if (challenge_check(m_ptr) > 0)
-	{
-		char m_name[80];
-		monster_desc(m_name, sizeof(m_name), m_ptr, 0);
-		if (m_ptr->ml && m_ptr->mana > MON_MANA_MAX / 5)
-		{
-			msg_format("%^s is agitated by your song.", m_name);
-		}
-
-		m_ptr->tmp_morale = MAX(m_ptr->tmp_morale, 30);
-
-		m_ptr->mana = 0;
-		m_ptr->best_range = 0;
-		m_ptr->min_range = 0;
 	}
 
 	// Deal with the 'truce' on Morgoth's level (overrides everything else)
@@ -433,12 +430,6 @@ static int choose_ranged_attack(int m_idx)
 
 	/* No spells left */
 	if (!f4) return (0);
-
-	/* Ranged attacks are less likely if the monster is affected by Song of Challenge. */
-	if (challenge_check(m_ptr) > 0)
-	{
-		return (0);
-	}
 
 	/* Spells we can not afford */
 	remove_expensive_spells(m_idx, &f4);
@@ -4456,6 +4447,34 @@ void wander(monster_type *m_ptr)
 }
 
 
+int get_chance_of_ranged_attack(monster_type *m_ptr)
+{
+	monster_race *r_ptr = &r_info[m_ptr->r_idx];
+
+	/* Extract the ranged attack probability. */
+	int chance = r_ptr->freq_ranged;
+	
+	/* Certain conditions always cause a monster to always cast */
+	if (m_ptr->mflag & (MFLAG_ALWAYS_CAST)) chance = 100;
+
+	/* Cannot use ranged attacks when confused. */
+	if (m_ptr->confused) chance = 0;
+
+	/* Cannot use ranged attacks during the truce. */
+	if (p_ptr->truce) chance = 0;
+
+	/* Stunned monsters use ranged attacks half as often. */
+	if ((chance) && (m_ptr->stunned)) chance /= 2;
+
+	/* Smitten monsters get no ranged attacks. */
+	if (singing(SNG_OVERWHELMING) && m_ptr->stunned) chance = 0;
+
+	/* Successfully challenged monsters also get no ranged attacks. */
+	if ((singing(SNG_CHALLENGE)) && (m_ptr->stance == STANCE_AGGRESSIVE)) chance = 0;
+
+	return chance;
+}
+
 /*
  * Monster takes its turn.
  */
@@ -4770,25 +4789,8 @@ static void process_monster(monster_type *m_ptr)
 	/* Monster can cast spells */
 	if (r_ptr->freq_ranged)
 	{
-		/* Extract the ranged attack probability. */
-		chance = r_ptr->freq_ranged;
-		
-		/* Certain conditions always cause a monster to always cast */
-		if (m_ptr->mflag & (MFLAG_ALWAYS_CAST)) chance = 100;
+		chance = get_chance_of_ranged_attack(m_ptr);
 
-		/* Cannot use ranged attacks when confused. */
-		if (m_ptr->confused) chance = 0;
-
-		/* Cannot use ranged attacks during the truce. */
-		if (p_ptr->truce) chance = 0;
-
-		/* Stunned monsters use ranged attacks half as often. */
-		if ((chance) && (m_ptr->stunned)) chance /= 2;
-
-		/* Smitten monsters get no ranged attacks. */
-		if (singing(SNG_OVERWHELMING) && m_ptr->stunned) chance = 0;
-
-		/* Monster can use ranged attacks */
 		if ((chance) && percent_chance(chance))
 		{
 			/* Pick a ranged attack */
@@ -5007,14 +5009,19 @@ static void process_monster(monster_type *m_ptr)
 		// if the square is non-adjacent to the player, then allow a ranged attack instead of a move
 		if ((m_ptr->cdis > 1) && r_ptr->freq_ranged)
 		{
-			choice = choose_ranged_attack(cave_m_idx[m_ptr->fy][m_ptr->fx]);
+			chance = get_chance_of_ranged_attack(m_ptr);
+
+			if ((chance) && percent_chance(chance))
+			{
+				choice = choose_ranged_attack(cave_m_idx[m_ptr->fy][m_ptr->fx]);
+			}
 
 			/* Selected a ranged attack? */
 			if (choice != 0)
 			{
 				/* Execute said attack */
 				make_attack_ranged(m_ptr, choice);
-			}			
+			}
 		}
 		
 		return;
