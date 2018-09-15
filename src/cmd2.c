@@ -3672,7 +3672,12 @@ void do_cmd_fire(int quiver)
 
 	// store the action type
 	p_ptr->previous_action[0] = ACTION_ARCHERY;
-	deadly_hail_bonus = p_ptr->killed_enemy_with_arrow;
+
+	if (p_ptr->active_ability[S_ARC][ARC_DEADLY_HAIL])
+	{
+		deadly_hail_bonus = p_ptr->killed_enemy_with_arrow;
+	}
+
 	p_ptr->killed_enemy_with_arrow = FALSE;
 
 	// set dummy variables to pass to project_path (so it doesn't clobber the real ones)
@@ -3922,7 +3927,7 @@ void do_cmd_fire(int quiver)
 					/* Calculate the damage done */
 					total_dd = j_ptr->dd + crit_bonus_dice + slay_bonus_dice;
 
-					if (p_ptr->active_ability[S_ARC][ARC_DEADLY_HAIL] && deadly_hail_bonus) total_dd *= 2;
+					if (deadly_hail_bonus) total_dd *= 2;
 
 					// Sil-y: debugging test case
 					if (p_ptr->ads <= 0)
