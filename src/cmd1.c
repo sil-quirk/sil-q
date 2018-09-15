@@ -854,9 +854,6 @@ int crit_bonus(int hit_result, int weight, const monster_race *r_ptr, int skill_
 		
 		// Can have inferior criticals for melee
 		if ((skill_type == S_MEL) && p_ptr->active_ability[S_MEL][MEL_POWER])				crit_seperation += 10;
-		
-		// Can have improved criticals for archery
-		if ((skill_type == S_ARC) && p_ptr->active_ability[S_ARC][ARC_IMPROVED_CRITICALS])	crit_seperation -= 10;
 	}
 	// When attacking the player...
 	else

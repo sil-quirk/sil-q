@@ -169,10 +169,10 @@ D:Firing at fleeing monsters is calculated as if you had 3 points
 D: more dexterity.
 T:19:0:99  # Bows
 
-N:21:Precision
+N:21:Dedication
 I:1:1:3
-D:Lowers the base number needed to get critical hits with archery
-D: from 7 to 6.
+D:Increases your bow's damage sides by 1 as long as you are not wielding
+D: a weapon or carrying a shield.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 T:45:0:99  # Ring

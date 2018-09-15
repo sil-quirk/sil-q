@@ -466,7 +466,7 @@
  * Archery abilities 
  */
 #define	ARC_ROUT					 0
-#define	ARC_IMPROVED_CRITICALS		 1
+#define	ARC_DEDICATION				 1
 #define	ARC_POINT_BLANK				 2
 #define	ARC_VERSATILITY				 3
 #define	ARC_CRIPPLING				 4
