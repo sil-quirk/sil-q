@@ -88,7 +88,14 @@ F:CON
 F:IGNORE_ALL
 
 
-# Soft armour only
+# Leather armour only
+
+N:4:of Thargelion
+W:6:6:0:1000
+C:0:0:0:0:0:0:0
+T:36:0:7
+F:FREE_ACT | IGNORE_ALL
+
 
 N:5:of Stealth
 W:0:1:0:1000
