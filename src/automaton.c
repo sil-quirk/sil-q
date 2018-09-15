@@ -480,7 +480,7 @@ int evaluate_weapon(object_type *o_ptr)
 int evaluate_bow(object_type *o_ptr)
 {
     int value = 0;
-    int ds = total_ads(o_ptr, FALSE);
+    int ds = total_ads(o_ptr);
     int max_dam = o_ptr->dd * ds;
     int min_dam = (o_ptr->ds > 0) ? o_ptr->dd : 0;
     

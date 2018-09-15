@@ -1342,12 +1342,6 @@ void display_player_xtra_info(int mode)
 	Term_putstr(col, 7+attacks, -1, TERM_WHITE, "Bows");
 	Term_putstr(col+5, 7+attacks, -1, TERM_L_BLUE, format("%11s", buf));
 
-	if (p_ptr->active_ability[S_ARC][ARC_RAPID_FIRE])
-	{
-		shots++;
-		Term_putstr(col+5, 8+attacks, -1, TERM_L_BLUE, format("%11s", buf));
-	}
-	
 	/* Total Armor */
 	strnfmt(buf, sizeof(buf), " [%+d,%d-%d]", p_ptr->skill_use[S_EVN], p_min(GF_HURT, TRUE), p_max(GF_HURT, TRUE));
 	Term_putstr(col, 7+attacks+shots, -1, TERM_WHITE, "Armor");

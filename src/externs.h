@@ -955,7 +955,7 @@ extern int hand_and_a_half_bonus(const object_type *o_ptr);
 extern int blade_bonus(const object_type *o_ptr);
 extern int axe_bonus(const object_type *o_ptr);
 extern int polearm_bonus(const object_type *o_ptr);
-extern byte total_ads(const object_type *j_ptr, bool single_shot);
+extern byte total_ads(const object_type *j_ptr);
 extern void cnv_stat(int val, char *out_val);
 extern int health_level(int current, int max);
 extern bool get_alertness_text(monster_type *m_ptr, int text_size, char* text, int* color);

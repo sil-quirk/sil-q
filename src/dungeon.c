@@ -1770,6 +1770,12 @@ static void process_player(void)
 			}
 		}
 
+		if (p_ptr->previous_action[0] != ACTION_ARCHERY)
+		{
+			p_ptr->killed_enemy_with_arrow = FALSE;
+			p_ptr->redraw |= PR_ARC;
+		}
+
 		// shuffle along the array of previous actions
 		for (i = ACTION_MAX-1; i > 0; i--)
 		{
@@ -1778,7 +1784,7 @@ static void process_player(void)
 		// put in a default for this turn
 		// Sil-y: it is possible that this isn't always changed to something else, but I think it is
 		p_ptr->previous_action[0] = ACTION_NOTHING;
-				
+
 		/* Redraw stuff (if needed) */
 		if (p_ptr->window) window_stuff();
 		

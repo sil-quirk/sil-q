@@ -203,11 +203,11 @@ D:Your arrows do an extra die of damage against most targets,
 D: but they always break.
 T:19:0:99  # Bows
 
-N:26:Rapid Fire
+N:26:Deadly Hail
 I:1:6:8
 P:1/1
-D:Lets you fire two arrows per round, but they are calculated as
-D: if you had 3 points less strength and dexterity.
+D:Arrows fired the turn after killing an enemy with an arrow do twice their
+D: normal damage.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 T:45:0:99  # Ring

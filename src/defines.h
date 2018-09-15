@@ -314,6 +314,7 @@
 // then the different movement directions
 // then possibly add more action types (such as melee, drink potion etc)
 #define ACTION_MISC		10
+#define ACTION_ARCHERY		11
 
 
 /*
@@ -470,7 +471,7 @@
 #define	ARC_VERSATILITY				 3
 #define	ARC_CRIPPLING				 4
 #define	ARC_FLAMING					 5
-#define	ARC_RAPID_FIRE				 6
+#define	ARC_DEADLY_HAIL				 6
 #define	ARC_DEX						 7
 
 /* 

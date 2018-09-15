@@ -974,7 +974,13 @@ static errr rd_extra(void)
 	/* Current player turn */
 	rd_s32b(&playerturn);
 
-	rd_s32b(&p_ptr->unused1);
+	rd_byte(&tmp8u);
+	p_ptr->killed_enemy_with_arrow = tmp8u;
+
+	rd_byte(&p_ptr->unused5);
+	rd_byte(&p_ptr->unused6);
+	rd_byte(&p_ptr->unused7);
+
 	rd_s32b(&p_ptr->unused2);
 	rd_s32b(&p_ptr->unused3);
 	rd_s32b(&p_ptr->unused4);

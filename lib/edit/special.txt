@@ -527,11 +527,11 @@ T:19:0:99
 F:RADIANCE
 
 
-N:92:of Quickness
+N:92:of Lindon
 W:10:3:0:3000
-C:0:0:0:0:0:0:0
+C:1:0:0:0:0:0:2
 T:19:0:99
-B:1/6
+F:PERCEPTION
 
 ###
 

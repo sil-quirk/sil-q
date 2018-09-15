@@ -961,7 +961,12 @@ static void wr_extra(void)
 	wr_s32b(turn);
 	wr_s32b(playerturn);
 
-	wr_s32b(p_ptr->unused1);
+	wr_byte(p_ptr->killed_enemy_with_arrow);
+
+	wr_byte(p_ptr->unused5);
+	wr_byte(p_ptr->unused6);
+	wr_byte(p_ptr->unused7);
+
 	wr_s32b(p_ptr->unused2);
 	wr_s32b(p_ptr->unused3);
 	wr_s32b(p_ptr->unused4);

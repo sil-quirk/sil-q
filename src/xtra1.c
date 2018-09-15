@@ -221,7 +221,7 @@ int polearm_bonus(const object_type *o_ptr)
  * based on the weight of the bow, strength, and the sides of the bow
  */
  
-extern byte total_ads(const object_type *j_ptr, bool single_shot)
+extern byte total_ads(const object_type *j_ptr)
 {
 	byte ads;
 	int int_ads; /* to allow negative values in the intermediate stages */
@@ -229,8 +229,6 @@ extern byte total_ads(const object_type *j_ptr, bool single_shot)
 	
 	str_to_ads = p_ptr->stat_use[A_STR];
 
-	if (p_ptr->active_ability[S_ARC][ARC_RAPID_FIRE] && !single_shot) str_to_ads -= 3;
-	
 	int_ads = j_ptr->ds;
 	
 	/* limit the strength sides bonus by bow weight */
@@ -381,7 +379,7 @@ static void prt_arc(void)
 		strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
 		Term_putstr(COL_ARC, ROW_ARC, -1, TERM_UMBER, format("%12s", buf));
 		
-		if (p_ptr->active_ability[S_ARC][ARC_RAPID_FIRE])
+		if (p_ptr->active_ability[S_ARC][ARC_DEADLY_HAIL] && p_ptr->killed_enemy_with_arrow)
 		{
 			Term_putstr(COL_ARC, ROW_ARC, -1, TERM_L_UMBER, "2x");
 		}
@@ -2367,11 +2365,6 @@ static void calc_bonuses(void)
 		p_ptr->skill_misc_mod[S_MEL] -= 3;
 	}
 	
-	if (p_ptr->active_ability[S_ARC][ARC_RAPID_FIRE])
-	{
-		p_ptr->skill_misc_mod[S_ARC] -= 3;
-	}
-	
 	if (p_ptr->active_ability[S_WIL][WIL_POISON_RESISTANCE])
 	{
 		p_ptr->resist_pois += 1;
@@ -2637,7 +2630,7 @@ static void calc_bonuses(void)
 		p_ptr->ammo_tval = TV_ARROW;
 
 		p_ptr->add = o_ptr->dd;
-		p_ptr->ads = total_ads(o_ptr, FALSE);
+		p_ptr->ads = total_ads(o_ptr);
 		
 		/* set the archery skill (if using a bow) -- it gets set again later, anyway */
 		p_ptr->skill_use[S_ARC] = p_ptr->skill_base[S_ARC] + p_ptr->skill_equip_mod[S_ARC] + 

@@ -991,7 +991,6 @@ struct player_type
 
 	s16b run_cur_dir;		/* Direction we are running */
 	s16b run_old_dir;		/* Direction we came from */
-	bool run_unused;		/* Unused (padding field) */
 	bool run_open_area;		/* Looking for an open area */
 	bool run_break_right;	/* Looking for a break (right) */
 	bool run_break_left;	/* Looking for a break (left) */
@@ -1082,7 +1081,12 @@ struct player_type
 	
 	byte artefacts;		/* Number of artefacts generated so far */
 
-	s32b unused1; // Room for expansion without breaking savefiles
+	bool killed_enemy_with_arrow;
+
+	byte unused5;
+	byte unused6;
+	byte unused7;
+
 	s32b unused2; // Room for expansion without breaking savefiles
 	s32b unused3; // Room for expansion without breaking savefiles
 	s32b unused4; // Room for expansion without breaking savefiles
