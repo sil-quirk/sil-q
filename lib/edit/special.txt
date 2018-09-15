@@ -521,17 +521,17 @@ F:VUL_COLD
 
 
 N:91:of Radiance
-W:0:1:0:1000
+W:0:4:0:1000
 C:0:0:0:0:0:0:0
 T:19:0:99
 F:RADIANCE
 
 
-N:92:of Lindon
-W:10:3:0:3000
-C:1:0:0:0:0:0:2
+N:92:of Vinyamar
+W:0:1:0:3000
+C:1:0:0:0:0:0:0
 T:19:0:99
-F:PERCEPTION
+F:RES_FEAR | SUST_DEX
 
 ###
 

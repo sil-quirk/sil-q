@@ -192,7 +192,7 @@ T:31:1:1   # Gloves (leather gloves only)
 
 N:24:Crippling Shot
 I:1:4:6
-P:1/1
+P:1/0
 D:Your critical hits sometimes temporarily slow monsters
 D: (depending on the level of critical and the monster's Will).
 T:19:0:99  # Bows
