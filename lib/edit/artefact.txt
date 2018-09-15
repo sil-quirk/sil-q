@@ -754,6 +754,20 @@ D:Forged of black meteoric iron by the Eol the Dark Elf,
 D:it is the twin to Anglachel.
 
 
+## The Bastard Sword 'Luinmegil'
+## Sindarin: blue sword
+## (ability 0/11 is Anticipate)
+N:72:'Luinmegil'
+G:|:b
+I:23:21:0
+W:11:30:40:10000
+P:-2:3d4:1:0d0
+F:AGGRAVATE | RES_COLD | FREE_ACT
+B:0/11
+D:A sword made by the Sindarin in Vinyamar. Its steel blade is a
+D: murky blue like an overcast sea and its hilt chalk white.
+
+
 ## The Greatsword 'Glend'
 ## 1st age
 ## (automatic drop -- don't move)
@@ -827,7 +841,7 @@ D: might should he face it again.
 ##
 N:83:'Ungoliant's Lament'
 I:23:30:0
-W:8:20:40:30000
+W:12:20:40:30000
 P:0:3d6:2:0d0
 F:SLAY_SPIDER | LIGHT | FREE_ACT
 D:A long and dimly glowing blade with a handle clad in red leather.
@@ -843,7 +857,7 @@ D: the arrival of the Noldor in Beleriand.
 
 N:85:'Dugrakh'
 I:22:1:-1
-W:6:10:25:50000
+W:6:15:25:50000
 P:1:1d11:0:0d0
 F:SLAY_RAUKO | SLAY_MAN_OR_ELF | SEE_INVIS | FREE_ACT
 F:GRA | AGGRAVATE | THROWING
