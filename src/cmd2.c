@@ -3344,9 +3344,6 @@ static int breakage_chance(const object_type *o_ptr, bool hit_wall)
 		{
 			p = 20;
 			
-			// 100% chance if flaming arrows
-			if (p_ptr->active_ability[S_ARC][ARC_FLAMING]) p = 100;
-			
 			break;
 		}
 		
@@ -3664,9 +3661,6 @@ void do_cmd_fire(int quiver)
 	missile_attr = object_attr(i_ptr);
 	missile_char = object_char(i_ptr);
 	
-	// flaming arrows are red
-	if (p_ptr->active_ability[S_ARC][ARC_FLAMING]) missile_attr = TERM_RED;
-
 	/* Take a turn */
 	p_ptr->energy_use = 100;
 
@@ -3889,41 +3883,7 @@ void do_cmd_fire(int quiver)
 					/* Add slay (or brand) dice based on both arrow and bow */
 					slay_bonus_dice = slay_bonus(i_ptr, m_ptr, &noticed_arrow_flag);
 					slay_bonus_dice += slay_bonus(j_ptr, m_ptr, &noticed_bow_flag);
-					
-					// bonus for flaming arrows
-					if (p_ptr->active_ability[S_ARC][ARC_FLAMING])
-					{
-						monster_lore *l_ptr = &l_list[m_ptr->r_idx];
-						
-						/* Notice immunity */
-						if (r_ptr->flags3 & (RF3_RES_FIRE))
-						{
-							if (m_ptr->ml)
-							{
-								l_ptr->flags3 |= (RF3_RES_FIRE);
-							}
-						}
-						
-						/* Otherwise, take the damage */
-						else
-						{
-							slay_bonus_dice += 1;
-														
-							// extra bonus against vulnerable creatures
-							if (r_ptr->flags3 & (RF3_HURT_FIRE))
-							{
-								slay_bonus_dice += 1;
-								
-								/* Memorize the effects */
-								l_ptr->flags3 |= (RF3_HURT_FIRE);
 
-								// cause a temporary morale penalty
-								scare_onlooking_friends(m_ptr, -20);
-							}
-							
-						}
-					}
-					
 					/* Calculate the damage done */
 					total_dd = j_ptr->dd + crit_bonus_dice + slay_bonus_dice;
 

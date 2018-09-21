@@ -252,7 +252,7 @@ extern byte total_ads(const object_type *j_ptr)
 	if (p_ptr->active_ability[S_ARC][ARC_DEDICATION] && !inventory[INVEN_ARM].k_idx	&&
 		!inventory[INVEN_WIELD].k_idx)
 	{
-		int_ads += 1;
+		int_ads += 2;
 	}
 
 	/* make sure the total is non-negative */
