@@ -3849,7 +3849,6 @@ void do_cmd_fire(int quiver)
 				
 				/* Test for hit */
 				hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);				
-				
 				/* If it hit */
 				if (hit_result > 0)
 				{
@@ -3879,6 +3878,11 @@ void do_cmd_fire(int quiver)
 										
 					/* Add 'critical hit' dice based on bow weight */
 					crit_bonus_dice = crit_bonus(hit_result, j_ptr->weight, r_ptr, S_ARC, FALSE);
+
+					if (p_ptr->active_ability[S_ARC][ARC_PENETRATE] && crit_bonus_dice < 1)
+					{
+						crit_bonus_dice = 1;
+					}
 										
 					/* Add slay (or brand) dice based on both arrow and bow */
 					slay_bonus_dice = slay_bonus(i_ptr, m_ptr, &noticed_arrow_flag);

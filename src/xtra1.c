@@ -226,7 +226,7 @@ extern byte total_ads(const object_type *j_ptr)
 	byte ads;
 	int int_ads; /* to allow negative values in the intermediate stages */
 	int str_to_ads;
-	
+
 	str_to_ads = p_ptr->stat_use[A_STR];
 
 	int_ads = j_ptr->ds;
@@ -2566,7 +2566,7 @@ static void calc_bonuses(void)
 
 	/* Affect Skill -- archery (DEX) */
 	p_ptr->skill_stat_mod[S_ARC] = p_ptr->stat_use[A_DEX];
-	
+
 	/* Affect Skill -- evasion (DEX) */
 	p_ptr->skill_stat_mod[S_EVN] = p_ptr->stat_use[A_DEX];
 

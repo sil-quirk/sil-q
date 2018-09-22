@@ -470,7 +470,7 @@
 #define	ARC_POINT_BLANK				 	2
 #define	ARC_VERSATILITY				 	3
 #define	ARC_CRIPPLING				 	4
-#define	ARC_FLAMING					5
+#define	ARC_PENETRATE					5
 #define	ARC_DEADLY_HAIL				 	6
 #define	ARC_DEX						7
 
