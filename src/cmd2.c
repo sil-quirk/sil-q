@@ -1854,7 +1854,57 @@ void do_cmd_exchange(void)
 		
 }
 
+void do_cmd_running_shot()
+{
+	int i;
+	int dir = 5;
 
+	if (!p_ptr->active_ability[S_ARC][ARC_RUNNING_SHOT])
+	{
+		msg_print("You need the ability 'running shot' to use this command.");
+		return;
+	}
+
+	if (p_ptr->confused)
+	{
+		msg_print("You are too confused!");
+		return;
+	}
+
+	for (i = 0; i < ACTION_MAX; i++)
+	{
+		if ((p_ptr->previous_action[i] >= 1) && (p_ptr->previous_action[i] <= 9) && (p_ptr->previous_action[i] != 5))
+		{
+			dir = p_ptr->previous_action[i];
+			break;
+		}
+	}
+
+	if (dir == 5) return;
+
+	/* Get location */
+	int y = p_ptr->py + ddy[dir];
+	int x = p_ptr->px + ddx[dir];
+
+	/* Verify legality */
+	if (!do_cmd_walk_test(y, x)) return;
+
+	/* Take a turn */
+	p_ptr->energy_use = 100;
+
+	move_player(dir);
+
+	/* Player square can end up still black if we miss this. */
+	update_view();
+
+	for (i = ACTION_MAX - 1; i > 0; i--)
+	{
+		p_ptr->previous_action[i] = p_ptr->previous_action[i-1];
+	}
+
+	p_ptr->previous_action[0] = dir;
+	do_cmd_fire(1, TRUE);
+}
 
 
 /*
@@ -3505,13 +3555,10 @@ void attacks_of_opportunity(int neutralized_y, int neutralized_x)
  *
  * Objects are more likely to break if they "attempt" to hit a monster.
  *
- * The "extra shot" code works by decreasing the amount of energy
- * required to make each shot, spreading the shots out over time.
- *
  * Note that when firing missiles, the launcher multiplier is applied
  * after all the bonuses are added in, making multipliers very useful.
  */
-void do_cmd_fire(int quiver)
+void do_cmd_fire(int quiver, bool running_shot)
 {
 	int dir, item;
 	int i, y, x, ty, tx;
@@ -3603,7 +3650,24 @@ void do_cmd_fire(int quiver)
 	}
 	
 	/* Get a direction (or cancel) */
-	if (!get_aim_dir(&dir, tdis)) return;
+	if (running_shot)
+	{
+		if (target_okay(tdis))
+		{
+			dir = 5;
+		}
+		else
+		{
+			/* Prepare the "temp" array */
+			get_sorted_target_list(TARGET_KILL, tdis);
+
+			/* If there are no visible monsters return */
+			if (!temp_n) return;
+			/* otherwise get a new target */
+			else if (!get_aim_dir(&dir, tdis)) return;
+		}
+	}
+	else if (!get_aim_dir(&dir, tdis)) return;
 
 	/* Start at the player */
 	y = p_ptr->py;
@@ -3836,6 +3900,11 @@ void do_cmd_fire(int quiver)
 					/* Hack -- Target this monster */
 					if (m_ptr->ml) target_set_monster(cave_m_idx[y][x]);
 				}
+
+				if (running_shot)
+				{
+					total_attack_mod /= 2;
+				}
 				
 				// Aim improved if monster is fleeing. If firing into several fleeing monsters,
 				// the chance of hitting one is high.
@@ -3879,11 +3948,6 @@ void do_cmd_fire(int quiver)
 					/* Add 'critical hit' dice based on bow weight */
 					crit_bonus_dice = crit_bonus(hit_result, j_ptr->weight, r_ptr, S_ARC, FALSE);
 
-					if (p_ptr->active_ability[S_ARC][ARC_PENETRATE] && crit_bonus_dice < 1)
-					{
-						crit_bonus_dice = 1;
-					}
-										
 					/* Add slay (or brand) dice based on both arrow and bow */
 					slay_bonus_dice = slay_bonus(i_ptr, m_ptr, &noticed_arrow_flag);
 					slay_bonus_dice += slay_bonus(j_ptr, m_ptr, &noticed_bow_flag);

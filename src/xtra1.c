@@ -2667,6 +2667,16 @@ static void calc_bonuses(void)
 		p_ptr->skill_misc_mod[S_EVN] += p_ptr->skill_use[S_PER] / 3;
 	}
 
+	if (p_ptr->active_ability[S_ARC][ARC_STEADY_HANDS])
+	{
+		int difference = p_ptr->stat_use[A_STR] * 10 - (inventory[INVEN_BOW]).weight;
+		if (difference > 0)
+		{
+			difference += 5;
+			p_ptr->skill_misc_mod[S_ARC] += difference / 10;
+		}
+	}
+
 	/* generate the melee dice/sides from weapon, to_mdd, to_mds and strength */
 	p_ptr->mdd = total_mdd(o_ptr);
 	p_ptr->mds = total_mds(o_ptr, p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? -3 : 0);

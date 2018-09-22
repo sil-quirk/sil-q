@@ -393,7 +393,7 @@ extern void do_cmd_rest(void);
 extern int archery_range(const object_type *j_ptr);
 extern int throwing_range(const object_type *i_ptr);
 extern void attacks_of_opportunity(int neutralized_y, int neutralized_x);
-extern void do_cmd_fire(int quiver);
+extern void do_cmd_fire(int quiver, bool running_shot);
 extern void do_cmd_throw(bool automatic);
 
 /* cmd3.c */
