@@ -3910,7 +3910,7 @@ void do_cmd_fire(int quiver, bool running_shot)
 				// the chance of hitting one is high.
 				if (p_ptr->active_ability[S_ARC][ARC_ROUT] && m_ptr->stance == STANCE_FLEEING)
 				{
-					total_attack_mod += 3;
+					total_attack_mod += 5;
 				}
 
 				// Determine the monster's evasion after all modifiers
