@@ -531,7 +531,7 @@ N:92:of Vinyamar
 W:0:1:0:3000
 C:1:0:0:0:0:0:0
 T:19:0:99
-F:RES_FEAR | SUST_DEX
+F:FREE_ACT | SUST_CON
 
 ###
 

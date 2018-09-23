@@ -1310,13 +1310,13 @@ D: who in days of old hunted with Orome himself.
 
 ## The Shortbow 'Death's Sting'
 ## Original to Sil
-## (ability 1/4 is Crippling Shot)
+## (ability 1/5 is Crippling Shot)
 
 N:143:'Death's Sting'
 I:19:12:0
 W:10:15:10:9000
 P:1:1d7:0:0d0
-B:1/4
+B:1/5
 D:An unassuming if well-fashioned bow, but when you take
 D: aim with it you find your eye drawn particularly to
 D: vulnerable places in your foe's armour.
@@ -1337,15 +1337,14 @@ D: elven hair that faintly shimmers a pale clear gold.
 
 ## The Longbow 'Wyrm's End'
 ## Original to Sil
-## (ability 1/5 is Flaming Arrows)
 
 N:146:'Wyrm's End'
 I:19:13:0
 W:16:20:60:35000
 P:0:2d7:0:0d0
-B:1/5
+F:SLAY_DRAGON
 D:A massive longbow, almost too large to draw. But when it does
-D: release an arrow it flies with great force -- and with fire.
+D: release an arrow it flies with great force.
 
 
 ## The Dragon-horn Bow of Avernien
@@ -1355,8 +1354,8 @@ D: release an arrow it flies with great force -- and with fire.
 N:148:of Avernien
 I:19:14:0
 W:20:3:20:35000
-P:1:1d9:0:0d0
-F:RADIANCE | SLAY_DRAGON
+P:1:1d10:0:0d0
+F:RADIANCE | RES_FEAR | RES_CONFU | RES_STUN | RES_HALLU
 D:A large exquisite bow fashioned from a single horn of a slain
 D: dragon. Many are the blessings of the Eldar laid over it.
 
@@ -1698,6 +1697,7 @@ I:19:0:0
 F:SLAY_ORC | SLAY_TROLL | SLAY_WOLF | SLAY_SPIDER
 F:SLAY_UNDEAD | SLAY_RAUKO | SLAY_DRAGON
 F:RADIANCE | RES_FEAR | RES_BLIND | SEE_INVIS | SUST_DEX
+F:SUST_CON | FREE_ACT
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
 F:INSTA_ART
