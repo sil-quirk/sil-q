@@ -113,7 +113,9 @@ I:0:8:9
 P:0/0:0/3
 D:When using a polearm or greatsword you can strike through or past
 D: opponents to attack an opponent behind.
-T:22:0:99  # Polearms
+T:23:25:25 # Greatswords
+T:23:30:30 # Mithril Greatswords
+T:22:0:4   # Polearms
 
 N:9:Rapid Attack
 I:0:9:10

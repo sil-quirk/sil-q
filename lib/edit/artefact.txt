@@ -76,13 +76,14 @@
 # Elves
 # * Feanor		(crown - smithing, fire, will, aggravate)
 #   * Maedhros		(hauberk - combat bonuses, res fire, res poison)
+#                       (crown - will, Majesty, res fear, danger)
 #   * Maglor		(cloak - song, restore voice)
 #   * Celegorm		(bow - will, slay wolf/spider)
 #   * Caranthir		(leather - stealth, dark, rage)
 #   * Curufin		(helm - perception, stealth, will, res confusion)
 #     * Celebrimbor	(gloves - smithing, free action)
 #   * Amrod		(short sword - perception, stealth)
-#   * Amras		(broken sword - perception, stealth, fire)
+#   * Amras		
 # * Fingolfin		('ringil' - rcold, light) (shield - con, rfear)
 #   * Fingon		(corslet - resist fear, con)
 #     * Gil-galad	('aeglos' - cold)
@@ -93,9 +94,9 @@
 #     * Maeglin	        (galvorn armour - hunger, channelling, res poison)
 # - Finarfin
 #   * Finrod		(boots - good evasion, free action)
-#   * Angrod		(round shield - res stun, res conf, res fire)
+#   * Angrod		(helm - res stun, res fear, regen, sust con, sust str)
 #     * Orodreth	(greaves - dex, res fire)
-#   * Aegnor
+#   * Aegnor		(armour - concentration)
 #   * Galadriel
 # * Thingol		(cloak - grey, rfire, rcold, free act) (Aranruth - will, rfear, danger)
 #   * Luthien		(shadow cloak - res dark, sust gra, stealth)
@@ -1081,6 +1082,16 @@ D: and enchanted for both battle and mine.
 
 ##### Helms/Crowns #####
 
+## The Helm of Angrod
+
+N:117:of Angrod
+I:32:5:0
+W:5:10:45:4500
+P:0:0d0:0:1d3
+F:REGEN | SUST_CON | SUST_STR | RES_STUN | RES_FEAR
+D:The helm of Angrod, son of Finarfin, who perished in
+D: the Dagor Bragollach.
+
 ## The Helm of Curufin
 ## 1st age namesake
 ## (ability 4/7 is Listen)
@@ -1178,7 +1189,6 @@ D: played with bewildering wizard's art
 D: music for breaking of the heart.'
 
 ## The Jewelled Crown of Feanor
-## 1st age namesake
 
 N:129:of Feanor
 I:33:12:3
@@ -1193,6 +1203,19 @@ D: greatness.
 D: "Dear-bought those songs shall be accounted, and yet shall be
 D: well-bought.  For the price could be no other."
 
+## The Jewelled Crown of Maedhros
+## (ability 5/9 is Majesty)
+
+N:130:of Maedhros
+I:33:12:3
+W:8:10:30:30000
+P:0:0d0:0:1d1
+F:WILL | RES_FEAR
+F:DANGER
+B:5/9
+D:The crown of Maedhros, High King of the Noldor, who was captured by Morgoth
+D: when he went to parley with him and hung by his right hand from Thangorodrim
+D: for thirty years.
 
 ##### Cloaks #####
 
