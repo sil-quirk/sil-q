@@ -168,12 +168,15 @@ F:AGGRAVATE
 
 ##### Weapons #####
 
+# Includes arrows
+
 N:21:of Gondolin
 W:0:2:10:1000
 C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:0:99
 T:23:7:99
+T:17:0:99
 F:SLAY_ORC | SLAY_TROLL
 
 
@@ -513,7 +516,7 @@ F:STEALTH
 
 
 N:92:of Dorthonion
-W:2:4:0:3000
+W:0:2:0:3000
 C:1:0:0:0:0:0:2
 T:19:0:99
 F:PERCEPTION
@@ -527,7 +530,7 @@ F:RADIANCE
 
 
 N:94:of the Marchwardens
-W:6:4:0:1000
+W:2:4:0:1000
 C:0:0:0:0:0:0:0
 T:19:0:99
 F:SEE_INVIS | RES_FEAR
@@ -549,18 +552,19 @@ B:1/2
 ##### Arrows #####
 
 
-N:101:(Poisoned)
-W:0:1:0:100
-C:0:0:0:0:0:0:0
-T:17:0:2
-F:BRAND_POIS
-
-
-N:102:of Piercing
-W:10:3:0:300
+N:101:of Piercing
+W:5:3:0:300
 C:0:0:0:0:0:0:0
 T:17:0:99
 F:SHARPNESS
+
+
+N:102:(Poisoned)
+W:10:10:0:100
+C:0:0:0:0:0:0:0
+T:17:0:99
+F:BRAND_POIS
+
 
 ###
 
