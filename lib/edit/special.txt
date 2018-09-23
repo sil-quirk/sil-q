@@ -90,7 +90,7 @@ F:IGNORE_ALL
 
 # Leather armour only
 
-N:4:of Thargelion
+N:4:of Brethil
 W:6:6:0:1000
 C:0:0:0:0:0:0:0
 T:36:0:7
@@ -168,36 +168,27 @@ F:AGGRAVATE
 
 ##### Weapons #####
 
-# Includes bows but not daggers
-
 N:21:of Gondolin
 W:0:2:10:1000
 C:0:0:0:0:0:0:0
-T:19:0:99
 T:21:8:8
 T:22:0:99
 T:23:7:99
 F:SLAY_ORC | SLAY_TROLL
 
 
-# Includes bows
-
 N:22:of Doriath
 W:0:2:0:2000
 C:0:0:0:0:0:0:0
-T:19:0:99
 T:21:8:8
 T:22:0:99
 T:23:7:99
 F:SLAY_SPIDER | SLAY_WOLF
 
 
-# Includes bows
-
 N:23:of Nargothrond
 W:9:2:0:2000
 C:0:0:0:0:0:0:0
-T:19:0:99
 T:21:8:8
 T:22:0:99
 T:23:7:99
@@ -513,25 +504,42 @@ F:VUL_COLD
 
 ##### Bows #####
 
-# 'of Gondolin' is already defined above
 
-# 'of Doriath' is already defined above
+N:91:of Lindon
+W:0:2:0:3000
+C:0:0:0:0:0:0:2
+T:19:0:99
+F:STEALTH
 
-# 'of Nargothrond' is already defined above
+
+N:92:of Dorthonion
+W:2:4:0:3000
+C:1:0:0:0:0:0:2
+T:19:0:99
+F:PERCEPTION
 
 
-N:91:of Radiance
-W:0:4:0:1000
+N:93:of Radiance
+W:2:4:0:1000
 C:0:0:0:0:0:0:0
 T:19:0:99
 F:RADIANCE
 
 
-N:92:of Vinyamar
-W:0:1:0:3000
+N:94:of the Marchwardens
+W:6:4:0:1000
+C:0:0:0:0:0:0:0
+T:19:0:99
+F:SEE_INVIS | RES_FEAR
+
+
+# (ability 1/2 is Dedication)
+N:95:of Falas
+W:2:4:0:3000
 C:1:0:0:0:0:0:0
 T:19:0:99
-F:FREE_ACT | SUST_CON
+B:1/2
+
 
 ###
 
