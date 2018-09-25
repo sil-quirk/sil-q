@@ -1297,13 +1297,14 @@ D: let you pass as a messenger journeying to Morgoth?
 ##### Bows #####
 
 ## The Shortbow of Celegorm
-## 1st age namesake
+## (ability 4/8 is Master Hunter)
 
 N:142:of Celegorm
 I:19:12:-1
 W:7:10:20:9000
-P:1:1d9:0:0d0
-F:SLAY_WOLF | GRA
+P:1:1d8:0:0d0
+F:GRA
+B:4/8
 D:The bow of Celegorm the great huntsman, third son of Feanor,
 D: who in days of old hunted with Orome himself.
 
@@ -1327,7 +1328,7 @@ D: vulnerable places in your foe's armour.
 
 N:145:'Belthronding'
 G:}:D
-I:19:13:1
+I:19:13:2
 W:14:10:30:35000
 P:1:2d7:0:0d0
 F:PERCEPTION
@@ -1335,16 +1336,17 @@ D:The great bow of Beleg Cuthalion, made of black yew and strung with
 D: elven hair that faintly shimmers a pale clear gold.
 
 
-## The Longbow 'Wyrm's End'
+## The Longbow 'Tawarcun'
+## Sindar "bent-wood"
 ## Original to Sil
 
-N:146:'Wyrm's End'
+N:146:'Tawarcun'
 I:19:13:0
-W:16:20:60:35000
-P:0:2d7:0:0d0
-F:SLAY_DRAGON
-D:A massive longbow, almost too large to draw. But when it does
-D: release an arrow it flies with great force.
+W:10:10:20:3500
+P:2:2d6:0:0d0
+F:FREE_ACT
+D:A long slender bow, well worn at the notches, but supple
+D: to the touch and easy on the draw.
 
 
 ## The Dragon-horn Bow of Avernien
@@ -1694,8 +1696,6 @@ F:INSTA_ART
 
 N:186:'Ultimate'
 I:19:0:0
-F:SLAY_ORC | SLAY_TROLL | SLAY_WOLF | SLAY_SPIDER
-F:SLAY_UNDEAD | SLAY_RAUKO | SLAY_DRAGON
 F:RADIANCE | RES_FEAR | RES_BLIND | SEE_INVIS | SUST_DEX
 F:SUST_CON | SUST_STR | FREE_ACT | PERCEPTION | STEALTH
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
