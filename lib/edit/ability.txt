@@ -215,7 +215,7 @@ T:30:0:99  # Boots
 
 N:27:Deadly Hail
 I:1:7:9
-P:1/4:1/5
+P:1/2:1/5
 D:Arrows fired the turn after killing an enemy with an arrow do twice their
 D: normal damage.
 T:19:0:99  # Bows

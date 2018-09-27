@@ -383,12 +383,22 @@ static void prt_arc(void)
 	/* Range attacks */
 	if ((&inventory[INVEN_BOW])->k_idx)
 	{
-		strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
-		Term_putstr(COL_ARC, ROW_ARC, -1, TERM_UMBER, format("%12s", buf));
-		
 		if (p_ptr->active_ability[S_ARC][ARC_DEADLY_HAIL] && p_ptr->killed_enemy_with_arrow)
 		{
-			Term_putstr(COL_ARC, ROW_ARC, -1, TERM_L_UMBER, "2x");
+			strnfmt(buf, sizeof(buf), ")");
+			Term_putstr(COL_ARC, ROW_ARC, -1, TERM_UMBER, format("%12s", buf));
+			strnfmt(buf, sizeof(buf), "%dd%d", 2 * p_ptr->add, p_ptr->ads);
+			Term_putstr(COL_ARC, ROW_ARC, -1, TERM_RED, format("%11s",buf));
+			strnfmt(buf, sizeof(buf), "(%+d,", p_ptr->skill_use[S_ARC]);
+			if (p_ptr->ads > 9)
+				Term_putstr(COL_ARC, ROW_ARC, -1, TERM_UMBER, format("%7s", buf));
+			else
+				Term_putstr(COL_ARC, ROW_ARC, -1, TERM_UMBER, format("%8s", buf));
+		}
+		else
+		{
+			strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
+			Term_putstr(COL_ARC, ROW_ARC, -1, TERM_UMBER, format("%12s", buf));
 		}
 	}
 	else

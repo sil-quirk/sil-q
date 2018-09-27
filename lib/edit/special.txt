@@ -179,6 +179,7 @@ T:23:7:99
 T:17:0:99
 F:SLAY_ORC | SLAY_TROLL
 
+# Includes arrows
 
 N:22:of Doriath
 W:0:2:0:2000
@@ -186,6 +187,7 @@ C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:0:99
 T:23:7:99
+T:17:0:99
 F:SLAY_SPIDER | SLAY_WOLF
 
 

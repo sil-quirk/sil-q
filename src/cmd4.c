@@ -2682,7 +2682,7 @@ int object_difficulty(object_type *o_ptr)
 	x = new - base;
 
 	// special costs for protection sides on hauberks and rings
-	if ((smith_o_ptr->tval == TV_MAIL) && (smith_o_ptr->sval == SV_LONG_CORSLET) && (x > 0))
+	if ((o_ptr->tval == TV_MAIL) && (o_ptr->sval == SV_LONG_CORSLET) && (x > 0))
 	{
 		dif_mod(x, 1, &dif_inc);
 		dif_inc += 2;
@@ -2713,7 +2713,11 @@ int object_difficulty(object_type *o_ptr)
 	if (f1 & TR1_BRAND_POIS)		{	dif_inc += 16;	smithing_cost.str += 2;	brands++; }
 	if (brands > 1)				{	dif_inc += (brands-1) * 20;  }
 	
-	if (f1 & TR1_SHARPNESS)			{	dif_inc += 24;	smithing_cost.str += 2;	}
+	if (f1 & TR1_SHARPNESS)
+	{
+		if (o_ptr->tval == TV_ARROW) 	{	dif_inc += 12;	smithing_cost.str += 1;	}
+		else				{	dif_inc += 24;	smithing_cost.str += 2;	}
+	}
 	if (f1 & TR1_SHARPNESS2)		{	dif_inc += 40;	smithing_cost.str += 4;	} // not available in smithing
 	if (f1 & TR1_VAMPIRIC)			{	dif_inc += 6;	smithing_cost.str += 1;	}
 	
@@ -3831,7 +3835,7 @@ int enchant_menu_aux(int *highlight)
 				}
 			}
 		}
-		
+
 		if (acceptable)
 		{
 			// make a 'special' version of the object
@@ -3846,7 +3850,7 @@ int enchant_menu_aux(int *highlight)
 			{
 				valid[num] = FALSE;
 			}
-			
+
 			/* Print it */
 			strnfmt(buf, 80, "%c) %s", (char) 'a' + num, e_name + e_ptr->name);
 			Term_putstr(COL_SMT2, num + 2, -1, valid[num] ? TERM_WHITE : TERM_SLATE, buf);
@@ -5086,7 +5090,8 @@ int smithing_menu_aux(int *highlight)
                                  (smith_o_ptr->tval != TV_RING) &&
                                  (smith_o_ptr->tval != TV_AMULET) &&
                                  (smith_o_ptr->tval != TV_HORN) &&
-                                 !((smith_o_ptr->tval == TV_DIGGING) && (smith_o_ptr->sval == SV_SHOVEL));
+                                 !((smith_o_ptr->tval == TV_DIGGING) && (smith_o_ptr->sval == SV_SHOVEL)) &&
+				 !((smith_o_ptr->tval == TV_ARROW) && (smith_o_ptr->att > 0));
 	valid[SMT_MENU_ARTEFACT-1] = (!smith_o_ptr->name2) &&
                                  (smith_o_ptr->tval != 0) &&
                                  (smith_o_ptr->tval != TV_HORN) &&
