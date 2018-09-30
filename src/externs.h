@@ -376,6 +376,7 @@ extern bool do_cmd_open_aux(int y, int x);
 extern void do_cmd_open(void);
 extern void do_cmd_close(void);
 extern void do_cmd_exchange(void);
+extern void do_cmd_running_shot(void);
 extern void do_cmd_tunnel(void);
 extern bool break_free_of_web(void);
 extern void do_cmd_disarm(void);
