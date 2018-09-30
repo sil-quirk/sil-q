@@ -5299,9 +5299,6 @@ void overwhelm(int score, monster_type *m_ptr)
 
 void sing_song_of_overwhelming(int score)
 {
-	int py = p_ptr->py;
-	int px = p_ptr->px;
-
 	int i;
 
 	for (i = 0; i < 8; ++i)

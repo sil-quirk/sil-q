@@ -55,7 +55,7 @@
  */
 void do_cmd_eat_food(object_type *default_o_ptr, int default_item)
 {
-	int item, lev;
+	int item;
 	bool ident;
 	bool aware;
 	int kind_index;
@@ -110,9 +110,6 @@ void do_cmd_eat_food(object_type *default_o_ptr, int default_item)
 	kind_index = o_ptr->k_idx;
 	aware = object_aware_p(o_ptr);
 		
-	/* Object level */
-	lev = k_info[o_ptr->k_idx].level;
-
 	/* Eat the food */
 	use_object(o_ptr, &ident);
 
@@ -176,7 +173,7 @@ void do_cmd_eat_food(object_type *default_o_ptr, int default_item)
  */
 void do_cmd_quaff_potion(object_type *default_o_ptr, int default_item)
 {
-	int item, lev;
+	int item;
 	bool ident;
 	bool aware;
 	int kind_index;
@@ -229,9 +226,6 @@ void do_cmd_quaff_potion(object_type *default_o_ptr, int default_item)
 	kind_index = o_ptr->k_idx;
 	aware = object_aware_p(o_ptr);
 		
-	/* Object level */
-	lev = k_info[o_ptr->k_idx].level;
-
 	/* Quaff the potion */
 	use_object(o_ptr, &ident);
 

@@ -2409,49 +2409,6 @@ s16b message_num(void)
 }
 
 
-/*
- * Returns TRUE if the game is NOT executing a macro or keymap action
- *
- * Note: the game puts a special mark in the keyboard queue to indicate
- * the end of a macro. It allows to avoid circular macros.
- * This special mark is discarded in the next call to inkey.
- * If "look_ahead" is TRUE the queue is inspected to find if the next
- * character is this mark (all characters in the macro were processed).
- * If it is, this function returns TRUE. It allows to "predict" the origin
- * of the character returned by a FUTURE call to inkey.
- * If look_ahead is FALSE the queue is NOT inspected. It can be useful
- * to determinate the origin of the character returned by a PAST call to
- * inkey.
- */
-int interactive_input(bool look_ahead)
-{
-	/* Keymaps have higher priority */
-	if (inkey_next && *inkey_next) return FALSE;
-
-	/* Verify macros */
-	if (parse_macro)
-	{
-		char ch;
-
-		/* Do not examine the keyboard queue, so we are still inside a macro */
-		if (!look_ahead) return FALSE;
-
-		/* Look at the next character. Do not wait for it. Do not remove it. */
-		Term_inkey(&ch, FALSE, FALSE);
-
-		/* Verify if that character marks the end of a macro action */
-		if (ch != 30) return FALSE;
-
-		/*
-		 * Fall through. The character in the queue is the end of macro mark.
-		 * All characters in the macro were processed by past calls to inkey.
-		 */
-	}
-
-	return TRUE;
-}
-
-
 
 /*
  * Recall the "text" of a saved message

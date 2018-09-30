@@ -365,12 +365,6 @@
 #define DIRECTION_UP   -2
 
 /*
- * Misc constants
- */
-#define GATES_DAWN		10000	/* Number of turns from dawn to dawn XXX */
-
-
-/*
  * There is a 1 in 7 chance of inflating the requested object_level
  * during the creation of an object (see "get_obj_num()" in "object.c").
  * Lower values yield better objects more often.

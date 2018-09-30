@@ -1496,9 +1496,6 @@ static errr rd_dungeon(void)
 	{
 		monster_type *n_ptr;
 		monster_type monster_type_body;
-		monster_race *r_ptr;
-
-		int r_idx;
 
 		/* Get local monster */
 		n_ptr = &monster_type_body;
@@ -1508,12 +1505,6 @@ static errr rd_dungeon(void)
 
 		/* Read the monster */
 		rd_monster(n_ptr);
-
-		/* Access the "r_idx" of the chosen monster */
-		r_idx = n_ptr->r_idx;
-
-		/* Access the actual race */
-		r_ptr = &r_info[r_idx];
 
 		/* Place monster in dungeon */
 		if (monster_place(n_ptr->fy, n_ptr->fx, n_ptr) != i)

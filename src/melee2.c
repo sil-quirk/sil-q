@@ -3584,8 +3584,6 @@ static void process_move(monster_type *m_ptr, int ty, int tx, bool bash)
 	monster_race *r_ptr = &r_info[m_ptr->r_idx];
 	monster_lore *l_ptr = &l_list[m_ptr->r_idx];
 
-	int feat;
-
 	/* Existing monster location, proposed new location */
 	int oy, ox, ny, nx;
 
@@ -3668,9 +3666,6 @@ static void process_move(monster_type *m_ptr, int ty, int tx, bool bash)
 	/* Can still move */
 	if (do_move)
 	{
-		/* Get the feature in the grid that the monster is trying to enter. */
-		feat = cave_feat[ny][nx];
-
 		/* Entering a wall */
 		if (cave_info[ny][nx] & (CAVE_WALL))
 		{
@@ -5644,27 +5639,6 @@ void monster_perception(bool player_centered, bool main_roll, int difficulty)
 		}
 	}
 
-	// display the amount of noise the player is making in the bottom left of the screen
-	if (main_roll)
-	{
-		char buf[13];
-		byte attr;
-		int dif = difficulty - combat_noise_bonus;
-				
-		if (singing(SNG_SILENCE))	dif += ability_bonus(S_SNG, SNG_SILENCE);
-		
-		if (dif < -5)		attr = TERM_RED;
-		else if (dif < 0)	attr = TERM_L_RED;
-		else if (dif < 5)	attr = TERM_ORANGE;
-		else if (dif < 10)	attr = TERM_YELLOW;
-		else if (dif < 15)	attr = TERM_L_GREEN;
-		else if (dif < 20)	attr = TERM_L_BLUE;
-		else				attr = TERM_BLUE;
-		
-		my_strcpy(buf, format("%3d", dif), sizeof(buf));
-		//c_put_str(attr, buf, ROW_STEALTH, COL_STEALTH);
-	}
-	
 	// make the difficulty roll just once per sound source
 	// i.e. once per call to this function
 	// this is a manual version of a 'skill_check()' and should be treated as such

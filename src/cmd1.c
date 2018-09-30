@@ -171,7 +171,7 @@ void new_wandering_destination(monster_type *m_ptr, monster_type *leader_ptr)
 
 void drop_iron_crown(monster_type *m_ptr, const char *msg)
 {
-	int i, j, near_y, near_x;
+	int i, near_y, near_x;
 	
 	if ((&a_info[ART_MORGOTH_3])->cur_num == 0)
 	{
@@ -3595,7 +3595,6 @@ int py_attack_aux(int y, int x, int attack_type)
 
 	monster_type *m_ptr;
 	monster_race *r_ptr;
-	monster_lore *l_ptr;
 
 	object_type *o_ptr;
 
@@ -3617,7 +3616,6 @@ int py_attack_aux(int y, int x, int attack_type)
 	/* Get the monster */
 	m_ptr = &mon_list[cave_m_idx[y][x]];
 	r_ptr = &r_info[m_ptr->r_idx];
-	l_ptr = &l_list[m_ptr->r_idx];
 
 	/*possibly update the monster health bar*/
 	if (p_ptr->health_who == cave_m_idx[y][x]) p_ptr->redraw |= (PR_HEALTHBAR);
@@ -4249,9 +4247,6 @@ void move_player(int dir)
 	int py = p_ptr->py;
 	int px = p_ptr->px;
 
-    int oy = p_ptr->py; // old location
-    int ox = p_ptr->px;
-    
 	int y, x;
     
 	/* Find the result of moving */
@@ -4828,8 +4823,7 @@ static int see_wall(int dir, int y, int x)
  * one touching the player on a diagonal, and one directly adjacent.
  * We must consider the two "option" grids further out (marked '?').
  * We assign "option" to the straight-on grid, and "option2" to the
- * diagonal grid.  For some unknown reason, we assign "check_dir" to
- * the grid marked 's', which may be incorrectly labelled.
+ * diagonal grid.
  *
  *    ###s
  *    o@x?   (may be incorrect diagram!)
@@ -4999,7 +4993,6 @@ static bool run_test(void)
 
 	int prev_dir;
 	int new_dir;
-	int check_dir = 0;
 
 	int row, col;
 	int i, max, inv;
@@ -5150,14 +5143,12 @@ static bool run_test(void)
 			/* Two new (adjacent) directions (case 1) */
 			else if (new_dir & 0x01)
 			{
-				check_dir = cycle[chome[prev_dir] + i - 2];
 				option2 = new_dir;
 			}
 
 			/* Two new (adjacent) directions (case 2) */
 			else
 			{
-				check_dir = cycle[chome[prev_dir] + i + 1];
 				option2 = option;
 				option = new_dir;
 			}

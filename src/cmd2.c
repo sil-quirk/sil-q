@@ -999,9 +999,6 @@ static bool do_cmd_open_chest(int y, int x, s16b o_idx)
 
 	object_type *o_ptr = &o_list[o_idx];
 
-	time_t c;      // time variables
-	struct tm *tp; //
-
 	/* Attempt to unlock it */
 	if (o_ptr->pval > 0)
 	{

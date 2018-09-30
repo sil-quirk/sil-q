@@ -1339,9 +1339,6 @@ void detect_all_doors_traps()
 {
 	int y, x;
 	
-	bool detect_trap = FALSE;
-	bool detect_door = FALSE;
-
 	/* Scan the visible area */
 	for (y = 0; y < p_ptr->cur_map_hgt; y++)
 	{
@@ -1354,8 +1351,6 @@ void detect_all_doors_traps()
 			{
 				/* Reveal the trap */
 				reveal_trap(y, x);
-				
-				detect_trap = TRUE;
 			}
 
 			/* Detect secret doors */
@@ -1369,8 +1364,6 @@ void detect_all_doors_traps()
 
 				/* Redraw */
 				lite_spot(y, x);
-
-				detect_door = TRUE;
 			}
 		}
 	}
@@ -1655,7 +1648,7 @@ bool detect_objects_magic(void)
  */
 bool detect_monsters(void)
 {
-	int i, y, x;
+	int i;
 
 	bool flag = FALSE;
 
@@ -1666,10 +1659,6 @@ bool detect_monsters(void)
 
 		/* Skip dead monsters */
 		if (!m_ptr->r_idx) continue;
-
-		/* Location */
-		y = m_ptr->fy;
-		x = m_ptr->fx;
 
 		/* Optimize -- Repair flags */
 		repair_mflag_mark = TRUE;
@@ -1702,7 +1691,7 @@ bool detect_monsters(void)
  */
 bool detect_monsters_invis(void)
 {
-	int i, y, x;
+	int i;
 
 	bool flag = FALSE;
 
@@ -1715,13 +1704,6 @@ bool detect_monsters_invis(void)
 
 		/* Skip dead monsters */
 		if (!m_ptr->r_idx) continue;
-
-		/* Location */
-		y = m_ptr->fy;
-		x = m_ptr->fx;
-
-		/* Only monsters in sight range */
-		//if (!player_can_see_bold(y, x)) continue;
 
 		/* Detect invisible monsters */
 		if (r_ptr->flags2 & (RF2_INVISIBLE))

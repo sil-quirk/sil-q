@@ -2598,9 +2598,7 @@ void apply_magic(object_type *o_ptr, int lev, bool okay, bool good, bool great, 
 			
 			if (special)
 			{
-				int ego_power;
-
-				ego_power = make_special_item(o_ptr, (bool)(good || great));
+				make_special_item(o_ptr, (bool)(good || great));
 				if (o_ptr->number > 1) o_ptr->number /= 2;
 				
 			}

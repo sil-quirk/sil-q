@@ -3004,9 +3004,6 @@ errr parse_c_info(char *buf, header *head)
 	/* Current entry */
 	static player_house *ph_ptr = NULL;
 
-	static int cur_title = 0;
-	static int cur_equip = 0;
-
 
 	/* Process 'N' for "New/Number/Name" */
 	if (buf[0] == 'N')
@@ -3041,10 +3038,6 @@ errr parse_c_info(char *buf, header *head)
 		/* Store the name */
 		if (!(ph_ptr->name = add_name(head, s)))
 			return (PARSE_ERROR_OUT_OF_MEMORY);
-
-		/* No titles and equipment yet */
-		cur_title = 0;
-		cur_equip = 0;
 	}
 	
 	/* Process 'A' for "Alternate Name" */

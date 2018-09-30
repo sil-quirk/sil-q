@@ -415,6 +415,7 @@ extern void do_cmd_look(void);
 extern void do_cmd_locate(void);
 extern void do_cmd_query_symbol(void);
 extern void do_cmd_view_monsters(void);
+extern void do_cmd_view_objects(void);
 extern bool ang_sort_comp_hook(const void *u, const void *v, int a, int b);
 extern void ang_sort_swap_hook(void *u, void *v, int a, int b);
 extern void py_steal(int y, int x);
@@ -1065,8 +1066,6 @@ extern void user_name(char *buf, size_t len, int id);
 
 
 #ifdef ALLOW_REPEAT
-/* util.c */
-extern int interactive_input(bool look_ahead);
 extern void repeat_push(int what);
 extern bool repeat_pull(int *what);
 extern void repeat_clear(void);

@@ -521,7 +521,6 @@ bool make_attack_normal(monster_type *m_ptr)
 	{
 		bool betrayal_wield = FALSE;
 		bool betrayal_arm = FALSE;
-		bool pure_dam = FALSE;
 		bool visible = FALSE;
 		bool obvious = FALSE;
 
@@ -575,7 +574,6 @@ bool make_attack_normal(monster_type *m_ptr)
 		// spores always hit (and never critical)
 		if (method == RBM_SPORE)
 		{
-			pure_dam = TRUE;
 			hit_result = 1;
 			update_combat_rolls1b(m_ptr, PLAYER, m_ptr->ml); 
 		}
@@ -1917,14 +1915,11 @@ void mon_cloud(int m_idx, int typ, int dd, int ds, int dif, int rad)
 	int fy = m_ptr->fy;
 	int fx = m_ptr->fx;
 	
-	bool notice;
-
 	//u32b flg = PROJECT_BOOM | PROJECT_GRID | PROJECT_ITEM | PROJECT_PLAY | PROJECT_HIDE;
 	u32b flg = PROJECT_BOOM | PROJECT_GRID | PROJECT_ITEM | PROJECT_PLAY | PROJECT_KILL | PROJECT_HIDE;
 
 	/* Surround the monster with a cloud */
-	notice = project(m_idx, rad, fy, fx, fy, fx, dd + 2, ds, dif, typ, flg, 0, 0);
-	
+	project(m_idx, rad, fy, fx, fy, fx, dd + 2, ds, dif, typ, flg, 0, 0);
 }
 
 
@@ -2043,9 +2038,6 @@ bool make_attack_ranged(monster_type *m_ptr, int attack)
 
 	char ddesc[80];
 
-	/* Summon level */
-	int summon_lev;
-
 	/* Is the player blind? */
 	bool blind = (p_ptr->blind ? TRUE : FALSE);
 
@@ -2073,9 +2065,6 @@ bool make_attack_ranged(monster_type *m_ptr, int attack)
 
 	/* Hack -- Get the "died from" name */
 	monster_desc(ddesc, sizeof(m_name), m_ptr, 0x88);
-
-	/* Get the summon level */
-	summon_lev = r_ptr->level - 1;
 
 	// Sil-y: no chance of spell failure anymore
 	

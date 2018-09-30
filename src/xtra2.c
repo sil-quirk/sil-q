@@ -1763,7 +1763,6 @@ extern void break_truce(bool obvious)
 	int i;
 	
 	monster_type *m_ptr = NULL; // default to soothe compiler warnings
-	monster_race *r_ptr;
 	
 	char m_name[80];
 	
@@ -1774,8 +1773,7 @@ extern void break_truce(bool obvious)
 		{
 			/* Access the monster */
 			m_ptr = &mon_list[i];
-			r_ptr = &r_info[m_ptr->r_idx];
-			
+
 			/* Ignore dead monsters */
 			if (!m_ptr->r_idx) continue;
 			
@@ -2634,34 +2632,7 @@ void verify_panel(void)
 static void look_mon_desc(char *buf, size_t max, int m_idx)
 {
 	monster_type *m_ptr = &mon_list[m_idx];
-	monster_race *r_ptr = &r_info[m_ptr->r_idx];
 
-	bool living = TRUE;
-
-	/* Determine if the monster is "living" (vs "undead") */
-	if (monster_nonliving(r_ptr)) living = FALSE;
-
-	/* Healthy monsters */
-	//if (m_ptr->hp >= m_ptr->maxhp)
-	//{
-	//	/* No damage */
-	//	my_strcpy(buf, (living ? "unhurt" : "undamaged"), max);
-	//}
-	//else
-	//{
-	//	/* Calculate a health "percentage" */
-	//	int perc = 100L * m_ptr->hp / m_ptr->maxhp;
-
-	//	if (perc >= 75)
-	//		my_strcpy(buf, (living ? "somewhat wounded" : "somewhat damaged"), max);
-	//	else if (perc >= 50)
-	//		my_strcpy(buf, (living ? "wounded" : "damaged"), max);
-	//	else if (perc >= 25)
-	//		my_strcpy(buf, (living ? "badly wounded" : "badly damaged"), max);
-	//	else
-	//		my_strcpy(buf, (living ? "almost dead" : "almost destroyed"), max);
-	//}
-	
 	// start the string empty
 	my_strcpy(buf, "(", max);
 	
@@ -2671,20 +2642,7 @@ static void look_mon_desc(char *buf, size_t max, int m_idx)
 		else if (m_ptr->alertness < ALERTNESS_ALERT)      my_strcat(buf, format("unwary (%d), ", m_ptr->alertness), max);
 		else											  my_strcat(buf, format("alert (%d), ", m_ptr->alertness), max);
 	}
-	
-	//else
-	//{
-	//	if (m_ptr->alertness < ALERTNESS_UNWARY)          my_strcat(buf, ", asleep", max);
-	//	else if (m_ptr->alertness < ALERTNESS_ALERT)      my_strcat(buf, ", unwary", max);
-	//}
-	//if (!(r_ptr->flags2 & (RF2_MINDLESS)) && (m_ptr->alertness >= ALERTNESS_ALERT))
-	//{
-	//	if (m_ptr->stance == STANCE_FLEEING)          my_strcat(buf, format(", afraid (%d)",m_ptr->morale), max);
-	//	else if (m_ptr->stance == STANCE_CONFIDENT)   my_strcat(buf, format(", confident (%d)",m_ptr->morale), max);
-	//	else if (m_ptr->stance == STANCE_AGGRESSIVE)  my_strcat(buf, format(", aggressive (%d)",m_ptr->morale), max);
-	//}
-	//else if (m_ptr->stance == STANCE_FLEEING) my_strcat(buf, ", afraid", max);
-	
+
 	if (m_ptr->confused) my_strcat(buf, "confused, ", max);
 	if (m_ptr->stunned) my_strcat(buf, "stunned, ", max);
 	if ((m_ptr->slowed) && (!m_ptr->hasted)) my_strcat(buf, "slowed, ", max);

@@ -1876,7 +1876,7 @@ static void paste_x11_send(XSelectionRequestEvent *rq)
 
 			/* Send the (non-empty) string */
 			XChangeProperty(DPY, rq->requestor, rq->property, rq->target, 8,
-			                PropModeAppend, buf, i);
+			                PropModeAppend, (unsigned char*) buf, i);
 		}
 	}
 	else

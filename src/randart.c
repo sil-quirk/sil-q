@@ -422,9 +422,7 @@ static long eval_max_dam(int r_idx)
 {
 	int i, x;
 	u32b dam = 1;
-	u32b hp;
 	u32b melee_dam, atk_dam, spell_dam;
-	byte rlev;
 	monster_race *r_ptr;
 	u32b flag = 0L; // default to soothe compiler warnings
 	u32b breath_mask = 0L; // default to soothe compiler warnings
@@ -435,12 +433,6 @@ static long eval_max_dam(int r_idx)
 
 	/*clear the counters*/
 	melee_dam = atk_dam = spell_dam = 0;
-
-	/* Evaluate average HP for this monster */
-	hp = r_ptr->hdice * (r_ptr->hside + 1) / 2;
-
-	/* Extract the monster level, force 30 for surface monsters */
-	rlev = ((r_ptr->level >= 1) ? r_ptr->level : 30);
 
 	for (x = 0; x < 4; x++)
 	{

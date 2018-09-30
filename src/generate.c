@@ -2981,7 +2981,6 @@ static bool build_type8(int y0, int x0)
 static bool build_type9(int y0, int x0)
 {
 	vault_type *v_ptr;
-	int y1, x1, y2, x2;
 	int tries = 0;
 
 	/* Pick a version of Morgoth's vault */
@@ -3000,12 +2999,6 @@ static bool build_type9(int y0, int x0)
 			return (FALSE);
 		}
 	}
-
-	/* determine the coordinates */
-	y1 = y0 - (v_ptr->hgt / 2);
-	x1 = x0 - (v_ptr->wid / 2);
-	y2 = y1 + v_ptr->hgt - 1;
-	x2 = x1 + v_ptr->wid - 1;
 
 	/* Try building the vault */
 	if (!build_vault(y0, x0, v_ptr, FALSE))
@@ -3031,16 +3024,9 @@ static bool build_type9(int y0, int x0)
 static bool build_type10(int y0, int x0)
 {
 	vault_type *v_ptr;
-	int y1, x1, y2, x2;
 
 	/* Get the first vault record */
 	v_ptr = &v_info[1];
-
-	/* determine the coordinates */
-	y1 = y0 - (v_ptr->hgt / 2);
-	x1 = x0 - (v_ptr->wid / 2);
-	y2 = y1 + v_ptr->hgt - 1;
-	x2 = x1 + v_ptr->wid - 1;
 
 	/* Try building the vault */
 	if (!build_vault(y0, x0, v_ptr, FALSE))
@@ -3229,7 +3215,7 @@ void make_patch_of_sunlight(int y, int x)
 
 void make_patches_of_sunlight()
 {
-	int i, x, y, floor;
+	int i, x, y;
 
 	// bunch near the player
 	for (i = 0; i < 40; ++i)
@@ -3472,25 +3458,10 @@ static void gates_gen(void)
 	int y, x;
 	int i;
 	int py = 0, px = 0;
-	bool daytime;
 
 	/* Restrict to single-screen size */
 	p_ptr->cur_map_hgt = (3 * PANEL_HGT);
 	p_ptr->cur_map_wid = (2 * PANEL_WID_FIXED);
-
-	/* Day time */
-	if ((turn % (10L * GATES_DAWN)) < ((10L * GATES_DAWN) / 2))
-	{
-		/* Day time */
-		daytime = TRUE;
-	}
-
-	/* Night time */
-	else
-	{
-		/* Night time */
-		daytime = FALSE;
-	}
 
 	/*start with basic granite*/
 	basic_granite();
@@ -3682,7 +3653,7 @@ void unring_a_bell(void)
  */
 void generate_cave(void)
 {
-	int y, x, num, i;
+	int y, x, i;
 
 	/* The dungeon is not ready */
 	character_dungeon = FALSE;
@@ -3706,8 +3677,7 @@ void generate_cave(void)
     // reset the forced skipping of next turn (a bit rough to miss first turn if you fell down)
     p_ptr->skip_next_turn = FALSE;
 
-	/* Generate num is increased below*/
-	for (num = 0; TRUE;)
+	while (TRUE)
 	{
 		bool okay = TRUE;
 

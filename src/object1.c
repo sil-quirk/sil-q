@@ -2591,9 +2591,6 @@ bool get_item(int *cp, cptr pmt, cptr str, int mode)
 	int floor_list[MAX_FLOOR_STACK];
 	int floor_num;
 
-	bool allow_list;
-
-
 #ifdef ALLOW_REPEAT
 
 	/* Get the item index */
@@ -2875,9 +2872,6 @@ bool get_item(int *cp, cptr pmt, cptr str, int mode)
 
 		/* Show the prompt */
 		prt(tmp_val, 0, 0);
-
-		/* Hack - Find the origin of the next key */
-		allow_list = interactive_input(TRUE);
 
 		/* Get a key */
 		which = inkey();
