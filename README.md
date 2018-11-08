@@ -57,16 +57,15 @@ this file for advice on your specific system.
 
    Download the free Cygwin compiler. It provides a shell interface very
    similar to a normal Unix/Linux shell with many useful tools. Install it
-   and start the shell. (Note: for use in windows, the computer's
-   autoexec.bat file needs to be edited to include a path to the Cygwin 
-   Folder.  Also, the "make" portion of Cygwin is not in the default 
-   download.  You have to search it out and specify that the download
-   include "make".)
+   and start the Cygwin terminal.
+
+   Note you will have to ensure "make" and the mingw C compiler are installed
+   as they may not be included in your Cygwin default installation.
 
 2. Compile Sil-Q: 
 
-   (Note: In windows open up a DOS window and go to the src directory) 
-   Go to the src directory and run "make -f Makefile.cyg install". 
+   In the Cygwin terminal change to the src directory and run 
+   "make -f Makefile.cyg install". 
    Sil should now be compiled and installed into the Sil folder.  
    The executable file will be called Sil.exe. 
 

@@ -394,7 +394,7 @@ T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:32:0:99  # Helm
 T:33:0:99  # Crown
-T:40:0:99  # Amulet
+T:19:0:99  # Bow
 
 N:82:Keen Senses
 I:4:2:3

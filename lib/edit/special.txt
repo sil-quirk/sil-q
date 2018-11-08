@@ -510,40 +510,39 @@ F:VUL_COLD
 ##### Bows #####
 
 
-N:91:of Lindon
-W:0:2:0:3000
-C:0:0:0:0:0:0:2
+N:91:of Thargelion
+W:2:2:0:3000
+C:0:0:0:0:0:0:1
 T:19:0:99
-F:STEALTH
+F:DEX | NEG_STR
 
 
 N:92:of Dorthonion
-W:0:2:0:3000
-C:1:0:0:0:0:0:2
+W:2:2:0:3000
+C:0:0:0:0:0:0:1
 T:19:0:99
-F:PERCEPTION
+F:STR | NEG_DEX
 
 
 N:93:of Radiance
-W:2:4:0:1000
+W:6:4:0:1000
 C:0:0:0:0:0:0:0
 T:19:0:99
 F:RADIANCE
 
 
 N:94:of the Marchwardens
-W:2:4:0:1000
+W:6:4:0:1000
 C:0:0:0:0:0:0:0
 T:19:0:99
 F:SEE_INVIS | RES_FEAR
 
 
-# (ability 1/2 is Dedication)
 N:95:of Falas
-W:2:4:0:3000
-C:1:0:0:0:0:0:0
+W:8:6:0:3000
+C:0:0:0:0:0:0:3
 T:19:0:99
-B:1/2
+F:RES_COLD | PERCEPTION
 
 
 ###
