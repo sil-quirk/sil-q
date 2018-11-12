@@ -1239,6 +1239,7 @@ I:75:3:100
 W:4:0:5:200
 P:0:0d0:0:0d0
 A:4/3:12/6
+F:EASY_KNOW
 D:It grants a bonus of +10 to perception for 20d4 turns, and
 D: restores a quarter of your voice.
 
