@@ -450,9 +450,9 @@ static bool use_staff(object_type *o_ptr, bool *ident)
 		{
 			if (detect_traps()) *ident = TRUE;
 			if (detect_doors()) *ident = TRUE;
-			if (open_doors(will_score)) *ident = TRUE;
-			if (destroy_traps(will_score)) *ident = TRUE;
-			if (close_chasms(will_score)) *ident = TRUE;
+			if (open_doors(will_score * 2)) *ident = TRUE;
+			if (destroy_traps(will_score * 2)) *ident = TRUE;
+			if (close_chasms(will_score * 2)) *ident = TRUE;
 			break;
 		}
 
