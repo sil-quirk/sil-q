@@ -332,7 +332,7 @@ D:'... great writhing, tangled brambles sprawled. Some had long stabbing
 D: thorns, some hooked barbs that rent like knives.'
 
 N:13:Phantom
-W:1:1
+W:1:2
 G:W:s
 I:1:2d4:0
 A:0:2:8:2
