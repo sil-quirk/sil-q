@@ -1316,7 +1316,7 @@ D: who in days of old hunted with Orome himself.
 N:143:'Death's Sting'
 I:19:12:0
 W:10:15:10:9000
-P:1:1d7:0:0d0
+P:1:1d8:0:0d0
 B:1/5
 D:An unassuming if well-fashioned bow, but when you take
 D: aim with it you find your eye drawn particularly to
@@ -1356,7 +1356,7 @@ D: to the touch and easy on the draw.
 N:148:of Avernien
 I:19:14:0
 W:20:3:20:35000
-P:1:1d10:0:0d0
+P:1:1d12:0:0d0
 F:RADIANCE | RES_FEAR | RES_CONFU | RES_STUN | RES_HALLU
 D:A large exquisite bow fashioned from a single horn of a slain
 D: dragon. Many are the blessings of the Eldar laid over it.
