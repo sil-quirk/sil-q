@@ -489,7 +489,7 @@ static flag_name info_flags[] =
 	{"TRAPS",           VLT, VLT_TRAPS},
 	{"WEBS",            VLT, VLT_WEBS},
 	{"LIGHT",           VLT, VLT_LIGHT},
-	{"VLTXXXX6",  VLT, VLT_VLTXXXX6},
+	{"SURFACE",         VLT, VLT_SURFACE},
 	{"VLTXXXX7",  VLT, VLT_VLTXXXX7},
 	{"VLTXXXX8",  VLT, VLT_VLTXXXX8},
 	{"VLTXXXX9",  VLT, VLT_VLTXXXX9},

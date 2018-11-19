@@ -2093,7 +2093,7 @@
 #define VLT_TRAPS               0x00000004L /* Vault has more traps than usual */
 #define VLT_WEBS                0x00000008L /* Vault has spider webs */
 #define VLT_LIGHT               0x00000010L /* Vault is always generated with light */
-#define VLT_VLTXXXX6			0x00000020L
+#define VLT_SURFACE			0x00000020L
 #define VLT_VLTXXXX7            0x00000040L
 #define VLT_VLTXXXX8			0x00000080L
 #define VLT_VLTXXXX9            0x00000100L

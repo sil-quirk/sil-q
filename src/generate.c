@@ -80,7 +80,6 @@
  * Hack -- Dungeon allocation "types"
  */
 #define ALLOC_TYP_RUBBLE	1	/* Rubble */
-#define ALLOC_TYP_TRAP		3	/* Trap */
 #define ALLOC_TYP_OBJECT	5	/* Object */
 
 
@@ -472,12 +471,6 @@ static void alloc_object(int set, int typ, int num, bool out_of_sight)
 			case ALLOC_TYP_RUBBLE:
 			{
 				place_rubble(y, x);
-				break;
-			}
-
-			case ALLOC_TYP_TRAP:
-			{
-				place_trap(y, x);
 				break;
 			}
 
@@ -2344,10 +2337,17 @@ static bool build_vault(int y0, int x0, vault_type *v_ptr, bool flip_d)
 					break;
 				}
 
-                /* Chasm */
+				/* Chasm */
 				case '7':
 				{
 					cave_set_feat(y, x, FEAT_CHASM);
+					break;
+				}
+
+				/* Sunlight */
+				case ',':
+				{
+					cave_set_feat(y, x, FEAT_SUNLIGHT);
 					break;
 				}
                 
@@ -2714,23 +2714,26 @@ static bool build_vault(int y0, int x0, vault_type *v_ptr, bool flip_d)
             
             // another chance to place traps, with 4 times the normal chance
             // so traps in interesting rooms and vaults are a total of 5 times more likely
-            if (dieroll(1000) <= trap_placement_chance(y, x) * (multiplier-1))
+            // webbed vaults also have a large chance of receiving webs
+            if ((v_ptr->flags & (VLT_WEBS)))
+            {
+ 		if (cave_naked_bold(y,x) && one_in_(20))
+                {
+			/* Place a web trap */
+			cave_set_feat(y, x, FEAT_TRAP_WEB);
+
+			// Hide it half the time
+			if (one_in_(2))
+			{
+			    cave_info[y][x] |= (CAVE_HIDDEN);
+			}
+            	}
+            }
+            else if (dieroll(1000) <= trap_placement_chance(y, x) * (multiplier-1))
             {
                 place_trap(y,x);
             }
             
-            // webbed vaults also have a large chance of receiving webs
-            else if ((v_ptr->flags & (VLT_WEBS)) && cave_naked_bold(y,x) && one_in_(20))
-            {
-                /* Place a web trap */
-                cave_set_feat(y, x, FEAT_TRAP_WEB);
-                
-                // Hide it half the time
-                if (one_in_(2))
-                {
-                    cave_info[y][x] |= (CAVE_HIDDEN);
-                }
-            }
         }
     }
 
@@ -2811,6 +2814,7 @@ static bool build_type6(int y0, int x0, bool force_forge)
 	/* Pick an interesting room */
 	while (TRUE)
 	{
+		unsigned long long rarity = 0;
 		tries++;
 
 		/* Get a random vault record */
@@ -2822,8 +2826,12 @@ static bool build_type6(int y0, int x0, bool force_forge)
         // unless forcing a forge, try additional times to place any vault marked TEST
         if ((tries < 1000) && !(v_ptr->flags & (VLT_TEST)) && !p_ptr->force_forge) continue;
 
+		rarity = v_ptr->rarity;
+		/* Surface rooms get very much rarer at depth */
+		if (v_ptr->flags & (VLT_SURFACE)) rarity <<= (v_ptr->depth * 2);
+
         /* Accept the first interesting room */
-		if ((v_ptr->typ == 6) && (v_ptr->depth <= p_ptr->depth) && (one_in_(v_ptr->rarity))) break;
+		if ((v_ptr->typ == 6) && (v_ptr->depth <= p_ptr->depth) && (one_in_(rarity))) break;
 		
 		if (tries > 20000)
 		{
