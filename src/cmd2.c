@@ -3879,11 +3879,6 @@ void do_cmd_fire(int quiver)
 					/* Add 'critical hit' dice based on bow weight */
 					crit_bonus_dice = crit_bonus(hit_result, j_ptr->weight, r_ptr, S_ARC, FALSE);
 
-					if (p_ptr->active_ability[S_ARC][ARC_PENETRATE] && crit_bonus_dice < 1)
-					{
-						crit_bonus_dice = 1;
-					}
-										
 					/* Add slay (or brand) dice based on both arrow and bow */
 					slay_bonus_dice = slay_bonus(i_ptr, m_ptr, &noticed_arrow_flag);
 					slay_bonus_dice += slay_bonus(j_ptr, m_ptr, &noticed_bow_flag);
@@ -3969,6 +3964,15 @@ void do_cmd_fire(int quiver)
 						if (net_dam == 0)
 						{
 							make_alert(m_ptr);
+						}
+						else
+						{
+							if ((m_ptr->maxhp <= (m_ptr->hp + net_dam)) && 
+								(p_ptr->active_ability[S_ARC][ARC_FIRST_BLOOD]))
+							{
+								msg_format("Your arrow makes %s halt for a moment.", m_name);
+								m_ptr->skip_next_turn = TRUE;
+							}
 						}
 
 						if (((j_ptr->name1 && (a_info[j_ptr->name1].flags2 & (TR2_RADIANCE))) ||
