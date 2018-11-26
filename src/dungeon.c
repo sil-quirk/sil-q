@@ -1106,14 +1106,8 @@ static void process_command(void)
 			do_cmd_exchange();
 			break;
 		}
-
-		/* Running shot */
-		case '-':
-		{
-			do_cmd_running_shot();
-			break;
-		}
-
+			
+			
 		/*** Use various objects ***/
 
 		/* Inscribe an object */
@@ -1137,17 +1131,17 @@ static void process_command(void)
 			break;
 		}
 
-		/* Fire an arrow from the 1st quiver and prompt for target */
+		/* Fire an arrow from the 1st quiver */
 		case 'f':
 		{
-			do_cmd_fire(1, FALSE);
+			do_cmd_fire(1);
 			break;
 		}
 
-		/* Fire an arrow from the 2nd quiver and prompt for target */
+		/* Fire an arrow from the 2nd quiver */
 		case 'F':
 		{
-			do_cmd_fire(2, FALSE);
+			do_cmd_fire(2);
 			break;
 		}
 			

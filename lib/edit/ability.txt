@@ -163,65 +163,57 @@ D:You gain a point of strength.
 
 # Archery ---------------------------------------------
 
-N:20:Steady Hands
+N:20:Rout
 I:1:0:2
-D:If your Strength exceeds your bow's weight, gain the difference as
-D: a bonus to your Archery skill.
-T:19:0:99  # Bows
-T:31:1:1   # Gloves (leather gloves only)
-T:45:0:99  # Ring
-
-N:21:Rout
-I:1:1:3
-D:Firing at fleeing monsters is calculated as if you had 4 points
+D:Firing at fleeing monsters is calculated as if you had 3 points
 D: more dexterity.
 T:19:0:99  # Bows
 
-N:22:Dedication
-I:1:2:4
+N:21:Dedication
+I:1:1:3
 D:Increases your bow's damage sides by 2 as long as you are not wielding
 D: a weapon or carrying a shield.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 T:45:0:99  # Ring
 
-N:23:Point Blank Archery
-I:1:3:5
+N:22:Point Blank Archery
+I:1:2:4
 D:The monster you are firing at cannot get an attack of opportunity.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 
-N:24:Versatility
-I:1:4:6
+N:23:Versatility
+I:1:3:5
 D:If you have more skill points in archery than in melee, you gain a bonus
 D: to melee of half the difference between them.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 
-N:25:Crippling Shot
-I:1:5:7
+N:24:Crippling Shot
+I:1:4:6
 P:1/0:1/1
 D:Your critical hits sometimes temporarily slow monsters
 D: (depending on the level of critical and the monster's Will).
 T:19:0:99  # Bows
 
-N:26:Running Shot
-I:1:6:8
-D:Allows you to use the '-' command to continue moving in the direction
-D: you moved last turn while firing using your primary quiver at your most
-D: recent target. Accuracy is halved while doing this.
+N:25:Penetrate
+I:1:5:7
+D:Non-critical hits count as critical hits and gain one critical damage
+D: die.
 T:19:0:99  # Bows
-T:30:0:99  # Boots
 
-N:27:Deadly Hail
-I:1:7:9
-P:1/2:1/5
+N:26:Deadly Hail
+I:1:6:8
+P:1/4:1/5
 D:Arrows fired the turn after killing an enemy with an arrow do twice their
 D: normal damage.
 T:19:0:99  # Bows
+T:31:1:1   # Gloves (leather gloves only)
+T:45:0:99  # Ring
 
-N:28:Dexterity
-I:1:8:10
+N:27:Dexterity
+I:1:7:10
 D:You gain a point of dexterity.
 
 # Evasion ---------------------------------------------
