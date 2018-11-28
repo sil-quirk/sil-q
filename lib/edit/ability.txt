@@ -163,16 +163,15 @@ D:You gain a point of strength.
 
 # Archery ---------------------------------------------
 
-N:20:First Blood
+N:20:Rout
 I:1:0:2
-D:Damaging an uninjured enemy with an arrow causes them to miss their
-D: next turn.
-T:19:0:99  # Bows
-
-N:21:Rout
-I:1:1:3
 D:Firing at fleeing monsters is calculated as if you had 3 points
 D: more dexterity.
+T:19:0:99  # Bows
+
+N:21:First Blood
+I:1:1:3
+D:Damaging an uninjured enemy with an arrow causes them to halt.
 T:19:0:99  # Bows
 
 N:22:Dedication
