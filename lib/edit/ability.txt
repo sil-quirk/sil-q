@@ -212,8 +212,16 @@ T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 T:45:0:99  # Ring
 
-N:27:Dexterity
-I:1:7:10
+N:27:Blessing of Orome
+I:1:7:9
+P:1/2:5/3
+D:Every arrow you fire increases your light radius by one for the next three
+D: turns.
+T:19:0:99  # Bows
+T:40:0:99  # Amulet
+
+N:28:Dexterity
+I:1:8:10
 D:You gain a point of dexterity.
 
 # Evasion ---------------------------------------------

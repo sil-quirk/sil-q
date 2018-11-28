@@ -3968,6 +3968,7 @@ void do_cmd_fire(int quiver)
 						else
 						{
 							if ((m_ptr->maxhp <= (m_ptr->hp + net_dam)) && 
+								!(r_ptr->flags1 & RF1_NEVER_MOVE) &&
 								(p_ptr->active_ability[S_ARC][ARC_FIRST_BLOOD]))
 							{
 								msg_format("Your arrow makes %s halt for a moment.", m_name);

@@ -472,7 +472,8 @@
 #define	ARC_VERSATILITY				 	4
 #define	ARC_CRIPPLING				 	5
 #define	ARC_DEADLY_HAIL				 	6
-#define	ARC_DEX						7
+#define	ARC_BLESSING_OF_OROME				7
+#define	ARC_DEX						8
 
 /* 
  * Evasion abilities 

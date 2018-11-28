@@ -1805,6 +1805,15 @@ void calc_torch(void)
 		p_ptr->cur_light += ability_bonus(S_SNG, SNG_TREES);
 	}
 		
+	// Blessing of Orome
+	if (p_ptr->active_ability[S_ARC][ARC_BLESSING_OF_OROME])
+	{
+		for (i = 0; i < 3; ++i)
+		{
+			if (p_ptr->previous_action[i] == ACTION_ARCHERY) p_ptr->cur_light++;
+		}
+	}
+
 	/* Update the visuals */
 	p_ptr->update |= (PU_UPDATE_VIEW);
 	p_ptr->update |= (PU_MONSTERS);
