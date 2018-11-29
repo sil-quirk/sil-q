@@ -188,12 +188,14 @@ I:1:3:5
 D:Damaging an uninjured enemy with an arrow causes them to halt.
 T:19:0:99  # Bows
 
-N:24:Versatility
+N:24:Blessing of Orome
 I:1:4:6
-D:If you have more skill points in archery than in melee, you gain a bonus
-D: to melee of half the difference between them.
+P:1/2:5/3
+D:Every arrow you fire increases your light radius by one for the next three
+D: turns.
 T:19:0:99  # Bows
-T:31:1:1   # Gloves (leather gloves only)
+T:32:0:99  # Helm
+T:40:0:99  # Amulet
 
 N:25:Crippling Shot
 I:1:5:7
@@ -202,23 +204,21 @@ D:Your critical hits sometimes temporarily slow monsters
 D: (depending on the level of critical and the monster's Will).
 T:19:0:99  # Bows
 
-N:26:Deadly Hail
+N:26:Versatility
 I:1:6:8
+D:If you have more skill points in archery than in melee, you gain a bonus
+D: to melee of half the difference between them.
+T:19:0:99  # Bows
+T:31:1:1   # Gloves (leather gloves only)
+
+N:27:Deadly Hail
+I:1:7:9
 P:1/0:1/2
 D:Arrows fired the turn after killing an enemy with an arrow do twice their
 D: normal damage.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 T:45:0:99  # Ring
-
-N:27:Blessing of Orome
-I:1:7:9
-P:1/2:5/3
-D:Every arrow you fire increases your light radius by one for the next three
-D: turns.
-T:19:0:99  # Bows
-T:32:0:99  # Helm
-T:40:0:99  # Amulet
 
 N:28:Dexterity
 I:1:8:10
