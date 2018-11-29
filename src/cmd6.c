@@ -360,7 +360,7 @@ void do_cmd_play_instrument(object_type *default_o_ptr, int default_item)
  */
 void do_cmd_activate_staff(object_type *default_o_ptr, int default_item)
 {
-	int item, score, difficulty, lev;
+	int item;
 
 	bool ident;
 
@@ -415,26 +415,6 @@ void do_cmd_activate_staff(object_type *default_o_ptr, int default_item)
 	
 	/* Not identified yet */
 	ident = FALSE;
-
-	/* Extract the item level */
-	lev = k_info[o_ptr->k_idx].level;
-
-	/* Base chance of success */
-	score = p_ptr->skill_use[S_WIL];
-
-	// Base difficulty
-	difficulty = lev / 2;
-
-	/* Confusion hurts skill */
-	if (p_ptr->confused) difficulty += 5;
-
-	/* Roll for usage */
-	if (skill_check(PLAYER, score, difficulty, NULL) <= 0)
-	{
-		flush();
-		msg_print("You failed to use the staff properly.");
-		return;
-	}
 
 	/* Notice empty staffs */
 	if ((o_ptr->pval <= 1 && (!p_ptr->active_ability[S_WIL][WIL_CHANNELING])) || o_ptr->pval <= 0)
