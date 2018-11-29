@@ -3973,6 +3973,10 @@ void do_cmd_fire(int quiver)
 							{
 								msg_format("Your arrow brings %s to a halt.", m_name);
 								m_ptr->skip_next_turn = TRUE;
+								if (m_ptr->mspeed > p_ptr->pspeed)
+								{
+									m_ptr->energy = 0;
+								}
 							}
 						}
 

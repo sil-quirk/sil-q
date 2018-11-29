@@ -465,10 +465,10 @@
 /* 
  * Archery abilities 
  */
-#define	ARC_FIRST_BLOOD					0
-#define	ARC_ROUT					1
+#define	ARC_ROUT					0
+#define	ARC_POINT_BLANK				 	1
 #define	ARC_DEDICATION				 	2
-#define	ARC_POINT_BLANK				 	3
+#define	ARC_FIRST_BLOOD					3
 #define	ARC_VERSATILITY				 	4
 #define	ARC_CRIPPLING				 	5
 #define	ARC_DEADLY_HAIL				 	6

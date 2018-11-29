@@ -169,10 +169,11 @@ D:Firing at fleeing monsters is calculated as if you had 3 points
 D: more dexterity.
 T:19:0:99  # Bows
 
-N:21:First Blood
+N:21:Point Blank Archery
 I:1:1:3
-D:Damaging an uninjured enemy with an arrow causes them to halt.
+D:The monster you are firing at cannot get an attack of opportunity.
 T:19:0:99  # Bows
+T:31:1:1   # Gloves (leather gloves only)
 
 N:22:Dedication
 I:1:2:4
@@ -182,11 +183,10 @@ T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 T:45:0:99  # Ring
 
-N:23:Point Blank Archery
+N:23:First Blood
 I:1:3:5
-D:The monster you are firing at cannot get an attack of opportunity.
+D:Damaging an uninjured enemy with an arrow causes them to halt.
 T:19:0:99  # Bows
-T:31:1:1   # Gloves (leather gloves only)
 
 N:24:Versatility
 I:1:4:6
@@ -197,14 +197,14 @@ T:31:1:1   # Gloves (leather gloves only)
 
 N:25:Crippling Shot
 I:1:5:7
-P:1/0:1/2
+P:1/2:1/3
 D:Your critical hits sometimes temporarily slow monsters
 D: (depending on the level of critical and the monster's Will).
 T:19:0:99  # Bows
 
 N:26:Deadly Hail
 I:1:6:8
-P:1/1:1/2
+P:1/0:1/2
 D:Arrows fired the turn after killing an enemy with an arrow do twice their
 D: normal damage.
 T:19:0:99  # Bows
@@ -217,6 +217,7 @@ P:1/2:5/3
 D:Every arrow you fire increases your light radius by one for the next three
 D: turns.
 T:19:0:99  # Bows
+T:32:0:99  # Helm
 T:40:0:99  # Amulet
 
 N:28:Dexterity
