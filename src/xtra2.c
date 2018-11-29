@@ -306,6 +306,11 @@ bool set_afraid(int v)
 		{
 			msg_print("You are terrified!");
 			notice = TRUE;
+			if (singing(SNG_CHALLENGE))
+			{
+				/* Stop singing */
+				change_song(SNG_NOTHING);
+			}
 		}
 	}
 
