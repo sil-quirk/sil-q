@@ -2674,7 +2674,7 @@ int object_difficulty(object_type *o_ptr)
 	x = (o_ptr->ds - k_ptr->ds);
 	// dd used to be a factor here, but a shortsword is far more breakable than a great axe
 	dif_mod(x, 8, &dif_inc);
-	if (x > 0) dif_inc -= 5;
+	if (x > 0) dif_inc -= o_ptr->tval == TV_BOW ? 1 : 4;
 
 	// protection bonus
 	base = (k_ptr->ps > 0) ? ((k_ptr->ps + 1) * k_ptr->pd) : 0;
@@ -2819,7 +2819,6 @@ int object_difficulty(object_type *o_ptr)
 	switch (wield_slot(o_ptr))
 	{
 		//case INVEN_WIELD:
-		case INVEN_BOW:
 		case INVEN_LEFT:
 		case INVEN_RIGHT:
 		//case INVEN_NECK:

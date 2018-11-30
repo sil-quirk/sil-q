@@ -1356,7 +1356,7 @@ D: to the touch and easy on the draw.
 
 N:148:of Avernien
 I:19:14:0
-W:20:10:20:35000
+W:20:5:20:35000
 P:1:1d12:0:0d0
 F:RADIANCE | RES_FEAR | RES_CONFU | RES_STUN | RES_HALLU
 B:1/4
