@@ -1086,7 +1086,7 @@ D: and enchanted for both battle and mine.
 
 N:117:of Angrod
 I:32:5:0
-W:5:10:45:4500
+W:3:10:45:4500
 P:0:0d0:0:1d3
 F:REGEN | SUST_CON | SUST_STR | RES_STUN | RES_FEAR
 D:The helm of Angrod, son of Finarfin, who perished in
@@ -1302,7 +1302,7 @@ D: let you pass as a messenger journeying to Morgoth?
 N:142:of Celegorm
 I:19:12:-1
 W:7:10:20:9000
-P:1:1d8:0:0d0
+P:1:1d9:0:0d0
 F:GRA
 B:4/8
 D:The bow of Celegorm the great huntsman, third son of Feanor,

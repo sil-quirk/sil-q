@@ -509,6 +509,12 @@ F:VUL_COLD
 
 ##### Bows #####
 
+N:90:of Lammoth
+W:2:8:0:1000
+C:0:0:0:0:0:0:0
+T:19:12:12
+F:RES_POIS | DANGER | AGGRAVATE
+
 
 N:91:of Thargelion
 W:2:2:0:3000
