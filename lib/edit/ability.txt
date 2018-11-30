@@ -303,7 +303,7 @@ T:31:0:99  # Gloves
 
 N:49:Controlled Retreat
 I:2:9:11
-P:2/1:2/6
+P:2/0:2/1
 D:Gives you a free attack on an opponent when you step away
 D: from it, but only if you did not move the previous round.
 T:21:0:99  # Hafted
