@@ -169,11 +169,13 @@ D:Firing at fleeing monsters is calculated as if you had 3 points
 D: more dexterity.
 T:19:0:99  # Bows
 
-N:21:Point Blank Archery
+N:21:Blessing of Orome
 I:1:1:3
-D:The monster you are firing at cannot get an attack of opportunity.
+D:Every arrow you fire increases your light radius by one for the next three
+D: turns.
 T:19:0:99  # Bows
-T:31:1:1   # Gloves (leather gloves only)
+T:32:0:99  # Helm
+T:40:0:99  # Amulet
 
 N:22:Dedication
 I:1:2:4
@@ -183,42 +185,40 @@ T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 T:45:0:99  # Ring
 
-N:23:First Blood
+N:23:Point Blank Archery
 I:1:3:5
-D:Damaging an uninjured enemy with an arrow causes them to halt.
+D:The monster you are firing at cannot get an attack of opportunity.
 T:19:0:99  # Bows
+T:31:1:1   # Gloves (leather gloves only)
 
-N:24:Blessing of Orome
+N:24:Versatility
 I:1:4:6
-P:1/2:5/3
-D:Every arrow you fire increases your light radius by one for the next three
-D: turns.
-T:19:0:99  # Bows
-T:32:0:99  # Helm
-T:40:0:99  # Amulet
-
-N:25:Crippling Shot
-I:1:5:7
-P:1/2:1/3
-D:Your critical hits sometimes temporarily slow monsters
-D: (depending on the level of critical and the monster's Will).
-T:19:0:99  # Bows
-
-N:26:Versatility
-I:1:6:8
 D:If you have more skill points in archery than in melee, you gain a bonus
 D: to melee of half the difference between them.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 
-N:27:Deadly Hail
-I:1:7:9
+N:25:Crippling Shot
+I:1:5:7
+P:1/0:1/2
+D:Your critical hits sometimes temporarily slow monsters
+D: (depending on the level of critical and the monster's Will).
+T:19:0:99  # Bows
+
+N:26:Deadly Hail
+I:1:6:8
 P:1/0:1/2
 D:Arrows fired the turn after killing an enemy with an arrow do twice their
 D: normal damage.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 T:45:0:99  # Ring
+
+N:27:First Blood
+I:1:7:9
+P:1/5:1/6
+D:Damaging an uninjured enemy with an arrow causes them to halt.
+T:19:0:99  # Bows
 
 N:28:Dexterity
 I:1:8:10
