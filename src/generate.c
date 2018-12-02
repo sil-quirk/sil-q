@@ -293,7 +293,7 @@ int dungeon_pieces(void)
 static void place_rubble(int y, int x)
 {
 	/* Create rubble */
-	if (p_ptr->depth >= 4) cave_set_feat(y, x, FEAT_RUBBLE);
+	if (p_ptr->depth >= 4 && cave_feat[y][x] != FEAT_MORE && cave_feat[y][x] != FEAT_LESS) cave_set_feat(y, x, FEAT_RUBBLE);
 }
 
 
@@ -3205,14 +3205,14 @@ void make_patch_of_sunlight(int y, int x)
 		}
 		if (floor > 6)
 		{
-			cave_set_feat(y, x, FEAT_RUBBLE);
+			if (cave_feat[y][x] == FEAT_FLOOR) cave_set_feat(y, x, FEAT_RUBBLE);
 			for (n = (y - 1); n <= (y + 1); n++)
 			{
 				for (m = (x - 1); m <= (x + 1); m++)
 				{
 					if ((cave_info[n][m] & CAVE_GLOW) && cave_feat[n][m] == FEAT_FLOOR && one_in_(4))
 					{
-						cave_set_feat(n, m, FEAT_SUNLIGHT);
+						if (cave_feat[n][m] == FEAT_FLOOR) cave_set_feat(n, m, FEAT_SUNLIGHT);
 					}
 				}
 			}
