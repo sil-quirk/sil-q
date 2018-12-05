@@ -163,27 +163,25 @@ D:You gain a point of strength.
 
 # Archery ---------------------------------------------
 
-N:20:Rout
+N:20:Blessing of Orome
 I:1:0:2
-D:Firing at fleeing monsters is calculated as if you had 3 points
-D: more dexterity.
-T:19:0:99  # Bows
-
-N:21:Blessing of Orome
-I:1:1:3
-D:Every arrow you fire increases your light radius by one for the next three
+D:Every arrow you fire increases your light radius by one for the next five
 D: turns.
 T:19:0:99  # Bows
 T:32:0:99  # Helm
 T:40:0:99  # Amulet
 
-N:22:Dedication
-I:1:2:4
-D:Increases your bow's damage sides by 2 as long as you are not wielding
-D: a weapon or carrying a shield.
-T:19:0:99  # Bows
+N:21:Fletchery
+I:1:1:3
+D:Allows you to use the '-' command to give ordinary arrows
+D: a +3 bonus. Takes one turn for each arrow.
 T:31:1:1   # Gloves (leather gloves only)
-T:45:0:99  # Ring
+
+N:22:Rout
+I:1:2:4
+D:Firing at fleeing monsters is calculated as if you had 4 points
+D: more dexterity.
+T:19:0:99  # Bows
 
 N:23:Point Blank Archery
 I:1:3:5
@@ -191,44 +189,40 @@ D:The monster you are firing at cannot get an attack of opportunity.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 
-N:24:Versatility
+N:24:Dedication
 I:1:4:6
+D:Increases your bow's damage sides by 2 as long as you are not wielding
+D: a weapon or carrying a shield.
+T:19:0:99  # Bows
+T:31:1:1   # Gloves (leather gloves only)
+T:45:0:99  # Ring
+
+N:25:Versatility
+I:1:5:7
 D:If you have more skill points in archery than in melee, you gain a bonus
 D: to melee of half the difference between them.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 
-N:25:Crippling Shot
-I:1:5:7
-P:1/0:1/2
+N:26:Crippling Shot
+I:1:6:8
+P:1/2:1/4
 D:Your critical hits sometimes temporarily slow monsters
 D: (depending on the level of critical and the monster's Will).
 T:19:0:99  # Bows
 
-N:26:Deadly Hail
-I:1:6:8
-P:1/0:1/2
+N:27:Deadly Hail
+I:1:7:9
+P:1/2:1/4
 D:Arrows fired the turn after killing an enemy with an arrow do twice their
 D: normal damage.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 T:45:0:99  # Ring
 
-N:27:First Blood
-I:1:7:9
-P:1/5:1/6
-D:Damaging an uninjured enemy with an arrow causes them to halt.
-T:19:0:99  # Bows
-
 N:28:Dexterity
 I:1:8:10
 D:You gain a point of dexterity.
-
-N:29:Fletchery
-I:1:9:1
-D:Allows you to use the '-' command to improve ordinary arrows
-D: into +3 arrows.
-T:31:1:1   # Gloves (leather gloves only)
 
 # Evasion ---------------------------------------------
 

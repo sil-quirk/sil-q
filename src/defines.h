@@ -465,16 +465,15 @@
 /* 
  * Archery abilities 
  */
-#define	ARC_ROUT					0
-#define	ARC_BLESSING_OF_OROME				1
-#define	ARC_DEDICATION				 	2
+#define	ARC_BLESSING_OF_OROME				0
+#define	ARC_FLETCHERY					1
+#define	ARC_ROUT					2
 #define	ARC_POINT_BLANK				 	3
-#define	ARC_VERSATILITY				 	4
-#define	ARC_CRIPPLING				 	5
-#define	ARC_DEADLY_HAIL				 	6
-#define	ARC_FIRST_BLOOD					7
+#define	ARC_DEDICATION				 	4
+#define	ARC_VERSATILITY				 	5
+#define	ARC_CRIPPLING				 	6
+#define	ARC_DEADLY_HAIL				 	7
 #define	ARC_DEX						8
-#define	ARC_FLETCHERY					9
 
 /* 
  * Evasion abilities 

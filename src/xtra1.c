@@ -1813,7 +1813,7 @@ void calc_torch(void)
 	// Blessing of Orome
 	if (p_ptr->active_ability[S_ARC][ARC_BLESSING_OF_OROME])
 	{
-		for (i = 0; i < 3; ++i)
+		for (i = 0; i < 5; ++i)
 		{
 			if (p_ptr->previous_action[i] == ACTION_ARCHERY) p_ptr->cur_light++;
 		}

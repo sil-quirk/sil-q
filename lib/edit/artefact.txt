@@ -1311,13 +1311,13 @@ D: who in days of old hunted with Orome himself.
 
 ## The Shortbow 'Death's Sting'
 ## Original to Sil
-## (ability 1/5 is Crippling Shot)
+## (ability 1/6 is Crippling Shot)
 
 N:143:'Death's Sting'
 I:19:12:0
 W:10:15:10:9000
 P:1:1d8:0:0d0
-B:1/5
+B:1/6
 D:An unassuming if well-fashioned bow, but when you take
 D: aim with it you find your eye drawn particularly to
 D: vulnerable places in your foe's armour.
@@ -1352,14 +1352,14 @@ D: to the touch and easy on the draw.
 ## The Dragon-horn Bow of Avernien
 ## 1st age
 ## Avernien was where Earendil was equipped (after the events of Sil)
-## (ability 1/1 is Blessing of Orome)
+## (ability 1/0 is Blessing of Orome)
 
 N:148:of Avernien
 I:19:14:0
 W:20:5:20:35000
 P:1:1d12:0:0d0
 F:RADIANCE | RES_FEAR | RES_CONFU | RES_STUN | RES_HALLU
-B:1/1
+B:1/0
 D:A large exquisite bow fashioned from a single horn of a slain
 D: dragon. Many are the blessings of the Eldar laid over it.
 

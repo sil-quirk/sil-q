@@ -3919,7 +3919,7 @@ void do_cmd_fire(int quiver)
 				// the chance of hitting one is high.
 				if (p_ptr->active_ability[S_ARC][ARC_ROUT] && m_ptr->stance == STANCE_FLEEING)
 				{
-					total_attack_mod += 3;
+					total_attack_mod += 4;
 				}
 
 				// Determine the monster's evasion after all modifiers
@@ -4042,20 +4042,6 @@ void do_cmd_fire(int quiver)
 						if (net_dam == 0)
 						{
 							make_alert(m_ptr);
-						}
-						else
-						{
-							if ((m_ptr->maxhp <= (m_ptr->hp + net_dam)) && 
-								!(r_ptr->flags1 & RF1_NEVER_MOVE) &&
-								(p_ptr->active_ability[S_ARC][ARC_FIRST_BLOOD]))
-							{
-								msg_format("Your arrow brings %s to a halt.", m_name);
-								m_ptr->skip_next_turn = TRUE;
-								if (m_ptr->mspeed > p_ptr->pspeed)
-								{
-									m_ptr->energy = 0;
-								}
-							}
 						}
 
 						if (((j_ptr->name1 && (a_info[j_ptr->name1].flags2 & (TR2_RADIANCE))) ||
