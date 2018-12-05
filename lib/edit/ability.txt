@@ -224,6 +224,12 @@ N:28:Dexterity
 I:1:8:10
 D:You gain a point of dexterity.
 
+N:29:Fletchery
+I:1:9:1
+D:Allows you to use the '-' command to improve ordinary arrows
+D: into +3 arrows.
+T:31:1:1   # Gloves (leather gloves only)
+
 # Evasion ---------------------------------------------
 
 N:40:Dodging

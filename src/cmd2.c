@@ -1854,7 +1854,85 @@ void do_cmd_exchange(void)
 		
 }
 
+void do_cmd_fletchery(void)
+{
+	int item;
+	object_type *o_ptr;
+	cptr q, s;
 
+	if (!p_ptr->active_ability[S_ARC][ARC_FLETCHERY])
+	{
+		msg_print("You need the ability 'fletchery' to use this command.");
+		return;
+	}
+
+	/* Restrict the choices */
+	item_tester_hook = item_tester_hook_ordinary_ammo;
+
+	/* Get an item */
+	q = "Improve which arrows?";
+	s = "You need ordinary arrows to do that.";
+	if (!get_item(&item, q, s, (USE_INVEN | USE_EQUIP))) return;
+
+	o_ptr = &inventory[item];
+
+	/* Take a turn */
+	p_ptr->energy_use = 100;
+
+	// store the action type
+	p_ptr->previous_action[0] = ACTION_MISC;
+
+	msg_print("You begin straightening and adjusting the feathering of the arrows.");
+
+	p_ptr->fletch_item = item;
+	p_ptr->fletching = o_ptr->number;
+}
+
+void finish_fletching(int turns_left)
+{
+	object_type *o_ptr = &inventory[p_ptr->fletch_item];
+	int count = o_ptr->number - turns_left;
+
+	/* Unstack if necessary */
+	if (count > 0)
+	{
+		/* Message */
+		msg_format("You improve %d arrows.", count);
+
+		object_type *i_ptr;
+		object_type object_type_body;
+
+		/* Get local object */
+		i_ptr = &object_type_body;
+
+		/* Obtain a local object */
+		object_copy(i_ptr, o_ptr);
+
+		/* Modify quantity */
+		i_ptr->number = count;
+		i_ptr->att = 3;
+
+		/* Reduce original pile */
+		inven_item_increase(p_ptr->fletch_item, -count);
+		inven_item_optimize(p_ptr->fletch_item);
+
+		/* Add new arrows */
+		inven_carry(i_ptr);
+	}
+	else
+	{
+		msg_print("You did not manage to improve any arrows.");
+	}
+
+	/* Combine / Reorder the pack (later) */
+	p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+
+	/* Window stuff */
+	p_ptr->window |= (PW_INVEN);
+
+	/* Window stuff */
+	p_ptr->window |= (PW_EQUIP);
+}
 
 
 /*

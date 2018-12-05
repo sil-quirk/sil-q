@@ -3822,6 +3822,22 @@ bool item_tester_hook_ammo(const object_type *o_ptr)
 	return (FALSE);
 }
 
+/*
+ * Hook to specify ordinary arrows
+ */
+bool item_tester_hook_ordinary_ammo(const object_type *o_ptr)
+{
+	switch (o_ptr->tval)
+	{
+		case TV_ARROW:
+		{
+			if (o_ptr->name1 || o_ptr->name2 || o_ptr->att > 0) return FALSE;
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
 
 
 /*

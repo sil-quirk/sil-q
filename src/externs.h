@@ -376,7 +376,8 @@ extern bool do_cmd_open_aux(int y, int x);
 extern void do_cmd_open(void);
 extern void do_cmd_close(void);
 extern void do_cmd_exchange(void);
-extern void do_cmd_running_shot(void);
+extern void do_cmd_fletchery(void);
+extern void finish_fletching(int);
 extern void do_cmd_tunnel(void);
 extern bool break_free_of_web(void);
 extern void do_cmd_disarm(void);
@@ -824,6 +825,7 @@ extern bool curse_armor(void);
 extern bool curse_weapon(void);
 extern bool item_tester_hook_ided_ammo(const object_type *o_ptr);
 extern bool item_tester_hook_ammo(const object_type *o_ptr);
+extern bool item_tester_hook_ordinary_ammo(const object_type *o_ptr);
 extern void identify_and_squelch_pack(void);
 extern bool mass_identify(int rad);
 

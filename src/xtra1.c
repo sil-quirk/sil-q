@@ -744,6 +744,11 @@ static void prt_state(void)
 		my_strcpy(text, "Smithing  ", sizeof (text));
 	}
 	
+	if (p_ptr->fletching)
+	{
+		my_strcpy(text, "Fletching ", sizeof (text));
+	}
+
 	/* Resting */
 	else if (p_ptr->resting)
 	{

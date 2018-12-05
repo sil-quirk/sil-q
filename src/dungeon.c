@@ -1107,6 +1107,11 @@ static void process_command(void)
 			break;
 		}
 			
+		case '-':
+		{
+			do_cmd_fletchery();
+			break;
+		}
 			
 		/*** Use various objects ***/
 
@@ -1678,6 +1683,7 @@ static void process_player(void)
 
 		/* Check for "player abort" */
 		if (p_ptr->running ||
+			p_ptr->fletching ||
 			p_ptr->smithing ||
 			p_ptr->command_rep ||
 			(p_ptr->resting && !(turn & 0x7F)))
@@ -1899,7 +1905,31 @@ static void process_player(void)
 			/* Redraw the state */
 			p_ptr->redraw |= (PR_STATE);
 		}
-		
+
+		/* Fletching */
+		else if (p_ptr->fletching)
+		{
+			if (p_ptr->fletching == 1)
+			{
+				// Display a message
+				msg_print("You complete your work.");
+
+				finish_fletching(0);
+			}
+
+			/* Reduce fletching count */
+			p_ptr->fletching--;
+
+			/* Take a turn */
+			p_ptr->energy_use = 100;
+
+			// store the action type
+			p_ptr->previous_action[0] = ACTION_MISC;
+
+			/* Redraw the state */
+			p_ptr->redraw |= (PR_STATE);
+		}
+
 		/* Resting */
 		else if (p_ptr->resting)
 		{

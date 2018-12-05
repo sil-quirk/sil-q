@@ -474,6 +474,7 @@
 #define	ARC_DEADLY_HAIL				 	6
 #define	ARC_FIRST_BLOOD					7
 #define	ARC_DEX						8
+#define	ARC_FLETCHERY					9
 
 /* 
  * Evasion abilities 

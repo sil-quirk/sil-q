@@ -4964,7 +4964,22 @@ void disturb(int stop_stealth, int unused_flag)
 
 		// Display a message
 		msg_print("Your work is interrupted!");
-		
+
+		/* Redraw the state (later) */
+		p_ptr->redraw |= (PR_STATE);
+	}
+
+	/* Cancel Smithing */
+	if (p_ptr->fletching)
+	{
+		// Display a message
+		msg_print("Your work is interrupted!");
+
+		finish_fletching(p_ptr->fletching);
+
+		/* Cancel */
+		p_ptr->fletching = 0;
+
 		/* Redraw the state (later) */
 		p_ptr->redraw |= (PR_STATE);
 	}
