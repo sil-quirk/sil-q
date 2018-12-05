@@ -3689,10 +3689,10 @@ void drop_near(object_type *j_ptr, int chance, int y, int x)
 	bx = x;
 
 	/* Scan local grids */
-	for (dy = -3; dy <= 3; dy++)
+	for (dy = -4; dy <= 4; dy++)
 	{
 		/* Scan local grids */
-		for (dx = -3; dx <= 3; dx++)
+		for (dx = -4; dx <= 4; dx++)
 		{
 			bool comb = FALSE;
             ////int path_n;
@@ -3703,7 +3703,7 @@ void drop_near(object_type *j_ptr, int chance, int y, int x)
 			d = (dy * dy) + (dx * dx);
 
 			/* Ignore distant grids */
-			if (d > 10) continue;
+			if (d > 17) continue;
 
 			/* Location */
 			ty = y + dy;
