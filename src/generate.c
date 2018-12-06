@@ -173,7 +173,7 @@ int cave_corridor2[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
 
 /* determines whether the player can pass through a given feature */
 /* icky locations (inside vaults) are all considered passable.    */
-bool player_passable(int y, int x, bool ignore_rubble)
+bool player_passable(int y, int x, bool ignore_rubble_and_chasms)
 {
 	byte feature = cave_feat[y][x];
 	bool icky_interior = (cave_info[y][x] & (CAVE_ICKY)) &&
@@ -182,37 +182,43 @@ bool player_passable(int y, int x, bool ignore_rubble)
 						 (cave_info[y-1][x] & (CAVE_ICKY)) &&
 						 (cave_info[y+1][x] & (CAVE_ICKY));
 
-	bool passable = ((feature < FEAT_WALL_HEAD) || (feature > FEAT_WALL_TAIL) || (feature == FEAT_SECRET) || 
-	                 ((feature == FEAT_RUBBLE) && ignore_rubble) || icky_interior);
-					 
-	return (passable);
+	if ((feature < FEAT_WALL_HEAD) || (feature > FEAT_WALL_TAIL))
+	{
+		return !((feature == FEAT_CHASM) && !ignore_rubble_and_chasms);
+	}
+	else
+	{
+		return (feature == FEAT_SECRET) ||
+			((feature == FEAT_RUBBLE) && ignore_rubble_and_chasms) ||
+			icky_interior;
+	}
 }
 
 
 /* floodfills access through the dungeon, marking all accessible squares with TRUE */
-void flood_access(int y, int x, int access_array[MAX_DUNGEON_HGT][MAX_DUNGEON_WID], bool ignore_rubble)
+void flood_access(int y, int x, int access_array[MAX_DUNGEON_HGT][MAX_DUNGEON_WID], bool ignore_rubble_and_chasms)
 {
 	/* first check the map bounds */
 	if ((y < 0) || (y > p_ptr->cur_map_hgt) || (x < 0) || (x > p_ptr->cur_map_wid))
 		return;
 	
 	access_array[y][x] = TRUE;
-	if (player_passable(y-1, x-1, ignore_rubble) && (access_array[y-1][x-1] == FALSE))
-		flood_access(y-1, x-1, access_array, ignore_rubble);
-	if (player_passable(y-1, x, ignore_rubble) && (access_array[y-1][x] == FALSE))
-		flood_access(y-1, x, access_array, ignore_rubble);
-	if (player_passable(y-1, x+1, ignore_rubble) && (access_array[y-1][x+1] == FALSE))
-		flood_access(y-1, x+1, access_array, ignore_rubble);
-	if (player_passable(y, x-1, ignore_rubble) && (access_array[y][x-1] == FALSE))
-		flood_access(y, x-1, access_array, ignore_rubble);
-	if (player_passable(y, x+1, ignore_rubble) && (access_array[y][x+1] == FALSE))
-		flood_access(y, x+1, access_array, ignore_rubble);
-	if (player_passable(y+1, x-1, ignore_rubble) && (access_array[y+1][x-1] == FALSE))
-		flood_access(y+1, x-1, access_array, ignore_rubble);
-	if (player_passable(y+1, x, ignore_rubble) && (access_array[y+1][x] == FALSE))
-		flood_access(y+1, x, access_array, ignore_rubble);
-	if (player_passable(y+1, x+1, ignore_rubble) && (access_array[y+1][x+1] == FALSE))
-		flood_access(y+1, x+1, access_array, ignore_rubble);
+	if (player_passable(y-1, x-1, ignore_rubble_and_chasms) && (access_array[y-1][x-1] == FALSE))
+		flood_access(y-1, x-1, access_array, ignore_rubble_and_chasms);
+	if (player_passable(y-1, x, ignore_rubble_and_chasms) && (access_array[y-1][x] == FALSE))
+		flood_access(y-1, x, access_array, ignore_rubble_and_chasms);
+	if (player_passable(y-1, x+1, ignore_rubble_and_chasms) && (access_array[y-1][x+1] == FALSE))
+		flood_access(y-1, x+1, access_array, ignore_rubble_and_chasms);
+	if (player_passable(y, x-1, ignore_rubble_and_chasms) && (access_array[y][x-1] == FALSE))
+		flood_access(y, x-1, access_array, ignore_rubble_and_chasms);
+	if (player_passable(y, x+1, ignore_rubble_and_chasms) && (access_array[y][x+1] == FALSE))
+		flood_access(y, x+1, access_array, ignore_rubble_and_chasms);
+	if (player_passable(y+1, x-1, ignore_rubble_and_chasms) && (access_array[y+1][x-1] == FALSE))
+		flood_access(y+1, x-1, access_array, ignore_rubble_and_chasms);
+	if (player_passable(y+1, x, ignore_rubble_and_chasms) && (access_array[y+1][x] == FALSE))
+		flood_access(y+1, x, access_array, ignore_rubble_and_chasms);
+	if (player_passable(y+1, x+1, ignore_rubble_and_chasms) && (access_array[y+1][x+1] == FALSE))
+		flood_access(y+1, x+1, access_array, ignore_rubble_and_chasms);
 	return;
 }
 
@@ -715,6 +721,8 @@ static void build_chasms(void)
             chasms += damroll(1, panels / 3);
         }
     }
+
+    if (chasms > 12) chasms = 12;
     
     // build them
     for (i = 0; i < chasms; i++)
@@ -1644,7 +1652,7 @@ bool check_connectivity(void)
 		for (x = 0; x < p_ptr->cur_map_wid; x++)
 			cave_access[y][x] = FALSE;
 	
-	// Make sure entire dungeon is connected (ignoring rubble)
+	// Make sure entire dungeon is connected (ignoring rubble and chasms)
 	flood_access(p_ptr->py, p_ptr->px, cave_access, TRUE);
 	for (y = 0; y < p_ptr->cur_map_hgt; y++)	
 		for (x = 0; x < p_ptr->cur_map_wid; x++)
@@ -1658,15 +1666,22 @@ bool check_connectivity(void)
 		for (x = 0; x < p_ptr->cur_map_wid; x++)
 			cave_access[y][x] = FALSE;
 	
-	// Make sure player can reach stairs without going through rubble
+	if (p_ptr->create_stair == FEAT_MORE || p_ptr->create_stair == FEAT_MORE_SHAFT)
+	{
+		return (TRUE);
+	}
+
+	// Make sure player can reach down stairs without going through rubble and chasms
 	flood_access(p_ptr->py, p_ptr->px, cave_access, FALSE);
 	for (y = 0; y < p_ptr->cur_map_hgt; y++)	
 		for (x = 0; x < p_ptr->cur_map_wid; x++)
-			if ((cave_access[y][x] == TRUE) && cave_stair_bold(y,x))
+		{
+			if ((cave_feat[y][x] == FEAT_MORE) && (cave_access[y][x] == TRUE))
 			{
 				return (TRUE);
 			}
-	
+		}
+
 	return (FALSE);
 }
 
