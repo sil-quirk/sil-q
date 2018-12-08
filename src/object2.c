@@ -3726,7 +3726,7 @@ void drop_near(object_type *j_ptr, int chance, int y, int x)
             ////if ((ty != ty2) || (tx != tx2)) continue;
             
 			/* Require floor space */
-			if (cave_feat[ty][tx] != FEAT_FLOOR) continue;
+			if (cave_feat[ty][tx] != FEAT_FLOOR && cave_feat[ty][tx] != FEAT_SUNLIGHT) continue;
 
 			/* No objects */
 			k = 0;

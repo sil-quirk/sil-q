@@ -958,7 +958,7 @@ void map_info(int y, int x, byte *ap, char *cp, byte *tap, char *tcp)
 	(*tcp) = c;
 
 	/* Objects (only shown when on floors, not when in rubble) */
-	if (feat == FEAT_FLOOR)
+	if (feat == FEAT_FLOOR || feat == FEAT_SUNLIGHT)
 	{
 		for (o_ptr = get_first_object(y, x); o_ptr; o_ptr = get_next_object(o_ptr))
 		{
