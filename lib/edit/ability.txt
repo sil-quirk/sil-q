@@ -476,7 +476,7 @@ T:45:0:99  # Ring
 N:101:Strength in Adversity
 I:5:1:3
 D:Gives you bonuses to Strength, Dexterity and Grace when seriously injured:
-D: +1 when less than or equal to 50% health, +2 when 25%.
+D: +1 when less than or equal to 50% health, +3 when 25%.
 T:32:0:99  # Helm
 T:33:0:99  # Crown
 T:36:0:99  # Soft Armour

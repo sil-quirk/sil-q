@@ -2385,9 +2385,9 @@ static void calc_bonuses(void)
 		// if <= 25% health, give an extra bonus
 		if (health_level(p_ptr->chp, p_ptr->mhp) <= HEALTH_ALMOST_DEAD)
 		{
-			p_ptr->stat_misc_mod[A_STR]++;
-			p_ptr->stat_misc_mod[A_DEX]++;
-			p_ptr->stat_misc_mod[A_GRA]++;
+			p_ptr->stat_misc_mod[A_STR] += 2;
+			p_ptr->stat_misc_mod[A_DEX] += 2;
+			p_ptr->stat_misc_mod[A_GRA] += 2;
 		}
 	}
 
