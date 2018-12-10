@@ -4414,7 +4414,7 @@ void wander(monster_type *m_ptr)
         (m_ptr->alertness < ALERTNESS_ALERT) && (m_ptr->mana >= MON_MANA_COST) && ((&a_info[ART_MORGOTH_3])->cur_num == 1))
     {
         // 96+17 is RF4_SNG_PIERCING
-        make_attack_ranged(m_ptr, 96+17);
+        make_attack_ranged(m_ptr, 96+19);
     }
     
     // occasionally update the flow (keeping the centre the same)

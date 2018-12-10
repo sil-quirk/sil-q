@@ -383,14 +383,14 @@ D: the heart in the dark places of the world.
 
 ## The Studded Leather of Aegnor
 ## 1st age namesake
-## (ability 4/4 is Concentration)
+## (ability 4/3 is Concentration)
 
 N:29:of Aegnor
 I:36:7:1
 W:4:10:100:35000
 P:1:0d0:-2:1d6
 F:WILL
-B:4/4
+B:4/3
 D:Crafted for Aegnor, a Noldorin prince who loved a mortal.
 D: It lends its wearer determination and sureness of heart.
 
@@ -1086,9 +1086,9 @@ D: and enchanted for both battle and mine.
 
 N:117:of Angrod
 I:32:5:0
-W:3:10:45:4500
+W:5:10:45:4500
 P:0:0d0:0:1d3
-F:REGEN | SUST_CON | SUST_STR | RES_STUN | RES_FEAR
+F:RES_COLD | RES_FEAR | REGEN
 D:The helm of Angrod, son of Finarfin, who perished in
 D: the Dagor Bragollach.
 
@@ -1352,14 +1352,14 @@ D: to the touch and easy on the draw.
 ## The Dragon-horn Bow of Avernien
 ## 1st age
 ## Avernien was where Earendil was equipped (after the events of Sil)
-## (ability 1/0 is Blessing of Orome)
+## (ability 1/1 is Blessing of Orome)
 
 N:148:of Avernien
 I:19:14:0
 W:20:5:20:35000
 P:1:1d12:0:0d0
 F:RADIANCE | RES_FEAR | RES_CONFU | RES_STUN | RES_HALLU
-B:1/0
+B:1/1
 D:A large exquisite bow fashioned from a single horn of a slain
 D: dragon. Many are the blessings of the Eldar laid over it.
 

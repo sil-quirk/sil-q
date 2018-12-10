@@ -58,6 +58,7 @@ T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:31:0:99  # Gloves
+T:34:0:99  # Shields
 
 N:3:Polearm Mastery
 I:0:3:4
@@ -76,6 +77,7 @@ T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:30:0:99  # Boots
+T:34:0:99  # Shields
 
 N:5:Follow-Through
 I:0:5:6
@@ -163,25 +165,25 @@ D:You gain a point of strength.
 
 # Archery ---------------------------------------------
 
-N:20:Blessing of Orome
+N:20:Rout
 I:1:0:2
+D:Firing at fleeing monsters is calculated as if you had 3 points
+D: more dexterity.
+T:19:0:99  # Bows
+
+N:21:Blessing of Orome
+I:1:1:3
 D:Every arrow you fire increases your light radius by one for the next five
 D: turns.
 T:19:0:99  # Bows
 T:32:0:99  # Helm
 T:40:0:99  # Amulet
 
-N:21:Fletchery
-I:1:1:3
+N:22:Fletchery
+I:1:2:4
 D:Allows you to use the '-' command to give ordinary arrows
 D: a +3 bonus. Takes one turn for each arrow.
 T:31:1:1   # Gloves (leather gloves only)
-
-N:22:Rout
-I:1:2:4
-D:Firing at fleeing monsters is calculated as if you had 4 points
-D: more dexterity.
-T:19:0:99  # Bows
 
 N:23:Point Blank Archery
 I:1:3:5
@@ -206,14 +208,14 @@ T:31:1:1   # Gloves (leather gloves only)
 
 N:26:Crippling Shot
 I:1:6:8
-P:1/2:1/4
+P:1/0:1/4
 D:Your critical hits sometimes temporarily slow monsters
 D: (depending on the level of critical and the monster's Will).
 T:19:0:99  # Bows
 
 N:27:Deadly Hail
 I:1:7:9
-P:1/2:1/4
+P:1/0:1/4
 D:Arrows fired the turn after killing an enemy with an arrow do twice their
 D: normal damage.
 T:19:0:99  # Bows
@@ -289,6 +291,7 @@ P:2/1:2/3
 D:Gives you [1dX] protection, where X is your total armour weight
 D: divided by 15 lbs.
 T:37:0:99  # Mail
+T:34:0:99  # Shields
 
 N:48:Riposte
 I:2:8:10
@@ -310,6 +313,7 @@ T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:31:0:99  # Gloves
+T:34:0:99  # Shields
 
 N:50:Dexterity
 I:2:10:20
@@ -487,6 +491,7 @@ T:40:0:99  # Amulet
 T:32:0:99  # Helm
 T:33:0:99  # Crown
 T:45:0:99  # Ring
+T:34:0:99  # Shields
 
 N:103:Inner Light
 I:5:3:5
@@ -532,10 +537,10 @@ P:5/5
 D:Raises the base number enemies need to get critical hits against
 D: you by 1 per 5 points of Will.
 T:32:0:99  # Helm
-T:33:0:99  # Crown
 T:36:0:99  # Soft Armour
 T:37:0:99  # Mail
 T:40:0:99  # Amulet
+T:34:0:99  # Shields
 
 N:109:Majesty
 I:5:9:9

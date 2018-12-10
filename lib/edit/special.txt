@@ -115,14 +115,15 @@ F:SUST_STR | SUST_DEX | SUST_CON | SUST_GRA
 F:IGNORE_ALL
 
 
-# robes only
-# (ability 5/9 is Majesty)
+# Shields and heavy armour
 
-N:7:of Majesty
-W:10:1:0:3000
-C:0:0:0:0:0:0:0
-T:36:2:2
-B:5/9
+N:7:of the Iron Hills
+W:0:2:0:3000
+C:0:0:0:0:0:0:1
+T:34:0:99
+T:37:0:99
+F:RES_STUN | WILL
+F:IGNORE_ALL
 
 
 ###
@@ -154,6 +155,7 @@ W:10:1:0:1000
 C:0:0:0:0:0:0:0
 T:34:0:99
 F:RES_FIRE
+F:IGNORE_ALL
 
 
 ###
