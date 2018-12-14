@@ -5078,8 +5078,11 @@ void sing_song_of_challenge(int score)
 
 		resistance = monster_skill(m_ptr, S_WIL);
 
+		// Adjust to work best against lower-will monsters.
+		resistance = (resistance * resistance) / 7;
+
 		// adjust difficulty by the distance to the monster
-		result = skill_check(PLAYER, score, resistance + 5 + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx), m_ptr);
+		result = skill_check(PLAYER, score, resistance + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx), m_ptr);
 
 		/* If successful, alert the monster and make it more aggressive */
 		if (result > 0)
