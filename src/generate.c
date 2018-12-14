@@ -3455,8 +3455,16 @@ static bool cave_gen(void)
 		/* simple way to place Morgoth */
 		for (i = 0; i <= 100; i++)
 		{
+			int danger_factor = 6 - silmarils_possessed();
+
 			y = rand_int(p_ptr->cur_map_hgt);
 			x = rand_int(p_ptr->cur_map_wid);
+
+			// pull Morgoth's start toward the player more based on the silmarils the player has
+			if (p_ptr->px < x) x -= 2 * ((x - p_ptr->px) / danger_factor);
+			if (p_ptr->px > x) x += 2 * ((p_ptr->px - x) / danger_factor);
+			if (p_ptr->py < y) y -= 2 * ((y - p_ptr->py) / danger_factor);
+			if (p_ptr->py > y) y += 2 * ((p_ptr->py - y) / danger_factor);
 			
 			if (cave_naked_bold(y, x) && !los(p_ptr->py, p_ptr->px, y, x) && !(cave_info[y][x] & (CAVE_ICKY)))
 			{
