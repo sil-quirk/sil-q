@@ -1626,7 +1626,6 @@ static bool place_rubble_player(void)
 				if (!stairs_within_los(y, x) || (p_ptr->create_stair == FALSE))
 				{
 					player_place(y, x);
-					
 					break;
 				}
 			}
@@ -1676,7 +1675,8 @@ bool check_connectivity(void)
 	for (y = 0; y < p_ptr->cur_map_hgt; y++)	
 		for (x = 0; x < p_ptr->cur_map_wid; x++)
 		{
-			if ((cave_feat[y][x] == FEAT_MORE) && (cave_access[y][x] == TRUE))
+			if (((cave_feat[y][x] == FEAT_MORE) && (cave_access[y][x] == TRUE)) || 
+			    ((cave_feat[y][x] == FEAT_MORE_SHAFT) && (cave_access[y][x] == TRUE)))
 			{
 				return (TRUE);
 			}
@@ -3402,7 +3402,20 @@ static bool cave_gen(void)
 					place_random_door(y, x);
 			}
 		}
-	
+		
+	if (p_ptr->depth == 1)
+	{
+		// smaller number of monsters at 50ft
+		mon_gen = dun->cent_n / 2;
+		// game start
+		if (p_ptr->stairs_taken == 0) make_patches_of_sunlight();
+	}
+	else
+	{
+		// pick some number of monsters (between 0.5 per room and 1 per room)
+		mon_gen = (dun->cent_n + dieroll(dun->cent_n)) / 2;
+	}
+
 	/* place the stairs, traps, rubble, secret doors */
 	if (!place_rubble_player())
 	{
@@ -3417,19 +3430,6 @@ static bool cave_gen(void)
 		if (cheat_room) msg_format("Failed connectivity.");
 		if (p_ptr->force_forge) p_ptr->fixed_forge_count--;
 		return (FALSE);
-	}
-	
-	if (p_ptr->depth == 1)
-	{
-		// smaller number of monsters at 50ft
-		mon_gen = dun->cent_n / 2;
-		// game start
-		if (p_ptr->stairs_taken == 0) make_patches_of_sunlight();
-	}
-	else
-	{
-		// pick some number of monsters (between 0.5 per room and 1 per room)
-		mon_gen = (dun->cent_n + dieroll(dun->cent_n)) / 2;
 	}
 
 	/* Put some objects in rooms */

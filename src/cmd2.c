@@ -94,6 +94,8 @@ bool trapped_stairs(void)
 	chance = p_ptr->staircasiness / 100;
 	chance = chance * chance * chance;	
 	chance = chance / 10000;
+
+	if (p_ptr->on_the_run) chance = 0;
 	
 	//msg_debug("%d, %d", p_ptr->staircasiness, chance);
 	

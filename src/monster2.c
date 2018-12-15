@@ -2080,6 +2080,7 @@ s16b player_place(int y, int x)
 
 	/* Mark cave grid */
 	cave_m_idx[y][x] = -1;
+	if (cave_feat[y][x] == FEAT_RUBBLE) cave_feat[y][x] = FEAT_FLOOR;
 
 	/* Success */
 	return (-1);
