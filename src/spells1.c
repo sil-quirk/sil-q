@@ -4697,10 +4697,13 @@ void song_of_oaths(monster_type *m_ptr)
     // if the check was successful, summon an oathwraith to a nearby square
     if (result > 0)
     {
+	int attempts = 10;
+
         // the greatest distance away the wraith can be summoned -- smaller is typically better
         range = MAX(15 - result, 3);
+
         
-        while (TRUE)
+        while (attempts--)
         {
             // choose a random square
             y = rand_int(p_ptr->cur_map_hgt);
