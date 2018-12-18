@@ -1828,7 +1828,8 @@ void describe_floor_object(void)
              ((wield_slot(o_ptr) >= INVEN_BODY)  && (wield_slot(o_ptr) <= INVEN_FEET)))
     {
         int wgt = o_ptr->weight * o_ptr->number;
-        msg_format("You see %s %d.%1d lb.", o_name, wgt / 10, wgt % 10);
+	if (!p_ptr->blind) msg_format("You see %s %d.%1d lb.", o_name, wgt / 10, wgt % 10);
+	else msg_format("Your feet strike against %s.", o_name);
         
         /* Disturb */
         disturb(0,0);
@@ -1837,7 +1838,8 @@ void describe_floor_object(void)
     // other things just show description
     else
     {
-        msg_format("You see %s.", o_name);
+        if (!p_ptr->blind) msg_format("You see %s.", o_name);
+	else msg_format("Your feet strike against %s.", o_name);
 
         /* Disturb */
         disturb(0,0);

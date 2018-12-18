@@ -4459,8 +4459,7 @@ void floor_item_describe(int item)
 	object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
 
 	/* Print a message */
-	msg_format("You see %s.", o_name);
-	
+	if (!p_ptr->blind) msg_format("You see %s.", o_name);
 }
 
 
