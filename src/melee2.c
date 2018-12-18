@@ -5260,7 +5260,11 @@ void calc_stance(monster_type *m_ptr)
 	// Some monsters are immune to (non-magical) fear
 	if ((r_ptr->flags3 & (RF3_NO_FEAR)) && (m_ptr->tmp_morale >= 0))
 	{
-		stances[0] = STANCE_CONFIDENT;
+		// Wrath means all aggro all the time
+		if (p_ptr->aggravate && !(r_ptr->flags2 & (RF2_MINDLESS)))
+			stances[0] = STANCE_AGGRESSIVE;
+		else
+			stances[0] = STANCE_CONFIDENT;
 	}
 
 	// Song of Challenge makes monsters attack overconfidently
@@ -5283,7 +5287,7 @@ void calc_stance(monster_type *m_ptr)
 	}
 	
 	// aggravation makes non-mindless things much more hostile
-	if (p_ptr->aggravate & !(r_ptr->flags2 & (RF2_MINDLESS)))
+	if (p_ptr->aggravate && !(r_ptr->flags2 & (RF2_MINDLESS)))
 	{
 		stances[1] = STANCE_AGGRESSIVE;
 	}
