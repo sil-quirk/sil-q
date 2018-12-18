@@ -516,6 +516,7 @@ T:21:9:9   # Sceptre
 N:105:Hardiness
 I:5:5:6
 D:Gives you [1dX] additional protection, where X = Will/6.
+T:34:0:99  # Shields
 
 N:106:Poison Resistance
 I:5:6:7

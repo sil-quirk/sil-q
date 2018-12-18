@@ -537,6 +537,22 @@ D: He was ever at the front of battle, leading
 D: elves to take swift vengeance upon their foes.
 
 
+## The Round Shield 'Thandrach'
+## Sindarin "shield-curse"
+## (ability 5/2 is Curse Breaking)
+
+N:44:'Thandrach'
+I:34:3:2
+W:3:20:40:15000
+P:1:0d0:0:1d3
+F:WILL
+B:5/2
+D:A small iron shield covered with many dense runes
+D: spiralling in from the outer edge into the centre.
+D: In the very middle of the shield is set a spike
+D: with a wicked point.
+
+
 ## The Kite Shield of Hador
 ## 1st age namesake
 
@@ -649,6 +665,17 @@ D:A dread black blade greatly famed among the orcs. Its cruel
 D: edge was forged in Orodruth long ere the Noldor came
 D: to Beleriand.
 
+#
+# The Curved Sword 'Agarlhang'
+# - Sindarin "blood-cutlass"
+#
+N:56:'Agarlhang'
+I:23:7:-2
+W:8:10:60:30000
+P:-1:2d5:1:0d0
+F:VAMPIRIC | LIGHT_CURSE | WILL | PERCEPTION | NEG_CON | HUNGER
+D:A blood-red blade, slick to the touch. Gripping its haft dulls the
+D: wielder's senses and causes strange hungers to waken in them.
 
 ## The Shortsword of Amrod
 ## 1st age namesake

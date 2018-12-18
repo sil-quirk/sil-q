@@ -118,11 +118,11 @@ F:IGNORE_ALL
 # Shields and heavy armour
 
 N:7:of the Iron Hills
-W:0:2:0:3000
-C:0:0:0:0:0:0:1
+W:0:8:0:3000
+C:0:0:0:0:0:0:0
 T:34:0:99
 T:37:0:99
-F:RES_STUN | WILL
+F:RES_STUN | RES_FEAR
 F:IGNORE_ALL
 
 
