@@ -1,3 +1,52 @@
+- Sil-Q 1.4.1 --------------------------------------------------------------------------------------------
+
+- 50' given a facelift
+	- new monster early on
+	- rubble and sunlight
+		- sunlit chambers may appear a little further down
+		- chambers of spiders may also appear on much lower levels
+
+- archery overhauled
+	- Rapid Fire, Flaming Arrows and Precision are all gone
+	- Blessing of Orome, Fletchery, Dedication and Deadly Hail come in
+	- slaying on bows is gone, slaying is only on arrows now
+	- new bow egos
+	- new arrow egos
+	- bow and arrow smithing tweaked, arrow drop rates altered (there should now be more arrows
+	  earlier on), longbows drop further down
+	- dragon-horn bows buffed as they had lost some value with the multipliers diminishing
+
+- quality of life improvements
+	- things can now fall slightly further away from you without vanishing
+	- staves no longer require you to pass a will check to use them, though the effect strength is
+	  often still Will-based
+	- taking stairs too fast on the ascent should no longer make you fall through
+	- you now start with a curved sword equipped
+
+- other tweaks
+	- Controlled Retreat now takes Dodging instead of Flanking as a prerequisite
+	- Strength in Adversity, Song of Staying, Song of Overwhelming buffed slightly
+	- Song of Challenge should force ranged opponents to close more effectively now
+	- Morgoth will start closer to you on the ascent - how much closer depends on how many Sils you
+	  have
+	- better quarterstaff egos
+	- more ego items in general, some new artefacts
+
+- bugfixes
+	- Many including
+		- axes no longer impale
+		- Morgoth drops his crown when he falls asleep whether observed or not
+		- various Exchange Places/Opportunist artefact and ego mixups
+		- chasms should no longer block your route to a downward exit
+		- Song of Oaths now doesn't go into an infinite loop and crash the game if it can't place
+		  a wraith
+		- blind people no longer "see" objects
+		- player cannot start a level on rubble
+		- Listen save/load variations fixed by keeping a random seed valid for the turn
+		- Song of Challenge halts when you get scared
+
+- many compilation warnings cleaned up
+
 - Sil-Q 1.4 ----------------------------------------------------------------------------------------------
 
 - broke savefile compatibility
