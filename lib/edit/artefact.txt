@@ -94,7 +94,7 @@
 #     * Maeglin	        (galvorn armour - hunger, channelling, res poison)
 # - Finarfin
 #   * Finrod		(boots - good evasion, free action)
-#   * Angrod		(helm - res stun, res fear, regen, sust con, sust str)
+#   * Angrod		(helm - res cold, res fear, regen)
 #     * Orodreth	(greaves - dex, res fire)
 #   * Aegnor		(armour - concentration)
 #   * Galadriel

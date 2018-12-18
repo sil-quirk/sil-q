@@ -727,10 +727,9 @@ static void player_outfit(void)
 
 	// Christmas presents:
 	
-	/* Make sure it is Dec 20-31 */
 	c = time((time_t *)0);
 	tp = localtime(&c);
-	if ((tp->tm_mon == 11) && (tp->tm_mday == 25))
+	if ((tp->tm_mon == 11) && (tp->tm_mday >= 25))
 	{
 		/* Get local object */
 		i_ptr = &object_type_body;
