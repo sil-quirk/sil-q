@@ -1542,14 +1542,6 @@ static const int birth_stat_costs[11] = { -4, -3, -2, -1, 0, 1, 3, 6, 10, 15, 21
 
 /*
  * Helper function for 'player_birth()'.
- *
- * This function handles "point-based" character creation.
- *
- * The player selects, for each stat, a value from 6 to 18 (inclusive),
- * each costing a certain amount of points (as above), from a pool of 30
- * available points, to which race/house modifiers are then applied.
- *
- * Each unused point is converted into 100 experience points.
  */
 static bool player_birth_aux_2(void)
 {
