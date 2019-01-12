@@ -1921,6 +1921,14 @@ static errr CheckEvent(bool wait)
 	/* Do not wait unless requested */
 	if (!wait && !XPending(Metadpy->dpy)) return (1);
 
+	/* Wait in 0.02s increments while updating animations every 0.2s */
+	i = 0;
+	while (!XPending(Metadpy->dpy)) {
+		//if (i == 0) idle_update();
+		usleep(20000);
+		i = (i + 1) % 10;
+	}
+
 	/*
 	 * Hack - redraw the selection, if needed.
 	 * This doesn't actually check that one of its squares was drawn to,
