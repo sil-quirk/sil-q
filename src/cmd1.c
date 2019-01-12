@@ -466,10 +466,6 @@ extern int light_penalty(const monster_type *m_ptr)
 	if (r_ptr->flags3 & (RF3_HURT_LITE))
 	{
 		penalty = (cave_light[m_ptr->fy][m_ptr->fx] - 2);
-		if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT)
-		{
-			penalty += 3;
-		}
 
 		if (penalty < 0) penalty = 0;
 	}

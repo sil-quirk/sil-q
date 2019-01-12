@@ -3127,6 +3127,10 @@ void update_view(void)
 			{
 				bonus_light = 1;
 			}
+			if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT)
+			{
+				bonus_light += 3;
+			}
 
 			// Don't darken/brighten the centre square too much
 			// if (dist == 0) dist++;
