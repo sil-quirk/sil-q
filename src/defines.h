@@ -537,8 +537,8 @@
 #define	SMT_ARMOURSMITH				 1
 #define	SMT_JEWELLER				 2
 #define	SMT_ENCHANTMENT				 3
-#define	SMT_ARTEFACT				 4
-#define	SMT_EXPERTISE				 5
+#define	SMT_EXPERTISE				 4
+#define	SMT_ARTEFACT				 5
 #define	SMT_MASTERPIECE				 6
 #define	SMT_GRA					 7
 
