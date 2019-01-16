@@ -733,8 +733,6 @@ bool make_attack_normal(monster_type *m_ptr)
 			
 			total_damage_dice = dd + crit_bonus_dice + elem_bonus_dice;
 
-			if (singing(SNG_OVERWHELMING) && m_ptr->stunned) total_damage_dice /= 2;
-
 			/* Roll out the damage */
 			dam = damroll(total_damage_dice, ds);
 			

@@ -4873,6 +4873,39 @@ void change_song(int song)
 			}
 			break;
 		}
+		case SNG_FREEDOM:
+		{
+			if (song_to_change == 1)
+			{
+				msg_print("You begin a song of freedom and safe passage.");
+			}
+			else if (old_song == SNG_NOTHING)
+			{
+				msg_print("You add a minor theme of freedom and safe passage.");
+			}
+			else
+			{
+				msg_print("You change your minor theme to one of freedom and safe passage.");
+			}
+			break;
+		}
+		case SNG_STAUNCHING:
+		{
+			if (song_to_change == 1)
+			{
+				msg_print("You begin a murmuring song of soft and soothing words.");
+			}
+			else if (old_song == SNG_NOTHING)
+			{
+				msg_print("You add a minor theme of soft and soothing words.");
+			}
+			else
+			{
+				msg_print("You change your minor theme to one of soft and soothing words.");
+			}
+			msg_print("You feel your wounds close and your body heal.");
+			break;
+		}
 		case SNG_SILENCE:
 		{
 			if (song_to_change == 1)
@@ -4889,19 +4922,35 @@ void change_song(int song)
 			}
 			break;
 		}
-		case SNG_FREEDOM:
+		case SNG_WHETTING:
 		{
 			if (song_to_change == 1)
 			{
-				msg_print("You begin a song of freedom and safe passage.");
+				msg_print("You begin to weave a chant about things that cut deep and true.");
 			}
 			else if (old_song == SNG_NOTHING)
 			{
-				msg_print("You add a minor theme of freedom and safe passage.");
+				msg_print("You add a minor theme about things that cut deep and true.");
 			}
 			else
 			{
-				msg_print("You change your minor theme to one of freedom and safe passage.");
+				msg_print("You change your minor theme to one about things that cut deep and true.");
+			}
+			break;
+		}
+		case SNG_DELVINGS:
+		{
+			if (song_to_change == 1)
+			{
+				msg_print("You begin a song about the rocky bones of the earth.");
+			}
+			else if (old_song == SNG_NOTHING)
+			{
+				msg_print("You add a minor theme about the rocky bones of the earth.");
+			}
+			else
+			{
+				msg_print("You change your minor theme to one about the rocky bones of the earth.");
 			}
 			break;
 		}
@@ -4967,38 +5016,6 @@ void change_song(int song)
 			else
 			{
 				msg_print("You change your minor theme to one of ways guarded and impassable.");
-			}
-			break;
-		}
-		case SNG_DELVINGS:
-		{
-			if (song_to_change == 1)
-			{
-				msg_print("You begin a song about the rocky bones of the earth.");
-			}
-			else if (old_song == SNG_NOTHING)
-			{
-				msg_print("You add a minor theme about the rocky bones of the earth.");
-			}
-			else
-			{
-				msg_print("You change your minor theme to one about the rocky bones of the earth.");
-			}
-			break;
-		}
-		case SNG_OVERWHELMING:
-		{
-			if (song_to_change == 1)
-			{
-				msg_print("You begin a song of foes stricken and shields broken.");
-			}
-			else if (old_song == SNG_NOTHING)
-			{
-				msg_print("You add a minor theme of foes stricken and shields broken.");
-			}
-			else
-			{
-				msg_print("You change your minor theme to one of foes stricken and shields broken.");
 			}
 			break;
 		}
@@ -5178,7 +5195,6 @@ void sing_song_of_delvings(int score)
 					if (delvings[(j * x_range) + dx] == TRUE)
 					{
 						map_feature(y, x);
-						if (cave_trap_bold(y, x)) reveal_trap(y, x);
 					}
 				}
 
@@ -5187,7 +5203,6 @@ void sing_song_of_delvings(int score)
 					if (delvings[(dy * x_range) + i] == TRUE)
 					{
 						map_feature(y, x);
-						if (cave_trap_bold(y, x)) reveal_trap(y, x);
 					}
 				}
 			}
@@ -5278,48 +5293,6 @@ void sing_song_of_lorien(int score)
 	}
 }
 
-void overwhelm(int score, monster_type *m_ptr)
-{
-	char m_name[80];
-	monster_race *r_ptr = &r_info[m_ptr->r_idx];
-
-	// Get monster name
-	monster_desc(m_name, sizeof(m_name), m_ptr, 0);
-
-	if (skill_check(PLAYER, score, monster_skill(m_ptr, S_WIL), m_ptr) > 0 && !(r_ptr->flags2 & RF2_MINDLESS))
-	{
-		if (r_ptr->flags3 & RF3_NO_STUN)
-		{
-			monster_lore *l_ptr = &l_list[m_ptr->r_idx];
-
-			/*mark the lore*/
-			if (m_ptr->ml) l_ptr->flags3 |= (RF3_NO_STUN);
-		}
-		else
-		{
-			if (!m_ptr->stunned) msg_format("%^s hears your song and shrinks back.", m_name);
-			stun_monster(m_ptr, damroll(2, 6));
-		}
-	}
-}
-
-void sing_song_of_overwhelming(int score)
-{
-	int i;
-
-	for (i = 0; i < 8; ++i)
-	{
-		int y = p_ptr->py + ddy_ddd[i];
-		int x = p_ptr->px + ddx_ddd[i];
-
-		if (cave_m_idx[y][x] > 0)
-		{
-			monster_type *m_ptr = &mon_list[cave_m_idx[y][x]];
-			overwhelm(score, m_ptr);
-		}
-	}
-}
-
 void sing(void)
 {
 	int type;
@@ -5373,20 +5346,59 @@ void sing(void)
 
 				break;
 			}
-			case SNG_SILENCE:
-			{
-				if ((p_ptr->song_duration % 3) == type - 1) cost += 1;
-				break;
-			}
 			case SNG_FREEDOM:
 			{
 				if ((p_ptr->song_duration % 3) == type - 1) cost += 1;
 				sing_song_of_freedom(score);
 				break;
 			}
+			case SNG_STAUNCHING:
+			{
+				int cycle = p_ptr->song_duration % 10;
+				int song_frac = score % 10;
+				int bonus_hp = 0;
+
+				if ((p_ptr->song_duration % 3) == type - 1) cost += 1;
+
+				set_cut(0);
+
+				if ((cycle * song_frac) % 10 < song_frac) bonus_hp = 1;
+
+				bonus_hp += 1 + (score/10);
+
+				p_ptr->chp += bonus_hp;
+
+				if (p_ptr->chp > p_ptr->mhp) p_ptr->chp = p_ptr->mhp;
+
+				break;
+			}
+			case SNG_SILENCE:
+			{
+				if ((p_ptr->song_duration % 3) == type - 1) cost += 1;
+				break;
+			}
+			case SNG_DELVINGS:
+			{
+				if ((p_ptr->song_duration % 3) == type - 1) cost += 1;
+
+				sing_song_of_delvings(score);
+
+				break;
+			}
+			case SNG_WHETTING:
+			{
+				if ((p_ptr->song_duration % 3) == type - 1) cost += 1;
+				break;
+			}
 			case SNG_TREES:
 			{
 				if ((p_ptr->song_duration % 3) == type - 1) cost += 1;
+				break;
+			}
+			case SNG_THRESHOLDS:
+			{
+				if ((p_ptr->song_duration % 3) == type - 1) cost += 1;
+
 				break;
 			}
 			case SNG_STAYING:
@@ -5399,28 +5411,6 @@ void sing(void)
 				cost += 1;
 
 				sing_song_of_lorien(score);
-
-				break;
-			}
-			case SNG_THRESHOLDS:
-			{
-				if ((p_ptr->song_duration % 2) == type - 1) cost += 1;
-
-				break;
-			}
-			case SNG_DELVINGS:
-			{
-				if ((p_ptr->song_duration % 4) == type - 1) cost += 1;
-
-				sing_song_of_delvings(score);
-
-				break;
-			}
-			case SNG_OVERWHELMING:
-			{
-				cost += 1;
-
-				sing_song_of_overwhelming(score);
 
 				break;
 			}

@@ -2290,7 +2290,8 @@ extern int prt_after_sharpness(const object_type *o_ptr, u32b *noticed_flag)
 		*noticed_flag = maybe_notice_slay(o_ptr, TR1_SHARPNESS2);
 		protection = 0;
 	}
-    
+
+
     if (protection < 0) protection = 0;
 	
 	return protection;
@@ -3828,6 +3829,21 @@ int py_attack_aux(int y, int x, int attack_type)
 			dam = damroll(total_dice, mds);
 			prt = damroll(r_ptr->pd, r_ptr->ps);
 			prt_percent = prt_after_sharpness(o_ptr, &noticed_flag);
+
+			if (singing(SNG_WHETTING))
+			{
+				int weight = o_ptr->weight;
+				if (off_hand_blow)
+				{
+					// If offhand, consider weight of main weapon first
+					weight += inventory[INVEN_WIELD].weight;
+				}
+
+				if (weight <= 10 * ability_bonus(S_SNG, SNG_WHETTING))
+				{
+					prt_percent -= 50;
+				}
+			}
 
 			if (prt_percent < 0)
 			{

@@ -1918,19 +1918,39 @@ int ability_bonus(int skilltype, int abilitynum)
 				bonus = skill;
 				break;
 			}
-			case SNG_SILENCE:
-			{
-				bonus = skill / 2;
-				break;
-			}
 			case SNG_FREEDOM:
 			{
 				bonus = skill;
 				break;
 			}
+			case SNG_STAUNCHING:
+			{
+				bonus = skill;
+				break;
+			}
+			case SNG_SILENCE:
+			{
+				bonus = skill / 2;
+				break;
+			}
+			case SNG_DELVINGS:
+			{
+				bonus = skill;
+				break;
+			}
+			case SNG_WHETTING:
+			{
+				bonus = skill / 8;
+				break;
+			}
 			case SNG_TREES:
 			{
 				bonus = skill / 5;
+				break;
+			}
+			case SNG_THRESHOLDS:
+			{
+				bonus = skill;
 				break;
 			}
 			case SNG_STAYING:
@@ -1939,21 +1959,6 @@ int ability_bonus(int skilltype, int abilitynum)
 				break;
 			}
 			case SNG_LORIEN:
-			{
-				bonus = skill;
-				break;
-			}
-			case SNG_THRESHOLDS:
-			{
-				bonus = skill;
-				break;
-			}
-			case SNG_DELVINGS:
-			{
-				bonus = skill;
-				break;
-			}
-			case SNG_OVERWHELMING:
 			{
 				bonus = skill;
 				break;
@@ -2555,14 +2560,15 @@ static void calc_bonuses(void)
 				case SNG_NOTHING:	song_noise += 0; break;
 				case SNG_ELBERETH:	song_noise += 8; break;
 				case SNG_CHALLENGE:	song_noise += 12; break;
-				case SNG_SILENCE:	song_noise += 0; break;
 				case SNG_FREEDOM:	song_noise += 4; break;
+				case SNG_STAUNCHING:	song_noise += 4; break;
+				case SNG_SILENCE:	song_noise += 0; break;
+				case SNG_DELVINGS:	song_noise += 4; break;
+				case SNG_WHETTING:	song_noise += 8; break;
 				case SNG_TREES:		song_noise += 4; break;
+				case SNG_THRESHOLDS:	song_noise += 4; break;
 				case SNG_STAYING:	song_noise += 8; break;
 				case SNG_LORIEN:	song_noise += 4; break;
-				case SNG_THRESHOLDS:	song_noise += 4; break;
-				case SNG_DELVINGS:	song_noise += 4; break;
-				case SNG_OVERWHELMING:	song_noise += 12; break;
 				case SNG_MASTERY:	song_noise += 8; break;
 			}		
 		}

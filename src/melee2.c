@@ -4461,10 +4461,7 @@ int get_chance_of_ranged_attack(monster_type *m_ptr)
 	/* Stunned monsters use ranged attacks half as often. */
 	if ((chance) && (m_ptr->stunned)) chance /= 2;
 
-	/* Smitten monsters get no ranged attacks. */
-	if (singing(SNG_OVERWHELMING) && m_ptr->stunned) chance = 0;
-
-	/* Successfully challenged monsters also get no ranged attacks. */
+	/* Successfully challenged monsters get no ranged attacks. */
 	if ((singing(SNG_CHALLENGE)) && (m_ptr->stance == STANCE_AGGRESSIVE)) chance = 0;
 
 	return chance;
