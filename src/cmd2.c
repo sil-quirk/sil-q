@@ -3880,10 +3880,10 @@ void do_cmd_fire(int quiver)
 				}
 				
 				// Aim improved if monster is fleeing. If firing into several fleeing monsters,
-				// the chance of hitting one is high.
+				// the chance of hitting one is higher.
 				if (p_ptr->active_ability[S_ARC][ARC_ROUT] && m_ptr->stance == STANCE_FLEEING)
 				{
-					total_attack_mod += 3;
+					total_attack_mod += 5;
 				}
 
 				// Determine the monster's evasion after all modifiers
@@ -3920,6 +3920,11 @@ void do_cmd_fire(int quiver)
 										
 					/* Add 'critical hit' dice based on bow weight */
 					crit_bonus_dice = crit_bonus(hit_result, j_ptr->weight, r_ptr, S_ARC, FALSE);
+		
+					if (p_ptr->active_ability[S_ARC][ARC_AMBUSH] && m_ptr->alertness < ALERTNESS_ALERT)
+					{
+						crit_bonus_dice++;
+					}
 
 					/* Add slay (or brand) dice based on both arrow and bow */
 					slay_bonus_dice = slay_bonus(i_ptr, m_ptr, &noticed_arrow_flag);

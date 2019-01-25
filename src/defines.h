@@ -465,10 +465,10 @@
 /* 
  * Archery abilities 
  */
-#define	ARC_ROUT					0
-#define	ARC_BLESSING_OF_OROME				1
-#define	ARC_FLETCHERY					2
-#define	ARC_POINT_BLANK				 	3
+#define	ARC_AMBUSH					0
+#define	ARC_FLETCHERY					1
+#define	ARC_POINT_BLANK				 	2
+#define	ARC_ROUT					3
 #define	ARC_DEDICATION				 	4
 #define	ARC_VERSATILITY				 	5
 #define	ARC_CRIPPLING				 	6

@@ -1324,14 +1324,14 @@ D: let you pass as a messenger journeying to Morgoth?
 ##### Bows #####
 
 ## The Shortbow of Celegorm
-## (ability 4/8 is Master Hunter)
+## (ability 1/0 is Ambush)
 
 N:142:of Celegorm
 I:19:12:-1
 W:7:10:20:9000
 P:1:1d9:0:0d0
 F:GRA
-B:4/8
+B:1/0
 D:The bow of Celegorm the great huntsman, third son of Feanor,
 D: who in days of old hunted with Orome himself.
 
@@ -1379,14 +1379,12 @@ D: to the touch and easy on the draw.
 ## The Dragon-horn Bow of Avernien
 ## 1st age
 ## Avernien was where Earendil was equipped (after the events of Sil)
-## (ability 1/1 is Blessing of Orome)
 
 N:148:of Avernien
 I:19:14:0
-W:20:5:20:35000
-P:1:1d12:0:0d0
+W:20:5:50:35000
+P:1:3d4:0:0d0
 F:RADIANCE | RES_FEAR | RES_CONFU | RES_STUN | RES_HALLU
-B:1/1
 D:A large exquisite bow fashioned from a single horn of a slain
 D: dragon. Many are the blessings of the Eldar laid over it.
 

@@ -511,6 +511,7 @@ F:VUL_COLD
 
 ##### Bows #####
 
+# Shortbows only
 N:90:of Lammoth
 W:2:8:0:1000
 C:0:0:0:0:0:0:0

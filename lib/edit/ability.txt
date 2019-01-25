@@ -165,31 +165,31 @@ D:You gain a point of strength.
 
 # Archery ---------------------------------------------
 
-N:20:Rout
+N:20:Ambush
 I:1:0:2
-D:Firing at fleeing monsters is calculated as if you had 3 points
-D: more dexterity.
+D:Grants an additional critical damage die whenever you hit an
+D: unwary or sleeping monster with an arrow.
 T:19:0:99  # Bows
+T:31:1:1   # Gloves (leather gloves only)
+T:35:0:99  # Cloak
 
-N:21:Blessing of Orome
+N:21:Fletchery
 I:1:1:3
-D:Every arrow you fire increases your light radius by one for the next five
-D: turns.
-T:19:0:99  # Bows
-T:32:0:99  # Helm
-T:40:0:99  # Amulet
-
-N:22:Fletchery
-I:1:2:4
 D:Allows you to use the '-' command to give ordinary arrows
 D: a +3 bonus. Takes one turn for each arrow.
 T:31:1:1   # Gloves (leather gloves only)
 
-N:23:Point Blank Archery
-I:1:3:5
+N:22:Point Blank Archery
+I:1:2:4
 D:The monster you are firing at cannot get an attack of opportunity.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
+
+N:23:Rout
+I:1:3:5
+D:Firing at fleeing monsters is calculated as if you had 5 points
+D: more dexterity.
+T:19:0:99  # Bows
 
 N:24:Dedication
 I:1:4:6
@@ -215,7 +215,7 @@ T:19:0:99  # Bows
 
 N:27:Deadly Hail
 I:1:7:9
-P:1/0:1/4
+P:1/3:1/4
 D:Arrows fired the turn after killing an enemy with an arrow do twice their
 D: normal damage.
 T:19:0:99  # Bows
