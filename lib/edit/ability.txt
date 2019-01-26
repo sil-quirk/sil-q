@@ -638,8 +638,8 @@ T:35:0:99  # Cloak
 
 N:143:Song of Staunching
 I:7:3:2
-D:Stops all bleeding and heals you of your wounds. You heal faster
-D: with more song.
+D:Stops all bleeding and heals you of your wounds at a rate of 1 health
+D: per turn for every 3 Song.
 T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak

@@ -153,17 +153,17 @@ extern int hand_and_a_half_bonus(const object_type *o_ptr)
 }
 
 /*
- * Bonus for certain races/houses (elves) using blades
+ * Bonus for certain races/houses (elves) using bows
  */
-int blade_bonus(const object_type *o_ptr)
+int bow_bonus()
 {
 	int bonus = 0;
 	
-	if ((rp_ptr->flags & RHF_BLADE_PROFICIENCY) && (o_ptr->tval == TV_SWORD))
+	if (rp_ptr->flags & RHF_BOW_PROFICIENCY)
 	{
 		bonus += 1;
 	}
-	if ((hp_ptr->flags & RHF_BLADE_PROFICIENCY) && (o_ptr->tval == TV_SWORD))
+	if (hp_ptr->flags & RHF_BOW_PROFICIENCY)
 	{
 		bonus += 1;
 	}
@@ -2653,6 +2653,9 @@ static void calc_bonuses(void)
 	p_ptr->skill_equip_mod[S_ARC] += o_ptr->att;
 
 	/* Analyze launcher */
+	// attack bonuses for those with bow proficiency
+	p_ptr->skill_misc_mod[S_ARC] += bow_bonus();
+
 	if (o_ptr->k_idx)
 	{
 		p_ptr->ammo_tval = TV_ARROW;
@@ -2674,7 +2677,7 @@ static void calc_bonuses(void)
 	p_ptr->skill_equip_mod[S_MEL] += o_ptr->att;
 	
 	// attack bonuses for matched weapon types
-	p_ptr->skill_misc_mod[S_MEL] += blade_bonus(o_ptr) + axe_bonus(o_ptr) + polearm_bonus(o_ptr);
+	p_ptr->skill_misc_mod[S_MEL] += axe_bonus(o_ptr) + polearm_bonus(o_ptr);
 
 	// deal with the 'Versatility' ability
 	if (p_ptr->active_ability[S_ARC][ARC_VERSATILITY] && (p_ptr->skill_base[S_ARC] > p_ptr->skill_base[S_MEL]))
@@ -2697,12 +2700,12 @@ static void calc_bonuses(void)
 	    (((&inventory[INVEN_ARM])->tval != TV_SHIELD) && ((&inventory[INVEN_ARM])->tval != 0)))
 	{
 		// remove main-hand specific bonuses
-		p_ptr->offhand_mel_mod -= o_ptr->att + blade_bonus(o_ptr) + axe_bonus(o_ptr) + polearm_bonus(o_ptr);
+		p_ptr->offhand_mel_mod -= o_ptr->att + axe_bonus(o_ptr) + polearm_bonus(o_ptr);
 		if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK]) p_ptr->offhand_mel_mod += 3;
 		
 		// add off-hand specific bonuses
 		o_ptr = &inventory[INVEN_ARM];
-		p_ptr->offhand_mel_mod += o_ptr->att + blade_bonus(o_ptr) + axe_bonus(o_ptr) + polearm_bonus(o_ptr) - 3;
+		p_ptr->offhand_mel_mod += o_ptr->att + axe_bonus(o_ptr) + polearm_bonus(o_ptr) - 3;
 
 		p_ptr->mdd2 = total_mdd(o_ptr);
 		p_ptr->mds2 = total_mds(o_ptr, -3);

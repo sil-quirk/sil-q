@@ -2053,7 +2053,7 @@
 
 /*** Race/House flags ***/
 
-#define RHF_BLADE_PROFICIENCY	0x00000001L	/* +1 bonus with bladed weapons */
+#define RHF_BOW_PROFICIENCY		0x00000001L	/* +1 bonus with bows */
 #define RHF_AXE_PROFICIENCY		0x00000002L	/* +1 bonus with axes */
 #define RHF_MEL_AFFINITY		0x00000004L	/* +1 bonus to melee and one free melee ability */
 #define RHF_MEL_PENALTY			0x00000008L	/* -1 penalty to melee and all abilities cost 500 more */

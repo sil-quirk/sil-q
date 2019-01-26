@@ -4542,7 +4542,6 @@ void do_cmd_throw(bool automatic)
 	
 	// subtract out the melee weapon's bonus (as we had already accounted for it)
 	attack_mod -= (&inventory[INVEN_WIELD])->att;
-	attack_mod -= blade_bonus(&inventory[INVEN_WIELD]);
 	attack_mod -= axe_bonus(&inventory[INVEN_WIELD]);
 	attack_mod -= polearm_bonus(&inventory[INVEN_WIELD]);
 
@@ -4553,7 +4552,6 @@ void do_cmd_throw(bool automatic)
 	}
 
 	// give people their weapon affinity bonuses if the weapon is thrown
-	attack_mod += blade_bonus(i_ptr);
 	attack_mod += axe_bonus(i_ptr);
 	attack_mod += polearm_bonus(i_ptr);
 	

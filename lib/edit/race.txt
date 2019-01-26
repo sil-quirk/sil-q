@@ -53,7 +53,7 @@ I:1:20:4865
 H:82:4:70:2
 W:165:10:153:10
 C:1|2|3
-F:BLADE_PROFICIENCY | ARC_AFFINITY
+F:BOW_PROFICIENCY | SNG_AFFINITY
 E:39:0:5:5     # ~ Wooden Torches (5)
 E:80:37:3:3    # , Fragment of Lembas (3)
 E:23:7:1:1     # | Curved sword (1)
@@ -76,7 +76,7 @@ I:4:20:4865
 H:77:4:68:2
 W:159:10:153:10
 C:4|10
-F:BLADE_PROFICIENCY | ARC_AFFINITY
+F:BOW_PROFICIENCY | SNG_AFFINITY
 E:39:0:5:5     # ~ Wooden Torches (5)
 E:80:37:3:3    # , Fragment of Lembas (3)
 E:23:7:1:1     # | Curved sword (1)

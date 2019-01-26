@@ -1000,14 +1000,14 @@ static void print_rh_flags(int race, int house, int col, int row)
 	byte attr_mastery = TERM_L_GREEN;
 	byte attr_penalty = TERM_RED;
 	
-	if ((p_info[race].flags & RHF_BLADE_PROFICIENCY) && (c_info[house].flags & RHF_BLADE_PROFICIENCY))
+	if ((p_info[race].flags & RHF_BOW_PROFICIENCY) && (c_info[house].flags & RHF_BOW_PROFICIENCY))
 	{
-		Term_putstr(col, row + flags, -1, attr_mastery, "blade mastery       ");
+		Term_putstr(col, row + flags, -1, attr_mastery, "bow mastery         ");
 		flags++;
 	}
-	else if ((p_info[race].flags & RHF_BLADE_PROFICIENCY) || (c_info[house].flags & RHF_BLADE_PROFICIENCY))
+	else if ((p_info[race].flags & RHF_BOW_PROFICIENCY) || (c_info[house].flags & RHF_BOW_PROFICIENCY))
 	{
-		Term_putstr(col, row + flags, -1, attr_affinity, "blade proficiency      ");
+		Term_putstr(col, row + flags, -1, attr_affinity, "bow proficiency        ");
 		flags++;
 	}
 

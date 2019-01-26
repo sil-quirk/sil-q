@@ -5354,19 +5354,10 @@ void sing(void)
 			}
 			case SNG_STAUNCHING:
 			{
-				int cycle = p_ptr->song_duration % 10;
-				int song_frac = score % 10;
-				int bonus_hp = 0;
-
-				if ((p_ptr->song_duration % 3) == type - 1) cost += 1;
+				cost += 1;
 
 				set_cut(0);
-
-				if ((cycle * song_frac) % 10 < song_frac) bonus_hp = 1;
-
-				bonus_hp += (score/3);
-
-				p_ptr->chp += bonus_hp;
+				p_ptr->chp += (score/3);
 
 				if (p_ptr->chp > p_ptr->mhp) p_ptr->chp = p_ptr->mhp;
 
