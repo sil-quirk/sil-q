@@ -5283,7 +5283,7 @@ void sing_song_of_lorien(int score)
 		}
 
 		// adjust difficulty by the distance to the monster
-		result = skill_check(PLAYER, score, resistance + 5 + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx), m_ptr);
+		result = skill_check(PLAYER, score, resistance + 7 + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx), m_ptr);
 
 		/* If successful, (partially) put the monster to sleep */
 		if (result > 0)
