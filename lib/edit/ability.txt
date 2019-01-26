@@ -165,13 +165,11 @@ D:You gain a point of strength.
 
 # Archery ---------------------------------------------
 
-N:20:Ambush
+N:20:Rout
 I:1:0:2
-D:Grants an additional critical damage die whenever you hit an
-D: unwary or sleeping monster with an arrow.
+D:Firing at fleeing monsters is calculated as if you had 5 points
+D: more dexterity.
 T:19:0:99  # Bows
-T:31:1:1   # Gloves (leather gloves only)
-T:35:0:99  # Cloak
 
 N:21:Fletchery
 I:1:1:3
@@ -185,11 +183,13 @@ D:The monster you are firing at cannot get an attack of opportunity.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 
-N:23:Rout
+N:23:Ambush
 I:1:3:5
-D:Firing at fleeing monsters is calculated as if you had 5 points
-D: more dexterity.
+D:Grants an additional critical damage die whenever you hit an
+D: unwary or sleeping monster with an arrow.
 T:19:0:99  # Bows
+T:31:1:1   # Gloves (leather gloves only)
+T:35:0:99  # Cloak
 
 N:24:Dedication
 I:1:4:6
@@ -208,14 +208,14 @@ T:31:1:1   # Gloves (leather gloves only)
 
 N:26:Crippling Shot
 I:1:6:8
-P:1/0:1/4
+P:1/3:1/4
 D:Your critical hits sometimes temporarily slow monsters
 D: (depending on the level of critical and the monster's Will).
 T:19:0:99  # Bows
 
 N:27:Deadly Hail
 I:1:7:9
-P:1/3:1/4
+P:1/0:1/4
 D:Arrows fired the turn after killing an enemy with an arrow do twice their
 D: normal damage.
 T:19:0:99  # Bows
@@ -664,7 +664,7 @@ T:20:0:99  # Shovels and Mattocks
 
 N:146:Song of Whetting
 I:7:6:4
-D:Grants sharpness to a weapon up to (Song/8) lbs in weight.
+D:Grants sharpness to a melee weapon up to (Song/8) lbs in weight.
 T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak

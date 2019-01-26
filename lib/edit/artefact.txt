@@ -1324,14 +1324,14 @@ D: let you pass as a messenger journeying to Morgoth?
 ##### Bows #####
 
 ## The Shortbow of Celegorm
-## (ability 1/0 is Ambush)
+## (ability 1/3 is Ambush)
 
 N:142:of Celegorm
 I:19:12:-1
 W:7:10:20:9000
 P:1:1d9:0:0d0
 F:GRA
-B:1/0
+B:1/3
 D:The bow of Celegorm the great huntsman, third son of Feanor,
 D: who in days of old hunted with Orome himself.
 

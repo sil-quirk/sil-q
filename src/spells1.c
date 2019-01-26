@@ -5364,7 +5364,7 @@ void sing(void)
 
 				if ((cycle * song_frac) % 10 < song_frac) bonus_hp = 1;
 
-				bonus_hp += 1 + (score/10);
+				bonus_hp += (score/3);
 
 				p_ptr->chp += bonus_hp;
 
