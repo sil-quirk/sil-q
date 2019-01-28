@@ -2650,13 +2650,21 @@ int object_difficulty(object_type *o_ptr)
 	// attack bonus
 	x = o_ptr->att - k_ptr->att;
 
-	// special costs for attack bonus for arrows (half difficulty modifier)
+	// special costs for attack bonus for arrows
 	if ((o_ptr->tval == TV_ARROW) && (x > 0))
 	{	
 		int old_di = dif_inc;
 		
 		dif_mod(x, 5, &dif_inc);
 		dif_inc = (dif_inc - old_di) / 2;
+	}
+	// special costs for attack bonus for other weapons
+	else if ((o_ptr->tval == TV_BOW ||
+		  o_ptr->tval == TV_SWORD ||
+		  o_ptr->tval == TV_POLEARM ||
+		  o_ptr->tval == TV_HAFTED) && (x > 0))
+	{
+		dif_mod(x, 3, &dif_inc);
 	}
 	// normal costs for other items
 	else
@@ -2673,8 +2681,8 @@ int object_difficulty(object_type *o_ptr)
 	// damage bonus
 	x = (o_ptr->ds - k_ptr->ds);
 	// dd used to be a factor here, but a shortsword is far more breakable than a great axe
-	dif_mod(x, 8, &dif_inc);
-	if (x > 0) dif_inc -= o_ptr->tval == TV_BOW ? 1 : 4;
+	dif_mod(x, 7, &dif_inc);
+	if (x > 0) dif_inc -= 2;
 
 	// protection bonus
 	base = (k_ptr->ps > 0) ? ((k_ptr->ps + 1) * k_ptr->pd) : 0;
