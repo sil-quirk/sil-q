@@ -421,7 +421,7 @@ N:70:& Mithril Greatsword~
 G:|:B
 I:23:30:0
 W:6:0:40:7000
-P:-1:3d5:1:0d0
+P:-2:3d6:1:0d0
 A:6/80:16/15
 F:IGNORE_ALL | TWO_HANDED | MITHRIL
 
