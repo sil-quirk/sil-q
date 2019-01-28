@@ -1075,23 +1075,6 @@ D: following the destruction of the Two Trees, it has a haft and head of
 D: black iron banded about with red gold.
 
 
-## The Sceptre of Thu
-## 1st age
-## (ability 7/10 is Song of Mastery)
-
-N:110:of Thu
-G:\:D
-I:21:9:2
-W:20:20:40:50000
-P:0:2d4:0:0d0
-F:GRA | DANGER | HAUNTED
-B:7/10
-D:'Men called him Thu, and as a god
-D: in after days beneath his rod
-D: bewildered bowed to him, and made
-D: his ghastly temples in the shade.'
-
-
 ##### Digging Tools #####
 
 ## The Mattock 'Burkfelek'

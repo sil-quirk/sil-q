@@ -3176,13 +3176,6 @@ static bool kind_is_jewelry(int k_idx)
 			return (TRUE);
 		}
 
-		/* Sceptres are suitable for a chest */
-		case TV_HAFTED:
-		{
-			if (k_ptr->sval == SV_SCEPTRE) return (TRUE);
-			return (FALSE);
-		}
-			
 		/*  Artefact rings are suitable for a chest */
 		case TV_RING:
 		{

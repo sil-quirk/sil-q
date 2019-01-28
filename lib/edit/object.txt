@@ -503,15 +503,6 @@ A:6/3
 F:HAND_AND_A_HALF
 
 
-N:90:& Sceptre~
-G:\:y1
-I:21:9:0
-W:1:0:40:1000
-P:0:2d3:0:0d0
-A:1/10:10/20
-F:ENCHANTABLE | MORE_SPECIAL
-
-
 ##### Digging Tools #####
 
 

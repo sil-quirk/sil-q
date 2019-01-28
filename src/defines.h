@@ -1097,7 +1097,6 @@
 /* The "sval" values for TV_HAFTED */
 #define SV_QUARTERSTAFF			3	/* 2d3 */
 #define SV_WAR_HAMMER			8	/* 4d1 */
-#define SV_SCEPTRE				9	/* 2d3 */
 #define SV_GROND				50	/* 5d5 */
 
 /* The "sval" values for TV_POLEARM */
