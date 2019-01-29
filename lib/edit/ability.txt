@@ -387,17 +387,16 @@ N:80:Quick Study
 I:4:0:1
 D:Allows you to take advanced abilities when you don't have the
 D: prerequisite abilities.
-T:33:0:99  # Crown
 T:40:0:99  # Amulet
 
 N:81:Focused attack
 I:4:1:2
 D:Gives you a bonus of half your Perception score to your
 D: attacks if you passed the previous turn.
+T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:32:0:99  # Helm
-T:33:0:99  # Crown
 T:19:0:99  # Bow
 
 N:82:Keen Senses
@@ -405,7 +404,6 @@ I:4:2:3
 D:Allows you to see enemies who are just beyond the edge of a
 D: pool of light, and gives a +5 bonus to spot 'invisible' creatures.
 T:32:0:99  # Helm
-T:33:0:99  # Crown
 T:39:0:99  # Light Source
 T:40:0:99  # Amulet
 
@@ -414,7 +412,6 @@ I:4:3:4
 D:Gives you a +1 bonus to attack for every consecutive round
 D: spent attacking the same enemy (to a maximum of Perception/2).
 T:32:0:99  # Helm
-T:33:0:99  # Crown
 T:36:0:99  # Soft Armour
 T:40:0:99  # Amulet
 
@@ -423,7 +420,6 @@ I:4:4:5
 D:Lets you determine the purpose of all herbs and potions you encounter,
 D: as well as staves and horns.
 T:32:0:99  # Helm
-T:33:0:99  # Crown
 T:45:0:99  # Ring
 
 N:85:Bane
@@ -438,7 +434,6 @@ D:If your base Perception exceeds your Evasion, you gain a
 D: bonus to your Evasion of one third your Perception score.
 D: You can also determine when an item is cursed.
 T:32:0:99  # Helm
-T:33:0:99  # Crown
 T:39:0:99  # Light Source
 T:40:0:99  # Amulet
 
@@ -448,7 +443,6 @@ P:4/2
 D:Gives you a chance each turn to detect enemies that you
 D: cannot see (including around corners and through doors).
 T:32:0:99  # Helm
-T:33:0:99  # Crown
 
 N:88:Master Hunter
 I:4:8:9
@@ -456,7 +450,6 @@ P:4/3:4/5
 D:Gives you an attack bonus of +1 for each time you have killed
 D: an opponent of the same type (up to a maximum of Perception/4).
 T:32:0:99  # Helm
-T:33:0:99  # Crown
 T:30:0:99  # Boots
 T:19:0:99  # Bows
 
@@ -470,7 +463,6 @@ N:100:Channeling
 I:5:0:2
 D:You automatically recognise all staves and horns and can use them twice as efficiently.
 T:32:0:99  # Helm
-T:33:0:99  # Crown
 T:45:0:99  # Ring
 
 N:101:Strength in Adversity
@@ -478,10 +470,10 @@ I:5:1:3
 D:Gives you bonuses to Strength, Dexterity and Grace when seriously injured:
 D: +1 when less than or equal to 50% health, +3 when 25%.
 T:32:0:99  # Helm
-T:33:0:99  # Crown
 T:36:0:99  # Soft Armour
 T:37:0:99  # Mail
 T:40:0:99  # Amulet
+T:39:0:99  # Light Source
 
 N:102:Curse Breaking
 I:5:2:4
@@ -489,7 +481,6 @@ D:Allows you to break the curses on items when you
 D: attempt to take them off.
 T:40:0:99  # Amulet
 T:32:0:99  # Helm
-T:33:0:99  # Crown
 T:45:0:99  # Ring
 T:34:0:99  # Shields
 
@@ -498,10 +489,8 @@ I:5:3:5
 D:Increases the intensity of light within your light radius by 1 point
 D: (without increasing the radius).
 T:32:0:99  # Helm
-T:33:0:99  # Crown
 T:39:0:99  # Light Source
 T:36:0:99  # Soft Armour
-T:21:9:9   # Sceptre
 
 N:104:Indomitable
 I:5:4:5
@@ -509,14 +498,11 @@ D:Gives you resistance to fear, confusion, stunning, and hallucination.
 D: Slows hunger to one third the normal rate.
 T:40:0:99  # Amulet
 T:32:0:99  # Helm
-T:33:0:99  # Crown
 T:37:0:99  # Mail
-T:21:9:9   # Sceptre
 
 N:105:Hardiness
 I:5:5:6
 D:Gives you [1dX] additional protection, where X = Will/6.
-T:34:0:99  # Shields
 
 N:106:Poison Resistance
 I:5:6:7
@@ -530,7 +516,6 @@ D:When you are damaged in melee by an enemy, an additional damage
 D: die is added to your next successful strike. This effect does not stack.
 T:40:0:99  # Amulet
 T:32:0:99  # Helm
-T:33:0:99  # Crown
 
 N:108:Critical Resistance
 I:5:8:9
@@ -548,9 +533,7 @@ I:5:9:9
 P:5/0:5/3
 D:Lowers monster morale by half the difference between your Will and theirs.
 T:32:0:99  # Helm
-T:33:0:99  # Crown
 T:36:2:2   # Robe
-T:21:9:9   # Sceptre
 T:40:0:99  # Amulet
 
 N:110:Constitution
@@ -617,22 +600,23 @@ D:You gain a point of grace.
 N:140:Song of Elbereth
 I:7:0:1
 D:Causes fear in nearby servants of Morgoth.
-T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
+T:39:0:99  # Light Source
 
 N:141:Song of Challenge
 I:7:1:1
 D:Causes weak-willed foes to attack aggressively without regard to 
 D: strategy. Enemies with ranged weapons will close to melee range.
-T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
 
 N:142:Song of Freedom
 I:7:2:2
 D:Discovers and overcomes nearby doors, traps, and rubble.
-T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
@@ -640,7 +624,6 @@ N:143:Song of Staunching
 I:7:3:2
 D:Stops all bleeding and heals you of your wounds at a rate of 1 health
 D: per turn for every 3 Song.
-T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:45:0:99  # Ring
@@ -649,16 +632,14 @@ N:144:Song of Silence
 I:7:4:3
 D:Dampens all nearby sounds, making it harder for
 D: opponents to hear you and each other.
-T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
+T:30:0:99  # Boots
 
 N:145:Song of Delvings
 I:7:5:3
 D:Slowly reveals the terrain around you, working out from
 D: already known areas.
-T:33:0:99  # Crown
-T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:20:0:99  # Shovels and Mattocks
 
@@ -666,16 +647,14 @@ N:146:Song of Whetting
 I:7:6:4
 P:7/1
 D:Grants sharpness to a melee weapon up to (Song/8) lbs in weight.
-T:33:0:99  # Crown
-T:40:0:99  # Amulet
-T:35:0:99  # Cloak
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
 
 N:147:Song of the Trees
 I:7:7:5
 P:7/0:7/3
 D:Increases your light level by 1 point per 5 points
 D: of Song.
-T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:39:0:99  # Light Source
@@ -685,7 +664,6 @@ I:7:8:6
 P:7/0:7/5
 D:Doors you close while singing this song are warded against
 D: your enemies.
-T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
@@ -703,7 +681,6 @@ N:150:Song of Lorien
 I:7:10:8
 P:7/4
 D:Gradually puts nearby opponents to sleep.
-T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
@@ -711,16 +688,13 @@ N:151:Song of Mastery
 I:7:11:9
 P:7/2
 D:Occasionally prevents nearby opponents from moving or acting.
-T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
-T:21:9:9   # Sceptre
 
 N:152:Woven Themes
 I:7:12:10
 D:Allows you to add a 'minor theme' to your song. This means you
 D: can have the effect of a second song, but at half your normal Song score.
-T:33:0:99  # Crown
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
