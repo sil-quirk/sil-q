@@ -1535,7 +1535,7 @@ smithing_cost_type smithing_cost;
 #define CAT_ARMOUR  1
 #define CAT_JEWELRY 2
 
-#define MAX_SMITHING_TVALS 18
+#define MAX_SMITHING_TVALS 17
 
 #define SMT_MENU_CREATE   1
 #define SMT_MENU_ENCHANT  2
@@ -1588,7 +1588,6 @@ static const smithing_tval_desc smithing_tvals[MAX_SMITHING_TVALS] =
 	{ CAT_ARMOUR,  TV_CLOAK,             "Cloak"                },
 	{ CAT_ARMOUR,  TV_SHIELD,            "Shield"               },
 	{ CAT_ARMOUR,  TV_HELM,              "Helm"                 },
-	{ CAT_ARMOUR,  TV_CROWN,             "Crown"                },
 	{ CAT_ARMOUR,  TV_GLOVES,            "Gloves"               },
 	{ CAT_ARMOUR,  TV_BOOTS,             "Boots"                },
 };
@@ -8925,7 +8924,6 @@ static cptr object_group_text[] =
 	"Cloaks",
 	"Gloves",
 	"Helms",
-	"Crowns",
 	"Boots",
 	"Chests",
 	NULL
