@@ -416,7 +416,6 @@ N:71:of Brilliance
 W:0:1:0:1000
 C:0:0:0:0:0:0:0
 T:32:0:99
-T:33:0:99
 F:LIGHT
 
 
@@ -424,7 +423,6 @@ N:72:of Defiance
 W:0:1:0:2000
 C:0:0:0:0:0:0:3
 T:32:0:99
-T:33:0:99
 F:WILL | RES_FEAR
 
 
@@ -434,7 +432,6 @@ N:73:of True Sight
 W:0:1:0:2000
 C:0:0:0:0:0:0:0
 T:32:0:99
-T:33:0:99
 T:39:1:8
 F:RES_BLIND | SEE_INVIS | RES_HALLU
 
@@ -443,28 +440,17 @@ N:74:of Clarity
 W:0:1:0:2000
 C:0:0:0:0:0:0:0
 T:32:0:99
-T:33:0:99
 F:RES_CONFU | RES_STUN | RES_HALLU
 
 
-# crowns (and lesser jewels) only
+# lesser jewels
 
 N:75:of Grace
 W:0:1:0:3000
 C:0:0:0:0:0:0:1
-T:33:0:99
 T:39:2:2
 F:GRA
 
-
-# crowns only
-# (ability 7/10 is Song of Mastery)
-
-N:76:of Command
-W:0:2:0:3000
-C:0:0:0:0:0:0:0
-T:33:0:99
-B:7/10
 
 ###
 
@@ -472,7 +458,6 @@ N:80:of Terror
 W:0:4:0:3000
 C:0:0:0:0:0:0:0
 T:32:0:99
-T:33:0:99
 F:FEAR
 
 # a helm that lowers perception?

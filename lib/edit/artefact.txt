@@ -174,15 +174,15 @@ V:1.4.2
 
 ## The Ring of Barahir
 ## 1st age
-## (ability 7/6 is Song of Staying)
+## (ability 7/3 is Song of Staunching)
 
 N:1:of Barahir
 I:45:32:0
 W:10:20:1:5000
-P:0:0d0:0:0d0
+P:0:0d0:0:1d1
 F:FREE_ACT | RES_POIS
 F:INSTA_ART
-B:7/6
+B:7/3
 D:A ring shaped into twinned serpents with eyes of emerald meeting
 D: beneath a crown of flowers. It was given to Barahir of Beor's House
 D: by Finrod Felagund the Noldorin Prince. It is a symbol of loyalty and
@@ -207,7 +207,7 @@ D: Above all else, she is famed for her insight.
 
 ## The Amulet of Tinfang Gelion
 ## 1st age namesake
-## (ability 7/11 is Woven Themes)
+## (ability 7/12 is Woven Themes)
 
 N:3:of Tinfang Gelion
 I:40:10:2
@@ -215,7 +215,7 @@ W:12:20:1:5000
 P:0:0d0:0:0d0
 F:SONG
 F:INSTA_ART
-B:7/11
+B:7/12
 D:A delicate necklace traced with intricate designs.
 D: Clasping it around your neck fills you memories of
 D: great heroes and a desire to sing of their deeds.
@@ -1085,14 +1085,14 @@ D: in your hands, its point guiding itself to where it is needed.
 
 ## The Quarterstaff of Halmir
 ## 1st age namesake
-## (ability 7/3 is Song of Freedom)
+## (ability 7/2 is Song of Freedom)
 
 N:104:of Halmir
 I:21:3:3
 W:2:10:40:250000
 P:0:2d4:3:0d0
 F:SUST_STR | SUST_CON | RES_POIS
-B:7/3
+B:7/2
 D:Halmir, who once bore this staff, was a chieftain among men,
 D: and resolute always against the power of Morgoth.
 
@@ -1219,7 +1219,7 @@ D: to fight on, no matter the circumstances.
 ## Mithril Helm of Ecthelion
 ## 1st age
 ## added for Psi -- our first great smith
-## (ability 7/6 is Song of Staying)
+## (ability 7/9 is Song of Staying)
 
 N:123:of Ecthelion
 G:]:w
@@ -1227,7 +1227,7 @@ I:32:8:2
 W:16:12:40:25000
 P:1:0d0:-1:1d3
 F:SONG | RES_FIRE | RES_FEAR
-B:7/6
+B:7/9
 D:A beautiful helm, wrought of mithril and inlaid with white stones.
 D: It rises gracefully to a tall point as sharp as any spear. 
 
@@ -1236,7 +1236,7 @@ D: It rises gracefully to a tall point as sharp as any spear.
 
 ## The Cloak of Maglor
 ## 1st age namesake
-## (ability 7/4 is Song of the Trees)
+## (ability 7/7 is Song of the Trees)
 
 N:131:of Maglor
 G:(:b
@@ -1244,7 +1244,7 @@ I:35:1:2
 W:13:10:20:35000
 P:0:0d0:1:0d0
 F:SONG
-B:7/4
+B:7/7
 D:A cloak worn by Maglor, the mighty singer, and gentlest of Feanor's sons.
 
 
@@ -1263,14 +1263,14 @@ D: to the hoards of Angband, you cannot say.
 
 ## The Shadow Cloak of Luthien
 ## 1st age
-## (ability 7/7 is Song of Lorien)
+## (ability 7/10 is Song of Lorien)
 
 N:134:of Luthien
 I:35:6:4
 W:13:10:10:45000
 P:0:0d0:4:0d0
 F:STEALTH | DARKNESS | SUST_GRA
-B:7/7
+B:7/10
 D:A shadowy cloak, woven from soft elven-hair.
 D: It was made by Luthien Tinuviel, the most
 D: beautiful being who ever knew death.
