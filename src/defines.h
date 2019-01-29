@@ -1133,7 +1133,6 @@
 #define SV_DWARF_MASK			7
 #define SV_MITHRIL_HELM			8
 #define SV_GOLDEN_CROWN			11
-#define SV_JEWELED_CROWN		12
 #define SV_MORGOTH				50
 
 /* The "sval" codes for TV_BOOTS */

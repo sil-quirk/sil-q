@@ -530,7 +530,7 @@ D: rubble or quartz.
 
 
 
-##### Helms/Crowns #####
+##### Helms #####
 
 
 N:100:& Helm~
@@ -573,18 +573,7 @@ G:]:y
 I:33:11:0
 W:7:0:30:1000
 P:0:0d0:0:1d0
-A:7/10:14/2
-F:IGNORE_ALL | ENCHANTABLE | MORE_SPECIAL
-
-
-N:105:& Jewelled Crown~
-G:]:v
-I:33:12:0
-W:8:0:30:2000
-P:0:0d0:0:1d0
-A:8/10:16/2
-F:IGNORE_ALL | ENCHANTABLE | MORE_SPECIAL
-
+F:INSTA_ART
 
 
 ##### Cloaks #####

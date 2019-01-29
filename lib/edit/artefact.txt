@@ -167,6 +167,7 @@ V:1.4.2
 #   - Rings
 #   - Amulets
 #   - Light Sources
+#   - Crowns
 # Only artefacts 1 to 19 may be of these types.
 # Artefacts from index number 20 onwards must be Armour or Weapons.
 
@@ -275,6 +276,52 @@ B:3/5
 D:This ring was wrought by Mairon under Melkor's tuition, while Mairon
 D: pretended still to be faithful to the Valar. Shadows twist and weave about
 D: its surface, and it is deathly cold.
+
+
+## The Crown of Daeron
+## 1st age
+
+N:8:of Daeron
+G:]:g
+I:33:11:4
+W:14:30:5:600000
+P:0:0d0:0:1d0
+F:SONG | INSTA_ART
+D: '... Daeron the Dark with ferny crown
+D: played with bewildering wizard's art
+D: music for breaking of the heart.'
+
+
+## The Crown of Feanor
+
+N:9:of Feanor
+I:33:11:3
+W:20:20:35:300000
+P:0:0d0:0:1d1
+F:SMITHING | WILL | RES_FIRE | SEE_INVIS | LIGHT
+F:AGGRAVATE | INSTA_ART
+D:The crown of Feanor, greatest of the Noldor. It is beautifully wrought
+D: with many shining jewels of Valinor, whose light is a challenge to those born
+D: of darkness. Though his flaws ran deep, this crown is a reminder of his
+D: greatness.
+D: "Dear-bought those songs shall be accounted, and yet shall be
+D: well-bought.  For the price could be no other."
+
+
+## The Crown of Maedhros
+## (ability 5/9 is Majesty)
+
+N:10:of Maedhros
+I:33:11:3
+W:8:20:30:30000
+P:0:0d0:0:1d1
+F:WILL | RES_FEAR
+F:DANGER | INSTA_ART
+B:5/9
+D:The crown of Maedhros, High King of the Noldor, who was captured by Morgoth
+D: when he went to parley with him and hung by his right hand from Thangorodrim
+D: for thirty years.
+
 
 
 #################################################################
@@ -1183,49 +1230,6 @@ F:SONG | RES_FIRE | RES_FEAR
 B:7/6
 D:A beautiful helm, wrought of mithril and inlaid with white stones.
 D: It rises gracefully to a tall point as sharp as any spear. 
-
-
-## The Crown of Daeron
-## 1st age
-
-N:125:of Daeron
-G:]:g
-I:33:11:4
-W:14:30:5:600000
-P:0:0d0:0:1d0
-F:SONG
-D: '... Daeron the Dark with ferny crown
-D: played with bewildering wizard's art
-D: music for breaking of the heart.'
-
-## The Jewelled Crown of Feanor
-
-N:129:of Feanor
-I:33:12:3
-W:20:15:35:300000
-P:0:0d0:0:1d1
-F:SMITHING | WILL | RES_FIRE | SEE_INVIS | LIGHT
-F:AGGRAVATE
-D:The crown of Feanor, greatest of the Noldor. It is beautifully wrought
-D: with many shining jewels of Valinor, whose light is a challenge to those born
-D: of darkness. Though his flaws ran deep, this crown is a reminder of his
-D: greatness.
-D: "Dear-bought those songs shall be accounted, and yet shall be
-D: well-bought.  For the price could be no other."
-
-## The Jewelled Crown of Maedhros
-## (ability 5/9 is Majesty)
-
-N:130:of Maedhros
-I:33:12:3
-W:8:10:30:30000
-P:0:0d0:0:1d1
-F:WILL | RES_FEAR
-F:DANGER
-B:5/9
-D:The crown of Maedhros, High King of the Noldor, who was captured by Morgoth
-D: when he went to parley with him and hung by his right hand from Thangorodrim
-D: for thirty years.
 
 ##### Cloaks #####
 
