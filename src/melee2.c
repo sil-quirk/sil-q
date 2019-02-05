@@ -3651,7 +3651,18 @@ static void process_move(monster_type *m_ptr, int ty, int tx, bool bash)
             if (r_ptr->flags2 & (RF2_EXCHANGE_PLACES) && one_in_(4) &&
                 (adj_mon_count(m_ptr->fy, m_ptr->fx) >= adj_mon_count(p_ptr->py, p_ptr->px)))
             {
-                monster_exchange_places(m_ptr);
+		if (p_ptr->stand_fast)
+		{
+    			char m_name[80];
+			monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+	    		msg_format("%^s attempts to exchange places with you, but you stand fast.", m_name);
+
+			ident_stand_fast();
+		}
+		else
+		{
+			monster_exchange_places(m_ptr);
+		}
             }
             else
             {

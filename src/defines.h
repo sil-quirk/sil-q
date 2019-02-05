@@ -1809,7 +1809,7 @@
 
 #define TR3_DAMAGED         0x00000001L /* xxx */
 #define TR3_CHEAT_DEATH     0x00000002L /* xxx */
-#define TR3_TR3XXX3         0x00000004L /* xxx */
+#define TR3_STAND_FAST      0x00000004L /* xxx */
 #define TR3_TR3XXX4         0x00000008L /* xxx */
 #define TR3_TR3XXX14        0x00000010L /* xxx */
 #define TR3_TR3XXX13        0x00000020L /* xxx */

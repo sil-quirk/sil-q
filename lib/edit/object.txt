@@ -455,13 +455,13 @@ A:8/2:16/2
 F:TWO_HANDED | POLEARM
 
 
-N:76:& Throwing Axe~
+N:76:& Hand Axe~
 G:/:s
 I:22:11:0
-W:1:0:15:150
-P:0:2d4:0:0d0
-A:1/1
-F:THROWING | AXE
+W:2:0:10:150
+P:-1:5d1:0:0d0
+A:2/1
+F:AXE
 
 
 N:77:& Battle Axe~

@@ -254,11 +254,10 @@ T:31:0:99  # Gloves
 N:43:Crowd Fighting
 I:2:3:5
 D:Halves the bonus opponents get for surrounding you.
-T:21:0:99  # Hafted
-T:22:0:99  # Polearms
-T:23:0:99  # Swords
 T:31:0:99  # Gloves
 T:37:0:99  # Mail
+T:30:0:99  # Boots
+T:32:0:99  # Helm
 
 N:44:Leaping
 I:2:4:6
@@ -279,10 +278,7 @@ I:2:6:8
 D:Gives you a free attack on an opponent if you step from a square
 D: which is adjacent to it, to another square which is adjacent
 D: to it.
-T:21:0:99  # Hafted
-T:22:0:99  # Polearms
-T:23:0:99  # Swords
-T:31:0:99  # Gloves
+T:30:0:99  # Boots
 T:36:0:99  # Soft Armour
 
 N:47:Heavy Armour Use
@@ -312,8 +308,8 @@ D: from it, but only if you did not move the previous round.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
-T:31:0:99  # Gloves
 T:34:0:99  # Shields
+T:30:0:99  # Boots
 
 N:50:Dexterity
 I:2:10:20

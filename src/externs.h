@@ -337,6 +337,7 @@ extern void ident_resist(u32b flag);
 extern void ident_passive(void);
 extern void ident_betrayal(object_type *o_ptr);
 extern void ident_cheat_death(object_type *o_ptr);
+extern void ident_stand_fast(void);
 extern void ident_see_invisible(const monster_type *m_ptr);
 extern void ident_haunted(void);
 extern void ident_cowardice(void);

@@ -490,6 +490,7 @@ static bool describe_misc_magic(const object_type *o_ptr, u32b f2, u32b f3)
 	if ((f2 & (TR2_RADIANCE)) && (o_ptr->tval == TV_BOOTS))	good[gc++] = "lights your path behind you";
 	if (f2 & (TR2_REGEN))									good[gc++] = "speeds your regeneration (which increases your hunger while active)";
 	if (f3 & (TR3_CHEAT_DEATH))								good[gc++] = "preserves you from death once";
+	if (f3 & (TR3_STAND_FAST))								good[gc++] = "helps you stand fast against your foes";
 
 	/* Describe */
 	output_desc_list("It ", good, gc);

@@ -1670,8 +1670,19 @@ bool make_attack_normal(monster_type *m_ptr)
 					// determine if the player is knocked back
 					if (skill_check(m_ptr, monster_stat(m_ptr, A_STR) * 2, p_ptr->stat_use[A_CON] * 2, PLAYER) > 0)
 					{
-						// do the knocking back
-						knock_back(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px);
+						if (p_ptr->stand_fast)
+						{
+							char m_name[80];
+							monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+							msg_format("%^s attempts to knock you back, but you stand fast.", m_name);
+
+							ident_stand_fast();
+						}
+						else
+						{
+							// do the knocking back
+							knock_back(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px);
+						}
 
 						// remember that the monster can do this
 						if (m_ptr->ml)  l_ptr->flags2 |= (RF2_KNOCK_BACK);

@@ -1644,6 +1644,53 @@ extern void ident_cheat_death(object_type *o_ptr)
 }
 
 
+extern void ident_stand_fast()
+{
+	u32b f1, f2, f3;
+
+	int i;
+
+	bool notice = FALSE;
+
+	char o_full_name[80];
+	char o_short_name[80];
+
+	object_type *o_ptr;
+
+	/* Scan the equipment */
+	for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+	{
+		o_ptr = &inventory[i];
+		
+		/* Skip non-objects */
+		if (!o_ptr->k_idx) continue;
+		
+		/* Extract the item flags */
+		object_flags(o_ptr, &f1, &f2, &f3);
+		
+		if (!object_known_p(o_ptr))
+		{
+			if ((f3 & (TR3_STAND_FAST)))
+			{
+				notice = TRUE;
+			}
+		}
+		
+		if (notice)
+		{
+			/* Short, pre-identification object description */
+			object_desc(o_short_name, sizeof(o_short_name), o_ptr, FALSE, 0);
+			
+			/* identify the object */
+			ident(o_ptr);
+			
+			/* Full object description */
+			object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
+			msg_format("You realize that your %s is %s.", o_short_name, o_full_name);
+		}		
+	}
+}
+
 
 extern void ident_see_invisible(const monster_type *m_ptr)
 {
