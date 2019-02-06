@@ -3905,12 +3905,6 @@ int py_attack_aux(int y, int x, int attack_type)
 			if (net_dam < 0) net_dam = 0;
 			if (net_dam > 0) attack_result = ATTACK_DAMAGED;
 
-			if (o_ptr->tval == TV_HAFTED)
-			{
-				net_dam += (MIN(prt, dam) * BLUNT_WEAPON_ARMOR_DAMAGE_MULTIPLIER);
-				damage_type = GF_BLUNT;
-			}
-
 			// determine the punctuation for the attack ("...", ".", "!" etc)
 			attack_punctuation(punctuation, net_dam, crit_bonus_dice);
 			

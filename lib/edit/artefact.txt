@@ -1143,7 +1143,7 @@ D: and enchanted for both battle and mine.
 
 N:117:of Angrod
 I:32:5:0
-W:5:10:45:4500
+W:8:12:45:4500
 P:0:0d0:0:1d3
 F:RES_COLD | RES_FEAR | REGEN
 D:The helm of Angrod, son of Finarfin, who perished in
@@ -1166,8 +1166,8 @@ D: snared many in Beleriand.
 ## (ability 5/7 is Vengeance)
 
 N:119:of the Oathbreaker
-I:32:5:2
-W:5:10:15:45000
+I:32:5:0
+W:8:12:15:45000
 P:0:0d0:0:1d3
 F:TRAITOR | LIGHT_CURSE
 B:5/7

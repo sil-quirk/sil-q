@@ -176,7 +176,6 @@ F:AGGRAVATE
 N:21:of Gondolin
 W:0:2:10:1000
 C:0:0:0:0:0:0:0
-T:21:8:8
 T:22:0:99
 T:23:7:99
 T:17:0:99
@@ -187,7 +186,6 @@ F:SLAY_ORC | SLAY_TROLL
 N:22:of Doriath
 W:0:2:0:2000
 C:0:0:0:0:0:0:0
-T:21:8:8
 T:22:0:99
 T:23:7:99
 T:17:0:99
@@ -197,7 +195,6 @@ F:SLAY_SPIDER | SLAY_WOLF
 N:23:of Nargothrond
 W:9:2:0:2000
 C:0:0:0:0:0:0:0
-T:21:8:8
 T:22:0:99
 T:23:7:99
 F:SLAY_RAUKO | SLAY_DRAGON
@@ -212,7 +209,7 @@ T:23:7:99
 F:SLAY_UNDEAD | FREE_ACT
 
 
-# Blades, axes, and polearms (except throwing axes)
+# Blades, axes, and polearms (except hand axes)
 
 N:25:(Vampiric)
 W:7:4:0:3000
@@ -321,32 +318,16 @@ T:22:1:2
 F:GRA | LIGHT
 
 
-# Sceptres only
+# 37 and 38 free
 
-N:37:of Power
-W:0:1:0:3000
-C:0:0:0:0:0:0:3
-T:21:9:9
-F:WILL | SONG
+# Warhammers only
+# (ability 0/8 is Knock Back)
 
-
-# Sceptres only
-
-N:38:of Fire
-W:0:1:0:3000
+N:39:of Battering
+W:0:2:0:2000
 C:0:0:0:0:0:0:0
-T:21:9:9
-F:BRAND_FIRE | LIGHT
-
-
-# Quarterstaves only
-# (ability 2/4 is Leaping)
-
-N:39:of Vaulting
-W:0:6:0:2000
-C:0:0:0:0:0:0:0
-T:21:3:3
-B:2/4
+T:21:8:8
+B:0/2
 
 
 # Warhammers only
@@ -370,18 +351,18 @@ B:0/8
 
 # Quarterstaves only
 
-N:42:of Calacirya
-W:0:4:0:8000
-C:0:0:2:0:0:0:3
+N:42:of Mithrim
+W:0:1:0:8000
+C:1:0:0:0:0:0:0
 T:21:3:3
-F:WILL | SONG | LIGHT
+F:REGEN
 
 
 # Quarterstaves only
 
 N:43:of the Helcaraxe
-W:0:4:0:8000
-C:0:0:2:0:0:0:1
+W:2:6:0:8000
+C:0:0:0:0:0:0:1
 T:21:3:3
 F:CON | RES_COLD
 
@@ -489,7 +470,7 @@ N:84:of the Traveller
 W:0:1:0:1000
 C:0:0:0:0:0:0:0
 T:35:0:99
-F:SLOW_DIGEST | REGEN
+F:SLOW_DIGEST
 
 ###
 

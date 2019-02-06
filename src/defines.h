@@ -840,7 +840,6 @@
 #define GF_LOCK_DOOR	23    // adds (skill_check/2) points to the lock level of a door        ( - - - f )
 #define GF_AWAY_ALL		24    // teleports monsters (XdY) squares away                          ( - m - - ) *
 #define GF_IDENTIFY		25    // identifies objects on the ground                               ( - - o - ) *
-#define GF_BLUNT		26    // damage partly reduced by armour, not used in the project functions    ( - - - - )
 
 
 /*
@@ -2206,9 +2205,6 @@
 #define ATTACK_MISSED	0
 #define ATTACK_HIT	1
 #define ATTACK_DAMAGED	2
-
-#define BLUNT_WEAPON_ARMOR_DAMAGE_MULTIPLIER	(1.0 / 4)
-
 
 /*** Monster flags ***/
 
