@@ -2843,7 +2843,10 @@ static bool build_type6(int y0, int x0, bool force_forge)
 
 		rarity = v_ptr->rarity;
 		/* Surface rooms get very much rarer at depth */
-		if (v_ptr->flags & (VLT_SURFACE)) rarity <<= (v_ptr->depth * 2);
+		if (v_ptr->flags & (VLT_SURFACE))
+		{
+			rarity += ((1 << (p_ptr->depth)) / 8);
+		}
 
         /* Accept the first interesting room */
 		if ((v_ptr->typ == 6) && (v_ptr->depth <= p_ptr->depth) && (one_in_(rarity))) break;

@@ -33,6 +33,7 @@
 #     TRAPS       - has twice the normal proportion of traps
 #     WEBS        - has a 5% chance of a web per empty square
 #     LIGHT       - 100% chance of being permanently lit
+#     SURFACE     - generated more seldom in deeper dungeons
 #
 # 'D' lines describe the layout of the vault. Lines must be padded
 #     with spaces to fill the dimensions specified. Vaults are described
