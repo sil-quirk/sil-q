@@ -274,12 +274,9 @@ static bool describe_brand(const object_type *o_ptr, u32b f1)
 /*
  * Describe misc weapon attributes.
  */
-static bool describe_misc_weapon_attributes(const object_type *o_ptr, u32b f1)
+static bool describe_misc_weapon_attributes(const object_type *o_ptr, u32b f1, u32b f3)
 {
 	bool message = FALSE;
-
-	/* Unused parameter */
-	(void)o_ptr;
 
 	if (f1 & (TR1_SHARPNESS))
 	{
@@ -296,6 +293,19 @@ static bool describe_misc_weapon_attributes(const object_type *o_ptr, u32b f1)
 	{
 		p_text_out("It drains life from your enemies.  ");
 		message = TRUE;
+	}
+	if (f3 & (TR3_ACCURATE))
+	{
+		if (o_ptr->tval == TV_BOW)
+		{
+			p_text_out("It fires arrows with unerring precision.  ");
+			message = TRUE;
+		}
+		else
+		{
+			p_text_out("It is unusually well balanced.  ");
+			message = TRUE;
+		}
 	}
 	
 	return (message);
@@ -474,7 +484,7 @@ static bool describe_misc_magic(const object_type *o_ptr, u32b f2, u32b f3)
 	if ((f2 & (TR2_RADIANCE)) && (o_ptr->tval == TV_BOOTS))	good[gc++] = "lights your path behind you";
 	if (f2 & (TR2_REGEN))									good[gc++] = "speeds your regeneration (which increases your hunger while active)";
 	if (f3 & (TR3_CHEAT_DEATH))								good[gc++] = "preserves you from death once";
-	if (f3 & (TR3_STAND_FAST))								good[gc++] = "helps you stand fast against your foes";
+	if (f3 & (TR3_STAND_FAST))								good[gc++] = "lets you stand fast against your foes";
 
 	/* Describe */
 	output_desc_list("It ", good, gc);
@@ -784,7 +794,7 @@ bool object_info_out(const object_type *o_ptr)
 	if (describe_secondary(o_ptr, f1))					something = TRUE;
 	if (describe_slay(o_ptr, f1))						something = TRUE;
 	if (describe_brand(o_ptr, f1))						something = TRUE;
-	if (describe_misc_weapon_attributes(o_ptr, f1))		something = TRUE;
+	if (describe_misc_weapon_attributes(o_ptr, f1, f3))		something = TRUE;
 	if (describe_resist(o_ptr, f2))						something = TRUE;
 	if (describe_vulnerability(o_ptr, f2))				something = TRUE;
 	if (describe_sustains(o_ptr, f2))					something = TRUE;

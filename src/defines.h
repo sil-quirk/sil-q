@@ -469,7 +469,7 @@
 #define	ARC_FLETCHERY					1
 #define	ARC_POINT_BLANK				 	2
 #define	ARC_AMBUSH					3
-#define	ARC_DEDICATION				 	4
+#define	ARC_EASE				 	4
 #define	ARC_VERSATILITY				 	5
 #define	ARC_CRIPPLING				 	6
 #define	ARC_DEADLY_HAIL				 	7
@@ -1809,7 +1809,7 @@
 #define TR3_DAMAGED         0x00000001L /* xxx */
 #define TR3_CHEAT_DEATH     0x00000002L /* xxx */
 #define TR3_STAND_FAST      0x00000004L /* xxx */
-#define TR3_TR3XXX4         0x00000008L /* xxx */
+#define TR3_ACCURATE        0x00000008L /* xxx */
 #define TR3_TR3XXX14        0x00000010L /* xxx */
 #define TR3_TR3XXX13        0x00000020L /* xxx */
 #define TR3_TR3XXX5         0x00000040L /* xxx */

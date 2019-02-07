@@ -321,7 +321,7 @@ F:GRA | LIGHT
 # 37 and 38 free
 
 # Warhammers only
-# (ability 0/8 is Knock Back)
+# (ability 0/2 is Knock Back)
 
 N:39:of Battering
 W:0:2:0:2000
@@ -484,25 +484,19 @@ F:VUL_COLD
 ##### Bows #####
 
 # Shortbows only
-N:90:of Lammoth
-W:2:8:0:1000
+
+N:91:of Thargelion
+W:4:4:0:3000
+C:0:0:0:0:0:0:1
+T:19:0:99
+F:ACCURATE | EASY_KNOW
+
+
+N:92:of Lammoth
+W:4:8:0:1000
 C:0:0:0:0:0:0:0
 T:19:12:12
 F:RES_POIS | DANGER | AGGRAVATE
-
-
-N:91:of Thargelion
-W:2:2:0:3000
-C:0:0:0:0:0:0:1
-T:19:0:99
-F:DEX | NEG_STR
-
-
-N:92:of Dorthonion
-W:2:2:0:3000
-C:0:0:0:0:0:0:1
-T:19:0:99
-F:STR | NEG_DEX
 
 
 N:93:of Radiance
@@ -542,7 +536,7 @@ F:SHARPNESS
 
 
 N:102:(Poisoned)
-W:10:10:0:100
+W:7:6:0:100
 C:0:0:0:0:0:0:0
 T:17:0:99
 F:BRAND_POIS

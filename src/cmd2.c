@@ -3384,7 +3384,7 @@ static int breakage_chance(const object_type *o_ptr, bool hit_wall)
 		/* Sometimes break */
 		case TV_ARROW:
 		{
-			p = 20;
+			p = 10;
 			
 			break;
 		}
@@ -3891,6 +3891,13 @@ void do_cmd_fire(int quiver)
 				
 				/* Test for hit */
 				hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);				
+
+				if (hit_result <= 0 && f3 & TR3_ACCURATE)
+				{
+					hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
+					if (hit_result > 0) msg_print("Your arrow flies true.");
+				}
+
 				/* If it hit */
 				if (hit_result > 0)
 				{
@@ -4013,11 +4020,7 @@ void do_cmd_fire(int quiver)
 							make_alert(m_ptr);
 						}
 
-						if (((j_ptr->name1 && (a_info[j_ptr->name1].flags2 & (TR2_RADIANCE))) ||
-						     (j_ptr->name2 && (e_info[j_ptr->name2].flags2 & (TR2_RADIANCE)))) &&
-						      r_ptr->flags3 & RF3_HURT_LITE &&
-						      net_dam > 5 &&
-						      one_in_(monster_skill(m_ptr, S_WIL)))
+						if ((f2 & (TR2_RADIANCE)) && r_ptr->flags3 & RF3_HURT_LITE && net_dam > 5 && one_in_(monster_skill(m_ptr, S_WIL)))
 						{
 							bool known_radiance = object_known_p(j_ptr) || noticed_radiance;
 							if (m_ptr->ml && known_radiance)

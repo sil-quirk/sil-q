@@ -831,14 +831,12 @@ D:it is the twin to Anglachel.
 
 ## The Bastard Sword 'Luinmegil'
 ## Sindarin: blue sword
-## (ability 0/11 is Anticipate)
 N:72:'Luinmegil'
 G:|:b
 I:23:21:0
 W:11:30:40:10000
 P:-2:3d4:1:0d0
-F:AGGRAVATE | RES_COLD | FREE_ACT
-B:0/11
+F:ACCURATE | RES_COLD | FREE_ACT
 D:A sword made by the Sindarin in Vinyamar. Its steel blade is a
 D: murky blue like an overcast sea and its hilt chalk white.
 
@@ -1343,8 +1341,8 @@ D: vulnerable places in your foe's armour.
 N:145:'Belthronding'
 G:}:D
 I:19:13:2
-W:14:10:30:35000
-P:1:2d7:0:0d0
+W:14:10:40:35000
+P:1:2d6:0:0d0
 F:PERCEPTION
 D:The great bow of Beleg Cuthalion, made of black yew and strung with
 D: elven hair that faintly shimmers a pale clear gold.
@@ -1357,8 +1355,8 @@ D: elven hair that faintly shimmers a pale clear gold.
 N:146:'Tawarcun'
 I:19:13:0
 W:10:10:20:3500
-P:2:2d6:0:0d0
-F:FREE_ACT
+P:2:2d5:0:0d0
+F:FREE_ACT | ACCURATE
 D:A long slender bow, well worn at the notches, but supple
 D: to the touch and easy on the draw.
 
@@ -1369,8 +1367,8 @@ D: to the touch and easy on the draw.
 
 N:148:of Avernien
 I:19:14:0
-W:20:5:50:35000
-P:1:3d4:0:0d0
+W:20:10:50:35000
+P:1:4d3:0:0d0
 F:RADIANCE | RES_FEAR | RES_CONFU | RES_STUN | RES_HALLU
 D:A large exquisite bow fashioned from a single horn of a slain
 D: dragon. Many are the blessings of the Eldar laid over it.
@@ -1636,7 +1634,7 @@ N:182:'Ultimate'
 I:23:0:0
 F:STR | DEX | CON | GRA | NEG_STR | NEG_DEX | NEG_CON | NEG_GRA
 F:STEALTH | PERCEPTION | WILL | SONG
-F:TUNNEL | SHARPNESS | VAMPIRIC | CHEAT_DEATH
+F:TUNNEL | SHARPNESS | VAMPIRIC | CHEAT_DEATH | ACCURATE
 F:SLAY_ORC | SLAY_TROLL | SLAY_WOLF | SLAY_SPIDER
 F:SLAY_UNDEAD | SLAY_RAUKO | SLAY_DRAGON
 F:BRAND_ELEC | BRAND_FIRE | BRAND_COLD | BRAND_POIS
@@ -1655,7 +1653,7 @@ N:183:'Ultimate'
 I:22:0:0
 F:STR | DEX | CON | GRA | NEG_STR | NEG_DEX | NEG_CON | NEG_GRA
 F:STEALTH | PERCEPTION | WILL | SONG
-F:TUNNEL | SHARPNESS | VAMPIRIC | CHEAT_DEATH
+F:TUNNEL | SHARPNESS | VAMPIRIC | CHEAT_DEATH | ACCURATE
 F:SLAY_ORC | SLAY_TROLL | SLAY_WOLF | SLAY_SPIDER
 F:SLAY_UNDEAD | SLAY_RAUKO | SLAY_DRAGON
 F:BRAND_ELEC | BRAND_FIRE | BRAND_COLD | BRAND_POIS
@@ -1673,7 +1671,7 @@ F:INSTA_ART
 N:184:'Ultimate'
 I:21:0:0
 F:STR | DEX | CON | GRA | NEG_STR | NEG_DEX | NEG_CON | NEG_GRA
-F:STEALTH | PERCEPTION | WILL | SONG | CHEAT_DEATH
+F:STEALTH | PERCEPTION | WILL | SONG | CHEAT_DEATH | ACCURATE
 F:TUNNEL
 F:SLAY_ORC | SLAY_TROLL | SLAY_WOLF | SLAY_SPIDER
 F:SLAY_UNDEAD | SLAY_RAUKO | SLAY_DRAGON
@@ -1714,7 +1712,7 @@ F:RADIANCE | RES_FEAR | RES_BLIND | SEE_INVIS | SUST_DEX
 F:SUST_CON | SUST_STR | FREE_ACT | PERCEPTION | STEALTH
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART
+F:INSTA_ART | ACCURATE
 
 
 ## The Ultimate TV_ARROW

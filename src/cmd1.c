@@ -1004,6 +1004,11 @@ extern void ident_on_wield(object_type *o_ptr)
 	{
 		notice = TRUE;
 	}
+
+	if (f3 & TR3_ACCURATE)
+	{
+		notice = TRUE;
+	}
     
 	if (o_ptr->name1 || o_ptr->name2)
 	{
@@ -3845,6 +3850,16 @@ int py_attack_aux(int y, int x, int attack_type)
 		total_evasion_mod = total_monster_evasion(m_ptr, FALSE);
 				
 		hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
+
+		if (hit_result <= 0 && f3 & TR3_ACCURATE)
+		{
+			char m_name[80];
+			monster_desc(m_name, sizeof(m_name), m_ptr, 0x00);
+
+			hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
+			if (hit_result > 0) msg_format("%^s tries and fails to dodge your blow.", m_name);
+		}
+
 		if (hit_result <= 0 && p_ptr->active_ability[S_MEL][MEL_ANTICIPATE] && m_ptr->stance == STANCE_AGGRESSIVE)
 		{
 			// Reroll on miss twice

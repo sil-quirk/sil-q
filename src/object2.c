@@ -2599,7 +2599,7 @@ void apply_magic(object_type *o_ptr, int lev, bool okay, bool good, bool great, 
 			if (special)
 			{
 				// More special arrows lower down
-				int depth_adjust = (MORGOTH_DEPTH - p_ptr->depth) / 5 + 2;
+				int depth_adjust = (MORGOTH_DEPTH - p_ptr->depth) / 5 + 1;
 				make_special_item(o_ptr, (bool)(good || great));
 
 				if (o_ptr->number > 10) o_ptr->number /= depth_adjust;
@@ -3391,7 +3391,7 @@ bool make_object(object_type *j_ptr, bool good, bool great, int objecttype)
 		case TV_ARROW:
 		{
 			int depth_adjust = MORGOTH_DEPTH - p_ptr->depth;
-			j_ptr->number = 40 + damroll(2, 5 + depth_adjust);
+			j_ptr->number = 20 + damroll(2, 10 + depth_adjust);
 			break;
 		}
 		

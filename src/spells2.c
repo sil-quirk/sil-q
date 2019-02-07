@@ -877,6 +877,15 @@ void self_knowledge(void)
             i++;
 		}
 
+		if (f3 & (TR3_ACCURATE))
+		{
+            identify[INVEN_WIELD] = TRUE;
+            strnfmt(s[i], 80, "Your weapon is unusually well balanced");
+            strnfmt(t[i], 80, "(reroll missed attacks)");
+            good[i] = TRUE;
+            i++;
+		}
+
 		if (f1 & (TR1_BRAND_ELEC))
 		{
             identify[INVEN_WIELD] = TRUE;
@@ -1019,7 +1028,16 @@ void self_knowledge(void)
             good[i] = TRUE;
             i++;
         }
-        
+       
+		if (f3 & (TR3_ACCURATE))
+		{
+            identify[INVEN_ARM] = TRUE;
+            strnfmt(s[i], 80, "Your weapon is unusually well balanced");
+            strnfmt(t[i], 80, "(reroll missed attacks)");
+            good[i] = TRUE;
+            i++;
+		}
+ 
 		if (f1 & (TR1_BRAND_ELEC))
 		{
             identify[INVEN_ARM] = TRUE;
@@ -1228,13 +1246,22 @@ void self_knowledge(void)
 		}
 		if (f1 & (TR1_SLAY_MAN_OR_ELF))
 		{
-            identify[INVEN_WIELD] = TRUE;
+            identify[INVEN_BOW] = TRUE;
             strnfmt(s[i], 80, "Your bow is especially effective against men");
             strnfmt(t[i], 80, "(+1 damage die)");
             good[i] = TRUE;
             i++;
             strnfmt(s[i], 80, "Your bow is especially effective against elves");
             strnfmt(t[i], 80, "(+1 damage die)");
+            good[i] = TRUE;
+            i++;
+		}
+	
+		if (f3 & (TR3_ACCURATE))
+		{
+            identify[INVEN_BOW] = TRUE;
+            strnfmt(s[i], 80, "Your bow fires with unerring precision");
+            strnfmt(t[i], 80, "(reroll missed attacks)");
             good[i] = TRUE;
             i++;
 		}

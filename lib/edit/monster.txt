@@ -314,7 +314,7 @@ G:C:u
 I:3:6d4:0
 A:20:2:3:1
 P:[+1,1d4]
-B:BITE:HURT:(+1,2d4)
+B:BITE:WOUND:(+3,2d3)
 F:FRIENDS | RAND_25 | WOLF
 D:This ragged wolf is part of the orcish packs.
 
@@ -498,7 +498,7 @@ G:C:w
 I:3:8d4:0
 A:20:3:3:1
 P:[+6,1d4]
-B:BITE:HURT:(+5,2d5)
+B:BITE:WOUND:(+8,2d4)
 F:FRIENDS | RAND_25 | WOLF | RES_COLD
 D:A large and fierce wolf from the northern wastes.
 
@@ -779,7 +779,7 @@ G:C:s
 I:3:10d4:0
 A:20:6:4:6
 P:[+10,1d4]
-B:BITE:HURT:(+9,2d7)
+B:BITE:WOUND:(+12,2d5)
 F:FRIENDS | RAND_25 | BASH_DOOR | WOLF | SMART
 D:It is a great wolf with eyes full of cunning.
 

@@ -229,6 +229,11 @@ extern byte total_ads(const object_type *j_ptr)
 
 	str_to_ads = p_ptr->stat_use[A_STR];
 
+	if (p_ptr->active_ability[S_ARC][ARC_EASE])
+	{
+		str_to_ads += 2;
+	}
+
 	int_ads = j_ptr->ds;
 	
 	/* limit the strength sides bonus by bow weight */
@@ -247,13 +252,6 @@ extern byte total_ads(const object_type *j_ptr)
 	
 	// add archery damage bonus
 	int_ads += p_ptr->to_ads;
-
-	// Add Dedication bonus
-	if (p_ptr->active_ability[S_ARC][ARC_DEDICATION] && !inventory[INVEN_ARM].k_idx	&&
-		!inventory[INVEN_WIELD].k_idx)
-	{
-		int_ads += 2;
-	}
 
 	/* make sure the total is non-negative */
 	ads = (int_ads < 0) ? 0 : int_ads;

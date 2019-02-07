@@ -1671,6 +1671,7 @@ static const smithing_flag_desc smithing_flag_types[] =
 	{ CAT_MEL,		TR1_TUNNEL,		1,	"Tunneling Bonus"		},
 	{ CAT_MEL,		TR1_SHARPNESS,		1,	"Sharpness"				},
 	{ CAT_MEL,		TR1_VAMPIRIC,		1,	"Vampiric"				},
+	{ CAT_MEL,		TR3_ACCURATE,		3,	"Accurate"			},
 	{ CAT_SLAY,		TR1_SLAY_ORC,		1,	"Slay Orc"				},
 	{ CAT_SLAY,		TR1_SLAY_TROLL,		1,	"Slay Troll"			},
 	{ CAT_SLAY,		TR1_SLAY_WOLF,		1,	"Slay Wolf"				},
@@ -2728,6 +2729,7 @@ int object_difficulty(object_type *o_ptr)
 	}
 	if (f1 & TR1_SHARPNESS2)		{	dif_inc += 40;	smithing_cost.str += 4;	} // not available in smithing
 	if (f1 & TR1_VAMPIRIC)			{	dif_inc += 6;	smithing_cost.str += 1;	}
+	if (f3 & TR3_ACCURATE)			{	dif_inc += 10;	smithing_cost.dex += 1;	}
 	
 	// pval dependent bonuses
 	if (f1 & TR1_TUNNEL)
