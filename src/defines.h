@@ -553,9 +553,9 @@
 #define	SNG_DELVINGS					5
 #define	SNG_WHETTING					6
 #define	SNG_TREES					7
-#define	SNG_STAYING					8
-#define	SNG_LORIEN					9
-#define	SNG_THRESHOLDS					10
+#define	SNG_THRESHOLDS					8
+#define	SNG_STAYING					9
+#define	SNG_LORIEN					10
 #define	SNG_MASTERY					11
 #define	SNG_WOVEN_THEMES				12
 #define	SNG_GRA						13

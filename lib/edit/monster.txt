@@ -312,7 +312,7 @@ N:11:Wolf
 W:1:1
 G:C:u
 I:3:6d4:0
-A:20:4:3:1
+A:20:2:3:1
 P:[+1,1d4]
 B:BITE:HURT:(+1,2d4)
 F:FRIENDS | RAND_25 | WOLF
@@ -335,7 +335,7 @@ N:13:Phantom
 W:1:2
 G:W:s
 I:1:2d4:0
-A:0:2:8:2
+A:0:1:6:2
 P:[+8]
 B:TOUCH:TERRIFY:(+12)
 F:INVISIBLE
@@ -352,7 +352,7 @@ N:21:Orc
 W:2:1
 G:o:u
 I:2:7d4:0
-A:15:2:1:1
+A:15:1:1:1
 P:[+3,1d4]
 B:HIT:HURT:(+2,2d6)
 F:MALE | DROP_33 | OPEN_DOOR
@@ -365,7 +365,7 @@ N:22:Grimhawk
 W:2:2
 G:b:u
 I:4:1d4:0
-A:5:6:4:1
+A:5:4:4:1
 P:[+7]
 B:PECK:HURT:(+8,1d5)
 F:FLYING | RAND_50 | TERRITORIAL
@@ -378,7 +378,7 @@ N:31:Orc scout
 W:3:1
 G:o:D
 I:2:6d4:0
-A:12:6:5:1
+A:15:4:5:1
 P:[+4,1d4]
 B:HIT:HURT:(+3,1d10)
 F:MALE | DROP_33 | OPEN_DOOR | UNLOCK_DOOR
@@ -395,7 +395,7 @@ N:32:Spider hatchling
 W:3:4
 G:m:U
 I:2:1d4:0
-A:15:2:8:2
+A:20:1:8:2
 P:[+5]
 B:BITE:POISON:(+5,1d7)
 F:SPIDER | TERRITORIAL | FRIENDS
@@ -408,7 +408,7 @@ N:33:Blue serpent
 W:3:2
 G:s:b
 I:2:2d4:0
-A:15:2:3:1
+A:15:1:3:1
 P:[+3,4d4]
 B:BITE:HURT:(+4,2d4)
 F:SERPENT | RAND_50
@@ -423,7 +423,7 @@ N:34:Brood spider
 W:3:1
 G:M:U
 I:1:10d4:0
-A:10:6:2:4
+A:10:3:2:4
 P:[+2,2d4]
 B:BITE:POISON:(+10,2d6)
 F:SPIDER | TERRITORIAL | RES_POIS
@@ -438,7 +438,7 @@ N:41:Orc soldier
 W:4:1
 G:o:s
 I:2:8d4:0
-A:15:3:1:2
+A:15:1:1:2
 P:[+3,2d4]
 B:HIT:HURT:(+3,2d7)
 F:MALE | FRIENDS | DROP_33 | OPEN_DOOR | BASH_DOOR
@@ -466,7 +466,7 @@ N:43:Gorcrow
 W:4:2
 G:b:D
 I:4:1d4:0
-A:15:4:3:1
+A:15:2:3:1
 P:[+9]
 B:PECK:BLIND:(+10,1d5)
 F:FRIEND | FLYING | RAND_25
@@ -481,7 +481,7 @@ N:51:Orc archer
 W:5:3
 G:o:U
 I:2:7d4:0
-A:15:3:3:3
+A:15:1:3:3
 P:[+4,1d4]
 B:HIT:HURT:(+5,2d5)
 F:MALE | FRIENDS | DROP_33 | OPEN_DOOR | BASH_DOOR
@@ -496,7 +496,7 @@ N:52:White wolf
 W:5:1
 G:C:w
 I:3:8d4:0
-A:20:5:3:1
+A:20:3:3:1
 P:[+6,1d4]
 B:BITE:HURT:(+5,2d5)
 F:FRIENDS | RAND_25 | WOLF | RES_COLD
@@ -507,7 +507,7 @@ N:53:Red serpent
 W:5:2
 G:s:r
 I:2:2d4:0
-A:15:3:3:2
+A:15:1:3:2
 P:[+5,4d4]
 B:BITE:HURT:(+6,2d5)
 F:SERPENT | RAND_50
@@ -522,7 +522,7 @@ N:54:Gorgol, the Butcher
 W:5:10
 G:o:G
 I:2:12d4:0
-A:15:4:1:5
+A:15:2:1:5
 P:[+4,3d4]
 B:HIT:HURT:(+6,3d7)
 F:UNIQUE | MALE | ESCORT | SMART
@@ -539,7 +539,7 @@ N:61:Orc warrior
 W:6:1
 G:o:W
 I:2:9d4:0
-A:15:4:1:4
+A:15:2:1:4
 P:[+5,2d4]
 B:HIT:HURT:(+3,3d6)
 F:MALE | DROP_33 | OPEN_DOOR | BASH_DOOR
@@ -553,7 +553,7 @@ N:62:Sword spider
 W:6:2
 G:M:s
 I:3:12d4:0
-A:15:3:2:3
+A:15:1:2:3
 P:[+7,1d4]
 B:BITE:HURT:(+8,2d9)
 F:SPIDER | TERRITORIAL
@@ -565,7 +565,7 @@ N:63:Crebain
 W:6:2
 G:b:s
 I:4:1d4:0
-A:15:10:4:2
+A:15:6:4:2
 P:[+11]
 B:PECK:WOUND:(+12,1d5)
 F:FRIENDS | FLYING | RAND_25
@@ -578,7 +578,7 @@ N:64:Mewlip
 W:6:3
 G:H:u
 I:2:12d4:0
-A:15:5:3:2
+A:15:3:3:2
 P:[+4,2d4]
 B:CLAW:WOUND:(+9,3d4)
 F:DROP_100 | OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR | SMART
@@ -596,7 +596,7 @@ N:71:Orc thief
 W:7:3
 G:o:g
 I:2:7d4:0
-A:10:6:10:4
+A:10:3:10:4
 P:[+10,1d4]
 B:HIT:HURT:(+10,1d8)
 B:TOUCH:EAT_ITEM:(+7)
@@ -621,7 +621,7 @@ N:73:Green serpent
 W:7:2
 G:s:g
 I:2:2d4:0
-A:10:4:3:2
+A:10:2:3:2
 P:[+7,4d4]
 B:BITE:HURT:(+8,2d6)
 F:SERPENT | RAND_50
@@ -635,7 +635,7 @@ N:74:Mountain troll
 W:7:1
 G:T:W
 I:2:14d4:0
-A:15:2:0:2
+A:15:1:0:2
 P:[+3,2d4]
 B:HIT:BATTER:(+6,4d5)
 F:MALE | FRIEND | DROP_33 | REGENERATE | OPEN_DOOR
@@ -648,7 +648,7 @@ N:75:Tattered wight
 W:7:2
 G:W:D1
 I:1:4d4:0
-A:10:8:5:5
+A:10:6:5:5
 P:[+5,3d4]
 B:HIT:HURT:(+9,2d9)
 B:TOUCH:LOSE_DEX:(+9)
@@ -665,7 +665,7 @@ N:76:Boldog, the Merciless
 W:7:20
 G:o:y
 I:2:13d4:0
-A:15:5:1:6
+A:15:4:1:6
 P:[+6,3d4]
 B:HIT:HURT:(+11,1d16)
 F:UNIQUE | MALE | ESCORTS
@@ -688,7 +688,7 @@ N:81:Orc champion
 W:8:2
 G:o:b
 I:2:11d4:0
-A:15:4:1:5
+A:15:3:1:5
 P:[+5,3d4]
 B:HIT:HURT:(+6,3d8)
 F:MALE | DROP_100 | OPEN_DOOR | BASH_DOOR
@@ -701,7 +701,7 @@ N:82:Easterling warrior
 W:8:2
 G:@:W
 I:2:10d4:1
-A:15:4:1:7
+A:15:3:1:7
 P:[+5,3d4]
 B:HIT:HURT:(+7,2d8)
 F:MAN | MALE | DROP_33 | OPEN_DOOR | BASH_DOOR | FRIENDS
@@ -718,7 +718,7 @@ N:83:Hummerhorn
 W:8:3
 G:I:y
 I:4:2d4:0
-A:5:5:1:5
+A:5:3:1:5
 P:[+14]
 B:STING:CONFUSE:(+13,1d7)
 F:FLYING | RAND_25 | RAND_50 | FRIENDS | TERRITORIAL
@@ -729,7 +729,7 @@ N:84:Balcmeg, the Relentless
 W:8:20
 G:o:o
 I:2:15d4:0
-A:15:4:1:8
+A:15:3:1:9
 P:[+4,4d4]
 B:HIT:HURT:(+8,3d8)
 F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART | ORC
@@ -743,7 +743,7 @@ N:85:Lug, the Grotesque
 W:8:20
 G:o:v
 I:2:10d4:0
-A:15:6:1:4
+A:15:5:1:5
 P:[+16,2d4]
 B:HIT:HURT:(+16,1d7)
 F:UNIQUE | MALE | OPEN_DOOR | UNLOCK_DOOR | SMART | ORC
@@ -763,7 +763,7 @@ N:91:Orc captain
 W:9:3
 G:o:r
 I:2:10d4:0
-A:15:5:1:6
+A:15:4:1:6
 P:[+7,3d4]
 B:HIT:HURT:(+10,2d8)
 B:WHIP:DISARM:(+6,2d4)
@@ -777,7 +777,7 @@ N:92:Warg
 W:9:1
 G:C:s
 I:3:10d4:0
-A:20:8:4:6
+A:20:6:4:6
 P:[+10,1d4]
 B:BITE:HURT:(+9,2d7)
 F:FRIENDS | RAND_25 | BASH_DOOR | WOLF | SMART
@@ -788,7 +788,7 @@ N:93:Grave wight
 W:9:2
 G:W:U
 I:2:4d4:0
-A:10:8:5:6
+A:10:6:5:6
 P:[+7,3d4]
 B:HIT:HURT:(+11,2d9)
 B:TOUCH:LOSE_STR:(+11)
@@ -805,7 +805,7 @@ N:94:Dark serpent
 W:9:2
 G:s:v1
 I:2:2d4:0
-A:10:5:3:3
+A:10:4:3:3
 P:[+9,4d4]
 B:BITE:HURT:(+10,2d7)
 F:SERPENT | RAND_50
@@ -819,7 +819,7 @@ N:95:Orcobal, Champion of the Orcs
 W:9:15
 G:o:B
 I:2:15d4:0
-A:15:6:1:7
+A:15:5:1:8
 P:[+8,3d4]
 B:HIT:HURT:(+10,3d10)
 F:UNIQUE | MALE | ESCORT
@@ -850,7 +850,7 @@ N:102:Distended spider
 W:10:1
 G:M:u
 I:2:18d4:0
-A:15:5:3:5
+A:15:4:3:5
 P:[+7]
 B:BITE:POISON:(+7,2d11)
 F:SPIDER | RES_POIS | TERRITORIAL
@@ -861,7 +861,7 @@ N:103:Easterling archer
 W:10:3
 G:@:u
 I:2:9d4:1
-A:15:5:3:7
+A:15:4:3:7
 P:[+9,2d4]
 B:HIT:HURT:(+9,1d7)
 F:MAN | MALE | DROP_33 | OPEN_DOOR | BASH_DOOR | FRIEND
@@ -879,7 +879,7 @@ N:104:Twisted bat
 W:10:4
 G:b:r
 I:4:2d4:0
-A:15:8:4:4
+A:15:7:4:4
 P:[+17,1d4]
 B:BITE:LOSE_CON:(+15,2d5)
 F:FLYING | RAND_50 | TERRITORIAL 
@@ -892,7 +892,7 @@ N:105:Othrod, the Orc Lord
 W:10:10
 G:o:R
 I:2:15d4:0
-A:15:6:1:8
+A:15:6:1:9
 P:[+9,4d4]
 B:HIT:HURT:(+15,2d9)
 B:WHIP:DISARM:(+12,2d4)
@@ -911,7 +911,7 @@ N:111:Snow troll
 W:11:1
 G:T:w
 I:2:16d4:0
-A:15:3:0:3
+A:15:2:0:3
 P:[+7,2d4]
 B:HIT:BATTER:(+9,4d6)
 B:BITE:COLD:(+8,2d9)
@@ -928,7 +928,7 @@ N:112:Barrow wight
 W:11:100
 G:W:W
 I:2:4d4:0
-A:10:9:5:7
+A:10:7:5:8
 P:[+8,3d4]
 B:HIT:HURT:(+13,2d9)
 B:TOUCH:LOSE_GRA:(+13)
@@ -959,7 +959,7 @@ N:114:Giant
 W:11:1
 G:G:U
 I:2:30d4:2
-A:15:2:0:7
+A:15:1:0:7
 P:[+5,1d4]
 B:HIT:HURT:(+6,4d9)
 F:DROP_100 | OPEN_DOOR | BASH_DOOR | SMART
@@ -973,7 +973,7 @@ N:115:Uldor, the Accursed
 W:11:10
 G:@:U1
 I:2:14d4:1
-A:15:6:1:9
+A:15:6:1:11
 P:[+13,3d4]
 B:HIT:HURT:(+16,2d7)
 S:SPELL_PCT_75 | POW_21
@@ -991,7 +991,7 @@ N:117:Aldor, the Risen King
 W:11:100
 G:W:R
 I:2:8d4:0
-A:10:12:5:10
+A:10:12:5:12
 P:[+8,3d4]
 B:TOUCH:LOSE_CON:(+15)
 B:HIT:HURT:(+15,2d9)
@@ -1015,7 +1015,7 @@ N:121:Easterling spy
 W:12:3
 G:@:D
 I:2:8d4:1
-A:5:15:15:8
+A:5:12:15:8
 P:[+13,1d4]
 B:HIT:HURT:(+12,1d8)
 F:MAN | MALE | DROP_33 | OPEN_DOOR | UNLOCK_DOOR
@@ -1044,7 +1044,7 @@ N:123:Sulrauko
 W:12:2
 G:R:W
 I:2:5d4:0
-A:10:6:5:10
+A:10:7:5:10
 P:[+14,2d4]
 B:HIT:BATTER:(+14,3d5)
 F:BASH_DOOR | INVISIBLE | RES_CRIT | RES_POIS
@@ -1057,7 +1057,7 @@ N:124:Fire-drake hatchling
 W:12:6
 G:d:R
 I:2:10d4:0
-A:30:5:2:8
+A:30:5:2:9
 P:[+11,1d4]
 B:BITE:FIRE:(+13,2d5)
 F:BASH_DOOR | DRAGON | RAND_25 | FRIEND | TERRITORIAL
@@ -1073,7 +1073,7 @@ N:125:Ulfang the Black
 W:12:10
 G:@:s
 I:2:15d4:1
-A:15:6:1:10
+A:15:6:1:11
 P:[+13,4d4]
 B:HIT:HURT:(+19,2d8)
 F:UNIQUE | MAN | MALE | DROP_2D2 | ESCORT | SMART
@@ -1092,7 +1092,7 @@ N:126:Duruin, Least of the Balrogs
 W:12:30
 G:R:o
 I:2:28d4:-3
-A:5:6:1:11
+A:5:7:1:12
 P:[+13,4d4]
 B:HIT:FIRE:(+18,2d12)
 B:WHIP:DISARM:(+14,3d6)
@@ -1113,7 +1113,7 @@ N:131:Werewolf
 W:13:1
 G:C:U
 I:3:12d4:0
-A:15:9:7:8
+A:15:9:7:9
 P:[+14,2d4]
 B:CLAW:WOUND:(+16,3d5)
 B:BITE:POISON:(+13,2d9)
@@ -1127,7 +1127,7 @@ N:132:Shadow spider
 W:13:1
 G:M:D
 I:3:12d4:-2
-A:15:6:3:7
+A:15:6:3:8
 P:[+10,1d4]
 B:BITE:BLIND:(+11,2d9)
 F:SPIDER | RES_POIS
@@ -1139,7 +1139,7 @@ N:133:Shadow
 W:13:3
 G:W:d
 I:2:3d4:0
-A:0:8:10:8
+A:0:6:10:8
 P:[+13,3d4]
 B:TOUCH:DARK:(+16,2d5)
 F:INVISIBLE | RAND_25
@@ -1168,7 +1168,7 @@ N:135:Gilim, the Giant of Eruman
 W:13:10
 G:G:w
 I:2:35d4:2
-A:15:4:0:9
+A:15:5:0:10
 P:[+9,1d4]
 B:HIT:COLD:(+10,4d9)
 F:DROP_1D2 | DROP_GOOD | OPEN_DOOR | BASH_DOOR
@@ -1218,7 +1218,7 @@ N:143:Ringrauko
 W:14:1
 G:R:B
 I:2:10d4:0
-A:10:6:3:11
+A:10:6:3:12
 P:[+14,2d4]
 B:HIT:COLD:(+15,2d10)
 F:BASH_DOOR | SMART
@@ -1233,7 +1233,7 @@ N:145:Delthaur, Balrog of Terror
 W:14:20
 G:R:g
 I:2:32d4:-3
-A:5:7:1:12
+A:5:7:1:14
 P:[+15,4d4]
 B:HIT:FIRE:(+20,3d10)
 B:WHIP:DISARM:(+16,3d8)
@@ -1252,7 +1252,7 @@ N:146:Nan, the Giant
 W:14:30
 G:G:G
 I:2:40d4:2
-A:15:5:0:9
+A:15:5:0:11
 P:[+11,1d4]
 B:HIT:HURT:(+15,3d13)
 F:DROP_1D2 | DROP_GOOD | DROP_CHOSEN | OPEN_DOOR | BASH_DOOR
@@ -1285,7 +1285,7 @@ N:152:Emerald serpent
 W:15:3
 G:s:G
 I:2:8d4:0
-A:15:7:3:8
+A:15:7:3:9
 P:[+11,5d4]
 B:BITE:POISON:(+15,2d6)
 F:SERPENT | ATTR_MULTI | RAND_25
@@ -1320,7 +1320,7 @@ N:154:Cat warrior
 W:15:1
 G:f:U
 I:3:8d4:0
-A:20:10:10:3
+A:20:10:10:5
 P:[+15,1d4]
 B:CLAW:WOUND:(+18,1d9)
 F:FRIENDS | OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR | SMART
@@ -1339,7 +1339,7 @@ N:161:Amethyst serpent
 W:16:3
 G:s:v
 I:2:8d4:-2
-A:15:7:3:8
+A:15:7:3:9
 P:[+12,5d4]
 B:BITE:DARK:(+16,2d6)
 F:SERPENT | RAND_25
@@ -1354,7 +1354,7 @@ N:162:Kemenrauko
 W:16:2
 G:R:s
 I:2:10d4:0
-A:10:7:0:12
+A:10:6:0:14
 P:[+12,4d4]
 B:HIT:SHATTER:(+11,4d8)
 F:BASH_DOOR | TUNNEL_WALL | STONE | RAUKO | SMART
@@ -1408,7 +1408,7 @@ N:165:Umuiyan, the Doorkeeper
 W:16:15
 G:f:y
 I:3:12d4:0
-A:20:13:10:6
+A:20:13:10:8
 P:[+20,1d4]
 B:CLAW:WOUND:(+25,1d11)
 F:ESCORT | UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART
@@ -1425,7 +1425,7 @@ N:166:Belegwath, Balrog of Shadow
 W:16:20
 G:R:v
 I:2:36d4:-5
-A:5:8:1:13
+A:5:9:1:15
 P:[+17,4d4]
 B:HIT:FIRE:(+22,2d14)
 B:WHIP:DISARM:(+18,3d8)
@@ -1446,7 +1446,7 @@ N:171:Spider of Gorgoroth
 W:17:1
 G:M:r
 I:2:16d4:-1
-A:15:7:3:11
+A:15:8:3:11
 P:[+14,1d4]
 B:BITE:ENTRANCE:(+14,2d13)
 F:BASH_DOOR | SPIDER | HURT_LITE | RES_POIS | SMART
@@ -1461,7 +1461,7 @@ N:172:Greater werewolf
 W:17:1
 G:C:D1
 I:3:14d4:0
-A:15:10:5:10
+A:15:11:5:10
 P:[+18,2d4]
 B:CLAW:WOUND:(+20,3d7)
 B:BITE:POISON:(+17,2d11)
@@ -1521,7 +1521,7 @@ N:176:Scatha the Worm
 W:17:30
 G:d:B
 I:2:35d4:0
-A:30:9:2:15
+A:30:9:2:18
 P:[+14,2d4]
 B:CLAW:HURT:(+20,3d11)
 B:BITE:WOUND:(+17,2d21)
@@ -1541,7 +1541,7 @@ N:177:Oikeroi, Guard of Tevildo
 W:17:15
 G:f:o
 I:3:18d4:0
-A:15:13:10:7
+A:15:13:10:9
 P:[+21,1d4]
 B:CLAW:WOUND:(+28,1d11)
 F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART
@@ -1559,7 +1559,7 @@ N:181:Young fire-drake
 W:18:6
 G:d:r
 I:2:30d4:0
-A:30:9:2:15
+A:30:9:2:16
 P:[+13,2d4]
 B:CLAW:HURT:(+18,3d11)
 B:BITE:FIRE:(+14,2d21)
@@ -1581,7 +1581,7 @@ N:182:Darting horror
 W:18:5
 G:H:r
 I:4:6d4:0
-A:10:15:3:14
+A:10:14:3:14
 P:[+20,2d4]
 B:BITE:HALLU:(+22,2d9)
 F:BASH_DOOR | RAND_25 | NO_FEAR
@@ -1597,7 +1597,7 @@ N:183:Unmourned
 W:18:6
 G:W:v1
 I:1:12d4:0
-A:10:13:10:12
+A:10:13:10:13
 P:[+17,3d4]
 B:TOUCH:HUNGER:(+22)
 F:UNDEAD | PASS_WALL | RES_COLD | SMART | FRIENDS
@@ -1628,7 +1628,7 @@ N:185:Tevildo, Prince of Cats
 W:18:10
 G:f:u
 I:3:14d4:0
-A:15:14:10:8
+A:15:14:10:10
 P:[+22,1d4]
 B:CLAW:WOUND:(+26,1d13)
 F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART
@@ -1645,7 +1645,7 @@ N:186:Turkano, Balrog of the Hosts
 W:18:20
 G:R:b
 I:2:40d4:-3
-A:5:9:1:15
+A:5:9:1:19
 P:[+19,5d4]
 B:HIT:FIRE:(+24,2d16)
 B:WHIP:DISARM:(+20,3d8)
@@ -1700,7 +1700,7 @@ N:193:Vampire
 W:19:1
 G:v:W
 I:3:10d4:0
-A:20:10:7:12
+A:20:11:7:13
 P:[+24,1d4]
 B:CLAW:WOUND:(+25,3d5)
 B:BITE:LOSE_STR_CON:(+20,2d9)
@@ -1713,7 +1713,7 @@ N:194:Nameless thing
 W:19:1
 G:N:s
 I:1:70d4:0
-A:5:5:0:12
+A:5:5:0:14
 P:[+7,6d4]
 B:CRUSH:ACID:(+17,5d10)
 F:BASH_DOOR | TUNNEL_WALL | REGENERATE | MINDLESS | TERRITORIAL
@@ -1727,7 +1727,7 @@ N:195:Smaug the Golden
 W:19:30
 G:d:y1
 I:3:35d4:0
-A:30:9:2:17
+A:30:9:2:19
 P:[+14,2d4]
 B:CLAW:HURT:(+23,3d11)
 B:BITE:FIRE:(+19,2d21)
@@ -1769,7 +1769,7 @@ N:201:Ancient ruby serpent
 W:20:3
 G:S:R
 I:2:10d4:0
-A:15:8:2:11
+A:15:8:2:12
 P:[+16,6d4]
 B:BITE:FIRE:(+20,2d9)
 F:SERPENT | ATTR_MULTI | RAND_25
@@ -1785,7 +1785,7 @@ N:202:Great cold-drake
 W:20:6
 G:D:W
 I:2:50d4:0
-A:30:9:0:17
+A:30:9:0:18
 P:[+13,2d4]
 B:CLAW:HURT:(+21,3d13)
 B:BITE:WOUND:(+16,2d23)
@@ -1804,7 +1804,7 @@ N:203:Silent watcher
 W:20:10
 G:H:s
 I:2:10d4:0
-A:5:0:20:13
+A:5:0:20:15
 P:[-5,8d4]
 F:NEVER_MOVE | RES_COLD | RES_FIRE
 F:STONE | SHORT_SIGHTED
@@ -1823,10 +1823,10 @@ D: or his escape.
 
 
 N:204:Gwathrauko
-W:20:1
+W:20:4
 G:R:D
 I:2:8d4:-3
-A:10:8:5:15
+A:10:8:5:16
 P:[+18,3d4]
 B:HIT:DARK:(+18,2d8)
 F:BASH_DOOR | SMART
@@ -1839,7 +1839,7 @@ N:205:Draugluin, Sire of Werewolves
 W:20:15
 G:C:W
 I:3:22d4:0
-A:20:14:5:13
+A:20:17:5:15
 P:[+24,3d4]
 B:CLAW:WOUND:(+26,3d9)
 B:BITE:POISON:(+23,2d13)
@@ -1857,7 +1857,7 @@ N:206:Vallach, Balrog of Sudden Flame
 W:20:20
 G:R:y
 I:3:44d4:-3
-A:5:10:1:16
+A:5:12:1:19
 P:[+21,5d4]
 B:HIT:FIRE:(+26,3d12)
 B:WHIP:DISARM:(+22,3d8)
@@ -1877,7 +1877,7 @@ N:211:Ancient spider
 W:21:3
 G:M:g
 I:2:20d4:0
-A:15:8:3:14
+A:15:8:3:16
 P:[+19,1d4]
 B:BITE:POISON:(+22,2d19)
 F:SMART
@@ -1890,7 +1890,7 @@ N:212:Ancient emerald serpent
 W:21:3
 G:S:G
 I:2:10d4:0
-A:15:9:2:12
+A:15:9:2:13
 P:[+17,6d4]
 B:BITE:POISON:(+21,2d9)
 F:SERPENT | ATTR_MULTI | RAND_25
@@ -1905,7 +1905,7 @@ N:213:Vampire lord
 W:21:2
 G:v:v1
 I:3:12d4:0
-A:20:11:7:14
+A:20:11:7:15
 P:[+26,1d4]
 B:CLAW:WOUND:(+29,3d7)
 B:BITE:LOSE_ALL:(+24,2d9)
@@ -1920,7 +1920,7 @@ N:214:Dagorhir, the Elfbane
 W:21:15
 G:T:r
 I:2:24d4:0
-A:15:6:0:8C
+A:15:6:0:10
 P:[+17,4d4]
 B:HIT:BATTER:(+17,4d10)
 F:UNIQUE | ESCORT | DROP_1D2 | DROP_GOOD | REGENERATE | NO_FEAR
@@ -1935,7 +1935,7 @@ N:215:Gostir, the Dread Glance
 W:21:30
 G:D:B
 I:2:60d4:0
-A:30:11:0:19
+A:30:13:0:22
 P:[+14,2d4]
 B:CLAW:HURT:(+24,3d13)
 B:BITE:WOUND:(+19,2d23)
@@ -1955,7 +1955,7 @@ N:221:Ancient amethyst serpent
 W:22:3
 G:S:v
 I:2:10d4:-3
-A:15:9:2:12
+A:15:10:2:14
 P:[+18,6d4]
 B:BITE:DARK:(+22,2d9)
 F:SERPENT | RAND_25
@@ -1970,7 +1970,7 @@ N:222:Great fire-drake
 W:22:6
 G:D:r
 I:2:50d4:0
-A:30:10:0:18
+A:30:12:0:20
 P:[+14,2d4]
 B:CLAW:HURT:(+23,3d13)
 B:BITE:FIRE:(+18,2d23)
@@ -2004,7 +2004,7 @@ N:224:Shelob, Spider of Darkness
 W:22:30
 G:M:D1
 I:2:22d4:-3
-A:10:9:3:14
+A:20:8:3:16
 P:[+20,2d4]
 B:BITE:ENTRANCE:(+25,2d15)
 F:UNIQUE | FEMALE | TERRITORIAL
@@ -2021,7 +2021,7 @@ N:225:Lungorthin, Lord of Balrogs
 W:22:20
 G:R:w
 I:2:48d4:-3
-A:5:11:1:18
+A:5:14:1:21
 P:[+23,5d4]
 B:HIT:FIRE:(+28,2d18)
 B:WHIP:DISARM:(+24,3d10)
@@ -2043,7 +2043,7 @@ N:231:Ancient adamant serpent
 W:23:3
 G:S:w
 I:2:10d4:0
-A:15:9:2:13
+A:15:10:2:14
 P:[+19,6d4]
 B:BITE:WOUND:(+23,3d9)
 F:SERPENT | ATTR_MULTI | RAND_25
@@ -2058,7 +2058,7 @@ N:232:Unrelenting horror
 W:23:2
 G:H:G1
 I:1:100d4:0
-A:5:9:2:15
+A:5:10:2:15
 P:[+11,3d4]
 B:BITE:POISON:(+24,6d5)
 F:BASH_DOOR | REGENERATE | NO_FEAR
@@ -2075,7 +2075,7 @@ N:233:Ancalagon the Black
 W:23:6
 G:d:D
 I:3:35d4:0
-A:30:10:2:19
+A:30:11:2:22
 P:[+17,2d4]
 B:CLAW:HURT:(+29,3d11)
 B:BITE:FIRE:(+25,2d21)
@@ -2096,7 +2096,7 @@ N:234:Thuringwethil, the Vampire Messenger
 W:23:3
 G:v:r
 I:4:16d4:0
-A:10:13:7:16
+A:10:15:7:16
 P:[+30,1d4]
 B:CLAW:WOUND:(+35,3d7)
 B:BITE:LOSE_ALL:(+29,2d9)
@@ -2118,7 +2118,7 @@ N:241:Gothmog, High Captain of Balrogs
 W:24:3
 G:R:r
 I:2:52d4:-3
-A:5:12:1:20
+A:5:15:1:22
 P:[+25,6d4]
 B:HIT:FIRE:(+30,3d14)
 B:WHIP:DISARM:(+26,3d10)
@@ -2138,8 +2138,8 @@ D: Ungoliant's rage.
 N:242:Ungoliant, the Gloomweaver
 W:24:3
 G:M:D
-I:2:36d4:-4
-A:10:10:3:17
+I:2:36d4:-6
+A:20:8:3:24
 P:[+20,3d4]
 B:BITE:POISON:(+24,2d21)
 F:UNIQUE | FEMALE
@@ -2160,7 +2160,7 @@ N:243:Glaurung, the Deceiver
 W:24:3
 G:D:y1
 I:2:60d4:0
-A:20:10:0:21
+A:20:10:0:23
 P:[+16,2d4]
 B:CLAW:HURT:(+29,3d15)
 B:BITE:FIRE:(+24,2d25)
@@ -2183,7 +2183,7 @@ N:244:Gorthaur, Servant of Morgoth
 W:24:3
 G:C:u
 I:3:30d4:0
-A:10:18:5:21
+A:10:20:5:24
 P:[+29,3d4]
 B:CLAW:WOUND:(+31,3d11)
 B:BITE:POISON:(+28,2d15)
@@ -2211,7 +2211,7 @@ N:251:Morgoth, Lord of Darkness
 W:25:1
 G:V:D
 I:2:220d4:7
-A:10:10:0:20
+A:10:10:0:25
 P:[+20,5d4]
 B:HIT:SHATTER:(+20,6d10)
 F:UNIQUE | QUESTOR | MALE
@@ -2243,7 +2243,7 @@ N:253:Carcharoth, the Jaws of Thirst
 W:25:1
 G:C:r
 I:4:30d4:0
-A:20:20:5:17
+A:20:20:5:20
 P:[+30,2d4]
 B:BITE:POISON:(+29,2d17)
 F:UNIQUE | MALE | FORCE_DEPTH
