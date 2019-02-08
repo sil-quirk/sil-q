@@ -447,19 +447,19 @@
 /* 
  * Melee abilities 
  */
-#define	MEL_POWER					 0
-#define	MEL_FINESSE					 1
-#define	MEL_KNOCK_BACK				 2
-#define	MEL_POLEARMS				 3
-#define	MEL_CHARGE					 4
-#define	MEL_FOLLOW_THROUGH			 5
-#define	MEL_ZONE_OF_CONTROL			 6
-#define	MEL_CONTROL					 7
-#define	MEL_IMPALE				 8
-#define	MEL_RAPID_ATTACK			 9
-#define	MEL_TWO_WEAPON				10
-#define	MEL_ANTICIPATE				11
-#define	MEL_WHIRLWIND_ATTACK		12
+#define	MEL_POWER					0
+#define	MEL_FINESSE					1
+#define	MEL_KNOCK_BACK				 	2
+#define	MEL_POLEARMS				 	3
+#define	MEL_CHARGE					4
+#define	MEL_FOLLOW_THROUGH			 	5
+#define	MEL_IMPALE				 	6
+#define	MEL_CONTROL					7
+#define	MEL_WHIRLWIND_ATTACK				8
+#define	MEL_ZONE_OF_CONTROL			 	9
+#define	MEL_SMITE					10
+#define	MEL_TWO_WEAPON					11
+#define	MEL_RAPID_ATTACK			 	12
 #define	MEL_STR						13
 
 /* 
@@ -2199,15 +2199,7 @@
 #define ALERTNESS_VERY_ALERT	 10
 #define ALERTNESS_MAX			 20
 
-/*
- * Blow success: miss, hit, damage
- */
-#define ATTACK_MISSED	0
-#define ATTACK_HIT	1
-#define ATTACK_DAMAGED	2
-
 /*** Monster flags ***/
-
 
 /*
  * Special Monster Flags

@@ -87,16 +87,15 @@ D: moving onto the next adjacent enemy.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
-T:31:0:99  # Gloves
 
-N:6:Zone of Control
+N:6:Impale
 I:0:6:7
-P:0/1:0/3
-D:You get a free attack whenever an opponent moves between two
-D: squares which are adjacent to you.
-T:21:0:99  # Hafted
-T:22:0:99  # Polearms
-T:23:0:99  # Swords
+P:0/0:0/3
+D:When using a polearm or greatsword you can strike through or past
+D: opponents to attack an opponent behind.
+T:23:25:25 # Greatswords
+T:23:30:30 # Mithril Greatswords
+T:22:0:4   # Polearms
 T:31:0:99  # Gloves
 
 N:7:Subtlety
@@ -110,27 +109,39 @@ T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:31:0:99  # Gloves
 
-N:8:Impale
+N:8:Whirlwind Attack
 I:0:8:9
-P:0/0:0/3
-D:When using a polearm or greatsword you can strike through or past
-D: opponents to attack an opponent behind.
-T:23:25:25 # Greatswords
-T:23:30:30 # Mithril Greatswords
-T:22:0:4   # Polearms
-
-N:9:Rapid Attack
-I:0:9:10
-P:0/7:3/4
-D:Grants you an extra melee attack, but your attacks
-D: are calculated as if you had 3 points less strength and dexterity.
+P:0/3:0/5
+D:Allows you to attack all adjacent enemies. If you miss an enemy you attack
+D: the next and so on until you damage one or have attacked all of them.
+D: Half the time you do damage you continue your attack.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:31:0:99  # Gloves
 
-N:10:Two Weapon Fighting
+N:9:Zone of Control
+I:0:9:10
+P:0/1:0/3
+D:You get a free attack whenever an opponent moves between two
+D: squares which are adjacent to you.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:31:0:99  # Gloves
+
+N:10:Smite
 I:0:10:11
+P:0/2:0/4
+D:When using a two-handed weapon, the first main attack you make on your
+D: turn rolls the maximum possible damage to all opponents it hits. Making
+D: such an attack causes you to lose your next turn while you recover.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+
+N:11:Two Weapon Fighting
+I:0:11:12
 P:0/1:2/2
 D:Allows you to wield a one-handed weapon in your off-hand for an extra attack
 D: (calculated as if you had 3 points less strength and dexterity).
@@ -139,20 +150,11 @@ T:22:0:99  # Polearms
 T:23:0:99  # Swords
 T:31:0:99  # Gloves
 
-N:11:Anticipate
-I:0:11:12
-P:0/0:7/1
-D:Missed attacks on opponents with an Aggressive stance are rerolled up to twice.
-T:21:0:99  # Hafted
-T:22:0:99  # Polearms
-T:23:0:99  # Swords
-
-N:12:Whirlwind Attack
+N:12:Rapid Attack
 I:0:12:13
-P:0/3:0/5
-D:Allows you to attack all adjacent enemies. If you miss an enemy you attack
-D: the next and so on until you damage one or have attacked all of them.
-D: Half the time you do damage you continue your attack.
+P:0/7:3/4
+D:Grants you an extra melee attack, but your attacks
+D: are calculated as if you had 3 points less strength and dexterity.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords

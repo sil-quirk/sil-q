@@ -1955,25 +1955,32 @@ static void process_player(void)
 			/* Searching */ 
 			search();
 		}
-        
-        /* Recovering footing */
-        else if (p_ptr->skip_next_turn)
-        {
-            // let the player know
-            msg_print("You recover your footing.");
-            
-            // force a -more-
-            message_flush();
-            
-            // reset flag
-            p_ptr->skip_next_turn = FALSE;
+		
+		/* Recovering footing */
+		else if (p_ptr->skip_next_turn)
+		{
+		    // let the player know
+		    if (p_ptr->knocked_back)
+		    {
+			    msg_print("You recover your footing.");
+			    
+			    // force a -more-
+			    message_flush();
+			    p_ptr->knocked_back = FALSE;
+		    }
+		    
+		    // reset flag
+		    p_ptr->skip_next_turn = FALSE;
 
-            /* Take a turn */
-			p_ptr->energy_use = 100;
-			
-			// store the action type
-			p_ptr->previous_action[0] = ACTION_MISC;
-        }
+		    /* Take a turn */
+		    p_ptr->energy_use = 100;
+				
+		    // store the action type
+		    p_ptr->previous_action[0] = ACTION_MISC;
+
+		    // Pause to show enemies moving.
+		    Term_xtra(TERM_XTRA_DELAY, 500);
+		}
 
 		/* Running */
 		else if (p_ptr->running)
@@ -3019,9 +3026,6 @@ void play_game(bool new_game)
 		/* The dungeon is not ready */
 		character_dungeon = FALSE;
 
-		/* Start at level 1 */
-		p_ptr->depth = 1;
-
 		/* Hack -- seed for flavors */
 		seed_flavor = rand_int(0x10000000);
 		
@@ -3030,13 +3034,7 @@ void play_game(bool new_game)
 
 		/* Roll up a new character */
 		player_birth();
-		
-		/* Randomize the artefacts */
-		if (adult_rand_artefacts)
-		{
-			do_randart(seed_randart, TRUE);
-		}
-
+	
 		// Reset the autoinscriptions
 		autoinscribe_clean();
 		autoinscribe_init();
@@ -3123,8 +3121,9 @@ void play_game(bool new_game)
 	// reset combat roll info
 	turns_since_combat = 0;
     
-    // assume the player is on the ground
-    p_ptr->leaping = FALSE;
+    // assume the player is on the ground and not being knocked back
+ 	p_ptr->leaping = FALSE;
+	p_ptr->knocked_back = FALSE;
 	
 	/* Process */
 	while (TRUE)

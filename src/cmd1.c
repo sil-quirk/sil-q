@@ -3581,6 +3581,7 @@ bool knock_back(int y1, int x1, int y2, int x2)
         else
         {
             msg_print("You are knocked back.");
+	    p_ptr->knocked_back = TRUE;
 
             p_ptr->skip_next_turn = TRUE;
 
@@ -3617,9 +3618,8 @@ bool knock_back(int y1, int x1, int y2, int x2)
  *
  * If no "weapon" is available, then "punch" the monster one time.
  */
-int py_attack_aux(int y, int x, int attack_type)
+void py_attack_aux(int y, int x, int attack_type)
 {
-	int attack_result = ATTACK_MISSED;
 	int num = 0;
 	
 	int attack_mod = 0, total_attack_mod = 0, total_evasion_mod = 0;
@@ -3654,6 +3654,7 @@ int py_attack_aux(int y, int x, int attack_type)
 	bool rapid_attack = FALSE;
 	bool off_hand_blow = FALSE;
 	bool fatal_blow = FALSE;
+	bool smite = FALSE;
 
 	u32b f1, f2, f3; // the weapon's flags
 
@@ -3745,7 +3746,7 @@ int py_attack_aux(int y, int x, int attack_type)
         }
         
         /* Done */
-        return attack_result;
+	return;
     }
     
 	// fighting with fists is equivalent to a 4 lb weapon for the purpose of criticals
@@ -3793,8 +3794,17 @@ int py_attack_aux(int y, int x, int attack_type)
 	/* Attack once for each legal blow */
 	while (num++ < blows)
 	{
+		smite = two_handed_melee() &&
+			p_ptr->active_ability[S_MEL][MEL_SMITE] &&
+			num == 1 &&
+			(attack_type == ATT_MAIN || attack_type == ATT_FLANKING ||
+			 attack_type == ATT_IMPALE || attack_type == ATT_FOLLOW_THROUGH ||
+			 attack_type == ATT_WHIRLWIND);
+
 		do_knock_back = FALSE;
 		knocked = FALSE;
+
+		if (smite) p_ptr->skip_next_turn = TRUE;
 		
 		// if the previous blow was a charge, undo the charge effects for later blows
 		if (charge)
@@ -3860,21 +3870,9 @@ int py_attack_aux(int y, int x, int attack_type)
 			if (hit_result > 0) msg_format("%^s tries and fails to dodge your blow.", m_name);
 		}
 
-		if (hit_result <= 0 && p_ptr->active_ability[S_MEL][MEL_ANTICIPATE] && m_ptr->stance == STANCE_AGGRESSIVE)
-		{
-			// Reroll on miss twice
-			hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
-
-			if (hit_result <= 0) hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
-
-			if (hit_result > 0 && !(r_ptr->flags2 & (RF2_MINDLESS))) msg_format("You anticipate %s's aggression.", m_name);
-		}
-
 		/* If the attack connects... */
 		if (hit_result > 0)
 		{
-			attack_result = ATTACK_HIT;
-
 			hits++;
 
 			/* Mark the monster as attacked */
@@ -3889,6 +3887,8 @@ int py_attack_aux(int y, int x, int attack_type)
 			total_dice = mdd + slay_bonus_dice + crit_bonus_dice;
 			
 			dam = damroll(total_dice, mds);
+			if (smite) dam = total_dice * mds;
+
 			prt = damroll(r_ptr->pd, r_ptr->ps);
 			prt_percent = prt_after_sharpness(o_ptr, &noticed_flag);
 
@@ -3918,7 +3918,6 @@ int py_attack_aux(int y, int x, int attack_type)
 
 			/* No negative damage */
 			if (net_dam < 0) net_dam = 0;
-			if (net_dam > 0) attack_result = ATTACK_DAMAGED;
 
 			// determine the punctuation for the attack ("...", ".", "!" etc)
 			attack_punctuation(punctuation, net_dam, crit_bonus_dice);
@@ -3937,6 +3936,10 @@ int py_attack_aux(int y, int x, int attack_type)
 				if (charge)
 				{
 					message_format(MSG_HIT, m_ptr->r_idx, "You charge %s%s", m_name, punctuation);
+				}
+				else if (smite)
+				{
+					message_format(MSG_HIT, m_ptr->r_idx, "You smite %s%s", m_name, punctuation);
 				}
 				else if (attack_type == ATT_IMPALE)
 				{
@@ -4106,8 +4109,6 @@ int py_attack_aux(int y, int x, int attack_type)
 
 	// Break the truce if creatures see
 	break_truce(FALSE);
-		
-	return attack_result;
 }
 
 bool whirlwind_possible(void)
@@ -4174,19 +4175,7 @@ void py_attack(int y, int x, int attack_type)
 				}
 				else if ((i == 0) || !forgo_attacking_unwary || (m_ptr->alertness >= ALERTNESS_ALERT))
 				{
-					int result;
-					char m_name[80];
-					bool lucky = one_in_(2);
-
-					monster_desc(m_name, sizeof(m_name), m_ptr, 0);
-
-					if (i != 0) msg_print("You continue your attack!");
-
-					result = py_attack_aux(yy, xx, ATT_WHIRLWIND);
-					if (result == ATTACK_DAMAGED)
-					{
-						if (!lucky) break;
-					}
+					py_attack_aux(yy, xx, ATT_WHIRLWIND);
 				}
 			}
 		}
