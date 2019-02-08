@@ -2719,12 +2719,16 @@ int object_difficulty(object_type *o_ptr)
 
 	if (f1 & TR1_BRAND_COLD)		{	dif_inc += 18;	smithing_cost.str += 2;	brands++; }
 	if (f1 & TR1_BRAND_FIRE)		{	dif_inc += 14;	smithing_cost.str += 2;	brands++; }
-	if (f1 & TR1_BRAND_POIS)		{	dif_inc += 16;	smithing_cost.str += 2;	brands++; }
+	if (f1 & TR1_BRAND_POIS)
+	{
+		if (o_ptr->tval == TV_ARROW) 	{	dif_inc += 12;	smithing_cost.str += 1;	}
+		else				{	dif_inc += 16;	smithing_cost.str += 2;	brands++; }
+	}
 	if (brands > 1)				{	dif_inc += (brands-1) * 20;  }
 	
 	if (f1 & TR1_SHARPNESS)
 	{
-		if (o_ptr->tval == TV_ARROW) 	{	dif_inc += 12;	smithing_cost.str += 1;	}
+		if (o_ptr->tval == TV_ARROW) 	{	dif_inc += 14;	smithing_cost.str += 1;	}
 		else				{	dif_inc += 24;	smithing_cost.str += 2;	}
 	}
 	if (f1 & TR1_SHARPNESS2)		{	dif_inc += 40;	smithing_cost.str += 4;	} // not available in smithing

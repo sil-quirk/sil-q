@@ -993,6 +993,18 @@ D: himself as he came to Valinor in wrath. Its envenomed bite pierced
 D: the Two Trees with wounds that would not heal.
 
 
+## The Hand Axe 'Binahkram'
+## Khuzdul - 'without name'. Haladin misunderstanding.
+
+N:92:'Binahkram'
+I:22:11:1
+W:6:20:20:1000
+P:0:5d2:0:0d0
+F:CON | SLAY_ORC | SLAY_SPIDER
+D:A sharp and well-made axe with a sturdy haft, gifted to Haldan,
+D: Lord of the Men of Brethil, by the dwarves of the Blue Mountains.
+
+
 ## The Battle Axe 'Dramborleg'
 ## 1st age
 
@@ -1036,6 +1048,20 @@ D:Forged by Gamil Zirak in days long gone, this giant axe
 D: was for many years an heirloom of the dwarven city of Nogrod.
 D: It grants its wielder strength to wield it and the power to
 D: fight some of Morgoth's foulest servants.
+
+## The Great Axe 'Mazarbulbark'
+## Khuzdul 'that-which-is-written axe'
+## (ability 5/7 is Vengeance)
+
+N:96:'Mazarbulbark'
+I:22:13:3
+W:10:20:90:10000
+P:-3:4d5:0:0d0
+F:WILL | SLAY_TROLL
+B:5/7
+D:Both the blade and haft of this huge axe are made of a single
+D: piece of blackened steel and engraved with many tiny Dwarven runes
+D: recording the names of valiant fallen warriors of Belegost.
 
 
 ## The Glaive of Gaurin

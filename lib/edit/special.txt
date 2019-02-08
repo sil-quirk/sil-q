@@ -528,18 +528,19 @@ F:RES_COLD | PERCEPTION
 ##### Arrows #####
 
 
-N:101:of Piercing
-W:5:3:0:300
+N:101:(Poisoned)
+W:6:6:0:100
+C:0:0:0:0:0:0:0
+T:17:0:99
+F:BRAND_POIS
+
+
+N:102:of Piercing
+W:10:10:0:300
 C:0:0:0:0:0:0:0
 T:17:0:99
 F:SHARPNESS
 
-
-N:102:(Poisoned)
-W:7:6:0:100
-C:0:0:0:0:0:0:0
-T:17:0:99
-F:BRAND_POIS
 
 
 ###
