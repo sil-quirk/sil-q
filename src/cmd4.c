@@ -2291,8 +2291,8 @@ int wgt_valid(void)
 int wgt_max(void)
 {
 	object_kind *k_ptr = &k_info[smith_o_ptr->k_idx];
-	
-	return (k_ptr->weight * 2);
+	int weight = div_round(k_ptr->weight, 2) * 3;
+	return (weight);
 }
 
 
@@ -2302,8 +2302,7 @@ int wgt_max(void)
 int wgt_min(void)
 {
 	object_kind *k_ptr = &k_info[smith_o_ptr->k_idx];
-    int weight = div_round(k_ptr->weight, 10) * 5;
-    
+	int weight = div_round(k_ptr->weight, 3) * 2;
 	return (weight);
 }
 
@@ -2626,27 +2625,11 @@ int object_difficulty(object_type *o_ptr)
 	}
 
 	// unusual weight
-	if (o_ptr->weight == 0)
-	{
-		weight_factor = 1100;
-	}
-	else if (o_ptr->weight > k_ptr->weight)
-	{
-		weight_factor = 100 * o_ptr->weight / k_ptr->weight;
-	}
-	else
-	{
-		int low_weight_adjust;
-		weight_factor = 100 * k_ptr->weight / o_ptr->weight;
-		low_weight_adjust = (weight_factor - 100) * (o_ptr->ds / 4);
+	if (o_ptr->weight == 0) 		weight_factor = 1100;
+	else if (o_ptr->weight > k_ptr->weight)	weight_factor = 100 * o_ptr->weight / k_ptr->weight;
+	else                                    weight_factor = 100 * k_ptr->weight / o_ptr->weight;
 
-		if (o_ptr->weight < 15)
-		{
-			weight_factor = weight_factor + low_weight_adjust;
-		}
-	}
-
-	dif_inc += (weight_factor - 100) / 10;
+	dif_inc += (weight_factor - 100) / 20;
 
 	// attack bonus
 	x = o_ptr->att - k_ptr->att;

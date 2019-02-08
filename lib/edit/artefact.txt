@@ -998,10 +998,10 @@ D: the Two Trees with wounds that would not heal.
 
 N:92:'Binahkram'
 I:22:11:1
-W:6:20:20:1000
+W:6:20:10:1000
 P:0:5d2:0:0d0
 F:CON | SLAY_ORC | SLAY_SPIDER
-D:A sharp and well-made axe with a sturdy haft, gifted to Haldan,
+D:A sharp and well-made axe with a sturdy haft. It was gifted to Haldan,
 D: Lord of the Men of Brethil, by the dwarves of the Blue Mountains.
 
 
@@ -1055,13 +1055,14 @@ D: fight some of Morgoth's foulest servants.
 
 N:96:'Mazarbulbark'
 I:22:13:3
-W:10:20:90:10000
-P:-3:4d5:0:0d0
+W:14:20:90:10000
+P:-3:4d4:0:0d0
 F:WILL | SLAY_TROLL
 B:5/7
 D:Both the blade and haft of this huge axe are made of a single
-D: piece of blackened steel and engraved with many tiny Dwarven runes
-D: recording the names of valiant fallen warriors of Belegost.
+D: piece of blackened steel. Engraved on the axehead are many tiny
+D: Dwarven runes recording the names of valiant fallen warriors of
+D: Belegost.
 
 
 ## The Glaive of Gaurin

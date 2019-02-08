@@ -485,13 +485,6 @@ F:VUL_COLD
 
 # Shortbows only
 
-N:91:of Thargelion
-W:4:4:0:3000
-C:0:0:0:0:0:0:1
-T:19:0:99
-F:ACCURATE | EASY_KNOW
-
-
 N:92:of Lammoth
 W:4:8:0:1000
 C:0:0:0:0:0:0:0
@@ -518,6 +511,14 @@ W:8:6:0:3000
 C:0:0:0:0:0:0:3
 T:19:0:99
 F:RES_COLD | PERCEPTION
+
+
+N:96:of the Falmari
+W:8:6:0:3000
+C:0:0:0:0:0:0:1
+T:19:0:99
+F:ACCURATE | EASY_KNOW
+
 
 
 ###
