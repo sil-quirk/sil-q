@@ -67,7 +67,7 @@
  */
 #define OLD_VERSION_MAJOR	1
 #define OLD_VERSION_MINOR	4
-#define OLD_VERSION_PATCH	0
+#define OLD_VERSION_PATCH	2
 
 
 /*
@@ -468,8 +468,8 @@
 #define	ARC_ROUT					0
 #define	ARC_FLETCHERY					1
 #define	ARC_POINT_BLANK				 	2
-#define	ARC_AMBUSH					3
-#define	ARC_EASE				 	4
+#define	ARC_PUNCTURE				 	3
+#define	ARC_AMBUSH					4
 #define	ARC_VERSATILITY				 	5
 #define	ARC_CRIPPLING				 	6
 #define	ARC_DEADLY_HAIL				 	7

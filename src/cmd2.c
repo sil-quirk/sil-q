@@ -3603,6 +3603,7 @@ void do_cmd_fire(int quiver)
 	bool pierce = FALSE;
 	bool targets_remaining = FALSE;
 	bool deadly_hail_bonus = FALSE;
+	bool puncture = FALSE;
 
 	/* Get the "bow" (if any) */
 	j_ptr = &inventory[INVEN_BOW];
@@ -3959,7 +3960,14 @@ void do_cmd_fire(int quiver)
 					prt = damroll(r_ptr->pd, r_ptr->ps);
 					
 					prt = (prt * prt_percent) / 100;
-					
+
+					if (prt > dam && p_ptr->active_ability[S_ARC][ARC_PUNCTURE])
+					{
+						puncture = TRUE;
+						dam = 3;
+						prt = 0;
+					}
+
 					net_dam = dam - prt;
 
 					// no negative damage
@@ -3988,6 +3996,8 @@ void do_cmd_fire(int quiver)
 							msg_format("The %s pierces %s%s", o_name, m_name, punctuation);
 						else if (deadly_hail_bonus)
 							msg_format("The %s tears into %s!", o_name, m_name);
+						else if (puncture)
+							msg_format("The %s hits %s in a vulnerable spot%s", o_name, m_name, punctuation);
 						else
 							msg_format("The %s hits %s%s", o_name, m_name, punctuation);
 					}

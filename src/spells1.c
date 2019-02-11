@@ -5354,14 +5354,22 @@ void sing(void)
 			}
 			case SNG_STAUNCHING:
 			{
-				cost += 1;
+				int cycle = p_ptr->song_duration % 10;
+				int song_frac = score % 10;
+				int bonus_hp = 0;
 
+				cost += 1;
 				set_cut(0);
-				p_ptr->chp += (score/3);
+
+				if ((cycle * song_frac) % 10 < song_frac) bonus_hp = 1;
+
+				bonus_hp += (score/10);
+
+				p_ptr->chp += bonus_hp;
 
 				if (p_ptr->chp > p_ptr->mhp) p_ptr->chp = p_ptr->mhp;
 
-				break;
+ 				break;
 			}
 			case SNG_SILENCE:
 			{

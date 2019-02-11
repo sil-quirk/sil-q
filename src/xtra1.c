@@ -229,11 +229,6 @@ extern byte total_ads(const object_type *j_ptr)
 
 	str_to_ads = p_ptr->stat_use[A_STR];
 
-	if (p_ptr->active_ability[S_ARC][ARC_EASE])
-	{
-		str_to_ads += 2;
-	}
-
 	int_ads = j_ptr->ds;
 	
 	/* limit the strength sides bonus by bow weight */
