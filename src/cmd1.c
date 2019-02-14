@@ -1692,7 +1692,9 @@ extern void ident_stand_fast()
 			/* Full object description */
 			object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
 			msg_format("You realize that your %s is %s.", o_short_name, o_full_name);
-		}		
+
+			return;
+		}
 	}
 }
 
