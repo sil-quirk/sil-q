@@ -2800,8 +2800,8 @@ int object_difficulty(object_type *o_ptr)
 	{
 		int level = (&b_info[ability_index(o_ptr->skilltype[i],o_ptr->abilitynum[i])])->level;
 
-		dif_inc += 4 + (level / 2);
-		smithing_cost.exp += 100 * level;
+		dif_inc += 4 + (level / 3);
+		smithing_cost.exp += 50 * level;
 	}
 
 	// Penalty for being an artefact
