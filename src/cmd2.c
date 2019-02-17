@@ -3604,6 +3604,7 @@ void do_cmd_fire(int quiver)
 	bool targets_remaining = FALSE;
 	bool deadly_hail_bonus = FALSE;
 	bool puncture = FALSE;
+	bool always_break = FALSE;
 
 	/* Get the "bow" (if any) */
 	j_ptr = &inventory[INVEN_BOW];
@@ -4042,9 +4043,9 @@ void do_cmd_fire(int quiver)
 						}
 						
 						// Morgoth drops his iron crown if he is hit for 10 or more net damage twice
-						if ((m_ptr->r_idx == R_IDX_MORGOTH) && ((&a_info[ART_MORGOTH_3])->cur_num == 0))
+						if (m_ptr->r_idx == R_IDX_MORGOTH)
 						{
-							if (net_dam >= 10)
+							if (net_dam >= 10 && ((&a_info[ART_MORGOTH_3])->cur_num == 0))
 							{
 								if (p_ptr->morgoth_hits == 0)
 								{
@@ -4057,6 +4058,8 @@ void do_cmd_fire(int quiver)
 									p_ptr->morgoth_hits++;
 								}
 							}
+
+							always_break = TRUE;
 						}
 
 						/* Message */
@@ -4125,7 +4128,7 @@ void do_cmd_fire(int quiver)
 		break_truce(FALSE);
 		
 		/* Drop (or break) near that location */
-		drop_near(i_ptr, breakage_chance(i_ptr, hit_wall), final_y, final_x);
+		drop_near(i_ptr, always_break ? 100 : breakage_chance(i_ptr, hit_wall), final_y, final_x);
 	}
 
 

@@ -1021,7 +1021,7 @@ extern bool similar_monsters(int m1y, int m1x, int m2y, int m2x);
 extern void scare_onlooking_friends(const monster_type *m_ptr, int amount);
 extern void create_chosen_artefact(byte name1, int y, int x, bool identify);
 extern void drop_loot(monster_type *m_ptr);
-extern void anger_morgoth(void);
+extern void anger_morgoth(int level);
 extern void monster_death(int m_idx);
 extern bool mon_take_hit(int m_idx, int dam, cptr note, int who);
 extern bool modify_panel(int wy, int wx);

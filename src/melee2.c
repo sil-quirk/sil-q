@@ -4508,29 +4508,25 @@ static void process_monster(monster_type *m_ptr)
 
 	// do this before Mastery and Lorien effects kick in...
 	if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_WOUNDED &&
-		p_ptr->morgoth_state < 1)
+		p_ptr->morgoth_state < 2)
 	{
 		msg_print("Morgoth grows angry.");
 		message_flush();
-		p_ptr->morgoth_state = 1;
-		anger_morgoth();
+		anger_morgoth(2);
 	}
 	else if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_BADLY_WOUNDED &&
-		p_ptr->morgoth_state < 2)
+		p_ptr->morgoth_state < 3)
 	{
 		msg_print("Morgoth grows more angry.");
 		message_flush();
-		p_ptr->morgoth_state = 2;
-		anger_morgoth();
+		anger_morgoth(3);
 	}
 	else if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_ALMOST_DEAD &&
-		p_ptr->morgoth_state < 3)
+		p_ptr->morgoth_state < 4)
 	{
 		msg_print("Morgoth grows desperate.");
 		message_flush();
-		p_ptr->morgoth_state = 3;
-		anger_morgoth();
-		anger_morgoth();
+		anger_morgoth(4);
 	}
  
 	// assume we are not under the influence of the Song of Mastery

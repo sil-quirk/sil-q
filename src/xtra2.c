@@ -2193,12 +2193,48 @@ void drop_loot(monster_type *m_ptr)
 /*
  * Makes Morgoth progressively more dangerous.
  */
-void anger_morgoth()
+void anger_morgoth(int level)
 {
-	(&r_info[R_IDX_MORGOTH])->evn += 2;
-	(&r_info[R_IDX_MORGOTH])->blow[0].att += 5;
-	(&r_info[R_IDX_MORGOTH])->wil += 2;
-	(&r_info[R_IDX_MORGOTH])->per += 2;
+	if (p_ptr->morgoth_state >= level) return;
+
+	switch(level)
+	{
+	case 0:
+		/* starting values - for comparison. */
+		(&r_info[R_IDX_MORGOTH])->evn = 20;
+		(&r_info[R_IDX_MORGOTH])->blow[0].att = 20;
+		(&r_info[R_IDX_MORGOTH])->wil = 25;
+		(&r_info[R_IDX_MORGOTH])->per = 10;
+		break;
+	case 1: // loses crown
+		(&r_info[R_IDX_MORGOTH])->light = 0;
+		(&r_info[R_IDX_MORGOTH])->per = 15;
+		break;
+	case 2: // hurt or Sils stolen
+		(&r_info[R_IDX_MORGOTH])->evn = 25;
+		(&r_info[R_IDX_MORGOTH])->blow[0].att = 25;
+		(&r_info[R_IDX_MORGOTH])->wil = 25;
+		(&r_info[R_IDX_MORGOTH])->per = 25;
+		break;
+	case 3: // badly hurt
+		(&r_info[R_IDX_MORGOTH])->evn = 30;
+		(&r_info[R_IDX_MORGOTH])->blow[0].att = 30;
+		(&r_info[R_IDX_MORGOTH])->blow[0].dd = 7;
+		(&r_info[R_IDX_MORGOTH])->wil = 30;
+		(&r_info[R_IDX_MORGOTH])->per = 30;
+		break;
+	case 4: // desperate
+		(&r_info[R_IDX_MORGOTH])->evn = 33;
+		(&r_info[R_IDX_MORGOTH])->blow[0].att = 33;
+		(&r_info[R_IDX_MORGOTH])->blow[0].dd = 8;
+		(&r_info[R_IDX_MORGOTH])->wil = 33;
+		(&r_info[R_IDX_MORGOTH])->per = 33;
+		break;
+	default:
+		return;
+	}
+
+	p_ptr->morgoth_state = level;
 }
 
 /*

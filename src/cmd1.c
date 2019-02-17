@@ -190,11 +190,7 @@ void drop_iron_crown(monster_type *m_ptr, const char *msg)
 		create_chosen_artefact(ART_MORGOTH_3, near_y, near_x, TRUE);
 		
 		// lower Morgoth's protection, remove his light source, increase his will and perception and evasion
-		(&r_info[R_IDX_MORGOTH])->pd -= 1;
-		(&r_info[R_IDX_MORGOTH])->light = 0;
-		(&r_info[R_IDX_MORGOTH])->wil += 5;
-		(&r_info[R_IDX_MORGOTH])->per += 5;
-		(&r_info[R_IDX_MORGOTH])->evn += 2;
+		anger_morgoth(1);
 	}
 }
 
