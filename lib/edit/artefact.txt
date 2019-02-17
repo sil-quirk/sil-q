@@ -1080,13 +1080,13 @@ D: did rive the rocks of Rodrim's hall.'
 ## The Glaive of the Sirion
 ## 1st age namesake
 ## (ability 3/4 is Opportunist)
-## (ability 0/6 is Zone of Control)
+## (ability 0/9 is Zone of Control)
 
 N:100:of the Sirion
 I:22:4:3
 W:10:20:70:50000
 P:0:2d10:1:0d0
-B:0/6:3/4
+B:0/9:3/4
 D:Like the waters of its namesake river, this fine blade
 D: is ever in motion. In combat, it seems to flow into
 D: every opening, no matter how brief.
