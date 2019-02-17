@@ -1004,9 +1004,9 @@ D: open or destroy them.
 N:193:Light
 G:_:d
 I:55:3:0
-W:5:0:50:250
+W:2:0:50:250
 P:0:0d0:0:0d0
-A:5/2
+A:3/2:9/6
 D:It lights up an area with a radius of 7 squares, plus the entire room
 D: if you are currently in one.  This stuns
 D: any light-sensitive creatures within the area of effect.
@@ -1054,7 +1054,7 @@ G:_:d
 I:55:9:0
 W:13:0:50:400
 P:0:0d0:0:0d0
-A:13/3
+A:13/2
 D:It shows you the whereabouts of all monsters on the level.
 
 
@@ -1110,7 +1110,7 @@ G:_:d
 I:55:16:0
 W:11:0:50:400
 P:0:0d0:0:0d0
-A:11/2
+A:11/4
 D:It allows you to partially recharge another staff.
 
 

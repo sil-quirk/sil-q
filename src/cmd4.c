@@ -3272,7 +3272,7 @@ void create_base_object(int tval, int sval)
 	// create arrows by the two dozen
 	if (tval == TV_ARROW)
 	{
-		smith_o_ptr->number = 24;
+		smith_o_ptr->number = 12;
 	}
 }
 
