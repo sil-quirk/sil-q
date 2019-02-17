@@ -163,16 +163,11 @@
 #     - immune to criticals
 #     - 2d4 prot, 8d4 health
 #
-# - w   (worm masses) %%%%
-#     - multiply
-#     - mindless
+# - w   (ghosts and shadows) %%%%
+#     - may multiply
 #     - slow
 #     - very erratic
-#     - can't open doors
-#     - low evasion/melee
-#     - 0 prot, 6d4 health
 #     - immune to most things
-#     - resistant to criticals
 #
 # - c   (centipedes) %%%%
 #     - erratic
@@ -331,20 +326,6 @@ F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | NO_CRIT
 D:'... great writhing, tangled brambles sprawled. Some had long stabbing
 D: thorns, some hooked barbs that rent like knives.'
 
-N:13:Phantom
-W:1:2
-G:W:s
-I:1:2d4:0
-A:0:1:6:2
-P:[+8]
-B:TOUCH:TERRIFY:(+12)
-F:INVISIBLE
-F:RAND_50 | UNDEAD | HURT_LITE | RES_COLD 
-F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP 
-S:SPELL_PCT_50
-S:DIM
-D:A faded presence that perhaps once was man or elf,
-D: but is now an insubstantial thing of necromancy and shadow.
 
 ##### 2 #####
 
@@ -372,6 +353,21 @@ F:FLYING | RAND_50 | TERRITORIAL
 D:A hunting bird, beloved of the orcs, with iron barbs on its talons.
 
 
+N:23:Mewlip
+W:2:1
+G:H:u
+I:3:6d4:0
+A:5:2:3:1
+P:[+1,2d4]
+B:CLAW:WOUND:(+6,3d2)
+F:DROP_100 | OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR | SMART
+F:NO_FEAR
+S:SPELL_PCT_25
+S:DIM
+D:An evil swamp dwelling creature that feeds on the bones
+D: of those who draw near.
+
+
 ##### 3 #####
 
 N:31:Orc scout
@@ -392,7 +388,7 @@ D: attract attention. It has a crude spear.
 
 # Can't move from idx 32, used by monster ability HATCH_SPIDER
 N:32:Spider hatchling
-W:3:4
+W:3:2
 G:m:U
 I:2:1d4:0
 A:20:1:8:2
@@ -418,19 +414,6 @@ S:BRTH_COLD
 D:A snake the length of a man, with hard blue scales.
 D: There is a chill in the air around it.
 
-
-N:34:Brood spider
-W:3:1
-G:M:U
-I:1:10d4:0
-A:10:3:2:4
-P:[+2,2d4]
-B:BITE:POISON:(+10,2d6)
-F:SPIDER | TERRITORIAL | RES_POIS
-S:SPELL_PCT_10
-S:HATCH_SPIDER
-D:A huge ponderous spider with clusters of eggs on its back.
-D: Its hairy mandibles are wet with a dark fluid.
 
 ##### 4 #####
 
@@ -472,6 +455,20 @@ B:PECK:BLIND:(+10,1d5)
 F:FRIEND | FLYING | RAND_25
 D:A dark creature, related to the crow. It pecks at any exposed flesh,
 D: especially the face and eyes.
+
+
+N:44:Brood spider
+W:4:3
+G:M:U
+I:1:14d4:0
+A:10:5:2:4
+P:[+5]
+B:BITE:POISON:(+12,2d8)
+F:SPIDER | TERRITORIAL | RES_POIS
+S:SPELL_PCT_10
+S:HATCH_SPIDER
+D:A huge ponderous spider with clusters of eggs on its back.
+D: Its hairy mandibles are wet with a dark fluid.
 
 
 ##### 5 #####
@@ -531,7 +528,6 @@ F:HURT_LITE | UNLOCK_DOOR
 D:A captain of a orcish band, Gorgol keeps his troop in
 D: order with displays of violence.
 
-
 ##### 6 #####
 
 
@@ -574,19 +570,20 @@ S:SHRIEK
 D:A type of crow, specially bred by the forces of evil as spies.
 
 
-N:64:Mewlip
+N:64:Phantom
 W:6:3
-G:H:u
-I:2:12d4:0
-A:15:3:3:2
-P:[+4,2d4]
-B:CLAW:WOUND:(+9,3d4)
-F:DROP_100 | OPEN_DOOR | UNLOCK_DOOR | BASH_DOOR | SMART
-F:NO_FEAR
-S:SPELL_PCT_15
-S:SCARE | DIM
-D:An evil swamp dwelling creature that feeds on the bones
-D: of those who draw near.
+G:w:s
+I:1:2d4:0
+A:0:8:3:8
+P:[+5]
+B:TOUCH:TERRIFY:(+15)
+F:INVISIBLE
+F:RAND_50 | UNDEAD | HURT_LITE | RES_COLD 
+F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | FRIEND
+S:SPELL_PCT_50
+S:DIM
+D:A faded presence that perhaps once was man or elf,
+D: but is now an insubstantial thing of necromancy and shadow.
 
 
 ##### 7 #####

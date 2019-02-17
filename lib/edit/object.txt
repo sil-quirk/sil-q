@@ -1258,9 +1258,9 @@ D:It renews your voice.
 N:320:True Sight
 G:!:d
 I:75:7:100
-W:2:0:5:100
+W:5:0:5:100
 P:0:0d0:0:0d0
-A:2/1:12/1
+A:5/1:15/1
 F:EASY_KNOW
 D:It restores your sight and enables you to resist
 D: blindness, resist hallucination, and see
