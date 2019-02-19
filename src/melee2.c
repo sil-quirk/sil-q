@@ -4517,7 +4517,7 @@ static void process_monster(monster_type *m_ptr)
 	else if (m_ptr->r_idx == R_IDX_MORGOTH && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_BADLY_WOUNDED &&
 		p_ptr->morgoth_state < 3)
 	{
-		msg_print("Morgoth grows more angry.");
+		msg_print("Morgoth unslings his mighty shield.");
 		message_flush();
 		anger_morgoth(3);
 	}

@@ -3604,7 +3604,6 @@ void do_cmd_fire(int quiver)
 	bool targets_remaining = FALSE;
 	bool deadly_hail_bonus = FALSE;
 	bool puncture = FALSE;
-	bool always_break = FALSE;
 
 	/* Get the "bow" (if any) */
 	j_ptr = &inventory[INVEN_BOW];
@@ -4058,8 +4057,6 @@ void do_cmd_fire(int quiver)
 									p_ptr->morgoth_hits++;
 								}
 							}
-
-							always_break = TRUE;
 						}
 
 						/* Message */
@@ -4128,7 +4125,7 @@ void do_cmd_fire(int quiver)
 		break_truce(FALSE);
 		
 		/* Drop (or break) near that location */
-		drop_near(i_ptr, always_break ? 100 : breakage_chance(i_ptr, hit_wall), final_y, final_x);
+		drop_near(i_ptr, breakage_chance(i_ptr, hit_wall), final_y, final_x);
 	}
 
 

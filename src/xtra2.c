@@ -2207,28 +2207,28 @@ void anger_morgoth(int level)
 		(&r_info[R_IDX_MORGOTH])->per = 10;
 		break;
 	case 1: // loses crown
+		(&r_info[R_IDX_MORGOTH])->evn = 22;
 		(&r_info[R_IDX_MORGOTH])->light = 0;
 		(&r_info[R_IDX_MORGOTH])->per = 15;
 		break;
 	case 2: // hurt or Sils stolen
-		(&r_info[R_IDX_MORGOTH])->evn = 25;
-		(&r_info[R_IDX_MORGOTH])->blow[0].att = 25;
-		(&r_info[R_IDX_MORGOTH])->wil = 25;
-		(&r_info[R_IDX_MORGOTH])->per = 25;
-		break;
-	case 3: // badly hurt
-		(&r_info[R_IDX_MORGOTH])->evn = 30;
 		(&r_info[R_IDX_MORGOTH])->blow[0].att = 30;
 		(&r_info[R_IDX_MORGOTH])->blow[0].dd = 7;
 		(&r_info[R_IDX_MORGOTH])->wil = 30;
-		(&r_info[R_IDX_MORGOTH])->per = 30;
+		(&r_info[R_IDX_MORGOTH])->per = 20;
+		break;
+	case 3: // badly hurt
+		(&r_info[R_IDX_MORGOTH])->evn = 25;
+		(&r_info[R_IDX_MORGOTH])->pd = 7;
+		(&r_info[R_IDX_MORGOTH])->wil = 35;
+		(&r_info[R_IDX_MORGOTH])->per = 25;
 		break;
 	case 4: // desperate
-		(&r_info[R_IDX_MORGOTH])->evn = 33;
-		(&r_info[R_IDX_MORGOTH])->blow[0].att = 33;
+		(&r_info[R_IDX_MORGOTH])->evn = 30;
+		(&r_info[R_IDX_MORGOTH])->blow[0].att = 40;
 		(&r_info[R_IDX_MORGOTH])->blow[0].dd = 8;
-		(&r_info[R_IDX_MORGOTH])->wil = 33;
-		(&r_info[R_IDX_MORGOTH])->per = 33;
+		(&r_info[R_IDX_MORGOTH])->wil = 40;
+		(&r_info[R_IDX_MORGOTH])->per = 30;
 		break;
 	default:
 		return;

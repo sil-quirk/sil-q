@@ -3779,12 +3779,6 @@ void drop_near(object_type *j_ptr, int chance, int y, int x)
 	/* Handle lack of space */
 	if (!flag && (j_ptr->name1 != ART_MORGOTH_3) && ((j_ptr->tval != TV_LIGHT) || (j_ptr->sval != SV_LIGHT_SILMARIL)))
 	{
-		/* Message */
-		if (player_has_los_bold(y,x))
-		{
-			msg_format("The %s disappear%s.", o_name, (plural ? "" : "s"));
-		}
-
 		/* Debug */
 		if (p_ptr->wizard) msg_print("Breakage (no floor space).");
 

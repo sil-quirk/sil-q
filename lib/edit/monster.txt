@@ -2207,7 +2207,7 @@ D: eyes.
 N:251:Morgoth, Lord of Darkness
 W:25:1
 G:V:D
-I:2:220d4:7
+I:2:140d4:7
 A:10:10:0:25
 P:[+20,5d4]
 B:HIT:SHATTER:(+20,6d10)
