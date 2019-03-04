@@ -4956,7 +4956,7 @@ bool confuse_dir(int *dp)
 }
 
 
-const char female_entry_poetry[][100] =
+const char entry_poetry[][100] =
 {
 	{ "Into the vast and echoing gloom," },
 	{ "more dread than many-tunnelled tomb" },
@@ -4967,28 +4967,10 @@ const char female_entry_poetry[][100] =
 	{ "      down to the mountain's roots profound," },
 	{ "devoured, tormented, bored and ground" },
 	{ "by seething vermin spawned of stone;" },
-	{ "  down to the depths she went alone..." },
+	{ "  down to the depths they went alone..." },
 	
 	{ "" }
 };
-
-
-const char male_entry_poetry[][100] =
-{
-	{ "Into the vast and echoing gloom," },
-	{ "more dread than many-tunnelled tomb" },
-//	{ "in labyrinthine pyramid" },
-//	{ "where everlasting death is hid," },
-	{ "  down awful corridors that wind" },
-	{ "    down to a menace dark enshrined;" },
-	{ "      down to the mountain's roots profound," },
-	{ "devoured, tormented, bored and ground" },
-	{ "by seething vermin spawned of stone;" },
-	{ "  down to the depths he went alone..." },
-	
-	{ "" }
-};
-
 
 const char tutorial_leave_text[][100] =
 {

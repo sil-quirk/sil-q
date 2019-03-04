@@ -768,7 +768,7 @@ static errr rd_extra(void)
 	}
 
 	/* Player sex */
-	rd_byte(&p_ptr->psex);
+	rd_byte(&p_ptr->unused1);
 
 	/* Tutorial? */
 	rd_s16b(&p_ptr->game_type);
@@ -1700,9 +1700,6 @@ static errr rd_savefile_new_aux(void)
 
 	if (rd_notes()) return (-1);
 	if (arg_fiddle) note("Loaded Notes");
-
-	/* Important -- Initialize the sex */
-	sp_ptr = &sex_info[p_ptr->psex];
 
 	/* Important -- Initialize the race/house */
 	rp_ptr = &p_info[p_ptr->prace];

@@ -780,7 +780,7 @@ static void wr_extra(void)
 	/* Race/House/Sex */
 	wr_byte(p_ptr->prace);
 	wr_byte(p_ptr->phouse);
-	wr_byte(p_ptr->psex);
+	wr_byte(p_ptr->unused1);
 	
 	wr_s16b(p_ptr->game_type);
 

@@ -1633,19 +1633,15 @@ static void display_player_misc_info(void)
 	put_str("Name", 2, 1);
 	c_put_str(TERM_L_BLUE, op_ptr->full_name, 2, 8);
 
-	/* Sex */
-	put_str("Sex", 3, 1);
-	c_put_str(TERM_L_BLUE, sp_ptr->title, 3, 8);
-
 	/* Race */
-	put_str("Race", 4, 1);
-	c_put_str(TERM_L_BLUE, p_name + rp_ptr->name, 4, 8);
+	put_str("Race", 3, 1);
+	c_put_str(TERM_L_BLUE, p_name + rp_ptr->name, 3, 8);
 
 	if (p_ptr->phouse)
 	{
 		/* Title */
-		put_str("House", 5, 1);
-		c_put_str(TERM_L_BLUE, c_name + hp_ptr->short_name, 5, 8);
+		put_str("House", 4, 1);
+		c_put_str(TERM_L_BLUE, c_name + hp_ptr->short_name, 4, 8);
 	}
 
 }
@@ -3233,15 +3229,7 @@ void do_cmd_suicide(void)
 	/* Leaving */
 	p_ptr->leaving = TRUE;
 
-	/* Cause of death */
-	if (p_ptr->psex)
-	{
-		my_strcpy(p_ptr->died_from, "his own hand", sizeof(p_ptr->died_from));
-	}
-	else
-	{
-		my_strcpy(p_ptr->died_from, "her own hand", sizeof(p_ptr->died_from));
-	}
+	my_strcpy(p_ptr->died_from, "their own hand", sizeof(p_ptr->died_from));
 }
 
 
@@ -3753,8 +3741,7 @@ extern void display_single_score(byte attr, int row, int col, int place, int fak
 		}
 		else
 		{
-			if (the_score->sex[0] == 'f')	my_strcat(out_val, " with her task unfulfilled", sizeof(out_val));
-			else							my_strcat(out_val, " with his task unfulfilled", sizeof(out_val));
+			my_strcat(out_val, " empty-handed", sizeof(out_val));
 		}
 	}
 	
@@ -3776,16 +3763,7 @@ extern void display_single_score(byte attr, int row, int col, int place, int fak
 		/* Mark those with a silmaril */
 		if (the_score->silmarils[0] > '0')
 		{
-			my_strcat(out_val, " during", sizeof(out_val));
-			if (the_score->sex[0] == 'f')
-			{
-				my_strcat(out_val, " her", sizeof(out_val));
-			}
-			else
-			{
-				my_strcat(out_val, " his", sizeof(out_val));
-			}
-			my_strcat(out_val, " escape", sizeof(out_val));
+			my_strcat(out_val, " during a daring escape", sizeof(out_val));
 		}
 	}
 	
@@ -4028,7 +4006,6 @@ static errr create_score(high_score *the_score)
 
 	/* Save the player info XXX XXX XXX */
 	strnfmt(the_score->uid, sizeof(the_score->uid), "%7u", player_uid);
-	strnfmt(the_score->sex, sizeof(the_score->sex), "%c", (p_ptr->psex ? 'm' : 'f'));
 	strnfmt(the_score->p_r, sizeof(the_score->p_r), "%2d", p_ptr->prace);
 	strnfmt(the_score->p_h, sizeof(the_score->p_h), "%2d", p_ptr->phouse);
 

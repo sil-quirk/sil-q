@@ -82,7 +82,6 @@ typedef struct monster_type monster_type;
 typedef struct alloc_entry alloc_entry;
 typedef struct owner_type owner_type;
 typedef struct store_type store_type;
-typedef struct player_sex player_sex;
 typedef struct player_race player_race;
 typedef struct player_house player_house;
 typedef struct hist_type hist_type;
@@ -699,17 +698,6 @@ struct store_type
 
 
 /*
- * Player sex info
- */
-struct player_sex
-{
-	cptr title;			/* Type of sex */
-
-	cptr winner;		/* Name of winner */
-};
-
-
-/*
  * Starting equipment entry
  */
 struct start_item
@@ -735,15 +723,10 @@ struct player_race
 	int b_age;			/* base age */
 	int m_age;			/* mod age */
 
-	byte m_b_ht;		/* base height (males) */
-	byte m_m_ht;		/* mod height (males) */
-	byte m_b_wt;		/* base weight (males) */
-	byte m_m_wt;		/* mod weight (males) */
-
-	byte f_b_ht;		/* base height (females) */
-	byte f_m_ht;		/* mod height (females) */
-	byte f_b_wt;		/* base weight (females) */
-	byte f_m_wt;		/* mod weight (females) */
+	byte b_ht;		/* base height */
+	byte m_ht;		/* mod height */
+	byte b_wt;		/* base weight */
+	byte m_wt;		/* mod weight */
 
 	s16b choice;		/* Legal house choices */
 
@@ -822,7 +805,6 @@ struct player_type
 	s16b py;			/* Player location */
 	s16b px;			/* Player location */
 
-	byte psex;			/* Sex index */
 	byte prace;			/* Race index */
 	byte phouse;		/* House index */
 	
@@ -1085,6 +1067,7 @@ struct player_type
 
 	bool killed_enemy_with_arrow;
 
+	byte unused1;
 	byte unused5;
 	byte unused6;
 	byte unused7;
@@ -1122,7 +1105,7 @@ struct high_score
 
 	char uid[8];		/* Player UID (number) */
 
-	char sex[2];		/* Player Sex (string) */
+	char unused[2];		/* Was sex */
 	char p_r[3];		/* Player Race (number) */
 	char p_h[3];		/* Player House (number) */
 

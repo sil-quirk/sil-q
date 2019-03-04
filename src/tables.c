@@ -69,31 +69,6 @@ const byte extract_energy[8] =
 
 
 /*
- * Player Sexes
- *
- *	Title,
- *	Winner
- */
-const player_sex sex_info[MAX_SEXES+1] =
-{
-	{
-		"Female",
-		"Lady"
-	},
-
-	{
-		"Male",
-		"Lord"
-	},
-	
-	{
-		"",
-		""
-	}
-};
-
-
-/*
  * Each chest has a certain set of traps, determined by pval
  * Each chest has a "pval" from 1 to the chest level (max 55)
  * If the "pval" is negative then the trap has been disarmed

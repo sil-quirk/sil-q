@@ -2846,37 +2846,31 @@ errr parse_p_info(char *buf, header *head)
 	/* Hack -- Process 'H' for "Height" */
 	else if (buf[0] == 'H')
 	{
-		int m_b_ht, m_m_ht, f_b_ht, f_m_ht;
+		int b_ht, m_ht;
 
 		/* There better be a current pr_ptr */
 		if (!pr_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
 		/* Scan for the values */
-		if (4 != sscanf(buf+2, "%d:%d:%d:%d",
-			            &m_b_ht, &m_m_ht, &f_b_ht, &f_m_ht)) return (PARSE_ERROR_GENERIC);
+		if (2 != sscanf(buf+2, "%d:%d", &b_ht, &m_ht)) return (PARSE_ERROR_GENERIC);
 
-		pr_ptr->m_b_ht = m_b_ht;
-		pr_ptr->m_m_ht = m_m_ht;
-		pr_ptr->f_b_ht = f_b_ht;
-		pr_ptr->f_m_ht = f_m_ht;
+		pr_ptr->b_ht = b_ht;
+		pr_ptr->m_ht = m_ht;
 	}
 
 	/* Hack -- Process 'W' for "Weight" */
 	else if (buf[0] == 'W')
 	{
-		int m_b_wt, m_m_wt, f_b_wt, f_m_wt;
+		int b_wt, m_wt;
 
 		/* There better be a current pr_ptr */
 		if (!pr_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
 		/* Scan for the values */
-		if (4 != sscanf(buf+2, "%d:%d:%d:%d",
-			            &m_b_wt, &m_m_wt, &f_b_wt, &f_m_wt)) return (PARSE_ERROR_GENERIC);
+		if (2 != sscanf(buf+2, "%d:%d", &b_wt, &m_wt)) return (PARSE_ERROR_GENERIC);
 
-		pr_ptr->m_b_wt = m_b_wt;
-		pr_ptr->m_m_wt = m_m_wt;
-		pr_ptr->f_b_wt = f_b_wt;
-		pr_ptr->f_m_wt = f_m_wt;
+		pr_ptr->b_wt = b_wt;
+		pr_ptr->m_wt = m_wt;
 	}
 
 	/* Hack -- Process 'F' for flags */

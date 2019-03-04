@@ -153,18 +153,6 @@
 #define NOTES_LENGTH 100000
 
 /*
- * Maximum number of player "sex" types (see "table.c", etc)
- */
-#define MAX_SEXES            2
-
-/*
- * Player sex constants (hard-coded by save-files, arrays, etc)
- */
-#define SEX_FEMALE		0
-#define SEX_MALE		1
-#define SEX_UNDEFINED	2
-
-/*
  * Strange pointer constant for the Player
  * used when I need an m_ptr for the player
  */

@@ -237,71 +237,6 @@ static bool get_history(void)
 }
 
 /*
- * Get the Sex.
- */
-static bool get_sex(void)
-{
-	char query2;
-	int loopagain = TRUE;
-	
-	// Set the default sex info to female
-	if (p_ptr->psex == SEX_UNDEFINED)
-	{
-		p_ptr->psex = SEX_FEMALE;
-		sp_ptr = &sex_info[SEX_FEMALE];
-	}
-	
-	while (loopagain == TRUE)
-	{
-		/* Display the player */
-		display_player(0);
-
-		// Highlight the relevant feature
-		c_put_str(TERM_YELLOW, sp_ptr->title, 3, 8);
-		
-		/* Prompt */
-		Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-					"Enter accept sex");
-		Term_putstr(QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_SLATE,
-					"Space change sex");
-		
-		/* Hack - highlight the key names */
-		Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, - 1, TERM_L_WHITE, "Enter");
-		Term_putstr(QUESTION_COL, INSTRUCT_ROW + 2, - 1, TERM_L_WHITE, "Space");
-		
-		/* Move the cursor */
-		Term_gotoxy(0, INSTRUCT_ROW + 1);
-				
-		/* Query */
-		query2 = inkey();
-		
-		if ((query2 == '\r') || (query2 == '\n'))
-		{
-			/* got a sex*/
-			loopagain = FALSE;
-			
-			p_ptr->redraw |= (PR_MISC);
-		}
-		
-		else if (query2 == ESCAPE)  return (FALSE);
-		
-		else if (((query2 == 'Q') || (query2 == 'q')) && (turn == 0)) quit (NULL);
-
-		else
-		{
-			if (p_ptr->psex == SEX_FEMALE)	p_ptr->psex = SEX_MALE;
-			else							p_ptr->psex = SEX_FEMALE;
-			
-			sp_ptr = &sex_info[p_ptr->psex];
-		}
-	}
-	
-	return (TRUE);
-}
-
-
-
-/*
  * Computes character's age, height, and weight
  */
 static void get_ahw_aux(void)
@@ -309,19 +244,12 @@ static void get_ahw_aux(void)
 	/* Calculate the age */
 	p_ptr->age = rand_range(rp_ptr->b_age, rp_ptr->m_age);
 
-	/* Calculate the height/weight for males */
-	if (p_ptr->psex == SEX_MALE)
-	{
-		p_ptr->ht = Rand_normal(rp_ptr->m_b_ht, rp_ptr->m_m_ht);
-		p_ptr->wt = Rand_normal(rp_ptr->m_b_wt, rp_ptr->m_m_wt);
-	}
+	/* Calculate the height/weight */
+	p_ptr->ht = Rand_normal(rp_ptr->b_ht, rp_ptr->m_ht);
+	p_ptr->wt = Rand_normal(rp_ptr->b_wt, rp_ptr->m_wt);
 
-	/* Calculate the height/weight for females */
-	else if (p_ptr->psex == SEX_FEMALE)
-	{
-		p_ptr->ht = Rand_normal(rp_ptr->f_b_ht, rp_ptr->f_m_ht);
-		p_ptr->wt = Rand_normal(rp_ptr->f_b_wt, rp_ptr->f_m_wt);
-	}
+	// Make weight a bit proportional to height
+	p_ptr->wt += p_ptr->ht / 5;
 }
 
 /*
@@ -359,7 +287,7 @@ static bool get_ahw(void)
 
 		/* Prompt */
 		Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-					"Enter accept age/height/weight");
+				"Enter accept age/height/weight");
 		Term_putstr(QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_SLATE,
 					"Space reroll");
 		Term_putstr(QUESTION_COL, INSTRUCT_ROW + 3, -1, TERM_SLATE,
@@ -392,23 +320,13 @@ static bool get_ahw(void)
 			int weight = 0;
 			int age_l, age_h, height_l, height_h, weight_l, weight_h;
 
-			age_l = 10;
-			age_h = 4865;
+			age_l = rp_ptr->b_age;
+			age_h = rp_ptr->m_age;
 		
-			if (p_ptr->psex == SEX_MALE)
-			{
-				height_l = rp_ptr->m_b_ht - 5 * (rp_ptr->m_m_ht);
-				height_h = rp_ptr->m_b_ht + 5 * (rp_ptr->m_m_ht);
-				weight_l = rp_ptr->m_b_wt / 3;
-				weight_h = rp_ptr->m_b_wt * 2;
-			}
-			else
-			{
-				height_l = rp_ptr->f_b_ht - 5 * (rp_ptr->f_m_ht);
-				height_h = rp_ptr->f_b_ht + 5 * (rp_ptr->f_m_ht);
-				weight_l = rp_ptr->f_b_wt / 3;
-				weight_h = rp_ptr->f_b_wt * 2;
-			}
+			height_l = rp_ptr->b_ht - 5 * (rp_ptr->m_ht);
+			height_h = rp_ptr->b_ht + 5 * (rp_ptr->m_ht);
+			weight_l = rp_ptr->b_wt / 2;
+			weight_h = rp_ptr->b_wt * 2;
 			
 			// clear line
 			line[0] = '\0';
@@ -481,7 +399,6 @@ static void player_wipe(void)
 
 	/* Backup the player choices */
 	// Initialized to soothe compilation warnings
-	byte psex = 0;
 	byte prace = 0;
 	byte phouse = 0;
 	int age = 0;
@@ -492,7 +409,6 @@ static void player_wipe(void)
 	if (character_loaded_dead)
 	{
 		/* Backup the player choices */
-		psex = p_ptr->psex;
 		prace = p_ptr->prace;
 		phouse = p_ptr->phouse;
 		age = p_ptr->age;
@@ -516,7 +432,6 @@ static void player_wipe(void)
 	if (character_loaded_dead)
 	{
 		/* Restore the choices */
-		p_ptr->psex = psex;
 		p_ptr->prace = prace;
 		p_ptr->phouse = phouse;
 		p_ptr->game_type = 0;
@@ -532,7 +447,6 @@ static void player_wipe(void)
 	else
 	{
 		/* Reset */
-		p_ptr->psex = SEX_UNDEFINED;
 		p_ptr->prace = 0;
 		p_ptr->phouse = 0;
 		p_ptr->game_type = 0;
@@ -859,14 +773,6 @@ static int get_player_choice(birth_menu *choices, int num, int def, int col, int
 			text_out_indent = 0;
 		}
 		
-		else
-		{
-			/* Extra info */
-//			Term_putstr(QUESTION_COL, DESCRIPTION_ROW, -1, TERM_L_WHITE,
-//						"Your sex has no gameplay effect.");
-			
-		}
-
 		if (done) return (cur);
 
 		/* Display auxiliary information if any is available. */
@@ -1235,7 +1141,6 @@ static bool get_player_race(void)
 	// if different race to last time, then wipe the history, age, height, weight
 	if (race != p_ptr->prace)
 	{
-		p_ptr->psex = SEX_UNDEFINED;
 		p_ptr->history[0] = '\0';
 		p_ptr->age = 0;
 		p_ptr->ht = 0;
@@ -1365,7 +1270,6 @@ static bool get_player_house(void)
 				{
 					int j;
 					
-					p_ptr->psex = SEX_UNDEFINED;
 					p_ptr->history[0] = '\0';
 					p_ptr->age = 0;
 					p_ptr->ht = 0;
@@ -1393,7 +1297,7 @@ static bool get_player_house(void)
 /*
  * Helper function for 'player_birth()'.
  *
- * This function allows the player to select a sex, race, and house, and
+ * This function allows the player to select a race, and house, and
  * modify options (including the birth options).
  */
 static bool player_birth_aux_1(void)
@@ -1426,19 +1330,6 @@ static bool player_birth_aux_1(void)
 	Term_putstr(QUESTION_COL + 9, INSTRUCT_ROW + 2, - 1, TERM_L_WHITE, "O");
 	Term_putstr(QUESTION_COL + 36, INSTRUCT_ROW + 2, - 1, TERM_L_WHITE, "q");
 
-	// Set blank sex info for new characters
-	// hack to see whether we are opening an old player file
-	if (!p_ptr->age)
-	{
-		p_ptr->psex = SEX_UNDEFINED;
-		sp_ptr = &sex_info[SEX_UNDEFINED];
-	}
-	// Or default to previous sex for old characters
-	else
-	{
-		sp_ptr = &sex_info[p_ptr->psex];
-	}
-	
 	while (phase <= 2)
 	{
 		clear_question();
@@ -1920,9 +1811,6 @@ static bool player_birth_aux(void)
 
 	/* Point-based skills */
 	if (!gain_skills()) return (FALSE);
-
-	/* Choose sex */
-	if (!get_sex()) return (FALSE);
 
 	/* Roll for history */
 	if (!get_history()) return (FALSE);
