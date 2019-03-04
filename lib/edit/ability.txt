@@ -134,8 +134,8 @@ N:10:Smite
 I:0:10:11
 P:0/2:0/4
 D:When using a two-handed weapon, the first main attack you make on your
-D: turn rolls the maximum possible damage to all opponents it hits. Making
-D: such an attack causes you to lose your next turn while you recover.
+D: turn rolls the maximum possible damage to all opponents it hits. If you
+D: make such an attack, you lose a turn to recover.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -188,7 +188,7 @@ T:31:1:1   # Gloves (leather gloves only)
 N:23:Puncture
 I:1:3:5
 D:Whenever an enemy's armour roll exceeds your archery damage roll, the
-D: enemy armour roll is reduced to zero and you deal three damage.
+D: enemy armour roll is reduced to zero, and you deal the enemy three damage.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 T:45:0:99  # Ring
