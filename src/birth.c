@@ -18,7 +18,6 @@
 #define INSTRUCT_ROW	21
 
 #define QUESTION_COL	2
-#define SEX_COL			2
 #define RACE_COL		2
 #define RACE_AUX_COL    17
 #define CLASS_COL		17
@@ -1522,6 +1521,24 @@ static bool player_birth_aux_2(void)
 		/* Display the costs */
 		for (i = 0; i < A_MAX; i++)
 		{
+			if (i == stat)
+			{
+				byte attr = TERM_L_BLUE;
+#ifndef MONOCHROME_MODE
+				strnfmt(buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
+				c_put_str(attr, buf, row + i, col + 32);
+#else
+				strnfmt(buf, sizeof(buf), "%4d*", birth_stat_costs[stats[i] + 4]);
+				c_put_str(attr, buf, row + i, col + 32);
+				c_put_str(attr, "*", row + i, col - 2);
+#endif
+			}
+			else
+			{
+				byte attr = TERM_L_WHITE;
+				strnfmt(buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
+				c_put_str(attr, buf, row + i, col + 32);
+			}
 			byte attr = (i == stat) ? TERM_L_BLUE : TERM_L_WHITE;
 			
 			/* Display cost */
@@ -1701,11 +1718,24 @@ extern bool gain_skills(void)
 		/* Display the costs */
 		for (i = 0; i < S_MAX; i++)
 		{
-			byte attr = (i == skill) ? TERM_L_BLUE : TERM_L_WHITE;
-
-			/* Display cost */
-			strnfmt(buf, sizeof(buf), "%6d", skill_cost(old_base[i], skill_gain[i]));
-			c_put_str(attr, buf, row + i, col + 30);
+			if (i == skill)
+			{
+				byte attr = TERM_L_BLUE;
+#ifndef MONOCHROME_MODE
+				strnfmt(buf, sizeof(buf), "%6d", skill_cost(old_base[i], skill_gain[i]));
+				c_put_str(attr, buf, row + i, col + 30);
+#else
+				strnfmt(buf, sizeof(buf), "%6d*", skill_cost(old_base[i], skill_gain[i]));
+				c_put_str(attr, buf, row + i, col + 30);
+				c_put_str(attr, "*", row + i, col - 2);
+#endif
+			}
+			else
+			{
+				byte attr = TERM_L_WHITE;
+				strnfmt(buf, sizeof(buf), "%6d", skill_cost(old_base[i], skill_gain[i]));
+				c_put_str(attr, buf, row + i, col + 30);
+			}
 		}
 		
 		/* Special Prompt? */
