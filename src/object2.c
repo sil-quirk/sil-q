@@ -3174,15 +3174,19 @@ static bool kind_is_jewelry(int k_idx)
 			return (TRUE);
 		}
 
-		/*  Artefact rings are suitable for a chest */
 		case TV_RING:
 		{
+			if (k_ptr->sval == SV_RING_STR) return (TRUE);
+			if (k_ptr->sval == SV_RING_DEX) return (TRUE);
+			if (k_ptr->sval == SV_RING_EVASION) return (TRUE);
+			if (k_ptr->sval == SV_RING_PROTECTION) return (TRUE);
+			if (k_ptr->sval == SV_RING_ERED_LUIN) return (TRUE);
+			if (k_ptr->sval == SV_RING_ACCURACY) return (TRUE);
 			if (k_ptr->sval == SV_RING_BARAHIR) return (TRUE);
 			if (k_ptr->sval == SV_RING_MELIAN) return (TRUE);
 			return (FALSE);
 		}
 
-		/*  Artefact amulets and Blessed Realm are suitable for a chest */
 		case TV_AMULET:
 		{
 			if (k_ptr->sval == SV_AMULET_TINFANG_GELION) return (TRUE);
@@ -3190,6 +3194,10 @@ static bool kind_is_jewelry(int k_idx)
 			if (k_ptr->sval == SV_AMULET_ELESSAR) return (TRUE);
 			if (k_ptr->sval == SV_AMULET_DWARVES) return (TRUE);
 			if (k_ptr->sval == SV_AMULET_BLESSED_REALM) return (TRUE);
+			if (k_ptr->sval == SV_AMULET_CON) return (TRUE);
+			if (k_ptr->sval == SV_AMULET_GRA) return (TRUE);
+			if (k_ptr->sval == SV_AMULET_VIGILANT_EYE) return (TRUE);
+			if (k_ptr->sval == SV_AMULET_LAST_CHANCES) return (TRUE);
 			return (FALSE);
 		}
 			
