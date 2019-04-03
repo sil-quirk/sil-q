@@ -986,8 +986,18 @@ void prise_silmaril(void)
 		
 		dam = damroll(p_ptr->mdd + crit_bonus_dice, mds);
 		prt = damroll(pd, 4);
-		
+
 		prt_percent = prt_after_sharpness(w_ptr, &dummy_noticed_flag);
+	
+		if (singing(SNG_WHETTING))
+		{
+			int weight = w_ptr->weight;
+			if (weight <= 5 * ability_bonus(S_SNG, SNG_WHETTING))
+			{
+				prt_percent -= 50;
+			}
+		}
+
 		prt = (prt * prt_percent) / 100;
 		net_dam = dam - prt;
 		

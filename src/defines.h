@@ -535,10 +535,10 @@
  */
 #define	SNG_ELBERETH				 	0
 #define	SNG_CHALLENGE					1
-#define	SNG_FREEDOM					2
-#define	SNG_STAUNCHING					3
+#define	SNG_DELVINGS					2
+#define	SNG_FREEDOM					3
 #define	SNG_SILENCE					4
-#define	SNG_DELVINGS					5
+#define	SNG_STAUNCHING					5
 #define	SNG_WHETTING					6
 #define	SNG_TREES					7
 #define	SNG_THRESHOLDS					8
@@ -1166,7 +1166,7 @@
 #define RADIUS_SILMARIL		7
 
 /* The "sval" codes for TV_AMULET */
-#define SV_AMULET_ADORNMENT			0
+#define SV_AMULET_LAST_CHANCES			0
 #define SV_AMULET_CON				1
 #define SV_AMULET_GRA				2
 #define SV_AMULET_REGENERATION		3

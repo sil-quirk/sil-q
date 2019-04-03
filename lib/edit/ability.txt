@@ -612,18 +612,18 @@ T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
 
-N:142:Song of Freedom
+N:142:Song of Delvings
 I:7:2:2
+D:Slowly reveals the terrain around you, working out from
+D: already known areas.
+T:35:0:99  # Cloak
+T:20:0:99  # Shovels and Mattocks
+
+N:143:Song of Freedom
+I:7:3:2
 D:Discovers and overcomes nearby doors, traps, and rubble.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
-
-N:143:Song of Staunching
-I:7:3:2
-D:Stops all bleeding and speeds healing of your wounds.
-T:40:0:99  # Amulet
-T:35:0:99  # Cloak
-T:45:0:99  # Ring
 
 N:144:Song of Silence
 I:7:4:3
@@ -633,12 +633,12 @@ T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:30:0:99  # Boots
 
-N:145:Song of Delvings
+N:145:Song of Staunching
 I:7:5:3
-D:Slowly reveals the terrain around you, working out from
-D: already known areas.
+D:Stops all bleeding and speeds healing of your wounds.
+T:40:0:99  # Amulet
 T:35:0:99  # Cloak
-T:20:0:99  # Shovels and Mattocks
+T:45:0:99  # Ring
 
 N:146:Song of Whetting
 I:7:6:4
@@ -649,7 +649,7 @@ T:23:0:99  # Swords
 
 N:147:Song of the Trees
 I:7:7:5
-P:7/0:7/3
+P:7/0:7/5
 D:Increases your light level by 1 point per 5 points
 D: of Song.
 T:40:0:99  # Amulet
@@ -658,7 +658,7 @@ T:39:0:99  # Light Source
 
 N:148:Song of Thresholds
 I:7:8:6
-P:7/0:7/5
+P:7/0:7/2
 D:Doors you close while singing this song are warded against
 D: your enemies.
 T:40:0:99  # Amulet
@@ -666,7 +666,7 @@ T:35:0:99  # Cloak
 
 N:149:Song of Staying
 I:7:9:7
-P:7/1:7/3
+P:7/1:7/5
 D:Gives you a bonus to Will equal to your Song score and
 D: [2d2] protection.
 T:32:0:99  # Helm
@@ -683,7 +683,7 @@ T:35:0:99  # Cloak
 
 N:151:Song of Mastery
 I:7:11:9
-P:7/2
+P:7/3
 D:Occasionally prevents nearby opponents from moving or acting.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
