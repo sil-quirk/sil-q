@@ -43,8 +43,6 @@ SRCS = \
   automaton.c \
   main-cap.c \
   main-gcu.c \
-  main-x11.c maid-x11.c \
-  main-gtk.c \
   main-nfe.c
 
 OBJS = \
@@ -61,8 +59,6 @@ OBJS = \
   automaton.o \
   main-cap.o \
   main-gcu.o \
-  main-x11.o maid-x11.o \
-  main-gtk.o \
   main-nfe.o
 
 
@@ -115,8 +111,8 @@ CC = gcc
 ##
 ## Standard -- "main-x11.c" & "main-gcu.c"
 ##
-CFLAGS = -Wall -O1 -pipe -g -D"USE_X11" -D"USE_GCU"
-LIBS = -lX11 -lcurses
+#CFLAGS = -Wall -O1 -pipe -g -D"USE_X11" -D"USE_GCU"
+#LIBS = -lX11 -lcurses
 
 
 ##
@@ -143,8 +139,8 @@ LIBS = -lX11 -lcurses
 ##
 ## Variation -- "main-gcu.c"
 ##
-#CFLAGS = -Wall -O1 -pipe -g -D"USE_GCU"
-#LIBS = -lcurses
+CFLAGS = -Wall -O1 -pipe -g -D"USE_GCU"
+LIBS = -lcurses
 
 
 ##
@@ -315,8 +311,8 @@ load.o: load.c $(INCS)  init.h
 maid-x11.o: maid-x11.c $(INCS) maid-x11.h
 main-cap.o: main-cap.c $(INCS) main.h
 main-gcu.o: main-gcu.c $(INCS) main.h
+main-nfe.o: main-nfe.c $(INCS) main.h
 main-gtk.o: main-gtk.c $(INCS) main.h maid-x11.h
-main-x11.o: main-x11.c $(INCS) main.h maid-x11.h
 main.o: main.c $(INCS) main.h
 melee1.o: melee1.c $(INCS)
 melee2.o: melee2.c $(INCS)
