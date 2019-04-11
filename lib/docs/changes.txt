@@ -1,3 +1,68 @@
+- Sil-Q 1.4.2 --------------------------------------------------------------------------------------------
+
+- Feedback from Scatha incorporated
+	- XP for scaring monsters removed
+		- this breaks savefiles
+		- it wasn't a lot of XP, but it wasn't very elegant either
+	- Expertise and Artifice swap places
+	- Song of Overwhelming retired
+	- Stealth/perception tweak for the player removed. Monsters have been tweaked individually.
+	- Anticipate removed for inelegance, replaced by Smite
+	- Whirlwind attack now works like attacking while enraged
+	- Blunt weapon bonus removed
+	- Phantoms and brood spiders now a little stronger and deeper, Mewlips weakened, may appear at 50'
+
+- Songs revised substantially
+	- new songs: Whetting and Staunching
+	- costs and prerequisites much overhauled
+	- Mastery slightly weakened to balance being cheaper
+
+- Elves now get song affinity and bow proficiency, losing blade proficiency and bow affinity
+
+- Archery updated again
+	- Rout boosted
+	- Blessing of Orome replaced by Puncture
+	- Dedication replaced by Ambush
+	- Bow damage reduced for longbows
+	- Dragon-horn bows now 4 dice
+	- Arrows now break half as often
+	- Arrow drops reduced
+
+- Items tweaked
+	- Staffs improved in damage, reduced in weight
+	- Warhammer accuracy improved
+	- Sceptres gone
+	- Crowns are now artefact only
+	- Mithril greatswords gain 1 damage side and lose 1 accuracy
+	- Throwing axes are replaced by handaxes
+	- Majesty and Slumber staves have an improved Will bonus
+	- Many weapon weights changed
+
+- Smithing changes
+	- Smithing now cannot make a weapon heavier or lighter than the normal drop range
+	- Adding accuracy to weapons cheaper, damage a little more expensive
+	- Damage sides on rings and gloves are no longer smithable
+	- Damage sides can be smithed onto shields now
+	- Smithing arrows now yields half as many
+	- Poison and sharpness on arrows tweaked since damage drop has made sharpness more valuable
+	- Abilities cheaper to smith, need only half as much experience
+
+- New egos and new effects
+	- Standfast - resist being moved by enemies
+	- Accuracy - reroll missed attacks
+
+- Morgoth weakened
+	- Regeneration reduced
+	- HP reduced
+	- Almost killing him makes him maximally angry whether you grab Sils or not
+	- He is more dangerous - he hits for more damage and has more armour
+
+- Gender field removed from character sheet
+
+- Chest jewellery variety improved
+
+- Various bugfixes
+
 - Sil-Q 1.4.1 --------------------------------------------------------------------------------------------
 
 - 50' given a facelift
