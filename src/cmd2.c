@@ -1523,7 +1523,7 @@ static bool do_cmd_close_aux(int y, int x)
 	/* Ward the open door */
 	else if (singing(SNG_THRESHOLDS))
 	{
-		int difficulty = 18;
+		int difficulty = 15;
 		int result = skill_check(PLAYER, ability_bonus(S_SNG, SNG_THRESHOLDS), difficulty, NULL);
 		if (result > 9)
 		{

@@ -2547,10 +2547,10 @@ static void calc_bonuses(void)
 				case SNG_NOTHING:	song_noise += 0; break;
 				case SNG_ELBERETH:	song_noise += 8; break;
 				case SNG_CHALLENGE:	song_noise += 12; break;
-				case SNG_FREEDOM:	song_noise += 4; break;
-				case SNG_STAUNCHING:	song_noise += 4; break;
-				case SNG_SILENCE:	song_noise += 0; break;
 				case SNG_DELVINGS:	song_noise += 4; break;
+				case SNG_FREEDOM:	song_noise += 4; break;
+				case SNG_SILENCE:	song_noise += 0; break;
+				case SNG_STAUNCHING:	song_noise += 4; break;
 				case SNG_WHETTING:	song_noise += 8; break;
 				case SNG_TREES:		song_noise += 4; break;
 				case SNG_THRESHOLDS:	song_noise += 4; break;
@@ -2614,15 +2614,6 @@ static void calc_bonuses(void)
 	if (singing(SNG_FREEDOM))
 	{
 		p_ptr->free_act += 1;
-	}
-	if (singing(SNG_THRESHOLDS))
-	{
-		int feat = cave_feat[p_ptr->py][p_ptr->px];
-		if (feat == FEAT_BROKEN || feat == FEAT_OPEN)
-		{
-			p_ptr->skill_misc_mod[S_EVN] += ability_bonus(S_SNG, SNG_THRESHOLDS) / 3;
-			p_ptr->skill_misc_mod[S_MEL] += ability_bonus(S_SNG, SNG_THRESHOLDS) / 3;
-		}
 	}
 
 	if (p_ptr->tmp_per)

@@ -112,9 +112,9 @@ T:31:0:99  # Gloves
 N:8:Whirlwind Attack
 I:0:8:9
 P:0/3:0/5
-D:Allows you to attack all adjacent enemies. If you miss an enemy you attack
-D: the next and so on until you damage one or have attacked all of them.
-D: Half the time you do damage you continue your attack.
+D:Whenever you attack an enemy, you get a free attack on all other
+D: enemies adjacent to you. The original attack must be a regular,
+D: flanking or controlled retreat attack.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -643,7 +643,7 @@ T:45:0:99  # Ring
 N:146:Song of Whetting
 I:7:6:4
 P:7/1
-D:Grants sharpness to a melee weapon up to (Song/8) lbs in weight.
+D:Grants sharpness to a melee weapon of up to (Song/8) lbs in weight.
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
 

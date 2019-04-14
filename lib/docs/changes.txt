@@ -19,9 +19,13 @@
 
 - Elves now get song affinity and bow proficiency, losing blade proficiency and bow affinity
 
+- Melee skills updated
+	- Whirlwind Attack and Impale made cheaper
+	- Zone of Control, Rapid Attack and Two Weapon Fighting now are more expensive
+
 - Archery updated again
 	- Rout boosted
-	- Blessing of Orome replaced by Puncture
+	- Blessing of Orome replaced by Puncture, which moves further up the tree
 	- Dedication replaced by Ambush
 	- Bow damage reduced for longbows
 	- Dragon-horn bows now 4 dice
