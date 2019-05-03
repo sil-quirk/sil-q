@@ -3961,7 +3961,7 @@ void do_cmd_fire(int quiver)
 					
 					prt = (prt * prt_percent) / 100;
 
-					if (prt > dam && p_ptr->active_ability[S_ARC][ARC_PUNCTURE])
+					if (prt >= dam && p_ptr->active_ability[S_ARC][ARC_PUNCTURE])
 					{
 						puncture = TRUE;
 						dam = 3;
