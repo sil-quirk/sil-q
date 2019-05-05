@@ -1943,7 +1943,7 @@ F:EASY_KNOW
 D:As well as your Statistics, you have 8 skills open to you.
 D: Your Grace affects the last four of these: Perception, Will,
 D: Smithing, and Song. It also increases your 'Voice' which is
-D: a measure of how long can keep singing a song of power.
+D: a measure of how long you can keep singing a song of power.
 
 
 N:471:& Note~
@@ -2127,7 +2127,7 @@ D: to press (,). Your character knows how to forge armour,
 D: and how to enchant it. Find the forge through this door and
 D: create a set of boots of speed. As with most enchantment you
 D: have to lend a piece of yourself to make these, in this case the
-D: price is 700 experience points.
+D: price is 350 experience points.
 
 
 N:485:& Note~
@@ -2148,7 +2148,7 @@ F:EASY_KNOW
 D:Each of the eight skills has a set of special Abilities tied to it.
 D: Each type of song is an Ability for the Song skill. Armour Smithing
 D: and Enchantment are Abilities for the Smithing skill. The boots of
-D: quickness you made grant an Ability called Sprinting, linked to the
+D: speed you made grant an Ability called Sprinting, linked to the
 D: Evasion skill. They make you move more quickly if you spend several
 D: turns moving in roughly the same direction.
 
