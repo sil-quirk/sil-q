@@ -5194,7 +5194,8 @@ void sing_song_of_delvings(int score)
 				{
 					if (delvings[(j * x_range) + dx] == TRUE)
 					{
-						map_feature(y, x);
+						if (cave_trap_bold(y, x)) reveal_trap(y, x);
+						else map_feature(y, x);
 					}
 				}
 
@@ -5202,7 +5203,8 @@ void sing_song_of_delvings(int score)
 				{
 					if (delvings[(dy * x_range) + i] == TRUE)
 					{
-						map_feature(y, x);
+						if (cave_trap_bold(y, x)) reveal_trap(y, x);
+						else map_feature(y, x);
 					}
 				}
 			}
