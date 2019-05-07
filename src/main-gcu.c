@@ -879,11 +879,11 @@ static errr Term_text_gcu(int x, int y, int n, byte a, cptr s)
 					pic = ACS_CKBOARD;
 					break;
 #endif /* ACS_CKBOARD */
-
-#ifdef ACS_BOARD
+					
+#ifdef ACS_CKBOARD
 				/* Mineral vein */
 				case '%':
-					pic = ACS_BOARD;
+					pic = ACS_CKBOARD;
 					break;
 #endif /* ACS_BOARD */
 
