@@ -3389,6 +3389,13 @@ void possible_follow_through(int fy, int fx, int attack_type)
 	
 	int deltay = fy - p_ptr->py;
 	int deltax = fx - p_ptr->px;
+
+	// clamp impale kills
+	if (deltax > 1) deltax = 1;
+	else if (deltax < -1) deltax = -1;
+
+	if (deltay > 1) deltay = 1;
+	else if (deltay < -1) deltay = -1;
 	
 	if (p_ptr->active_ability[S_MEL][MEL_FOLLOW_THROUGH] && !(p_ptr->confused) &&
 	    (is_normal_attack(attack_type) || (attack_type == ATT_FOLLOW_THROUGH) || 
