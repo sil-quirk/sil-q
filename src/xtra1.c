@@ -155,15 +155,15 @@ extern int hand_and_a_half_bonus(const object_type *o_ptr)
 /*
  * Bonus for certain races/houses (elves) using bows
  */
-int bow_bonus()
+int bow_bonus(const object_type *o_ptr)
 {
 	int bonus = 0;
-	
-	if (rp_ptr->flags & RHF_BOW_PROFICIENCY)
+
+	if ((rp_ptr->flags & RHF_BOW_PROFICIENCY) && (o_ptr->tval == TV_BOW))
 	{
 		bonus += 1;
 	}
-	if (hp_ptr->flags & RHF_BOW_PROFICIENCY)
+	if ((hp_ptr->flags & RHF_BOW_PROFICIENCY) && (o_ptr->tval == TV_BOW))
 	{
 		bonus += 1;
 	}
@@ -2641,7 +2641,7 @@ static void calc_bonuses(void)
 
 	/* Analyze launcher */
 	// attack bonuses for those with bow proficiency
-	p_ptr->skill_misc_mod[S_ARC] += bow_bonus();
+	p_ptr->skill_misc_mod[S_ARC] += bow_bonus(&inventory[INVEN_BOW]);
 
 	if (o_ptr->k_idx)
 	{
