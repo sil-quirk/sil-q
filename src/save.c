@@ -19,7 +19,9 @@ void updatecharinfoS(void)
 	char tmp_Path[1024];
 	FILE *oFile;
 	int curDepth = p_ptr->max_depth * 50 ;
-	path_build(tmp_Path, sizeof(tmp_Path), ANGBAND_DIR_USER, "CharOutput.txt");
+	char parsed_dir_user[1024];
+	path_parse(parsed_dir_user, sizeof(parsed_dir_user), ANGBAND_DIR_USER);
+	path_build(tmp_Path, sizeof(tmp_Path), parsed_dir_user, "CharOutput.txt");
 	oFile = fopen(tmp_Path, "w");
 	fprintf(oFile, "{\n");
 	fprintf(oFile, "race: \"%s\",\n", races[p_ptr->prace]);
