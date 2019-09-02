@@ -8915,6 +8915,7 @@ static cptr object_group_text[] =
 	"Cloaks",
 	"Gloves",
 	"Helms",
+	"Crowns",
 	"Boots",
 	"Chests",
 	NULL
