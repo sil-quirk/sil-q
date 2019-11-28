@@ -345,8 +345,9 @@ static void prt_mel(void)
 	if (((&inventory[INVEN_ARM])->k_idx) && ((&inventory[INVEN_ARM])->tval != TV_SHIELD)) mod = -1;
 
 	/* Melee attacks */
+	int meleeColour = p_ptr->active_ability[S_MEL][MEL_SMITE] ? TERM_L_RED : TERM_L_WHITE;
 	strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
-	Term_putstr(COL_MEL, ROW_MEL + mod, -1, TERM_L_WHITE, format("%12s", buf));
+	Term_putstr(COL_MEL, ROW_MEL + mod, -1, meleeColour, format("%12s", buf));
 	
 	if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
 	{
