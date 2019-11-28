@@ -426,6 +426,12 @@ void self_knowledge(void)
             i++;
 	}
 
+	if (f3 & TR3_STAND_FAST)
+	{
+            strnfmt(s[i], 80, "Your foes cannot move you");
+            i++;
+	}
+
 	if (p_ptr->pspeed < 2)
 	{
         strnfmt(s[i], 80, "You are moving slowly");
