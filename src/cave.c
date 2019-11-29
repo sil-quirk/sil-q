@@ -3259,51 +3259,8 @@ void update_view(void)
         fy = o_ptr->iy;
 		
 		object_flags(o_ptr, &f1, &f2, &f3);
-		
-		/* does this item glow? */
-		if (f2 & TR2_LIGHT)
-		{ 
-			// objects with the Light flag glow on the ground unless they are torches or lanterns
-			if (!((o_ptr->tval == TV_LIGHT) && ((o_ptr->sval == SV_LIGHT_TORCH) || (o_ptr->sval == SV_LIGHT_LANTERN)))) obj_light++;
-		}
 
-		/* is it a glowing weapon? */
-		if (weapon_glows(o_ptr))
-		{
-			obj_light++;
-		}
-
-		// Need to redraw any weapons that may have started/stopped glowing
-		if (wield_slot(o_ptr) == INVEN_WIELD)
-		{
-			if ((fy > 0) && (fx > 0) && (cave_info[fy][fx] & (CAVE_VIEW)))
-			{
-				lite_spot(fy,fx);
-			}
-		}
-		
-		/* does this item create darkness? */
-		if ((f2 & TR2_DARKNESS) && (o_ptr->tval != TV_LIGHT)) obj_light--;
-		
-		/* Examine actual light */
-		if (o_ptr->tval == TV_LIGHT)
-		{
-			/* Some items provide permanent, bright, light */
-			if (o_ptr->sval == SV_LIGHT_FEANORIAN)
-			{
-				obj_light += RADIUS_FEANORIAN;
-			}
-			if (o_ptr->sval == SV_LIGHT_LESSER_JEWEL)
-			{
-				obj_light += RADIUS_LESSER_JEWEL;
-			}
-			if (o_ptr->sval == SV_LIGHT_SILMARIL)
-			{
-				obj_light += RADIUS_SILMARIL;
-			}
-		}
-		
-		// The Iron Crown also glows
+		// The Iron Crown glows
 		if ((o_ptr->name1 >= ART_MORGOTH_1) && (o_ptr->name1 <= ART_MORGOTH_3))
 		{ 
 			obj_light += o_ptr->pval;
