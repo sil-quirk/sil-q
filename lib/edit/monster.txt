@@ -394,7 +394,7 @@ I:2:1d4:0
 A:20:1:8:2
 P:[+5]
 B:BITE:POISON:(+5,1d7)
-F:SPIDER | TERRITORIAL | FRIENDS
+F:SPIDER | TERRITORIAL | FRIENDS | RES_POIS
 D:Monstrous newly-hatched spiders; already the height of a dog.
 D: They would probably present little threat, but for the
 D: venom in their bite...
@@ -406,7 +406,7 @@ G:s:b
 I:2:2d4:0
 A:15:1:3:1
 P:[+3,4d4]
-B:BITE:HURT:(+4,2d4)
+B:BITE:HURT:(+5,2d5)
 F:SERPENT | RAND_50
 F:RES_COLD | HURT_FIRE
 S:SPELL_PCT_20 | POW_2
@@ -461,8 +461,8 @@ N:44:Brood spider
 W:4:3
 G:M:U
 I:1:14d4:0
-A:10:5:2:4
-P:[+5]
+A:10:5:2:2
+P:[+6]
 B:BITE:POISON:(+12,2d8)
 F:SPIDER | TERRITORIAL | RES_POIS
 S:SPELL_PCT_10
@@ -506,7 +506,7 @@ G:s:r
 I:2:2d4:0
 A:15:1:3:2
 P:[+5,4d4]
-B:BITE:HURT:(+6,2d5)
+B:BITE:HURT:(+7,2d6)
 F:SERPENT | RAND_50
 F:RES_FIRE | HURT_COLD
 S:SPELL_PCT_20 | POW_2
@@ -620,7 +620,7 @@ G:s:g
 I:2:2d4:0
 A:10:2:3:2
 P:[+7,4d4]
-B:BITE:HURT:(+8,2d6)
+B:BITE:HURT:(+8,2d7)
 F:SERPENT | RAND_50
 S:SPELL_PCT_20 | POW_2
 S:BRTH_POIS
@@ -750,7 +750,6 @@ D: and carrying a short broad blade which he tosses from
 D: one hand to the other with unsettling dexterity.
 
 
-
 ##### 9 #####
 
 
@@ -804,7 +803,7 @@ G:s:v1
 I:2:2d4:0
 A:10:4:3:3
 P:[+9,4d4]
-B:BITE:HURT:(+10,2d7)
+B:BITE:HURT:(+10,2d8)
 F:SERPENT | RAND_50
 S:SPELL_PCT_20 | POW_2
 S:BRTH_DARK
@@ -846,10 +845,10 @@ D: yearning, beckoning.
 N:102:Distended spider
 W:10:1
 G:M:u
-I:2:18d4:0
+I:2:20d4:0
 A:15:4:3:5
 P:[+7]
-B:BITE:POISON:(+7,2d11)
+B:BITE:POISON:(+9,2d11)
 F:SPIDER | RES_POIS | TERRITORIAL
 D:It is a vast spider whose bulbous body is bloated with poison.
 
@@ -901,7 +900,8 @@ D: the intelligence that has kept him a favourite
 D: of the black enemy for many years.
 
 
-##### 11 #####
+
+##### 11 #####
 
 
 N:111:Snow troll
@@ -1102,6 +1102,7 @@ D: of Morgoth's servants and widely feared. Before you stands
 D: Duruin, Flame of the Night, a great figure wrapped in fire
 D: and shadow. He wields fiery sword and whip.
 
+
 
 ##### 13 #####
 
@@ -1123,7 +1124,7 @@ D: those glowing eyes.
 N:132:Shadow spider
 W:13:1
 G:M:D
-I:3:12d4:-2
+I:3:14d4:-2
 A:15:6:3:8
 P:[+10,1d4]
 B:BITE:BLIND:(+11,2d9)
@@ -1217,7 +1218,7 @@ G:R:B
 I:2:10d4:0
 A:10:6:3:12
 P:[+14,2d4]
-B:HIT:COLD:(+15,2d10)
+B:HIT:COLD:(+15,2d8)
 F:BASH_DOOR | SMART
 F:RES_COLD | HURT_FIRE | RAUKO
 D:A chill hangs in the air around this figure which is
@@ -1295,16 +1296,16 @@ D: Noxious vapours surround it.
 
 # Can't move from idx 153, used by monster Song of Oaths
 N:153:Oathwraith
-W:15:4
+W:15:6
 G:W:D
 I:2:12d4:0
 A:10:11:10:10
 P:[+14,3d4]
-B:TOUCH:HUNGER:(+19)
+B:TOUCH:HUNGER:(+25)
 F:UNDEAD | DROP_100 | RES_COLD | SMART | HURT_LITE
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
 F:OPEN_DOOR
-S:SPELL_PCT_15
+S:SPELL_PCT_20
 S:HOLD
 D:A figure that seems made of void, its strangely human shape is cloaked
 D: in shadow.  It reaches out at you.
@@ -1353,7 +1354,7 @@ G:R:s
 I:2:10d4:0
 A:10:6:0:14
 P:[+12,4d4]
-B:HIT:SHATTER:(+11,4d8)
+B:HIT:SHATTER:(+11,4d6)
 F:BASH_DOOR | TUNNEL_WALL | STONE | RAUKO | SMART
 F:RES_COLD | RES_FIRE
 F:RES_POIS | RES_CRIT
@@ -1442,10 +1443,10 @@ D: final vision.
 N:171:Spider of Gorgoroth
 W:17:1
 G:M:r
-I:2:16d4:-1
+I:2:18d4:-1
 A:15:8:3:11
 P:[+14,1d4]
-B:BITE:ENTRANCE:(+14,2d13)
+B:BITE:ENTRANCE:(+16,2d13)
 F:BASH_DOOR | SPIDER | HURT_LITE | RES_POIS | SMART
 F:TERRITORIAL
 D:This great spider was one of the brood laid by the
@@ -1550,7 +1551,7 @@ D: and ever at his side.
 ##### 18 #####
 
 
-# need to leave Young fire-drake at location 175
+# need to leave Young fire-drake at location 181
 
 N:181:Young fire-drake
 W:18:6
@@ -1590,18 +1591,21 @@ D: first brought this into the world.
 D: You would prefer not to see it any closer.
 
 
-N:183:Unmourned
-W:18:6
-G:W:v1
-I:1:12d4:0
-A:10:13:10:13
-P:[+17,3d4]
-B:TOUCH:HUNGER:(+22)
-F:UNDEAD | PASS_WALL | RES_COLD | SMART | FRIENDS
+N:183:Wraith
+W:18:2
+G:W:s
+I:2:12d4:0
+A:10:15:14:14
+P:[+12,4d4]
+B:TOUCH:DARK:(+20,2d6)
+F:UNDEAD | RES_COLD | SMART | DROP_100
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
-F:HURT_LITE
-D:The shades of elves and men who have rotted away,
-D: forgotten, in the deep dungeons of Angband.
+F:HURT_LITE | OPEN_DOOR
+S:SPELL_PCT_25
+S:HOLD | SLOW
+D:A mantled shape of void that was once perhaps man or elf,
+D: but through Morgoth's black arts walks as his servant. Noseless
+D: it scents the air, turning this way and that.
 
 
 N:184:Ururauko
@@ -1610,7 +1614,7 @@ G:R:R
 I:2:4d4:3
 A:10:8:2:14
 P:[+15,2d4]
-B:HIT:FIRE:(+26,4d10)
+B:HIT:FIRE:(+26,4d8)
 F:BASH_DOOR | SMART
 F:RAUKO | RES_FIRE | HURT_COLD
 D:A form of pure flame, it is bright to look at and
