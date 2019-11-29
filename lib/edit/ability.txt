@@ -426,11 +426,11 @@ D:You receive a bonus to all skill rolls against
 D: a selected category of enemy. The bonus increases as
 D: you kill more.
 
-N:86:Forewarned
+N:86:Outwit
 I:4:6:7
-D:If your base Perception exceeds your Evasion, you gain a
-D: bonus to your Evasion of one third your Perception score.
-D: You can also determine when an item is cursed.
+D:When an enemy hits you, roll a Perception check with their Perception
+D: as difficulty. Discard all critical damage dice from their damage dice
+D: pool if you win.
 T:32:0:99  # Helm
 T:39:0:99  # Light Source
 T:40:0:99  # Amulet

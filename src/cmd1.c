@@ -446,6 +446,7 @@ int skill_check(monster_type *m_ptr1, int skill, int difficulty, monster_type *m
 											skill_total - difficulty_total);
 	}
 
+
 	return (skill_total - difficulty_total);
 }
 
@@ -829,8 +830,9 @@ int overwhelming_att_mod(monster_type *m_ptr)
  *            Bastard Sword (3.5lb): 10, 16, 21, 27...
  *            Great Sword (7lb):     14, 23, 32, 41...
  */
-int crit_bonus(int hit_result, int weight, const monster_race *r_ptr, int skill_type, bool thrown)
+int crit_bonus(int hit_result, int weight, const monster_race *r_ptr, int skill_type, bool thrown, monster_type *attacker)
 {
+	monster_type *m_ptr = attacker;
 	int crit_bonus_dice;
 	int crit_seperation = 70;
 		
@@ -847,12 +849,6 @@ int crit_bonus(int hit_result, int weight, const monster_race *r_ptr, int skill_
 		// Can have inferior criticals for melee
 		if ((skill_type == S_MEL) && p_ptr->active_ability[S_MEL][MEL_POWER])				crit_seperation += 10;
 	}
-	// When attacking the player...
-	else
-	{
-		// Resistance to criticals increases what they need for each bonus die
-		if (p_ptr->active_ability[S_WIL][WIL_CRITICAL_RESISTANCE]) crit_seperation += (p_ptr->skill_use[S_WIL] / 5) * 10;	
-	}
 
 	// note: the +4 in this calculation is for rounding purposes
 	crit_bonus_dice = (hit_result * 10 + 4) / (crit_seperation + weight);
@@ -865,6 +861,11 @@ int crit_bonus(int hit_result, int weight, const monster_race *r_ptr, int skill_
 
 		// certain creatures cannot suffer crits as they have no vulnerable areas
 		if (r_ptr->flags1 & (RF1_NO_CRIT)) crit_bonus_dice = 0;
+	}
+	else if (m_ptr && p_ptr->active_ability[S_PER][PER_OUTWIT] &&
+		 skill_check(PLAYER, p_ptr->skill_use[S_PER], monster_skill(m_ptr, S_PER), m_ptr) > 0)
+	{
+		crit_bonus_dice = 0;
 	}
 	
 	// can't have fewer than zero dice
@@ -3887,7 +3888,7 @@ void py_attack_aux(int y, int x, int attack_type)
 			if (charge) m_ptr->mflag |= (MFLAG_CHARGED);
 			
 			/* Calculate the damage */
-			crit_bonus_dice = crit_bonus(hit_result, weapon_weight, r_ptr, S_MEL, FALSE);
+			crit_bonus_dice = crit_bonus(hit_result, weapon_weight, r_ptr, S_MEL, FALSE, NULL);
 			slay_bonus_dice = slay_bonus(o_ptr, m_ptr, &noticed_flag);
 			total_dice = mdd + slay_bonus_dice + crit_bonus_dice;
 			
@@ -3897,7 +3898,8 @@ void py_attack_aux(int y, int x, int attack_type)
 			prt = damroll(r_ptr->pd, r_ptr->ps);
 			prt_percent = prt_after_sharpness(o_ptr, &noticed_flag);
 
-			if (singing(SNG_WHETTING))
+			bool can_sharpen = ((o_ptr->tval == TV_SWORD) || (o_ptr->tval == TV_POLEARM));
+			if (singing(SNG_WHETTING) && can_sharpen)
 			{
 				int weight = o_ptr->weight;
 				if (off_hand_blow)
@@ -3906,7 +3908,7 @@ void py_attack_aux(int y, int x, int attack_type)
 					weight += inventory[INVEN_WIELD].weight;
 				}
 
-				if (weight <= 5 * ability_bonus(S_SNG, SNG_WHETTING))
+				if (weight <= 10 * ability_bonus(S_SNG, SNG_WHETTING))
 				{
 					prt_percent -= 50;
 				}

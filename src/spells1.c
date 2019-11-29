@@ -3178,7 +3178,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
 			
 			if (hit_result > 0)
 			{
-				crit_bonus_dice = crit_bonus(hit_result, weight, &r_info[0], S_ARC, FALSE);
+				crit_bonus_dice = crit_bonus(hit_result, weight, &r_info[0], S_ARC, FALSE, m_ptr);
 				total_dd = dd + crit_bonus_dice;
 				total_ds = ds;
 								
@@ -3265,7 +3265,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
 			
 			if (hit_result > 0)
 			{
-				crit_bonus_dice = crit_bonus(hit_result, 100, &r_info[0], S_ARC, TRUE);
+				crit_bonus_dice = crit_bonus(hit_result, 100, &r_info[0], S_ARC, TRUE, m_ptr);
 				total_dd = dd + crit_bonus_dice;
 				total_ds = ds;
 				

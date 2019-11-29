@@ -498,7 +498,7 @@
 #define	PER_CONCENTRATION			 3
 #define	PER_ALCHEMY				 4
 #define	PER_BANE				 5
-#define	PER_FOREWARNED				 6
+#define	PER_OUTWIT				 6
 #define	PER_LISTEN				 7
 #define	PER_MASTER_HUNTER			 8
 #define	PER_GRA					 9

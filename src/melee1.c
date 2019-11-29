@@ -723,7 +723,7 @@ bool make_attack_normal(monster_type *m_ptr)
 
 			/* Determine critical-hit bonus dice (if any) */
 			// treats attack a weapon weighing 2 pounds per damage die
-			crit_bonus_dice = crit_bonus(hit_result, 20 * dd, &r_info[0], S_MEL, FALSE);
+			crit_bonus_dice = crit_bonus(hit_result, 20 * dd, &r_info[0], S_MEL, FALSE, m_ptr);
 
 			/* Determine elemental attack bonus dice (if any)  */
 			elem_bonus_dice = elem_bonus(effect);

@@ -982,14 +982,15 @@ void prise_silmaril(void)
 	// Determine damage
 	if (hit_result > 0)
 	{
-		crit_bonus_dice = crit_bonus(hit_result, w_ptr->weight, &r_info[R_IDX_MORGOTH], S_MEL, FALSE);
+		crit_bonus_dice = crit_bonus(hit_result, w_ptr->weight, &r_info[R_IDX_MORGOTH], S_MEL, FALSE, NULL);
 		
 		dam = damroll(p_ptr->mdd + crit_bonus_dice, mds);
 		prt = damroll(pd, 4);
 
 		prt_percent = prt_after_sharpness(w_ptr, &dummy_noticed_flag);
 	
-		if (singing(SNG_WHETTING))
+		bool can_sharpen = ((w_ptr->tval == TV_SWORD) || (w_ptr->tval == TV_POLEARM));
+		if (singing(SNG_WHETTING) && can_sharpen)
 		{
 			int weight = w_ptr->weight;
 			if (weight <= 10 * ability_bonus(S_SNG, SNG_WHETTING))

@@ -328,7 +328,7 @@ extern int total_monster_attack(monster_type *m_ptr, int base);
 extern int total_monster_evasion(monster_type *m_ptr, bool archery);
 extern int stealth_melee_bonus(const monster_type *m_ptr);
 extern int overwhelming_att_mod(monster_type *m_ptr);
-extern int crit_bonus(int hit_result, int weight, const monster_race *r_ptr, int skill_type, bool thrown);
+extern int crit_bonus(int hit_result, int weight, const monster_race *r_ptr, int skill_type, bool thrown, monster_type *attacker);
 extern void ident(object_type *o_ptr);
 extern void ident_on_wield(object_type *o_ptr);
 extern void ident_resist(u32b flag);

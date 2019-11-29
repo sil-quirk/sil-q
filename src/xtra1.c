@@ -2672,12 +2672,6 @@ static void calc_bonuses(void)
 	{
 		p_ptr->skill_misc_mod[S_MEL] += (p_ptr->skill_base[S_ARC] - p_ptr->skill_base[S_MEL]) / 2;
 	}
-	
-	// deal with the 'Forewarned' ability
-	if (p_ptr->active_ability[S_PER][PER_FOREWARNED] && (p_ptr->skill_base[S_PER] > p_ptr->skill_base[S_EVN]))
-	{
-		p_ptr->skill_misc_mod[S_EVN] += p_ptr->skill_use[S_PER] / 3;
-	}
 
 	/* generate the melee dice/sides from weapon, to_mdd, to_mds and strength */
 	p_ptr->mdd = total_mdd(o_ptr);
@@ -2822,11 +2816,6 @@ static void calc_bonuses(void)
 
 	/* Hack -- handle "xtra" mode */
 	if (character_xtra) return;
-
-	if (p_ptr->active_ability[S_PER][PER_FOREWARNED])
-	{
-		pseudo_id_everything();
-	}
 
 	// identify {special} items when the type has been seen before
 	id_known_specials();
