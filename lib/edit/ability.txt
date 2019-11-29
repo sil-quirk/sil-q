@@ -241,8 +241,8 @@ T:45:0:99  # Ring
 
 N:41:Blocking
 I:2:1:3
-D:Doubles the protection roll for your shield against all ranged
-D: attacks, and against melee as well if you waited last turn (z or 5).
+D:Doubles the protection roll for your shield against all attacks
+D: if you did not move on your last turn. 
 T:34:0:99  # Shields
 
 N:42:Parry

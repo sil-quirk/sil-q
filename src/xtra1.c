@@ -410,9 +410,14 @@ static void prt_evn(void)
 {
 	char buf[32];
 
+	// Toggle blocking on and off so we don't show the blocking value in
+	// the armor total
+	bool block = p_ptr->active_ability[S_EVN][EVN_BLOCKING];
+	p_ptr->active_ability[S_EVN][EVN_BLOCKING] = FALSE;
 	/* Total Armor */
 	strnfmt(buf, sizeof(buf), "[%+d,%d-%d]", p_ptr->skill_use[S_EVN], p_min(GF_HURT, TRUE), p_max(GF_HURT, TRUE));
 	Term_putstr(COL_EVN, ROW_EVN, -1, TERM_SLATE, format("%12s", buf));
+	p_ptr->active_ability[S_EVN][EVN_BLOCKING] = block;
 	
 }
 

@@ -39,6 +39,16 @@ static bool monster_cut_or_stun(int crit_bonus_dice, int net_dam, int effect)
 }
 
 
+bool blocking_bonus_active(void)
+{
+	bool moved_last_turn =
+	    (p_ptr->previous_action[0] >= 1) &&
+	    (p_ptr->previous_action[0] <= 9) &&
+	    (p_ptr->previous_action[0] != 5);
+
+	return !moved_last_turn && p_ptr->active_ability[S_EVN][EVN_BLOCKING];
+}
+
 /*
  * Determine whether there is a bonus die for an elemental attack that
  * the player doesn't resist
@@ -110,7 +120,7 @@ extern int protection_roll(int typ, bool melee)
 		{
 			if ((typ == GF_HURT) || (typ == GF_FIRE) || (typ == GF_COLD))
 			{
-				if (p_ptr->active_ability[S_EVN][EVN_BLOCKING] && (!melee || (p_ptr->previous_action[0] == 5)))
+				if (blocking_bonus_active())
 				{
 					mult = 2;
 				}
@@ -183,8 +193,7 @@ extern int p_min(int typ, bool melee)
 		{
 			if ((typ == GF_HURT) || (typ == GF_FIRE) || (typ == GF_COLD))
 			{
-				if (p_ptr->active_ability[S_EVN][EVN_BLOCKING] && 
-				    (!melee || ((p_ptr->previous_action[0] == 5) || ((p_ptr->previous_action[0] == ACTION_NOTHING) && (p_ptr->previous_action[1] == 5)))))
+				if (blocking_bonus_active())
 				{
 					mult = 2;
 				}
@@ -254,8 +263,7 @@ extern int p_max(int typ, bool melee)
 		{
 			if ((typ == GF_HURT) || (typ == GF_FIRE) || (typ == GF_COLD))
 			{
-				if (p_ptr->active_ability[S_EVN][EVN_BLOCKING] && 
-				    (!melee || ((p_ptr->previous_action[0] == 5) || ((p_ptr->previous_action[0] == ACTION_NOTHING) && (p_ptr->previous_action[1] == 5)))))
+				if (blocking_bonus_active())
 				{
 					mult = 2;
 				}
