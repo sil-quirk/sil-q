@@ -298,12 +298,12 @@ static bool describe_misc_weapon_attributes(const object_type *o_ptr, u32b f1, u
 	{
 		if (o_ptr->tval == TV_BOW)
 		{
-			p_text_out("It fires arrows with unerring precision.  ");
+			p_text_out("It fires arrows with unerring precision (misses are rerolled).  ");
 			message = TRUE;
 		}
 		else
 		{
-			p_text_out("It is unusually well balanced.  ");
+			p_text_out("It is unusually well balanced (misses are rerolled).  ");
 			message = TRUE;
 		}
 	}

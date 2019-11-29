@@ -417,18 +417,24 @@ void self_knowledge(void)
 	if (f2 & TR2_TRAITOR)
 	{
             strnfmt(s[i], 80, "You feel doom hastening toward you");
+	    strnfmt(t[i], 80, "(you will be betrayed)");
+	    good[i] = FALSE;
             i++;
 	}
 
 	if (f3 & TR3_CHEAT_DEATH)
 	{
             strnfmt(s[i], 80, "You are protected from serious harm");
+	    strnfmt(t[i], 80, "(you will survive a killing blow)");
+	    good[i] = TRUE;
             i++;
 	}
 
 	if (f3 & TR3_STAND_FAST)
 	{
-            strnfmt(s[i], 80, "Your foes cannot move you");
+            strnfmt(s[i], 80, "You stand fast against your foes");
+	    strnfmt(t[i], 80, "(you cannot be moved by enemy abilities)");
+	    good[i] = TRUE;
             i++;
 	}
 
