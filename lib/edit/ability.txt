@@ -446,7 +446,7 @@ N:88:Master Hunter
 I:4:8:9
 P:4/3:4/5
 D:Gives you an attack bonus of +1 for each time you have killed
-D: an opponent of the same type (up to a maximum of Perception/4).
+D: an opponent of the same type (up to a maximum of Perception/2).
 T:32:0:99  # Helm
 T:30:0:99  # Boots
 T:19:0:99  # Bows
@@ -643,7 +643,7 @@ T:45:0:99  # Ring
 N:146:Song of Whetting
 I:7:6:4
 P:7/1
-D:Grants sharpness to a melee weapon of up to (Song/8) lbs in weight.
+D:Grants sharpness to a melee weapon of up to (Song/4) lbs in weight.
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
 

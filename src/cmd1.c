@@ -3479,7 +3479,7 @@ int master_hunter_bonus(monster_type *m_ptr)
 	// master hunter bonus
 	if (p_ptr->active_ability[S_PER][PER_MASTER_HUNTER])
 	{
-		return (MIN((&l_list[m_ptr->r_idx])->pkills, p_ptr->skill_use[S_PER]/4));
+		return (MIN((&l_list[m_ptr->r_idx])->pkills, p_ptr->skill_use[S_PER]/2));
 	}
 	else
 	{

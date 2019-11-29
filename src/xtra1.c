@@ -2552,7 +2552,7 @@ static void calc_bonuses(void)
 				case SNG_FREEDOM:	song_noise += 4; break;
 				case SNG_SILENCE:	song_noise += 0; break;
 				case SNG_STAUNCHING:	song_noise += 4; break;
-				case SNG_WHETTING:	song_noise += 8; break;
+				case SNG_WHETTING:	song_noise += 4; break;
 				case SNG_TREES:		song_noise += 4; break;
 				case SNG_THRESHOLDS:	song_noise += 4; break;
 				case SNG_STAYING:	song_noise += 8; break;

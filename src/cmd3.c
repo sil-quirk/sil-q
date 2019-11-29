@@ -992,7 +992,7 @@ void prise_silmaril(void)
 		if (singing(SNG_WHETTING))
 		{
 			int weight = w_ptr->weight;
-			if (weight <= 5 * ability_bonus(S_SNG, SNG_WHETTING))
+			if (weight <= 10 * ability_bonus(S_SNG, SNG_WHETTING))
 			{
 				prt_percent -= 50;
 			}
