@@ -1993,7 +1993,11 @@ void show_inven(void)
 		out_index[k] = i;
 
 		/* Get inventory color */
-		out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+		if (weapon_glows(o_ptr))
+			out_color[k] = TERM_L_BLUE;
+		else
+			out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+
 
 		/* Save the object description */
 		my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
