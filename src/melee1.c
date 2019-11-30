@@ -99,11 +99,6 @@ extern int protection_roll(int typ, bool melee)
 		prt += damroll(2, 2);
 	}
 	
-	if (p_ptr->active_ability[S_WIL][WIL_HARDINESS])
-	{
-		prt += damroll(1, p_ptr->skill_use[S_WIL] / 6);
-	}
-	
 	// armour:
 	
 	for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
@@ -172,11 +167,6 @@ extern int p_min(int typ, bool melee)
 		}
 	}
 	
-	if (p_ptr->active_ability[S_WIL][WIL_HARDINESS])
-	{
-		if (p_ptr->skill_use[S_WIL] >= 6) prt += 1;
-	}
-	
 	// armour:
 	
 	for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
@@ -240,11 +230,6 @@ extern int p_max(int typ, bool melee)
 	if (singing(SNG_STAYING))
 	{
 		prt += 4;
-	}
-	
-	if (p_ptr->active_ability[S_WIL][WIL_HARDINESS])
-	{
-		prt += p_ptr->skill_use[S_WIL] / 6;
 	}
 	
 	// armour:

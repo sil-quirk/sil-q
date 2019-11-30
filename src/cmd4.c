@@ -952,6 +952,176 @@ int bane_menu(int *highlight)
 	return (0);
 }
 
+#define OATH_TYPES 4
+
+static u32b oath_flag[] =
+{
+	0L,
+	OATH_SILENCE,
+	OATH_HONOUR,
+	OATH_MERCY
+};
+
+char *oath_name[] =
+{
+	"Nothing",
+	"Silence",
+	"Honour",
+	"Mercy",
+};
+
+char *oath_desc1[] =
+{
+	"Nothing",
+	"as you came, grim and silent",
+	"having fought none who were unwilling to fight",
+	"without shedding blood of Man or Elf",
+};
+
+char *oath_desc2[] =
+{
+	"Nothing",
+	"sing",
+	"attack fleeing enemies",
+	"attack Men or Elves",
+};
+
+char *oath_reward[] =
+{
+	"Nothing",
+	"+1 Dexterity",
+	"+1 Strength",
+	"+1 Grace",
+};
+
+bool oath_invalid(int i)
+{
+	return ((p_ptr->oaths_broken & oath_flag[i]) > 0);
+}
+
+int oath_menu(int *highlight)
+{
+	int i;
+	
+	int ch;
+	int options;
+	
+	char buf[80];
+	
+	byte attr;
+	
+	Term_putstr(COL_DESCRIPTION,  2, -1, TERM_WHITE, "Oath");
+	
+	// clear the description area
+	wipe_screen_from(COL_DESCRIPTION);
+	
+	// list the enemies
+	for (i = 1; i < OATH_TYPES; i++)
+	{		
+		if (!oath_invalid(i))
+		{
+			attr = TERM_SLATE;
+		}
+		else
+		{
+			attr = TERM_L_DARK;
+		}
+		
+		strnfmt(buf, 80, "%c) %s", (char) 'a' + i - 1, oath_name[i]);
+		Term_putstr(COL_DESCRIPTION,  i + 3, -1, attr, buf);
+		
+		if (*highlight == i)
+		{
+			// highlight the label
+			strnfmt(buf, 80, "%c)", (char) 'a' + i - 1);
+			Term_putstr(COL_DESCRIPTION,  i + 3, -1, TERM_L_BLUE, buf);
+			
+			/* Indent output by 2 character, and wrap at column 70 */
+			text_out_wrap = 79;
+			text_out_indent = COL_DESCRIPTION;
+			
+			Term_gotoxy(text_out_indent, OATH_TYPES + 4);
+
+			if (oath_invalid(i))
+			{
+				strnfmt(buf, 80, "It is too late to vow to leave Angband %s.", oath_desc1[i]);
+				text_out_to_screen(attr, buf);
+			}
+			else
+			{
+				strnfmt(buf, 80, "You vow to leave Angband %s.\n\n", oath_desc1[i]);
+				text_out_to_screen(attr, buf);
+				strnfmt(buf, 80, "You may not %s.\n", oath_desc2[i]);
+				text_out_to_screen(attr, buf);
+				strnfmt(buf, 80, "As long as you keep this oath, gain %s.\n\n", oath_reward[i]);
+				text_out_to_screen(attr, buf);
+			}			
+		
+			/* Reset text_out() vars */
+			text_out_wrap = 0;
+			text_out_indent = 0;
+		}
+		
+		// keep track of the number of options
+		options = i;
+	}
+	
+	/* Flush the prompt */
+	Term_fresh();
+	
+	/* Place cursor at current choice */
+	Term_gotoxy(COL_DESCRIPTION, 3 + *highlight);
+	
+	/* Get key (while allowing menu commands) */
+	hide_cursor = TRUE;
+	ch = inkey();
+	hide_cursor = FALSE;
+	
+	if ((ch >= 'a') && (ch <= (char) 'a' + options - 1))
+	{
+		*highlight = (int) ch - 'a' + 1;	
+		
+		oath_menu(highlight);
+		
+		return (*highlight);
+	}
+	
+	if ((ch >= 'A') && (ch <= (char) 'A' + options - 1))
+	{
+		*highlight = (int) ch - 'A' + 1;
+		return (*highlight);
+	}
+	
+	if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
+	{
+		return (OATH_TYPES+1);
+	}
+	
+	if (ch == '\t')
+	{
+		return (OATH_TYPES+2);
+	}
+	
+	/* Choose current  */
+	if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
+	{
+		return (*highlight);
+	}
+	
+	/* Prev item */
+	if (ch == '8')
+	{
+		*highlight = (*highlight + (options-2)) % options + 1;
+	}
+	
+	/* Next item */
+	if (ch == '2')
+	{
+		*highlight = *highlight % options + 1;
+	}
+	
+	return (0);
+}
 
 int abilities_menu1(int *highlight)
 {
@@ -1109,6 +1279,10 @@ int abilities_menu2(int skilltype, int *highlight)
 		{
 			strnfmt(buf, 80, "%c) %s-%s", (char) 'a' + b_ptr->abilitynum , bane_name[p_ptr->bane_type], (b_name + b_ptr->name));
 		}
+		else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH) && (p_ptr->oath_type > 0))
+		{
+			strnfmt(buf, 80, "%c) %s: %s", (char) 'a' + b_ptr->abilitynum, (b_name + b_ptr->name), oath_name[p_ptr->oath_type]);
+		}
 		else
 		{
 			strnfmt(buf, 80, "%c) %s", (char) 'a' + b_ptr->abilitynum , (b_name + b_ptr->name));
@@ -1213,6 +1387,27 @@ int abilities_menu2(int skilltype, int *highlight)
 				Term_putstr(COL_DESCRIPTION,  12, -1, TERM_WHITE,
 				            format("  %d slain, giving a %+d bonus", bane_type_killed(p_ptr->bane_type), bane_bonus_aux()));
 			}
+			else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH) && (p_ptr->oath_type > 0))
+			{
+				Term_putstr(COL_DESCRIPTION,  10, -1, TERM_WHITE, "Oath:");
+				Term_putstr(COL_DESCRIPTION + 6,  10, -1, TERM_L_BLUE, oath_name[p_ptr->oath_type]);
+			
+				/* Indent output by 2 character, and wrap at column 70 */
+				text_out_wrap = 79;
+				text_out_indent = COL_DESCRIPTION;
+				
+				/* History */
+				Term_gotoxy(text_out_indent, 11);
+				strnfmt(buf, 80, "You have sworn not to %s.", oath_desc2[p_ptr->oath_type]);
+				text_out_to_screen(TERM_L_WHITE, buf);
+				
+				/* Reset text_out() vars */
+				text_out_wrap = 0;
+				text_out_indent = 0;
+
+				Term_putstr(COL_DESCRIPTION, 14, -1, TERM_WHITE,
+				            format("Bonus: %s.", oath_reward[p_ptr->oath_type]));
+			}
 		}
 		
 		// keep track of the number of options
@@ -1287,6 +1482,7 @@ void do_cmd_ability_screen(void)
 	int skilltype = -1;
 	int abilitynum = -1;
 	int banechoice = -1;
+	int oathchoice = -1;
 	
 	int highlight1 = 1;
 	int highlight2 = 1;
@@ -1372,7 +1568,45 @@ void do_cmd_ability_screen(void)
 									
 									return_to_abilities = FALSE;
 								}
-								
+								// special menu for Oath
+								if ((skilltype == S_WIL) && (abilitynum == WIL_OATH))
+								{
+									while (!return_to_abilities)
+									{
+										skip_purchase = FALSE;
+
+										oathchoice = oath_menu(&highlight3);
+										
+										if ((oathchoice >= 1) && (oathchoice <= OATH_TYPES))
+										{
+											if (oath_invalid(oathchoice))
+											{
+												return_to_abilities = FALSE;
+												skip_purchase = TRUE;
+												bell("This oath was broken before it was made.");
+											}
+											else
+											{
+												return_to_abilities = TRUE;
+											}
+										}
+										else if (oathchoice == OATH_TYPES)
+										{
+											return_to_abilities = TRUE;
+											skip_purchase = TRUE;
+										}
+										else if (oathchoice == OATH_TYPES + 1)
+										{
+											return_to_abilities = TRUE;
+											return_to_skills = TRUE;
+											return_to_game = TRUE;
+											skip_purchase = TRUE;
+										}
+									}
+									
+									return_to_abilities = FALSE;
+								}
+	
 								if (!skip_purchase)
 								{
 									if (get_check("Are you sure you wish to gain this ability? "))
@@ -1383,13 +1617,13 @@ void do_cmd_ability_screen(void)
 										Term_putstr(0, 0, -1, TERM_WHITE, "Ability gained.");
 										p_ptr->new_exp -= exp_cost;
 										
-										if (banechoice <= 0)
+										if (banechoice <= 0 && oathchoice <= 0)
 										{
 											// make a note in the notes file
 											do_cmd_note(format("(%s)", 
 															   b_name + (&b_info[ability_index(skilltype,abilitynum)])->name), p_ptr->depth);
 										}
-										else
+										else if (oathchoice <= 0)
 										{
 											// set the new bane type
 											p_ptr->bane_type = banechoice;
@@ -1397,6 +1631,15 @@ void do_cmd_ability_screen(void)
 											// and make a note in the notes file
 											do_cmd_note(format("(%s-%s)", bane_name[banechoice],
 															   b_name + (&b_info[ability_index(skilltype,abilitynum)])->name), p_ptr->depth);
+										}
+										else
+										{
+											// set the new bane type
+											p_ptr->oath_type = oathchoice;
+
+											// and make a note in the notes file
+											do_cmd_note(format("(%s: %s)", b_name + (&b_info[ability_index(skilltype,abilitynum)])->name,
+												oath_name[oathchoice]), p_ptr->depth);
 										}
 										
 										/* Set the redraw flag for everything */

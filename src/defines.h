@@ -511,7 +511,7 @@
 #define	WIL_CURSE_BREAKING			2
 #define	WIL_INNER_LIGHT				3
 #define	WIL_INDOMITABLE				4
-#define	WIL_HARDINESS				5
+#define	WIL_OATH				5
 #define	WIL_POISON_RESISTANCE			6
 #define	WIL_VENGEANCE				7
 #define	WIL_CRITICAL_RESISTANCE			8
@@ -3559,3 +3559,10 @@
 #define SQUELCH_FAILED -1
 #define SQUELCH_NO      0
 #define SQUELCH_YES     1
+
+/*
+ * Flags for the Oath skill
+ */
+#define OATH_SILENCE	1
+#define OATH_HONOUR	2
+#define OATH_MERCY	4

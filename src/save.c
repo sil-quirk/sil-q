@@ -985,8 +985,8 @@ static void wr_extra(void)
 
 	wr_byte(p_ptr->killed_enemy_with_arrow);
 
-	wr_byte(p_ptr->unused5);
-	wr_byte(p_ptr->unused6);
+	wr_byte(p_ptr->oath_type);
+	wr_byte(p_ptr->oaths_broken);
 	wr_byte(p_ptr->unused7);
 
 	wr_s32b(p_ptr->unused2);

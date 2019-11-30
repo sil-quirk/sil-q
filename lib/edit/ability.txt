@@ -498,9 +498,9 @@ T:40:0:99  # Amulet
 T:32:0:99  # Helm
 T:37:0:99  # Mail
 
-N:105:Hardiness
+N:105:Oath
 I:5:5:6
-D:Gives you [1dX] additional protection, where X = Will/6.
+D:Swear a great oath, and be rewarded for keeping it.
 
 N:106:Poison Resistance
 I:5:6:7

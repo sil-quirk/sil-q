@@ -1067,9 +1067,11 @@ struct player_type
 
 	bool killed_enemy_with_arrow;
 
-	byte unused1;
-	byte unused5;
-	byte unused6;
+	byte unused1;		/* was sex - so unused byte race/house player info */
+
+	byte oath_type;		/* which oath the player has chosen to keep */
+	byte oaths_broken;	/* which possible oaths the player has broken */
+
 	byte unused7;
 
 	s32b unused2; // Room for expansion without breaking savefiles
