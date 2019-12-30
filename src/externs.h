@@ -433,6 +433,8 @@ extern int elf_bane_bonus(monster_type *m_ptr);
 extern char *bane_name[];
 extern int bane_bonus(monster_type *m_ptr);
 extern int spider_bane_bonus(void);
+extern bool oath_invalid(int i);
+extern bool chosen_oath(int oath);
 extern void do_cmd_ability_screen(void);
 extern int object_difficulty(object_type *o_ptr);
 extern void do_cmd_smithing_screen(void);

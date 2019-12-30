@@ -547,7 +547,7 @@ void do_cmd_change_song()
 		msg_print("You do not know any songs of power.");
 		return;
 	}
-	
+
 	/* Flush the prompt */
 	Term_fresh();
 
@@ -700,7 +700,27 @@ void do_cmd_change_song()
 	/* Clear the prompt line */
 	prt("", 0, 0);
 	
-	if (song_choice >= 0) change_song(song_choice);
+	if (song_choice >= 0)
+	{
+		if (song_choice != SNG_NOTHING)
+		{
+			if (chosen_oath(OATH_SILENCE) && !oath_invalid(OATH_SILENCE))
+			{
+				if (get_check("Are you sure you wish to break your oath? "))
+				{
+					msg_print("You break your oath of silence.");
+				}
+				else
+				{
+					return;
+				}
+			}
+
+			p_ptr->oaths_broken |= OATH_SILENCE;
+		}
+
+		change_song(song_choice);
+	}
 
 }
 
@@ -999,25 +1019,31 @@ bool oath_invalid(int i)
 	return ((p_ptr->oaths_broken & oath_flag[i]) > 0);
 }
 
+bool chosen_oath(int oath)
+{
+	// flags are powers of 2 starting at 2^0 but oath_type is 1,2,3 etc
+	// so this maps 1 -> 1, 2 -> 2, 3 -> 4
+	return ((1 << p_ptr->oath_type) / 2 == oath);
+}
+
 int oath_menu(int *highlight)
 {
 	int i;
-	
 	int ch;
 	int options;
-	
+
 	char buf[80];
 	
 	byte attr;
-	
+
 	Term_putstr(COL_DESCRIPTION,  2, -1, TERM_WHITE, "Oath");
-	
+
 	// clear the description area
 	wipe_screen_from(COL_DESCRIPTION);
-	
+
 	// list the enemies
 	for (i = 1; i < OATH_TYPES; i++)
-	{		
+	{
 		if (!oath_invalid(i))
 		{
 			attr = TERM_SLATE;
