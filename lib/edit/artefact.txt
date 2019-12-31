@@ -998,9 +998,9 @@ D: the Two Trees with wounds that would not heal.
 
 N:92:'Binahkram'
 I:22:11:1
-W:6:20:10:1000
+W:6:20:20:1000
 P:0:5d2:0:0d0
-F:CON | SLAY_ORC | SLAY_SPIDER
+F:STR | SLAY_ORC | SLAY_SPIDER
 D:A sharp and well-made axe with a sturdy haft. It was gifted to Haldan,
 D: Lord of the Men of Brethil, by the dwarves of the Blue Mountains.
 

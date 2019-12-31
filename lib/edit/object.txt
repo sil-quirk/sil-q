@@ -458,9 +458,9 @@ F:TWO_HANDED | POLEARM
 N:76:& Hand Axe~
 G:/:s
 I:22:11:0
-W:2:0:10:150
+W:2:0:20:150
 P:-1:5d1:0:0d0
-A:2/1
+A:2/4
 F:AXE
 
 

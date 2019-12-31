@@ -2937,8 +2937,8 @@ int object_difficulty(object_type *o_ptr)
 	// damage bonus
 	x = (o_ptr->ds - k_ptr->ds);
 	// dd used to be a factor here, but a shortsword is far more breakable than a great axe
-	dif_mod(x, 7, &dif_inc);
-	if (x > 0) dif_inc -= 2;
+	// adjusted to make >1 damage sides expensive to smith
+	dif_mod(x, 3 * x + 2, &dif_inc);
 
 	// protection bonus
 	base = (k_ptr->ps > 0) ? ((k_ptr->ps + 1) * k_ptr->pd) : 0;
