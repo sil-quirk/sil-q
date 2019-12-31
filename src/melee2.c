@@ -1719,8 +1719,6 @@ static bool get_move_retreat(monster_type *m_ptr, int *ty, int *tx)
 
 	// Sil-y: This code below seemed hopelessly wrong, so I'm trying out a new version
 	/* Move directly away from character. */
-	//*ty = -(p_ptr->py - m_ptr->fy);
-	//*tx = -(p_ptr->px - m_ptr->fx);
 	*ty = m_ptr->fy - (p_ptr->py - m_ptr->fy);
 	*tx = m_ptr->fx - (p_ptr->px - m_ptr->fx);
 
@@ -1944,12 +1942,15 @@ static int calc_vulnerability(int fy, int fx)
 		if (cave_m_idx[py-dy][px-dx] > 0) vulnerability += 2; // direction 8
 	}
 	
-	// Take player's health into account
-	switch (health_level(p_ptr->chp, p_ptr->mhp))
+	if (!p_ptr->active_ability[S_WIL][WIL_FORMIDABLE])
 	{
-		case  HEALTH_WOUNDED:		vulnerability += 1;	break;  // <= 75% health
-		case  HEALTH_BADLY_WOUNDED:	vulnerability += 1;	break;  // <= 50% health
-		case  HEALTH_ALMOST_DEAD:	vulnerability += 2;	break;  // <= 25% health
+		// Take player's health into account
+		switch (health_level(p_ptr->chp, p_ptr->mhp))
+		{
+			case  HEALTH_WOUNDED:		vulnerability += 1;	break;  // <= 75% health
+			case  HEALTH_BADLY_WOUNDED:	vulnerability += 1;	break;  // <= 50% health
+			case  HEALTH_ALMOST_DEAD:	vulnerability += 2;	break;  // <= 25% health
+		}
 	}
 
 	// Take player's conditions into account
@@ -5153,12 +5154,15 @@ void calc_morale(monster_type *m_ptr)
 	else if (p_ptr->stun > 50)	morale += 40;
 	else if (p_ptr->stun > 0)	morale += 20;
 	
-	// Take player's health into account
-	switch (health_level(p_ptr->chp, p_ptr->mhp))
+	if (!p_ptr->active_ability[S_WIL][WIL_FORMIDABLE])
 	{
-		case  HEALTH_WOUNDED:		morale += 20;	break;  // <= 75% health
-		case  HEALTH_BADLY_WOUNDED:	morale += 40;	break;  // <= 50% health
-		case  HEALTH_ALMOST_DEAD:	morale += 80;	break;  // <= 25% health
+		// Take player's health into account
+		switch (health_level(p_ptr->chp, p_ptr->mhp))
+		{
+			case  HEALTH_WOUNDED:		morale += 20;	break;  // <= 75% health
+			case  HEALTH_BADLY_WOUNDED:	morale += 40;	break;  // <= 50% health
+			case  HEALTH_ALMOST_DEAD:	morale += 80;	break;  // <= 25% health
+		}
 	}
 
 	// Take monster's conditions into account

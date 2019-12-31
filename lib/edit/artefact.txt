@@ -191,7 +191,7 @@ D: faithfulness.
 
 ## The Ring of Melian
 ## 1st age namesake
-## (ability 5/0 is Channeling)
+## (ability 5/1 is Channeling)
 
 N:2:of Melian
 I:45:30:7
@@ -199,7 +199,7 @@ W:14:30:1:50000
 P:0:0d0:0:0d0
 F:PERCEPTION
 F:INSTA_ART
-B:5/0
+B:5/1
 D:A ring that once graced the hand of Melian, Queen
 D: of Doriath and one of the Powers of the World.
 D: Above all else, she is famed for her insight.
@@ -237,7 +237,7 @@ D: by Thingol Greycloak, King of Doriath.
 
 ## The Jewel 'Elessar' (amulet slot)
 ## 1st age
-## (ability 5/1 is Strength in Adversity)
+## (ability 5/2 is Strength in Adversity)
 
 N:5:'Elessar'
 I:40:16:1
@@ -245,7 +245,7 @@ W:14:20:1:7000
 P:0:0d0:0:0d0
 F:CON | REGEN
 F:INSTA_ART
-B:5/1
+B:5/2
 D:A beautiful green jewel made by Enerdhil in the Hidden City.
 D: In it is trapped the light of the Sun, and any who look through it
 D: can see the withered and old as if they were young and supple once more.
@@ -414,14 +414,14 @@ D: don it it fits perfectly. You feel a desire to hunt.
 
 ## The Studded Leather Armour of Beor
 ## 1st age namesake
-## (ability 5/3 is Inner Light)
+## (ability 5/4 is Inner Light)
 
 N:28:of Beor
 I:36:7:0
 W:8:20:120:35000
 P:0:0d0:-1:1d6
 F:RES_POIS | SUST_GRA
-B:5/3
+B:5/4
 D:An well-used old set of armour. At first glance, there is
 D: nothing remarkable about it, but then one realises it has
 D: been lovingly cared for, and expertly made. It gladdens
@@ -502,13 +502,12 @@ D: stripped from him and stored in Morgoth's iron vaults.
 
 ## The Hauberk of Amon Rudh
 ## 1st age namesake
-## (ability 5/8 is Critical Resistance)
 
 N:37:of Amon Rudh
-I:37:6:0
-W:13:15:300:25000
-P:-1:0d0:-4:2d6
-B:5/8
+I:37:6:3
+W:13:10:300:25000
+P:-1:0d0:-3:2d6
+F:STAND_FAST | WILL
 D:Hard are the people who live around the hill Amon
 D: Rudh, and hard is the armour they wear.
 
@@ -586,14 +585,14 @@ D: elves to take swift vengeance upon their foes.
 
 ## The Round Shield 'Thandrach'
 ## Sindarin "shield-curse"
-## (ability 5/2 is Curse Breaking)
+## (ability 5/3 is Curse Breaking)
 
 N:44:'Thandrach'
 I:34:3:2
 W:3:20:40:15000
 P:1:0d0:0:1d3
 F:WILL
-B:5/2
+B:5/3
 D:A small iron shield covered with many dense runes
 D: spiralling in from the outer edge into the centre.
 D: In the very middle of the shield is set a spike
@@ -1051,14 +1050,14 @@ D: fight some of Morgoth's foulest servants.
 
 ## The Great Axe 'Mazarbulbark'
 ## Khuzdul 'that-which-is-written axe'
-## (ability 5/7 is Vengeance)
+## (ability 5/8 is Vengeance)
 
 N:96:'Mazarbulbark'
 I:22:13:3
 W:14:20:90:10000
 P:-3:4d4:0:0d0
 F:WILL | SLAY_TROLL
-B:5/7
+B:5/8
 D:Both the blade and haft of this huge axe are made of a single
 D: piece of blackened steel. Engraved on the axehead are many tiny
 D: Dwarven runes recording the names of valiant fallen warriors of
@@ -1188,14 +1187,14 @@ D:A helm worn by Curufin, son of Feanor, whose dark schemes
 D: snared many in Beleriand.
 
 ## The Helm of the Oathbreaker
-## (ability 5/7 is Vengeance)
+## (ability 5/8 is Vengeance)
 
 N:119:of the Oathbreaker
 I:32:5:0
 W:8:12:15:45000
 P:0:0d0:0:1d3
 F:TRAITOR | LIGHT_CURSE
-B:5/7
+B:5/8
 D:A helm wrought of grey metal and the dull bones of some forgotten
 D: orc who once raised his blade against his master.
 
@@ -1228,14 +1227,14 @@ D: wears it to its own dark purposes.
 
 
 ## The Dwarf Mask of the Dwarrowdelf
-## (ability 5/1 is Strength in Adversity)
+## (ability 5/2 is Strength in Adversity)
 
 N:122:of the Dwarrowdelf
 I:32:7:2
 W:16:10:70:600000
 P:0:0d0:-2:1d3
 F:WILL | RES_FIRE
-B:5/1
+B:5/2
 D:A large ornate helm, with curving horns.
 D: It makes you determined
 D: to fight on, no matter the circumstances.

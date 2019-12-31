@@ -506,15 +506,15 @@
 /* 
  * Will abilities 
  */
-#define	WIL_CHANNELING				0
-#define	WIL_STRENGTH_IN_ADVERSITY		1
-#define	WIL_CURSE_BREAKING			2
-#define	WIL_INNER_LIGHT				3
-#define	WIL_INDOMITABLE				4
-#define	WIL_OATH				5
-#define	WIL_POISON_RESISTANCE			6
-#define	WIL_VENGEANCE				7
-#define	WIL_CRITICAL_RESISTANCE			8
+#define	WIL_FORMIDABLE				0
+#define	WIL_CHANNELING				1
+#define	WIL_STRENGTH_IN_ADVERSITY		2
+#define	WIL_CURSE_BREAKING			3
+#define	WIL_INNER_LIGHT				4
+#define	WIL_INDOMITABLE				5
+#define	WIL_OATH				6
+#define	WIL_POISON_RESISTANCE			7
+#define	WIL_VENGEANCE				8
 #define	WIL_MAJESTY				9
 #define	WIL_CON					10
 
