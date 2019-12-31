@@ -3678,6 +3678,11 @@ void do_cmd_fire(int quiver)
 		/* Done */
 		return;
 	}
+
+	if (abort_for_mercy_or_honour(&mon_list[cave_m_idx[ty][tx]]))
+	{
+		return;
+	}
 		
 	/* Get local object */
 	i_ptr = &object_type_body;
@@ -3972,6 +3977,8 @@ void do_cmd_fire(int quiver)
 
 					// no negative damage
 					if (net_dam < 0) net_dam = 0;
+
+					break_honour_and_mercy_oath(m_ptr, net_dam);
 					
 					/* Handle unseen monster */
 					if (!(m_ptr->ml))
@@ -4515,7 +4522,12 @@ void do_cmd_throw(bool automatic)
 		/* Done */
 		return;
 	}
-		
+
+	if (abort_for_mercy_or_honour(&mon_list[cave_m_idx[ty][tx]]))
+	{
+		return;
+	}
+
 	/* Get local object */
 	i_ptr = &object_type_body;
 
@@ -4740,6 +4752,8 @@ void do_cmd_throw(bool automatic)
 
 				// no negative damage
 				if (net_dam < 0) net_dam = 0;
+
+				break_honour_and_mercy_oath(m_ptr, net_dam);
 
 				/* Handle unseen monster */
 				if (!(m_ptr->ml))

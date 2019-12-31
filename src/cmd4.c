@@ -1431,7 +1431,10 @@ int abilities_menu2(int skilltype, int *highlight)
 				text_out_wrap = 0;
 				text_out_indent = 0;
 
-				Term_putstr(COL_DESCRIPTION, 14, -1, TERM_WHITE,
+				if (oath_invalid(p_ptr->oath_type))
+					Term_putstr(COL_DESCRIPTION, 14, -1, TERM_RED, "You are an oathbreaker.");
+				else
+					Term_putstr(COL_DESCRIPTION, 14, -1, TERM_WHITE,
 				            format("Bonus: %s.", oath_reward[p_ptr->oath_type]));
 			}
 		}

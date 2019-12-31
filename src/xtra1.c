@@ -2389,6 +2389,16 @@ static void calc_bonuses(void)
 		}
 	}
 
+	if (p_ptr->active_ability[S_WIL][WIL_OATH])
+	{
+		if (chosen_oath(OATH_HONOUR) && !oath_invalid(OATH_HONOUR))
+			p_ptr->stat_misc_mod[A_STR]++;
+		else if (chosen_oath(OATH_SILENCE) && !oath_invalid(OATH_SILENCE))
+			p_ptr->stat_misc_mod[A_DEX]++;
+		else if (chosen_oath(OATH_MERCY) && !oath_invalid(OATH_MERCY))
+			p_ptr->stat_misc_mod[A_GRA]++;
+	}
+
 	if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
 	{
 		p_ptr->skill_misc_mod[S_MEL] -= 3;

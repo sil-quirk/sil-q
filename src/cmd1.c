@@ -3619,6 +3619,54 @@ bool knock_back(int y1, int x1, int y2, int x2)
     return (knocked);
 }
 
+bool dishonourable_attack(monster_type *m_ptr)
+{
+	return (chosen_oath(OATH_HONOUR) && !oath_invalid(OATH_HONOUR)
+		&& (m_ptr->stance == STANCE_FLEEING));
+}
+
+bool merciless_attack(monster_type *m_ptr)
+{
+	monster_race* r_ptr = &r_info[m_ptr->r_idx];
+
+	return (chosen_oath(OATH_MERCY) && !oath_invalid(OATH_MERCY)
+		&& ((r_ptr->flags3 & (RF3_MAN)) || (r_ptr->flags3 & (RF3_ELF))));
+
+}
+
+bool abort_for_mercy_or_honour(monster_type *m_ptr)
+{
+	if ((dishonourable_attack(m_ptr) || merciless_attack(m_ptr)) &&
+	    !get_check("Are you sure you wish to break your oath? "))
+	{
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+void break_honour_and_mercy_oath(monster_type *m_ptr, int damage)
+{
+	monster_race* r_ptr = &r_info[m_ptr->r_idx];
+
+	if (m_ptr->stance == STANCE_FLEEING)
+	{
+		if (dishonourable_attack(m_ptr))
+		{
+			msg_print("You break your oath of honour.");
+		}
+		p_ptr->oaths_broken |= OATH_HONOUR;
+	}
+	if (damage > 0 && ((r_ptr->flags3 & (RF3_MAN)) || (r_ptr->flags3 & (RF3_ELF))))
+	{
+		if (merciless_attack(m_ptr))
+		{
+			msg_print("You break your oath of mercy.");
+		}
+		p_ptr->oaths_broken |= OATH_MERCY;
+	}
+}
+
 /*
  * Attack the monster at the given location
  *
@@ -3739,6 +3787,16 @@ void py_attack_aux(int y, int x, int attack_type)
         abort_attack = TRUE;
     }
 
+	// Don't make the player deal with Oath warnings on free attacks - pass them up
+	if (!is_normal_attack(attack_type) && (dishonourable_attack(m_ptr) || merciless_attack(m_ptr)))
+	{
+		abort_attack = TRUE;
+	}
+	else if (abort_for_mercy_or_honour(m_ptr))
+	{
+		abort_attack = TRUE;
+	}
+
     // Cancel the attack if needed
     if (abort_attack)
     {
@@ -3754,7 +3812,7 @@ void py_attack_aux(int y, int x, int attack_type)
         /* Done */
 	return;
     }
-    
+
 	// fighting with fists is equivalent to a 4 lb weapon for the purpose of criticals
 	weapon_weight = o_ptr->weight ? o_ptr->weight : 40;
 
@@ -3925,6 +3983,8 @@ void py_attack_aux(int y, int x, int attack_type)
 
 			/* No negative damage */
 			if (net_dam < 0) net_dam = 0;
+
+			break_honour_and_mercy_oath(m_ptr, net_dam);
 
 			// determine the punctuation for the attack ("...", ".", "!" etc)
 			attack_punctuation(punctuation, net_dam, crit_bonus_dice);
@@ -4239,9 +4299,10 @@ void flanking_or_retreat(int y, int x)
 		if ((cave_m_idx[fy][fx] > 0) && !p_ptr->confused && !p_ptr->afraid && !p_ptr->truce)
 		{
 			m_ptr = &mon_list[cave_m_idx[fy][fx]];
-			
-			// base conditions for an attack
-			if (m_ptr->ml && (!forgo_attacking_unwary || (m_ptr->alertness >= ALERTNESS_ALERT)))
+
+			if (!(dishonourable_attack(m_ptr) || merciless_attack(m_ptr)) &&
+			    m_ptr->ml &&
+			    (!forgo_attacking_unwary || (m_ptr->alertness >= ALERTNESS_ALERT)))
 			{
 				// try a flanking attack
 				if (flanking && (distance(py, px, fy, fx) == 1) && (distance(y, x, fy, fx) == 1))
@@ -4275,7 +4336,9 @@ void flanking_or_retreat(int y, int x)
 				m_ptr = &mon_list[cave_m_idx[fy][fx]];
 				
 				// base conditions for an attack
-				if (m_ptr->ml && (!forgo_attacking_unwary || (m_ptr->alertness >= ALERTNESS_ALERT)))
+				if (!(dishonourable_attack(m_ptr) || merciless_attack(m_ptr)) &&
+				    m_ptr->ml &&
+				    (!forgo_attacking_unwary || (m_ptr->alertness >= ALERTNESS_ALERT)))
 				{
 					// try a flanking attack
 					if (flanking && (distance(py, px, fy, fx) == 1) && (distance(y, x, fy, fx) == 1))
