@@ -2988,7 +2988,7 @@ int object_difficulty(object_type *o_ptr)
 	}
 	if (f1 & TR1_SHARPNESS2)		{	dif_inc += 40;	smithing_cost.str += 4;	} // not available in smithing
 	if (f1 & TR1_VAMPIRIC)			{	dif_inc += 6;	smithing_cost.str += 1;	}
-	if (f3 & TR3_ACCURATE)			{	dif_inc += 10;	smithing_cost.dex += 1;	}
+	if (f3 & TR3_ACCURATE)			{	dif_inc += 15;	smithing_cost.dex += 1;	}
 	
 	// pval dependent bonuses
 	if (f1 & TR1_TUNNEL)
