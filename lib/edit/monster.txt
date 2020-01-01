@@ -1594,14 +1594,14 @@ D: You would prefer not to see it any closer.
 N:183:Wraith
 W:18:2
 G:W:s
-I:2:12d4:0
-A:10:15:14:14
-P:[+12,4d4]
-B:TOUCH:DARK:(+20,2d6)
+I:2:16d4:0
+A:10:15:14:16
+P:[+13,4d4]
+B:TOUCH:DARK:(+22,2d8)
 F:UNDEAD | RES_COLD | SMART | DROP_100
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
 F:HURT_LITE | OPEN_DOOR
-S:SPELL_PCT_25
+S:SPELL_PCT_10
 S:HOLD | SLOW
 D:A mantled shape of void that was once perhaps man or elf,
 D: but through Morgoth's black arts walks as his servant. Noseless

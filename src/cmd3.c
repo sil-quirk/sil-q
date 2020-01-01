@@ -998,6 +998,10 @@ void prise_silmaril(void)
 				prt_percent -= 50;
 			}
 		}
+		if (prt_percent < 0)
+		{
+			prt_percent = 0;
+		}
 
 		prt = (prt * prt_percent) / 100;
 		net_dam = dam - prt;
