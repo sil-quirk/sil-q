@@ -1261,7 +1261,7 @@ D:Known as the giant of summer and the south, he towers above you
 D: like a great tree. In his right hand, he holds the longest
 D: sword you have ever beheld.
 
-
+
 ##### 15 #####
 
 N:151:Cave troll
@@ -1302,7 +1302,7 @@ I:2:12d4:0
 A:10:11:10:10
 P:[+14,3d4]
 B:TOUCH:HUNGER:(+25)
-F:UNDEAD | DROP_100 | RES_COLD | SMART | HURT_LITE
+F:UNDEAD | RES_COLD | SMART | HURT_LITE
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
 F:OPEN_DOOR
 S:SPELL_PCT_20
@@ -1434,6 +1434,22 @@ F:RAUKO | RES_FIRE | HURT_COLD
 D:A fell fiery figure, great wings of shadow unfolding around
 D: him. For many of the Children of Iluvatar, this has been their
 D: final vision.
+
+
+N:167:Spectre
+W:16:6
+G:w:w
+I:2:8d4:0
+A:10:16:8:16
+P:[+10]
+B:TOUCH:COLD:(+20,2d10)
+B:TOUCH:LOSE_GRA:(+30)
+F:RAND_25
+F:UNDEAD | FRIENDS | RES_COLD | SMART | HURT_LITE
+F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
+F:PASS_WALL
+D:An insubstantial and ragged figure, scarcely to be seen.
+D: Its eyes form two dark pits in a ruined face.
 
 
 
@@ -1592,13 +1608,13 @@ D: You would prefer not to see it any closer.
 
 
 N:183:Wraith
-W:18:2
+W:18:4
 G:W:s
-I:2:16d4:0
-A:10:15:14:16
+I:2:12d4:0
+A:10:15:14:14
 P:[+13,4d4]
-B:TOUCH:DARK:(+22,2d8)
-F:UNDEAD | RES_COLD | SMART | DROP_100
+B:TOUCH:DARK:(+26,1d12)
+F:UNDEAD | RES_COLD | SMART
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
 F:HURT_LITE | OPEN_DOOR
 S:SPELL_PCT_10
