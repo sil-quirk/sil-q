@@ -493,7 +493,7 @@ T:34:0:99  # Shields
 
 N:104:Inner Light
 I:5:4:5
-D:Increases the intensity of light within your light radius by 1 point
+D:Increases the intensity of light within your light radius by 2 points
 D: (without increasing the radius).
 T:32:0:99  # Helm
 T:39:0:99  # Light Source

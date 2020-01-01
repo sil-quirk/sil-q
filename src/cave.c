@@ -3125,7 +3125,7 @@ void update_view(void)
 			
 			if (p_ptr->active_ability[S_WIL][WIL_INNER_LIGHT])
 			{
-				bonus_light = 1;
+				bonus_light = 2;
 			}
 			if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT)
 			{
