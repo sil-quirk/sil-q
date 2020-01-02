@@ -1440,7 +1440,7 @@ N:167:Spectre
 W:16:6
 G:w:w
 I:2:8d4:0
-A:10:16:8:16
+A:10:12:8:12
 P:[+10]
 B:TOUCH:COLD:(+20,2d10)
 B:TOUCH:LOSE_GRA:(+30)
@@ -1610,10 +1610,10 @@ D: You would prefer not to see it any closer.
 N:183:Wraith
 W:18:4
 G:W:s
-I:2:12d4:0
-A:10:15:14:14
+I:2:14d4:0
+A:10:15:15:15
 P:[+13,4d4]
-B:TOUCH:DARK:(+26,1d12)
+B:TOUCH:DARK:(+26,2d8)
 F:UNDEAD | RES_COLD | SMART
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
 F:HURT_LITE | OPEN_DOOR
