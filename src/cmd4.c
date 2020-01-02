@@ -709,6 +709,7 @@ void do_cmd_change_song()
 				if (get_check("Are you sure you wish to break your oath? "))
 				{
 					msg_print("You break your oath of silence.");
+					do_cmd_note("Broke your oath", p_ptr->depth);
 				}
 				else
 				{

@@ -3191,6 +3191,18 @@ void do_cmd_escape(void)
 		case 3:		do_cmd_note("You brought back all three Silmarils from Morgoth's crown!", p_ptr->depth); break;
 		default:	do_cmd_note("You brought back so many Silmarils that people should be suspicious!", p_ptr->depth); break;
 	}
+
+	if (p_ptr->oath_type > 0)
+	{
+		if (oath_invalid(p_ptr->oath_type))
+		{
+			do_cmd_note("You will be remembered always as a shameful oathbreaker.", p_ptr->depth);
+		}
+		else
+		{
+			do_cmd_note("You kept your oath to the very end.", p_ptr->depth);
+		}
+	}
 	
 	my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
 
@@ -3317,7 +3329,10 @@ static void print_tomb(high_score *the_score)
 {
 	if (p_ptr->escaped)
 	{
-		Term_putstr(15, 2, -1, TERM_L_BLUE, "You have escaped");
+		if (p_ptr->oath_type > 0 && !oath_invalid(p_ptr->oath_type))
+			Term_putstr(15, 2, -1, TERM_L_BLUE, "You have escaped and kept your oath");
+		else
+			Term_putstr(15, 2, -1, TERM_L_BLUE, "You have escaped");
 	}
 	else
 	{
@@ -3781,7 +3796,7 @@ extern void display_single_score(byte attr, int row, int col, int place, int fak
 		strnfmt(out_val, sizeof(out_val), "               after %s turns.  (%s)", aged_commas, when);
 		c_put_str(attr, out_val, row + 5, col);
 	}
-	
+
 	/* Print symbols for silmarils / slaying Morgoth */
 	if (the_score->escaped[0] == 't')
 	{
@@ -4486,6 +4501,13 @@ errr file_character(cptr name, bool full)
 			if (b_ptr->skilltype == S_PER && b_ptr->abilitynum == PER_BANE && p_ptr->bane_type > 0)
 			{
 				fprintf(fff, "%s-%s\n", bane_name[p_ptr->bane_type], (b_name + b_ptr->name));
+			}
+			else if (b_ptr->skilltype == S_WIL && b_ptr->abilitynum == WIL_OATH && p_ptr->oath_type > 0)
+			{
+				if (oath_invalid(p_ptr->oath_type))
+					fprintf(fff, "%s: %s (Broken)\n", (b_name + b_ptr->name), oath_name[p_ptr->oath_type]);
+				else
+					fprintf(fff, "%s: %s\n", (b_name + b_ptr->name), oath_name[p_ptr->oath_type]);
 			}
 			else
 				fprintf(fff, "%s\n", (b_name + b_ptr->name));

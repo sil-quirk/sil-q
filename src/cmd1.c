@@ -3654,6 +3654,7 @@ void break_honour_and_mercy_oath(monster_type *m_ptr, int damage)
 		if (dishonourable_attack(m_ptr))
 		{
 			msg_print("You break your oath of honour.");
+			do_cmd_note("Broke your oath", p_ptr->depth);
 		}
 		p_ptr->oaths_broken |= OATH_HONOUR;
 	}
@@ -3662,6 +3663,7 @@ void break_honour_and_mercy_oath(monster_type *m_ptr, int damage)
 		if (merciless_attack(m_ptr))
 		{
 			msg_print("You break your oath of mercy.");
+			do_cmd_note("Broke your oath", p_ptr->depth);
 		}
 		p_ptr->oaths_broken |= OATH_MERCY;
 	}
