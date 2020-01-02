@@ -1930,7 +1930,7 @@ int ability_bonus(int skilltype, int abilitynum)
 			}
 			case SNG_WHETTING:
 			{
-				bonus = skill / 4;
+				bonus = skill / 2;
 				break;
 			}
 			case SNG_TREES:

@@ -3968,7 +3968,7 @@ void py_attack_aux(int y, int x, int attack_type)
 					weight += inventory[INVEN_WIELD].weight;
 				}
 
-				if (weight <= 10 * ability_bonus(S_SNG, SNG_WHETTING))
+				if (weight <= 5 * ability_bonus(S_SNG, SNG_WHETTING))
 				{
 					prt_percent -= 50;
 				}
