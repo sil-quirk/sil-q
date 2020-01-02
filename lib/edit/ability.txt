@@ -428,9 +428,8 @@ D: you kill more.
 
 N:86:Outwit
 I:4:6:7
-D:When an enemy hits you, roll a Perception check with their Perception
-D: as difficulty. Discard all critical damage dice from their damage dice
-D: pool if you win.
+D:Whenever you receive a critical hit, make a Perception roll against
+D: the attacker's Perception. If you succeed, negate all critical damage.
 T:32:0:99  # Helm
 T:39:0:99  # Light Source
 T:40:0:99  # Amulet
@@ -640,7 +639,9 @@ T:45:0:99  # Ring
 N:146:Song of Whetting
 I:7:6:4
 P:7/1
-D:Grants sharpness to a melee weapon of up to (Song/4) lbs in weight.
+D:Grants sharpness to a non-blunt melee weapon, allowing it to ignore half
+D: enemy armour. Weapons of up to (Song/4) lbs in weight may be
+D: sharpened in this way.
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
 

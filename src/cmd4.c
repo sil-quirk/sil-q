@@ -946,11 +946,6 @@ int bane_menu(int *highlight)
 		return (BANE_TYPES+1);
 	}
 	
-	if (ch == '\t')
-	{
-		return (BANE_TYPES+2);
-	}
-	
 	/* Choose current  */
 	if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
 	{
@@ -1121,11 +1116,6 @@ int oath_menu(int *highlight)
 	if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
 	{
 		return (OATH_TYPES+1);
-	}
-	
-	if (ch == '\t')
-	{
-		return (OATH_TYPES+2);
 	}
 	
 	/* Choose current  */
@@ -1581,11 +1571,6 @@ void do_cmd_ability_screen(void)
 												return_to_abilities = TRUE;
 											}
 										}
-										else if (banechoice == BANE_TYPES)
-										{
-											return_to_abilities = TRUE;
-											skip_purchase = TRUE;
-										}
 										else if (banechoice == BANE_TYPES + 1)
 										{
 											return_to_abilities = TRUE;
@@ -1618,11 +1603,6 @@ void do_cmd_ability_screen(void)
 											{
 												return_to_abilities = TRUE;
 											}
-										}
-										else if (oathchoice == OATH_TYPES)
-										{
-											return_to_abilities = TRUE;
-											skip_purchase = TRUE;
 										}
 										else if (oathchoice == OATH_TYPES + 1)
 										{
