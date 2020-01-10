@@ -113,6 +113,7 @@
 #   * Andreth           (robe - song, sust gra)
 #   * Beren		(dagmor - grace, res fear, res dark)
 #   * Barahir		(Ring - free action, res poison)
+#   * Bregolas		(Gauntlets - power, res cold)
 #   * Tuor		(Dramborleg - slay orc/troll/rauko)
 # - Marach
 #   * Hador		(shield - res cold, res lightning)
@@ -120,12 +121,12 @@
 #     * Turin		(dragon helm - str, will, rfear, rstun) (Anglachel - sharp, danger)
 #   - Gloredhel
 # * Halmir		(staff - sustain str/con, res poison)
+# * Haldad		(leather armour - str, free act, res fear)
 #
 # Dwarves
 # * Azaghal		(dagger - slay dragon, res fear, res fire)
 # * Durin		(mail corslet - res fire, res cold, regenerate)
 # * Telchar		(hammer - smithing, sust str, res fire)
-# * Gamil Zirak		(gloves - smithing, res fire)
 #
 # Powers
 # * Melian
@@ -293,13 +294,16 @@ D: music for breaking of the heart.'
 
 
 ## The Crown of Feanor
+## (ability 6/3 is Enchantment)
+## (ability 6/6 is Masterpiece)
 
 N:9:of Feanor
 I:33:11:3
 W:20:20:35:300000
 P:0:0d0:0:1d1
-F:SMITHING | WILL | RES_FIRE | SEE_INVIS | LIGHT
+F:WILL | RES_FIRE | SEE_INVIS | LIGHT
 F:AGGRAVATE | INSTA_ART
+B:6/3:6/6
 D:The crown of Feanor, greatest of the Noldor. It is beautifully wrought
 D: with many shining jewels of Valinor, whose light is a challenge to those born
 D: of darkness. Though his flaws ran deep, this crown is a reminder of his
@@ -387,16 +391,16 @@ D: who betrayed Barahir to Gorthaur for lying
 D: promises about his dead wife.
 
 
-## The Leather Armour of Caranthir
+## The Leather Armour of Haldad
 ## 1st age namesake
 
-N:25:of Caranthir
-I:36:4:4
-W:8:10:60:45000
-P:0:0d0:1:1d4
-F:STEALTH | DARKNESS
-D:Caranthir the Dark was the harshest of Feanor's sons
-D: and quick to anger.
+N:25:of Haldad
+I:36:4:1
+W:6:10:40:45000
+P:0:0d0:-1:1d4
+B:STR | RES_FEAR | FREE_ACT
+D:Leather armour worn by Haldad, father of Haleth,
+D: into his last battle where he fell fighting besieging orcs.
 
 
 ## The Leather Armour, 'Catskin'
@@ -405,7 +409,7 @@ D: and quick to anger.
 
 N:26:'Catskin'
 I:36:4:0
-W:10:10:50:45000
+W:10:12:50:45000
 P:0:0d0:0:1d4
 B:2/6:4/2
 D:This leather looks strangely proportioned, but when you
@@ -447,10 +451,10 @@ D: It lends its wearer determination and sureness of heart.
 ## (automatic drop -- don't move)
 
 N:32:of Maeglin
-I:36:11:3
+I:36:11:1
 W:15:1:70:45000
-P:0:0d0:-1:1d8
-F:SMITHING | RES_POIS
+P:0:0d0:1:1d8
+F:DEX | RES_POIS
 F:HUNGER
 F:INSTA_ART
 D:Supple but harder than serpent-scale, this shining black
@@ -1123,12 +1127,14 @@ D: and resolute always against the power of Morgoth.
 
 ## The War Hammer of Telchar
 ## 1st age namesake
+## (ability 6/5 is Artifice)
 
 N:107:of Telchar
-I:21:8:3
+I:21:8:1
 W:11:20:45:250000
-P:0:4d1:0:0d0
-F:SMITHING | SUST_STR | RES_FIRE
+P:0:4d2:0:0d0
+F:SUST_STR | RES_FIRE
+B:6/5
 D:The great hammer of Telchar, mighty smith of Nogrod.
 D: Its hard steel rung against both dwarf-forge and orc-shield.
 
@@ -1139,7 +1145,7 @@ N:108:of Aule's Wrath
 I:21:8:1
 W:20:20:70:250000
 P:0:4d2:0:0d0
-F:SMITHING | STR | CON | SLAY_RAUKO | RES_FIRE | DANGER | AGGRAVATE
+F:STR | CON | SLAY_RAUKO | RES_FIRE | DANGER | AGGRAVATE
 D:The hammer carried by mighty Rog from Valinor and lost in the retreat
 D: that followed the Dagor Bragollach. Made by Aule in the days
 D: following the destruction of the Two Trees, it has a haft and head of
@@ -1488,12 +1494,14 @@ D: of the ice of the Helcaraxe.
 
 ## The Set of Gloves of Celebrimbor
 ## 1st age namesake
+## (ability 6/4 is Expertise)
 
 N:162:of Celebrimbor
 I:31:1:4
-W:10:15:5:36000
+W:10:12:5:36000
 P:0:0d0:0:1d1
-F:SMITHING | FREE_ACT
+B:6/4
+F:FREE_ACT
 D:A pair of gloves worn by the great Celebrimbor, jewelsmith of Nargothrond,
 D: who would one day forge the rings of power.
 
@@ -1516,7 +1524,7 @@ D: They lend you subtlety of hand and mind.
 
 N:165:'Azdulag'
 I:31:2:1
-W:10:12:50:60000
+W:14:20:50:60000
 P:0:0d0:-1:2d1
 F:STR | DARKNESS
 B:0/2
@@ -1524,16 +1532,18 @@ D:The brutal gauntlets forged by Morgoth for the great orc-chieftain Gorgdaz,
 D: who perished along with many of Morgoth's host at Dagor-nuin-Giliath.
 
 
-## The Set of Gauntlets of Gamil Zirak
-## 1st age namesake
+## The Set of Gauntlets of Bregolas
+## (ability 0/0 is Power)
 
-N:166:of Gamil Zirak
-I:31:2:3
-W:15:15:40:40000
-P:-1:0d0:0:1d2
-F:SMITHING | RES_FIRE
-D:The iron-shod gauntlets of Gamil Zirak, dwarf-smith of old, who
-D: taught Telchar the arts of the forge.
+N:166:of Bregolas
+I:31:2:0
+W:10:10:60:40000
+P:0:0d0:0:1d2
+F:RES_COLD
+B:0/0
+D:The fur-lined gauntlets of Bregolas, Lord of Ladros, who died
+D: fighting shoulder to shoulder with Fingolfin's sons during the Dagor
+D: Bragollach.
 
 
 ## The Mithril Gauntlets 'Silverhand'
@@ -1892,11 +1902,11 @@ F:INSTA_ART
 N:197:'Ultimate'
 I:31:0:0
 F:STR | DEX | NEG_STR | NEG_DEX
-F:ARCHERY | SMITHING
+F:ARCHERY 
 F:TUNNEL
 F:SUST_STR | SUST_DEX
-F:FREE_ACT
-F:HUNGER | DANGER | AGGRAVATE | LIGHT_CURSE
+F:FREE_ACT | RES_FIRE | RES_COLD | RES_POIS
+F:HUNGER | DANGER | AGGRAVATE | LIGHT_CURSE | DARKNESS
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
 F:INSTA_ART 
 

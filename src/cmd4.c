@@ -4315,12 +4315,6 @@ bool applicable_flag(u32b f, int flagset, object_type *o_ptr)
 		}
 	}
 	
-	// Smithing is OK for War Hammers
-	if ((o_ptr->tval == TV_HAFTED) && (o_ptr->sval == SV_WAR_HAMMER))
-	{
-		if ((flagset == 1) && (f & (TR1_SMT))) ok = TRUE;
-	}
-	
 	// Special case for brands
 	//if ((flagset == 1) && (f & (TR1_BRAND_MASK)))
 	//{

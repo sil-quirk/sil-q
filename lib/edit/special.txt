@@ -620,11 +620,11 @@ T:31:1:1
 F:ARCHERY
 
 
-N:121:of the Forge
+N:121:of Delving
 W:0:1:0:1000
-C:0:0:0:0:0:0:3
+C:0:0:0:0:0:0:1
 T:31:0:99
-F:SMITHING
+F:TUNNEL
 
 
 # (ability 2/2 is Parry)
