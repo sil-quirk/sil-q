@@ -1902,12 +1902,10 @@ static const smithing_flag_desc smithing_flag_types[] =
 	{ CAT_STAT,		TR1_NEG_DEX,		1,	"Dex penalty"	},
 	{ CAT_STAT,		TR1_NEG_CON,		1,	"Con penalty"	},
 	{ CAT_STAT,		TR1_NEG_GRA,		1,	"Gra penalty"	},
-	{ CAT_SKILL,	TR1_MEL,			1,	"Melee"			},
 	{ CAT_SKILL,	TR1_ARC,			1,	"Archery"		},
 	{ CAT_SKILL,	TR1_STL,			1,	"Stealth"		},
 	{ CAT_SKILL,	TR1_PER,			1,	"Perception"	},
 	{ CAT_SKILL,	TR1_WIL,			1,	"Will"			},
-	{ CAT_SKILL,	TR1_SMT,			1,	"Smithing"		},
 	{ CAT_SKILL,	TR1_SNG,			1,	"Song"			},
 	{ CAT_MISC,		TR1_DAMAGE_SIDES,	1,	"Damage bonus"			},
 	{ CAT_MISC,		TR2_LIGHT,			2,	"Light"					},
@@ -2465,42 +2463,7 @@ int pval_max(void)
  */
 int pval_min(void)
 {
-	object_kind *k_ptr = &k_info[smith_o_ptr->k_idx];
-	ego_item_type *e_ptr = &e_info[smith_o_ptr->name2];
-	u32b f1, f2, f3;
-	int pval = 0;
-	
-	object_flags(smith_o_ptr, &f1, &f2, &f3);
-	
-	// start with the base pval
-	pval = k_ptr->pval;
-	
-	// artefacts have pvals that are mostly unlimited 
-	if (smith_o_ptr->name1)
-	{
-		pval -= 4;
-	}
-	
-	// non-artefact rings and amulets have a maximum pval of 4
-	else if ((smith_o_ptr->tval == TV_RING) || (smith_o_ptr->tval == TV_AMULET))
-	{
-		pval = -4;
-	}
-
-	// special items have pvals that are limited by their 'special.txt' entries
-	if (smith_o_ptr->name2)
-	{
-		if (cursed_p(smith_o_ptr))
-		{
-			if (e_ptr->max_pval > 0) pval -= e_ptr->max_pval;
-		}
-		else
-		{
-			if (e_ptr->max_pval > 0) pval += 1;
-		}
-	}
-	
-	return (pval);
+	return 0;
 }
 
 
@@ -2969,17 +2932,15 @@ int object_difficulty(object_type *o_ptr)
 	{
 		x = (o_ptr->pval > 0) ? o_ptr->pval : 0;
 		
-		if (f1 & TR1_DAMAGE_SIDES)	{	dif_mod(x, 15, &dif_inc);	smithing_cost.str += x;		}
-		if (f1 & TR1_STR)			{	dif_mod(x, 12, &dif_inc);	smithing_cost.str += x;		}
-		if (f1 & TR1_DEX)			{	dif_mod(x, 12, &dif_inc);	smithing_cost.dex += x;		}
-		if (f1 & TR1_CON)			{	dif_mod(x, 12, &dif_inc);	smithing_cost.con += x;		}
-		if (f1 & TR1_GRA)			{	dif_mod(x, 12, &dif_inc);	smithing_cost.gra += x;		}
-		if (f1 & TR1_MEL)			{	dif_mod(x, 4, &dif_inc);	}
+		if (f1 & TR1_DAMAGE_SIDES)	{	dif_mod(x, 18, &dif_inc);	smithing_cost.str += x;		}
+		if (f1 & TR1_STR)			{	dif_mod(x, 14, &dif_inc);	smithing_cost.str += x;		}
+		if (f1 & TR1_DEX)			{	dif_mod(x, 14, &dif_inc);	smithing_cost.dex += x;		}
+		if (f1 & TR1_CON)			{	dif_mod(x, 14, &dif_inc);	smithing_cost.con += x;		}
+		if (f1 & TR1_GRA)			{	dif_mod(x, 14, &dif_inc);	smithing_cost.gra += x;		}
 		if (f1 & TR1_ARC)			{	dif_mod(x, 4, &dif_inc);	}
 		if (f1 & TR1_STL)			{	dif_mod(x, 4, &dif_inc);	}
-		if (f1 & TR1_PER)			{	dif_mod(x, 2, &dif_inc);	}
+		if (f1 & TR1_PER)			{	dif_mod(x, 3, &dif_inc);	}
 		if (f1 & TR1_WIL)			{	dif_mod(x, 3, &dif_inc);	}
-		if (f1 & TR1_SMT)			{	dif_mod(x, 4, &dif_inc);	}
 		if (f1 & TR1_SNG)			{	dif_mod(x, 4, &dif_inc);	}
 
 		x = (o_ptr->pval < 0) ? o_ptr->pval : 0;
@@ -2998,11 +2959,11 @@ int object_difficulty(object_type *o_ptr)
 	
 	// Abilities
 	if (f2 & TR2_SLOW_DIGEST) 	{	dif_inc += 2; }
-	if (f2 & TR2_RADIANCE) 		{	dif_inc += 9;	smithing_cost.gra += 1;	}
+	if (f2 & TR2_RADIANCE) 		{	dif_inc += 6;	smithing_cost.gra += 1;	}
 	if (f2 & TR2_LIGHT)		{	dif_inc += 8;	smithing_cost.gra += 1;	}
-	if (f2 & TR2_REGEN) 		{	dif_inc += 8;	}
-	if (f2 & TR2_SEE_INVIS) 	{	dif_inc += 7;	}
-	if (f2 & TR2_FREE_ACT) 		{	dif_inc += 6;	}
+	if (f2 & TR2_REGEN) 		{	dif_inc += 5;	}
+	if (f2 & TR2_SEE_INVIS) 	{	dif_inc += 4;	}
+	if (f2 & TR2_FREE_ACT) 		{	dif_inc += 7;	}
 	if (f2 & TR2_SPEED)		{	dif_inc += 40;	smithing_cost.con += 5;	}
 	if (f3 & TR3_CHEAT_DEATH) 	{	dif_inc += 13;	}
 	if (f3 & TR3_STAND_FAST) 	{	dif_inc += 2;	}
@@ -3013,11 +2974,11 @@ int object_difficulty(object_type *o_ptr)
 	if (f2 & TR2_RES_POIS)		{	dif_inc += 5;	}
 	
 	// Other Resistances
-	if (f2 & TR2_RES_BLIND)		{	dif_inc += 3;	}
-	if (f2 & TR2_RES_CONFU)		{	dif_inc += 3;	}
+	if (f2 & TR2_RES_BLIND)		{	dif_inc += 2;	}
+	if (f2 & TR2_RES_CONFU)		{	dif_inc += 2;	}
 	if (f2 & TR2_RES_STUN)		{	dif_inc += 2;	}
 	if (f2 & TR2_RES_FEAR)		{	dif_inc += 2;	}
-	if (f2 & TR2_RES_HALLU)		{	dif_inc += 2;	}
+	if (f2 & TR2_RES_HALLU)		{	dif_inc += 1;	}
 
 	// Penalty Flags
 	if (f2 & TR2_DANGER)		{	dif_dec += 5;	} // only Danger counts
@@ -3040,15 +3001,12 @@ int object_difficulty(object_type *o_ptr)
 	{
 		int level = (&b_info[ability_index(o_ptr->skilltype[i],o_ptr->abilitynum[i])])->level;
 
-		dif_inc += 4 + (level / 3);
+		dif_inc += 5 + (level / 3);
 		smithing_cost.exp += 50 * level;
 	}
 
 	// Penalty for being an artefact
 	if (o_ptr->name1)			{	smithing_cost.uses += 2;	}
-	
-	// Cap the difficulty reduction at 8
-	if (dif_dec > 8) dif_dec = 8;
 	
 	// Set the overall difficulty
 	dif = dif_inc - dif_dec;
