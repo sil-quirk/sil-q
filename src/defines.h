@@ -1183,7 +1183,7 @@
 
 
 /* The sval codes for TV_RING */
-#define SV_RING_PERCEPTION			0
+#define SV_RING_SECRETS				0
 #define SV_RING_ERED_LUIN			1
 #define SV_RING_EVASION				2
 #define SV_RING_PROTECTION			3
@@ -1194,12 +1194,13 @@
 #define SV_RING_ACCURACY			8
 #define SV_RING_FREE_ACTION			9
 #define SV_RING_COWARDICE			10
-#define SV_RING_TRUE_SIGHT			11
+#define SV_RING_VANGUARD			11
 #define SV_RING_VENOM				12
-#define SV_RING_HUNGER				21
+#define SV_RING_LAIQUENDI			21
 #define SV_RING_ATTENTION			22
 
 #define SV_RING_MELIAN			30
+#define SV_RING_MAIRON			31
 #define SV_RING_BARAHIR			32
 #define SV_RING_SELF_MADE		40
 

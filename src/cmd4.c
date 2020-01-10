@@ -10240,8 +10240,8 @@ void apply_magic_fake(object_type *o_ptr)
 					break;
 				}
 
-				/* Ring of Perception */
-				case SV_RING_PERCEPTION:
+				/* Ring of Secrets */
+				case SV_RING_SECRETS:
 				{
 					/* Bonus to perception */
 					if (o_ptr->pval < 1) o_ptr->pval = 1;
@@ -10253,6 +10253,14 @@ void apply_magic_fake(object_type *o_ptr)
 				case SV_RING_ERED_LUIN:
 				{
 					/* Bonus to will */
+					if (o_ptr->pval < 1) o_ptr->pval = 1;
+					break;
+				}
+
+				/* Ring of the Laiquendi */
+				case SV_RING_LAIQUENDI:
+				{
+					/* Bonus to stealth and archery */
 					if (o_ptr->pval < 1) o_ptr->pval = 1;
 					break;
 				}

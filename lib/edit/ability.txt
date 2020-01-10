@@ -178,6 +178,7 @@ I:1:1:3
 D:Allows you to use the '-' command to give ordinary arrows
 D: a +3 bonus. Takes one turn for each arrow.
 T:31:1:1   # Gloves (leather gloves only)
+T:45:0:99  # Ring
 
 N:22:Point Blank Archery
 I:1:2:4
@@ -222,7 +223,6 @@ D:Arrows fired the turn after killing an enemy with an arrow do twice their
 D: normal damage.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
-T:45:0:99  # Ring
 
 N:28:Dexterity
 I:1:8:10

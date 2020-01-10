@@ -2153,16 +2153,16 @@ static void a_m_aux_3(object_type *o_ptr, int level)
 					break;
 				}
 
-				/* Ring of Perception */
-				case SV_RING_PERCEPTION:
+				/* Ring of Secrets */
+				case SV_RING_SECRETS:
 				{
 					/* Bonus to perception */
-					o_ptr->pval = (level + dieroll(10)) / 7;
+					o_ptr->pval = (level + dieroll(10)) / 9;
 					
 					// can't be zero
 					if (o_ptr->pval == 0)
 					{
-						o_ptr->pval = +1;
+						o_ptr->pval = 1;
 					}
 	
 					break;
@@ -2173,6 +2173,14 @@ static void a_m_aux_3(object_type *o_ptr, int level)
 				{
 					/* Bonus to will */
 					o_ptr->pval = (level + dieroll(10)) / 20 + 1;
+					break;
+				}
+
+				/* Ring of the Laiquendi */
+				case SV_RING_LAIQUENDI:
+				{
+					/* Bonus to stealth and archery */
+					o_ptr->pval = 1;
 					break;
 				}
 			}
