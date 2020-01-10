@@ -3314,8 +3314,8 @@ static bool cave_gen(void)
 	if (cheat_room) msg_format("Fixed forge count is %d.", p_ptr->fixed_forge_count);
 	if (cheat_room) msg_format("Forge count is %d.", p_ptr->forge_count);
 
-	// guarantee a forge at 100, 500, 900
-	if ((8 * p_ptr->fixed_forge_count) <= (p_ptr->depth - 2) || p_ptr->fixed_forge_count > p_ptr->forge_count)
+	// guarantee a forge at 100, 300, 500, 700, 900
+	if ((4 * p_ptr->fixed_forge_count) <= (p_ptr->depth - 2) || p_ptr->fixed_forge_count > p_ptr->forge_count)
 	{
 		int y = rand_range(5, p_ptr->cur_map_hgt - 5);
 		int x = rand_range(5, p_ptr->cur_map_wid - 5);
