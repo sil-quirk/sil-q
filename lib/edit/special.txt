@@ -129,6 +129,16 @@ F:STAND_FAST | RES_FEAR
 F:IGNORE_ALL
 
 
+N:8:of Ladros
+W:8:10:0:1000
+C:0:0:0:0:0:0:0
+T:36:0:7
+T:37:4:6
+T:30:0:2
+T:31:0:2
+F:RES_COLD | IGNORE_ALL
+
+
 ###
 
 
@@ -177,7 +187,7 @@ N:21:of Gondolin
 W:0:2:10:1000
 C:0:0:0:0:0:0:0
 T:22:0:99
-T:23:7:99
+T:23:10:99
 T:17:0:99
 F:SLAY_ORC | SLAY_TROLL
 
@@ -187,7 +197,7 @@ N:22:of Doriath
 W:0:2:0:2000
 C:0:0:0:0:0:0:0
 T:22:0:99
-T:23:7:99
+T:23:10:99
 T:17:0:99
 F:SLAY_SPIDER | SLAY_WOLF
 
@@ -196,7 +206,7 @@ N:23:of Nargothrond
 W:9:2:0:2000
 C:0:0:0:0:0:0:0
 T:22:0:99
-T:23:7:99
+T:23:10:99
 F:SLAY_RAUKO | SLAY_DRAGON
 
 
@@ -205,7 +215,7 @@ W:7:2:0:2000
 C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:0:99
-T:23:7:99
+T:23:10:99
 F:SLAY_UNDEAD | FREE_ACT
 
 
@@ -224,13 +234,13 @@ F:VAMPIRIC | HUNGER | LIGHT_CURSE
 ## T:22:12:99
 ## T:23:7:99
 
-# Swords and glaives
+# Non-curved swords and glaives
 
 N:26:(Defender)
 W:0:2:0:1000
 C:0:0:0:1:0:0:0
 T:22:4:4
-T:23:7:99
+T:23:10:99
 F:IGNORE_ALL
 
 
@@ -247,7 +257,6 @@ T:23:10:99
 B:0/5
 
 
-# All but daggers, curved swords, quarterstaves, sceptres, throwing axes
 # (ability 0/8 is Whirlwind Attack)
 
 N:28:of Fury
@@ -256,7 +265,7 @@ C:0:0:1:0:0:0:0
 T:21:8:8
 T:22:1:4
 T:22:12:99
-T:23:10:99
+T:23:7:99
 B:0/8
 F:AGGRAVATE | LIGHT_CURSE
 
@@ -266,7 +275,7 @@ F:AGGRAVATE | LIGHT_CURSE
 N:30:of Shadows
 W:6:5:0:1000
 C:0:0:1:0:0:0:3
-T:23:7:99
+T:23:10:99
 F:DARKNESS | SONG
 
 
@@ -275,9 +284,16 @@ F:DARKNESS | SONG
 N:31:of the Feanorians
 W:11:5:0:1000
 C:0:0:0:0:0:0:1
-T:23:7:99
+T:23:10:99
 F:GRA | DEX | DANGER
 
+
+N:32:(Balanced)
+W:14:8:0:1000
+C:0:0:0:0:0:0:0
+T:22:1:2
+T:23:10:99
+F:ACCURATE
 
 # Daggers only
 
@@ -317,8 +333,6 @@ C:1:0:1:0:0:0:1
 T:22:1:2
 F:GRA | LIGHT
 
-
-# 37 and 38 free
 
 # Warhammers only
 # (ability 0/2 is Knock Back)
@@ -376,6 +390,23 @@ T:23:4:4
 F:LIGHT | SUST_GRA | SUST_DEX | SONG
 
 
+N:45:of Black Iron
+W:0:1:0:1000
+C:0:0:1:0:0:0:0
+T:23:7:7
+T:23:25:25
+F:SLAY_MAN_OR_ELF | FEAR
+
+
+N:46:of Udun
+W:12:10:0:1000
+C:0:0:0:0:0:0:0
+T:23:7:7
+T:23:25:25
+F:BRAND_FIRE | TRAITOR
+
+
+
 ###
 
 # While there are no obviously bad melee weapons, 'of Fury' and '(Vampiric)'
@@ -390,8 +421,16 @@ C:0:0:0:0:0:0:1
 T:20:2:3
 F:TUNNEL
 
+# (ability 7/2 is Song of Delvings)
 
-##### Helms/Crowns #####
+N:52:of the Longbeards
+W:0:1:4:1000
+C:0:0:0:0:0:0:0
+T:20:0:3
+B:7/2
+
+
+##### Helms #####
 
 
 N:71:of Brilliance
@@ -432,7 +471,6 @@ W:0:1:0:3000
 C:0:0:0:0:0:0:1
 T:39:2:2
 F:GRA
-
 
 ###
 
@@ -552,8 +590,15 @@ F:SHARPNESS
 
 ##### Boots #####
 
-# boots only
 
+N:110:of Shining Footsteps
+W:0:8:0:1000
+C:0:0:0:0:0:0:0
+T:30:1:3
+F:RADIANCE
+
+
+# boots only
 N:111:of Softest Tread
 W:0:1:0:1000
 C:0:0:0:0:0:0:3

@@ -323,6 +323,7 @@ N:60:Disguise
 I:3:0:3
 D:Halves any bonuses that awake but unwary enemies have
 D: to notice you due to you being in their line of sight.
+T:30:0:99  # Boots
 T:35:0:99  # Cloak
 T:36:0:99  # Soft Armour
 T:45:0:99  # Ring
@@ -370,6 +371,7 @@ I:3:5:8
 P:3/0
 D:Gives a +10 stealth bonus towards making enemies become unwary
 D: when you are out of their line of sight.
+T:30:0:99  # Boots
 T:35:0:99  # Cloak
 T:36:0:99  # Soft Armour
 T:45:0:99  # Ring

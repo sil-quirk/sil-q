@@ -5321,7 +5321,6 @@ int smithing_menu_aux(int *highlight)
                                  (smith_o_ptr->tval != TV_RING) &&
                                  (smith_o_ptr->tval != TV_AMULET) &&
                                  (smith_o_ptr->tval != TV_HORN) &&
-                                 !((smith_o_ptr->tval == TV_DIGGING) && (smith_o_ptr->sval == SV_SHOVEL)) &&
 				 !((smith_o_ptr->tval == TV_ARROW) && (smith_o_ptr->att > 0));
 	valid[SMT_MENU_ARTEFACT-1] = (!smith_o_ptr->name2) &&
                                  (smith_o_ptr->tval != 0) &&

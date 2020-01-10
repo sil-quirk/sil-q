@@ -81,7 +81,7 @@
 #   * Celegorm		(bow - will, slay wolf/spider)
 #   * Caranthir		(leather - stealth, dark, rage)
 #   * Curufin		(helm - perception, stealth, will, res confusion)
-#     * Celebrimbor	(gloves - smithing, free action)
+#     * Celebrimbor	(gloves - expertise, free action)
 #   * Amrod		(short sword - perception, stealth)
 #   * Amras		
 # * Fingolfin		('ringil' - rcold, light) (shield - con, rfear)
@@ -1450,17 +1450,18 @@ D:These boots have helped more than one escape from the
 D: dread forest of Taur-nu-Fuin.
 
 
-## The Pair of Boots of Irime
+## The Pair of Boots of the Mole
 ## 1st age namesake
+## (ability 2/0 is Dodging)
+## (ability 3/5 is Vanish)
 
-N:156:of Irime
+N:156:of the Mole
 I:30:1:0
-W:5:20:15:25000
-P:0:0d0:1:1d1
-F:RADIANCE | SUST_DEX
-D:Made in Valinor for Irime, sister of Fingolfin and Finarfin, these fine boots
-D: are woven with a unique enchantment that causes the wearer's very footsteps to
-D: glow with a clear white light for hours after they pass by.
+W:5:10:15:25000
+P:0:0d0:0:1d2
+B:3/5:2/0
+D:Sturdy boots of elvish make, covered in dark moleskin. They are
+D: uncannily clean.
 
 
 ## The Pair of Greaves of Orodreth
@@ -1919,6 +1920,7 @@ F:DEX | NEG_DEX
 F:STEALTH | STAND_FAST
 F:SUST_DEX | RADIANCE
 F:RES_FIRE | RES_COLD | RES_POIS
+F:RES_FEAR | RES_CONFU | REGEN
 F:FREE_ACT | SPEED
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
