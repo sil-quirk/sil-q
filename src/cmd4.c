@@ -1861,10 +1861,9 @@ typedef struct smithing_flag_cat
 #define CAT_MEL		4
 #define CAT_SLAY	5
 #define CAT_RES		6
-#define CAT_CURSE	7
-#define CAT_MISC	8
+#define CAT_MISC	7
 
-#define MAX_CATS	8
+#define MAX_CATS	7
 
 #define MAX_SMITHING_FLAGS (32*3)
 
@@ -1876,7 +1875,6 @@ static const smithing_flag_cat smithing_flag_cats[] =
 	{ CAT_MEL,		"Melee powers"	},
 	{ CAT_SLAY,		"Slays"			},
 	{ CAT_RES,		"Resistances"	},
-	{ CAT_CURSE,	"Curses"		},
 	{ CAT_MISC,		"Misc"			}
 };
 
@@ -1947,17 +1945,6 @@ static const smithing_flag_desc smithing_flag_types[] =
 	{ CAT_RES,		TR2_RES_CONFU,		2,	"Resist Confusion"		},
 	{ CAT_RES,		TR2_RES_STUN,		2,	"Resist Stunning"		},
 	{ CAT_RES,		TR2_RES_HALLU,		2,	"Resist Hallucination"	},
-	{ CAT_CURSE,	TR2_DANGER,			2,	"Danger"				},
-	{ CAT_CURSE,	TR2_FEAR,			2,	"Terror"				},
-	{ CAT_CURSE,	TR2_HUNGER,			2,	"Hunger"				},
-	{ CAT_CURSE,	TR2_DARKNESS,		2,	"Darkness"				},
-	{ CAT_CURSE,	TR2_AGGRAVATE,		2,	"Wrath"				    },
-	{ CAT_CURSE,	TR2_HAUNTED,		2,	"Haunted"			    },
-//	{ CAT_CURSE,	TR2_SLOWNESS,		2,	"Slow"					},
-	{ CAT_CURSE,	TR2_VUL_COLD,		2,	"Cold Vulnerability"	},
-	{ CAT_CURSE,	TR2_VUL_FIRE,		2,	"Fire Vulnerability"	},
-	{ CAT_CURSE,	TR2_VUL_POIS,		2,	"Poison Vulnerability"	},
-	{ CAT_CURSE,	TR3_LIGHT_CURSE,	3,	"Cursed"				},
 	{ 0,			0,					0,	""						}
 };
 
