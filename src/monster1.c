@@ -1125,29 +1125,31 @@ static void describe_monster_exp(int r_idx, const monster_lore *l_ptr)
 		/* Mention the experience */
 		text_out(format(" %ld experience.  ", (long) i));
 
-		
 
 		/* Introduction for Kills */
-		if (l_ptr->pkills)
+		if (!(r_ptr->flags1 & (RF1_PEACEFUL)))
 		{
-			if (l_ptr->flags1 & RF1_UNIQUE)
-				text_out(format("Killing %s was worth", wd_him[msex]));
+			if (l_ptr->pkills)
+			{
+				if (l_ptr->flags1 & RF1_UNIQUE)
+					text_out(format("Killing %s was worth", wd_him[msex]));
+				else
+					text_out("Killing another would be worth");
+			}
 			else
-				text_out("Killing another would be worth");
-		}
-		else
-		{
-			if (l_ptr->flags1 & RF1_UNIQUE)
-				text_out(format("Killing %s would be worth", wd_him[msex]));
-			else
-				text_out("Killing one would be worth");
-		}
+			{
+				if (l_ptr->flags1 & RF1_UNIQUE)
+					text_out(format("Killing %s would be worth", wd_him[msex]));
+				else
+					text_out("Killing one would be worth");
+			}
 
-		/* calculate the integer exp part */
-		i = adjusted_mon_exp(r_ptr, TRUE);
+			/* calculate the integer exp part */
+			i = adjusted_mon_exp(r_ptr, TRUE);
 
-		/* Mention the experience */
-		text_out(format(" %ld.  ", (long) i));
+			/* Mention the experience */
+			text_out(format(" %ld.  ", (long) i));
+		}
 	}
 }
 

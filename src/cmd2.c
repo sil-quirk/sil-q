@@ -3529,9 +3529,13 @@ void attacks_of_opportunity(int neutralized_y, int neutralized_x)
             m_ptr = &mon_list[cave_m_idx[y][x]];
             r_ptr = &r_info[m_ptr->r_idx];
             
-            // the monster must be alert, not confused, and not mindless
-            if ((m_ptr->alertness >= ALERTNESS_ALERT) && !m_ptr->confused && (m_ptr->stance != STANCE_FLEEING) && !(r_ptr->flags2 & (RF2_MINDLESS))
-                && !m_ptr->skip_next_turn && !m_ptr->skip_this_turn)
+            // the monster must be alert, not confused, and not fleeing or peaceful
+            if ((m_ptr->alertness >= ALERTNESS_ALERT) &&
+		!m_ptr->confused &&
+		(m_ptr->stance != STANCE_FLEEING) && !(r_ptr->flags2 & (RF2_MINDLESS)) &&
+		!(r_ptr->flags1 & (RF1_PEACEFUL)) &&
+		!m_ptr->skip_next_turn &&
+		!m_ptr->skip_this_turn)
             {
 		int evn = p_ptr->skill_use[S_EVN];
 		opportunity_attacks++;
@@ -3920,8 +3924,17 @@ void do_cmd_fire(int quiver)
 				// Determine the monster's evasion after all modifiers
 				total_evasion_mod = total_monster_evasion(m_ptr, TRUE);
 				
+
+				// No killing peaceful creatures
+				if (r_ptr->flags1 & (RF1_PEACEFUL))
+				{
+					hit_result = 0;
+				}
+				else
+				{
 				/* Test for hit */
-				hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);				
+					hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);				
+				}
 
 				if (hit_result <= 0 && f3 & TR3_ACCURATE)
 				{
@@ -4747,8 +4760,16 @@ void do_cmd_throw(bool automatic)
 			// Determine the monster's evasion after all modifiers
 			total_evasion_mod = total_monster_evasion(m_ptr, FALSE);
 			
-			/* Test for hit */
-			hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
+			// No killing peaceful creatures
+			if (r_ptr->flags1 & (RF1_PEACEFUL))
+			{
+				hit_result = 0;
+			}
+			else
+			{
+				/* Test for hit */
+				hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
+			}
 
 			/* If it hit... */
 			if (hit_result > 0) 

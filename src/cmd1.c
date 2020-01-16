@@ -3637,7 +3637,7 @@ bool merciless_attack(monster_type *m_ptr)
 bool abort_for_mercy_or_honour(monster_type *m_ptr)
 {
 	// Unseen enemies are okay to kill
-	if (!m_ptr->ml) return;
+	if (!m_ptr->ml) return FALSE;
 
 	if ((dishonourable_attack(m_ptr) || merciless_attack(m_ptr)) &&
 	    !get_check("Are you sure you wish to break your oath? "))

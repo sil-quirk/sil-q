@@ -327,6 +327,42 @@ D:'... great writhing, tangled brambles sprawled. Some had long stabbing
 D: thorns, some hooked barbs that rent like knives.'
 
 
+N:13:Human slave
+W:1:0
+G:@:v
+I:2:8d4:0
+A:20:1:0:1
+P:[+0]
+F:MALE | MAN | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
+D:A scarred and dirty man clad only in a loincloth. A metal collar
+D: is about his neck, and a long chain leads from it to the wall.
+
+
+N:14:Elven slave
+W:1:0
+G:@:v
+I:2:10d4:0
+A:20:2:0:2
+P:[+0]
+F:MALE | ELF | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
+D:A chained elf slumps here, filthy hair hanging to his shoulders
+D: and eyes vacant. His back and arms bear the marks of a whip.
+
+
+N:15:Orc slavemaster
+W:1:0
+G:o:g
+I:2:6d4:0
+A:0:5:4:2
+P:[+8,1d4]
+B:HIT:HURT:(+12,1d6)
+B:WHIP:DISARM:(+6,1d4)
+F:MALE | OPEN_DOOR | BASH_DOOR | SPECIAL_GEN
+F:ORC | HURT_LITE | SMART | UNLOCK_DOOR | TERRITORIAL
+D:He is one of Morgoth's grim mockeries of the firstborn.
+D: Clad in tattered leather, he wields a cudgel and a whip.
+
+
 ##### 2 #####
 
 N:21:Orc skirmisher
@@ -585,43 +621,6 @@ S:SPELL_PCT_50
 S:DIM
 D:A faded presence that perhaps once was man or elf,
 D: but is now an insubstantial thing of necromancy and shadow.
-
-
-
-N:65:Human slave
-W:5:0
-G:@:v
-I:2:8d4:0
-A:20:1:0:1
-P:[+0]
-F:MALE | MAN | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
-D:A scarred and dirty man clad only in a loincloth. A metal collar
-D: is about his neck, and a long chain leads from it to the wall.
-
-
-N:66:Elven slave
-W:5:0
-G:@:v
-I:2:10d4:0
-A:20:2:0:2
-P:[+0]
-F:MALE | ELF | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
-D:A chained elf slumps here, filthy hair hanging to his shoulders
-D: and eyes vacant. His back and arms bear the marks of a whip.
-
-
-N:67:Orc slavemaster
-W:5:0
-G:o:g
-I:2:6d4:0
-A:0:5:4:2
-P:[+8,1d4]
-B:HIT:HURT:(+12,1d6)
-B:WHIP:DISARM:(+6,1d4)
-F:MALE | OPEN_DOOR | BASH_DOOR | SPECIAL_GEN
-F:ORC | HURT_LITE | SMART | UNLOCK_DOOR | TERRITORIAL
-D:He is one of Morgoth's grim mockeries of the firstborn.
-D: Clad in tattered leather, he wields a cudgel and a whip.
 
 
 ##### 7 #####

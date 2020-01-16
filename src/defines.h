@@ -203,11 +203,11 @@
  * Locations of various monsters in the monster.txt file
  */
 
+#define R_IDX_HUMAN_SLAVE		 13
+#define R_IDX_ELF_SLAVE			 14
+#define R_IDX_ORC_SLAVEMASTER		 15
 #define R_IDX_SPIDER_HATCHLING		 32
 #define R_IDX_ORC_ARCHER		 51
-#define R_IDX_HUMAN_SLAVE		 65
-#define R_IDX_ELF_SLAVE			 66
-#define R_IDX_ORC_SLAVEMASTER		 67
 #define R_IDX_ORC_CHAMPION		 81
 #define R_IDX_ORC_CAPTAIN		 91
 #define R_IDX_BARROW_WIGHT		112

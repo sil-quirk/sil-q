@@ -1028,7 +1028,7 @@ int oath_menu(int *highlight)
 	int ch;
 	int options;
 
-	char buf[80];
+	char buf[120];
 	
 	byte attr;
 
@@ -1049,13 +1049,13 @@ int oath_menu(int *highlight)
 			attr = TERM_L_DARK;
 		}
 		
-		strnfmt(buf, 80, "%c) %s", (char) 'a' + i - 1, oath_name[i]);
+		strnfmt(buf, 120, "%c) %s", (char) 'a' + i - 1, oath_name[i]);
 		Term_putstr(COL_DESCRIPTION,  i + 3, -1, attr, buf);
 		
 		if (*highlight == i)
 		{
 			// highlight the label
-			strnfmt(buf, 80, "%c)", (char) 'a' + i - 1);
+			strnfmt(buf, 120, "%c)", (char) 'a' + i - 1);
 			Term_putstr(COL_DESCRIPTION,  i + 3, -1, TERM_L_BLUE, buf);
 			
 			/* Indent output by 2 character, and wrap at column 70 */
@@ -1066,16 +1066,16 @@ int oath_menu(int *highlight)
 
 			if (oath_invalid(i))
 			{
-				strnfmt(buf, 80, "It is too late to vow to leave Angband %s.", oath_desc1[i]);
+				strnfmt(buf, 120, "It is too late to vow to leave Angband %s.", oath_desc1[i]);
 				text_out_to_screen(attr, buf);
 			}
 			else
 			{
-				strnfmt(buf, 80, "You vow to leave Angband %s.\n\n", oath_desc1[i]);
+				strnfmt(buf, 120, "You vow to leave Angband %s.\n\n", oath_desc1[i]);
 				text_out_to_screen(attr, buf);
-				strnfmt(buf, 80, "You may not %s.\n", oath_desc2[i]);
+				strnfmt(buf, 120, "You may not %s.\n", oath_desc2[i]);
 				text_out_to_screen(attr, buf);
-				strnfmt(buf, 80, "As long as you keep this oath, gain %s.\n\n", oath_reward[i]);
+				strnfmt(buf, 120, "As long as you keep this oath, gain %s.\n\n", oath_reward[i]);
 				text_out_to_screen(attr, buf);
 			}			
 		

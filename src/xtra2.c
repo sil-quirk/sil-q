@@ -2396,6 +2396,11 @@ s32b adjusted_mon_exp(const monster_race *r_ptr, bool kill)
 		{
 			exp = (mexp) / (mkills + 1);
 		}
+
+		if (r_ptr->flags1 & RF1_PEACEFUL)
+		{
+			exp = 0;
+		}
 	}
 	else
 	{
@@ -4797,7 +4802,10 @@ bool get_aim_dir(int *dp, int range)
 	}
 
 	/* No direction */
-	if (!dir) return (FALSE);
+	if (!dir)
+	{
+		return (FALSE);
+	}
 
 	/* Save the direction */
 	p_ptr->command_dir = dir;
