@@ -3636,6 +3636,9 @@ bool merciless_attack(monster_type *m_ptr)
 
 bool abort_for_mercy_or_honour(monster_type *m_ptr)
 {
+	// Unseen enemies are okay to kill
+	if (!m_ptr->ml) return;
+
 	if ((dishonourable_attack(m_ptr) || merciless_attack(m_ptr)) &&
 	    !get_check("Are you sure you wish to break your oath? "))
 	{
@@ -3647,6 +3650,9 @@ bool abort_for_mercy_or_honour(monster_type *m_ptr)
 
 void break_honour_and_mercy_oath(monster_type *m_ptr, int damage)
 {
+	// Unseen enemies are okay to kill
+	if (!m_ptr->ml) return;
+
 	monster_race* r_ptr = &r_info[m_ptr->r_idx];
 
 	if (m_ptr->stance == STANCE_FLEEING)
