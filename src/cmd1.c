@@ -3750,6 +3750,16 @@ void py_attack_aux(int y, int x, int attack_type)
 		abort_attack = TRUE;
 	}
 
+	if (r_ptr->flags1 & (RF1_PEACEFUL))
+	{
+		if (attack_type == ATT_MAIN)
+		{
+			msg_format("You stop before you bump into %s.", m_name);
+		}
+
+		abort_attack = TRUE;
+	}
+
     // inscribing an object with "!a" produces prompts to confirm that you with to attack with it
     // idea and code from MarvinPA
     if (o_ptr->obj_note && !p_ptr->truce && m_ptr->ml)

@@ -111,6 +111,12 @@ static void describe_monster_spells(int r_idx, const monster_lore *l_ptr)
 		vp[vn++] = "throw boulders";
 		attack = 96+2;
 	}
+	
+	if (l_ptr->flags4 & (RF4_THROW_WEB))
+	{
+		vp[vn++] = "throw web";
+		attack = 96+23;
+	}
 
 	/* Describe innate attacks */
 	if (vn)
@@ -152,6 +158,10 @@ static void describe_monster_spells(int r_idx, const monster_lore *l_ptr)
 			else if (attack == 96+2)
 			{
 				text_out_c(TERM_UMBER, format(" (%+d, 6d%d)", r_ptr->spell_power, get_sides(attack)));
+			}
+			else if (attack == 96+23)
+			{
+				text_out_c(TERM_UMBER, format(" (%+d)", r_ptr->spell_power));
 			}
 		}
 

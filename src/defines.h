@@ -205,6 +205,9 @@
 
 #define R_IDX_SPIDER_HATCHLING		 32
 #define R_IDX_ORC_ARCHER		 51
+#define R_IDX_HUMAN_SLAVE		 65
+#define R_IDX_ELF_SLAVE			 66
+#define R_IDX_ORC_SLAVEMASTER		 67
 #define R_IDX_ORC_CHAMPION		 81
 #define R_IDX_ORC_CAPTAIN		 91
 #define R_IDX_BARROW_WIGHT		112
@@ -829,6 +832,7 @@
 #define GF_AWAY_ALL		24    // teleports monsters (XdY) squares away                          ( - m - - ) *
 #define GF_IDENTIFY		25    // identifies objects on the ground                               ( - - o - ) *
 
+#define GF_WEB		26	// creates a web trap where it lands
 
 /*
  * Some constants for the "learn" code.  These generalized from the
@@ -2222,7 +2226,7 @@
 #define RF1_MALE			0x00000004	/* Male gender */
 #define RF1_FEMALE			0x00000008	/* Female gender */
 #define RF1_CHAR_CLEAR		0x00000010	/* Absorbs symbol */
-#define RF1_RF1XXX1         0x00000020	/* Unused */
+#define RF1_PEACEFUL            0x00000020	/* Player may not attack */
 #define RF1_ATTR_CLEAR		0x00000040	/* Absorbs color */
 #define RF1_ATTR_MULTI		0x00000080	/* Changes color */
 #define RF1_FORCE_DEPTH		0x00000100	/* Start at "correct" depth */
@@ -2367,7 +2371,7 @@
 #define RF4_SNG_OATHS      0x00100000  /* Sing a song of oaths */
 #define RF4_RF4XXX22       0x00200000  /*  */
 #define RF4_RF4XXX23       0x00400000  /*  */
-#define RF4_RF4XXX24       0x00800000  /*  */
+#define RF4_THROW_WEB      0x00800000  /* Throw a web over the player */
 #define RF4_RF4XXX25       0x01000000  /*  */
 #define RF4_RF4XXX26       0x02000000  /*  */
 #define RF4_RF4XXX27       0x04000000  /*  */

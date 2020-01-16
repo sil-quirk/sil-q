@@ -427,6 +427,7 @@ static byte spell_color(int type)
 		case GF_DARK:		return (TERM_L_DARK);
 		case GF_IDENTIFY:	return (TERM_WHITE);
 		case GF_EARTHQUAKE:	return (TERM_SLATE);
+		case GF_WEB:		return (TERM_L_UMBER);
 	}
 
 	/* Standard "color" */
@@ -3081,7 +3082,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
 	dam = damroll(dd, ds);
 
 	// generate the display messages for undodgable attacks
-	if ((dam > 0) && (typ != GF_ARROW) && (typ != GF_BOULDER))
+	if ((dam > 0) && (typ != GF_ARROW) && (typ != GF_BOULDER) && (typ != GF_WEB))
 	{
 		update_combat_rolls1b(m_ptr, PLAYER, m_ptr->ml);
 		
@@ -3304,6 +3305,37 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
 
 				/* Make some noise */
 				monster_perception(TRUE, FALSE, -10);
+			}
+
+			break;
+		}
+
+		case GF_WEB:
+		{
+			int total_attack_mod, total_evasion_mod, hit_result;
+			// attacks with GF_WEB will require an attack roll
+			
+			// determine the monster's attack score
+			total_attack_mod = total_monster_attack(m_ptr, r_ptr->spell_power);
+
+			// determine the player's evasion score
+			total_evasion_mod = total_player_evasion(m_ptr, FALSE);
+						
+			// perform the hit roll
+			hit_result = hit_roll(total_attack_mod, total_evasion_mod, m_ptr, PLAYER, TRUE);
+			
+			if (hit_result > 0)
+			{
+				if (blind)
+				{
+					msg_print("Something sticky falls over you.");
+				}
+				else
+				{
+					msg_print("You are enveloped in a thick web.");
+				}
+
+				cave_set_feat(p_ptr->py, p_ptr->px, FEAT_TRAP_WEB);
 			}
 
 			break;

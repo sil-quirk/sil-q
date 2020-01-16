@@ -3669,6 +3669,9 @@ void do_cmd_fire(int quiver)
 		tx = p_ptr->px;
 	}
 
+	m_ptr = &mon_list[cave_m_idx[ty][tx]];
+	r_ptr = &r_info[m_ptr->r_idx];
+
 	/* Handle player fear */
 	if (p_ptr->afraid)
 	{
@@ -3679,7 +3682,14 @@ void do_cmd_fire(int quiver)
 		return;
 	}
 
-	if (abort_for_mercy_or_honour(&mon_list[cave_m_idx[ty][tx]]))
+	if (r_ptr->flags1 & (RF1_PEACEFUL))
+	{
+		msg_format("You lower your bow.");
+
+		return;
+	}
+
+	if (abort_for_mercy_or_honour(m_ptr))
 	{
 		return;
 	}
@@ -4340,6 +4350,9 @@ void do_cmd_throw(bool automatic)
 	int dam = 0, prt = 0, prt_percent = 100;
 	int net_dam = 0;
 
+	monster_type *m_ptr;
+	monster_race *r_ptr;
+
 	object_type *o_ptr;
 
 	object_type *i_ptr;
@@ -4513,6 +4526,9 @@ void do_cmd_throw(bool automatic)
 		tx = p_ptr->px;
 	}
 
+	m_ptr = &mon_list[cave_m_idx[ty][tx]];
+	r_ptr = &r_info[m_ptr->r_idx];
+
 	/* Handle player fear */
 	if (p_ptr->afraid)
 	{
@@ -4523,7 +4539,17 @@ void do_cmd_throw(bool automatic)
 		return;
 	}
 
-	if (abort_for_mercy_or_honour(&mon_list[cave_m_idx[ty][tx]]))
+	if (r_ptr->flags1 & (RF1_PEACEFUL))
+	{
+		char m_name[80];
+		monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+
+		msg_format("You stop before you hit %s.", m_name);
+
+		return;
+	}
+
+	if (abort_for_mercy_or_honour(m_ptr))
 	{
 		return;
 	}
@@ -4663,8 +4689,8 @@ void do_cmd_throw(bool automatic)
 		/* Handle monster */
 		if (cave_m_idx[y][x] > 0)
 		{
-			monster_type *m_ptr = &mon_list[cave_m_idx[y][x]];
-			monster_race *r_ptr = &r_info[m_ptr->r_idx];
+			m_ptr = &mon_list[cave_m_idx[y][x]];
+			r_ptr = &r_info[m_ptr->r_idx];
 						
 			bool potion_effect = FALSE;
 			int pdam = 0;
