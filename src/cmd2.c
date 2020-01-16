@@ -2345,18 +2345,30 @@ static bool do_cmd_disarm_test(int y, int x)
  */
 bool break_free_of_web(void)
 {
-	int difficulty = 7;
+	int difficulty = p_ptr->depth / 2;
 	int score = MAX(p_ptr->stat_use[A_STR] * 2, difficulty-8); // capped so you always have some chance
+	u32b f1, f2, f3;
+	object_type *o_ptr = &inventory[INVEN_WIELD];
 	
 	/* Disturb the player */
 	disturb(0, 0);
 	
+	object_flags(o_ptr, &f1, &f2, &f3);
+
+	bool appropriate_weapon =
+	   (f1 & TR1_SLAY_SPIDER || f1 & TR1_SHARPNESS || f1 & TR1_SHARPNESS2);
+
+	if (appropriate_weapon)
+	{
+		difficulty -= 5;
+	}
+
 	// Free action helps a lot
 	if (p_ptr->free_act) difficulty -= 10 * p_ptr->free_act;
 	
 	// Spider bane bonus helps
 	difficulty -= spider_bane_bonus();
-	
+
 	if (skill_check(PLAYER, score, difficulty, NULL) <= 0)
 	{	
 		msg_print("You fail to break free of the web.");
@@ -2371,7 +2383,10 @@ bool break_free_of_web(void)
 	}
 	else
 	{
-		msg_print("You break free!");
+		if (appropriate_weapon)
+			msg_print("You cut yourself free!");
+		else
+			msg_print("You break free!");
 		
 		/* Forget the trap */
 		cave_info[p_ptr->py][p_ptr->px] &= ~(CAVE_MARK);
