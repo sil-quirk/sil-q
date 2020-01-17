@@ -2437,6 +2437,34 @@ bool make_attack_ranged(monster_type *m_ptr, int attack)
 			break;
 		}
 
+		/* RF4_RALLY */
+		case 96+24:
+		{
+			if (blind) msg_print("You hear a rallying cry.");
+			else msg_format("%^s shouts a rallying cry.", m_name);
+			
+			for (int i = mon_max - 1; i >= 1; i--)
+			{
+				monster_type *target = &mon_list[i];
+				monster_race *r_ptr = &r_info[target->r_idx];
+
+				// Rally works on living monsters which are orcs, men, or raukar
+				if (!target->r_idx ||
+				    target == m_ptr ||
+				    (!(r_ptr->flags3 & (RF3_ORC)) &&
+				     !(r_ptr->flags3 & (RF3_MAN)) &&
+				     !(r_ptr->flags3 & (RF3_RAUKO))))
+				{
+					continue;
+				}
+				
+				int d = distance(m_ptr->fx, m_ptr->fy, target->fx, target->fy);
+				target->tmp_morale += ((spower * 10 / (d+4)) * 10);
+			}
+
+			break;
+		}
+
 	/* Paranoia */
 		default:
 		{

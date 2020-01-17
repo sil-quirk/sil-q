@@ -2372,7 +2372,7 @@
 #define RF4_RF4XXX22       0x00200000  /*  */
 #define RF4_RF4XXX23       0x00400000  /*  */
 #define RF4_THROW_WEB      0x00800000  /* Throw a web over the player */
-#define RF4_RF4XXX25       0x01000000  /*  */
+#define RF4_RALLY          0x01000000  /* Rally fleeing foes */
 #define RF4_RF4XXX26       0x02000000  /*  */
 #define RF4_RF4XXX27       0x04000000  /*  */
 #define RF4_RF4XXX28       0x08000000  /*  */
@@ -2423,14 +2423,6 @@
 #define RF4_ATTACK_MASK \
         (RF4_ARCHERY_MASK)
 
-
-/*
- * Harassment (not direct damage) attacks.
- * Need special treatment in AI.
- */
-#define RF4_HARASS_MASK \
-        (RF4_EARTHQUAKE | RF4_SHRIEK | RF4_SCREECH | RF4_DARKNESS | RF4_FORGET | RF4_SCARE \
-		| RF4_CONF | RF4_HOLD | RF4_SLOW | RF4_HATCH_SPIDER | RF4_DIM)
 
 /*
  * Harassment (not direct damage) attacks.

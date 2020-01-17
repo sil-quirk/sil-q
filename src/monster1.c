@@ -552,6 +552,7 @@ static void describe_monster_abilities(int r_idx, const monster_lore *l_ptr)
     if (l_ptr->flags4 & (RF4_SNG_PIERCING))       vp[vn++] = "song of piercing";
     if (l_ptr->flags4 & (RF4_SNG_OATHS))          vp[vn++] = "song of oaths";
     if (l_ptr->flags4 & (RF4_HATCH_SPIDER))       vp[vn++] = "hatch spider";
+    if (l_ptr->flags4 & (RF4_RALLY))              vp[vn++] = "rally foes";
    
     /* Describe Abilities */
 	if (vn)
