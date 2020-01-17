@@ -343,7 +343,7 @@ D: for thirty years.
 N:20:of Andreth
 I:36:2:2
 W:4:10:30:25000
-P:0:0d0:+2:1d0
+P:0:0d0:2:1d0
 F:SONG | SUST_GRA
 D:This robe was once worn by Andreth, wise-woman of Beor's House.
 D: It is a deep rich green and patterned with golden thread.
@@ -356,7 +356,7 @@ N:21:of Aredhel
 G:(:w
 I:36:2:0
 W:6:10:30:25000
-P:0:0d0:+3:1d0
+P:0:0d0:3:1d0
 F:FREE_ACT | SUST_GRA
 D:The White Lady of the Noldor once wore this robe, cut of the
 D: finest white cloth and hemmed with silver thread.
@@ -1130,7 +1130,7 @@ D: and resolute always against the power of Morgoth.
 ## (ability 6/5 is Artifice)
 
 N:107:of Telchar
-I:21:8:1
+I:21:8:0
 W:11:20:45:250000
 P:0:4d2:0:0d0
 F:SUST_STR | RES_FIRE
@@ -1493,12 +1493,25 @@ D: of the ice of the Helcaraxe.
 
 ##### Gloves #####
 
+## The Set of Gloves of the Swallow
+## (ability 1/1 is Fletchery)
+
+N:161:of the Swallow
+I:31:1:2
+W:8:12:5:36000
+P:0:0d0:0:1d1
+F:ARCHERY
+B:1/1
+D:This pair of gloves bears the insignia of the House of the Swallow,
+D: who defend Gondolin from harm with their mighty bows.
+
+
 ## The Set of Gloves of Celebrimbor
 ## 1st age namesake
 ## (ability 6/4 is Expertise)
 
 N:162:of Celebrimbor
-I:31:1:4
+I:31:1:0
 W:10:12:5:36000
 P:0:0d0:0:1d1
 B:6/4
@@ -1534,16 +1547,14 @@ D: who perished along with many of Morgoth's host at Dagor-nuin-Giliath.
 
 
 ## The Set of Gauntlets of Bregolas
-## (ability 0/0 is Power)
 
 N:166:of Bregolas
 I:31:2:0
-W:10:10:60:40000
-P:0:0d0:0:1d2
+W:12:8:60:40000
+P:2:0d0:0:1d2
 F:RES_COLD
-B:0/0
 D:The fur-lined gauntlets of Bregolas, Lord of Ladros, who died
-D: fighting shoulder to shoulder with Fingolfin's sons during the Dagor
+D: fighting shoulder to shoulder alongside Fingolfin's sons during the Dagor
 D: Bragollach.
 
 
@@ -1745,6 +1756,7 @@ F:INSTA_ART
 
 N:186:'Ultimate'
 I:19:0:0
+F:RES_COLD | RES_POIS | RES_HALLU | RES_STUN | RES_CONFU
 F:RADIANCE | RES_FEAR | RES_BLIND | SEE_INVIS | SUST_DEX
 F:SUST_CON | SUST_STR | FREE_ACT | PERCEPTION | STEALTH
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
@@ -1904,7 +1916,7 @@ N:197:'Ultimate'
 I:31:0:0
 F:STR | DEX | NEG_STR | NEG_DEX
 F:ARCHERY 
-F:TUNNEL
+F:TUNNEL 
 F:SUST_STR | SUST_DEX
 F:FREE_ACT | RES_FIRE | RES_COLD | RES_POIS
 F:HUNGER | DANGER | AGGRAVATE | LIGHT_CURSE | DARKNESS

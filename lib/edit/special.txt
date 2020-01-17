@@ -80,7 +80,7 @@ F:RES_POIS
 
 
 N:3:of Resilience
-W:10:4:0:1000
+W:10:8:0:1000
 C:0:0:0:0:0:0:1
 T:36:0:99
 T:37:0:99
@@ -93,7 +93,7 @@ F:IGNORE_ALL
 N:4:of Brethil
 W:6:6:0:1000
 C:0:0:0:0:0:0:0
-T:36:0:7
+T:36:4:7
 T:30:0:1
 T:31:0:1
 F:FREE_ACT | IGNORE_ALL
@@ -129,13 +129,13 @@ F:STAND_FAST | RES_FEAR
 F:IGNORE_ALL
 
 
+# Gauntlets and greaves
+
 N:8:of Ladros
 W:8:10:0:1000
 C:0:0:0:0:0:0:0
-T:36:0:7
-T:37:4:6
-T:30:0:2
-T:31:0:2
+T:30:2:2
+T:31:2:2
 F:RES_COLD | IGNORE_ALL
 
 
@@ -148,7 +148,6 @@ C:0:0:0:0:0:0:0
 T:36:0:99
 T:37:0:99
 F:VUL_POIS
-
 
 
 ##### Shields #####
@@ -182,100 +181,125 @@ F:AGGRAVATE
 ##### Weapons #####
 
 # Includes arrows
+# Shortswords, longswords, bastard swords
+# Spears, great spears, glaives, mithril swords
 
 N:21:of Gondolin
 W:0:2:10:1000
 C:0:0:0:0:0:0:0
-T:22:0:99
-T:23:10:99
+T:22:1:4
+T:23:10:21
 T:17:0:99
+T:23:28:30
 F:SLAY_ORC | SLAY_TROLL
 
 # Includes arrows
+# Shortswords, longswords, bastard swords
+# Spears, great spears, glaives, mithril swords
 
 N:22:of Doriath
-W:0:2:0:2000
+W:2:2:0:2000
 C:0:0:0:0:0:0:0
-T:22:0:99
-T:23:10:99
+T:22:1:4
+T:23:10:21
+T:23:28:30
 T:17:0:99
 F:SLAY_SPIDER | SLAY_WOLF
 
+# Shortswords, longswords, bastard swords
+# Spears, great spears, glaives, mithril swords
 
 N:23:of Nargothrond
 W:9:2:0:2000
 C:0:0:0:0:0:0:0
-T:22:0:99
-T:23:10:99
+T:22:1:4
+T:23:10:21
+T:23:28:30
 F:SLAY_RAUKO | SLAY_DRAGON
 
+# Warhammers, glaives, greatswords, great axes
 
 N:24:of Final Rest
 W:7:2:0:2000
 C:0:0:0:0:0:0:0
 T:21:8:8
-T:22:0:99
-T:23:10:99
+T:22:4:4
+T:22:13:13
+T:23:25:25
 F:SLAY_UNDEAD | FREE_ACT
 
+# Warhammers, hand and battle axes, curved swords, longswords
+# and bastard swords
+# (ability 0/0 is Power)
 
-# Blades, axes, and polearms (except hand axes)
-
-N:25:(Vampiric)
-W:7:4:0:3000
+N:25:of the Easterlings
+W:0:2:0:2000
 C:0:0:0:0:0:0:0
-T:22:1:4
-T:22:12:99
-T:23:1:99
-F:VAMPIRIC | HUNGER | LIGHT_CURSE
+T:21:8:8
+T:22:11:12
+T:23:7:7
+T:23:17:21
+B:0/0
 
 
-## T:22:2:4
-## T:22:12:99
-## T:23:7:99
+# Warhammers, axes, digging tools
 
-# Non-curved swords and glaives
-
-N:26:(Defender)
-W:0:2:0:1000
-C:0:0:0:1:0:0:0
-T:22:4:4
-T:23:10:99
-F:IGNORE_ALL
+N:26:of the Firebeards
+W:4:8:0:2000
+C:0:0:0:0:0:0:0
+T:21:8:8
+T:22:11:13
+T:20:1:3
+F:REGEN | RES_FIRE
 
 
-# All but daggers, curved swords, quarterstaves, sceptres, throwing axes
+# Warhammers, battle-axes, great-axes
+# Greatswords, glaives
 # (ability 0/5 is Follow-Through)
 
 N:27:of Hador's House
 W:8:3:0:3000
 C:0:0:1:0:0:0:0
 T:21:8:8
-T:22:1:4
+T:22:4:4
 T:22:12:99
-T:23:10:99
+T:23:25:25
 B:0/5
 
 
+# Warhammers, battle-axes, great-axes
+# Greatswords, glaives
 # (ability 0/8 is Whirlwind Attack)
 
 N:28:of Fury
-W:10:2:0:2000
+W:10:4:0:2000
 C:0:0:1:0:0:0:0
 T:21:8:8
-T:22:1:4
+T:22:4:4
 T:22:12:99
-T:23:7:99
+T:23:25:25
 B:0/8
 F:AGGRAVATE | LIGHT_CURSE
 
 
-# Swords only
+# Warhammers, curved swords, greatswords, axes
+
+N:29:of Thangorodrim
+W:2:4:0:1000
+C:0:0:0:0:0:0:1
+T:21:8:8
+T:23:7:7
+T:23:25:25
+T:22:11:99
+F:CON | DANGER | AGGRAVATE
+
+
+# Mithril swords only
 
 N:30:of Shadows
-W:6:5:0:1000
-C:0:0:1:0:0:0:3
-T:23:10:99
+W:12:10:0:1000
+C:1:0:1:0:0:0:3
+T:23:28:30
 F:DARKNESS | SONG
 
 
@@ -287,13 +311,6 @@ C:0:0:0:0:0:0:1
 T:23:10:99
 F:GRA | DEX | DANGER
 
-
-N:32:(Balanced)
-W:14:8:0:1000
-C:0:0:0:0:0:0:0
-T:22:1:2
-T:23:10:99
-F:ACCURATE
 
 # Daggers only
 
@@ -334,6 +351,19 @@ T:22:1:2
 F:GRA | LIGHT
 
 
+# Daggers, shortswords, longswords and mithril longswords
+# (ability 0/1 is Finesse)
+
+N:37:of Vinyamar
+W:0:2:0:3000
+C:1:0:0:0:0:0:0
+T:23:4:4
+T:23:10:17
+T:23:28:28
+F:FREE_ACT
+B:0/1
+
+
 # Warhammers only
 # (ability 0/2 is Knock Back)
 
@@ -347,7 +377,7 @@ B:0/2
 # Warhammers only
 
 N:40:of Crushing
-W:14:8:0:10000
+W:10:4:0:10000
 C:0:0:1:0:0:0:1
 T:21:8:8
 F:STR
@@ -381,30 +411,69 @@ T:21:3:3
 F:CON | RES_COLD
 
 
-# Daggers only
+# Daggers
 
 N:44:of Cuivienen
 W:0:1:0:6000
-C:0:0:0:0:0:0:1
+C:0:0:0:0:0:0:3
 T:23:4:4
 F:LIGHT | SUST_GRA | SUST_DEX | SONG
 
 
+# Curved swords, greatswords, hand axes, battle axes, greataxes, glaives
+
 N:45:of Black Iron
 W:0:1:0:1000
-C:0:0:1:0:0:0:0
+C:0:0:1:0:0:0:1
 T:23:7:7
 T:23:25:25
-F:SLAY_MAN_OR_ELF | FEAR
+T:22:4:4
+T:22:11:13
+F:SLAY_MAN_OR_ELF | NEG_GRA
 
+
+# Curved swords, greatswords, battle axes, greataxes, glaives
 
 N:46:of Udun
 W:12:10:0:1000
 C:0:0:0:0:0:0:0
 T:23:7:7
 T:23:25:25
+T:22:4:4
+T:22:12:13
 F:BRAND_FIRE | TRAITOR
 
+
+# All axes, spears, glaives, swords apart from curved blades
+
+N:47:(Balanced)
+W:14:8:0:1000
+C:0:0:0:0:0:0:0
+T:22:1:99
+T:23:10:99
+F:ACCURATE
+
+
+# Non-curved swords and glaives
+
+N:48:(Defender)
+W:0:2:0:1000
+C:0:0:0:1:0:0:0
+T:22:4:4
+T:23:10:99
+F:IGNORE_ALL
+
+
+# Glaives, great axes, curved swords, bastard swords
+
+N:49:(Vampiric)
+W:7:6:0:3000
+C:0:0:0:0:0:0:0
+T:22:4:4
+T:22:13:13
+T:23:7:7
+T:23:21:21
+F:VAMPIRIC | HUNGER | LIGHT_CURSE
 
 
 ###
@@ -418,16 +487,15 @@ F:BRAND_FIRE | TRAITOR
 N:51:of Belegost
 W:0:1:0:1000
 C:0:0:0:0:0:0:1
-T:20:2:3
+T:20:3:3
 F:TUNNEL
 
-# (ability 7/2 is Song of Delvings)
 
 N:52:of the Longbeards
-W:0:1:4:1000
-C:0:0:0:0:0:0:0
-T:20:0:3
-B:7/2
+W:0:3:4:1000
+C:1:0:0:0:0:0:0
+T:20:3:3
+F:STR
 
 
 ##### Helms #####
@@ -492,17 +560,18 @@ F:FEAR
 
 
 N:82:of Stealth
-W:0:1:0:1000
+W:0:2:0:1000
 C:0:0:0:0:0:0:3
 T:35:0:99
 F:STEALTH
 
 
 N:83:of Warmth
-W:0:1:0:1000
+W:0:2:0:1000
 C:0:0:0:0:0:0:0
 T:35:0:99
 F:RES_COLD
+
 
 N:84:of the Traveller
 W:0:1:0:1000
@@ -513,13 +582,22 @@ F:SLOW_DIGEST
 ###
 
 N:86:of Winter's Chill
-W:0:3:0:0
+W:0:1:0:0
 C:0:0:0:0:0:0:0
 T:35:0:99
 F:VUL_COLD
 
 
 ##### Bows #####
+
+# Longbows only
+
+N:91:of the Shadowed Grove
+W:6:2:0:3000
+C:0:0:0:0:0:0:3
+T:19:13:13
+F:STEALTH | HAUNTED | EASY_KNOW
+
 
 # Shortbows only
 
@@ -545,24 +623,18 @@ F:SEE_INVIS | RES_FEAR
 
 
 N:95:of Falas
-W:8:6:0:3000
+W:12:6:0:3000
 C:0:0:0:0:0:0:3
 T:19:0:99
 F:RES_COLD | PERCEPTION
 
 
 N:96:of the Falmari
-W:8:6:0:3000
-C:0:0:0:0:0:0:1
+W:12:10:0:3000
+C:0:0:0:0:0:0:0
 T:19:0:99
 F:ACCURATE | EASY_KNOW
 
-
-
-###
-
-# A cursed bow would be good. This is currently the only slot without a
-# perilous item to add danger to wielding
 
 ##### Arrows #####
 
@@ -590,11 +662,12 @@ F:SHARPNESS
 
 ##### Boots #####
 
+# Mithril greaves only
 
-N:110:of Shining Footsteps
-W:0:8:0:1000
+N:110:of the Moon's Light
+W:0:2:0:1000
 C:0:0:0:0:0:0:0
-T:30:1:3
+T:30:3:3
 F:RADIANCE
 
 
