@@ -2902,6 +2902,7 @@ int object_difficulty(object_type *o_ptr)
 	if (f1 & TR1_SLAY_UNDEAD)		{	dif_inc += 3;	}
 	if (f1 & TR1_SLAY_RAUKO)		{	dif_inc += 4;	}
 	if (f1 & TR1_SLAY_DRAGON)		{	dif_inc += 4;	}
+	if (f1 & TR1_SLAY_MAN_OR_ELF)		{	dif_inc += 5;	}
 
 	if (f1 & TR1_BRAND_COLD)		{	dif_inc += 18;	smithing_cost.str += 2;	brands++; }
 	if (f1 & TR1_BRAND_FIRE)		{	dif_inc += 14;	smithing_cost.str += 2;	brands++; }
