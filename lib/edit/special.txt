@@ -180,6 +180,16 @@ F:AGGRAVATE
 
 ##### Weapons #####
 
+
+# Daggers
+
+N:20:of Cuivienen
+W:0:1:0:6000
+C:0:0:0:0:0:0:3
+T:23:4:4
+F:LIGHT | SUST_GRA | SUST_DEX | SONG
+
+
 # Includes arrows
 # Shortswords, longswords, bastard swords
 # Spears, great spears, glaives, mithril swords
@@ -217,30 +227,28 @@ T:23:10:21
 T:23:28:30
 F:SLAY_RAUKO | SLAY_DRAGON
 
-# Warhammers, glaives, greatswords, great axes
+# All melee weapons save daggers, curved swords, quarterstaffs
 
 N:24:of Final Rest
-W:7:2:0:2000
+W:7:4:0:2000
 C:0:0:0:0:0:0:0
 T:21:8:8
-T:22:4:4
-T:22:13:13
-T:23:25:25
+T:22:0:99
+T:23:10:99
 F:SLAY_UNDEAD | FREE_ACT
 
-# Warhammers, hand and battle axes, curved swords, longswords
-# and bastard swords
-# (ability 0/0 is Power)
 
-N:25:of the Easterlings
-W:0:2:0:2000
+# Daggers, shortswords, longswords and mithril longswords
+# (ability 0/12 is Rapid Attack)
+
+N:25:of Darting Death
+W:0:2:0:3000
 C:0:0:0:0:0:0:0
-T:21:8:8
-T:22:11:12
-T:23:7:7
-T:23:17:21
-B:0/0
-
+T:23:4:4
+T:23:10:17
+T:23:28:28
+B:0/12
+F:FREE_ACT
 
 # Warhammers, axes, digging tools
 
@@ -254,7 +262,7 @@ F:REGEN | RES_FIRE
 
 
 # Warhammers, battle-axes, great-axes
-# Greatswords, glaives
+# Longswords, bastard swords, greatswords, glaives
 # (ability 0/5 is Follow-Through)
 
 N:27:of Hador's House
@@ -263,12 +271,12 @@ C:0:0:1:0:0:0:0
 T:21:8:8
 T:22:4:4
 T:22:12:99
-T:23:25:25
+T:23:17:25
 B:0/5
 
 
 # Warhammers, battle-axes, great-axes
-# Greatswords, glaives
+# Bastard swords, greatswords, glaives
 # (ability 0/8 is Whirlwind Attack)
 
 N:28:of Fury
@@ -277,21 +285,9 @@ C:0:0:1:0:0:0:0
 T:21:8:8
 T:22:4:4
 T:22:12:99
-T:23:25:25
+T:23:21:25
 B:0/8
 F:AGGRAVATE | LIGHT_CURSE
-
-
-# Warhammers, curved swords, greatswords, axes
-
-N:29:of Thangorodrim
-W:2:4:0:1000
-C:0:0:0:0:0:0:1
-T:21:8:8
-T:23:7:7
-T:23:25:25
-T:22:11:99
-F:CON | DANGER | AGGRAVATE
 
 
 # Mithril swords only
@@ -312,22 +308,13 @@ T:23:10:99
 F:GRA | DEX | DANGER
 
 
-# Daggers only
-
-N:33:(Poisoned)
-W:0:1:0:2000
-C:0:0:0:0:0:0:0
-T:23:4:4
-F:BRAND_POIS
-
-
-# Daggers only
+# Daggers and curved swords only
 # (ability 3/1 is Assassination)
 
 N:34:of Murder
 W:0:1:4:2000
 C:0:0:0:0:0:0:3
-T:23:4:4
+T:23:4:7
 B:3/1
 F:STEALTH
 
@@ -351,17 +338,22 @@ T:22:1:2
 F:GRA | LIGHT
 
 
-# Daggers, shortswords, longswords and mithril longswords
-# (ability 0/1 is Finesse)
+# Quarterstaves only
 
-N:37:of Vinyamar
-W:0:2:0:3000
+N:37:of Mithrim
+W:0:1:0:8000
 C:1:0:0:0:0:0:0
-T:23:4:4
-T:23:10:17
-T:23:28:28
-F:FREE_ACT
-B:0/1
+T:21:3:3
+F:REGEN
+
+
+# Quarterstaves only
+
+N:38:of the Helcaraxe
+W:2:6:0:8000
+C:0:0:0:0:0:0:1
+T:21:3:3
+F:CON | RES_COLD
 
 
 # Warhammers only
@@ -393,63 +385,61 @@ T:22:1:4
 B:0/6
 
 
-# Quarterstaves only
+# Warhammers, hand and battle axes, curved swords, longswords
+# and bastard swords
 
-N:42:of Mithrim
-W:0:1:0:8000
-C:1:0:0:0:0:0:0
-T:21:3:3
-F:REGEN
+# Curved swords, greatswords, battle axes, greataxes
 
-
-# Quarterstaves only
-
-N:43:of the Helcaraxe
-W:2:6:0:8000
-C:0:0:0:0:0:0:1
-T:21:3:3
-F:CON | RES_COLD
+N:43:of Udun
+W:12:10:0:1000
+C:0:0:0:0:0:0:0
+T:23:7:7
+T:23:25:25
+T:22:12:13
+F:BRAND_FIRE | CUMBERSOME
 
 
-# Daggers
+# Warhammers, curved swords, greatswords, axes
 
-N:44:of Cuivienen
-W:0:1:0:6000
-C:0:0:0:0:0:0:3
-T:23:4:4
-F:LIGHT | SUST_GRA | SUST_DEX | SONG
+N:44:of Thangorodrim
+W:2:4:0:1000
+C:0:0:1:0:0:0:1
+T:21:8:8
+T:23:7:7
+T:23:25:25
+T:22:11:99
+F:CON | CUMBERSOME
 
 
 # Curved swords, greatswords, hand axes, battle axes, greataxes, glaives
 
 N:45:of Black Iron
 W:0:1:0:1000
-C:0:0:1:0:0:0:1
+C:0:0:1:0:0:0:0
 T:23:7:7
 T:23:25:25
 T:22:4:4
 T:22:11:13
-F:SLAY_MAN_OR_ELF | NEG_GRA
+F:SLAY_MAN_OR_ELF | AGGRAVATE
 
 
-# Curved swords, greatswords, battle axes, greataxes, glaives
+# Daggers and hand axes only
 
-N:46:of Udun
-W:12:10:0:1000
+N:46:(Poisoned)
+W:0:1:0:2000
 C:0:0:0:0:0:0:0
-T:23:7:7
-T:23:25:25
-T:22:4:4
-T:22:12:13
-F:BRAND_FIRE | TRAITOR
+T:23:4:4
+T:22:11:11
+F:BRAND_POIS
 
 
-# All axes, spears, glaives, swords apart from curved blades
+# All axes, spears, glaives, swords apart from curved blades, daggers
 
 N:47:(Balanced)
 W:14:8:0:1000
 C:0:0:0:0:0:0:0
 T:22:1:99
+T:23:4:4
 T:23:10:99
 F:ACCURATE
 
@@ -592,11 +582,11 @@ F:VUL_COLD
 
 # Longbows only
 
-N:91:of the Shadowed Grove
+N:91:of Blackened Yew
 W:6:2:0:3000
-C:0:0:0:0:0:0:3
+C:1:0:2:0:0:0:0
 T:19:13:13
-F:STEALTH | HAUNTED | EASY_KNOW
+F:CUMBERSOME | EASY_KNOW
 
 
 # Shortbows only

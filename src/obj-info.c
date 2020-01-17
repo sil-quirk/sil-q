@@ -307,6 +307,12 @@ static bool describe_misc_weapon_attributes(const object_type *o_ptr, u32b f1, u
 			message = TRUE;
 		}
 	}
+	if (f3 & (TR3_CUMBERSOME))
+	{
+			p_text_out("It is cumbersome (it does not score critical hits).  ");
+			message = TRUE;
+
+	}
 	
 	return (message);
 }

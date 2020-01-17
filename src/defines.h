@@ -1799,11 +1799,11 @@
 #define TR2_RESISTANCE  (TR2_RES_COLD | TR2_RES_FIRE | TR2_RES_ELEC)
 
 
-#define TR3_DAMAGED         0x00000001L /* xxx */
-#define TR3_CHEAT_DEATH     0x00000002L /* xxx */
-#define TR3_STAND_FAST      0x00000004L /* xxx */
-#define TR3_ACCURATE        0x00000008L /* xxx */
-#define TR3_TR3XXX14        0x00000010L /* xxx */
+#define TR3_DAMAGED         0x00000001L /* Skeleton items */
+#define TR3_CHEAT_DEATH     0x00000002L /* Item breaks to save from death */
+#define TR3_STAND_FAST      0x00000004L /* Cannot be moved */
+#define TR3_ACCURATE        0x00000008L /* Reroll misses */
+#define TR3_CUMBERSOME      0x00000010L /* No critical hits */
 #define TR3_TR3XXX13        0x00000020L /* xxx */
 #define TR3_TR3XXX5         0x00000040L /* xxx */
 #define TR3_TR3XXX6			0x00000080L	/* xxx */

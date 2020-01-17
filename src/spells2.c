@@ -898,6 +898,15 @@ void self_knowledge(void)
             i++;
 		}
 
+		if (f3 & (TR3_CUMBERSOME))
+		{
+            identify[INVEN_WIELD] = TRUE;
+            strnfmt(s[i], 80, "Your weapon is cumbersome");
+            strnfmt(t[i], 80, "(no critical hits)");
+            good[i] = FALSE;
+            i++;
+		}
+
 		if (f1 & (TR1_BRAND_ELEC))
 		{
             identify[INVEN_WIELD] = TRUE;
@@ -1044,12 +1053,21 @@ void self_knowledge(void)
 		if (f3 & (TR3_ACCURATE))
 		{
             identify[INVEN_ARM] = TRUE;
-            strnfmt(s[i], 80, "Your weapon is unusually well balanced");
+            strnfmt(s[i], 80, "Your off-hand weapon is unusually well balanced");
             strnfmt(t[i], 80, "(reroll missed attacks)");
             good[i] = TRUE;
             i++;
 		}
- 
+  
+		if (f3 & (TR3_CUMBERSOME))
+		{
+            identify[INVEN_ARM] = TRUE;
+            strnfmt(s[i], 80, "Your off-hand weapon is cumbersome");
+            strnfmt(t[i], 80, "(no critical hits)");
+            good[i] = FALSE;
+            i++;
+		}
+
 		if (f1 & (TR1_BRAND_ELEC))
 		{
             identify[INVEN_ARM] = TRUE;
@@ -1277,7 +1295,16 @@ void self_knowledge(void)
             good[i] = TRUE;
             i++;
 		}
-	}
+		
+		if (f3 & (TR3_CUMBERSOME))
+		{
+            identify[INVEN_BOW] = TRUE;
+            strnfmt(s[i], 80, "Your bow is cumbersome to use");
+            strnfmt(t[i], 80, "(no critical hits)");
+            good[i] = FALSE;
+            i++;
+		}
+}
 	
     // Sil-y: add info for songs?
     

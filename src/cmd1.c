@@ -1007,6 +1007,11 @@ extern void ident_on_wield(object_type *o_ptr)
 		notice = TRUE;
 	}
     
+	if (f3 & TR3_CUMBERSOME)
+	{
+		notice = TRUE;
+	}
+
 	if (o_ptr->name1 || o_ptr->name2)
 	{
 		// For special items and artefacts, we need to ignore the flags that are basic 
@@ -3943,7 +3948,7 @@ void py_attack_aux(int y, int x, int attack_type)
 				
 		hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
 
-		if (hit_result <= 0 && f3 & TR3_ACCURATE)
+		if (hit_result <= 0 && (f3 & TR3_ACCURATE))
 		{
 			char m_name[80];
 			monster_desc(m_name, sizeof(m_name), m_ptr, 0x00);
@@ -3966,6 +3971,12 @@ void py_attack_aux(int y, int x, int attack_type)
 			/* Calculate the damage */
 			crit_bonus_dice = crit_bonus(hit_result, weapon_weight, r_ptr, S_MEL, FALSE, NULL);
 			slay_bonus_dice = slay_bonus(o_ptr, m_ptr, &noticed_flag);
+
+			if (f3 & TR3_CUMBERSOME)
+			{
+				crit_bonus_dice = 0;
+			}
+
 			total_dice = mdd + slay_bonus_dice + crit_bonus_dice;
 			
 			dam = damroll(total_dice, mds);

@@ -3972,6 +3972,12 @@ void do_cmd_fire(int quiver)
 					/* Add 'critical hit' dice based on bow weight */
 					crit_bonus_dice = crit_bonus(hit_result, j_ptr->weight, r_ptr, S_ARC, FALSE, NULL);
 		
+
+					if (f3 & TR3_CUMBERSOME)
+					{
+						crit_bonus_dice = 0;
+					}
+
 					if (p_ptr->active_ability[S_ARC][ARC_AMBUSH] && m_ptr->alertness < ALERTNESS_ALERT)
 					{
 						crit_bonus_dice++;
@@ -4792,6 +4798,12 @@ void do_cmd_throw(bool automatic)
 
 				/* Apply special damage XXX XXX XXX */
 				crit_bonus_dice = crit_bonus(hit_result, i_ptr->weight, r_ptr, S_MEL, TRUE, NULL);
+
+				if (f3 & TR3_CUMBERSOME)
+				{
+					crit_bonus_dice = 0;
+				}
+
 				slay_bonus_dice = slay_bonus(i_ptr, m_ptr, &noticed_flag);
 
 				/* Calculate the damage from the thrown object */
