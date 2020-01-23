@@ -561,7 +561,7 @@ B:HIT:HURT:(+6,3d7)
 F:UNIQUE | MALE | ESCORT | SMART
 F:DROP_100 | DROP_GOOD | OPEN_DOOR | BASH_DOOR | ORC
 F:HURT_LITE | UNLOCK_DOOR
-S:SPELL_PCT_10 | POW_6 | RALLY
+S:SPELL_PCT_5 | POW_12 | RALLY
 D:A captain of a orcish band, Gorgol keeps his troop in
 D: order with displays of violence.
 
@@ -802,7 +802,7 @@ P:[+7,3d4]
 B:HIT:HURT:(+10,2d8)
 F:MALE | ESCORT | DROP_1D2 | OPEN_DOOR | BASH_DOOR
 F:ORC | HURT_LITE | SMART | UNLOCK_DOOR |
-S:SPELL_PCT_20 | POW_6 | RALLY
+S:SPELL_PCT_5 | POW_10 | RALLY
 D:An armoured orc that walks with confidence. His curved blade
 D: has many notches along its edge.
 
@@ -859,7 +859,7 @@ B:HIT:HURT:(+10,3d10)
 F:UNIQUE | MALE | ESCORT
 F:DROP_1D2 | DROP_GOOD | OPEN_DOOR | BASH_DOOR | ORC
 F:HURT_LITE | SMART
-S:SPELL_PCT_10 | POW_8 | RALLY
+S:SPELL_PCT_5 | POW_14 | RALLY
 D:The chief champion of the orcs of Morgoth.
 
 
@@ -934,7 +934,7 @@ B:WHIP:DISARM:(+12,2d4)
 F:UNIQUE | MALE | ESCORTS | SMART
 F:DROP_1D2 | DROP_GREAT | OPEN_DOOR | BASH_DOOR | ORC
 F:HURT_LITE | UNLOCK_DOOR
-S:SPELL_PCT_10 | POW_8 | RALLY
+S:SPELL_PCT_5 | POW_16 | RALLY
 D:The cruelty in the eyes of this massive orc belies
 D: the intelligence that has kept him a favourite
 D: of the black enemy for many years.
@@ -1116,7 +1116,7 @@ B:HIT:HURT:(+19,2d8)
 F:UNIQUE | MAN | MALE | DROP_2D2 | ESCORT | SMART
 F:DROP_GOOD | OPEN_DOOR | BASH_DOOR | TAKE_ITEM
 F:OPPORTUNIST
-S:SPELL_PCT_10 | POW_8 | RALLY
+S:SPELL_PCT_5 | POW_18 | RALLY
 D:Ulfang was a great leader of the Easterlings and led them in
 D: their treachery. He and his sons once openly swore allegiance
 D: to the High Elves, but were secretly in the pay of Morgoth.
