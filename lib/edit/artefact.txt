@@ -1599,7 +1599,6 @@ N:175:of Morgoth
 I:33:50:0
 W:20:1:4000:10000000
 P:0:0d0:0:0d0:0
-F:INDESTRUCTIBLE
 F:INSTA_ART 
 D:Once containing much of the power of he who is the mightiest among the
 D: Ainur, this plain iron crown now bears just three empty sockets:
@@ -1614,7 +1613,6 @@ N:176:of Morgoth
 I:33:50:4
 W:20:1:4000:10000000
 P:0:0d0:0:0d0:0
-F:INDESTRUCTIBLE
 F:INSTA_ART 
 D:Containing much of the power of he who is the mightiest among the
 D: Ainur, this plain iron crown has mounted upon it the sole remaining
@@ -1629,7 +1627,6 @@ N:177:of Morgoth
 I:33:50:5
 W:20:1:4000:10000000
 P:0:0d0:0:0d0:0
-F:INDESTRUCTIBLE
 F:INSTA_ART 
 D:Containing much of the power of he who is the mightiest among the
 D: Ainur, this plain iron crown has mounted upon it the two remaining
@@ -1644,7 +1641,6 @@ N:178:of Morgoth
 I:33:50:6
 W:20:1:4000:10000000
 P:0:0d0:0:0d0:0
-F:INDESTRUCTIBLE
 F:INSTA_ART 
 D:Containing much of the power of he who is the mightiest among the
 D: Ainur, this plain iron crown has mounted upon it the three
@@ -1782,7 +1778,6 @@ N:188:'Ultimate'
 I:45:0:0
 F:STR | DEX | NEG_STR | NEG_DEX
 F:ARCHERY | STEALTH | PERCEPTION
-F:TUNNEL
 F:SUST_STR | SUST_DEX
 F:RES_FIRE | RES_COLD | RES_POIS
 F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
@@ -1857,7 +1852,7 @@ I:35:0:0
 F:DEX | CON | NEG_DEX | NEG_CON
 F:STEALTH | SONG
 F:SUST_STR | SUST_DEX | SUST_CON | SUST_GRA
-F:RES_FIRE | RES_COLD
+F:RES_FIRE | RES_COLD | RES_BLEED
 F:RES_FEAR | RES_CONFU | RES_STUN | RES_HALLU
 F:SLOW_DIGEST | LIGHT | REGEN | FREE_ACT
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
@@ -1916,7 +1911,7 @@ N:197:'Ultimate'
 I:31:0:0
 F:STR | DEX | NEG_STR | NEG_DEX
 F:ARCHERY 
-F:TUNNEL 
+F:REGEN | RES_BLEED
 F:SUST_STR | SUST_DEX
 F:FREE_ACT | RES_FIRE | RES_COLD | RES_POIS
 F:HUNGER | DANGER | AGGRAVATE | LIGHT_CURSE | DARKNESS

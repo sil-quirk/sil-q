@@ -742,7 +742,7 @@ P:0:0d0:0:0d0:0
 A:12/8:18/4
 F:MITHRIL
 D:An enchanted lamp, shining with the light of lesser jewels.
-D: You can equip it as a light source with a radius of 3 squares.
+D: You can equip it as a light source with a radius of 4 squares.
 D: It will shine forever.
 
 
@@ -933,7 +933,7 @@ F:FREE_ACT | EASY_KNOW
 N:160:Cowardice
 G:=:d
 I:45:10:0
-W:7:0:1:500
+W:7:0:1:0
 P:0:0d0:0:0d0
 A:7/6
 F:FEAR | EASY_KNOW | LIGHT_CURSE
@@ -943,7 +943,7 @@ B:2/0
 N:161:Bauglir's Vanguard
 G:=:d
 I:45:11:0
-W:6:0:1:340
+W:6:0:1:300
 P:0:0d0:0:0d0
 A:6/2
 F:RES_STUN | SUST_STR | HUNGER | EASY_KNOW
@@ -952,7 +952,7 @@ F:RES_STUN | SUST_STR | HUNGER | EASY_KNOW
 N:162:Venom's End
 G:=:d
 I:45:12:0
-W:6:0:1:16000
+W:6:0:1:1000
 P:0:0d0:0:0d0
 A:6/4
 F:RES_POIS | EASY_KNOW
@@ -964,7 +964,7 @@ F:RES_POIS | EASY_KNOW
 N:171:the Laiquendi
 G:=:d
 I:45:21:0
-W:8:0:1:0
+W:8:0:1:1000
 P:0:0d0:0:0d0
 A:8/20
 F:STEALTH | ARCHERY | EASY_KNOW

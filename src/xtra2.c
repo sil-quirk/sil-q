@@ -2882,12 +2882,16 @@ bool target_able(int m_idx)
 
 	/* Get monster */
 	m_ptr = &mon_list[m_idx];
+	monster_race *r_ptr = &r_info[m_ptr->r_idx];
 
 	/* Monster must be alive */
 	if (!m_ptr->r_idx) return (FALSE);
 
 	/* Monster must be visible */
 	if (!m_ptr->ml) return (FALSE);
+
+	/* Monster must not be peaceful */
+	if (r_ptr->flags1 & (RF1_PEACEFUL)) return (FALSE);
 
 	/* Monster must be projectable */
 	if (!player_can_fire_bold(m_ptr->fy, m_ptr->fx)) return (FALSE);

@@ -1938,6 +1938,7 @@ static const smithing_flag_desc smithing_flag_types[] =
 	{ CAT_RES,		TR2_RES_COLD,		2,	"Resist Cold"			},
 	{ CAT_RES,		TR2_RES_FIRE,		2,	"Resist Fire"			},
 	{ CAT_RES,		TR2_RES_POIS,		2,	"Resist Poison"			},
+	{ CAT_RES,		TR2_RES_BLEED,		2,	"Resist Bleeding"			},
 	{ CAT_RES,		TR2_RES_FEAR,		2,	"Resist Fear"			},
 	{ CAT_RES,		TR2_RES_BLIND,		2,	"Resist Blindness"		},
 	{ CAT_RES,		TR2_RES_CONFU,		2,	"Resist Confusion"		},
@@ -2962,7 +2963,7 @@ int object_difficulty(object_type *o_ptr)
 	if (f2 & TR2_SLOW_DIGEST) 	{	dif_inc += 2; }
 	if (f2 & TR2_RADIANCE) 		{	dif_inc += 6;	smithing_cost.gra += 1;	}
 	if (f2 & TR2_LIGHT)		{	dif_inc += 8;	smithing_cost.gra += 1;	}
-	if (f2 & TR2_REGEN) 		{	dif_inc += 5;	}
+	if (f2 & TR2_REGEN) 		{	dif_inc += 4;	}
 	if (f2 & TR2_SEE_INVIS) 	{	dif_inc += 4;	}
 	if (f2 & TR2_FREE_ACT) 		{	dif_inc += 7;	}
 	if (f2 & TR2_SPEED)		{	dif_inc += 40;	smithing_cost.con += 5;	}
@@ -2975,6 +2976,7 @@ int object_difficulty(object_type *o_ptr)
 	if (f2 & TR2_RES_POIS)		{	dif_inc += 5;	}
 	
 	// Other Resistances
+	if (f2 & TR2_RES_BLEED)		{	dif_inc += 1;	}
 	if (f2 & TR2_RES_BLIND)		{	dif_inc += 2;	}
 	if (f2 & TR2_RES_CONFU)		{	dif_inc += 2;	}
 	if (f2 & TR2_RES_STUN)		{	dif_inc += 2;	}
@@ -2982,7 +2984,6 @@ int object_difficulty(object_type *o_ptr)
 	if (f2 & TR2_RES_HALLU)		{	dif_inc += 1;	}
 
 	// Penalty Flags
-
 	if (!o_ptr->name1)
 	{
 		if (f2 & TR2_DANGER)		{	dif_dec += 5;	} // only Danger counts
@@ -4262,16 +4263,6 @@ bool applicable_flag(u32b f, int flagset, object_type *o_ptr)
 		}
 	}
 	
-	// Special case for brands
-	//if ((flagset == 1) && (f & (TR1_BRAND_MASK)))
-	//{
-	//	// If the object doesn't already have the flag, but it does have a brand, then disallow it
-	//	if (!(f1 & f) && (f1 & (TR1_BRAND_MASK)))
-	//	{
-	//		ok = FALSE;
-	//	}
-	//}
-	
 	return (ok);
 }
 
@@ -5281,6 +5272,7 @@ int smithing_menu_aux(int *highlight)
                                  (smith_o_ptr->tval != TV_RING) &&
                                  (smith_o_ptr->tval != TV_AMULET) &&
                                  (smith_o_ptr->tval != TV_HORN) &&
+				 !((smith_o_ptr->tval == TV_DIGGING) && (smith_o_ptr->sval == SV_SHOVEL)) &&
 				 !((smith_o_ptr->tval == TV_ARROW) && (smith_o_ptr->att > 0));
 	valid[SMT_MENU_ARTEFACT-1] = (!smith_o_ptr->name2) &&
                                  (smith_o_ptr->tval != 0) &&

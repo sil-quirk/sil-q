@@ -2192,6 +2192,7 @@ static void calc_bonuses(void)
 	p_ptr->resist_fire = 1;
 	p_ptr->resist_cold = 1;
 	p_ptr->resist_pois = 1;
+	p_ptr->resist_bleed = 0;
 	p_ptr->resist_fear = 0;
 	p_ptr->resist_blind = 0;
 	p_ptr->resist_confu = 0;
@@ -2298,6 +2299,8 @@ static void calc_bonuses(void)
 		if (f2 & (TR2_VUL_FIRE)) p_ptr->resist_fire -= 1;
 		if (f2 & (TR2_VUL_POIS)) p_ptr->resist_pois -= 1;
 		
+		if (f2 & (TR2_RES_BLEED)) p_ptr->resist_bleed += 1;
+
 		if (f2 & (TR2_RES_FEAR))  p_ptr->resist_fear   += 1;
 		if (f2 & (TR2_RES_BLIND)) p_ptr->resist_blind  += 1;
 		if (f2 & (TR2_RES_CONFU)) p_ptr->resist_confu  += 1;

@@ -329,7 +329,7 @@ D: thorns, some hooked barbs that rent like knives.'
 
 N:13:Human slave
 W:1:0
-G:@:v
+G:@:g
 I:2:8d4:0
 A:20:1:0:1
 P:[+0]
@@ -340,7 +340,7 @@ D: is about his neck, and a long chain leads from it to the wall.
 
 N:14:Elven slave
 W:1:0
-G:@:v
+G:@:g
 I:2:10d4:0
 A:20:2:0:2
 P:[+0]

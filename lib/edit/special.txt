@@ -204,13 +204,14 @@ T:23:28:30
 F:SLAY_ORC | SLAY_TROLL
 
 # Includes arrows
-# Shortswords, longswords, bastard swords
-# Spears, great spears, glaives, mithril swords
+# Axes - Marchwardens of Doriath used them!
+# Shortswords, longswords, bastard swords, mithril swords
+# Spears, great spears, glaives
 
 N:22:of Doriath
 W:2:2:0:2000
 C:0:0:0:0:0:0:0
-T:22:1:4
+T:22:0:99
 T:23:10:21
 T:23:28:30
 T:17:0:99
@@ -257,7 +258,7 @@ W:4:8:0:2000
 C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:11:13
-T:20:1:3
+T:20:3:3
 F:REGEN | RES_FIRE
 
 
@@ -546,15 +547,12 @@ F:FEAR
 ##### Cloaks #####
 
 
-# 'of Protection' is already defined above
-
 
 N:82:of Stealth
 W:0:2:0:1000
 C:0:0:0:0:0:0:3
 T:35:0:99
 F:STEALTH
-
 
 N:83:of Warmth
 W:0:2:0:1000
@@ -576,6 +574,20 @@ W:0:1:0:0
 C:0:0:0:0:0:0:0
 T:35:0:99
 F:VUL_COLD
+
+
+N:87:of the Scarlet Heart
+W:0:4:0:1000
+C:0:0:0:0:0:0:0
+T:35:0:1
+F:RES_BLEED | SUST_CON
+
+
+N:88:of the Golden Flower
+W:0:4:0:1000
+C:0:0:0:0:0:0:0
+T:35:0:1
+F:RES_FEAR | SUST_GRA
 
 
 ##### Bows #####
@@ -654,7 +666,7 @@ F:SHARPNESS
 
 # Mithril greaves only
 
-N:110:of the Moon's Light
+N:110:of Ithil's Light
 W:0:2:0:1000
 C:0:0:0:0:0:0:0
 T:30:3:3
@@ -722,30 +734,30 @@ F:DANGER
 # gloves only
 
 N:120:of Archery
-W:0:1:0:1000
+W:2:2:0:1000
 C:0:0:0:0:0:0:3
 T:31:1:1
 F:ARCHERY
 
 
-N:121:of Burrowing
+N:121:of Vigour
 W:0:1:0:1000
-C:0:0:0:0:0:0:1
+C:0:0:0:0:0:0:0
 T:31:0:99
-F:TUNNEL
+F:RES_BLEED | REGEN
 
 
 # (ability 2/2 is Parry)
 
 N:122:of Swordplay
-W:0:2:0:2000
+W:4:2:0:2000
 C:0:0:0:0:0:0:0
 T:31:0:99
 B:2/2
 
 
 N:123:of Strength
-W:10:2:0:3000
+W:10:4:0:3000
 C:0:0:0:0:0:0:1
 T:31:0:99
 F:STR

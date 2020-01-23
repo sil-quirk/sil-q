@@ -1655,51 +1655,11 @@
 #define INSCRIP_EXCELLENT       100+8
 #define INSCRIP_SPECIAL         100+9
 #define INSCRIP_UNCURSED        100+10
-#define INSCRIP_INDESTRUCTIBLE  100+11
 
 /*
  * Number of special inscriptions, plus one.
  */
 #define MAX_INSCRIP			12
-
-
-/*
- * Some bit-flags for the "smart" field".
- *
- * Most of these map to the "TR2_xxx" flags.
- */
-#define SM_OPP_ACID		0x00000001
-#define SM_OPP_ELEC		0x00000002
-#define SM_OPP_FIRE		0x00000004
-#define SM_OPP_COLD		0x00000008
-#define SM_OPP_POIS		0x00000010
-#define SM_OPP_XXX1		0x00000020
-#define SM_OPP_XXX2		0x00000040
-#define SM_GOOD_SAVE	0x00000080
-#define SM_PERF_SAVE	0x00000100
-#define SM_IMM_FREE		0x00000200
-#define SM_IMM_MANA		0x00000400
-#define SM_IMM_XXX1		0x00000800
-#define SM_IMM_XXX2		0x00001000
-#define SM_IMM_XXX3		0x00002000
-#define SM_IMM_XXX4		0x00004000
-#define SM_IMM_XXX5		0x00008000
-#define SM_RES_XXX1		0x00010000
-#define SM_RES_ELEC		0x00020000
-#define SM_RES_FIRE		0x00040000
-#define SM_RES_COLD		0x00080000
-#define SM_RES_POIS		0x00100000
-#define SM_RES_FEAR		0x00200000
-#define SM_RES_XXX2		0x00400000
-#define SM_RES_DARK		0x00800000
-#define SM_RES_BLIND	0x01000000
-#define SM_RES_CONFU	0x02000000
-#define SM_RES_STUN 	0x04000000
-#define SM_RES_XXX3		0x08000000
-#define SM_RES_XXX4		0x10000000
-#define SM_RES_XXX5		0x20000000
-#define SM_RES_XXX6		0x40000000
-#define SM_RES_XXX7		0x80000000
 
 
 /*
@@ -1769,7 +1729,7 @@
 #define TR2_RES_FIRE        0x00000020L /* Resist fire */
 #define TR2_RES_ELEC        0x00000040L /* Resist elec */
 #define TR2_RES_POIS        0x00000080L /* Resist poison */
-#define TR2_RES_DARK        0x00000100L /* Resist dark */
+#define TR2_RES_BLEED       0x00000100L /* Resist bleeding */
 #define TR2_RES_FEAR        0x00000200L /* Resist fear */
 #define TR2_RES_BLIND       0x00000400L /* Resist blind */
 #define TR2_RES_CONFU       0x00000800L /* Resist confusion */
@@ -1795,7 +1755,6 @@
 #define TR2_VUL_POIS        0x80000000L /* Lowers your resistance to poison */
 
 /*TR2 Uber-Flags*/
-#define TR2_SUST_STATS	(TR2_SUST_STR | TR2_SUST_DEX | TR2_SUST_CON | TR2_SUST_GRA)
 #define TR2_RESISTANCE  (TR2_RES_COLD | TR2_RES_FIRE | TR2_RES_ELEC)
 
 
@@ -1810,7 +1769,7 @@
 #define TR3_TR3XXX7         0x00000100L /* xxx */
 #define TR3_TR3XXX8			0x00000200L	/* xxx */
 #define TR3_TR3XXX9         0x00000400L /* xxx */
-#define TR3_INDESTRUCTIBLE	0x00000800L	/* Item cannot be destroyed by earthquakes etc */
+#define TR3_TR3XX10	0x00000800L	/* xxx */
 #define TR3_NO_SMITHING     0x00001000L /* Item cannot be made with smithing */
 #define TR3_MITHRIL			0x00002000L	/* Item made out of mithril */
 #define TR3_AXE				0x00004000L /* Item counts as an axe */
@@ -1836,7 +1795,6 @@
 #define TR3_IGNORE_ALL (TR3_IGNORE_ACID | TR3_IGNORE_ELEC | TR3_IGNORE_FIRE | TR3_IGNORE_COLD)
 
 
-
 /*
  * Hack -- flag set 1 -- mask for "pval-dependant" flags.
  * Note that all "pval" dependant flags must be in "flags1".
@@ -1855,136 +1813,6 @@
 #define TR3_IGNORE_MASK \
 	(TR3_IGNORE_ACID | TR3_IGNORE_ELEC | TR3_IGNORE_FIRE | \
 	 TR3_IGNORE_COLD )
-
-/*
- * Stat sustain flags
- */
-#define TR1_STAT_MOD_MASK \
-	(0L)
-
-#define TR2_STAT_MOD_MASK \
-	(TR2_SUST_STR | TR2_SUST_DEX | TR2_SUST_CON | TR2_SUST_GRA)
-
-#define TR3_STAT_MOD_MASK \
-	(0L)
-
-/*
- * Stat add flags
- */
-#define TR1_STAT_SUST_MASK \
-	(TR1_STR | TR1_DEX | TR1_CON | TR1_GRA | TR1_NEG_STR | TR1_NEG_DEX | TR1_NEG_CON | TR1_NEG_GRA )
-
-#define TR2_STAT_SUST_MASK \
-	(0L)
-
-#define TR3_STAT_SUST_MASK \
-	(0L)
-
-/*
- * Low Resist flags
- */
-#define TR1_LOW_RESIST_MASK \
-	(0L)
-
-#define TR2_LOW_RESIST_MASK \
-	(TR2_RES_ELEC | TR2_RES_FIRE | TR2_RES_COLD | TR2_RES_DARK | TR2_RES_POIS)
-
-#define TR3_LOW_RESIST_MASK \
-	(0L)
-
-/*
- * High Resist flags
- */
-#define TR1_HIGH_RESIST_MASK \
-	(0L)
-
-#define TR2_HIGH_RESIST_MASK \
-	(TR2_RES_FEAR| TR2_RES_BLIND | TR2_RES_CONFU | TR2_RES_STUN)
-
-#define TR3_HIGH_RESIST_MASK \
-	(0L)
-
-/*
- * All Resist flags
- */
-#define TR1_RESISTANCES_MASK \
-	(TR1_LOW_RESIST_MASK | TR1_HIGH_RESIST_MASK)
-
-#define TR2_RESISTANCES_MASK \
-	(TR2_LOW_RESIST_MASK | TR2_HIGH_RESIST_MASK)
-
-#define TR3_RESISTANCES_MASK \
-	(TR3_LOW_RESIST_MASK | TR3_HIGH_RESIST_MASK)
-
-/*low level abilities*/
-
-#define TR1_LOW_ABILITIES_MASK \
-	(0L)
-
-#define TR2_LOW_ABILITIES_MASK \
-	(TR2_SLOW_DIGEST | TR2_LIGHT)
-
-#define TR3_LOW_ABILITIES_MASK \
-	(0L)
-
-/*high level abilities*/
-
-#define TR1_HIGH_ABILITIES_MASK \
-	(0L)
-
-#define TR2_HIGH_ABILITIES_MASK \
-	(TR2_REGEN | TR2_SEE_INVIS | TR2_FREE_ACT)
-
-#define TR3_HIGH_ABILITIES_MASK \
-	(0L)
-
-
-/*all abilities*/
-
-#define TR1_ABILITIES_MASK \
-	(TR1_LOW_ABILITIES_MASK | TR1_HIGH_ABILITIES_MASK)
-
-#define TR2_ABILITIES_MASK \
-	(TR2_LOW_ABILITIES_MASK | TR2_HIGH_ABILITIES_MASK)
-
-#define TR3_ABILITIES_MASK \
-	(TR3_LOW_ABILITIES_MASK | TR3_HIGH_ABILITIES_MASK)
-
-
-/*Slay weapon types*/
-
-#define TR1_SLAY_MASK \
-	(TR1_SLAY_SPIDER | TR1_SLAY_UNDEAD | TR1_SLAY_RAUKO | TR1_SLAY_ORC | TR1_SLAY_TROLL | \
-         TR1_SLAY_WOLF | TR1_SLAY_DRAGON | TR1_SLAY_MAN_OR_ELF)
-
-#define TR2_SLAY_MASK \
-	(0L)
-
-#define TR3_SLAY_MASK \
-	(0L)
-
-/* Elemental Brand weapon types*/
-
-#define TR1_BRAND_MASK \
-	(TR1_BRAND_POIS | TR1_BRAND_ELEC | TR1_BRAND_FIRE | TR1_BRAND_COLD)
-
-#define TR2_BRAND_MASK \
-	(0L)
-
-#define TR3_BRAND_MASK \
-	(0L)
-
-/* All weapon Multipliars*/
-
-#define TR1_ALL_WEAPON_EGO_MASK \
-	(TR1_SLAY_MASK | TR1_BRAND_MASK)
-
-#define TR2_ALL_WEAPON_EGO_MASK \
-	(TR2_SLAY_MASK | TR2_BRAND_MASK)
-
-#define TR3_ALL_WEAPON_EGO_MASK \
-	(TR3_SLAY_MASK | TR3_BRAND_MASK)
-
 
 
 /*

@@ -1018,6 +1018,8 @@ struct player_type
 	int resist_fire;	/* Resist fire */
 	int resist_pois;	/* Resist poison */
 
+	int resist_bleed;	/* Resist bleeding */
+
 	int resist_fear;	/* Resist fear */
 	int resist_blind;	/* Resist blindness */
 	int resist_confu;	/* Resist confusion */

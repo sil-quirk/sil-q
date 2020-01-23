@@ -842,15 +842,6 @@ static bool item_tester_hook_destroy(const object_type *o_ptr)
 
 	if (o_ptr) {} // suppresses warnings about this function
 
-	//if (artefact_p(o_ptr))
-	//{
-    //	/* Ignore known or sensed artefacts */
-    //	if ((object_known_p(o_ptr)) ||
-	//	    (o_ptr->discount == INSCRIP_TERRIBLE) ||
-	//		(o_ptr->discount == INSCRIP_SPECIAL) ||
-	//		(o_ptr->discount == INSCRIP_INDESTRUCTIBLE)) return (FALSE);
-	//}
-
 	return (TRUE);
 }
 

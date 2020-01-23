@@ -1420,6 +1420,11 @@ extern void ident_resist(u32b flag)
 				notice = TRUE;
 				strnfmt(effect_string, sizeof(effect_string), "Your %s partly protects you from the poison.", o_short_name);
 			}
+			else if ((flag == TR2_RES_BLEED) && (f2 & (TR2_RES_BLEED)))
+			{
+				notice = TRUE;
+				strnfmt(effect_string, sizeof(effect_string), "Your bleeding is slowed by your %s.", o_short_name);
+			}
 			else if ((flag == TR2_RES_COLD) && (f2 & (TR2_VUL_COLD)))
 			{
 				notice = TRUE;

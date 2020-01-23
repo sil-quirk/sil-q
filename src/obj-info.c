@@ -333,7 +333,7 @@ static bool describe_resist(const object_type *o_ptr, u32b f2)
 	if (f2 & (TR2_RES_FIRE))	vp[vn++] = "fire";
 	if (f2 & (TR2_RES_ELEC))	vp[vn++] = "lightning";
 	if (f2 & (TR2_RES_POIS))	vp[vn++] = "poison";
-	if (f2 & (TR2_RES_DARK))	vp[vn++] = "dark";
+	if (f2 & (TR2_RES_BLEED))	vp[vn++] = "bleeding";
 
 	if (f2 & (TR2_RES_FEAR))	vp[vn++] = "fear";
 	if (f2 & (TR2_RES_BLIND))	vp[vn++] = "blindness";

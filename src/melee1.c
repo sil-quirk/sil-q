@@ -757,7 +757,7 @@ bool make_attack_normal(monster_type *m_ptr)
 					object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
 
 					msg_format("Your %s feels suddenly heavy! You fail to %s the blow!", o_name, betrayal_wield ? "parry" : "block");
-					net_dam = MAX(net_max_dam, p_ptr->chp - dieroll(4));
+					net_dam = MIN(net_max_dam, p_ptr->chp - dieroll(4));
 					dam = net_dam + prt;
 
 					ident_betrayal(o_ptr);
@@ -1617,7 +1617,14 @@ bool make_attack_normal(monster_type *m_ptr)
 				/* Critical hit */
 				if (monster_cut_or_stun(crit_bonus_dice, net_dam, effect))
 				{
-					(void)set_cut(p_ptr->cut + (net_dam / 2));
+					int bleeding = net_dam / 2;
+					if (p_ptr->resist_bleed)
+					{
+						bleeding = 1;
+						ident_resist(TR2_RES_BLEED);
+					}
+
+					(void)set_cut(p_ptr->cut + (bleeding));
 				}
 			}
 

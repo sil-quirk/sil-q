@@ -386,7 +386,6 @@ bool seen_by_keen_senses(int fy, int fx)
 bool cave_valid_bold(int y, int x)
 {
 	object_type *o_ptr;
-	u32b f1, f2, f3;
 
 	/* Forbid perma-grids */
 	if (cave_perma_bold(y, x)) return (FALSE);
@@ -394,10 +393,9 @@ bool cave_valid_bold(int y, int x)
 	/* Check objects */
 	for (o_ptr = get_first_object(y, x); o_ptr; o_ptr = get_next_object(o_ptr))
 	{
-		object_flags(o_ptr, &f1, &f2, &f3);
-
-		/* Forbid grids with indestructable items */
-		if (f3 & (TR3_INDESTRUCTIBLE)) return (FALSE);
+		// Don't destroy the crown
+		if ((o_ptr->name1 >= ART_MORGOTH_0) && (o_ptr->name1 <= ART_MORGOTH_3))	
+			return FALSE;
 	}
 
 	/* Accept */
