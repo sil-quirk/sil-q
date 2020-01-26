@@ -195,7 +195,7 @@ F:LIGHT | SUST_GRA | SUST_DEX | SONG
 # Spears, great spears, glaives, mithril swords
 
 N:21:of Gondolin
-W:0:2:10:1000
+W:0:4:10:1000
 C:0:0:0:0:0:0:0
 T:22:1:4
 T:23:10:21
@@ -209,7 +209,7 @@ F:SLAY_ORC | SLAY_TROLL
 # Spears, great spears, glaives
 
 N:22:of Doriath
-W:2:2:0:2000
+W:2:4:0:2000
 C:0:0:0:0:0:0:0
 T:22:0:99
 T:23:10:21
@@ -221,7 +221,7 @@ F:SLAY_SPIDER | SLAY_WOLF
 # Spears, great spears, glaives, mithril swords
 
 N:23:of Nargothrond
-W:9:2:0:2000
+W:9:4:0:2000
 C:0:0:0:0:0:0:0
 T:22:1:4
 T:23:10:21
@@ -231,7 +231,7 @@ F:SLAY_RAUKO | SLAY_DRAGON
 # All melee weapons save daggers, curved swords, quarterstaffs
 
 N:24:of Final Rest
-W:7:4:0:2000
+W:7:6:0:2000
 C:0:0:0:0:0:0:0
 T:21:8:8
 T:22:0:99
@@ -243,7 +243,7 @@ F:SLAY_UNDEAD | FREE_ACT
 # (ability 0/12 is Rapid Attack)
 
 N:25:of Darting Death
-W:0:2:0:3000
+W:0:8:0:3000
 C:0:0:0:0:0:0:0
 T:23:4:4
 T:23:10:17
@@ -267,7 +267,7 @@ F:REGEN | RES_FIRE
 # (ability 0/5 is Follow-Through)
 
 N:27:of Hador's House
-W:8:3:0:3000
+W:8:4:0:3000
 C:0:0:1:0:0:0:0
 T:21:8:8
 T:22:4:4
@@ -303,7 +303,7 @@ F:DARKNESS | SONG
 # Swords only
 
 N:31:of the Feanorians
-W:11:5:0:1000
+W:12:10:0:1000
 C:0:0:0:0:0:0:1
 T:23:10:99
 F:GRA | DEX | DANGER
@@ -333,7 +333,7 @@ B:0/11
 # Spears only
 
 N:36:of the Vanyar
-W:10:1:0:3000
+W:10:4:0:3000
 C:1:0:1:0:0:0:1
 T:22:1:2
 F:GRA | LIGHT
@@ -380,7 +380,7 @@ F:STR
 # (ability 0/6 is Impale)
 
 N:41:of Piercing
-W:4:2:0:10000
+W:4:8:0:10000
 C:0:0:1:0:0:0:0
 T:22:1:4
 B:0/6
@@ -403,7 +403,7 @@ F:BRAND_FIRE | CUMBERSOME
 # Warhammers, curved swords, greatswords, axes
 
 N:44:of Thangorodrim
-W:2:4:0:1000
+W:2:6:0:1000
 C:0:0:1:0:0:0:1
 T:21:8:8
 T:23:7:7
@@ -415,7 +415,7 @@ F:CON | CUMBERSOME
 # Curved swords, greatswords, hand axes, battle axes, greataxes, glaives
 
 N:45:of Black Iron
-W:0:1:0:1000
+W:0:3:0:1000
 C:0:0:1:0:0:0:0
 T:23:7:7
 T:23:25:25
@@ -437,7 +437,7 @@ F:BRAND_POIS
 # All axes, spears, glaives, swords apart from curved blades, daggers
 
 N:47:(Balanced)
-W:14:8:0:1000
+W:14:20:0:1000
 C:0:0:0:0:0:0:0
 T:22:1:99
 T:23:4:4
@@ -448,7 +448,7 @@ F:ACCURATE
 # Non-curved swords and glaives
 
 N:48:(Defender)
-W:0:2:0:1000
+W:0:4:0:1000
 C:0:0:0:1:0:0:0
 T:22:4:4
 T:23:10:99
@@ -458,7 +458,7 @@ F:IGNORE_ALL
 # Glaives, great axes, curved swords, bastard swords
 
 N:49:(Vampiric)
-W:7:6:0:3000
+W:4:4:0:3000
 C:0:0:0:0:0:0:0
 T:22:4:4
 T:22:13:13
@@ -483,8 +483,8 @@ F:TUNNEL
 
 
 N:52:of the Longbeards
-W:0:3:4:1000
-C:1:0:0:0:0:0:0
+W:0:20:4:1000
+C:0:0:0:0:0:0:0
 T:20:3:3
 F:STR
 

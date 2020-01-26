@@ -1018,7 +1018,7 @@ G:_:d
 I:55:5:0
 W:6:0:50:400
 P:0:0d0:0:0d0
-A:6/2:14/4
+A:4/2:10/4
 D:It removes curses from the items in your possession.
 
 
