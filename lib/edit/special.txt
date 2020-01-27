@@ -82,8 +82,7 @@ F:RES_POIS
 N:3:of Resilience
 W:10:8:0:1000
 C:0:0:0:0:0:0:1
-T:36:0:99
-T:37:0:99
+T:37:20:20
 F:CON
 F:IGNORE_ALL
 
@@ -146,7 +145,7 @@ N:9:of Blight
 W:0:6:0:0
 C:0:0:0:0:0:0:0
 T:36:0:99
-T:37:0:99
+T:37:0:6
 F:VUL_POIS
 
 
@@ -168,12 +167,22 @@ F:RES_FIRE
 F:IGNORE_ALL
 
 
+# Mithril shields only
+
+N:14:of Fate Thwarted
+W:20:20:0:1000
+C:0:0:0:0:0:0:0
+T:34:10:10
+F:CHEAT_DEATH
+F:IGNORE_ALL
+
+
 ###
 
 N:15:of Wrath
 W:0:2:10:0
 C:0:0:0:0:0:0:0
-T:34:0:99
+T:34:0:9
 F:AGGRAVATE
 
 
@@ -239,17 +248,17 @@ T:23:10:99
 F:SLAY_UNDEAD | FREE_ACT
 
 
-# Daggers, shortswords, longswords and mithril longswords
-# (ability 0/12 is Rapid Attack)
+# Daggers, shortswords, curved swords, hand-axes
+# (ability 3/2 is Cruel Blow)
 
-N:25:of Darting Death
-W:0:8:0:3000
-C:0:0:0:0:0:0:0
-T:23:4:4
-T:23:10:17
-T:23:28:28
-B:0/12
-F:FREE_ACT
+N:25:of Fell Design
+W:0:4:0:3000
+C:0:0:0:0:0:0:1
+T:23:4:10
+T:22:11:11
+F:TRAITOR
+B:3/2
+
 
 # Warhammers, axes, digging tools
 
@@ -293,11 +302,11 @@ F:AGGRAVATE | LIGHT_CURSE
 
 # Mithril swords only
 
-N:30:of Shadows
+N:30:of Dawn's Glory
 W:12:10:0:1000
-C:1:0:1:0:0:0:3
+C:1:0:0:0:0:0:3
 T:23:28:30
-F:DARKNESS | SONG
+F:LIGHT | PERCEPTION
 
 
 # Swords only
@@ -536,8 +545,19 @@ F:GRA
 N:80:of Terror
 W:0:4:0:3000
 C:0:0:0:0:0:0:0
-T:32:0:99
+T:32:0:7
 F:FEAR
+
+# Mithril helms only
+# (ability 7/1 is Song of Challenge)
+
+N:81:of Battle Joined
+W:10:2:0:3000
+C:0:0:0:0:0:0:2
+T:32:0:8
+F:SONG
+B:7/1
+
 
 # a helm that lowers perception?
 
@@ -596,9 +616,9 @@ F:RES_FEAR | SUST_GRA
 
 N:91:of Blackened Yew
 W:6:2:0:3000
-C:1:0:2:0:0:0:0
+C:0:0:1:0:0:0:0
 T:19:13:13
-F:CUMBERSOME | EASY_KNOW
+F:VUL_FIRE | EASY_KNOW
 
 
 # Shortbows only
@@ -681,15 +701,6 @@ T:30:1:1
 F:STEALTH
 
 
-# mithril greaves only
-# (ability 2/6 is Flanking)
-
-N:112:of Harrying
-W:14:6:0:2000
-C:0:0:0:0:0:0:0
-T:30:3:3
-B:2/6
-
 # boots only
 # (ability 2/5 is Sprinting)
 
@@ -708,14 +719,6 @@ C:0:0:0:0:0:0:0
 T:30:1:1
 B:2/4
 
-# boots only
-
-N:115:of Nimbleness
-W:15:8:18:0
-C:0:0:0:0:0:0:1
-T:30:1:1
-F:DEX
-
 
 ###
 
@@ -723,7 +726,7 @@ F:DEX
 N:116:of Treacherous Paths
 W:5:3:18:0
 C:0:0:0:0:0:0:0
-T:30:0:99
+T:30:0:2
 F:DANGER
 
 
@@ -741,7 +744,7 @@ F:ARCHERY
 
 
 N:121:of Vigour
-W:0:1:0:1000
+W:0:2:0:1000
 C:0:0:0:0:0:0:0
 T:31:0:99
 F:RES_BLEED | REGEN
@@ -756,10 +759,22 @@ T:31:0:99
 B:2/2
 
 
-N:123:of Strength
-W:10:4:0:3000
+# (ability 0/0 is Power)
+
+N:123:of Brutality
+W:0:4:0:3000
 C:0:0:0:0:0:0:1
-T:31:0:99
+T:31:2:2
+F:DEX | LIGHT_CURSE
+B:0/0
+
+
+# Mithril gauntlets only
+
+N:124:of Might
+W:10:8:0:3000
+C:0:0:0:0:0:0:1
+T:31:3:3
 F:STR
 
 
@@ -769,9 +784,9 @@ F:STR
 # (ability 3/4 is Opportunist)
 
 N:126:of Treachery
-W:0:4:13:0
+W:4:8:13:0
 C:0:0:0:0:0:0:1
-T:31:0:99
+T:31:0:2
 F:STR | LIGHT_CURSE
 B:3/4
 

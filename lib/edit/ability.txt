@@ -604,8 +604,7 @@ N:141:Song of Challenge
 I:7:1:1
 D:Causes weak-willed foes to attack aggressively without regard to 
 D: strategy. Enemies with ranged weapons will close to melee range.
-T:40:0:99  # Amulet
-T:35:0:99  # Cloak
+T:32:0:99  # Helm
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -622,6 +621,7 @@ I:7:3:2
 D:Discovers and overcomes nearby doors, traps, and rubble.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
+T:21:3:3   # Quarterstaves
 
 N:144:Song of Silence
 I:7:4:3
