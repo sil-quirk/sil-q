@@ -2979,14 +2979,6 @@ static bool kind_is_bow(int k_idx)
 			return (TRUE);
 		}
 
-		/*hack - don't allow arrow as a randart*/
-		case TV_ARROW:
-		{
-			if (object_generation_mode == OB_GEN_MODE_RANDART)  return (FALSE);
-			return (TRUE);
-
-		}
-
 	}
 
 	/* Assume not suitable  */

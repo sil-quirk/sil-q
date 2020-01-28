@@ -71,7 +71,7 @@
 # === Ideas for Artefacts ===
 #
 # Regarding the dating and cut-offs for the items, Beren and Luthien stole a
-# Silmaril in FA 469, so I'd like to keep roughly to this date.
+# Silmaril in FA 465, so I'd like to keep roughly to this date.
 #
 # Elves
 # * Feanor		(crown - smithing, fire, will, aggravate)
@@ -671,21 +671,16 @@ F:THROWING
 D:'...the knife of the north, in Nogrod smithied.'
 
 
-## The Dagger of Azaghal
-## 1st age
-## (ability 4/1 is Focused Attack)
+## The Dagger 'Thorn'
 
-N:53:of Azaghal
-I:23:4:7
-W:13:8:5:50000
+N:53:'Thorn'
+I:23:4:2
+W:0:20:5:5000
 P:0:1d6:0:0d0
-F:PERCEPTION | SLAY_DRAGON | RES_FIRE | RES_FEAR
 F:THROWING
-B:4/1
-D:Azaghal, Dwarf-king of Belegost, fell before Glaurung in the Battle of
-D: Unnumbered Tears, but with his final stroke he dealt Glaurung such a
-D: blow that the Father of Dragons fled the field with all his kin, and
-D: was at first believed to be mortally wounded.
+F:BRAND_POIS | STEALTH | VAMPIRIC | HUNGER
+D:Twisted wood hilts a blade of sharp and polished stone. Blood
+D: remains not on that blade; it would seem that the hilt drinks it.
 
 
 ## The Dagger 'Angrist'
@@ -828,8 +823,8 @@ I:23:21:0
 W:15:15:50:100000
 P:1:3d4:1:0d0
 F:SHARPNESS | TRAITOR
-D:Forged of black meteoric iron by the Eol the Dark Elf, 
-D:it is the twin to Anglachel.
+D:A bitter blade by brooding Eol forged,
+D: in secret made of metal from a star.
 
 
 ## The Bastard Sword 'Luinmegil'
@@ -1014,28 +1009,24 @@ D: Lord of the Men of Brethil, by the dwarves of the Blue Mountains.
 N:93:'Dramborleg'
 I:22:12:0
 W:12:15:50:21000
-P:-2:3d5:0:0d0
+P:-2:3d6:0:0d0
 F:SLAY_RAUKO | SLAY_ORC | SLAY_TROLL
 D:A heavy axe wrought in the forges of Gondolin. Its name
 D: is 'Thudder-sharp' for it strikes with the force of a club
 D: but cuts like a sword.
 
 
-## The Battle Axe of Hurin
+## The Battle Axe of Mothers' Woe
 ## 1st age
-## (ability 7/1 is Song of Challenge)
 
-N:94:of Hurin
+N:94:of Mothers' Woe
 I:22:12:1
-W:15:20:45:90000
+W:15:12:60:90000
 P:-3:3d5:0:0d0
-B:7/1
-F:CON | WILL | SLAY_TROLL | RES_FEAR
-D:Wielded by Hurin Thalion, last lord of Dor-Lomin at the Battle of
-D: Tears Unnumbered.  He stood alone, his friends and kinsmen dead about
-D: him, his axe smoking in the black blood of Gothmog's troll-guard.  No
-D: less than seventy times, as he slew his foes, did he utter his mighty
-D: war-cry: "Aure entuluva!" - "Day shall come again!"
+F:STR | CON | HAUNTED | VAMPIRIC
+D:A dark axe with a wicked edge, forged by Morgoth Bauglir himself.
+D: Many are the lives that it has severed. It is blood-warm to the touch,
+D: and foul it feels to the hand.
 
 
 ## The Great Axe of Dolmed
@@ -1423,11 +1414,10 @@ D:The unerring arrow of Beleg Cuthalion.
 ##### Boots #####
 
 ## The Pair of Boots of Finrod
-## 1st age namesake
 
 N:154:of Finrod
 I:30:1:0
-W:15:10:20:40000
+W:15:20:20:40000
 P:0:0d0:3:1d1
 F:FREE_ACT
 D:Finrod Felagund, once King of Nargathrond, was one of the
@@ -1437,7 +1427,6 @@ D: the ground, letting you pass through combat as a dance.
 
 
 ## The Pair of Boots of Taur-nu-fuin
-## 1st age namesake
 ## (ability 4/8 is Master Hunter)
 
 N:155:of Taur-nu-Fuin
@@ -1451,7 +1440,6 @@ D: dread forest of Taur-nu-Fuin.
 
 
 ## The Pair of Boots of the Mole
-## 1st age namesake
 ## (ability 2/0 is Dodging)
 ## (ability 3/5 is Vanish)
 
@@ -1465,7 +1453,6 @@ D: uncannily clean.
 
 
 ## The Pair of Greaves of Orodreth
-## 1st age namesake
 
 N:158:of Orodreth
 I:30:2:1
@@ -1478,13 +1465,12 @@ D: years of the Wars of Beleriand.
 
 
 ## The Pair of Greaves of the Helcaraxe
-## 1st age namesake
 
 N:159:of the Helcaraxe
 I:30:2:0
 W:14:20:80:12000
-P:0:0d0:-1:1d3
-F:RES_COLD
+P:0:0d0:0:1d3
+F:RES_COLD | REGEN
 F:SUST_STR | SUST_CON | SUST_DEX | SUST_GRA
 D:Among all the deeds of the Noldor, it is said
 D: none have been more hard-won than the crossing
@@ -1928,7 +1914,7 @@ F:STEALTH | STAND_FAST
 F:SUST_DEX | RADIANCE
 F:RES_FIRE | RES_COLD | RES_POIS | RES_BLEED
 F:RES_FEAR | RES_CONFU | REGEN
-F:FREE_ACT | SPEED
+F:FREE_ACT | SPEED | AVOID_TRAPS
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
 F:INSTA_ART 
