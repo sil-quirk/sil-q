@@ -1763,7 +1763,7 @@
 #define TR3_STAND_FAST      0x00000004L /* Cannot be moved */
 #define TR3_ACCURATE        0x00000008L /* Reroll misses */
 #define TR3_CUMBERSOME      0x00000010L /* No critical hits */
-#define TR3_TR3XXX13        0x00000020L /* xxx */
+#define TR3_AVOID_TRAPS     0x00000020L /* Do not trigger traps */
 #define TR3_TR3XXX5         0x00000040L /* xxx */
 #define TR3_TR3XXX6			0x00000080L	/* xxx */
 #define TR3_TR3XXX7         0x00000100L /* xxx */

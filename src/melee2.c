@@ -3658,7 +3658,7 @@ static void process_move(monster_type *m_ptr, int ty, int tx, bool bash)
 			monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 	    		msg_format("%^s attempts to exchange places with you, but you stand fast.", m_name);
 
-			ident_stand_fast();
+			ident_f3(TR3_STAND_FAST, NULL);
 		}
 		else
 		{

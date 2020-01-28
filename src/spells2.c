@@ -430,6 +430,14 @@ void self_knowledge(void)
             i++;
 	}
 
+	if (f3 & TR3_AVOID_TRAPS)
+	{
+            strnfmt(s[i], 80, "Your feet do not trigger traps");
+	    strnfmt(t[i], 80, "(does not protect from webs, roosts and pits)");
+	    good[i] = TRUE;
+            i++;
+	}
+
 	if (f3 & TR3_STAND_FAST)
 	{
             strnfmt(s[i], 80, "You stand fast against your foes");

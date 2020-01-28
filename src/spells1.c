@@ -547,7 +547,7 @@ void attempt_to_cheat_death(void)
 			object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
 
 			msg_format("Your %s breaks into two pieces!", o_name);
-			ident_cheat_death(o_ptr);
+			ident_f3(TR3_CHEAT_DEATH, o_ptr);
 
 			inven_item_increase(i, -1);
 			inven_item_optimize(i);

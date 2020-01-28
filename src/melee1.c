@@ -387,6 +387,8 @@ void do_betrayal_ring_amulet()
 		if (item == INVEN_NECK) msg_format("Your %s comes loose from its chain and falls!", o_name);
 		else msg_format("Your %s slips from your finger and rolls away!", o_name);
 
+		ident_f2(TR2_TRAITOR, o_ptr);
+
 		for (i = 0; i < temp_n; ++i)
 		{
 			int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
@@ -446,9 +448,9 @@ void do_betrayal_helm_crown()
 		/* Describe */
 		object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
 
-		msg_format("Your %s twists to cover your eyes!", o_name);
 		set_blind(p_ptr->blind + damroll(3, 2));
-		ident_betrayal(o_ptr);
+		msg_format("Your %s twists to cover your eyes!", o_name);
+		ident_f2(TR2_TRAITOR, o_ptr);
 	}
 }
 
@@ -756,11 +758,11 @@ bool make_attack_normal(monster_type *m_ptr)
 					/* Describe */
 					object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
 
-					msg_format("Your %s feels suddenly heavy! You fail to %s the blow!", o_name, betrayal_wield ? "parry" : "block");
 					net_dam = MIN(net_max_dam, p_ptr->chp - dieroll(4));
 					dam = net_dam + prt;
 
-					ident_betrayal(o_ptr);
+					msg_format("Your %s feels suddenly heavy! You fail to %s the blow!", o_name, betrayal_wield ? "parry" : "block");
+					ident_f2(TR2_TRAITOR, o_ptr);
 				}
 			}
 
@@ -1676,7 +1678,7 @@ bool make_attack_normal(monster_type *m_ptr)
 							monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 							msg_format("%^s attempts to knock you back, but you stand fast.", m_name);
 
-							ident_stand_fast();
+							ident_f3(TR3_STAND_FAST, NULL);
 						}
 						else
 						{
@@ -1697,11 +1699,10 @@ bool make_attack_normal(monster_type *m_ptr)
 				{
 				    if (allow_player_fear(m_ptr))
 				    {
+					ident_f2(TR2_FEAR, NULL);
+
 					set_afraid(p_ptr->afraid + damroll(10,4));
 					set_fast(p_ptr->fast + damroll(5,4));
-					
-					// give the player a chance to identify what is causing it
-					ident_cowardice();
 				    }
 				}
 			}
