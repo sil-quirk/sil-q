@@ -1905,16 +1905,16 @@ static int calc_vulnerability(int fy, int fx)
 		if (cave_floor_bold(py-dx, px+dy))       vulnerability++;   // direction 5
 		
 		// increase vulnerability for monsters already engaged with the player...
-		//if (cave_m_idx[py+dy][px+dx] > 0)       vulnerability++;    // direction 1
-		if (cave_m_idx[py+dx+dy][px-dy+dx] > 0) vulnerability++;    // direction 2 
-		if (cave_m_idx[py-dx+dy][px+dy+dx] > 0) vulnerability++;    // direction 3
-		if (cave_m_idx[py+dx][px-dy] > 0)       vulnerability++;    // direction 4
-		if (cave_m_idx[py-dx][px+dy] > 0)       vulnerability++;    // direction 5
+		//if (cave_m_idx[py+dy, px+dx])       vulnerability++;    // direction 1
+		if (attacker_at(py+dx+dy, px-dy+dx)) vulnerability++;    // direction 2 
+		if (attacker_at(py-dx+dy, px+dy+dx)) vulnerability++;    // direction 3
+		if (attacker_at(py+dx, px-dy))       vulnerability++;    // direction 4
+		if (attacker_at(py-dx, px+dy))       vulnerability++;    // direction 5
 
 		// ...especially if they are behind the player
-		if (cave_m_idx[py+dx-dy][px-dy-dx] > 0) vulnerability += 2; // direction 6
-		if (cave_m_idx[py-dx-dy][px+dy-dx] > 0) vulnerability += 2; // direction 7
-		if (cave_m_idx[py-dy][px-dx] > 0)       vulnerability += 2; // direction 8
+		if (attacker_at(py+dx-dy, px-dy-dx)) vulnerability += 2; // direction 6
+		if (attacker_at(py-dx-dy, px+dy-dx)) vulnerability += 2; // direction 7
+		if (attacker_at(py-dy, px-dx))       vulnerability += 2; // direction 8
 	}
 	// if monster in a diagonal direction   875
 	//                                      6@3
@@ -1930,16 +1930,16 @@ static int calc_vulnerability(int fy, int fx)
 		if (cave_floor_bold(py-dx, px+dy)) vulnerability++;   // direction 5
 
 		// increase vulnerability for monsters already engaged with the player...
-		//if (cave_m_idx[py+dy][px+dx] > 0) vulnerability++;    // direction 1
-		if (cave_m_idx[py+dy][px] > 0)    vulnerability++;    // direction 2
-		if (cave_m_idx[py][px+dx] > 0)    vulnerability++;    // direction 3
-		if (cave_m_idx[py+dx][px-dy] > 0) vulnerability++;    // direction 4
-		if (cave_m_idx[py-dx][px+dy] > 0) vulnerability++;    // direction 5
+		//if (cave_m_idx[py+dy, px+dx)) vulnerability++;    // direction 1
+		if (attacker_at(py+dy, px))    vulnerability++;    // direction 2
+		if (attacker_at(py, px+dx))    vulnerability++;    // direction 3
+		if (attacker_at(py+dx, px-dy)) vulnerability++;    // direction 4
+		if (attacker_at(py-dx, px+dy)) vulnerability++;    // direction 5
 		
 		// ...especially if they are behind the player
-		if (cave_m_idx[py-dy][px] > 0)    vulnerability += 2; // direction 6
-		if (cave_m_idx[py][px-dx] > 0)    vulnerability += 2; // direction 7
-		if (cave_m_idx[py-dy][px-dx] > 0) vulnerability += 2; // direction 8
+		if (attacker_at(py-dy, px))    vulnerability += 2; // direction 6
+		if (attacker_at(py, px-dx))    vulnerability += 2; // direction 7
+		if (attacker_at(py-dy, px-dx)) vulnerability += 2; // direction 8
 	}
 	
 	if (!p_ptr->active_ability[S_WIL][WIL_FORMIDABLE])
@@ -2007,6 +2007,21 @@ int calc_hesitance(monster_type *m_ptr)
 	return (hesitance);
 }
 
+
+extern bool attacker_at(int y, int x)
+{
+	if (cave_m_idx[y][x] <= 0)
+	{
+		return FALSE;
+	}
+
+	monster_type *m_ptr = &mon_list[cave_m_idx[y][x]];
+	monster_race *r_ptr = &r_info[m_ptr->r_idx];
+
+	return !(r_ptr->flags1 & (RF1_PEACEFUL)); 
+}
+
+
 /*
  * Counts the number of monsters adjacent to a given square
  */
@@ -2021,7 +2036,7 @@ int adj_mon_count(int y, int x)
 		{
 			if (!((xx == 0) && (yy == 0)))
 			{
-				if (cave_m_idx[y+yy][x+xx] > 0)
+				if (attacker_at(y+yy, x+xx) > 0)
 				{
 					count++;
 				}

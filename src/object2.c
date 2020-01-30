@@ -3737,6 +3737,9 @@ void drop_near(object_type *j_ptr, int chance, int y, int x)
 			/* Require floor space */
 			if (cave_feat[ty][tx] != FEAT_FLOOR && cave_feat[ty][tx] != FEAT_SUNLIGHT) continue;
 
+			/* Don't put things under peaceful monsters */
+			if (cave_m_idx[ty][tx] > 0 && !attacker_at(ty, tx)) continue;
+
 			/* No objects */
 			k = 0;
 

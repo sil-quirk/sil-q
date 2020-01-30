@@ -560,6 +560,7 @@ extern void display_combat_rolls(void);
 extern void do_betrayal_ring_amulet();
 
 /* melee2.c */
+extern bool attacker_at(int y, int x);
 extern int adj_mon_count(int y, int x);
 extern int get_scent(int y, int x);
 extern bool cave_exist_mon(monster_race *r_ptr, int y, int x, bool occupied_ok, bool can_dig);

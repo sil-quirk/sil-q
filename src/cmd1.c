@@ -700,6 +700,7 @@ int stealth_melee_bonus(const monster_type *m_ptr)
 	return (stealth_bonus);
 }
 
+
 /*
  * Give a bonus to attack the player depending on the number of adjacent monsters.
  * This is +1 for monsters near the attacker or to the sides,
@@ -732,15 +733,15 @@ int overwhelming_att_mod(monster_type *m_ptr)
 	if (dy * dx == 0)
 	{
 		// increase modifier for monsters engaged with the player...
-		if (cave_m_idx[py+dx+dy][px-dy+dx] > 0) mod++;    // direction 2 
-		if (cave_m_idx[py-dx+dy][px+dy+dx] > 0) mod++;    // direction 3
-		if (cave_m_idx[py+dx][px-dy] > 0)       mod++;    // direction 4
-		if (cave_m_idx[py-dx][px+dy] > 0)       mod++;    // direction 5
+		if (attacker_at(py+dx+dy, px-dy+dx)) mod++;    // direction 2 
+		if (attacker_at(py-dx+dy, px+dy+dx)) mod++;    // direction 3
+		if (attacker_at(py+dx, px-dy))       mod++;    // direction 4
+		if (attacker_at(py-dx, px+dy))       mod++;    // direction 5
 		
 		// ...especially if they are behind the player
-		if (cave_m_idx[py+dx-dy][px-dy-dx] > 0) mod += 2; // direction 6
-		if (cave_m_idx[py-dx-dy][px+dy-dx] > 0) mod += 2; // direction 7
-		if (cave_m_idx[py-dy][px-dx] > 0)       mod += 2; // direction 8
+		if (attacker_at(py+dx-dy, px-dy-dx)) mod += 2; // direction 6
+		if (attacker_at(py-dx-dy, px+dy-dx)) mod += 2; // direction 7
+		if (attacker_at(py-dy, px-dx))       mod += 2; // direction 8
 	}
 	// if monster in a diagonal direction   875
 	//                                      6@3
@@ -748,15 +749,15 @@ int overwhelming_att_mod(monster_type *m_ptr)
 	else
 	{
 		// increase modifier for monsters engaged with the player...
-		if (cave_m_idx[py+dy][px] > 0)    mod++;    // direction 2
-		if (cave_m_idx[py][px+dx] > 0)    mod++;    // direction 3
-		if (cave_m_idx[py+dx][px-dy] > 0) mod++;    // direction 4
-		if (cave_m_idx[py-dx][px+dy] > 0) mod++;    // direction 5
+		if (attacker_at(py+dy, px))    mod++;    // direction 2
+		if (attacker_at(py, px+dx))    mod++;    // direction 3
+		if (attacker_at(py+dx, px-dy)) mod++;    // direction 4
+		if (attacker_at(py-dx, px+dy)) mod++;    // direction 5
 		
 		// ...especially if they are behind the player
-		if (cave_m_idx[py-dy][px] > 0)    mod += 2; // direction 6
-		if (cave_m_idx[py][px-dx] > 0)    mod += 2; // direction 7
-		if (cave_m_idx[py-dy][px-dx] > 0) mod += 2; // direction 8
+		if (attacker_at(py-dy, px))    mod += 2; // direction 6
+		if (attacker_at(py, px-dx))    mod += 2; // direction 7
+		if (attacker_at(py-dy, px-dx)) mod += 2; // direction 8
 	}
 	
 	// adjust for crowd fighting ability

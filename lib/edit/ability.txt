@@ -619,6 +619,7 @@ T:20:0:99  # Shovels and Mattocks
 N:143:Song of Freedom
 I:7:3:2
 D:Discovers and overcomes nearby doors, traps, and rubble.
+D: Grants you freedom of movement.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:21:3:3   # Quarterstaves
