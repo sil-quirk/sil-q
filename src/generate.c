@@ -3297,6 +3297,8 @@ static bool cave_gen(void)
 
 	int room_attempts = 0;
 
+	int is_guaranteed_forge_level = FALSE;
+
 	/* Hack - variables for allocations */
 	s16b mon_gen, obj_room_gen;
 
@@ -3331,11 +3333,18 @@ static bool cave_gen(void)
 	/* No rooms yet */
 	dun->cent_n = 0;
 
-	if (cheat_room) msg_format("Fixed forge count is %d.", p_ptr->fixed_forge_count);
 	if (cheat_room) msg_format("Forge count is %d.", p_ptr->forge_count);
 
-	// guarantee a forge at 100, 300, 500, 700, 900
-	if ((4 * p_ptr->fixed_forge_count) <= (p_ptr->depth - 2) || p_ptr->fixed_forge_count > p_ptr->forge_count)
+	// guarantee a forge at 100, 300, 500
+	if (p_ptr->fixed_forge_count < 3)
+	{
+		int next_guaranteed_forge_level = 2 + (p_ptr->fixed_forge_count * 4);
+		is_guaranteed_forge_level = next_guaranteed_forge_level <= (p_ptr->depth);
+	}
+
+	if (cheat_room) msg_format("Guaranteed forge: %s.", is_guaranteed_forge_level ? "true" : "false");
+
+	if (is_guaranteed_forge_level)
 	{
 		int y = rand_range(5, p_ptr->cur_map_hgt - 5);
 		int x = rand_range(5, p_ptr->cur_map_wid - 5);
