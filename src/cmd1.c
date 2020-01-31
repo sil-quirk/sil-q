@@ -3942,7 +3942,7 @@ void py_attack_aux(int y, int x, int attack_type)
 			prt = damroll(r_ptr->pd, r_ptr->ps);
 			prt_percent = prt_after_sharpness(o_ptr, &noticed_flag);
 
-			bool can_sharpen = ((o_ptr->tval == TV_SWORD) || (o_ptr->tval == TV_POLEARM));
+			bool can_sharpen = ((o_ptr->tval == TV_SWORD) || (o_ptr->tval == TV_POLEARM)) && (prt_percent == 100);
 			if (singing(SNG_WHETTING) && can_sharpen)
 			{
 				int weight = o_ptr->weight;

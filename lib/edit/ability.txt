@@ -642,10 +642,10 @@ T:45:0:99  # Ring
 N:146:Song of Whetting
 I:7:6:4
 P:7/1
-D:Grants sharpness to a non-blunt melee weapon, allowing it to ignore half
-D: enemy armour. Weapons of up to (Song/4) lbs in weight may be
-D: sharpened in this way.
-T:22:0:99  # Polearms
+D:Grants sharpness to a non-blunt melee weapon of up to Song/4 lbs
+D: in weight, allowing it to ignore half enemy armour.
+D: Already sharp weapons cannot be sharpened further.
+T:22:0:99  # Polearms and axes
 T:23:0:99  # Swords
 
 N:147:Song of the Trees
