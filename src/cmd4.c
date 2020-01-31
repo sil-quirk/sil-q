@@ -2465,7 +2465,8 @@ int pval_max(void)
  */
 int pval_min(void)
 {
-	return 0;
+	object_kind *k_ptr = &k_info[smith_o_ptr->k_idx];
+	return k_ptr->pval;
 }
 
 
