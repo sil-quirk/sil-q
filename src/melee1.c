@@ -743,14 +743,17 @@ bool make_attack_normal(monster_type *m_ptr)
 			betrayal_wield = is_traitor_item(INVEN_WIELD);
 			betrayal_arm = is_traitor_item(INVEN_ARM);
 
-			if ((betrayal_wield || betrayal_arm) && one_in_(20) &&
-			    health_level(p_ptr->chp, p_ptr->mhp) >= HEALTH_BADLY_WOUNDED)
+			if ((betrayal_wield || betrayal_arm) &&
+		  	    (health_level(p_ptr->chp, p_ptr->mhp) > HEALTH_ALMOST_DEAD) &&
+			     one_in_(10))
 			{
-				int max_dam = (dd + crit_bonus_dice + elem_bonus_dice) * ds;
-				int net_max_dam = max_dam - prt;
+				int max_dam = total_damage_dice * ds;
+				int min_prt = p_min(GF_HURT, TRUE);
+				min_prt = (min_prt * prt_percent) / 100;
 
-				if (net_max_dam > 0 &&
-				    health_level(p_ptr->chp - net_max_dam, p_ptr->mhp) <= HEALTH_ALMOST_DEAD)
+				int net_max_dam = max_dam - min_prt;
+
+				if (net_max_dam > (p_ptr->chp - 3))
 				{
 					/* Select the weapon or shield */
 					o_ptr = betrayal_wield ? &inventory[INVEN_WIELD] : &inventory[INVEN_ARM];
@@ -758,7 +761,8 @@ bool make_attack_normal(monster_type *m_ptr)
 					/* Describe */
 					object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
 
-					net_dam = MIN(net_max_dam, p_ptr->chp - dieroll(4));
+					prt = min_prt;
+					net_dam = p_ptr->chp - dieroll(4);
 					dam = net_dam + prt;
 
 					msg_format("Your %s feels suddenly heavy! You fail to %s the blow!", o_name, betrayal_wield ? "parry" : "block");
@@ -774,13 +778,13 @@ bool make_attack_normal(monster_type *m_ptr)
 				// determine the punctuation for the attack ("...", ".", "!" etc)
 				attack_punctuation(punctuation, net_dam, crit_bonus_dice);
 							
-                if (monster_charge(m_ptr))
-                {
-                    // remember that the monster can do this
-                    if (m_ptr->ml)  l_ptr->flags2 |= (RF2_CHARGE);
-                    
-                    act = "charges you";
-                }
+				if (monster_charge(m_ptr))
+				{
+				    // remember that the monster can do this
+				    if (m_ptr->ml)  l_ptr->flags2 |= (RF2_CHARGE);
+				    
+				    act = "charges you";
+				}
                 
 				/* Message */
 				if (act) msg_format("%^s %s%s", m_name, act, punctuation);
