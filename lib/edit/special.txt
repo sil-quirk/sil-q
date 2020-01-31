@@ -82,7 +82,7 @@ F:RES_POIS
 # Mithril and Galvorn
 
 N:3:of Resilience
-W:10:8:0:1000
+W:10:6:0:1000
 C:0:0:0:0:0:0:1
 T:36:11:11
 T:37:20:20
@@ -259,6 +259,7 @@ T:21:8:8
 T:22:11:13
 T:20:3:3
 F:REGEN | RES_FIRE
+F:IGNORE_ALL
 
 
 # Warhammers, battle-axes, great-axes
@@ -769,7 +770,7 @@ B:0/0
 # Mithril gauntlets only
 
 N:124:of Might
-W:10:8:0:3000
+W:10:4:0:3000
 C:0:0:0:0:0:0:1
 T:31:3:3
 F:STR

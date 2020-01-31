@@ -290,7 +290,7 @@ G:[:B
 I:37:20:0
 W:7:0:150:7000
 P:0:0d0:-2:2d4
-A:7/80:15/30
+A:7/80:15/10
 F:IGNORE_ALL | MITHRIL
 D:A shirt of armour formed from linked rings.
 
@@ -348,7 +348,7 @@ G:):B
 I:34:10:0
 W:8:0:40:10000
 P:-1:0d0:0:1d6
-A:8/80:14/15
+A:8/80:14/10
 F:IGNORE_ALL | MITHRIL
 
 
@@ -702,7 +702,7 @@ G:]:B
 I:31:3:0
 W:5:0:15:100
 P:0:0d0:0:1d1
-A:5/80:12/20
+A:5/80:12/10
 F:IGNORE_ALL | MITHRIL
 
 
