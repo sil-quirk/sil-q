@@ -4020,7 +4020,10 @@ void py_attack_aux(int y, int x, int attack_type)
 			if (two_handed_melee()) effective_strength += 2;
 
 			// check whether the effect triggers
-			if (p_ptr->active_ability[S_MEL][MEL_KNOCK_BACK] && (attack_type != ATT_OPPORTUNIST) && !(r_ptr->flags1 & (RF1_NEVER_MOVE)) &&
+			if (p_ptr->active_ability[S_MEL][MEL_KNOCK_BACK] &&
+			    (attack_type != ATT_OPPORTUNIST) &&
+			    !(r_ptr->flags1 & (RF1_NEVER_MOVE)) &&
+			    !(r_ptr->flags1 & (RF1_HIDDEN_MOVE)) &&
 			    (skill_check(PLAYER, effective_strength * 2, monster_stat(m_ptr, A_CON) * 2, m_ptr) > 0))
 			{
 				// remember this for later when the effect is applied
