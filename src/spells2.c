@@ -2941,7 +2941,7 @@ void earthquake(int cy, int cx, int pit_y, int pit_x, int r, int who)
 	
 
 	/* Paranoia -- Enforce maximum range */
-	if (r > 10) r = 10;
+	if (r > 6) r = 6;
 
 	// Step 1: 
 	// deal with pit creation (if a valid location was passed to this function)
