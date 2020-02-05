@@ -745,7 +745,7 @@ bool make_attack_normal(monster_type *m_ptr)
 
 			if ((betrayal_wield || betrayal_arm) &&
 		  	    (health_level(p_ptr->chp, p_ptr->mhp) > HEALTH_ALMOST_DEAD) &&
-			     one_in_(10))
+			     one_in_(20))
 			{
 				int max_dam = total_damage_dice * ds;
 				int min_prt = p_min(GF_HURT, TRUE);
