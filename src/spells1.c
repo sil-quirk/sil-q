@@ -5420,7 +5420,7 @@ void sing(void)
 			}
 			case SNG_WHETTING:
 			{
-				if ((p_ptr->song_duration % 3) == type - 1) cost += 1;
+				cost += 1;
 				break;
 			}
 			case SNG_TREES:
