@@ -1928,7 +1928,7 @@ static void charge_staff(object_type *o_ptr)
 		case SV_STAFF_MAJESTY:				o_ptr->pval = mult * damroll(4,2); break;
 		case SV_STAFF_SELF_KNOWLEDGE:		o_ptr->pval = mult * damroll(2,2); break;
 		case SV_STAFF_WARDING:				o_ptr->pval = mult * damroll(2,2); break;
-		case SV_STAFF_EARTHQUAKES:			o_ptr->pval = mult * damroll(2,2); break;
+		case SV_STAFF_DISMAY:			    o_ptr->pval = mult * damroll(2,2); break;
 		case SV_STAFF_RECHARGING:			o_ptr->pval = mult * damroll(2,2); break;
 		
 		case SV_STAFF_SUMMONING:			o_ptr->pval = mult * damroll(6,2); break;

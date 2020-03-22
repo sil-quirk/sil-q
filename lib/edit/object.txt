@@ -1096,14 +1096,13 @@ D:It can be used to create glyphs of warding, which your opponents
 D: have difficulty crossing.
 
 
-N:204:Earthquakes
+N:204:Dismay
 G:_:d
 I:55:14:0
 W:13:0:50:400
 P:0:0d0:0:0d0
 A:13/3:21/2
-D:It causes a small earthquake, crushing nearby areas with
-D: stone and rubble. 
+D:It confuses all monsters in line of sight.
 
 
 N:206:Recharging
