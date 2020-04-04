@@ -65,7 +65,7 @@
 
 # Version stamp (required)
 
-V:1.4.2
+V:1.4.3
 
 
 ##### Non-kind (contains the 'pile' picture) #####
@@ -290,7 +290,7 @@ G:[:B
 I:37:20:0
 W:7:0:150:7000
 P:0:0d0:-2:2d4
-A:7/80:15/30
+A:7/80:15/10
 F:IGNORE_ALL | MITHRIL
 D:A shirt of armour formed from linked rings.
 
@@ -348,7 +348,7 @@ G:):B
 I:34:10:0
 W:8:0:40:10000
 P:-1:0d0:0:1d6
-A:8/80:14/15
+A:8/80:14/10
 F:IGNORE_ALL | MITHRIL
 
 
@@ -459,8 +459,8 @@ N:76:& Hand Axe~
 G:/:s
 I:22:11:0
 W:2:0:10:150
-P:-1:5d1:0:0d0
-A:2/1
+P:-1:4d2:0:0d0
+A:2/4
 F:AXE
 
 
@@ -702,7 +702,7 @@ G:]:B
 I:31:3:0
 W:5:0:15:100
 P:0:0d0:0:1d1
-A:5/80:12/20
+A:5/80:12/10
 F:IGNORE_ALL | MITHRIL
 
 
@@ -739,10 +739,10 @@ G:~:B
 I:39:8:0
 W:12:0:10:1000
 P:0:0d0:0:0d0:0
-A:12/10:18/5
+A:12/8:18/4
 F:MITHRIL
 D:An enchanted lamp, shining with the light of lesser jewels.
-D: You can equip it as a light source with a radius of 3 squares.
+D: You can equip it as a light source with a radius of 4 squares.
 D: It will shine forever.
 
 
@@ -837,22 +837,23 @@ B:4/2
 
 ##### Rings #####
 
-
-N:150:Perception
+# (ability 4/4 is Alchemy)
+N:150:Secrets
 G:=:d
 I:45:0:0
-W:5:0:1:500
+W:15:0:1:500
 P:0:0d0:0:0d0
-A:5/3
+A:15/30
 F:PERCEPTION
+B:4/4
 
 
 N:151:Ered Luin
 G:=:d
 I:45:1:0
-W:7:0:1:150
+W:8:0:1:150
 P:0:0d0:0:0d0
-A:8/80
+A:8/10
 F:WILL | RES_FEAR | RES_CONFU
 
 
@@ -861,16 +862,16 @@ G:=:d
 I:45:2:0
 W:8:0:1:500
 P:0:0d0:0:0d0
-A:8/3
+A:8/15
 D:It helps you avoid your enemies' blows. 
 
 
 N:153:Protection
 G:=:d
 I:45:3:0
-W:9:0:1:500
+W:7:0:1:500
 P:0:0d0:0:0d0
-A:9/3
+A:7/4
 D:It provides protection from damage. 
 
 
@@ -879,7 +880,7 @@ G:=:d
 I:45:4:0
 W:9:0:1:500
 P:0:0d0:0:0d0
-A:9/5
+A:9/25
 F:STR | SUST_STR
 
 
@@ -888,25 +889,25 @@ G:=:d
 I:45:5:0
 W:10:0:1:500
 P:0:0d0:0:0d0
-A:10/5
+A:10/25
 F:DEX | SUST_DEX
 
 
 N:156:Frost
 G:=:d
 I:45:6:0
-W:11:0:1:250
+W:9:0:1:250
 P:0:0d0:0:0d0
-A:11/3
+A:9/3
 F:RES_FIRE | EASY_KNOW
 
 
 N:157:Warmth
 G:=:d
 I:45:7:0
-W:12:0:1:250
+W:10:0:1:250
 P:0:0d0:0:0d0
-A:12/3
+A:10/3
 F:RES_COLD | EASY_KNOW
 
 
@@ -915,7 +916,7 @@ G:=:d
 I:45:8:0
 W:12:0:1:500
 P:0:0d0:0:0d0
-A:12/3
+A:12/15
 D:It helps you hit your opponents. 
 
 
@@ -932,41 +933,41 @@ F:FREE_ACT | EASY_KNOW
 N:160:Cowardice
 G:=:d
 I:45:10:0
-W:7:0:1:500
+W:7:0:1:0
 P:0:0d0:0:0d0
-A:7/8
+A:7/6
 F:FEAR | EASY_KNOW | LIGHT_CURSE
 B:2/0
 
 
-#N:161:True Sight
-#G:=:d
-#I:45:11:0
-#W:13:0:1:340
-#P:0:0d0:0:0d0
-#A:13/3
-#F:SEE_INVIS | RES_BLIND | RES_HALLU | EASY_KNOW
+N:161:Bauglir's Vanguard
+G:=:d
+I:45:11:0
+W:6:0:1:300
+P:0:0d0:0:0d0
+A:6/2
+F:RES_STUN | SUST_STR | HUNGER | EASY_KNOW
 
 
 N:162:Venom's End
 G:=:d
 I:45:12:0
-W:7:0:1:16000
+W:6:0:1:1000
 P:0:0d0:0:0d0
-A:6/3
+A:6/4
 F:RES_POIS | EASY_KNOW
 
 
 ##
 
 
-N:171:Hunger
+N:171:the Laiquendi
 G:=:d
 I:45:21:0
-W:6:0:1:0
+W:8:0:1:1000
 P:0:0d0:0:0d0
-A:6/2
-F:HUNGER | EASY_KNOW
+A:8/20
+F:STEALTH | ARCHERY | EASY_KNOW
 
 
 #N:172:Wrath
@@ -1017,7 +1018,7 @@ G:_:d
 I:55:5:0
 W:6:0:50:400
 P:0:0d0:0:0d0
-A:6/2:14/4
+A:4/2:10/4
 D:It removes curses from the items in your possession.
 
 
@@ -1095,14 +1096,13 @@ D:It can be used to create glyphs of warding, which your opponents
 D: have difficulty crossing.
 
 
-N:204:Earthquakes
+N:204:Dismay
 G:_:d
 I:55:14:0
 W:13:0:50:400
 P:0:0d0:0:0d0
 A:13/3:21/2
-D:It causes a small earthquake, crushing nearby areas with
-D: stone and rubble. 
+D:It confuses all monsters in line of sight.
 
 
 N:206:Recharging
@@ -2108,8 +2108,8 @@ P:0:0d0:0:0d0
 F:EASY_KNOW
 D:Some characters learn to sing songs of power, which can
 D: have great effect upon you, your enemies, or even your environment.
-D: Your character knows two songs: the Song of Slaying, which provides
-D: a bonus to attack which gets larger the more creatures you kill, and
+D: Your character knows two songs: the Song of Staunching, which stops
+D: you from bleeding and increases the speed at which you heal, and
 D: the Song of the Trees, which increases your light radius. Behind this
 D: door you will find use for both of them. Press (s) to begin or end
 D: singing.
@@ -2123,11 +2123,11 @@ P:0:0d0:0:0d0
 F:EASY_KNOW
 D:Some characters master Smithing and create enchanted items.
 D: To do so requires you to find a forge and when standing in it,
-D: to press (,). Your character knows how to forge armour,
-D: and how to enchant it. Find the forge through this door and
-D: create a set of boots of speed. As with most enchantment you
-D: have to lend a piece of yourself to make these, in this case the
-D: price is 350 experience points.
+D: to press (,). Your character knows how to make magical jewellery.
+D: Find the forge through this door and create an Amulet of the
+D: Vigilant Eye. As is the case with many magical items, you
+D: have to lend a piece of yourself to make these. In this case the
+D: price is 150 experience points.
 
 
 N:485:& Note~
@@ -2146,11 +2146,11 @@ W:0:1:1:0
 P:0:0d0:0:0d0
 F:EASY_KNOW
 D:Each of the eight skills has a set of special Abilities tied to it.
-D: Each type of song is an Ability for the Song skill. Armour Smithing
-D: and Enchantment are Abilities for the Smithing skill. The boots of
-D: speed you made grant an Ability called Sprinting, linked to the
-D: Evasion skill. They make you move more quickly if you spend several
-D: turns moving in roughly the same direction.
+D: Each type of song is an Ability for the Song skill. Jewellery is
+D: an Ability for the Smithing skill. The amulet you made grants an
+D: Ability called Keen Senses, linked to the Perception skill. This
+D: lets you see enemies lurking in the shadows just beyond the edge
+D: of the light.
 
 
 N:487:& Note~

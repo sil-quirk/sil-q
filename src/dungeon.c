@@ -31,73 +31,9 @@ int value_check_aux1(const object_type *o_ptr)
 		return (INSCRIP_EXCELLENT);
 	}
 
-	/* Cursed items */
-	//if (cursed_p(o_ptr)) return (INSCRIP_CURSED);
-
-	/* Broken items */
-	//if (broken_p(o_ptr)) return (INSCRIP_BROKEN);
-
-	/* Good evasion or protection dice/sides */
-	//if (o_ptr->evn > k_info[o_ptr->k_idx].evn) return (INSCRIP_GOOD_STRONG);
-	//if (o_ptr->pd > k_info[o_ptr->k_idx].pd) return (INSCRIP_GOOD_STRONG);
-	//if (o_ptr->ps > k_info[o_ptr->k_idx].ps) return (INSCRIP_GOOD_STRONG);
-
-	/* Good attack or damage dice/sides*/
-	//if (o_ptr->att > k_info[o_ptr->k_idx].att) return (INSCRIP_GOOD_STRONG);
-	//if (o_ptr->dd > k_info[o_ptr->k_idx].dd) return (INSCRIP_GOOD_STRONG);
-	//if (o_ptr->ds > k_info[o_ptr->k_idx].ds) return (INSCRIP_GOOD_STRONG);
-
 	/* Default to "average" */
 	return (INSCRIP_AVERAGE);
 }
-
-
-/*
- * Return a "feeling" (or NULL) about an item.  Method 2 (Strong).
- * Sil - this method can distinguish artefacts from special items
- */
-int value_check_aux2(const object_type *o_ptr)
-{
-	/* Artefacts */
-	if (artefact_p(o_ptr))
-	{
-		/* Cursed */
-		if (cursed_p(o_ptr)) return (INSCRIP_TERRIBLE);
-
-		/* Normal */
-		return (INSCRIP_SPECIAL);
-	}
-
-	/* Ego-Items */
-	if (ego_item_p(o_ptr))
-	{
-		/* Cursed */
-		if (cursed_p(o_ptr)) return (INSCRIP_WORTHLESS);
-
-		/* Normal */
-		return (INSCRIP_EXCELLENT);
-	}
-
-	/* Cursed items */
-	//if (cursed_p(o_ptr)) return (INSCRIP_CURSED);
-
-	/* Broken items */
-	//if (broken_p(o_ptr)) return (INSCRIP_BROKEN);
-
-	/* Good evasion or protection dice/sides */
-	//if (o_ptr->evn > k_info[o_ptr->k_idx].evn) return (INSCRIP_GOOD_STRONG);
-	//if (o_ptr->pd > k_info[o_ptr->k_idx].pd) return (INSCRIP_GOOD_STRONG);
-	//if (o_ptr->ps > k_info[o_ptr->k_idx].ps) return (INSCRIP_GOOD_STRONG);
-
-	/* Good attack or damage dice/sides*/
-	//if (o_ptr->att > k_info[o_ptr->k_idx].att) return (INSCRIP_GOOD_STRONG);
-	//if (o_ptr->dd > k_info[o_ptr->k_idx].dd) return (INSCRIP_GOOD_STRONG);
-	//if (o_ptr->ds > k_info[o_ptr->k_idx].ds) return (INSCRIP_GOOD_STRONG);
-
-	/* Default to "average" */
-	return (INSCRIP_AVERAGE);
-}
-
 
 /*
  * Returns TRUE if this object can be pseudo-ided.
@@ -152,15 +88,7 @@ void pseudo_id(object_type *o_ptr)
 	/* It is known, no information needed */
 	if (object_known_p(o_ptr)) return;
 
-	/* Check for a feeling */
-	if (p_ptr->active_ability[S_PER][PER_FOREWARNED])
-	{
-		feel = value_check_aux2(o_ptr);
-	}
-	else
-	{
-		feel = value_check_aux1(o_ptr);
-	}
+	feel = value_check_aux1(o_ptr);
 
 	/* Skip non-feelings */
 	if (!feel) return;

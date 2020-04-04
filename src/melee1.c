@@ -39,6 +39,16 @@ static bool monster_cut_or_stun(int crit_bonus_dice, int net_dam, int effect)
 }
 
 
+bool blocking_bonus_active(void)
+{
+	bool moved_last_turn =
+	    (p_ptr->previous_action[0] >= 1) &&
+	    (p_ptr->previous_action[0] <= 9) &&
+	    (p_ptr->previous_action[0] != 5);
+
+	return !moved_last_turn && p_ptr->active_ability[S_EVN][EVN_BLOCKING];
+}
+
 /*
  * Determine whether there is a bonus die for an elemental attack that
  * the player doesn't resist
@@ -89,11 +99,6 @@ extern int protection_roll(int typ, bool melee)
 		prt += damroll(2, 2);
 	}
 	
-	if (p_ptr->active_ability[S_WIL][WIL_HARDINESS])
-	{
-		prt += damroll(1, p_ptr->skill_use[S_WIL] / 6);
-	}
-	
 	// armour:
 	
 	for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
@@ -110,7 +115,7 @@ extern int protection_roll(int typ, bool melee)
 		{
 			if ((typ == GF_HURT) || (typ == GF_FIRE) || (typ == GF_COLD))
 			{
-				if (p_ptr->active_ability[S_EVN][EVN_BLOCKING] && (!melee || (p_ptr->previous_action[0] == 5)))
+				if (blocking_bonus_active())
 				{
 					mult = 2;
 				}
@@ -162,11 +167,6 @@ extern int p_min(int typ, bool melee)
 		}
 	}
 	
-	if (p_ptr->active_ability[S_WIL][WIL_HARDINESS])
-	{
-		if (p_ptr->skill_use[S_WIL] >= 6) prt += 1;
-	}
-	
 	// armour:
 	
 	for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
@@ -183,8 +183,7 @@ extern int p_min(int typ, bool melee)
 		{
 			if ((typ == GF_HURT) || (typ == GF_FIRE) || (typ == GF_COLD))
 			{
-				if (p_ptr->active_ability[S_EVN][EVN_BLOCKING] && 
-				    (!melee || ((p_ptr->previous_action[0] == 5) || ((p_ptr->previous_action[0] == ACTION_NOTHING) && (p_ptr->previous_action[1] == 5)))))
+				if (blocking_bonus_active())
 				{
 					mult = 2;
 				}
@@ -233,11 +232,6 @@ extern int p_max(int typ, bool melee)
 		prt += 4;
 	}
 	
-	if (p_ptr->active_ability[S_WIL][WIL_HARDINESS])
-	{
-		prt += p_ptr->skill_use[S_WIL] / 6;
-	}
-	
 	// armour:
 	
 	for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
@@ -254,8 +248,7 @@ extern int p_max(int typ, bool melee)
 		{
 			if ((typ == GF_HURT) || (typ == GF_FIRE) || (typ == GF_COLD))
 			{
-				if (p_ptr->active_ability[S_EVN][EVN_BLOCKING] && 
-				    (!melee || ((p_ptr->previous_action[0] == 5) || ((p_ptr->previous_action[0] == ACTION_NOTHING) && (p_ptr->previous_action[1] == 5)))))
+				if (blocking_bonus_active())
 				{
 					mult = 2;
 				}
@@ -394,6 +387,8 @@ void do_betrayal_ring_amulet()
 		if (item == INVEN_NECK) msg_format("Your %s comes loose from its chain and falls!", o_name);
 		else msg_format("Your %s slips from your finger and rolls away!", o_name);
 
+		ident_f2(TR2_TRAITOR, o_ptr);
+
 		for (i = 0; i < temp_n; ++i)
 		{
 			int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
@@ -453,9 +448,9 @@ void do_betrayal_helm_crown()
 		/* Describe */
 		object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
 
-		msg_format("Your %s twists to cover your eyes!", o_name);
 		set_blind(p_ptr->blind + damroll(3, 2));
-		ident_betrayal(o_ptr);
+		msg_format("Your %s twists to cover your eyes!", o_name);
+		ident_f2(TR2_TRAITOR, o_ptr);
 	}
 }
 
@@ -723,7 +718,7 @@ bool make_attack_normal(monster_type *m_ptr)
 
 			/* Determine critical-hit bonus dice (if any) */
 			// treats attack a weapon weighing 2 pounds per damage die
-			crit_bonus_dice = crit_bonus(hit_result, 20 * dd, &r_info[0], S_MEL, FALSE);
+			crit_bonus_dice = crit_bonus(hit_result, 20 * dd, &r_info[0], S_MEL, FALSE, m_ptr);
 
 			/* Determine elemental attack bonus dice (if any)  */
 			elem_bonus_dice = elem_bonus(effect);
@@ -748,14 +743,17 @@ bool make_attack_normal(monster_type *m_ptr)
 			betrayal_wield = is_traitor_item(INVEN_WIELD);
 			betrayal_arm = is_traitor_item(INVEN_ARM);
 
-			if ((betrayal_wield || betrayal_arm) && one_in_(20) &&
-			    health_level(p_ptr->chp, p_ptr->mhp) >= HEALTH_BADLY_WOUNDED)
+			if ((betrayal_wield || betrayal_arm) &&
+		  	    (health_level(p_ptr->chp, p_ptr->mhp) > HEALTH_ALMOST_DEAD) &&
+			     one_in_(20))
 			{
-				int max_dam = (dd + crit_bonus_dice + elem_bonus_dice) * ds;
-				int net_max_dam = max_dam - prt;
+				int max_dam = total_damage_dice * ds;
+				int min_prt = p_min(GF_HURT, TRUE);
+				min_prt = (min_prt * prt_percent) / 100;
 
-				if (net_max_dam > 0 &&
-				    health_level(p_ptr->chp - net_max_dam, p_ptr->mhp) <= HEALTH_ALMOST_DEAD)
+				int net_max_dam = max_dam - min_prt;
+
+				if (net_max_dam > (p_ptr->chp - 3))
 				{
 					/* Select the weapon or shield */
 					o_ptr = betrayal_wield ? &inventory[INVEN_WIELD] : &inventory[INVEN_ARM];
@@ -763,11 +761,12 @@ bool make_attack_normal(monster_type *m_ptr)
 					/* Describe */
 					object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
 
-					msg_format("Your %s feels suddenly heavy! You fail to %s the blow!", o_name, betrayal_wield ? "parry" : "block");
-					net_dam = MAX(net_max_dam, p_ptr->chp - dieroll(4));
+					prt = min_prt;
+					net_dam = p_ptr->chp - dieroll(4);
 					dam = net_dam + prt;
 
-					ident_betrayal(o_ptr);
+					msg_format("Your %s feels suddenly heavy! You fail to %s the blow!", o_name, betrayal_wield ? "parry" : "block");
+					ident_f2(TR2_TRAITOR, o_ptr);
 				}
 			}
 
@@ -779,13 +778,13 @@ bool make_attack_normal(monster_type *m_ptr)
 				// determine the punctuation for the attack ("...", ".", "!" etc)
 				attack_punctuation(punctuation, net_dam, crit_bonus_dice);
 							
-                if (monster_charge(m_ptr))
-                {
-                    // remember that the monster can do this
-                    if (m_ptr->ml)  l_ptr->flags2 |= (RF2_CHARGE);
-                    
-                    act = "charges you";
-                }
+				if (monster_charge(m_ptr))
+				{
+				    // remember that the monster can do this
+				    if (m_ptr->ml)  l_ptr->flags2 |= (RF2_CHARGE);
+				    
+				    act = "charges you";
+				}
                 
 				/* Message */
 				if (act) msg_format("%^s %s%s", m_name, act, punctuation);
@@ -1624,7 +1623,14 @@ bool make_attack_normal(monster_type *m_ptr)
 				/* Critical hit */
 				if (monster_cut_or_stun(crit_bonus_dice, net_dam, effect))
 				{
-					(void)set_cut(p_ptr->cut + (net_dam / 2));
+					int bleeding = net_dam / 2;
+					if (p_ptr->resist_bleed)
+					{
+						bleeding = 1;
+						ident_resist(TR2_RES_BLEED);
+					}
+
+					(void)set_cut(p_ptr->cut + (bleeding));
 				}
 			}
 
@@ -1676,7 +1682,7 @@ bool make_attack_normal(monster_type *m_ptr)
 							monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 							msg_format("%^s attempts to knock you back, but you stand fast.", m_name);
 
-							ident_stand_fast();
+							ident_f3(TR3_STAND_FAST, NULL);
 						}
 						else
 						{
@@ -1697,11 +1703,10 @@ bool make_attack_normal(monster_type *m_ptr)
 				{
 				    if (allow_player_fear(m_ptr))
 				    {
+					ident_f2(TR2_FEAR, NULL);
+
 					set_afraid(p_ptr->afraid + damroll(10,4));
 					set_fast(p_ptr->fast + damroll(5,4));
-					
-					// give the player a chance to identify what is causing it
-					ident_cowardice();
 				    }
 				}
 			}
@@ -2430,6 +2435,45 @@ bool make_attack_ranged(monster_type *m_ptr, int attack)
 		{
             song_of_oaths(m_ptr);
             
+			break;
+		}
+
+		/* RF4_THROW_WEB */
+		case 96+23:
+		{
+			if (blind) msg_print("You hear a whispering movement.");
+			else msg_format("%^s tosses strands of sticky web at you.", m_name);
+			
+			mon_bolt(m_idx, GF_WEB, 0, 0, -1);
+			
+			break;
+		}
+
+		/* RF4_RALLY */
+		case 96+24:
+		{
+			if (blind) msg_print("You hear a rallying cry.");
+			else msg_format("%^s shouts a rallying cry.", m_name);
+			
+			for (int i = mon_max - 1; i >= 1; i--)
+			{
+				monster_type *target = &mon_list[i];
+				monster_race *r_ptr = &r_info[target->r_idx];
+
+				// Rally works on living monsters which are orcs, men, or raukar
+				if (!target->r_idx ||
+				    target == m_ptr ||
+				    (!(r_ptr->flags3 & (RF3_ORC)) &&
+				     !(r_ptr->flags3 & (RF3_MAN)) &&
+				     !(r_ptr->flags3 & (RF3_RAUKO))))
+				{
+					continue;
+				}
+				
+				int d = distance(m_ptr->fx, m_ptr->fy, target->fx, target->fy);
+				target->tmp_morale += ((spower * 10 / (d+4)) * 10);
+			}
+
 			break;
 		}
 

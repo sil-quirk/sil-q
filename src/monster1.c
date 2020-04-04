@@ -111,6 +111,12 @@ static void describe_monster_spells(int r_idx, const monster_lore *l_ptr)
 		vp[vn++] = "throw boulders";
 		attack = 96+2;
 	}
+	
+	if (l_ptr->flags4 & (RF4_THROW_WEB))
+	{
+		vp[vn++] = "throw web";
+		attack = 96+23;
+	}
 
 	/* Describe innate attacks */
 	if (vn)
@@ -152,6 +158,10 @@ static void describe_monster_spells(int r_idx, const monster_lore *l_ptr)
 			else if (attack == 96+2)
 			{
 				text_out_c(TERM_UMBER, format(" (%+d, 6d%d)", r_ptr->spell_power, get_sides(attack)));
+			}
+			else if (attack == 96+23)
+			{
+				text_out_c(TERM_UMBER, format(" (%+d)", r_ptr->spell_power));
 			}
 		}
 
@@ -542,6 +552,7 @@ static void describe_monster_abilities(int r_idx, const monster_lore *l_ptr)
     if (l_ptr->flags4 & (RF4_SNG_PIERCING))       vp[vn++] = "song of piercing";
     if (l_ptr->flags4 & (RF4_SNG_OATHS))          vp[vn++] = "song of oaths";
     if (l_ptr->flags4 & (RF4_HATCH_SPIDER))       vp[vn++] = "hatch spider";
+    if (l_ptr->flags4 & (RF4_RALLY))              vp[vn++] = "rally foes";
    
     /* Describe Abilities */
 	if (vn)
@@ -1115,29 +1126,31 @@ static void describe_monster_exp(int r_idx, const monster_lore *l_ptr)
 		/* Mention the experience */
 		text_out(format(" %ld experience.  ", (long) i));
 
-		
 
 		/* Introduction for Kills */
-		if (l_ptr->pkills)
+		if (!(r_ptr->flags1 & (RF1_PEACEFUL)))
 		{
-			if (l_ptr->flags1 & RF1_UNIQUE)
-				text_out(format("Killing %s was worth", wd_him[msex]));
+			if (l_ptr->pkills)
+			{
+				if (l_ptr->flags1 & RF1_UNIQUE)
+					text_out(format("Killing %s was worth", wd_him[msex]));
+				else
+					text_out("Killing another would be worth");
+			}
 			else
-				text_out("Killing another would be worth");
-		}
-		else
-		{
-			if (l_ptr->flags1 & RF1_UNIQUE)
-				text_out(format("Killing %s would be worth", wd_him[msex]));
-			else
-				text_out("Killing one would be worth");
-		}
+			{
+				if (l_ptr->flags1 & RF1_UNIQUE)
+					text_out(format("Killing %s would be worth", wd_him[msex]));
+				else
+					text_out("Killing one would be worth");
+			}
 
-		/* calculate the integer exp part */
-		i = adjusted_mon_exp(r_ptr, TRUE);
+			/* calculate the integer exp part */
+			i = adjusted_mon_exp(r_ptr, TRUE);
 
-		/* Mention the experience */
-		text_out(format(" %ld.  ", (long) i));
+			/* Mention the experience */
+			text_out(format(" %ld.  ", (long) i));
+		}
 	}
 }
 

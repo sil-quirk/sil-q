@@ -1263,8 +1263,8 @@ byte spell_info_RF4[32][3]=
     
 	{             0,     0,     0},        /* RF4_XXX22 */
 	{             0,     0,     0},        /* RF4_XXX23 */
-	{             0,     0,     0},        /* RF4_XXX24 */
-	{             0,     0,     0},        /* RF4_XXX25 */
+	{ MON_MANA_COST,     0,     0},        /* RF4_THROW_WEB */
+	{ MON_MANA_COST,     0,     0},        /* RF4_RALLY */
 	{             0,     0,     0},        /* RF4_XXX26 */
 	{             0,     0,     0},        /* RF4_XXX27 */
 	{             0,     0,     0},        /* RF4_XXX28 */
@@ -1306,10 +1306,10 @@ byte spell_desire_RF4[32][2] =
 	{   0,    0}, /* RF4_SNG_PIERCING */
 	{  50,  100}, /* RF4_SNG_OATHS */
     
-	{ 0,   100}, /* RF4_XXX22 */
-	{ 0,   100}, /* RF4_XXX23 */
-	{ 0,   100}, /* RF4_XXX24 */
-	{ 0,   100}, /* RF4_XXX25 */
+	{   0,  100}, /* RF4_XXX22 */
+	{   0,  100}, /* RF4_XXX23 */
+	{  50,  100}, /* RF4_THROW_WEB */
+	{  50,  100}, /* RF4_RALLY */
 	{ 0,   100}, /* RF4_XXX26 */
 	{ 0,   100}, /* RF4_XXX27 */
 	{ 0,   100}, /* RF4_XXX28 */

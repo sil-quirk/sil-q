@@ -2556,6 +2556,19 @@ static bool build_vault(int y0, int x0, vault_type *v_ptr, bool flip_d)
 					break;
 				}
 
+				case 'z':
+				{
+					int humanOrElf = one_in_(2) ? R_IDX_HUMAN_SLAVE : R_IDX_ELF_SLAVE;
+					place_monster_one(y, x, humanOrElf, TRUE, TRUE, NULL);
+					break;
+				}
+
+				case 'Z':
+				{
+					place_monster_one(y, x, R_IDX_ORC_SLAVEMASTER, TRUE, TRUE, NULL);
+					break;
+				}
+
 				/* cat warrior */
 				case 'f':
 				{
@@ -2841,11 +2854,18 @@ static bool build_type6(int y0, int x0, bool force_forge)
         // unless forcing a forge, try additional times to place any vault marked TEST
         if ((tries < 1000) && !(v_ptr->flags & (VLT_TEST)) && !p_ptr->force_forge) continue;
 
+
 		rarity = v_ptr->rarity;
-		/* Surface rooms get very much rarer at depth */
-		if (v_ptr->flags & (VLT_SURFACE))
+		if (p_ptr->depth < 6)
 		{
-			rarity += ((1 << (p_ptr->depth)) / 8);
+			/* Surface rooms are more common at low depths */
+			if (!(v_ptr->flags & (VLT_SURFACE)) && !one_in_(4))
+				continue;
+		}
+		else if (v_ptr->flags & (VLT_SURFACE))
+		{
+			/* Surface rooms get very much rarer at depth */
+			rarity += (1 << (p_ptr->depth));
 		}
 
         /* Accept the first interesting room */
@@ -3277,6 +3297,8 @@ static bool cave_gen(void)
 
 	int room_attempts = 0;
 
+	int is_guaranteed_forge_level = FALSE;
+
 	/* Hack - variables for allocations */
 	s16b mon_gen, obj_room_gen;
 
@@ -3311,11 +3333,18 @@ static bool cave_gen(void)
 	/* No rooms yet */
 	dun->cent_n = 0;
 
-	if (cheat_room) msg_format("Fixed forge count is %d.", p_ptr->fixed_forge_count);
 	if (cheat_room) msg_format("Forge count is %d.", p_ptr->forge_count);
 
-	// guarantee a forge at 100, 500, 900
-	if ((8 * p_ptr->fixed_forge_count) <= (p_ptr->depth - 2) || p_ptr->fixed_forge_count > p_ptr->forge_count)
+	// guarantee a forge at 100, 300, 500
+	if (p_ptr->fixed_forge_count < 3)
+	{
+		int next_guaranteed_forge_level = 2 + (p_ptr->fixed_forge_count * 4);
+		is_guaranteed_forge_level = next_guaranteed_forge_level <= (p_ptr->depth);
+	}
+
+	if (cheat_room) msg_format("Guaranteed forge: %s.", is_guaranteed_forge_level ? "true" : "false");
+
+	if (is_guaranteed_forge_level)
 	{
 		int y = rand_range(5, p_ptr->cur_map_hgt - 5);
 		int x = rand_range(5, p_ptr->cur_map_wid - 5);

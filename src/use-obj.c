@@ -421,9 +421,6 @@ static bool quaff_potion(object_type *o_ptr, bool *ident)
 
 static bool use_staff(object_type *o_ptr, bool *ident)
 {
-	int py = p_ptr->py;
-	int px = p_ptr->px;
-
 	int k;
 
 	bool use_charge = TRUE;
@@ -537,11 +534,9 @@ static bool use_staff(object_type *o_ptr, bool *ident)
 			break;
 		}
 
-		case SV_STAFF_EARTHQUAKES:
+		case SV_STAFF_DISMAY:
 		{
-			int radius = 3 + p_ptr->skill_use[S_WIL] / 5;
-			earthquake(py, px, -1, -1, radius, -1);
-			*ident = TRUE;
+			if (project_los(GF_CONFUSION, 0, 0, 5 + will_score / 2)) *ident = TRUE;
 			break;
 		}
 

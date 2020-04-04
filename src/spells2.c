@@ -417,12 +417,32 @@ void self_knowledge(void)
 	if (f2 & TR2_TRAITOR)
 	{
             strnfmt(s[i], 80, "You feel doom hastening toward you");
+	    strnfmt(t[i], 80, "(you will be betrayed)");
+	    good[i] = FALSE;
             i++;
 	}
 
 	if (f3 & TR3_CHEAT_DEATH)
 	{
             strnfmt(s[i], 80, "You are protected from serious harm");
+	    strnfmt(t[i], 80, "(you will survive a killing blow)");
+	    good[i] = TRUE;
+            i++;
+	}
+
+	if (f3 & TR3_AVOID_TRAPS)
+	{
+            strnfmt(s[i], 80, "Your feet do not trigger traps");
+	    strnfmt(t[i], 80, "(does not protect from webs, roosts and pits)");
+	    good[i] = TRUE;
+            i++;
+	}
+
+	if (f3 & TR3_STAND_FAST)
+	{
+            strnfmt(s[i], 80, "You stand fast against your foes");
+	    strnfmt(t[i], 80, "(you cannot be moved by enemy abilities)");
+	    good[i] = TRUE;
             i++;
 	}
 
@@ -854,7 +874,7 @@ void self_knowledge(void)
 		{
             identify[INVEN_WIELD] = TRUE;
             strnfmt(s[i], 80, "Your weapon cuts easily through armour");
-            strnfmt(t[i], 80, "(ignore 50\% of protection)");
+            strnfmt(t[i], 80, "(ignore 50%% of protection)");
             good[i] = TRUE;
             i++;
 		}
@@ -863,7 +883,7 @@ void self_knowledge(void)
 		{
             identify[INVEN_WIELD] = TRUE;
             strnfmt(s[i], 80, "Your weapon cuts exceptionally easily through armour");
-            strnfmt(t[i], 80, "(ignore 100\% of protection)");
+            strnfmt(t[i], 80, "(ignore 100%% of protection)");
             good[i] = TRUE;
             i++;
 		}
@@ -883,6 +903,15 @@ void self_knowledge(void)
             strnfmt(s[i], 80, "Your weapon is unusually well balanced");
             strnfmt(t[i], 80, "(reroll missed attacks)");
             good[i] = TRUE;
+            i++;
+		}
+
+		if (f3 & (TR3_CUMBERSOME))
+		{
+            identify[INVEN_WIELD] = TRUE;
+            strnfmt(s[i], 80, "Your weapon is cumbersome");
+            strnfmt(t[i], 80, "(no critical hits)");
+            good[i] = FALSE;
             i++;
 		}
 
@@ -1007,7 +1036,7 @@ void self_knowledge(void)
 		{
             identify[INVEN_ARM] = TRUE;
             strnfmt(s[i], 80, "Your off-hand weapon cuts easily through armour");
-            strnfmt(t[i], 80, "(ignore 50\% of protection)");
+            strnfmt(t[i], 80, "(ignore 50%% of protection)");
             good[i] = TRUE;
             i++;
 		}
@@ -1015,7 +1044,7 @@ void self_knowledge(void)
 		{
             identify[INVEN_ARM] = TRUE;
             strnfmt(s[i], 80, "Your off-hand weapon cuts exceptionally easily through armour");
-            strnfmt(t[i], 80, "(ignore 100\% of protection)");
+            strnfmt(t[i], 80, "(ignore 100%% of protection)");
             good[i] = TRUE;
             i++;
 		}
@@ -1032,12 +1061,21 @@ void self_knowledge(void)
 		if (f3 & (TR3_ACCURATE))
 		{
             identify[INVEN_ARM] = TRUE;
-            strnfmt(s[i], 80, "Your weapon is unusually well balanced");
+            strnfmt(s[i], 80, "Your off-hand weapon is unusually well balanced");
             strnfmt(t[i], 80, "(reroll missed attacks)");
             good[i] = TRUE;
             i++;
 		}
- 
+  
+		if (f3 & (TR3_CUMBERSOME))
+		{
+            identify[INVEN_ARM] = TRUE;
+            strnfmt(s[i], 80, "Your off-hand weapon is cumbersome");
+            strnfmt(t[i], 80, "(no critical hits)");
+            good[i] = FALSE;
+            i++;
+		}
+
 		if (f1 & (TR1_BRAND_ELEC))
 		{
             identify[INVEN_ARM] = TRUE;
@@ -1265,7 +1303,16 @@ void self_knowledge(void)
             good[i] = TRUE;
             i++;
 		}
-	}
+		
+		if (f3 & (TR3_CUMBERSOME))
+		{
+            identify[INVEN_BOW] = TRUE;
+            strnfmt(s[i], 80, "Your bow is cumbersome to use");
+            strnfmt(t[i], 80, "(no critical hits)");
+            good[i] = FALSE;
+            i++;
+		}
+}
 	
     // Sil-y: add info for songs?
     
@@ -2894,7 +2941,7 @@ void earthquake(int cy, int cx, int pit_y, int pit_x, int r, int who)
 	
 
 	/* Paranoia -- Enforce maximum range */
-	if (r > 10) r = 10;
+	if (r > 6) r = 6;
 
 	// Step 1: 
 	// deal with pit creation (if a valid location was passed to this function)

@@ -155,15 +155,15 @@ extern int hand_and_a_half_bonus(const object_type *o_ptr)
 /*
  * Bonus for certain races/houses (elves) using bows
  */
-int bow_bonus()
+int bow_bonus(const object_type *o_ptr)
 {
 	int bonus = 0;
-	
-	if (rp_ptr->flags & RHF_BOW_PROFICIENCY)
+
+	if ((rp_ptr->flags & RHF_BOW_PROFICIENCY) && (o_ptr->tval == TV_BOW))
 	{
 		bonus += 1;
 	}
-	if (hp_ptr->flags & RHF_BOW_PROFICIENCY)
+	if ((hp_ptr->flags & RHF_BOW_PROFICIENCY) && (o_ptr->tval == TV_BOW))
 	{
 		bonus += 1;
 	}
@@ -345,8 +345,9 @@ static void prt_mel(void)
 	if (((&inventory[INVEN_ARM])->k_idx) && ((&inventory[INVEN_ARM])->tval != TV_SHIELD)) mod = -1;
 
 	/* Melee attacks */
+	int meleeColour = p_ptr->active_ability[S_MEL][MEL_SMITE] ? TERM_L_RED : TERM_L_WHITE;
 	strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
-	Term_putstr(COL_MEL, ROW_MEL + mod, -1, TERM_L_WHITE, format("%12s", buf));
+	Term_putstr(COL_MEL, ROW_MEL + mod, -1, meleeColour, format("%12s", buf));
 	
 	if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
 	{
@@ -409,9 +410,14 @@ static void prt_evn(void)
 {
 	char buf[32];
 
+	// Toggle blocking on and off so we don't show the blocking value in
+	// the armor total
+	bool block = p_ptr->active_ability[S_EVN][EVN_BLOCKING];
+	p_ptr->active_ability[S_EVN][EVN_BLOCKING] = FALSE;
 	/* Total Armor */
 	strnfmt(buf, sizeof(buf), "[%+d,%d-%d]", p_ptr->skill_use[S_EVN], p_min(GF_HURT, TRUE), p_max(GF_HURT, TRUE));
 	Term_putstr(COL_EVN, ROW_EVN, -1, TERM_SLATE, format("%12s", buf));
+	p_ptr->active_ability[S_EVN][EVN_BLOCKING] = block;
 	
 }
 
@@ -1924,7 +1930,7 @@ int ability_bonus(int skilltype, int abilitynum)
 			}
 			case SNG_WHETTING:
 			{
-				bonus = skill / 4;
+				bonus = skill / 2;
 				break;
 			}
 			case SNG_TREES:
@@ -2186,6 +2192,7 @@ static void calc_bonuses(void)
 	p_ptr->resist_fire = 1;
 	p_ptr->resist_cold = 1;
 	p_ptr->resist_pois = 1;
+	p_ptr->resist_bleed = 0;
 	p_ptr->resist_fear = 0;
 	p_ptr->resist_blind = 0;
 	p_ptr->resist_confu = 0;
@@ -2292,6 +2299,8 @@ static void calc_bonuses(void)
 		if (f2 & (TR2_VUL_FIRE)) p_ptr->resist_fire -= 1;
 		if (f2 & (TR2_VUL_POIS)) p_ptr->resist_pois -= 1;
 		
+		if (f2 & (TR2_RES_BLEED)) p_ptr->resist_bleed += 1;
+
 		if (f2 & (TR2_RES_FEAR))  p_ptr->resist_fear   += 1;
 		if (f2 & (TR2_RES_BLIND)) p_ptr->resist_blind  += 1;
 		if (f2 & (TR2_RES_CONFU)) p_ptr->resist_confu  += 1;
@@ -2381,6 +2390,16 @@ static void calc_bonuses(void)
 			p_ptr->stat_misc_mod[A_DEX] += 2;
 			p_ptr->stat_misc_mod[A_GRA] += 2;
 		}
+	}
+
+	if (p_ptr->active_ability[S_WIL][WIL_OATH])
+	{
+		if (chosen_oath(OATH_HONOUR) && !oath_invalid(OATH_HONOUR))
+			p_ptr->stat_misc_mod[A_STR]++;
+		else if (chosen_oath(OATH_SILENCE) && !oath_invalid(OATH_SILENCE))
+			p_ptr->stat_misc_mod[A_DEX]++;
+		else if (chosen_oath(OATH_MERCY) && !oath_invalid(OATH_MERCY))
+			p_ptr->stat_misc_mod[A_GRA]++;
 	}
 
 	if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
@@ -2551,7 +2570,7 @@ static void calc_bonuses(void)
 				case SNG_FREEDOM:	song_noise += 4; break;
 				case SNG_SILENCE:	song_noise += 0; break;
 				case SNG_STAUNCHING:	song_noise += 4; break;
-				case SNG_WHETTING:	song_noise += 8; break;
+				case SNG_WHETTING:	song_noise += 4; break;
 				case SNG_TREES:		song_noise += 4; break;
 				case SNG_THRESHOLDS:	song_noise += 4; break;
 				case SNG_STAYING:	song_noise += 8; break;
@@ -2641,7 +2660,7 @@ static void calc_bonuses(void)
 
 	/* Analyze launcher */
 	// attack bonuses for those with bow proficiency
-	p_ptr->skill_misc_mod[S_ARC] += bow_bonus();
+	p_ptr->skill_misc_mod[S_ARC] += bow_bonus(&inventory[INVEN_BOW]);
 
 	if (o_ptr->k_idx)
 	{
@@ -2670,12 +2689,6 @@ static void calc_bonuses(void)
 	if (p_ptr->active_ability[S_ARC][ARC_VERSATILITY] && (p_ptr->skill_base[S_ARC] > p_ptr->skill_base[S_MEL]))
 	{
 		p_ptr->skill_misc_mod[S_MEL] += (p_ptr->skill_base[S_ARC] - p_ptr->skill_base[S_MEL]) / 2;
-	}
-	
-	// deal with the 'Forewarned' ability
-	if (p_ptr->active_ability[S_PER][PER_FOREWARNED] && (p_ptr->skill_base[S_PER] > p_ptr->skill_base[S_EVN]))
-	{
-		p_ptr->skill_misc_mod[S_EVN] += p_ptr->skill_use[S_PER] / 3;
 	}
 
 	/* generate the melee dice/sides from weapon, to_mdd, to_mds and strength */
@@ -2821,11 +2834,6 @@ static void calc_bonuses(void)
 
 	/* Hack -- handle "xtra" mode */
 	if (character_xtra) return;
-
-	if (p_ptr->active_ability[S_PER][PER_FOREWARNED])
-	{
-		pseudo_id_everything();
-	}
 
 	// identify {special} items when the type has been seen before
 	id_known_specials();

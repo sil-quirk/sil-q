@@ -50,7 +50,7 @@
 /*
  * Current version string
  */
-#define VERSION_STRING	"1.4.2"
+#define VERSION_STRING	"1.4.3-beta"
 
 
 /*
@@ -58,7 +58,7 @@
  */
 #define VERSION_MAJOR	1
 #define VERSION_MINOR	4
-#define VERSION_PATCH	2
+#define VERSION_PATCH	3
 #define VERSION_EXTRA	0
 
 
@@ -203,6 +203,9 @@
  * Locations of various monsters in the monster.txt file
  */
 
+#define R_IDX_HUMAN_SLAVE		 13
+#define R_IDX_ELF_SLAVE			 14
+#define R_IDX_ORC_SLAVEMASTER		 15
 #define R_IDX_SPIDER_HATCHLING		 32
 #define R_IDX_ORC_ARCHER		 51
 #define R_IDX_ORC_CHAMPION		 81
@@ -498,7 +501,7 @@
 #define	PER_CONCENTRATION			 3
 #define	PER_ALCHEMY				 4
 #define	PER_BANE				 5
-#define	PER_FOREWARNED				 6
+#define	PER_OUTWIT				 6
 #define	PER_LISTEN				 7
 #define	PER_MASTER_HUNTER			 8
 #define	PER_GRA					 9
@@ -506,15 +509,15 @@
 /* 
  * Will abilities 
  */
-#define	WIL_CHANNELING				0
-#define	WIL_STRENGTH_IN_ADVERSITY		1
-#define	WIL_CURSE_BREAKING			2
-#define	WIL_INNER_LIGHT				3
-#define	WIL_INDOMITABLE				4
-#define	WIL_HARDINESS				5
-#define	WIL_POISON_RESISTANCE			6
-#define	WIL_VENGEANCE				7
-#define	WIL_CRITICAL_RESISTANCE			8
+#define	WIL_FORMIDABLE				0
+#define	WIL_CHANNELING				1
+#define	WIL_STRENGTH_IN_ADVERSITY		2
+#define	WIL_CURSE_BREAKING			3
+#define	WIL_INNER_LIGHT				4
+#define	WIL_INDOMITABLE				5
+#define	WIL_OATH				6
+#define	WIL_POISON_RESISTANCE			7
+#define	WIL_VENGEANCE				8
 #define	WIL_MAJESTY				9
 #define	WIL_CON					10
 
@@ -829,6 +832,7 @@
 #define GF_AWAY_ALL		24    // teleports monsters (XdY) squares away                          ( - m - - ) *
 #define GF_IDENTIFY		25    // identifies objects on the ground                               ( - - o - ) *
 
+#define GF_WEB		26	// creates a web trap where it lands
 
 /*
  * Some constants for the "learn" code.  These generalized from the
@@ -1161,7 +1165,7 @@
 #define RADIUS_TORCH		1
 #define RADIUS_LESSER_JEWEL	1
 #define RADIUS_LANTERN		2
-#define RADIUS_FEANORIAN	3
+#define RADIUS_FEANORIAN	4
 #define RADIUS_ARTEFACT		3
 #define RADIUS_SILMARIL		7
 
@@ -1183,7 +1187,7 @@
 
 
 /* The sval codes for TV_RING */
-#define SV_RING_PERCEPTION			0
+#define SV_RING_SECRETS				0
 #define SV_RING_ERED_LUIN			1
 #define SV_RING_EVASION				2
 #define SV_RING_PROTECTION			3
@@ -1194,12 +1198,13 @@
 #define SV_RING_ACCURACY			8
 #define SV_RING_FREE_ACTION			9
 #define SV_RING_COWARDICE			10
-#define SV_RING_TRUE_SIGHT			11
+#define SV_RING_VANGUARD			11
 #define SV_RING_VENOM				12
-#define SV_RING_HUNGER				21
+#define SV_RING_LAIQUENDI			21
 #define SV_RING_ATTENTION			22
 
 #define SV_RING_MELIAN			30
+#define SV_RING_MAIRON			31
 #define SV_RING_BARAHIR			32
 #define SV_RING_SELF_MADE		40
 
@@ -1218,7 +1223,7 @@
 #define SV_STAFF_MAJESTY		11
 #define SV_STAFF_SELF_KNOWLEDGE	12
 #define SV_STAFF_WARDING		13
-#define SV_STAFF_EARTHQUAKES	14
+#define SV_STAFF_DISMAY	        14
 #define SV_STAFF_RECHARGING		16
 #define SV_STAFF_SUMMONING		17
 #define SV_STAFF_SHADOWS		18
@@ -1650,51 +1655,11 @@
 #define INSCRIP_EXCELLENT       100+8
 #define INSCRIP_SPECIAL         100+9
 #define INSCRIP_UNCURSED        100+10
-#define INSCRIP_INDESTRUCTIBLE  100+11
 
 /*
  * Number of special inscriptions, plus one.
  */
 #define MAX_INSCRIP			12
-
-
-/*
- * Some bit-flags for the "smart" field".
- *
- * Most of these map to the "TR2_xxx" flags.
- */
-#define SM_OPP_ACID		0x00000001
-#define SM_OPP_ELEC		0x00000002
-#define SM_OPP_FIRE		0x00000004
-#define SM_OPP_COLD		0x00000008
-#define SM_OPP_POIS		0x00000010
-#define SM_OPP_XXX1		0x00000020
-#define SM_OPP_XXX2		0x00000040
-#define SM_GOOD_SAVE	0x00000080
-#define SM_PERF_SAVE	0x00000100
-#define SM_IMM_FREE		0x00000200
-#define SM_IMM_MANA		0x00000400
-#define SM_IMM_XXX1		0x00000800
-#define SM_IMM_XXX2		0x00001000
-#define SM_IMM_XXX3		0x00002000
-#define SM_IMM_XXX4		0x00004000
-#define SM_IMM_XXX5		0x00008000
-#define SM_RES_XXX1		0x00010000
-#define SM_RES_ELEC		0x00020000
-#define SM_RES_FIRE		0x00040000
-#define SM_RES_COLD		0x00080000
-#define SM_RES_POIS		0x00100000
-#define SM_RES_FEAR		0x00200000
-#define SM_RES_XXX2		0x00400000
-#define SM_RES_DARK		0x00800000
-#define SM_RES_BLIND	0x01000000
-#define SM_RES_CONFU	0x02000000
-#define SM_RES_STUN 	0x04000000
-#define SM_RES_XXX3		0x08000000
-#define SM_RES_XXX4		0x10000000
-#define SM_RES_XXX5		0x20000000
-#define SM_RES_XXX6		0x40000000
-#define SM_RES_XXX7		0x80000000
 
 
 /*
@@ -1764,7 +1729,7 @@
 #define TR2_RES_FIRE        0x00000020L /* Resist fire */
 #define TR2_RES_ELEC        0x00000040L /* Resist elec */
 #define TR2_RES_POIS        0x00000080L /* Resist poison */
-#define TR2_RES_DARK        0x00000100L /* Resist dark */
+#define TR2_RES_BLEED       0x00000100L /* Resist bleeding */
 #define TR2_RES_FEAR        0x00000200L /* Resist fear */
 #define TR2_RES_BLIND       0x00000400L /* Resist blind */
 #define TR2_RES_CONFU       0x00000800L /* Resist confusion */
@@ -1790,22 +1755,21 @@
 #define TR2_VUL_POIS        0x80000000L /* Lowers your resistance to poison */
 
 /*TR2 Uber-Flags*/
-#define TR2_SUST_STATS	(TR2_SUST_STR | TR2_SUST_DEX | TR2_SUST_CON | TR2_SUST_GRA)
 #define TR2_RESISTANCE  (TR2_RES_COLD | TR2_RES_FIRE | TR2_RES_ELEC)
 
 
-#define TR3_DAMAGED         0x00000001L /* xxx */
-#define TR3_CHEAT_DEATH     0x00000002L /* xxx */
-#define TR3_STAND_FAST      0x00000004L /* xxx */
-#define TR3_ACCURATE        0x00000008L /* xxx */
-#define TR3_TR3XXX14        0x00000010L /* xxx */
-#define TR3_TR3XXX13        0x00000020L /* xxx */
+#define TR3_DAMAGED         0x00000001L /* Skeleton items */
+#define TR3_CHEAT_DEATH     0x00000002L /* Item breaks to save from death */
+#define TR3_STAND_FAST      0x00000004L /* Cannot be moved */
+#define TR3_ACCURATE        0x00000008L /* Reroll misses */
+#define TR3_CUMBERSOME      0x00000010L /* No critical hits */
+#define TR3_AVOID_TRAPS     0x00000020L /* Do not trigger traps */
 #define TR3_TR3XXX5         0x00000040L /* xxx */
 #define TR3_TR3XXX6			0x00000080L	/* xxx */
 #define TR3_TR3XXX7         0x00000100L /* xxx */
 #define TR3_TR3XXX8			0x00000200L	/* xxx */
 #define TR3_TR3XXX9         0x00000400L /* xxx */
-#define TR3_INDESTRUCTIBLE	0x00000800L	/* Item cannot be destroyed by earthquakes etc */
+#define TR3_TR3XX10	0x00000800L	/* xxx */
 #define TR3_NO_SMITHING     0x00001000L /* Item cannot be made with smithing */
 #define TR3_MITHRIL			0x00002000L	/* Item made out of mithril */
 #define TR3_AXE				0x00004000L /* Item counts as an axe */
@@ -1831,7 +1795,6 @@
 #define TR3_IGNORE_ALL (TR3_IGNORE_ACID | TR3_IGNORE_ELEC | TR3_IGNORE_FIRE | TR3_IGNORE_COLD)
 
 
-
 /*
  * Hack -- flag set 1 -- mask for "pval-dependant" flags.
  * Note that all "pval" dependant flags must be in "flags1".
@@ -1850,136 +1813,6 @@
 #define TR3_IGNORE_MASK \
 	(TR3_IGNORE_ACID | TR3_IGNORE_ELEC | TR3_IGNORE_FIRE | \
 	 TR3_IGNORE_COLD )
-
-/*
- * Stat sustain flags
- */
-#define TR1_STAT_MOD_MASK \
-	(0L)
-
-#define TR2_STAT_MOD_MASK \
-	(TR2_SUST_STR | TR2_SUST_DEX | TR2_SUST_CON | TR2_SUST_GRA)
-
-#define TR3_STAT_MOD_MASK \
-	(0L)
-
-/*
- * Stat add flags
- */
-#define TR1_STAT_SUST_MASK \
-	(TR1_STR | TR1_DEX | TR1_CON | TR1_GRA | TR1_NEG_STR | TR1_NEG_DEX | TR1_NEG_CON | TR1_NEG_GRA )
-
-#define TR2_STAT_SUST_MASK \
-	(0L)
-
-#define TR3_STAT_SUST_MASK \
-	(0L)
-
-/*
- * Low Resist flags
- */
-#define TR1_LOW_RESIST_MASK \
-	(0L)
-
-#define TR2_LOW_RESIST_MASK \
-	(TR2_RES_ELEC | TR2_RES_FIRE | TR2_RES_COLD | TR2_RES_DARK | TR2_RES_POIS)
-
-#define TR3_LOW_RESIST_MASK \
-	(0L)
-
-/*
- * High Resist flags
- */
-#define TR1_HIGH_RESIST_MASK \
-	(0L)
-
-#define TR2_HIGH_RESIST_MASK \
-	(TR2_RES_FEAR| TR2_RES_BLIND | TR2_RES_CONFU | TR2_RES_STUN)
-
-#define TR3_HIGH_RESIST_MASK \
-	(0L)
-
-/*
- * All Resist flags
- */
-#define TR1_RESISTANCES_MASK \
-	(TR1_LOW_RESIST_MASK | TR1_HIGH_RESIST_MASK)
-
-#define TR2_RESISTANCES_MASK \
-	(TR2_LOW_RESIST_MASK | TR2_HIGH_RESIST_MASK)
-
-#define TR3_RESISTANCES_MASK \
-	(TR3_LOW_RESIST_MASK | TR3_HIGH_RESIST_MASK)
-
-/*low level abilities*/
-
-#define TR1_LOW_ABILITIES_MASK \
-	(0L)
-
-#define TR2_LOW_ABILITIES_MASK \
-	(TR2_SLOW_DIGEST | TR2_LIGHT)
-
-#define TR3_LOW_ABILITIES_MASK \
-	(0L)
-
-/*high level abilities*/
-
-#define TR1_HIGH_ABILITIES_MASK \
-	(0L)
-
-#define TR2_HIGH_ABILITIES_MASK \
-	(TR2_REGEN | TR2_SEE_INVIS | TR2_FREE_ACT)
-
-#define TR3_HIGH_ABILITIES_MASK \
-	(0L)
-
-
-/*all abilities*/
-
-#define TR1_ABILITIES_MASK \
-	(TR1_LOW_ABILITIES_MASK | TR1_HIGH_ABILITIES_MASK)
-
-#define TR2_ABILITIES_MASK \
-	(TR2_LOW_ABILITIES_MASK | TR2_HIGH_ABILITIES_MASK)
-
-#define TR3_ABILITIES_MASK \
-	(TR3_LOW_ABILITIES_MASK | TR3_HIGH_ABILITIES_MASK)
-
-
-/*Slay weapon types*/
-
-#define TR1_SLAY_MASK \
-	(TR1_SLAY_SPIDER | TR1_SLAY_UNDEAD | TR1_SLAY_RAUKO | TR1_SLAY_ORC | TR1_SLAY_TROLL | \
-         TR1_SLAY_WOLF | TR1_SLAY_DRAGON | TR1_SLAY_MAN_OR_ELF)
-
-#define TR2_SLAY_MASK \
-	(0L)
-
-#define TR3_SLAY_MASK \
-	(0L)
-
-/* Elemental Brand weapon types*/
-
-#define TR1_BRAND_MASK \
-	(TR1_BRAND_POIS | TR1_BRAND_ELEC | TR1_BRAND_FIRE | TR1_BRAND_COLD)
-
-#define TR2_BRAND_MASK \
-	(0L)
-
-#define TR3_BRAND_MASK \
-	(0L)
-
-/* All weapon Multipliars*/
-
-#define TR1_ALL_WEAPON_EGO_MASK \
-	(TR1_SLAY_MASK | TR1_BRAND_MASK)
-
-#define TR2_ALL_WEAPON_EGO_MASK \
-	(TR2_SLAY_MASK | TR2_BRAND_MASK)
-
-#define TR3_ALL_WEAPON_EGO_MASK \
-	(TR3_SLAY_MASK | TR3_BRAND_MASK)
-
 
 
 /*
@@ -2221,7 +2054,7 @@
 #define RF1_MALE			0x00000004	/* Male gender */
 #define RF1_FEMALE			0x00000008	/* Female gender */
 #define RF1_CHAR_CLEAR		0x00000010	/* Absorbs symbol */
-#define RF1_RF1XXX1         0x00000020	/* Unused */
+#define RF1_PEACEFUL            0x00000020	/* Player may not attack */
 #define RF1_ATTR_CLEAR		0x00000040	/* Absorbs color */
 #define RF1_ATTR_MULTI		0x00000080	/* Changes color */
 #define RF1_FORCE_DEPTH		0x00000100	/* Start at "correct" depth */
@@ -2366,8 +2199,8 @@
 #define RF4_SNG_OATHS      0x00100000  /* Sing a song of oaths */
 #define RF4_RF4XXX22       0x00200000  /*  */
 #define RF4_RF4XXX23       0x00400000  /*  */
-#define RF4_RF4XXX24       0x00800000  /*  */
-#define RF4_RF4XXX25       0x01000000  /*  */
+#define RF4_THROW_WEB      0x00800000  /* Throw a web over the player */
+#define RF4_RALLY          0x01000000  /* Rally fleeing foes */
 #define RF4_RF4XXX26       0x02000000  /*  */
 #define RF4_RF4XXX27       0x04000000  /*  */
 #define RF4_RF4XXX28       0x08000000  /*  */
@@ -2418,14 +2251,6 @@
 #define RF4_ATTACK_MASK \
         (RF4_ARCHERY_MASK)
 
-
-/*
- * Harassment (not direct damage) attacks.
- * Need special treatment in AI.
- */
-#define RF4_HARASS_MASK \
-        (RF4_EARTHQUAKE | RF4_SHRIEK | RF4_SCREECH | RF4_DARKNESS | RF4_FORGET | RF4_SCARE \
-		| RF4_CONF | RF4_HOLD | RF4_SLOW | RF4_HATCH_SPIDER | RF4_DIM)
 
 /*
  * Harassment (not direct damage) attacks.
@@ -3403,10 +3228,8 @@
  * Available graphic modes
  */
 #define GRAPHICS_NONE           0
-#define GRAPHICS_ORIGINAL       1
-#define GRAPHICS_ADAM_BOLT      2
-#define GRAPHICS_DAVID_GERVAIS  3
-#define GRAPHICS_PSEUDO         4
+#define GRAPHICS_MICROCHASM     1
+#define GRAPHICS_PSEUDO         2
 
 
 /*
@@ -3559,3 +3382,10 @@
 #define SQUELCH_FAILED -1
 #define SQUELCH_NO      0
 #define SQUELCH_YES     1
+
+/*
+ * Flags for the Oath skill
+ */
+#define OATH_SILENCE	1
+#define OATH_HONOUR	2
+#define OATH_MERCY	4

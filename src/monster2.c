@@ -1238,7 +1238,7 @@ void listen(monster_type *m_ptr)
 		return;
 	}
 	
-	if (!(use_graphics && (arg_graphics == GRAPHICS_DAVID_GERVAIS)))
+	if (!use_graphics)
 	{
 		/* Base graphic '*' */
 		base = 0x30;
@@ -1252,20 +1252,7 @@ void listen(monster_type *m_ptr)
 	}
 	else
 	{
-		int add;
-		
-    	msg_print("Error: listening doesn't work with tiles.");
-		
-		// Sil-y: this might look very silly in graphical tiles, but then we don't support them at all
-		/* base graphic */
-		base = 0x00;
-		add = 0;
-		
-		k = 0;
-		
-		/* Obtain attr/char */
-		a = misc_to_attr[base+k];
-		c = misc_to_char[base+k] + add;
+        // TODO: Listening for tiles
 	}
 	
 	/* Display the visual effects */

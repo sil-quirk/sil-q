@@ -2374,10 +2374,7 @@ static errr Term_pict_x11(int x, int y, int n, const byte *ap, const char *cp, c
 		else
 		{
 			/* Mega Hack^2 - assume the top left corner is "blank" */
-			if (arg_graphics == GRAPHICS_DAVID_GERVAIS)
-				blank = XGetPixel(td->tiles, 0, 0);
-			else
-				blank = XGetPixel(td->tiles, 0, td->fnt->hgt * 6);
+            blank = XGetPixel(td->tiles, 0, td->fnt->hgt * 6);
 
 			for (k = 0; k < td->fnt->twid; k++)
 			{
@@ -2653,7 +2650,6 @@ errr init_x11(int argc, char **argv)
 
 #endif /* USE_GRAPHICS */
 
-
 	/* Parse args */
 	for (i = 1; i < argc; i++)
 	{
@@ -2670,22 +2666,9 @@ errr init_x11(int argc, char **argv)
 			continue;
 		}
 
-		if (prefix(argv[i], "-o"))
-		{
-			arg_graphics = GRAPHICS_ORIGINAL;
-			continue;
-		}
-
-		if (prefix(argv[i], "-a"))
-		{
-			arg_graphics = GRAPHICS_ADAM_BOLT;
-			continue;
-		}
-
 		if (prefix(argv[i], "-g"))
 		{
-			smoothRescaling = FALSE;
-			arg_graphics = GRAPHICS_DAVID_GERVAIS;
+			arg_graphics = GRAPHICS_MICROCHASM;
 			continue;
 		}
 
@@ -2807,10 +2790,9 @@ errr init_x11(int argc, char **argv)
 #ifdef USE_GRAPHICS
 
 	/* Try graphics */
-	switch (arg_graphics)
+	if (arg_graphics == GRAPHICS_MICROCHASM)
 	{
-	case GRAPHICS_ADAM_BOLT:
-		/* Use tile graphics of Adam Bolt */
+		/* Use Microchasm's tile graphics */
 		bitmap_file = "16x16.bmp";
 
 		/* Try the "16x16.bmp" file */
@@ -2820,50 +2802,14 @@ errr init_x11(int argc, char **argv)
 		if (0 == fd_close(fd_open(filename, O_RDONLY)))
 		{
 			/* Use graphics */
-			use_graphics = GRAPHICS_ADAM_BOLT;
+			use_graphics = GRAPHICS_MICROCHASM;
 			use_transparency = TRUE;
 
 			pict_wid = pict_hgt = 16;
 
 			ANGBAND_GRAF = "new";
-
-			break;
 		}
-		/* Fall through */
-
-	case GRAPHICS_ORIGINAL:
-		/* Use original tile graphics */
-		bitmap_file = "8x8.bmp";
-
-		/* Try the "8x8.bmp" file */
-		path_build(filename, sizeof(filename), ANGBAND_DIR_XTRA, format("graf/%s", bitmap_file));
-
-		/* Use the "8x8.bmp" file if it exists */
-		if (0 == fd_close(fd_open(filename, O_RDONLY)))
-		{
-			/* Use graphics */
-			use_graphics = GRAPHICS_ORIGINAL;
-
-			pict_wid = pict_hgt = 8;
-
-			ANGBAND_GRAF = "old";
-			break;
-		}
-		break;
-
-	case GRAPHICS_DAVID_GERVAIS:
-		/* Use tile graphics of David Gervais */
-		bitmap_file = "32x32.bmp";
-
-		/* Use graphics */
-		use_graphics = GRAPHICS_DAVID_GERVAIS;
-		use_transparency = TRUE;
-
-		pict_wid = pict_hgt = 32;
-
-		ANGBAND_GRAF = "david";
-		break;
-	}
+    }
 
 	/* Load graphics */
 	if (use_graphics)

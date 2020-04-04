@@ -547,7 +547,7 @@ void do_cmd_change_song()
 		msg_print("You do not know any songs of power.");
 		return;
 	}
-	
+
 	/* Flush the prompt */
 	Term_fresh();
 
@@ -700,7 +700,28 @@ void do_cmd_change_song()
 	/* Clear the prompt line */
 	prt("", 0, 0);
 	
-	if (song_choice >= 0) change_song(song_choice);
+	if (song_choice >= 0)
+	{
+		if (song_choice != SNG_NOTHING)
+		{
+			if (chosen_oath(OATH_SILENCE) && !oath_invalid(OATH_SILENCE))
+			{
+				if (get_check("Are you sure you wish to break your oath? "))
+				{
+					msg_print("You break your oath of silence.");
+					do_cmd_note("Broke your oath", p_ptr->depth);
+				}
+				else
+				{
+					return;
+				}
+			}
+
+			p_ptr->oaths_broken |= OATH_SILENCE;
+		}
+
+		change_song(song_choice);
+	}
 
 }
 
@@ -926,9 +947,176 @@ int bane_menu(int *highlight)
 		return (BANE_TYPES+1);
 	}
 	
-	if (ch == '\t')
+	/* Choose current  */
+	if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
 	{
-		return (BANE_TYPES+2);
+		return (*highlight);
+	}
+	
+	/* Prev item */
+	if (ch == '8')
+	{
+		*highlight = (*highlight + (options-2)) % options + 1;
+	}
+	
+	/* Next item */
+	if (ch == '2')
+	{
+		*highlight = *highlight % options + 1;
+	}
+	
+	return (0);
+}
+
+#define OATH_TYPES 4
+
+static u32b oath_flag[] =
+{
+	0L,
+	OATH_SILENCE,
+	OATH_HONOUR,
+	OATH_MERCY
+};
+
+char *oath_name[] =
+{
+	"Nothing",
+	"Silence",
+	"Honour",
+	"Mercy",
+};
+
+char *oath_desc1[] =
+{
+	"Nothing",
+	"as you came, grim and silent",
+	"having fought none who were unwilling to fight",
+	"without shedding blood of Man or Elf",
+};
+
+char *oath_desc2[] =
+{
+	"Nothing",
+	"sing",
+	"attack fleeing enemies",
+	"attack Men or Elves",
+};
+
+char *oath_reward[] =
+{
+	"Nothing",
+	"+1 Dexterity",
+	"+1 Strength",
+	"+1 Grace",
+};
+
+bool oath_invalid(int i)
+{
+	return ((p_ptr->oaths_broken & oath_flag[i]) > 0);
+}
+
+bool chosen_oath(int oath)
+{
+	// flags are powers of 2 starting at 2^0 but oath_type is 1,2,3 etc
+	// so this maps 1 -> 1, 2 -> 2, 3 -> 4
+	return ((1 << p_ptr->oath_type) / 2 == oath);
+}
+
+int oath_menu(int *highlight)
+{
+	int i;
+	int ch;
+	int options;
+
+	char buf[120];
+	
+	byte attr;
+
+	Term_putstr(COL_DESCRIPTION,  2, -1, TERM_WHITE, "Oath");
+
+	// clear the description area
+	wipe_screen_from(COL_DESCRIPTION);
+
+	// list the enemies
+	for (i = 1; i < OATH_TYPES; i++)
+	{
+		if (!oath_invalid(i))
+		{
+			attr = TERM_SLATE;
+		}
+		else
+		{
+			attr = TERM_L_DARK;
+		}
+		
+		strnfmt(buf, 120, "%c) %s", (char) 'a' + i - 1, oath_name[i]);
+		Term_putstr(COL_DESCRIPTION,  i + 3, -1, attr, buf);
+		
+		if (*highlight == i)
+		{
+			// highlight the label
+			strnfmt(buf, 120, "%c)", (char) 'a' + i - 1);
+			Term_putstr(COL_DESCRIPTION,  i + 3, -1, TERM_L_BLUE, buf);
+			
+			/* Indent output by 2 character, and wrap at column 70 */
+			text_out_wrap = 79;
+			text_out_indent = COL_DESCRIPTION;
+			
+			Term_gotoxy(text_out_indent, OATH_TYPES + 4);
+
+			if (oath_invalid(i))
+			{
+				strnfmt(buf, 120, "It is too late to vow to leave Angband %s.", oath_desc1[i]);
+				text_out_to_screen(attr, buf);
+			}
+			else
+			{
+				strnfmt(buf, 120, "You vow to leave Angband %s.\n\n", oath_desc1[i]);
+				text_out_to_screen(attr, buf);
+				strnfmt(buf, 120, "You may not %s.\n", oath_desc2[i]);
+				text_out_to_screen(attr, buf);
+				strnfmt(buf, 120, "As long as you keep this oath, gain %s.\n\n", oath_reward[i]);
+				text_out_to_screen(attr, buf);
+			}			
+		
+			/* Reset text_out() vars */
+			text_out_wrap = 0;
+			text_out_indent = 0;
+		}
+		
+		// keep track of the number of options
+		options = i;
+	}
+	
+	/* Flush the prompt */
+	Term_fresh();
+	
+	/* Place cursor at current choice */
+	Term_gotoxy(COL_DESCRIPTION, 3 + *highlight);
+	
+	/* Get key (while allowing menu commands) */
+	hide_cursor = TRUE;
+	ch = inkey();
+	hide_cursor = FALSE;
+	
+	if ((ch >= 'a') && (ch <= (char) 'a' + options - 1))
+	{
+		*highlight = (int) ch - 'a' + 1;	
+		
+		oath_menu(highlight);
+		
+		return (*highlight);
+	}
+	
+	if ((ch >= 'A') && (ch <= (char) 'A' + options - 1))
+	{
+		*highlight = (int) ch - 'A' + 1;
+		return (*highlight);
+	}
+	
+	if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
+	{
+		return (OATH_TYPES+1);
 	}
 	
 	/* Choose current  */
@@ -951,7 +1139,6 @@ int bane_menu(int *highlight)
 	
 	return (0);
 }
-
 
 int abilities_menu1(int *highlight)
 {
@@ -1109,6 +1296,10 @@ int abilities_menu2(int skilltype, int *highlight)
 		{
 			strnfmt(buf, 80, "%c) %s-%s", (char) 'a' + b_ptr->abilitynum , bane_name[p_ptr->bane_type], (b_name + b_ptr->name));
 		}
+		else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH) && (p_ptr->oath_type > 0))
+		{
+			strnfmt(buf, 80, "%c) %s: %s", (char) 'a' + b_ptr->abilitynum, (b_name + b_ptr->name), oath_name[p_ptr->oath_type]);
+		}
 		else
 		{
 			strnfmt(buf, 80, "%c) %s", (char) 'a' + b_ptr->abilitynum , (b_name + b_ptr->name));
@@ -1213,6 +1404,30 @@ int abilities_menu2(int skilltype, int *highlight)
 				Term_putstr(COL_DESCRIPTION,  12, -1, TERM_WHITE,
 				            format("  %d slain, giving a %+d bonus", bane_type_killed(p_ptr->bane_type), bane_bonus_aux()));
 			}
+			else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH) && (p_ptr->oath_type > 0))
+			{
+				Term_putstr(COL_DESCRIPTION,  10, -1, TERM_WHITE, "Oath:");
+				Term_putstr(COL_DESCRIPTION + 6,  10, -1, TERM_L_BLUE, oath_name[p_ptr->oath_type]);
+			
+				/* Indent output by 2 character, and wrap at column 70 */
+				text_out_wrap = 79;
+				text_out_indent = COL_DESCRIPTION;
+				
+				/* History */
+				Term_gotoxy(text_out_indent, 11);
+				strnfmt(buf, 80, "You have sworn not to %s.", oath_desc2[p_ptr->oath_type]);
+				text_out_to_screen(TERM_L_WHITE, buf);
+				
+				/* Reset text_out() vars */
+				text_out_wrap = 0;
+				text_out_indent = 0;
+
+				if (oath_invalid(p_ptr->oath_type))
+					Term_putstr(COL_DESCRIPTION, 14, -1, TERM_RED, "You are an oathbreaker.");
+				else
+					Term_putstr(COL_DESCRIPTION, 14, -1, TERM_WHITE,
+				            format("Bonus: %s.", oath_reward[p_ptr->oath_type]));
+			}
 		}
 		
 		// keep track of the number of options
@@ -1287,6 +1502,7 @@ void do_cmd_ability_screen(void)
 	int skilltype = -1;
 	int abilitynum = -1;
 	int banechoice = -1;
+	int oathchoice = -1;
 	
 	int highlight1 = 1;
 	int highlight2 = 1;
@@ -1356,11 +1572,6 @@ void do_cmd_ability_screen(void)
 												return_to_abilities = TRUE;
 											}
 										}
-										else if (banechoice == BANE_TYPES)
-										{
-											return_to_abilities = TRUE;
-											skip_purchase = TRUE;
-										}
 										else if (banechoice == BANE_TYPES + 1)
 										{
 											return_to_abilities = TRUE;
@@ -1372,7 +1583,40 @@ void do_cmd_ability_screen(void)
 									
 									return_to_abilities = FALSE;
 								}
-								
+								// special menu for Oath
+								if ((skilltype == S_WIL) && (abilitynum == WIL_OATH))
+								{
+									while (!return_to_abilities)
+									{
+										skip_purchase = FALSE;
+
+										oathchoice = oath_menu(&highlight3);
+										
+										if ((oathchoice >= 1) && (oathchoice <= OATH_TYPES))
+										{
+											if (oath_invalid(oathchoice))
+											{
+												return_to_abilities = FALSE;
+												skip_purchase = TRUE;
+												bell("This oath was broken before it was made.");
+											}
+											else
+											{
+												return_to_abilities = TRUE;
+											}
+										}
+										else if (oathchoice == OATH_TYPES + 1)
+										{
+											return_to_abilities = TRUE;
+											return_to_skills = TRUE;
+											return_to_game = TRUE;
+											skip_purchase = TRUE;
+										}
+									}
+									
+									return_to_abilities = FALSE;
+								}
+	
 								if (!skip_purchase)
 								{
 									if (get_check("Are you sure you wish to gain this ability? "))
@@ -1383,13 +1627,13 @@ void do_cmd_ability_screen(void)
 										Term_putstr(0, 0, -1, TERM_WHITE, "Ability gained.");
 										p_ptr->new_exp -= exp_cost;
 										
-										if (banechoice <= 0)
+										if (banechoice <= 0 && oathchoice <= 0)
 										{
 											// make a note in the notes file
 											do_cmd_note(format("(%s)", 
 															   b_name + (&b_info[ability_index(skilltype,abilitynum)])->name), p_ptr->depth);
 										}
-										else
+										else if (oathchoice <= 0)
 										{
 											// set the new bane type
 											p_ptr->bane_type = banechoice;
@@ -1397,6 +1641,15 @@ void do_cmd_ability_screen(void)
 											// and make a note in the notes file
 											do_cmd_note(format("(%s-%s)", bane_name[banechoice],
 															   b_name + (&b_info[ability_index(skilltype,abilitynum)])->name), p_ptr->depth);
+										}
+										else
+										{
+											// set the new bane type
+											p_ptr->oath_type = oathchoice;
+
+											// and make a note in the notes file
+											do_cmd_note(format("(%s: %s)", b_name + (&b_info[ability_index(skilltype,abilitynum)])->name,
+												oath_name[oathchoice]), p_ptr->depth);
 										}
 										
 										/* Set the redraw flag for everything */
@@ -1608,10 +1861,9 @@ typedef struct smithing_flag_cat
 #define CAT_MEL		4
 #define CAT_SLAY	5
 #define CAT_RES		6
-#define CAT_CURSE	7
-#define CAT_MISC	8
+#define CAT_MISC	7
 
-#define MAX_CATS	8
+#define MAX_CATS	7
 
 #define MAX_SMITHING_FLAGS (32*3)
 
@@ -1623,7 +1875,6 @@ static const smithing_flag_cat smithing_flag_cats[] =
 	{ CAT_MEL,		"Melee powers"	},
 	{ CAT_SLAY,		"Slays"			},
 	{ CAT_RES,		"Resistances"	},
-	{ CAT_CURSE,	"Curses"		},
 	{ CAT_MISC,		"Misc"			}
 };
 
@@ -1651,12 +1902,10 @@ static const smithing_flag_desc smithing_flag_types[] =
 	{ CAT_STAT,		TR1_NEG_DEX,		1,	"Dex penalty"	},
 	{ CAT_STAT,		TR1_NEG_CON,		1,	"Con penalty"	},
 	{ CAT_STAT,		TR1_NEG_GRA,		1,	"Gra penalty"	},
-	{ CAT_SKILL,	TR1_MEL,			1,	"Melee"			},
 	{ CAT_SKILL,	TR1_ARC,			1,	"Archery"		},
 	{ CAT_SKILL,	TR1_STL,			1,	"Stealth"		},
 	{ CAT_SKILL,	TR1_PER,			1,	"Perception"	},
 	{ CAT_SKILL,	TR1_WIL,			1,	"Will"			},
-	{ CAT_SKILL,	TR1_SMT,			1,	"Smithing"		},
 	{ CAT_SKILL,	TR1_SNG,			1,	"Song"			},
 	{ CAT_MISC,		TR1_DAMAGE_SIDES,	1,	"Damage bonus"			},
 	{ CAT_MISC,		TR2_LIGHT,			2,	"Light"					},
@@ -1668,6 +1917,7 @@ static const smithing_flag_desc smithing_flag_types[] =
 	{ CAT_MISC,		TR2_RADIANCE,		2,	"Radiance"				},
 	{ CAT_MISC,		TR3_CHEAT_DEATH,	3,	"Cheat Death"				},
 	{ CAT_MISC,		TR3_STAND_FAST,		3,	"Stand Fast"				},
+	{ CAT_MISC,		TR3_AVOID_TRAPS,	3,	"Avoid Traps"				},
 	{ CAT_MEL,		TR1_TUNNEL,		1,	"Tunneling Bonus"		},
 	{ CAT_MEL,		TR1_SHARPNESS,		1,	"Sharpness"				},
 	{ CAT_MEL,		TR1_VAMPIRIC,		1,	"Vampiric"				},
@@ -1689,22 +1939,12 @@ static const smithing_flag_desc smithing_flag_types[] =
 	{ CAT_RES,		TR2_RES_COLD,		2,	"Resist Cold"			},
 	{ CAT_RES,		TR2_RES_FIRE,		2,	"Resist Fire"			},
 	{ CAT_RES,		TR2_RES_POIS,		2,	"Resist Poison"			},
+	{ CAT_RES,		TR2_RES_BLEED,		2,	"Resist Bleeding"			},
 	{ CAT_RES,		TR2_RES_FEAR,		2,	"Resist Fear"			},
 	{ CAT_RES,		TR2_RES_BLIND,		2,	"Resist Blindness"		},
 	{ CAT_RES,		TR2_RES_CONFU,		2,	"Resist Confusion"		},
 	{ CAT_RES,		TR2_RES_STUN,		2,	"Resist Stunning"		},
 	{ CAT_RES,		TR2_RES_HALLU,		2,	"Resist Hallucination"	},
-	{ CAT_CURSE,	TR2_DANGER,			2,	"Danger"				},
-	{ CAT_CURSE,	TR2_FEAR,			2,	"Terror"				},
-	{ CAT_CURSE,	TR2_HUNGER,			2,	"Hunger"				},
-	{ CAT_CURSE,	TR2_DARKNESS,		2,	"Darkness"				},
-	{ CAT_CURSE,	TR2_AGGRAVATE,		2,	"Wrath"				    },
-	{ CAT_CURSE,	TR2_HAUNTED,		2,	"Haunted"			    },
-//	{ CAT_CURSE,	TR2_SLOWNESS,		2,	"Slow"					},
-	{ CAT_CURSE,	TR2_VUL_COLD,		2,	"Cold Vulnerability"	},
-	{ CAT_CURSE,	TR2_VUL_FIRE,		2,	"Fire Vulnerability"	},
-	{ CAT_CURSE,	TR2_VUL_POIS,		2,	"Poison Vulnerability"	},
-	{ CAT_CURSE,	TR3_LIGHT_CURSE,	3,	"Cursed"				},
 	{ 0,			0,					0,	""						}
 };
 
@@ -2226,41 +2466,7 @@ int pval_max(void)
 int pval_min(void)
 {
 	object_kind *k_ptr = &k_info[smith_o_ptr->k_idx];
-	ego_item_type *e_ptr = &e_info[smith_o_ptr->name2];
-	u32b f1, f2, f3;
-	int pval = 0;
-	
-	object_flags(smith_o_ptr, &f1, &f2, &f3);
-	
-	// start with the base pval
-	pval = k_ptr->pval;
-	
-	// artefacts have pvals that are mostly unlimited 
-	if (smith_o_ptr->name1)
-	{
-		pval -= 4;
-	}
-	
-	// non-artefact rings and amulets have a maximum pval of 4
-	else if ((smith_o_ptr->tval == TV_RING) || (smith_o_ptr->tval == TV_AMULET))
-	{
-		pval = -4;
-	}
-
-	// special items have pvals that are limited by their 'special.txt' entries
-	if (smith_o_ptr->name2)
-	{
-		if (cursed_p(smith_o_ptr))
-		{
-			if (e_ptr->max_pval > 0) pval -= e_ptr->max_pval;
-		}
-		else
-		{
-			if (e_ptr->max_pval > 0) pval += 1;
-		}
-	}
-	
-	return (pval);
+	return k_ptr->pval;
 }
 
 
@@ -2665,8 +2871,8 @@ int object_difficulty(object_type *o_ptr)
 	// damage bonus
 	x = (o_ptr->ds - k_ptr->ds);
 	// dd used to be a factor here, but a shortsword is far more breakable than a great axe
-	dif_mod(x, 7, &dif_inc);
-	if (x > 0) dif_inc -= 2;
+	// adjusted to make >1 damage sides expensive to smith
+	dif_mod(x, 3 * x + 2, &dif_inc);
 
 	// protection bonus
 	base = (k_ptr->ps > 0) ? ((k_ptr->ps + 1) * k_ptr->pd) : 0;
@@ -2699,6 +2905,7 @@ int object_difficulty(object_type *o_ptr)
 	if (f1 & TR1_SLAY_UNDEAD)		{	dif_inc += 3;	}
 	if (f1 & TR1_SLAY_RAUKO)		{	dif_inc += 4;	}
 	if (f1 & TR1_SLAY_DRAGON)		{	dif_inc += 4;	}
+	if (f1 & TR1_SLAY_MAN_OR_ELF)		{	dif_inc += 5;	}
 
 	if (f1 & TR1_BRAND_COLD)		{	dif_inc += 18;	smithing_cost.str += 2;	brands++; }
 	if (f1 & TR1_BRAND_FIRE)		{	dif_inc += 14;	smithing_cost.str += 2;	brands++; }
@@ -2716,7 +2923,7 @@ int object_difficulty(object_type *o_ptr)
 	}
 	if (f1 & TR1_SHARPNESS2)		{	dif_inc += 40;	smithing_cost.str += 4;	} // not available in smithing
 	if (f1 & TR1_VAMPIRIC)			{	dif_inc += 6;	smithing_cost.str += 1;	}
-	if (f3 & TR3_ACCURATE)			{	dif_inc += 10;	smithing_cost.dex += 1;	}
+	if (f3 & TR3_ACCURATE)			{	dif_inc += 15;	smithing_cost.dex += 1;	}
 	
 	// pval dependent bonuses
 	if (f1 & TR1_TUNNEL)
@@ -2729,17 +2936,15 @@ int object_difficulty(object_type *o_ptr)
 	{
 		x = (o_ptr->pval > 0) ? o_ptr->pval : 0;
 		
-		if (f1 & TR1_DAMAGE_SIDES)	{	dif_mod(x, 15, &dif_inc);	smithing_cost.str += x;		}
-		if (f1 & TR1_STR)			{	dif_mod(x, 12, &dif_inc);	smithing_cost.str += x;		}
-		if (f1 & TR1_DEX)			{	dif_mod(x, 12, &dif_inc);	smithing_cost.dex += x;		}
-		if (f1 & TR1_CON)			{	dif_mod(x, 12, &dif_inc);	smithing_cost.con += x;		}
-		if (f1 & TR1_GRA)			{	dif_mod(x, 12, &dif_inc);	smithing_cost.gra += x;		}
-		if (f1 & TR1_MEL)			{	dif_mod(x, 4, &dif_inc);	}
+		if (f1 & TR1_DAMAGE_SIDES)	{	dif_mod(x, 18, &dif_inc);	smithing_cost.str += x;		}
+		if (f1 & TR1_STR)			{	dif_mod(x, 14, &dif_inc);	smithing_cost.str += x;		}
+		if (f1 & TR1_DEX)			{	dif_mod(x, 14, &dif_inc);	smithing_cost.dex += x;		}
+		if (f1 & TR1_CON)			{	dif_mod(x, 14, &dif_inc);	smithing_cost.con += x;		}
+		if (f1 & TR1_GRA)			{	dif_mod(x, 14, &dif_inc);	smithing_cost.gra += x;		}
 		if (f1 & TR1_ARC)			{	dif_mod(x, 4, &dif_inc);	}
 		if (f1 & TR1_STL)			{	dif_mod(x, 4, &dif_inc);	}
-		if (f1 & TR1_PER)			{	dif_mod(x, 2, &dif_inc);	}
+		if (f1 & TR1_PER)			{	dif_mod(x, 3, &dif_inc);	}
 		if (f1 & TR1_WIL)			{	dif_mod(x, 3, &dif_inc);	}
-		if (f1 & TR1_SMT)			{	dif_mod(x, 4, &dif_inc);	}
 		if (f1 & TR1_SNG)			{	dif_mod(x, 4, &dif_inc);	}
 
 		x = (o_ptr->pval < 0) ? o_ptr->pval : 0;
@@ -2758,14 +2963,15 @@ int object_difficulty(object_type *o_ptr)
 	
 	// Abilities
 	if (f2 & TR2_SLOW_DIGEST) 	{	dif_inc += 2; }
-	if (f2 & TR2_RADIANCE) 		{	dif_inc += 9;	smithing_cost.gra += 1;	}
+	if (f2 & TR2_RADIANCE) 		{	dif_inc += 6;	smithing_cost.gra += 1;	}
 	if (f2 & TR2_LIGHT)		{	dif_inc += 8;	smithing_cost.gra += 1;	}
-	if (f2 & TR2_REGEN) 		{	dif_inc += 8;	}
-	if (f2 & TR2_SEE_INVIS) 	{	dif_inc += 7;	}
-	if (f2 & TR2_FREE_ACT) 		{	dif_inc += 6;	}
+	if (f2 & TR2_REGEN) 		{	dif_inc += 4;	}
+	if (f2 & TR2_SEE_INVIS) 	{	dif_inc += 4;	}
+	if (f2 & TR2_FREE_ACT) 		{	dif_inc += 7;	}
 	if (f2 & TR2_SPEED)		{	dif_inc += 40;	smithing_cost.con += 5;	}
 	if (f3 & TR3_CHEAT_DEATH) 	{	dif_inc += 13;	}
 	if (f3 & TR3_STAND_FAST) 	{	dif_inc += 2;	}
+	if (f3 & TR3_AVOID_TRAPS) 	{	dif_inc += 6;	}
 	
 	// Elemental Resistances
 	if (f2 & TR2_RES_COLD)		{	dif_inc += 5;	}
@@ -2773,25 +2979,26 @@ int object_difficulty(object_type *o_ptr)
 	if (f2 & TR2_RES_POIS)		{	dif_inc += 5;	}
 	
 	// Other Resistances
-	if (f2 & TR2_RES_BLIND)		{	dif_inc += 3;	}
-	if (f2 & TR2_RES_CONFU)		{	dif_inc += 3;	}
+	if (f2 & TR2_RES_BLEED)		{	dif_inc += 1;	}
+	if (f2 & TR2_RES_BLIND)		{	dif_inc += 2;	}
+	if (f2 & TR2_RES_CONFU)		{	dif_inc += 2;	}
 	if (f2 & TR2_RES_STUN)		{	dif_inc += 2;	}
 	if (f2 & TR2_RES_FEAR)		{	dif_inc += 2;	}
-	if (f2 & TR2_RES_HALLU)		{	dif_inc += 2;	}
+	if (f2 & TR2_RES_HALLU)		{	dif_inc += 1;	}
 
 	// Penalty Flags
-	if (f2 & TR2_DANGER)		{	dif_dec += 5;	} // only Danger counts
-
-	// Count the other curses only for known items which aren't smithing gear...
 	if (!o_ptr->name1)
 	{
+		if (f2 & TR2_DANGER)		{	dif_dec += 5;	} // only Danger counts
 		if (f2 & TR2_DARKNESS)		{	dif_dec += 3;	}
 		if (f2 & TR2_AGGRAVATE)		{	dif_dec += 3;	}
 		if (f2 & TR2_HAUNTED)		{	dif_dec += 5;	}
 		if (f2 & TR2_VUL_COLD)		{	dif_dec += 4;	}
 		if (f2 & TR2_VUL_FIRE)		{	dif_dec += 4;	}
 		if (f2 & TR2_VUL_POIS)		{	dif_dec += 4;	}
+		if (f3 & TR2_TRAITOR	)	{	dif_dec += 2;	}
 		if (f3 & TR3_LIGHT_CURSE)	{	dif_dec += 2;	}
+		if (f3 & TR3_CUMBERSOME)	{	dif_dec += 3;	}
 
 	}
 
@@ -2800,15 +3007,12 @@ int object_difficulty(object_type *o_ptr)
 	{
 		int level = (&b_info[ability_index(o_ptr->skilltype[i],o_ptr->abilitynum[i])])->level;
 
-		dif_inc += 4 + (level / 3);
+		dif_inc += 5 + (level / 3);
 		smithing_cost.exp += 50 * level;
 	}
 
 	// Penalty for being an artefact
 	if (o_ptr->name1)			{	smithing_cost.uses += 2;	}
-	
-	// Cap the difficulty reduction at 8
-	if (dif_dec > 8) dif_dec = 8;
 	
 	// Set the overall difficulty
 	dif = dif_inc - dif_dec;
@@ -4062,22 +4266,6 @@ bool applicable_flag(u32b f, int flagset, object_type *o_ptr)
 		}
 	}
 	
-	// Smithing is OK for War Hammers
-	if ((o_ptr->tval == TV_HAFTED) && (o_ptr->sval == SV_WAR_HAMMER))
-	{
-		if ((flagset == 1) && (f & (TR1_SMT))) ok = TRUE;
-	}
-	
-	// Special case for brands
-	//if ((flagset == 1) && (f & (TR1_BRAND_MASK)))
-	//{
-	//	// If the object doesn't already have the flag, but it does have a brand, then disallow it
-	//	if (!(f1 & f) && (f1 & (TR1_BRAND_MASK)))
-	//	{
-	//		ok = FALSE;
-	//	}
-	//}
-	
 	return (ok);
 }
 
@@ -5087,7 +5275,7 @@ int smithing_menu_aux(int *highlight)
                                  (smith_o_ptr->tval != TV_RING) &&
                                  (smith_o_ptr->tval != TV_AMULET) &&
                                  (smith_o_ptr->tval != TV_HORN) &&
-                                 !((smith_o_ptr->tval == TV_DIGGING) && (smith_o_ptr->sval == SV_SHOVEL)) &&
+				 !((smith_o_ptr->tval == TV_DIGGING) && (smith_o_ptr->sval == SV_SHOVEL)) &&
 				 !((smith_o_ptr->tval == TV_ARROW) && (smith_o_ptr->att > 0));
 	valid[SMT_MENU_ARTEFACT-1] = (!smith_o_ptr->name2) &&
                                  (smith_o_ptr->tval != 0) &&
@@ -8915,6 +9103,7 @@ static cptr object_group_text[] =
 	"Cloaks",
 	"Gloves",
 	"Helms",
+	"Crowns",
 	"Boots",
 	"Chests",
 	NULL
@@ -10048,8 +10237,8 @@ void apply_magic_fake(object_type *o_ptr)
 					break;
 				}
 
-				/* Ring of Perception */
-				case SV_RING_PERCEPTION:
+				/* Ring of Secrets */
+				case SV_RING_SECRETS:
 				{
 					/* Bonus to perception */
 					if (o_ptr->pval < 1) o_ptr->pval = 1;
@@ -10061,6 +10250,14 @@ void apply_magic_fake(object_type *o_ptr)
 				case SV_RING_ERED_LUIN:
 				{
 					/* Bonus to will */
+					if (o_ptr->pval < 1) o_ptr->pval = 1;
+					break;
+				}
+
+				/* Ring of the Laiquendi */
+				case SV_RING_LAIQUENDI:
+				{
+					/* Bonus to stealth and archery */
 					if (o_ptr->pval < 1) o_ptr->pval = 1;
 					break;
 				}

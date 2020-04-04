@@ -298,14 +298,20 @@ static bool describe_misc_weapon_attributes(const object_type *o_ptr, u32b f1, u
 	{
 		if (o_ptr->tval == TV_BOW)
 		{
-			p_text_out("It fires arrows with unerring precision.  ");
+			p_text_out("It fires arrows with unerring precision (misses are rerolled).  ");
 			message = TRUE;
 		}
 		else
 		{
-			p_text_out("It is unusually well balanced.  ");
+			p_text_out("It is unusually well balanced (misses are rerolled).  ");
 			message = TRUE;
 		}
+	}
+	if (f3 & (TR3_CUMBERSOME))
+	{
+			p_text_out("It is cumbersome (it does not score critical hits).  ");
+			message = TRUE;
+
 	}
 	
 	return (message);
@@ -327,7 +333,7 @@ static bool describe_resist(const object_type *o_ptr, u32b f2)
 	if (f2 & (TR2_RES_FIRE))	vp[vn++] = "fire";
 	if (f2 & (TR2_RES_ELEC))	vp[vn++] = "lightning";
 	if (f2 & (TR2_RES_POIS))	vp[vn++] = "poison";
-	if (f2 & (TR2_RES_DARK))	vp[vn++] = "dark";
+	if (f2 & (TR2_RES_BLEED))	vp[vn++] = "bleeding";
 
 	if (f2 & (TR2_RES_FEAR))	vp[vn++] = "fear";
 	if (f2 & (TR2_RES_BLIND))	vp[vn++] = "blindness";
@@ -478,13 +484,23 @@ static bool describe_misc_magic(const object_type *o_ptr, u32b f2, u32b f3)
 	/* Collect stuff which can't be categorized */
 	if (((o_ptr->tval == TV_LIGHT) && artefact_p(o_ptr)) || ((o_ptr->tval != TV_LIGHT) && (f2 & (TR2_LIGHT))))
 		good[gc++] = "lights the dungeon around you";
-	if ((f2 & (TR2_LIGHT)) && (o_ptr->tval == TV_LIGHT))	good[gc++] = "burns brightly, increasing your light radius by an additional square";
-	if (f2 & (TR2_SLOW_DIGEST))								good[gc++] = "reduces your need for food";
-	if ((f2 & (TR2_RADIANCE)) && (o_ptr->tval == TV_BOW))	good[gc++] = "fires shining arrows";
-	if ((f2 & (TR2_RADIANCE)) && (o_ptr->tval == TV_BOOTS))	good[gc++] = "lights your path behind you";
-	if (f2 & (TR2_REGEN))									good[gc++] = "speeds your regeneration (which increases your hunger while active)";
-	if (f3 & (TR3_CHEAT_DEATH))								good[gc++] = "preserves you from death once";
-	if (f3 & (TR3_STAND_FAST))								good[gc++] = "lets you stand fast against your foes";
+	if ((f2 & (TR2_LIGHT)) && (o_ptr->tval == TV_LIGHT))
+		good[gc++] = "burns brightly, increasing your light radius by an additional square";
+	if (f2 & (TR2_SLOW_DIGEST))
+		good[gc++] = "reduces your need for food";
+	if ((f2 & (TR2_RADIANCE)) && (o_ptr->tval == TV_BOW))
+		good[gc++] = "fires shining arrows";
+	if ((f2 & (TR2_RADIANCE)) && (o_ptr->tval == TV_BOOTS))
+		good[gc++] = "lights your path behind you";
+	if (f2 & (TR2_REGEN))
+		good[gc++] = "speeds your regeneration (which increases your hunger while active)";
+	if (f3 & (TR3_CHEAT_DEATH))
+		good[gc++] = "preserves you from death once";
+	if (f3 & (TR3_STAND_FAST))
+		good[gc++] = "lets you stand fast against your foes";
+	if (f3 & (TR3_AVOID_TRAPS))
+		good[gc++] = "lets you step on traps without triggering them";
+
 
 	/* Describe */
 	output_desc_list("It ", good, gc);

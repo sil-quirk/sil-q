@@ -534,8 +534,9 @@ static void player_wipe(void)
 
 	p_ptr->killed_enemy_with_arrow = FALSE;
 
-	p_ptr->unused5 = 0;
-	p_ptr->unused6 = 0;
+	p_ptr->oath_type = 0;
+	p_ptr->oaths_broken = 0;
+
 	p_ptr->unused7 = 0;
 
 	p_ptr->unused2 = 0;

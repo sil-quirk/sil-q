@@ -11,7 +11,7 @@
 #include "angband.h"
 
 /*
- * Support for Adam Bolt's tileset, lighting and transparency effects
+ * Support for tilesets, lighting and transparency effects
  * by Robert Ruehlmann (rr9@thangorodrim.net)
  */
 
@@ -386,7 +386,6 @@ bool seen_by_keen_senses(int fy, int fx)
 bool cave_valid_bold(int y, int x)
 {
 	object_type *o_ptr;
-	u32b f1, f2, f3;
 
 	/* Forbid perma-grids */
 	if (cave_perma_bold(y, x)) return (FALSE);
@@ -394,10 +393,9 @@ bool cave_valid_bold(int y, int x)
 	/* Check objects */
 	for (o_ptr = get_first_object(y, x); o_ptr; o_ptr = get_next_object(o_ptr))
 	{
-		object_flags(o_ptr, &f1, &f2, &f3);
-
-		/* Forbid grids with indestructable items */
-		if (f3 & (TR3_INDESTRUCTIBLE)) return (FALSE);
+		// Don't destroy the crown
+		if ((o_ptr->name1 >= ART_MORGOTH_0) && (o_ptr->name1 <= ART_MORGOTH_3))	
+			return FALSE;
 	}
 
 	/* Accept */
@@ -514,8 +512,7 @@ bool feat_supports_lighting(int feat)
 	/* Pseudo graphics don't support lighting */
 	if (use_graphics == GRAPHICS_PSEUDO) return FALSE;
 
-	if 	((use_graphics != GRAPHICS_DAVID_GERVAIS) &&
-	    (((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL))))
+	if ((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL))
 	{
 		return TRUE;
 	}
@@ -575,8 +572,7 @@ static void special_lighting_floor(byte *a, char *c, int info, int light)
 				/* special darkening */
 				*a = TERM_DARK + TERM_SHADE;
 				break;
-			case GRAPHICS_ADAM_BOLT:
-			case GRAPHICS_DAVID_GERVAIS:
+			case GRAPHICS_MICROCHASM:
 				*c += 1;
 				break;
 		}
@@ -592,8 +588,7 @@ static void special_lighting_floor(byte *a, char *c, int info, int light)
 				/* darken the colour */
 				*a = darken(*a,*c);
 				break;
-			case GRAPHICS_ADAM_BOLT:
-			case GRAPHICS_DAVID_GERVAIS:
+			case GRAPHICS_MICROCHASM:
 				*c += 1;
 				break;
 		}
@@ -619,8 +614,7 @@ static void special_lighting_wall(byte *a, char *c, int feat, int info)
 				/* darken the colour */
 				*a = darken(*a,*c);
 				break;
-			case GRAPHICS_ADAM_BOLT:
-			case GRAPHICS_DAVID_GERVAIS:
+			case GRAPHICS_MICROCHASM:
 				if (feat_supports_lighting(feat)) *c += 1;
 				break;
 		}
@@ -636,8 +630,7 @@ static void special_lighting_wall(byte *a, char *c, int feat, int info)
 				/* darken the colour */
 				*a = darken(*a,*c);
 				break;
-			case GRAPHICS_ADAM_BOLT:
-			case GRAPHICS_DAVID_GERVAIS:
+			case GRAPHICS_MICROCHASM:
 				if (feat_supports_lighting(feat)) *c += 1;
 				break;
 		}
@@ -3125,7 +3118,7 @@ void update_view(void)
 			
 			if (p_ptr->active_ability[S_WIL][WIL_INNER_LIGHT])
 			{
-				bonus_light = 1;
+				bonus_light = 2;
 			}
 			if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT)
 			{
@@ -3259,51 +3252,8 @@ void update_view(void)
         fy = o_ptr->iy;
 		
 		object_flags(o_ptr, &f1, &f2, &f3);
-		
-		/* does this item glow? */
-		if (f2 & TR2_LIGHT)
-		{ 
-			// objects with the Light flag glow on the ground unless they are torches or lanterns
-			if (!((o_ptr->tval == TV_LIGHT) && ((o_ptr->sval == SV_LIGHT_TORCH) || (o_ptr->sval == SV_LIGHT_LANTERN)))) obj_light++;
-		}
 
-		/* is it a glowing weapon? */
-		if (weapon_glows(o_ptr))
-		{
-			obj_light++;
-		}
-
-		// Need to redraw any weapons that may have started/stopped glowing
-		if (wield_slot(o_ptr) == INVEN_WIELD)
-		{
-			if ((fy > 0) && (fx > 0) && (cave_info[fy][fx] & (CAVE_VIEW)))
-			{
-				lite_spot(fy,fx);
-			}
-		}
-		
-		/* does this item create darkness? */
-		if ((f2 & TR2_DARKNESS) && (o_ptr->tval != TV_LIGHT)) obj_light--;
-		
-		/* Examine actual light */
-		if (o_ptr->tval == TV_LIGHT)
-		{
-			/* Some items provide permanent, bright, light */
-			if (o_ptr->sval == SV_LIGHT_FEANORIAN)
-			{
-				obj_light += RADIUS_FEANORIAN;
-			}
-			if (o_ptr->sval == SV_LIGHT_LESSER_JEWEL)
-			{
-				obj_light += RADIUS_LESSER_JEWEL;
-			}
-			if (o_ptr->sval == SV_LIGHT_SILMARIL)
-			{
-				obj_light += RADIUS_SILMARIL;
-			}
-		}
-		
-		// The Iron Crown also glows
+		// The Iron Crown glows
 		if ((o_ptr->name1 >= ART_MORGOTH_1) && (o_ptr->name1 <= ART_MORGOTH_3))
 		{ 
 			obj_light += o_ptr->pval;

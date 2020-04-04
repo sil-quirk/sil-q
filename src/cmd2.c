@@ -2345,18 +2345,30 @@ static bool do_cmd_disarm_test(int y, int x)
  */
 bool break_free_of_web(void)
 {
-	int difficulty = 7;
+	int difficulty = p_ptr->depth / 2;
 	int score = MAX(p_ptr->stat_use[A_STR] * 2, difficulty-8); // capped so you always have some chance
+	u32b f1, f2, f3;
+	object_type *o_ptr = &inventory[INVEN_WIELD];
 	
 	/* Disturb the player */
 	disturb(0, 0);
 	
+	object_flags(o_ptr, &f1, &f2, &f3);
+
+	bool appropriate_weapon =
+	   (f1 & TR1_SLAY_SPIDER || f1 & TR1_SHARPNESS || f1 & TR1_SHARPNESS2);
+
+	if (appropriate_weapon)
+	{
+		difficulty -= 5;
+	}
+
 	// Free action helps a lot
 	if (p_ptr->free_act) difficulty -= 10 * p_ptr->free_act;
 	
 	// Spider bane bonus helps
 	difficulty -= spider_bane_bonus();
-	
+
 	if (skill_check(PLAYER, score, difficulty, NULL) <= 0)
 	{	
 		msg_print("You fail to break free of the web.");
@@ -2371,7 +2383,10 @@ bool break_free_of_web(void)
 	}
 	else
 	{
-		msg_print("You break free!");
+		if (appropriate_weapon)
+			msg_print("You cut yourself free!");
+		else
+			msg_print("You break free!");
 		
 		/* Forget the trap */
 		cave_info[p_ptr->py][p_ptr->px] &= ~(CAVE_MARK);
@@ -3514,9 +3529,13 @@ void attacks_of_opportunity(int neutralized_y, int neutralized_x)
             m_ptr = &mon_list[cave_m_idx[y][x]];
             r_ptr = &r_info[m_ptr->r_idx];
             
-            // the monster must be alert, not confused, and not mindless
-            if ((m_ptr->alertness >= ALERTNESS_ALERT) && !m_ptr->confused && (m_ptr->stance != STANCE_FLEEING) && !(r_ptr->flags2 & (RF2_MINDLESS))
-                && !m_ptr->skip_next_turn && !m_ptr->skip_this_turn)
+            // the monster must be alert, not confused, and not fleeing or peaceful
+            if ((m_ptr->alertness >= ALERTNESS_ALERT) &&
+		!m_ptr->confused &&
+		(m_ptr->stance != STANCE_FLEEING) && !(r_ptr->flags2 & (RF2_MINDLESS)) &&
+		!(r_ptr->flags1 & (RF1_PEACEFUL)) &&
+		!m_ptr->skip_next_turn &&
+		!m_ptr->skip_this_turn)
             {
 		int evn = p_ptr->skill_use[S_EVN];
 		opportunity_attacks++;
@@ -3669,6 +3688,9 @@ void do_cmd_fire(int quiver)
 		tx = p_ptr->px;
 	}
 
+	m_ptr = &mon_list[cave_m_idx[ty][tx]];
+	r_ptr = &r_info[m_ptr->r_idx];
+
 	/* Handle player fear */
 	if (p_ptr->afraid)
 	{
@@ -3676,6 +3698,18 @@ void do_cmd_fire(int quiver)
 		msg_print("You are too afraid to aim properly!");
 		
 		/* Done */
+		return;
+	}
+
+	if (r_ptr->flags1 & (RF1_PEACEFUL))
+	{
+		msg_format("You lower your bow.");
+
+		return;
+	}
+
+	if (abort_for_mercy_or_honour(m_ptr))
+	{
 		return;
 	}
 		
@@ -3890,8 +3924,17 @@ void do_cmd_fire(int quiver)
 				// Determine the monster's evasion after all modifiers
 				total_evasion_mod = total_monster_evasion(m_ptr, TRUE);
 				
+
+				// No killing peaceful creatures
+				if (r_ptr->flags1 & (RF1_PEACEFUL))
+				{
+					hit_result = 0;
+				}
+				else
+				{
 				/* Test for hit */
-				hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);				
+					hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);				
+				}
 
 				if (hit_result <= 0 && f3 & TR3_ACCURATE)
 				{
@@ -3927,8 +3970,14 @@ void do_cmd_fire(int quiver)
 					}
 										
 					/* Add 'critical hit' dice based on bow weight */
-					crit_bonus_dice = crit_bonus(hit_result, j_ptr->weight, r_ptr, S_ARC, FALSE);
+					crit_bonus_dice = crit_bonus(hit_result, j_ptr->weight, r_ptr, S_ARC, FALSE, NULL);
 		
+
+					if (f3 & TR3_CUMBERSOME)
+					{
+						crit_bonus_dice = 0;
+					}
+
 					if (p_ptr->active_ability[S_ARC][ARC_AMBUSH] && m_ptr->alertness < ALERTNESS_ALERT)
 					{
 						crit_bonus_dice++;
@@ -3972,6 +4021,8 @@ void do_cmd_fire(int quiver)
 
 					// no negative damage
 					if (net_dam < 0) net_dam = 0;
+
+					break_honour_and_mercy_oath(m_ptr, net_dam);
 					
 					/* Handle unseen monster */
 					if (!(m_ptr->ml))
@@ -4333,6 +4384,9 @@ void do_cmd_throw(bool automatic)
 	int dam = 0, prt = 0, prt_percent = 100;
 	int net_dam = 0;
 
+	monster_type *m_ptr;
+	monster_race *r_ptr;
+
 	object_type *o_ptr;
 
 	object_type *i_ptr;
@@ -4506,6 +4560,9 @@ void do_cmd_throw(bool automatic)
 		tx = p_ptr->px;
 	}
 
+	m_ptr = &mon_list[cave_m_idx[ty][tx]];
+	r_ptr = &r_info[m_ptr->r_idx];
+
 	/* Handle player fear */
 	if (p_ptr->afraid)
 	{
@@ -4515,7 +4572,22 @@ void do_cmd_throw(bool automatic)
 		/* Done */
 		return;
 	}
-		
+
+	if (r_ptr->flags1 & (RF1_PEACEFUL))
+	{
+		char m_name[80];
+		monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+
+		msg_format("You stop before you hit %s.", m_name);
+
+		return;
+	}
+
+	if (abort_for_mercy_or_honour(m_ptr))
+	{
+		return;
+	}
+
 	/* Get local object */
 	i_ptr = &object_type_body;
 
@@ -4651,8 +4723,8 @@ void do_cmd_throw(bool automatic)
 		/* Handle monster */
 		if (cave_m_idx[y][x] > 0)
 		{
-			monster_type *m_ptr = &mon_list[cave_m_idx[y][x]];
-			monster_race *r_ptr = &r_info[m_ptr->r_idx];
+			m_ptr = &mon_list[cave_m_idx[y][x]];
+			r_ptr = &r_info[m_ptr->r_idx];
 						
 			bool potion_effect = FALSE;
 			int pdam = 0;
@@ -4694,8 +4766,16 @@ void do_cmd_throw(bool automatic)
 			// Determine the monster's evasion after all modifiers
 			total_evasion_mod = total_monster_evasion(m_ptr, FALSE);
 			
-			/* Test for hit */
-			hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
+			// No killing peaceful creatures
+			if (r_ptr->flags1 & (RF1_PEACEFUL))
+			{
+				hit_result = 0;
+			}
+			else
+			{
+				/* Test for hit */
+				hit_result = hit_roll(total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
+			}
 
 			/* If it hit... */
 			if (hit_result > 0) 
@@ -4717,7 +4797,13 @@ void do_cmd_throw(bool automatic)
 				}
 
 				/* Apply special damage XXX XXX XXX */
-				crit_bonus_dice = crit_bonus(hit_result, i_ptr->weight, r_ptr, S_MEL, TRUE);
+				crit_bonus_dice = crit_bonus(hit_result, i_ptr->weight, r_ptr, S_MEL, TRUE, NULL);
+
+				if (f3 & TR3_CUMBERSOME)
+				{
+					crit_bonus_dice = 0;
+				}
+
 				slay_bonus_dice = slay_bonus(i_ptr, m_ptr, &noticed_flag);
 
 				/* Calculate the damage from the thrown object */
@@ -4740,6 +4826,8 @@ void do_cmd_throw(bool automatic)
 
 				// no negative damage
 				if (net_dam < 0) net_dam = 0;
+
+				break_honour_and_mercy_oath(m_ptr, net_dam);
 
 				/* Handle unseen monster */
 				if (!(m_ptr->ml))

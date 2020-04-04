@@ -427,6 +427,7 @@ static byte spell_color(int type)
 		case GF_DARK:		return (TERM_L_DARK);
 		case GF_IDENTIFY:	return (TERM_WHITE);
 		case GF_EARTHQUAKE:	return (TERM_SLATE);
+		case GF_WEB:		return (TERM_L_UMBER);
 	}
 
 	/* Standard "color" */
@@ -451,7 +452,7 @@ static u16b bolt_pict(int y, int x, int ny, int nx, int typ)
 	byte a;
 	char c;
 
-	if (!(use_graphics && (arg_graphics == GRAPHICS_DAVID_GERVAIS)))
+	if (use_graphics)
 	{
 		/* No motion (*) */
 		if ((ny == y) && (nx == x)) base = 0x30;
@@ -546,7 +547,7 @@ void attempt_to_cheat_death(void)
 			object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
 
 			msg_format("Your %s breaks into two pieces!", o_name);
-			ident_cheat_death(o_ptr);
+			ident_f3(TR3_CHEAT_DEATH, o_ptr);
 
 			inven_item_increase(i, -1);
 			inven_item_optimize(i);
@@ -3081,7 +3082,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
 	dam = damroll(dd, ds);
 
 	// generate the display messages for undodgable attacks
-	if ((dam > 0) && (typ != GF_ARROW) && (typ != GF_BOULDER))
+	if ((dam > 0) && (typ != GF_ARROW) && (typ != GF_BOULDER) && (typ != GF_WEB))
 	{
 		update_combat_rolls1b(m_ptr, PLAYER, m_ptr->ml);
 		
@@ -3178,7 +3179,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
 			
 			if (hit_result > 0)
 			{
-				crit_bonus_dice = crit_bonus(hit_result, weight, &r_info[0], S_ARC, FALSE);
+				crit_bonus_dice = crit_bonus(hit_result, weight, &r_info[0], S_ARC, FALSE, m_ptr);
 				total_dd = dd + crit_bonus_dice;
 				total_ds = ds;
 								
@@ -3265,7 +3266,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
 			
 			if (hit_result > 0)
 			{
-				crit_bonus_dice = crit_bonus(hit_result, 100, &r_info[0], S_ARC, TRUE);
+				crit_bonus_dice = crit_bonus(hit_result, 100, &r_info[0], S_ARC, TRUE, m_ptr);
 				total_dd = dd + crit_bonus_dice;
 				total_ds = ds;
 				
@@ -3304,6 +3305,37 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
 
 				/* Make some noise */
 				monster_perception(TRUE, FALSE, -10);
+			}
+
+			break;
+		}
+
+		case GF_WEB:
+		{
+			int total_attack_mod, total_evasion_mod, hit_result;
+			// attacks with GF_WEB will require an attack roll
+			
+			// determine the monster's attack score
+			total_attack_mod = total_monster_attack(m_ptr, r_ptr->spell_power);
+
+			// determine the player's evasion score
+			total_evasion_mod = total_player_evasion(m_ptr, FALSE);
+						
+			// perform the hit roll
+			hit_result = hit_roll(total_attack_mod, total_evasion_mod, m_ptr, PLAYER, TRUE);
+			
+			if (hit_result > 0)
+			{
+				if (blind)
+				{
+					msg_print("Something sticky falls over you.");
+				}
+				else
+				{
+					msg_print("You are enveloped in a thick web.");
+				}
+
+				cave_set_feat(p_ptr->py, p_ptr->px, FEAT_TRAP_WEB);
 			}
 
 			break;
@@ -5194,7 +5226,8 @@ void sing_song_of_delvings(int score)
 				{
 					if (delvings[(j * x_range) + dx] == TRUE)
 					{
-						map_feature(y, x);
+						if (cave_trap_bold(y, x)) reveal_trap(y, x);
+						else map_feature(y, x);
 					}
 				}
 
@@ -5202,7 +5235,8 @@ void sing_song_of_delvings(int score)
 				{
 					if (delvings[(dy * x_range) + i] == TRUE)
 					{
-						map_feature(y, x);
+						if (cave_trap_bold(y, x)) reveal_trap(y, x);
+						else map_feature(y, x);
 					}
 				}
 			}
@@ -5386,7 +5420,7 @@ void sing(void)
 			}
 			case SNG_WHETTING:
 			{
-				if ((p_ptr->song_duration % 3) == type - 1) cost += 1;
+				cost += 1;
 				break;
 			}
 			case SNG_TREES:

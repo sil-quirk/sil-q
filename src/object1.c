@@ -1240,7 +1240,7 @@ void object_desc(char *buf, size_t max, const object_type *o_ptr, int pref, int 
 	}
 
 	/* Use "cursed" if the item is known to be cursed */
-	else if (cursed_p(o_ptr) && (known || p_ptr->active_ability[S_PER][PER_FOREWARNED]))
+	else if (cursed_p(o_ptr) && known)
 	{
 		v = "cursed";
 	}
@@ -1993,7 +1993,11 @@ void show_inven(void)
 		out_index[k] = i;
 
 		/* Get inventory color */
-		out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+		if (weapon_glows(o_ptr))
+			out_color[k] = TERM_L_BLUE;
+		else
+			out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+
 
 		/* Save the object description */
 		my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));

@@ -1928,7 +1928,7 @@ static void charge_staff(object_type *o_ptr)
 		case SV_STAFF_MAJESTY:				o_ptr->pval = mult * damroll(4,2); break;
 		case SV_STAFF_SELF_KNOWLEDGE:		o_ptr->pval = mult * damroll(2,2); break;
 		case SV_STAFF_WARDING:				o_ptr->pval = mult * damroll(2,2); break;
-		case SV_STAFF_EARTHQUAKES:			o_ptr->pval = mult * damroll(2,2); break;
+		case SV_STAFF_DISMAY:			    o_ptr->pval = mult * damroll(2,2); break;
 		case SV_STAFF_RECHARGING:			o_ptr->pval = mult * damroll(2,2); break;
 		
 		case SV_STAFF_SUMMONING:			o_ptr->pval = mult * damroll(6,2); break;
@@ -2153,16 +2153,16 @@ static void a_m_aux_3(object_type *o_ptr, int level)
 					break;
 				}
 
-				/* Ring of Perception */
-				case SV_RING_PERCEPTION:
+				/* Ring of Secrets */
+				case SV_RING_SECRETS:
 				{
 					/* Bonus to perception */
-					o_ptr->pval = (level + dieroll(10)) / 7;
+					o_ptr->pval = (level + dieroll(10)) / 9;
 					
 					// can't be zero
 					if (o_ptr->pval == 0)
 					{
-						o_ptr->pval = +1;
+						o_ptr->pval = 1;
 					}
 	
 					break;
@@ -2173,6 +2173,14 @@ static void a_m_aux_3(object_type *o_ptr, int level)
 				{
 					/* Bonus to will */
 					o_ptr->pval = (level + dieroll(10)) / 20 + 1;
+					break;
+				}
+
+				/* Ring of the Laiquendi */
+				case SV_RING_LAIQUENDI:
+				{
+					/* Bonus to stealth and archery */
+					o_ptr->pval = 1;
 					break;
 				}
 			}
@@ -2971,14 +2979,6 @@ static bool kind_is_bow(int k_idx)
 			return (TRUE);
 		}
 
-		/*hack - don't allow arrow as a randart*/
-		case TV_ARROW:
-		{
-			if (object_generation_mode == OB_GEN_MODE_RANDART)  return (FALSE);
-			return (TRUE);
-
-		}
-
 	}
 
 	/* Assume not suitable  */
@@ -3736,6 +3736,9 @@ void drop_near(object_type *j_ptr, int chance, int y, int x)
             
 			/* Require floor space */
 			if (cave_feat[ty][tx] != FEAT_FLOOR && cave_feat[ty][tx] != FEAT_SUNLIGHT) continue;
+
+			/* Don't put things under peaceful monsters */
+			if (cave_m_idx[ty][tx] > 0 && !attacker_at(ty, tx)) continue;
 
 			/* No objects */
 			k = 0;

@@ -28,7 +28,7 @@
 
 # Version stamp (required)
 
-V:1.4.2
+V:1.4.3
 
 # Melee ---------------------------------------------
 
@@ -178,6 +178,7 @@ I:1:1:3
 D:Allows you to use the '-' command to give ordinary arrows
 D: a +3 bonus. Takes one turn for each arrow.
 T:31:1:1   # Gloves (leather gloves only)
+T:45:0:99  # Ring
 
 N:22:Point Blank Archery
 I:1:2:4
@@ -222,7 +223,6 @@ D:Arrows fired the turn after killing an enemy with an arrow do twice their
 D: normal damage.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
-T:45:0:99  # Ring
 
 N:28:Dexterity
 I:1:8:10
@@ -241,8 +241,8 @@ T:45:0:99  # Ring
 
 N:41:Blocking
 I:2:1:3
-D:Doubles the protection roll for your shield against all ranged
-D: attacks, and against melee as well if you waited last turn (z or 5).
+D:Doubles the protection roll for your shield against all attacks
+D: if you did not move on your last turn. 
 T:34:0:99  # Shields
 
 N:42:Parry
@@ -323,6 +323,7 @@ N:60:Disguise
 I:3:0:3
 D:Halves any bonuses that awake but unwary enemies have
 D: to notice you due to you being in their line of sight.
+T:30:1:1   # Boots
 T:35:0:99  # Cloak
 T:36:0:99  # Soft Armour
 T:45:0:99  # Ring
@@ -370,6 +371,7 @@ I:3:5:8
 P:3/0
 D:Gives a +10 stealth bonus towards making enemies become unwary
 D: when you are out of their line of sight.
+T:30:1:1   # Boots
 T:35:0:99  # Cloak
 T:36:0:99  # Soft Armour
 T:45:0:99  # Ring
@@ -426,11 +428,10 @@ D:You receive a bonus to all skill rolls against
 D: a selected category of enemy. The bonus increases as
 D: you kill more.
 
-N:86:Forewarned
+N:86:Outwit
 I:4:6:7
-D:If your base Perception exceeds your Evasion, you gain a
-D: bonus to your Evasion of one third your Perception score.
-D: You can also determine when an item is cursed.
+D:Whenever you receive a critical hit, make a Perception roll against
+D: the attacker's Perception. If you succeed, negate all critical damage.
 T:32:0:99  # Helm
 T:39:0:99  # Light Source
 T:40:0:99  # Amulet
@@ -446,7 +447,7 @@ N:88:Master Hunter
 I:4:8:9
 P:4/3:4/5
 D:Gives you an attack bonus of +1 for each time you have killed
-D: an opponent of the same type (up to a maximum of Perception/4).
+D: an opponent of the same type (up to a maximum of Perception/2).
 T:32:0:99  # Helm
 T:30:0:99  # Boots
 T:19:0:99  # Bows
@@ -457,14 +458,23 @@ D:You gain a point of grace.
 
 # Will ---------------------------------------------
 
-N:100:Channeling
-I:5:0:2
+N:100:Formidable
+I:5:0:1
+D:Enemies do not gain morale or become more keen to attack when you are injured.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
+T:32:0:99  # Helm
+T:34:0:99  # Shields
+
+N:101:Channeling
+I:5:1:2
 D:You automatically recognise all staves and horns and can use them twice as efficiently.
 T:32:0:99  # Helm
 T:45:0:99  # Ring
 
-N:101:Strength in Adversity
-I:5:1:3
+N:102:Strength in Adversity
+I:5:2:3
 D:Gives you bonuses to Strength, Dexterity and Grace when seriously injured:
 D: +1 when less than or equal to 50% health, +3 when 25%.
 T:32:0:99  # Helm
@@ -473,8 +483,8 @@ T:37:0:99  # Mail
 T:40:0:99  # Amulet
 T:39:0:99  # Light Source
 
-N:102:Curse Breaking
-I:5:2:4
+N:103:Curse Breaking
+I:5:3:4
 D:Allows you to break the curses on items when you
 D: attempt to take them off.
 T:40:0:99  # Amulet
@@ -482,53 +492,41 @@ T:32:0:99  # Helm
 T:45:0:99  # Ring
 T:34:0:99  # Shields
 
-N:103:Inner Light
-I:5:3:5
-D:Increases the intensity of light within your light radius by 1 point
+N:104:Inner Light
+I:5:4:5
+D:Increases the intensity of light within your light radius by 2 points
 D: (without increasing the radius).
 T:32:0:99  # Helm
 T:39:0:99  # Light Source
 T:36:0:99  # Soft Armour
 
-N:104:Indomitable
-I:5:4:5
+N:105:Indomitable
+I:5:5:5
 D:Gives you resistance to fear, confusion, stunning, and hallucination.
 D: Slows hunger to one third the normal rate.
 T:40:0:99  # Amulet
 T:32:0:99  # Helm
 T:37:0:99  # Mail
 
-N:105:Hardiness
-I:5:5:6
-D:Gives you [1dX] additional protection, where X = Will/6.
+N:106:Oath
+I:5:6:6
+D:Swear a great oath, and be rewarded for keeping it.
 
-N:106:Poison Resistance
-I:5:6:7
-P:5/1:5/5
+N:107:Poison Resistance
+I:5:7:7
 D:Gives you resistance to poison.
 
-N:107:Vengeance
-I:5:7:8
-P:5/1
+N:108:Vengeance
+I:5:8:8
+P:5/2
 D:When you are damaged in melee by an enemy, an additional damage
 D: die is added to your next successful strike. This effect does not stack.
 T:40:0:99  # Amulet
 T:32:0:99  # Helm
 
-N:108:Critical Resistance
-I:5:8:9
-P:5/5
-D:Raises the base number enemies need to get critical hits against
-D: you by 1 per 5 points of Will.
-T:32:0:99  # Helm
-T:36:0:99  # Soft Armour
-T:37:0:99  # Mail
-T:40:0:99  # Amulet
-T:34:0:99  # Shields
-
 N:109:Majesty
 I:5:9:9
-P:5/0:5/3
+P:5/0:5/4
 D:Lowers monster morale by half the difference between your Will and theirs.
 T:32:0:99  # Helm
 T:36:2:2   # Robe
@@ -606,8 +604,7 @@ N:141:Song of Challenge
 I:7:1:1
 D:Causes weak-willed foes to attack aggressively without regard to 
 D: strategy. Enemies with ranged weapons will close to melee range.
-T:40:0:99  # Amulet
-T:35:0:99  # Cloak
+T:32:0:99  # Helm
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -622,8 +619,10 @@ T:20:0:99  # Shovels and Mattocks
 N:143:Song of Freedom
 I:7:3:2
 D:Discovers and overcomes nearby doors, traps, and rubble.
+D: Grants you freedom of movement.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
+T:21:3:3   # Quarterstaves
 
 N:144:Song of Silence
 I:7:4:3
@@ -643,8 +642,10 @@ T:45:0:99  # Ring
 N:146:Song of Whetting
 I:7:6:4
 P:7/1
-D:Grants sharpness to a melee weapon of up to (Song/8) lbs in weight.
-T:22:0:99  # Polearms
+D:Grants sharpness to a non-blunt melee weapon of up to Song/4 lbs
+D: in weight, allowing it to ignore half enemy armour.
+D: Already sharp weapons cannot be sharpened further.
+T:22:0:99  # Polearms and axes
 T:23:0:99  # Swords
 
 N:147:Song of the Trees

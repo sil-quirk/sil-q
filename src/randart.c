@@ -1188,68 +1188,6 @@ s32b artefact_power(int a_idx)
 		if (a_ptr->flags1 & TR1_SNG) p += a_ptr->pval;
 	}
 
-
-	/*Do the sustains*/
-	if (a_ptr->flags2 & TR2_SUST_STATS)
-	{
-
-		byte sustains = 0;
-
-		if (a_ptr->flags2 & TR2_SUST_STR) {p += 5;  sustains++;}
-		if (a_ptr->flags2 & TR2_SUST_DEX) {p += 4;  sustains++;}
-		if (a_ptr->flags2 & TR2_SUST_CON) {p += 3;  sustains++;}
-		if (a_ptr->flags2 & TR2_SUST_GRA) {p += 1;  sustains++;}
-
-		if (sustains > 4) p += 2;
-		if (sustains > 5) p += 2;
-	}
-
-	/*Abilities*/
-	if (a_ptr->flags2 & TR2_ABILITIES_MASK)
-	{
-		byte abilities = 0;
-
-		if (a_ptr->flags2 & TR2_SLOW_DIGEST) 	{p += 1;	abilities++;}
-		if (a_ptr->flags2 & TR2_RADIANCE) 		{p += 3;	abilities++;}
-		if (a_ptr->flags2 & TR2_LIGHT) 			{p += 3;	abilities++;}
-		if (a_ptr->flags2 & TR2_REGEN) 			{p += 4;	abilities++;}
-		if (a_ptr->flags2 & TR2_SEE_INVIS) 		{p += 5;	abilities++;}
-		if (a_ptr->flags2 & TR2_FREE_ACT) 		{p += 7;	abilities++;}
-		if (a_ptr->flags2 & TR2_SPEED)			{p += 12;	abilities++;}
-
-		if (abilities > 4) p += 5;
-		if (abilities > 5) p += 5;
-		if (abilities > 6) p += 5;
-	}
-
-	if (a_ptr->flags2 & TR2_SLOW_DIGEST) p += 1;
-
-	/*Low resists*/
-	if (a_ptr->flags2 & TR2_RESISTANCE)
-	{
-		byte resists = 0;
-
-		if (a_ptr->flags2 & TR2_RES_COLD) {p += 3;  resists++;}
-		if (a_ptr->flags2 & TR2_RES_FIRE) {p += 3;  resists++;}
-		if (a_ptr->flags2 & TR2_RES_ELEC) {p += 3;  resists++;}
-		if (a_ptr->flags2 & TR2_RES_POIS) {p += 3;	resists++;}
-		if (a_ptr->flags2 & TR2_RES_DARK) {p += 3;	resists++;}
-
-		if (resists == 5) p += 10;
-	}
-
-	/*High resists*/
-	if (a_ptr->flags2 & TR2_RESISTANCES_MASK)
-	{
-		byte resists = 0;
-
-		if (a_ptr->flags2 & TR2_RES_BLIND)	{p += 8;	resists++;}
-		if (a_ptr->flags2 & TR2_RES_CONFU)	{p += 12;	resists++;}
-		if (a_ptr->flags2 & TR2_RES_STUN)	{p += 3;	resists++;}
-		if (a_ptr->flags2 & TR2_RES_FEAR)	{p += 3;	resists++;}
-	}
-
-
 	return (p);
 }
 
