@@ -3203,111 +3203,103 @@ static u16b hit_pict(int net_dam, int dam_type, bool fatal_blow)
 	byte a;
 	char c;
 
-	if (!(use_graphics && (arg_graphics == GRAPHICS_DAVID_GERVAIS)))
-	{
-		/* Base graphic '*' */
-		base = 0x30;
+    if (use_graphics == GRAPHICS_MICROCHASM)
+    {
+        a = misc_to_attr[net_dam];
+        c = misc_to_char[net_dam];
+    }
+    else
+    {
+        /* Base graphic '*' */
+        base = 0x30;
 
-
-		/* Basic hit color */
-		if (fatal_blow)
-		{
-			k = TERM_RED;
-		}
-		else if (net_dam == 0)
-		{
-			// only knock back overrides the default for zero damage hits
-			if (dam_type == GF_SOUND)
-			{
-				k = TERM_L_UMBER;
-			}
-			else
-			{
-				k = TERM_L_WHITE;
-			}
-		}
-		else
-		{
-			if (dam_type == GF_POIS)
-			{
-				k = TERM_GREEN;
-			}
-			else if (dam_type == GF_SOUND)
-			{
-				k = TERM_L_UMBER;
-			}
-			else
-			{
-				k = TERM_L_RED;
-			}
-		}
-		
-		/* Obtain attr/char */
-		a = misc_to_attr[base+k];
-		
-		c = misc_to_char[base+k];
-		
-		if (net_dam > 0)
-		{
-			//if (net_dam < 20)	c = 48 + (net_dam % 10);
-			c = 48 + (net_dam % 10);
-		}
-	}
-	else
-	{
-		int add;
-
-    	msg_print("Error: displaying hits doesn't work with tiles.");
-  
-		// Sil-y: this might look very silly in graphical tiles, but then we don't support them at all
-		/* base graphic */
-		base = 0x00;
-		add = 0;
-
-		k = 0;
-
-		/* Obtain attr/char */
-		a = misc_to_attr[base+k];
-		c = misc_to_char[base+k] + add;
-	}
-
-	/* Create pict */
+        /* Basic hit color */
+        if (fatal_blow)
+        {
+            k = TERM_RED;
+        }
+        else if (net_dam == 0)
+        {
+            // only knock back overrides the default for zero damage hits
+            if (dam_type == GF_SOUND)
+            {
+                k = TERM_L_UMBER;
+            }
+            else
+            {
+                k = TERM_L_WHITE;
+            }
+        }
+        else
+        {
+            if (dam_type == GF_POIS)
+            {
+                k = TERM_GREEN;
+            }
+            else if (dam_type == GF_SOUND)
+            {
+                k = TERM_L_UMBER;
+            }
+            else
+            {
+                k = TERM_L_RED;
+            }
+        }
+    
+        /* Obtain attr/char */
+        a = misc_to_attr[base+k];
+        c = misc_to_char[base+k];
+        
+        if (net_dam > 0)
+        {
+            //if (net_dam < 20)	c = 48 + (net_dam % 10);
+            c = 48 + (net_dam % 10);
+        }
+     }
+   
+    /* Create pict */
 	return (PICT(a,c));
 }
 
 void display_hit(int y, int x, int net_dam, int dam_type, bool fatal_blow)
 {
-	u16b p;
+    u16b p1;
+    u16b p2;
 
-	byte a;
-	char c;
+    int tens = net_dam / 10;
+    int units = net_dam % 10;
+    if (tens > 9)
+    {
+        tens = 9;
+        units = 9;
+    }
 
-	// do nothing unless the appropriate option is set
-	if (!display_hits) return; 
+    // do nothing unless the appropriate option is set
+    if (!display_hits) return; 
 
-	/* Obtain the hit pict */
-	p = hit_pict(net_dam, dam_type, fatal_blow);
+    /* Obtain the hit pict */
+    p1 = hit_pict(units, dam_type, fatal_blow);
+    p2 = hit_pict(tens, dam_type, fatal_blow);
 
-	/* Extract attr/char */
-	a = PICT_A(p);
-	c = PICT_C(p);
+    /* Display the visual effects */
+    print_rel(PICT_C(p1), PICT_A(p1), y, x);
+    move_cursor_relative(y, x);
 
-	/* Display the visual effects */
-	print_rel(c, a, y, x);
-	move_cursor_relative(y, x);
-	
-	if (net_dam >= 10)	print_rel((char) 48 + (net_dam / 10), a, y, x-1);
-	move_cursor_relative(y, x-1);
-	
-	Term_fresh();
+    if (net_dam >= 10)
+    {
+        print_rel(PICT_C(p2), PICT_A(p2), y, x-1);
+        move_cursor_relative(y, x-1);
+    }
 
-	/* Delay */
-	Term_xtra(TERM_XTRA_DELAY, 25 * op_ptr->delay_factor);
+    Term_fresh();
 
-	/* Erase the visual effects */
-	lite_spot(y, x);
-	lite_spot(y, x-1);
-	Term_fresh();
+    /* Delay */
+    Term_xtra(TERM_XTRA_DELAY, 25 * op_ptr->delay_factor);
+
+    /* Erase the visual effects */
+    lite_spot(y, x);
+    lite_spot(y, x-1);
+    Term_fresh();
 }
 
 

@@ -452,7 +452,7 @@ static u16b bolt_pict(int y, int x, int ny, int nx, int typ)
 	byte a;
 	char c;
 
-	if (!(use_graphics && (arg_graphics == GRAPHICS_DAVID_GERVAIS)))
+	if (use_graphics)
 	{
 		/* No motion (*) */
 		if ((ny == y) && (nx == x)) base = 0x30;

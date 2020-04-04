@@ -505,7 +505,7 @@ int main(int argc, char *argv[])
 			case 'g':
 			{
 				/* Default graphics tile */
-				arg_graphics = GRAPHICS_ADAM_BOLT;
+				arg_graphics = GRAPHICS_MICROCHASM;
 				break;
 			}
 

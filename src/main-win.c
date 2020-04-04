@@ -184,9 +184,7 @@
 #define IDM_WINDOW_D_HGT_7		277
 
 #define IDM_OPTIONS_GRAPHICS_NONE   400
-#define IDM_OPTIONS_GRAPHICS_OLD    401
-#define IDM_OPTIONS_GRAPHICS_ADAM   402
-#define IDM_OPTIONS_GRAPHICS_DAVID  403
+#define IDM_OPTIONS_GRAPHICS_MCHASM 402
 #define IDM_OPTIONS_BIGTILE         409
 #define IDM_OPTIONS_SOUND           410
 #define IDM_OPTIONS_LOW_PRIORITY    420
@@ -1378,19 +1376,7 @@ static bool init_graphics(void)
 		cptr name;
 		cptr mask = NULL;
 
-		if (arg_graphics == GRAPHICS_DAVID_GERVAIS)
-		{
-			wid = 32;
-			hgt = 32;
-
-			name = "32x32.bmp";
-			mask = "mask32.bmp";
-
-			ANGBAND_GRAF = "david";
-
-			use_transparency = FALSE;
-		}
-		else if (arg_graphics == GRAPHICS_ADAM_BOLT)
+		if (arg_graphics == GRAPHICS_MICROCHASM)
 		{
 			wid = 16;
 			hgt = 16;
@@ -1401,14 +1387,6 @@ static bool init_graphics(void)
 			ANGBAND_GRAF = "new";
 
 			use_transparency = TRUE;
-		}
-		else
-		{
-			wid = 8;
-			hgt = 8;
-
-			name = "8X8.BMP";
-			ANGBAND_GRAF = "old";
 		}
 
 		/* Access the bitmap file */
@@ -2442,8 +2420,7 @@ static errr Term_pict_win(int x, int y, int n, const byte *ap, const char *cp, c
 	hdcSrc = CreateCompatibleDC(hdc);
 	hbmSrcOld = SelectObject(hdcSrc, infGraph.hBitmap);
 
-	if ((arg_graphics == GRAPHICS_ADAM_BOLT) ||
-	    (arg_graphics == GRAPHICS_DAVID_GERVAIS))
+	if (arg_graphics == GRAPHICS_MICROCHASM)
 	{
 		hdcMask = CreateCompatibleDC(hdc);
 		SelectObject(hdcMask, infMask.hBitmap);
@@ -2467,8 +2444,7 @@ static errr Term_pict_win(int x, int y, int n, const byte *ap, const char *cp, c
 		x1 = col * w1;
 		y1 = row * h1;
 
-		if ((arg_graphics == GRAPHICS_ADAM_BOLT) ||
-	        (arg_graphics == GRAPHICS_DAVID_GERVAIS))
+		if (arg_graphics == GRAPHICS_MICROCHASM)
 		{
 			x3 = (tcp[i] & 0x7F) * w1;
 			y3 = (tap[i] & 0x7F) * h1;
@@ -2531,8 +2507,7 @@ static errr Term_pict_win(int x, int y, int n, const byte *ap, const char *cp, c
 	SelectObject(hdcSrc, hbmSrcOld);
 	DeleteDC(hdcSrc);
 
-	if ((arg_graphics == GRAPHICS_ADAM_BOLT) ||
-	    (arg_graphics == GRAPHICS_DAVID_GERVAIS))
+	if (arg_graphics == GRAPHICS_MICROCHASM)
 	{
 		/* Release */
 		SelectObject(hdcMask, hbmSrcOld);
@@ -3058,11 +3033,7 @@ static void setup_menus(void)
 	/* Menu "Options", disable all */
 	EnableMenuItem(hm, IDM_OPTIONS_GRAPHICS_NONE,
 	               MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
-	EnableMenuItem(hm, IDM_OPTIONS_GRAPHICS_OLD,
-	               MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
-	EnableMenuItem(hm, IDM_OPTIONS_GRAPHICS_ADAM,
-	               MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
-	EnableMenuItem(hm, IDM_OPTIONS_GRAPHICS_DAVID,
+	EnableMenuItem(hm, IDM_OPTIONS_GRAPHICS_MCHASM,
 	               MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
 	EnableMenuItem(hm, IDM_OPTIONS_BIGTILE,
 	               MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
@@ -3083,12 +3054,8 @@ static void setup_menus(void)
 	/* Menu "Options", update all */
 	CheckMenuItem(hm, IDM_OPTIONS_GRAPHICS_NONE,
 	              (arg_graphics == GRAPHICS_NONE ? MF_CHECKED : MF_UNCHECKED));
-	CheckMenuItem(hm, IDM_OPTIONS_GRAPHICS_OLD,
-	              (arg_graphics == GRAPHICS_ORIGINAL ? MF_CHECKED : MF_UNCHECKED));
-	CheckMenuItem(hm, IDM_OPTIONS_GRAPHICS_ADAM,
-	              (arg_graphics == GRAPHICS_ADAM_BOLT ? MF_CHECKED : MF_UNCHECKED));
-	CheckMenuItem(hm, IDM_OPTIONS_GRAPHICS_DAVID,
-	              (arg_graphics == GRAPHICS_DAVID_GERVAIS ? MF_CHECKED : MF_UNCHECKED));
+	CheckMenuItem(hm, IDM_OPTIONS_GRAPHICS_MCHASM,
+	              (arg_graphics == GRAPHICS_MICROCHASM ? MF_CHECKED : MF_UNCHECKED));
 
 	CheckMenuItem(hm, IDM_OPTIONS_BIGTILE,
 	              (use_bigtile ? MF_CHECKED : MF_UNCHECKED));
@@ -3107,9 +3074,7 @@ static void setup_menus(void)
 	{
 		/* Menu "Options", Item "Graphics" */
 		EnableMenuItem(hm, IDM_OPTIONS_GRAPHICS_NONE, MF_ENABLED);
-		EnableMenuItem(hm, IDM_OPTIONS_GRAPHICS_OLD, MF_ENABLED);
-		EnableMenuItem(hm, IDM_OPTIONS_GRAPHICS_ADAM, MF_ENABLED);
-		EnableMenuItem(hm, IDM_OPTIONS_GRAPHICS_DAVID, MF_ENABLED);
+		EnableMenuItem(hm, IDM_OPTIONS_GRAPHICS_MCHASM, MF_ENABLED);
 		EnableMenuItem(hm, IDM_OPTIONS_BIGTILE, MF_ENABLED);
 	}
 #endif /* USE_GRAPHICS */
@@ -3686,7 +3651,7 @@ static void process_menus(WORD wCmd)
 			break;
 		}
 
-		case IDM_OPTIONS_GRAPHICS_OLD:
+		case IDM_OPTIONS_GRAPHICS_MCHASM:
 		{
 			/* Paranoia */
 			if (!inkey_flag || !initialized)
@@ -3696,57 +3661,9 @@ static void process_menus(WORD wCmd)
 			}
 
 			/* Toggle "arg_graphics" */
-			if (arg_graphics != GRAPHICS_ORIGINAL)
+			if (arg_graphics != GRAPHICS_MICROCHASM)
 			{
-				arg_graphics = GRAPHICS_ORIGINAL;
-
-				/* React to changes */
-				Term_xtra_win_react();
-
-				/* Hack -- Force redraw */
-				Term_key_push(KTRL('R'));
-			}
-
-			break;
-		}
-
-		case IDM_OPTIONS_GRAPHICS_ADAM:
-		{
-			/* Paranoia */
-			if (!inkey_flag || !initialized)
-			{
-				plog("You may not do that right now.");
-				break;
-			}
-
-			/* Toggle "arg_graphics" */
-			if (arg_graphics != GRAPHICS_ADAM_BOLT)
-			{
-				arg_graphics = GRAPHICS_ADAM_BOLT;
-
-				/* React to changes */
-				Term_xtra_win_react();
-
-				/* Hack -- Force redraw */
-				Term_key_push(KTRL('R'));
-			}
-
-			break;
-		}
-
-		case IDM_OPTIONS_GRAPHICS_DAVID:
-		{
-			/* Paranoia */
-			if (!inkey_flag || !initialized)
-			{
-				plog("You may not do that right now.");
-				break;
-			}
-
-			/* Toggle "arg_graphics" */
-			if (arg_graphics != GRAPHICS_DAVID_GERVAIS)
-			{
-				arg_graphics = GRAPHICS_DAVID_GERVAIS;
+				arg_graphics = GRAPHICS_MICROCHASM;
 
 				/* React to changes */
 				Term_xtra_win_react();

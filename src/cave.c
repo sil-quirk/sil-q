@@ -11,7 +11,7 @@
 #include "angband.h"
 
 /*
- * Support for Adam Bolt's tileset, lighting and transparency effects
+ * Support for tilesets, lighting and transparency effects
  * by Robert Ruehlmann (rr9@thangorodrim.net)
  */
 
@@ -512,8 +512,7 @@ bool feat_supports_lighting(int feat)
 	/* Pseudo graphics don't support lighting */
 	if (use_graphics == GRAPHICS_PSEUDO) return FALSE;
 
-	if 	((use_graphics != GRAPHICS_DAVID_GERVAIS) &&
-	    (((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL))))
+	if ((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL))
 	{
 		return TRUE;
 	}
@@ -573,8 +572,7 @@ static void special_lighting_floor(byte *a, char *c, int info, int light)
 				/* special darkening */
 				*a = TERM_DARK + TERM_SHADE;
 				break;
-			case GRAPHICS_ADAM_BOLT:
-			case GRAPHICS_DAVID_GERVAIS:
+			case GRAPHICS_MICROCHASM:
 				*c += 1;
 				break;
 		}
@@ -590,8 +588,7 @@ static void special_lighting_floor(byte *a, char *c, int info, int light)
 				/* darken the colour */
 				*a = darken(*a,*c);
 				break;
-			case GRAPHICS_ADAM_BOLT:
-			case GRAPHICS_DAVID_GERVAIS:
+			case GRAPHICS_MICROCHASM:
 				*c += 1;
 				break;
 		}
@@ -617,8 +614,7 @@ static void special_lighting_wall(byte *a, char *c, int feat, int info)
 				/* darken the colour */
 				*a = darken(*a,*c);
 				break;
-			case GRAPHICS_ADAM_BOLT:
-			case GRAPHICS_DAVID_GERVAIS:
+			case GRAPHICS_MICROCHASM:
 				if (feat_supports_lighting(feat)) *c += 1;
 				break;
 		}
@@ -634,8 +630,7 @@ static void special_lighting_wall(byte *a, char *c, int feat, int info)
 				/* darken the colour */
 				*a = darken(*a,*c);
 				break;
-			case GRAPHICS_ADAM_BOLT:
-			case GRAPHICS_DAVID_GERVAIS:
+			case GRAPHICS_MICROCHASM:
 				if (feat_supports_lighting(feat)) *c += 1;
 				break;
 		}

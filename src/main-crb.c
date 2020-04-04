@@ -97,8 +97,6 @@
  *
  * Moved TileWidth and TileHeight menus into Special. There were too many menus.
  *
- * Added support for 32x32 tiles, now for [V] only.
- *
  * Related to the above, globe_init no longer loads tile images twice if
  * a tileset doesn't have corresponding masks.
  *
@@ -162,20 +160,16 @@
  *   MENU 134 = Special (Sound, Graphics, TileWidth, TileHeight, -, Fiddle,
  *                       Wizard)
  *              Graphics have following submenu attached:
- *   MENU 144 = Graphics (None, 8x8, 16x16, 32x32, enlarge tiles)
+ *   MENU 144 = Graphics (None, 16x16, enlarge tiles)
  *              TileWidth and TileHeight submenus are filled in by this program.
  *   MENU 145 = TileWidth ()
  *   MENU 146 = TileHeight ()
  *
  *   On CFM(PEF) Carbon only:
- *   PICT 1001 = Graphics tile set (8x8)
  *   PICT 1002 = Graphics tile set (16x16 images)
- *   PICT 1004 = Graphics tile set (32x32)
  *
  *   Mach-O Carbon now uses data fork resources:
- *   8x8.png   = Graphics tile set (8x8)
  *   16x16.png = Graphics tile set (16x16 images)
- *   32x32.png = Graphics tile set (32x32)
  *   These files should go into the Resources subdirectory of an application
  *   bundle.
  *
@@ -285,7 +279,6 @@
  *       Data.icns
  *       Edit.icns
  *       Save.icns
- *       8x8.png <- 8x8 tiles
  *       16x16.png <- 16x16 tiles
  *       sil.rsrc <- see below
  *
@@ -1482,9 +1475,7 @@ static int pict_rows = 0;
  * Available graphics modes
  */
 #define GRAF_MODE_NONE	0	/* plain ASCII */
-#define GRAF_MODE_8X8	1	/* 8x8 tiles */
 #define GRAF_MODE_16X16	2	/* 16x16 tiles */
-#define GRAF_MODE_32X32	3	/* 32x32 tiles */
 
 /*
  * Current and requested graphics modes
@@ -2518,32 +2509,13 @@ static errr Term_xtra_mac_react(void)
 			}
 
 			/*
-			 * 8x8 tiles (PICT id 1001)
-			 * no transparency effect
-			 * "old" graphics definitions
-			 */
-			case GRAF_MODE_8X8:
-			{
-				use_graphics = arg_graphics = GRAPHICS_ORIGINAL;
-				ANGBAND_GRAF = "old";
-				transparency_mode = TR_NONE;
-#ifdef MACH_O_CARBON
-				pict_id = CFSTR("8x8");
-#else
-				pict_id = 1001;
-#endif /* MACH_O_CARBON */
-				graf_width = graf_height = 8;
-				break;
-			}
-
-			/*
 			 * 16x16 tiles (images: PICT id 1002, masks: PICT id 1003)
 			 * with transparency effect
 			 * "new" graphics definitions
 			 */
 			case GRAF_MODE_16X16:
 			{
-				use_graphics = arg_graphics = GRAPHICS_ADAM_BOLT;
+				use_graphics = arg_graphics = GRAPHICS_MICROCHASM;
 				ANGBAND_GRAF = "new";
 				transparency_mode = TR_OVER;
 #ifdef MACH_O_CARBON
@@ -2552,26 +2524,6 @@ static errr Term_xtra_mac_react(void)
 				pict_id = 1002;
 #endif /* MACH_O_CARBON */
 				graf_width = graf_height = 16;
-				break;
-			}
-
-			/*
-			 * 32x32 tiles (images: PICT id 1004)
-			 * with transparency effect
-			 * "david" graphics definitions
-			 * Vanilla-specific
-			 */
-			case GRAF_MODE_32X32:
-			{
-				use_graphics = arg_graphics = GRAPHICS_DAVID_GERVAIS;
-				ANGBAND_GRAF = "david";
-				transparency_mode = TR_OVER;
-#ifdef MACH_O_CARBON
-				pict_id = CFSTR("32x32");
-#else
-				pict_id = 1004;
-#endif /* MACH_O_CARBON */
-				graf_width = graf_height = 32;
 				break;
 			}
 		}
@@ -4714,17 +4666,9 @@ static void setup_menus(void)
 		EnableMenuItem(submenu, ITEM_NONE);
 		CheckMenuItem(submenu, ITEM_NONE, (graf_mode_req == GRAF_MODE_NONE));
 
-		/* Item "8x8" */
-		EnableMenuItem(submenu, ITEM_8X8);
-		CheckMenuItem(submenu, ITEM_8X8, (graf_mode_req == GRAF_MODE_8X8));
-
 		/* Item "16x16" */
 		EnableMenuItem(submenu, ITEM_16X16);
 		CheckMenuItem(submenu, ITEM_16X16, (graf_mode_req == GRAF_MODE_16X16));
-
-		/* Item "32x32" */
-		EnableMenuItem(submenu, ITEM_32X32);
-		CheckMenuItem(submenu, ITEM_32X32, (graf_mode_req == GRAF_MODE_32X32));
 
 #ifdef USE_DOUBLE_TILES
 

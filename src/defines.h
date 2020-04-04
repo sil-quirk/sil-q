@@ -3228,10 +3228,8 @@
  * Available graphic modes
  */
 #define GRAPHICS_NONE           0
-#define GRAPHICS_ORIGINAL       1
-#define GRAPHICS_ADAM_BOLT      2
-#define GRAPHICS_DAVID_GERVAIS  3
-#define GRAPHICS_PSEUDO         4
+#define GRAPHICS_MICROCHASM     1
+#define GRAPHICS_PSEUDO         2
 
 
 /*

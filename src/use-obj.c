@@ -421,9 +421,6 @@ static bool quaff_potion(object_type *o_ptr, bool *ident)
 
 static bool use_staff(object_type *o_ptr, bool *ident)
 {
-	int py = p_ptr->py;
-	int px = p_ptr->px;
-
 	int k;
 
 	bool use_charge = TRUE;
