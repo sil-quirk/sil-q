@@ -2315,6 +2315,57 @@ static errr Term_text_x11(int x, int y, int n, byte a, cptr s)
 
 #ifdef USE_GRAPHICS
 
+void composite_image(term_data* td, int x1, int y1, int x2, int y2, bool alert)
+{
+	unsigned long pixel, blank, icon_blank;
+
+    static int alert_icon = 0x0B;
+
+    int alert_x = (0x7F & misc_to_char[alert_icon]) * td->fnt->twid;
+    int alert_y = (0x7F & misc_to_attr[alert_icon]) * td->fnt->hgt;
+
+    /* Mega Hack^2 - assume the top left corner is "blank" */
+    //blank = XGetPixel(td->tiles, 0, td->fnt->hgt * 6);
+    blank = XGetPixel(td->tiles, x1, y1);
+    icon_blank = XGetPixel(td->tiles, alert_x, alert_y);
+
+    for (int k = 0; k < td->fnt->twid; k++)
+    {
+        for (int l = 0; l < td->fnt->hgt; l++)
+        {
+            pixel = icon_blank;
+
+            if (alert)
+            {
+                /* Output from the icon */
+                pixel = XGetPixel(td->tiles, alert_x + k, alert_y + l);
+            }
+
+            if (pixel == icon_blank)
+            {
+                /* Output from the tile */
+                pixel = XGetPixel(td->tiles, x1 + k, y1 + l);
+            }
+                
+            if (pixel == blank)
+            {
+                /* Output from the terrain */
+                pixel = XGetPixel(td->tiles, x2 + k, y2 + l);
+            }
+
+            if (pixel == blank)
+            {
+                pixel = 0L;
+            }
+
+            /* Store into the temp storage. */
+            XPutPixel(td->TmpImage, k, l, pixel);
+        }
+    }
+}
+
+
+
 /*
  * Draw some graphical characters.
  */
@@ -2330,9 +2381,6 @@ static errr Term_pict_x11(int x, int y, int n, const byte *ap, const char *cp, c
 	char tc;
 
 	int x2, y2;
-	int k,l;
-
-	unsigned long pixel, blank;
 
 	term_data *td = (term_data*)(Term->data);
 
@@ -2352,12 +2400,14 @@ static errr Term_pict_x11(int x, int y, int n, const byte *ap, const char *cp, c
 		tc = *tcp++;
 
 		/* For extra speed - cache these values */
-		x1 = (c & 0x7F) * td->fnt->twid;
+		x1 = (c & 0x3F) * td->fnt->twid;
 		y1 = (a & 0x7F) * td->fnt->hgt;
 
 		/* For extra speed - cache these values */
-		x2 = (tc & 0x7F) * td->fnt->twid;
+		x2 = (tc & 0x3F) * td->fnt->twid;
 		y2 = (ta & 0x7F) * td->fnt->hgt;
+
+        bool alert = (c & GRAPHICS_ALERT_MASK);
 
 		/* Optimise the common case */
 		if (((x1 == x2) && (y1 == y2)) ||
@@ -2373,28 +2423,7 @@ static errr Term_pict_x11(int x, int y, int n, const byte *ap, const char *cp, c
 		}
 		else
 		{
-			/* Mega Hack^2 - assume the top left corner is "blank" */
-            blank = XGetPixel(td->tiles, 0, td->fnt->hgt * 6);
-
-			for (k = 0; k < td->fnt->twid; k++)
-			{
-				for (l = 0; l < td->fnt->hgt; l++)
-				{
-					/* If mask set... */
-					if ((pixel = XGetPixel(td->tiles, x1 + k, y1 + l)) == blank)
-					{
-						/* Output from the terrain */
-						pixel = XGetPixel(td->tiles, x2 + k, y2 + l);
-
-						if (pixel == blank)
-							pixel = 0L;
-					}
-
-					/* Store into the temp storage. */
-					XPutPixel(td->TmpImage, k, l, pixel);
-				}
-			}
-
+            composite_image(td, x1, y1, x2, y2, alert);
 
 			/* Draw to screen */
 			XPutImage(Metadpy->dpy, td->win->win,

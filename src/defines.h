@@ -3233,6 +3233,7 @@
 #define GRAPHICS_MICROCHASM     1
 #define GRAPHICS_PSEUDO         2
 
+#define GRAPHICS_ALERT_MASK   0x40
 
 /*
  * List of commands that will be auto-repeated
