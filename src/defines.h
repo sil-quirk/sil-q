@@ -2711,7 +2711,8 @@
 	  (flavor_info[k_info[(T)->k_idx].flavor].x_attr) : \
 	  ((weapon_glows(T)) ? \
 	   (TERM_L_BLUE) : \
-	   (((T)->name1 && a_info[(T)->name1].d_attr) ? \
+	   (((T)->name1 && a_info[(T)->name1].d_attr && \
+          use_graphics != GRAPHICS_MICROCHASM) ? \
 	    (a_info[(T)->name1].d_attr) : \
 	    (k_info[(T)->k_idx].x_attr)))))
 
@@ -2759,7 +2760,8 @@
 	   (k_info[(T)->image_k_idx].x_char)) : \
 	 ((k_info[(T)->k_idx].flavor) ? \
 	  (flavor_info[k_info[(T)->k_idx].flavor].x_char) : \
-	  (((T)->name1 && a_info[(T)->name1].d_char) ? \
+	  (((T)->name1 && a_info[(T)->name1].d_char &&\
+          use_graphics != GRAPHICS_MICROCHASM) ? \
 	   (a_info[(T)->name1].d_char) : \
 	   (k_info[(T)->k_idx].x_char))))
 
@@ -3231,6 +3233,7 @@
 #define GRAPHICS_MICROCHASM     1
 #define GRAPHICS_PSEUDO         2
 
+#define GRAPHICS_ALERT_MASK   0x40
 
 /*
  * List of commands that will be auto-repeated

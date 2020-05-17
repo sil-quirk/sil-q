@@ -1238,7 +1238,7 @@ void listen(monster_type *m_ptr)
 		return;
 	}
 	
-	if (!use_graphics)
+	if (use_graphics != GRAPHICS_MICROCHASM)
 	{
 		/* Base graphic '*' */
 		base = 0x30;
@@ -1252,7 +1252,10 @@ void listen(monster_type *m_ptr)
 	}
 	else
 	{
-        // TODO: Listening for tiles
+        static int question_mark = 0x0A;
+
+        a = misc_to_attr[question_mark];
+        c = misc_to_char[question_mark];
 	}
 	
 	/* Display the visual effects */

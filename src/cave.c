@@ -1078,22 +1078,17 @@ void map_info(int y, int x, byte *ap, char *cp, byte *tap, char *tcp)
 				a = TERM_RED;
 			}
 			
-			if (use_background_colors)
-			{
-				switch (use_graphics)
-				{
-					case GRAPHICS_NONE:
-					case GRAPHICS_PSEUDO:
-						if (1)
-						{
-							if (hilite_unwary && (m_ptr->alertness < ALERTNESS_ALERT))
-							{
-								a += (MAX_COLORS * BG_DARK);
-							}
-						}
-						break;
+            if (hilite_unwary && (m_ptr->alertness < ALERTNESS_ALERT))
+            {
+                if (use_background_colors && use_graphics == (GRAPHICS_NONE || use_graphics == GRAPHICS_PSEUDO))
+                {
+                    a += (MAX_COLORS * BG_DARK);
 				}
 			}
+            else if (use_graphics == GRAPHICS_MICROCHASM && m_ptr->alertness >= ALERTNESS_ALERT)
+            {
+                c += GRAPHICS_ALERT_MASK;
+            }
 		}
 	}
 
