@@ -50,15 +50,15 @@
 /*
  * Current version string
  */
-#define VERSION_STRING	"1.4.3-beta"
+#define VERSION_STRING	"1.5.0-beta1"
 
 
 /*
  * Current version numbers
  */
 #define VERSION_MAJOR	1
-#define VERSION_MINOR	4
-#define VERSION_PATCH	3
+#define VERSION_MINOR	5
+#define VERSION_PATCH	0
 #define VERSION_EXTRA	0
 
 
