@@ -107,14 +107,11 @@ ANGBAND MENU
 		{
 			MENUITEM "&None", 400
 			MENUITEM "&Microchasm tiles", 402
-			MENUITEM "&Bigtile mode", 409
 		}
 
 		MENUITEM "&Sound", 410
 		MENUITEM SEPARATOR
-		MENUITEM "Low Priority", 420
-		MENUITEM "Activate Screensaver", 430
-		MENUITEM "&Map", 440
+		MENUITEM "&Map", 420
 	}
 
 	POPUP "&Help"
