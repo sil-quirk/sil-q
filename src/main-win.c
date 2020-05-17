@@ -2438,7 +2438,9 @@ static errr Term_pict_win(int x, int y, int n, const byte *ap, const char *cp, c
 
 		/* Extract picture */
 		int row = (a & 0x7F);
-		int col = (c & 0x7F);
+		int col = (c & 0x3F);
+
+        bool alert = (c & GRAPHICS_ALERT_MASK);
 
 		/* Location of bitmap cell */
 		x1 = col * w1;
@@ -2446,7 +2448,12 @@ static errr Term_pict_win(int x, int y, int n, const byte *ap, const char *cp, c
 
 		if (arg_graphics == GRAPHICS_MICROCHASM)
 		{
-			x3 = (tcp[i] & 0x7F) * w1;
+            static const int alert_icon = 0x0B;
+
+            int alert_x = (0x7F & misc_to_char[alert_icon]) * td->fnt->twid;
+            int alert_y = (0x7F & misc_to_attr[alert_icon]) * td->fnt->hgt;
+
+			x3 = (tcp[i] & 0x3F) * w1;
 			y3 = (tap[i] & 0x7F) * h1;
 
 			/* Perfect size */
@@ -2481,6 +2488,13 @@ static errr Term_pict_win(int x, int y, int n, const byte *ap, const char *cp, c
 					StretchBlt(hdc, x2, y2, tw2, h2, hdcSrc, x1, y1, w1, h1, SRCPAINT);
 				}
 			}
+
+            if (alert)
+            {
+                COLORREF transparent = GetPixel(hdcSrc, alert_x, alert_y);
+
+                TransparentBlt(hdc, x2, y2, tw2, h2, hdcSrc, alert_x, alert_y, w1, h1, transparent);
+            }
 		}
 		else
 		{

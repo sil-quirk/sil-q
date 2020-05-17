@@ -2319,7 +2319,7 @@ void composite_image(term_data* td, int x1, int y1, int x2, int y2, bool alert)
 {
 	unsigned long pixel, blank, icon_blank;
 
-    static int alert_icon = 0x0B;
+    static const int alert_icon = 0x0B;
 
     int alert_x = (0x7F & misc_to_char[alert_icon]) * td->fnt->twid;
     int alert_y = (0x7F & misc_to_attr[alert_icon]) * td->fnt->hgt;
