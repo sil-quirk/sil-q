@@ -125,15 +125,6 @@
 #define IDM_WINDOW_FONT_6		216
 #define IDM_WINDOW_FONT_7		217
 
-#define IDM_WINDOW_BIZ_0		230
-#define IDM_WINDOW_BIZ_1		231
-#define IDM_WINDOW_BIZ_2		232
-#define IDM_WINDOW_BIZ_3		233
-#define IDM_WINDOW_BIZ_4		234
-#define IDM_WINDOW_BIZ_5		235
-#define IDM_WINDOW_BIZ_6		236
-#define IDM_WINDOW_BIZ_7		237
-
 #define IDM_WINDOW_I_WID_0		240
 #define IDM_WINDOW_I_WID_1		241
 #define IDM_WINDOW_I_WID_2		242
@@ -371,8 +362,6 @@ struct _term_data
 
 	bool visible;
 	bool maximized;
-
-	bool bizarre;
 
 	cptr font_want;
 
@@ -915,10 +904,6 @@ static void save_prefs_aux(term_data *td, cptr sec_name)
 	strcpy(buf, td->font_file ? td->font_file : "8X13.FON");
 	WritePrivateProfileString(sec_name, "Font", buf, ini_file);
 
-	/* Bizarre */
-	strcpy(buf, td->bizarre ? "1" : "0");
-	WritePrivateProfileString(sec_name, "Bizarre", buf, ini_file);
-
 	/* Tile size (x) */
 	wsprintf(buf, "%d", td->tile_wid);
 	WritePrivateProfileString(sec_name, "TileWid", buf, ini_file);
@@ -1014,9 +999,6 @@ static void load_prefs_aux(term_data *td, cptr sec_name)
 
 	/* Desired font, with default */
 	GetPrivateProfileString(sec_name, "Font", "8X13.FON", tmp, 127, ini_file);
-
-	/* Bizarre */
-	td->bizarre = (GetPrivateProfileInt(sec_name, "Bizarre", TRUE, ini_file) != 0);
 
 	/* Analyze font, save desired font name */
 	td->font_want = string_make(analyze_font(tmp, &wid, &hgt));
@@ -1586,9 +1568,6 @@ static void term_change_font(term_data *td)
 			/* Force the use of that font */
 			(void)term_force_font(td, tmp);
 		}
-
-		/* HACK - Assume bizarre */
-		td->bizarre = TRUE;
 
 		/* Reset the tile info */
 		td->tile_wid = td->font_wid;
@@ -2265,9 +2244,7 @@ static errr Term_text_win(int x, int y, int n, byte a, cptr s)
 	/* Use the font */
 	SelectObject(hdc, td->font_id);
 
-	/* Bizarre size */
-	if (td->bizarre ||
-	    (td->tile_hgt != td->font_hgt) ||
+	if ((td->tile_hgt != td->font_hgt) ||
 	    (td->tile_wid != td->font_wid))
 	{
 		int i;
@@ -2741,9 +2718,6 @@ static void init_windows(void)
 			/* Oops */
 			td->tile_wid = 8;
 			td->tile_hgt = 13;
-
-			/* HACK - Assume bizarre */
-			td->bizarre = TRUE;
 		}
 
 		/* Analyze the font */
@@ -2912,22 +2886,6 @@ static void setup_menus(void)
 		if (data[i].visible)
 		{
 			EnableMenuItem(hm, IDM_WINDOW_FONT_0 + i,
-			               MF_BYCOMMAND | MF_ENABLED);
-		}
-	}
-
-	/* Menu "Window::Bizarre Display" */
-	for (i = 0; i < MAX_TERM_DATA; i++)
-	{
-		EnableMenuItem(hm, IDM_WINDOW_BIZ_0 + i,
-		               MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
-
-		CheckMenuItem(hm, IDM_WINDOW_BIZ_0 + i,
-		              (data[i].bizarre ? MF_CHECKED : MF_UNCHECKED));
-
-		if (data[i].visible)
-		{
-			EnableMenuItem(hm, IDM_WINDOW_BIZ_0 + i,
 			               MF_BYCOMMAND | MF_ENABLED);
 		}
 	}
@@ -3278,31 +3236,6 @@ static void process_menus(WORD wCmd)
 			td = &data[i];
 
 			term_change_font(td);
-
-			break;
-		}
-
-		/* Bizarre Display */
-		case IDM_WINDOW_BIZ_0:
-		case IDM_WINDOW_BIZ_1:
-		case IDM_WINDOW_BIZ_2:
-		case IDM_WINDOW_BIZ_3:
-		case IDM_WINDOW_BIZ_4:
-		case IDM_WINDOW_BIZ_5:
-		case IDM_WINDOW_BIZ_6:
-		case IDM_WINDOW_BIZ_7:
-		{
-			i = wCmd - IDM_WINDOW_BIZ_0;
-
-			if ((i < 0) || (i >= MAX_TERM_DATA)) break;
-
-			td = &data[i];
-
-			td->bizarre = !td->bizarre;
-
-			term_getsize(td);
-
-			term_window_resize(td);
 
 			break;
 		}

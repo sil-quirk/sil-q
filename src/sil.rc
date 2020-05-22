@@ -40,18 +40,6 @@ ANGBAND MENU
 
 		MENUITEM SEPARATOR
 
-		POPUP "Bizarre Display"
-		{
-			MENUITEM "Sil", 230
-			MENUITEM "Inventory", 231
-			MENUITEM "Equipment", 232
-			MENUITEM "Combat Rolls", 233
-			MENUITEM "Recall", 234
-			MENUITEM "Character", 235
-			MENUITEM "Messages", 236
-			MENUITEM "Monster List", 237
-		}
-
 		POPUP "Increase Tile Width"
 		{
 			MENUITEM "Sil", 240
