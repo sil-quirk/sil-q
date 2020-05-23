@@ -38,55 +38,6 @@ ANGBAND MENU
 			MENUITEM "Monster List", 217
 		}
 
-		MENUITEM SEPARATOR
-
-		POPUP "Increase Tile Width"
-		{
-			MENUITEM "Sil", 240
-			MENUITEM "Inventory", 241
-			MENUITEM "Equipment", 242
-			MENUITEM "Combat Rolls", 243
-			MENUITEM "Recall", 244
-			MENUITEM "Character", 245
-			MENUITEM "Messages", 246
-			MENUITEM "Monster List", 247
-		}
-
-		POPUP "Decrease Tile Width"
-		{
-			MENUITEM "Sil", 250
-			MENUITEM "Inventory", 251
-			MENUITEM "Equipment", 252
-			MENUITEM "Combat Rolls", 253
-			MENUITEM "Recall", 254
-			MENUITEM "Character", 255
-			MENUITEM "Messages", 256
-			MENUITEM "Monster List", 257
-		}
-
-		POPUP "Increase Tile Height"
-		{
-			MENUITEM "Sil", 260
-			MENUITEM "Inventory", 261
-			MENUITEM "Equipment", 262
-			MENUITEM "Combat Rolls", 263
-			MENUITEM "Recall", 264
-			MENUITEM "Character", 265
-			MENUITEM "Messages", 266
-			MENUITEM "Monster List", 267
-		}
-
-		POPUP "Decrease Tile Height"
-		{
-			MENUITEM "Sil", 270
-			MENUITEM "Inventory", 271
-			MENUITEM "Equipment", 272
-			MENUITEM "Combat Rolls", 273
-			MENUITEM "Recall", 274
-			MENUITEM "Character", 275
-			MENUITEM "Messages", 276
-			MENUITEM "Monster List", 277
-		}
 	}
 
 	POPUP "&Options"

@@ -125,42 +125,6 @@
 #define IDM_WINDOW_FONT_6		216
 #define IDM_WINDOW_FONT_7		217
 
-#define IDM_WINDOW_I_WID_0		240
-#define IDM_WINDOW_I_WID_1		241
-#define IDM_WINDOW_I_WID_2		242
-#define IDM_WINDOW_I_WID_3		243
-#define IDM_WINDOW_I_WID_4		244
-#define IDM_WINDOW_I_WID_5		245
-#define IDM_WINDOW_I_WID_6		246
-#define IDM_WINDOW_I_WID_7		247
-
-#define IDM_WINDOW_D_WID_0		250
-#define IDM_WINDOW_D_WID_1		251
-#define IDM_WINDOW_D_WID_2		252
-#define IDM_WINDOW_D_WID_3		253
-#define IDM_WINDOW_D_WID_4		254
-#define IDM_WINDOW_D_WID_5		255
-#define IDM_WINDOW_D_WID_6		256
-#define IDM_WINDOW_D_WID_7		257
-
-#define IDM_WINDOW_I_HGT_0		260
-#define IDM_WINDOW_I_HGT_1		261
-#define IDM_WINDOW_I_HGT_2		262
-#define IDM_WINDOW_I_HGT_3		263
-#define IDM_WINDOW_I_HGT_4		264
-#define IDM_WINDOW_I_HGT_5		265
-#define IDM_WINDOW_I_HGT_6		266
-#define IDM_WINDOW_I_HGT_7		267
-
-#define IDM_WINDOW_D_HGT_0		270
-#define IDM_WINDOW_D_HGT_1		271
-#define IDM_WINDOW_D_HGT_2		272
-#define IDM_WINDOW_D_HGT_3		273
-#define IDM_WINDOW_D_HGT_4		274
-#define IDM_WINDOW_D_HGT_5		275
-#define IDM_WINDOW_D_HGT_6		276
-#define IDM_WINDOW_D_HGT_7		277
-
 #define IDM_OPTIONS_GRAPHICS_NONE   400
 #define IDM_OPTIONS_GRAPHICS_MCHASM 402
 #define IDM_OPTIONS_SOUND           410
@@ -2843,58 +2807,6 @@ static void setup_menus(void)
 		}
 	}
 
-	/* Menu "Window::Increase Tile Width" */
-	for (i = 0; i < MAX_TERM_DATA; i++)
-	{
-		EnableMenuItem(hm, IDM_WINDOW_I_WID_0 + i,
-		               MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
-
-		if (data[i].visible)
-		{
-			EnableMenuItem(hm, IDM_WINDOW_I_WID_0 + i,
-			               MF_BYCOMMAND | MF_ENABLED);
-		}
-	}
-
-	/* Menu "Window::Decrease Tile Width" */
-	for (i = 0; i < MAX_TERM_DATA; i++)
-	{
-		EnableMenuItem(hm, IDM_WINDOW_D_WID_0 + i,
-		               MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
-
-		if (data[i].visible)
-		{
-			EnableMenuItem(hm, IDM_WINDOW_D_WID_0 + i,
-			               MF_BYCOMMAND | MF_ENABLED);
-		}
-	}
-
-	/* Menu "Window::Increase Tile Height" */
-	for (i = 0; i < MAX_TERM_DATA; i++)
-	{
-		EnableMenuItem(hm, IDM_WINDOW_I_HGT_0 + i,
-		               MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
-
-		if (data[i].visible)
-		{
-			EnableMenuItem(hm, IDM_WINDOW_I_HGT_0 + i,
-			               MF_BYCOMMAND | MF_ENABLED);
-		}
-	}
-
-	/* Menu "Window::Decrease Tile Height" */
-	for (i = 0; i < MAX_TERM_DATA; i++)
-	{
-		EnableMenuItem(hm, IDM_WINDOW_D_HGT_0 + i,
-		               MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
-
-		if (data[i].visible)
-		{
-			EnableMenuItem(hm, IDM_WINDOW_D_HGT_0 + i,
-			               MF_BYCOMMAND | MF_ENABLED);
-		}
-	}
-
 	/* Menu "Options", disable all */
 	EnableMenuItem(hm, IDM_OPTIONS_GRAPHICS_NONE,
 	               MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
@@ -3189,106 +3101,6 @@ static void process_menus(WORD wCmd)
 			td = &data[i];
 
 			term_change_font(td);
-
-			break;
-		}
-
-		/* Increase Tile Width */
-		case IDM_WINDOW_I_WID_0:
-		case IDM_WINDOW_I_WID_1:
-		case IDM_WINDOW_I_WID_2:
-		case IDM_WINDOW_I_WID_3:
-		case IDM_WINDOW_I_WID_4:
-		case IDM_WINDOW_I_WID_5:
-		case IDM_WINDOW_I_WID_6:
-		case IDM_WINDOW_I_WID_7:
-		{
-			i = wCmd - IDM_WINDOW_I_WID_0;
-
-			if ((i < 0) || (i >= MAX_TERM_DATA)) break;
-
-			td = &data[i];
-
-			td->tile_wid += 1;
-
-			term_getsize(td);
-
-			term_window_resize(td);
-
-			break;
-		}
-
-		/* Decrease Tile Height */
-		case IDM_WINDOW_D_WID_0:
-		case IDM_WINDOW_D_WID_1:
-		case IDM_WINDOW_D_WID_2:
-		case IDM_WINDOW_D_WID_3:
-		case IDM_WINDOW_D_WID_4:
-		case IDM_WINDOW_D_WID_5:
-		case IDM_WINDOW_D_WID_6:
-		case IDM_WINDOW_D_WID_7:
-		{
-			i = wCmd - IDM_WINDOW_D_WID_0;
-
-			if ((i < 0) || (i >= MAX_TERM_DATA)) break;
-
-			td = &data[i];
-
-			td->tile_wid -= 1;
-
-			term_getsize(td);
-
-			term_window_resize(td);
-
-			break;
-		}
-
-		/* Increase Tile Height */
-		case IDM_WINDOW_I_HGT_0:
-		case IDM_WINDOW_I_HGT_1:
-		case IDM_WINDOW_I_HGT_2:
-		case IDM_WINDOW_I_HGT_3:
-		case IDM_WINDOW_I_HGT_4:
-		case IDM_WINDOW_I_HGT_5:
-		case IDM_WINDOW_I_HGT_6:
-		case IDM_WINDOW_I_HGT_7:
-		{
-			i = wCmd - IDM_WINDOW_I_HGT_0;
-
-			if ((i < 0) || (i >= MAX_TERM_DATA)) break;
-
-			td = &data[i];
-
-			td->tile_hgt += 1;
-
-			term_getsize(td);
-
-			term_window_resize(td);
-
-			break;
-		}
-
-		/* Decrease Tile Height */
-		case IDM_WINDOW_D_HGT_0:
-		case IDM_WINDOW_D_HGT_1:
-		case IDM_WINDOW_D_HGT_2:
-		case IDM_WINDOW_D_HGT_3:
-		case IDM_WINDOW_D_HGT_4:
-		case IDM_WINDOW_D_HGT_5:
-		case IDM_WINDOW_D_HGT_6:
-		case IDM_WINDOW_D_HGT_7:
-		{
-			i = wCmd - IDM_WINDOW_D_HGT_0;
-
-			if ((i < 0) || (i >= MAX_TERM_DATA)) break;
-
-			td = &data[i];
-
-			td->tile_hgt -= 1;
-
-			term_getsize(td);
-
-			term_window_resize(td);
 
 			break;
 		}
