@@ -747,6 +747,17 @@ static bool check_file(cptr s)
 	return (TRUE);
 }
 
+int get_tile_height_from_font_height(int font_height)
+{
+	return font_height > 16 ? 32 : 16;
+}
+
+int get_tile_width_from_font_height(int font_height)
+{
+	// Assumes that use_bigtile will always be true
+	// when tiles are active.
+	return font_height > 16 ? 16 : 8;
+}
 
 /*
  * Check for existance of a directory
@@ -1550,8 +1561,16 @@ static void term_change_font(term_data *td)
 		}
 
 		/* Reset the tile info */
-		td->tile_wid = td->font_wid;
-		td->tile_hgt = td->font_hgt;
+		if (arg_graphics == GRAPHICS_MICROCHASM)
+		{
+			td->tile_wid = get_tile_width_from_font_height(td->font_hgt);
+			td->tile_hgt = get_tile_height_from_font_height(td->font_hgt);
+		}
+		else
+		{
+			td->tile_wid = td->font_wid;
+			td->tile_hgt = td->font_hgt;
+		}
 
 		/* Analyze the font */
 		term_getsize(td);
@@ -3287,6 +3306,19 @@ static void process_menus(WORD wCmd)
 			if (arg_graphics != GRAPHICS_NONE)
 			{
 				arg_graphics = GRAPHICS_NONE;
+		
+				use_bigtile = FALSE;
+		
+				td = &data[0];
+
+				td->tile_wid = td->font_wid;
+				td->tile_hgt = td->font_hgt;
+						
+				/* Analyze the font */
+				term_getsize(td);
+
+				/* Resize the window */
+				term_window_resize(td);
 
 				/* React to changes */
 				Term_xtra_win_react();
@@ -3312,9 +3344,19 @@ static void process_menus(WORD wCmd)
 			{
 				arg_graphics = GRAPHICS_MICROCHASM;
 
-				/* Toggle "use_bigtile" */
-				use_bigtile = !use_bigtile;
+				use_bigtile = TRUE;
+				
+				td = &data[0];
+				
+				td->tile_wid = get_tile_width_from_font_height(td->font_hgt);
+				td->tile_hgt = get_tile_height_from_font_height(td->font_hgt);
+				
+				/* Analyze the font */
+				term_getsize(td);
 
+				/* Resize the window */
+				term_window_resize(td);
+		
 				/* React to changes */
 				Term_xtra_win_react();
 
