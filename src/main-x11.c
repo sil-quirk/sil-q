@@ -1085,8 +1085,6 @@ static errr Infoclr_init_data(Pixell fg, Pixell bg, int op, int stip)
 	XGCValues gcv;
 	unsigned long gc_mask;
 
-
-
 	/*** Simple error checking of opr and clr ***/
 
 	/* Check the 'Pixells' for realism */
@@ -2324,9 +2322,8 @@ void composite_image(term_data* td, int x1, int y1, int x2, int y2, bool alert)
     int alert_x = (0x7F & misc_to_char[alert_icon]) * td->fnt->twid;
     int alert_y = (0x7F & misc_to_attr[alert_icon]) * td->fnt->hgt;
 
-    /* Mega Hack^2 - assume the top left corner is "blank" */
-    //blank = XGetPixel(td->tiles, 0, td->fnt->hgt * 6);
-    blank = XGetPixel(td->tiles, x1, y1);
+    /* Top left corner of the tileset contains the transparency colour. */
+    blank = XGetPixel(td->tiles, 0, 0);
     icon_blank = XGetPixel(td->tiles, alert_x, alert_y);
 
     for (int k = 0; k < td->fnt->twid; k++)

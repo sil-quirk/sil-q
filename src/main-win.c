@@ -450,11 +450,6 @@ static bool can_use_graphics = FALSE;
  */
 static DIBINIT infGraph;
 
-/*
- * The global bitmap mask
- */
-static DIBINIT infMask;
-
 #endif /* USE_GRAPHICS */
 
 
@@ -1316,7 +1311,6 @@ static bool init_graphics(void)
 		char buf[1024];
 		int wid, hgt;
 		cptr name;
-		cptr mask = NULL;
 
 		if (arg_graphics == GRAPHICS_MICROCHASM)
 		{
@@ -1324,8 +1318,7 @@ static bool init_graphics(void)
 			hgt = 16;
 
 			name = "16X16.BMP";
-			mask = "mask.bmp";
-
+			
 			ANGBAND_GRAF = "new";
 
 			use_transparency = TRUE;
@@ -1344,19 +1337,6 @@ static bool init_graphics(void)
 		/* Save the new sizes */
 		infGraph.CellWidth = wid;
 		infGraph.CellHeight = hgt;
-
-		if (mask)
-		{
-			/* Access the mask file */
-			path_build(buf, sizeof(buf), ANGBAND_DIR_XTRA_GRAF, mask);
-
-			/* Load the bitmap or quit */
-			if (!ReadDIB(data[0].w, buf, &infMask))
-			{
-				plog_fmt("Cannot read bitmap file '%s'", buf);
-				return (FALSE);
-			}
-		}
 
 		/* Activate a palette */
 		if (!new_palette())
@@ -1762,7 +1742,6 @@ static errr Term_xtra_win_react(void)
 
 		/* Free the bitmap stuff */
 		FreeDIB(&infGraph);
-		FreeDIB(&infMask);
 
 		/* Initialize (if needed) */
 		if (arg_graphics && !init_graphics())
@@ -2311,7 +2290,6 @@ static errr Term_pict_win(int x, int y, int n, const byte *ap, const char *cp, c
 	int x2, y2, w2, h2, tw2;
 	int x3, y3;
 
-	HDC hdcMask;
 	HDC hdc;
 	HDC hdcSrc;
 	HBITMAP hbmSrcOld;
@@ -2357,16 +2335,6 @@ static errr Term_pict_win(int x, int y, int n, const byte *ap, const char *cp, c
 	hdcSrc = CreateCompatibleDC(hdc);
 	hbmSrcOld = SelectObject(hdcSrc, infGraph.hBitmap);
 
-	if (arg_graphics == GRAPHICS_MICROCHASM)
-	{
-		hdcMask = CreateCompatibleDC(hdc);
-		SelectObject(hdcMask, infMask.hBitmap);
-	}
-	else
-	{
-		hdcMask = NULL;
-	}
-
 	/* Draw attr/char pairs */
 	for (i = 0; i < n; i++, x2 += w2)
 	{
@@ -2396,8 +2364,7 @@ static errr Term_pict_win(int x, int y, int n, const byte *ap, const char *cp, c
 			/* Perfect size */
 			if ((w1 == tw2) && (h1 == h2))
 			{
-				/* Mask out the tile */
-                COLORREF transparent = GetPixel(hdcSrc, x1, y1);
+				COLORREF transparent = GetPixel(hdcSrc, 0, 0);
 
 				/* Copy the terrain picture from the bitmap to the window */
 				BitBlt(hdc, x2, y2, tw2, h2, hdcSrc, x3, y3, SRCCOPY);
@@ -2409,8 +2376,7 @@ static errr Term_pict_win(int x, int y, int n, const byte *ap, const char *cp, c
 			/* Need to stretch */
 			else
 			{
-				/* Mask out the tile */
-                COLORREF transparent = GetPixel(hdcSrc, x1, y1);
+				COLORREF transparent = GetPixel(hdcSrc, 0, 0);
 
 				/* Set the correct mode for stretching the tiles */
 				SetStretchBltMode(hdc, COLORONCOLOR);
@@ -2458,13 +2424,6 @@ static errr Term_pict_win(int x, int y, int n, const byte *ap, const char *cp, c
 	SelectObject(hdcSrc, hbmSrcOld);
 	DeleteDC(hdcSrc);
 
-	if (arg_graphics == GRAPHICS_MICROCHASM)
-	{
-		/* Release */
-		SelectObject(hdcMask, hbmSrcOld);
-		DeleteDC(hdcMask);
-	}
-
 	/* Release */
 	ReleaseDC(td->w, hdc);
 
@@ -2490,29 +2449,6 @@ static void windows_map_aux(void)
 	byte ta;
 	char tc;
 
-#ifdef ZANGBAND
-
-	td->map_tile_wid = (td->tile_wid * td->cols) / MAX_WID;
-	td->map_tile_hgt = (td->tile_hgt * td->rows) / MAX_HGT;
-
-#ifdef ZANGBAND_WILDERNESS
-
-	min_x = min_wid;
-	min_y = min_hgt;
-	max_x = max_wid;
-	max_y = max_hgt;
-
-#else /* ZANGBAND_WILDERNESS */
-
-	min_x = 0;
-	min_y = 0;
-	max_x = cur_wid;
-	max_y = cur_hgt;
-
-#endif /* ZANGBAND_WILDERNESS */
-
-#else /* ZANGBAND */
-
 	td->map_tile_wid = (td->tile_wid * td->cols) / MAX_DUNGEON_WID;
 	td->map_tile_hgt = (td->tile_hgt * td->rows) / MAX_DUNGEON_HGT;
 
@@ -2520,8 +2456,6 @@ static void windows_map_aux(void)
 	min_y = 0;
 	max_x = MAX_DUNGEON_WID;
 	max_y = MAX_DUNGEON_HGT;
-
-#endif /* ZANGBAND */
 
 	/* Draw the map */
 	for (x = min_x; x < max_x; x++)
@@ -4062,7 +3996,6 @@ static void hook_quit(cptr str)
 #ifdef USE_GRAPHICS
 	/* Free the bitmap stuff */
 	FreeDIB(&infGraph);
-	FreeDIB(&infMask);
 #endif /* USE_GRAPHICS */
 
 #ifdef USE_SOUND
