@@ -2124,10 +2124,7 @@ F:EASY_KNOW
 D:Some characters master Smithing and create enchanted items.
 D: To do so requires you to find a forge and when standing in it,
 D: to press (,). Your character knows how to make magical jewellery.
-D: Find the forge through this door and create an Amulet of the
-D: Vigilant Eye. As is the case with many magical items, you
-D: have to lend a piece of yourself to make these. In this case the
-D: price is 150 experience points.
+D: Find the forge through this door and create a Ring of Frost.
 
 
 N:485:& Note~
