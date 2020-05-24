@@ -2818,7 +2818,7 @@ errr init_x11(int argc, char **argv)
 	/* Try graphics */
 	if (arg_graphics == GRAPHICS_MICROCHASM)
 	{
-		/* Use Microchasm's tile graphics */
+		/* Use MicroChasm's tile graphics */
 		bitmap_file = "16x16.bmp";
 
 		/* Try the "16x16.bmp" file */
