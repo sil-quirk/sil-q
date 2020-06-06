@@ -2,3 +2,7 @@
 *.raw
 src/sil
 .DS_Store
+
+### JetBrians
+.idea/
+cmake-build*/
