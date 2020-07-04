@@ -903,6 +903,10 @@
 #define FEAT_WARDED2		0x07
 #define FEAT_WARDED3		0x08
 #define FEAT_SUNLIGHT 		0x09
+
+#define FEAT_RAGE_FLOOR		0x0A
+#define FEAT_RAGE_WALL 		0x0B
+
 #define FEAT_CLOSED 	0x20  /*door*/
 
 #define FEAT_LESS		0x50

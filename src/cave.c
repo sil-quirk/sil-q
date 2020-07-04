@@ -827,11 +827,11 @@ void map_info(int y, int x, byte *ap, char *cp, byte *tap, char *tcp)
 	info = cave_info[y][x];
 
 	bool hide_square = FALSE;
-	bool blood_red = FALSE;
+	bool rage_active = FALSE;
 	
 	// 'rage' effects...
 	if ((!p_ptr->is_dead) && p_ptr->rage && !(info & (CAVE_SEEN))) hide_square = TRUE;
-	if ((!p_ptr->is_dead) && p_ptr->rage)                          blood_red = TRUE;
+	if ((!p_ptr->is_dead) && p_ptr->rage)                          rage_active = TRUE;
 
 	/* make sure not to display things off screen */
 	if ((y < 0) || (x < 0) || (y >= p_ptr->cur_map_hgt) || (x >= p_ptr->cur_map_wid))
@@ -883,8 +883,15 @@ void map_info(int y, int x, byte *ap, char *cp, byte *tap, char *tcp)
 		if ((info & (CAVE_MARK)) ||
 		    (info & (CAVE_SEEN)))
 		{
+			int feat = FEAT_FLOOR;
+
+			if (rage_active && use_graphics == GRAPHICS_MICROCHASM)
+			{
+				feat = FEAT_RAGE_FLOOR;
+			}
+
 			/* Get the floor feature */
-			f_ptr = &f_info[FEAT_FLOOR];
+			f_ptr = &f_info[feat];
 
 			/* Normal attr */
 			a = f_ptr->x_attr;
@@ -918,6 +925,12 @@ void map_info(int y, int x, byte *ap, char *cp, byte *tap, char *tcp)
 		{
 			/* Apply "mimic" field */
 			feat = f_info[feat].mimic;
+
+			if (rage_active && use_graphics == GRAPHICS_MICROCHASM &&
+			    (feat >= FEAT_WALL_HEAD && feat <= FEAT_WALL_TAIL))
+			{
+				feat = FEAT_RAGE_WALL;
+			}
 
 			/* Get the feature */
 			f_ptr = &f_info[feat];
@@ -953,6 +966,7 @@ void map_info(int y, int x, byte *ap, char *cp, byte *tap, char *tcp)
 	/* Objects (only shown when on floors, not when in rubble) */
 	if (feat == FEAT_FLOOR || feat == FEAT_SUNLIGHT)
 	{
+			
 		for (o_ptr = get_first_object(y, x); o_ptr; o_ptr = get_next_object(o_ptr))
 		{
 			
@@ -1073,7 +1087,7 @@ void map_info(int y, int x, byte *ap, char *cp, byte *tap, char *tcp)
 				a = da;
 			}
 			
-			if (blood_red)
+			if (rage_active && (use_graphics == GRAPHICS_NONE || use_graphics == GRAPHICS_PSEUDO))
 			{
 				a = TERM_RED;
 			}

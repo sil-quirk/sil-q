@@ -90,14 +90,16 @@ G:+:v
 N:9: patch of sunlight
 G:.:y
 
-# 0x0A --> unused
+# 0x0A --> rage version of open floor
+#          strictly for tileset lookup
 
-N:10:unused
+N:10:open floor
 G:1:s
 
-# 0x0B --> unused
+# 0x0B --> rage version of walls
+#          strictly for tileset lookup
 
-N:11:unused
+N:11:wall
 G:1:s
 
 # 0x0C --> unused
