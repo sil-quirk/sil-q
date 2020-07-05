@@ -1042,11 +1042,8 @@ static void do_cmd_wiz_play(void)
  * Hack -- this routine always makes a "dungeon object", and applies
  * magic to it, and attempts to decline cursed items. XXX XXX XXX
  */
-static void wiz_create_item_aux(int k_idx)
+static void wiz_create_item_aux(int k_idx,int y, int x)
 {
-    int py = p_ptr->py;
-    int px = p_ptr->px;
-
     object_type* i_ptr;
     object_type object_type_body;
 
@@ -1066,7 +1063,7 @@ static void wiz_create_item_aux(int k_idx)
         i_ptr->number = 24;
 
     /* Drop the object from heaven */
-    drop_near(i_ptr, -1, py, px);
+    drop_near(i_ptr, -1, y, x);
 }
 
 /*
@@ -1098,7 +1095,7 @@ static void wiz_create_item(int num)
 
     for (i = 0; i < num; i++)
     {
-        wiz_create_item_aux(k_idx);
+        wiz_create_item_aux(k_idx, p_ptr->py, p_ptr->px);
     }
 
     /* All done */
@@ -1206,6 +1203,118 @@ static void do_cmd_wiz_jump(void)
 
     /* Leaving */
     p_ptr->leaving = TRUE;
+}
+
+/*
+ * Tile test.
+ */
+static void do_cmd_wiz_tile_test(void)
+{
+    int item_index = 1;
+    int monster_index = 1;
+    int artefact_index = 1;
+
+    /* Accept request */
+    msg_format("Clearing level to display tiles");
+
+    for (int y = 1; y < p_ptr->cur_map_hgt - 1; y++)
+    {
+        for (int x = 1; x < p_ptr->cur_map_wid - 1; x++)
+        {
+            cave_feat[y][x] = FEAT_FLOOR;
+            cave_info[y][x] = CAVE_GLOW | CAVE_ROOM | CAVE_MARK;
+        }
+    }
+
+    for (int i = 1; i < mon_max; i++)
+    {
+        monster_type* m_ptr = &mon_list[i];
+
+        /* Skip dead monsters */
+        if (!m_ptr->r_idx)
+            continue;
+
+        /* Delete the monster */
+        delete_monster_idx(i);
+    }
+
+    for (int i = 1; i < o_max; i++)
+    {
+        object_type* o_ptr = &o_list[i];
+
+        /* Skip dead objects */
+        if (!o_ptr->k_idx)
+            continue;
+
+        /* Skip held objects */
+        if (o_ptr->held_m_idx)
+            continue;
+
+        delete_object_idx(i);
+    }
+
+    for (int o_idx = 1; o_idx < 500; o_idx++)
+    {
+        object_kind* k_ptr = &k_info[o_idx];
+
+        if (k_ptr && k_ptr->tval > 0)
+        {
+            item_index++;
+
+            int y = item_index / 30 + 2;
+            int x = item_index % 30 + 2;
+
+            wiz_create_item_aux(o_idx, y, x);
+        }
+    }
+
+    for (int r_idx = 1; r_idx < 500; r_idx++)
+    {
+        monster_race* r_ptr = &r_info[r_idx];
+
+        if (r_ptr && r_ptr->name)
+        {
+            r_ptr->light = 0;
+            monster_index++;
+
+            int y = monster_index / 30 + 10;
+            int x = monster_index % 30 + 2;
+
+            place_monster_one(y, x, r_idx, FALSE, FALSE, NULL);
+
+        }
+    }
+
+    for (int a_idx = 1; a_idx < 180; a_idx++)
+    {
+        artefact_type* a_ptr = &a_info[a_idx];
+
+        if (a_ptr->tval + a_ptr->sval > 0)
+        {
+            artefact_index++;
+
+            int y = artefact_index / 30 + 16;
+            int x = artefact_index % 30 + 2;
+
+            create_chosen_artefact(a_idx, y, x, FALSE);
+        }
+    }
+
+    // Identify all new items we've created
+    for (int i = 1; i < o_max; i++)
+    {
+        object_type* o_ptr = &o_list[i];
+
+        object_aware(o_ptr);
+        object_known(o_ptr);
+    }
+
+    map_area();
+
+    teleport_player_to(8, 16);
+
+    /* Fully update the visuals */
+    p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS);
 }
 
 /*
@@ -1828,6 +1937,13 @@ void do_cmd_debug(void)
     {
         teleport_player(100);
         break;
+    }
+
+    /* Test tiles */
+    case 'T':
+    {
+        do_cmd_wiz_tile_test();
+	break;
     }
 
     /* Un-hide all monsters */
