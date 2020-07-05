@@ -853,23 +853,6 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
         c = f_ptr->x_char;
     }
 
-    /* Hack -- rare random hallucination on non-outer walls */
-    else if ((image) && (feat < FEAT_WALL_PERM) && (image_count-- <= 0))
-    {
-        int i;
-
-        image_count = dieroll(200);
-
-        if (player_can_see_bold(y, x))
-        {
-            /* Display a random image, reset count. */
-            i = image_random();
-
-            a = PICT_A(i);
-            c = PICT_C(i);
-        }
-    }
-
     // hiding squares out of line of sight during rage
     else if (hide_square)
     {
@@ -986,28 +969,6 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
 
                 /* display this */
                 break;
-
-                /* Special stack symbol, unless everything in the pile is
-                 * squelchable */
-                if ((++floor_num > 1)
-                    && (use_graphics
-                            ? ((a != k_info[GRAF_BROKEN_BONE].x_attr)
-                                || (c != k_info[GRAF_BROKEN_BONE].x_char))
-                            : ((a != TERM_VIOLET) || (c != f_info[1].x_char))))
-                {
-                    object_kind* k_ptr;
-
-                    /* Get the "pile" feature */
-                    k_ptr = &k_info[0];
-
-                    /* Normal attr */
-                    a = k_ptr->x_attr;
-
-                    /* Normal char */
-                    c = k_ptr->x_char;
-
-                    break;
-                }
             }
         }
     }
