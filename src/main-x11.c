@@ -2348,11 +2348,6 @@ void composite_image(term_data* td, int x1, int y1, int x2, int y2, bool alert)
                 pixel = XGetPixel(td->tiles, x2 + k, y2 + l);
             }
 
-            if (pixel == blank)
-            {
-                pixel = 0L;
-            }
-
             /* Store into the temp storage. */
             XPutPixel(td->TmpImage, k, l, pixel);
         }
