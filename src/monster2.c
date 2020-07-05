@@ -1322,7 +1322,7 @@ void listen(monster_type* m_ptr)
         return;
     }
 
-    if (use_graphics != GRAPHICS_MICROCHASM)
+    if (graphics_are_ascii())
     {
         /* Base graphic '*' */
         base = 0x30;

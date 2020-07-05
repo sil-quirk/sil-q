@@ -934,6 +934,7 @@
 
 #define ICON_UNKNOWN_ENEMY 0x0A
 #define ICON_ALERT 0x0B
+#define ICON_GLOW 0x0C
 
 /*** Feature Indexes (see "lib/edit/feature.txt") ***/
 
@@ -2728,35 +2729,16 @@
                     : (k_info[(T)->image_k_idx].x_attr))                       \
             : ((k_info[(T)->k_idx].flavor)                                     \
                     ? (flavor_info[k_info[(T)->k_idx].flavor].x_attr)          \
-                    : ((weapon_glows(T))                                       \
-                            ? (TERM_L_BLUE)                                    \
-                            : (((T)->name1 && a_info[(T)->name1].d_attr        \
-                                   && use_graphics != GRAPHICS_MICROCHASM)     \
+                    : graphics_are_ascii()                                     \
+                            ? weapon_glows(T)                                  \
+                                ? (TERM_L_BLUE)                                \
+                                : (((T)->name1 && a_info[(T)->name1].d_attr)   \
                                     ? (a_info[(T)->name1].d_attr)              \
-                                    : (k_info[(T)->k_idx].x_attr)))))
-
-/*
-#define object_attr(T) \
-    ((p_ptr->image) ? \
-     ((k_info[(T)->image_k_idx].flavor) ? \
-      (flavor_info[k_info[(T)->image_k_idx].flavor].x_attr) : \
-      (k_info[(T)->image_k_idx].x_attr)) : \
-     ((k_info[(T)->k_idx].flavor) ? \
-      (flavor_info[k_info[(T)->k_idx].flavor].x_attr) : \
-      (((T)->name1 && a_info[(T)->name1].d_attr) ? \
-       (a_info[(T)->name1].d_attr) : \
-       (k_info[(T)->k_idx].x_attr))))
-*/
-
-/*
-#define object_attr(T) \
-        ((k_info[(T)->k_idx].flavor) ? \
-        (flavor_info[k_info[(T)->k_idx].flavor].x_attr) : \
-         (((T)->name1 && a_info[(T)->name1].d_attr) ? \
-          (a_info[(T)->name1].d_attr) : \
-          (k_info[(T)->k_idx].x_attr)))
-*/
-
+                                    : (k_info[(T)->k_idx].x_attr))             \
+                            : weapon_glows(T)                                  \
+                                ? ((k_info[(T)->k_idx].x_attr) |               \
+                                    GRAPHICS_GLOW_MASK)                        \
+                                : (k_info[(T)->k_idx].x_attr)))
 /*
  * Return the "attr" for a k_idx.
  * Use "flavor" if available.
@@ -2778,18 +2760,9 @@
                     : ((k_info[(T)->k_idx].flavor)                             \
                             ? (flavor_info[k_info[(T)->k_idx].flavor].x_char)  \
                             : (((T)->name1 && a_info[(T)->name1].d_char        \
-                                   && use_graphics != GRAPHICS_MICROCHASM)     \
+                                   && graphics_are_ascii())                    \
                                     ? (a_info[(T)->name1].d_char)              \
                                     : (k_info[(T)->k_idx].x_char))))
-
-/*
-#define object_char(T) \
-         ((k_info[(T)->k_idx].flavor) ? \
-          (flavor_info[k_info[(T)->k_idx].flavor].x_char) : \
-          (((T)->name1 && a_info[(T)->name1].d_char) ? \
-           (a_info[(T)->name1].d_char) : \
-           (k_info[(T)->k_idx].x_char)))
-*/
 
 /*
  * Return the "attr" for a given item.
@@ -3212,7 +3185,11 @@
 #define GRAPHICS_MICROCHASM 1
 #define GRAPHICS_PSEUDO 2
 
+/* mask on char */
 #define GRAPHICS_ALERT_MASK 0x40
+
+/* mask on attr */
+#define GRAPHICS_GLOW_MASK 0x40
 
 /*
  * List of commands that will be auto-repeated

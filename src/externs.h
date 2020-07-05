@@ -305,6 +305,7 @@ extern void object_kind_track(int k_idx);
 extern void disturb(int stop_stealth, int unused_flag);
 
 /* cmd1.c */
+extern bool graphics_are_ascii();
 extern void new_wandering_flow(monster_type* m_ptr, int y, int x);
 extern void new_wandering_destination(
     monster_type* m_ptr, monster_type* leader_ptr);

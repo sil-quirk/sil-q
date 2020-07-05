@@ -874,7 +874,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
         {
             int feat = FEAT_FLOOR;
 
-            if (rage_active && use_graphics == GRAPHICS_MICROCHASM)
+            if (rage_active && !graphics_are_ascii())
             {
                 feat = FEAT_RAGE_FLOOR;
             }
@@ -915,7 +915,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
             /* Apply "mimic" field */
             feat = f_info[feat].mimic;
 
-            if (rage_active && use_graphics == GRAPHICS_MICROCHASM
+            if (rage_active && !graphics_are_ascii()
                 && (feat >= FEAT_WALL_HEAD && feat <= FEAT_WALL_TAIL))
             {
                 feat = FEAT_RAGE_WALL;
@@ -1051,24 +1051,18 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                 a = da;
             }
 
-            if (rage_active
-                && (use_graphics == GRAPHICS_NONE
-                    || use_graphics == GRAPHICS_PSEUDO))
+            if (rage_active && graphics_are_ascii())
             {
                 a = TERM_RED;
             }
 
-            if (hilite_unwary && (m_ptr->alertness < ALERTNESS_ALERT))
+            if (hilite_unwary && (m_ptr->alertness < ALERTNESS_ALERT) &&
+                use_background_colors && graphics_are_ascii())
             {
-                if (use_background_colors
-                    && use_graphics
-                        == (GRAPHICS_NONE || use_graphics == GRAPHICS_PSEUDO))
-                {
-                    a += (MAX_COLORS * BG_DARK);
-                }
+                a += (MAX_COLORS * BG_DARK);
             }
-            else if (use_graphics == GRAPHICS_MICROCHASM
-                && m_ptr->alertness >= ALERTNESS_ALERT)
+            else if (!graphics_are_ascii() &&
+                m_ptr->alertness >= ALERTNESS_ALERT)
             {
                 c += GRAPHICS_ALERT_MASK;
             }

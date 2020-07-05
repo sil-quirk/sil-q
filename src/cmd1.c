@@ -10,6 +10,11 @@
 
 #include "angband.h"
 
+bool graphics_are_ascii()
+{
+    return use_graphics == GRAPHICS_NONE || use_graphics == GRAPHICS_PSEUDO;
+}
+
 void new_wandering_flow(monster_type* m_ptr, int ty, int tx)
 {
     int y, x, i;
@@ -3336,7 +3341,7 @@ static u16b hit_pict(int net_dam, int dam_type, bool fatal_blow)
     byte a;
     char c;
 
-    if (use_graphics == GRAPHICS_MICROCHASM)
+    if (!graphics_are_ascii())
     {
         a = misc_to_attr[net_dam];
         c = misc_to_char[net_dam];

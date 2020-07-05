@@ -2307,10 +2307,11 @@ static errr Term_pict_win(int x, int y, int n, const byte* ap, const char* cp,
         char c = cp[i];
 
         /* Extract picture */
-        int row = (a & 0x7F);
+        int row = (a & 0x3F);
         int col = (c & 0x3F);
 
         bool alert = (c & GRAPHICS_ALERT_MASK);
+        bool glow = (a & GRAPHICS_GLOW_MASK);
 
         /* Location of bitmap cell */
         x1 = col * w1;
@@ -2318,13 +2319,14 @@ static errr Term_pict_win(int x, int y, int n, const byte* ap, const char* cp,
 
         if (arg_graphics == GRAPHICS_MICROCHASM)
         {
-            static const int alert_icon = 0x0B;
+            int glow_x = (0x7F & misc_to_char[ICON_GLOW]) * w1;
+            int glow_y = (0x7F & misc_to_attr[ICON_GLOW]) * h1;
 
-            int alert_x = (0x7F & misc_to_char[alert_icon]) * w1;
-            int alert_y = (0x7F & misc_to_attr[alert_icon]) * h1;
+            int alert_x = (0x7F & misc_to_char[ICON_ALERT]) * w1;
+            int alert_y = (0x7F & misc_to_attr[ICON_ALERT]) * h1;
 
             x3 = (tcp[i] & 0x3F) * w1;
-            y3 = (tap[i] & 0x7F) * h1;
+            y3 = (tap[i] & 0x3F) * h1;
 
             /* Perfect size */
             if ((w1 == tw2) && (h1 == h2))
@@ -2333,6 +2335,12 @@ static errr Term_pict_win(int x, int y, int n, const byte* ap, const char* cp,
 
                 /* Copy the terrain picture from the bitmap to the window */
                 BitBlt(hdc, x2, y2, tw2, h2, hdcSrc, x3, y3, SRCCOPY);
+            
+                if (glow)
+                {
+                    TransparentBlt(hdc, x2, y2, tw2, h2, hdcSrc, glow_x, glow_y,
+                        w1, h1, transparent);
+                }
 
                 /* Draw the tile */
                 TransparentBlt(
@@ -2350,6 +2358,12 @@ static errr Term_pict_win(int x, int y, int n, const byte* ap, const char* cp,
                 /* Copy the terrain picture from the bitmap to the window */
                 StretchBlt(
                     hdc, x2, y2, tw2, h2, hdcSrc, x3, y3, w1, h1, SRCCOPY);
+      
+                if (glow)
+                {
+                    TransparentBlt(hdc, x2, y2, tw2, h2, hdcSrc, glow_x, glow_y,
+                        w1, h1, transparent);
+                }
 
                 /* Only draw if terrain and overlay are different */
                 if ((x1 != x3) || (y1 != y3))
@@ -2362,7 +2376,7 @@ static errr Term_pict_win(int x, int y, int n, const byte* ap, const char* cp,
 
             if (alert)
             {
-                COLORREF transparent = GetPixel(hdcSrc, alert_x, alert_y);
+                COLORREF transparent = GetPixel(hdcSrc, 0, 0);
 
                 TransparentBlt(hdc, x2, y2, tw2, h2, hdcSrc, alert_x, alert_y,
                     w1, h1, transparent);
