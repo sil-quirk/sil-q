@@ -1,0 +1,9 @@
+BasedOnStyle: WebKit
+
+# relies on header ordering, terrible ancient codebase
+SortIncludes: false
+
+BreakBeforeBraces: Allman
+
+ColumnLimit: 80
+

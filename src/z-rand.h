@@ -13,10 +13,7 @@
 
 #include "h-basic.h"
 
-
-
 /**** Available constants ****/
-
 
 /*
  * The "degree" of the "complex" Random Number Generator.
@@ -24,67 +21,54 @@
  */
 #define RAND_DEG 63
 
-
-
 /**** Available macros ****/
-
 
 /*
  * Generates a random long integer X where O<=X<M.
  * The integer X falls along a uniform distribution.
  * For example, if M is 100, you get "percentile dice"
  */
-#define rand_int(M) \
-	((s32b)(Rand_div(M)))
-
+#define rand_int(M) ((s32b)(Rand_div(M)))
 
 /*
  * Generates a random long integer X where 1<=X<=M.
  *
  * Note that the behaviour for M < 1 is undefined.
  */
-#define dieroll(M) \
-	(rand_int(M) + 1)
+#define dieroll(M) (rand_int(M) + 1)
 
 /*
  * Generates a random long integer X where 1<=X<=M.
  *
  * Note that the behaviour for M < 1 is undefined.
  */
-#define rand_die(M) \
-	(rand_int(M) + 1)
-
+#define rand_die(M) (rand_int(M) + 1)
 
 /*
  * Generates a random long integer X where A<=X<=B
  * The integer X falls along a uniform distribution.
  * Note: rand_range(0,N-1) == rand_int(N)
  */
-#define rand_range(A,B) \
-	((A) + (rand_int(1+(B)-(A))))
+#define rand_range(A, B) ((A) + (rand_int(1 + (B) - (A))))
 
 /*
  * Generate a random long integer X where A-D<=X<=A+D
  * The integer X falls along a uniform distribution.
  * Note: rand_spread(A,D) == rand_range(A-D,A+D)
  */
-#define rand_spread(A,D) \
-	((A) + (rand_int(1+(D)+(D))) - (D))
+#define rand_spread(A, D) ((A) + (rand_int(1 + (D) + (D))) - (D))
 
 /*
  * An alternative method of calling "rand_int()".
  * From Zangband.
  * note, function could crash if (X < 1), hence the check
  */
-#define one_in_(X) \
-	(rand_int(X > 0 ? X : 1) == 0)
+#define one_in_(X) (rand_int(X > 0 ? X : 1) == 0)
 
 /*
  * An X percent chance
  */
-#define percent_chance(X) \
-	(rand_int(100) < X)
-
+#define percent_chance(X) (rand_int(100) < X)
 
 /**** Available Variables ****/
 
@@ -93,15 +77,12 @@ extern u32b Rand_value;
 extern u16b Rand_place;
 extern u32b Rand_state[RAND_DEG];
 
-
 /**** Available Functions ****/
-
 
 extern void Rand_state_init(u32b seed);
 extern u32b Rand_div(u32b m);
 extern s16b Rand_normal(int mean, int stand);
 extern u32b Rand_simple(u32b m);
 extern s32b div_round(s32b n, s32b d);
-
 
 #endif /* INCLUDED_Z_RAND_H */

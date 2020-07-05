@@ -13,8 +13,6 @@
 
 #include "h-basic.h"
 
-
-
 /*
  * A term_win is a "window" for a Term
  *
@@ -35,23 +33,21 @@ typedef struct term_win term_win;
 
 struct term_win
 {
-	bool cu, cv;
-	byte cx, cy;
+    bool cu, cv;
+    byte cx, cy;
 
-	byte **a;
-	char **c;
+    byte** a;
+    char** c;
 
-	byte *va;
-	char *vc;
+    byte* va;
+    char* vc;
 
-	byte **ta;
-	char **tc;
+    byte** ta;
+    char** tc;
 
-	byte *vta;
-	char *vtc;
+    byte* vta;
+    char* vtc;
 };
-
-
 
 /*
  * An actual "term" structure
@@ -157,78 +153,72 @@ typedef struct term term;
 
 struct term
 {
-	void *user;
+    void* user;
 
-	void *data;
+    void* data;
 
-	bool user_flag;
+    bool user_flag;
 
-	bool data_flag;
+    bool data_flag;
 
-	bool active_flag;
-	bool mapped_flag;
-	bool total_erase;
-	bool fixed_shape;
-	bool icky_corner;
-	bool soft_cursor;
-	bool always_pict;
-	bool higher_pict;
-	bool always_text;
-	bool unused_flag;
-	bool never_bored;
-	bool never_frosh;
+    bool active_flag;
+    bool mapped_flag;
+    bool total_erase;
+    bool fixed_shape;
+    bool icky_corner;
+    bool soft_cursor;
+    bool always_pict;
+    bool higher_pict;
+    bool always_text;
+    bool unused_flag;
+    bool never_bored;
+    bool never_frosh;
 
-	byte attr_blank;
-	char char_blank;
+    byte attr_blank;
+    char char_blank;
 
-	char *key_queue;
+    char* key_queue;
 
-	u16b key_head;
-	u16b key_tail;
-	u16b key_xtra;
-	u16b key_size;
+    u16b key_head;
+    u16b key_tail;
+    u16b key_xtra;
+    u16b key_size;
 
-	byte wid;
-	byte hgt;
+    byte wid;
+    byte hgt;
 
-	byte y1;
-	byte y2;
+    byte y1;
+    byte y2;
 
-	byte *x1;
-	byte *x2;
+    byte* x1;
+    byte* x2;
 
-	term_win *old;
-	term_win *scr;
+    term_win* old;
+    term_win* scr;
 
-	term_win *tmp;
-	term_win *mem;
+    term_win* tmp;
+    term_win* mem;
 
-	void (*init_hook)(term *t);
-	void (*nuke_hook)(term *t);
+    void (*init_hook)(term* t);
+    void (*nuke_hook)(term* t);
 
-	errr (*user_hook)(int n);
+    errr (*user_hook)(int n);
 
-	errr (*xtra_hook)(int n, int v);
+    errr (*xtra_hook)(int n, int v);
 
-	errr (*curs_hook)(int x, int y);
+    errr (*curs_hook)(int x, int y);
 
-	errr (*bigcurs_hook)(int x, int y);
+    errr (*bigcurs_hook)(int x, int y);
 
-	errr (*wipe_hook)(int x, int y, int n);
+    errr (*wipe_hook)(int x, int y, int n);
 
-	errr (*text_hook)(int x, int y, int n, byte a, cptr s);
+    errr (*text_hook)(int x, int y, int n, byte a, cptr s);
 
-	errr (*pict_hook)(int x, int y, int n, const byte *ap, const char *cp, const byte *tap, const char *tcp);
+    errr (*pict_hook)(int x, int y, int n, const byte* ap, const char* cp,
+        const byte* tap, const char* tcp);
 };
 
-
-
-
-
-
-
 /**** Available Constants ****/
-
 
 /*
  * Definitions for the "actions" of "Term_xtra()"
@@ -247,29 +237,28 @@ struct term
  *
  * The other actions do not need a "v" code, so "zero" is used.
  */
-#define TERM_XTRA_EVENT	1	/* Process some pending events */
-#define TERM_XTRA_FLUSH 2	/* Flush all pending events */
-#define TERM_XTRA_CLEAR 3	/* Clear the entire window */
-#define TERM_XTRA_SHAPE 4	/* Set cursor shape (optional) */
-#define TERM_XTRA_FROSH 5	/* Flush one row (optional) */
-#define TERM_XTRA_FRESH 6	/* Flush all rows (optional) */
-#define TERM_XTRA_NOISE 7	/* Make a noise (optional) */
-#define TERM_XTRA_SOUND 8	/* Make a sound (optional) */
-#define TERM_XTRA_BORED 9	/* Handle stuff when bored (optional) */
-#define TERM_XTRA_REACT 10	/* React to global changes (optional) */
-#define TERM_XTRA_ALIVE 11	/* Change the "hard" level (optional) */
-#define TERM_XTRA_LEVEL 12	/* Change the "soft" level (optional) */
-#define TERM_XTRA_DELAY 13	/* Delay some milliseconds (optional) */
+#define TERM_XTRA_EVENT 1 /* Process some pending events */
+#define TERM_XTRA_FLUSH 2 /* Flush all pending events */
+#define TERM_XTRA_CLEAR 3 /* Clear the entire window */
+#define TERM_XTRA_SHAPE 4 /* Set cursor shape (optional) */
+#define TERM_XTRA_FROSH 5 /* Flush one row (optional) */
+#define TERM_XTRA_FRESH 6 /* Flush all rows (optional) */
+#define TERM_XTRA_NOISE 7 /* Make a noise (optional) */
+#define TERM_XTRA_SOUND 8 /* Make a sound (optional) */
+#define TERM_XTRA_BORED 9 /* Handle stuff when bored (optional) */
+#define TERM_XTRA_REACT 10 /* React to global changes (optional) */
+#define TERM_XTRA_ALIVE 11 /* Change the "hard" level (optional) */
+#define TERM_XTRA_LEVEL 12 /* Change the "soft" level (optional) */
+#define TERM_XTRA_DELAY 13 /* Delay some milliseconds (optional) */
 
-#define MAX_COLORS 32		/* The number of usable colours */
-#define BG_BLACK 0			/* The set number for the black-background glyphs */
-#define BG_SAME 1			/* The set number for the same-background glyphs */
-#define BG_DARK 2			/* The set number for the dark-background glyphs */
-
+#define MAX_COLORS 32 /* The number of usable colours */
+#define BG_BLACK 0 /* The set number for the black-background glyphs */
+#define BG_SAME 1 /* The set number for the same-background glyphs */
+#define BG_DARK 2 /* The set number for the dark-background glyphs */
 
 /**** Available Variables ****/
 
-extern term *Term;
+extern term* Term;
 
 /**** Available Functions ****/
 
@@ -292,15 +281,15 @@ extern errr Term_clear(void);
 extern errr Term_redraw(void);
 extern errr Term_redraw_section(int x1, int y1, int x2, int y2);
 
-extern errr Term_get_cursor(bool *v);
-extern errr Term_get_size(int *w, int *h);
-extern errr Term_locate(int *x, int *y);
-extern errr Term_what(int x, int y, byte *a, char *c);
+extern errr Term_get_cursor(bool* v);
+extern errr Term_get_size(int* w, int* h);
+extern errr Term_locate(int* x, int* y);
+extern errr Term_what(int x, int y, byte* a, char* c);
 
 extern errr Term_flush(void);
 extern errr Term_keypress(int k);
 extern errr Term_key_push(int k);
-extern errr Term_inkey(char *ch, bool wait, bool take);
+extern errr Term_inkey(char* ch, bool wait, bool take);
 
 extern errr Term_save(void);
 extern errr Term_load(void);
@@ -309,12 +298,9 @@ extern errr Term_exchange(void);
 
 extern errr Term_resize(int w, int h);
 
-extern errr Term_activate(term *t);
+extern errr Term_activate(term* t);
 
-extern errr term_nuke(term *t);
-extern errr term_init(term *t, int w, int h, int k);
-
+extern errr term_nuke(term* t);
+extern errr term_init(term* t, int w, int h, int k);
 
 #endif
-
-

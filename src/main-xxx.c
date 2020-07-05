@@ -8,7 +8,6 @@
  * are included in all such copies.
  */
 
-
 /*
  * This file helps Angband work on non-existant computers.
  *
@@ -65,9 +64,7 @@
  * Initial framework (and all code) by Ben Harrison (benh@phial.com).
  */
 
-
 #include "angband.h"
-
 
 #ifdef USE_XXX
 
@@ -85,12 +82,10 @@ typedef struct term_data term_data;
 
 struct term_data
 {
-	term t;
+    term t;
 
-	/* Other fields if needed XXX XXX XXX */
+    /* Other fields if needed XXX XXX XXX */
 };
-
-
 
 /*
  * Number of "term_data" structures to support XXX XXX XXX
@@ -107,12 +102,10 @@ struct term_data
  */
 #define MAX_XXX_TERM 1
 
-
 /*
  * An array of "term_data" structures, one for each "sub-window"
  */
 static term_data data[MAX_XXX_TERM];
-
 
 #if 0
 
@@ -127,10 +120,7 @@ static local_color_data_type color_data[256];
 
 #endif
 
-
-
 /*** Function hooks needed by "Term" ***/
-
 
 /*
  * Init a new "term"
@@ -140,14 +130,12 @@ static local_color_data_type color_data[256];
  * preparing the cursor, setting the font/colors, etc.  Usually, this
  * function does nothing, and the "init_xxx()" function does it all.
  */
-static void Term_init_xxx(term *t)
+static void Term_init_xxx(term* t)
 {
-	term_data *td = (term_data*)(t->data);
+    term_data* td = (term_data*)(t->data);
 
-	/* XXX XXX XXX */
+    /* XXX XXX XXX */
 }
-
-
 
 /*
  * Nuke an old "term"
@@ -157,14 +145,12 @@ static void Term_init_xxx(term *t)
  * the screen, restoring the cursor, fixing the font, etc.  Often this function
  * does nothing and lets the operating system clean up when the program quits.
  */
-static void Term_nuke_xxx(term *t)
+static void Term_nuke_xxx(term* t)
 {
-	term_data *td = (term_data*)(t->data);
+    term_data* td = (term_data*)(t->data);
 
-	/* XXX XXX XXX */
+    /* XXX XXX XXX */
 }
-
-
 
 /*
  * Do a "user action" on the current "term"
@@ -179,14 +165,13 @@ static void Term_nuke_xxx(term *t)
  */
 static errr Term_user_xxx(int n)
 {
-	term_data *td = (term_data*)(Term->data);
+    term_data* td = (term_data*)(Term->data);
 
-	/* XXX XXX XXX */
+    /* XXX XXX XXX */
 
-	/* Unknown */
-	return (1);
+    /* Unknown */
+    return (1);
 }
-
 
 /*
  * Do a "special thing" to the current "term"
@@ -205,229 +190,228 @@ static errr Term_user_xxx(int n)
  */
 static errr Term_xtra_xxx(int n, int v)
 {
-	term_data *td = (term_data*)(Term->data);
+    term_data* td = (term_data*)(Term->data);
 
-	/* Analyze */
-	switch (n)
-	{
-		case TERM_XTRA_EVENT:
-		{
-			/*
-			 * Process some pending events XXX XXX XXX
-			 *
-			 * Wait for at least one event if "v" is non-zero
-			 * otherwise, if no events are ready, return at once.
-			 * When "keypress" events are encountered, the "ascii"
-			 * value corresponding to the key should be sent to the
-			 * "Term_keypress()" function.  Certain "bizarre" keys,
-			 * such as function keys or arrow keys, may send special
-			 * sequences of characters, such as control-underscore,
-			 * plus letters corresponding to modifier keys, plus an
-			 * underscore, plus carriage return, which can be used by
-			 * the main program for "macro" triggers.  This action
-			 * should handle as many events as is efficiently possible
-			 * but is only required to handle a single event, and then
-			 * only if one is ready or "v" is true.
-			 *
-			 * This action is required.
-			 */
+    /* Analyze */
+    switch (n)
+    {
+    case TERM_XTRA_EVENT:
+    {
+        /*
+         * Process some pending events XXX XXX XXX
+         *
+         * Wait for at least one event if "v" is non-zero
+         * otherwise, if no events are ready, return at once.
+         * When "keypress" events are encountered, the "ascii"
+         * value corresponding to the key should be sent to the
+         * "Term_keypress()" function.  Certain "bizarre" keys,
+         * such as function keys or arrow keys, may send special
+         * sequences of characters, such as control-underscore,
+         * plus letters corresponding to modifier keys, plus an
+         * underscore, plus carriage return, which can be used by
+         * the main program for "macro" triggers.  This action
+         * should handle as many events as is efficiently possible
+         * but is only required to handle a single event, and then
+         * only if one is ready or "v" is true.
+         *
+         * This action is required.
+         */
 
-			return (0);
-		}
+        return (0);
+    }
 
-		case TERM_XTRA_FLUSH:
-		{
-			/*
-			 * Flush all pending events XXX XXX XXX
-			 *
-			 * This action should handle all events waiting on the
-			 * queue, optionally discarding all "keypress" events,
-			 * since they will be discarded anyway in "z-term.c".
-			 *
-			 * This action is required, but may not be "essential".
-			 */
+    case TERM_XTRA_FLUSH:
+    {
+        /*
+         * Flush all pending events XXX XXX XXX
+         *
+         * This action should handle all events waiting on the
+         * queue, optionally discarding all "keypress" events,
+         * since they will be discarded anyway in "z-term.c".
+         *
+         * This action is required, but may not be "essential".
+         */
 
-			return (0);
-		}
+        return (0);
+    }
 
-		case TERM_XTRA_CLEAR:
-		{
-			/*
-			 * Clear the entire window XXX XXX XXX
-			 *
-			 * This action should clear the entire window, and redraw
-			 * any "borders" or other "graphic" aspects of the window.
-			 *
-			 * This action is required.
-			 */
+    case TERM_XTRA_CLEAR:
+    {
+        /*
+         * Clear the entire window XXX XXX XXX
+         *
+         * This action should clear the entire window, and redraw
+         * any "borders" or other "graphic" aspects of the window.
+         *
+         * This action is required.
+         */
 
-			return (0);
-		}
+        return (0);
+    }
 
-		case TERM_XTRA_SHAPE:
-		{
-			/*
-			 * Set the cursor visibility XXX XXX XXX
-			 *
-			 * This action should change the visibility of the cursor,
-			 * if possible, to the requested value (0=off, 1=on)
-			 *
-			 * This action is optional, but can improve both the
-			 * efficiency (and attractiveness) of the program.
-			 */
+    case TERM_XTRA_SHAPE:
+    {
+        /*
+         * Set the cursor visibility XXX XXX XXX
+         *
+         * This action should change the visibility of the cursor,
+         * if possible, to the requested value (0=off, 1=on)
+         *
+         * This action is optional, but can improve both the
+         * efficiency (and attractiveness) of the program.
+         */
 
-			return (0);
-		}
+        return (0);
+    }
 
-		case TERM_XTRA_FROSH:
-		{
-			/*
-			 * Flush a row of output XXX XXX XXX
-			 *
-			 * This action should make sure that row "v" of the "output"
-			 * to the window will actually appear on the window.
-			 *
-			 * This action is optional, assuming that "Term_text_xxx()"
-			 * (and similar functions) draw directly to the screen, or
-			 * that the "TERM_XTRA_FRESH" entry below takes care of any
-			 * necessary flushing issues.
-			 */
+    case TERM_XTRA_FROSH:
+    {
+        /*
+         * Flush a row of output XXX XXX XXX
+         *
+         * This action should make sure that row "v" of the "output"
+         * to the window will actually appear on the window.
+         *
+         * This action is optional, assuming that "Term_text_xxx()"
+         * (and similar functions) draw directly to the screen, or
+         * that the "TERM_XTRA_FRESH" entry below takes care of any
+         * necessary flushing issues.
+         */
 
-			return (0);
-		}
+        return (0);
+    }
 
-		case TERM_XTRA_FRESH:
-		{
-			/*
-			 * Flush output XXX XXX XXX
-			 *
-			 * This action should make sure that all "output" to the
-			 * window will actually appear on the window.
-			 *
-			 * This action is optional, assuming that "Term_text_xxx()"
-			 * (and similar functions) draw directly to the screen, or
-			 * that the "TERM_XTRA_FROSH" entry above takes care of any
-			 * necessary flushing issues.
-			 */
+    case TERM_XTRA_FRESH:
+    {
+        /*
+         * Flush output XXX XXX XXX
+         *
+         * This action should make sure that all "output" to the
+         * window will actually appear on the window.
+         *
+         * This action is optional, assuming that "Term_text_xxx()"
+         * (and similar functions) draw directly to the screen, or
+         * that the "TERM_XTRA_FROSH" entry above takes care of any
+         * necessary flushing issues.
+         */
 
-			return (0);
-		}
+        return (0);
+    }
 
-		case TERM_XTRA_NOISE:
-		{
-			/*
-			 * Make a noise XXX XXX XXX
-			 *
-			 * This action should produce a "beep" noise.
-			 *
-			 * This action is optional, but convenient.
-			 */
+    case TERM_XTRA_NOISE:
+    {
+        /*
+         * Make a noise XXX XXX XXX
+         *
+         * This action should produce a "beep" noise.
+         *
+         * This action is optional, but convenient.
+         */
 
-			return (0);
-		}
+        return (0);
+    }
 
-		case TERM_XTRA_SOUND:
-		{
-			/*
-			 * Make a sound XXX XXX XXX
-			 *
-			 * This action should produce sound number "v", where the
-			 * "name" of that sound is "sound_names[v]".  This method
-			 * is still under construction.
-			 *
-			 * This action is optional, and not very important.
-			 */
+    case TERM_XTRA_SOUND:
+    {
+        /*
+         * Make a sound XXX XXX XXX
+         *
+         * This action should produce sound number "v", where the
+         * "name" of that sound is "sound_names[v]".  This method
+         * is still under construction.
+         *
+         * This action is optional, and not very important.
+         */
 
-			return (0);
-		}
+        return (0);
+    }
 
-		case TERM_XTRA_BORED:
-		{
-			/*
-			 * Handle random events when bored XXX XXX XXX
-			 *
-			 * This action is optional, and normally not important
-			 */
+    case TERM_XTRA_BORED:
+    {
+        /*
+         * Handle random events when bored XXX XXX XXX
+         *
+         * This action is optional, and normally not important
+         */
 
-			return (0);
-		}
+        return (0);
+    }
 
-		case TERM_XTRA_REACT:
-		{
-			/*
-			 * React to global changes XXX XXX XXX
-			 *
-			 * For example, this action can be used to react to
-			 * changes in the global "angband_color_table[256][4]" array.
-			 *
-			 * This action is optional, but can be very useful for
-			 * handling "color changes" and the "arg_sound" and/or
-			 * "arg_graphics" options.
-			 */
+    case TERM_XTRA_REACT:
+    {
+        /*
+         * React to global changes XXX XXX XXX
+         *
+         * For example, this action can be used to react to
+         * changes in the global "angband_color_table[256][4]" array.
+         *
+         * This action is optional, but can be very useful for
+         * handling "color changes" and the "arg_sound" and/or
+         * "arg_graphics" options.
+         */
 
-			return (0);
-		}
+        return (0);
+    }
 
-		case TERM_XTRA_ALIVE:
-		{
-			/*
-			 * Change the "hard" level XXX XXX XXX
-			 *
-			 * This action is used if the program changes "aliveness"
-			 * by being either "suspended" (v=0) or "resumed" (v=1)
-			 * This action is optional, unless the computer uses the
-			 * same "physical screen" for multiple programs, in which
-			 * case this action should clean up to let other programs
-			 * use the screen, or resume from such a cleaned up state.
-			 *
-			 * This action is currently only used by "main-gcu.c",
-			 * on UNIX machines, to allow proper "suspending".
-			 */
+    case TERM_XTRA_ALIVE:
+    {
+        /*
+         * Change the "hard" level XXX XXX XXX
+         *
+         * This action is used if the program changes "aliveness"
+         * by being either "suspended" (v=0) or "resumed" (v=1)
+         * This action is optional, unless the computer uses the
+         * same "physical screen" for multiple programs, in which
+         * case this action should clean up to let other programs
+         * use the screen, or resume from such a cleaned up state.
+         *
+         * This action is currently only used by "main-gcu.c",
+         * on UNIX machines, to allow proper "suspending".
+         */
 
-			return (0);
-		}
+        return (0);
+    }
 
-		case TERM_XTRA_LEVEL:
-		{
-			/*
-			 * Change the "soft" level XXX XXX XXX
-			 *
-			 * This action is used when the term window changes "activation"
-			 * either by becoming "inactive" (v=0) or "active" (v=1)
-			 *
-			 * This action can be used to do things like activate the proper
-			 * font / drawing mode for the newly active term window.  This
-			 * action should NOT change which window has the "focus", which
-			 * window is "raised", or anything like that.
-			 *
-			 * This action is optional if all the other things which depend
-			 * on what term is active handle activation themself, or if only
-			 * one "term_data" structure is supported by this file.
-			 */
+    case TERM_XTRA_LEVEL:
+    {
+        /*
+         * Change the "soft" level XXX XXX XXX
+         *
+         * This action is used when the term window changes "activation"
+         * either by becoming "inactive" (v=0) or "active" (v=1)
+         *
+         * This action can be used to do things like activate the proper
+         * font / drawing mode for the newly active term window.  This
+         * action should NOT change which window has the "focus", which
+         * window is "raised", or anything like that.
+         *
+         * This action is optional if all the other things which depend
+         * on what term is active handle activation themself, or if only
+         * one "term_data" structure is supported by this file.
+         */
 
-			return (0);
-		}
+        return (0);
+    }
 
-		case TERM_XTRA_DELAY:
-		{
-			/*
-			 * Delay for some milliseconds XXX XXX XXX
-			 *
-			 * This action is useful for proper "timing" of certain
-			 * visual effects, such as breath attacks.
-			 *
-			 * This action is optional, but may be required by this file,
-			 * especially if special "macro sequences" must be supported.
-			 */
+    case TERM_XTRA_DELAY:
+    {
+        /*
+         * Delay for some milliseconds XXX XXX XXX
+         *
+         * This action is useful for proper "timing" of certain
+         * visual effects, such as breath attacks.
+         *
+         * This action is optional, but may be required by this file,
+         * especially if special "macro sequences" must be supported.
+         */
 
-			return (0);
-		}
-	}
+        return (0);
+    }
+    }
 
-	/* Unknown or Unhandled action */
-	return (1);
+    /* Unknown or Unhandled action */
+    return (1);
 }
-
 
 /*
  * Display the cursor
@@ -447,14 +431,13 @@ static errr Term_xtra_xxx(int n, int v)
  */
 static errr Term_curs_xxx(int x, int y)
 {
-	term_data *td = (term_data*)(Term->data);
+    term_data* td = (term_data*)(Term->data);
 
-	/* XXX XXX XXX */
+    /* XXX XXX XXX */
 
-	/* Success */
-	return (0);
+    /* Success */
+    return (0);
 }
-
 
 /*
  * Erase some characters
@@ -465,14 +448,13 @@ static errr Term_curs_xxx(int x, int y)
  */
 static errr Term_wipe_xxx(int x, int y, int n)
 {
-	term_data *td = (term_data*)(Term->data);
+    term_data* td = (term_data*)(Term->data);
 
-	/* XXX XXX XXX */
+    /* XXX XXX XXX */
 
-	/* Success */
-	return (0);
+    /* Success */
+    return (0);
 }
-
 
 /*
  * Draw some text on the screen
@@ -506,16 +488,15 @@ static errr Term_wipe_xxx(int x, int y, int n)
  * the "always_text" flag is set, if this flag is not set, all the
  * "black" text will be handled by the "Term_wipe_xxx()" hook.
  */
-static errr Term_text_xxx(int x, int y, int n, byte a, const char *cp)
+static errr Term_text_xxx(int x, int y, int n, byte a, const char* cp)
 {
-	term_data *td = (term_data*)(Term->data);
+    term_data* td = (term_data*)(Term->data);
 
-	/* XXX XXX XXX */
+    /* XXX XXX XXX */
 
-	/* Success */
-	return (0);
+    /* Success */
+    return (0);
 }
-
 
 /*
  * Draw some attr/char pairs on the screen
@@ -543,21 +524,18 @@ static errr Term_text_xxx(int x, int y, int n, byte a, const char *cp)
  * This function is only used if one of the "higher_pict" and/or
  * "always_pict" flags are set.
  */
-static errr Term_pict_xxx(int x, int y, int n, const byte *ap, const char *cp,
-                          const byte *tap, const char *tcp)
+static errr Term_pict_xxx(int x, int y, int n, const byte* ap, const char* cp,
+    const byte* tap, const char* tcp)
 {
-	term_data *td = (term_data*)(Term->data);
+    term_data* td = (term_data*)(Term->data);
 
-	/* XXX XXX XXX */
+    /* XXX XXX XXX */
 
-	/* Success */
-	return (0);
+    /* Success */
+    return (0);
 }
 
-
-
 /*** Internal Functions ***/
-
 
 /*
  * Instantiate a "term_data" structure
@@ -578,67 +556,66 @@ static errr Term_pict_xxx(int x, int y, int n, const byte *ap, const char *cp,
  */
 static void term_data_link(int i)
 {
-	term_data *td = &data[i];
-	term *t = &td->t;
+    term_data* td = &data[i];
+    term* t = &td->t;
 
-	/* Initialize the term */
-	term_init(t, 80, 24, 256);
+    /* Initialize the term */
+    term_init(t, 80, 24, 256);
 
-	/* Choose "soft" or "hard" cursor XXX XXX XXX */
-	/* A "soft" cursor must be explicitly "drawn" by the program */
-	/* while a "hard" cursor has some "physical" existance and is */
-	/* moved whenever text is drawn on the screen.  See "z-term.c". */
-	/* t->soft_cursor = TRUE; */
+    /* Choose "soft" or "hard" cursor XXX XXX XXX */
+    /* A "soft" cursor must be explicitly "drawn" by the program */
+    /* while a "hard" cursor has some "physical" existance and is */
+    /* moved whenever text is drawn on the screen.  See "z-term.c". */
+    /* t->soft_cursor = TRUE; */
 
-	/* Avoid the "corner" of the window XXX XXX XXX */
-	/* t->icky_corner = TRUE; */
+    /* Avoid the "corner" of the window XXX XXX XXX */
+    /* t->icky_corner = TRUE; */
 
-	/* Use "Term_pict()" for all attr/char pairs XXX XXX XXX */
-	/* See the "Term_pict_xxx()" function above. */
-	/* t->always_pict = TRUE; */
+    /* Use "Term_pict()" for all attr/char pairs XXX XXX XXX */
+    /* See the "Term_pict_xxx()" function above. */
+    /* t->always_pict = TRUE; */
 
-	/* Use "Term_pict()" for some attr/char pairs XXX XXX XXX */
-	/* See the "Term_pict_xxx()" function above. */
-	/* t->higher_pict = TRUE; */
+    /* Use "Term_pict()" for some attr/char pairs XXX XXX XXX */
+    /* See the "Term_pict_xxx()" function above. */
+    /* t->higher_pict = TRUE; */
 
-	/* Use "Term_text()" even for "black" text XXX XXX XXX */
-	/* See the "Term_text_xxx()" function above. */
-	/* t->always_text = TRUE; */
+    /* Use "Term_text()" even for "black" text XXX XXX XXX */
+    /* See the "Term_text_xxx()" function above. */
+    /* t->always_text = TRUE; */
 
-	/* Ignore the "TERM_XTRA_BORED" action XXX XXX XXX */
-	/* This may make things slightly more efficient. */
-	/* t->never_bored = TRUE; */
+    /* Ignore the "TERM_XTRA_BORED" action XXX XXX XXX */
+    /* This may make things slightly more efficient. */
+    /* t->never_bored = TRUE; */
 
-	/* Ignore the "TERM_XTRA_FROSH" action XXX XXX XXX */
-	/* This may make things slightly more efficient. */
-	/* t->never_frosh = TRUE; */
+    /* Ignore the "TERM_XTRA_FROSH" action XXX XXX XXX */
+    /* This may make things slightly more efficient. */
+    /* t->never_frosh = TRUE; */
 
-	/* Erase with "white space" XXX XXX XXX */
-	/* t->attr_blank = TERM_WHITE; */
-	/* t->char_blank = ' '; */
+    /* Erase with "white space" XXX XXX XXX */
+    /* t->attr_blank = TERM_WHITE; */
+    /* t->char_blank = ' '; */
 
-	/* Prepare the init/nuke hooks */
-	t->init_hook = Term_init_xxx;
-	t->nuke_hook = Term_nuke_xxx;
+    /* Prepare the init/nuke hooks */
+    t->init_hook = Term_init_xxx;
+    t->nuke_hook = Term_nuke_xxx;
 
-	/* Prepare the template hooks */
-	t->user_hook = Term_user_xxx;
-	t->xtra_hook = Term_xtra_xxx;
-	t->curs_hook = Term_curs_xxx;
-	t->wipe_hook = Term_wipe_xxx;
-	t->text_hook = Term_text_xxx;
-	t->pict_hook = Term_pict_xxx;
+    /* Prepare the template hooks */
+    t->user_hook = Term_user_xxx;
+    t->xtra_hook = Term_xtra_xxx;
+    t->curs_hook = Term_curs_xxx;
+    t->wipe_hook = Term_wipe_xxx;
+    t->text_hook = Term_text_xxx;
+    t->pict_hook = Term_pict_xxx;
 
-	/* Remember where we came from */
-	t->data = td;
+    /* Remember where we came from */
+    t->data = td;
 
-	/* Activate it */
-	Term_activate(t);
+    /* Activate it */
+    Term_activate(t);
 
-	/* Global pointer */
-	angband_term[i] = t;
+    /* Global pointer */
+    angband_term[i] = t;
 }
-
 
 /*
  * Help message.
@@ -647,34 +624,31 @@ static void term_data_link(int i)
  */
 cptr help_xxx = "Describe XXX, subopts -describe suboptions here";
 
-
 /*
  * Initialization function
  */
-errr init_xxx(int argc, char **argv)
+errr init_xxx(int argc, char** argv)
 {
-	int i;
+    int i;
 
-	/* Initialize globals XXX XXX XXX */
+    /* Initialize globals XXX XXX XXX */
 
-	/* Initialize "term_data" structures XXX XXX XXX */
+    /* Initialize "term_data" structures XXX XXX XXX */
 
-	/* Initialize the "color_data" array XXX XXX XXX */
+    /* Initialize the "color_data" array XXX XXX XXX */
 
-	/* Create windows (backwards!) */
-	for (i = MAX_XXX_TERM; i-- > 0; )
-	{
-		/* Link */
-		term_data_link(i);
-	}
+    /* Create windows (backwards!) */
+    for (i = MAX_XXX_TERM; i-- > 0;)
+    {
+        /* Link */
+        term_data_link(i);
+    }
 
-	/* Success */
-	return (0);
+    /* Success */
+    return (0);
 }
 
-
 #ifdef INTERNAL_MAIN
-
 
 /*
  * Some special machines need their own "main()" function, which they
@@ -689,7 +663,6 @@ errr init_xxx(int argc, char **argv)
  * actually "loop", but would run once and return.
  */
 
-
 /*
  * An event handler XXX XXX XXX
  *
@@ -702,11 +675,10 @@ errr init_xxx(int argc, char **argv)
  */
 static bool CheckEvents(bool wait)
 {
-	/* XXX XXX XXX */
+    /* XXX XXX XXX */
 
-	return (0);
+    return (0);
 }
-
 
 /*
  * Init some stuff
@@ -715,50 +687,49 @@ static bool CheckEvents(bool wait)
  */
 static void init_stuff(void)
 {
-	char path[1024];
+    char path[1024];
 
-	/* Prepare the path XXX XXX XXX */
-	/* This must in some way prepare the "path" variable */
-	/* so that it points at the "lib" directory.  Every */
-	/* machine handles this in a different way... */
-	strcpy(path, "XXX XXX XXX");
+    /* Prepare the path XXX XXX XXX */
+    /* This must in some way prepare the "path" variable */
+    /* so that it points at the "lib" directory.  Every */
+    /* machine handles this in a different way... */
+    strcpy(path, "XXX XXX XXX");
 
-	/* Prepare the filepaths */
-	init_file_paths(path);
+    /* Prepare the filepaths */
+    init_file_paths(path);
 }
-
 
 /*
  * Main function
  *
  * This function must do a lot of stuff.
  */
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
-	/* Initialize the machine itself XXX XXX XXX */
+    /* Initialize the machine itself XXX XXX XXX */
 
-	/* Process command line arguments XXX XXX XXX */
+    /* Process command line arguments XXX XXX XXX */
 
-	/* Initialize the windows */
-	if (init_xxx(argc, argv) != 0) quit("Oops!");
+    /* Initialize the windows */
+    if (init_xxx(argc, argv) != 0)
+        quit("Oops!");
 
-	/* XXX XXX XXX */
-	ANGBAND_SYS = "xxx";
+    /* XXX XXX XXX */
+    ANGBAND_SYS = "xxx";
 
-	/* Initialize some stuff */
-	init_stuff();
+    /* Initialize some stuff */
+    init_stuff();
 
-	/* Initialize */
-	init_angband();
+    /* Initialize */
+    init_angband();
 
-	/* Allow auto-startup XXX XXX XXX */
+    /* Allow auto-startup XXX XXX XXX */
 
-	/* Event loop forever XXX XXX XXX */
-	while (TRUE) CheckEvents(TRUE);
+    /* Event loop forever XXX XXX XXX */
+    while (TRUE)
+        CheckEvents(TRUE);
 }
 
-
 #endif /* INTERNAL_MAIN */
-
 
 #endif /* USE_XXX */

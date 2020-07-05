@@ -33,10 +33,7 @@
 #include "types.h"
 #include "externs.h"
 
-
-
 /***** Some older copyright messages follow below *****/
-
 
 /*
  * Note that these copyright messages apply to an ancient version
@@ -82,6 +79,4 @@
  *	 of the author Robert Alan Koeneke.
  */
 
-
 #endif
-

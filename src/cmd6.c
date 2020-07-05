@@ -48,308 +48,299 @@
  * but instead use the "sval" (which is also used to sort the objects).
  */
 
-
-
 /*
  * Eat some food (from the pack or floor)
  */
-void do_cmd_eat_food(object_type *default_o_ptr, int default_item)
+void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
 {
-	int item;
-	bool ident;
-	bool aware;
-	int kind_index;
+    int item;
+    bool ident;
+    bool aware;
+    int kind_index;
 
-	object_type *o_ptr;
+    object_type* o_ptr;
 
-	cptr q, s;
+    cptr q, s;
 
-	// use specified item if possible
-	if (default_o_ptr != NULL)
-	{
-		o_ptr = default_o_ptr;
-		item = default_item;
-	}
-	/* Get an item */
-	else
-	{
-		/* Restrict choices to food */
-		item_tester_tval = TV_FOOD;
+    // use specified item if possible
+    if (default_o_ptr != NULL)
+    {
+        o_ptr = default_o_ptr;
+        item = default_item;
+    }
+    /* Get an item */
+    else
+    {
+        /* Restrict choices to food */
+        item_tester_tval = TV_FOOD;
 
-		/* Get an item */
-		q = "Eat which item? ";
-		s = "You have nothing to eat.";
-		if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR))) return;
+        /* Get an item */
+        q = "Eat which item? ";
+        s = "You have nothing to eat.";
+        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+            return;
 
-		/* Get the item (in the pack) */
-		if (item >= 0)
-		{
-			o_ptr = &inventory[item];
-		}
+        /* Get the item (in the pack) */
+        if (item >= 0)
+        {
+            o_ptr = &inventory[item];
+        }
 
-		/* Get the item (on the floor) */
-		else
-		{
-			o_ptr = &o_list[0 - item];
-		}
-	}
+        /* Get the item (on the floor) */
+        else
+        {
+            o_ptr = &o_list[0 - item];
+        }
+    }
 
-	/* Sound */
-	sound(MSG_EAT);
+    /* Sound */
+    sound(MSG_EAT);
 
-	/* Take a turn */
-	p_ptr->energy_use = 100;
+    /* Take a turn */
+    p_ptr->energy_use = 100;
 
-	// store the action type
-	p_ptr->previous_action[0] = ACTION_MISC;
-	
-	/* Identity not known yet */
-	ident = FALSE;
+    // store the action type
+    p_ptr->previous_action[0] = ACTION_MISC;
 
-	// Save the k_idx and awareness info
-	kind_index = o_ptr->k_idx;
-	aware = object_aware_p(o_ptr);
-		
-	/* Eat the food */
-	use_object(o_ptr, &ident);
+    /* Identity not known yet */
+    ident = FALSE;
 
-	/* We have tried it */
-	object_tried(o_ptr);
+    // Save the k_idx and awareness info
+    kind_index = o_ptr->k_idx;
+    aware = object_aware_p(o_ptr);
 
-	/* Combine / Reorder the pack (later) */
-	p_ptr->notice |= (PN_COMBINE | PN_REORDER);
-	
-	/* The player is now aware of the object */
-	if (ident && !object_aware_p(o_ptr))
-	{
-		object_aware(o_ptr);
-	}
+    /* Eat the food */
+    use_object(o_ptr, &ident);
 
-	/* Window stuff */
-	p_ptr->window |= (PW_INVEN | PW_EQUIP);
+    /* We have tried it */
+    object_tried(o_ptr);
 
-	/* Destroy a food in the pack */
-	if (item >= 0)
-	{
-		inven_item_increase(item, -1);
-		inven_item_describe(item);
-		inven_item_optimize(item);
-	}
+    /* Combine / Reorder the pack (later) */
+    p_ptr->notice |= (PN_COMBINE | PN_REORDER);
 
-	/* Destroy a food on the floor */
-	else
-	{
-		floor_item_increase(0 - item, -1);
-		floor_item_describe(0 - item);
-		floor_item_optimize(0 - item);
-	}
-	
-	// allow autoinscribing of the herb
-	if (!ident && !aware)
-	{
-		if (easter_time())
-		{
-			if (get_check("Autoinscribe this easter egg type? "))
-			{
-				do_cmd_autoinscribe_item(kind_index);
-			}
-		}
-		else
-		{
-			if (get_check("Autoinscribe this herb type? "))
-			{
-				do_cmd_autoinscribe_item(kind_index);
-			}
-		}
-	}
-		
+    /* The player is now aware of the object */
+    if (ident && !object_aware_p(o_ptr))
+    {
+        object_aware(o_ptr);
+    }
+
+    /* Window stuff */
+    p_ptr->window |= (PW_INVEN | PW_EQUIP);
+
+    /* Destroy a food in the pack */
+    if (item >= 0)
+    {
+        inven_item_increase(item, -1);
+        inven_item_describe(item);
+        inven_item_optimize(item);
+    }
+
+    /* Destroy a food on the floor */
+    else
+    {
+        floor_item_increase(0 - item, -1);
+        floor_item_describe(0 - item);
+        floor_item_optimize(0 - item);
+    }
+
+    // allow autoinscribing of the herb
+    if (!ident && !aware)
+    {
+        if (easter_time())
+        {
+            if (get_check("Autoinscribe this easter egg type? "))
+            {
+                do_cmd_autoinscribe_item(kind_index);
+            }
+        }
+        else
+        {
+            if (get_check("Autoinscribe this herb type? "))
+            {
+                do_cmd_autoinscribe_item(kind_index);
+            }
+        }
+    }
 }
-
-
-
 
 /*
  * Quaff a potion (from the pack or the floor)
  */
-void do_cmd_quaff_potion(object_type *default_o_ptr, int default_item)
+void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
 {
-	int item;
-	bool ident;
-	bool aware;
-	int kind_index;
-	object_type *o_ptr;
-	cptr q, s;
+    int item;
+    bool ident;
+    bool aware;
+    int kind_index;
+    object_type* o_ptr;
+    cptr q, s;
 
-	// use specified item if possible
-	if (default_o_ptr != NULL)
-	{
-		o_ptr = default_o_ptr;
-		item = default_item;
-	}
-	/* Get an item */
-	else
-	{
-		/* Restrict choices to potions */
-		item_tester_tval = TV_POTION;
+    // use specified item if possible
+    if (default_o_ptr != NULL)
+    {
+        o_ptr = default_o_ptr;
+        item = default_item;
+    }
+    /* Get an item */
+    else
+    {
+        /* Restrict choices to potions */
+        item_tester_tval = TV_POTION;
 
-		/* Get an item */
-		q = "Quaff which potion? ";
-		s = "You have no potions to quaff.";
-		if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR))) return;
+        /* Get an item */
+        q = "Quaff which potion? ";
+        s = "You have no potions to quaff.";
+        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+            return;
 
-		/* Get the item (in the pack) */
-		if (item >= 0)
-		{
-			o_ptr = &inventory[item];
-		}
+        /* Get the item (in the pack) */
+        if (item >= 0)
+        {
+            o_ptr = &inventory[item];
+        }
 
-		/* Get the item (on the floor) */
-		else
-		{
-			o_ptr = &o_list[0 - item];
-		}
-	}
+        /* Get the item (on the floor) */
+        else
+        {
+            o_ptr = &o_list[0 - item];
+        }
+    }
 
-	/* Sound */
-	sound(MSG_QUAFF);
+    /* Sound */
+    sound(MSG_QUAFF);
 
-	/* Take a turn */
-	p_ptr->energy_use = 100;
+    /* Take a turn */
+    p_ptr->energy_use = 100;
 
-	// store the action type
-	p_ptr->previous_action[0] = ACTION_MISC;
-	
-	/* Not identified yet */
-	ident = FALSE;
+    // store the action type
+    p_ptr->previous_action[0] = ACTION_MISC;
 
-	// Save the k_idx and awareness info
-	kind_index = o_ptr->k_idx;
-	aware = object_aware_p(o_ptr);
-		
-	/* Quaff the potion */
-	use_object(o_ptr, &ident);
+    /* Not identified yet */
+    ident = FALSE;
 
-	/* Combine / Reorder the pack (later) */
-	p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+    // Save the k_idx and awareness info
+    kind_index = o_ptr->k_idx;
+    aware = object_aware_p(o_ptr);
 
-	/* The item has been tried */
-	object_tried(o_ptr);
+    /* Quaff the potion */
+    use_object(o_ptr, &ident);
 
-	/* An identification was made */
-	if (ident && !object_aware_p(o_ptr))
-	{
-		object_aware(o_ptr);
-	}
+    /* Combine / Reorder the pack (later) */
+    p_ptr->notice |= (PN_COMBINE | PN_REORDER);
 
-	/* Window stuff */
-	p_ptr->window |= (PW_INVEN | PW_EQUIP);
+    /* The item has been tried */
+    object_tried(o_ptr);
 
-	/* Destroy a potion in the pack */
-	if (item >= 0)
-	{
-		inven_item_increase(item, -1);
-		inven_item_describe(item);
-		inven_item_optimize(item);
-	}
+    /* An identification was made */
+    if (ident && !object_aware_p(o_ptr))
+    {
+        object_aware(o_ptr);
+    }
 
-	/* Destroy a potion on the floor */
-	else
-	{
-		floor_item_increase(0 - item, -1);
-		floor_item_describe(0 - item);
-		floor_item_optimize(0 - item);
-	}
-	
-	// allow autoinscribing of the potion
-	if (!ident && !aware)
-	{
-		if (get_check("Autoinscribe this potion type? "))
-		{
-			do_cmd_autoinscribe_item(kind_index);
-		}
-	}
-	
+    /* Window stuff */
+    p_ptr->window |= (PW_INVEN | PW_EQUIP);
+
+    /* Destroy a potion in the pack */
+    if (item >= 0)
+    {
+        inven_item_increase(item, -1);
+        inven_item_describe(item);
+        inven_item_optimize(item);
+    }
+
+    /* Destroy a potion on the floor */
+    else
+    {
+        floor_item_increase(0 - item, -1);
+        floor_item_describe(0 - item);
+        floor_item_optimize(0 - item);
+    }
+
+    // allow autoinscribing of the potion
+    if (!ident && !aware)
+    {
+        if (get_check("Autoinscribe this potion type? "))
+        {
+            do_cmd_autoinscribe_item(kind_index);
+        }
+    }
 }
-
 
 /*
  * Play an instrument
  */
-void do_cmd_play_instrument(object_type *default_o_ptr, int default_item)
+void do_cmd_play_instrument(object_type* default_o_ptr, int default_item)
 {
-	int item;
-	
-	bool ident;
-	
-	object_type *o_ptr;
-		
-	cptr q, s;
-	
-	// use specified item if possible
-	if (default_o_ptr != NULL)
-	{
-		o_ptr = default_o_ptr;
-		item = default_item;
-	}
-	/* Get an item */
-	else
-	{		
-		/* Restrict choices to instruments */
-		item_tester_tval = TV_HORN;
-		
-		/* Get an item */
-		q = "Play which instrument? ";
-		s = "You have no instrument to play.";
-		if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR))) return;
-		
-		/* Get the item (in the pack) */
-		if (item >= 0)
-		{
-			o_ptr = &inventory[item];
-		}
-		
-		/* Get the item (on the floor) */
-		else
-		{
-			o_ptr = &o_list[0 - item];
-		}
-	}
-	
-	/* Not identified yet */
-	ident = FALSE;
-	
-	/* Play the instrument */
-	if (!use_object(o_ptr, &ident)) return;
-	
-	/* Take a turn */
-	p_ptr->energy_use = 100;
-	
-	// store the action type
-	p_ptr->previous_action[0] = ACTION_MISC;
+    int item;
+
+    bool ident;
+
+    object_type* o_ptr;
+
+    cptr q, s;
+
+    // use specified item if possible
+    if (default_o_ptr != NULL)
+    {
+        o_ptr = default_o_ptr;
+        item = default_item;
+    }
+    /* Get an item */
+    else
+    {
+        /* Restrict choices to instruments */
+        item_tester_tval = TV_HORN;
+
+        /* Get an item */
+        q = "Play which instrument? ";
+        s = "You have no instrument to play.";
+        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+            return;
+
+        /* Get the item (in the pack) */
+        if (item >= 0)
+        {
+            o_ptr = &inventory[item];
+        }
+
+        /* Get the item (on the floor) */
+        else
+        {
+            o_ptr = &o_list[0 - item];
+        }
+    }
+
+    /* Not identified yet */
+    ident = FALSE;
+
+    /* Play the instrument */
+    if (!use_object(o_ptr, &ident))
+        return;
+
+    /* Take a turn */
+    p_ptr->energy_use = 100;
+
+    // store the action type
+    p_ptr->previous_action[0] = ACTION_MISC;
 
     // end the current song
-	change_song(SNG_NOTHING);
-    
-	/* Combine / Reorder the pack (later) */
-	p_ptr->notice |= (PN_COMBINE | PN_REORDER);
-	
-	/* Tried the object */
-	object_tried(o_ptr);
-	
-	/* Successfully determined the object function */
-	if (ident && !object_aware_p(o_ptr))
-	{
-		object_aware(o_ptr);
-	}
-	
-	/* Window stuff */
-	p_ptr->window |= (PW_INVEN | PW_EQUIP);
-	
+    change_song(SNG_NOTHING);
+
+    /* Combine / Reorder the pack (later) */
+    p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+
+    /* Tried the object */
+    object_tried(o_ptr);
+
+    /* Successfully determined the object function */
+    if (ident && !object_aware_p(o_ptr))
+    {
+        object_aware(o_ptr);
+    }
+
+    /* Window stuff */
+    p_ptr->window |= (PW_INVEN | PW_EQUIP);
 }
-
-
-
-
 
 /*
  * Use a staff
@@ -358,150 +349,151 @@ void do_cmd_play_instrument(object_type *default_o_ptr, int default_item)
  *
  * Hack -- staffs of identify can be "cancelled".
  */
-void do_cmd_activate_staff(object_type *default_o_ptr, int default_item)
+void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
 {
-	int item;
+    int item;
 
-	bool ident;
+    bool ident;
 
-	object_type *o_ptr;
+    object_type* o_ptr;
 
-	bool use_charge;
+    bool use_charge;
 
-	cptr q, s;
+    cptr q, s;
 
+    // use specified item if possible
+    if (default_o_ptr != NULL)
+    {
+        o_ptr = default_o_ptr;
+        item = default_item;
+    }
+    /* Get an item */
+    else
+    {
+        /* Restrict choices to staves */
+        item_tester_tval = TV_STAFF;
 
-	// use specified item if possible
-	if (default_o_ptr != NULL)
-	{
-		o_ptr = default_o_ptr;
-		item = default_item;
-	}
-	/* Get an item */
-	else
-	{
-		/* Restrict choices to staves */
-		item_tester_tval = TV_STAFF;
+        /* Get an item */
+        q = "Activate which staff? ";
+        s = "You have no staff to activate.";
+        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+            return;
 
-		/* Get an item */
-		q = "Activate which staff? ";
-		s = "You have no staff to activate.";
-		if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR))) return;
+        /* Get the item (in the pack) */
+        if (item >= 0)
+        {
+            o_ptr = &inventory[item];
+        }
 
-		/* Get the item (in the pack) */
-		if (item >= 0)
-		{
-			o_ptr = &inventory[item];
-		}
+        /* Get the item (on the floor) */
+        else
+        {
+            o_ptr = &o_list[0 - item];
+        }
+    }
 
-		/* Get the item (on the floor) */
-		else
-		{
-			o_ptr = &o_list[0 - item];
-		}
-	}
+    if (o_ptr->ident & (IDENT_EMPTY))
+    {
+        msg_print("The staff has no charges left.");
+        return;
+    }
 
-	if (o_ptr->ident & (IDENT_EMPTY))
-	{
-		msg_print("The staff has no charges left.");
-		return;
-	}
+    /* Take a turn */
+    p_ptr->energy_use = 100;
 
-	/* Take a turn */
-	p_ptr->energy_use = 100;
+    // store the action type
+    p_ptr->previous_action[0] = ACTION_MISC;
 
-	// store the action type
-	p_ptr->previous_action[0] = ACTION_MISC;
-	
-	/* Not identified yet */
-	ident = FALSE;
+    /* Not identified yet */
+    ident = FALSE;
 
-	/* Notice empty staffs */
-	if ((o_ptr->pval <= 1 && (!p_ptr->active_ability[S_WIL][WIL_CHANNELING])) || o_ptr->pval <= 0)
-	{
-		flush();
-		msg_print("The staff has no charges left.");
-		o_ptr->ident |= (IDENT_EMPTY);
-		p_ptr->notice |= (PN_COMBINE | PN_REORDER);
-		p_ptr->window |= (PW_INVEN);
-		return;
-	}
+    /* Notice empty staffs */
+    if ((o_ptr->pval <= 1 && (!p_ptr->active_ability[S_WIL][WIL_CHANNELING]))
+        || o_ptr->pval <= 0)
+    {
+        flush();
+        msg_print("The staff has no charges left.");
+        o_ptr->ident |= (IDENT_EMPTY);
+        p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+        p_ptr->window |= (PW_INVEN);
+        return;
+    }
 
+    /* Sound */
+    sound(MSG_ZAP);
 
-	/* Sound */
-	sound(MSG_ZAP);
+    /* Use the staff */
+    use_charge = use_object(o_ptr, &ident);
 
-	/* Use the staff */
-	use_charge = use_object(o_ptr, &ident);
+    // Break the truce
+    break_truce(FALSE);
 
-	// Break the truce
-	break_truce(FALSE);
+    /* Combine / Reorder the pack (later) */
+    p_ptr->notice |= (PN_COMBINE | PN_REORDER);
 
-	/* Combine / Reorder the pack (later) */
-	p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+    /* Tried the item */
+    object_tried(o_ptr);
 
-	/* Tried the item */
-	object_tried(o_ptr);
+    /* An identification was made */
+    if (ident && !object_aware_p(o_ptr))
+    {
+        object_aware(o_ptr);
+    }
 
-	/* An identification was made */
-	if (ident && !object_aware_p(o_ptr))
-	{
-		object_aware(o_ptr);
-	}
+    /* Window stuff */
+    p_ptr->window |= (PW_INVEN | PW_EQUIP);
 
-	/* Window stuff */
-	p_ptr->window |= (PW_INVEN | PW_EQUIP);
+    /* Hack -- some uses are "free" */
+    if (!use_charge)
+        return;
 
-	/* Hack -- some uses are "free" */
-	if (!use_charge) return;
+    /* Use a single charge if channeling, otherwise double */
+    if (p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+    {
+        o_ptr->pval--;
+    }
+    else
+    {
+        o_ptr->pval -= CHANNELING_CHARGE_MULTIPLIER;
+    }
 
-	/* Use a single charge if channeling, otherwise double */
-	if (p_ptr->active_ability[S_WIL][WIL_CHANNELING])
-	{
-		o_ptr->pval--;
-	}
-	else
-	{
-		o_ptr->pval -= CHANNELING_CHARGE_MULTIPLIER;
-	}
+    // mark times used
+    o_ptr->xtra1++;
 
-	// mark times used
-	o_ptr->xtra1++;
+    /* Describe charges in the pack */
+    if (item >= 0)
+    {
+        inven_item_charges(item);
+    }
 
-	/* Describe charges in the pack */
-	if (item >= 0)
-	{
-		inven_item_charges(item);
-	}
-
-	/* Describe charges on the floor */
-	else
-	{
-		floor_item_charges(0 - item);
-	}
+    /* Describe charges on the floor */
+    else
+    {
+        floor_item_charges(0 - item);
+    }
 }
-
 
 /*
  * Hook to determine if an object is activatable
  */
-static bool item_tester_hook_activate(const object_type *o_ptr)
+static bool item_tester_hook_activate(const object_type* o_ptr)
 {
-	u32b f1, f2, f3;
+    u32b f1, f2, f3;
 
-	/* Not known */
-	if (!object_known_p(o_ptr)) return (FALSE);
+    /* Not known */
+    if (!object_known_p(o_ptr))
+        return (FALSE);
 
-	/* Extract the flags */
-	object_flags(o_ptr, &f1, &f2, &f3);
+    /* Extract the flags */
+    object_flags(o_ptr, &f1, &f2, &f3);
 
-	/* Check activation flag */
-	if (f3 & (TR3_ACTIVATE)) return (TRUE);
+    /* Check activation flag */
+    if (f3 & (TR3_ACTIVATE))
+        return (TRUE);
 
-	/* Assume not */
-	return (FALSE);
+    /* Assume not */
+    return (FALSE);
 }
-
 
 /*
  * Activate a wielded object.  Wielded objects never stack.
@@ -512,63 +504,64 @@ static bool item_tester_hook_activate(const object_type *o_ptr)
  */
 void do_cmd_activate(void)
 {
-	int item, lev, score, difficulty;
-	bool ident;
-	object_type *o_ptr;
+    int item, lev, score, difficulty;
+    bool ident;
+    object_type* o_ptr;
 
-	cptr q, s;
+    cptr q, s;
 
+    /* Prepare the hook */
+    item_tester_hook = item_tester_hook_activate;
 
-	/* Prepare the hook */
-	item_tester_hook = item_tester_hook_activate;
+    /* Get an item */
+    q = "Activate which item? ";
+    s = "You have nothing to activate.";
+    if (!get_item(&item, q, s, (USE_EQUIP)))
+        return;
 
-	/* Get an item */
-	q = "Activate which item? ";
-	s = "You have nothing to activate.";
-	if (!get_item(&item, q, s, (USE_EQUIP))) return;
+    /* Get the item (in the pack) */
+    if (item >= 0)
+    {
+        o_ptr = &inventory[item];
+    }
 
-	/* Get the item (in the pack) */
-	if (item >= 0)
-	{
-		o_ptr = &inventory[item];
-	}
+    /* Get the item (on the floor) */
+    else
+    {
+        o_ptr = &o_list[0 - item];
+    }
 
-	/* Get the item (on the floor) */
-	else
-	{
-		o_ptr = &o_list[0 - item];
-	}
+    /* Take a turn */
+    p_ptr->energy_use = 100;
 
+    // store the action type
+    p_ptr->previous_action[0] = ACTION_MISC;
 
-	/* Take a turn */
-	p_ptr->energy_use = 100;
+    /* Extract the item level */
+    lev = k_info[o_ptr->k_idx].level;
 
-	// store the action type
-	p_ptr->previous_action[0] = ACTION_MISC;
-	
-	/* Extract the item level */
-	lev = k_info[o_ptr->k_idx].level;
+    /* Hack -- use artefact level instead */
+    if (artefact_p(o_ptr))
+        lev = a_info[o_ptr->name1].level;
 
-	/* Hack -- use artefact level instead */
-	if (artefact_p(o_ptr)) lev = a_info[o_ptr->name1].level;
+    /* Base chance of success */
+    score = p_ptr->skill_use[S_WIL];
 
-	/* Base chance of success */
-	score = p_ptr->skill_use[S_WIL];
+    // Base difficulty
+    difficulty = lev / 2;
 
-	// Base difficulty
-	difficulty = lev / 2;
+    /* Confusion hurts skill */
+    if (p_ptr->confused)
+        difficulty += 5;
 
-	/* Confusion hurts skill */
-	if (p_ptr->confused) difficulty += 5;
+    /* Roll for usage */
+    if (skill_check(PLAYER, score, difficulty, NULL) <= 0)
+    {
+        flush();
+        msg_print("You could not draw upon its powers.");
+        return;
+    }
 
-	/* Roll for usage */
-	if (skill_check(PLAYER, score, difficulty, NULL) <= 0)
-	{
-		flush();
-		msg_print("You could not draw upon its powers.");
-		return;
-	}
-
-	/* Activate the object */
-	(void)use_object(o_ptr, &ident);
+    /* Activate the object */
+    (void)use_object(o_ptr, &ident);
 }

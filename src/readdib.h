@@ -9,16 +9,17 @@
 /*
  * Information about a bitmap
  */
-typedef struct {
-	HANDLE   hDIB;
-	HBITMAP  hBitmap;
-	HPALETTE hPalette;
-	BYTE     CellWidth;
-	BYTE     CellHeight;
+typedef struct
+{
+    HANDLE hDIB;
+    HBITMAP hBitmap;
+    HPALETTE hPalette;
+    BYTE CellWidth;
+    BYTE CellHeight;
 } DIBINIT;
 
 /* Read a DIB from a file */
-extern BOOL ReadDIB(HWND, LPSTR, DIBINIT *);
+extern BOOL ReadDIB(HWND, LPSTR, DIBINIT*);
 
 /* Free a DIB */
-extern void FreeDIB(DIBINIT *dib);
+extern void FreeDIB(DIBINIT* dib);

@@ -13,7 +13,6 @@
  * should not be defined by the user.
  */
 
-
 /*
  * OPTION: Compile on a Macintosh machine
  */
@@ -85,92 +84,87 @@
 /* #define ULTRIX */
 #endif
 
-
-
 /*
  * Extract the "SUNOS" flag from the compiler
  */
 #if defined(sun)
-# ifndef SUNOS
-#   define SUNOS
-# endif
+#ifndef SUNOS
+#define SUNOS
+#endif
 #endif
 
 /*
  * Extract the "ULTRIX" flag from the compiler
  */
 #if defined(ultrix) || defined(Pyramid)
-# ifndef ULTRIX
-#  define ULTRIX
-# endif
+#ifndef ULTRIX
+#define ULTRIX
+#endif
 #endif
 
 /*
  * Extract the "ATARI" flag from the compiler [cjh]
  */
 #if defined(__atarist) || defined(__atarist__)
-# ifndef ATARI
-#  define ATARI
-# endif
+#ifndef ATARI
+#define ATARI
+#endif
 #endif
 
 /*
  * Extract the "RISCOS" flag from the compiler
  */
 #ifdef __riscos
-# ifndef RISCOS
-#  define RISCOS
-# endif
+#ifndef RISCOS
+#define RISCOS
+#endif
 #endif
 
 /*
  * Extract the "SGI" flag from the compiler
  */
 #ifdef sgi
-# ifndef SGI
-#  define SGI
-# endif
+#ifndef SGI
+#define SGI
+#endif
 #endif
 
 /*
  * Extract the "MSDOS" flag from the compiler
  */
 #ifdef __MSDOS__
-# ifndef MSDOS
-#  define MSDOS
-# endif
+#ifndef MSDOS
+#define MSDOS
+#endif
 #endif
 
 /*
  * Extract the "WINDOWS" flag from the compiler
  */
-#if defined(_Windows) || defined(__WINDOWS__) || \
-    defined(__WIN32__) || defined(WIN32) || \
-    defined(__WINNT__) || defined(__NT__)
-# ifndef WINDOWS
-#  define WINDOWS
-# endif
+#if defined(_Windows) || defined(__WINDOWS__) || defined(__WIN32__)            \
+    || defined(WIN32) || defined(__WINNT__) || defined(__NT__)
+#ifndef WINDOWS
+#define WINDOWS
+#endif
 #endif
 
 /*
  * Remove the MSDOS flag when using WINDOWS
  */
 #ifdef WINDOWS
-# ifdef MSDOS
-#  undef MSDOS
-# endif
+#ifdef MSDOS
+#undef MSDOS
+#endif
 #endif
 
 /*
  * Remove the WINDOWS flag when using MACINTOSH
  */
 #ifdef MACINTOSH
-# ifdef WINDOWS
-#  undef WINDOWS
-# endif
+#ifdef WINDOWS
+#undef WINDOWS
 #endif
-
-
+#endif
 
 /*
  * OPTION: Define "L64" if a "long" is 64-bits.  See "h-types.h".
@@ -178,10 +172,8 @@
  * DEC Alpha AXP running OSF/1 (OpenVMS uses 32-bit longs).
  */
 #if defined(__alpha) && defined(__osf__)
-# define L64
+#define L64
 #endif
-
-
 
 /*
  * OPTION: set "SET_UID" if the machine is a "multi-user" machine.
@@ -194,17 +186,17 @@
  * Basically, SET_UID should *only* be set for "Unix" machines,
  * or for the "Atari" platform which is Unix-like, apparently
  */
- 
+
 // Sil-x: Adding the Carbon port as one that doesn't use SET_UID
-//        Seemed to help get rid of annoying dialogue boxes asking for admin passwords
-//        But caused some other odd problems such as the highscores not working properly
+//        Seemed to help get rid of annoying dialogue boxes asking for admin
+//        passwords But caused some other odd problems such as the highscores
+//        not working properly
 
-#if !defined(MACINTOSH) && !defined(WINDOWS) && \
-    !defined(MSDOS) && !defined(USE_EMX) && \
-    !defined(AMIGA) && !defined(RISCOS) && !defined(VM)
-# define SET_UID
+#if !defined(MACINTOSH) && !defined(WINDOWS) && !defined(MSDOS)                \
+    && !defined(USE_EMX) && !defined(AMIGA) && !defined(RISCOS)                \
+    && !defined(VM)
+#define SET_UID
 #endif
-
 
 /*
  * OPTION: Set "USG" for "System V" versions of Unix
@@ -214,14 +206,13 @@
  * involving userid's, or multiple users on a single machine, etc.
  */
 #ifdef SET_UID
-# if defined(SYS_III) || defined(SYS_V) || defined(SOLARIS) || \
-     defined(HPUX) || defined(SGI) || defined(ATARI)
-#  ifndef USG
-#   define USG
-#  endif
-# endif
+#if defined(SYS_III) || defined(SYS_V) || defined(SOLARIS) || defined(HPUX)    \
+    || defined(SGI) || defined(ATARI)
+#ifndef USG
+#define USG
 #endif
-
+#endif
+#endif
 
 /*
  * Every system seems to use its own symbol as a path separator.
@@ -235,51 +226,48 @@
 #undef PATH_SEP
 #define PATH_SEP "/"
 #ifdef MACINTOSH
-# undef PATH_SEP
-# define PATH_SEP ":"
+#undef PATH_SEP
+#define PATH_SEP ":"
 #endif
 #if defined(WINDOWS) || defined(WINNT)
-# undef PATH_SEP
-# define PATH_SEP "\\"
+#undef PATH_SEP
+#define PATH_SEP "\\"
 #endif
 #if defined(MSDOS) || defined(OS2) || defined(USE_EMX)
-# undef PATH_SEP
-# define PATH_SEP "\\"
+#undef PATH_SEP
+#define PATH_SEP "\\"
 #endif
 #ifdef AMIGA
-# undef PATH_SEP
-# define PATH_SEP "/"
+#undef PATH_SEP
+#define PATH_SEP "/"
 #endif
 #ifdef __GO32__
-# undef PATH_SEP
-# define PATH_SEP "/"
+#undef PATH_SEP
+#define PATH_SEP "/"
 #endif
 #ifdef VM
-# undef PATH_SEP
-# define PATH_SEP ""
+#undef PATH_SEP
+#define PATH_SEP ""
 #endif
-
 
 /*
  * The Macintosh allows the use of a "file type" when creating a file
  */
 
 #if (defined(MACINTOSH) || defined(MACH_O_CARBON))
-# define FILE_TYPE_TEXT 'TEXT'
-# define FILE_TYPE_DATA 'DATA'
-# define FILE_TYPE_SAVE 'SAVE'
-# define FILE_TYPE(X) (_ftype = (X))
+#define FILE_TYPE_TEXT 'TEXT'
+#define FILE_TYPE_DATA 'DATA'
+#define FILE_TYPE_SAVE 'SAVE'
+#define FILE_TYPE(X) (_ftype = (X))
 #endif
 
 ////half hack %%%%
 #ifndef FILE_TYPE_TEXT
-# define FILE_TYPE_TEXT
-# define FILE_TYPE_DATA
-# define FILE_TYPE_SAVE
-# define FILE_TYPE(X)
+#define FILE_TYPE_TEXT
+#define FILE_TYPE_DATA
+#define FILE_TYPE_SAVE
+#define FILE_TYPE(X)
 #endif
-
-
 
 /*
  * OPTION: Define "HAVE_USLEEP" only if "usleep()" exists.
@@ -289,13 +277,9 @@
  * (Set in autoconf.h when HAVE_CONFIG_H -- i.e. when configure is used.)
  */
 #if defined(SET_UID) && !defined(HAVE_CONFIG_H)
-# if !defined(HPUX) && !defined(ULTRIX) && !defined(ISC)
-#  define HAVE_USLEEP
-# endif
+#if !defined(HPUX) && !defined(ULTRIX) && !defined(ISC)
+#define HAVE_USLEEP
+#endif
 #endif
 
-
-
 #endif
-
-

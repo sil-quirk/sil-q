@@ -13,32 +13,30 @@
 
 #include "h-basic.h"
 
-
 /*
  * Parse errors
  */
-#define PARSE_ERROR_GENERIC                  1
-#define PARSE_ERROR_OBSOLETE_FILE            2
-#define PARSE_ERROR_MISSING_RECORD_HEADER    3
-#define PARSE_ERROR_NON_SEQUENTIAL_RECORDS   4
-#define PARSE_ERROR_INVALID_FLAG             5
-#define PARSE_ERROR_UNDEFINED_DIRECTIVE      6
-#define PARSE_ERROR_OUT_OF_MEMORY            7
-#define PARSE_ERROR_OUT_OF_BOUNDS            8
-#define PARSE_ERROR_TOO_FEW_ARGUMENTS        9
-#define PARSE_ERROR_TOO_MANY_ARGUMENTS      10
-#define PARSE_ERROR_TOO_MANY_ALLOCATIONS    11
-#define PARSE_ERROR_INVALID_SPELL_FREQ      12
-#define PARSE_ERROR_INVALID_ITEM_NUMBER     13
-#define PARSE_ERROR_TOO_MANY_ENTRIES        14
-#define PARSE_ERROR_VAULT_TOO_BIG           15
-#define PARSE_ERROR_VAULT_NOT_RECTANGULAR   16
-#define PARSE_ERROR_MAX                     18
-
+#define PARSE_ERROR_GENERIC 1
+#define PARSE_ERROR_OBSOLETE_FILE 2
+#define PARSE_ERROR_MISSING_RECORD_HEADER 3
+#define PARSE_ERROR_NON_SEQUENTIAL_RECORDS 4
+#define PARSE_ERROR_INVALID_FLAG 5
+#define PARSE_ERROR_UNDEFINED_DIRECTIVE 6
+#define PARSE_ERROR_OUT_OF_MEMORY 7
+#define PARSE_ERROR_OUT_OF_BOUNDS 8
+#define PARSE_ERROR_TOO_FEW_ARGUMENTS 9
+#define PARSE_ERROR_TOO_MANY_ARGUMENTS 10
+#define PARSE_ERROR_TOO_MANY_ALLOCATIONS 11
+#define PARSE_ERROR_INVALID_SPELL_FREQ 12
+#define PARSE_ERROR_INVALID_ITEM_NUMBER 13
+#define PARSE_ERROR_TOO_MANY_ENTRIES 14
+#define PARSE_ERROR_VAULT_TOO_BIG 15
+#define PARSE_ERROR_VAULT_NOT_RECTANGULAR 16
+#define PARSE_ERROR_MAX 18
 
 typedef struct header header;
 
-typedef errr (*parse_info_txt_func)(char *buf, header *head);
+typedef errr (*parse_info_txt_func)(char* buf, header* head);
 
 /*
  * Template file header information (see "init.c").  16 bytes.
@@ -69,51 +67,48 @@ typedef errr (*parse_info_txt_func)(char *buf, header *head);
  */
 struct header
 {
-	byte v_major;		/* Version -- major */
-	byte v_minor;		/* Version -- minor */
-	byte v_patch;		/* Version -- patch */
-	byte v_extra;		/* Version -- extra */
+    byte v_major; /* Version -- major */
+    byte v_minor; /* Version -- minor */
+    byte v_patch; /* Version -- patch */
+    byte v_extra; /* Version -- extra */
 
+    u16b info_num; /* Number of "info" records */
 
-	u16b info_num;		/* Number of "info" records */
+    u16b info_len; /* Size of each "info" record */
 
-	u16b info_len;		/* Size of each "info" record */
+    u32b head_size; /* Size of the "header" in bytes */
 
+    u32b info_size; /* Size of the "info" array in bytes */
 
-	u32b head_size;		/* Size of the "header" in bytes */
+    u32b name_size; /* Size of the "name" array in bytes */
 
-	u32b info_size;		/* Size of the "info" array in bytes */
+    u32b text_size; /* Size of the "text" array in bytes */
 
-	u32b name_size;		/* Size of the "name" array in bytes */
+    void* info_ptr;
+    char* name_ptr;
+    char* text_ptr;
 
-	u32b text_size;		/* Size of the "text" array in bytes */
-
-	void *info_ptr;
-	char *name_ptr;
-	char *text_ptr;
-
-	parse_info_txt_func parse_info_txt;
+    parse_info_txt_func parse_info_txt;
 };
 
-extern errr init_info_txt(FILE *fp, char *buf, header *head,
-                          parse_info_txt_func parse_info_txt_line);
+extern errr init_info_txt(
+    FILE* fp, char* buf, header* head, parse_info_txt_func parse_info_txt_line);
 
 #ifdef ALLOW_TEMPLATES
-extern errr parse_z_info(char *buf, header *head);
-extern errr parse_v_info(char *buf, header *head);
-extern errr parse_f_info(char *buf, header *head);
-extern errr parse_k_info(char *buf, header *head);
-extern errr parse_b_info(char *buf, header *head);
-extern errr parse_a_info(char *buf, header *head);
-extern errr parse_e_info(char *buf, header *head);
-extern errr parse_r_info(char *buf, header *head);
-extern errr parse_p_info(char *buf, header *head);
-extern errr parse_c_info(char *buf, header *head);
-extern errr parse_h_info(char *buf, header *head);
-extern errr parse_q_info(char *buf, header *head);
-extern errr parse_n_info(char *buf, header *head);
-extern errr parse_flavor_info(char *buf, header *head);
-
+extern errr parse_z_info(char* buf, header* head);
+extern errr parse_v_info(char* buf, header* head);
+extern errr parse_f_info(char* buf, header* head);
+extern errr parse_k_info(char* buf, header* head);
+extern errr parse_b_info(char* buf, header* head);
+extern errr parse_a_info(char* buf, header* head);
+extern errr parse_e_info(char* buf, header* head);
+extern errr parse_r_info(char* buf, header* head);
+extern errr parse_p_info(char* buf, header* head);
+extern errr parse_c_info(char* buf, header* head);
+extern errr parse_h_info(char* buf, header* head);
+extern errr parse_q_info(char* buf, header* head);
+extern errr parse_n_info(char* buf, header* head);
+extern errr parse_flavor_info(char* buf, header* head);
 
 /*
  * Error tracking
@@ -122,7 +117,6 @@ extern int error_idx;
 extern int error_line;
 
 #endif /* ALLOW_TEMPLATES */
-
 
 /*
  * File headers
@@ -145,4 +139,3 @@ extern header n_head;
 extern header flavor_head;
 
 #endif /* INCLUDED_INIT_H */
-

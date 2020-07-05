@@ -8,7 +8,6 @@
  * are included in all such copies.  Other copyrights may also apply.
  */
 
-
 /*
  * Look through the following lines, and where a comment includes the
  * tag "OPTION:", examine the associated "#define" statements, and decide
@@ -20,7 +19,6 @@
  * And finally, remember that the "Makefile" will specify some rather
  * important compile time options, like what visual module to use.
  */
-
 
 /*
  * OPTION: See the Makefile(s), where several options may be declared.
@@ -39,7 +37,6 @@
  * "SOLARIS" (for Solaris), etc, see "h-config.h" for more info.
  */
 
-
 /*
  * OPTION: Use the POSIX "termios" methods in "main-gcu.c"
  */
@@ -55,7 +52,6 @@
  */
 /* #define USE_TCHARS */
 
-
 /*
  * OPTION: Use "blocking getch() calls" in "main-gcu.c".
  * Hack -- Note that this option will NOT work on many BSD machines
@@ -63,24 +59,21 @@
  * "nodelay()" undefined, then make sure to undefine this.
  */
 #if defined(SYS_V) || defined(AMIGA)
-# define USE_GETCH
+#define USE_GETCH
 #endif
-
 
 /*
  * OPTION: Use the "curs_set()" call in "main-gcu.c".
  * Hack -- This option will not work on most BSD machines
  */
 #ifdef SYS_V
-# define USE_CURS_SET
+#define USE_CURS_SET
 #endif
-
 
 /*
  * OPTION: Include "ncurses.h" instead of "curses.h" in "main-gcu.c"
  */
 /* #define USE_NCURSES */
-
 
 /*
  * OPTION: for multi-user machines running the game setuid to some other
@@ -92,7 +85,6 @@
  * This will handle "gids" correctly once the permissions are set right.
  */
 #define SAFE_SETUID
-
 
 /*
  * This flag enables the "POSIX" methods for "SAFE_SETUID".
@@ -106,17 +98,13 @@
 
 */
 
-
 /*
  * Prevent problems on (non-Solaris) Suns using "SAFE_SETUID".
  * The SAFE_SETUID code is weird, use it at your own risk...
  */
 #if defined(SUNOS) && !defined(SOLARIS)
-# undef SAFE_SETUID_POSIX
+#undef SAFE_SETUID_POSIX
 #endif
-
-
-
 
 /*
  * OPTION: Forbid the use of "fiddled" savefiles.  As far as I can tell,
@@ -130,7 +118,6 @@
  */
 /* #define VERIFY_TIMESTAMP */
 
-
 /*
  * OPTION: Forbid the "savefile over-write" cheat, in which you simply
  * run another copy of the game, loading a previously saved savefile,
@@ -139,9 +126,6 @@
  * the use of the savefile until the file is deleted.  Not ready yet.
  */
 /* #define VERIFY_SAVEFILE */
-
-
-
 
 /*
  * OPTION: Hack -- Compile in support for "Debug Commands"
@@ -168,7 +152,6 @@
  */
 #define ALLOW_MACROS
 
-
 /*
  * OPTION: Allow characteres to be "auto-rolled"
  */
@@ -181,12 +164,10 @@
  */
 #define ALLOW_TEMPLATES
 
-
 /*
  * OPTION: Allow repeating of last command.
  */
 #define ALLOW_REPEAT
-
 
 /*
  * OPTION: Handle signals
@@ -213,25 +194,20 @@
  */
 /* #define MAP_INFO_MULTIPLE_PLAYERS */
 
-
 /*
  * OPTION: Use the "complex" wall illumination code
  */
 /* #define UPDATE_VIEW_COMPLEX_WALL_ILLUMINATION */
-
 
 /*
  * OPTION: Gamma correct colours (with X11)
  */
 #define SUPPORT_GAMMA
 
-
 /*
  * OPTION: Check the modification time of *_info.raw files
  */
 #define CHECK_MODIFICATION_TIME
-
-
 
 /*
  * OPTION: Allow the use of "sound" in various places.
@@ -243,17 +219,15 @@
  */
 #define USE_GRAPHICS
 
-
 /*
  * Hack -- Macintosh stuff
  */
 #ifdef MACINTOSH
 
 /* Do not handle signals */
-# undef HANDLE_SIGNALS
+#undef HANDLE_SIGNALS
 
 #endif
-
 
 /*
  * Hack -- Windows stuff
@@ -261,10 +235,9 @@
 #ifdef WINDOWS
 
 /* Do not handle signals */
-# undef HANDLE_SIGNALS
+#undef HANDLE_SIGNALS
 
 #endif
-
 
 /*
  * Hack -- EMX stuff
@@ -272,10 +245,9 @@
 #ifdef USE_EMX
 
 /* Do not handle signals */
-# undef HANDLE_SIGNALS
+#undef HANDLE_SIGNALS
 
 #endif
-
 
 /*
  * OPTION: Set the "default" path to the angband "lib" directory.
@@ -299,31 +271,28 @@
  * or "/usr/games/lib/sil/", or "/pkg/sil/lib".
  */
 #ifndef DEFAULT_PATH
-# define DEFAULT_PATH "./lib/"
+#define DEFAULT_PATH "./lib/"
 #endif /* DEFAULT_PATH */
-
 
 /*
  * OPTION: Create and use a hidden directory in the users home directory
  * for storing pref-files and character-dumps.
  */
 #if defined(USE_PRIVATE_SAVE_PATH) && !defined(PRIVATE_USER_PATH)
-# define PRIVATE_USER_PATH "~/.sil"
+#define PRIVATE_USER_PATH "~/.sil"
 #endif
 
 /*
  * On multiuser systems, add the "uid" to savefile names
  */
 #ifdef SET_UID
-# define SAVEFILE_USE_UID
+#define SAVEFILE_USE_UID
 #endif /* SET_UID */
-
 
 /*
  * OPTION: Check the "time" against "lib/file/hours.txt"
  */
 /* #define CHECK_TIME */
-
 
 /*
  * OPTION: Prevent usage of the "ANGBAND_PATH" environment variable and
@@ -336,59 +305,54 @@
 #define FIXED_PATHS
 #endif /* SET_UID */
 
-
 /*
  * OPTION: Capitalize the "user_name" (for "default" player name)
  * This option is only relevant on SET_UID machines.
  */
 #define CAPITALIZE_USER_NAME
 
-
 /*
  * OPTION: Person to bother if something goes wrong.
  */
-#define MAINTAINER	"sil@amirrorclear.net"
-
+#define MAINTAINER "sil@amirrorclear.net"
 
 /*
  * OPTION: Default font (when using X11).
  */
-#define DEFAULT_X11_FONT		"9x15"
-
+#define DEFAULT_X11_FONT "9x15"
 
 /*
  * OPTION: Default fonts (when using X11)
  */
-#define DEFAULT_X11_FONT_0		"10x20"
-#define DEFAULT_X11_FONT_1		"9x15"
-#define DEFAULT_X11_FONT_2		"9x15"
-#define DEFAULT_X11_FONT_3		"5x8"
-#define DEFAULT_X11_FONT_4		"5x8"
-#define DEFAULT_X11_FONT_5		"5x8"
-#define DEFAULT_X11_FONT_6		"5x8"
-#define DEFAULT_X11_FONT_7		"5x8"
+#define DEFAULT_X11_FONT_0 "10x20"
+#define DEFAULT_X11_FONT_1 "9x15"
+#define DEFAULT_X11_FONT_2 "9x15"
+#define DEFAULT_X11_FONT_3 "5x8"
+#define DEFAULT_X11_FONT_4 "5x8"
+#define DEFAULT_X11_FONT_5 "5x8"
+#define DEFAULT_X11_FONT_6 "5x8"
+#define DEFAULT_X11_FONT_7 "5x8"
 
- /*
+/*
  * Hack -- Mach-O (native binary format of OS X) is basically a Un*x
  * but has Mac OS/Windows-like user interface
  */
 #ifdef MACH_O_CARBON
-# ifdef PRIVATE_USER_PATH
-#  undef PRIVATE_USER_PATH
-# endif
-# ifdef SAVEFILE_USE_UID
-#  undef SAVEFILE_USE_UID
-# endif
+#ifdef PRIVATE_USER_PATH
+#undef PRIVATE_USER_PATH
 #endif
-
+#ifdef SAVEFILE_USE_UID
+#undef SAVEFILE_USE_UID
+#endif
+#endif
 
 /*
  * Hack -- Special "ancient machine" versions
  */
 #if defined(USE_286) || defined(ANGBAND_LITE_MAC)
-# ifndef ANGBAND_LITE
-#  define ANGBAND_LITE
-# endif
+#ifndef ANGBAND_LITE
+#define ANGBAND_LITE
+#endif
 #endif
 
 /*
@@ -401,29 +365,26 @@
 /*
  * Hack -- React to the "ANGBAND_LITE" flag
  */
-# ifdef ANGBAND_LITE
-# undef ALLOW_COLORS
-# undef ALLOW_VISUALS
-# undef ALLOW_MACROS
-# undef ALLOW_TERROR
-# undef ALLOW_DEBUG
-# undef ALLOW_SPOILERS
-# undef ALLOW_TEMPLATES
+#ifdef ANGBAND_LITE
+#undef ALLOW_COLORS
+#undef ALLOW_VISUALS
+#undef ALLOW_MACROS
+#undef ALLOW_TERROR
+#undef ALLOW_DEBUG
+#undef ALLOW_SPOILERS
+#undef ALLOW_TEMPLATES
 #endif
-
-
 
 /*
  * OPTION: Attempt to prevent all "cheating"
  */
 /* #define VERIFY_HONOR */
 
-
 /*
  * React to the "VERIFY_HONOR" flag
  */
 #ifdef VERIFY_HONOR
-# define VERIFY_SAVEFILE
-# define VERIFY_CHECKSUMS
-# define VERIFY_TIMESTAMP
+#define VERIFY_SAVEFILE
+#define VERIFY_CHECKSUMS
+#define VERIFY_TIMESTAMP
 #endif

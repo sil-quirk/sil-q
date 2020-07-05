@@ -13,83 +13,75 @@
  * This file has been rebuilt -- it may need a little more work.
  */
 
-
 #include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
 
 #if defined(NeXT)
-# include <libc.h>
+#include <libc.h>
 #else
-# include <stdlib.h>
+#include <stdlib.h>
 #endif
-
 
 #ifdef SET_UID
 
-# include <sys/types.h>
+#include <sys/types.h>
 
-# if defined(Pyramid) || defined(NeXT) || defined(SUNOS) || \
-     defined(NCR3K) || defined(SUNOS) || defined(ibm032) || \
-     defined(__osf__) || defined(ISC) || defined(SGI) || \
-     defined(linux)
-#  include <sys/time.h>
-# endif
-
-# if !defined(SGI) && !defined(ULTRIX)
-#  include <sys/timeb.h>
-# endif
-
+#if defined(Pyramid) || defined(NeXT) || defined(SUNOS) || defined(NCR3K)      \
+    || defined(SUNOS) || defined(ibm032) || defined(__osf__) || defined(ISC)   \
+    || defined(SGI) || defined(linux)
+#include <sys/time.h>
 #endif
 
+#if !defined(SGI) && !defined(ULTRIX)
+#include <sys/timeb.h>
+#endif
+
+#endif
 
 #include <time.h>
 
-
-
 #if defined(MACINTOSH) && defined(__MWERKS__)
-# include <unix.h>
+#include <unix.h>
 #endif
 
 #if defined(WINDOWS) || defined(MSDOS) || defined(USE_EMX)
-# include <io.h>
+#include <io.h>
 #endif
 
-#if !defined(MACINTOSH) && !defined(AMIGA) && \
-    !defined(RISCOS) && !defined(VM) && !defined(__MWERKS__)
-# if defined(__TURBOC__) || defined(__WATCOMC__)
-#  include <mem.h>
-# else
-#  include <memory.h>
-# endif
+#if !defined(MACINTOSH) && !defined(AMIGA) && !defined(RISCOS) && !defined(VM) \
+    && !defined(__MWERKS__)
+#if defined(__TURBOC__) || defined(__WATCOMC__)
+#include <mem.h>
+#else
+#include <memory.h>
 #endif
-
+#endif
 
 #if !defined(NeXT) && !defined(RISCOS)
-# include <fcntl.h>
+#include <fcntl.h>
 #endif
-
 
 #ifdef SET_UID
 
-# ifndef USG
-#  include <sys/param.h>
-#  include <sys/file.h>
-# endif
+#ifndef USG
+#include <sys/param.h>
+#include <sys/file.h>
+#endif
 
-# ifdef linux
-#  include <sys/file.h>
-# endif
+#ifdef linux
+#include <sys/file.h>
+#endif
 
-# include <pwd.h>
+#include <pwd.h>
 
-# include <unistd.h>
+#include <unistd.h>
 
-# include <sys/stat.h>
+#include <sys/stat.h>
 
-# if defined(SOLARIS)
-#  include <netdb.h>
-# endif
+#if defined(SOLARIS)
+#include <netdb.h>
+#endif
 
 #endif
 
@@ -101,7 +93,4 @@
 
 #include <stdarg.h>
 
-
 #endif
-
-
