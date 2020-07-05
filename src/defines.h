@@ -888,6 +888,11 @@
 #define KEYMAP_MODE_ANGBAND_HJKL    3	// The Angband-like keyset with hjkl movement
 
 
+/*** Icons mapped in "lib/edit/graf-new.prf" ***/
+
+#define ICON_UNKNOWN_ENEMY	0x0A
+#define ICON_ALERT		0x0B
+
 /*** Feature Indexes (see "lib/edit/feature.txt") ***/
 
 /* Nothing */

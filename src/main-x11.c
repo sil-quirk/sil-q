@@ -2317,14 +2317,12 @@ void composite_image(term_data* td, int x1, int y1, int x2, int y2, bool alert)
 {
 	unsigned long pixel, blank, icon_blank;
 
-    static const int alert_icon = 0x0B;
-
-    int alert_x = (0x7F & misc_to_char[alert_icon]) * td->fnt->twid;
-    int alert_y = (0x7F & misc_to_attr[alert_icon]) * td->fnt->hgt;
+    int alert_x = (0x7F & misc_to_char[ICON_ALERT]) * td->fnt->twid;
+    int alert_y = (0x7F & misc_to_attr[ICON_ALERT]) * td->fnt->hgt;
 
     /* Top left corner of the tileset contains the transparency colour. */
     blank = XGetPixel(td->tiles, 0, 0);
-    icon_blank = XGetPixel(td->tiles, alert_x, alert_y);
+    icon_blank = XGetPixel(td->tiles, 0, 0);
 
     for (int k = 0; k < td->fnt->twid; k++)
     {

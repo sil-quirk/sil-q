@@ -1252,10 +1252,8 @@ void listen(monster_type *m_ptr)
 	}
 	else
 	{
-		static int question_mark = 0x0A;
-
-		a = misc_to_attr[question_mark];
-		c = misc_to_char[question_mark];
+		a = misc_to_attr[ICON_UNKNOWN_ENEMY];
+		c = misc_to_char[ICON_UNKNOWN_ENEMY];
 	}
 	
 	/* Display the visual effects */
