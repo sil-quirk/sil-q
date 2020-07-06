@@ -2214,7 +2214,7 @@ static errr Term_text_x11(int x, int y, int n, byte a, cptr s)
 void composite_image(
     term_data* td, int x1, int y1, int x2, int y2, bool alert, bool glow)
 {
-    unsigned long pixel, blank, icon_blank;
+    unsigned long pixel, blank;
 
     int glow_x = (0x7F & misc_to_char[ICON_GLOW]) * td->fnt->twid;
     int glow_y = (0x7F & misc_to_attr[ICON_GLOW]) * td->fnt->hgt;

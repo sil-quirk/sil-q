@@ -819,8 +819,6 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
 
     s16b image = p_ptr->image;
 
-    int floor_num = 0;
-
     /* Monster/Player */
     m_idx = cave_m_idx[y][x];
 
@@ -888,7 +886,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
             /* Normal char */
             c = f_ptr->x_char;
 
-            /* Special lighting effects */
+            /* Skip special light for the player tile. */
             special_lighting_floor(&a, &c, info, cave_light[y][x]);
         }
 
@@ -1076,11 +1074,10 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
 
         /* Get the "player" attr */
 
-        if (arg_graphics == GRAPHICS_NONE)
+        if (graphics_are_ascii())
         {
             a = health_attr(p_ptr->chp, p_ptr->mhp);
         }
-
         else
             a = r_ptr->x_attr;
 
@@ -2802,7 +2799,7 @@ void update_view(void)
     info = fast_cave_info[g];
 
     /* Assume viewable */
-    info |= (CAVE_VIEW | CAVE_FIRE);
+    info |= (CAVE_VIEW | CAVE_FIRE | CAVE_SEEN);
 
     /* Save cave info */
     fast_cave_info[g] = info;
