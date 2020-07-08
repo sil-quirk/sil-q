@@ -1,5 +1,20 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.1 FATAL_ERROR)
-PROJECT(SilQ VERSION 1.5.0 LANGUAGES C)
+PROJECT(SilQ VERSION 1.4.2 LANGUAGES C)
+
+IF (CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    MESSAGE(FATAL_ERROR "Not support to CMake in Windows")
+ENDIF()
+
+OPTION(SUPPORT_NCURSES_FRONTEND "Support to NCurses Frontend." OFF)
+OPTION(SUPPORT_SDL_FRONTEND "Support to SDL Frontend." OFF)
+OPTION(SUPPORT_X11_FRONTEND "Support to X11 Frontend." ON)
+OPTION(SUPPORT_SDL_SOUND "Support to Sound System with SDL." OFF)
+
+# For default, X11 is the frontend, if the user want specific
+# a new frontend is needed set to false (OFF) the frontend X11
+IF (SUPPORT_NCURSES_FRONTEND OR SUPPORT_SDL_FRONTEND)
+    SET(SUPPORT_X11_FRONTEND OFF)
+ENDIF()
 
 ADD_EXECUTABLE(SilQ
         src/automaton.c
@@ -26,7 +41,7 @@ ADD_EXECUTABLE(SilQ
 #        src/main-gtk.c
 #        src/main-nfe.c
 #        src/main-win.c
-        src/main-x11.c
+        $<$<BOOL:${SUPPORT_X11_FRONTEND}>:src/main-x11.c>
 #        src/main-xxx.c
         src/main.c
         src/melee1.c
@@ -57,6 +72,43 @@ ADD_EXECUTABLE(SilQ
         src/z-virt.c)
 
 SET_TARGET_PROPERTIES(SilQ PROPERTIES C_STANDARD 11)
-TARGET_COMPILE_DEFINITIONS(SilQ PRIVATE -DUSE_X11)
-TARGET_LINK_LIBRARIES(SilQ PRIVATE X11)
+
+IF (SUPPORT_X11_FRONTEND)
+
+    INCLUDE(src/cmake/macros/X11_Frontend.cmake)
+    CONFIGURE_X11_FRONTEND(SilQ)
+
+ELSEIF(SUPPORT_NCURSES_FRONTEND)
+
+    INCLUDE(src/cmake/macros/CURSES_Frontend.cmake)
+    CONFIGURE_CURSES_FRONTEND(SilQ)
+
+ELSEIF(SUPPORT_SDL_FRONTEND)
+
+    INCLUDE(src/cmake/macros/SDL_Frontend.cmake)
+    CONFIGURE_SDL_FRONTEND(SilQ)
+
+ELSEIF(SUPPORT_SDL_SOUND)
+
+    INCLUDE(src/cmake/macros/SDL_Sound.cmake)
+    CONFIGURE_SDL_SOUND(SilQ)
+
+ENDIF()
+
+#[[
+For Linux Systems the compilation without the libm library
+throw undefined references to mathematical functions, this requirement
+is only present in Linux Systems.
+
+Wikipedia say: Under Linux and BSD, the mathematical functions
+(as declared in <math.h>) are bundled separately in the mathematical
+library libm. Therefore, if any of those functions are used, the linker
+must be given the directive -lm.
+
+Ref: https://en.wikipedia.org/wiki/C_mathematical_functions#libm
+]]
+TARGET_LINK_LIBRARIES(SilQ PRIVATE $<$<PLATFORM_ID:Linux>:m>)
+
+MESSAGE(STATUS "Moving files needed")
+
 FILE(COPY ${CMAKE_CURRENT_SOURCE_DIR}/lib DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
