@@ -1808,6 +1808,7 @@ void display_inven(void)
 
     int w = MIN(Term->wid, 100);
     int col = w - 11;
+    int offset = use_bigtile ? 6 : 5;
 
     /* Find the "final" slot */
     for (i = 0; i < INVEN_PACK; i++)
@@ -1888,8 +1889,17 @@ void display_inven(void)
         Term_putstr(0, i, 3, attr, tmp_val);
 
         /* Display the symbol */
-        Term_putstr(
-            3, i, 1, object_attr(o_ptr), format("%c", object_char(o_ptr)));
+        if (use_bigtile)
+        {
+            Term_putstr(3, i, 1, object_attr(o_ptr),
+                format("%c", object_char(o_ptr)));
+            Term_putstr(4, i, 1, 255, format("%c", 255));
+        }
+        else
+        {
+            Term_putstr(3, i, 1, object_attr(o_ptr),
+                format("%c", object_char(o_ptr)));
+        }
 
         /* Obtain an item description */
         object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
@@ -1901,10 +1911,10 @@ void display_inven(void)
         attr = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
 
         /* Display the entry itself */
-        Term_putstr(5, i, n, attr, o_name);
+        Term_putstr(offset, i, n, attr, o_name);
 
         /* Erase the rest of the line */
-        Term_erase(5 + n, i, 255);
+        Term_erase(offset + n, i, 255);
 
         /* Display the weight if needed */
         if (o_ptr->weight)
@@ -1942,6 +1952,7 @@ void display_equip(void)
 
     int w = MIN(Term->wid, 100);
     int col = w - 11;
+    int offset = use_bigtile ? 6 : 5;
 
     /* Display the equipment */
     for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
@@ -1978,9 +1989,17 @@ void display_equip(void)
         Term_putstr(0, i - INVEN_WIELD, 3, attr, tmp_val);
 
         /* Display the symbol */
-        Term_putstr(3, i - INVEN_WIELD, 1, TERM_WHITE, " ");
-        Term_putstr(3, i - INVEN_WIELD, 1, object_attr(o_ptr),
-            format("%c", object_char(o_ptr)));
+        if (use_bigtile)
+        {
+            Term_putstr(3, i - INVEN_WIELD, 1, object_attr(o_ptr),
+                format("%c", object_char(o_ptr)));
+            Term_putstr(4, i - INVEN_WIELD, 1, 255, format("%c", 255));
+        }
+        else
+        {
+            Term_putstr(3, i - INVEN_WIELD, 1, object_attr(o_ptr),
+                format("%c", object_char(o_ptr)));
+        }
 
         /* Obtain an item description */
         if (o_ptr->tval)
@@ -1999,10 +2018,10 @@ void display_equip(void)
         attr = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
 
         /* Display the entry itself */
-        Term_putstr(5, i - INVEN_WIELD, n, attr, o_name);
+        Term_putstr(offset, i - INVEN_WIELD, n, attr, o_name);
 
         /* Erase the rest of the line */
-        Term_erase(5 + n, i - INVEN_WIELD, 255);
+        Term_erase(offset + n, i - INVEN_WIELD, 255);
 
         /* Display the weight (if needed) */
         if (o_ptr->weight)
