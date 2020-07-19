@@ -6317,7 +6317,7 @@ void create_smithing_item(void)
 
 #define MAIN_MENU_MAX 18
 
-#define COL_MAIN 30
+#define COL_MAIN 29
 
 /*
  * Performs the interface and selection work for the main menu.
