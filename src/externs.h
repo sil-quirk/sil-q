@@ -739,6 +739,7 @@ extern void teleport_player_to(int ny, int nx);
 extern void teleport_towards(int oy, int ox, int ny, int nx);
 extern void teleport_player_level(void);
 extern void stun_monster(monster_type* m_ptr, int stun);
+extern u16b bolt_pict(int y, int x, int ny, int nx, int typ);
 extern void take_hit(int dam, cptr kb_str);
 extern bool hates_acid(const object_type* o_ptr);
 extern bool hates_elec(const object_type* o_ptr);

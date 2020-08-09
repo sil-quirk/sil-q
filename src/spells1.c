@@ -463,7 +463,7 @@ static byte spell_color(int type)
  *
  * If the distance is not "one", we (may) return "*".
  */
-static u16b bolt_pict(int y, int x, int ny, int nx, int typ)
+u16b bolt_pict(int y, int x, int ny, int nx, int typ)
 {
     int base;
 

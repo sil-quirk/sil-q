@@ -3654,9 +3654,6 @@ void do_cmd_fire(int quiver)
     monster_type* m_ptr;
     monster_race* r_ptr;
 
-    byte missile_attr;
-    char missile_char;
-
     char o_name[80];
     char punctuation[20];
 
@@ -3787,10 +3784,6 @@ void do_cmd_fire(int quiver)
     /* Describe the object */
     object_desc(o_name, sizeof(o_name), i_ptr, FALSE, 3);
 
-    /* Find the color and symbol for the object for throwing */
-    missile_attr = object_attr(i_ptr);
-    missile_char = object_char(i_ptr);
-
     /* Take a turn */
     p_ptr->energy_use = 100;
 
@@ -3850,6 +3843,9 @@ void do_cmd_fire(int quiver)
         /* Project along the path */
         for (i = 0; i < path_n; ++i)
         {
+            int oy = y;
+            int ox = x;
+
             int ny = GRID_Y(path_g[i]);
             int nx = GRID_X(path_g[i]);
 
@@ -3869,8 +3865,16 @@ void do_cmd_fire(int quiver)
                     /* Only do visuals if the player can "see" the missile */
                     if (panel_contains(ny, nx))
                     {
-                        /* Visual effects */
-                        print_rel('*', TERM_L_WHITE, ny, nx);
+                        /* Obtain the bolt pict */
+                        u16b p = bolt_pict(y, x, y, x, GF_ARROW);
+
+                        /* Extract attr/char */
+                        byte a = PICT_A(p);
+                        char c = PICT_C(p);
+
+                        /* Display the visual effects */
+                        print_rel(c, a, ny, nx);
+
                         move_cursor_relative(ny, nx);
                         Term_fresh();
                         Term_xtra(TERM_XTRA_DELAY, 25 * op_ptr->delay_factor);
@@ -3916,8 +3920,16 @@ void do_cmd_fire(int quiver)
             /* Only do visuals if the player can "see" the missile */
             if (panel_contains(y, x) && player_can_see_bold(y, x))
             {
-                /* Visual effects */
-                print_rel(missile_char, missile_attr, y, x);
+                /* Obtain the bolt pict */
+                u16b p = bolt_pict(oy, ox, y, x, GF_ARROW);
+
+                /* Extract attr/char */
+                byte a = PICT_A(p);
+                char c = PICT_C(p);
+
+                /* Display the visual effects */
+                print_rel(c, a, y, x);
+
                 move_cursor_relative(y, x);
                 Term_fresh();
                 Term_xtra(TERM_XTRA_DELAY, msec);
