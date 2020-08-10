@@ -8,7 +8,7 @@
 
 CC = gcc
 WRES = windres
-LIBS = -s -mwindows -e _mainCRTStartup -lwinmm
+LIBS = -s -mwindows -e _mainCRTStartup -lwinmm -lmsimg32
 CFLAGS = -Wall -O2 -fno-strength-reduce -DWINDOWS
 
 EXOBJS = \
