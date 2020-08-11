@@ -338,9 +338,6 @@
  * but has Mac OS/Windows-like user interface
  */
 #ifdef MACH_O_CARBON
-#ifdef PRIVATE_USER_PATH
-#undef PRIVATE_USER_PATH
-#endif
 #ifdef SAVEFILE_USE_UID
 #undef SAVEFILE_USE_UID
 #endif
