@@ -900,21 +900,19 @@ static int compare_advances(const void *ap, const void *bp)
  */
 + (NSString *)libDirectoryPath
 {
-    ////half NSString *bundleLibPath = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent: AngbandDirectoryNameLib];
-    NSString *bundleLibPath = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent: @"../../../lib"]; ////half
+    NSString *bundleLibPath = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent: AngbandDirectoryNameLib];
     BOOL isDirectory = NO;
     BOOL libExists = [[NSFileManager defaultManager] fileExistsAtPath: bundleLibPath isDirectory: &isDirectory];
 
     if( !libExists || !isDirectory )
     {
         NSLog( @"[%@ %@]: can't find %@/ in bundle: isDirectory: %d libExists: %d", NSStringFromClass( [self class] ), NSStringFromSelector( _cmd ), AngbandDirectoryNameLib, isDirectory, libExists );
-        ////half NSRunAlertPanel( @"Missing Resources", @"Angband was unable to find required resources and must quit. Please report a bug on the Angband forums.", @"Quit", nil, nil );
-        NSRunAlertPanel( @"Missing Resources", @"Sil was unable to find the 'lib' folder, which should be in the same folder as the application, so must quit. Please report a bug on the Angband forums.", @"Quit", nil, nil ); ////half
+        NSRunAlertPanel( @"Missing Resources", @"Sil was unable to find the 'lib' folder, which should be in Sil.app/Contents/Resources, so must quit. Please report a bug on the Angband forums.", @"Quit", nil, nil );
+
         exit( 0 );
     }
 
-    // angband requires the trailing slash for the directory path
-    return [bundleLibPath stringByAppendingString: @"/"];
+    return bundleLibPath;
 }
 
 /**
@@ -922,16 +920,81 @@ static int compare_advances(const void *ap, const void *bp)
  */
 ////half + (NSString *)angbandDocumentsPath
 ////half {
-    // angband requires the trailing slash, so we'll just add it here; NSString won't care about it when we use the base path for other things
 ////half     NSString *documents = [NSSearchPathForDirectoriesInDomains( NSDocumentDirectory, NSUserDomainMask, YES ) lastObject];
 
 ////half #if defined(SAFE_DIRECTORY)
 ////half     NSString *versionedDirectory = [NSString stringWithFormat: @"%@-%s", AngbandDirectoryNameBase, VERSION_STRING];
-////half     return [[documents stringByAppendingPathComponent: versionedDirectory] stringByAppendingString: @"/"];
+////half     return [documents stringByAppendingPathComponent: versionedDirectory];
 ////half #else
-////half     return [[documents stringByAppendingPathComponent: AngbandDirectoryNameBase] stringByAppendingString: @"/"];
+////half     return [documents stringByAppendingPathComponent: AngbandDirectoryNameBase];
 ////half #endif
 ////half }
+
+/**
+ * Adjust directory paths as needed to correct for any differences needed by
+ * Angband.  \c init_file_paths() currently requires that all paths provided have
+ * a trailing slash and all other platforms honor this.
+ *
+ * \param originalPath The directory path to adjust.
+ * \return A path suitable for Angband or nil if an error occurred.
+ */
+static NSString *AngbandCorrectedDirectoryPath(NSString *originalPath)
+{
+    if ([originalPath length] == 0) {
+        return nil;
+    }
+
+    if (![originalPath hasSuffix: @"/"]) {
+        return [originalPath stringByAppendingString: @"/"];
+    }
+
+    return originalPath;
+}
+
+#ifdef PRIVATE_USER_PATH
+/**
+ * Create the directories for the user's files as needed.
+ * Is the same as create_user_dir() in main.c.  Porting create_needed_dirs()
+ * from Angband would avoid the code repetition.
+ */
+static void create_user_dir(void)
+{
+    char dirpath[1024];
+    char subdirpath[1024];
+
+    /* Get an absolute path from the filename */
+    path_parse(dirpath, sizeof(dirpath), PRIVATE_USER_PATH);
+
+    /* Create the directory */
+    mkdir(dirpath, 0700);
+
+    /* Build the path to the variant-specific sub-directory */
+    path_build(subdirpath, sizeof(subdirpath), dirpath, VERSION_NAME);
+
+    /* Create the directory */
+    mkdir(subdirpath, 0700);
+
+#ifdef USE_PRIVATE_SAVE_PATH
+    /* Build the path to the data sub-directory */
+    path_build(dirpath, sizeof(dirpath), subdirpath, "data");
+
+    /* Create the directory */
+    mkdir(dirpath, 0700);
+
+    /* Build the path toe the scores sub-directory */
+    path_build(dirpath, sizeof(dirpath), subdirpath, "scores");
+
+    /* Create the directory */
+    mkdir(dirpath, 0700);
+
+    /* Build the path to the savefile sub-directory */
+    path_build(dirpath, sizeof(dirpath), subdirpath, "save");
+
+    /* Create the directory */
+    mkdir(dirpath, 0700);
+#endif /* USE_PRIVATE_SAVE_PATH */
+}
+#endif
 
 /**
  *  Give Angband the base paths that should be used for the various directories it needs. It will create any needed directories.
@@ -939,14 +1002,19 @@ static int compare_advances(const void *ap, const void *bp)
 + (void)prepareFilePathsAndDirectories
 {
     char libpath[PATH_MAX + 1] = "\0";
-    ////half char basepath[PATH_MAX + 1] = "\0";
+    NSString *libDirectoryPath = AngbandCorrectedDirectoryPath([self libDirectoryPath]);
+    [libDirectoryPath getFileSystemRepresentation: libpath maxLength: sizeof(libpath)];
 
-    [[self libDirectoryPath] getFileSystemRepresentation: libpath maxLength: sizeof(libpath)];
-    ////half [[self angbandDocumentsPath] getFileSystemRepresentation: basepath maxLength: sizeof(basepath)];
+    ////half char basepath[PATH_MAX + 1] = "\0";
+    ////half NSString *angbandDocumentsPath = AngbandCorrectedDirectoryPath([self angbandDocumentsPath]);
+    ////half [angbandDocumentsPath getFileSystemRepresentation: basepath maxLength: sizeof(basepath)];
 
     ////init_file_paths( libpath, libpath, basepath );
     init_file_paths( libpath ); ////
     ////create_needed_dirs();
+#ifdef PRIVATE_USER_PATH
+    create_user_dir();
+#endif
 }
 
 

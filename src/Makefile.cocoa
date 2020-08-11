@@ -17,7 +17,7 @@ ARCHFLAGS = $(addprefix -arch ,$(ARCHS))
 WARNINGS = -W -Wall -Wno-unused-parameter -Wno-missing-field-initializers
 JUST_C = -std=c99 -Wdeclaration-after-statement
 OBJ_CFLAGS = -std=c99 -x objective-c
-CFLAGS = -g -I. $(WARNINGS) $(OPT) -DMACH_O_CARBON -DCOCOA -DHAVE_MKSTEMP \
+CFLAGS = -g -I. $(WARNINGS) $(OPT) -DMACH_O_CARBON -DCOCOA -DUSE_PRIVATE_SAVE_PATH -DPRIVATE_USER_PATH=\"~/Documents/Sil\" -DHAVE_MKSTEMP \
 	-fno-stack-protector -mmacosx-version-min=10.5 $(ARCHFLAGS)
 LIBS = -framework Cocoa
 # Fix for bug #1663: Set the deployment target via environment variable
@@ -121,6 +121,16 @@ install: $(EXE) $(ICONFILES) $(PLIST)
 	@mkdir -p $(APPBIN)
 	@mkdir -p $(APPRES)
 	@mkdir -p $(APPRES)/English.lproj/MainMenu.nib 
+	@mkdir -p $(APPRES)/lib/docs
+	@mkdir -p $(APPRES)/lib/edit
+	@mkdir -p $(APPRES)/lib/pref
+	@mkdir -p $(APPRES)/lib/xtra
+
+	@echo copying files...
+	@cp ../lib/docs/*.txt $(APPRES)/lib/docs
+	@cp ../lib/edit/*.txt $(APPRES)/lib/edit
+	@cp ../lib/pref/*.prf $(APPRES)/lib/pref
+	@cp ../lib/xtra/tutorial $(APPRES)/lib/xtra
 
 	install -m 755 $(EXE) $(APPBIN)
 	install -m 644 $(ICONFILES) $(APPRES)
