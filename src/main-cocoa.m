@@ -1087,8 +1087,12 @@ static void create_user_dir(void)
 
     use_background_colors = TRUE;
 
+    [pool drain];
+
     while (1)
 	{
+		pool = [[NSAutoreleasePool alloc] init];
+
 		/* Let the player choose a savefile or start a new game */
 		if (!game_in_progress)
 		{
@@ -1124,7 +1128,6 @@ static void create_user_dir(void)
 		/* Handle pending events (most notably update) and flush input */
 		Term_flush();
         
-        [pool drain];
 
 		/*
 		 * Play a game -- "new_game" is set by "new", "open" or the open document
@@ -1140,13 +1143,8 @@ static void create_user_dir(void)
 		
 		// game no longer in progress
 		game_in_progress = FALSE;
+		[pool drain];
 	}
-    
-////half Sil-y: end inserted block
-    
-////    [pool drain];
-////    play_game();
-    
 }
 
 + (void)endGame
