@@ -2942,14 +2942,6 @@ static errr cocoa_get_cmd(cmd_context context, bool wait)
 
 #endif ////
 
-/* Return the directory into which we put data (save and config) */
-static NSString *get_data_directory(void)
-{
-    ////half return [@"~/Documents/Angband/" stringByExpandingTildeInPath];
-    
-    return [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@"../../../lib/"]; ////half
-}
-
 
 //// Sil-y: begin inserted block
 //// Sil-y: the code of this function open_game() is simply copied from
@@ -2959,16 +2951,19 @@ static void open_game(void)
 {
     NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
     BOOL selectedSomething = NO;
+    char parsedPath[1024] = "";
     int panelResult;
-    NSString* startingDirectory;
-    
+
     /* Get where we think the save files are */
-    startingDirectory = [get_data_directory() stringByAppendingPathComponent:@"/save/"];
-    
+    path_parse(parsedPath, sizeof(parsedPath), ANGBAND_DIR_SAVE);
+    NSURL *startingDirectoryURL =
+        [NSURL fileURLWithPath:[NSString stringWithCString:parsedPath encoding:NSASCIIStringEncoding]
+            isDirectory:YES];
+
     /* Get what we think the default save file name is. Deafult to the empty string. */
     NSString *savefileName = [[NSUserDefaults angbandDefaults] stringForKey:@"SaveFile"];
     if (! savefileName) savefileName = @"";
-    
+
     /* Set up an open panel */
     NSOpenPanel* panel = [NSOpenPanel openPanel];
     [panel setCanChooseFiles:YES];
@@ -2976,9 +2971,11 @@ static void open_game(void)
     [panel setResolvesAliases:YES];
     [panel setAllowsMultipleSelection:YES];
     [panel setTreatsFilePackagesAsDirectories:YES];
-    
+    [panel setDirectoryURL:startingDirectoryURL];
+    [panel setNameFieldStringValue:savefileName];
+
     /* Run it */
-    panelResult = [panel runModalForDirectory:startingDirectory file:savefileName types:nil];
+    panelResult = [panel runModal];
     if (panelResult == NSOKButton)
     {
         NSArray* filenames = [panel filenames];
@@ -3004,16 +3001,16 @@ static void open_game(void)
 }
 
 /*
- * Open the tutorial savefile, stored in apex/
+ * Open the tutorial savefile, stored in xtra/
  */
 static void open_tutorial(void)
 {
     NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
     NSString* savefileName;
-    
+
     /* Get the location of the tutorial savefile */
-    savefileName = [get_data_directory() stringByAppendingPathComponent:@"/apex/tutorial"];
-    
+    savefileName = [[NSString stringWithCString:ANGBAND_DIR_XTRA encoding:NSASCIIStringEncoding] stringByAppendingPathComponent:@"/tutorial"];
+
     /* Put it in savefile */
     [savefileName getFileSystemRepresentation:savefile maxLength:sizeof savefile];
     
@@ -3460,10 +3457,15 @@ static void cocoa_file_open_hook(const char *path, file_type ftype)
 static bool cocoa_get_file(const char *suggested_name, char *path, size_t len)
 {
     NSSavePanel *panel = [NSSavePanel savePanel];
-    NSString *directory = [NSString stringWithCString:ANGBAND_DIR_USER encoding:NSASCIIStringEncoding];
+    char parsedPath[1024] = "";
+
+    path_parse(parsedPath, sizeof(parsedPath), ANGBAND_DIR_USER);
+    NSURL *directoryURL = [NSURL URLWithString:[NSString stringWithCString:parsedPath encoding:NSASCIIStringEncoding]];
     NSString *filename = [NSString stringWithCString:suggested_name encoding:NSASCIIStringEncoding];
 
-    if ([panel runModalForDirectory:directory file:filename] == NSOKButton) {
+    [panel setDirectoryURL:directoryURL];
+    [panel setNameFieldStringValue:filename];
+    if ([panel runModal] == NSOKButton) {
         const char *p = [[[panel URL] path] UTF8String];
         my_strcpy(path, p, len);
         return TRUE;
@@ -3611,15 +3613,18 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
     BOOL selectedSomething = NO;
     int panelResult;
-    NSString* startingDirectory;
-    
+    char parsedPath[1024] = "";
+
     /* Get where we think the save files are */
-    startingDirectory = [get_data_directory() stringByAppendingPathComponent:@"/save/"];
-    
+    path_parse(parsedPath, sizeof(parsedPath), ANGBAND_DIR_SAVE);
+    NSURL *startingDirectoryURL =
+        [NSURL fileURLWithPath:[NSString stringWithCString:parsedPath encoding:NSASCIIStringEncoding]
+            isDirectory:YES];
+
     /* Get what we think the default save file name is. Deafult to the empty string. */
     NSString *savefileName = [[NSUserDefaults angbandDefaults] stringForKey:@"SaveFile"];
     if (! savefileName) savefileName = @"";
-    
+
     /* Set up an open panel */
     NSOpenPanel* panel = [NSOpenPanel openPanel];
     [panel setCanChooseFiles:YES];
@@ -3627,9 +3632,11 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     [panel setResolvesAliases:YES];
     [panel setAllowsMultipleSelection:YES];
     [panel setTreatsFilePackagesAsDirectories:YES];
-    
+    [panel setDirectoryURL:startingDirectoryURL];
+    [panel setNameFieldStringValue:savefileName];
+
     /* Run it */
-    panelResult = [panel runModalForDirectory:startingDirectory file:savefileName types:nil];
+    panelResult = [panel runModal];
     if (panelResult == NSOKButton)
     {
         NSArray* filenames = [panel filenames];
