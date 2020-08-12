@@ -12,6 +12,20 @@
 
 #include "init.h"
 
+#ifdef RUNTIME_PRIVATE_USER_PATH
+/*
+ * This is a hook so the main program can set a runtime value for the private
+ * user path rather than the compile-time one in PRIVATE_USER_PATH.  It is
+ * used by the OS X front end.  An alternative would be to have init_paths()
+ * take at least two arguments, one specifying the read-only paths and another
+ * for the ones where stuff is written.  See version 4 of Angband for one
+ * implementation (with three arguments) of that.  To use this hook, also
+ * set PRIVATE_USER_PATH (the contents don't matter), and, if desired,
+ * USE_PRIVATE_SAVE_PATH.
+ */
+extern const char *get_runtime_user_path(void);
+#endif
+
 /*
  * This file is used to initialize various variables and arrays for the
  * Sil game.  Note the use of "fd_read()" and "fd_write()" to bypass
@@ -136,7 +150,11 @@ void init_file_paths(char* path)
 #ifdef PRIVATE_USER_PATH
 
     /* Build the path to the user specific directory */
+#ifdef RUNTIME_PRIVATE_USER_PATH
+    path_build(buf, sizeof(buf), get_runtime_user_path(), VERSION_NAME);
+#else
     path_build(buf, sizeof(buf), PRIVATE_USER_PATH, VERSION_NAME);
+#endif
 
     /* Build a relative path name */
     ANGBAND_DIR_USER = string_make(buf);
