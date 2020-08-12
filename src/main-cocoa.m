@@ -3712,8 +3712,15 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
         }
         else
         {
+            /*
+             * Another window is only usable after Term_init_cocoa() has
+             * been called for it.  For Angband, if window_flag[i] is nonzero
+             * then that has happened for window i.  For Sil, that is not the
+             * case so also test angband_term[i]->data.
+             */
             NSInteger subwindowNumber = tag - AngbandWindowMenuItemTagBase;
-            return (op_ptr->window_flag[subwindowNumber] > 0);
+            return (angband_term[subwindowNumber]->data != 0
+                    && op_ptr->window_flag[subwindowNumber] > 0);
         }
 
         return NO;
