@@ -6,6 +6,10 @@
 	<string>English</string>
 	<key>CFBundleExecutable</key>
 	<string>sil</string>
+	<key>CFBundleDisplayName</key>
+	<string>Sil</string>
+	<key>CFBundleName</key>
+	<string>Sil</string>
 	<key>CFBundleIconFile</key>
 	<string>Sil_Icons</string>
 	<key>CFBundleIdentifier</key>
