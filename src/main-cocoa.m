@@ -951,6 +951,26 @@ static NSString *AngbandCorrectedDirectoryPath(NSString *originalPath)
     return originalPath;
 }
 
+#ifdef RUNTIME_PRIVATE_USER_PATH
+extern const char *get_runtime_user_path(void)
+{
+    static int needs_init = 1;
+    static char path[1024];
+
+    if (needs_init) {
+        NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+        NSString *documents = [[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) lastObject]
+            stringByAppendingPathComponent:@"/Sil"];
+
+        [documents getFileSystemRepresentation:path maxLength:sizeof(path)];
+
+        [pool drain];
+        needs_init = 0;
+    }
+    return path;
+}
+#endif
+
 #ifdef PRIVATE_USER_PATH
 /**
  * Create the directories for the user's files as needed.
@@ -963,7 +983,11 @@ static void create_user_dir(void)
     char subdirpath[1024];
 
     /* Get an absolute path from the filename */
+#ifdef RUNTIME_PRIVATE_USER_PATH
+    path_parse(dirpath, sizeof(dirpath), get_runtime_user_path());
+#else
     path_parse(dirpath, sizeof(dirpath), PRIVATE_USER_PATH);
+#endif
 
     /* Create the directory */
     mkdir(dirpath, 0700);
