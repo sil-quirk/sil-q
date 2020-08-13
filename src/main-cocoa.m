@@ -4021,8 +4021,14 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
         return;
     }
 
+    game_in_progress = TRUE;
+    new_game = FALSE;
+
     /* Wake us up in case this arrives while we're sitting at the Welcome screen! */
     wakeup_event_loop();
+    if (initialized) {
+        Term_keypress(ESCAPE);
+    }
 
     [[NSApplication sharedApplication]
         replyToOpenOrPrint:NSApplicationDelegateReplySuccess];
