@@ -3994,26 +3994,38 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     
 }
 
-/* Delegate method that gets called if we're asked to open a file. */
-- (BOOL)application:(NSApplication *)sender openFiles:(NSArray *)filenames
+/**
+ * Delegate method that gets called if we're asked to open a file.
+ */
+- (void)application:(NSApplication *)sender openFiles:(NSArray *)filenames
 {
     /* Can't open a file once we've started */
-    if (game_in_progress) return NO;
-    
+    if (game_in_progress) {
+        [[NSApplication sharedApplication]
+            replyToOpenOrPrint:NSApplicationDelegateReplyFailure];
+        return;
+    }
+
     /* We can only open one file. Use the last one. */
     NSString *file = [filenames lastObject];
-    if (! file) return NO;
-    
+    if (! file) {
+        [[NSApplication sharedApplication]
+            replyToOpenOrPrint:NSApplicationDelegateReplyFailure];
+        return;
+    }
+
     /* Put it in savefile */
-    if (! [file getFileSystemRepresentation:savefile maxLength:sizeof savefile]) return NO;
-    
-    /* Success, remember to load it */
-    ////cmd.command = CMD_LOADFILE;
-    
+    if (! [file getFileSystemRepresentation:savefile maxLength:sizeof savefile]) {
+        [[NSApplication sharedApplication]
+            replyToOpenOrPrint:NSApplicationDelegateReplyFailure];
+        return;
+    }
+
     /* Wake us up in case this arrives while we're sitting at the Welcome screen! */
     wakeup_event_loop();
-    
-    return YES;
+
+    [[NSApplication sharedApplication]
+        replyToOpenOrPrint:NSApplicationDelegateReplySuccess];
 }
 
 @end
