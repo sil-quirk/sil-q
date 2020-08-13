@@ -224,6 +224,13 @@ static NSFont *default_font;
  * defaults */
 - (void)resizeTerminalWithContentRect: (NSRect)contentRect saveToDefaults: (BOOL)saveToDefaults;
 
+/*
+ * Change the minimum size for the window associated with the context.
+ * termIdx is the index for the terminal:  pass it so this function can be
+ * used when self->terminal has not yet been set.
+ */
+- (void)setMinimumWindowSize:(int)termIdx;
+
 /* Called from the view to indicate that it is starting or ending live resize */
 - (void)viewWillStartLiveResize:(AngbandView *)view;
 - (void)viewDidEndLiveResize:(AngbandView *)view;
@@ -813,6 +820,23 @@ static int compare_advances(const void *ap, const void *bp)
     {
         // adjust terminal to fit window with new font; save the new columns and rows since they could be changed
         NSRect contentRect = [self->primaryWindow contentRectForFrameRect: [self->primaryWindow frame]];
+
+        [self setMinimumWindowSize:[self terminalIndex]];
+        NSSize size = self->primaryWindow.contentMinSize;
+        BOOL windowNeedsResizing = NO;
+        if (contentRect.size.width < size.width) {
+            contentRect.size.width = size.width;
+            windowNeedsResizing = YES;
+        }
+        if (contentRect.size.height < size.height) {
+            contentRect.size.height = size.height;
+            windowNeedsResizing = YES;
+        }
+        if (windowNeedsResizing) {
+            size.width = contentRect.size.width;
+            size.height = contentRect.size.height;
+            [self->primaryWindow setContentSize:size];
+        }
         [self resizeTerminalWithContentRect: contentRect saveToDefaults: YES];
     }
 
@@ -1436,6 +1460,24 @@ static NSMenuItem *superitem(NSMenuItem *self)
     Term_activate( old );
 }
 
+- (void)setMinimumWindowSize:(int)termIdx
+{
+    NSSize minsize;
+
+    if (termIdx == 0) {
+       minsize.width = 80;
+       minsize.height = 24;
+    } else {
+       minsize.width = 1;
+       minsize.height = 1;
+    }
+    minsize.width =
+        minsize.width * self->tileSize.width + self->borderSize.width * 2.0;
+    minsize.height =
+        minsize.height * self->tileSize.height + self->borderSize.height * 2.0;
+    [[self makePrimaryWindow] setContentMinSize:minsize];
+}
+
 - (void)saveWindowVisibleToDefaults: (BOOL)windowVisible
 {
 	int termIndex = [self terminalIndex];
@@ -1743,8 +1785,8 @@ static void Term_init_cocoa(term *t)
         ////half [window setTitle:[NSString stringWithFormat:@"Term %d", termIdx]];
         [window setTitle:[NSString stringWithUTF8String: angband_term_name[termIdx]]]; ////half
     }
-    
-    
+    [context setMinimumWindowSize:termIdx];
+
     /* If this is the first term, and we support full screen (Mac OS X Lion or later), then allow it to go full screen (sweet). Allow other terms to be FullScreenAuxilliary, so they can at least show up. Unfortunately in Lion they don't get brought to the full screen space; but they would only make sense on multiple displays anyways so it's not a big loss. */
     if ([window respondsToSelector:@selector(toggleFullScreen:)])
     {
