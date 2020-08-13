@@ -1090,6 +1090,9 @@ static void create_user_dir(void)
     // initialize file paths
     [self prepareFilePathsAndDirectories];
 
+    /* Note the "system" */
+    ANGBAND_SYS = "mac";
+
     // load preferences
     load_prefs();
     
@@ -1107,9 +1110,6 @@ static void create_user_dir(void)
     
 	/* Register the sound hook */
 ////	sound_hook = play_sound;
-    
-    /* Note the "system" */
-    ANGBAND_SYS = "mac";
     
     /* Initialize some save file stuff */
     player_egid = getegid();
