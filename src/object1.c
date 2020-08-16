@@ -1985,7 +1985,7 @@ void display_equip(void)
 
         /* Display the symbol */
         if (!use_graphics && !o_ptr->tval) {
-            /* object_attr() for an empty slot gives '\0'.  Use ' ' instead. */
+            /* object_char() for an empty slot gives '\0'.  Use ' ' instead. */
             Term_putch(3, i - INVEN_WIELD, attr, ' ');
         } else {
             Term_putch(3, i - INVEN_WIELD, object_attr(o_ptr),
