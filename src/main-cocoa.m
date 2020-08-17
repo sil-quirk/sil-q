@@ -630,7 +630,7 @@ static void hook_quit(const char * str);
 static void load_prefs(void);
 static void load_sounds(void);
 static void init_windows(void);
-static void open_game(void); ////half
+static BOOL open_game(void); ////half
 static void open_tutorial(void); ////half
 static void handle_open_when_ready(void);
 static void play_sound(int event);
@@ -3728,10 +3728,8 @@ static void init_windows(void)
 
 
 //// Sil-y: begin inserted block
-//// Sil-y: the code of this function open_game() is simply copied from
-////        openGame, as I couldn't work out how to call openGame from within beginGame
 
-static void open_game(void)
+static BOOL open_game(void)
 {
     NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
     BOOL selectedSomething = NO;
@@ -3782,6 +3780,8 @@ static void open_game(void)
     }
     
     [pool drain];
+
+    return selectedSomething;
 }
 
 /*
@@ -4418,57 +4418,9 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 
 - (IBAction)openGame:sender
 {
-    NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
-    BOOL selectedSomething = NO;
-    int panelResult;
-    char parsedPath[1024] = "";
-
-    /* Get where we think the save files are */
-    path_parse(parsedPath, sizeof(parsedPath), ANGBAND_DIR_SAVE);
-    NSURL *startingDirectoryURL =
-        [NSURL fileURLWithPath:[NSString stringWithCString:parsedPath encoding:NSASCIIStringEncoding]
-            isDirectory:YES];
-
-    /* Get what we think the default save file name is. Deafult to the empty string. */
-    NSString *savefileName = [[NSUserDefaults angbandDefaults] stringForKey:@"SaveFile"];
-    if (! savefileName) savefileName = @"";
-
-    /* Set up an open panel */
-    NSOpenPanel* panel = [NSOpenPanel openPanel];
-    [panel setCanChooseFiles:YES];
-    [panel setCanChooseDirectories:NO];
-    [panel setResolvesAliases:YES];
-    [panel setAllowsMultipleSelection:YES];
-    [panel setTreatsFilePackagesAsDirectories:YES];
-    [panel setDirectoryURL:startingDirectoryURL];
-    [panel setNameFieldStringValue:savefileName];
-
-    /* Run it */
-    panelResult = [panel runModal];
-    if (panelResult == NSOKButton)
-    {
-        NSArray* filenames = [panel filenames];
-        if ([filenames count] > 0)
-        {
-            selectedSomething = [[filenames objectAtIndex:0] getFileSystemRepresentation:savefile maxLength:sizeof savefile];
-        }
-    }
-    
-    if (selectedSomething)
-    {
-        
-        /* Remember this so we can select it by default next time */
-        record_current_savefile();
-        
-        /* Game is in progress */
-        game_in_progress = TRUE;
-        ////cmd.command = CMD_LOADFILE;
-        
+    if (open_game()) {
         Term_keypress(ESCAPE); //// half: needed to break out of the text-based start menu
-
     }
-
-    [pool drain];
 }
 
 - (IBAction)saveGame:sender
