@@ -3261,6 +3261,7 @@ static errr Term_text_cocoa(int x, int y, int n, byte_hack a, const char *cp)
     return (0);
 }
 
+#if 0
 /* From the Linux mbstowcs(3) man page:
  *   If dest is NULL, n is ignored, and the conversion  proceeds  as  above,
  *   except  that  the converted wide characters are not written out to mem‐
@@ -3309,6 +3310,7 @@ static size_t Term_mbcs_cocoa(wchar_t *dest, const char *src, int n)
     }
     return count;
 }
+#endif
 
 /**
  * Determine if the big tile mode (each tile is 2 grids in width) should be
@@ -3403,7 +3405,7 @@ static term *term_data_link(int i)
     newterm->bigcurs_hook = Term_bigcurs_cocoa;
     newterm->text_hook = Term_text_cocoa;
     newterm->pict_hook = Term_pict_cocoa;
-    ////newterm->mbcs_hook = Term_mbcs_cocoa;
+    /* newterm->mbcs_hook = Term_mbcs_cocoa; */
     
     /* Global pointer */
     angband_term[i] = newterm;
