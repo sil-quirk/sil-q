@@ -62,17 +62,6 @@ static NSInteger const AngbandCommandMenuItemTagBase = 2000;
 # define USE_LIVE_RESIZE_CACHE 0
 #endif
 
-/*
- * Support the improved game command handling
- */
-////#include "textui.h"
-////static game_command cmd = { CMD_NULL, 0 };
-
-
-/* Our command-fetching function */
-////static errr cocoa_get_cmd(cmd_context context, bool wait);
-
-
 /* Application defined event numbers */
 enum
 {
@@ -1329,9 +1318,12 @@ static void create_user_dir(void)
 + (void)beginGame
 {
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-    
-    //set the command hook
-////    cmd_get_hook = cocoa_get_cmd;
+
+    /* Used by Angband but not by Sil. */
+#if 0
+    /* Set the command hook */
+    cmd_get_hook = textui_get_cmd;
+#endif
     
     /* Hooks in some "z-util.c" hooks */
     plog_aux = hook_plog;
@@ -3733,47 +3725,6 @@ static void init_windows(void)
     /* Activate the primary term */
     Term_activate(primary);
 }
-
-
-/*
- *    Run the event loop and return a gameplay status to init_angband
- */
-
-#if 0 ////
-
-static errr get_cmd_init(void)
-{     
-    if (cmd.command == CMD_NULL)
-    {
-        /* Prompt the user */ 
-        prt("[Choose 'New' or 'Open' from the 'File' menu]", 23, 17);
-        Term_fresh();
-        
-        while (cmd.command == CMD_NULL) {
-            NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-            NSEvent *event = [NSApp nextEventMatchingMask:NSAnyEventMask untilDate:[NSDate distantFuture] inMode:NSDefaultRunLoopMode dequeue:YES];
-            if (event) [NSApp sendEvent:event];
-            [pool drain];        
-        }
-    }
-    
-    /* Push the command to the game. */
-    cmd_insert_s(&cmd);
-    
-    return 0; 
-} 
-
-
-/* Return a command */
-static errr cocoa_get_cmd(cmd_context context, bool wait)
-{
-    if (context == CMD_INIT) 
-        return get_cmd_init();
-    else 
-        return textui_get_cmd(context, wait);
-}
-
-#endif ////
 
 
 //// Sil-y: begin inserted block
