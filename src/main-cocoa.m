@@ -3918,6 +3918,8 @@ static BOOL contains_angband_view(NSView *view)
  */
 static void AngbandHandleEventMouseDown( NSEvent *event )
 {
+	/* Sil doesn't use mouse events; Angband does.  Comment it out. */
+#if 0
 	AngbandContext *angbandContext = [[[event window] contentView] angbandContext];
 	AngbandContext *mainAngbandContext = angband_term[0]->data;
 
@@ -3962,9 +3964,10 @@ static void AngbandHandleEventMouseDown( NSEvent *event )
 			button |= (angbandModifiers & 0x0F) << 4; // encode modifiers in the button number (see Term_mousepress())
 #endif
 
-////half			Term_mousepress(x, y, button);
+			Term_mousepress(x, y, button);
 		}
 	}
+#endif
 
 	/* Pass click through to permit focus change, resize, etc. */
 	[NSApp sendEvent:event];
