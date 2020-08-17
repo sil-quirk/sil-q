@@ -125,12 +125,14 @@ install: $(EXE) $(ICONFILES) $(PLIST)
 	@mkdir -p $(APPRES)/lib/edit
 	@mkdir -p $(APPRES)/lib/pref
 	@mkdir -p $(APPRES)/lib/xtra
+	@mkdir -p $(APPRES)/lib/xtra/graf
 
 	@echo copying files...
 	@cp ../lib/docs/*.txt $(APPRES)/lib/docs
 	@cp ../lib/edit/*.txt $(APPRES)/lib/edit
 	@cp ../lib/pref/*.prf $(APPRES)/lib/pref
 	@cp ../lib/xtra/tutorial $(APPRES)/lib/xtra
+	@cp ../lib/xtra/graf/16x16_microchasm.png $(APPRES)/lib/xtra/graf
 
 	install -m 755 $(EXE) $(APPBIN)
 	install -m 644 $(ICONFILES) $(APPRES)

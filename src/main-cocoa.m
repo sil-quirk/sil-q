@@ -207,6 +207,8 @@ struct PendingChanges
      * to indicate that the cursor is not displayed.
      */
     int xcurs, ycurs;
+    /* Is nonzero if the cursor should be drawn at double the tile width. */
+    int bigcurs;
     /* Record whether the changes include any text, picts, or wipes. */
     int has_text, has_pict, has_wipe;
     /*
@@ -244,6 +246,7 @@ static struct PendingChanges* create_pending_changes(int ncol, int nrow)
     pc->nrow = nrow;
     pc->xcurs = -1;
     pc->ycurs = -1;
+    pc->bigcurs = 0;
     pc->has_text = 0;
     pc->has_pict = 0;
     pc->has_wipe = 0;
@@ -279,6 +282,7 @@ static void clear_pending_changes(struct PendingChanges* pc)
 {
     pc->xcurs = -1;
     pc->ycurs = -1;
+    pc->bigcurs = 0;
     pc->has_text = 0;
     pc->has_pict = 0;
     pc->has_wipe = 0;
@@ -327,6 +331,7 @@ static int resize_pending_changes(struct PendingChanges* pc, int nrow)
     pc->nrow = nrow;
     pc->xcurs = -1;
     pc->ycurs = -1;
+    pc->bigcurs = 0;
     pc->has_text = 0;
     pc->has_pict = 0;
     pc->has_wipe = 0;
@@ -587,31 +592,31 @@ static void AngbandUpdateWindowVisibility(void)
  */
 static CGImageRef pict_image;
 
-/*
+/**
  * Numbers of rows and columns in a tileset,
  * calculated by the PICT/PNG loading code
  */
 static int pict_cols = 0;
 static int pict_rows = 0;
 
-/*
- * Value used to signal that we using ASCII, not graphical tiles.
- */ 
-#define GRAF_MODE_NONE 0
-
-/*
- * Requested graphics mode (as a grafID).
- * The current mode is stored in current_graphics_mode.
+/**
+ * Width and height of each tile in the current tile set.
  */
-static int graf_mode_req = 0;
+static int pict_cell_width = 0;
+static int pict_cell_height = 0;
 
-/*
- * Helper function to check the various ways that graphics can be enabled, guarding against NULL
+/**
+ * Will be nonzero if use_bigtile has changed since the last redraw.
  */
-////static BOOL graphics_are_enabled(void)
-////{
-////    return current_graphics_mode && current_graphics_mode->grafID != GRAPHICS_NONE;
-////}
+static int tile_multipliers_changed = 0;
+
+/**
+ * Helper function to check the various ways that graphics can be enabled.
+ */
+static BOOL graphics_are_enabled(void)
+{
+     return use_graphics != GRAPHICS_NONE;
+}
 
 /*
  * Hack -- game in progress
@@ -626,6 +631,8 @@ static Boolean new_game = FALSE; ////
 
 
 #pragma mark Prototypes
+static BOOL bigtiles_are_appropriate(void);
+static BOOL redraw_for_tiles_or_term0_font(void);
 static void wakeup_event_loop(void);
 static void hook_plog(const char *str);
 static void hook_quit(const char * str);
@@ -711,9 +718,11 @@ static bool initialized = FALSE;
 
 - (BOOL)useLiveResizeOptimization
 {
-    /* If we have graphics turned off, text rendering is fast enough that we don't need to use a live resize optimization. Note here we are depending on current_graphics_mode being NULL when in text mode. */
-////    return inLiveResize && graphics_are_enabled();
-    return inLiveResize; ////
+    /*
+     * If we have graphics turned off, text rendering is fast enough that we
+     * don't need to use a live resize optimization.
+     */
+    return inLiveResize && graphics_are_enabled();
 }
 
 - (NSSize)baseSize
@@ -905,12 +914,11 @@ static int compare_advances(const void *ap, const void *bp)
 #if USE_LIVE_RESIZE_CACHE
     if (inLiveResize < INT_MAX) inLiveResize++;
     else [NSException raise:NSInternalInconsistencyException format:@"inLiveResize overflow"];
-    
-////    if (inLiveResize == 1 && graphics_are_enabled())
-    if (inLiveResize == 1) ////
+
+    if (inLiveResize == 1 && graphics_are_enabled())
     {
         [self updateImage];
-        
+
         [self setNeedsDisplay:YES]; //we'll need to redisplay everything anyways, so avoid creating all those little redisplay rects
         [self requestRedraw];
     }
@@ -922,12 +930,11 @@ static int compare_advances(const void *ap, const void *bp)
 #if USE_LIVE_RESIZE_CACHE
     if (inLiveResize > 0) inLiveResize--;
     else [NSException raise:NSInternalInconsistencyException format:@"inLiveResize underflow"];
-    
-////    if (inLiveResize == 0 && graphics_are_enabled())
-    if (inLiveResize == 0) ////
+
+    if (inLiveResize == 0 && graphics_are_enabled())
     {
         [self updateImage];
-        
+
         [self setNeedsDisplay:YES]; //we'll need to redisplay everything anyways, so avoid creating all those little redisplay rects
         [self requestRedraw];
     }
@@ -1339,10 +1346,7 @@ static void create_user_dir(void)
 
     // load preferences
     load_prefs();
-    
-	/* Load possible graphics modes */
-////	init_graphics_modes("graphics.txt");
-    
+
     // load sounds
     load_sounds();
     
@@ -1453,20 +1457,13 @@ static void create_user_dir(void)
 - (IBAction)setGraphicsMode:(NSMenuItem *)sender
 {
     /* We stashed the graphics mode ID in the menu item's tag */
-    graf_mode_req = [sender tag];
+    arg_graphics = [sender tag];
 
     /* Stash it in UserDefaults */
-    [[NSUserDefaults angbandDefaults] setInteger:graf_mode_req forKey:@"GraphicsID"];
+    [[NSUserDefaults angbandDefaults] setInteger:arg_graphics forKey:@"GraphicsID"];
     [[NSUserDefaults angbandDefaults] synchronize];
-    
-    if (game_in_progress)
-    {
-        /* Hack -- Force redraw */
-        do_cmd_redraw();
-        
-        /* Wake up the event loop so it notices the change */
-        wakeup_event_loop();
-    }
+
+    redraw_for_tiles_or_term0_font();
 }
 
 - (void)addAngbandView:(AngbandView *)view
@@ -1503,11 +1500,10 @@ static void create_user_dir(void)
 - (void)angbandViewDidScale:(AngbandView *)view
 {
     /* If we're live-resizing with graphics, we're using the live resize optimization, so don't update the image. Otherwise do it. */
-////    if (! (inLiveResize && graphics_are_enabled()) && view == [self activeView])
-    if (! (inLiveResize) && view == [self activeView])
+    if (! (inLiveResize && graphics_are_enabled()) && view == [self activeView])
     {
         [self updateImage];
-        
+
         [self setNeedsDisplay:YES]; //we'll need to redisplay everything anyways, so avoid creating all those little redisplay rects
         [self requestRedraw];
     }
@@ -1541,7 +1537,7 @@ static NSMenuItem *superitem(NSMenuItem *self)
     SEL sel = [menuItem action];
     if (sel == @selector(setGraphicsMode:))
     {
-        [menuItem setState: (tag == graf_mode_req)];
+        [menuItem setState: (tag == arg_graphics)];
         return YES;
     }
     else
@@ -2265,16 +2261,15 @@ static void Term_nuke_cocoa(term *t)
     [pool drain];
 }
 
-/* Returns the CGImageRef corresponding to an image with the given name in the resource directory, transferring ownership to the caller */
-static CGImageRef create_angband_image(NSString *name)
+/**
+ * Returns the CGImageRef corresponding to an image with the given path.
+ * Transfers ownership to the caller.
+ */
+static CGImageRef create_angband_image(NSString *path)
 {
     CGImageRef decodedImage = NULL, result = NULL;
     
-    /* Get the path to the image */
-    NSBundle *bundle = [NSBundle bundleForClass:[AngbandView class]];
-    NSString *path = [bundle pathForImageResource:name];
-    
-    /* Try using ImageIO to load it */
+    /* Try using ImageIO to load the image */
     if (path)
     {
         NSURL *url = [[NSURL alloc] initFileURLWithPath:path isDirectory:NO];
@@ -2284,7 +2279,10 @@ static CGImageRef create_angband_image(NSString *name)
             CGImageSourceRef source = CGImageSourceCreateWithURL((CFURLRef)url, (CFDictionaryRef)options);
             if (source)
             {
-                /* We really want the largest image, but in practice there's only going to be one */
+                /*
+                 * We really want the largest image, but in practice there's
+                 * only going to be one
+                 */
                 decodedImage = CGImageSourceCreateImageAtIndex(source, 0, (CFDictionaryRef)options);
                 CFRelease(source);
             }
@@ -2293,7 +2291,10 @@ static CGImageRef create_angband_image(NSString *name)
         }
     }
     
-    /* Draw the sucker to defeat ImageIO's weird desire to cache and decode on demand. Our images aren't that big! */
+    /*
+     * Draw the sucker to defeat ImageIO's weird desire to cache and decode on
+     * demand. Our images aren't that big!
+     */
     if (decodedImage)
     {
         size_t width = CGImageGetWidth(decodedImage), height = CGImageGetHeight(decodedImage);
@@ -2315,22 +2316,23 @@ static CGImageRef create_angband_image(NSString *name)
                 break;
         }
 
-        // draw the source image flipped, since the view is flipped
+        /* Draw the source image flipped, since the view is flipped */
         CGContextRef ctx = CGBitmapContextCreate(NULL, width, height, CGImageGetBitsPerComponent(decodedImage), CGImageGetBytesPerRow(decodedImage), CGImageGetColorSpace(decodedImage), contextBitmapInfo);
-        CGContextSetBlendMode(ctx, kCGBlendModeCopy);
-        CGContextTranslateCTM(ctx, 0.0, height);
-        CGContextScaleCTM(ctx, 1.0, -1.0);
-        CGContextDrawImage(ctx, CGRectMake(0, 0, width, height), decodedImage);
-        result = CGBitmapContextCreateImage(ctx);
+        if (ctx) {
+            CGContextSetBlendMode(ctx, kCGBlendModeCopy);
+            CGContextTranslateCTM(ctx, 0.0, height);
+            CGContextScaleCTM(ctx, 1.0, -1.0);
+            CGContextDrawImage(ctx, CGRectMake(0, 0, width, height), decodedImage);
+            result = CGBitmapContextCreateImage(ctx);
+            CFRelease(ctx);
+        }
 
-        /* Done with these things */
-        CFRelease(ctx);
         CGImageRelease(decodedImage);
     }
     return result;
 }
 
-/*
+/**
  * React to changes
  */
 static errr Term_xtra_cocoa_react(void)
@@ -2338,70 +2340,115 @@ static errr Term_xtra_cocoa_react(void)
     /* Don't actually switch graphics until the game is running */
     if (!initialized || !game_in_progress) return (-1);
 
-#if 0 ////
-    
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-    AngbandContext *angbandContext = Term->data;
-    
+
     /* Handle graphics */
-    ////int expected_graf_mode = (current_graphics_mode ? current_graphics_mode->grafID : GRAF_MODE_NONE);
-    if (graf_mode_req != expected_graf_mode)
-    {
-        graphics_mode *new_mode;
-		if (graf_mode_req != GRAF_MODE_NONE) {
-			new_mode = get_graphics_mode(graf_mode_req);
-		} else {
-			new_mode = NULL;
-        }
-        
+    if (use_graphics != arg_graphics) {
         /* Get rid of the old image. CGImageRelease is NULL-safe. */
         CGImageRelease(pict_image);
         pict_image = NULL;
-        
-        /* Try creating the image if we want one */
-        if (new_mode != NULL)
-        {
-            NSString *img_name = [NSString stringWithCString:new_mode->file 
-                                                encoding:NSMacOSRomanStringEncoding];
-            pict_image = create_angband_image(img_name);
 
-            /* If we failed to create the image, set the new desired mode to NULL */
-            if (! pict_image)
-                new_mode = NULL;
+        /* Try creating the image if we want one */
+        if (arg_graphics == GRAPHICS_MICROCHASM)
+        {
+            NSString *img_path = [NSString
+                stringWithFormat:@"%s/graf/16x16_microchasm.png", ANGBAND_DIR_XTRA];
+            pict_image = create_angband_image(img_path);
+
+            /* If we failed to create the image, revert to ASCII. */
+            if (! pict_image) {
+                arg_graphics = GRAPHICS_NONE;
+                [[NSUserDefaults angbandDefaults]
+                    setInteger:GRAPHICS_NONE forKey:@"GraphicsID"];
+
+                NSAlert *alert = [[NSAlert alloc] init];
+                alert.messageText = @"Failed to Load Tile Set";
+                alert.informativeText = @"Could not load the tile set.  Switching back to ASCII.";
+                [alert runModal];
+            } else {
+                pict_cell_width = 16;
+                pict_cell_height = 16;
+            }
+        } else if (arg_graphics != GRAPHICS_NONE) {
+            arg_graphics = GRAPHICS_NONE;
+            [[NSUserDefaults angbandDefaults]
+                setInteger:GRAPHICS_NONE forKey:@"GraphicsID"];
+
+            NSAlert *alert = [[NSAlert alloc] init];
+            alert.messageText = @"Unknown Tile Set";
+            alert.informativeText = @"That's an unrecognized tile set.  Switching back to ASCII.";
+            [alert runModal];
         }
-        
+
         /* Record what we did */
-        use_graphics = (new_mode != NULL);
-        use_transparency = (new_mode != NULL);
-        ANGBAND_GRAF = (new_mode ? new_mode->pref : NULL);
-        current_graphics_mode = new_mode;
-        
-        /* Enable or disable higher picts. Note: this should be done for all terms. */
-        angbandContext->terminal->higher_pict = !! use_graphics;
-        
-        if (pict_image && current_graphics_mode)
+        use_graphics = arg_graphics;
+        if (use_graphics) {
+            use_transparency = TRUE;
+            ANGBAND_GRAF = "new";
+            if (bigtiles_are_appropriate()) {
+                if (!use_bigtile) {
+                    use_bigtile = TRUE;
+                    tile_multipliers_changed = 1;
+                }
+            } else {
+                if (use_bigtile) {
+                    use_bigtile = FALSE;
+                    tile_multipliers_changed = 1;
+                }
+            }
+        } else {
+            use_transparency = FALSE;
+            ANGBAND_GRAF = "old";
+            if (use_bigtile) {
+                use_bigtile = FALSE;
+                tile_multipliers_changed = 1;
+            }
+        }
+
+        /* Enable or disable higher picts. */
+        for (int iterm = 0; iterm < ANGBAND_TERM_MAX; ++iterm) {
+            if (angband_term[iterm]) {
+                angband_term[iterm]->higher_pict = !! use_graphics;
+            }
+        }
+
+        if (pict_image && use_graphics)
         {
             /* Compute the row and column count via the image height and width. */
-            pict_rows = (int)(CGImageGetHeight(pict_image) / current_graphics_mode->cell_height);
-            pict_cols = (int)(CGImageGetWidth(pict_image) / current_graphics_mode->cell_width);
+            pict_rows = (int)(CGImageGetHeight(pict_image) / pict_cell_height);
+            pict_cols = (int)(CGImageGetWidth(pict_image) / pict_cell_width);
         }
         else
         {
             pict_rows = 0;
             pict_cols = 0;
         }
-        
+
         /* Reset visuals */
-        if (initialized && game_in_progress)
+        if (! tile_multipliers_changed)
         {
             reset_visuals(TRUE);
         }
     }
-    
+
+    if (tile_multipliers_changed) {
+        /* Reset visuals */
+        reset_visuals(TRUE);
+
+        if (character_dungeon) {
+            /*
+             * Reset the panel.  Only do so if have a dungeon; otherwise
+             * can see crashes if changing graphics or the font before or
+             * during character generation.
+             */
+            verify_panel();
+        }
+
+        tile_multipliers_changed = 0;
+    }
+
     [pool drain];
 
-#endif ////
-    
     /* Success */
     return (0);
 }
@@ -2461,12 +2508,16 @@ static void query_before_text(
              */
             break;
         } else if (prc->cell_changes[i].change_type == CELL_CHANGE_NONE) {
-            /* It has not changed so inquire what it is. */
-            byte_hack a;
-            char c;
+            /*
+             * It has not changed (or using big tile mode and it is within
+             * a changed tile but is not the left cell for that tile) so
+             * inquire what it is.
+             */
+            byte_hack a[2];
+            char c[2];
 
-            Term_what(i, iy, &a, &c);
-            if (use_graphics && (a & 0x80) && (c & 0x80)) {
+            Term_what(i, iy, a + 1, c + 1);
+            if (use_graphics && (a[1] & 0x80) && (c[1] & 0x80)) {
                 /*
                  * It is an unchanged location rendered with a tile.  Do not
                  * want to modify its contents so the clipping and rendering
@@ -2474,12 +2525,23 @@ static void query_before_text(
                  */
                 break;
             }
+            if (use_bigtile && i > 0) {
+                Term_what(i - 1, iy, a, c);
+                if (use_graphics && (a[0] & 0x80) && (c[0] & 0x80)) {
+                    /*
+                     * It is the right cell of a location rendered with a tile.
+                     * Do not want to modify its contents so the clipping and
+                     * rendering region can not be extended.
+                     */
+                    break;
+                }
+            }
             /*
              * It is unchanged text.  A character from the changed region
              * may have extended into it so render it to clear that.
              */
-            prc->cell_changes[i].c.w = c;
-            prc->cell_changes[i].a = a;
+            prc->cell_changes[i].c.w = c[1];
+            prc->cell_changes[i].a = a[1];
             *pclip = i;
             *prend = i;
             --i;
@@ -2578,9 +2640,12 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
     int graf_width, graf_height, alphablend;
 
     if (angbandContext->changes->has_pict) {
-        graf_width = 16;
-        graf_height = 16;
-        alphablend = 1;
+        CGImageAlphaInfo ainfo = CGImageGetAlphaInfo(pict_image);
+
+        graf_width = pict_cell_width;
+        graf_height = pict_cell_height;
+        alphablend = (ainfo & (kCGImageAlphaPremultipliedFirst |
+            kCGImageAlphaPremultipliedLast)) ? 1 : 0;
     } else {
         graf_width = 0;
         graf_height = 0;
@@ -2629,6 +2694,7 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                     NSGraphicsContext *nsContext =
                         [NSGraphicsContext currentContext];
                     NSCompositingOperation op = nsContext.compositingOperation;
+                    int step = (use_bigtile) ? 2 : 1;
 
                     jx = ix;
                     while (jx <= prc->xmax &&
@@ -2637,6 +2703,7 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                             [angbandContext rectInImageForTileAtX:jx Y:iy];
                         NSRect sourceRect, terrainRect;
 
+                        destinationRect.size.width *= step;
                         sourceRect.origin.x = graf_width *
                             prc->cell_changes[jx].c.c;
                         sourceRect.origin.y = graf_height *
@@ -2673,7 +2740,7 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                                 destinationRect,
                                 NSCompositeCopy);
                         }
-                        ++jx;
+                        jx += step;
                     }
 
                     [nsContext setCompositingOperation:op];
@@ -2808,6 +2875,9 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
             rectInImageForTileAtX:angbandContext->changes->xcurs
             Y:angbandContext->changes->ycurs];
 
+        if (angbandContext->changes->bigcurs) {
+            rect.size.width += angbandContext->tileSize.width;
+        }
         [[NSColor blueColor] set];
         NSFrameRectWithWidth(rect, 1);
         /* Invalidate that rect */
@@ -2962,6 +3032,25 @@ static errr Term_curs_cocoa(int x, int y)
 }
 
 /**
+ * Draw a cursor that's two tiles wide.
+ */
+static errr Term_bigcurs_cocoa(int x, int y)
+{
+    AngbandContext *angbandContext = Term->data;
+
+    if (angbandContext->changes == 0) {
+         /* Bail out; there was an earlier memory allocation failure. */
+        return 1;
+    }
+    angbandContext->changes->xcurs = x;
+    angbandContext->changes->ycurs = y;
+    angbandContext->changes->bigcurs = 1;
+
+    /* Success */
+    return 0;
+}
+
+/**
  * Low level graphics (Assumes valid input)
  *
  * Erase "n" characters starting at (x,y)
@@ -3014,18 +3103,23 @@ static errr Term_wipe_cocoa(int x, int y, int n)
 
 static errr Term_pict_cocoa(int x, int y, int n, const byte_hack *ap, const char *cp, const byte_hack *tap, const char *tcp)
 {
-#if 0
     /* Paranoia: Bail if we don't have a current graphics mode */
-    if (! current_graphics_mode) return -1;
+    if (! graphics_are_enabled()) return -1;
 
     AngbandContext* angbandContext = Term->data;
     int any_change = 0;
+    int step = (use_bigtile) ? 2 : 1;
     struct PendingCellChange *pc;
 
     if (angbandContext->changes == 0) {
         /* Bail out; there was an earlier memory allocation failure. */
         return 1;
     }
+    /*
+     * In bigtile mode, it is sufficient that the bounds for the modified
+     * region only encompass the left cell for the region affected by the
+     * tile and that only that cell has to have the details of the changes.
+     */
     if (angbandContext->changes->rows[y] == 0) {
         angbandContext->changes->rows[y] =
             create_row_change(angbandContext->cols);
@@ -3044,31 +3138,33 @@ static errr Term_pict_cocoa(int x, int y, int n, const byte_hack *ap, const char
     if (angbandContext->changes->rows[y]->xmin > x) {
         angbandContext->changes->rows[y]->xmin = x;
     }
-    if (angbandContext->changes->rows[y]->xmax < x + n - 1) {
-	angbandContext->changes->rows[y]->xmax = x + n - 1;
+    if (angbandContext->changes->rows[y]->xmax < x + step * (n - 1)) {
+        angbandContext->changes->rows[y]->xmax = x + step * (n - 1);
     }
     for (pc = angbandContext->changes->rows[y]->cell_changes + x;
-	 pc != angbandContext->changes->rows[y]->cell_changes + x + n;
-	 ++pc) {
-        int a = *ap++;
-        char c = *cp++;
-        int ta = *tap++;
-        char tc = *tcp++;
-        
+        pc != angbandContext->changes->rows[y]->cell_changes + x + step * n;
+        pc += step) {
+        int a = *ap;
+        char c = *cp;
+        int ta = *tap;
+        char tc = *tcp;
+
+        ap += step;
+        cp += step;
+        tap += step;
+        tcp += step;
         if (use_graphics && (a & 0x80) && (c & 0x80)) {
             pc->c.c = ((byte)c & 0x7F) % pict_cols;
             pc->a = ((byte)a & 0x7F) % pict_rows;
             pc->tcol = ((byte)tc & 0x7F) % pict_cols;
             pc->trow = ((byte)ta & 0x7F) % pict_rows;
-	    pc->change_type = CELL_CHANGE_PICT;
+            pc->change_type = CELL_CHANGE_PICT;
             any_change = 1;
         }
     }
     if (any_change) {
         angbandContext->changes->has_pict = 1;
     }
-
-#endif
 
     /* Success */
     return (0);
@@ -3172,6 +3268,44 @@ static size_t Term_mbcs_cocoa(wchar_t *dest, const char *src, int n)
     return count;
 }
 
+/**
+ * Determine if the big tile mode (each tile is 2 grids in width) should be
+ * used.
+ */
+static BOOL bigtiles_are_appropriate(void)
+{
+    if (! use_graphics) {
+        return NO;
+    }
+    AngbandContext *term0_context = (AngbandContext*) (angband_term[0]->data);
+    CGFloat textw = term0_context->tileSize.width;
+    CGFloat texth = term0_context->tileSize.height;
+    CGFloat wratio = pict_cell_width / textw;
+    CGFloat hratio = pict_cell_height / texth;
+
+    return (wratio > 1.5 * hratio) ? YES : NO;
+}
+
+
+/**
+ * Handle redrawing for a change to the tile set, tile scaling, or main window
+ * font.  Returns YES if the drawing was initiated.  Otherwise returns NO.
+ */
+static BOOL redraw_for_tiles_or_term0_font(void)
+{
+    /*
+     * do_cmd_redraw() will always clear, but only provides something
+     * to replace the erased content if a character has been generated.
+     * Therefore, only call it if a character has been generated.
+     */
+    if (game_in_progress && character_dungeon) {
+        do_cmd_redraw();
+        wakeup_event_loop();
+        return YES;
+    }
+    return NO;
+}
+
 /* Post a nonsense event so that our event loop wakes up */
 static void wakeup_event_loop(void)
 {
@@ -3224,6 +3358,7 @@ static term *term_data_link(int i)
     newterm->xtra_hook = Term_xtra_cocoa;
     newterm->wipe_hook = Term_wipe_cocoa;
     newterm->curs_hook = Term_curs_cocoa;
+    newterm->bigcurs_hook = Term_bigcurs_cocoa;
     newterm->text_hook = Term_text_cocoa;
     newterm->pict_hook = Term_pict_cocoa;
     ////newterm->mbcs_hook = Term_mbcs_cocoa;
@@ -3305,7 +3440,7 @@ static void load_prefs()
     [defaultTerms release];
     
     /* preferred graphics mode */
-    graf_mode_req = [defs integerForKey:@"GraphicsID"];
+    arg_graphics = [defs integerForKey:@"GraphicsID"];
     
     /* use sounds */
     allow_sounds = [defs boolForKey:@"AllowSound"];
@@ -4256,8 +4391,26 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     /* Update window */
     AngbandContext *angbandContext = angband_term[mainTerm]->data;
     [(id)angbandContext setSelectionFont:newFont adjustTerminal: YES];
-    
+
     NSEnableScreenUpdates();
+
+    if (mainTerm == 0 && use_graphics) {
+        if (bigtiles_are_appropriate()) {
+            if (! use_bigtile) {
+                use_bigtile = TRUE;
+                tile_multipliers_changed = 1;
+            }
+        } else {
+            if (use_bigtile) {
+                use_bigtile = FALSE;
+                tile_multipliers_changed = 1;
+            }
+        }
+    }
+
+    if (mainTerm != 0 || ! redraw_for_tiles_or_term0_font()) {
+        [(id)angbandContext requestRedraw];
+    }
 }
 
 - (IBAction)openGame:sender
@@ -4567,27 +4720,9 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     /* Add an initial Classic ASCII menu item */
     NSMenuItem *item = [menu addItemWithTitle:@"Classic ASCII" action:action keyEquivalent:@""];
     [item setTag:GRAPHICS_NONE];
-    
-    /* Walk through the list of graphics modes */
 
-#if 0 ////
-    
-    NSInteger i;
-    for (i=0; graphics_modes[i].pNext; i++)
-    {
-        const graphics_mode *graf = &graphics_modes[i];
-        
-        /* Make the title. NSMenuItem throws on a nil title, so ensure it's not nil. */
-        NSString *title = [[NSString alloc] initWithUTF8String:graf->menuname];
-        if (! title) title = [@"(Unknown)" copy];
-        
-        /* Make the item */
-        NSMenuItem *item = [menu addItemWithTitle:title action:action keyEquivalent:@""];
-        [item setTag:graf->grafID];
-    }
-
-#endif ////
-    
+    item = [menu addItemWithTitle:@"MicroChasm's Tiles" action:action keyEquivalent:@""];
+    [item setTag:GRAPHICS_MICROCHASM];
 }
 
 /**
