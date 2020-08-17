@@ -4349,7 +4349,6 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 /*** Main program ***/
 
 @interface AngbandAppDelegate : NSObject {
-    IBOutlet NSMenu *terminalsMenu;
     NSMenu *_commandMenu;
     NSDictionary *_commandMenuTagMap;
 }
