@@ -494,9 +494,6 @@ static int resize_pending_changes(struct PendingChanges* pc, int nrow)
 /* Begins an Angband game. This is the entry point for starting off. */
 + (void)beginGame;
 
-/* Ends an Angband game. */
-+ (void)endGame;
-
 /* Internal method */
 - (AngbandView *)activeView;
 
@@ -1447,16 +1444,6 @@ static void create_user_dir(void)
 		game_in_progress = FALSE;
 		[pool drain];
 	}
-}
-
-+ (void)endGame
-{    
-    /* Hack -- Forget messages */
-    msg_flag = FALSE;
-    
-    p_ptr->playing = FALSE;
-    p_ptr->leaving = TRUE;
-    quit_when_ready = TRUE;
 }
 
 
