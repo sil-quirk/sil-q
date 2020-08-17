@@ -646,8 +646,11 @@ static void open_tutorial(void); ////half
 static void handle_open_when_ready(void);
 static void play_sound(int event);
 static BOOL check_events(int wait);
-////static void cocoa_file_open_hook(const char *path, file_type ftype);
+/* Used by Angband but not by Sil. */
+#if 0
+static void cocoa_file_open_hook(const char *path, file_type ftype);
 static bool cocoa_get_file(const char *suggested_name, char *path, size_t len);
+#endif
 static BOOL send_event(NSEvent *event);
 static void record_current_savefile(void);
 
@@ -1334,11 +1337,14 @@ static void create_user_dir(void)
     plog_aux = hook_plog;
     quit_aux = hook_quit;
     
-	/* Hook in to the file_open routine */
-////	file_open_hook = cocoa_file_open_hook;
+    /* Used by Angband but not by Sil. */
+#if 0
+    /* Hook in to the file_open routine */
+    file_open_hook = cocoa_file_open_hook;
 
     /* Hook into file saving dialogue routine */
-////half    get_file = cocoa_get_file;
+    get_file = cocoa_get_file;
+#endif
 
     // initialize file paths
     [self prepareFilePathsAndDirectories];
@@ -4264,7 +4270,8 @@ static void hook_quit(const char * str)
     exit(0);
 }
 
-#if 0 ////
+/* Used by Angband but by Sil.  Comment them out. */
+#if 0
 
 /* Set HFS file type and creator codes on a path */
 static void cocoa_file_open_hook(const char *path, file_type ftype)
@@ -4307,7 +4314,7 @@ static bool cocoa_get_file(const char *suggested_name, char *path, size_t len)
     return FALSE;
 }
 
-#endif ////
+#endif
 
 //// Sil-y: begin inserted block
 
