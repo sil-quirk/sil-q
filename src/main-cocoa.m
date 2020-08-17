@@ -4371,6 +4371,12 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     [panel orderFront:self];
 }
 
+/**
+ * Implement NSObject's changeFont() method to receive a notification about the
+ * changed font.  Note that, as of 10.14, changeFont() is deprecated in
+ * NSObject - it will be removed at some point and the application delegate
+ * will have to be declared as implementing the NSFontChanging protocol.
+ */
 - (void)changeFont:(id)sender
 {
     int mainTerm;
@@ -4449,6 +4455,13 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     record_current_savefile();
 }
 
+/**
+ * Implement NSObject's validateMenuItem() method to override enabling or
+ * disabling a menu item.  Note that, as of 10.14, validateMenuItem() is
+ * deprecated in NSObject - it will be removed at some point and the
+ * application delegate will have to be declared as implementing the
+ * NSMenuItemValidation protocol.
+ */
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem
 {
     SEL sel = [menuItem action];
