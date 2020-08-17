@@ -108,7 +108,242 @@ static NSFont *default_font;
 
 @class AngbandView;
 
-/* The max number of glyphs we support */
+/*
+ * To handle fonts where an individual glyph's bounding box can extend into
+ * neighboring columns, Term_curs_cocoa(), Term_pict_cocoa(),
+ * Term_text_cocoa(), and Term_wipe_cocoa() merely record what needs to be
+ * done with the actual drawing happening in response to the notification to
+ * flush all rows, the  TERM_XTRA_FRESH case in Term_xtra_cocoa().
+ */
+enum PendingCellChangeType {
+    CELL_CHANGE_NONE = 0,
+    CELL_CHANGE_WIPE,
+    CELL_CHANGE_TEXT,
+    CELL_CHANGE_PICT
+};
+struct PendingCellChange {
+    /*
+     * For text rendering, stores the character as a wchar_t; for tile
+     * rendering, stores the column in the tile set for the source tile.
+     */
+    union { wchar_t w; char c; } c;
+    /*
+     * For text rendering, stores the color; for tile rendering, stores the
+     * row in the tile set for the source tile.
+     */
+    int a;
+    /*
+     * For tile rendering, stores the column in the tile set for the terrain
+     * tile.
+     */
+    char tcol;
+    /*
+     * For tile rendering, stores the row in the tile set for the
+     * terrain tile.
+     */
+    char trow;
+    enum PendingCellChangeType change_type;
+};
+
+struct PendingRowChange
+{
+    /*
+     * These are the first and last columns, inclusive, that have been
+     * modified.  xmin is greater than xmax if no changes have been made.
+     */
+    int xmin, xmax;
+    /*
+     * This points to storage for a number of elements equal to the number
+     * of columns (implicitly gotten from the enclosing AngbandContext).
+     */
+    struct PendingCellChange* cell_changes;
+};
+
+static struct PendingRowChange* create_row_change(int ncol)
+{
+    struct PendingRowChange* prc =
+        (struct PendingRowChange*) malloc(sizeof(struct PendingRowChange));
+    struct PendingCellChange* pcc = (struct PendingCellChange*)
+        malloc(ncol * sizeof(struct PendingCellChange));
+    int i;
+
+    if (prc == 0 || pcc == 0) {
+        if (pcc != 0) {
+            free(pcc);
+        }
+        if (prc != 0) {
+            free(prc);
+        }
+        return 0;
+    }
+
+    prc->xmin = ncol;
+    prc->xmax = -1;
+    prc->cell_changes = pcc;
+    for (i = 0; i < ncol; ++i) {
+        pcc[i].change_type = CELL_CHANGE_NONE;
+    }
+    return prc;
+}
+
+
+static void destroy_row_change(struct PendingRowChange* prc)
+{
+    if (prc != 0) {
+        if (prc->cell_changes != 0) {
+            free(prc->cell_changes);
+        }
+        free(prc);
+    }
+}
+
+
+struct PendingChanges
+{
+    /* Hold the number of rows specified at creation. */
+    int nrow;
+    /*
+     * Hold the position set for the software cursor.  Use negative indices
+     * to indicate that the cursor is not displayed.
+     */
+    int xcurs, ycurs;
+    /* Record whether the changes include any text, picts, or wipes. */
+    int has_text, has_pict, has_wipe;
+    /*
+     * These are the first and last rows, inclusive, that have been
+     * modified.  ymin is greater than ymax if no changes have been made.
+     */
+    int ymin, ymax;
+    /*
+     * This is an array of pointers to the changes.  The number of elements
+     * is the number of rows.  An element will be a NULL pointer if no
+     * modifications have been made to the row.
+     */
+    struct PendingRowChange** rows;
+};
+
+
+static struct PendingChanges* create_pending_changes(int ncol, int nrow)
+{
+    struct PendingChanges* pc =
+        (struct PendingChanges*) malloc(sizeof(struct PendingChanges));
+    struct PendingRowChange** pprc = (struct PendingRowChange**)
+        malloc(nrow * sizeof(struct PendingRowChange*));
+    int i;
+
+    if (pc == 0 || pprc == 0) {
+        if (pprc != 0) {
+            free(pprc);
+        }
+        if (pc != 0) {
+            free(pc);
+        }
+        return 0;
+    }
+
+    pc->nrow = nrow;
+    pc->xcurs = -1;
+    pc->ycurs = -1;
+    pc->has_text = 0;
+    pc->has_pict = 0;
+    pc->has_wipe = 0;
+    pc->ymin = nrow;
+    pc->ymax = -1;
+    pc->rows = pprc;
+    for (i = 0; i < nrow; ++i) {
+        pprc[i] = 0;
+    }
+    return pc;
+}
+
+
+static void destroy_pending_changes(struct PendingChanges* pc)
+{
+    if (pc != 0) {
+        if (pc->rows != 0) {
+            int i;
+
+            for (i = 0; i < pc->nrow; ++i) {
+                if (pc->rows[i] != 0) {
+                    destroy_row_change(pc->rows[i]);
+                }
+            }
+            free(pc->rows);
+        }
+        free(pc);
+    }
+}
+
+
+static void clear_pending_changes(struct PendingChanges* pc)
+{
+    pc->xcurs = -1;
+    pc->ycurs = -1;
+    pc->has_text = 0;
+    pc->has_pict = 0;
+    pc->has_wipe = 0;
+    pc->ymin = pc->nrow;
+    pc->ymax = -1;
+    if (pc->rows != 0) {
+        int i;
+
+        for (i = 0; i < pc->nrow; ++i) {
+            if (pc->rows[i] != 0) {
+                destroy_row_change(pc->rows[i]);
+                pc->rows[i] = 0;
+            }
+        }
+    }
+}
+
+
+/* Return zero if successful; otherwise return a nonzero value. */
+static int resize_pending_changes(struct PendingChanges* pc, int nrow)
+{
+    struct PendingRowChange** pprc;
+    int i;
+
+    if (pc == 0) {
+        return 1;
+    }
+
+    pprc = (struct PendingRowChange**)
+         malloc(nrow * sizeof(struct PendingRowChange*));
+    if (pprc == 0) {
+        return 1;
+    }
+    for (i = 0; i < nrow; ++i) {
+        pprc[i] = 0;
+    }
+
+    if (pc->rows != 0) {
+        for (i = 0; i < pc->nrow; ++i) {
+            if (pc->rows[i] != 0) {
+                destroy_row_change(pc->rows[i]);
+            }
+        }
+        free(pc->rows);
+    }
+    pc->nrow = nrow;
+    pc->xcurs = -1;
+    pc->ycurs = -1;
+    pc->has_text = 0;
+    pc->has_pict = 0;
+    pc->has_wipe = 0;
+    pc->ymin = nrow;
+    pc->ymax = -1;
+    pc->rows = pprc;
+    return 0;
+}
+
+
+/* The max number of glyphs we support.  Currently this only affects
+ * updateGlyphInfo() for the calculation of the tile size, fontAscender,
+ * fontDescender, ncol_pre, and ncol_post (the glyphArray and glyphWidths
+ * members of AngbandContext are only used in updateGlyphInfo()).  The
+ * rendering in drawWChar will work for glyphs not in updateGlyphInfo()'s
+ * set.
+ */
 #define GLYPH_COUNT 256
 
 /* An AngbandContext represents a logical Term (i.e. what Angband thinks is a window). This typically maps to one NSView, but may map to more than one NSView (e.g. the Test and real screen saver view). */
@@ -120,8 +355,8 @@ static NSFont *default_font;
     term *terminal;
     
     /* Column and row cont, by default 80 x 24 */
-    size_t cols;
-    size_t rows;
+    int cols;
+    int rows;
     
     /* The size of the border between the window edge and the contents */
     NSSize borderSize;
@@ -144,19 +379,22 @@ static NSFont *default_font;
     
     /* The size of one tile */
     NSSize tileSize;
-    
-    /* Font's descender */
-    CGFloat fontDescender;
-    
+
+    /* Font's ascender and descender */
+    CGFloat fontAscender, fontDescender;
+
     /* Whether we are currently in live resize, which affects how big we render our image */
     int inLiveResize;
     
     /* Last time we drew, so we can throttle drawing */
     CFAbsoluteTime lastRefreshTime;
-    
-    /* To address subpixel rendering overdraw problems, we cache all the characters and attributes we're told to draw */
-    wchar_t *charOverdrawCache;
-    int *attrOverdrawCache;
+
+    struct PendingChanges* changes;
+    /*
+     * These are the number of columns before or after, respectively, a text
+     * change that may need to be redrawn.
+     */
+    int ncol_pre, ncol_post;
 
     /* Flags whether or not a fullscreen transition is in progress. */
     BOOL in_fullscreen_transition;
@@ -185,7 +423,7 @@ static NSFont *default_font;
 - (NSRect)rectInImageForTileAtX:(int)x Y:(int)y;
 
 /* Draw the given wide character into the given tile rect. */
-- (void)drawWChar:(wchar_t)wchar inRect:(NSRect)tile;
+- (void)drawWChar:(wchar_t)wchar inRect:(NSRect)tile context:(CGContextRef)ctx;
 
 /* Locks focus on the Angband image, and scales the CTM appropriately. */
 - (CGContextRef)lockFocus;
@@ -338,52 +576,6 @@ static void AngbandUpdateWindowVisibility(void)
     // make the main window key so that user events go to the right spot
     AngbandContext *mainWindow = angband_term[0]->data;
     [mainWindow->primaryWindow makeKeyAndOrderFront: nil];
-}
-
-/* To indicate that a grid element contains a picture, we store 0xFFFF. */
-#define NO_OVERDRAW ((wchar_t)(0xFFFF))
-
-
-/* Here is some support for rounding to pixels in a scaled context */
-static double push_pixel(double pixel, double scale, BOOL increase)
-{
-    double scaledPixel = pixel * scale;
-    /* Have some tolerance! */
-    double roundedPixel = round(scaledPixel);
-    if (fabs(roundedPixel - scaledPixel) <= .0001)
-    {
-        scaledPixel = roundedPixel;
-    }
-    else
-    {
-        scaledPixel = (increase ? ceil : floor)(scaledPixel);
-    }
-    return scaledPixel / scale;
-}
-
-/* Descriptions of how to "push pixels" in a given rect to integralize. For example, PUSH_LEFT means that we round expand the left edge if set, otherwise we shrink it. */
-enum
-{
-    PUSH_LEFT = 0x1,
-    PUSH_RIGHT = 0x2,
-    PUSH_BOTTOM = 0x4,
-    PUSH_TOP = 0x8
-};
-
-/* Return a rect whose border is in the "cracks" between tiles */
-static NSRect crack_rect(NSRect rect, NSSize scale, unsigned pushOptions)
-{
-    double rightPixel = push_pixel(NSMaxX(rect), scale.width, !! (pushOptions & PUSH_RIGHT));
-    double topPixel = push_pixel(NSMaxY(rect), scale.height, !! (pushOptions & PUSH_TOP));
-    double leftPixel = push_pixel(NSMinX(rect), scale.width, ! (pushOptions & PUSH_LEFT));
-    double bottomPixel = push_pixel(NSMinY(rect), scale.height, ! (pushOptions & PUSH_BOTTOM));
-    return NSMakeRect(leftPixel, bottomPixel, rightPixel - leftPixel, topPixel - bottomPixel);    
-}
-
-/* Returns the pixel push options (describing how we round) for the tile at a given index. Currently it's pretty uniform! */
-static unsigned push_options(unsigned x, unsigned y)
-{
-    return PUSH_TOP | PUSH_LEFT;
 }
 
 /*
@@ -580,14 +772,71 @@ static int compare_advances(const void *ap, const void *bp)
     { // In case we have all zero advances for some reason
         medianAdvance = advances[(startIdx + GLYPH_COUNT)/2].width;
     }
-    
-    // Record the descender
+
+    /*
+     * Record the ascender and descender.  Some fonts, for instance DIN
+     * Condensed and Rockwell in 10.14, the ascent on '@' exceeds that
+     * reported by [screenFont ascender].  Get the overall bounding box
+     * for the glyphs and use that instead of the ascender and descender
+     * values if the bounding box result extends farther from the baseline.
+     */
+    CGRect bounds = CTFontGetBoundingRectsForGlyphs((CTFontRef) screenFont, kCTFontHorizontalOrientation, glyphArray, NULL, GLYPH_COUNT);
+    fontAscender = [screenFont ascender];
+    if (fontAscender < bounds.origin.y + bounds.size.height) {
+        fontAscender = bounds.origin.y + bounds.size.height;
+    }
     fontDescender = [screenFont descender];
-    
-    // Record the tile size. Note that these are typically fractional values - which seems sketchy, but we end up scaling the heck out of our view anyways, so it seems to not matter.
-    ////half tileSize.width = medianAdvance;
-    tileSize.width = medianAdvance + 2; ////half (this additional 2 is needed to avoid subpixel rendering artefacts)
-    tileSize.height = [screenFont ascender] - [screenFont descender];
+    if (fontDescender > bounds.origin.y) {
+        fontDescender = bounds.origin.y;
+    }
+
+    /*
+     * Record the tile size.  Round both values up to have tile boundaries
+     * match pixel boundaries.
+     */
+    tileSize.width = ceil(medianAdvance);
+    tileSize.height = ceil(fontAscender - fontDescender);
+
+    /*
+     * Determine whether neighboring columns need to be redrawn when a
+     * character changes.
+     */
+    CGRect boxes[GLYPH_COUNT] = {};
+    CGFloat beyond_right = 0.;
+    CGFloat beyond_left = 0.;
+    CTFontGetBoundingRectsForGlyphs(
+        (CTFontRef)screenFont,
+        kCTFontHorizontalOrientation,
+        glyphArray,
+        boxes,
+        GLYPH_COUNT);
+    for (i = 0; i < GLYPH_COUNT; i++) {
+        /* Account for the compression and offset used by drawWChar(). */
+        CGFloat compression, offset;
+        CGFloat v;
+
+        if (glyphWidths[i] <= tileSize.width) {
+            compression = 1.;
+            offset = 0.5 * (tileSize.width - glyphWidths[i]);
+        } else {
+            compression = tileSize.width / glyphWidths[i];
+            offset = 0.;
+        }
+        v = (offset + boxes[i].origin.x) * compression;
+        if (beyond_left > v) {
+            beyond_left = v;
+        }
+        v = (offset + boxes[i].origin.x + boxes[i].size.width) * compression;
+        if (beyond_right < v) {
+            beyond_right = v;
+        }
+    }
+    ncol_pre = ceil(-beyond_left / tileSize.width);
+    if (beyond_right > tileSize.width) {
+        ncol_post = ceil((beyond_right - tileSize.width) / tileSize.width);
+    } else {
+        ncol_post = 0;
+    }
 }
 
 - (void)updateImage
@@ -702,10 +951,9 @@ static int compare_advances(const void *ap, const void *bp)
     lastRefreshTime = CFAbsoluteTimeGetCurrent();
 }
 
-- (void)drawWChar:(wchar_t)wchar inRect:(NSRect)tile
+- (void)drawWChar:(wchar_t)wchar inRect:(NSRect)tile context:(CGContextRef)ctx
 {
-    CGContextRef ctx = [[NSGraphicsContext currentContext] graphicsPort];
-    CGFloat tileOffsetY = CTFontGetAscent( (CTFontRef)[angbandViewFont screenFont] );
+    CGFloat tileOffsetY = fontAscender;
     CGFloat tileOffsetX = 0.0;
     NSFont *screenFont = [angbandViewFont screenFont];
     UniChar unicharString[2] = {(UniChar)wchar, 0};
@@ -761,13 +1009,6 @@ static int compare_advances(const void *ap, const void *bp)
 
     textMatrix = CGAffineTransformScale( textMatrix, 1.0, -1.0 );
     CGContextSetTextMatrix(ctx, textMatrix);
-}
-
-/* Indication that we're redrawing everything, so get rid of the overdraw cache. */
-- (void)clearOverdrawCache
-{
-    memset(charOverdrawCache, 0, self->cols * self->rows * sizeof *charOverdrawCache);
-    memset(attrOverdrawCache, 0, self->cols * self->rows * sizeof *attrOverdrawCache);
 }
 
 /* Lock and unlock focus on our image or layer, setting up the CTM appropriately. */
@@ -846,9 +1087,6 @@ static int compare_advances(const void *ap, const void *bp)
     /* Update our image */
     [self updateImage];
     
-    /* Clear our overdraw cache */
-    [self clearOverdrawCache];
-    
     /* Get redrawn */
     [self requestRedraw];
 }
@@ -864,12 +1102,15 @@ static int compare_advances(const void *ap, const void *bp)
         /* Default border size */
         self->borderSize = NSMakeSize(2, 2);
 
-        /* Allocate overdraw cache, unscanned and collectable. */
-        self->charOverdrawCache = NSAllocateCollectable(self->cols * self->rows *sizeof *charOverdrawCache, 0);
-        self->attrOverdrawCache = NSAllocateCollectable(self->cols * self->rows *sizeof *attrOverdrawCache, 0);
-        
         /* Allocate our array of views */
         angbandViews = [[NSMutableArray alloc] init];
+
+        self->changes = create_pending_changes(self->cols, self->rows);
+        if (self->changes == 0) {
+            NSLog(@"AngbandContext init:  out of memory for pending changes");
+        }
+        self->ncol_pre = 0;
+        self->ncol_post = 0;
 
         self->in_fullscreen_transition = NO;
 
@@ -904,12 +1145,10 @@ static int compare_advances(const void *ap, const void *bp)
     [primaryWindow close];
     [primaryWindow release];
     primaryWindow = nil;
-    
-    /* Free overdraw cache (unless we're GC, in which case it was allocated collectable) */
-    if (! [NSGarbageCollector defaultCollector]) free(self->charOverdrawCache);
-    self->charOverdrawCache = NULL;
-    if (! [NSGarbageCollector defaultCollector]) free(self->attrOverdrawCache);
-    self->attrOverdrawCache = NULL;
+
+    /* Pending changes */
+    destroy_pending_changes(self->changes);
+    self->changes = 0;
 }
 
 /* Usual Cocoa fare */
@@ -1401,19 +1640,6 @@ static NSMenuItem *superitem(NSMenuItem *self)
     [[self activeView] displayIfNeeded];
 }
 
-- (void)resizeOverdrawCache
-{
-    /* Free overdraw cache (unless we're GC, in which case it was allocated collectable) */
-    if (! [NSGarbageCollector defaultCollector]) free(self->charOverdrawCache);
-    self->charOverdrawCache = NULL;
-    if (! [NSGarbageCollector defaultCollector]) free(self->attrOverdrawCache);
-    self->attrOverdrawCache = NULL;
-
-    /* Allocate overdraw cache, unscanned and collectable. */
-    self->charOverdrawCache = NSAllocateCollectable(self->cols * self->rows *sizeof *charOverdrawCache, 0);
-    self->attrOverdrawCache = NSAllocateCollectable(self->cols * self->rows *sizeof *attrOverdrawCache, 0);
-}
-
 - (int)terminalIndex
 {
 	int termIndex = 0;
@@ -1434,9 +1660,16 @@ static NSMenuItem *superitem(NSMenuItem *self)
     CGFloat newRows = floor( (contentRect.size.height - (borderSize.height * 2.0)) / tileSize.height );
     CGFloat newColumns = ceil( (contentRect.size.width - (borderSize.width * 2.0)) / tileSize.width );
 
+    if (newRows < 1 || newColumns < 1) return;
     self->cols = newColumns;
     self->rows = newRows;
-    [self resizeOverdrawCache];
+
+    if (resize_pending_changes(self->changes, self->rows) != 0) {
+        destroy_pending_changes(self->changes);
+        self->changes = 0;
+        NSLog(@"out of memory for pending changes with resize of terminal %d",
+            [self terminalIndex]);
+    }
 
     if( saveToDefaults )
     {
@@ -1703,6 +1936,43 @@ Boolean open_when_ready = FALSE;
 
 /*** Some generic functions ***/
 
+/**
+ * Given an Angband color index, returns the index into angband_color_table
+ * to be used as the background color.  The returned index is between -1 and
+ * MAX_COLORS - 1 inclusive where -1 means use the RGB triplet, (0, 0, 0).
+ */
+static int get_background_color_index(int idx)
+{
+    /*
+     * The Cocoa interface has always been using (0,0,0) as the clear color
+     * and not angband_color_table[0].  Sil-q's main-win.c uses both ((0,0,0)
+     * in Term_xtra_win_clear() and Term_wipe_win() and win_clr[0], which is
+     * set from angband_color_table[0], in Term_text_win() for the BG_BLACK
+     * case).
+     */
+    int ibkg = -1;
+
+    switch (idx / MAX_COLORS) {
+    case BG_BLACK:
+        /* There's nothing to do. */
+        break;
+
+    case BG_SAME:
+        ibkg = idx % MAX_COLORS;
+        break;
+
+    case BG_DARK:
+        ibkg = 16;
+        break;
+
+    default:
+        assert(0);
+    }
+
+    return ibkg;
+}
+
+
 /* Sets an Angband color at a given index */
 static void set_color_for_index(int idx)
 {
@@ -1793,7 +2063,13 @@ static void Term_init_cocoa(term *t)
 
     context->cols = columns;
     context->rows = rows;
-    [context resizeOverdrawCache];
+
+    if (resize_pending_changes(context->changes, context->rows) != 0) {
+        destroy_pending_changes(context->changes);
+        context->changes = 0;
+        NSLog(@"initializing terminal %d:  out of memory for pending changes",
+            termIdx);
+    }
 
     /* Get the window */
     NSWindow *window = [context makePrimaryWindow];
@@ -2131,6 +2407,417 @@ static errr Term_xtra_cocoa_react(void)
 }
 
 
+/**
+ * Draws one tile as a helper function for Term_xtra_cocoa_fresh().
+ */
+static void draw_image_tile(
+    NSGraphicsContext* nsContext,
+    CGContextRef cgContext,
+    CGImageRef image,
+    NSRect srcRect,
+    NSRect dstRect,
+    NSCompositingOperation op)
+{
+    /* Flip the source rect since the source image is flipped */
+    CGAffineTransform flip = CGAffineTransformIdentity;
+    flip = CGAffineTransformTranslate(flip, 0.0, CGImageGetHeight(image));
+    flip = CGAffineTransformScale(flip, 1.0, -1.0);
+    CGRect flippedSourceRect =
+        CGRectApplyAffineTransform(NSRectToCGRect(srcRect), flip);
+
+    /*
+     * When we use high-quality resampling to draw a tile, pixels from outside
+     * the tile may bleed in, causing graphics artifacts.   Work around that.
+     */
+    CGImageRef subimage =
+        CGImageCreateWithImageInRect(image, flippedSourceRect);
+    [nsContext setCompositingOperation:op];
+    CGContextDrawImage(cgContext, NSRectToCGRect(dstRect), subimage);
+    CGImageRelease(subimage);
+}
+
+
+/**
+ * This is a helper function for Term_xtra_cocoa_fresh():  look before a block
+ * of text on a row to see if the bounds for rendering and clipping need to be
+ * extended.
+ */
+static void query_before_text(
+    struct PendingRowChange* prc, int iy, int npre, int* pclip, int* prend)
+{
+    int start = *prend;
+    int i = start - 1;
+
+    while (1) {
+        if (i < 0 || i < start - npre) {
+            break;
+        }
+
+        if (prc->cell_changes[i].change_type == CELL_CHANGE_PICT) {
+            /*
+             * The cell has been rendered with a tile.  Do not want to modify
+             * its contents so the clipping and rendering region can not be
+             * extended.
+             */
+            break;
+        } else if (prc->cell_changes[i].change_type == CELL_CHANGE_NONE) {
+            /* It has not changed so inquire what it is. */
+            byte_hack a;
+            char c;
+
+            Term_what(i, iy, &a, &c);
+            if (use_graphics && (a & 0x80) && (c & 0x80)) {
+                /*
+                 * It is an unchanged location rendered with a tile.  Do not
+                 * want to modify its contents so the clipping and rendering
+                 * region can not be extended.
+                 */
+                break;
+            }
+            /*
+             * It is unchanged text.  A character from the changed region
+             * may have extended into it so render it to clear that.
+             */
+            prc->cell_changes[i].c.w = c;
+            prc->cell_changes[i].a = a;
+            *pclip = i;
+            *prend = i;
+            --i;
+        } else {
+            /*
+             * The cell has been wiped or had changed text rendered.  Do
+             * not need to render.  Can extend the clipping rectangle into it.
+             */
+            *pclip = i;
+            --i;
+        }
+    }
+}
+
+
+/**
+ * This is a helper function for Term_xtra_cocoa_fresh():  look after a block
+ * of text on a row to see if the bounds for rendering and clipping need to be
+ * extended.
+ */
+static void query_after_text(
+    struct PendingRowChange* prc,
+    int iy,
+    int ncol,
+    int npost,
+    int* pclip,
+    int* prend)
+{
+    int end = *prend;
+    int i = end + 1;
+
+    while (1) {
+        /*
+         * Be willing to consolidate this block with the one after it.  This
+         * logic should be sufficient to avoid redraws of the region between
+         * changed blocks of text if angbandContext->ncol_pre is zero or one.
+         * For larger values of ncol_pre, would need to do something more to
+         * avoid extra redraws.
+         */
+        if (i >= ncol ||
+            (i > end + npost &&
+            prc->cell_changes[i].change_type != CELL_CHANGE_TEXT &&
+            prc->cell_changes[i].change_type != CELL_CHANGE_WIPE)) {
+            break;
+        }
+
+        if (prc->cell_changes[i].change_type == CELL_CHANGE_PICT) {
+            /*
+             * The cell has been rendered with a tile.  Do not want to modify
+             * its contents so the clipping and rendering region can not be
+             * extended.
+             */
+            break;
+        } else if (prc->cell_changes[i].change_type == CELL_CHANGE_NONE) {
+            /* It has not changed so inquire what it is. */
+            byte_hack a;
+            char c;
+
+            Term_what(i, iy, &a, &c);
+            if (use_graphics && (a & 0x80) && (c & 0x80)) {
+                /*
+                 * It is an unchanged location rendered with a tile.  Do not
+                 * want to modify its contents so the clipping and rendering
+                 * region can not be extended.
+                 */
+                break;
+            }
+            /*
+             * It is unchanged text.  A character from the changed region
+             * may have extended into it so render it to clear that.
+             */
+            prc->cell_changes[i].c.w = c;
+            prc->cell_changes[i].a = a;
+            *pclip = i;
+            *prend = i;
+            ++i;
+        } else {
+            /*
+             * Have come to another region of changed text or another region
+             * to wipe.  Combine the regions to minimize redraws.
+             */
+            *pclip = i;
+            *prend = i;
+            end = i;
+            ++i;
+        }
+    }
+}
+
+
+/**
+ * Draw the pending changes saved in angbandContext->changes.
+ */
+static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
+{
+    int graf_width, graf_height, alphablend;
+
+    if (angbandContext->changes->has_pict) {
+        graf_width = 16;
+        graf_height = 16;
+        alphablend = 1;
+    } else {
+        graf_width = 0;
+        graf_height = 0;
+        alphablend = 0;
+    }
+
+    CGContextRef ctx = [angbandContext lockFocus];
+
+    if (angbandContext->changes->has_text ||
+        angbandContext->changes->has_wipe) {
+        NSFont *selectionFont = [[angbandContext selectionFont] screenFont];
+        [selectionFont set];
+    }
+
+    int iy;
+    for (iy = angbandContext->changes->ymin;
+        iy <= angbandContext->changes->ymax;
+        ++iy) {
+        struct PendingRowChange* prc = angbandContext->changes->rows[iy];
+        int ix;
+
+        /* Skip untouched rows. */
+        if (prc == 0) {
+            continue;
+        }
+
+        ix = prc->xmin;
+        while (1) {
+            int jx;
+
+            if (ix > prc->xmax) {
+                break;
+            }
+
+            switch (prc->cell_changes[ix].change_type) {
+            case CELL_CHANGE_NONE:
+                ++ix;
+                break;
+
+            case CELL_CHANGE_PICT:
+                {
+                    /*
+                     * Because changes are made to the compositing mode, save
+                     * the incoming value.
+                     */
+                    NSGraphicsContext *nsContext =
+                        [NSGraphicsContext currentContext];
+                    NSCompositingOperation op = nsContext.compositingOperation;
+
+                    jx = ix;
+                    while (jx <= prc->xmax &&
+                        prc->cell_changes[jx].change_type == CELL_CHANGE_PICT) {
+                        NSRect destinationRect =
+                            [angbandContext rectInImageForTileAtX:jx Y:iy];
+                        NSRect sourceRect, terrainRect;
+
+                        sourceRect.origin.x = graf_width *
+                            prc->cell_changes[jx].c.c;
+                        sourceRect.origin.y = graf_height *
+                            prc->cell_changes[jx].a;
+                        sourceRect.size.width = graf_width;
+                        sourceRect.size.height = graf_height;
+                        terrainRect.origin.x = graf_width *
+                            prc->cell_changes[jx].tcol;
+                        terrainRect.origin.y = graf_height *
+                            prc->cell_changes[jx].trow;
+                        terrainRect.size.width = graf_width;
+                        terrainRect.size.height = graf_height;
+                        if (alphablend) {
+                            draw_image_tile(
+                                nsContext,
+                                ctx,
+                                pict_image,
+                                terrainRect,
+                                destinationRect,
+                                NSCompositeCopy);
+                            draw_image_tile(
+                                nsContext,
+                                ctx,
+                                pict_image,
+                                sourceRect,
+                                destinationRect,
+                                NSCompositeSourceOver);
+                        } else {
+                            draw_image_tile(
+                                nsContext,
+                                ctx,
+                                pict_image,
+                                sourceRect,
+                                destinationRect,
+                                NSCompositeCopy);
+                        }
+                        ++jx;
+                    }
+
+                    [nsContext setCompositingOperation:op];
+
+                     NSRect rect =
+                         [angbandContext rectInImageForTileAtX:ix Y:iy];
+                     rect.size.width =
+                         angbandContext->tileSize.width * (jx - ix);
+                     [angbandContext setNeedsDisplayInBaseRect:rect];
+                 }
+                 ix = jx;
+                 break;
+
+            case CELL_CHANGE_WIPE:
+            case CELL_CHANGE_TEXT:
+                /*
+                 * For a wiped region, treat it as if it had text (the only
+                 * loss if it was not is some extra work rendering
+                 * neighboring unchanged text).
+                 */
+                 jx = ix + 1;
+                 while (jx < angbandContext->cols &&
+                     (prc->cell_changes[jx].change_type == CELL_CHANGE_TEXT ||
+                     prc->cell_changes[jx].change_type == CELL_CHANGE_WIPE)) {
+                     ++jx;
+                 }
+                 {
+                     int isclip = ix;
+                     int ieclip = jx - 1;
+                     int isrend = ix;
+                     int ierend = jx - 1;
+                     int set_color = 1;
+                     int alast = 0;
+                     NSRect r;
+                     int k;
+
+                     query_before_text(
+                         prc, iy, angbandContext->ncol_pre, &isclip, &isrend);
+                     query_after_text(
+                         prc,
+                         iy,
+                         angbandContext->cols,
+                         angbandContext->ncol_post,
+                         &ieclip,
+                         &ierend);
+                     ix = ierend + 1;
+
+                     /* Save the state since the clipping will be modified. */
+                     CGContextSaveGState(ctx);
+
+                     /* Clear the area where rendering will be done. */
+                     k = isrend;
+                     while (k <= ierend) {
+                         int k1 = k + 1;
+
+                         alast = get_background_color_index(
+                             prc->cell_changes[k].a);
+                         while (k1 <= ierend && alast ==
+                             get_background_color_index(
+                                  prc->cell_changes[k1].a)) {
+                             ++k1;
+                         }
+                         if (alast == -1) {
+                             [[NSColor blackColor] set];
+                         } else {
+                              set_color_for_index(alast);
+                         }
+                         r = [angbandContext rectInImageForTileAtX:k Y:iy];
+                         r.size.width = angbandContext->tileSize.width *
+                              (k1 - k);
+                         NSRectFill(r);
+                         k = k1;
+                    }
+
+                    /*
+                     * Clear the current path so it does not affect clipping.
+                     * Then set the clipping rectangle.  Using
+                     * CGContextSetTextDrawingMode() to include clipping does
+                     * not appear to be necessary on 10.14 and is actually
+                     * detrimental:  when displaying more than one character,
+                     * only the first is visible.
+                     */
+                    CGContextBeginPath(ctx);
+                    r = [angbandContext rectInImageForTileAtX:isclip Y:iy];
+                    r.size.width = angbandContext->tileSize.width *
+                        (ieclip - isclip + 1);
+                    CGContextClipToRect(ctx, r);
+
+                    /* Render. */
+                    k = isrend;
+                    while (k <= ierend) {
+                        NSRect rectToDraw;
+                        int anew;
+
+                        if (prc->cell_changes[k].change_type
+                            == CELL_CHANGE_WIPE) {
+                            /* Skip over since no rendering is necessary. */
+                            ++k;
+                            continue;
+                        }
+
+                        anew = prc->cell_changes[k].a % MAX_COLORS;
+                        if (set_color || alast != anew) {
+                            set_color = 0;
+                            alast = anew;
+                            set_color_for_index(anew);
+                        }
+
+                        rectToDraw =
+                            [angbandContext rectInImageForTileAtX:k Y:iy];
+                        [angbandContext drawWChar:prc->cell_changes[k].c.w
+                            inRect:rectToDraw context:ctx];
+                        ++k;
+                    }
+
+                    /*
+                     * Inform the context that the area in the clipping
+                     * rectangle needs to be redisplayed.
+                     */
+                    [angbandContext setNeedsDisplayInBaseRect:r];
+
+                    CGContextRestoreGState(ctx);
+                }
+                break;
+            }
+        }
+    }
+
+    if (angbandContext->changes->xcurs >= 0 &&
+        angbandContext->changes->ycurs >= 0) {
+        NSRect rect = [angbandContext
+            rectInImageForTileAtX:angbandContext->changes->xcurs
+            Y:angbandContext->changes->ycurs];
+
+        [[NSColor blueColor] set];
+        NSFrameRectWithWidth(rect, 1);
+        /* Invalidate that rect */
+        [angbandContext setNeedsDisplayInBaseRect:rect];
+    }
+
+    [angbandContext unlockFocus];
+}
+
+
 /*
  * Do a "special thing"
  */
@@ -2202,7 +2889,6 @@ static errr Term_xtra_cocoa(int n, int v)
             NSRect imageRect = {NSZeroPoint, [angbandContext imageSize]};
             NSRectFillUsingOperation(imageRect, NSCompositeCopy);
             [angbandContext unlockFocus];
-            [angbandContext clearOverdrawCache];
             [angbandContext setNeedsDisplay:YES];
             /* Success */
             break;
@@ -2241,11 +2927,12 @@ static errr Term_xtra_cocoa(int n, int v)
         }
             
         case TERM_XTRA_FRESH:
-        {
-            /* No-op -- see #1669 
-             * [angbandContext displayIfNeeded]; */
+            /* Draw the pending changes. */
+            if (angbandContext->changes != 0) {
+                Term_xtra_cocoa_fresh(angbandContext);
+                clear_pending_changes(angbandContext->changes);
+            }
             break;
-        }
             
         default:
             /* Oops */
@@ -2261,305 +2948,177 @@ static errr Term_xtra_cocoa(int n, int v)
 
 static errr Term_curs_cocoa(int x, int y)
 {
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     AngbandContext *angbandContext = Term->data;
-    
-    /* Get the tile */
-    NSRect rect = [angbandContext rectInImageForTileAtX:x Y:y];
-    
-    /* We'll need to redisplay in that rect */
-    NSRect redisplayRect = rect;
 
-    /* Go to the pixel boundaries corresponding to this tile */
-    rect = crack_rect(rect, AngbandScaleIdentity, push_options(x, y));
-    
-    /* Lock focus and draw it */
-    [angbandContext lockFocus];
-////half    [[NSColor yellowColor] set];
-    [[NSColor blueColor] set]; ////half
-    NSFrameRectWithWidth(rect, 1);
-    [angbandContext unlockFocus];
-    
-    /* Invalidate that rect */
-    [angbandContext setNeedsDisplayInBaseRect:redisplayRect];
-    
+    if (angbandContext->changes == 0) {
+        /* Bail out; there was an earlier memory allocation failure. */
+        return 1;
+    }
+    angbandContext->changes->xcurs = x;
+    angbandContext->changes->ycurs = y;
+
     /* Success */
-    [pool drain];
     return 0;
 }
 
-/*
+/**
  * Low level graphics (Assumes valid input)
  *
  * Erase "n" characters starting at (x,y)
  */
 static errr Term_wipe_cocoa(int x, int y, int n)
 {
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     AngbandContext *angbandContext = Term->data;
-    
-    /* clear our overdraw cache for subpixel rendering */
-    [angbandContext clearOverdrawCache];
-    
-    /* Erase the block of characters */
-    NSRect rect = [angbandContext rectInImageForTileAtX:x Y:y];
-    
-    /* Maybe there's more than one */
-    if (n > 1) rect = NSUnionRect(rect, [angbandContext rectInImageForTileAtX:x + n-1 Y:y]);
-    
-    /* Lock focus and clear */
-    [angbandContext lockFocus];
-    [[NSColor blackColor] set];
-    NSRectFill(rect);
-    [angbandContext unlockFocus];    
-    [angbandContext setNeedsDisplayInBaseRect:rect];
-    
-    [pool drain];
-    
+    struct PendingCellChange *pc;
+
+    if (angbandContext->changes == 0) {
+        /* Bail out; there was an earlier memory allocation failure. */
+        return 1;
+    }
+    if (angbandContext->changes->rows[y] == 0) {
+        angbandContext->changes->rows[y] =
+            create_row_change(angbandContext->cols);
+        if (angbandContext->changes->rows[y] == 0) {
+            NSLog(@"failed to allocate changes for row %d", y);
+            return 1;
+        }
+        if (angbandContext->changes->ymin > y) {
+            angbandContext->changes->ymin = y;
+        }
+        if (angbandContext->changes->ymax < y) {
+            angbandContext->changes->ymax = y;
+        }
+    }
+
+    angbandContext->changes->has_wipe = 1;
+    if (angbandContext->changes->rows[y]->xmin > x) {
+        angbandContext->changes->rows[y]->xmin = x;
+    }
+    if (angbandContext->changes->rows[y]->xmax < x + n - 1) {
+        angbandContext->changes->rows[y]->xmax = x + n - 1;
+    }
+    for (pc = angbandContext->changes->rows[y]->cell_changes + x;
+        pc != angbandContext->changes->rows[y]->cell_changes + x + n;
+        ++pc) {
+        /*
+         * Record the color as the plain background so
+         * get_background_color_index() performs correctly.
+         */
+        pc->a = BG_BLACK * MAX_COLORS;
+        pc->change_type = CELL_CHANGE_WIPE;
+    }
+
     /* Success */
     return (0);
 }
 
-static void draw_image_tile(CGImageRef image, NSRect srcRect, NSRect dstRect, NSCompositingOperation op)
+static errr Term_pict_cocoa(int x, int y, int n, const byte_hack *ap, const char *cp, const byte_hack *tap, const char *tcp)
 {
-    // flip the source rect since the source image is flipped
-    CGAffineTransform flip = CGAffineTransformIdentity;
-    flip = CGAffineTransformTranslate(flip, 0.0, CGImageGetHeight(image));
-    flip = CGAffineTransformScale(flip, 1.0, -1.0);
-    CGRect flippedSourceRect = CGRectApplyAffineTransform(NSRectToCGRect(srcRect), flip);
-
-    /* When we use high-quality resampling to draw a tile, pixels from outside the tile may bleed in, causing graphics artifacts. Work around that. */
-    CGImageRef subimage = CGImageCreateWithImageInRect(image, flippedSourceRect);
-    NSGraphicsContext *context = [NSGraphicsContext currentContext];
-    [context setCompositingOperation:op];
-    CGContextDrawImage([context graphicsPort], NSRectToCGRect(dstRect), subimage);
-    CGImageRelease(subimage);
-}
-
-////static errr Term_pict_cocoa(int x, int y, int n, const int *ap, const wchar_t *cp, const int *tap, const wchar_t *tcp)
-static errr Term_pict_cocoa(int x, int y, int n, const byte_hack *ap, const char *cp, const byte_hack *tap, const char *tcp) ////half
-{
-
-#if 0 ////
-    
+#if 0
     /* Paranoia: Bail if we don't have a current graphics mode */
     if (! current_graphics_mode) return -1;
-    
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+
     AngbandContext* angbandContext = Term->data;
+    int any_change = 0;
+    struct PendingCellChange *pc;
 
-    /* Indicate that we have a picture here (and hence this should not be overdrawn by Term_text_cocoa) */
-    angbandContext->charOverdrawCache[y * angbandContext->cols + x] = NO_OVERDRAW;
-    
-    /* Lock focus */
-    [angbandContext lockFocus];
-    
-    NSRect destinationRect = [angbandContext rectInImageForTileAtX:x Y:y];
-
-    /* Expand the rect to every touching pixel to figure out what to redisplay */
-    NSRect redisplayRect = crack_rect(destinationRect, AngbandScaleIdentity, PUSH_RIGHT | PUSH_TOP | PUSH_BOTTOM | PUSH_LEFT);
-    
-    /* Expand our destinationRect */
-    destinationRect = crack_rect(destinationRect, AngbandScaleIdentity, push_options(x, y));
-    
-    /* Scan the input */
-    int i;
-    int graf_width = current_graphics_mode->cell_width;
-    int graf_height = current_graphics_mode->cell_height;
-
-    for (i = 0; i < n; i++)
-    {
-        
-        int a = *ap++;
-        wchar_t c = *cp++;
-        
-        int ta = *tap++;
-        wchar_t tc = *tcp++;
-        
-        
-        /* Graphics -- if Available and Needed */
-        if (use_graphics && (a & 0x80) && (c & 0x80))
-        {
-            int col, row;
-            int t_col, t_row;
-            
-
-            /* Primary Row and Col */
-            row = ((byte)a & 0x7F) % pict_rows;
-            col = ((byte)c & 0x7F) % pict_cols;
-            
-            NSRect sourceRect;
-            sourceRect.origin.x = col * graf_width;
-            sourceRect.origin.y = row * graf_height;
-            sourceRect.size.width = graf_width;
-            sourceRect.size.height = graf_height;
-            
-            /* Terrain Row and Col */
-            t_row = ((byte)ta & 0x7F) % pict_rows;
-            t_col = ((byte)tc & 0x7F) % pict_cols;
-            
-            NSRect terrainRect;
-            terrainRect.origin.x = t_col * graf_width;
-            terrainRect.origin.y = t_row * graf_height;
-            terrainRect.size.width = graf_width;
-            terrainRect.size.height = graf_height;
-            
-            /* Transparency effect. We really want to check current_graphics_mode->alphablend, but as of this writing that's never set, so we do something lame.  */
-            //if (current_graphics_mode->alphablend)
-            if (graf_width > 8 || graf_height > 8)
-            {
-                draw_image_tile(pict_image, terrainRect, destinationRect, NSCompositeCopy);
-                draw_image_tile(pict_image, sourceRect, destinationRect, NSCompositeSourceOver); 
-            }
-            else
-            {
-                draw_image_tile(pict_image, sourceRect, destinationRect, NSCompositeCopy);
-            }
-        }        
+    if (angbandContext->changes == 0) {
+        /* Bail out; there was an earlier memory allocation failure. */
+        return 1;
     }
-    
-    [angbandContext unlockFocus];
-    [angbandContext setNeedsDisplayInBaseRect:redisplayRect];
-    
-    [pool drain];
+    if (angbandContext->changes->rows[y] == 0) {
+        angbandContext->changes->rows[y] =
+            create_row_change(angbandContext->cols);
+        if (angbandContext->changes->rows[y] == 0) {
+            NSLog(@"failed to allocate changes for row %d", y);
+            return 1;
+        }
+        if (angbandContext->changes->ymin > y) {
+            angbandContext->changes->ymin = y;
+        }
+        if (angbandContext->changes->ymax < y) {
+            angbandContext->changes->ymax = y;
+        }
+    }
 
-#endif ////
-    
+    if (angbandContext->changes->rows[y]->xmin > x) {
+        angbandContext->changes->rows[y]->xmin = x;
+    }
+    if (angbandContext->changes->rows[y]->xmax < x + n - 1) {
+	angbandContext->changes->rows[y]->xmax = x + n - 1;
+    }
+    for (pc = angbandContext->changes->rows[y]->cell_changes + x;
+	 pc != angbandContext->changes->rows[y]->cell_changes + x + n;
+	 ++pc) {
+        int a = *ap++;
+        char c = *cp++;
+        int ta = *tap++;
+        char tc = *tcp++;
+        
+        if (use_graphics && (a & 0x80) && (c & 0x80)) {
+            pc->c.c = ((byte)c & 0x7F) % pict_cols;
+            pc->a = ((byte)a & 0x7F) % pict_rows;
+            pc->tcol = ((byte)tc & 0x7F) % pict_cols;
+            pc->trow = ((byte)ta & 0x7F) % pict_rows;
+	    pc->change_type = CELL_CHANGE_PICT;
+            any_change = 1;
+        }
+    }
+    if (any_change) {
+        angbandContext->changes->has_pict = 1;
+    }
+
+#endif
+
     /* Success */
     return (0);
 }
 
-/*
+/**
  * Low level graphics.  Assumes valid input.
  *
  * Draw several ("n") chars, with an attr, at a given location.
  */
-////static errr Term_text_cocoa(int x, int y, int n, int a, const wchar_t *cp)
-static errr Term_text_cocoa(int x, int y, int n, byte_hack a, const char *cp) ////half
+static errr Term_text_cocoa(int x, int y, int n, byte_hack a, const char *cp)
 {
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-
-    ////half: I've simply removed the 'draw either side' code from this function
-    ////half  This involved removing the two blocks below
-    ////half  This probably means I can remove angbandContext->charOverdrawCache
-    
-    NSRect redisplayRect = NSZeroRect;
     AngbandContext* angbandContext = Term->data;
-    
-    ////half: Removed this block
-    /* record our data in our cache */
-    /*
-    int start = y * angbandContext->cols + x;
-    int location;
-    for (location = 0; location < n; location++) {
-        angbandContext->charOverdrawCache[start + location] = cp[location];
-        angbandContext->attrOverdrawCache[start + location] = a;
+    struct PendingCellChange *pc;
+
+    if (angbandContext->changes == 0) {
+        /* Bail out; there was an earlier memory allocation failure. */
+        return 1;
     }
-    */
-
-    /* Focus on our layer */
-    [angbandContext lockFocus];
-
-    /* Starting pixel */
-    NSRect charRect = [angbandContext rectInImageForTileAtX:x Y:y];
-    
-    const CGFloat tileWidth = angbandContext->tileSize.width;
-    
-    /* erase behind us */
-    unsigned leftPushOptions = push_options(x, y);
-    unsigned rightPushOptions = push_options(x + n - 1, y);
-    leftPushOptions &= ~ PUSH_RIGHT;
-    rightPushOptions &= ~ PUSH_LEFT;
-    
-    ////half: I think I added this block, but am not sure
-    switch (a / MAX_COLORS) {
-    case BG_BLACK:
-	    [[NSColor blackColor] set];
-	    break;
-    case BG_SAME:
-	    set_color_for_index(a % MAX_COLORS);
-	    break;
-    case BG_DARK:
-	    set_color_for_index(TERM_SHADE);
-	    break;
-    }
-    
-    NSRect rectToClear = charRect;
-    rectToClear.size.width = tileWidth * n;
-    NSRectFill(crack_rect(rectToClear, AngbandScaleIdentity, leftPushOptions | rightPushOptions));
-    
-    NSFont *selectionFont = [[angbandContext selectionFont] screenFont];
-    [selectionFont set];
-
-    ////half: Removed this block
-    /* Handle overdraws */
-    /*
-    const int overdraws[2] = {x-1, x+n}; //left, right
-    int i;
-    for (i=0; i < 2; i++) {
-        int overdrawX = overdraws[i];
-        
-        // Nothing to overdraw if we're at an edge
-        if (overdrawX >= 0 && (size_t)overdrawX < angbandContext->cols)
-        {
-            wchar_t previouslyDrawnVal = angbandContext->charOverdrawCache[y * angbandContext->cols + overdrawX];
-            int previouslyDrawnAttr = angbandContext->attrOverdrawCache[y * angbandContext->cols + overdrawX];
-            // Don't overdraw if it's not text
-            if (previouslyDrawnVal != NO_OVERDRAW)
-            {
-                NSRect overdrawRect = [angbandContext rectInImageForTileAtX:overdrawX Y:y];
-                NSRect expandedRect = crack_rect(overdrawRect, AngbandScaleIdentity, push_options(overdrawX, y));
-                
-                // Make sure we redisplay it
-                switch (previouslyDrawnAttr / MAX_COLORS) {
-                    case BG_BLACK:
-                        [[NSColor blackColor] set];
-                        break;
-                    case BG_SAME:
-                        set_color_for_index(previouslyDrawnAttr % MAX_COLORS);
-                        break;
-                    case BG_DARK:
-                        set_color_for_index(TERM_SHADE);
-                        break;
-                }
-                NSRectFill(expandedRect);
-                redisplayRect = NSUnionRect(redisplayRect, expandedRect);
-                
-                // Redraw text if we have any
-                if (previouslyDrawnVal != 0)
-                {
-                    byte color = angbandContext->attrOverdrawCache[y * angbandContext->cols + overdrawX];
-                    
-                    set_color_for_index(color);
-                    [angbandContext drawWChar:previouslyDrawnVal inRect:overdrawRect];
-                }
-            }
+    if (angbandContext->changes->rows[y] == 0) {
+        angbandContext->changes->rows[y] =
+            create_row_change(angbandContext->cols);
+        if (angbandContext->changes->rows[y] == 0) {
+            NSLog(@"failed to allocate changes for row %d", y);
+            return 1;
+        }
+        if (angbandContext->changes->ymin > y) {
+            angbandContext->changes->ymin = y;
+        }
+        if (angbandContext->changes->ymax < y) {
+            angbandContext->changes->ymax = y;
         }
     }
-    */
-    
-    
-    /* Set the color */
-    set_color_for_index(a % MAX_COLORS);
-    
-    /* Draw each */
-    NSRect rectToDraw = charRect;
-    int i;
-    for (i=0; i < n; i++) {
-        [angbandContext drawWChar:cp[i] inRect:rectToDraw];
-        rectToDraw.origin.x += tileWidth;
+
+    angbandContext->changes->has_text = 1;
+    if (angbandContext->changes->rows[y]->xmin > x) {
+        angbandContext->changes->rows[y]->xmin = x;
     }
-    
-    // Invalidate what we just drew
-    NSRect drawnRect = charRect;
-    drawnRect.size.width = tileWidth * n;
-    redisplayRect = NSUnionRect(redisplayRect, drawnRect);
-    
-    [angbandContext unlockFocus];    
-    [angbandContext setNeedsDisplayInBaseRect:redisplayRect];
-    
-    [pool drain];
-    
+    if (angbandContext->changes->rows[y]->xmax < x + n - 1) {
+        angbandContext->changes->rows[y]->xmax = x + n - 1;
+    }
+    pc = angbandContext->changes->rows[y]->cell_changes + x;
+    while (pc != angbandContext->changes->rows[y]->cell_changes + x + n) {
+        pc->c.w = *cp;
+        pc->a = a;
+        pc->change_type = CELL_CHANGE_TEXT;
+        ++pc;
+        ++cp;
+    }
+
     /* Success */
     return (0);
 }
