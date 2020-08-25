@@ -121,6 +121,10 @@ enum PendingCellChangeType {
     CELL_CHANGE_TEXT,
     CELL_CHANGE_PICT
 };
+/* Possible values to bitwise-or for the mask field in PendingCellChange. */
+#define PICT_MASK_NONE (0x0)
+#define PICT_MASK_ALERT (0x1)
+#define PICT_MASK_GLOW (0x2)
 struct PendingCellChange {
     /*
      * For text rendering, stores the character as a wchar_t; for tile
@@ -142,6 +146,8 @@ struct PendingCellChange {
      * terrain tile.
      */
     char trow;
+    /* For tile rendering, stores the masks to be applied. */
+    int mask;
     enum PendingCellChangeType change_type;
 };
 
@@ -2717,6 +2723,11 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                         terrainRect.size.width = graf_width;
                         terrainRect.size.height = graf_height;
                         if (alphablend) {
+                            bool alert =
+                                prc->cell_changes[jx].mask & PICT_MASK_ALERT;
+                            bool glow =
+                                prc->cell_changes[jx].mask & PICT_MASK_GLOW;
+
                             draw_image_tile(
                                 nsContext,
                                 ctx,
@@ -2724,6 +2735,23 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                                 terrainRect,
                                 destinationRect,
                                 NSCompositeCopy);
+                            if (glow) {
+                                NSRect glowRect;
+
+                                glowRect.origin.x = graf_width *
+                                    (0x7F & misc_to_char[ICON_GLOW]);
+                                glowRect.origin.y = graf_height *
+                                    (0x7F & misc_to_attr[ICON_GLOW]);
+                                glowRect.size.width = graf_width;
+                                glowRect.size.height = graf_height;
+                                draw_image_tile(
+                                    nsContext,
+                                    ctx,
+                                    pict_image,
+                                    glowRect,
+                                    destinationRect,
+                                    NSCompositeSourceOver);
+                            }
                             /*
                              * Skip drawing the foreground if it is the same
                              * as the background.
@@ -2735,6 +2763,23 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                                     ctx,
                                     pict_image,
                                     sourceRect,
+                                    destinationRect,
+                                    NSCompositeSourceOver);
+                            }
+                            if (alert) {
+                                NSRect alertRect;
+
+                                alertRect.origin.x = graf_width *
+                                    (0x7F & misc_to_char[ICON_ALERT]);
+                                alertRect.origin.y = graf_height *
+                                    (0x7F & misc_to_attr[ICON_ALERT]);
+                                alertRect.size.width = graf_width;
+                                alertRect.size.height = graf_height;
+                                draw_image_tile(
+                                    nsContext,
+                                    ctx,
+                                    pict_image,
+                                    alertRect,
                                     destinationRect,
                                     NSCompositeSourceOver);
                             }
@@ -3165,6 +3210,9 @@ static errr Term_pict_cocoa(int x, int y, int n, const byte_hack *ap, const char
             pc->a = ((byte)a & 0x7F) % pict_rows;
             pc->tcol = ((byte)tc & 0x7F) % pict_cols;
             pc->trow = ((byte)ta & 0x7F) % pict_rows;
+            pc->mask =
+                ((c & GRAPHICS_ALERT_MASK) ? PICT_MASK_ALERT : PICT_MASK_NONE) |
+                ((a & GRAPHICS_GLOW_MASK) ? PICT_MASK_GLOW : PICT_MASK_NONE);
             pc->change_type = CELL_CHANGE_PICT;
             any_change = 1;
         }
