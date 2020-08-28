@@ -1810,16 +1810,7 @@ static NSMenuItem *superitem(NSMenuItem *self)
         return;
     }
 
-    int termIndex = 0;
-
-    for( termIndex = 0; termIndex < ANGBAND_TERM_MAX; termIndex++ )
-    {
-        if( angband_term[termIndex] == self->terminal )
-        {
-            break;
-        }
-    }
-
+    int termIndex = [self terminalIndex];
     NSMenuItem *item = [[[NSApplication sharedApplication] windowsMenu] itemWithTag: AngbandWindowMenuItemTagBase + termIndex];
     [item setState: NSOnState];
 
@@ -1838,16 +1829,7 @@ static NSMenuItem *superitem(NSMenuItem *self)
         return;
     }
 
-    int termIndex = 0;
-
-    for( termIndex = 0; termIndex < ANGBAND_TERM_MAX; termIndex++ )
-    {
-        if( angband_term[termIndex] == self->terminal )
-        {
-            break;
-        }
-    }
-
+    int termIndex = [self terminalIndex];
     NSMenuItem *item = [[[NSApplication sharedApplication] windowsMenu] itemWithTag: AngbandWindowMenuItemTagBase + termIndex];
     [item setState: NSOffState];
 }
