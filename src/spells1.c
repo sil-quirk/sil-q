@@ -1761,7 +1761,7 @@ static bool project_f(
     /* unlock/open/break Doors */
     case GF_KILL_DOOR:
     {
-        if (cave_known_closed_door_bold(y, x))
+        if (cave_known_closed_door_bold(y, x) && !cave_glyph(y, x))
         {
             int result = skill_check(who_ptr, dif, 0, NULL);
 
