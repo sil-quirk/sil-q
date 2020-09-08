@@ -1653,6 +1653,10 @@ bool lock_door(int y, int x, int power)
     int lock_level;
     int obvious = FALSE;
 
+    // ignore warded doors
+    if (cave_glyph(y, x))
+        return FALSE;
+
     if (cave_feat[y][x] == FEAT_BROKEN)
         power -= 10;
 
