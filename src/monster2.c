@@ -766,7 +766,7 @@ void display_monlist(void)
             Term_erase(0, idx, 255);
         }
         Term_putstr(
-            3, 3, 35, TERM_L_WHITE, "What you see is not to be beleived.");
+            3, 3, 35, TERM_L_WHITE, "What you see is not to be believed.");
 
         return;
     }
