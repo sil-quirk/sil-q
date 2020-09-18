@@ -16,9 +16,9 @@ ARCHS = x86_64
 ARCHFLAGS = $(addprefix -arch ,$(ARCHS))
 WARNINGS = -W -Wall -Wno-unused-parameter -Wno-missing-field-initializers
 JUST_C = -std=c99 -Wdeclaration-after-statement
-OBJ_CFLAGS = -std=c99 -x objective-c
+OBJ_CFLAGS = -std=c99 -x objective-c -fobjc-arc
 CFLAGS = -g -I. $(WARNINGS) $(OPT) -DMACH_O_CARBON -DCOCOA -DUSE_PRIVATE_SAVE_PATH -DPRIVATE_USER_PATH -DRUNTIME_PRIVATE_USER_PATH -DHAVE_MKSTEMP \
-	-fno-stack-protector -mmacosx-version-min=10.5 $(ARCHFLAGS)
+	-fno-stack-protector -mmacosx-version-min=10.6 $(ARCHFLAGS)
 LIBS = -framework Cocoa
 # Fix for bug #1663: Set the deployment target via environment variable
 # for the final link command. See http://grauonline.de/wordpress/?p=71
