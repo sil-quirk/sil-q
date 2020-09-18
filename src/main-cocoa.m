@@ -3744,11 +3744,19 @@ static BOOL open_game(void)
         /* Run it */
         panelResult = [panel runModal];
         if (panelResult == NSOKButton) {
-            NSArray* filenames = [panel filenames];
-            if ([filenames count] > 0) {
-                selectedSomething = [[filenames objectAtIndex:0]
-                    getFileSystemRepresentation:savefile
-                    maxLength:sizeof(savefile)];
+            NSArray* fileURLs = [panel URLs];
+            if ([fileURLs count] > 0) {
+                NSURL* savefileURL = (NSURL *)[fileURLs objectAtIndex:0];
+                /*
+                 * The path property doesn't do the right thing except for
+                 * URLs with the file scheme.  getFileSystemRepresentation
+                 * could be used, but that wan't introduced until OS 10.9.
+                 */
+                assert([[savefileURL scheme] isEqualToString:@"file"]);
+                selectedSomething = [[savefileURL path]
+                                        getCString:savefile
+                                        maxLength:sizeof(savefile)
+                                        encoding:NSMacOSRomanStringEncoding];
             }
         }
 
