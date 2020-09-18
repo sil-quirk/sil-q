@@ -238,7 +238,8 @@ void do_cmd_redraw(void)
     p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
 
     /* Window stuff */
-    p_ptr->window |= (PW_MESSAGE | PW_OVERHEAD | PW_MONSTER | PW_OBJECT);
+    p_ptr->window |= (PW_MESSAGE | PW_OVERHEAD | PW_MONSTER | PW_OBJECT |
+        PW_MONLIST);
 
     /* Clear screen */
     Term_clear();
