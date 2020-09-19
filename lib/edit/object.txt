@@ -2125,7 +2125,7 @@ D:Some characters master Smithing and create enchanted items.
 D: To do so requires you to find a forge and when standing in it,
 D: to press (,). Your character knows how to make magical jewellery.
 D: Find the forge through this door and create a Ring of Frost.
-
+D: This will help protect you from enemies that have fiery attacks.
 
 N:485:& Note~
 G:~:W1
@@ -2135,7 +2135,6 @@ P:0:0d0:0:0d0
 F:EASY_KNOW
 D:When you have learnt about Song and Smithing, go through this door.
 
-
 N:486:& Note~
 G:~:W1
 I:2:36:0
@@ -2144,11 +2143,7 @@ P:0:0d0:0:0d0
 F:EASY_KNOW
 D:Each of the eight skills has a set of special Abilities tied to it.
 D: Each type of song is an Ability for the Song skill. Jewellery is
-D: an Ability for the Smithing skill. The amulet you made grants an
-D: Ability called Keen Senses, linked to the Perception skill. This
-D: lets you see enemies lurking in the shadows just beyond the edge
-D: of the light.
-
+D: an Ability for the Smithing skill.
 
 N:487:& Note~
 G:~:W1
