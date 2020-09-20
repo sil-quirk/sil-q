@@ -3181,10 +3181,10 @@ static errr Term_pict_cocoa(int x, int y, int n, const byte_hack *ap, const char
         tap += step;
         tcp += step;
         if (use_graphics && (a & 0x80) && (c & 0x80)) {
-            pc->c.c = ((byte)c & 0x7F) % pict_cols;
-            pc->a = ((byte)a & 0x7F) % pict_rows;
-            pc->tcol = ((byte)tc & 0x7F) % pict_cols;
-            pc->trow = ((byte)ta & 0x7F) % pict_rows;
+            pc->c.c = ((byte)c & 0x3F) % pict_cols;
+            pc->a = ((byte)a & 0x3F) % pict_rows;
+            pc->tcol = ((byte)tc & 0x3F) % pict_cols;
+            pc->trow = ((byte)ta & 0x3F) % pict_rows;
             pc->mask =
                 ((c & GRAPHICS_ALERT_MASK) ? PICT_MASK_ALERT : PICT_MASK_NONE) |
                 ((a & GRAPHICS_GLOW_MASK) ? PICT_MASK_GLOW : PICT_MASK_NONE);
