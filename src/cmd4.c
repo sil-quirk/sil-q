@@ -10658,6 +10658,13 @@ static void display_monster_list(int col, int row, int per_page,
 
         /* Display symbol */
         Term_putch(68, row + i, r_ptr->x_attr, r_ptr->x_char);
+        if (use_bigtile)
+        {
+            if ((byte)(r_ptr->x_attr) & 0x80)
+                Term_putch(69, row + i, 255, -1);
+            else
+                Term_putch(69, row + i, 0, ' ');
+        }
 
         /* Display kills */
         if (r_ptr->flags1 & (RF1_UNIQUE))
