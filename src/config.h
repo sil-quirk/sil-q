@@ -180,11 +180,6 @@
 #define SCORE_WIZARDS
 
 /*
- * OPTION: Allow "automata" to yield "high scores"
- */
-#define SCORE_AUTOMATON
-
-/*
  * OPTION: Allow "Cheaters" to yield "high scores"
  */
 /* #define SCORE_CHEATERS */

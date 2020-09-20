@@ -68,7 +68,6 @@ OBJS = \
 	birth.o load.o quest.o squelch.o \
 	wizard1.o wizard2.o \
 	generate.o dungeon.o init1.o init2.o randart.o \
-	automaton.o \
 	obj-info.o
 
 .c.o:

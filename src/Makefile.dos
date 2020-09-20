@@ -55,8 +55,6 @@ OBJS = \
   z-virt.o \
   z-util.o \
   use-obj.o \
-  automaton.o \
-
 
 # Compiler
 CC = gcc

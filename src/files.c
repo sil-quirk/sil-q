@@ -4158,16 +4158,6 @@ static errr enter_score(high_score* the_score)
     }
 #endif
 
-#ifndef SCORE_AUTOMATONS
-    /* automaton-mode pre-empts scoring */
-    if (p_ptr->noscore & 0x00F0)
-    {
-        Term_putstr(15, 8, -1, TERM_L_DARK, "(no high score for automaton)");
-        score_idx = -1;
-        return (0);
-    }
-#endif /* SCORE_AUTOMATONS */
-
     /* Hack -- Interupted */
     if (!p_ptr->escaped && streq(p_ptr->died_from, "Interrupting"))
     {

@@ -197,10 +197,6 @@ void flavor_init(void)
     }
 }
 
-#ifdef ALLOW_AUTOMATON_GRAPHICS
-extern void init_translate_visuals(void);
-#endif /* ALLOW_AUTOMATON_GRAPHICS */
-
 /*
  * Reset the "visual" lists
  *
@@ -283,10 +279,6 @@ void reset_visuals(bool unused)
         process_pref_file("font.prf");
     }
 
-#ifdef ALLOW_AUTOMATON_GRAPHICS
-    /* Initialize the translation table for the automaton */
-    init_translate_visuals();
-#endif /* ALLOW_AUTOMATON_GRAPHICS */
 }
 
 /*

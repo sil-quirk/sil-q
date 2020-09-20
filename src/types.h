@@ -939,7 +939,6 @@ struct player_type
     s16b smithing; /* Smithing counter */
     s16b fletching; /* Fletching counter */
     s16b running; /* Running counter */
-    bool automaton; /* Player is AI controlled? */
 
     s16b fletch_item; /* Item we are currently fletching. */
 

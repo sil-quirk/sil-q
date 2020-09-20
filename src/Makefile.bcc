@@ -59,7 +59,6 @@ OBJ = \
   xtra2.obj z-form.obj z-rand.obj z-term.obj \
   z-util.obj z-virt.obj \
   use-obj.obj \
-  automaton.obj \
   obj-info.obj 
 
 all : $(EXE_FILE)

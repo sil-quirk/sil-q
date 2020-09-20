@@ -5538,9 +5538,6 @@ static void quit_calmly(void)
 /*
  * Optimize non-blocking calls to "CheckEvents()"
  * Idea from "Maarten Hazewinkel <mmhazewi@cs.ruu.nl>"
- *
- * WAS: 6. The value of one (~ 60 FPS) seems to work better with the automaton,
- * and so should be for other CPU-intensive features like the autoroller.
  */
 #define EVENT_TICKS 1
 

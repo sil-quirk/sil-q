@@ -248,7 +248,6 @@ extern byte bones_selector;
 extern int r_ghost;
 extern char ghost_name[80];
 extern char g_vault_name[80];
-extern bool waiting_for_command;
 extern bool skill_gain_in_progress;
 extern bool save_game_quietly;
 extern bool stop_stealth_mode;
@@ -261,9 +260,6 @@ extern bool use_background_colors;
 /* birth.c */
 extern void player_birth(void);
 extern bool gain_skills(void);
-
-/* automaton.c */
-extern void do_cmd_automaton(void);
 
 /* cave.c */
 extern int distance(int y1, int x1, int y2, int x2);

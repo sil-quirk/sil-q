@@ -1827,18 +1827,9 @@ static char inkey_aux(void)
  *
  * This special pointer allows a sequence of keys to be "inserted" into
  * the stream of keys returned by "inkey()".  This key sequence will not
- * trigger any macros, and cannot be bypassed by the automaton.  It is used
- * in Angband to handle "keymaps".
+ * trigger any macros.  It is used in Angband to handle "keymaps".
  */
 static cptr inkey_next = NULL;
-
-/*
- * Mega-Hack -- special "inkey_hack" hook.  XXX XXX XXX
- *
- * This special function hook allows the "automaton" (see elsewhere) to take
- * control of the "inkey()" function, and substitute in fake keypresses.
- */
-char (*inkey_hack)(int flush_first) = NULL;
 
 /*
  * Get a keypress from the user.
@@ -1899,8 +1890,6 @@ char (*inkey_hack)(int flush_first) = NULL;
  *
  * Hack -- Note the use of "inkey_next" to allow "keymaps" to be processed.
  *
- * Mega-Hack -- Note the use of "inkey_hack" to allow the "automaton" to steal
- * control of the keyboard from the user.
  */
 char inkey(void)
 {
@@ -1929,16 +1918,6 @@ char inkey(void)
 
     /* Forget pointer */
     inkey_next = NULL;
-
-    /* Mega-Hack -- Use the special hook for the automaton */
-    if (inkey_hack && ((ch = (*inkey_hack)(inkey_xtra)) != 0))
-    {
-        /* Cancel the various "global parameters" */
-        inkey_base = inkey_xtra = inkey_flag = inkey_scan = FALSE;
-
-        /* Accept result */
-        return (ch);
-    }
 
     /* Hack -- handle delayed "flush()" */
     if (inkey_xtra)
@@ -2301,7 +2280,6 @@ errr quarks_free(void)
  *
  * The "message_add()" function is rather "complex", because it had to be
  * extremely efficient, both in space and time, for use with the Angband borg.
- * (Probably not still the case for the Sil Automaton).
  */
 
 /*
@@ -2783,7 +2761,7 @@ static void msg_flush(int x)
     if (hilite_target && target_sighted())
         move_cursor_relative(p_ptr->target_row, p_ptr->target_col);
 
-    if (!auto_more && !p_ptr->automaton)
+    if (!auto_more)
     {
         /* Get an acceptable keypress */
         while (1)
@@ -4039,14 +4017,8 @@ void request_command(void)
             /* Activate "command mode" */
             inkey_flag = TRUE;
 
-            // let the automaton know we are waiting for a command
-            waiting_for_command = TRUE;
-
             /* Get a command */
             ch = inkey();
-
-            // let the automaton know we are no longer waiting for a command
-            waiting_for_command = FALSE;
         }
 
         /* Clear top line */

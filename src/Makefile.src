@@ -38,4 +38,4 @@ ANGFILES = \
   	 birth.o load.o squelch.o \
   	 wizard1.o wizard2.o obj-info.o \
   	 generate.o dungeon.o init1.o init2.o randart.o \
-  	 use-obj.o automaton.o
+  	 use-obj.o 

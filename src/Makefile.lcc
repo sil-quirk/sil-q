@@ -63,7 +63,6 @@ OBJS=\
 	cmd1.obj \
 	cave.obj \
 	birth.obj \
-	automaton.obj \
 	sil.res
 
 sil.exe:	$(OBJS)
@@ -1091,9 +1090,6 @@ AUTOMATON_C=\
 	$(SRCDIR)\defines.h\
 	$(SRCDIR)\types.h\
 	$(SRCDIR)\externs.h\
-
-automaton.obj: $(AUTOMATON_C) $(SRCDIR)\automaton.c
-	$(CC) -c $(CFLAGS) $(SRCDIR)\automaton.c
 
 # Build sil.res
 SIL_RC=\

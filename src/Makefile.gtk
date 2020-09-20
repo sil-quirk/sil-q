@@ -16,7 +16,6 @@ SRCS = \
  generate.c dungeon.c init1.c init2.c randart.c \
  main-gtk.c maid-x11.c main.c \
  use-obj.c  \
- automaton.c  \
  obj-info.c
 
 OBJS = \
@@ -31,7 +30,6 @@ OBJS = \
  generate.o dungeon.o init1.o init2.o randart.o \
  main-gtk.o maid-x11.o main.o \
  use-obj.o \
- automaton.o \
  obj-info.o \
 
 #
@@ -132,7 +130,6 @@ spells2.o: spells2.c $(INCS)
 squelch.o: squelch.c $(INCS)
 tables.o: tables.c $(INCS)
 use-obj.o: use-obj.c $(INCS)
-automaton.o: automaton.c $(INCS)
 util.o: util.c $(INCS)
 variable.o: variable.c $(INCS)
 wizard1.o: wizard1.c $(INCS)

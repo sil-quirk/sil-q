@@ -119,9 +119,6 @@ s16b mon_cnt = 0; /* Number of live monsters */
  *  Most of the extra Sil variables...
  */
 
-bool waiting_for_command
-    = FALSE; // whether we are currently waiting for a command
-
 bool skill_gain_in_progress
     = FALSE; // whether we are currently in the skill-gain screen
 

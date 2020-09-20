@@ -3556,13 +3556,6 @@ void update_flow(int cy, int cx, int which_flow)
 
     byte flow_table[2][2][8 * FLOW_MAX_DIST];
 
-    // paranoia
-    if (which_flow == FLOW_AUTOMATON)
-    {
-        msg_debug("Tried to use update_flow() with FLOW_AUTOMATON.");
-        return;
-    }
-
     // pull out the relevant monster info for the monster flows
     if (which_flow < MAX_MONSTERS)
     {
