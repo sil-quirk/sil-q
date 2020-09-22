@@ -120,7 +120,7 @@ install: $(EXE) $(ICONFILES) $(PLIST)
 	@mkdir -p $(APPCONT)
 	@mkdir -p $(APPBIN)
 	@mkdir -p $(APPRES)
-	@mkdir -p $(APPRES)/English.lproj/MainMenu.nib 
+	@mkdir -p $(APPRES)/en.lproj
 	@mkdir -p $(APPRES)/lib/docs
 	@mkdir -p $(APPRES)/lib/edit
 	@mkdir -p $(APPRES)/lib/pref
@@ -136,7 +136,7 @@ install: $(EXE) $(ICONFILES) $(PLIST)
 
 	install -m 755 $(EXE) $(APPBIN)
 	install -m 644 $(ICONFILES) $(APPRES)
-	cp cocoa/English.lproj/MainMenu.nib/*ib $(APPRES)/English.lproj/MainMenu.nib
+	cp cocoa/en.lproj/MainMenu.nib $(APPRES)/en.lproj
 	sed -e 's/\$$VERSION\$$/$(VERSION)/' -e 's/\$$COPYRIGHT\$$/$(COPYRIGHT)/' \
 		-e 's/\$$NAME\$$/$(NAME)/' -e 's/\$$EXECUTABLE\$$/$(EXE)/' \
 		$(PLIST) > $(APPCONT)/Info.plist
