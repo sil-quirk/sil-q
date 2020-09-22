@@ -43,7 +43,7 @@
 #endif
 
 /* Mac headers */
-#include <Cocoa/Cocoa.h>
+#import "cocoa/AppDelegate.h"
 #include <Carbon/Carbon.h> // For keycodes
 
 static NSString * const AngbandDirectoryNameLib = @"lib";
@@ -1434,18 +1434,6 @@ static void create_user_dir(void)
     }
 }
 
-
-- (IBAction)setGraphicsMode:(NSMenuItem *)sender
-{
-    /* We stashed the graphics mode ID in the menu item's tag */
-    arg_graphics = [sender tag];
-
-    /* Stash it in UserDefaults */
-    [[NSUserDefaults angbandDefaults] setInteger:arg_graphics forKey:@"GraphicsID"];
-    [[NSUserDefaults angbandDefaults] synchronize];
-
-    redraw_for_tiles_or_term0_font();
-}
 
 - (void)addAngbandView:(AngbandView *)view
 {
@@ -4320,22 +4308,6 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 
 /*** Main program ***/
 
-@interface AngbandAppDelegate : NSObject {
-    NSMenu *_commandMenu;
-    NSDictionary *_commandMenuTagMap;
-}
-
-@property (strong, nonatomic, retain) IBOutlet NSMenu *commandMenu;
-@property (strong, nonatomic, retain) NSDictionary *commandMenuTagMap;
-
-- (IBAction)newGame:sender;
-- (IBAction)editFont:sender;
-- (IBAction)openGame:sender;
-
-- (IBAction)selectWindow: (id)sender;
-
-@end
-
 @implementation AngbandAppDelegate
 
 @synthesize commandMenu=_commandMenu;
@@ -4533,7 +4505,19 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     [[NSUserDefaults angbandDefaults] setInteger:frames_per_second forKey:@"FramesPerSecond"];
 }
 
-- (IBAction)selectWindow: (id)sender
+- (void)setGraphicsMode:(NSMenuItem *)sender
+{
+    /* We stashed the graphics mode ID in the menu item's tag */
+    arg_graphics = [sender tag];
+
+    /* Stash it in UserDefaults */
+    [[NSUserDefaults angbandDefaults] setInteger:arg_graphics forKey:@"GraphicsID"];
+    [[NSUserDefaults angbandDefaults] synchronize];
+
+    redraw_for_tiles_or_term0_font();
+}
+
+- (void)selectWindow: (id)sender
 {
     NSInteger subwindowNumber = [(NSMenuItem *)sender tag] - AngbandWindowMenuItemTagBase;
     AngbandContext *context = (__bridge AngbandContext*)
