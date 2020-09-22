@@ -678,7 +678,7 @@ static bool initialized = FALSE;
 /* The NSView subclass that draws our Angband image */
 @interface AngbandView : NSView
 {
-    IBOutlet AngbandContext *angbandContext;
+    AngbandContext *angbandContext;
 }
 
 - (void)setAngbandContext:(AngbandContext *)context;
