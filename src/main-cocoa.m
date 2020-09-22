@@ -1500,21 +1500,6 @@ static NSMenuItem *superitem(NSMenuItem *self)
 }
 
 
-- (BOOL)validateMenuItem:(NSMenuItem *)menuItem
-{
-    int tag = [menuItem tag];
-    SEL sel = [menuItem action];
-    if (sel == @selector(setGraphicsMode:))
-    {
-        [menuItem setState: (tag == arg_graphics)];
-        return YES;
-    }
-    else
-    {
-        return YES;
-    }
-}
-
 - (NSWindow *)makePrimaryWindow
 {
     if (! primaryWindow)
