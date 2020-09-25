@@ -465,11 +465,11 @@ static int resize_pending_changes(struct PendingChanges* pc, int nrow)
 - (void)resizeTerminalWithContentRect: (NSRect)contentRect saveToDefaults: (BOOL)saveToDefaults;
 
 /*
- * Change the minimum size for the window associated with the context.
- * termIdx is the index for the terminal:  pass it so this function can be
- * used when self->terminal has not yet been set.
+ * Change the minimum size and size increments for the window associated with
+ * the context. termIdx is the index for the terminal:  pass it so this
+ * function can be used when self->terminal has not yet been set.
  */
-- (void)setMinimumWindowSize:(int)termIdx;
+- (void)constrainWindowSize:(int)termIdx;
 
 /* Called from the view to indicate that it is starting or ending live resize */
 - (void)viewWillStartLiveResize:(AngbandView *)view;
@@ -1063,7 +1063,7 @@ static int compare_advances(const void *ap, const void *bp)
         // adjust terminal to fit window with new font; save the new columns and rows since they could be changed
         NSRect contentRect = [self->primaryWindow contentRectForFrameRect: [self->primaryWindow frame]];
 
-        [self setMinimumWindowSize:[self terminalIndex]];
+        [self constrainWindowSize:[self terminalIndex]];
         NSSize size = self->primaryWindow.contentMinSize;
         BOOL windowNeedsResizing = NO;
         if (contentRect.size.width < size.width) {
@@ -1645,7 +1645,7 @@ static NSMenuItem *superitem(NSMenuItem *self)
     Term_activate( old );
 }
 
-- (void)setMinimumWindowSize:(int)termIdx
+- (void)constrainWindowSize:(int)termIdx
 {
     NSSize minsize;
 
@@ -1661,6 +1661,7 @@ static NSMenuItem *superitem(NSMenuItem *self)
     minsize.height =
         minsize.height * self->tileSize.height + self->borderSize.height * 2.0;
     [[self makePrimaryWindow] setContentMinSize:minsize];
+    self->primaryWindow.contentResizeIncrements = self->tileSize;
 }
 
 - (void)saveWindowVisibleToDefaults: (BOOL)windowVisible
@@ -2021,7 +2022,7 @@ static void Term_init_cocoa(term *t)
         {
             [window setTitle:[NSString stringWithUTF8String: angband_term_name[termIdx]]];
         }
-        [context setMinimumWindowSize:termIdx];
+        [context constrainWindowSize:termIdx];
 
         /*
          * If this is the first term, and we support full screen (Mac OS X Lion
