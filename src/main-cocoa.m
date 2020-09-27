@@ -1491,15 +1491,6 @@ static void create_user_dir(void)
 }
 
 
-static NSMenuItem *superitem(NSMenuItem *self)
-{
-    NSMenu *supermenu = [[self menu] supermenu];
-    int index = [supermenu indexOfItemWithSubmenu:[self menu]];
-    if (index == -1) return nil;
-    else return [supermenu itemAtIndex:index];
-}
-
-
 - (NSWindow *)makePrimaryWindow
 {
     if (! primaryWindow)
@@ -4464,7 +4455,8 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     {                                       //// half
         return (turn > 0);                  //// half
     }                                       //// half
-    else if (sel == @selector(setRefreshRate:) && [superitem(menuItem) tag] == 150)
+    else if (sel == @selector(setRefreshRate:) &&
+             [[menuItem parentItem] tag] == 150)
     {
         NSInteger fps = [[NSUserDefaults standardUserDefaults] integerForKey: @"FramesPerSecond"];
         [menuItem setState: ([menuItem tag] == fps)];
