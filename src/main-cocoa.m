@@ -349,7 +349,7 @@ static int resize_pending_changes(struct PendingChanges* pc, int nrow)
 @interface AngbandContext : NSObject <NSWindowDelegate>
 {
 @public
-    
+
     /* The Angband term */
     term *terminal;
 
@@ -357,19 +357,20 @@ static int resize_pending_changes(struct PendingChanges* pc, int nrow)
     CGGlyph glyphArray[GLYPH_COUNT];
     CGFloat glyphWidths[GLYPH_COUNT];
 
-    /* Whether we are currently in live resize, which affects how big we render our image */
-    int inLiveResize;
-    
-    /* Last time we drew, so we can throttle drawing */
-    CFAbsoluteTime lastRefreshTime;
-
     struct PendingChanges* changes;
 
-    /* Flags whether or not a fullscreen transition is in progress. */
-    BOOL in_fullscreen_transition;
-
 @private
+    /* Is the last time we drew, so we can throttle drawing. */
+    CFAbsoluteTime lastRefreshTime;
 
+    /*
+     * Whether we are currently in live resize, which affects how big we
+     * render our image.
+     */
+    int inLiveResize;
+
+    /* Flags whether or not a fullscreen transition is in progress. */
+    BOOL inFullscreenTransition;
 }
 
 /* Column and row counts, by default 80 x 24 */
@@ -708,7 +709,7 @@ static bool initialized = FALSE;
      * If we have graphics turned off, text rendering is fast enough that we
      * don't need to use a live resize optimization.
      */
-    return inLiveResize && graphics_are_enabled();
+    return self->inLiveResize && graphics_are_enabled();
 }
 
 - (NSSize)baseSize
@@ -901,16 +902,16 @@ static int compare_advances(const void *ap, const void *bp)
 
 - (void)setTerm:(term *)t
 {
-    terminal = t;
+    self->terminal = t;
 }
 
 - (void)viewWillStartLiveResize:(AngbandView *)view
 {
 #if USE_LIVE_RESIZE_CACHE
-    if (inLiveResize < INT_MAX) inLiveResize++;
+    if (self->inLiveResize < INT_MAX) self->inLiveResize++;
     else [NSException raise:NSInternalInconsistencyException format:@"inLiveResize overflow"];
 
-    if (inLiveResize == 1 && graphics_are_enabled())
+    if (self->inLiveResize == 1 && graphics_are_enabled())
     {
         [self updateImage];
 
@@ -923,10 +924,10 @@ static int compare_advances(const void *ap, const void *bp)
 - (void)viewDidEndLiveResize:(AngbandView *)view
 {
 #if USE_LIVE_RESIZE_CACHE
-    if (inLiveResize > 0) inLiveResize--;
+    if (self->inLiveResize > 0) self->inLiveResize--;
     else [NSException raise:NSInternalInconsistencyException format:@"inLiveResize underflow"];
 
-    if (inLiveResize == 0 && graphics_are_enabled())
+    if (self->inLiveResize == 0 && graphics_are_enabled())
     {
         [self updateImage];
 
@@ -942,7 +943,7 @@ static int compare_advances(const void *ap, const void *bp)
     if (frames_per_second > 0)
     {
         CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
-        CFTimeInterval timeSinceLastRefresh = now - lastRefreshTime;
+        CFTimeInterval timeSinceLastRefresh = now - self->lastRefreshTime;
         CFTimeInterval timeUntilNextRefresh = (1. / (double)frames_per_second) - timeSinceLastRefresh;
         
         if (timeUntilNextRefresh > 0)
@@ -950,7 +951,7 @@ static int compare_advances(const void *ap, const void *bp)
             usleep((unsigned long)(timeUntilNextRefresh * 1000000.));
         }
     }
-    lastRefreshTime = CFAbsoluteTimeGetCurrent();
+    self->lastRefreshTime = CFAbsoluteTimeGetCurrent();
 }
 
 - (void)drawWChar:(wchar_t)wchar inRect:(NSRect)tile context:(CGContextRef)ctx
@@ -1117,7 +1118,9 @@ static int compare_advances(const void *ap, const void *bp)
         self->_nColPre = 0;
         self->_nColPost = 0;
 
-        self->in_fullscreen_transition = NO;
+        self->lastRefreshTime = CFAbsoluteTimeGetCurrent();
+        self->inLiveResize = 0;
+        self->inFullscreenTransition = NO;
 
         /* Make the image. Since we have no views, it'll just be a puny 1x1 image. */
         [self updateImage];
@@ -1130,7 +1133,7 @@ static int compare_advances(const void *ap, const void *bp)
 /* Destroy all the receiver's stuff. This is intended to be callable more than once. */
 - (void)dispose
 {
-    terminal = NULL;
+    self->terminal = NULL;
     
     /* Disassociate ourselves from our angbandViews */
     [self.angbandViews makeObjectsPerformSelector:@selector(setAngbandContext:) withObject:nil];
@@ -1476,7 +1479,7 @@ static void create_user_dir(void)
 - (void)angbandViewDidScale:(AngbandView *)view
 {
     /* If we're live-resizing with graphics, we're using the live resize optimization, so don't update the image. Otherwise do it. */
-    if (! (inLiveResize && graphics_are_enabled()) && view == [self activeView])
+    if (! (self->inLiveResize && graphics_are_enabled()) && view == [self activeView])
     {
         [self updateImage];
 
@@ -1723,7 +1726,7 @@ static void create_user_dir(void)
 {
     NSWindow *window = [notification object];
     NSRect contentRect = [window contentRectForFrameRect: [window frame]];
-    [self resizeTerminalWithContentRect: contentRect saveToDefaults: !(self->in_fullscreen_transition)];
+    [self resizeTerminalWithContentRect: contentRect saveToDefaults: !(self->inFullscreenTransition)];
 }
 
 //- (NSSize)windowWillResize: (NSWindow *)sender toSize: (NSSize)frameSize
@@ -1732,27 +1735,27 @@ static void create_user_dir(void)
 
 - (void)windowWillEnterFullScreen: (NSNotification *)notification
 {
-    self->in_fullscreen_transition = YES;
+    self->inFullscreenTransition = YES;
 }
 
 - (void)windowDidEnterFullScreen: (NSNotification *)notification
 {
     NSWindow *window = [notification object];
     NSRect contentRect = [window contentRectForFrameRect: [window frame]];
-    self->in_fullscreen_transition = NO;
+    self->inFullscreenTransition = NO;
     [self resizeTerminalWithContentRect: contentRect saveToDefaults: NO];
 }
 
 - (void)windowWillExitFullScreen: (NSNotification *)notification
 {
-    self->in_fullscreen_transition = YES;
+    self->inFullscreenTransition = YES;
 }
 
 - (void)windowDidExitFullScreen: (NSNotification *)notification
 {
     NSWindow *window = [notification object];
     NSRect contentRect = [window contentRectForFrameRect: [window frame]];
-    self->in_fullscreen_transition = NO;
+    self->inFullscreenTransition = NO;
     [self resizeTerminalWithContentRect: contentRect saveToDefaults: NO];
 }
 
