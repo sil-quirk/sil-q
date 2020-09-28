@@ -107,233 +107,563 @@ enum PendingCellChangeType {
     CELL_CHANGE_NONE = 0,
     CELL_CHANGE_WIPE,
     CELL_CHANGE_TEXT,
-    CELL_CHANGE_PICT
+    CELL_CHANGE_TILE
 };
-/* Possible values to bitwise-or for the mask field in PendingCellChange. */
+/* Possible values to bitwise-or for the mask field in PendingTileChange. */
 #define PICT_MASK_NONE (0x0)
 #define PICT_MASK_ALERT (0x1)
 #define PICT_MASK_GLOW (0x2)
-struct PendingCellChange {
-    /*
-     * For text rendering, stores the character as a wchar_t; for tile
-     * rendering, stores the column in the tile set for the source tile.
-     */
-    union { wchar_t w; char c; } c;
-    /*
-     * For text rendering, stores the color; for tile rendering, stores the
-     * row in the tile set for the source tile.
-     */
-    int a;
-    /*
-     * For tile rendering, stores the column in the tile set for the terrain
-     * tile.
-     */
-    char tcol;
-    /*
-     * For tile rendering, stores the row in the tile set for the
-     * terrain tile.
-     */
-    char trow;
-    /* For tile rendering, stores the masks to be applied. */
+struct PendingTextChange {
+    wchar_t glyph;
+    int color;
+};
+struct PendingTileChange {
+    char fgdCol, fgdRow, bckCol, bckRow;
     int mask;
-    enum PendingCellChangeType change_type;
+};
+struct PendingCellChange {
+    union { struct PendingTextChange txc; struct PendingTileChange tic; } v;
+    enum PendingCellChangeType changeType;
 };
 
-struct PendingRowChange
-{
-    /*
-     * These are the first and last columns, inclusive, that have been
-     * modified.  xmin is greater than xmax if no changes have been made.
-     */
-    int xmin, xmax;
-    /*
-     * This points to storage for a number of elements equal to the number
-     * of columns (implicitly gotten from the enclosing AngbandContext).
-     */
-    struct PendingCellChange* cell_changes;
-};
+@interface PendingTermChanges : NSObject {
+@private
+    int *colBounds;
+    struct PendingCellChange **changesByRow;
+}
 
-static struct PendingRowChange* create_row_change(int ncol)
+/**
+ * Returns YES if nCol and nRow are a feasible size for the pending changes.
+ * Otherwise, returns NO.
+ */
++ (BOOL)isValidSize:(int)nCol rows:(int)nRow;
+
+/**
+ * Initialize with zero columns and zero rows.
+ */
+- (id)init;
+
+/**
+ * Initialize with nCol columns and nRow rows.  No changes will be marked.
+ */
+- (id)initWithColumnsRows:(int)nCol rows:(int)nRow NS_DESIGNATED_INITIALIZER;
+
+/**
+ * Clears all marked changes.
+ */
+- (void)clear;
+
+/**
+ * Changes the bounds over which changes are recorded.  Has the side effect
+ * of clearing any marked changes.  Will throw an exception if nCol or nRow
+ * is negative.
+ */
+- (void)resize:(int)nCol rows:(int)nRow;
+
+/**
+ * Mark the cell, (iCol, iRow), as having changed text.
+ */
+- (void)markTextChange:(int)iCol row:(int)iRow glyph:(wchar_t)g color:(int)c;
+
+/**
+ * Mark the cell, (iCol, iRow), as having a changed tile.
+ */
+- (void)markTileChange:(int)iCol row:(int)iRow
+    foregroundCol:(char)fc foregroundRow:(char)fr
+    backgroundCol:(char)bc backgroundRow:(char)br
+    mask:(int)m;
+
+/**
+ * Mark the cells from (iCol, iRow) to (iCol + nCol - 1, iRow) as wiped.
+ */
+- (void)markWipeRange:(int)iCol row:(int)iRow n:(int)nCol;
+
+/**
+ * Mark the location of the cursor.  The cursor will be the standard size:
+ * one cell.
+ */
+- (void)markCursor:(int)iCol row:(int)iRow;
+
+/**
+ * Mark the location of the cursor.  The cursor will be w cells wide and
+ * h cells tall, and the given location is the position of the upper left
+ * corner.
+ */
+- (void)markBigCursor:(int)iCol row:(int)iRow
+            cellsWide:(int)w cellsHigh:(int)h;
+
+/**
+ * Return the zero-based index of the first column changed for the given
+ * zero-based row index.  If there are no changes in the row, the returned
+ * value will be the number of columns.
+ */
+- (int)getFirstChangedColumnInRow:(int)iRow;
+
+/**
+ * Return the zero-based index of the last column changed for the given
+ * zero-based row index.  If there are no changes in the row, the returned
+ * value will be -1.
+ */
+- (int)getLastChangedColumnInRow:(int)iRow;
+
+/**
+ * Return the type of change at the given cell, (iCol, iRow).
+ */
+- (enum PendingCellChangeType)getCellChangeType:(int)iCol row:(int)iRow;
+
+/**
+ * Return the nature of a text change at the given cell, (iCol, iRow).
+ * Will throw an exception if [obj getCellChangeType:iCol row:iRow] is
+ * neither CELL_CHANGE_TEXT nor CELL_CHANGE_WIPE.
+ */
+- (struct PendingTextChange)getCellTextChange:(int)iCol row:(int)iRow;
+
+/**
+ * Return the nature of a tile change at the given cell, (iCol, iRow).
+ * Will throw an exception if [obj getCellChangeType:iCol row:iRow] is
+ * different than CELL_CHANGE_TILE.
+ */
+- (struct PendingTileChange)getCellTileChange:(int)iCol row:(int)iRow;
+
+/**
+ * Is the number of columns for recording changes.
+ */
+@property (readonly) int columnCount;
+
+/**
+ * Is the number of rows for recording changes.
+ */
+@property (readonly) int rowCount;
+
+/**
+ * Will be YES if there are any pending changes to locations rendered as text.
+ * Otherwise, it will be NO.
+ */
+@property (readonly) BOOL hasTextChanges;
+
+/**
+ * Will be YES if there are any pending changes to locations rendered as tiles.
+ * Otherwise, it will be NO.
+ */
+@property (readonly) BOOL hasTileChanges;
+
+/**
+ * Will be YES if there are any pending wipes.  Otherwise, it will be NO.
+ */
+@property (readonly) BOOL hasWipeChanges;
+
+/**
+ * Is the zero-based index of the first row with changes.  Will be equal to
+ * the number of rows if there are no changes.
+ */
+@property (readonly) int firstChangedRow;
+
+/**
+ * Is the zero-based index of the last row with changes.  Will be equal to
+ * -1 if there are no changes.
+ */
+@property (readonly) int lastChangedRow;
+
+/**
+ * Is the zero-based index for the column with the upper left corner of the
+ * cursor.  It will be -1 if the cursor position has not been set since the
+ * changes were cleared.
+ */
+@property (readonly) int cursorColumn;
+
+/**
+ * Is the zero-based index for the row with the upper left corner of the
+ * cursor.  It will be -1 if the cursor position has not been set since the
+ * changes were cleared.
+ */
+@property (readonly) int cursorRow;
+
+/**
+ * Is the cursor width in number of cells.
+ */
+@property (readonly) int cursorWidth;
+
+/**
+ * Is the cursor height in number of cells.
+ */
+@property (readonly) int cursorHeight;
+
+/**
+ * This is a helper for the mark* messages.
+ */
+- (void)setupForChange:(int)iCol row:(int)iRow n:(int)nCol;
+
+/**
+ * Throw an exception if the given range of column indices is invalid
+ * (including non-positive values for nCol).
+ */
+- (void)checkColumnIndices:(int)iCol n:(int)nCol;
+
+/**
+ * Throw an exception if the given row index is invalid.
+ */
+- (void)checkRowIndex:(int)iRow;
+
+@end
+
+@implementation PendingTermChanges
+
++ (BOOL) isValidSize:(int)nCol rows:(int)nRow
 {
-    struct PendingRowChange* prc =
-        (struct PendingRowChange*) malloc(sizeof(struct PendingRowChange));
-    struct PendingCellChange* pcc = (struct PendingCellChange*)
-        malloc(ncol * sizeof(struct PendingCellChange));
+    if (nCol < 0
+            || (size_t) nCol > SIZE_MAX / sizeof(struct PendingCellChange)
+            || nRow < 0
+            || (size_t) nRow > SIZE_MAX / sizeof(struct PendingCellChange*)
+            || (size_t) nRow > SIZE_MAX / (2 * sizeof(int))) {
+        return NO;
+    }
+    return YES;
+}
+
+- (id)init
+{
+    return [self initWithColumnsRows:0 rows:0];
+}
+
+- (id)initWithColumnsRows:(int)nCol rows:(int)nRow
+{
+    if (self = [super init]) {
+        if (! [PendingTermChanges isValidSize:nCol rows:nRow]) {
+            return nil;
+        }
+        self->colBounds = malloc((size_t) 2 * sizeof(int) * nRow);
+        if (self->colBounds == 0 && nRow > 0) {
+            return nil;
+        }
+        self->changesByRow = calloc(nRow, sizeof(struct PendingCellChange*));
+        if (self->changesByRow == 0 && nRow > 0) {
+            free(self->colBounds);
+            return nil;
+        }
+        for (int i = 0; i < nRow + nRow; i += 2) {
+            self->colBounds[i] = nCol;
+            self->colBounds[i + 1] = -1;
+        }
+        self->_columnCount = nCol;
+        self->_rowCount = nRow;
+        self->_hasTextChanges = NO;
+        self->_hasTileChanges = NO;
+        self->_hasWipeChanges = NO;
+        self->_firstChangedRow = nRow;
+        self->_lastChangedRow = -1;
+        self->_cursorColumn = -1;
+        self->_cursorRow = -1;
+        self->_cursorWidth = 1;
+        self->_cursorHeight = 1;
+    }
+    return self;
+}
+
+- (void)dealloc
+{
+    if (self->changesByRow != 0) {
+        for (int i = 0; i < self.rowCount; ++i) {
+            if (self->changesByRow[i] != 0) {
+                free(self->changesByRow[i]);
+                self->changesByRow[i] = 0;
+            }
+        }
+        free(self->changesByRow);
+        self->changesByRow = 0;
+    }
+    if (self->colBounds != 0) {
+        free(self->colBounds);
+        self->colBounds = 0;
+    }
+}
+
+- (void)clear
+{
+    for (int i = 0; i < self.rowCount; ++i) {
+        self->colBounds[i + i] = self.columnCount;
+        self->colBounds[i + i + 1] = -1;
+        if (self->changesByRow[i] != 0) {
+            free(self->changesByRow[i]);
+            self->changesByRow[i] = 0;
+        }
+    }
+    self->_hasTextChanges = NO;
+    self->_hasTileChanges = NO;
+    self->_hasWipeChanges = NO;
+    self->_firstChangedRow = self.rowCount;
+    self->_lastChangedRow = -1;
+    self->_cursorColumn = -1;
+    self->_cursorRow = -1;
+    self->_cursorWidth = 1;
+    self->_cursorHeight = 1;
+}
+
+- (void)resize:(int)nCol rows:(int)nRow
+{
+    if (! [PendingTermChanges isValidSize:nCol rows:nRow]) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"PendingTermChangesRowsColumns"
+                               reason:@"resize called with number of columns or rows that is negative or too large"
+                               userInfo:nil];
+        @throw exc;
+    }
+    int *cb = malloc((size_t) 2 * sizeof(int) * nRow);
+    struct PendingCellChange** cbr =
+        calloc(nRow, sizeof(struct PendingCellChange*));
     int i;
 
-    if (prc == 0 || pcc == 0) {
-        if (pcc != 0) {
-            free(pcc);
+    if ((cb == 0 || cbr == 0) && nRow > 0) {
+        if (cbr != 0) {
+            free(cbr);
         }
-        if (prc != 0) {
-            free(prc);
+        if (cb != 0) {
+            free(cb);
         }
-        return 0;
+        NSException *exc = [NSException
+                               exceptionWithName:@"OutOfMemory"
+                               reason:@"resize called for PendingTermChanges"
+                               userInfo:nil];
+        @throw exc;
     }
 
-    prc->xmin = ncol;
-    prc->xmax = -1;
-    prc->cell_changes = pcc;
-    for (i = 0; i < ncol; ++i) {
-        pcc[i].change_type = CELL_CHANGE_NONE;
+    for (i = 0; i < nRow; ++i) {
+        cb[i + i] = nCol;
+        cb[i + i + 1] = -1;
     }
-    return prc;
-}
-
-
-static void destroy_row_change(struct PendingRowChange* prc)
-{
-    if (prc != 0) {
-        if (prc->cell_changes != 0) {
-            free(prc->cell_changes);
-        }
-        free(prc);
-    }
-}
-
-
-struct PendingChanges
-{
-    /* Hold the number of rows specified at creation. */
-    int nrow;
-    /*
-     * Hold the position set for the software cursor.  Use negative indices
-     * to indicate that the cursor is not displayed.
-     */
-    int xcurs, ycurs;
-    /* Is nonzero if the cursor should be drawn at double the tile width. */
-    int bigcurs;
-    /* Record whether the changes include any text, picts, or wipes. */
-    int has_text, has_pict, has_wipe;
-    /*
-     * These are the first and last rows, inclusive, that have been
-     * modified.  ymin is greater than ymax if no changes have been made.
-     */
-    int ymin, ymax;
-    /*
-     * This is an array of pointers to the changes.  The number of elements
-     * is the number of rows.  An element will be a NULL pointer if no
-     * modifications have been made to the row.
-     */
-    struct PendingRowChange** rows;
-};
-
-
-static struct PendingChanges* create_pending_changes(int ncol, int nrow)
-{
-    struct PendingChanges* pc =
-        (struct PendingChanges*) malloc(sizeof(struct PendingChanges));
-    struct PendingRowChange** pprc = (struct PendingRowChange**)
-        malloc(nrow * sizeof(struct PendingRowChange*));
-    int i;
-
-    if (pc == 0 || pprc == 0) {
-        if (pprc != 0) {
-            free(pprc);
-        }
-        if (pc != 0) {
-            free(pc);
-        }
-        return 0;
-    }
-
-    pc->nrow = nrow;
-    pc->xcurs = -1;
-    pc->ycurs = -1;
-    pc->bigcurs = 0;
-    pc->has_text = 0;
-    pc->has_pict = 0;
-    pc->has_wipe = 0;
-    pc->ymin = nrow;
-    pc->ymax = -1;
-    pc->rows = pprc;
-    for (i = 0; i < nrow; ++i) {
-        pprc[i] = 0;
-    }
-    return pc;
-}
-
-
-static void destroy_pending_changes(struct PendingChanges* pc)
-{
-    if (pc != 0) {
-        if (pc->rows != 0) {
-            int i;
-
-            for (i = 0; i < pc->nrow; ++i) {
-                if (pc->rows[i] != 0) {
-                    destroy_row_change(pc->rows[i]);
-                }
-            }
-            free(pc->rows);
-        }
-        free(pc);
-    }
-}
-
-
-static void clear_pending_changes(struct PendingChanges* pc)
-{
-    pc->xcurs = -1;
-    pc->ycurs = -1;
-    pc->bigcurs = 0;
-    pc->has_text = 0;
-    pc->has_pict = 0;
-    pc->has_wipe = 0;
-    pc->ymin = pc->nrow;
-    pc->ymax = -1;
-    if (pc->rows != 0) {
-        int i;
-
-        for (i = 0; i < pc->nrow; ++i) {
-            if (pc->rows[i] != 0) {
-                destroy_row_change(pc->rows[i]);
-                pc->rows[i] = 0;
+    if (self->changesByRow != 0) {
+        for (i = 0; i < self.rowCount; ++i) {
+            if (self->changesByRow[i] != 0) {
+                free(self->changesByRow[i]);
+                self->changesByRow[i] = 0;
             }
         }
+        free(self->changesByRow);
     }
+    if (self->colBounds != 0) {
+        free(self->colBounds);
+    }
+
+    self->colBounds = cb;
+    self->changesByRow = cbr;
+    self->_columnCount = nCol;
+    self->_rowCount = nRow;
+    self->_hasTextChanges = NO;
+    self->_hasTileChanges = NO;
+    self->_hasWipeChanges = NO;
+    self->_firstChangedRow = self.rowCount;
+    self->_lastChangedRow = -1;
+    self->_cursorColumn = -1;
+    self->_cursorRow = -1;
+    self->_cursorWidth = 1;
+    self->_cursorHeight = 1;
 }
 
-
-/* Return zero if successful; otherwise return a nonzero value. */
-static int resize_pending_changes(struct PendingChanges* pc, int nrow)
+- (void)markTextChange:(int)iCol row:(int)iRow glyph:(wchar_t)g color:(int)c
 {
-    struct PendingRowChange** pprc;
-    int i;
-
-    if (pc == 0) {
-        return 1;
-    }
-
-    pprc = (struct PendingRowChange**)
-         malloc(nrow * sizeof(struct PendingRowChange*));
-    if (pprc == 0) {
-        return 1;
-    }
-    for (i = 0; i < nrow; ++i) {
-        pprc[i] = 0;
-    }
-
-    if (pc->rows != 0) {
-        for (i = 0; i < pc->nrow; ++i) {
-            if (pc->rows[i] != 0) {
-                destroy_row_change(pc->rows[i]);
-            }
-        }
-        free(pc->rows);
-    }
-    pc->nrow = nrow;
-    pc->xcurs = -1;
-    pc->ycurs = -1;
-    pc->bigcurs = 0;
-    pc->has_text = 0;
-    pc->has_pict = 0;
-    pc->has_wipe = 0;
-    pc->ymin = nrow;
-    pc->ymax = -1;
-    pc->rows = pprc;
-    return 0;
+    [self setupForChange:iCol row:iRow n:1];
+    struct PendingCellChange *pcc = self->changesByRow[iRow] + iCol;
+    pcc->v.txc.glyph = g;
+    pcc->v.txc.color = c;
+    pcc->changeType = CELL_CHANGE_TEXT;
+    self->_hasTextChanges = YES;
 }
+
+- (void)markTileChange:(int)iCol row:(int)iRow
+         foregroundCol:(char)fc foregroundRow:(char)fr
+         backgroundCol:(char)bc backgroundRow:(char)br
+         mask:(int)m
+{
+    [self setupForChange:iCol row:iRow n:1];
+    struct PendingCellChange *pcc = self->changesByRow[iRow] + iCol;
+    pcc->v.tic.fgdCol = fc;
+    pcc->v.tic.fgdRow = fr;
+    pcc->v.tic.bckCol = bc;
+    pcc->v.tic.bckRow = br;
+    pcc->v.tic.mask = m;
+    pcc->changeType = CELL_CHANGE_TILE;
+    self->_hasTileChanges = YES;
+}
+
+- (void)markWipeRange:(int)iCol row:(int)iRow n:(int)nCol
+{
+    [self setupForChange:iCol row:iRow n:nCol];
+    struct PendingCellChange *pcc = self->changesByRow[iRow] + iCol;
+    for (int i = 0; i < nCol; ++i) {
+        pcc[i].v.txc.glyph = 0;
+        pcc[i].v.txc.color = 0;
+        pcc[i].changeType = CELL_CHANGE_WIPE;
+    }
+    self->_hasWipeChanges = YES;
+}
+
+- (void)markCursor:(int)iCol row:(int)iRow
+{
+    /* Allow negative indices to indicate an invalid cursor. */
+    [self checkColumnIndices:((iCol >= 0) ? iCol : 0) n:1];
+    [self checkRowIndex:((iRow >= 0) ? iRow : 0)];
+    self->_cursorColumn = iCol;
+    self->_cursorRow = iRow;
+    self->_cursorWidth = 1;
+    self->_cursorHeight = 1;
+}
+
+- (void)markBigCursor:(int)iCol row:(int)iRow
+            cellsWide:(int)w cellsHigh:(int)h
+{
+    /* Allow negative indices to indicate an invalid cursor. */
+    [self checkColumnIndices:((iCol >= 0) ? iCol : 0) n:1];
+    [self checkRowIndex:((iRow >= 0) ? iRow : 0)];
+    if (w < 1 || h < 1) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"InvalidCursorDimensions"
+                               reason:@"markBigCursor called for PendingTermChanges"
+                               userInfo:nil];
+        @throw exc;
+    }
+    self->_cursorColumn = iCol;
+    self->_cursorRow = iRow;
+    self->_cursorWidth = w;
+    self->_cursorHeight = h;
+}
+
+- (void)setupForChange:(int)iCol row:(int)iRow n:(int)nCol
+{
+    [self checkColumnIndices:iCol n:nCol];
+    [self checkRowIndex:iRow];
+    if (self->changesByRow[iRow] == 0) {
+        self->changesByRow[iRow] =
+            malloc(self.columnCount * sizeof(struct PendingCellChange));
+        if (self->changesByRow[iRow] == 0 && self.columnCount > 0) {
+            NSException *exc = [NSException
+                                   exceptionWithName:@"OutOfMemory"
+                                   reason:@"setupForChange called for PendingTermChanges"
+                                   userInfo:nil];
+            @throw exc;
+        }
+        struct PendingCellChange* pcc = self->changesByRow[iRow];
+        for (int i = 0; i < self.columnCount; ++i) {
+            pcc[i].changeType = CELL_CHANGE_NONE;
+        }
+    }
+    if (self.firstChangedRow > iRow) {
+        self->_firstChangedRow = iRow;
+    }
+    if (self.lastChangedRow < iRow) {
+        self->_lastChangedRow = iRow;
+    }
+    if ([self getFirstChangedColumnInRow:iRow] > iCol) {
+        self->colBounds[iRow + iRow] = iCol;
+    }
+    if ([self getLastChangedColumnInRow:iRow] < iCol + nCol - 1) {
+        self->colBounds[iRow + iRow + 1] = iCol + nCol - 1;
+    }
+}
+
+- (int)getFirstChangedColumnInRow:(int)iRow
+{
+    [self checkRowIndex:iRow];
+    return self->colBounds[iRow + iRow];
+}
+
+- (int)getLastChangedColumnInRow:(int)iRow
+{
+    [self checkRowIndex:iRow];
+    return self->colBounds[iRow + iRow + 1];
+}
+
+- (enum PendingCellChangeType)getCellChangeType:(int)iCol row:(int)iRow
+{
+    [self checkColumnIndices:iCol n:1];
+    [self checkRowIndex:iRow];
+    if (iRow < self.firstChangedRow || iRow > self.lastChangedRow) {
+        return CELL_CHANGE_NONE;
+    }
+    if (iCol < [self getFirstChangedColumnInRow:iRow]
+            || iCol > [self getLastChangedColumnInRow:iRow]) {
+        return CELL_CHANGE_NONE;
+    }
+    return self->changesByRow[iRow][iCol].changeType;
+}
+
+- (struct PendingTextChange)getCellTextChange:(int)iCol row:(int)iRow
+{
+    [self checkColumnIndices:iCol n:1];
+    [self checkRowIndex:iRow];
+    if (iRow < self.firstChangedRow || iRow > self.lastChangedRow
+            || iCol < [self getFirstChangedColumnInRow:iRow]
+            || iCol > [self getLastChangedColumnInRow:iRow]
+            || (self->changesByRow[iRow][iCol].changeType != CELL_CHANGE_TEXT
+            && self->changesByRow[iRow][iCol].changeType != CELL_CHANGE_WIPE)) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"NotTextChange"
+                               reason:@"getCellTextChange called for PendingTermChanges"
+                               userInfo:nil];
+        @throw exc;
+    }
+    return self->changesByRow[iRow][iCol].v.txc;
+}
+
+- (struct PendingTileChange)getCellTileChange:(int)iCol row:(int)iRow
+{
+    [self checkColumnIndices:iCol n:1];
+    [self checkRowIndex:iRow];
+    if (iRow < self.firstChangedRow || iRow > self.lastChangedRow
+            || iCol < [self getFirstChangedColumnInRow:iRow]
+            || iCol > [self getLastChangedColumnInRow:iRow]
+            || self->changesByRow[iRow][iCol].changeType != CELL_CHANGE_TILE) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"NotTileChange"
+                               reason:@"getCellTileChange called for PendingTermChanges"
+                               userInfo:nil];
+        @throw exc;
+    }
+    return self->changesByRow[iRow][iCol].v.tic;
+}
+
+- (void)checkColumnIndices:(int)iCol n:(int)nCol
+{
+    if (iCol < 0) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"InvalidColumnIndex"
+                               reason:@"negative column index"
+                               userInfo:nil];
+        @throw exc;
+    }
+    if (iCol >= self.columnCount || iCol + nCol > self.columnCount) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"InvalidColumnIndex"
+                               reason:@"column index exceeds number of columns"
+                               userInfo:nil];
+        @throw exc;
+    }
+    if (nCol <= 0) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"InvalidColumnIndex"
+                               reason:@"empty column range"
+                               userInfo:nil];
+        @throw exc;
+    }
+}
+
+- (void)checkRowIndex:(int)iRow
+{
+    if (iRow < 0) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"InvalidRowIndex"
+                               reason:@"negative row index"
+                               userInfo:nil];
+        @throw exc;
+    }
+    if (iRow >= self.rowCount) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"InvalidRowIndex"
+                               reason:@"row index exceeds number of rows"
+                               userInfo:nil];
+        @throw exc;
+    }
+}
+
+@end
 
 
 /* The max number of glyphs we support.  Currently this only affects
@@ -352,8 +682,6 @@ static int resize_pending_changes(struct PendingChanges* pc, int nrow)
 
     /* The Angband term */
     term *terminal;
-
-    struct PendingChanges* changes;
 
 @private
     /* Is the last time we drew, so we can throttle drawing. */
@@ -401,6 +729,9 @@ static int resize_pending_changes(struct PendingChanges* pc, int nrow)
 
 /* If this context owns a window, here it is */
 @property NSWindow *primaryWindow;
+
+/* Is the record of changes to the contents for the next update. */
+@property PendingTermChanges *changes;
 
 @property (nonatomic, assign) BOOL hasSubwindowFlags;
 @property (nonatomic, assign) BOOL windowVisibilityChecked;
@@ -1176,13 +1507,12 @@ static int compare_advances(const void *ap, const void *bp)
         /* Allocate our array of views */
         self->_angbandViews = [[NSMutableArray alloc] init];
 
-        self->changes = create_pending_changes(self.cols, self.rows);
-        if (self->changes == 0) {
-            NSLog(@"AngbandContext init:  out of memory for pending changes");
-        }
         self->_nColPre = 0;
         self->_nColPost = 0;
 
+        self->_changes =
+            [[PendingTermChanges alloc] initWithColumnsRows:self->_cols
+                                        rows:self->_rows];
         self->lastRefreshTime = CFAbsoluteTimeGetCurrent();
         self->inLiveResize = 0;
         self->inFullscreenTransition = NO;
@@ -1217,8 +1547,7 @@ static int compare_advances(const void *ap, const void *bp)
     self.primaryWindow = nil;
 
     /* Pending changes */
-    destroy_pending_changes(self->changes);
-    self->changes = 0;
+    self.changes = nil;
 }
 
 /* Usual Cocoa fare */
@@ -1684,13 +2013,7 @@ static void create_user_dir(void)
     if (newRows < 1 || newColumns < 1) return;
     self.cols = newColumns;
     self.rows = newRows;
-
-    if (resize_pending_changes(self->changes, self.rows) != 0) {
-        destroy_pending_changes(self->changes);
-        self->changes = 0;
-        NSLog(@"out of memory for pending changes with resize of terminal %d",
-            [self terminalIndex]);
-    }
+    [self.changes resize:self.cols rows:self.rows];
 
     if( saveToDefaults )
     {
@@ -2075,13 +2398,7 @@ static void Term_init_cocoa(term *t)
 
         context.cols = columns;
         context.rows = rows;
-
-        if (resize_pending_changes(context->changes, context.rows) != 0) {
-            destroy_pending_changes(context->changes);
-            context->changes = 0;
-            NSLog(@"initializing terminal %d:  out of memory for pending changes",
-                termIdx);
-        }
+        [context.changes resize:columns rows:rows];
 
         /* Get the window */
         NSWindow *window = [context makePrimaryWindow];
@@ -2541,7 +2858,7 @@ static void draw_image_tile(
  * extended.
  */
 static void query_before_text(
-    struct PendingRowChange* prc, int iy, int npre, int* pclip, int* prend)
+    PendingTermChanges *tc, int iy, int npre, int* pclip, int* prend)
 {
     int start = *prend;
     int i = start - 1;
@@ -2550,15 +2867,16 @@ static void query_before_text(
         if (i < 0 || i < start - npre) {
             break;
         }
+        enum PendingCellChangeType ctype = [tc getCellChangeType:i row:iy];
 
-        if (prc->cell_changes[i].change_type == CELL_CHANGE_PICT) {
+        if (ctype == CELL_CHANGE_TILE) {
             /*
              * The cell has been rendered with a tile.  Do not want to modify
              * its contents so the clipping and rendering region can not be
              * extended.
              */
             break;
-        } else if (prc->cell_changes[i].change_type == CELL_CHANGE_NONE) {
+        } else if (ctype == CELL_CHANGE_NONE) {
             /*
              * It has not changed (or using big tile mode and it is within
              * a changed tile but is not the left cell for that tile) so
@@ -2591,8 +2909,7 @@ static void query_before_text(
              * It is unchanged text.  A character from the changed region
              * may have extended into it so render it to clear that.
              */
-            prc->cell_changes[i].c.w = c[1];
-            prc->cell_changes[i].a = a[1];
+            [tc markTextChange:i row:iy glyph:c[1] color:a[1]];
             *pclip = i;
             *prend = i;
             --i;
@@ -2614,17 +2931,19 @@ static void query_before_text(
  * extended.
  */
 static void query_after_text(
-    struct PendingRowChange* prc,
-    int iy,
-    int ncol,
-    int npost,
-    int* pclip,
-    int* prend)
+    PendingTermChanges *tc, int iy, int npost, int *pclip, int *prend)
 {
     int end = *prend;
     int i = end + 1;
+    int ncol = tc.columnCount;
 
     while (1) {
+        if (i >= ncol) {
+            break;
+        }
+
+        enum PendingCellChangeType ctype = [tc getCellChangeType:i row:iy];
+
         /*
          * Be willing to consolidate this block with the one after it.  This
          * logic should be sufficient to avoid redraws of the region between
@@ -2632,21 +2951,19 @@ static void query_after_text(
          * For larger values of nColPre, would need to do something more to
          * avoid extra redraws.
          */
-        if (i >= ncol ||
-            (i > end + npost &&
-            prc->cell_changes[i].change_type != CELL_CHANGE_TEXT &&
-            prc->cell_changes[i].change_type != CELL_CHANGE_WIPE)) {
+        if (i > end + npost && ctype != CELL_CHANGE_TEXT
+                && ctype != CELL_CHANGE_WIPE) {
             break;
         }
 
-        if (prc->cell_changes[i].change_type == CELL_CHANGE_PICT) {
+        if (ctype == CELL_CHANGE_TILE) {
             /*
              * The cell has been rendered with a tile.  Do not want to modify
              * its contents so the clipping and rendering region can not be
              * extended.
              */
             break;
-        } else if (prc->cell_changes[i].change_type == CELL_CHANGE_NONE) {
+        } else if (ctype == CELL_CHANGE_NONE) {
             /* It has not changed so inquire what it is. */
             byte_hack a;
             char c;
@@ -2664,8 +2981,7 @@ static void query_after_text(
              * It is unchanged text.  A character from the changed region
              * may have extended into it so render it to clear that.
              */
-            prc->cell_changes[i].c.w = c;
-            prc->cell_changes[i].a = a;
+            [tc markTextChange:i row:iy glyph:c color:a];
             *pclip = i;
             *prend = i;
             ++i;
@@ -2690,7 +3006,7 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
 {
     int graf_width, graf_height, alphablend;
 
-    if (angbandContext->changes->has_pict) {
+    if (angbandContext.changes.hasTileChanges) {
         CGImageAlphaInfo ainfo = CGImageGetAlphaInfo(pict_image);
 
         graf_width = pict_cell_width;
@@ -2705,38 +3021,36 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
 
     CGContextRef ctx = [angbandContext lockFocus];
 
-    if (angbandContext->changes->has_text ||
-        angbandContext->changes->has_wipe) {
+    if (angbandContext.changes.hasTextChanges
+            || angbandContext.changes.hasWipeChanges) {
         NSFont *selectionFont = [angbandContext.angbandViewFont screenFont];
         [selectionFont set];
     }
 
-    int iy;
-    for (iy = angbandContext->changes->ymin;
-        iy <= angbandContext->changes->ymax;
-        ++iy) {
-        struct PendingRowChange* prc = angbandContext->changes->rows[iy];
-        int ix;
-
+    for (int iy = angbandContext.changes.firstChangedRow;
+            iy <= angbandContext.changes.lastChangedRow;
+            ++iy) {
         /* Skip untouched rows. */
-        if (prc == 0) {
+        if ([angbandContext.changes getFirstChangedColumnInRow:iy]
+                > [angbandContext.changes getLastChangedColumnInRow:iy]) {
             continue;
         }
+        int ix = [angbandContext.changes getFirstChangedColumnInRow:iy];
+        int ixmax = [angbandContext.changes getLastChangedColumnInRow:iy];
 
-        ix = prc->xmin;
         while (1) {
             int jx;
 
-            if (ix > prc->xmax) {
+            if (ix > ixmax) {
                 break;
             }
 
-            switch (prc->cell_changes[ix].change_type) {
+            switch ([angbandContext.changes getCellChangeType:ix row:iy]) {
             case CELL_CHANGE_NONE:
                 ++ix;
                 break;
 
-            case CELL_CHANGE_PICT:
+            case CELL_CHANGE_TILE:
                 {
                     /*
                      * Because changes are made to the compositing mode, save
@@ -2748,30 +3062,29 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                     int step = (use_bigtile) ? 2 : 1;
 
                     jx = ix;
-                    while (jx <= prc->xmax &&
-                        prc->cell_changes[jx].change_type == CELL_CHANGE_PICT) {
+                    while (jx <= ixmax
+                            && [angbandContext.changes getCellChangeType:jx row:iy]
+                            == CELL_CHANGE_TILE) {
                         NSRect destinationRect =
                             [angbandContext rectInImageForTileAtX:jx Y:iy];
+                        struct PendingTileChange tileIndices =
+                            [angbandContext.changes
+                                           getCellTileChange:jx row:iy];
                         NSRect sourceRect, terrainRect;
 
                         destinationRect.size.width *= step;
-                        sourceRect.origin.x = graf_width *
-                            prc->cell_changes[jx].c.c;
-                        sourceRect.origin.y = graf_height *
-                            prc->cell_changes[jx].a;
+                        sourceRect.origin.x = graf_width * tileIndices.fgdCol;
+                        sourceRect.origin.y = graf_height * tileIndices.fgdRow;
                         sourceRect.size.width = graf_width;
                         sourceRect.size.height = graf_height;
-                        terrainRect.origin.x = graf_width *
-                            prc->cell_changes[jx].tcol;
+                        terrainRect.origin.x = graf_width * tileIndices.bckCol;
                         terrainRect.origin.y = graf_height *
-                            prc->cell_changes[jx].trow;
+                            tileIndices.bckRow;
                         terrainRect.size.width = graf_width;
                         terrainRect.size.height = graf_height;
                         if (alphablend) {
-                            bool alert =
-                                prc->cell_changes[jx].mask & PICT_MASK_ALERT;
-                            bool glow =
-                                prc->cell_changes[jx].mask & PICT_MASK_GLOW;
+                            bool alert = tileIndices.mask & PICT_MASK_ALERT;
+                            bool glow = tileIndices.mask & PICT_MASK_GLOW;
 
                             draw_image_tile(
                                 nsContext,
@@ -2859,9 +3172,16 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                  * neighboring unchanged text).
                  */
                  jx = ix + 1;
-                 while (jx < angbandContext.cols &&
-                     (prc->cell_changes[jx].change_type == CELL_CHANGE_TEXT ||
-                     prc->cell_changes[jx].change_type == CELL_CHANGE_WIPE)) {
+                 while (1) {
+                     if (jx >= angbandContext.cols) {
+                         break;
+                     }
+                     enum PendingCellChangeType ctype =
+                         [angbandContext.changes getCellChangeType:jx row:iy];
+                     if (ctype != CELL_CHANGE_TEXT
+                             && ctype != CELL_CHANGE_WIPE) {
+                         break;
+                     }
                      ++jx;
                  }
                  {
@@ -2875,11 +3195,14 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                      int k;
 
                      query_before_text(
-                         prc, iy, angbandContext.nColPre, &isclip, &isrend);
-                     query_after_text(
-                         prc,
+                         angbandContext.changes,
                          iy,
-                         angbandContext.cols,
+                         angbandContext.nColPre,
+                         &isclip,
+                         &isrend);
+                     query_after_text(
+                         angbandContext.changes,
+                         iy,
                          angbandContext.nColPost,
                          &ieclip,
                          &ierend);
@@ -2894,10 +3217,10 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                          int k1 = k + 1;
 
                          alast = get_background_color_index(
-                             prc->cell_changes[k].a);
+                             [angbandContext.changes getCellTextChange:k row:iy].color);
                          while (k1 <= ierend && alast ==
                              get_background_color_index(
-                                  prc->cell_changes[k1].a)) {
+                                  [angbandContext.changes getCellTextChange:k1 row:iy].color)) {
                              ++k1;
                          }
                          if (alast == -1) {
@@ -2932,14 +3255,17 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                         NSRect rectToDraw;
                         int anew;
 
-                        if (prc->cell_changes[k].change_type
-                            == CELL_CHANGE_WIPE) {
+                        if ([angbandContext.changes getCellChangeType:k row:iy]
+                                == CELL_CHANGE_WIPE) {
                             /* Skip over since no rendering is necessary. */
                             ++k;
                             continue;
                         }
 
-                        anew = prc->cell_changes[k].a % MAX_COLORS;
+                        struct PendingTextChange textChange =
+                            [angbandContext.changes getCellTextChange:k
+                                           row:iy];
+                        anew = textChange.color % MAX_COLORS;
                         if (set_color || alast != anew) {
                             set_color = 0;
                             alast = anew;
@@ -2948,7 +3274,7 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
 
                         rectToDraw =
                             [angbandContext rectInImageForTileAtX:k Y:iy];
-                        [angbandContext drawWChar:prc->cell_changes[k].c.w
+                        [angbandContext drawWChar:textChange.glyph
                             inRect:rectToDraw context:ctx];
                         ++k;
                     }
@@ -2966,15 +3292,14 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
         }
     }
 
-    if (angbandContext->changes->xcurs >= 0 &&
-        angbandContext->changes->ycurs >= 0) {
+    if (angbandContext.changes.cursorColumn >= 0
+            && angbandContext.changes.cursorRow >= 0) {
         NSRect rect = [angbandContext
-            rectInImageForTileAtX:angbandContext->changes->xcurs
-            Y:angbandContext->changes->ycurs];
+            rectInImageForTileAtX:angbandContext.changes.cursorColumn
+            Y:angbandContext.changes.cursorRow];
 
-        if (angbandContext->changes->bigcurs) {
-            rect.size.width += angbandContext.tileSize.width;
-        }
+        rect.size.width *= angbandContext.changes.cursorWidth;
+        rect.size.height *= angbandContext.changes.cursorHeight;
         [[NSColor blueColor] set];
         NSFrameRectWithWidth(rect, 1);
         /* Invalidate that rect */
@@ -3072,12 +3397,10 @@ static errr Term_xtra_cocoa(int n, int v)
             }
             break;
 
-        case TERM_XTRA_FRESH:
             /* Draw the pending changes. */
-            if (angbandContext->changes != 0) {
-                Term_xtra_cocoa_fresh(angbandContext);
-                clear_pending_changes(angbandContext->changes);
-            }
+        case TERM_XTRA_FRESH:
+            Term_xtra_cocoa_fresh(angbandContext);
+            [angbandContext.changes clear];
             break;
 
         default:
@@ -3094,12 +3417,7 @@ static errr Term_curs_cocoa(int x, int y)
 {
     AngbandContext *angbandContext = (__bridge AngbandContext*) (Term->data);
 
-    if (angbandContext->changes == 0) {
-        /* Bail out; there was an earlier memory allocation failure. */
-        return 1;
-    }
-    angbandContext->changes->xcurs = x;
-    angbandContext->changes->ycurs = y;
+    [angbandContext.changes markCursor:x row:y];
 
     /* Success */
     return 0;
@@ -3112,13 +3430,7 @@ static errr Term_bigcurs_cocoa(int x, int y)
 {
     AngbandContext *angbandContext = (__bridge AngbandContext*) (Term->data);
 
-    if (angbandContext->changes == 0) {
-         /* Bail out; there was an earlier memory allocation failure. */
-        return 1;
-    }
-    angbandContext->changes->xcurs = x;
-    angbandContext->changes->ycurs = y;
-    angbandContext->changes->bigcurs = 1;
+    [angbandContext.changes markBigCursor:x row:y cellsWide:2 cellsHigh:1];
 
     /* Success */
     return 0;
@@ -3132,47 +3444,11 @@ static errr Term_bigcurs_cocoa(int x, int y)
 static errr Term_wipe_cocoa(int x, int y, int n)
 {
     AngbandContext *angbandContext = (__bridge AngbandContext*) (Term->data);
-    struct PendingCellChange *pc;
 
-    if (angbandContext->changes == 0) {
-        /* Bail out; there was an earlier memory allocation failure. */
-        return 1;
-    }
-    if (angbandContext->changes->rows[y] == 0) {
-        angbandContext->changes->rows[y] =
-            create_row_change(angbandContext.cols);
-        if (angbandContext->changes->rows[y] == 0) {
-            NSLog(@"failed to allocate changes for row %d", y);
-            return 1;
-        }
-        if (angbandContext->changes->ymin > y) {
-            angbandContext->changes->ymin = y;
-        }
-        if (angbandContext->changes->ymax < y) {
-            angbandContext->changes->ymax = y;
-        }
-    }
-
-    angbandContext->changes->has_wipe = 1;
-    if (angbandContext->changes->rows[y]->xmin > x) {
-        angbandContext->changes->rows[y]->xmin = x;
-    }
-    if (angbandContext->changes->rows[y]->xmax < x + n - 1) {
-        angbandContext->changes->rows[y]->xmax = x + n - 1;
-    }
-    for (pc = angbandContext->changes->rows[y]->cell_changes + x;
-        pc != angbandContext->changes->rows[y]->cell_changes + x + n;
-        ++pc) {
-        /*
-         * Record the color as the plain background so
-         * get_background_color_index() performs correctly.
-         */
-        pc->a = BG_BLACK * MAX_COLORS;
-        pc->change_type = CELL_CHANGE_WIPE;
-    }
+    [angbandContext.changes markWipeRange:x row:y n:n];
 
     /* Success */
-    return (0);
+    return 0;
 }
 
 static errr Term_pict_cocoa(int x, int y, int n, const byte_hack *ap, const char *cp, const byte_hack *tap, const char *tcp)
@@ -3181,43 +3457,14 @@ static errr Term_pict_cocoa(int x, int y, int n, const byte_hack *ap, const char
     if (! graphics_are_enabled()) return -1;
 
     AngbandContext* angbandContext = (__bridge AngbandContext*) (Term->data);
-    int any_change = 0;
     int step = (use_bigtile) ? 2 : 1;
-    struct PendingCellChange *pc;
 
-    if (angbandContext->changes == 0) {
-        /* Bail out; there was an earlier memory allocation failure. */
-        return 1;
-    }
     /*
      * In bigtile mode, it is sufficient that the bounds for the modified
      * region only encompass the left cell for the region affected by the
      * tile and that only that cell has to have the details of the changes.
      */
-    if (angbandContext->changes->rows[y] == 0) {
-        angbandContext->changes->rows[y] =
-            create_row_change(angbandContext.cols);
-        if (angbandContext->changes->rows[y] == 0) {
-            NSLog(@"failed to allocate changes for row %d", y);
-            return 1;
-        }
-        if (angbandContext->changes->ymin > y) {
-            angbandContext->changes->ymin = y;
-        }
-        if (angbandContext->changes->ymax < y) {
-            angbandContext->changes->ymax = y;
-        }
-    }
-
-    if (angbandContext->changes->rows[y]->xmin > x) {
-        angbandContext->changes->rows[y]->xmin = x;
-    }
-    if (angbandContext->changes->rows[y]->xmax < x + step * (n - 1)) {
-        angbandContext->changes->rows[y]->xmax = x + step * (n - 1);
-    }
-    for (pc = angbandContext->changes->rows[y]->cell_changes + x;
-        pc != angbandContext->changes->rows[y]->cell_changes + x + step * n;
-        pc += step) {
+    for (int i = x; i < x + n * step; i += step) {
         int a = *ap;
         char c = *cp;
         int ta = *tap;
@@ -3228,23 +3475,18 @@ static errr Term_pict_cocoa(int x, int y, int n, const byte_hack *ap, const char
         tap += step;
         tcp += step;
         if (use_graphics && (a & 0x80) && (c & 0x80)) {
-            pc->c.c = ((byte)c & 0x3F) % pict_cols;
-            pc->a = ((byte)a & 0x3F) % pict_rows;
-            pc->tcol = ((byte)tc & 0x3F) % pict_cols;
-            pc->trow = ((byte)ta & 0x3F) % pict_rows;
-            pc->mask =
-                ((c & GRAPHICS_ALERT_MASK) ? PICT_MASK_ALERT : PICT_MASK_NONE) |
-                ((a & GRAPHICS_GLOW_MASK) ? PICT_MASK_GLOW : PICT_MASK_NONE);
-            pc->change_type = CELL_CHANGE_PICT;
-            any_change = 1;
+            [angbandContext.changes markTileChange:i row:y
+                foregroundCol:((byte)c & 0x3F) % pict_cols
+                foregroundRow:((byte)a & 0x3F) % pict_rows
+                backgroundCol:((byte)tc & 0x3F) % pict_cols
+                backgroundRow:((byte)ta & 0x3F) % pict_rows
+                mask:((c & GRAPHICS_ALERT_MASK) ? PICT_MASK_ALERT : PICT_MASK_NONE)
+                | ((a & GRAPHICS_GLOW_MASK) ? PICT_MASK_GLOW : PICT_MASK_NONE)];
         }
-    }
-    if (any_change) {
-        angbandContext->changes->has_pict = 1;
     }
 
     /* Success */
-    return (0);
+    return 0;
 }
 
 /**
@@ -3255,45 +3497,13 @@ static errr Term_pict_cocoa(int x, int y, int n, const byte_hack *ap, const char
 static errr Term_text_cocoa(int x, int y, int n, byte_hack a, const char *cp)
 {
     AngbandContext* angbandContext = (__bridge AngbandContext*) (Term->data);
-    struct PendingCellChange *pc;
 
-    if (angbandContext->changes == 0) {
-        /* Bail out; there was an earlier memory allocation failure. */
-        return 1;
-    }
-    if (angbandContext->changes->rows[y] == 0) {
-        angbandContext->changes->rows[y] =
-            create_row_change(angbandContext.cols);
-        if (angbandContext->changes->rows[y] == 0) {
-            NSLog(@"failed to allocate changes for row %d", y);
-            return 1;
-        }
-        if (angbandContext->changes->ymin > y) {
-            angbandContext->changes->ymin = y;
-        }
-        if (angbandContext->changes->ymax < y) {
-            angbandContext->changes->ymax = y;
-        }
-    }
-
-    angbandContext->changes->has_text = 1;
-    if (angbandContext->changes->rows[y]->xmin > x) {
-        angbandContext->changes->rows[y]->xmin = x;
-    }
-    if (angbandContext->changes->rows[y]->xmax < x + n - 1) {
-        angbandContext->changes->rows[y]->xmax = x + n - 1;
-    }
-    pc = angbandContext->changes->rows[y]->cell_changes + x;
-    while (pc != angbandContext->changes->rows[y]->cell_changes + x + n) {
-        pc->c.w = *cp;
-        pc->a = a;
-        pc->change_type = CELL_CHANGE_TEXT;
-        ++pc;
-        ++cp;
+    for (int i = 0; i < n; ++i) {
+        [angbandContext.changes markTextChange:i+x row:y glyph:cp[i] color:a];
     }
 
     /* Success */
-    return (0);
+    return 0;
 }
 
 #if 0
