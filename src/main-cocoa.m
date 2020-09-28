@@ -338,10 +338,10 @@ static int resize_pending_changes(struct PendingChanges* pc, int nrow)
 
 /* The max number of glyphs we support.  Currently this only affects
  * updateGlyphInfo() for the calculation of the tile size, fontAscender,
- * fontDescender, nColPre, and nColPost (the glyphArray and glyphWidths
- * members of AngbandContext are only used in updateGlyphInfo()).  The
- * rendering in drawWChar will work for glyphs not in updateGlyphInfo()'s
- * set.
+ * fontDescender, nColPre, and nColPost.  The rendering in drawWChar
+ * will still work for a glyph not in updateGlyphInfo()'s set, though
+ * there may be clipping or clearing artifacts because it wasn't included
+ * in updateGlyphInfo()'s calculations.
  */
 #define GLYPH_COUNT 256
 
@@ -352,10 +352,6 @@ static int resize_pending_changes(struct PendingChanges* pc, int nrow)
 
     /* The Angband term */
     term *terminal;
-
-    /* "Glyph info": an array of the CGGlyphs and their widths corresponding to the above font. */
-    CGGlyph glyphArray[GLYPH_COUNT];
-    CGFloat glyphWidths[GLYPH_COUNT];
 
     struct PendingChanges* changes;
 
@@ -732,49 +728,104 @@ static int compare_advances(const void *ap, const void *bp)
     return (a->width > b->width) - (a->width < b->width);
 }
 
+/**
+ * Precompute certain metrics (tileSize, fontAscender, fontDescender, nColPre,
+ * and nColPost for the current font.
+ */
 - (void)updateGlyphInfo
 {
-    // Update glyphArray and glyphWidths
     NSFont *screenFont = [self.angbandViewFont screenFont];
 
-    // Generate a string containing each MacRoman character
-    unsigned char latinString[GLYPH_COUNT];
+    /* Generate a string containing each MacRoman character */
+    /*
+     * Here and below, dynamically allocate working arrays rather than put them
+     * on the stack in case limited stack space is an issue.
+     */
+    unsigned char *latinString = malloc(GLYPH_COUNT);
+    if (latinString == 0) {
+        NSException *exc = [NSException exceptionWithName:@"OutOfMemory"
+                                        reason:@"latinString in updateGlyphInfo"
+                                        userInfo:nil];
+        @throw exc;
+    }
     size_t i;
     for (i=0; i < GLYPH_COUNT; i++) latinString[i] = (unsigned char)i;
-    
-    // Turn that into unichar. Angband uses ISO Latin 1.
-    unichar unicharString[GLYPH_COUNT] = {0};
-    NSString *allCharsString = [[NSString alloc] initWithBytes:latinString length:sizeof latinString encoding:NSISOLatin1StringEncoding];
+
+    /* Turn that into unichar. Angband uses ISO Latin 1. */
+    NSString *allCharsString = [[NSString alloc] initWithBytes:latinString length:GLYPH_COUNT encoding:NSISOLatin1StringEncoding];
+    unichar *unicharString = malloc(GLYPH_COUNT * sizeof(unichar));
+    if (unicharString == 0) {
+        free(latinString);
+        NSException *exc = [NSException exceptionWithName:@"OutOfMemory"
+                                        reason:@"unicharString in updateGlyphInfo"
+                                        userInfo:nil];
+        @throw exc;
+    }
+    unicharString[0] = 0;
     [allCharsString getCharacters:unicharString range:NSMakeRange(0, MIN(GLYPH_COUNT, [allCharsString length]))];
     allCharsString = nil;
-    
-    // Get glyphs
-    memset(glyphArray, 0, sizeof glyphArray);
-    CTFontGetGlyphsForCharacters((CTFontRef)screenFont, unicharString, glyphArray, GLYPH_COUNT);
-    
-    // Get advances. Record the max advance.
-    CGSize advances[GLYPH_COUNT] = {};
-    CTFontGetAdvancesForGlyphs((CTFontRef)screenFont, kCTFontHorizontalOrientation, glyphArray, advances, GLYPH_COUNT);
+    free(latinString);
+
+    /* Get glyphs */
+    CGGlyph *glyphArray = calloc(GLYPH_COUNT, sizeof(CGGlyph));
+    if (glyphArray == 0) {
+        free(unicharString);
+        NSException *exc = [NSException exceptionWithName:@"OutOfMemory"
+                                        reason:@"glyphArray in updateGlyphInfo"
+                                        userInfo:nil];
+        @throw exc;
+    }
+    CTFontGetGlyphsForCharacters((CTFontRef)screenFont, unicharString,
+                                 glyphArray, GLYPH_COUNT);
+    free(unicharString);
+
+    /* Get advances. Record the max advance. */
+    CGSize *advances = malloc(GLYPH_COUNT * sizeof(CGSize));
+    if (advances == 0) {
+        free(glyphArray);
+        NSException *exc = [NSException exceptionWithName:@"OutOfMemory"
+                                        reason:@"advances in updateGlyphInfo"
+                                        userInfo:nil];
+        @throw exc;
+    }
+    CTFontGetAdvancesForGlyphs(
+        (CTFontRef)screenFont, kCTFontHorizontalOrientation, glyphArray,
+        advances, GLYPH_COUNT);
+    CGFloat *glyphWidths = malloc(GLYPH_COUNT * sizeof(CGFloat));
+    if (glyphWidths == 0) {
+        free(glyphArray);
+        free(advances);
+        NSException *exc = [NSException exceptionWithName:@"OutOfMemory"
+                                        reason:@"glyphWidths in updateGlyphInfo"
+                                        userInfo:nil];
+        @throw exc;
+    }
     for (i=0; i < GLYPH_COUNT; i++) {
         glyphWidths[i] = advances[i].width;
     }
-    
-    // For good non-mono-font support, use the median advance. Start by sorting all advances.
+
+    /*
+     * For good non-mono-font support, use the median advance. Start by sorting
+     * all advances.
+     */
     qsort(advances, GLYPH_COUNT, sizeof *advances, compare_advances);
-    
-    // Skip over any initially empty run
+
+    /* Skip over any initially empty run */
     size_t startIdx;
     for (startIdx = 0; startIdx < GLYPH_COUNT; startIdx++)
     {
         if (advances[startIdx].width > 0) break;
     }
-    
-    // Pick the center to find the median
+
+    /* Pick the center to find the median */
     CGFloat medianAdvance = 0;
+    /* In case we have all zero advances for some reason */
     if (startIdx < GLYPH_COUNT)
-    { // In case we have all zero advances for some reason
+    {
         medianAdvance = advances[(startIdx + GLYPH_COUNT)/2].width;
     }
+
+    free(advances);
 
     /*
      * Record the ascender and descender.  Some fonts, for instance DIN
@@ -783,7 +834,9 @@ static int compare_advances(const void *ap, const void *bp)
      * for the glyphs and use that instead of the ascender and descender
      * values if the bounding box result extends farther from the baseline.
      */
-    CGRect bounds = CTFontGetBoundingRectsForGlyphs((CTFontRef) screenFont, kCTFontHorizontalOrientation, glyphArray, NULL, GLYPH_COUNT);
+    CGRect bounds = CTFontGetBoundingRectsForGlyphs(
+        (CTFontRef) screenFont, kCTFontHorizontalOrientation, glyphArray,
+        NULL, GLYPH_COUNT);
     self->_fontAscender = [screenFont ascender];
     if (self->_fontAscender < bounds.origin.y + bounds.size.height) {
         self->_fontAscender = bounds.origin.y + bounds.size.height;
@@ -804,7 +857,15 @@ static int compare_advances(const void *ap, const void *bp)
      * Determine whether neighboring columns need to be redrawn when a
      * character changes.
      */
-    CGRect boxes[GLYPH_COUNT] = {};
+    CGRect *boxes = malloc(GLYPH_COUNT * sizeof(CGRect));
+    if (boxes == 0) {
+        free(glyphWidths);
+        free(glyphArray);
+        NSException *exc = [NSException exceptionWithName:@"OutOfMemory"
+                                        reason:@"boxes in updateGlyphInfo"
+                                        userInfo:nil];
+        @throw exc;
+    }
     CGFloat beyond_right = 0.;
     CGFloat beyond_left = 0.;
     CTFontGetBoundingRectsForGlyphs(
@@ -834,6 +895,7 @@ static int compare_advances(const void *ap, const void *bp)
             beyond_right = v;
         }
     }
+    free(boxes);
     self->_nColPre = ceil(-beyond_left / self.tileSize.width);
     if (beyond_right > self.tileSize.width) {
         self->_nColPost =
@@ -841,6 +903,9 @@ static int compare_advances(const void *ap, const void *bp)
     } else {
         self->_nColPost = 0;
     }
+
+    free(glyphWidths);
+    free(glyphArray);
 }
 
 - (void)updateImage
