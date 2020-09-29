@@ -2318,7 +2318,6 @@ static void record_current_savefile(void)
     {
         NSUserDefaults *angbandDefs = [NSUserDefaults angbandDefaults];
         [angbandDefs setObject:savefileString forKey:@"SaveFile"];
-        [angbandDefs synchronize];        
     }
 }
 
@@ -4648,8 +4647,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
         forKey:[NSString stringWithFormat:@"FontName-%d", mainTerm]];
     [defs setFloat:[newFont pointSize]
         forKey:[NSString stringWithFormat:@"FontSize-%d", mainTerm]];
-    [defs synchronize];
-    
+
     NSDisableScreenUpdates();
     
     /* Update window */
@@ -4784,7 +4782,6 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 
     /* Stash it in UserDefaults */
     [[NSUserDefaults angbandDefaults] setInteger:arg_graphics forKey:@"GraphicsID"];
-    [[NSUserDefaults angbandDefaults] synchronize];
 
     redraw_for_tiles_or_term0_font();
 }
