@@ -1072,9 +1072,6 @@ struct PendingCellChange {
 
 /* Class methods */
 
-/* Begins an Angband game. This is the entry point for starting off. */
-+ (void)beginGame;
-
 /* Internal method */
 - (AngbandView *)activeView;
 
@@ -1222,6 +1219,12 @@ static BOOL redraw_for_tiles_or_term0_font(void);
 static void wakeup_event_loop(void);
 static void hook_plog(const char *str);
 static void hook_quit(const char * str);
+static NSString *get_lib_directory(void);
+#if 0
+static NSString *get_doc_directory(void);
+#endif
+static NSString *AngbandCorrectedDirectoryPath(NSString *originalPath);
+static void prepare_paths_and_directories(void);
 static void load_prefs(void);
 static void init_windows(void);
 static BOOL open_game(void); ////half
@@ -1820,286 +1823,6 @@ static int compare_advances(const void *ap, const void *bp)
 {
     [self dispose];
 }
-
-
-
-#pragma mark -
-#pragma mark Directories and Paths Setup
-
-/**
- *  Return the path for Angband's lib directory and bail if it isn't found. The lib directory should be in the bundle's resources directory, since it's copied when built.
- */
-+ (NSString *)libDirectoryPath
-{
-    NSString *bundleLibPath = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent: AngbandDirectoryNameLib];
-    BOOL isDirectory = NO;
-    BOOL libExists = [[NSFileManager defaultManager] fileExistsAtPath: bundleLibPath isDirectory: &isDirectory];
-
-    if( !libExists || !isDirectory )
-    {
-        NSLog( @"[%@ %@]: can't find %@/ in bundle: isDirectory: %d libExists: %d", NSStringFromClass( [self class] ), NSStringFromSelector( _cmd ), AngbandDirectoryNameLib, isDirectory, libExists );
-
-        NSAlert *alert = [[NSAlert alloc] init];
-        /*
-         * Note that NSCriticalAlertStyle was deprecated in 10.10.  The
-         * replacement is NSAlertStyleCritical.
-         */
-        alert.alertStyle = NSCriticalAlertStyle;
-        alert.messageText = @"MissingResources";
-        alert.informativeText = @"Sil was unable to find the 'lib' folder, which should be in Sil.app/Contents/Resources, so must quit. Please report a bug on the Angband forums.";
-        [alert addButtonWithTitle:@"Quit"];
-        [alert runModal];
-        exit(0);
-    }
-
-    return bundleLibPath;
-}
-
-/**
- *  Return the path for the directory where Angband should look for its standard user file tree.
- */
-////half + (NSString *)angbandDocumentsPath
-////half {
-////half     NSString *documents = [NSSearchPathForDirectoriesInDomains( NSDocumentDirectory, NSUserDomainMask, YES ) lastObject];
-
-////half #if defined(SAFE_DIRECTORY)
-////half     NSString *versionedDirectory = [NSString stringWithFormat: @"%@-%s", AngbandDirectoryNameBase, VERSION_STRING];
-////half     return [documents stringByAppendingPathComponent: versionedDirectory];
-////half #else
-////half     return [documents stringByAppendingPathComponent: AngbandDirectoryNameBase];
-////half #endif
-////half }
-
-/**
- * Adjust directory paths as needed to correct for any differences needed by
- * Angband.  \c init_file_paths() currently requires that all paths provided have
- * a trailing slash and all other platforms honor this.
- *
- * \param originalPath The directory path to adjust.
- * \return A path suitable for Angband or nil if an error occurred.
- */
-static NSString *AngbandCorrectedDirectoryPath(NSString *originalPath)
-{
-    if ([originalPath length] == 0) {
-        return nil;
-    }
-
-    if (![originalPath hasSuffix: @"/"]) {
-        return [originalPath stringByAppendingString: @"/"];
-    }
-
-    return originalPath;
-}
-
-#ifdef RUNTIME_PRIVATE_USER_PATH
-extern const char *get_runtime_user_path(void)
-{
-    static int needs_init = 1;
-    static char path[1024];
-
-    if (needs_init) {
-        @autoreleasepool {
-            NSString *documents = [[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) lastObject]
-                stringByAppendingPathComponent:@"/Sil"];
-
-            [documents getFileSystemRepresentation:path maxLength:sizeof(path)];
-        }
-        needs_init = 0;
-    }
-    return path;
-}
-#endif
-
-#ifdef PRIVATE_USER_PATH
-/**
- * Create the directories for the user's files as needed.
- * Is the same as create_user_dir() in main.c.  Porting create_needed_dirs()
- * from Angband would avoid the code repetition.
- */
-static void create_user_dir(void)
-{
-    char dirpath[1024];
-    char subdirpath[1024];
-
-    /* Get an absolute path from the filename */
-#ifdef RUNTIME_PRIVATE_USER_PATH
-    path_parse(dirpath, sizeof(dirpath), get_runtime_user_path());
-#else
-    path_parse(dirpath, sizeof(dirpath), PRIVATE_USER_PATH);
-#endif
-
-    /* Create the directory */
-    mkdir(dirpath, 0700);
-
-    /* Build the path to the variant-specific sub-directory */
-    path_build(subdirpath, sizeof(subdirpath), dirpath, VERSION_NAME);
-
-    /* Create the directory */
-    mkdir(subdirpath, 0700);
-
-#ifdef USE_PRIVATE_SAVE_PATH
-    /* Build the path to the data sub-directory */
-    path_build(dirpath, sizeof(dirpath), subdirpath, "data");
-
-    /* Create the directory */
-    mkdir(dirpath, 0700);
-
-    /* Build the path toe the scores sub-directory */
-    path_build(dirpath, sizeof(dirpath), subdirpath, "scores");
-
-    /* Create the directory */
-    mkdir(dirpath, 0700);
-
-    /* Build the path to the savefile sub-directory */
-    path_build(dirpath, sizeof(dirpath), subdirpath, "save");
-
-    /* Create the directory */
-    mkdir(dirpath, 0700);
-#endif /* USE_PRIVATE_SAVE_PATH */
-}
-#endif
-
-/**
- *  Give Angband the base paths that should be used for the various directories it needs. It will create any needed directories.
- */
-+ (void)prepareFilePathsAndDirectories
-{
-    char libpath[PATH_MAX + 1] = "\0";
-    NSString *libDirectoryPath = AngbandCorrectedDirectoryPath([self libDirectoryPath]);
-    [libDirectoryPath getFileSystemRepresentation: libpath maxLength: sizeof(libpath)];
-
-    ////half char basepath[PATH_MAX + 1] = "\0";
-    ////half NSString *angbandDocumentsPath = AngbandCorrectedDirectoryPath([self angbandDocumentsPath]);
-    ////half [angbandDocumentsPath getFileSystemRepresentation: basepath maxLength: sizeof(basepath)];
-
-    ////init_file_paths( libpath, libpath, basepath );
-    init_file_paths( libpath ); ////
-    ////create_needed_dirs();
-#ifdef PRIVATE_USER_PATH
-    create_user_dir();
-#endif
-}
-
-
-
-#pragma mark -
-
-/* Entry point for initializing Angband */
-+ (void)beginGame
-{
-    @autoreleasepool {
-        /* Used by Angband but not by Sil. */
-#if 0
-        /* Set the command hook */
-        cmd_get_hook = textui_get_cmd;
-#endif
-
-        /* Hooks in some "z-util.c" hooks */
-        plog_aux = hook_plog;
-        quit_aux = hook_quit;
-
-        /* Used by Angband but not by Sil. */
-#if 0
-        /* Hook in to the file_open routine */
-        file_open_hook = cocoa_file_open_hook;
-
-        /* Hook into file saving dialogue routine */
-        get_file = cocoa_get_file;
-#endif
-
-        /* Initialize file paths */
-        [self prepareFilePathsAndDirectories];
-
-        /* Note the "system" */
-        ANGBAND_SYS = "mac";
-
-        /* Load preferences */
-        load_prefs();
-
-        /* Prepare the windows */
-        init_windows();
-
-        /* Set up game event handlers */
-        /* init_display(); */
-
-        /* Register the sound hook */
-        /* sound_hook = play_sound; */
-
-        /* Initialize some save file stuff */
-        player_egid = getegid();
-
-        /* We are now initialized */
-        initialized = TRUE;
-
-        /* Handle "open_when_ready" */
-        handle_open_when_ready();
-
-        /* Handle pending events (most notably update) and flush input */
-        Term_flush();
-
-        /* Mark ourself as the file creator */
-        _fcreator = SIL_CREATOR;
-
-        /* Default to saving a "text" file */
-        _ftype = 'TEXT';
-
-	init_angband();
-
-        use_background_colors = TRUE;
-    }
-
-    while (1) {
-        @autoreleasepool {
-            /* Let the player choose a savefile or start a new game */
-            if (!game_in_progress) {
-                int choice = 0;
-                int highlight = 1;
-
-                if (p_ptr->is_dead) highlight = 4;
-
-                /* Process Events until "new" or "open" is selected */
-                while (!game_in_progress) {
-                    choice = initial_menu(&highlight);
-
-                    switch (choice) {
-                    case 1:
-                        open_tutorial();
-                        break;
-                    case 2:
-                        game_in_progress = TRUE;
-                        new_game = TRUE;
-                        break;
-                    case 3:
-                        open_game();
-                        break;
-                    case 4:
-                        quit(NULL);
-                        break;
-                    }
-		}
-            }
-        
-            /* Handle pending events (most notably update) and flush input */
-            Term_flush();
-
-            /*
-             * Play a game -- "new_game" is set by "new", "open" or the open
-             * document event handler as appropriate
-             */
-            play_game(new_game);
-
-            /* Rerun the first initialization routine */
-            /* init_stuff(); */
-
-            /* Do some more between-games initialization */
-            re_init_some_things();
-
-            /* Game no longer in progress */
-            game_in_progress = FALSE;
-        }
-    }
-}
-
 
 - (void)addAngbandView:(AngbandView *)view
 {
@@ -4006,6 +3729,171 @@ static void load_prefs()
         [NSFont fontWithName:@"Monaco" size:12.];
 }
 
+/**
+ * Return the path for Angband's lib directory and bail if it isn't found. The
+ * lib directory should be in the bundle's resources directory, since it's
+ * copied when built.
+ */
+static NSString *get_lib_directory(void)
+{
+    NSString *bundleLibPath = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent: AngbandDirectoryNameLib];
+    BOOL isDirectory = NO;
+    BOOL libExists = [[NSFileManager defaultManager] fileExistsAtPath: bundleLibPath isDirectory: &isDirectory];
+
+    if( !libExists || !isDirectory )
+    {
+        NSLog( @"Sil: can't find %@/ in bundle: isDirectory: %d libExists: %d", AngbandDirectoryNameLib, isDirectory, libExists );
+
+        NSAlert *alert = [[NSAlert alloc] init];
+        /*
+         * Note that NSCriticalAlertStyle was deprecated in 10.10.  The
+         * replacement is NSAlertStyleCritical.
+         */
+        alert.alertStyle = NSCriticalAlertStyle;
+        alert.messageText = @"MissingResources";
+        alert.informativeText = @"Sil was unable to find the 'lib' folder, which should be in Sil.app/Contents/Resources, so must quit. Please report a bug on the Angband forums.";
+        [alert addButtonWithTitle:@"Quit"];
+        [alert runModal];
+        exit(0);
+    }
+
+    return bundleLibPath;
+}
+
+/**
+ * Return the path for the directory where Angband should look for its standard
+ * user file tree.
+ */
+#if 0
+static NSString *get_doc_directory(void)
+{
+    NSString *documents = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) lastObject];
+
+#if defined(SAFE_DIRECTORY)
+    NSString *versionedDirectory = [NSString stringWithFormat: @"%@-%s", AngbandDirectoryNameBase, VERSION_STRING];
+    return [documents stringByAppendingPathComponent: versionedDirectory];
+#else
+    return [documents stringByAppendingPathComponent: AngbandDirectoryNameBase];
+#endif
+}
+#endif
+
+/**
+ * Adjust directory paths as needed to correct for any differences needed by
+ * Angband.  init_file_paths() currently requires that all paths provided have
+ * a trailing slash and all other platforms honor this.
+ *
+ * \param originalPath The directory path to adjust.
+ * \return A path suitable for Angband or nil if an error occurred.
+ */
+static NSString *AngbandCorrectedDirectoryPath(NSString *originalPath)
+{
+    if ([originalPath length] == 0) {
+        return nil;
+    }
+
+    if (![originalPath hasSuffix: @"/"]) {
+        return [originalPath stringByAppendingString: @"/"];
+    }
+
+    return originalPath;
+}
+
+#ifdef RUNTIME_PRIVATE_USER_PATH
+extern const char *get_runtime_user_path(void)
+{
+    static int needs_init = 1;
+    static char path[1024];
+
+    if (needs_init) {
+        @autoreleasepool {
+            NSString *documents = [[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) lastObject]
+                stringByAppendingPathComponent:@"/Sil"];
+
+            [documents getFileSystemRepresentation:path maxLength:sizeof(path)];
+        }
+        needs_init = 0;
+    }
+    return path;
+}
+#endif
+
+#ifdef PRIVATE_USER_PATH
+/**
+ * Create the directories for the user's files as needed.
+ * Is the same as create_user_dir() in main.c.  Porting create_needed_dirs()
+ * from Angband would avoid the code repetition.
+ */
+static void create_user_dir(void)
+{
+    char dirpath[1024];
+    char subdirpath[1024];
+
+    /* Get an absolute path from the filename */
+#ifdef RUNTIME_PRIVATE_USER_PATH
+    path_parse(dirpath, sizeof(dirpath), get_runtime_user_path());
+#else
+    path_parse(dirpath, sizeof(dirpath), PRIVATE_USER_PATH);
+#endif
+
+    /* Create the directory */
+    mkdir(dirpath, 0700);
+
+    /* Build the path to the variant-specific sub-directory */
+    path_build(subdirpath, sizeof(subdirpath), dirpath, VERSION_NAME);
+
+    /* Create the directory */
+    mkdir(subdirpath, 0700);
+
+#ifdef USE_PRIVATE_SAVE_PATH
+    /* Build the path to the data sub-directory */
+    path_build(dirpath, sizeof(dirpath), subdirpath, "data");
+
+    /* Create the directory */
+    mkdir(dirpath, 0700);
+
+    /* Build the path toe the scores sub-directory */
+    path_build(dirpath, sizeof(dirpath), subdirpath, "scores");
+
+    /* Create the directory */
+    mkdir(dirpath, 0700);
+
+    /* Build the path to the savefile sub-directory */
+    path_build(dirpath, sizeof(dirpath), subdirpath, "save");
+
+    /* Create the directory */
+    mkdir(dirpath, 0700);
+#endif /* USE_PRIVATE_SAVE_PATH */
+}
+#endif
+
+/**
+ * Give Angband the base paths that should be used for the various directories
+ * it needs. It will create any needed directories.
+ */
+static void prepare_paths_and_directories(void)
+{
+    char libpath[PATH_MAX + 1] = "\0";
+    NSString *libDirectoryPath =
+        AngbandCorrectedDirectoryPath(get_lib_directory());
+    [libDirectoryPath getFileSystemRepresentation: libpath maxLength: sizeof(libpath)];
+
+#if 0
+    char basepath[PATH_MAX + 1] = "\0";
+    NSString *angbandDocumentsPath =
+        AngbandCorrectedDirectoryPath(get_doc_directory());
+    [angbandDocumentsPath getFileSystemRepresentation: basepath maxLength: sizeof(basepath)];
+
+    init_file_paths(libpath, libpath, basepath);
+    create_needed_dirs();
+#else
+    init_file_paths(libpath);
+#ifdef PRIVATE_USER_PATH
+    create_user_dir();
+#endif
+#endif
+}
+
 #if 0
 /*
  * Play sound effects asynchronously.  Select a sound from any available
@@ -4769,6 +4657,122 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     record_current_savefile();
 }
 
+/* Entry point for initializing Angband */
+- (void)beginGame
+{
+    @autoreleasepool {
+        /* Used by Angband but not by Sil. */
+#if 0
+        /* Set the command hook */
+        cmd_get_hook = textui_get_cmd;
+#endif
+
+        /* Hooks in some "z-util.c" hooks */
+        plog_aux = hook_plog;
+        quit_aux = hook_quit;
+
+        /* Used by Angband but not by Sil. */
+#if 0
+        /* Hook in to the file_open routine */
+        file_open_hook = cocoa_file_open_hook;
+
+        /* Hook into file saving dialogue routine */
+        get_file = cocoa_get_file;
+#endif
+
+        /* Initialize file paths */
+        prepare_paths_and_directories();
+
+        /* Note the "system" */
+        ANGBAND_SYS = "mac";
+
+        /* Load preferences */
+        load_prefs();
+
+        /* Prepare the windows */
+        init_windows();
+
+        /* Set up game event handlers */
+        /* init_display(); */
+
+        /* Register the sound hook */
+        /* sound_hook = play_sound; */
+
+        /* Initialize some save file stuff */
+        player_egid = getegid();
+
+        /* We are now initialized */
+        initialized = TRUE;
+
+        /* Handle "open_when_ready" */
+        handle_open_when_ready();
+
+        /* Handle pending events (most notably update) and flush input */
+        Term_flush();
+
+        /* Mark ourself as the file creator */
+        _fcreator = SIL_CREATOR;
+
+        /* Default to saving a "text" file */
+        _ftype = 'TEXT';
+
+	init_angband();
+
+        use_background_colors = TRUE;
+    }
+
+    while (1) {
+        @autoreleasepool {
+            /* Let the player choose a savefile or start a new game */
+            if (!game_in_progress) {
+                int choice = 0;
+                int highlight = 1;
+
+                if (p_ptr->is_dead) highlight = 4;
+
+                /* Process Events until "new" or "open" is selected */
+                while (!game_in_progress) {
+                    choice = initial_menu(&highlight);
+
+                    switch (choice) {
+                    case 1:
+                        open_tutorial();
+                        break;
+                    case 2:
+                        game_in_progress = TRUE;
+                        new_game = TRUE;
+                        break;
+                    case 3:
+                        open_game();
+                        break;
+                    case 4:
+                        quit(NULL);
+                        break;
+                    }
+		}
+            }
+
+            /* Handle pending events (most notably update) and flush input */
+            Term_flush();
+
+            /*
+             * Play a game -- "new_game" is set by "new", "open" or the open
+             * document event handler as appropriate
+             */
+            play_game(new_game);
+
+            /* Rerun the first initialization routine */
+            /* init_stuff(); */
+
+            /* Do some more between-games initialization */
+            re_init_some_things();
+
+            /* Game no longer in progress */
+            game_in_progress = FALSE;
+        }
+    }
+}
+
 /**
  * Implement NSObject's validateMenuItem() method to override enabling or
  * disabling a menu item.  Note that, as of 10.14, validateMenuItem() is
@@ -4975,7 +4979,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 
 - (void)applicationDidFinishLaunching:sender
 {
-    [AngbandContext beginGame];
+    [self beginGame];
     
     //once beginGame finished, the game is over - that's how Angband works, and we should quit
     game_is_finished = TRUE;

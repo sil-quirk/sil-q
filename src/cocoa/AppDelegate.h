@@ -30,5 +30,6 @@
 
 - (void)setGraphicsMode:(NSMenuItem *)sender;
 - (void)selectWindow:(id)sender;
+- (void)beginGame;
 
 @end

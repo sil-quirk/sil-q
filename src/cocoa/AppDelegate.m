@@ -98,4 +98,7 @@
 - (void)selectWindow:(id)sender {
 }
 
+- (void)beginGame {
+}
+
 @end
