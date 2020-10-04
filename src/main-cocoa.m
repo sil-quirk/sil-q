@@ -43,7 +43,7 @@
 #endif
 
 /* Mac headers */
-#include <Cocoa/Cocoa.h>
+#import "cocoa/AppDelegate.h"
 #include <Carbon/Carbon.h> // For keycodes
 
 static NSString * const AngbandDirectoryNameLib = @"lib";
@@ -82,9 +82,6 @@ enum
 /* Delay handling of pre-emptive "quit" event */
 static BOOL quit_when_ready = FALSE;
 
-/* Whether or not we allow sounds (only relevant for the screensaver, where the user can't configure it in-game) */
-static BOOL allow_sounds = YES;
-
 /* Set to indicate the game is over and we can quit without delay */
 static Boolean game_is_finished = FALSE;
 
@@ -95,6 +92,273 @@ static int frames_per_second;
 static NSFont *default_font;
 
 @class AngbandView;
+
+#if 0
+/**
+ * Load sound effects based on sound.cfg within the xtra/sound directory;
+ * bridge to Cocoa to use NSSound for simple loading and playback, avoiding
+ * I/O latency by caching all sounds at the start.  Inherits full sound
+ * format support from Quicktime base/plugins.
+ * pelpel favoured a plist-based parser for the future but .cfg support
+ * improves cross-platform compatibility.
+ */
+@interface AngbandSoundCatalog : NSObject {
+@private
+    /**
+     * Stores instances of NSSound keyed by path so the same sound can be
+     * used for multiple events.
+     */
+    NSMutableDictionary *soundsByPath;
+    /**
+     * Stores arrays of NSSound keyed by event number.
+     */
+    NSMutableDictionary *soundArraysByEvent;
+}
+
+/**
+ * If NO, then playSound effectively becomes a do nothing operation.
+ */
+@property (getter=isEnabled) BOOL enabled;
+
+/**
+ * Set up for lazy initialization in playSound().  Set enabled to NO.
+ */
+- (id)init;
+
+/**
+ * If self.enabled is YES and the given event has one or more sounds
+ * corresponding to it in the catalog, plays one of those sounds, chosen at
+ * random.
+ */
+- (void)playSound:(int)event;
+
+/**
+ * Impose an arbitrary limit on the number of possible samples per event.
+ * Currently not declaring this as a class property for compatibility with
+ * versions of Xcode prior to 8.
+ */
++ (int)maxSamples;
+
+/**
+ * Return the shared sound catalog instance, creating it if it does not
+ * exist yet.  Currently not declaring this as a class property for
+ * compatibility with versions of Xcode prior to 8.
+ */
++ (AngbandSoundCatalog*)sharedSounds;
+
+/**
+ * Release any resources associated with shared sounds.
+ */
++ (void)clearSharedSounds;
+
+@end
+
+@implementation AngbandSoundCatalog
+
+- (id)init
+{
+    if (self = [super init]) {
+        self->soundsByPath = nil;
+        self->soundArraysByEvent = nil;
+        self->_enabled = NO;
+    }
+    return self;
+}
+
+- (void)playSound:(int)event
+{
+    if (! self.enabled) {
+        return;
+    }
+
+    /* Initialize when the first sound is played. */
+    if (self->soundArraysByEvent == nil) {
+        /* Build the "sound" path */
+        char path[2048];
+        path_build(path, sizeof(path), ANGBAND_DIR_XTRA, "sound");
+        ANGBAND_DIR_XTRA_SOUND = string_make(path);
+
+        /* Find and open the config file */
+        path_build(path, sizeof(path), ANGBAND_DIR_XTRA_SOUND, "sound.cfg");
+        ang_file *fff = file_open(path, MODE_READ, -1);
+
+        /* Handle errors */
+        if (!fff) {
+            NSLog(@"The sound configuration file could not be opened.");
+            return;
+        }
+
+        self->soundsByPath = [[NSMutableDictionary alloc] init];
+        self->soundArraysByEvent = [[NSMutableDictionary alloc] init];
+        @autoreleasepool {
+            /*
+             * This loop may take a while depending on the count and size of
+             * samples to load.
+             */
+
+            /* Parse the file */
+            /* Lines are always of the form "name = sample [sample ...]" */
+            char buffer[2048];
+            while (file_getl(fff, buffer, sizeof(buffer))) {
+                char *msg_name;
+                char *cfg_sample_list;
+                char *search;
+                char *cur_token;
+                char *next_token;
+                int event;
+
+                /* Skip anything not beginning with an alphabetic character */
+                if (!buffer[0] || !isalpha((unsigned char)buffer[0])) continue;
+
+                /* Split the line into two; message name, and the rest */
+                search = strchr(buffer, ' ');
+                cfg_sample_list = strchr(search + 1, ' ');
+                if (!search) continue;
+                if (!cfg_sample_list) continue;
+
+                /* Set the message name, and terminate at first space */
+                msg_name = buffer;
+                search[0] = '\0';
+
+                /* Make sure this is a valid event name */
+                event = message_lookup_by_sound_name(msg_name);
+                if (event < 0) continue;
+
+                /*
+                 * Advance the sample list pointer so it's at the beginning of
+                 * text.
+                 */
+                cfg_sample_list++;
+                if (!cfg_sample_list[0]) continue;
+
+                /* Terminate the current token */
+                cur_token = cfg_sample_list;
+                search = strchr(cur_token, ' ');
+                if (search) {
+                    search[0] = '\0';
+                    next_token = search + 1;
+                } else {
+                    next_token = NULL;
+                }
+
+                /*
+                 * Now we find all the sample names and add them one by one
+                 */
+                while (cur_token) {
+                    NSMutableArray *soundSamples =
+                        [self->soundArraysByEvent
+                             objectForKey:[NSNumber numberWithInteger:event]];
+                    if (soundSamples == nil) {
+                        soundSamples = [[NSMutableArray alloc] init];
+                        [self->soundArraysByEvent
+                            setObject:soundSamples
+                            forKey:[NSNumber numberWithInteger:event]];
+                    }
+                    int num = (int) soundSamples.count;
+
+                    /* Don't allow too many samples */
+                    if (num >= [AngbandSoundCatalog maxSamples]) break;
+
+                    NSString *token_string =
+                        [NSString stringWithUTF8String:cur_token];
+                    NSSound *sound =
+                        [self->soundsByPath objectForKey:token_string];
+
+                    if (! sound) {
+                        /*
+                         * We have to load the sound. Build the path to the
+                         * sample.
+                         */
+                        path_build(path, sizeof(path), ANGBAND_DIR_XTRA_SOUND,
+                                   cur_token);
+                        if (file_exists(path)) {
+                            /* Load the sound into memory */
+                            sound = [[NSSound alloc]
+                                         initWithContentsOfFile:[NSString stringWithUTF8String:path]
+                                         byReference:YES];
+                            if (sound) {
+                                [self->soundsByPath setObject:sound
+                                            forKey:token_string];
+                            }
+                        }
+                    }
+
+                    /* Store it if we loaded it */
+                    if (sound) {
+                        [soundSamples addObject:sound];
+                    }
+
+                    /* Figure out next token */
+                    cur_token = next_token;
+                    if (next_token) {
+                        /* Try to find a space */
+                        search = strchr(cur_token ' ');
+
+                        /*
+                         * If we can find one, terminate, and set new "next".
+                         */
+                        if (search) {
+                            search[0] = '\0';
+                            next_token = search + 1;
+                        } else {
+                            /* Otherwise prevent infinite looping */
+                            next_token = NULL;
+                        }
+                    }
+                }
+            }
+        }
+
+        /* Close the file */
+        file_close(fff);
+    }
+
+    @autoreleasepool {
+        NSMutableArray *samples =
+            [self->soundArraysByEvent
+                 objectForKey:[NSNumber numberWithInteger:event]];
+
+        if (samples == nil || samples.count == 0) {
+            return;
+        }
+
+        /* Choose a random event. */
+        int s = rand_int((int) samples.count);
+        NSSound *sound = samples[s];
+
+        if ([sound isPlaying])
+            [sound stop];
+
+        /* Play the sound. */
+        [sound play];
+    }
+}
+
++ (int)maxSamples
+{
+    return 16;
+}
+
+/**
+ * For sharedSounds and clearSharedSounds.
+ */
+static __strong AngbandSoundCatalog *gSharedSounds = nil;
+
++ (AngbandSoundCatalog*)sharedSounds
+{
+    if (gSharedSounds == nil) {
+        gSharedSounds = [[AngbandSoundCatalog alloc] init];
+    }
+    return gSharedSounds;
+}
+
++ (void)clearSharedSounds
+{
+    gSharedSounds = nil;
+}
+
+@end
+#endif
 
 /*
  * To handle fonts where an individual glyph's bounding box can extend into
@@ -107,241 +371,571 @@ enum PendingCellChangeType {
     CELL_CHANGE_NONE = 0,
     CELL_CHANGE_WIPE,
     CELL_CHANGE_TEXT,
-    CELL_CHANGE_PICT
+    CELL_CHANGE_TILE
 };
-/* Possible values to bitwise-or for the mask field in PendingCellChange. */
+/* Possible values to bitwise-or for the mask field in PendingTileChange. */
 #define PICT_MASK_NONE (0x0)
 #define PICT_MASK_ALERT (0x1)
 #define PICT_MASK_GLOW (0x2)
-struct PendingCellChange {
-    /*
-     * For text rendering, stores the character as a wchar_t; for tile
-     * rendering, stores the column in the tile set for the source tile.
-     */
-    union { wchar_t w; char c; } c;
-    /*
-     * For text rendering, stores the color; for tile rendering, stores the
-     * row in the tile set for the source tile.
-     */
-    int a;
-    /*
-     * For tile rendering, stores the column in the tile set for the terrain
-     * tile.
-     */
-    char tcol;
-    /*
-     * For tile rendering, stores the row in the tile set for the
-     * terrain tile.
-     */
-    char trow;
-    /* For tile rendering, stores the masks to be applied. */
+struct PendingTextChange {
+    wchar_t glyph;
+    int color;
+};
+struct PendingTileChange {
+    char fgdCol, fgdRow, bckCol, bckRow;
     int mask;
-    enum PendingCellChangeType change_type;
+};
+struct PendingCellChange {
+    union { struct PendingTextChange txc; struct PendingTileChange tic; } v;
+    enum PendingCellChangeType changeType;
 };
 
-struct PendingRowChange
-{
-    /*
-     * These are the first and last columns, inclusive, that have been
-     * modified.  xmin is greater than xmax if no changes have been made.
-     */
-    int xmin, xmax;
-    /*
-     * This points to storage for a number of elements equal to the number
-     * of columns (implicitly gotten from the enclosing AngbandContext).
-     */
-    struct PendingCellChange* cell_changes;
-};
+@interface PendingTermChanges : NSObject {
+@private
+    int *colBounds;
+    struct PendingCellChange **changesByRow;
+}
 
-static struct PendingRowChange* create_row_change(int ncol)
+/**
+ * Returns YES if nCol and nRow are a feasible size for the pending changes.
+ * Otherwise, returns NO.
+ */
++ (BOOL)isValidSize:(int)nCol rows:(int)nRow;
+
+/**
+ * Initialize with zero columns and zero rows.
+ */
+- (id)init;
+
+/**
+ * Initialize with nCol columns and nRow rows.  No changes will be marked.
+ */
+- (id)initWithColumnsRows:(int)nCol rows:(int)nRow NS_DESIGNATED_INITIALIZER;
+
+/**
+ * Clears all marked changes.
+ */
+- (void)clear;
+
+/**
+ * Changes the bounds over which changes are recorded.  Has the side effect
+ * of clearing any marked changes.  Will throw an exception if nCol or nRow
+ * is negative.
+ */
+- (void)resize:(int)nCol rows:(int)nRow;
+
+/**
+ * Mark the cell, (iCol, iRow), as having changed text.
+ */
+- (void)markTextChange:(int)iCol row:(int)iRow glyph:(wchar_t)g color:(int)c;
+
+/**
+ * Mark the cell, (iCol, iRow), as having a changed tile.
+ */
+- (void)markTileChange:(int)iCol row:(int)iRow
+    foregroundCol:(char)fc foregroundRow:(char)fr
+    backgroundCol:(char)bc backgroundRow:(char)br
+    mask:(int)m;
+
+/**
+ * Mark the cells from (iCol, iRow) to (iCol + nCol - 1, iRow) as wiped.
+ */
+- (void)markWipeRange:(int)iCol row:(int)iRow n:(int)nCol;
+
+/**
+ * Mark the location of the cursor.  The cursor will be the standard size:
+ * one cell.
+ */
+- (void)markCursor:(int)iCol row:(int)iRow;
+
+/**
+ * Mark the location of the cursor.  The cursor will be w cells wide and
+ * h cells tall, and the given location is the position of the upper left
+ * corner.
+ */
+- (void)markBigCursor:(int)iCol row:(int)iRow
+            cellsWide:(int)w cellsHigh:(int)h;
+
+/**
+ * Return the zero-based index of the first column changed for the given
+ * zero-based row index.  If there are no changes in the row, the returned
+ * value will be the number of columns.
+ */
+- (int)getFirstChangedColumnInRow:(int)iRow;
+
+/**
+ * Return the zero-based index of the last column changed for the given
+ * zero-based row index.  If there are no changes in the row, the returned
+ * value will be -1.
+ */
+- (int)getLastChangedColumnInRow:(int)iRow;
+
+/**
+ * Return the type of change at the given cell, (iCol, iRow).
+ */
+- (enum PendingCellChangeType)getCellChangeType:(int)iCol row:(int)iRow;
+
+/**
+ * Return the nature of a text change at the given cell, (iCol, iRow).
+ * Will throw an exception if [obj getCellChangeType:iCol row:iRow] is
+ * neither CELL_CHANGE_TEXT nor CELL_CHANGE_WIPE.
+ */
+- (struct PendingTextChange)getCellTextChange:(int)iCol row:(int)iRow;
+
+/**
+ * Return the nature of a tile change at the given cell, (iCol, iRow).
+ * Will throw an exception if [obj getCellChangeType:iCol row:iRow] is
+ * different than CELL_CHANGE_TILE.
+ */
+- (struct PendingTileChange)getCellTileChange:(int)iCol row:(int)iRow;
+
+/**
+ * Is the number of columns for recording changes.
+ */
+@property (readonly) int columnCount;
+
+/**
+ * Is the number of rows for recording changes.
+ */
+@property (readonly) int rowCount;
+
+/**
+ * Will be YES if there are any pending changes to locations rendered as text.
+ * Otherwise, it will be NO.
+ */
+@property (readonly) BOOL hasTextChanges;
+
+/**
+ * Will be YES if there are any pending changes to locations rendered as tiles.
+ * Otherwise, it will be NO.
+ */
+@property (readonly) BOOL hasTileChanges;
+
+/**
+ * Will be YES if there are any pending wipes.  Otherwise, it will be NO.
+ */
+@property (readonly) BOOL hasWipeChanges;
+
+/**
+ * Is the zero-based index of the first row with changes.  Will be equal to
+ * the number of rows if there are no changes.
+ */
+@property (readonly) int firstChangedRow;
+
+/**
+ * Is the zero-based index of the last row with changes.  Will be equal to
+ * -1 if there are no changes.
+ */
+@property (readonly) int lastChangedRow;
+
+/**
+ * Is the zero-based index for the column with the upper left corner of the
+ * cursor.  It will be -1 if the cursor position has not been set since the
+ * changes were cleared.
+ */
+@property (readonly) int cursorColumn;
+
+/**
+ * Is the zero-based index for the row with the upper left corner of the
+ * cursor.  It will be -1 if the cursor position has not been set since the
+ * changes were cleared.
+ */
+@property (readonly) int cursorRow;
+
+/**
+ * Is the cursor width in number of cells.
+ */
+@property (readonly) int cursorWidth;
+
+/**
+ * Is the cursor height in number of cells.
+ */
+@property (readonly) int cursorHeight;
+
+/**
+ * This is a helper for the mark* messages.
+ */
+- (void)setupForChange:(int)iCol row:(int)iRow n:(int)nCol;
+
+/**
+ * Throw an exception if the given range of column indices is invalid
+ * (including non-positive values for nCol).
+ */
+- (void)checkColumnIndices:(int)iCol n:(int)nCol;
+
+/**
+ * Throw an exception if the given row index is invalid.
+ */
+- (void)checkRowIndex:(int)iRow;
+
+@end
+
+@implementation PendingTermChanges
+
++ (BOOL) isValidSize:(int)nCol rows:(int)nRow
 {
-    struct PendingRowChange* prc =
-        (struct PendingRowChange*) malloc(sizeof(struct PendingRowChange));
-    struct PendingCellChange* pcc = (struct PendingCellChange*)
-        malloc(ncol * sizeof(struct PendingCellChange));
+    if (nCol < 0
+            || (size_t) nCol > SIZE_MAX / sizeof(struct PendingCellChange)
+            || nRow < 0
+            || (size_t) nRow > SIZE_MAX / sizeof(struct PendingCellChange*)
+            || (size_t) nRow > SIZE_MAX / (2 * sizeof(int))) {
+        return NO;
+    }
+    return YES;
+}
+
+- (id)init
+{
+    return [self initWithColumnsRows:0 rows:0];
+}
+
+- (id)initWithColumnsRows:(int)nCol rows:(int)nRow
+{
+    if (self = [super init]) {
+        if (! [PendingTermChanges isValidSize:nCol rows:nRow]) {
+            return nil;
+        }
+        self->colBounds = malloc((size_t) 2 * sizeof(int) * nRow);
+        if (self->colBounds == 0 && nRow > 0) {
+            return nil;
+        }
+        self->changesByRow = calloc(nRow, sizeof(struct PendingCellChange*));
+        if (self->changesByRow == 0 && nRow > 0) {
+            free(self->colBounds);
+            return nil;
+        }
+        for (int i = 0; i < nRow + nRow; i += 2) {
+            self->colBounds[i] = nCol;
+            self->colBounds[i + 1] = -1;
+        }
+        self->_columnCount = nCol;
+        self->_rowCount = nRow;
+        self->_hasTextChanges = NO;
+        self->_hasTileChanges = NO;
+        self->_hasWipeChanges = NO;
+        self->_firstChangedRow = nRow;
+        self->_lastChangedRow = -1;
+        self->_cursorColumn = -1;
+        self->_cursorRow = -1;
+        self->_cursorWidth = 1;
+        self->_cursorHeight = 1;
+    }
+    return self;
+}
+
+- (void)dealloc
+{
+    if (self->changesByRow != 0) {
+        for (int i = 0; i < self.rowCount; ++i) {
+            if (self->changesByRow[i] != 0) {
+                free(self->changesByRow[i]);
+                self->changesByRow[i] = 0;
+            }
+        }
+        free(self->changesByRow);
+        self->changesByRow = 0;
+    }
+    if (self->colBounds != 0) {
+        free(self->colBounds);
+        self->colBounds = 0;
+    }
+}
+
+- (void)clear
+{
+    for (int i = 0; i < self.rowCount; ++i) {
+        self->colBounds[i + i] = self.columnCount;
+        self->colBounds[i + i + 1] = -1;
+        if (self->changesByRow[i] != 0) {
+            free(self->changesByRow[i]);
+            self->changesByRow[i] = 0;
+        }
+    }
+    self->_hasTextChanges = NO;
+    self->_hasTileChanges = NO;
+    self->_hasWipeChanges = NO;
+    self->_firstChangedRow = self.rowCount;
+    self->_lastChangedRow = -1;
+    self->_cursorColumn = -1;
+    self->_cursorRow = -1;
+    self->_cursorWidth = 1;
+    self->_cursorHeight = 1;
+}
+
+- (void)resize:(int)nCol rows:(int)nRow
+{
+    if (! [PendingTermChanges isValidSize:nCol rows:nRow]) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"PendingTermChangesRowsColumns"
+                               reason:@"resize called with number of columns or rows that is negative or too large"
+                               userInfo:nil];
+        @throw exc;
+    }
+    int *cb = malloc((size_t) 2 * sizeof(int) * nRow);
+    struct PendingCellChange** cbr =
+        calloc(nRow, sizeof(struct PendingCellChange*));
     int i;
 
-    if (prc == 0 || pcc == 0) {
-        if (pcc != 0) {
-            free(pcc);
+    if ((cb == 0 || cbr == 0) && nRow > 0) {
+        if (cbr != 0) {
+            free(cbr);
         }
-        if (prc != 0) {
-            free(prc);
+        if (cb != 0) {
+            free(cb);
         }
-        return 0;
+        NSException *exc = [NSException
+                               exceptionWithName:@"OutOfMemory"
+                               reason:@"resize called for PendingTermChanges"
+                               userInfo:nil];
+        @throw exc;
     }
 
-    prc->xmin = ncol;
-    prc->xmax = -1;
-    prc->cell_changes = pcc;
-    for (i = 0; i < ncol; ++i) {
-        pcc[i].change_type = CELL_CHANGE_NONE;
+    for (i = 0; i < nRow; ++i) {
+        cb[i + i] = nCol;
+        cb[i + i + 1] = -1;
     }
-    return prc;
-}
-
-
-static void destroy_row_change(struct PendingRowChange* prc)
-{
-    if (prc != 0) {
-        if (prc->cell_changes != 0) {
-            free(prc->cell_changes);
-        }
-        free(prc);
-    }
-}
-
-
-struct PendingChanges
-{
-    /* Hold the number of rows specified at creation. */
-    int nrow;
-    /*
-     * Hold the position set for the software cursor.  Use negative indices
-     * to indicate that the cursor is not displayed.
-     */
-    int xcurs, ycurs;
-    /* Is nonzero if the cursor should be drawn at double the tile width. */
-    int bigcurs;
-    /* Record whether the changes include any text, picts, or wipes. */
-    int has_text, has_pict, has_wipe;
-    /*
-     * These are the first and last rows, inclusive, that have been
-     * modified.  ymin is greater than ymax if no changes have been made.
-     */
-    int ymin, ymax;
-    /*
-     * This is an array of pointers to the changes.  The number of elements
-     * is the number of rows.  An element will be a NULL pointer if no
-     * modifications have been made to the row.
-     */
-    struct PendingRowChange** rows;
-};
-
-
-static struct PendingChanges* create_pending_changes(int ncol, int nrow)
-{
-    struct PendingChanges* pc =
-        (struct PendingChanges*) malloc(sizeof(struct PendingChanges));
-    struct PendingRowChange** pprc = (struct PendingRowChange**)
-        malloc(nrow * sizeof(struct PendingRowChange*));
-    int i;
-
-    if (pc == 0 || pprc == 0) {
-        if (pprc != 0) {
-            free(pprc);
-        }
-        if (pc != 0) {
-            free(pc);
-        }
-        return 0;
-    }
-
-    pc->nrow = nrow;
-    pc->xcurs = -1;
-    pc->ycurs = -1;
-    pc->bigcurs = 0;
-    pc->has_text = 0;
-    pc->has_pict = 0;
-    pc->has_wipe = 0;
-    pc->ymin = nrow;
-    pc->ymax = -1;
-    pc->rows = pprc;
-    for (i = 0; i < nrow; ++i) {
-        pprc[i] = 0;
-    }
-    return pc;
-}
-
-
-static void destroy_pending_changes(struct PendingChanges* pc)
-{
-    if (pc != 0) {
-        if (pc->rows != 0) {
-            int i;
-
-            for (i = 0; i < pc->nrow; ++i) {
-                if (pc->rows[i] != 0) {
-                    destroy_row_change(pc->rows[i]);
-                }
-            }
-            free(pc->rows);
-        }
-        free(pc);
-    }
-}
-
-
-static void clear_pending_changes(struct PendingChanges* pc)
-{
-    pc->xcurs = -1;
-    pc->ycurs = -1;
-    pc->bigcurs = 0;
-    pc->has_text = 0;
-    pc->has_pict = 0;
-    pc->has_wipe = 0;
-    pc->ymin = pc->nrow;
-    pc->ymax = -1;
-    if (pc->rows != 0) {
-        int i;
-
-        for (i = 0; i < pc->nrow; ++i) {
-            if (pc->rows[i] != 0) {
-                destroy_row_change(pc->rows[i]);
-                pc->rows[i] = 0;
+    if (self->changesByRow != 0) {
+        for (i = 0; i < self.rowCount; ++i) {
+            if (self->changesByRow[i] != 0) {
+                free(self->changesByRow[i]);
+                self->changesByRow[i] = 0;
             }
         }
+        free(self->changesByRow);
     }
+    if (self->colBounds != 0) {
+        free(self->colBounds);
+    }
+
+    self->colBounds = cb;
+    self->changesByRow = cbr;
+    self->_columnCount = nCol;
+    self->_rowCount = nRow;
+    self->_hasTextChanges = NO;
+    self->_hasTileChanges = NO;
+    self->_hasWipeChanges = NO;
+    self->_firstChangedRow = self.rowCount;
+    self->_lastChangedRow = -1;
+    self->_cursorColumn = -1;
+    self->_cursorRow = -1;
+    self->_cursorWidth = 1;
+    self->_cursorHeight = 1;
 }
 
-
-/* Return zero if successful; otherwise return a nonzero value. */
-static int resize_pending_changes(struct PendingChanges* pc, int nrow)
+- (void)markTextChange:(int)iCol row:(int)iRow glyph:(wchar_t)g color:(int)c
 {
-    struct PendingRowChange** pprc;
-    int i;
-
-    if (pc == 0) {
-        return 1;
-    }
-
-    pprc = (struct PendingRowChange**)
-         malloc(nrow * sizeof(struct PendingRowChange*));
-    if (pprc == 0) {
-        return 1;
-    }
-    for (i = 0; i < nrow; ++i) {
-        pprc[i] = 0;
-    }
-
-    if (pc->rows != 0) {
-        for (i = 0; i < pc->nrow; ++i) {
-            if (pc->rows[i] != 0) {
-                destroy_row_change(pc->rows[i]);
-            }
-        }
-        free(pc->rows);
-    }
-    pc->nrow = nrow;
-    pc->xcurs = -1;
-    pc->ycurs = -1;
-    pc->bigcurs = 0;
-    pc->has_text = 0;
-    pc->has_pict = 0;
-    pc->has_wipe = 0;
-    pc->ymin = nrow;
-    pc->ymax = -1;
-    pc->rows = pprc;
-    return 0;
+    [self setupForChange:iCol row:iRow n:1];
+    struct PendingCellChange *pcc = self->changesByRow[iRow] + iCol;
+    pcc->v.txc.glyph = g;
+    pcc->v.txc.color = c;
+    pcc->changeType = CELL_CHANGE_TEXT;
+    self->_hasTextChanges = YES;
 }
+
+- (void)markTileChange:(int)iCol row:(int)iRow
+         foregroundCol:(char)fc foregroundRow:(char)fr
+         backgroundCol:(char)bc backgroundRow:(char)br
+         mask:(int)m
+{
+    [self setupForChange:iCol row:iRow n:1];
+    struct PendingCellChange *pcc = self->changesByRow[iRow] + iCol;
+    pcc->v.tic.fgdCol = fc;
+    pcc->v.tic.fgdRow = fr;
+    pcc->v.tic.bckCol = bc;
+    pcc->v.tic.bckRow = br;
+    pcc->v.tic.mask = m;
+    pcc->changeType = CELL_CHANGE_TILE;
+    self->_hasTileChanges = YES;
+}
+
+- (void)markWipeRange:(int)iCol row:(int)iRow n:(int)nCol
+{
+    [self setupForChange:iCol row:iRow n:nCol];
+    struct PendingCellChange *pcc = self->changesByRow[iRow] + iCol;
+    for (int i = 0; i < nCol; ++i) {
+        pcc[i].v.txc.glyph = 0;
+        pcc[i].v.txc.color = 0;
+        pcc[i].changeType = CELL_CHANGE_WIPE;
+    }
+    self->_hasWipeChanges = YES;
+}
+
+- (void)markCursor:(int)iCol row:(int)iRow
+{
+    /* Allow negative indices to indicate an invalid cursor. */
+    [self checkColumnIndices:((iCol >= 0) ? iCol : 0) n:1];
+    [self checkRowIndex:((iRow >= 0) ? iRow : 0)];
+    self->_cursorColumn = iCol;
+    self->_cursorRow = iRow;
+    self->_cursorWidth = 1;
+    self->_cursorHeight = 1;
+}
+
+- (void)markBigCursor:(int)iCol row:(int)iRow
+            cellsWide:(int)w cellsHigh:(int)h
+{
+    /* Allow negative indices to indicate an invalid cursor. */
+    [self checkColumnIndices:((iCol >= 0) ? iCol : 0) n:1];
+    [self checkRowIndex:((iRow >= 0) ? iRow : 0)];
+    if (w < 1 || h < 1) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"InvalidCursorDimensions"
+                               reason:@"markBigCursor called for PendingTermChanges"
+                               userInfo:nil];
+        @throw exc;
+    }
+    self->_cursorColumn = iCol;
+    self->_cursorRow = iRow;
+    self->_cursorWidth = w;
+    self->_cursorHeight = h;
+}
+
+- (void)setupForChange:(int)iCol row:(int)iRow n:(int)nCol
+{
+    [self checkColumnIndices:iCol n:nCol];
+    [self checkRowIndex:iRow];
+    if (self->changesByRow[iRow] == 0) {
+        self->changesByRow[iRow] =
+            malloc(self.columnCount * sizeof(struct PendingCellChange));
+        if (self->changesByRow[iRow] == 0 && self.columnCount > 0) {
+            NSException *exc = [NSException
+                                   exceptionWithName:@"OutOfMemory"
+                                   reason:@"setupForChange called for PendingTermChanges"
+                                   userInfo:nil];
+            @throw exc;
+        }
+        struct PendingCellChange* pcc = self->changesByRow[iRow];
+        for (int i = 0; i < self.columnCount; ++i) {
+            pcc[i].changeType = CELL_CHANGE_NONE;
+        }
+    }
+    if (self.firstChangedRow > iRow) {
+        self->_firstChangedRow = iRow;
+    }
+    if (self.lastChangedRow < iRow) {
+        self->_lastChangedRow = iRow;
+    }
+    if ([self getFirstChangedColumnInRow:iRow] > iCol) {
+        self->colBounds[iRow + iRow] = iCol;
+    }
+    if ([self getLastChangedColumnInRow:iRow] < iCol + nCol - 1) {
+        self->colBounds[iRow + iRow + 1] = iCol + nCol - 1;
+    }
+}
+
+- (int)getFirstChangedColumnInRow:(int)iRow
+{
+    [self checkRowIndex:iRow];
+    return self->colBounds[iRow + iRow];
+}
+
+- (int)getLastChangedColumnInRow:(int)iRow
+{
+    [self checkRowIndex:iRow];
+    return self->colBounds[iRow + iRow + 1];
+}
+
+- (enum PendingCellChangeType)getCellChangeType:(int)iCol row:(int)iRow
+{
+    [self checkColumnIndices:iCol n:1];
+    [self checkRowIndex:iRow];
+    if (iRow < self.firstChangedRow || iRow > self.lastChangedRow) {
+        return CELL_CHANGE_NONE;
+    }
+    if (iCol < [self getFirstChangedColumnInRow:iRow]
+            || iCol > [self getLastChangedColumnInRow:iRow]) {
+        return CELL_CHANGE_NONE;
+    }
+    return self->changesByRow[iRow][iCol].changeType;
+}
+
+- (struct PendingTextChange)getCellTextChange:(int)iCol row:(int)iRow
+{
+    [self checkColumnIndices:iCol n:1];
+    [self checkRowIndex:iRow];
+    if (iRow < self.firstChangedRow || iRow > self.lastChangedRow
+            || iCol < [self getFirstChangedColumnInRow:iRow]
+            || iCol > [self getLastChangedColumnInRow:iRow]
+            || (self->changesByRow[iRow][iCol].changeType != CELL_CHANGE_TEXT
+            && self->changesByRow[iRow][iCol].changeType != CELL_CHANGE_WIPE)) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"NotTextChange"
+                               reason:@"getCellTextChange called for PendingTermChanges"
+                               userInfo:nil];
+        @throw exc;
+    }
+    return self->changesByRow[iRow][iCol].v.txc;
+}
+
+- (struct PendingTileChange)getCellTileChange:(int)iCol row:(int)iRow
+{
+    [self checkColumnIndices:iCol n:1];
+    [self checkRowIndex:iRow];
+    if (iRow < self.firstChangedRow || iRow > self.lastChangedRow
+            || iCol < [self getFirstChangedColumnInRow:iRow]
+            || iCol > [self getLastChangedColumnInRow:iRow]
+            || self->changesByRow[iRow][iCol].changeType != CELL_CHANGE_TILE) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"NotTileChange"
+                               reason:@"getCellTileChange called for PendingTermChanges"
+                               userInfo:nil];
+        @throw exc;
+    }
+    return self->changesByRow[iRow][iCol].v.tic;
+}
+
+- (void)checkColumnIndices:(int)iCol n:(int)nCol
+{
+    if (iCol < 0) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"InvalidColumnIndex"
+                               reason:@"negative column index"
+                               userInfo:nil];
+        @throw exc;
+    }
+    if (iCol >= self.columnCount || iCol + nCol > self.columnCount) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"InvalidColumnIndex"
+                               reason:@"column index exceeds number of columns"
+                               userInfo:nil];
+        @throw exc;
+    }
+    if (nCol <= 0) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"InvalidColumnIndex"
+                               reason:@"empty column range"
+                               userInfo:nil];
+        @throw exc;
+    }
+}
+
+- (void)checkRowIndex:(int)iRow
+{
+    if (iRow < 0) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"InvalidRowIndex"
+                               reason:@"negative row index"
+                               userInfo:nil];
+        @throw exc;
+    }
+    if (iRow >= self.rowCount) {
+        NSException *exc = [NSException
+                               exceptionWithName:@"InvalidRowIndex"
+                               reason:@"row index exceeds number of rows"
+                               userInfo:nil];
+        @throw exc;
+    }
+}
+
+@end
 
 
 /* The max number of glyphs we support.  Currently this only affects
  * updateGlyphInfo() for the calculation of the tile size, fontAscender,
- * fontDescender, ncol_pre, and ncol_post (the glyphArray and glyphWidths
- * members of AngbandContext are only used in updateGlyphInfo()).  The
- * rendering in drawWChar will work for glyphs not in updateGlyphInfo()'s
- * set.
+ * fontDescender, nColPre, and nColPost.  The rendering in drawWChar
+ * will still work for a glyph not in updateGlyphInfo()'s set, though
+ * there may be clipping or clearing artifacts because it wasn't included
+ * in updateGlyphInfo()'s calculations.
  */
 #define GLYPH_COUNT 256
 
@@ -349,60 +943,59 @@ static int resize_pending_changes(struct PendingChanges* pc, int nrow)
 @interface AngbandContext : NSObject <NSWindowDelegate>
 {
 @public
-    
+
     /* The Angband term */
     term *terminal;
-    
-    /* Column and row cont, by default 80 x 24 */
-    int cols;
-    int rows;
-    
-    /* The size of the border between the window edge and the contents */
-    NSSize borderSize;
-    
-    /* Our array of views */
-    NSMutableArray *angbandViews;
-    
-    /* The buffered image */
-    CGLayerRef angbandLayer;
-    
-    /* The font of this context */
-    NSFont *angbandViewFont;
-    
-    /* If this context owns a window, here it is */
-    NSWindow *primaryWindow;
-    
-    /* "Glyph info": an array of the CGGlyphs and their widths corresponding to the above font. */
-    CGGlyph glyphArray[GLYPH_COUNT];
-    CGFloat glyphWidths[GLYPH_COUNT];
-    
-    /* The size of one tile */
-    NSSize tileSize;
-
-    /* Font's ascender and descender */
-    CGFloat fontAscender, fontDescender;
-
-    /* Whether we are currently in live resize, which affects how big we render our image */
-    int inLiveResize;
-    
-    /* Last time we drew, so we can throttle drawing */
-    CFAbsoluteTime lastRefreshTime;
-
-    struct PendingChanges* changes;
-    /*
-     * These are the number of columns before or after, respectively, a text
-     * change that may need to be redrawn.
-     */
-    int ncol_pre, ncol_post;
-
-    /* Flags whether or not a fullscreen transition is in progress. */
-    BOOL in_fullscreen_transition;
 
 @private
+    /* Is the last time we drew, so we can throttle drawing. */
+    CFAbsoluteTime lastRefreshTime;
 
-    BOOL _hasSubwindowFlags;
-    BOOL _windowVisibilityChecked;
+    /*
+     * Whether we are currently in live resize, which affects how big we
+     * render our image.
+     */
+    int inLiveResize;
+
+    /* Flags whether or not a fullscreen transition is in progress. */
+    BOOL inFullscreenTransition;
 }
+
+/* Column and row counts, by default 80 x 24 */
+@property int cols;
+@property int rows;
+
+/* The size of the border between the window edge and the contents */
+@property (readonly) NSSize borderSize;
+
+/* Our array of views */
+@property NSMutableArray *angbandViews;
+
+/* The buffered image */
+@property CGLayerRef angbandLayer;
+
+/* The font of this context */
+@property NSFont *angbandViewFont;
+
+/* The size of one tile */
+@property (readonly) NSSize tileSize;
+
+/* Font's ascender and descender */
+@property (readonly) CGFloat fontAscender;
+@property (readonly) CGFloat fontDescender;
+
+/*
+ * These are the number of columns before or after, respectively, a text
+ * change that may need to be redrawn.
+ */
+@property (readonly) int nColPre;
+@property (readonly) int nColPost;
+
+/* If this context owns a window, here it is */
+@property NSWindow *primaryWindow;
+
+/* Is the record of changes to the contents for the next update. */
+@property PendingTermChanges *changes;
 
 @property (nonatomic, assign) BOOL hasSubwindowFlags;
 @property (nonatomic, assign) BOOL windowVisibilityChecked;
@@ -465,11 +1058,11 @@ static int resize_pending_changes(struct PendingChanges* pc, int nrow)
 - (void)resizeTerminalWithContentRect: (NSRect)contentRect saveToDefaults: (BOOL)saveToDefaults;
 
 /*
- * Change the minimum size for the window associated with the context.
- * termIdx is the index for the terminal:  pass it so this function can be
- * used when self->terminal has not yet been set.
+ * Change the minimum size and size increments for the window associated with
+ * the context. termIdx is the index for the terminal:  pass it so this
+ * function can be used when self->terminal has not yet been set.
  */
-- (void)setMinimumWindowSize:(int)termIdx;
+- (void)constrainWindowSize:(int)termIdx;
 
 /* Called from the view to indicate that it is starting or ending live resize */
 - (void)viewWillStartLiveResize:(AngbandView *)view;
@@ -478,9 +1071,6 @@ static int resize_pending_changes(struct PendingChanges* pc, int nrow)
 - (BOOL)windowVisibleUsingDefaults;
 
 /* Class methods */
-
-/* Begins an Angband game. This is the entry point for starting off. */
-+ (void)beginGame;
 
 /* Internal method */
 - (AngbandView *)activeView;
@@ -542,12 +1132,12 @@ static void AngbandUpdateWindowVisibility(void)
         {
             if( [angbandContext windowVisibleUsingDefaults] )
             {
-                [angbandContext->primaryWindow orderFront: nil];
+                [angbandContext.primaryWindow orderFront: nil];
                 angbandContext.windowVisibilityChecked = YES;
             }
             else
             {
-                [angbandContext->primaryWindow close];
+                [angbandContext.primaryWindow close];
                 angbandContext.windowVisibilityChecked = NO;
             }
         }
@@ -557,13 +1147,13 @@ static void AngbandUpdateWindowVisibility(void)
 
             if( angbandContext.hasSubwindowFlags && !termHasSubwindowFlags )
             {
-                [angbandContext->primaryWindow close];
+                [angbandContext.primaryWindow close];
                 angbandContext.hasSubwindowFlags = NO;
                 [angbandContext saveWindowVisibleToDefaults: NO];
             }
             else if( !angbandContext.hasSubwindowFlags && termHasSubwindowFlags )
             {
-                [angbandContext->primaryWindow orderFront: nil];
+                [angbandContext.primaryWindow orderFront: nil];
                 angbandContext.hasSubwindowFlags = YES;
                 [angbandContext saveWindowVisibleToDefaults: YES];
             }
@@ -573,7 +1163,7 @@ static void AngbandUpdateWindowVisibility(void)
     // make the main window key so that user events go to the right spot
     AngbandContext *mainWindow =
         (__bridge AngbandContext*) (angband_term[0]->data);
-    [mainWindow->primaryWindow makeKeyAndOrderFront: nil];
+    [mainWindow.primaryWindow makeKeyAndOrderFront: nil];
 }
 
 /*
@@ -629,13 +1219,20 @@ static BOOL redraw_for_tiles_or_term0_font(void);
 static void wakeup_event_loop(void);
 static void hook_plog(const char *str);
 static void hook_quit(const char * str);
+static NSString *get_lib_directory(void);
+#if 0
+static NSString *get_doc_directory(void);
+#endif
+static NSString *AngbandCorrectedDirectoryPath(NSString *originalPath);
+static void prepare_paths_and_directories(void);
 static void load_prefs(void);
-static void load_sounds(void);
 static void init_windows(void);
 static BOOL open_game(void); ////half
 static void open_tutorial(void); ////half
 static void handle_open_when_ready(void);
+#if 0
 static void play_sound(int event);
+#endif
 static BOOL check_events(int wait);
 /* Used by Angband but not by Sil. */
 #if 0
@@ -678,7 +1275,7 @@ static bool initialized = FALSE;
 /* The NSView subclass that draws our Angband image */
 @interface AngbandView : NSView
 {
-    IBOutlet AngbandContext *angbandContext;
+    AngbandContext *angbandContext;
 }
 
 - (void)setAngbandContext:(AngbandContext *)context;
@@ -701,27 +1298,26 @@ static bool initialized = FALSE;
 
 @implementation AngbandContext
 
-@synthesize hasSubwindowFlags=_hasSubwindowFlags;
-@synthesize windowVisibilityChecked=_windowVisibilityChecked;
-
-- (NSFont *)selectionFont
-{
-    return angbandViewFont;
-}
-
 - (BOOL)useLiveResizeOptimization
 {
     /*
      * If we have graphics turned off, text rendering is fast enough that we
      * don't need to use a live resize optimization.
      */
-    return inLiveResize && graphics_are_enabled();
+    return self->inLiveResize && graphics_are_enabled();
 }
 
 - (NSSize)baseSize
 {
-    /* We round the base size down. If we round it up, I believe we may end up with pixels that nobody "owns" that may accumulate garbage. In general rounding down is harmless, because any lost pixels may be sopped up by the border. */
-    return NSMakeSize(floor(cols * tileSize.width + 2 * borderSize.width), floor(rows * tileSize.height + 2 * borderSize.height));
+    /*
+     * We round the base size down. If we round it up, I believe we may end up
+     * with pixels that nobody "owns" that may accumulate garbage. In general
+     * rounding down is harmless, because any lost pixels may be sopped up by
+     * the border.
+     */
+    return NSMakeSize(
+        floor(self.cols * self.tileSize.width + 2 * self.borderSize.width),
+        floor(self.rows * self.tileSize.height + 2 * self.borderSize.height));
 }
 
 // qsort-compatible compare function for CGSizes
@@ -731,49 +1327,104 @@ static int compare_advances(const void *ap, const void *bp)
     return (a->width > b->width) - (a->width < b->width);
 }
 
+/**
+ * Precompute certain metrics (tileSize, fontAscender, fontDescender, nColPre,
+ * and nColPost for the current font.
+ */
 - (void)updateGlyphInfo
 {
-    // Update glyphArray and glyphWidths
-    NSFont *screenFont = [angbandViewFont screenFont];
+    NSFont *screenFont = [self.angbandViewFont screenFont];
 
-    // Generate a string containing each MacRoman character
-    unsigned char latinString[GLYPH_COUNT];
+    /* Generate a string containing each MacRoman character */
+    /*
+     * Here and below, dynamically allocate working arrays rather than put them
+     * on the stack in case limited stack space is an issue.
+     */
+    unsigned char *latinString = malloc(GLYPH_COUNT);
+    if (latinString == 0) {
+        NSException *exc = [NSException exceptionWithName:@"OutOfMemory"
+                                        reason:@"latinString in updateGlyphInfo"
+                                        userInfo:nil];
+        @throw exc;
+    }
     size_t i;
     for (i=0; i < GLYPH_COUNT; i++) latinString[i] = (unsigned char)i;
-    
-    // Turn that into unichar. Angband uses ISO Latin 1.
-    unichar unicharString[GLYPH_COUNT] = {0};
-    NSString *allCharsString = [[NSString alloc] initWithBytes:latinString length:sizeof latinString encoding:NSISOLatin1StringEncoding];
+
+    /* Turn that into unichar. Angband uses ISO Latin 1. */
+    NSString *allCharsString = [[NSString alloc] initWithBytes:latinString length:GLYPH_COUNT encoding:NSISOLatin1StringEncoding];
+    unichar *unicharString = malloc(GLYPH_COUNT * sizeof(unichar));
+    if (unicharString == 0) {
+        free(latinString);
+        NSException *exc = [NSException exceptionWithName:@"OutOfMemory"
+                                        reason:@"unicharString in updateGlyphInfo"
+                                        userInfo:nil];
+        @throw exc;
+    }
+    unicharString[0] = 0;
     [allCharsString getCharacters:unicharString range:NSMakeRange(0, MIN(GLYPH_COUNT, [allCharsString length]))];
     allCharsString = nil;
-    
-    // Get glyphs
-    memset(glyphArray, 0, sizeof glyphArray);
-    CTFontGetGlyphsForCharacters((CTFontRef)screenFont, unicharString, glyphArray, GLYPH_COUNT);
-    
-    // Get advances. Record the max advance.
-    CGSize advances[GLYPH_COUNT] = {};
-    CTFontGetAdvancesForGlyphs((CTFontRef)screenFont, kCTFontHorizontalOrientation, glyphArray, advances, GLYPH_COUNT);
+    free(latinString);
+
+    /* Get glyphs */
+    CGGlyph *glyphArray = calloc(GLYPH_COUNT, sizeof(CGGlyph));
+    if (glyphArray == 0) {
+        free(unicharString);
+        NSException *exc = [NSException exceptionWithName:@"OutOfMemory"
+                                        reason:@"glyphArray in updateGlyphInfo"
+                                        userInfo:nil];
+        @throw exc;
+    }
+    CTFontGetGlyphsForCharacters((CTFontRef)screenFont, unicharString,
+                                 glyphArray, GLYPH_COUNT);
+    free(unicharString);
+
+    /* Get advances. Record the max advance. */
+    CGSize *advances = malloc(GLYPH_COUNT * sizeof(CGSize));
+    if (advances == 0) {
+        free(glyphArray);
+        NSException *exc = [NSException exceptionWithName:@"OutOfMemory"
+                                        reason:@"advances in updateGlyphInfo"
+                                        userInfo:nil];
+        @throw exc;
+    }
+    CTFontGetAdvancesForGlyphs(
+        (CTFontRef)screenFont, kCTFontHorizontalOrientation, glyphArray,
+        advances, GLYPH_COUNT);
+    CGFloat *glyphWidths = malloc(GLYPH_COUNT * sizeof(CGFloat));
+    if (glyphWidths == 0) {
+        free(glyphArray);
+        free(advances);
+        NSException *exc = [NSException exceptionWithName:@"OutOfMemory"
+                                        reason:@"glyphWidths in updateGlyphInfo"
+                                        userInfo:nil];
+        @throw exc;
+    }
     for (i=0; i < GLYPH_COUNT; i++) {
         glyphWidths[i] = advances[i].width;
     }
-    
-    // For good non-mono-font support, use the median advance. Start by sorting all advances.
+
+    /*
+     * For good non-mono-font support, use the median advance. Start by sorting
+     * all advances.
+     */
     qsort(advances, GLYPH_COUNT, sizeof *advances, compare_advances);
-    
-    // Skip over any initially empty run
+
+    /* Skip over any initially empty run */
     size_t startIdx;
     for (startIdx = 0; startIdx < GLYPH_COUNT; startIdx++)
     {
         if (advances[startIdx].width > 0) break;
     }
-    
-    // Pick the center to find the median
+
+    /* Pick the center to find the median */
     CGFloat medianAdvance = 0;
+    /* In case we have all zero advances for some reason */
     if (startIdx < GLYPH_COUNT)
-    { // In case we have all zero advances for some reason
+    {
         medianAdvance = advances[(startIdx + GLYPH_COUNT)/2].width;
     }
+
+    free(advances);
 
     /*
      * Record the ascender and descender.  Some fonts, for instance DIN
@@ -782,28 +1433,38 @@ static int compare_advances(const void *ap, const void *bp)
      * for the glyphs and use that instead of the ascender and descender
      * values if the bounding box result extends farther from the baseline.
      */
-    CGRect bounds = CTFontGetBoundingRectsForGlyphs((CTFontRef) screenFont, kCTFontHorizontalOrientation, glyphArray, NULL, GLYPH_COUNT);
-    fontAscender = [screenFont ascender];
-    if (fontAscender < bounds.origin.y + bounds.size.height) {
-        fontAscender = bounds.origin.y + bounds.size.height;
+    CGRect bounds = CTFontGetBoundingRectsForGlyphs(
+        (CTFontRef) screenFont, kCTFontHorizontalOrientation, glyphArray,
+        NULL, GLYPH_COUNT);
+    self->_fontAscender = [screenFont ascender];
+    if (self->_fontAscender < bounds.origin.y + bounds.size.height) {
+        self->_fontAscender = bounds.origin.y + bounds.size.height;
     }
-    fontDescender = [screenFont descender];
-    if (fontDescender > bounds.origin.y) {
-        fontDescender = bounds.origin.y;
+    self->_fontDescender = [screenFont descender];
+    if (self->_fontDescender > bounds.origin.y) {
+        self->_fontDescender = bounds.origin.y;
     }
 
     /*
      * Record the tile size.  Round both values up to have tile boundaries
      * match pixel boundaries.
      */
-    tileSize.width = ceil(medianAdvance);
-    tileSize.height = ceil(fontAscender - fontDescender);
+    self->_tileSize.width = ceil(medianAdvance);
+    self->_tileSize.height = ceil(self.fontAscender - self.fontDescender);
 
     /*
      * Determine whether neighboring columns need to be redrawn when a
      * character changes.
      */
-    CGRect boxes[GLYPH_COUNT] = {};
+    CGRect *boxes = malloc(GLYPH_COUNT * sizeof(CGRect));
+    if (boxes == 0) {
+        free(glyphWidths);
+        free(glyphArray);
+        NSException *exc = [NSException exceptionWithName:@"OutOfMemory"
+                                        reason:@"boxes in updateGlyphInfo"
+                                        userInfo:nil];
+        @throw exc;
+    }
     CGFloat beyond_right = 0.;
     CGFloat beyond_left = 0.;
     CTFontGetBoundingRectsForGlyphs(
@@ -817,11 +1478,11 @@ static int compare_advances(const void *ap, const void *bp)
         CGFloat compression, offset;
         CGFloat v;
 
-        if (glyphWidths[i] <= tileSize.width) {
+        if (glyphWidths[i] <= self.tileSize.width) {
             compression = 1.;
-            offset = 0.5 * (tileSize.width - glyphWidths[i]);
+            offset = 0.5 * (self.tileSize.width - glyphWidths[i]);
         } else {
-            compression = tileSize.width / glyphWidths[i];
+            compression = self.tileSize.width / glyphWidths[i];
             offset = 0.;
         }
         v = (offset + boxes[i].origin.x) * compression;
@@ -833,12 +1494,17 @@ static int compare_advances(const void *ap, const void *bp)
             beyond_right = v;
         }
     }
-    ncol_pre = ceil(-beyond_left / tileSize.width);
-    if (beyond_right > tileSize.width) {
-        ncol_post = ceil((beyond_right - tileSize.width) / tileSize.width);
+    free(boxes);
+    self->_nColPre = ceil(-beyond_left / self.tileSize.width);
+    if (beyond_right > self.tileSize.width) {
+        self->_nColPost =
+            ceil((beyond_right - self.tileSize.width) / self.tileSize.width);
     } else {
-        ncol_post = 0;
+        self->_nColPost = 0;
     }
+
+    free(glyphWidths);
+    free(glyphArray);
 }
 
 - (void)updateImage
@@ -863,13 +1529,14 @@ static int compare_advances(const void *ap, const void *bp)
     size.width = fmax(1, ceil(size.width));
     size.height = fmax(1, ceil(size.height));
     
-    CGLayerRelease(angbandLayer);
+    CGLayerRelease(self.angbandLayer);
     
     // make a bitmap context as an example for our layer
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
     CGContextRef exampleCtx = CGBitmapContextCreate(NULL, 1, 1, 8 /* bits per component */, 48 /* bytesPerRow */, cs, kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Host);
     CGColorSpaceRelease(cs);
-    angbandLayer = CGLayerCreateWithContext(exampleCtx, *(CGSize *)&size, NULL);
+    self.angbandLayer =
+        CGLayerCreateWithContext(exampleCtx, *(CGSize *)&size, NULL);
     CFRelease(exampleCtx);
 
     [self lockFocus];
@@ -899,16 +1566,16 @@ static int compare_advances(const void *ap, const void *bp)
 
 - (void)setTerm:(term *)t
 {
-    terminal = t;
+    self->terminal = t;
 }
 
 - (void)viewWillStartLiveResize:(AngbandView *)view
 {
 #if USE_LIVE_RESIZE_CACHE
-    if (inLiveResize < INT_MAX) inLiveResize++;
+    if (self->inLiveResize < INT_MAX) self->inLiveResize++;
     else [NSException raise:NSInternalInconsistencyException format:@"inLiveResize overflow"];
 
-    if (inLiveResize == 1 && graphics_are_enabled())
+    if (self->inLiveResize == 1 && graphics_are_enabled())
     {
         [self updateImage];
 
@@ -921,10 +1588,10 @@ static int compare_advances(const void *ap, const void *bp)
 - (void)viewDidEndLiveResize:(AngbandView *)view
 {
 #if USE_LIVE_RESIZE_CACHE
-    if (inLiveResize > 0) inLiveResize--;
+    if (self->inLiveResize > 0) self->inLiveResize--;
     else [NSException raise:NSInternalInconsistencyException format:@"inLiveResize underflow"];
 
-    if (inLiveResize == 0 && graphics_are_enabled())
+    if (self->inLiveResize == 0 && graphics_are_enabled())
     {
         [self updateImage];
 
@@ -940,7 +1607,7 @@ static int compare_advances(const void *ap, const void *bp)
     if (frames_per_second > 0)
     {
         CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
-        CFTimeInterval timeSinceLastRefresh = now - lastRefreshTime;
+        CFTimeInterval timeSinceLastRefresh = now - self->lastRefreshTime;
         CFTimeInterval timeUntilNextRefresh = (1. / (double)frames_per_second) - timeSinceLastRefresh;
         
         if (timeUntilNextRefresh > 0)
@@ -948,14 +1615,14 @@ static int compare_advances(const void *ap, const void *bp)
             usleep((unsigned long)(timeUntilNextRefresh * 1000000.));
         }
     }
-    lastRefreshTime = CFAbsoluteTimeGetCurrent();
+    self->lastRefreshTime = CFAbsoluteTimeGetCurrent();
 }
 
 - (void)drawWChar:(wchar_t)wchar inRect:(NSRect)tile context:(CGContextRef)ctx
 {
-    CGFloat tileOffsetY = fontAscender;
+    CGFloat tileOffsetY = self.fontAscender;
     CGFloat tileOffsetX = 0.0;
-    NSFont *screenFont = [angbandViewFont screenFont];
+    NSFont *screenFont = [self.angbandViewFont screenFont];
     UniChar unicharString[2] = {(UniChar)wchar, 0};
 
     // Get glyph and advance
@@ -998,7 +1665,7 @@ static int compare_advances(const void *ap, const void *bp)
 
     textMatrix = CGAffineTransformScale( textMatrix, 1.0, -1.0 );
     CGContextSetTextMatrix(ctx, textMatrix);
-    CGContextShowGlyphsWithAdvances(ctx, &glyph, &CGSizeZero, 1);
+    CGContextShowGlyphsAtPositions(ctx, &glyph, &CGPointZero, 1);
     
     /* Restore the text matrix if we messed with the compression ratio */
     if (compressionRatio != 1.)
@@ -1015,7 +1682,7 @@ static int compare_advances(const void *ap, const void *bp)
 - (CGContextRef)lockFocusUnscaled
 {
     /* Create an NSGraphicsContext representing this CGLayer */
-    CGContextRef ctx = CGLayerGetContext(angbandLayer);
+    CGContextRef ctx = CGLayerGetContext(self.angbandLayer);
     NSGraphicsContext *context = [NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:NO];
     [NSGraphicsContext saveGraphicsState];
     [NSGraphicsContext setCurrentContext:context];
@@ -1034,7 +1701,7 @@ static int compare_advances(const void *ap, const void *bp)
 - (NSSize)imageSize
 {
     /* Return the size of our layer */
-    CGSize result = CGLayerGetSize(angbandLayer);
+    CGSize result = CGLayerGetSize(self.angbandLayer);
     return NSMakeSize(result.width, result.height);
 }
 
@@ -1047,13 +1714,16 @@ static int compare_advances(const void *ap, const void *bp)
 - (NSRect)rectInImageForTileAtX:(int)x Y:(int)y
 {
     int flippedY = y;
-    return NSMakeRect(x * tileSize.width + borderSize.width, flippedY * tileSize.height + borderSize.height, tileSize.width, tileSize.height);
+    return NSMakeRect(
+        x * self.tileSize.width + self.borderSize.width,
+        flippedY * self.tileSize.height + self.borderSize.height,
+        self.tileSize.width, self.tileSize.height);
 }
 
 - (void)setSelectionFont:(NSFont*)font adjustTerminal: (BOOL)adjustTerminal
 {
     /* Record the new font */
-    angbandViewFont = font;
+    self.angbandViewFont = font;
     
     /* Update our glyph info */
     [self updateGlyphInfo];
@@ -1061,10 +1731,12 @@ static int compare_advances(const void *ap, const void *bp)
     if( adjustTerminal )
     {
         // adjust terminal to fit window with new font; save the new columns and rows since they could be changed
-        NSRect contentRect = [self->primaryWindow contentRectForFrameRect: [self->primaryWindow frame]];
+        NSRect contentRect =
+            [self.primaryWindow
+                 contentRectForFrameRect: [self.primaryWindow frame]];
 
-        [self setMinimumWindowSize:[self terminalIndex]];
-        NSSize size = self->primaryWindow.contentMinSize;
+        [self constrainWindowSize:[self terminalIndex]];
+        NSSize size = self.primaryWindow.contentMinSize;
         BOOL windowNeedsResizing = NO;
         if (contentRect.size.width < size.width) {
             contentRect.size.width = size.width;
@@ -1077,7 +1749,7 @@ static int compare_advances(const void *ap, const void *bp)
         if (windowNeedsResizing) {
             size.width = contentRect.size.width;
             size.height = contentRect.size.height;
-            [self->primaryWindow setContentSize:size];
+            [self.primaryWindow setContentSize:size];
         }
         [self resizeTerminalWithContentRect: contentRect saveToDefaults: YES];
     }
@@ -1094,28 +1766,29 @@ static int compare_advances(const void *ap, const void *bp)
     if ((self = [super init]))
     {
         /* Default rows and cols */
-        self->cols = 80;
-        self->rows = 24;
+        self->_cols = 80;
+        self->_rows = 24;
 
         /* Default border size */
-        self->borderSize = NSMakeSize(2, 2);
+        self->_borderSize = NSMakeSize(2, 2);
 
         /* Allocate our array of views */
-        angbandViews = [[NSMutableArray alloc] init];
+        self->_angbandViews = [[NSMutableArray alloc] init];
 
-        self->changes = create_pending_changes(self->cols, self->rows);
-        if (self->changes == 0) {
-            NSLog(@"AngbandContext init:  out of memory for pending changes");
-        }
-        self->ncol_pre = 0;
-        self->ncol_post = 0;
+        self->_nColPre = 0;
+        self->_nColPost = 0;
 
-        self->in_fullscreen_transition = NO;
+        self->_changes =
+            [[PendingTermChanges alloc] initWithColumnsRows:self->_cols
+                                        rows:self->_rows];
+        self->lastRefreshTime = CFAbsoluteTimeGetCurrent();
+        self->inLiveResize = 0;
+        self->inFullscreenTransition = NO;
 
         /* Make the image. Since we have no views, it'll just be a puny 1x1 image. */
         [self updateImage];
 
-        _windowVisibilityChecked = NO;
+        self->_windowVisibilityChecked = NO;
     }
     return self;
 }
@@ -1123,27 +1796,26 @@ static int compare_advances(const void *ap, const void *bp)
 /* Destroy all the receiver's stuff. This is intended to be callable more than once. */
 - (void)dispose
 {
-    terminal = NULL;
+    self->terminal = NULL;
     
     /* Disassociate ourselves from our angbandViews */
-    [angbandViews makeObjectsPerformSelector:@selector(setAngbandContext:) withObject:nil];
-    angbandViews = nil;
+    [self.angbandViews makeObjectsPerformSelector:@selector(setAngbandContext:) withObject:nil];
+    self.angbandViews = nil;
     
     /* Destroy the layer/image */
-    CGLayerRelease(angbandLayer);
-    angbandLayer = NULL;
+    CGLayerRelease(self.angbandLayer);
+    self.angbandLayer = NULL;
 
     /* Font */
-    angbandViewFont = nil;
+    self.angbandViewFont = nil;
     
     /* Window */
-    [primaryWindow setDelegate:nil];
-    [primaryWindow close];
-    primaryWindow = nil;
+    [self.primaryWindow setDelegate:nil];
+    [self.primaryWindow close];
+    self.primaryWindow = nil;
 
     /* Pending changes */
-    destroy_pending_changes(self->changes);
-    self->changes = 0;
+    self.changes = nil;
 }
 
 /* Usual Cocoa fare */
@@ -1152,306 +1824,11 @@ static int compare_advances(const void *ap, const void *bp)
     [self dispose];
 }
 
-
-
-#pragma mark -
-#pragma mark Directories and Paths Setup
-
-/**
- *  Return the path for Angband's lib directory and bail if it isn't found. The lib directory should be in the bundle's resources directory, since it's copied when built.
- */
-+ (NSString *)libDirectoryPath
-{
-    NSString *bundleLibPath = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent: AngbandDirectoryNameLib];
-    BOOL isDirectory = NO;
-    BOOL libExists = [[NSFileManager defaultManager] fileExistsAtPath: bundleLibPath isDirectory: &isDirectory];
-
-    if( !libExists || !isDirectory )
-    {
-        NSLog( @"[%@ %@]: can't find %@/ in bundle: isDirectory: %d libExists: %d", NSStringFromClass( [self class] ), NSStringFromSelector( _cmd ), AngbandDirectoryNameLib, isDirectory, libExists );
-
-        NSAlert *alert = [[NSAlert alloc] init];
-        /*
-         * Note that NSCriticalAlertStyle was deprecated in 10.10.  The
-         * replacement is NSAlertStyleCritical.
-         */
-        alert.alertStyle = NSCriticalAlertStyle;
-        alert.messageText = @"MissingResources";
-        alert.informativeText = @"Sil was unable to find the 'lib' folder, which should be in Sil.app/Contents/Resources, so must quit. Please report a bug on the Angband forums.";
-        [alert addButtonWithTitle:@"Quit"];
-        [alert runModal];
-        exit(0);
-    }
-
-    return bundleLibPath;
-}
-
-/**
- *  Return the path for the directory where Angband should look for its standard user file tree.
- */
-////half + (NSString *)angbandDocumentsPath
-////half {
-////half     NSString *documents = [NSSearchPathForDirectoriesInDomains( NSDocumentDirectory, NSUserDomainMask, YES ) lastObject];
-
-////half #if defined(SAFE_DIRECTORY)
-////half     NSString *versionedDirectory = [NSString stringWithFormat: @"%@-%s", AngbandDirectoryNameBase, VERSION_STRING];
-////half     return [documents stringByAppendingPathComponent: versionedDirectory];
-////half #else
-////half     return [documents stringByAppendingPathComponent: AngbandDirectoryNameBase];
-////half #endif
-////half }
-
-/**
- * Adjust directory paths as needed to correct for any differences needed by
- * Angband.  \c init_file_paths() currently requires that all paths provided have
- * a trailing slash and all other platforms honor this.
- *
- * \param originalPath The directory path to adjust.
- * \return A path suitable for Angband or nil if an error occurred.
- */
-static NSString *AngbandCorrectedDirectoryPath(NSString *originalPath)
-{
-    if ([originalPath length] == 0) {
-        return nil;
-    }
-
-    if (![originalPath hasSuffix: @"/"]) {
-        return [originalPath stringByAppendingString: @"/"];
-    }
-
-    return originalPath;
-}
-
-#ifdef RUNTIME_PRIVATE_USER_PATH
-extern const char *get_runtime_user_path(void)
-{
-    static int needs_init = 1;
-    static char path[1024];
-
-    if (needs_init) {
-        @autoreleasepool {
-            NSString *documents = [[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) lastObject]
-                stringByAppendingPathComponent:@"/Sil"];
-
-            [documents getFileSystemRepresentation:path maxLength:sizeof(path)];
-        }
-        needs_init = 0;
-    }
-    return path;
-}
-#endif
-
-#ifdef PRIVATE_USER_PATH
-/**
- * Create the directories for the user's files as needed.
- * Is the same as create_user_dir() in main.c.  Porting create_needed_dirs()
- * from Angband would avoid the code repetition.
- */
-static void create_user_dir(void)
-{
-    char dirpath[1024];
-    char subdirpath[1024];
-
-    /* Get an absolute path from the filename */
-#ifdef RUNTIME_PRIVATE_USER_PATH
-    path_parse(dirpath, sizeof(dirpath), get_runtime_user_path());
-#else
-    path_parse(dirpath, sizeof(dirpath), PRIVATE_USER_PATH);
-#endif
-
-    /* Create the directory */
-    mkdir(dirpath, 0700);
-
-    /* Build the path to the variant-specific sub-directory */
-    path_build(subdirpath, sizeof(subdirpath), dirpath, VERSION_NAME);
-
-    /* Create the directory */
-    mkdir(subdirpath, 0700);
-
-#ifdef USE_PRIVATE_SAVE_PATH
-    /* Build the path to the data sub-directory */
-    path_build(dirpath, sizeof(dirpath), subdirpath, "data");
-
-    /* Create the directory */
-    mkdir(dirpath, 0700);
-
-    /* Build the path toe the scores sub-directory */
-    path_build(dirpath, sizeof(dirpath), subdirpath, "scores");
-
-    /* Create the directory */
-    mkdir(dirpath, 0700);
-
-    /* Build the path to the savefile sub-directory */
-    path_build(dirpath, sizeof(dirpath), subdirpath, "save");
-
-    /* Create the directory */
-    mkdir(dirpath, 0700);
-#endif /* USE_PRIVATE_SAVE_PATH */
-}
-#endif
-
-/**
- *  Give Angband the base paths that should be used for the various directories it needs. It will create any needed directories.
- */
-+ (void)prepareFilePathsAndDirectories
-{
-    char libpath[PATH_MAX + 1] = "\0";
-    NSString *libDirectoryPath = AngbandCorrectedDirectoryPath([self libDirectoryPath]);
-    [libDirectoryPath getFileSystemRepresentation: libpath maxLength: sizeof(libpath)];
-
-    ////half char basepath[PATH_MAX + 1] = "\0";
-    ////half NSString *angbandDocumentsPath = AngbandCorrectedDirectoryPath([self angbandDocumentsPath]);
-    ////half [angbandDocumentsPath getFileSystemRepresentation: basepath maxLength: sizeof(basepath)];
-
-    ////init_file_paths( libpath, libpath, basepath );
-    init_file_paths( libpath ); ////
-    ////create_needed_dirs();
-#ifdef PRIVATE_USER_PATH
-    create_user_dir();
-#endif
-}
-
-
-
-#pragma mark -
-
-/* Entry point for initializing Angband */
-+ (void)beginGame
-{
-    @autoreleasepool {
-        /* Used by Angband but not by Sil. */
-#if 0
-        /* Set the command hook */
-        cmd_get_hook = textui_get_cmd;
-#endif
-
-        /* Hooks in some "z-util.c" hooks */
-        plog_aux = hook_plog;
-        quit_aux = hook_quit;
-
-        /* Used by Angband but not by Sil. */
-#if 0
-        /* Hook in to the file_open routine */
-        file_open_hook = cocoa_file_open_hook;
-
-        /* Hook into file saving dialogue routine */
-        get_file = cocoa_get_file;
-#endif
-
-        /* Initialize file paths */
-        [self prepareFilePathsAndDirectories];
-
-        /* Note the "system" */
-        ANGBAND_SYS = "mac";
-
-        /* Load preferences */
-        load_prefs();
-
-        /* Load sounds */
-        load_sounds();
-
-        /* Prepare the windows */
-        init_windows();
-
-        /* Set up game event handlers */
-        /* init_display(); */
-
-        /* Register the sound hook */
-        /* sound_hook = play_sound; */
-
-        /* Initialize some save file stuff */
-        player_egid = getegid();
-
-        /* We are now initialized */
-        initialized = TRUE;
-
-        /* Handle "open_when_ready" */
-        handle_open_when_ready();
-
-        /* Handle pending events (most notably update) and flush input */
-        Term_flush();
-
-        /* Mark ourself as the file creator */
-        _fcreator = SIL_CREATOR;
-
-        /* Default to saving a "text" file */
-        _ftype = 'TEXT';
-
-	init_angband();
-
-        use_background_colors = TRUE;
-    }
-
-    while (1) {
-        @autoreleasepool {
-            /* Let the player choose a savefile or start a new game */
-            if (!game_in_progress) {
-                int choice = 0;
-                int highlight = 1;
-
-                if (p_ptr->is_dead) highlight = 4;
-
-                /* Process Events until "new" or "open" is selected */
-                while (!game_in_progress) {
-                    choice = initial_menu(&highlight);
-
-                    switch (choice) {
-                    case 1:
-                        open_tutorial();
-                        break;
-                    case 2:
-                        game_in_progress = TRUE;
-                        new_game = TRUE;
-                        break;
-                    case 3:
-                        open_game();
-                        break;
-                    case 4:
-                        quit(NULL);
-                        break;
-                    }
-		}
-            }
-        
-            /* Handle pending events (most notably update) and flush input */
-            Term_flush();
-
-            /*
-             * Play a game -- "new_game" is set by "new", "open" or the open
-             * document event handler as appropriate
-             */
-            play_game(new_game);
-
-            /* Rerun the first initialization routine */
-            /* init_stuff(); */
-
-            /* Do some more between-games initialization */
-            re_init_some_things();
-
-            /* Game no longer in progress */
-            game_in_progress = FALSE;
-        }
-    }
-}
-
-
-- (IBAction)setGraphicsMode:(NSMenuItem *)sender
-{
-    /* We stashed the graphics mode ID in the menu item's tag */
-    arg_graphics = [sender tag];
-
-    /* Stash it in UserDefaults */
-    [[NSUserDefaults angbandDefaults] setInteger:arg_graphics forKey:@"GraphicsID"];
-    [[NSUserDefaults angbandDefaults] synchronize];
-
-    redraw_for_tiles_or_term0_font();
-}
-
 - (void)addAngbandView:(AngbandView *)view
 {
-    if (! [angbandViews containsObject:view])
+    if (! [self.angbandViews containsObject:view])
     {
-        [angbandViews addObject:view];
+        [self.angbandViews addObject:view];
         [self updateImage];
         [self setNeedsDisplay:YES]; //we'll need to redisplay everything anyways, so avoid creating all those little redisplay rects
         [self requestRedraw];
@@ -1461,12 +1838,12 @@ static void create_user_dir(void)
 /* We have this notion of an "active" AngbandView, which is the largest - the idea being that in the screen saver, when the user hits Test in System Preferences, we don't want to keep driving the AngbandView in the background.  Our active AngbandView is the widest - that's a hack all right. Mercifully when we're just playing the game there's only one view. */
 - (AngbandView *)activeView
 {
-    if ([angbandViews count] == 1)
-        return [angbandViews objectAtIndex:0];
+    if ([self.angbandViews count] == 1)
+        return [self.angbandViews objectAtIndex:0];
     
     AngbandView *result = nil;
     float maxWidth = 0;
-    for (AngbandView *angbandView in angbandViews)
+    for (AngbandView *angbandView in self.angbandViews)
     {
         float width = [angbandView frame].size.width;
         if (width > maxWidth)
@@ -1481,7 +1858,7 @@ static void create_user_dir(void)
 - (void)angbandViewDidScale:(AngbandView *)view
 {
     /* If we're live-resizing with graphics, we're using the live resize optimization, so don't update the image. Otherwise do it. */
-    if (! (inLiveResize && graphics_are_enabled()) && view == [self activeView])
+    if (! (self->inLiveResize && graphics_are_enabled()) && view == [self activeView])
     {
         [self updateImage];
 
@@ -1493,48 +1870,23 @@ static void create_user_dir(void)
 
 - (void)removeAngbandView:(AngbandView *)view
 {
-    if ([angbandViews containsObject:view])
+    if ([self.angbandViews containsObject:view])
     {
-        [angbandViews removeObject:view];
+        [self.angbandViews removeObject:view];
         [self updateImage];
         [self setNeedsDisplay:YES]; //we'll need to redisplay everything anyways, so avoid creating all those little redisplay rects
-        if ([angbandViews count]) [self requestRedraw];
+        if ([self.angbandViews count]) [self requestRedraw];
     }
 }
 
-
-static NSMenuItem *superitem(NSMenuItem *self)
-{
-    NSMenu *supermenu = [[self menu] supermenu];
-    int index = [supermenu indexOfItemWithSubmenu:[self menu]];
-    if (index == -1) return nil;
-    else return [supermenu itemAtIndex:index];
-}
-
-
-- (BOOL)validateMenuItem:(NSMenuItem *)menuItem
-{
-    int tag = [menuItem tag];
-    SEL sel = [menuItem action];
-    if (sel == @selector(setGraphicsMode:))
-    {
-        [menuItem setState: (tag == arg_graphics)];
-        return YES;
-    }
-    else
-    {
-        return YES;
-    }
-}
 
 - (NSWindow *)makePrimaryWindow
 {
-    if (! primaryWindow)
+    if (! self.primaryWindow)
     {
         // this has to be done after the font is set, which it already is in term_init_cocoa()
-        CGFloat width = self->cols * tileSize.width + borderSize.width * 2.0;
-        CGFloat height = self->rows * tileSize.height + borderSize.height * 2.0;
-        NSRect contentRect = NSMakeRect( 0.0, 0.0, width, height );
+        NSSize sz = self.baseSize;
+        NSRect contentRect = NSMakeRect( 0.0, 0.0, sz.width, sz.height );
 
         NSUInteger styleMask = NSTitledWindowMask | NSResizableWindowMask | NSMiniaturizableWindowMask;
 
@@ -1544,25 +1896,28 @@ static NSMenuItem *superitem(NSMenuItem *self)
             styleMask |= NSClosableWindowMask;
         }
 
-        primaryWindow = [[NSWindow alloc] initWithContentRect:contentRect styleMask: styleMask backing:NSBackingStoreBuffered defer:YES];
+        self.primaryWindow =
+            [[NSWindow alloc] initWithContentRect:contentRect
+                              styleMask:styleMask
+                              backing:NSBackingStoreBuffered defer:YES];
 
         /* Not to be released when closed */
-        [primaryWindow setReleasedWhenClosed:NO];
-        [primaryWindow setExcludedFromWindowsMenu: YES]; // we're using custom window menu handling
+        [self.primaryWindow setReleasedWhenClosed:NO];
+        [self.primaryWindow setExcludedFromWindowsMenu: YES]; /* we're using custom window menu handling */
 
         /* Make the view */
         AngbandView *angbandView = [[AngbandView alloc] initWithFrame:contentRect];
         [angbandView setAngbandContext:self];
-        [angbandViews addObject:angbandView];
-        [primaryWindow setContentView:angbandView];
+        [self.angbandViews addObject:angbandView];
+        [self.primaryWindow setContentView:angbandView];
 
         /* We are its delegate */
-        [primaryWindow setDelegate:self];
+        [self.primaryWindow setDelegate:self];
 
         /* Update our image, since this is probably the first angband view we've gotten. */
         [self updateImage];
     }
-    return primaryWindow;
+    return self.primaryWindow;
 }
 
 
@@ -1581,23 +1936,23 @@ static NSMenuItem *superitem(NSMenuItem *self)
     NSRect bounds = [view bounds];
     if (viewInLiveResize) CGContextSetInterpolationQuality(context, kCGInterpolationLow);
     CGContextSetBlendMode(context, kCGBlendModeCopy);
-    CGContextDrawLayerInRect(context, *(CGRect *)&bounds, angbandLayer);
+    CGContextDrawLayerInRect(context, *(CGRect *)&bounds, self.angbandLayer);
     if (viewInLiveResize) CGContextSetInterpolationQuality(context, kCGInterpolationDefault);
 }
 
 - (BOOL)isOrderedIn
 {
-    return [[[angbandViews lastObject] window] isVisible];
+    return [[[self.angbandViews lastObject] window] isVisible];
 }
 
 - (BOOL)isMainWindow
 {
-    return [[[angbandViews lastObject] window] isMainWindow];
+    return [[[self.angbandViews lastObject] window] isMainWindow];
 }
 
 - (void)setNeedsDisplay:(BOOL)val
 {
-    for (NSView *angbandView in angbandViews)
+    for (NSView *angbandView in self.angbandViews)
     {
         [angbandView setNeedsDisplay:val];
     }
@@ -1605,7 +1960,7 @@ static NSMenuItem *superitem(NSMenuItem *self)
 
 - (void)setNeedsDisplayInBaseRect:(NSRect)rect
 {
-    for (NSView *angbandView in angbandViews)
+    for (NSView *angbandView in self.angbandViews)
     {
         [angbandView setNeedsDisplayInRect: rect];
     }
@@ -1633,19 +1988,17 @@ static NSMenuItem *superitem(NSMenuItem *self)
 
 - (void)resizeTerminalWithContentRect: (NSRect)contentRect saveToDefaults: (BOOL)saveToDefaults
 {
-    CGFloat newRows = floor( (contentRect.size.height - (borderSize.height * 2.0)) / tileSize.height );
-    CGFloat newColumns = ceil( (contentRect.size.width - (borderSize.width * 2.0)) / tileSize.width );
+    CGFloat newRows = floor(
+        (contentRect.size.height - (self.borderSize.height * 2.0)) /
+        self.tileSize.height);
+    CGFloat newColumns = ceil(
+        (contentRect.size.width - (self.borderSize.width * 2.0)) /
+        self.tileSize.width);
 
     if (newRows < 1 || newColumns < 1) return;
-    self->cols = newColumns;
-    self->rows = newRows;
-
-    if (resize_pending_changes(self->changes, self->rows) != 0) {
-        destroy_pending_changes(self->changes);
-        self->changes = 0;
-        NSLog(@"out of memory for pending changes with resize of terminal %d",
-            [self terminalIndex]);
-    }
+    self.cols = newColumns;
+    self.rows = newRows;
+    [self.changes resize:self.cols rows:self.rows];
 
     if( saveToDefaults )
     {
@@ -1655,8 +2008,8 @@ static NSMenuItem *superitem(NSMenuItem *self)
         if( termIndex < (int)[terminals count] )
         {
             NSMutableDictionary *mutableTerm = [[NSMutableDictionary alloc] initWithDictionary: [terminals objectAtIndex: termIndex]];
-            [mutableTerm setValue: [NSNumber numberWithUnsignedInt: self->cols] forKey: AngbandTerminalColumnsDefaultsKey];
-            [mutableTerm setValue: [NSNumber numberWithUnsignedInt: self->rows] forKey: AngbandTerminalRowsDefaultsKey];
+            [mutableTerm setValue: [NSNumber numberWithUnsignedInt: self.cols] forKey: AngbandTerminalColumnsDefaultsKey];
+            [mutableTerm setValue: [NSNumber numberWithUnsignedInt: self.rows] forKey: AngbandTerminalRowsDefaultsKey];
 
             NSMutableArray *mutableTerminals = [[NSMutableArray alloc] initWithArray: terminals];
             [mutableTerminals replaceObjectAtIndex: termIndex withObject: mutableTerm];
@@ -1672,7 +2025,7 @@ static NSMenuItem *superitem(NSMenuItem *self)
     Term_activate( old );
 }
 
-- (void)setMinimumWindowSize:(int)termIdx
+- (void)constrainWindowSize:(int)termIdx
 {
     NSSize minsize;
 
@@ -1684,10 +2037,11 @@ static NSMenuItem *superitem(NSMenuItem *self)
        minsize.height = 1;
     }
     minsize.width =
-        minsize.width * self->tileSize.width + self->borderSize.width * 2.0;
+        minsize.width * self.tileSize.width + self.borderSize.width * 2.0;
     minsize.height =
-        minsize.height * self->tileSize.height + self->borderSize.height * 2.0;
+        minsize.height * self.tileSize.height + self.borderSize.height * 2.0;
     [[self makePrimaryWindow] setContentMinSize:minsize];
+    self.primaryWindow.contentResizeIncrements = self.tileSize;
 }
 
 - (void)saveWindowVisibleToDefaults: (BOOL)windowVisible
@@ -1745,7 +2099,7 @@ static NSMenuItem *superitem(NSMenuItem *self)
 {
     NSWindow *window = [notification object];
     NSRect contentRect = [window contentRectForFrameRect: [window frame]];
-    [self resizeTerminalWithContentRect: contentRect saveToDefaults: !(self->in_fullscreen_transition)];
+    [self resizeTerminalWithContentRect: contentRect saveToDefaults: !(self->inFullscreenTransition)];
 }
 
 //- (NSSize)windowWillResize: (NSWindow *)sender toSize: (NSSize)frameSize
@@ -1754,27 +2108,27 @@ static NSMenuItem *superitem(NSMenuItem *self)
 
 - (void)windowWillEnterFullScreen: (NSNotification *)notification
 {
-    self->in_fullscreen_transition = YES;
+    self->inFullscreenTransition = YES;
 }
 
 - (void)windowDidEnterFullScreen: (NSNotification *)notification
 {
     NSWindow *window = [notification object];
     NSRect contentRect = [window contentRectForFrameRect: [window frame]];
-    self->in_fullscreen_transition = NO;
+    self->inFullscreenTransition = NO;
     [self resizeTerminalWithContentRect: contentRect saveToDefaults: NO];
 }
 
 - (void)windowWillExitFullScreen: (NSNotification *)notification
 {
-    self->in_fullscreen_transition = YES;
+    self->inFullscreenTransition = YES;
 }
 
 - (void)windowDidExitFullScreen: (NSNotification *)notification
 {
     NSWindow *window = [notification object];
     NSRect contentRect = [window contentRectForFrameRect: [window frame]];
-    self->in_fullscreen_transition = NO;
+    self->inFullscreenTransition = NO;
     [self resizeTerminalWithContentRect: contentRect saveToDefaults: NO];
 }
 
@@ -1782,7 +2136,7 @@ static NSMenuItem *superitem(NSMenuItem *self)
 {
     NSWindow *window = [notification object];
 
-    if( window != self->primaryWindow )
+    if( window != self.primaryWindow )
     {
         return;
     }
@@ -1793,7 +2147,8 @@ static NSMenuItem *superitem(NSMenuItem *self)
 
     if( [[NSFontPanel sharedFontPanel] isVisible] )
     {
-        [[NSFontPanel sharedFontPanel] setPanelFont: [self selectionFont] isMultiple: NO];
+        [[NSFontPanel sharedFontPanel] setPanelFont:self.angbandViewFont
+                                       isMultiple: NO];
     }
 }
 
@@ -1801,7 +2156,7 @@ static NSMenuItem *superitem(NSMenuItem *self)
 {
     NSWindow *window = [notification object];
 
-    if( window != self->primaryWindow )
+    if( window != self.primaryWindow )
     {
         return;
     }
@@ -1948,7 +2303,6 @@ static void record_current_savefile(void)
     {
         NSUserDefaults *angbandDefs = [NSUserDefaults angbandDefaults];
         [angbandDefs setObject:savefileString forKey:@"SaveFile"];
-        [angbandDefs synchronize];        
     }
 }
 
@@ -2026,15 +2380,9 @@ static void Term_init_cocoa(term *t)
             columns = [[term valueForKey: AngbandTerminalColumnsDefaultsKey] integerValue];
         }
 
-        context->cols = columns;
-        context->rows = rows;
-
-        if (resize_pending_changes(context->changes, context->rows) != 0) {
-            destroy_pending_changes(context->changes);
-            context->changes = 0;
-            NSLog(@"initializing terminal %d:  out of memory for pending changes",
-                termIdx);
-        }
+        context.cols = columns;
+        context.rows = rows;
+        [context.changes resize:columns rows:rows];
 
         /* Get the window */
         NSWindow *window = [context makePrimaryWindow];
@@ -2048,7 +2396,7 @@ static void Term_init_cocoa(term *t)
         {
             [window setTitle:[NSString stringWithUTF8String: angband_term_name[termIdx]]];
         }
-        [context setMinimumWindowSize:termIdx];
+        [context constrainWindowSize:termIdx];
 
         /*
          * If this is the first term, and we support full screen (Mac OS X Lion
@@ -2230,7 +2578,7 @@ static void Term_init_cocoa(term *t)
          * don't do anything!
          */
         if (t == angband_term[0])
-            [context->primaryWindow makeKeyAndOrderFront: nil];
+            [context.primaryWindow makeKeyAndOrderFront: nil];
 
         NSEnableScreenUpdates();
 
@@ -2494,7 +2842,7 @@ static void draw_image_tile(
  * extended.
  */
 static void query_before_text(
-    struct PendingRowChange* prc, int iy, int npre, int* pclip, int* prend)
+    PendingTermChanges *tc, int iy, int npre, int* pclip, int* prend)
 {
     int start = *prend;
     int i = start - 1;
@@ -2503,15 +2851,16 @@ static void query_before_text(
         if (i < 0 || i < start - npre) {
             break;
         }
+        enum PendingCellChangeType ctype = [tc getCellChangeType:i row:iy];
 
-        if (prc->cell_changes[i].change_type == CELL_CHANGE_PICT) {
+        if (ctype == CELL_CHANGE_TILE) {
             /*
              * The cell has been rendered with a tile.  Do not want to modify
              * its contents so the clipping and rendering region can not be
              * extended.
              */
             break;
-        } else if (prc->cell_changes[i].change_type == CELL_CHANGE_NONE) {
+        } else if (ctype == CELL_CHANGE_NONE) {
             /*
              * It has not changed (or using big tile mode and it is within
              * a changed tile but is not the left cell for that tile) so
@@ -2544,8 +2893,7 @@ static void query_before_text(
              * It is unchanged text.  A character from the changed region
              * may have extended into it so render it to clear that.
              */
-            prc->cell_changes[i].c.w = c[1];
-            prc->cell_changes[i].a = a[1];
+            [tc markTextChange:i row:iy glyph:c[1] color:a[1]];
             *pclip = i;
             *prend = i;
             --i;
@@ -2567,39 +2915,39 @@ static void query_before_text(
  * extended.
  */
 static void query_after_text(
-    struct PendingRowChange* prc,
-    int iy,
-    int ncol,
-    int npost,
-    int* pclip,
-    int* prend)
+    PendingTermChanges *tc, int iy, int npost, int *pclip, int *prend)
 {
     int end = *prend;
     int i = end + 1;
+    int ncol = tc.columnCount;
 
     while (1) {
-        /*
-         * Be willing to consolidate this block with the one after it.  This
-         * logic should be sufficient to avoid redraws of the region between
-         * changed blocks of text if angbandContext->ncol_pre is zero or one.
-         * For larger values of ncol_pre, would need to do something more to
-         * avoid extra redraws.
-         */
-        if (i >= ncol ||
-            (i > end + npost &&
-            prc->cell_changes[i].change_type != CELL_CHANGE_TEXT &&
-            prc->cell_changes[i].change_type != CELL_CHANGE_WIPE)) {
+        if (i >= ncol) {
             break;
         }
 
-        if (prc->cell_changes[i].change_type == CELL_CHANGE_PICT) {
+        enum PendingCellChangeType ctype = [tc getCellChangeType:i row:iy];
+
+        /*
+         * Be willing to consolidate this block with the one after it.  This
+         * logic should be sufficient to avoid redraws of the region between
+         * changed blocks of text if angbandContext.nColPre is zero or one.
+         * For larger values of nColPre, would need to do something more to
+         * avoid extra redraws.
+         */
+        if (i > end + npost && ctype != CELL_CHANGE_TEXT
+                && ctype != CELL_CHANGE_WIPE) {
+            break;
+        }
+
+        if (ctype == CELL_CHANGE_TILE) {
             /*
              * The cell has been rendered with a tile.  Do not want to modify
              * its contents so the clipping and rendering region can not be
              * extended.
              */
             break;
-        } else if (prc->cell_changes[i].change_type == CELL_CHANGE_NONE) {
+        } else if (ctype == CELL_CHANGE_NONE) {
             /* It has not changed so inquire what it is. */
             byte_hack a;
             char c;
@@ -2617,8 +2965,7 @@ static void query_after_text(
              * It is unchanged text.  A character from the changed region
              * may have extended into it so render it to clear that.
              */
-            prc->cell_changes[i].c.w = c;
-            prc->cell_changes[i].a = a;
+            [tc markTextChange:i row:iy glyph:c color:a];
             *pclip = i;
             *prend = i;
             ++i;
@@ -2643,7 +2990,7 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
 {
     int graf_width, graf_height, alphablend;
 
-    if (angbandContext->changes->has_pict) {
+    if (angbandContext.changes.hasTileChanges) {
         CGImageAlphaInfo ainfo = CGImageGetAlphaInfo(pict_image);
 
         graf_width = pict_cell_width;
@@ -2658,38 +3005,36 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
 
     CGContextRef ctx = [angbandContext lockFocus];
 
-    if (angbandContext->changes->has_text ||
-        angbandContext->changes->has_wipe) {
-        NSFont *selectionFont = [[angbandContext selectionFont] screenFont];
+    if (angbandContext.changes.hasTextChanges
+            || angbandContext.changes.hasWipeChanges) {
+        NSFont *selectionFont = [angbandContext.angbandViewFont screenFont];
         [selectionFont set];
     }
 
-    int iy;
-    for (iy = angbandContext->changes->ymin;
-        iy <= angbandContext->changes->ymax;
-        ++iy) {
-        struct PendingRowChange* prc = angbandContext->changes->rows[iy];
-        int ix;
-
+    for (int iy = angbandContext.changes.firstChangedRow;
+            iy <= angbandContext.changes.lastChangedRow;
+            ++iy) {
         /* Skip untouched rows. */
-        if (prc == 0) {
+        if ([angbandContext.changes getFirstChangedColumnInRow:iy]
+                > [angbandContext.changes getLastChangedColumnInRow:iy]) {
             continue;
         }
+        int ix = [angbandContext.changes getFirstChangedColumnInRow:iy];
+        int ixmax = [angbandContext.changes getLastChangedColumnInRow:iy];
 
-        ix = prc->xmin;
         while (1) {
             int jx;
 
-            if (ix > prc->xmax) {
+            if (ix > ixmax) {
                 break;
             }
 
-            switch (prc->cell_changes[ix].change_type) {
+            switch ([angbandContext.changes getCellChangeType:ix row:iy]) {
             case CELL_CHANGE_NONE:
                 ++ix;
                 break;
 
-            case CELL_CHANGE_PICT:
+            case CELL_CHANGE_TILE:
                 {
                     /*
                      * Because changes are made to the compositing mode, save
@@ -2701,30 +3046,29 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                     int step = (use_bigtile) ? 2 : 1;
 
                     jx = ix;
-                    while (jx <= prc->xmax &&
-                        prc->cell_changes[jx].change_type == CELL_CHANGE_PICT) {
+                    while (jx <= ixmax
+                            && [angbandContext.changes getCellChangeType:jx row:iy]
+                            == CELL_CHANGE_TILE) {
                         NSRect destinationRect =
                             [angbandContext rectInImageForTileAtX:jx Y:iy];
+                        struct PendingTileChange tileIndices =
+                            [angbandContext.changes
+                                           getCellTileChange:jx row:iy];
                         NSRect sourceRect, terrainRect;
 
                         destinationRect.size.width *= step;
-                        sourceRect.origin.x = graf_width *
-                            prc->cell_changes[jx].c.c;
-                        sourceRect.origin.y = graf_height *
-                            prc->cell_changes[jx].a;
+                        sourceRect.origin.x = graf_width * tileIndices.fgdCol;
+                        sourceRect.origin.y = graf_height * tileIndices.fgdRow;
                         sourceRect.size.width = graf_width;
                         sourceRect.size.height = graf_height;
-                        terrainRect.origin.x = graf_width *
-                            prc->cell_changes[jx].tcol;
+                        terrainRect.origin.x = graf_width * tileIndices.bckCol;
                         terrainRect.origin.y = graf_height *
-                            prc->cell_changes[jx].trow;
+                            tileIndices.bckRow;
                         terrainRect.size.width = graf_width;
                         terrainRect.size.height = graf_height;
                         if (alphablend) {
-                            bool alert =
-                                prc->cell_changes[jx].mask & PICT_MASK_ALERT;
-                            bool glow =
-                                prc->cell_changes[jx].mask & PICT_MASK_GLOW;
+                            bool alert = tileIndices.mask & PICT_MASK_ALERT;
+                            bool glow = tileIndices.mask & PICT_MASK_GLOW;
 
                             draw_image_tile(
                                 nsContext,
@@ -2798,7 +3142,7 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                      NSRect rect =
                          [angbandContext rectInImageForTileAtX:ix Y:iy];
                      rect.size.width =
-                         angbandContext->tileSize.width * (jx - ix);
+                         angbandContext.tileSize.width * (jx - ix);
                      [angbandContext setNeedsDisplayInBaseRect:rect];
                  }
                  ix = jx;
@@ -2812,9 +3156,16 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                  * neighboring unchanged text).
                  */
                  jx = ix + 1;
-                 while (jx < angbandContext->cols &&
-                     (prc->cell_changes[jx].change_type == CELL_CHANGE_TEXT ||
-                     prc->cell_changes[jx].change_type == CELL_CHANGE_WIPE)) {
+                 while (1) {
+                     if (jx >= angbandContext.cols) {
+                         break;
+                     }
+                     enum PendingCellChangeType ctype =
+                         [angbandContext.changes getCellChangeType:jx row:iy];
+                     if (ctype != CELL_CHANGE_TEXT
+                             && ctype != CELL_CHANGE_WIPE) {
+                         break;
+                     }
                      ++jx;
                  }
                  {
@@ -2828,12 +3179,15 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                      int k;
 
                      query_before_text(
-                         prc, iy, angbandContext->ncol_pre, &isclip, &isrend);
-                     query_after_text(
-                         prc,
+                         angbandContext.changes,
                          iy,
-                         angbandContext->cols,
-                         angbandContext->ncol_post,
+                         angbandContext.nColPre,
+                         &isclip,
+                         &isrend);
+                     query_after_text(
+                         angbandContext.changes,
+                         iy,
+                         angbandContext.nColPost,
                          &ieclip,
                          &ierend);
                      ix = ierend + 1;
@@ -2847,10 +3201,10 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                          int k1 = k + 1;
 
                          alast = get_background_color_index(
-                             prc->cell_changes[k].a);
+                             [angbandContext.changes getCellTextChange:k row:iy].color);
                          while (k1 <= ierend && alast ==
                              get_background_color_index(
-                                  prc->cell_changes[k1].a)) {
+                                  [angbandContext.changes getCellTextChange:k1 row:iy].color)) {
                              ++k1;
                          }
                          if (alast == -1) {
@@ -2859,7 +3213,7 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                               set_color_for_index(alast);
                          }
                          r = [angbandContext rectInImageForTileAtX:k Y:iy];
-                         r.size.width = angbandContext->tileSize.width *
+                         r.size.width = angbandContext.tileSize.width *
                               (k1 - k);
                          NSRectFill(r);
                          k = k1;
@@ -2875,7 +3229,7 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                      */
                     CGContextBeginPath(ctx);
                     r = [angbandContext rectInImageForTileAtX:isclip Y:iy];
-                    r.size.width = angbandContext->tileSize.width *
+                    r.size.width = angbandContext.tileSize.width *
                         (ieclip - isclip + 1);
                     CGContextClipToRect(ctx, r);
 
@@ -2885,14 +3239,17 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                         NSRect rectToDraw;
                         int anew;
 
-                        if (prc->cell_changes[k].change_type
-                            == CELL_CHANGE_WIPE) {
+                        if ([angbandContext.changes getCellChangeType:k row:iy]
+                                == CELL_CHANGE_WIPE) {
                             /* Skip over since no rendering is necessary. */
                             ++k;
                             continue;
                         }
 
-                        anew = prc->cell_changes[k].a % MAX_COLORS;
+                        struct PendingTextChange textChange =
+                            [angbandContext.changes getCellTextChange:k
+                                           row:iy];
+                        anew = textChange.color % MAX_COLORS;
                         if (set_color || alast != anew) {
                             set_color = 0;
                             alast = anew;
@@ -2901,7 +3258,7 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
 
                         rectToDraw =
                             [angbandContext rectInImageForTileAtX:k Y:iy];
-                        [angbandContext drawWChar:prc->cell_changes[k].c.w
+                        [angbandContext drawWChar:textChange.glyph
                             inRect:rectToDraw context:ctx];
                         ++k;
                     }
@@ -2919,15 +3276,14 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
         }
     }
 
-    if (angbandContext->changes->xcurs >= 0 &&
-        angbandContext->changes->ycurs >= 0) {
+    if (angbandContext.changes.cursorColumn >= 0
+            && angbandContext.changes.cursorRow >= 0) {
         NSRect rect = [angbandContext
-            rectInImageForTileAtX:angbandContext->changes->xcurs
-            Y:angbandContext->changes->ycurs];
+            rectInImageForTileAtX:angbandContext.changes.cursorColumn
+            Y:angbandContext.changes.cursorRow];
 
-        if (angbandContext->changes->bigcurs) {
-            rect.size.width += angbandContext->tileSize.width;
-        }
+        rect.size.width *= angbandContext.changes.cursorWidth;
+        rect.size.height *= angbandContext.changes.cursorHeight;
         [[NSColor blueColor] set];
         NSFrameRectWithWidth(rect, 1);
         /* Invalidate that rect */
@@ -3025,12 +3381,10 @@ static errr Term_xtra_cocoa(int n, int v)
             }
             break;
 
-        case TERM_XTRA_FRESH:
             /* Draw the pending changes. */
-            if (angbandContext->changes != 0) {
-                Term_xtra_cocoa_fresh(angbandContext);
-                clear_pending_changes(angbandContext->changes);
-            }
+        case TERM_XTRA_FRESH:
+            Term_xtra_cocoa_fresh(angbandContext);
+            [angbandContext.changes clear];
             break;
 
         default:
@@ -3047,12 +3401,7 @@ static errr Term_curs_cocoa(int x, int y)
 {
     AngbandContext *angbandContext = (__bridge AngbandContext*) (Term->data);
 
-    if (angbandContext->changes == 0) {
-        /* Bail out; there was an earlier memory allocation failure. */
-        return 1;
-    }
-    angbandContext->changes->xcurs = x;
-    angbandContext->changes->ycurs = y;
+    [angbandContext.changes markCursor:x row:y];
 
     /* Success */
     return 0;
@@ -3065,13 +3414,7 @@ static errr Term_bigcurs_cocoa(int x, int y)
 {
     AngbandContext *angbandContext = (__bridge AngbandContext*) (Term->data);
 
-    if (angbandContext->changes == 0) {
-         /* Bail out; there was an earlier memory allocation failure. */
-        return 1;
-    }
-    angbandContext->changes->xcurs = x;
-    angbandContext->changes->ycurs = y;
-    angbandContext->changes->bigcurs = 1;
+    [angbandContext.changes markBigCursor:x row:y cellsWide:2 cellsHigh:1];
 
     /* Success */
     return 0;
@@ -3085,47 +3428,11 @@ static errr Term_bigcurs_cocoa(int x, int y)
 static errr Term_wipe_cocoa(int x, int y, int n)
 {
     AngbandContext *angbandContext = (__bridge AngbandContext*) (Term->data);
-    struct PendingCellChange *pc;
 
-    if (angbandContext->changes == 0) {
-        /* Bail out; there was an earlier memory allocation failure. */
-        return 1;
-    }
-    if (angbandContext->changes->rows[y] == 0) {
-        angbandContext->changes->rows[y] =
-            create_row_change(angbandContext->cols);
-        if (angbandContext->changes->rows[y] == 0) {
-            NSLog(@"failed to allocate changes for row %d", y);
-            return 1;
-        }
-        if (angbandContext->changes->ymin > y) {
-            angbandContext->changes->ymin = y;
-        }
-        if (angbandContext->changes->ymax < y) {
-            angbandContext->changes->ymax = y;
-        }
-    }
-
-    angbandContext->changes->has_wipe = 1;
-    if (angbandContext->changes->rows[y]->xmin > x) {
-        angbandContext->changes->rows[y]->xmin = x;
-    }
-    if (angbandContext->changes->rows[y]->xmax < x + n - 1) {
-        angbandContext->changes->rows[y]->xmax = x + n - 1;
-    }
-    for (pc = angbandContext->changes->rows[y]->cell_changes + x;
-        pc != angbandContext->changes->rows[y]->cell_changes + x + n;
-        ++pc) {
-        /*
-         * Record the color as the plain background so
-         * get_background_color_index() performs correctly.
-         */
-        pc->a = BG_BLACK * MAX_COLORS;
-        pc->change_type = CELL_CHANGE_WIPE;
-    }
+    [angbandContext.changes markWipeRange:x row:y n:n];
 
     /* Success */
-    return (0);
+    return 0;
 }
 
 static errr Term_pict_cocoa(int x, int y, int n, const byte_hack *ap, const char *cp, const byte_hack *tap, const char *tcp)
@@ -3134,43 +3441,14 @@ static errr Term_pict_cocoa(int x, int y, int n, const byte_hack *ap, const char
     if (! graphics_are_enabled()) return -1;
 
     AngbandContext* angbandContext = (__bridge AngbandContext*) (Term->data);
-    int any_change = 0;
     int step = (use_bigtile) ? 2 : 1;
-    struct PendingCellChange *pc;
 
-    if (angbandContext->changes == 0) {
-        /* Bail out; there was an earlier memory allocation failure. */
-        return 1;
-    }
     /*
      * In bigtile mode, it is sufficient that the bounds for the modified
      * region only encompass the left cell for the region affected by the
      * tile and that only that cell has to have the details of the changes.
      */
-    if (angbandContext->changes->rows[y] == 0) {
-        angbandContext->changes->rows[y] =
-            create_row_change(angbandContext->cols);
-        if (angbandContext->changes->rows[y] == 0) {
-            NSLog(@"failed to allocate changes for row %d", y);
-            return 1;
-        }
-        if (angbandContext->changes->ymin > y) {
-            angbandContext->changes->ymin = y;
-        }
-        if (angbandContext->changes->ymax < y) {
-            angbandContext->changes->ymax = y;
-        }
-    }
-
-    if (angbandContext->changes->rows[y]->xmin > x) {
-        angbandContext->changes->rows[y]->xmin = x;
-    }
-    if (angbandContext->changes->rows[y]->xmax < x + step * (n - 1)) {
-        angbandContext->changes->rows[y]->xmax = x + step * (n - 1);
-    }
-    for (pc = angbandContext->changes->rows[y]->cell_changes + x;
-        pc != angbandContext->changes->rows[y]->cell_changes + x + step * n;
-        pc += step) {
+    for (int i = x; i < x + n * step; i += step) {
         int a = *ap;
         char c = *cp;
         int ta = *tap;
@@ -3181,23 +3459,18 @@ static errr Term_pict_cocoa(int x, int y, int n, const byte_hack *ap, const char
         tap += step;
         tcp += step;
         if (use_graphics && (a & 0x80) && (c & 0x80)) {
-            pc->c.c = ((byte)c & 0x7F) % pict_cols;
-            pc->a = ((byte)a & 0x7F) % pict_rows;
-            pc->tcol = ((byte)tc & 0x7F) % pict_cols;
-            pc->trow = ((byte)ta & 0x7F) % pict_rows;
-            pc->mask =
-                ((c & GRAPHICS_ALERT_MASK) ? PICT_MASK_ALERT : PICT_MASK_NONE) |
-                ((a & GRAPHICS_GLOW_MASK) ? PICT_MASK_GLOW : PICT_MASK_NONE);
-            pc->change_type = CELL_CHANGE_PICT;
-            any_change = 1;
+            [angbandContext.changes markTileChange:i row:y
+                foregroundCol:((byte)c & 0x3F) % pict_cols
+                foregroundRow:((byte)a & 0x3F) % pict_rows
+                backgroundCol:((byte)tc & 0x3F) % pict_cols
+                backgroundRow:((byte)ta & 0x3F) % pict_rows
+                mask:((c & GRAPHICS_ALERT_MASK) ? PICT_MASK_ALERT : PICT_MASK_NONE)
+                | ((a & GRAPHICS_GLOW_MASK) ? PICT_MASK_GLOW : PICT_MASK_NONE)];
         }
-    }
-    if (any_change) {
-        angbandContext->changes->has_pict = 1;
     }
 
     /* Success */
-    return (0);
+    return 0;
 }
 
 /**
@@ -3208,45 +3481,13 @@ static errr Term_pict_cocoa(int x, int y, int n, const byte_hack *ap, const char
 static errr Term_text_cocoa(int x, int y, int n, byte_hack a, const char *cp)
 {
     AngbandContext* angbandContext = (__bridge AngbandContext*) (Term->data);
-    struct PendingCellChange *pc;
 
-    if (angbandContext->changes == 0) {
-        /* Bail out; there was an earlier memory allocation failure. */
-        return 1;
-    }
-    if (angbandContext->changes->rows[y] == 0) {
-        angbandContext->changes->rows[y] =
-            create_row_change(angbandContext->cols);
-        if (angbandContext->changes->rows[y] == 0) {
-            NSLog(@"failed to allocate changes for row %d", y);
-            return 1;
-        }
-        if (angbandContext->changes->ymin > y) {
-            angbandContext->changes->ymin = y;
-        }
-        if (angbandContext->changes->ymax < y) {
-            angbandContext->changes->ymax = y;
-        }
-    }
-
-    angbandContext->changes->has_text = 1;
-    if (angbandContext->changes->rows[y]->xmin > x) {
-        angbandContext->changes->rows[y]->xmin = x;
-    }
-    if (angbandContext->changes->rows[y]->xmax < x + n - 1) {
-        angbandContext->changes->rows[y]->xmax = x + n - 1;
-    }
-    pc = angbandContext->changes->rows[y]->cell_changes + x;
-    while (pc != angbandContext->changes->rows[y]->cell_changes + x + n) {
-        pc->c.w = *cp;
-        pc->a = a;
-        pc->change_type = CELL_CHANGE_TEXT;
-        ++pc;
-        ++cp;
+    for (int i = 0; i < n; ++i) {
+        [angbandContext.changes markTextChange:i+x row:y glyph:cp[i] color:a];
     }
 
     /* Success */
-    return (0);
+    return 0;
 }
 
 #if 0
@@ -3311,8 +3552,8 @@ static BOOL bigtiles_are_appropriate(void)
     }
     AngbandContext *term0_context =
         (__bridge AngbandContext*) (angband_term[0]->data);
-    CGFloat textw = term0_context->tileSize.width;
-    CGFloat texth = term0_context->tileSize.height;
+    CGFloat textw = term0_context.tileSize.width;
+    CGFloat texth = term0_context.tileSize.height;
     CGFloat wratio = pict_cell_width / textw;
     CGFloat hratio = pict_cell_height / texth;
 
@@ -3472,10 +3713,12 @@ static void load_prefs()
 
     /* preferred graphics mode */
     arg_graphics = [defs integerForKey:@"GraphicsID"];
-    
-    /* use sounds */
-    allow_sounds = [defs boolForKey:@"AllowSound"];
-    
+
+#if 0
+    [AngbandSoundCatalog sharedSounds].enabled =
+        [defs boolForKey:@"AllowSound"];
+#endif
+
     /* fps */
     frames_per_second = [[NSUserDefaults angbandDefaults] integerForKey:@"FramesPerSecond"];
     
@@ -3486,207 +3729,181 @@ static void load_prefs()
         [NSFont fontWithName:@"Monaco" size:12.];
 }
 
-/* Arbitary limit on number of possible samples per event */
-#define MAX_SAMPLES            16
-
-/* Struct representing all data for a set of event samples */
-typedef struct
-{
-	int num;        /* Number of available samples for this event */
-	NSSound *sound[MAX_SAMPLES];
-} sound_sample_list;
-
-/* Array of event sound structs */
-static sound_sample_list samples[MSG_MAX];
-
-
-/*
- * Load sound effects based on sound.cfg within the xtra/sound directory;
- * bridge to Cocoa to use NSSound for simple loading and playback, avoiding
- * I/O latency by cacheing all sounds at the start.  Inherits full sound
- * format support from Quicktime base/plugins.
- * pelpel favoured a plist-based parser for the future but .cfg support
- * improves cross-platform compatibility.
+/**
+ * Return the path for Angband's lib directory and bail if it isn't found. The
+ * lib directory should be in the bundle's resources directory, since it's
+ * copied when built.
  */
-static void load_sounds(void)
+static NSString *get_lib_directory(void)
 {
+    NSString *bundleLibPath = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent: AngbandDirectoryNameLib];
+    BOOL isDirectory = NO;
+    BOOL libExists = [[NSFileManager defaultManager] fileExistsAtPath: bundleLibPath isDirectory: &isDirectory];
 
-#if 0 ////
-    
-	char path[2048];
-	char buffer[2048];
-	ang_file *fff;
-    
-	/* Build the "sound" path */
-	path_build(path, sizeof(path), ANGBAND_DIR_XTRA, "sound");
-	ANGBAND_DIR_XTRA_SOUND = string_make(path);
-    
-	/* Find and open the config file */
-	path_build(path, sizeof(path), ANGBAND_DIR_XTRA_SOUND, "sound.cfg");
-	fff = file_open(path, MODE_READ, -1);
-    
-	/* Handle errors */
-	if (!fff)
-	{
-		NSLog(@"The sound configuration file could not be opened.");
-		return;
-	}
-	
-        @autoreleasepool {
-            /*
-             * Use a dictionary to unique sounds, so we can share NSSounds
-             * across multiple events
-             */
-            NSMutableDictionary *sound_dict = [NSMutableDictionary dictionary];
+    if( !libExists || !isDirectory )
+    {
+        NSLog( @"Sil: can't find %@/ in bundle: isDirectory: %d libExists: %d", AngbandDirectoryNameLib, isDirectory, libExists );
 
-            /*
-             * This loop may take a while depending on the count and size of
-             * samples to load.
-             */
+        NSAlert *alert = [[NSAlert alloc] init];
+        /*
+         * Note that NSCriticalAlertStyle was deprecated in 10.10.  The
+         * replacement is NSAlertStyleCritical.
+         */
+        alert.alertStyle = NSCriticalAlertStyle;
+        alert.messageText = @"MissingResources";
+        alert.informativeText = @"Sil was unable to find the 'lib' folder, which should be in Sil.app/Contents/Resources, so must quit. Please report a bug on the Angband forums.";
+        [alert addButtonWithTitle:@"Quit"];
+        [alert runModal];
+        exit(0);
+    }
 
-	    /* Parse the file */
-	    /* Lines are always of the form "name = sample [sample ...]" */
-            while (file_getl(fff, buffer, sizeof(buffer))) {
-                char *msg_name;
-                char *cfg_sample_list;
-                char *search;
-                char *cur_token;
-                char *next_token;
-                int event;
-
-                /* Skip anything not beginning with an alphabetic character */
-                if (!buffer[0] || !isalpha((unsigned char)buffer[0])) continue;
-
-                /* Split the line into two: message name, and the rest */
-                search = strchr(buffer, ' ');
-                cfg_sample_list = strchr(search + 1, ' ');
-                if (!search) continue;
-                if (!cfg_sample_list) continue;
-
-                /* Set the message name, and terminate at first space */
-                msg_name = buffer;
-                search[0] = '\0';
-
-                /* Make sure this is a valid event name */
-                event = message_lookup_by_sound_name(msg_name);
-                if (event < 0) continue;
-
-                /*
-                 * Advance the sample list pointer so it's at the beginning of
-                 * text
-                 */
-                cfg_sample_list++;
-                if (!cfg_sample_list[0]) continue;
-
-                /* Terminate the current token */
-                cur_token = cfg_sample_list;
-                search = strchr(cur_token, ' ');
-                if (search) {
-                    search[0] = '\0';
-                    next_token = search + 1;
-                } else {
-                    next_token = NULL;
-                }
-
-                /*
-                 * Now we find all the sample names and add them one by one
-                 */
-                while (cur_token) {
-                    int num = samples[event].num;
-
-                    /* Don't allow too many samples */
-                    if (num >= MAX_SAMPLES) break;
-
-                    NSString *token_string =
-                        [NSString stringWithUTF8String:cur_token];
-                    NSSound *sound = [sound_dict objectForKey:token_string];
-
-                    if (! sound) {
-                        /*
-                         * We have to load the sound. Build the path to the
-                         * sample.
-                         */
-                        path_build(path, sizeof(path), ANGBAND_DIR_XTRA_SOUND,
-                            cur_token);
-                        if (file_exists(path)) {
-                            /* Load the sound into memory */
-                            sound = [[NSSound alloc]
-                                initWithContentsOfFile:[NSString stringWithUTF8String:path]
-                                byReference:YES];
-                            if (sound) {
-                                [sound_dict setObject:sound
-                                    forKey:token_string];
-                            }
-                        }
-                    }
-
-                    /* Store it if we loaded it */
-                    if (sound) {
-                        samples[event].sound[num] = sound;
-
-                        /* Imcrement the sample count */
-                        samples[event].num++;
-                    }
-
-                    /* Figure out next token */
-                    cur_token = next_token;
-                    if (next_token) {
-                        /* Try to find a space */
-                        search = strchr(cur_token, ' ');
-
-                        /* If we can find one, terminate, and set new "next" */
-                        if (search) {
-                            search[0] = '\0';
-                            next_token = search + 1;
-                        } else {
-                            /* Otherwise prevent infinite looping */
-                            next_token = NULL;
-                        }
-                    }
-                }
-            }
-        }
-
-        /* Close the file */
-        file_close(fff);
-#endif ////
+    return bundleLibPath;
 }
 
+/**
+ * Return the path for the directory where Angband should look for its standard
+ * user file tree.
+ */
+#if 0
+static NSString *get_doc_directory(void)
+{
+    NSString *documents = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) lastObject];
+
+#if defined(SAFE_DIRECTORY)
+    NSString *versionedDirectory = [NSString stringWithFormat: @"%@-%s", AngbandDirectoryNameBase, VERSION_STRING];
+    return [documents stringByAppendingPathComponent: versionedDirectory];
+#else
+    return [documents stringByAppendingPathComponent: AngbandDirectoryNameBase];
+#endif
+}
+#endif
+
+/**
+ * Adjust directory paths as needed to correct for any differences needed by
+ * Angband.  init_file_paths() currently requires that all paths provided have
+ * a trailing slash and all other platforms honor this.
+ *
+ * \param originalPath The directory path to adjust.
+ * \return A path suitable for Angband or nil if an error occurred.
+ */
+static NSString *AngbandCorrectedDirectoryPath(NSString *originalPath)
+{
+    if ([originalPath length] == 0) {
+        return nil;
+    }
+
+    if (![originalPath hasSuffix: @"/"]) {
+        return [originalPath stringByAppendingString: @"/"];
+    }
+
+    return originalPath;
+}
+
+#ifdef RUNTIME_PRIVATE_USER_PATH
+extern const char *get_runtime_user_path(void)
+{
+    static int needs_init = 1;
+    static char path[1024];
+
+    if (needs_init) {
+        @autoreleasepool {
+            NSString *documents = [[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) lastObject]
+                stringByAppendingPathComponent:@"/Sil"];
+
+            [documents getFileSystemRepresentation:path maxLength:sizeof(path)];
+        }
+        needs_init = 0;
+    }
+    return path;
+}
+#endif
+
+#ifdef PRIVATE_USER_PATH
+/**
+ * Create the directories for the user's files as needed.
+ * Is the same as create_user_dir() in main.c.  Porting create_needed_dirs()
+ * from Angband would avoid the code repetition.
+ */
+static void create_user_dir(void)
+{
+    char dirpath[1024];
+    char subdirpath[1024];
+
+    /* Get an absolute path from the filename */
+#ifdef RUNTIME_PRIVATE_USER_PATH
+    path_parse(dirpath, sizeof(dirpath), get_runtime_user_path());
+#else
+    path_parse(dirpath, sizeof(dirpath), PRIVATE_USER_PATH);
+#endif
+
+    /* Create the directory */
+    mkdir(dirpath, 0700);
+
+    /* Build the path to the variant-specific sub-directory */
+    path_build(subdirpath, sizeof(subdirpath), dirpath, VERSION_NAME);
+
+    /* Create the directory */
+    mkdir(subdirpath, 0700);
+
+#ifdef USE_PRIVATE_SAVE_PATH
+    /* Build the path to the data sub-directory */
+    path_build(dirpath, sizeof(dirpath), subdirpath, "data");
+
+    /* Create the directory */
+    mkdir(dirpath, 0700);
+
+    /* Build the path toe the scores sub-directory */
+    path_build(dirpath, sizeof(dirpath), subdirpath, "scores");
+
+    /* Create the directory */
+    mkdir(dirpath, 0700);
+
+    /* Build the path to the savefile sub-directory */
+    path_build(dirpath, sizeof(dirpath), subdirpath, "save");
+
+    /* Create the directory */
+    mkdir(dirpath, 0700);
+#endif /* USE_PRIVATE_SAVE_PATH */
+}
+#endif
+
+/**
+ * Give Angband the base paths that should be used for the various directories
+ * it needs. It will create any needed directories.
+ */
+static void prepare_paths_and_directories(void)
+{
+    char libpath[PATH_MAX + 1] = "\0";
+    NSString *libDirectoryPath =
+        AngbandCorrectedDirectoryPath(get_lib_directory());
+    [libDirectoryPath getFileSystemRepresentation: libpath maxLength: sizeof(libpath)];
+
+#if 0
+    char basepath[PATH_MAX + 1] = "\0";
+    NSString *angbandDocumentsPath =
+        AngbandCorrectedDirectoryPath(get_doc_directory());
+    [angbandDocumentsPath getFileSystemRepresentation: basepath maxLength: sizeof(basepath)];
+
+    init_file_paths(libpath, libpath, basepath);
+    create_needed_dirs();
+#else
+    init_file_paths(libpath);
+#ifdef PRIVATE_USER_PATH
+    create_user_dir();
+#endif
+#endif
+}
+
+#if 0
 /*
  * Play sound effects asynchronously.  Select a sound from any available
  * for the required event, and bridge to Cocoa to play it.
  */
 static void play_sound(int event)
-{    
-    /* Maybe block it */
-    if (! allow_sounds) return;
-    
-	/* Paranoia */
-	if (event < 0 || event >= MSG_MAX) return;
-    
-    /* Load sounds just-in-time (once) */
-    static BOOL loaded = NO;
-    if (! loaded)
-    {
-        loaded = YES;
-        load_sounds();
-    }
-    
-    /* Check there are samples for this event */
-    if (!samples[event].num) return;
-
-    @autoreleasepool {
-        /* Choose a random event */
-        int s = rand_int(samples[event].num);
-
-        /* Stop the sound if it's currently playing */
-        if ([samples[event].sound[s] isPlaying])
-        [samples[event].sound[s] stop];
-
-        /* Play the sound */
-        [samples[event].sound[s] play];
-    }
+{
+    [[AngbandSoundCatalog sharedSounds] playSound:event];
 }
+#endif
 
 /*
  * 
@@ -3874,12 +4091,14 @@ static void AngbandHandleEventMouseDown( NSEvent *event )
 	AngbandContext *mainAngbandContext =
             (__bridge AngbandContext*) (angband_term[0]->data);
 
-	if (mainAngbandContext->primaryWindow && [[event window] windowNumber] == [mainAngbandContext->primaryWindow windowNumber])
+	if (mainAngbandContext.primaryWindow &&
+            [[event window] windowNumber] ==
+            [mainAngbandContext.primaryWindow windowNumber])
 	{
 		int cols, rows, x, y;
 		Term_get_size(&cols, &rows);
-		NSSize tileSize = angbandContext->tileSize;
-		NSSize border = angbandContext->borderSize;
+		NSSize tileSize = angbandContext.tileSize;
+		NSSize border = angbandContext.borderSize;
 		NSPoint windowPoint = [event locationInWindow];
 
 		// adjust for border; add border height because window origin is at bottom
@@ -4320,22 +4539,6 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 
 /*** Main program ***/
 
-@interface AngbandAppDelegate : NSObject {
-    NSMenu *_commandMenu;
-    NSDictionary *_commandMenuTagMap;
-}
-
-@property (strong, nonatomic, retain) IBOutlet NSMenu *commandMenu;
-@property (strong, nonatomic, retain) NSDictionary *commandMenuTagMap;
-
-- (IBAction)newGame:sender;
-- (IBAction)editFont:sender;
-- (IBAction)openGame:sender;
-
-- (IBAction)selectWindow: (id)sender;
-
-@end
-
 @implementation AngbandAppDelegate
 
 @synthesize commandMenu=_commandMenu;
@@ -4361,7 +4564,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
         AngbandContext *context =
             (__bridge AngbandContext*) (angband_term[i]->data);
         if ([context isMainWindow]) {
-            termFont = [context selectionFont];
+            termFont = [context angbandViewFont];
             break;
         }
     }
@@ -4405,8 +4608,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
         forKey:[NSString stringWithFormat:@"FontName-%d", mainTerm]];
     [defs setFloat:[newFont pointSize]
         forKey:[NSString stringWithFormat:@"FontSize-%d", mainTerm]];
-    [defs synchronize];
-    
+
     NSDisableScreenUpdates();
     
     /* Update window */
@@ -4453,6 +4655,122 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     
     /* Record the current save file so we can select it by default next time. It's a little sketchy that this only happens when we save through the menu; ideally game-triggered saves would trigger it too. */
     record_current_savefile();
+}
+
+/* Entry point for initializing Angband */
+- (void)beginGame
+{
+    @autoreleasepool {
+        /* Used by Angband but not by Sil. */
+#if 0
+        /* Set the command hook */
+        cmd_get_hook = textui_get_cmd;
+#endif
+
+        /* Hooks in some "z-util.c" hooks */
+        plog_aux = hook_plog;
+        quit_aux = hook_quit;
+
+        /* Used by Angband but not by Sil. */
+#if 0
+        /* Hook in to the file_open routine */
+        file_open_hook = cocoa_file_open_hook;
+
+        /* Hook into file saving dialogue routine */
+        get_file = cocoa_get_file;
+#endif
+
+        /* Initialize file paths */
+        prepare_paths_and_directories();
+
+        /* Note the "system" */
+        ANGBAND_SYS = "mac";
+
+        /* Load preferences */
+        load_prefs();
+
+        /* Prepare the windows */
+        init_windows();
+
+        /* Set up game event handlers */
+        /* init_display(); */
+
+        /* Register the sound hook */
+        /* sound_hook = play_sound; */
+
+        /* Initialize some save file stuff */
+        player_egid = getegid();
+
+        /* We are now initialized */
+        initialized = TRUE;
+
+        /* Handle "open_when_ready" */
+        handle_open_when_ready();
+
+        /* Handle pending events (most notably update) and flush input */
+        Term_flush();
+
+        /* Mark ourself as the file creator */
+        _fcreator = SIL_CREATOR;
+
+        /* Default to saving a "text" file */
+        _ftype = 'TEXT';
+
+	init_angband();
+
+        use_background_colors = TRUE;
+    }
+
+    while (1) {
+        @autoreleasepool {
+            /* Let the player choose a savefile or start a new game */
+            if (!game_in_progress) {
+                int choice = 0;
+                int highlight = 1;
+
+                if (p_ptr->is_dead) highlight = 4;
+
+                /* Process Events until "new" or "open" is selected */
+                while (!game_in_progress) {
+                    choice = initial_menu(&highlight);
+
+                    switch (choice) {
+                    case 1:
+                        open_tutorial();
+                        break;
+                    case 2:
+                        game_in_progress = TRUE;
+                        new_game = TRUE;
+                        break;
+                    case 3:
+                        open_game();
+                        break;
+                    case 4:
+                        quit(NULL);
+                        break;
+                    }
+		}
+            }
+
+            /* Handle pending events (most notably update) and flush input */
+            Term_flush();
+
+            /*
+             * Play a game -- "new_game" is set by "new", "open" or the open
+             * document event handler as appropriate
+             */
+            play_game(new_game);
+
+            /* Rerun the first initialization routine */
+            /* init_stuff(); */
+
+            /* Do some more between-games initialization */
+            re_init_some_things();
+
+            /* Game no longer in progress */
+            game_in_progress = FALSE;
+        }
+    }
 }
 
 /**
@@ -4506,7 +4824,8 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     {                                       //// half
         return (turn > 0);                  //// half
     }                                       //// half
-    else if (sel == @selector(setRefreshRate:) && [superitem(menuItem) tag] == 150)
+    else if (sel == @selector(setRefreshRate:) &&
+             [[menuItem parentItem] tag] == 150)
     {
         NSInteger fps = [[NSUserDefaults standardUserDefaults] integerForKey: @"FramesPerSecond"];
         [menuItem setState: ([menuItem tag] == fps)];
@@ -4533,13 +4852,24 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     [[NSUserDefaults angbandDefaults] setInteger:frames_per_second forKey:@"FramesPerSecond"];
 }
 
-- (IBAction)selectWindow: (id)sender
+- (void)setGraphicsMode:(NSMenuItem *)sender
+{
+    /* We stashed the graphics mode ID in the menu item's tag */
+    arg_graphics = [sender tag];
+
+    /* Stash it in UserDefaults */
+    [[NSUserDefaults angbandDefaults] setInteger:arg_graphics forKey:@"GraphicsID"];
+
+    redraw_for_tiles_or_term0_font();
+}
+
+- (void)selectWindow: (id)sender
 {
     NSInteger subwindowNumber = [(NSMenuItem *)sender tag] - AngbandWindowMenuItemTagBase;
     AngbandContext *context = (__bridge AngbandContext*)
         (angband_term[subwindowNumber]->data);
-    [context->primaryWindow makeKeyAndOrderFront: self];
-	[context saveWindowVisibleToDefaults: YES];
+    [context.primaryWindow makeKeyAndOrderFront: self];
+    [context saveWindowVisibleToDefaults: YES];
 }
 
 - (void)prepareWindowsMenu
@@ -4575,7 +4905,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     NSString *command = [self.commandMenuTagMap objectForKey: [NSNumber numberWithInteger: [menuItem tag]]];
     AngbandContext* context =
         (__bridge AngbandContext*) (angband_term[0]->data);
-    NSInteger windowNumber = [context->primaryWindow windowNumber];
+    NSInteger windowNumber = [context.primaryWindow windowNumber];
 
     // send a \ to bypass keymaps
     NSEvent *escape = [NSEvent keyEventWithType: NSKeyDown
@@ -4649,7 +4979,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 
 - (void)applicationDidFinishLaunching:sender
 {
-    [AngbandContext beginGame];
+    [self beginGame];
     
     //once beginGame finished, the game is over - that's how Angband works, and we should quit
     game_is_finished = TRUE;
