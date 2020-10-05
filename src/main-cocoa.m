@@ -1756,9 +1756,6 @@ static int compare_advances(const void *ap, const void *bp)
 
     /* Update our image */
     [self updateImage];
-    
-    /* Get redrawn */
-    [self requestRedraw];
 }
 
 - (id)init
