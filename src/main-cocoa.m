@@ -4960,7 +4960,10 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 
 - (void)prepareWindowsMenu
 {
-    // get the window menu with default items and add a separator and item for the main window
+    /*
+     * Get the window menu with default items and add a separator and
+     * item for the main window.
+     */
     NSMenu *windowsMenu = [[NSApplication sharedApplication] windowsMenu];
     [windowsMenu addItem: [NSMenuItem separatorItem]];
 
