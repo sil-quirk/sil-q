@@ -4145,8 +4145,7 @@ static void quit_calmly(void)
         msg_flag = FALSE;
 
         /* Save the game */
-        ////do_cmd_save_game(FALSE, 0);
-        do_cmd_save_game(); ////
+        do_cmd_save_game();
         record_current_savefile();
 
         /* Quit */
@@ -4293,9 +4292,7 @@ static BOOL send_event(NSEvent *event)
 
             /* Get the Angband char corresponding to this unichar */
             unichar c = [[event characters] characterAtIndex:0];
-            //// keycode_t ch;
-            //// myshkin char ch = (char)c; ////
-
+            keycode_t ch;
             switch (c) {
                 /* Note that NSNumericPadKeyMask is set if any of the arrow
                  * keys are pressed. We don't want KC_MOD_KEYPAD set for
@@ -4607,10 +4604,6 @@ u32b _ftype;
  */
 extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 {
-    //OSErr err;
-    //FSSpec spec;
-    //FInfo info;
-
     @autoreleasepool {
         NSString *pathString = [NSString stringWithUTF8String:pathname];
         if (pathString) {
@@ -4625,20 +4618,6 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
                 setAttributes:attrs ofItemAtPath:pathString error:NULL];
         }
     }
-
-    /* Convert pathname to FSSpec */
-    //if (path_to_spec(pathname, &spec) != noErr) return;
-
-    /* Obtain current finder info of the file */
-    //if (FSpGetFInfo(&spec, &info) != noErr) return;
-
-    /* Overwrite creator and type */
-    //info.fdCreator = fcreator;
-    //info.fdType = ftype;
-    //err = FSpSetFInfo(&spec, &info);
-    
-    /* Done */
-    return;
 }
 
 //// Sil-y: end inserted block
@@ -4656,8 +4635,6 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     game_in_progress = TRUE;
 
     Term_keypress(ESCAPE); //// half: needed to break out of the text-based start menu
-
-    ////cmd.command = CMD_NEWGAME;
 }
 
 - (IBAction)editFont:sender
@@ -4756,8 +4733,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     msg_flag = FALSE;
     
     /* Save the game */
-    ////do_cmd_save_game(FALSE, 0);
-    do_cmd_save_game(); ////
+    do_cmd_save_game();
     
     /*
      * Record the current save file so we can select it by default next time.
@@ -5114,7 +5090,6 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     }
     else
     {
-        ////cmd_insert(CMD_QUIT);
         /*
          * Post an escape event so that we can return from our get-key-event
          * function
