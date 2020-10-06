@@ -1563,10 +1563,10 @@ static int compare_advances(const void *ap, const void *bp)
             size = [activeView bounds].size;
         }
     }
-    
+
     size.width = fmax(1, ceil(size.width));
     size.height = fmax(1, ceil(size.height));
-    
+
     CGLayerRelease(self.angbandLayer);
 
     /* Make a bitmap context as an example for our layer */
@@ -1695,7 +1695,6 @@ static int compare_advances(const void *ap, const void *bp)
         tileOffsetX = 0;
     }
 
-    
     /* Now draw it */
     CGAffineTransform textMatrix = CGContextGetTextMatrix(ctx);
     CGFloat savedA = textMatrix.a;
@@ -1774,7 +1773,7 @@ static int compare_advances(const void *ap, const void *bp)
 {
     /* Record the new font */
     self.angbandViewFont = font;
-    
+
     /* Update our glyph info */
     [self updateGlyphInfo];
 
@@ -1850,18 +1849,18 @@ static int compare_advances(const void *ap, const void *bp)
 - (void)dispose
 {
     self->terminal = NULL;
-    
+
     /* Disassociate ourselves from our angbandViews */
     [self.angbandViews makeObjectsPerformSelector:@selector(setAngbandContext:) withObject:nil];
     self.angbandViews = nil;
-    
+
     /* Destroy the layer/image */
     CGLayerRelease(self.angbandLayer);
     self.angbandLayer = NULL;
 
     /* Font */
     self.angbandViewFont = nil;
-    
+
     /* Window */
     [self.primaryWindow setDelegate:nil];
     [self.primaryWindow close];
@@ -1899,7 +1898,7 @@ static int compare_advances(const void *ap, const void *bp)
 {
     if ([self.angbandViews count] == 1)
         return [self.angbandViews objectAtIndex:0];
-    
+
     AngbandView *result = nil;
     float maxWidth = 0;
     for (AngbandView *angbandView in self.angbandViews)
@@ -1940,7 +1939,6 @@ static int compare_advances(const void *ap, const void *bp)
         if ([self.angbandViews count]) [self requestRedraw];
     }
 }
-
 
 - (NSWindow *)makePrimaryWindow
 {
@@ -4139,23 +4137,22 @@ static void quit_calmly(void)
 {
     /* Quit immediately if game's not started */
     if (!game_in_progress || !character_generated) quit(NULL);
-    
+
     /* Save the game and Quit (if it's safe) */
     if (inkey_flag)
     {
         /* Hack -- Forget messages */
         msg_flag = FALSE;
-        
+
         /* Save the game */
         ////do_cmd_save_game(FALSE, 0);
         do_cmd_save_game(); ////
         record_current_savefile();
-        
-        
+
         /* Quit */
         quit(NULL);
     }
-    
+
     /* Wait until inkey_flag is set */
 }
 
@@ -4657,9 +4654,9 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 {
     /* Game is in progress */
     game_in_progress = TRUE;
-    
+
     Term_keypress(ESCAPE); //// half: needed to break out of the text-based start menu
-    
+
     ////cmd.command = CMD_NEWGAME;
 }
 
@@ -4677,7 +4674,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
             break;
         }
     }
-    
+
     [panel setPanelFont:termFont isMultiple:NO];
     [panel orderFront:self];
 }
@@ -4701,7 +4698,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 
     /* Bug #1709: Only change font for angband windows */
     if (mainTerm == ANGBAND_TERM_MAX) return;
-    
+
     NSFont *oldFont = default_font;
     NSFont *newFont = [sender convertFont:oldFont];
     if (! newFont) return; /*paranoia */
@@ -4710,7 +4707,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     if (mainTerm == 0) {
         default_font = newFont;
     }
-    
+
     /* Record it in the preferences */
     NSUserDefaults *defs = [NSUserDefaults angbandDefaults];
     [defs setValue:[newFont fontName] 
@@ -4719,7 +4716,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
         forKey:[NSString stringWithFormat:@"FontSize-%d", mainTerm]];
 
     NSDisableScreenUpdates();
-    
+
     /* Update window */
     AngbandContext *angbandContext = (__bridge AngbandContext*)
         (angband_term[mainTerm]->data);
