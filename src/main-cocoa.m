@@ -1564,17 +1564,19 @@ static int compare_advances(const void *ap, const void *bp)
         }
     }
 
-    size.width = fmax(1, ceil(size.width));
-    size.height = fmax(1, ceil(size.height));
-
     CGLayerRelease(self.angbandLayer);
 
     /* Make a bitmap context as an example for our layer */
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
     CGContextRef exampleCtx = CGBitmapContextCreate(NULL, 1, 1, 8 /* bits per component */, 48 /* bytesPerRow */, cs, kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Host);
     CGColorSpaceRelease(cs);
+
+    /* Create the layer at the appropriate size */
+    size.width = fmax(1, ceil(size.width));
+    size.height = fmax(1, ceil(size.height));
     self.angbandLayer =
         CGLayerCreateWithContext(exampleCtx, *(CGSize *)&size, NULL);
+
     CFRelease(exampleCtx);
 
     [self lockFocus];
