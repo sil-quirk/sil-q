@@ -48,6 +48,9 @@ static NSString * const AngbandTerminalsDefaultsKey = @"Terminals";
 static NSString * const AngbandTerminalRowsDefaultsKey = @"Rows";
 static NSString * const AngbandTerminalColumnsDefaultsKey = @"Columns";
 static NSString * const AngbandTerminalVisibleDefaultsKey = @"Visible";
+static NSString * const AngbandGraphicsDefaultsKey = @"GraphicsID";
+static NSString * const AngbandFrameRateDefaultsKey = @"FramesPerSecond";
+static NSString * const AngbandSoundDefaultsKey = @"AllowSound";
 static NSInteger const AngbandWindowMenuItemTagBase = 1000;
 static NSInteger const AngbandCommandMenuItemTagBase = 2000;
 
@@ -2697,7 +2700,8 @@ static errr Term_xtra_cocoa_react(void)
                 if (! pict_image) {
                     arg_graphics = GRAPHICS_NONE;
                     [[NSUserDefaults angbandDefaults]
-                        setInteger:GRAPHICS_NONE forKey:@"GraphicsID"];
+                        setInteger:GRAPHICS_NONE
+                        forKey:AngbandGraphicsDefaultsKey];
 
                     NSAlert *alert = [[NSAlert alloc] init];
                     alert.messageText = @"Failed to Load Tile Set";
@@ -2711,7 +2715,8 @@ static errr Term_xtra_cocoa_react(void)
             } else if (arg_graphics != GRAPHICS_NONE) {
                 arg_graphics = GRAPHICS_NONE;
                 [[NSUserDefaults angbandDefaults]
-                    setInteger:GRAPHICS_NONE forKey:@"GraphicsID"];
+                    setInteger:GRAPHICS_NONE
+                    forKey:AngbandGraphicsDefaultsKey];
 
                 NSAlert *alert = [[NSAlert alloc] init];
                 alert.messageText = @"Unknown Tile Set";
@@ -3696,23 +3701,23 @@ static void load_prefs()
                               ////half @"Menlo", @"FontName",
                               @"Monaco", @"FontName", ////half
                               [NSNumber numberWithFloat:12.f], @"FontSize",
-                              [NSNumber numberWithInt:60], @"FramesPerSecond",
-                              [NSNumber numberWithBool:YES], @"AllowSound",
-                              [NSNumber numberWithInt:GRAPHICS_NONE], @"GraphicsID",
+                              [NSNumber numberWithInt:60], AngbandFrameRateDefaultsKey,
+                              [NSNumber numberWithBool:YES], AngbandSoundDefaultsKey,
+                              [NSNumber numberWithInt:GRAPHICS_NONE], AngbandGraphicsDefaultsKey,
                               defaultTerms, AngbandTerminalsDefaultsKey,
                               nil];
     [defs registerDefaults:defaults];
 
     /* preferred graphics mode */
-    arg_graphics = [defs integerForKey:@"GraphicsID"];
+    arg_graphics = [defs integerForKey:AngbandGraphicsDefaultsKey];
 
 #if 0
     [AngbandSoundCatalog sharedSounds].enabled =
-        [defs boolForKey:@"AllowSound"];
+        [defs boolForKey:AngbandSoundDefaultsKey];
 #endif
 
     /* fps */
-    frames_per_second = [[NSUserDefaults angbandDefaults] integerForKey:@"FramesPerSecond"];
+    frames_per_second = [defs integerForKey:AngbandFrameRateDefaultsKey];
     
     /* font */
     default_font = [NSFont fontWithName:[defs valueForKey:@"FontName-0"]
@@ -4819,13 +4824,13 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     else if (sel == @selector(setRefreshRate:) &&
              [[menuItem parentItem] tag] == 150)
     {
-        NSInteger fps = [[NSUserDefaults standardUserDefaults] integerForKey: @"FramesPerSecond"];
+        NSInteger fps = [[NSUserDefaults standardUserDefaults] integerForKey:AngbandFrameRateDefaultsKey];
         [menuItem setState: ([menuItem tag] == fps)];
         return YES;
     }
     else if( sel == @selector(setGraphicsMode:) )
     {
-        NSInteger requestedGraphicsMode = [[NSUserDefaults standardUserDefaults] integerForKey: @"GraphicsID"];
+        NSInteger requestedGraphicsMode = [[NSUserDefaults standardUserDefaults] integerForKey:AngbandGraphicsDefaultsKey];
         [menuItem setState: (tag == requestedGraphicsMode)];
         return YES;
     }
@@ -4841,7 +4846,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 - (IBAction)setRefreshRate:(NSMenuItem *)menuItem
 {
     frames_per_second = [menuItem tag];
-    [[NSUserDefaults angbandDefaults] setInteger:frames_per_second forKey:@"FramesPerSecond"];
+    [[NSUserDefaults angbandDefaults] setInteger:frames_per_second forKey:AngbandFrameRateDefaultsKey];
 }
 
 - (void)setGraphicsMode:(NSMenuItem *)sender
@@ -4850,7 +4855,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     arg_graphics = [sender tag];
 
     /* Stash it in UserDefaults */
-    [[NSUserDefaults angbandDefaults] setInteger:arg_graphics forKey:@"GraphicsID"];
+    [[NSUserDefaults angbandDefaults] setInteger:arg_graphics forKey:AngbandGraphicsDefaultsKey];
 
     redraw_for_tiles_or_term0_font();
 }
