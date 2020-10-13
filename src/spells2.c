@@ -685,6 +685,15 @@ void self_knowledge(void)
         i++;
     }
 
+    if (p_ptr->resist_bleed > 0)
+    {
+        strnfmt(s[i], 80, "You are resistant to bleeding",
+            (p_ptr->resist_bleed > 1));
+        strnfmt(t[i], 80, "(damage reduced to 1)");
+        good[i] = TRUE;
+        i++;
+    }
+
     if (p_ptr->resist_fear > 0)
     {
         strnfmt(s[i], 80, "You are %sresistant to fear",
@@ -702,6 +711,7 @@ void self_knowledge(void)
         good[i] = TRUE;
         i++;
     }
+
     if (p_ptr->resist_confu)
     {
         strnfmt(s[i], 80, "You are %sresistant to confusion",
