@@ -2875,7 +2875,8 @@ void hit_trap(int y, int x)
     combat_roll_special_char = (&f_info[feat])->d_char;
     combat_roll_special_attr = (&f_info[feat])->d_attr;
 
-    if (feat != FEAT_CHASM && feat != FEAT_TRAP_ROOST && feat != FEAT_TRAP_WEB
+    if (p_ptr->avoid_traps &&
+        feat != FEAT_CHASM && feat != FEAT_TRAP_ROOST && feat != FEAT_TRAP_WEB
         && feat != FEAT_TRAP_PIT && feat != FEAT_TRAP_SPIKED_PIT)
     {
         msg_print("You carefully avoid a trap.");

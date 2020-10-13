@@ -2271,6 +2271,7 @@ static void calc_bonuses(void)
     p_ptr->see_inv = 0;
     p_ptr->free_act = 0;
     p_ptr->stand_fast = 0;
+    p_ptr->avoid_traps = 0;
     p_ptr->regenerate = 0;
     p_ptr->telepathy = 0;
     p_ptr->sustain_str = 0;
@@ -2386,6 +2387,9 @@ static void calc_bonuses(void)
 
         if (f3 & (TR3_STAND_FAST))
             p_ptr->stand_fast += 1;
+
+        if (f3 & (TR3_AVOID_TRAPS))
+            p_ptr->avoid_traps += 1;
 
         /* Bad flags */
         if (f2 & (TR2_HUNGER))

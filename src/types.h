@@ -1014,6 +1014,7 @@ struct player_type
     int haunted; /* Occasionally attract wraiths to your level */
     int stand_fast; /* Resist being moved by enemies with knock back and
                        exchange places. */
+    int avoid_traps; /* Avoid traps. */
 
     s16b to_mdd; /* Bonus to melee damage dice */
     s16b mdd; /* Total melee damage dice */
