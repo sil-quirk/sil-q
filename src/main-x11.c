@@ -1358,6 +1358,8 @@ struct term_data
     /* Temporary storage for overlaying tiles. */
     XImage* TmpImage;
 
+    /* Color value that is treated as transparent in compositing. */
+    unsigned long blank;
 #endif /* USE_GRAPHICS */
 };
 
@@ -2214,16 +2216,13 @@ static errr Term_text_x11(int x, int y, int n, byte a, cptr s)
 void composite_image(
     term_data* td, int x1, int y1, int x2, int y2, bool alert, bool glow)
 {
-    unsigned long pixel, blank;
+    unsigned long pixel, blank = td->blank;
 
     int glow_x = (0x7F & misc_to_char[ICON_GLOW]) * td->fnt->twid;
     int glow_y = (0x7F & misc_to_attr[ICON_GLOW]) * td->fnt->hgt;
 
     int alert_x = (0x7F & misc_to_char[ICON_ALERT]) * td->fnt->twid;
     int alert_y = (0x7F & misc_to_attr[ICON_ALERT]) * td->fnt->hgt;
-
-    /* Top left corner of the tileset contains the transparency colour. */
-    blank = XGetPixel(td->tiles, 0, 0);
 
     for (int k = 0; k < td->fnt->twid; k++)
     {
@@ -2766,6 +2765,12 @@ errr init_x11(int argc, char** argv)
 
                 /* Use graphics sometimes */
                 t->higher_pict = TRUE;
+
+                /*
+                 * The top left corner of the tileset contains the
+                 * transparency colour.  Record it before any resampling.
+                 */
+                td->blank = XGetPixel(tiles_raw, 0, 0);
 
                 /* Look for another term with same font size */
                 for (j = 0; j < i; j++)
