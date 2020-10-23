@@ -91,9 +91,6 @@ static Boolean game_is_finished = FALSE;
 /* Our frames per second (e.g. 60). A value of 0 means unthrottled. */
 static int frames_per_second;
 
-/* Function to get the default font */
-static NSFont *default_font;
-
 @class AngbandView;
 
 #if 0
@@ -1084,6 +1081,15 @@ struct PendingCellChange {
 - (BOOL)windowVisibleUsingDefaults;
 
 /* Class methods */
+/**
+ * Gets the default font for all contexts.  Currently not declaring this as
+ * a class property for compatibility with versions of Xcode prior to 8.
+ */
++ (NSFont*)defaultFont;
+/**
+ * Sets the default font for all contexts.
+ */
++ (void)setDefaultFont:(NSFont*)font;
 
 /* Internal method */
 - (AngbandView *)activeView;
@@ -1890,6 +1896,21 @@ static int compare_advances(const void *ap, const void *bp)
 }
 
 /**
+ * For defaultFont and setDefaultFont.
+ */
+static __strong NSFont* gDefaultFont = nil;
+
++ (NSFont*)defaultFont
+{
+    return gDefaultFont;
+}
+
++ (void) setDefaultFont:(NSFont*)font
+{
+    gDefaultFont = font;
+}
+
+/**
  * We have this notion of an "active" AngbandView, which is the largest - the
  * idea being that in the screen saver, when the user hits Test in System
  * Preferences, we don't want to keep driving the AngbandView in the
@@ -2430,13 +2451,14 @@ static void Term_init_cocoa(term *t)
         NSString *fontName =
             [[NSUserDefaults angbandDefaults]
                 stringForKey:[NSString stringWithFormat:@"FontName-%d", termIdx]];
-        if (! fontName) fontName = [default_font fontName];
+        if (! fontName) fontName = [[AngbandContext defaultFont] fontName];
 
         /*
          * Use a smaller default font for the other windows, but only if the
          * font hasn't been explicitly set.
          */
-        float fontSize = (termIdx > 0) ? 9.0 : [default_font pointSize];
+        float fontSize =
+            (termIdx > 0) ? 9.0 : [[AngbandContext defaultFont] pointSize];
         if (termIdx == WINDOW_MONSTER) fontSize = 11.0;
 
         NSNumber *fontSizeNumber =
@@ -3815,10 +3837,12 @@ static void load_prefs()
     frames_per_second = [defs integerForKey:AngbandFrameRateDefaultsKey];
     
     /* font */
-    default_font = [NSFont fontWithName:[defs valueForKey:@"FontName-0"]
-                           size:[defs floatForKey:@"FontSize-0"]];
-    if (! default_font) default_font =
-        [NSFont fontWithName:@"Monaco" size:12.];
+    [AngbandContext
+        setDefaultFont:[NSFont fontWithName:[defs valueForKey:@"FontName-0"]
+                               size:[defs floatForKey:@"FontSize-0"]]];
+    if (! [AngbandContext defaultFont])
+        [AngbandContext
+            setDefaultFont:[NSFont fontWithName:@"Monaco" size:12.]];
 }
 
 /**
@@ -4642,7 +4666,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 - (IBAction)editFont:sender
 {
     NSFontPanel *panel = [NSFontPanel sharedFontPanel];
-    NSFont *termFont = default_font;
+    NSFont *termFont = [AngbandContext defaultFont];
 
     int i;
     for (i=0; i < ANGBAND_TERM_MAX; i++) {
@@ -4678,13 +4702,13 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     /* Bug #1709: Only change font for angband windows */
     if (mainTerm == ANGBAND_TERM_MAX) return;
 
-    NSFont *oldFont = default_font;
+    NSFont *oldFont = [AngbandContext defaultFont];
     NSFont *newFont = [sender convertFont:oldFont];
     if (! newFont) return; /*paranoia */
 
     /* Store as the default font if we changed the first term */
     if (mainTerm == 0) {
-        default_font = newFont;
+        [AngbandContext setDefaultFont:newFont];
     }
 
     /* Record it in the preferences */
