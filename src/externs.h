@@ -49,8 +49,8 @@ extern byte spell_info_RF4[32][3];
 extern byte spell_desire_RF4[32][2];
 
 /* variable.c */
-char mini_screenshot_char[7][7];
-byte mini_screenshot_attr[7][7];
+extern char mini_screenshot_char[7][7];
+extern byte mini_screenshot_attr[7][7];
 extern cptr copyright;
 extern byte version_major;
 extern byte version_minor;
