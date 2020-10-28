@@ -2101,8 +2101,10 @@ static __strong NSFont* gDefaultFont = nil;
         if( termIndex < (int)[terminals count] )
         {
             NSMutableDictionary *mutableTerm = [[NSMutableDictionary alloc] initWithDictionary: [terminals objectAtIndex: termIndex]];
-            [mutableTerm setValue: [NSNumber numberWithUnsignedInt: self.cols] forKey: AngbandTerminalColumnsDefaultsKey];
-            [mutableTerm setValue: [NSNumber numberWithUnsignedInt: self.rows] forKey: AngbandTerminalRowsDefaultsKey];
+            [mutableTerm setValue: [NSNumber numberWithInteger: self.cols]
+                         forKey: AngbandTerminalColumnsDefaultsKey];
+            [mutableTerm setValue: [NSNumber numberWithInteger: self.rows]
+                         forKey: AngbandTerminalRowsDefaultsKey];
 
             NSMutableArray *mutableTerminals = [[NSMutableArray alloc] initWithArray: terminals];
             [mutableTerminals replaceObjectAtIndex: termIndex withObject: mutableTerm];
