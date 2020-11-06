@@ -1710,7 +1710,8 @@ static void paste_x11_send(XSelectionRequestEvent* rq)
         target_list[1] = XA_STRING;
 
         XChangeProperty(DPY, rq->requestor, rq->property, rq->target,
-            (8 * sizeof(target_list[0])), PropModeReplace,
+            32,
+            PropModeReplace,
             (unsigned char*)target_list,
             (sizeof(target_list) / sizeof(target_list[0])));
 
