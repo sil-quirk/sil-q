@@ -3815,9 +3815,9 @@ static void load_prefs()
     }
 
     NSDictionary *defaults = [[NSDictionary alloc] initWithObjectsAndKeys:
-                              ////half @"Menlo", @"FontName",
-                              @"Monaco", @"FontName", ////half
-                              [NSNumber numberWithFloat:12.f], @"FontSize",
+                              ////half @"Menlo", @"FontName-0",
+                              @"Monaco", @"FontName-0", ////half
+                              [NSNumber numberWithFloat:12.f], @"FontSize-0",
                               [NSNumber numberWithInt:60], AngbandFrameRateDefaultsKey,
                               [NSNumber numberWithBool:YES], AngbandSoundDefaultsKey,
                               [NSNumber numberWithInt:GRAPHICS_NONE], AngbandGraphicsDefaultsKey,
