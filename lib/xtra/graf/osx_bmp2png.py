@@ -105,7 +105,7 @@ arrout = numpy.empty((tin.height,tin.width,4), dtype='u1')
 if palette:
         parr = numpy.reshape(numpy.array(palette), (len(palette) // 3, 3))
         arrout[:,:,0:3] = parr[arrin]
-        if trind:
+        if trind is not None:
                 arrout[:,:,3] = numpy.where(
                         numpy.logical_and(arrt, arrin == trind),
                         numpy.zeros((tin.height, tin.width), dtype='u1'),
