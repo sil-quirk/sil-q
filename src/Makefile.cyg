@@ -8,7 +8,7 @@
 
 CC = gcc
 WRES = windres
-LIBS = -s -mwindows -e _mainCRTStartup -lwinmm -lmsimg32
+LIBS = -s -mwindows -lwinmm -lmsimg32
 CFLAGS = -Wall -O2 -fno-strength-reduce -DWINDOWS
 
 EXOBJS = \
@@ -107,7 +107,7 @@ sil: $(EXOBJS)
 # Compiling sil.rc
 
 sil.res : sil.rc
-	$(WRES) $< -O coff -F pe-i386 -o $@
+	$(WRES) $< -O coff -o $@
 
 
 #
