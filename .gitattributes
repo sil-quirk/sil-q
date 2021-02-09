@@ -1,1 +1,3 @@
 *  text=auto
+src/unix2dos  text eol=lf
+src/unix2doslib  text eol=lf
