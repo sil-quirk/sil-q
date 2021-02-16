@@ -57,7 +57,7 @@ this file for advice on your specific system.
 
    Download the free Cygwin compiler. It provides a shell interface very
    similar to a normal Unix/Linux shell with many useful tools. Install it
-   and start the Cygwin terminal.
+   and start the Cygwin terminal. Make sure to get the 32 bit version.
 
    Note you will have to ensure "make" and the mingw C compiler are installed
    as they may not be included in your Cygwin default installation.
