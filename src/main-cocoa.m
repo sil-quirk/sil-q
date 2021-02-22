@@ -4510,6 +4510,7 @@ static BOOL check_events(int wait)
                 event = [NSApp nextEventMatchingMask:-1 untilDate:endDate
                                inMode:NSDefaultRunLoopMode dequeue:YES];
 
+#if 0
                 static BOOL periodicStarted = NO;
 
                 if (!periodicStarted) {
@@ -4522,7 +4523,6 @@ static BOOL check_events(int wait)
                     periodicStarted = NO;
 		}
 
-#if 0
                 if (OPT(animate_flicker) && wait && periodicStarted &&
                     [event type] == NSPeriodic) {
                     idle_update();
