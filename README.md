@@ -87,6 +87,16 @@ this file for advice on your specific system.
    in the folder above the src directory.  You may move Sil.app to wherever
    you like.
 
+   If you are using an arm-based Mac and want a native application, use
+   "make -f Makefile.cocoa ARCHS=arm64 install"
+   instead of the command given above.  To generate a universal application
+   that will run natively on either x86_64 or arm, use
+   "make -f Makefile.cocoa ARCHS='x86_64 arm64' install".
+   Building for arm likely requires at least Xcode 12.2 or later.  Before
+   building for a different set of architectures, run
+   "make -f Makefile.cocoa clean" to clean up any object files that may not
+   match your new set of selected architectures.
+
 3. Run Sil-Q:
 
    In a Finder window, navigate to where you placed Sil.app.  Then double
