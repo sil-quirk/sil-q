@@ -3713,6 +3713,16 @@ void do_cmd_fire(int quiver)
         }
     }
 
+    /* Handle player fear */
+    if (p_ptr->afraid)
+    {
+        /* Message */
+        msg_print("You are too afraid to aim properly!");
+
+        /* Done */
+        return;
+    }
+
     /* Get a direction (or cancel) */
     if (!get_aim_dir(&dir, tdis))
         return;
@@ -3725,42 +3735,25 @@ void do_cmd_fire(int quiver)
     ty = p_ptr->py + 99 * ddy[dir];
     tx = p_ptr->px + 99 * ddx[dir];
 
-    /* Check for "target request" */
-    if ((dir == 5) && target_okay(tdis))
-    {
-        ty = p_ptr->target_row;
-        tx = p_ptr->target_col;
-    }
-
     if ((dir == DIRECTION_UP) || (dir == DIRECTION_DOWN))
     {
         ty = p_ptr->py;
         tx = p_ptr->px;
     }
 
-    m_ptr = &mon_list[cave_m_idx[ty][tx]];
-    r_ptr = &r_info[m_ptr->r_idx];
-
-    /* Handle player fear */
-    if (p_ptr->afraid)
+    /* Check for "target request" */
+    if ((dir == 5) && target_okay(tdis))
     {
-        /* Message */
-        msg_print("You are too afraid to aim properly!");
+        ty = p_ptr->target_row;
+        tx = p_ptr->target_col;
 
-        /* Done */
-        return;
-    }
+        m_ptr = &mon_list[cave_m_idx[ty][tx]];
+        r_ptr = &r_info[m_ptr->r_idx];
 
-    if (r_ptr->flags1 & (RF1_PEACEFUL))
-    {
-        msg_format("You lower your bow.");
-
-        return;
-    }
-
-    if (abort_for_mercy_or_honour(m_ptr))
-    {
-        return;
+        if (abort_for_mercy_or_honour(m_ptr))
+        {
+            return;
+        }
     }
 
     /* Get local object */
@@ -3949,6 +3942,11 @@ void do_cmd_fire(int quiver)
             {
                 m_ptr = &mon_list[cave_m_idx[y][x]];
                 r_ptr = &r_info[m_ptr->r_idx];
+
+                if (abort_for_mercy_or_honour(m_ptr))
+                {
+                    return;
+                }
 
                 // record the co-ordinates of the first monster in line of fire
                 if (first_y == 0)
