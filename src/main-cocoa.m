@@ -1102,7 +1102,7 @@ struct PendingCellChange {
  * for future changes to the set of flags without needed to update it here
  * (unless the underlying types change).
  */
-u32b AngbandMaskForValidSubwindowFlags(void)
+static u32b AngbandMaskForValidSubwindowFlags(void)
 {
     int windowFlagBits = sizeof(*(op_ptr->window_flag)) * CHAR_BIT;
     int maxBits = MIN( PW_MAX_FLAGS, windowFlagBits );
