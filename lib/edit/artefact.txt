@@ -261,7 +261,7 @@ W:16:30:1:10000
 P:0:0d0:0:0d0
 F:CON | GRA
 F:INSTA_ART
-D:The Nauglamir; a carencet of gold set with a multitude of shining gems
+D:The Nauglamir; a carcanet of gold set with a multitude of shining gems
 D: of Valinor. It was made by the dwarves of Ered Luin for Finrod Felagund. 
 
 ## The Ring of Mairon

@@ -562,7 +562,7 @@ F:UNIQUE | MALE | ESCORT | SMART
 F:DROP_100 | DROP_GOOD | OPEN_DOOR | BASH_DOOR | ORC
 F:HURT_LITE | UNLOCK_DOOR
 S:SPELL_PCT_5 | POW_12 | RALLY
-D:A captain of a orcish band, Gorgol keeps his troop in
+D:A captain of an orcish band, Gorgol keeps his troop in
 D: order with displays of violence.
 
 
