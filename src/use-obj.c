@@ -760,6 +760,13 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
                         *ident = TRUE;
                     }
                 }
+
+                if (m_ptr->r_idx == R_IDX_MORGOTH)
+                {
+                    drop_iron_crown(m_ptr,
+                        "Your blast unseats the crown from his head "
+                        "and it falls to the floor.");
+                }
             }
         }
 
