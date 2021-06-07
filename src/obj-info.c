@@ -468,8 +468,8 @@ static bool describe_ignores(const object_type* o_ptr, u32b f3)
     //	if ((f3 & (TR3_IGNORE_ACID)) && hates_acid(o_ptr)) list[n++] = "acid";
     //	if ((f3 & (TR3_IGNORE_ELEC)) && hates_elec(o_ptr)) list[n++] =
     //"electricity"; 	if ((f3 & (TR3_IGNORE_FIRE)) && hates_fire(o_ptr))
-    //list[n++] = "fire"; 	if ((f3 & (TR3_IGNORE_COLD)) &&
-    //hates_cold(o_ptr)) list[n++] = "cold";
+    // list[n++] = "fire"; 	if ((f3 & (TR3_IGNORE_COLD)) &&
+    // hates_cold(o_ptr)) list[n++] = "cold";
 
     /* Describe ignores */
     if ((f3 & (TR3_IGNORE_ACID)) && (f3 & (TR3_IGNORE_FIRE))

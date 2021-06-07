@@ -3855,7 +3855,7 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
             ////int path_n;
             ////u16b path_g[256];
             ////int ty2, tx2; // store a copy of the target grid that can get
-            ///changed by project_path()
+            /// changed by project_path()
 
             /* Calculate actual distance */
             d = (dy * dy) + (dx * dx);

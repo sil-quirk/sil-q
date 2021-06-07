@@ -2512,8 +2512,8 @@ bool mon_take_hit(int m_idx, int dam, cptr note, int who)
                 && (distance(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px) == 1))
                 message_format(
                     MSG_KILL, m_ptr->r_idx, "You have killed %s.", m_name);
-            // else			message_format(MSG_KILL, m_ptr->r_idx, "%^s
-            // has been killed.", m_name);
+            // else			message_format(MSG_KILL, m_ptr->r_idx,
+            // "%^s has been killed.", m_name);
         }
 
         /* Death by Physical attack -- non-living monster */

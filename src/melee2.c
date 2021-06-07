@@ -4471,12 +4471,12 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                 //		if (m_ptr->ml && player_has_los_bold(ny, nx))
                 //		{
                 //			/* Get the object name */
-                //			object_desc(o_name, sizeof(o_name), o_ptr,
-                //TRUE, 3);
+                //			object_desc(o_name, sizeof(o_name),
+                //o_ptr, TRUE, 3);
 
                 //			/* Get the monster name */
                 //			monster_desc(m_name, sizeof(m_name),
-                //m_ptr, 0x04);
+                // m_ptr, 0x04);
 
                 //			/* Dump a message */
                 //			msg_format("%^s tries to pick up %s, but

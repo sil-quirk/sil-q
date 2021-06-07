@@ -2335,7 +2335,7 @@ static errr Term_pict_win(int x, int y, int n, const byte* ap, const char* cp,
 
                 /* Copy the terrain picture from the bitmap to the window */
                 BitBlt(hdc, x2, y2, tw2, h2, hdcSrc, x3, y3, SRCCOPY);
-            
+
                 if (glow)
                 {
                     TransparentBlt(hdc, x2, y2, tw2, h2, hdcSrc, glow_x, glow_y,
@@ -2358,7 +2358,7 @@ static errr Term_pict_win(int x, int y, int n, const byte* ap, const char* cp,
                 /* Copy the terrain picture from the bitmap to the window */
                 StretchBlt(
                     hdc, x2, y2, tw2, h2, hdcSrc, x3, y3, w1, h1, SRCCOPY);
-      
+
                 if (glow)
                 {
                     TransparentBlt(hdc, x2, y2, tw2, h2, hdcSrc, glow_x, glow_y,

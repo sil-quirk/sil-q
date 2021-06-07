@@ -1054,13 +1054,13 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                 a = TERM_RED;
             }
 
-            if (hilite_unwary && (m_ptr->alertness < ALERTNESS_ALERT) &&
-                use_background_colors && graphics_are_ascii())
+            if (hilite_unwary && (m_ptr->alertness < ALERTNESS_ALERT)
+                && use_background_colors && graphics_are_ascii())
             {
                 a += (MAX_COLORS * BG_DARK);
             }
-            else if (!graphics_are_ascii() &&
-                m_ptr->alertness >= ALERTNESS_ALERT)
+            else if (!graphics_are_ascii()
+                && m_ptr->alertness >= ALERTNESS_ALERT)
             {
                 c += GRAPHICS_ALERT_MASK;
             }

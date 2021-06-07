@@ -23,7 +23,7 @@
  * set PRIVATE_USER_PATH (the contents don't matter), and, if desired,
  * USE_PRIVATE_SAVE_PATH.
  */
-extern const char *get_runtime_user_path(void);
+extern const char* get_runtime_user_path(void);
 #endif
 
 /*

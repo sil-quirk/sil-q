@@ -2628,7 +2628,7 @@ void show_help_screen(int i)
         // R",  row, col); 			else
         // c_put_str(TERM_WHITE, " Z",  row, col);
         // c_put_str(TERM_SLATE, "rest (until recovered)",  row, col + 3);
-        //row++; 			if (angband_keyset)
+        // row++; 			if (angband_keyset)
         // c_put_str(TERM_WHITE, " R",  row, col); 			else
         // c_put_str(TERM_WHITE, " ,",  row, col);
         // c_put_str(TERM_SLATE, "interact with own square",  row, col + 3);

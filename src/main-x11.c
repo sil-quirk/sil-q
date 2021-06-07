@@ -1709,10 +1709,8 @@ static void paste_x11_send(XSelectionRequestEvent* rq)
         target_list[0] = xa_targets;
         target_list[1] = XA_STRING;
 
-        XChangeProperty(DPY, rq->requestor, rq->property, rq->target,
-            32,
-            PropModeReplace,
-            (unsigned char*)target_list,
+        XChangeProperty(DPY, rq->requestor, rq->property, rq->target, 32,
+            PropModeReplace, (unsigned char*)target_list,
             (sizeof(target_list) / sizeof(target_list[0])));
 
         event.xselection.property = rq->property;
@@ -2542,11 +2540,10 @@ static errr term_data_init(term_data* td, int i)
     return (0);
 }
 
-const char help_x11[]
-    = "Basic X11, subopts -d<display> -n<windows>"
+const char help_x11[] = "Basic X11, subopts -d<display> -n<windows>"
 #ifdef USE_GRAPHICS
-      " -s(moothRescale)"
-      "\n           -b(Bigtile) -g(Graphics mode)"
+                        " -s(moothRescale)"
+                        "\n           -b(Bigtile) -g(Graphics mode)"
 #endif
     ;
 

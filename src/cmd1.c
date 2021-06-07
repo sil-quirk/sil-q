@@ -2515,8 +2515,8 @@ void search_square(int y, int x, int dist, int searching)
             difficulty += 10; // secret door
         if (chest_trap_present)
             difficulty += 15; // chest trap
-        // if (cave_info[y][x] & (CAVE_ICKY))				difficulty +=
-        // 2;   // inside least/lesser/greater vaults
+        // if (cave_info[y][x] & (CAVE_ICKY))				difficulty
+        // += 2;   // inside least/lesser/greater vaults
 
         // Spider bane bonus helps to find webs
         if (cave_feat[y][x] == FEAT_TRAP_WEB)
@@ -2875,9 +2875,9 @@ void hit_trap(int y, int x)
     combat_roll_special_char = (&f_info[feat])->d_char;
     combat_roll_special_attr = (&f_info[feat])->d_attr;
 
-    if (p_ptr->avoid_traps &&
-        feat != FEAT_CHASM && feat != FEAT_TRAP_ROOST && feat != FEAT_TRAP_WEB
-        && feat != FEAT_TRAP_PIT && feat != FEAT_TRAP_SPIKED_PIT)
+    if (p_ptr->avoid_traps && feat != FEAT_CHASM && feat != FEAT_TRAP_ROOST
+        && feat != FEAT_TRAP_WEB && feat != FEAT_TRAP_PIT
+        && feat != FEAT_TRAP_SPIKED_PIT)
     {
         msg_print("You carefully avoid a trap.");
         reveal_trap(y, x);
