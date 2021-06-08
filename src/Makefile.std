@@ -5,7 +5,7 @@
 #
 # Note that you may have to make modifications below according
 # to your machine, available libraries, compilation options,
-# and your "visual module" of choice. 
+# and your "visual module" of choice.
 #
 # To do so, make sure the appropriate section of "Variations" is
 # uncommented (and only that section).
@@ -112,8 +112,8 @@ CC = gcc
 ##
 ## Standard -- "main-x11.c" & "main-gcu.c"
 ##
-CFLAGS = -Wall -O1 -pipe -g -D"USE_X11" -D"USE_GCU"
-LIBS = -lX11 -lcurses
+# CFLAGS = -Wall -O1 -pipe -g -D"USE_X11" -D"USE_GCU"
+# LIBS = -lX11 -lcurses
 
 
 ##
@@ -126,8 +126,8 @@ LIBS = -lX11 -lcurses
 ##
 ## Variation -- "main-x11.c"
 ##
-#CFLAGS = -Wall -O1 -pipe -g -D"USE_X11"
-#LIBS = -lX11
+CFLAGS = -Wall -O1 -pipe -g -D"USE_X11"
+LIBS = -lX11
 
 
 ##
@@ -340,4 +340,3 @@ z-rand.o: z-rand.c $(HDRS) z-rand.h
 z-term.o: z-term.c $(HDRS) z-term.h z-virt.h
 z-util.o: z-util.c $(HDRS) z-util.h
 z-virt.o: z-virt.c $(HDRS) z-virt.h z-util.h
-
