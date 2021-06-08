@@ -373,7 +373,7 @@
 /*
  * Player constants
  */
-#define PY_START_EXP 5000 /* Starting exp */
+#define PY_START_EXP 25000 /* Starting exp */
 #define PY_FIXED_EXP 50000 /* Starting exp */
 #define PY_MAX_EXP 99999999L /* Maximum exp */
 #define PY_MAX_LEVEL 50 /* Maximum level */
@@ -2729,14 +2729,15 @@
             : ((k_info[(T)->k_idx].flavor)                                     \
                     ? (flavor_info[k_info[(T)->k_idx].flavor].x_attr)          \
                     : graphics_are_ascii()                                     \
-                        ? weapon_glows(T)                                      \
-                            ? (TERM_L_BLUE)                                    \
-                            : (((T)->name1 && a_info[(T)->name1].d_attr)       \
+                            ? weapon_glows(T)                                  \
+                                ? (TERM_L_BLUE)                                \
+                                : (((T)->name1 && a_info[(T)->name1].d_attr)   \
                                     ? (a_info[(T)->name1].d_attr)              \
                                     : (k_info[(T)->k_idx].x_attr))             \
-                        : weapon_glows(T) ? ((k_info[(T)->k_idx].x_attr)       \
-                              | GRAPHICS_GLOW_MASK)                            \
-                                          : (k_info[(T)->k_idx].x_attr)))
+                            : weapon_glows(T)                                  \
+                                ? ((k_info[(T)->k_idx].x_attr) |               \
+                                    GRAPHICS_GLOW_MASK)                        \
+                                : (k_info[(T)->k_idx].x_attr)))
 /*
  * Return the "attr" for a k_idx.
  * Use "flavor" if available.
