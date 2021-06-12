@@ -606,7 +606,8 @@ static void process_world(void)
             }
 
             /* The light is getting dim */
-            else if ((o_ptr->timeout <= 100) && (!(o_ptr->timeout % 20)))
+            else if ((o_ptr->timeout <= 100) && (!(o_ptr->timeout % 20))
+                && o_ptr->sval != SV_LIGHT_MALLORN)
             {
                 // disturb the first time
                 if (o_ptr->timeout == 100)

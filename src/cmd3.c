@@ -88,7 +88,8 @@ void do_cmd_use_item(void)
             if ((o_ptr->tval == TV_FLASK)
                 || ((l_ptr->tval == o_ptr->tval) && (l_ptr->sval == o_ptr->sval)
                     && ((o_ptr->sval == SV_LIGHT_TORCH)
-                        || (o_ptr->sval == SV_LIGHT_LANTERN))))
+                        || (o_ptr->sval == SV_LIGHT_LANTERN)
+                        || (o_ptr->sval == SV_LIGHT_MALLORN))))
             {
                 if ((l_ptr->sval == SV_LIGHT_TORCH)
                     && (o_ptr->tval != TV_FLASK))
@@ -98,7 +99,23 @@ void do_cmd_use_item(void)
                             "Refueling from this torch will waste some fuel. "
                             "Proceed? "))
                     {
-                        do_cmd_refuel_torch(o_ptr, item);
+                        do_cmd_refuel_torch(o_ptr, item, FALSE);
+                    }
+                    else
+                    {
+                        try_to_wield = FALSE;
+                    }
+                    break;
+                }
+                if ((l_ptr->sval == SV_LIGHT_MALLORN)
+                    && (o_ptr->tval != TV_FLASK))
+                {
+                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_MALLORN)
+                        || get_check(
+                            "Refueling from this torch will waste some fuel. "
+                            "Proceed? "))
+                    {
+                        do_cmd_refuel_torch(o_ptr, item, TRUE);
                     }
                     else
                     {
@@ -1769,9 +1786,23 @@ static bool item_tester_refuel_torch(const object_type* o_ptr)
 }
 
 /*
+ * An "item_tester_hook" for refueling torches
+ */
+static bool item_tester_refuel_mallorn(const object_type* o_ptr)
+{
+    /* Torches are okay */
+    if ((o_ptr->tval == TV_LIGHT) && (o_ptr->sval == SV_LIGHT_MALLORN))
+        return (TRUE);
+
+    /* Assume not okay */
+    return (FALSE);
+}
+
+/*
  * Refuel the player's torch (from the pack or floor)
  */
-void do_cmd_refuel_torch(object_type* default_o_ptr, int default_item)
+void do_cmd_refuel_torch(
+    object_type* default_o_ptr, int default_item, bool is_mallorn)
 {
     int item;
 
@@ -1790,7 +1821,8 @@ void do_cmd_refuel_torch(object_type* default_o_ptr, int default_item)
     else
     {
         /* Restrict the choices */
-        item_tester_hook = item_tester_refuel_torch;
+        item_tester_hook = is_mallorn ? item_tester_refuel_mallorn
+                                      : item_tester_refuel_torch;
 
         /* Get an item */
         q = "Refuel with which torch? ";
@@ -1827,9 +1859,10 @@ void do_cmd_refuel_torch(object_type* default_o_ptr, int default_item)
     msg_print("You combine the torches.");
 
     /* Over-fuel message */
-    if (j_ptr->timeout >= FUEL_TORCH)
+    int max_fuel = is_mallorn ? FUEL_MALLORN : FUEL_TORCH;
+    if (j_ptr->timeout >= max_fuel)
     {
-        j_ptr->timeout = FUEL_TORCH;
+        j_ptr->timeout = max_fuel;
         msg_print("Your torch is fully fueled.");
     }
 
@@ -1887,7 +1920,13 @@ void do_cmd_refuel(void)
     /* It's a torch */
     else if (o_ptr->sval == SV_LIGHT_TORCH)
     {
-        do_cmd_refuel_torch(NULL, 0);
+        do_cmd_refuel_torch(NULL, 0, FALSE);
+    }
+
+    /* It's a torch */
+    else if (o_ptr->sval == SV_LIGHT_MALLORN)
+    {
+        do_cmd_refuel_torch(NULL, 0, TRUE);
     }
 
     /* No torch to refuel */

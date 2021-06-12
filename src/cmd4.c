@@ -11003,6 +11003,7 @@ void apply_magic_fake(object_type* o_ptr)
         switch (o_ptr->sval)
         {
         case SV_LIGHT_TORCH:
+        case SV_LIGHT_MALLORN:
         case SV_LIGHT_LANTERN:
         {
             o_ptr->timeout = 0;

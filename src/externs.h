@@ -409,7 +409,8 @@ extern void do_cmd_observe(void);
 extern void do_cmd_uninscribe(void);
 extern void do_cmd_inscribe(void);
 extern void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item);
-extern void do_cmd_refuel_torch(object_type* default_o_ptr, int default_item);
+extern void do_cmd_refuel_torch(
+    object_type* default_o_ptr, int default_item, bool is_mallorn);
 extern void do_cmd_refuel(void);
 extern void do_cmd_target(void);
 extern void do_cmd_look(void);

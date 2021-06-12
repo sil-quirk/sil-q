@@ -2515,7 +2515,7 @@ void search_square(int y, int x, int dist, int searching)
             difficulty += 10; // secret door
         if (chest_trap_present)
             difficulty += 15; // chest trap
-        // if (cave_info[y][x] & (CAVE_ICKY))				difficulty
+        // if (cave_info[y][x] & (CAVE_ICKY)) difficulty
         // += 2;   // inside least/lesser/greater vaults
 
         // Spider bane bonus helps to find webs

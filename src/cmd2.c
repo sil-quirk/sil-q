@@ -896,10 +896,10 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
     switch (o_ptr->sval)
     {
     case SV_SKELETON_ELF:
-        drop_result = dieroll(6);
+        drop_result = dieroll(10);
         break;
     case SV_SKELETON_HUMAN:
-        drop_result = dieroll(6) + 1;
+        drop_result = dieroll(10) + 6;
         break;
     case SV_SKELETON_ORC:
         drop_result = 6;
@@ -909,18 +909,26 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
     switch (drop_result)
     {
     case 1:
-        search_failed = !make_object(i_ptr, FALSE, FALSE, DROP_TYPE_BOW);
-        break;
     case 2:
-        search_failed = !make_object(i_ptr, FALSE, FALSE, DROP_TYPE_CLOAK);
-        break;
     case 3:
-        search_failed = !make_object(i_ptr, FALSE, FALSE, DROP_TYPE_BOOTS);
-        break;
     case 4:
-        search_failed = !make_object(i_ptr, FALSE, FALSE, DROP_TYPE_WEAPON);
+        object_prep(i_ptr, lookup_kind(TV_LIGHT, SV_LIGHT_MALLORN));
+        i_ptr->timeout = rand_range(20, 50);
+        search_failed = FALSE;
         break;
     case 5:
+        search_failed = !make_object(i_ptr, FALSE, FALSE, DROP_TYPE_BOW);
+        break;
+    case 6:
+        search_failed = !make_object(i_ptr, FALSE, FALSE, DROP_TYPE_CLOAK);
+        break;
+    case 7:
+        search_failed = !make_object(i_ptr, FALSE, FALSE, DROP_TYPE_BOOTS);
+        break;
+    case 8:
+        search_failed = !make_object(i_ptr, FALSE, FALSE, DROP_TYPE_WEAPON);
+        break;
+    case 9:
         search_failed = !make_object(i_ptr, FALSE, FALSE, DROP_TYPE_GLOVES);
         break;
     default:

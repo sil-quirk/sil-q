@@ -715,9 +715,9 @@ W:1:0:20:2
 P:0:0d0:0:0d0:0
 A:1/1:3/1
 F:NO_SMITHING | EASY_KNOW
-D:You can equip it as a light source with a radius of 1 square. It may
-D: also be used to fuel another torch, up to a maximum of 3,000 turns of
-D: light. 
+D:You can equip it as a light source with a radius of 1 square.
+D: It may also be used to fuel another wooden torch, up to a
+D: maximum of 3,000 turns of light.
 
 
 N:129:& Brass Lantern~
@@ -733,6 +733,7 @@ D: 7,000 turns of light.
 
 # Lesser Jewel is at index 21
 
+# Mallorn Torch is at index 411
 
 N:130:& Feanorian Lamp~
 G:~:B
@@ -755,7 +756,6 @@ F:SEE_INVIS | SUST_GRA | EASY_KNOW
 F:IGNORE_ALL | NO_SMITHING
 D:You can equip it as a light source with a radius of 7 squares.
 D: It will shine forever.
-
 
 ##### Amulets #####
 
@@ -1647,6 +1647,21 @@ A:15/20
 F:EASY_KNOW
 D:Small shining pieces of true silver. They can be used at a forge
 D: to create mithril items.
+
+
+#### Out of place ####
+
+N:411:& Mallorn Torch~
+G:~:U
+I:39:3:0
+W:1:0:10:2
+P:0:0d0:0:0d0:0
+A:3/4:6/2
+F:NO_SMITHING | EASY_KNOW
+D:The wood of the mallorn burns bright but briefly.
+D: You can equip it as a light source with a radius of 3 squares.
+D: It may also be used to fuel another wooden torch, up to a
+D: maximum of 100 turns of light.
 
 
 #### Damaged items ####

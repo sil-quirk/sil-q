@@ -2364,6 +2364,18 @@ static void a_m_aux_4(object_type* o_ptr, int level, bool fine, bool special)
             }
         }
 
+        /* Mallorn torches -- random fuel */
+        if (o_ptr->sval == SV_LIGHT_MALLORN)
+        {
+            if (one_in_(3))
+            {
+                o_ptr->timeout = rand_range(20, 50);
+            }
+            else
+            {
+                o_ptr->timeout = 50;
+            }
+        }
         break;
     }
 

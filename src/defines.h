@@ -358,6 +358,7 @@
  */
 #define FUEL_TORCH 3000 /* Maximum amount of fuel in a torch */
 #define FUEL_LAMP 7000 /* Maximum amount of fuel in a lantern */
+#define FUEL_MALLORN 100 /* Maximum amount of fuel in a lantern */
 
 /*
  * More maximum values
@@ -1203,6 +1204,7 @@
 #define SV_LIGHT_TORCH 0
 #define SV_LIGHT_LANTERN 1
 #define SV_LIGHT_LESSER_JEWEL 2
+#define SV_LIGHT_MALLORN 3
 #define SV_LIGHT_FEANORIAN 8
 #define SV_LIGHT_SILMARIL 9
 
@@ -1210,6 +1212,7 @@
 #define RADIUS_TORCH 1
 #define RADIUS_LESSER_JEWEL 1
 #define RADIUS_LANTERN 2
+#define RADIUS_MALLORN 3
 #define RADIUS_FEANORIAN 4
 #define RADIUS_ARTEFACT 3
 #define RADIUS_SILMARIL 7
@@ -3286,8 +3289,8 @@
 /* Returns TRUE if T is a torch or a lantern */
 #define fuelable_light_p(T)                                                    \
     (((T)->tval == TV_LIGHT)                                                   \
-        && (((T)->sval == SV_LIGHT_LANTERN) || ((T)->sval == SV_LIGHT_TORCH)))
-
+        && (((T)->sval == SV_LIGHT_LANTERN) || ((T)->sval == SV_LIGHT_TORCH)   \
+            || ((T)->sval == SV_LIGHT_MALLORN)))
 /*
  * Returns the current length of the text in the buffer.
  */

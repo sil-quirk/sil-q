@@ -1846,6 +1846,12 @@ void calc_torch(void)
                 p_ptr->cur_light += light_up_to(RADIUS_LANTERN, o_ptr);
             }
 
+            /* Mallorn torches (with fuel) provide even more light */
+            else if ((o_ptr->sval == SV_LIGHT_MALLORN) && (o_ptr->timeout > 0))
+            {
+                p_ptr->cur_light += light_up_to(RADIUS_MALLORN, o_ptr);
+            }
+
             else
             {
                 extinguished = TRUE;

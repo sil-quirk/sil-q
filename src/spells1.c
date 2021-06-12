@@ -758,7 +758,7 @@ bool hates_fire(const object_type* o_ptr)
     /* Torches */
     case TV_LIGHT:
     {
-        if (o_ptr->sval == SV_LIGHT_TORCH)
+        if (o_ptr->sval == SV_LIGHT_TORCH || o_ptr->sval == SV_LIGHT_MALLORN)
             return (TRUE);
         else
             return (FALSE);
