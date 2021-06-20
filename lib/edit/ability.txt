@@ -458,13 +458,13 @@ D:You gain a point of grace.
 
 # Will ---------------------------------------------
 
-N:100:Formidable
-I:5:0:1
-D:Enemies do not gain morale or become more keen to attack when you are injured.
-T:21:0:99  # Hafted
-T:22:0:99  # Polearms
-T:23:0:99  # Swords
+N:100:Curse Breaking
+I:5:3:1
+D:Allows you to break the curses on items when you
+D: attempt to take them off.
+T:40:0:99  # Amulet
 T:32:0:99  # Helm
+T:45:0:99  # Ring
 T:34:0:99  # Shields
 
 N:101:Channeling
@@ -483,13 +483,14 @@ T:37:0:99  # Mail
 T:40:0:99  # Amulet
 T:39:0:99  # Light Source
 
-N:103:Curse Breaking
+N:103:Formidable
 I:5:3:4
-D:Allows you to break the curses on items when you
-D: attempt to take them off.
-T:40:0:99  # Amulet
+D:Slaying enemies in melee scares all other enemies who see it.
+D: Enemies do not gain morale based on your injuries.
+T:21:0:99  # Hafted
+T:22:0:99  # Polearms
+T:23:0:99  # Swords
 T:32:0:99  # Helm
-T:45:0:99  # Ring
 T:34:0:99  # Shields
 
 N:104:Inner Light

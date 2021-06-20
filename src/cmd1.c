@@ -4249,6 +4249,13 @@ void py_attack_aux(int y, int x, int attack_type)
                 // deal with 'follow_through' ability
                 possible_follow_through(y, x, attack_type);
 
+                if (p_ptr->active_ability[S_WIL][WIL_FORMIDABLE])
+                {
+                    int will_score = p_ptr->skill_use[S_WIL];
+                    if (project_los(GF_FEAR, 0, 0, will_score))
+                        msg_print("Your foes flee before you!");
+                }
+
                 // stop attacking
                 break;
             }

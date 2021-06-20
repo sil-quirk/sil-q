@@ -495,10 +495,10 @@
 /*
  * Will abilities
  */
-#define WIL_FORMIDABLE 0
+#define WIL_CURSE_BREAKING 0
 #define WIL_CHANNELING 1
 #define WIL_STRENGTH_IN_ADVERSITY 2
-#define WIL_CURSE_BREAKING 3
+#define WIL_FORMIDABLE 3
 #define WIL_INNER_LIGHT 4
 #define WIL_INDOMITABLE 5
 #define WIL_OATH 6

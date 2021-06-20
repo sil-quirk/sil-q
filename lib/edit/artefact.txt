@@ -589,14 +589,14 @@ D: elves to take swift vengeance upon their foes.
 
 ## The Round Shield 'Thandrach'
 ## Sindarin "shield-curse"
-## (ability 5/3 is Curse Breaking)
+## (ability 5/0 is Curse Breaking)
 
 N:44:'Thandrach'
 I:34:3:2
 W:3:20:40:15000
 P:1:0d0:0:1d3
 F:WILL
-B:5/3
+B:5/0
 D:A small iron shield covered with many dense runes
 D: spiralling in from the outer edge into the centre.
 D: In the very middle of the shield is set a spike
