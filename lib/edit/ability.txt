@@ -669,7 +669,7 @@ T:35:0:99  # Cloak
 N:149:Song of Staying
 I:7:9:7
 P:7/1:7/5
-D:Gives you a bonus to Will equal to your Song score and
+D:Gives you a bonus to Will equal to half your Song score and
 D: [2d2] protection.
 T:32:0:99  # Helm
 T:34:0:99  # Shields
