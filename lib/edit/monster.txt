@@ -291,9 +291,21 @@ V:1.5.0
 
 ##### Non-race (contains the player picture) #####
 
+# Noldor
 N:0:<player>
 G:@:w
 
+# Sindar
+N:1:<player>
+G:@:w
+
+# Naugrim
+N:2:<player>
+G:@:w
+
+# Edain
+N:3:<player>
+G:@:w
 
 
 ##### Dungeon monsters #####

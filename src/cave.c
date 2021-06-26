@@ -1072,34 +1072,18 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
     {
         monster_race* r_ptr = &r_info[0];
 
-        /* Get the "player" attr */
-
         if (graphics_are_ascii())
         {
             a = health_attr(p_ptr->chp, p_ptr->mhp);
+            c = r_ptr->x_char;
         }
         else
+        {
+            r_ptr = &r_info[p_ptr->prace];
+
             a = r_ptr->x_attr;
-
-        /* Get the "player" char */
-        c = r_ptr->x_char;
-    }
-
-#ifdef MAP_INFO_MULTIPLE_PLAYERS
-    /* Players */
-    else if (m_idx < 0)
-#else /* MAP_INFO_MULTIPLE_PLAYERS */
-    /* Handle "player" */
-    else if (m_idx < 0)
-#endif /* MAP_INFO_MULTIPLE_PLAYERS */
-    {
-        monster_race* r_ptr = &r_info[0];
-
-        /* Get the "player" attr */
-        a = r_ptr->x_attr;
-
-        /* Get the "player" char */
-        c = r_ptr->x_char;
+            c = r_ptr->x_char;
+        }
     }
 
     /* Result */

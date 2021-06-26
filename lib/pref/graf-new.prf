@@ -1078,8 +1078,17 @@ K:422:0x8B/0x9C
 ##### Monster attr/char definitions #####
 
 
-# player
+# player (Noldor)
 R:0:0x8D/0x80
+
+# player (Sindar)
+R:1:0x8D/0x90
+
+# player (Naugrim)
+R:2:0x8E/0x80
+
+# player (Edain)
+R:3:0x8E/0x90
 
 # Wolf
 R:11:0x88/0x91
