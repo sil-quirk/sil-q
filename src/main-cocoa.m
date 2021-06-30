@@ -205,7 +205,7 @@ static int frames_per_second;
                 char *search;
                 char *cur_token;
                 char *next_token;
-                int event;
+                int lookup_result;
 
                 /* Skip anything not beginning with an alphabetic character */
                 if (!buffer[0] || !isalpha((unsigned char)buffer[0])) continue;
@@ -221,8 +221,8 @@ static int frames_per_second;
                 search[0] = '\0';
 
                 /* Make sure this is a valid event name */
-                event = message_lookup_by_sound_name(msg_name);
-                if (event < 0) continue;
+                lookup_result = message_lookup_by_sound_name(msg_name);
+                if (lookup_result < 0) continue;
 
                 /*
                  * Advance the sample list pointer so it's at the beginning of
@@ -247,12 +247,12 @@ static int frames_per_second;
                 while (cur_token) {
                     NSMutableArray *soundSamples =
                         [self->soundArraysByEvent
-                             objectForKey:[NSNumber numberWithInteger:event]];
+                             objectForKey:[NSNumber numberWithInteger:lookup_result]];
                     if (soundSamples == nil) {
                         soundSamples = [[NSMutableArray alloc] init];
                         [self->soundArraysByEvent
                             setObject:soundSamples
-                            forKey:[NSNumber numberWithInteger:event]];
+                            forKey:[NSNumber numberWithInteger:lookup_result]];
                     }
                     int num = (int) soundSamples.count;
 
@@ -1102,7 +1102,7 @@ struct PendingCellChange {
  * for future changes to the set of flags without needed to update it here
  * (unless the underlying types change).
  */
-u32b AngbandMaskForValidSubwindowFlags(void)
+static u32b AngbandMaskForValidSubwindowFlags(void)
 {
     int windowFlagBits = sizeof(*(op_ptr->window_flag)) * CHAR_BIT;
     int maxBits = MIN( PW_MAX_FLAGS, windowFlagBits );
@@ -4222,7 +4222,8 @@ static void AngbandHandleEventMouseDown( NSEvent *event )
 	AngbandContext *mainAngbandContext =
             (__bridge AngbandContext*) (angband_term[0]->data);
 
-	if (mainAngbandContext.primaryWindow &&
+	if ([[event window] isKeyWindow] &&
+            mainAngbandContext.primaryWindow &&
             [[event window] windowNumber] ==
             [mainAngbandContext.primaryWindow windowNumber])
 	{
