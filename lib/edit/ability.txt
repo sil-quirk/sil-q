@@ -459,7 +459,7 @@ D:You gain a point of grace.
 # Will ---------------------------------------------
 
 N:100:Curse Breaking
-I:5:3:1
+I:5:0:1
 D:Allows you to break the curses on items when you
 D: attempt to take them off.
 T:40:0:99  # Amulet
