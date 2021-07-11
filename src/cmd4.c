@@ -981,34 +981,34 @@ int bane_menu(int* highlight)
 
 #define OATH_TYPES 4
 
-static u32b oath_flag[] = { 0L, OATH_SILENCE, OATH_HONOUR, OATH_MERCY };
+static u32b oath_flag[] = { 0L, OATH_MERCY, OATH_SILENCE, OATH_IRON };
 
 char* oath_name[] = {
     "Nothing",
-    "Silence",
-    "Honour",
     "Mercy",
+    "Silence",
+    "Iron",
 };
 
 char* oath_desc1[] = {
     "Nothing",
-    "as you came, grim and silent",
-    "having fought none who were unwilling to fight",
-    "without shedding blood of Man or Elf",
+    "to leave Angband as you came, grim and silent",
+    "to leave Angband without shedding blood of Man or Elf",
+    "that none will daunt you from facing Morgoth forthwith",
 };
 
 char* oath_desc2[] = {
     "Nothing",
-    "sing",
-    "attack fleeing enemies",
     "attack Men or Elves",
+    "sing",
+    "go up stairs without a Silmaril",
 };
 
 char* oath_reward[] = {
     "Nothing",
-    "+1 Dexterity",
-    "+1 Strength",
     "+1 Grace",
+    "+2 Strength",
+    "+3 Constitution",
 };
 
 bool oath_invalid(int i) { return ((p_ptr->oaths_broken & oath_flag[i]) > 0); }
@@ -1064,13 +1064,13 @@ int oath_menu(int* highlight)
 
             if (oath_invalid(i))
             {
-                strnfmt(buf, 120, "It is too late to vow to leave Angband %s.",
+                strnfmt(buf, 120, "It is too late to vow %s.",
                     oath_desc1[i]);
                 text_out_to_screen(attr, buf);
             }
             else
             {
-                strnfmt(buf, 120, "You vow to leave Angband %s.\n\n",
+                strnfmt(buf, 120, "You vow %s.\n\n",
                     oath_desc1[i]);
                 text_out_to_screen(attr, buf);
                 strnfmt(buf, 120, "You may not %s.\n", oath_desc2[i]);

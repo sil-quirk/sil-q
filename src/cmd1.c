@@ -3721,12 +3721,6 @@ bool knock_back(int y1, int x1, int y2, int x2)
     return (knocked);
 }
 
-bool dishonourable_attack(monster_type* m_ptr)
-{
-    return (chosen_oath(OATH_HONOUR) && !oath_invalid(OATH_HONOUR)
-        && (m_ptr->stance == STANCE_FLEEING));
-}
-
 bool merciless_attack(monster_type* m_ptr)
 {
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
@@ -3735,13 +3729,13 @@ bool merciless_attack(monster_type* m_ptr)
         && ((r_ptr->flags3 & (RF3_MAN)) || (r_ptr->flags3 & (RF3_ELF))));
 }
 
-bool abort_for_mercy_or_honour(monster_type* m_ptr)
+bool abort_for_mercy(monster_type* m_ptr)
 {
     // Unseen enemies are okay to kill
     if (!m_ptr->ml)
         return FALSE;
 
-    if ((dishonourable_attack(m_ptr) || merciless_attack(m_ptr))
+    if (merciless_attack(m_ptr)
         && !get_check("Are you sure you wish to break your oath? "))
     {
         return TRUE;
@@ -3750,7 +3744,7 @@ bool abort_for_mercy_or_honour(monster_type* m_ptr)
     return FALSE;
 }
 
-void break_honour_and_mercy_oath(monster_type* m_ptr, int damage)
+void break_mercy_oath(monster_type* m_ptr, int damage)
 {
     // Unseen enemies are okay to kill
     if (!m_ptr->ml)
@@ -3758,15 +3752,6 @@ void break_honour_and_mercy_oath(monster_type* m_ptr, int damage)
 
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
 
-    if (m_ptr->stance == STANCE_FLEEING)
-    {
-        if (dishonourable_attack(m_ptr))
-        {
-            msg_print("You break your oath of honour.");
-            do_cmd_note("Broke your oath", p_ptr->depth);
-        }
-        p_ptr->oaths_broken |= OATH_HONOUR;
-    }
     if (damage > 0
         && ((r_ptr->flags3 & (RF3_MAN)) || (r_ptr->flags3 & (RF3_ELF))))
     {
@@ -3919,12 +3904,11 @@ void py_attack_aux(int y, int x, int attack_type)
 
     // Don't make the player deal with Oath warnings on free attacks - pass them
     // up
-    if (!is_normal_attack(attack_type)
-        && (dishonourable_attack(m_ptr) || merciless_attack(m_ptr)))
+    if (!is_normal_attack(attack_type) && merciless_attack(m_ptr))
     {
         abort_attack = TRUE;
     }
-    else if (abort_for_mercy_or_honour(m_ptr))
+    else if (abort_for_mercy(m_ptr))
     {
         abort_attack = TRUE;
     }
@@ -4139,7 +4123,7 @@ void py_attack_aux(int y, int x, int attack_type)
             if (net_dam < 0)
                 net_dam = 0;
 
-            break_honour_and_mercy_oath(m_ptr, net_dam);
+            break_mercy_oath(m_ptr, net_dam);
 
             // determine the punctuation for the attack ("...", ".", "!" etc)
             attack_punctuation(punctuation, net_dam, crit_bonus_dice);
@@ -4496,7 +4480,7 @@ void flanking_or_retreat(int y, int x)
         {
             m_ptr = &mon_list[cave_m_idx[fy][fx]];
 
-            if (!(dishonourable_attack(m_ptr) || merciless_attack(m_ptr))
+            if (!merciless_attack(m_ptr)
                 && m_ptr->ml
                 && (!forgo_attacking_unwary
                     || (m_ptr->alertness >= ALERTNESS_ALERT)))
@@ -4538,7 +4522,7 @@ void flanking_or_retreat(int y, int x)
                 m_ptr = &mon_list[cave_m_idx[fy][fx]];
 
                 // base conditions for an attack
-                if (!(dishonourable_attack(m_ptr) || merciless_attack(m_ptr))
+                if (!merciless_attack(m_ptr)
                     && m_ptr->ml
                     && (!forgo_attacking_unwary
                         || (m_ptr->alertness >= ALERTNESS_ALERT)))

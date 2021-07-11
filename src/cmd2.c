@@ -122,6 +122,22 @@ void do_cmd_go_up(void)
         return;
     }
 
+    if (chosen_oath(OATH_IRON) && !oath_invalid(OATH_IRON) &&
+       (silmarils_possessed() == 0))
+    {
+        if (get_check("Are you sure you wish to break your oath? "))
+        {
+            msg_print("You break your oath of iron.");
+            do_cmd_note("Broke your oath", p_ptr->depth);
+        }
+        else
+        {
+            return;
+        }
+    }
+
+    p_ptr->oaths_broken |= OATH_IRON;
+
     /* Ironman */
     if (birth_ironman && (silmarils_possessed() == 0))
     {
@@ -3758,7 +3774,7 @@ void do_cmd_fire(int quiver)
         m_ptr = &mon_list[cave_m_idx[ty][tx]];
         r_ptr = &r_info[m_ptr->r_idx];
 
-        if (abort_for_mercy_or_honour(m_ptr))
+        if (abort_for_mercy(m_ptr))
         {
             return;
         }
@@ -3951,7 +3967,7 @@ void do_cmd_fire(int quiver)
                 m_ptr = &mon_list[cave_m_idx[y][x]];
                 r_ptr = &r_info[m_ptr->r_idx];
 
-                if (abort_for_mercy_or_honour(m_ptr))
+                if (abort_for_mercy(m_ptr))
                 {
                     return;
                 }
@@ -4122,7 +4138,7 @@ void do_cmd_fire(int quiver)
                     if (net_dam < 0)
                         net_dam = 0;
 
-                    break_honour_and_mercy_oath(m_ptr, net_dam);
+                    break_mercy_oath(m_ptr, net_dam);
 
                     /* Handle unseen monster */
                     if (!(m_ptr->ml))
@@ -4722,7 +4738,7 @@ void do_cmd_throw(bool automatic)
         return;
     }
 
-    if (abort_for_mercy_or_honour(m_ptr))
+    if (abort_for_mercy(m_ptr))
     {
         return;
     }
@@ -4980,7 +4996,7 @@ void do_cmd_throw(bool automatic)
                 if (net_dam < 0)
                     net_dam = 0;
 
-                break_honour_and_mercy_oath(m_ptr, net_dam);
+                break_mercy_oath(m_ptr, net_dam);
 
                 /* Handle unseen monster */
                 if (!(m_ptr->ml))

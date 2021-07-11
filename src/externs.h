@@ -352,8 +352,8 @@ extern int concentration_bonus(int y, int x);
 extern int focused_attack_bonus(void);
 extern int master_hunter_bonus(monster_type* m_ptr);
 extern bool knock_back(int y1, int x1, int y2, int x2);
-extern bool abort_for_mercy_or_honour(monster_type* m_ptr);
-extern void break_honour_and_mercy_oath(monster_type* m_ptr, int damage);
+extern bool abort_for_mercy(monster_type* m_ptr);
+extern void break_mercy_oath(monster_type* m_ptr, int damage);
 extern void attack_punctuation(
     char* punctuation, int net_dam, int crit_bonus_dice);
 extern void py_attack_aux(int y, int x, int attack_type);

@@ -3345,6 +3345,6 @@
 /*
  * Flags for the Oath skill
  */
-#define OATH_SILENCE 1
-#define OATH_HONOUR 2
-#define OATH_MERCY 4
+#define OATH_MERCY 1
+#define OATH_SILENCE 2
+#define OATH_IRON 4
