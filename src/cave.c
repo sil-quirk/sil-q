@@ -664,6 +664,102 @@ static void special_lighting_wall(byte* a, char* c, int feat, int info)
     }
 }
 
+int player_tile_offset()
+{
+    object_type * main_wield_ptr = &inventory[INVEN_WIELD];
+    object_type * secondary_wield_ptr = &inventory[INVEN_ARM];
+
+    byte main_type = main_wield_ptr->tval;
+    byte main_subtype = main_wield_ptr->sval;
+
+    byte secondary_type = secondary_wield_ptr->tval;
+
+    if (!secondary_type)
+    {
+        if (main_type == TV_SWORD)
+        {
+            if (main_subtype == SV_DAGGER || main_subtype == SV_SHORT_SWORD)
+            {
+                return 1;
+            }
+            if (main_subtype == SV_CURVED_SWORD)
+            {
+                return 2;
+            }
+            return 3;
+        }
+        if (main_type == TV_POLEARM)
+        {
+            if (main_subtype < SV_HAND_AXE)
+            {
+                return 4;
+            }
+            if (main_subtype == SV_HAND_AXE)
+            {
+                return 5;
+            }
+            return 6;
+        }
+        if (main_type == TV_HAFTED)
+        {
+            if (main_subtype == SV_QUARTERSTAFF)
+            {
+                return 7;
+            }
+            return 5;
+        }
+    }
+    else if (secondary_type == TV_SHIELD)
+    {
+        if (main_type == TV_POLEARM)
+        {
+            if (main_subtype < SV_HAND_AXE)
+            {
+                return 8;
+            }
+            if (main_subtype == SV_HAND_AXE)
+            {
+                return 10;
+            }
+            return 9;
+        }
+        if (main_type == TV_SWORD)
+        {
+            return 8;
+        }
+        if (main_type == TV_HAFTED)
+        {
+            return 10;
+        }
+        if (!main_type)
+        {
+            if (inventory[INVEN_BOW].tval == TV_BOW)
+            {
+                return 15;
+            }
+        }
+    }
+    else if (secondary_type == TV_SWORD)
+    {
+        if (main_type == TV_SWORD)
+        {
+            return 11;
+        }
+        return 12;
+    }
+    else if (secondary_type == TV_POLEARM)
+    {
+        if (main_type == TV_SWORD)
+        {
+            return 13;
+        }
+        return 14;
+    }
+
+    return 0;
+}
+
+
 /*
  * Extract the attr/char to display at the given (legal) map location
  *
@@ -1083,6 +1179,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
 
             a = r_ptr->x_attr;
             c = r_ptr->x_char;
+            c += player_tile_offset();
         }
     }
 

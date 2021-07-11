@@ -745,7 +745,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Window stuff */
     p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
 
-    p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
+    p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST | PR_MAP);
 }
 
 /*
@@ -831,6 +831,8 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
         /* Message */
         msg_format("You can now wield your %s more effectively.", o_name);
     }
+
+    p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST | PR_MAP);
 }
 
 /*

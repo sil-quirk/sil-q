@@ -1133,29 +1133,28 @@
 #define SV_MATTOCK 7
 
 /* The "sval" values for TV_HAFTED */
-#define SV_QUARTERSTAFF 3 /* 2d3 */
+#define SV_QUARTERSTAFF 3 /* 2d5 */
 #define SV_WAR_HAMMER 8 /* 4d1 */
 #define SV_GROND 50 /* 5d5 */
 
 /* The "sval" values for TV_POLEARM */
-#define SV_SPEAR 1 /* 1d11 */
-#define SV_GREAT_SPEAR 2 /* 1d14 */
-#define SV_TRIDENT 3 /* 1d8 */
+#define SV_SPEAR 1 /* 1d9 */
+#define SV_GREAT_SPEAR 2 /* 1d13 */
 #define SV_GLAIVE 4 /* 2d9 */
-#define SV_THROWING_AXE 11 /* 2d4 */
+#define SV_HAND_AXE 11 /* 4d2 */
 #define SV_BATTLE_AXE 12 /* 3d4 */
 #define SV_GREAT_AXE 13 /* 4d4 */
 
 /* The "sval" codes for TV_SWORD */
 
-#define SV_DAGGER 4 /* 1d4 */
+#define SV_DAGGER 4 /* 1d5 */
 #define SV_CURVED_SWORD 7 /* 2d5 */
-#define SV_SHORT_SWORD 10 /* 1d8 */
+#define SV_SHORT_SWORD 10 /* 1d7 */
 #define SV_LONG_SWORD 17 /* 2d5 */
 #define SV_BASTARD_SWORD 21 /* 3d3 */
 #define SV_GREAT_SWORD 25 /* 3d5 */
 #define SV_MITHRIL_LONG_SWORD 28 /* 2d5 */
-#define SV_MITHRIL_GREAT_SWORD 30 /* 3d5 */
+#define SV_MITHRIL_GREAT_SWORD 30 /* 3d6 */
 
 /* The "sval" codes for TV_SHIELD */
 #define SV_BROKEN_SHIELD 1
