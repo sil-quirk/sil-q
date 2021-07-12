@@ -674,6 +674,11 @@ int player_tile_offset()
 
     byte secondary_type = secondary_wield_ptr->tval;
 
+    if (inventory[INVEN_BOW].tval == TV_BOW &&
+        p_ptr->skill_use[S_ARC] > p_ptr->skill_use[S_MEL])
+    {
+        return 15;
+    }
     if (!secondary_type)
     {
         if (main_type == TV_SWORD)
@@ -730,13 +735,6 @@ int player_tile_offset()
         if (main_type == TV_HAFTED)
         {
             return 10;
-        }
-        if (!main_type)
-        {
-            if (inventory[INVEN_BOW].tval == TV_BOW)
-            {
-                return 15;
-            }
         }
     }
     else if (secondary_type == TV_SWORD)
