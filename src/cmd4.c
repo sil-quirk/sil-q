@@ -992,8 +992,8 @@ char* oath_name[] = {
 
 char* oath_desc1[] = {
     "Nothing",
-    "to leave Angband as you came, grim and silent",
     "to leave Angband without shedding blood of Man or Elf",
+    "to leave Angband as you came, grim and silent",
     "that none will daunt you from facing Morgoth forthwith",
 };
 
