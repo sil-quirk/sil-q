@@ -293,6 +293,12 @@ void do_cmd_go_up(void)
     /* New depth */
     p_ptr->depth = new;
 
+    /* Reset slave quest */
+    if (p_ptr->slave_quest != QUEST_COMPLETE)
+    {
+        p_ptr->slave_quest = QUEST_NOT_STARTED;
+    }
+
     // another staircase has been used...
     p_ptr->stairs_taken++;
     p_ptr->staircasiness += 1000;
@@ -439,6 +445,12 @@ void do_cmd_go_down(void)
 
     /* New depth */
     p_ptr->depth = new;
+
+    /* Reset slave quest */
+    if (p_ptr->slave_quest != QUEST_COMPLETE)
+    {
+        p_ptr->slave_quest = QUEST_NOT_STARTED;
+    }
 
     // another staircase has been used...
     p_ptr->stairs_taken++;

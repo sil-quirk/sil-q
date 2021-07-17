@@ -548,7 +548,7 @@ static void player_wipe(void)
     p_ptr->oath_type = 0;
     p_ptr->oaths_broken = 0;
 
-    p_ptr->unused7 = 0;
+    p_ptr->slave_quest = QUEST_NOT_STARTED;
 
     p_ptr->unused2 = 0;
     p_ptr->unused3 = 0;

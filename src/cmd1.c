@@ -230,6 +230,10 @@ void set_alertness(monster_type* m_ptr, int alertness)
     if (m_ptr->alertness == alertness)
         return;
 
+    // Can't wake up non-alert slaves
+    if (m_ptr->r_idx == R_IDX_HUMAN_SLAVE || m_ptr->r_idx == R_IDX_ELF_SLAVE)
+        return;
+
     // cap the alertness value
     if (alertness < ALERTNESS_MIN)
         alertness = ALERTNESS_MIN;

@@ -343,7 +343,7 @@ N:13:Human slave
 W:1:0
 G:@:g
 I:2:8d4:0
-A:20:1:0:1
+A:60:1:0:1
 P:[+0]
 F:MALE | MAN | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
 D:A scarred and dirty man clad only in a loincloth. A metal collar
@@ -354,7 +354,7 @@ N:14:Elven slave
 W:1:0
 G:@:g
 I:2:10d4:0
-A:20:2:0:2
+A:60:1:0:2
 P:[+0]
 F:MALE | ELF | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
 D:A chained elf slumps here, filthy hair hanging to his shoulders
@@ -373,6 +373,28 @@ F:MALE | OPEN_DOOR | BASH_DOOR | SPECIAL_GEN
 F:ORC | HURT_LITE | SMART | UNLOCK_DOOR | TERRITORIAL
 D:He is one of Morgoth's grim mockeries of the firstborn.
 D: Clad in tattered leather, he wields a cudgel and a whip.
+
+
+N:16:Alert human slave
+W:1:0
+G:@:G
+I:2:8d4:0
+A:0:10:0:1
+P:[+0]
+F:MALE | MAN | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
+D:A scarred and dirty man shackled to the wall with a long chain.
+D: His head is raised and he takes in his surroundings alertly.
+
+
+N:17:Alert elven slave
+W:1:0
+G:@:G
+I:2:10d4:0
+A:0:10:0:2
+P:[+0]
+F:MALE | ELF | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
+D:A chained elf crouches here, filthy hair hanging to his shoulders.
+D: Dried blood encrusts a noble face. His eyes are fixed on you. 
 
 
 ##### 2 #####

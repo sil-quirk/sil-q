@@ -7,14 +7,6 @@
 #
 
 
-# Standard file
-?:[EQU $GRAF old]
-%:graf-xxx.prf
-
 # New tiles
 ?:[EQU $GRAF new]
 %:graf-new.prf
-
-# David Gervais' tiles
-?:[EQU $GRAF david]
-%:graf-dvg.prf

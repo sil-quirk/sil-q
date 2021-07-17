@@ -969,7 +969,7 @@ static errr rd_extra(void)
 
     rd_byte(&p_ptr->oath_type);
     rd_byte(&p_ptr->oaths_broken);
-    rd_byte(&p_ptr->unused7);
+    rd_byte(&p_ptr->slave_quest);
 
     rd_s32b(&p_ptr->unused2);
     rd_s32b(&p_ptr->unused3);

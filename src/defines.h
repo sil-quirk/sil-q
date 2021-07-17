@@ -191,6 +191,8 @@
 #define R_IDX_HUMAN_SLAVE 13
 #define R_IDX_ELF_SLAVE 14
 #define R_IDX_ORC_SLAVEMASTER 15
+#define R_IDX_ALERT_HUMAN_SLAVE 16
+#define R_IDX_ALERT_ELF_SLAVE 17
 #define R_IDX_SPIDER_HATCHLING 32
 #define R_IDX_ORC_ARCHER 51
 #define R_IDX_ORC_CHAMPION 81
@@ -3347,3 +3349,11 @@
 #define OATH_MERCY 1
 #define OATH_SILENCE 2
 #define OATH_IRON 4
+
+
+/*
+ * States for the slave quest
+ */
+#define QUEST_NOT_STARTED 0
+#define QUEST_GIVER_PRESENT 1
+#define QUEST_COMPLETE 2

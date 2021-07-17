@@ -961,8 +961,6 @@ struct player_type
     s16b get_item_mode; /* Hack -- Gives the mode of the current item selection
                          */
 
-    s16b new_spells; /* Number of spells available */
-
     s16b cur_light; /* Radius of light (if any) */
     s16b old_light; /* Radius of light last turn (if any) */
 
@@ -1049,7 +1047,7 @@ struct player_type
     byte oath_type; /* which oath the player has chosen to keep */
     byte oaths_broken; /* which possible oaths the player has broken */
 
-    byte unused7;
+    byte slave_quest;
 
     s32b unused2; // Room for expansion without breaking savefiles
     s32b unused3; // Room for expansion without breaking savefiles
