@@ -15,6 +15,94 @@ bool graphics_are_ascii()
     return use_graphics == GRAPHICS_NONE || use_graphics == GRAPHICS_PSEUDO;
 }
 
+#define QUEST_TYPES 2
+#define QUEST_HUMAN 0
+#define QUEST_ELF 1
+
+char* quest_text[] = {
+    "something to lighten the darkness",
+    "something to eat"
+};
+
+char* quest_requirement[] = {
+    "You have no spare light.",
+    "You have no food."
+};
+
+char* quest_outcome[] = {
+    "hides it among their rags",
+    "begins eating it"
+};
+
+/*
+ * Rewards player depending on the quest.
+ */
+void reward_player_for_quest(cptr m_name, unsigned int quest_index)
+{
+    if (quest_index >= QUEST_TYPES)
+    {
+        msg_print("Bug detected! Quest invalid!");
+        return;
+    }
+
+    msg_format("%^s tells you about some passages nearby.", m_name);
+    p_ptr->slave_quest = QUEST_REWARD_MAP;
+}
+
+/*
+ * Handles quests given by peaceful monsters.
+ */
+void do_quest(monster_type* m_ptr)
+{
+    char m_name[80];
+    int item;
+    unsigned int quest_index = m_ptr->r_idx - R_IDX_ALERT_HUMAN_SLAVE;
+
+    if (quest_index >= QUEST_TYPES)
+    {
+        msg_print("Bug detected! Quest monster invalid!");
+        return;
+    }
+
+    cptr q = "Give slave which item? ";
+    cptr s = quest_requirement[quest_index];
+
+    /* Get the monster name */
+    monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+
+    if (p_ptr->slave_quest > QUEST_GIVER_PRESENT)
+    {
+        msg_format("%^s thanks you again.", m_name);
+        return;
+    }
+
+    msg_format("Looking up at you, %s begs you for %s.", m_name,
+        quest_text[quest_index]);
+
+    switch (quest_index)
+    {
+    case QUEST_HUMAN:
+        item_tester_hook = item_tester_hook_light_with_fuel;
+        break;
+    case QUEST_ELF:
+        item_tester_hook = item_tester_hook_non_herb_food;
+        break;
+    };
+
+
+    if (get_item(&item, q, s, (USE_INVEN)))
+    {
+        inven_item_increase(item, -1);
+        inven_item_describe(item);
+        inven_item_optimize(item);
+
+        msg_format("%^s %s and thanks you.", m_name,
+            quest_outcome[quest_index]);
+
+        reward_player_for_quest(m_name, quest_index);
+    }
+}
+
 void new_wandering_flow(monster_type* m_ptr, int ty, int tx)
 {
     int y, x, i;
@@ -3858,7 +3946,15 @@ void py_attack_aux(int y, int x, int attack_type)
     {
         if (attack_type == ATT_MAIN)
         {
-            msg_format("You stop before you bump into %s.", m_name);
+            if (m_ptr->r_idx == R_IDX_ALERT_HUMAN_SLAVE ||
+                m_ptr->r_idx == R_IDX_ALERT_ELF_SLAVE)
+            {
+                do_quest(m_ptr);
+            }
+            else
+            {
+                msg_format("You stop before you bump into %s.", m_name);
+            }
         }
 
         abort_attack = TRUE;
@@ -5699,3 +5795,4 @@ void run_step(int dir)
     /* Move the player */
     move_player(p_ptr->run_cur_dir);
 }
+

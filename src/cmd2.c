@@ -294,7 +294,7 @@ void do_cmd_go_up(void)
     p_ptr->depth = new;
 
     /* Reset slave quest */
-    if (p_ptr->slave_quest != QUEST_COMPLETE)
+    if (p_ptr->slave_quest == QUEST_GIVER_PRESENT)
     {
         p_ptr->slave_quest = QUEST_NOT_STARTED;
     }
@@ -447,7 +447,7 @@ void do_cmd_go_down(void)
     p_ptr->depth = new;
 
     /* Reset slave quest */
-    if (p_ptr->slave_quest != QUEST_COMPLETE)
+    if (p_ptr->slave_quest == QUEST_GIVER_PRESENT)
     {
         p_ptr->slave_quest = QUEST_NOT_STARTED;
     }

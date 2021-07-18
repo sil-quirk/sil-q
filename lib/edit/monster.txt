@@ -338,7 +338,7 @@ F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | NO_CRIT
 D:'... great writhing, tangled brambles sprawled. Some had long stabbing
 D: thorns, some hooked barbs that rent like knives.'
 
-
+# Can't move from idx 13 for dungeon generation reasons
 N:13:Human slave
 W:1:0
 G:@:g
@@ -349,7 +349,7 @@ F:MALE | MAN | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
 D:A scarred and dirty man clad only in a loincloth. A metal collar
 D: is about his neck, and a long chain leads from it to the wall.
 
-
+# Can't move from idx 14 for dungeon generation reasons
 N:14:Elven slave
 W:1:0
 G:@:g
@@ -360,7 +360,7 @@ F:MALE | ELF | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
 D:A chained elf slumps here, filthy hair hanging to his shoulders
 D: and eyes vacant. His back and arms bear the marks of a whip.
 
-
+# Can't move from idx 15 for dungeon generation reasons
 N:15:Orc slavemaster
 W:1:0
 G:o:g
@@ -374,7 +374,7 @@ F:ORC | HURT_LITE | SMART | UNLOCK_DOOR | TERRITORIAL
 D:He is one of Morgoth's grim mockeries of the firstborn.
 D: Clad in tattered leather, he wields a cudgel and a whip.
 
-
+# Can't move from idx 16 for dungeon generation reasons
 N:16:Alert human slave
 W:1:0
 G:@:G
@@ -385,7 +385,7 @@ F:MALE | MAN | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
 D:A scarred and dirty man shackled to the wall with a long chain.
 D: His head is raised and he takes in his surroundings alertly.
 
-
+# Can't move from idx 17 for dungeon generation reasons
 N:17:Alert elven slave
 W:1:0
 G:@:G

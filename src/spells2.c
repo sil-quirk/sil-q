@@ -2083,26 +2083,28 @@ bool item_tester_hook_armour(const object_type* o_ptr)
 }
 
 /*
- * Hook to specify "armour that can be elvenkind"
+ * Hook to specify non-herb food
  */
-bool item_tester_hook_elvenkindable_armour(const object_type* o_ptr)
+bool item_tester_hook_non_herb_food(const object_type* o_ptr)
 {
-    if ((o_ptr->tval == TV_SHIELD) || (o_ptr->tval == TV_MAIL)
-        || (o_ptr->tval == TV_SOFT_ARMOR) || (o_ptr->tval == TV_BOOTS))
+    if ((o_ptr->tval == TV_FOOD) && (o_ptr->pval > 300))
         return (TRUE);
 
     return (FALSE);
 }
 
 /*
- * Hook to specify "enchantable ring"
+ * Hook to specify light with fuel or that does not need fuel
  */
-bool item_tester_hook_enchantable_ring(const object_type* o_ptr)
+bool item_tester_hook_light_with_fuel(const object_type* o_ptr)
 {
-    if ((o_ptr->tval == TV_RING) && (o_ptr->pval > 0))
-        return (TRUE);
+    if (o_ptr->tval != TV_LIGHT)
+        return (FALSE);
 
-    return (FALSE);
+    if (o_ptr->timeout < 1 && fuelable_light_p(o_ptr))
+        return (FALSE);
+
+    return (TRUE);
 }
 
 /*

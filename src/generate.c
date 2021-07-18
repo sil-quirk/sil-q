@@ -2732,8 +2732,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
 
                 if (p_ptr->slave_quest == QUEST_NOT_STARTED)
                 {
-                    msg_print("Rolling for quest.");
-                    if (one_in_(10))
+                    if (one_in_(6))
                     {
                         humanOrElf = one_in_(2) ?
                                     R_IDX_ALERT_HUMAN_SLAVE :
@@ -4192,5 +4191,12 @@ void generate_cave(void)
                 p_ptr->forge_count++;
             }
         }
+    }
+
+    if (p_ptr->slave_quest == QUEST_REWARD_MAP)
+    {
+        msg_print("You remember the slave told you of the passages here.");
+        map_area();
+        p_ptr->slave_quest = QUEST_COMPLETE;
     }
 }
