@@ -674,6 +674,38 @@ int player_tile_offset()
 
     byte secondary_type = secondary_wield_ptr->tval;
 
+    if (secondary_type && !main_type)
+    {
+        main_type = secondary_type;
+        main_subtype = secondary_wield_ptr->sval;
+        secondary_type = 0;
+    }
+
+    bool smallSwordMain =
+        (main_type == TV_SWORD && main_subtype == SV_DAGGER) ||
+        (main_type == TV_SWORD && main_subtype == SV_SHORT_SWORD);
+    bool curvedSwordMain =
+        (main_type == TV_SWORD && main_subtype == SV_CURVED_SWORD);
+    bool bigSwordMain =
+        (main_type == TV_SWORD && main_subtype > SV_CURVED_SWORD) ||
+        (main_type == TV_DIGGING && main_subtype == SV_SHOVEL);
+    bool spearMain =
+        (main_type == TV_POLEARM && main_subtype < SV_HAND_AXE);
+    bool smallAxeMain =
+        (main_type == TV_POLEARM && main_subtype == SV_HAND_AXE) ||
+        (main_type == TV_HAFTED && main_subtype == SV_WAR_HAMMER) ||
+        (main_type == TV_DIGGING && main_subtype == SV_MATTOCK);
+    bool bigAxeMain =
+        (main_type == TV_POLEARM && main_subtype > SV_HAND_AXE);
+    bool quarterstaffMain =
+        (main_type == TV_HAFTED && main_subtype == SV_QUARTERSTAFF);
+    bool shieldOffhand =
+        (secondary_type == TV_SHIELD);
+    bool axeOffhand =
+        (secondary_type == TV_POLEARM);
+    bool swordOffhand =
+        (secondary_type == TV_SWORD);
+
     if (inventory[INVEN_BOW].tval == TV_BOW &&
         p_ptr->skill_use[S_ARC] > p_ptr->skill_use[S_MEL])
     {
@@ -681,77 +713,62 @@ int player_tile_offset()
     }
     if (!secondary_type)
     {
-        if (main_type == TV_SWORD)
+        if (smallSwordMain)
         {
-            if (main_subtype == SV_DAGGER || main_subtype == SV_SHORT_SWORD)
-            {
-                return 1;
-            }
-            if (main_subtype == SV_CURVED_SWORD)
-            {
-                return 2;
-            }
+            return 1;
+        }
+        if (curvedSwordMain)
+        {
+            return 2;
+        }
+        if (bigSwordMain)
+        {
             return 3;
         }
-        if (main_type == TV_POLEARM)
+        if (spearMain)
         {
-            if (main_subtype < SV_HAND_AXE)
-            {
-                return 4;
-            }
-            if (main_subtype == SV_HAND_AXE)
-            {
-                return 5;
-            }
-            return 6;
+            return 4;
         }
-        if (main_type == TV_HAFTED)
+        if (smallAxeMain)
         {
-            if (main_subtype == SV_QUARTERSTAFF)
-            {
-                return 7;
-            }
             return 5;
         }
-    }
-    else if (secondary_type == TV_SHIELD)
-    {
-        if (main_type == TV_POLEARM)
+        if (bigAxeMain)
         {
-            if (main_subtype < SV_HAND_AXE)
-            {
-                return 8;
-            }
-            if (main_subtype == SV_HAND_AXE)
-            {
-                return 10;
-            }
+            return 6;
+        }
+        if (quarterstaffMain)
+        {
+            return 7;
+        }
+    }
+    else if (shieldOffhand)
+    {
+        if (bigAxeMain)
+        {
             return 9;
         }
-        if (main_type == TV_SWORD)
-        {
-            return 8;
-        }
-        if (main_type == TV_HAFTED)
+        if (smallAxeMain)
         {
             return 10;
         }
+        return 8;
     }
-    else if (secondary_type == TV_SWORD)
+    else if (swordOffhand)
     {
-        if (main_type == TV_SWORD)
-        {
-            return 11;
-        }
-        return 12;
-    }
-    else if (secondary_type == TV_POLEARM)
-    {
-        if (main_type == TV_SWORD)
+        if (smallAxeMain || bigAxeMain)
         {
             return 13;
         }
-        return 14;
+        return 11;
+    }
+    else if (axeOffhand)
+    {
+        if (smallAxeMain || bigAxeMain)
+        {
+            return 14;
+        }
+        return 12;
     }
 
     return 0;

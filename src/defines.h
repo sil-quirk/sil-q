@@ -1132,7 +1132,7 @@
 
 /* The "sval" codes for TV_DIGGING */
 #define SV_SHOVEL 1
-#define SV_MATTOCK 7
+#define SV_MATTOCK 3
 
 /* The "sval" values for TV_HAFTED */
 #define SV_QUARTERSTAFF 3 /* 2d5 */
