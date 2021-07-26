@@ -860,6 +860,13 @@ void self_knowledge(void)
         i++;
     }
 
+    if (p_ptr->slave_quest == QUEST_REWARD_MAP)
+    {
+        strnfmt(s[i], 80, "You remember being told of some passages nearby");
+        good[i] = TRUE;
+        i++;
+    }
+
     if (light > 0)
     {
         strnfmt(s[i], 80, "Your equipment glows with an inner light");

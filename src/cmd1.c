@@ -45,7 +45,23 @@ void reward_player_for_quest(cptr m_name, unsigned int quest_index)
         return;
     }
 
-    msg_format("%^s tells you about some passages nearby.", m_name);
+    /* Take a couple of turns */
+    p_ptr->energy_use = 100;
+    p_ptr->skip_next_turn = TRUE;
+
+    if (quest_index == QUEST_ELF)
+    {
+        if (p_ptr->chp < p_ptr->mhp / 2)
+        {
+            msg_format("%^s murmurs the song of staunching.", m_name);
+            set_cut(0);
+            hp_player(50, TRUE, TRUE);
+            p_ptr->slave_quest = QUEST_COMPLETE;
+            return;
+        }
+    }
+
+    msg_format("%^s tells you about some passages a little way off.", m_name);
     p_ptr->slave_quest = QUEST_REWARD_MAP;
 }
 
@@ -88,7 +104,6 @@ void do_quest(monster_type* m_ptr)
         item_tester_hook = item_tester_hook_non_herb_food;
         break;
     };
-
 
     if (get_item(&item, q, s, (USE_INVEN)))
     {

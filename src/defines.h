@@ -3350,7 +3350,6 @@
 #define OATH_SILENCE 2
 #define OATH_IRON 4
 
-
 /*
  * States for the slave quest
  */
