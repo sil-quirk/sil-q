@@ -83,10 +83,10 @@ enum
 @end
 
 /* Delay handling of pre-emptive "quit" event */
-static BOOL quit_when_ready = FALSE;
+static BOOL quit_when_ready = NO;
 
 /* Set to indicate the game is over and we can quit without delay */
-static Boolean game_is_finished = FALSE;
+static BOOL game_is_finished = NO;
 
 /* Our frames per second (e.g. 60). A value of 0 means unthrottled. */
 static int frames_per_second;
@@ -1245,13 +1245,13 @@ static BOOL graphics_are_enabled(void)
 /**
  * Hack -- game in progress
  */
-static Boolean game_in_progress = FALSE;
+static BOOL game_in_progress = NO;
 
 
 /*
  * Indicate if the user chooses "new" to start a game
  */
-static Boolean new_game = FALSE; ////
+static bool new_game = FALSE; ////
 
 
 #pragma mark Prototypes
@@ -1294,7 +1294,7 @@ static void record_current_savefile(void);
 /**
  * Note when "open"/"new" become valid
  */
-static bool initialized = FALSE;
+static BOOL initialized = NO;
 
 /* Methods for getting the appropriate NSUserDefaults */
 @interface NSUserDefaults (AngbandDefaults)
@@ -2346,7 +2346,7 @@ static __strong NSFont* gDefaultFont = nil;
 /**
  * Delay handling of double-clicked savefiles
  */
-Boolean open_when_ready = FALSE;
+BOOL open_when_ready = NO;
 
 
 
@@ -3191,8 +3191,8 @@ static void Term_xtra_cocoa_fresh(AngbandContext* angbandContext)
                         terrainRect.size.width = graf_width;
                         terrainRect.size.height = graf_height;
                         if (alphablend) {
-                            bool alert = tileIndices.mask & PICT_MASK_ALERT;
-                            bool glow = tileIndices.mask & PICT_MASK_GLOW;
+                            BOOL alert = tileIndices.mask & PICT_MASK_ALERT;
+                            BOOL glow = tileIndices.mask & PICT_MASK_GLOW;
 
                             draw_image_tile(
                                 nsContext,
@@ -4112,7 +4112,7 @@ static BOOL open_game(void)
             record_current_savefile();
 
             /* Game is in progress */
-            game_in_progress = TRUE;
+            game_in_progress = YES;
 
             new_game = FALSE;
         }
@@ -4139,7 +4139,7 @@ static void open_tutorial(void)
             maxLength:sizeof(savefile)];
 
         /* Game is in progress */
-        game_in_progress = TRUE;
+        game_in_progress = YES;
 
         new_game = FALSE;
     }
@@ -4157,10 +4157,10 @@ static void handle_open_when_ready(void)
     if (open_when_ready && initialized && !game_in_progress)
     {
         /* Forget */
-        open_when_ready = FALSE;
+        open_when_ready = NO;
         
         /* Game is in progress */
-        game_in_progress = TRUE;
+        game_in_progress = YES;
 
         /* Wait for a keypress */
         ////pause_line(Term);
@@ -4243,11 +4243,7 @@ static void AngbandHandleEventMouseDown( NSEvent *event )
 		x = floor( p.x / tileSize.width );
 		y = floor( p.y / tileSize.height );
 
-		/*
-		 * Being safe about this, since xcode doesn't seem to like the
-		 * bool_hack stuff
-		 */
-		BOOL displayingMapInterface = ((int)inkey_flag != 0);
+		BOOL displayingMapInterface = (inkey_flag) ? YES : NO;
 
 		/* Sidebar plus border == thirteen characters; top row is reserved. */
 		/* Coordinates run from (0,0) to (cols-1, rows-1). */
@@ -4382,7 +4378,7 @@ static BOOL send_event(NSEvent *event)
                 case kVK_Escape: ch = ESCAPE; break;
                 case kVK_Tab: ch = KC_TAB; break;
                 case kVK_Delete: ch = KC_BACKSPACE; break;
-                case kVK_ANSI_KeypadEnter: ch = KC_ENTER; kp = TRUE; break;
+                case kVK_ANSI_KeypadEnter: ch = KC_ENTER; kp = 1; break;
             }
             
             /* Hide the mouse pointer */
@@ -4431,7 +4427,7 @@ static BOOL send_event(NSEvent *event)
                     /* Strip the keypad flag for arrow keys. */
                     case kVK_LeftArrow: case kVK_RightArrow:
                     case kVK_DownArrow: case kVK_UpArrow:
-                        kp = FALSE;
+                        kp = 0;
                         break;
                 }
                     
@@ -4496,7 +4492,7 @@ static BOOL send_event(NSEvent *event)
 }
 
 /**
- * Check for Events, return TRUE if we process any
+ * Check for Events, return YES if we process any
  */
 static BOOL check_events(int wait)
 { 
@@ -4673,7 +4669,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 - (IBAction)newGame:sender
 {
     /* Game is in progress */
-    game_in_progress = TRUE;
+    game_in_progress = YES;
 
     Term_keypress(ESCAPE); //// half: needed to break out of the text-based start menu
 }
@@ -4829,7 +4825,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
         player_egid = getegid();
 
         /* We are now initialized */
-        initialized = TRUE;
+        initialized = YES;
 
         /* Handle "open_when_ready" */
         handle_open_when_ready();
@@ -4866,7 +4862,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
                         open_tutorial();
                         break;
                     case 2:
-                        game_in_progress = TRUE;
+                        game_in_progress = YES;
                         new_game = TRUE;
                         break;
                     case 3:
@@ -4895,7 +4891,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
             re_init_some_things();
 
             /* Game no longer in progress */
-            game_in_progress = FALSE;
+            game_in_progress = NO;
         }
     }
 }
@@ -5116,13 +5112,13 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
      * Once beginGame finished, the game is over - that's how Angband works,
      * and we should quit
      */
-    game_is_finished = TRUE;
+    game_is_finished = YES;
     [NSApp terminate:self];
 }
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender
 {
-    if (p_ptr->playing == FALSE || game_is_finished == TRUE)
+    if (!p_ptr->playing || game_is_finished)
     {
         quit_when_ready = true;
         return NSTerminateNow;
@@ -5204,7 +5200,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
         return;
     }
 
-    game_in_progress = TRUE;
+    game_in_progress = YES;
     new_game = FALSE;
 
     /*
