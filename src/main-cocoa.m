@@ -1270,7 +1270,6 @@ static void load_prefs(void);
 static void init_windows(void);
 static BOOL open_game(void); ////half
 static void open_tutorial(void); ////half
-static void handle_open_when_ready(void);
 #if 0
 static void play_sound(int event);
 #endif
@@ -2342,11 +2341,6 @@ static __strong NSFont* gDefaultFont = nil;
 }
 
 @end
-
-/**
- * Delay handling of double-clicked savefiles
- */
-BOOL open_when_ready = NO;
 
 
 
@@ -4148,27 +4142,6 @@ static void open_tutorial(void)
 //// Sil-y: end inserted block
 
 
-/*
- * Handle the "open_when_ready" flag
- */
-static void handle_open_when_ready(void)
-{
-    /* Check the flag XXX XXX XXX make a function for this */
-    if (open_when_ready && initialized && !game_in_progress)
-    {
-        /* Forget */
-        open_when_ready = NO;
-        
-        /* Game is in progress */
-        game_in_progress = YES;
-
-        /* Wait for a keypress */
-        ////pause_line(Term);
-        ////half pause_line(23); ////
-    }
-}
-
-
 /**
  * Handle quit_when_ready, by Peter Ammon,
  * slightly modified to check inkey_flag.
@@ -4826,9 +4799,6 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 
         /* We are now initialized */
         initialized = YES;
-
-        /* Handle "open_when_ready" */
-        handle_open_when_ready();
 
         /* Handle pending events (most notably update) and flush input */
         Term_flush();
