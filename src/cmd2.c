@@ -927,10 +927,10 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
         drop_result = dieroll(10);
         break;
     case SV_SKELETON_HUMAN:
-        drop_result = dieroll(10) + 6;
+        drop_result = dieroll(10) + 5;
         break;
     case SV_SKELETON_ORC:
-        drop_result = 6;
+        drop_result = 10;
         break;
     }
 
