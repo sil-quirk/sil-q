@@ -1471,6 +1471,7 @@ F:IGNORE_ALL | EASY_KNOW
 
 ##### Herbs #####
 
+# Do not move Herb of Rage from this location, used by quests.
 
 N:380:Rage
 G:,:d
@@ -1496,6 +1497,7 @@ F:EASY_KNOW
 D:It provides nourishment for about 2000 turns
 D: under normal conditions. 
 
+# Do not move Herb of Terror from this location, used by quests.
 
 N:382:Terror
 G:,:d

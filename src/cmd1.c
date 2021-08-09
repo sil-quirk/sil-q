@@ -35,10 +35,33 @@ char* quest_outcome[] = {
 };
 
 /*
+ * Puts an item in the player's inventory.
+ * If the inventory would overflow, this is handled at the start of the next
+ * player turn.
+ */
+void give_player_item(object_type * o_ptr)
+{
+    char o_name[80];
+    int slot = inven_carry(o_ptr);
+
+    /* reset the pointer to the new location to pick up the count of the item
+       in the inventory */
+    o_ptr = &inventory[slot];
+
+    object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+
+    if (slot >= 0)
+        msg_format("You have %s (%c).", o_name, index_to_label(slot));
+}
+
+/*
  * Rewards player depending on the quest.
  */
 void reward_player_for_quest(cptr m_name, unsigned int quest_index)
 {
+    int selection;
+    object_type herb;
+
     if (quest_index >= QUEST_TYPES)
     {
         msg_print("Bug detected! Quest invalid!");
@@ -61,8 +84,26 @@ void reward_player_for_quest(cptr m_name, unsigned int quest_index)
         }
     }
 
-    msg_format("%^s tells you about some passages a little way off.", m_name);
-    p_ptr->slave_quest = QUEST_REWARD_MAP;
+    selection = dieroll(3);
+
+    switch(selection)
+    {
+    case 1:
+        msg_format("%^s gives you a ragged herb.", m_name);
+        object_prep(&herb, O_IDX_HERB_RAGE);
+        give_player_item(&herb);
+        p_ptr->slave_quest = QUEST_COMPLETE;
+        break;
+    case 2:
+        msg_format("%^s gives you a ragged herb.", m_name);
+        object_prep(&herb, O_IDX_HERB_TERROR);
+        give_player_item(&herb);
+        p_ptr->slave_quest = QUEST_COMPLETE;
+        break;
+    default:
+        msg_format("%^s tells you about some passages a little way off.", m_name);
+        p_ptr->slave_quest = QUEST_REWARD_MAP;
+    }
 }
 
 /*
@@ -2741,28 +2782,13 @@ extern void perceive(void)
  */
 void py_pickup_aux(int o_idx)
 {
-    int slot;
-
-    char o_name[80];
     object_type* o_ptr;
-
     o_ptr = &o_list[o_idx];
 
     /*hack - don't pickup &nothings*/
     if (o_ptr->k_idx)
     {
-        /* Carry the object */
-        slot = inven_carry(o_ptr);
-
-        /* Get the object again */
-        o_ptr = &inventory[slot];
-
-        /* Describe the object */
-        object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
-
-        /* Message */
-        if (slot >= 0)
-            msg_format("You have %s (%c).", o_name, index_to_label(slot));
+        give_player_item(o_ptr);
 
         // Break the truce if creatures see
         break_truce(FALSE);
