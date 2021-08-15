@@ -533,9 +533,9 @@
 #define SNG_FREEDOM 3
 #define SNG_SILENCE 4
 #define SNG_STAUNCHING 5
-#define SNG_WHETTING 6
+#define SNG_THRESHOLDS 6
 #define SNG_TREES 7
-#define SNG_THRESHOLDS 8
+#define SNG_SLAYING 8
 #define SNG_STAYING 9
 #define SNG_LORIEN 10
 #define SNG_MASTERY 11

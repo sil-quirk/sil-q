@@ -3923,6 +3923,7 @@ void py_attack_aux(int y, int x, int attack_type)
     int effective_strength;
     int damage_type = GF_HURT;
 
+    int m_idx;
     monster_type* m_ptr;
     monster_race* r_ptr;
 
@@ -3946,7 +3947,8 @@ void py_attack_aux(int y, int x, int attack_type)
                            // identified it goes here
 
     /* Get the monster */
-    m_ptr = &mon_list[cave_m_idx[y][x]];
+    m_idx = cave_m_idx[y][x];
+    m_ptr = &mon_list[m_idx];
     r_ptr = &r_info[m_ptr->r_idx];
 
     /*possibly update the monster health bar*/
@@ -4233,24 +4235,6 @@ void py_attack_aux(int y, int x, int attack_type)
             prt = damroll(r_ptr->pd, r_ptr->ps);
             prt_percent = prt_after_sharpness(o_ptr, &noticed_flag);
 
-            bool can_sharpen
-                = ((o_ptr->tval == TV_SWORD) || (o_ptr->tval == TV_POLEARM))
-                && (prt_percent == 100);
-            if (singing(SNG_WHETTING) && can_sharpen)
-            {
-                int weight = o_ptr->weight;
-                if (off_hand_blow)
-                {
-                    // If offhand, consider weight of main weapon first
-                    weight += inventory[INVEN_WIELD].weight;
-                }
-
-                if (weight <= 5 * ability_bonus(S_SNG, SNG_WHETTING))
-                {
-                    prt_percent -= 50;
-                }
-            }
-
             if (prt_percent < 0)
             {
                 prt_percent = 0;
@@ -4339,8 +4323,29 @@ void py_attack_aux(int y, int x, int attack_type)
             }
 
             // damage, check for death
-            fatal_blow = mon_take_hit(cave_m_idx[y][x], net_dam, NULL, -1);
+            fatal_blow = mon_take_hit(m_idx, net_dam, NULL, -1);
             p_ptr->vengeance = 0;
+
+            if (singing(SNG_SLAYING) && !fatal_blow)
+            {
+                int kill_threshold = ability_bonus(S_SNG, SNG_SLAYING);
+                if (m_ptr->hp < kill_threshold)
+                {
+                    msg_format("Your song soars as %s falls before you.", m_name);
+                    /* Generate treasure */
+                    monster_death(m_idx);
+
+                    /* Auto-recall only if visible or unique */
+                    if (m_ptr->ml || (r_ptr->flags1 & (RF1_UNIQUE)))
+                    {
+                        monster_race_track(m_ptr->r_idx);
+                    }
+
+                    /* Delete the monster */
+                    delete_monster_idx(m_idx);
+                    fatal_blow = TRUE;
+                }
+            }
 
             // use different colours depending on whether knock back triggered
             if (do_knock_back)

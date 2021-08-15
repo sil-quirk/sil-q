@@ -165,10 +165,7 @@ extern int p_min(int typ, bool melee)
 
     if (singing(SNG_STAYING))
     {
-        if (ability_bonus(S_SNG, SNG_STAYING) > 0)
-        {
-            prt += 2;
-        }
+        prt += 2;
     }
 
     // armour:

@@ -5192,26 +5192,6 @@ void change_song(int song)
         }
         break;
     }
-    case SNG_WHETTING:
-    {
-        if (song_to_change == 1)
-        {
-            msg_print("You begin to weave a chant about things that cut deep "
-                      "and true.");
-        }
-        else if (old_song == SNG_NOTHING)
-        {
-            msg_print(
-                "You add a minor theme about things that cut deep and true.");
-        }
-        else
-        {
-            msg_print("You change your minor theme to one about things that "
-                      "cut deep and "
-                      "true.");
-        }
-        break;
-    }
     case SNG_DELVINGS:
     {
         if (song_to_change == 1)
@@ -5267,6 +5247,22 @@ void change_song(int song)
             msg_print(
                 "You change your minor theme to one about the courage of great "
                 "heroes past.");
+        }
+        break;
+    }
+    case SNG_SLAYING:
+    {
+        if (song_to_change == 1)
+        {
+            msg_print("You begin a song of fury and dread.");
+        }
+        else if (old_song == SNG_NOTHING)
+        {
+            msg_print("You add a minor theme of fury and dread.");
+        }
+        else
+        {
+            msg_print("You change your minor theme to one of fury and dread.");
         }
         break;
     }
@@ -5693,6 +5689,13 @@ void sing(void)
                 cost += 1;
             break;
         }
+        case SNG_THRESHOLDS:
+        {
+            if ((p_ptr->song_duration % 3) == type - 1)
+                cost += 1;
+
+            break;
+        }
         case SNG_DELVINGS:
         {
             if ((p_ptr->song_duration % 3) == type - 1)
@@ -5702,25 +5705,18 @@ void sing(void)
 
             break;
         }
-        case SNG_WHETTING:
-        {
-            cost += 1;
-            break;
-        }
         case SNG_TREES:
         {
             if ((p_ptr->song_duration % 3) == type - 1)
                 cost += 1;
             break;
         }
-        case SNG_THRESHOLDS:
+        case SNG_STAYING:
         {
-            if ((p_ptr->song_duration % 3) == type - 1)
-                cost += 1;
-
+            cost += 1;
             break;
         }
-        case SNG_STAYING:
+        case SNG_SLAYING:
         {
             cost += 1;
             break;

@@ -1061,16 +1061,6 @@ void prise_silmaril(void)
 
         prt_percent = prt_after_sharpness(w_ptr, &dummy_noticed_flag);
 
-        bool can_sharpen
-            = ((w_ptr->tval == TV_SWORD) || (w_ptr->tval == TV_POLEARM));
-        if (singing(SNG_WHETTING) && can_sharpen)
-        {
-            int weight = w_ptr->weight;
-            if (weight <= 10 * ability_bonus(S_SNG, SNG_WHETTING))
-            {
-                prt_percent -= 50;
-            }
-        }
         if (prt_percent < 0)
         {
             prt_percent = 0;

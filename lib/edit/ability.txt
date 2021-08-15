@@ -640,14 +640,13 @@ T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:45:0:99  # Ring
 
-N:146:Song of Whetting
+N:146:Song of Thresholds
 I:7:6:4
-P:7/1
-D:Grants sharpness to a non-blunt melee weapon of up to Song/4 lbs
-D: in weight, allowing it to ignore half enemy armour.
-D: Already sharp weapons cannot be sharpened further.
-T:22:0:99  # Polearms and axes
-T:23:0:99  # Swords
+P:7/0:7/2
+D:Doors you close while singing this song are warded against
+D: your enemies.
+T:40:0:99  # Amulet
+T:35:0:99  # Cloak
 
 N:147:Song of the Trees
 I:7:7:5
@@ -658,13 +657,13 @@ T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:39:0:99  # Light Source
 
-N:148:Song of Thresholds
+N:148:Song of Slaying
 I:7:8:6
-P:7/0:7/2
-D:Doors you close while singing this song are warded against
-D: your enemies.
-T:40:0:99  # Amulet
-T:35:0:99  # Cloak
+P:7/1:7/3
+D:Critical hits in melee kill enemies outright if they have
+D: health less than your Song score.
+T:22:0:99  # Polearms and axes
+T:23:0:99  # Swords
 
 N:149:Song of Staying
 I:7:9:7
@@ -678,20 +677,20 @@ T:45:0:99  # Ring
 
 N:150:Song of Lorien
 I:7:10:8
-P:7/4
+P:7/4:7/2
 D:Gradually puts nearby opponents to sleep.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
 N:151:Song of Mastery
-I:7:11:9
-P:7/3
+I:7:11:10
+P:7/3:7/4
 D:Occasionally prevents nearby opponents from moving or acting.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
 N:152:Woven Themes
-I:7:12:10
+I:7:12:11
 D:Allows you to add a 'minor theme' to your song. This means you
 D: can have the effect of a second song, but at half your normal Song score.
 T:40:0:99  # Amulet
