@@ -5570,7 +5570,7 @@ void artefact_menu(void)
     int choice = -1;
     int highlight = 1;
 
-    char buf[30];
+    char buf[36];
     bool leave_menu = FALSE;
 
     /* Save screen */

@@ -1023,7 +1023,7 @@ bool get_alertness_text(
         }
         else
         {
-            char morale_buf[6];
+            char morale_buf[8];
 
             if (m_ptr->stance == STANCE_FLEEING)
             {
@@ -3114,7 +3114,7 @@ void update_lore_aux(object_type* o_ptr)
         if (o_ptr->name1)
         {
             artefact_type* a_ptr = &a_info[o_ptr->name1];
-            char note[120];
+            char note[150];
             char shorter_desc[120];
             int new_exp;
 
