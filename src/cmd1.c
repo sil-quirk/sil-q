@@ -4253,9 +4253,6 @@ void py_attack_aux(int y, int x, int attack_type)
             // determine the punctuation for the attack ("...", ".", "!" etc)
             attack_punctuation(punctuation, net_dam, crit_bonus_dice);
 
-            update_combat_rolls2(total_dice, mds, dam, r_ptr->pd, r_ptr->ps,
-                prt, prt_percent, damage_type, TRUE);
-
             /* Special message for visible unalert creatures */
             if (stealth_bonus)
             {
@@ -4326,12 +4323,20 @@ void py_attack_aux(int y, int x, int attack_type)
             fatal_blow = mon_take_hit(m_idx, net_dam, NULL, -1);
             p_ptr->vengeance = 0;
 
-            if (singing(SNG_SLAYING) && !fatal_blow)
+            if (singing(SNG_SLAYING) && !fatal_blow && crit_bonus_dice > 0)
             {
                 int kill_threshold = ability_bonus(S_SNG, SNG_SLAYING);
                 if (m_ptr->hp < kill_threshold)
                 {
                     msg_format("Your song soars as %s falls before you.", m_name);
+
+                    /* Sort out combat rolls window */
+                    total_dice = 0;
+                    mds = 0;
+                    dam = m_ptr->hp;
+                    prt = 0;
+                    prt_percent = 0;
+
                     /* Generate treasure */
                     monster_death(m_idx);
 
@@ -4343,9 +4348,13 @@ void py_attack_aux(int y, int x, int attack_type)
 
                     /* Delete the monster */
                     delete_monster_idx(m_idx);
+                    
                     fatal_blow = TRUE;
                 }
             }
+
+            update_combat_rolls2(total_dice, mds, dam, r_ptr->pd, r_ptr->ps,
+                prt, prt_percent, damage_type, TRUE);
 
             // use different colours depending on whether knock back triggered
             if (do_knock_back)
