@@ -93,7 +93,7 @@ F:IGNORE_ALL
 # Leather armour, gloves and boots only
 
 N:4:of Brethil
-W:6:6:0:1000
+W:6:10:0:1000
 C:0:0:0:0:0:0:0
 T:36:4:7
 T:30:0:1
@@ -565,8 +565,9 @@ C:0:0:0:0:0:0:3
 T:35:0:99
 F:STEALTH
 
+
 N:83:of Warmth
-W:0:2:0:1000
+W:4:8:0:1000
 C:0:0:0:0:0:0:0
 T:35:0:99
 F:RES_COLD

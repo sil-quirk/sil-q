@@ -1894,28 +1894,6 @@ static bool make_artefact(object_type* o_ptr, bool allow_insta)
     if (too_many_artefacts())
         return (FALSE);
 
-    /* First try to create a randart, if allowed */
-    if ((can_be_randart(o_ptr)) && (!adult_no_xtra_artefacts))
-    {
-        /*occasionally make a randart*/
-        if (one_in_(depth_check + 50))
-        {
-            /*artefact power is based on depth*/
-            int randart_power = 10 + depth_check;
-
-            /*occasional power boost*/
-            while (one_in_(25))
-                randart_power += 25;
-
-            /*
-             * Make a randart.  This should always succeed, unless
-             * there is no space for another randart
-             */
-            if (make_one_randart(o_ptr, randart_power, FALSE))
-                return (TRUE);
-        }
-    }
-
     /* Check the artefact list (skip the "specials" and randoms) */
     for (i = z_info->art_spec_max; i < z_info->art_norm_max; i++)
     {
@@ -2625,7 +2603,7 @@ void apply_magic(object_type* o_ptr, int lev, bool okay, bool good, bool great,
         fine = TRUE;
 
     /* Roll for "special" */
-    if (percent_chance(lev * 2))
+    if (percent_chance(lev))
         special = TRUE;
 
     /* guarantee "fine" or "special" for "good" drops */
