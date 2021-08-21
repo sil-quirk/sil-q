@@ -1,5 +1,7 @@
 /* File: h-type.h */
 
+#include <stdint.h>
+
 #ifndef INCLUDED_H_TYPE_H
 #define INCLUDED_H_TYPE_H
 
@@ -49,16 +51,10 @@ typedef char bool;
 typedef unsigned int uint;
 
 /* Signed/Unsigned 16 bit value */
-typedef signed short s16b;
-typedef unsigned short u16b;
+typedef int16_t s16b;
+typedef uint16_t u16b;
 
-/* Signed/Unsigned 32 bit value */
-#ifdef L64 /* 64 bit longs */
-typedef signed int s32b;
-typedef unsigned int u32b;
-#else /* L64 */
-typedef signed long s32b;
-typedef unsigned long u32b;
-#endif /* L64 */
+typedef int32_t s32b;
+typedef uint32_t u32b;
 
 #endif /* INCLUDED_H_TYPE_H */

@@ -167,15 +167,6 @@
 #endif
 
 /*
- * OPTION: Define "L64" if a "long" is 64-bits.  See "h-types.h".
- * The only such platform that angband is ported to is currently
- * DEC Alpha AXP running OSF/1 (OpenVMS uses 32-bit longs).
- */
-#if defined(__alpha) && defined(__osf__)
-#define L64
-#endif
-
-/*
  * OPTION: set "SET_UID" if the machine is a "multi-user" machine.
  * This option is used to verify the use of "uids" and "gids" for
  * various "Unix" calls, and of "pids" for getting a random seed,
