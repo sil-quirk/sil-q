@@ -4140,7 +4140,7 @@ void do_cmd_fire(int quiver)
                         && p_ptr->active_ability[S_ARC][ARC_PUNCTURE])
                     {
                         puncture = TRUE;
-                        dam = 3;
+                        dam = 5;
                         prt = 0;
                     }
 

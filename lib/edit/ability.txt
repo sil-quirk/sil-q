@@ -189,7 +189,7 @@ T:31:1:1   # Gloves (leather gloves only)
 N:23:Puncture
 I:1:3:5
 D:Whenever an enemy's armour roll would fully block your archery damage roll,
-D: you deal the enemy a flat three damage instead.
+D: you deal the enemy a flat five damage instead.
 T:19:0:99  # Bows
 T:31:1:1   # Gloves (leather gloves only)
 T:45:0:99  # Ring
