@@ -291,15 +291,6 @@ B:0/8
 F:AGGRAVATE | LIGHT_CURSE
 
 
-# Mithril swords only
-
-N:30:of Dawn's Glory
-W:12:10:0:1000
-C:1:0:0:0:0:0:3
-T:23:28:30
-F:LIGHT | PERCEPTION
-
-
 # Swords only
 
 N:31:of the Feanorians
@@ -539,16 +530,6 @@ C:0:0:0:0:0:0:0
 T:32:0:7
 F:FEAR
 
-# Mithril helms only
-# (ability 7/1 is Song of Challenge)
-
-N:81:of Battle Joined
-W:10:2:0:3000
-C:0:0:0:0:0:0:2
-T:32:8:8
-F:SONG
-B:7/1
-
 
 # a helm that lowers perception?
 
@@ -758,16 +739,6 @@ T:31:0:99
 B:2/2
 
 
-# (ability 0/0 is Power)
-
-N:123:of Brutality
-W:0:4:0:3000
-C:0:0:0:0:0:0:1
-T:31:2:2
-F:DEX | LIGHT_CURSE
-B:0/0
-
-
 # Mithril gauntlets only
 
 N:124:of Might
@@ -775,6 +746,7 @@ W:10:4:0:3000
 C:0:0:0:0:0:0:1
 T:31:3:3
 F:STR
+F:IGNORE_ALL
 
 
 ###
