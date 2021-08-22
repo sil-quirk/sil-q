@@ -850,8 +850,6 @@ extern bool explosion(
 extern bool light_line(int dir);
 extern bool destroy_door(int dir);
 extern bool disarm_trap(int dir);
-extern bool curse_armor(void);
-extern bool curse_weapon(void);
 extern bool item_tester_hook_ided_ammo(const object_type* o_ptr);
 extern bool item_tester_hook_ammo(const object_type* o_ptr);
 extern bool item_tester_hook_ordinary_ammo(const object_type* o_ptr);

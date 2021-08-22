@@ -1787,7 +1787,7 @@
 #define TR3_ACCURATE 0x00000008L /* Reroll misses */
 #define TR3_CUMBERSOME 0x00000010L /* No critical hits */
 #define TR3_AVOID_TRAPS 0x00000020L /* Do not trigger traps */
-#define TR3_TR3XXX5 0x00000040L /* xxx */
+#define TR3_MEDIC 0x00000040L /* xxx */
 #define TR3_TR3XXX6 0x00000080L /* xxx */
 #define TR3_TR3XXX7 0x00000100L /* xxx */
 #define TR3_TR3XXX8 0x00000200L /* xxx */
@@ -1870,23 +1870,6 @@
 
 /*Chance of adding additional flags after the first one*/
 #define EXTRA_FLAG_CHANCE 20
-
-#define EGO_AMMO_FLAME 99
-#define EGO_AMMO_FROST 100
-#define EGO_AMMO_VENOM 97
-
-#define EGO_ELVENKIND_ARMOR 2
-#define EGO_ELVENKIND_SHIELD 11
-#define EGO_ELVENKIND_BOOTS 110
-#define EGO_HOLY_AVENGER 35
-#define EGO_FURY 36
-#define EGO_BRAND_ELEMENTS 41
-#define BRAND_OFFSET_FLAME 2
-#define BRAND_OFFSET_FROST 3
-#define BRAND_OFFSET_VENOM 4
-
-#define EGO_SHATTERED 143
-#define EGO_BLASTED 144
 
 /*** Race/House flags ***/
 

@@ -369,6 +369,7 @@ void self_knowledge(void)
     int mel = 0;
     int arc = 0;
     int stl = 0;
+    int medic = 0;
 
     // initialise the arrays
     for (i = 0; i < 100; i++)
@@ -416,6 +417,9 @@ void self_knowledge(void)
             arc += o_ptr->pval;
         if (t1 & (TR1_STL))
             stl += o_ptr->pval;
+
+        if (t3 & (TR3_MEDIC))
+            medic++;
     }
 
     if (f2 & TR2_TRAITOR)
@@ -438,6 +442,14 @@ void self_knowledge(void)
     {
         strnfmt(s[i], 80, "Your feet do not trigger traps");
         strnfmt(t[i], 80, "(does not protect from webs, roosts and pits)");
+        good[i] = TRUE;
+        i++;
+    }
+
+    if (f3 & TR3_MEDIC)
+    {
+        strnfmt(s[i], 80, "You gain extra health from healing items");
+        strnfmt(t[i], 80, "(%d%%)", 20 * medic);
         good[i] = TRUE;
         i++;
     }
@@ -3855,129 +3867,6 @@ bool disarm_trap(int dir)
     u32b flg = PROJECT_BEAM | PROJECT_GRID | PROJECT_ITEM;
     return (
         fire_bolt_beam_special(GF_KILL_TRAP, dir, 0, 0, -1, MAX_RANGE, flg));
-}
-
-/*
- * Curse the player's armor
- */
-bool curse_armor(void)
-{
-    object_type* o_ptr;
-
-    char o_name[80];
-
-    /* Curse the body armor */
-    o_ptr = &inventory[INVEN_BODY];
-
-    /* Nothing to curse */
-    if (!o_ptr->k_idx)
-        return (FALSE);
-
-    /* Describe */
-    object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 3);
-
-    /* Attempt a saving throw for artefacts */
-    if (artefact_p(o_ptr) && percent_chance(50))
-    {
-        /* Cool */
-        msg_format("A %s tries to %s, but your %s resists the effects!",
-            "terrible black aura", "surround your armour", o_name);
-    }
-
-    /* not artefact or failed save... */
-    else
-    {
-        /* Oops */
-        msg_format("A terrible black aura blasts your %s!", o_name);
-
-        /* Blast the armor */
-        o_ptr->name1 = 0;
-        o_ptr->name2 = EGO_BLASTED;
-        o_ptr->evn = 0 - dieroll(5) - dieroll(5);
-        o_ptr->att = 0;
-        o_ptr->pd = 1;
-        o_ptr->ps = 1;
-        o_ptr->dd = 1;
-        o_ptr->ds = 1;
-
-        /* Curse it */
-        o_ptr->ident |= (IDENT_CURSED);
-
-        /* Break it */
-        o_ptr->ident |= (IDENT_BROKEN);
-
-        /* Recalculate bonuses */
-        p_ptr->update |= (PU_BONUS);
-
-        /* Recalculate mana */
-        p_ptr->update |= (PU_MANA);
-
-        /* Window stuff */
-        p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
-    }
-
-    return (TRUE);
-}
-
-/*
- * Curse the player's weapon
- */
-bool curse_weapon(void)
-{
-    object_type* o_ptr;
-
-    char o_name[80];
-
-    /* Curse the weapon */
-    o_ptr = &inventory[INVEN_WIELD];
-
-    /* Nothing to curse */
-    if (!o_ptr->k_idx)
-        return (FALSE);
-
-    /* Describe */
-    object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 3);
-
-    /* Attempt a saving throw */
-    if (artefact_p(o_ptr) && percent_chance(50))
-    {
-        /* Cool */
-        msg_format("A %s tries to %s, but your %s resists the effects!",
-            "terrible black aura", "surround your weapon", o_name);
-    }
-
-    /* not artefact or failed save... */
-    else
-    {
-        /* Oops */
-        msg_format("A terrible black aura blasts your %s!", o_name);
-
-        /* Shatter the weapon */
-        o_ptr->name1 = 0;
-        o_ptr->name2 = EGO_SHATTERED;
-        o_ptr->att = 0 - dieroll(5) - dieroll(5);
-        o_ptr->evn = 0;
-        o_ptr->dd = 1;
-        o_ptr->ds = 1;
-
-        /* Curse it */
-        o_ptr->ident |= (IDENT_CURSED);
-
-        /* Break it */
-        o_ptr->ident |= (IDENT_BROKEN);
-
-        /* Recalculate bonuses */
-        p_ptr->update |= (PU_BONUS);
-
-        /* Recalculate mana */
-        p_ptr->update |= (PU_MANA);
-
-        /* Window stuff */
-        p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
-    }
-
-    /* Notice */
-    return (TRUE);
 }
 
 /*

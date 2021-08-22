@@ -1993,6 +1993,7 @@ static const smithing_flag_desc smithing_flag_types[] = { { CAT_STAT, TR1_STR,
     { CAT_MISC, TR3_CHEAT_DEATH, 3, "Cheat Death" },
     { CAT_MISC, TR3_STAND_FAST, 3, "Stand Fast" },
     { CAT_MISC, TR3_AVOID_TRAPS, 3, "Avoid Traps" },
+    { CAT_MISC, TR3_MEDIC, 3, "Medicine Bonus" },
     { CAT_MEL, TR1_TUNNEL, 1, "Tunneling Bonus" },
     { CAT_MEL, TR1_SHARPNESS, 1, "Sharpness" },
     { CAT_MEL, TR1_VAMPIRIC, 1, "Vampiric" },
@@ -3248,6 +3249,10 @@ int object_difficulty(object_type* o_ptr)
     if (f3 & TR3_AVOID_TRAPS)
     {
         dif_inc += 6;
+    }
+    if (f3 & TR3_MEDIC)
+    {
+        dif_inc += 4;
     }
 
     // Elemental Resistances

@@ -555,6 +555,8 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
         good[gc++] = "lets you stand fast against your foes";
     if (f3 & (TR3_AVOID_TRAPS))
         good[gc++] = "lets you step on traps without triggering them";
+    if (f3 & (TR3_MEDIC))
+        good[gc++] = "increases the health you get from healing items";
 
     /* Describe */
     output_desc_list("It ", good, gc);

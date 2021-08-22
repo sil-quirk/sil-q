@@ -742,11 +742,11 @@ T:31:1:1
 F:ARCHERY
 
 
-N:121:of Vigour
-W:0:2:0:1000
+N:121:of Mending
+W:0:4:0:1000
 C:0:0:0:0:0:0:0
 T:31:0:99
-F:RES_BLEED | REGEN
+F:MEDIC
 
 
 # (ability 2/2 is Parry)

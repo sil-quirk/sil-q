@@ -10,6 +10,26 @@
 
 #include "angband.h"
 
+int medicine_bonus(int original)
+{
+    int bonus = 0;
+    object_type* o_ptr;
+
+    for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        u32b t1, t2, t3;
+        o_ptr = &inventory[i];
+        if (!o_ptr->k_idx)
+            continue;
+
+        object_flags(o_ptr, &t1, &t2, &t3);
+        if (t3 & (TR3_MEDIC))
+            bonus++;
+    } 
+
+    return (original / 5) * bonus;
+}
+
 static bool eat_food(object_type* o_ptr, bool* ident)
 {
     // Easter Eggs
@@ -65,7 +85,7 @@ static bool eat_food(object_type* o_ptr, bool* ident)
         msg_print("It has the bitter taste of medicine.");
         *ident = TRUE;
         set_cut(p_ptr->cut / 2);
-        hp_player(50, TRUE, TRUE);
+        hp_player(50 + medicine_bonus(50), TRUE, TRUE);
         break;
     }
 
@@ -185,7 +205,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         (void)set_blind(0);
         (void)set_cut(p_ptr->cut / 2);
         (void)set_afraid(0);
-        (void)hp_player(50, TRUE, TRUE);
+        (void)hp_player(50 + medicine_bonus(50), TRUE, TRUE);
         if (p_ptr->csp < p_ptr->msp)
         {
             p_ptr->csp = p_ptr->msp;
@@ -207,7 +227,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         }
 
         (void)set_afraid(0);
-        hp_player(25, TRUE, TRUE);
+        hp_player(25 + medicine_bonus(25), TRUE, TRUE);
         *ident = TRUE;
         break;
     }
@@ -253,7 +273,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         msg_print("It has the bitter taste of medicine.");
         *ident = TRUE;
         set_cut(p_ptr->cut / 2);
-        hp_player(50, TRUE, TRUE);
+        hp_player(50 + medicine_bonus(50), TRUE, TRUE);
         break;
     }
 
