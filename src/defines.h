@@ -47,7 +47,7 @@
 /*
  * Current version string
  */
-#define VERSION_STRING "1.5.0-beta1"
+#define VERSION_STRING "1.5.0-beta2"
 
 /*
  * Current version numbers
@@ -61,8 +61,8 @@
  * Oldest version number that can still be imported
  */
 #define OLD_VERSION_MAJOR 1
-#define OLD_VERSION_MINOR 4
-#define OLD_VERSION_PATCH 2
+#define OLD_VERSION_MINOR 5
+#define OLD_VERSION_PATCH 0
 
 /*
  * Version of random artefact code.
