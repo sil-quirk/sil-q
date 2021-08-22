@@ -724,7 +724,7 @@ T:31:1:1
 F:ARCHERY
 
 
-N:121:of Mending
+N:121:of Lorellin
 W:0:4:0:1000
 C:0:0:0:0:0:0:0
 T:31:0:99
