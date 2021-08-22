@@ -172,7 +172,7 @@ F:IGNORE_ALL
 
 # Mithril shields only
 
-N:14:of Fate Thwarted
+N:14:with Many Runes
 W:20:20:0:1000
 C:0:0:0:0:0:0:0
 T:34:10:10
@@ -514,12 +514,13 @@ T:32:0:99
 F:RES_CONFU | RES_STUN | RES_HALLU
 
 
-# lesser jewels
+# mithril helms and lesser jewels
 
 N:75:of Grace
 W:0:1:0:3000
 C:0:0:0:0:0:0:1
-T:39:2:2
+T:32:0:99
+T:39:8:8
 F:GRA
 
 ###
@@ -737,6 +738,13 @@ W:4:2:0:2000
 C:0:0:0:0:0:0:0
 T:31:0:99
 B:2/2
+
+
+N:123:of the Ironfists
+W:4:6:0:2000
+C:0:0:0:0:0:0:1
+T:31:2:2
+F:CON | NEG_DEX
 
 
 # Mithril gauntlets only
