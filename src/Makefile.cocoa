@@ -157,9 +157,10 @@ PACKAGE_NAME = $(NAME)-$(VERSION)
 
 dist: install
 	@rm -rf disttemp*
-	mkdir -p disttemp/Docs
+	mkdir disttemp
 	cp -R -p "$(APPBNDL)" disttemp
 	SetFile -a B disttemp/$(APPNAME)
+	find .. -name '*.pdf' -depth 1 -print0 | xargs -0 -J % cp -p % disttemp
 
 	@-rm ../"$(PACKAGE_NAME)-osx.dmg"
 
