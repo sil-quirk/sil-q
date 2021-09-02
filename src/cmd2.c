@@ -136,7 +136,7 @@ void do_cmd_go_up(void)
         }
     }
 
-    p_ptr->oaths_broken |= OATH_IRON;
+    p_ptr->oaths_broken |= OATH_IRON_FLAG;
 
     /* Ironman */
     if (birth_ironman && (silmarils_possessed() == 0))

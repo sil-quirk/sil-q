@@ -737,7 +737,7 @@ void do_cmd_change_song()
                 }
             }
 
-            p_ptr->oaths_broken |= OATH_SILENCE;
+            p_ptr->oaths_broken |= OATH_SILENCE_FLAG;
         }
 
         change_song(song_choice);
@@ -981,7 +981,7 @@ int bane_menu(int* highlight)
 
 #define OATH_TYPES 4
 
-static u32b oath_flag[] = { 0L, OATH_MERCY, OATH_SILENCE, OATH_IRON };
+static u32b oath_flag[] = { 0L, OATH_MERCY_FLAG, OATH_SILENCE_FLAG, OATH_IRON_FLAG };
 
 char* oath_name[] = {
     "Nothing",
@@ -1015,9 +1015,7 @@ bool oath_invalid(int i) { return ((p_ptr->oaths_broken & oath_flag[i]) > 0); }
 
 bool chosen_oath(int oath)
 {
-    // flags are powers of 2 starting at 2^0 but oath_type is 1,2,3 etc
-    // so this maps 1 -> 1, 2 -> 2, 3 -> 4
-    return ((1 << p_ptr->oath_type) / 2 == oath);
+    return p_ptr->oath_type == oath;
 }
 
 int oath_menu(int* highlight)

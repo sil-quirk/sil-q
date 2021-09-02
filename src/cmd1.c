@@ -3893,7 +3893,7 @@ void break_mercy_oath(monster_type* m_ptr, int damage)
             msg_print("You break your oath of mercy.");
             do_cmd_note("Broke your oath", p_ptr->depth);
         }
-        p_ptr->oaths_broken |= OATH_MERCY;
+        p_ptr->oaths_broken |= OATH_MERCY_FLAG;
     }
 }
 

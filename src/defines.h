@@ -3332,9 +3332,16 @@
 /*
  * Flags for the Oath skill
  */
+#define OATH_MERCY_FLAG 1
+#define OATH_SILENCE_FLAG 2
+#define OATH_IRON_FLAG 4
+
+/*
+ * Order of Oath skill
+ */
 #define OATH_MERCY 1
 #define OATH_SILENCE 2
-#define OATH_IRON 4
+#define OATH_IRON 3
 
 /*
  * States for the slave quest
