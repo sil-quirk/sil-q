@@ -73,11 +73,12 @@ static void find_range(monster_type* m_ptr)
         if (r_ptr->flags1 & (RF1_NEVER_BLOW))
             m_ptr->min_range += 6;
 
-        // Spies have a high minimum range
+        // Spies have a high minimum range - and get harder to track down
+        // at greater depths
         if ((r_ptr->flags2 & (RF2_SMART)) && (r_ptr->flags4 & (RF4_SHRIEK))
             && (m_ptr->stance != STANCE_AGGRESSIVE))
         {
-            m_ptr->min_range = 10;
+            m_ptr->min_range = 5 + p_ptr->depth / 2;
         }
     }
 
