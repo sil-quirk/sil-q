@@ -1745,6 +1745,7 @@ void do_cmd_ability_screen(void)
                                 }
                                 skip_purchase = FALSE;
                                 banechoice = -1;
+                                oathchoice = -1;
                             }
                         }
                         else
