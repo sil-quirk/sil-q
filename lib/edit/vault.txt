@@ -65,8 +65,8 @@
 #     H - silent watcher
 #     o - orc champion
 #     O - orc captain
-#     z - slave
-#     Z - orc slavemaster
+#     z - prisoner
+#     Z - orc torturer
 #     f - cat warrior
 #     F - cat assassin
 #     t - cave troll

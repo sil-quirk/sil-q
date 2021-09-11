@@ -113,7 +113,7 @@ void do_quest(monster_type* m_ptr)
 {
     char m_name[80];
     int item;
-    unsigned int quest_index = m_ptr->r_idx - R_IDX_ALERT_HUMAN_SLAVE;
+    unsigned int quest_index = m_ptr->r_idx - R_IDX_ALERT_HUMAN_PRISONER;
 
     if (quest_index >= QUEST_TYPES)
     {
@@ -121,7 +121,7 @@ void do_quest(monster_type* m_ptr)
         return;
     }
 
-    cptr q = "Give slave which item? ";
+    cptr q = "Give prisoner which item? ";
     cptr s = quest_requirement[quest_index];
 
     /* Get the monster name */
@@ -374,8 +374,8 @@ void set_alertness(monster_type* m_ptr, int alertness)
     if (m_ptr->alertness == alertness)
         return;
 
-    // Can't wake up non-alert slaves
-    if (m_ptr->r_idx == R_IDX_HUMAN_SLAVE || m_ptr->r_idx == R_IDX_ELF_SLAVE)
+    // Can't wake up non-alert prisoners
+    if (m_ptr->r_idx == R_IDX_HUMAN_PRISONER || m_ptr->r_idx == R_IDX_ELF_PRISONER)
         return;
 
     // cap the alertness value
@@ -3989,8 +3989,8 @@ void py_attack_aux(int y, int x, int attack_type)
     {
         if (attack_type == ATT_MAIN)
         {
-            if (m_ptr->r_idx == R_IDX_ALERT_HUMAN_SLAVE ||
-                m_ptr->r_idx == R_IDX_ALERT_ELF_SLAVE)
+            if (m_ptr->r_idx == R_IDX_ALERT_HUMAN_PRISONER ||
+                m_ptr->r_idx == R_IDX_ALERT_ELF_PRISONER)
             {
                 do_quest(m_ptr);
             }
