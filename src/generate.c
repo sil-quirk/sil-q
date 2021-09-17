@@ -2732,7 +2732,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
 
                 if (p_ptr->thrall_quest == QUEST_NOT_STARTED)
                 {
-                    if (one_in_(20))
+                    if (one_in_(8))
                     {
                         humanOrElf = one_in_(2) ?
                                     R_IDX_ALERT_HUMAN_THRALL :
