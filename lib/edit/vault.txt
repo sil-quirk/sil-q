@@ -65,8 +65,8 @@
 #     H - silent watcher
 #     o - orc champion
 #     O - orc captain
-#     z - slave
-#     Z - orc slavemaster
+#     z - thrall
+#     Z - orc slavedriver
 #     f - cat warrior
 #     F - cat assassin
 #     t - cave troll
@@ -503,7 +503,7 @@ D:$.......$
 D:$$$$$$$$$
 
 
-N:56:Slave pit 1
+N:56:Thrall pit 1
 X:6:2:1
 F:SURFACE | LIGHT
 D:#####$$$#####
@@ -521,7 +521,7 @@ D:#z.z#...#z.z#
 D:#####$$$#####
 
 
-N:57:Slave pit 2
+N:57:Thrall pit 2
 X:6:2:1
 F:SURFACE | LIGHT
 D:#####$$$#####
@@ -539,7 +539,7 @@ D:#z.7.....7.z#
 D:#####$$$#####
 
 
-N:58:Slave pit 3
+N:58:Thrall pit 3
 X:6:2:1
 F:SURFACE | LIGHT
 D:$$#########$$

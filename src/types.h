@@ -1047,7 +1047,7 @@ struct player_type
     byte oath_type; /* which oath the player has chosen to keep */
     byte oaths_broken; /* which possible oaths the player has broken */
 
-    byte slave_quest;
+    byte thrall_quest;
 
     s32b unused2; // Room for expansion without breaking savefiles
     s32b unused3; // Room for expansion without breaking savefiles

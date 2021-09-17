@@ -79,7 +79,7 @@ void reward_player_for_quest(cptr m_name, unsigned int quest_index)
             msg_format("%^s murmurs the song of staunching.", m_name);
             set_cut(0);
             hp_player(50, TRUE, TRUE);
-            p_ptr->slave_quest = QUEST_COMPLETE;
+            p_ptr->thrall_quest = QUEST_COMPLETE;
             return;
         }
     }
@@ -92,17 +92,17 @@ void reward_player_for_quest(cptr m_name, unsigned int quest_index)
         msg_format("%^s gives you a ragged herb.", m_name);
         object_prep(&herb, O_IDX_HERB_RAGE);
         give_player_item(&herb);
-        p_ptr->slave_quest = QUEST_COMPLETE;
+        p_ptr->thrall_quest = QUEST_COMPLETE;
         break;
     case 2:
         msg_format("%^s gives you a ragged herb.", m_name);
         object_prep(&herb, O_IDX_HERB_TERROR);
         give_player_item(&herb);
-        p_ptr->slave_quest = QUEST_COMPLETE;
+        p_ptr->thrall_quest = QUEST_COMPLETE;
         break;
     default:
         msg_format("%^s tells you about some passages a little way off.", m_name);
-        p_ptr->slave_quest = QUEST_REWARD_MAP;
+        p_ptr->thrall_quest = QUEST_REWARD_MAP;
     }
 }
 
@@ -113,7 +113,7 @@ void do_quest(monster_type* m_ptr)
 {
     char m_name[80];
     int item;
-    unsigned int quest_index = m_ptr->r_idx - R_IDX_ALERT_HUMAN_SLAVE;
+    unsigned int quest_index = m_ptr->r_idx - R_IDX_ALERT_HUMAN_THRALL;
 
     if (quest_index >= QUEST_TYPES)
     {
@@ -121,13 +121,13 @@ void do_quest(monster_type* m_ptr)
         return;
     }
 
-    cptr q = "Give slave which item? ";
+    cptr q = "Give thrall which item? ";
     cptr s = quest_requirement[quest_index];
 
     /* Get the monster name */
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 
-    if (p_ptr->slave_quest > QUEST_GIVER_PRESENT)
+    if (p_ptr->thrall_quest > QUEST_GIVER_PRESENT)
     {
         msg_format("%^s thanks you again.", m_name);
         return;
@@ -374,8 +374,8 @@ void set_alertness(monster_type* m_ptr, int alertness)
     if (m_ptr->alertness == alertness)
         return;
 
-    // Can't wake up non-alert slaves
-    if (m_ptr->r_idx == R_IDX_HUMAN_SLAVE || m_ptr->r_idx == R_IDX_ELF_SLAVE)
+    // Can't wake up non-alert thralls
+    if (m_ptr->r_idx == R_IDX_HUMAN_THRALL || m_ptr->r_idx == R_IDX_ELF_THRALL)
         return;
 
     // cap the alertness value
@@ -3989,8 +3989,8 @@ void py_attack_aux(int y, int x, int attack_type)
     {
         if (attack_type == ATT_MAIN)
         {
-            if (m_ptr->r_idx == R_IDX_ALERT_HUMAN_SLAVE ||
-                m_ptr->r_idx == R_IDX_ALERT_ELF_SLAVE)
+            if (m_ptr->r_idx == R_IDX_ALERT_HUMAN_THRALL ||
+                m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
             {
                 do_quest(m_ptr);
             }

@@ -872,7 +872,7 @@ void self_knowledge(void)
         i++;
     }
 
-    if (p_ptr->slave_quest == QUEST_REWARD_MAP)
+    if (p_ptr->thrall_quest == QUEST_REWARD_MAP)
     {
         strnfmt(s[i], 80, "You remember being told of some passages nearby");
         good[i] = TRUE;

@@ -557,19 +557,19 @@ R:11:0x88/0x91
 # Tanglethorn
 R:12:0x86/0x9D
 
-# Human Slave
+# Dejected Human Thrall
 R:13:0x88/0x81
 
-# Elf Slave
+# Dejected Elf Thrall
 R:14:0x88/0x82
 
-# Orc Slaver
+# Orc Thrallmaster
 R:15:0x88/0x80
 
-# Alert Human Slave
+# Alert Human Thrall
 R:16:0x8C/0x9A
 
-# Alert Elf Slave
+# Alert Elf Thrall
 R:17:0x8C/0x9B
 
 # Orc

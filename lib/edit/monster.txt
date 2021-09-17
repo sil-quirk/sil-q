@@ -339,7 +339,7 @@ D:'... great writhing, tangled brambles sprawled. Some had long stabbing
 D: thorns, some hooked barbs that rent like knives.'
 
 # Can't move from idx 13 for dungeon generation reasons
-N:13:Human slave
+N:13:Dejected human thrall
 W:1:0
 G:@:g
 I:2:8d4:0
@@ -350,7 +350,7 @@ D:A scarred and dirty man clad only in a loincloth. A metal collar
 D: is about his neck, and a long chain leads from it to the wall.
 
 # Can't move from idx 14 for dungeon generation reasons
-N:14:Elven slave
+N:14:Dejected elven thrall
 W:1:0
 G:@:g
 I:2:10d4:0
@@ -361,7 +361,7 @@ D:A chained elf slumps here, filthy hair hanging to his shoulders
 D: and eyes vacant. His back and arms bear the marks of a whip.
 
 # Can't move from idx 15 for dungeon generation reasons
-N:15:Orc slavemaster
+N:15:Orc thrallmaster
 W:1:0
 G:o:g
 I:2:6d4:0
@@ -375,7 +375,7 @@ D:He is one of Morgoth's grim mockeries of the firstborn.
 D: Clad in tattered leather, he wields a cudgel and a whip.
 
 # Can't move from idx 16 for dungeon generation reasons
-N:16:Alert human slave
+N:16:Alert human thrall
 W:1:0
 G:@:G
 I:2:8d4:0
@@ -386,7 +386,7 @@ D:A scarred and dirty man shackled to the wall with a long chain.
 D: His head is raised and he takes in his surroundings alertly.
 
 # Can't move from idx 17 for dungeon generation reasons
-N:17:Alert elven slave
+N:17:Alert elven thrall
 W:1:0
 G:@:G
 I:2:10d4:0

@@ -2728,16 +2728,16 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 'z':
             {
                 int humanOrElf
-                    = one_in_(2) ? R_IDX_HUMAN_SLAVE : R_IDX_ELF_SLAVE;
+                    = one_in_(2) ? R_IDX_HUMAN_THRALL : R_IDX_ELF_THRALL;
 
-                if (p_ptr->slave_quest == QUEST_NOT_STARTED)
+                if (p_ptr->thrall_quest == QUEST_NOT_STARTED)
                 {
                     if (one_in_(20))
                     {
                         humanOrElf = one_in_(2) ?
-                                    R_IDX_ALERT_HUMAN_SLAVE :
-                                    R_IDX_ALERT_ELF_SLAVE;
-                        p_ptr->slave_quest = QUEST_GIVER_PRESENT; 
+                                    R_IDX_ALERT_HUMAN_THRALL :
+                                    R_IDX_ALERT_ELF_THRALL;
+                        p_ptr->thrall_quest = QUEST_GIVER_PRESENT; 
                     }
                 }
 
@@ -2748,7 +2748,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             case 'Z':
             {
                 place_monster_one(
-                    y, x, R_IDX_ORC_SLAVEMASTER, TRUE, TRUE, NULL);
+                    y, x, R_IDX_ORC_THRALLMASTER, TRUE, TRUE, NULL);
                 break;
             }
 
@@ -4193,10 +4193,10 @@ void generate_cave(void)
         }
     }
 
-    if (p_ptr->slave_quest == QUEST_REWARD_MAP)
+    if (p_ptr->thrall_quest == QUEST_REWARD_MAP)
     {
-        msg_print("You remember the slave told you of the passages here.");
+        msg_print("You remember the thrall told you of the passages here.");
         map_area();
-        p_ptr->slave_quest = QUEST_COMPLETE;
+        p_ptr->thrall_quest = QUEST_COMPLETE;
     }
 }

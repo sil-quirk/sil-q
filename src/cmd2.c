@@ -293,10 +293,10 @@ void do_cmd_go_up(void)
     /* New depth */
     p_ptr->depth = new;
 
-    /* Reset slave quest */
-    if (p_ptr->slave_quest == QUEST_GIVER_PRESENT)
+    /* Reset thrall quest */
+    if (p_ptr->thrall_quest == QUEST_GIVER_PRESENT)
     {
-        p_ptr->slave_quest = QUEST_NOT_STARTED;
+        p_ptr->thrall_quest = QUEST_NOT_STARTED;
     }
 
     // another staircase has been used...
@@ -446,10 +446,10 @@ void do_cmd_go_down(void)
     /* New depth */
     p_ptr->depth = new;
 
-    /* Reset slave quest */
-    if (p_ptr->slave_quest == QUEST_GIVER_PRESENT)
+    /* Reset thrall quest */
+    if (p_ptr->thrall_quest == QUEST_GIVER_PRESENT)
     {
-        p_ptr->slave_quest = QUEST_NOT_STARTED;
+        p_ptr->thrall_quest = QUEST_NOT_STARTED;
     }
 
     // another staircase has been used...

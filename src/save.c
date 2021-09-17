@@ -949,7 +949,7 @@ static void wr_extra(void)
 
     wr_byte(p_ptr->oath_type);
     wr_byte(p_ptr->oaths_broken);
-    wr_byte(p_ptr->slave_quest);
+    wr_byte(p_ptr->thrall_quest);
 
     wr_s32b(p_ptr->unused2);
     wr_s32b(p_ptr->unused3);

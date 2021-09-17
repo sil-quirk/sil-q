@@ -188,11 +188,11 @@
  * Locations of various monsters in the monster.txt file
  */
 
-#define R_IDX_HUMAN_SLAVE 13
-#define R_IDX_ELF_SLAVE 14
-#define R_IDX_ORC_SLAVEMASTER 15
-#define R_IDX_ALERT_HUMAN_SLAVE 16
-#define R_IDX_ALERT_ELF_SLAVE 17
+#define R_IDX_HUMAN_THRALL 13
+#define R_IDX_ELF_THRALL 14
+#define R_IDX_ORC_THRALLMASTER 15
+#define R_IDX_ALERT_HUMAN_THRALL 16
+#define R_IDX_ALERT_ELF_THRALL 17
 #define R_IDX_SPIDER_HATCHLING 32
 #define R_IDX_ORC_ARCHER 51
 #define R_IDX_ORC_CHAMPION 81
@@ -3344,7 +3344,7 @@
 #define OATH_IRON 3
 
 /*
- * States for the slave quest
+ * States for the thrall quest
  */
 #define QUEST_NOT_STARTED 0
 #define QUEST_GIVER_PRESENT 1
