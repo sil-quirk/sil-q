@@ -446,10 +446,10 @@ void self_knowledge(void)
         i++;
     }
 
-    if (f3 & TR3_MEDIC)
+    if (medic > 0)
     {
         strnfmt(s[i], 80, "You gain extra health from healing items");
-        strnfmt(t[i], 80, "(%d%%)", 20 * medic);
+        strnfmt(t[i], 80, "(%d%%)", 33 * medic);
         good[i] = TRUE;
         i++;
     }

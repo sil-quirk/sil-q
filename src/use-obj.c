@@ -27,7 +27,7 @@ int medicine_bonus(int original)
             bonus++;
     } 
 
-    return (original / 5) * bonus;
+    return (original / 3) * bonus;
 }
 
 static bool eat_food(object_type* o_ptr, bool* ident)
