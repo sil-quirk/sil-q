@@ -369,13 +369,11 @@ void set_alertness(monster_type* m_ptr, int alertness)
     char m_name[80];
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
     bool redisplay = FALSE;
+    bool is_non_alert_thrall =
+        m_ptr->r_idx == R_IDX_HUMAN_THRALL || m_ptr->r_idx == R_IDX_ELF_THRALL;
 
     // Nothing to be done...
     if (m_ptr->alertness == alertness)
-        return;
-
-    // Can't wake up non-alert thralls
-    if (m_ptr->r_idx == R_IDX_HUMAN_THRALL || m_ptr->r_idx == R_IDX_ELF_THRALL)
         return;
 
     // cap the alertness value
@@ -383,6 +381,12 @@ void set_alertness(monster_type* m_ptr, int alertness)
         alertness = ALERTNESS_MIN;
     if (alertness > ALERTNESS_MAX)
         alertness = ALERTNESS_MAX;
+
+    // Can't alert non-alert thralls so cap alertness lower for them
+    if (is_non_alert_thrall && alertness >= ALERTNESS_UNWARY)
+    {
+        alertness = ALERTNESS_UNWARY;
+    }
 
     /* Get the monster name */
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
