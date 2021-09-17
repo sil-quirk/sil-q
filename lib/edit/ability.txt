@@ -660,8 +660,8 @@ T:39:0:99  # Light Source
 N:148:Song of Slaying
 I:7:8:6
 P:7/1:7/3
-D:Critical hits in melee kill enemies outright if they have
-D: health less than your Song score.
+D:Critical hits in melee kill enemies outright instead of doing damage
+D: if the enemy has health less than or equal to twice your Song score.
 T:22:0:99  # Polearms and axes
 T:23:0:99  # Swords
 

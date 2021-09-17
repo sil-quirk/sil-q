@@ -2026,7 +2026,7 @@ int ability_bonus(int skilltype, int abilitynum)
         }
         case SNG_SLAYING:
         {
-            bonus = skill;
+            bonus = skill * 2;
             break;
         }
         case SNG_LORIEN:

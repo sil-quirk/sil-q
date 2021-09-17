@@ -4323,14 +4323,10 @@ void py_attack_aux(int y, int x, int attack_type)
                 do_knock_back = TRUE;
             }
 
-            // damage, check for death
-            fatal_blow = mon_take_hit(m_idx, net_dam, NULL, -1);
-            p_ptr->vengeance = 0;
-
-            if (singing(SNG_SLAYING) && !fatal_blow && crit_bonus_dice > 0)
+            if (singing(SNG_SLAYING) && crit_bonus_dice > 0)
             {
                 int kill_threshold = ability_bonus(S_SNG, SNG_SLAYING);
-                if (m_ptr->hp < kill_threshold)
+                if (m_ptr->hp <= kill_threshold)
                 {
                     msg_format("Your song soars as %s falls before you.", m_name);
 
@@ -4355,6 +4351,14 @@ void py_attack_aux(int y, int x, int attack_type)
                     
                     fatal_blow = TRUE;
                 }
+            }
+
+            // Take hit only if monster has not been killed by an ability already
+            if (!fatal_blow)
+            {
+                // damage, check for death
+                fatal_blow = mon_take_hit(m_idx, net_dam, NULL, -1);
+                p_ptr->vengeance = 0;
             }
 
             update_combat_rolls2(total_dice, mds, dam, r_ptr->pd, r_ptr->ps,
