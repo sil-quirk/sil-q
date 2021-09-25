@@ -2531,11 +2531,15 @@ bool project_los_not_player(int y1, int x1, int dd, int ds, int dif, int typ)
  *
  * Note that affected monsters are NOT auto-tracked by this usage.
  */
-bool project_los(int typ, int dd, int ds, int dif)
+bool project_los(int typ, int dd, int ds, int dif, bool silent)
 {
     int i, x, y;
 
     u32b flg = PROJECT_JUMP | PROJECT_KILL | PROJECT_HIDE;
+    if (silent)
+    {
+        flg |= PROJECT_SILENT;
+    }
 
     bool obvious = FALSE;
 
@@ -2684,12 +2688,12 @@ void spread_cave_temp(int y1, int x1, int range, bool room)
 /*
  * Slow monsters
  */
-bool slow_monsters(int power) { return (project_los(GF_SLOW, 0, 0, power)); }
+bool slow_monsters(int power) { return (project_los(GF_SLOW, 0, 0, power, FALSE)); }
 
 /*
  * Sleep monsters
  */
-bool sleep_monsters(int power) { return (project_los(GF_SLEEP, 0, 0, power)); }
+bool sleep_monsters(int power) { return (project_los(GF_SLEEP, 0, 0, power, FALSE)); }
 
 /*
  * Destroy traps

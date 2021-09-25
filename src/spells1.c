@@ -2267,7 +2267,7 @@ static bool project_m(
     int who, int y, int x, int dd, int ds, int dif, int typ, u32b flg)
 {
     int tmp;
-    bool suppress_message = FALSE;
+    bool suppress_message = !!(flg & PROJECT_SILENT);
 
     monster_type* m_ptr;
     monster_race* r_ptr;

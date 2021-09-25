@@ -4399,8 +4399,8 @@ void py_attack_aux(int y, int x, int attack_type)
                 if (p_ptr->active_ability[S_WIL][WIL_FORMIDABLE])
                 {
                     int will_score = p_ptr->skill_use[S_WIL];
-                    if (project_los(GF_FEAR, 0, 0, will_score))
-                        msg_print("Your foes flee before you!");
+                    if (project_los(GF_FEAR, 0, 0, will_score, TRUE))
+                        msg_print("Your foes are daunted!");
                 }
 
                 // stop attacking

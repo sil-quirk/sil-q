@@ -1411,7 +1411,7 @@
  *   ITEM:  Affect each object in the "blast area" in some way
  *   KILL:  Affect each monster in the "blast area" in some way
  *   PLAY:  Explicitly affect the player
- *   SAFE:  Hack -- do not affect monsters of caster's type
+ *   SILENT: Do not print any messages from affected monsters
  *   HIDE:  Hack -- disable graphical effects of projection
  *   STOP:  Stop as soon as we hit a monster
  *   JUMP:  Jump directly to the target location
@@ -1440,7 +1440,7 @@
 #define PROJECT_ITEM 0x00001000
 #define PROJECT_KILL 0x00002000
 #define PROJECT_PLAY 0x00004000
-#define PROJECT_SAFE 0x00008000 /*(unused)*/
+#define PROJECT_SILENT 0x00008000
 #define PROJECT_XXX6 0x00010000
 #define PROJECT_XXX7 0x00020000
 

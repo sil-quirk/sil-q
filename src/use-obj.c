@@ -558,7 +558,7 @@ static bool use_staff(object_type* o_ptr, bool* ident)
 
     case SV_STAFF_MAJESTY:
     {
-        if (project_los(GF_FEAR, 0, 0, will_score))
+        if (project_los(GF_FEAR, 0, 0, will_score, FALSE))
             *ident = TRUE;
         break;
     }
@@ -593,7 +593,7 @@ static bool use_staff(object_type* o_ptr, bool* ident)
 
     case SV_STAFF_DISMAY:
     {
-        if (project_los(GF_CONFUSION, 0, 0, 5 + will_score / 2))
+        if (project_los(GF_CONFUSION, 0, 0, 5 + will_score / 2, FALSE))
             *ident = TRUE;
         break;
     }

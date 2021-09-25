@@ -841,7 +841,7 @@ extern bool project_arc(int who, int rad, int y0, int x0, int y1, int x1,
     int dd, int ds, int dif, int typ, u32b flg, int degrees);
 extern bool project_los_not_player(
     int y1, int x1, int dd, int ds, int dif, int typ);
-extern bool project_los(int typ, int dd, int ds, int dif);
+extern bool project_los(int typ, int dd, int ds, int dif, bool silent);
 extern void clear_temp_array(void);
 extern void cave_temp_mark(int y, int x, bool room);
 extern void spread_cave_temp(int y1, int x1, int range, bool room);
