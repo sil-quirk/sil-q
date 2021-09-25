@@ -66,7 +66,7 @@
 #     o - orc champion
 #     O - orc captain
 #     z - thrall
-#     Z - orc slavedriver
+#     Z - orc thrallmaster
 #     f - cat warrior
 #     F - cat assassin
 #     t - cave troll

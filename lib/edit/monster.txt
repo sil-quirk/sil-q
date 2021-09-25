@@ -693,7 +693,7 @@ I:2:2d4:0
 A:10:2:3:2
 P:[+7,4d4]
 B:BITE:HURT:(+8,2d7)
-F:SERPENT | RAND_50
+F:SERPENT | RES_POIS | RAND_50
 S:SPELL_PCT_20 | POW_2
 S:BRTH_POIS
 D:A snake the length of a man, with hard green scales.
@@ -911,7 +911,7 @@ F:RAND_25 | RAND_50 | FRIEND | MULTIPLY
 F:UNDEAD | HURT_LITE | RES_COLD | TERRITORIAL
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
 D:A flickering darkness, spreading through the halls.
-D: From its midst, you hear faint sounds (voices?)
+D: From its midst, you hear faint voices
 D: yearning, beckoning.
 
 
