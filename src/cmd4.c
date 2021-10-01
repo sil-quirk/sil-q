@@ -1007,8 +1007,8 @@ char* oath_desc2[] = {
 char* oath_reward[] = {
     "Nothing",
     "+1 Grace",
-    "+2 Strength",
-    "+3 Constitution",
+    "+1 Strength",
+    "+2 Constitution",
 };
 
 bool oath_invalid(int i) { return ((p_ptr->oaths_broken & oath_flag[i]) > 0); }
@@ -1033,7 +1033,7 @@ int oath_menu(int* highlight)
     // clear the description area
     wipe_screen_from(COL_DESCRIPTION);
 
-    // list the enemies
+    // list the oaths
     for (i = 1; i < OATH_TYPES; i++)
     {
         if (!oath_invalid(i))
