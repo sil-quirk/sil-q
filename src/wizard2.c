@@ -1238,6 +1238,11 @@ static void do_cmd_wiz_tile_test(void)
     cave_feat[3][5] = FEAT_WALL_EXTRA;
     cave_feat[3][6] = FEAT_WALL_PERM;
 
+    cave_feat[3][7] = FEAT_LESS;
+    cave_feat[3][8] = FEAT_MORE;
+    cave_feat[3][9] = FEAT_LESS_SHAFT;
+    cave_feat[3][10] = FEAT_MORE_SHAFT;
+
     for (int i = 2; i < 7; ++i)
         cave_info[3][i] = CAVE_WALL;
 
