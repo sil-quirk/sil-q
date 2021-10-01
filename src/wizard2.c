@@ -1213,6 +1213,7 @@ static void do_cmd_wiz_tile_test(void)
     int item_index = 1;
     int monster_index = 1;
     int artefact_index = 1;
+    int forge_count = FEAT_FORGE_TAIL - FEAT_FORGE_HEAD + 1;
 
     /* Accept request */
     msg_format("Clearing level to display tiles");
@@ -1225,6 +1226,20 @@ static void do_cmd_wiz_tile_test(void)
             cave_info[y][x] = CAVE_GLOW | CAVE_ROOM | CAVE_MARK;
         }
     }
+
+    for (int i = 0; i < forge_count; ++i)
+    {
+        cave_feat[2][2 + i] = FEAT_FORGE_HEAD + i;
+    }
+
+    cave_feat[3][2] = FEAT_SECRET;
+    cave_feat[3][3] = FEAT_RUBBLE;
+    cave_feat[3][4] = FEAT_QUARTZ;
+    cave_feat[3][5] = FEAT_WALL_EXTRA;
+    cave_feat[3][6] = FEAT_WALL_PERM;
+
+    for (int i = 2; i < 7; ++i)
+        cave_info[3][i] = CAVE_WALL;
 
     for (int i = 1; i < mon_max; i++)
     {
@@ -1261,7 +1276,7 @@ static void do_cmd_wiz_tile_test(void)
         {
             item_index++;
 
-            int y = item_index / 30 + 2;
+            int y = item_index / 30 + 5;
             int x = item_index % 30 + 2;
 
             wiz_create_item_aux(o_idx, y, x);
@@ -1277,7 +1292,7 @@ static void do_cmd_wiz_tile_test(void)
             r_ptr->light = 0;
             monster_index++;
 
-            int y = monster_index / 30 + 10;
+            int y = monster_index / 30 + 13;
             int x = monster_index % 30 + 2;
 
             place_monster_one(y, x, r_idx, FALSE, FALSE, NULL);
@@ -1292,7 +1307,7 @@ static void do_cmd_wiz_tile_test(void)
         {
             artefact_index++;
 
-            int y = artefact_index / 30 + 16;
+            int y = artefact_index / 30 + 19;
             int x = artefact_index % 30 + 2;
 
             create_chosen_artefact(a_idx, y, x, FALSE);
@@ -1310,7 +1325,7 @@ static void do_cmd_wiz_tile_test(void)
 
     map_area();
 
-    teleport_player_to(8, 16);
+    teleport_player_to(14, 16);
 
     /* Fully update the visuals */
     p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS);
