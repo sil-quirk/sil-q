@@ -5424,7 +5424,7 @@ void sing_song_of_delvings(int score)
     char* delvings;
     C_MAKE(delvings, y_range * x_range * 4, char);
 
-    for (y = min_y; y < max_x; ++y)
+    for (y = min_y; y < max_y; ++y)
     {
         for (x = min_x; x < max_x; ++x)
         {
