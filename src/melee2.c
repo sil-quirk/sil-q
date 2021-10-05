@@ -4854,11 +4854,11 @@ static void process_monster(monster_type* m_ptr)
     // first work out if the song of mastery stops the monster's turn
     if (singing(SNG_MASTERY))
     {
-        if (skill_check(PLAYER, ability_bonus(S_SNG, SNG_MASTERY),
-                monster_skill(m_ptr, S_WIL) + 7
-                    + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx),
-                m_ptr)
-            > 0)
+        int player_skill = damroll(2, 10) + ability_bonus(S_SNG, SNG_MASTERY);
+        int enemy_skill = damroll(2, 10) + monster_skill(m_ptr, S_WIL)
+                    + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx);
+
+        if (skill_check(PLAYER, player_skill, enemy_skill, m_ptr) > 0)
         {
             // make sure the monster doesn't do any free attacks before its next
             // turn
