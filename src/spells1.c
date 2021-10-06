@@ -5731,7 +5731,7 @@ void sing(void)
         }
         case SNG_MASTERY:
         {
-            cost += 1;
+            cost += 2;
             break;
         }
         }
