@@ -991,7 +991,7 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
             char o_name[80];
 
             /* Carry the object */
-            slot = inven_carry(i_ptr);
+            slot = inven_carry(i_ptr, TRUE);
 
             /* Get the object again */
             i_ptr = &inventory[slot];
@@ -1937,7 +1937,7 @@ void finish_fletching(int turns_left)
         inven_item_optimize(p_ptr->fletch_item);
 
         /* Add new arrows */
-        inven_carry(i_ptr);
+        inven_carry(i_ptr, TRUE);
     }
     else
     {

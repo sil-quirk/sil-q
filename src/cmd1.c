@@ -42,7 +42,7 @@ char* quest_outcome[] = {
 void give_player_item(object_type * o_ptr)
 {
     char o_name[80];
-    int slot = inven_carry(o_ptr);
+    int slot = inven_carry(o_ptr, TRUE);
 
     /* reset the pointer to the new location to pick up the count of the item
        in the inventory */

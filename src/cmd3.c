@@ -1154,7 +1154,7 @@ void prise_silmaril(void)
             object_prep(o_ptr, lookup_kind(TV_LIGHT, SV_LIGHT_SILMARIL));
 
             // Get it
-            slot = inven_carry(o_ptr);
+            slot = inven_carry(o_ptr, FALSE);
 
             /* Get the object again */
             o_ptr = &inventory[slot];
@@ -1718,7 +1718,7 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
 
             /* Carry or drop */
             if (item >= 0)
-                item = inven_carry(i_ptr);
+                item = inven_carry(i_ptr, FALSE);
             else
                 drop_near(i_ptr, 0, p_ptr->py, p_ptr->px);
         }

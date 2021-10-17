@@ -4829,7 +4829,7 @@ bool inven_carry_okay(const object_type* o_ptr)
  * Note that this code must remove any location/stack information
  * from the object once it is placed into the inventory.
  */
-s16b inven_carry(object_type* o_ptr)
+s16b inven_carry(object_type* o_ptr, bool combine_ammo)
 {
     int i = 1; // default value to soothe compilation warnings
     int j, k;
@@ -4842,7 +4842,7 @@ s16b inven_carry(object_type* o_ptr)
         return (-1);
 
     // Check for combining in quiver first
-    if (o_ptr->tval == TV_ARROW)
+    if (o_ptr->tval == TV_ARROW && combine_ammo)
     {
         int empty_quiver = 0;
 
@@ -5194,7 +5194,7 @@ s16b inven_takeoff(int item, int amt)
     inven_item_optimize(item);
 
     /* Carry the object */
-    slot = inven_carry(i_ptr);
+    slot = inven_carry(i_ptr, FALSE);
 
     /* Message */
     msg_format("%s %s (%c).", act, o_name, index_to_label(slot));

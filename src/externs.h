@@ -708,7 +708,7 @@ extern void floor_item_increase(int item, int num);
 extern void floor_item_optimize(int item);
 extern void check_pack_overflow(void);
 extern bool inven_carry_okay(const object_type* o_ptr);
-extern s16b inven_carry(object_type* o_ptr);
+extern s16b inven_carry(object_type* o_ptr, bool combine_ammo);
 extern s16b inven_takeoff(int item, int amt);
 extern void inven_drop(int item, int amt);
 extern void combine_pack(void);

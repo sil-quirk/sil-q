@@ -620,8 +620,10 @@ static void player_outfit(void)
             i_ptr->timeout = 2000;
         }
 
+        object_known(i_ptr);
+
         /*put it in the inventory*/
-        inven_slot = inven_carry(i_ptr);
+        inven_slot = inven_carry(i_ptr, TRUE);
 
         /*if player can wield an item, do so*/
         if (slot >= INVEN_WIELD)
@@ -665,11 +667,8 @@ static void player_outfit(void)
         i_ptr->number = 1;
         i_ptr->pval = -20;
 
-        // object_aware(i_ptr);
-        // object_known(i_ptr);
-
         /*put it in the inventory*/
-        inven_slot = inven_carry(i_ptr);
+        inven_slot = inven_carry(i_ptr, TRUE);
     }
 
     /* Recalculate bonuses */
