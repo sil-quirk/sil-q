@@ -459,18 +459,7 @@ static errr rd_item(object_type* o_ptr)
         /* Hack -- extract the "broken" flag */
         if (!e_ptr->cost)
             o_ptr->ident |= (IDENT_BROKEN);
-
-        /* Hack -- enforce legal pval */
-        if (e_ptr->flags1 & (TR1_PVAL_MASK))
-        {
-            /* Force a meaningful pval */
-            if (!o_ptr->pval)
-                o_ptr->pval = 1;
-        }
     }
-
-    /* Used to add back boosted damage dice and sides */
-    /* No longer needed as we don't repair non-artefacts anymore */
 
     /* Success */
     return (0);
