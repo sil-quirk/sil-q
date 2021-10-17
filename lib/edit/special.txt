@@ -519,8 +519,8 @@ F:RES_CONFU | RES_STUN | RES_HALLU
 N:75:of Grace
 W:0:1:0:3000
 C:0:0:0:0:0:0:1
-T:32:0:99
-T:39:8:8
+T:32:8:8
+T:39:2:2
 F:GRA
 
 ###
