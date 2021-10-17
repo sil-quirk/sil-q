@@ -1493,18 +1493,14 @@ int abilities_menu2(int skilltype, int* highlight)
     {
         *highlight = (int)ch - 'a' + 1;
 
-        abilities_menu2(skilltype, highlight);
-
-        return (*highlight);
+        return abilities_menu2(skilltype, highlight);
     }
 
     if ((ch >= 'A') && (ch <= (char)'A' + options - 1))
     {
         *highlight = (int)ch - 'A' + 1;
 
-        abilities_menu2(skilltype, highlight);
-
-        return (*highlight);
+        return abilities_menu2(skilltype, highlight);
     }
 
     if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
