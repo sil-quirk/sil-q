@@ -574,15 +574,13 @@ N:87:of the Scarlet Heart
 W:0:4:0:1000
 C:0:0:0:0:0:0:0
 T:35:0:1
-F:RES_BLEED | SUST_CON
-
+F:RES_BLEED | SUST_CON | IGNORE_ALL
 
 N:88:of the Golden Flower
 W:0:4:0:1000
 C:0:0:0:0:0:0:0
 T:35:0:1
-F:RES_FEAR | SUST_GRA
-
+F:RES_FEAR | SUST_GRA | IGNORE_ALL
 
 ##### Bows #####
 
