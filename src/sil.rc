@@ -53,10 +53,6 @@ ANGBAND MENU
 		MENUITEM "&Map", 420
 	}
 
-	POPUP "&Help"
-	{
-		MENUITEM "&Contents", 901
-	}
 }
 
 ANGBAND ICON "sil.ico"
