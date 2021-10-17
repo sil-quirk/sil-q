@@ -1722,6 +1722,9 @@ D: need to try multiple times in order to pick the lock. Alternatively,
 D: you could try bashing down the door by holding down Control while you
 D: move into it (or press (/) before moving). Some doors are stuck, in
 D: which case bashing them down is the only way past.
+D:
+D: (Note: if you have vi keys enabled, Control behaves differently -
+D: use the / key instead.)
 
 
 N:453:& Note~
@@ -1848,9 +1851,9 @@ P:0:0d0:0:0d0
 F:EASY_KNOW
 D:You have found a shortsword. Note that it is listed as a Shortsword
 D: (+0, 1d7) [+1]. The numbers given in round brackets are attack values
-D: and those in square brackets are defence. This shortsword gives no
+D: and those in square brackets are evasion. This shortsword gives no
 D: bonus to hit, does a single seven sided die of damage, and gives a
-D: +1 bonus to evasion. In contrast, your curved sword has -1 to attack
+D: +1 bonus to evasion. In contrast, your curved sword has -1 to accuracy
 D: and does two five sided dice of damage, and the same bonus to evasion.
 D:                                 
 D: This shortsword is also marked {special}. This means that it bears some
@@ -1865,7 +1868,7 @@ W:0:1:1:0
 P:0:0d0:0:0d0
 F:EASY_KNOW
 D:Here is a set of Gauntlets (-1) [+0, 1d1]. This means that they
-D: give a penalty of -1 to your attacks, they have no bonus to evasion
+D: give a penalty of -1 to your accuracy, they have no bonus to evasion
 D: and they absorb 1 point of damage (a one sided die worth...).
 D: In contrast, your Leather Armour [-1, 1d4] has a -1 penalty to evasion
 D: and absorbs one four sided die of damage.
@@ -1883,7 +1886,7 @@ P:0:0d0:0:0d0
 F:EASY_KNOW
 D:If you were wielding the shortsword, you would have noticed it glow
 D: brightly in the presence of the orc, indicating to the perceptive player
-D: that it is bears an enchantment against orcs. This means that it does an
+D: that it bears an enchantment against orcs. This means that it does an
 D: extra die of damage against orcs, making its 1d7 into 2d7: a large bonus.
 
 
@@ -1898,7 +1901,9 @@ D: caltrop trap which temporarily slows you. Like most traps, it can be
 D: disarmed by holding down Control while attempting to move into it
 D: (or pressing (/) before moving). This also has a chance of triggering the trap.
 D: Since it is not too dangerous, try to disarm it until you succeed.
-
+D:
+D: (Note: if you have vi keys enabled, Control behaves differently -
+D: use the / key instead.)
 
 N:466:& Note~
 G:~:W1
@@ -1973,6 +1978,8 @@ D:To have a look at your character sheet, press (Escape) to bring up the
 D: main menu then choose the second option. This will show
 D: all of your Skills and much more. To exit just press (Escape)
 D: (which exits any menu or screen in Sil).
+D: An alternative way to look at your character sheet is to press the @
+D: key.
 
 
 N:472:& Note~
