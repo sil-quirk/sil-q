@@ -1975,19 +1975,23 @@ void display_equip(void)
         Term_putstr(0, i - INVEN_WIELD, 3, attr, tmp_val);
 
         /* Display the symbol */
-        if (!use_graphics && !o_ptr->tval)
+        if (!o_ptr->tval)
         {
             /* object_char() for an empty slot gives '\0'.  Use ' ' instead. */
             Term_putch(3, i - INVEN_WIELD, attr, ' ');
+            if (use_bigtile)
+            {
+                Term_putch(4, i - INVEN_WIELD, attr, ' ');
+            }
         }
         else
         {
             Term_putch(
                 3, i - INVEN_WIELD, object_attr(o_ptr), object_char(o_ptr));
-        }
-        if (use_bigtile)
-        {
-            Term_putch(4, i - INVEN_WIELD, 255, -1);
+            if (use_bigtile)
+            {
+                Term_putch(4, i - INVEN_WIELD, 255, -1);
+            }
         }
 
         /* Obtain an item description */
