@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
+		076939FF276F9BC400BD6EBD /* angband.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = angband.h; path = src/angband.h; sourceTree = "<group>"; };
 		A903FB5E1A18EA8600560F2C /* main-cocoa.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = "main-cocoa.m"; path = "src/main-cocoa.m"; sourceTree = "<group>"; };
 		A9BB7A3B087416CC00E8B486 /* birth.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = birth.c; path = src/birth.c; sourceTree = "<group>"; };
 		A9BB7A3C087416CC00E8B486 /* cave.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; lineEnding = 0; name = cave.c; path = src/cave.c; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.c; };
@@ -32,7 +33,6 @@
 		A9BB7A50087416CD00E8B486 /* init1.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; lineEnding = 0; name = init1.c; path = src/init1.c; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.c; };
 		A9BB7A51087416CD00E8B486 /* init2.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = init2.c; path = src/init2.c; sourceTree = "<group>"; };
 		A9BB7A52087416CD00E8B486 /* load.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = load.c; path = src/load.c; sourceTree = "<group>"; };
-		A9BB7A53087416CD00E8B486 /* main-crb.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; lineEnding = 0; name = "main-crb.c"; path = "src/main-crb.c"; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.c; };
 		A9BB7A55087416CD00E8B486 /* main.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = main.c; path = src/main.c; sourceTree = "<group>"; };
 		A9BB7A56087416CD00E8B486 /* main.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = main.h; path = src/main.h; sourceTree = "<group>"; };
 		A9BB7A57087416CD00E8B486 /* melee1.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; lineEnding = 0; name = melee1.c; path = src/melee1.c; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.c; };
@@ -68,15 +68,14 @@
 		A9BB7A77087416CD00E8B486 /* z-util.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = "z-util.h"; path = "src/z-util.h"; sourceTree = "<group>"; };
 		A9BB7A78087416CD00E8B486 /* z-virt.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = "z-virt.c"; path = "src/z-virt.c"; sourceTree = "<group>"; };
 		A9BB7A79087416CD00E8B486 /* z-virt.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = "z-virt.h"; path = "src/z-virt.h"; sourceTree = "<group>"; };
-		A9C1B4C91838DDF3000AF7A3 /* automaton.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; lineEnding = 0; name = automaton.c; path = src/automaton.c; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.c; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		A9BB7A2A0874154C00E8B486 = {
 			isa = PBXGroup;
 			children = (
+				076939FF276F9BC400BD6EBD /* angband.h */,
 				A9BB7A3B087416CC00E8B486 /* birth.c */,
-				A9C1B4C91838DDF3000AF7A3 /* automaton.c */,
 				A9BB7A3C087416CC00E8B486 /* cave.c */,
 				A9BB7A3D087416CC00E8B486 /* cmd1.c */,
 				A9BB7A3E087416CC00E8B486 /* cmd2.c */,
@@ -101,7 +100,6 @@
 				A9BB7A51087416CD00E8B486 /* init2.c */,
 				A9BB7A52087416CD00E8B486 /* load.c */,
 				A903FB5E1A18EA8600560F2C /* main-cocoa.m */,
-				A9BB7A53087416CD00E8B486 /* main-crb.c */,
 				A9BB7A55087416CD00E8B486 /* main.c */,
 				A9BB7A56087416CD00E8B486 /* main.h */,
 				A9BB7A57087416CD00E8B486 /* melee1.c */,
@@ -167,13 +165,10 @@
 			};
 			buildConfigurationList = A930C51A0BBFEDD800AE4611 /* Build configuration list for PBXProject "Sil" */;
 			compatibilityVersion = "Xcode 3.2";
-			developmentRegion = English;
+			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				English,
-				Japanese,
-				French,
-				German,
+				en,
 			);
 			mainGroup = A9BB7A2A0874154C00E8B486;
 			projectDirPath = "";
