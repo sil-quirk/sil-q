@@ -997,7 +997,7 @@ G:_:d
 I:55:2:0
 W:9:0:50:400
 P:0:0d0:0:0d0
-A:9/3
+A:6/4:12/2
 D:It reveals doors and traps in line of sight and may
 D: open or destroy them.
 
@@ -1007,7 +1007,7 @@ G:_:d
 I:55:3:0
 W:2:0:50:250
 P:0:0d0:0:0d0
-A:3/2:9/6
+A:3/2:9/4
 D:It lights up an area with a radius of 7 squares, plus the entire room
 D: if you are currently in one.  This stuns
 D: any light-sensitive creatures within the area of effect.
@@ -1046,7 +1046,7 @@ G:_:d
 I:55:8:0
 W:13:0:50:400
 P:0:0d0:0:0d0
-A:13/3
+A:13/6
 D:It shows you the whereabouts of all items on the level.
 
 
@@ -1055,7 +1055,7 @@ G:_:d
 I:55:9:0
 W:13:0:50:400
 P:0:0d0:0:0d0
-A:13/2
+A:6/4:14/2
 D:It shows you the whereabouts of all monsters on the level.
 
 
@@ -1064,7 +1064,7 @@ G:_:d
 I:55:10:0
 W:11:0:50:400
 P:0:0d0:0:0d0
-A:11/3:17/2
+A:8/3:15/2
 D:It causes a great weariness in all monsters in line of sight.
 
 
@@ -1073,7 +1073,7 @@ G:_:d
 I:55:11:0
 W:9:0:50:400
 P:0:0d0:0:0d0
-A:9/3
+A:8/3:15/2
 D:It causes fear in all monsters in line of sight.
 
 
@@ -1101,7 +1101,7 @@ G:_:d
 I:55:14:0
 W:13:0:50:400
 P:0:0d0:0:0d0
-A:13/3:21/2
+A:6/3:11/2
 D:It confuses all monsters in line of sight.
 
 
@@ -1110,7 +1110,7 @@ G:_:d
 I:55:16:0
 W:11:0:50:400
 P:0:0d0:0:0d0
-A:11/4
+A:11/12
 D:It allows you to partially recharge another staff.
 
 
@@ -1119,7 +1119,7 @@ G:_:d
 I:55:17:0
 W:7:0:50:0
 P:0:0d0:0:0d0
-A:3/3
+A:3/3:12/2
 D:It summons monsters to the stairs on the current level. 
 
 
