@@ -2244,9 +2244,9 @@ void anger_morgoth(int level)
         (&r_info[R_IDX_MORGOTH])->blow[0].dd = 7;
         (&r_info[R_IDX_MORGOTH])->wil = 30;
         (&r_info[R_IDX_MORGOTH])->per = 20;
+        (&r_info[R_IDX_MORGOTH])->evn = 25;
         break;
     case 3: // badly hurt
-        (&r_info[R_IDX_MORGOTH])->evn = 25;
         (&r_info[R_IDX_MORGOTH])->pd = 7;
         (&r_info[R_IDX_MORGOTH])->wil = 35;
         (&r_info[R_IDX_MORGOTH])->per = 25;

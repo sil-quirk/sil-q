@@ -2081,7 +2081,7 @@ N:223:Hithrauko
 W:22:2
 G:R:B1
 I:3:4d4:0
-A:10:9:3:16
+A:10:9:3:18
 P:[+17,4d4]
 B:ENGULF:HALLU:(+27,4d5)
 F:PASS_DOOR | INVISIBLE | RES_CRIT | RES_POIS
@@ -2150,11 +2150,11 @@ N:232:Unrelenting horror
 W:23:2
 G:H:G1
 I:1:100d4:0
-A:5:10:2:15
+A:5:10:2:20
 P:[+11,3d4]
 B:BITE:POISON:(+24,6d5)
 F:BASH_DOOR | REGENERATE | NO_FEAR
-S:SPELL_PCT_15
+S:SPELL_PCT_25
 S:SCARE
 D:You have no idea what could have created the creature
 D: that shambles towards you -- if creature is the right
@@ -2188,7 +2188,7 @@ N:234:Thuringwethil, the Vampire Messenger
 W:23:3
 G:v:r
 I:4:16d4:0
-A:10:15:7:16
+A:10:15:7:20
 P:[+30,1d4]
 B:CLAW:WOUND:(+35,3d7)
 B:BITE:LOSE_ALL:(+29,2d9)
@@ -2252,7 +2252,7 @@ N:243:Glaurung, the Deceiver
 W:24:3
 G:D:y1
 I:2:60d4:0
-A:20:10:0:23
+A:20:10:0:24
 P:[+16,2d4]
 B:CLAW:HURT:(+29,3d15)
 B:BITE:FIRE:(+24,2d25)
@@ -2296,8 +2296,14 @@ D: eyes.
 
 ##### 25 #####
 
-
 # Morgoth is a very special monster (thus the QUESTOR flag).
+# Values when angered:
+# Level,      Evasion, Armour, Attack, Damage,  Will, Perception
+# Starting,   20,      5d4,    20,     6d10,    25,   10
+# Decrowned,  22,      5d4,    20,     6d10,    25,   15
+# Hurt,       25,      5d4,    30,     7d10,    30,   20
+# Badly Hurt, 25,      7d4,    30,     7d10,    35,   25
+# Desperate,  30,      7d4,    40,     8d10,    40,   30
 
 N:251:Morgoth, Lord of Darkness
 W:25:1
