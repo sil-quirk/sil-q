@@ -114,6 +114,13 @@ void do_cmd_go_up(void)
         return;
     }
 
+    /* Ironman */
+    if (birth_ironman && (silmarils_possessed() == 0))
+    {
+        msg_print("You have vowed to not to return until you hold a Silmaril.");
+        return;
+    }
+
     if (chosen_oath(OATH_IRON) && !oath_invalid(OATH_IRON) &&
        (silmarils_possessed() == 0))
     {
@@ -128,13 +135,9 @@ void do_cmd_go_up(void)
         }
     }
 
-    p_ptr->oaths_broken |= OATH_IRON_FLAG;
-
-    /* Ironman */
-    if (birth_ironman && (silmarils_possessed() == 0))
+    if (silmarils_possessed() == 0)
     {
-        msg_print("You have vowed to not to return until you hold a Silmaril.");
-        return;
+        p_ptr->oaths_broken |= OATH_IRON_FLAG;
     }
 
     /* Hack -- take a turn */
