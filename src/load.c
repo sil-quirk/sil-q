@@ -953,6 +953,9 @@ static errr rd_extra(void)
     /* Current player turn */
     rd_s32b(&playerturn);
 
+    /* Min depth counter */
+    rd_s32b(&min_depth_counter);
+
     rd_byte(&tmp8u);
     p_ptr->killed_enemy_with_arrow = tmp8u;
 

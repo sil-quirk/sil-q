@@ -16,35 +16,27 @@
  */
 int min_depth(void)
 {
-    int p = 0;
-    int d = 0;
-
-    // base minimum depth
-    while (p < playerturn)
-    {
-        d += 1;
-        p += 1000 + 50 * d;
-    }
+    int min_depth_value = min_depth_counter / 100000 + 1;
 
     // bounds on the base
-    if (d < 1)
-        d = 1;
-    if (d > MORGOTH_DEPTH)
-        d = MORGOTH_DEPTH;
+    if (min_depth_value < 1)
+        min_depth_value = 1;
+    if (min_depth_value > MORGOTH_DEPTH)
+        min_depth_value = MORGOTH_DEPTH;
 
     // can't leave the throne room
     if (p_ptr->depth == MORGOTH_DEPTH)
     {
-        d = MORGOTH_DEPTH;
+        min_depth_value = MORGOTH_DEPTH;
     }
 
     // no limits in the endgame
     if (p_ptr->on_the_run)
     {
-        d = 0;
+        min_depth_value = 0;
     }
 
-    return (d);
+    return (min_depth_value);
 }
 
 void note_lost_greater_vault(void)

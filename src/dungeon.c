@@ -1545,6 +1545,7 @@ static void process_player(void)
     int i;
     int amount;
     int regen_multiplier;
+    int depth_counter_increment;
 
     // reset the number of times you have riposted since last turn
     p_ptr->ripostes = 0;
@@ -2472,6 +2473,12 @@ static void process_player(void)
 
     playerturn++;
 
+    depth_counter_increment = 85 - (playerturn / 850);
+    depth_counter_increment += 3 * (p_ptr->depth - min_depth());
+
+    min_depth_counter += depth_counter_increment > 0 ?
+        depth_counter_increment : 0;
+
     /* Window stuff */
 
     // Sil-y: note that these are now being set every single turn, somewhat
@@ -3010,6 +3017,7 @@ void play_game(bool new_game)
         /* Hack -- enter the world */
         turn = 1;
         playerturn = 0;
+        min_depth_counter = 0;
 
         /* Start player on level 1 */
         p_ptr->depth = 1;

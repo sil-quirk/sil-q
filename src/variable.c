@@ -81,6 +81,7 @@ char summon_kin_type; /* Hack -- See summon_specific() */
 
 s32b turn; /* Current game turn */
 s32b playerturn; /* Current player turn */
+s32b min_depth_counter; /* Updates the min depth over time  */
 
 bool do_feeling; /* Hack -- Level feeling counter */
 

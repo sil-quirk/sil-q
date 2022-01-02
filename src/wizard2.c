@@ -1498,6 +1498,7 @@ static void do_cmd_wiz_forget(void)
     /* Forget turns */
     turn = 1;
     playerturn = 1;
+    min_depth_counter = 0;
 
     // forget all messages -- currently a bit buggy
     messages_init();

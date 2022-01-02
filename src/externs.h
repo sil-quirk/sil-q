@@ -85,6 +85,7 @@ extern s16b monster_level;
 extern char summon_kin_type;
 extern s32b turn;
 extern s32b playerturn;
+extern s32b min_depth_counter;
 extern bool use_sound;
 extern int use_graphics;
 extern s16b image_count;

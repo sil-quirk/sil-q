@@ -1005,6 +1005,7 @@ extern void re_init_some_things(void)
     // clear some additional things
     savefile[0] = '\0';
     playerturn = 0;
+    min_depth_counter = 0;
     op_ptr->full_name[0] = '\0';
 
     // clear the terms
