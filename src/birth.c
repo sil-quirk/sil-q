@@ -552,7 +552,6 @@ static void player_wipe(void)
 
     p_ptr->unused2 = 0;
     p_ptr->unused3 = 0;
-    p_ptr->unused4 = 0;
 
     /*re-set the thefts counter*/
     recent_failed_thefts = 0;

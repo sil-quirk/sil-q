@@ -944,7 +944,6 @@ static void wr_extra(void)
     /* Current turn */
     wr_s32b(turn);
     wr_s32b(playerturn);
-    wr_s32b(min_depth_counter);
 
     wr_byte(p_ptr->killed_enemy_with_arrow);
 
@@ -954,7 +953,8 @@ static void wr_extra(void)
 
     wr_s32b(p_ptr->unused2);
     wr_s32b(p_ptr->unused3);
-    wr_s32b(p_ptr->unused4);
+
+    wr_s32b(min_depth_counter);
 
     updatecharinfoS();
 }
