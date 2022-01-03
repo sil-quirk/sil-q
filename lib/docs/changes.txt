@@ -1,3 +1,87 @@
+- Sil-Q 1.5.0 --------------------------------------------------------------------------------------------
+
+- Mac support greatly improved thanks to backwardsEric
+
+- Tiles are now supported on Linux, Windows and Mac
+    - This uses a new tileset designed by MicroChasm
+
+- New manual by MicroChasm
+
+- Ability changes
+    - Melee
+        - Smite now shows main attack in red to make it clear it is active
+    - Archery
+        - Puncture buffed from 3 to 5
+        - Crippling Shot buffed
+    - Evasion
+        - Blocking changed, buffed
+    - Stealth
+        - Cruel Blow buffed
+    - Perception
+        - Forewarned replaced with Outwit (Scatha feedback)
+        - Master Hunter buffed - bonus doubled
+    - Will
+        - Tree rearranged, Curse Breaking at bottom
+        - Hardiness and Critical Resistance removed
+        - Oath and Formidable added
+        - Inner Light buffed - bonus doubled
+    - Song
+        - Song of Whetting removed
+        - Song of Slaying added
+            - This is mechanically different to the old Song of Slaying
+        - Song of Mastery buffed, wider range of outcomes
+        - Song of Staying Will bonus halved
+
+Smithing changes
+    - +Smithing items removed
+    - Curses removed from artifact creation
+    - Smithing costs reduced to compensate
+    - Guaranteed forges now at the first entrance to or below:
+        100', 300', 500'
+
+- New egos and new effects
+	- Resist Bleeding - as it says
+    - Medic - increases health gained from healing items
+    - Avoid Traps - avoids traps (but not webs, roosts or pits)
+    - Cumbersome - the weapon does not get critical hits
+    - Many new egos
+    - Egos now conform better to weapon types e.g. curved swords have
+      Angband rather than elven egos
+    - Horn of Force can remove a certain crown
+    - Staff of Earthquakes replaced by Staff of Dismay
+
+- Objects tweaked
+    - Handaxes now 4d2 instead of 5d1
+
+- Lights
+    - Mallorn torches added
+    - Feanorian lamps buffed
+    - Items on the floor no longer shed light by themselves
+        - this is to avoid the behaviour where experienced players carried
+          many lamps to debuff light sensitive foes
+
+- New enemies
+    - Attercops, spectres, wraiths
+    - Unmourned removed
+    - Human and elven thralls added as well as orcish thrallmasters
+    - Human and elven thralls may request player character aid
+    - Several enemies can now rally their escort, boosting morale
+
+- Depth clock tweaked
+    - Slightly more aggressive in the endgame
+    - Responds to player - laggards get more time, divers a little less
+
+- Score mechanism updated
+    - Extra column in score between turn count and sils
+    - 1 point for 5K start
+    - 2 points for following iron man rules (formally or not)
+    - 3 points for playing Naugrim or Sindar
+    - 5 points for playing Edain
+
+- Tutorial updated for Sil-Q abilities
+
+- Many many bugfixes
+
 - Sil-Q 1.4.2 --------------------------------------------------------------------------------------------
 
 - Feedback from Scatha incorporated
