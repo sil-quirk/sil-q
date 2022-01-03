@@ -4263,10 +4263,10 @@ void do_cmd_fire(int quiver)
                             && !(r_ptr->flags1 & (RF1_RES_CRIT)))
                         {
                             // Slightly magical. Function that caps out before
-                            // 20 (Morgoth will) but grows quickly early on, and
+                            // 30 but grows quickly early on, and
                             // doesn't need math.h
                             crippling_blow_multiplier
-                                = (20 - (40 / (crit_bonus_dice + 2)));
+                                = (30 - (60 / (crit_bonus_dice + 2)));
                             if (skill_check(PLAYER, crippling_blow_multiplier,
                                     monster_skill(m_ptr, S_WIL), m_ptr)
                                 > 0)
