@@ -3518,7 +3518,8 @@ int score_points(high_score* score)
     int silmarils;
 
     int maxturns = 100000;
-    int silmarils_factor = maxturns;
+    int challenge_factor = maxturns;
+    int silmarils_factor = challenge_factor * 10;
     int depth_factor = silmarils_factor * 10;
     int morgoth_factor = depth_factor * 100;
 
@@ -3533,11 +3534,32 @@ int score_points(high_score* score)
     if (points >= maxturns)
         points = maxturns - 1;
 
-    // points from silmarils (0 00000 to 3 00000)
+    // points from challenge factor (0 00000 to 3 00000)
+    // Bit of a hack - relies on values in races.txt
+    if (p_ptr->prace == 1 || p_ptr->prace == 2)
+    {
+        points += challenge_factor * 3;
+    }
+    else if (p_ptr->prace == 3)
+    {
+        points += challenge_factor * 5;
+    }
+
+    if (!birth_fixed_exp)
+    {
+        points += challenge_factor * 1;
+    }
+
+    if (!oath_invalid(OATH_IRON))
+    {
+        points += challenge_factor * 2;
+    }
+
+    // points from silmarils (0 0 00000 to 3 0 00000)
     silmarils = atoi(score->silmarils);
     points += silmarils_factor * silmarils;
 
-    // points from depth (01 0 00000 to 40 0 00000)
+    // points from depth (01 0 0 00000 to 40 0 0 00000)
     if (silmarils == 0)
     {
         points += depth_factor * atoi(score->max_dun);
@@ -3547,13 +3569,13 @@ int score_points(high_score* score)
         points += depth_factor * (40 - atoi(score->cur_dun));
     }
 
-    // points for escaping (changes 40 0 00000 to 41 0 00000)
+    // points for escaping (changes 40 0 0 00000 to 41 0 0 00000)
     if (score->escaped[0] == 't')
     {
         points += depth_factor;
     }
 
-    // points slaying Morgoth  (0 00 0 00000 to 1 00 0 00000)
+    // points slaying Morgoth  (0 00 0 0 00000 to 1 00 0 0 00000)
     if (score->morgoth_slain[0] == 't')
     {
         points += morgoth_factor;
