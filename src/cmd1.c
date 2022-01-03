@@ -4444,10 +4444,9 @@ void py_attack_aux(int y, int x, int attack_type)
                     && (crit_bonus_dice > 0) && (net_dam > 0)
                     && !(r_ptr->flags1 & (RF1_RES_CRIT)))
                 {
-                    // Slightly magical. Function that caps out before 20
-                    // (Morgoth will) but grows quickly early on, and doesn't
-                    // need math.h
-                    cruel_blow_multiplier = (20 - (40 / (crit_bonus_dice + 2)));
+                    // Slightly magical. Function that caps out before 30
+                    // but grows quickly early on, and doesn't need math.h
+                    cruel_blow_multiplier = (30 - (60 / (crit_bonus_dice + 2)));
                     if (skill_check(PLAYER, cruel_blow_multiplier,
                             monster_skill(m_ptr, S_WIL), m_ptr)
                         > 0)
