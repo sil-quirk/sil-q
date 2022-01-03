@@ -72,19 +72,6 @@
 #ifdef WINDOWS
 
 /*
- * Use HTML-Help.
- */
-/* #define HTML_HELP */
-
-#ifdef HTML_HELP
-#define HELP_GENERAL "angband.chm"
-#define HELP_SPOILERS "angband.chm"
-#else /* HTML_HELP */
-#define HELP_GENERAL "angband.hlp"
-#define HELP_SPOILERS "spoilers.hlp"
-#endif /* HTML_HELP */
-
-/*
  * Extract the "WIN32" flag from the compiler
  */
 #if defined(__WIN32__) || defined(__WINNT__) || defined(__NT__)
@@ -124,9 +111,6 @@
 #define IDM_OPTIONS_GRAPHICS_MCHASM 402
 #define IDM_OPTIONS_SOUND 410
 #define IDM_OPTIONS_MAP 420
-
-#define IDM_HELP_GENERAL 901
-#define IDM_HELP_SPOILERS 902
 
 /*
  * This may need to be removed for some compilers XXX XXX XXX
@@ -198,14 +182,7 @@
 #endif /* USE_SOUND */
 
 #include <commdlg.h>
-
-/*
- * HTML-Help requires htmlhelp.h and htmlhelp.lib from Microsoft's
- * HTML Workshop < msdn.microsoft.com/workshop/author/htmlhelp/ >.
- */
-#ifdef HTML_HELP
-#include <htmlhelp.h>
-#endif /* HTML_HELP */
+#include <processthreadsapi.h>
 
 /*
  * Include the support for loading bitmaps
@@ -2875,36 +2852,6 @@ static void check_for_save_file(LPSTR cmd_line)
     quit(NULL);
 }
 
-/*
- * Display a help file
- */
-static void display_help(cptr filename)
-{
-    char tmp[1024];
-
-    path_build(tmp, sizeof(tmp), ANGBAND_DIR_XTRA_HELP, filename);
-
-    if (check_file(tmp))
-    {
-#ifdef HTML_HELP
-
-        HtmlHelp(data[0].w, tmp, HH_DISPLAY_TOPIC, 0);
-
-#else /* HTML_HELP */
-
-        char buf[1024];
-
-        sprintf(buf, "winhelp.exe %s", tmp);
-        WinExec(buf, SW_NORMAL);
-
-#endif /* HTML_HELP */
-    }
-    else
-    {
-        plog_fmt("Cannot find help file: %s", tmp);
-        plog("Use the online help files instead.");
-    }
-}
 
 /*
  * Process a menu command
@@ -3191,18 +3138,6 @@ static void process_menus(WORD wCmd)
         }
 
         windows_map();
-        break;
-    }
-
-    case IDM_HELP_GENERAL:
-    {
-        display_help(HELP_GENERAL);
-        break;
-    }
-
-    case IDM_HELP_SPOILERS:
-    {
-        display_help(HELP_SPOILERS);
         break;
     }
     }
