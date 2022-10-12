@@ -4959,10 +4959,6 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     {
         return ! game_in_progress;
     }
-    else if (sel == @selector(saveGame:))   //// half
-    {                                       //// half
-        return (turn > 0);                  //// half
-    }                                       //// half
     else if (sel == @selector(setRefreshRate:) &&
              [[menuItem parentItem] tag] == 150)
     {
@@ -4976,10 +4972,15 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
         [menuItem setState: (tag == requestedGraphicsMode)];
         return YES;
     }
-    else if( sel == @selector(sendAngbandCommand:) )
+    else if( sel == @selector(sendAngbandCommand:) ||
+		sel == @selector(saveGame:) )
     {
-        /* we only want to be able to send commands during an active game */
-        return !!game_in_progress;
+        /*
+	 * we only want to be able to send commands during an active game
+	 * after the birth screens when the core is waiting for a player
+	 * command
+	 */
+        return !!game_in_progress && character_generated && inkey_flag;
     }
     else return YES;
 }
