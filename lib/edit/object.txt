@@ -1748,7 +1748,7 @@ W:0:1:1:0
 P:0:0d0:0:0d0
 F:EASY_KNOW
 D:Once you have got the items, they will be in your inventory.
-D: You inventory is displayed in a window to the right of the main map.
+D: Your inventory is displayed in a window to the right of the main map.
 D: If you cannot see this window, you can also view inventory
 D: by pressing (i).
 
@@ -1789,7 +1789,7 @@ W:0:1:1:0
 P:0:0d0:0:0d0
 F:EASY_KNOW
 D:To find out everything else you need to know about combat,
-D: you should read the appropriate pages in the manual.
+D: you should read the appropriate pages in the manual
 D: that comes with the game. This is
 D: not essential for your first few games, but will
 D: help you explore the rich tactical combat system in Sil.
