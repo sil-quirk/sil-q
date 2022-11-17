@@ -4890,9 +4890,11 @@ int artefact_flag_menu_aux(int category, int* highlight)
     /* Choose by letter */
     if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
-        if (flag_valid[*highlight - 1])
+        int new_highlight = (int)ch - 'a' + 1;
+
+        if (flag_valid[new_highlight - 1])
         {
-            if ((int)ch - 'a' + 1 == *highlight)
+            if (new_highlight == *highlight)
             {
                 // remove a flag if it already existed
                 if (flag_present[*highlight - 1])
@@ -4904,7 +4906,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
                 // restore the artefact from backup
                 artefact_copy(smith_a_ptr, smith2_a_ptr);
 
-                *highlight = (int)ch - 'a' + 1;
+                *highlight = new_highlight;
 
                 // remove a flag if it already existed
                 if (flag_present[*highlight - 1])
@@ -5278,9 +5280,11 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     /* Choose by letter */
     if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
-        if (ability_valid[*highlight - 1])
+        int new_highlight = (int)ch - 'a' + 1;
+
+        if (ability_valid[new_highlight - 1])
         {
-            if ((int)ch - 'a' + 1 == *highlight)
+            if (new_highlight == *highlight)
             {
                 // remove an ability if it already existed
                 if (ability_present[*highlight - 1])
@@ -5291,7 +5295,7 @@ int artefact_ability_menu_aux(int skill, int* highlight)
                 // restore the artefact from backup
                 artefact_copy(smith_a_ptr, smith2_a_ptr);
 
-                *highlight = (int)ch - 'a' + 1;
+                *highlight = new_highlight;
 
                 // remove an ability if it already existed
                 if (ability_present[*highlight - 1])
