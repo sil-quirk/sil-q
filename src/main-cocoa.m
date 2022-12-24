@@ -4970,7 +4970,14 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     {
         NSInteger requestedGraphicsMode = [[NSUserDefaults standardUserDefaults] integerForKey:AngbandGraphicsDefaultsKey];
         [menuItem setState: (tag == requestedGraphicsMode)];
-        return YES;
+        /*
+         * Only allow changes to the graphics mode when at the splash screen
+         * or in the game proper and at a command prompt.  In other situations
+         * the saved screens for overlayed menus could have tile references
+         * that become outdated when the graphics mode is changed.
+         */
+        return (!game_in_progress || (character_generated && inkey_flag)) ?
+            YES : NO;
     }
     else if( sel == @selector(sendAngbandCommand:) ||
 		sel == @selector(saveGame:) )
