@@ -1268,7 +1268,7 @@ static bool init_graphics(void)
     {
         char buf[1024];
         int wid, hgt;
-        cptr name;
+        cptr name = NULL;
 
         if (arg_graphics == GRAPHICS_MICROCHASM)
         {

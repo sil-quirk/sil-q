@@ -64,6 +64,7 @@
 
 #ifdef SET_UID
 
+#ifndef _MSC_VER
 #ifndef USG
 #include <sys/param.h>
 #include <sys/file.h>
@@ -76,6 +77,16 @@
 #include <pwd.h>
 
 #include <unistd.h>
+
+#else
+
+#ifndef WINDOWS
+#define WINDOWS
+#endif
+
+#undef SET_UID
+
+#endif
 
 #include <sys/stat.h>
 

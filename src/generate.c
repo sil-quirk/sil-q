@@ -3162,7 +3162,7 @@ static bool mark_g_vault(int y0, int x0, int ymax, int xmax)
  */
 static bool build_type8(int y0, int x0)
 {
-    vault_type* v_ptr;
+    vault_type* v_ptr = NULL;
     int tries = 0;
     bool found = FALSE;
     bool repeated = FALSE;
