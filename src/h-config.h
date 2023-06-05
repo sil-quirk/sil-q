@@ -142,7 +142,8 @@
  * Extract the "WINDOWS" flag from the compiler
  */
 #if defined(_Windows) || defined(__WINDOWS__) || defined(__WIN32__)            \
-    || defined(WIN32) || defined(__WINNT__) || defined(__NT__)
+    || defined(WIN32) || defined(__WINNT__) || defined(__NT__)                 \
+    || defined(_WIN32)
 #ifndef WINDOWS
 #define WINDOWS
 #endif

@@ -73,13 +73,13 @@ this file for advice on your specific system.
 
    Go back to the Sil folder and run Sil.exe. 
 
-### Windows with Visual Studio 2019 (experimental, tested with Sil-Q on MSVC 2019)
+### Windows with Visual Studio 2022 (experimental, tested with Sil-Q on MSVC 2022)
 
-1. Acquire Microsoft Visual Studio 2019.
+1. Acquire Microsoft Visual Studio 2022.
 
 2. Compile Sil-Q:
 
-   Assuming you have MSVC 2019, this should be as simple as selecting Debug or
+   Assuming you have MSVC 2022, this should be as simple as selecting Debug or
    Release, opening sil-q.sln in the msvc2019 directory and selecting Build Solution
    from the Build menu.
 
@@ -87,8 +87,7 @@ this file for advice on your specific system.
 
    Go back to the Sil folder and run Sil.exe.
 
-NOTE: This is a very new and very raw port, and requires testing. Font selection has
-      been observed to be broken. Undoubtedly other things will be also.
+NOTE: This is a very new and very raw port, and requires testing.
 
 ### OS X with Xcode  (tested with Sil-Q; Xcode 11.6 on OS X 10.15.5)
 
