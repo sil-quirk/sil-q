@@ -3037,14 +3037,16 @@ void do_cmd_alter(void)
         }
     }
 
+    bool is_marked = (cave_info[y][x] & CAVE_MARK) > 0;
+    bool is_visible = (cave_info[y][x] & CAVE_SEEN) > 0;
+
     /*Is there a monster on the space?*/
     if (cave_m_idx[y][x] > 0)
     {
         py_attack(y, x, ATT_MAIN);
     }
-
     // deal with players who can't see the square
-    else if ((dir != 5) && !(cave_info[y][x] & (CAVE_MARK)))
+    else if ((dir != 5) && !(is_marked || is_visible))
     {
         if (cave_floor_bold(y, x))
         {
