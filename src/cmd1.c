@@ -4499,6 +4499,12 @@ void py_attack_aux(int y, int x, int attack_type)
                 msg_format("%^s ripostes!", m_name);
                 make_attack_normal(m_ptr);
                 monster_ripostes++;
+
+                if (m_ptr->ml)
+                {
+                    monster_lore* l_ptr = &l_list[m_ptr->r_idx];
+                    l_ptr->flags2 |= (RF2_RIPOSTE);
+                }
             }
         }
 
