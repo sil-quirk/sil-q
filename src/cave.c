@@ -51,7 +51,7 @@ int distance_squared(int y1, int x1, int y2, int x2)
     ax = (x1 > x2) ? (x1 - x2) : (x2 - x1);
 
     /* Hack -- approximate the distance */
-    return (ay * ay + ax + ax);
+    return (ay * ay + ax * ax);
 }
 
 /*
