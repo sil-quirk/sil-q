@@ -3486,8 +3486,10 @@ void make_patches_of_sunlight()
     // bunch near the player
     for (i = 0; i < 40; ++i)
     {
-        y = rand_range(p_ptr->py - 5, p_ptr->py + 5);
-        x = rand_range(p_ptr->px - 5, p_ptr->px + 5);
+        y = rand_range(MAX(p_ptr->py - 5, 1),
+            MIN(p_ptr->py + 5, p_ptr->cur_map_hgt - 2));
+        x = rand_range(MAX(p_ptr->px - 5, 1),
+            MIN(p_ptr->px + 5, p_ptr->cur_map_wid - 2));
         make_patch_of_sunlight(y, x);
     }
 
@@ -3670,6 +3672,16 @@ static bool cave_gen(void)
             }
         }
 
+    /* place the stairs, traps, rubble, secret doors, and player */
+    if (!place_rubble_player())
+    {
+        if (cheat_room)
+            msg_format("Couldn't place, rubble, or player.");
+        if (p_ptr->force_forge)
+            p_ptr->fixed_forge_count--;
+        return (FALSE);
+    }
+
     if (p_ptr->depth == 1)
     {
         // smaller number of monsters at 50ft
@@ -3682,16 +3694,6 @@ static bool cave_gen(void)
     {
         // pick some number of monsters (between 0.5 per room and 1 per room)
         mon_gen = (dun->cent_n + dieroll(dun->cent_n)) / 2;
-    }
-
-    /* place the stairs, traps, rubble, secret doors */
-    if (!place_rubble_player())
-    {
-        if (cheat_room)
-            msg_format("Couldn't place, rubble, or player.");
-        if (p_ptr->force_forge)
-            p_ptr->fixed_forge_count--;
-        return (FALSE);
     }
 
     // check dungeon connectivity
