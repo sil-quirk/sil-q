@@ -4,3 +4,7 @@ src/sil
 src/sil.o.x86_64
 Sil.app
 .DS_Store
+
+### JetBrians
+.idea/
+cmake-build*/
