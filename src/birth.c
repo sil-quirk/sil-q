@@ -1093,6 +1093,11 @@ static void print_rh_flags(int race, int house, int col, int row)
             col, row + flags, -1, attr_affinity, "smithing affinity   ");
         flags++;
     }
+    else if (c_info[house].flags & RHF_SMT_MASTERY)
+    {
+        Term_putstr(col, row + flags, -1, attr_mastery, "smithing mastery    ");
+        flags++;
+    }
     if ((p_info[race].flags & RHF_SMT_PENALTY)
         || (c_info[house].flags & RHF_SMT_PENALTY))
     {

@@ -1900,6 +1900,7 @@ int affinity_level(int skilltype)
 {
     int level = 0;
     u32b affinity_flag = 0L,
+		 mastery_flag = 0L,
          penalty_flag = 0L; // default values to soothe compilation warnings
 
     switch (skilltype)
@@ -1943,6 +1944,7 @@ int affinity_level(int skilltype)
     case S_SMT:
     {
         affinity_flag = RHF_SMT_AFFINITY;
+		mastery_flag = RHF_SMT_MASTERY;
         penalty_flag = RHF_SMT_PENALTY;
         break;
     }
@@ -1958,6 +1960,8 @@ int affinity_level(int skilltype)
         level += 1;
     if (hp_ptr->flags & affinity_flag)
         level += 1;
+    if (hp_ptr->flags & mastery_flag)
+        level += 2;
     if (rp_ptr->flags & penalty_flag)
         level -= 1;
     if (hp_ptr->flags & penalty_flag)
