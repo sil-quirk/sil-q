@@ -39,7 +39,7 @@ B:Houseless
 S:0:0:0:0
 D:
 
-N:1:House of Feanor
+N:1:Feanor
 A:Feanor's House
 B:Feanor
 F:SMT_MASTERY
@@ -49,11 +49,11 @@ D: unyielding. He created the Silmarils which Morgoth later
 D: stole, and he led his house across the sea to Beleriand
 D: in pursuit. 
 
-N:2:House of Fingolfin
+N:2:Fingolfin
 A:Fingolfin's House
 B:Fingolfin
 F:WIL_AFFINITY | MEL_AFFINITY
-S:0:0:1:0
+S:1:0:1:1
 D:Fingolfin led his house into Beleriand to protect its
 D: peoples from the shadow of Morgoth. Betrayed by the
 D: Feanorians, they had to come through the icy wastes of the north.
@@ -142,3 +142,44 @@ D: despaired of finding him again and journeyed to the shore, the Falas,
 D: to set sail to Valinor. Some tarried there and dwelt in the havens on the
 D: edge of Middle-Earth with their lord, Cirdan, the shipbuilder.
 
+N:11:Maedhros
+A:Feanor's House
+B:Feanor
+F:SMT_AFFINITY | WIL_AFFINITY
+S:0:1:1:1
+D:Feanor was the greatest of the Noldor, though proud and
+D: unyielding. He created the Silmarils which Morgoth later
+D: stole, and he led his house across the sea to Beleriand
+D: in pursuit. 
+
+N:12:Curufin
+A:Feanor's House
+B:Feanor
+F:SMT_AFFINITY | STL_AFFINITY
+S:1:3:0:-1
+D:Feanor was the greatest of the Noldor, though proud and
+D: unyielding. He created the Silmarils which Morgoth later
+D: stole, and he led his house across the sea to Beleriand
+D: in pursuit. 
+
+N:13:Fingon
+A:Fingolfin's House
+B:Fingolfin
+F:WIL_AFFINITY | PER_AFFINITY
+S:0:1:1:1
+D:Fingolfin led his house into Beleriand to protect its
+D: peoples from the shadow of Morgoth. Betrayed by the
+D: Feanorians, they had to come through the icy wastes of the north.
+D: Their people are the most hardy and valiant, most
+D: feared by the orcs and hated by Morgoth.
+
+N:14:Turgon
+A:Fingolfin's House
+B:Fingolfin
+F:WIL_AFFINITY | STL_AFFINITY
+S:0:1:1:1
+D:Fingolfin led his house into Beleriand to protect its
+D: peoples from the shadow of Morgoth. Betrayed by the
+D: Feanorians, they had to come through the icy wastes of the north.
+D: Their people are the most hardy and valiant, most
+D: feared by the orcs and hated by Morgoth.
