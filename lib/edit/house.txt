@@ -42,18 +42,17 @@ D:
 N:1:House of Feanor
 A:Feanor's House
 B:Feanor
-F:SMT_AFFINITY
-S:0:1:0:0
+F:SMT_MASTERY
+S:1:1:0:1
 D:Feanor was the greatest of the Noldor, though proud and
 D: unyielding. He created the Silmarils which Morgoth later
 D: stole, and he led his house across the sea to Beleriand
-D: in pursuit. Those of Feanor's house are fiery in temper,
-D: but capable of great works of beauty.
+D: in pursuit. 
 
 N:2:House of Fingolfin
 A:Fingolfin's House
 B:Fingolfin
-F:WIL_AFFINITY
+F:WIL_AFFINITY | MEL_AFFINITY
 S:0:0:1:0
 D:Fingolfin led his house into Beleriand to protect its
 D: peoples from the shadow of Morgoth. Betrayed by the
@@ -64,7 +63,7 @@ D: feared by the orcs and hated by Morgoth.
 N:3:House of Finarfin
 A:Finarfin's House
 B:Finarfin
-F:PER_AFFINITY
+F:PER_AFFINITY 
 S:0:0:0:1
 D:Finarfin himself did not come to Beleriand, but many of his house
 D: made the journey under Fingolfin's banner. They are the
