@@ -3148,15 +3148,16 @@ bool get_name(void)
     }
 
     // use old name as a default
-    my_strcpy(tmp, op_ptr->full_name, sizeof(tmp));
+   // my_strcpy(tmp, op_ptr->full_name, sizeof(tmp));
+    my_strcpy(tmp, c_name + c_info[p_ptr->phouse].name, sizeof(tmp));
 
     // save a copy too
-    my_strcpy(old_name, op_ptr->full_name, sizeof(old_name));
+    my_strcpy(old_name, c_name + c_info[p_ptr->phouse].name, sizeof(old_name));
 
     /* Prompt for a new name */
     Term_gotoxy(8, 2);
 
-    while (!name_selected)
+   /* while (!name_selected)
     {
         if (askfor_name(tmp, sizeof(tmp)))
         {
@@ -3173,11 +3174,12 @@ bool get_name(void)
             name_selected = TRUE;
         else
             bell("You must choose a name.");
-    }
+    }*/
 
     /* Process the player name */
+    my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
     process_player_name(FALSE);
-
+ 
     return (TRUE);
 }
 
@@ -3607,8 +3609,11 @@ static int highscore_where(high_score* score)
     {
         if (highscore_read(&the_score))
             return (i);
-        if (score_points(score) > score_points(&the_score))
+ //       if (score_points(score) > score_points(&the_score))
+        //name match
+        if (strcmp(score->who, the_score.who) == 0)
             return (i);
+
     }
 
     /* The "last" entry is always usable */
@@ -3632,34 +3637,16 @@ static int highscore_add(high_score* score)
 
     /* Determine where the score should go */
     slot = highscore_where(score);
-
+    
     /* Hack -- Not on the list */
     if (slot < 0)
         return (-1);
+    highscore_seek(slot);
+    highscore_write(score);
+    return (slot);
+    
 
-    /* Hack -- prepare to dump the new score */
-    the_score = (*score);
 
-    /* Slide all the scores down one */
-    for (i = slot; !done && (i < MAX_HISCORES); i++)
-    {
-        /* Read the old guy, note errors */
-        if (highscore_seek(i))
-            return (-1);
-        if (highscore_read(&tmpscore))
-            done = TRUE;
-
-        /* Back up and dump the score we were holding */
-        if (highscore_seek(i))
-            return (-1);
-        if (highscore_write(&the_score))
-            return (-1);
-
-        /* Hack -- Save the old score, for the next pass */
-        the_score = tmpscore;
-    }
-
-    /* Return location used */
     return (slot);
 }
 

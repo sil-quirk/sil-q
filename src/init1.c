@@ -2846,7 +2846,7 @@ errr parse_p_info(char* buf, header* head)
             }
 
             /* Hack - Parse this entry */
-            pr_ptr->choice |= (1 << atoi(s));
+            pr_ptr->choice |= (1L << atoi(s));
 
             /* Start the next entry */
             s = t;

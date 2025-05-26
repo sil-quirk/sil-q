@@ -1,0 +1,618 @@
+[
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "birth.o",
+   "birth.c"
+  ],
+  "file": "birth.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "cave.o",
+   "cave.c"
+  ],
+  "file": "cave.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "cmd1.o",
+   "cmd1.c"
+  ],
+  "file": "cmd1.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "cmd2.o",
+   "cmd2.c"
+  ],
+  "file": "cmd2.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "cmd3.o",
+   "cmd3.c"
+  ],
+  "file": "cmd3.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "cmd4.o",
+   "cmd4.c"
+  ],
+  "file": "cmd4.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "cmd5.o",
+   "cmd5.c"
+  ],
+  "file": "cmd5.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "cmd6.o",
+   "cmd6.c"
+  ],
+  "file": "cmd6.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "dungeon.o",
+   "dungeon.c"
+  ],
+  "file": "dungeon.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "files.o",
+   "files.c"
+  ],
+  "file": "files.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "generate.o",
+   "generate.c"
+  ],
+  "file": "generate.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "init1.o",
+   "init1.c"
+  ],
+  "file": "init1.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "init2.o",
+   "init2.c"
+  ],
+  "file": "init2.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "load.o",
+   "load.c"
+  ],
+  "file": "load.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "main-win.o",
+   "main-win.c"
+  ],
+  "file": "main-win.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "melee1.o",
+   "melee1.c"
+  ],
+  "file": "melee1.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "melee2.o",
+   "melee2.c"
+  ],
+  "file": "melee2.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "monster1.o",
+   "monster1.c"
+  ],
+  "file": "monster1.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "monster2.o",
+   "monster2.c"
+  ],
+  "file": "monster2.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "obj-info.o",
+   "obj-info.c"
+  ],
+  "file": "obj-info.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "object1.o",
+   "object1.c"
+  ],
+  "file": "object1.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "object2.o",
+   "object2.c"
+  ],
+  "file": "object2.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "randart.o",
+   "randart.c"
+  ],
+  "file": "randart.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-DNEAR=",
+   "-c",
+   "-o",
+   "readdib.o",
+   "readdib.c"
+  ],
+  "file": "readdib.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "save.o",
+   "save.c"
+  ],
+  "file": "save.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "spells1.o",
+   "spells1.c"
+  ],
+  "file": "spells1.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "spells2.o",
+   "spells2.c"
+  ],
+  "file": "spells2.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "tables.o",
+   "tables.c"
+  ],
+  "file": "tables.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "util.o",
+   "util.c"
+  ],
+  "file": "util.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "variable.o",
+   "variable.c"
+  ],
+  "file": "variable.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "wizard1.o",
+   "wizard1.c"
+  ],
+  "file": "wizard1.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "wizard2.o",
+   "wizard2.c"
+  ],
+  "file": "wizard2.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "squelch.o",
+   "squelch.c"
+  ],
+  "file": "squelch.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "xtra1.o",
+   "xtra1.c"
+  ],
+  "file": "xtra1.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "xtra2.o",
+   "xtra2.c"
+  ],
+  "file": "xtra2.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "z-form.o",
+   "z-form.c"
+  ],
+  "file": "z-form.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "z-rand.o",
+   "z-rand.c"
+  ],
+  "file": "z-rand.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "z-term.o",
+   "z-term.c"
+  ],
+  "file": "z-term.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "z-util.o",
+   "z-util.c"
+  ],
+  "file": "z-util.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "z-virt.o",
+   "z-virt.c"
+  ],
+  "file": "z-virt.c"
+ },
+ {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "use-obj.o",
+   "use-obj.c"
+  ],
+  "file": "use-obj.c"
+ }
+]

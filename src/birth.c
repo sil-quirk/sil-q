@@ -12,10 +12,10 @@
 
 /* Locations of the tables on the screen */
 #define HEADER_ROW 1
-#define QUESTION_ROW 3
-#define TABLE_ROW 4
-#define DESCRIPTION_ROW 14
-#define INSTRUCT_ROW 21
+#define QUESTION_ROW 2
+#define TABLE_ROW 3
+#define DESCRIPTION_ROW 13
+#define INSTRUCT_ROW 22
 
 #define QUESTION_COL 2
 #define RACE_COL 2
@@ -126,6 +126,13 @@ static void get_history_aux(void)
         chart = h_info[i].next;
     }
 }
+static void get_history_aux1(void)
+{
+    /* Clear the previous history strings */
+p_ptr->history[0] = '\0';
+my_strcat(
+            p_ptr->history, (c_text + c_info[p_ptr->phouse].text), sizeof(p_ptr->history));   
+}
 
 /*
  * Get the racial history, and social class, using the "history charts".
@@ -145,7 +152,7 @@ static bool get_history(void)
         if (roll_history)
         {
             /*get the random history, display for approval. */
-            get_history_aux();
+            get_history_aux1();
         }
         else
         {
@@ -770,6 +777,9 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         Term_erase(0, DESCRIPTION_ROW + 2, 255);
         Term_erase(0, DESCRIPTION_ROW + 3, 255);
         Term_erase(0, DESCRIPTION_ROW + 4, 255);
+        Term_erase(0, DESCRIPTION_ROW + 5, 255);
+        Term_erase(0, DESCRIPTION_ROW + 6, 255);
+        Term_erase(0, DESCRIPTION_ROW + 7, 255);
 
         if (choices[cur + top].text != NULL)
         {
@@ -1405,7 +1415,7 @@ static bool player_birth_aux_1(void)
 
     /* Display some helpful information */
     Term_putstr(
-        QUESTION_COL, HEADER_ROW, -1, TERM_L_BLUE, "Character Creation:");
+        QUESTION_COL, HEADER_ROW, -1, TERM_L_BLUE, "Character Selection:");
 
     Term_putstr(QUESTION_COL, INSTRUCT_ROW, -1, TERM_SLATE,
         "Arrow keys navigate the menu    Enter select the current menu item");
