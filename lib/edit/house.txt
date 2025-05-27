@@ -179,7 +179,7 @@ N:12:Curufin
 A:Feanor's House
 B:Feanor
 F:SMT_AFFINITY | STL_AFFINITY
-S:1:3:0:-1
+S:1:3:0:0
 D:Curufin, fifth son of Fëanor, most resembled his father in craft,
 D:appearance, and temper. Skilled and cunning, he dwells in
 D:Nargothrond alongside his brother Celegorm, known for subtlety and

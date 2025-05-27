@@ -16,8 +16,39 @@ static const char* races[] = {
     "Naugrim",
     "Edain",
 };
-static const char* houses[] = { "Houseless", "Feanor", "Fingolfin", "Finarfin",
-    "Doriath", "Nogrod", "Belegost", "Beor", "Haleth", "Hador", "Falas" };
+static const char* houses[] = {
+    "None",
+    "Feanor",
+    "Fingolfin",
+    "Finarfin",
+    "Elu Thingol",
+    "Teclhar",
+    "Gamil Zirak",
+    "Barahir",
+    "Haleth",
+    "Hador",
+    "Cirdan",
+    "Maedhros",
+    "Curufin",
+    "Fingon",
+    "Turgon",
+    "Galadriel",
+    "Finrod Felagund",
+    "Mablung",
+    "Daeron",
+    "Aerandir",
+    "Aeron",
+    "Naugladur",
+    "Azaghâl",
+    "King Azaghal",
+    "Nim",
+    "Beren",
+    "Bereg",
+    "Haldar",
+    "Haldan",
+    "Galdor",
+    "Gundor"
+};
 
 void updatecharinfoS(void)
 {
@@ -758,10 +789,12 @@ static void wr_extra(void)
 
     /* Race/House/Sex */
     wr_byte(p_ptr->prace);
-    wr_byte(p_ptr->phouse);
+    wr_byte (p_ptr->phouse);
     wr_byte(p_ptr->unused1);
 
     wr_s16b(p_ptr->game_type);
+
+
 
     /* Age/Height/Weight */
     wr_s16b(p_ptr->age);
@@ -1272,6 +1305,8 @@ static bool wr_savefile(void)
     tmp16u = message_num();
     wr_u16b(tmp16u);
 
+
+
     /* Dump the messages (oldest first!) */
     for (i = tmp16u - 1; i >= 0; i--)
     {
@@ -1303,6 +1338,8 @@ static bool wr_savefile(void)
 
     /* Write the "extra" information */
     wr_extra();
+
+
 
     /*Write the randarts*/
     wr_randarts();
