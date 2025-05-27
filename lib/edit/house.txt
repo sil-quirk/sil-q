@@ -44,7 +44,7 @@ A:Feanor's House
 B:Feanor
 F:SMT_MASTERY
 S:1:1:0:1
-D:Fëanor was greatest among the Noldor, unmatched in skill and pride.
+D:Fúanor was greatest among the Noldor, unmatched in skill and pride.
 D:He crafted the Silmarils, jewels of blended light from the Trees of 
 D:Valinor. Consumed by wrath after Morgoth stole them, he led his
 D:people from Aman to Middle-earth, sparking war and tragedy. Bound by
@@ -304,7 +304,7 @@ D:Morgoth earn him respect across Beleriand. Proud, loyal, and strong,
 D:Azaghâl embodies dwarven courage and battle-prowess, defending his
 D:city’s halls fiercely from all enemies.
 
-N:23:King Azarghal
+N:23:King Azaghal
 A:Belegost
 B:Belegost
 F:WIL_AFFINITY

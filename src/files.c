@@ -3070,7 +3070,7 @@ void process_player_name(bool sf)
         op_ptr->base_name[i] = c;
     }
 
-#if defined(WINDOWS) || defined(MSDOS)
+#if defined(MSDOS)
 
     /* Max length */
     if (i > 8)
@@ -3477,7 +3477,7 @@ static void death_examine(void)
 /*
  * The "highscore" file descriptor, if available.
  */
-static int highscore_fd = -1;
+extern int highscore_fd = -1;
 
 /*
  * Seek score 'i' in the highscore file
@@ -3604,13 +3604,12 @@ static int highscore_where(high_score* score)
     if (highscore_seek(0))
         return (-1);
 
-    /* Read until we get to a lower score (or the end of the scores) */
+    /* Read until we get a score match (or the end of the scores) */
     for (i = 0; i < MAX_HISCORES; i++)
     {
         if (highscore_read(&the_score))
             return (i);
- //       if (score_points(score) > score_points(&the_score))
-        //name match
+
         if (strcmp(score->who, the_score.who) == 0)
             return (i);
 
@@ -3618,6 +3617,41 @@ static int highscore_where(high_score* score)
 
     /* The "last" entry is always usable */
     return (MAX_HISCORES - 1);
+}
+
+/*
+ * Just determine whether a charackter is dead using high scor
+ * Return 1 if dead or 0 if alive
+ */
+
+extern int highscore_dead(char* name)
+{
+    int i;
+    char buf[1024];
+    high_score the_score;
+
+    /* Paranoia -- it may not have opened */
+    if (highscore_fd < 0)
+        return (0);
+
+    /* Go to the start of the highscore file */
+    if (highscore_seek(0))
+        return (0);
+
+    /* Read until we get a score match (or the end of the scores) */
+    for (i = 0; i < MAX_HISCORES; i++)
+    {
+        if (highscore_read(&the_score))
+            return (0);
+        //name match
+        if (strcmp(name, the_score.who) == 0)
+            if (strcmp(the_score.how, "(alive and well)") !=0)
+                return (1);
+
+    }
+
+    /* The "last" entry is always usable */
+    return (0);
 }
 
 /*
@@ -3970,7 +4004,7 @@ static void display_scores_aux(int from, int to, int note, high_score* score)
                 score = NULL;
                 fake = TRUE;
                 note = -1;
-                j--;
+                // j--;
             }
 
             /* Read a normal record */
@@ -4296,6 +4330,12 @@ static errr predict_score(void)
 
     /* See where the entry would be placed */
     j = highscore_where(&the_score);
+    
+    /* Hack -- Not on the list */
+    if (j < 0)
+        return (-1);
+    highscore_seek(j);
+    highscore_write(&the_score);
 
     /* Hack -- Display the top fifteen scores */
     if (j < 10)

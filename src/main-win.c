@@ -68,6 +68,7 @@
  */
 
 #include "angband.h"
+#include <locale.h>
 
 #ifdef WINDOWS
 
@@ -3957,6 +3958,7 @@ int FAR PASCAL WinMain(
 
     WNDCLASS wc;
     HDC hdc;
+
 
     // Sil-y: commented this out
     // MSG msg;

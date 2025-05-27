@@ -512,6 +512,7 @@ extern void comma_number(char* output, int number);
 extern void atomonth(int number, char* output);
 extern void display_single_score(
     byte attr, int row, int col, int place, int fake, high_score* the_score);
+extern int highscore_dead(char* name);
 extern void display_scores(int from, int to);
 extern void close_game(void);
 extern void exit_game_panic(void);
@@ -524,6 +525,7 @@ extern void signals_init(void);
 extern void mini_screenshot(void);
 extern void prt_mini_screenshot(int col, int row);
 extern int silmarils_possessed(void);
+extern int highscore_fd;
 
 /* generate.c */
 extern void place_monster_by_flag(

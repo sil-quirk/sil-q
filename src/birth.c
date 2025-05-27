@@ -819,8 +819,17 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             return (INVALID_CHOICE);
 
         /* Make a choice */
-        if ((c == '\n') || (c == '\r') || (c == '6'))
-            return (cur);
+        if ((c == '\n') || (c == '\r') || (c == '6')) {
+            if (choices[cur].ghost)
+                bell("Your race cannot choose that house.");
+            else
+                return (cur);
+        }
+        //Show scores 
+        if (c == 's')
+            {
+                show_scores();
+            }
 
         /* Random choice */
         if (c == '*')
@@ -884,10 +893,10 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 next = -1;
                 for (i = 0; i < cur; i++)
                 {
-                    if (!(choices[i].ghost))
-                    {
+                    // if (!(choices[i].ghost))
+                    // {
                         next = i;
-                    }
+                    // }
                 }
 
                 /* Move selection */
@@ -906,10 +915,10 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 next = -1;
                 for (i = num - 1; i > cur; i--)
                 {
-                    if (!(choices[i].ghost))
-                    {
+                    // if (!(choices[i].ghost))
+                    // 
                         next = i;
-                    }
+                    // }
                 }
 
                 /* Move selection */
@@ -1252,11 +1261,14 @@ static bool get_player_race(void)
 /*
  * Display additional information about each house during the selection.
  */
+
 static void house_aux_hook(birth_menu c_str)
 {
     int house_idx, i, adj;
     char s[128];
     byte attr;
+
+
 
     /* Extract the proper house index from the string. */
     for (house_idx = 0; house_idx < z_info->c_max; house_idx++)
@@ -1304,9 +1316,16 @@ static void house_aux_hook(birth_menu c_str)
         "                    ");
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 5, -1, TERM_WHITE,
         "                    ");
+    
+    // Check dead   
+    if (c_str.ghost) Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 5, -1, TERM_RED,
+        "Dead");
+    else Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 5, -1, TERM_L_BLUE,
+        "Alive");
 
     print_rh_flags(
         p_ptr->prace, house_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
+    
 }
 
 /*
@@ -1318,6 +1337,7 @@ static bool get_player_house(void)
     int house = 0;
     int house_choice;
     int old_house_choice = 0;
+    char buf[1024];
 
     birth_menu* houses;
 
@@ -1335,13 +1355,27 @@ static bool get_player_house(void)
     // Term_putstr(QUESTION_COL, QUESTION_ROW, -1, TERM_YELLOW,
     //	"Your house modifies your race bonuses.");
 
+    /* Build the filename */
+    path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+
+    /* Grab permissions */
+    safe_setuid_grab();
+
+    /* Open the high score file, for reading/writing */
+    highscore_fd = fd_open(buf, O_RDWR);
+
+    /* Drop permissions */
+    safe_setuid_drop();
+
     /* Tabulate houses */
+    
     for (i = 0; i < z_info->c_max; i++)
     {
         /* Analyze */
         if (rp_ptr->choice & (1L << i))
         {
-            houses[house].ghost = FALSE;
+            if (highscore_dead(c_name + c_info[i].name)) houses[house].ghost = TRUE;
+            else houses[house].ghost = FALSE;
             houses[house].name = c_name + c_info[i].name;
             houses[house].text = c_text + c_info[i].text;
             if (p_ptr->phouse == i)
@@ -1349,6 +1383,12 @@ static bool get_player_house(void)
             house++;
         }
     }
+
+    /* Shut the high score file */
+    fd_close(highscore_fd);
+
+    /* Forget the high score fd */
+    highscore_fd = -1;
 
     house_choice = get_player_choice(
         houses, house, old_house_choice, CLASS_COL, 22, house_aux_hook);
@@ -1422,7 +1462,7 @@ static bool player_birth_aux_1(void)
     Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
         "         * random menu item       ESC restart the character");
     Term_putstr(QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_SLATE,
-        "         = game options             q quit");
+        "         = game options             s scores q quit");
 
     /* Hack - highlight the key names */
     Term_putstr(QUESTION_COL + 0, INSTRUCT_ROW, -1, TERM_L_WHITE, "Arrow keys");
@@ -1430,7 +1470,8 @@ static bool player_birth_aux_1(void)
     Term_putstr(QUESTION_COL + 9, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "*");
     Term_putstr(QUESTION_COL + 34, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "ESC");
     Term_putstr(QUESTION_COL + 9, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "O");
-    Term_putstr(QUESTION_COL + 36, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "q");
+    Term_putstr(QUESTION_COL + 36, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "s");
+    Term_putstr(QUESTION_COL + 45, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "q");
 
     while (phase <= 2)
     {
@@ -1465,6 +1506,9 @@ static bool player_birth_aux_1(void)
             phase++;
         }
     }
+
+    //Check if savefile in progress
+    path_build(savefile, sizeof(savefile), ANGBAND_DIR_SAVE, c_name + hp_ptr->name);
 
     /* Clear the base values of the skills */
     for (i = 0; i < A_MAX; i++)
@@ -1523,6 +1567,7 @@ static bool player_birth_aux_1(void)
 
     /* Done */
     return (TRUE);
+
 }
 
 /*
@@ -1958,7 +2003,7 @@ static bool player_birth_aux(void)
     /* Ask questions */
     if (!player_birth_aux_1())
         return (FALSE);
-
+    if (!load_player())  {
     /* Point-based stats */
     if (!player_birth_aux_2())
         return (FALSE);
@@ -1981,7 +2026,7 @@ static bool player_birth_aux(void)
 
     // Reset the number of artefacts
     p_ptr->artefacts = 0;
-
+}
     /* Accept */
     return (TRUE);
 }
