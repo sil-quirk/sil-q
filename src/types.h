@@ -713,6 +713,7 @@ struct player_house
     u32b text; /* Descrption (offset) */
 
     s16b h_adj[A_MAX]; /* House stat bonuses */
+    s16b a_adj[2]; /* House ability bonuse (one to start) */
 
     u32b flags; /* House Flags (ie RHF flags) */
 };

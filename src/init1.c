@@ -3054,6 +3054,41 @@ errr parse_c_info(char* buf, header* head)
         if (!add_text(&(ph_ptr->text), head, s))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
+    else if (buf[0] == 'C')
+    {
+        int adj;  
+
+        /* There better be a current ph_ptr */
+        if (!ph_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Start the string */
+        s = buf + 1;
+
+        /* For each stat */
+        for (j = 0; j < 2; j++)
+        {
+            /* Find the colon before the subindex */
+            s = strchr(s, ':');
+
+            /* Verify that colon */
+            if (!s)
+                return (PARSE_ERROR_GENERIC);
+
+            /* Nuke the colon, advance to the subindex */
+            *s++ = '\0';
+
+            /* Get the value */
+            adj = atoi(s);
+
+            /* Save the value */
+            ph_ptr->a_adj[j] = adj;
+
+            /* Next... */
+            continue;
+        }
+
+    }
 
     else
     {

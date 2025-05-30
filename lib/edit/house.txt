@@ -13,7 +13,8 @@
 # A: alternate house name
 # B: short house name
 # F: house flag
-# S: str : dex : con : gra
+# S: str : dex : con : 
+# C: abilities : number
 #
 # 'N' indicates the beginning of an entry. The serial number must
 #     increase for each new house.
@@ -37,356 +38,383 @@ N:0:Houseless
 A:Houseless
 B:Houseless
 S:0:0:0:0
-D:
+C:1:1
 
 N:1:Feanor
 A:Feanor's House
 B:Feanor
 F:SMT_MASTERY
+C:6:5
 S:1:1:0:1
-D:Fúanor was greatest among the Noldor, unmatched in skill and pride.
+D:Feanor was greatest among the Noldor, unmatched in skill and pride. 
 D:He crafted the Silmarils, jewels of blended light from the Trees of 
-D:Valinor. Consumed by wrath after Morgoth stole them, he led his
-D:people from Aman to Middle-earth, sparking war and tragedy. Bound by
-D:his fierce Oath, Fëanor perished early, defiant to the end, his
-D:fiery spirit leaving a legacy of valor, pride, and sorrow that still
-D:shadows all his descendants.
+D:Valinor. Consumed by wrath after Morgoth stole them, he led his     
+D:people from Aman to Middle-earth, sparking war and tragedy. Bound by 
+D:his fierce Oath, Feanor perished early, defiant to the end, his     
+D:fiery spirit leaving a legacy of valor, pride, and sorrow that still 
+D:shadows all his descendants.                                        
+
 
 N:2:Fingolfin
 A:Fingolfin's House
 B:Fingolfin
-F:WIL_AFFINITY | MEL_AFFINITY
-S:1:0:1:1
-D:Fingolfin, High King of the Noldor, was proud, steadfast, and just.
-D:He led his people across the Helcaraxë into exile, earning great
-D:honor. Ruling from Hithlum, he upheld alliance and hope among the
-D:Eldar. In wrath, he challenged Morgoth to single combat at Angband.
-D:Though slain, he wounded the Dark Lord seven times. His fall became
-D:a legend of unmatched valor, remembered with awe by Elves and Men.
+F:WIL_AFFINITY | EVN_AFFINITY
+S:0:1:1:1
+C:5:9
+D:Fingolfin, High King of the Noldor, was proud, steadfast, and just. 
+D:He led his people across the Helcaraxe into exile, earning great    
+D:honor. Ruling from Hithlum, he upheld alliance and hope among the   
+D:Eldar. In wrath, he challenged Morgoth to single combat at Angband. 
+D:Though slain, he wounded the Dark Lord seven times. His fall became 
+D:a legend of unmatched valor, remembered with awe by Elves and Men.  
 
 N:3:Finarfin
 A:Finarfin's House
 B:Finarfin
-F:PER_AFFINITY 
-S:0:0:0:1
-D:Finarfin, youngest son of Finwë, remains in Valinor as wise and
-D:gentle High King of the Noldor who stayed behind. Renowned for his
-D:compassion and peace-loving heart, he turned back after the tragic
-D:Kinslaying. Finarfin rules quietly, guiding the remnant of the
-D:Noldor in Aman with kindness and foresight, his legacy echoed in the
-D:deeds and wisdom of his children in Middle-earth.
+F:PER_AFFINITY | SNG_AFFINITY
+S:0:1:0:2
+C:7:12
+D:Finarfin, youngest son of Finwe, remains in Valinor as wise and     
+D:gentle High King of the Noldor who stayed behind. Renowned for his  
+D:compassion and peace-loving heart, he turned back after the tragic  
+D:Kinslaying. Finarfin rules quietly, guiding the remnant of the      
+D:Noldor in Aman with kindness and foresight, his legacy echoed in the 
+D:deeds and wisdom of his children in Middle-earth.                   
 
-N:4:Elu Thingol
-A:Doriath
-B:Doriath
-F:SNG_AFFINITY
-S:0:0:0:1
-D:Elu Thingol, King of Doriath, was the greatest lord of the Sindar.
-D:Once known as Elwë, he was ensnared by love for Melian the Maia.
-D:Together, they founded the hidden realm of Doriath, protected by
-D:the Girdle of Melian. Tallest of all Elves, with silver hair, he
-D:ruled with pride and wisdom. His realm stood as a bastion against
-D:Morgoth's darkness, though his pride would later lead to tragedy.
-
-N:5:Teclhar
-A:Nogrod
-B:Nogrod
-F:SMT_AFFINITY
-S:0:1:0:0
-D:Telchar of Nogrod, greatest smith of dwarven-kind in Beleriand, is
-D:famed far and wide for crafting weapons of unparalleled strength.
-D:His masterpieces include Narsil, destined for kings, and the famed
-D:Dragon-helm of Dor-lómin. Proud and fiercely protective of dwarven
-D:craftsmanship, Telchar’s legacy grows steadily, his works revered by
-D:Elves, Men, and Dwarves alike.
-
-N:6:Gamil Zirak
-A:Belegost
-B:Belegost
-F:WIL_AFFINITY
-S:1:0:0:0
-D:Gamil Zirak, revered smith of Belegost, renowned as master teacher
-D:and craftsman, passes dwarven lore to the generations. Wise, patient,
-D:and deeply respected, he mentors young smiths, preserving and
-D:perfecting ancient techniques. Gamil's steady hand shapes arms and
-D:armor unmatched in strength and beauty, enriching dwarven fame
-D:throughout Beleriand.
-
-N:7:Barahir
-A:Beor's House
-B:Beor
-F:EVN_AFFINITY
-S:0:0:0:1
-D:Barahir, lord of the House of Bëor, famed for courage and loyalty,
-D:fought bravely against Morgoth. His valor earned Finrod's friendship,
-D:marked by the Ring of Barahir. A steadfast leader, Barahir defied
-D:darkness even as his people dwindled, guarding hope fiercely amidst
-D:ruin. He stood resilient and proud, embodying human courage in the
-D:face of overwhelming shadow.
-
-N:8:Haleth
-A:Haleth's People
-B:Haleth
-F:STL_AFFINITY
-S:0:1:0:0
-D:Haleth, warrior-chieftain and shieldmaiden, led her people with
-D:unyielding strength. After her father and brother fell in battle,
-D:she bravely defended the Haladin against Orc-hordes. Proud, stern,
-D:and fiercely independent, Haleth guided her people safely to the
-D:Forest of Brethil, forging their identity through courage and honor
-D:amid hardship and constant threat.
-
-N:9:Hador
-A:Hador's House
-B:Hador
-F:MEL_AFFINITY
-S:1:0:0:0
-D:Hador Lórindol, golden-haired lord, was strongest and most valiant
-D:of the Edain. Granted the land of Dor-lómin by Fingolfin, he led
-D:his people wisely and bravely, renowned for loyalty, generosity,
-D:and courage. Beloved by both Elves and Men, Hador’s strength and
-D:nobility became legendary, his legacy enduring brightly even in
-D:darkening days.
-
-# New Sindar House: should be moved into order when I next break savefile
-# compatibility (v 1.1?)
-
-N:10:Cirdan
-A:the Falas
-B:Falathrim
-F:ARC_AFFINITY
-S:0:1:0:0
-D:Círdan the Shipwright, wise lord of the Falas, patiently builds
-D:vessels, safeguarding Elven wisdom. Tall, serene, and far-seeing,
-D:he watches over the coasts, advising allies, offering refuge. His
-D:steadfastness anchors Sindar strength against Morgoth's darkness.
-
-N:11:Maedhros
+N:4:Maedhros
 A:Feanor's House
 B:Feanor
 F:SMT_AFFINITY | WIL_AFFINITY
 S:0:1:1:1
-D:Maedhros was the eldest son of Fëanor, tall and valiant, wise yet
-D: fated to tragedy. Captured by Morgoth, he was chained by the wrist
-D: to Thangorodrim, until rescued by his cousin Fingon, who severed
-D: his right hand to free him. Despite this, Maedhros remained a
-D: formidable warrior, founding the Union of Maedhros against Morgoth.
-D: He inherited his father's fiery spirit and was bound by the Oath,
-D: which drove him to reclaim the Silmarils at any cost. His honor was
-D: renowned, though shadowed by sorrow, betrayal and eventual despair.
+C:5:8
+D:Maedhros was the eldest son of Feanor, tall and valiant, wise yet   
+D:fated to tragedy. Captured by Morgoth, he was chained by the wrist  
+D:to Thangorodrim, until rescued by his cousin Fingon, who severed his 
+D:right hand to free him. Despite this, Maedhros remained a formidable 
+D:warrior, founding the Union of Maedhros against Morgoth. He 
+D:inherited his father's fiery spirit and was bound by the Oath, which 
+D:drove him to reclaim the Silmarils at any cost. His honor was 
+D:renowned, though shadowed by sorrow, betrayal and eventual despair. 
 
-N:12:Curufin
+N:5:Curufin
 A:Feanor's House
 B:Feanor
 F:SMT_AFFINITY | STL_AFFINITY
-S:1:3:0:0
-D:Curufin, fifth son of Fëanor, most resembled his father in craft,
-D:appearance, and temper. Skilled and cunning, he dwells in
-D:Nargothrond alongside his brother Celegorm, known for subtlety and
-D:ambition. Bound by his father’s oath, Curufin’s pride and restless
-D:spirit remain hidden beneath courteous speech, yet shadowed by
-D:potential for treachery and arrogance that could threaten the peace
-D:of Nargothrond.
+S:1:2:1:-1
+C:3:4
+D:Curufin, fifth son of Feanor, most resembled his father in craft,   
+D:appearance, and temper. Skilled and cunning, he dwells in           
+D:Nargothrond alongside his brother Celegorm, known for subtlety and  
+D:ambition. Bound by his father’s oath, Curufin’s pride and restless  
+D:spirit remain hidden beneath courteous speech, yet shadowed by      
+D:potential for treachery and arrogance that could threaten the peace 
+D:of Nargothrond.                                                     
 
-N:13:Fingon
+N:6:Fingon
 A:Fingolfin's House
 B:Fingolfin
-F:WIL_AFFINITY | PER_AFFINITY
-S:0:1:1:1
-D:Fingon, eldest son of Fingolfin, High King of the Noldor, is valiant,
-D:noble, and loved by many. Famous for rescuing Maedhros from torment
-D:on Thangorodrim, he forged unity among the Noldor. Strong in battle
-D:and wise in leadership, Fingon now leads his people from Hithlum,
-D:holding steadfast against Morgoth’s darkness, renowned for courage,
-D:friendship, and unwavering loyalty even in perilous times.
+F:WIL_AFFINITY | ARC_AFFINITY
+S:1:0:1:1
+C:1:7
+D:Fingon, eldest son of Fingolfin, High King of the Noldor, is        
+D:valiant, noble, and loved by many. Famous for rescuing Maedhros from 
+D:torment on Thangorodrim, he forged unity among the Noldor. Strong in 
+D:battle and wise in leadership, Fingon now leads his people from 
+D:Hithlum, holding steadfast against Morgoth’s darkness, renowned for 
+D:courage, friendship, and unwavering loyalty even in perilous times. 
 
-N:14:Turgon
+N:7:Turgon
 A:Fingolfin's House
 B:Fingolfin
 F:WIL_AFFINITY | STL_AFFINITY
 S:0:1:1:1
-D:Turgon, second son of Fingolfin, wise and cautious, secretly rules
-D:the hidden city Gondolin, unknown even to allies. Inspired by Ulmo,
-D:he built Gondolin as a refuge from Morgoth’s evil. Turgon governs
-D:with wisdom, beauty, and peace, isolated yet vigilant. Though hidden
-D:from the world, his strength grows quietly, preserving the hope of
-D:Elves amid rising darkness and despair.
+C:3:5
+D:Turgon, second son of Fingolfin, wise and cautious, secretly rules  
+D:the hidden city Gondolin, unknown even to allies. Inspired by Ulmo, 
+D:he built Gondolin as a refuge from Morgoth’s evil. Turgon governs   
+D:with wisdom, beauty, and peace, isolated yet vigilant. Though hidden 
+D:from the world, his strength grows quietly, preserving the hope of  
+D:Elves amid rising darkness and despair.                             
 
-N:15:Galadriel
+N:8:Galadriel
 A:Finarfin's House
 B:Finarfin
-F:PER_AFFINITY 
-S:0:0:0:1
-D:Galadriel, daughter of Finarfin, is greatest among the Noldorin
-D:maidens, strong-willed and ambitious. Dwelling in the guarded realm
-D:of Doriath alongside Celeborn, she seeks wisdom and influence,
-D:tempered by the peaceful teaching of Melian. Her pride and strength
-D:are evident, but she has yet to rule openly, her destiny still
-D:unfolding amid struggles against Morgoth’s darkness.
+F:PER_AFFINITY | WIL_AFFINITY 
+S:0:1:0:2
+C:4:7
+D:Galadriel, daughter of Finarfin, is greatest among the Noldorin     
+D:maidens, strong-willed and ambitious. Dwelling in the guarded realm 
+D:of Doriath alongside Celeborn, she seeks wisdom and influence,      
+D:tempered by the peaceful teaching of Melian. Her pride and strength 
+D:are evident, but she has yet to rule openly, her destiny still      
+D:unfolding amid struggles against Morgoth’s darkness.                
 
-N:16:Finrod Felagund
+N:9:Finrod Felagund
 A:Finarfin's House
 B:Finarfin
-F:PER_AFFINITY 
-S:0:0:0:1
-D:Finrod Felagund, noble son of Finarfin, recently ruled fair and
-D:prosperous Nargothrond. Wise, brave, and compassionate, beloved by
-D:elves and men, Finrod honored his vow to Barahir by aiding Beren’s
-D:quest. He perished heroically, slain by a werewolf in Sauron’s
-D:dungeons, protecting his mortal companion. His death echoes through
-D:Elven hearts as a beacon of loyalty, courage, and sacrifice.
+F:PER_AFFINITY | SNG_AFFINITY
+S:0:0:1:2
+C:7:9
+D:Finrod Felagund, noble son of Finarfin, recently ruled fair and     
+D:prosperous Nargothrond. Wise, brave, and compassionate, beloved by  
+D:elves and men, Finrod honored his vow to Barahir by aiding Beren’s  
+D:quest. He perished heroically, slain by a werewolf in Sauron’s      
+D:dungeons, protecting his mortal companion. His death echoes through 
+D:Elven hearts as a beacon of loyalty, courage, and sacrifice.        
 
-N:17:Mablung
+N:10:Glorfindel
+A:Finarfin's House
+B:Finarfin
+F:PER_AFFINITY | MEL_AFFINITY
+S:0:0:1:2
+C:7:9
+D:Glorfindel, lord of the House of the Golden Flower in Gondolin, was 
+D:radiant and mighty, golden-haired and bold of heart. In the Fall of 
+D:Gondolin, he slew a Balrog in single combat to protect the city's   
+D:escape. Though he fell into the abyss, his valor became legend.     
+D:Reborn by the Valar, he would return in ages to come as a champion  
+D:of the West. His name endures as a symbol of light and unshakable   
+D:courage in the darkest hour.                                        
+
+N:11:Etchelion
+A:Finarfin's House
+B:Finarfin
+F:PER_AFFINITY | MEL_AFFINITY
+S:0:0:1:2
+C:7:9
+D:Finrod Felagund, noble son of Finarfin, recently ruled fair and     
+D:Ecthelion, lord of the House of the Fountain, was noble, proud, and 
+D:graceful in battle. In the defense of Gondolin, he slew Gothmog,    
+D:Lord of Balrogs, casting him down in the King's Square, though he   
+D:perished also. His death turned the tide within the city, buying    
+D:time for its people. Remembered as peerless among Gondolin’s        
+D:captains, Ecthelion’s name is sung in memory of honor and sacrifice. 
+
+N:12:Elu Thingol
 A:Doriath
 B:Doriath
-F:SNG_AFFINITY
-S:0:0:0:1
-D:Mablung, mighty captain of Doriath, called "of the Heavy Hand," is
-D:famed for strength and loyalty to King Thingol. Brave and steadfast,
-D:he patrols and defends Doriath’s borders tirelessly, respected by
-D:all. Trusted advisor and warrior, Mablung embodies honor, courage,
-D:and unwavering dedication to Sindar safety and prosperity.
+F:SNG_AFFINITY | WIL_AFFINITY
+S:1:0:1:1
+C:7:11
+D:Elu Thingol, King of Doriath, was the greatest lord of the Sindar.  
+D:Once known as Elwe, he was ensnared by love for Melian the Maia.    
+D:Together, they founded the hidden realm of Doriath, protected by the 
+D:Girdle of Melian. Tallest of all Elves, with silver hair, he ruled  
+D:with pride and wisdom. His realm stood as a bastion against         
+D:Morgoth's darkness, though his pride would later lead to tragedy.   
 
-N:18:Daeron
+N:13:Cirdan
+A:the Falas
+B:Falathrim
+F:ARC_AFFINITY | PER_AFFINITY
+S:0:1:1:1
+C:4:8
+D:Cirdan the Shipwright, wise lord of the Falas, patiently builds     
+D:vessels, safeguarding Elven wisdom. Tall, serene, and far-seeing, he 
+D:watches over the coasts, advising allies, offering refuge. His      
+D:steadfastness anchors Sindar strength against Morgoth's darkness.   
+
+N:14:Mablung
 A:Doriath
 B:Doriath
-F:SNG_AFFINITY
-S:0:0:0:1
-D:Daeron, minstrel and loremaster of Doriath, is famed as greatest of
-D:all Elven bards. Gifted beyond compare in song and rune-lore, he
-D:serves Thingol faithfully, deeply loved yet troubled by unrequited
-D:love for Lúthien. His songs preserve Sindarin tradition, beauty,
-D:and history.
+F:SNG_AFFINITY | PER_AFFINITY
+S:1:1:0:1
+D:Mablung, mighty captain of Doriath, called "of the Heavy Hand," is  
+D:famed for strength and loyalty to King Thingol. Brave and steadfast, 
+D:he patrols and defends Doriath’s borders tirelessly, respected by  
+D:all. Trusted advisor and warrior, Mablung embodies honor, courage, 
+D:and unwavering dedication to Sindar safety and prosperity.          
 
-N:19:Aerandir
+N:15:Luthien
+A:Doriath
+B:Doriath
+F:SNG_AFFINITY | WIL_AFFINITY
+S:0:0:0:3
+C:7:10
+D:Luthien, daughter of Thingol and Melian, was fairest of all the     
+D:Children of Iluvatar. Her beauty and voice enchanted even the       
+D:immortal. She loved the mortal Beren and chose a fate beyond death. 
+D:With courage and power, she passed Sauron’s dungeons and put Morgoth 
+D:into a spell-bound sleep. Her deeds shook the foundations of        
+D:Angband, and her love defied death itself. Her name is woven into   
+D:all songs.                                                          
+
+N:16:Voronwe
 A:the Falas
 B:Falathrim
-F:ARC_AFFINITY
-S:0:0:0:1
-D:Aerandir, bold mariner and captain of Brithombar, patrols Beleriand’s
-D:western shores against Morgoth’s raids. Skilled and daring, his
-D:ships swiftly guard Sindarin coasts. Loyal to Círdan, he embodies
-D:Falas’s strength at sea. Courageous and vigilant, Aerandir defends
-D:Elven hope, his sails ever watchful over darkening waves.
+F:ARC_AFFINITY | WIL_AFFINITY
+S:0:1:2:0
+C:0:5
+D:Voronwe, Elf of Gondolin, was noble, steadfast, and sea-born. Of    
+D:Falathrim descent on his mother’s side, he bore the sea’s longing in 
+D:his heart. Chosen by Turgon to sail west for aid, he alone returning 
+D:from the voyage, saved by Ulmo’s hand. In the wilds he met Tuor, 
+D:guiding him to Gondolin. Called "the Faithful", Voronwe carried 
+D:Ulmo’s warning and became a quiet force in the fate of Elves and Men.                                                                
 
-N:20:Aeron
+N:17:Beleg
 A:the Falas
 B:Falathrim
-F:ARC_AFFINITY
-S:0:0:0:1
-D:Aeron, mariner of the Falas, served under Círdan in the coastal
-D:defense of Brithombar. Skilled with ship and spear, he fought
-D:valiantly during raids by Morgoth’s forces. When Brithombar fell,
-D:he escaped with Círdan’s fleet, bearing survivors southward to
-D:the Isle of Balar. Brave and loyal, Aeron endures as a guardian
-D:of the last hope of the Falathrim.
+F:ARC_AFFINITY | WIL_AFFINITY
+S:0:1:2:0
+C:0:5
+D:Beleg Cuthalion, called Strongbow, was chief marchwarden of Doriath. 
+D:A master archer and swordsman, he defended the realm with valor. 
+D:Friend to Turin, he sought him in exile and shared his fate. Slain 
+D:accidentally by Turin in madness, Beleg’s death marked a turning in 
+D:Turin’s doom. Honored in song, Beleg’s loyalty and strength were 
+D:unmatched, his love unbroken even in betrayal.                      
 
-N:21:Naugladur
+N:18:Teclhar
 A:Nogrod
 B:Nogrod
-F:SMT_AFFINITY
-S:0:1:0:0
-D:Naugladur, lord of Nogrod, is proud, stern, and skilled in battle.
-D:Renowned for his command, he fiercely protects dwarven honor and
-D:wealth. His gaze looks often westward toward Doriath, ambitious and
-D:watchful, seeking riches and prestige. Cunning yet cautious, his
-D:heart is consumed by pride and an ever-growing desire to enhance the
-D:greatness of his city.
+F:SMT_AFFINITY | MEL_AFFINITY
+S:1:1:1:0
+D:Telchar of Nogrod, greatest smith of dwarven-kind in Beleriand, is  
+D:famed far and wide for crafting weapons of unparalleled strength.   
+D:His masterpieces include Narsil, destined for kings, and the famed  
+D:Dragon-helm of Dor-lomin. Proud and fiercely protective of dwarven  
+D:craftsmanship, Telchar’s legacy grows steadily, his works revered by 
+D:Elves, Men, and Dwarves alike.                                      
 
-N:22:Azaghâl
+N:19:Gamil Zirak
+A:Belegost
+B:Belegost
+F:WIL_AFFINITY | SMT_AFFINITY
+S:2:0:1:0
+D:Gamil Zirak, revered smith of Belegost, renowned as master teacher  
+D:and craftsman, passes dwarven lore to the generations. Wise,        
+D:patient, and deeply respected, he mentors young smiths, preserving  
+D:and perfecting ancient techniques. Gamil's steady hand shapes arms  
+D:and armor unmatched in strength and beauty, enriching dwarven fame  
+D:throughout Beleriand.                                               
+
+N:20:Naugladur
 A:Nogrod
 B:Nogrod
-F:SMT_AFFINITY
-S:0:1:0:0
-D:Azaghâl, warrior of Nogrod, is brave and steadfast, famed as captain
-D:of mighty companies in war. His deeds against Orcs and beasts of
-D:Morgoth earn him respect across Beleriand. Proud, loyal, and strong,
-D:Azaghâl embodies dwarven courage and battle-prowess, defending his
-D:city’s halls fiercely from all enemies.
+F:SMT_AFFINITY | PER_AFFINITY
+S:0:2:1:0
+D:Naugladur, lord of Nogrod, is proud, stern, and skilled in battle.  
+D:Renowned for his command, he fiercely protects dwarven honor and    
+D:wealth. His gaze looks often westward toward Doriath, ambitious and 
+D:watchful, seeking riches and prestige. Cunning yet cautious, his    
+D:heart is consumed by pride and an ever-growing desire to enhance the 
+D:greatness of his city.                                              
 
-N:23:King Azaghal
+N:21:King Azaghal
 A:Belegost
 B:Belegost
-F:WIL_AFFINITY
-S:1:0:0:0
-D:Azaghâl, mighty King of Belegost, wise in council and fierce in war,
-D:rules his mountain halls with dignity. Valiant against Orcs and
-D:dragons alike, he upholds dwarven honor proudly. His strength and
-D:courage bolster the spirits of his kin, uniting Belegost through
-D:dark times. Feared by foes, respected by allies, Azaghâl remains
-D:steadfast against Morgoth.
+F:WIL_AFFINITY | MEL_AFFINITY
+S:2:0:1:0
+D:Azaghal, mighty King of Belegost, wise in council and fierce in war, 
+D:rules his mountain halls with dignity. Valiant against Orcs and 
+D:dragons alike, he upholds dwarven honor proudly. His strength and 
+D:courage bolster the spirits of his kin, uniting Belegost through 
+D:dark times. Feared by foes, respected by allies, Azaghal remains 
+D:steadfast against Morgoth.                                          
 
-N:24:Nim
+N:22:Mim
 A:Belegost
 B:Belegost
-F:WIL_AFFINITY
-S:1:0:0:0
-D:Nîm, famed metalsmith of Belegost, specializes in crafting chainmail
-D:of extraordinary strength. Gentle in manner, patient, and meticulous,
-D:his artistry is coveted by Elves and Men alike. Renowned for skill,
-D:Nîm quietly enhances dwarven prestige, weaving steel rings that turn
-D:blades aside with ease, prized greatly across Beleriand.
+F:WIL_AFFINITY | SNG_AFFINITY
+S:1:1:0:1
+D:Mîm, last of the Petty-dwarves, lived in Amon Rûdh in secret. When  
+D:caught by Turin’s outlaws, he bartered his life with shelter.       
+D:Grudging and bitter, he later betrayed Turin to the Orcs, though he 
+D:wept for his son’s death. Hated by Elves and shunned by Dwarves, Mîm 
+D:died cursed, yet pitied. A creature twisted by grief, not wholly    
+D:evil.                                                               
 
-N:25:Beren
+N:23:Beren
 A:Beor's House
 B:Beor
-F:EVN_AFFINITY
-S:0:0:0:1
-D:Beren, son of Barahir, is a brave and driven warrior, hunted by
-D:Morgoth’s servants. He now dwells in Doriath, where he fell in love
-D:with Lúthien. A mortal with a noble heart, Beren's destiny is shaped
-D:by great love and greater danger, as he prepares for a quest none
-D:have dared before—to claim a Silmaril from Morgoth's crown.
+F:EVN_AFFINITY | STL_AFFINITY
+S:1:1:0:1
+D:Beren, son of Barahir, is a brave and driven warrior, hunted by 
+D:Morgoth’s servants. He now dwells in Doriath, where he fell in love 
+D:with Luthien. A mortal with a noble heart, Beren's destiny is shaped 
+D:by great love and greater danger, as he prepares for a quest none 
+D:have dared before—to claim a Silmaril from Morgoth's crown.         
 
-N:26:Bereg
+N:24:Barahir
 A:Beor's House
 B:Beor
-F:EVN_AFFINITY
-S:0:0:0:1
-D:Bereg, early leader of the House of Bëor, spoke against remaining in
-D:Beleriand after the death of their Elven allies. Wise but cautious,
-D:he feared the doom of the Noldor and sought to return east. Though
-D:his people largely stayed, Bereg’s voice is remembered as one of
-D:prudence amid a time of reckless hope.
+F:EVN_AFFINITY | MEL_AFFINITY
+S:1:0:1:1
+D:Barahir, lord of the House of Beor, famed for courage and loyalty,  
+D:fought bravely against Morgoth. His valor earned Finrod's           
+D:friendship, marked by the Ring of Barahir. A steadfast leader,      
+D:Barahir defied darkness even as his people dwindled, guarding hope  
+D:fiercely amidst ruin. He stood resilient and proud, embodying human 
+D:courage in the face of overwhelming shadow.                         
 
-N:27:Haldar
-A:Haleth's House
+N:25:Earendil
+A:Beor's House
+B:Beor
+F:EVN_AFFINITY | MEL_AFFINITY
+S:1:0:1:1
+D:Eärendil, son of Tuor and Idril, was a mariner of great heart and   
+D:noble lineage. Born of Elf and Man, he sailed the seas seeking aid  
+D:from the Valar. With Elwing and the Silmaril, he passed into the    
+D:West. His plea moved the Valar to war against Morgoth. Raised into  
+D:the sky as a star, Eärendil became a beacon of hope for all peoples. 
+
+N:26:Haleth
+A:Haleth's People
 B:Haleth
-F:EVN_AFFINITY
-S:0:0:0:1
-D:Haldar, brother of Haleth, died defending their people in the forest
-D:of Thargelion. Brave and loyal, he stood with her in dire times,
-D:holding the line against Orcs. His sacrifice helped ensure the
-D:survival of the Haladin and shaped their identity as fierce,
-D:independent warriors.
+F:STL_AFFINITY |
+S:0:2:1:0
+D:Haleth, warrior-chieftain and shieldmaiden, led her people with     
+D:unyielding strength. After her father and brother fell in battle,   
+D:she bravely defended the Haladin against Orc-hordes. Proud, stern,  
+D:and fiercely independent, Haleth guided her people safely to the    
+D:Forest of Brethil, forging their identity through courage and honor 
+D:amid hardship and constant threat.                                  
 
-N:28:Haldan
-A:Haleth's House
-B:Haleth
-F:EVN_AFFINITY
-S:0:0:0:1
-D:Haldan, kinsman of Haleth, became chieftain after her death. Stern
-D:and practical, he ruled the Haladin in Brethil with strength and
-D:resolve. Haldan maintained the fierce independence of his people,
-D:guarding the forest borders and honoring Haleth’s legacy.
-
-N:29:Galdor
+N:27:Hador
 A:Hador's House
 B:Hador
-F:MEL_AFFINITY
-S:1:0:0:0
-D:Galdor, son of Hador, now rules Dor-lómin. Brave, loyal, and
-D:honorable, he serves under Fingon in the wars against Morgoth.
-D:Galdor upholds his father’s legacy of courage, leading his people
-D:with strength. He is father to Húrin and Huor, heirs of a heroic
-D:line of warriors.
+F:MEL_AFFINITY |
+S:2:0:1:0
+D:Hador Lorindol, golden-haired lord, was strongest and most valiant  
+D:of the Edain. Granted the land of Dor-lomin by Fingolfin, he led his 
+D:people wisely and bravely, renowned for loyalty, generosity, and 
+D:courage. Beloved by both Elves and Men, Hador’s strength and 
+D:nobility became legendary, his legacy enduring brightly even in     
+D:darkening days.                                                     
 
-N:30:Gundor
-A:Hador's House
-B:Hador
-F:MEL_AFFINITY
-S:1:0:0:0
-D:Gundor, younger son of Hador, died heroically defending Eithel Sirion
-D:alongside his father. Though less known than his brother Galdor, he
-D:fought with great valor. His death marked the loss of a rising
-D:leader and a blow to the strength of the House of Hador.
+N:28:Turin
+A:Beor's House
+B:Beor
+F:EVN_AFFINITY | MEL_AFFINITY
+S:1:0:1:1
+D:Túrin, son of Húrin, was a mighty warrior, proud and sorrowful. 
+D:Raised in Doriath, he wandered Beleriand under many names. Driven by 
+D:doom laid by Morgoth, he slew his friend Beleg in error, and loved  
+D:his sister unknowing. Called Turambar, Master of Fate, he slew 
+D:Glaurung the dragon. Learning the truth, he fell on his sword. His 
+D:tale is one of greatness marred by shadow and tragic pride.         
+
+
+N:29:Tuor
+A:Beor's House
+B:Beor
+F:EVN_AFFINITY | MEL_AFFINITY
+S:1:0:1:1
+D:Tuor, son of Huor, was chosen by Ulmo to bear a message to Gondolin. 
+D:Guided by the Vala’s will, he reached the hidden city and married 
+D:Idril, daughter of Turgon. Wise and noble, he led the survivors 
+D:through fire and ruin after Gondolin's fall. Among the greatest of  
+D:Men, Tuor alone was said to have passed into the West, counted among 
+D:the Eldar in grace and fate.                                        
+
+N:30:Hurin
+A:Beor's House
+B:Beor
+F:EVN_AFFINITY | MEL_AFFINITY
+S:1:0:1:1
+D:Hurin, lord of the House of Hador, was the greatest warrior of Men. 
+D:Captured at Nirnaeth Arnoediad, he defied Morgoth for years in      
+D:chains. Released with malice, his bitter grief and pride helped doom 
+D:Doriath. Yet Hurin bore his curse with indomitable will. His        
+D:strength and sorrow left a mark on all of Beleriand's fate.         

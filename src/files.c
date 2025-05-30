@@ -3936,6 +3936,8 @@ static void display_scores_aux(int from, int to, int note, high_score* score)
     int j, k, n;
     int count;
     int place, fake;
+    int silm=0;
+    int morg=0;
 
     high_score the_score;
 
@@ -4019,10 +4021,23 @@ static void display_scores_aux(int from, int to, int note, high_score* score)
             }
 
             display_single_score(attr, n * 4, 0, place, fake, &the_score);
+            if (the_score.escaped[0] == 't') {
+                silm+=atoi(the_score.silmarils);
+                if (the_score.morgoth_slain[0] == 't') morg++;
+            }
         }
+    /* Print symbols for silmarils / slaying Morgoth */
+
+        char cated_string[20];
+        sprintf(cated_string,"%s%d","Number of Silmarils: ",silm);
+
+        Term_putstr(2, 22, -1, TERM_BLUE, cated_string);
+        sprintf(cated_string,"%s%d","Slain Morgoth: ",morg);
+
+        Term_putstr(2, 23, -1, TERM_RED, cated_string);
 
         /* Wait for response */
-        Term_putstr(15, 23, -1, TERM_L_WHITE, "(press any key)");
+        Term_putstr(15, 24, -1, TERM_L_WHITE, "(press any key)");
         ch = inkey();
         prt("", 23, 0);
 
