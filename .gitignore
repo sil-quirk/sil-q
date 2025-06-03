@@ -1,5 +1,6 @@
 *.o
 *.raw
+*.tmp*
 src/sil
 src/sil.o.x86_64
 Sil.app
@@ -8,3 +9,11 @@ sil-qh
 *.exe
 *.idx
 src/Untitled-1.txt
+lib/edit/house - Copy.txt
+lib/edit/house_old.txt
+src/-.tmp_3478
+src/-.tmp_3504
+src/-.tmp_3658
+src/-.tmp_3813
+src/-.tmp_3968
+*.csv

@@ -72,7 +72,7 @@ N:3:Finarfin
 A:Finarfin's House
 B:Finarfin
 F:PER_AFFINITY | SNG_AFFINITY
-S:0:1:0:2
+S:0:0:0:2
 C:7:12
 D:Finarfin, youngest son of Finwe, remains in Valinor as wise and     
 D:gentle High King of the Noldor who stayed behind. Renowned for his  
@@ -100,7 +100,7 @@ N:5:Curufin
 A:Feanor's House
 B:Feanor
 F:SMT_AFFINITY | STL_AFFINITY
-S:1:2:1:-1
+S:0:2:1:-1
 C:3:4
 D:Curufin, fifth son of Feanor, most resembled his father in craft,   
 D:appearance, and temper. Skilled and cunning, he dwells in           
@@ -166,7 +166,7 @@ N:10:Glorfindel
 A:Finarfin's House
 B:Finarfin
 F:PER_AFFINITY | MEL_AFFINITY
-S:0:0:1:2
+S:1:2:0:0
 C:7:9
 D:Glorfindel, lord of the House of the Golden Flower in Gondolin, was 
 D:radiant and mighty, golden-haired and bold of heart. In the Fall of 
@@ -180,7 +180,7 @@ N:11:Etchelion
 A:Finarfin's House
 B:Finarfin
 F:PER_AFFINITY | MEL_AFFINITY
-S:0:0:1:2
+S:2:1:0:0
 C:7:9
 D:Finrod Felagund, noble son of Finarfin, recently ruled fair and     
 D:Ecthelion, lord of the House of the Fountain, was noble, proud, and 
@@ -218,7 +218,7 @@ N:14:Mablung
 A:Doriath
 B:Doriath
 F:SNG_AFFINITY | PER_AFFINITY
-S:1:1:0:1
+S:1:1:0:0
 D:Mablung, mighty captain of Doriath, called "of the Heavy Hand," is  
 D:famed for strength and loyalty to King Thingol. Brave and steadfast, 
 D:he patrols and defends Doriath’s borders tirelessly, respected by  
@@ -243,7 +243,7 @@ N:16:Voronwe
 A:the Falas
 B:Falathrim
 F:ARC_AFFINITY | WIL_AFFINITY
-S:0:1:2:0
+S:0:1:0:0
 C:0:5
 D:Voronwe, Elf of Gondolin, was noble, steadfast, and sea-born. Of    
 D:Falathrim descent on his mother’s side, he bore the sea’s longing in 
@@ -256,7 +256,7 @@ N:17:Beleg
 A:the Falas
 B:Falathrim
 F:ARC_AFFINITY | WIL_AFFINITY
-S:0:1:2:0
+S:1:1:0:0
 C:0:5
 D:Beleg Cuthalion, called Strongbow, was chief marchwarden of Doriath. 
 D:A master archer and swordsman, he defended the realm with valor. 
@@ -281,7 +281,7 @@ N:19:Gamil Zirak
 A:Belegost
 B:Belegost
 F:WIL_AFFINITY | SMT_AFFINITY
-S:2:0:1:0
+S:2:0:0:0
 D:Gamil Zirak, revered smith of Belegost, renowned as master teacher  
 D:and craftsman, passes dwarven lore to the generations. Wise,        
 D:patient, and deeply respected, he mentors young smiths, preserving  
@@ -293,7 +293,7 @@ N:20:Naugladur
 A:Nogrod
 B:Nogrod
 F:SMT_AFFINITY | PER_AFFINITY
-S:0:2:1:0
+S:0:0:1:0
 D:Naugladur, lord of Nogrod, is proud, stern, and skilled in battle.  
 D:Renowned for his command, he fiercely protects dwarven honor and    
 D:wealth. His gaze looks often westward toward Doriath, ambitious and 
@@ -305,7 +305,7 @@ N:21:King Azaghal
 A:Belegost
 B:Belegost
 F:WIL_AFFINITY | MEL_AFFINITY
-S:2:0:1:0
+S:1:0:1:0
 D:Azaghal, mighty King of Belegost, wise in council and fierce in war, 
 D:rules his mountain halls with dignity. Valiant against Orcs and 
 D:dragons alike, he upholds dwarven honor proudly. His strength and 
@@ -317,7 +317,7 @@ N:22:Mim
 A:Belegost
 B:Belegost
 F:WIL_AFFINITY | SNG_AFFINITY
-S:1:1:0:1
+S:0:0:0:1
 D:Mîm, last of the Petty-dwarves, lived in Amon Rûdh in secret. When  
 D:caught by Turin’s outlaws, he bartered his life with shelter.       
 D:Grudging and bitter, he later betrayed Turin to the Orcs, though he 
@@ -352,7 +352,7 @@ N:25:Earendil
 A:Beor's House
 B:Beor
 F:EVN_AFFINITY | MEL_AFFINITY
-S:1:0:1:1
+S:0:0:2:1
 D:Eärendil, son of Tuor and Idril, was a mariner of great heart and   
 D:noble lineage. Born of Elf and Man, he sailed the seas seeking aid  
 D:from the Valar. With Elwing and the Silmaril, he passed into the    
@@ -363,7 +363,7 @@ N:26:Haleth
 A:Haleth's People
 B:Haleth
 F:STL_AFFINITY |
-S:0:2:1:0
+S:0:1:0:0
 D:Haleth, warrior-chieftain and shieldmaiden, led her people with     
 D:unyielding strength. After her father and brother fell in battle,   
 D:she bravely defended the Haladin against Orc-hordes. Proud, stern,  
@@ -375,7 +375,7 @@ N:27:Hador
 A:Hador's House
 B:Hador
 F:MEL_AFFINITY |
-S:2:0:1:0
+S:1:0:0:0
 D:Hador Lorindol, golden-haired lord, was strongest and most valiant  
 D:of the Edain. Granted the land of Dor-lomin by Fingolfin, he led his 
 D:people wisely and bravely, renowned for loyalty, generosity, and 
@@ -387,7 +387,7 @@ N:28:Turin
 A:Beor's House
 B:Beor
 F:EVN_AFFINITY | MEL_AFFINITY
-S:1:0:1:1
+S:1:1:0:1
 D:Túrin, son of Húrin, was a mighty warrior, proud and sorrowful. 
 D:Raised in Doriath, he wandered Beleriand under many names. Driven by 
 D:doom laid by Morgoth, he slew his friend Beleg in error, and loved  
@@ -400,7 +400,7 @@ N:29:Tuor
 A:Beor's House
 B:Beor
 F:EVN_AFFINITY | MEL_AFFINITY
-S:1:0:1:1
+S:1:1:1:0
 D:Tuor, son of Huor, was chosen by Ulmo to bear a message to Gondolin. 
 D:Guided by the Vala’s will, he reached the hidden city and married 
 D:Idril, daughter of Turgon. Wise and noble, he led the survivors 
@@ -412,7 +412,7 @@ N:30:Hurin
 A:Beor's House
 B:Beor
 F:EVN_AFFINITY | MEL_AFFINITY
-S:1:0:1:1
+S:0:0:1:0
 D:Hurin, lord of the House of Hador, was the greatest warrior of Men. 
 D:Captured at Nirnaeth Arnoediad, he defied Morgoth for years in      
 D:chains. Released with malice, his bitter grief and pride helped doom 

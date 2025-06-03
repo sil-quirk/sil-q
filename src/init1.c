@@ -647,6 +647,20 @@ errr parse_z_info(char* buf, header* head)
         z_info->h_max = max;
     }
 
+    /* Process 'S' for "Maximum st_info[] index" */
+
+    else if (buf[2] == 'S')
+    {
+        int max;
+
+        /* Scan for the value */
+        if (1 != sscanf(buf + 4, "%d", &max))
+            return (PARSE_ERROR_GENERIC);
+
+        /* Save the value */
+        z_info->st_max = max;
+    }
+
     /* Process 'Q' for "Maximum q_info[] index" */
     else if (buf[2] == 'Q')
     {
@@ -3157,6 +3171,82 @@ errr parse_h_info(char* buf, header* head)
 
         /* Store the text */
         if (!add_text(&h_ptr->text, head, s))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+    else
+    {
+        /* Oops */
+        return (PARSE_ERROR_UNDEFINED_DIRECTIVE);
+    }
+
+    /* Success */
+    return (0);
+}
+
+/*
+ * Initialize the "st_info" array, by parsing an ascii "template" file
+ */
+errr parse_st_info(char* buf, header* head)
+{
+    int i;
+
+    char* s;
+
+    /* Current entry */
+    static story_type* st_ptr = NULL;
+
+    /* Process 'N' for "New/Number" */
+    if (buf[0] == 'N')
+    {
+        /* Find the colon before the name */
+        s = strchr(buf + 2, ':');
+
+        /* Verify that colon */
+        if (!s)
+            return (PARSE_ERROR_GENERIC);
+
+        /* Nuke the colon, advance to the name */
+        *s++ = '\0';
+
+        /* Paranoia -- require a name */
+        if (!*s)
+            return (PARSE_ERROR_GENERIC);
+
+        /* Get the index */
+        i = atoi(buf + 2);
+
+        /* Verify information */
+        if (i <= error_idx)
+            return (PARSE_ERROR_NON_SEQUENTIAL_RECORDS);
+
+        /* Verify information */
+        if (i >= head->info_num)
+            return (PARSE_ERROR_TOO_MANY_ENTRIES);
+
+        /* Save the index */
+        error_idx = i;
+
+        /* Point at the "info" */
+        st_ptr = (story_type*)head->info_ptr + i;
+
+        /* Store the name */
+        if (!(st_ptr->name = add_name(head, s)))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+
+    /* Process 'D' for "Description" */
+    else if (buf[0] == 'D')
+    {
+        /* There better be a current st_ptr */
+        if (!st_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Get the text */
+        s = buf + 2;
+
+        /* Store the text */
+        if (!add_text(&st_ptr->text, head, s))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
     else

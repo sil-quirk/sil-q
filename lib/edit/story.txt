@@ -1,0 +1,52 @@
+# File: story.txt
+#
+# This file is used to create the "lib/data/story.raw" file, which is
+#
+# Do not modify this file unless you know exactly what you are doing,
+# unless you wish to risk possible system crashes and broken savefiles.
+#
+#
+# === Understanding story.txt ===
+#
+# N: hero number : hero name
+
+
+# Version stamp (required)
+
+V:1.5.0
+
+N:0:Glorfindel
+D:StoryLine1 
+
+N:1:Glorfindel
+D:StoryLine2 
+
+N:2:Glorfindel
+D:StoryLine3 
+
+N:3:Glorfindel
+D:StoryLine4 
+
+N:4:Glorfindel
+D:StoryLine5 
+
+N:5:Glorfindel
+D:StoryLine6 
+
+N:6:Glorfindel
+D:StoryLine7 
+
+N:7:NOTGlorfindel
+D:StoryLine8 
+
+N:8:Glorfindel
+D:StoryLine9 
+
+N:9:Glorfindel
+D:StoryLine10 
+
+N:10:Glorfindel
+D:StoryLine11
+
+N:11:Glorfindel
+D:StoryLine12

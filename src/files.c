@@ -3117,7 +3117,7 @@ bool get_name(void)
 {
     char tmp[14];
     char old_name[14];
-    bool name_selected = FALSE;
+    // bool name_selected = FALSE;
 
     // Clear the names
     tmp[0] = '\0';
@@ -3474,10 +3474,7 @@ static void death_examine(void)
     }
 }
 
-/*
- * The "highscore" file descriptor, if available.
- */
-extern int highscore_fd = -1;
+
 
 /*
  * Seek score 'i' in the highscore file
@@ -3627,7 +3624,6 @@ static int highscore_where(high_score* score)
 extern int highscore_dead(char* name)
 {
     int i;
-    char buf[1024];
     high_score the_score;
 
     /* Paranoia -- it may not have opened */
@@ -3654,16 +3650,45 @@ extern int highscore_dead(char* name)
     return (0);
 }
 
+// Count the number of silmarils delivered
+
+static int highscore_count()
+{
+    int count; 
+    int silm = 0; 
+    int morg = 0;
+    high_score the_score;
+
+    /* Paranoia -- it may not have opened */
+    if (highscore_fd < 0)
+        return 0;
+
+    /* Seek to the beginning */
+    if (highscore_seek(0)) 
+        return 0;
+
+    for (count = 0; count < MAX_HISCORES; count++)
+    {
+        if (highscore_read(&the_score))
+            break;
+        else {
+            if (the_score.escaped[0] == 't') {
+                silm+=atoi(the_score.silmarils);
+                if (the_score.morgoth_slain[0] == 't') morg++;
+            }
+        }
+    }
+    return (silm);
+}
+
 /*
  * Actually place an entry into the high score file
  * Return the location (0 is best) or -1 on "failure"
  */
 static int highscore_add(high_score* score)
 {
-    int i, slot;
-    bool done = FALSE;
-
-    high_score the_score, tmpscore;
+    int slot;
+    // bool done = FALSE;
 
     /* Paranoia -- it may not have opened */
     if (highscore_fd < 0)
@@ -4085,6 +4110,45 @@ void display_scores(int from, int to)
 
     /* Quit */
     quit(NULL);
+}
+
+// Print story messages
+
+static void print_story()
+{
+    int max;
+    max = highscore_count(); 
+    char cated_string[20];
+    sprintf(cated_string,"%s%d","Number of Silmarils: ",max);
+
+    if (p_ptr->escaped)
+    {
+            Term_putstr(15, 1, -1, TERM_L_BLUE, "StoryLine");
+    }
+    else
+    {
+        Term_putstr(15, 2, -1, TERM_L_BLUE, "Another hero has been slain");
+        Term_putstr(15, 3, -1, TERM_L_BLUE, cated_string);
+    }
+
+
+
+    for (int i = 0; i < max; i++) {
+        char text[ST_MAX];
+        char name[ST_MAX];
+        my_strcpy(name, st_name + st_info[i].name, sizeof(text));
+        my_strcpy(text, st_text + st_info[i].text, sizeof(text));
+
+        if (!my_strnicmp(name, MAINCH, sizeof(name))) Term_putstr(15, 4+i, -1, TERM_L_BLUE, text);
+
+    prt_mini_screenshot(5, 12);
+    }
+    /* Wait for response */
+    Term_putstr(15, 24, -1, TERM_L_WHITE, "(press any key)");
+    inkey();
+    prt("", 23, 0);
+    Term_clear();
+
 }
 
 /*
@@ -4932,8 +4996,13 @@ static void close_game_aux(void)
         message_flush();
     }
 
+    // Here we print storytelling message
+    print_story();
+
     /* You are dead */
     print_tomb(&the_score);
+    
+    // Here we dump stats into metarun.
 
     /* Flush all input keys */
     flush();

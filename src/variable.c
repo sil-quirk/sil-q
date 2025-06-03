@@ -558,6 +558,13 @@ hist_type* h_info;
 char* h_text;
 
 /*
+ * The player story arrays
+ */
+story_type* st_info;
+char* st_text;
+char* st_name;
+
+/*
  * The object flavor arrays
  */
 flavor_type* flavor_info;
@@ -784,3 +791,8 @@ char ghost_string[80];
  * The name of the current greater vault, if any. -DG-
  */
 char g_vault_name[80];
+
+/*
+ * The "highscore" file descriptor, if available.
+ */
+int highscore_fd;

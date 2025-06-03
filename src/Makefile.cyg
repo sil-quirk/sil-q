@@ -77,7 +77,9 @@ INCS = \
 
 default: sil
 
-install: sil movebin lineendings
+install: sil cleanobjs movebin lineendings
+
+launch: sil movebin exec
 
 movebin:
 	mv -f sil.exe ../sil.exe
@@ -92,6 +94,9 @@ cleanbin:
 	rm -f sil.exe
 
 clean:	cleanobjs cleanbin
+
+exec:	
+	.././sil.exe
 
 
 

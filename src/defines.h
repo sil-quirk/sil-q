@@ -629,6 +629,13 @@
 #define A_MAX 4
 
 /*
+ * Total number stories.
+ */
+#define ST_MAX 30
+
+#define MAINCH "Glorfindel"
+
+/*
  * The internal minimum and  maximum for a given stat.
  */
 #define BASE_STAT_MIN -9
