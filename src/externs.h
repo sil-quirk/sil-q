@@ -197,6 +197,9 @@ extern hist_type* h_info;
 extern story_type* st_info;
 extern char* st_text;
 extern char* st_name;
+extern curse_type* cu_info;
+extern char* cu_text;
+extern char* cu_name;
 extern char* h_text;
 extern flavor_type* flavor_info;
 extern char* flavor_name;
@@ -516,6 +519,7 @@ extern void atomonth(int number, char* output);
 extern void display_single_score(
     byte attr, int row, int col, int place, int fake, high_score* the_score);
 extern int highscore_dead(char* name);
+extern int highscore_count();
 extern void display_scores(int from, int to);
 extern void close_game(void);
 extern void exit_game_panic(void);

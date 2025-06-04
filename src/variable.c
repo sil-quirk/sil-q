@@ -565,6 +565,13 @@ char* st_text;
 char* st_name;
 
 /*
+ * The player curse arrays
+ */
+curse_type* cu_info;
+char* cu_text;
+char* cu_name;
+
+/*
  * The object flavor arrays
  */
 flavor_type* flavor_info;

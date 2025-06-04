@@ -62,6 +62,9 @@ M:H:165
 # Maximum number of player story lines
 M:S:15
 
+# Maximum number of curses
+M:U:4
+
 # Maximum number of quests (including a slot for random quests)
 M:Q:4
 

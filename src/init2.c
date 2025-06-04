@@ -299,6 +299,7 @@ header p_head;
 header c_head;
 header h_head;
 header st_head;
+header cu_head;
 header b_head;
 header g_head;
 header flavor_head;
@@ -942,6 +943,33 @@ static errr init_st_info(void)
     st_info = st_head.info_ptr;
     st_text = st_head.text_ptr;
     st_name = st_head.name_ptr;
+
+    return (err);
+}
+
+/*
+ * Initialize the "cu_info" array
+ */
+static errr init_cu_info(void)
+{
+    errr err;
+
+    /* Init the header */
+    init_header(&cu_head, z_info->cu_max, sizeof(curse_type));
+
+#ifdef ALLOW_TEMPLATES
+
+    /* Save a pointer to the parsing function */
+    cu_head.parse_info_txt = parse_cu_info;
+
+#endif /* ALLOW_TEMPLATES */
+
+    err = init_info("curses", &cu_head);
+
+    /* Set the global variables */
+    cu_info = cu_head.info_ptr;
+    cu_text = cu_head.text_ptr;
+    cu_name = cu_head.name_ptr;
 
     return (err);
 }
@@ -1739,8 +1767,15 @@ void init_angband(void)
     if (init_h_info())
         quit("Cannot initialize histories");
 
+    /* Initialize story info */
+    note("[Initializing arrays... (stories)]");        
     if (init_st_info())
         quit("Cannot initialize stories");
+
+    /* Initialize curses info */
+    note("[Initializing arrays... (curses)]");        
+    if (init_cu_info())
+        quit("Cannot initialize curses");
 
     /* Initialize race info */
     note("[Initializing arrays... (races)]");

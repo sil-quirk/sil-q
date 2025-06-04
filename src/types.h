@@ -78,6 +78,7 @@ typedef struct player_race player_race;
 typedef struct player_house player_house;
 typedef struct hist_type hist_type;
 typedef struct story_type story_type;
+typedef struct curse_type curse_type;
 typedef struct player_other player_other;
 typedef struct player_type player_type;
 typedef struct start_item start_item;
@@ -107,6 +108,7 @@ struct maxima
     u16b p_max; /* Max size for "p_info[]" */
     u16b h_max; /* Max size for "h_info[]" */
     u16b st_max; /* Max size for "st_info[]" */
+    u16b cu_max; /* Max size for "cu_info[]" */
     u16b c_max; /* Max size for "c_info[]" */
     u16b q_max; /* Max size for "q_info[]" */
     u16b flavor_max; /* Max size for "flavor_info[]" */
@@ -733,9 +735,20 @@ struct hist_type
     byte house; /* House to associate with */
 };
 
+// Storylines
+
 struct story_type
 {
     u32b name; /* Name (offset) */
+    u32b text; /* Descrption (offset) */
+};
+
+// Curses
+
+struct curse_type
+{
+    u32b name; /* Name (offset) */
+    s16b cu_adj[A_MAX]; /* Curse stat bonuses */
     u32b text; /* Descrption (offset) */
 };
 
@@ -1102,6 +1115,12 @@ struct high_score
     char silmarils[2]; /* Number of Silmarils (number) */
     char morgoth_slain[2]; /* Has player slain Morgoth (t/f) */
     char escaped[2]; /* Has player escaped (t/f) */
+};
+
+typedef struct metarun metarun;
+struct metarun
+{
+    s32b curses; 
 };
 
 // A type to contain information on a combat roll for printing

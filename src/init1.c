@@ -661,6 +661,20 @@ errr parse_z_info(char* buf, header* head)
         z_info->st_max = max;
     }
 
+    /* Process 'U' for "Maximum cu_info[] index" */
+
+    else if (buf[2] == 'U')
+    {
+        int max;
+
+        /* Scan for the value */
+        if (1 != sscanf(buf + 4, "%d", &max))
+            return (PARSE_ERROR_GENERIC);
+
+        /* Save the value */
+        z_info->cu_max = max;
+    }
+
     /* Process 'Q' for "Maximum q_info[] index" */
     else if (buf[2] == 'Q')
     {
@@ -3234,7 +3248,6 @@ errr parse_st_info(char* buf, header* head)
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
-
     /* Process 'D' for "Description" */
     else if (buf[0] == 'D')
     {
@@ -3247,6 +3260,114 @@ errr parse_st_info(char* buf, header* head)
 
         /* Store the text */
         if (!add_text(&st_ptr->text, head, s))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+    else
+    {
+        /* Oops */
+        return (PARSE_ERROR_UNDEFINED_DIRECTIVE);
+    }
+
+    /* Success */
+    return (0);
+}
+
+errr parse_cu_info(char* buf, header* head)
+{
+    int i;
+
+    char* s;
+
+    /* Current entry */
+    static curse_type* cu_ptr = NULL;
+
+    /* Process 'N' for "New/Number" */
+    if (buf[0] == 'N')
+    {
+        /* Find the colon before the name */
+        s = strchr(buf + 2, ':');
+
+        /* Verify that colon */
+        if (!s)
+            return (PARSE_ERROR_GENERIC);
+
+        /* Nuke the colon, advance to the name */
+        *s++ = '\0';
+
+        /* Paranoia -- require a name */
+        if (!*s)
+            return (PARSE_ERROR_GENERIC);
+
+        /* Get the index */
+        i = atoi(buf + 2);
+
+        /* Verify information */
+        if (i <= error_idx)
+            return (PARSE_ERROR_NON_SEQUENTIAL_RECORDS);
+
+        /* Verify information */
+        if (i >= head->info_num)
+            return (PARSE_ERROR_TOO_MANY_ENTRIES);
+
+        /* Save the index */
+        error_idx = i;
+
+        /* Point at the "info" */
+        cu_ptr = (curse_type*)head->info_ptr + i;
+
+        /* Store the name */
+        if (!(cu_ptr->name = add_name(head, s)))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'S' for "Stats" (one line only) */
+    else if (buf[0] == 'S')
+    {
+        int adj;
+
+        /* There better be a current ph_ptr */
+        if (!cu_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Start the string */
+        s = buf + 1;
+
+        /* For each stat */
+        for (int j = 0; j < A_MAX; j++)
+        {
+            /* Find the colon before the subindex */
+            s = strchr(s, ':');
+
+            /* Verify that colon */
+            if (!s)
+                return (PARSE_ERROR_GENERIC);
+
+            /* Nuke the colon, advance to the subindex */
+            *s++ = '\0';
+
+            /* Get the value */
+            adj = atoi(s);
+
+            /* Save the value */
+            cu_ptr->cu_adj[j] = adj;
+
+            /* Next... */
+            continue;
+        }
+    }
+
+    /* Process 'D' for "Description" */
+    else if (buf[0] == 'D')
+    {
+        /* There better be a current st_ptr */
+        if (!cu_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Get the text */
+        s = buf + 2;
+
+        /* Store the text */
+        if (!add_text(&cu_ptr->text, head, s))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
     else

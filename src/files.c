@@ -3652,7 +3652,7 @@ extern int highscore_dead(char* name)
 
 // Count the number of silmarils delivered
 
-static int highscore_count()
+extern int highscore_count()
 {
     int count; 
     int silm = 0; 

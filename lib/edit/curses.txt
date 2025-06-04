@@ -1,0 +1,64 @@
+# File: curses.txt
+#
+# This file is used to create the "lib/data/race.raw" file, which is
+# used to initialize the "player race" information for Sil.
+#
+# Do not modify this file unless you know exactly what you are doing,
+# unless you wish to risk possible system crashes and broken savefiles.
+#
+#
+# === Understanding race.txt ===
+#
+# N: race number : race name
+# S: str : dex : con : gra
+# I: history : agebase : agemax
+# H: hgt : modhgt
+# W: wgt : modwgt
+# F: racial flags
+# E: tval : sval : min : max
+#
+# 'N' indicates the beginning of an entry. The serial number must
+#     increase for each new race.
+#
+# 'S' is for the stat modifiers - strength, dexterity, constitution, grace.
+#
+# 'I' is for info - starting point of the player history, base age,
+#     max age.
+#
+# 'H' is height info - base height (males), mod height (males),
+#     base height (females), mod height (females).
+#
+# 'W' is weight info - base weight (males), mod weight (males),
+#     base weight (females), mod weight (females).
+#
+# 'F' is for racial flags.
+#
+# 'E' is for starting equipment - tval of the item, sval of the item,
+#     minimum amount, maximum amount.
+
+
+# Version stamp (required)
+
+V:1.5.0
+
+# - Noldor:
+#   - The deep elves
+#   - Stat modifers  0 +1 +2 +2
+#   - Blade proficiency = a bonus of 1 to melee when wielding '|' weapons
+#   - Arc affinity = a bonus of 1 to archery and a free ability
+
+N:0:Strength
+S:0:-1:0:0
+D:Strength Curse
+
+N:1:Dexterity
+S:0:-1:0:0
+D:Dexterity Curse
+
+N:2:Constitution
+S:0:0:-1:0
+D:Constitution Curse
+
+N:3:Grace
+S:0:0:0:-1
+D: Grace Curse

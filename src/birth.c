@@ -57,6 +57,8 @@ struct birth_menu
     cptr text;
 };
 
+s16b adj_c[A_MAX];
+
 static int get_start_xp(void)
 {
     if (birth_fixed_exp)
@@ -1464,7 +1466,7 @@ static void house_aux_hook(birth_menu c_str)
         strnfmt(s, sizeof(s), "%s", stat_names[i]);
         Term_putstr(TOTAL_AUX_COL, TABLE_ROW + i, -1, TERM_WHITE, s);
 
-        adj = c_info[house_idx].h_adj[i] + rp_ptr->r_adj[i];
+        adj = c_info[house_idx].h_adj[i] + rp_ptr->r_adj[i] + adj_c[i];
         strnfmt(s, sizeof(s), "%+d", adj);
 
         if (adj < 0)
@@ -1545,9 +1547,23 @@ static bool get_player_house(void)
     safe_setuid_drop();
 
     /* Tabulate houses */
-    
+    int silm = highscore_count();
+    int silm_tmp = silm;
+
+    // Reading curse adjustments
+
+    for (int m = 0; m < A_MAX; m++) {
+        adj_c[m] = 0;
+        if (silm_tmp > 2) {
+            adj_c[m]--;
+            silm_tmp-=3;
+        }
+        else break;
+    } 
+
     for (i = 0; i < z_info->c_max; i++)
     {
+
         /* Analyze */
         if (rp_ptr->choice & (1L << i))
         {
@@ -1575,6 +1591,10 @@ static bool get_player_house(void)
     {
         return (FALSE);
     }
+
+    for (i = 0; i < z_info->c_max; i++) {
+        for (int m = 0; m < A_MAX;  m++) c_info[i].h_adj[m] += adj_c[m];
+    } 
 
     /* Get house from choice number */
     house = 0;
