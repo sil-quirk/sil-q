@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "h-basic.h"
 
 // These are copied from birth.c and needed for displaying the character sheet
 #define INSTRUCT_ROW 21
@@ -3501,6 +3502,68 @@ static int highscore_write(const high_score* score)
 {
     /* Write the record, note failure */
     return (fd_write(highscore_fd, (cptr)(score), sizeof(high_score)));
+}   
+
+/*
+ * Write one metarun to the meta file
+ */
+
+int meta_write(const metarun* tmp)
+{
+    /* Write the record, note failure */
+    return (fd_write(meta_fd, (cptr)(tmp), sizeof(metarun)));
+}
+
+/*
+ * Read one metarun from the meta file
+ */
+errr meta_read(metarun* tmp)
+{
+    /* Read the record, note failure */
+    return (fd_read(meta_fd, (char*)(tmp), sizeof(metarun)));
+}
+
+/*
+ * Seek score 'i' in the highscore file
+ */
+int meta_seek(int i)
+{
+    /* Seek for the requested record */
+    return (fd_seek(meta_fd, i * sizeof(metarun)));
+}
+
+int meta_fill(bool def)
+{
+    // Try to read
+    if (def == FALSE) {
+        if (!meta_read(&meta)) return 1;
+            else return -1;
+    }
+    // Fill default
+
+    /* Save the player name (15 chars) */
+    strnfmt(
+        meta.name, sizeof(meta.name), "%-.15s", "Glorfindel");
+    /* Save the player id (2 chars) */
+    strnfmt(
+        meta.id, sizeof(meta.id), "%-.2s", "0");
+    /* Save the player silm (2 chars) */
+    strnfmt(
+        meta.silmarilis, sizeof(meta.silmarilis), "%-.2s", "0");
+    /* Save the player difficulty (2 chars) */
+    strnfmt(
+        meta.difficulty, sizeof(meta.difficulty), "%-.2s", "0");
+    /* Save the player default status (2 chars) */
+    strnfmt(
+        meta.def, sizeof(meta.def), "%-.2s", "0");
+    /* Save the player curses (15 chars) */
+    strnfmt(
+        meta.curses, sizeof(meta.curses), "%-.15s", "");
+    if (def == TRUE) {
+        meta_write(&meta);
+        return 0;
+    }
+    else return -1;
 }
 
 /*
@@ -3617,7 +3680,7 @@ static int highscore_where(high_score* score)
 }
 
 /*
- * Just determine whether a charackter is dead using high scor
+ * Just determine whether a charackter is dead using high score
  * Return 1 if dead or 0 if alive
  */
 

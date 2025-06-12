@@ -1120,7 +1120,12 @@ struct high_score
 typedef struct metarun metarun;
 struct metarun
 {
-    s32b curses; 
+    char id[2];
+    char name[16];
+    char silmarilis[2];
+    char difficulty[2];
+    char def[2];
+    char curses[16]; 
 };
 
 // A type to contain information on a combat roll for printing

@@ -10,6 +10,7 @@
 
 #include "angband.h"
 
+#include "h-define.h"
 #include "init.h"
 
 #ifdef RUNTIME_PRIVATE_USER_PATH
@@ -1719,6 +1720,70 @@ void init_angband(void)
 
     /* Close it */
     fd_close(fd);
+
+    /*** Verify (or create) the "metarun" file ***/
+
+    /* Build the filename */
+    path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "meta.raw");
+
+    /* Attempt to open the meta file */
+    meta_fd = fd_open(buf, O_RDWR);
+
+    /* Failure */
+    if (meta_fd < 0)
+    {
+        /* File type is "DATA" */
+        FILE_TYPE(FILE_TYPE_DATA);
+
+        /* Grab permissions */
+        safe_setuid_grab();
+
+        /* Create a new meta file */
+        meta_fd = fd_make(buf, mode);
+        
+        // Create default metarun and write it to file
+
+        meta_fill(TRUE);
+        note("Metafile created. Loaded default metarun value");
+
+        /* Drop permissions */
+        safe_setuid_drop();
+
+        /* Failure */
+        if (meta_fd < 0)
+        {
+            char why[1024];
+
+            /* Message */
+            strnfmt(why, sizeof(why), "Cannot create the '%s' file!", buf);
+
+            /* Crash and burn */
+            init_angband_aux(why);
+        }
+    }
+    else { 
+        switch (meta_fill(FALSE))  {
+            case -1: {             
+            char why[1024];
+            
+            /* Message */
+            strnfmt(why, sizeof(why), "Cannot read metarunfile, fix it or delete it", buf);
+
+            /* Crash and burn */
+            init_angband_aux(why);
+            break;
+            }
+        case 1: note("Metarun file loaded correctly");
+                break;
+        case 0: note("Loaded default metarun value");
+                break;
+        }
+    }
+    note(meta.name);
+    sleep(10000);
+
+    /* Close it */
+    fd_close(meta_fd);
 
     /*** Initialize some arrays ***/
 

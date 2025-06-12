@@ -803,3 +803,11 @@ char g_vault_name[80];
  * The "highscore" file descriptor, if available.
  */
 int highscore_fd;
+
+/*
+ * The metarun file descriptor, if available.
+ */
+int meta_fd;
+
+// Current metarun info
+metarun meta;

@@ -260,6 +260,9 @@ extern bool save_game_quietly;
 extern bool stop_stealth_mode;
 extern bool use_background_colors;
 
+extern metarun meta;
+extern int meta_fd;
+
 /*
  * Automatically generated "function declarations"
  */
@@ -533,6 +536,10 @@ extern void mini_screenshot(void);
 extern void prt_mini_screenshot(int col, int row);
 extern int silmarils_possessed(void);
 extern int highscore_fd;
+extern int meta_write(const metarun*);
+extern errr meta_read(metarun*);
+extern int meta_seek(int i);
+extern int meta_fill(bool);
 
 /* generate.c */
 extern void place_monster_by_flag(
@@ -554,6 +561,7 @@ extern void cleanup_angband(void);
 
 /* load.c */
 extern bool load_player(void);
+extern bool load_meta(void);
 
 /* melee1.c */
 extern int protection_roll(int typ, bool melee);
