@@ -3132,6 +3132,31 @@ void prt(cptr str, int row, int col)
  * This function will correctly handle any width up to the maximum legal
  * value of 256, though it works best for a standard 80 character width.
  */
+int count_wrapped_lines(cptr str, int wrap_width, int indent)
+{
+    int x = indent;
+    int lines = 1;
+    cptr s;
+
+    for (s = str; *s; s++) {
+        if (*s == '\n') {
+            x = indent;
+            lines++;
+            continue;
+        }
+        /* Printable or space */
+        char ch = isprint((unsigned char)*s) ? *s : ' ';
+        /* If adding this char exceeds wrap, and it's not a space, wrap */
+        if (x >= wrap_width && ch != ' ') {
+            x = indent;
+            lines++;
+        }
+        /* Advance column */
+        x++;
+    }
+    return lines;
+}
+
 void text_out_to_screen(byte a, cptr str)
 {
     int x, y;
@@ -3141,6 +3166,11 @@ void text_out_to_screen(byte a, cptr str)
     int wrap;
 
     cptr s;
+
+    // fprintf(log_file, "RAW: ");
+    // for (int i = 0; str[i] && i < 50; i++)
+    //     fprintf(log_file, "%02X ", (unsigned char)str[i]);
+    // fprintf(log_file, "\n");
 
     /* Obtain the size */
     (void)Term_get_size(&wid, &h);
@@ -3162,6 +3192,9 @@ void text_out_to_screen(byte a, cptr str)
         /* Force wrap */
         if (*s == '\n')
         {
+        // /* DEBUG: confirm we saw a newline */
+        // fprintf(log_file, "text_out: saw \\n at offset %ld, x=%d,y=%d\n", (long)(s - str), x, y);
+
             /* Wrap */
             x = text_out_indent;
             y++;

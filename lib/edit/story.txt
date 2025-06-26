@@ -15,38 +15,101 @@
 
 V:1.5.0
 
-N:0:Glorfindel
-D:StoryLine1 
+N:0:Nienna’s Mercy
+D: A cold, empty darkness surrounds you. Your memories scatter like
+D: ashes on the wind, leaving only faint sparks of courage within. You
+D: sense deep sorrow, gentle and unseen-Nienna’s quiet weeping steadies
+D: your uncertain heart.
 
-N:1:Glorfindel
-D:StoryLine2 
+N:1:Whisper of Manwe
+D: A faint, distant echo stirs a forgotten defiance within you. You
+D: feel you once stood against darkness, but details slip away. A cool
+D: breeze brushes your spirit, the breath of Manwe, offering comfort
+D: and guiding you forward.
 
-N:2:Glorfindel
-D:StoryLine3 
+N:2:Stars of Varda
+D: Dim images drift through your mind: stone halls, green forests,
+D: lands bathed in starlight. You feel deeply drawn to them, yet
+D: cannot grasp why. Above, the brief glimmer of distant stars—Varda’s
+D: silent eyes—remind you of forgotten hope.
 
-N:3:Glorfindel
-D:StoryLine4 
+N:3:Courage of Tulkas
+D: You feel weight upon your shoulders, like armor worn proudly. A
+D: fragment of bravery stirs within you, an echo of battles faced with
+D: courage. A joyful strength fills your limbs—the unseen presence of
+D: laughing Tulkas urging you onward.
 
-N:4:Glorfindel
-D:StoryLine5 
+N:4:Breath of Yavanna
+D: Vague shapes of companions appear briefly, allies of various
+D: races—faces blurred, names lost. Yet loyalty and friendship
+D: resonate deep within. The gentle scent of new leaves fills your
+D: senses, a subtle gift from Yavanna, encouraging remembrance.
 
-N:5:Glorfindel
-D:StoryLine6 
+N:5:Call of Ulmo
+D: A haunting song, older and deeper than you can comprehend, drifts
+D: past. You sense an ancient melancholy, stirring hidden memories of
+D: endless seas. Far away, waves whisper—Ulmo calling softly, pulling
+D: your heart toward truth.
 
-N:6:Glorfindel
-D:StoryLine7 
+N:6:Weaving of Vaire
+D: Your fingers trace flowing runes carved gently into stone walls.
+D: The symbols resonate with warmth, though you cannot yet read them
+D: clearly. Delicate threads of silver glimmer faintly—Vaire, the
+D: Weaver, slowly restoring your fractured memories.
 
-N:7:NOTGlorfindel
-D:StoryLine8 
+N:7:Doom of Mandos
+D: Time stretches behind you endlessly. A sense of duty fills your
+D: spirit—ageless, unwavering, and grave. A distant bell echoes
+D: faintly—Mandos, keeper of fate, reminding you of unfinished tasks
+D: awaiting your return.
 
-N:8:Glorfindel
-D:StoryLine9 
+N:8:Bloom of Vana
+D: You glimpse yourself wielding a sword with graceful mastery—swift,
+D: precise, radiant. Your spirit swells with pride and confidence, yet
+D: the moment is fleeting. Petals dance unseen around you, a subtle
+D: touch from ever-young Vana, honoring your grace.
 
-N:9:Glorfindel
-D:StoryLine10 
+N:9:Rest of Este
+D: Soft words rise clearly within your mind: “Estel brillies teni
+D: mornie canta.” Hope shines brightest when darkness gathers. Calm
+D: spreads gently through you, easing pain and doubt—a comforting gift
+D: from gentle Este.
 
-N:10:Glorfindel
-D:StoryLine11
+N:10:Horn of Orome
+D: You sense a hidden city—gleaming towers, secret valleys, beautiful
+D: yet fragile. Your heart fills with a fierce protective instinct.
+D: Far off, a hunting horn sounds urgently, boldly—Orome, calling your
+D: spirit to reclaim its path.
 
-N:11:Glorfindel
-D:StoryLine12
+N:11:Steps of Nessa
+D: A sudden pulse of self-sacrifice fills your heart—a moment when you
+D: willingly traded your life for others. Your spirit trembles at the
+D: strength of that choice. Quick, joyful steps echo beside you,
+D: invisible yet clear—Nessa’s fleet encouragement.
+
+N:12:Strength of Aule
+D: A towering shadow engulfed in flame looms in memory—fearsome,
+D: roaring, yet you faced it bravely, unyielding. Solid ground firms
+D: beneath your feet, rock and stone reinforced by the mighty hand of
+D: Aule, grounding your courage.
+
+N:13:Light of Varda and Manwe
+D: Your spirit recalls death, sacrifice—but also purpose beyond
+D: defeat. Gentle yet majestic voices whisper in harmony: "Even death
+D: cannot silence your courage. Rise once more." Radiance pierces
+D: darkness—starlight and sky, blessings of Varda and Manwe.
+
+N:14:Dreams of Irmo
+D: Fragments of golden radiance flash clearly in your memory—hair like
+D: sunlit gold, a fall amidst flames, cheers of saved souls. Your
+D: identity nearly emerges, bright yet elusive. Calmness washes over
+D: you like deep sleep, the healing dreams of Irmo gently restoring
+D: your mind.
+
+N:15:Mandate of the Valar
+D: You stand now amid the ruined stones of a hidden city—Gondolin.
+D: Memory rushes fully clear: you fell here, defeating a Balrog, your
+D: life sacrificed to protect your people. Three powerful voices—
+D: Varda, Manwe, and Mandos—call to you clearly: "Rise again,
+D: Glorfindel, hero reborn. Morgoth’s shadow stirs once more—your
+D: light must stand against it."

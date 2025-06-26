@@ -1900,9 +1900,9 @@
 #define RHF_SMT_PENALTY 0x00008000L
 #define RHF_SNG_AFFINITY 0x00010000L
 #define RHF_SNG_PENALTY 0x00020000L
-#define RHF_SMT_MASTERY 0x00040000L
-#define RHF_RHFXXX20 0x00080000L
-#define RHF_RHFXXX21 0x00100000L
+#define RHF_SMT_FEANOR 0x00040000L
+#define RHF_SNG_MASTERY 0x00080000L
+#define RHF_KINSLAYER 0x00100000L
 #define RHF_RHFXXX22 0x00200000L
 #define RHF_RHFXXX23 0x00400000L
 #define RHF_RHFXXX24 0x00800000L
@@ -3357,3 +3357,15 @@
 #define QUEST_GIVER_PRESENT 1
 #define QUEST_REWARD_MAP 2
 #define QUEST_COMPLETE 10
+
+//Defines for number of heroes
+#define FLAG_COUNT 64
+#define FLAG_WORDS ((FLAG_COUNT + 31) / 32)
+
+/* ------------------------------------------------------------------
+ *  Metarun (multi-run) support
+ * ------------------------------------------------------------------ */
+typedef struct metarun metarun;   /* fwd */
+
+extern metarun meta;      /* current run, defined in metarun.c */
+extern int     meta_fd;   /* open descriptor to meta.raw */

@@ -3505,68 +3505,6 @@ static int highscore_write(const high_score* score)
 }   
 
 /*
- * Write one metarun to the meta file
- */
-
-int meta_write(const metarun* tmp)
-{
-    /* Write the record, note failure */
-    return (fd_write(meta_fd, (cptr)(tmp), sizeof(metarun)));
-}
-
-/*
- * Read one metarun from the meta file
- */
-errr meta_read(metarun* tmp)
-{
-    /* Read the record, note failure */
-    return (fd_read(meta_fd, (char*)(tmp), sizeof(metarun)));
-}
-
-/*
- * Seek score 'i' in the highscore file
- */
-int meta_seek(int i)
-{
-    /* Seek for the requested record */
-    return (fd_seek(meta_fd, i * sizeof(metarun)));
-}
-
-int meta_fill(bool def)
-{
-    // Try to read
-    if (def == FALSE) {
-        if (!meta_read(&meta)) return 1;
-            else return -1;
-    }
-    // Fill default
-
-    /* Save the player name (15 chars) */
-    strnfmt(
-        meta.name, sizeof(meta.name), "%-.15s", "Glorfindel");
-    /* Save the player id (2 chars) */
-    strnfmt(
-        meta.id, sizeof(meta.id), "%-.2s", "0");
-    /* Save the player silm (2 chars) */
-    strnfmt(
-        meta.silmarilis, sizeof(meta.silmarilis), "%-.2s", "0");
-    /* Save the player difficulty (2 chars) */
-    strnfmt(
-        meta.difficulty, sizeof(meta.difficulty), "%-.2s", "0");
-    /* Save the player default status (2 chars) */
-    strnfmt(
-        meta.def, sizeof(meta.def), "%-.2s", "0");
-    /* Save the player curses (15 chars) */
-    strnfmt(
-        meta.curses, sizeof(meta.curses), "%-.15s", "");
-    if (def == TRUE) {
-        meta_write(&meta);
-        return 0;
-    }
-    else return -1;
-}
-
-/*
  * An integer value representing the player's "points".
  *
  * In reality it isn't so much a score as a number that has the same ordering
@@ -4177,42 +4115,137 @@ void display_scores(int from, int to)
 
 // Print story messages
 
-static void print_story()
+// extern void print_story()
+// {
+//     int max;
+//     max = highscore_count(); 
+//     char cated_string[90];
+//     Term_clear();
+//     sprintf(cated_string,"%s%d","Number of Silmarils: ",max);
+
+//     if (p_ptr->escaped)
+//     {
+//             Term_putstr(15, 1, -1, TERM_L_BLUE, "StoryLine");
+//     }
+//     else if (p_ptr->is_dead)
+//         {
+//             Term_putstr(15, 2, -1, TERM_L_BLUE, "Another hero has been slain");
+//             Term_putstr(15, 3, -1, TERM_L_BLUE, cated_string);
+//         }
+//         else {
+//             Term_putstr(15, 2, -1, TERM_L_BLUE, "Storyline");      
+//         }
+
+
+
+//     for (int i = 0; i < 15; i++) {
+//         char text[900];
+//         char name[50];
+//         my_strcpy(name, st_name + st_info[i].name, sizeof(name));
+//         my_strcpy(text, st_text + st_info[i].text, sizeof(text));
+
+//         /* Indent output by 2 character, and wrap at column 70 */
+//         text_out_wrap = 0;
+//         text_out_indent = 2;
+        
+//         Term_putstr(15, 3, -1, TERM_L_BLUE, name); 
+//         Term_gotoxy(text_out_indent, 5);
+//         text_out_to_screen(TERM_WHITE, text);
+        
+//         text_out_wrap = 0;
+//         text_out_indent = 0;
+//         /* Wait for response */
+//         Term_putstr(15, 24, -1, TERM_L_WHITE, "(press any key)");
+//         inkey();
+//         prt("", 23, 0);
+//         Term_clear();
+//     prt_mini_screenshot(5, 12);
+//     }
+//     /* Wait for response */
+//     Term_putstr(15, 24, -1, TERM_L_WHITE, "(press any key)");
+//     inkey();
+//     prt("", 23, 0);
+//     Term_clear();
+
+// }
+
+
+extern void print_story(void)
 {
-    int max;
-    max = highscore_count(); 
-    char cated_string[20];
-    sprintf(cated_string,"%s%d","Number of Silmarils: ",max);
+    int wid, h;
+    int max = highscore_count();
+    char header[90];
+    const int total = 15;
+    const int indent = 2;
+    int index = 0;
 
-    if (p_ptr->escaped)
-    {
-            Term_putstr(15, 1, -1, TERM_L_BLUE, "StoryLine");
+    /* Get current terminal size */
+    Term_get_size(&wid, &h);
+
+    /* Prepare score header */
+    sprintf(header, "Number of Silmarils: %d", max);
+
+    while (index < total) {
+        Term_clear();
+        int row = 1;
+
+        /* Print page header */
+        if (p_ptr->escaped) {
+            Term_putstr(15, row, -1, TERM_L_BLUE, "StoryLine");
+            row++;
+        } else if (p_ptr->is_dead) {
+            Term_putstr(15, row, -1, TERM_L_BLUE, "Another hero has been slain");
+            Term_putstr(15, row + 1, -1, TERM_L_BLUE, header);
+            row += 2;
+        } 
+        row++; /* blank line after header */
+
+        int wrap_width = wid - indent;
+
+        /* Loop over entries */
+        for (; index < total; index++) {
+            char text[900];
+            char name[50];
+
+            my_strcpy(name, st_name + st_info[index].name, sizeof(name));
+            my_strcpy(text, st_text + st_info[index].text, sizeof(text));
+
+            int text_lines = count_wrapped_lines(text, wrap_width, indent);
+            int needed = 1 + text_lines + 1;
+
+            /* If not enough space, break to next page */
+            if (row + needed > h - 1) break;
+
+            /* Print name */
+            Term_putstr(7, row, -1, TERM_L_BLUE, name);
+            row++;
+
+            /* Configure wrapping and print text */
+            text_out_indent = indent;
+            text_out_wrap   = wrap_width;
+            Term_gotoxy(indent, row);
+            text_out_to_screen(TERM_WHITE, text);
+            text_out_wrap   = 0;
+            text_out_indent = 0;
+
+            row += text_lines;
+            row++; /* blank line */
+
+            /* Prompt and delay after each entry */
+            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
+            inkey();
+        }
+
+        /* Footer prompt for next page */
+        if (index < total) {
+            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key for next page)");
+            inkey();
+        }
     }
-    else
-    {
-        Term_putstr(15, 2, -1, TERM_L_BLUE, "Another hero has been slain");
-        Term_putstr(15, 3, -1, TERM_L_BLUE, cated_string);
-    }
 
-
-
-    for (int i = 0; i < max; i++) {
-        char text[ST_MAX];
-        char name[ST_MAX];
-        my_strcpy(name, st_name + st_info[i].name, sizeof(text));
-        my_strcpy(text, st_text + st_info[i].text, sizeof(text));
-
-        if (!my_strnicmp(name, MAINCH, sizeof(name))) Term_putstr(15, 4+i, -1, TERM_L_BLUE, text);
-
-    prt_mini_screenshot(5, 12);
-    }
-    /* Wait for response */
-    Term_putstr(15, 24, -1, TERM_L_WHITE, "(press any key)");
-    inkey();
-    prt("", 23, 0);
     Term_clear();
-
 }
+
 
 /*
  * Hack - save index of player's high score

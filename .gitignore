@@ -17,3 +17,5 @@ src/-.tmp_3658
 src/-.tmp_3813
 src/-.tmp_3968
 *.csv
+log.txt
+src/houselist.txt

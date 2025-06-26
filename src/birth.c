@@ -15,15 +15,15 @@
 #define HEADER_ROW 1
 #define QUESTION_ROW 2
 #define TABLE_ROW 3
-#define DESCRIPTION_ROW 14
-#define INSTRUCT_ROW 22
+#define DESCRIPTION_ROW 16
+#define INSTRUCT_ROW 23
 
 #define QUESTION_COL 2
 #define RACE_COL 2
-#define RACE_AUX_COL 17
-#define CLASS_COL 17
+#define RACE_AUX_COL 19
+#define CLASS_COL 19
 #define CLASS_AUX_COL 31
-#define TOTAL_AUX_COL 43
+#define TOTAL_AUX_COL 35
 #define INVALID_CHOICE 255
 
 /*
@@ -950,224 +950,102 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     return (INVALID_CHOICE);
 }
 
+/*
+ * Show race/house flags in priority order.
+ * Masteries first, then single-side affinities, then penalties,
+ * and finally any “headline / unique” flags.
+ */
 static void print_rh_flags(int race, int house, int col, int row)
 {
-    int flags = 0;
+    int flags_left  = 0;
+    int flags_right = 0;
 
     byte attr_affinity = TERM_GREEN;
-    byte attr_mastery = TERM_L_GREEN;
-    byte attr_penalty = TERM_RED;
+    byte attr_mastery  = TERM_L_GREEN;
+    byte attr_penalty  = TERM_RED;
 
-    if ((p_info[race].flags & RHF_BOW_PROFICIENCY)
-        && (c_info[house].flags & RHF_BOW_PROFICIENCY))
-    {
-        Term_putstr(col, row + flags, -1, attr_mastery, "bow mastery         ");
-        flags++;
-    }
-    else if ((p_info[race].flags & RHF_BOW_PROFICIENCY)
-        || (c_info[house].flags & RHF_BOW_PROFICIENCY))
-    {
-        Term_putstr(
-            col, row + flags, -1, attr_affinity, "bow proficiency        ");
-        flags++;
-    }
+    const int col_pen = col + 20;
 
-    if ((p_info[race].flags & RHF_AXE_PROFICIENCY)
-        && (c_info[house].flags & RHF_AXE_PROFICIENCY))
-    {
-        Term_putstr(col, row + flags, -1, attr_mastery, "axe mastery         ");
-        flags++;
-    }
-    else if ((p_info[race].flags & RHF_AXE_PROFICIENCY)
-        || (c_info[house].flags & RHF_AXE_PROFICIENCY))
-    {
-        Term_putstr(
-            col, row + flags, -1, attr_affinity, "axe proficiency        ");
-        flags++;
-    }
+    // Updated struct to support side
+    typedef struct {
+        const char *txt;
+        byte col;
+        int side;  // 0 = left, 1 = right
+    } skill_line;
 
-    if ((p_info[race].flags & RHF_MEL_AFFINITY)
-        && (c_info[house].flags & RHF_MEL_AFFINITY))
-    {
-        Term_putstr(col, row + flags, -1, attr_mastery, "melee mastery     ");
-        flags++;
-    }
-    else if ((p_info[race].flags & RHF_MEL_AFFINITY)
-        || (c_info[house].flags & RHF_MEL_AFFINITY))
-    {
-        Term_putstr(col, row + flags, -1, attr_affinity, "melee affinity    ");
-        flags++;
-    }
-    if ((p_info[race].flags & RHF_MEL_PENALTY)
-        || (c_info[house].flags & RHF_MEL_PENALTY))
-    {
-        Term_putstr(col, row + flags, -1, attr_penalty, "melee penalty     ");
-        flags++;
-    }
+    skill_line mastery_buf [16], affinity_buf[16], penalty_buf[16], unique_buf[8];
+    int mastery_n = 0, affinity_n = 0, penalty_n = 0, unique_n = 0;
 
-    if ((p_info[race].flags & RHF_ARC_AFFINITY)
-        && (c_info[house].flags & RHF_ARC_AFFINITY))
-    {
-        Term_putstr(col, row + flags, -1, attr_mastery, "archery mastery     ");
-        flags++;
-    }
-    else if ((p_info[race].flags & RHF_ARC_AFFINITY)
-        || (c_info[house].flags & RHF_ARC_AFFINITY))
-    {
-        Term_putstr(
-            col, row + flags, -1, attr_affinity, "archery affinity    ");
-        flags++;
-    }
-    if ((p_info[race].flags & RHF_ARC_PENALTY)
-        || (c_info[house].flags & RHF_ARC_PENALTY))
-    {
-        Term_putstr(col, row + flags, -1, attr_penalty, "archery penalty     ");
-        flags++;
-    }
+#define HANDLE_SKILL_EX(label, AFF_FLAG, PEN_FLAG)                          \
+    do {                                                                    \
+        int aff_race  = p_info[race].flags & (AFF_FLAG);                    \
+        int aff_house = c_info[house].flags & (AFF_FLAG);                   \
+        int penalty   = (PEN_FLAG) &&                                       \
+                        ((p_info[race].flags  & (PEN_FLAG)) ||              \
+                         (c_info[house].flags & (PEN_FLAG)));               \
+        if (!(penalty && (aff_race || aff_house))) {                        \
+            if (aff_race && aff_house) {                                    \
+                mastery_buf[mastery_n].txt = label " mastery";              \
+                mastery_buf[mastery_n++].col = attr_mastery;                \
+            } else if (aff_race || aff_house) {                             \
+                affinity_buf[affinity_n].txt = label " affinity";           \
+                affinity_buf[affinity_n++].col = attr_affinity;             \
+            } else if (penalty) {                                           \
+                penalty_buf[penalty_n].txt = label " penalty";              \
+                penalty_buf[penalty_n++].col = attr_penalty;                \
+            }                                                               \
+        }                                                                   \
+    } while (0)
 
-    if ((p_info[race].flags & RHF_EVN_AFFINITY)
-        && (c_info[house].flags & RHF_EVN_AFFINITY))
-    {
-        Term_putstr(col, row + flags, -1, attr_mastery, "evasion mastery     ");
-        flags++;
-    }
-    else if ((p_info[race].flags & RHF_EVN_AFFINITY)
-        || (c_info[house].flags & RHF_EVN_AFFINITY))
-    {
-        Term_putstr(
-            col, row + flags, -1, attr_affinity, "evasion affinity    ");
-        flags++;
-    }
-    if ((p_info[race].flags & RHF_EVN_PENALTY)
-        || (c_info[house].flags & RHF_EVN_PENALTY))
-    {
-        Term_putstr(col, row + flags, -1, attr_penalty, "evasion penalty     ");
-        flags++;
-    }
+// New: (label, FLAG, COLOR, SIDE) where SIDE = 0 (left) or 1 (right)
+#define HANDLE_UNIQUE(label, FLAG, COLOR, SIDE)                             \
+    do {                                                                    \
+        int race_has  = p_info[race].flags  & (FLAG);                       \
+        int house_has = c_info[house].flags & (FLAG);                       \
+        if (race_has || house_has) {                                        \
+            unique_buf[unique_n].txt  = label;                              \
+            unique_buf[unique_n].col  = (COLOR);                            \
+            unique_buf[unique_n++].side = (SIDE);                           \
+        }                                                                   \
+    } while (0)
 
-    if ((p_info[race].flags & RHF_STL_AFFINITY)
-        && (c_info[house].flags & RHF_STL_AFFINITY))
-    {
-        Term_putstr(col, row + flags, -1, attr_mastery, "stealth mastery     ");
-        flags++;
-    }
-    else if ((p_info[race].flags & RHF_STL_AFFINITY)
-        || (c_info[house].flags & RHF_STL_AFFINITY))
-    {
-        Term_putstr(
-            col, row + flags, -1, attr_affinity, "stealth affinity    ");
-        flags++;
-    }
-    if ((p_info[race].flags & RHF_STL_PENALTY)
-        || (c_info[house].flags & RHF_STL_PENALTY))
-    {
-        Term_putstr(col, row + flags, -1, attr_penalty, "stealth penalty     ");
-        flags++;
-    }
+    // Skills
+    HANDLE_SKILL_EX("melee",      RHF_MEL_AFFINITY, RHF_MEL_PENALTY);
+    HANDLE_SKILL_EX("evasion",    RHF_EVN_AFFINITY, RHF_EVN_PENALTY);
+    HANDLE_SKILL_EX("stealth",    RHF_STL_AFFINITY, RHF_STL_PENALTY);
+    HANDLE_SKILL_EX("archery",    RHF_ARC_AFFINITY, RHF_ARC_PENALTY);
+    HANDLE_SKILL_EX("will",       RHF_WIL_AFFINITY, RHF_WIL_PENALTY);
+    HANDLE_SKILL_EX("perception", RHF_PER_AFFINITY, RHF_PER_PENALTY);
+    HANDLE_SKILL_EX("smithing",   RHF_SMT_AFFINITY, RHF_SMT_PENALTY);
+    HANDLE_SKILL_EX("song",       RHF_SNG_AFFINITY, RHF_SNG_PENALTY);
+    HANDLE_SKILL_EX("bow",        RHF_BOW_PROFICIENCY, 0);
+    HANDLE_SKILL_EX("axe",        RHF_AXE_PROFICIENCY, 0);
 
-    if ((p_info[race].flags & RHF_PER_AFFINITY)
-        && (c_info[house].flags & RHF_PER_AFFINITY))
-    {
-        Term_putstr(col, row + flags, -1, attr_mastery, "perception mastery  ");
-        flags++;
-    }
-    else if ((p_info[race].flags & RHF_PER_AFFINITY)
-        || (c_info[house].flags & RHF_PER_AFFINITY))
-    {
-        Term_putstr(
-            col, row + flags, -1, attr_affinity, "perception affinity ");
-        flags++;
-    }
-    if ((p_info[race].flags & RHF_PER_PENALTY)
-        || (c_info[house].flags & RHF_PER_PENALTY))
-    {
-        Term_putstr(col, row + flags, -1, attr_penalty, "perception penalty  ");
-        flags++;
-    }
+    // Unique skills: SIDE = 0 (left), 1 (right)
+    HANDLE_UNIQUE("Master Artisan",   RHF_SMT_FEANOR,     TERM_BLUE,     0);
+    HANDLE_UNIQUE("Kinslayer",   RHF_KINSLAYER, TERM_UMBER,   1); // right
 
-    if ((p_info[race].flags & RHF_WIL_AFFINITY)
-        && (c_info[house].flags & RHF_WIL_AFFINITY))
-    {
-        Term_putstr(col, row + flags, -1, attr_mastery, "will mastery        ");
-        flags++;
-    }
-    else if ((p_info[race].flags & RHF_WIL_AFFINITY)
-        || (c_info[house].flags & RHF_WIL_AFFINITY))
-    {
-        Term_putstr(
-            col, row + flags, -1, attr_affinity, "will affinity       ");
-        flags++;
-    }
-    if ((p_info[race].flags & RHF_WIL_PENALTY)
-        || (c_info[house].flags & RHF_WIL_PENALTY))
-    {
-        Term_putstr(col, row + flags, -1, attr_penalty, "will penalty        ");
-        flags++;
-    }
+    // Left column
+    for (int i = 0; i < mastery_n;  ++i)
+        Term_putstr(col, row + flags_left++, -1, mastery_buf[i].col, mastery_buf[i].txt);
+    for (int i = 0; i < affinity_n; ++i)
+        Term_putstr(col, row + flags_left++, -1, affinity_buf[i].col, affinity_buf[i].txt);
+    for (int i = 0; i < unique_n; ++i)
+        if (unique_buf[i].side == 0)
+            Term_putstr(col, row + flags_left++, -1, unique_buf[i].col, unique_buf[i].txt);
 
-    if ((p_info[race].flags & RHF_SMT_AFFINITY)
-        && (c_info[house].flags & RHF_SMT_AFFINITY))
-    {
-        Term_putstr(col, row + flags, -1, attr_mastery, "smithing mastery    ");
-        flags++;
-    }
-    else if ((p_info[race].flags & RHF_SMT_AFFINITY)
-        || (c_info[house].flags & RHF_SMT_AFFINITY))
-    {
-        Term_putstr(
-            col, row + flags, -1, attr_affinity, "smithing affinity   ");
-        flags++;
-    }
-    else if (c_info[house].flags & RHF_SMT_MASTERY)
-    {
-        Term_putstr(col, row + flags, -1, attr_mastery, "smithing mastery    ");
-        flags++;
-    }
-    if ((p_info[race].flags & RHF_SMT_PENALTY)
-        || (c_info[house].flags & RHF_SMT_PENALTY))
-    {
-        Term_putstr(col, row + flags, -1, attr_penalty, "smithing penalty    ");
-        flags++;
-    }
+    // Right column
+    for (int i = 0; i < penalty_n; ++i)
+        Term_putstr(col_pen, row + flags_right++, -1, penalty_buf[i].col, penalty_buf[i].txt);
+    for (int i = 0; i < unique_n; ++i)
+        if (unique_buf[i].side == 1)
+            Term_putstr(col_pen, row + flags_right++, -1, unique_buf[i].col, unique_buf[i].txt);
 
-    if ((p_info[race].flags & RHF_SNG_AFFINITY)
-        && (c_info[house].flags & RHF_SNG_AFFINITY))
-    {
-        Term_putstr(col, row + flags, -1, attr_mastery, "song mastery        ");
-        flags++;
-    }
-    else if ((p_info[race].flags & RHF_SNG_AFFINITY)
-        || (c_info[house].flags & RHF_SNG_AFFINITY))
-    {
-        Term_putstr(
-            col, row + flags, -1, attr_affinity, "song affinity       ");
-        flags++;
-    }
-    if ((p_info[race].flags & RHF_SNG_PENALTY)
-        || (c_info[house].flags & RHF_SNG_PENALTY))
-    {
-        Term_putstr(col, row + flags, -1, attr_penalty, "song penalty        ");
-        flags++;
-    }
-    // int expected[2] = {6, 5};
-    // Show abilities
-    Term_erase(col +7, row - 5, 15);
-    // if (c_info[house].a_adj[0] == S_SMT && c_info[house].a_adj[1] == SMT_ARTEFACT) 
-    //     Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Artifice");
-    // if (c_info[house].a_adj[0] == S_EVN && c_info[house].a_adj[1] == EVN_RIPOSTE) 
-    //     Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Riposte");
-    // if (c_info[house].a_adj[0] == S_SNG && c_info[house].a_adj[1] == SNG_MASTERY) 
-    //     Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Song of Mastery");
-    // if (c_info[house].a_adj[0] == S_WIL && c_info[house].a_adj[1] == WIL_MAJESTY) 
-    //     Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Majesty");
-    // if (c_info[house].a_adj[0] == S_WIL && c_info[house].a_adj[1] == WIL_VENGEANCE) 
-    //     Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Vengeance");
-    // if (c_info[house].a_adj[0] == S_STL && c_info[house].a_adj[1] == STL_OPPORTUNIST) 
-    //     Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Opportunist");
-    // if (c_info[house].a_adj[0] == S_ARC && c_info[house].a_adj[1] == ARC_DEADLY_HAIL) 
-    //     Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Deadly Hail");
-    // if (c_info[house].a_adj[0] == S_STL && c_info[house].a_adj[1] == STL_VANISH) 
-    //     Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Vanish");
+#undef HANDLE_SKILL_EX
+#undef HANDLE_UNIQUE
+
+Term_erase(col +7, row - 5, 30);
+
 if (house) {
     if (c_info[house].a_adj[0] == S_MEL && c_info[house].a_adj[1] == MEL_POWER)
         Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Power");
@@ -1378,7 +1256,7 @@ static void race_aux_hook(birth_menu r_str)
     Term_putstr(RACE_AUX_COL, TABLE_ROW + A_MAX + 4, -1, TERM_WHITE,
         "                    ");
 
-    print_rh_flags(race, 0, RACE_AUX_COL, TABLE_ROW + A_MAX + 1);
+    // print_rh_flags(race, 0, RACE_AUX_COL, TABLE_ROW + A_MAX + 1);
 }
 
 /*
@@ -1486,27 +1364,36 @@ static void house_aux_hook(birth_menu c_str)
     /* Display the race flags */
 
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1, -1, TERM_WHITE,
-        "                    ");
+        "                                      ");
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 2, -1, TERM_WHITE,
-        "                    ");
+        "                                      ");
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 3, -1, TERM_WHITE,
-        "                    ");
+        "                                      ");
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 4, -1, TERM_WHITE,
-        "                    ");
+        "                                      ");
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 5, -1, TERM_WHITE,
-        "                    ");
-    
+        "                                      ");
+    Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 6, -1, TERM_WHITE,
+        "                                      ");
+    Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 7, -1, TERM_WHITE,
+        "                                      ");
     // Check dead   
-    if (c_str.ghost) Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 5, -1, TERM_RED,
+    if (c_str.ghost) Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 7, -1, TERM_RED,
         "Dead");
-    else Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 5, -1, TERM_L_BLUE,
+    else Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX +7, -1, TERM_L_BLUE,
         "Alive");
 
     print_rh_flags(
         p_ptr->prace, house_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
     
 }
-
+// Check house flags
+static int is_set(int bit) {
+    if (bit < 0 || bit >= FLAG_COUNT) return 0;  // Out of bounds
+    int word = bit / 32;
+    int shift = bit % 32;
+    return (rp_ptr->choice[word] & (1U << shift)) != 0;
+}
 /*
  * Player house
  */
@@ -1520,8 +1407,15 @@ static bool get_player_house(void)
 
     birth_menu* houses;
 
+    int housless=1;
+    for (int i = 0; i < FLAG_WORDS; ++i) {
+        if (rp_ptr->choice[i] != 0) {
+            housless=0;
+            break;  // At least one flag is set
+        }
+    }
     // select 'houseless' automatically if there are no available houses
-    if ((rp_ptr->choice & 1))
+    if (housless)
     {
         p_ptr->phouse = 0;
         hp_ptr = &c_info[p_ptr->phouse];
@@ -1548,24 +1442,33 @@ static bool get_player_house(void)
 
     /* Tabulate houses */
     int silm = highscore_count();
-    int silm_tmp = silm;
 
     // Reading curse adjustments
 
-    for (int m = 0; m < A_MAX; m++) {
-        adj_c[m] = 0;
-        if (silm_tmp > 2) {
-            adj_c[m]--;
-            silm_tmp-=3;
-        }
-        else break;
-    } 
+    // for (int m = 0; m < A_MAX; m++) {
+    //     adj_c[m] = 0;
+    //     if (silm_tmp > 2) {
+    //         adj_c[m]--;
+    //         silm_tmp-=3;
+    //     }
+    //     else break;
+    // } 
+
+    //Metarun curse adjustments
+    // for (int m = 0; m < A_MAX; m++) adj_c[m] = 0; 
+
+    // for (i = 0; i < z_info->cu_max; i++)
+    //     {
+    //         for (int m = 0; m < A_MAX; m++) {
+    //         adj_c[m] += cu_info[i].cu_adj[m]*(meta.curses[i] - '0');
+    //         }
+    //     }
 
     for (i = 0; i < z_info->c_max; i++)
     {
 
         /* Analyze */
-        if (rp_ptr->choice & (1L << i))
+        if (is_set(i))
         {
             if (highscore_dead(c_name + c_info[i].name)) houses[house].ghost = TRUE;
             else houses[house].ghost = FALSE;
@@ -1600,7 +1503,7 @@ static bool get_player_house(void)
     house = 0;
     for (i = 0; i < z_info->c_max; i++)
     {
-        if (rp_ptr->choice & (1L << i))
+        if (is_set(i))
         {
             if (house_choice == house)
             {

@@ -142,4 +142,7 @@ extern header q_head;
 extern header n_head;
 extern header flavor_head;
 
+errr parse_rt_info(char *buf, header *head);
+extern header rt_head;
+
 #endif /* INCLUDED_INIT_H */

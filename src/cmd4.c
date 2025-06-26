@@ -3349,7 +3349,8 @@ int object_difficulty(object_type* o_ptr)
     // Penalty for being an artefact
     if (o_ptr->name1)
     {
-        smithing_cost.uses += 2;
+        if (c_info[p_ptr->phouse].flags & RHF_SMT_FEANOR) smithing_cost.uses ++;
+        else smithing_cost.uses += 2;
     }
 
     // Set the overall difficulty

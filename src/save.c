@@ -1562,15 +1562,15 @@ bool save_player(void)
     /* Build the filename */
     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "meta.raw");
 
-    /* Attempt to open the meta file */
-    meta_fd = fd_open(buf, O_RDWR);
+    // /* Attempt to open the meta file */
+    // meta_fd = fd_open(buf, O_RDWR);
 
-    // Save Metarun
-    strcpy(meta.name,"F");
-    if (!meta_seek(atoi(meta.id))) meta_write(&meta);
+    // // Save Metarun
+    // strcpy(meta.name,"F");
+    // if (!meta_seek(atoi(meta.id))) meta_write(&meta);
     
-    /* Close it */
-    fd_close(meta_fd);
+    // /* Close it */
+    // fd_close(meta_fd);
 
     /* Return the result */
     return (result);

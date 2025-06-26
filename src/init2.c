@@ -360,6 +360,9 @@ static errr init_info_raw(int fd, header* head)
     return (0);
 }
 
+/* local forward */
+static errr init_rt_info(void);
+
 /*
  * Initialize the header of an *_info.raw file.
  */
@@ -840,6 +843,20 @@ static errr init_v_info(void)
 
     return (err);
 }
+
+static errr init_rt_info(void)
+{
+    errr err;
+    init_header(&rt_head, z_info->rt_max, sizeof(runtype_type));     /* ① */
+#ifdef ALLOW_TEMPLATES
+    rt_head.parse_info_txt = parse_rt_info;                          /* ② */
+#endif
+    err = init_info("runtypes", &rt_head);                           /* ③ */
+
+    runtype_info = rt_head.info_ptr;                                 /* ④ global */
+    return err;
+}
+
 
 /*
  * Initialize the "p_info" array
@@ -1598,26 +1615,33 @@ extern void display_introduction(void)
     /* Clear screen */
     Term_clear();
 
-    Term_putstr(14, 3, -1, TERM_L_BLUE,
+    Term_putstr(14, 1, -1, TERM_L_BLUE,
         "  The world was young, the mountains green,            ");
-    Term_putstr(14, 4, -1, TERM_L_BLUE,
+    Term_putstr(14, 2, -1, TERM_L_BLUE,
         "     No stain yet on the moon was seen...              ");
 
-    Term_putstr(14, 7, -1, TERM_WHITE,
-        "Welcome to Sil, a game of adventure set                ");
-    Term_putstr(14, 8, -1, TERM_WHITE,
+    Term_putstr(14, 5, -1, TERM_WHITE,
+        "Welcome to SilQ - Heroes, a game of adventure set                ");
+    Term_putstr(14, 6, -1, TERM_WHITE,
         "  in the First Age of Middle-earth,                    ");
-    Term_putstr(14, 9, -1, TERM_WHITE,
+    Term_putstr(14, 7, -1, TERM_WHITE,
         "    when the world still rang with elven song          ");
-    Term_putstr(14, 10, -1, TERM_WHITE,
+    Term_putstr(14, 8, -1, TERM_WHITE,
         "      and gleamed with dwarven mail.                   ");
 
+    Term_putstr(14, 10, -1, TERM_WHITE,
+        "It is a reimagening of original Sil gameplay adding       ");
     Term_putstr(14, 11, -1, TERM_WHITE,
-        "Walk the dark halls of Angband.                        ");
-    Term_putstr(14, 12, -1, TERM_WHITE,
-        "  Slay creatures black and fell.                       ");
+        "   mechanics of modern rouge likes.                        ");
+
     Term_putstr(14, 13, -1, TERM_WHITE,
-        "    Wrest a shining Silmaril from Morgoth's iron crown.");
+        "Walk the dark halls of Angband and slay creatures black and fell.");
+    Term_putstr(14, 14, -1, TERM_WHITE,
+        "  Wrest a shining Silmaril from Morgoth's iron crown.");
+    Term_putstr(14, 15, -1, TERM_WHITE,
+        "    Follow the advice of Valar.");   
+    Term_putstr(14, 16, -1, TERM_WHITE,
+        "      And proove your right to live in the lands of Valinor.");       
 
     /* Flush it */
     Term_fresh();
@@ -1721,69 +1745,11 @@ void init_angband(void)
     /* Close it */
     fd_close(fd);
 
-    /*** Verify (or create) the "metarun" file ***/
+    // // Load metarun
+    // if (load_metaruns(1) != 0) {
+    //     init_angband_aux("Cannot load or create metarun file!");
+    // }
 
-    /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "meta.raw");
-
-    /* Attempt to open the meta file */
-    meta_fd = fd_open(buf, O_RDWR);
-
-    /* Failure */
-    if (meta_fd < 0)
-    {
-        /* File type is "DATA" */
-        FILE_TYPE(FILE_TYPE_DATA);
-
-        /* Grab permissions */
-        safe_setuid_grab();
-
-        /* Create a new meta file */
-        meta_fd = fd_make(buf, mode);
-        
-        // Create default metarun and write it to file
-
-        meta_fill(TRUE);
-        note("Metafile created. Loaded default metarun value");
-
-        /* Drop permissions */
-        safe_setuid_drop();
-
-        /* Failure */
-        if (meta_fd < 0)
-        {
-            char why[1024];
-
-            /* Message */
-            strnfmt(why, sizeof(why), "Cannot create the '%s' file!", buf);
-
-            /* Crash and burn */
-            init_angband_aux(why);
-        }
-    }
-    else { 
-        switch (meta_fill(FALSE))  {
-            case -1: {             
-            char why[1024];
-            
-            /* Message */
-            strnfmt(why, sizeof(why), "Cannot read metarunfile, fix it or delete it", buf);
-
-            /* Crash and burn */
-            init_angband_aux(why);
-            break;
-            }
-        case 1: note("Metarun file loaded correctly");
-                break;
-        case 0: note("Loaded default metarun value");
-                break;
-        }
-    }
-    note(meta.name);
-    sleep(10000);
-
-    /* Close it */
-    fd_close(meta_fd);
 
     /*** Initialize some arrays ***/
 
@@ -1791,6 +1757,11 @@ void init_angband(void)
     note("[Initializing array sizes...]");
     if (init_z_info())
         quit("Cannot initialize sizes");
+
+    /* runtypes.raw ------------------------------------------------------ */
+    note("[Initializing arrays. (runtypes)]");
+    if (init_rt_info()) quit("Cannot initialise run types");
+
 
     /* Initialize feature info */
     note("[Initializing arrays... (features)]");
@@ -1895,27 +1866,27 @@ extern int initial_menu(int* highlight)
 
     if (arg_wizard)
     {
-        Term_putstr(15, 15, 80, TERM_BLUE,
+        Term_putstr(15, 17, 80, TERM_BLUE,
             "Resurrecting a character is a form of cheating.");
-        Term_putstr(15, 16, 80, TERM_BLUE,
-            "You cannot get a high score with this character.");
+        // Term_putstr(15, 17, 80, TERM_BLUE,
+            // "You cannot get a high score with this character.");
     }
     else
     {
-        Term_putstr(15, 15, 80, TERM_BLUE,
-            "                                                ");
-        Term_putstr(15, 16, 80, TERM_BLUE,
+        // Term_putstr(15, 16, 80, TERM_BLUE,
+            // "                                                ");
+        Term_putstr(15, 17, 80, TERM_BLUE,
             "                                                ");
     }
 
     Term_putstr(
-        15, 17, 60, TERM_L_DARK, "________________________________________");
+        15, 17, 60, TERM_L_DARK, "______________________________________________________");
     Term_putstr(20, 19, 25, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) Tutorial");
+        "a) Help");
     Term_putstr(20, 20, 25, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) New character");
+        "b) Continue your story");
     Term_putstr(20, 21, 25, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Open saved character");
+        "c) Start or change story");
     Term_putstr(
         20, 22, 25, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE, "d) Quit");
 

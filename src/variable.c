@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "metarun.h" 
 
 /*
  * Hack -- Link a copyright message into the executable
@@ -807,7 +808,9 @@ int highscore_fd;
 /*
  * The metarun file descriptor, if available.
  */
-int meta_fd;
+int meta_fd = -1;
 
 // Current metarun info
 metarun meta;
+
+runtype_type *runtype_info = NULL;   /* filled by init_rt_info() */

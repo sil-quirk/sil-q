@@ -118,6 +118,7 @@ struct maxima
     u16b art_norm_max; /* Max number for normal artefacts (special - normal) */
     u16b art_rand_max; /* Max number of random artefacts */
     u16b art_self_made_max; /* Max number of self-made artefacts */
+    u16b rt_max;           /* ↑ total run-type records                         */
 };
 
 /*
@@ -697,7 +698,7 @@ struct player_race
     byte b_wt; /* base weight */
     byte m_wt; /* mod weight */
 
-    s32b choice; /* Legal house choices */
+    u32b choice[FLAG_WORDS]; /* Legal house choices */
 
     start_item start_items[MAX_START_ITEMS]; /* The starting inventory */
 
@@ -745,12 +746,28 @@ struct story_type
 
 // Curses
 
-struct curse_type
+/* Existing … */
+typedef struct curse_type              /* one entry in cu_info[]          */
 {
-    u32b name; /* Name (offset) */
-    s16b cu_adj[A_MAX]; /* Curse stat bonuses */
-    u32b text; /* Descrption (offset) */
-};
+    s16b             name;             /* index in cu_name */ 
+    u32b             text;             /* offset in the big text pool  */
+    s16b             cu_adj[A_MAX];    /* stat adjustments  */
+    u32b             flags;            /* ⇐ NEW – RHF flags */
+}
+curse_type;
+
+
+
+/* --- new generic run-type record ----------------------------------- */
+typedef struct runtype_type runtype_type;
+
+struct runtype_type {
+    u32b id;               /* record index – must match order in runtypes.txt  */
+    u32b start_curses;     /* 32-bit bitmap of default curses                  */
+    byte colour;           /* UI colour (TERM_* index)                         */
+    char name[16];         /* short name shown in menus                        */
+};                                                            /* NEW */
+
 
 /*
  * Some more player information
@@ -1117,16 +1134,20 @@ struct high_score
     char escaped[2]; /* Has player escaped (t/f) */
 };
 
-typedef struct metarun metarun;
-struct metarun
-{
-    char id[2];
-    char name[16];
-    char silmarilis[2];
-    char difficulty[2];
-    char def[2];
-    char curses[16]; 
-};
+
+// typedef struct metarun
+// {
+//     u32b id;            /* running index                                      */
+//     byte type;          /* index into runtypes.raw                            */
+//     byte deaths;        /* how many characters have died in this metarun      */
+//     byte silmarils;     /* number of Silmarils recovered so far               */
+//     byte pad;           /* alignment / future expansion                       */
+
+//     u32b curses_lo;     /* curse bit-mask 0-31  (see curses.raw)              */
+//     u32b curses_hi;     /* curse bit-mask 32-63                                */
+
+//     u32b last_played;   /* time() of the last character that belonged to it   */
+// } metarun;
 
 // A type to contain information on a combat roll for printing
 
@@ -1218,3 +1239,8 @@ struct autoinscription
     s16b kindIdx;
     s16b inscriptionIdx;
 };
+
+typedef struct header        header;        /* <<< add this line */
+
+extern runtype_type *runtype_info;   /* NEW — allocated by init_info() */
+extern header        rt_head;        /* NEW — loader header            */

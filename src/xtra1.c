@@ -1944,20 +1944,22 @@ int affinity_level(int skilltype)
     case S_SMT:
     {
         affinity_flag = RHF_SMT_AFFINITY;
-		mastery_flag = RHF_SMT_MASTERY;
+		// mastery_flag = RHF_SMT_MASTERY;
         penalty_flag = RHF_SMT_PENALTY;
         break;
     }
     case S_SNG:
     {
         affinity_flag = RHF_SNG_AFFINITY;
+		// mastery_flag = RHF_SNG_MASTERY;
         penalty_flag = RHF_SNG_PENALTY;
         break;
     }
     }
 
-    if (rp_ptr->flags & affinity_flag)
-        level += 1;
+    // if ((rp_ptr->flags & affinity_flag)&!(hp_ptr->flags & mastery_flag))
+    //     level += 1;
+    if (rp_ptr->flags & affinity_flag) level++;
     if (hp_ptr->flags & affinity_flag)
         level += 1;
     if (hp_ptr->flags & mastery_flag)

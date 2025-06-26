@@ -2895,6 +2895,93 @@ static void death_knowledge(void)
     handle_stuff();
 }
 
+/**
+ * Introductory narrative display, one paragraph per prompt.
+ * Implemented as a static function to restrict linkage.
+ */
+static void print_story_intro(void)
+{
+    int wid, h;
+    const int indent = 2;
+    /* Narrative paragraphs as valid C string literals with embedded \n */
+    cptr intro_texts[] = {
+        "You awaken in darkness.\n"
+        "No name. No memory.\n"
+        "Only a quiet ache of courage deep inside you,\n"
+        "like embers buried beneath ash.\n",
+
+        "Far below, Morgoth waits upon his throne—\n"
+        "iron-dark and crowned in flame.\n"
+        "Upon his brow shine three Silmarils, stolen stars.\n"
+        "He senses your stirring. He knows you will come.\n",
+
+        "Far above, beyond the shadows of Angband,\n"
+        "the Valar watch silently.\n"
+        "They offer no guidance, yet their presence\n"
+        "fills you with strength-and dread.\n",
+
+        "You will return many times, each death and rebirth\n"
+        "etched into the endless stone halls of Mandos.\n"
+        "Each fall will draw your spirit deeper into shadow,\n"
+        "closer to a doom from which you cannot escape.\n",
+
+        "Yet each victory-each Silmaril wrested from Morgoth's crown-\n"
+        "will brighten the Valar's hope,\n"
+        "even as your soul grows thinner,\n"
+        "your strength fading with every triumph.\n",
+
+        "You envy the Edain, whose Gift from Iluvatar\n"
+        "frees them from the bonds of Mandos and the world.\n"
+        "Yet you do not know if such release can ever be yours.\n"
+        "You do not know who—or even what-you truly are.\n",
+
+        "For each time you awaken,\n"
+        "you will carry the names of heroes beloved and feared—\n"
+        "bright spirits, fiery hearts, proud kings and exiles,\n"
+        "wanderers beneath sun and stars,\n"
+        "whose courage you borrow, but whose fates are not your own.\n",
+
+        "This is the trial set by the Valar:\n"
+        "to reclaim your forgotten name,\n"
+        "to balance shadow and light,\n"
+        "and to find within the borrowed glory of others\n"
+        "your true self.\n",
+
+        "Now the path before you opens,\n"
+        "and your trial begins.\n"
+    };
+    int total = sizeof(intro_texts) / sizeof(intro_texts[0]);
+
+    Term_get_size(&wid, &h);
+    int wrap_width = wid - indent;
+    int row = 1;
+
+    Term_clear();
+    for (int index = 0; index < total; index++) {
+        if (index > 0) {
+            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
+            inkey();
+        }
+        int lines = count_wrapped_lines(intro_texts[index], wrap_width, indent);
+        if (row + lines > h - 1) {
+            Term_clear();
+            row = 1;
+        }
+        text_out_indent = indent;
+        text_out_wrap   = wrap_width;
+        Term_gotoxy(indent, row);
+        text_out_to_screen(TERM_WHITE, intro_texts[index]);
+        text_out_wrap   = 0;
+        text_out_indent = 0;
+        row += lines;
+    }
+    Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to finish)");
+    inkey();
+    Term_clear();
+}
+
+
+
 /*
  * Actually play a game.
  *
@@ -3006,6 +3093,11 @@ void play_game(bool new_game)
 
         /* Hack -- seed for random artefacts */
         seed_randart = rand_int(0x10000000);
+
+        print_story_intro();
+
+        // Show story
+        print_story();
 
         /* Roll up a new character */
         player_birth();

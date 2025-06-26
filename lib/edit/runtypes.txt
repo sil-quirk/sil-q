@@ -1,0 +1,21 @@
+# File: runtypes.txt
+#
+# This file is used to create the "lib/data/runtypes.raw" file, which is
+# used to initialize the metarun types information for Sil.
+#
+# Do not modify this file unless you know exactly what you are doing,
+# unless you wish to risk possible system crashes and broken savefiles.
+#
+#
+
+# Version stamp (required)
+
+V:1.5.0
+
+N:0:Glorfindel
+C:
+U:TERM_WHITE
+
+N:1:Galadriel
+C:1|5|7
+U:TERM_RED

@@ -51,16 +51,16 @@ M:G:19
 M:V:500
 
 # Maximum number of player races
-M:P:4
+M:P:6
 
 # Maximum number of player houses
-M:C:31
+M:C:37
 
 # Maximum number of player history lines
 M:H:165
 
 # Maximum number of player story lines
-M:S:15
+M:S:16
 
 # Maximum number of curses
 M:U:4
@@ -73,6 +73,8 @@ M:L:310
 
 # Maximum number of objects on the level
 M:O:512
+
+M:Y:3
 
 # Previously we had the maximum number of monsters on the level here
 # but it has been made into a compile-time #define

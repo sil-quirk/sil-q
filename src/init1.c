@@ -43,6 +43,9 @@
 
 #include "init.h"
 
+/* run-type template loader ---------------------------------------- */
+header rt_head;       /* the one and only definition */
+
 /*** Helper arrays for parsing ascii template files ***/
 
 /*
@@ -297,8 +300,8 @@ static flag_name info_flags[] = {
     { "SMT_AFFINITY", RHF, RHF_SMT_AFFINITY },
     { "SMT_PENALTY", RHF, RHF_SMT_PENALTY },
     { "SNG_AFFINITY", RHF, RHF_SNG_AFFINITY },
-    { "SNG_PENALTY", RHF, RHF_SNG_PENALTY }, { "SMT_MASTERY", RHF, RHF_SMT_MASTERY },
-    { "RHFXXX20", RHF, RHF_RHFXXX20 }, { "RHFXXX21", RHF, RHF_RHFXXX21 },
+    { "SNG_PENALTY", RHF, RHF_SNG_PENALTY }, { "SMT_FEANOR", RHF, RHF_SMT_FEANOR },
+    { "SNG_MASTERY", RHF, RHF_SNG_MASTERY }, { "KINSLAYER", RHF, RHF_KINSLAYER },
     { "RHFXXX22", RHF, RHF_RHFXXX22 }, { "RHFXXX23", RHF, RHF_RHFXXX23 },
     { "RHFXXX24", RHF, RHF_RHFXXX24 }, { "RHFXXX21", RHF, RHF_RHFXXX25 },
     { "RHFXXX25", RHF, RHF_RHFXXX26 }, { "RHFXXX26", RHF, RHF_RHFXXX27 },
@@ -448,6 +451,8 @@ static bool add_text(u32b* offset, header* head, cptr buf)
 
     /* Advance the index */
     head->text_size += strlen(buf);
+
+    // head->text_ptr[head->text_size] = '\0';
 
     /* Success */
     return (TRUE);
@@ -739,6 +744,11 @@ errr parse_z_info(char* buf, header* head)
         /* Save the value */
         z_info->fake_text_size = max;
     }
+    /* M:R:<number_of_runtypes> ----------------------------------------- */
+    else if (buf[2] == 'Y')
+    {
+        z_info->rt_max = (u16b)atoi(buf + 4);
+    }
     else
     {
         /* Oops */
@@ -748,6 +758,61 @@ errr parse_z_info(char* buf, header* head)
     /* Success */
     return (0);
 }
+
+/* ====================  runtypes.txt parser  ===================== */
+
+static runtype_type *rt_ptr = NULL;
+
+errr parse_rt_info(char *buf, header *head)
+{
+    /* N:<index>:<name> ------------------------------------------- */
+    if (buf[0] == 'N')
+    {
+        int idx;
+        char *s = strchr(buf+2, ':');
+        if (!s) return PARSE_ERROR_GENERIC;
+        *s++ = '\0';
+        idx = atoi(buf+2);
+
+        /* normal sequential checks */
+        if (idx <= error_idx) return PARSE_ERROR_NON_SEQUENTIAL_RECORDS;
+        if (idx >= head->info_num) return PARSE_ERROR_TOO_MANY_ENTRIES;
+        error_idx = idx;
+
+        rt_ptr = ((runtype_type*)head->info_ptr) + idx;
+        WIPE(rt_ptr, runtype_type);
+        rt_ptr->id = idx;
+        strncpy(rt_ptr->name, s, sizeof(rt_ptr->name)-1);
+        return 0;
+    }
+
+    /* C:b0|b1|b2 default-curses mask ----------------------------- */
+    if (buf[0] == 'C')
+    {
+        if (!rt_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+        char *tok = strtok(buf+2, "|");
+        while (tok)
+        {
+            int bit = atoi(tok);
+            if (bit >= 0 && bit < 32)
+                rt_ptr->start_curses |= (1UL << bit);
+            tok = strtok(NULL, "|");
+        }
+        return 0;
+    }
+
+    /* U:TERM_RED  (colour) --------------------------------------- */
+    if (buf[0] == 'U')
+    {
+        if (!rt_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+        rt_ptr->colour = (byte)color_text_to_attr(buf+2);
+        return 0;
+    }
+
+    /* ignore unknown / comment lines                              */
+    return PARSE_ERROR_UNDEFINED_DIRECTIVE;
+}
+
 
 /*
  * Initialize the "f_info" array, by parsing an ascii "template" file
@@ -916,6 +981,18 @@ static errr grab_one_kind_flag(object_kind* ptr, cptr what)
     f[TR3] = &(ptr->flags3);
     return grab_one_flag(f, "object", what);
 }
+
+/**********************************************************************
+ * Grab a single RHF flag for a curse (used by “F:” lines in curses.txt)
+ **********************************************************************/
+static errr grab_one_curse_flag(curse_type *cu_ptr, cptr what)
+{
+    u32b *f[MAX_FLAG_SETS];
+    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    f[RHF] = &(cu_ptr->flags);   /* write into the new word we added */
+    return grab_one_flag(f, "curse", what);
+}
+
 
 /*
  * Initialize the "k_info" array, by parsing an ascii "template" file
@@ -2873,8 +2950,14 @@ errr parse_p_info(char* buf, header* head)
                     t++;
             }
 
-            /* Hack - Parse this entry */
-            pr_ptr->choice |= (1L << atoi(s));
+            int bit = atoi(s);   // Converts the string (e.g. "42") to an int
+            if (bit >= 0 && bit < FLAG_COUNT) {
+                int word = bit / 32;        // Which 32-bit slot (0 or 1)
+                int shift = bit % 32;       // Which bit in that slot (0–31)
+                pr_ptr->choice[word] |= (1U << shift);  // Set the bit
+            } else {
+                // Invalid flag index
+            }
 
             /* Start the next entry */
             s = t;
@@ -3272,112 +3355,102 @@ errr parse_st_info(char* buf, header* head)
     return (0);
 }
 
-errr parse_cu_info(char* buf, header* head)
+/**********************************************************************
+ * Initialise the “cu_info” array by parsing curses.txt
+ **********************************************************************/
+errr parse_cu_info(char *buf, header *head)
 {
-    int i;
-
-    char* s;
+    int   i, j;
+    char *s, *t;
 
     /* Current entry */
-    static curse_type* cu_ptr = NULL;
+    static curse_type *cu_ptr = NULL;
 
-    /* Process 'N' for "New/Number" */
+    /* ------------------------------------------------------------ */
+    /* N: idx : name                                                */
+    /* ------------------------------------------------------------ */
     if (buf[0] == 'N')
     {
-        /* Find the colon before the name */
+        /* Find name delimiter */
         s = strchr(buf + 2, ':');
+        if (!s) return PARSE_ERROR_GENERIC;
 
-        /* Verify that colon */
-        if (!s)
-            return (PARSE_ERROR_GENERIC);
-
-        /* Nuke the colon, advance to the name */
         *s++ = '\0';
+        if (!*s) return PARSE_ERROR_GENERIC;
 
-        /* Paranoia -- require a name */
-        if (!*s)
-            return (PARSE_ERROR_GENERIC);
-
-        /* Get the index */
         i = atoi(buf + 2);
-
-        /* Verify information */
-        if (i <= error_idx)
-            return (PARSE_ERROR_NON_SEQUENTIAL_RECORDS);
-
-        /* Verify information */
-        if (i >= head->info_num)
-            return (PARSE_ERROR_TOO_MANY_ENTRIES);
-
-        /* Save the index */
+        if (i <= error_idx)          return PARSE_ERROR_NON_SEQUENTIAL_RECORDS;
+        if (i >= head->info_num)     return PARSE_ERROR_TOO_MANY_ENTRIES;
         error_idx = i;
 
-        /* Point at the "info" */
-        cu_ptr = (curse_type*)head->info_ptr + i;
+        cu_ptr = ((curse_type *)head->info_ptr) + i;
 
-        /* Store the name */
-        if (!(cu_ptr->name = add_name(head, s)))
-            return (PARSE_ERROR_OUT_OF_MEMORY);
+        /* Reset fresh record */
+        WIPE(cu_ptr, curse_type);       /* clears the record  */
+                                                     /* flags included     */
+        if (!(cu_ptr->name = add_name(head, s)))     
+            return PARSE_ERROR_OUT_OF_MEMORY;
     }
 
-    /* Process 'S' for "Stats" (one line only) */
-    else if (buf[0] == 'S')
+    /* ------------------------------------------------------------ */
+    /* C: stat adjustments  or  S: (old name kept for back-compat)  */
+    /* ------------------------------------------------------------ */
+    else if ((buf[0] == 'C') || (buf[0] == 'S'))
     {
-        int adj;
+        if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
 
-        /* There better be a current ph_ptr */
-        if (!cu_ptr)
-            return (PARSE_ERROR_MISSING_RECORD_HEADER);
-
-        /* Start the string */
-        s = buf + 1;
-
-        /* For each stat */
-        for (int j = 0; j < A_MAX; j++)
+        s = buf + 1;                     /* points to first ':' */
+        for (j = 0; j < A_MAX; j++)
         {
-            /* Find the colon before the subindex */
             s = strchr(s, ':');
-
-            /* Verify that colon */
-            if (!s)
-                return (PARSE_ERROR_GENERIC);
-
-            /* Nuke the colon, advance to the subindex */
+            if (!s) return PARSE_ERROR_GENERIC;
             *s++ = '\0';
-
-            /* Get the value */
-            adj = atoi(s);
-
-            /* Save the value */
-            cu_ptr->cu_adj[j] = adj;
-
-            /* Next... */
-            continue;
+            cu_ptr->cu_adj[j] = atoi(s);
         }
     }
 
-    /* Process 'D' for "Description" */
+    /* ------------------------------------------------------------ */
+    /* F: list of RHF flags (MEL_PENALTY | SWORD_AFFINITY …)        */
+    /* ------------------------------------------------------------ */
+    else if (buf[0] == 'F')
+    {
+        if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+
+        for (s = buf + 2; *s; )
+        {
+            /* token = [^ or |]*  */
+            for (t = s; *t && (*t != ' ') && (*t != '|'); ++t) ;
+            if (*t)
+            {
+                *t++ = '\0';
+                while ((*t == ' ') || (*t == '|')) t++;
+            }
+
+            if (grab_one_curse_flag(cu_ptr, s))
+                return PARSE_ERROR_INVALID_FLAG;
+
+            s = t;
+        }
+    }
+
+    /* ------------------------------------------------------------ */
+    /* D: description line(s)                                       */
+    /* ------------------------------------------------------------ */
     else if (buf[0] == 'D')
     {
-        /* There better be a current st_ptr */
-        if (!cu_ptr)
-            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+        if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
 
-        /* Get the text */
-        s = buf + 2;
-
-        /* Store the text */
-        if (!add_text(&cu_ptr->text, head, s))
-            return (PARSE_ERROR_OUT_OF_MEMORY);
+        if (!add_text(&(cu_ptr->text), head, buf + 2))
+            return PARSE_ERROR_OUT_OF_MEMORY;
     }
+
+    /* ------------------------------------------------------------ */
+    /* anything else is an error                                    */
+    /* ------------------------------------------------------------ */
     else
-    {
-        /* Oops */
-        return (PARSE_ERROR_UNDEFINED_DIRECTIVE);
-    }
+        return PARSE_ERROR_UNDEFINED_DIRECTIVE;
 
-    /* Success */
-    return (0);
+    return 0;
 }
 
 /*

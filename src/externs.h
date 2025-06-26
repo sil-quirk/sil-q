@@ -16,7 +16,7 @@
 /*
  * Automatically generated "variable" declarations
  */
-
+extern FILE *log_file;
 extern int max_macrotrigger;
 extern cptr macro_template;
 extern cptr macro_modifier_chr;
@@ -540,6 +540,7 @@ extern int meta_write(const metarun*);
 extern errr meta_read(metarun*);
 extern int meta_seek(int i);
 extern int meta_fill(bool);
+extern void print_story();
 
 /* generate.c */
 extern void place_monster_by_flag(
@@ -951,6 +952,7 @@ extern void put_str(cptr str, int row, int col);
 extern void c_prt(byte attr, cptr str, int row, int col);
 extern void prt(cptr str, int row, int col);
 extern void text_out_to_file(byte attr, cptr str);
+extern int count_wrapped_lines(cptr str, int wrap_width, int indent);
 extern void text_out_to_screen(byte a, cptr str);
 extern void text_out(cptr str);
 extern void text_out_c(byte a, cptr str);

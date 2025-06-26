@@ -3950,6 +3950,7 @@ static void init_stuff(void)
 	validate_dir(ANGBAND_DIR_XTRA_HELP);
 #endif /* 0 */
 }
+FILE *log_file;
 
 int FAR PASCAL WinMain(
     HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nCmdShow)
@@ -3959,6 +3960,13 @@ int FAR PASCAL WinMain(
     WNDCLASS wc;
     HDC hdc;
 
+    /* In initialization code */
+    log_file = fopen("log.txt", "w");
+    fprintf(log_file, "Logging started");
+    // if (!log_file) {
+    //     /* Fallback: still print to stderr if we can’t open the file */
+    //     log_file = stderr;
+    // }
 
     // Sil-y: commented this out
     // MSG msg;
