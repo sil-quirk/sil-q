@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "z-term.h"
+#include "metarun.h"
 
 /* Locations of the tables on the screen */
 #define HEADER_ROW 1
@@ -57,7 +58,7 @@ struct birth_menu
     cptr text;
 };
 
-s16b adj_c[A_MAX];
+// s16b adj_c[A_MAX];
 
 static int get_start_xp(void)
 {
@@ -70,6 +71,29 @@ static int get_start_xp(void)
         return PY_START_EXP;
     }
 }
+
+/* --- how many copies of curse #bit are active in this metarun? ---- */
+static int curse_count(int bit)          /* 0-31 */
+{
+    return (bit < 16)
+        ? ((meta.curses_lo >> (bit * 4)) & 0xF)
+        : ((meta.curses_hi >> ((bit - 16) * 4)) & 0xF);
+}
+
+
+/* Return net adjustment for a primary stat from EVERY active metarun curse */
+static int curses_stat_adj(int s)   /* s = 0-3  (STR-DEX-CON-GRA) */
+{
+    int delta = 0;
+    for (int bit = 0; bit < z_info->cu_max; bit++) {
+        int cnt = curse_count(bit);
+        if (cnt)
+            delta += cnt * cu_info[bit].cu_adj[s];
+    }
+    return delta;
+}
+
+
 
 /*
  * Generate some info that the auto-roller ignores
@@ -959,6 +983,38 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     return (INVALID_CHOICE);
 }
 
+/* OR of every flag carried by the active metarun curses */
+u32b curse_flag_mask(void)
+{
+    u32b m = 0;
+    for (int b = 0; b < z_info->cu_max; b++)
+    {
+        int cnt = (b < 16)
+                  ? ((meta.curses_lo >> (b * 4)) & 0xF)
+                  : ((meta.curses_hi >> ((b - 16) * 4)) & 0xF);
+        if (cnt) m |= cu_info[b].flags;
+    }
+    return m;
+}
+
+/*
+ * How many *copies* of a given RHF flag are active on the player?
+ * Each duplicate curse counts separately.  The result is 0 … 15.
+ */
+int curse_flag_count(u32b rhf_flag)
+{
+    int total = 0;
+
+    for (int bit = 0; bit < z_info->cu_max; bit++)
+    {
+        int cnt = curse_count(bit);                 /* existing helper */   /* :contentReference[oaicite:1]{index=1} */
+        if (cnt && (cu_info[bit].flags & rhf_flag))
+            total += cnt;                           /* every copy counts   */
+    }
+    return total;
+}
+
+
 /*
  * Show race/house flags in priority order.
  * Masteries first, then single-side affinities, then penalties,
@@ -985,26 +1041,55 @@ static void print_rh_flags(int race, int house, int col, int row)
     skill_line mastery_buf [16], affinity_buf[16], penalty_buf[16], unique_buf[8];
     int mastery_n = 0, affinity_n = 0, penalty_n = 0, unique_n = 0;
 
+/*
+ * Show one skill line according to the new ±2 ↔ mastery / grand-penalty rule.
+ *
+ *   +1 for every …_AFFINITY bit, −1 for every …_PENALTY bit.
+ *
+ *        score   meaning            colour / buffer
+ *        =====   ===============    =========================
+ *          +2    mastery            mastery_buf  / attr_mastery
+ *          +1    affinity           affinity_buf / attr_affinity
+ *           0    (omit line)        —
+ *          −1    penalty            penalty_buf  / attr_penalty
+ *          −2    grand penalty      penalty_buf  / attr_penalty
+ */
+/* Show one skill line according to the new ±2 rule,
+ * now counting curse affinities / penalties too.
+ */
 #define HANDLE_SKILL_EX(label, AFF_FLAG, PEN_FLAG)                          \
     do {                                                                    \
-        int aff_race  = p_info[race].flags & (AFF_FLAG);                    \
-        int aff_house = c_info[house].flags & (AFF_FLAG);                   \
-        int penalty   = (PEN_FLAG) &&                                       \
-                        ((p_info[race].flags  & (PEN_FLAG)) ||              \
-                         (c_info[house].flags & (PEN_FLAG)));               \
-        if (!(penalty && (aff_race || aff_house))) {                        \
-            if (aff_race && aff_house) {                                    \
-                mastery_buf[mastery_n].txt = label " mastery";              \
-                mastery_buf[mastery_n++].col = attr_mastery;                \
-            } else if (aff_race || aff_house) {                             \
-                affinity_buf[affinity_n].txt = label " affinity";           \
-                affinity_buf[affinity_n++].col = attr_affinity;             \
-            } else if (penalty) {                                           \
-                penalty_buf[penalty_n].txt = label " penalty";              \
-                penalty_buf[penalty_n++].col = attr_penalty;                \
-            }                                                               \
+        int score = 0;                                                      \
+                                                                            \
+        /* race + house bits */                                             \
+        if (p_info[race].flags  & (AFF_FLAG)) score++;                      \
+        if (c_info[house].flags & (AFF_FLAG)) score++;                      \
+        if (p_info[race].flags  & (PEN_FLAG)) score--;                      \
+        if (c_info[house].flags & (PEN_FLAG)) score--;                      \
+                                                                            \
+        /* every copy of the same curse flag */                             \
+        score += curse_flag_count(AFF_FLAG);                                \
+        score -= curse_flag_count(PEN_FLAG);                                \
+                                                                            \
+        /* clamp so the UI never shows >mastery or >grand-penalty */        \
+        if (score >  2) score =  2;                                         \
+        if (score < -2) score = -2;                                         \
+                                                                            \
+        if (score ==  2) {                                                  \
+            mastery_buf[mastery_n].txt = label " mastery";                  \
+            mastery_buf[mastery_n++].col = attr_mastery;                    \
+        } else if (score == 1) {                                            \
+            affinity_buf[affinity_n].txt = label " affinity";               \
+            affinity_buf[affinity_n++].col = attr_affinity;                 \
+        } else if (score == -1) {                                           \
+            penalty_buf[penalty_n].txt = label " penalty";                  \
+            penalty_buf[penalty_n++].col = attr_penalty;                    \
+        } else if (score == -2) {                                           \
+            penalty_buf[penalty_n].txt = label " grand penalty";            \
+            penalty_buf[penalty_n++].col = attr_penalty;                    \
         }                                                                   \
     } while (0)
+
 
 // New: (label, FLAG, COLOR, SIDE) where SIDE = 0 (left) or 1 (right)
 #define HANDLE_UNIQUE(label, FLAG, COLOR, SIDE)                             \
@@ -1353,7 +1438,7 @@ static void house_aux_hook(birth_menu c_str)
         strnfmt(s, sizeof(s), "%s", stat_names[i]);
         Term_putstr(TOTAL_AUX_COL, TABLE_ROW + i, -1, TERM_WHITE, s);
 
-        adj = c_info[house_idx].h_adj[i] + rp_ptr->r_adj[i] + adj_c[i];
+        adj = c_info[house_idx].h_adj[i] + rp_ptr->r_adj[i] + curses_stat_adj(i);
         strnfmt(s, sizeof(s), "%+d", adj);
 
         if (adj < 0)
@@ -1391,7 +1476,31 @@ static void house_aux_hook(birth_menu c_str)
         "Dead");
     else Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX +7, -1, TERM_L_BLUE,
         "Alive");
+    
+    // /* ---- red line of active curses ----------------------------------- */
+    // {
+    //     char buf[80] = "";
+    //     bool first = TRUE;
+    //     for (int bit = 0; bit < z_info->cu_max; bit++) {
+    //         int cnt = curse_count(bit);
+    //         if (!cnt) continue;
 
+    //         if (!first) my_strcat(buf, ", ", sizeof(buf));
+    //         my_strcat(buf, cu_name + cu_info[bit].name, sizeof(buf));
+    //         if (cnt > 1) {
+    //             char t[6];  /* room for “ ×15” */
+    //             strnfmt(t, sizeof(t), " ×%d", cnt);
+    //             my_strcat(buf, t, sizeof(buf));
+    //         }
+    //         first = FALSE;
+    //     }
+
+    //     if (first) my_strcpy(buf, "<no curses>", sizeof(buf));
+
+    //     /* one row above the flag block */
+    //     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX, -1, TERM_L_RED, buf);
+    // }
+        
     print_rh_flags(
         p_ptr->prace, house_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
     
@@ -1450,28 +1559,6 @@ static bool get_player_house(void)
     safe_setuid_drop();
 
     /* Tabulate houses */
-    int silm = highscore_count();
-
-    // Reading curse adjustments
-
-    // for (int m = 0; m < A_MAX; m++) {
-    //     adj_c[m] = 0;
-    //     if (silm_tmp > 2) {
-    //         adj_c[m]--;
-    //         silm_tmp-=3;
-    //     }
-    //     else break;
-    // } 
-
-    //Metarun curse adjustments
-    // for (int m = 0; m < A_MAX; m++) adj_c[m] = 0; 
-
-    // for (i = 0; i < z_info->cu_max; i++)
-    //     {
-    //         for (int m = 0; m < A_MAX; m++) {
-    //         adj_c[m] += cu_info[i].cu_adj[m]*(meta.curses[i] - '0');
-    //         }
-    //     }
 
     for (i = 0; i < z_info->c_max; i++)
     {
@@ -1503,10 +1590,6 @@ static bool get_player_house(void)
     {
         return (FALSE);
     }
-
-    for (i = 0; i < z_info->c_max; i++) {
-        for (int m = 0; m < A_MAX;  m++) c_info[i].h_adj[m] += adj_c[m];
-    } 
 
     /* Get house from choice number */
     house = 0;
@@ -1730,7 +1813,7 @@ static bool player_birth_aux_2(void)
         for (i = 0; i < A_MAX; i++)
         {
             /* Obtain a "bonus" for "race" */
-            int bonus = rp_ptr->r_adj[i] + hp_ptr->h_adj[i];
+            int bonus = rp_ptr->r_adj[i] + hp_ptr->h_adj[i] + curses_stat_adj(i);
 
             /* Apply the racial bonuses */
             p_ptr->stat_base[i] = stats[i] + bonus;

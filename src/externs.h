@@ -1171,3 +1171,5 @@ extern void write_mon_power(void);
 extern errr  load_metaruns(bool create_if_missing);
 extern void character_wipe(void);
 extern bool      metarun_created; 
+extern u32b curse_flag_mask(void);
+extern int  curse_flag_count(u32b rhf_flag);

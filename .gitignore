@@ -19,3 +19,4 @@ src/-.tmp_3968
 *.csv
 log.txt
 src/houselist.txt
+*.zip

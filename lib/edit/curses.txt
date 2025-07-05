@@ -21,14 +21,15 @@ D:Strength Curse
 
 N:1:Dexterity
 S:0:-1:0:0
-F:
+F:EVN_PENALTY
 D:Dexterity Curse
 
 N:2:Constitution
 S:0:0:-1:0
-F:
+F:WIL_PENALTY
 D:Constitution Curse
 
 N:3:Grace
 S:0:0:0:-1
+F:PER_PENALTY
 D: Grace Curse

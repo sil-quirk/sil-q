@@ -3269,6 +3269,8 @@ void do_cmd_escape(void)
     /* Update metarun: escaped with N Silmarils */
     metarun_update_on_exit(FALSE,TRUE,(byte)silmarils_possessed());
 
+    print_story();
+
 }
 
 /*
@@ -5099,14 +5101,14 @@ static void close_game_aux(void)
         message_flush();
     }
 
+     /* One more corpse recorded for this metarun */
+     metarun_update_on_exit(TRUE,FALSE,0);
+
     // Here we print storytelling message
     print_story();
 
      /* You are dead */
      print_tomb(&the_score);
-
-     /* One more corpse recorded for this metarun */
-     metarun_update_on_exit(TRUE,FALSE,0);
 
     /* Flush all input keys */
     flush();

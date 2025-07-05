@@ -3102,8 +3102,8 @@ void play_game(bool new_game)
         // Show story
         print_story();
         print_metarun_stats();
-        metarun_update_on_exit(0, 1, 3);
-        print_metarun_stats();
+        // metarun_update_on_exit(0, 1, 3);
+        // print_metarun_stats();
 
 
         /* Roll up a new character */

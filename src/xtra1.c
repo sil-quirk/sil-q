@@ -1898,78 +1898,39 @@ void calc_torch(void)
 
 int affinity_level(int skilltype)
 {
-    int level = 0;
-    u32b affinity_flag = 0L,
-		 mastery_flag = 0L,
-         penalty_flag = 0L; // default values to soothe compilation warnings
+    int  level         = 0;
+    u32b affinity_flag = 0L;
+    u32b penalty_flag  = 0L;
 
+    /* map skill → (affinity, penalty) pair */
     switch (skilltype)
     {
-    case S_MEL:
-    {
-        affinity_flag = RHF_MEL_AFFINITY;
-        penalty_flag = RHF_MEL_PENALTY;
-        break;
-    }
-    case S_ARC:
-    {
-        affinity_flag = RHF_ARC_AFFINITY;
-        penalty_flag = RHF_ARC_PENALTY;
-        break;
-    }
-    case S_EVN:
-    {
-        affinity_flag = RHF_EVN_AFFINITY;
-        penalty_flag = RHF_EVN_PENALTY;
-        break;
-    }
-    case S_STL:
-    {
-        affinity_flag = RHF_STL_AFFINITY;
-        penalty_flag = RHF_STL_PENALTY;
-        break;
-    }
-    case S_PER:
-    {
-        affinity_flag = RHF_PER_AFFINITY;
-        penalty_flag = RHF_PER_PENALTY;
-        break;
-    }
-    case S_WIL:
-    {
-        affinity_flag = RHF_WIL_AFFINITY;
-        penalty_flag = RHF_WIL_PENALTY;
-        break;
-    }
-    case S_SMT:
-    {
-        affinity_flag = RHF_SMT_AFFINITY;
-		// mastery_flag = RHF_SMT_MASTERY;
-        penalty_flag = RHF_SMT_PENALTY;
-        break;
-    }
-    case S_SNG:
-    {
-        affinity_flag = RHF_SNG_AFFINITY;
-		// mastery_flag = RHF_SNG_MASTERY;
-        penalty_flag = RHF_SNG_PENALTY;
-        break;
-    }
+        case S_MEL: affinity_flag = RHF_MEL_AFFINITY; penalty_flag = RHF_MEL_PENALTY; break;
+        case S_ARC: affinity_flag = RHF_ARC_AFFINITY; penalty_flag = RHF_ARC_PENALTY; break;
+        case S_EVN: affinity_flag = RHF_EVN_AFFINITY; penalty_flag = RHF_EVN_PENALTY; break;
+        case S_STL: affinity_flag = RHF_STL_AFFINITY; penalty_flag = RHF_STL_PENALTY; break;
+        case S_PER: affinity_flag = RHF_PER_AFFINITY; penalty_flag = RHF_PER_PENALTY; break;
+        case S_WIL: affinity_flag = RHF_WIL_AFFINITY; penalty_flag = RHF_WIL_PENALTY; break;
+        case S_SMT: affinity_flag = RHF_SMT_AFFINITY; penalty_flag = RHF_SMT_PENALTY; break;
+        case S_SNG: affinity_flag = RHF_SNG_AFFINITY; penalty_flag = RHF_SNG_PENALTY; break;
+        default:    return 0;
     }
 
-    // if ((rp_ptr->flags & affinity_flag)&!(hp_ptr->flags & mastery_flag))
-    //     level += 1;
+    /* race + house */
     if (rp_ptr->flags & affinity_flag) level++;
-    if (hp_ptr->flags & affinity_flag)
-        level += 1;
-    if (hp_ptr->flags & mastery_flag)
-        level += 2;
-    if (rp_ptr->flags & penalty_flag)
-        level -= 1;
-    if (hp_ptr->flags & penalty_flag)
-        level -= 1;
+    if (hp_ptr->flags & affinity_flag) level++;
+    if (rp_ptr->flags & penalty_flag)  level--;
+    if (hp_ptr->flags & penalty_flag)  level--;
 
-    return (level);
+    /* every copy of the same curse flag */
+    level += curse_flag_count(affinity_flag);
+    level -= curse_flag_count(penalty_flag);
+
+    /* keep inside the allowed range */
+    if (level >  2) level =  2;
+    if (level < -2) level = -2;
+
+    return level;
 }
 
 int ability_bonus(int skilltype, int abilitynum)
