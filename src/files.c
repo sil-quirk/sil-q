@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "h-basic.h"
+#include "metarun.h"
 
 // These are copied from birth.c and needed for displaying the character sheet
 #define INSTRUCT_ROW 21
@@ -3264,6 +3265,10 @@ void do_cmd_escape(void)
 
     /* Cause of death */
     my_strcpy(p_ptr->died_from, "ripe old age", sizeof(p_ptr->died_from));
+
+    /* Update metarun: escaped with N Silmarils */
+    metarun_update_on_exit(FALSE,TRUE,(byte)silmarils_possessed());
+
 }
 
 /*
@@ -4175,9 +4180,11 @@ extern void print_story(void)
     int wid, h;
     int max = highscore_count();
     char header[90];
-    const int total = 15;
+    int total = 1;
     const int indent = 2;
     int index = 0;
+
+    total = meta.silmarils + 1;
 
     /* Get current terminal size */
     Term_get_size(&wid, &h);
@@ -5095,10 +5102,11 @@ static void close_game_aux(void)
     // Here we print storytelling message
     print_story();
 
-    /* You are dead */
-    print_tomb(&the_score);
-    
-    // Here we dump stats into metarun.
+     /* You are dead */
+     print_tomb(&the_score);
+
+     /* One more corpse recorded for this metarun */
+     metarun_update_on_exit(TRUE,FALSE,0);
 
     /* Flush all input keys */
     flush();

@@ -30,6 +30,7 @@ EXOBJS = \
 	main-win.o \
 	melee1.o \
 	melee2.o \
+	metarun.o \
 	monster1.o \
 	monster2.o \
 	obj-info.o \

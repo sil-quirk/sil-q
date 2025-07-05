@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "metarun.h"
 
 #include "h-define.h"
 #include "init.h"
@@ -1745,10 +1746,10 @@ void init_angband(void)
     /* Close it */
     fd_close(fd);
 
-    // // Load metarun
-    // if (load_metaruns(1) != 0) {
-    //     init_angband_aux("Cannot load or create metarun file!");
-    // }
+    // Load metarun
+    if (load_metaruns(1) != 0) {
+        init_angband_aux("Cannot load or create metarun file!");
+    }
 
 
     /*** Initialize some arrays ***/

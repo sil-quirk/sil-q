@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "metarun.h"
 
 /*
  * Return a "feeling" (or NULL) about an item.  Method 1 (Weak).
@@ -3094,10 +3095,16 @@ void play_game(bool new_game)
         /* Hack -- seed for random artefacts */
         seed_randart = rand_int(0x10000000);
 
-        print_story_intro();
+        if (metarun_created)        /* show only the first time ever */
+            print_story_intro();
+
 
         // Show story
         print_story();
+        print_metarun_stats();
+        metarun_update_on_exit(0, 1, 3);
+        print_metarun_stats();
+
 
         /* Roll up a new character */
         player_birth();

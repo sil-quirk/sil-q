@@ -586,6 +586,15 @@ static void player_wipe(void)
  *
  * Having an item identifies it and makes the player "aware" of its purpose.
  */
+/* ------------------------------------------------------------------
+ * Public wrapper: let other modules reset the player safely.
+ * Keeps player_wipe() private while exporting a thin façade.
+ * ---------------------------------------------------------------- */
+void character_wipe(void)
+{
+    player_wipe();
+}
+
 static void player_outfit(void)
 {
     int i, slot, inven_slot;

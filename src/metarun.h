@@ -20,12 +20,15 @@ typedef struct metarun
 /* global handle (current run in memory) */
 extern metarun   meta;
 extern int       meta_fd;
+extern bool      metarun_created; 
 
 /* public API ------------------------------------------------------- */
 errr  load_metaruns(bool create_if_missing);   /* init2.c calls this once */
 errr  save_metaruns(void);                     /* called by save.c, death */
 void  metarun_update_on_exit(bool character_died, bool escaped_with_sils,
                              byte new_silmarils);
+
+extern void print_metarun_stats(void);
 
 void  start_metarun(void);  /* wrapper that chooses or creates a char */
 

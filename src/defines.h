@@ -3369,3 +3369,5 @@ typedef struct metarun metarun;   /* fwd */
 
 extern metarun meta;      /* current run, defined in metarun.c */
 extern int     meta_fd;   /* open descriptor to meta.raw */
+
+#define STORY_PARTS   3

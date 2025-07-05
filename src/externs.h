@@ -1164,3 +1164,10 @@ extern void dump_artefact_power(void);
 extern void write_mon_power(void);
 
 #endif /*ALLOW_DATA_DUMP*/
+
+
+// Metarun.c
+
+extern errr  load_metaruns(bool create_if_missing);
+extern void character_wipe(void);
+extern bool      metarun_created; 
