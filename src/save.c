@@ -16,39 +16,6 @@ static const char* races[] = {
     "Naugrim",
     "Edain",
 };
-static const char* houses[] = {
-    "None",
-    "Feanor",
-    "Fingolfin",
-    "Finarfin",
-    "Elu Thingol",
-    "Teclhar",
-    "Gamil Zirak",
-    "Barahir",
-    "Haleth",
-    "Hador",
-    "Cirdan",
-    "Maedhros",
-    "Curufin",
-    "Fingon",
-    "Turgon",
-    "Galadriel",
-    "Finrod Felagund",
-    "Mablung",
-    "Daeron",
-    "Aerandir",
-    "Aeron",
-    "Naugladur",
-    "Azaghâl",
-    "King Azaghal",
-    "Nim",
-    "Beren",
-    "Bereg",
-    "Haldar",
-    "Haldan",
-    "Galdor",
-    "Gundor"
-};
 
 void updatecharinfoS(void)
 {
@@ -62,7 +29,10 @@ void updatecharinfoS(void)
     oFile = fopen(tmp_Path, "w");
     fprintf(oFile, "{\n");
     fprintf(oFile, "race: \"%s\",\n", races[p_ptr->prace]);
-    fprintf(oFile, "class: \"%s\",\n", houses[p_ptr->phouse]);
+    /* Look up the house name via the parsed data */
+    fprintf(oFile,
+            "class: \"%s\",\n",
+            c_name + c_info[p_ptr->phouse].name);
     fprintf(oFile, "mDepth: \"%i\",\n", curDepth);
     fprintf(oFile, "isDead: \"%i\",\n", p_ptr->is_dead);
     fprintf(oFile, "killedBy: \"%s\",\n", p_ptr->died_from);

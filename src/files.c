@@ -4185,6 +4185,7 @@ extern void print_story(void)
     int total = 1;
     const int indent = 2;
     int index = 0;
+    bool fast_forward = FALSE;        /* becomes TRUE after first Esc */
 
     total = meta.silmarils + 1;
 
@@ -4206,7 +4207,7 @@ extern void print_story(void)
             Term_putstr(15, row, -1, TERM_L_BLUE, "Another hero has been slain");
             Term_putstr(15, row + 1, -1, TERM_L_BLUE, header);
             row += 2;
-        } 
+        }
         row++; /* blank line after header */
 
         int wrap_width = wid - indent;
@@ -4240,20 +4241,25 @@ extern void print_story(void)
             row += text_lines;
             row++; /* blank line */
 
-            /* Prompt and delay after each entry */
-            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
-            inkey();
+            /* Prompt after each entry unless fast-forwarding */
+            if (!fast_forward) {
+                Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key / Esc = fast)");
+                int ch = inkey();
+                if (ch == ESCAPE) fast_forward = TRUE;
+            }
         }
 
-        /* Footer prompt for next page */
-        if (index < total) {
+        /* Footer prompt for next page (only if more pages and not fast) */
+        if (index < total && !fast_forward) {
             Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key for next page)");
-            inkey();
+            int ch = inkey();
+            if (ch == ESCAPE) fast_forward = TRUE;
         }
     }
 
     Term_clear();
 }
+
 
 
 /*
@@ -5102,7 +5108,7 @@ static void close_game_aux(void)
     }
 
      /* One more corpse recorded for this metarun */
-     metarun_update_on_exit(TRUE,FALSE,0);
+    metarun_update_on_exit(TRUE,FALSE,0);
 
     // Here we print storytelling message
     print_story();

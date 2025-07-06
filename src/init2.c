@@ -1861,102 +1861,141 @@ void init_angband(void)
     note("                                              ");
 }
 
-extern int initial_menu(int* highlight)
+/* --- NEW HELP SCREEN --------------------------------------------------- */
+static void show_metarun_help(void)
+{
+    /* clear the screen */
+    Term_clear();
+
+    /* simple centred block of explanatory text */
+    int row = 2;
+    Term_putstr(10, row++, -1, TERM_L_BLUE,
+        "        —  Metarun: a story beyond a single hero  —");
+    row++;
+
+    Term_putstr(5, row++, -1, TERM_WHITE,
+        "SilQ-Heroes keeps a persistent timeline we call the Metarun.");
+    Term_putstr(5, row++, -1, TERM_WHITE,
+        "Every character you create, every victory and every death");
+    Term_putstr(5, row++, -1, TERM_WHITE,
+        "pushes that timeline forward.  New quests, artefacts and");
+    Term_putstr(5, row++, -1, TERM_WHITE,
+        "even areas of the dungeon unlock as the saga unfolds.");
+    row++;
+
+    Term_putstr(5, row++, -1, TERM_WHITE,
+        " • Continue your story – pick up where the timeline left off");
+    Term_putstr(5, row++, -1, TERM_WHITE,
+        " • Load story         – (coming soon) branch to an old point");
+    Term_putstr(5, row++, -1, TERM_WHITE,
+        " • Exit               – leave the Metarun for now");
+
+    row += 2;
+    Term_putstr(5, row, -1, TERM_SLATE,
+        "[press any key to return]");
+    Term_fresh();
+
+    /* wait for user acknowledgement */
+    inkey();
+    Term_clear();
+}
+/* ---------------------------------------------------------------------- */
+
+
+/* --- UPDATED MAIN-MENU HANDLER ---------------------------------------- */
+extern int initial_menu(int *highlight)
 {
     int ch;
 
+    display_introduction();    
+
+    /* wizard-mode resurrection warning or blank it out */
     if (arg_wizard)
-    {
         Term_putstr(15, 17, 80, TERM_BLUE,
             "Resurrecting a character is a form of cheating.");
-        // Term_putstr(15, 17, 80, TERM_BLUE,
-            // "You cannot get a high score with this character.");
-    }
     else
-    {
-        // Term_putstr(15, 16, 80, TERM_BLUE,
-            // "                                                ");
         Term_putstr(15, 17, 80, TERM_BLUE,
             "                                                ");
-    }
 
-    Term_putstr(
-        15, 17, 60, TERM_L_DARK, "______________________________________________________");
-    Term_putstr(20, 19, 25, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) Help");
-    Term_putstr(20, 20, 25, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) Continue your story");
-    Term_putstr(20, 21, 25, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Start or change story");
-    Term_putstr(
-        20, 22, 25, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE, "d) Quit");
+    /* frame */
+    Term_putstr(15, 17, 60, TERM_L_DARK,
+        "______________________________________________________");
 
-    /* Flush the prompt */
+    /* menu lines (new order) */
+    Term_putstr(20, 19, 30,
+        (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
+        "a) Continue your story");
+    Term_putstr(20, 20, 30,
+        TERM_L_DARK,                           /* always greyed-out */
+        "b) Load story (disabled)");
+    Term_putstr(20, 21, 30,
+        (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
+        "c) Help");
+    Term_putstr(20, 22, 30,
+        (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
+        "d) Exit");
+
     Term_fresh();
 
-    /* Place cursor at current choice */
+    /* show cursor beside current item */
     Term_gotoxy(10, 18 + *highlight);
 
-    /* Get key (while allowing menu commands) */
     hide_cursor = TRUE;
     ch = inkey();
     hide_cursor = FALSE;
 
-    /* Tutorial */
-    if ((ch == 'a') || (ch == 'T') || (ch == 't'))
+    /* direct key choices ------------------------------------------------*/
+
+    /* a : CONTINUE  */
+    if (ch == 'a' || ch == 'A')
     {
         *highlight = 1;
-        return (1);
+        return 2;                /* maps to “new game” branch in main-win.c */
     }
 
-    /* New */
-    if ((ch == 'b') || (ch == 'N') || (ch == 'n'))
+    /* b : LOAD (disabled) – just ignore / beep */
+    if (ch == 'b' || ch == 'B')
     {
-        *highlight = 2;
-        return (2);
+        bell("load-story disabled");        /* disabled – beep and ignore */
+        return 0;                /* stay in the menu */
     }
 
-    /* Open */
-    if ((ch == 'c') || (ch == 'O') || (ch == 'o'))
+    /* c : HELP      */
+    if (ch == 'c' || ch == 'C')
     {
-        *highlight = 3;
-        return (3);
+        show_metarun_help();
+        return 0;                /* redraw menu afterwards */
     }
 
-    /* Quit  */
-    if ((ch == 'd') || (ch == 'Q') || (ch == 'q'))
+    /* d : EXIT      */
+    if (ch == 'd' || ch == 'D')
     {
-        return (4);
+        return 4;                /* handled as quit in main-win.c */
     }
 
-    /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' '))
+    /* ENTER / SPACE : activate current highlight ------------------------*/
+    if (ch == '\r' || ch == '\n' || ch == ' ')
     {
-        return (*highlight);
+        switch (*highlight)
+        {
+            case 1:  return 2;          /* Continue */
+            case 2:  bell("Load story disabled"); return 0;  /* Load disabled */
+            case 3:  show_metarun_help(); return 0;
+            case 4:  return 4;          /* Exit      */
+        }
     }
 
-    /* Prev item */
-    if (ch == '8')
-    {
-        if (*highlight > 1)
-            (*highlight)--;
-    }
+    /* cursor navigation -------------------------------------------------*/
+    if (ch == '8' && *highlight > 1) (*highlight)--;
+    if (ch == '2' && *highlight < 4) (*highlight)++;
 
-    /* Next item */
-    if (ch == '2')
-    {
-        if (*highlight < 4)
-            (*highlight)++;
-    }
+    /* toggle wizard resurrection */
+    if (ch == KTRL('W')) arg_wizard = !arg_wizard;
 
-    /* Set wizard flag for resurrecting dead characters */
-    if (ch == KTRL('W'))
-    {
-        arg_wizard = !arg_wizard;
-    }
-
-    return (0);
+    return 0;                       /* fall through → refresh & loop */
 }
+/* ---------------------------------------------------------------------- */
+
 
 void cleanup_angband(void)
 {
