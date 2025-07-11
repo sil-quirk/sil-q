@@ -137,21 +137,92 @@ errr save_metaruns(void)
     return 0;
 }
 
+int any_curse_flag_active(u32b flag)
+ {
+    /* returns true if one or more active curses have `flag` set */
+    return (curse_flag_count(flag) > 0);
+ }
 
-/* ====================  escape-curse picker  ==================== */
-static int random_curse(void) { return rng_int(z_info->cu_max); }
+/* ---------------------------------------------------------------
+ * Pick a curse at random, respecting weights, stacks, caps,
+ * and the RHF_CURSE tail-lift.
+ * ------------------------------------------------------------- */
+static int weighted_random_curse(void)
+{
+    long total = 0;
+    int  w_max = 1;
+
+    /* Does the hero’s lineage carry the flag? */
+    bool tilt = (p_info[p_ptr->prace].flags  & RHF_CURSE) ||
+                (c_info[p_ptr->phouse].flags & RHF_CURSE);
+
+    /* Pass 1 – find the largest weight and (later) build the total */
+    for (int i = 0; i < z_info->cu_max; i++)
+    {
+        byte w   = cu_info[i].weight ? cu_info[i].weight : 1;
+        if (w > w_max) w_max = w;
+    }
+
+    /* Pass 2 – sum effective weights */
+    for (int i = 0; i < z_info->cu_max; i++)
+    {
+        byte w   = cu_info[i].weight ? cu_info[i].weight : 1;
+        byte cnt = CURSE_GET(i);
+        byte cap = cu_info[i].max_stacks;
+        if (cap && cnt >= cap) continue;           /* cap reached */
+
+        long base = tilt
+            ? w + ((w_max + 1 - w) >> 1)           /* lift the tail */
+            : w;
+
+        total += base / (cnt + 1);
+    }
+
+    if (!total) return rng_int(z_info->cu_max);    /* safety net */
+
+    /* Pass 3 – roulette wheel */
+    long pick = rng_int(total), run = 0;
+    for (int i = 0; i < z_info->cu_max; i++)
+    {
+        byte w   = cu_info[i].weight ? cu_info[i].weight : 1;
+        byte cnt = CURSE_GET(i);
+        byte cap = cu_info[i].max_stacks;
+        if (cap && cnt >= cap) continue;
+
+        long base = tilt
+            ? w + ((w_max + 1 - w) >> 1)
+            : w;
+
+        long eff = base / (cnt + 1);
+        run += eff;
+        if (pick < run) return i;
+    }
+
+    return rng_int(z_info->cu_max);                /* unreachable */
+}
+
+
 
 static int menu_choose_one_curse(void)
 {
+
+        /* if any active curse has the “no‐choice” flag, skip the menu */
+    if (any_curse_flag_active(CUR_NOCHOICE))
+        return weighted_random_curse();
+
     int pick[CURSE_MENU_LINES], sel;
 
     for (int i = 0; i < CURSE_MENU_LINES; i++) {
         bool dup;
         do {
             dup     = FALSE;
-            pick[i] = random_curse();
+            pick[i] = weighted_random_curse();
             for (int j = 0; j < i; j++)
                 if (pick[i] == pick[j]) { dup = TRUE; break; }
+            
+            byte cap = cu_info[pick[i]].max_stacks;
+            if (cap && CURSE_GET(pick[i]) >= cap) { dup = TRUE; continue; }
+
         } while (dup);
     }
 
@@ -173,17 +244,35 @@ static int menu_choose_one_curse(void)
     return pick[sel];
 }
 
+/**
+ * Grant escape curses after a metarun.
+ * If any active curse has the CUR_NOCHOICE bit, only one curse is rolled.
+ */
 static void choose_escape_curses(int n)
 {
-    for (int i = 0; i < n; i++) {
+    /* If “No-Choice” is active on any curse, limit to a single roll */
+    int rolls = any_curse_flag_active(CUR_NOCHOICE) ? 1 : n;
+
+    for (int i = 0; i < rolls; i++) {
         int idx = menu_choose_one_curse();
+
+        if (cu_info[idx].max_stacks &&
+            CURSE_GET(idx) >= cu_info[idx].max_stacks)
+            continue;   /* skip – player already at the cap */
+
+        /* Add one stack of the chosen curse */
         CURSE_ADD(idx, 1);
+
+        /* Persist the metarun state */
         save_metaruns();
+
+        /* Notify the player */
         msg_format("The curse of %s binds your fate…",
                    cu_name + cu_info[idx].name);
         message_flush();
     }
 }
+
 
 /* ------------------------------------------------------------------ *
  *  Main entry point used by game exits, deaths, escapes, etc.        *

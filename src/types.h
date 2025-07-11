@@ -721,6 +721,7 @@ struct player_house
     s16b a_adj[2]; /* House ability bonuse (one to start) */
 
     u32b flags; /* House Flags (ie RHF flags) */
+    start_item start_items[MAX_START_ITEMS];       /* NEW: bonus kit */
 };
 
 /*
@@ -753,6 +754,9 @@ typedef struct curse_type              /* one entry in cu_info[]          */
     u32b             text;             /* offset in the big text pool  */
     s16b             cu_adj[A_MAX];    /* stat adjustments  */
     u32b             flags;            /* ⇐ NEW – RHF flags */
+    u32b             flags_u;            /* ⇐ NEW – RHF flags */
+    byte  weight;              /* selection weight   (default 1)  */
+    byte  max_stacks;          /* hard cap per meta-run (0 = ∞)   */    
 }
 curse_type;
 

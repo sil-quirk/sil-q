@@ -47,7 +47,7 @@ C:1:1
 N:1:Feanor
 A:Feanor's House
 B:Feanor
-F:SMT_AFFINITY | WIL_AFFINITY | STL_PENALTY | SNG_PENALTY | SMT_FEANOR | KINSLAYER
+F:SMT_AFFINITY | WIL_AFFINITY | STL_PENALTY | SMT_FEANOR | TREACHERY
 C:6:5 #Artifice
 S:2:2:1:2
 D:Feanor was greatest among the Noldor, unmatched in skill and pride. 
@@ -64,7 +64,7 @@ D:shadows all his descendants.
 N:2:Fingolfin
 A:Fingolfin's House
 B:Fingolfin
-F:WIL_AFFINITY | EVN_AFFINITY | MEL_AFFINITY | SMT_PENALTY | STL_PENALTY | SNG_PENALTY
+F:WIL_AFFINITY | EVN_AFFINITY | MEL_AFFINITY | SMT_PENALTY | STL_PENALTY | ARC_PENALTY
 S:3:2:2:1
 C:2:8 #Riposte
 D:Fingolfin, High King of the Noldor, was proud, steadfast, and just. 
@@ -80,7 +80,7 @@ D:a legend of unmatched valor, remembered with awe by Elves and Men.
 N:3:Finarfin
 A:Finarfin's House
 B:Finarfin
-F:PER_AFFINITY | SNG_AFFINITY | SMT_PENALTY | MEL_PENALTY
+F:PER_AFFINITY | SMT_PENALTY 
 S:1:0:0:3
 C:7:11 #Song of Mastery
 D:Finarfin, youngest son of Finwe, remains in Valinor as wise and     
@@ -96,7 +96,7 @@ D:deeds and wisdom of his children in Middle-earth.
 N:4:Maedhros
 A:Feanor's House
 B:Feanor
-F:WIL_AFFINITY | STL_PENALTY | KINSLAYER
+F:WIL_AFFINITY | STL_PENALTY
 S:1:1:3:0
 C:5:8 #Vengeance
 D:Maedhros was the eldest son of Feanor, tall and valiant, wise yet   
@@ -114,7 +114,7 @@ D:renowned, though shadowed by sorrow, betrayal and eventual despair.
 N:5:Curufin
 A:Feanor's House
 B:Feanor
-F:SMT_AFFINITY | STL_AFFINITY | PER_PENALTY | ARC_AFFINITY | SNG_PENALTY | KINSLAYER
+F:SMT_AFFINITY | STL_AFFINITY | PER_PENALTY | ARC_AFFINITY | MEL_PENALTY | WIL_PENALTY | TREACHERY
 S:0:3:0:-1
 C:3:4 #Opportunist
 D:Curufin, fifth son of Feanor, most resembled his father in craft,   
@@ -130,7 +130,7 @@ D:complex, marked by brilliance overshadowed by deceit.
 N:6:Fingon
 A:Fingolfin's House
 B:Fingolfin
-F:WIL_AFFINITY | ARC_AFFINITY | SMT_PENALTY | EVN_AFFINITY | KINSLAYER
+F:WIL_AFFINITY | ARC_AFFINITY | KINSLAYER
 S:1:2:1:1
 C:1:5 #Versatility
 D:Fingon, eldest son of Fingolfin, High King of the Noldor, is        
@@ -145,7 +145,7 @@ D:courage, friendship, and unwavering loyalty even in perilous times.
 N:7:Turgon
 A:Fingolfin's House
 B:Fingolfin
-F:WIL_AFFINITY | STL_AFFINITY | PER_AFFINITY | MEL_PENALTY | KINSLAYER
+F:WIL_AFFINITY | STL_AFFINITY | PER_AFFINITY | MEL_PENALTY | ARC_PENALTY | KINSLAYER
 S:0:0:2:2
 C:3:5 #Vanish
 D:Turgon, High King of Gondolin, wise, steadfast, and secretive.
@@ -159,7 +159,7 @@ D:a legacy of courage and unyielding defiance.
 N:8:Galadriel
 A:Finarfin's House
 B:Finarfin
-F:PER_AFFINITY | WIL_AFFINITY | SMT_PENALTY | MEL_PENALTY
+F:PER_AFFINITY | SMT_PENALTY 
 S:0:1:1:2
 C:4:7 #Listen
 D:Galadriel, daughter of Finarfin, is greatest among the Noldorin     
@@ -174,7 +174,7 @@ D:unfolding amid struggles against Morgoth’s darkness.
 N:9:Finrod
 A:Finarfin's House
 B:Finarfin
-F:PER_AFFINITY | SNG_AFFINITY | SMT_PENALTY | WIL_AFFINITY
+F:PER_AFFINITY | SNG_AFFINITY | WIL_AFFINITY
 S:0:1:0:3
 C:7:9 #Staying
 D:Finrod Felagund, noble son of Finarfin, recently ruled fair and     
@@ -189,7 +189,7 @@ D:Elven hearts as a beacon of loyalty, courage, and sacrifice.
 N:10:Glorfindel
 A:Golden Flower House
 B:Golden Flower
-F:MEL_AFFINITY | EVN_AFFINITY | SNG_PENALTY
+F:MEL_AFFINITY | ARC_PENALTY
 S:2:2:1:1
 C:2:9 #Control retreat
 D:Glorfindel, lord of the House of the Golden Flower in Gondolin, was 
@@ -205,7 +205,7 @@ D:courage in the darkest hour.
 N:11:Etchelion
 A:House of the Fountain
 B:the Fountain
-F:MEL_AFFINITY | KINSLAYER
+F:MEL_AFFINITY | KINSLAYER | ARC_PENALTY | EVN_PENALTY
 S:2:1:1:1
 C:0:6 #Impale
 D:Finrod Felagund, noble son of Finarfin, recently ruled fair and     
@@ -277,6 +277,7 @@ D:all songs.
 N:16:Voronwe
 A:the Falas
 B:Falathrim
+F:PER_PENALTY
 S:0:1:1:0
 D:Voronwe, Elf of Gondolin, was noble, steadfast, and sea-born. Of    
 D:Falathrim descent on his mother’s side, he bore the sea’s longing in 
@@ -290,7 +291,7 @@ D:Ulmo’s warning and became a quiet force in the fate of Elves and Men.
 N:17:Beleg
 A:the Falas
 B:Falathrim
-F:ARC_AFFINITY
+F:ARC_AFFINITY | SNG_PENALTY
 S:1:2:0:0
 C:1:7
 D:Beleg Cuthalion, called Strongbow, was chief marchwarden of Doriath. 
@@ -308,6 +309,7 @@ B:Nogrod
 F:SMT_AFFINITY
 S:1:1:1:2
 C:6:3
+E:4:0:0:30     # | Mithril (30)
 D:Telchar of Nogrod, greatest smith of dwarven-kind in Beleriand, is  
 D:famed far and wide for crafting weapons of unparalleled strength.   
 D:His masterpieces include Narsil, destined for kings, and the famed  
@@ -335,7 +337,7 @@ D:throughout Beleriand.
 N:20:Naugladur
 A:Nogrod
 B:Nogrod
-F:PER_PENALTY | WIL_AFFINITY
+F:PER_PENALTY | TREACHERY
 S:1:1:1:-1
 D:Naugladur, proud and greedy lord of Nogrod, led dwarven warriors. 
 D:He coveted the Nauglamir necklace, fueling distrust and violence. 
@@ -362,7 +364,7 @@ D:body away amid lament and eternal reverence.
 N:22:Mim
 A:Belegost
 B:Belegost
-F:SNG_AFFINITY | MEL_PENALTY | STL_AFFINITY
+F:SNG_AFFINITY | MEL_PENALTY | STL_AFFINITY | TREACHERY
 S:-1:1:-1:-1
 D:Mîm, last of the Petty-dwarves, lived in Amon Rûdh in secret. When  
 D:caught by Turin’s outlaws, he bartered his life with shelter.       
@@ -472,7 +474,7 @@ D:the Eldar in grace and fate.
 N:30:Hurin
 A:Beor's House
 B:Beor
-F:EVN_AFFINITY | WIL_AFFINITY | PER_PENALTY
+F:EVN_AFFINITY | WIL_AFFINITY | PER_PENALTY | CURSE
 S:2:1:2:0
 D:Hurin, lord of the House of Hador, was the greatest warrior of Men. 
 D:Captured at Nirnaeth Arnoediad, he defied Morgoth for years in      
@@ -483,7 +485,7 @@ D:strength and sorrow left a mark on all of Beleriand's fate.
 N:31:Idril
 A:House of the Fountain
 B:the Fountain
-F:STL_AFFINITY | MEL_PENALTY | SMT_PENALTY | PER_AFFINITY
+F:STL_AFFINITY | MEL_PENALTY | SMT_PENALTY | PER_AFFINITY | ARC_PENALTY
 S:-1:2:0:2
 C:7:9
 D:Idril Celebrindal, wise and gentle daughter of Turgon.
@@ -505,6 +507,7 @@ N:33:Celeborn
 A:Doriath
 B:Doriath
 S:1:1:0:1
+F:ARC_PENALTY | SNG_PENALTY
 C:7:10
 D:Celeborn, wise lord of the Sindar, patient and thoughtful.
 D:His calm counsel and diplomatic wisdom greatly valued.
@@ -514,7 +517,7 @@ D:steadfastly guiding kin through trials and shadow.
 N:34:Daeron
 A:Doriath
 B:Doriath
-F:SNG_AFFINITY
+F:SNG_AFFINITY | WIL_PENALTY | PER_PENALTY
 S:0:1:-1:3
 C:7:10
 D:Daeron, greatest bard among the Sindar, gifted and melancholic.
@@ -536,7 +539,7 @@ D:forced her departure, marking the waning of enchantment.
 N:36:Celegorm
 A:Feanor's House
 B:Feanor
-F:WIL_AFFINITY | STL_PENALTY | KINSLAYER
+F:ARC_AFFINITY | MEL_AFFINITY | EVN_AFFINITY | WIL_PENALTY | TREACHERY
 S:1:1:3:0
 C:5:8 #Vengeance
 D:Celegorm, third son of Fëanor, fierce, proud hunter and warrior.

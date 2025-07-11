@@ -4236,7 +4236,7 @@ void py_attack_aux(int y, int x, int attack_type)
             if (smite)
                 dam = total_dice * mds;
 
-            prt = damroll(r_ptr->pd, r_ptr->ps);
+            prt = damroll((r_ptr->pd + curse_flag_count(CUR_MON_ARM_DICE)), (r_ptr->ps+curse_flag_count(CUR_MON_ARM_SIDE)));
             prt_percent = prt_after_sharpness(o_ptr, &noticed_flag);
 
             if (prt_percent < 0)

@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "metarun.h"
 
 /*
  * Determines the total melee damage dice (before criticals and slays)
@@ -2041,6 +2042,11 @@ int weight_limit(void)
             limit = limit * 10 / 12;
         }
     }
+
+    int max = curse_flag_count(CUR_WEAK);
+    for (i = 0; i < max; i++) limit*=0.8;
+
+    // if (any_curse_flag_active(CUR_WEAK)) return (limit*0.8);
 
     /* Return the result */
     return (limit);

@@ -21,3 +21,6 @@ log.txt
 src/houselist.txt
 *.zip
 *.zip
+*.zip
+lib/edit/txt.zip
+src/code.zip

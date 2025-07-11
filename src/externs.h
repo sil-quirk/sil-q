@@ -1173,3 +1173,4 @@ extern void character_wipe(void);
 extern bool      metarun_created; 
 extern u32b curse_flag_mask(void);
 extern int  curse_flag_count(u32b rhf_flag);
+extern int any_curse_flag_active(u32b flag);

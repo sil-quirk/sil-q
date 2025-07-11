@@ -619,114 +619,94 @@ void character_wipe(void)
     player_wipe();
 }
 
-static void player_outfit(void)
+/* ------------------------------------------------------------------
+ * Hand out one start-item list (race or house).
+ * ------------------------------------------------------------------ */
+static void give_start_items(const start_item *list)
 {
     int i, slot, inven_slot;
-    const start_item* e_ptr;
-    object_type* i_ptr;
-    object_type object_type_body;
-    object_type* o_ptr;
+    object_type object_type_body, *i_ptr, *o_ptr;
 
-    time_t c; // time variables
-    struct tm* tp; //
-
-    /* Hack -- Give the player his equipment */
-    for (i = 0; i < MAX_START_ITEMS; i++)
+    for (i = 0; i < MAX_START_ITEMS && list[i].tval; i++)
     {
-        /* Access the item */
-        e_ptr = &(rp_ptr->start_items[i]);
+        const start_item *e_ptr = &list[i];
 
-        /* Get local object */
+        /* Look up kind */
+        s16b k_idx = lookup_kind(e_ptr->tval, e_ptr->sval);
+        if (!k_idx) continue;
+
+        object_kind *k_ptr = &k_info[k_idx];
         i_ptr = &object_type_body;
 
-        /* Hack	-- Give the player an object */
-        if (e_ptr->tval > 0)
-        {
-            /* Get the object_kind */
-            s16b k_idx = lookup_kind(e_ptr->tval, e_ptr->sval);
-            object_kind* k_ptr = &k_info[k_idx];
+        /* Prepare object */
+        object_prep(i_ptr, k_idx);
+        i_ptr->number = (byte)rand_range(e_ptr->min, e_ptr->max);
+        i_ptr->weight = k_ptr->weight;
 
-            /* Valid item? */
-            if (!k_idx)
-                continue;
-
-            /* Prepare the item */
-            object_prep(i_ptr, k_idx);
-            i_ptr->number = (byte)rand_range(e_ptr->min, e_ptr->max);
-            i_ptr->weight = k_ptr->weight;
-        }
-
-        /* Check the slot */
+        /* Where would this be wielded? */
         slot = wield_slot(i_ptr);
 
-        /* give light sources a duration */
-        if (slot == INVEN_LITE)
-        {
-            i_ptr->timeout = 2000;
-        }
+        /* Light sources start with fuel */
+        if (slot == INVEN_LITE) i_ptr->timeout = 2000;
 
         object_known(i_ptr);
 
-        /*put it in the inventory*/
+        /* Carry it */
         inven_slot = inven_carry(i_ptr, TRUE);
 
-        /*if player can wield an item, do so*/
-        if (slot >= INVEN_WIELD)
+        /* Auto-wield if slot empty */
+        if (slot >= INVEN_WIELD && inventory[slot].tval == 0)
         {
-            /* Get the wield slot */
             o_ptr = &inventory[slot];
-
-            /* Wear the new stuff */
             object_copy(o_ptr, i_ptr);
 
-            /* Modify quantity */
-            if (o_ptr->tval != TV_ARROW)
-                o_ptr->number = 1;
+            if (o_ptr->tval != TV_ARROW) o_ptr->number = 1;
 
-            /* Decrease the item */
             inven_item_increase(inven_slot, -(o_ptr->number));
             inven_item_optimize(inven_slot);
-
-            /* Increment the equip counter by hand */
             p_ptr->equip_cnt++;
         }
 
-        /*Bugfix:  So we don't get duplicate objects*/
-        object_wipe(i_ptr);
+        object_wipe(i_ptr); /* avoid dupes */
     }
+}
 
-    // Christmas presents:
+static void player_outfit(void)
+{
+    /* ---------- locals ---------- */
+    time_t      c;
+    struct tm  *tp;
 
-    c = time((time_t*)0);
+    /* ---------- escape-curse check ---------- */
+    if (curse_flag_count(CUR_NOSTART)) return;
+
+    /* ---------- pointers into info arrays ---------- */
+    player_race  *rp_ptr = &p_info[p_ptr->prace];
+    player_house *hp_ptr = &c_info[p_ptr->phouse];
+
+    /* ---------- hand out gear ---------- */
+    give_start_items(rp_ptr->start_items);   /* race first  */
+    give_start_items(hp_ptr->start_items);   /* house next  */
+
+    /* ---------- Christmas present (unchanged) ---------- */
+    c  = time((time_t*)0);
     tp = localtime(&c);
     if ((tp->tm_mon == 11) && (tp->tm_mday >= 25))
     {
-        /* Get local object */
-        i_ptr = &object_type_body;
+        object_type object_type_body, *i_ptr = &object_type_body;
 
-        /* Get the object_kind */
         s16b k_idx = lookup_kind(TV_CHEST, SV_CHEST_PRESENT);
-
-        /* Prepare the item */
         object_prep(i_ptr, k_idx);
         i_ptr->number = 1;
-        i_ptr->pval = -20;
+        i_ptr->pval   = -20;
 
-        /*put it in the inventory*/
-        inven_slot = inven_carry(i_ptr, TRUE);
+        (void)inven_carry(i_ptr, TRUE);
     }
 
-    /* Recalculate bonuses */
-    p_ptr->update |= (PU_BONUS);
-
-    /* Recalculate mana */
-    p_ptr->update |= (PU_MANA);
-
-    /* Window stuff */
+    /* ---------- bookkeeping ---------- */
+    p_ptr->update |= (PU_BONUS | PU_MANA);
     p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
-
     p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
-    ;
 }
 
 /*
@@ -998,20 +978,29 @@ u32b curse_flag_mask(void)
 }
 
 /*
- * How many *copies* of a given RHF flag are active on the player?
- * Each duplicate curse counts separately.  The result is 0 … 15.
+ * Count how many active curses carry the given flag bit
+ * (scans both cu_info[].flags and cu_info[].flags_u).
  */
 int curse_flag_count(u32b rhf_flag)
 {
-    int total = 0;
+    int count = 0;
 
-    for (int bit = 0; bit < z_info->cu_max; bit++)
+    /* Iterate over every defined curse */
+    for (int i = 0; i < z_info->cu_max; i++)
     {
-        int cnt = curse_count(bit);                 /* existing helper */   /* :contentReference[oaicite:1]{index=1} */
-        if (cnt && (cu_info[bit].flags & rhf_flag))
-            total += cnt;                           /* every copy counts   */
+        /* Only consider curses the player actually has */
+        if (curse_count(i) > 0)
+        {
+            /* If either flag field contains our target bit, tally it */
+            if ((cu_info[i].flags   & rhf_flag) ||
+                (cu_info[i].flags_u & rhf_flag))
+            {
+                count++;
+            }
+        }
     }
-    return total;
+
+    return count;
 }
 
 
@@ -1118,6 +1107,8 @@ static void print_rh_flags(int race, int house, int col, int row)
     // Unique skills: SIDE = 0 (left), 1 (right)
     HANDLE_UNIQUE("Master Artisan",   RHF_SMT_FEANOR,     TERM_BLUE,     0);
     HANDLE_UNIQUE("Kinslayer",   RHF_KINSLAYER, TERM_UMBER,   1); // right
+    HANDLE_UNIQUE("Treacherous",   RHF_TREACHERY, TERM_UMBER,   1); // right
+    HANDLE_UNIQUE("Doom of Mandos",   RHF_CURSE, TERM_UMBER,   1); // right
 
     // Left column
     for (int i = 0; i < mastery_n;  ++i)

@@ -254,6 +254,21 @@
   ],
   "file": "melee2.c"
  },
+  {
+  "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
+  "arguments": [
+   "/usr/bin/i686-w64-mingw32-gcc",
+   "-Wall",
+   "-O2",
+   "-fno-strength-reduce",
+   "-DWINDOWS",
+   "-c",
+   "-o",
+   "metarun.o",
+   "metarun.c"
+  ],
+  "file": "melee2.c"
+ },
  {
   "directory": "C:\\Users\\efrem\\Documents\\GitHub\\sil-qh\\src",
   "arguments": [
@@ -615,4 +630,5 @@
   ],
   "file": "use-obj.c"
  }
-]
+]
+

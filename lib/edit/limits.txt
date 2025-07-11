@@ -63,7 +63,7 @@ M:H:165
 M:S:16
 
 # Maximum number of curses
-M:U:4
+M:U:31
 
 # Maximum number of quests (including a slot for random quests)
 M:Q:4

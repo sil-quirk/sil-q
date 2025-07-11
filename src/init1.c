@@ -83,6 +83,7 @@ struct flag_name
 #define RF4 6
 #define RHF 7
 #define VLT 8
+#define CUR 9
 #define MAX_FLAG_SETS 9
 
 /*
@@ -302,7 +303,7 @@ static flag_name info_flags[] = {
     { "SNG_AFFINITY", RHF, RHF_SNG_AFFINITY },
     { "SNG_PENALTY", RHF, RHF_SNG_PENALTY }, { "SMT_FEANOR", RHF, RHF_SMT_FEANOR },
     { "SNG_MASTERY", RHF, RHF_SNG_MASTERY }, { "KINSLAYER", RHF, RHF_KINSLAYER },
-    { "RHFXXX22", RHF, RHF_RHFXXX22 }, { "RHFXXX23", RHF, RHF_RHFXXX23 },
+    { "CURSE", RHF, RHF_CURSE }, { "TREACHERY", RHF, RHF_TREACHERY },
     { "RHFXXX24", RHF, RHF_RHFXXX24 }, { "RHFXXX21", RHF, RHF_RHFXXX25 },
     { "RHFXXX25", RHF, RHF_RHFXXX26 }, { "RHFXXX26", RHF, RHF_RHFXXX27 },
     { "RHFXXX27", RHF, RHF_RHFXXX28 }, { "RHFXXX28", RHF, RHF_RHFXXX29 },
@@ -328,7 +329,17 @@ static flag_name info_flags[] = {
     { "VLTXXX26", VLT, VLT_VLTXXX27 }, { "VLTXXX27", VLT, VLT_VLTXXX28 },
     { "VLTXXX28", VLT, VLT_VLTXXX29 }, { "VLTXXX29", VLT, VLT_VLTXXX29 },
     { "VLTXXX30", VLT, VLT_VLTXXX30 }, { "VLTXXX31", VLT, VLT_VLTXXX31 },
-    { "VLTXXX32", VLT, VLT_VLTXXX32 }
+    { "VLTXXX32", VLT, VLT_VLTXXX32 },
+
+    /*
+     * Curse flags
+     */
+
+    { "NOCHOICE", CUR, CUR_NOCHOICE }, { "WEAK", CUR, CUR_WEAK }, 
+    { "MONSTERHP", CUR, CUR_MON_HP }, { "MONSTERHP_U", CUR, CUR_U_MON_HP },
+    { "MON_STL", CUR, CUR_MON_STL }, { "MON_PER", CUR, CUR_MON_PER },
+    { "MON_WIL", CUR, CUR_MON_WIL }, { "MON_ARM_DICE", CUR, CUR_MON_ARM_DICE },
+    { "MON_ARM_SIDE", CUR, CUR_MON_ARM_SIDE }, {"NOSTART", CUR, CUR_NOSTART}
 
 };
 
@@ -983,7 +994,7 @@ static errr grab_one_kind_flag(object_kind* ptr, cptr what)
 }
 
 /**********************************************************************
- * Grab a single RHF flag for a curse (used by “F:” lines in curses.txt)
+ * Grab a single RHF and CUR flag for a curse (used by “F:” and "U:" lines in curses.txt)
  **********************************************************************/
 static errr grab_one_curse_flag(curse_type *cu_ptr, cptr what)
 {
@@ -993,6 +1004,13 @@ static errr grab_one_curse_flag(curse_type *cu_ptr, cptr what)
     return grab_one_flag(f, "curse", what);
 }
 
+static errr grab_one_curse_unique_flag(curse_type *cu_ptr, cptr what)
+{
+    u32b *f[MAX_FLAG_SETS];
+    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    f[RHF] = &(cu_ptr->flags_u);   /* write into the new word we added */
+    return grab_one_flag(f, "curse unique", what);
+}
 
 /*
  * Initialize the "k_info" array, by parsing an ascii "template" file
@@ -2995,6 +3013,7 @@ errr parse_p_info(char* buf, header* head)
 errr parse_c_info(char* buf, header* head)
 {
     int i, j;
+    static int cur_equip = 0;
 
     char *s, *t;
 
@@ -3150,6 +3169,42 @@ errr parse_c_info(char* buf, header* head)
             s = t;
         }
     }
+
+        /* Process 'E' for "Starting Equipment" */
+    else if (buf[0] == 'E')
+    {
+        int tval, sval, min, max;
+
+        start_item* e_ptr;
+
+        /* There better be a current pr_ptr */
+        if (!ph_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Access the item */
+        e_ptr = &ph_ptr->start_items[cur_equip];
+
+        /* Scan for the values */
+        if (4 != sscanf(buf + 2, "%d:%d:%d:%d", &tval, &sval, &min, &max))
+            return (PARSE_ERROR_GENERIC);
+
+        if ((min < 0) || (max < 0) || (min > 99) || (max > 99))
+            return (PARSE_ERROR_INVALID_ITEM_NUMBER);
+
+        /* Save the values */
+        e_ptr->tval = tval;
+        e_ptr->sval = sval;
+        e_ptr->min = min;
+        e_ptr->max = max;
+
+        /* Next item */
+        cur_equip++;
+
+        /* Limit number of starting items */
+        if (cur_equip > MAX_START_ITEMS)
+            return (PARSE_ERROR_GENERIC);
+    }
+
 
     /* Process 'D' for "Description" */
     else if (buf[0] == 'D')
@@ -3388,6 +3443,9 @@ errr parse_cu_info(char *buf, header *head)
         /* Reset fresh record */
         WIPE(cu_ptr, curse_type);       /* clears the record  */
                                                      /* flags included     */
+        cu_ptr->weight = 1;      /* sensible defaults           */
+        cu_ptr->max_stacks = 0;  /* 0 = unlimited               */
+
         if (!(cu_ptr->name = add_name(head, s)))     
             return PARSE_ERROR_OUT_OF_MEMORY;
     }
@@ -3432,6 +3490,50 @@ errr parse_cu_info(char *buf, header *head)
             s = t;
         }
     }
+    /* ------------------------------------------------------------ */
+    /* U: list of CUR flags        */
+    /* ------------------------------------------------------------ */
+    else if (buf[0] == 'U')
+    {
+        if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+
+        for (s = buf + 2; *s; )
+        {
+            /* token = [^ or |]*  */
+            for (t = s; *t && (*t != ' ') && (*t != '|'); ++t) ;
+            if (*t)
+            {
+                *t++ = '\0';
+                while ((*t == ' ') || (*t == '|')) t++;
+            }
+
+            if (grab_one_curse_unique_flag(cu_ptr, s))
+                return PARSE_ERROR_INVALID_FLAG;
+
+            s = t;
+        }
+    }
+
+    /* ------------------------------------------------------------ */
+    /* A: weight / max_stacks   (e.g. 3/5 means weight=3, max=5)    */
+    /* ------------------------------------------------------------ */
+    else if (buf[0] == 'A')
+    {
+        if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+
+        /* default is "1/0" so zero-initialised files still work    */
+        cu_ptr->weight     = 1;
+        cu_ptr->max_stacks = 0;
+
+        char *s = buf + 2;
+        char *t = strchr(s, '/');
+        if (!t) return PARSE_ERROR_GENERIC;
+
+        *t++ = '\0';
+        cu_ptr->weight     = (byte)atoi(s);
+        cu_ptr->max_stacks = (byte)atoi(t);
+    }
+
 
     /* ------------------------------------------------------------ */
     /* D: description line(s)                                       */
