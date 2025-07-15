@@ -1889,6 +1889,15 @@ void calc_torch(void)
     p_ptr->update |= (PU_UPDATE_VIEW);
     p_ptr->update |= (PU_MONSTERS);
 
+    /* Apply light-related meta-run curses */
+    {
+        int r = curse_flag_count(CUR_LIGHTR);
+
+        /* radius penalty: −1 per stack, never below zero */
+        if (r)
+            p_ptr->cur_light = MAX(0, p_ptr->cur_light - r);
+    }
+
     /* Notice changes in the "lite radius" */
     if (old_light != p_ptr->cur_light)
     {
@@ -1930,6 +1939,8 @@ int affinity_level(int skilltype)
     /* keep inside the allowed range */
     if (level >  2) level =  2;
     if (level < -2) level = -2;
+
+    if ((skilltype == S_WIL) && (hp_ptr->flags_u & UNQ_EARENDIL)) level = 3;
 
     return level;
 }

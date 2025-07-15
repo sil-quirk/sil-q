@@ -9,7 +9,7 @@
  */
 
 #include "angband.h"
-
+#include "metarun.h"
 /*
  * Note that Level generation is *not* an important bottleneck,
  * though it can be annoyingly slow on older machines...  Thus
@@ -377,6 +377,13 @@ void place_random_stairs(int y, int x)
     }
 }
 
+static bool wearable_p(const object_type *o_ptr)
+{
+    /* INVEN_WIELD is the first equipment slot (see defines.h)           */
+    /* Anything that gets a slot number below that lives in inventory.    */
+    return (wield_slot(o_ptr) >= INVEN_WIELD);
+}
+
 /*
  * Generate the chosen item at a random spot in the dungeon.
  * If 'close' is true, it must be nearby and in line-of-sight of the player.
@@ -433,6 +440,18 @@ void place_item_randomly(int tval, int sval, bool close)
 
     /* Prepare the item */
     object_prep(i_ptr, k_idx);
+
+    /* Escape-curse: higher chance of cursed finds */
+    {
+        int stacks = curse_flag_count(CUR_FINDCURSE);
+        if (stacks && wearable_p(i_ptr))
+        {
+            int chance = 20 >> stacks;         /* base 1-in-20 → 1-in-10 → 1-in-5 */
+            if (!chance || one_in_(chance))
+                add_random_curse(i_ptr);
+        }
+    }
+
 
     if (tval == TV_ARROW)
     {
@@ -1657,6 +1676,10 @@ static int trap_placement_chance(int y, int x)
     int yy, xx;
 
     int chance = 0;
+    /* extra traps from CUR_TRAPS */
+    int bonus_traps = curse_flag_count(CUR_TRAPS);
+    if (bonus_traps)
+        chance += 10 * bonus_traps;   /* +10/20/30 … on top of normal */
 
     // extra chance of having a trap for certain squares inside rooms
     if (cave_clean_bold(y, x) && (cave_info[y][x] & (CAVE_ROOM)))
@@ -3694,6 +3717,13 @@ static bool cave_gen(void)
     {
         // pick some number of monsters (between 0.5 per room and 1 per room)
         mon_gen = (dun->cent_n + dieroll(dun->cent_n)) / 2;
+    }
+
+        /* meta-run curse: more monsters */
+    {
+        int stacks = curse_flag_count(CUR_MON_NUM);
+        if (stacks)
+            mon_gen = mon_gen * (100 + 30 * stacks) / 100; /* +30 % each */
     }
 
     // check dungeon connectivity

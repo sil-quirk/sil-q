@@ -72,12 +72,12 @@ static int get_start_xp(void)
     }
 }
 
-/* --- how many copies of curse #bit are active in this metarun? ---- */
-static int curse_count(int bit)          /* 0-31 */
+/* -----------------------------------------------------------
+ * new: delegate to the (i386-safe) 2-bit accessor in metarun.h
+ * --------------------------------------------------------- */
+static int curse_count(int id)           /* 0-31 */
 {
-    return (bit < 16)
-        ? ((meta.curses_lo >> (bit * 4)) & 0xF)
-        : ((meta.curses_hi >> ((bit - 16) * 4)) & 0xF);
+    return CURSE_GET(id);
 }
 
 
@@ -677,6 +677,9 @@ static void player_outfit(void)
     time_t      c;
     struct tm  *tp;
 
+    /* skip all starting‐gear on load */
+    if (character_loaded) return;
+
     /* ---------- escape-curse check ---------- */
     if (curse_flag_count(CUR_NOSTART)) return;
 
@@ -967,12 +970,8 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
 u32b curse_flag_mask(void)
 {
     u32b m = 0;
-    for (int b = 0; b < z_info->cu_max; b++)
-    {
-        int cnt = (b < 16)
-                  ? ((meta.curses_lo >> (b * 4)) & 0xF)
-                  : ((meta.curses_hi >> ((b - 16) * 4)) & 0xF);
-        if (cnt) m |= cu_info[b].flags;
+    for (int id = 0; id < z_info->cu_max; id++) {
+        if (CURSE_GET(id)) m |= cu_info[id].flags;
     }
     return m;
 }
@@ -1017,6 +1016,7 @@ static void print_rh_flags(int race, int house, int col, int row)
     byte attr_affinity = TERM_GREEN;
     byte attr_mastery  = TERM_L_GREEN;
     byte attr_penalty  = TERM_RED;
+    byte attr_gr_penalty  = TERM_L_RED;
 
     const int col_pen = col + 20;
 
@@ -1075,7 +1075,7 @@ static void print_rh_flags(int race, int house, int col, int row)
             penalty_buf[penalty_n++].col = attr_penalty;                    \
         } else if (score == -2) {                                           \
             penalty_buf[penalty_n].txt = label " grand penalty";            \
-            penalty_buf[penalty_n++].col = attr_penalty;                    \
+            penalty_buf[penalty_n++].col = attr_gr_penalty;                    \
         }                                                                   \
     } while (0)
 
@@ -1086,6 +1086,17 @@ static void print_rh_flags(int race, int house, int col, int row)
         int race_has  = p_info[race].flags  & (FLAG);                       \
         int house_has = c_info[house].flags & (FLAG);                       \
         if (race_has || house_has) {                                        \
+            unique_buf[unique_n].txt  = label;                              \
+            unique_buf[unique_n].col  = (COLOR);                            \
+            unique_buf[unique_n++].side = (SIDE);                           \
+        }                                                                   \
+    } while (0)
+
+// New: (label, FLAG, COLOR, SIDE) where SIDE = 0 (left) or 1 (right)
+#define HANDLE_UNIQUE_U(label, FLAG, COLOR, SIDE)                             \
+    do {                                                                    \
+        int house_has = c_info[house].flags_u & (FLAG);                       \
+        if (house_has) {                                                    \
             unique_buf[unique_n].txt  = label;                              \
             unique_buf[unique_n].col  = (COLOR);                            \
             unique_buf[unique_n++].side = (SIDE);                           \
@@ -1105,10 +1116,11 @@ static void print_rh_flags(int race, int house, int col, int row)
     HANDLE_SKILL_EX("axe",        RHF_AXE_PROFICIENCY, 0);
 
     // Unique skills: SIDE = 0 (left), 1 (right)
-    HANDLE_UNIQUE("Master Artisan",   RHF_SMT_FEANOR,     TERM_BLUE,     0);
+    HANDLE_UNIQUE_U("Master Artisan",   UNQ_SMT_FEANOR,     TERM_BLUE,     0);
     HANDLE_UNIQUE("Kinslayer",   RHF_KINSLAYER, TERM_UMBER,   1); // right
     HANDLE_UNIQUE("Treacherous",   RHF_TREACHERY, TERM_UMBER,   1); // right
     HANDLE_UNIQUE("Doom of Mandos",   RHF_CURSE, TERM_UMBER,   1); // right
+    HANDLE_UNIQUE_U("Indominable WILL",   UNQ_EARENDIL, TERM_BLUE,   0); // right
 
     // Left column
     for (int i = 0; i < mastery_n;  ++i)

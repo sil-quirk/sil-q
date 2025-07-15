@@ -3348,6 +3348,10 @@ void do_cmd_save_game(void)
     signals_ignore_tstp();
 
     /* Save the player */
+   /* Make sure meta-run data (curses, flags, etc.) is up-to-date even
+      when the player merely saves & quits. */
+   metarun_update_on_exit(FALSE, FALSE, (byte)silmarils_possessed());
+
     if (save_player())
     {
         if (!save_game_quietly)

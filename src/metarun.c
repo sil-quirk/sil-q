@@ -9,25 +9,22 @@
  * -------------------------------------------------------------------- */
 #include "angband.h"
 #include "metarun.h"
-#include "init.h"        /* cu_info / z_info */
 #include "platform.h"    /* path_build(), fd_*, MKDIR         */
 
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
 
+#include <stdio.h>  
+
+/* --------------------------------------------------------------- */
+/*  metarun.c : quick-and-dirty logger                             */
+/* --------------------------------------------------------------- */
+
 /* =========================  constants  ========================= */
 #define META_RAW          "meta.raw"
 #define META_SUBDIR       "metaruns"
 #define CURSE_MENU_LINES  3
-
-/* 4-bit curse counters ------------------------------------------ */
-#define CURSE_GET(i) (((i)<16)?((meta.curses_lo>>((i)*4))&0xF) \
-                             :((meta.curses_hi>>(((i)-16)*4))&0xF))
-#define CURSE_ADD(i,n) do { \
-        if ((i)<16) meta.curses_lo += ((u32b)(n)<<((i)*4)); \
-        else        meta.curses_hi += ((u32b)(n)<<(((i)-16)*4)); \
-    } while(0)
 
 /* =========================  globals  =========================== */
 static metarun *metaruns    = NULL;
@@ -66,10 +63,65 @@ static void ensure_run_dir(const metarun *m)
     path_build(dir, sizeof dir, ANGBAND_DIR_APEX, dir);         MKDIR(dir);
 }
 
+static void meta_log(const char *fmt, ...)
+{
+    char fn[1024];
+    build_meta_path(fn, sizeof fn, NULL, "log.txt");
+
+    FILE *fp = fopen(fn, "a");
+    if (!fp) return;
+
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(fp, fmt, ap);
+    va_end(ap);
+
+    fprintf(fp, "\n");
+    fclose(fp);
+}
+
 /* forward declarations */
 static void choose_escape_curses(int n);
 static void check_run_end(void);
 static void start_new_metarun(void);
+
+/* ----------------------------------------------------------------
+ * Flush the live 2-bit counters into the on-disk words
+ * ---------------------------------------------------------------- */
+static void curses_pack_words(void)
+{
+    u32b lo = 0, hi = 0;
+
+    for (int id = 0; id < 32; id++) {
+        u32b cnt = CURSE_GET(id) & 0x3;        /* 0–3 stacks */
+        if (id < 16)
+            lo |= cnt << (id * 2);             /* bits 0,2,4 … 30 */
+        else
+            hi |= cnt << ((id - 16) * 2);
+    }
+
+    meta.curses_lo = lo;
+    meta.curses_hi = hi;
+}
+
+/* ----------------------------------------------------------------
+ * Expand the on-disk words into the live 2-bit counters
+ * (call straight after reading the struct)
+ * ---------------------------------------------------------------- */
+static void curses_unpack_words(void)
+{
+    u32b lo = meta.curses_lo;          /* ① take snapshots */
+    u32b hi = meta.curses_hi;
+
+    for (int id = 0; id < 32; id++) {
+        u32b cnt = (id < 16)
+                 ? (lo >> (id * 2)) & 0x3    /* ② shift the *snapshot* */
+                 : (hi >> ((id - 16) * 2)) & 0x3;
+
+        CURSE_SET(id, (byte)cnt);            /* writes live table      */
+    }
+}
+
 
 /* =======================  load / save  ========================= */
 errr load_metaruns(bool create_if_missing)
@@ -87,7 +139,8 @@ errr load_metaruns(bool create_if_missing)
 
         metarun seed; reset_defaults(&seed);
         fd_write(fd, (cptr)&seed, sizeof seed);
-        fd_seek(fd, 0);
+        fd_close(fd);
+        fd = fd_open(fn, O_RDONLY);
         metarun_created = TRUE;
     }
     if (fd < 0) return -1;
@@ -111,6 +164,7 @@ errr load_metaruns(bool create_if_missing)
 
     /* ensure its per-run directory exists */
     ensure_run_dir(&meta);
+    curses_unpack_words();    /* NEW: expand words into live table */
     return 0;
 }
 
@@ -120,20 +174,44 @@ errr load_metaruns(bool create_if_missing)
  * ------------------------------------------------------------------ */
 errr save_metaruns(void)
 {
-    if (!metaruns || current_run < 0 || current_run >= metarun_max)
-        return -1;                           /* corrupted state – do nothing */
+    meta_log("[SAVE] enter  id=%u  deaths=%u  sils=%u  lo=%08X  hi=%08X",
+             meta.id, meta.deaths, meta.silmarils,
+             meta.curses_lo, meta.curses_hi);
+
+    if (!metaruns || current_run < 0 || current_run >= metarun_max) {
+        meta_log("[SAVE] ABORT – corrupted pointer safety-check hit");
+        return -1;
+    }
+
+    curses_pack_words();      /* NEW: ensure words hold 2-bit data */
 
     char fn[1024];
     build_meta_path(fn, sizeof fn, NULL, META_RAW);
 
-    int fd = fd_open(fn, O_WRONLY | O_CREAT | O_TRUNC);
-    if (fd < 0) return -1;
-
     meta.last_played      = (u32b)time(NULL);
     metaruns[current_run] = meta;            /* safe: array is valid */
 
-    fd_write(fd, (cptr)metaruns, metarun_max * sizeof(metarun));
-    fd_close(fd);
+    /* Use standard C file operations instead of the problematic fd_* functions */
+    FILE *fp = fopen(fn, "wb");
+    if (!fp) {
+        meta_log("[SAVE] ABORT – fopen() failed for writing (errno=%d)", errno);
+        return -1;
+    }
+
+    size_t bytes_to_write = metarun_max * sizeof(metarun);
+    size_t bytes_written = fwrite(metaruns, 1, bytes_to_write, fp);
+    
+    if (bytes_written != bytes_to_write) {
+        meta_log("[SAVE] ABORT – fwrite() failed (wrote %zu of %zu bytes, errno=%d)", 
+                 bytes_written, bytes_to_write, errno);
+        fclose(fp);
+        return -1;
+    }
+    
+    fclose(fp);
+    
+    meta_log("[SAVE] ok – wrote %zu bytes to %s", bytes_to_write, fn);
+
     return 0;
 }
 
@@ -159,6 +237,7 @@ static int weighted_random_curse(void)
     /* Pass 1 – find the largest weight and (later) build the total */
     for (int i = 0; i < z_info->cu_max; i++)
     {
+        if (!cu_info[i].name) continue;          /* ← unused slot */
         byte w   = cu_info[i].weight ? cu_info[i].weight : 1;
         if (w > w_max) w_max = w;
     }
@@ -166,6 +245,7 @@ static int weighted_random_curse(void)
     /* Pass 2 – sum effective weights */
     for (int i = 0; i < z_info->cu_max; i++)
     {
+        if (!cu_info[i].name) continue;          /* ← unused slot */
         byte w   = cu_info[i].weight ? cu_info[i].weight : 1;
         byte cnt = CURSE_GET(i);
         byte cap = cu_info[i].max_stacks;
@@ -184,6 +264,7 @@ static int weighted_random_curse(void)
     long pick = rng_int(total), run = 0;
     for (int i = 0; i < z_info->cu_max; i++)
     {
+        if (!cu_info[i].name) continue;          /* ← unused slot */
         byte w   = cu_info[i].weight ? cu_info[i].weight : 1;
         byte cnt = CURSE_GET(i);
         byte cap = cu_info[i].max_stacks;
@@ -201,12 +282,21 @@ static int weighted_random_curse(void)
     return rng_int(z_info->cu_max);                /* unreachable */
 }
 
+void add_curse_stack(int idx)
+{
+    /* respect per-curse stack cap */
+    if (cu_info[idx].max_stacks &&
+        CURSE_GET(idx) >= cu_info[idx].max_stacks)
+        return;
 
+    CURSE_ADD(idx, 1);
+    save_metaruns();
+}
 
-static int menu_choose_one_curse(void)
+int menu_choose_one_curse(void)
 {
 
-        /* if any active curse has the “no‐choice” flag, skip the menu */
+    /* if any active curse has the “no‐choice” flag, skip the menu */
     if (any_curse_flag_active(CUR_NOCHOICE))
         return weighted_random_curse();
 
@@ -228,20 +318,59 @@ static int menu_choose_one_curse(void)
 
     screen_save();  Term_clear();
     c_prt(TERM_YELLOW,
-          "Dark powers demand their price – choose your curse:", 2, 2);
+          "Dark powers demand their price – choose your curse:", 1, 1);
+
+    /* dynamic vertical layout – ask util.c to count wrapped lines   */
+    int row = 3;                                     /* first free row */
+    text_out_hook = text_out_to_screen;
+    text_out_wrap = Term->wid - 2;                   /* full width     */
 
     for (int i = 0; i < CURSE_MENU_LINES; i++) {
         curse_type *cu = &cu_info[pick[i]];
+
+        /* ---- name line ---- */
         c_put_str(TERM_L_RED,
                   format("%c) %s", 'a'+i, cu_name + cu->name),
-                  4+i, 4);
-    }
-    c_put_str(TERM_L_DARK, "Press a, b or c.", 8, 4);
+                  row, 2);
 
+        /* ---- poem (D: line) – wrapped ---- */
+        const char *txt = cu_text + cu->text;
+        int need = count_wrapped_lines(txt, text_out_wrap, 4); 
+
+        Term_gotoxy(4, row+1);      /* indent poem two spaces further */
+        text_out_c(TERM_SLATE, txt);
+
+        /* ---- OPTIONAL effect (P: line) ---------------------------- */
+#ifdef DEBUG_CURSES
+        const char *pow = cu_text + cu->power;
+        if (*pow)                             /* skip if no P: line   */
+        {
+            int need_pow = count_wrapped_lines(pow, text_out_wrap, 4);
+            Term_gotoxy(4, row + need + 1);   /* right under the poem */
+            text_out_c(TERM_L_RED, pow);   /* colour = violet      */
+            row += need + need_pow + 2;       /* poem + effect + gap  */
+        }
+        else
+#endif
+            row += need + 2;                  /* poem + blank line    */
+    }
+
+    c_put_str(TERM_L_DARK, "Press a, b or c.", row, 2);
     sel = -1;
     while (sel < 0 || sel >= CURSE_MENU_LINES) sel = inkey() - 'a';
     screen_load();
     return pick[sel];
+}
+
+
+/* ------------------------------------------------------------------ *
+ *  Debug helper – wipe every active curse for the current meta-run.  *
+ * ------------------------------------------------------------------ */
+void metarun_clear_all_curses(void)
+{
+    meta.curses_lo = 0;
+    meta.curses_hi = 0;
+    save_metaruns();
 }
 
 /**
@@ -250,27 +379,16 @@ static int menu_choose_one_curse(void)
  */
 static void choose_escape_curses(int n)
 {
-    /* If “No-Choice” is active on any curse, limit to a single roll */
+    /* If “No-Choice” is active on any curse, give only one roll            */
     int rolls = any_curse_flag_active(CUR_NOCHOICE) ? 1 : n;
 
     for (int i = 0; i < rolls; i++) {
-        int idx = menu_choose_one_curse();
-
-        if (cu_info[idx].max_stacks &&
-            CURSE_GET(idx) >= cu_info[idx].max_stacks)
-            continue;   /* skip – player already at the cap */
-
-        /* Add one stack of the chosen curse */
-        CURSE_ADD(idx, 1);
-
-        /* Persist the metarun state */
-        save_metaruns();
-
-        /* Notify the player */
-        msg_format("The curse of %s binds your fate…",
-                   cu_name + cu_info[idx].name);
-        message_flush();
-    }
+         int idx = menu_choose_one_curse();
+         add_curse_stack(idx);
+         msg_format("The curse of %s binds your fate…",
+                    cu_name + cu_info[idx].name);
+         message_flush();
+}
 }
 
 
@@ -302,18 +420,19 @@ void metarun_gain_silmarils(byte n)   { metarun_update_on_exit(FALSE, TRUE,  n);
  * ------------------------------------------------------------------ */
 static void check_run_end(void)
 {
+    int max_deaths = MAX(1, LOSECON_DEATHS - 3 * curse_flag_count(CUR_DEATH));
     if (meta.silmarils >= WINCON_SILMARILS) {
         msg_print("\n*** VICTORY! 15 Silmarils recovered – a new age dawns… ***\n");
         message_flush();
         start_new_metarun();
 
-    } else if (meta.deaths >= LOSECON_DEATHS) {
-        msg_print(format(
-            "\n*** DEFEAT! %d hero%s fallen – the run is lost. ***\n",
-            LOSECON_DEATHS, (LOSECON_DEATHS == 1) ? " has" : "es have"));
-        message_flush();
-        start_new_metarun();
-    }
+    } else if (meta.deaths >= max_deaths) {
+            msg_print(format(
+                "\n*** DEFEAT! %d hero%s fallen – the run is lost. ***\n",
+                max_deaths, (max_deaths == 1) ? " has" : "es have"));
+            message_flush();
+            start_new_metarun();
+        }
 }
 
 /* ------------------------------------------------------------------

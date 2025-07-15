@@ -3586,6 +3586,31 @@ void update_view(void)
             }
         }
     }
+    /* ------------------------------------------------------------
+     * Meta-run curse: CUR_LIGHTP
+     *   Each stack makes darkness 1 level “stronger”.
+     *   We post-process the finished cave_light[][] buffer so that
+     *   every lit square is dimmed once per stack, down to a floor
+     *   of −5 (same as full darkness elsewhere in the engine).
+     * ------------------------------------------------------------ */
+    {
+        int dark_stacks = curse_flag_count(CUR_LIGHTP);
+        if (dark_stacks)
+        {
+            int i, g, y, x;
+
+            /* Iterate over the grids we just updated */
+            for (i = 0; i < view_n; i++)
+            {
+                g = view_g[i];            /* packed grid index      */
+                y = GRID_Y(g);            /* unpack coordinates     */
+                x = GRID_X(g);
+
+                cave_light[y][x] -= dark_stacks;
+                if (cave_light[y][x] < -5) cave_light[y][x] = -5;
+            }
+        }
+    }
 
     /* Save 'view_n' */
     view_n = fast_view_n;

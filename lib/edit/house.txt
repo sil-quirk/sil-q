@@ -47,7 +47,8 @@ C:1:1
 N:1:Feanor
 A:Feanor's House
 B:Feanor
-F:SMT_AFFINITY | WIL_AFFINITY | STL_PENALTY | SMT_FEANOR | TREACHERY
+F:SMT_AFFINITY | WIL_AFFINITY | STL_PENALTY | TREACHERY
+U:SMT_FEANOR 
 C:6:5 #Artifice
 S:2:2:1:2
 D:Feanor was greatest among the Noldor, unmatched in skill and pride. 
@@ -406,6 +407,7 @@ N:25:Earendil
 A:Beor's House
 B:Beor
 F:EVN_AFFINITY | STL_AFFINITY | WIL_AFFINITY | PER_AFFINITY
+U:EARENDIL
 S:1:2:2:4
 D:Eärendil, son of Tuor and Idril, was a mariner of great heart and   
 D:noble lineage. Born of Elf and Man, he sailed the seas seeking aid  

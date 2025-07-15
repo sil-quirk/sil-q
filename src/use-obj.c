@@ -629,6 +629,29 @@ static bool use_staff(object_type* o_ptr, bool* ident)
     }
     }
 
+    /* --------------------------------------------------
+     * Meta‐run curse: CUR_HALLU
+     *   Each stack gives +20% chance on any quaff
+     *   to trigger hallucination (set_image).
+     * -------------------------------------------------- */
+    {
+        int stacks = curse_flag_count(CUR_HALLU);
+        if (stacks && use_charge)  /* only when a potion actually took effect */
+        {
+            int chance = stacks * 20;
+            if (chance > 100) chance = 100;
+            /* chance%: rand_int(100) gives 0–99, so < chance is true chance times */
+            if (rand_int(100) < chance)
+            {
+                /* give a short hallucination burst */
+                int dur = rand_int(10) + 1 + 10; /* 1–10, then +10 */
+                (void)set_image(p_ptr->image + dur);
+                *ident = TRUE;
+                msg_print("You suddenly see impossible colors!");
+            }
+        }
+    }
+
     return (use_charge);
 }
 

@@ -324,6 +324,12 @@ void do_cmd_character_sheet(void)
             (void)get_name();
         }
 
+        /* Change name */
+        else if (ch == 'd')
+        {
+            dbg_show_active_flags();
+        }
+
         /* Abilities */
         else if ((ch == 'a') || (ch == '\t'))
         {
@@ -370,6 +376,31 @@ void do_cmd_character_sheet(void)
 #define COL_SKILL 2
 #define COL_ABILITY 17
 #define COL_DESCRIPTION 42
+
+/* ------------------------------------------------------------------
+ * add_random_curse()
+ *   – Marks the item cursed
+ *   – Gives it random negative modifiers
+ *   Compatible with SIL-QH object_type (no flags1/2/3 fields)
+ * ------------------------------------------------------------------ */
+void add_random_curse(object_type *o_ptr)
+{
+    /* 1. make it show up as {cursed} right away */
+    o_ptr->ident |= IDENT_CURSED;
+
+    /* 2. negative pval / attack / evasion */
+    if (o_ptr->pval > 0)  o_ptr->pval = -(rand_int(3) + 1); /* –1 … –3 */
+    if (o_ptr->att > 0) o_ptr->att = -(rand_int(3) + 1);
+    if (o_ptr->evn > 0) o_ptr->evn = -(rand_int(3) + 1);
+
+    /* 3. very small chance to damage dice on weapons / armour */
+    if (one_in_(8))
+    {
+        if (o_ptr->dd) o_ptr->dd = MAX(1, o_ptr->dd - 1);
+        if (o_ptr->pd) o_ptr->pd = MAX(1, o_ptr->pd - 1);
+    }
+}
+
 
 int ability_index(int skilltype, int abilitynum)
 {
@@ -3349,7 +3380,7 @@ int object_difficulty(object_type* o_ptr)
     // Penalty for being an artefact
     if (o_ptr->name1)
     {
-        if (c_info[p_ptr->phouse].flags & RHF_SMT_FEANOR) smithing_cost.uses ++;
+        if (c_info[p_ptr->phouse].flags_u & UNQ_SMT_FEANOR) smithing_cost.uses ++;
         else smithing_cost.uses += 2;
     }
 
@@ -6269,6 +6300,21 @@ void create_smithing_item(void)
         // Store the depth at which it was created
         smith_o_ptr->xtra1 = p_ptr->depth;
     }
+
+        /* ------------------------------------------------------ */
+        /* New escape-curse: smithing can back-fire               */
+        /* ------------------------------------------------------ */
+        {
+            int stacks = curse_flag_count(CUR_SMITHCURSE);          /* 0-3 */
+            if (stacks &&            /* must have the curse          */
+                !(smith_o_ptr->ident & IDENT_CURSED) &&             /* not already */
+                (smith_o_ptr->tval != TV_LIGHT))                    /* skip torches */
+            {
+                if (rand_int(100) < 10 * stacks)                    /* 10 % / stack */
+                    add_random_curse(smith_o_ptr);
+            }
+        }
+
 
     // remove the spoiler ident flag
     smith_o_ptr->ident &= ~(IDENT_SPOIL);

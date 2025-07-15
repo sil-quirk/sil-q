@@ -473,6 +473,7 @@ extern void do_cmd_save_screen(void);
 extern void desc_art_fake(int a_idx);
 extern void apply_magic_fake(object_type* o_ptr);
 extern void do_cmd_knowledge(void);
+extern void add_random_curse(object_type *o_ptr);
 
 /* cmd5.c */
 extern void display_koff(int k_idx);
@@ -1174,3 +1175,9 @@ extern bool      metarun_created;
 extern u32b curse_flag_mask(void);
 extern int  curse_flag_count(u32b rhf_flag);
 extern int any_curse_flag_active(u32b flag);
+// extern int menu_choose_one_curse(void);
+// extern void metarun_clear_all_curses(void);
+// extern void add_curse_stack(int idx); 
+
+// init1.c
+extern void dbg_show_active_flags(void);

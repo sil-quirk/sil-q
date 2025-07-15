@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "z-form.h" 
 
 /*
  * This file is used to initialize various variables and arrays for the
@@ -42,6 +43,7 @@
 #ifdef ALLOW_TEMPLATES
 
 #include "init.h"
+#include "metarun.h"
 
 /* run-type template loader ---------------------------------------- */
 header rt_head;       /* the one and only definition */
@@ -84,7 +86,8 @@ struct flag_name
 #define RHF 7
 #define VLT 8
 #define CUR 9
-#define MAX_FLAG_SETS 9
+#define UNQ 10
+#define MAX_FLAG_SETS 11
 
 /*
  * Monster race flags for the race_info_flags1 structure
@@ -301,7 +304,7 @@ static flag_name info_flags[] = {
     { "SMT_AFFINITY", RHF, RHF_SMT_AFFINITY },
     { "SMT_PENALTY", RHF, RHF_SMT_PENALTY },
     { "SNG_AFFINITY", RHF, RHF_SNG_AFFINITY },
-    { "SNG_PENALTY", RHF, RHF_SNG_PENALTY }, { "SMT_FEANOR", RHF, RHF_SMT_FEANOR },
+    { "SNG_PENALTY", RHF, RHF_SNG_PENALTY },
     { "SNG_MASTERY", RHF, RHF_SNG_MASTERY }, { "KINSLAYER", RHF, RHF_KINSLAYER },
     { "CURSE", RHF, RHF_CURSE }, { "TREACHERY", RHF, RHF_TREACHERY },
     { "RHFXXX24", RHF, RHF_RHFXXX24 }, { "RHFXXX21", RHF, RHF_RHFXXX25 },
@@ -339,7 +342,14 @@ static flag_name info_flags[] = {
     { "MONSTERHP", CUR, CUR_MON_HP }, { "MONSTERHP_U", CUR, CUR_U_MON_HP },
     { "MON_STL", CUR, CUR_MON_STL }, { "MON_PER", CUR, CUR_MON_PER },
     { "MON_WIL", CUR, CUR_MON_WIL }, { "MON_ARM_DICE", CUR, CUR_MON_ARM_DICE },
-    { "MON_ARM_SIDE", CUR, CUR_MON_ARM_SIDE }, {"NOSTART", CUR, CUR_NOSTART}
+    { "MON_ARM_SIDE", CUR, CUR_MON_ARM_SIDE }, {"NOSTART", CUR, CUR_NOSTART}, 
+    {"SMITHCURSE", CUR, CUR_SMITHCURSE}, {"FINDCURSE", CUR, CUR_FINDCURSE},
+    {"LIGHTR", CUR, CUR_LIGHTR},{"LIGHTP", CUR, CUR_LIGHTP},
+    {"DEATH", CUR, CUR_DEATH},{"TRAPS", CUR, CUR_TRAPS},
+    {"MON_NUM", CUR, CUR_MON_NUM},{"HUNGER", CUR, CUR_HUNGER},
+    { "HALLU", CUR, CUR_HALLU},
+    // Unique flags
+    {"EARENDIL", UNQ, UNQ_EARENDIL}, { "SMT_FEANOR", UNQ, UNQ_SMT_FEANOR },
 
 };
 
@@ -437,6 +447,248 @@ errr init_info_txt(
     /* Success */
     return (0);
 }
+
+/* ---- helpers ------------------------------------------------------ */
+static const char *rank_name(int lvl)            /* -2…+2 → text */
+{
+    switch (lvl) {
+        case  2: return "Mastery";
+        case  1: return "Affinity";
+        case  0: return "";
+        case -1: return "Penalty";
+        case -2: return "Grand Penalty";
+    }
+    return "";
+}
+
+/* ------------------------------------------------------------------ *
+ *  combined_level() – return the net Affinity/Mastery/Penalty value
+ *  (-2 … +2) for one skill, summing contributions from
+ *       • race-or-house RHF flags (counted once even if both set)
+ *       • active curses  (each curse can add its own +1 / –1)
+ *  Affinity = +1, Penalty = –1, Mastery/Grand Penalty = ±2.
+ * ------------------------------------------------------------------ */
+static int combined_level(int skill)
+{
+    /*  lookup table: [S_*] → {AFFINITY-bit, PENALTY-bit}  */
+    static const struct { u32b aff, pen; } tbl[] = {
+        { RHF_MEL_AFFINITY, RHF_MEL_PENALTY },   /* S_MEL = 0 */
+        { RHF_ARC_AFFINITY, RHF_ARC_PENALTY },   /* S_ARC */
+        { RHF_EVN_AFFINITY, RHF_EVN_PENALTY },   /* S_EVN */
+        { RHF_STL_AFFINITY, RHF_STL_PENALTY },   /* S_STL */
+        { RHF_PER_AFFINITY, RHF_PER_PENALTY },   /* S_PER */
+        { RHF_WIL_AFFINITY, RHF_WIL_PENALTY },   /* S_WIL */
+        { RHF_SMT_AFFINITY, RHF_SMT_PENALTY },   /* S_SMT */
+        { RHF_SNG_AFFINITY, RHF_SNG_PENALTY }    /* S_SNG */
+    };
+
+    /* masks --------------------------------------------------------- */
+    u32b rhf  = p_info[p_ptr->prace].flags |      /* race OR house      */
+                c_info[p_ptr->phouse].flags;
+    u32b cur  = curse_flag_mask();                /* all active curses  */
+
+    /* tally --------------------------------------------------------- */
+    int v = 0;
+    if (rhf & tbl[skill].aff)  v++;
+    if (rhf & tbl[skill].pen)  v--;
+    if (cur & tbl[skill].aff)  v++;               /* curse stack        */
+    if (cur & tbl[skill].pen)  v--;
+
+    /* clamp to –2 … +2 as per spec ---------------------------------- */
+    if (v >  2) v =  2;
+    if (v < -2) v = -2;
+    return v;
+}
+
+static byte rank_colour(int lvl)         /* –2 … +2 */
+{
+    if (lvl ==  2) return TERM_L_GREEN;     /* Mastery        */
+    if (lvl ==  1) return TERM_GREEN;   /* Affinity       */
+    if (lvl == -1) return TERM_RED;     /* Penalty        */
+    if (lvl == -2) return TERM_L_RED;       /* Grand penalty  */
+    return TERM_WHITE;                    /* Neutral / ?    */
+}
+
+/* short names for on-screen tokens */
+static const char *skill_tag(int s)
+{
+    static const char *tags[] =
+        { "MEL", "ARC", "EVN", "STL", "PER", "WIL", "SMT", "SNG" };
+    return tags[s];
+}
+
+
+/*-----------------------------------------------------------------*
+ *  dbg_show_active_flags() – show only the flags that are ON
+ *  for the current character (i386-safe C89).
+ *-----------------------------------------------------------------*/
+void dbg_show_active_flags(void)
+{
+    player_race  *rp_ptr = &p_info[p_ptr->prace];
+    player_house *hp_ptr = &c_info[p_ptr->phouse];
+
+    /* live masks --------------------------------------------------- */
+    u32b rhf_bits  = rp_ptr->flags | hp_ptr->flags;  /* race OR house  */
+    u32b unq_bits  = hp_ptr->flags_u;                /* house-unique   */
+
+    struct { int set; u32b bits; cptr tag; byte clr; } grp[] = {
+        { RHF, rhf_bits, "RHF (Race/House flags)",   TERM_L_GREEN },
+        { UNQ, unq_bits, "UNQ (Unique-house flags)", TERM_L_BLUE  },
+        { CUR, 0,        "CUR (Curse flags)",        TERM_L_RED   },
+    };
+
+    const int BUF_LEN = 79;           /* 80-col safety                */
+    char  buf[BUF_LEN + 1];
+    int   row = 2;
+
+    Term_clear();
+    Term_putstr(0, row++, -1, TERM_YELLOW,
+                "*** DEBUG: meta-run DEBUG – a:add-curse  c:clear-all  any:key:exit ***");
+
+    for (size_t g = 0; g < N_ELEMENTS(grp); g++)
+    {
+        Term_putstr(0, row++, -1, grp[g].clr, grp[g].tag);
+
+        buf[0] = '\0';
+        size_t pos = 0;
+
+        for (size_t i = 0; i < N_ELEMENTS(info_flags); i++)
+        {
+            flag_name *f = info_flags + i;
+            if (f->set != grp[g].set) continue;
+
+            /* -------- check whether THIS bit is on -------- */
+            bool present = FALSE;
+            if (f->set == CUR)
+                present = (curse_flag_count(f->flag) > 0);
+            else
+                present = (grp[g].bits & f->flag) != 0;
+            if (!present) continue;
+            /* ---------------------------------------------- */
+
+            size_t need = (pos ? 2 : 0) + strlen(f->name);
+            if (pos + need > BUF_LEN)
+            {
+                Term_putstr(0, row++, -1, TERM_WHITE, buf);
+                pos = 0;  buf[0] = '\0';
+            }
+
+            if (pos) { buf[pos++] = ','; buf[pos++] = ' '; }
+            memcpy(buf + pos, f->name, need - (pos ? 2 : 0));
+            pos += strlen(f->name);
+            buf[pos] = '\0';
+        }
+
+        if (pos) Term_putstr(0, row++, -1, TERM_WHITE, buf);
+        row++;                      /* blank line between groups */
+    }
+
+/* ---------- RHF Mastery / Penalty summary ------------------------- */
+{
+    Term_putstr(0, row++, -1, TERM_SLATE, "Combined skill ranks:");
+
+    int col = 2;                              /* left margin */
+    for (int s = 0; s < S_MAX; s++)
+    {
+        int lvl = combined_level(s);
+        if (!lvl) continue;                   /* skip neutral */
+
+        char tok[20];
+        strnfmt(tok, sizeof tok, "%s:%s", skill_tag(s), rank_name(lvl));
+
+        /* wrap at column 78: */
+        if (col + (int)strlen(tok) > 78) { row++; col = 2; }
+
+        Term_putstr(col, row, -1, rank_colour(lvl), tok);
+        col += strlen(tok);
+
+        /* comma + space unless last item */
+        if (s < S_MAX - 1) {
+            Term_putch(col++, row, TERM_WHITE, ',');
+            Term_putch(col++, row, TERM_WHITE, ' ');
+        }
+    }
+    row += 2;                                 /* blank line */
+}
+
+
+/* =====================  active curses  =========================== */
+{
+    Term_putstr(0, row++, -1, TERM_L_RED,
+                "Active curses (id : name [stacks])");
+
+    for (int id = 0; id < z_info->cu_max; id++)
+    {
+        byte cnt = CURSE_GET(id);
+        if (!cnt) continue;                       /* skip empty slots */
+
+#ifdef DEBUG_CURSES
+        /* Show the P: effect text and use a slightly shorter name field
+           so the whole line fits on an 80-col screen.                 */
+        const char *pow = cu_text + cu_info[id].power;   /* effect blurb */
+        c_put_str(TERM_WHITE,
+                  format("  %2d : %-26s [%d]  – %s",
+                         id,
+                         cu_name + cu_info[id].name,
+                         cnt,
+                         pow),
+                  row++, 2);
+#else
+        /* Release build: classic 3 columns, no effect text */
+        c_put_str(TERM_WHITE,
+                  format("  %2d : %-30s [%d]",
+                         id,
+                         cu_name + cu_info[id].name,
+                         cnt),
+                  row++, 2);
+#endif
+    }
+    row++;                                          /* blank line */
+
+#ifdef DEBUG_CURSES
+    Term_putstr(0, row++, -1, TERM_L_DARK,
+                "[a] add random curse   [x] clear all   [any other] quit");
+#else
+    Term_putstr(0, row++, -1, TERM_L_DARK,
+                "[any key] quit");
+#endif
+}
+
+/* ----------------------------------------------------------------- */
+
+/* ===================  key-handling loop  ========================= */
+#ifdef DEBUG_CURSES
+// static bool in_loop = FALSE;  
+while (TRUE)
+{
+    int ch = inkey();
+
+    if (ch == 'a')            /* add one random curse */
+    {
+        int id = menu_choose_one_curse();
+        add_curse_stack(id);
+        dbg_show_active_flags();          /* redraw whole screen */
+        break;  // exit the current loop after recursive call returns
+    }
+    if (ch == 'x')            /* wipe everything */
+    {
+        if (get_check("Erase ALL curses for this meta-run? "))
+        {
+            metarun_clear_all_curses();
+            dbg_show_active_flags();
+            break;  // exit the current loop after recursive call returns
+        }
+        continue;
+    }
+    break;                    /* any other key exits */
+}
+#else
+(void)inkey();                /* wait for a key, then return */
+#endif
+/* ================================================================ */
+}
+
+
 
 /*
  * Add a text to the text-storage and store offset to it.
@@ -1008,7 +1260,7 @@ static errr grab_one_curse_unique_flag(curse_type *cu_ptr, cptr what)
 {
     u32b *f[MAX_FLAG_SETS];
     C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
-    f[RHF] = &(cu_ptr->flags_u);   /* write into the new word we added */
+    f[CUR] = &(cu_ptr->flags_u);   /* write into the new word we added */
     return grab_one_flag(f, "curse unique", what);
 }
 
@@ -2730,12 +2982,24 @@ static errr grab_one_race_flag(player_race* ptr, cptr what)
  * Sil:  these used to be the TR1, TR2 and TR3 flags,
  *       but we now use the race/house flags (RHF).
  */
-static errr grab_one_house_flag(player_house* ptr, cptr what)
+static errr grab_one_house_flag(player_house *ptr, cptr what)
 {
-    u32b* f[MAX_FLAG_SETS];
+    u32b *f[MAX_FLAG_SETS];
     C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+
     f[RHF] = &(ptr->flags);
-    return grab_one_flag(f, "player", what);
+
+    return grab_one_flag(f, "player house", what);
+}
+
+static errr grab_one_house_uflag(player_house *ptr, cptr what)
+{
+    u32b *f[MAX_FLAG_SETS];
+    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+
+    f[UNQ] = &(ptr->flags_u);      /* NEW: accept unique-flag word */
+
+    return grab_one_flag(f, "player house", what);
 }
 
 /*
@@ -3170,6 +3434,30 @@ errr parse_c_info(char* buf, header* head)
         }
     }
 
+    /* ------------------------------------------------------------ */
+    /* U: list of Unique flags        */
+    /* ------------------------------------------------------------ */
+    else if (buf[0] == 'U')
+    {
+        if (!ph_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+
+        for (s = buf + 2; *s; )
+        {
+            /* token = [^ or |]*  */
+            for (t = s; *t && (*t != ' ') && (*t != '|'); ++t) ;
+            if (*t)
+            {
+                *t++ = '\0';
+                while ((*t == ' ') || (*t == '|')) t++;
+            }
+
+            if (grab_one_house_uflag(ph_ptr, s))
+                return PARSE_ERROR_INVALID_FLAG;
+
+            s = t;
+        }
+    }
+
         /* Process 'E' for "Starting Equipment" */
     else if (buf[0] == 'E')
     {
@@ -3543,6 +3831,17 @@ errr parse_cu_info(char *buf, header *head)
         if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
 
         if (!add_text(&(cu_ptr->text), head, buf + 2))
+            return PARSE_ERROR_OUT_OF_MEMORY;
+    }
+
+    /* ------------------------------------------------------------ */
+    /* P: power/effect description                                   */
+    /* ------------------------------------------------------------ */
+    else if (buf[0] == 'P')
+    {
+        if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+
+        if (!add_text(&(cu_ptr->power), head, buf + 2))
             return PARSE_ERROR_OUT_OF_MEMORY;
     }
 
