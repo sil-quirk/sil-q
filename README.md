@@ -1,9 +1,7 @@
-# Sil-Q
-Sil-Q is a computer role-playing game with a strong emphasis on discovery and
-tactical combat. It has a simple but rich combat system which allows for a
-great variety of choice.
-
-Sil-Q continues the development of Sil which hasn't been updated for a while.
+# Sil-QH
+SIL-QH is a version of SIL-Q which incorporates two main ideas. 
+First, it has real life characters from Tolkien FA and storyline.
+Secondly, it uses a system of metaruns, where consequtive runs are connected into one storyline idea more like modern Rougue-light games.
 
 ## Compiling Instructions
 
