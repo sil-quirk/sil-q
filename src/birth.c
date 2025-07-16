@@ -1461,19 +1461,19 @@ static void house_aux_hook(birth_menu c_str)
     /* Display the race flags */
 
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1, -1, TERM_WHITE,
-        "                                      ");
+        "                                         ");
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 2, -1, TERM_WHITE,
-        "                                      ");
+        "                                         ");
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 3, -1, TERM_WHITE,
-        "                                      ");
+        "                                         ");
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 4, -1, TERM_WHITE,
-        "                                      ");
+        "                                         ");
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 5, -1, TERM_WHITE,
-        "                                      ");
+        "                                         ");
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 6, -1, TERM_WHITE,
-        "                                      ");
+        "                                         ");
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 7, -1, TERM_WHITE,
-        "                                      ");
+        "                                         ");
     // Check dead   
     if (c_str.ghost) Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 7, -1, TERM_RED,
         "Dead");

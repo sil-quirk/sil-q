@@ -100,8 +100,8 @@ static void curses_pack_words(void)
             hi |= cnt << ((id - 16) * 2);
     }
 
-    meta.curses_lo = lo;
-    meta.curses_hi = hi;
+    metar.curses_lo = lo;
+    metar.curses_hi = hi;
 }
 
 /* ----------------------------------------------------------------
@@ -110,8 +110,8 @@ static void curses_pack_words(void)
  * ---------------------------------------------------------------- */
 static void curses_unpack_words(void)
 {
-    u32b lo = meta.curses_lo;          /* ① take snapshots */
-    u32b hi = meta.curses_hi;
+    u32b lo = metar.curses_lo;          /* ① take snapshots */
+    u32b hi = metar.curses_hi;
 
     for (int id = 0; id < 32; id++) {
         u32b cnt = (id < 16)
@@ -160,10 +160,10 @@ errr load_metaruns(bool create_if_missing)
             current_run = i;
         }
     }
-    meta = metaruns[current_run];
+    metar = metaruns[current_run];
 
     /* ensure its per-run directory exists */
-    ensure_run_dir(&meta);
+    ensure_run_dir(&metar);
     curses_unpack_words();    /* NEW: expand words into live table */
     return 0;
 }
@@ -175,8 +175,8 @@ errr load_metaruns(bool create_if_missing)
 errr save_metaruns(void)
 {
     meta_log("[SAVE] enter  id=%u  deaths=%u  sils=%u  lo=%08X  hi=%08X",
-             meta.id, meta.deaths, meta.silmarils,
-             meta.curses_lo, meta.curses_hi);
+             metar.id, metar.deaths, metar.silmarils,
+             metar.curses_lo, metar.curses_hi);
 
     if (!metaruns || current_run < 0 || current_run >= metarun_max) {
         meta_log("[SAVE] ABORT – corrupted pointer safety-check hit");
@@ -188,8 +188,8 @@ errr save_metaruns(void)
     char fn[1024];
     build_meta_path(fn, sizeof fn, NULL, META_RAW);
 
-    meta.last_played      = (u32b)time(NULL);
-    metaruns[current_run] = meta;            /* safe: array is valid */
+    metar.last_played      = (u32b)time(NULL);
+    metaruns[current_run] = metar;            /* safe: array is valid */
 
     /* Use standard C file operations instead of the problematic fd_* functions */
     FILE *fp = fopen(fn, "wb");
@@ -368,8 +368,8 @@ int menu_choose_one_curse(void)
  * ------------------------------------------------------------------ */
 void metarun_clear_all_curses(void)
 {
-    meta.curses_lo = 0;
-    meta.curses_hi = 0;
+    metar.curses_lo = 0;
+    metar.curses_hi = 0;
     save_metaruns();
 }
 
@@ -399,10 +399,19 @@ static void choose_escape_curses(int n)
  * ------------------------------------------------------------------ */
 void metarun_update_on_exit(bool died, bool escaped, byte new_sils)
 {
-    if (died)    meta.deaths++;
-    if (escaped) meta.silmarils += new_sils;
+    if (died)    metar.deaths++;
+    if (escaped) metar.silmarils += new_sils;
 
-    if (escaped && new_sils) choose_escape_curses(new_sils);
+    if (escaped && new_sils) {
+        choose_escape_curses(new_sils);
+
+        /* If this character’s House has KINSLAYER, try to slay a hero */
+        if (c_info[p_ptr->phouse].flags & RHF_KINSLAYER) {
+            msg_format("KINSLAYER!");
+            (void) inkey();
+            kinslayer_try_kill(new_sils);
+        }
+    }
 
     check_run_end();              /* may realloc or grow `metaruns` */
 
@@ -411,7 +420,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte new_sils)
 
 
 void metarun_increment_deaths(void)   { metarun_update_on_exit(TRUE,  FALSE, 0); }
-void metarun_gain_silmarils(byte n)   { metarun_update_on_exit(FALSE, TRUE,  n); }
+void metarun_gain_silmarils(byte n) {metarun_update_on_exit(FALSE, TRUE, n);}
 
 /* ======================  run-state logic  ====================== */
 /* ------------------------------------------------------------------ *
@@ -421,12 +430,12 @@ void metarun_gain_silmarils(byte n)   { metarun_update_on_exit(FALSE, TRUE,  n);
 static void check_run_end(void)
 {
     int max_deaths = MAX(1, LOSECON_DEATHS - 3 * curse_flag_count(CUR_DEATH));
-    if (meta.silmarils >= WINCON_SILMARILS) {
+    if (metar.silmarils >= WINCON_SILMARILS) {
         msg_print("\n*** VICTORY! 15 Silmarils recovered – a new age dawns… ***\n");
         message_flush();
         start_new_metarun();
 
-    } else if (meta.deaths >= max_deaths) {
+    } else if (metar.deaths >= max_deaths){
             msg_print(format(
                 "\n*** DEFEAT! %d hero%s fallen – the run is lost. ***\n",
                 max_deaths, (max_deaths == 1) ? " has" : "es have"));
@@ -467,16 +476,16 @@ static void start_new_metarun(void)
 
     /* Initialize the brand-new slot */
     reset_defaults(&metaruns[metarun_max - 1]);
-    metaruns[metarun_max - 1].id = meta.id + 1;
+    metaruns[metarun_max - 1].id = metar.id + 1;
 
     /* Update globals */
     current_run      = metarun_max - 1;
-    meta             = metaruns[current_run];
+    metar             = metaruns[current_run];
     metarun_created  = TRUE;
 
     /* Persist and prepare */
     save_metaruns();      /* safe now that metaruns≠NULL */ 
-    ensure_run_dir(&meta);
+    ensure_run_dir(&metar);
 }
 
 
@@ -488,15 +497,15 @@ void print_metarun_stats(void)
     text_out_hook = text_out_to_screen;  text_out_wrap = 0;
 
     text_out_c(TERM_L_GREEN, "\nCurrent Metarun Statistics\n\n");
-    text_out(format(" Run-ID          : %u\n", meta.id));
+    text_out(format(" Run-ID          : %u\n", metar.id));
     text_out(format(" Silmarils       : %d / %d\n",
-                    meta.silmarils, WINCON_SILMARILS));
+                    metar.silmarils, WINCON_SILMARILS));
     text_out(format(" Deaths          : %d / %d\n",
-                    meta.deaths,    LOSECON_DEATHS));
+                    metar.deaths,    LOSECON_DEATHS));
 
     char datebuf[32];
     strftime(datebuf, sizeof datebuf, "%Y-%m-%d",
-             localtime((time_t*)&meta.last_played));
+             localtime((time_t*)&metar.last_played));
     text_out(format(" Last played     : %s\n", datebuf));
 
     text_out("\nPress any key to continue.");

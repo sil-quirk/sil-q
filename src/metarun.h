@@ -41,7 +41,7 @@ typedef struct metarun
 } metarun;
 
 /* The *current* meta-run – defined once in metarun.c */
-extern metarun meta;
+extern metarun metar;
 
 /* ------------------------------------------------------------------ */
 /*  Disk I/O                                                          */
@@ -67,14 +67,14 @@ void list_metaruns(void);                        /* Full meta-run history   */
 /* helpers – SAFE on every i386 compiler -------------------------- */
 static inline byte CURSE_GET(int id)
 {
-    u32b word = (id < 16) ? meta.curses_lo : meta.curses_hi;
+    u32b word = (id < 16) ? metar.curses_lo : metar.curses_hi;
     int  sh   = (id & 15) * 2;          /* 0,2,4 … 30  (< 32) */
     return (word >> sh) & 0x3;          /* result 0–3 */
 }
 
 static inline void CURSE_SET(int id, byte val)
 {
-    u32b *p   = (id < 16) ? &meta.curses_lo : &meta.curses_hi;
+    u32b *p   = (id < 16) ? &metar.curses_lo : &metar.curses_hi;
     int   sh  = (id & 15) * 2;
     *p = (*p & ~(0x3UL << sh))          /* clear the two-bit field  */
        | ((u32b)(val & 0x3) << sh);     /* write the new 0-3 value  */

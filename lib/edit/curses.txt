@@ -194,53 +194,51 @@ A:2/1
 D:Spoiled are the gifts of Arda, for darkness leaves its lingering touch. What should nourish now poisons; what might save may now doom.
 P:Spawned items have chance to be cursed.
 
-N:24:Curse of Dwindling Glow
+N:24:Twilight’s Shroud
 S:0:0:0:0
 U:LIGHTR
 A:1/4
-D:Shadows gather; your light shrinks away.
+D:A shadow settles around you, dimming the circle of hope. The darkness looms closer, daring you to step into deeper gloom.
 P:Light radius −1
 
-N:25:Curse of Fading Flame
+N:25:Waning of the Lamps
 S:0:0:0:0
 U:LIGHTP
 A:1/4
 D:The flame gutters weakly, colour leaching from the world.
-P:Light power −1
+P:Light falters and flickers, drained by an unseen malice. Flames grow pale, barely holding back the encroaching night.
 
-N:26:Curse of Final Breath
+N:26:Mandos' Begrudging Mercy
 S:0:0:0:0
 U:DEATH
 A:1/4
-D:Doom hangs heavy; heroes fall sooner.
+D:The doors of Mandos grow heavy and close swiftly behind you. The gift of the Eldar fades; your spirit bound closer to mortality, your return diminished as fate tightens its hold.
 P:Maximum deaths −3
 
-N:27:Curse of Hidden Snares
+N:27:Maze of Malice
 S:0:0:0:0
 U:TRAPS
 A:1/4
-D:The very stones scheme against you.
-P:More traps
+D:Paths twist treacherously beneath your feet, snares multiplying at every step. Each shadow holds hidden peril, waiting hungrily to catch the unwary.
+P:Traps are more frequient.
 
-N:28:Curse of Swarming Host
+N:28:Host of Angband
 S:0:0:0:0
 U:MON_NUM
 A:1/4
-D:Footsteps echo; foes gather in great numbers.
+D:Shadows multiply, thronging your path with relentless foes. Legions rise endlessly, pressing forward with hungry malice.
 P:More monsters
 
-N:29:Curse of Gnawing Void
+N:29:Voracious Curse
 S:0:0:0:0
 U:HUNGER
 A:1/4
-D:Hunger doubles; every heartbeat an ache.
+D:A hollow gnaws within you, insatiable and relentless. Hunger stalks your every step, the emptiness a ceaseless torment.
 P:Digestion rate ×2
 
-N:30:Curse of Twisted Draught
+N:30:Draught of Delirium
 S:0:0:0:0
 U:HALLU
 A:1/4
-D:Every swig of potion turns your mind to chaos.
+D:The essence of Arda twists cruelly upon your tongue. Visions distort reality, weaving madness from nourishment, blurring friend and foe.
 P:20% chance per potion to go mad
-
-

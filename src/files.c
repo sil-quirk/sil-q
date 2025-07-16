@@ -11,6 +11,8 @@
 #include "angband.h"
 #include "h-basic.h"
 #include "metarun.h"
+#include "z-term.h"
+#include <stdio.h>
 
 // These are copied from birth.c and needed for displaying the character sheet
 #define INSTRUCT_ROW 21
@@ -168,6 +170,23 @@ static s16b tokenize_whitespace(char *buf, s16b num, char **tokens)
  *
  * Hack -- We will always extract at least one token
  */
+
+
+/*------------------------------------------------------------------------
+ *  A hard‐coded priority list of races.  Highest‐priority first.
+ *  Fill this out with your own RACE_… constants, in the order you like.
+ *------------------------------------------------------------------------*/
+static const int race_priority[] = {
+    3, //Sindar
+    2, //Finarfin
+    1, //Fingolfin
+    5, //Dwarve
+    6, //Edain
+    0 //Feanor
+};
+static const size_t race_prio_len =
+    sizeof(race_priority) / sizeof(race_priority[0]);
+
 s16b tokenize(char* buf, s16b num, char** tokens)
 {
     int i = 0;
@@ -3188,7 +3207,7 @@ bool get_name(void)
 /*
  * Hack -- escape from Angband
  */
-void do_cmd_escape(void)
+void do_cmd_escape(int silmarils)
 {
     time_t ct = time((time_t*)0);
     char long_day[40];
@@ -3222,7 +3241,7 @@ void do_cmd_escape(void)
     do_cmd_note(buf, p_ptr->depth);
 
     // make a note
-    switch (silmarils_possessed())
+    switch (silmarils)
     {
     case 0:
         do_cmd_note("You returned empty handed.", p_ptr->depth);
@@ -3261,13 +3280,15 @@ void do_cmd_escape(void)
         }
     }
 
+    // (void)inkey();
+
     my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
 
     /* Cause of death */
     my_strcpy(p_ptr->died_from, "ripe old age", sizeof(p_ptr->died_from));
 
     /* Update metarun: escaped with N Silmarils */
-    metarun_update_on_exit(FALSE,TRUE,(byte)silmarils_possessed());
+    metarun_update_on_exit(FALSE,TRUE,silmarils);
 
     print_story();
 
@@ -3719,6 +3740,175 @@ static int highscore_add(high_score* score)
 
 
     return (slot);
+}
+
+static int hero_in_scores(const char *name)
+{
+    char buf[1024];
+    path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+    FILE *fp = fopen(buf, "rb");
+    if (!fp) return 0;
+
+    high_score entry;
+    for (int i = 0; i < MAX_HISCORES; i++)
+    {
+        if (fread(&entry, sizeof(entry), 1, fp) != 1) break;
+        if (strcmp(entry.who, name) == 0)
+        {
+            fclose(fp);
+            return 1;
+        }
+    }
+
+    fclose(fp);
+    return 0;
+}
+
+
+/*
+ * Kill one random hero per race-priority, chance = 10% per Silmaril.
+ */
+void kinslayer_try_kill(byte n_sils)
+{
+    // It's good practice to flush stderr to ensure messages appear immediately
+    fprintf(stderr, "DEBUG: kinslayer_try_kill() started.\n"); fflush(stderr);
+
+    char buf[1024];
+    path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+    int pct = n_sils * 30;
+    if (rand_int(100) >= pct)
+    {
+        fprintf(stderr, "DEBUG: Random check failed. Exiting early.\n"); fflush(stderr);
+        return;
+    }
+
+    Term_clear();
+    Term_putstr(0, 3, -1, TERM_YELLOW, "You feel bloodthirsty");
+    (void) inkey();
+
+    fprintf(stderr, "DEBUG: Past 'bloodthirsty' message.\n"); fflush(stderr);
+
+    high_score entry;
+    char *hero_name = NULL;
+
+    for (size_t rp = 0; rp < race_prio_len; rp++)
+    {
+        int target_race = race_priority[rp];
+        fprintf(stderr, "DEBUG: Processing race priority %zu, race index %d.\n", rp, target_race);
+        fflush(stderr);
+
+        // Sanity check for target_race (replace MAX_RACES with your actual constant)
+        if (target_race >= z_info->r_max) {
+             fprintf(stderr, "FATAL: target_race %d is out of bounds (max is %d)!\n", target_race, z_info->r_max);
+             fflush(stderr);
+             continue; // Skip this invalid race
+        }
+
+        int pool_n = 0;
+        int *pool = malloc(z_info->c_max * sizeof(int));
+        if (!pool) return;
+
+        fprintf(stderr, "DEBUG: Populating pool for race %d. Max houses (z_info->c_max) = %d.\n", target_race, z_info->c_max);
+        fflush(stderr);
+
+        for (u16b h = 0; h < z_info->c_max; h++)
+        {
+            // The following line is a common crash point if target_race is bad.
+            if (!(p_info[target_race].flags & (1U << h))) continue;
+
+            // The following lines can crash if 'h' is out of bounds for c_info.
+            fprintf(stderr, "DEBUG: Checking house index h = %u...\n", h);
+            fflush(stderr);
+            
+            const char *hn = quark_str(c_info[h].name);
+            if (strcmp(hn, op_ptr->base_name) == 0) continue;
+
+            pool[pool_n++] = h;
+        }
+
+        fprintf(stderr, "DEBUG: Pool populated with %d potential victims.\n", pool_n);
+        fflush(stderr);
+
+        // ... (The rest of your function logic here) ...
+        // [PASTED THE REST OF THE LOGIC FOR COMPLETENESS]
+
+        while (pool_n > 0)
+        {
+            int idx = rand_int(pool_n);
+            int h   = pool[idx];
+            hero_name = quark_str(c_info[h].name);
+
+            Term_clear();
+            Term_putstr(0, 3, -1, TERM_YELLOW, hero_name);
+            (void) inkey();
+
+            int removed_dead_hero = 0; 
+            if (hero_in_scores(hero_name))
+            {
+                FILE *fp = fopen(buf, "rb");
+                if (fp)
+                {
+                    for (int i = 0; i < MAX_HISCORES; i++)
+                    {
+                        if (fread(&entry, sizeof(entry), 1, fp) != 1) break;
+                        if (strcmp(entry.who, hero_name) == 0)
+                        {
+                            if (highscore_dead(hero_name)) {
+                                pool[idx] = pool[--pool_n];
+                                removed_dead_hero = 1;
+                            }
+                            break;
+                        }
+                    }
+                    fclose(fp);
+                }
+                
+                if (removed_dead_hero) continue;
+            }
+
+            FILE *fp = fopen(buf, "r+b");
+            if (!fp) { free(pool); return; }
+
+            if (hero_in_scores(hero_name))
+            {
+                for (int i = 0; i < MAX_HISCORES; i++)
+                {
+                    if (fread(&entry, sizeof(entry), 1, fp) != 1) break;
+                    if (strcmp(entry.who, hero_name) == 0)
+                    {
+                        fseek(fp, - (long)sizeof(entry), SEEK_CUR);
+                        my_strcpy(entry.how, format("slain by %s", op_ptr->base_name), sizeof(entry.how));
+                        fwrite(&entry, sizeof(entry), 1, fp);
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                fseek(fp, 0, SEEK_END);
+                memset(&entry, 0, sizeof(entry));
+                my_strcpy(entry.who, hero_name, sizeof(entry.who));
+                snprintf(entry.p_r, sizeof(entry.p_r), "%02d", target_race);
+                snprintf(entry.p_h, sizeof(entry.p_h), "%02d", h);
+                my_strcpy(entry.how, format("slain by %s", op_ptr->base_name), sizeof(entry.how));
+                entry.silmarils[0] = '0'; entry.silmarils[1] = '\0';
+                entry.escaped[0] = 'f'; entry.escaped[1] = '\0';
+                entry.morgoth_slain[0] = 'f'; entry.morgoth_slain[1] = '\0';
+                fwrite(&entry, sizeof(entry), 1, fp);
+            }
+            fclose(fp);
+
+            char msg[40];
+            snprintf(msg, sizeof(msg), "You have killed %s", hero_name);
+            Term_putstr(0, 5, -1, TERM_RED, msg);
+            (void)inkey();
+            
+            free(pool);
+            return;
+        }
+        
+        free(pool);
+    }
 }
 
 /*
@@ -4191,7 +4381,7 @@ extern void print_story(void)
     int index = 0;
     bool fast_forward = FALSE;        /* becomes TRUE after first Esc */
 
-    total = meta.silmarils + 1;
+    total = metar.silmarils + 1;
 
     /* Get current terminal size */
     Term_get_size(&wid, &h);

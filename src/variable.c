@@ -811,6 +811,6 @@ int highscore_fd;
 int meta_fd = -1;
 
 // Current metarun info
-metarun meta;
+metarun metar;
 
 runtype_type *runtype_info = NULL;   /* filled by init_rt_info() */

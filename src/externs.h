@@ -260,7 +260,7 @@ extern bool save_game_quietly;
 extern bool stop_stealth_mode;
 extern bool use_background_colors;
 
-extern metarun meta;
+extern metarun metar;
 extern int meta_fd;
 
 /*
@@ -514,7 +514,7 @@ extern bool show_file(cptr name, cptr what, int line);
 extern void do_cmd_help(void);
 extern void process_player_name(bool sf);
 extern bool get_name(void);
-extern void do_cmd_escape(void);
+extern void do_cmd_escape(int);
 extern void do_cmd_suicide(void);
 extern void do_cmd_save_game(void);
 extern void show_scores(void);
@@ -542,6 +542,7 @@ extern errr meta_read(metarun*);
 extern int meta_seek(int i);
 extern int meta_fill(bool);
 extern void print_story();
+extern void kinslayer_try_kill(byte n_sils);
 
 /* generate.c */
 extern void place_monster_by_flag(

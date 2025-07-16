@@ -4738,7 +4738,7 @@ void move_player(int dir)
     if ((y < 0) || (x < 0) || (y >= p_ptr->cur_map_hgt)
         || (x >= p_ptr->cur_map_wid))
     {
-        do_cmd_escape();
+        do_cmd_escape(silmarils_possessed());
         return;
     }
 

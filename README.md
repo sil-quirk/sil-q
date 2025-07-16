@@ -1,7 +1,15 @@
 # Sil-QH
-SIL-QH is a version of SIL-Q which incorporates two main ideas. 
+SIL-Q Heroes is a version of SIL-Q which incorporates two main ideas. 
 First, it has real life characters from Tolkien FA and storyline.
 Secondly, it uses a system of metaruns, where consequtive runs are connected into one storyline idea more like modern Rougue-light games.
+
+Road Map
+-Implement main curses (done)
+-Implement common RHF flags
+-Add more debuging functions
+-Add unique RHF flags
+-Polish menus find bugs
+Release closed alpha 0.5
 
 ## Compiling Instructions
 

@@ -542,8 +542,10 @@ void dbg_show_active_flags(void)
     int   row = 2;
 
     Term_clear();
+#ifdef DEBUG_CURSES
     Term_putstr(0, row++, -1, TERM_YELLOW,
-                "*** DEBUG: meta-run DEBUG – a:add-curse  c:clear-all  any:key:exit ***");
+                "*** DEBUG: meta-run DEBUG – a:add-curse  c:clear-all  e:+death  1-3:+sils  any:key:exit ***");
+#endif
 
     for (size_t g = 0; g < N_ELEMENTS(grp); g++)
     {
@@ -647,7 +649,7 @@ void dbg_show_active_flags(void)
 
 #ifdef DEBUG_CURSES
     Term_putstr(0, row++, -1, TERM_L_DARK,
-                "[a] add random curse   [x] clear all   [any other] quit");
+                "[a] add random curse   [x] clear all   [e] +death   [1-3] escape   [any other] quit");
 #else
     Term_putstr(0, row++, -1, TERM_L_DARK,
                 "[any key] quit");
@@ -659,29 +661,41 @@ void dbg_show_active_flags(void)
 /* ===================  key-handling loop  ========================= */
 #ifdef DEBUG_CURSES
 // static bool in_loop = FALSE;  
-while (TRUE)
-{
-    int ch = inkey();
+    while (TRUE)
+    {
+        int ch = inkey();
 
-    if (ch == 'a')            /* add one random curse */
-    {
-        int id = menu_choose_one_curse();
-        add_curse_stack(id);
-        dbg_show_active_flags();          /* redraw whole screen */
-        break;  // exit the current loop after recursive call returns
-    }
-    if (ch == 'x')            /* wipe everything */
-    {
-        if (get_check("Erase ALL curses for this meta-run? "))
+        if (ch == 'a')            /* add one random curse */
         {
-            metarun_clear_all_curses();
-            dbg_show_active_flags();
-            break;  // exit the current loop after recursive call returns
+            int id = menu_choose_one_curse();
+            add_curse_stack(id);
+            dbg_show_active_flags();          /* redraw */
+            break;
         }
-        continue;
-    }
-    break;                    /* any other key exits */
-}
+        else if (ch == 'x')       /* clear all curses */
+        {
+            if (get_check("Erase ALL curses for this meta-run? "))
+            {
+                metarun_clear_all_curses();
+                dbg_show_active_flags();
+                break;
+            }
+            continue;
+        }
+        else if (ch == 'e')       /* +1 death shortcut */
+        {
+            metarun_update_on_exit(1,0, 0);
+            dbg_show_active_flags();
+            break;
+        }
+        else if (ch >= '1' && ch <= '3')  /* +n Silmarils */
+        {
+            do_cmd_escape((byte)(ch - '0'));
+            dbg_show_active_flags();
+            break;
+        }
+         break;                    /* any other key exits */
+     }
 #else
 (void)inkey();                /* wait for a key, then return */
 #endif
