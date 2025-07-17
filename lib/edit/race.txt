@@ -166,7 +166,7 @@ I:21:15:45
 H:70:4
 W:150:12
 C:23|24|25|26|27|28|29|30
-F:MEL_AFFINITY | WIL_AFFINITY
+F:MEL_AFFINITY | WIL_AFFINITY | GIFTERU
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:35:5:5    # , Pieces of Dark Bread (5)
 E:23:7:1:1     # | Curved sword (1)

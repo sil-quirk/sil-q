@@ -25,14 +25,14 @@ typedef int errr;
 /*
  * Hack -- prevent problems with non-MACINTOSH
  */
-#undef uint
-#define uint uint_hack
+// #undef uint
+// #define uint uint_hack
 
-/*
- * Hack -- prevent problems with AMIGA
- */
-#undef byte
-#define byte byte_hack
+// /*
+//  * Hack -- prevent problems with AMIGA
+//  */
+// #undef byte
+// #define byte byte_hack
 
 /*
  * Hack -- prevent problems with C++

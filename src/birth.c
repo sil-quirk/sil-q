@@ -1075,7 +1075,7 @@ static void print_rh_flags(int race, int house, int col, int row)
             penalty_buf[penalty_n++].col = attr_penalty;                    \
         } else if (score == -2) {                                           \
             penalty_buf[penalty_n].txt = label " grand penalty";            \
-            penalty_buf[penalty_n++].col = attr_gr_penalty;                    \
+            penalty_buf[penalty_n++].col = attr_gr_penalty;                 \
         }                                                                   \
     } while (0)
 
@@ -1117,6 +1117,7 @@ static void print_rh_flags(int race, int house, int col, int row)
 
     // Unique skills: SIDE = 0 (left), 1 (right)
     HANDLE_UNIQUE_U("Master Artisan",   UNQ_SMT_FEANOR,     TERM_BLUE,     0);
+    HANDLE_UNIQUE_U("Gift of Eru",   RHF_GIFTERU,     TERM_BLUE,     0);
     HANDLE_UNIQUE("Kinslayer",   RHF_KINSLAYER, TERM_UMBER,   1); // right
     HANDLE_UNIQUE("Treacherous",   RHF_TREACHERY, TERM_UMBER,   1); // right
     HANDLE_UNIQUE("Doom of Mandos",   RHF_CURSE, TERM_UMBER,   1); // right

@@ -412,14 +412,28 @@ void metarun_update_on_exit(bool died, bool escaped, byte new_sils)
     DPRINTF("metarun_update_on_exit(): died=%d, escaped=%d, new_sils=%u",
             died, escaped, new_sils);
 
+    unsigned int flags_h = c_info[p_ptr->phouse].flags;
+    unsigned int flags_r = p_info[p_ptr->prace].flags;        
+
     if (died)
     {
+        bool eru = ((flags_h & RHF_GIFTERU) || (flags_r & RHF_GIFTERU)) != 0;
+        if (!eru) {
         metar.deaths++;
         DPRINTF("  -> deaths incremented to %u", metar.deaths);
+        }
+        else DPRINTF("  -> Gift of Eru applied");
     }
     if (escaped)
     {
-        metar.silmarils += new_sils;
+        bool trch = ((flags_h & RHF_TREACHERY) || (flags_r & RHF_TREACHERY)) != 0;
+        if (trch) {
+            int roll = rand_int(100);
+            DPRINTF("chance=%d%%, roll=%d", 90, roll);
+            if (roll < 90) DPRINTF("Treachery happened");
+            else metar.silmarils += new_sils;     
+        }
+        else metar.silmarils += new_sils;
         DPRINTF("  -> silmarils updated to %u", metar.silmarils);
     }
 
@@ -430,9 +444,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte new_sils)
         DPRINTF("  <- choose_escape_curses() returned");
 
         /* Check for KINSLAYER flag on the player’s House and Race */
-        unsigned int flags_h = c_info[p_ptr->phouse].flags;
-        unsigned int flags_r = p_info[p_ptr->prace].flags;
-        int has_kin = ((flags_h & RHF_KINSLAYER) || (flags_r & RHF_KINSLAYER)) != 0;
+        bool has_kin = ((flags_h & RHF_KINSLAYER) || (flags_r & RHF_KINSLAYER)) != 0;
         DPRINTF("  -> House flags=0x%X, RHF_KINSLAYER=%d", flags_h, has_kin);
 
         if (has_kin)
