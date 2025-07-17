@@ -391,36 +391,87 @@ static void choose_escape_curses(int n)
 }
 }
 
+/* ------------- debug macro ----------------------------------------- */
+#ifdef DEBUG
+# define DPRINTF(fmt, ...)  fprintf(stderr, "[metarun] " fmt "\n", ##__VA_ARGS__)
+#else
+# define DPRINTF(fmt, ...)  ((void)0)
+#endif
+
 
 /* ------------------------------------------------------------------ *
  *  Main entry point used by game exits, deaths, escapes, etc.        *
  *  NOTE: save_metaruns() comes **after** check_run_end() so that     *
  *  any realloc in start_new_metarun() has already finished.          *
  * ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------ *
+ *  Main entry point used by game exits, deaths, escapes, etc.        *
+ * ------------------------------------------------------------------ */
 void metarun_update_on_exit(bool died, bool escaped, byte new_sils)
 {
-    if (died)    metar.deaths++;
-    if (escaped) metar.silmarils += new_sils;
+    DPRINTF("metarun_update_on_exit(): died=%d, escaped=%d, new_sils=%u",
+            died, escaped, new_sils);
 
-    if (escaped && new_sils) {
-        choose_escape_curses(new_sils);
-
-        /* If this character’s House has KINSLAYER, try to slay a hero */
-        if (c_info[p_ptr->phouse].flags & RHF_KINSLAYER) {
-            msg_format("KINSLAYER!");
-            (void) inkey();
-            kinslayer_try_kill(new_sils);
-        }
+    if (died)
+    {
+        metar.deaths++;
+        DPRINTF("  -> deaths incremented to %u", metar.deaths);
+    }
+    if (escaped)
+    {
+        metar.silmarils += new_sils;
+        DPRINTF("  -> silmarils updated to %u", metar.silmarils);
     }
 
-    check_run_end();              /* may realloc or grow `metaruns` */
+    if (escaped && new_sils)
+    {
+        DPRINTF("  -> escaped && new_sils, calling choose_escape_curses()");
+        choose_escape_curses(new_sils);
+        DPRINTF("  <- choose_escape_curses() returned");
 
-    save_metaruns();              /* pointer is guaranteed valid here */
+        /* Check for KINSLAYER flag on the player’s House and Race */
+        unsigned int flags_h = c_info[p_ptr->phouse].flags;
+        unsigned int flags_r = p_info[p_ptr->prace].flags;
+        int has_kin = ((flags_h & RHF_KINSLAYER) || (flags_r & RHF_KINSLAYER)) != 0;
+        DPRINTF("  -> House flags=0x%X, RHF_KINSLAYER=%d", flags_h, has_kin);
+
+        if (has_kin)
+        {
+            DPRINTF("  -> about to msg_format(\"KINSLAYER!\")");
+            msg_format("KINSLAYER!");
+            DPRINTF("  <- msg_format returned");
+
+            DPRINTF("  -> waiting for inkey()");
+            (void)inkey();
+            DPRINTF("  <- inkey() returned");
+
+            DPRINTF("  -> calling kinslayer_try_kill(%u)", new_sils);
+            kinslayer_try_kill(new_sils);
+            DPRINTF("  <- kinslayer_try_kill() returned");
+        }
+        else
+        {
+            DPRINTF("  -> House does not have KINSLAYER, skipping kill");
+        }
+    }
+    else
+    {
+        DPRINTF("  -> either not escaped or no new_sils, skipping KINSLAYER block");
+    }
+
+    DPRINTF("  -> calling check_run_end()");
+    check_run_end();
+    DPRINTF("  <- check_run_end() returned");
+
+    DPRINTF("  -> calling save_metaruns()");
+    save_metaruns();
+    DPRINTF("  <- save_metaruns() returned");
 }
 
 
-void metarun_increment_deaths(void)   { metarun_update_on_exit(TRUE,  FALSE, 0); }
-void metarun_gain_silmarils(byte n) {metarun_update_on_exit(FALSE, TRUE, n);}
+
+// void metarun_increment_deaths(void)   { metarun_update_on_exit(TRUE,  FALSE, 0); }
+// void metarun_gain_silmarils(byte n) {metarun_update_on_exit(FALSE, TRUE, n);}
 
 /* ======================  run-state logic  ====================== */
 /* ------------------------------------------------------------------ *

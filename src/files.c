@@ -18,6 +18,13 @@
 #define INSTRUCT_ROW 21
 #define QUESTION_COL 2
 
+/* ------------- debug macro ----------------------------------------- */
+#ifdef DEBUG
+# define DPRINTF(fmt, ...)  fprintf(stderr, "[metarun] " fmt "\n", ##__VA_ARGS__)
+#else
+# define DPRINTF(fmt, ...)  ((void)0)
+#endif
+
 /*
  * Hack -- drop permissions
  */
@@ -3220,7 +3227,7 @@ void do_cmd_escape(int silmarils)
     flush();
 
     /* Commit suicide */
-    p_ptr->is_dead = TRUE;
+    // p_ptr->is_dead = TRUE;
 
     /* Stop playing */
     p_ptr->playing = FALSE;
@@ -3288,6 +3295,7 @@ void do_cmd_escape(int silmarils)
     my_strcpy(p_ptr->died_from, "ripe old age", sizeof(p_ptr->died_from));
 
     /* Update metarun: escaped with N Silmarils */
+    DPRINTF("called from do_cmd_escape"); 
     metarun_update_on_exit(FALSE,TRUE,silmarils);
 
     print_story();
@@ -3371,7 +3379,8 @@ void do_cmd_save_game(void)
     /* Save the player */
    /* Make sure meta-run data (curses, flags, etc.) is up-to-date even
       when the player merely saves & quits. */
-   metarun_update_on_exit(FALSE, FALSE, (byte)silmarils_possessed());
+   DPRINTF("called from do_cmd_save_game");    
+   metarun_update_on_exit(FALSE, FALSE, 0);
 
     if (save_player())
     {
@@ -3764,152 +3773,54 @@ static int hero_in_scores(const char *name)
     return 0;
 }
 
+/* ------------- debug macro ----------------------------------------- */
+#ifdef DEBUG
+# define DPRINTF(fmt, ...)  fprintf(stderr, "[kinslayer] " fmt "\n", ##__VA_ARGS__)
+#else
+# define DPRINTF(fmt, ...)  ((void)0)
+#endif
 
-/*
- * Kill one random hero per race-priority, chance = 10% per Silmaril.
- */
-void kinslayer_try_kill(byte n_sils)
+#define RACE_PRIORITIES (sizeof(race_priority) / sizeof(race_priority[0]))
+
+/* ------------------------------------------------------------------ */
+/* bit‑test whether RACE can belong to HOUSE                          */
+static int race_has_house(uint16_t race, uint16_t house)
 {
-    // It's good practice to flush stderr to ensure messages appear immediately
-    fprintf(stderr, "DEBUG: kinslayer_try_kill() started.\n"); fflush(stderr);
+    if (house >= z_info->c_max) return 0;
 
-    char buf[1024];
-    path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
-    int pct = n_sils * 30;
-    if (rand_int(100) >= pct)
-    {
-        fprintf(stderr, "DEBUG: Random check failed. Exiting early.\n"); fflush(stderr);
-        return;
-    }
+    const uint16_t word  = house / 32U;
+    const uint16_t shift = house % 32U;
 
-    Term_clear();
-    Term_putstr(0, 3, -1, TERM_YELLOW, "You feel bloodthirsty");
-    (void) inkey();
-
-    fprintf(stderr, "DEBUG: Past 'bloodthirsty' message.\n"); fflush(stderr);
-
-    high_score entry;
-    char *hero_name = NULL;
-
-    for (size_t rp = 0; rp < race_prio_len; rp++)
-    {
-        int target_race = race_priority[rp];
-        fprintf(stderr, "DEBUG: Processing race priority %zu, race index %d.\n", rp, target_race);
-        fflush(stderr);
-
-        // Sanity check for target_race (replace MAX_RACES with your actual constant)
-        if (target_race >= z_info->r_max) {
-             fprintf(stderr, "FATAL: target_race %d is out of bounds (max is %d)!\n", target_race, z_info->r_max);
-             fflush(stderr);
-             continue; // Skip this invalid race
-        }
-
-        int pool_n = 0;
-        int *pool = malloc(z_info->c_max * sizeof(int));
-        if (!pool) return;
-
-        fprintf(stderr, "DEBUG: Populating pool for race %d. Max houses (z_info->c_max) = %d.\n", target_race, z_info->c_max);
-        fflush(stderr);
-
-        for (u16b h = 0; h < z_info->c_max; h++)
-        {
-            // The following line is a common crash point if target_race is bad.
-            if (!(p_info[target_race].flags & (1U << h))) continue;
-
-            // The following lines can crash if 'h' is out of bounds for c_info.
-            fprintf(stderr, "DEBUG: Checking house index h = %u...\n", h);
-            fflush(stderr);
-            
-            const char *hn = quark_str(c_info[h].name);
-            if (strcmp(hn, op_ptr->base_name) == 0) continue;
-
-            pool[pool_n++] = h;
-        }
-
-        fprintf(stderr, "DEBUG: Pool populated with %d potential victims.\n", pool_n);
-        fflush(stderr);
-
-        // ... (The rest of your function logic here) ...
-        // [PASTED THE REST OF THE LOGIC FOR COMPLETENESS]
-
-        while (pool_n > 0)
-        {
-            int idx = rand_int(pool_n);
-            int h   = pool[idx];
-            hero_name = quark_str(c_info[h].name);
-
-            Term_clear();
-            Term_putstr(0, 3, -1, TERM_YELLOW, hero_name);
-            (void) inkey();
-
-            int removed_dead_hero = 0; 
-            if (hero_in_scores(hero_name))
-            {
-                FILE *fp = fopen(buf, "rb");
-                if (fp)
-                {
-                    for (int i = 0; i < MAX_HISCORES; i++)
-                    {
-                        if (fread(&entry, sizeof(entry), 1, fp) != 1) break;
-                        if (strcmp(entry.who, hero_name) == 0)
-                        {
-                            if (highscore_dead(hero_name)) {
-                                pool[idx] = pool[--pool_n];
-                                removed_dead_hero = 1;
-                            }
-                            break;
-                        }
-                    }
-                    fclose(fp);
-                }
-                
-                if (removed_dead_hero) continue;
-            }
-
-            FILE *fp = fopen(buf, "r+b");
-            if (!fp) { free(pool); return; }
-
-            if (hero_in_scores(hero_name))
-            {
-                for (int i = 0; i < MAX_HISCORES; i++)
-                {
-                    if (fread(&entry, sizeof(entry), 1, fp) != 1) break;
-                    if (strcmp(entry.who, hero_name) == 0)
-                    {
-                        fseek(fp, - (long)sizeof(entry), SEEK_CUR);
-                        my_strcpy(entry.how, format("slain by %s", op_ptr->base_name), sizeof(entry.how));
-                        fwrite(&entry, sizeof(entry), 1, fp);
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                fseek(fp, 0, SEEK_END);
-                memset(&entry, 0, sizeof(entry));
-                my_strcpy(entry.who, hero_name, sizeof(entry.who));
-                snprintf(entry.p_r, sizeof(entry.p_r), "%02d", target_race);
-                snprintf(entry.p_h, sizeof(entry.p_h), "%02d", h);
-                my_strcpy(entry.how, format("slain by %s", op_ptr->base_name), sizeof(entry.how));
-                entry.silmarils[0] = '0'; entry.silmarils[1] = '\0';
-                entry.escaped[0] = 'f'; entry.escaped[1] = '\0';
-                entry.morgoth_slain[0] = 'f'; entry.morgoth_slain[1] = '\0';
-                fwrite(&entry, sizeof(entry), 1, fp);
-            }
-            fclose(fp);
-
-            char msg[40];
-            snprintf(msg, sizeof(msg), "You have killed %s", hero_name);
-            Term_putstr(0, 5, -1, TERM_RED, msg);
-            (void)inkey();
-            
-            free(pool);
-            return;
-        }
-        
-        free(pool);
-    }
+    return (p_info[race].choice[word] & (1U << shift)) != 0U;
 }
+
+/* ------------------------------------------------------------------ */
+/* helper – build a dummy hi‑score entry so we can immediately kill it */
+static void build_dummy_entry(high_score *e, uint16_t race, uint16_t house)
+{
+    memset(e, 0, sizeof(*e));
+
+    /* score / gold / turns are all zero so the entry will sort last   */
+    strnfmt(e->what, sizeof e->what, "%s",
+            "Hero of the First Age");
+
+    /* 15‑char player name – house name fits nicely */
+    const char *hname = c_name + c_info[house].name;
+    strnfmt(e->who,  sizeof e->who,  "%-.15s", hname);
+
+    /* race & house: two digits each, zero‑padded                       */
+    strnfmt(e->p_r,  sizeof e->p_r,  "%02u", race);
+    strnfmt(e->p_h,  sizeof e->p_h,  "%02u", house);
+
+    /* Save the date in standard encoded form */
+    time_t now = time(NULL);
+    strftime(e->day, sizeof(e->day), "@%Y%m%d",
+        localtime(&now));
+
+    /* immediate cause of death – will be overwritten below anyway      */
+    strnfmt(e->how,  sizeof e->how, op_ptr->base_name);
+}
+
 
 /*
  * Prints a nice comma spaced natural number
@@ -4781,6 +4692,145 @@ void show_scores(void)
     }
 }
 
+/* ------------------------------------------------------------------ */
+// Handle Kinslayer ability
+void kinslayer_try_kill(uint8_t n_sils)
+{
+    DPRINTF("entered, n_sils=%u", n_sils);
+
+    /* 1) Probability check */
+    static const int pct_tab[4] = { 0, 20, 50, 95 };
+    if (n_sils == 0) { DPRINTF("no Silmarils → return"); return; }
+    if (n_sils > 3)  n_sils = 3;
+    int pct = pct_tab[n_sils];
+    int roll = rand_int(100);
+    DPRINTF("chance=%d%%, roll=%d", pct, roll);
+    if (roll >= pct) { DPRINTF("chance failed → return"); return; }
+
+    /* 2) Build path to scores.raw */
+    char score_path[1024];
+    path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
+
+    /* 3) Open global highscore_fd if not already open */
+    if (highscore_fd < 0) {
+        DPRINTF("highscore_fd < 0, opening %s", score_path);
+        safe_setuid_grab();
+        highscore_fd = open(score_path, O_RDWR | O_CREAT, 0644);
+        safe_setuid_drop();
+        if (highscore_fd < 0) {
+            quit(format("Cannot open %s (%d)", score_path, errno));
+            return;  /* NOTREACHED */
+        }
+        DPRINTF("opened highscore_fd=%d", highscore_fd);
+    }
+
+    /* 4) Determine number of records */
+    off_t file_end = lseek(highscore_fd, 0, SEEK_END);
+    int n_recs    = (int)(file_end / sizeof(high_score));
+    DPRINTF("hi-score file size=%lld, records=%d",
+            (long long)file_end, n_recs);
+
+    /* 5) Iterate races in priority order */
+    for (size_t i = 0; i < RACE_PRIORITIES; ++i) {
+        uint16_t race = race_priority[i];
+        DPRINTF("race priority[%zu]=%u", i, race);
+
+        /* 5.a) Build pool of eligible houses */
+        uint16_t *pool = malloc(z_info->c_max * sizeof *pool);
+        if (!pool) {
+            close(highscore_fd);
+            quit("Out of memory in kinslayer_try_kill()");
+        }
+        size_t pool_n = 0;
+        for (uint16_t h = 0; h < z_info->c_max; ++h) {
+            if (!race_has_house(race, h)) continue;
+            const char *hname = c_name + c_info[h].name;
+            if (strcmp(hname, op_ptr->base_name) == 0) continue;
+            pool[pool_n++] = h;
+        }
+        DPRINTF("race %u: %zu eligible houses", race, pool_n);
+        if (pool_n == 0) { free(pool); continue; }
+
+        /* 5.b) Pick one house */
+        uint16_t hsel  = pool[rand_int((int)pool_n)];
+        const char *hname = c_name + c_info[hsel].name;
+        free(pool);
+        DPRINTF("chosen house %u (%s)", hsel, hname);
+
+        /* 5.c) Scan for existing entry */
+        int hit = -1;
+        high_score entry;
+        for (int r = 0; r < n_recs; ++r) {
+            lseek(highscore_fd, (off_t)r * sizeof entry, SEEK_SET);
+            if (read(highscore_fd, &entry, sizeof entry) != sizeof entry) break;
+            if (entry.p_r[0] == '0' + (race/10) &&
+                entry.p_r[1] == '0' + (race%10) &&
+                entry.p_h[0] == '0' + (hsel/10) &&
+                entry.p_h[1] == '0' + (hsel%10))
+            {
+                hit = r;
+                break;
+            }
+        }
+        DPRINTF("scan: entry_offset=%d", hit);
+
+        if (hit >= 0) {
+            /* 5.d) Found – check alive */
+            if (highscore_dead(entry.how)) {
+                DPRINTF("hero already dead – skip");
+                continue;
+            }
+            /* kill existing */
+            lseek(highscore_fd, (off_t)hit * sizeof entry, SEEK_SET);
+            read(highscore_fd, &entry, sizeof entry);
+            strnfmt(entry.how, sizeof entry.how, op_ptr->base_name);
+            lseek(highscore_fd, (off_t)hit * sizeof entry, SEEK_SET);
+            write(highscore_fd, &entry, sizeof entry);
+            DPRINTF("slain existing: \"%s\"", entry.who);
+        }
+        else {
+            /* 5.e) No record – insert dummy */
+            high_score dummy;
+            build_dummy_entry(&dummy, race, hsel);
+            DPRINTF("no existing record – inserting dummy \"%s\"", dummy.who);
+
+            /* position for add */
+            highscore_seek(0);
+            int slot = highscore_add(&dummy);
+            if (slot < 0)
+                DPRINTF("error: highscore_add() failed");
+            else
+                DPRINTF("dummy entry \"%s\" inserted at slot %d",
+                        dummy.who, slot);
+        }
+
+        /* 6) Notify and exit after first kill */
+        Term_clear();
+        Term_putstr(0, 3, -1, TERM_RED,
+                    format("You have killed a hero of House %s!", hname));
+        (void)inkey();
+
+        /* 7) Close the descriptor and reset */
+        safe_setuid_grab();
+        if (close(highscore_fd) != 0)
+            DPRINTF("warning: close(highscore_fd=%d) failed, errno=%d",
+                    highscore_fd, errno);
+        safe_setuid_drop();
+        highscore_fd = -1;
+
+        return;
+    }
+
+    /* 8) No kill performed – close and exit */
+    safe_setuid_grab();
+    if (close(highscore_fd) != 0)
+        DPRINTF("warning: close(highscore_fd=%d) failed, errno=%d",
+                highscore_fd, errno);
+    safe_setuid_drop();
+    highscore_fd = -1;
+    DPRINTF("finished – no kill performed");
+}
+
 /*
  * Hack -- Dump a character description file
  *
@@ -5302,6 +5352,7 @@ static void close_game_aux(void)
     }
 
      /* One more corpse recorded for this metarun */
+    DPRINTF("called from close_game_aux"); 
     metarun_update_on_exit(TRUE,FALSE,0);
 
     // Here we print storytelling message

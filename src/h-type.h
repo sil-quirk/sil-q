@@ -1,6 +1,7 @@
 /* File: h-type.h */
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifndef INCLUDED_H_TYPE_H
 #define INCLUDED_H_TYPE_H
@@ -36,8 +37,8 @@ typedef int errr;
 /*
  * Hack -- prevent problems with C++
  */
-#undef bool
-#define bool bool_hack
+// #undef bool
+// #define bool bool_hack
 
 /* Note that unsigned values can cause math problems */
 /* An unsigned byte of memory */
@@ -45,7 +46,7 @@ typedef unsigned char byte;
 
 /* Note that a bool is smaller than a full "int" */
 /* Simple True/False type */
-typedef char bool;
+// typedef char bool;
 
 /* An unsigned, "standard" integer (often pre-defined) */
 typedef unsigned int uint;
