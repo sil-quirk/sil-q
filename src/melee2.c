@@ -699,7 +699,7 @@ int cave_passable_mon(monster_type* m_ptr, int y, int x, bool* bash)
     if (feat == FEAT_GLYPH)
     {
         // a simulated Will check
-        int difficulty = (c_info[p_ptr->phouse].flags & UNQ_SNG_MEL) ? 40 : 20
+        int difficulty = (c_info[p_ptr->phouse].flags & UNQ_SNG_MEL) ? 40 : 20;
         int break_chance = success_chance(10, monster_skill(m_ptr, S_WIL), difficulty);
 
         // can always attack the player if the player is standing on the glyph

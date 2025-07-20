@@ -1616,7 +1616,17 @@ void do_cmd_ability_screen(void)
                     {
                         if (prereqs(skilltype, abilitynum))
                         {
+                            // Normalize flag check to 0 or 1
+                            int is_free = (c_info[p_ptr->phouse].flags & RHF_FREE) ? 1 : 0;
+                            int unit_cost = 500 - 200 * is_free;
 
+                            // Calculate base cost
+                            int exp_cost = (abilities_in_skill(skilltype) + 1) * unit_cost;
+
+                            // Subtract free abilities granted by affinity
+                            exp_cost -= unit_cost * affinity_level(skilltype);
+
+                            // Clamp to zero
                             if (exp_cost < 0)
                                 exp_cost = 0;
 
