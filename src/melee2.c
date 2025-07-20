@@ -699,7 +699,8 @@ int cave_passable_mon(monster_type* m_ptr, int y, int x, bool* bash)
     if (feat == FEAT_GLYPH)
     {
         // a simulated Will check
-        int break_chance = success_chance(10, monster_skill(m_ptr, S_WIL), 20);
+        int difficulty = (c_info[p_ptr->phouse].flags & UNQ_SNG_MEL) ? 40 : 20
+        int break_chance = success_chance(10, monster_skill(m_ptr, S_WIL), difficulty);
 
         // can always attack the player if the player is standing on the glyph
         if ((p_ptr->py == y) && (p_ptr->px == x))
@@ -5613,6 +5614,7 @@ void calc_morale(monster_type* m_ptr)
 
     // reduce morale for the Majesty ability
     difference = MAX(p_ptr->skill_use[S_WIL] - monster_skill(m_ptr, S_WIL), 0);
+    if (c_info[p_ptr->phouse].flags_u & UNQ_WIL_FIN) difference = MAX(2*p_ptr->skill_use[S_WIL] - monster_skill(m_ptr, S_WIL), 0);
     if (p_ptr->active_ability[S_WIL][WIL_MAJESTY])
         morale -= difference / 2 * 10;
 

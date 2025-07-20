@@ -1439,10 +1439,17 @@ int abilities_menu2(int skilltype, int* highlight)
 
                 if (prereqs(skilltype, b_ptr->abilitynum))
                 {
-                    int exp_cost = (abilities_in_skill(skilltype) + 1) * 500;
+                    // Normalize flag check to 0 or 1
+                    int is_free = (c_info[p_ptr->phouse].flags & RHF_FREE) ? 1 : 0;
+                    int unit_cost = 500 - 200 * is_free;
 
-                    // give free abilties based on affinities
-                    exp_cost -= 500 * affinity_level(skilltype);
+                    // Calculate base cost
+                    int exp_cost = (abilities_in_skill(skilltype) + 1) * unit_cost;
+
+                    // Subtract free abilities granted by affinity
+                    exp_cost -= unit_cost * affinity_level(skilltype);
+
+                    // Clamp to zero
                     if (exp_cost < 0)
                         exp_cost = 0;
 
@@ -1609,10 +1616,8 @@ void do_cmd_ability_screen(void)
                     {
                         if (prereqs(skilltype, abilitynum))
                         {
-                            int exp_cost
                                 = (abilities_in_skill(skilltype) + 1) * 500;
 
-                            // give free abilties based on affinities
                             exp_cost -= 500 * affinity_level(skilltype);
                             if (exp_cost < 0)
                                 exp_cost = 0;
@@ -1663,6 +1668,7 @@ void do_cmd_ability_screen(void)
                                     return_to_abilities = FALSE;
                                 }
                                 // special menu for Oath
+                                // special menu for Oath //XXX Oaths
                                 if ((skilltype == S_WIL)
                                     && (abilitynum == WIL_OATH))
                                 {

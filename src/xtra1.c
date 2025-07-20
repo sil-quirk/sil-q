@@ -2801,7 +2801,8 @@ static void calc_bonuses(void)
     // Apply song effects that modify skills
     if (singing(SNG_STAYING))
     {
-        p_ptr->skill_misc_mod[S_WIL] += ability_bonus(S_SNG, SNG_STAYING) / 2;
+        if (c_info[p_ptr->phouse].flags_u & UNQ_SNG_FIN) p_ptr->skill_misc_mod[S_WIL] += ability_bonus(S_SNG, SNG_STAYING);
+        else p_ptr->skill_misc_mod[S_WIL] += ability_bonus(S_SNG, SNG_STAYING) / 2;
     }
     if (singing(SNG_FREEDOM))
     {

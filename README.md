@@ -6,10 +6,23 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 Road Map
 -Implement main curses (done)
 -Implement common RHF flags (done)
+--Cheap cost (done)
 -Add more debuging functions (done)
 -Add unique RHF flags
+--Feanor
+--Telchar
+--Gamil
+--Melian (done)
+--Thingol
+--Tuor (done)
+--Earendil
+-Figure out last abilities and balance tweaks
+--All starting abilities
+--Multiple starting abilities (done)
 -Polish menus find bugs
 Release closed alpha 0.5
+-Balance and bug tweaks
+Release alpha 0.6
 
 ## Compiling Instructions
 

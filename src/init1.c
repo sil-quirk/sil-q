@@ -45,6 +45,13 @@
 #include "init.h"
 #include "metarun.h"
 
+/* ------------- debug macro ----------------------------------------- */
+#ifdef DEBUG
+# define DPRINTF(fmt, ...)  fprintf(stderr, "[init] " fmt "\n", ##__VA_ARGS__)
+#else
+# define DPRINTF(fmt, ...)  ((void)0)
+#endif
+
 /* run-type template loader ---------------------------------------- */
 header rt_head;       /* the one and only definition */
 
@@ -307,7 +314,7 @@ static flag_name info_flags[] = {
     { "SNG_PENALTY", RHF, RHF_SNG_PENALTY },
     { "GIFTERU", RHF, RHF_GIFTERU }, { "KINSLAYER", RHF, RHF_KINSLAYER },
     { "CURSE", RHF, RHF_CURSE }, { "TREACHERY", RHF, RHF_TREACHERY },
-    { "RHFXXX24", RHF, RHF_RHFXXX24 }, { "RHFXXX21", RHF, RHF_RHFXXX25 },
+    { "FREE", RHF, RHF_FREE }, { "RHFXXX21", RHF, RHF_RHFXXX25 },
     { "RHFXXX25", RHF, RHF_RHFXXX26 }, { "RHFXXX26", RHF, RHF_RHFXXX27 },
     { "RHFXXX27", RHF, RHF_RHFXXX28 }, { "RHFXXX28", RHF, RHF_RHFXXX29 },
     { "RHFXXX29", RHF, RHF_RHFXXX29 }, { "RHFXXX30", RHF, RHF_RHFXXX30 },
@@ -350,6 +357,9 @@ static flag_name info_flags[] = {
     { "HALLU", CUR, CUR_HALLU},
     // Unique flags
     {"EARENDIL", UNQ, UNQ_EARENDIL}, { "SMT_FEANOR", UNQ, UNQ_SMT_FEANOR },
+    { "WIL_FIN", UNQ, UNQ_WIL_FIN }, { "SNG_FIN", UNQ, UNQ_SNG_FIN },
+    { "SNG_LUT", UNQ, UNQ_SNG_LUT }, { "WIL_TUOR", UNQ, UNQ_WIL_TUOR },
+    { "SNG_MEL", UNQ, UNQ_SNG_MEL }
 
 };
 
@@ -367,7 +377,7 @@ static cptr a_info_act[ACT_MAX] = { "ILLUMINATION", "MAGIC_MAP", "CLAIRVOYANCE",
     "TELE_AWAY", "WOR", "CONFUSE", "PROBE", "FIREBRAND", "STARLIGHT",
     "MANA_BOLT", "BERSERKER", "RES_ACID", "RES_ELEC", "RES_FIRE", "RES_COLD",
     "RES_POIS" };
-
+    
 /*** Initialize from ascii template files ***/
 
 /*
@@ -3288,6 +3298,291 @@ errr parse_p_info(char* buf, header* head)
 /*
  * Initialize the "c_info" array, by parsing an ascii "template" file
  */
+// errr parse_c_info(char* buf, header* head)
+// {
+//     int i, j;
+//     static int cur_equip = 0;
+
+//     char *s, *t;
+
+//     /* Current entry */
+//     static player_house* ph_ptr = NULL;
+
+//     DPRINTF("Parsing houses");
+
+//     /* Process 'N' for "New/Number/Name" */
+//     if (buf[0] == 'N')
+//     {
+//         char *s;
+//         int   idx, j;
+
+//         /* Find the colon before the name */
+//         s = strchr(buf + 2, ':');
+//         if (!s) return (PARSE_ERROR_GENERIC);
+
+//         /* Split and advance to the name text */
+//         *s++ = '\0';
+//         if (!*s) return (PARSE_ERROR_GENERIC);
+
+//         /* Parse the index */
+//         idx = atoi(buf + 2);
+//         if (idx <= error_idx)            return (PARSE_ERROR_NON_SEQUENTIAL_RECORDS);
+//         if (idx >= head->info_num)       return (PARSE_ERROR_TOO_MANY_ENTRIES);
+//         error_idx = idx;
+
+//         /* Point at this slot */
+//         ph_ptr = (player_house*)head->info_ptr + idx;
+
+//         /* Store the name offset */
+//         if (!(ph_ptr->name = add_name(head, s)))
+//             return (PARSE_ERROR_OUT_OF_MEMORY);
+
+//         /* Debug: announce new house and its name */
+//         DPRINTF("New house #%d: \"%s\"", idx,
+//                 head->name_ptr + ph_ptr->name);
+
+//         /* Sentinel‐initialize all ability slots to “empty” */
+//         for (j = 0; j < HOUSE_ABILITY_MAX; j++)
+//         {
+//             ph_ptr->a_adj[j][0] = -1;
+//             ph_ptr->a_adj[j][1] = -1;
+//         }
+//         DPRINTF("  a_adj slots 0..%d set to -1", HOUSE_ABILITY_MAX - 1);
+//     }
+
+//     /* Process 'A' for "Alternate Name" */
+//     else if (buf[0] == 'A')
+//     {
+//         /* Find the colon before the name */
+//         s = strchr(buf, ':');
+
+//         /* Verify that colon */
+//         if (!s)
+//             return (PARSE_ERROR_GENERIC);
+
+//         /* Nuke the colon, advance to the name */
+//         *s++ = '\0';
+
+//         /* Paranoia -- require a name */
+//         if (!*s)
+//             return (PARSE_ERROR_GENERIC);
+
+//         /* Store the name */
+//         if (!(ph_ptr->alt_name = add_name(head, s)))
+//             return (PARSE_ERROR_OUT_OF_MEMORY);
+//     }
+
+//     /* Process 'B' for "Short Name" */
+//     else if (buf[0] == 'B')
+//     {
+//         /* Find the colon before the name */
+//         s = strchr(buf, ':');
+
+//         /* Verify that colon */
+//         if (!s)
+//             return (PARSE_ERROR_GENERIC);
+
+//         /* Nuke the colon, advance to the name */
+//         *s++ = '\0';
+
+//         /* Paranoia -- require a name */
+//         if (!*s)
+//             return (PARSE_ERROR_GENERIC);
+
+//         /* Store the name */
+//         if (!(ph_ptr->short_name = add_name(head, s)))
+//             return (PARSE_ERROR_OUT_OF_MEMORY);
+//     }
+
+//     /* Process 'S' for "Stats" (one line only) */
+//     else if (buf[0] == 'S')
+//     {
+//         int adj;
+
+//         /* There better be a current ph_ptr */
+//         if (!ph_ptr)
+//             return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+//         /* Start the string */
+//         s = buf + 1;
+
+//         /* For each stat */
+//         for (j = 0; j < A_MAX; j++)
+//         {
+//             /* Find the colon before the subindex */
+//             s = strchr(s, ':');
+
+//             /* Verify that colon */
+//             if (!s)
+//                 return (PARSE_ERROR_GENERIC);
+
+//             /* Nuke the colon, advance to the subindex */
+//             *s++ = '\0';
+
+//             /* Get the value */
+//             adj = atoi(s);
+
+//             /* Save the value */
+//             ph_ptr->h_adj[j] = adj;
+
+//             /* Next... */
+//             continue;
+//         }
+//     }
+
+//     /* Hack -- Process 'F' for flags */
+//     else if (buf[0] == 'F')
+//     {
+//         /* There better be a current pr_ptr */
+//         if (!ph_ptr)
+//             return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+//         /* Parse every entry textually */
+//         for (s = buf + 2; *s;)
+//         {
+//             /* Find the end of this entry */
+//             for (t = s; *t && (*t != ' ') && (*t != '|'); ++t) /* loop */
+//                 ;
+
+//             /* Nuke and skip any dividers */
+//             if (*t)
+//             {
+//                 *t++ = '\0';
+//                 while ((*t == ' ') || (*t == '|'))
+//                     t++;
+//             }
+
+//             /* Parse this entry */
+//             if (0 != grab_one_house_flag(ph_ptr, s))
+//                 return (PARSE_ERROR_INVALID_FLAG);
+
+//             /* Start the next entry */
+//             s = t;
+//         }
+//     }
+
+//     /* ------------------------------------------------------------ */
+//     /* U: list of Unique flags        */
+//     /* ------------------------------------------------------------ */
+//     else if (buf[0] == 'U')
+//     {
+//         if (!ph_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+
+//         for (s = buf + 2; *s; )
+//         {
+//             /* token = [^ or |]*  */
+//             for (t = s; *t && (*t != ' ') && (*t != '|'); ++t) ;
+//             if (*t)
+//             {
+//                 *t++ = '\0';
+//                 while ((*t == ' ') || (*t == '|')) t++;
+//             }
+
+//             if (grab_one_house_uflag(ph_ptr, s))
+//                 return PARSE_ERROR_INVALID_FLAG;
+
+//             s = t;
+//         }
+//     }
+
+//         /* Process 'E' for "Starting Equipment" */
+//     else if (buf[0] == 'E')
+//     {
+//         int tval, sval, min, max;
+
+//         start_item* e_ptr;
+
+//         /* There better be a current pr_ptr */
+//         if (!ph_ptr)
+//             return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+//         /* Access the item */
+//         e_ptr = &ph_ptr->start_items[cur_equip];
+
+//         /* Scan for the values */
+//         if (4 != sscanf(buf + 2, "%d:%d:%d:%d", &tval, &sval, &min, &max))
+//             return (PARSE_ERROR_GENERIC);
+
+//         if ((min < 0) || (max < 0) || (min > 99) || (max > 99))
+//             return (PARSE_ERROR_INVALID_ITEM_NUMBER);
+
+//         /* Save the values */
+//         e_ptr->tval = tval;
+//         e_ptr->sval = sval;
+//         e_ptr->min = min;
+//         e_ptr->max = max;
+
+//         /* Next item */
+//         cur_equip++;
+
+//         /* Limit number of starting items */
+//         if (cur_equip > MAX_START_ITEMS)
+//             return (PARSE_ERROR_GENERIC);
+//     }
+
+
+//     /* Process 'D' for "Description" */
+//     else if (buf[0] == 'D')
+//     {
+//         /* There better be a current ph_ptr */
+//         if (!ph_ptr)
+//             return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+//         /* Get the text */
+//         s = buf + 2;
+
+//         /* Store the text */
+//         if (!add_text(&(ph_ptr->text), head, s))
+//             return (PARSE_ERROR_OUT_OF_MEMORY);
+//     }
+//     /* Process 'C' for house ability entries */
+//     else if (buf[0] == 'C')
+//     {
+//         char *t = buf + 1;
+//         int   pair = 0;
+
+//         if (!ph_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+//         /* Debug: which house we’re parsing into */
+//         DPRINTF("Parsing abilities for house \"%s\"…",
+//                 head->name_ptr + ph_ptr->name);
+
+//         /* Read up to HOUSE_ABILITY_MAX of “:stat:ability” pairs */
+//         while (pair < HOUSE_ABILITY_MAX)
+//         {
+//             /* stat */
+//             t = strchr(t, ':');
+//             if (!t) break;
+//             *t++ = '\0';
+//             ph_ptr->a_adj[pair][0] = (s16b)atoi(t);
+
+//             /* ability */
+//             t = strchr(t, ':');
+//             if (!t) break;
+//             *t++ = '\0';
+//             ph_ptr->a_adj[pair][1] = (s16b)atoi(t);
+
+//             DPRINTF("  parsed slot %d -> stat=%d ability=%d",
+//                     pair,
+//                     ph_ptr->a_adj[pair][0],
+//                     ph_ptr->a_adj[pair][1]);
+
+//             pair++;
+//         }
+
+//         DPRINTF("  total %d ability pairs parsed", pair);
+//     }
+
+//     else
+//     {
+//         /* Oops */
+//         return (PARSE_ERROR_UNDEFINED_DIRECTIVE);
+//     }
+
+//     /* Success */
+//     return (0);
+// }
+
 errr parse_c_info(char* buf, header* head)
 {
     int i, j;
@@ -3298,43 +3593,59 @@ errr parse_c_info(char* buf, header* head)
     /* Current entry */
     static player_house* ph_ptr = NULL;
 
+    DPRINTF("Parsing houses");
+
     /* Process 'N' for "New/Number/Name" */
     if (buf[0] == 'N')
     {
+        char *s;
+        int   idx, j;
+
         /* Find the colon before the name */
         s = strchr(buf + 2, ':');
+        if (!s) return (PARSE_ERROR_GENERIC);
 
-        /* Verify that colon */
-        if (!s)
-            return (PARSE_ERROR_GENERIC);
-
-        /* Nuke the colon, advance to the name */
+        /* Split and advance to the name text */
         *s++ = '\0';
+        if (!*s) return (PARSE_ERROR_GENERIC);
 
-        /* Paranoia -- require a name */
-        if (!*s)
-            return (PARSE_ERROR_GENERIC);
+        /* Parse the index */
+        idx = atoi(buf + 2);
+        if (idx <= error_idx)            return (PARSE_ERROR_NON_SEQUENTIAL_RECORDS);
+        if (idx >= head->info_num)       return (PARSE_ERROR_TOO_MANY_ENTRIES);
+        error_idx = idx;
 
-        /* Get the index */
-        i = atoi(buf + 2);
+        /* Point at this slot */
+        ph_ptr = (player_house*)head->info_ptr + idx;
 
-        /* Verify information */
-        if (i <= error_idx)
-            return (PARSE_ERROR_NON_SEQUENTIAL_RECORDS);
+        /* RESET equipment counter for new house */
+        cur_equip = 0;
 
-        /* Verify information */
-        if (i >= head->info_num)
-            return (PARSE_ERROR_TOO_MANY_ENTRIES);
-
-        /* Save the index */
-        error_idx = i;
-
-        /* Point at the "info" */
-        ph_ptr = (player_house*)head->info_ptr + i;
-
-        /* Store the name */
+        /* Store the name offset */
         if (!(ph_ptr->name = add_name(head, s)))
             return (PARSE_ERROR_OUT_OF_MEMORY);
+
+        /* Debug: announce new house and its name */
+        DPRINTF("New house #%d: \"%s\"", idx,
+                head->name_ptr + ph_ptr->name);
+
+        /* Sentinel‐initialize all ability slots to "empty" */
+        for (j = 0; j < HOUSE_ABILITY_MAX; j++)
+        {
+            ph_ptr->a_adj[j][0] = -1;
+            ph_ptr->a_adj[j][1] = -1;
+        }
+        DPRINTF("  a_adj slots 0..%d set to -1", HOUSE_ABILITY_MAX - 1);
+
+        /* Initialize starting items array */
+        for (j = 0; j < MAX_START_ITEMS; j++)
+        {
+            ph_ptr->start_items[j].tval = 0;
+            ph_ptr->start_items[j].sval = 0;
+            ph_ptr->start_items[j].min = 0;
+            ph_ptr->start_items[j].max = 0;
+        }
+        DPRINTF("  start_items array initialized");
     }
 
     /* Process 'A' for "Alternate Name" */
@@ -3483,6 +3794,13 @@ errr parse_c_info(char* buf, header* head)
         if (!ph_ptr)
             return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
+        /* Check if we've exceeded the maximum number of items */
+        if (cur_equip >= MAX_START_ITEMS)
+        {
+            DPRINTF("Warning: Too many starting items for house (max %d), ignoring", MAX_START_ITEMS);
+            return (PARSE_ERROR_GENERIC);
+        }
+
         /* Access the item */
         e_ptr = &ph_ptr->start_items[cur_equip];
 
@@ -3499,12 +3817,12 @@ errr parse_c_info(char* buf, header* head)
         e_ptr->min = min;
         e_ptr->max = max;
 
+        /* Debug: show what we parsed */
+        DPRINTF("  Equipment slot %d: tval=%d sval=%d min=%d max=%d", 
+                cur_equip, tval, sval, min, max);
+
         /* Next item */
         cur_equip++;
-
-        /* Limit number of starting items */
-        if (cur_equip > MAX_START_ITEMS)
-            return (PARSE_ERROR_GENERIC);
     }
 
 
@@ -3522,40 +3840,55 @@ errr parse_c_info(char* buf, header* head)
         if (!add_text(&(ph_ptr->text), head, s))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
+    /* Process 'C' for house ability entries */
     else if (buf[0] == 'C')
     {
-        int adj;  
+        char *t = buf + 2; /* Skip 'C:' */
+        int   pair = 0;
+        char *stat_start, *ability_start;
 
-        /* There better be a current ph_ptr */
-        if (!ph_ptr)
-            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+        if (!ph_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Start the string */
-        s = buf + 1;
+        /* Debug: which house we're parsing into */
+        DPRINTF("Parsing abilities for house \"%s\" from line: %s",
+                head->name_ptr + ph_ptr->name, buf);
 
-        /* For each stat */
-        for (j = 0; j < 2; j++)
+        /* Read up to HOUSE_ABILITY_MAX of ":stat:ability" pairs */
+        while (pair < HOUSE_ABILITY_MAX && t && *t)
         {
-            /* Find the colon before the subindex */
-            s = strchr(s, ':');
+            /* Find first colon for stat */
+            if (*t == ':') t++; /* Skip leading colon if present */
+            stat_start = t;
+            
+            t = strchr(t, ':');
+            if (!t) break;
+            *t++ = '\0';
+            
+            if (!*stat_start) break; /* Empty stat */
+            ph_ptr->a_adj[pair][0] = (s16b)atoi(stat_start);
 
-            /* Verify that colon */
-            if (!s)
-                return (PARSE_ERROR_GENERIC);
+            /* Find second colon for ability */
+            ability_start = t;
+            t = strchr(t, ':');
+            if (t) {
+                *t++ = '\0';
+            }
+            
+            if (!*ability_start) break; /* Empty ability */
+            ph_ptr->a_adj[pair][1] = (s16b)atoi(ability_start);
 
-            /* Nuke the colon, advance to the subindex */
-            *s++ = '\0';
+            DPRINTF("  parsed slot %d -> stat=%d ability=%d",
+                    pair,
+                    ph_ptr->a_adj[pair][0],
+                    ph_ptr->a_adj[pair][1]);
 
-            /* Get the value */
-            adj = atoi(s);
-
-            /* Save the value */
-            ph_ptr->a_adj[j] = adj;
-
-            /* Next... */
-            continue;
+            pair++;
+            
+            /* If no more colons, we're done */
+            if (!t) break;
         }
 
+        DPRINTF("  total %d ability pairs parsed", pair);
     }
 
     else

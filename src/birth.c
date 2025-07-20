@@ -27,6 +27,111 @@
 #define TOTAL_AUX_COL 35
 #define INVALID_CHOICE 255
 
+/* House ability names */
+static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
+{
+    [S_MEL] = {
+        [MEL_POWER]            = "Power",
+        [MEL_FINESSE]          = "Finesse",
+        [MEL_KNOCK_BACK]       = "Knock Back",
+        [MEL_POLEARMS]         = "Polearm Mastery",
+        [MEL_CHARGE]           = "Charge",
+        [MEL_FOLLOW_THROUGH]   = "Follow-Through",
+        [MEL_IMPALE]           = "Impale",
+        [MEL_CONTROL]          = "Subtlety",
+        [MEL_WHIRLWIND_ATTACK] = "Whirlwind Attack",
+        [MEL_ZONE_OF_CONTROL]  = "Zone of Control",
+        [MEL_SMITE]            = "Smite",
+        [MEL_TWO_WEAPON]       = "Two Weapon Fighting",
+        [MEL_RAPID_ATTACK]     = "Rapid Attack",
+        [MEL_STR]              = NULL,  /* if you care about STR */
+    },
+    [S_ARC] = {
+        [ARC_ROUT]        = "Rout",
+        [ARC_FLETCHERY]   = "Fletchery",
+        [ARC_POINT_BLANK] = "Point Blank Archery",
+        [ARC_PUNCTURE]    = "Puncture",
+        [ARC_AMBUSH]      = "Ambush",
+        [ARC_VERSATILITY] = "Versatility",
+        [ARC_CRIPPLING]   = "Crippling Shot",
+        [ARC_DEADLY_HAIL] = "Deadly Hail",
+        [ARC_DEX]         = NULL,
+    },
+    [S_EVN] = {
+        [EVN_DODGING]            = "Dodging",
+        [EVN_BLOCKING]           = "Blocking",
+        [EVN_PARRY]              = "Parry",
+        [EVN_CROWD_FIGHTING]     = "Crowd Fighting",
+        [EVN_LEAPING]            = "Leaping",
+        [EVN_SPRINTING]          = "Sprinting",
+        [EVN_FLANKING]           = "Flanking",
+        [EVN_HEAVY_ARMOUR]       = "Heavy Armour Use",
+        [EVN_RIPOSTE]            = "Riposte",
+        [EVN_CONTROLLED_RETREAT] = "Controlled Retreat",
+        [EVN_DEX]                = NULL,
+    },
+    [S_STL] = {
+        [STL_DISGUISE]          = "Disguise",
+        [STL_ASSASSINATION]     = "Assassination",
+        [STL_CRUEL_BLOW]        = "Cruel Blow",
+        [STL_EXCHANGE_PLACES]   = "Exchange Places",
+        [STL_OPPORTUNIST]       = "Opportunist",
+        [STL_VANISH]            = "Vanish",
+        [STL_DEX]               = NULL,
+    },
+    [S_PER] = {
+        [PER_QUICK_STUDY]    = "Quick Study",
+        [PER_FOCUSED_ATTACK] = "Focused Attack",
+        [PER_KEEN_SENSES]    = "Keen Senses",
+        [PER_CONCENTRATION]  = "Concentration",
+        [PER_ALCHEMY]        = "Alchemy",
+        [PER_BANE]           = "Bane",
+        [PER_OUTWIT]         = "Outwit",
+        [PER_LISTEN]         = "Listen",
+        [PER_MASTER_HUNTER]  = "Master Hunter",
+        [PER_GRA]            = NULL,
+    },
+    [S_WIL] = {
+        [WIL_CURSE_BREAKING]        = "Curse Breaking",
+        [WIL_CHANNELING]            = "Channeling",
+        [WIL_STRENGTH_IN_ADVERSITY] = "Strength in Adversity",
+        [WIL_FORMIDABLE]            = "Formidable",
+        [WIL_INNER_LIGHT]           = "Inner Light",
+        [WIL_INDOMITABLE]           = "Indomitable",
+        [WIL_OATH]                  = "Oath",
+        [WIL_POISON_RESISTANCE]     = "Poison Resistance",
+        [WIL_VENGEANCE]             = "Vengeance",
+        [WIL_MAJESTY]               = "Majesty",
+        [WIL_CON]                   = NULL,
+    },
+    [S_SMT] = {
+        [SMT_WEAPONSMITH]   = "Weaponsmith",
+        [SMT_ARMOURSMITH]   = "Armoursmith",
+        [SMT_JEWELLER]      = "Jeweller",
+        [SMT_ENCHANTMENT]   = "Enchantment",
+        [SMT_EXPERTISE]     = "Expertise",
+        [SMT_ARTEFACT]      = "Artifice",
+        [SMT_MASTERPIECE]   = "Masterpiece",
+        [SMT_GRA]           = NULL,
+    },
+    [S_SNG] = {
+        [SNG_ELBERETH]      = "Song of Elbereth",
+        [SNG_CHALLENGE]     = "Song of Challenge",
+        [SNG_DELVINGS]      = "Song of Delvings",
+        [SNG_FREEDOM]       = "Song of Freedom",
+        [SNG_SILENCE]       = "Song of Silence",
+        [SNG_STAUNCHING]    = "Song of Staunching",
+        [SNG_THRESHOLDS]    = "Song of Thresholds",
+        [SNG_TREES]         = "Song of the Trees",
+        [SNG_SLAYING]       = "Song of Slaying",
+        [SNG_STAYING]       = "Song of Staying",
+        [SNG_LORIEN]        = "Song of Lorien",
+        [SNG_MASTERY]       = "Song of Mastery",
+        [SNG_WOVEN_THEMES]  = "Woven Themes",
+        [SNG_GRA]           = NULL,
+    },
+};
+
 /*
  * Forward declare
  */
@@ -1117,187 +1222,72 @@ static void print_rh_flags(int race, int house, int col, int row)
 
     // Unique skills: SIDE = 0 (left), 1 (right)
     HANDLE_UNIQUE_U("Master Artisan",   UNQ_SMT_FEANOR,     TERM_BLUE,     0);
-    HANDLE_UNIQUE_U("Gift of Eru",   RHF_GIFTERU,     TERM_BLUE,     0);
+    HANDLE_UNIQUE_U("Chosen of Ulmo",   UNQ_WIL_TUOR, TERM_BLUE,   0);
+    HANDLE_UNIQUE_U("Indominable Will",   UNQ_EARENDIL, TERM_BLUE,   0);
+    HANDLE_UNIQUE_U("Orome Himself",   UNQ_WIL_FIN, TERM_BLUE,   0);
+    HANDLE_UNIQUE_U("Songs of Power",   UNQ_SNG_FIN, TERM_BLUE,   0);
+    HANDLE_UNIQUE_U("Elven Dance",   UNQ_SNG_LUT, TERM_BLUE,   0);
+    HANDLE_UNIQUE_U("Girdle of Melian",   UNQ_SNG_MEL, TERM_BLUE,   0);
+    
+    HANDLE_UNIQUE("Gift of Eru",   RHF_GIFTERU,     TERM_BLUE,     0);
+    HANDLE_UNIQUE("Seafarer",   RHF_FREE, TERM_BLUE,   0); 
+
     HANDLE_UNIQUE("Kinslayer",   RHF_KINSLAYER, TERM_UMBER,   1); // right
     HANDLE_UNIQUE("Treacherous",   RHF_TREACHERY, TERM_UMBER,   1); // right
     HANDLE_UNIQUE("Doom of Mandos",   RHF_CURSE, TERM_UMBER,   1); // right
-    HANDLE_UNIQUE_U("Indominable WILL",   UNQ_EARENDIL, TERM_BLUE,   0); // right
 
     // Left column
+    for (int i = 0; i < unique_n; ++i)
+        if (unique_buf[i].side == 0)
+            Term_putstr(col, row + flags_left++, -1, unique_buf[i].col, unique_buf[i].txt);
     for (int i = 0; i < mastery_n;  ++i)
         Term_putstr(col, row + flags_left++, -1, mastery_buf[i].col, mastery_buf[i].txt);
     for (int i = 0; i < affinity_n; ++i)
         Term_putstr(col, row + flags_left++, -1, affinity_buf[i].col, affinity_buf[i].txt);
-    for (int i = 0; i < unique_n; ++i)
-        if (unique_buf[i].side == 0)
-            Term_putstr(col, row + flags_left++, -1, unique_buf[i].col, unique_buf[i].txt);
 
     // Right column
-    for (int i = 0; i < penalty_n; ++i)
-        Term_putstr(col_pen, row + flags_right++, -1, penalty_buf[i].col, penalty_buf[i].txt);
     for (int i = 0; i < unique_n; ++i)
         if (unique_buf[i].side == 1)
             Term_putstr(col_pen, row + flags_right++, -1, unique_buf[i].col, unique_buf[i].txt);
+    for (int i = 0; i < penalty_n; ++i)
+        Term_putstr(col_pen, row + flags_right++, -1, penalty_buf[i].col, penalty_buf[i].txt);
 
 #undef HANDLE_SKILL_EX
 #undef HANDLE_UNIQUE
 
 Term_erase(col +7, row - 5, 30);
 
-if (house) {
-    if (c_info[house].a_adj[0] == S_MEL && c_info[house].a_adj[1] == MEL_POWER)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Power");
-    if (c_info[house].a_adj[0] == S_MEL && c_info[house].a_adj[1] == MEL_FINESSE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Finesse");
-    if (c_info[house].a_adj[0] == S_MEL && c_info[house].a_adj[1] == MEL_KNOCK_BACK)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Knock Back");
-    if (c_info[house].a_adj[0] == S_MEL && c_info[house].a_adj[1] == MEL_POLEARMS)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Polearm Mastery");
-    if (c_info[house].a_adj[0] == S_MEL && c_info[house].a_adj[1] == MEL_CHARGE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Charge");
-    if (c_info[house].a_adj[0] == S_MEL && c_info[house].a_adj[1] == MEL_FOLLOW_THROUGH)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Follow-Through");
-    if (c_info[house].a_adj[0] == S_MEL && c_info[house].a_adj[1] == MEL_IMPALE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Impale");
-    if (c_info[house].a_adj[0] == S_MEL && c_info[house].a_adj[1] == MEL_CONTROL)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Subtlety");
-    if (c_info[house].a_adj[0] == S_MEL && c_info[house].a_adj[1] == MEL_WHIRLWIND_ATTACK)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Whirlwind Attack");
-    if (c_info[house].a_adj[0] == S_MEL && c_info[house].a_adj[1] == MEL_ZONE_OF_CONTROL)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Zone of Control");
-    if (c_info[house].a_adj[0] == S_MEL && c_info[house].a_adj[1] == MEL_SMITE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Smite");
-    if (c_info[house].a_adj[0] == S_MEL && c_info[house].a_adj[1] == MEL_TWO_WEAPON)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Two Weapon Fighting");
-    if (c_info[house].a_adj[0] == S_MEL && c_info[house].a_adj[1] == MEL_RAPID_ATTACK)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Rapid Attack");
-    if (c_info[house].a_adj[0] == S_ARC && c_info[house].a_adj[1] == ARC_ROUT)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Rout");
-    if (c_info[house].a_adj[0] == S_ARC && c_info[house].a_adj[1] == ARC_FLETCHERY)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Fletchery");
-    if (c_info[house].a_adj[0] == S_ARC && c_info[house].a_adj[1] == ARC_POINT_BLANK)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Point Blank Archery");
-    if (c_info[house].a_adj[0] == S_ARC && c_info[house].a_adj[1] == ARC_PUNCTURE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Puncture");
-    if (c_info[house].a_adj[0] == S_ARC && c_info[house].a_adj[1] == ARC_AMBUSH)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Ambush");
-    if (c_info[house].a_adj[0] == S_ARC && c_info[house].a_adj[1] == ARC_VERSATILITY)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Versatility");
-    if (c_info[house].a_adj[0] == S_ARC && c_info[house].a_adj[1] == ARC_CRIPPLING)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Crippling Shot");
-    if (c_info[house].a_adj[0] == S_ARC && c_info[house].a_adj[1] == ARC_DEADLY_HAIL)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Deadly Hail");
-    if (c_info[house].a_adj[0] == S_EVN && c_info[house].a_adj[1] == EVN_DODGING)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Dodging");
-    if (c_info[house].a_adj[0] == S_EVN && c_info[house].a_adj[1] == EVN_BLOCKING)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Blocking");
-    if (c_info[house].a_adj[0] == S_EVN && c_info[house].a_adj[1] == EVN_PARRY)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Parry");
-    if (c_info[house].a_adj[0] == S_EVN && c_info[house].a_adj[1] == EVN_CROWD_FIGHTING)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Crowd Fighting");
-    if (c_info[house].a_adj[0] == S_EVN && c_info[house].a_adj[1] == EVN_LEAPING)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Leaping");
-    if (c_info[house].a_adj[0] == S_EVN && c_info[house].a_adj[1] == EVN_SPRINTING)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Sprinting");
-    if (c_info[house].a_adj[0] == S_EVN && c_info[house].a_adj[1] == EVN_FLANKING)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Flanking");
-    if (c_info[house].a_adj[0] == S_EVN && c_info[house].a_adj[1] == EVN_HEAVY_ARMOUR)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Heavy Armour Use");
-    if (c_info[house].a_adj[0] == S_EVN && c_info[house].a_adj[1] == EVN_RIPOSTE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Riposte");
-    if (c_info[house].a_adj[0] == S_EVN && c_info[house].a_adj[1] == EVN_CONTROLLED_RETREAT)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Controlled Retreat");
-    if (c_info[house].a_adj[0] == S_STL && c_info[house].a_adj[1] == STL_DISGUISE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Disguise");
-    if (c_info[house].a_adj[0] == S_STL && c_info[house].a_adj[1] == STL_ASSASSINATION)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Assassination");
-    if (c_info[house].a_adj[0] == S_STL && c_info[house].a_adj[1] == STL_CRUEL_BLOW)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Cruel Blow");
-    if (c_info[house].a_adj[0] == S_STL && c_info[house].a_adj[1] == STL_EXCHANGE_PLACES)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Exchange Places");
-    if (c_info[house].a_adj[0] == S_STL && c_info[house].a_adj[1] == STL_OPPORTUNIST)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Opportunist");
-    if (c_info[house].a_adj[0] == S_STL && c_info[house].a_adj[1] == STL_VANISH)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Vanish");
-    if (c_info[house].a_adj[0] == S_PER && c_info[house].a_adj[1] == PER_QUICK_STUDY)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Quick Study");
-    if (c_info[house].a_adj[0] == S_PER && c_info[house].a_adj[1] == PER_FOCUSED_ATTACK)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Focused attack");
-    if (c_info[house].a_adj[0] == S_PER && c_info[house].a_adj[1] == PER_KEEN_SENSES)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Keen Senses");
-    if (c_info[house].a_adj[0] == S_PER && c_info[house].a_adj[1] == PER_CONCENTRATION)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Concentration");
-    if (c_info[house].a_adj[0] == S_PER && c_info[house].a_adj[1] == PER_ALCHEMY)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Alchemy");
-    if (c_info[house].a_adj[0] == S_PER && c_info[house].a_adj[1] == PER_BANE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Bane");
-    if (c_info[house].a_adj[0] == S_PER && c_info[house].a_adj[1] == PER_OUTWIT)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Outwit");
-    if (c_info[house].a_adj[0] == S_PER && c_info[house].a_adj[1] == PER_LISTEN)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Listen");
-    if (c_info[house].a_adj[0] == S_PER && c_info[house].a_adj[1] == PER_MASTER_HUNTER)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Master Hunter");
-    if (c_info[house].a_adj[0] == S_WIL && c_info[house].a_adj[1] == WIL_CURSE_BREAKING)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Curse Breaking");
-    if (c_info[house].a_adj[0] == S_WIL && c_info[house].a_adj[1] == WIL_CHANNELING)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Channeling");
-    if (c_info[house].a_adj[0] == S_WIL && c_info[house].a_adj[1] == WIL_STRENGTH_IN_ADVERSITY)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Strength in Adversity");
-    if (c_info[house].a_adj[0] == S_WIL && c_info[house].a_adj[1] == WIL_FORMIDABLE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Formidable");
-    if (c_info[house].a_adj[0] == S_WIL && c_info[house].a_adj[1] == WIL_INNER_LIGHT)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Inner Light");
-    if (c_info[house].a_adj[0] == S_WIL && c_info[house].a_adj[1] == WIL_INDOMITABLE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Indomitable");
-    if (c_info[house].a_adj[0] == S_WIL && c_info[house].a_adj[1] == WIL_OATH)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Oath");
-    if (c_info[house].a_adj[0] == S_WIL && c_info[house].a_adj[1] == WIL_POISON_RESISTANCE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Poison Resistance");
-    if (c_info[house].a_adj[0] == S_WIL && c_info[house].a_adj[1] == WIL_VENGEANCE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Vengeance");
-    if (c_info[house].a_adj[0] == S_WIL && c_info[house].a_adj[1] == WIL_MAJESTY)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Majesty");
-    if (c_info[house].a_adj[0] == S_SMT && c_info[house].a_adj[1] == SMT_WEAPONSMITH)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Weaponsmith");
-    if (c_info[house].a_adj[0] == S_SMT && c_info[house].a_adj[1] == SMT_ARMOURSMITH)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Armoursmith");
-    if (c_info[house].a_adj[0] == S_SMT && c_info[house].a_adj[1] == SMT_JEWELLER)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Jeweller");
-    if (c_info[house].a_adj[0] == S_SMT && c_info[house].a_adj[1] == SMT_ENCHANTMENT)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Enchantment");
-    if (c_info[house].a_adj[0] == S_SMT && c_info[house].a_adj[1] == SMT_EXPERTISE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Expertise");
-    if (c_info[house].a_adj[0] == S_SMT && c_info[house].a_adj[1] == SMT_ARTEFACT)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Artifice");
-    if (c_info[house].a_adj[0] == S_SMT && c_info[house].a_adj[1] == SMT_MASTERPIECE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Masterpiece");
-    if (c_info[house].a_adj[0] == S_SNG && c_info[house].a_adj[1] == SNG_ELBERETH)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Song of Elbereth");
-    if (c_info[house].a_adj[0] == S_SNG && c_info[house].a_adj[1] == SNG_CHALLENGE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Song of Challenge");
-    if (c_info[house].a_adj[0] == S_SNG && c_info[house].a_adj[1] == SNG_DELVINGS)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Song of Delvings");
-    if (c_info[house].a_adj[0] == S_SNG && c_info[house].a_adj[1] == SNG_FREEDOM)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Song of Freedom");
-    if (c_info[house].a_adj[0] == S_SNG && c_info[house].a_adj[1] == SNG_SILENCE)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Song of Silence");
-    if (c_info[house].a_adj[0] == S_SNG && c_info[house].a_adj[1] == SNG_STAUNCHING)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Song of Staunching");
-    if (c_info[house].a_adj[0] == S_SNG && c_info[house].a_adj[1] == SNG_THRESHOLDS)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Song of Thresholds");
-    if (c_info[house].a_adj[0] == S_SNG && c_info[house].a_adj[1] == SNG_TREES)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Song of the Trees");
-    if (c_info[house].a_adj[0] == S_SNG && c_info[house].a_adj[1] == SNG_SLAYING)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Song of Slaying");
-    if (c_info[house].a_adj[0] == S_SNG && c_info[house].a_adj[1] == SNG_STAYING)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Song of Staying");
-    if (c_info[house].a_adj[0] == S_SNG && c_info[house].a_adj[1] == SNG_LORIEN)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Song of Lorien");
-    if (c_info[house].a_adj[0] == S_SNG && c_info[house].a_adj[1] == SNG_MASTERY)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Song of Mastery");
-    if (c_info[house].a_adj[0] == S_SNG && c_info[house].a_adj[1] == SNG_WOVEN_THEMES)
-        Term_putstr(col + 7, row -5, -1, TERM_BLUE, "Woven Themes");
+
+/* Display starting abilities */
+if (house)
+{
+    const int x     = col + 7;
+    const int y0    = row - 5;
+    const int width = 30;   /* how many cols to clear */
+
+    /* 1) clear out every possible line first */
+    for (int i = 0; i < HOUSE_ABILITY_MAX - 3; i++)
+    {
+        Term_erase(x, y0 + i, width);
     }
+
+    /* 2) now draw the actual list */
+    int y = y0;
+    for (int slot = 0; slot < HOUSE_ABILITY_MAX; slot++)
+    {
+        int stat = c_info[house].a_adj[slot][0];
+        int abil = c_info[house].a_adj[slot][1];
+
+        if (stat < 0) break;
+
+        if (stat < S_MAX && abil < ABILITIES_MAX)
+        {
+            const char *name = house_ability_names[stat][abil];
+            if (name)
+                Term_putstr(x, y++, -1, TERM_BLUE, name);
+        }
+    }
+}
 }
 
 /*
@@ -1346,13 +1336,13 @@ static void race_aux_hook(birth_menu r_str)
     /* Display the race flags */
 
     Term_putstr(RACE_AUX_COL, TABLE_ROW + A_MAX + 1, -1, TERM_WHITE,
-        "                    ");
+        "                         ");
     Term_putstr(RACE_AUX_COL, TABLE_ROW + A_MAX + 2, -1, TERM_WHITE,
-        "                    ");
+        "                         ");
     Term_putstr(RACE_AUX_COL, TABLE_ROW + A_MAX + 3, -1, TERM_WHITE,
-        "                    ");
+        "                         ");
     Term_putstr(RACE_AUX_COL, TABLE_ROW + A_MAX + 4, -1, TERM_WHITE,
-        "                    ");
+        "                        ");
 
     // print_rh_flags(race, 0, RACE_AUX_COL, TABLE_ROW + A_MAX + 1);
 }
@@ -1480,30 +1470,6 @@ static void house_aux_hook(birth_menu c_str)
         "Dead");
     else Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX +7, -1, TERM_L_BLUE,
         "Alive");
-    
-    // /* ---- red line of active curses ----------------------------------- */
-    // {
-    //     char buf[80] = "";
-    //     bool first = TRUE;
-    //     for (int bit = 0; bit < z_info->cu_max; bit++) {
-    //         int cnt = curse_count(bit);
-    //         if (!cnt) continue;
-
-    //         if (!first) my_strcat(buf, ", ", sizeof(buf));
-    //         my_strcat(buf, cu_name + cu_info[bit].name, sizeof(buf));
-    //         if (cnt > 1) {
-    //             char t[6];  /* room for “ ×15” */
-    //             strnfmt(t, sizeof(t), " ×%d", cnt);
-    //             my_strcat(buf, t, sizeof(buf));
-    //         }
-    //         first = FALSE;
-    //     }
-
-    //     if (first) my_strcpy(buf, "<no curses>", sizeof(buf));
-
-    //     /* one row above the flag block */
-    //     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX, -1, TERM_L_RED, buf);
-    // }
         
     print_rh_flags(
         p_ptr->prace, house_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
@@ -1719,9 +1685,22 @@ static bool player_birth_aux_1(void)
             p_ptr->active_ability[i][j] = FALSE;
         }
     }
+    // Bonus abilities
+    /* grant *all* parsed house abilities */
+    for (int slot = 0; slot < HOUSE_ABILITY_MAX; slot++)
+    {
+        int stat = c_info[p_ptr->phouse].a_adj[slot][0];
+        /* sentinel: no more entries */
+        if (stat < 0) break;
 
-    p_ptr->innate_ability[hp_ptr->a_adj[0]][hp_ptr->a_adj[1]] = TRUE;
-    p_ptr->active_ability[hp_ptr->a_adj[0]][hp_ptr->a_adj[1]] = TRUE;
+        int ab = c_info[p_ptr->phouse].a_adj[slot][1];
+        /* sanity-check bounds */
+        if (stat < S_MAX && ab < ABILITIES_MAX)
+        {
+            p_ptr->innate_ability[stat][ab] = TRUE;
+            p_ptr->active_ability[stat][ab] = TRUE;
+        }
+    }
 
     /* Set adult options from birth options */
     for (i = OPT_BIRTH; i < OPT_CHEAT; i++)

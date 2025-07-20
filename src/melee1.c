@@ -97,7 +97,8 @@ extern int protection_roll(int typ, bool melee)
 
     if (singing(SNG_STAYING))
     {
-        prt += damroll(2, 2);
+        if (c_info[p_ptr->phouse].flags_u & UNQ_SNG_FIN) prt += damroll(4, 2);
+        else prt += damroll(2, 2);
     }
 
     // armour:
@@ -165,7 +166,8 @@ extern int p_min(int typ, bool melee)
 
     if (singing(SNG_STAYING))
     {
-        prt += 2;
+        if (c_info[p_ptr->phouse].flags_u & UNQ_SNG_FIN) prt += 4;
+        else prt += 2;
     }
 
     // armour:
@@ -233,7 +235,8 @@ extern int p_max(int typ, bool melee)
 
     if (singing(SNG_STAYING))
     {
-        prt += 4;
+        if (c_info[p_ptr->phouse].flags_u & UNQ_SNG_FIN) prt += 8;
+        else prt += 4;
     }
 
     // armour:

@@ -628,12 +628,15 @@
  */
 #define A_MAX 4
 
+// Maximum number of starting abilities
+#define HOUSE_ABILITY_MAX 8
+
 /*
  * Total number stories.
  */
 #define ST_MAX 30
 
-#define MAINCH "Glorfindel"
+// #define MAINCH "Glorfindel"
 
 /*
  * The internal minimum and  maximum for a given stat.
@@ -1905,7 +1908,7 @@
 #define RHF_KINSLAYER 0x00100000L
 #define RHF_CURSE 0x00200000L
 #define RHF_TREACHERY 0x00400000L
-#define RHF_RHFXXX24 0x00800000L
+#define RHF_FREE 0x00800000L
 #define RHF_RHFXXX25 0x01000000L
 #define RHF_RHFXXX26 0x02000000L
 #define RHF_RHFXXX27 0x04000000L
@@ -1954,11 +1957,11 @@
 
 #define UNQ_EARENDIL 0x00000001L
 #define UNQ_SMT_FEANOR 0x00000002L
-#define UNQ_UNQXXX03 0x00000004L
-#define UNQ_UNQXXX04 0x00000008L
-#define UNQ_UNQXXX05 0x00000010L
-#define UNQ_UNQXXX06 0x00000020L
-#define UNQ_UNQXXX07 0x00000040L
+#define UNQ_WIL_FIN 0x00000004L
+#define UNQ_SNG_FIN 0x00000008L
+#define UNQ_SNG_LUT 0x00000010L
+#define UNQ_WIL_TUOR 0x00000020L
+#define UNQ_SNG_MEL 0x00000040L
 #define UNQ_UNQXXX08 0x00000080L
 #define UNQ_UNQXXX09 0x00000100L
 #define UNQ_UNQXXX10 0x00000200L

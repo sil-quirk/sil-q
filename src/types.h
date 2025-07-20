@@ -718,7 +718,8 @@ struct player_house
     u32b text; /* Descrption (offset) */
 
     s16b h_adj[A_MAX]; /* House stat bonuses */
-    s16b a_adj[2]; /* House ability bonuse (one to start) */
+    /** Up to N “stat:ability” pairs. */
+    s16b  a_adj[HOUSE_ABILITY_MAX][2]; /* [i][0]=stat, [i][1]=ability] */
 
     u32b flags; /* House Flags (ie RHF flags) */
     u32b flags_u; /* House Flags (ie RHF flags) */
@@ -1141,21 +1142,6 @@ struct high_score
 };
 
 
-// typedef struct metarun
-// {
-//     u32b id;            /* running index                                      */
-//     byte type;          /* index into runtypes.raw                            */
-//     byte deaths;        /* how many characters have died in this metarun      */
-//     byte silmarils;     /* number of Silmarils recovered so far               */
-//     byte pad;           /* alignment / future expansion                       */
-
-//     u32b curses_lo;     /* curse bit-mask 0-31  (see curses.raw)              */
-//     u32b curses_hi;     /* curse bit-mask 32-63                                */
-
-//     u32b last_played;   /* time() of the last character that belonged to it   */
-// } metarun;
-
-// A type to contain information on a combat roll for printing
 
 typedef struct combat_roll combat_roll;
 
