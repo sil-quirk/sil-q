@@ -1616,9 +1616,7 @@ void do_cmd_ability_screen(void)
                     {
                         if (prereqs(skilltype, abilitynum))
                         {
-                                = (abilities_in_skill(skilltype) + 1) * 500;
 
-                            exp_cost -= 500 * affinity_level(skilltype);
                             if (exp_cost < 0)
                                 exp_cost = 0;
 
@@ -1667,7 +1665,6 @@ void do_cmd_ability_screen(void)
 
                                     return_to_abilities = FALSE;
                                 }
-                                // special menu for Oath
                                 // special menu for Oath //XXX Oaths
                                 if ((skilltype == S_WIL)
                                     && (abilitynum == WIL_OATH))
