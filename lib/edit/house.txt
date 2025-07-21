@@ -39,13 +39,17 @@
 # GIFTERU # When killed death counter is not increased
 # FREE #Beeing a seafarer means cheaper abilities 
 
-# SMT_FEANOR # Uses only 1 forge cast for custom artifacts # Jewelry with light and fire buffs is less difficult
+# SMT_FEANOR # Uses only 1 forge cast for custom artifacts # Jewelry is 40% and light and fire buffs is 25 % less difficult to craft
 # WIL_FIN # Majesty ability gets twice more base will of a character
 # SNG_FIN # Song of Staying is twice as effective
 # SNG_LUT # Song of Lorien is twice more effective
-# WIL_TUOR # Horns are 3 times more affective
+# WIL_TUOR # Horns are 2 times more affective
 # EARENDIL # Will affinity is always at MASTER+ (bonus 3 instead of 2) and is not affected by curses
-# SNG_MEL # Song of Thresholds diificulty is dicrease, gliph of warding difficulty is decreased
+# SNG_MEL # Song of Thresholds difficulty is dicrease, gliph of warding difficulty is decreased
+# SNG_HURIN # Song of Slaying is twice more effective
+# SMT_TELCHAR # Available to craft SHARPNESS2 weapons (ignore aromour), and 25% less difficult to craft sharp and accurate items
+# SNG_THINGOL # Song of mastrery is twice efficient
+# SMT_FEANOR # Can craft mithril items without using actual mithril but spending 3 charges of the forge.
 
 # Version stamp (required)
 
@@ -327,10 +331,11 @@ D:unmatched, his love unbroken even in betrayal.
 
 #Stats +2 +5 =7
 
-N:18:Teclhar
+N:18:Telchar
 A:Nogrod
 B:Nogrod
 F:SMT_AFFINITY
+U:SMT_TELCHAR
 S:1:1:1:2
 C:6:3:6:0  # Weaponsmith # Enchantment
 E:4:0:0:30     # | Mithril (25)
@@ -347,6 +352,7 @@ N:19:Gamil Zirak
 A:Belegost
 B:Belegost
 F:PER_AFFINITY | SMT_AFFINITY | MEL_PENALTY
+U:SMT_GAMIL
 S:0:0:0:2
 C:6:4 # Expertise
 D:Gamil Zirak, revered smith of Belegost, renowned as master teacher  
@@ -448,9 +454,9 @@ D:the sky as a star, Eärendil became a beacon of hope for all peoples.
 N:26:Haleth
 A:Haleth's People
 B:Haleth
-F:STL_AFFINITY | FREE
+F:STL_AFFINITY
 S:0:1:2:0
-C:2:6:2:1  # Blocking # Flanking
+C:2:6  # Blocking :2:1 # Flanking
 D:Haleth, warrior-chieftain and shieldmaiden, led her people with     
 D:unyielding strength. After her father and brother fell in battle,   
 D:she bravely defended the Haladin against Orc-hordes. Proud, stern,  
@@ -478,7 +484,7 @@ D:darkening days.
 N:28:Turin
 A:Beor's House
 B:Beor
-F:EVN_AFFINITY | MEL_AFFINITY | PER_PENALTY
+F:EVN_AFFINITY | MEL_AFFINITY | PER_PENALTY | MOR_CURSE
 S:2:2:2:-1
 C:5:2:0:10  # Smite # Strength in Adversity
 D:Túrin, son of Húrin, was a mighty warrior, proud and sorrowful. 
@@ -509,9 +515,10 @@ D:the Eldar in grace and fate.
 N:30:Hurin
 A:Beor's House
 B:Beor
-F:EVN_AFFINITY | WIL_AFFINITY | PER_PENALTY | CURSE
+F:EVN_AFFINITY | WIL_AFFINITY | PER_PENALTY | SNG_AFFINITY | MOR_CURSE
+U:SNG_HURIN
 S:2:1:2:0
-C:5:3:5:5:5:7  # Poison Resistance  # Indomitable # Formidable
+C:5:3:5:5:5:7:7:8  # Song of Slaying  # Poison Resistance  # Indomitable # Formidable
 D:Hurin, lord of the House of Hador, was the greatest warrior of Men. 
 D:Captured at Nirnaeth Arnoediad, he defied Morgoth for years in      
 D:chains. Released with malice, his bitter grief and pride helped doom 
@@ -545,7 +552,7 @@ A:Doriath
 B:Doriath
 S:1:1:0:1
 F:ARC_PENALTY |FREE
-C:7:10
+C:7:11
 D:Celeborn, wise lord of the Sindar, patient and thoughtful.
 D:His calm counsel and diplomatic wisdom greatly valued.
 D:Alongside Galadriel, he preserved Elven wisdom and heritage,
@@ -556,7 +563,7 @@ A:Doriath
 B:Doriath
 F:SNG_AFFINITY | WIL_PENALTY | PER_PENALTY
 S:0:1:-1:3
-C:7:5 # Song of Staunching
+C:7:5:7:12 # Song of Staunching and Woven Themes
 D:Daeron, greatest bard among the Sindar, gifted and melancholic.
 D:Renowned for music and poetry surpassing all others.
 D:Heartbroken by unrequited love for Lúthien, wandered Middle-earth 
@@ -568,7 +575,7 @@ B:Doriath
 F:WIL_AFFINITY | SNG_AFFINITY | PER_AFFINITY | ARC_PENALTY
 U:SNG_MEL
 S:1:0:1:5
-C:7:11 # Song of Mastery
+C:7:11:7:6 # Song of Mastery Song of Thresholds
 D:Melian, Maia Queen of Doriath, wise and compassionate.
 D:Powerful protector through enchantments of peace and safety.
 D:Her guidance and foresight long defended the realm until fate

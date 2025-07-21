@@ -1228,6 +1228,10 @@ static void print_rh_flags(int race, int house, int col, int row)
     HANDLE_UNIQUE_U("Songs of Power",   UNQ_SNG_FIN, TERM_BLUE,   0);
     HANDLE_UNIQUE_U("Elven Dance",   UNQ_SNG_LUT, TERM_BLUE,   0);
     HANDLE_UNIQUE_U("Girdle of Melian",   UNQ_SNG_MEL, TERM_BLUE,   0);
+    HANDLE_UNIQUE_U("Creator of Angrist",   UNQ_SMT_TELCHAR, TERM_BLUE,   0);
+    HANDLE_UNIQUE_U("Old Master",   UNQ_SMT_GAMIL, TERM_BLUE,   0);
+    HANDLE_UNIQUE_U("Aure entuluva",   UNQ_SNG_HURIN, TERM_BLUE,   0);
+    HANDLE_UNIQUE_U("Voice of the Girdle",   UNQ_SNG_THINGOL, TERM_BLUE,   0);
     
     HANDLE_UNIQUE("Gift of Eru",   RHF_GIFTERU,     TERM_BLUE,     0);
     HANDLE_UNIQUE("Seafarer",   RHF_FREE, TERM_BLUE,   0); 
@@ -1235,6 +1239,7 @@ static void print_rh_flags(int race, int house, int col, int row)
     HANDLE_UNIQUE("Kinslayer",   RHF_KINSLAYER, TERM_UMBER,   1); // right
     HANDLE_UNIQUE("Treacherous",   RHF_TREACHERY, TERM_UMBER,   1); // right
     HANDLE_UNIQUE("Doom of Mandos",   RHF_CURSE, TERM_UMBER,   1); // right
+    HANDLE_UNIQUE("Morgoth Curse",   RHF_MOR_CURSE, TERM_UMBER,   1); // right
 
     // Left column
     for (int i = 0; i < unique_n; ++i)

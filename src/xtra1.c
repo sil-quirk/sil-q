@@ -2000,7 +2000,7 @@ int ability_bonus(int skilltype, int abilitynum)
         }
         case SNG_STAYING:
         {
-            bonus = skill;
+            bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_HURIN) ? 2 : 1) * skill; 
             break;
         }
         case SNG_SLAYING:
@@ -2015,7 +2015,7 @@ int ability_bonus(int skilltype, int abilitynum)
         }
         case SNG_MASTERY:
         {
-            bonus = skill;
+            bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_THINGOL) ? 2 : 1) * skill;
             break;
         }
         }

@@ -1654,7 +1654,7 @@
 #define IDENT_CURSED 0x00000040 /* Item is temporarily cursed */
 #define IDENT_BROKEN 0x00000080 /* Item is permanently worthless */
 #define IDENT_UNUSED_XXXXX1XX 0x00000100 /* Unused */
-#define IDENT_UNUSED_XXXXX2XX 0x00000200 /* Unused */
+#define IDENT_CANT_MELT 0x00000200 /* Gamil-forged mithril – must never be melted */
 #define IDENT_HIDE_CARRY                                                       \
     0x00000400 /* Don't reveal the object is being carried by a creature*/
 #define IDENT_UNUSED_XXXXX8XX 0x00000800 /* Unused */
@@ -1909,7 +1909,7 @@
 #define RHF_CURSE 0x00200000L
 #define RHF_TREACHERY 0x00400000L
 #define RHF_FREE 0x00800000L
-#define RHF_RHFXXX25 0x01000000L
+#define RHF_MOR_CURSE 0x01000000L
 #define RHF_RHFXXX26 0x02000000L
 #define RHF_RHFXXX27 0x04000000L
 #define RHF_RHFXXX28 0x08000000L
@@ -1962,10 +1962,10 @@
 #define UNQ_SNG_LUT 0x00000010L
 #define UNQ_WIL_TUOR 0x00000020L
 #define UNQ_SNG_MEL 0x00000040L
-#define UNQ_UNQXXX08 0x00000080L
-#define UNQ_UNQXXX09 0x00000100L
-#define UNQ_UNQXXX10 0x00000200L
-#define UNQ_UNQXXX11 0x00000400L
+#define UNQ_SMT_TELCHAR 0x00000080L
+#define UNQ_SMT_GAMIL 0x00000100L
+#define UNQ_SNG_HURIN 0x00000200L
+#define UNQ_SNG_THINGOL 0x00000400L
 #define UNQ_UNQXXX12 0x00000800L
 #define UNQ_UNQXXX13 0x00001000L
 #define UNQ_UNQXXX14 0x00002000L

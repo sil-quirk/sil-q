@@ -7,22 +7,34 @@ Road Map
 -Implement main curses (done)
 -Implement common RHF flags (done)
 --Cheap cost (done)
+--Morgoth Curse
 -Add more debuging functions (done)
 -Add unique RHF flags
---Feanor
---Telchar
---Gamil
+--Feanor (done)
+--Telchar (done)
+--Gamil (done)
 --Melian (done)
---Thingol
+--Thingol (done)
 --Tuor (done)
 --Earendil
+--Celeborn
+--Hurin (done)
+--Turin
 -Figure out last abilities and balance tweaks
---All starting abilities
+--All starting abilities 
 --Multiple starting abilities (done)
 -Polish menus find bugs
+--Score menu
+--Final menu
 Release closed alpha 0.5
 -Balance and bug tweaks
 Release alpha 0.6
+
+Ideas
+--More frequent forges for gnomes
+--Calculate the forge probablity
+--New Oaths
+--Quests
 
 ## Compiling Instructions
 

@@ -2035,6 +2035,7 @@ static const smithing_flag_desc smithing_flag_types[] = { { CAT_STAT, TR1_STR,
     { CAT_MISC, TR3_MEDIC, 3, "Medicine Bonus" },
     { CAT_MEL, TR1_TUNNEL, 1, "Tunneling Bonus" },
     { CAT_MEL, TR1_SHARPNESS, 1, "Sharpness" },
+    { CAT_MEL, TR1_SHARPNESS2, 1, "Sharpness2" },
     { CAT_MEL, TR1_VAMPIRIC, 1, "Vampiric" },
     { CAT_MEL, TR3_ACCURATE, 3, "Accurate" },
     { CAT_SLAY, TR1_SLAY_ORC, 1, "Slay Orc" },
@@ -2921,6 +2922,9 @@ int object_difficulty(object_type* o_ptr)
     int dif_mult = 100;
     int cat = 0; // default to soothe compilation warnings
 
+    bool telchar_bonus = (c_info[p_ptr->phouse].flags_u & UNQ_SMT_TELCHAR);
+    bool feanor_bonus  = (c_info[p_ptr->phouse].flags_u & UNQ_SMT_FEANOR);
+
     // reset smithing costs
     smithing_cost.str = 0;
     smithing_cost.dex = 0;
@@ -2938,6 +2942,31 @@ int object_difficulty(object_type* o_ptr)
 
     // extract object flags
     object_flags(o_ptr, &f1, &f2, &f3);
+
+    /* ------------------------------------------------------------------
+     *  GAMIL house bonus
+     *  – Craft mithril items without mithril material
+     *  – Costs 3 forge uses instead of 1
+     *  – Mark item with TR3_CANT_MELT so the melt-menu ignores it
+     * ------------------------------------------------------------------ */
+
+
+    /* Telchar: 25 % discount on Sharpness tiers */
+    if (telchar_bonus && (f1 & (TR1_SHARPNESS | TR1_SHARPNESS2) || (f3 & TR3_ACCURATE)))
+        dif_mult -= 25;
+
+    /*  FEANOR house bonus
+     *  – 40% off on all lamps
+     *  – 25% off on any fire- or light-branded object */
+    if (feanor_bonus)
+    {
+        /* 40% off on all lamps */
+        if (o_ptr->tval == TV_LIGHT)
+            dif_mult -= 40;
+        /* 25% off on any fire- or light-branded object */
+        else if ((f1 & TR1_BRAND_FIRE) || (f2 & (TR2_LIGHT | TR2_RADIANCE)))
+            dif_mult -= 25;
+    }
 
     // special rules for horns
     if (o_ptr->tval == TV_HORN)
@@ -3119,22 +3148,16 @@ int object_difficulty(object_type* o_ptr)
 
     if (f1 & TR1_SHARPNESS)
     {
-        if (o_ptr->tval == TV_ARROW)
-        {
-            dif_inc += 14;
-            smithing_cost.str += 1;
-        }
-        else
-        {
-            dif_inc += 24;
-            smithing_cost.str += 2;
-        }
+        int base = (o_ptr->tval == TV_ARROW) ? 14 : 24;
+        dif_inc += base;
+        smithing_cost.str += (o_ptr->tval == TV_ARROW) ? 1 : 2;
     }
     if (f1 & TR1_SHARPNESS2)
     {
-        dif_inc += 40;
+        int base = 40;
+        dif_inc += base;
         smithing_cost.str += 4;
-    } // not available in smithing
+    }
     if (f1 & TR1_VAMPIRIC)
     {
         dif_inc += 6;
@@ -3393,8 +3416,8 @@ int object_difficulty(object_type* o_ptr)
     // Penalty for being an artefact
     if (o_ptr->name1)
     {
-        if (c_info[p_ptr->phouse].flags_u & UNQ_SMT_FEANOR) smithing_cost.uses ++;
-        else smithing_cost.uses += 2;
+        if (!(c_info[p_ptr->phouse].flags_u & UNQ_SMT_FEANOR)) smithing_cost.uses +=2;
+        // else smithing_cost.uses += 2;
     }
 
     // Set the overall difficulty
@@ -3433,6 +3456,16 @@ int object_difficulty(object_type* o_ptr)
     {
         smithing_cost.mithril += o_ptr->weight;
     }
+
+   /* Gamil house bonus — override normal mithril cost */
+  if ((c_info[p_ptr->phouse].flags_u & UNQ_SMT_GAMIL)      /* you’re Gamil */
+      && (k_ptr->flags3 & TR3_MITHRIL)                     /* item is mithril */
+      && (mithril_carried() < smithing_cost.mithril))      /* no mithril on hand */
+  {
+      smithing_cost.uses    = MAX(smithing_cost.uses, 3);  /* cost 3 forge uses */
+      smithing_cost.mithril = 0;                           /* waive material */
+      o_ptr->ident         |= IDENT_CANT_MELT;             /* can’t melt later */
+  }
 
     // Apply the difficulty multiplier
     dif = dif * dif_mult / 100;
@@ -4760,6 +4793,18 @@ bool applicable_flag(u32b f, int flagset, object_type* o_ptr)
     int i;
     u32b f1, f2, f3;
 
+    /* Telchar may always put SHARPNESS II on a melee weapon               */
+    if ((f == TR1_SHARPNESS2) &&
+        (c_info[p_ptr->phouse].flags_u & UNQ_SMT_TELCHAR))
+    {
+        switch (smith_o_ptr->tval)                   /* any melee weapon   */
+        {
+            case TV_SWORD: case TV_HAFTED:
+            case TV_POLEARM: case TV_DIGGING:
+                return TRUE;
+        }
+    }
+
     /* Extract the object flags */
     object_flags(o_ptr, &f1, &f2, &f3);
 
@@ -4857,6 +4902,13 @@ int artefact_flag_menu_aux(int category, int* highlight)
     {
         if (category == smithing_flag_types[i].category)
         {
+            /* Telchar-only: skip Sharpness2 if not in house Telchar */
+            if (smithing_flag_types[i].flag == TR1_SHARPNESS2 &&
+                !(c_info[p_ptr->phouse].flags_u & UNQ_SMT_TELCHAR))
+            {
+                /* don’t even consider it */
+                continue;
+            }
             flag[num] = smithing_flag_types[i].flag;
             flagset[num] = smithing_flag_types[i].flagset;
 
@@ -4886,6 +4938,11 @@ int artefact_flag_menu_aux(int category, int* highlight)
                     }
                 }
             }
+
+        // /* Lock Sharpness II behind Telchar forge */
+        // if (flag[num] == TR1_SHARPNESS2 &&
+        //     !(c_info[p_ptr->phouse].flags_u & UNQ_SMT_TELCHAR))
+        //     flag_valid[num] = FALSE;
 
             attr = flag_present[num]
                 ? TERM_BLUE
@@ -5712,8 +5769,10 @@ int melt_menu_aux(int* highlight)
         o_ptr = &inventory[i];
 
         object_flags(o_ptr, &f1, &f2, &f3);
+        
+        /* ignore mithril items that carry the “can’t melt” tag         */
+        if ((f3 & TR3_MITHRIL) && !(o_ptr->ident & IDENT_CANT_MELT))
 
-        if (f3 & (TR3_MITHRIL))
         {
             object_desc(desc, 80, o_ptr, FALSE, 2);
             strnfmt(buf, 80, "%c) %s", (char)'a' + num, desc);

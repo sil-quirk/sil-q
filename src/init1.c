@@ -314,7 +314,7 @@ static flag_name info_flags[] = {
     { "SNG_PENALTY", RHF, RHF_SNG_PENALTY },
     { "GIFTERU", RHF, RHF_GIFTERU }, { "KINSLAYER", RHF, RHF_KINSLAYER },
     { "CURSE", RHF, RHF_CURSE }, { "TREACHERY", RHF, RHF_TREACHERY },
-    { "FREE", RHF, RHF_FREE }, { "RHFXXX21", RHF, RHF_RHFXXX25 },
+    { "FREE", RHF, RHF_FREE }, { "MOR_CURSE", RHF, RHF_MOR_CURSE },
     { "RHFXXX25", RHF, RHF_RHFXXX26 }, { "RHFXXX26", RHF, RHF_RHFXXX27 },
     { "RHFXXX27", RHF, RHF_RHFXXX28 }, { "RHFXXX28", RHF, RHF_RHFXXX29 },
     { "RHFXXX29", RHF, RHF_RHFXXX29 }, { "RHFXXX30", RHF, RHF_RHFXXX30 },
@@ -355,11 +355,14 @@ static flag_name info_flags[] = {
     {"DEATH", CUR, CUR_DEATH},{"TRAPS", CUR, CUR_TRAPS},
     {"MON_NUM", CUR, CUR_MON_NUM},{"HUNGER", CUR, CUR_HUNGER},
     { "HALLU", CUR, CUR_HALLU},
+    
     // Unique flags
     {"EARENDIL", UNQ, UNQ_EARENDIL}, { "SMT_FEANOR", UNQ, UNQ_SMT_FEANOR },
     { "WIL_FIN", UNQ, UNQ_WIL_FIN }, { "SNG_FIN", UNQ, UNQ_SNG_FIN },
     { "SNG_LUT", UNQ, UNQ_SNG_LUT }, { "WIL_TUOR", UNQ, UNQ_WIL_TUOR },
-    { "SNG_MEL", UNQ, UNQ_SNG_MEL }
+    { "SNG_MEL", UNQ, UNQ_SNG_MEL }, { "SMT_TELCHAR", UNQ, UNQ_SMT_TELCHAR },
+    { "SMT_GAMIL", UNQ, UNQ_SMT_GAMIL }, { "SNG_HURIN", UNQ, UNQ_SNG_HURIN },
+    { "SNG_THINGOL", UNQ, UNQ_SNG_THINGOL }
 
 };
 
@@ -3585,7 +3588,7 @@ errr parse_p_info(char* buf, header* head)
 
 errr parse_c_info(char* buf, header* head)
 {
-    int i, j;
+    int j;
     static int cur_equip = 0;
 
     char *s, *t;
