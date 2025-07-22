@@ -224,7 +224,7 @@
 #     - very low perception
 #     - very low evasion/melee
 #     - very high damage
-#Ê    - 1d4 prot, very high health
+#ï¿½    - 1d4 prot, very high health
 #     - drop items
 #
 # - R   (raukar)
@@ -271,7 +271,7 @@
 #     - mindless
 #     - tunnel
 #     - regenerates
-#Ê    - 6d4 prot, very high health
+#ï¿½    - 6d4 prot, very high health
 #
 # - V   (valar)
 #
@@ -291,20 +291,28 @@ V:1.5.0
 
 ##### Non-race (contains the player picture) #####
 
-# Noldor
+# Feanorians
 N:0:<player>
 G:@:w
 
-# Sindar
+# Fingolfinrim
 N:1:<player>
 G:@:w
 
-# Naugrim
+# Finarfinrim
 N:2:<player>
 G:@:w
 
-# Edain
+# Sindar
 N:3:<player>
+G:@:w
+
+# Naugrim
+N:4:<player>
+G:@:w
+
+# Edain
+N:5:<player>
 G:@:w
 
 
@@ -975,7 +983,8 @@ D: of the black enemy for many years.
 
 
 
-##### 11 #####
+
+##### 11 #####
 
 
 N:111:Snow troll
@@ -1177,7 +1186,8 @@ D: of Morgoth's servants and widely feared. Before you stands
 D: Duruin, Flame of the Night, a great figure wrapped in fire
 D: and shadow. He wields fiery sword and whip.
 
-
+
+
 
 ##### 13 #####
 
@@ -1336,7 +1346,8 @@ D:Known as the giant of summer and the south, he towers above you
 D: like a great tree. In his right hand, he holds the longest
 D: sword you have ever beheld.
 
-
+
+
 ##### 15 #####
 
 N:151:Cave troll
