@@ -21,7 +21,7 @@
 /*  Win / lose conditions                                             */
 /* ------------------------------------------------------------------ */
 #define WINCON_SILMARILS 15   /* Recover 15 Silmarils → victory        */
-#define LOSECON_DEATHS    2   /* Two deaths end the run  (test value)  */
+#define LOSECON_DEATHS    15   /* Two deaths end the run  (test value)  */
 
 /* ------------------------------------------------------------------ */
 /*  Meta-run save-record                                              */

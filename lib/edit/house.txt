@@ -104,8 +104,8 @@ N:3:Finarfin
 A:Finarfin's House
 B:Finarfin
 F:PER_AFFINITY | SMT_PENALTY 
-S:1:0:0:3
-C:7:12 #Woven Themes
+S:1:1:0:3
+C:7:12:7:7   # Song of the Trees #Woven Themes
 D:Finarfin, youngest son of Finwe, remains in Valinor as wise and     
 D:gentle High King of the Noldor who stayed behind. Renowned for his  
 D:compassion and peace-loving heart, he turned back after the tragic  
@@ -182,7 +182,7 @@ D:a legacy of courage and unyielding defiance.
 N:8:Galadriel
 A:Finarfin's House
 B:Finarfin
-F:PER_AFFINITY | SMT_PENALTY 
+F:PER_AFFINITY | SMT_PENALTY | CURSE
 S:0:1:1:2
 C:4:6:4:7  # Listen Outwit
 D:Galadriel, daughter of Finarfin, is greatest among the Noldorin     
@@ -197,7 +197,7 @@ D:unfolding amid struggles against Morgoth’s darkness.
 N:9:Finrod
 A:Finarfin's House
 B:Finarfin
-F:PER_AFFINITY | SNG_AFFINITY | WIL_AFFINITY
+F:PER_AFFINITY | SNG_AFFINITY | WIL_AFFINITY | CURSE
 U:SNG_FIN
 S:0:1:0:3
 C:7:9 #Staying
@@ -245,7 +245,8 @@ D:captains, Ecthelion’s name is sung in memory of honor and sacrifice.
 N:12:Elu Thingol
 A:Doriath
 B:Doriath
-F:SNG_AFFINITY | WIL_AFFINITY | PER_AFFINITY | ARC_PENALTY
+F:WIL_AFFINITY | PER_AFFINITY | ARC_PENALTY
+U:SNG_THINGOL
 S:2:1:1:3
 C:5:9:7:11  # Song of Mastery Majesty
 D:Elu Thingol, King of Doriath, was the greatest lord of the Sindar.  
@@ -260,7 +261,7 @@ D:Morgoth's darkness, though his pride lead to tragedy.
 N:13:Cirdan
 A:the Falas
 B:Falathrim
-F:PER_AFFINITY | SMT_AFFINITY | ARC_PENALTY | FREE
+F:PER_AFFINITY | SMT_AFFINITY | ARC_PENALTY | FREE | BOW_PROFICIENCY
 S:0:1:1:2
 C:4:2:4:4 # Keen Senses Alchemy
 D:Cirdan the Shipwright, wise lord of the Falas, patiently builds     
@@ -290,7 +291,7 @@ B:Doriath
 F:WIL_AFFINITY | SNG_AFFINITY | STL_AFFINITY | EVN_AFFINITY | ARC_PENALTY
 U:SNG_LUT
 S:-1:3:1:3
-C:7:10 #Lorien
+C:7:10:5:0   # Curse Breaking #Lorien
 D:Luthien, daughter of Thingol and Melian, was fairest of all the     
 D:Children of Iluvatar. Her beauty and voice enchanted even the       
 D:immortal. She loved the mortal Beren and chose a fate beyond death. 
@@ -304,7 +305,7 @@ D:all songs.
 N:16:Voronwe
 A:the Falas
 B:Falathrim
-F:PER_PENALTY | FREE
+F:PER_PENALTY | FREE | BOW_PROFICIENCY
 S:0:1:1:0
 C:4:0 # Quick Study
 D:Voronwe, Elf of Gondolin, was noble, steadfast, and sea-born. Of    
@@ -319,7 +320,7 @@ D:Ulmo’s warning and became a quiet force in the fate of Elves and Men.
 N:17:Beleg
 A:the Falas
 B:Falathrim
-F:ARC_AFFINITY | SNG_PENALTY
+F:ARC_AFFINITY | SNG_PENALTY | BOW_PROFICIENCY
 S:1:2:0:0
 C:1:7 # Deadly Hail
 D:Beleg Cuthalion, called Strongbow, was chief marchwarden of Doriath. 
@@ -395,7 +396,7 @@ D:body away amid lament and eternal reverence.
 N:22:Mim
 A:Belegost
 B:Belegost
-F:SNG_AFFINITY | MEL_PENALTY | STL_AFFINITY | TREACHERY
+F:SNG_AFFINITY | MEL_PENALTY | STL_AFFINITY | TREACHERY | SMT_PENALTY
 S:-1:1:-1:-1
 C:7:4:3:0:3:1:3:2:3:3:3:4:3:6 # Song of Silence and all stealth
 D:Mîm, last of the Petty-dwarves, lived in Amon Rûdh in secret. When  
@@ -439,7 +440,7 @@ D:courage in the face of overwhelming shadow.
 N:25:Earendil
 A:Beor's House
 B:Beor
-F:EVN_AFFINITY | STL_AFFINITY | WIL_AFFINITY | PER_AFFINITY | SNG_AFFINITY | FREE
+F:EVN_AFFINITY | STL_AFFINITY | WIL_AFFINITY | PER_AFFINITY | SNG_AFFINITY | MEL_PENALTY | FREE
 U:EARENDIL
 S:1:2:2:4
 C:7:7:5:4  # Inner Light # Song of the Trees
@@ -470,8 +471,8 @@ N:27:Hador
 A:Hador's House
 B:Hador
 F:MEL_AFFINITY 
-S:2:1:1:1
-C:0:10:0:4  # Charge # Smite
+S:3:1:2:1
+C:0:10:0:4:C:0:2  # Charge # Smite # Knock Back
 D:Hador Lorindol, golden-haired lord, was strongest and most valiant  
 D:of the Edain. Granted the land of Dor-lomin by Fingolfin, he led his 
 D:people wisely and bravely, renowned for loyalty, generosity, and 
@@ -484,9 +485,9 @@ D:darkening days.
 N:28:Turin
 A:Beor's House
 B:Beor
-F:EVN_AFFINITY | MEL_AFFINITY | PER_PENALTY | MOR_CURSE
+F:EVN_AFFINITY | MEL_AFFINITY | PER_PENALTY | MOR_CURSE | STL_AFFINITY
 S:2:2:2:-1
-C:5:2:0:10  # Smite # Strength in Adversity
+C:5:2:0:10:0:5  # Follow-Through  # Smite # Strength in Adversity
 D:Túrin, son of Húrin, was a mighty warrior, proud and sorrowful. 
 D:Raised in Doriath, he wandered Beleriand under many names. Driven by 
 D:doom laid by Morgoth, he slew his friend Beleg in error, and loved  
@@ -527,7 +528,7 @@ D:strength and sorrow left a mark on all of Beleriand's fate.
 
 N:31:Idril
 A:House of the Fountain
-B:the Fountain
+B:Fingolfin
 F:STL_AFFINITY | MEL_PENALTY | SMT_PENALTY | PER_AFFINITY | ARC_PENALTY
 S:-1:2:0:2
 C:7:9
@@ -539,7 +540,7 @@ D:saved remnants of the city’s people, preserving hope.
 
 N:32:Gil Galad
 A:House of the Fountain
-B:the Fountain
+B:Fingolfin
 S:1:1:1:1
 C:0:3 # Polearm
 D:Gil-galad, High King of the Noldor after Gondolin’s fall.
@@ -548,10 +549,10 @@ D:through darkness. His reign brought unity and resilience,
 D:setting foundations for future resistance against evil.
 
 N:33:Celeborn
-A:Doriath
-B:Doriath
+A:Teleri
+B:Teleri
 S:1:1:0:1
-F:ARC_PENALTY |FREE
+F:ARC_PENALTY | FREE | BOW_PROFICIENCY
 C:7:11
 D:Celeborn, wise lord of the Sindar, patient and thoughtful.
 D:His calm counsel and diplomatic wisdom greatly valued.
@@ -570,8 +571,8 @@ D:Heartbroken by unrequited love for Lúthien, wandered Middle-earth
 D:in grief, leaving behind a legacy of unmatched song.
 
 N:35:Melian Maia
-A:Doriath
-B:Doriath
+A:Mayar
+B:Mayar
 F:WIL_AFFINITY | SNG_AFFINITY | PER_AFFINITY | ARC_PENALTY
 U:SNG_MEL
 S:1:0:1:5
@@ -584,9 +585,9 @@ D:forced her departure, marking the waning of enchantment.
 N:36:Celegorm
 A:Feanor's House
 B:Feanor
-F:ARC_AFFINITY | MEL_AFFINITY | EVN_AFFINITY | WIL_PENALTY | TREACHERY
-S:1:1:3:0
-C:4:8 # Master Hunter
+F:ARC_AFFINITY | EVN_AFFINITY | WIL_PENALTY | SMT_PENALTY | TREACHERY | BOW_PROFICIENCY
+S:1:1:2:0
+C:4:8:0:3  # Polearm Mastery # Master Hunter
 D:Celegorm, third son of Fëanor, fierce, proud hunter and warrior.
 D:Bold but ruthless, known for martial prowess and cruelty.
 D:Ambitions led him to treacherous actions in pursuit of power,

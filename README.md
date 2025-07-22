@@ -17,14 +17,15 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 --Earendil  
 --Turin  
 --Celeborn  
+--Maedhros
   
 # Release of alpha 0.7  
 # Ideas  
 --More frequent forges for gnomes  
 --Calculate the forge probablity  
 --New Oaths  
---Quests
---Pride
+--Quests  
+--Pride  
 --Greed  
   
 # Done  
