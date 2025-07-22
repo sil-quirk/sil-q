@@ -23,7 +23,9 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 --More frequent forges for gnomes  
 --Calculate the forge probablity  
 --New Oaths  
---Quests  
+--Quests
+--Pride
+--Greed  
   
 # Done  
 -Implement main curses (done)  

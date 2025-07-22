@@ -1616,33 +1616,33 @@ extern void display_introduction(void)
     /* Clear screen */
     Term_clear();
 
-    Term_putstr(14, 1, -1, TERM_L_BLUE,
-        "  The world was young, the mountains green,            ");
-    Term_putstr(14, 2, -1, TERM_L_BLUE,
-        "     No stain yet on the moon was seen...              ");
+    Term_putstr(12, 1, -1, TERM_L_BLUE,
+        "    The world was young, the mountains green,            ");
+    Term_putstr(12, 2, -1, TERM_L_BLUE,
+        "       No stain yet on the moon was seen...              ");
 
-    Term_putstr(14, 5, -1, TERM_WHITE,
-        "Welcome to SilQ - Heroes, a game of adventure set                ");
-    Term_putstr(14, 6, -1, TERM_WHITE,
-        "  in the First Age of Middle-earth,                    ");
-    Term_putstr(14, 7, -1, TERM_WHITE,
+    Term_putstr(12, 5, -1, TERM_WHITE,
+        "Welcome to SilQ: Heroes of the First Age                ");
+    Term_putstr(12, 6, -1, TERM_WHITE,
+        "  An adventure set in Middle-earth's mythic past,                    ");
+    Term_putstr(12, 7, -1, TERM_WHITE,
         "    when the world still rang with elven song          ");
-    Term_putstr(14, 8, -1, TERM_WHITE,
+    Term_putstr(12, 8, -1, TERM_WHITE,
         "      and gleamed with dwarven mail.                   ");
 
-    Term_putstr(14, 10, -1, TERM_WHITE,
-        "It is a reimagening of original Sil gameplay adding       ");
-    Term_putstr(14, 11, -1, TERM_WHITE,
-        "   mechanics of modern rouge likes.                        ");
+    Term_putstr(12, 10, -1, TERM_YELLOW,
+        " A reimagining of the classic Sil experience,       ");
+    Term_putstr(12, 11, -1, TERM_YELLOW,
+        "   enriched by modern roguelike mechanics.                        ");
 
-    Term_putstr(14, 13, -1, TERM_WHITE,
+    Term_putstr(12, 13, -1, TERM_WHITE,
         "Walk the dark halls of Angband and slay creatures black and fell.");
-    Term_putstr(14, 14, -1, TERM_WHITE,
+    Term_putstr(12, 14, -1, TERM_WHITE,
         "  Wrest a shining Silmaril from Morgoth's iron crown.");
-    Term_putstr(14, 15, -1, TERM_WHITE,
-        "    Follow the advice of Valar.");   
-    Term_putstr(14, 16, -1, TERM_WHITE,
-        "      And proove your right to live in the lands of Valinor.");       
+    Term_putstr(12, 15, -1, TERM_WHITE,
+        "    Endure the curses of evil, guided by the wisdom of the Valar. ");   
+    Term_putstr(12, 16, -1, TERM_WHITE,
+        "      And prove your right to live in the lands of Valinor.");       
 
     /* Flush it */
     Term_fresh();

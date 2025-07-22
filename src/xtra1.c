@@ -2300,6 +2300,7 @@ static void calc_bonuses(void)
         object_flags(o_ptr, &f1, &f2, &f3);
         if (f2 & (TR2_DANGER))
             p_ptr->danger += 1;
+        if (c_info[p_ptr->phouse].flags & RHF_MOR_CURSE) p_ptr->danger += 1;;
     }
 
     /*** Analyze equipment ***/

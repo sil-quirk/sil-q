@@ -17,84 +17,84 @@ V:1.5.0
 N:0:Burden of Ancient Stone
 S:-1:0:0:0
 F:
-A:1/4
+A:2/3
 D:Every step feels older than the hills, your frame burdened by some unseen weight of ages past.
 P:Strength -1
 
 N:1:Curse of Shivering Leaves
 S:0:-1:0:0
 F:
-A:1/4
+A:2/3
 D:A faint quiver deep within; calm dissolves beneath hidden tremors.
 P:Dexterity -1
 
 N:2:Burden of Withering Blossoms
 S:0:0:-1:0
 F:
-A:1/4
+A:2/3
 D:Your heart feels as petals under frost, frail and fleeting, vulnerable to the gentlest winds.
 P:Constitution -1
 
 N:3:Curse of the Marred Dance
 S:0:0:0:-1
 F:
-A:1/4
+A:2/3
 D:No longer do you glide upon the earth, for a shadow has passed over your steps, harmony forever broken.
 P:Grace -1
 
 N:4:Curse of Blunted Steel
 S:0:0:0:0
 F:MEL_PENALTY
-A:2/2
+A:3/2
 D:The blade betrays your hand; the foe laughs softly as your blows fall like rain upon the stones.
 P:Melee Penalty
 
 N:5:Curse of Shrouded Moon
 S:0:0:0:0
 F:ARC_PENALTY
-A:2/2
+A:3/2
 D:Moonlight dims and arrows stray; shadows deceive your sight, truths obscured in mist and twilight.
 P:Archery Penalty
 
 N:6:Curse of Stirring Shadows
 S:0:0:0:0
 F:STL_PENALTY
-A:2/2
+A:3/2
 D:Silence slips away gently, betraying secrets once carefully kept.
 P: Stealth Penalty
 
 N:7:Curse of the Hourglass’ Pause
 S:0:0:0:0
 F:EVN_PENALTY
-A:2/2
+A:3/2
 D:The present blurs, responses lingering too long at the edge of thought.
 P:Evasion Penalty
 
 N:8:Curse of Clouded Mirrors
 S:0:0:0:0
 F:PER_PENALTY
-A:2/2
+A:3/2
 D:Subtle truths blur gently, forever dancing just beyond sight.
 P:Perception Penalty
 
 N:9:Curse of Nameless Dread
 S:0:0:0:0
 F:WIL_PENALTY
-A:2/2
+A:3/2
 D:A shadow creeps upon your mind, whispers of despair eroding bravery once unyielding.
 P:Will Penalty
 
 N:10:Sorrow of Crumbling Towers
 S:0:0:0:0
 F:SMT_PENALTY
-A:2/2
+A:3/2
 D:That which you craft falters like an ancient ruin, strength yielding slowly to decay.
 P:Smith Penalty
 
 N:11:Curse of Fading Whispers
 S:0:0:0:0
 F:SNG_PENALTY
-A:2/2
+A:3/2
 D:Voice drifts silently away, words unraveling softly before heard.
 P:Song_Penalty
 
@@ -110,7 +110,7 @@ N:13:Burden of the Exile
 S:0:0:0:0
 U:WEAK
 F:
-A:3/2
+A:4/2
 D:A weary shadow follows you, pressing heavily upon your shoulders. Strength fades beneath the relentless weight of your own doom.
 P:Weight limit decreased by 20%.
 
@@ -118,7 +118,7 @@ N:14:Echoes of Anguish
 S:0:0:0:0
 U:MONSTERHP
 F:
-A:3/0
+A:4/3
 D:Your foes rise, drawn from deeper shadows. Their vigor renewed by whispered malice, each battle longer, bloodier, and grimmer.
 P:Ordinary monsters’ HP increased by 20%.
 
@@ -126,7 +126,7 @@ N:15:Doom of the Mighty
 S:0:0:0:0
 U:MONSTERHP_U
 F:
-A:2/0
+A:3/3
 D:Named terrors regain ancient potency, their dark legends burn brighter. Heroes must now reckon with foes whose names echo louder in the dark.
 P:Unique monsters’ HP increased by 20%.
 
@@ -134,7 +134,7 @@ N:16:Veil of Shadows
 S:0:0:0:0
 U:MON_STL
 F:
-A:4/0
+A:4/3
 D:Enemies glide unseen, cloaked by unnatural shadows. Footfalls silent, menace concealed, until dread's blade is poised at your back.
 P:Monster Stealth increased by 2.
 
@@ -142,7 +142,7 @@ N:17:Lidless Gaze
 S:0:0:0:0
 U:MON_PER
 F:
-A:4/0
+A:4/3
 D:No subtlety escapes the watchful darkness. Eyes hidden in gloom pierce your every attempt at secrecy, stripping away your refuge.
 P:Monster Perception increased by 2.
 
@@ -150,7 +150,7 @@ N:18:Iron Will of Morgoth
 S:0:0:0:0
 U:MON_WIL
 F:
-A:4/0
+A:4/3
 D:Darkness fortifies their resolve. Adversaries steel their minds, unyielding as stone, resisting your every subtlety and song.
 P:Monster Will increased by 2.
 
@@ -158,7 +158,7 @@ N:19:Scales of Anfauglith
 S:0:0:0:0
 U:MON_ARM_DICE
 F:
-A:1/0
+A:1/3
 D:Enemy hides harden, mirroring the harsh lands of Anfauglith. Blades ring uselessly against scales tempered by despair.
 P:Monster armour dice increased by 1.
 
@@ -166,7 +166,7 @@ N:20:Halls of Adamant
 S:0:0:0:0
 U:MON_ARM_SIDE
 F:
-A:3/0
+A:3/3
 D:A fell enchantment coats your foes in armors forged in shadowed halls. Weapons chip against barriers tougher than mortal craft can break.
 P:Monster armour dice sides increased by 1.
 
@@ -174,7 +174,7 @@ N:21:The Naked Path
 S:0:0:0:0
 U:NOSTART
 F:
-A:2/1
+A:1/1
 D:You awaken stripped of all tokens of hope. Bereft, you face darkness bare-handed and vulnerable, a stark soul in a merciless world.
 P:Start without any equipment.
 
@@ -197,48 +197,48 @@ P:Spawned items have chance to be cursed.
 N:24:Twilight’s Shroud
 S:0:0:0:0
 U:LIGHTR
-A:1/4
+A:1/2
 D:A shadow settles around you, dimming the circle of hope. The darkness looms closer, daring you to step into deeper gloom.
 P:Light radius −1
 
 N:25:Waning of the Lamps
 S:0:0:0:0
 U:LIGHTP
-A:1/4
-D:The flame gutters weakly, colour leaching from the world.
-P:Light falters and flickers, drained by an unseen malice. Flames grow pale, barely holding back the encroaching night.
+A:1/2
+D:Light falters and flickers, drained by an unseen malice. Flames grow pale, barely holding back the encroaching night.
+P:Light Power -1
 
 N:26:Mandos' Begrudging Mercy
 S:0:0:0:0
 U:DEATH
-A:1/4
+A:1/2
 D:The doors of Mandos grow heavy and close swiftly behind you. The gift of the Eldar fades; your spirit bound closer to mortality, your return diminished as fate tightens its hold.
 P:Maximum deaths −3
 
 N:27:Maze of Malice
 S:0:0:0:0
 U:TRAPS
-A:1/4
+A:3/2
 D:Paths twist treacherously beneath your feet, snares multiplying at every step. Each shadow holds hidden peril, waiting hungrily to catch the unwary.
 P:Traps are more frequient.
 
 N:28:Host of Angband
 S:0:0:0:0
 U:MON_NUM
-A:1/4
+A:2/2
 D:Shadows multiply, thronging your path with relentless foes. Legions rise endlessly, pressing forward with hungry malice.
 P:More monsters
 
 N:29:Voracious Curse
 S:0:0:0:0
 U:HUNGER
-A:1/4
+A:3/3
 D:A hollow gnaws within you, insatiable and relentless. Hunger stalks your every step, the emptiness a ceaseless torment.
 P:Digestion rate ×2
 
 N:30:Draught of Delirium
 S:0:0:0:0
 U:HALLU
-A:1/4
+A:1/2
 D:The essence of Arda twists cruelly upon your tongue. Visions distort reality, weaving madness from nourishment, blurring friend and foe.
 P:20% chance per potion to go mad
