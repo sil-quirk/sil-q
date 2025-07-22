@@ -909,7 +909,7 @@ struct player_type
     s16b player_hp[PY_MAX_LEVEL]; /* HP Array */
 
     char died_from[80]; /* Cause of death */
-    char history[450]; /* Initial history */
+    char history[250]; /* Initial history */
 
     byte truce; /* Player will not be attacked initially at 1000ft */
     byte crown_hint; /* Player has been told about the Iron Crown */

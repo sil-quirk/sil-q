@@ -932,23 +932,23 @@ static void wr_extra(void)
     wr_u16b(p_ptr->escaped);
     wr_u16b(p_ptr->noscore);
     wr_u16b(p_ptr->smithing_leftover);
-    wr_byte(p_ptr->unique_forge_made);
-    wr_byte(p_ptr->unique_forge_seen);
+    wr_byte(p_ptr->unique_forge_made ? 1 : 0);
+    wr_byte(p_ptr->unique_forge_seen ? 1 : 0);
 
     /* Write death */
-    wr_byte(p_ptr->is_dead);
+    wr_byte(p_ptr->is_dead ? 1 : 0);
 
     /* Write feeling */
     wr_byte(feeling);
 
     /* Turn of last "feeling" */
-    wr_byte(do_feeling);
+    wr_byte(do_feeling ? 1 : 0);
 
     /* Current turn */
     wr_s32b(turn);
     wr_s32b(playerturn);
 
-    wr_byte(p_ptr->killed_enemy_with_arrow);
+    wr_byte(p_ptr->killed_enemy_with_arrow ? 1 : 0);
 
     wr_byte(p_ptr->oath_type);
     wr_byte(p_ptr->oaths_broken);

@@ -13,6 +13,7 @@
 #include "metarun.h"
 #include "z-term.h"
 #include <stdio.h>
+#include "log.h"
 
 // These are copied from birth.c and needed for displaying the character sheet
 #define INSTRUCT_ROW 21
@@ -4121,7 +4122,7 @@ static void display_scores_aux(int from, int to, int note, high_score* score)
         Term_clear();
 
         /* Title */
-        c_put_str(TERM_L_BLUE, "               Names of the Fallen", 1, 0);
+        c_put_str(TERM_L_BLUE, "               Hall of Mandos", 1, 0);
 
         /* Indicate non-top scores */
         if (k > 0)
@@ -4167,12 +4168,17 @@ static void display_scores_aux(int from, int to, int note, high_score* score)
     /* Print symbols for silmarils / slaying Morgoth */
 
         char cated_string[20];
-        sprintf(cated_string,"%s%d","Number of Silmarils: ",silm);
+        sprintf(cated_string,"%s%d","Number of Silmarils: ", metar.silmarils);
 
-        Term_putstr(2, 22, -1, TERM_BLUE, cated_string);
-        sprintf(cated_string,"%s%d","Slain Morgoth: ",morg);
+        Term_putstr(2, 21, -1, TERM_BLUE, cated_string);
 
-        Term_putstr(2, 23, -1, TERM_RED, cated_string);
+        sprintf(cated_string,"%s%d","Number of Deaths: ", metar.deaths);
+
+        Term_putstr(2, 22, -1, TERM_RED, cated_string);        
+
+        // sprintf(cated_string,"%s%d","Slain Morgoth: ", metar.morgoth_slain);
+
+        // Term_putstr(2, 23, -1, TERM_UMBER, cated_string);
 
         /* Wait for response */
         Term_putstr(15, 24, -1, TERM_L_WHITE, "(press any key)");

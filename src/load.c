@@ -187,6 +187,10 @@ static byte sf_get(void)
 
 static void rd_byte(byte* ip) { *ip = sf_get(); }
 
+static void rd_bool(bool* bp) {
+    *bp = sf_get() != 0;  // Any non-zero value becomes true
+}
+
 static void rd_u16b(u16b* ip)
 {
     (*ip) = sf_get();
@@ -930,22 +934,26 @@ static errr rd_extra(void)
     rd_u16b(&p_ptr->noscore);
     rd_s16b(&p_ptr->smithing_leftover);
 
-    rd_byte(&tmp8u);
-    p_ptr->unique_forge_made = tmp8u;
-    rd_byte(&tmp8u);
-    p_ptr->unique_forge_seen = tmp8u;
+    // rd_byte(&tmp8u);
+    // p_ptr->unique_forge_made = tmp8u;
+    // rd_byte(&tmp8u);
+    // p_ptr->unique_forge_seen = tmp8u;
 
-    /* Read "death" */
-    rd_byte(&tmp8u);
-    p_ptr->is_dead = tmp8u;
+    // /* Read "death" */
+    // rd_byte(&tmp8u);
+    // p_ptr->is_dead = tmp8u;
+    rd_bool(&p_ptr->unique_forge_made);
+    rd_bool(&p_ptr->unique_forge_seen);
+    rd_bool(&p_ptr->is_dead);
 
     /* Read "feeling" */
     rd_byte(&tmp8u);
     feeling = tmp8u;
 
     /*read the level feeling*/
-    rd_byte(&tmp8u);
-    do_feeling = tmp8u;
+    // rd_byte(&tmp8u);
+    // do_feeling = tmp8u;
+    rd_bool(&do_feeling);
 
     /* Current turn */
     rd_s32b(&turn);
@@ -953,8 +961,9 @@ static errr rd_extra(void)
     /* Current player turn */
     rd_s32b(&playerturn);
 
-    rd_byte(&tmp8u);
-    p_ptr->killed_enemy_with_arrow = tmp8u;
+    // rd_byte(&tmp8u);
+    // p_ptr->killed_enemy_with_arrow = tmp8u;
+    rd_bool(&p_ptr->killed_enemy_with_arrow);
 
     rd_byte(&p_ptr->oath_type);
     rd_byte(&p_ptr->oaths_broken);
