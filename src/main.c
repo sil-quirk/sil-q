@@ -18,6 +18,7 @@
 #if !defined(MACINTOSH) && !defined(WINDOWS) && !defined(RISCOS)
 
 #include "main.h"
+#include "log.h"
 
 /*
  * Sil-y: game in progress
@@ -400,6 +401,25 @@ int main(int argc, char* argv[])
     /* Mega-Hack -- Factor group id */
     player_uid += (getgid() * 1000);
 #endif /* VMS */
+
+    const char* log_level_str = getenv("SIL_LOG_LEVEL");
+    log_set_level(LOG_INFO);
+    if (log_level_str)
+    {
+        for (int i = LOG_TRACE; i <= LOG_FATAL; i++)
+        {
+            if (strcmp(log_level_str, log_level_string(i)) == 0)
+            {
+                log_set_level(i);
+                goto LOG_LEVEL_SET;
+            }
+        }
+        log_warn("Unknown log level %s, log level will be set to INFO",
+            log_level_str);
+    }
+LOG_LEVEL_SET:
+
+    log_info("logger initialised");
 
 #ifdef SAFE_SETUID
 
