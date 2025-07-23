@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "h-basic.h"
 #include "metarun.h" 
 
 /*
@@ -84,7 +85,7 @@ s32b turn; /* Current game turn */
 s32b playerturn; /* Current player turn */
 s32b min_depth_counter; /* Updates the min depth over time  */
 
-bool do_feeling; /* Hack -- Level feeling counter */
+byte do_feeling; /* Hack -- Level feeling counter */
 
 bool use_sound; /* The "sound" mode is enabled */
 int use_graphics; /* The "graphics" mode is enabled */
@@ -149,7 +150,7 @@ s16b rating; /* Level's current rating */
 
 bool good_item_flag; /* True if "Artefact" on this level */
 
-bool closing_flag; /* Dungeon is closing */
+int closing_flag; /* Dungeon is closing */
 
 /*
  * Player info

@@ -69,6 +69,7 @@
 
 #include "angband.h"
 #include <locale.h>
+#include "log.h"
 
 #ifdef WINDOWS
 
@@ -4068,6 +4069,26 @@ int FAR PASCAL WinMain(
     // Sil-y: added this section
     // Sil-y: There is now a text menu that can play repeated games
     use_background_colors = TRUE;
+
+        const char* log_level_str = getenv("SIL_LOG_LEVEL");
+        log_set_level(LOG_INFO);
+        if (log_level_str)
+        {
+            for (int i = LOG_TRACE; i <= LOG_FATAL; i++)
+            {
+                if (strcmp(log_level_str, log_level_string(i)) == 0)
+                {
+                    log_set_level(i);
+                    goto LOG_LEVEL_SET;
+                }
+            }
+            log_warn("Unknown log level %s, log level will be set to INFO",
+                log_level_str);
+        }
+    LOG_LEVEL_SET:
+
+        log_info("logger initialised");
+
     while (1)
     {
         bool new_game = FALSE;

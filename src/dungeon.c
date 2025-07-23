@@ -11,6 +11,13 @@
 #include "angband.h"
 #include "metarun.h"
 
+/* ------------- debug macro ----------------------------------------- */
+#ifdef DEBUG
+# define DPRINTF(fmt, ...)  fprintf(stderr, "[dungeon] " fmt "\n", ##__VA_ARGS__)
+#else
+# define DPRINTF(fmt, ...)  ((void)0)
+#endif
+
 /*
  * Return a "feeling" (or NULL) about an item.  Method 1 (Weak).
  * Sil - this method can't distinguish artefacts from ego items
@@ -2709,7 +2716,9 @@ static void dungeon(void)
 
         /* Can the player move? */
         while ((p_ptr->energy >= 100) && (!p_ptr->leaving))
-        {
+        {   
+            // DPRINTF("Player energy: %d, Monsters energy: %d",
+                //    p_ptr->energy, p_ptr->energy + 1);
             /* Process monster with even more energy first */
             process_monsters(p_ptr->energy + 1);
 
@@ -2725,6 +2734,7 @@ static void dungeon(void)
                     redraw_stuff();
 
                 /* Process the player */
+                // DPRINTF("Processing player actions");
                 process_player();
             }
         }
@@ -2844,6 +2854,7 @@ static void dungeon(void)
 
         /* Count game turns */
         turn++;
+        // DPRINTF("Turn %d", turn);
     }
 }
 
@@ -3120,12 +3131,14 @@ void play_game(bool new_game)
         autoinscribe_init();
 
         /* Hack -- enter the world */
+        if (!character_loaded) {
         turn = 1;
         playerturn = 0;
         min_depth_counter = 0;
 
         /* Start player on level 1 */
         p_ptr->depth = 1;
+        }
     }
 
     /* Normal machine (process player name) */

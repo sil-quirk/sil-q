@@ -192,8 +192,6 @@ static const int race_priority[] = {
     6, //Edain
     0 //Feanor
 };
-static const size_t race_prio_len =
-    sizeof(race_priority) / sizeof(race_priority[0]);
 
 s16b tokenize(char* buf, s16b num, char** tokens)
 {
@@ -3228,7 +3226,7 @@ void do_cmd_escape(int silmarils)
     flush();
 
     /* Commit suicide */
-    // p_ptr->is_dead = TRUE;
+     p_ptr->is_dead = TRUE;
 
     /* Stop playing */
     p_ptr->playing = FALSE;

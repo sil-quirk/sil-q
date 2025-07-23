@@ -3999,7 +3999,7 @@ void generate_cave(void)
     character_dungeon = FALSE;
 
     /* Don't know feeling yet */
-    do_feeling = FALSE;
+    do_feeling = 0;
 
     /*allow uniques to be generated everywhere but in nests/pits*/
     allow_uniques = TRUE;

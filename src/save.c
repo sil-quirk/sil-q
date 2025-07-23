@@ -9,6 +9,14 @@
  */
 
 #include "angband.h"
+#include <stdio.h>
+
+/* ------------- debug macro ----------------------------------------- */
+#ifdef DEBUG
+# define DPRINTF(fmt, ...)  fprintf(stderr, "[save] " fmt "\n", ##__VA_ARGS__)
+#else
+# define DPRINTF(fmt, ...)  ((void)0)
+#endif
 
 static const char* races[] = {
     "Noldor",
@@ -933,20 +941,27 @@ static void wr_extra(void)
     wr_u16b(p_ptr->noscore);
     wr_u16b(p_ptr->smithing_leftover);
     wr_byte(p_ptr->unique_forge_made ? 1 : 0);
+    DPRINTF("Unique forge made: %d", p_ptr->unique_forge_made ? 1 : 0);
     wr_byte(p_ptr->unique_forge_seen ? 1 : 0);
+    DPRINTF("Unique forge seen: %d", p_ptr->unique_forge_seen ? 1 : 0);
 
     /* Write death */
     wr_byte(p_ptr->is_dead ? 1 : 0);
+    DPRINTF("Player is dead: %d", p_ptr->is_dead);
 
     /* Write feeling */
     wr_byte(feeling);
+    DPRINTF("Feeling: %d", feeling);
 
     /* Turn of last "feeling" */
-    wr_byte(do_feeling ? 1 : 0);
+    wr_byte(do_feeling);
+    DPRINTF("Do feeling: %d", do_feeling);
 
     /* Current turn */
     wr_s32b(turn);
+    DPRINTF("Current turn: %d", turn);
     wr_s32b(playerturn);
+    DPRINTF("Player turn: %d", playerturn);
 
     wr_byte(p_ptr->killed_enemy_with_arrow ? 1 : 0);
 
@@ -958,6 +973,7 @@ static void wr_extra(void)
     wr_s32b(p_ptr->unused3);
 
     wr_s32b(min_depth_counter);
+    DPRINTF("Min depth counter: %d", min_depth_counter);
 
     updatecharinfoS();
 }
@@ -1221,6 +1237,8 @@ static bool wr_savefile(void)
 
     u16b tmp16u;
 
+    DPRINTF("Writing savefile...");
+
     /* Guess at the current time */
     now = time((time_t*)0);
 
@@ -1307,6 +1325,8 @@ static bool wr_savefile(void)
     }
 
     /* Write the "extra" information */
+    DPRINTF("Writing extra information...\n");
+    
     wr_extra();
 
 

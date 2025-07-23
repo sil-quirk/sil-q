@@ -12,6 +12,13 @@
 
 #include "init.h"
 
+/* ------------- debug macro ----------------------------------------- */
+#ifdef DEBUG
+# define DPRINTF(fmt, ...)  fprintf(stderr, "[load] " fmt "\n", ##__VA_ARGS__)
+#else
+# define DPRINTF(fmt, ...)  ((void)0)
+#endif
+
 /*
  * This file loads savefiles from Sil.
  *
@@ -724,7 +731,7 @@ static errr rd_extra(void)
 
     rd_string(p_ptr->died_from, 80);
 
-    rd_string(p_ptr->history, 250);
+    rd_string(p_ptr->history, 450);
 
     /* Player race */
     rd_byte(&p_ptr->prace);
@@ -945,21 +952,25 @@ static errr rd_extra(void)
     rd_bool(&p_ptr->unique_forge_made);
     rd_bool(&p_ptr->unique_forge_seen);
     rd_bool(&p_ptr->is_dead);
+    DPRINTF("is_dead: %d", p_ptr->is_dead);
 
     /* Read "feeling" */
     rd_byte(&tmp8u);
     feeling = tmp8u;
 
     /*read the level feeling*/
-    // rd_byte(&tmp8u);
-    // do_feeling = tmp8u;
-    rd_bool(&do_feeling);
+    rd_byte(&tmp8u);
+    do_feeling = tmp8u;
+    // rd_byte(&do_feeling);
+    DPRINTF("do_feeling: %d", do_feeling);
 
     /* Current turn */
     rd_s32b(&turn);
+    DPRINTF("turn: %d", turn);
 
     /* Current player turn */
     rd_s32b(&playerturn);
+    DPRINTF("playerturn: %d", playerturn);
 
     // rd_byte(&tmp8u);
     // p_ptr->killed_enemy_with_arrow = tmp8u;
@@ -1840,8 +1851,8 @@ bool load_player(void)
     if (fd < 0)
     {
         /* Give a message */
-        msg_format("Savefile \"%s\" does not exist.", savefile);
-        message_flush();
+        // msg_format("Savefile \"%s\" does not exist.", savefile);
+        // message_flush();
 
         /* Allow this */
         p_ptr->restoring = FALSE;
