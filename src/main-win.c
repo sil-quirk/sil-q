@@ -4064,7 +4064,7 @@ int FAR PASCAL WinMain(
     use_background_colors = TRUE;
 
         const char* log_level_str = getenv("SIL_LOG_LEVEL");
-        log_set_level(LOG_DEBUG);
+        log_set_level(LOG_INFO);
         if (log_level_str)
         {
             for (int i = LOG_TRACE; i <= LOG_FATAL; i++)

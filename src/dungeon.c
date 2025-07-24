@@ -3060,18 +3060,14 @@ void play_game(void)
     print_story();
     print_metarun_stats();
 
-    log_info("Character creation started");
+    log_info("Choosing character");
     character_creation();
 
     /* Attempt to load */
-    // if (!load_player())
-    // {
-    //     /* Oops */
-    //     character_icky--;
-    // }
+    if (!load_player()) log_info("Failed to load player");
 
     log_info(character_loaded ? "Character loaded" :
-        (character_loaded_dead ? "Character loaded dead" : "Character created"));
+        (character_loaded_dead ? "Character loaded dead" : "Character creation started created"));
 
     /* Nothing loaded (and living) */
     if (!character_loaded)
