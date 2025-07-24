@@ -157,12 +157,13 @@ B:Fingolfin
 F:WIL_AFFINITY | ARC_AFFINITY | KINSLAYER
 S:1:2:1:1
 C:1:5 #Versatility
-D:Fingon, eldest son of Fingolfin, High King of the Noldor, is        
-D:valiant, noble, and loved by many. Famous for rescuing Maedhros from 
-D:torment on Thangorodrim, he forged unity among the Noldor. Strong in 
-D:battle and wise in leadership, Fingon now leads his people from 
-D:Hithlum, holding steadfast against Morgoth’s darkness, renowned for 
-D:courage, friendship, and unwavering loyalty even in perilous times. 
+D:Brave-hearted prince, valiant son of Fingolfin, friend to mighty Maedhros; 
+D:fearless rescuer who cut friend free from torment upon dread peaks. 
+D:His valor brightens briefly as High King, yet fate cruelly casts him down 
+D:on Anfauglith’s blackened plain, where Morgoth's shadow conquers courage. 
+D:But his deeds yet inspire hope, shining as stars above fading realms, 
+D:friendship unbroken even in death, his spirit ever watching kin afar, 
+D:awaiting the final healing of wounds made by sword and sorrow. 
 
 #Stats +5 +4 =9
 
@@ -172,11 +173,13 @@ B:Fingolfin
 F:WIL_AFFINITY | STL_AFFINITY | PER_AFFINITY | MEL_PENALTY | ARC_PENALTY | KINSLAYER
 S:0:0:2:2
 C:3:5 #Vanish
-D:Turgon, High King of Gondolin, wise, steadfast, and secretive.
-D:Founded the hidden city, safeguarding hope against darkness.
-D:His realm stood splendid until treachery unveiled it to Morgoth.
-D:Valiant in its fall, Turgon perished defending his city, leaving
-D:a legacy of courage and unyielding defiance.                           
+D:Lord of hidden Gondolin, builder of white walls beneath encircling peaks; 
+D:proud and secretive, whose city once stood fair against Morgoth’s malice. 
+D:Yet pride sealed doom, ignoring warnings whispered by Ulmo’s waves, 
+D:as fire consumed towers and hope alike beneath betrayal’s cruel hand. 
+D:Though fallen, his bloodline endures in Eärendil, whose distant star 
+D:foreshadows redemption far beyond sorrowful ruin of his city’s dreams, 
+D:awaiting a brighter hour when shadows break and stars shine anew. 
 
 #Stats +5 +4 =9
 
@@ -186,28 +189,30 @@ B:Finarfin
 F:PER_AFFINITY | SMT_PENALTY | CURSE
 S:0:1:1:2
 C:4:6:4:7  # Listen Outwit
-D:Galadriel, daughter of Finarfin, is greatest among the Noldorin     
-D:maidens, strong-willed and ambitious. Dwelling in the guarded realm 
-D:of Doriath alongside Celeborn, she seeks wisdom and influence,      
-D:tempered by the peaceful teaching of Melian. Her pride and strength 
-D:are evident, but she has yet to rule openly, her destiny still      
-D:unfolding amid struggles against Morgoth’s darkness.                
+D:Fair-haired daughter of Finarfin, exile proud and wise beyond her years, 
+D:eyes aglow with foresight, bearing grief of kin lost, kingdoms fallen. 
+D:Dwelling now beneath twilight, silent watcher amid deepening shadows, 
+D:feeling distant echoes of power yet to rise, and peril unforeseen. 
+D:Her dreams foretell realms she shall shape, yet touched by subtle peril; 
+D:rings of power yet unmade haunt visions, promising glory and grief alike, 
+D:marking her path through sorrow and hope, unto fates unknown and mighty. 
 
 #Stats +5 +4 =9
 
-N:9:Finrod
+N:9:Finrod Felagund
 A:Finarfin's House
 B:Finarfin
 F:PER_AFFINITY | SNG_AFFINITY | WIL_AFFINITY | CURSE
 U:SNG_FIN
 S:0:1:0:3
 C:7:9 #Staying
-D:Finrod Felagund, noble son of Finarfin, recently ruled fair and     
-D:prosperous Nargothrond. Wise, brave, and compassionate, beloved by  
-D:elves and men, Finrod honored his vow to Barahir by aiding Beren’s  
-D:quest. He perished heroically, slain by a werewolf in Sauron’s      
-D:dungeons, protecting his mortal companion. His death echoes through 
-D:Elven hearts as a beacon of loyalty, courage, and sacrifice.        
+D:Noble-hearted builder of halls beneath Nargothrond’s fair stone towers, 
+D:friend steadfast and gentle, beloved of Men, faithful unto death itself. 
+D:Sacrificed life to fulfill oaths made in love, honor, and courage, 
+D:wrestling darkness for sake of mortal friend, forever remembered. 
+D:Though fallen, his song yet echoes in lands where his kin wander, 
+D:spirit bright in halls of Mandos, witnessing doom and destiny unfold - 
+D:his deeds foretelling bonds of friendship bridging mortal and immortal. 
 
 #Stats +5 +6 =11
 
@@ -217,13 +222,13 @@ B:Golden Flower
 F:MEL_AFFINITY | ARC_PENALTY
 S:2:2:1:1
 C:2:9:0:12  # Rapid Attack Control retreat
-D:Glorfindel, lord of the House of the Golden Flower in Gondolin, was 
-D:radiant and mighty, golden-haired and bold of heart. In the Fall of 
-D:Gondolin, he slew a Balrog in single combat to protect the city's   
-D:escape. Though he fell into the abyss, his valor became legend.     
-D:Reborn by the Valar, he would return in ages to come as a champion  
-D:of the West. His name endures as a symbol of light and unshakable   
-D:courage in the darkest hour.                                        
+D:Golden-haired lord, valiant defender of Gondolin’s doomed white towers; 
+D:fierce guardian whose final battle cast Balrog down to fiery ruin. 
+D:Fallen hero, whose sacrifice on mountain heights foreshadows rebirth, 
+D:awaiting summons from Mandos, granted life anew by Valar’s grace. 
+D:Destined yet to return, bearing hope amid shadows of future darkness, 
+D:protector whose bright spirit shall guide hidden paths of peril, 
+D:until at last he rises again, ever watchful, a beacon of immortal valor. 
 
 #Stats +5 +5 =10
 
@@ -233,13 +238,13 @@ B:the Fountain
 F:MEL_AFFINITY | KINSLAYER | ARC_PENALTY | EVN_PENALTY
 S:2:1:1:1
 C:0:6 #Impale
-D:Finrod Felagund, noble son of Finarfin, recently ruled fair and     
-D:Ecthelion, lord of the House of the Fountain, was noble, proud, and 
-D:graceful in battle. In the defense of Gondolin, he slew Gothmog,    
-D:Lord of Balrogs, casting him down in the King's Square, though he   
-D:perished also. His death turned the tide within the city, buying    
-D:time for its people. Remembered as peerless among Gondolin’s        
-D:captains, Ecthelion’s name is sung in memory of honor and sacrifice. 
+D:Valiant Lord of Gondolin, whose silver sword sang beneath city's towers; 
+D:captain beloved, noble guardian at the gates of secret splendor. 
+D:His voice echoed brightly in fountain-filled squares, stern yet gentle, 
+D:eyes keen with foresight of doom hidden beneath white walls of pride. 
+D:Foreshadows heroism unmatched, battling shadow in ruinous hour; 
+D:fate bound to duel dread lord of Balrogs, both falling in glorious flame, 
+D:a legacy ever remembered in song beneath stars and shattered stone. 
 
 #Stats +2 +7 =9
 
@@ -250,12 +255,13 @@ F:WIL_AFFINITY | PER_AFFINITY | ARC_PENALTY
 U:SNG_THINGOL
 S:2:1:1:3
 C:5:9:7:11  # Song of Mastery Majesty
-D:Elu Thingol, King of Doriath, was the greatest lord of the Sindar.  
-D:Once known as Elwe, he was ensnared by love for Melian the Maia.    
-D:Together, they founded the hidden realm of Doriath, protected by the 
-D:Girdle of Melian. Tallest of all Elves, with silver hair, he ruled  
-D:with pride and wisdom. His realm stood as a bastion against         
-D:Morgoth's darkness, though his pride lead to tragedy.   
+D:King of grey twilight, tallest among Elves, ruling hidden Doriath fair; 
+D:whose wisdom guarded realms beneath enchanted forests, untouched by time. 
+D:Pride stirred by Silmaril's light, destiny darkened through treasure's lure, 
+D:fate woven tight with mortal hearts and grief, binding Eldar to Edain. 
+D:His realm doomed by jewel-craft and dwarven greed; shadows gather swift, 
+D:yet memory of greatness endures, haunting woods once bright with song, 
+D:foreshadowing ruin wrought by desire, grief deeper than twilight itself. 
 
 #Stats +2 +4 =6
 
@@ -265,12 +271,13 @@ B:Falathrim
 F:PER_AFFINITY | SMT_AFFINITY | ARC_PENALTY | FREE | BOW_PROFICIENCY
 S:0:1:1:2
 C:4:2:4:4 # Keen Senses Alchemy
-D:Cirdan the Shipwright, wise lord of the Falas, patiently builds     
-D:vessels, safeguarding Elven wisdom. Tall, serene, and far-seeing, he 
-D:watches over the coasts, advising allies, offering refuge. His      
-D:steadfastness anchors Sindar strength against Morgoth's darkness.   
-
-#Stats +2 +3 =5
+D:Wise shipwright, silver-bearded master mariner dwelling by western shores; 
+D:foresight guiding weary hearts toward hope amid tides of endless grief. 
+D:His keen eyes witness sorrows deepening, ships departing into twilight; 
+D:entrusted by fate to craft vessels bearing hidden stars and secret fire. 
+D:He watches patiently as realms fall, bound to wait until grief departs, 
+D:foreseeing final voyages across seas yet veiled by shadow and sorrow, 
+D:keeper of hope unseen, guiding future kings unto shores yet unknown. 
 
 N:14:Mablung
 A:Doriath
@@ -278,13 +285,13 @@ B:Doriath
 F:MEL_AFFINITY
 S:2:1:0:0
 C:0:10 # Smite
-D:Mablung, mighty captain of Doriath, called "of the Heavy Hand," is  
-D:famed for strength and loyalty to King Thingol. Brave and steadfast, 
-D:he patrols and defends Doriath’s borders tirelessly, respected by  
-D:all. Trusted advisor and warrior, Mablung embodies honor, courage, 
-D:and unwavering dedication to Sindar safety and prosperity.          
-
-#Stats +2 +6 =8
+D:Brave huntsman, faithful captain of Thingol’s guard beneath starlit woods, 
+D:whose spear guarded borders of Doriath, steadfast amid darkness growing. 
+D:Witness of grief and ruin, whose noble heart wept silent tears unshed, 
+D:burdened by tragedies foreseen yet helplessly endured in shadowed hours. 
+D:Doomed yet unwavering companion to mortal heroes, bonds forged in sorrow, 
+D:foresight dimmed by loss yet eyes reflecting courage amid despair, 
+D:destined to fall loyal, remembered in lament beneath darkening trees. 
 
 N:15:Luthien
 A:Doriath
@@ -293,15 +300,13 @@ F:WIL_AFFINITY | SNG_AFFINITY | STL_AFFINITY | EVN_AFFINITY | ARC_PENALTY
 U:SNG_LUT
 S:-1:3:1:3
 C:7:10:5:0   # Curse Breaking #Lorien
-D:Luthien, daughter of Thingol and Melian, was fairest of all the     
-D:Children of Iluvatar. Her beauty and voice enchanted even the       
-D:immortal. She loved the mortal Beren and chose a fate beyond death. 
-D:With courage and power, she passed Sauron’s dungeons and put Morgoth 
-D:into a spell-bound sleep. Her deeds shook the foundations of        
-D:Angband, and her love defied death itself. Her name is woven into   
-D:all songs.                                                          
-
-#Stats +2 +2 =4
+D:Fairest daughter of twilight, song and star blended beneath woodland leaves, 
+D:whose voice defied Morgoth himself, beauty challenging darkness eternal. 
+D:Love binding mortal heart to immortal soul, weaving fate unforeseen, 
+D:foreshadowing hope and sorrow entwined, the world's destiny reshaped. 
+D:Brave in love, daring paths forbidden, setting aside her timeless grace, 
+D:destined to fade willingly from Eldar's light, mortal fate chosen bravely, 
+D:remembered ever as brightest jewel in Arda’s song, grief and joy entwined. 
 
 N:16:Voronwe
 A:the Falas
@@ -309,14 +314,13 @@ B:Falathrim
 F:PER_PENALTY | FREE | BOW_PROFICIENCY
 S:0:1:1:0
 C:4:0 # Quick Study
-D:Voronwe, Elf of Gondolin, was noble, steadfast, and sea-born. Of    
-D:Falathrim descent on his mother’s side, he bore the sea’s longing in 
-D:his heart. Chosen by Turgon to sail west for aid, he alone returning 
-D:from the voyage, saved by Ulmo’s hand. In the wilds he met Tuor, 
-D:guiding him to Gondolin. Called "the Faithful", Voronwe carried 
-D:Ulmo’s warning and became a quiet force in the fate of Elves and Men.                                                                
-
-#Stats +2 +3 =5
+D:Faithful mariner, storm-tossed survivor, bearer of Ulmo’s whispered hope, 
+D:last messenger of Gondolin’s hidden splendor, guided by fate unseen. 
+D:His weary eyes glimpsed future sorrow, guiding mortal hero toward doom, 
+D:footsteps bound by destiny, yet courage kindled by unyielding resolve. 
+D:Foreseeing city’s fall yet guiding hero onward through shadows deepening, 
+D:heart burdened yet steadfast, fulfilling purpose woven by Powers above, 
+D:bearer of hope amid despair, witness to glory lost beneath waves of flame. 
 
 N:17:Beleg
 A:the Falas
@@ -324,14 +328,13 @@ B:Falathrim
 F:ARC_AFFINITY | SNG_PENALTY | BOW_PROFICIENCY
 S:1:2:0:0
 C:1:7 # Deadly Hail
-D:Beleg Cuthalion, called Strongbow, was chief marchwarden of Doriath. 
-D:A master archer and swordsman, he defended the realm with valor. 
-D:Friend to Turin, he sought him in exile and shared his fate. Slain 
-D:accidentally by Turin in madness, Beleg’s death marked a turning in 
-D:Turin’s doom. Honored in song, Beleg’s loyalty and strength were 
-D:unmatched, his love unbroken even in betrayal.                      
-
-#Stats +2 +5 =7
+D:Strongbow of Doriath, brave-hearted ranger whose arrows sang in twilight, 
+D:friend steadfast beyond measure, whose courage guarded realms in peril. 
+D:Devoted companion to mortal friend, bound by love and tragic fate, 
+D:foreshadowing betrayal unmeant, grief deeper than death itself. 
+D:His noble heart foreseen pierced by friend’s tragic blade in darkness, 
+D:sorrowful fate sealed, yet deeds inspiring bravery even amid grief, 
+D:forever honored as faithful guardian whose loyalty outshines doom. 
 
 N:18:Telchar
 A:Nogrod
@@ -341,14 +344,13 @@ U:SMT_TELCHAR
 S:1:1:1:2
 C:6:3:6:0  # Weaponsmith # Enchantment
 E:4:0:0:30     # | Mithril (25)
-D:Telchar of Nogrod, greatest smith of dwarven-kind in Beleriand, is  
-D:famed far and wide for crafting weapons of unparalleled strength.   
-D:His masterpieces include Narsil, destined for kings, and the famed  
-D:Dragon-helm of Dor-lomin. Proud and fiercely protective of dwarven  
-D:craftsmanship, Telchar’s legacy grows steadily, his works revered by 
-D:Elves, Men, and Dwarves alike.                                      
-
-#Stats +2 +2 =4
+D:Renowned smith of Nogrod, whose mighty hammer shaped legends in iron; 
+D:hands crafting marvels bound to fateful deeds beyond dwarven halls. 
+D:Maker of swords whose edge would cleave darkness and challenge fate itself, 
+D:his forge echoed prophecy of heroism, tragedy, valor, and betrayal. 
+D:Blade forged destined to wound Morgoth himself, bound to mortal hero, 
+D:weapons wrought in secret, glory shadowed by fate unforeseen, 
+D:remembered by dwarves and Elves alike, name carved deep in lore and stone. 
 
 N:19:Gamil Zirak
 A:Belegost
@@ -357,14 +359,13 @@ F:PER_AFFINITY | SMT_AFFINITY | MEL_PENALTY
 U:SMT_GAMIL
 S:0:0:0:2
 C:6:4 # Expertise
-D:Gamil Zirak, revered smith of Belegost, renowned as master teacher  
-D:and craftsman, passes dwarven lore to the generations. Wise,        
-D:patient, and deeply respected, he mentors young smiths, preserving  
-D:and perfecting ancient techniques. Gamil's steady hand shapes arms  
-D:and armor unmatched in strength and beauty, enriching dwarven fame  
-D:throughout Beleriand.                                               
-
-#Stats +2 +2 =4
+D:Master smith hidden deep beneath mountains, legend among Naugrim lords, 
+D:whose skilled hands taught crafts divine, shaping metal into destiny. 
+D:Secrets wrought in darkness beneath earth, wisdom shining in shadows deep, 
+D:his knowledge bound to lineage of smiths whose deeds echo through ages. 
+D:Foreshadowing future splendor and ruin alike, marvels and treasures forged, 
+D:his teachings carry whispers of power and peril yet hidden by time, 
+D:remembered in halls of stone, his craft enduring beyond fall and flame. 
 
 N:20:Naugladur
 A:Nogrod
@@ -372,13 +373,13 @@ B:Nogrod
 F:PER_PENALTY | TREACHERY
 S:1:1:1:-1
 C:3:2 # Cruel blow
-D:Naugladur, proud and greedy lord of Nogrod, led dwarven warriors. 
-D:He coveted the Nauglamir necklace, fueling distrust and violence. 
-D:In his ambition, he brought ruin upon his people and realm,
-D:slain in battle amid betrayal and cursed treasure.
-
-
-#Stats +2 +6 =8
+D:Proud dwarven king, lord of wealth whose eyes darkened with greedy fire, 
+D:driven by lust for Silmaril’s beauty, weaving betrayal and doom. 
+D:His heart foreshadows bitter conflict, dwarven honor stained by greed, 
+D:hands grasping fate unmeant, binding destiny to ruin unforeseen. 
+D:Doomed to fall, pride crumbling beneath shadows of treachery and wrath, 
+D:legacy darkened by tragic ambition, forgotten by halls of gold, 
+D:name whispered grimly, memory marred by deeds wrought in tragic pride. 
 
 N:21:King Azaghal
 A:Belegost
@@ -386,13 +387,13 @@ B:Belegost
 F:WIL_AFFINITY | MEL_AFFINITY
 S:2:1:2:1
 C:0:8 # Whirlwind Attack
-D:Azaghal, lord of Belegost, fearless, mighty, and respected.
-D:Famed for valor in battle, notably at Nirnaeth Arnoediad.
-D:His heroic stand against dragon Glaurung became legendary.
-D:Though he fell, his warriors honored him deeply, carrying his
-D:body away amid lament and eternal reverence.                                         
-
-#Stats +2 -2 =0
+D:Mighty dwarven lord of Belegost, brave-hearted defender of stone halls, 
+D:whose fierce courage challenged dragons beneath red fire and shadow. 
+D:Armor clad in valor, battling boldly amid ruinous flames unleashed, 
+D:foreshadowing heroism unmatched, fate bound fiercely to dragon’s breath. 
+D:Fell bravely beneath claws of Glaurung, yet blade pierced scale and pride, 
+D:remembered forever in dwarven lament, honor etched deep in stone, 
+D:symbol of courage beyond doom, defying darkness at battle’s end. 
 
 N:22:Mim
 A:Belegost
@@ -401,14 +402,13 @@ F:SNG_AFFINITY | MEL_PENALTY | STL_AFFINITY | TREACHERY | SMT_PENALTY
 U:MIM
 S:-1:1:-1:-1
 C:7:4:3:0:3:1:3:2:3:3:3:4:3:6 # Song of Silence and all stealth
-D:Mîm, last of the Petty-dwarves, lived in Amon Rûdh in secret. When  
-D:caught by Turin’s outlaws, he bartered his life with shelter.       
-D:Grudging and bitter, he later betrayed Turin to the Orcs, though he 
-D:wept for his son’s death. Hated by Elves and shunned by Dwarves, Mîm 
-D:died cursed, yet pitied. A creature twisted by grief, not wholly    
-D:evil.                                                               
-
-#Stats +0 +5 =5
+D:Petty dwarf, last remnant of forgotten people, dwelling hidden in shadows; 
+D:heart bitter, sorrowful survivor of ancient wrongs beneath grey hills. 
+D:Guardian of secrets bound to sorrow, foreshadowing betrayal and grief, 
+D:his eyes dark with resentment, fate weaving tragedy for friend and foe. 
+D:Deeds twisted by bitterness, vengeance awakening shadow unforeseen, 
+D:destiny entwined tragically with mortals, ruin born from grudging heart, 
+D:remembered with pity and dread alike, sorrow embodied in fading stones. 
 
 N:23:Beren
 A:Beor's House
@@ -416,13 +416,13 @@ B:Beor
 F:EVN_AFFINITY | STL_AFFINITY | WIL_AFFINITY
 S:1:2:1:1
 C:0:7:3:1  # Assassination # Subtlety
-D:Beren, son of Barahir, is a brave and driven warrior, hunted by 
-D:Morgoth’s servants. He now dwells in Doriath, where he fell in love 
-D:with Luthien. A mortal with a noble heart, Beren's destiny is shaped 
-D:by great love and greater danger, as he prepares for a quest none 
-D:have dared before—to claim a Silmaril from Morgoth's crown.         
-
-#Stats +0 +3 =3
+D:Mortal hero, brave-hearted wanderer beneath stars, defying darkness,
+D:whose love challenged fate itself, winning Silmaril with courage unmatched. 
+D:Destined to tread perilous paths, hand of shadow bound in silver fire, 
+D:deeds woven in tragedy and triumph, uniting mortal and immortal blood. 
+D:Foreshadowing line of hidden kings whose fate shall shape Arda’s end, 
+D:heart bound fiercely to Lúthien’s grace, death conquered by timeless love, 
+D:legacy ever shining, his story echoed eternally in stars and song. 
 
 N:24:Barahir
 A:Beor's House
@@ -430,14 +430,13 @@ B:Beor
 F:EVN_AFFINITY 
 S:1:0:1:1
 C:0:9 # Zone of control
-D:Barahir, lord of the House of Beor, famed for courage and loyalty,  
-D:fought bravely against Morgoth. His valor earned Finrod's           
-D:friendship, marked by the Ring of Barahir. A steadfast leader,      
-D:Barahir defied darkness even as his people dwindled, guarding hope  
-D:fiercely amidst ruin. He stood resilient and proud, embodying human 
-D:courage in the face of overwhelming shadow.                         
-
-#Stats +0 +9 =9
+D:Valiant chieftain of mortal Men, defender bold amid ruinous shadows, 
+D:whose loyal heart defied Morgoth’s wrath beneath northern darkness. 
+D:Bearer of ring pledging friendship eternal between mortal and Elf-kind, 
+D:fate bound by courage unyielding, guarding hope despite despair. 
+D:His deeds foreshadow heroic legacy, bloodline destined for hidden glory, 
+D:death faced nobly, yet memory survives beyond flames and sorrow; 
+D:remembered ever as beacon of honor in night’s relentless storm. 
 
 N:25:Earendil
 A:Beor's House
@@ -446,13 +445,13 @@ F:EVN_AFFINITY | STL_AFFINITY | WIL_AFFINITY | PER_AFFINITY | SNG_AFFINITY | MEL
 U:EARENDIL
 S:1:2:2:4
 C:7:7:5:4  # Inner Light # Song of the Trees
-D:Eärendil, son of Tuor and Idril, was a mariner of great heart and   
-D:noble lineage. Born of Elf and Man, he sailed the seas seeking aid  
-D:from the Valar. With Elwing and the Silmaril, he passed into the    
-D:West. His plea moved the Valar to war against Morgoth. Raised into  
-D:the sky as a star, Eärendil became a beacon of hope for all peoples. 
-
-#Stats +0 +3 =3
+D:Mariner foretold by prophecy, born of Eldar and mortal blood entwined, 
+D:destined to voyage oceans unseen, bearing hope amid endless night. 
+D:Guided by stars, his ship shall challenge darkness beyond western seas, 
+D:bound by fate to Silmaril’s radiant flame, piercing shadows eternal. 
+D:His quest foreshadows deliverance, heralding doom for Morgoth’s reign, 
+D:forever sailing skies, immortal star shining above world’s grief; 
+D:Eärendil, brightest hope, whose journey defines Arda’s final destiny. 
 
 N:26:Haleth
 A:Haleth's People
@@ -460,14 +459,13 @@ B:Haleth
 F:STL_AFFINITY
 S:0:1:2:0
 C:2:6  # Blocking :2:1 # Flanking
-D:Haleth, warrior-chieftain and shieldmaiden, led her people with     
-D:unyielding strength. After her father and brother fell in battle,   
-D:she bravely defended the Haladin against Orc-hordes. Proud, stern,  
-D:and fiercely independent, Haleth guided her people safely to the    
-D:Forest of Brethil, forging their identity through courage and honor 
-D:amid hardship and constant threat.                                  
-
-#Stats +0 +5 =5
+D:Proud-hearted shieldmaiden, leader brave of forest-dwelling folk, 
+D:steadfast in valor, defying darkness beneath shadowed woodland halls. 
+D:Unyielding in courage, guiding people through peril and loss, 
+D:spirit unbroken by sorrow, foreshadowing strength in days of despair. 
+D:Her resolve shapes destiny of mortal hearts bound by fierce independence, 
+D:remembered as flame undimmed, inspiring resilience amidst ruin; 
+D:Haleth’s name echoing proudly among tales of mortal defiance. 
 
 N:27:Hador
 A:Hador's House
@@ -475,29 +473,27 @@ B:Hador
 F:MEL_AFFINITY 
 S:3:1:2:1
 C:0:10:0:4:C:0:2  # Charge # Smite # Knock Back
-D:Hador Lorindol, golden-haired lord, was strongest and most valiant  
-D:of the Edain. Granted the land of Dor-lomin by Fingolfin, he led his 
-D:people wisely and bravely, renowned for loyalty, generosity, and 
-D:courage. Beloved by both Elves and Men, Hador’s strength and 
-D:nobility became legendary, his legacy enduring brightly even in     
-D:darkening days.                                                     
+D:Noble lord, golden-haired leader beloved among Edain’s bravest houses, 
+D:whose banner shone proudly upon battlefield, courage bright in darkness. 
+D:Heart generous yet fierce, bound in friendship and honor with Eldar lords, 
+D:destined to fall bravely, leaving legacy borne by blood of heroes. 
+D:His line foreshadows valor undimmed, sorrow mingled with future glory, 
+D:memory cherished in halls of Men and Elves, defying shadow’s power; 
+D:emblem of mortal bravery, whose blood shapes Arda’s hidden fate. 
 
-#Stats +0 +5 =5
-
-N:28:Turin
+N:28:Turin Turambar
 A:Beor's House
 B:Beor
 F:EVN_AFFINITY | MEL_AFFINITY | PER_PENALTY | MOR_CURSE | STL_AFFINITY
 S:2:2:2:-1
 C:5:2:0:10:0:5  # Follow-Through  # Smite # Strength in Adversity
-D:Túrin, son of Húrin, was a mighty warrior, proud and sorrowful. 
-D:Raised in Doriath, he wandered Beleriand under many names. Driven by 
-D:doom laid by Morgoth, he slew his friend Beleg in error, and loved  
-D:his sister unknowing. Called Turambar, Master of Fate, he slew 
-D:Glaurung the dragon. Learning the truth, he fell on his sword. His 
-D:tale is one of greatness marred by shadow and tragic pride.         
-
-#Stats +0 +5 =5
+D:Dark-haired warrior, tragic son of doom, shadow-haunted mortal hero, 
+D:whose blade, black and shining, cleaves fate amid relentless sorrow. 
+D:Driven by pride and grief, defying Morgoth’s curse yet bound within it, 
+D:friend and foe entwined in tragic deeds, shadows deepening ever. 
+D:Foreshadowing final despair, heroism tarnished by doom inevitable, 
+D:yet courage undaunted, destined to slay dragon and darkness alike; 
+D:memory forever mingled with glory and grief, Turambar—master of fate. 
 
 N:29:Tuor
 A:Beor's House
@@ -506,14 +502,13 @@ F:EVN_AFFINITY | MEL_AFFINITY
 U:WIL_TUOR
 S:1:1:2:1
 C:5:1  # Channeling # Focused Attack 4:1:
-D:Tuor, son of Huor, was chosen by Ulmo to bear a message to Gondolin. 
-D:Guided by the Vala’s will, he reached the hidden city and married 
-D:Idril, daughter of Turgon. Wise and noble, he led the survivors 
-D:through fire and ruin after Gondolin's fall. Among the greatest of  
-D:Men, Tuor alone was said to have passed into the West, counted among 
-D:the Eldar in grace and fate.                                        
-
-#Stats +0 +5 =5
+D:Mortal messenger chosen by Ulmo, guided by wave and whispered dream, 
+D:bearer of hidden hope to Gondolin, destined to kindle fading valor. 
+D:Heart bound in love with Eldar princess, bloodline uniting two worlds, 
+D:foreshadowing renewal beyond ruin, fate entwined with Eldar’s end. 
+D:Bold protector in Gondolin’s final flame, escaping shadow’s grasp, 
+D:father to mariner whose star heralds doom and deliverance alike; 
+D:Tuor, mortal whose legacy shapes fate beyond sorrowful days. 
 
 N:30:Hurin
 A:Beor's House
@@ -522,33 +517,41 @@ F:EVN_AFFINITY | WIL_AFFINITY | PER_PENALTY | SNG_AFFINITY | MOR_CURSE
 U:SNG_HURIN
 S:2:1:2:0
 C:5:3:5:5:5:7:7:8  # Song of Slaying  # Poison Resistance  # Indomitable # Formidable
-D:Hurin, lord of the House of Hador, was the greatest warrior of Men. 
-D:Captured at Nirnaeth Arnoediad, he defied Morgoth for years in      
-D:chains. Released with malice, his bitter grief and pride helped doom 
-D:Doriath. Yet Hurin bore his curse with indomitable will. His        
-D:strength and sorrow left a mark on all of Beleriand's fate.   
+D:Mightiest mortal warrior, defiant heart opposing Morgoth’s darkness, 
+D:whose valor on Anfauglith echoed courage beyond mortal despair. 
+D:Bound cruelly to doom, witnessing ruin wrought upon kin and realm alike, 
+D:sorrow unmatched, yet spirit unbroken amid relentless torment. 
+D:Foreshadowing tragic deeds borne of bitterness and wrathful grief, 
+D:memory enduring in pride and tragedy, hero forever defiant; 
+D:Húrin, steadfast flame, challenging darkness even unto bitterest end. 
 
-N:31:Idril
+N:31:Idril Celebrindal
 A:House of the Fountain
 B:Fingolfin
 F:STL_AFFINITY | MEL_PENALTY | SMT_PENALTY | PER_AFFINITY | ARC_PENALTY
 S:-1:2:0:2
 C:7:9
 C:4:7 # Listen
-D:Idril Celebrindal, wise and gentle daughter of Turgon.
-D:Beloved for beauty, insight, and prophetic dreams.
-D:Guided survivors safely from Gondolin’s ruin, her foresight
-D:saved remnants of the city’s people, preserving hope.
+D:Silver-footed princess of Gondolin, whose beauty shone brightly amid ruin, 
+D:wise-hearted, foresight guiding hidden paths through doom and shadow. 
+D:Love binding mortal and immortal hearts, shaping fate unforeseen, 
+D:foreshadowing survival beyond flames, bearing hope anew amid despair. 
+D:Mother of mariner destined to sail skies bearing hidden fire, 
+D:her courage endures through darkness, quietly preparing future’s light; 
+D:Idril, bright star guiding destiny toward renewal beyond sorrow.
 
 N:32:Gil Galad
 A:House of the Fountain
 B:Fingolfin
 S:1:1:1:1
 C:0:3 # Polearm
-D:Gil-galad, High King of the Noldor after Gondolin’s fall.
-D:Resolute, noble, and charismatic leader, guiding his people
-D:through darkness. His reign brought unity and resilience,
-D:setting foundations for future resistance against evil.
+D:Star-bright heir of kings, child of Eldar bloodline noble and doomed,
+D:destined to bear crown amid shadows of ruinous First Age’s end. 
+D:Heart strong with wisdom and valor, guiding remnants toward distant shores, 
+D:foreshadowing kingship beneath fading stars, yet untouched by flame. 
+D:Courage enduring through darkness, leader born amid turmoil’s grief, 
+D:memory destined to shine even unto ages beyond ruin’s shadow; 
+D:Gil-galad, name whispered with hope amid Elven twilight. 
 
 N:33:Celeborn
 A:Teleri
@@ -556,10 +559,13 @@ B:Teleri
 S:1:1:0:1
 F:ARC_PENALTY | FREE | BOW_PROFICIENCY
 C:7:11
-D:Celeborn, wise lord of the Sindar, patient and thoughtful.
-D:His calm counsel and diplomatic wisdom greatly valued.
-D:Alongside Galadriel, he preserved Elven wisdom and heritage,
-D:steadfastly guiding kin through trials and shadow. 
+D:Noble prince of twilight woods, wise lord whose heart bears hidden grief, 
+D:destined guardian of fading realms beneath shadows yet unseen. 
+D:Bound by love to Lady whose wisdom shapes fate of realms unknown, 
+D:foreshadowing exile and sorrow mingled with enduring strength. 
+D:Quietly guiding kin through darkness, steward of fading splendor, 
+D:his fate woven subtly, surviving ruin and watching stars diminish; 
+D:Celeborn, silent watcher, whose heart endures beyond sorrowful loss. 
 
 N:34:Daeron
 A:Doriath
@@ -567,10 +573,13 @@ B:Doriath
 F:SNG_AFFINITY | WIL_PENALTY | PER_PENALTY
 S:0:1:-1:3
 C:7:5:7:12 # Song of Staunching and Woven Themes
-D:Daeron, greatest bard among the Sindar, gifted and melancholic.
-D:Renowned for music and poetry surpassing all others.
-D:Heartbroken by unrequited love for Lúthien, wandered Middle-earth 
-D:in grief, leaving behind a legacy of unmatched song.
+D:Greatest minstrel of twilight realm, singer whose melodies haunted woods, 
+D:heart bound secretly in sorrowful longing, songs shaped by love unseen. 
+D:His lament echoes through ages, voice weaving melancholy fate, 
+D:driven to wander in grief, yet remembered by heartbroken Eldar. 
+D:Foreshadowing exile and solitude, artistry born from sorrow unending, 
+D:melodies forever entwined with shadow, beauty enduring amidst loss; 
+D:Daeron, mournful voice whose music outlasts realms and time itself. 
 
 N:35:Melian Maia
 A:Mayar
@@ -579,10 +588,13 @@ F:WIL_AFFINITY | SNG_AFFINITY | PER_AFFINITY | ARC_PENALTY
 U:SNG_MEL
 S:1:0:1:5
 C:7:11:7:6 # Song of Mastery Song of Thresholds
-D:Melian, Maia Queen of Doriath, wise and compassionate.
-D:Powerful protector through enchantments of peace and safety.
-D:Her guidance and foresight long defended the realm until fate
-D:forced her departure, marking the waning of enchantment.  
+D:Maia of divine grace, veiled in mortal form, guardian of twilight woods, 
+D:whose enchantment shielded realms from Morgoth’s shadow and despair. 
+D:Love bound her heart to Elf-lord Thingol, fate entwined tragically, 
+D:wisdom foreseeing sorrow yet helpless against destiny’s tides. 
+D:Her power foreshadowed protection’s fall, woven spells unraveling, 
+D:grief deepening as doom approached, yet beauty undiminished; 
+D:Melian, heart both mighty and sorrowful, shaping fate subtly. 
 
 N:36:Celegorm
 A:Feanor's House
@@ -590,7 +602,10 @@ B:Feanor
 F:ARC_AFFINITY | EVN_AFFINITY | WIL_PENALTY | SMT_PENALTY | TREACHERY | BOW_PROFICIENCY
 S:1:1:2:0
 C:4:8:0:3  # Polearm Mastery # Master Hunter
-D:Celegorm, third son of Fëanor, fierce, proud hunter and warrior.
-D:Bold but ruthless, known for martial prowess and cruelty.
-D:Ambitions led him to treacherous actions in pursuit of power,
-D:ultimately contributing to his tragic end and dark legacy.
+D:Fierce-hearted third son of Fëanor, fiery hunter beneath wild woods, 
+D:prideful prince whose noble beauty hid ambition and cunning deeds. 
+D:Hunter whose hound’s loyalty outshone his own heart’s shadowed honor, 
+D:foreshadowing betrayal born of lust for jewels and glory. 
+D:Destiny stained by pursuit ruthless, turning kin against kin, 
+D:marred forever by treachery against love and friendship sacred; 
+D:Celegorm, proud hunter fallen, memory darkened by tragic desire. 

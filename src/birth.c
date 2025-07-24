@@ -23,8 +23,8 @@
 #define QUESTION_COL 2
 #define RACE_COL 2
 #define RACE_AUX_COL 19
-#define CLASS_COL 19
-#define CLASS_AUX_COL 31
+#define CLASS_COL 17
+#define CLASS_AUX_COL 27
 #define TOTAL_AUX_COL 35
 #define INVALID_CHOICE 255
 
@@ -867,13 +867,16 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         {
             if (i + top < 26)
             {
-                strnfmt(buf, sizeof(buf), "%c) %s", I2A(i + top),
-                    choices[i + top].name);
+                if (choices[i + top].ghost)
+                    strnfmt(buf, sizeof(buf), "%c %s", 'X', choices[i + top].name);
+                else 
+                    strnfmt(buf, sizeof(buf), choices[i + top].name);
+                
             }
             else
             {
                 /* ToDo: Fix the ASCII dependency */
-                strnfmt(buf, sizeof(buf), "%c) %s", 'A' + (i + top - 26),
+                strnfmt(buf, sizeof(buf),/*  "%c) %s", 'A' + (i + top - 26), */
                     choices[i + top].name);
             }
 
@@ -1124,7 +1127,7 @@ static void print_rh_flags(int race, int house, int col, int row)
     byte attr_penalty  = TERM_RED;
     byte attr_gr_penalty  = TERM_L_RED;
 
-    const int col_pen = col + 20;
+    const int col_pen = col + 21;
 
     // Updated struct to support side
     typedef struct {
@@ -1473,10 +1476,10 @@ static void house_aux_hook(birth_menu c_str)
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 7, -1, TERM_WHITE,
         "                                         ");
     // Check dead   
-    if (c_str.ghost) Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 7, -1, TERM_RED,
-        "Dead");
-    else Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX +7, -1, TERM_L_BLUE,
-        "Alive");
+    // if (c_str.ghost) Term_putstr(TOTAL_AUX_COL, QUESTION_ROW + A_MAX + 7, -1, TERM_RED,
+    //     "Dead");
+    // else Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX +7, -1, TERM_L_BLUE,
+    //     "Alive");
         
     print_rh_flags(
         p_ptr->prace, house_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
@@ -1545,6 +1548,7 @@ static bool get_player_house(void)
         {
             if (highscore_dead(c_name + c_info[i].name)) houses[house].ghost = TRUE;
             else houses[house].ghost = FALSE;
+                
             houses[house].name = c_name + c_info[i].name;
             houses[house].text = c_text + c_info[i].text;
             if (p_ptr->phouse == i)

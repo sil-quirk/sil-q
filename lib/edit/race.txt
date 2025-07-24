@@ -51,12 +51,13 @@ F:KINSLAYER | SMT_AFFINITY | MEL_AFFINITY | WIL_AFFINITY | PER_AFFINITY | CURSE
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
 E:23:7:1:1     # | Curved sword (1)
-D:The Noldor are known as the 'Deep-elves', for they are the
-D: most learned and inventive of the elven kindreds. They saw
-D: the light of the Two Trees in Valinor and gained much in
-D: lore and skill. They are tall and lithe, yet so strong
-D: of spirit that they can endure vast hardship. Their
-D: hair is mostly dark and their eyes grey.
+D:Proud-hearted sons of flame, heirs bound eternally by their father's 
+D:relentless Oath, pursuing stolen Jewels through ruin and despair. 
+D:Noble in pride yet shadowed by deeds darkened by betrayal and grief; 
+D:their swords ever turned against kin, blood staining their legacy. 
+D:Driven to exile, oath-bound fate guiding their feet toward sorrow, 
+D:foretold to fade in flame and ruin beneath desperate quest's end, 
+D:leaving memory of greatness marred forever by tragic pride. 
 
 N:1:Fingolfinrim
 S:0:1:2:2
@@ -68,12 +69,13 @@ F:WIL_AFFINITY | MEL_AFFINITY | PER_AFFINITY | EVN_AFFINITY | ARC_AFFINITY | CUR
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
 E:23:7:1:1     # | Curved sword (1)
-D:The Noldor are known as the 'Deep-elves', for they are the
-D: most learned and inventive of the elven kindreds. They saw
-D: the light of the Two Trees in Valinor and gained much in
-D: lore and skill. They are tall and lithe, yet so strong
-D: of spirit that they can endure vast hardship. Their
-D: hair is mostly dark and their eyes grey.
+D:Valiant and steadfast people, following Fingolfin’s bright banner 
+D:through cold Helcaraxe’s treacherous ice to realms darkened by war. 
+D:Their courage tested against Morgoth's might beneath northern skies, 
+D:enduring loss bravely, hearts unbowed even in bitterest defeat. 
+D:Foreshadowing doom upon Anfauglith's fields, bravery unmatched, 
+D:their legacy marked by noble defiance, sacrifice beyond despair, 
+D:forever remembered as flames of valor beneath gathering shadow. 
 
 N:2:Finarfinrim
 S:0:1:2:2
@@ -85,12 +87,13 @@ F:SNG_AFFINITY | PER_AFFINITY | WIL_AFFINITY
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
 E:23:7:1:1     # | Curved sword (1)
-D:The Noldor are known as the 'Deep-elves', for they are the
-D: most learned and inventive of the elven kindreds. They saw
-D: the light of the Two Trees in Valinor and gained much in
-D: lore and skill. They are tall and lithe, yet so strong
-D: of spirit that they can endure vast hardship. Their
-D: hair is mostly dark and their eyes grey.
+D:Fair and wise, children of the gentle-hearted Finarfin, golden-haired, 
+D:guided by wisdom rather than wrath, yet sharing kin's tragic exile. 
+D:Builders of bright kingdoms soon to fall, guardians of ancient songs, 
+D:whose deeds bind Elf to mortal Man, friendship shining through darkness. 
+D:Bearing quiet grief amid glory, foreseeing ruin yet trusting hope, 
+D:their line foretells redemption distant, beauty flowering from loss - 
+D:bridging sorrowful exile and final healing in days yet unseen. 
 
 N:3:Sindar
 S:0:1:0:1
@@ -102,10 +105,13 @@ F:SNG_AFFINITY | PER_AFFINITY | WIL_AFFINITY | ARC_AFFINITY
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
 E:23:7:1:1     # | Curved sword (1)
-D:The Sindar are the 'Grey-elves' who never saw the blessed light of
-D: the Two Trees, but who found an echo of it in their queen,
-D: Melian the Maiar. They are less learned and powerful than the
-D: Noldor, but have fair voices and are gifted in song.
+D:Grey-Elves, children of twilight, who lingered beneath starlit skies, 
+D:wandering forests under shadows of Beleriand, guarded by secrecy. 
+D:Melodious speech shaping beauty and sorrow into songs of twilight, 
+D:suffering wars not of their making, hearts burdened by grief untold. 
+D:Their doom bound to fading realms, yet resilience deep as roots of trees; 
+D:amid ruin their wisdom blossoms quietly, awaiting renewal and peace 
+D:beyond sorrowful days when forests burn and stars alone remember. 
 
 N:4:Naugrim
 S:2:-1:2:-1
@@ -117,11 +123,13 @@ F:AXE_PROFICIENCY | ARC_PENALTY | SMT_AFFINITY | MEL_AFFINITY
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:35:5:5    # , Pieces of Dark Bread (5)
 E:23:7:1:1     # | Curved sword (1)
-D:The dwarves are stone-hard and stubborn, fast in friendship
-D: and in enmity. They live long, far beyond the span of Men
-D: but not for ever. They are short in stature, deep-breasted
-D: and stout in the leg, and their beards are long. They were
-D: named the 'Naugrim' by the Sindar, meaning 'the stunted people'.
+D:Hardy smith-folk dwelling beneath mountains, masters of stone and metal, 
+D:crafting marvels in deep halls, secretive yet fiercely loyal friends. 
+D:Hearts bound to treasures glittering beneath earth, pride and greed entwined, 
+D:foreshadowing conflicts bitter yet bravely fought against shadow. 
+D:Their hands shall shape future splendor, halls both wondrous and doomed, 
+D:forging swords and armor destined to echo peril yet unseen, 
+D:allies steadfast and perilous, whose fate is carved in stone. 
 
 N:5:Edain
 S:0:0:0:0
@@ -133,10 +141,40 @@ F:MEL_AFFINITY | WIL_AFFINITY | GIFTERU
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:35:5:5    # , Pieces of Dark Bread (5)
 E:23:7:1:1     # | Curved sword (1)
-D:The Edain are the Men of Beleriand. They gained much from
-D: dealings with the Noldor, and grew more long lived than their
-D: kin beyond the mountains.
-D: However, compared to the elves they were more frail, and more easily
-D: slain by weapon or mischance.
-D: The Edain dwell in the north of
-D: Beleriand and help the Noldor to contain Morgoth's power.
+D:Mortal children, whose brief lives shine bravely amid shadows of Eldar; 
+D:their hearts bound fiercely to freedom, defying doom and dark despair. 
+D:Heroes born amid ruin, whose strength will challenge Morgoth's shadow, 
+D:forging bonds of love and sorrow binding them forever to Elf-kind. 
+D:Foreseen to rise and perish swiftly, leaving deeds remembered in song, 
+D:carrying hope beyond death, their bloodline destined for hidden glory, 
+D:their fate to inherit Arda's weary dominion beyond Eldar's fading hour. 
+
+#Vanyar
+
+#High Elves, golden-haired and purest-hearted beneath Valinor's radiance,
+#loyal companions of Valar, singers whose voices echo joy eternal. 
+#Dwelling forever in light beyond grief, untouched by shadow's stain, 
+#watching sorrowful fate of kin afar across seas of exile and loss. 
+#Their distant wisdom foreshadows future healing when darkness fades; 
+#their songs in timeless peace await Eldar’s return from sorrow's depths, 
+#unblemished yet sorrowful, bound to grief by kinship and love. 
+
+#Teleri
+
+#Elves of the sea, silver-haired mariners whose ships glide white waves, 
+#whose voices blend sorrow with beauty, forever grieving ships burned. 
+#Bound by longing for sea and stars, dwelling at shores distant from war, 
+#their hearts wounded by kin-slaying, memory darkening gentle songs. 
+#Foreshadowing future partings upon endless tides, grief and farewell, 
+#yet hope endures in ocean depths, whispering healing yet unseen, 
+#awaiting peace beyond sorrow, sea winds carrying away tears forever.
+
+#Maiar
+
+#Spirits divine yet humble, dwelling unseen amid winds, flame, and sea; 
+#messengers and servants of Valar, shaping destiny behind veiled form. 
+#Their wisdom subtly guides paths of Elf and mortal toward hidden hope, 
+#yet their kindred spirits darken, foreshadowing fell deeds yet done. 
+#Bound by duty eternal, watching Arda's unfolding grief and triumph, 
+#whispering courage into hearts, preparing unseen future glory and ruin, 
+#shaping fate quietly until final judgment, when veils fall away. 
