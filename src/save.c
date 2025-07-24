@@ -9,46 +9,43 @@
  */
 
 #include "angband.h"
+#include "log.h"
 #include <stdio.h>
-
-/* ------------- debug macro ----------------------------------------- */
-#ifdef DEBUG
-# define DPRINTF(fmt, ...)  fprintf(stderr, "[save] " fmt "\n", ##__VA_ARGS__)
-#else
-# define DPRINTF(fmt, ...)  ((void)0)
-#endif
-
-static const char* races[] = {
-    "Noldor",
-    "Sindar",
-    "Naugrim",
-    "Edain",
-};
 
 void updatecharinfoS(void)
 {
-    // File Output + Lookup Tables
     char tmp_Path[1024];
-    FILE* oFile;
-    int curDepth = p_ptr->max_depth * 50;
     char parsed_dir_user[1024];
+
+    int curDepth = p_ptr->max_depth * 50;
+
     path_parse(parsed_dir_user, sizeof(parsed_dir_user), ANGBAND_DIR_USER);
     path_build(tmp_Path, sizeof(tmp_Path), parsed_dir_user, "CharOutput.txt");
-    oFile = fopen(tmp_Path, "w");
+
+    FILE* oFile = fopen(tmp_Path, "w");
+    if (!oFile) {
+        return;
+    }
+
     fprintf(oFile, "{\n");
-    fprintf(oFile, "race: \"%s\",\n", races[p_ptr->prace]);
-    /* Look up the house name via the parsed data */
-    fprintf(oFile,
-            "class: \"%s\",\n",
-            c_name + c_info[p_ptr->phouse].name);
+
+    const char* race_str = p_name + p_info[p_ptr->prace].name;
+    fprintf(oFile, "race: \"%s\",\n", race_str);
+
+    const char* class_str = c_name + c_info[p_ptr->phouse].name;
+    fprintf(oFile, "class: \"%s\",\n", class_str);
+
     fprintf(oFile, "mDepth: \"%i\",\n", curDepth);
     fprintf(oFile, "isDead: \"%i\",\n", p_ptr->is_dead);
     fprintf(oFile, "killedBy: \"%s\",\n", p_ptr->died_from);
     fprintf(oFile, "onTheRun: \"%i\",\n", p_ptr->on_the_run);
     fprintf(oFile, "morgothDead: \"%i\"\n", p_ptr->morgoth_slain);
+
     fprintf(oFile, "}");
     fclose(oFile);
 }
+
+
 
 #ifdef FUTURE_SAVEFILES
 
@@ -941,27 +938,27 @@ static void wr_extra(void)
     wr_u16b(p_ptr->noscore);
     wr_u16b(p_ptr->smithing_leftover);
     wr_byte(p_ptr->unique_forge_made ? 1 : 0);
-    DPRINTF("Unique forge made: %d", p_ptr->unique_forge_made ? 1 : 0);
+    log_trace("Unique forge made: %d", p_ptr->unique_forge_made ? 1 : 0);
     wr_byte(p_ptr->unique_forge_seen ? 1 : 0);
-    DPRINTF("Unique forge seen: %d", p_ptr->unique_forge_seen ? 1 : 0);
+    log_trace("Unique forge seen: %d", p_ptr->unique_forge_seen ? 1 : 0);
 
     /* Write death */
     wr_byte(p_ptr->is_dead ? 1 : 0);
-    DPRINTF("Player is dead: %d", p_ptr->is_dead);
+    log_trace("Player is dead: %d", p_ptr->is_dead);
 
     /* Write feeling */
     wr_byte(feeling);
-    DPRINTF("Feeling: %d", feeling);
+    log_trace("Feeling: %d", feeling);
 
     /* Turn of last "feeling" */
     wr_byte(do_feeling);
-    DPRINTF("Do feeling: %d", do_feeling);
+    log_trace("Do feeling: %d", do_feeling);
 
     /* Current turn */
     wr_s32b(turn);
-    DPRINTF("Current turn: %d", turn);
+    log_trace("Current turn: %d", turn);
     wr_s32b(playerturn);
-    DPRINTF("Player turn: %d", playerturn);
+    log_trace("Player turn: %d", playerturn);
 
     wr_byte(p_ptr->killed_enemy_with_arrow ? 1 : 0);
 
@@ -973,7 +970,7 @@ static void wr_extra(void)
     wr_s32b(p_ptr->unused3);
 
     wr_s32b(min_depth_counter);
-    DPRINTF("Min depth counter: %d", min_depth_counter);
+    log_trace("Min depth counter: %d", min_depth_counter);
 
     updatecharinfoS();
 }
@@ -1237,7 +1234,7 @@ static bool wr_savefile(void)
 
     u16b tmp16u;
 
-    DPRINTF("Writing savefile...");
+    log_debug("Starting wr_savefile");
 
     /* Guess at the current time */
     now = time((time_t*)0);
@@ -1284,16 +1281,18 @@ static bool wr_savefile(void)
     wr_u32b(0L);
 
     /* Write the RNG state */
+    log_debug("Writing RNG state");
     wr_randomizer();
 
     /* Write the boolean "options" */
+    log_debug("Writing options");
     wr_options();
 
     /* Dump the number of "messages" */
     tmp16u = message_num();
     wr_u16b(tmp16u);
 
-
+    log_debug("Writing %d messages", tmp16u);
 
     /* Dump the messages (oldest first!) */
     for (i = tmp16u - 1; i >= 0; i--)
@@ -1325,16 +1324,18 @@ static bool wr_savefile(void)
     }
 
     /* Write the "extra" information */
-    DPRINTF("Writing extra information...\n");
+    log_debug("Writing extra information...\n");
     
     wr_extra();
 
 
 
     /*Write the randarts*/
+    log_debug("Writing random artefacts...");
     wr_randarts();
 
     /*Copy the notes file into the savefile*/
+    log_debug("Writing notes...");
     wr_notes();
 
     // Write the smithing item
@@ -1353,6 +1354,7 @@ static bool wr_savefile(void)
         wr_u16b((u16b)i);
 
         /* Dump object */
+        log_debug("Writing inventory item %d", i);
         wr_item(o_ptr);
     }
 
@@ -1363,6 +1365,7 @@ static bool wr_savefile(void)
     if (!p_ptr->is_dead)
     {
         /* Dump the dungeon */
+        log_debug("Writing dungeon...");
         wr_dungeon();
     }
 
@@ -1427,6 +1430,7 @@ static bool save_player_aux(cptr name)
         if (fff)
         {
             /* Write the savefile */
+            log_debug("Writing savefile %s", name);
             if (wr_savefile())
                 ok = TRUE;
 
@@ -1492,6 +1496,7 @@ bool save_player(void)
     safe_setuid_drop();
 
     /* Attempt to save the player */
+    log_debug("Attempting to save player to %s", safe);
     if (save_player_aux(safe))
     {
         char temp[1024];

@@ -13,18 +13,10 @@
 #include "metarun.h"
 #include "z-term.h"
 #include <stdio.h>
-#include "log.h"
 
 // These are copied from birth.c and needed for displaying the character sheet
 #define INSTRUCT_ROW 21
 #define QUESTION_COL 2
-
-/* ------------- debug macro ----------------------------------------- */
-#ifdef DEBUG
-# define DPRINTF(fmt, ...)  fprintf(stderr, "[metarun] " fmt "\n", ##__VA_ARGS__)
-#else
-# define DPRINTF(fmt, ...)  ((void)0)
-#endif
 
 /*
  * Hack -- drop permissions
@@ -3294,7 +3286,7 @@ void do_cmd_escape(int silmarils)
     my_strcpy(p_ptr->died_from, "ripe old age", sizeof(p_ptr->died_from));
 
     /* Update metarun: escaped with N Silmarils */
-    DPRINTF("called from do_cmd_escape"); 
+    log_debug("called from do_cmd_escape"); 
     metarun_update_on_exit(FALSE,TRUE,silmarils);
 
     print_story();
@@ -3378,7 +3370,7 @@ void do_cmd_save_game(void)
     /* Save the player */
    /* Make sure meta-run data (curses, flags, etc.) is up-to-date even
       when the player merely saves & quits. */
-   DPRINTF("called from do_cmd_save_game");    
+   log_debug("called from do_cmd_save_game");    
    metarun_update_on_exit(FALSE, FALSE, 0);
 
     if (save_player())
@@ -3771,13 +3763,6 @@ static int hero_in_scores(const char *name)
     fclose(fp);
     return 0;
 }
-
-/* ------------- debug macro ----------------------------------------- */
-#ifdef DEBUG
-# define DPRINTF(fmt, ...)  fprintf(stderr, "[kinslayer] " fmt "\n", ##__VA_ARGS__)
-#else
-# define DPRINTF(fmt, ...)  ((void)0)
-#endif
 
 #define RACE_PRIORITIES (sizeof(race_priority) / sizeof(race_priority[0]))
 
@@ -4700,16 +4685,16 @@ void show_scores(void)
 // Handle Kinslayer ability
 void kinslayer_try_kill(uint8_t n_sils)
 {
-    DPRINTF("entered, n_sils=%u", n_sils);
+    log_debug("entered, n_sils=%u", n_sils);
 
     /* 1) Probability check */
     static const int pct_tab[4] = { 0, 20, 50, 95 };
-    if (n_sils == 0) { DPRINTF("no Silmarils → return"); return; }
+    if (n_sils == 0) { log_debug("no Silmarils → return"); return; }
     if (n_sils > 3)  n_sils = 3;
     int pct = pct_tab[n_sils];
     int roll = rand_int(100);
-    DPRINTF("chance=%d%%, roll=%d", pct, roll);
-    if (roll >= pct) { DPRINTF("chance failed → return"); return; }
+    log_debug("chance=%d%%, roll=%d", pct, roll);
+    if (roll >= pct) { log_debug("chance failed → return"); return; }
 
     /* 2) Build path to scores.raw */
     char score_path[1024];
@@ -4717,7 +4702,7 @@ void kinslayer_try_kill(uint8_t n_sils)
 
     /* 3) Open global highscore_fd if not already open */
     if (highscore_fd < 0) {
-        DPRINTF("highscore_fd < 0, opening %s", score_path);
+        log_debug("highscore_fd < 0, opening %s", score_path);
         safe_setuid_grab();
         highscore_fd = open(score_path, O_RDWR | O_CREAT, 0644);
         safe_setuid_drop();
@@ -4725,19 +4710,19 @@ void kinslayer_try_kill(uint8_t n_sils)
             quit(format("Cannot open %s (%d)", score_path, errno));
             return;  /* NOTREACHED */
         }
-        DPRINTF("opened highscore_fd=%d", highscore_fd);
+        log_debug("opened highscore_fd=%d", highscore_fd);
     }
 
     /* 4) Determine number of records */
     off_t file_end = lseek(highscore_fd, 0, SEEK_END);
     int n_recs    = (int)(file_end / sizeof(high_score));
-    DPRINTF("hi-score file size=%lld, records=%d",
+    log_debug("hi-score file size=%lld, records=%d",
             (long long)file_end, n_recs);
 
     /* 5) Iterate races in priority order */
     for (size_t i = 0; i < RACE_PRIORITIES; ++i) {
         uint16_t race = race_priority[i];
-        DPRINTF("race priority[%zu]=%u", i, race);
+        log_debug("race priority[%zu]=%u", i, race);
 
         /* 5.a) Build pool of eligible houses */
         uint16_t *pool = malloc(z_info->c_max * sizeof *pool);
@@ -4752,14 +4737,14 @@ void kinslayer_try_kill(uint8_t n_sils)
             if (strcmp(hname, op_ptr->base_name) == 0) continue;
             pool[pool_n++] = h;
         }
-        DPRINTF("race %u: %zu eligible houses", race, pool_n);
+        log_debug("race %u: %zu eligible houses", race, pool_n);
         if (pool_n == 0) { free(pool); continue; }
 
         /* 5.b) Pick one house */
         uint16_t hsel  = pool[rand_int((int)pool_n)];
         const char *hname = c_name + c_info[hsel].name;
         free(pool);
-        DPRINTF("chosen house %u (%s)", hsel, hname);
+        log_debug("chosen house %u (%s)", hsel, hname);
 
         /* 5.c) Scan for existing entry */
         int hit = -1;
@@ -4776,12 +4761,12 @@ void kinslayer_try_kill(uint8_t n_sils)
                 break;
             }
         }
-        DPRINTF("scan: entry_offset=%d", hit);
+        log_debug("scan: entry_offset=%d", hit);
 
         if (hit >= 0) {
             /* 5.d) Found – check alive */
             if (highscore_dead(entry.how)) {
-                DPRINTF("hero already dead – skip");
+                log_debug("hero already dead – skip");
                 continue;
             }
             /* kill existing */
@@ -4790,21 +4775,21 @@ void kinslayer_try_kill(uint8_t n_sils)
             strnfmt(entry.how, sizeof entry.how, op_ptr->base_name);
             lseek(highscore_fd, (off_t)hit * sizeof entry, SEEK_SET);
             write(highscore_fd, &entry, sizeof entry);
-            DPRINTF("slain existing: \"%s\"", entry.who);
+            log_debug("slain existing: \"%s\"", entry.who);
         }
         else {
             /* 5.e) No record – insert dummy */
             high_score dummy;
             build_dummy_entry(&dummy, race, hsel);
-            DPRINTF("no existing record – inserting dummy \"%s\"", dummy.who);
+            log_debug("no existing record – inserting dummy \"%s\"", dummy.who);
 
             /* position for add */
             highscore_seek(0);
             int slot = highscore_add(&dummy);
             if (slot < 0)
-                DPRINTF("error: highscore_add() failed");
+                log_debug("error: highscore_add() failed");
             else
-                DPRINTF("dummy entry \"%s\" inserted at slot %d",
+                log_debug("dummy entry \"%s\" inserted at slot %d",
                         dummy.who, slot);
         }
 
@@ -4817,7 +4802,7 @@ void kinslayer_try_kill(uint8_t n_sils)
         /* 7) Close the descriptor and reset */
         safe_setuid_grab();
         if (close(highscore_fd) != 0)
-            DPRINTF("warning: close(highscore_fd=%d) failed, errno=%d",
+            log_debug("warning: close(highscore_fd=%d) failed, errno=%d",
                     highscore_fd, errno);
         safe_setuid_drop();
         highscore_fd = -1;
@@ -4828,11 +4813,11 @@ void kinslayer_try_kill(uint8_t n_sils)
     /* 8) No kill performed – close and exit */
     safe_setuid_grab();
     if (close(highscore_fd) != 0)
-        DPRINTF("warning: close(highscore_fd=%d) failed, errno=%d",
+        log_debug("warning: close(highscore_fd=%d) failed, errno=%d",
                 highscore_fd, errno);
     safe_setuid_drop();
     highscore_fd = -1;
-    DPRINTF("finished – no kill performed");
+    log_debug("finished – no kill performed");
 }
 
 /*
@@ -5312,6 +5297,7 @@ static void close_game_aux(void)
     // make_bones();
 
     /* Save dead player */
+    log_info("saving dead player");
     if (!save_player())
     {
         msg_print("death save failed!");
@@ -5325,6 +5311,7 @@ static void close_game_aux(void)
     Term_clear();
 
     /* Enter player in high score list */
+    log_info("entering score");
     create_score(&the_score);
     enter_score(&the_score);
 
@@ -5356,7 +5343,7 @@ static void close_game_aux(void)
     }
 
      /* One more corpse recorded for this metarun */
-    DPRINTF("called from close_game_aux"); 
+    log_debug("called from close_game_aux"); 
     metarun_update_on_exit(TRUE,FALSE,0);
 
     // Here we print storytelling message
@@ -5575,6 +5562,8 @@ void close_game(void)
         /* Auxiliary routine in normal games */
         if (p_ptr->game_type == 0)
         {
+            log_info("Player %s died at depth %d in %s.",
+                op_ptr->full_name, p_ptr->depth, p_ptr->died_from);
             close_game_aux();
         }
         else if (p_ptr->game_type == -1)

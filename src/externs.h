@@ -17,7 +17,7 @@
  * Automatically generated "variable" declarations
  */
 #include "h-basic.h"
-extern FILE *log_file;
+// extern FILE *log_file;
 extern int max_macrotrigger;
 extern cptr macro_template;
 extern cptr macro_modifier_chr;
@@ -222,6 +222,7 @@ extern cptr ANGBAND_SYS;
 extern cptr ANGBAND_GRAF;
 extern cptr ANGBAND_DIR;
 extern cptr ANGBAND_DIR_APEX;
+extern cptr ANGBAND_DIR_METARUN;
 extern cptr ANGBAND_DIR_BONE;
 extern cptr ANGBAND_DIR_DATA;
 extern cptr ANGBAND_DIR_EDIT;
@@ -271,6 +272,8 @@ extern int meta_fd;
 /* birth.c */
 extern void player_birth(void);
 extern bool gain_skills(void);
+extern bool character_creation(void);
+void player_wipe(void);
 
 /* cave.c */
 extern int distance(int y1, int x1, int y2, int x2);
@@ -495,7 +498,7 @@ extern void pseudo_id(object_type* o_ptr);
 extern void pseudo_id_everything(void);
 extern void id_known_specials(void);
 extern void id_everything(void);
-extern void play_game(bool new_game);
+extern void play_game(void);
 
 /* files.c */
 extern void html_screenshot(cptr name);

@@ -9,14 +9,8 @@
  */
 
 #include "angband.h"
+#include "log.h"
 #include "metarun.h"
-
-/* ------------- debug macro ----------------------------------------- */
-#ifdef DEBUG
-# define DPRINTF(fmt, ...)  fprintf(stderr, "[dungeon] " fmt "\n", ##__VA_ARGS__)
-#else
-# define DPRINTF(fmt, ...)  ((void)0)
-#endif
 
 /*
  * Return a "feeling" (or NULL) about an item.  Method 1 (Weak).
@@ -2717,8 +2711,6 @@ static void dungeon(void)
         /* Can the player move? */
         while ((p_ptr->energy >= 100) && (!p_ptr->leaving))
         {   
-            // DPRINTF("Player energy: %d, Monsters energy: %d",
-                //    p_ptr->energy, p_ptr->energy + 1);
             /* Process monster with even more energy first */
             process_monsters(p_ptr->energy + 1);
 
@@ -2734,7 +2726,6 @@ static void dungeon(void)
                     redraw_stuff();
 
                 /* Process the player */
-                // DPRINTF("Processing player actions");
                 process_player();
             }
         }
@@ -2854,7 +2845,6 @@ static void dungeon(void)
 
         /* Count game turns */
         turn++;
-        // DPRINTF("Turn %d", turn);
     }
 }
 
@@ -3027,8 +3017,9 @@ static void print_story_intro(void)
  * code marks successful loading of the RNG state using the "Rand_quick"
  * flag, which is a hack, but which optimizes loading of savefiles.
  */
-void play_game(bool new_game)
+void play_game(void)
 {
+    bool new_game = false;
     /* Hack -- Increase "icky" depth */
     character_icky++;
 
@@ -3050,17 +3041,37 @@ void play_game(bool new_game)
     /* Hack -- Turn off the cursor */
     (void)Term_set_cursor(FALSE);
 
+    /* Hack -- Default base_name */
+    if (!op_ptr->base_name[0])
+    {
+        my_strcpy(op_ptr->base_name, "nameless", sizeof(op_ptr->base_name));
+    }
+
     character_loaded = FALSE;
     character_loaded_dead = FALSE;
 
+    /* Wipe the player */
+    player_wipe();
+
+    if (metarun_created)        /* show only the first time ever */
+    print_story_intro();
+
+    // Show story
+    print_story();
+    print_metarun_stats();
+
+    log_info("Character creation started");
+    character_creation();
+
     /* Attempt to load */
-    if (!load_player())
-    {
-        /* Oops */
-        character_icky--;
-        return;
-        ////	quit("broken savefile");
-    }
+    // if (!load_player())
+    // {
+    //     /* Oops */
+    //     character_icky--;
+    // }
+
+    log_info(character_loaded ? "Character loaded" :
+        (character_loaded_dead ? "Character loaded dead" : "Character created"));
 
     /* Nothing loaded (and living) */
     if (!character_loaded)
@@ -3070,12 +3081,6 @@ void play_game(bool new_game)
 
         /* The dungeon is not ready */
         character_dungeon = FALSE;
-    }
-
-    /* Hack -- Default base_name */
-    if (!op_ptr->base_name[0])
-    {
-        my_strcpy(op_ptr->base_name, "nameless", sizeof(op_ptr->base_name));
     }
 
     /* Init RNG */
@@ -3103,6 +3108,7 @@ void play_game(bool new_game)
     /* Roll new character */
     if (new_game)
     {
+        log_info("Rolling up a new character");
         /* The dungeon is not ready */
         character_dungeon = FALSE;
 
@@ -3112,23 +3118,14 @@ void play_game(bool new_game)
         /* Hack -- seed for random artefacts */
         seed_randart = rand_int(0x10000000);
 
-        if (metarun_created)        /* show only the first time ever */
-            print_story_intro();
-
-
-        // Show story
-        print_story();
-        print_metarun_stats();
-        // metarun_update_on_exit(0, 1, 3);
-        // print_metarun_stats();
-
-
         /* Roll up a new character */
         player_birth();
 
         // Reset the autoinscriptions
         autoinscribe_clean();
         autoinscribe_init();
+
+        log_debug("New character rolled up");
 
         /* Hack -- enter the world */
         if (!character_loaded) {
@@ -3273,6 +3270,8 @@ void play_game(bool new_game)
         /* Accidental Death */
         if (p_ptr->playing && p_ptr->is_dead)
         {
+            log_info("Player '%s' died at level %d, turn %d.",
+                op_ptr->base_name, p_ptr->depth, turn);
             /* Mega-Hack -- Allow player to cheat death */
             if ((p_ptr->wizard || (p_ptr->noscore & 0x0008) || cheat_live)
                 && !get_check("Die? "))
@@ -3341,5 +3340,6 @@ void play_game(bool new_game)
     }
 
     /* Close stuff */
+    log_info("Player '%s' has left the game.", op_ptr->base_name);
     close_game();
 }

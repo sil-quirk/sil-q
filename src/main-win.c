@@ -2848,7 +2848,7 @@ static void check_for_save_file(LPSTR cmd_line)
     Term_fresh();
 
     /* Play game */
-    play_game(FALSE);
+    play_game();
 
     /* Quit */
     quit(NULL);
@@ -2884,7 +2884,7 @@ static void process_menus(WORD wCmd)
         {
             game_in_progress = TRUE;
             Term_flush();
-            play_game(TRUE);
+            play_game();
             quit(NULL);
         }
         break;
@@ -2919,7 +2919,7 @@ static void process_menus(WORD wCmd)
                 validate_file(savefile);
                 game_in_progress = TRUE;
                 Term_flush();
-                play_game(FALSE);
+                play_game();
                 quit(NULL);
             }
         }
@@ -3882,6 +3882,7 @@ static void init_stuff(void)
 
     /* Hack -- Validate the paths */
     validate_dir(ANGBAND_DIR_APEX);
+    validate_dir(ANGBAND_DIR_METARUN);
     // validate_dir(ANGBAND_DIR_BONE);
     validate_dir(ANGBAND_DIR_DATA);
     validate_dir(ANGBAND_DIR_EDIT);
@@ -3951,7 +3952,7 @@ static void init_stuff(void)
 	validate_dir(ANGBAND_DIR_XTRA_HELP);
 #endif /* 0 */
 }
-FILE *log_file;
+// FILE *log_file;
 
 int FAR PASCAL WinMain(
     HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nCmdShow)
@@ -3960,14 +3961,6 @@ int FAR PASCAL WinMain(
 
     WNDCLASS wc;
     HDC hdc;
-
-    /* In initialization code */
-    log_file = fopen("log.txt", "w");
-    fprintf(log_file, "Logging started");
-    // if (!log_file) {
-    //     /* Fallback: still print to stderr if we can’t open the file */
-    //     log_file = stderr;
-    // }
 
     // Sil-y: commented this out
     // MSG msg;
@@ -4058,7 +4051,7 @@ int FAR PASCAL WinMain(
     initialized = TRUE;
 
     /* Did the user double click on a save file? */
-    check_for_save_file(lpCmdLine);
+    // check_for_save_file(lpCmdLine);
 
     /* Prompt the user */
 
@@ -4071,7 +4064,7 @@ int FAR PASCAL WinMain(
     use_background_colors = TRUE;
 
         const char* log_level_str = getenv("SIL_LOG_LEVEL");
-        log_set_level(LOG_INFO);
+        log_set_level(LOG_DEBUG);
         if (log_level_str)
         {
             for (int i = LOG_TRACE; i <= LOG_FATAL; i++)
@@ -4097,7 +4090,7 @@ int FAR PASCAL WinMain(
         {
             int choice = 0;
             int highlight = 1;
-            char buf[80];
+            // char buf[80];
 
             if (p_ptr->is_dead)
                 highlight = 4;
@@ -4105,44 +4098,44 @@ int FAR PASCAL WinMain(
             /* Process Events until "new" or "open" is selected */
             while (!game_in_progress)
             {
-                OPENFILENAME ofn;
+                // OPENFILENAME ofn;
 
                 choice = initial_menu(&highlight);
 
                 switch (choice)
                 {
-                case 1:
-                    /* Tutorial */
-                    path_build(
-                        savefile, sizeof(buf), ANGBAND_DIR_XTRA, "tutorial");
-                    game_in_progress = TRUE;
-                    new_game = FALSE;
-                    break;
+                // case 1:
+                    // /* Tutorial */
+                    // path_build(
+                    //     savefile, sizeof(buf), ANGBAND_DIR_XTRA, "tutorial");
+                    // game_in_progress = TRUE;
+                    // new_game = FALSE;
+                    // break;
                 case 2:
                     /* New game */
                     game_in_progress = TRUE;
                     new_game = TRUE;
                     break;
-                case 3:
-                    /* Load saved game */
-                    memset(&ofn, 0, sizeof(ofn));
-                    ofn.lStructSize = sizeof(ofn);
-                    ofn.hwndOwner = data[0].w;
-                    ofn.lpstrFilter = "Save Files (*.)\0*\0";
-                    ofn.nFilterIndex = 1;
-                    ofn.lpstrFile = savefile;
-                    ofn.nMaxFile = 1024;
-                    ofn.lpstrInitialDir = ANGBAND_DIR_SAVE;
-                    ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+                // case 3:
+                //     /* Load saved game */
+                //     memset(&ofn, 0, sizeof(ofn));
+                //     ofn.lStructSize = sizeof(ofn);
+                //     ofn.hwndOwner = data[0].w;
+                //     ofn.lpstrFilter = "Save Files (*.)\0*\0";
+                //     ofn.nFilterIndex = 1;
+                //     ofn.lpstrFile = savefile;
+                //     ofn.nMaxFile = 1024;
+                //     ofn.lpstrInitialDir = ANGBAND_DIR_SAVE;
+                //     ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
 
-                    if (GetOpenFileName(&ofn))
-                    {
-                        /* Load 'savefile' */
-                        validate_file(savefile);
-                        new_game = FALSE;
-                        game_in_progress = TRUE;
-                    }
-                    break;
+                //     if (GetOpenFileName(&ofn))
+                //     {
+                //         /* Load 'savefile' */
+                //         validate_file(savefile);
+                //         new_game = FALSE;
+                //         game_in_progress = TRUE;
+                //     }
+                //     break;
                 case 4:
                     /* Quit */
                     quit(NULL);
@@ -4158,7 +4151,8 @@ int FAR PASCAL WinMain(
          * Play a game -- "new_game" is set by "new", "open" or the open
          * document even handler as appropriate
          */
-        play_game(new_game);
+         log_debug("play_game(%s)", new_game ? "TRUE" : "FALSE");
+        play_game();
 
         // rerun the first initialization routine
         init_stuff();

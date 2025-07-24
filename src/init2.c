@@ -199,6 +199,10 @@ void init_file_paths(char* path)
     ANGBAND_DIR_APEX = string_make(path);
 
     /* Build a path name */
+    strcpy(tail, "apex\\metaruns");
+    ANGBAND_DIR_METARUN = string_make(path);
+
+    /* Build a path name */
     strcpy(tail, "save");
     ANGBAND_DIR_SAVE = string_make(path);
 
@@ -1918,79 +1922,82 @@ extern int initial_menu(int *highlight)
             "                                                ");
 
     /* frame */
-    Term_putstr(15, 17, 60, TERM_L_DARK,
+    Term_putstr(12, 17, 60, TERM_L_DARK,
         "______________________________________________________");
 
     /* menu lines (new order) */
-    Term_putstr(20, 19, 30,
-        (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) Continue your story");
-    Term_putstr(20, 20, 30,
-        TERM_L_DARK,                           /* always greyed-out */
-        "b) Load story (disabled)");
-    Term_putstr(20, 21, 30,
-        (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Help");
-    Term_putstr(20, 22, 30,
-        (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) Exit");
+    if (metarun_created == TRUE) 
+    Term_putstr(16, 19, 30, TERM_L_BLUE,
+        "Start your story (press space to continue)");
+    else
+    Term_putstr(16, 19, 50,TERM_L_BLUE,
+        "Continue your story (press space to continue)");
+    
+        // Term_putstr(20, 20, 30,
+        // TERM_L_DARK,                           /* always greyed-out */
+        // "b) Load story (disabled)");
+    // Term_putstr(20, 21, 30,
+    //     (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
+    //     "c) Help");
+    Term_putstr(25, 22, 30,TERM_WHITE,
+        "press q or ESC to exit");
 
     Term_fresh();
 
     /* show cursor beside current item */
-    Term_gotoxy(10, 18 + *highlight);
+    // Term_gotoxy(10, 18 + *highlight);
 
-    hide_cursor = TRUE;
+    // hide_cursor = TRUE;
     ch = inkey();
-    hide_cursor = FALSE;
+    // hide_cursor = FALSE;
 
     /* direct key choices ------------------------------------------------*/
 
     /* a : CONTINUE  */
-    if (ch == 'a' || ch == 'A')
+    if (ch == '\n' || ch == '\r' || ch == ' ')
     {
         *highlight = 1;
         return 2;                /* maps to “new game” branch in main-win.c */
     }
 
-    /* b : LOAD (disabled) – just ignore / beep */
-    if (ch == 'b' || ch == 'B')
-    {
-        bell("load-story disabled");        /* disabled – beep and ignore */
-        return 0;                /* stay in the menu */
-    }
+    // /* b : LOAD (disabled) – just ignore / beep */
+    // if (ch == 'b' || ch == 'B')
+    // {
+    //     bell("load-story disabled");        /* disabled – beep and ignore */
+    //     return 0;                /* stay in the menu */
+    // }
 
-    /* c : HELP      */
-    if (ch == 'c' || ch == 'C')
-    {
-        show_metarun_help();
-        return 0;                /* redraw menu afterwards */
-    }
+    // /* c : HELP      */
+    // if (ch == 'c' || ch == 'C')
+    // {
+    //     show_metarun_help();
+    //     return 0;                /* redraw menu afterwards */
+    // }
 
     /* d : EXIT      */
-    if (ch == 'd' || ch == 'D')
+    if (ch == 'q' || ch == ESCAPE)
     {
         return 4;                /* handled as quit in main-win.c */
     }
 
-    /* ENTER / SPACE : activate current highlight ------------------------*/
-    if (ch == '\r' || ch == '\n' || ch == ' ')
-    {
-        switch (*highlight)
-        {
-            case 1:  return 2;          /* Continue */
-            case 2:  bell("Load story disabled"); return 0;  /* Load disabled */
-            case 3:  show_metarun_help(); return 0;
-            case 4:  return 4;          /* Exit      */
-        }
-    }
+    // /* ENTER / SPACE : activate current highlight ------------------------*/
+    // if (ch == '\r' || ch == '\n' || ch == ' ')
+    // {
+    //     switch (*highlight)
+    //     {
+    //         case 1:  return 2;          /* Continue */
+    //         case 2:  bell("Load story disabled"); return 0;  /* Load disabled */
+    //         case 3:  show_metarun_help(); return 0;
+    //         case 4:  return 4;          /* Exit      */
+    //     }
+    // }
 
-    /* cursor navigation -------------------------------------------------*/
-    if (ch == '8' && *highlight > 1) (*highlight)--;
-    if (ch == '2' && *highlight < 4) (*highlight)++;
+    // /* cursor navigation -------------------------------------------------*/
+    // if (ch == '8' && *highlight > 1) (*highlight)--;
+    // if (ch == '2' && *highlight < 4) (*highlight)++;
 
-    /* toggle wizard resurrection */
-    if (ch == KTRL('W')) arg_wizard = !arg_wizard;
+    // /* toggle wizard resurrection */
+    // if (ch == KTRL('W')) arg_wizard = !arg_wizard;
 
     return 0;                       /* fall through → refresh & loop */
 }
@@ -2068,6 +2075,7 @@ void cleanup_angband(void)
     /* Free the directories */
     string_free(ANGBAND_DIR);
     string_free(ANGBAND_DIR_APEX);
+    string_free(ANGBAND_DIR_METARUN);
     string_free(ANGBAND_DIR_BONE);
     string_free(ANGBAND_DIR_DATA);
     string_free(ANGBAND_DIR_EDIT);

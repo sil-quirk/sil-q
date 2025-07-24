@@ -75,7 +75,7 @@ C:7:3   # Song of Freedom          :
 C:7:4   # Song of Silence          : Mim
 C:7:5   # Song of Staunching       : Daeron
 C:7:6   # Song of Thresholds       : Melian Maia
-C:7:7   # Song of the Trees        : Earendil
+C:7:7   # Song of the Trees        : Finarfin, Earendil
 C:7:8   # Song of Slaying          : Hurin
 C:7:9   # Song of Staying          : Finrod, Idril
 C:7:10  # Song of Lorien           : Luthien

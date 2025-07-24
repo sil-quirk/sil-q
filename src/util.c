@@ -3167,11 +3167,6 @@ void text_out_to_screen(byte a, cptr str)
 
     cptr s;
 
-    // fprintf(log_file, "RAW: ");
-    // for (int i = 0; str[i] && i < 50; i++)
-    //     fprintf(log_file, "%02X ", (unsigned char)str[i]);
-    // fprintf(log_file, "\n");
-
     /* Obtain the size */
     (void)Term_get_size(&wid, &h);
 

@@ -72,13 +72,13 @@ F:SMT_AFFINITY | WIL_AFFINITY | STL_PENALTY | TREACHERY
 U:SMT_FEANOR 
 C:6:5:6:2  # Jeweller Artifice
 S:2:2:1:2
-D:Feanor was greatest among the Noldor, unmatched in skill and pride. 
-D:He crafted the Silmarils, jewels of blended light from the Trees of 
-D:Valinor. Consumed by wrath after Morgoth stole them, he led his     
-D:people from Aman to Middle-earth, sparking war and tragedy. Bound by 
-D:his fierce Oath, Feanor perished early, defiant to the end, his     
-D:fiery spirit leaving a legacy of valor, pride, and sorrow that still 
-D:shadows all his descendants.                                        
+D:Mighty spirit aflame, brightest and proudest among Eldar craftsmen, yet 
+D:fallen under shadow, whose hand wrought Silmarils kindled grief and war. 
+D:His fierce oath forever binds sons to ruin, and echoes still unbroken 
+D:beyond death, through fire and wrath, to the world's unmaking or renewal. 
+D:Restless in Mandos, his spirit burns fierce, awaiting doomed fulfillment 
+D:when the Jewels return or fade, and Arda's wounded beauty is restored; 
+D:yet ever marred, his legacy wrought in flame and boundless sorrow. 
 
 #Very powerful in melee and evasion, wounded Morgoth
 #Stats +5 +8 =13, Skills +5 +1 =6, Ability 1;
@@ -90,12 +90,13 @@ F:WIL_AFFINITY | EVN_AFFINITY | MEL_AFFINITY | SMT_PENALTY | STL_PENALTY | ARC_P
 U:WIL_FIN
 S:3:2:2:1
 C:2:8:5:9  # Majesty Riposte
-D:Fingolfin, High King of the Noldor, was proud, steadfast, and just. 
-D:He led his people across the Helcaraxe into exile, earning great    
-D:honor. Ruling from Hithlum, he upheld alliance and hope among the   
-D:Eldar. In wrath, he challenged Morgoth to single combat at Angband. 
-D:Though slain, he wounded the Dark Lord seven times. His fall became 
-D:a legend of unmatched valor, remembered with awe by Elves and Men.  
+D:High King courageous, whose defiance shook Morgoth upon his dark throne; 
+D:riding alone to Angband’s gates, fearless, shining in wrathful valor. 
+D:Though fallen, his horn still echoes through desolate wastes of the North, 
+D:his broken sword and rent shield signs of undying pride and despair. 
+D:His bravery inspires kin, yet foreshadows heavier losses still to come, 
+D:until the darkness is pierced by brighter stars in days unforeseen. 
+D:Fingolfin rests in Mandos, spirit brightened by sacrifice and glory. 
 
 #Stayed in Valinor, probably no ability but high stats
 #Stats +5 +4 =9, Skills +5 +0 =5, Ability 0;
@@ -106,12 +107,13 @@ B:Finarfin
 F:PER_AFFINITY | SMT_PENALTY 
 S:1:1:0:3
 C:7:12:7:7   # Song of the Trees #Woven Themes
-D:Finarfin, youngest son of Finwe, remains in Valinor as wise and     
-D:gentle High King of the Noldor who stayed behind. Renowned for his  
-D:compassion and peace-loving heart, he turned back after the tragic  
-D:Kinslaying. Finarfin rules quietly, guiding the remnant of the      
-D:Noldor in Aman with kindness and foresight, his legacy echoed in the 
-D:deeds and wisdom of his children in Middle-earth.                   
+D:Wise-hearted and gentle, fairest prince who turned back from doom, 
+D:ruling now in Valinor's quiet peace, sorrowful yet patient, waiting 
+D:for the day when the bitter wounds dividing Noldor and Valar heal. 
+D:His children’s deeds across sea and time will bring honor and sorrow; 
+D:yet in foresight he sees a distant hope, beyond ruin, grief, and loss, 
+D:that blood shed by kin will one day lead to healing, renewal, reunion - 
+D:and his heart longs for the far-off hour of redemption and forgiveness. 
 
 #Oldest son of Feanor, tragic story, tried to do final push on Morgoth
 #Stats +5 +5 =10, Skills +5 +0 =5, Ability 0;
@@ -122,14 +124,13 @@ B:Feanor
 F:WIL_AFFINITY | STL_PENALTY
 S:1:1:3:0
 C:5:8 #Vengeance
-D:Maedhros was the eldest son of Feanor, tall and valiant, wise yet   
-D:fated to tragedy. Captured by Morgoth, he was chained by the wrist  
-D:to Thangorodrim, until rescued by his cousin Fingon, who severed his 
-D:right hand to free him. Despite this, Maedhros remained a formidable 
-D:warrior, founding the Union of Maedhros against Morgoth. He 
-D:inherited his father's fiery spirit and was bound by the Oath, which 
-D:drove him to reclaim the Silmarils at any cost. His honor was 
-D:renowned, though shadowed by sorrow, betrayal and eventual despair. 
+D:Eldest son of fire-hearted Feanor, whose flame-red hair now shadows grief; 
+D:once chained in torment on cliffs of Thangorodrim, yet unbroken in spirit. 
+D:Leading brothers in doom-bound quest, his nobility falters beneath oath 
+D:sworn rashly in pride, binding him to deeds grievous and sorrowful. 
+D:His wisdom darkened by despair foreshadows kin-slaying yet unfulfilled, 
+D:till driven at last by tragic madness to seize what once was dearly lost - 
+D:a Silmaril reclaimed in flame and despair, bringing bitter end to hope. 
 
 #Most similar to Feanor son, treacherous
 #Stats +5 +2 =7, Skills +5 +1 =6, Ability 0;
@@ -140,13 +141,13 @@ B:Feanor
 F:SMT_AFFINITY | STL_AFFINITY | PER_PENALTY | ARC_AFFINITY | MEL_PENALTY | WIL_PENALTY | TREACHERY
 S:0:3:0:-1
 C:3:4 #Opportunist
-D:Curufin, fifth son of Feanor, most resembled his father in craft,   
-D:appearance, and temper. Master smith and politician, 
-D:he excelled in craftsmanship yet his heart was tainted
-D:by pride and treachery. Dwelling briefly in Nargothrond, 
-D:he fostered strife and discord among his kin.
-D:Eventually cast out for his scheming, his legacy remained
-D:complex, marked by brilliance overshadowed by deceit.                                                  
+D:Keen-eyed, crafty-handed son of Feanor, closest heir to father's fire; 
+D:skilled smith whose subtle tongue kindles divisions, pride, and betrayal. 
+D:His deeds shadowed by ambition, foreshadowing sorrow yet unborn, 
+D:father to Celebrimbor, future maker of perilous rings of power. 
+D:Exile now stains his name; cunning schemes whisper ruin into fate, 
+D:destined to mar the friendships of Eldar, weaving treachery unseen, 
+D:and by treason sows seeds of doom and loss, echoing father’s dark flame. 
 
 #Stats +5 +5 =10
 
@@ -397,6 +398,7 @@ N:22:Mim
 A:Belegost
 B:Belegost
 F:SNG_AFFINITY | MEL_PENALTY | STL_AFFINITY | TREACHERY | SMT_PENALTY
+U:MIM
 S:-1:1:-1:-1
 C:7:4:3:0:3:1:3:2:3:3:3:4:3:6 # Song of Silence and all stealth
 D:Mîm, last of the Petty-dwarves, lived in Amon Rûdh in secret. When  

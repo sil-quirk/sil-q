@@ -392,11 +392,11 @@ static void choose_escape_curses(int n)
 }
 
 /* ------------- debug macro ----------------------------------------- */
-#ifdef DEBUG
-# define DPRINTF(fmt, ...)  fprintf(stderr, "[metarun] " fmt "\n", ##__VA_ARGS__)
-#else
-# define DPRINTF(fmt, ...)  ((void)0)
-#endif
+// #ifdef DEBUG
+// # define log_info(fmt, ...)  fprintf(stderr, "[metarun] " fmt "\n", ##__VA_ARGS__)
+// #else
+// # define log_info(fmt, ...)  ((void)0)
+// #endif
 
 
 /* ------------------------------------------------------------------ *
@@ -409,7 +409,7 @@ static void choose_escape_curses(int n)
  * ------------------------------------------------------------------ */
 void metarun_update_on_exit(bool died, bool escaped, byte new_sils)
 {
-    DPRINTF("metarun_update_on_exit(): died=%d, escaped=%d, new_sils=%u",
+    log_info("metarun_update_on_exit(): died=%d, escaped=%d, new_sils=%u",
             died, escaped, new_sils);
 
     unsigned int flags_h = c_info[p_ptr->phouse].flags;
@@ -417,67 +417,69 @@ void metarun_update_on_exit(bool died, bool escaped, byte new_sils)
 
     if (died)
     {
+        log_info("Player '%s' died at level %d, turn %d.",
+            op_ptr->base_name, p_ptr->depth, turn);
         bool eru = ((flags_h & RHF_GIFTERU) || (flags_r & RHF_GIFTERU)) != 0;
         if (!eru) {
         metar.deaths++;
-        DPRINTF("  -> deaths incremented to %u", metar.deaths);
+        log_info("  -> deaths incremented to %u", metar.deaths);
         }
-        else DPRINTF("  -> Gift of Eru applied");
+        else log_info("  -> Gift of Eru applied");
     }
     if (escaped)
     {
         bool trch = ((flags_h & RHF_TREACHERY) || (flags_r & RHF_TREACHERY)) != 0;
         if (trch) {
             int roll = rand_int(100);
-            DPRINTF("chance=%d%%, roll=%d", 90, roll);
-            if (roll < 90) DPRINTF("Treachery happened");
+            log_info("chance=%d%%, roll=%d", 90, roll);
+            if (roll < 90) log_info("Treachery happened");
             else metar.silmarils += new_sils;     
         }
         else metar.silmarils += new_sils;
-        DPRINTF("  -> silmarils updated to %u", metar.silmarils);
+        log_info("  -> silmarils updated to %u", metar.silmarils);
     }
 
     if (escaped && new_sils)
     {
-        DPRINTF("  -> escaped && new_sils, calling choose_escape_curses()");
+        log_info("  -> escaped && new_sils, calling choose_escape_curses()");
         choose_escape_curses(new_sils);
-        DPRINTF("  <- choose_escape_curses() returned");
+        log_info("  <- choose_escape_curses() returned");
 
         /* Check for KINSLAYER flag on the player’s House and Race */
         bool has_kin = ((flags_h & RHF_KINSLAYER) || (flags_r & RHF_KINSLAYER)) != 0;
-        DPRINTF("  -> House flags=0x%X, RHF_KINSLAYER=%d", flags_h, has_kin);
+        log_info("  -> House flags=0x%X, RHF_KINSLAYER=%d", flags_h, has_kin);
 
         if (has_kin)
         {
-            DPRINTF("  -> about to msg_format(\"KINSLAYER!\")");
+            log_info("  -> about to msg_format(\"KINSLAYER!\")");
             msg_format("KINSLAYER!");
-            DPRINTF("  <- msg_format returned");
+            log_info("  <- msg_format returned");
 
-            DPRINTF("  -> waiting for inkey()");
+            log_info("  -> waiting for inkey()");
             (void)inkey();
-            DPRINTF("  <- inkey() returned");
+            log_info("  <- inkey() returned");
 
-            DPRINTF("  -> calling kinslayer_try_kill(%u)", new_sils);
+            log_info("  -> calling kinslayer_try_kill(%u)", new_sils);
             kinslayer_try_kill(new_sils);
-            DPRINTF("  <- kinslayer_try_kill() returned");
+            log_info("  <- kinslayer_try_kill() returned");
         }
         else
         {
-            DPRINTF("  -> House does not have KINSLAYER, skipping kill");
+            log_info("  -> House does not have KINSLAYER, skipping kill");
         }
     }
     else
     {
-        DPRINTF("  -> either not escaped or no new_sils, skipping KINSLAYER block");
+        log_info("  -> either not escaped or no new_sils, skipping KINSLAYER block");
     }
 
-    DPRINTF("  -> calling check_run_end()");
+    log_info("  -> calling check_run_end()");
     check_run_end();
-    DPRINTF("  <- check_run_end() returned");
+    log_info("  <- check_run_end() returned");
 
-    DPRINTF("  -> calling save_metaruns()");
+    log_info("  -> calling save_metaruns()");
     save_metaruns();
-    DPRINTF("  <- save_metaruns() returned");
+    log_info("  <- save_metaruns() returned");
 }
 
 

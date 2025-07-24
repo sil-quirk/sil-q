@@ -622,6 +622,12 @@ cptr ANGBAND_DIR;
 cptr ANGBAND_DIR_APEX;
 
 /*
+ * High score files (binary)
+ * These files may be portable between platforms
+ */
+cptr ANGBAND_DIR_METARUN;
+
+/*
  * Bone files for player ghosts (ascii)
  * These files are portable between platforms
  */

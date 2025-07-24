@@ -45,13 +45,6 @@
 #include "init.h"
 #include "metarun.h"
 
-/* ------------- debug macro ----------------------------------------- */
-#ifdef DEBUG
-# define DPRINTF(fmt, ...)  fprintf(stderr, "[init] " fmt "\n", ##__VA_ARGS__)
-#else
-# define DPRINTF(fmt, ...)  ((void)0)
-#endif
-
 /* run-type template loader ---------------------------------------- */
 header rt_head;       /* the one and only definition */
 
@@ -362,7 +355,7 @@ static flag_name info_flags[] = {
     { "SNG_LUT", UNQ, UNQ_SNG_LUT }, { "WIL_TUOR", UNQ, UNQ_WIL_TUOR },
     { "SNG_MEL", UNQ, UNQ_SNG_MEL }, { "SMT_TELCHAR", UNQ, UNQ_SMT_TELCHAR },
     { "SMT_GAMIL", UNQ, UNQ_SMT_GAMIL }, { "SNG_HURIN", UNQ, UNQ_SNG_HURIN },
-    { "SNG_THINGOL", UNQ, UNQ_SNG_THINGOL }
+    { "SNG_THINGOL", UNQ, UNQ_SNG_THINGOL }, { "MIM", UNQ, UNQ_MIM }
 
 };
 
@@ -3311,7 +3304,7 @@ errr parse_p_info(char* buf, header* head)
 //     /* Current entry */
 //     static player_house* ph_ptr = NULL;
 
-//     DPRINTF("Parsing houses");
+//     log_debug("Parsing houses");
 
 //     /* Process 'N' for "New/Number/Name" */
 //     if (buf[0] == 'N')
@@ -3341,7 +3334,7 @@ errr parse_p_info(char* buf, header* head)
 //             return (PARSE_ERROR_OUT_OF_MEMORY);
 
 //         /* Debug: announce new house and its name */
-//         DPRINTF("New house #%d: \"%s\"", idx,
+//         log_debug("New house #%d: \"%s\"", idx,
 //                 head->name_ptr + ph_ptr->name);
 
 //         /* Sentinel‐initialize all ability slots to “empty” */
@@ -3350,7 +3343,7 @@ errr parse_p_info(char* buf, header* head)
 //             ph_ptr->a_adj[j][0] = -1;
 //             ph_ptr->a_adj[j][1] = -1;
 //         }
-//         DPRINTF("  a_adj slots 0..%d set to -1", HOUSE_ABILITY_MAX - 1);
+//         log_debug("  a_adj slots 0..%d set to -1", HOUSE_ABILITY_MAX - 1);
 //     }
 
 //     /* Process 'A' for "Alternate Name" */
@@ -3547,7 +3540,7 @@ errr parse_p_info(char* buf, header* head)
 //         if (!ph_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
 //         /* Debug: which house we’re parsing into */
-//         DPRINTF("Parsing abilities for house \"%s\"…",
+//         log_debug("Parsing abilities for house \"%s\"…",
 //                 head->name_ptr + ph_ptr->name);
 
 //         /* Read up to HOUSE_ABILITY_MAX of “:stat:ability” pairs */
@@ -3565,7 +3558,7 @@ errr parse_p_info(char* buf, header* head)
 //             *t++ = '\0';
 //             ph_ptr->a_adj[pair][1] = (s16b)atoi(t);
 
-//             DPRINTF("  parsed slot %d -> stat=%d ability=%d",
+//             log_debug("  parsed slot %d -> stat=%d ability=%d",
 //                     pair,
 //                     ph_ptr->a_adj[pair][0],
 //                     ph_ptr->a_adj[pair][1]);
@@ -3573,7 +3566,7 @@ errr parse_p_info(char* buf, header* head)
 //             pair++;
 //         }
 
-//         DPRINTF("  total %d ability pairs parsed", pair);
+//         log_debug("  total %d ability pairs parsed", pair);
 //     }
 
 //     else
@@ -3596,7 +3589,7 @@ errr parse_c_info(char* buf, header* head)
     /* Current entry */
     static player_house* ph_ptr = NULL;
 
-    DPRINTF("Parsing houses");
+    log_debug("Parsing houses");
 
     /* Process 'N' for "New/Number/Name" */
     if (buf[0] == 'N')
@@ -3629,7 +3622,7 @@ errr parse_c_info(char* buf, header* head)
             return (PARSE_ERROR_OUT_OF_MEMORY);
 
         /* Debug: announce new house and its name */
-        DPRINTF("New house #%d: \"%s\"", idx,
+        log_debug("New house #%d: \"%s\"", idx,
                 head->name_ptr + ph_ptr->name);
 
         /* Sentinel‐initialize all ability slots to "empty" */
@@ -3638,7 +3631,7 @@ errr parse_c_info(char* buf, header* head)
             ph_ptr->a_adj[j][0] = -1;
             ph_ptr->a_adj[j][1] = -1;
         }
-        DPRINTF("  a_adj slots 0..%d set to -1", HOUSE_ABILITY_MAX - 1);
+        log_debug("  a_adj slots 0..%d set to -1", HOUSE_ABILITY_MAX - 1);
 
         /* Initialize starting items array */
         for (j = 0; j < MAX_START_ITEMS; j++)
@@ -3648,7 +3641,7 @@ errr parse_c_info(char* buf, header* head)
             ph_ptr->start_items[j].min = 0;
             ph_ptr->start_items[j].max = 0;
         }
-        DPRINTF("  start_items array initialized");
+        log_debug("  start_items array initialized");
     }
 
     /* Process 'A' for "Alternate Name" */
@@ -3800,7 +3793,7 @@ errr parse_c_info(char* buf, header* head)
         /* Check if we've exceeded the maximum number of items */
         if (cur_equip >= MAX_START_ITEMS)
         {
-            DPRINTF("Warning: Too many starting items for house (max %d), ignoring", MAX_START_ITEMS);
+            log_debug("Warning: Too many starting items for house (max %d), ignoring", MAX_START_ITEMS);
             return (PARSE_ERROR_GENERIC);
         }
 
@@ -3821,7 +3814,7 @@ errr parse_c_info(char* buf, header* head)
         e_ptr->max = max;
 
         /* Debug: show what we parsed */
-        DPRINTF("  Equipment slot %d: tval=%d sval=%d min=%d max=%d", 
+        log_debug("  Equipment slot %d: tval=%d sval=%d min=%d max=%d", 
                 cur_equip, tval, sval, min, max);
 
         /* Next item */
@@ -3853,7 +3846,7 @@ errr parse_c_info(char* buf, header* head)
         if (!ph_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
         /* Debug: which house we're parsing into */
-        DPRINTF("Parsing abilities for house \"%s\" from line: %s",
+        log_debug("Parsing abilities for house \"%s\" from line: %s",
                 head->name_ptr + ph_ptr->name, buf);
 
         /* Read up to HOUSE_ABILITY_MAX of ":stat:ability" pairs */
@@ -3880,7 +3873,7 @@ errr parse_c_info(char* buf, header* head)
             if (!*ability_start) break; /* Empty ability */
             ph_ptr->a_adj[pair][1] = (s16b)atoi(ability_start);
 
-            DPRINTF("  parsed slot %d -> stat=%d ability=%d",
+            log_debug("  parsed slot %d -> stat=%d ability=%d",
                     pair,
                     ph_ptr->a_adj[pair][0],
                     ph_ptr->a_adj[pair][1]);
@@ -3891,7 +3884,7 @@ errr parse_c_info(char* buf, header* head)
             if (!t) break;
         }
 
-        DPRINTF("  total %d ability pairs parsed", pair);
+        log_debug("  total %d ability pairs parsed", pair);
     }
 
     else

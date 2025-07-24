@@ -11,13 +11,7 @@
 #include "angband.h"
 
 #include "init.h"
-
-/* ------------- debug macro ----------------------------------------- */
-#ifdef DEBUG
-# define DPRINTF(fmt, ...)  fprintf(stderr, "[load] " fmt "\n", ##__VA_ARGS__)
-#else
-# define DPRINTF(fmt, ...)  ((void)0)
-#endif
+#include "log.h"
 
 /*
  * This file loads savefiles from Sil.
@@ -731,7 +725,7 @@ static errr rd_extra(void)
 
     rd_string(p_ptr->died_from, 80);
 
-    rd_string(p_ptr->history, 450);
+    rd_string(p_ptr->history, 550);
 
     /* Player race */
     rd_byte(&p_ptr->prace);
@@ -952,7 +946,7 @@ static errr rd_extra(void)
     rd_bool(&p_ptr->unique_forge_made);
     rd_bool(&p_ptr->unique_forge_seen);
     rd_bool(&p_ptr->is_dead);
-    DPRINTF("is_dead: %d", p_ptr->is_dead);
+    log_debug("is_dead: %d", p_ptr->is_dead);
 
     /* Read "feeling" */
     rd_byte(&tmp8u);
@@ -962,15 +956,15 @@ static errr rd_extra(void)
     rd_byte(&tmp8u);
     do_feeling = tmp8u;
     // rd_byte(&do_feeling);
-    DPRINTF("do_feeling: %d", do_feeling);
+    log_debug("do_feeling: %d", do_feeling);
 
     /* Current turn */
     rd_s32b(&turn);
-    DPRINTF("turn: %d", turn);
+    log_debug("turn: %d", turn);
 
     /* Current player turn */
     rd_s32b(&playerturn);
-    DPRINTF("playerturn: %d", playerturn);
+    log_debug("playerturn: %d", playerturn);
 
     // rd_byte(&tmp8u);
     // p_ptr->killed_enemy_with_arrow = tmp8u;
@@ -1825,6 +1819,8 @@ bool load_player(void)
 
     cptr what = "generic";
 
+    log_info("Loading savefile '%s'", savefile);
+
     /* Paranoia */
     turn = 0;
 
@@ -1855,6 +1851,7 @@ bool load_player(void)
         // message_flush();
 
         /* Allow this */
+        log_debug("Savefile '%s' does not exist", savefile);
         p_ptr->restoring = FALSE;
         return (FALSE);
     }
@@ -1993,6 +1990,7 @@ bool load_player(void)
         {
             /* Attempt to load */
             err = rd_savefile();
+            log_info("Read savefile %s", err ? "failed" : "success");
 
             /* Message (below) */
             if (err)
@@ -2056,6 +2054,7 @@ bool load_player(void)
         /* Player is dead */
         if (p_ptr->is_dead)
         {
+            log_info("Loading a dead character");
             /* Cheat death (unless the character retired) */
             if (arg_wizard)
             {
@@ -2097,6 +2096,7 @@ bool load_player(void)
 
         /* A character was loaded */
         character_loaded = TRUE;
+        log_info("%s", character_loaded ? "Character loaded" : "Character not loaded");
 
         /* Still alive */
         if (p_ptr->chp >= 0)

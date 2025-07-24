@@ -9,15 +9,16 @@
  */
 
 #include "angband.h"
+#include "log.h"
 #include "z-term.h"
 #include "metarun.h"
 
 /* Locations of the tables on the screen */
-#define HEADER_ROW 1
-#define QUESTION_ROW 2
-#define TABLE_ROW 3
-#define DESCRIPTION_ROW 16
-#define INSTRUCT_ROW 23
+#define HEADER_ROW 0
+#define QUESTION_ROW 1
+#define TABLE_ROW 2
+#define DESCRIPTION_ROW 15
+#define INSTRUCT_ROW 22
 
 #define QUESTION_COL 2
 #define RACE_COL 2
@@ -150,7 +151,7 @@ struct birther
 
     s16b stat[A_MAX];
 
-    char history[250];
+    char history[550];
 };
 
 /*
@@ -543,10 +544,10 @@ static bool get_ahw(void)
 /*
  * Clear all the global "character" data
  */
-static void player_wipe(void)
+void player_wipe(void)
 {
     int i;
-    char history[250];
+    char history[550];
     int stat[A_MAX];
 
     /* Backup the player choices */
@@ -910,13 +911,13 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
 
         if (choices[cur + top].text != NULL)
         {
-            /* Indent output by 2 character, and wrap at column 70 */
-            text_out_wrap = 70;
+            /* Indent output by 2 character, and wrap at column 79 */
+            text_out_wrap = 79;
             text_out_indent = 2;
 
             /* History */
             Term_gotoxy(text_out_indent, DESCRIPTION_ROW);
-            text_out_to_screen(TERM_L_WHITE, choices[cur + top].text);
+            text_out_to_screen(TERM_WHITE, choices[cur + top].text);
 
             /* Reset text_out() vars */
             text_out_wrap = 0;
@@ -1221,20 +1222,21 @@ static void print_rh_flags(int race, int house, int col, int row)
     HANDLE_SKILL_EX("axe",        RHF_AXE_PROFICIENCY, 0);
 
     // Unique skills: SIDE = 0 (left), 1 (right)
-    HANDLE_UNIQUE_U("Master Artisan",   UNQ_SMT_FEANOR,     TERM_BLUE,     0);
-    HANDLE_UNIQUE_U("Chosen of Ulmo",   UNQ_WIL_TUOR, TERM_BLUE,   0);
-    HANDLE_UNIQUE_U("Indominable Will",   UNQ_EARENDIL, TERM_BLUE,   0);
-    HANDLE_UNIQUE_U("Orome Himself",   UNQ_WIL_FIN, TERM_BLUE,   0);
-    HANDLE_UNIQUE_U("Songs of Power",   UNQ_SNG_FIN, TERM_BLUE,   0);
-    HANDLE_UNIQUE_U("Elven Dance",   UNQ_SNG_LUT, TERM_BLUE,   0);
-    HANDLE_UNIQUE_U("Girdle of Melian",   UNQ_SNG_MEL, TERM_BLUE,   0);
-    HANDLE_UNIQUE_U("Creator of Angrist",   UNQ_SMT_TELCHAR, TERM_BLUE,   0);
-    HANDLE_UNIQUE_U("Old Master",   UNQ_SMT_GAMIL, TERM_BLUE,   0);
-    HANDLE_UNIQUE_U("Aure entuluva",   UNQ_SNG_HURIN, TERM_BLUE,   0);
-    HANDLE_UNIQUE_U("Voice of the Girdle",   UNQ_SNG_THINGOL, TERM_BLUE,   0);
+    HANDLE_UNIQUE_U("Master Artisan",   UNQ_SMT_FEANOR,     TERM_VIOLET,     1);
+    HANDLE_UNIQUE_U("Chosen of Ulmo",   UNQ_WIL_TUOR, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Indominable Will",   UNQ_EARENDIL, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Orome Himself",   UNQ_WIL_FIN, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Songs of Power",   UNQ_SNG_FIN, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Elven Dance",   UNQ_SNG_LUT, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Girdle of Melian",   UNQ_SNG_MEL, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Creator of Angrist",   UNQ_SMT_TELCHAR, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Old Master",   UNQ_SMT_GAMIL, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Aure entuluva",   UNQ_SNG_HURIN, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Voice of the Girdle",   UNQ_SNG_THINGOL, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Forgotten",   UNQ_MIM, TERM_VIOLET,   1);
     
-    HANDLE_UNIQUE("Gift of Eru",   RHF_GIFTERU,     TERM_BLUE,     0);
-    HANDLE_UNIQUE("Seafarer",   RHF_FREE, TERM_BLUE,   0); 
+    HANDLE_UNIQUE("Gift of Eru",   RHF_GIFTERU,     TERM_VIOLET,     1);
+    HANDLE_UNIQUE("Seafarer",   RHF_FREE, TERM_VIOLET,   1); 
 
     HANDLE_UNIQUE("Kinslayer",   RHF_KINSLAYER, TERM_UMBER,   1); // right
     HANDLE_UNIQUE("Treacherous",   RHF_TREACHERY, TERM_UMBER,   1); // right
@@ -1264,7 +1266,7 @@ Term_erase(col +7, row - 5, 30);
 
 
 /* Display starting abilities */
-if (house)
+if (house && !(c_info[house].flags_u & UNQ_MIM))
 {
     const int x     = col + 7;
     const int y0    = row - 5;
@@ -1289,7 +1291,7 @@ if (house)
         {
             const char *name = house_ability_names[stat][abil];
             if (name)
-                Term_putstr(x, y++, -1, TERM_BLUE, name);
+                Term_putstr(x, y++, -1, TERM_YELLOW, name);
         }
     }
 }
@@ -1609,7 +1611,7 @@ static bool get_player_house(void)
  * This function allows the player to select a race, and house, and
  * modify options (including the birth options).
  */
-static bool player_birth_aux_1(void)
+bool character_creation(void)
 {
     int i, j;
 
@@ -1624,21 +1626,19 @@ static bool player_birth_aux_1(void)
     Term_putstr(
         QUESTION_COL, HEADER_ROW, -1, TERM_L_BLUE, "Character Selection:");
 
-    Term_putstr(QUESTION_COL, INSTRUCT_ROW, -1, TERM_SLATE,
-        "Arrow keys navigate the menu    Enter select the current menu item");
     Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-        "         * random menu item       ESC restart the character");
-    Term_putstr(QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_SLATE,
-        "         = game options             s scores q quit");
+        "* -random    ESC -restart   o -options   s -scores   q -quit");
+    // Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
+    //     "         = game options    s scores    q quit");
 
     /* Hack - highlight the key names */
-    Term_putstr(QUESTION_COL + 0, INSTRUCT_ROW, -1, TERM_L_WHITE, "Arrow keys");
-    Term_putstr(QUESTION_COL + 32, INSTRUCT_ROW, -1, TERM_L_WHITE, "Enter");
-    Term_putstr(QUESTION_COL + 9, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "*");
-    Term_putstr(QUESTION_COL + 34, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "ESC");
-    Term_putstr(QUESTION_COL + 9, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "O");
-    Term_putstr(QUESTION_COL + 36, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "s");
-    Term_putstr(QUESTION_COL + 45, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "q");
+    // Term_putstr(QUESTION_COL + 0, INSTRUCT_ROW, -1, TERM_L_WHITE, "Arrow keys");
+    // Term_putstr(QUESTION_COL + 32, INSTRUCT_ROW, -1, TERM_L_WHITE, "Enter");
+    // Term_putstr(QUESTION_COL + 9, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "*");
+    // Term_putstr(QUESTION_COL + 34, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "ESC");
+    // Term_putstr(QUESTION_COL + 9, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "O");
+    // Term_putstr(QUESTION_COL + 36, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "s");
+    // Term_putstr(QUESTION_COL + 45, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "q");
 
     while (phase <= 2)
     {
@@ -1747,6 +1747,9 @@ static bool player_birth_aux_1(void)
 
     /* Clear */
     Term_clear();
+
+    // char debug_msg[256];
+    log_debug("%s %s", p_name + p_info[p_ptr->prace].name, c_name + c_info[p_ptr->phouse].name);
 
     /* Done */
     return (TRUE);
@@ -2183,10 +2186,10 @@ extern bool gain_skills(void)
  */
 static bool player_birth_aux(void)
 {
-    /* Ask questions */
-    if (!player_birth_aux_1())
-        return (FALSE);
-    if (!load_player())  {
+    // /* Ask questions */
+    // if (!character_creation())
+    //     return (FALSE);
+    // if (!load_player())  {
     /* Point-based stats */
     if (!player_birth_aux_2())
         return (FALSE);
@@ -2209,7 +2212,7 @@ static bool player_birth_aux(void)
 
     // Reset the number of artefacts
     p_ptr->artefacts = 0;
-}
+
     /* Accept */
     return (TRUE);
 }
@@ -2232,9 +2235,6 @@ void player_birth()
     /* Create a new character */
     while (1)
     {
-        /* Wipe the player */
-        player_wipe();
-
         /* Roll up a new character */
         if (player_birth_aux())
             break;
