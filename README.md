@@ -5,14 +5,18 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
   
 # Road Map  
 # Release closed alpha 0.5 (done)  
--Balance tweaks  
--Bug fixes  
--UI fixes  
+-Bug fixes (ongoing)   
+-UI fixes (done)
+--Start menu (done) 
+--Character menu (done)
+-Decriptions update (done)
+  
+# Release alpha 0.6 (UI updates) 
+-Bug fixes (ongoing)  
+-Balance tweaks 
+-UI updates   
 --Score menu  
 --Final menu  
--Minor featerus added  
-  
-# Release alpha 0.6  
 -Add unique RHF flags  
 --Earendil  
 --Turin  

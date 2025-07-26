@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "metarun.h"
 
 /* String used to show a color sample */
 #define COLOR_SAMPLE "###"
@@ -288,11 +289,11 @@ void do_cmd_character_sheet(void)
 
         /* Prompt */
         Term_putstr(1, 23, -1, TERM_SLATE,
-            "notes   change name   save to a file   abilities   increase "
+            "notes   story stats   save to a file   abilities   increase "
             "skills   ESC");
         Term_putstr(1, 23, -1, TERM_L_WHITE, "n");
-        Term_putstr(9, 23, -1, TERM_L_WHITE, "c");
-        Term_putstr(23, 23, -1, TERM_L_WHITE, "s");
+        Term_putstr(9, 23, -1, TERM_L_WHITE, "s");
+        Term_putstr(33, 23, -1, TERM_L_WHITE, "f");
         Term_putstr(40, 23, -1, TERM_L_WHITE, "a");
         Term_putstr(52, 23, -1, TERM_L_WHITE, "i");
         Term_putstr(70, 23, -1, TERM_L_WHITE, "ESC");
@@ -319,9 +320,9 @@ void do_cmd_character_sheet(void)
         }
 
         /* Change name */
-        else if (ch == 'c')
+        else if (ch == 's')
         {
-            (void)get_name();
+            print_metarun_stats();
         }
 
         /* Change name */
@@ -337,7 +338,7 @@ void do_cmd_character_sheet(void)
         }
 
         /* File dump */
-        else if (ch == 's')
+        else if (ch == 'f')
         {
             char ftmp[80];
 

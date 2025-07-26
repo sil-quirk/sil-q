@@ -1236,3 +1236,22 @@ typedef struct header        header;        /* <<< add this line */
 
 extern runtype_type *runtype_info;   /* NEW — allocated by init_info() */
 extern header        rt_head;        /* NEW — loader header            */
+
+#ifndef UI_NAV_H
+#define UI_NAV_H
+
+/* Navigation results bubbled up from UI screens */
+typedef enum {
+    NAV_OK = 0,     /* proceed normally */
+    NAV_BACK,       /* step back within current flow */
+    NAV_TO_MAIN,    /* abort flow and return to main menu */
+    NAV_QUIT        /* exit program */
+} NavResult;
+
+/* Result of play_game() */
+typedef enum {
+    PLAY_DONE = 0,  /* return to main menu */
+    PLAY_QUIT       /* exit program */
+} PlayResult;
+
+#endif /* UI_NAV_H */

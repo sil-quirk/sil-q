@@ -2811,51 +2811,6 @@ static void setup_menus(void)
 }
 
 /*
- * Check for double clicked (or dragged) savefile
- *
- * Apparently, Windows copies the entire filename into the first
- * piece of the "command line string".  Perhaps we should extract
- * the "basename" of that filename and append it to the "save" dir.
- */
-static void check_for_save_file(LPSTR cmd_line)
-{
-    char *s, *p;
-
-    /* First arg */
-    s = cmd_line;
-
-    /* No args */
-    if (!s || !*s)
-        return;
-
-    /* Next arg */
-    p = strchr(s, ' ');
-
-    /* Tokenize */
-    if (p)
-        *p = '\0';
-
-    /* Extract filename */
-    *savefile = '\0';
-    strncat(savefile, s, sizeof(savefile) - 1);
-
-    /* Validate the file */
-    validate_file(savefile);
-
-    /* Game in progress */
-    game_in_progress = TRUE;
-
-    Term_fresh();
-
-    /* Play game */
-    play_game();
-
-    /* Quit */
-    quit(NULL);
-}
-
-
-/*
  * Process a menu command
  */
 static void process_menus(WORD wCmd)
@@ -4050,9 +4005,6 @@ int FAR PASCAL WinMain(
     /* We are now initialized */
     initialized = TRUE;
 
-    /* Did the user double click on a save file? */
-    // check_for_save_file(lpCmdLine);
-
     /* Prompt the user */
 
     // Sil-y: commented this out
@@ -4088,59 +4040,18 @@ int FAR PASCAL WinMain(
         /* Let the player choose a savefile or start a new game */
         if (!game_in_progress)
         {
-            int choice = 0;
-            int highlight = 1;
-            // char buf[80];
-
-            if (p_ptr->is_dead)
-                highlight = 4;
 
             /* Process Events until "new" or "open" is selected */
             while (!game_in_progress)
             {
-                // OPENFILENAME ofn;
-
-                choice = initial_menu(&highlight);
-
-                switch (choice)
-                {
-                // case 1:
-                    // /* Tutorial */
-                    // path_build(
-                    //     savefile, sizeof(buf), ANGBAND_DIR_XTRA, "tutorial");
-                    // game_in_progress = TRUE;
-                    // new_game = FALSE;
-                    // break;
-                case 2:
-                    /* New game */
+                bool start_new = FALSE;
+                NavResult mn = initial_menu(&start_new);
+                if (mn == NAV_QUIT) quit(NULL);
+                if (mn == NAV_OK) {
                     game_in_progress = TRUE;
-                    new_game = TRUE;
-                    break;
-                // case 3:
-                //     /* Load saved game */
-                //     memset(&ofn, 0, sizeof(ofn));
-                //     ofn.lStructSize = sizeof(ofn);
-                //     ofn.hwndOwner = data[0].w;
-                //     ofn.lpstrFilter = "Save Files (*.)\0*\0";
-                //     ofn.nFilterIndex = 1;
-                //     ofn.lpstrFile = savefile;
-                //     ofn.nMaxFile = 1024;
-                //     ofn.lpstrInitialDir = ANGBAND_DIR_SAVE;
-                //     ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
-
-                //     if (GetOpenFileName(&ofn))
-                //     {
-                //         /* Load 'savefile' */
-                //         validate_file(savefile);
-                //         new_game = FALSE;
-                //         game_in_progress = TRUE;
-                //     }
-                //     break;
-                case 4:
-                    /* Quit */
-                    quit(NULL);
-                    break;
+                    new_game = start_new ? TRUE : FALSE;
                 }
+                /* NAV_BACK: loop again and redraw */
             }
         }
 
@@ -4151,8 +4062,8 @@ int FAR PASCAL WinMain(
          * Play a game -- "new_game" is set by "new", "open" or the open
          * document even handler as appropriate
          */
-         log_debug("play_game(%s)", new_game ? "TRUE" : "FALSE");
-        play_game();
+        log_debug("play_game(%s)", new_game ? "TRUE" : "FALSE");
+        PlayResult pr = play_game();
 
         // rerun the first initialization routine
         init_stuff();
@@ -4162,6 +4073,7 @@ int FAR PASCAL WinMain(
 
         // game no longer in progress
         game_in_progress = FALSE;
+        if (pr == PLAY_QUIT) quit(NULL);
     }
 
     // Sil-y: commented this out

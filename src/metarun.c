@@ -554,27 +554,81 @@ static void start_new_metarun(void)
 }
 
 
-/* ==================  stats & history screens  ================== */
+/*
+ * Enhanced print_metarun_stats():
+ * - Draws bracketed progress bars for Silmarils & Deaths with colored stars
+ * - Displays numeric counts next to each bar
+ * - Aligns labels & values for a cleaner layout
+ * - Lists active curses with D: and (optionally) P: details
+ */
+/* Updated print_metarun_stats(): prettier layout, star & death bars, curses list */
 void print_metarun_stats(void)
 {
+    int row = 1;
+    int col = 2;
+    char buf[128];
+    int x;
+
+    /* Save & clear screen */
     screen_save();
     Term_clear();
-    text_out_hook = text_out_to_screen;  text_out_wrap = 0;
 
-    text_out_c(TERM_L_GREEN, "\nCurrent Metarun Statistics\n\n");
-    text_out(format(" Run-ID          : %u\n", metar.id));
-    text_out(format(" Silmarils       : %d / %d\n",
-                    metar.silmarils, WINCON_SILMARILS));
-    text_out(format(" Deaths          : %d / %d\n",
-                    metar.deaths,    LOSECON_DEATHS));
+    /* Title */
+    Term_putstr(col, row++, -1, TERM_YELLOW, "=== Current Metarun Statistics ===");
+    row++;
 
-    char datebuf[32];
-    strftime(datebuf, sizeof datebuf, "%Y-%m-%d",
-             localtime((time_t*)&metar.last_played));
-    text_out(format(" Last played     : %s\n", datebuf));
+    /* Run ID */
+    snprintf(buf, sizeof buf, "Run-ID     : %u", metar.id);
+    Term_putstr(col, row++, -1, TERM_WHITE, buf);
+    row++;
 
-    text_out("\nPress any key to continue.");
-    inkey();
+    /* Silmarils bar */
+    snprintf(buf, sizeof buf, "Silmarils  : ");
+    Term_putstr(col, row, -1, TERM_WHITE, buf);
+    x = col + strlen(buf);
+    for (int i = 0; i < WINCON_SILMARILS; i++) {
+        byte attr = (i < metar.silmarils) ? TERM_L_GREEN : TERM_L_WHITE;
+        Term_putch(x++, row, attr, '*');
+    }
+    snprintf(buf, sizeof buf, "  (%d/%d)", metar.silmarils, WINCON_SILMARILS);
+    Term_putstr(x + 1, row++, -1, TERM_WHITE, buf);
+    // row++;
+
+    /* Deaths bar */
+    snprintf(buf, sizeof buf, "Deaths     : ");
+    Term_putstr(col, row, -1, TERM_WHITE, buf);
+    x = col + strlen(buf);
+    for (int i = 0; i < LOSECON_DEATHS; i++) {
+        byte attr = (i < metar.deaths) ? TERM_RED : TERM_L_WHITE;
+        Term_putch(x++, row, attr, 'x');
+    }
+    snprintf(buf, sizeof buf, "  (%d/%d)", metar.deaths, LOSECON_DEATHS);
+    Term_putstr(x + 1, row++, -1, TERM_WHITE, buf);
+    row += 2;
+
+    /* Active curses list */
+    Term_putstr(col, row++, -1, TERM_YELLOW, "Active Curses:");
+#ifdef DEBUG_CURSES
+    Term_putstr(col, row++, -1, TERM_L_DARK, "(showing D:stacks and P:effect)");
+#endif
+    for (int id = 0; id < z_info->cu_max; id++) {
+        byte cnt = CURSE_GET(id);
+        if (!cnt) continue;
+        /* Build line: id, name, D:count, optional P:text */
+        cptr name = cu_name + cu_info[id].name;
+#ifdef DEBUG_CURSES
+        cptr pow = cu_text + cu_info[id].power;
+        snprintf(buf, sizeof buf, " %2d: %-20s D:%d P:%s", id, name, cnt, pow);
+#else
+        snprintf(buf, sizeof buf, " %2d: %-20s D:%d", id, name, cnt);
+#endif
+        Term_putstr(col + 2, row++, -1, TERM_WHITE, buf);
+    }
+    row++;
+
+    /* Prompt and restore */
+    Term_putstr(col, row++, -1, TERM_L_DARK, "[Press any key to continue]");
+    (void)inkey();
     screen_load();
 }
 

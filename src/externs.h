@@ -270,9 +270,9 @@ extern int meta_fd;
  */
 
 /* birth.c */
-extern void player_birth(void);
-extern bool gain_skills(void);
-extern bool character_creation(void);
+extern NavResult player_birth(void);
+extern NavResult gain_skills(void);
+extern NavResult character_creation(void);
 void player_wipe(void);
 
 /* cave.c */
@@ -498,7 +498,7 @@ extern void pseudo_id(object_type* o_ptr);
 extern void pseudo_id_everything(void);
 extern void id_known_specials(void);
 extern void id_everything(void);
-extern void play_game(void);
+extern PlayResult play_game(void);
 
 /* files.c */
 extern void html_screenshot(cptr name);
@@ -563,7 +563,7 @@ extern void init_angband(void);
 extern void autoinscribe_clean(void);
 extern void autoinscribe_init(void);
 extern void re_init_some_things(void);
-extern int initial_menu(int* highlight);
+extern NavResult initial_menu(bool *start_new);
 extern void cleanup_angband(void);
 
 /* load.c */
@@ -1175,14 +1175,10 @@ extern void write_mon_power(void);
 // Metarun.c
 
 extern errr  load_metaruns(bool create_if_missing);
-extern void character_wipe(void);
 extern bool      metarun_created; 
 extern u32b curse_flag_mask(void);
 extern int  curse_flag_count(u32b rhf_flag);
 extern int any_curse_flag_active(u32b flag);
-// extern int menu_choose_one_curse(void);
-// extern void metarun_clear_all_curses(void);
-// extern void add_curse_stack(int idx); 
 
 // init1.c
 extern void dbg_show_active_flags(void);

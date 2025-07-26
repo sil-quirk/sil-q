@@ -213,53 +213,6 @@ static void get_extra(void)
     p_ptr->song2 = SNG_NOTHING;
 }
 
-/*
- * Get the racial history, and social class, using the "history charts".
- */
-// static void get_history_aux(void)
-// {
-//     int i, chart, roll;
-
-//     /* Clear the previous history strings */
-//     p_ptr->history[0] = '\0';
-
-//     /* Starting place */
-//     chart = rp_ptr->hist;
-
-//     /* Process the history */
-//     while (chart)
-//     {
-//         /* Start over */
-//         i = 0;
-
-//         /* Roll for nobility */
-//         roll = dieroll(100);
-
-//         /* Get the proper entry in the table */
-//         while ((chart != h_info[i].chart))
-//             i++;
-
-//         if (h_info[i].house)
-//         {
-//             while ((p_ptr->phouse != h_info[i].house) && h_info[i].house)
-//                 i++;
-//         }
-
-//         while (roll > h_info[i].roll)
-//             i++;
-
-//         /* Get the textual history */
-//         my_strcat(
-//             p_ptr->history, (h_text + h_info[i].text), sizeof(p_ptr->history));
-
-//         /* Add a space */
-//         my_strcat(p_ptr->history, " ", sizeof(p_ptr->history));
-
-//         /* Enter the next chart */
-//         chart = h_info[i].next;
-//     }
-// }
-
 // Get the character description
 
 static void get_history_aux1(void)
@@ -711,20 +664,6 @@ void player_wipe(void)
     }
 }
 
-/*
- * Init players with some belongings
- *
- * Having an item identifies it and makes the player "aware" of its purpose.
- */
-/* ------------------------------------------------------------------
- * Public wrapper: let other modules reset the player safely.
- * Keeps player_wipe() private while exporting a thin façade.
- * ---------------------------------------------------------------- */
-void character_wipe(void)
-{
-    player_wipe();
-}
-
 /* ------------------------------------------------------------------
  * Hand out one start-item list (race or house).
  * ------------------------------------------------------------------ */
@@ -825,6 +764,8 @@ static void clear_question(void)
 {
     int i;
 
+Term_erase(TOTAL_AUX_COL, 0, 255);
+
     for (i = QUESTION_ROW; i < TABLE_ROW; i++)
     {
         /* Clear line, position cursor */
@@ -854,7 +795,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     for (i = TABLE_ROW; i < DESCRIPTION_ROW + 4; i++)
     {
         /* Clear */
-        Term_erase(col, i, Term->wid - wid);
+        Term_erase(col, i, 255/* Term->wid - wid */);
     }
 
     /* Choose */
@@ -1235,7 +1176,7 @@ static void print_rh_flags(int race, int house, int col, int row)
     HANDLE_UNIQUE_U("Creator of Angrist",   UNQ_SMT_TELCHAR, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Old Master",   UNQ_SMT_GAMIL, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Aure entuluva",   UNQ_SNG_HURIN, TERM_VIOLET,   1);
-    HANDLE_UNIQUE_U("Voice of the Girdle",   UNQ_SNG_THINGOL, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Voice of Girdle",   UNQ_SNG_THINGOL, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Forgotten",   UNQ_MIM, TERM_VIOLET,   1);
     
     HANDLE_UNIQUE("Gift of Eru",   RHF_GIFTERU,     TERM_VIOLET,     1);
@@ -1368,10 +1309,6 @@ static bool get_player_race(void)
 
     C_MAKE(races, z_info->p_max, birth_menu);
 
-    /* Extra info */
-    // Term_putstr(QUESTION_COL, QUESTION_ROW, -1, TERM_YELLOW,
-    //	"Your race affects your ability scores and other factors.");
-
     /* Tabulate races */
     for (i = 0; i < z_info->p_max; i++)
     {
@@ -1461,6 +1398,8 @@ static void house_aux_hook(birth_menu c_str)
 
     /* Display the race flags */
 
+    Term_putstr(TOTAL_AUX_COL, HEADER_ROW, -1, TERM_WHITE,
+        "                                         ");
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1, -1, TERM_WHITE,
         "                                         ");
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 2, -1, TERM_WHITE,
@@ -1480,7 +1419,11 @@ static void house_aux_hook(birth_menu c_str)
     //     "Dead");
     // else Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX +7, -1, TERM_L_BLUE,
     //     "Alive");
-        
+    char pretty_name[40];
+    strnfmt(pretty_name, sizeof(pretty_name), "%s%s", c_name + c_info[house_idx].name, c_name + c_info[house_idx].alt_name); 
+    Term_putstr(
+        TOTAL_AUX_COL, HEADER_ROW, -1, TERM_L_BLUE, pretty_name);
+    
     print_rh_flags(
         p_ptr->prace, house_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
     
@@ -1615,7 +1558,7 @@ static bool get_player_house(void)
  * This function allows the player to select a race, and house, and
  * modify options (including the birth options).
  */
-bool character_creation(void)
+NavResult character_creation(void)
 {
     int i, j;
 
@@ -1631,7 +1574,7 @@ bool character_creation(void)
         QUESTION_COL, HEADER_ROW, -1, TERM_L_BLUE, "Character Selection:");
 
     Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-        "* -random    ESC -restart   o -options   s -scores   q -quit");
+        "* -random    ESC -back   o -options   s -scores   q -quit");
     // Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
     //     "         = game options    s scores    q quit");
 
@@ -1653,7 +1596,7 @@ bool character_creation(void)
             /* Choose the player's race */
             if (!get_player_race())
             {
-                continue;
+                return NAV_TO_MAIN; /* Esc at first screen → back to main menu */
             }
 
             /* Clean up */
@@ -1667,7 +1610,7 @@ bool character_creation(void)
             /* Choose the player's house */
             if (!get_player_house())
             {
-                phase--;
+                phase = 1;          /* Esc here → go back to race */
                 continue;
             }
 
@@ -1756,7 +1699,7 @@ bool character_creation(void)
     log_debug("%s %s", p_name + p_info[p_ptr->prace].name, c_name + c_info[p_ptr->phouse].name);
 
     /* Done */
-    return (TRUE);
+    return NAV_OK;
 
 }
 
@@ -1771,11 +1714,11 @@ static const int birth_stat_costs[11]
 /*
  * Helper function for 'player_birth()'.
  */
-static bool player_birth_aux_2(void)
+static NavResult player_birth_aux_2(void)
 {
     int i;
 
-    int row = 2;
+    int row = 1;
     int col = 42;
 
     int stat = 0;
@@ -1885,34 +1828,27 @@ static bool player_birth_aux_2(void)
             c_put_str(attr, buf, row + i, col + 32);
         }
 
-        /* Prompt */
         Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-            "Arrow keys allocate points to stats");
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_SLATE,
-            "     Enter accept current values");
-
-        /* Hack - highlight the key names */
-        Term_putstr(
-            QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "Arrow keys");
-        Term_putstr(
-            QUESTION_COL + 5, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "Enter");
+            "Arrows -allocate    ESC -back   ENTER -confirm   q -quit");
 
         /* Get key */
         hide_cursor = TRUE;
         ch = inkey();
         hide_cursor = FALSE;
 
-        /* Quit */
-        if ((ch == 'Q') || (ch == 'q'))
-            quit(NULL);
+        /* Quit -> return to main menu before the game starts */
+        if ((ch == 'Q') || (ch == 'q')) {
+            if (turn == 0) return NAV_TO_MAIN;
+            return NAV_QUIT;
+        }
 
-        /* Start over */
+        /* Back to Character Selection */
         if (ch == ESCAPE)
-            return (FALSE);
+            return NAV_BACK;
 
         /* Done */
         if ((ch == '\r') || (ch == '\n'))
-            break;
+            return NAV_OK;
 
         /* Prev stat */
         if (ch == '8')
@@ -1939,8 +1875,8 @@ static bool player_birth_aux_2(void)
         }
     }
 
-    /* Done */
-    return (TRUE);
+    /* Shouldn't reach; default to back */
+    return NAV_BACK;
 }
 
 /*
@@ -1958,11 +1894,11 @@ static int skill_cost(int base, int points)
 /*
  * Increase your skills by spending experience points
  */
-extern bool gain_skills(void)
+extern NavResult gain_skills(void)
 {
     int i;
 
-    int row = 7;
+    int row = 6;
     int col = 42;
 
     int skill = 0;
@@ -1973,14 +1909,11 @@ extern bool gain_skills(void)
     int old_new_exp = p_ptr->new_exp;
     int total_cost = 0;
 
-    // int old_csp = p_ptr->csp;
-    // int old_msp = p_ptr->msp;
-
     char ch;
 
     char buf[80];
 
-    bool accepted;
+    NavResult result = NAV_OK;
 
     int tab = 0;
 
@@ -2039,10 +1972,6 @@ extern bool gain_skills(void)
         /* Update stuff */
         update_stuff();
 
-        /* Update voice level */
-        // if (p_ptr->msp == 0) p_ptr->csp = 0;
-        // else                 p_ptr->csp = (old_csp * p_ptr->msp) / old_msp;
-
         /* Display the player */
         display_player(0);
 
@@ -2091,42 +2020,38 @@ extern bool gain_skills(void)
             }
         }
 
-        /* Special Prompt? */
-        if (character_dungeon)
-        {
-            Term_putstr(QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-                "ESC abort skill increases                  ");
+        // /* Special Prompt? */
+        // if (character_dungeon)
+        // {
+        //     Term_putstr(QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1, TERM_SLATE,
+        //         "ESC abort skill increases                  ");
 
-            /* Hack - highlight the key names */
-            Term_putstr(QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1,
-                TERM_L_WHITE, "ESC");
-        }
+        //     /* Hack - highlight the key names */
+        //     Term_putstr(QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1,
+        //         TERM_L_WHITE, "ESC");
+        // }
 
-        /* Prompt */
         Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-            "Arrow keys allocate points to skills");
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_SLATE,
-            "     Enter accept current values");
-
-        /* Hack - highlight the key names */
-        Term_putstr(
-            QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "Arrow keys");
-        Term_putstr(
-            QUESTION_COL + 5, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "Enter");
+            "Arrows -allocate      ESC -back     ENTER -confirm     q -quit");
 
         /* Get key */
         hide_cursor = TRUE;
         ch = inkey();
         hide_cursor = FALSE;
 
-        /* Quit (only if haven't begun game yet) */
-        if (((ch == 'Q') || (ch == 'q')) && (turn == 0))
-            quit(NULL);
+        /* Quit -> back to main menu before the game starts */
+        if (((ch == 'Q') || (ch == 'q')) && (turn == 0)) {
+            /* restore state before leaving */
+            p_ptr->new_exp = old_new_exp;
+            for (i = 0; i < S_MAX; i++) p_ptr->skill_base[i] = old_base[i];
+            skill_gain_in_progress = FALSE;
+            return NAV_TO_MAIN;
+        }
 
         /* Done */
         if ((ch == '\r') || (ch == '\n'))
         {
-            accepted = TRUE;
+            result = NAV_OK;
             break;
         }
 
@@ -2136,8 +2061,7 @@ extern bool gain_skills(void)
             p_ptr->new_exp = old_new_exp;
             for (i = 0; i < S_MAX; i++)
                 p_ptr->skill_base[i] = old_base[i];
-            // p_ptr->csp = old_csp;
-            accepted = FALSE;
+            result = NAV_BACK;   /* go back to Character Selection */
             break;
         }
 
@@ -2176,7 +2100,7 @@ extern bool gain_skills(void)
     update_stuff();
 
     /* Done */
-    return (accepted);
+    return result;
 }
 
 #define BASE_COLUMN 7
@@ -2188,37 +2112,44 @@ extern bool gain_skills(void)
  *
  * See "display_player" for screen layout code.
  */
-static bool player_birth_aux(void)
+static NavResult player_birth_aux(void)
 {
-    // /* Ask questions */
-    // if (!character_creation())
-    //     return (FALSE);
-    // if (!load_player())  {
-    /* Point-based stats */
-    if (!player_birth_aux_2())
-        return (FALSE);
 
-    /* Point-based skills */
-    if (!gain_skills())
-        return (FALSE);
+    my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
+    process_player_name(FALSE);
+    /* Clear the previous history strings */
+    p_ptr->history[0] = '\0';
+    my_strcat(
+                p_ptr->history, (c_text + c_info[p_ptr->phouse].text), sizeof(p_ptr->history));
 
-    /* Roll for history */
-    if (!get_history())
-        return (FALSE);
+    p_ptr->wt = 0;
+    p_ptr->ht = 0;
+    p_ptr->age = 0; 
 
-    /* Roll for age/height/weight */
-    if (!get_ahw())
-        return (FALSE);
+    /* Point-based flow */
+    for (;;)
+    {
+        display_player(0);
 
-    /* Get a name, prepare savefile */
-    if (!get_name())
-        return (FALSE);
+        /* Stats allocation screen */
+        NavResult s = player_birth_aux_2();
+        if (s == NAV_OK) {
+            /* Skill allocation: may return NAV_BACK / NAV_TO_MAIN */
+            NavResult g = gain_skills();
+            if (g != NAV_OK) return g;
+            break; /* accepted */
+        }
+        if (s == NAV_BACK)   return NAV_BACK;    /* back to Character Selection */
+        if (s == NAV_TO_MAIN) return NAV_TO_MAIN;/* back to main menu */
+        if (s == NAV_QUIT)   return NAV_QUIT;    /* hard exit */
+        /* any other value: loop again */
+    }
 
     // Reset the number of artefacts
     p_ptr->artefacts = 0;
 
     /* Accept */
-    return (TRUE);
+    return NAV_OK;
 }
 
 /*
@@ -2227,7 +2158,7 @@ static bool player_birth_aux(void)
  * Note that we may be called with "junk" leftover in the various
  * fields, so we must be sure to clear them first.
  */
-void player_birth()
+NavResult player_birth()
 {
     int i;
 
@@ -2239,9 +2170,12 @@ void player_birth()
     /* Create a new character */
     while (1)
     {
-        /* Roll up a new character */
-        if (player_birth_aux())
-            break;
+        NavResult r = player_birth_aux();
+        if (r == NAV_OK) break;
+        if (r == NAV_BACK) return NAV_BACK;         /* back to character_selection */
+        if (r == NAV_TO_MAIN) return NAV_TO_MAIN;   /* back to main menu */
+        if (r == NAV_QUIT) return NAV_QUIT;         /* hard exit */
+        /* Any other value -> retry loop */
     }
 
     for (i = 0; i < NOTES_LENGTH; i++)
@@ -2280,4 +2214,6 @@ void player_birth()
 
     /* Hack -- outfit the player */
     player_outfit();
+
+    return NAV_OK;
 }

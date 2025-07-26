@@ -66,8 +66,8 @@ C:1:1
 #Stats +5 +7 =12, Skills +5 +0 =8, Ability 1;
 
 N:1:Feanor
-A:Feanor's House
-B:Feanor
+A:, Spirit of Fire
+B: 
 F:SMT_AFFINITY | WIL_AFFINITY | STL_PENALTY | TREACHERY
 U:SMT_FEANOR 
 C:6:5:6:2  # Jeweller Artifice
@@ -84,8 +84,8 @@ D:yet ever marred, his legacy wrought in flame and boundless sorrow.
 #Stats +5 +8 =13, Skills +5 +1 =6, Ability 1;
 
 N:2:Fingolfin
-A:Fingolfin's House
-B:Fingolfin
+A:, High King of the Noldor
+B:, High King of the Noldor
 F:WIL_AFFINITY | EVN_AFFINITY | MEL_AFFINITY | SMT_PENALTY | STL_PENALTY | ARC_PENALTY
 U:WIL_FIN
 S:3:2:2:1
@@ -102,7 +102,7 @@ D:Fingolfin rests in Mandos, spirit brightened by sacrifice and glory.
 #Stats +5 +4 =9, Skills +5 +0 =5, Ability 0;
 
 N:3:Finarfin
-A:Finarfin's House
+A: of Tirion
 B:Finarfin
 F:PER_AFFINITY | SMT_PENALTY 
 S:1:1:0:3
@@ -119,7 +119,7 @@ D:and his heart longs for the far-off hour of redemption and forgiveness.
 #Stats +5 +5 =10, Skills +5 +0 =5, Ability 0;
 
 N:4:Maedhros
-A:Feanor's House
+A: the Red
 B:Feanor
 F:WIL_AFFINITY | STL_PENALTY
 S:1:1:3:0
@@ -136,7 +136,7 @@ D:a Silmaril reclaimed in flame and despair, bringing bitter end to hope.
 #Stats +5 +2 =7, Skills +5 +1 =6, Ability 0;
 
 N:5:Curufin
-A:Feanor's House
+A: the Wily
 B:Feanor
 F:SMT_AFFINITY | STL_AFFINITY | PER_PENALTY | ARC_AFFINITY | MEL_PENALTY | WIL_PENALTY | TREACHERY
 S:0:3:0:-1
@@ -152,7 +152,7 @@ D:and by treason sows seeds of doom and loss, echoing father’s dark flame.
 #Stats +5 +5 =10
 
 N:6:Fingon
-A:Fingolfin's House
+A: the Valiant
 B:Fingolfin
 F:WIL_AFFINITY | ARC_AFFINITY | KINSLAYER
 S:1:2:1:1
@@ -168,7 +168,7 @@ D:awaiting the final healing of wounds made by sword and sorrow.
 #Stats +5 +4 =9
 
 N:7:Turgon
-A:Fingolfin's House
+A:, Lord of Gondolin
 B:Fingolfin
 F:WIL_AFFINITY | STL_AFFINITY | PER_AFFINITY | MEL_PENALTY | ARC_PENALTY | KINSLAYER
 S:0:0:2:2
@@ -184,7 +184,7 @@ D:awaiting a brighter hour when shadows break and stars shine anew.
 #Stats +5 +4 =9
 
 N:8:Galadriel
-A:Finarfin's House
+A:, Lady of Light
 B:Finarfin
 F:PER_AFFINITY | SMT_PENALTY | CURSE
 S:0:1:1:2
@@ -200,7 +200,7 @@ D:marking her path through sorrow and hope, unto fates unknown and mighty.
 #Stats +5 +4 =9
 
 N:9:Finrod Felagund
-A:Finarfin's House
+A:, the Friend of Men
 B:Finarfin
 F:PER_AFFINITY | SNG_AFFINITY | WIL_AFFINITY | CURSE
 U:SNG_FIN
@@ -217,7 +217,7 @@ D:his deeds foretelling bonds of friendship bridging mortal and immortal.
 #Stats +5 +6 =11
 
 N:10:Glorfindel
-A:Golden Flower House
+A: of the Golden Flower
 B:Golden Flower
 F:MEL_AFFINITY | ARC_PENALTY
 S:2:2:1:1
@@ -233,7 +233,7 @@ D:until at last he rises again, ever watchful, a beacon of immortal valor.
 #Stats +5 +5 =10
 
 N:11:Etchelion
-A:House of the Fountain
+A: of the Fountain
 B:the Fountain
 F:MEL_AFFINITY | KINSLAYER | ARC_PENALTY | EVN_PENALTY
 S:2:1:1:1
@@ -249,7 +249,7 @@ D:a legacy ever remembered in song beneath stars and shattered stone.
 #Stats +2 +7 =9
 
 N:12:Elu Thingol
-A:Doriath
+A:, Lord of Beleriand
 B:Doriath
 F:WIL_AFFINITY | PER_AFFINITY | ARC_PENALTY
 U:SNG_THINGOL
@@ -266,7 +266,7 @@ D:foreshadowing ruin wrought by desire, grief deeper than twilight itself.
 #Stats +2 +4 =6
 
 N:13:Cirdan
-A:the Falas
+A: the Shipwright
 B:Falathrim
 F:PER_AFFINITY | SMT_AFFINITY | ARC_PENALTY | FREE | BOW_PROFICIENCY
 S:0:1:1:2
@@ -280,7 +280,7 @@ D:foreseeing final voyages across seas yet veiled by shadow and sorrow,
 D:keeper of hope unseen, guiding future kings unto shores yet unknown. 
 
 N:14:Mablung
-A:Doriath
+A: of the Heavy Hand
 B:Doriath
 F:MEL_AFFINITY
 S:2:1:0:0
@@ -294,7 +294,7 @@ D:foresight dimmed by loss yet eyes reflecting courage amid despair,
 D:destined to fall loyal, remembered in lament beneath darkening trees. 
 
 N:15:Luthien
-A:Doriath
+A: Tinúviel
 B:Doriath
 F:WIL_AFFINITY | SNG_AFFINITY | STL_AFFINITY | EVN_AFFINITY | ARC_PENALTY
 U:SNG_LUT
@@ -309,7 +309,7 @@ D:destined to fade willingly from Eldar's light, mortal fate chosen bravely,
 D:remembered ever as brightest jewel in Arda’s song, grief and joy entwined. 
 
 N:16:Voronwe
-A:the Falas
+A: the Steadfast
 B:Falathrim
 F:PER_PENALTY | FREE | BOW_PROFICIENCY
 S:0:1:1:0
@@ -323,7 +323,7 @@ D:heart burdened yet steadfast, fulfilling purpose woven by Powers above,
 D:bearer of hope amid despair, witness to glory lost beneath waves of flame. 
 
 N:17:Beleg
-A:the Falas
+A: Strongbow
 B:Falathrim
 F:ARC_AFFINITY | SNG_PENALTY | BOW_PROFICIENCY
 S:1:2:0:0
@@ -337,7 +337,7 @@ D:sorrowful fate sealed, yet deeds inspiring bravery even amid grief,
 D:forever honored as faithful guardian whose loyalty outshines doom. 
 
 N:18:Telchar
-A:Nogrod
+A:, the Smith of Nogrod
 B:Nogrod
 F:SMT_AFFINITY
 U:SMT_TELCHAR
@@ -353,7 +353,7 @@ D:weapons wrought in secret, glory shadowed by fate unforeseen,
 D:remembered by dwarves and Elves alike, name carved deep in lore and stone. 
 
 N:19:Gamil Zirak
-A:Belegost
+A:, Master of Smiths
 B:Belegost
 F:PER_AFFINITY | SMT_AFFINITY | MEL_PENALTY
 U:SMT_GAMIL
@@ -368,7 +368,7 @@ D:his teachings carry whispers of power and peril yet hidden by time,
 D:remembered in halls of stone, his craft enduring beyond fall and flame. 
 
 N:20:Naugladur
-A:Nogrod
+A:, Lord of Nogrod
 B:Nogrod
 F:PER_PENALTY | TREACHERY
 S:1:1:1:-1
@@ -382,7 +382,7 @@ D:legacy darkened by tragic ambition, forgotten by halls of gold,
 D:name whispered grimly, memory marred by deeds wrought in tragic pride. 
 
 N:21:King Azaghal
-A:Belegost
+A:, Lord of Belegost
 B:Belegost
 F:WIL_AFFINITY | MEL_AFFINITY
 S:2:1:2:1
@@ -396,7 +396,7 @@ D:remembered forever in dwarven lament, honor etched deep in stone,
 D:symbol of courage beyond doom, defying darkness at battle’s end. 
 
 N:22:Mim
-A:Belegost
+A: the Petty-Dwarf
 B:Belegost
 F:SNG_AFFINITY | MEL_PENALTY | STL_AFFINITY | TREACHERY | SMT_PENALTY
 U:MIM
@@ -411,7 +411,7 @@ D:destiny entwined tragically with mortals, ruin born from grudging heart,
 D:remembered with pity and dread alike, sorrow embodied in fading stones. 
 
 N:23:Beren
-A:Beor's House
+A: Erchamion
 B:Beor
 F:EVN_AFFINITY | STL_AFFINITY | WIL_AFFINITY
 S:1:2:1:1
@@ -425,7 +425,7 @@ D:heart bound fiercely to Lúthien’s grace, death conquered by timeless love,
 D:legacy ever shining, his story echoed eternally in stars and song. 
 
 N:24:Barahir
-A:Beor's House
+A:, Lord of Ladros
 B:Beor
 F:EVN_AFFINITY 
 S:1:0:1:1
@@ -439,7 +439,7 @@ D:death faced nobly, yet memory survives beyond flames and sorrow;
 D:remembered ever as beacon of honor in night’s relentless storm. 
 
 N:25:Earendil
-A:Beor's House
+A: the Half-Elven
 B:Beor
 F:EVN_AFFINITY | STL_AFFINITY | WIL_AFFINITY | PER_AFFINITY | SNG_AFFINITY | MEL_PENALTY | FREE
 U:EARENDIL
@@ -454,7 +454,7 @@ D:forever sailing skies, immortal star shining above world’s grief;
 D:Eärendil, brightest hope, whose journey defines Arda’s final destiny. 
 
 N:26:Haleth
-A:Haleth's People
+A:, Lady of the Haladin
 B:Haleth
 F:STL_AFFINITY
 S:0:1:2:0
@@ -468,7 +468,7 @@ D:remembered as flame undimmed, inspiring resilience amidst ruin;
 D:Haleth’s name echoing proudly among tales of mortal defiance. 
 
 N:27:Hador
-A:Hador's House
+A: the Golden-haired
 B:Hador
 F:MEL_AFFINITY 
 S:3:1:2:1
@@ -482,7 +482,7 @@ D:memory cherished in halls of Men and Elves, defying shadow’s power;
 D:emblem of mortal bravery, whose blood shapes Arda’s hidden fate. 
 
 N:28:Turin Turambar
-A:Beor's House
+A:, Master of Fate
 B:Beor
 F:EVN_AFFINITY | MEL_AFFINITY | PER_PENALTY | MOR_CURSE | STL_AFFINITY
 S:2:2:2:-1
@@ -496,7 +496,7 @@ D:yet courage undaunted, destined to slay dragon and darkness alike;
 D:memory forever mingled with glory and grief, Turambar—master of fate. 
 
 N:29:Tuor
-A:Beor's House
+A:, Messenger of Ulmo
 B:Beor
 F:EVN_AFFINITY | MEL_AFFINITY
 U:WIL_TUOR
@@ -511,7 +511,7 @@ D:father to mariner whose star heralds doom and deliverance alike;
 D:Tuor, mortal whose legacy shapes fate beyond sorrowful days. 
 
 N:30:Hurin
-A:Beor's House
+A: the Steadfast
 B:Beor
 F:EVN_AFFINITY | WIL_AFFINITY | PER_PENALTY | SNG_AFFINITY | MOR_CURSE
 U:SNG_HURIN
@@ -526,7 +526,7 @@ D:memory enduring in pride and tragedy, hero forever defiant;
 D:Húrin, steadfast flame, challenging darkness even unto bitterest end. 
 
 N:31:Idril Celebrindal
-A:House of the Fountain
+A: of Gondolin
 B:Fingolfin
 F:STL_AFFINITY | MEL_PENALTY | SMT_PENALTY | PER_AFFINITY | ARC_PENALTY
 S:-1:2:0:2
@@ -541,7 +541,7 @@ D:her courage endures through darkness, quietly preparing future’s light;
 D:Idril, bright star guiding destiny toward renewal beyond sorrow.
 
 N:32:Gil Galad
-A:House of the Fountain
+A:, Star of Radiance
 B:Fingolfin
 S:1:1:1:1
 C:0:3 # Polearm
@@ -554,7 +554,7 @@ D:memory destined to shine even unto ages beyond ruin’s shadow;
 D:Gil-galad, name whispered with hope amid Elven twilight. 
 
 N:33:Celeborn
-A:Teleri
+A:, Prince of Doriath
 B:Teleri
 S:1:1:0:1
 F:ARC_PENALTY | FREE | BOW_PROFICIENCY
@@ -568,7 +568,7 @@ D:his fate woven subtly, surviving ruin and watching stars diminish;
 D:Celeborn, silent watcher, whose heart endures beyond sorrowful loss. 
 
 N:34:Daeron
-A:Doriath
+A: the Minstrel
 B:Doriath
 F:SNG_AFFINITY | WIL_PENALTY | PER_PENALTY
 S:0:1:-1:3
@@ -582,7 +582,7 @@ D:melodies forever entwined with shadow, beauty enduring amidst loss;
 D:Daeron, mournful voice whose music outlasts realms and time itself. 
 
 N:35:Melian Maia
-A:Mayar
+A:, Queen of Doriath
 B:Mayar
 F:WIL_AFFINITY | SNG_AFFINITY | PER_AFFINITY | ARC_PENALTY
 U:SNG_MEL
@@ -597,7 +597,7 @@ D:grief deepening as doom approached, yet beauty undiminished;
 D:Melian, heart both mighty and sorrowful, shaping fate subtly. 
 
 N:36:Celegorm
-A:Feanor's House
+A: the Hunter
 B:Feanor
 F:ARC_AFFINITY | EVN_AFFINITY | WIL_PENALTY | SMT_PENALTY | TREACHERY | BOW_PROFICIENCY
 S:1:1:2:0

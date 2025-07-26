@@ -1907,7 +1907,7 @@ static void show_metarun_help(void)
 
 
 /* --- UPDATED MAIN-MENU HANDLER ---------------------------------------- */
-extern int initial_menu(int *highlight)
+extern NavResult initial_menu(bool *start_new)
 {
     int ch;
 
@@ -1933,73 +1933,29 @@ extern int initial_menu(int *highlight)
     Term_putstr(16, 19, 50,TERM_L_BLUE,
         "Continue your story (press space to continue)");
     
-        // Term_putstr(20, 20, 30,
-        // TERM_L_DARK,                           /* always greyed-out */
-        // "b) Load story (disabled)");
-    // Term_putstr(20, 21, 30,
-    //     (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-    //     "c) Help");
     Term_putstr(25, 22, 30,TERM_WHITE,
         "press q or ESC to exit");
 
     Term_fresh();
 
-    /* show cursor beside current item */
-    // Term_gotoxy(10, 18 + *highlight);
-
-    // hide_cursor = TRUE;
     ch = inkey();
-    // hide_cursor = FALSE;
 
     /* direct key choices ------------------------------------------------*/
 
-    /* a : CONTINUE  */
+    /* enter : CONTINUE  */
     if (ch == '\n' || ch == '\r' || ch == ' ')
     {
-        *highlight = 1;
-        return 2;                /* maps to “new game” branch in main-win.c */
+        *start_new = TRUE; return NAV_OK;   /* start new game */
     }
 
-    // /* b : LOAD (disabled) – just ignore / beep */
-    // if (ch == 'b' || ch == 'B')
-    // {
-    //     bell("load-story disabled");        /* disabled – beep and ignore */
-    //     return 0;                /* stay in the menu */
-    // }
 
-    // /* c : HELP      */
-    // if (ch == 'c' || ch == 'C')
-    // {
-    //     show_metarun_help();
-    //     return 0;                /* redraw menu afterwards */
-    // }
-
-    /* d : EXIT      */
+    /* q : EXIT      */
     if (ch == 'q' || ch == ESCAPE)
     {
-        return 4;                /* handled as quit in main-win.c */
+        return NAV_QUIT;                /* handled as quit in main-win.c */
     }
 
-    // /* ENTER / SPACE : activate current highlight ------------------------*/
-    // if (ch == '\r' || ch == '\n' || ch == ' ')
-    // {
-    //     switch (*highlight)
-    //     {
-    //         case 1:  return 2;          /* Continue */
-    //         case 2:  bell("Load story disabled"); return 0;  /* Load disabled */
-    //         case 3:  show_metarun_help(); return 0;
-    //         case 4:  return 4;          /* Exit      */
-    //     }
-    // }
-
-    // /* cursor navigation -------------------------------------------------*/
-    // if (ch == '8' && *highlight > 1) (*highlight)--;
-    // if (ch == '2' && *highlight < 4) (*highlight)++;
-
-    // /* toggle wizard resurrection */
-    // if (ch == KTRL('W')) arg_wizard = !arg_wizard;
-
-    return 0;                       /* fall through → refresh & loop */
+    return NAV_BACK;                /* stay in the menu */                       /* fall through → refresh & loop */
 }
 /* ---------------------------------------------------------------------- */
 

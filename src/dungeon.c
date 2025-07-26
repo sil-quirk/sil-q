@@ -3017,7 +3017,7 @@ static void print_story_intro(void)
  * code marks successful loading of the RNG state using the "Rand_quick"
  * flag, which is a hack, but which optimizes loading of savefiles.
  */
-void play_game(void)
+PlayResult play_game(void)
 {
     bool new_game = false;
     /* Hack -- Increase "icky" depth */
@@ -3047,63 +3047,57 @@ void play_game(void)
         my_strcpy(op_ptr->base_name, "nameless", sizeof(op_ptr->base_name));
     }
 
+    if (metarun_created)        /* show only the first time ever */
+    print_story_intro();
+    else print_metarun_stats();
+
     character_loaded = FALSE;
     character_loaded_dead = FALSE;
 
-    /* Wipe the player */
-    player_wipe();
-
-    if (metarun_created)        /* show only the first time ever */
-    print_story_intro();
-
-    // Show story
-    print_story();
-    print_metarun_stats();
-
-    log_info("Choosing character");
-    character_creation();
-
-    /* Attempt to load */
-    if (!load_player()) log_info("Failed to load player");
-
-    log_info(character_loaded ? "Character loaded" :
-        (character_loaded_dead ? "Character loaded dead" : "Character creation started created"));
-
-    /* Nothing loaded (and living) */
-    if (!character_loaded)
+    for (;;)
     {
-        /* Make new player */
-        new_game = TRUE;
+        /* Wipe the player each time we (re)enter creation */
+        player_wipe();
 
-        /* The dungeon is not ready */
+        log_info("Choosing character");
+        NavResult cr = character_creation();
+        if (cr == NAV_TO_MAIN) { character_icky--; return PLAY_DONE; }
+        if (cr == NAV_QUIT)    { character_icky--; return PLAY_QUIT; }
+
+        /* Attempt to load */
+        if (!load_player()) log_info("Failed to load player");
+
+        log_info(character_loaded ? "Character loaded" :
+            (character_loaded_dead ? "Character loaded dead" : "Character creation started created"));
+
+        new_game = !character_loaded;
         character_dungeon = FALSE;
-    }
 
-    /* Init RNG */
-    if (Rand_quick)
-    {
-        u32b seed;
+        if (new_game)
+        {
+            log_info("Rolling up a new character");
+        /* Init RNG */
+        if (Rand_quick)
+        {
+            u32b seed;
 
-        /* Basic seed */
-        seed = (time(NULL));
+            /* Basic seed */
+            seed = (time(NULL));
 
-#ifdef SET_UID
+    #ifdef SET_UID
 
-        /* Mutate the seed on Unix machines */
-        seed = ((seed >> 3) * (getpid() << 1));
+            /* Mutate the seed on Unix machines */
+            seed = ((seed >> 3) * (getpid() << 1));
 
-#endif
+    #endif
 
-        /* Use the complex RNG */
-        Rand_quick = FALSE;
+            /* Use the complex RNG */
+            Rand_quick = FALSE;
 
-        /* Seed the "complex" RNG */
-        Rand_state_init(seed);
-    }
+            /* Seed the "complex" RNG */
+            Rand_state_init(seed);
+        }
 
-    /* Roll new character */
-    if (new_game)
-    {
         log_info("Rolling up a new character");
         /* The dungeon is not ready */
         character_dungeon = FALSE;
@@ -3115,7 +3109,13 @@ void play_game(void)
         seed_randart = rand_int(0x10000000);
 
         /* Roll up a new character */
-        player_birth();
+        NavResult br = player_birth();
+        if (br == NAV_BACK)    { /* back to Character Selection */
+            continue;
+        }
+        if (br == NAV_TO_MAIN) { character_icky--; return PLAY_DONE; }
+        if (br == NAV_QUIT)    { character_icky--; return PLAY_QUIT; }
+        /* NAV_OK falls through */
 
         // Reset the autoinscriptions
         autoinscribe_clean();
@@ -3132,6 +3132,10 @@ void play_game(void)
         /* Start player on level 1 */
         p_ptr->depth = 1;
         }
+        }
+
+        /* succeeded (either loaded or created) — exit the creation loop */
+        break;
     }
 
     /* Normal machine (process player name) */
@@ -3145,6 +3149,8 @@ void play_game(void)
     {
         process_player_name(TRUE);
     }
+
+    print_story();
 
     /* Flash a message */
     prt("Please wait...", 0, 0);
@@ -3198,6 +3204,7 @@ void play_game(void)
 
     /* Start playing */
     p_ptr->playing = TRUE;
+    metarun_created = FALSE;
 
     /* Hack -- Enforce "delayed death" */
     if (p_ptr->chp <= 0)
@@ -3338,4 +3345,5 @@ void play_game(void)
     /* Close stuff */
     log_info("Player '%s' has left the game.", op_ptr->base_name);
     close_game();
+    return PLAY_DONE;
 }
