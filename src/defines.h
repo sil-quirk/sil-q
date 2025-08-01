@@ -986,7 +986,7 @@
 #define FEAT_TRAP_HEAD 0x10
 #define FEAT_TRAP_TAIL 0x1C
 
-#define FEAT_TRAP_FALSE_FLOOR 0x10
+#define FEAT_TRAP_false_FLOOR 0x10
 #define FEAT_TRAP_PIT 0x11
 #define FEAT_TRAP_SPIKED_PIT 0x12
 #define FEAT_TRAP_DART 0x13
@@ -1302,7 +1302,7 @@
 #define SV_POTION_CLARITY 4
 #define SV_POTION_HEALING 5
 #define SV_POTION_VOICE 6
-#define SV_POTION_TRUE_SIGHT 7
+#define SV_POTION_true_SIGHT 7
 #define SV_POTION_ANTIDOTE 8
 #define SV_POTION_QUICKNESS 9
 #define SV_POTION_ELEM_RESISTANCE 10
@@ -2569,14 +2569,14 @@
  */
 
 #define show_weights                                                           \
-    TRUE // Sil: we might want to change this for a handheld version
+    true // Sil: we might want to change this for a handheld version
 
 #define hjkl_movement op_ptr->opt[OPT_hjkl_movement]
 #define quick_messages op_ptr->opt[OPT_quick_messages]
 #define angband_keyset op_ptr->opt[OPT_angband_keyset]
 // xxx carry_query
 #define stop_singing_on_rest op_ptr->opt[OPT_stop_singing_on_rest]
-#define always_pickup FALSE // Sil-x: removing this option for now
+#define always_pickup false // Sil-x: removing this option for now
 #define forgo_attacking_unwary op_ptr->opt[OPT_forgo_attacking_unwary]
 #define depth_in_feet op_ptr->opt[OPT_depth_in_feet]
 // xxx stack_force_notes
@@ -2626,7 +2626,7 @@
 // xxx fresh_before
 // xxx fresh_after
 #define fresh_after                                                            \
-    FALSE // Sil: there is some chance I'll use this in the future
+    false // Sil: there is some chance I'll use this in the future
 // xxx
 // xxx compress_savefile
 #define hilite_player op_ptr->opt[OPT_hilite_player]
@@ -2667,7 +2667,7 @@
 
 // Sil: set directly to true at the moment, as they are currently incompatible
 // with Sil
-#define birth_no_xtra_artefacts TRUE
+#define birth_no_xtra_artefacts true
 
 // xxx
 #define cheat_peek op_ptr->opt[OPT_cheat_peek]
@@ -2694,7 +2694,7 @@
 
 // Sil: set directly to false at the moment, as they are currently incompatible
 // with Sil
-#define adult_rand_artefacts FALSE
+#define adult_rand_artefacts false
 
 // xxx adult_no_stacking
 // xxx adult_take_notes
@@ -2706,7 +2706,7 @@
 
 // Sil: set directly to true at the moment, as they are currently incompatible
 // with Sil
-#define adult_no_xtra_artefacts TRUE
+#define adult_no_xtra_artefacts true
 
 // xxx hp_changes_color
 // xxx verify_leave_quest
@@ -2868,12 +2868,12 @@
 /*
  * Artefacts use the "name1" field
  */
-#define artefact_p(T) ((T)->name1 ? TRUE : FALSE)
+#define artefact_p(T) ((T)->name1 ? true : false)
 
 /*
  * Ego-Items use the "name2" field
  */
-#define ego_item_p(T) ((T)->name2 ? TRUE : FALSE)
+#define ego_item_p(T) ((T)->name2 ? true : false)
 
 /*
  * Pseduo identified as {artefact}
@@ -2881,8 +2881,8 @@
 #define artefact_pseudo_p(T)                                                   \
     ((((T)->discount == INSCRIP_TERRIBLE)                                      \
          || ((T)->discount == INSCRIP_SPECIAL))                                \
-            ? TRUE                                                             \
-            : FALSE)
+            ? true                                                             \
+            : false)
 
 /*
  * Pseduo identified as {special}
@@ -2890,8 +2890,8 @@
 #define special_pseudo_p(T)                                                    \
     ((((T)->discount == INSCRIP_WORTHLESS)                                     \
          || ((T)->discount == INSCRIP_EXCELLENT))                              \
-            ? TRUE                                                             \
-            : FALSE)
+            ? true                                                             \
+            : false)
 
 /*
  * Broken items.
@@ -3353,7 +3353,7 @@
  */
 #define NOTES_MARK "@@@@@@@ No more notes @@@@@@@"
 
-/* Returns TRUE if T is a torch or a lantern */
+/* Returns true if T is a torch or a lantern */
 #define fuelable_light_p(T)                                                    \
     (((T)->tval == TV_LIGHT)                                                   \
         && (((T)->sval == SV_LIGHT_LANTERN) || ((T)->sval == SV_LIGHT_TORCH)   \

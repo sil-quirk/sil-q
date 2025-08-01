@@ -58,7 +58,7 @@ int distance_squared(int y1, int x1, int y2, int x2)
  * A simple, fast, integer-based line-of-sight algorithm.  By Joseph Hall,
  * 4116 Brewster Drive, Raleigh NC 27606.  Email to jnh@ecemwl.ncsu.edu.
  *
- * This function returns TRUE if a "line of sight" can be traced from the
+ * This function returns true if a "line of sight" can be traced from the
  * center of the grid (x1,y1) to the center of the grid (x2,y2), with all
  * of the grids along this path (except for the endpoints) being non-wall
  * grids.  Actually, the "chess knight move" situation is handled by some
@@ -123,7 +123,7 @@ bool los(int y1, int x1, int y2, int x2)
 
     /* Handle adjacent (or identical) grids */
     if ((ax < 2) && (ay < 2))
-        return (TRUE);
+        return (true);
 
     /* Directly South/North */
     if (!dx)
@@ -134,7 +134,7 @@ bool los(int y1, int x1, int y2, int x2)
             for (ty = y1 + 1; ty < y2; ty++)
             {
                 if (!cave_floor_bold(ty, x1))
-                    return (FALSE);
+                    return (false);
             }
         }
 
@@ -144,12 +144,12 @@ bool los(int y1, int x1, int y2, int x2)
             for (ty = y1 - 1; ty > y2; ty--)
             {
                 if (!cave_floor_bold(ty, x1))
-                    return (FALSE);
+                    return (false);
             }
         }
 
         /* Assume los */
-        return (TRUE);
+        return (true);
     }
 
     /* Directly East/West */
@@ -161,7 +161,7 @@ bool los(int y1, int x1, int y2, int x2)
             for (tx = x1 + 1; tx < x2; tx++)
             {
                 if (!cave_floor_bold(y1, tx))
-                    return (FALSE);
+                    return (false);
             }
         }
 
@@ -171,12 +171,12 @@ bool los(int y1, int x1, int y2, int x2)
             for (tx = x1 - 1; tx > x2; tx--)
             {
                 if (!cave_floor_bold(y1, tx))
-                    return (FALSE);
+                    return (false);
             }
         }
 
         /* Assume los */
-        return (TRUE);
+        return (true);
     }
 
     /* Extract some signs */
@@ -189,7 +189,7 @@ bool los(int y1, int x1, int y2, int x2)
         if (ay == 2)
         {
             if (cave_floor_bold(y1 + sy, x1))
-                return (TRUE);
+                return (true);
         }
     }
 
@@ -199,7 +199,7 @@ bool los(int y1, int x1, int y2, int x2)
         if (ax == 2)
         {
             if (cave_floor_bold(y1, x1 + sx))
-                return (TRUE);
+                return (true);
         }
     }
 
@@ -234,7 +234,7 @@ bool los(int y1, int x1, int y2, int x2)
         while (x2 - tx)
         {
             if (!cave_floor_bold(ty, tx))
-                return (FALSE);
+                return (false);
 
             qy += m;
 
@@ -246,7 +246,7 @@ bool los(int y1, int x1, int y2, int x2)
             {
                 ty += sy;
                 if (!cave_floor_bold(ty, tx))
-                    return (FALSE);
+                    return (false);
                 qy -= f1;
                 tx += sx;
             }
@@ -283,7 +283,7 @@ bool los(int y1, int x1, int y2, int x2)
         while (y2 - ty)
         {
             if (!cave_floor_bold(ty, tx))
-                return (FALSE);
+                return (false);
 
             qx += m;
 
@@ -295,7 +295,7 @@ bool los(int y1, int x1, int y2, int x2)
             {
                 tx += sx;
                 if (!cave_floor_bold(ty, tx))
-                    return (FALSE);
+                    return (false);
                 qx -= f1;
                 ty += sy;
             }
@@ -309,7 +309,7 @@ bool los(int y1, int x1, int y2, int x2)
     }
 
     /* Assume los */
-    return (TRUE);
+    return (true);
 }
 
 void random_unseen_floor(int* ry, int* rx)
@@ -370,12 +370,12 @@ bool seen_by_keen_senses(int fy, int fx)
             if ((cave_light[y2][x2] > 0) && cave_floor_bold(y2, x2)
                 && (cave_info[y2][x2] & (CAVE_VIEW)))
             {
-                return (TRUE);
+                return (true);
             }
         }
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -389,18 +389,18 @@ bool cave_valid_bold(int y, int x)
 
     /* Forbid perma-grids */
     if (cave_perma_bold(y, x))
-        return (FALSE);
+        return (false);
 
     /* Check objects */
     for (o_ptr = get_first_object(y, x); o_ptr; o_ptr = get_next_object(o_ptr))
     {
         // Don't destroy the crown
         if ((o_ptr->name1 >= ART_MORGOTH_0) && (o_ptr->name1 <= ART_MORGOTH_3))
-            return FALSE;
+            return false;
     }
 
     /* Accept */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -506,11 +506,11 @@ bool feat_supports_lighting(int feat)
 {
     /* Pseudo graphics don't support lighting */
     if (use_graphics == GRAPHICS_PSEUDO)
-        return FALSE;
+        return false;
 
     if ((feat >= FEAT_TRAP_HEAD) && (feat <= FEAT_TRAP_TAIL))
     {
-        return TRUE;
+        return true;
     }
 
     switch (feat)
@@ -523,9 +523,9 @@ bool feat_supports_lighting(int feat)
     case FEAT_WALL_OUTER:
     case FEAT_WALL_SOLID:
     case FEAT_WALL_PERM:
-        return TRUE;
+        return true;
     default:
-        return FALSE;
+        return false;
     }
 }
 
@@ -939,14 +939,14 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
     /* Cave flags */
     info = cave_info[y][x];
 
-    bool hide_square = FALSE;
-    bool rage_active = FALSE;
+    bool hide_square = false;
+    bool rage_active = false;
 
     // 'rage' effects...
     if ((!p_ptr->is_dead) && p_ptr->rage && !(info & (CAVE_SEEN)))
-        hide_square = TRUE;
+        hide_square = true;
     if ((!p_ptr->is_dead) && p_ptr->rage)
-        rage_active = TRUE;
+        rage_active = true;
 
     /* make sure not to display things off screen */
     if ((y < 0) || (x < 0) || (y >= p_ptr->cur_map_hgt)
@@ -1227,8 +1227,8 @@ void map_info_default(int y, int x, byte* ap, char* cp)
 
     int floor_num = 0;
 
-    bool sq_flag = FALSE;
-    bool do_purple_dot = TRUE;
+    bool sq_flag = false;
+    bool do_purple_dot = true;
 
     /* Monster/Player */
     m_idx = cave_m_idx[y][x];
@@ -1669,7 +1669,7 @@ void note_spot(int y, int x)
     for (o_ptr = get_first_object(y, x); o_ptr; o_ptr = get_next_object(o_ptr))
     {
         /* Memorize objects */
-        o_ptr->marked = TRUE;
+        o_ptr->marked = true;
     }
 
     /* Hack -- memorize grids */
@@ -1851,7 +1851,7 @@ static byte priority(byte a, char c)
     feature_type* f_ptr;
 
     /* Scan the table */
-    for (i = 0; TRUE; i++)
+    for (i = 0; true; i++)
     {
         /* Priority level */
         p1 = priority_table[i][1];
@@ -2688,7 +2688,7 @@ bool same_side_of_wall_as_player(int y, int x, int fy, int fx)
     int py = p_ptr->py;
     int px = p_ptr->px;
 
-    bool same = TRUE;
+    bool same = true;
 
     // if one above and one below
     if (((py <= y) && (fy >= y)) || ((py >= y) && (fy <= y)))
@@ -2697,19 +2697,19 @@ bool same_side_of_wall_as_player(int y, int x, int fy, int fx)
         {
             if (cave_info[y][x - 1] & (CAVE_WALL))
             {
-                same = FALSE;
+                same = false;
             }
         }
         else if ((px > x) && (fx > x))
         {
             if (cave_info[y][x + 1] & (CAVE_WALL))
             {
-                same = FALSE;
+                same = false;
             }
         }
         else
         {
-            same = FALSE;
+            same = false;
         }
     }
 
@@ -2721,19 +2721,19 @@ bool same_side_of_wall_as_player(int y, int x, int fy, int fx)
         {
             if (cave_info[y - 1][x] & (CAVE_WALL))
             {
-                same = FALSE;
+                same = false;
             }
         }
         else if ((py > y) && (fy > y))
         {
             if (cave_info[y + 1][x] & (CAVE_WALL))
             {
-                same = FALSE;
+                same = false;
             }
         }
         else
         {
-            same = FALSE;
+            same = false;
         }
     }
 
@@ -2935,7 +2935,7 @@ void update_view(void)
         while (queue_head < queue_tail)
         {
             /* Assume no line of fire */
-            bool line_fire = FALSE;
+            bool line_fire = false;
 
             /* Dequeue next grid */
             p = queue[queue_head++];
@@ -2954,32 +2954,32 @@ void update_view(void)
                 i = p->slope_fire_index1;
 
                 /* Check line(s) of fire */
-                while (TRUE)
+                while (true)
                 {
                     switch (i / 32)
                     {
                     case 3:
                     {
                         if (bits3 & (1L << (i % 32)))
-                            line_fire = TRUE;
+                            line_fire = true;
                         break;
                     }
                     case 2:
                     {
                         if (bits2 & (1L << (i % 32)))
-                            line_fire = TRUE;
+                            line_fire = true;
                         break;
                     }
                     case 1:
                     {
                         if (bits1 & (1L << (i % 32)))
-                            line_fire = TRUE;
+                            line_fire = true;
                         break;
                     }
                     case 0:
                     {
                         if (bits0 & (1L << (i % 32)))
-                            line_fire = TRUE;
+                            line_fire = true;
                         break;
                     }
                     }
@@ -3446,7 +3446,7 @@ void update_view(void)
             continue;
 
         /* Update the monster */
-        update_mon(i, FALSE);
+        update_mon(i, false);
     }
 
     /* Process "old" grids */
@@ -3668,9 +3668,9 @@ void update_flow(int cy, int cx, int which_flow)
     int this_cycle = 0;
     int next_cycle = 1;
 
-    bool monster_flow = FALSE;
-    bool bash = FALSE;
-    bool found = FALSE;
+    bool monster_flow = false;
+    bool bash = false;
+    bool found = false;
 
     monster_type* m_ptr = NULL; // default to soothe compiler warnings
     monster_race* r_ptr = NULL; // default to soothe compiler warnings
@@ -3680,7 +3680,7 @@ void update_flow(int cy, int cx, int which_flow)
     // pull out the relevant monster info for the monster flows
     if (which_flow < MAX_MONSTERS)
     {
-        monster_flow = TRUE;
+        monster_flow = true;
 
         m_ptr = &mon_list[which_flow];
         r_ptr = &r_info[m_ptr->r_idx];
@@ -3689,7 +3689,7 @@ void update_flow(int cy, int cx, int which_flow)
     // pull out the relevant monster info for the wandering monster flows
     else if (which_flow <= FLOW_WANDERING_TAIL)
     {
-        monster_flow = TRUE;
+        monster_flow = true;
 
         // search the monsters to find one with that flow
         for (i = 1; i < mon_max; i++)
@@ -3704,7 +3704,7 @@ void update_flow(int cy, int cx, int which_flow)
 
             // find the first monster with this flow
             if (m_ptr->wandering_idx == which_flow)
-                found = TRUE;
+                found = true;
 
             if (found)
                 break;
@@ -4082,7 +4082,7 @@ void wiz_light(void)
             continue;
 
         /* Memorize */
-        o_ptr->marked = TRUE;
+        o_ptr->marked = true;
     }
 
     /* Scan all normal grids */
@@ -4157,7 +4157,7 @@ void wiz_dark(void)
             continue;
 
         /* Forget the object */
-        o_ptr->marked = FALSE;
+        o_ptr->marked = false;
     }
 
     /* Process monsters */
@@ -4173,7 +4173,7 @@ void wiz_dark(void)
             // Sil-y: this is a bit of a hack as it means you can get the
             // experience for seeing them again but it will only be at most an
             // extra 50 experience per game, more likely about 10
-            m_ptr->encountered = FALSE;
+            m_ptr->encountered = false;
         }
     }
 
@@ -4323,7 +4323,7 @@ int project_path(
     int num, dist, octant;
     int grids = 0;
     bool line_fire;
-    bool full_stop = FALSE;
+    bool full_stop = false;
 
     int y_a, x_a, y_b, x_b;
     int y = 0, old_y = 0;
@@ -4341,7 +4341,7 @@ int project_path(
     bool vertical;
 
     /* Require projections to be strictly LOF when possible  XXX XXX */
-    bool require_strict_lof = FALSE;
+    bool require_strict_lof = false;
 
     /* Count of grids in LOF, storage of LOF grids */
     u16b tmp_grids[80];
@@ -4353,7 +4353,7 @@ int project_path(
     int blockage[2];
 
     /* Assume no monsters in way */
-    bool monster_in_way = FALSE;
+    bool monster_in_way = false;
 
     /* Initial grid */
     s16b g0 = GRID(y1, x1);
@@ -4372,7 +4372,7 @@ int project_path(
         || ((*y2 == p_ptr->py) && (*x2 == p_ptr->px)))
     {
         /* Require strict LOF */
-        require_strict_lof = TRUE;
+        require_strict_lof = true;
     }
 
     /* Get position change (signed) */
@@ -4439,11 +4439,11 @@ int project_path(
     /* Determine whether the major axis is vertical or horizontal */
     if ((octant == 5) || (octant == 6) || (octant == 2) || (octant == 1))
     {
-        vertical = TRUE;
+        vertical = true;
     }
     else
     {
-        vertical = FALSE;
+        vertical = false;
     }
 
     /* Scan the octant, find the grid corresponding to the end point */
@@ -4488,7 +4488,7 @@ int project_path(
     /* Scan the octant, collect all grids having the correct line of fire */
     for (j = 1; j < VINFO_MAX_GRIDS; j++)
     {
-        line_fire = FALSE;
+        line_fire = false;
 
         /* Point to this vinfo record */
         p = &vinfo[j];
@@ -4517,7 +4517,7 @@ int project_path(
         i = slope_fire1;
 
         /* Check line(s) of fire */
-        while (TRUE)
+        while (true)
         {
             switch (i / 32)
             {
@@ -4526,7 +4526,7 @@ int project_path(
                 if (bits3 & (1L << (i % 32)))
                 {
                     if (p->bits_3 & (1L << (i % 32)))
-                        line_fire = TRUE;
+                        line_fire = true;
                 }
                 break;
             }
@@ -4535,7 +4535,7 @@ int project_path(
                 if (bits2 & (1L << (i % 32)))
                 {
                     if (p->bits_2 & (1L << (i % 32)))
-                        line_fire = TRUE;
+                        line_fire = true;
                 }
                 break;
             }
@@ -4544,7 +4544,7 @@ int project_path(
                 if (bits1 & (1L << (i % 32)))
                 {
                     if (p->bits_1 & (1L << (i % 32)))
-                        line_fire = TRUE;
+                        line_fire = true;
                 }
                 break;
             }
@@ -4553,7 +4553,7 @@ int project_path(
                 if (bits0 & (1L << (i % 32)))
                 {
                     if (p->bits_0 & (1L << (i % 32)))
-                        line_fire = TRUE;
+                        line_fire = true;
                 }
                 break;
             }
@@ -4664,7 +4664,7 @@ int project_path(
             if ((i == num - 1) && (step + (k >> 1)) >= range - 1)
             {
                 /* End of projection */
-                full_stop = TRUE;
+                full_stop = true;
             }
 
             /* Sometimes stop at destination grid */
@@ -4673,7 +4673,7 @@ int project_path(
                 if ((y == *y2) && (x == *x2))
                 {
                     /* End of projection */
-                    full_stop = TRUE;
+                    full_stop = true;
                 }
             }
 
@@ -4691,7 +4691,7 @@ int project_path(
             else if (!in_bounds_fully(y, x))
             {
                 /* End of projection */
-                full_stop = TRUE;
+                full_stop = true;
                 blockage[i] = 3;
             }
 
@@ -4727,7 +4727,7 @@ int project_path(
             {
                 /* Endpoints are always acceptable */
                 if ((y != *y2) || (x != *x2))
-                    monster_in_way = TRUE;
+                    monster_in_way = true;
             }
 
             /* Handle end of projection */
@@ -4749,7 +4749,7 @@ int project_path(
             {
                 /* Endpoints are always acceptable */
                 if ((y != *y2) || (x != *x2))
-                    monster_in_way = TRUE;
+                    monster_in_way = true;
             }
 
             /* Handle end of projection */
@@ -4960,7 +4960,7 @@ void scatter(int* yp, int* xp, int y, int x, int d, int m)
     (void)m;
 
     /* Pick a location */
-    while (TRUE)
+    while (true)
     {
         /* Pick a new location */
         ny = rand_spread(y, d);
@@ -5108,7 +5108,7 @@ void disturb(int stop_stealth, int unused_flag)
     if (stop_stealth && p_ptr->stealth_mode)
     {
         // signal that it will be stopped at the end of the turn
-        stop_stealth_mode = TRUE;
+        stop_stealth_mode = true;
     }
 
     /* Flush the input */

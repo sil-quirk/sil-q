@@ -137,9 +137,9 @@ extern bool two_handed_melee(void)
     if ((k_info[o_ptr->k_idx].flags3 & (TR3_TWO_HANDED))
         || hand_and_a_half_bonus(o_ptr))
     {
-        return (TRUE);
+        return (true);
     }
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -414,10 +414,10 @@ static void prt_evn(void)
     // Toggle blocking on and off so we don't show the blocking value in
     // the armor total
     bool block = p_ptr->active_ability[S_EVN][EVN_BLOCKING];
-    p_ptr->active_ability[S_EVN][EVN_BLOCKING] = FALSE;
+    p_ptr->active_ability[S_EVN][EVN_BLOCKING] = false;
     /* Total Armor */
     strnfmt(buf, sizeof(buf), "[%+d,%d-%d]", p_ptr->skill_use[S_EVN],
-        p_min(GF_HURT, TRUE), p_max(GF_HURT, TRUE));
+        p_min(GF_HURT, true), p_max(GF_HURT, true));
     Term_putstr(COL_EVN, ROW_EVN, -1, TERM_SLATE, format("%12s", buf));
     p_ptr->active_ability[S_EVN][EVN_BLOCKING] = block;
 }
@@ -1043,11 +1043,11 @@ bool get_alertness_text(
             }
 
             // sometimes (only in debugging?) we are looking at a monster before
-            // it has a stance in this case return FALSE so we don't print the
+            // it has a stance in this case return false so we don't print the
             // strings
             else
             {
-                return FALSE;
+                return false;
             }
 
             if (m_ptr->morale >= 0)
@@ -1059,7 +1059,7 @@ bool get_alertness_text(
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 /*
@@ -1666,16 +1666,16 @@ bool weapon_glows(object_type* o_ptr)
     int px = p_ptr->px;
     int y, x; // generic location
     u32b f1, f2, f3;
-    bool viewable = FALSE;
+    bool viewable = false;
 
-    bool glows = FALSE;
+    bool glows = false;
 
     if (!character_dungeon)
-        return (FALSE);
+        return (false);
 
     // Must be a melee weapon
     if (wield_slot(o_ptr) != INVEN_WIELD)
-        return (FALSE);
+        return (false);
 
     // use the player's position where needed
     if ((iy == 0) && (ix == 0))
@@ -1686,26 +1686,26 @@ bool weapon_glows(object_type* o_ptr)
 
     // out of LOS objects don't glow (or it can't be seen)
     if (cave_info[iy - 1][ix - 1] & (CAVE_VIEW))
-        viewable = TRUE;
+        viewable = true;
     if (cave_info[iy - 1][ix] & (CAVE_VIEW))
-        viewable = TRUE;
+        viewable = true;
     if (cave_info[iy - 1][ix + 1] & (CAVE_VIEW))
-        viewable = TRUE;
+        viewable = true;
     if (cave_info[iy][ix - 1] & (CAVE_VIEW))
-        viewable = TRUE;
+        viewable = true;
     if (cave_info[iy][ix] & (CAVE_VIEW))
-        viewable = TRUE;
+        viewable = true;
     if (cave_info[iy][ix + 1] & (CAVE_VIEW))
-        viewable = TRUE;
+        viewable = true;
     if (cave_info[iy + 1][ix - 1] & (CAVE_VIEW))
-        viewable = TRUE;
+        viewable = true;
     if (cave_info[iy + 1][ix] & (CAVE_VIEW))
-        viewable = TRUE;
+        viewable = true;
     if (cave_info[iy + 1][ix + 1] & (CAVE_VIEW))
-        viewable = TRUE;
+        viewable = true;
 
     if (!viewable)
-        return (FALSE);
+        return (false);
 
     // create a 'flow' around the object
     update_flow(iy, ix, FLOW_MONSTER_NOISE);
@@ -1716,7 +1716,7 @@ bool weapon_glows(object_type* o_ptr)
     /* Add up the total of creatures vulnerable to the weapon's slays */
     for (i = 1; i < mon_max; i++)
     {
-        bool target = FALSE;
+        bool target = false;
         int multiplier = 1;
         monster_type* m_ptr = &mon_list[i];
         monster_race* r_ptr = &r_info[m_ptr->r_idx];
@@ -1727,19 +1727,19 @@ bool weapon_glows(object_type* o_ptr)
 
         // Determine if a slay is applicable
         if ((f1 & (TR1_SLAY_WOLF)) && (r_ptr->flags3 & (RF3_WOLF)))
-            target = TRUE;
+            target = true;
         if ((f1 & (TR1_SLAY_SPIDER)) && (r_ptr->flags3 & (RF3_SPIDER)))
-            target = TRUE;
+            target = true;
         if ((f1 & (TR1_SLAY_UNDEAD)) && (r_ptr->flags3 & (RF3_UNDEAD)))
-            target = TRUE;
+            target = true;
         if ((f1 & (TR1_SLAY_RAUKO)) && (r_ptr->flags3 & (RF3_RAUKO)))
-            target = TRUE;
+            target = true;
         if ((f1 & (TR1_SLAY_ORC)) && (r_ptr->flags3 & (RF3_ORC)))
-            target = TRUE;
+            target = true;
         if ((f1 & (TR1_SLAY_TROLL)) && (r_ptr->flags3 & (RF3_TROLL)))
-            target = TRUE;
+            target = true;
         if ((f1 & (TR1_SLAY_DRAGON)) && (r_ptr->flags3 & (RF3_DRAGON)))
-            target = TRUE;
+            target = true;
         // No glow for Morgoth's weapons that slay men and elves
 
         // skip inapplicable monsters
@@ -1781,7 +1781,7 @@ bool weapon_glows(object_type* o_ptr)
     }
 
     if (total_hate >= 15)
-        glows = TRUE;
+        glows = true;
 
     return (glows);
 }
@@ -1825,7 +1825,7 @@ void calc_torch(void)
         /* Examine actual light */
         if (o_ptr->tval == TV_LIGHT)
         {
-            bool extinguished = FALSE;
+            bool extinguished = false;
 
             /* Some items provide permanent, bright, light */
             if (o_ptr->sval == SV_LIGHT_LESSER_JEWEL)
@@ -1855,7 +1855,7 @@ void calc_torch(void)
 
             else
             {
-                extinguished = TRUE;
+                extinguished = true;
             }
 
             if (!extinguished && (f2 & TR2_LIGHT))
@@ -2151,8 +2151,8 @@ static void calc_bonuses(void)
     int old_add = p_ptr->add;
     int old_ads = p_ptr->ads;
 
-    int new_p_min = p_min(GF_HURT, TRUE);
-    int new_p_max = p_max(GF_HURT, TRUE);
+    int new_p_min = p_min(GF_HURT, true);
+    int new_p_max = p_max(GF_HURT, true);
 
     int old_stat_use[A_MAX];
     int old_stat_tmp_mod[A_MAX];
@@ -2176,7 +2176,7 @@ static void calc_bonuses(void)
             char o_name[80];
 
             /* Full object description */
-            object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+            object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
 
             /* Print the messages */
             msg_print("You can no longer wield both weapons.");
@@ -2300,7 +2300,6 @@ static void calc_bonuses(void)
         object_flags(o_ptr, &f1, &f2, &f3);
         if (f2 & (TR2_DANGER))
             p_ptr->danger += 1;
-        if (c_info[p_ptr->phouse].flags & RHF_MOR_CURSE) p_ptr->danger += 1;;
     }
 
     /*** Analyze equipment ***/
@@ -2455,7 +2454,7 @@ static void calc_bonuses(void)
         for (j = 0; j < o_ptr->abilities; j++)
         {
             p_ptr->have_ability[o_ptr->skilltype[j]][o_ptr->abilitynum[j]]
-                = TRUE;
+                = true;
         }
 
         /* Hack -- do not apply "melee" to-hit bonuses yet */
@@ -2488,7 +2487,7 @@ static void calc_bonuses(void)
         {
             if (!p_ptr->have_ability[i][j])
             {
-                p_ptr->active_ability[i][j] = FALSE;
+                p_ptr->active_ability[i][j] = false;
             }
         }
     }
@@ -3026,13 +3025,15 @@ static void calc_bonuses(void)
         p_ptr->old_p_max = new_p_max;
     }
 
+    if (c_info[p_ptr->phouse].flags & RHF_MOR_CURSE) p_ptr->danger += 1;
+
     /* Hack -- handle "xtra" mode */
     if (character_xtra)
         return;
 
     // identify {special} items when the type has been seen before
     id_known_specials();
-    reorder_pack(FALSE);
+    reorder_pack(false);
 }
 
 /*
@@ -3055,7 +3056,7 @@ void notice_stuff(void)
     if (p_ptr->notice & (PN_REORDER))
     {
         p_ptr->notice &= ~(PN_REORDER);
-        reorder_pack(TRUE);
+        reorder_pack(true);
     }
 
     if (p_ptr->notice & PN_AUTOINSCRIBE)
@@ -3121,7 +3122,7 @@ void update_lore_aux(object_type* o_ptr)
                 {
                     /* Get a shorter description to fit the notes file */
                     object_desc(
-                        shorter_desc, sizeof(shorter_desc), o_ptr, TRUE, 0);
+                        shorter_desc, sizeof(shorter_desc), o_ptr, true, 0);
 
                     /* Build note and write */
                     if (o_ptr->xtra1 == p_ptr->depth)
@@ -3145,12 +3146,12 @@ void update_lore_aux(object_type* o_ptr)
             int new_exp;
 
             /* We now know about the special item type */
-            e_info[o_ptr->name2].everseen = TRUE;
+            e_info[o_ptr->name2].everseen = true;
 
             if (!(e_info[o_ptr->name2].aware))
             {
                 // mark
-                e_info[o_ptr->name2].aware = TRUE;
+                e_info[o_ptr->name2].aware = true;
 
                 // gain experience for identification
                 new_exp = 100;
@@ -3262,13 +3263,13 @@ void update_stuff(void)
     {
         p_ptr->update &= ~(PU_DISTANCE);
         p_ptr->update &= ~(PU_MONSTERS);
-        update_monsters(TRUE);
+        update_monsters(true);
     }
 
     if (p_ptr->update & (PU_MONSTERS))
     {
         p_ptr->update &= ~(PU_MONSTERS);
-        update_monsters(FALSE);
+        update_monsters(false);
     }
 
     if (p_ptr->update & (PU_PANEL))

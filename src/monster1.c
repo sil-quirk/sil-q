@@ -34,10 +34,10 @@ static bool know_armour(s32b kills)
 {
     /* Normal monsters */
     if (kills > 0)
-        return (TRUE);
+        return (true);
 
     /* Assume false */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -48,10 +48,10 @@ static bool know_damage(const monster_lore* l_ptr, int i)
 {
     /* Unique monsters */
     if (l_ptr->blows[i])
-        return (TRUE);
+        return (true);
 
     /* Assume false */
-    return (FALSE);
+    return (false);
 }
 
 static void describe_monster_desc(int r_idx)
@@ -268,7 +268,7 @@ static void describe_monster_drop(int r_idx, const monster_lore* l_ptr)
 {
     const monster_race* r_ptr = &r_info[r_idx];
 
-    bool sin = FALSE;
+    bool sin = false;
 
     int n;
 
@@ -303,7 +303,7 @@ static void describe_monster_drop(int r_idx, const monster_lore* l_ptr)
         if (n == 1)
         {
             text_out(" a");
-            sin = TRUE;
+            sin = true;
         }
 
         /* Two drops */
@@ -324,7 +324,7 @@ static void describe_monster_drop(int r_idx, const monster_lore* l_ptr)
         if (l_ptr->flags1 & RF1_DROP_CHEST)
         {
             p = NULL;
-            sin = FALSE;
+            sin = false;
         }
 
         /* Great */
@@ -337,7 +337,7 @@ static void describe_monster_drop(int r_idx, const monster_lore* l_ptr)
         else if (l_ptr->flags1 & RF1_DROP_GOOD)
         {
             p = " good";
-            sin = FALSE;
+            sin = false;
         }
 
         /* Okay */
@@ -352,7 +352,7 @@ static void describe_monster_drop(int r_idx, const monster_lore* l_ptr)
             /* Handle singular "an" */
             if (sin)
                 text_out("n");
-            sin = FALSE;
+            sin = false;
 
             /* Dump "object(s)" */
             if (p)
@@ -989,7 +989,7 @@ static void describe_monster_kills(int r_idx, const monster_lore* l_ptr)
 
     int msex = 0;
 
-    bool out = TRUE;
+    bool out = true;
 
     int real_tkills;
 
@@ -1009,7 +1009,7 @@ static void describe_monster_kills(int r_idx, const monster_lore* l_ptr)
     if (l_ptr->flags1 & RF1_UNIQUE)
     {
         /* Determine if the unique is "dead" */
-        bool dead = (r_ptr->max_num == 0) ? TRUE : FALSE;
+        bool dead = (r_ptr->max_num == 0) ? true : false;
 
         /* We've been killed... */
         if (l_ptr->deaths)
@@ -1308,7 +1308,7 @@ static void describe_monster_exp(int r_idx, const monster_lore* l_ptr)
         }
 
         /* calculate the integer exp part */
-        i = adjusted_mon_exp(r_ptr, FALSE);
+        i = adjusted_mon_exp(r_ptr, false);
 
         /* Mention the experience */
         text_out(format(" %ld experience.  ", (long)i));
@@ -1332,7 +1332,7 @@ static void describe_monster_exp(int r_idx, const monster_lore* l_ptr)
             }
 
             /* calculate the integer exp part */
-            i = adjusted_mon_exp(r_ptr, TRUE);
+            i = adjusted_mon_exp(r_ptr, true);
 
             /* Mention the experience */
             text_out(format(" %ld.  ", (long)i));
@@ -1344,7 +1344,7 @@ static void describe_monster_movement(int r_idx, const monster_lore* l_ptr)
 {
     const monster_race* r_ptr = &r_info[r_idx];
 
-    bool old = FALSE;
+    bool old = false;
 
     text_out("This");
 
@@ -1376,7 +1376,7 @@ static void describe_monster_movement(int r_idx, const monster_lore* l_ptr)
     if (r_ptr->level == 0)
     {
         text_out_c(TERM_YELLOW, " dwells at the gates of Angband");
-        old = TRUE;
+        old = true;
     }
     else
     {
@@ -1399,7 +1399,7 @@ static void describe_monster_movement(int r_idx, const monster_lore* l_ptr)
             text_out("at depths of ");
             text_out_c(TERM_YELLOW, format("%d feet", MORGOTH_DEPTH * 50));
         }
-        old = TRUE;
+        old = true;
     }
 
     /* Deal with non-moving creatures */
@@ -1679,7 +1679,7 @@ void screen_roff(int r_idx)
     text_out_hook = text_out_to_screen;
 
     /* Recall monster */
-    describe_monster(r_idx, FALSE);
+    describe_monster(r_idx, false);
 
     /* Describe monster */
     roff_top(r_idx);
@@ -1706,7 +1706,7 @@ void display_roff(int r_idx)
     text_out_hook = text_out_to_screen;
 
     /* Recall monster */
-    describe_monster(r_idx, FALSE);
+    describe_monster(r_idx, false);
 
     /* Describe monster */
     roff_top(r_idx);

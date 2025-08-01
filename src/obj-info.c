@@ -10,15 +10,15 @@
 
 #include "angband.h"
 
-/* TRUE if a paragraph break should be output before next p_text_out() */
-static bool new_paragraph = FALSE;
+/* true if a paragraph break should be output before next p_text_out() */
+static bool new_paragraph = false;
 
 static void p_text_out(cptr str)
 {
     if (new_paragraph)
     {
         text_out("\n\n   ");
-        new_paragraph = FALSE;
+        new_paragraph = false;
     }
 
     text_out(str);
@@ -73,7 +73,7 @@ static bool describe_stats(const object_type* o_ptr, u32b f1)
     int pval = (o_ptr->pval > 0 ? o_ptr->pval : -o_ptr->pval);
 
     /* Abort if the pval is zero */
-    // if (!pval) return (FALSE);
+    // if (!pval) return (false);
 
     /* Collect stat bonuses */
     if (f1 & (TR1_STR))
@@ -87,7 +87,7 @@ static bool describe_stats(const object_type* o_ptr, u32b f1)
 
     /* Skip */
     if (cnt == 0)
-        return (FALSE);
+        return (false);
 
     /* Shorten to "all stats", if appropriate. */
     if (cnt == A_MAX)
@@ -108,7 +108,7 @@ static bool describe_stats(const object_type* o_ptr, u32b f1)
     p_text_out(format(" by %i.  ", pval));
 
     /* We found something */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -121,7 +121,7 @@ static bool describe_neg_stats(const object_type* o_ptr, u32b f1)
     int pval = (o_ptr->pval > 0 ? o_ptr->pval : -o_ptr->pval);
 
     /* Abort if the pval is zero */
-    // if (!pval) return (FALSE);
+    // if (!pval) return (false);
 
     /* Collect stat bonuses */
     if (f1 & (TR1_NEG_STR))
@@ -135,7 +135,7 @@ static bool describe_neg_stats(const object_type* o_ptr, u32b f1)
 
     /* Skip */
     if (cnt == 0)
-        return (FALSE);
+        return (false);
 
     /* Shorten to "all stats", if appropriate. */
     if (cnt == A_MAX)
@@ -156,7 +156,7 @@ static bool describe_neg_stats(const object_type* o_ptr, u32b f1)
     p_text_out(format(" by %i.  ", pval));
 
     /* We found something */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -190,7 +190,7 @@ static bool describe_secondary(const object_type* o_ptr, u32b f1)
 
     /* Skip */
     if (!cnt)
-        return (FALSE);
+        return (false);
 
     /* Start */
     p_text_out(
@@ -203,7 +203,7 @@ static bool describe_secondary(const object_type* o_ptr, u32b f1)
     p_text_out(format(" by %i.  ", pval));
 
     /* We found something */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -260,7 +260,7 @@ static bool describe_slay(const object_type* o_ptr, u32b f1)
     }
 
     /* We are done here */
-    return ((slcnt) ? TRUE : FALSE);
+    return ((slcnt) ? true : false);
 }
 
 /*
@@ -296,7 +296,7 @@ static bool describe_brand(const object_type* o_ptr, u32b f1)
     }
 
     /* We are done here */
-    return (cnt ? TRUE : FALSE);
+    return (cnt ? true : false);
 }
 
 /*
@@ -305,7 +305,7 @@ static bool describe_brand(const object_type* o_ptr, u32b f1)
 static bool describe_misc_weapon_attributes(
     const object_type* o_ptr, u32b f1, u32b f3)
 {
-    bool message = FALSE;
+    bool message = false;
 
     if (f1 & (TR1_SHARPNESS))
     {
@@ -313,17 +313,17 @@ static bool describe_misc_weapon_attributes(
             p_text_out("It cuts easily through armour.  ");
         else
             p_text_out("They cut easily through armour.  ");
-        message = TRUE;
+        message = true;
     }
     if (f1 & (TR1_SHARPNESS2))
     {
         p_text_out("It cuts very easily through armour.  ");
-        message = TRUE;
+        message = true;
     }
     if (f1 & (TR1_VAMPIRIC))
     {
         p_text_out("It drains life from your enemies.  ");
-        message = TRUE;
+        message = true;
     }
     if (f3 & (TR3_ACCURATE))
     {
@@ -331,19 +331,19 @@ static bool describe_misc_weapon_attributes(
         {
             p_text_out("It fires arrows with unerring precision (misses are "
                        "rerolled).  ");
-            message = TRUE;
+            message = true;
         }
         else
         {
             p_text_out(
                 "It is unusually well balanced (misses are rerolled).  ");
-            message = TRUE;
+            message = true;
         }
     }
     if (f3 & (TR3_CUMBERSOME))
     {
         p_text_out("It is cumbersome (it does not score critical hits).  ");
-        message = TRUE;
+        message = true;
     }
 
     return (message);
@@ -387,7 +387,7 @@ static bool describe_resist(const object_type* o_ptr, u32b f2)
     output_desc_list("It provides resistance to ", vp, vn);
 
     /* We are done here */
-    return (vn ? TRUE : FALSE);
+    return (vn ? true : false);
 }
 
 /*
@@ -413,7 +413,7 @@ static bool describe_vulnerability(const object_type* o_ptr, u32b f2)
     output_desc_list("It makes you more vulnerable to ", vp, vn);
 
     /* We are done here */
-    return (vn ? TRUE : FALSE);
+    return (vn ? true : false);
 }
 
 /*
@@ -431,12 +431,12 @@ static bool describe_handedness(const object_type* o_ptr, u32b f3)
         else if (f3 & (TR3_TWO_HANDED))
             p_text_out("It requires both hands to wield it properly.  ");
         else
-            return (FALSE);
+            return (false);
 
-        return (TRUE);
+        return (true);
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -447,10 +447,10 @@ static bool describe_polearmness(u32b f3)
     if (f3 & (TR3_POLEARM))
     {
         p_text_out("It counts as a type of polearm.  ");
-        return (TRUE);
+        return (true);
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -477,12 +477,12 @@ static bool describe_ignores(const object_type* o_ptr, u32b f3)
     {
         p_text_out("It cannot be harmed by the elements.  ");
 
-        return (TRUE);
+        return (true);
     }
     //	else
     //		output_desc_list("It cannot be harmed by ", list, - n);
     //
-    return ((n > 0) ? TRUE : FALSE);
+    return ((n > 0) ? true : false);
 }
 
 /*
@@ -513,7 +513,7 @@ static bool describe_sustains(const object_type* o_ptr, u32b f2)
         output_desc_list("It sustains your ", list, n);
 
     /* We are done here */
-    return (n ? TRUE : FALSE);
+    return (n ? true : false);
 }
 
 /*
@@ -524,7 +524,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
 {
     cptr good[7], bad[6];
     int gc = 0, bc = 0;
-    bool something = FALSE;
+    bool something = false;
 
     /* Throwing weapons. */
     if (f3 & (TR3_THROWING))
@@ -563,7 +563,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
 
     /* Set "something" */
     if (gc)
-        something = TRUE;
+        something = true;
 
     /* Collect granted powers */
     gc = 0;
@@ -635,7 +635,7 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
 
     /* Set "something" */
     if (gc || bc)
-        something = TRUE;
+        something = true;
 
     /* Return "something" */
     return (something);
@@ -732,12 +732,12 @@ static bool describe_activation(const object_type* o_ptr, u32b f3)
             /*print it out*/
             p_text_out(act_desc);
 
-            return (TRUE);
+            return (true);
         }
     }
 
     /* No activation */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -752,7 +752,7 @@ static bool describe_abilities(const object_type* o_ptr)
 
     // only describe when identified
     if (!object_known_p(o_ptr) && !(o_ptr->ident & (IDENT_SPOIL)))
-        return (FALSE);
+        return (false);
 
     // check its abilities
     for (i = 0; i < o_ptr->abilities; i++)
@@ -778,11 +778,11 @@ static bool describe_abilities(const object_type* o_ptr)
         p_text_out(".  ");
 
         /* It granted abilities */
-        return (TRUE);
+        return (true);
     }
 
     /* No abilities granted */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -795,7 +795,7 @@ static bool describe_archery(const object_type* o_ptr)
         p_text_out(format(
             "It can shoot arrows %d squares (with your current strength).",
             archery_range(o_ptr)));
-        return (TRUE);
+        return (true);
     }
     if (o_ptr->tval == TV_ARROW)
     {
@@ -825,11 +825,11 @@ static bool describe_archery(const object_type* o_ptr)
                 p_text_out("They can be shot by a bow.");
             }
         }
-        return (TRUE);
+        return (true);
     }
 
     /* Not archery related */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -839,7 +839,7 @@ bool object_info_out(const object_type* o_ptr)
 {
     u32b f1, f2, f3;
     u32b ff1, ff2, ff3;
-    bool something = FALSE;
+    bool something = false;
 
     /* Grab the object flags */
     object_info_out_flags(o_ptr, &f1, &f2, &f3);
@@ -850,38 +850,38 @@ bool object_info_out(const object_type* o_ptr)
 
     /* Describe the object */
     if (describe_stats(o_ptr, f1))
-        something = TRUE;
+        something = true;
     if (describe_neg_stats(o_ptr, f1))
-        something = TRUE;
+        something = true;
     if (describe_secondary(o_ptr, f1))
-        something = TRUE;
+        something = true;
     if (describe_slay(o_ptr, f1))
-        something = TRUE;
+        something = true;
     if (describe_brand(o_ptr, f1))
-        something = TRUE;
+        something = true;
     if (describe_misc_weapon_attributes(o_ptr, f1, f3))
-        something = TRUE;
+        something = true;
     if (describe_resist(o_ptr, f2))
-        something = TRUE;
+        something = true;
     if (describe_vulnerability(o_ptr, f2))
-        something = TRUE;
+        something = true;
     if (describe_sustains(o_ptr, f2))
-        something = TRUE;
+        something = true;
     if (describe_misc_magic(o_ptr, f2, f3))
-        something = TRUE;
+        something = true;
     if (describe_activation(o_ptr, f3))
-        something = TRUE;
+        something = true;
     if (describe_ignores(o_ptr, f3))
-        something = TRUE;
+        something = true;
     if (describe_abilities(o_ptr))
-        something = TRUE;
+        something = true;
 
     if (describe_handedness(o_ptr, ff3))
-        something = TRUE;
+        something = true;
     if (describe_polearmness(ff3))
-        something = TRUE;
+        something = true;
     if (describe_archery(o_ptr))
-        something = TRUE;
+        something = true;
 
     /* We are done. */
     return something;
@@ -897,13 +897,13 @@ static bool screen_out_head(const object_type* o_ptr)
     char* o_name;
     int name_size = Term->wid;
 
-    bool has_description = FALSE;
+    bool has_description = false;
 
     /* Allocate memory to the size of the screen */
     o_name = C_RNEW(name_size, char);
 
     /* Description */
-    object_desc(o_name, name_size, o_ptr, TRUE, 3);
+    object_desc(o_name, name_size, o_ptr, true, 3);
 
     /* Print, in colour */
     text_out_c(TERM_YELLOW, format("%^s", o_name));
@@ -918,7 +918,7 @@ static bool screen_out_head(const object_type* o_ptr)
     {
         p_text_out("\n\n   ");
         p_text_out(a_text + a_info[o_ptr->name1].text);
-        has_description = TRUE;
+        has_description = true;
     }
     /* Display the known object description */
     else if (object_aware_p(o_ptr) || object_known_p(o_ptr))
@@ -927,7 +927,7 @@ static bool screen_out_head(const object_type* o_ptr)
         {
             p_text_out("\n\n   ");
             p_text_out(k_text + k_info[o_ptr->k_idx].text);
-            has_description = TRUE;
+            has_description = true;
         }
 
         /* Display an additional special item description */
@@ -935,7 +935,7 @@ static bool screen_out_head(const object_type* o_ptr)
         {
             p_text_out("\n\n   ");
             p_text_out(e_text + e_info[o_ptr->name2].text);
-            has_description = TRUE;
+            has_description = true;
         }
     }
 
@@ -999,9 +999,9 @@ void object_info_screen(const object_type* o_ptr)
     object_info_out_flags = object_flags_known;
 
     /* Dump the info */
-    new_paragraph = TRUE;
+    new_paragraph = true;
     has_info = object_info_out(o_ptr);
-    new_paragraph = FALSE;
+    new_paragraph = false;
 
     if (!object_known_p(o_ptr))
     {

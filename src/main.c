@@ -23,7 +23,7 @@
 /*
  * Sil-y: game in progress
  */
-bool game_in_progress = FALSE;
+bool game_in_progress = false;
 
 /*
  * List of the available modules in the order they are tried.
@@ -361,15 +361,15 @@ int main(int argc, char* argv[])
 {
     int i;
 
-    bool done = FALSE;
+    bool done = false;
 
-    bool new_game = FALSE;
+    bool new_game = false;
 
     int show_score = 0;
 
     cptr mstr = NULL;
 
-    bool args = TRUE;
+    bool args = true;
 
     /* Save the "program name" XXX XXX XXX */
     argv0 = argv[0];
@@ -490,31 +490,31 @@ LOG_LEVEL_SET:
         case 'N':
         case 'n':
         {
-            new_game = TRUE;
+            new_game = true;
 
             // Sil-y:
-            game_in_progress = TRUE;
+            game_in_progress = true;
             break;
         }
 
         case 'F':
         case 'f':
         {
-            arg_fiddle = TRUE;
+            arg_fiddle = true;
             break;
         }
 
         case 'W':
         case 'w':
         {
-            arg_wizard = TRUE;
+            arg_wizard = true;
             break;
         }
 
         case 'V':
         case 'v':
         {
-            arg_sound = TRUE;
+            arg_sound = true;
             break;
         }
 
@@ -529,14 +529,14 @@ LOG_LEVEL_SET:
         case 'R':
         case 'r':
         {
-            arg_force_roguelike = TRUE;
+            arg_force_roguelike = true;
             break;
         }
 
         case 'O':
         case 'o':
         {
-            arg_force_original = TRUE;
+            arg_force_original = true;
             break;
         }
 
@@ -559,7 +559,7 @@ LOG_LEVEL_SET:
             my_strcpy(op_ptr->full_name, arg, sizeof(op_ptr->full_name));
 
             // Sil-y:
-            game_in_progress = TRUE;
+            game_in_progress = true;
             continue;
         }
 
@@ -584,7 +584,7 @@ LOG_LEVEL_SET:
             argv[i] = argv[0];
             argc = argc - i;
             argv = argv + i;
-            args = FALSE;
+            args = false;
             break;
         }
 
@@ -627,7 +627,7 @@ LOG_LEVEL_SET:
     }
 
     /* Process the player name */
-    process_player_name(TRUE);
+    process_player_name(true);
 
     /* Install "quit" hook */
     quit_aux = quit_hook;
@@ -641,7 +641,7 @@ LOG_LEVEL_SET:
             if (0 == modules[i].init(argc, argv))
             {
                 ANGBAND_SYS = modules[i].name;
-                done = TRUE;
+                done = true;
                 break;
             }
         }
@@ -672,68 +672,19 @@ LOG_LEVEL_SET:
     while (1)
     {
         /* Let the player choose a savefile or start a new game */
-        if (!game_in_progress)
-        {
-            int choice = 0;
-            int highlight = 1;
-            char buf[80];
+        if (!game_in_progress) {
+            bool      start_new = false;
+            NavResult mn;
 
-            if (p_ptr->is_dead)
-                highlight = 4;
-
-            /* Process Events until "new" or "open" is selected */
-            while (!game_in_progress)
-            {
-                choice = initial_menu(&highlight);
-
-                switch (choice)
-                {
-                case 1:
-                    path_build(
-                        savefile, sizeof(buf), ANGBAND_DIR_XTRA, "tutorial");
-                    game_in_progress = TRUE;
-                    new_game = FALSE;
-                    break;
-                case 2:
-                    game_in_progress = TRUE;
-                    new_game = TRUE;
-                    break;
-                case 3:
-                    game_in_progress = TRUE;
-                    new_game = FALSE;
-
-                    /* Prompt for a new name */
-                    if (1)
-                    {
-                        char tmp[14];
-                        bool name_selected = FALSE;
-
-                        // Default name
-                        my_strcpy(tmp, "<name>", sizeof(tmp));
-
-                        Term_gotoxy(50, 21);
-
-                        while (!name_selected)
-                        {
-                            if (askfor_aux(tmp, sizeof(tmp)))
-                            {
-                                my_strcpy(op_ptr->full_name, tmp,
-                                    sizeof(op_ptr->full_name));
-                            }
-
-                            if (tmp[0] != '\0')
-                                name_selected = TRUE;
-                            else
-                                bell("You must choose a name.");
-                        }
-                    }
-                    process_player_name(TRUE);
-                    break;
-                case 4:
-                    cleanup_angband();
-                    quit(NULL);
-                    break;
+            /* loop until the player chooses a valid action */
+            while (!game_in_progress) {
+                mn = initial_menu(&start_new);
+                if (mn == NAV_QUIT) quit(NULL);          /* immediate exit   */
+                if (mn == NAV_OK) {                      /* play or load     */
+                    game_in_progress = true;
+                    new_game        = start_new ? true : false;
                 }
+                /* NAV_BACK ⇒ redraw + loop again */
             }
         }
 
@@ -744,7 +695,7 @@ LOG_LEVEL_SET:
          * Play a game -- "new_game" is set by "new", "open" or the open
          * document even handler as appropriate
          */
-        play_game(new_game);
+        PlayResult pr = play_game();   /* play and capture result */
 
         // rerun the first initialization routine
         init_stuff();
@@ -753,7 +704,8 @@ LOG_LEVEL_SET:
         re_init_some_things();
 
         // game no longer in progress
-        game_in_progress = FALSE;
+        game_in_progress = false;
+        if (pr == PLAY_QUIT) quit(NULL);       /* honour in-game quit     */
     }
 
     /* Free resources */

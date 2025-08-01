@@ -668,262 +668,262 @@ cptr option_desc[OPT_MAX] = {
  * Options -- normal values
  */
 const bool option_norm[OPT_MAX] = {
-    FALSE, /* OPT_hjkl_movement */
-    TRUE, /* OPT_quick_messages */
-    FALSE, /* OPT_angband_keyset */
-    FALSE, /* xxx carry_query */
-    TRUE, /* OPT_stop_singing_on_rest */
-    FALSE, /* xxx always_pickup */
-    TRUE, /* OPT_forgo_attacking_unwary */
-    FALSE, /* xxx depth_in_feet */
-    FALSE, /* xxx stack_force_notes */
-    FALSE, /* xxx stack_force_costs */
-    FALSE, /* xxx show_labels */
-    FALSE, /* xxx show_weights */
-    FALSE, /* xxx show_choices */
-    FALSE, /* xxx show_details */
-    TRUE, /* OPT_system_beep */
-    FALSE, /* xxx show_flavors */
-    FALSE, /* xxx run_ignore_stairs */
-    FALSE, /* xxx run_ignore_doors */
-    FALSE, /* xxx run_cut_corners */
-    FALSE, /* xxx run_use_corners */
-    FALSE, /* xxx disturb_move */
-    FALSE, /* xxx disturb_near */
-    FALSE, /* xxx disturb_panel */
-    FALSE, /* xxx disturb_state */
-    FALSE, /* xxx disturb_minor */
-    FALSE, /* xxx disturb_wakeup */
-    FALSE, /* xxx alert_hitpoint */
-    FALSE, /* xxx alert_failure */
-    FALSE, /* xxx verify_destroy */
-    FALSE, /* xxx verify_special */
-    FALSE, /* xxx allow_quantity */
-    FALSE, /* xxx */
-    FALSE, /* xxx auto_haggle */
-    FALSE, /* xxx auto_scum */
-    FALSE, /* xxx allow_themed_levels */
-    FALSE, /* xxx */
-    FALSE, /* xxx expand_look */
-    FALSE, /* xxx expand_list */
-    FALSE, /* xxx view_perma_grids */
-    FALSE, /* xxx view_torch_grids */
-    FALSE, /* xxx dungeon_align */
-    FALSE, /* xxx dungeon_stair */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx track_follow */
-    FALSE, /* xxx track_target */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx view_reduce_lite */
-    FALSE, /* xxx hidden_player */
-    FALSE, /* xxx avoid_abort */
-    FALSE, /* xxx avoid_other */
-    FALSE, /* xxx flush_failure */
-    FALSE, /* xxx flush_disturb */
-    FALSE, /* xxx */
-    FALSE, /* xxx fresh_before */
-    FALSE, /* xxx fresh_after */
-    FALSE, /* xxx */
-    FALSE, /* xxx compress_savefile */
-    FALSE, /* OPT_hilite_player */
-    TRUE, /* OPT_hilite_target */
-    TRUE, /* OPT_hilite_unwary */
-    TRUE, /* OPT_solid_walls */
-    FALSE, /* OPT_hybrid_walls */
-    FALSE, /* xxx easy_open */
-    FALSE, /* xxx easy_alter */
-    FALSE, /* xxx easy_floor */
-    FALSE, /* OPT_instant_run */
-    FALSE, /* OPT_center_player */
-    FALSE, /* OPT_run_avoid_center */
-    FALSE, /* xxx scroll_target */
-    FALSE, /* OPT_auto_more */
-    FALSE, /* OPT_know_monster_info */
-    FALSE, /* OPT_auto_display_lists */
-    TRUE, /* OPT_easy_main_menu */
-    FALSE, /* xxx verify_quest_leave */
-    FALSE, /* xxx mark_squelch_items */
-    TRUE, /* OPT_display_hits */
-    FALSE, /* OPT_display_wakings */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx birth_point_based */
-    FALSE, /* xxx birth_auto_roller */
-    FALSE, /* xxx birth_maximize */
-    FALSE, /* OPT_birth_discon_stair */
-    FALSE, /* OPT_birth_ironman */
-    FALSE, /* xxx */
-    FALSE, /* OPT_birth_no_artefacts */
-    FALSE, /* OPT_birth_fixed_exp */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx birth_force_small_lev */
-    FALSE, /* xxx birth_retain_squelch */
-    FALSE, /* xxx OPT_birth_no_quests*/
-    FALSE, /* xxx birth_no_player ghosts*/
-    FALSE, /* xxx birth_no_store_services*/
-    FALSE, /* xxx birth_no_xtra_artefacts*/
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* OPT_cheat_peek */
-    FALSE, /* OPT_cheat_hear */
-    FALSE, /* OPT_cheat_room */
-    FALSE, /* OPT_cheat_xtra */
-    FALSE, /* OPT_cheat_know */
-    FALSE, /* OPT_cheat_live */
-    FALSE, /* OPT_cheat_monsters */
-    FALSE, /* OPT_cheat_noise */
-    FALSE, /* OPT_cheat_scent */
-    FALSE, /* OPT_cheat_light */
-    FALSE, /* OPT_cheat_skill_rolls */
-    FALSE, /* OPT_cheat_timestop */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx adult_point_based */
-    FALSE, /* xxx adult_auto_roller */
-    FALSE, /* xxx adult_maximize */
-    FALSE, /* OPT_adult_discon_stair */
-    FALSE, /* OPT_adult_ironman */
-    FALSE, /* xxx adult_no_stores */
-    FALSE, /* OPT_adult_no_artefacts */
-    FALSE, /* xxx adult_rand_artefacts */
-    FALSE, /* xxx adult_no_stacking */
-    FALSE, /* xxx adult_take_notes */
-    FALSE, /* xxx adult_force_small_lev*/
-    FALSE, /* xxx adult_retain_squelch */
-    FALSE, /* xxx OPT_adult_no_quests */
-    FALSE, /* xxx adult_no_player ghosts */
-    FALSE, /* xxx adult_no_store_services */
-    FALSE, /* xxx adult_no_xtra_artefacts */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* OPT_score_peek */
-    FALSE, /* OPT_score_hear */
-    FALSE, /* OPT_score_room */
-    FALSE, /* OPT_score_xtra */
-    FALSE, /* OPT_score_know */
-    FALSE, /* OPT_score_live */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE, /* xxx */
-    FALSE /* xxx */
+    false, /* OPT_hjkl_movement */
+    true, /* OPT_quick_messages */
+    false, /* OPT_angband_keyset */
+    false, /* xxx carry_query */
+    true, /* OPT_stop_singing_on_rest */
+    false, /* xxx always_pickup */
+    true, /* OPT_forgo_attacking_unwary */
+    false, /* xxx depth_in_feet */
+    false, /* xxx stack_force_notes */
+    false, /* xxx stack_force_costs */
+    false, /* xxx show_labels */
+    false, /* xxx show_weights */
+    false, /* xxx show_choices */
+    false, /* xxx show_details */
+    true, /* OPT_system_beep */
+    false, /* xxx show_flavors */
+    false, /* xxx run_ignore_stairs */
+    false, /* xxx run_ignore_doors */
+    false, /* xxx run_cut_corners */
+    false, /* xxx run_use_corners */
+    false, /* xxx disturb_move */
+    false, /* xxx disturb_near */
+    false, /* xxx disturb_panel */
+    false, /* xxx disturb_state */
+    false, /* xxx disturb_minor */
+    false, /* xxx disturb_wakeup */
+    false, /* xxx alert_hitpoint */
+    false, /* xxx alert_failure */
+    false, /* xxx verify_destroy */
+    false, /* xxx verify_special */
+    false, /* xxx allow_quantity */
+    false, /* xxx */
+    false, /* xxx auto_haggle */
+    false, /* xxx auto_scum */
+    false, /* xxx allow_themed_levels */
+    false, /* xxx */
+    false, /* xxx expand_look */
+    false, /* xxx expand_list */
+    false, /* xxx view_perma_grids */
+    false, /* xxx view_torch_grids */
+    false, /* xxx dungeon_align */
+    false, /* xxx dungeon_stair */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx track_follow */
+    false, /* xxx track_target */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx view_reduce_lite */
+    false, /* xxx hidden_player */
+    false, /* xxx avoid_abort */
+    false, /* xxx avoid_other */
+    false, /* xxx flush_failure */
+    false, /* xxx flush_disturb */
+    false, /* xxx */
+    false, /* xxx fresh_before */
+    false, /* xxx fresh_after */
+    false, /* xxx */
+    false, /* xxx compress_savefile */
+    false, /* OPT_hilite_player */
+    true, /* OPT_hilite_target */
+    true, /* OPT_hilite_unwary */
+    true, /* OPT_solid_walls */
+    false, /* OPT_hybrid_walls */
+    false, /* xxx easy_open */
+    false, /* xxx easy_alter */
+    false, /* xxx easy_floor */
+    false, /* OPT_instant_run */
+    false, /* OPT_center_player */
+    false, /* OPT_run_avoid_center */
+    false, /* xxx scroll_target */
+    false, /* OPT_auto_more */
+    false, /* OPT_know_monster_info */
+    false, /* OPT_auto_display_lists */
+    true, /* OPT_easy_main_menu */
+    false, /* xxx verify_quest_leave */
+    false, /* xxx mark_squelch_items */
+    true, /* OPT_display_hits */
+    false, /* OPT_display_wakings */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx birth_point_based */
+    false, /* xxx birth_auto_roller */
+    false, /* xxx birth_maximize */
+    false, /* OPT_birth_discon_stair */
+    false, /* OPT_birth_ironman */
+    false, /* xxx */
+    false, /* OPT_birth_no_artefacts */
+    false, /* OPT_birth_fixed_exp */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx birth_force_small_lev */
+    false, /* xxx birth_retain_squelch */
+    false, /* xxx OPT_birth_no_quests*/
+    false, /* xxx birth_no_player ghosts*/
+    false, /* xxx birth_no_store_services*/
+    false, /* xxx birth_no_xtra_artefacts*/
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* OPT_cheat_peek */
+    false, /* OPT_cheat_hear */
+    false, /* OPT_cheat_room */
+    false, /* OPT_cheat_xtra */
+    false, /* OPT_cheat_know */
+    false, /* OPT_cheat_live */
+    false, /* OPT_cheat_monsters */
+    false, /* OPT_cheat_noise */
+    false, /* OPT_cheat_scent */
+    false, /* OPT_cheat_light */
+    false, /* OPT_cheat_skill_rolls */
+    false, /* OPT_cheat_timestop */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx adult_point_based */
+    false, /* xxx adult_auto_roller */
+    false, /* xxx adult_maximize */
+    false, /* OPT_adult_discon_stair */
+    false, /* OPT_adult_ironman */
+    false, /* xxx adult_no_stores */
+    false, /* OPT_adult_no_artefacts */
+    false, /* xxx adult_rand_artefacts */
+    false, /* xxx adult_no_stacking */
+    false, /* xxx adult_take_notes */
+    false, /* xxx adult_force_small_lev*/
+    false, /* xxx adult_retain_squelch */
+    false, /* xxx OPT_adult_no_quests */
+    false, /* xxx adult_no_player ghosts */
+    false, /* xxx adult_no_store_services */
+    false, /* xxx adult_no_xtra_artefacts */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* OPT_score_peek */
+    false, /* OPT_score_hear */
+    false, /* OPT_score_room */
+    false, /* OPT_score_xtra */
+    false, /* OPT_score_know */
+    false, /* OPT_score_live */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false, /* xxx */
+    false /* xxx */
 };
 
 /*

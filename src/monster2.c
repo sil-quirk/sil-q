@@ -575,9 +575,9 @@ s16b get_mon_num(int level, bool special, bool allow_non_smart, bool vault)
 
     int generation_level;
 
-    bool pursuing_monster = FALSE;
+    bool pursuing_monster = false;
 
-    bool allow24 = FALSE;
+    bool allow24 = false;
 
     // determine the effective level:
 
@@ -586,7 +586,7 @@ s16b get_mon_num(int level, bool special, bool allow_non_smart, bool vault)
 
     // level 24 monsters can only be generated if especially asked for
     if (level == MORGOTH_DEPTH + 4)
-        allow24 = TRUE;
+        allow24 = true;
 
     // if generating escorts or similar, just use the level (which will be the
     // captain's level) this will function as the *maximum* level for generation
@@ -606,14 +606,14 @@ s16b get_mon_num(int level, bool special, bool allow_non_smart, bool vault)
             // forced smart monsters and half of others
             if (p_ptr->on_the_run && (one_in_(2) || !allow_non_smart))
             {
-                pursuing_monster = TRUE;
+                pursuing_monster = true;
                 generation_level = rand_range(17, 23);
             }
 
             // the surface generates monsters as levels 17--23
             if (level == 0)
             {
-                pursuing_monster = TRUE;
+                pursuing_monster = true;
                 generation_level = rand_range(17, 23);
             }
 
@@ -1321,7 +1321,7 @@ void listen(monster_type* m_ptr)
     // make the monster completely visible if a dramatic success
     if (result > 10)
     {
-        m_ptr->ml = TRUE;
+        m_ptr->ml = true;
         lite_spot(y, x);
         return;
     }
@@ -1420,13 +1420,13 @@ void update_mon(int m_idx, bool full)
     int fx = m_ptr->fx;
 
     /* Seen at all */
-    bool flag = FALSE;
+    bool flag = false;
 
     /* Seen by vision */
-    bool easy = FALSE;
+    bool easy = false;
 
     /* Known because immobile */
-    bool immobile_seen = FALSE;
+    bool immobile_seen = false;
 
     u16b tmp_rand_place;
     u32b tmp_rand_state[RAND_DEG];
@@ -1435,7 +1435,7 @@ void update_mon(int m_idx, bool full)
     if ((r_ptr->flags1 & (RF1_NEVER_MOVE)) && (r_ptr->flags2 & (RF2_MINDLESS))
         && m_ptr->encountered)
     {
-        immobile_seen = TRUE;
+        immobile_seen = true;
     }
 
     /* Compute distance */
@@ -1468,11 +1468,11 @@ void update_mon(int m_idx, bool full)
 
     /* Detected */
     if (m_ptr->mflag & (MFLAG_MARK))
-        flag = TRUE;
+        flag = true;
 
     // debugging option for seeing all monsters
     if (cheat_monsters)
-        flag = TRUE;
+        flag = true;
 
     /* Nearby */
     if (d <= MAX_SIGHT)
@@ -1491,7 +1491,7 @@ void update_mon(int m_idx, bool full)
             else
             {
                 /* Detectable */
-                flag = TRUE;
+                flag = true;
 
                 /* Hack -- Memorize mental flags */
                 if (r_ptr->flags2 & (RF2_SMART))
@@ -1504,7 +1504,7 @@ void update_mon(int m_idx, bool full)
         /* Normal line of sight, and not blind */
         if (player_has_los_bold(fy, fx) && !p_ptr->blind)
         {
-            bool do_invisible = FALSE;
+            bool do_invisible = false;
             int difficulty = monster_skill(m_ptr, S_WIL)
                 + (2 * distance(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx));
 
@@ -1515,7 +1515,7 @@ void update_mon(int m_idx, bool full)
                 if (r_ptr->flags2 & (RF2_INVISIBLE))
                 {
                     /* Take note */
-                    do_invisible = TRUE;
+                    do_invisible = true;
 
                     /* See invisible makes things much easier */
                     difficulty -= 10 * p_ptr->see_inv;
@@ -1537,7 +1537,7 @@ void update_mon(int m_idx, bool full)
                         > 0)
                     {
                         /* Easy to see */
-                        easy = flag = TRUE;
+                        easy = flag = true;
                     }
                 }
 
@@ -1545,7 +1545,7 @@ void update_mon(int m_idx, bool full)
                 else
                 {
                     /* Easy to see */
-                    easy = flag = TRUE;
+                    easy = flag = true;
                 }
             }
 
@@ -1553,7 +1553,7 @@ void update_mon(int m_idx, bool full)
             else if (seen_by_keen_senses(fy, fx))
             {
                 /* Easy to see */
-                easy = flag = TRUE;
+                easy = flag = true;
             }
 
             /* Visible */
@@ -1582,7 +1582,7 @@ void update_mon(int m_idx, bool full)
         if (!m_ptr->ml)
         {
             /* Mark as visible */
-            m_ptr->ml = TRUE;
+            m_ptr->ml = true;
 
             /* Draw the monster */
             lite_spot(fy, fx);
@@ -1610,7 +1610,7 @@ void update_mon(int m_idx, bool full)
         if (m_ptr->ml)
         {
             /* Mark as not visible */
-            m_ptr->ml = FALSE;
+            m_ptr->ml = false;
 
             /* Erase the monster */
             lite_spot(fy, fx);
@@ -1680,14 +1680,14 @@ void update_mon(int m_idx, bool full)
         && player_has_los_bold(m_ptr->fy, m_ptr->fx)
         && (l_ptr->psights < MAX_SHORT))
     {
-        int new_exp = adjusted_mon_exp(r_ptr, FALSE);
+        int new_exp = adjusted_mon_exp(r_ptr, false);
 
         // gain experience for encounter
         gain_exp(new_exp);
         p_ptr->encounter_exp += new_exp;
 
         // update stats
-        m_ptr->encountered = TRUE;
+        m_ptr->encountered = true;
         l_ptr->psights++;
         if (l_ptr->tsights < MAX_SHORT)
             l_ptr->tsights++;
@@ -1789,7 +1789,7 @@ s16b monster_carry(int m_idx, object_type* j_ptr)
         object_copy(o_ptr, j_ptr);
 
         /* Forget mark */
-        o_ptr->marked = FALSE;
+        o_ptr->marked = false;
 
         /* Forget location */
         o_ptr->iy = o_ptr->ix = 0;
@@ -1862,8 +1862,8 @@ void m_fall_in_chasm(int fy, int fx)
             combat_roll_special_char = (&f_info[cave_feat[fy][fx]])->d_char;
             combat_roll_special_attr = (&f_info[cave_feat[fy][fx]])->d_attr;
 
-            update_combat_rolls1b(NULL, m_ptr, TRUE);
-            update_combat_rolls2(dice, 4, dam, -1, -1, 0, 0, GF_HURT, FALSE);
+            update_combat_rolls1b(NULL, m_ptr, true);
+            update_combat_rolls2(dice, 4, dam, -1, -1, 0, 0, GF_HURT, false);
         }
 
         // kill monsters which cannot survive the damage
@@ -1895,7 +1895,7 @@ void describe_floor_object(void)
 
     // generate the object's name
     o_ptr = &o_list[cave_o_idx[p_ptr->py][p_ptr->px]];
-    object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     // skip 'nothings'
     if (!o_ptr->k_idx)
@@ -1958,7 +1958,7 @@ void describe_floor_object(void)
                       "'destroy' "
                       "command (which is 'k' by default).");
         }
-        p_ptr->crown_hint = TRUE;
+        p_ptr->crown_hint = true;
     }
 }
 
@@ -1980,12 +1980,12 @@ void monster_swap(int y1, int x1, int y2, int x2)
 
     char m_name[80];
 
-    bool monster1 = FALSE;
+    bool monster1 = false;
 
     /* Monster 1 */
     if (m1 > 0)
     {
-        monster1 = TRUE;
+        monster1 = true;
         m_ptr = &mon_list[m1];
 
         monster_desc(m_name, sizeof(m_name), m_ptr, 0);
@@ -2037,7 +2037,7 @@ void monster_swap(int y1, int x1, int y2, int x2)
             m_ptr->noise = 5;
 
         /* Update monster */
-        (void)update_mon(m1, TRUE);
+        (void)update_mon(m1, true);
     }
 
     /* Player 1 */
@@ -2119,7 +2119,7 @@ void monster_swap(int y1, int x1, int y2, int x2)
             m_ptr->noise = 5;
 
         /* Update monster */
-        (void)update_mon(m2, TRUE);
+        (void)update_mon(m2, true);
 
         // reset its previous movement to stop it charging etc.
         m_ptr->previous_action[0] = ACTION_MISC;
@@ -2168,7 +2168,7 @@ void monster_swap(int y1, int x1, int y2, int x2)
                 char o_name[80];
 
                 /* Get the basic name of the object */
-                object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+                object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
 
                 msg_format("%^s comes into reach of your %s.", m_name, o_name);
                 py_attack_aux(y2, x2, ATT_POLEARM);
@@ -2245,14 +2245,14 @@ s16b monster_place(int y, int x, monster_type* n_ptr)
         m_ptr->fx = x;
 
         /* Update the monster */
-        update_mon(m_idx, TRUE);
+        update_mon(m_idx, true);
 
         /* Get the new race */
         r_ptr = &r_info[m_ptr->r_idx];
 
         /* Hack -- Notice new multi-hued monsters */
         if (r_ptr->flags1 & (RF1_ATTR_MULTI))
-            shimmer_monsters = TRUE;
+            shimmer_monsters = true;
 
         /* Hack -- Count the number of "reproducers" */
         if (r_ptr->flags2 & (RF2_MULTIPLY))
@@ -2305,7 +2305,7 @@ void set_monster_haste(s16b m_idx, s16b counter, bool message)
     /*get the monster at the given location*/
     monster_type* m_ptr = &mon_list[m_idx];
 
-    bool recalc = FALSE;
+    bool recalc = false;
 
     char m_name[80];
 
@@ -2318,7 +2318,7 @@ void set_monster_haste(s16b m_idx, s16b counter, bool message)
         /*monster is no longer hasted and speed needs to be recalculated*/
         if (counter == 0)
         {
-            recalc = TRUE;
+            recalc = true;
 
             /*give a message*/
             if (message)
@@ -2330,7 +2330,7 @@ void set_monster_haste(s16b m_idx, s16b counter, bool message)
         /*monster is now hasted and speed needs to be recalculated*/
         if (counter > 0)
         {
-            recalc = TRUE;
+            recalc = true;
 
             /*give a message*/
             if (message)
@@ -2353,7 +2353,7 @@ void set_monster_slow(s16b m_idx, s16b counter, bool message)
     /*get the monster at the given location*/
     monster_type* m_ptr = &mon_list[m_idx];
 
-    bool recalc = FALSE;
+    bool recalc = false;
 
     char m_name[80];
 
@@ -2366,7 +2366,7 @@ void set_monster_slow(s16b m_idx, s16b counter, bool message)
         /*monster is no longer slowed and speed needs to be recalculated*/
         if (counter == 0)
         {
-            recalc = TRUE;
+            recalc = true;
 
             /*give a message*/
             if (message)
@@ -2378,7 +2378,7 @@ void set_monster_slow(s16b m_idx, s16b counter, bool message)
         /*monster is now slowed and speed needs to be recalculated*/
         if (counter > 0)
         {
-            recalc = TRUE;
+            recalc = true;
 
             /*give a message*/
             if (message)
@@ -2433,38 +2433,38 @@ bool place_monster_one(
 
     /* Paranoia */
     if (!in_bounds(y, x))
-        return (FALSE);
+        return (false);
 
     /* Require empty space */
     if (!cave_empty_bold(y, x))
-        return (FALSE);
+        return (false);
 
     /* Hack -- no creation on glyph of warding */
     if (cave_glyph(y, x))
-        return (FALSE);
+        return (false);
 
     /* Handle failure of the "get_mon_num()" function */
     if (!r_idx)
-        return (FALSE);
+        return (false);
 
-    if ((feeling >= LEV_THEME_HEAD) && (character_dungeon == TRUE))
-        return (FALSE);
+    if ((feeling >= LEV_THEME_HEAD) && (character_dungeon == true))
+        return (false);
 
     /* Race */
     r_ptr = &r_info[r_idx];
 
     /* The monster must be able to exist in this grid */
-    if (!cave_exist_mon(r_ptr, y, x, FALSE, FALSE))
-        return (FALSE);
+    if (!cave_exist_mon(r_ptr, y, x, false, false))
+        return (false);
 
     /* Paranoia */
     if (!r_ptr->name)
-        return (FALSE);
+        return (false);
 
     /*limit the population*/
     if (r_ptr->cur_num >= r_ptr->max_num)
     {
-        return (FALSE);
+        return (false);
     }
 
     /* Name */
@@ -2475,14 +2475,14 @@ bool place_monster_one(
         && !ignore_depth)
     {
         /* Cannot create */
-        return (FALSE);
+        return (false);
     }
 
     /* Special generation monsters may NOT normally be created */
     if ((r_ptr->flags1 & (RF1_SPECIAL_GEN)) && !ignore_depth)
     {
         /* Cannot create */
-        return (FALSE);
+        return (false);
     }
 
     /* Get local monster */
@@ -2581,7 +2581,7 @@ bool place_monster_one(
     {
         monster_lore* l_ptr = &l_list[n_ptr->r_idx];
         if (l_ptr->psights > 0)
-            n_ptr->encountered = TRUE;
+            n_ptr->encountered = true;
     }
 
     /* Initialize mana */
@@ -2602,7 +2602,7 @@ bool place_monster_one(
 
     /* Place the monster in the dungeon */
     if (!monster_place(y, x, n_ptr))
-        return (FALSE);
+        return (false);
 
     // reacquire monster pointer
     n_ptr = &mon_list[cave_m_idx[y][x]];
@@ -2639,7 +2639,7 @@ bool place_monster_one(
     }
 
     /* Success */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -2693,7 +2693,7 @@ static bool place_monster_group(
             int my = hy + ddy_ddd[i % 8];
 
             /* Attempt to place another monster */
-            if (place_monster_one(my, mx, r_idx, slp, FALSE, m_ptr))
+            if (place_monster_one(my, mx, r_idx, slp, false, m_ptr))
             {
                 /* Add it to the "hack" set */
                 hack_y[hack_n] = my;
@@ -2710,9 +2710,9 @@ static bool place_monster_group(
      * desired)
      */
     if (hack_n > 1)
-        return (TRUE);
+        return (true);
     else
-        return (FALSE);
+        return (false);
 }
 
 /*
@@ -2731,22 +2731,22 @@ static bool place_monster_okay(int r_idx)
 
     /* Require similar "race" */
     if (z_ptr->d_char != r_ptr->d_char)
-        return (FALSE);
+        return (false);
 
     /* Skip more advanced monsters */
     if (z_ptr->level > r_ptr->level)
-        return (FALSE);
+        return (false);
 
     /* Skip unique monsters */
     if (z_ptr->flags1 & (RF1_UNIQUE))
-        return (FALSE);
+        return (false);
 
     /* Paranoia -- Skip identical monsters */
     if (place_monster_idx == r_idx)
-        return (FALSE);
+        return (false);
 
     /* Okay */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -2779,7 +2779,7 @@ static void place_monster_unique_friend(
                 int my = y + ddy_ddd[i % 8];
                 int mx = x + ddx_ddd[i % 8];
 
-                if (!place_monster_one(my, mx, r, slp, TRUE, m_ptr))
+                if (!place_monster_one(my, mx, r, slp, true, m_ptr))
                 {
                     // msg_format("Failed to place %d.", r);
                     continue;
@@ -2845,7 +2845,7 @@ static void place_monster_escort(
         }
         else
         {
-            escort_idxs[i] = get_mon_num(level, TRUE, FALSE, FALSE);
+            escort_idxs[i] = get_mon_num(level, true, false, false);
 
             // skip this creature if get_mon_num failed (paranoia)
             if (escort_idxs[i] == 0)
@@ -2883,7 +2883,7 @@ static void place_monster_escort(
             int mx = hx + ddx_ddd[i % 8];
             int my = hy + ddy_ddd[i % 8];
 
-            if (!place_monster_one(my, mx, escort_idx, slp, FALSE, m_ptr))
+            if (!place_monster_one(my, mx, escort_idx, slp, false, m_ptr))
             {
                 // msg_format("Failed to place a %d ().", escort_idx);
                 continue;
@@ -2906,7 +2906,7 @@ static void place_monster_escort(
     get_mon_num_prep();
 
     /* XXX - rebuild monster table */
-    (void)get_mon_num(monster_level, FALSE, FALSE, FALSE);
+    (void)get_mon_num(monster_level, false, false, false);
 }
 
 /*
@@ -2914,7 +2914,7 @@ static void place_monster_escort(
  *
  * Note that certain monsters are now marked as requiring "friends".
  * These monsters, if successfully placed, and if the "grp" parameter
- * is TRUE, will be surrounded by a "group" of identical monsters.
+ * is true, will be surrounded by a "group" of identical monsters.
  *
  * Note that certain monsters are now marked as requiring an "escort",
  * which is a collection of monsters with similar "race" but lower level.
@@ -2960,8 +2960,8 @@ bool place_monster_aux(int y, int x, int r_idx, bool slp, bool grp)
         friend_amount++;
 
     /* Place one monster, or fail */
-    if (!place_monster_one(y, x, r_idx, slp, FALSE, NULL))
-        return (FALSE);
+    if (!place_monster_one(y, x, r_idx, slp, false, NULL))
+        return (false);
 
     if (cave_m_idx[y][x] > 0)
     {
@@ -2974,7 +2974,7 @@ bool place_monster_aux(int y, int x, int r_idx, bool slp, bool grp)
 
     /* Require the "group" flag */
     if (!grp)
-        return (TRUE);
+        return (true);
 
     /* Escorts for certain monsters */
     if (r_ptr->flags1 & (RF1_UNIQUE_FRIEND))
@@ -3001,7 +3001,7 @@ bool place_monster_aux(int y, int x, int r_idx, bool slp, bool grp)
     }
 
     /* Success */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -3015,18 +3015,18 @@ bool place_monster(int y, int x, bool slp, bool grp, bool vault)
 
     /* Pick a monster */ // Hack - uses the slp flag to determine if non-smart
                          // monsters are allowed
-    r_idx = get_mon_num(monster_level, FALSE, slp, vault);
+    r_idx = get_mon_num(monster_level, false, slp, vault);
 
     /* Handle failure */
     if (!r_idx)
-        return (FALSE);
+        return (false);
 
     /* Attempt to place the monster */
     if (place_monster_aux(y, x, r_idx, slp, grp))
-        return (TRUE);
+        return (true);
 
     /* Oops */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -3035,7 +3035,7 @@ bool place_monster(int y, int x, bool slp, bool grp, bool vault)
  * It can be forced to be on the stairs and/or forced to be out of sight of the
  * player
  *
- * Returns TRUE if the player sees it happen
+ * Returns true if the player sees it happen
  */
 bool alloc_monster(bool on_stairs, bool force_undead)
 {
@@ -3048,20 +3048,20 @@ bool alloc_monster(bool on_stairs, bool force_undead)
     char m_name[80];
     char who[80];
     char message[240];
-    bool displaced = FALSE;
-    bool give_up = FALSE;
-    bool placed = FALSE;
+    bool displaced = false;
+    bool give_up = false;
+    bool placed = false;
 
     // Force some monsters to be generated on the stairs
     if (on_stairs)
     {
         // no monsters come through the stairs on tutorial/challenge levels
         if (p_ptr->game_type != 0)
-            return (FALSE);
+            return (false);
 
         // get a stair location
         if (!random_stair_location(&sy, &sx))
-            return (FALSE);
+            return (false);
 
         // default the new location to this location
         y = sy;
@@ -3071,7 +3071,7 @@ bool alloc_monster(bool on_stairs, bool force_undead)
         if (cave_m_idx[sy][sx] != 0)
         {
             int d, y1, x1, start;
-            bool moveable = TRUE;
+            bool moveable = true;
 
             // if the monster on the squares cannot move, then simply give up:
             // the stairs are blocked
@@ -3082,7 +3082,7 @@ bool alloc_monster(bool on_stairs, bool force_undead)
 
                 if ((nr_ptr->flags1 & (RF1_NEVER_MOVE))
                     || (nr_ptr->flags1 & (RF1_HIDDEN_MOVE)))
-                    moveable = FALSE;
+                    moveable = false;
             }
 
             if (moveable)
@@ -3108,14 +3108,14 @@ bool alloc_monster(bool on_stairs, bool force_undead)
                     {
                         y = y1;
                         x = x1;
-                        displaced = TRUE;
+                        displaced = true;
                         break;
                     }
                 }
             }
 
             if (!displaced)
-                give_up = TRUE;
+                give_up = true;
         }
 
         // First, displace the existing monster to the safe square
@@ -3171,15 +3171,15 @@ bool alloc_monster(bool on_stairs, bool force_undead)
                 // sometimes only wraiths are allowed
                 if (force_undead)
                 {
-                    place_monster_by_flag(sy, sx, 3, RF3_UNDEAD, TRUE,
+                    place_monster_by_flag(sy, sx, 3, RF3_UNDEAD, true,
                         MAX(monster_level + 3, 13));
-                    placed = TRUE;
+                    placed = true;
                 }
 
                 // but usually allow most monsters
                 else
                 {
-                    placed = place_monster(sy, sx, FALSE, TRUE, FALSE);
+                    placed = place_monster(sy, sx, false, true, false);
                 }
 
                 tries++;
@@ -3234,9 +3234,9 @@ bool alloc_monster(bool on_stairs, bool force_undead)
             }
 
             if (m_ptr->ml)
-                return (TRUE);
+                return (true);
             else
-                return (FALSE);
+                return (false);
         }
     }
 
@@ -3264,21 +3264,21 @@ bool alloc_monster(bool on_stairs, bool force_undead)
                 msg_print("Warning! Could not allocate a new monster.");
             }
 
-            return (FALSE);
+            return (false);
         }
 
         /* Attempt to place the monster, allow groups */
-        if (place_monster(y, x, TRUE, TRUE, FALSE))
+        if (place_monster(y, x, true, true, false))
         {
             if ((cave_m_idx[y][x] > 0) && (&mon_list[cave_m_idx[y][x]])->ml)
-                return (TRUE);
+                return (true);
             else
-                return (FALSE);
+                return (false);
         }
     }
 
     /* Nope */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -3293,18 +3293,18 @@ static bool summon_specific_okay(int r_idx)
 {
     monster_race* r_ptr = &r_info[r_idx];
 
-    bool okay = FALSE;
+    bool okay = false;
 
     /* Hack -- no specific type specified */
     if (!summon_specific_type)
-        return (TRUE);
+        return (true);
 
     /* Check our requirements */
     switch (summon_specific_type)
     {
     case SUMMON_ANT:
     {
-        okay = FALSE;
+        okay = false;
         break;
     }
 
@@ -3328,7 +3328,7 @@ static bool summon_specific_okay(int r_idx)
 
     case SUMMON_AINU:
     {
-        okay = FALSE;
+        okay = false;
         break;
     }
 
@@ -3382,7 +3382,7 @@ static bool summon_specific_okay(int r_idx)
     case SUMMON_UNIQUE:
     {
         if ((r_ptr->flags1 & (RF1_UNIQUE)) != 0)
-            okay = TRUE;
+            okay = true;
         break;
     }
 
@@ -3390,7 +3390,7 @@ static bool summon_specific_okay(int r_idx)
     {
         if (((r_ptr->flags1 & (RF1_UNIQUE)) != 0)
             && (r_ptr->level > (MORGOTH_DEPTH / 2)))
-            okay = TRUE;
+            okay = true;
         break;
     }
 
@@ -3403,19 +3403,19 @@ static bool summon_specific_okay(int r_idx)
 
     case SUMMON_ANIMAL:
     {
-        okay = FALSE;
+        okay = false;
         break;
     }
 
     case SUMMON_BERTBILLTOM:
     {
-        okay = FALSE;
+        okay = false;
         break;
     }
 
     case SUMMON_THIEF:
     {
-        okay = FALSE;
+        okay = false;
         break;
     }
 
@@ -3431,7 +3431,7 @@ static bool summon_specific_okay(int r_idx)
 
 /*
  * Place a monster (of the specified "type") near the given
- * location.  Return TRUE if a monster was actually summoned.
+ * location.  Return true if a monster was actually summoned.
  *
  * We will attempt to place the monster up to 20 times before giving up.
  *
@@ -3474,7 +3474,7 @@ bool summon_specific(int y1, int x1, int lev, int type)
 
     /* Failure */
     if (i == 20)
-        return (FALSE);
+        return (false);
 
     /* Save the "summon" type */
     summon_specific_type = type;
@@ -3486,7 +3486,7 @@ bool summon_specific(int y1, int x1, int lev, int type)
     get_mon_num_prep();
 
     /* Pick a monster, using the given level */
-    r_idx = get_mon_num(lev, FALSE, TRUE, FALSE);
+    r_idx = get_mon_num(lev, false, true, false);
 
     /* Remove restriction */
     get_mon_num_hook = NULL;
@@ -3496,14 +3496,14 @@ bool summon_specific(int y1, int x1, int lev, int type)
 
     /* Handle failure */
     if (!r_idx)
-        return (FALSE);
+        return (false);
 
     /* Attempt to place the monster (awake, allow groups) */
-    if (!place_monster_aux(y, x, r_idx, FALSE, TRUE))
-        return (FALSE);
+    if (!place_monster_aux(y, x, r_idx, false, true))
+        return (false);
 
     /* Success */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -3518,7 +3518,7 @@ bool reproduce_monster(int old_m_idx, int new_r_idx)
 
     int i, y, x;
 
-    bool result = FALSE;
+    bool result = false;
 
     u16b grid[8];
     int grids = 0;
@@ -3534,7 +3534,7 @@ bool reproduce_monster(int old_m_idx, int new_r_idx)
             continue;
 
         /* This grid is OK for this monster (should monsters be able to dig?) */
-        if (cave_exist_mon(new_r_ptr, y, x, FALSE, FALSE))
+        if (cave_exist_mon(new_r_ptr, y, x, false, false))
         {
             /* Save this grid */
             grid[grids++] = GRID(y, x);
@@ -3543,7 +3543,7 @@ bool reproduce_monster(int old_m_idx, int new_r_idx)
 
     /* No grids available */
     if (!grids)
-        return (FALSE);
+        return (false);
 
     /* Pick a grid at random */
     i = rand_int(grids);
@@ -3553,7 +3553,7 @@ bool reproduce_monster(int old_m_idx, int new_r_idx)
     x = GRID_X(grid[i]);
 
     /* Create a new monster (awake, no groups) */
-    result = place_monster_aux(y, x, new_r_idx, FALSE, FALSE);
+    result = place_monster_aux(y, x, new_r_idx, false, false);
 
     /* Result */
     return (result);

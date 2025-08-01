@@ -111,7 +111,7 @@ bool easter_time(void)
     c = time((time_t*)0);
     tp = localtime(&c);
 
-    if (TRUE)
+    if (true)
     {
         int y = tp->tm_year + 1900;
         int a = y % 19;
@@ -131,10 +131,10 @@ bool easter_time(void)
 
         // we need to add 1 to the month as they count from 0
         if ((tp->tm_mon + 1 == month) && (tp->tm_mday == day))
-            return (TRUE);
+            return (true);
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -159,7 +159,7 @@ void flavor_init(void)
     int i;
 
     /* Hack -- Use the "simple" RNG */
-    Rand_quick = TRUE;
+    Rand_quick = true;
 
     /* Hack -- Induce consistant flavors */
     Rand_value = seed_flavor;
@@ -174,7 +174,7 @@ void flavor_init(void)
     flavor_assign_random(TV_POTION);
 
     /* Hack -- Use the "complex" RNG */
-    Rand_quick = FALSE;
+    Rand_quick = false;
 
     /* Analyze every object */
     for (i = 1; i < z_info->k_max; i++)
@@ -187,7 +187,7 @@ void flavor_init(void)
 
         /*No flavor yields aware*/
         if (!k_ptr->flavor)
-            k_ptr->aware = TRUE;
+            k_ptr->aware = true;
 
         // Easter Eggs
         if (easter_time() && (k_ptr->tval == TV_FOOD) && k_ptr->flavor)
@@ -202,7 +202,7 @@ void flavor_init(void)
  *
  * This involves resetting various things to their "default" state.
  *
- * If the "prefs" flag is TRUE, then we will also load the appropriate
+ * If the "prefs" flag is true, then we will also load the appropriate
  * "user pref file" based on the current setting of the "use_graphics"
  * flag.  This is useful for switching "graphics" on/off.
  *
@@ -539,14 +539,14 @@ void strip_name(char* buf, int k_idx)
  * If "pref" is true then a "numeric" prefix will be pre-pended, else is is
  * assumed that a string such as "The" or "Your" will be pre-pended later.
  *
- * Modes ("pref" is TRUE):
+ * Modes ("pref" is true):
  *  -1 -- Chain Mail
  *   0 -- Chain Mail of Death
  *   1 -- A Cloak of Death [1,+3]
  *   2 -- An Amulet of Death [1,+3] <+2>
  *   3 -- 5 Rings of Death [1,+3] <+2> {nifty}
  *
- * Modes ("pref" is FALSE):
+ * Modes ("pref" is false):
  *  -1 -- Chain Mail
  *   0 -- Chain Mail of Death
  *   1 -- Cloak of Death [1,+3]
@@ -592,27 +592,27 @@ void object_desc(
     object_flags(o_ptr, &f1, &f2, &f3);
 
     /* See if the object is "aware" */
-    aware = (object_aware_p(o_ptr) ? TRUE : FALSE);
+    aware = (object_aware_p(o_ptr) ? true : false);
 
     /* See if the object is "known" */
-    known = (object_known_p(o_ptr) ? TRUE : FALSE);
+    known = (object_known_p(o_ptr) ? true : false);
 
     /* See if the object is "flavored" */
-    flavor = (k_ptr->flavor ? TRUE : FALSE);
+    flavor = (k_ptr->flavor ? true : false);
 
     /* We have seen the object */
     if (aware)
-        k_ptr->everseen = TRUE;
+        k_ptr->everseen = true;
 
     /* Object is being listed in the object knowledge or smithing screen */
     if (o_ptr->ident & IDENT_SPOIL)
     {
         /* Don't show flavors */
-        flavor = FALSE;
+        flavor = false;
 
         /* Pretend known and aware */
-        aware = TRUE;
-        known = TRUE;
+        aware = true;
+        known = true;
     }
 
     /* Player has now seen the item
@@ -622,10 +622,10 @@ void object_desc(
      * in the dungeon.
      */
     if (aware)
-        k_ptr->everseen = TRUE;
+        k_ptr->everseen = true;
 
     /* Assume no name appending */
-    append_name = FALSE;
+    append_name = false;
 
     /* Extract default "base" string */
     basenm = (k_name + k_ptr->name);
@@ -686,7 +686,7 @@ void object_desc(
         /* Color the object */
         modstr = flavor_text + flavor_info[k_ptr->flavor].text;
         if (aware)
-            append_name = TRUE;
+            append_name = true;
         basenm = (flavor ? "& # Amulet~" : "& Amulet~");
 
         break;
@@ -702,7 +702,7 @@ void object_desc(
         /* Color the object */
         modstr = flavor_text + flavor_info[k_ptr->flavor].text;
         if (aware)
-            append_name = TRUE;
+            append_name = true;
         basenm = (flavor ? "& # Ring~" : "& Ring~");
 
         break;
@@ -714,7 +714,7 @@ void object_desc(
         /* Color the object */
         modstr = flavor_text + flavor_info[k_ptr->flavor].text;
         if (aware)
-            append_name = TRUE;
+            append_name = true;
         basenm = (flavor ? "& # Staff~" : "& Staff~");
 
         break;
@@ -726,7 +726,7 @@ void object_desc(
         /* Color the object */
         modstr = flavor_text + flavor_info[k_ptr->flavor].text;
         if (aware)
-            append_name = TRUE;
+            append_name = true;
         basenm = (flavor ? "& # Horn~" : "& Horn~");
 
         break;
@@ -738,7 +738,7 @@ void object_desc(
         /* Color the object */
         modstr = flavor_text + flavor_info[k_ptr->flavor].text;
         if (aware)
-            append_name = TRUE;
+            append_name = true;
         basenm = (flavor ? "& # Potion~" : "& Potion~");
 
         break;
@@ -754,7 +754,7 @@ void object_desc(
         /* Color the object */
         modstr = flavor_text + flavor_info[k_ptr->flavor].text;
         if (aware)
-            append_name = TRUE;
+            append_name = true;
         basenm = (flavor ? "& # Herb~" : "& Herb~");
 
         // Easter Eggs
@@ -1702,28 +1702,28 @@ bool item_tester_okay(const object_type* o_ptr)
 {
     /* Hack -- allow listing empty slots */
     if (item_tester_full)
-        return (TRUE);
+        return (true);
 
     /* Require an item */
     if (!o_ptr->k_idx)
-        return (FALSE);
+        return (false);
 
     /* Check the tval */
     if (item_tester_tval)
     {
         if (!(item_tester_tval == o_ptr->tval))
-            return (FALSE);
+            return (false);
     }
 
     /* Check the hook */
     if (item_tester_hook)
     {
         if (!(*item_tester_hook)(o_ptr))
-            return (FALSE);
+            return (false);
     }
 
     /* Assume okay */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1795,7 +1795,7 @@ void display_inven(void)
 
     char o_name[80];
 
-    bool floor_item = FALSE;
+    bool floor_item = false;
 
     int w = MIN(Term->wid, 100);
     int col = w - 11;
@@ -1824,7 +1824,7 @@ void display_inven(void)
             i = INVEN_WIELD;
             if (!o_ptr->k_idx)
                 continue;
-            floor_item = TRUE;
+            floor_item = true;
         }
         else
         {
@@ -1887,7 +1887,7 @@ void display_inven(void)
         }
 
         /* Obtain an item description */
-        object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
         /* Obtain the length of the description */
         n = strlen(o_name);
@@ -1997,7 +1997,7 @@ void display_equip(void)
         /* Obtain an item description */
         if (o_ptr->tval)
         {
-            object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
         }
         else
         {
@@ -2104,7 +2104,7 @@ void show_inven(void)
             continue;
 
         /* Describe the object */
-        object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
         /* Hack -- enforce max length */
         o_name[lim] = '\0';
@@ -2217,7 +2217,7 @@ void show_equip(void)
             continue;
 
         /* Description */
-        object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
         /* Truncate the description */
         o_name[lim] = 0;
@@ -2353,7 +2353,7 @@ void show_floor(const int* floor_list, int floor_num)
             continue;
 
         /* Describe the object */
-        object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
         /* Hack -- enforce max length */
         o_name[lim] = '\0';
@@ -2484,7 +2484,7 @@ static bool verify_item(cptr prompt, int item)
     }
 
     /* Describe */
-    object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     /* Prompt */
     strnfmt(out_val, sizeof(out_val), "%s %s? ", prompt, o_name);
@@ -2518,7 +2518,7 @@ static bool get_item_allow(int item)
 
     /* No inscription */
     if (!o_ptr->obj_note)
-        return (TRUE);
+        return (true);
 
     /* Find a '!' */
     s = strchr(quark_str(o_ptr->obj_note), '!');
@@ -2531,7 +2531,7 @@ static bool get_item_allow(int item)
         {
             /* Verify the choice */
             if (!verify_item("Really try", item))
-                return (FALSE);
+                return (false);
         }
 
         /* Find another '!' */
@@ -2539,7 +2539,7 @@ static bool get_item_allow(int item)
     }
 
     /* Allow it */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -2609,7 +2609,7 @@ static int get_tag(int* cp, char tag)
                 *cp = i;
 
                 /* Success */
-                return (TRUE);
+                return (true);
             }
 
             /* Check the special tags */
@@ -2619,7 +2619,7 @@ static int get_tag(int* cp, char tag)
                 *cp = i;
 
                 /* Success */
-                return (TRUE);
+                return (true);
             }
 
             /* Find another '@' */
@@ -2628,13 +2628,13 @@ static int get_tag(int* cp, char tag)
     }
 
     /* No such tag */
-    return (FALSE);
+    return (false);
 }
 
 /*
  * Let the user select an item, save its "index"
  *
- * Return TRUE only if an acceptable item was chosen by the user.
+ * Return true only if an acceptable item was chosen by the user.
  *
  * The selected item must satisfy the "item_tester_hook()" function,
  * if that hook is set, and the "item_tester_tval", if that value is set.
@@ -2658,15 +2658,15 @@ static int get_tag(int* cp, char tag)
  * and prompt for its use.
  *
  * If a legal item is selected from the inventory, we save it in "cp"
- * directly (0 to 35), and return TRUE.
+ * directly (0 to 35), and return true.
  *
  * If a legal item is selected from the floor, we save it in "cp" as
- * a negative (-1 to -511), and return TRUE.
+ * a negative (-1 to -511), and return true.
  *
  * If no item is available, we do nothing to "cp", and we display a
- * warning message, using "str" if available, and return FALSE.
+ * warning message, using "str" if available, and return false.
  *
- * If no item is selected, we do nothing to "cp", and return FALSE.
+ * If no item is selected, we do nothing to "cp", and return false.
  *
  * Global "p_ptr->command_new" is used when viewing the inventory or equipment
  * to allow the user to enter a command while viewing those screens, and
@@ -2702,17 +2702,17 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
     bool done, item;
 
-    bool oops = FALSE;
+    bool oops = false;
 
-    bool use_inven = ((mode & (USE_INVEN)) ? TRUE : FALSE);
-    bool use_equip = ((mode & (USE_EQUIP)) ? TRUE : FALSE);
-    bool use_floor = ((mode & (USE_FLOOR)) ? TRUE : FALSE);
+    bool use_inven = ((mode & (USE_INVEN)) ? true : false);
+    bool use_equip = ((mode & (USE_EQUIP)) ? true : false);
+    bool use_floor = ((mode & (USE_FLOOR)) ? true : false);
 
-    bool allow_inven = FALSE;
-    bool allow_equip = FALSE;
-    bool allow_floor = FALSE;
+    bool allow_inven = false;
+    bool allow_equip = false;
+    bool allow_floor = false;
 
-    bool toggle = FALSE;
+    bool toggle = false;
 
     char tmp_val[160];
     char out_val[160];
@@ -2735,7 +2735,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             item_tester_hook = NULL;
 
             /* Success */
-            return (TRUE);
+            return (true);
         }
         else
         {
@@ -2753,10 +2753,10 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     message_flush();
 
     /* Not done */
-    done = FALSE;
+    done = false;
 
     /* No item selected */
-    item = FALSE;
+    item = false;
 
     /* Full inventory */
     i1 = 0;
@@ -2774,7 +2774,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
     /* Accept inventory */
     if (i1 <= i2)
-        allow_inven = TRUE;
+        allow_inven = true;
 
     /* Full equipment */
     e1 = INVEN_WIELD;
@@ -2792,7 +2792,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
     /* Accept equipment */
     if (e1 <= e2)
-        allow_equip = TRUE;
+        allow_equip = true;
 
     /* Scan all objects in the grid */
     floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, py, px, 0x00);
@@ -2813,19 +2813,19 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
     /* Accept floor */
     if (f1 <= f2)
-        allow_floor = TRUE;
+        allow_floor = true;
 
     /* Require at least one legal choice */
     if (!allow_inven && !allow_equip && !allow_floor)
     {
         /* Cancel p_ptr->command_see */
-        p_ptr->command_see = FALSE;
+        p_ptr->command_see = false;
 
         /* Oops */
-        oops = TRUE;
+        oops = true;
 
         /* Done */
-        done = TRUE;
+        done = true;
     }
 
     /* Analyze choices */
@@ -2866,7 +2866,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     /* Option to always show a list */
     if (auto_display_lists)
     {
-        p_ptr->command_see = TRUE;
+        p_ptr->command_see = true;
     }
 
     /* Start out in "display" mode */
@@ -3033,7 +3033,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         {
         case ESCAPE:
         {
-            done = TRUE;
+            done = true;
             break;
         }
 
@@ -3045,7 +3045,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             if (p_ptr->command_see)
             {
                 /* Flip flag */
-                p_ptr->command_see = FALSE;
+                p_ptr->command_see = false;
 
                 /* Load screen */
                 screen_load();
@@ -3058,7 +3058,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 screen_save();
 
                 /* Flip flag */
-                p_ptr->command_see = TRUE;
+                p_ptr->command_see = true;
             }
 
             break;
@@ -3124,8 +3124,8 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
                 /* Accept that choice */
                 (*cp) = k;
-                item = TRUE;
-                done = TRUE;
+                item = true;
+                done = true;
                 break;
             }
 
@@ -3167,21 +3167,21 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             /* Allow player to "refuse" certain actions */
             if (!get_item_allow(k))
             {
-                done = TRUE;
+                done = true;
                 break;
             }
 
             /* Accept that choice */
             (*cp) = k;
-            item = TRUE;
-            done = TRUE;
+            item = true;
+            done = true;
             break;
         }
 
         case '[':
         case ']':
         {
-            bool item_found = FALSE;
+            bool item_found = false;
 
             /* Convert letter to inventory index */
             if (p_ptr->command_wrk == (USE_INVEN))
@@ -3191,7 +3191,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                     if (get_item_okay(i) && ((which == '[') || !item_found))
                     {
                         k = i;
-                        item_found = TRUE;
+                        item_found = true;
                     }
                 }
             }
@@ -3204,7 +3204,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                     if (get_item_okay(i) && ((which == ']') || !item_found))
                     {
                         k = i;
-                        item_found = TRUE;
+                        item_found = true;
                     }
                 }
             }
@@ -3226,14 +3226,14 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             /* Allow player to "refuse" certain actions */
             if (!get_item_allow(k))
             {
-                done = TRUE;
+                done = true;
                 break;
             }
 
             /* Accept that choice */
             (*cp) = k;
-            item = TRUE;
-            done = TRUE;
+            item = true;
+            done = true;
             break;
         }
 
@@ -3286,14 +3286,14 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             /* Allow player to "refuse" certain actions */
             if (!get_item_allow(k))
             {
-                done = TRUE;
+                done = true;
                 break;
             }
 
             /* Accept that choice */
             (*cp) = k;
-            item = TRUE;
-            done = TRUE;
+            item = true;
+            done = true;
             break;
         }
 
@@ -3302,7 +3302,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             bool verify;
 
             /* Note verify */
-            verify = (isupper((unsigned char)which) ? TRUE : FALSE);
+            verify = (isupper((unsigned char)which) ? true : false);
 
             /* Lowercase */
             which = tolower((unsigned char)which);
@@ -3356,21 +3356,21 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             /* Verify the item */
             if (verify && !verify_item("Try", k))
             {
-                done = TRUE;
+                done = true;
                 break;
             }
 
             /* Allow player to "refuse" certain actions */
             if (!get_item_allow(k))
             {
-                done = TRUE;
+                done = true;
                 break;
             }
 
             /* Accept that choice */
             (*cp) = k;
-            item = TRUE;
-            done = TRUE;
+            item = true;
+            done = true;
             break;
         }
         }
@@ -3383,7 +3383,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         screen_load();
 
         /* Hack -- Cancel "display" */
-        p_ptr->command_see = FALSE;
+        p_ptr->command_see = false;
     }
 
     // Forget whether inventory or equipment was being examined

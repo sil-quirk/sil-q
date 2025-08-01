@@ -521,7 +521,7 @@ extern bool get_name(void);
 extern void do_cmd_escape(int);
 extern void do_cmd_suicide(void);
 extern void do_cmd_save_game(void);
-extern void show_scores(void);
+extern void show_scores(bool);
 extern void comma_number(char* output, int number);
 extern void atomonth(int number, char* output);
 extern void display_single_score(
@@ -529,6 +529,7 @@ extern void display_single_score(
 extern int highscore_dead(char* name);
 extern int highscore_count();
 extern void display_scores(int from, int to);
+extern void display_scores_short(int from, int to);
 extern void close_game(void);
 extern void exit_game_panic(void);
 #ifdef HANDLE_SIGNALS
@@ -545,8 +546,9 @@ extern int meta_write(const metarun*);
 extern errr meta_read(metarun*);
 extern int meta_seek(int i);
 extern int meta_fill(bool);
-extern void print_story();
-extern void kinslayer_try_kill(byte n_sils);
+extern void print_story(int last_parts, bool fade_in);
+extern const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll);
+extern void clear_scorefile(void);
 
 /* generate.c */
 extern void place_monster_by_flag(
@@ -1105,7 +1107,8 @@ extern const char tutorial_late_death_text[][100];
 extern const char entry_poetry[][100];
 extern const char throne_poetry[][100];
 extern const char ultimate_bug_text[][100];
-extern void pause_with_text(const char desc[][100], int row, int col);
+void pause_with_text(const char desc[][100], int row, int col,
+                     const char extra[][100], byte extra_attr);
 
 /*
  * Hack -- conditional (or "bizarre") externs
@@ -1177,8 +1180,10 @@ extern void write_mon_power(void);
 extern errr  load_metaruns(bool create_if_missing);
 extern bool      metarun_created; 
 extern u32b curse_flag_mask(void);
-extern int  curse_flag_count(u32b rhf_flag);
-extern int any_curse_flag_active(u32b flag);
+extern int  curse_flag_count_rhf(u32b rhf_flag);
+extern int  curse_flag_count_cur(u32b cur_flag);
+extern int  curse_flag_count(u32b flag);      /* legacy */
+extern int  any_curse_flag_active(u32b flag); /* CUR-only */
 
 // init1.c
 extern void dbg_show_active_flags(void);

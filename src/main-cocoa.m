@@ -1255,7 +1255,7 @@ static BOOL game_in_progress = NO;
 /*
  * Indicate if the user chooses "new" to start a game
  */
-static bool new_game = FALSE; ////
+static bool new_game = false; ////
 
 
 #pragma mark Prototypes
@@ -2455,7 +2455,7 @@ static void Term_init_cocoa(term *t)
 
         /* Handle graphics */
         t->higher_pict = !! use_graphics;
-        t->always_pict = FALSE;
+        t->always_pict = false;
 
         NSDisableScreenUpdates();
 
@@ -2777,7 +2777,7 @@ static CGImageRef create_angband_image(NSString *path)
         NSURL *url = [[NSURL alloc] initFileURLWithPath:path isDirectory:NO];
         if (url)
         {
-            NSDictionary *options = [[NSDictionary alloc] initWithObjectsAndKeys:(id)kCFBooleanTrue, kCGImageSourceShouldCache, nil];
+            NSDictionary *options = [[NSDictionary alloc] initWithObjectsAndKeys:(id)kCFBooleantrue, kCGImageSourceShouldCache, nil];
             CGImageSourceRef source = CGImageSourceCreateWithURL((CFURLRef)url, (CFDictionaryRef)options);
             if (source)
             {
@@ -2886,24 +2886,24 @@ static errr Term_xtra_cocoa_react(void)
             /* Record what we did */
             use_graphics = arg_graphics;
             if (use_graphics) {
-                use_transparency = TRUE;
+                use_transparency = true;
                 ANGBAND_GRAF = "new";
                 if (bigtiles_are_appropriate()) {
                     if (!use_bigtile) {
-                        use_bigtile = TRUE;
+                        use_bigtile = true;
                         tile_multipliers_changed = 1;
                     }
                 } else {
                     if (use_bigtile) {
-                        use_bigtile = FALSE;
+                        use_bigtile = false;
                         tile_multipliers_changed = 1;
                     }
                 }
             } else {
-                use_transparency = FALSE;
+                use_transparency = false;
                 ANGBAND_GRAF = "old";
                 if (use_bigtile) {
-                    use_bigtile = FALSE;
+                    use_bigtile = false;
                     tile_multipliers_changed = 1;
                 }
             }
@@ -2935,13 +2935,13 @@ static errr Term_xtra_cocoa_react(void)
             /* Reset visuals */
             if (! tile_multipliers_changed)
             {
-                reset_visuals(TRUE);
+                reset_visuals(true);
             }
         }
 
         if (tile_multipliers_changed) {
             /* Reset visuals */
-            reset_visuals(TRUE);
+            reset_visuals(true);
 
             if (character_dungeon) {
                 /*
@@ -3768,13 +3768,13 @@ static term *term_data_link(int i)
     term_init(newterm, columns, rows, 256 /* keypresses, for some reason? */);
     
     /* Differentiate between BS/^h, Tab/^i, etc. */
-    ////newterm->complex_input = TRUE;
+    ////newterm->complex_input = true;
 
     /* Use a "software" cursor */
-    newterm->soft_cursor = TRUE;
+    newterm->soft_cursor = true;
 
     /* Disable the per-row flush notifications since they are not used. */
-    newterm->never_frosh = TRUE;
+    newterm->never_frosh = true;
 
     /* Erase with "white space" */
     newterm->attr_blank = TERM_WHITE;
@@ -4154,7 +4154,7 @@ static BOOL open_game(void)
             /* Game is in progress */
             game_in_progress = YES;
 
-            new_game = FALSE;
+            new_game = false;
         }
     } 
 
@@ -4181,7 +4181,7 @@ static void open_tutorial(void)
         /* Game is in progress */
         game_in_progress = YES;
 
-        new_game = FALSE;
+        new_game = false;
     }
 }
 
@@ -4201,7 +4201,7 @@ static void quit_calmly(void)
     if (inkey_flag)
     {
         /* Hack -- Forget messages */
-        msg_flag = FALSE;
+        msg_flag = false;
 
         /* Save the game */
         do_cmd_save_game();
@@ -4546,7 +4546,7 @@ static BOOL check_events(int wait)
                              withPeriod: 0.2];
                     periodicStarted = YES;
                 }
-		else if (FALSE && periodicStarted) {
+		else if (false && periodicStarted) {
                     [NSEvent stopPeriodicEvents];
                     periodicStarted = NO;
 		}
@@ -4640,10 +4640,10 @@ static bool cocoa_get_file(const char *suggested_name, char *path, size_t len)
     if ([panel runModal] == NSOKButton) {
         const char *p = [[[panel URL] path] UTF8String];
         my_strcpy(path, p, len);
-        return TRUE;
+        return true;
     }
 
-    return FALSE;
+    return false;
 }
 
 #endif
@@ -4760,12 +4760,12 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     if (mainTerm == 0 && use_graphics) {
         if (bigtiles_are_appropriate()) {
             if (! use_bigtile) {
-                use_bigtile = TRUE;
+                use_bigtile = true;
                 tile_multipliers_changed = 1;
             }
         } else {
             if (use_bigtile) {
-                use_bigtile = FALSE;
+                use_bigtile = false;
                 tile_multipliers_changed = 1;
             }
         }
@@ -4786,7 +4786,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 - (IBAction)saveGame:sender
 {
     /* Hack -- Forget messages */
-    msg_flag = FALSE;
+    msg_flag = false;
     
     /* Save the game */
     do_cmd_save_game();
@@ -4857,7 +4857,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
 
 	init_angband();
 
-        use_background_colors = TRUE;
+        use_background_colors = true;
     }
 
     while (1) {
@@ -4879,7 +4879,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
                         break;
                     case 2:
                         game_in_progress = YES;
-                        new_game = TRUE;
+                        new_game = true;
                         break;
                     case 3:
                         open_game();
@@ -5225,7 +5225,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
     }
 
     game_in_progress = YES;
-    new_game = FALSE;
+    new_game = false;
 
     /*
      * Wake us up in case this arrives while we're sitting at the Welcome

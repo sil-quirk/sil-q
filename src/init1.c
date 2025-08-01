@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "h-define.h"
 #include "z-form.h" 
 
 /*
@@ -66,15 +67,6 @@ static cptr r_info_blow_effect[] = { "", "HURT", "WOUND", "BATTER", "SHATTER",
     "HUNGER", "POISON", "ACID", "ELEC", "FIRE", "COLD", "BLIND", "CONFUSE",
     "TERRIFY", "ENTRANCE", "HALLU", "DISEASE", "LOSE_STR", "LOSE_DEX",
     "LOSE_CON", "LOSE_GRA", "LOSE_STR_CON", "LOSE_ALL", "DISARM", NULL };
-
-typedef struct flag_name flag_name;
-
-struct flag_name
-{
-    cptr name; /* The name of the flag in the text file. */
-    int set; /* The set into which the flag is to be sent. */
-    u32b flag; /* The flag being set. */
-};
 
 #define TR1 0
 #define TR2 1
@@ -359,6 +351,7 @@ static flag_name info_flags[] = {
 
 };
 
+
 /*
  * Activation type
  */
@@ -385,7 +378,7 @@ errr init_info_txt(
     errr err;
 
     /* Not ready yet */
-    bool okay = FALSE;
+    bool okay = false;
 
     /* Just before the first record */
     error_idx = -1;
@@ -425,7 +418,7 @@ errr init_info_txt(
             }
 
             /* Okay to proceed */
-            okay = TRUE;
+            okay = true;
 
             /* Continue */
             continue;
@@ -566,9 +559,9 @@ void dbg_show_active_flags(void)
             if (f->set != grp[g].set) continue;
 
             /* -------- check whether THIS bit is on -------- */
-            bool present = FALSE;
+            bool present = false;
             if (f->set == CUR)
-                present = (curse_flag_count(f->flag) > 0);
+                present = (curse_flag_count_cur(f->flag) > 0);
             else
                 present = (grp[g].bits & f->flag) != 0;
             if (!present) continue;
@@ -590,6 +583,38 @@ void dbg_show_active_flags(void)
         if (pos) Term_putstr(0, row++, -1, TERM_WHITE, buf);
         row++;                      /* blank line between groups */
     }
+
+
+/* ---------- RHF flags coming specifically from active curses --------- */
+{
+    Term_putstr(0, row++, -1, TERM_ORANGE,
+                "CUR  RHF (RHF flags coming from active curses)");
+
+    const int BUF_LEN = 79;
+    char buf[BUF_LEN + 1]; buf[0] = '\0';
+    size_t pos = 0;
+
+    for (size_t i = 0; i < N_ELEMENTS(info_flags); i++)
+    {
+        flag_name *f = info_flags + i;
+        if (f->set != RHF) continue;
+        if (curse_flag_count_rhf(f->flag) <= 0) continue;
+
+        size_t need = (pos ? 2 : 0) + strlen(f->name);
+        if (pos + need > BUF_LEN)
+        {
+            Term_putstr(0, row++, -1, TERM_WHITE, buf);
+            pos = 0; buf[0] = '\0';
+        }
+        if (pos) { buf[pos++] = ','; buf[pos++] = ' '; }
+        memcpy(buf + pos, f->name, need - (pos ? 2 : 0));
+        pos += strlen(f->name);
+        buf[pos] = '\0';
+    }
+
+    if (pos) Term_putstr(0, row++, -1, TERM_WHITE, buf);
+    row++;  /* blank line */
+}
 
 /* ---------- RHF Mastery / Penalty summary ------------------------- */
 {
@@ -666,14 +691,14 @@ void dbg_show_active_flags(void)
 
 /* ===================  key-handling loop  ========================= */
 #ifdef DEBUG_CURSES
-// static bool in_loop = FALSE;  
-    while (TRUE)
+// static bool in_loop = false;  
+    while (true)
     {
         int ch = inkey();
 
         if (ch == 'a')            /* add one random curse */
         {
-            int id = menu_choose_one_curse();
+            int id = menu_choose_one_curse(0);
             add_curse_stack(id);
             dbg_show_active_flags();          /* redraw */
             break;
@@ -690,13 +715,25 @@ void dbg_show_active_flags(void)
         }
         else if (ch == 'e')       /* +1 death shortcut */
         {
-            metarun_update_on_exit(1,0, 0);
+            metarun_update_on_exit(true,false, 0);
+            dbg_show_active_flags();
+            break;
+        }
+        else if (ch == 'r')       /* clear scores */
+        {
+            clear_scorefile();
             dbg_show_active_flags();
             break;
         }
         else if (ch >= '1' && ch <= '3')  /* +n Silmarils */
         {
             do_cmd_escape((byte)(ch - '0'));
+            dbg_show_active_flags();
+            break;
+        }
+        else if (ch == 'd')  /* debug menu */
+        {
+            do_cmd_debug();
             dbg_show_active_flags();
             break;
         }
@@ -713,14 +750,14 @@ void dbg_show_active_flags(void)
 /*
  * Add a text to the text-storage and store offset to it.
  *
- * Returns FALSE when there isn't enough space available to store
+ * Returns false when there isn't enough space available to store
  * the text.
  */
 static bool add_text(u32b* offset, header* head, cptr buf)
 {
     /* Hack -- Verify space */
     if (head->text_size + strlen(buf) + 8 > z_info->fake_text_size)
-        return (FALSE);
+        return (false);
 
     /* New text? */
     if (*offset == 0)
@@ -738,7 +775,7 @@ static bool add_text(u32b* offset, header* head, cptr buf)
     // head->text_ptr[head->text_size] = '\0';
 
     /* Success */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1091,6 +1128,52 @@ errr parse_rt_info(char *buf, header *head)
         rt_ptr->colour = (byte)color_text_to_attr(buf+2);
         return 0;
     }
+    /* W:<num>  – win condition (Silmarils target) ---------------- */
+    if (buf[0] == 'W')
+    {
+        if (!rt_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+        int v = atoi(buf + 2);
+        if (v < 1) v = 1;
+        if (v > 127) v = 127;
+        rt_ptr->win_con = (byte)v;
+        return 0;
+    }
+
+    /* L:<num>  – lose condition (allowed deaths) ------------------ */
+    if (buf[0] == 'L')
+    {
+        if (!rt_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+        int v = atoi(buf + 2);
+        if (v < 1) v = 1;
+        if (v > 127) v = 127;
+        rt_ptr->lose_con = (byte)v;
+        return 0;
+    }
+
+    /* H:*  or  H:i|j|k  – applicable heroes mask (0..63) ---------- */
+    if (buf[0] == 'H')
+    {
+        if (!rt_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+        char *arg = buf + 2;
+        /* '*' means all heroes */
+        if (*arg == '*') {
+            for (int w = 0; w < FLAG_WORDS; ++w) rt_ptr->heroes[w] = 0xFFFFFFFFu;
+            /* trim bits above 64 just in case */
+            if (FLAG_WORDS > 2) for (int w = 2; w < FLAG_WORDS; ++w) rt_ptr->heroes[w] = 0;
+            return 0;
+        }
+        /* otherwise a | separated list of indices */
+        for (char *tok = strtok(arg, "|"); tok; tok = strtok(NULL, "|"))
+        {
+            int idx = atoi(tok);
+            if (0 <= idx && idx < 64) {
+                int w = idx >> 5, b = idx & 31;
+                rt_ptr->heroes[w] |= (1u << b);
+            }
+        }
+        return 0;
+    }
+
 
     /* ignore unknown / comment lines                              */
     return PARSE_ERROR_UNDEFINED_DIRECTIVE;
@@ -1718,7 +1801,7 @@ errr parse_v_info(char* buf, header* head)
 
         // note if there is a forge in the vault
         if (strchr(buf, '0'))
-            v_ptr->forge = TRUE;
+            v_ptr->forge = true;
 
         // we've added another row of the vault
         v_ptr->hgt++;
@@ -3589,7 +3672,7 @@ errr parse_c_info(char* buf, header* head)
     /* Current entry */
     static player_house* ph_ptr = NULL;
 
-    log_debug("Parsing houses");
+    log_debug("Parsing characters");
 
     /* Process 'N' for "New/Number/Name" */
     if (buf[0] == 'N')
@@ -3622,7 +3705,7 @@ errr parse_c_info(char* buf, header* head)
             return (PARSE_ERROR_OUT_OF_MEMORY);
 
         /* Debug: announce new house and its name */
-        log_debug("New house #%d: \"%s\"", idx,
+        log_debug("New character #%d: \"%s\"", idx,
                 head->name_ptr + ph_ptr->name);
 
         /* Sentinel‐initialize all ability slots to "empty" */
@@ -3666,7 +3749,7 @@ errr parse_c_info(char* buf, header* head)
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
-    /* Process 'B' for "Short Name" */
+    /* Process 'B' for "Start String" */
     else if (buf[0] == 'B')
     {
         /* Find the colon before the name */
@@ -3684,7 +3767,7 @@ errr parse_c_info(char* buf, header* head)
             return (PARSE_ERROR_GENERIC);
 
         /* Store the name */
-        if (!(ph_ptr->short_name = add_name(head, s)))
+        if (!(ph_ptr->start_string = add_name(head, s)))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
@@ -4011,10 +4094,16 @@ errr parse_st_info(char* buf, header* head)
 
         /* Point at the "info" */
         st_ptr = (story_type*)head->info_ptr + i;
+        WIPE(st_ptr, story_type);
 
         /* Store the name */
         if (!(st_ptr->name = add_name(head, s)))
             return (PARSE_ERROR_OUT_OF_MEMORY);
+
+        /* Sensible defaults */
+        st_ptr->st_type  = 0;
+        st_ptr->order    = 0;
+        st_ptr->runtypes = 0;   /* 0 == ALL runtypes */
     }
 
     /* Process 'D' for "Description" */
@@ -4030,6 +4119,56 @@ errr parse_st_info(char* buf, header* head)
         /* Store the text */
         if (!add_text(&st_ptr->text, head, s))
             return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+    /* Process 'T' for type (byte) */
+    else if (buf[0] == 'T')
+    {
+        if (!st_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+        int t;
+        if (1 != sscanf(buf + 2, "%d", &t)) return (PARSE_ERROR_GENERIC);
+        if (t < 0 || t > 255)               return (PARSE_ERROR_OUT_OF_BOUNDS);
+        st_ptr->st_type = (byte)t;
+    }
+    /* Process 'O' for order (byte) */
+    else if (buf[0] == 'O')
+    {
+        if (!st_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+        int o;
+        if (1 != sscanf(buf + 2, "%d", &o)) return (PARSE_ERROR_GENERIC);
+        if (o < 0 || o > 255)               return (PARSE_ERROR_OUT_OF_BOUNDS);
+        st_ptr->order = (byte)o;
+    }
+    /* Process 'R' for runtypes: "*" or "i|j|k" */
+    else if (buf[0] == 'R')
+    {
+        if (!st_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+        s = buf + 2;
+        while (*s == ' ' || *s == '\t') s++;
+
+        /* "*" => all runtypes (store 0 to mean ALL) */
+        if (*s == '*')
+        {
+            st_ptr->runtypes = 0;  /* wildcard */
+        }
+        else
+        {
+            u32b mask = 0;
+            char *tok = strtok(s, "|");
+            while (tok)
+            {
+                int bit = atoi(tok);
+                if (bit < 0 || bit >= 32)
+                {
+                    /* silently ignore out-of-range bits */
+                }
+                else
+                {
+                    mask |= (1UL << bit);
+                }
+                tok = strtok(NULL, "|");
+            }
+            st_ptr->runtypes = mask;
+        }
     }
     else
     {

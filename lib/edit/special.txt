@@ -499,7 +499,7 @@ F:WILL | RES_FEAR
 
 # Includes light sources
 
-N:73:of True Sight
+N:73:of true Sight
 W:0:1:0:2000
 C:0:0:0:0:0:0:0
 T:32:0:99
@@ -780,7 +780,7 @@ T:39:8:8
 F:LIGHT
 
 
-# 'of True Sight' is already defined above
+# 'of true Sight' is already defined above
 
 
 # 'of Grace' is already defined above (for Lesser Jewels)

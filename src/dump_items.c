@@ -32,11 +32,11 @@ static void dump_flags(FILE* fff, u32b flag, int whatflag, int counter)
     {
         if (flag & is_true)
         {
-            /*dump T for True*/
+            /*dump T for true*/
             fprintf(fff, ":T");
         }
 
-        /*dump F for True*/
+        /*dump F for true*/
         else
             fprintf(fff, ":F");
 
@@ -202,7 +202,7 @@ void write_r_info_txt(void)
             bc = 0;
 
             /* Build this line */
-            while (TRUE)
+            while (true)
             {
                 /* Insert this character, count it */
                 *t++ = desc[j++];
@@ -390,7 +390,7 @@ void write_o_info_txt(void)
             bc = 0;
 
             /* Build this line */
-            while (TRUE)
+            while (true)
             {
                 /* Insert this character, count it */
                 *t++ = desc[j++];
@@ -565,7 +565,7 @@ void write_e_info_txt(void)
                     bc = 0;
 
                     /* Build this line */
-                    while (TRUE)
+                    while (true)
                     {
                         /* Insert this character, count it */
                         *t++ = desc[j++];
@@ -710,7 +710,7 @@ void write_a_info_txt(void)
         object_known(i_ptr);
 
         /* Get a description to dump */
-        object_desc(o_name, sizeof(o_name), i_ptr, TRUE, 0);
+        object_desc(o_name, sizeof(o_name), i_ptr, true, 0);
 
         /*dump the long name*/
         fprintf(fff, "desc:%d: # %s\n", i, o_name);
@@ -759,7 +759,7 @@ void write_a_info_txt(void)
             bc = 0;
 
             /* Build this line */
-            while (TRUE)
+            while (true)
             {
                 /* Insert this character, count it */
                 *t++ = desc[j++];
@@ -889,7 +889,7 @@ void dump_artefact_power(void)
         object_known(i_ptr);
 
         /* Get a description to dump */
-        object_desc(o_name, sizeof(o_name), i_ptr, TRUE, 0);
+        object_desc(o_name, sizeof(o_name), i_ptr, true, 0);
 
         power = artefact_power(i);
 

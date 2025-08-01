@@ -466,7 +466,7 @@ static int do_cmd_squelch_aux(void)
 
         /* Clear screen */
 
-        while (TRUE)
+        while (true)
         {
             if (display_all)
                 Term_clear();
@@ -1209,13 +1209,13 @@ static int do_ego_item_squelch(void)
     s16b* choice;
 
     /* Hack - Used to sort the tval table for the first time */
-    static bool sort_tvals = TRUE;
+    static bool sort_tvals = true;
 
     /* Sort the tval table if needed */
     if (sort_tvals)
     {
         qsort(raw_tvals, NUM_RAW_TVALS, sizeof(raw_tvals[0]), tval_comp_func);
-        sort_tvals = FALSE;
+        sort_tvals = false;
     }
 
     /* Alloc the array of ego indices */
@@ -1240,7 +1240,7 @@ static int do_ego_item_squelch(void)
     qsort(choice, max_num, sizeof(choice[0]), ego_comp_func);
 
     /* Display the whole screen */
-    display_all = TRUE;
+    display_all = true;
     active = 0;
     old_active = -1;
 
@@ -1298,7 +1298,7 @@ static int do_ego_item_squelch(void)
         }
 
         /* Reset some flags */
-        display_all = FALSE;
+        display_all = false;
         old_active = -1;
 
         /* Get a command */
@@ -1663,7 +1663,7 @@ void rearrange_stack(int y, int x)
 
     object_type* o_ptr;
 
-    bool sq_flag = FALSE;
+    bool sq_flag = false;
 
     /* Initialize */
     first_bad_idx = 0;
@@ -1730,7 +1730,7 @@ void do_squelch_pile(int y, int x)
 {
     s16b o_idx, next_o_idx;
     object_type* o_ptr;
-    bool sq_flag = FALSE;
+    bool sq_flag = false;
 
     for (o_idx = cave_o_idx[y][x]; o_idx; o_idx = next_o_idx)
     {
@@ -1743,11 +1743,11 @@ void do_squelch_pile(int y, int x)
 
         /*hack - never squelch artefacts*/
         if artefact_p (o_ptr)
-            sq_flag = FALSE;
+            sq_flag = false;
 
         /*always squelch "&nothing*/
         if (!o_ptr->k_idx)
-            sq_flag = TRUE;
+            sq_flag = true;
 
         if ((sq_flag))
         {

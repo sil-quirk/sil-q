@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "log.h"
 #include "metarun.h"
 
 #include "h-define.h"
@@ -221,7 +222,7 @@ void init_file_paths(char* path)
 #ifdef NeXT
 
     /* Allow "fat binary" usage with NeXT */
-    if (TRUE)
+    if (true)
     {
         cptr next = NULL;
 
@@ -907,7 +908,7 @@ static errr init_c_info(void)
 
 #endif /* ALLOW_TEMPLATES */
 
-    err = init_info("house", &c_head);
+    err = init_info("character", &c_head);
 
     /* Set the global variables */
     c_info = c_head.info_ptr;
@@ -1076,7 +1077,7 @@ extern void re_init_some_things(void)
 {
     int i;
 
-    Rand_quick = FALSE;
+    Rand_quick = false;
 
     // wipe the whole player structure
     (void)WIPE(p_ptr, player_type);
@@ -1750,6 +1751,7 @@ void init_angband(void)
     /* Close it */
     fd_close(fd);
 
+    log_info("Loading metarun...");
     // Load metarun
     if (load_metaruns(1) != 0) {
         init_angband_aux("Cannot load or create metarun file!");
@@ -1865,46 +1867,6 @@ void init_angband(void)
     note("                                              ");
 }
 
-/* --- NEW HELP SCREEN --------------------------------------------------- */
-static void show_metarun_help(void)
-{
-    /* clear the screen */
-    Term_clear();
-
-    /* simple centred block of explanatory text */
-    int row = 2;
-    Term_putstr(10, row++, -1, TERM_L_BLUE,
-        "        —  Metarun: a story beyond a single hero  —");
-    row++;
-
-    Term_putstr(5, row++, -1, TERM_WHITE,
-        "SilQ-Heroes keeps a persistent timeline we call the Metarun.");
-    Term_putstr(5, row++, -1, TERM_WHITE,
-        "Every character you create, every victory and every death");
-    Term_putstr(5, row++, -1, TERM_WHITE,
-        "pushes that timeline forward.  New quests, artefacts and");
-    Term_putstr(5, row++, -1, TERM_WHITE,
-        "even areas of the dungeon unlock as the saga unfolds.");
-    row++;
-
-    Term_putstr(5, row++, -1, TERM_WHITE,
-        " • Continue your story – pick up where the timeline left off");
-    Term_putstr(5, row++, -1, TERM_WHITE,
-        " • Load story         – (coming soon) branch to an old point");
-    Term_putstr(5, row++, -1, TERM_WHITE,
-        " • Exit               – leave the Metarun for now");
-
-    row += 2;
-    Term_putstr(5, row, -1, TERM_SLATE,
-        "[press any key to return]");
-    Term_fresh();
-
-    /* wait for user acknowledgement */
-    inkey();
-    Term_clear();
-}
-/* ---------------------------------------------------------------------- */
-
 
 /* --- UPDATED MAIN-MENU HANDLER ---------------------------------------- */
 extern NavResult initial_menu(bool *start_new)
@@ -1926,8 +1888,8 @@ extern NavResult initial_menu(bool *start_new)
         "______________________________________________________");
 
     /* menu lines (new order) */
-    if (metarun_created == TRUE) 
-    Term_putstr(16, 19, 30, TERM_L_BLUE,
+    if (metarun_created == true) 
+    Term_putstr(16, 19, 50, TERM_L_BLUE,
         "Start your story (press space to continue)");
     else
     Term_putstr(16, 19, 50,TERM_L_BLUE,
@@ -1945,7 +1907,7 @@ extern NavResult initial_menu(bool *start_new)
     /* enter : CONTINUE  */
     if (ch == '\n' || ch == '\r' || ch == ' ')
     {
-        *start_new = TRUE; return NAV_OK;   /* start new game */
+        *start_new = true; return NAV_OK;   /* start new game */
     }
 
 

@@ -67,7 +67,7 @@ C:1:1
 
 N:1:Feanor
 A:, Spirit of Fire
-B: 
+B:You rise aflame-spirit of fire, maker of Silmarils, whose oath kindled wrath undying. 
 F:SMT_AFFINITY | WIL_AFFINITY | STL_PENALTY | TREACHERY
 U:SMT_FEANOR 
 C:6:5:6:2  # Jeweller Artifice
@@ -85,7 +85,7 @@ D:yet ever marred, his legacy wrought in flame and boundless sorrow.
 
 N:2:Fingolfin
 A:, High King of the Noldor
-B:, High King of the Noldor
+B:You ride forth, defiant-echo of the High King who faced Morgoth at Angband’s gate.
 F:WIL_AFFINITY | EVN_AFFINITY | MEL_AFFINITY | SMT_PENALTY | STL_PENALTY | ARC_PENALTY
 U:WIL_FIN
 S:3:2:2:1
@@ -103,7 +103,7 @@ D:Fingolfin rests in Mandos, spirit brightened by sacrifice and glory.
 
 N:3:Finarfin
 A: of Tirion
-B:Finarfin
+B:You move in wisdom-voice of gentle counsel, longing for healing beyond bloodshed.
 F:PER_AFFINITY | SMT_PENALTY 
 S:1:1:0:3
 C:7:12:7:7   # Song of the Trees #Woven Themes
@@ -120,7 +120,7 @@ D:and his heart longs for the far-off hour of redemption and forgiveness.
 
 N:4:Maedhros
 A: the Red
-B:Feanor
+B:You stride toward shadow-eldest son of flame, bound by oath and tragic resolve.
 F:WIL_AFFINITY | STL_PENALTY
 S:1:1:3:0
 C:5:8 #Vengeance
@@ -137,7 +137,7 @@ D:a Silmaril reclaimed in flame and despair, bringing bitter end to hope.
 
 N:5:Curufin
 A: the Wily
-B:Feanor
+B:You begin your hunt-crafty son of Fëanor, whose subtlety sows ruin unseen.
 F:SMT_AFFINITY | STL_AFFINITY | PER_PENALTY | ARC_AFFINITY | MEL_PENALTY | WIL_PENALTY | TREACHERY
 S:0:3:0:-1
 C:3:4 #Opportunist
@@ -153,7 +153,7 @@ D:and by treason sows seeds of doom and loss, echoing father’s dark flame.
 
 N:6:Fingon
 A: the Valiant
-B:Fingolfin
+B:You step forward bravely-valiant prince, friend and rescuer in darkest hour.
 F:WIL_AFFINITY | ARC_AFFINITY | KINSLAYER
 S:1:2:1:1
 C:1:5 #Versatility
@@ -169,7 +169,7 @@ D:awaiting the final healing of wounds made by sword and sorrow.
 
 N:7:Turgon
 A:, Lord of Gondolin
-B:Fingolfin
+B:You set forth secretly-Lord of Gondolin, guardian of hidden splendor doomed by pride.
 F:WIL_AFFINITY | STL_AFFINITY | PER_AFFINITY | MEL_PENALTY | ARC_PENALTY | KINSLAYER
 S:0:0:2:2
 C:3:5 #Vanish
@@ -185,7 +185,7 @@ D:awaiting a brighter hour when shadows break and stars shine anew.
 
 N:8:Galadriel
 A:, Lady of Light
-B:Finarfin
+B:You walk beneath twilight-Lady of Light, whose gaze sees peril and power yet unborn.
 F:PER_AFFINITY | SMT_PENALTY | CURSE
 S:0:1:1:2
 C:4:6:4:7  # Listen Outwit
@@ -201,7 +201,7 @@ D:marking her path through sorrow and hope, unto fates unknown and mighty.
 
 N:9:Finrod Felagund
 A:, the Friend of Men
-B:Finarfin
+B:You venture loyally-faithful friend to mortals, whose song echoes beyond darkness.
 F:PER_AFFINITY | SNG_AFFINITY | WIL_AFFINITY | CURSE
 U:SNG_FIN
 S:0:1:0:3
@@ -218,7 +218,7 @@ D:his deeds foretelling bonds of friendship bridging mortal and immortal.
 
 N:10:Glorfindel
 A: of the Golden Flower
-B:Golden Flower
+B:You rise in valor-golden defender of Gondolin, whose courage felled a Balrog.
 F:MEL_AFFINITY | ARC_PENALTY
 S:2:2:1:1
 C:2:9:0:12  # Rapid Attack Control retreat
@@ -234,7 +234,7 @@ D:until at last he rises again, ever watchful, a beacon of immortal valor.
 
 N:11:Etchelion
 A: of the Fountain
-B:the Fountain
+B:You march proudly-captain of Gondolin, whose blade sang bravely against fire.
 F:MEL_AFFINITY | KINSLAYER | ARC_PENALTY | EVN_PENALTY
 S:2:1:1:1
 C:0:6 #Impale
@@ -250,7 +250,7 @@ D:a legacy ever remembered in song beneath stars and shattered stone.
 
 N:12:Elu Thingol
 A:, Lord of Beleriand
-B:Doriath
+B:You command wisely-Lord of Doriath, ensnared by beauty and shadowed doom.
 F:WIL_AFFINITY | PER_AFFINITY | ARC_PENALTY
 U:SNG_THINGOL
 S:2:1:1:3
@@ -267,7 +267,7 @@ D:foreshadowing ruin wrought by desire, grief deeper than twilight itself.
 
 N:13:Cirdan
 A: the Shipwright
-B:Falathrim
+B:You watch patiently-shipwright, keeper of hope, guiding stars across endless seas.
 F:PER_AFFINITY | SMT_AFFINITY | ARC_PENALTY | FREE | BOW_PROFICIENCY
 S:0:1:1:2
 C:4:2:4:4 # Keen Senses Alchemy
@@ -281,7 +281,7 @@ D:keeper of hope unseen, guiding future kings unto shores yet unknown.
 
 N:14:Mablung
 A: of the Heavy Hand
-B:Doriath
+B:You guard faithfully-Heavy-Handed captain of Doriath, steadfast amid sorrow.
 F:MEL_AFFINITY
 S:2:1:0:0
 C:0:10 # Smite
@@ -295,7 +295,7 @@ D:destined to fall loyal, remembered in lament beneath darkening trees.
 
 N:15:Luthien
 A: Tinúviel
-B:Doriath
+B:You sing fearlessly-fairest daughter of twilight, whose love defied Morgoth.
 F:WIL_AFFINITY | SNG_AFFINITY | STL_AFFINITY | EVN_AFFINITY | ARC_PENALTY
 U:SNG_LUT
 S:-1:3:1:3
@@ -310,7 +310,7 @@ D:remembered ever as brightest jewel in Arda’s song, grief and joy entwined.
 
 N:16:Voronwe
 A: the Steadfast
-B:Falathrim
+B:You journey onward-messenger steadfast, bearer of hope whispered by Ulmo.
 F:PER_PENALTY | FREE | BOW_PROFICIENCY
 S:0:1:1:0
 C:4:0 # Quick Study
@@ -324,7 +324,7 @@ D:bearer of hope amid despair, witness to glory lost beneath waves of flame.
 
 N:17:Beleg
 A: Strongbow
-B:Falathrim
+B:You stalk bravely-Strongbow of Doriath, loyal heart doomed by friendship.
 F:ARC_AFFINITY | SNG_PENALTY | BOW_PROFICIENCY
 S:1:2:0:0
 C:1:7 # Deadly Hail
@@ -338,7 +338,7 @@ D:forever honored as faithful guardian whose loyalty outshines doom.
 
 N:18:Telchar
 A:, the Smith of Nogrod
-B:Nogrod
+B:You hammer boldly-legendary smith, forging destiny in iron and flame.
 F:SMT_AFFINITY
 U:SMT_TELCHAR
 S:1:1:1:2
@@ -354,7 +354,7 @@ D:remembered by dwarves and Elves alike, name carved deep in lore and stone.
 
 N:19:Gamil Zirak
 A:, Master of Smiths
-B:Belegost
+B:You craft subtly-master smith, whose hands shape wonders hidden in stone.
 F:PER_AFFINITY | SMT_AFFINITY | MEL_PENALTY
 U:SMT_GAMIL
 S:0:0:0:2
@@ -369,7 +369,7 @@ D:remembered in halls of stone, his craft enduring beyond fall and flame.
 
 N:20:Naugladur
 A:, Lord of Nogrod
-B:Nogrod
+B:You move darkly-dwarven king, whose greed binds doom and betrayal.
 F:PER_PENALTY | TREACHERY
 S:1:1:1:-1
 C:3:2 # Cruel blow
@@ -383,7 +383,7 @@ D:name whispered grimly, memory marred by deeds wrought in tragic pride.
 
 N:21:King Azaghal
 A:, Lord of Belegost
-B:Belegost
+B:You stand resolutely-lord of Belegost, whose courage wounded dragon’s pride.
 F:WIL_AFFINITY | MEL_AFFINITY
 S:2:1:2:1
 C:0:8 # Whirlwind Attack
@@ -397,7 +397,7 @@ D:symbol of courage beyond doom, defying darkness at battle’s end.
 
 N:22:Mim
 A: the Petty-Dwarf
-B:Belegost
+B:You lurk warily-petty dwarf, guardian of bitter secrets, shadow-bound.
 F:SNG_AFFINITY | MEL_PENALTY | STL_AFFINITY | TREACHERY | SMT_PENALTY
 U:MIM
 S:-1:1:-1:-1
@@ -412,7 +412,7 @@ D:remembered with pity and dread alike, sorrow embodied in fading stones.
 
 N:23:Beren
 A: Erchamion
-B:Beor
+B:You brave darkness-mortal hero whose courage stole Silmaril from Morgoth.
 F:EVN_AFFINITY | STL_AFFINITY | WIL_AFFINITY
 S:1:2:1:1
 C:0:7:3:1  # Assassination # Subtlety
@@ -426,7 +426,7 @@ D:legacy ever shining, his story echoed eternally in stars and song.
 
 N:24:Barahir
 A:, Lord of Ladros
-B:Beor
+B:You defend honor-bold mortal lord, bearer of friendship beyond darkness.
 F:EVN_AFFINITY 
 S:1:0:1:1
 C:0:9 # Zone of control
@@ -440,7 +440,7 @@ D:remembered ever as beacon of honor in night’s relentless storm.
 
 N:25:Earendil
 A: the Half-Elven
-B:Beor
+B:You sail boldly-mariner whose voyage carries hope beyond world's night.
 F:EVN_AFFINITY | STL_AFFINITY | WIL_AFFINITY | PER_AFFINITY | SNG_AFFINITY | MEL_PENALTY | FREE
 U:EARENDIL
 S:1:2:2:4
@@ -455,7 +455,7 @@ D:Eärendil, brightest hope, whose journey defines Arda’s final destiny.
 
 N:26:Haleth
 A:, Lady of the Haladin
-B:Haleth
+B:You lead fiercely-shieldmaiden of the Haladin, spirit unbowed by shadow.
 F:STL_AFFINITY
 S:0:1:2:0
 C:2:6  # Blocking :2:1 # Flanking
@@ -469,7 +469,7 @@ D:Haleth’s name echoing proudly among tales of mortal defiance.
 
 N:27:Hador
 A: the Golden-haired
-B:Hador
+B:You charge nobly-golden-haired lord, whose valor shaped mortal legacy.
 F:MEL_AFFINITY 
 S:3:1:2:1
 C:0:10:0:4:C:0:2  # Charge # Smite # Knock Back
@@ -483,7 +483,7 @@ D:emblem of mortal bravery, whose blood shapes Arda’s hidden fate.
 
 N:28:Turin Turambar
 A:, Master of Fate
-B:Beor
+B:You struggle grimly-tragic hero whose black blade cleaves fate and sorrow.
 F:EVN_AFFINITY | MEL_AFFINITY | PER_PENALTY | MOR_CURSE | STL_AFFINITY
 S:2:2:2:-1
 C:5:2:0:10:0:5  # Follow-Through  # Smite # Strength in Adversity
@@ -493,11 +493,11 @@ D:Driven by pride and grief, defying Morgoth’s curse yet bound within it,
 D:friend and foe entwined in tragic deeds, shadows deepening ever. 
 D:Foreshadowing final despair, heroism tarnished by doom inevitable, 
 D:yet courage undaunted, destined to slay dragon and darkness alike; 
-D:memory forever mingled with glory and grief, Turambar—master of fate. 
+D:memory forever mingled with glory and grief, Turambar-master of fate. 
 
 N:29:Tuor
 A:, Messenger of Ulmo
-B:Beor
+B:You carry tidings-messenger of Ulmo, bearer of destiny to Gondolin.
 F:EVN_AFFINITY | MEL_AFFINITY
 U:WIL_TUOR
 S:1:1:2:1
@@ -512,7 +512,7 @@ D:Tuor, mortal whose legacy shapes fate beyond sorrowful days.
 
 N:30:Hurin
 A: the Steadfast
-B:Beor
+B:You endure bravely-mightiest mortal warrior, spirit unbroken by darkness.
 F:EVN_AFFINITY | WIL_AFFINITY | PER_PENALTY | SNG_AFFINITY | MOR_CURSE
 U:SNG_HURIN
 S:2:1:2:0
@@ -527,7 +527,7 @@ D:Húrin, steadfast flame, challenging darkness even unto bitterest end.
 
 N:31:Idril Celebrindal
 A: of Gondolin
-B:Fingolfin
+B:You watch carefully-princess whose foresight preserves hope amid ruin.
 F:STL_AFFINITY | MEL_PENALTY | SMT_PENALTY | PER_AFFINITY | ARC_PENALTY
 S:-1:2:0:2
 C:7:9
@@ -542,7 +542,7 @@ D:Idril, bright star guiding destiny toward renewal beyond sorrow.
 
 N:32:Gil Galad
 A:, Star of Radiance
-B:Fingolfin
+B:You rule steadily-star-bright king, whose courage shines in darkest hour.
 S:1:1:1:1
 C:0:3 # Polearm
 D:Star-bright heir of kings, child of Eldar bloodline noble and doomed,
@@ -555,7 +555,7 @@ D:Gil-galad, name whispered with hope amid Elven twilight.
 
 N:33:Celeborn
 A:, Prince of Doriath
-B:Teleri
+B:You guard quietly-wise prince, whose strength endures beyond sorrow.
 S:1:1:0:1
 F:ARC_PENALTY | FREE | BOW_PROFICIENCY
 C:7:11
@@ -569,7 +569,7 @@ D:Celeborn, silent watcher, whose heart endures beyond sorrowful loss.
 
 N:34:Daeron
 A: the Minstrel
-B:Doriath
+B:You sing sorrowfully-minstrel whose lament echoes through twilight.
 F:SNG_AFFINITY | WIL_PENALTY | PER_PENALTY
 S:0:1:-1:3
 C:7:5:7:12 # Song of Staunching and Woven Themes
@@ -583,7 +583,7 @@ D:Daeron, mournful voice whose music outlasts realms and time itself.
 
 N:35:Melian Maia
 A:, Queen of Doriath
-B:Mayar
+B:You weave enchantment-guardian queen, whose power shields from shadow.
 F:WIL_AFFINITY | SNG_AFFINITY | PER_AFFINITY | ARC_PENALTY
 U:SNG_MEL
 S:1:0:1:5
@@ -598,7 +598,7 @@ D:Melian, heart both mighty and sorrowful, shaping fate subtly.
 
 N:36:Celegorm
 A: the Hunter
-B:Feanor
+B:You hunt relentlessly-fiery prince whose pride leads to treachery.
 F:ARC_AFFINITY | EVN_AFFINITY | WIL_PENALTY | SMT_PENALTY | TREACHERY | BOW_PROFICIENCY
 S:1:1:2:0
 C:4:8:0:3  # Polearm Mastery # Master Hunter

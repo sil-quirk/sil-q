@@ -18,13 +18,13 @@
 static bool monster_cut_or_stun(int crit_bonus_dice, int net_dam, int effect)
 {
     if (net_dam <= 0)
-        return (FALSE);
+        return (false);
 
     /* Special case -- wounding/battering attack */
     if ((effect == RBE_WOUND) || (effect == RBE_BATTER))
     {
         if (crit_bonus_dice >= dieroll(2))
-            return (TRUE);
+            return (true);
     }
 
     /* Standard attack */
@@ -33,11 +33,11 @@ static bool monster_cut_or_stun(int crit_bonus_dice, int net_dam, int effect)
         if (one_in_(10))
         {
             if (crit_bonus_dice >= dieroll(2))
-                return (TRUE);
+                return (true);
         }
     }
 
-    return (FALSE);
+    return (false);
 }
 
 bool blocking_bonus_active(void)
@@ -322,7 +322,7 @@ bool monster_charge(monster_type* m_ptr)
 
     // paranoia
     if (distance(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px) > 1)
-        return (FALSE);
+        return (false);
 
     // determine the monster speed
     speed = r_ptr->speed;
@@ -339,12 +339,12 @@ bool monster_charge(monster_type* m_ptr)
 
             if (m_ptr->previous_action[1] == d)
             {
-                return (TRUE);
+                return (true);
             }
         }
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -358,10 +358,10 @@ bool is_traitor_item(int item_slot)
         object_type* o_ptr = &inventory[item_slot];
         object_flags(o_ptr, &f1, &f2, &f3);
         if (f2 & TR2_TRAITOR)
-            return TRUE;
+            return true;
     }
 
-    return FALSE;
+    return false;
 }
 
 void do_betrayal_ring_amulet()
@@ -386,7 +386,7 @@ void do_betrayal_ring_amulet()
     if (temp_n > 4 && one_in_(100 / temp_n) && !p_ptr->truce)
     {
         int i;
-        bool fell_in_chasm = FALSE;
+        bool fell_in_chasm = false;
         char o_name[120];
         object_type* i_ptr;
         int near_y = p_ptr->py;
@@ -396,7 +396,7 @@ void do_betrayal_ring_amulet()
         o_ptr = &inventory[item];
 
         /* Describe */
-        object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+        object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
 
         if (item == INVEN_NECK)
             msg_format("Your %s comes loose from its chain and falls!", o_name);
@@ -424,7 +424,7 @@ void do_betrayal_ring_amulet()
             if (cave_feat[yy][xx] == FEAT_CHASM)
             {
                 msg_format("Your %s falls into a chasm!", o_name);
-                fell_in_chasm = TRUE;
+                fell_in_chasm = true;
                 break;
             }
         }
@@ -464,7 +464,7 @@ void do_betrayal_helm_crown()
         char o_name[120];
 
         /* Describe */
-        object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+        object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
 
         set_blind(p_ptr->blind + damroll(3, 2));
         msg_format("Your %s twists to cover your eyes!", o_name);
@@ -487,7 +487,7 @@ bool make_attack_normal(monster_type* m_ptr)
 
     int b, blows;
 
-    bool alive = TRUE;
+    bool alive = true;
 
     object_type* o_ptr;
 
@@ -505,7 +505,7 @@ bool make_attack_normal(monster_type* m_ptr)
 
     /* Not allowed to attack */
     if (r_ptr->flags1 & (RF1_NEVER_BLOW))
-        return (FALSE);
+        return (false);
 
     /* Get the monster name (or "it") */
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
@@ -514,7 +514,7 @@ bool make_attack_normal(monster_type* m_ptr)
     monster_desc(ddesc, sizeof(ddesc), m_ptr, 0x88);
 
     /* Assume no blink */
-    blinked = FALSE;
+    blinked = false;
 
     /* Calculate the number of blows this monster gets */
     for (b = 0; b < MONSTER_BLOW_MAX; b++)
@@ -525,7 +525,7 @@ bool make_attack_normal(monster_type* m_ptr)
     blows = b;
 
     /* Monsters might notice */
-    attacked_player = TRUE;
+    attacked_player = true;
 
     // use the alternate attack one in three times
     if ((blows > 1) && one_in_(3))
@@ -534,18 +534,18 @@ bool make_attack_normal(monster_type* m_ptr)
         b = 0;
 
     // introduce a new code block to all us to declare all these variables
-    if (TRUE)
+    if (true)
     {
-        bool betrayal_wield = FALSE;
-        bool betrayal_arm = FALSE;
-        bool visible = FALSE;
-        bool obvious = FALSE;
+        bool betrayal_wield = false;
+        bool betrayal_arm = false;
+        bool visible = false;
+        bool obvious = false;
 
         int total_attack_mod = 0;
         int total_evasion_mod = 0;
         int hit_result = 0;
 
-        bool no_crit = FALSE;
+        bool no_crit = false;
         int crit_bonus_dice = 0;
         int elem_bonus_dice = 0;
         int total_damage_dice = 0;
@@ -572,7 +572,7 @@ bool make_attack_normal(monster_type* m_ptr)
 
         /* Extract visibility (before blink) */
         if (m_ptr->ml)
-            visible = TRUE;
+            visible = true;
 
         /* Assume no cut, stun, or touch */
         do_cut = do_stun = 0;
@@ -587,7 +587,7 @@ bool make_attack_normal(monster_type* m_ptr)
         }
 
         // determine the player's evasion score
-        total_evasion_mod = total_player_evasion(m_ptr, FALSE);
+        total_evasion_mod = total_player_evasion(m_ptr, false);
 
         /* Check if the player was hit */
         // spores always hit (and never critical)
@@ -599,7 +599,7 @@ bool make_attack_normal(monster_type* m_ptr)
         else
         {
             hit_result = hit_roll(
-                total_attack_mod, total_evasion_mod, m_ptr, PLAYER, TRUE);
+                total_attack_mod, total_evasion_mod, m_ptr, PLAYER, true);
         }
 
         /* Monster hits player */
@@ -638,7 +638,7 @@ bool make_attack_normal(monster_type* m_ptr)
                 prt_percent = 0;
 
                 // can't do criticals
-                no_crit = TRUE;
+                no_crit = true;
 
                 break;
             }
@@ -727,7 +727,7 @@ bool make_attack_normal(monster_type* m_ptr)
                 prt_percent = 0;
 
                 // can't do criticals
-                no_crit = TRUE;
+                no_crit = true;
 
                 break;
             }
@@ -745,7 +745,7 @@ bool make_attack_normal(monster_type* m_ptr)
             /* Determine critical-hit bonus dice (if any) */
             // treats attack a weapon weighing 2 pounds per damage die
             crit_bonus_dice = crit_bonus(
-                hit_result, 20 * dd, &r_info[0], S_MEL, FALSE, m_ptr);
+                hit_result, 20 * dd, &r_info[0], S_MEL, false, m_ptr);
 
             /* Determine elemental attack bonus dice (if any)  */
             elem_bonus_dice = elem_bonus(effect);
@@ -761,7 +761,7 @@ bool make_attack_normal(monster_type* m_ptr)
 
             /* Determine the armour based damage-reduction for the player */
             /* Note that some attack types should ignore this             */
-            prt = protection_roll(GF_HURT, TRUE);
+            prt = protection_roll(GF_HURT, true);
 
             // now calculate net_dam, taking (modified) protection into account
             prt = (prt * prt_percent) / 100;
@@ -776,7 +776,7 @@ bool make_attack_normal(monster_type* m_ptr)
                 && one_in_(20))
             {
                 int max_dam = total_damage_dice * ds;
-                int min_prt = p_min(GF_HURT, TRUE);
+                int min_prt = p_min(GF_HURT, true);
                 min_prt = (min_prt * prt_percent) / 100;
 
                 int net_max_dam = max_dam - min_prt;
@@ -788,7 +788,7 @@ bool make_attack_normal(monster_type* m_ptr)
                                            : &inventory[INVEN_ARM];
 
                     /* Describe */
-                    object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+                    object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
 
                     prt = min_prt;
                     net_dam = p_ptr->chp - dieroll(4);
@@ -825,7 +825,7 @@ bool make_attack_normal(monster_type* m_ptr)
             }
 
             /* Hack -- assume all attacks are obvious */
-            obvious = TRUE;
+            obvious = true;
 
             // default damage type:
             dam_type = GF_HURT;
@@ -837,7 +837,7 @@ bool make_attack_normal(monster_type* m_ptr)
             case 0:
             {
                 /* Hack -- Assume obvious */
-                obvious = TRUE;
+                obvious = true;
 
                 /* Hack -- No damage */
                 net_dam = 0;
@@ -849,7 +849,7 @@ bool make_attack_normal(monster_type* m_ptr)
             case RBE_HURT:
             {
                 /* Obvious */
-                obvious = TRUE;
+                obvious = true;
 
                 /* Take damage */
                 take_hit(net_dam, ddesc);
@@ -861,17 +861,17 @@ bool make_attack_normal(monster_type* m_ptr)
             case RBE_WOUND:
             {
                 /* Obvious */
-                obvious = TRUE;
+                obvious = true;
 
                 /* Take damage */
                 take_hit(net_dam, ddesc);
 
                 /* Usually don't stun */
                 if ((do_stun) && (!one_in_(5)))
-                    do_stun = FALSE;
+                    do_stun = false;
 
                 /* Always give a chance to inflict cuts */
-                do_cut = TRUE;
+                do_cut = true;
 
                 break;
             }
@@ -880,17 +880,17 @@ bool make_attack_normal(monster_type* m_ptr)
             case RBE_BATTER:
             {
                 /* Obvious */
-                obvious = TRUE;
+                obvious = true;
 
                 /* Take damage */
                 take_hit(net_dam, ddesc);
 
                 /* Usually don't cut */
                 if ((do_cut) && (!one_in_(5)))
-                    do_cut = FALSE;
+                    do_cut = false;
 
                 /* Always give a chance to inflict stuns */
-                do_stun = TRUE;
+                do_stun = true;
 
                 break;
             }
@@ -899,17 +899,17 @@ bool make_attack_normal(monster_type* m_ptr)
             case RBE_SHATTER:
             {
                 /* Obvious */
-                obvious = TRUE;
+                obvious = true;
 
                 /* Take damage */
                 take_hit(net_dam, ddesc);
 
                 /* Usually don't cut */
                 if ((do_cut) && (!one_in_(5)))
-                    do_cut = FALSE;
+                    do_cut = false;
 
                 /* Always give a chance to inflict stuns */
-                do_stun = TRUE;
+                do_stun = true;
 
                 break;
             }
@@ -922,7 +922,7 @@ bool make_attack_normal(monster_type* m_ptr)
 
                 /* Apply disenchantment */
                 if (apply_disenchant(0))
-                    obvious = TRUE;
+                    obvious = true;
 
                 break;
             }
@@ -959,7 +959,7 @@ bool make_attack_normal(monster_type* m_ptr)
                             msg_print("Energy drains from your pack!");
 
                             /* Obvious */
-                            obvious = TRUE;
+                            obvious = true;
 
                             /*get the number of rods/wands/staffs to be
                              * drained*/
@@ -1058,7 +1058,7 @@ bool make_attack_normal(monster_type* m_ptr)
                 my_strcpy(msg_tmp, msg, sizeof(msg_tmp));
 
                 /* Obvious */
-                obvious = TRUE;
+                obvious = true;
 
                 /* Damage (mana) */
                 if (net_dam > 0 || dam == 0)
@@ -1117,11 +1117,11 @@ bool make_attack_normal(monster_type* m_ptr)
                     if (!allow_player_slow(m_ptr))
                     {
                         msg_print("You resist the effects!");
-                        obvious = TRUE;
+                        obvious = true;
                     }
                     else if (set_slow(p_ptr->slow + damroll(2, 4)))
                     {
-                        obvious = TRUE;
+                        obvious = true;
                     }
                 }
 
@@ -1155,7 +1155,7 @@ bool make_attack_normal(monster_type* m_ptr)
                         continue;
 
                     /* Get a description */
-                    object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 3);
+                    object_desc(o_name, sizeof(o_name), o_ptr, false, 3);
 
                     // Sil-y: perhaps need a PER check to notice?
 
@@ -1181,7 +1181,7 @@ bool make_attack_normal(monster_type* m_ptr)
                     inven_item_optimize(i);
 
                     /* Obvious */
-                    obvious = TRUE;
+                    obvious = true;
 
                     /* Done */
                     break;
@@ -1214,7 +1214,7 @@ bool make_attack_normal(monster_type* m_ptr)
                         continue;
 
                     /* Get a description */
-                    object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+                    object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
 
                     /* Message */
                     msg_format("%s %s (%c) was eaten!",
@@ -1226,7 +1226,7 @@ bool make_attack_normal(monster_type* m_ptr)
                     inven_item_optimize(i);
 
                     /* Obvious */
-                    obvious = TRUE;
+                    obvious = true;
 
                     /* Done */
                     break;
@@ -1240,7 +1240,7 @@ bool make_attack_normal(monster_type* m_ptr)
             {
                 int amount = 500;
 
-                obvious = TRUE;
+                obvious = true;
 
                 /* Take damage */
                 take_hit(net_dam, ddesc);
@@ -1278,7 +1278,7 @@ bool make_attack_normal(monster_type* m_ptr)
             case RBE_ACID:
             {
                 /* Obvious */
-                obvious = TRUE;
+                obvious = true;
 
                 /* Message */
                 msg_print("You are covered in acid!");
@@ -1295,7 +1295,7 @@ bool make_attack_normal(monster_type* m_ptr)
             case RBE_ELEC:
             {
                 /* Obvious */
-                obvious = TRUE;
+                obvious = true;
 
                 /* Message */
                 if (net_dam > 0)
@@ -1313,7 +1313,7 @@ bool make_attack_normal(monster_type* m_ptr)
             case RBE_DARK:
             {
                 /* Obvious */
-                obvious = TRUE;
+                obvious = true;
 
                 /* Take damage */
                 dark_dam_mixed(net_dam, ddesc);
@@ -1331,7 +1331,7 @@ bool make_attack_normal(monster_type* m_ptr)
 
                 if (net_dam > 0)
                 {
-                    obvious = TRUE;
+                    obvious = true;
                 }
 
                 dam_type = GF_POIS;
@@ -1343,7 +1343,7 @@ bool make_attack_normal(monster_type* m_ptr)
             case RBE_FIRE:
             {
                 /* Obvious */
-                obvious = TRUE;
+                obvious = true;
 
                 /* Message */
                 if (net_dam > 0)
@@ -1360,7 +1360,7 @@ bool make_attack_normal(monster_type* m_ptr)
             case RBE_COLD:
             {
                 /* Obvious */
-                obvious = TRUE;
+                obvious = true;
 
                 /* Message */
                 if (net_dam > 0)
@@ -1386,14 +1386,14 @@ bool make_attack_normal(monster_type* m_ptr)
                     {
                         if (set_blind(p_ptr->blind + damroll(5, 4)))
                         {
-                            obvious = TRUE;
+                            obvious = true;
                         }
                     }
                     else
                     {
                         if (!p_ptr->blind)
                         {
-                            obvious = TRUE;
+                            obvious = true;
                             msg_print("Your vision quickly clears.");
                         }
                     }
@@ -1413,11 +1413,11 @@ bool make_attack_normal(monster_type* m_ptr)
                     if (!allow_player_confusion(m_ptr))
                     {
                         msg_print("You resist the effects.");
-                        obvious = TRUE;
+                        obvious = true;
                     }
                     else if (set_confused(p_ptr->confused + damroll(2, 4)))
                     {
-                        obvious = TRUE;
+                        obvious = true;
                     }
                 }
                 break;
@@ -1433,11 +1433,11 @@ bool make_attack_normal(monster_type* m_ptr)
                 if (!allow_player_fear(m_ptr))
                 {
                     msg_print("You stand your ground!");
-                    obvious = TRUE;
+                    obvious = true;
                 }
                 else if (set_afraid(p_ptr->afraid + damroll(2, 4)))
                 {
-                    obvious = TRUE;
+                    obvious = true;
                 }
 
                 break;
@@ -1455,13 +1455,13 @@ bool make_attack_normal(monster_type* m_ptr)
                     if (!allow_player_entrancement(m_ptr))
                     {
                         msg_print("You are unaffected!");
-                        obvious = TRUE;
+                        obvious = true;
                     }
                     else if (!p_ptr->entranced && !p_ptr->was_entranced)
                     {
                         if (set_entranced(damroll(4, 4)))
                         {
-                            obvious = TRUE;
+                            obvious = true;
                         }
                     }
                 }
@@ -1501,14 +1501,14 @@ bool make_attack_normal(monster_type* m_ptr)
                         || (effect == RBE_LOSE_ALL))
                     {
                         if (do_dec_stat(A_STR, m_ptr))
-                            obvious = TRUE;
+                            obvious = true;
                     }
 
                     /* Reduce dexterity */
                     if ((effect == RBE_LOSE_DEX) || (effect == RBE_LOSE_ALL))
                     {
                         if (do_dec_stat(A_DEX, m_ptr))
-                            obvious = TRUE;
+                            obvious = true;
                     }
 
                     /* Reduce constitution */
@@ -1516,14 +1516,14 @@ bool make_attack_normal(monster_type* m_ptr)
                         || (effect == RBE_LOSE_ALL))
                     {
                         if (do_dec_stat(A_CON, m_ptr))
-                            obvious = TRUE;
+                            obvious = true;
                     }
 
                     /* Reduce grace */
                     if ((effect == RBE_LOSE_GRA) || (effect == RBE_LOSE_ALL))
                     {
                         if (do_dec_stat(A_GRA, m_ptr))
-                            obvious = TRUE;
+                            obvious = true;
                     }
                 }
                 break;
@@ -1552,7 +1552,7 @@ bool make_attack_normal(monster_type* m_ptr)
                     break;
 
                 /* Describe */
-                object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+                object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
 
                 /* Base difficulty */
                 difficulty = 2;
@@ -1634,11 +1634,11 @@ bool make_attack_normal(monster_type* m_ptr)
                     if (!allow_player_image(m_ptr))
                     {
                         msg_print("You resist the effects.");
-                        obvious = TRUE;
+                        obvious = true;
                     }
                     else if (set_image(p_ptr->image + damroll(10, 4)))
                     {
-                        obvious = TRUE;
+                        obvious = true;
                     }
                 }
                 break;
@@ -1653,7 +1653,7 @@ bool make_attack_normal(monster_type* m_ptr)
             }
 
             update_combat_rolls2(total_damage_dice, ds, dam, -1, -1, prt,
-                prt_percent, dam_type, TRUE);
+                prt_percent, dam_type, true);
 
             display_hit(
                 p_ptr->py, p_ptr->px, net_dam, dam_type, p_ptr->is_dead);
@@ -1667,7 +1667,7 @@ bool make_attack_normal(monster_type* m_ptr)
                 window_stuff();
 
                 /* Leave immediately */
-                return (TRUE);
+                return (true);
             }
 
             /* Hack -- only one of cut or stun */
@@ -1814,7 +1814,7 @@ bool make_attack_normal(monster_type* m_ptr)
                 /* Visible monsters */
                 if (m_ptr->ml && !p_ptr->confused)
                 {
-                    bool quake_anyway = FALSE;
+                    bool quake_anyway = false;
                     int damage = m_ptr->maxhp - m_ptr->hp;
 
                     /* Disturbing */
@@ -1926,7 +1926,7 @@ bool make_attack_normal(monster_type* m_ptr)
     p_ptr->window |= (PW_COMBAT_ROLLS);
 
     /* Assume we attacked */
-    return (TRUE);
+    return (true);
 }
 
 /*********************************************************************/
@@ -1943,13 +1943,13 @@ int get_sides(int attack)
     int sides;
 
     if (attack >= 128)
-        return (FALSE);
+        return (false);
     else if (attack >= 96)
     {
         sides = spell_info_RF4[attack - 96][COL_SPELL_SIDES];
     }
     else
-        return (FALSE);
+        return (false);
 
     return (sides);
 }
@@ -1970,7 +1970,7 @@ static void mon_bolt(int m_idx, int typ, int dd, int ds, int dif)
     u32b flg = PROJECT_STOP | PROJECT_KILL | PROJECT_PLAY;
 
     /* Target the player with a bolt attack */
-    (void)project(m_idx, 0, fy, fx, py, px, dd, ds, dif, typ, flg, 0, FALSE);
+    (void)project(m_idx, 0, fy, fx, py, px, dd, ds, dif, typ, flg, 0, false);
 }
 
 /*
@@ -1992,7 +1992,7 @@ static void mon_beam(int m_idx, int typ, int dd, int ds, int dif, int range)
 
         // Target the player with a beam attack
         (void)project(m_idx, range, fy, fx, py, px, dd, ds, dif, typ, flg, 0,
-TRUE);
+true);
 }
 */
 
@@ -2048,7 +2048,7 @@ static void mon_arc(int m_idx, int typ, bool noharm, int dd, int ds, int dif,
 
     /* Target the player with an arc-shaped attack. */
     (void)project(m_idx, rad, fy, fx, py, px, dd + 2, ds, dif, typ, flg,
-        degrees_of_arc, FALSE);
+        degrees_of_arc, false);
 }
 
 // a monster calls for help
@@ -2101,7 +2101,7 @@ extern void shriek(monster_type* m_ptr)
 
     /* Make a lot of noise */
     update_flow(m_ptr->fy, m_ptr->fx, FLOW_MONSTER_NOISE);
-    monster_perception(FALSE, FALSE, -10);
+    monster_perception(false, false, -10);
 
     // makes monster noise too
     m_ptr->noise += 10;
@@ -2133,18 +2133,18 @@ bool make_attack_ranged(monster_type* m_ptr, int attack)
     char ddesc[80];
 
     /* Is the player blind? */
-    bool blind = (p_ptr->blind ? TRUE : FALSE);
+    bool blind = (p_ptr->blind ? true : false);
 
     /* Can the player see the monster casting the spell? */
     bool seen = (!blind && m_ptr->ml);
 
     /* Determine mana cost */
     if (attack >= 128)
-        return (FALSE);
+        return (false);
     else if (attack >= 96)
         manacost = spell_info_RF4[attack - 96][COL_SPELL_MANA_COST];
     else
-        return (FALSE);
+        return (false);
 
     /* Spend mana (for non-songs) */
     if (attack < 96 + RF4_SNG_HEAD)
@@ -2224,12 +2224,12 @@ bool make_attack_ranged(monster_type* m_ptr, int attack)
             msg_format("%^s breathes.", m_name);
         else
             msg_format("%^s breathes fire.", m_name);
-        mon_arc(m_idx, GF_FIRE, TRUE, r_ptr->spell_power, get_sides(attack), -1,
+        mon_arc(m_idx, GF_FIRE, true, r_ptr->spell_power, get_sides(attack), -1,
             r_ptr->spell_power / 2, 60);
 
         /* Make a lot of noise */
         update_flow(m_ptr->fy, m_ptr->fx, FLOW_MONSTER_NOISE);
-        monster_perception(FALSE, FALSE, -10);
+        monster_perception(false, false, -10);
 
         break;
     }
@@ -2242,12 +2242,12 @@ bool make_attack_ranged(monster_type* m_ptr, int attack)
             msg_format("%^s breathes.", m_name);
         else
             msg_format("%^s breathes frost.", m_name);
-        mon_arc(m_idx, GF_COLD, TRUE, r_ptr->spell_power, get_sides(attack), -1,
+        mon_arc(m_idx, GF_COLD, true, r_ptr->spell_power, get_sides(attack), -1,
             r_ptr->spell_power / 2, 60);
 
         /* Make a lot of noise */
         update_flow(m_ptr->fy, m_ptr->fx, FLOW_MONSTER_NOISE);
-        monster_perception(FALSE, FALSE, -10);
+        monster_perception(false, false, -10);
 
         break;
     }
@@ -2260,12 +2260,12 @@ bool make_attack_ranged(monster_type* m_ptr, int attack)
             msg_format("%^s breathes.", m_name);
         else
             msg_format("%^s breathes poisonous gas.", m_name);
-        mon_arc(m_idx, GF_POIS, TRUE, r_ptr->spell_power, get_sides(attack), -1,
+        mon_arc(m_idx, GF_POIS, true, r_ptr->spell_power, get_sides(attack), -1,
             r_ptr->spell_power / 2, 90);
 
         /* Make a lot of noise */
         update_flow(m_ptr->fy, m_ptr->fx, FLOW_MONSTER_NOISE);
-        monster_perception(FALSE, FALSE, -10);
+        monster_perception(false, false, -10);
 
         break;
     }
@@ -2277,12 +2277,12 @@ bool make_attack_ranged(monster_type* m_ptr, int attack)
         if (blind)
             msg_format("%^s breathes.", m_name);
         msg_format("%^s breathes darkness.", m_name);
-        mon_arc(m_idx, GF_DARK, TRUE, r_ptr->spell_power, get_sides(attack), -1,
+        mon_arc(m_idx, GF_DARK, true, r_ptr->spell_power, get_sides(attack), -1,
             r_ptr->spell_power / 2, 60);
 
         /* Make a lot of noise */
         update_flow(m_ptr->fy, m_ptr->fx, FLOW_MONSTER_NOISE);
-        monster_perception(FALSE, FALSE, -10);
+        monster_perception(false, false, -10);
 
         break;
     }
@@ -2363,7 +2363,7 @@ bool make_attack_ranged(monster_type* m_ptr, int attack)
 
         /* Make a lot of noise */
         update_flow(m_ptr->fy, m_ptr->fx, FLOW_MONSTER_NOISE);
-        monster_perception(FALSE, FALSE, -20);
+        monster_perception(false, false, -20);
 
         break;
     }
@@ -2411,7 +2411,7 @@ bool make_attack_ranged(monster_type* m_ptr, int attack)
 
             /* Make a lot of noise */
             update_flow(m_ptr->fy, m_ptr->fx, FLOW_MONSTER_NOISE);
-            monster_perception(FALSE, FALSE, -10);
+            monster_perception(false, false, -10);
         }
         else
         {
@@ -2633,7 +2633,7 @@ bool make_attack_ranged(monster_type* m_ptr, int attack)
     }
 
     /* A spell was cast */
-    return (TRUE);
+    return (true);
 }
 
 /*

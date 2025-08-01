@@ -214,7 +214,7 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
     s = fmt;
 
     /* Scan the format string */
-    while (TRUE)
+    while (true)
     {
         /* All done */
         if (!*s)
@@ -279,13 +279,13 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
         aux[q++] = '%';
 
         /* Assume no "long" argument */
-        do_long = FALSE;
+        do_long = false;
 
         /* Assume no "xtra" processing */
-        do_xtra = FALSE;
+        do_xtra = false;
 
         /* Build the "aux" string */
-        while (TRUE)
+        while (true)
         {
             /* Error -- format sequence is not terminated */
             if (!*s)
@@ -317,7 +317,7 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
                     aux[q++] = *s++;
 
                     /* Note the "long" flag */
-                    do_long = TRUE;
+                    do_long = true;
                 }
 
                 /* Mega-Hack -- handle "extra-long" request */
@@ -367,7 +367,7 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
                 else if (*s == '^')
                 {
                     /* Note the "xtra" flag */
-                    do_xtra = TRUE;
+                    do_xtra = true;
 
                     /* Skip the "^" */
                     s++;

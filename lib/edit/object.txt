@@ -1255,7 +1255,7 @@ F:EASY_KNOW
 D:It renews your voice. 
 
 
-N:320:True Sight
+N:320:true Sight
 G:!:d
 I:75:7:100
 W:5:0:5:100

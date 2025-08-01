@@ -26,7 +26,7 @@ void teleport_away(int m_idx, int dis)
 {
     int ny, nx, oy, ox, d, i, min;
 
-    bool look = TRUE;
+    bool look = true;
 
     monster_type* m_ptr = &mon_list[m_idx];
 
@@ -77,7 +77,7 @@ void teleport_away(int m_idx, int dis)
             /* if (cave_info[ny][nx] & (CAVE_ICKY)) continue; */
 
             /* This grid looks good */
-            look = FALSE;
+            look = false;
 
             /* Stop looking */
             break;
@@ -118,7 +118,7 @@ void teleport_player(int dis)
 
     int d, i, min, y, x;
 
-    bool look = TRUE;
+    bool look = true;
 
     /* Minimum distance */
     min = dis / 2;
@@ -176,7 +176,7 @@ void teleport_player(int dis)
             if (spot_counter == 20)
             {
                 /* This grid looks good */
-                look = FALSE;
+                look = false;
 
                 /* Stop looking */
                 break;
@@ -284,10 +284,10 @@ void teleport_towards(int oy, int ox, int ny, int nx)
     int min = 2, max = 4;
 
     /* Find a usable location */
-    while (TRUE)
+    while (true)
     {
         /* Pick a nearby legal location */
-        while (TRUE)
+        while (true)
         {
             y = rand_spread(ny, max);
             x = rand_spread(nx, max);
@@ -336,8 +336,8 @@ void teleport_towards(int oy, int ox, int ny, int nx)
  */
 void teleport_player_level()
 {
-    bool go_up = FALSE;
-    bool go_down = FALSE;
+    bool go_up = false;
+    bool go_down = false;
 
     if (birth_ironman)
     {
@@ -346,14 +346,14 @@ void teleport_player_level()
     }
 
     if (!p_ptr->depth)
-        go_down = TRUE;
+        go_down = true;
 
     /*
      * the bottom of the dungeon.
      */
     if (p_ptr->depth >= MORGOTH_DEPTH)
     {
-        go_up = TRUE;
+        go_up = true;
     }
 
     /*
@@ -361,20 +361,20 @@ void teleport_player_level()
      */
     if (p_ptr->depth == 0)
     {
-        go_down = TRUE;
+        go_down = true;
     }
 
     /*We don't have a direction yet, pick one at random*/
     if ((!go_up) && (!go_down))
     {
         if (one_in_(2))
-            go_up = TRUE;
+            go_up = true;
         else
-            go_down = TRUE;
+            go_down = true;
     }
 
     /*up*/
-    if (go_up == TRUE)
+    if (go_up == true)
     {
         message(MSG_TPLEVEL, 0, "You rise up through the ceiling.");
 
@@ -385,7 +385,7 @@ void teleport_player_level()
         p_ptr->depth--;
 
         /* Leaving */
-        p_ptr->leaving = TRUE;
+        p_ptr->leaving = true;
     }
 
     else
@@ -399,7 +399,7 @@ void teleport_player_level()
         p_ptr->depth++;
 
         /* Leaving */
-        p_ptr->leaving = TRUE;
+        p_ptr->leaving = true;
     }
 }
 
@@ -546,7 +546,7 @@ void attempt_to_cheat_death(void)
             set_slow(0);
 
             /* Get a description */
-            object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+            object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
 
             msg_format("Your %s breaks into two pieces!", o_name);
             ident_f3(TR3_CHEAT_DEATH, o_ptr);
@@ -612,10 +612,10 @@ void take_hit(int dam, cptr kb_str)
         }
 
         /* Note death */
-        p_ptr->is_dead = TRUE;
+        p_ptr->is_dead = true;
 
         /* Leaving */
-        p_ptr->leaving = TRUE;
+        p_ptr->leaving = true;
 
         /* Write a note */
 
@@ -685,29 +685,29 @@ bool hates_acid(const object_type* o_ptr)
     case TV_SOFT_ARMOR:
     case TV_MAIL:
     {
-        return (TRUE);
+        return (true);
     }
 
     /* Staffs are wood */
     case TV_STAFF:
     {
-        return (TRUE);
+        return (true);
     }
 
     /* Ouch */
     case TV_CHEST:
     {
-        return (TRUE);
+        return (true);
     }
 
     /* Skeleton */
     case TV_SKELETON:
     {
-        return (TRUE);
+        return (true);
     }
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -719,11 +719,11 @@ bool hates_elec(const object_type* o_ptr)
     {
     case TV_RING:
     {
-        return (TRUE);
+        return (true);
     }
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -746,38 +746,38 @@ bool hates_fire(const object_type* o_ptr)
     case TV_CLOAK:
     case TV_SOFT_ARMOR:
     {
-        return (TRUE);
+        return (true);
     }
 
     /* Chests */
     case TV_CHEST:
     {
-        return (TRUE);
+        return (true);
     }
 
     /* Torches */
     case TV_LIGHT:
     {
         if (o_ptr->sval == SV_LIGHT_TORCH || o_ptr->sval == SV_LIGHT_MALLORN)
-            return (TRUE);
+            return (true);
         else
-            return (FALSE);
+            return (false);
     }
 
     /* Notes burn */
     case TV_NOTE:
     {
-        return (TRUE);
+        return (true);
     }
 
     /* Staffs burn */
     case TV_STAFF:
     {
-        return (TRUE);
+        return (true);
     }
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -790,11 +790,11 @@ bool hates_cold(const object_type* o_ptr)
     case TV_POTION:
     case TV_FLASK:
     {
-        return (TRUE);
+        return (true);
     }
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -804,11 +804,11 @@ static int set_acid_destroy(const object_type* o_ptr)
 {
     u32b f1, f2, f3;
     if (!hates_acid(o_ptr))
-        return (FALSE);
+        return (false);
     object_flags(o_ptr, &f1, &f2, &f3);
     if (f3 & (TR3_IGNORE_ACID))
-        return (FALSE);
-    return (TRUE);
+        return (false);
+    return (true);
 }
 
 /*
@@ -818,11 +818,11 @@ static int set_elec_destroy(const object_type* o_ptr)
 {
     u32b f1, f2, f3;
     if (!hates_elec(o_ptr))
-        return (FALSE);
+        return (false);
     object_flags(o_ptr, &f1, &f2, &f3);
     if (f3 & (TR3_IGNORE_ELEC))
-        return (FALSE);
-    return (TRUE);
+        return (false);
+    return (true);
 }
 
 /*
@@ -832,11 +832,11 @@ static int set_fire_destroy(const object_type* o_ptr)
 {
     u32b f1, f2, f3;
     if (!hates_fire(o_ptr))
-        return (FALSE);
+        return (false);
     object_flags(o_ptr, &f1, &f2, &f3);
     if (f3 & (TR3_IGNORE_FIRE))
-        return (FALSE);
-    return (TRUE);
+        return (false);
+    return (true);
 }
 
 /*
@@ -846,11 +846,11 @@ static int set_cold_destroy(const object_type* o_ptr)
 {
     u32b f1, f2, f3;
     if (!hates_cold(o_ptr))
-        return (FALSE);
+        return (false);
     object_flags(o_ptr, &f1, &f2, &f3);
     if (f3 & (TR3_IGNORE_COLD))
-        return (FALSE);
-    return (TRUE);
+        return (false);
+    return (true);
 }
 
 /*
@@ -919,7 +919,7 @@ static int inven_damage(inven_func typ, int perc, int resistance)
                 }
 
                 /* Get a description */
-                object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 3);
+                object_desc(o_name, sizeof(o_name), o_ptr, false, 3);
 
                 /* Message */
                 msg_format("%sour %s (%c) %s destroyed!",
@@ -997,20 +997,20 @@ static int damage_armour(void)
 
     /* Nothing to damage */
     if (!o_ptr->k_idx || ((item == INVEN_ARM) && (o_ptr->tval != TV_SHIELD)))
-        return (FALSE);
+        return (false);
 
     /* Extract the flags */
     object_flags(o_ptr, &f1, &f2, &f3);
 
     /* Describe */
-    object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+    object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
 
     /* Object resists */
     if (f3 & (TR3_IGNORE_ACID))
     {
         msg_format("Your %s is unaffected!", o_name);
 
-        return (TRUE);
+        return (true);
     }
 
     /* No damage left to be done */
@@ -1047,7 +1047,7 @@ static int damage_armour(void)
     p_ptr->window |= (PW_EQUIP | PW_PLAYER_0);
 
     /* Item was damaged */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1182,7 +1182,7 @@ void fire_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
 {
     int dam = damroll(dd, ds);
     int net_dam;
-    int prt = protection_roll(GF_FIRE, FALSE);
+    int prt = protection_roll(GF_FIRE, false);
     int inv;
     int resistance = resist_fire();
 
@@ -1197,7 +1197,7 @@ void fire_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
 
     if (update_rolls)
     {
-        update_combat_rolls2(dd, ds, dam, -1, -1, prt, 100, GF_FIRE, FALSE);
+        update_combat_rolls2(dd, ds, dam, -1, -1, prt, 100, GF_FIRE, false);
     }
 
     /* Abort if no damage to receive */
@@ -1242,7 +1242,7 @@ void cold_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
 {
     int dam = damroll(dd, ds);
     int net_dam;
-    int prt = protection_roll(GF_COLD, FALSE);
+    int prt = protection_roll(GF_COLD, false);
     int inv;
     int resistance = resist_cold();
 
@@ -1257,7 +1257,7 @@ void cold_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
 
     if (update_rolls)
     {
-        update_combat_rolls2(dd, ds, dam, -1, -1, prt, 100, GF_COLD, FALSE);
+        update_combat_rolls2(dd, ds, dam, -1, -1, prt, 100, GF_COLD, false);
     }
 
     /* Abort if no damage to receive */
@@ -1294,7 +1294,7 @@ void dark_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
 {
     int dam = damroll(dd, ds);
     int net_dam;
-    int prt = protection_roll(GF_DARK, FALSE);
+    int prt = protection_roll(GF_DARK, false);
     int resistance = resist_dark();
 
     net_dam = dam / resistance;
@@ -1302,7 +1302,7 @@ void dark_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
 
     if (update_rolls)
     {
-        update_combat_rolls2(dd, ds, dam, -1, -1, prt, 100, GF_DARK, FALSE);
+        update_combat_rolls2(dd, ds, dam, -1, -1, prt, 100, GF_DARK, false);
     }
 
     // 'pure' darkness attacks can also blind
@@ -1342,7 +1342,7 @@ void pois_dam_pure(int dd, int ds, bool update_rolls)
 {
     int dam = damroll(dd, ds);
     int net_dam;
-    int prt = protection_roll(GF_POIS, FALSE);
+    int prt = protection_roll(GF_POIS, false);
     int resistance = resist_pois();
 
     if (resistance > 0)
@@ -1354,7 +1354,7 @@ void pois_dam_pure(int dd, int ds, bool update_rolls)
 
     if (update_rolls)
     {
-        update_combat_rolls2(dd, ds, dam, -1, -1, prt, 100, GF_POIS, FALSE);
+        update_combat_rolls2(dd, ds, dam, -1, -1, prt, 100, GF_POIS, false);
     }
 
     /* Abort if no damage to receive */
@@ -1389,11 +1389,11 @@ bool inc_stat(int stat)
         p_ptr->redraw |= (PR_STATS);
 
         /* Success */
-        return (TRUE);
+        return (true);
     }
 
     /* Nothing to gain */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -1404,13 +1404,13 @@ bool inc_stat(int stat)
  */
 bool dec_stat(int stat, int amount, bool permanent)
 {
-    int result = FALSE;
+    int result = false;
 
     /* Temporary damage */
     if (!permanent)
     {
         p_ptr->stat_drain[stat] -= amount;
-        result = TRUE;
+        result = true;
     }
 
     /* Permanent damage */
@@ -1421,7 +1421,7 @@ bool dec_stat(int stat, int amount, bool permanent)
         else
             p_ptr->stat_base[stat] -= amount;
 
-        result = TRUE;
+        result = true;
     }
 
     /* Apply changes */
@@ -1440,7 +1440,7 @@ bool dec_stat(int stat, int amount, bool permanent)
 
 /*
  * Restore a stat by the number of points.
- * Return TRUE only if this actually makes a difference.
+ * Return true only if this actually makes a difference.
  */
 bool res_stat(int stat, int points)
 {
@@ -1460,11 +1460,11 @@ bool res_stat(int stat, int points)
         p_ptr->redraw |= (PR_STATS);
 
         /* Success */
-        return (TRUE);
+        return (true);
     }
 
     /* Nothing to restore */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -1539,7 +1539,7 @@ void disease(int* damage)
  *
  * The "mode" is currently unused.
  *
- * Return "TRUE" if the player notices anything.
+ * Return "true" if the player notices anything.
  *
  * Sil-y: this presently brings att, evn, dd, ds, pd, ds down towards their base
  * values by one point each
@@ -1593,12 +1593,12 @@ bool apply_disenchant(int mode)
 
     /* No item, nothing happens */
     if (!o_ptr->k_idx)
-        return (FALSE);
+        return (false);
 
     /* Check to see if it is disenchantable */
 
     /* Describe the object */
-    object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+    object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
 
     /* Artefacts have 60% chance to resist */
     if (artefact_p(o_ptr) && percent_chance(60))
@@ -1608,7 +1608,7 @@ bool apply_disenchant(int mode)
             index_to_label(t), ((o_ptr->number != 1) ? "" : "s"));
 
         /* Notice */
-        return (TRUE);
+        return (true);
     }
 
     /* Do the disenchanting */
@@ -1635,7 +1635,7 @@ bool apply_disenchant(int mode)
     p_ptr->window |= (PW_EQUIP | PW_PLAYER_0);
 
     /* Notice */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1651,11 +1651,11 @@ static int project_m_y;
 bool lock_door(int y, int x, int power)
 {
     int lock_level;
-    int obvious = FALSE;
+    int obvious = false;
 
     // ignore warded doors
     if (cave_glyph(y, x))
-        return FALSE;
+        return false;
 
     if (cave_feat[y][x] == FEAT_BROKEN)
         power -= 10;
@@ -1670,7 +1670,7 @@ bool lock_door(int y, int x, int power)
             {
                 cave_set_feat(y, x, FEAT_DOOR_HEAD);
 
-                obvious = TRUE;
+                obvious = true;
 
                 if (cave_info[y][x] & (CAVE_SEEN))
                 {
@@ -1714,7 +1714,7 @@ bool lock_door(int y, int x, int power)
  * Note that we determine if the player can "see" anything that happens
  * by taking into account: blindness, line-of-sight, and illumination.
  *
- * We return "TRUE" if the effect of the projection is "obvious".
+ * We return "true" if the effect of the projection is "obvious".
  *
  * Hack -- We also "see" grids which are "memorized".
  *
@@ -1723,7 +1723,7 @@ bool lock_door(int y, int x, int power)
 static bool project_f(
     int who, int y, int x, int dist, int dd, int ds, int dif, int typ)
 {
-    bool obvious = FALSE;
+    bool obvious = false;
     monster_type* who_ptr = (who == -1) ? PLAYER : &mon_list[who]; // Sil-y
 
     /* Unused parameters */
@@ -1745,7 +1745,7 @@ static bool project_f(
             /* Check line of sight */
             if (player_has_los_bold(y, x) && !cave_floorlike_bold(y, x))
             {
-                obvious = TRUE;
+                obvious = true;
             }
 
             /* Forget the trap */
@@ -1787,7 +1787,7 @@ static bool project_f(
                 /* Update the flow code */
                 p_ptr->update |= (PU_UPDATE_VIEW | PU_MONSTERS);
 
-                obvious = TRUE;
+                obvious = true;
 
                 if (cave_info[y][x] & (CAVE_SEEN))
                 {
@@ -1806,7 +1806,7 @@ static bool project_f(
                 /* Update the flow code */
                 p_ptr->update |= (PU_UPDATE_VIEW | PU_MONSTERS);
 
-                obvious = TRUE;
+                obvious = true;
 
                 if (cave_info[y][x] & (CAVE_SEEN))
                 {
@@ -1833,7 +1833,7 @@ static bool project_f(
                 /* Disperse the rubble */
                 cave_set_feat(y, x, FEAT_FLOOR);
 
-                obvious = TRUE;
+                obvious = true;
 
                 /* Update the flow code */
                 p_ptr->update |= (PU_UPDATE_VIEW | PU_MONSTERS);
@@ -1871,7 +1871,7 @@ static bool project_f(
             if (cave_info[y][x] & (CAVE_MARK))
             {
                 msg_print("The wall shatters!");
-                obvious = TRUE;
+                obvious = true;
             }
 
             /* Forget the wall */
@@ -1888,7 +1888,7 @@ static bool project_f(
             if (cave_info[y][x] & (CAVE_MARK))
             {
                 msg_print("The vein shatters!");
-                obvious = TRUE;
+                obvious = true;
             }
 
             /* Forget the wall */
@@ -1905,7 +1905,7 @@ static bool project_f(
             if (cave_info[y][x] & (CAVE_MARK))
             {
                 msg_print("The rubble is blown away!");
-                obvious = TRUE;
+                obvious = true;
             }
 
             /* Forget the wall */
@@ -1923,7 +1923,7 @@ static bool project_f(
             if (cave_info[y][x] & (CAVE_MARK))
             {
                 msg_print("The door is blown from its hinges!");
-                obvious = TRUE;
+                obvious = true;
             }
 
             /* Forget the wall */
@@ -1964,7 +1964,7 @@ static bool project_f(
             if (!p_ptr->blind)
             {
                 /* Observe */
-                obvious = TRUE;
+                obvious = true;
             }
 
             /* Fully update the visuals */
@@ -1993,7 +1993,7 @@ static bool project_f(
             if (player_has_los_bold(y, x))
             {
                 /* Observe */
-                obvious = TRUE;
+                obvious = true;
 
                 /* Fully update the visuals */
                 p_ptr->update
@@ -2024,13 +2024,13 @@ static bool project_f(
  *
  * Hack -- We also "see" objects which are "memorized".
  *
- * We return "TRUE" if the effect of the projection is "obvious".
+ * We return "true" if the effect of the projection is "obvious".
  */
 static bool project_o(int who, int y, int x, int dd, int ds, int dif, int typ)
 {
     s16b this_o_idx, next_o_idx = 0;
 
-    bool obvious = FALSE;
+    bool obvious = false;
 
     u32b f1, f2, f3;
 
@@ -2045,10 +2045,10 @@ static bool project_o(int who, int y, int x, int dd, int ds, int dif, int typ)
     {
         object_type* o_ptr;
 
-        bool is_art = FALSE;
-        bool ignore = FALSE;
-        bool plural = FALSE;
-        bool do_kill = FALSE;
+        bool is_art = false;
+        bool ignore = false;
+        bool plural = false;
+        bool do_kill = false;
 
         cptr note_kill = NULL;
 
@@ -2069,11 +2069,11 @@ static bool project_o(int who, int y, int x, int dd, int ds, int dif, int typ)
 
         /* Get the "plural"-ness */
         if (o_ptr->number > 1)
-            plural = TRUE;
+            plural = true;
 
         /* Check for artefact */
         if (artefact_p(o_ptr))
-            is_art = TRUE;
+            is_art = true;
 
         /* Analyze the type */
         switch (typ)
@@ -2083,10 +2083,10 @@ static bool project_o(int who, int y, int x, int dd, int ds, int dif, int typ)
         {
             if (hates_acid(o_ptr))
             {
-                do_kill = TRUE;
+                do_kill = true;
                 note_kill = (plural ? " melt!" : " melts!");
                 if (f3 & (TR3_IGNORE_ACID))
-                    ignore = TRUE;
+                    ignore = true;
             }
             break;
         }
@@ -2096,10 +2096,10 @@ static bool project_o(int who, int y, int x, int dd, int ds, int dif, int typ)
         {
             if (hates_elec(o_ptr))
             {
-                do_kill = TRUE;
+                do_kill = true;
                 note_kill = (plural ? " are destroyed!" : " is destroyed!");
                 if (f3 & (TR3_IGNORE_ELEC))
-                    ignore = TRUE;
+                    ignore = true;
             }
             break;
         }
@@ -2109,10 +2109,10 @@ static bool project_o(int who, int y, int x, int dd, int ds, int dif, int typ)
         {
             if (hates_fire(o_ptr))
             {
-                do_kill = TRUE;
+                do_kill = true;
                 note_kill = (plural ? " burn up!" : " burns up!");
                 if (f3 & (TR3_IGNORE_FIRE))
-                    ignore = TRUE;
+                    ignore = true;
             }
             break;
         }
@@ -2123,9 +2123,9 @@ static bool project_o(int who, int y, int x, int dd, int ds, int dif, int typ)
             if (hates_cold(o_ptr))
             {
                 note_kill = (plural ? " shatter!" : " shatters!");
-                do_kill = TRUE;
+                do_kill = true;
                 if (f3 & (TR3_IGNORE_COLD))
-                    ignore = TRUE;
+                    ignore = true;
             }
             break;
         }
@@ -2137,7 +2137,7 @@ static bool project_o(int who, int y, int x, int dd, int ds, int dif, int typ)
             if (hates_cold(o_ptr))
             {
                 note_kill = (plural ? " shatter!" : " shatters!");
-                do_kill = TRUE;
+                do_kill = true;
             }
             break;
         }
@@ -2185,7 +2185,7 @@ static bool project_o(int who, int y, int x, int dd, int ds, int dif, int typ)
 
             /* Squelch? */
             if (squelch == SQUELCH_YES)
-                do_kill = TRUE;
+                do_kill = true;
 
             break;
         }
@@ -2197,8 +2197,8 @@ static bool project_o(int who, int y, int x, int dd, int ds, int dif, int typ)
             /* Effect "observed" */
             if (o_ptr->marked)
             {
-                obvious = TRUE;
-                object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+                obvious = true;
+                object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
             }
 
             /* Artefacts, and other objects, get to resist */
@@ -2259,9 +2259,9 @@ static bool project_o(int who, int y, int x, int dd, int ds, int dif, int typ)
  * In this function, "result" messages are postponed until the end, where
  * the "note" string is appended to the monster name, if not NULL.  So,
  * to make a spell have "no effect" just set "note" to NULL.  You should
- * also set "notice" to FALSE, or the player will learn what the spell does.
+ * also set "notice" to false, or the player will learn what the spell does.
  *
- * We attempt to return "TRUE" if the player saw anything "useful" happen.
+ * We attempt to return "true" if the player saw anything "useful" happen.
  */
 static bool project_m(
     int who, int y, int x, int dd, int ds, int dif, int typ, u32b flg)
@@ -2274,7 +2274,7 @@ static bool project_m(
     monster_lore* l_ptr;
 
     monster_type* who_ptr = (who == -1) ? PLAYER : &mon_list[who]; // Sil-y
-    bool who_vis = (who == -1) ? TRUE : who_ptr->ml;
+    bool who_vis = (who == -1) ? true : who_ptr->ml;
 
     int dam = damroll(dd, ds);
 
@@ -2285,16 +2285,16 @@ static bool project_m(
     int result;
 
     /* Is the monster "seen"? */
-    bool seen = FALSE;
+    bool seen = false;
 
     /* Were the effects "obvious" (if seen)? */
-    bool obvious = FALSE;
+    bool obvious = false;
 
     /* Were the effects "irrelevant"? */
-    bool skipped = FALSE;
+    bool skipped = false;
 
     /* Does it alert the monster */
-    bool alerting = TRUE;
+    bool alerting = true;
 
     /* Polymorph setting (true or false) */
     int do_poly = 0;
@@ -2334,22 +2334,22 @@ static bool project_m(
 
     /* Walls protect monsters */
     if (!cave_floor_bold(y, x))
-        return (FALSE);
+        return (false);
 
     /* No monster here */
     if (!(cave_m_idx[y][x] > 0))
-        return (FALSE);
+        return (false);
 
     /* Never affect projector */
     if (cave_m_idx[y][x] == who)
-        return (FALSE);
+        return (false);
 
     /* Obtain monster info */
     m_ptr = &mon_list[cave_m_idx[y][x]];
     r_ptr = &r_info[m_ptr->r_idx];
     l_ptr = &l_list[m_ptr->r_idx];
     if (m_ptr->ml)
-        seen = TRUE;
+        seen = true;
 
     /* Get the monster name*/
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
@@ -2375,7 +2375,7 @@ static bool project_m(
     case GF_ACID:
     {
         if (seen)
-            obvious = TRUE;
+            obvious = true;
         break;
     }
 
@@ -2383,7 +2383,7 @@ static bool project_m(
     case GF_ELEC:
     {
         if (seen)
-            obvious = TRUE;
+            obvious = true;
         if (r_ptr->flags3 & (RF3_RES_ELEC))
         {
             note = " resists.";
@@ -2398,7 +2398,7 @@ static bool project_m(
     case GF_FIRE:
     {
         if (seen)
-            obvious = TRUE;
+            obvious = true;
         if (r_ptr->flags3 & (RF3_RES_FIRE))
         {
             note = " resists.";
@@ -2420,7 +2420,7 @@ static bool project_m(
     case GF_COLD:
     {
         if (seen)
-            obvious = TRUE;
+            obvious = true;
         if (r_ptr->flags3 & (RF3_RES_COLD))
         {
             note = " resists.";
@@ -2442,7 +2442,7 @@ static bool project_m(
     case GF_POIS:
     {
         if (seen)
-            obvious = TRUE;
+            obvious = true;
         if (r_ptr->flags3 & (RF3_RES_POIS))
         {
             note = " resists.";
@@ -2456,7 +2456,7 @@ static bool project_m(
     /* Sound (use "dam" as amount of stunning) */
     case GF_SOUND:
     {
-        obvious = TRUE;
+        obvious = true;
 
         do_stun = dam;
 
@@ -2468,14 +2468,14 @@ static bool project_m(
     /* Heal Monster (use "dam" as amount of healing) */
     case GF_HEAL:
     {
-        bool healed = TRUE;
+        bool healed = true;
 
         /*does monster need healing?*/
         if (m_ptr->hp == m_ptr->maxhp)
-            healed = FALSE;
+            healed = false;
 
         if (seen)
-            obvious = TRUE;
+            obvious = true;
 
         /* Monster goes active */
         m_ptr->mflag |= (MFLAG_ACTV);
@@ -2494,7 +2494,7 @@ static bool project_m(
         /*monster was at full hp to begin*/
         if (!healed)
         {
-            obvious = FALSE;
+            obvious = false;
         }
 
         /* Message */
@@ -2503,7 +2503,7 @@ static bool project_m(
 
         // doesn't alert sleeping monsters
         if (m_ptr->alertness < ALERTNESS_UNWARY)
-            alerting = FALSE;
+            alerting = false;
 
         /* No "real" damage */
         dam = 0;
@@ -2514,14 +2514,14 @@ static bool project_m(
     case GF_SPEED:
     {
         if (seen)
-            obvious = TRUE;
+            obvious = true;
 
         /* Speed up */
         do_haste = dam;
 
         // doesn't alert sleeping monsters
         if (m_ptr->alertness < ALERTNESS_UNWARY)
-            alerting = FALSE;
+            alerting = false;
 
         /* No "real" damage */
         dam = 0;
@@ -2532,7 +2532,7 @@ static bool project_m(
     case GF_SLOW:
     {
         if (seen)
-            obvious = TRUE;
+            obvious = true;
 
         resistance = monster_skill(m_ptr, S_WIL);
         if (r_ptr->flags3 & (RF3_NO_SLOW))
@@ -2550,14 +2550,14 @@ static bool project_m(
         else
         {
             note = " is unaffected!";
-            obvious = FALSE;
+            obvious = false;
             if ((seen) && (r_ptr->flags3 & (RF3_NO_SLOW)))
                 l_ptr->flags3 |= (RF3_NO_SLOW);
         }
 
         // doesn't alert sleeping or unaffected monsters
         if ((m_ptr->alertness < ALERTNESS_UNWARY) || (do_slow == 0))
-            alerting = FALSE;
+            alerting = false;
 
         /* No "real" damage */
         dam = 0;
@@ -2569,7 +2569,7 @@ static bool project_m(
     case GF_SLEEP:
     {
         if (seen)
-            obvious = TRUE;
+            obvious = true;
 
         resistance = monster_skill(m_ptr, S_WIL);
         if (r_ptr->flags3 & (RF3_NO_SLEEP))
@@ -2587,13 +2587,13 @@ static bool project_m(
         else
         {
             note = " is unaffected!";
-            obvious = FALSE;
+            obvious = false;
             if ((seen) && (r_ptr->flags3 & (RF3_NO_SLEEP)))
                 l_ptr->flags3 |= (RF3_NO_SLEEP);
         }
 
         // doesn't alert monsters
-        alerting = FALSE;
+        alerting = false;
 
         /* No "real" damage */
         dam = 0;
@@ -2605,7 +2605,7 @@ static bool project_m(
     case GF_CONFUSION:
     {
         if (seen)
-            obvious = TRUE;
+            obvious = true;
 
         resistance = monster_skill(m_ptr, S_WIL);
         if (r_ptr->flags3 & (RF3_NO_CONF))
@@ -2623,13 +2623,13 @@ static bool project_m(
         else
         {
             note = " is unaffected!";
-            obvious = FALSE;
+            obvious = false;
             if ((seen) && (r_ptr->flags3 & (RF3_NO_CONF)))
                 l_ptr->flags3 |= (RF3_NO_CONF);
         }
 
         // doesn't alert monsters (they are either unaffected or too confused)
-        alerting = FALSE;
+        alerting = false;
 
         /* No "real" damage */
         dam = 0;
@@ -2649,7 +2649,7 @@ static bool project_m(
             {
                 /* Obvious effect */
                 if (seen)
-                    obvious = TRUE;
+                    obvious = true;
 
                 /* Memorize the effects */
                 if (seen)
@@ -2679,7 +2679,7 @@ static bool project_m(
 
         // Doesn't alert monsters (there is a seperate function to do this for
         // light)
-        alerting = FALSE;
+        alerting = false;
 
         break;
     }
@@ -2688,7 +2688,7 @@ static bool project_m(
     case GF_DARK:
     {
         if (seen)
-            obvious = TRUE;
+            obvious = true;
         if ((r_ptr->flags4 & (RF4_BRTH_DARK)) || (r_ptr->flags3 & (RF3_UNDEAD))
             || (r_ptr->light < 0))
         {
@@ -2706,7 +2706,7 @@ static bool project_m(
         {
             /* Notice effect */
             if (seen)
-                obvious = TRUE;
+                obvious = true;
 
             /* Memorize the effects */
             if (seen)
@@ -2735,7 +2735,7 @@ static bool project_m(
         else
         {
             // doesn't alert unaffected monsters
-            alerting = FALSE;
+            alerting = false;
 
             /* No damage */
             dam = 0;
@@ -2749,7 +2749,7 @@ static bool project_m(
     {
         /* Obvious */
         if (seen)
-            obvious = TRUE;
+            obvious = true;
 
         /* Prepare to teleport */
         do_dist = dam;
@@ -2774,7 +2774,7 @@ static bool project_m(
         {
             /* Obvious */
             if (seen)
-                obvious = TRUE;
+                obvious = true;
 
             /* Apply some fear */
             do_fear = result * 20;
@@ -2782,11 +2782,11 @@ static bool project_m(
         else
         {
             // Doesn't alert unaffected monsters
-            alerting = FALSE;
+            alerting = false;
 
             /* No obvious effect */
             note = " is unaffected!";
-            obvious = FALSE;
+            obvious = false;
 
             if ((seen) && (r_ptr->flags3 & (RF3_NO_FEAR)))
                 l_ptr->flags3 |= (RF3_NO_FEAR);
@@ -2807,7 +2807,7 @@ static bool project_m(
     default:
     {
         /* Irrelevant */
-        skipped = TRUE;
+        skipped = true;
 
         /* No damage */
         dam = 0;
@@ -2818,11 +2818,11 @@ static bool project_m(
 
     /* Absolutely no effect */
     if (skipped)
-        return (FALSE);
+        return (false);
 
     /* "Unique" monsters cannot be polymorphed */
     if (r_ptr->flags1 & (RF1_UNIQUE))
-        do_poly = FALSE;
+        do_poly = false;
 
     /* "Unique" monsters can only be "killed" by the player */
     // if (r_ptr->flags1 & (RF1_UNIQUE))
@@ -2852,7 +2852,7 @@ static bool project_m(
         {
             /* Obvious */
             if (seen)
-                obvious = TRUE;
+                obvious = true;
 
             /* Monster polymorphs */
             note = " changes!";
@@ -2864,7 +2864,7 @@ static bool project_m(
             delete_monster_idx(cave_m_idx[y][x]);
 
             /* Create a new monster (no groups) */
-            (void)place_monster_aux(y, x, tmp, FALSE, FALSE);
+            (void)place_monster_aux(y, x, tmp, false, false);
 
             /* Hack -- Assume success XXX XXX XXX */
 
@@ -2884,7 +2884,7 @@ static bool project_m(
         {
             /* Obvious */
             if (seen)
-                obvious = TRUE;
+                obvious = true;
 
             /* Message */
             note = " disappears!";
@@ -2903,7 +2903,7 @@ static bool project_m(
     {
         /* Obvious */
         if (seen)
-            obvious = TRUE;
+            obvious = true;
 
         /* Get confused */
         if (m_ptr->stunned)
@@ -2935,7 +2935,7 @@ static bool project_m(
     {
         /* Obvious */
         if (seen)
-            obvious = TRUE;
+            obvious = true;
 
         /* Generate message */
         if (m_ptr->confused)
@@ -2983,7 +2983,7 @@ static bool project_m(
     if ((dam > 0) && m_ptr->ml)
     {
         update_combat_rolls1b(who_ptr, m_ptr, who_vis);
-        update_combat_rolls2(dd, ds, dam, -1, -1, 0, 0, typ, FALSE);
+        update_combat_rolls2(dd, ds, dam, -1, -1, 0, 0, typ, false);
     }
 
     /* If another monster did the damage, hurt the monster by hand */
@@ -3097,7 +3097,7 @@ static bool project_m(
     /* Verify this code XXX XXX XXX */
 
     /* Update the monster */
-    update_mon(cave_m_idx[y][x], FALSE);
+    update_mon(cave_m_idx[y][x], false);
 
     /* Redraw the monster grid */
     lite_spot(y, x);
@@ -3140,7 +3140,7 @@ static bool project_m(
  * is reduced (see "project_m()" above).  This can happen if a monster breathes
  * at the player and hits a wall instead.
  *
- * We return "TRUE" if any "obvious" effects were observed.
+ * We return "true" if any "obvious" effects were observed.
  *
  * Actually, for historical reasons, we just assume that the effects were
  * obvious.  XXX XXX XXX
@@ -3148,10 +3148,10 @@ static bool project_m(
 static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
 {
     /* Hack -- assume obvious */
-    bool obvious = TRUE;
+    bool obvious = true;
 
     /* Player blind-ness */
-    bool blind = (p_ptr->blind ? TRUE : FALSE);
+    bool blind = (p_ptr->blind ? true : false);
 
     /* Source monster */
     monster_type* m_ptr;
@@ -3165,18 +3165,18 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
 
     int dam;
 
-    bool do_disturb = TRUE;
+    bool do_disturb = true;
 
     // Sil-y: unusued parameter, casting it to soothe compilation warnings
     (void)dif;
 
     /* No player here */
     if (!(cave_m_idx[y][x] < 0))
-        return (FALSE);
+        return (false);
 
     /* Never affect projector */
     if (cave_m_idx[y][x] == who)
-        return (FALSE);
+        return (false);
 
     /* Get the source monster */
     m_ptr = &mon_list[who];
@@ -3201,7 +3201,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
         if ((typ != GF_FIRE) && (typ != GF_COLD) && (typ != GF_POIS)
             && (typ != GF_DARK))
         {
-            update_combat_rolls2(dd, ds, dam, -1, -1, 0, 0, typ, FALSE);
+            update_combat_rolls2(dd, ds, dam, -1, -1, 0, 0, typ, false);
         }
     }
 
@@ -3231,7 +3231,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
     {
         if (blind)
             msg_print("You are hit by fire!");
-        fire_dam_pure(dd, ds, TRUE, killer);
+        fire_dam_pure(dd, ds, true, killer);
         break;
     }
 
@@ -3240,7 +3240,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
     {
         if (blind)
             msg_print("You are hit by cold!");
-        cold_dam_pure(dd, ds, TRUE, killer);
+        cold_dam_pure(dd, ds, true, killer);
         break;
     }
 
@@ -3249,15 +3249,15 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
     {
         if (blind)
             msg_print("You are hit by something!");
-        dark_dam_pure(dd, ds, TRUE, killer);
+        dark_dam_pure(dd, ds, true, killer);
         break;
     }
 
     /* Weak Dark -- nothing! */
     case GF_DARK_WEAK:
     {
-        do_disturb = FALSE;
-        obvious = FALSE;
+        do_disturb = false;
+        obvious = false;
         break;
     }
 
@@ -3266,7 +3266,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
     {
         if (blind)
             msg_print("You are hit by poison!");
-        (void)pois_dam_pure(dd, ds, TRUE);
+        (void)pois_dam_pure(dd, ds, true);
         break;
     }
 
@@ -3283,7 +3283,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
         total_attack_mod = total_monster_attack(m_ptr, r_ptr->spell_power);
 
         // determine the player's evasion score
-        total_evasion_mod = total_player_evasion(m_ptr, FALSE);
+        total_evasion_mod = total_player_evasion(m_ptr, false);
 
         // target only gets half the evasion modifier against archery
         total_evasion_mod /= 2;
@@ -3296,19 +3296,19 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
 
         // perform the hit roll
         hit_result = hit_roll(
-            total_attack_mod, total_evasion_mod, m_ptr, PLAYER, TRUE);
+            total_attack_mod, total_evasion_mod, m_ptr, PLAYER, true);
 
         if (hit_result > 0)
         {
             crit_bonus_dice = crit_bonus(
-                hit_result, weight, &r_info[0], S_ARC, FALSE, m_ptr);
+                hit_result, weight, &r_info[0], S_ARC, false, m_ptr);
             total_dd = dd + crit_bonus_dice;
             total_ds = ds;
 
             dam = damroll(total_dd, total_ds);
 
             // armour is effective against GF_ARROW
-            prt = protection_roll(GF_HURT, FALSE);
+            prt = protection_roll(GF_HURT, false);
             net_dam = (dam - prt > 0) ? (dam - prt) : 0;
 
             if (blind)
@@ -3331,7 +3331,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
             }
 
             update_combat_rolls2(
-                total_dd, total_ds, dam, -1, -1, prt, 100, GF_HURT, FALSE);
+                total_dd, total_ds, dam, -1, -1, prt, 100, GF_HURT, false);
             display_hit(p_ptr->py, p_ptr->px, net_dam, GF_HURT, p_ptr->is_dead);
 
             if (net_dam)
@@ -3369,7 +3369,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
             }
 
             /* Make some noise */
-            monster_perception(TRUE, FALSE, -5);
+            monster_perception(true, false, -5);
         }
 
         break;
@@ -3389,23 +3389,23 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
         total_attack_mod = total_monster_attack(m_ptr, r_ptr->spell_power);
 
         // determine the player's evasion score
-        total_evasion_mod = total_player_evasion(m_ptr, FALSE);
+        total_evasion_mod = total_player_evasion(m_ptr, false);
 
         // perform the hit roll
         hit_result = hit_roll(
-            total_attack_mod, total_evasion_mod, m_ptr, PLAYER, TRUE);
+            total_attack_mod, total_evasion_mod, m_ptr, PLAYER, true);
 
         if (hit_result > 0)
         {
             crit_bonus_dice
-                = crit_bonus(hit_result, 100, &r_info[0], S_ARC, TRUE, m_ptr);
+                = crit_bonus(hit_result, 100, &r_info[0], S_ARC, true, m_ptr);
             total_dd = dd + crit_bonus_dice;
             total_ds = ds;
 
             dam = damroll(total_dd, total_ds);
 
             // armour is effective against GF_BOULDER
-            prt = protection_roll(GF_HURT, FALSE);
+            prt = protection_roll(GF_HURT, false);
             net_dam = (dam - prt > 0) ? (dam - prt) : 0;
 
             if (blind)
@@ -3428,7 +3428,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
             }
 
             update_combat_rolls2(
-                total_dd, total_ds, dam, -1, -1, prt, 100, GF_HURT, FALSE);
+                total_dd, total_ds, dam, -1, -1, prt, 100, GF_HURT, false);
             display_hit(p_ptr->py, p_ptr->px, net_dam, GF_HURT, p_ptr->is_dead);
 
             if (net_dam)
@@ -3437,7 +3437,7 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
             }
 
             /* Make some noise */
-            monster_perception(TRUE, FALSE, -10);
+            monster_perception(true, false, -10);
         }
 
         break;
@@ -3452,11 +3452,11 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
         total_attack_mod = total_monster_attack(m_ptr, r_ptr->spell_power);
 
         // determine the player's evasion score
-        total_evasion_mod = total_player_evasion(m_ptr, FALSE);
+        total_evasion_mod = total_player_evasion(m_ptr, false);
 
         // perform the hit roll
         hit_result = hit_roll(
-            total_attack_mod, total_evasion_mod, m_ptr, PLAYER, TRUE);
+            total_attack_mod, total_evasion_mod, m_ptr, PLAYER, true);
 
         if (hit_result > 0)
         {
@@ -3494,8 +3494,8 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
     /* Does nothing */
     case GF_NOTHING:
     {
-        do_disturb = FALSE;
-        obvious = FALSE;
+        do_disturb = false;
+        obvious = false;
         break;
     }
 
@@ -3592,7 +3592,7 @@ static void calc_starburst(
     }
 
     /* Neaten up final arc of circle by comparing it to the first. */
-    if (TRUE)
+    if (true)
     {
         int diff = arc_dist[*arc_num - 1] - arc_dist[0];
 
@@ -3621,7 +3621,7 @@ static void calc_starburst(
  * die per square.
  *
  * Return:
- *   TRUE if any "effects" of the projection were observed, else FALSE
+ *   true if any "effects" of the projection were observed, else false
  *
  * At present, there are five major types of projections:
  *
@@ -3768,16 +3768,16 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds,
     int msec = op_ptr->delay_factor * op_ptr->delay_factor;
 
     /* Assume the player sees nothing */
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Assume the player has seen nothing */
-    bool visual = FALSE;
+    bool visual = false;
 
     /* Assume the player has seen no blast grids */
-    bool drawn = FALSE;
+    bool drawn = false;
 
     /* Is the player blind? */
-    bool blind = (p_ptr->blind ? TRUE : FALSE);
+    bool blind = (p_ptr->blind ? true : false);
 
     /* Number of grids in the "path" */
     int path_n = 0;
@@ -3936,7 +3936,7 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds,
                     }
 
                     /* Hack -- Activate delay */
-                    visual = TRUE;
+                    visual = true;
                 }
 
                 /* Hack -- Always delay for consistency */
@@ -3976,7 +3976,7 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds,
                 1 + rad * 2, 1 + rad * 2, arc_first, arc_dist, &arc_num);
 
             /* Mark the area nearby -- limit range, ignore rooms */
-            spread_cave_temp(y0, x0, rad, FALSE);
+            spread_cave_temp(y0, x0, rad, false);
         }
 
         /* Pre-calculate some things for arcs. */
@@ -4241,7 +4241,7 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds,
                 byte a;
                 char c;
 
-                drawn = TRUE;
+                drawn = true;
 
                 /* Obtain the explosion pict */
                 p = bolt_pict(y, x, y, x, typ);
@@ -4318,7 +4318,7 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds,
 
             /* Affect the feature in that grid */
             if (project_f(who, y, x, gd[i], dam_at_dist[gd[i]], ds, dif, typ))
-                notice = TRUE;
+                notice = true;
         }
     }
 
@@ -4334,7 +4334,7 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds,
 
             /* Affect the object in the grid */
             if (project_o(who, y, x, dam_at_dist[gd[i]], ds, dif, typ))
-                notice = TRUE;
+                notice = true;
         }
     }
 
@@ -4356,7 +4356,7 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds,
 
             /* Affect the monster in the grid */
             if (project_m(who, y, x, dam_at_dist[gd[i]], ds, dif, typ, flg))
-                notice = TRUE;
+                notice = true;
         }
 
         /* Player affected one monster (without "jumping") */
@@ -4417,7 +4417,7 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds,
                 /* Affect the player */
                 if (project_p(who, y, x, dam_at_dist[gd[i]], ds, dif, typ))
                 {
-                    notice = TRUE;
+                    notice = true;
 
                     /* Only affect the player once */
                     break;
@@ -4447,7 +4447,7 @@ void sing_song_of_freedom(int score)
     int result;
     int new_feat;
     object_type* o_ptr;
-    bool closed_chasm = FALSE;
+    bool closed_chasm = false;
 
     // set the base difficulty
     if (p_ptr->depth > 0)
@@ -4982,7 +4982,7 @@ void song_of_oaths(monster_type* m_ptr)
                 monster_type* n_ptr;
 
                 // place it
-                place_monster_one(y, x, R_IDX_OATHWRAITH, TRUE, FALSE, NULL);
+                place_monster_one(y, x, R_IDX_OATHWRAITH, true, false, NULL);
 
                 n_ptr = &mon_list[cave_m_idx[y][x]];
 
@@ -5345,23 +5345,23 @@ bool singing(int song)
     if (song == SNG_NOTHING)
     {
         if (p_ptr->song1 == song)
-            return (TRUE);
+            return (true);
     }
     else
     {
         if (p_ptr->song1 == song)
-            return (TRUE);
+            return (true);
         if (p_ptr->song2 == song)
-            return (TRUE);
+            return (true);
     }
 
-    return (FALSE);
+    return (false);
 }
 
 bool known_to_delvings(int y, int x)
 {
     if (!in_bounds(y, x))
-        return FALSE;
+        return false;
     return ((cave_info[y][x] & CAVE_MARK) || (cave_info[y][x] & CAVE_SEEN));
 }
 
@@ -5428,7 +5428,7 @@ void sing_song_of_delvings(int score)
     {
         for (x = min_x; x < max_x; ++x)
         {
-            bool neighbour_known = FALSE;
+            bool neighbour_known = false;
             int distance_from_player = (distance(py, px, y, x));
             int adjusted_score = score - distance_from_player;
 
@@ -5438,7 +5438,7 @@ void sing_song_of_delvings(int score)
                 {
                     int chance = damroll(1, 6);
                     if (known_to_delvings(yy, xx) && chance < adjusted_score)
-                        neighbour_known = TRUE;
+                        neighbour_known = true;
                 }
             }
 
@@ -5447,7 +5447,7 @@ void sing_song_of_delvings(int score)
                 int dy = y - min_y;
                 int dx = x - min_x;
 
-                delvings[(dy * x_range) + dx] = TRUE;
+                delvings[(dy * x_range) + dx] = true;
             }
         }
     }
@@ -5459,7 +5459,7 @@ void sing_song_of_delvings(int score)
             int dy = y - min_y;
             int dx = x - min_x;
 
-            if (delvings[(dy * x_range) + dx] == TRUE)
+            if (delvings[(dy * x_range) + dx] == true)
             {
                 map_feature(y, x);
                 if (cave_feat[y][x] == FEAT_SECRET && known_to_delvings(y, x))
@@ -5480,7 +5480,7 @@ void sing_song_of_delvings(int score)
 
                 for (j = start_y; j < end_y; ++j)
                 {
-                    if (delvings[(j * x_range) + dx] == TRUE)
+                    if (delvings[(j * x_range) + dx] == true)
                     {
                         if (cave_trap_bold(y, x))
                             reveal_trap(y, x);
@@ -5491,7 +5491,7 @@ void sing_song_of_delvings(int score)
 
                 for (i = start_x; i < end_x; ++i)
                 {
-                    if (delvings[(dy * x_range) + i] == TRUE)
+                    if (delvings[(dy * x_range) + i] == true)
                     {
                         if (cave_trap_bold(y, x))
                             reveal_trap(y, x);

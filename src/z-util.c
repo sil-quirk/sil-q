@@ -27,7 +27,7 @@ int my_stricmp(const char* s1, const char* s2)
     char ch2 = 0;
 
     /* Just loop */
-    while (TRUE)
+    while (true)
     {
         /* We've reached the end of both strings simultaneously */
         if ((*s1 == 0) && (*s2 == 0))
@@ -153,7 +153,7 @@ bool suffix(cptr s, cptr t)
 
     /* Check for incompatible lengths */
     if (tlen > slen)
-        return (FALSE);
+        return (false);
 
     /* Compare "t" to the end of "s" */
     return (!strcmp(s + slen - tlen, t));
@@ -169,11 +169,11 @@ bool prefix(cptr s, cptr t)
     {
         /* Compare content and length */
         if (*t++ != *s++)
-            return (FALSE);
+            return (false);
     }
 
     /* Matched, we have a prefix */
-    return (TRUE);
+    return (true);
 }
 
 /*

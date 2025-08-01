@@ -11,6 +11,7 @@
 #include "angband.h"
 #include "log.h"
 #include "metarun.h"
+#include "z-term.h"
 
 /*
  * Return a "feeling" (or NULL) about an item.  Method 1 (Weak).
@@ -37,7 +38,7 @@ int value_check_aux1(const object_type* o_ptr)
 }
 
 /*
- * Returns TRUE if this object can be pseudo-ided.
+ * Returns true if this object can be pseudo-ided.
  */
 bool can_be_pseudo_ided(const object_type* o_ptr)
 {
@@ -59,21 +60,21 @@ bool can_be_pseudo_ided(const object_type* o_ptr)
     case TV_SOFT_ARMOR:
     case TV_MAIL:
     {
-        return (TRUE);
+        return (true);
         break;
     }
     case TV_LIGHT:
     {
         if (o_ptr->sval == SV_LIGHT_LANTERN)
-            return (TRUE);
+            return (true);
         if (o_ptr->sval == SV_LIGHT_LESSER_JEWEL)
-            return (TRUE);
+            return (true);
         if (o_ptr->sval == SV_LIGHT_FEANORIAN)
-            return (TRUE);
+            return (true);
         break;
     }
     }
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -100,7 +101,7 @@ void pseudo_id(object_type* o_ptr)
         return;
 
     /* Get an object description */
-    object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+    object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
 
     /* Sense the object */
     o_ptr->discount = feel;
@@ -439,7 +440,7 @@ static void recharged_notice(object_type* o_ptr)
         if (s[1] == '!')
         {
             /* Describe (briefly) */
-            object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+            object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
 
             /*Disturb the player*/
             disturb(0, 0);
@@ -476,7 +477,7 @@ static void process_world(void)
 
     object_type* o_ptr;
 
-    bool was_ghost = FALSE;
+    bool was_ghost = false;
 
     /* Stop now unless the turn count is divisible by 10 */
     if (turn % 10)
@@ -509,10 +510,10 @@ static void process_world(void)
                 msg_print("The gates to ANGBAND are now closed.");
 
                 /* Stop playing */
-                p_ptr->playing = FALSE;
+                p_ptr->playing = false;
 
                 /* Leaving */
-                p_ptr->leaving = TRUE;
+                p_ptr->leaving = true;
             }
         }
     }
@@ -525,7 +526,7 @@ static void process_world(void)
         if (percent_chance(10))
         {
             /* Make a new monster */
-            (void)alloc_monster(TRUE, FALSE);
+            (void)alloc_monster(true, false);
         }
     }
 
@@ -533,7 +534,7 @@ static void process_world(void)
 
     /* Hack - see if there is already a player ghost on the level */
     if (bones_selector)
-        was_ghost = TRUE;
+        was_ghost = true;
 
     /* Vastly more wandering monsters during the endgame when you have 2 or 3
      * Silmarils */
@@ -545,7 +546,7 @@ static void process_world(void)
         if (percent_chance(percent))
         {
             /* Make a new monster */
-            (void)alloc_monster(TRUE, FALSE);
+            (void)alloc_monster(true, false);
         }
     }
 
@@ -553,14 +554,14 @@ static void process_world(void)
     else if (one_in_(MAX_M_ALLOC_CHANCE))
     {
         /* Make a new monster */
-        (void)alloc_monster(TRUE, FALSE);
+        (void)alloc_monster(true, false);
     }
 
     // Players with the haunted curse attract wraiths
     if (percent_chance(p_ptr->haunted))
     {
         /* Make a new wraith */
-        (void)alloc_monster(TRUE, TRUE);
+        (void)alloc_monster(true, true);
     }
 
     /* Hack - if there is a ghost now, and there was not before,
@@ -692,15 +693,18 @@ static bool enter_wizard_mode(void)
     {
         /* Explanation */
         msg_print("You can only enter wizard mode from within debug mode.");
+        log_debug("Wizard mode denied - must be in debug mode first");
 
-        return (FALSE);
+        return (false);
     }
 
     /* Mark savefile */
     p_ptr->noscore |= 0x0002;
+    
+    log_debug("Entering wizard mode - savefile marked");
 
     /* Success */
-    return (TRUE);
+    return (true);
 }
 
 #ifdef ALLOW_DEBUG
@@ -725,7 +729,7 @@ static bool verify_debug_mode(void)
         /* Verify request */
         if (!get_check("Are you sure you want to use the debug commands? "))
         {
-            return (FALSE);
+            return (false);
         }
 
         // ask for password in deployment versions
@@ -739,12 +743,12 @@ static bool verify_debug_mode(void)
                     p_ptr->noscore |= 0x0008;
 
                     /* Okay */
-                    return (TRUE);
+                    return (true);
                 }
             }
 
             msg_print("Incorrect password.");
-            return (FALSE);
+            return (false);
         }
     }
 
@@ -752,7 +756,7 @@ static bool verify_debug_mode(void)
     p_ptr->noscore |= 0x0008;
 
     /* Okay */
-    return (TRUE);
+    return (true);
 }
 
 #endif /* ALLOW_DEBUG */
@@ -789,13 +793,13 @@ static void process_command(void)
     {
         if (p_ptr->wizard)
         {
-            p_ptr->wizard = FALSE;
+            p_ptr->wizard = false;
             msg_print("Wizard mode off.");
             p_ptr->update |= (PU_BONUS);
         }
         else if (enter_wizard_mode())
         {
-            p_ptr->wizard = TRUE;
+            p_ptr->wizard = true;
             msg_print("Wizard mode on.");
             p_ptr->update |= (PU_BONUS);
         }
@@ -967,7 +971,7 @@ static void process_command(void)
     case '<':
     {
         // Autosave
-        save_game_quietly = TRUE;
+        save_game_quietly = true;
         do_cmd_save_game();
 
         do_cmd_go_up();
@@ -978,7 +982,7 @@ static void process_command(void)
     case '>':
     {
         // Autosave
-        save_game_quietly = TRUE;
+        save_game_quietly = true;
         do_cmd_save_game();
 
         do_cmd_go_down();
@@ -1066,14 +1070,14 @@ static void process_command(void)
     /* Throw an item */
     case 't':
     {
-        do_cmd_throw(FALSE);
+        do_cmd_throw(false);
         break;
     }
 
         /* Throw an automatically chosen item at nearest target */
     case KTRL('T'):
     {
-        do_cmd_throw(TRUE);
+        do_cmd_throw(true);
         break;
     }
 
@@ -1262,10 +1266,10 @@ static void process_command(void)
     case KTRL('C'):
     {
         /* Stop playing */
-        p_ptr->playing = FALSE;
+        p_ptr->playing = false;
 
         /* Leaving */
-        p_ptr->leaving = TRUE;
+        p_ptr->leaving = true;
         break;
     }
 
@@ -1322,25 +1326,25 @@ static bool auto_pickup_okay(const object_type* o_ptr)
 
     /* It can't be carried */
     if (!inven_carry_okay(o_ptr))
-        return (FALSE);
+        return (false);
 
     /*object is marked to not pickup*/
     if ((k_info[o_ptr->k_idx].squelch == NO_SQUELCH_NEVER_PICKUP)
         && object_aware_p(o_ptr))
-        return (FALSE);
+        return (false);
 
     /*object is marked to not pickup*/
     if ((k_info[o_ptr->k_idx].squelch == NO_SQUELCH_ALWAYS_PICKUP)
         && object_aware_p(o_ptr))
-        return (TRUE);
+        return (true);
 
     /* object has pickup flag set */
     if (o_ptr->pickup)
-        return (TRUE);
+        return (true);
 
     /* No inscription */
     if (!o_ptr->obj_note)
-        return (FALSE);
+        return (false);
 
     /* Find a '=' */
     // s = strchr(quark_str(o_ptr->obj_note), '=');
@@ -1349,14 +1353,14 @@ static bool auto_pickup_okay(const object_type* o_ptr)
     // while (s)
     //{
     //	/* Auto-pickup on "=g" */
-    //	if (s[1] == 'g') return (TRUE);
+    //	if (s[1] == 'g') return (true);
 
     //	/* Find another '=' */
     //	s = strchr(s + 1, '=');
     //}
 
     /* Don't auto pickup */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -1365,7 +1369,7 @@ static bool auto_pickup_okay(const object_type* o_ptr)
 void land(void)
 {
     // the player has landed
-    p_ptr->leaping = FALSE;
+    p_ptr->leaping = false;
 
     // make some noise when landing
     stealth_score -= 5;
@@ -1464,7 +1468,7 @@ void continue_leap(void)
 static void process_player_aux(void)
 {
     int i;
-    bool changed = FALSE;
+    bool changed = false;
 
     static int old_monster_race_idx = 0;
 
@@ -1487,7 +1491,7 @@ static void process_player_aux(void)
         {
             if (old_blows[i] != l_ptr->blows[i])
             {
-                changed = TRUE;
+                changed = true;
                 break;
             }
         }
@@ -1553,7 +1557,7 @@ static void process_player(void)
     p_ptr->ripostes = 0;
 
     // reset whether you have just woken up from entrancement
-    p_ptr->was_entranced = FALSE;
+    p_ptr->was_entranced = false;
 
     // update the player's torch radius
     calc_torch();
@@ -1598,7 +1602,7 @@ static void process_player(void)
             || p_ptr->command_rep || (p_ptr->resting && !(turn & 0x7F)))
         {
             /* Do not wait */
-            inkey_scan = TRUE;
+            inkey_scan = true;
 
             /* Check for a key */
             if (inkey())
@@ -1620,13 +1624,13 @@ static void process_player(void)
 
         // Make the stealth-modified noise (has to occur after monsters have had
         // a chance to move)
-        monster_perception(TRUE, TRUE, stealth_score);
+        monster_perception(true, true, stealth_score);
 
         // Stop stealth mode if something happened
         if (stop_stealth_mode)
         {
             /* Cancel */
-            p_ptr->stealth_mode = FALSE;
+            p_ptr->stealth_mode = false;
 
             /* Recalculate bonuses */
             p_ptr->update |= (PU_BONUS);
@@ -1635,7 +1639,7 @@ static void process_player(void)
             p_ptr->redraw |= (PR_STATE);
 
             // Reset the flag
-            stop_stealth_mode = FALSE;
+            stop_stealth_mode = false;
         }
 
         // Morgoth will announce a challenge if adjacent
@@ -1669,7 +1673,7 @@ static void process_player(void)
                               "you!'");
 
                     // Break the truce (always)
-                    break_truce(TRUE);
+                    break_truce(true);
                 }
             }
         }
@@ -1693,7 +1697,7 @@ static void process_player(void)
 
         if (p_ptr->previous_action[0] != ACTION_ARCHERY)
         {
-            p_ptr->killed_enemy_with_arrow = FALSE;
+            p_ptr->killed_enemy_with_arrow = false;
             p_ptr->redraw |= PR_ARC;
         }
 
@@ -1759,12 +1763,12 @@ static void process_player(void)
 
         if (cave_o_idx[p_ptr->py][p_ptr->px] != 0)
         {
-            (&o_list[cave_o_idx[p_ptr->py][p_ptr->px]])->marked = TRUE;
+            (&o_list[cave_o_idx[p_ptr->py][p_ptr->px]])->marked = true;
         }
 
         /* Hack -- cancel "lurking browse mode" */
         if (!p_ptr->command_new)
-            p_ptr->command_see = FALSE;
+            p_ptr->command_see = false;
 
         /* Assume free turn */
         p_ptr->energy_use = 0;
@@ -1876,7 +1880,7 @@ static void process_player(void)
             p_ptr->previous_action[0] = 5;
 
             // store the 'focus' attribute
-            p_ptr->focused = TRUE;
+            p_ptr->focused = true;
 
             /* Searching */
             search();
@@ -1892,11 +1896,11 @@ static void process_player(void)
 
                 // force a -more-
                 message_flush();
-                p_ptr->knocked_back = FALSE;
+                p_ptr->knocked_back = false;
             }
 
             // reset flag
-            p_ptr->skip_next_turn = FALSE;
+            p_ptr->skip_next_turn = false;
 
             /* Take a turn */
             p_ptr->energy_use = 100;
@@ -1925,7 +1929,7 @@ static void process_player(void)
         else if (p_ptr->command_rep)
         {
             /* Hack -- Assume messages were seen */
-            msg_flag = FALSE;
+            msg_flag = false;
 
             /* Clear the top line */
             prt("", 0, 0);
@@ -1957,7 +1961,7 @@ static void process_player(void)
                 o_ptr = &o_list[cave_o_idx[p_ptr->py][p_ptr->px]];
 
                 /* Describe the object */
-                object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+                object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
                 strnfmt(out_val, sizeof(out_val), "Pick up %s? ", o_name);
             }
 
@@ -1990,7 +1994,7 @@ static void process_player(void)
 
                 /* We are certainly no longer in the process of restoring a game
                  */
-                p_ptr->restoring = FALSE;
+                p_ptr->restoring = false;
 
                 /* Get a command (normal) */
                 request_command();
@@ -2046,7 +2050,7 @@ static void process_player(void)
             if (shimmer_monsters)
             {
                 /* Clear the flag */
-                shimmer_monsters = FALSE;
+                shimmer_monsters = false;
 
                 /* Shimmer multi-hued monsters */
                 for (i = 1; i < mon_max; i++)
@@ -2069,7 +2073,7 @@ static void process_player(void)
                         continue;
 
                     /* Reset the flag */
-                    shimmer_monsters = TRUE;
+                    shimmer_monsters = true;
 
                     /* Redraw regardless */
                     lite_spot(m_ptr->fy, m_ptr->fx);
@@ -2080,7 +2084,7 @@ static void process_player(void)
             if (repair_mflag_mark)
             {
                 /* Reset the flag */
-                repair_mflag_mark = FALSE;
+                repair_mflag_mark = false;
 
                 /* Process the monsters */
                 for (i = 1; i < mon_max; i++)
@@ -2100,7 +2104,7 @@ static void process_player(void)
                         if (m_ptr->mflag & (MFLAG_SHOW))
                         {
                             /* Repair "mark" flag */
-                            repair_mflag_mark = TRUE;
+                            repair_mflag_mark = true;
 
                             /* Skip */
                             continue;
@@ -2110,7 +2114,7 @@ static void process_player(void)
                         m_ptr->mflag &= ~(MFLAG_MARK);
 
                         /* Update the monster */
-                        update_mon(i, FALSE);
+                        update_mon(i, false);
                     }
                 }
             }
@@ -2120,7 +2124,7 @@ static void process_player(void)
         if (repair_mflag_show)
         {
             /* Reset the flag */
-            repair_mflag_show = FALSE;
+            repair_mflag_show = false;
 
             /* Process the monsters */
             for (i = 1; i < mon_max; i++)
@@ -2161,7 +2165,7 @@ static void process_player(void)
     if (p_ptr->smithing)
     {
         /* Make a lot of noise */
-        monster_perception(TRUE, FALSE, -10);
+        monster_perception(true, false, -10);
     }
 
     // update player noise
@@ -2433,7 +2437,7 @@ static void process_player(void)
     // reset the focus flag if the player didn't 'pass' this turn
     if (p_ptr->previous_action[0] != 5)
     {
-        p_ptr->focused = FALSE;
+        p_ptr->focused = false;
     }
 
     // if the player didn't attack or 'pass' then the consecutive attacks needs
@@ -2463,11 +2467,11 @@ static void process_player(void)
                     char o_full_name[80];
 
                     object_desc(
-                        o_short_name, sizeof(o_short_name), o_ptr, FALSE, 0);
+                        o_short_name, sizeof(o_short_name), o_ptr, false, 0);
                     object_aware(o_ptr);
                     object_known(o_ptr);
                     object_desc(
-                        o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
+                        o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
                     msg_print("Your footsteps leave a trail of light!");
                     msg_format("You recognize your %s to be %s", o_short_name,
@@ -2506,12 +2510,14 @@ static void dungeon(void)
     monster_type* m_ptr;
     int i;
 
+    log_debug("Entering dungeon level %d", p_ptr->depth);
+
     /* Hack -- enforce illegal panel */
     p_ptr->wy = p_ptr->cur_map_hgt;
     p_ptr->wx = p_ptr->cur_map_wid;
 
     /* Not leaving */
-    p_ptr->leaving = FALSE;
+    p_ptr->leaving = false;
 
     /* Reset the "command" vars */
     p_ptr->command_cmd = 0;
@@ -2527,12 +2533,12 @@ static void dungeon(void)
     health_track(0);
 
     /* Reset shimmer flags */
-    shimmer_monsters = TRUE;
-    shimmer_objects = TRUE;
+    shimmer_monsters = true;
+    shimmer_objects = true;
 
     /* Reset repair flags */
-    repair_mflag_show = TRUE;
-    repair_mflag_mark = TRUE;
+    repair_mflag_show = true;
+    repair_mflag_mark = true;
 
     /* Disturb */
     disturb(0, 0);
@@ -2540,6 +2546,7 @@ static void dungeon(void)
     /* Track maximum dungeon level */
     if (p_ptr->max_depth < p_ptr->depth)
     {
+        log_info("Player reached new maximum depth: %d", p_ptr->depth);
         for (i = p_ptr->max_depth + 1; i <= p_ptr->depth; i++)
         {
             if (i > 1)
@@ -2547,6 +2554,8 @@ static void dungeon(void)
                 int new_exp = i * 50;
                 gain_exp(new_exp);
                 p_ptr->descent_exp += new_exp;
+                
+                log_debug("Depth %d reached, gained %d descent experience", i, new_exp);
 
                 // Sil-x
                 // do_cmd_note(format("exp:%d = s:5000 + e:%d + k:%d + d:%d +
@@ -2561,12 +2570,13 @@ static void dungeon(void)
     /* No stairs from the surface */
     if (!p_ptr->depth)
     {
-        p_ptr->create_stair = FALSE;
+        p_ptr->create_stair = false;
     }
 
     /* Make a staircase */
     if (p_ptr->create_stair)
     {
+        log_debug("Creating staircase at player position");
         /* Place a staircase */
         if (cave_valid_bold(p_ptr->py, p_ptr->px))
         {
@@ -2577,19 +2587,22 @@ static void dungeon(void)
 
             /* Mark the stairs as known */
             cave_info[p_ptr->py][p_ptr->px] |= (CAVE_MARK);
+            
+            log_trace("Staircase created and marked at (%d, %d)", p_ptr->py, p_ptr->px);
         }
 
         /* Cancel the stair request */
-        p_ptr->create_stair = FALSE;
+        p_ptr->create_stair = false;
     }
 
     /* Make rubble */
     if (p_ptr->create_rubble)
     {
+        log_debug("Creating rubble via earthquake");
         earthquake(p_ptr->py, p_ptr->px, -1, -1, 5, 0);
 
         /* Cancel the rubble request */
-        p_ptr->create_rubble = FALSE;
+        p_ptr->create_rubble = false;
     }
 
     /* Choose panel */
@@ -2688,7 +2701,7 @@ static void dungeon(void)
     object_level = p_ptr->depth;
 
     /* Main loop */
-    while (TRUE)
+    while (true)
     {
         /* Hack -- Compact the monster list occasionally */
         if (mon_cnt + 10 > MAX_MONSTERS)
@@ -2907,85 +2920,124 @@ static void death_knowledge(void)
  * Introductory narrative display, one paragraph per prompt.
  * Implemented as a static function to restrict linkage.
  */
-static void print_story_intro(void)
-{
-    int wid, h;
-    const int indent = 2;
-    /* Narrative paragraphs as valid C string literals with embedded \n */
-    cptr intro_texts[] = {
-        "You awaken in darkness.\n"
-        "No name. No memory.\n"
-        "Only a quiet ache of courage deep inside you,\n"
-        "like embers buried beneath ash.\n",
+static void print_story_intro(void) 
+{ 
+    int wid, h; 
+    const int indent = 2; 
+ 
+    /* Narrative paragraphs as valid C string literals with embedded \n */ 
+    cptr intro_texts[] = { 
+        "You awaken in darkness.\n" 
+        "No name. No memory.\n" 
+        "Only a quiet ache of courage deep inside you,\n" 
+        "like embers buried beneath ash.\n", 
+ 
+        "Far below, Morgoth waits upon his throne-\n" 
+        "iron-dark and crowned in flame.\n" 
+        "Upon his brow shine three Silmarils, stolen stars.\n" 
+        "He senses your stirring. He knows you will come.\n", 
+ 
+        "Far above, beyond the shadows of Angband,\n" 
+        "the Valar watch silently.\n" 
+        "They offer no guidance, yet their presence\n" 
+        "fills you with strength-and dread.\n", 
+ 
+        "You will return many times, each death and rebirth\n" 
+        "etched into the endless stone halls of Mandos.\n" 
+        "Each fall will draw your spirit deeper into shadow,\n" 
+        "closer to a doom from which you cannot escape.\n", 
+ 
+        "Yet each victory-each Silmaril wrested from Morgoth's crown-\n" 
+        "will brighten the Valar's hope,\n" 
+        "even as your soul grows thinner,\n" 
+        "your strength fading with every triumph.\n", 
+ 
+        "You envy the Edain, whose Gift from Iluvatar\n" 
+        "frees them from the bonds of Mandos and the world.\n" 
+        "Yet you do not know if such release can ever be yours.\n" 
+        "You do not know who-or even what-you truly are.\n", 
+ 
+        "For each time you awaken,\n" 
+        "you will carry the names of heroes beloved and feared-\n" 
+        "bright spirits, fiery hearts, proud kings and exiles,\n" 
+        "wanderers beneath sun and stars,\n" 
+        "whose courage you borrow, but whose fates are not your own.\n", 
+ 
+        "This is the trial set by the Valar:\n" 
+        "to reclaim your forgotten name,\n" 
+        "to balance shadow and light,\n" 
+        "and to find within the borrowed glory of others\n" 
+        "your true self.\n", 
+ 
+        "Now the path before you opens,\n" 
+        "and your trial begins.\n" 
+    }; 
+ 
+    int total = sizeof(intro_texts) / sizeof(intro_texts[0]); 
+    Term_get_size(&wid, &h); 
+    int wrap_width = wid - indent; 
+ 
+    /* Start on a blank screen */ 
+    Term_clear(); 
+    int row = 1, col = 0; 
+ 
+    for (int idx = 0; idx < total; idx++) { 
+        const char *s = intro_texts[idx]; 
+        
+        /* Count lines needed for this paragraph */ 
+        int lines_needed = 0; 
+        int temp_col = col; 
+        for (size_t i = 0; s[i]; i++) { 
+            if (s[i] == '\n' || temp_col >= wrap_width) { 
+                lines_needed++; 
+                temp_col = 0; 
+                if (s[i] == '\n') continue; 
+            } 
+            temp_col++; 
+        } 
+        lines_needed++; /* Add one for the blank line after paragraph */ 
+        
+        /* Check if we have enough space for the whole paragraph */ 
+        if (row + lines_needed >= h - 1) { 
+            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)"); 
+            inkey(); 
+            Term_clear(); 
+            row = 1; 
+        } 
+        
+        col = 0; 
+ 
+        /* Print this string, character by character */ 
+        for (size_t i = 0; s[i]; i++) { 
+            char ch = s[i]; 
+ 
+            /* Newline or wrap? */ 
+            if (ch == '\n' || col >= wrap_width) { 
+                row++; 
+                col = 0; 
+                if (ch == '\n') continue; 
+            } 
+ 
+            Term_putch(indent + col, row, TERM_WHITE, ch); 
+            Term_fresh(); 
+            col++; 
+            
+            /* Delay 25 ms after each character */ 
+            Term_xtra(TERM_XTRA_DELAY, 30); 
+        } 
+ 
+        /* Leave one blank line after each paragraph */ 
+        row++; 
+        col = 0; 
 
-        "Far below, Morgoth waits upon his throne—\n"
-        "iron-dark and crowned in flame.\n"
-        "Upon his brow shine three Silmarils, stolen stars.\n"
-        "He senses your stirring. He knows you will come.\n",
-
-        "Far above, beyond the shadows of Angband,\n"
-        "the Valar watch silently.\n"
-        "They offer no guidance, yet their presence\n"
-        "fills you with strength-and dread.\n",
-
-        "You will return many times, each death and rebirth\n"
-        "etched into the endless stone halls of Mandos.\n"
-        "Each fall will draw your spirit deeper into shadow,\n"
-        "closer to a doom from which you cannot escape.\n",
-
-        "Yet each victory-each Silmaril wrested from Morgoth's crown-\n"
-        "will brighten the Valar's hope,\n"
-        "even as your soul grows thinner,\n"
-        "your strength fading with every triumph.\n",
-
-        "You envy the Edain, whose Gift from Iluvatar\n"
-        "frees them from the bonds of Mandos and the world.\n"
-        "Yet you do not know if such release can ever be yours.\n"
-        "You do not know who—or even what-you truly are.\n",
-
-        "For each time you awaken,\n"
-        "you will carry the names of heroes beloved and feared—\n"
-        "bright spirits, fiery hearts, proud kings and exiles,\n"
-        "wanderers beneath sun and stars,\n"
-        "whose courage you borrow, but whose fates are not your own.\n",
-
-        "This is the trial set by the Valar:\n"
-        "to reclaim your forgotten name,\n"
-        "to balance shadow and light,\n"
-        "and to find within the borrowed glory of others\n"
-        "your true self.\n",
-
-        "Now the path before you opens,\n"
-        "and your trial begins.\n"
-    };
-    int total = sizeof(intro_texts) / sizeof(intro_texts[0]);
-
-    Term_get_size(&wid, &h);
-    int wrap_width = wid - indent;
-    int row = 1;
-
-    Term_clear();
-    for (int index = 0; index < total; index++) {
-        if (index > 0) {
-            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
-            inkey();
-        }
-        int lines = count_wrapped_lines(intro_texts[index], wrap_width, indent);
-        if (row + lines > h - 1) {
-            Term_clear();
-            row = 1;
-        }
-        text_out_indent = indent;
-        text_out_wrap   = wrap_width;
-        Term_gotoxy(indent, row);
-        text_out_to_screen(TERM_WHITE, intro_texts[index]);
-        text_out_wrap   = 0;
-        text_out_indent = 0;
-        row += lines;
-    }
-    Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to finish)");
-    inkey();
-    Term_clear();
+        /* 1 second pause after paragraph */
+        Term_xtra(TERM_XTRA_DELAY, 1000);
+    } 
+ 
+    /* Final "finish" prompt */ 
+    Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to finish)"); 
+    inkey(); 
+    Term_clear(); 
 }
 
 
@@ -3039,7 +3091,7 @@ PlayResult play_game(void)
     }
 
     /* Hack -- Turn off the cursor */
-    (void)Term_set_cursor(FALSE);
+    (void)Term_set_cursor(false);
 
     /* Hack -- Default base_name */
     if (!op_ptr->base_name[0])
@@ -3051,8 +3103,11 @@ PlayResult play_game(void)
     print_story_intro();
     else print_metarun_stats();
 
-    character_loaded = FALSE;
-    character_loaded_dead = FALSE;
+    log_info("Starting new game session");
+
+    character_dungeon = false;
+    character_loaded = false;
+    character_loaded_dead = false;
 
     for (;;)
     {
@@ -3061,21 +3116,30 @@ PlayResult play_game(void)
 
         log_info("Choosing character");
         NavResult cr = character_creation();
-        if (cr == NAV_TO_MAIN) { character_icky--; return PLAY_DONE; }
-        if (cr == NAV_QUIT)    { character_icky--; return PLAY_QUIT; }
+        if (cr == NAV_TO_MAIN) { 
+            log_info("Returning to main menu from character creation"); 
+            character_icky--; 
+            return PLAY_DONE; 
+        }
+        if (cr == NAV_QUIT) { 
+            log_info("Quitting from character creation"); 
+            character_icky--; 
+            return PLAY_QUIT; 
+        }
 
         /* Attempt to load */
-        if (!load_player()) log_info("Failed to load player");
-
+        if (!load_player()) {
+            log_debug("Failed to load player");
+            if (character_loaded_dead) player_wipe();
+        }
         log_info(character_loaded ? "Character loaded" :
-            (character_loaded_dead ? "Character loaded dead" : "Character creation started created"));
+            (character_loaded_dead ? "Character loaded dead" : "Character creation started"));
 
         new_game = !character_loaded;
-        character_dungeon = FALSE;
 
         if (new_game)
         {
-            log_info("Rolling up a new character");
+            log_info("Starting new game - initializing character");
         /* Init RNG */
         if (Rand_quick)
         {
@@ -3092,36 +3156,51 @@ PlayResult play_game(void)
     #endif
 
             /* Use the complex RNG */
-            Rand_quick = FALSE;
+            Rand_quick = false;
 
             /* Seed the "complex" RNG */
             Rand_state_init(seed);
+            
+            log_debug("RNG initialized with seed: %u", seed);
         }
 
         log_info("Rolling up a new character");
+        log_trace("Character creation phase: setting up dungeon state");
         /* The dungeon is not ready */
-        character_dungeon = FALSE;
+        character_dungeon = false;
 
         /* Hack -- seed for flavors */
         seed_flavor = rand_int(0x10000000);
 
         /* Hack -- seed for random artefacts */
         seed_randart = rand_int(0x10000000);
+        
+        log_debug("Game seeds initialized - flavor: %u, randart: %u", seed_flavor, seed_randart);
 
         /* Roll up a new character */
         NavResult br = player_birth();
-        if (br == NAV_BACK)    { /* back to Character Selection */
+        if (br == NAV_BACK) { 
+            log_debug("Returning to character selection from birth"); 
+            /* back to Character Selection */
             continue;
         }
-        if (br == NAV_TO_MAIN) { character_icky--; return PLAY_DONE; }
-        if (br == NAV_QUIT)    { character_icky--; return PLAY_QUIT; }
+        if (br == NAV_TO_MAIN) { 
+            log_info("Returning to main menu from character birth"); 
+            character_icky--; 
+            return PLAY_DONE; 
+        }
+        if (br == NAV_QUIT) { 
+            log_info("Quitting from character birth"); 
+            character_icky--; 
+            return PLAY_QUIT; 
+        }
         /* NAV_OK falls through */
 
         // Reset the autoinscriptions
         autoinscribe_clean();
         autoinscribe_init();
 
-        log_debug("New character rolled up");
+        log_debug("New character rolled up - autoinscriptions reset");
 
         /* Hack -- enter the world */
         if (!character_loaded) {
@@ -3131,26 +3210,30 @@ PlayResult play_game(void)
 
         /* Start player on level 1 */
         p_ptr->depth = 1;
+        
+        log_debug("New game state initialized - starting at depth 1, turn 1");
         }
         }
 
-        /* succeeded (either loaded or created) — exit the creation loop */
+        /* succeeded (either loaded or created) - exit the creation loop */
         break;
     }
 
     /* Normal machine (process player name) */
     if (savefile[0])
     {
-        process_player_name(FALSE);
+        process_player_name(false);
     }
 
     /* Weird machine (process player name, pick savefile name) */
     else
     {
-        process_player_name(TRUE);
+        process_player_name(true);
     }
 
-    print_story();
+    print_story(15,1);
+
+    log_debug("Game initialization complete, starting main game loop");
 
     /* Flash a message */
     prt("Please wait...", 0, 0);
@@ -3160,13 +3243,16 @@ PlayResult play_game(void)
 
     /* Hack -- Enter wizard mode */
     if (arg_wizard && enter_wizard_mode())
-        p_ptr->wizard = TRUE;
+    {
+        p_ptr->wizard = true;
+        log_debug("Wizard mode activated");
+    }
 
     /* Flavor the objects */
     flavor_init();
 
     /* Reset visuals */
-    reset_visuals(TRUE);
+    reset_visuals(true);
 
     /* Window stuff */
     p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
@@ -3182,19 +3268,23 @@ PlayResult play_game(void)
 
     /* Set or clear "hjkl_movement" if requested */
     if (arg_force_original)
-        hjkl_movement = FALSE;
+        hjkl_movement = false;
     if (arg_force_roguelike)
-        hjkl_movement = TRUE;
+        hjkl_movement = true;
 
     /* React to changes */
     Term_xtra(TERM_XTRA_REACT, 0);
 
     /* Generate a dungeon level if needed */
     if (!character_dungeon)
+    {
+        log_info("Generating initial dungeon level");
         generate_cave();
+        log_debug("Initial dungeon level generated successfully");
+    }
 
     /* Character is now "complete" */
-    character_generated = TRUE;
+    character_generated = true;
 
     /* Start with normal object generation mode */
     object_generation_mode = OB_GEN_MODE_NORMAL;
@@ -3203,12 +3293,14 @@ PlayResult play_game(void)
     character_icky--;
 
     /* Start playing */
-    p_ptr->playing = TRUE;
-    metarun_created = FALSE;
+    p_ptr->playing = true;
+    metarun_created = false;
+    
+    log_info("Game session started - entering play mode");
 
     /* Hack -- Enforce "delayed death" */
     if (p_ptr->chp <= 0)
-        p_ptr->is_dead = TRUE;
+        p_ptr->is_dead = true;
 
     /* Redraw everything */
     // Sil-y: added to get 'shades' right in extra inventory terms
@@ -3221,12 +3313,13 @@ PlayResult play_game(void)
     turns_since_combat = 0;
 
     // assume the player is on the ground and not being knocked back
-    p_ptr->leaping = FALSE;
-    p_ptr->knocked_back = FALSE;
+    p_ptr->leaping = false;
+    p_ptr->knocked_back = false;
 
     /* Process */
-    while (TRUE)
+    while (true)
     {
+        log_trace("Starting dungeon level processing loop");
         /* Process the level */
         dungeon();
 
@@ -3257,12 +3350,16 @@ PlayResult play_game(void)
 
         /* Handle "quit and save" */
         if (!p_ptr->playing && !p_ptr->is_dead)
+        {
+            log_info("Player quit and saved - exiting game loop");
             break;
+        }
 
         /* Erase the old cave */
         /* If the character is dead, then we don't erase yet */
         if (!p_ptr->is_dead)
         {
+            log_trace("Cleaning up level data for transition");
             wipe_o_list();
             wipe_mon_list();
         }
@@ -3279,6 +3376,7 @@ PlayResult play_game(void)
             if ((p_ptr->wizard || (p_ptr->noscore & 0x0008) || cheat_live)
                 && !get_check("Die? "))
             {
+                log_debug("Player cheated death - restoring to full health");
                 /* Mark savefile */
                 p_ptr->noscore |= 0x0001;
 
@@ -3287,7 +3385,7 @@ PlayResult play_game(void)
                 message_flush();
 
                 /* Cheat death */
-                p_ptr->is_dead = FALSE;
+                p_ptr->is_dead = false;
 
                 /* Restore hit points */
                 p_ptr->chp = p_ptr->mhp;
@@ -3319,13 +3417,14 @@ PlayResult play_game(void)
                     sizeof(p_ptr->died_from));
 
                 /* Need to generate a new level */
-                p_ptr->leaving = TRUE;
+                p_ptr->leaving = true;
             }
         }
 
         /* Take a mini screenshot for dead characters */
         if (p_ptr->is_dead)
         {
+            log_debug("Character dead - taking screenshot and revealing map");
             death_knowledge();
 
             do_cmd_wiz_unhide(255);
@@ -3336,14 +3435,22 @@ PlayResult play_game(void)
 
         /* Handle "death" */
         if (p_ptr->is_dead)
+        {
+            log_info("Character '%s' died - ending game session", op_ptr->base_name);
             break;
+        }
 
         /* Make a new level */
+        log_info("Generating new dungeon level at depth %d", p_ptr->depth);
         generate_cave();
+        log_debug("New dungeon level generated successfully");
     }
 
     /* Close stuff */
     log_info("Player '%s' has left the game.", op_ptr->base_name);
     close_game();
-    return PLAY_DONE;
+    if (!p_ptr->is_dead && !p_ptr->playing)
+        return PLAY_QUIT;
+    else 
+        return PLAY_DONE;
 }

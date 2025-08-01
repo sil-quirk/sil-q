@@ -36,7 +36,7 @@
 #include "maid-x11.h"
 
 #ifdef SUPPORT_GAMMA
-static bool gamma_table_ready = FALSE;
+static bool gamma_table_ready = false;
 static int gamma_val = 0;
 #endif /* SUPPORT_GAMMA */
 
@@ -57,7 +57,7 @@ u32b create_pixel(Display* dpy, byte red, byte green, byte blue)
         if (str != NULL)
             gamma_val = atoi(str);
 
-        gamma_table_ready = TRUE;
+        gamma_table_ready = true;
 
         /* Only need to build the table if gamma exists */
         if (gamma_val)
@@ -410,7 +410,7 @@ static int redShift, greenShift, blueShift;
 /*
  * Use smooth rescaling?
  */
-bool smoothRescaling = TRUE;
+bool smoothRescaling = true;
 
 /*
  * GetScaledRow reads a scan from the given XImage, scales it smoothly
@@ -456,7 +456,7 @@ static void GetScaledRow(XImage* Im, int x, int y, int iw, int ow,
         si = x;
         sifrac = 0;
         /* getNextPix tells us, that we need the next pixel */
-        getNextPix = TRUE;
+        getNextPix = true;
 
         for (xi = 0; xi <= ow; xi++)
         {
@@ -487,11 +487,11 @@ static void GetScaledRow(XImage* Im, int x, int y, int iw, int ow,
             {
                 si++;
                 sifrac -= ow;
-                getNextPix = TRUE;
+                getNextPix = true;
             }
             else
             {
-                getNextPix = FALSE;
+                getNextPix = false;
             }
         }
     }
@@ -636,7 +636,7 @@ static void ScaleIcon(XImage* ImIn, XImage* ImOut, int x1, int y1, int x2,
         sifrac = 0;
 
         /* getNextRow tells us, that we need the next row */
-        getNextRow = TRUE;
+        getNextRow = true;
 
         for (yi = 0; yi <= oy; yi++)
         {
@@ -679,11 +679,11 @@ static void ScaleIcon(XImage* ImIn, XImage* ImOut, int x1, int y1, int x2,
             {
                 si++;
                 sifrac -= oy;
-                getNextRow = TRUE;
+                getNextRow = true;
             }
             else
             {
-                getNextRow = FALSE;
+                getNextRow = false;
             }
         }
     }
@@ -844,7 +844,7 @@ XImage* ResizeImage(Display* dpy, XImage* Im, int ix, int iy, int ox, int oy)
     char* Data;
 
     if (smoothRescaling && (ix != ox || iy != oy)
-        && (visual->class == TrueColor))
+        && (visual->class == trueColor))
     {
         return ResizeImageSmooth(dpy, Im, ix, iy, ox, oy);
     }

@@ -27,3 +27,5 @@ src/code.zip
 *.zip
 *.zip
 /lib/xtra/font - Copy
+/src/copies
+src/code.zip

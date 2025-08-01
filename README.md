@@ -3,34 +3,28 @@ SIL-Q Heroes is a version of SIL-Q which incorporates two main ideas.
 First, it has real life characters from Tolkien FA and storyline.
 Secondly, it uses a system of metaruns, where consequtive runs are connected into one storyline idea more like modern Rougue-light games.
   
-# Road Map  
-# Release closed alpha 0.5 (done)  
--Bug fixes (ongoing)   
--UI fixes (done)
---Start menu (done) 
---Character menu (done)
--Decriptions update (done)
-  
-# Release alpha 0.6 (UI updates) 
--Bug fixes (ongoing)  
--Balance tweaks 
--UI updates   
---Score menu  
---Final menu  
+# Road Map    
+
+# Release of alpha 0.7 (Storyline updates) (done) 
+ 
+-Balance tweaks  
 -Add unique RHF flags  
 --Earendil  
 --Turin  
 --Celeborn  
---Maedhros
-  
-# Release of alpha 0.7  
+--Maedhros 
+-Change Score to Character database 
+# Release of beta 0.8  
+
 # Ideas  
+--New heroes 
+---Eol 
 --More frequent forges for gnomes  
 --Calculate the forge probablity  
 --New Oaths  
 --Quests  
 --Pride  
---Greed  
+--Greed   
   
 # Done  
 -Implement main curses (done)  
@@ -49,6 +43,18 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 -Figure out last abilities and balance tweaks (done)  
 --All starting abilities (done)  
 --Multiple starting abilities (done)  
+# Release closed alpha 0.5 (done)  
+-Bug fixes (ongoing)   
+-UI fixes (done)
+--Start menu (done) 
+--Character menu (done)
+-Decriptions update (done) 
+# Release alpha 0.6 (UI updates) (done) 
+-Bug fixes (ongoing)  
+-UI updates   
+--Score menu (done)  
+--Final menu (done) 
+-Flavor ideas for final menus (done)   
   
 ## Compiling Instructions
 

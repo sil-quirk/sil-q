@@ -12,6 +12,7 @@
 
 #include "init.h"
 #include "log.h"
+#include <stdbool.h>
 
 /*
  * This file loads savefiles from Sil.
@@ -110,24 +111,24 @@ static bool older_than(int x, int y, int z)
 {
     /* Much older, or much more recent */
     if (sf_major < x)
-        return (TRUE);
+        return (true);
     if (sf_major > x)
-        return (FALSE);
+        return (false);
 
     /* Distinctly older, or distinctly more recent */
     if (sf_minor < y)
-        return (TRUE);
+        return (true);
     if (sf_minor > y)
-        return (FALSE);
+        return (false);
 
     /* Barely older, or barely more recent */
     if (sf_patch < z)
-        return (TRUE);
+        return (true);
     if (sf_patch > z)
-        return (FALSE);
+        return (false);
 
     /* Identical versions */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -156,12 +157,12 @@ static bool wearable_p(const object_type* o_ptr)
     case TV_AMULET:
     case TV_RING:
     {
-        return (TRUE);
+        return (true);
     }
     }
 
     /* Nope */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -218,7 +219,7 @@ static void rd_string(char* str, int max)
     int i;
 
     /* Read the string */
-    for (i = 0; TRUE; i++)
+    for (i = 0; true; i++)
     {
         byte tmp8u;
 
@@ -591,7 +592,7 @@ static void rd_randomizer(void)
     }
 
     /* Accept */
-    Rand_quick = FALSE;
+    Rand_quick = false;
 }
 
 /*
@@ -656,14 +657,14 @@ static void rd_options(void)
                 if (flag[os] & (1L << ob))
                 {
                     /* Set */
-                    op_ptr->opt[i] = TRUE;
+                    op_ptr->opt[i] = true;
                 }
 
                 /* Clear flag */
                 else
                 {
                     /* Set */
-                    op_ptr->opt[i] = FALSE;
+                    op_ptr->opt[i] = false;
                 }
             }
         }
@@ -880,7 +881,7 @@ static errr rd_extra(void)
 
         /* Hack - Repair the savefile */
         if (!e_ptr->everseen)
-            e_ptr->squelch = FALSE;
+            e_ptr->squelch = false;
     }
 
     /* Read possible extra elements */
@@ -946,7 +947,7 @@ static errr rd_extra(void)
     rd_bool(&p_ptr->unique_forge_made);
     rd_bool(&p_ptr->unique_forge_seen);
     rd_bool(&p_ptr->is_dead);
-    log_debug("is_dead: %d", p_ptr->is_dead);
+    log_trace("is_dead: %d", p_ptr->is_dead);
 
     /* Read "feeling" */
     rd_byte(&tmp8u);
@@ -956,15 +957,15 @@ static errr rd_extra(void)
     rd_byte(&tmp8u);
     do_feeling = tmp8u;
     // rd_byte(&do_feeling);
-    log_debug("do_feeling: %d", do_feeling);
+    log_trace("do_feeling: %d", do_feeling);
 
     /* Current turn */
     rd_s32b(&turn);
-    log_debug("turn: %d", turn);
+    log_trace("turn: %d", turn);
 
     /* Current player turn */
     rd_s32b(&playerturn);
-    log_debug("playerturn: %d", playerturn);
+    log_trace("playerturn: %d", playerturn);
 
     // rd_byte(&tmp8u);
     // p_ptr->killed_enemy_with_arrow = tmp8u;
@@ -1126,7 +1127,7 @@ static bool rd_notes(void)
     if (alive)
     {
         /* Append the notes in the savefile to the buffer */
-        while (TRUE)
+        while (true)
         {
             rd_string(tmpstr, sizeof(tmpstr));
             /* Found the end? */
@@ -1139,7 +1140,7 @@ static bool rd_notes(void)
     /* Ignore the notes */
     else
     {
-        while (TRUE)
+        while (true)
         {
             rd_string(tmpstr, sizeof(tmpstr));
 
@@ -1165,6 +1166,8 @@ static errr rd_inventory(void)
 
     object_type* i_ptr;
     object_type object_type_body;
+
+    log_debug("Loading smithing object and player inventory");
 
     /* Wipe the smithing object */
     object_wipe(smith_o_ptr);
@@ -1243,6 +1246,8 @@ static errr rd_inventory(void)
         }
     }
 
+    log_debug("Inventory loaded: %d items carried, %d items equipped", p_ptr->inven_cnt, p_ptr->equip_cnt);
+
     /* Success */
     return (0);
 }
@@ -1260,6 +1265,7 @@ static void rd_messages(void)
 
     /* Total */
     rd_s16b(&num);
+    log_debug("Loading %d message history entries", num);
 
     /* Read the messages */
     for (i = 0; i < num; i++)
@@ -1411,6 +1417,7 @@ static errr rd_dungeon(void)
 
     /* Read the item count */
     rd_u16b(&limit);
+    log_debug("Loading %d objects from dungeon", limit - 1);
 
     /* Verify maximum */
     if (limit > z_info->o_max)
@@ -1480,6 +1487,7 @@ static errr rd_dungeon(void)
 
     /* Read the monster count */
     rd_u16b(&limit);
+    log_debug("Loading %d monsters from dungeon", limit - 1);
 
     /* Hack -- verify */
     if (limit > MAX_MONSTERS)
@@ -1557,7 +1565,7 @@ static errr rd_dungeon(void)
     /*** Success ***/
 
     /* The dungeon is ready */
-    character_dungeon = TRUE;
+    character_dungeon = true;
 
     /* Success */
     return (0);
@@ -1622,6 +1630,7 @@ static errr rd_savefile_new_aux(void)
 
     /* Monster Memory */
     rd_u16b(&tmp16u);
+    log_debug("Loading %d monster race records", tmp16u);
 
     /* Incompatible save files */
     if (tmp16u > z_info->r_max)
@@ -1641,6 +1650,7 @@ static errr rd_savefile_new_aux(void)
 
     /* Object Memory */
     rd_u16b(&tmp16u);
+    log_debug("Loading %d object kind records", tmp16u);
 
     /* Incompatible save files */
     if (tmp16u > z_info->k_max)
@@ -1658,9 +1668,9 @@ static errr rd_savefile_new_aux(void)
 
         rd_byte(&tmp8u);
 
-        k_ptr->aware = (tmp8u & 0x01) ? TRUE : FALSE;
-        k_ptr->tried = (tmp8u & 0x02) ? TRUE : FALSE;
-        k_ptr->everseen = (tmp8u & 0x08) ? TRUE : FALSE;
+        k_ptr->aware = (tmp8u & 0x01) ? true : false;
+        k_ptr->tried = (tmp8u & 0x02) ? true : false;
+        k_ptr->everseen = (tmp8u & 0x08) ? true : false;
 
         rd_byte(&k_ptr->squelch);
     }
@@ -1669,6 +1679,7 @@ static errr rd_savefile_new_aux(void)
 
     /* Load the Artefacts */
     rd_u16b(&tmp16u);
+    log_debug("Loading %d artefact records", tmp16u);
 
     /* Incompatible save files */
     if (tmp16u > z_info->art_max)
@@ -1689,16 +1700,19 @@ static errr rd_savefile_new_aux(void)
         note("Loaded Artefacts");
 
     /* Read the extra stuff */
+    log_debug("Loading extra player information");
     if (rd_extra())
         return (-1);
     if (arg_fiddle)
         note("Loaded extra information");
 
+    log_debug("Loading random artefacts");
     if (rd_randarts())
         return (-1);
     if (arg_fiddle)
         note("Loaded Random Artefacts");
 
+    log_debug("Loading notes");
     if (rd_notes())
         return (-1);
     if (arg_fiddle)
@@ -1709,6 +1723,7 @@ static errr rd_savefile_new_aux(void)
     hp_ptr = &c_info[p_ptr->phouse];
 
     /* Read the inventory */
+    log_debug("Loading player inventory");
     if (rd_inventory())
     {
         note("Unable to read inventory");
@@ -1720,6 +1735,7 @@ static errr rd_savefile_new_aux(void)
     {
         /* Dead players have no dungeon */
         note("Restoring Dungeon...");
+        log_debug("Loading dungeon data");
         if (rd_dungeon())
         {
             note("Error reading dungeon data");
@@ -1737,6 +1753,7 @@ static errr rd_savefile_new_aux(void)
     if (o_v_check != n_v_check)
     {
         note("Invalid checksum");
+        log_debug("Checksum mismatch: expected %u, got %u", n_v_check, o_v_check);
         return (-1);
     }
 
@@ -1750,6 +1767,7 @@ static errr rd_savefile_new_aux(void)
     if (o_x_check != n_x_check)
     {
         note("Invalid encoded checksum");
+        log_debug("Encoded checksum mismatch: expected %u, got %u", n_x_check, o_x_check);
         return (-1);
     }
 
@@ -1764,6 +1782,8 @@ static errr rd_savefile(void)
 {
     errr err;
 
+    log_debug("Opening savefile for reading");
+
     /* Grab permissions */
     safe_setuid_grab();
 
@@ -1775,17 +1795,24 @@ static errr rd_savefile(void)
 
     /* Paranoia */
     if (!fff)
+    {
+        log_debug("Failed to open savefile: %s", savefile);
         return (-1);
+    }
 
     /* Call the sub-function */
     err = rd_savefile_new_aux();
 
     /* Check for errors */
     if (ferror(fff))
+    {
+        log_debug("File read error detected");
         err = -1;
+    }
 
     /* Close the file */
     my_fclose(fff);
+    log_debug("Savefile closed");
 
     /* Result */
     return (err);
@@ -1799,7 +1826,7 @@ static errr rd_savefile(void)
  * the player loads a savefile belonging to someone else, and then is not
  * allowed to save his game when he quits.
  *
- * We return "TRUE" if the savefile was usable, and we set the global
+ * We return "true" if the savefile was usable, and we set the global
  * flag "character_loaded" if a real, living, character was loaded.
  *
  * Note that we always try to load the "current" savefile, even if
@@ -1825,14 +1852,14 @@ bool load_player(void)
     turn = 0;
 
     /* Paranoia */
-    p_ptr->is_dead = FALSE;
+    p_ptr->is_dead = false;
 
     // Set a flag to show that we are restoring a game
-    p_ptr->restoring = TRUE;
+    p_ptr->restoring = true;
 
     /* Allow empty savefile name */
     if (!savefile[0])
-        return (TRUE);
+        return (true);
 
     /* Grab permissions */
     safe_setuid_grab();
@@ -1852,9 +1879,11 @@ bool load_player(void)
 
         /* Allow this */
         log_debug("Savefile '%s' does not exist", savefile);
-        p_ptr->restoring = FALSE;
-        return (FALSE);
+        p_ptr->restoring = false;
+        return (false);
     }
+
+    log_debug("Savefile exists, proceeding with load");
 
     /* Close the file */
     fd_close(fd);
@@ -1892,7 +1921,7 @@ bool load_player(void)
             message_flush();
 
             /* Oops */
-            return (FALSE);
+            return (false);
         }
 
         /* Grab permissions */
@@ -1978,12 +2007,14 @@ bool load_player(void)
         {
             err = -1;
             what = "Savefile is too old";
+            log_debug("Savefile version %d.%d.%d is too old", sf_major, sf_minor, sf_patch);
         }
 
         else if (!older_than(VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH + 1))
         {
             err = -1;
             what = "Savefile is from the future";
+            log_debug("Savefile version %d.%d.%d is from the future", sf_major, sf_minor, sf_patch);
         }
 
         else
@@ -2058,14 +2089,15 @@ bool load_player(void)
             /* Cheat death (unless the character retired) */
             if (arg_wizard)
             {
+                log_info("Wizard mode: resurrecting dead character");
                 /*heal the player*/
-                hp_player(100, TRUE, TRUE);
+                hp_player(100, true, true);
 
                 /* Forget death */
-                p_ptr->is_dead = FALSE;
+                p_ptr->is_dead = false;
 
                 /* A character was loaded */
-                character_loaded = TRUE;
+                character_loaded = true;
 
                 // put the character somewhere sensible
                 p_ptr->depth = min_depth();
@@ -2074,11 +2106,11 @@ bool load_player(void)
                 p_ptr->noscore |= 0x0001;
 
                 /* Done */
-                return (TRUE);
+                return (true);
             }
 
             /* Forget death */
-            p_ptr->is_dead = FALSE;
+            p_ptr->is_dead = false;
 
             /* Count lives */
             sf_lives++;
@@ -2088,14 +2120,15 @@ bool load_player(void)
             playerturn = 0;
 
             /* A dead character was loaded */
-            character_loaded_dead = TRUE; ////
+            character_loaded_dead = true; 
+            log_info("Character loaded dead");
 
             /* Done */
-            return (TRUE);
+            return (false);
         }
 
         /* A character was loaded */
-        character_loaded = TRUE;
+        character_loaded = true;
         log_info("%s", character_loaded ? "Character loaded" : "Character not loaded");
 
         /* Still alive */
@@ -2108,15 +2141,16 @@ bool load_player(void)
 
         // count the artefacts seen for the player
         p_ptr->artefacts = artefact_count();
+        log_debug("Character has seen %d artefacts", p_ptr->artefacts);
 
         /* Success */
-        return (TRUE);
+        return (true);
     }
 
 #ifdef VERIFY_SAVEFILE
 
     /* Verify savefile usage */
-    if (TRUE)
+    if (true)
     {
         char temp[1024];
 
@@ -2142,5 +2176,5 @@ bool load_player(void)
     message_flush();
 
     /* Oops */
-    return (FALSE);
+    return (false);
 }

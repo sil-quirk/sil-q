@@ -45,16 +45,16 @@ static bool eat_food(object_type* o_ptr, bool* ident)
     case SV_FOOD_RAGE:
     {
         if (set_afraid(0))
-            *ident = TRUE;
+            *ident = true;
         if (set_rage(p_ptr->rage + damroll(10, 4)))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
     case SV_FOOD_SUSTENANCE:
     {
         if (set_food(p_ptr->food + 2000))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
@@ -64,17 +64,17 @@ static bool eat_food(object_type* o_ptr, bool* ident)
         {
             if (set_afraid(p_ptr->afraid + damroll(10, 4)))
             {
-                *ident = TRUE;
+                *ident = true;
             }
             if (set_fast(p_ptr->fast + damroll(5, 4)))
             {
-                *ident = TRUE;
+                *ident = true;
             }
         }
         else
         {
             msg_print("You feel nervous for a moment.");
-            *ident = TRUE;
+            *ident = true;
         }
 
         break;
@@ -83,47 +83,47 @@ static bool eat_food(object_type* o_ptr, bool* ident)
     case SV_FOOD_HEALING:
     {
         msg_print("It has the bitter taste of medicine.");
-        *ident = TRUE;
+        *ident = true;
         set_cut(p_ptr->cut / 2);
-        hp_player(50 + medicine_bonus(50), TRUE, TRUE);
+        hp_player(50 + medicine_bonus(50), true, true);
         break;
     }
 
     case SV_FOOD_RESTORATION:
     {
         if (do_res_stat(A_STR, 3))
-            *ident = TRUE;
+            *ident = true;
         if (do_res_stat(A_DEX, 3))
-            *ident = TRUE;
+            *ident = true;
         if (do_res_stat(A_CON, 3))
-            *ident = TRUE;
+            *ident = true;
         if (do_res_stat(A_GRA, 3))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
     case SV_FOOD_HUNGER:
     {
         if (set_food(p_ptr->food - 1000))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
     case SV_FOOD_VISIONS:
     {
         if (set_blind(0))
-            *ident = TRUE;
+            *ident = true;
         if (allow_player_image(NULL))
         {
             if (set_image(p_ptr->image + damroll(80, 4)))
             {
-                *ident = TRUE;
+                *ident = true;
             }
         }
         else
         {
             msg_print("You thought you saw something for a moment.");
-            *ident = TRUE;
+            *ident = true;
         }
         break;
     }
@@ -134,13 +134,13 @@ static bool eat_food(object_type* o_ptr, bool* ident)
         {
             if (set_entranced(damroll(10, 4)))
             {
-                *ident = TRUE;
+                *ident = true;
             }
         }
         else
         {
             msg_print("You feel strangely peaceful for a moment.");
-            *ident = TRUE;
+            *ident = true;
         }
         break;
     }
@@ -148,28 +148,28 @@ static bool eat_food(object_type* o_ptr, bool* ident)
     case SV_FOOD_WEAKNESS:
     {
         if (do_dec_stat(A_STR, NULL))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
     case SV_FOOD_SICKNESS:
     {
         if (do_dec_stat(A_CON, NULL))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
     case SV_FOOD_BREAD:
     {
         msg_print("It is hard and bitter.");
-        *ident = TRUE;
+        *ident = true;
         break;
     }
 
     case SV_FOOD_MEAT:
     {
         msg_print("It tastes foul.");
-        *ident = TRUE;
+        *ident = true;
         break;
     }
 
@@ -177,8 +177,8 @@ static bool eat_food(object_type* o_ptr, bool* ident)
     {
         msg_print("It fills you with renewed energy and spirit.");
         if (do_res_stat(A_GRA, 1))
-            *ident = TRUE;
-        *ident = TRUE;
+            *ident = true;
+        *ident = true;
         break;
     }
     }
@@ -186,7 +186,7 @@ static bool eat_food(object_type* o_ptr, bool* ident)
     /* Food can feed the player */
     (void)set_food(p_ptr->food + o_ptr->pval);
 
-    return (TRUE);
+    return (true);
 }
 
 static bool quaff_potion(object_type* o_ptr, bool* ident)
@@ -197,7 +197,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
     case SV_POTION_MIRUVOR:
     {
         msg_print("It has a gentle warmth, and a taste as of flowers.");
-        *ident = TRUE;
+        *ident = true;
         (void)set_stun(0);
         (void)set_confused(0);
         (void)set_image(0);
@@ -205,7 +205,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         (void)set_blind(0);
         (void)set_cut(p_ptr->cut / 2);
         (void)set_afraid(0);
-        (void)hp_player(50 + medicine_bonus(50), TRUE, TRUE);
+        (void)hp_player(50 + medicine_bonus(50), true, true);
         if (p_ptr->csp < p_ptr->msp)
         {
             p_ptr->csp = p_ptr->msp;
@@ -227,15 +227,15 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         }
 
         (void)set_afraid(0);
-        hp_player(25 + medicine_bonus(25), TRUE, TRUE);
-        *ident = TRUE;
+        hp_player(25 + medicine_bonus(25), true, true);
+        *ident = true;
         break;
     }
 
     case SV_POTION_ESGALDUIN:
     {
         msg_print("It is the cold clear water of mystic Esgalduin.");
-        *ident = TRUE;
+        *ident = true;
 
         set_tmp_per(p_ptr->tmp_per + damroll(20, 4));
 
@@ -258,22 +258,22 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
     case SV_POTION_CLARITY:
     {
         if (set_stun(0))
-            *ident = TRUE;
+            *ident = true;
         if (set_confused(0))
-            *ident = TRUE;
+            *ident = true;
         if (set_image(0))
-            *ident = TRUE;
+            *ident = true;
         if (set_rage(0))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
     case SV_POTION_HEALING:
     {
         msg_print("It has the bitter taste of medicine.");
-        *ident = TRUE;
+        *ident = true;
         set_cut(p_ptr->cut / 2);
-        hp_player(50 + medicine_bonus(50), TRUE, TRUE);
+        hp_player(50 + medicine_bonus(50), true, true);
         break;
     }
 
@@ -286,20 +286,20 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
             msg_print("You feel your power renew.");
             p_ptr->redraw |= (PR_VOICE);
             p_ptr->window |= (PW_PLAYER_0);
-            *ident = TRUE;
+            *ident = true;
         }
         break;
     }
 
-    case SV_POTION_TRUE_SIGHT:
+    case SV_POTION_true_SIGHT:
     {
         if (set_blind(0))
-            *ident = TRUE;
+            *ident = true;
         if (set_image(0))
-            *ident = TRUE;
+            *ident = true;
         if (set_tim_invis(p_ptr->tim_invis + damroll(10, 4)))
         {
-            *ident = TRUE;
+            *ident = true;
         }
         break;
     }
@@ -309,7 +309,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         if (p_ptr->poisoned)
         {
             set_poisoned(0);
-            *ident = TRUE;
+            *ident = true;
         }
         break;
     }
@@ -317,7 +317,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
     case SV_POTION_QUICKNESS:
     {
         if (set_fast(p_ptr->fast + damroll(10, 4)))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
@@ -325,11 +325,11 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
     {
         if (set_oppose_fire(p_ptr->oppose_fire + damroll(20, 4)))
         {
-            *ident = TRUE;
+            *ident = true;
         }
         if (set_oppose_cold(p_ptr->oppose_cold + damroll(20, 4)))
         {
-            *ident = TRUE;
+            *ident = true;
         }
         break;
     }
@@ -339,10 +339,10 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         if (p_ptr->stat_drain[A_STR] <= -3)
         {
             if (do_res_stat(A_STR, 3))
-                *ident = TRUE;
+                *ident = true;
         }
         else if (set_tmp_str(p_ptr->tmp_str + damroll(20, 4)))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
@@ -351,10 +351,10 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         if (p_ptr->stat_drain[A_DEX] <= -3)
         {
             if (do_res_stat(A_DEX, 3))
-                *ident = TRUE;
+                *ident = true;
         }
         else if (set_tmp_dex(p_ptr->tmp_dex + damroll(20, 4)))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
@@ -363,10 +363,10 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         if (p_ptr->stat_drain[A_CON] <= -3)
         {
             if (do_res_stat(A_CON, 3))
-                *ident = TRUE;
+                *ident = true;
         }
         else if (set_tmp_con(p_ptr->tmp_con + damroll(20, 4)))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
@@ -375,10 +375,10 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         if (p_ptr->stat_drain[A_GRA] <= -3)
         {
             if (do_res_stat(A_GRA, 3))
-                *ident = TRUE;
+                *ident = true;
         }
         else if (set_tmp_gra(p_ptr->tmp_gra + damroll(20, 4)))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
@@ -387,21 +387,21 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         if (allow_player_slow(NULL))
         {
             if (set_slow(p_ptr->slow + damroll(10, 4)))
-                *ident = TRUE;
+                *ident = true;
         }
         else
         {
             msg_print("You feel lethargic for a moment.");
-            *ident = TRUE;
+            *ident = true;
         }
         break;
     }
 
     case SV_POTION_POISON:
     {
-        update_combat_rolls1b(PLAYER, PLAYER, TRUE);
-        pois_dam_pure(5, 4, TRUE);
-        *ident = TRUE;
+        update_combat_rolls1b(PLAYER, PLAYER, true);
+        pois_dam_pure(5, 4, true);
+        *ident = true;
         break;
     }
 
@@ -409,7 +409,7 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
     {
         if (!p_ptr->blind)
         {
-            *ident = TRUE;
+            *ident = true;
 
             if (allow_player_blind(NULL))
             {
@@ -429,13 +429,13 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
         {
             if (set_confused(p_ptr->confused + damroll(5, 4)))
             {
-                *ident = TRUE;
+                *ident = true;
             }
         }
         else
         {
             msg_print("You feel dizzy for a moment.");
-            *ident = TRUE;
+            *ident = true;
         }
         break;
     }
@@ -443,14 +443,14 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
     case SV_POTION_DEC_DEX:
     {
         if (do_dec_stat(A_DEX, NULL))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
     case SV_POTION_DEC_GRA:
     {
         if (do_dec_stat(A_GRA, NULL))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
     }
@@ -458,14 +458,14 @@ static bool quaff_potion(object_type* o_ptr, bool* ident)
     /* Potions can feed the player */
     (void)set_food(p_ptr->food + o_ptr->pval);
 
-    return (TRUE);
+    return (true);
 }
 
 static bool use_staff(object_type* o_ptr, bool* ident)
 {
     int k;
 
-    bool use_charge = TRUE;
+    bool use_charge = true;
 
     int will_score = p_ptr->skill_use[S_WIL];
 
@@ -475,47 +475,47 @@ static bool use_staff(object_type* o_ptr, bool* ident)
     case SV_STAFF_SECRETS:
     {
         if (detect_traps())
-            *ident = TRUE;
+            *ident = true;
         if (detect_doors())
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
     case SV_STAFF_IMPRISONMENT:
     {
         if (lock_doors(will_score))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
     case SV_STAFF_FREEDOM:
     {
         if (detect_traps())
-            *ident = TRUE;
+            *ident = true;
         if (detect_doors())
-            *ident = TRUE;
+            *ident = true;
         if (open_doors(will_score))
-            *ident = TRUE;
+            *ident = true;
         if (destroy_traps(will_score))
-            *ident = TRUE;
+            *ident = true;
         if (close_chasms(will_score))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
     case SV_STAFF_LIGHT:
     {
         if (light_area(4, 4, 7))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
     case SV_STAFF_SANCTITY:
     {
-        if (remove_curse(FALSE))
+        if (remove_curse(false))
         {
             msg_print("You feel sanctified.");
-            *ident = TRUE;
+            *ident = true;
         }
         break;
     }
@@ -523,43 +523,43 @@ static bool use_staff(object_type* o_ptr, bool* ident)
     case SV_STAFF_UNDERSTANDING:
     {
         if (!ident_spell())
-            use_charge = FALSE;
-        *ident = TRUE;
+            use_charge = false;
+        *ident = true;
         break;
     }
 
     case SV_STAFF_REVELATIONS:
     {
         map_area();
-        *ident = TRUE;
+        *ident = true;
         break;
     }
 
     case SV_STAFF_TREASURES:
     {
         if (detect_objects_normal())
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
     case SV_STAFF_FOES:
     {
         if (detect_monsters())
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
     case SV_STAFF_SLUMBER:
     {
         if (sleep_monsters(will_score))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
 
     case SV_STAFF_MAJESTY:
     {
-        if (project_los(GF_FEAR, 0, 0, will_score, FALSE))
-            *ident = TRUE;
+        if (project_los(GF_FEAR, 0, 0, will_score, false))
+            *ident = true;
         break;
     }
 
@@ -567,7 +567,7 @@ static bool use_staff(object_type* o_ptr, bool* ident)
     {
         msg_print("Your mind turns inward.");
         self_knowledge();
-        *ident = TRUE;
+        *ident = true;
         break;
     }
 
@@ -584,25 +584,25 @@ static bool use_staff(object_type* o_ptr, bool* ident)
         {
             msg_print("but you cannot draw a glyph without a clean expanse of "
                       "floor.");
-            use_charge = FALSE;
+            use_charge = false;
         }
 
-        *ident = TRUE;
+        *ident = true;
         break;
     }
 
     case SV_STAFF_DISMAY:
     {
-        if (project_los(GF_CONFUSION, 0, 0, 5 + will_score / 2, FALSE))
-            *ident = TRUE;
+        if (project_los(GF_CONFUSION, 0, 0, 5 + will_score / 2, false))
+            *ident = true;
         break;
     }
 
     case SV_STAFF_RECHARGING:
     {
         if (!recharge(CHANNELING_CHARGE_MULTIPLIER))
-            use_charge = FALSE;
-        *ident = TRUE;
+            use_charge = false;
+        *ident = true;
         break;
     }
 
@@ -613,8 +613,8 @@ static bool use_staff(object_type* o_ptr, bool* ident)
         // summon 1d4 creatures on the stairs
         for (k = 0; k < monsters; k++)
         {
-            if (alloc_monster(TRUE, FALSE))
-                *ident = TRUE;
+            if (alloc_monster(true, false))
+                *ident = true;
             // random_unseen_floor(&ry, &rx);
             //(void) summon_specific(ry, rx, p_ptr->depth, 0);
         }
@@ -624,7 +624,7 @@ static bool use_staff(object_type* o_ptr, bool* ident)
     case SV_STAFF_SHADOWS:
     {
         if (darken_area(4, 4, 7))
-            *ident = TRUE;
+            *ident = true;
         break;
     }
     }
@@ -646,7 +646,7 @@ static bool use_staff(object_type* o_ptr, bool* ident)
                 /* give a short hallucination burst */
                 int dur = rand_int(10) + 1 + 10; /* 1–10, then +10 */
                 (void)set_image(p_ptr->image + dur);
-                *ident = TRUE;
+                *ident = true;
                 msg_print("You suddenly see impossible colors!");
             }
         }
@@ -668,12 +668,12 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
         {
             flush();
             msg_print("You are out of breath.");
-            return (FALSE);
+            return (false);
         }
 
         /* Get a direction, allow cancel */
         if (!get_aim_dir(&dir, 0))
-            return (FALSE);
+            return (false);
     }
 
     /* Base chance of success */
@@ -695,10 +695,10 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
     case SV_HORN_TERROR:
     {
         if (fire_arc(GF_FEAR, dir, 0, 0, will_score, 3, 90))
-            *ident = TRUE;
+            *ident = true;
 
         /* Make a lot of noise */
-        monster_perception(TRUE, FALSE, -10);
+        monster_perception(true, false, -10);
 
         break;
     }
@@ -706,10 +706,10 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
     case SV_HORN_THUNDER:
     {
         if (fire_arc(GF_SOUND, dir, 10, 4, will_score, 3, 90))
-            *ident = TRUE;
+            *ident = true;
 
         /* Make a lot of noise */
-        monster_perception(TRUE, FALSE, -20);
+        monster_perception(true, false, -20);
 
         break;
     }
@@ -742,14 +742,14 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
                         monster_stat(m_ptr, A_CON) * 2, m_ptr)
                     > 0)
                 {
-                    bool knocked_monster_back = FALSE;
+                    bool knocked_monster_back = false;
 
                     for (k = 3; k > j; --k)
                     {
                         if (knock_back(
                                 p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx))
                         {
-                            knocked_monster_back = TRUE;
+                            knocked_monster_back = true;
                         }
                     }
 
@@ -762,7 +762,7 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
                                 "%^s is blown backwards by the force.", m_name);
 
                             // identify horn if a visible enemy is pushed back
-                            *ident = TRUE;
+                            *ident = true;
                         }
 
                         m_ptr->energy = 0;
@@ -780,7 +780,7 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
                                 "%^s is staggered by the force.", m_name);
 
                             // identify horn if a visible enemy is pushed back
-                            *ident = TRUE;
+                            *ident = true;
                         }
 
                         m_ptr->energy = 0;
@@ -800,7 +800,7 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
                             m_name);
 
                         // identify horn if a visible enemy is pushed back
-                        *ident = TRUE;
+                        *ident = true;
                     }
                 }
 
@@ -817,7 +817,7 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
         fire_arc(GF_NOTHING, dir, 0, 0, will_score, 3, 90);
 
         /* Make a lot of noise */
-        monster_perception(TRUE, FALSE, -20);
+        monster_perception(true, false, -20);
 
         break;
     }
@@ -830,7 +830,7 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
             if (skill_check(PLAYER, will_score, 10, NULL) > 0)
             {
                 int dam = damroll(4, 8);
-                int prt = protection_roll(GF_HURT, FALSE);
+                int prt = protection_roll(GF_HURT, false);
                 int net_dam = dam - prt;
 
                 // no negative damage
@@ -840,9 +840,9 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
                 msg_print("The ceiling cracks and rock rains down upon you!");
                 earthquake(p_ptr->py, p_ptr->px, -1, -1, 3, -1);
 
-                update_combat_rolls1b(PLAYER, PLAYER, TRUE);
+                update_combat_rolls1b(PLAYER, PLAYER, true);
                 update_combat_rolls2(
-                    4, 8, dam, -1, -1, prt, 100, GF_HURT, FALSE);
+                    4, 8, dam, -1, -1, prt, 100, GF_HURT, false);
 
                 take_hit(net_dam, "a collapsing ceiling");
 
@@ -851,14 +851,14 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
                     set_stun(p_ptr->stun + net_dam * 4);
                 }
 
-                *ident = TRUE;
+                *ident = true;
             }
             else
             {
                 msg_print("The blast hits the ceiling, but you did not blow "
                           "hard enough to "
                           "bring it down.");
-                *ident = TRUE;
+                *ident = true;
             }
         }
         else if (dir == DIRECTION_DOWN)
@@ -885,7 +885,7 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
                         p_ptr->depth);
 
                     // take some damage
-                    falling_damage(TRUE);
+                    falling_damage(true);
 
                     message_flush();
 
@@ -896,18 +896,18 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
                     p_ptr->depth++;
 
                     /* Leaving */
-                    p_ptr->leaving = TRUE;
+                    p_ptr->leaving = true;
 
                     /* Generate rubble on arrival */
-                    p_ptr->create_rubble = TRUE;
+                    p_ptr->create_rubble = true;
 
-                    *ident = TRUE;
+                    *ident = true;
                 }
                 else
                 {
                     msg_print(
                         "Cracks spread across the floor, but it holds firm.");
-                    *ident = TRUE;
+                    *ident = true;
                 }
             }
             else
@@ -915,17 +915,17 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
                 msg_print("The blast hits the floor, but you did not blow hard "
                           "enough to "
                           "collapse it.");
-                *ident = TRUE;
+                *ident = true;
             }
         }
         else
         {
             if (fire_arc(GF_KILL_WALL, dir, 8, 4, will_score, 3, 90))
-                *ident = TRUE;
+                *ident = true;
         }
 
         /* Make a lot of noise */
-        monster_perception(TRUE, FALSE, -30);
+        monster_perception(true, false, -30);
 
         break;
     }
@@ -936,7 +936,7 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
         fire_arc(GF_NOTHING, dir, 0, 0, will_score, 3, 90);
 
         /* Make a lot of noise */
-        monster_perception(TRUE, FALSE, -40);
+        monster_perception(true, false, -40);
 
         // Makes nearby monsters aggressive
         *ident = make_aggressive();
@@ -946,9 +946,9 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
     }
 
     // Break the truce if creatures see
-    break_truce(FALSE);
+    break_truce(false);
 
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -969,7 +969,7 @@ static bool activate_object(object_type* o_ptr)
     if (o_ptr->timeout)
     {
         msg_print("It glows and fades...");
-        return FALSE;
+        return false;
     }
 
     /* Activate the artefact */
@@ -978,13 +978,13 @@ static bool activate_object(object_type* o_ptr)
     /* Artefacts, except for special artefacts with dragon scale mail*/
     if ((o_ptr->name1) && (o_ptr->name1 < z_info->art_norm_max))
     {
-        bool did_activation = TRUE;
+        bool did_activation = true;
 
         artefact_type* a_ptr = &a_info[o_ptr->name1];
         char o_name[80];
 
         /* Get the basic name of the object */
-        object_desc(o_name, sizeof(o_name), o_ptr, FALSE, 0);
+        object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
 
         switch (a_ptr->activation)
         {
@@ -1042,7 +1042,7 @@ static bool activate_object(object_type* o_ptr)
         {
             msg_format("The %s glows deep red...", o_name);
             if (!get_aim_dir(&dir, 0))
-                return FALSE;
+                return false;
             fire_ball(GF_FIRE, dir, 10, 4, -1, 3);
             break;
         }
@@ -1051,7 +1051,7 @@ static bool activate_object(object_type* o_ptr)
         {
             msg_format("The %s glows bright white...", o_name);
             if (!get_aim_dir(&dir, 0))
-                return FALSE;
+                return false;
             fire_ball(GF_COLD, dir, 10, 4, -1, 3);
             break;
         }
@@ -1060,7 +1060,7 @@ static bool activate_object(object_type* o_ptr)
         {
             msg_format("The %s glows deep blue...", o_name);
             if (!get_aim_dir(&dir, 0))
-                return FALSE;
+                return false;
             fire_ball(GF_ELEC, dir, 10, 4, -1, 3);
             break;
         }
@@ -1081,7 +1081,7 @@ static bool activate_object(object_type* o_ptr)
         {
             int act_time = dieroll(50) + 50;
             msg_format("Your %s glows many colours...", o_name);
-            (void)hp_player(25, TRUE, TRUE);
+            (void)hp_player(25, true, true);
             (void)set_afraid(0);
             (void)set_rage(p_ptr->rage + damroll(10, 4));
             (void)set_oppose_fire(p_ptr->oppose_fire + act_time);
@@ -1094,7 +1094,7 @@ static bool activate_object(object_type* o_ptr)
         {
             msg_format("Your %s glows a bright white...", o_name);
             msg_print("You are fully healed...");
-            (void)hp_player(100, TRUE, TRUE);
+            (void)hp_player(100, true, true);
             (void)set_cut(0);
             break;
         }
@@ -1110,7 +1110,7 @@ static bool activate_object(object_type* o_ptr)
         {
             msg_format("Your %s glows deep blue...", o_name);
             if (!banishment())
-                return FALSE;
+                return false;
             break;
         }
 
@@ -1133,7 +1133,7 @@ static bool activate_object(object_type* o_ptr)
         {
             msg_format("Your %s glows deep green...", o_name);
             msg_print("You feel much better.");
-            (void)hp_player(50, TRUE, TRUE);
+            (void)hp_player(50, true, true);
             (void)set_cut(p_ptr->cut / 2);
             break;
         }
@@ -1204,7 +1204,7 @@ static bool activate_object(object_type* o_ptr)
         {
             msg_format("Your %s is covered in sparks...", o_name);
             if (!get_aim_dir(&dir, 0))
-                return FALSE;
+                return false;
             fire_beam(GF_ELEC, dir, 4, 8, -1);
             break;
         }
@@ -1253,7 +1253,7 @@ static bool activate_object(object_type* o_ptr)
         {
             msg_format("Your %s is covered in frost...", o_name);
             if (!get_aim_dir(&dir, 0))
-                return FALSE;
+                return false;
             fire_ball(GF_COLD, dir, 5, 4, -1, 2);
             break;
         }
@@ -1274,7 +1274,7 @@ static bool activate_object(object_type* o_ptr)
         {
             msg_format("Your %s rages in fire...", o_name);
             if (!get_aim_dir(&dir, 0))
-                return FALSE;
+                return false;
             fire_ball(GF_FIRE, dir, 5, 4, -1, 2);
             break;
         }
@@ -1301,7 +1301,7 @@ static bool activate_object(object_type* o_ptr)
         case ACT_CURE_WOUNDS:
         {
             msg_format("Your %s radiates deep purple...", o_name);
-            hp_player(50, TRUE, TRUE);
+            hp_player(50, true, true);
             (void)set_cut((p_ptr->cut / 2) - 10);
             break;
         }
@@ -1400,7 +1400,7 @@ static bool activate_object(object_type* o_ptr)
 
         default:
         {
-            did_activation = FALSE;
+            did_activation = false;
         }
         }
 
@@ -1416,7 +1416,7 @@ static bool activate_object(object_type* o_ptr)
             p_ptr->window |= (PW_INVEN | PW_EQUIP);
 
             /* Done */
-            return FALSE;
+            return false;
         }
     }
 
@@ -1424,7 +1424,7 @@ static bool activate_object(object_type* o_ptr)
     msg_print("Oops.  That object cannot be activated.");
 
     /* Not used up */
-    return (FALSE);
+    return (false);
 }
 
 bool use_object(object_type* o_ptr, bool* ident)

@@ -207,291 +207,11 @@ static int curses_stat_adj(int s)   /* s = 0-3  (STR-DEX-CON-GRA) */
 static void get_extra(void)
 {
     p_ptr->new_exp = p_ptr->exp = get_start_xp();
+    log_debug("Set starting experience to %d", p_ptr->exp);
 
     /* Player is not singing */
     p_ptr->song1 = SNG_NOTHING;
     p_ptr->song2 = SNG_NOTHING;
-}
-
-// Get the character description
-
-static void get_history_aux1(void)
-{
-    /* Clear the previous history strings */
-p_ptr->history[0] = '\0';
-my_strcat(
-            p_ptr->history, (c_text + c_info[p_ptr->phouse].text), sizeof(p_ptr->history));   
-}
-
-/*
- * Get the racial history, and social class, using the "history charts".
- */
-static bool get_history(void)
-{
-    int i;
-    char line[70];
-    char query2;
-    int loopagain = TRUE;
-
-    // hack to see whether we are opening an old player file
-    bool roll_history = !(p_ptr->history[0]);
-
-    while (loopagain == TRUE)
-    {
-        if (roll_history)
-        {
-            /*get the random history, display for approval. */
-            get_history_aux1();
-        }
-        else
-        {
-            roll_history = TRUE;
-        }
-
-        /* Display the player */
-        display_player(0);
-
-        // Highlight relevant info
-        display_player_xtra_info(2);
-
-        /* Prompt */
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-            "Enter accept history");
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_SLATE,
-            "Space reroll history");
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 3, -1, TERM_SLATE,
-            "    m manually enter history");
-
-        /* Hack - highlight the key names */
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "Enter");
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "Space");
-        Term_putstr(QUESTION_COL + 4, INSTRUCT_ROW + 3, -1, TERM_L_WHITE, "m");
-
-        /* Move the cursor */
-        Term_gotoxy(0, INSTRUCT_ROW + 1);
-
-        /* Query */
-        query2 = inkey();
-
-        if ((query2 == '\r') || (query2 == '\n'))
-        {
-            /* got a history*/
-            loopagain = FALSE;
-
-            p_ptr->redraw |= (PR_MISC);
-        }
-
-        else if ((query2 == 'm') || (query2 == 'M'))
-        {
-            /* don't want a random history */
-
-            /* Clear the previous history strings */
-            p_ptr->history[0] = '\0';
-
-            /* Display the player */
-            display_player(0);
-
-            for (i = 1; i <= 3; i++)
-            {
-                // clear line
-                line[0] = '\0';
-
-                Term_gotoxy(1, 15 + i);
-
-                /* Prompt for a new history */
-                if (askfor_aux(line, sizeof(line)))
-                {
-                    /* Get the textual history */
-                    my_strcat(p_ptr->history, line, sizeof(p_ptr->history));
-
-                    /* Add a space */
-                    my_strcat(p_ptr->history, "\n", sizeof(p_ptr->history));
-
-                    p_ptr->redraw |= (PR_MISC);
-
-                    /* Display the player */
-                    display_player(0);
-                }
-                else
-                {
-                    return (FALSE);
-                }
-            }
-
-            // confirm the choices
-            if (!get_history())
-                return (FALSE);
-
-            loopagain = FALSE;
-        }
-
-        else if (query2 == ESCAPE)
-            return (FALSE);
-
-        else if (((query2 == 'Q') || (query2 == 'q')) && (turn == 0))
-            quit(NULL);
-    }
-
-    return (TRUE);
-}
-
-/*
- * Computes character's age, height, and weight
- */
-static void get_ahw_aux(void)
-{
-    /* Calculate the age */
-    p_ptr->age = rand_range(rp_ptr->b_age, rp_ptr->m_age);
-
-    /* Calculate the height/weight */
-    p_ptr->ht = Rand_normal(rp_ptr->b_ht, rp_ptr->m_ht);
-    p_ptr->wt = Rand_normal(rp_ptr->b_wt, rp_ptr->m_wt);
-
-    // Make weight a bit proportional to height
-    p_ptr->wt += p_ptr->ht / 5;
-}
-
-/*
- * Get the Age, Height and Weight.
- */
-static bool get_ahw(void)
-{
-    char prompt[50];
-    char line[70];
-    char query2;
-    int loopagain = TRUE;
-
-    // hack to see whether we are opening an old player file
-    bool roll_ahw = !p_ptr->age;
-
-    // put_str("(a)ccept age/height/weight, (r)eroll, (m)anually enter ", 0, 0);
-
-    while (loopagain == TRUE)
-    {
-        if (roll_ahw)
-        {
-            /*get the random age/height/weight, display for approval. */
-            get_ahw_aux();
-        }
-        else
-        {
-            roll_ahw = TRUE;
-        }
-
-        /* Display the player */
-        display_player(0);
-
-        // Highlight relevant info
-        display_player_xtra_info(1);
-
-        /* Prompt */
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-            "Enter accept age/height/weight");
-        Term_putstr(
-            QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_SLATE, "Space reroll");
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 3, -1, TERM_SLATE,
-            "    m manually enter");
-
-        /* Hack - highlight the key names */
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "Enter");
-        Term_putstr(QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "Space");
-        Term_putstr(QUESTION_COL + 4, INSTRUCT_ROW + 3, -1, TERM_L_WHITE, "m");
-
-        /* Move the cursor */
-        Term_gotoxy(0, INSTRUCT_ROW + 1);
-
-        /* Query */
-        query2 = inkey();
-
-        if ((query2 == '\r') || (query2 == '\n'))
-        {
-            /* got ahw*/
-            loopagain = FALSE;
-
-            p_ptr->redraw |= (PR_MISC);
-        }
-
-        else if ((query2 == 'm') || (query2 == 'M'))
-        {
-            /* don't want random stats */
-            int age = 0;
-            int height = 0;
-            int weight = 0;
-            int age_l, age_h, height_l, height_h, weight_l, weight_h;
-
-            age_l = rp_ptr->b_age;
-            age_h = rp_ptr->m_age;
-
-            height_l = rp_ptr->b_ht - 5 * (rp_ptr->m_ht);
-            height_h = rp_ptr->b_ht + 5 * (rp_ptr->m_ht);
-            weight_l = rp_ptr->b_wt / 2;
-            weight_h = rp_ptr->b_wt * 2;
-
-            // clear line
-            line[0] = '\0';
-
-            while ((age < age_l) || (age > age_h))
-            {
-                sprintf(prompt, "Enter age (%d-%d): ", age_l, age_h);
-                if (!term_get_string(prompt, line, sizeof(line)))
-                    return (FALSE);
-                age = atoi(line);
-                p_ptr->age = age;
-            }
-
-            /* Display the player */
-            p_ptr->redraw |= (PR_MISC);
-            display_player(0);
-
-            // clear line
-            line[0] = '\0';
-
-            while ((height < height_l) || (height > height_h))
-            {
-                sprintf(prompt, "Enter height in inches (%d-%d): ", height_l,
-                    height_h);
-                if (!term_get_string(prompt, line, sizeof(line)))
-                    return (FALSE);
-                height = atoi(line);
-                p_ptr->ht = height;
-            }
-
-            /* Display the player */
-            p_ptr->redraw |= (PR_MISC);
-            display_player(0);
-
-            // clear line
-            line[0] = '\0';
-
-            while ((weight < weight_l) || (weight > weight_h))
-            {
-                sprintf(prompt, "Enter weight in pounds (%d-%d): ", weight_l,
-                    weight_h);
-                if (!term_get_string(prompt, line, sizeof(line)))
-                    return (FALSE);
-                weight = atoi(line);
-                p_ptr->wt = weight;
-            }
-
-            /* Display the player */
-            p_ptr->redraw |= (PR_MISC);
-            display_player(0);
-
-            // confirm the choices
-            if (!get_ahw())
-                return (FALSE);
-
-            loopagain = FALSE;
-        }
-
-        else if (query2 == ESCAPE)
-            return (FALSE);
-
-        else if (((query2 == 'Q') || (query2 == 'q')) && (turn == 0))
-            quit(NULL);
-    }
-
-    return (TRUE);
 }
 
 /*
@@ -499,9 +219,16 @@ static bool get_ahw(void)
  */
 void player_wipe(void)
 {
+    /* We are about to wipe the old hero, so there is no fully-generated
+     * character any more.  This must be cleared **before** we enter the
+     * next character-creation cycle; otherwise helpers such as
+     * show_scores() believe a character still exists. */
+    character_generated = false;
     int i;
     char history[550];
     int stat[A_MAX];
+
+    log_debug("Wiping player data for new character creation");
 
     /* Backup the player choices */
     // Initialized to soothe compilation warnings
@@ -514,6 +241,7 @@ void player_wipe(void)
     // only save the old information if there was a character loaded
     if (character_loaded_dead)
     {
+        log_debug("Restoring previous character choices from dead character");
         /* Backup the player choices */
         prace = p_ptr->prace;
         phouse = p_ptr->phouse;
@@ -592,10 +320,10 @@ void player_wipe(void)
         object_kind* k_ptr = &k_info[i];
 
         /* Reset "tried" */
-        k_ptr->tried = FALSE;
+        k_ptr->tried = false;
 
         /* Reset "aware" */
-        k_ptr->aware = FALSE;
+        k_ptr->aware = false;
     }
 
     /* Reset the "monsters" */
@@ -639,7 +367,7 @@ void player_wipe(void)
     // Morgoth unhurt
     p_ptr->morgoth_state = 0;
 
-    p_ptr->killed_enemy_with_arrow = FALSE;
+    p_ptr->killed_enemy_with_arrow = false;
 
     p_ptr->oath_type = 0;
     p_ptr->oaths_broken = 0;
@@ -656,8 +384,8 @@ void player_wipe(void)
     allow_altered_inventory = 0;
 
     // reset some unique flags
-    p_ptr->unique_forge_made = FALSE;
-    p_ptr->unique_forge_seen = FALSE;
+    p_ptr->unique_forge_made = false;
+    p_ptr->unique_forge_seen = false;
     for (i = 0; i < MAX_GREATER_VAULTS; i++)
     {
         p_ptr->greater_vaults[i] = 0;
@@ -697,7 +425,7 @@ static void give_start_items(const start_item *list)
         object_known(i_ptr);
 
         /* Carry it */
-        inven_slot = inven_carry(i_ptr, TRUE);
+        inven_slot = inven_carry(i_ptr, true);
 
         /* Auto-wield if slot empty */
         if (slot >= INVEN_WIELD && inventory[slot].tval == 0)
@@ -722,18 +450,22 @@ static void player_outfit(void)
     time_t      c;
     struct tm  *tp;
 
+    log_debug("Starting player equipment setup");
+
     /* skip all starting‐gear on load */
     if (character_loaded) return;
 
     /* ---------- escape-curse check ---------- */
-    if (curse_flag_count(CUR_NOSTART)) return;
+    if (curse_flag_count_cur(CUR_NOSTART)) return;
 
     /* ---------- pointers into info arrays ---------- */
     player_race  *rp_ptr = &p_info[p_ptr->prace];
     player_house *hp_ptr = &c_info[p_ptr->phouse];
 
     /* ---------- hand out gear ---------- */
+    log_debug("Giving starting items for race: %s", p_name + rp_ptr->name);
     give_start_items(rp_ptr->start_items);   /* race first  */
+    log_debug("Giving starting items for house: %s", c_name + hp_ptr->name);
     give_start_items(hp_ptr->start_items);   /* house next  */
 
     /* ---------- Christmas present (unchanged) ---------- */
@@ -748,13 +480,15 @@ static void player_outfit(void)
         i_ptr->number = 1;
         i_ptr->pval   = -20;
 
-        (void)inven_carry(i_ptr, TRUE);
+        (void)inven_carry(i_ptr, true);
     }
 
     /* ---------- bookkeeping ---------- */
     p_ptr->update |= (PU_BONUS | PU_MANA);
     p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
     p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
+    
+    log_debug("Player equipment setup completed");
 }
 
 /*
@@ -783,13 +517,13 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     int i, dir;
     char c;
     char buf[300];
-    bool done = FALSE;
+    bool done = false;
     int hgt;
     byte attr;
     int cur = (def) ? def : 0;
 
     /* Autoselect if able */
-    // if (num == 1) done = TRUE;
+    // if (num == 1) done = true;
 
     /* Clear */
     for (i = TABLE_ROW; i < DESCRIPTION_ROW + 4; i++)
@@ -799,7 +533,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     }
 
     /* Choose */
-    while (TRUE)
+    while (true)
     {
         hgt = Term->hgt - TABLE_ROW - 1;
 
@@ -878,9 +612,9 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         /* Move the cursor */
         put_str("", TABLE_ROW + cur - top, col);
 
-        hide_cursor = TRUE;
+        hide_cursor = true;
         c = inkey();
-        hide_cursor = FALSE;
+        hide_cursor = false;
 
         /* Exit the game */
         if ((c == 'Q') || (c == 'q'))
@@ -900,7 +634,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         //Show scores 
         if (c == 's')
             {
-                show_scores();
+                show_scores(false);
             }
 
         /* Random choice */
@@ -913,7 +647,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             } while (choices[cur].ghost);
 
             /* Done */
-            done = TRUE;
+            done = true;
         }
 
         /* Alphabetic choice */
@@ -940,7 +674,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                     cur = choice;
 
                     /* Done */
-                    done = TRUE;
+                    done = true;
                 }
                 else if (choices[choice].ghost)
                 {
@@ -1026,11 +760,24 @@ u32b curse_flag_mask(void)
     return m;
 }
 
-/*
- * Count how many active curses carry the given flag bit
- * (scans both cu_info[].flags and cu_info[].flags_u).
- */
-int curse_flag_count(u32b rhf_flag)
+/* Count active curses that carry an RHF flag (cu_info[].flags) */
+int curse_flag_count_rhf(u32b rhf_flag)
+{
+    int count = 0;
+    /* Iterate over every defined curse */
+    for (int i = 0; i < z_info->cu_max; i++)
+    {
+        /* Only consider curses the player actually has */
+        if (curse_count(i) > 0)
+        {
+            if (cu_info[i].flags & rhf_flag) count++;
+        }
+    }
+    return count;
+}
+
+/* Count active curses that carry a CUR flag (cu_info[].flags_u) */
+int curse_flag_count_cur(u32b cur_flag)
 {
     int count = 0;
 
@@ -1039,17 +786,20 @@ int curse_flag_count(u32b rhf_flag)
     {
         /* Only consider curses the player actually has */
         if (curse_count(i) > 0)
-        {
-            /* If either flag field contains our target bit, tally it */
-            if ((cu_info[i].flags   & rhf_flag) ||
-                (cu_info[i].flags_u & rhf_flag))
-            {
-                count++;
-            }
-        }
+            if (cu_info[i].flags_u & cur_flag) count++;
     }
 
     return count;
+}
+
+/*
+ * Legacy helper: count either word.
+ * NOTE: RHF and CUR sets share bit positions; prefer the precise
+ * variants above in new code to avoid false positives.
+ */
+int curse_flag_count(u32b flag)
+{
+    return curse_flag_count_rhf(flag) + curse_flag_count_cur(flag);
 }
 
 
@@ -1106,9 +856,9 @@ static void print_rh_flags(int race, int house, int col, int row)
         if (p_info[race].flags  & (PEN_FLAG)) score--;                      \
         if (c_info[house].flags & (PEN_FLAG)) score--;                      \
                                                                             \
-        /* every copy of the same curse flag */                             \
-        score += curse_flag_count(AFF_FLAG);                                \
-        score -= curse_flag_count(PEN_FLAG);                                \
+        /* every copy of the same *RHF* curse flag */                       \
+        score += curse_flag_count_rhf(AFF_FLAG);                            \
+        score -= curse_flag_count_rhf(PEN_FLAG);                            \
                                                                             \
         /* clamp so the UI never shows >mastery or >grand-penalty */        \
         if (score >  2) score =  2;                                         \
@@ -1313,7 +1063,7 @@ static bool get_player_race(void)
     for (i = 0; i < z_info->p_max; i++)
     {
         races[i].name = p_name + p_info[i].name;
-        races[i].ghost = FALSE;
+        races[i].ghost = false;
         races[i].text = p_text + p_info[i].text;
     }
 
@@ -1323,7 +1073,7 @@ static bool get_player_race(void)
     /* No selection? */
     if (race == INVALID_CHOICE)
     {
-        return (FALSE);
+        return (false);
     }
 
     // if different race to last time, then wipe the history, age, height,
@@ -1347,7 +1097,7 @@ static bool get_player_race(void)
     FREE(races);
 
     /* Success */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1460,14 +1210,10 @@ static bool get_player_house(void)
     {
         p_ptr->phouse = 0;
         hp_ptr = &c_info[p_ptr->phouse];
-        return (TRUE);
+        return (true);
     }
 
     C_MAKE(houses, z_info->c_max, birth_menu);
-
-    /* Extra info */
-    // Term_putstr(QUESTION_COL, QUESTION_ROW, -1, TERM_YELLOW,
-    //	"Your house modifies your race bonuses.");
 
     /* Build the filename */
     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
@@ -1489,8 +1235,8 @@ static bool get_player_house(void)
         /* Analyze */
         if (is_set(i))
         {
-            if (highscore_dead(c_name + c_info[i].name)) houses[house].ghost = TRUE;
-            else houses[house].ghost = FALSE;
+            if (highscore_dead(c_name + c_info[i].name)) houses[house].ghost = true;
+            else houses[house].ghost = false;
                 
             houses[house].name = c_name + c_info[i].name;
             houses[house].text = c_text + c_info[i].text;
@@ -1512,7 +1258,7 @@ static bool get_player_house(void)
     /* No selection? */
     if (house_choice == INVALID_CHOICE)
     {
-        return (FALSE);
+        return (false);
     }
 
     /* Get house from choice number */
@@ -1549,7 +1295,7 @@ static bool get_player_house(void)
 
     FREE(houses);
 
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1575,17 +1321,6 @@ NavResult character_creation(void)
 
     Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
         "* -random    ESC -back   o -options   s -scores   q -quit");
-    // Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-    //     "         = game options    s scores    q quit");
-
-    /* Hack - highlight the key names */
-    // Term_putstr(QUESTION_COL + 0, INSTRUCT_ROW, -1, TERM_L_WHITE, "Arrow keys");
-    // Term_putstr(QUESTION_COL + 32, INSTRUCT_ROW, -1, TERM_L_WHITE, "Enter");
-    // Term_putstr(QUESTION_COL + 9, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "*");
-    // Term_putstr(QUESTION_COL + 34, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "ESC");
-    // Term_putstr(QUESTION_COL + 9, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "O");
-    // Term_putstr(QUESTION_COL + 36, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "s");
-    // Term_putstr(QUESTION_COL + 45, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "q");
 
     while (phase <= 2)
     {
@@ -1633,8 +1368,8 @@ NavResult character_creation(void)
     {
         for (j = 0; j < ABILITIES_MAX; j++)
         {
-            p_ptr->innate_ability[i][j] = FALSE;
-            p_ptr->active_ability[i][j] = FALSE;
+            p_ptr->innate_ability[i][j] = false;
+            p_ptr->active_ability[i][j] = false;
         }
     }
     // Bonus abilities
@@ -1649,8 +1384,8 @@ NavResult character_creation(void)
         /* sanity-check bounds */
         if (stat < S_MAX && ab < ABILITIES_MAX)
         {
-            p_ptr->innate_ability[stat][ab] = TRUE;
-            p_ptr->active_ability[stat][ab] = TRUE;
+            p_ptr->innate_ability[stat][ab] = true;
+            p_ptr->active_ability[stat][ab] = true;
         }
     }
 
@@ -1688,15 +1423,14 @@ NavResult character_creation(void)
     /* Clear the special item squelching flags */
     for (i = 0; i < z_info->e_max; i++)
     {
-        e_info[i].aware = FALSE;
-        e_info[i].squelch = FALSE;
+        e_info[i].aware = false;
+        e_info[i].squelch = false;
     }
 
     /* Clear */
     Term_clear();
 
-    // char debug_msg[256];
-    log_debug("%s %s", p_name + p_info[p_ptr->prace].name, c_name + c_info[p_ptr->phouse].name);
+    log_debug("Character creation step completed: %s %s", p_name + p_info[p_ptr->prace].name, c_name + c_info[p_ptr->phouse].name);
 
     /* Done */
     return NAV_OK;
@@ -1740,6 +1474,8 @@ static NavResult player_birth_aux_2(void)
 
     /* Determine experience and things */
     get_extra();
+
+    log_trace("Starting stats allocation interface");
 
     /* Interact */
     while (1)
@@ -1832,9 +1568,9 @@ static NavResult player_birth_aux_2(void)
             "Arrows -allocate    ESC -back   ENTER -confirm   q -quit");
 
         /* Get key */
-        hide_cursor = TRUE;
+        hide_cursor = true;
         ch = inkey();
-        hide_cursor = FALSE;
+        hide_cursor = false;
 
         /* Quit -> return to main menu before the game starts */
         if ((ch == 'Q') || (ch == 'q')) {
@@ -1917,8 +1653,10 @@ extern NavResult gain_skills(void)
 
     int tab = 0;
 
+    log_debug("Starting skills allocation with %d experience points", p_ptr->new_exp);
+
     // hack global variable
-    skill_gain_in_progress = TRUE;
+    skill_gain_in_progress = true;
 
     /* save the old skills */
     for (i = 0; i < S_MAX; i++)
@@ -2035,16 +1773,16 @@ extern NavResult gain_skills(void)
             "Arrows -allocate      ESC -back     ENTER -confirm     q -quit");
 
         /* Get key */
-        hide_cursor = TRUE;
+        hide_cursor = true;
         ch = inkey();
-        hide_cursor = FALSE;
+        hide_cursor = false;
 
         /* Quit -> back to main menu before the game starts */
         if (((ch == 'Q') || (ch == 'q')) && (turn == 0)) {
             /* restore state before leaving */
             p_ptr->new_exp = old_new_exp;
             for (i = 0; i < S_MAX; i++) p_ptr->skill_base[i] = old_base[i];
-            skill_gain_in_progress = FALSE;
+            skill_gain_in_progress = false;
             return NAV_TO_MAIN;
         }
 
@@ -2091,13 +1829,15 @@ extern NavResult gain_skills(void)
     }
 
     // reset hack global variable
-    skill_gain_in_progress = FALSE;
+    skill_gain_in_progress = false;
 
     /* Calculate the bonuses */
     p_ptr->update |= (PU_BONUS);
 
     /* Update stuff */
     update_stuff();
+
+    log_debug("Skills allocation completed, spent %d experience", old_new_exp - p_ptr->new_exp);
 
     /* Done */
     return result;
@@ -2115,8 +1855,10 @@ extern NavResult gain_skills(void)
 static NavResult player_birth_aux(void)
 {
 
+    log_debug("Initializing character data and history");
+    
     my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
-    process_player_name(FALSE);
+    process_player_name(false);
     /* Clear the previous history strings */
     p_ptr->history[0] = '\0';
     my_strcat(
@@ -2132,11 +1874,14 @@ static NavResult player_birth_aux(void)
         display_player(0);
 
         /* Stats allocation screen */
+        log_debug("Entering stats allocation");
         NavResult s = player_birth_aux_2();
         if (s == NAV_OK) {
             /* Skill allocation: may return NAV_BACK / NAV_TO_MAIN */
+            log_debug("Stats accepted, entering skills allocation");
             NavResult g = gain_skills();
             if (g != NAV_OK) return g;
+            log_debug("Skills allocation completed");
             break; /* accepted */
         }
         if (s == NAV_BACK)   return NAV_BACK;    /* back to Character Selection */
@@ -2147,6 +1892,10 @@ static NavResult player_birth_aux(void)
 
     // Reset the number of artefacts
     p_ptr->artefacts = 0;
+
+    log_trace("Final character stats: Str=%d Dex=%d Con=%d Gra=%d", 
+              p_ptr->stat_base[A_STR], p_ptr->stat_base[A_DEX], 
+              p_ptr->stat_base[A_CON], p_ptr->stat_base[A_GRA]);
 
     /* Accept */
     return NAV_OK;
@@ -2166,6 +1915,8 @@ NavResult player_birth()
     char clean_date[25];
     char month[4];
     time_t ct = time((time_t*)0);
+
+    log_info("Starting character creation process");
 
     /* Create a new character */
     while (1)
@@ -2214,6 +1965,8 @@ NavResult player_birth()
 
     /* Hack -- outfit the player */
     player_outfit();
+
+    log_info("Character creation completed: %s the %s", op_ptr->full_name, p_name + rp_ptr->name);
 
     return NAV_OK;
 }

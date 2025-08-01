@@ -45,7 +45,7 @@ typedef int errr;
 typedef unsigned char byte;
 
 /* Note that a bool is smaller than a full "int" */
-/* Simple True/False type */
+/* Simple true/false type */
 // typedef char bool;
 
 /* An unsigned, "standard" integer (often pre-defined) */

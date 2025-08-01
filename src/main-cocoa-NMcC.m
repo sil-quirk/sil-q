@@ -72,13 +72,13 @@ enum
 @end
 
 /* Delay handling of pre-emptive "quit" event */
-static BOOL quit_when_ready = FALSE;
+static BOOL quit_when_ready = false;
 
 /* Whether or not we allow sounds (only relevant for the screensaver, where the user can't configure it in-game) */
 static BOOL allow_sounds = YES;
 
 /* Set to indicate the game is over and we can quit without delay */
-static Boolean game_is_finished = FALSE;
+static Boolean game_is_finished = false;
 
 /* Our frames per second (e.g. 60). A value of 0 means unthrottled. */
 static int frames_per_second;
@@ -305,13 +305,13 @@ static int graf_mode_req = 0;
 /*
  * Hack -- game in progress
  */
-static Boolean game_in_progress = FALSE;
+static Boolean game_in_progress = false;
 
 
 /*
  * Indicate if the user chooses "new" to start a game
  */
-static Boolean new_game = FALSE;
+static Boolean new_game = false;
 
 
 
@@ -342,7 +342,7 @@ static void record_current_savefile(void);
 /*
  * Note when "open"/"new" become valid
  */
-static bool initialized = FALSE;
+static bool initialized = false;
 
 /* Methods for getting the appropriate NSUserDefaults */
 @interface NSUserDefaults (AngbandDefaults)
@@ -918,7 +918,7 @@ static int compare_advances(const void *ap, const void *bp)
     player_egid = getegid();
     
     /* We are now initialized */
-    initialized = TRUE;
+    initialized = true;
     
     /* Handle "open_when_ready" */
     handle_open_when_ready();
@@ -952,14 +952,14 @@ static int compare_advances(const void *ap, const void *bp)
 				{
 					case 1:
 						path_build(savefile, sizeof(buf), ANGBAND_DIR_XTRA, "tutorial");
-						game_in_progress = TRUE;
-						new_game = FALSE;
+						game_in_progress = true;
+						new_game = false;
 						break;
 					case 2:
 						do_menu_file_new();
 						break;
 					case 3:
-						do_menu_file_open(TRUE);
+						do_menu_file_open(true);
 						break;
 					case 4:
 						quit(NULL);
@@ -984,7 +984,7 @@ static int compare_advances(const void *ap, const void *bp)
 		re_init_some_things();
 		
 		// game no longer in progress
-		game_in_progress = FALSE;
+		game_in_progress = false;
 	}
 #endif
 	init_angband();
@@ -996,11 +996,11 @@ static int compare_advances(const void *ap, const void *bp)
 + (void)endGame
 {    
     /* Hack -- Forget messages */
-    msg_flag = FALSE;
+    msg_flag = false;
     
-    p_ptr->playing = FALSE;
-    p_ptr->leaving = TRUE;
-    quit_when_ready = TRUE;
+    p_ptr->playing = false;
+    p_ptr->leaving = true;
+    quit_when_ready = true;
 }
 
 
@@ -1256,7 +1256,7 @@ static NSMenuItem *superitem(NSMenuItem *self)
 /*
  * Delay handling of double-clicked savefiles
  */
-Boolean open_when_ready = FALSE;
+Boolean open_when_ready = false;
 
 
 
@@ -1307,7 +1307,7 @@ static void Term_init_cocoa(term *t)
     
     /* Handle graphics */
     t->higher_pict = !! use_graphics;
-    t->always_pict = FALSE;
+    t->always_pict = false;
     
     NSDisableScreenUpdates();
     
@@ -1424,7 +1424,7 @@ static CGImageRef create_angband_image(NSString *name)
         NSURL *url = [[NSURL alloc] initFileURLWithPath:path isDirectory:NO];
         if (url)
         {
-            NSDictionary *options = [[NSDictionary alloc] initWithObjectsAndKeys:(id)kCFBooleanTrue, kCGImageSourceShouldCache, nil];
+            NSDictionary *options = [[NSDictionary alloc] initWithObjectsAndKeys:(id)kCFBooleantrue, kCGImageSourceShouldCache, nil];
             CGImageSourceRef source = CGImageSourceCreateWithURL((CFURLRef)url, (CFDictionaryRef)options);
             if (source)
             {
@@ -1534,7 +1534,7 @@ static errr Term_xtra_cocoa_react(void)
         /* Reset visuals */
         if (initialized && game_in_progress)
         {
-            reset_visuals(TRUE);
+            reset_visuals(true);
         }
     }
     
@@ -2020,10 +2020,10 @@ static term *term_data_link(int i)
     term_init(newterm, 80, 24, 256 /* keypresses, for some reason? */);
     
     /* Differentiate between BS/^h, Tab/^i, etc. */
-    //newterm->complex_input = TRUE;
+    //newterm->complex_input = true;
 
     /* Use a "software" cursor */
-    newterm->soft_cursor = TRUE;
+    newterm->soft_cursor = true;
     
     /* Erase with "white space" */
     newterm->attr_blank = TERM_WHITE;
@@ -2362,10 +2362,10 @@ static void handle_open_when_ready(void)
     if (open_when_ready && initialized && !game_in_progress)
     {
         /* Forget */
-        open_when_ready = FALSE;
+        open_when_ready = false;
         
         /* Game is in progress */
-        game_in_progress = TRUE;
+        game_in_progress = true;
         
         /* Wait for a keypress */
         pause_line(23);
@@ -2386,7 +2386,7 @@ static void quit_calmly(void)
     if (inkey_flag)
     {
         /* Hack -- Forget messages */
-        msg_flag = FALSE;
+        msg_flag = false;
         
         /* Save the game */
         do_cmd_save_game();
@@ -2503,7 +2503,7 @@ static BOOL send_event(NSEvent *event)
                 case kVK_Escape: ch = ESCAPE; break;
                 case kVK_Tab: ch = KC_TAB; break;
                 case kVK_Delete: ch = KC_BACKSPACE; break;
-                case kVK_ANSI_KeypadEnter: ch = KC_ENTER; kp = TRUE; break;
+                case kVK_ANSI_KeypadEnter: ch = KC_ENTER; kp = true; break;
             }
 #endif
             /* Hide the mouse pointer */
@@ -2548,7 +2548,7 @@ static BOOL send_event(NSEvent *event)
 }
 
 /*
- * Check for Events, return TRUE if we process any
+ * Check for Events, return true if we process any
  */
 static BOOL check_events(int wait)
 { 
@@ -2576,7 +2576,7 @@ static BOOL check_events(int wait)
             if (! event)
             {
                 [pool drain];
-                return FALSE;
+                return false;
             }
             if (send_event(event)) break;
         }
@@ -2775,7 +2775,7 @@ static bool select_savefile(bool all)
 	AEDisposeDesc(&defaultLocation);
 
 	/* Error */
-	if (err != noErr) return (FALSE);
+	if (err != noErr) return (false);
 
 #ifdef MACH_O_CARBON
 
@@ -2794,7 +2794,7 @@ static bool select_savefile(bool all)
 #endif
 
 	/* Success */
-	return (TRUE);
+	return (true);
 }
 
 /*
@@ -2803,10 +2803,10 @@ static bool select_savefile(bool all)
 static void do_menu_file_new(void)
 {
 	/* Game is in progress */
-	game_in_progress = TRUE;
+	game_in_progress = true;
 
 	/* Start a new game */
-	new_game = TRUE;
+	new_game = true;
 }
 
 
@@ -2819,10 +2819,10 @@ static void do_menu_file_open(bool all)
 	if (!select_savefile(all)) return;
 
 	/* Game is in progress */
-	game_in_progress = TRUE;
+	game_in_progress = true;
 
 	/* Use an existing savefile */
-	new_game = FALSE;
+	new_game = false;
 }
 
 #endif
@@ -2926,7 +2926,7 @@ static void initialize_file_paths(void)
 - (IBAction)newGame:sender
 {
     /* Game is in progress */
-    game_in_progress = TRUE;
+    game_in_progress = true;
     //cmd.command = CMD_NEWGAME;
 }
 
@@ -3025,7 +3025,7 @@ static void initialize_file_paths(void)
         record_current_savefile();
         
         /* Game is in progress */
-        game_in_progress = TRUE;
+        game_in_progress = true;
         //cmd.command = CMD_LOADFILE;
     }
     
@@ -3035,7 +3035,7 @@ static void initialize_file_paths(void)
 - (IBAction)saveGame:sender
 {
     /* Hack -- Forget messages */
-    msg_flag = FALSE;
+    msg_flag = false;
     
     /* Save the game */
     do_cmd_save_game();
@@ -3078,13 +3078,13 @@ static void initialize_file_paths(void)
     [AngbandContext beginGame];
     
     //once beginGame finished, the game is over - that's how Angband works, and we should quit
-    game_is_finished = TRUE;
+    game_is_finished = true;
     [NSApp terminate:self];
 }
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender
 {
-    if (p_ptr->playing == FALSE || game_is_finished == TRUE)
+    if (p_ptr->playing == false || game_is_finished == true)
     {
         return NSTerminateNow;
     }

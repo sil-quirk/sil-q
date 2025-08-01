@@ -206,13 +206,13 @@ static bool monster_can_smell(monster_type* m_ptr)
 
     /* No scent */
     if (age == -1)
-        return (FALSE);
+        return (false);
 
     /* Wolves are amazing trackers */
     if (strchr("C", r_ptr->d_char))
     {
         /* I smell a character! */
-        return (TRUE);
+        return (true);
     }
 
     /* Felines are also quite good */
@@ -221,12 +221,12 @@ static bool monster_can_smell(monster_type* m_ptr)
         if (age <= SMELL_STRENGTH / 2)
         {
             /* Something's in the air... */
-            return (TRUE);
+            return (true);
         }
     }
 
     /* You're imagining things. */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -338,10 +338,10 @@ static void remove_invalid_spells(int m_idx, u32b* f4p)
  * available, and the random bit is set, pick one.
  *
  * Used as a short cut in 'choose_attack_spell' to circumvent AI
- * when there is only 1 choice. (random=FALSE)
+ * when there is only 1 choice. (random=false)
  *
  * Also used in 'choose_attack_spell' to circumvent AI when
- * casting randomly (random=TRUE), as with dumb monsters.
+ * casting randomly (random=true), as with dumb monsters.
  */
 static int choose_attack_spell_fast(u32b* f4p, bool do_random)
 {
@@ -404,7 +404,7 @@ static int choose_ranged_attack(int m_idx)
 
     byte spell_range;
 
-    bool do_random = FALSE;
+    bool do_random = false;
 
     int i;
     int path;
@@ -446,7 +446,7 @@ static int choose_ranged_attack(int m_idx)
 
     /* Mindless monsters choose at random. */
     if (r_ptr->flags2 & (RF2_MINDLESS))
-        return (choose_attack_spell_fast(&f4, TRUE));
+        return (choose_attack_spell_fast(&f4, true));
 
     /* Remove spells that have unfulfilled conditions */
     remove_invalid_spells(m_idx, &f4);
@@ -459,7 +459,7 @@ static int choose_ranged_attack(int m_idx)
      * restricted list)
      */
     if ((!(r_ptr->flags2 & (RF2_SMART))) && (one_in_(5)))
-        do_random = TRUE;
+        do_random = true;
 
     /* Try 'fast' selection first.
      * If there is only one spell, choose that spell.
@@ -537,7 +537,7 @@ bool cave_exist_mon(
 
     /* Check Bounds */
     if (!in_bounds(y, x))
-        return (FALSE);
+        return (false);
 
     /* Check location */
     feat = cave_feat[y][x];
@@ -546,12 +546,12 @@ bool cave_exist_mon(
     if (cave_m_idx[y][x] != 0)
     {
         if (!occupied_ok)
-            return (FALSE);
+            return (false);
     }
 
     /* Glyphs -- must break first */
     if (cave_glyph(y, x))
-        return (FALSE);
+        return (false);
 
     /*** Check passability of various features. ***/
 
@@ -559,43 +559,43 @@ bool cave_exist_mon(
     if (cave_feat[y][x] == FEAT_CHASM)
     {
         if (r_ptr->flags2 & (RF2_FLYING))
-            return (TRUE);
+            return (true);
         else
-            return (FALSE);
+            return (false);
     }
 
     /* Feature is not a wall */
     if (!(cave_info[y][x] & (CAVE_WALL)))
-        return (TRUE);
+        return (true);
 
     /* Feature is a wall */
     else
     {
         /* Permanent walls are never OK */
         if (feat == FEAT_WALL_PERM)
-            return (FALSE);
+            return (false);
 
         /* Monster can pass through walls */
         if (r_ptr->flags2 & (RF2_PASS_WALL))
-            return (TRUE);
+            return (true);
 
         /* Monster can bore through walls, and is allowed to. */
         if ((r_ptr->flags2 & (RF2_KILL_WALL)) && (can_dig))
-            return (TRUE);
+            return (true);
 
         /* Monster can dig through walls, and is allowed to. */
         if ((r_ptr->flags2 & (RF2_TUNNEL_WALL)) && (can_dig))
-            return (TRUE);
+            return (true);
 
         // Some monsters can pass under doors
         if (cave_any_closed_door_bold(y, x)
             && (r_ptr->flags2 & (RF2_PASS_DOOR)))
         {
-            return (TRUE);
+            return (true);
         }
 
         else
-            return (FALSE);
+            return (false);
     }
 }
 
@@ -906,9 +906,9 @@ int cave_passable_mon(monster_type* m_ptr, int y, int x, bool* bash)
              */
 
             if ((unlock_chance > bash_chance) || (bash_chance == 0))
-                *bash = FALSE;
+                *bash = false;
             else
-                *bash = TRUE;
+                *bash = true;
 
             return (MIN(move_chance, (MAX(unlock_chance, bash_chance))));
         }
@@ -930,8 +930,8 @@ static bool get_move_wander(monster_type* m_ptr, int* ty, int* tx)
 
     byte y, x, y1, x1;
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
-    bool no_move = FALSE;
-    bool random_move = FALSE;
+    bool no_move = false;
+    bool random_move = false;
 
     /* Monster location */
     y1 = m_ptr->fy;
@@ -943,20 +943,20 @@ static bool get_move_wander(monster_type* m_ptr, int* ty, int* tx)
         // Some monsters cannot move at all
         if (r_ptr->flags1 & (RF1_NEVER_MOVE))
         {
-            return (FALSE);
+            return (false);
         }
 
         // Some just never wander
         else if ((r_ptr->flags2 & (RF2_SHORT_SIGHTED))
             || (r_ptr->flags1 & (RF1_HIDDEN_MOVE)))
         {
-            return (FALSE);
+            return (false);
         }
 
         // Many monsters can only make random moves
         else
         {
-            random_move = TRUE;
+            random_move = true;
         }
     }
 
@@ -1005,13 +1005,13 @@ static bool get_move_wander(monster_type* m_ptr, int* ty, int* tx)
         // no wandering on the Gates level
         if (p_ptr->depth == 0)
         {
-            return (FALSE);
+            return (false);
         }
 
         // no wandering in the throne room during the truce
         if (p_ptr->truce)
         {
-            return (FALSE);
+            return (false);
         }
 
         // determine if the monster has a hoard
@@ -1034,7 +1034,7 @@ static bool get_move_wander(monster_type* m_ptr, int* ty, int* tx)
                     m_ptr, rand_range(ALERTNESS_MIN, ALERTNESS_UNWARY - 1));
             }
 
-            return (FALSE);
+            return (false);
         }
 
         // if the destination is too far away, pick a new one
@@ -1053,7 +1053,7 @@ static bool get_move_wander(monster_type* m_ptr, int* ty, int* tx)
         // if the monster is pausing, then decrease the pause counter
         else if (wandering_pause[m_ptr->wandering_idx] > 1)
         {
-            random_move = TRUE;
+            random_move = true;
             wandering_pause[m_ptr->wandering_idx]--;
         }
 
@@ -1079,7 +1079,7 @@ static bool get_move_wander(monster_type* m_ptr, int* ty, int* tx)
         if (dist < group_furthest - group_size)
         {
             if (one_in_(2))
-                no_move = TRUE;
+                no_move = true;
         }
 
         // unwary monsters won't wander off while others in the group are
@@ -1094,14 +1094,14 @@ static bool get_move_wander(monster_type* m_ptr, int* ty, int* tx)
             }
 
             if (one_in_(2))
-                random_move = TRUE;
+                random_move = true;
         }
 
         // non-territorial monsters in vaults move randomly
         if (!(r_ptr->flags2 & (RF2_TERRITORIAL))
             && (cave_info[m_ptr->fy][m_ptr->fx] & (CAVE_ICKY)))
         {
-            random_move = TRUE;
+            random_move = true;
         }
 
         // update the wandering_dist
@@ -1109,7 +1109,7 @@ static bool get_move_wander(monster_type* m_ptr, int* ty, int* tx)
     }
 
     if (no_move)
-        return (FALSE);
+        return (false);
 
     // do a random move if needed
     if (random_move)
@@ -1117,7 +1117,7 @@ static bool get_move_wander(monster_type* m_ptr, int* ty, int* tx)
         // mostly stay still
         if (!one_in_(4))
         {
-            return (FALSE);
+            return (false);
         }
 
         // sometimes move
@@ -1131,12 +1131,12 @@ static bool get_move_wander(monster_type* m_ptr, int* ty, int* tx)
 
             /* Check Bounds */
             if (!in_bounds(y, x))
-                return (FALSE);
+                return (false);
 
             // Monsters in vaults shouldn't leave them
             if ((cave_info[m_ptr->fy][m_ptr->fx] & (CAVE_ICKY))
                 && !(cave_info[y][x] & (CAVE_ICKY)))
-                return (FALSE);
+                return (false);
 
             /* Save the location */
             *ty = y;
@@ -1170,7 +1170,7 @@ static bool get_move_wander(monster_type* m_ptr, int* ty, int* tx)
             wandering_pause[m_ptr->wandering_idx] = 0;
 
             delete_monster(m_ptr->fy, m_ptr->fx);
-            return (FALSE);
+            return (false);
         }
 
         /* Using flow information.  Check nearby grids, diagonals first. */
@@ -1200,12 +1200,12 @@ static bool get_move_wander(monster_type* m_ptr, int* ty, int* tx)
         // if no useful square to wander into was found, then abort
         if (closest == FLOW_MAX_DIST - 1)
         {
-            return (FALSE);
+            return (false);
         }
     }
 
     // success
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1407,7 +1407,7 @@ static bool find_safety(monster_type* m_ptr, int* ty, int* tx)
                             if ((least_cost > this_cost)
                                 || (least_cost == this_cost && one_in_(2)))
                             {
-                                bool has_escape = FALSE;
+                                bool has_escape = false;
 
                                 /* Scan all adjacent grids for escape routes */
                                 for (j = 0; j < 8; j++)
@@ -1427,13 +1427,13 @@ static bool find_safety(monster_type* m_ptr, int* ty, int* tx)
                                             m_ptr, yyy, xxx, &dummy)))
                                     {
                                         /* Not a one-grid cul-de-sac */
-                                        has_escape = TRUE;
+                                        has_escape = true;
                                         break;
                                     }
                                 }
 
                                 /* Ignore cul-de-sacs other than stairs */
-                                if ((has_escape == FALSE) && !stair)
+                                if ((has_escape == false) && !stair)
                                     continue;
 
                                 least_cost = this_cost;
@@ -1478,11 +1478,11 @@ static bool find_safety(monster_type* m_ptr, int* ty, int* tx)
         m_ptr->target_y = y;
         m_ptr->target_x = x;
 
-        return (TRUE);
+        return (true);
     }
 
     /* No good place found */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -1508,7 +1508,7 @@ static bool find_safety(monster_type* m_ptr, int* ty, int* tx)
  * to find another adjacent grid that is out of sight.  What all this boils
  * down to is that monsters can now run around corners properly!
  *
- * Return TRUE if the monster did actually want to do anything.
+ * Return true if the monster did actually want to do anything.
  */
 static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
 {
@@ -1518,20 +1518,20 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
     int i;
     int y, x;
 
-    bool done = FALSE;
+    bool done = false;
     bool dummy;
 
     // if it can call for help, then it might
     if ((r_ptr->flags4 & (RF4_SHRIEK)) && percent_chance(r_ptr->freq_ranged))
     {
         shriek(m_ptr);
-        return (FALSE);
+        return (false);
     }
 
     /* If the monster is well away from danger, let it relax. */
     if (m_ptr->cdis >= FLEE_RANGE)
     {
-        return (FALSE);
+        return (false);
     }
 
     // intelligent monsters that are fleeing can try to use stairs
@@ -1542,7 +1542,7 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
         {
             *ty = m_ptr->fy;
             *tx = m_ptr->fx;
-            return (TRUE);
+            return (true);
         }
 
         // check for adjacent stairs and move towards one
@@ -1559,7 +1559,7 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
             {
                 *ty = yy;
                 *tx = xx;
-                return (TRUE);
+                return (true);
             }
         }
     }
@@ -1571,7 +1571,7 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
         // int prev_cost = cave_cost[which_flow][m_ptr->fy][m_ptr->fx];
         int start = rand_int(8);
 
-        bool acceptable = FALSE;
+        bool acceptable = false;
         int best_score = 0;
         int best_y = m_ptr->fy, best_x = m_ptr->fx;
         int dist;
@@ -1587,12 +1587,12 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
 
         // the position is only acceptable if it is not adjacent to the player
         if (m_ptr->cdis > 1)
-            acceptable = TRUE;
+            acceptable = true;
 
         // Set some hacky global variables so that the project_path()
         // function doesn't consider the monster's current location to block
         // line of fire.
-        project_path_ignore = TRUE;
+        project_path_ignore = true;
         project_path_ignore_y = m_ptr->fy;
         project_path_ignore_x = m_ptr->fx;
 
@@ -1623,7 +1623,7 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
                 continue;
 
             // any position non-adjacent to the player will be acceptable
-            acceptable = TRUE;
+            acceptable = true;
 
             // reward distance from player
             score += dist;
@@ -1648,7 +1648,7 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
         // Unset some hacky global variables so that the project_path()
         // function didn't consider the monster's current location to block line
         // of fire.
-        project_path_ignore = FALSE;
+        project_path_ignore = false;
         project_path_ignore_y = 0;
         project_path_ignore_x = 0;
 
@@ -1658,7 +1658,7 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
             *tx = best_x;
 
             /* Success */
-            return (TRUE);
+            return (true);
         }
 
         // Sil-y:
@@ -1669,7 +1669,7 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
         else if ((m_ptr->stance != STANCE_FLEEING)
             && !(r_ptr->flags1 & (RF1_UNIQUE)) && m_ptr->ml)
         {
-            return (FALSE);
+            return (false);
         }
     }
 
@@ -1721,7 +1721,7 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
             /* Move towards the target */
             *ty = m_ptr->target_y;
             *tx = m_ptr->target_x;
-            return (TRUE);
+            return (true);
         }
 
         /* It's in LOS, but not a stair; cancel it. */
@@ -1756,7 +1756,7 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
                     {
                         *ty = y;
                         *tx = x;
-                        done = TRUE;
+                        done = true;
                         break;
                     }
                 }
@@ -1764,7 +1764,7 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
 
             /* Return if successful */
             if (done)
-                return (TRUE);
+                return (true);
         }
 
         /* No flow info, or don't need it -- see bottom of function */
@@ -1802,13 +1802,13 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
                 prev_dist = flow_dist(m_idx, y, x);
 
                 /* Success */
-                return (TRUE);
+                return (true);
             }
         }
 
         /* Find a nearby grid not in LOS of the character. */
-        if (find_safety(m_ptr, ty, tx) == TRUE)
-            return (TRUE);
+        if (find_safety(m_ptr, ty, tx) == true)
+            return (true);
 
         /*
          * No safe place found.  If monster is in LOS and close,
@@ -1836,7 +1836,7 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
             calc_stance(m_ptr);
             m_ptr->mflag |= (MFLAG_AGGRESSIVE);
 
-            return (TRUE);
+            return (true);
         }
     }
 
@@ -1847,7 +1847,7 @@ static bool get_move_retreat(monster_type* m_ptr, int* ty, int* tx)
     *tx = m_ptr->fx - (p_ptr->px - m_ptr->fx);
 
     /* We want to run away */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1882,8 +1882,8 @@ static void get_move_advance(monster_type* m_ptr, int* ty, int* tx)
 
     int closest = FLOW_MAX_DIST;
 
-    bool can_use_sound = FALSE;
-    bool can_use_scent = FALSE;
+    bool can_use_sound = false;
+    bool can_use_scent = false;
 
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
     monster_lore* l_ptr = &l_list[m_ptr->r_idx];
@@ -1925,13 +1925,13 @@ static void get_move_advance(monster_type* m_ptr, int* ty, int* tx)
     /* If we can hear noises, advance towards them */
     if (flow_dist(m_idx, y1, x1) < FLOW_MAX_DIST)
     {
-        can_use_sound = TRUE;
+        can_use_sound = true;
     }
 
     /* Otherwise, try to follow a scent trail */
     else if (monster_can_smell(m_ptr))
     {
-        can_use_scent = TRUE;
+        can_use_scent = true;
     }
 
     /* Otherwise */
@@ -2170,7 +2170,7 @@ extern bool attacker_at(int y, int x)
 {
     if (cave_m_idx[y][x] <= 0)
     {
-        return FALSE;
+        return false;
     }
 
     monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
@@ -2233,7 +2233,7 @@ int adj_mon_count(int y, int x)
  * towards.  With a bit more work, this will lead to semi-realistic
  * "hunting" behavior.
  *
- * Return FALSE if monster doesn't want to move or can't.
+ * Return false if monster doesn't want to move or can't.
  */
 static bool get_move(
     monster_type* m_ptr, int* ty, int* tx, bool* fear, bool must_use_target)
@@ -2267,13 +2267,13 @@ static bool get_move(
             }
         }
         /* If we are in sight, do not move */
-        return (FALSE);
+        return (false);
     }
 
     // Morgoth will not move during the 'truce'
     if ((m_ptr->r_idx == R_IDX_MORGOTH) && p_ptr->truce)
     {
-        return (FALSE);
+        return (false);
     }
 
     // worm masses, nameless things and the like won't deliberately move towards
@@ -2281,7 +2281,7 @@ static bool get_move(
     if ((r_ptr->flags2 & (RF2_MINDLESS)) && (r_ptr->flags2 & (RF2_TERRITORIAL))
         && (m_ptr->cdis > 5))
     {
-        return (FALSE);
+        return (false);
     }
 
     /*
@@ -2315,15 +2315,15 @@ static bool get_move(
             else
             {
                 /* Kill. */
-                *fear = FALSE;
+                *fear = false;
                 *ty = py;
                 *tx = px;
-                return (TRUE);
+                return (true);
             }
         }
 
         /* If we can't hit anything, do not move */
-        return (FALSE);
+        return (false);
     }
 
     /*
@@ -2333,16 +2333,16 @@ static bool get_move(
     {
         *ty = m_ptr->target_y;
         *tx = m_ptr->target_x;
-        return (TRUE);
+        return (true);
     }
 
     /*** Handle monster fear -- only for monsters that can move ***/
 
     /* Is the monster scared? */
     if ((m_ptr->min_range >= FLEE_RANGE) || (m_ptr->stance == STANCE_FLEEING))
-        *fear = TRUE;
+        *fear = true;
     else
-        *fear = FALSE;
+        *fear = false;
 
     /* Monster is frightened or terrified. */
     if (*fear)
@@ -2358,7 +2358,7 @@ static bool get_move(
             if (m_ptr->min_range < m_ptr->cdis)
             {
                 /* Cancel fear */
-                *fear = FALSE;
+                *fear = false;
 
                 /* No message -- too annoying */
 
@@ -2366,7 +2366,7 @@ static bool get_move(
                 *ty = py;
                 *tx = px;
 
-                return (TRUE);
+                return (true);
             }
         }
 
@@ -2375,14 +2375,14 @@ static bool get_move(
         {
             /* Find and move towards a hidey-hole */
             get_move_retreat(m_ptr, ty, tx);
-            return (TRUE);
+            return (true);
         }
 
         /* Monster is well away from danger */
         else
         {
             /* No need to move */
-            return (FALSE);
+            return (false);
         }
     }
 
@@ -2391,8 +2391,8 @@ static bool get_move(
     {
         if (get_move_retreat(m_ptr, ty, tx))
         {
-            *fear = TRUE;
-            return (TRUE);
+            *fear = true;
+            return (true);
         }
         else
         {
@@ -2417,7 +2417,7 @@ static bool get_move(
             }
 
             /* Back away */
-            *fear = TRUE;
+            *fear = true;
         }
 
         else
@@ -2456,7 +2456,7 @@ static bool get_move(
                                 // then maybe set it as a new target
                                 *ty = y;
                                 *tx = x;
-                                return (TRUE);
+                                return (true);
                             }
                         }
                     }
@@ -2498,7 +2498,7 @@ static bool get_move(
                                     *ty = fy - dx + dy;
                                     *tx = fx - dy + dx;
                                 }
-                                return (TRUE);
+                                return (true);
                             }
                             // if 'A' is free, go there
                             else if (cave_m_idx[fy + dx + dy][fx + dy + dx]
@@ -2506,7 +2506,7 @@ static bool get_move(
                             {
                                 *ty = fy + dx + dy;
                                 *tx = fx + dy + dx;
-                                return (TRUE);
+                                return (true);
                             }
                             // if 'B' is free, go there
                             else if (cave_m_idx[fy - dx + dy][fx - dy + dx]
@@ -2514,7 +2514,7 @@ static bool get_move(
                             {
                                 *ty = fy - dx + dy;
                                 *tx = fx - dy + dx;
-                                return (TRUE);
+                                return (true);
                             }
                         }
                     }
@@ -2542,7 +2542,7 @@ static bool get_move(
                             {
                                 *ty = fy;
                                 *tx = fx + dx;
-                                return (TRUE);
+                                return (true);
                             }
                         }
                     }
@@ -2561,7 +2561,7 @@ static bool get_move(
                             {
                                 *ty = fy + dy;
                                 *tx = fx;
-                                return (TRUE);
+                                return (true);
                             }
                         }
                     }
@@ -2571,7 +2571,7 @@ static bool get_move(
             /* All other monsters attack. */
             *ty = py;
             *tx = px;
-            return (TRUE);
+            return (true);
         }
     }
 
@@ -2598,7 +2598,7 @@ static bool get_move(
                     /* Find a safe spot to lurk in */
                     if (get_move_retreat(m_ptr, ty, tx))
                     {
-                        *fear = TRUE;
+                        *fear = true;
                     }
                     else
                     {
@@ -2616,11 +2616,11 @@ static bool get_move(
 
                     /* ... but make sure we stay hidden. */
                     if (m_ptr->cdis > 1)
-                        *fear = TRUE;
+                        *fear = true;
                 }
 
                 /* done */
-                return (TRUE);
+                return (true);
             }
             else
             {
@@ -2630,7 +2630,7 @@ static bool get_move(
                     /* Find a safe spot to lurk in */
                     if (get_move_retreat(m_ptr, ty, tx))
                     {
-                        *fear = TRUE;
+                        *fear = true;
                     }
                     else
                     {
@@ -2671,13 +2671,13 @@ static bool get_move(
                     continue;
 
                 /* Ignore grids that monster can't enter immediately */
-                if (!cave_exist_mon(r_ptr, y, x, FALSE, TRUE))
+                if (!cave_exist_mon(r_ptr, y, x, false, true))
                     continue;
 
                 /* Accept */
                 *ty = y;
                 *tx = x;
-                return (TRUE);
+                return (true);
             }
         }
     }
@@ -2766,10 +2766,10 @@ static bool get_move(
 
     /* We do not want to move */
     if ((*ty == m_ptr->fy) && (*tx == m_ptr->fx))
-        return (FALSE);
+        return (false);
 
     /* We want to move */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -2780,7 +2780,7 @@ static bool get_move(
  * If this function claims success, ty and tx must be set to a grid
  * adjacent to the monster.
  *
- * Return TRUE if this function actually did any good.
+ * Return true if this function actually did any good.
  */
 static bool get_route_to_target(monster_type* m_ptr, int* ty, int* tx)
 {
@@ -2789,8 +2789,8 @@ static bool get_route_to_target(monster_type* m_ptr, int* ty, int* tx)
     int tar_y, tar_x, dist_y, dist_x;
 
     bool dummy;
-    bool below = FALSE;
-    bool right = FALSE;
+    bool below = false;
+    bool right = false;
 
     tar_y = 0;
     tar_x = 0;
@@ -2804,7 +2804,7 @@ static bool get_route_to_target(monster_type* m_ptr, int* ty, int* tx)
     {
         /* Find out if the target is below the monster */
         if (m_ptr->target_y - m_ptr->fy > 0)
-            below = TRUE;
+            below = true;
 
         /* Search adjacent grids */
         for (i = 0; i < 8; i++)
@@ -2859,7 +2859,7 @@ static bool get_route_to_target(monster_type* m_ptr, int* ty, int* tx)
                 /* Don't look this gift horse in the mouth. */
                 *ty = y;
                 *tx = x;
-                return (TRUE);
+                return (true);
             }
         }
     }
@@ -2869,7 +2869,7 @@ static bool get_route_to_target(monster_type* m_ptr, int* ty, int* tx)
     {
         /* Find out if the target is right of the monster */
         if (m_ptr->target_x - m_ptr->fx > 0)
-            right = TRUE;
+            right = true;
 
         /* Search adjacent grids */
         for (i = 0; i < 8; i++)
@@ -2922,7 +2922,7 @@ static bool get_route_to_target(monster_type* m_ptr, int* ty, int* tx)
                 /* Don't look this gift horse in the mouth. */
                 *ty = y;
                 *tx = x;
-                return (TRUE);
+                return (true);
             }
         }
     }
@@ -2931,7 +2931,7 @@ static bool get_route_to_target(monster_type* m_ptr, int* ty, int* tx)
     else
     {
         /* XXX XXX - code something later to fill this hole. */
-        return (FALSE);
+        return (false);
     }
 
     /* If we found a solution, claim success */
@@ -2939,11 +2939,11 @@ static bool get_route_to_target(monster_type* m_ptr, int* ty, int* tx)
     {
         *ty = tar_y;
         *tx = tar_x;
-        return (TRUE);
+        return (true);
     }
 
     /* No luck */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -2959,7 +2959,7 @@ static void make_confused_move(monster_type* m_ptr, int y, int x)
 
     monster_race* r_ptr;
 
-    bool seen = FALSE;
+    bool seen = false;
 
     bool confused = m_ptr->confused;
 
@@ -2974,7 +2974,7 @@ static void make_confused_move(monster_type* m_ptr, int y, int x)
 
     /* Check visibility */
     if ((m_ptr->ml) && (cave_info[y][x] & (CAVE_SEEN)))
-        seen = TRUE;
+        seen = true;
 
     /* Get the monster name/poss */
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
@@ -3039,7 +3039,7 @@ static void make_confused_move(monster_type* m_ptr, int y, int x)
  * "spur of the moment", using current turn as a randomizer.
  *
  * The monster then attempts to move into the grid.  If it fails, this
- * function returns FALSE and the monster ends its turn.
+ * function returns false and the monster ends its turn.
  *
  * The variable "fear" is used to invoke any special rules for monsters
  * wanting to retreat rather than advance.  For example, such monsters
@@ -3068,9 +3068,9 @@ static bool make_move(
     /* Existing monster location, proposed new location */
     int oy, ox, ny, nx;
 
-    bool avoid = FALSE;
-    bool passable = FALSE;
-    bool look_again = FALSE;
+    bool avoid = false;
+    bool passable = false;
+    bool look_again = false;
 
     int chance;
 
@@ -3182,7 +3182,7 @@ static bool make_move(
         // otherwise just do nothing
         else
         {
-            return (FALSE);
+            return (false);
         }
     }
 
@@ -3219,13 +3219,13 @@ static bool make_move(
             /* We can enter this grid */
             if ((chance >= 100) || percent_chance(chance))
             {
-                return (TRUE);
+                return (true);
             }
 
             /* Failure to enter grid.  Cancel move */
             else
             {
-                return (FALSE);
+                return (false);
             }
         }
     }
@@ -3234,7 +3234,7 @@ static bool make_move(
      * Now that we have an initial direction, we must determine which
      * grid to actually move into.
      */
-    if (TRUE)
+    if (true)
     {
         /* Build a structure to hold movement data */
         typedef struct move_data move_data;
@@ -3299,11 +3299,11 @@ static bool make_move(
                         if (!percent_chance(chance))
                         {
                             /* Can't move */
-                            return (FALSE);
+                            return (false);
                         }
 
                         /* Can move */
-                        return (TRUE);
+                        return (true);
                     }
 
                     /* No good route found */
@@ -3398,7 +3398,7 @@ static bool make_move(
                 if ((fear) && (m_ptr->cdis <= 2)
                     && (distance(p_ptr->py, p_ptr->px, ny, nx) <= 1))
                 {
-                    avoid = TRUE;
+                    avoid = true;
                 }
 
                 else
@@ -3434,7 +3434,7 @@ static bool make_move(
             if (!passable)
             {
                 /* Note passable */
-                passable = TRUE;
+                passable = true;
 
                 /* All the best directions are blocked. */
                 if (i >= 3)
@@ -3446,7 +3446,7 @@ static bool make_move(
 
             /* We haven't made a decision yet; look again. */
             if (i == 7)
-                look_again = TRUE;
+                look_again = true;
         }
 
         /* We've exhausted all the easy answers. */
@@ -3455,7 +3455,7 @@ static bool make_move(
             /* There are no passable directions. */
             if (!passable)
             {
-                return (FALSE);
+                return (false);
             }
 
             /* We can move. */
@@ -3473,7 +3473,7 @@ static bool make_move(
         /* If no direction was acceptable, end turn */
         if (i >= 8)
         {
-            return (FALSE);
+            return (false);
         }
 
         /* Get movement information (again) */
@@ -3483,7 +3483,7 @@ static bool make_move(
         /* No good moves, so we just sit still and wait. */
         if ((dir == 5) || (dir == 0))
         {
-            return (FALSE);
+            return (false);
         }
 
         /* Get grid to move into */
@@ -3501,14 +3501,14 @@ static bool make_move(
 
             /* Do not actually move */
             if (!moves_data[i].move_chance)
-                return (FALSE);
+                return (false);
         }
 
         /* Try to move in the chosen direction.  If we fail, end turn. */
         if ((moves_data[i].move_chance < 100)
             && !percent_chance(moves_data[i].move_chance))
         {
-            return (FALSE);
+            return (false);
         }
     }
 
@@ -3535,7 +3535,7 @@ static bool make_move(
     }
 
     /* We can move. */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -3588,16 +3588,16 @@ static bool push_aside(monster_type* m_ptr, monster_type* n_ptr)
             continue;
 
         /* Grid is not occupied, and the 2nd monster can exist in it. */
-        if (cave_exist_mon(nr_ptr, y, x, FALSE, TRUE))
+        if (cave_exist_mon(nr_ptr, y, x, false, true))
         {
             /* Push the 2nd monster into the empty grid. */
             monster_swap(n_ptr->fy, n_ptr->fx, y, x);
-            return (TRUE);
+            return (true);
         }
     }
 
     /* We didn't find any empty, legal grids */
-    return (FALSE);
+    return (false);
 }
 
 static void warning_message(monster_type* m_ptr)
@@ -3699,7 +3699,7 @@ static void warning_message(monster_type* m_ptr)
 
     /* Hard not to notice */
     update_flow(m_ptr->fy, m_ptr->fx, FLOW_MONSTER_NOISE);
-    monster_perception(FALSE, FALSE, -10);
+    monster_perception(false, false, -10);
 
     // makes monster noise too
     m_ptr->noise += 10;
@@ -3848,21 +3848,21 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
     int oy, ox, ny, nx;
 
     /* Default move, default lack of view */
-    bool do_move = TRUE;
-    bool do_view = FALSE;
+    bool do_move = true;
+    bool do_view = false;
 
     /* Assume nothing */
-    bool did_swap = FALSE;
-    bool did_pass_door = FALSE;
-    bool did_open_door = FALSE;
-    bool did_unlock_door = FALSE;
-    bool did_bash_door = FALSE;
-    bool did_take_item = FALSE;
-    bool did_kill_item = FALSE;
-    bool did_kill_body = FALSE;
-    bool did_pass_wall = FALSE;
-    bool did_kill_wall = FALSE;
-    bool did_tunnel_wall = FALSE;
+    bool did_swap = false;
+    bool did_pass_door = false;
+    bool did_open_door = false;
+    bool did_unlock_door = false;
+    bool did_bash_door = false;
+    bool did_take_item = false;
+    bool did_kill_item = false;
+    bool did_kill_body = false;
+    bool did_pass_wall = false;
+    bool did_kill_wall = false;
+    bool did_tunnel_wall = false;
 
     /* Remember where monster is */
     oy = m_ptr->fy;
@@ -3905,7 +3905,7 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
 
             // Hack: we must unset this flag to avoid the monster missing *2*
             // turns
-            m_ptr->skip_next_turn = FALSE;
+            m_ptr->skip_next_turn = false;
         }
 
         // Otherwise attack if possible
@@ -3937,7 +3937,7 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
         }
 
         /* End move */
-        do_move = FALSE;
+        do_move = false;
     }
 
     /* Can still move */
@@ -3950,13 +3950,13 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
             if (r_ptr->flags2 & (RF2_PASS_WALL))
             {
                 /* Monster went through a wall */
-                did_pass_wall = TRUE;
+                did_pass_wall = true;
             }
 
             /* Monster destroys walls (and doors) */
             else if (r_ptr->flags2 & (RF2_KILL_WALL))
             {
-                bool msg = FALSE;
+                bool msg = false;
 
                 /* Noise distance depends on monster "dangerousness"  XXX */
                 int noise_dist = 10;
@@ -3967,14 +3967,14 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                 /* Note that the monster killed the wall */
                 if (player_can_see_bold(ny, nx))
                 {
-                    do_view = TRUE;
-                    did_kill_wall = TRUE;
+                    do_view = true;
+                    did_kill_wall = true;
                 }
 
                 /* Output warning messages if the racket gets too loud */
                 else if (m_ptr->cdis <= noise_dist)
                 {
-                    msg = TRUE;
+                    msg = true;
                 }
 
                 /* Grid is currently a door */
@@ -4014,7 +4014,7 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
             else if ((r_ptr->flags2 & (RF2_TUNNEL_WALL))
                 && !cave_any_closed_door_bold(ny, nx))
             {
-                bool msg = FALSE;
+                bool msg = false;
 
                 /* Noise distance depends on monster "dangerousness"  XXX */
                 int noise_dist = 10;
@@ -4023,19 +4023,19 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                 cave_info[ny][nx] &= ~(CAVE_MARK);
 
                 /* Do not move */
-                do_move = FALSE;
+                do_move = false;
 
                 /* Note that the monster killed the wall */
                 if (player_can_see_bold(ny, nx))
                 {
-                    do_view = TRUE;
-                    did_kill_wall = TRUE;
+                    do_view = true;
+                    did_kill_wall = true;
                 }
 
                 /* Output warning messages if the racket gets too loud */
                 else if (m_ptr->cdis <= noise_dist)
                 {
-                    msg = TRUE;
+                    msg = true;
                 }
 
                 /* Grid is currently rubble */
@@ -4087,7 +4087,7 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                 if (r_ptr->flags2 & (RF2_PASS_DOOR))
                 {
                     /* Monster went through a door */
-                    did_pass_door = TRUE;
+                    did_pass_door = true;
                 }
 
                 /* Monster bashes the door down */
@@ -4101,7 +4101,7 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
 
                         msg_print("The door bursts open!");
 
-                        do_view = TRUE;
+                        do_view = true;
                     }
                     /* Character is not too far away */
                     else if (m_ptr->cdis < 20)
@@ -4114,7 +4114,7 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                     }
 
                     /* Note that the monster bashed the door (if visible) */
-                    did_bash_door = TRUE;
+                    did_bash_door = true;
 
                     // monster noise
                     m_ptr->noise += 10;
@@ -4134,13 +4134,13 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                     {
                         /* Note that the monster unlocked the door (if visible)
                          */
-                        did_unlock_door = TRUE;
+                        did_unlock_door = true;
 
                         /* Unlock the door */
                         cave_set_feat(ny, nx, FEAT_DOOR_HEAD + 0x00);
 
                         /* Do not move */
-                        do_move = FALSE;
+                        do_move = false;
 
                         /* Handle doors in sight */
                         if (player_has_los_bold(ny, nx))
@@ -4153,14 +4153,14 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                     else
                     {
                         /* Note that the monster opened the door (if visible) */
-                        did_open_door = TRUE;
+                        did_open_door = true;
 
                         /* Open the door */
                         cave_set_feat(ny, nx, FEAT_OPEN);
 
                         /* Step into doorway sometimes */
                         if (!one_in_(5))
-                            do_move = FALSE;
+                            do_move = false;
                     }
 
                     /* Handle doors in sight */
@@ -4168,7 +4168,7 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                     {
                         /* Do not disturb automatically */
 
-                        do_view = TRUE;
+                        do_view = true;
                     }
                 }
             }
@@ -4210,7 +4210,7 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                 && (r_ptr->level > nr_ptr->level * 2))
             {
                 /* Note that the monster killed another monster (if visible) */
-                did_kill_body = TRUE;
+                did_kill_body = true;
 
                 /* Kill the monster */
                 delete_monster(ny, nx);
@@ -4218,7 +4218,7 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
             /* Swap with or push aside the other monster */
             else
             {
-                did_swap = TRUE;
+                did_swap = true;
 
                 /* If other monster can't move, then abort the swap */
 
@@ -4227,17 +4227,17 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                 // if (nr_ptr->flags1 & (RF1_NEVER_MOVE))
                 //{
                 //	/* Cancel move */
-                //	do_move = FALSE;
+                //	do_move = false;
                 //}
 
                 /* The other monster cannot switch places */
-                if (!cave_exist_mon(nr_ptr, m_ptr->fy, m_ptr->fx, TRUE, TRUE))
+                if (!cave_exist_mon(nr_ptr, m_ptr->fy, m_ptr->fx, true, true))
                 {
                     /* Try to push it aside */
                     if (!push_aside(m_ptr, n_ptr))
                     {
                         /* Cancel move on failure */
-                        do_move = FALSE;
+                        do_move = false;
                     }
                 }
             }
@@ -4313,7 +4313,7 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
             int i;
             monster_type* n_ptr;
             monster_race* nr_ptr;
-            bool alerted_others = FALSE;
+            bool alerted_others = false;
 
             /* Scan all other monsters */
             for (i = mon_max - 1; i >= 1; i--)
@@ -4348,7 +4348,7 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                 n_ptr->target_y = ny;
                 n_ptr->target_x = nx;
 
-                alerted_others = TRUE;
+                alerted_others = true;
             }
 
             if (alerted_others)
@@ -4449,7 +4449,7 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                     if (m_ptr->ml && player_has_los_bold(ny, nx))
                     {
                         /* Get the object name */
-                        object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+                        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
                         /* Get the monster name */
                         monster_desc(m_name, sizeof(m_name), m_ptr, 0x04);
@@ -4467,14 +4467,14 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                 //	if (r_ptr->flags2 & (RF2_TAKE_ITEM))
                 //	{
                 //		/* Take note */
-                //		did_take_item = TRUE;
+                //		did_take_item = true;
 
                 //		/* Describe observable situations */
                 //		if (m_ptr->ml && player_has_los_bold(ny, nx))
                 //		{
                 //			/* Get the object name */
                 //			object_desc(o_name, sizeof(o_name),
-                // o_ptr, TRUE, 3);
+                // o_ptr, true, 3);
 
                 //			/* Get the monster name */
                 //			monster_desc(m_name, sizeof(m_name),
@@ -4494,13 +4494,13 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                     object_type object_type_body;
 
                     /* Take note */
-                    did_take_item = TRUE;
+                    did_take_item = true;
 
                     /* Describe observable situations */
                     if (player_has_los_bold(ny, nx) && m_ptr->ml)
                     {
                         /* Get the object name */
-                        object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+                        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
                         /* Get the monster name */
                         monster_desc(m_name, sizeof(m_name), m_ptr, 0x04);
@@ -4527,13 +4527,13 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                 else
                 {
                     /* Take note */
-                    did_kill_item = TRUE;
+                    did_kill_item = true;
 
                     /* Describe observable situations */
                     if (player_has_los_bold(ny, nx))
                     {
                         /* Get the object name */
-                        object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+                        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
                         /* Get the monster name */
                         monster_desc(m_name, sizeof(m_name), m_ptr, 0x04);
@@ -4609,7 +4609,7 @@ static bool has_sleeping_kin(monster_type* m_ptr)
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
 
     int i;
-    bool has_kin = FALSE;
+    bool has_kin = false;
 
     /* Scan all other monsters */
     for (i = mon_max - 1; i >= 1; i--)
@@ -4639,7 +4639,7 @@ static bool has_sleeping_kin(monster_type* m_ptr)
             continue;
 
         /* Activate all other monsters and communicate to them */
-        has_kin = TRUE;
+        has_kin = true;
     }
 
     return (has_kin);
@@ -4653,7 +4653,7 @@ void tell_allies(int y, int x, u32b flag)
 
     int i;
 
-    bool warned = FALSE;
+    bool warned = false;
 
     // paranoia
     if (cave_m_idx[y][x] <= 0)
@@ -4703,7 +4703,7 @@ void tell_allies(int y, int x, u32b flag)
         if (!warned)
         {
             warning_message(m_ptr);
-            warned = TRUE;
+            warned = true;
         }
 
         // If an eligible monster is now alert, then set the flag
@@ -4721,8 +4721,8 @@ void tell_allies(int y, int x, u32b flag)
 void wander(monster_type* m_ptr)
 {
     int ty, tx;
-    bool fear = FALSE;
-    bool bash = FALSE;
+    bool fear = false;
+    bool bash = false;
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
 
     // begin a song of piercing if possible
@@ -4808,15 +4808,15 @@ static void process_monster(monster_type* m_ptr)
     int chance = 0;
     int choice = 0;
 
-    bool fear = FALSE;
+    bool fear = false;
 
-    bool bash = FALSE;
+    bool bash = false;
 
     /* Assume the monster doesn't have a target */
-    bool must_use_target = FALSE;
+    bool must_use_target = false;
 
     /* Will the monster move randomly? */
-    bool random_move = FALSE;
+    bool random_move = false;
 
     // Morgoth is always active during the escape
     // Sil-y: but this might be irrelevant as he can be unwary...
@@ -4850,7 +4850,7 @@ static void process_monster(monster_type* m_ptr)
     }
 
     // assume we are not under the influence of the Song of Mastery
-    m_ptr->skip_this_turn = FALSE;
+    m_ptr->skip_this_turn = false;
 
     // first work out if the song of mastery stops the monster's turn
     if (singing(SNG_MASTERY))
@@ -4863,7 +4863,7 @@ static void process_monster(monster_type* m_ptr)
         {
             // make sure the monster doesn't do any free attacks before its next
             // turn
-            m_ptr->skip_this_turn = TRUE;
+            m_ptr->skip_this_turn = true;
 
             // end the monster's turn
             return;
@@ -5189,7 +5189,7 @@ static void process_monster(monster_type* m_ptr)
 
         /* Chance of moving randomly */
         if (percent_chance(chance))
-            random_move = TRUE;
+            random_move = true;
     }
 
     /* Monster isn't moving randomly, isn't running away
@@ -5219,7 +5219,7 @@ static void process_monster(monster_type* m_ptr)
 
         /* Monster has a known target */
         if ((m_ptr->target_y) && (m_ptr->target_x))
-            must_use_target = TRUE;
+            must_use_target = true;
     }
 
     /*** Find a target to move to ***/
@@ -5235,7 +5235,7 @@ static void process_monster(monster_type* m_ptr)
             && ((m_ptr->min_range >= FLEE_RANGE)
                 || (m_ptr->stance == STANCE_FLEEING)))
         {
-            fear = TRUE;
+            fear = true;
         }
 
         /* Look at adjacent grids, starting at random. */
@@ -5399,7 +5399,7 @@ extern void produce_cloud(monster_type* m_ptr)
     if ((r_ptr->flags2 & (RF2_CLOUD_SURROUND)) && (m_ptr->mflag & (MFLAG_ACTV)))
     {
         /* Assume no affect */
-        bool affect = FALSE;
+        bool affect = false;
 
         int typ, dd, ds, rad;
 
@@ -5408,7 +5408,7 @@ extern void produce_cloud(monster_type* m_ptr)
 
         /* Monsters wait for the character to approach and in line of sight */
         if ((m_ptr->cdis <= 5) && (player_can_see_bold(m_ptr->fy, m_ptr->fx)))
-            affect = TRUE;
+            affect = true;
 
         /* Affect surroundings if appropriate */
         if (affect)
@@ -5715,7 +5715,7 @@ void calc_stance(monster_type* m_ptr)
     {
         char m_name[80];
         char buf[160];
-        bool message = FALSE;
+        bool message = false;
 
         /* Get the monster name */
         monster_desc(m_name, sizeof(m_name), m_ptr, 0);
@@ -5733,7 +5733,7 @@ void calc_stance(monster_type* m_ptr)
             else
                 sprintf(buf, "recovers its composure.");
 
-            message = TRUE;
+            message = true;
 
             break;
         }
@@ -5746,7 +5746,7 @@ void calc_stance(monster_type* m_ptr)
                 calc_morale(m_ptr);
 
                 sprintf(buf, "flees in terror!");
-                message = TRUE;
+                message = true;
             }
             break;
         }
@@ -5759,7 +5759,7 @@ void calc_stance(monster_type* m_ptr)
                 calc_morale(m_ptr);
 
                 sprintf(buf, "flees in terror!");
-                message = TRUE;
+                message = true;
             }
             break;
         }
@@ -5787,14 +5787,14 @@ void calc_stance(monster_type* m_ptr)
  */
 static void recover_monster(monster_type* m_ptr)
 {
-    bool visible = FALSE;
+    bool visible = false;
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
     int i;
 
     // summoned monsters have a half-life of one turn after the song stops
     if (m_ptr->mflag & (MFLAG_SUMMONED))
     {
-        int still_singing = FALSE;
+        int still_singing = false;
 
         for (i = 1; i < mon_max; i++)
         {
@@ -5806,7 +5806,7 @@ static void recover_monster(monster_type* m_ptr)
 
             // note if any monster is singing the song of oaths
             if (n_ptr->song == SNG_OATHS)
-                still_singing = TRUE;
+                still_singing = true;
         }
 
         if (!still_singing && one_in_(2))
@@ -5819,7 +5819,7 @@ static void recover_monster(monster_type* m_ptr)
     /* Visible monsters must be both seen and noticed */
     if (m_ptr->ml)
     {
-        visible = TRUE;
+        visible = true;
     }
 
     /* produce a cloud if appropriate */
@@ -5988,7 +5988,7 @@ void process_monsters(s16b minimum_energy)
             // reset its previous movement to stop it charging etc.
             m_ptr->previous_action[0] = ACTION_MISC;
 
-            m_ptr->skip_next_turn = FALSE;
+            m_ptr->skip_next_turn = false;
             continue;
         }
 
@@ -6041,7 +6041,7 @@ void monster_perception(bool player_centered, bool main_roll, int difficulty)
         {
             combat_noise_bonus += 2;
             combat_sight_bonus += 2;
-            player_attacked = FALSE;
+            player_attacked = false;
 
             // keep track of this for the ability 'Concentration'
             p_ptr->consecutive_attacks++;
@@ -6050,7 +6050,7 @@ void monster_perception(bool player_centered, bool main_roll, int difficulty)
         {
             combat_noise_bonus += 2;
             combat_sight_bonus += 2;
-            attacked_player = FALSE;
+            attacked_player = false;
         }
     }
 

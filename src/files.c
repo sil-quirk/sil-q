@@ -662,7 +662,7 @@ errr process_pref_file_command(char* buf)
         {
             if (option_text[i] && streq(option_text[i], buf + 2))
             {
-                op_ptr->opt[i] = FALSE;
+                op_ptr->opt[i] = false;
                 return (0);
             }
         }
@@ -679,7 +679,7 @@ errr process_pref_file_command(char* buf)
         {
             if (option_text[i] && streq(option_text[i], buf + 2))
             {
-                op_ptr->opt[i] = TRUE;
+                op_ptr->opt[i] = true;
                 return (0);
             }
         }
@@ -770,6 +770,7 @@ static cptr process_pref_file_expr(char** sp, char* fp)
     char b2 = ']';
 
     char f = ' ';
+
 
     /* Initial */
     s = (*sp);
@@ -984,14 +985,18 @@ static errr process_pref_file_aux(cptr name)
 
     errr err = 0;
 
-    bool bypass = FALSE;
+    bool bypass = false;
+
+    log_debug("Processing preference file: %s", name);
 
     /* Open the file */
     fp = my_fopen(name, "r");
 
     /* No such file */
-    if (!fp)
+    if (!fp) {
+        log_debug("Preference file '%s' not found or could not be opened", name);
         return (-1);
+    }
 
     /* Process the file */
     while (0 == my_fgets(fp, buf, sizeof(buf)))
@@ -1028,7 +1033,7 @@ static errr process_pref_file_aux(cptr name)
             v = process_pref_file_expr(&s, &f);
 
             /* Set flag */
-            bypass = (streq(v, "0") ? TRUE : FALSE);
+            bypass = (streq(v, "0") ? true : false);
 
             /* Continue */
             continue;
@@ -1065,6 +1070,8 @@ static errr process_pref_file_aux(cptr name)
         msg_format("Parsing '%s'", old);
         message_flush();
     }
+
+    log_debug("Successfully processed preference file '%s' (%d lines)", name, line + 1);
 
     /* Close the file */
     my_fclose(fp);
@@ -1120,7 +1127,7 @@ static char days[7][29] = { "SUN:XXXXXXXXXXXXXXXXXXXXXXXX",
 /*
  * Restict usage (defaults to no restrictions)
  */
-static bool check_time_flag = FALSE;
+static bool check_time_flag = false;
 
 #endif /* CHECK_TIME */
 
@@ -1174,7 +1181,7 @@ errr check_time_init(void)
         return (0);
 
     /* Assume restrictions */
-    check_time_flag = TRUE;
+    check_time_flag = true;
 
     /* Parse the file */
     while (0 == my_fgets(fp, buf, sizeof(buf)))
@@ -1284,7 +1291,7 @@ void display_player_xtra_info(int mode)
     int row_stats = 2;
     int row_flags = 2;
 
-    int skill, attacks = 1, shots = 1;
+    int skill, attacks = 1;
     char cur[32], rhs[32], val[64], buf[160];
 
     byte history_attr = (mode == 2) ? TERM_YELLOW : TERM_WHITE;
@@ -1372,7 +1379,7 @@ void display_player_xtra_info(int mode)
 
     /* Armor — keep [] */
     strnfmt(val, sizeof(val), "[%+d,%d-%d]",
-            p_ptr->skill_use[S_EVN], p_min(GF_HURT, TRUE), p_max(GF_HURT, TRUE));
+            p_ptr->skill_use[S_EVN], p_min(GF_HURT, true), p_max(GF_HURT, true));
     put_single20_right(col_stats, row_stats++,
                        "Armor", val, 14, TERM_L_BLUE);
 
@@ -1709,12 +1716,6 @@ static void display_player_misc_info(void)
     strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name, c_name + hp_ptr->alt_name);
     c_put_str(TERM_L_BLUE, name, 0, 20);
 
-    // if (p_ptr->phouse)
-    // {
-    //     /* Title */
-    //     put_str("House", 3, 1);
-    //     c_put_str(TERM_L_BLUE, c_name + hp_ptr->short_name, 3, 8);
-    // }
 }
 
 /*
@@ -2045,7 +2046,7 @@ bool show_buffer(cptr main_buffer, cptr what, int line)
     Term_get_size(&wid, &hgt);
 
     /* Count the lines in the buffer */
-    for (j = 0; TRUE; j++)
+    for (j = 0; true; j++)
     {
         if (main_buffer[j] == '\n')
             next++;
@@ -2057,7 +2058,7 @@ bool show_buffer(cptr main_buffer, cptr what, int line)
     size = next;
 
     /* Display the file */
-    while (TRUE)
+    while (true)
     {
         /* Clear screen */
         Term_clear();
@@ -2070,7 +2071,7 @@ bool show_buffer(cptr main_buffer, cptr what, int line)
 
         /* Goto the selected line */
         next = 0;
-        for (j = 0; TRUE; j++)
+        for (j = 0; true; j++)
         {
             if (main_buffer[j] == '\n')
                 next++;
@@ -2089,7 +2090,7 @@ bool show_buffer(cptr main_buffer, cptr what, int line)
         {
             /* Get a line of the file or stop */
             k = 0;
-            while (TRUE)
+            while (true)
             {
                 ch = main_buffer[j];
 
@@ -2170,13 +2171,13 @@ bool show_buffer(cptr main_buffer, cptr what, int line)
     }
 
     /* Done */
-    return (TRUE);
+    return (true);
 }
 
 /*
  * Recursive file perusal.
  *
- * Return FALSE on "?", otherwise TRUE.
+ * Return false on "?", otherwise true.
  *
  * Process various special text in the input file, including the "menu"
  * structures used by the "help file" system.
@@ -2207,10 +2208,10 @@ bool show_file(cptr name, cptr what, int line)
     int back = 0;
 
     /* This screen has sub-screens */
-    bool menu = FALSE;
+    bool menu = false;
 
     /* Case sensitive search */
-    bool case_sensitive = FALSE;
+    bool case_sensitive = false;
 
     /* Current help file */
     FILE* fff = NULL;
@@ -2290,6 +2291,8 @@ bool show_file(cptr name, cptr what, int line)
 
         /* Get the filename */
         my_strcpy(path, name, sizeof(path));
+        
+        log_debug("Opening help file: %s", path);
 
         /* Open */
         fff = my_fopen(path, "r");
@@ -2298,16 +2301,19 @@ bool show_file(cptr name, cptr what, int line)
     /* Oops */
     if (!fff)
     {
+        log_info("Failed to open help file: %s", name);
         /* Message */
         msg_format("Cannot open '%s'.", name);
         message_flush();
 
         /* Oops */
-        return (TRUE);
+        return (true);
     }
+    
+    log_debug("Successfully opened help file: %s", name);
 
     /* Pre-Parse the file */
-    while (TRUE)
+    while (true)
     {
         /* Read a line or stop */
         if (my_fgets(fff, buf, sizeof(buf)))
@@ -2323,7 +2329,7 @@ bool show_file(cptr name, cptr what, int line)
                 && (buf[8] == b2) && (buf[9] == ' '))
             {
                 /* This is a menu file */
-                menu = TRUE;
+                menu = true;
 
                 /* Extract the menu item */
                 k = A2I(buf[7]);
@@ -2361,7 +2367,7 @@ bool show_file(cptr name, cptr what, int line)
     size = next;
 
     /* Display the file */
-    while (TRUE)
+    while (true)
     {
         /* Clear screen */
         Term_clear();
@@ -2383,7 +2389,7 @@ bool show_file(cptr name, cptr what, int line)
 
             /* Oops */
             if (!fff)
-                return (TRUE);
+                return (true);
 
             /* File has been restarted */
             next = 0;
@@ -3127,7 +3133,7 @@ void do_cmd_help(void)
 /*
  * Process the player name and extract a clean "base name".
  *
- * If "sf" is TRUE, then we initialize "savefile" based on player name.
+ * If "sf" is true, then we initialize "savefile" based on player name.
  *
  * Some platforms (Windows, Macintosh, Amiga) leave the "savefile" empty
  * when a new character is created, and then when the character is done
@@ -3171,6 +3177,7 @@ void process_player_name(bool sf)
     /* Require a "base" name */
     if (!op_ptr->base_name[0])
     {
+        log_debug("No base name provided, using 'nameless'");
         my_strcpy(op_ptr->base_name, "nameless", sizeof(op_ptr->base_name));
     }
 
@@ -3194,6 +3201,7 @@ void process_player_name(bool sf)
 
         /* Build the filename */
         path_build(savefile, sizeof(savefile), ANGBAND_DIR_SAVE, temp);
+        log_info("Generated savefile path: %s", savefile);
     }
 }
 
@@ -3204,7 +3212,9 @@ bool get_name(void)
 {
     char tmp[14];
     char old_name[14];
-    // bool name_selected = FALSE;
+    // bool name_selected = false;
+
+    log_info("Starting character name selection process");
 
     // Clear the names
     tmp[0] = '\0';
@@ -3254,20 +3264,22 @@ bool get_name(void)
         else
         {
             my_strcpy(op_ptr->full_name, old_name, sizeof(op_ptr->full_name));
-            return (FALSE);
+            return (false);
         }
 
         if (tmp[0] != '\0')
-            name_selected = TRUE;
+            name_selected = true;
         else
             bell("You must choose a name.");
     }*/
 
     /* Process the player name */
     my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
-    process_player_name(FALSE);
+    process_player_name(false);
+    
+    log_info("Character name confirmed: '%s'", op_ptr->full_name);
  
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -3280,19 +3292,19 @@ void do_cmd_escape(int silmarils)
     char buf[120];
 
     /* set the escaped flag */
-    p_ptr->escaped = TRUE;
+    p_ptr->escaped = true;
 
     /* Flush input */
     flush();
 
     /* Commit suicide */
-     p_ptr->is_dead = TRUE;
+     p_ptr->is_dead = true;
 
     /* Stop playing */
-    p_ptr->playing = FALSE;
+    p_ptr->playing = false;
 
     /* Leaving */
-    p_ptr->leaving = TRUE;
+    p_ptr->leaving = true;
 
     /* Get time */
     (void)strftime(long_day, 40, "%d %B %Y", localtime(&ct));
@@ -3354,10 +3366,8 @@ void do_cmd_escape(int silmarils)
     my_strcpy(p_ptr->died_from, "ripe old age", sizeof(p_ptr->died_from));
 
     /* Update metarun: escaped with N Silmarils */
-    log_debug("called from do_cmd_escape"); 
-    metarun_update_on_exit(FALSE,TRUE,silmarils);
-
-    print_story();
+    log_info("Player escaped with %d Silmarils", silmarils); 
+    metarun_update_on_exit(false,true,silmarils);
 
 }
 
@@ -3384,13 +3394,13 @@ void do_cmd_suicide(void)
         return;
 
     /* Commit suicide */
-    p_ptr->is_dead = TRUE;
+    p_ptr->is_dead = true;
 
     /* Stop playing */
-    p_ptr->playing = FALSE;
+    p_ptr->playing = false;
 
     /* Leaving */
-    p_ptr->leaving = TRUE;
+    p_ptr->leaving = true;
 
     my_strcpy(p_ptr->died_from, "their own hand", sizeof(p_ptr->died_from));
 }
@@ -3436,13 +3446,14 @@ void do_cmd_save_game(void)
     signals_ignore_tstp();
 
     /* Save the player */
-   /* Make sure meta-run data (curses, flags, etc.) is up-to-date even
+    /* Make sure meta-run data (curses, flags, etc.) is up-to-date even
       when the player merely saves & quits. */
-   log_debug("called from do_cmd_save_game");    
-   metarun_update_on_exit(FALSE, FALSE, 0);
+   log_info("Saving game and updating metarun data");    
+   metarun_update_on_exit(false, false, 0);
 
     if (save_player())
     {
+        log_info("Game saved successfully");
         if (!save_game_quietly)
         {
             prt("Saving game... done.", 0, 0);
@@ -3452,6 +3463,7 @@ void do_cmd_save_game(void)
     /* Save failed (oops) */
     else
     {
+        log_info("Game save failed");
         prt("Saving game... failed!", 0, 0);
     }
 
@@ -3465,7 +3477,7 @@ void do_cmd_save_game(void)
     my_strcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
 
     /* Reset the quietly flag */
-    save_game_quietly = FALSE;
+    save_game_quietly = false;
 }
 
 /*
@@ -3491,9 +3503,9 @@ static void print_tomb(high_score* the_score)
         Term_putstr(15, 2, -1, TERM_L_BLUE, "You have been slain");
     }
 
-    display_single_score(TERM_WHITE, 1, 0, 0, FALSE, the_score);
+    /* Show score line */
+    display_single_score(TERM_WHITE, 1, 0, 0, false, the_score);
 
-    prt_mini_screenshot(5, 12);
 }
 
 /*
@@ -3517,27 +3529,27 @@ static void show_info(void)
     if (p_ptr->equip_cnt)
     {
         Term_clear();
-        item_tester_full = TRUE;
+        item_tester_full = true;
         show_equip();
         prt("You are using:", 0, 0);
         Term_putstr(30, 16, -1, TERM_L_WHITE, "(press any key)");
         if (inkey() == ESCAPE)
             return;
-        item_tester_full = FALSE;
+        item_tester_full = false;
     }
 
     /* Inventory -- if any */
     if (p_ptr->inven_cnt)
     {
         Term_clear();
-        item_tester_full = TRUE;
+        item_tester_full = true;
         show_inven();
         prt("You are carrying:", 0, 0);
         Term_putstr(
             30, p_ptr->inven_cnt + 2, -1, TERM_L_WHITE, "(press any key)");
         if (inkey() == ESCAPE)
             return;
-        item_tester_full = FALSE;
+        item_tester_full = false;
     }
 
     // Display notes
@@ -3556,13 +3568,13 @@ static void death_examine(void)
     cptr q, s;
 
     /* Start out in "display" mode */
-    p_ptr->command_see = TRUE;
+    p_ptr->command_see = true;
 
     /* Get an item */
     q = "Examine which item? ";
     s = "You have nothing to examine.";
 
-    while (TRUE)
+    while (true)
     {
         if (!get_item(&item, q, s, (USE_INVEN | USE_EQUIP)))
             return;
@@ -3582,6 +3594,7 @@ static void death_examine(void)
  */
 static int highscore_seek(int i)
 {
+    log_debug("Seeking to score position %d in highscore file", i);
     /* Seek for the requested record */
     return (fd_seek(highscore_fd, i * sizeof(high_score)));
 }
@@ -3591,8 +3604,14 @@ static int highscore_seek(int i)
  */
 static errr highscore_read(high_score* score)
 {
+    errr result;
+    log_debug("Reading score from highscore file");
     /* Read the record, note failure */
-    return (fd_read(highscore_fd, (char*)(score), sizeof(high_score)));
+    result = fd_read(highscore_fd, (char*)(score), sizeof(high_score));
+    if (result != 0) {
+        log_info("Failed to read score from highscore file (error: %d)", result);
+    }
+    return result;
 }
 
 /*
@@ -3600,8 +3619,14 @@ static errr highscore_read(high_score* score)
  */
 static int highscore_write(const high_score* score)
 {
+    int result;
+    log_debug("Writing score for player '%s' to highscore file", score->who);
     /* Write the record, note failure */
-    return (fd_write(highscore_fd, (cptr)(score), sizeof(high_score)));
+    result = fd_write(highscore_fd, (cptr)(score), sizeof(high_score));
+    if (result != 0) {
+        log_info("Failed to write score to highscore file (error: %d)", result);
+    }
+    return result;
 }   
 
 /*
@@ -3622,6 +3647,8 @@ int score_points(high_score* score)
     int silmarils_factor = challenge_factor * 10;
     int depth_factor = silmarils_factor * 10;
     int morgoth_factor = depth_factor * 100;
+
+    log_debug("Calculating score points for player '%s'", score->who);
 
     // these lines fix a few potential problems with the score record...
     score->silmarils[1] = '\0';
@@ -3681,6 +3708,9 @@ int score_points(high_score* score)
         points += morgoth_factor;
     }
 
+    log_debug("Final score points for '%s': %d (silmarils=%d, escaped=%c, morgoth=%c)", 
+              score->who, points, silmarils, score->escaped[0], score->morgoth_slain[0]);
+
     return (points);
 }
 
@@ -3694,13 +3724,19 @@ static int highscore_where(high_score* score)
 
     high_score the_score;
 
+    log_debug("Determining placement for score from player '%s'", score->who);
+
     /* Paranoia -- it may not have opened */
-    if (highscore_fd < 0)
+    if (highscore_fd < 0) {
+        log_info("Highscore file not opened, cannot determine score placement");
         return (-1);
+    }
 
     /* Go to the start of the highscore file */
-    if (highscore_seek(0))
+    if (highscore_seek(0)) {
+        log_info("Failed to seek to start of highscore file");
         return (-1);
+    }
 
     /* Read until we get a score match (or the end of the scores) */
     for (i = 0; i < MAX_HISCORES; i++)
@@ -3708,11 +3744,14 @@ static int highscore_where(high_score* score)
         if (highscore_read(&the_score))
             return (i);
 
-        if (strcmp(score->who, the_score.who) == 0)
+        if (strcmp(score->who, the_score.who) == 0) {
+            log_debug("Found existing score for player '%s' at position %d", score->who, i);
             return (i);
+        }
 
     }
 
+    log_debug("Player '%s' will be placed at position %d (last entry)", score->who, MAX_HISCORES - 1);
     /* The "last" entry is always usable */
     return (MAX_HISCORES - 1);
 }
@@ -3789,48 +3828,52 @@ extern int highscore_count()
 static int highscore_add(high_score* score)
 {
     int slot;
-    // bool done = FALSE;
+    // bool done = false;
+
+    log_info("Adding score entry for player '%s'", score->who);
 
     /* Paranoia -- it may not have opened */
-    if (highscore_fd < 0)
+    if (highscore_fd < 0) {
+        log_info("Cannot add score - highscore file not opened");
         return (-1);
+    }
 
     /* Determine where the score should go */
     slot = highscore_where(score);
     
     /* Hack -- Not on the list */
-    if (slot < 0)
+    if (slot < 0) {
+        log_info("Score for player '%s' rejected - not eligible for high scores", score->who);
         return (-1);
+    }
+    
     highscore_seek(slot);
     highscore_write(score);
-    return (slot);
-    
-
-
+    log_debug("Added score entry for %s at position %d", score->who, slot);
     return (slot);
 }
 
-static int hero_in_scores(const char *name)
-{
-    char buf[1024];
-    path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
-    FILE *fp = fopen(buf, "rb");
-    if (!fp) return 0;
+// static int hero_in_scores(const char *name)
+// {
+//     char buf[1024];
+//     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+//     FILE *fp = fopen(buf, "rb");
+//     if (!fp) return 0;
 
-    high_score entry;
-    for (int i = 0; i < MAX_HISCORES; i++)
-    {
-        if (fread(&entry, sizeof(entry), 1, fp) != 1) break;
-        if (strcmp(entry.who, name) == 0)
-        {
-            fclose(fp);
-            return 1;
-        }
-    }
+//     high_score entry;
+//     for (int i = 0; i < MAX_HISCORES; i++)
+//     {
+//         if (fread(&entry, sizeof(entry), 1, fp) != 1) break;
+//         if (strcmp(entry.who, name) == 0)
+//         {
+//             fclose(fp);
+//             return 1;
+//         }
+//     }
 
-    fclose(fp);
-    return 0;
-}
+//     fclose(fp);
+//     return 0;
+// }
 
 #define RACE_PRIORITIES (sizeof(race_priority) / sizeof(race_priority[0]))
 
@@ -3992,16 +4035,18 @@ extern void display_single_score(
     }
 
     /* if not displayed in a place, then don't write the place number */
+    /* show the score as human-readable commas, e.g. “123 456”            */
+    char score_commas[16];
+    comma_number(score_commas, score_points(the_score));
+
     if (place == 0)
-    {
-        strnfmt(out_val, sizeof(out_val), "     %5s ft  %s of %s", depth_commas,
-            the_score->who, c_name + c_info[ph].alt_name);
-    }
+        strnfmt(out_val, sizeof(out_val), "     %5s ft  %s%s  [%s pts]",
+                depth_commas, the_score->who,
+                c_name + c_info[ph].alt_name, score_commas);
     else
-    {
-        strnfmt(out_val, sizeof(out_val), "%3d. %5s ft  %s%s", place,
-            depth_commas, the_score->who, c_name + c_info[ph].alt_name);
-    }
+        strnfmt(out_val, sizeof(out_val), "%3d. %5s ft  %s%s  [%s pts]",
+                place, depth_commas, the_score->who,
+                c_name + c_info[ph].alt_name, score_commas);
 
     /* Possibly ammend the first line */
     if (the_score->morgoth_slain[0] == 't')
@@ -4052,8 +4097,9 @@ extern void display_single_score(
         }
     }
 
-    /* If character is still alive, display differently */
-    else if (fake)
+    /* “Alive” entry: either the synthetic/fake score or a real one whose
+       cause-of-death text is literally “(alive and well)”                */
+    else if (fake || streq(the_score->how, "(alive and well)"))
     {
         strnfmt(out_val, sizeof(out_val),
             "               Lives still, deep within Angband's vaults");
@@ -4112,6 +4158,67 @@ extern void display_single_score(
     }
 }
 
+static void display_single_score_short(byte attr, int row, int col,
+                                       high_score const *hs)
+{
+    int  depth  = atoi(hs->cur_dun) * 50;
+    char depth_buf[8];
+    char out[90];
+    char symbol_buf[16] = "";  /* Buffer for silmaril and Morgoth symbols */
+
+    /* depth, name, verdict --------------------------------------------- */
+    strnfmt(depth_buf, sizeof depth_buf, "%4d ft", depth);
+
+    /* Build symbol string for silmarils and Morgoth */
+    int silm_count = atoi(hs->silmarils);
+    int pos = 0;
+    
+    /* Add * for each silmaril */
+    for (int i = 0; i < silm_count && i < 3; i++) {
+        symbol_buf[pos++] = '*';
+    }
+    
+    /* Add V for Morgoth slain */
+    if (hs->morgoth_slain[0] == 't') {
+        if (pos > 0) symbol_buf[pos++] = ' ';  /* Space before V if there are silmarils */
+        symbol_buf[pos++] = 'V';
+    }
+    
+    symbol_buf[pos] = '\0';  /* Null terminate */
+
+    /* verdict */
+    const char *verdict;
+    if (hs->escaped[0]=='t')
+        verdict = "escaped Angband";
+    else if (!strcmp(hs->how, "(alive and well)"))
+        verdict = "alive";
+    else
+        verdict = format("slain by %s", hs->how);
+
+    /* one-liner with symbols after depth */
+    if (symbol_buf[0]) {
+        strnfmt(out, sizeof out, " %s %s %s — %s", depth_buf, symbol_buf, hs->who, verdict);
+    } else {
+        strnfmt(out, sizeof out, " %s  %s — %s", depth_buf, hs->who, verdict);
+    }
+    
+    /* Color the symbols appropriately */
+    c_put_str(attr, out, row, col);
+    
+    /* Re-color the symbols if present */
+    if (symbol_buf[0]) {
+        int symbol_start = col + strlen(depth_buf) + 2;  /* Position after depth + space */
+        for (int i = 0; symbol_buf[i]; i++) {
+            if (symbol_buf[i] == '*') {
+                Term_putch(symbol_start + i, row, TERM_YELLOW, '*');
+            } else if (symbol_buf[i] == 'V') {
+                Term_putch(symbol_start + i, row, TERM_L_DARK, 'V');
+            }
+        }
+    }
+}
+
+
 /*
  * Display the scores in a given range.
  * Assumes the high score list is already open.
@@ -4127,6 +4234,8 @@ static void display_scores_aux(int from, int to, int note, high_score* score)
     int count;
     int place, fake;
     int silm=0;
+
+    log_debug("Displaying scores from position %d to %d (note=%d)", from, to, note);
     int morg=0;
 
     high_score the_score;
@@ -4194,7 +4303,7 @@ static void display_scores_aux(int from, int to, int note, high_score* score)
                 the_score = (*score);
                 attr = TERM_WHITE;
                 score = NULL;
-                fake = TRUE;
+                fake = true;
                 note = -1;
                 // j--;
             }
@@ -4202,7 +4311,7 @@ static void display_scores_aux(int from, int to, int note, high_score* score)
             /* Read a normal record */
             else
             {
-                fake = FALSE;
+                fake = false;
                 /* Read the proper record */
                 if (highscore_seek(j))
                     break;
@@ -4216,20 +4325,6 @@ static void display_scores_aux(int from, int to, int note, high_score* score)
                 if (the_score.morgoth_slain[0] == 't') morg++;
             }
         }
-    /* Print symbols for silmarils / slaying Morgoth */
-
-        char cated_string[20];
-        sprintf(cated_string,"%s%d","Number of Silmarils: ", metar.silmarils);
-
-        Term_putstr(2, 21, -1, TERM_L_GREEN, cated_string);
-
-        sprintf(cated_string,"%s%d","Number of Deaths: ", metar.deaths);
-
-        Term_putstr(2, 22, -1, TERM_RED, cated_string);        
-
-        // sprintf(cated_string,"%s%d","Slain Morgoth: ", metar.morgoth_slain);
-
-        // Term_putstr(2, 23, -1, TERM_UMBER, cated_string);
 
         /* Wait for response */
         Term_putstr(15, 24, -1, TERM_L_WHITE, "(press any key)");
@@ -4242,6 +4337,109 @@ static void display_scores_aux(int from, int to, int note, high_score* score)
     }
 }
 
+/* Show 20 compact entries per page ---------------------------------- */
+static void display_scores_aux_short(int from, int to, int note,
+                                     high_score *score)
+{
+    char ch;
+    int  j, k, n, count, place;
+    bool fake = false;
+    high_score the_score;
+    byte attr;
+    char tmp[80];
+
+    /* Count records -------------------------------------------------- */
+    if (highscore_seek(0)) return;
+    for (count = 0; count < MAX_HISCORES; count++)
+        if (highscore_read(&the_score)) break;
+
+    if (count > to) count = to;
+
+    /* Paginate ------------------------------------------------------- */
+    for (k = from, j = from, place = k + 1; k < count; k += 20)
+    {
+        Term_clear();
+        c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
+        if (k) { 
+            strnfmt(tmp, sizeof tmp, "(from position %d)", place);
+            put_str(tmp, 1, 42); 
+        }
+
+        for (n = 0; j < count && n < 20; place++, j++, n++)
+        {
+            attr = (j == note) ? TERM_WHITE : TERM_SLATE;
+
+            /* Fake record? ------------------------------------------ */
+            if ((note == j) && score) { 
+                the_score = *score; 
+                fake = true; 
+            }
+            else
+            {
+                fake = false;
+                if (highscore_seek(j) || highscore_read(&the_score)) break;
+            }
+            
+            /* Format each line with consistent column alignment */
+            int depth = atoi(the_score.cur_dun) * 50;
+            char line[120];
+            char symbols[8] = "";
+            
+            /* Build symbols string */
+            int silm_count = atoi(the_score.silmarils);
+            int pos = 0;
+            for (int i = 0; i < silm_count && i < 3; i++) {
+                symbols[pos++] = '*';
+            }
+            if (the_score.morgoth_slain[0] == 't') {
+                if (pos > 0) symbols[pos++] = ' ';
+                symbols[pos++] = 'V';
+            }
+            symbols[pos] = '\0';
+            
+            /* Format verdict */
+            const char *verdict;
+            if (the_score.escaped[0] == 't')
+                verdict = "escaped Angband";
+            else if (!strcmp(the_score.how, "(alive and well)"))
+                verdict = "alive";
+            else
+                verdict = format("slain by %s", the_score.how);
+            
+            /* Create formatted line with fixed column widths */
+            if (symbols[0]) {
+                strnfmt(line, sizeof line, " %4dft %-4s %-15s - %s", 
+                        depth, symbols, the_score.who, verdict);
+            } else {
+                strnfmt(line, sizeof line, " %4dft      %-15s - %s", 
+                        depth, the_score.who, verdict);
+            }
+            
+            /* Display the line */
+            c_put_str(attr, line, 3 + n, 0);
+            
+            /* Re-color the symbols */
+            if (symbols[0]) {
+                int symbol_start = 8; /* Position after "depth ft " */
+                for (int i = 0; symbols[i]; i++) {
+                    if (symbols[i] == '*') {
+                        Term_putch(symbol_start + i, 3 + n, TERM_YELLOW, '*');
+                    } else if (symbols[i] == 'V') {
+                        Term_putch(symbol_start + i, 3 + n, TERM_RED, 'V');
+                    }
+                }
+            }
+        }
+
+        Term_putstr(15, 23, -1, TERM_L_WHITE, "(press any key)");
+        ch = inkey();  
+        prt("", 23, 0);
+        if (ch == ESCAPE) break;
+    }
+}
+
+
+
 /*
  * Hack -- Display the scores in a given range and quit.
  *
@@ -4252,11 +4450,20 @@ void display_scores(int from, int to)
 {
     char buf[1024];
 
+    log_info("Displaying high scores from %d to %d", from, to);
+
     /* Build the filename */
     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+    
+    log_debug("Opening highscore file: %s", buf);
 
     /* Open the binary high score file, for reading */
     highscore_fd = fd_open(buf, O_RDONLY);
+    
+    if (highscore_fd < 0) {
+        log_info("Failed to open highscore file for reading");
+        return;
+    }
 
     /* Clear screen */
     Term_clear();
@@ -4267,6 +4474,7 @@ void display_scores(int from, int to)
     /* Display the scores */
     display_scores_aux(from, to, -1, NULL);
 
+    log_debug("Closing highscore file");
     /* Shut the high score file */
     fd_close(highscore_fd);
 
@@ -4282,147 +4490,359 @@ void display_scores(int from, int to)
     quit(NULL);
 }
 
-// Print story messages
+/* Public entry – compact list --------------------------------------- */
+void display_scores_short(int from, int to)
+{
+    char buf[1024];
+    path_build(buf, sizeof buf, ANGBAND_DIR_APEX, "scores.raw");
+    highscore_fd = fd_open(buf, O_RDONLY);
 
-// extern void print_story()
-// {
-//     int max;
-//     max = highscore_count(); 
-//     char cated_string[90];
-//     Term_clear();
-//     sprintf(cated_string,"%s%d","Number of Silmarils: ",max);
+    Term_clear();
+    put_str("               Names of the Fallen (compact)", 0, 0);
 
-//     if (p_ptr->escaped)
-//     {
-//             Term_putstr(15, 1, -1, TERM_L_BLUE, "StoryLine");
-//     }
-//     else if (p_ptr->is_dead)
-//         {
-//             Term_putstr(15, 2, -1, TERM_L_BLUE, "Another hero has been slain");
-//             Term_putstr(15, 3, -1, TERM_L_BLUE, cated_string);
-//         }
-//         else {
-//             Term_putstr(15, 2, -1, TERM_L_BLUE, "Storyline");      
-//         }
+    display_scores_aux_short(from, to, -1, NULL);
 
+    fd_close(highscore_fd);  highscore_fd = -1;
+}
 
+/* =============================================================
+ * Story display helpers & updated print_story() implementation
+ * =============================================================
+ *  Added features
+ *    1.  Optional `last_parts` argument — when >0 only the *last*
+ *        N matching story chapters are shown.
+ *    2.  Optional `fade_in` boolean — when true, paragraphs are
+ *        displayed with a colour fade‑in effect.
+ *
+ *  Timing (per @Roman request 2025‑07‑30, amended)
+ *    • 125 ms between colour steps
+ *    • 1 second pause after each paragraph/"block"
+ *
+ *  UI tweaks 2025‑07‑30 — v4
+ *    • Prints a **visible blank line** between paragraphs (not just
+ *      a row counter increment).
+ *    • [Esc] now finishes the *current* page instantly (no fades /
+ *      delays) and proceeds through the rest of the story without
+ *      further prompts, auto‑scrolling as needed. Nothing skipped.
+ *    • Footer fully wipes the bottom line before drawing its prompt
+ *      to avoid text overlap.
+ *
+ * ===========================================================*/
 
-//     for (int i = 0; i < 15; i++) {
-//         char text[900];
-//         char name[50];
-//         my_strcpy(name, st_name + st_info[i].name, sizeof(name));
-//         my_strcpy(text, st_text + st_info[i].text, sizeof(text));
+#include "angband.h"
+#include <stdbool.h>
 
-//         /* Indent output by 2 character, and wrap at column 70 */
-//         text_out_wrap = 0;
-//         text_out_indent = 2;
-        
-//         Term_putstr(15, 3, -1, TERM_L_BLUE, name); 
-//         Term_gotoxy(text_out_indent, 5);
-//         text_out_to_screen(TERM_WHITE, text);
-        
-//         text_out_wrap = 0;
-//         text_out_indent = 0;
-//         /* Wait for response */
-//         Term_putstr(15, 24, -1, TERM_L_WHITE, "(press any key)");
-//         inkey();
-//         prt("", 23, 0);
-//         Term_clear();
-//     prt_mini_screenshot(5, 12);
-//     }
-//     /* Wait for response */
-//     Term_putstr(15, 24, -1, TERM_L_WHITE, "(press any key)");
-//     inkey();
-//     prt("", 23, 0);
-//     Term_clear();
+/* -------------------------------------------------------------
+ * Helper: colour fade‑in paragraph printer
+ * Returns true if completed normally, false if interrupted by Esc
+ * ----------------------------------------------------------- */
+static bool print_paragraph_fade(cptr text, int row, int indent,
+                                 int wrap_width)
+{
+    const byte fade_cols[] = {
+        TERM_L_DARK, TERM_SLATE, TERM_L_WHITE, TERM_WHITE
+    };
+    const int steps = (int)(sizeof(fade_cols) / sizeof(fade_cols[0]));
 
-// }
+    for (int s = 0; s < steps; s++)
+    {
+        /* Check for key press during fade */
+        char ch;
+        if (Term_inkey(&ch, false, false) == 0) /* Non-blocking check */
+        {
+            if (ch == ESCAPE)
+            {
+                /* Consume the key and show final state immediately */
+                Term_inkey(&ch, false, true); /* Remove the key from queue */
+                text_out_indent = indent;
+                text_out_wrap   = wrap_width;
+                Term_gotoxy(indent, row);
+                text_out_to_screen(TERM_WHITE, text);
+                text_out_wrap   = 0;
+                text_out_indent = 0;
+                Term_fresh();
+                return false; /* Interrupted */
+            }
+        }
 
+        text_out_indent = indent;
+        text_out_wrap   = wrap_width;
+        Term_gotoxy(indent, row);
+        text_out_to_screen(fade_cols[s], text);
+        text_out_wrap   = 0;
+        text_out_indent = 0;
+        Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, 125);
+    }
 
-extern void print_story(void)
+    /* Check for key press during final delay */
+    char ch;
+    if (Term_inkey(&ch, false, false) == 0) /* Non-blocking check */
+    {
+        if (ch == ESCAPE)
+        {
+            Term_inkey(&ch, false, true); /* Remove the key from queue */
+            return false; /* Interrupted */
+        }
+    }
+
+    Term_xtra(TERM_XTRA_DELAY, 1000);
+    return true; /* Completed normally */
+}
+
+/* -------------------------------------------------------------
+ * print_story() — paging, subset & fade‑in options
+ * ----------------------------------------------------------- */
+void print_story(int last_parts, bool fade_in)
 {
     int wid, h;
-    int max = highscore_count();
-    char header[90];
-    int total = 1;
     const int indent = 2;
-    int index = 0;
-    bool fast_forward = FALSE;        /* becomes TRUE after first Esc */
+    bool fast_forward = false;
+    bool show_page_instantly = false;
 
-    total = metar.silmarils + 1;
+    log_info("=== Starting story display (parts=%d, fade_in=%s) ===", last_parts, fade_in ? "true" : "false");
+    log_trace("last_parts=%d, fade_in=%s", last_parts, fade_in ? "true" : "false");
 
-    /* Get current terminal size */
-    Term_get_size(&wid, &h);
+    /* Convenience macro to keep the bottom‑line hint fresh */
+#define REDRAW_HINT() \
+    Term_putstr(indent, h - 1, -1, TERM_SLATE, \
+                "[Enter] next  •  [Esc] fast forward")
 
-    /* Prepare score header */
-    sprintf(header, "Number of Silmarils: %d", max);
+    /* Build list of matching entries ------------------------ */
+    int sils   = metar.silmarils;
+    byte rt    = metar.type;
+    int total  = 0;
+    int max_st = z_info->st_max;
+    static int sel_idx[1024];
+    if (max_st > (int)N_ELEMENTS(sel_idx)) max_st = (int)N_ELEMENTS(sel_idx);
 
-    while (index < total) {
-        Term_clear();
-        int row = 1;
+    log_trace("Building story list: sils=%d, rt=%d, max_st=%d", sils, rt, max_st);
 
-        /* Print page header */
-        if (p_ptr->escaped) {
-            Term_putstr(15, row, -1, TERM_L_BLUE, "StoryLine");
-            row++;
-        } else if (p_ptr->is_dead) {
-            Term_putstr(15, row, -1, TERM_L_BLUE, "Another hero has been slain");
-            Term_putstr(15, row + 1, -1, TERM_L_BLUE, header);
-            row += 2;
+    for (int i = 0; i < max_st; i++)
+    {
+        story_type *st = &st_info[i];
+        if (!st->name && !st->text) continue;
+        if (st->st_type != 0)               continue; /* opening */
+        if (!(st->runtypes == 0 ||
+              (rt < 32 && (st->runtypes & (1UL << rt)))))
+            continue;                                   /* run‑type */
+        if (st->order <= (byte)sils) {
+            sel_idx[total++] = i;
+            log_trace("Added story %d (order=%d) to selection", i, st->order);
         }
-        row++; /* blank line after header */
+    }
 
-        int wrap_width = wid - indent;
+    log_info("Found %d matching stories for display", total);
+    
+    if (total == 0) {
+        log_debug("No stories match criteria - sils=%d, rt=%d", sils, rt);
+        return;
+    }
 
-        /* Loop over entries */
-        for (; index < total; index++) {
-            char text[900];
-            char name[50];
+    /* Stable insertion sort by order ------------------------ */
+    for (int i = 1; i < total; i++)
+    {
+        int key = sel_idx[i];
+        byte key_ord = st_info[key].order;
+        int j = i - 1;
+        while (j >= 0 && st_info[sel_idx[j]].order > key_ord)
+        {
+            sel_idx[j + 1] = sel_idx[j];
+            j--; }
+        sel_idx[j + 1] = key;
+    }
 
-            my_strcpy(name, st_name + st_info[index].name, sizeof(name));
-            my_strcpy(text, st_text + st_info[index].text, sizeof(text));
+    /* Restrict to the last N parts if requested ------------- */
+    int start = (last_parts > 0 && last_parts < total) ? total - last_parts : 0;
+    log_trace("Story range: start=%d, total=%d", start, total);
 
-            int text_lines = count_wrapped_lines(text, wrap_width, indent);
-            int needed = 1 + text_lines + 1;
+    /* Screen prep ------------------------------------------- */
+    Term_get_size(&wid, &h);
+    log_trace("Screen size: %dx%d", wid, h);
+    screen_save();
+    Term_clear();
 
-            /* If not enough space, break to next page */
-            if (row + needed > h - 1) break;
+    Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
+    int row = 2;
+    log_trace("Initial row position: %d", row);
+    REDRAW_HINT();
 
-            /* Print name */
-            Term_putstr(7, row, -1, TERM_L_BLUE, name);
-            row++;
+    /* Main loop -------------------------------------------- */
+    for (int idx = start; idx < total; idx++)
+    {
+        story_type *st = &st_info[sel_idx[idx]];
+        log_trace("=== PROCESSING STORY %d/%d (idx=%d) ===", idx - start + 1, total - start, idx);
+        log_trace("Story name: '%s'", st_name + st->name);
+        log_trace("Row before heading: %d", row);
 
-            /* Configure wrapping and print text */
+        /* Check if we need to paginate BEFORE rendering this story */
+        /* Estimate space needed: 1 for heading + ~4 for text + 1 for blank line */
+        int estimated_space_needed = 6;
+        if (row + estimated_space_needed >= h - 2)
+        {
+            log_trace("PRE-PAGINATION: estimated space %d would exceed limit", estimated_space_needed);
+            if (!fast_forward)
+            {
+                show_page_instantly = false;
+                log_trace("Waiting for user input...");
+                REDRAW_HINT();
+                char ch = inkey();
+                if (ch == ESCAPE)
+                {
+                    fast_forward = true;
+                    fade_in = false;
+                    Term_erase(0, h - 1, wid);
+                    log_info("User pressed ESC - enabling fast forward mode");
+                }
+                else
+                {
+                    log_trace("User pressed Enter - new page");
+                    row = 2;
+                    Term_clear();
+                    Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
+                    REDRAW_HINT();
+                    log_trace("New page started, row reset to %d", row);
+                }
+            }
+            else
+            {
+                log_trace("Fast-forward mode: auto-pagination");
+                row = 2;
+                Term_clear();
+                Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
+                log_trace("Auto-paginated, row reset to %d", row);
+            }
+        }
+
+        /* Heading */
+        Term_putstr(indent, row++, -1, TERM_L_BLUE, st_name + st->name);
+        log_trace("Row after heading: %d", row);
+
+        /* Body */
+        int wrap_width = wid - indent - 1;
+        if (wrap_width < 20) wrap_width = 20;
+        cptr text      = st_text + st->text;
+        log_trace("Text length: %d, wrap_width: %d", (int)strlen(text), wrap_width);
+
+        if (fade_in && !fast_forward && !show_page_instantly)
+        {
+            log_trace("Using fade-in for text at row %d", row);
+            if (!print_paragraph_fade(text, row, indent, wrap_width))
+            {
+                show_page_instantly = true; /* Esc was pressed during fade */
+                log_trace("Fade interrupted, switching to instant display");
+            }
+        }
+        else
+        {
+            log_trace("Rendering text directly at row %d", row);
             text_out_indent = indent;
             text_out_wrap   = wrap_width;
             Term_gotoxy(indent, row);
             text_out_to_screen(TERM_WHITE, text);
             text_out_wrap   = 0;
             text_out_indent = 0;
+            if (!fast_forward && !show_page_instantly) 
+                Term_xtra(TERM_XTRA_DELAY, 1000);
+        }
 
-            row += text_lines;
-            row++; /* blank line */
+        /* Get actual cursor position after text rendering */
+        int cursor_x, cursor_y;
+        Term_locate(&cursor_x, &cursor_y);
+        int text_rows = cursor_y - row + 1;
+        log_trace("Text spans %d rows (actual cursor tracking)", text_rows);
+        row = cursor_y + 1; /* Position after the text */
+        log_trace("Row after text: %d", row);
 
-            /* Prompt after each entry unless fast-forwarding */
-            if (!fast_forward) {
-                Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key / Esc = fast)");
-                int ch = inkey();
-                if (ch == ESCAPE) fast_forward = TRUE;
+        /* Check if we'll have room for the blank line before adding it */
+        bool will_add_blank_line = (idx < total - 1);
+        log_trace("Will add blank line: %s (idx=%d, total=%d)", 
+                  will_add_blank_line ? "YES" : "NO", idx, total);
+        
+        /* Pagination logic - check if we need to paginate BEFORE adding blank line */
+        int space_needed = will_add_blank_line ? 1 : 0;
+        int available_space = h - 2 - row;
+        log_trace("Space check: row=%d, space_needed=%d, available=%d (h=%d)", 
+                  row, space_needed, available_space, h);
+        
+        bool paginated = false;
+        if (row + space_needed >= h - 2)
+        {
+            log_trace("PAGINATION TRIGGERED: row+space=%d >= h-2=%d", 
+                      row + space_needed, h - 2);
+            
+            paginated = true;
+            if (!fast_forward)
+            {
+                /* Reset show_page_instantly for next page */
+                show_page_instantly = false;
+                
+                log_trace("Waiting for user input...");
+                REDRAW_HINT();
+                char ch = inkey();
+                if (ch == ESCAPE)
+                {
+                    fast_forward = true;
+                    fade_in      = false;   /* Disable delays for rest of story */
+                    Term_erase(0, h - 1, wid); /* clear hint line */
+                    log_info("User pressed ESC - enabling fast forward mode");
+                }
+                else /* Enter */
+                {
+                    log_trace("User pressed Enter - new page");
+                    row = 2;
+                    Term_clear();
+                    Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
+                    REDRAW_HINT();
+                    log_trace("New page started, row reset to %d", row);
+                    continue;
+                }
             }
+            else
+            {
+                log_trace("Fast-forward mode: auto-pagination");
+            }
+            /* fast‑forward mode: auto‑clear, no waits */
+            row = 2;
+            Term_clear();
+            Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
+            log_trace("Auto-paginated, row reset to %d", row);
         }
 
-        /* Footer prompt for next page (only if more pages and not fast) */
-        if (index < total && !fast_forward) {
-            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key for next page)");
-            int ch = inkey();
-            if (ch == ESCAPE) fast_forward = TRUE;
+        /* Add visible blank spacer line between paragraphs if there's room and we didn't paginate */
+        if (will_add_blank_line && !paginated)
+        {
+            log_trace("ADDING BLANK LINE at row %d", row);
+            Term_putstr(indent, row, -1, TERM_WHITE, "");
+            row++;
+            log_trace("Row after blank line: %d", row);
         }
+        else if (paginated)
+        {
+            log_trace("NOT adding blank line (paginated - page break provides separation)");
+        }
+        else
+        {
+            log_trace("NOT adding blank line (last story)");
+        }
+        
+        log_trace("=== END STORY %d ===", idx - start + 1);
     }
 
-    Term_clear();
+    log_trace("=== MAIN LOOP COMPLETE ===");
+
+    /* Footer ------------------------------------------------ */
+    Term_erase(0, h - 1, wid); /* clear bottom line entirely */
+    Term_putstr(indent, h - 1, -1, TERM_L_WHITE,
+                "[Press any key to continue]");
+    log_trace("Waiting for final key press...");
+    (void)inkey();
+    screen_load();
+    
+    log_info("=== Story display completed ===");
+
+#undef REDRAW_HINT
 }
-
-
 
 /*
  * Hack - save index of player's high score
@@ -4706,7 +5126,7 @@ static errr predict_score(void)
     return (0);
 }
 
-void show_scores(void)
+void show_scores(bool longscore)
 {
     char buf[1024];
 
@@ -4733,7 +5153,10 @@ void show_scores(void)
         if (character_generated)
             predict_score();
         else
-            display_scores_aux(0, MAX_HISCORES, -1, NULL);
+            if (longscore)
+                display_scores_aux(0, MAX_HISCORES, -1, NULL);
+            else
+                display_scores_aux_short(0, MAX_HISCORES, -1, NULL);  
 
         /* Shut the high score file */
         (void)fd_close(highscore_fd);
@@ -4749,20 +5172,24 @@ void show_scores(void)
     }
 }
 
-/* ------------------------------------------------------------------ */
-// Handle Kinslayer ability
-void kinslayer_try_kill(uint8_t n_sils)
+/*  Returns NULL when nothing was slain, or a static string with the
+ *  house name of the slain hero.  If @do_roll is false, the caller has
+ *  already performed the RNG check and we kill un-conditionally.       */
+const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
 {
-    log_debug("entered, n_sils=%u", n_sils);
+    log_info("Kinslayer attempt: n_sils=%u", n_sils);
 
     /* 1) Probability check */
     static const int pct_tab[4] = { 0, 20, 50, 95 };
-    if (n_sils == 0) { log_debug("no Silmarils → return"); return; }
-    if (n_sils > 3)  n_sils = 3;
-    int pct = pct_tab[n_sils];
-    int roll = rand_int(100);
-    log_debug("chance=%d%%, roll=%d", pct, roll);
-    if (roll >= pct) { log_debug("chance failed → return"); return; }
+    if (do_roll) {
+        if (n_sils == 0) return NULL;
+        if (n_sils > 3)  n_sils = 3;
+        int roll = rand_int(100);
+        if (roll >= pct_tab[n_sils]) {
+            log_debug("Kinslayer roll failed: %d >= %d (n_sils=%d)", roll, pct_tab[n_sils], n_sils);
+            return NULL;
+        }
+    }
 
     /* 2) Build path to scores.raw */
     char score_path[1024];
@@ -4770,27 +5197,27 @@ void kinslayer_try_kill(uint8_t n_sils)
 
     /* 3) Open global highscore_fd if not already open */
     if (highscore_fd < 0) {
-        log_debug("highscore_fd < 0, opening %s", score_path);
+        log_trace("highscore_fd < 0, opening %s", score_path);
         safe_setuid_grab();
         highscore_fd = open(score_path, O_RDWR | O_CREAT, 0644);
         safe_setuid_drop();
         if (highscore_fd < 0) {
             quit(format("Cannot open %s (%d)", score_path, errno));
-            return;  /* NOTREACHED */
+            return NULL;  /* NOTREACHED */
         }
-        log_debug("opened highscore_fd=%d", highscore_fd);
+        log_trace("opened highscore_fd=%d", highscore_fd);
     }
 
     /* 4) Determine number of records */
     off_t file_end = lseek(highscore_fd, 0, SEEK_END);
     int n_recs    = (int)(file_end / sizeof(high_score));
-    log_debug("hi-score file size=%lld, records=%d",
+    log_trace("hi-score file size=%lld, records=%d",
             (long long)file_end, n_recs);
 
     /* 5) Iterate races in priority order */
     for (size_t i = 0; i < RACE_PRIORITIES; ++i) {
         uint16_t race = race_priority[i];
-        log_debug("race priority[%zu]=%u", i, race);
+        log_trace("race priority[%zu]=%u", i, race);
 
         /* 5.a) Build pool of eligible houses */
         uint16_t *pool = malloc(z_info->c_max * sizeof *pool);
@@ -4805,14 +5232,14 @@ void kinslayer_try_kill(uint8_t n_sils)
             if (strcmp(hname, op_ptr->base_name) == 0) continue;
             pool[pool_n++] = h;
         }
-        log_debug("race %u: %zu eligible houses", race, pool_n);
+        log_trace("race %u: %zu eligible houses", race, pool_n);
         if (pool_n == 0) { free(pool); continue; }
 
         /* 5.b) Pick one house */
         uint16_t hsel  = pool[rand_int((int)pool_n)];
         const char *hname = c_name + c_info[hsel].name;
         free(pool);
-        log_debug("chosen house %u (%s)", hsel, hname);
+        log_info("Kinslayer selected house %u (%s) for elimination", hsel, hname);
 
         /* 5.c) Scan for existing entry */
         int hit = -1;
@@ -4829,12 +5256,12 @@ void kinslayer_try_kill(uint8_t n_sils)
                 break;
             }
         }
-        log_debug("scan: entry_offset=%d", hit);
+        log_trace("scan: entry_offset=%d", hit);
 
         if (hit >= 0) {
             /* 5.d) Found – check alive */
             if (highscore_dead(entry.how)) {
-                log_debug("hero already dead – skip");
+                log_trace("hero already dead – skip");
                 continue;
             }
             /* kill existing */
@@ -4843,49 +5270,49 @@ void kinslayer_try_kill(uint8_t n_sils)
             strnfmt(entry.how, sizeof entry.how, op_ptr->base_name);
             lseek(highscore_fd, (off_t)hit * sizeof entry, SEEK_SET);
             write(highscore_fd, &entry, sizeof entry);
-            log_debug("slain existing: \"%s\"", entry.who);
+            log_info("Kinslayer killed existing hero: \"%s\"", entry.who);
         }
         else {
             /* 5.e) No record – insert dummy */
             high_score dummy;
             build_dummy_entry(&dummy, race, hsel);
-            log_debug("no existing record – inserting dummy \"%s\"", dummy.who);
+            log_trace("no existing record – inserting dummy \"%s\"", dummy.who);
 
             /* position for add */
             highscore_seek(0);
             int slot = highscore_add(&dummy);
             if (slot < 0)
-                log_debug("error: highscore_add() failed");
+                log_trace("error: highscore_add() failed");
             else
-                log_debug("dummy entry \"%s\" inserted at slot %d",
+                log_info("Kinslayer inserted dummy entry \"%s\" at slot %d",
                         dummy.who, slot);
         }
 
-        /* 6) Notify and exit after first kill */
-        Term_clear();
-        Term_putstr(0, 3, -1, TERM_RED,
-                    format("You have killed a hero of House %s!", hname));
-        (void)inkey();
+        /* 6) UI is now handled by metarun_update_on_exit()                  */
+        static char killed_house[32];
+        my_strcpy(killed_house, hname, sizeof killed_house);
+        return killed_house;
 
         /* 7) Close the descriptor and reset */
         safe_setuid_grab();
         if (close(highscore_fd) != 0)
-            log_debug("warning: close(highscore_fd=%d) failed, errno=%d",
+            log_trace("warning: close(highscore_fd=%d) failed, errno=%d",
                     highscore_fd, errno);
         safe_setuid_drop();
         highscore_fd = -1;
 
-        return;
+        return NULL;
     }
 
     /* 8) No kill performed – close and exit */
     safe_setuid_grab();
     if (close(highscore_fd) != 0)
-        log_debug("warning: close(highscore_fd=%d) failed, errno=%d",
+        log_trace("warning: close(highscore_fd=%d) failed, errno=%d",
                 highscore_fd, errno);
     safe_setuid_drop();
     highscore_fd = -1;
-    log_debug("finished – no kill performed");
+    log_trace("finished – no kill performed");
+    return NULL;
 }
 
 /*
@@ -4913,7 +5340,7 @@ errr file_character(cptr name, bool full)
 
     int holder;
 
-    bool challenges = FALSE;
+    bool challenges = false;
 
     high_score the_score;
 
@@ -5039,7 +5466,7 @@ errr file_character(cptr name, bool full)
         for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
         {
             object_type* o_ptr = &inventory[i];
-            object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
             /* Display the weight if needed */
             if (o_ptr->weight
@@ -5070,7 +5497,7 @@ errr file_character(cptr name, bool full)
         if (!o_ptr->k_idx)
             break;
 
-        object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
         /* Display the weight if needed */
         if (o_ptr->weight
@@ -5169,7 +5596,7 @@ errr file_character(cptr name, bool full)
                 continue;
 
             make_fake_artefact(o_ptr, i);
-            object_desc_spoil(o_name, sizeof(o_name), o_ptr, TRUE, 0);
+            object_desc_spoil(o_name, sizeof(o_name), o_ptr, true, 0);
 
             fprintf(
                 fff, "%s %s\n", o_name, a_ptr->found_num > 0 ? "(found)" : "");
@@ -5202,7 +5629,7 @@ errr file_character(cptr name, bool full)
     {
         if (option_desc[i] && op_ptr->opt[i])
         {
-            challenges = TRUE;
+            challenges = true;
         }
     }
 
@@ -5265,9 +5692,9 @@ static int final_menu(int* highlight)
     Term_gotoxy(10, 18 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     if (ch == 'a')
     {
@@ -5349,9 +5776,11 @@ static int final_menu(int* highlight)
  */
 static void close_game_aux(void)
 {
-    bool wants_to_quit = FALSE;
+    bool wants_to_quit = false;
     high_score the_score;
     int choice = 0, highlight = 1;
+
+    log_info("Processing character death for '%s'", op_ptr->full_name);
 
     /* Dump bones file */
     // make_bones();
@@ -5360,6 +5789,7 @@ static void close_game_aux(void)
     log_info("saving dead player");
     if (!save_player())
     {
+        log_debug("Death save failed - player data may be lost");
         msg_print("death save failed!");
         message_flush();
     }
@@ -5388,7 +5818,7 @@ static void close_game_aux(void)
     // Save the screen
     screen_save();
     // Dump a character file
-    err = file_character(sheet, FALSE);
+    err = file_character(sheet, false);
     // Load the screen
     screen_load();
     // Check result
@@ -5403,8 +5833,8 @@ static void close_game_aux(void)
     }
 
      /* One more corpse recorded for this metarun */
-    log_debug("called from close_game_aux"); 
-    metarun_update_on_exit(TRUE,FALSE,0);
+    log_info("Player died - updating metarun data"); 
+    metarun_update_on_exit(true,false,0);
 
      /* You are dead */
      print_tomb(&the_score);
@@ -5542,7 +5972,7 @@ static void close_game_aux(void)
                     screen_save();
 
                     /* Dump a character file */
-                    err = file_character(ftmp, FALSE);
+                    err = file_character(ftmp, false);
 
                     /* Load screen */
                     screen_load();
@@ -5567,14 +5997,12 @@ static void close_game_aux(void)
         // exit
         case 8:
         {
-            wants_to_quit = TRUE;
+            wants_to_quit = true;
             break;
         }
         }
     }
 
-    // Show story development
-    if (p_ptr->escaped) print_story();
 }
 
 /*
@@ -5588,6 +6016,8 @@ static void close_game_aux(void)
 void close_game(void)
 {
     char buf[1024];
+
+    log_info("Starting game close sequence for player '%s'", op_ptr->full_name);
 
     /* Handle stuff */
     handle_stuff();
@@ -5607,6 +6037,8 @@ void close_game(void)
     /* Build the filename */
     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
 
+    log_debug("Opening scores file for read/write: %s", buf);
+
     /* Grab permissions */
     safe_setuid_grab();
 
@@ -5615,6 +6047,10 @@ void close_game(void)
 
     /* Drop permissions */
     safe_setuid_drop();
+    
+    if (highscore_fd < 0) {
+        log_info("Failed to open scores file for read/write");
+    }
 
     /* Handle death */
     if (p_ptr->is_dead)
@@ -5634,11 +6070,11 @@ void close_game(void)
             {
                 if (l_ptr->psights == 0)
                 {
-                    pause_with_text(tutorial_early_death_text, 5, 10);
+                    pause_with_text(tutorial_early_death_text, 5, 10, NULL, 0);
                 }
                 else
                 {
-                    pause_with_text(tutorial_late_death_text, 5, 10);
+                    pause_with_text(tutorial_late_death_text, 5, 10, NULL, 0);
                 }
             }
         }
@@ -5672,10 +6108,13 @@ void close_game(void)
     }
 
     /* Shut the high score file */
+    log_debug("Closing highscore file");
     fd_close(highscore_fd);
 
     /* Forget the high score fd */
     highscore_fd = -1;
+
+    log_info("Game close sequence completed");
 
     /* Hack -- Decrease "icky" depth */
     character_icky--;
@@ -5700,7 +6139,7 @@ void exit_game_panic(void)
         quit("panic");
 
     /* Mega-Hack -- see "msg_print()" */
-    msg_flag = FALSE;
+    msg_flag = false;
 
     /* Clear the top line */
     prt("", 0, 0);
@@ -5710,7 +6149,7 @@ void exit_game_panic(void)
 
     /* Hack -- Delay death XXX XXX XXX */
     if (p_ptr->chp <= 0)
-        p_ptr->is_dead = FALSE;
+        p_ptr->is_dead = false;
 
     /* Hardcode panic save */
     p_ptr->panic_save = 1;
@@ -5842,13 +6281,13 @@ static void handle_signal_simple(int sig)
         my_strcpy(p_ptr->died_from, "Interrupting", sizeof(p_ptr->died_from));
 
         /* Commit suicide */
-        p_ptr->is_dead = TRUE;
+        p_ptr->is_dead = true;
 
         /* Stop playing */
-        p_ptr->playing = FALSE;
+        p_ptr->playing = false;
 
         /* Leaving */
-        p_ptr->leaving = TRUE;
+        p_ptr->leaving = true;
 
         /* Close stuff */
         close_game();
@@ -6473,5 +6912,45 @@ extern void prt_mini_screenshot(int col, int row)
 
         // player
         Term_putch(col + 3, row + 3, TERM_WHITE, '@');
+    }
+}
+
+/*
+ * Delete the current high-score file and immediately recreate an empty
+ * placeholder so subsequent fd_open() calls succeed without special cases.
+ */
+void clear_scorefile(void)
+{
+    char buf[1024];
+    bool was_open = (highscore_fd >= 0);
+
+    /* Full path to "scores.raw" */
+    path_build(buf, sizeof buf, ANGBAND_DIR_APEX, "scores.raw");
+
+    /* Close existing descriptor if open */
+    if (was_open) {
+        fd_close(highscore_fd);
+        highscore_fd = -1;
+    }
+
+    /* Remove it (ignore failure) */
+    (void)fd_kill(buf);
+
+    /* Grab permissions */
+    safe_setuid_grab();
+
+    /* Re-create a zero-length file properly */
+    int fd = fd_make(buf, 0644);
+    if (fd >= 0) fd_close(fd);
+
+    /* Drop permissions */
+    safe_setuid_drop();
+
+    /* If the file was previously open, reopen it for read/write */
+    if (was_open) {
+        /* Grab permissions again for reopening */
+        safe_setuid_grab();
+        highscore_fd = fd_open(buf, O_RDWR);
+        safe_setuid_drop();
     }
 }

@@ -922,7 +922,7 @@ static size_t trigger_text_to_ascii(char* buf, size_t max, cptr* strptr)
 
     /* Initialize modifier key status */
     for (i = 0; macro_modifier_chr[i]; i++)
-        mod_status[i] = FALSE;
+        mod_status[i] = false;
 
     str++;
 
@@ -946,7 +946,7 @@ static size_t trigger_text_to_ascii(char* buf, size_t max, cptr* strptr)
         str += len;
 
         /* This modifier key is pressed */
-        mod_status[i] = TRUE;
+        mod_status[i] = true;
 
         /* Shift key might be going to change keycode */
         if ('S' == macro_modifier_chr[i])
@@ -1540,7 +1540,7 @@ errr macro_add(cptr pat, cptr act)
     macro__act[n] = string_make(act);
 
     /* Efficiency */
-    macro__use[(byte)(pat[0])] = TRUE;
+    macro__use[(byte)(pat[0])] = true;
 
     /* Success */
     return (0);
@@ -1646,7 +1646,7 @@ errr macro_trigger_free(void)
 void flush(void)
 {
     /* Do it later */
-    inkey_xtra = TRUE;
+    inkey_xtra = true;
 }
 
 /*
@@ -1659,14 +1659,14 @@ void flush_fail(void) { flush(); }
  *
  * Do not match any macros until "ascii 30" is found.
  */
-static bool parse_macro = FALSE;
+static bool parse_macro = false;
 
 /*
  * Local variable -- we are inside a "macro trigger"
  *
  * Strip all keypresses until a low ascii value is found.
  */
-static bool parse_under = FALSE;
+static bool parse_under = false;
 
 /*
  * Helper function called only from "inkey()"
@@ -1697,11 +1697,11 @@ static char inkey_aux(void)
     char buf[1024];
 
     /* Wait for a keypress */
-    (void)(Term_inkey(&ch, TRUE, TRUE));
+    (void)(Term_inkey(&ch, true, true));
 
     /* End "macro action" */
     if (ch == 30)
-        parse_macro = FALSE;
+        parse_macro = false;
 
     /* Inside "macro action" */
     if (ch == 30)
@@ -1727,7 +1727,7 @@ static char inkey_aux(void)
         return (ch);
 
     /* Wait for a macro, or a timeout */
-    while (TRUE)
+    while (true)
     {
         /* Check for pending macro */
         k = macro_find_maybe(buf);
@@ -1737,7 +1737,7 @@ static char inkey_aux(void)
             break;
 
         /* Check for (and remove) a pending key */
-        if (0 == Term_inkey(&ch, FALSE, TRUE))
+        if (0 == Term_inkey(&ch, false, true))
         {
             /* Append the key */
             buf[p++] = ch;
@@ -1777,7 +1777,7 @@ static char inkey_aux(void)
         }
 
         /* Wait for (and remove) a pending key */
-        (void)Term_inkey(&ch, TRUE, TRUE);
+        (void)Term_inkey(&ch, true, true);
 
         /* Return the key */
         return (ch);
@@ -1798,7 +1798,7 @@ static char inkey_aux(void)
     }
 
     /* Begin "macro action" */
-    parse_macro = TRUE;
+    parse_macro = true;
 
     /* Push the "end of macro action" key */
     if (Term_key_push(30))
@@ -1835,30 +1835,30 @@ static cptr inkey_next = NULL;
  * Get a keypress from the user.
  *
  * This function recognizes a few "global parameters".  These are variables
- * which, if set to TRUE before calling this function, will have an effect
- * on this function, and which are always reset to FALSE by this function
+ * which, if set to true before calling this function, will have an effect
+ * on this function, and which are always reset to false by this function
  * before this function returns.  Thus they function just like normal
  * parameters, except that most calls to this function can ignore them.
  *
- * If "inkey_xtra" is TRUE, then all pending keypresses will be flushed,
+ * If "inkey_xtra" is true, then all pending keypresses will be flushed,
  * and any macro processing in progress will be aborted.  This flag is
  * set by the "flush()" function, which does not actually flush anything
  * itself, but rather, triggers delayed input flushing via "inkey_xtra".
  *
- * If "inkey_scan" is TRUE, then we will immediately return "zero" if no
+ * If "inkey_scan" is true, then we will immediately return "zero" if no
  * keypress is available, instead of waiting for a keypress.
  *
- * If "inkey_base" is TRUE, then all macro processing will be bypassed.
- * If "inkey_base" and "inkey_scan" are both TRUE, then this function will
+ * If "inkey_base" is true, then all macro processing will be bypassed.
+ * If "inkey_base" and "inkey_scan" are both true, then this function will
  * not return immediately, but will wait for a keypress for as long as the
  * normal macro matching code would, allowing the direct entry of macro
  * triggers.  The "inkey_base" flag is extremely dangerous!
  *
- * If "inkey_flag" is TRUE, then we will assume that we are waiting for a
+ * If "inkey_flag" is true, then we will assume that we are waiting for a
  * normal command, and we will only show the cursor if "hilite_player" is
- * TRUE (or if the player is in a store), instead of always showing the
+ * true (or if the player is in a store), instead of always showing the
  * cursor.  The various "main-xxx.c" files should avoid saving the game
- * in response to a "menu item" request unless "inkey_flag" is TRUE, to
+ * in response to a "menu item" request unless "inkey_flag" is true, to
  * prevent savefile corruption.
  *
  * If we are waiting for a keypress, and no keypress is ready, then we will
@@ -1899,7 +1899,7 @@ char inkey(void)
 
     char ch = 0;
 
-    bool done = FALSE;
+    bool done = false;
 
     term* old = Term;
 
@@ -1910,7 +1910,7 @@ char inkey(void)
         ch = *inkey_next++;
 
         /* Cancel the various "global parameters" */
-        inkey_base = inkey_xtra = inkey_flag = inkey_scan = FALSE;
+        inkey_base = inkey_xtra = inkey_flag = inkey_scan = false;
 
         /* Accept result */
         return (ch);
@@ -1923,10 +1923,10 @@ char inkey(void)
     if (inkey_xtra)
     {
         /* End "macro action" */
-        parse_macro = FALSE;
+        parse_macro = false;
 
         /* End "macro trigger" */
-        parse_under = FALSE;
+        parse_under = false;
 
         /* Forget old keypresses */
         Term_flush();
@@ -1942,7 +1942,7 @@ char inkey(void)
         && !hide_cursor)
     {
         /* Show the cursor */
-        (void)Term_set_cursor(TRUE);
+        (void)Term_set_cursor(true);
     }
 
     /* Hack -- Activate main screen */
@@ -1952,13 +1952,13 @@ char inkey(void)
     while (!ch)
     {
         /* Hack -- Handle "inkey_scan" */
-        if (!inkey_base && inkey_scan && (0 != Term_inkey(&kk, FALSE, FALSE)))
+        if (!inkey_base && inkey_scan && (0 != Term_inkey(&kk, false, false)))
         {
             break;
         }
 
         /* Hack -- Flush output once when no key ready */
-        if (!done && (0 != Term_inkey(&kk, FALSE, FALSE)))
+        if (!done && (0 != Term_inkey(&kk, false, false)))
         {
             /* Hack -- activate proper term */
             Term_activate(old);
@@ -1970,13 +1970,13 @@ char inkey(void)
             Term_activate(term_screen);
 
             /* Mega-Hack -- reset saved flag */
-            character_saved = FALSE;
+            character_saved = false;
 
             /* Mega-Hack -- reset signal counter */
             signal_count = 0;
 
             /* Only once */
-            done = TRUE;
+            done = true;
         }
 
         /* Hack -- Handle "inkey_base" */
@@ -1988,7 +1988,7 @@ char inkey(void)
             if (!inkey_scan)
             {
                 /* Wait for (and remove) a pending key */
-                if (0 == Term_inkey(&ch, TRUE, TRUE))
+                if (0 == Term_inkey(&ch, true, true))
                 {
                     /* Done */
                     break;
@@ -1999,10 +1999,10 @@ char inkey(void)
             }
 
             /* Wait */
-            while (TRUE)
+            while (true)
             {
                 /* Check for (and remove) a pending key */
-                if (0 == Term_inkey(&ch, FALSE, TRUE))
+                if (0 == Term_inkey(&ch, false, true))
                 {
                     /* Done */
                     break;
@@ -2051,7 +2051,7 @@ char inkey(void)
             ch = 0;
 
             /* End "macro trigger" */
-            parse_under = FALSE;
+            parse_under = false;
         }
 
         /* Handle "control-caret" */
@@ -2068,7 +2068,7 @@ char inkey(void)
             ch = 0;
 
             /* Begin "macro trigger" */
-            parse_under = TRUE;
+            parse_under = true;
         }
 
         /* Inside "macro trigger" */
@@ -2086,7 +2086,7 @@ char inkey(void)
     Term_set_cursor(cursor_state);
 
     /* Cancel the various "global parameters" */
-    inkey_base = inkey_xtra = inkey_flag = inkey_scan = FALSE;
+    inkey_base = inkey_xtra = inkey_flag = inkey_scan = false;
 
     /* Return the keypress */
     return (ch);
@@ -2564,7 +2564,7 @@ void message_add(cptr str, u16b type)
     if (message__head + (n + 1) >= MESSAGE_BUF)
     {
         /* Kill all "dead" messages */
-        for (i = message__last; TRUE; i++)
+        for (i = message__last; true; i++)
         {
             /* Wrap if needed */
             if (i == MESSAGE_MAX)
@@ -2602,7 +2602,7 @@ void message_add(cptr str, u16b type)
         message__tail += (MESSAGE_BUF / 4);
 
         /* Kill all "dead" messages */
-        for (i = message__last; TRUE; i++)
+        for (i = message__last; true; i++)
         {
             /* Wrap if needed */
             if (i == MESSAGE_MAX)
@@ -2834,7 +2834,7 @@ static void msg_print_aux(u16b type, cptr msg)
         msg_flush(message_column);
 
         /* Forget it */
-        msg_flag = FALSE;
+        msg_flag = false;
 
         /* Reset */
         message_column = 0;
@@ -2909,7 +2909,7 @@ static void msg_print_aux(u16b type, cptr msg)
     Term_putstr(message_column, 0, n, color, t);
 
     /* Remember the message */
-    msg_flag = TRUE;
+    msg_flag = true;
 
     /* Remember the position */
     message_column += n + 1;
@@ -3027,7 +3027,7 @@ void message_flush(void)
         msg_flush(message_column);
 
         /* Forget it */
-        msg_flag = FALSE;
+        msg_flag = false;
 
         /* Reset */
         message_column = 0;
@@ -3435,8 +3435,8 @@ void clear_from(int row)
  *
  * Normal chars clear the default and append the char.
  * Backspace clears the default or deletes the final char.
- * Return accepts the current buffer contents and returns TRUE.
- * Escape clears the buffer and the window and returns FALSE.
+ * Return accepts the current buffer contents and returns true.
+ * Escape clears the buffer and the window and returns false.
  *
  * Note that 'len' refers to the size of the buffer.  The maximum length
  * of the input is 'len-1'.
@@ -3449,7 +3449,7 @@ bool askfor_aux(char* buf, size_t len)
 
     char ch = '\0';
 
-    bool done = FALSE;
+    bool done = false;
 
     /* Locate the cursor */
     Term_locate(&x, &y);
@@ -3484,7 +3484,7 @@ bool askfor_aux(char* buf, size_t len)
         case ESCAPE:
         {
             k = 0;
-            done = TRUE;
+            done = true;
             break;
         }
 
@@ -3492,7 +3492,7 @@ bool askfor_aux(char* buf, size_t len)
         case '\r':
         {
             k = strlen(buf);
-            done = TRUE;
+            done = true;
             break;
         }
 
@@ -3543,8 +3543,8 @@ bool askfor_name(char* buf, size_t len)
 
     char ch = '\0';
 
-    bool done = FALSE;
-    bool new_default_name = FALSE;
+    bool done = false;
+    bool new_default_name = false;
 
     /* Locate the cursor */
     Term_locate(&x, &y);
@@ -3579,7 +3579,7 @@ bool askfor_name(char* buf, size_t len)
         case ESCAPE:
         {
             k = 0;
-            done = TRUE;
+            done = true;
             break;
         }
 
@@ -3587,7 +3587,7 @@ bool askfor_name(char* buf, size_t len)
         case '\r':
         {
             k = strlen(buf);
-            done = TRUE;
+            done = true;
             break;
         }
 
@@ -3604,7 +3604,7 @@ bool askfor_name(char* buf, size_t len)
             /*get the random name, display for approval. */
             make_random_name(buf, len);
 
-            new_default_name = TRUE;
+            new_default_name = true;
             k = 0;
             break;
         }
@@ -3629,7 +3629,7 @@ bool askfor_name(char* buf, size_t len)
             Term_erase(x, y, (int)len);
             Term_putstr(x, y, -1, TERM_YELLOW, buf);
 
-            new_default_name = FALSE;
+            new_default_name = false;
         }
         else
         {
@@ -3785,7 +3785,7 @@ int get_check_other(cptr prompt, char other)
     prt(buf, 0, 0);
 
     /* Get an acceptable answer */
-    while (TRUE)
+    while (true)
     {
         ch = inkey();
         if (quick_messages)
@@ -3839,7 +3839,7 @@ bool get_check(cptr prompt)
     prt(buf, 0, 0);
 
     /* Get an acceptable answer */
-    while (TRUE)
+    while (true)
     {
         ch = inkey();
         if (quick_messages)
@@ -3856,10 +3856,10 @@ bool get_check(cptr prompt)
 
     /* Normal negation */
     if ((ch != 'Y') && (ch != 'y'))
-        return (FALSE);
+        return (false);
 
     /* Success */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -3871,7 +3871,7 @@ int get_menu_choice(s16b max, char* prompt)
 
     char ch;
 
-    bool done = FALSE;
+    bool done = false;
 
     prt(prompt, 0, 0);
 
@@ -3894,7 +3894,7 @@ int get_menu_choice(s16b max, char* prompt)
             /* Validate input */
             if ((choice > -1) && (choice < max))
             {
-                done = TRUE;
+                done = true;
             }
 
             else
@@ -3909,7 +3909,7 @@ int get_menu_choice(s16b max, char* prompt)
             /* Mark as no choice made */
             choice = -1;
 
-            done = TRUE;
+            done = true;
         }
 
         /* Invalid input */
@@ -3929,7 +3929,7 @@ int get_menu_choice(s16b max, char* prompt)
  *
  * The "prompt" should take the form "Command: "
  *
- * Returns TRUE unless the character is "Escape"
+ * Returns true unless the character is "Escape"
  */
 bool get_com(cptr prompt, char* command)
 {
@@ -4040,10 +4040,10 @@ void request_command(void)
         else
         {
             /* Hack -- no flush needed */
-            msg_flag = FALSE;
+            msg_flag = false;
 
             /* Activate "command mode" */
-            inkey_flag = TRUE;
+            inkey_flag = true;
 
             /* Get a command */
             ch = inkey();
@@ -4291,10 +4291,10 @@ bool is_a_vowel(int ch)
     case 'I':
     case 'O':
     case 'U':
-        return (TRUE);
+        return (true);
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -4348,7 +4348,7 @@ int color_char_to_attr(char c)
 /*
  * Replace the first instance of "target" in "buf" with "insert"
  * If "insert" is NULL, just remove the first instance of "target"
- * In either case, return TRUE if "target" is found.
+ * In either case, return true if "target" is found.
  *
  * Could be made more efficient, especially in the case where "insert"
  * is smaller than "target".
@@ -4362,7 +4362,7 @@ static bool insert_str(char *buf, cptr target, cptr insert)
 	buf = strstr(buf, target);
 
 	/* No target found */
-	if (!buf) return (FALSE);
+	if (!buf) return (false);
 
 	/* Be sure we have an insertion string */
 	if (!insert) insert = "";
@@ -4394,7 +4394,7 @@ static bool insert_str(char *buf, cptr target, cptr insert)
 	for (i = 0; i < i_len; ++i) buf[i] = insert[i];
 
 	/* Successful operation */
-	return (TRUE);
+	return (true);
 }
 
 #endif
@@ -4435,13 +4435,13 @@ bool repeat_pull(int* what)
 {
     /* All out of keys */
     if (repeat__idx == repeat__cnt)
-        return (FALSE);
+        return (false);
 
     /* Grab the next key, advance */
     *what = repeat__key[repeat__idx++];
 
     /* Success */
-    return (TRUE);
+    return (true);
 }
 
 void repeat_clear(void)

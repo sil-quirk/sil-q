@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "h-define.h"
 #include "metarun.h"
 
 /* String used to show a color sample */
@@ -59,8 +60,8 @@ static void remove_old_dump(cptr orig_file, cptr mark)
 
     char tmp_file[1024];
     char buf[1024];
-    bool between_marks = FALSE;
-    bool changed = FALSE;
+    bool between_marks = false;
+    bool changed = false;
     char expected_line[1024];
 
     /* Open an old dump file in read-only mode */
@@ -84,14 +85,14 @@ static void remove_old_dump(cptr orig_file, cptr mark)
         mark);
 
     /* Loop for every line */
-    while (TRUE)
+    while (true)
     {
         /* Read a line */
         if (my_fgets(orig_fff, buf, sizeof(buf)))
         {
             /* End of file but no end marker */
             if (between_marks)
-                changed = FALSE;
+                changed = false;
 
             break;
         }
@@ -108,10 +109,10 @@ static void remove_old_dump(cptr orig_file, cptr mark)
                     strnfmt(expected_line, sizeof(expected_line), "%s end %s",
                         dump_seperator, mark);
 
-                    between_marks = TRUE;
+                    between_marks = true;
 
                     /* There are some changes */
-                    changed = TRUE;
+                    changed = true;
                 }
                 else
                 {
@@ -119,7 +120,7 @@ static void remove_old_dump(cptr orig_file, cptr mark)
                     strnfmt(expected_line, sizeof(expected_line), "%s begin %s",
                         dump_seperator, mark);
 
-                    between_marks = FALSE;
+                    between_marks = false;
 
                     /* Next line */
                     continue;
@@ -132,7 +133,7 @@ static void remove_old_dump(cptr orig_file, cptr mark)
                 if (between_marks)
                 {
                     /* Abort */
-                    changed = FALSE;
+                    changed = false;
                     break;
                 }
             }
@@ -348,7 +349,7 @@ void do_cmd_character_sheet(void)
             {
                 if (ftmp[0] && (ftmp[0] != ' '))
                 {
-                    if (file_character(ftmp, FALSE))
+                    if (file_character(ftmp, false))
                     {
                         msg_print("Character dump failed!");
                     }
@@ -468,7 +469,7 @@ bool prereqs(int skilltype, int abilitynum)
 
     if (p_ptr->skill_base[skilltype] < b_ptr->level)
     {
-        return (FALSE);
+        return (false);
     }
 
     if (b_ptr->prereqs > 0 && !(p_ptr->active_ability[S_PER][PER_QUICK_STUDY]))
@@ -477,12 +478,12 @@ bool prereqs(int skilltype, int abilitynum)
         {
             if (p_ptr->innate_ability[b_ptr->prereq_skilltype[i]]
                                      [b_ptr->prereq_abilitynum[i]])
-                return (TRUE);
+                return (true);
         }
-        return (FALSE);
+        return (false);
     }
 
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -571,7 +572,7 @@ void show_songs(void)
 void do_cmd_change_song()
 {
     int i;
-    bool done = FALSE;
+    bool done = false;
 
     int options = 0;
     int song_choice = -1;
@@ -580,6 +581,8 @@ void do_cmd_change_song()
     char tmp_val[80];
 
     char which;
+
+    log_debug("Player opening song selection menu");
 
     // count the abilities
     for (i = 0; i < SNG_WOVEN_THEMES; i++)
@@ -594,9 +597,12 @@ void do_cmd_change_song()
     // abort if you know no songs
     if (options == 0)
     {
+        log_trace("No songs available - player knows no songs of power");
         msg_print("You do not know any songs of power.");
         return;
     }
+    
+    log_debug("Player has %d songs available", options);
 
     /* Flush the prompt */
     Term_fresh();
@@ -604,7 +610,7 @@ void do_cmd_change_song()
     /* Option to always show a list */
     if (auto_display_lists)
     {
-        p_ptr->command_see = TRUE;
+        p_ptr->command_see = true;
     }
 
     /* Start out in "display" mode */
@@ -664,7 +670,8 @@ void do_cmd_change_song()
         case ESCAPE:
         case '\r':
         {
-            done = TRUE;
+            log_trace("Song selection cancelled by player");
+            done = true;
             break;
         }
 
@@ -676,7 +683,7 @@ void do_cmd_change_song()
             if (p_ptr->command_see)
             {
                 /* Flip flag */
-                p_ptr->command_see = FALSE;
+                p_ptr->command_see = false;
 
                 /* Load screen */
                 screen_load();
@@ -689,7 +696,7 @@ void do_cmd_change_song()
                 screen_save();
 
                 /* Flip flag */
-                p_ptr->command_see = TRUE;
+                p_ptr->command_see = true;
             }
 
             break;
@@ -697,8 +704,9 @@ void do_cmd_change_song()
 
         case 's':
         {
+            log_debug("Player selected to stop singing");
             song_choice = SNG_NOTHING;
-            done = TRUE;
+            done = true;
             break;
         }
 
@@ -706,12 +714,14 @@ void do_cmd_change_song()
         {
             if (p_ptr->song2 != SNG_NOTHING)
             {
+                log_debug("Player exchanging woven themes");
                 song_choice = SNG_EXCHANGE_THEMES;
-                done = TRUE;
+                done = true;
                 break;
             }
             else
             {
+                log_trace("Illegal song choice - no second theme to exchange");
                 bell("Illegal song choice.");
                 break;
             }
@@ -724,7 +734,8 @@ void do_cmd_change_song()
                 song_choice = (int)which - 'a';
                 if (p_ptr->active_ability[S_SNG][song_choice])
                 {
-                    done = TRUE;
+                    log_debug("Player selected song %d", song_choice);
+                    done = true;
                     break;
                 }
                 else
@@ -733,6 +744,7 @@ void do_cmd_change_song()
                 }
             }
 
+            log_trace("Illegal song choice attempted");
             bell("Illegal song choice.");
             break;
         }
@@ -746,7 +758,7 @@ void do_cmd_change_song()
         screen_load();
 
         /* Hack -- Cancel "display" */
-        p_ptr->command_see = FALSE;
+        p_ptr->command_see = false;
     }
 
     /* Clear the prompt line */
@@ -760,11 +772,13 @@ void do_cmd_change_song()
             {
                 if (get_check("Are you sure you wish to break your oath? "))
                 {
+                    log_info("Player broke oath of silence to sing");
                     msg_print("You break your oath of silence.");
                     do_cmd_note("Broke your oath", p_ptr->depth);
                 }
                 else
                 {
+                    log_debug("Player cancelled song due to oath of silence");
                     return;
                 }
             }
@@ -772,6 +786,8 @@ void do_cmd_change_song()
             p_ptr->oaths_broken |= OATH_SILENCE_FLAG;
         }
 
+        log_info("Player changed song to %s", song_choice == SNG_NOTHING ? "silence" : 
+                 song_choice == SNG_EXCHANGE_THEMES ? "exchange themes" : "new song");
         change_song(song_choice);
     }
 }
@@ -966,9 +982,9 @@ int bane_menu(int* highlight)
     Term_gotoxy(COL_DESCRIPTION, 3 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     if ((ch >= 'a') && (ch <= (char)'a' + options - 1))
     {
@@ -1126,9 +1142,9 @@ int oath_menu(int* highlight)
     Term_gotoxy(COL_DESCRIPTION, 3 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     if ((ch >= 'a') && (ch <= (char)'a' + options - 1))
     {
@@ -1201,9 +1217,9 @@ int abilities_menu1(int* highlight)
     Term_gotoxy(COL_SKILL, 3 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     if ((ch >= 'a') && (ch <= (char)'a' + options - 1))
     {
@@ -1524,9 +1540,9 @@ int abilities_menu2(int skilltype, int* highlight)
     Term_gotoxy(COL_ABILITY, 3 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     if ((ch >= 'a') && (ch <= (char)'a' + options - 1))
     {
@@ -1587,11 +1603,11 @@ void do_cmd_ability_screen(void)
     int highlight2 = 1;
     int highlight3 = 1;
 
-    bool return_to_game = FALSE;
-    bool return_to_skills = FALSE;
-    bool return_to_abilities = FALSE;
+    bool return_to_game = false;
+    bool return_to_skills = false;
+    bool return_to_abilities = false;
 
-    bool skip_purchase = FALSE;
+    bool skip_purchase = false;
 
     /* Save screen */
     screen_save();
@@ -1645,7 +1661,7 @@ void do_cmd_ability_screen(void)
                                 {
                                     while (!return_to_abilities)
                                     {
-                                        skip_purchase = FALSE;
+                                        skip_purchase = false;
 
                                         banechoice = bane_menu(&highlight3);
 
@@ -1655,26 +1671,26 @@ void do_cmd_ability_screen(void)
                                             if (bane_type_killed(banechoice)
                                                 < 4)
                                             {
-                                                return_to_abilities = FALSE;
-                                                skip_purchase = TRUE;
+                                                return_to_abilities = false;
+                                                skip_purchase = true;
                                                 bell("Insufficient kills to "
                                                      "become a bane.");
                                             }
                                             else
                                             {
-                                                return_to_abilities = TRUE;
+                                                return_to_abilities = true;
                                             }
                                         }
                                         else if (banechoice == BANE_TYPES + 1)
                                         {
-                                            return_to_abilities = TRUE;
-                                            return_to_skills = TRUE;
-                                            return_to_game = TRUE;
-                                            skip_purchase = TRUE;
+                                            return_to_abilities = true;
+                                            return_to_skills = true;
+                                            return_to_game = true;
+                                            skip_purchase = true;
                                         }
                                     }
 
-                                    return_to_abilities = FALSE;
+                                    return_to_abilities = false;
                                 }
                                 // special menu for Oath //XXX Oaths
                                 if ((skilltype == S_WIL)
@@ -1682,7 +1698,7 @@ void do_cmd_ability_screen(void)
                                 {
                                     while (!return_to_abilities)
                                     {
-                                        skip_purchase = FALSE;
+                                        skip_purchase = false;
 
                                         oathchoice = oath_menu(&highlight3);
 
@@ -1691,26 +1707,26 @@ void do_cmd_ability_screen(void)
                                         {
                                             if (oath_invalid(oathchoice))
                                             {
-                                                return_to_abilities = FALSE;
-                                                skip_purchase = TRUE;
+                                                return_to_abilities = false;
+                                                skip_purchase = true;
                                                 bell("This oath was broken "
                                                      "before it was made.");
                                             }
                                             else
                                             {
-                                                return_to_abilities = TRUE;
+                                                return_to_abilities = true;
                                             }
                                         }
                                         else if (oathchoice == OATH_TYPES + 1)
                                         {
-                                            return_to_abilities = TRUE;
-                                            return_to_skills = TRUE;
-                                            return_to_game = TRUE;
-                                            skip_purchase = TRUE;
+                                            return_to_abilities = true;
+                                            return_to_skills = true;
+                                            return_to_game = true;
+                                            skip_purchase = true;
                                         }
                                     }
 
-                                    return_to_abilities = FALSE;
+                                    return_to_abilities = false;
                                 }
 
                                 if (!skip_purchase)
@@ -1720,13 +1736,13 @@ void do_cmd_ability_screen(void)
                                     {
                                         p_ptr->innate_ability[skilltype]
                                                              [abilitynum]
-                                            = TRUE;
+                                            = true;
                                         p_ptr->have_ability[skilltype]
                                                            [abilitynum]
-                                            = TRUE;
+                                            = true;
                                         p_ptr->active_ability[skilltype]
                                                              [abilitynum]
-                                            = TRUE;
+                                            = true;
                                         Term_putstr(0, 0, -1, TERM_WHITE,
                                             "Ability gained.");
                                         p_ptr->new_exp -= exp_cost;
@@ -1784,7 +1800,7 @@ void do_cmd_ability_screen(void)
                                         p_ptr->update |= (PU_MANA);
                                     }
                                 }
-                                skip_purchase = FALSE;
+                                skip_purchase = false;
                                 banechoice = -1;
                                 oathchoice = -1;
                             }
@@ -1802,7 +1818,7 @@ void do_cmd_ability_screen(void)
                         if (p_ptr->active_ability[skilltype][abilitynum])
                         {
                             p_ptr->active_ability[skilltype][abilitynum]
-                                = FALSE;
+                                = false;
                             Term_putstr(0, 0, -1, TERM_WHITE,
                                 "Ability now switched off.");
 
@@ -1815,7 +1831,7 @@ void do_cmd_ability_screen(void)
                         }
                         else
                         {
-                            p_ptr->active_ability[skilltype][abilitynum] = TRUE;
+                            p_ptr->active_ability[skilltype][abilitynum] = true;
                             Term_putstr(0, 0, -1, TERM_WHITE,
                                 "Ability now switched on. ");
                         }
@@ -1830,22 +1846,22 @@ void do_cmd_ability_screen(void)
                 }
                 else if (abilitynum == ABILITIES_MAX)
                 {
-                    return_to_skills = TRUE;
+                    return_to_skills = true;
                 }
                 else if (abilitynum == ABILITIES_MAX + 1)
                 {
-                    return_to_skills = TRUE;
-                    return_to_game = TRUE;
+                    return_to_skills = true;
+                    return_to_game = true;
                 }
             }
 
             // reset some things for the next time around
             highlight2 = 1;
-            return_to_skills = FALSE;
+            return_to_skills = false;
         }
         else if (skilltype >= S_MAX)
         {
-            return_to_game = TRUE;
+            return_to_game = true;
         }
     }
 
@@ -2085,19 +2101,19 @@ int att_valid(void)
     case TV_SOFT_ARMOR:
     case TV_MAIL:
     {
-        return (TRUE);
+        return (true);
     }
 
     case TV_RING:
     {
         if (smith_o_ptr->sval == SV_RING_ACCURACY)
-            return (TRUE);
+            return (true);
         if (smith_o_ptr->name1)
-            return (TRUE);
+            return (true);
     }
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -2229,11 +2245,11 @@ int ds_valid(void)
     case TV_DIGGING:
     case TV_BOW:
     {
-        return (TRUE);
+        return (true);
     }
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -2308,15 +2324,15 @@ int evn_valid(void)
     case TV_SOFT_ARMOR:
     case TV_MAIL:
     {
-        return (TRUE);
+        return (true);
     }
 
     case TV_RING:
     {
         if (smith_o_ptr->sval == SV_RING_EVASION)
-            return (TRUE);
+            return (true);
         if (smith_o_ptr->name1)
-            return (TRUE);
+            return (true);
     }
     }
 
@@ -2324,10 +2340,10 @@ int evn_valid(void)
         && ((smith_o_ptr->tval == TV_SWORD) || (smith_o_ptr->tval == TV_POLEARM)
             || (smith_o_ptr->tval == TV_HAFTED)))
     {
-        return (TRUE);
+        return (true);
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -2441,19 +2457,19 @@ int ps_valid(void)
     case TV_SOFT_ARMOR:
     case TV_MAIL:
     {
-        return (TRUE);
+        return (true);
     }
 
     case TV_RING:
     {
         if (smith_o_ptr->sval == SV_RING_PROTECTION)
-            return (TRUE);
+            return (true);
         if (smith_o_ptr->name1)
-            return (TRUE);
+            return (true);
     }
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -2626,11 +2642,11 @@ int wgt_valid(void)
     case TV_LIGHT:
     case TV_HORN:
     {
-        return (FALSE);
+        return (false);
     }
     }
 
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -2715,7 +2731,7 @@ bool melt_mithril_item(int item_num)
                     msg_format("You must free up %d more slots.",
                         slots_needed - empty_slots);
                 }
-                return (FALSE);
+                return (false);
             }
 
             if (get_check("Are you sure you wish to melt this item down? "))
@@ -2761,27 +2777,27 @@ bool melt_mithril_item(int item_num)
                     i_ptr2->number = 99;
 
                     // give it to the player
-                    slot = inven_carry(i_ptr2, TRUE);
+                    slot = inven_carry(i_ptr2, true);
                     inven_item_optimize(slot);
                     inven_item_describe(slot);
                     window_stuff();
                 }
 
                 // now give the last stack of mithril to the player
-                slot = inven_carry(i_ptr, TRUE);
+                slot = inven_carry(i_ptr, true);
                 inven_item_optimize(slot);
                 inven_item_describe(slot);
                 window_stuff();
 
-                return (TRUE);
+                return (true);
             }
 
             else
-                return (FALSE);
+                return (false);
         }
     }
 
-    return (FALSE);
+    return (false);
 }
 
 int mithril_items_carried(void)
@@ -3560,9 +3576,9 @@ void prt_object_description(void)
         return;
 
     if (smith_o_ptr->number > 1)
-        display_flag = TRUE;
+        display_flag = true;
     else
-        display_flag = FALSE;
+        display_flag = false;
 
     object_desc(o_desc, sizeof(o_desc), smith_o_ptr, display_flag, 2);
 
@@ -3610,9 +3626,9 @@ int too_difficult(object_type* o_ptr)
         ability += p_ptr->skill_base[S_SMT];
 
     if (ability < dif)
-        return (TRUE);
+        return (true);
     else
-        return (FALSE);
+        return (false);
 }
 
 /*
@@ -3626,7 +3642,7 @@ void prt_object_difficulty(void)
     int turn_multiplier = 10;
     int costs = 0;
     byte attr;
-    bool affordable = TRUE;
+    bool affordable = true;
 
     Term_putstr(COL_SMT4, 3, -1, TERM_WHITE, "                 ");
 
@@ -3694,7 +3710,7 @@ void prt_object_difficulty(void)
         else
         {
             attr = TERM_L_DARK;
-            affordable = FALSE;
+            affordable = false;
         }
         if (smithing_cost.uses == 1)
         {
@@ -3719,7 +3735,7 @@ void prt_object_difficulty(void)
         else
         {
             attr = TERM_L_DARK;
-            affordable = FALSE;
+            affordable = false;
         }
         sprintf(buf, "%d Smithing", smithing_cost.drain);
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
@@ -3734,7 +3750,7 @@ void prt_object_difficulty(void)
         else
         {
             attr = TERM_L_DARK;
-            affordable = FALSE;
+            affordable = false;
         }
         sprintf(buf, "%d.%d lb Mithril", smithing_cost.mithril / 10,
             smithing_cost.mithril % 10);
@@ -3752,7 +3768,7 @@ void prt_object_difficulty(void)
         else
         {
             attr = TERM_L_DARK;
-            affordable = FALSE;
+            affordable = false;
         }
         sprintf(buf, "%d Str", smithing_cost.str);
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
@@ -3769,7 +3785,7 @@ void prt_object_difficulty(void)
         else
         {
             attr = TERM_L_DARK;
-            affordable = FALSE;
+            affordable = false;
         }
         sprintf(buf, "%d Dex", smithing_cost.dex);
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
@@ -3786,7 +3802,7 @@ void prt_object_difficulty(void)
         else
         {
             attr = TERM_L_DARK;
-            affordable = FALSE;
+            affordable = false;
         }
         sprintf(buf, "%d Con", smithing_cost.con);
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
@@ -3803,7 +3819,7 @@ void prt_object_difficulty(void)
         else
         {
             attr = TERM_L_DARK;
-            affordable = FALSE;
+            affordable = false;
         }
         sprintf(buf, "%d Gra", smithing_cost.gra);
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
@@ -3818,7 +3834,7 @@ void prt_object_difficulty(void)
         else
         {
             attr = TERM_L_DARK;
-            affordable = FALSE;
+            affordable = false;
         }
         sprintf(buf, "%d Exp", smithing_cost.exp);
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
@@ -3853,46 +3869,46 @@ void prt_object_difficulty(void)
  */
 bool affordable(object_type* o_ptr)
 {
-    bool can_afford = TRUE;
+    bool can_afford = true;
 
     // can't afford non-existant items
     if (o_ptr->tval == 0)
-        return (FALSE);
+        return (false);
 
     if (too_difficult(o_ptr))
-        can_afford = FALSE;
+        can_afford = false;
     if ((smithing_cost.str > 0)
         && (p_ptr->stat_base[A_STR] + p_ptr->stat_drain[A_STR]
                 - smithing_cost.str
             < -5))
-        can_afford = FALSE;
+        can_afford = false;
     if ((smithing_cost.dex > 0)
         && (p_ptr->stat_base[A_DEX] + p_ptr->stat_drain[A_DEX]
                 - smithing_cost.dex
             < -5))
-        can_afford = FALSE;
+        can_afford = false;
     if ((smithing_cost.con > 0)
         && (p_ptr->stat_base[A_CON] + p_ptr->stat_drain[A_CON]
                 - smithing_cost.con
             < -5))
-        can_afford = FALSE;
+        can_afford = false;
     if ((smithing_cost.gra > 0)
         && (p_ptr->stat_base[A_GRA] + p_ptr->stat_drain[A_GRA]
                 - smithing_cost.gra
             < -5))
-        can_afford = FALSE;
+        can_afford = false;
     if (smithing_cost.exp > p_ptr->new_exp)
-        can_afford = FALSE;
+        can_afford = false;
     if ((smithing_cost.mithril > 0)
         && (smithing_cost.mithril > mithril_carried()))
-        can_afford = FALSE;
+        can_afford = false;
     if (forge_uses(p_ptr->py, p_ptr->px) < smithing_cost.uses)
-        can_afford = FALSE;
+        can_afford = false;
 
     if (smithing_cost.weaponsmith || smithing_cost.armoursmith
         || smithing_cost.jeweller || smithing_cost.enchantment
         || smithing_cost.artifice)
-        can_afford = FALSE;
+        can_afford = false;
 
     return (can_afford);
 }
@@ -3995,9 +4011,9 @@ int create_sval_menu_aux(int tval, int* highlight)
 
             // Check whether it is a valid choice for creating
             if (affordable(smith_o_ptr))
-                valid[num] = TRUE;
+                valid[num] = true;
             else
-                valid[num] = FALSE;
+                valid[num] = false;
 
             /* Print it */
             strnfmt(buf, 80, "%c) %s", (char)'a' + num, name);
@@ -4032,9 +4048,9 @@ int create_sval_menu_aux(int tval, int* highlight)
     Term_gotoxy(14, 1 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     if ((ch >= 'a') && (ch <= (char)'a' + MAX_SMITHING_TVALS - 1))
     {
@@ -4087,8 +4103,8 @@ bool create_sval_menu(int tval)
     int choice = -1;
     int highlight = 1;
 
-    bool leave_menu = FALSE;
-    bool completed = FALSE;
+    bool leave_menu = false;
+    bool completed = false;
 
     /* Save screen */
     screen_save();
@@ -4100,15 +4116,15 @@ bool create_sval_menu(int tval)
 
         if (choice >= 1)
         {
-            leave_menu = TRUE;
-            completed = TRUE;
+            leave_menu = true;
+            completed = true;
         }
         else if (choice == -1)
         {
             /* Wipe the object */
             object_wipe(smith_o_ptr);
 
-            leave_menu = TRUE;
+            leave_menu = true;
         }
     }
 
@@ -4145,21 +4161,21 @@ int create_tval_menu_aux(int* highlight)
 
         if (smithing_tvals[i].category == CAT_WEAPON)
         {
-            valid[i] = TRUE;
+            valid[i] = true;
             valid_attr = p_ptr->active_ability[S_SMT][SMT_WEAPONSMITH]
                 ? TERM_WHITE
                 : TERM_RED;
         }
         if (smithing_tvals[i].category == CAT_ARMOUR)
         {
-            valid[i] = TRUE;
+            valid[i] = true;
             valid_attr = p_ptr->active_ability[S_SMT][SMT_ARMOURSMITH]
                 ? TERM_WHITE
                 : TERM_RED;
         }
         if (smithing_tvals[i].category == CAT_JEWELRY)
         {
-            valid[i] = TRUE;
+            valid[i] = true;
             valid_attr = p_ptr->active_ability[S_SMT][SMT_JEWELLER] ? TERM_WHITE
                                                                     : TERM_RED;
         }
@@ -4179,9 +4195,9 @@ int create_tval_menu_aux(int* highlight)
     Term_gotoxy(14, 1 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     // choose an option by letter
     if ((ch >= 'a') && (ch <= (char)'a' + MAX_SMITHING_TVALS - 1))
@@ -4245,7 +4261,7 @@ void create_tval_menu(void)
     int choice = -1;
     int highlight = 1;
 
-    bool leave_menu = FALSE;
+    bool leave_menu = false;
 
     /* Save screen */
     screen_save();
@@ -4259,16 +4275,16 @@ void create_tval_menu(void)
         {
             if (create_sval_menu(smithing_tvals[choice - 1].tval))
             {
-                leave_menu = TRUE;
+                leave_menu = true;
             }
         }
         else if (choice == -1)
         {
-            leave_menu = TRUE;
+            leave_menu = true;
         }
     }
 
-    enchant_then_numbers = FALSE;
+    enchant_then_numbers = false;
 
     /* Load screen */
     screen_load();
@@ -4427,9 +4443,9 @@ int numbers_menu_aux(int* highlight)
     Term_gotoxy(2, 1 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     // choose an option by letter
     if ((ch >= 'a') && (ch <= (char)'a' + SMT_NUM_MENU_MAX - 1))
@@ -4493,10 +4509,10 @@ void numbers_menu(void)
     int choice = -1;
     int highlight = 1;
 
-    bool leave_menu = FALSE;
+    bool leave_menu = false;
 
     if (smith_o_ptr->name2)
-        enchant_then_numbers = TRUE;
+        enchant_then_numbers = true;
 
     /* Save screen */
     screen_save();
@@ -4510,7 +4526,7 @@ void numbers_menu(void)
         {
         case -1:
         {
-            leave_menu = TRUE;
+            leave_menu = true;
             break;
         }
 
@@ -4537,7 +4553,7 @@ void create_special(int name2)
     smith_o_ptr->name2 = name2;
 
     // make it into that special type
-    object_into_special(smith_o_ptr, p_ptr->skill_use[S_SMT], TRUE);
+    object_into_special(smith_o_ptr, p_ptr->skill_use[S_SMT], true);
 }
 
 /*
@@ -4558,7 +4574,7 @@ int enchant_menu_aux(int* highlight)
     for (num = 0, i = 1; i < z_info->e_max; i++)
     {
         ego_item_type* e_ptr = &e_info[i];
-        bool acceptable = FALSE;
+        bool acceptable = false;
 
         /* Don't create cursed */
         // if (e_ptr->flags3 & TR3_LIGHT_CURSE) continue;
@@ -4579,7 +4595,7 @@ int enchant_menu_aux(int* highlight)
                     if (smith_o_ptr->sval <= e_ptr->max_sval[j])
                     {
                         /* Accept */
-                        acceptable = TRUE;
+                        acceptable = true;
                     }
                 }
             }
@@ -4593,11 +4609,11 @@ int enchant_menu_aux(int* highlight)
             // Check whether it is a valid choice for creating
             if (affordable(smith_o_ptr))
             {
-                valid[num] = TRUE;
+                valid[num] = true;
             }
             else
             {
-                valid[num] = FALSE;
+                valid[num] = false;
             }
 
             /* Print it */
@@ -4633,9 +4649,9 @@ int enchant_menu_aux(int* highlight)
     Term_gotoxy(14, 1 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     /* Choose by letter */
     if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
@@ -4690,8 +4706,8 @@ bool enchant_menu(void)
     int choice = -1;
     int highlight = 1;
 
-    bool leave_menu = FALSE;
-    bool completed = FALSE;
+    bool leave_menu = false;
+    bool completed = false;
 
     /* Save screen */
     screen_save();
@@ -4707,12 +4723,12 @@ bool enchant_menu(void)
 
         if (choice >= 1)
         {
-            leave_menu = TRUE;
-            completed = TRUE;
+            leave_menu = true;
+            completed = true;
         }
         else if (choice == -1)
         {
-            leave_menu = TRUE;
+            leave_menu = true;
         }
     }
 
@@ -4763,6 +4779,8 @@ void prepare_artefact(void)
 {
     int i;
 
+    log_debug("Preparing artifact for modification");
+
     // retrieve a backup of the artefact
     artefact_copy(smith_a_ptr, smith2_a_ptr);
 
@@ -4783,6 +4801,8 @@ void prepare_artefact(void)
         smith_o_ptr->abilitynum[i] = smith_a_ptr->abilitynum[i];
     }
     smith_o_ptr->abilities = smith_a_ptr->abilities;
+    
+    log_trace("Artifact preparation complete - %d abilities synchronized", smith_a_ptr->abilities);
 }
 
 /*
@@ -4790,7 +4810,7 @@ void prepare_artefact(void)
  */
 bool applicable_flag(u32b f, int flagset, object_type* o_ptr)
 {
-    bool ok = FALSE;
+    bool ok = false;
     int i;
     u32b f1, f2, f3;
 
@@ -4802,7 +4822,7 @@ bool applicable_flag(u32b f, int flagset, object_type* o_ptr)
         {
             case TV_SWORD: case TV_HAFTED:
             case TV_POLEARM: case TV_DIGGING:
-                return TRUE;
+                return true;
         }
     }
 
@@ -4825,19 +4845,19 @@ bool applicable_flag(u32b f, int flagset, object_type* o_ptr)
         case 1:
         {
             if (a_ptr->flags1 & f)
-                ok = TRUE;
+                ok = true;
             break;
         }
         case 2:
         {
             if (a_ptr->flags2 & f)
-                ok = TRUE;
+                ok = true;
             break;
         }
         case 3:
         {
             if (a_ptr->flags3 & f)
-                ok = TRUE;
+                ok = true;
             break;
         }
         }
@@ -4851,6 +4871,8 @@ bool applicable_flag(u32b f, int flagset, object_type* o_ptr)
  */
 void add_artefact_flag(u32b f, int flagset)
 {
+    log_trace("Adding artifact flag %u in flagset %d", f, flagset);
+    
     // prepare the artefact and object for modification
     prepare_artefact();
 
@@ -4868,6 +4890,8 @@ void add_artefact_flag(u32b f, int flagset)
  */
 void remove_artefact_flag(u32b f, int flagset)
 {
+    log_trace("Removing artifact flag %u from flagset %d", f, flagset);
+    
     // prepare the artefact and object for modification
     prepare_artefact();
 
@@ -4888,9 +4912,9 @@ int artefact_flag_menu_aux(int category, int* highlight)
     char ch;
     int i, num = 0;
     char buf[80];
-    bool flag_present[MAX_SMITHING_FLAGS] = { FALSE };
-    bool flag_valid[MAX_SMITHING_FLAGS] = { FALSE };
-    bool flag_affordable[MAX_SMITHING_FLAGS] = { FALSE };
+    bool flag_present[MAX_SMITHING_FLAGS] = { false };
+    bool flag_valid[MAX_SMITHING_FLAGS] = { false };
+    bool flag_affordable[MAX_SMITHING_FLAGS] = { false };
     u32b flag[MAX_SMITHING_FLAGS];
     int flagset[MAX_SMITHING_FLAGS];
     byte attr;
@@ -4917,8 +4941,8 @@ int artefact_flag_menu_aux(int category, int* highlight)
                 || ((flagset[num] == 2) && (smith2_a_ptr->flags2 & flag[num]))
                 || ((flagset[num] == 3) && (smith2_a_ptr->flags3 & flag[num])))
             {
-                flag_present[num] = TRUE;
-                flag_valid[num] = TRUE;
+                flag_present[num] = true;
+                flag_valid[num] = true;
             }
 
             else
@@ -4926,7 +4950,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
                 // require that the flag can be present on the object
                 if (applicable_flag(flag[num], flagset[num], smith_o_ptr))
                 {
-                    flag_valid[num] = TRUE;
+                    flag_valid[num] = true;
 
                     // add this flag to the dummy artefact under construction
                     add_artefact_flag(flag[num], flagset[num]);
@@ -4935,7 +4959,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
                     // be affordable and successful)
                     if (affordable(smith_o_ptr))
                     {
-                        flag_affordable[num] = TRUE;
+                        flag_affordable[num] = true;
                     }
                 }
             }
@@ -4943,7 +4967,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
         // /* Lock Sharpness II behind Telchar forge */
         // if (flag[num] == TR1_SHARPNESS2 &&
         //     !(c_info[p_ptr->phouse].flags_u & UNQ_SMT_TELCHAR))
-        //     flag_valid[num] = FALSE;
+        //     flag_valid[num] = false;
 
             attr = flag_present[num]
                 ? TERM_BLUE
@@ -4980,9 +5004,9 @@ int artefact_flag_menu_aux(int category, int* highlight)
     Term_gotoxy(14, 1 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     /* Abort if there are no choices */
     if (num == 0)
@@ -5096,7 +5120,7 @@ void artefact_flag_menu(int category)
     int choice = -1;
     int highlight = 1;
 
-    bool leave_menu = FALSE;
+    bool leave_menu = false;
 
     /* Save screen */
     screen_save();
@@ -5112,7 +5136,7 @@ void artefact_flag_menu(int category)
         }
         else if (choice == -1)
         {
-            leave_menu = TRUE;
+            leave_menu = true;
         }
     }
 
@@ -5125,7 +5149,7 @@ void artefact_flag_menu(int category)
  */
 bool applicable_ability(ability_type* b_ptr, object_type* o_ptr)
 {
-    bool ok = FALSE;
+    bool ok = false;
     int j;
 
     u32b f1, f2, f3;
@@ -5143,7 +5167,7 @@ bool applicable_ability(ability_type* b_ptr, object_type* o_ptr)
                 if (o_ptr->sval <= b_ptr->max_sval[j])
                 {
                     /* Accept */
-                    ok = TRUE;
+                    ok = true;
                 }
             }
         }
@@ -5154,7 +5178,7 @@ bool applicable_ability(ability_type* b_ptr, object_type* o_ptr)
     if (f3 & TR3_POLEARM)
     {
         if ((b_ptr->skilltype == S_MEL) && (b_ptr->abilitynum == MEL_POLEARMS))
-            ok = TRUE;
+            ok = true;
     }
 
     return (ok);
@@ -5167,20 +5191,22 @@ void add_artefact_ability(int skilltype, int abilitynum)
 {
     int i;
 
+    log_trace("Adding artifact ability - skill:%d ability:%d", skilltype, abilitynum);
+
     // prepare the artefact and object for modification
     prepare_artefact();
 
     // set new ability on the artefact
     if (smith_a_ptr->abilities < 4)
     {
-        bool already_present = FALSE;
+        bool already_present = false;
 
         for (i = 0; i < smith_a_ptr->abilities; i++)
         {
             if ((smith_a_ptr->skilltype[i] == skilltype)
                 && (smith_a_ptr->abilitynum[i] == abilitynum))
             {
-                already_present = TRUE;
+                already_present = true;
             }
         }
 
@@ -5209,6 +5235,8 @@ void remove_artefact_ability(int skilltype, int abilitynum)
 {
     int i;
     int location = -1;
+
+    log_trace("Removing artifact ability - skill:%d ability:%d", skilltype, abilitynum);
 
     // prepare the artefact and object for modification
     prepare_artefact();
@@ -5258,10 +5286,10 @@ bool has_ability(artefact_type* a_ptr, int skilltype, int abilitynum)
     {
         if ((a_ptr->skilltype[i] == skilltype)
             && (a_ptr->abilitynum[i] == abilitynum))
-            return (TRUE);
+            return (true);
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -5272,9 +5300,9 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     char ch;
     int i, num = 0;
     char buf[80];
-    bool ability_present[20] = { FALSE };
-    bool ability_valid[20] = { FALSE };
-    bool ability_affordable[20] = { FALSE };
+    bool ability_present[20] = { false };
+    bool ability_valid[20] = { false };
+    bool ability_affordable[20] = { false };
     ability_type* b_ptr;
     ability_type* b2_ptr;
     byte attr;
@@ -5304,15 +5332,15 @@ int artefact_ability_menu_aux(int skill, int* highlight)
         // Determine the appropriate colour
         if (has_ability(smith2_a_ptr, skill, num))
         {
-            ability_present[num] = TRUE;
-            ability_valid[num] = TRUE;
+            ability_present[num] = true;
+            ability_valid[num] = true;
         }
         else
         {
             // require that the ability can be present on the object
             if (applicable_ability(b_ptr, smith_o_ptr))
             {
-                ability_valid[num] = TRUE;
+                ability_valid[num] = true;
 
                 // add this flag to the dummy artefact under construction
                 add_artefact_ability(skill, num);
@@ -5324,7 +5352,7 @@ int artefact_ability_menu_aux(int skill, int* highlight)
                     // be affordable and successful)
                     if (affordable(smith_o_ptr))
                     {
-                        ability_affordable[num] = TRUE;
+                        ability_affordable[num] = true;
                     }
                 }
 
@@ -5332,7 +5360,7 @@ int artefact_ability_menu_aux(int skill, int* highlight)
                 // then it is not valid after all
                 else
                 {
-                    ability_valid[num] = FALSE;
+                    ability_valid[num] = false;
                 }
             }
         }
@@ -5370,9 +5398,9 @@ int artefact_ability_menu_aux(int skill, int* highlight)
     Term_gotoxy(14, 1 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     /* Abort if there are no choices */
     if (num == 0)
@@ -5485,7 +5513,7 @@ void artefact_ability_menu(int skill)
     int choice = -1;
     int highlight = 1;
 
-    bool leave_menu = FALSE;
+    bool leave_menu = false;
 
     /* Save screen */
     screen_save();
@@ -5501,7 +5529,7 @@ void artefact_ability_menu(int skill)
         }
         else if (choice == -1)
         {
-            leave_menu = TRUE;
+            leave_menu = true;
         }
     }
 
@@ -5517,7 +5545,7 @@ void rename_artefact(void)
     char tmp[20];
     char old_name[20];
     char o_desc[30];
-    bool name_selected = FALSE;
+    bool name_selected = false;
 
     // Clear the names
     tmp[0] = '\0';
@@ -5528,7 +5556,7 @@ void rename_artefact(void)
         "                                                        ");
 
     // Determine object name
-    object_desc(o_desc, sizeof(o_desc), smith_o_ptr, FALSE, -1);
+    object_desc(o_desc, sizeof(o_desc), smith_o_ptr, false, -1);
 
     // Display shortened object name
     Term_putstr(COL_SMT2, MAX_SMITHING_TVALS + 3, -1, TERM_L_WHITE, o_desc);
@@ -5556,7 +5584,7 @@ void rename_artefact(void)
         }
 
         if (tmp[0] != '\0')
-            name_selected = TRUE;
+            name_selected = true;
         else
             my_strcpy(smith2_a_ptr->name, old_name, MAX_LEN_ART_NAME);
     }
@@ -5616,9 +5644,9 @@ int artefact_menu_aux(int* highlight)
     Term_gotoxy(14, 1 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     /* Choose by letter */
     if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
@@ -5678,13 +5706,16 @@ void artefact_menu(void)
     int highlight = 1;
 
     char buf[36];
-    bool leave_menu = FALSE;
+    bool leave_menu = false;
+
+    log_info("Player opened artifact creation menu");
 
     /* Save screen */
     screen_save();
 
     if (!smith_o_ptr->name1)
     {
+        log_debug("Initializing new artifact creation");
         // wipe the existing artefact (and its backup)
         artefact_wipe(smith_a_name);
         artefact_wipe(smith2_a_name);
@@ -5736,7 +5767,7 @@ void artefact_menu(void)
         }
         else if (choice == -1)
         {
-            leave_menu = TRUE;
+            leave_menu = true;
         }
     }
 
@@ -5775,7 +5806,7 @@ int melt_menu_aux(int* highlight)
         if ((f3 & TR3_MITHRIL) && !(o_ptr->ident & IDENT_CANT_MELT))
 
         {
-            object_desc(desc, 80, o_ptr, FALSE, 2);
+            object_desc(desc, 80, o_ptr, false, 2);
             strnfmt(buf, 80, "%c) %s", (char)'a' + num, desc);
 
             Term_putstr(COL_SMT2, num + 2, -1, TERM_WHITE, buf);
@@ -5799,9 +5830,9 @@ int melt_menu_aux(int* highlight)
     Term_gotoxy(14, 1 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     // choose an option by letter
     if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
@@ -5858,7 +5889,7 @@ void melt_menu(void)
     int choice = -1;
     int highlight = 1;
 
-    bool leave_menu = FALSE;
+    bool leave_menu = false;
 
     /* Save screen */
     screen_save();
@@ -5872,12 +5903,12 @@ void melt_menu(void)
         {
             if (melt_mithril_item(choice))
             {
-                leave_menu = TRUE;
+                leave_menu = true;
             }
         }
         else if (choice == -1)
         {
-            leave_menu = TRUE;
+            leave_menu = true;
         }
     }
 
@@ -5911,7 +5942,7 @@ int smithing_menu_aux(int* highlight)
             "left.");
     }
 
-    valid[SMT_MENU_CREATE - 1] = TRUE;
+    valid[SMT_MENU_CREATE - 1] = true;
     valid[SMT_MENU_ENCHANT - 1] = (!smith_o_ptr->name1)
         && (!enchant_then_numbers) && (smith_o_ptr->tval != 0)
         && (smith_o_ptr->tval != TV_RING) && (smith_o_ptr->tval != TV_AMULET)
@@ -6053,9 +6084,9 @@ int smithing_menu_aux(int* highlight)
     Term_gotoxy(2, 1 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     // choose an option by letter
     if ((ch >= 'a') && (ch <= (char)'a' + SMT_MENU_MAX - 1))
@@ -6119,8 +6150,8 @@ void do_cmd_smithing_screen(void)
 {
     int actiontype = -1;
     int highlight = 1;
-    bool leave_menu = FALSE;
-    bool create = FALSE;
+    bool leave_menu = false;
+    bool create = false;
 
     // if (!cave_forge_bold(p_ptr->py, p_ptr->px))
     //{
@@ -6266,13 +6297,13 @@ void do_cmd_smithing_screen(void)
                     break;
             }
 
-            create = TRUE;
-            leave_menu = TRUE;
+            create = true;
+            leave_menu = true;
             break;
         }
         case -1:
         {
-            leave_menu = TRUE;
+            leave_menu = true;
             break;
         }
         }
@@ -6295,7 +6326,7 @@ void do_cmd_smithing_screen(void)
             add_artefact_details();
 
         /* Cancel stealth mode */
-        p_ptr->stealth_mode = FALSE;
+        p_ptr->stealth_mode = false;
 
         // Allow the resumption of interrupted smithing
         if (p_ptr->smithing_leftover > 0)
@@ -6351,6 +6382,8 @@ void create_smithing_item(void)
     object_type* o_ptr;
     char o_name[80];
 
+    log_debug("Creating smithing item");
+
     // pay the ability/experience costs of smithing
     pay_costs();
 
@@ -6358,6 +6391,7 @@ void create_smithing_item(void)
     // a_info array
     if (smith_o_ptr->name1)
     {
+        log_info("Creating new artifact");
         smith_o_ptr->name1 = z_info->art_rand_max + p_ptr->self_made_arts;
 
         artefact_copy(&a_info[smith_o_ptr->name1], smith_a_ptr);
@@ -6368,10 +6402,13 @@ void create_smithing_item(void)
             & (TR3_LIGHT_CURSE | TR3_HEAVY_CURSE | TR3_PERMA_CURSE))
         {
             smith_o_ptr->ident |= (IDENT_CURSED);
+            log_debug("Artifact marked as cursed");
         }
 
         // Store the depth at which it was created
         smith_o_ptr->xtra1 = p_ptr->depth;
+        
+        log_debug("Artifact #%d created at depth %d", p_ptr->self_made_arts, p_ptr->depth);
     }
 
         /* ------------------------------------------------------ */
@@ -6384,7 +6421,10 @@ void create_smithing_item(void)
                 (smith_o_ptr->tval != TV_LIGHT))                    /* skip torches */
             {
                 if (rand_int(100) < 10 * stacks)                    /* 10 % / stack */
+                {
+                    log_debug("Smithing curse triggered - adding random curse");
                     add_random_curse(smith_o_ptr);
+                }
             }
         }
 
@@ -6396,7 +6436,7 @@ void create_smithing_item(void)
     ident(smith_o_ptr);
 
     // create description
-    object_desc(o_name, sizeof(o_name), smith_o_ptr, TRUE, 3);
+    object_desc(o_name, sizeof(o_name), smith_o_ptr, true, 3);
 
     // Record the depth where the object was created
     do_cmd_note(format("Made %s  %d.%d lb", o_name,
@@ -6405,17 +6445,20 @@ void create_smithing_item(void)
         p_ptr->depth);
 
     // Get the slot of the forged item
-    slot = inven_carry(smith_o_ptr, TRUE);
+    slot = inven_carry(smith_o_ptr, true);
 
     // Get the item itself
     o_ptr = &inventory[slot];
 
     // Describe the object
-    object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     // Message
     if (slot >= 0)
+    {
         msg_format("You have %s (%c).", o_name, index_to_label(slot));
+        log_info("Created smithing item: %s", o_name);
+    }
 
     // Wipe the smithing object
     object_wipe(smith_o_ptr);
@@ -6475,7 +6518,7 @@ int main_menu_aux(int* highlight)
     Term_putstr(COL_MAIN, 9, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
         "h) Known monsters");
     Term_putstr(COL_MAIN, 10, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Slain monsters");
+        "i) Known curses");
     Term_putstr(COL_MAIN, 11, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
         "j) Write a note");
     Term_putstr(COL_MAIN, 12, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
@@ -6502,9 +6545,9 @@ int main_menu_aux(int* highlight)
     Term_gotoxy(COL_MAIN, 1 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     // choose an option by letter
     if ((ch >= 'a') && (ch <= (char)'a' + MAIN_MENU_MAX - 1))
@@ -6554,8 +6597,8 @@ void do_cmd_main_menu(void)
 {
     int actiontype = -1;
     int highlight = 1;
-    bool leave_menu = FALSE;
-    bool take_screen_shot = FALSE;
+    bool leave_menu = false;
+    bool take_screen_shot = false;
 
     /* Save screen */
     screen_save();
@@ -6564,7 +6607,7 @@ void do_cmd_main_menu(void)
     while (!leave_menu)
     {
         actiontype = main_menu_aux(&highlight);
-        leave_menu = TRUE;
+        leave_menu = true;
 
         // if an action has been selected...
         switch (actiontype)
@@ -6590,7 +6633,7 @@ void do_cmd_main_menu(void)
         }
         case MAIN_MENU_SCORES:
         {
-            show_scores();
+            show_scores(true);
             break;
         }
         case MAIN_MENU_KNOWN_OBJECTS:
@@ -6610,7 +6653,8 @@ void do_cmd_main_menu(void)
         }
         case MAIN_MENU_SLAIN_MONSTERS:
         {
-            do_cmd_knowledge_kills();
+            show_known_curses_menu();
+
             break;
         }
         case MAIN_MENU_NOTE:
@@ -6621,7 +6665,7 @@ void do_cmd_main_menu(void)
         case MAIN_MENU_SCREENSHOT:
         {
             // have to do this later to avoid taking a shot of this very menu
-            take_screen_shot = TRUE;
+            take_screen_shot = true;
             break;
         }
         case MAIN_MENU_MACROS:
@@ -6657,10 +6701,10 @@ void do_cmd_main_menu(void)
         case MAIN_MENU_SAVE_QUIT:
         {
             /* Stop playing */
-            p_ptr->playing = FALSE;
+            p_ptr->playing = false;
 
             /* Leaving */
-            p_ptr->leaving = TRUE;
+            p_ptr->leaving = true;
             break;
         }
         case -1:
@@ -6669,7 +6713,7 @@ void do_cmd_main_menu(void)
         }
         default:
         {
-            leave_menu = FALSE;
+            leave_menu = false;
         }
         }
     }
@@ -6983,8 +7027,8 @@ void clear_skills_and_abilities()
     {
         for (j = 0; j < ABILITIES_MAX; j++)
         {
-            p_ptr->innate_ability[i][j] = FALSE;
-            p_ptr->active_ability[i][j] = FALSE;
+            p_ptr->innate_ability[i][j] = false;
+            p_ptr->active_ability[i][j] = false;
         }
     }
 
@@ -7024,7 +7068,7 @@ extern void do_cmd_options_aux(int page, cptr info)
     Term_clear();
 
     /* Interact with the player */
-    while (TRUE)
+    while (true)
     {
         /* Prompt XXX XXX XXX */
         strnfmt(buf, sizeof(buf), "%s", info);
@@ -7090,9 +7134,9 @@ extern void do_cmd_options_aux(int page, cptr info)
         move_cursor(k + 3, 52);
 
         /* Get a key */
-        hide_cursor = TRUE;
+        hide_cursor = true;
         ch = inkey();
-        hide_cursor = FALSE;
+        hide_cursor = false;
 
         /*
          * HACK - Try to translate the key into a direction
@@ -7115,7 +7159,7 @@ extern void do_cmd_options_aux(int page, cptr info)
                 if (op_ptr->opt[i])
                 {
                     /* Set score option */
-                    op_ptr->opt[OPT_SCORE + (i - OPT_CHEAT)] = TRUE;
+                    op_ptr->opt[OPT_SCORE + (i - OPT_CHEAT)] = true;
                 }
             }
 
@@ -7165,7 +7209,7 @@ extern void do_cmd_options_aux(int page, cptr info)
                 }
                 else
                 {
-                    op_ptr->opt[opt[k]] = TRUE;
+                    op_ptr->opt[opt[k]] = true;
                 }
             }
             break;
@@ -7190,7 +7234,7 @@ extern void do_cmd_options_aux(int page, cptr info)
                 }
                 else
                 {
-                    op_ptr->opt[opt[k]] = FALSE;
+                    op_ptr->opt[opt[k]] = false;
                 }
             }
             break;
@@ -7333,8 +7377,10 @@ int options_menu(int* highlight)
 {
     int ch;
     int options = 6;
-
-    if (p_ptr->noscore)
+    #ifdef DEBUG_CURSES
+    options = 7;
+    #endif
+    if (p_ptr->noscore)    
         options++;
 
     Term_putstr(2, 1, -1, TERM_WHITE, "Options");
@@ -7365,9 +7411,9 @@ int options_menu(int* highlight)
     Term_gotoxy(2, 2 + *highlight);
 
     /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
+    hide_cursor = true;
     ch = inkey();
-    hide_cursor = FALSE;
+    hide_cursor = false;
 
     if ((ch == 'a') || (ch == 'A'))
     {
@@ -7445,7 +7491,7 @@ void do_cmd_options(void)
 
     char ftmp[80];
 
-    bool return_to_game = FALSE;
+    bool return_to_game = false;
 
     /* Save screen */
     screen_save();
@@ -7520,7 +7566,7 @@ void do_cmd_options(void)
         }
         case 6:
         {
-            return_to_game = TRUE;
+            return_to_game = true;
             Term_clear();
             break;
         }
@@ -7635,7 +7681,7 @@ static void do_cmd_macro_aux(char* buf)
     flush();
 
     /* Do not process macros */
-    inkey_base = TRUE;
+    inkey_base = true;
 
     /* First key */
     ch = inkey();
@@ -7647,10 +7693,10 @@ static void do_cmd_macro_aux(char* buf)
         buf[n++] = ch;
 
         /* Do not process macros */
-        inkey_base = TRUE;
+        inkey_base = true;
 
         /* Do not wait for keys */
-        inkey_scan = TRUE;
+        inkey_scan = true;
 
         /* Attempt to read a key */
         ch = inkey();
@@ -8171,7 +8217,7 @@ void do_cmd_macros(void)
 static void askfor_shade(byte* attr, int y)
 {
     byte base, shade, temp;
-    bool changed = FALSE;
+    bool changed = false;
     char *msg, *pos;
     int ch;
 
@@ -8221,7 +8267,7 @@ static void askfor_shade(byte* attr, int y)
         {
             --base;
             /* Reset the shade, see below */
-            changed = TRUE;
+            changed = true;
             continue;
         }
 
@@ -8230,7 +8276,7 @@ static void askfor_shade(byte* attr, int y)
         {
             ++base;
             /* Reset the shade, see below */
-            changed = TRUE;
+            changed = true;
             continue;
         }
     }
@@ -8982,7 +9028,7 @@ void do_cmd_visuals(void)
         else if (ch == '0')
         {
             /* Reset */
-            reset_visuals(TRUE);
+            reset_visuals(true);
 
             /* Message */
             msg_print("Visual attr/char tables reset.");
@@ -9004,7 +9050,7 @@ void do_cmd_visuals(void)
 
 /*
  * Asks to the user for specific color values.
- * Returns TRUE if the color was modified.
+ * Returns true if the color was modified.
  */
 static bool askfor_color_values(int idx)
 {
@@ -9017,7 +9063,7 @@ static bool askfor_color_values(int idx)
 
     /* Query, check for ESCAPE */
     if (!term_get_string("Red (0-255) ", str, sizeof(str)))
-        return FALSE;
+        return false;
 
     /* Convert to number */
     r = atoi(str);
@@ -9033,7 +9079,7 @@ static bool askfor_color_values(int idx)
 
     /* Query, check for ESCAPE */
     if (!term_get_string("Green (0-255) ", str, sizeof(str)))
-        return FALSE;
+        return false;
 
     /* Convert to number */
     g = atoi(str);
@@ -9049,7 +9095,7 @@ static bool askfor_color_values(int idx)
 
     /* Query, check for ESCAPE */
     if (!term_get_string("Blue (0-255) ", str, sizeof(str)))
-        return FALSE;
+        return false;
 
     /* Convert to number */
     b = atoi(str);
@@ -9065,7 +9111,7 @@ static bool askfor_color_values(int idx)
 
     /* Query, check for ESCAPE */
     if (!term_get_string("Extra (0-255) ", str, sizeof(str)))
-        return FALSE;
+        return false;
 
     /* Convert to number */
     k = atoi(str);
@@ -9080,7 +9126,7 @@ static bool askfor_color_values(int idx)
     if ((k == angband_color_table[idx][0]) && (r == angband_color_table[idx][1])
         && (g == angband_color_table[idx][2])
         && (b == angband_color_table[idx][3]))
-        return FALSE;
+        return false;
 
     /* Modify the color table */
     angband_color_table[idx][0] = k;
@@ -9089,7 +9135,7 @@ static bool askfor_color_values(int idx)
     angband_color_table[idx][3] = b;
 
     /* Notify the changes */
-    return TRUE;
+    return true;
 }
 
 /* These two are used to place elements in the grid */
@@ -9154,8 +9200,8 @@ static void modify_colors(void)
         TERM_WHITE, "Shades look like base colors in 16 color ports.", 23, 0);
 
     /* Hack - We want to show the fake cursor */
-    do_move = TRUE;
-    do_update = TRUE;
+    do_move = true;
+    do_update = true;
 
     /* Start with the first color */
     idx = 0;
@@ -9239,8 +9285,8 @@ static void modify_colors(void)
         }
 
         /* Reset flags */
-        do_move = FALSE;
-        do_update = FALSE;
+        do_move = false;
+        do_update = false;
         old_idx = -1;
 
         /* Get a command */
@@ -9263,7 +9309,7 @@ static void modify_colors(void)
             ++idx;
 
             /* Request movement */
-            do_move = TRUE;
+            do_move = true;
             break;
         }
 
@@ -9281,7 +9327,7 @@ static void modify_colors(void)
             --idx;
 
             /* Request movement */
-            do_move = TRUE;
+            do_move = true;
             break;
         }
 
@@ -9299,7 +9345,7 @@ static void modify_colors(void)
             idx -= 16;
 
             /* Request movement */
-            do_move = TRUE;
+            do_move = true;
             break;
         }
 
@@ -9317,7 +9363,7 @@ static void modify_colors(void)
             idx += 16;
 
             /* Request movement */
-            do_move = TRUE;
+            do_move = true;
             break;
         }
 
@@ -9356,7 +9402,7 @@ static void modify_colors(void)
             angband_color_table[idx][3] = angband_color_table[src][3];
 
             /* Request update */
-            do_update = TRUE;
+            do_update = true;
             break;
         }
 
@@ -9370,7 +9416,7 @@ static void modify_colors(void)
             *k_ptr = (byte)(*k_ptr + 1);
 
             /* Request update */
-            do_update = TRUE;
+            do_update = true;
             break;
         }
 
@@ -9384,7 +9430,7 @@ static void modify_colors(void)
             *k_ptr = (byte)(*k_ptr - 1);
 
             /* Request update */
-            do_update = TRUE;
+            do_update = true;
             break;
         }
 
@@ -9398,7 +9444,7 @@ static void modify_colors(void)
             *r_ptr = (byte)(*r_ptr + 1);
 
             /* Request update */
-            do_update = TRUE;
+            do_update = true;
             break;
         }
 
@@ -9412,7 +9458,7 @@ static void modify_colors(void)
             *r_ptr = (byte)(*r_ptr - 1);
 
             /* Request update */
-            do_update = TRUE;
+            do_update = true;
             break;
         }
 
@@ -9426,7 +9472,7 @@ static void modify_colors(void)
             *g_ptr = (byte)(*g_ptr + 1);
 
             /* Request update */
-            do_update = TRUE;
+            do_update = true;
             break;
         }
 
@@ -9440,7 +9486,7 @@ static void modify_colors(void)
             *g_ptr = (byte)(*g_ptr - 1);
 
             /* Request update */
-            do_update = TRUE;
+            do_update = true;
             break;
         }
 
@@ -9454,7 +9500,7 @@ static void modify_colors(void)
             *b_ptr = (byte)(*b_ptr + 1);
 
             /* Request update */
-            do_update = TRUE;
+            do_update = true;
             break;
         }
 
@@ -9468,7 +9514,7 @@ static void modify_colors(void)
             *b_ptr = (byte)(*b_ptr - 1);
 
             /* Request update */
-            do_update = TRUE;
+            do_update = true;
             break;
         }
 
@@ -9717,7 +9763,7 @@ void do_cmd_note(char* note, int what_depth)
     /*break up long notes*/
     if ((length + length_info) > LINEWRAP)
     {
-        bool keep_going = TRUE;
+        bool keep_going = true;
         int startpoint = 0;
         int endpoint, n;
 
@@ -9727,14 +9773,14 @@ void do_cmd_note(char* note, int what_depth)
             endpoint = startpoint + LINEWRAP - strlen(info_note) + 1;
 
             /*find a breaking point*/
-            while (TRUE)
+            while (true)
             {
                 /*are we at the end of the line?*/
                 if (endpoint >= length)
                 {
                     /*print to the end*/
                     endpoint = length;
-                    keep_going = FALSE;
+                    keep_going = false;
                     break;
                 }
 
@@ -10040,7 +10086,7 @@ static int collect_artefacts(int grp_cur, int object_idx[])
         artefact_type* a_ptr = &a_info[i];
 
         /*start with false*/
-        okay[i] = FALSE;
+        okay[i] = false;
 
         /* Skip "empty" artefacts */
         if (a_ptr->tval + a_ptr->sval == 0)
@@ -10065,7 +10111,7 @@ static int collect_artefacts(int grp_cur, int object_idx[])
             continue;
 
         /*assume all created artefacts are good at this point*/
-        okay[i] = TRUE;
+        okay[i] = true;
     }
 
     /* Finally, go through the list of artefacts and categorize the good ones */
@@ -10079,7 +10125,7 @@ static int collect_artefacts(int grp_cur, int object_idx[])
             continue;
 
         /* Require artefacts ever seen*/
-        if (okay[i] == FALSE)
+        if (okay[i] == false)
             continue;
 
         /* Check for race in the group */
@@ -10239,14 +10285,14 @@ static bool prepare_fake_artefact(object_type* o_ptr, byte name1)
 
     /* Ignore "empty" artefacts */
     if (a_ptr->tval + a_ptr->sval == 0)
-        return FALSE;
+        return false;
 
     /* Get the "kind" index */
     i = lookup_kind(a_ptr->tval, a_ptr->sval);
 
     /* Oops */
     if (!i)
-        return (FALSE);
+        return (false);
 
     /* Create the artefact */
     object_prep(o_ptr, i);
@@ -10283,7 +10329,7 @@ static bool prepare_fake_artefact(object_type* o_ptr, byte name1)
         o_ptr->ident |= (IDENT_CURSED);
 
     /* Success */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -10344,7 +10390,7 @@ static void display_artefact_list(int col, int row, int per_page,
         prepare_fake_artefact(i_ptr, a_idx);
 
         /* Get its name */
-        object_desc(o_name, sizeof(o_name), i_ptr, TRUE, 0);
+        object_desc(o_name, sizeof(o_name), i_ptr, true, 0);
 
         /* Display the name */
         c_prt(attr, o_name, row + i, col);
@@ -10382,6 +10428,8 @@ void do_cmd_knowledge_artefacts(void)
     bool flag;
     bool redraw;
 
+    log_debug("Player opened artifacts knowledge screen");
+
     /* Allocate the "artefact_idx" array */
     C_MAKE(artefact_idx, z_info->art_max, int);
 
@@ -10413,8 +10461,8 @@ void do_cmd_knowledge_artefacts(void)
     artefact_cur = artefact_top = 0;
     artefact_old = -1;
 
-    flag = FALSE;
-    redraw = TRUE;
+    flag = false;
+    redraw = true;
 
     while (!flag)
     {
@@ -10445,7 +10493,7 @@ void do_cmd_knowledge_artefacts(void)
                 Term_putch(max + 1, 6 + i, TERM_L_DARK, '|');
             }
 
-            redraw = FALSE;
+            redraw = false;
         }
 
         /* Scroll group list */
@@ -10502,7 +10550,7 @@ void do_cmd_knowledge_artefacts(void)
         {
         case ESCAPE:
         {
-            flag = TRUE;
+            flag = true;
             break;
         }
 
@@ -10512,7 +10560,7 @@ void do_cmd_knowledge_artefacts(void)
             /* Recall on screen */
             desc_art_fake(artefact_idx[artefact_cur]);
 
-            redraw = TRUE;
+            redraw = true;
             break;
         }
 
@@ -10871,8 +10919,8 @@ void do_cmd_knowledge_monsters(void)
     grp_cur = grp_top = 0;
     mon_cur = mon_top = 0;
 
-    flag = FALSE;
-    redraw = TRUE;
+    flag = false;
+    redraw = true;
 
     while (!flag)
     {
@@ -10899,7 +10947,7 @@ void do_cmd_knowledge_monsters(void)
                 Term_putch(max + 1, 6 + i, TERM_L_DARK, '|');
             }
 
-            redraw = FALSE;
+            redraw = false;
         }
 
         /* Scroll group list */
@@ -10952,7 +11000,7 @@ void do_cmd_knowledge_monsters(void)
         {
         case ESCAPE:
         {
-            flag = TRUE;
+            flag = true;
             break;
         }
 
@@ -10966,7 +11014,7 @@ void do_cmd_knowledge_monsters(void)
 
                 (void)inkey();
 
-                redraw = TRUE;
+                redraw = true;
             }
             break;
         }
@@ -11339,8 +11387,8 @@ void do_cmd_knowledge_objects(void)
     object_cur = object_top = 0;
     object_old = -1;
 
-    flag = FALSE;
-    redraw = TRUE;
+    flag = false;
+    redraw = true;
 
     while (!flag)
     {
@@ -11367,7 +11415,7 @@ void do_cmd_knowledge_objects(void)
                 Term_putch(max + 1, 6 + i, TERM_L_DARK, '|');
             }
 
-            redraw = FALSE;
+            redraw = false;
         }
 
         /* Scroll group list */
@@ -11428,7 +11476,7 @@ void do_cmd_knowledge_objects(void)
         {
         case ESCAPE:
         {
-            flag = TRUE;
+            flag = true;
             break;
         }
 
@@ -11441,7 +11489,7 @@ void do_cmd_knowledge_objects(void)
                 /* Recall on screen */
                 desc_obj_fake(obj->idx);
 
-                redraw = TRUE;
+                redraw = true;
             }
             break;
         }
@@ -11600,7 +11648,7 @@ void do_cmd_knowledge(void)
         /* Scores */
         else if (ch == '4')
         {
-            show_scores();
+            show_scores(true);
         }
 
         /* Scores */
@@ -11818,7 +11866,7 @@ void show_nearby_objects(bool line_of_sight_only)
         memset(lines[j].name, '\0', sizeof(lines[j].name));
         memset(o_name, '\0', sizeof(o_name));
 
-        object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
         name_length = strlen(o_name);
 
         longest_name_length = MAX(longest_name_length, name_length);
@@ -11886,7 +11934,7 @@ void show_nearby_objects(bool line_of_sight_only)
 void do_cmd_view_monsters()
 {
     char get_char = '[';
-    bool show_los = TRUE;
+    bool show_los = true;
 
     while (get_char == '[')
     {
@@ -11906,7 +11954,7 @@ void do_cmd_view_monsters()
 void do_cmd_view_objects()
 {
     char get_char = ']';
-    bool show_los = TRUE;
+    bool show_los = true;
 
     while (get_char == ']')
     {

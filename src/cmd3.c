@@ -17,14 +17,14 @@ static bool item_tester_hook_wear(const object_type* o_ptr)
 {
     // Despite being a crown, the Iron Crown cannot be worn
     if ((o_ptr->name1 >= ART_MORGOTH_0) && (o_ptr->name1 <= ART_MORGOTH_3))
-        return (FALSE);
+        return (false);
 
     /* Check for a usable slot */
     if (wield_slot(o_ptr) >= INVEN_WIELD)
-        return (TRUE);
+        return (true);
 
     /* Assume not wearable */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -82,7 +82,7 @@ void do_cmd_use_item(void)
         if (item < INVEN_WIELD)
         {
             object_type* l_ptr = &inventory[INVEN_LITE];
-            bool try_to_wield = TRUE;
+            bool try_to_wield = true;
 
             // possibly refuel a light
             if ((o_ptr->tval == TV_FLASK)
@@ -99,11 +99,11 @@ void do_cmd_use_item(void)
                             "Refueling from this torch will waste some fuel. "
                             "Proceed? "))
                     {
-                        do_cmd_refuel_torch(o_ptr, item, FALSE);
+                        do_cmd_refuel_torch(o_ptr, item, false);
                     }
                     else
                     {
-                        try_to_wield = FALSE;
+                        try_to_wield = false;
                     }
                     break;
                 }
@@ -115,11 +115,11 @@ void do_cmd_use_item(void)
                             "Refueling from this torch will waste some fuel. "
                             "Proceed? "))
                     {
-                        do_cmd_refuel_torch(o_ptr, item, TRUE);
+                        do_cmd_refuel_torch(o_ptr, item, true);
                     }
                     else
                     {
-                        try_to_wield = FALSE;
+                        try_to_wield = false;
                     }
                     break;
                 }
@@ -141,7 +141,7 @@ void do_cmd_use_item(void)
                     }
                     else
                     {
-                        try_to_wield = FALSE;
+                        try_to_wield = false;
                     }
                     break;
                 }
@@ -224,13 +224,13 @@ void do_cmd_inven(void)
     screen_save();
 
     /* Hack -- show empty slots */
-    item_tester_full = TRUE;
+    item_tester_full = true;
 
     /* Display the inventory */
     show_inven();
 
     /* Hack -- hide empty slots */
-    item_tester_full = FALSE;
+    item_tester_full = false;
 
     /* Prompt for a command */
     prt("(Inventory) Command: ", 0, 0);
@@ -252,7 +252,7 @@ void do_cmd_inven(void)
     else
     {
         /* Hack -- Use "display" mode */
-        p_ptr->command_see = TRUE;
+        p_ptr->command_see = true;
     }
 }
 
@@ -268,13 +268,13 @@ void do_cmd_equip(void)
     screen_save();
 
     /* Hack -- show empty slots */
-    item_tester_full = TRUE;
+    item_tester_full = true;
 
     /* Display the equipment */
     show_equip();
 
     /* Hack -- undo the hack above */
-    item_tester_full = FALSE;
+    item_tester_full = false;
 
     /* Prompt for a command */
     prt("(Equipment) Command: ", 0, 0);
@@ -296,7 +296,7 @@ void do_cmd_equip(void)
     else
     {
         /* Enter "display" mode */
-        p_ptr->command_see = TRUE;
+        p_ptr->command_see = true;
     }
 }
 
@@ -318,13 +318,13 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
     int i, quantity, original_quantity;
 
-    bool weapon_less_effective = FALSE;
+    bool weapon_less_effective = false;
 
-    bool grants_two_weapon = FALSE;
+    bool grants_two_weapon = false;
 
     char o_name[80];
 
-    bool combine = FALSE;
+    bool combine = false;
 
     // use specified item if possible
     if (default_o_ptr != NULL)
@@ -363,7 +363,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         && (p_ptr->total_weight + o_ptr->weight > weight_limit() * 3 / 2))
     {
         /* Describe it */
-        object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
         if (o_ptr->k_idx)
             msg_format("You cannot lift %s.", o_name);
@@ -393,12 +393,12 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     if (object_similar(&inventory[INVEN_QUIVER1], o_ptr))
     {
         slot = INVEN_QUIVER1;
-        combine = TRUE;
+        combine = true;
     }
     else if (object_similar(&inventory[INVEN_QUIVER2], o_ptr))
     {
         slot = INVEN_QUIVER2;
-        combine = TRUE;
+        combine = true;
     }
     /* Ask for arrow set to replace */
     else if ((o_ptr->tval == TV_ARROW) && inventory[INVEN_QUIVER1].k_idx
@@ -421,7 +421,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
             && (o_ptr->abilitynum[i] == MEL_TWO_WEAPON)
             && object_known_p(o_ptr))
         {
-            grants_two_weapon = TRUE;
+            grants_two_weapon = true;
         }
     }
     if ((p_ptr->active_ability[S_MEL][MEL_TWO_WEAPON] || grants_two_weapon)
@@ -442,7 +442,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     if (cursed_p(&inventory[slot]))
     {
         /* Describe it */
-        object_desc(o_name, sizeof(o_name), &inventory[slot], FALSE, 0);
+        object_desc(o_name, sizeof(o_name), &inventory[slot], false, 0);
 
         /* Message */
         msg_format("You cannot bear to give up the %s you are %s.", o_name,
@@ -554,7 +554,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         && (k_info[inventory[INVEN_WIELD].k_idx].flags3 & (TR3_HAND_AND_A_HALF))
         && (!inventory[INVEN_ARM].k_idx))
     {
-        weapon_less_effective = TRUE;
+        weapon_less_effective = true;
     }
 
     /* Take a turn */
@@ -669,7 +669,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     }
 
     /* Describe the result */
-    object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     /* Message */
     msg_format("%s %s (%c).", act, o_name, index_to_label(slot));
@@ -684,13 +684,13 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         o_ptr->iy = o_ptr->ix = 0;
 
         // Break the truce if picking up an item from the floor
-        break_truce(FALSE);
+        break_truce(false);
 
         // Special effects when picking up all the items from the floor
         if (i_ptr->number == original_quantity)
         {
             /* No longer marked */
-            o_ptr->marked = FALSE;
+            o_ptr->marked = false;
         }
     }
 
@@ -715,7 +715,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     if (weapon_less_effective)
     {
         /* Describe it */
-        object_desc(o_name, sizeof(o_name), &inventory[INVEN_WIELD], FALSE, 0);
+        object_desc(o_name, sizeof(o_name), &inventory[INVEN_WIELD], false, 0);
 
         /* Message */
         msg_format(
@@ -730,9 +730,9 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         if (!p_ptr->have_ability[o_ptr->skilltype[i]][o_ptr->abilitynum[i]])
         {
             p_ptr->have_ability[o_ptr->skilltype[i]][o_ptr->abilitynum[i]]
-                = TRUE;
+                = true;
             p_ptr->active_ability[o_ptr->skilltype[i]][o_ptr->abilitynum[i]]
-                = TRUE;
+                = true;
         }
     }
 
@@ -826,7 +826,7 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
         char o_name[80];
 
         /* Describe it */
-        object_desc(o_name, sizeof(o_name), &inventory[INVEN_WIELD], FALSE, 0);
+        object_desc(o_name, sizeof(o_name), &inventory[INVEN_WIELD], false, 0);
 
         /* Message */
         msg_format("You can now wield your %s more effectively.", o_name);
@@ -909,7 +909,7 @@ static bool item_tester_hook_destroy(const object_type* o_ptr)
 {
     if (o_ptr) { } // suppresses warnings about this function
 
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -921,10 +921,10 @@ void shatter_weapon(int silnum)
     object_type* w_ptr = &inventory[INVEN_WIELD];
     char w_name[80];
 
-    p_ptr->crown_shatter = TRUE;
+    p_ptr->crown_shatter = true;
 
     /* Get the basic name of the object */
-    object_desc(w_name, sizeof(w_name), w_ptr, FALSE, 0);
+    object_desc(w_name, sizeof(w_name), w_ptr, false, 0);
 
     if (silnum == 2)
         msg_print(
@@ -972,7 +972,7 @@ void prise_silmaril(void)
 
     cptr freed_msg = NULL; // default to soothe compiler warnings
 
-    bool freed = FALSE;
+    bool freed = false;
 
     int slot = 0;
 
@@ -1045,7 +1045,7 @@ void prise_silmaril(void)
     }
 
     /* Test for hit */
-    hit_result = hit_roll(attack_mod, 0, PLAYER, NULL, TRUE);
+    hit_result = hit_roll(attack_mod, 0, PLAYER, NULL, true);
 
     /* Make some noise */
     stealth_score -= noise;
@@ -1054,7 +1054,7 @@ void prise_silmaril(void)
     if (hit_result > 0)
     {
         crit_bonus_dice = crit_bonus(hit_result, w_ptr->weight,
-            &r_info[R_IDX_MORGOTH], S_MEL, FALSE, NULL);
+            &r_info[R_IDX_MORGOTH], S_MEL, false, NULL);
 
         dam = damroll(p_ptr->mdd + crit_bonus_dice, mds);
         prt = damroll(pd, 4);
@@ -1073,15 +1073,15 @@ void prise_silmaril(void)
         if (net_dam < 0)
             net_dam = 0;
 
-        // update_combat_rolls1b(PLAYER, TRUE);
+        // update_combat_rolls1b(PLAYER, true);
         update_combat_rolls2(p_ptr->mdd + crit_bonus_dice, mds, dam, pd, 4, prt,
-            prt_percent, GF_HURT, TRUE);
+            prt_percent, GF_HURT, true);
     }
 
     // if you succeed in prising out a Silmaril...
     if (net_dam > 0)
     {
-        freed = TRUE;
+        freed = true;
 
         switch (o_ptr->name1)
         {
@@ -1094,7 +1094,7 @@ void prise_silmaril(void)
             if (!p_ptr->crown_shatter && one_in_(2))
             {
                 shatter_weapon(2);
-                freed = FALSE;
+                freed = false;
             }
             else
             {
@@ -1123,11 +1123,11 @@ void prise_silmaril(void)
             if (!p_ptr->crown_shatter)
             {
                 shatter_weapon(3);
-                freed = FALSE;
+                freed = false;
             }
             else
             {
-                p_ptr->cursed = TRUE;
+                p_ptr->cursed = true;
             }
             break;
         }
@@ -1154,19 +1154,19 @@ void prise_silmaril(void)
             object_prep(o_ptr, lookup_kind(TV_LIGHT, SV_LIGHT_SILMARIL));
 
             // Get it
-            slot = inven_carry(o_ptr, FALSE);
+            slot = inven_carry(o_ptr, false);
 
             /* Get the object again */
             o_ptr = &inventory[slot];
 
             /* Describe the object */
-            object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
             /* Message */
             msg_format("You have %s (%c).", o_name, index_to_label(slot));
 
             // Break the truce (always)
-            break_truce(TRUE);
+            break_truce(true);
 
             // add a note to the notes file
             do_cmd_note("Cut a Silmaril from Morgoth's crown", p_ptr->depth);
@@ -1179,7 +1179,7 @@ void prise_silmaril(void)
         msg_print("Try though you might, you were unable to free a Silmaril.");
 
         // Break the truce if creatures see
-        break_truce(FALSE);
+        break_truce(false);
     }
 
     // check for taking of final Silmaril
@@ -1323,7 +1323,7 @@ void do_cmd_destroy(void)
     o_ptr->number = amt;
 
     /*now describe with correct amount*/
-    object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     /*reverse the hack*/
     o_ptr->number = old_number;
@@ -1431,7 +1431,7 @@ void uninscribe(object_type* o_ptr)
         i_ptr->number = 2;
 
         /*now describe with correct amount*/
-        object_desc(o_name2, sizeof(o_name2), i_ptr, FALSE, 0);
+        object_desc(o_name2, sizeof(o_name2), i_ptr, false, 0);
 
         /* Prompt */
         strnfmt(tmp_val, sizeof(tmp_val),
@@ -1527,7 +1527,7 @@ void do_cmd_inscribe(void)
     }
 
     /* Describe the activity */
-    object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     /* Message */
     msg_format("Inscribing %s.", o_name);
@@ -1580,7 +1580,7 @@ void do_cmd_inscribe(void)
             i_ptr->number = 2;
 
             /*now describe with correct amount*/
-            object_desc(o_name2, sizeof(o_name2), i_ptr, FALSE, 0);
+            object_desc(o_name2, sizeof(o_name2), i_ptr, false, 0);
 
             /* Prompt */
             strnfmt(tmp_val, sizeof(tmp_val),
@@ -1606,17 +1606,17 @@ static bool item_tester_refuel_lantern(const object_type* o_ptr)
 {
     /* Flasks of oil are okay */
     if (o_ptr->tval == TV_FLASK)
-        return (TRUE);
+        return (true);
 
     /* Non-empty lanterns are okay */
     if ((o_ptr->tval == TV_LIGHT) && (o_ptr->sval == SV_LIGHT_LANTERN)
         && (o_ptr->timeout > 0))
     {
-        return (TRUE);
+        return (true);
     }
 
     /* Assume not okay */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -1718,7 +1718,7 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
 
             /* Carry or drop */
             if (item >= 0)
-                item = inven_carry(i_ptr, FALSE);
+                item = inven_carry(i_ptr, false);
             else
                 drop_near(i_ptr, 0, p_ptr->py, p_ptr->px);
         }
@@ -1771,10 +1771,10 @@ static bool item_tester_refuel_torch(const object_type* o_ptr)
 {
     /* Torches are okay */
     if ((o_ptr->tval == TV_LIGHT) && (o_ptr->sval == SV_LIGHT_TORCH))
-        return (TRUE);
+        return (true);
 
     /* Assume not okay */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -1784,10 +1784,10 @@ static bool item_tester_refuel_mallorn(const object_type* o_ptr)
 {
     /* Torches are okay */
     if ((o_ptr->tval == TV_LIGHT) && (o_ptr->sval == SV_LIGHT_MALLORN))
-        return (TRUE);
+        return (true);
 
     /* Assume not okay */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -1912,13 +1912,13 @@ void do_cmd_refuel(void)
     /* It's a torch */
     else if (o_ptr->sval == SV_LIGHT_TORCH)
     {
-        do_cmd_refuel_torch(NULL, 0, FALSE);
+        do_cmd_refuel_torch(NULL, 0, false);
     }
 
     /* It's a torch */
     else if (o_ptr->sval == SV_LIGHT_MALLORN)
     {
-        do_cmd_refuel_torch(NULL, 0, TRUE);
+        do_cmd_refuel_torch(NULL, 0, true);
     }
 
     /* No torch to refuel */
@@ -1970,7 +1970,7 @@ void do_cmd_locate(void)
     x2 = x1 = p_ptr->wx;
 
     /* Show panels until done */
-    while (TRUE)
+    while (true)
     {
         /* Assume no direction */
         dir = 0;
@@ -2135,9 +2135,9 @@ bool ang_sort_comp_hook(const void* u, const void* v, int a, int b)
 
         /* Compare player kills */
         if (z1 < z2)
-            return (TRUE);
+            return (true);
         if (z1 > z2)
-            return (FALSE);
+            return (false);
     }
 
     /* Sort by total kills */
@@ -2149,9 +2149,9 @@ bool ang_sort_comp_hook(const void* u, const void* v, int a, int b)
 
         /* Compare total kills */
         if (z1 < z2)
-            return (TRUE);
+            return (true);
         if (z1 > z2)
-            return (FALSE);
+            return (false);
     }
 
     /* Sort by monster level */
@@ -2163,9 +2163,9 @@ bool ang_sort_comp_hook(const void* u, const void* v, int a, int b)
 
         /* Compare levels */
         if (z1 < z2)
-            return (TRUE);
+            return (true);
         if (z1 > z2)
-            return (FALSE);
+            return (false);
     }
 
     /* Sort by monster depth */
@@ -2177,9 +2177,9 @@ bool ang_sort_comp_hook(const void* u, const void* v, int a, int b)
 
         /* Compare experience */
         if (z1 < z2)
-            return (TRUE);
+            return (true);
         if (z1 > z2)
-            return (FALSE);
+            return (false);
     }
 
     /* Compare indexes */
@@ -2225,11 +2225,11 @@ void do_cmd_query_symbol(void)
     char sym, query;
     char buf[128];
 
-    bool all = FALSE;
-    bool uniq = FALSE;
-    bool norm = FALSE;
+    bool all = false;
+    bool uniq = false;
+    bool norm = false;
 
-    bool recall = FALSE;
+    bool recall = false;
 
     u16b why = 0;
     u16b* who;
@@ -2248,17 +2248,17 @@ void do_cmd_query_symbol(void)
     /* Describe */
     if (sym == KTRL('A'))
     {
-        all = TRUE;
+        all = true;
         my_strcpy(buf, "Full monster list.", sizeof(buf));
     }
     else if (sym == KTRL('U'))
     {
-        all = uniq = TRUE;
+        all = uniq = true;
         my_strcpy(buf, "Unique monster list.", sizeof(buf));
     }
     else if (sym == KTRL('N'))
     {
-        all = norm = TRUE;
+        all = norm = true;
         my_strcpy(buf, "Non-unique monster list.", sizeof(buf));
     }
     else if (ident_info[i])

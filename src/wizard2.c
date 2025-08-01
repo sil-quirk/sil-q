@@ -423,7 +423,7 @@ static void wiz_display_item(const object_type* o_ptr)
     Term_clear();
 
     /* Describe fully */
-    object_desc_spoil(buf, sizeof(buf), o_ptr, TRUE, 3);
+    object_desc_spoil(buf, sizeof(buf), o_ptr, true, 3);
 
     prt(buf, 2, j);
 
@@ -657,7 +657,7 @@ static void wiz_reroll_item(object_type* o_ptr)
 
     char ch;
 
-    bool changed = FALSE;
+    bool changed = false;
 
     /* Hack -- leave artefacts alone */
     if (artefact_p(o_ptr))
@@ -670,7 +670,7 @@ static void wiz_reroll_item(object_type* o_ptr)
     object_copy(i_ptr, o_ptr);
 
     /* Main loop. Ask for magification and artefactification */
-    while (TRUE)
+    while (true)
     {
         /* Display full item debug information */
         wiz_display_item(i_ptr);
@@ -682,7 +682,7 @@ static void wiz_reroll_item(object_type* o_ptr)
         /* Create/change it! */
         if (ch == 'A' || ch == 'a')
         {
-            changed = TRUE;
+            changed = true;
             break;
         }
 
@@ -690,21 +690,21 @@ static void wiz_reroll_item(object_type* o_ptr)
         else if (ch == 'n' || ch == 'N')
         {
             object_prep(i_ptr, o_ptr->k_idx);
-            apply_magic(i_ptr, p_ptr->depth, FALSE, FALSE, FALSE, FALSE);
+            apply_magic(i_ptr, p_ptr->depth, false, false, false, false);
         }
 
         /* Apply good magic, but first clear object */
         else if (ch == 'g' || ch == 'g')
         {
             object_prep(i_ptr, o_ptr->k_idx);
-            apply_magic(i_ptr, p_ptr->depth, FALSE, TRUE, FALSE, FALSE);
+            apply_magic(i_ptr, p_ptr->depth, false, true, false, false);
         }
 
         /* Apply great magic, but first clear object */
         else if (ch == 'e' || ch == 'e')
         {
             object_prep(i_ptr, o_ptr->k_idx);
-            apply_magic(i_ptr, p_ptr->depth, FALSE, TRUE, TRUE, FALSE);
+            apply_magic(i_ptr, p_ptr->depth, false, true, true, false);
         }
     }
 
@@ -764,7 +764,7 @@ static void wiz_statistics(object_type* o_ptr)
         a_info[o_ptr->name1].cur_num = 0;
 
     /* Interact */
-    while (TRUE)
+    while (true)
     {
         cptr pmt = "Roll for [n]ormal, [g]ood, or [e]xcellent treasure? ";
 
@@ -777,20 +777,20 @@ static void wiz_statistics(object_type* o_ptr)
 
         if (ch == 'n' || ch == 'N')
         {
-            good = FALSE;
-            great = FALSE;
+            good = false;
+            great = false;
             quality = "normal";
         }
         else if (ch == 'g' || ch == 'G')
         {
-            good = TRUE;
-            great = FALSE;
+            good = true;
+            great = false;
             quality = "good";
         }
         else if (ch == 'e' || ch == 'E')
         {
-            good = FALSE;
-            great = TRUE;
+            good = false;
+            great = true;
             quality = "excellent";
         }
         else
@@ -813,7 +813,7 @@ static void wiz_statistics(object_type* o_ptr)
             if ((i < 100) || (i % 100 == 0))
             {
                 /* Do not wait */
-                inkey_scan = TRUE;
+                inkey_scan = true;
 
                 /* Allow interupt */
                 if (inkey())
@@ -940,7 +940,7 @@ static void do_cmd_wiz_play(void)
 
     cptr q, s;
 
-    bool changed = FALSE;
+    bool changed = false;
 
     /* Get an item */
     q = "Play with which object? ";
@@ -970,7 +970,7 @@ static void do_cmd_wiz_play(void)
     object_copy(i_ptr, o_ptr);
 
     /* The main loop */
-    while (TRUE)
+    while (true)
     {
         /* Display the item */
         wiz_display_item(i_ptr);
@@ -982,7 +982,7 @@ static void do_cmd_wiz_play(void)
 
         if (ch == 'A' || ch == 'a')
         {
-            changed = TRUE;
+            changed = true;
             break;
         }
 
@@ -1054,7 +1054,7 @@ static void wiz_create_item_aux(int k_idx, int y, int x)
     object_prep(i_ptr, k_idx);
 
     /* Apply magic (no messages, no artefacts) */
-    apply_magic(i_ptr, p_ptr->depth, FALSE, FALSE, FALSE, FALSE);
+    apply_magic(i_ptr, p_ptr->depth, false, false, false, false);
 
     // apply the autoinscription (if any)
     apply_autoinscription(i_ptr);
@@ -1113,7 +1113,7 @@ static void wiz_create_artefact(int a_idx)
     if (a_ptr->tval + a_ptr->sval == 0)
         return;
 
-    create_chosen_artefact(a_idx, p_ptr->py, p_ptr->px, FALSE);
+    create_chosen_artefact(a_idx, p_ptr->py, p_ptr->px, false);
 
     return;
 }
@@ -1124,7 +1124,7 @@ static void wiz_create_artefact(int a_idx)
 static void do_cmd_wiz_cure_all(void)
 {
     /* Remove curses */
-    (void)remove_curse(TRUE);
+    (void)remove_curse(true);
 
     /* Restore stats */
     (void)res_stat(A_STR, 20);
@@ -1202,7 +1202,7 @@ static void do_cmd_wiz_jump(void)
     p_ptr->depth = p_ptr->command_arg;
 
     /* Leaving */
-    p_ptr->leaving = TRUE;
+    p_ptr->leaving = true;
 }
 
 /*
@@ -1300,7 +1300,7 @@ static void do_cmd_wiz_tile_test(void)
             int y = monster_index / 30 + 13;
             int x = monster_index % 30 + 2;
 
-            place_monster_one(y, x, r_idx, FALSE, FALSE, NULL);
+            place_monster_one(y, x, r_idx, false, false, NULL);
         }
     }
 
@@ -1315,7 +1315,7 @@ static void do_cmd_wiz_tile_test(void)
             int y = artefact_index / 30 + 19;
             int x = artefact_index % 30 + 2;
 
-            create_chosen_artefact(a_idx, y, x, FALSE);
+            create_chosen_artefact(a_idx, y, x, false);
         }
     }
 
@@ -1455,10 +1455,10 @@ static void do_cmd_wiz_forget(void)
         object_kind* k_ptr = &k_info[i];
 
         /* Reset "tried" */
-        k_ptr->tried = FALSE;
+        k_ptr->tried = false;
 
         /* Reset "aware" */
-        k_ptr->aware = FALSE;
+        k_ptr->aware = false;
     }
 
     /* Reset the special objects */
@@ -1467,7 +1467,7 @@ static void do_cmd_wiz_forget(void)
         ego_item_type* e_ptr = &e_info[i];
 
         /* Reset "aware" */
-        e_ptr->aware = FALSE;
+        e_ptr->aware = false;
     }
 
     /* Forget encountered monsters */
@@ -1475,7 +1475,7 @@ static void do_cmd_wiz_forget(void)
     {
         monster_type* m_ptr = &mon_list[i];
 
-        m_ptr->encountered = FALSE;
+        m_ptr->encountered = false;
     }
 
     /* Reset the monster memory */
@@ -1563,7 +1563,7 @@ static void do_cmd_wiz_named(int r_idx, bool slp)
             continue;
 
         /* Place it (allow groups) */
-        if (place_monster_aux(y, x, r_idx, slp, TRUE))
+        if (place_monster_aux(y, x, r_idx, slp, true))
             break;
     }
 }
@@ -1617,14 +1617,14 @@ extern void do_cmd_wiz_unhide(int d)
             continue;
 
         /* Optimize -- Repair flags */
-        repair_mflag_mark = TRUE;
-        repair_mflag_show = TRUE;
+        repair_mflag_mark = true;
+        repair_mflag_show = true;
 
         /* Detect the monster */
         m_ptr->mflag |= (MFLAG_MARK | MFLAG_SHOW);
 
         /* Update the monster */
-        update_mon(i, FALSE);
+        update_mon(i, false);
     }
 }
 
@@ -1867,7 +1867,7 @@ void do_cmd_debug(void)
     {
         if (p_ptr->command_arg <= 0)
             p_ptr->command_arg = 1;
-        acquirement(py, px, p_ptr->command_arg, FALSE);
+        acquirement(py, px, p_ptr->command_arg, false);
         break;
     }
 
@@ -1909,7 +1909,7 @@ void do_cmd_debug(void)
     /* Summon Named Monster */
     case 'n':
     {
-        do_cmd_wiz_named(p_ptr->command_arg, TRUE);
+        do_cmd_wiz_named(p_ptr->command_arg, true);
         break;
     }
 
@@ -1980,7 +1980,7 @@ void do_cmd_debug(void)
     {
         if (p_ptr->command_arg <= 0)
             p_ptr->command_arg = 1;
-        acquirement(py, px, p_ptr->command_arg, TRUE);
+        acquirement(py, px, p_ptr->command_arg, true);
         break;
     }
 

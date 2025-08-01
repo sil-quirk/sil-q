@@ -913,7 +913,7 @@ static bool init_mon_power(void)
 #endif /*ALLOW_DATA_DUMP*/
 
     /* Now we have all the ratings */
-    return (TRUE);
+    return (true);
 }
 
 #ifdef USE_ART_THEME
@@ -1286,7 +1286,7 @@ static void store_base_power(void)
     for (i = 0; i < z_info->art_norm_max; i++)
     {
         int y;
-        bool found_rarity = FALSE;
+        bool found_rarity = false;
         alloc_entry* table = alloc_kind_table;
 
         /* Kinds array was populated in the above step in artefact_power */
@@ -1309,7 +1309,7 @@ static void store_base_power(void)
             if (base_item_rarity[i] < 1)
                 base_item_rarity[i] = 1;
 
-            found_rarity = TRUE;
+            found_rarity = true;
 
             break;
         }
@@ -1436,7 +1436,7 @@ static bool add_ability(artefact_type* a_ptr)
 
     /*We don't have anything else to add*/
     if (abil_freq_total == 0)
-        return FALSE;
+        return false;
 
     /* Generate a random number between 1 and current ability total */
     abil_selector = dieroll(abil_freq_total);
@@ -1461,7 +1461,7 @@ static bool add_ability(artefact_type* a_ptr)
     /*Wee have the flag to add*/
     a_ptr->flags3 |= flag;
 
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1510,7 +1510,7 @@ static bool add_sustain(artefact_type* a_ptr)
 
     /*We don't have any stat to sustain*/
     if (stat_freq_total == 0)
-        return FALSE;
+        return false;
 
     /* Generate a random number between 1 and current stat total */
     stat_selector = dieroll(stat_freq_total);
@@ -1534,7 +1534,7 @@ static bool add_sustain(artefact_type* a_ptr)
     /*Wee have the flag to add*/
     a_ptr->flags2 |= sust_flag;
 
-    return (TRUE);
+    return (true);
 }
 
 static bool add_stat(artefact_type* a_ptr)
@@ -1563,7 +1563,7 @@ static bool add_stat(artefact_type* a_ptr)
 
     /*We don't have any stat to add*/
     if (stat_freq_total == 0)
-        return (FALSE);
+        return (false);
 
     /* Generate a random number between 1 and current stat total */
     stat_selector = dieroll(stat_freq_total);
@@ -1599,7 +1599,7 @@ static bool add_stat(artefact_type* a_ptr)
     /*re-do the pval*/
     do_pval(a_ptr);
 
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1634,7 +1634,7 @@ static bool add_one_resist(artefact_type* a_ptr, u32b avail_flags)
 
     /*no available flags*/
     if (number_of_flags == 0)
-        return (FALSE);
+        return (false);
 
     /*select a flag*/
     counter = dieroll(number_of_flags);
@@ -1670,7 +1670,7 @@ static bool add_one_resist(artefact_type* a_ptr, u32b avail_flags)
         }
     }
 
-    return (TRUE);
+    return (true);
 }
 
 static bool add_brand(artefact_type* a_ptr)
@@ -1678,10 +1678,10 @@ static bool add_brand(artefact_type* a_ptr)
     /* Hack - if all brands are added already, exit to avoid infinite loop */
     if ((a_ptr->flags1 & TR1_BRAND_ELEC) && (a_ptr->flags1 & TR1_BRAND_COLD)
         && (a_ptr->flags1 & TR1_BRAND_FIRE) && (a_ptr->flags1 & TR1_BRAND_POIS))
-        return (FALSE);
+        return (false);
 
     /* Make sure we add one that hasn't been added yet */
-    while (TRUE)
+    while (true)
     {
         u32b brand_flag = OBJECT_XTRA_BASE_BRAND;
 
@@ -1709,7 +1709,7 @@ static bool add_brand(artefact_type* a_ptr)
         break;
     }
 
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1753,7 +1753,7 @@ static bool add_slay(artefact_type* a_ptr)
 
     /*We don't have any stat to add*/
     if (slay_freq_total == 0)
-        return (FALSE);
+        return (false);
 
     /* Generate a random number between 1 and current stat total */
     slay_selector = dieroll(slay_freq_total);
@@ -1787,7 +1787,7 @@ static bool add_slay(artefact_type* a_ptr)
         }
     }
 
-    return (TRUE);
+    return (true);
 }
 
 static void add_att(artefact_type* a_ptr, int fixed, int random)
@@ -2550,7 +2550,7 @@ static void add_feature(artefact_type* a_ptr)
  */
 static void try_supercharge(artefact_type* a_ptr, int final_power)
 {
-    bool did_supercharge = FALSE;
+    bool did_supercharge = false;
 
     /* Huge damage dice - melee weapon only */
     if (a_ptr->tval == TV_DIGGING || a_ptr->tval == TV_HAFTED
@@ -2571,7 +2571,7 @@ static void try_supercharge(artefact_type* a_ptr, int final_power)
                     a_ptr->ds = 9;
             }
 
-            did_supercharge = TRUE;
+            did_supercharge = true;
         }
     }
 
@@ -2647,7 +2647,7 @@ static void scramble_artefact(int a_idx)
     byte rarity_old, base_rarity_old;
     s16b rarity_new;
     s32b ap;
-    bool curse_me = FALSE;
+    bool curse_me = false;
     u32b flags_bad = 0L;
     char buf[MAX_LEN_ART_NAME];
 
@@ -2698,7 +2698,7 @@ static void scramble_artefact(int a_idx)
     }
 
     if (power < 0)
-        curse_me = TRUE;
+        curse_me = true;
 
     if (a_idx >= z_info->art_spec_max)
     {
@@ -2883,11 +2883,11 @@ static bool artefacts_acceptable(void)
     for (i = 0; i < ART_THEME_MAX; i++)
     {
         if (art_theme_freq[i] >= MIN_ENFORCEMENT)
-            return (FALSE);
+            return (false);
     }
 
     /*we have a good set*/
-    return (TRUE);
+    return (true);
 }
 
 static errr scramble(void)
@@ -2895,7 +2895,7 @@ static errr scramble(void)
     /*Prevent making come unacceptable things for artefacts such as arrows*/
     object_generation_mode = OB_GEN_MODE_RANDART;
 
-    while (TRUE)
+    while (true)
     {
         int a_idx;
 
@@ -2961,7 +2961,7 @@ errr do_randart(u32b randart_seed, bool full)
 
     /* Prepare to use the Angband "simple" RNG. */
     Rand_value = randart_seed;
-    Rand_quick = TRUE;
+    Rand_quick = true;
 
     /* Only do all the following if full randomization requested */
     if (full)
@@ -2993,7 +2993,7 @@ errr do_randart(u32b randart_seed, bool full)
     }
 
     /* When done, resume use of the Angband "complex" RNG. */
-    Rand_quick = FALSE;
+    Rand_quick = false;
 
     return (err);
 }
@@ -3032,7 +3032,7 @@ bool make_one_randart(object_type* o_ptr, int art_power, bool tailored)
     }
 
     if (!a_idx)
-        return (FALSE);
+        return (false);
 
     /*point to the artefact*/
     a_ptr = &a_info[a_idx];
@@ -3074,7 +3074,7 @@ bool make_one_randart(object_type* o_ptr, int art_power, bool tailored)
         object_wipe(o_ptr);
 
         /*get the obejct number test it for appropriate power*/
-        while (TRUE)
+        while (true)
         {
             theme = get_theme();
 
@@ -3119,7 +3119,7 @@ bool make_one_randart(object_type* o_ptr, int art_power, bool tailored)
 
     /*All others fail, but this shouldn't happen*/
     else
-        return (FALSE);
+        return (false);
 
     /*mark the artefact*/
     o_ptr->name1 = a_idx;
@@ -3252,9 +3252,9 @@ bool make_one_randart(object_type* o_ptr, int art_power, bool tailored)
     object_into_artefact(o_ptr, a_ptr);
 
     /* Set the good item flag */
-    good_item_flag = TRUE;
+    good_item_flag = true;
 
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -3303,9 +3303,9 @@ bool can_be_randart(const object_type* o_ptr)
     case TV_POLEARM:
     case TV_DIGGING:
     {
-        return (TRUE);
+        return (true);
     }
     default:
-        return (FALSE);
+        return (false);
     }
 }

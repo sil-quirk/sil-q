@@ -45,7 +45,7 @@ void display_koff(int k_idx)
     object_prep(i_ptr, k_idx);
 
     /* Describe */
-    object_desc_spoil(o_name, sizeof(o_name), i_ptr, FALSE, 0);
+    object_desc_spoil(o_name, sizeof(o_name), i_ptr, false, 0);
 
     /* Mention the object name */
     Term_putstr(0, 0, -1, TERM_WHITE, o_name);

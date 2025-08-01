@@ -22,9 +22,9 @@
  * which must specify a "default" flavor.
  *
  * Note the use of the "simple" RNG, first you activate it via
- * "Rand_quick = TRUE" and "Rand_value = seed" and then it is used
+ * "Rand_quick = true" and "Rand_value = seed" and then it is used
  * automatically used instead of the "complex" RNG, and when you are
- * done, you de-activate it via "Rand_quick = FALSE" or choose a new
+ * done, you de-activate it via "Rand_quick = false" or choose a new
  * seed via "Rand_value = seed".
  *
  *
@@ -47,7 +47,7 @@
 /*
  * Use the "simple" LCRNG
  */
-bool Rand_quick = TRUE;
+bool Rand_quick = true;
 
 /*
  * Current "value" of the "simple" RNG
@@ -520,7 +520,7 @@ s16b Rand_normal(int mean, int stand)
  */
 u32b Rand_simple(u32b m)
 {
-    static bool initialized = FALSE;
+    static bool initialized = false;
     static u32b simple_rand_value;
     bool old_rand_quick;
     u32b old_rand_value;
@@ -531,7 +531,7 @@ u32b Rand_simple(u32b m)
     old_rand_value = Rand_value;
 
     /* Use "simple" RNG */
-    Rand_quick = TRUE;
+    Rand_quick = true;
 
     if (initialized)
     {
@@ -542,7 +542,7 @@ u32b Rand_simple(u32b m)
     {
         /* Initialize with new seed */
         Rand_value = time(NULL);
-        initialized = TRUE;
+        initialized = true;
     }
 
     /* Get a random number */

@@ -123,7 +123,7 @@ static void kind_info(
         return;
 
     /* Description (too brief) */
-    object_desc_spoil(buf, 80, i_ptr, FALSE, 1);
+    object_desc_spoil(buf, 80, i_ptr, false, 1);
 
     /* Weight */
     sprintf(wgt, "%3d.%d lb", k_ptr->weight / 10, k_ptr->weight % 10);
@@ -171,7 +171,7 @@ static void spoil_obj_desc(cptr fname)
         "-----", "---------");
 
     /* List the groups */
-    for (i = 0; TRUE; i++)
+    for (i = 0; true; i++)
     {
         /* Write out the group title */
         if (group_item[i].name)
@@ -292,14 +292,14 @@ bool make_fake_artefact(object_type* o_ptr, byte name1)
 
     /* Ignore "empty" artefacts */
     if (a_ptr->tval + a_ptr->sval == 0)
-        return FALSE;
+        return false;
 
     /* Get the "kind" index */
     i = lookup_kind(a_ptr->tval, a_ptr->sval);
 
     /* Oops */
     if (!i)
-        return (FALSE);
+        return (false);
 
     /* Create the artefact */
     object_prep(o_ptr, i);
@@ -330,7 +330,7 @@ bool make_fake_artefact(object_type* o_ptr, byte name1)
         o_ptr->ident |= (IDENT_CURSED);
 
     /* Success */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -408,7 +408,7 @@ static void spoil_artefact(cptr fname)
                 continue;
 
             /* Grab artefact name */
-            object_desc_spoil(buf, sizeof(buf), i_ptr, TRUE, 1);
+            object_desc_spoil(buf, sizeof(buf), i_ptr, true, 1);
 
             my_strcat(buf,
                 format("     %d.%d lb", (a_ptr->weight / 10),
@@ -938,7 +938,7 @@ static void spoil_mon_info(cptr fname)
         text_out(buf);
 
         /* Describe */
-        describe_monster(r_idx, TRUE);
+        describe_monster(r_idx, true);
 
         /* Terminate the entry */
         text_out("\n");

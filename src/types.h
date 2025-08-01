@@ -75,7 +75,7 @@ typedef struct alloc_entry alloc_entry;
 typedef struct owner_type owner_type;
 typedef struct store_type store_type;
 typedef struct player_race player_race;
-typedef struct player_house player_house;
+typedef struct player_character player_house;
 typedef struct hist_type hist_type;
 typedef struct story_type story_type;
 typedef struct curse_type curse_type;
@@ -710,11 +710,11 @@ struct player_race
 /*
  * Player house info
  */
-struct player_house
+struct player_character
 {
     u32b name; /* Name (offset)           eg 'House of Feanor' */
     u32b alt_name; /* Alternate Name (offset) eg 'Feanor's House'  */
-    u32b short_name; /* Short Name (offset)     eg 'Feanor'          */
+    u32b start_string; /* Short Name (offset)     eg 'Feanor'          */
     u32b text; /* Descrption (offset) */
 
     s16b h_adj[A_MAX]; /* House stat bonuses */
@@ -743,8 +743,12 @@ struct hist_type
 
 struct story_type
 {
-    u32b name; /* Name (offset) */
-    u32b text; /* Descrption (offset) */
+    u32b name;     /* Name (offset) */
+    u32b text;     /* Description (offset) */
+
+    byte st_type;  /* user-defined type */
+    byte order;    /* display / sequencing order */
+    u32b runtypes; /* bitmask of allowed run types; 0 => applies to ALL */
 };
 
 // Curses
@@ -765,16 +769,15 @@ curse_type;
 
 
 
-/* --- new generic run-type record ----------------------------------- */
-typedef struct runtype_type runtype_type;
-
-struct runtype_type {
-    u32b id;               /* record index – must match order in runtypes.txt  */
-    u32b start_curses;     /* 32-bit bitmap of default curses                  */
-    byte colour;           /* UI colour (TERM_* index)                         */
-    char name[16];         /* short name shown in menus                        */
-};                                                            /* NEW */
-
+typedef struct runtype_type {
+    u16b id;
+    char name[32];
+    u32b start_curses;             /* default curses mask (bits 0..31)      */
+    byte colour;                   /* display colour (TERM_*)               */
+    byte win_con;                  /* target Silmarils to win (default 15)  */
+    byte lose_con;                 /* deaths to lose (min 1; default 15)    */
+    u32b heroes[FLAG_WORDS];       /* applicable heroes (max 64)            */
+} runtype_type;
 
 /*
  * Some more player information
@@ -950,9 +953,9 @@ struct player_type
                      [ABILITIES_MAX]; /* Whether or not you have each
                                          ability (including from items) */
 
-    bool playing; /* True if player is playing the game */
-    bool restoring; /* True if player is restoring a game */
-    bool leaving; /* True if player is leaving the game */
+    bool playing; /* true if player is playing the game */
+    bool restoring; /* true if player is restoring a game */
+    bool leaving; /* true if player is leaving the game */
 
     s16b create_stair; /* Create a staircase on next level */
     s16b create_rubble; /* Create rubble on next level */
@@ -1255,3 +1258,12 @@ typedef enum {
 } PlayResult;
 
 #endif /* UI_NAV_H */
+
+typedef struct flag_name flag_name;
+
+struct flag_name
+{
+    cptr name; /* The name of the flag in the text file. */
+    int set; /* The set into which the flag is to be sent. */
+    u32b flag; /* The flag being set. */
+};

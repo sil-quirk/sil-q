@@ -151,17 +151,17 @@ def compute_scores(houses, races):
     # sort by Total descending, then by net_dots descending
     return sorted(results,
                   key=lambda x: (x['Total'], x['_net']),
-                  reverse=True)
+                  reverse=true)
 
 def main():
-    houses = parse_houses('house.txt')
+    houses = parse_houses('character.txt')
     races  = parse_races('race.txt')
     scores = compute_scores(houses, races)
 
     df = pd.DataFrame(scores)
     # drop the internal '_net' column before printing
     df = df.drop(columns=['_net'])
-    print(df.to_string(index=False))
+    print(df.to_string(index=false))
 
     input("\nDone — press Enter to exit...")
 

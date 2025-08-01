@@ -50,14 +50,14 @@
 #endif
 
 /*
- * The constants "TRUE" and "FALSE"
+ * The constants "true" and "false"
  */
 
-#undef TRUE
-#define TRUE 1
+// #undef true
+// #define true 1
 
-#undef FALSE
-#define FALSE 0
+// #undef false
+// #define false 0
 
 /**** Simple "Macros" ****/
 

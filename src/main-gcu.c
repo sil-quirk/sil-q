@@ -205,7 +205,7 @@ static int active = 0;
 /*
  * Software flag -- we are allowed to use color
  */
-static int can_use_color = FALSE;
+static int can_use_color = false;
 
 /*
  * Simple Angband to Curses color conversion table
@@ -561,7 +561,7 @@ static errr Term_xtra_gcu_event(int v)
     if (v)
     {
         /* Paranoia -- Wait for it */
-        nodelay(stdscr, FALSE);
+        nodelay(stdscr, false);
 
         /* Get a keypress */
         i = getch();
@@ -581,13 +581,13 @@ static errr Term_xtra_gcu_event(int v)
     else
     {
         /* Do not wait for it */
-        nodelay(stdscr, TRUE);
+        nodelay(stdscr, true);
 
         /* Check for keypresses */
         i = getch();
 
         /* Wait for it next time */
-        nodelay(stdscr, FALSE);
+        nodelay(stdscr, false);
 
         /* None ready */
         if (i == ERR)
@@ -764,7 +764,7 @@ static errr Term_xtra_gcu(int n, int v)
 
     /* Flush events */
     case TERM_XTRA_FLUSH:
-        while (!Term_xtra_gcu_event(FALSE))
+        while (!Term_xtra_gcu_event(false))
             ;
         return (0);
 
@@ -915,7 +915,7 @@ static errr term_data_init_gcu(term_data* td, int rows, int cols, int y, int x)
     term_init(t, cols, rows, 256);
 
     /* Avoid bottom right corner */
-    t->icky_corner = TRUE;
+    t->icky_corner = true;
 
     /* Erase with "white space" */
     t->attr_blank = TERM_WHITE;
@@ -964,14 +964,14 @@ errr init_gcu(int argc, char** argv)
 
     int num_term = MAX_TERM_DATA, next_win = 0;
 
-    bool use_big_screen = FALSE;
+    bool use_big_screen = false;
 
     /* Parse args */
     for (i = 1; i < argc; i++)
     {
         if (prefix(argv[i], "-b"))
         {
-            use_big_screen = TRUE;
+            use_big_screen = true;
             continue;
         }
 
@@ -1058,7 +1058,7 @@ errr init_gcu(int argc, char** argv)
 #ifdef USE_GETCH
 
     /* Paranoia -- Assume no waiting */
-    nodelay(stdscr, FALSE);
+    nodelay(stdscr, false);
 
 #endif
 

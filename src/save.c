@@ -19,11 +19,14 @@ void updatecharinfoS(void)
 
     int curDepth = p_ptr->max_depth * 50;
 
+    log_debug("Creating character output file");
+
     path_parse(parsed_dir_user, sizeof(parsed_dir_user), ANGBAND_DIR_USER);
     path_build(tmp_Path, sizeof(tmp_Path), parsed_dir_user, "CharOutput.txt");
 
     FILE* oFile = fopen(tmp_Path, "w");
     if (!oFile) {
+        log_debug("Failed to open character output file: %s", tmp_Path);
         return;
     }
 
@@ -43,6 +46,7 @@ void updatecharinfoS(void)
 
     fprintf(oFile, "}");
     fclose(oFile);
+    log_debug("Character output file written successfully: %s", tmp_Path);
 }
 
 
@@ -304,7 +308,7 @@ static void get_s32b(s32b* ip) { get_u32b((u32b*)ip); }
  */
 static errr rd_savefile(void)
 {
-    bool done = FALSE;
+    bool done = false;
 
     byte fake[4];
 
@@ -338,7 +342,7 @@ static errr rd_savefile(void)
         /* Done XXX XXX XXX */
         case 0:
         {
-            done = TRUE;
+            done = true;
             break;
         }
 
@@ -972,6 +976,7 @@ static void wr_extra(void)
     wr_s32b(min_depth_counter);
     log_trace("Min depth counter: %d", min_depth_counter);
 
+    log_debug("Updating character info output file");
     updatecharinfoS();
 }
 
@@ -1032,7 +1037,7 @@ static void wr_notes(void)
     char end_note[80];
     char tmpstr[100];
     char ch;
-    bool done = FALSE;
+    bool done = false;
 
     int i = 0;
     int j = 0;
@@ -1043,7 +1048,7 @@ static void wr_notes(void)
     {
         j = 0;
 
-        while (TRUE)
+        while (true)
         {
             ch = notes_buffer[i];
 
@@ -1062,7 +1067,7 @@ static void wr_notes(void)
 
             if (ch == '\0')
             {
-                done = TRUE;
+                done = true;
                 break;
             }
         }
@@ -1092,6 +1097,8 @@ static void wr_dungeon(void)
 
     byte count;
     byte prev_char;
+
+    log_debug("Writing dungeon level %d (%dx%d)", p_ptr->depth, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
 
     /*** Basic info ***/
 
@@ -1190,6 +1197,7 @@ static void wr_dungeon(void)
 
     /* Total objects */
     wr_u16b(o_max);
+    log_debug("Writing %d objects to savefile", o_max - 1);
 
     /* Dump the objects */
     for (i = 1; i < o_max; i++)
@@ -1204,6 +1212,7 @@ static void wr_dungeon(void)
 
     /* Total monsters */
     wr_u16b(mon_max);
+    log_debug("Writing %d monsters to savefile", mon_max - 1);
 
     /* Dump the monsters */
     for (i = 1; i < mon_max; i++)
@@ -1221,6 +1230,8 @@ static void wr_dungeon(void)
         wr_byte(flow_center_x[i]);
         wr_s16b(wandering_pause[i]);
     }
+
+    log_debug("Dungeon data write completed - %d objects, %d monsters", o_max - 1, mon_max - 1);
 }
 
 /*
@@ -1234,7 +1245,7 @@ static bool wr_savefile(void)
 
     u16b tmp16u;
 
-    log_debug("Starting wr_savefile");
+    log_trace("Starting wr_savefile");
 
     /* Guess at the current time */
     now = time((time_t*)0);
@@ -1281,18 +1292,18 @@ static bool wr_savefile(void)
     wr_u32b(0L);
 
     /* Write the RNG state */
-    log_debug("Writing RNG state");
+    log_trace("Writing RNG state");
     wr_randomizer();
 
     /* Write the boolean "options" */
-    log_debug("Writing options");
+    log_trace("Writing options");
     wr_options();
 
     /* Dump the number of "messages" */
     tmp16u = message_num();
     wr_u16b(tmp16u);
 
-    log_debug("Writing %d messages", tmp16u);
+    log_trace("Writing %d messages", tmp16u);
 
     /* Dump the messages (oldest first!) */
     for (i = tmp16u - 1; i >= 0; i--)
@@ -1304,18 +1315,21 @@ static bool wr_savefile(void)
     /* Dump the monster lore */
     tmp16u = z_info->r_max;
     wr_u16b(tmp16u);
+    log_debug("Writing %d monster lore entries", tmp16u);
     for (i = 0; i < tmp16u; i++)
         wr_lore(i);
 
     /* Dump the object memory */
     tmp16u = z_info->k_max;
     wr_u16b(tmp16u);
+    log_debug("Writing %d object memory entries", tmp16u);
     for (i = 0; i < tmp16u; i++)
         wr_xtra(i);
 
     /* Hack -- Dump the artefacts */
     tmp16u = z_info->art_max;
     wr_u16b(tmp16u);
+    log_debug("Writing %d artefact entries", tmp16u);
     for (i = 0; i < tmp16u; i++)
     {
         artefact_type* a_ptr = &a_info[i];
@@ -1324,24 +1338,26 @@ static bool wr_savefile(void)
     }
 
     /* Write the "extra" information */
-    log_debug("Writing extra information...\n");
+    log_trace("Writing extra information...\n");
     
     wr_extra();
 
 
 
     /*Write the randarts*/
-    log_debug("Writing random artefacts...");
+    log_trace("Writing random artefacts...");
     wr_randarts();
 
     /*Copy the notes file into the savefile*/
-    log_debug("Writing notes...");
+    log_trace("Writing notes...");
     wr_notes();
 
     // Write the smithing item
+    log_debug("Writing smithing item");
     wr_item(smith_o_ptr);
 
     /* Write the inventory */
+    log_debug("Writing player inventory");
     for (i = 0; i < INVEN_TOTAL; i++)
     {
         object_type* o_ptr = &inventory[i];
@@ -1354,7 +1370,7 @@ static bool wr_savefile(void)
         wr_u16b((u16b)i);
 
         /* Dump object */
-        log_debug("Writing inventory item %d", i);
+        log_trace("Writing inventory item %d", i);
         wr_item(o_ptr);
     }
 
@@ -1365,7 +1381,7 @@ static bool wr_savefile(void)
     if (!p_ptr->is_dead)
     {
         /* Dump the dungeon */
-        log_debug("Writing dungeon...");
+        log_trace("Writing dungeon...");
         wr_dungeon();
     }
 
@@ -1377,10 +1393,14 @@ static bool wr_savefile(void)
 
     /* Error in save */
     if (ferror(fff) || (fflush(fff) == EOF))
-        return FALSE;
+    {
+        log_debug("Save file write error detected");
+        return false;
+    }
 
     /* Successful save */
-    return TRUE;
+    log_debug("Savefile write completed successfully");
+    return true;
 }
 
 /*
@@ -1390,7 +1410,7 @@ static bool wr_savefile(void)
  */
 static bool save_player_aux(cptr name)
 {
-    bool ok = FALSE;
+    bool ok = false;
 
     int fd;
 
@@ -1430,13 +1450,17 @@ static bool save_player_aux(cptr name)
         if (fff)
         {
             /* Write the savefile */
-            log_debug("Writing savefile %s", name);
+            log_trace("Writing savefile %s", name);
             if (wr_savefile())
-                ok = TRUE;
+                ok = true;
 
             /* Attempt to close it */
             if (my_fclose(fff))
-                ok = FALSE;
+                ok = false;
+        }
+        else
+        {
+            log_debug("Failed to open savefile for writing: %s", name);
         }
 
         /* Grab permissions */
@@ -1449,16 +1473,24 @@ static bool save_player_aux(cptr name)
         /* Drop permissions */
         safe_setuid_drop();
     }
+    else
+    {
+        log_debug("Failed to create savefile: %s", name);
+    }
 
     /* Failure */
     if (!ok)
-        return (FALSE);
+    {
+        log_debug("save_player_aux failed for file: %s", name);
+        return (false);
+    }
 
     /* Successful save */
-    character_saved = TRUE;
+    character_saved = true;
+    log_debug("Character saved successfully to: %s", name);
 
     /* Success */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1466,14 +1498,17 @@ static bool save_player_aux(cptr name)
  */
 bool save_player(void)
 {
-    int result = FALSE;
+    int result = false;
 
     char safe[1024];
+
+    log_info("Starting game save...");
 
     // in final deployment versions, you cannot save in the tutorial
     if (DEPLOYMENT && p_ptr->game_type != 0)
     {
-        return (FALSE);
+        log_info("Save blocked: tutorial mode in deployment build");
+        return (false);
     }
 
     /* New savefile */
@@ -1500,6 +1535,8 @@ bool save_player(void)
     if (save_player_aux(safe))
     {
         char temp[1024];
+
+        log_info("Save successful - activating new savefile");
 
         /* Old savefile */
         my_strcpy(temp, savefile, sizeof(temp));
@@ -1530,7 +1567,7 @@ bool save_player(void)
         safe_setuid_drop();
 
         /* Hack -- Pretend the character was loaded */
-        character_loaded = TRUE;
+        character_loaded = true;
 
 #ifdef VERIFY_SAVEFILE
 
@@ -1550,7 +1587,11 @@ bool save_player(void)
 #endif /* VERIFY_SAVEFILE */
 
         /* Success */
-        result = TRUE;
+        result = true;
+    }
+    else 
+    {
+        log_info("Save failed - could not write savefile");
     }
 
     char buf[1024];
@@ -1568,5 +1609,8 @@ bool save_player(void)
     // fd_close(meta_fd);
 
     /* Return the result */
+    if (result) {
+        log_info("Game save completed successfully");
+    }
     return (result);
 }

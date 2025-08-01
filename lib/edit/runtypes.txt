@@ -15,7 +15,13 @@ V:1.5.0
 N:0:Glorfindel
 C:
 U:TERM_WHITE
+W:15
+L:15
+H:*          # applies to all heroes
 
 N:1:Galadriel
 C:1|5|7
 U:TERM_RED
+W:10         # quicker win variant
+L:2          # ironman style – 2 deaths ends the run
+H:0|5|7|12   # only certain heroes

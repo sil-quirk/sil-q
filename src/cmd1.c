@@ -42,13 +42,13 @@ char* quest_outcome[] = {
 void give_player_item(object_type * o_ptr)
 {
     char o_name[80];
-    int slot = inven_carry(o_ptr, TRUE);
+    int slot = inven_carry(o_ptr, true);
 
     /* reset the pointer to the new location to pick up the count of the item
        in the inventory */
     o_ptr = &inventory[slot];
 
-    object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     if (slot >= 0)
         msg_format("You have %s (%c).", o_name, index_to_label(slot));
@@ -70,7 +70,7 @@ void reward_player_for_quest(cptr m_name, unsigned int quest_index)
 
     /* Take a couple of turns */
     p_ptr->energy_use = 100;
-    p_ptr->skip_next_turn = TRUE;
+    p_ptr->skip_next_turn = true;
 
     if (quest_index == QUEST_ELF)
     {
@@ -78,7 +78,7 @@ void reward_player_for_quest(cptr m_name, unsigned int quest_index)
         {
             msg_format("%^s murmurs the song of staunching.", m_name);
             set_cut(0);
-            hp_player(50, TRUE, TRUE);
+            hp_player(50, true, true);
             p_ptr->thrall_quest = QUEST_COMPLETE;
             return;
         }
@@ -281,7 +281,7 @@ void new_wandering_destination(monster_type* m_ptr, monster_type* leader_ptr)
         // clear the index array
         for (i = 0; i <= FLOW_WANDERING_TAIL; i++)
         {
-            wandering_indices[i] = FALSE;
+            wandering_indices[i] = false;
         }
 
         // mark the used indices
@@ -293,7 +293,7 @@ void new_wandering_destination(monster_type* m_ptr, monster_type* leader_ptr)
             if (!n_ptr->r_idx)
                 continue;
 
-            wandering_indices[n_ptr->wandering_idx] = TRUE;
+            wandering_indices[n_ptr->wandering_idx] = true;
         }
 
         // find the smallest unused index
@@ -347,7 +347,7 @@ void drop_iron_crown(monster_type* m_ptr, const char* msg)
         }
 
         // drop it there
-        create_chosen_artefact(ART_MORGOTH_3, near_y, near_x, TRUE);
+        create_chosen_artefact(ART_MORGOTH_3, near_y, near_x, true);
 
         // lower Morgoth's protection, remove his light source, increase his
         // will and perception and evasion
@@ -368,7 +368,7 @@ void set_alertness(monster_type* m_ptr, int alertness)
 {
     char m_name[80];
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
-    bool redisplay = FALSE;
+    bool redisplay = false;
     bool is_non_alert_thrall =
         m_ptr->r_idx == R_IDX_HUMAN_THRALL || m_ptr->r_idx == R_IDX_ELF_THRALL;
 
@@ -398,7 +398,7 @@ void set_alertness(monster_type* m_ptr, int alertness)
             && (alertness >= ALERTNESS_ALERT))
         {
             // Monster must spend its next turn noticing you
-            m_ptr->skip_next_turn = TRUE;
+            m_ptr->skip_next_turn = true;
 
             // Notice the "waking up and noticing"
             if (m_ptr->ml)
@@ -410,7 +410,7 @@ void set_alertness(monster_type* m_ptr, int alertness)
                 disturb(1, 0);
 
                 // redisplay the monster
-                redisplay = TRUE;
+                redisplay = true;
             }
         }
         else if ((m_ptr->alertness < ALERTNESS_UNWARY)
@@ -426,14 +426,14 @@ void set_alertness(monster_type* m_ptr, int alertness)
                 disturb(1, 0);
 
                 // redisplay the monster
-                redisplay = TRUE;
+                redisplay = true;
             }
         }
         else if ((m_ptr->alertness < ALERTNESS_ALERT)
             && (alertness >= ALERTNESS_ALERT))
         {
             // Monster must spend its next turn noticing you
-            m_ptr->skip_next_turn = TRUE;
+            m_ptr->skip_next_turn = true;
 
             // Notice the "noticing" (!)
             if (m_ptr->ml)
@@ -445,7 +445,7 @@ void set_alertness(monster_type* m_ptr, int alertness)
                 disturb(1, 0);
 
                 // redisplay the monster
-                redisplay = TRUE;
+                redisplay = true;
             }
         }
         else if ((m_ptr->alertness < ALERTNESS_UNWARY)
@@ -484,7 +484,7 @@ void set_alertness(monster_type* m_ptr, int alertness)
                 msg_format("%^s falls asleep.", m_name);
 
                 // redisplay the monster
-                redisplay = TRUE;
+                redisplay = true;
             }
             if (m_ptr->r_idx == R_IDX_MORGOTH)
             {
@@ -492,7 +492,7 @@ void set_alertness(monster_type* m_ptr, int alertness)
                 msg_format("%^s falls asleep.", m_name);
 
                 // redisplay the monster
-                redisplay = TRUE;
+                redisplay = true;
 
                 drop_iron_crown(m_ptr,
                     "His crown slips from off his brow and falls to the "
@@ -509,7 +509,7 @@ void set_alertness(monster_type* m_ptr, int alertness)
                 msg_format("%^s becomes unwary.", m_name);
 
                 // redisplay the monster
-                redisplay = TRUE;
+                redisplay = true;
 
                 // give the monster a new place to wander towards
                 if (!(r_ptr->flags2 & (RF2_TERRITORIAL)))
@@ -678,14 +678,14 @@ int hit_roll(int att, int evn, const monster_type* m_ptr1,
     if (m_ptr1 == PLAYER)
     {
         if (m_ptr2 == NULL)
-            non_player_visible = TRUE;
+            non_player_visible = true;
         else
             non_player_visible = m_ptr2->ml;
     }
     else
     {
         if (m_ptr1 == NULL)
-            non_player_visible = TRUE;
+            non_player_visible = true;
         else
             non_player_visible = m_ptr1->ml;
     }
@@ -808,7 +808,7 @@ int total_monster_attack(monster_type* m_ptr, int base)
 {
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
     int att = base;
-    bool unseen = FALSE;
+    bool unseen = false;
 
     // penalise stunning
     if (m_ptr->stunned)
@@ -833,7 +833,7 @@ int total_monster_attack(monster_type* m_ptr, int base)
         // check if player is unseen
         if ((r_ptr->light > 0) && strchr("@G", r_ptr->d_char)
             && (cave_light[p_ptr->py][p_ptr->px] <= 0))
-            unseen = TRUE;
+            unseen = true;
 
         // penalise monsters who can't see the player
         if (unseen)
@@ -852,7 +852,7 @@ int total_monster_evasion(monster_type* m_ptr, bool archery)
 {
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
     int evn = r_ptr->evn;
-    bool unseen = FALSE;
+    bool unseen = false;
 
     // penalise stunning
     if (m_ptr->stunned)
@@ -870,7 +870,7 @@ int total_monster_evasion(monster_type* m_ptr, bool archery)
         // check if player is unseen
         if ((r_ptr->light > 0) && strchr("@G", r_ptr->d_char)
             && (cave_light[p_ptr->py][p_ptr->px] <= 0))
-            unseen = TRUE;
+            unseen = true;
 
         // penalise unwary monsters, or those who can't see the player
         if (unseen || (m_ptr->alertness < ALERTNESS_ALERT))
@@ -1192,7 +1192,7 @@ extern void ident_on_wield(object_type* o_ptr)
 {
     u32b f1, f2, f3;
 
-    bool notice = FALSE;
+    bool notice = false;
 
     char o_full_name[80];
 
@@ -1217,30 +1217,30 @@ extern void ident_on_wield(object_type* o_ptr)
             && ((e_ptr->flags3 | (TR3_IGNORE_ALL)) == (TR3_IGNORE_ALL))
             && (e_ptr->abilities == 0))
         {
-            notice = TRUE;
+            notice = true;
         }
     }
 
     // identify true sight if it cures blindness
     if (p_ptr->blind && (f2 & (TR2_SEE_INVIS)))
     {
-        notice = TRUE;
+        notice = true;
     }
 
     // Currently tunneling is an unambiguous ego on mattocks, so auto-ID
     if (f1 & TR1_TUNNEL)
     {
-        notice = TRUE;
+        notice = true;
     }
 
     if (f3 & TR3_ACCURATE)
     {
-        notice = TRUE;
+        notice = true;
     }
 
     if (f3 & TR3_CUMBERSOME)
     {
-        notice = TRUE;
+        notice = true;
     }
 
     if (o_ptr->name1 || o_ptr->name2)
@@ -1256,31 +1256,31 @@ extern void ident_on_wield(object_type* o_ptr)
 
     if (f2 & (TR2_DARKNESS))
     {
-        notice = TRUE;
+        notice = true;
         msg_print("It creates an unnatural darkness.");
     }
     else if (f2 & (TR2_LIGHT))
     {
         if (o_ptr->tval != TV_LIGHT)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("It glows with a wondrous light.");
         }
         else if ((o_ptr->sval == SV_LIGHT_FEANORIAN)
             || (o_ptr->sval == SV_LIGHT_LESSER_JEWEL) || (o_ptr->timeout > 0))
         {
-            notice = TRUE;
+            notice = true;
             msg_print("It glows very brightly.");
         }
     }
     else if (f2 & (TR2_SLOWNESS))
     {
-        notice = TRUE;
+        notice = true;
         msg_print("It slows your movement.");
     }
     else if (f2 & (TR2_SPEED))
     {
-        notice = TRUE;
+        notice = true;
         msg_print("It speeds your movement.");
     }
 
@@ -1289,16 +1289,16 @@ extern void ident_on_wield(object_type* o_ptr)
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
-            notice = TRUE;
+            notice = true;
         }
         else if (o_ptr->pval > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel more forceful in melee.");
         }
         else if (o_ptr->pval < 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel less forceful in melee.");
         }
     }
@@ -1309,16 +1309,16 @@ extern void ident_on_wield(object_type* o_ptr)
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
-            notice = TRUE;
+            notice = true;
         }
         else if (bonus > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel stronger.");
         }
         else if (bonus < 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel less strong.");
         }
     }
@@ -1329,16 +1329,16 @@ extern void ident_on_wield(object_type* o_ptr)
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
-            notice = TRUE;
+            notice = true;
         }
         else if (bonus > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel more agile.");
         }
         else if (bonus < 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel less agile.");
         }
     }
@@ -1349,16 +1349,16 @@ extern void ident_on_wield(object_type* o_ptr)
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
-            notice = TRUE;
+            notice = true;
         }
         else if (bonus > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel more resilient.");
         }
         else if (bonus < 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel less resilient.");
         }
     }
@@ -1369,16 +1369,16 @@ extern void ident_on_wield(object_type* o_ptr)
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
-            notice = TRUE;
+            notice = true;
         }
         else if (bonus > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel more attuned to the world.");
         }
         else if (bonus < 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel less attuned to the world.");
         }
     }
@@ -1387,16 +1387,16 @@ extern void ident_on_wield(object_type* o_ptr)
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
-            notice = TRUE;
+            notice = true;
         }
         else if (o_ptr->pval > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel more in control of your weapon.");
         }
         else if (o_ptr->pval < 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel less in control of your weapon.");
         }
     }
@@ -1405,16 +1405,16 @@ extern void ident_on_wield(object_type* o_ptr)
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
-            notice = TRUE;
+            notice = true;
         }
         else if (o_ptr->pval > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel more accurate at archery.");
         }
         else if (o_ptr->pval < 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel less accurate at archery.");
         }
     }
@@ -1423,16 +1423,16 @@ extern void ident_on_wield(object_type* o_ptr)
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
-            notice = TRUE;
+            notice = true;
         }
         else if (o_ptr->pval > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("Your movements become quieter.");
         }
         else if (o_ptr->pval < 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("Your movements less quiet.");
         }
     }
@@ -1441,16 +1441,16 @@ extern void ident_on_wield(object_type* o_ptr)
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
-            notice = TRUE;
+            notice = true;
         }
         else if (o_ptr->pval > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel more perceptive.");
         }
         else if (o_ptr->pval < 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel less perceptive.");
         }
     }
@@ -1459,16 +1459,16 @@ extern void ident_on_wield(object_type* o_ptr)
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
-            notice = TRUE;
+            notice = true;
         }
         else if (o_ptr->pval > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel more firm of will.");
         }
         else if (o_ptr->pval < 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel less firm of will.");
         }
     }
@@ -1477,16 +1477,16 @@ extern void ident_on_wield(object_type* o_ptr)
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
-            notice = TRUE;
+            notice = true;
         }
         else if (o_ptr->pval > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel a desire to craft things with your hands.");
         }
         else if (o_ptr->pval < 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel less able to craft things.");
         }
     }
@@ -1495,16 +1495,16 @@ extern void ident_on_wield(object_type* o_ptr)
         // can identify <+0> items if you already know the flavour
         if ((k_info[o_ptr->k_idx].flavor) && object_aware_p(o_ptr))
         {
-            notice = TRUE;
+            notice = true;
         }
         else if (o_ptr->pval > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You are filled with inspiration.");
         }
         else if (o_ptr->pval < 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You feel a loss of inspiration.");
         }
     }
@@ -1512,7 +1512,7 @@ extern void ident_on_wield(object_type* o_ptr)
     // identify the item types that grant abilities
     else if (k_ptr->abilities > 0)
     {
-        notice = TRUE;
+        notice = true;
         msg_format("You have gained the ability '%s'.",
             b_name
                 + (&b_info[ability_index(
@@ -1527,7 +1527,7 @@ extern void ident_on_wield(object_type* o_ptr)
 
         if (e_ptr->abilities > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_format("You have gained the ability '%s'.",
                 b_name
                     + (&b_info[ability_index(
@@ -1543,7 +1543,7 @@ extern void ident_on_wield(object_type* o_ptr)
 
         if (a_ptr->abilities > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_format("You have gained the ability '%s'.",
                 b_name
                     + (&b_info[ability_index(
@@ -1557,31 +1557,31 @@ extern void ident_on_wield(object_type* o_ptr)
     {
         if (object_aware_p(o_ptr))
         {
-            notice = TRUE;
+            notice = true;
         }
         else if (o_ptr->att > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You somehow feel more accurate in combat.");
         }
         else if (o_ptr->att < 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You somehow feel less accurate in combat.");
         }
         else if (o_ptr->evn > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You somehow feel harder to hit.");
         }
         else if (o_ptr->evn < 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You somehow feel more vulnerable.");
         }
         else if (o_ptr->pd > 0)
         {
-            notice = TRUE;
+            notice = true;
             msg_print("You somehow feel more protected.");
         }
     }
@@ -1592,7 +1592,7 @@ extern void ident_on_wield(object_type* o_ptr)
         ident(o_ptr);
 
         /* Full object description */
-        object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
+        object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
         /* Print the messages */
         msg_format("You recognize it as %s.", o_full_name);
@@ -1607,7 +1607,7 @@ extern void ident_resist(u32b flag)
 
     int i;
 
-    bool notice = FALSE;
+    bool notice = false;
 
     char effect_string[80];
     char o_full_name[80];
@@ -1643,110 +1643,110 @@ extern void ident_resist(u32b flag)
         if (!object_known_p(o_ptr))
         {
             /* Short, pre-identification object description */
-            object_desc(o_short_name, sizeof(o_short_name), o_ptr, FALSE, 0);
+            object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
             if ((flag == TR2_RES_COLD) && (f2 & (TR2_RES_COLD)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s partly protects you from the chill.",
                     o_short_name);
             }
             else if ((flag == TR2_RES_FIRE) && (f2 & (TR2_RES_FIRE)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s partly protects you from the flame.",
                     o_short_name);
             }
             else if ((flag == TR2_RES_POIS) && (f2 & (TR2_RES_POIS)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s partly protects you from the poison.",
                     o_short_name);
             }
             else if ((flag == TR2_RES_BLEED) && (f2 & (TR2_RES_BLEED)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your bleeding is slowed by your %s.", o_short_name);
             }
             else if ((flag == TR2_RES_COLD) && (f2 & (TR2_VUL_COLD)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s intensifies the chill.", o_short_name);
             }
             else if ((flag == TR2_RES_FIRE) && (f2 & (TR2_VUL_FIRE)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s intensifies the flame.", o_short_name);
             }
             else if ((flag == TR2_RES_POIS) && (f2 & (TR2_VUL_POIS)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s intensifies the poison.", o_short_name);
             }
             else if ((flag == TR2_RES_FEAR) && (f2 & (TR2_RES_FEAR)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s fills you with courage.", o_short_name);
             }
             else if ((flag == TR2_RES_BLIND) && (f2 & (TR2_RES_BLIND)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s protects your sight.", o_short_name);
             }
             else if ((flag == TR2_RES_HALLU) && (f2 & (TR2_RES_HALLU)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s protects your sight.", o_short_name);
             }
             else if ((flag == TR2_RES_CONFU) && (f2 & (TR2_RES_CONFU)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s fills you with calm.", o_short_name);
             }
             else if ((flag == TR2_RES_STUN) && (f2 & (TR2_RES_STUN)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s fills you with calm.", o_short_name);
             }
             else if ((flag == TR2_FREE_ACT) && (f2 & (TR2_FREE_ACT)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s glows softly.", o_short_name);
             }
             else if ((flag == TR2_SUST_STR) && (f2 & (TR2_SUST_STR)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s sustains your strength.", o_short_name);
             }
             else if ((flag == TR2_SUST_DEX) && (f2 & (TR2_SUST_DEX)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s sustains your dexterity.", o_short_name);
             }
             else if ((flag == TR2_SUST_CON) && (f2 & (TR2_SUST_CON)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s sustains your constitution.", o_short_name);
             }
             else if ((flag == TR2_SUST_GRA) && (f2 & (TR2_SUST_GRA)))
             {
-                notice = TRUE;
+                notice = true;
                 strnfmt(effect_string, sizeof(effect_string),
                     "Your %s sustains your grace.", o_short_name);
             }
@@ -1758,7 +1758,7 @@ extern void ident_resist(u32b flag)
             ident(o_ptr);
 
             /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
+            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
             /* Print the messages */
             msg_format("%s", effect_string);
@@ -1777,7 +1777,7 @@ extern void ident_passive(void)
 
     int i;
 
-    bool notice = FALSE;
+    bool notice = false;
 
     char effect_string[80];
     char o_full_name[80];
@@ -1801,7 +1801,7 @@ extern void ident_passive(void)
         {
             if ((f2 & (TR2_REGEN)) && (p_ptr->chp < p_ptr->mhp))
             {
-                notice = TRUE;
+                notice = true;
                 my_strcpy(effect_string,
                     "You notice that you are recovering much faster than "
                     "usual.",
@@ -1809,14 +1809,14 @@ extern void ident_passive(void)
             }
             else if ((f2 & (TR2_AGGRAVATE)))
             {
-                notice = TRUE;
+                notice = true;
                 my_strcpy(effect_string,
                     "You notice that you are enraging your enemies.",
                     sizeof(effect_string));
             }
             else if ((f2 & (TR2_DANGER)))
             {
-                notice = TRUE;
+                notice = true;
                 my_strcpy(effect_string,
                     "You notice that you are attracting more powerful enemies.",
                     sizeof(effect_string));
@@ -1826,13 +1826,13 @@ extern void ident_passive(void)
         if (notice)
         {
             /* Short, pre-identification object description */
-            object_desc(o_short_name, sizeof(o_short_name), o_ptr, FALSE, 0);
+            object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
             /* identify the object */
             ident(o_ptr);
 
             /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
+            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
             /* Print the messages */
             msg_format("%s", effect_string);
@@ -1852,7 +1852,7 @@ extern void ident_see_invisible(const monster_type* m_ptr)
 
     int i;
 
-    bool notice = FALSE;
+    bool notice = false;
 
     char m_name[80];
     char o_full_name[80];
@@ -1876,7 +1876,7 @@ extern void ident_see_invisible(const monster_type* m_ptr)
         {
             if ((f2 & (TR2_SEE_INVIS)))
             {
-                notice = TRUE;
+                notice = true;
             }
         }
 
@@ -1886,13 +1886,13 @@ extern void ident_see_invisible(const monster_type* m_ptr)
             monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 
             /* Short, pre-identification object description */
-            object_desc(o_short_name, sizeof(o_short_name), o_ptr, FALSE, 0);
+            object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
             /* identify the object */
             ident(o_ptr);
 
             /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
+            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
             /* Print the messages */
             msg_format("You notice that you can see %s very clearly.", m_name);
@@ -1912,7 +1912,7 @@ extern void ident_haunted(void)
 
     int i;
 
-    bool notice = FALSE;
+    bool notice = false;
 
     char o_full_name[80];
     char o_short_name[80];
@@ -1935,20 +1935,20 @@ extern void ident_haunted(void)
         {
             if ((f2 & (TR2_HAUNTED)))
             {
-                notice = TRUE;
+                notice = true;
             }
         }
 
         if (notice)
         {
             /* Short, pre-identification object description */
-            object_desc(o_short_name, sizeof(o_short_name), o_ptr, FALSE, 0);
+            object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
             /* identify the object */
             ident(o_ptr);
 
             /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
+            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
             /* Print the messages */
             msg_print("You notice that wraiths are being drawn to you.");
@@ -1969,7 +1969,7 @@ void ident_hunger(void)
 {
     u32b f1, f2, f3;
     int i;
-    bool notice = FALSE;
+    bool notice = false;
     char o_full_name[80];
     char o_short_name[80];
     object_type* o_ptr;
@@ -1990,25 +1990,25 @@ void ident_hunger(void)
         {
             if ((f2 & (TR2_HUNGER)) && (p_ptr->hunger > 0))
             {
-                notice = TRUE;
+                notice = true;
             }
 
             if ((f2 & (TR2_SLOW_DIGEST)) && (p_ptr->hunger < 0))
             {
-                notice = TRUE;
+                notice = true;
             }
         }
 
         if (notice)
         {
             /* Short, pre-identification object description */
-            object_desc(o_short_name, sizeof(o_short_name), o_ptr, FALSE, 0);
+            object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
             /* identify the object */
             ident(o_ptr);
 
             /* Full object description */
-            object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
+            object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
             /* Print the messages */
             if (f2 & (TR2_HUNGER))
@@ -2034,7 +2034,7 @@ extern void ident_f2(u32b flag, object_type* supplied_object)
 
     int i;
 
-    bool notice = FALSE;
+    bool notice = false;
 
     char o_full_name[80];
     char o_short_name[80];
@@ -2057,7 +2057,7 @@ extern void ident_f2(u32b flag, object_type* supplied_object)
 
             if (!object_known_p(o_ptr) && (f2 & (flag)))
             {
-                notice = TRUE;
+                notice = true;
                 break;
             }
         }
@@ -2067,20 +2067,20 @@ extern void ident_f2(u32b flag, object_type* supplied_object)
         object_flags(o_ptr, &f1, &f2, &f3);
         if (f2 & flag)
         {
-            notice = TRUE;
+            notice = true;
         }
     }
 
     if (notice && o_ptr)
     {
         /* Short, pre-identification object description */
-        object_desc(o_short_name, sizeof(o_short_name), o_ptr, FALSE, 0);
+        object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
         /* identify the object */
         ident(o_ptr);
 
         /* Full object description */
-        object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
+        object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
         msg_format(
             "You realize that your %s is %s.", o_short_name, o_full_name);
@@ -2093,7 +2093,7 @@ extern void ident_f3(u32b flag, object_type* supplied_object)
 
     int i;
 
-    bool notice = FALSE;
+    bool notice = false;
 
     char o_full_name[80];
     char o_short_name[80];
@@ -2116,7 +2116,7 @@ extern void ident_f3(u32b flag, object_type* supplied_object)
 
             if (!object_known_p(o_ptr) && (f3 & (flag)))
             {
-                notice = TRUE;
+                notice = true;
                 break;
             }
         }
@@ -2126,20 +2126,20 @@ extern void ident_f3(u32b flag, object_type* supplied_object)
         object_flags(o_ptr, &f1, &f2, &f3);
         if (f3 & flag)
         {
-            notice = TRUE;
+            notice = true;
         }
     }
 
     if (notice && o_ptr)
     {
         /* Short, pre-identification object description */
-        object_desc(o_short_name, sizeof(o_short_name), o_ptr, FALSE, 0);
+        object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
         /* identify the object */
         ident(o_ptr);
 
         /* Full object description */
-        object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
+        object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
         msg_format(
             "You realize that your %s is %s.", o_short_name, o_full_name);
@@ -2157,13 +2157,13 @@ void ident_weapon_by_use(
     char slay_description[160];
 
     /* Short, pre-identification object description */
-    object_desc(o_short_name, sizeof(o_short_name), o_ptr, FALSE, 0);
+    object_desc(o_short_name, sizeof(o_short_name), o_ptr, false, 0);
 
     /* identify the object */
     ident(o_ptr);
 
     /* Full object description */
-    object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
+    object_desc(o_full_name, sizeof(o_full_name), o_ptr, true, 3);
 
     /* Description of the 'slay' */
     slay_desc(slay_description, flag, m_ptr);
@@ -2186,8 +2186,8 @@ void ident_bow_arrow_by_use(object_type* j_ptr, object_type* i_ptr,
     char slay_description[160];
 
     /* Short, pre-identification bow and arrow description */
-    object_desc(j_short_name, sizeof(j_short_name), j_ptr, FALSE, 0);
-    object_desc(i_short_name, sizeof(i_short_name), i_ptr, FALSE, 0);
+    object_desc(j_short_name, sizeof(j_short_name), j_ptr, false, 0);
+    object_desc(i_short_name, sizeof(i_short_name), i_ptr, false, 0);
 
     if (arrow_flag)
     {
@@ -2211,7 +2211,7 @@ void ident_bow_arrow_by_use(object_type* j_ptr, object_type* i_ptr,
         p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
 
         /* Full arrow description */
-        object_desc(i_full_name, sizeof(i_full_name), i_ptr, TRUE, 3);
+        object_desc(i_full_name, sizeof(i_full_name), i_ptr, true, 3);
 
         slay_desc(slay_description, arrow_flag, m_ptr);
 
@@ -2241,7 +2241,7 @@ void ident_bow_arrow_by_use(object_type* j_ptr, object_type* i_ptr,
         p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
 
         /* Full arrow description */
-        object_desc(j_full_name, sizeof(j_full_name), j_ptr, TRUE, 3);
+        object_desc(j_full_name, sizeof(j_full_name), j_ptr, true, 3);
 
         slay_desc(slay_description, bow_flag, m_ptr);
 
@@ -2576,7 +2576,7 @@ void search_square(int y, int x, int dist, int searching)
     int chest_level = 0;
 
     object_type* o_ptr;
-    int chest_trap_present = FALSE;
+    int chest_trap_present = false;
 
     // determine if a trap is present
     for (o_ptr = get_first_object(y, x); o_ptr; o_ptr = get_next_object(o_ptr))
@@ -2584,7 +2584,7 @@ void search_square(int y, int x, int dist, int searching)
         if ((o_ptr->tval == TV_CHEST) && chest_traps[o_ptr->pval]
             && !object_known_p(o_ptr))
         {
-            chest_trap_present = TRUE;
+            chest_trap_present = true;
             chest_level = o_ptr->pval;
             break;
         }
@@ -2604,7 +2604,7 @@ void search_square(int y, int x, int dist, int searching)
             // mark an object, but not the square it is in
             if (cave_o_idx[y][x] != 0)
             {
-                (&o_list[cave_o_idx[y][x]])->marked = TRUE;
+                (&o_list[cave_o_idx[y][x]])->marked = true;
             }
 
             /* Redraw */
@@ -2734,7 +2734,7 @@ void search(void)
         for (x = (px - 1); x <= (px + 1); x++)
         {
             if ((x != px) || (y != py))
-                search_square(y, x, 1, TRUE);
+                search_square(y, x, 1, true);
         }
     }
 
@@ -2769,7 +2769,7 @@ extern void perceive(void)
                      * sight*/
                     if ((dist <= 4) && los(py, px, y, x))
                     {
-                        search_square(y, x, dist, FALSE);
+                        search_square(y, x, dist, false);
                     }
                 }
             }
@@ -2795,7 +2795,7 @@ void py_pickup_aux(int o_idx)
         give_player_item(o_ptr);
 
         // Break the truce if creatures see
-        break_truce(FALSE);
+        break_truce(false);
     }
 
     /* Delete the object */
@@ -2810,13 +2810,13 @@ void py_pickup_aux(int o_idx)
  */
 void do_cmd_pickup_from_pile(void)
 {
-    bool picked_up_item = FALSE;
+    bool picked_up_item = false;
 
     /*
      * Loop through and pick up objects until escape is hit or the backpack
      * can't hold anything else.
      */
-    while (TRUE)
+    while (true)
     {
         int item;
 
@@ -2883,7 +2883,7 @@ void do_cmd_pickup_from_pile(void)
         py_pickup_aux(floor_list[item]);
 
         /*Mark that we picked something up*/
-        picked_up_item = TRUE;
+        picked_up_item = true;
 
         /* Load screen */
         screen_load();
@@ -2902,13 +2902,13 @@ void do_cmd_pickup_from_pile(void)
 /*
  * Make the player carry everything in a grid.
  *
- * If "pickup" is FALSE then nothing will be picked up.
+ * If "pickup" is false then nothing will be picked up.
  */
 void py_pickup(void)
 {
     int py = p_ptr->py;
     int px = p_ptr->px;
-    bool done_pickup = FALSE;
+    bool done_pickup = false;
 
     s16b this_o_idx, next_o_idx = 0;
 
@@ -2926,7 +2926,7 @@ void py_pickup(void)
         o_ptr = &o_list[this_o_idx];
 
         /* Describe the object */
-        object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
         /* Get the next object */
         next_o_idx = o_ptr->next_o_idx;
@@ -2971,7 +2971,7 @@ void py_pickup(void)
         /* Pick up the object */
         py_pickup_aux(this_o_idx);
 
-        done_pickup = TRUE;
+        done_pickup = true;
     }
 
     if (!done_pickup)
@@ -2990,9 +2990,9 @@ extern bool check_hit(int power, bool display_roll)
     if (hit_roll(power, p_ptr->skill_use[S_EVN] + dodging_bonus(), NULL, PLAYER,
             display_roll)
         > 0)
-        return (TRUE);
+        return (true);
     else
-        return (FALSE);
+        return (false);
 }
 
 /*
@@ -3038,7 +3038,7 @@ void hit_trap(int y, int x)
         do_cmd_note("Fell into a chasm", p_ptr->depth);
 
         // take some damage
-        falling_damage(FALSE);
+        falling_damage(false);
 
         // make a note if the player loses a greater vault
         note_lost_greater_vault();
@@ -3047,12 +3047,12 @@ void hit_trap(int y, int x)
         p_ptr->depth = MIN(p_ptr->depth + 2, MORGOTH_DEPTH - 1);
 
         /* Leaving */
-        p_ptr->leaving = TRUE;
+        p_ptr->leaving = true;
 
         break;
     }
 
-    case FEAT_TRAP_FALSE_FLOOR:
+    case FEAT_TRAP_false_FLOOR:
     {
         // give several messages so the player has a chance to see it happen
         msg_print("The floor crumbles beneath you!");
@@ -3066,7 +3066,7 @@ void hit_trap(int y, int x)
         do_cmd_note("Fell through a false floor", p_ptr->depth);
 
         // take some damage
-        falling_damage(FALSE);
+        falling_damage(false);
 
         // make a note if the player loses a greater vault
         note_lost_greater_vault();
@@ -3075,7 +3075,7 @@ void hit_trap(int y, int x)
         p_ptr->depth++;
 
         /* Leaving */
-        p_ptr->leaving = TRUE;
+        p_ptr->leaving = true;
 
         break;
     }
@@ -3087,8 +3087,8 @@ void hit_trap(int y, int x)
         /* Falling damage */
         dam = damroll(2, 4);
 
-        update_combat_rolls1b(NULL, PLAYER, TRUE);
-        update_combat_rolls2(2, 4, dam, -1, -1, 0, 0, GF_HURT, FALSE);
+        update_combat_rolls1b(NULL, PLAYER, true);
+        update_combat_rolls2(2, 4, dam, -1, -1, 0, 0, GF_HURT, false);
 
         /* Take the damage */
         take_hit(dam, name);
@@ -3106,8 +3106,8 @@ void hit_trap(int y, int x)
         /* Falling damage */
         dam = damroll(2, 4);
 
-        update_combat_rolls1b(NULL, PLAYER, TRUE);
-        update_combat_rolls2(2, 4, dam, -1, -1, 0, 0, GF_HURT, FALSE);
+        update_combat_rolls1b(NULL, PLAYER, true);
+        update_combat_rolls2(2, 4, dam, -1, -1, 0, 0, GF_HURT, false);
 
         /* Take the damage */
         take_hit(dam, name);
@@ -3116,12 +3116,12 @@ void hit_trap(int y, int x)
         dam = damroll(4, 5);
 
         /* Protection */
-        prt = protection_roll(GF_HURT, TRUE);
+        prt = protection_roll(GF_HURT, true);
 
         net_dam = (dam - prt > 0) ? (dam - prt) : 0;
 
-        update_combat_rolls1b(NULL, PLAYER, TRUE);
-        update_combat_rolls2(4, 5, dam, -1, -1, prt, 100, GF_HURT, TRUE);
+        update_combat_rolls1b(NULL, PLAYER, true);
+        update_combat_rolls2(4, 5, dam, -1, -1, prt, 100, GF_HURT, true);
 
         if (net_dam > 0)
         {
@@ -3145,10 +3145,10 @@ void hit_trap(int y, int x)
 
     case FEAT_TRAP_DART:
     {
-        if (check_hit(15, TRUE))
+        if (check_hit(15, true))
         {
             dam = damroll(1, 15);
-            prt = protection_roll(GF_HURT, FALSE);
+            prt = protection_roll(GF_HURT, false);
 
             if (dam > prt)
             {
@@ -3158,7 +3158,7 @@ void hit_trap(int y, int x)
                 take_hit(1, name);
 
                 update_combat_rolls2(
-                    1, 15, prt + 1, -1, -1, prt, 100, GF_HURT, FALSE);
+                    1, 15, prt + 1, -1, -1, prt, 100, GF_HURT, false);
 
                 (void)do_dec_stat(A_STR, NULL);
             }
@@ -3168,7 +3168,7 @@ void hit_trap(int y, int x)
                     "A small dart hits you, but is deflected by your armour.");
 
                 update_combat_rolls2(
-                    1, 15, dam, -1, -1, prt, 100, GF_HURT, FALSE);
+                    1, 15, dam, -1, -1, prt, 100, GF_HURT, false);
             }
         }
         else
@@ -3177,7 +3177,7 @@ void hit_trap(int y, int x)
         }
 
         /* Make a small amount of noise */
-        monster_perception(TRUE, FALSE, 5);
+        monster_perception(true, false, 5);
 
         break;
     }
@@ -3198,7 +3198,7 @@ void hit_trap(int y, int x)
         }
 
         /* Make a small amount of noise */
-        monster_perception(TRUE, FALSE, 5);
+        monster_perception(true, false, 5);
 
         break;
     }
@@ -3218,7 +3218,7 @@ void hit_trap(int y, int x)
         explosion(-1, 1, y, x, 3, 4, 10, GF_CONFUSION);
 
         /* Make a small amount of noise */
-        monster_perception(TRUE, FALSE, 10);
+        monster_perception(true, false, 10);
 
         break;
     }
@@ -3240,7 +3240,7 @@ void hit_trap(int y, int x)
         explosion(-1, 1, y, x, 0, 0, 0, GF_NOTHING);
 
         /* Make a small amount of noise */
-        monster_perception(TRUE, FALSE, 10);
+        monster_perception(true, false, 10);
 
         break;
     }
@@ -3253,17 +3253,17 @@ void hit_trap(int y, int x)
         dam = damroll(4, 4);
 
         /* Protection */
-        prt = protection_roll(GF_HURT, FALSE);
+        prt = protection_roll(GF_HURT, false);
 
         net_dam = (dam - prt > 0) ? (dam - prt) : 0;
 
-        update_combat_rolls1b(NULL, PLAYER, TRUE);
-        update_combat_rolls2(4, 4, dam, -1, -1, prt, 100, GF_HURT, FALSE);
+        update_combat_rolls1b(NULL, PLAYER, true);
+        update_combat_rolls2(4, 4, dam, -1, -1, prt, 100, GF_HURT, false);
 
         acid_dam(net_dam, "an acid trap");
 
         /* Make a small amount of noise */
-        monster_perception(TRUE, FALSE, 10);
+        monster_perception(true, false, 10);
 
         break;
     }
@@ -3280,7 +3280,7 @@ void hit_trap(int y, int x)
         }
 
         /* Make a lot of noise */
-        monster_perception(TRUE, FALSE, -20);
+        monster_perception(true, false, -20);
 
         break;
     }
@@ -3297,8 +3297,8 @@ void hit_trap(int y, int x)
 
             dam = damroll(1, 4);
 
-            update_combat_rolls1b(NULL, PLAYER, TRUE);
-            update_combat_rolls2(1, 4, dam, -1, -1, 0, 0, GF_HURT, TRUE);
+            update_combat_rolls1b(NULL, PLAYER, true);
+            update_combat_rolls2(1, 4, dam, -1, -1, 0, 0, GF_HURT, true);
 
             take_hit(dam, name);
 
@@ -3404,12 +3404,12 @@ void hit_trap(int y, int x)
             dam = damroll(6, 8);
 
             /* Protection */
-            prt = protection_roll(GF_HURT, FALSE);
+            prt = protection_roll(GF_HURT, false);
 
             net_dam = (dam - prt > 0) ? (dam - prt) : 0;
 
-            update_combat_rolls1b(NULL, PLAYER, TRUE);
-            update_combat_rolls2(6, 8, dam, -1, -1, prt, 100, GF_HURT, FALSE);
+            update_combat_rolls1b(NULL, PLAYER, true);
+            update_combat_rolls2(6, 8, dam, -1, -1, prt, 100, GF_HURT, false);
 
             if (allow_player_stun(NULL))
             {
@@ -3421,16 +3421,16 @@ void hit_trap(int y, int x)
         else
         {
             /* Calculate results */
-            if (check_hit(20, TRUE))
+            if (check_hit(20, true))
             {
                 msg_print("You are struck by rubble!");
                 dam = damroll(4, 8);
 
                 /* Protection */
-                prt = protection_roll(GF_HURT, FALSE);
+                prt = protection_roll(GF_HURT, false);
 
                 update_combat_rolls2(
-                    4, 8, dam, -1, -1, prt, 100, GF_HURT, FALSE);
+                    4, 8, dam, -1, -1, prt, 100, GF_HURT, false);
 
                 net_dam = (dam - prt > 0) ? (dam - prt) : 0;
 
@@ -3459,7 +3459,7 @@ void hit_trap(int y, int x)
         cave_set_feat(y, x, FEAT_RUBBLE);
 
         /* Make a lot of noise */
-        monster_perception(TRUE, FALSE, -20);
+        monster_perception(true, false, -20);
 
         break;
     }
@@ -3600,12 +3600,12 @@ bool valid_charge(int fy, int fx, int attack_type)
 
             if (p_ptr->previous_action[1] == d)
             {
-                return (TRUE);
+                return (true);
             }
         }
     }
 
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -3697,7 +3697,7 @@ int focused_attack_bonus(void)
     // focused attack
     if (p_ptr->focused)
     {
-        p_ptr->focused = FALSE;
+        p_ptr->focused = false;
 
         if (p_ptr->active_ability[S_PER][PER_FOCUSED_ATTACK])
         {
@@ -3750,9 +3750,9 @@ void attack_punctuation(char* punctuation, int net_dam, int crit_bonus_dice)
 
 bool knock_back(int y1, int x1, int y2, int x2)
 {
-    bool knocked = FALSE;
+    bool knocked = false;
 
-    bool monster_target = FALSE;
+    bool monster_target = false;
 
     int mod, d, i;
     int y3, x3; // the location to get knocked to
@@ -3773,7 +3773,7 @@ bool knock_back(int y1, int x1, int y2, int x2)
     // knocking a monster back...
     if (cave_m_idx[y2][x2] > 0)
     {
-        monster_target = TRUE;
+        monster_target = true;
         m_ptr = &mon_list[cave_m_idx[y2][x2]];
     }
 
@@ -3783,7 +3783,7 @@ bool knock_back(int y1, int x1, int y2, int x2)
     {
         y3 = y2 + dy;
         x3 = x2 + dx;
-        knocked = TRUE;
+        knocked = true;
     }
 
     // then try the adjacent directions
@@ -3803,7 +3803,7 @@ bool knock_back(int y1, int x1, int y2, int x2)
             x3 = x2 + ddx[d];
             if (cave_floor_bold(y3, x3) && (cave_m_idx[y3][x3] == 0))
             {
-                knocked = TRUE;
+                knocked = true;
                 break;
             }
 
@@ -3817,7 +3817,7 @@ bool knock_back(int y1, int x1, int y2, int x2)
     {
         if (monster_target)
         {
-            m_ptr->skip_next_turn = TRUE;
+            m_ptr->skip_next_turn = true;
 
             // actually move the monster
             monster_swap(y2, x2, y3, x3);
@@ -3825,15 +3825,15 @@ bool knock_back(int y1, int x1, int y2, int x2)
         else
         {
             msg_print("You are knocked back.");
-            p_ptr->knocked_back = TRUE;
+            p_ptr->knocked_back = true;
 
-            p_ptr->skip_next_turn = TRUE;
+            p_ptr->skip_next_turn = true;
 
             // actually move the player
             monster_swap(y2, x2, y3, x3);
 
             // cannot stay in the air
-            p_ptr->leaping = FALSE;
+            p_ptr->leaping = false;
 
             // make some noise when landing
             stealth_score -= 5;
@@ -3870,15 +3870,15 @@ bool abort_for_mercy(monster_type* m_ptr)
 {
     // Unseen enemies are okay to kill
     if (!m_ptr->ml)
-        return FALSE;
+        return false;
 
     if (merciless_attack(m_ptr)
         && !get_check("Are you sure you wish to break your oath? "))
     {
-        return TRUE;
+        return true;
     }
 
-    return FALSE;
+    return false;
 }
 
 void break_mercy_oath(monster_type* m_ptr, int damage)
@@ -3936,14 +3936,14 @@ void py_attack_aux(int y, int x, int attack_type)
     char m_name[80];
     char punctuation[20];
 
-    bool abort_attack = FALSE;
-    bool do_knock_back = FALSE;
-    bool knocked = FALSE;
-    bool charge = FALSE;
-    bool rapid_attack = FALSE;
-    bool off_hand_blow = FALSE;
-    bool fatal_blow = FALSE;
-    bool smite = FALSE;
+    bool abort_attack = false;
+    bool do_knock_back = false;
+    bool knocked = false;
+    bool charge = false;
+    bool rapid_attack = false;
+    bool off_hand_blow = false;
+    bool fatal_blow = false;
+    bool smite = false;
 
     u32b f1, f2, f3; // the weapon's flags
 
@@ -3986,7 +3986,7 @@ void py_attack_aux(int y, int x, int attack_type)
         /* Message */
         msg_format("You are too afraid to attack %s!", m_name);
 
-        abort_attack = TRUE;
+        abort_attack = true;
     }
 
     if (r_ptr->flags1 & (RF1_PEACEFUL))
@@ -4004,7 +4004,7 @@ void py_attack_aux(int y, int x, int attack_type)
             }
         }
 
-        abort_attack = TRUE;
+        abort_attack = true;
     }
 
     // inscribing an object with "!a" produces prompts to confirm that you with
@@ -4021,7 +4021,7 @@ void py_attack_aux(int y, int x, int attack_type)
             if ((s[1] == 'a')
                 && !get_check("Are you sure you wish to attack? "))
             {
-                abort_attack = TRUE;
+                abort_attack = true;
             }
 
             /* Find another '!' */
@@ -4032,32 +4032,32 @@ void py_attack_aux(int y, int x, int attack_type)
     // Warning about breaking the truce
     if ((p_ptr->truce) && !get_check("Are you sure you wish to attack? "))
     {
-        abort_attack = TRUE;
+        abort_attack = true;
     }
 
     // Warn about fighting with fists
     if ((o_ptr->weight == 0)
         && !get_check("Are you sure you wish to attack with no weapon? "))
     {
-        abort_attack = TRUE;
+        abort_attack = true;
     }
 
     // Warn about fighting with shovel
     if ((o_ptr->tval == TV_DIGGING) && (o_ptr->sval == SV_SHOVEL)
         && !get_check("Are you sure you wish to attack with your shovel? "))
     {
-        abort_attack = TRUE;
+        abort_attack = true;
     }
 
     // Don't make the player deal with Oath warnings on free attacks - pass them
     // up
     if (!is_normal_attack(attack_type) && merciless_attack(m_ptr))
     {
-        abort_attack = TRUE;
+        abort_attack = true;
     }
     else if (abort_for_mercy(m_ptr))
     {
-        abort_attack = TRUE;
+        abort_attack = true;
     }
 
     // Cancel the attack if needed
@@ -4089,14 +4089,14 @@ void py_attack_aux(int y, int x, int attack_type)
     attack_mod = p_ptr->skill_use[S_MEL];
 
     /* Monsters might notice */
-    player_attacked = TRUE;
+    player_attacked = true;
 
     // Determine the number of attacks
     blows = 1;
     if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
     {
         blows++;
-        rapid_attack = TRUE;
+        rapid_attack = true;
     }
     if (p_ptr->mds2 > 0 && attack_type != ATT_IMPALE)
     {
@@ -4115,7 +4115,7 @@ void py_attack_aux(int y, int x, int attack_type)
         // undo the dexterity adjustment to the attack (if any)
         if (rapid_attack)
         {
-            rapid_attack = FALSE;
+            rapid_attack = false;
             attack_mod += 3;
         }
     }
@@ -4130,17 +4130,17 @@ void py_attack_aux(int y, int x, int attack_type)
                 || attack_type == ATT_FOLLOW_THROUGH
                 || attack_type == ATT_WHIRLWIND);
 
-        do_knock_back = FALSE;
-        knocked = FALSE;
+        do_knock_back = false;
+        knocked = false;
 
         if (smite)
-            p_ptr->skip_next_turn = TRUE;
+            p_ptr->skip_next_turn = true;
 
         // if the previous blow was a charge, undo the charge effects for later
         // blows
         if (charge)
         {
-            charge = FALSE;
+            charge = false;
             attack_mod -= 3;
             mds = p_ptr->mds;
         }
@@ -4149,8 +4149,8 @@ void py_attack_aux(int y, int x, int attack_type)
         if ((num == blows) && (num != 1) && (p_ptr->mds2 > 0)
             && attack_type != ATT_IMPALE)
         {
-            off_hand_blow = TRUE;
-            rapid_attack = FALSE;
+            off_hand_blow = true;
+            rapid_attack = false;
 
             attack_mod += p_ptr->offhand_mel_mod;
             mdd = p_ptr->mdd2;
@@ -4168,7 +4168,7 @@ void py_attack_aux(int y, int x, int attack_type)
             if (rapid_attack)
                 str_adjustment -= 3;
 
-            charge = TRUE;
+            charge = true;
             attack_mod += 3;
 
             // undo strength adjustment to the attack (if any)
@@ -4192,10 +4192,10 @@ void py_attack_aux(int y, int x, int attack_type)
             = total_player_attack(m_ptr, attack_mod + stealth_bonus);
 
         // Determine the monster's evasion score after all modifiers
-        total_evasion_mod = total_monster_evasion(m_ptr, FALSE);
+        total_evasion_mod = total_monster_evasion(m_ptr, false);
 
         hit_result = hit_roll(
-            total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
+            total_attack_mod, total_evasion_mod, PLAYER, m_ptr, true);
 
         if (hit_result <= 0 && (f3 & TR3_ACCURATE))
         {
@@ -4203,7 +4203,7 @@ void py_attack_aux(int y, int x, int attack_type)
             monster_desc(m_name, sizeof(m_name), m_ptr, 0x00);
 
             hit_result = hit_roll(
-                total_attack_mod, total_evasion_mod, PLAYER, m_ptr, TRUE);
+                total_attack_mod, total_evasion_mod, PLAYER, m_ptr, true);
             if (hit_result > 0)
                 msg_format("%^s tries and fails to dodge your blow.", m_name);
         }
@@ -4222,7 +4222,7 @@ void py_attack_aux(int y, int x, int attack_type)
 
             /* Calculate the damage */
             crit_bonus_dice = crit_bonus(
-                hit_result, weapon_weight, r_ptr, S_MEL, FALSE, NULL);
+                hit_result, weapon_weight, r_ptr, S_MEL, false, NULL);
             slay_bonus_dice = slay_bonus(o_ptr, m_ptr, &noticed_flag);
 
             if (f3 & TR3_CUMBERSOME)
@@ -4320,7 +4320,7 @@ void py_attack_aux(int y, int x, int attack_type)
                     > 0))
             {
                 // remember this for later when the effect is applied
-                do_knock_back = TRUE;
+                do_knock_back = true;
             }
 
             if (singing(SNG_SLAYING) && crit_bonus_dice > 0)
@@ -4349,7 +4349,7 @@ void py_attack_aux(int y, int x, int attack_type)
                     /* Delete the monster */
                     delete_monster_idx(m_idx);
                     
-                    fatal_blow = TRUE;
+                    fatal_blow = true;
                 }
             }
 
@@ -4362,7 +4362,7 @@ void py_attack_aux(int y, int x, int attack_type)
             }
 
             update_combat_rolls2(total_dice, mds, dam, r_ptr->pd, r_ptr->ps,
-                prt, prt_percent, damage_type, TRUE);
+                prt, prt_percent, damage_type, true);
 
             // use different colours depending on whether knock back triggered
             if (do_knock_back)
@@ -4378,7 +4378,7 @@ void py_attack_aux(int y, int x, int attack_type)
             if (noticed_flag)
             {
                 ident_weapon_by_use(o_ptr, m_ptr, noticed_flag);
-                noticed_flag = FALSE;
+                noticed_flag = false;
             }
 
             // deal with killing blows
@@ -4387,7 +4387,7 @@ void py_attack_aux(int y, int x, int attack_type)
                 // heal with a vampiric weapon
                 if ((f1 & (TR1_VAMPIRIC)) && !monster_nonliving(r_ptr))
                 {
-                    if (hp_player(7, FALSE, FALSE) && !object_known_p(o_ptr))
+                    if (hp_player(7, false, false) && !object_known_p(o_ptr))
                     {
                         ident_weapon_by_use(o_ptr, m_ptr, TR1_VAMPIRIC);
                     }
@@ -4399,7 +4399,7 @@ void py_attack_aux(int y, int x, int attack_type)
                 if (p_ptr->active_ability[S_WIL][WIL_FORMIDABLE])
                 {
                     int will_score = p_ptr->skill_use[S_WIL];
-                    if (project_los(GF_FEAR, 0, 0, will_score, TRUE))
+                    if (project_los(GF_FEAR, 0, 0, will_score, true))
                         msg_print("Your foes are daunted!");
                 }
 
@@ -4517,17 +4517,17 @@ void py_attack_aux(int y, int x, int attack_type)
     }
 
     // Break the truce if creatures see
-    break_truce(FALSE);
+    break_truce(false);
 }
 
 bool whirlwind_possible(void)
 {
     if (!p_ptr->active_ability[S_MEL][MEL_WHIRLWIND_ATTACK])
     {
-        return (FALSE);
+        return (false);
     }
 
-    return (TRUE);
+    return (true);
 }
 
 bool can_impale()
@@ -4627,14 +4627,14 @@ void flanking_or_retreat(int y, int x)
     monster_type* m_ptr;
 
     bool flanking = p_ptr->active_ability[S_EVN][EVN_FLANKING];
-    bool controlled_retreat = FALSE;
+    bool controlled_retreat = false;
 
     // need to have the ability, and to have not moved last round
     if (p_ptr->active_ability[S_EVN][EVN_CONTROLLED_RETREAT]
         && ((p_ptr->previous_action[1] > 9)
             || (p_ptr->previous_action[1] == 5)))
     {
-        controlled_retreat = TRUE;
+        controlled_retreat = true;
     }
 
     if (!p_ptr->confused && (flanking || controlled_retreat))
@@ -4849,8 +4849,8 @@ void move_player(int dir)
                 char prompt[80];
                 int i;
                 int d;
-                bool run_up = FALSE;
-                bool confirm = TRUE;
+                bool run_up = false;
+                bool confirm = true;
 
                 // test all three directions roughly towards the chasm/pit
                 for (i = -1; i <= 1; i++)
@@ -4862,7 +4862,7 @@ void move_player(int dir)
                     // if the last action was a move in this direction, we have
                     // a valid run_up
                     if (p_ptr->previous_action[1] == d)
-                        run_up = TRUE;
+                        run_up = true;
                 }
 
                 if (p_ptr->active_ability[S_EVN][EVN_LEAPING])
@@ -4947,7 +4947,7 @@ void move_player(int dir)
                         // default confirmation
                         else
                         {
-                            confirm = FALSE;
+                            confirm = false;
                             // strnfmt(prompt, sizeof(prompt), "Leap over the
                             // %s? ", f_name +
                             // f_info[cave_feat[y_mid][x_mid]].name);
@@ -4986,7 +4986,7 @@ void move_player(int dir)
                                     p_ptr->py, p_ptr->px, y_mid, x_mid);
 
                                 // remember that the player is in the air now
-                                p_ptr->leaping = TRUE;
+                                p_ptr->leaping = true;
 
                                 return;
                             }
@@ -5057,7 +5057,7 @@ void move_player(int dir)
             /* Disturb the player */
             disturb(0, 0);
 
-            if (check_hit(difficulty, FALSE))
+            if (check_hit(difficulty, false))
             {
                 msg_print("You try to climb out of the pit, but fail.");
 
@@ -5129,7 +5129,7 @@ void move_player(int dir)
                           "Anger - where "
                           "Grond was made in days of old.");
                 msg_print("The fires burn still.");
-                p_ptr->unique_forge_seen = TRUE;
+                p_ptr->unique_forge_seen = true;
                 do_cmd_note("Entered the forge 'Orodruth'", p_ptr->depth);
             }
 
@@ -5190,18 +5190,18 @@ static int see_wall(int dir, int y, int x)
 
     /* Illegal grids are not known walls XXX XXX XXX */
     if (!in_bounds(y, x))
-        return (FALSE);
+        return (false);
 
     /* Non-wall grids are not known walls */
     if (!cave_wall_bold(y, x))
-        return (FALSE);
+        return (false);
 
     /* Unknown walls are not known walls */
     if (!(cave_info[y][x] & (CAVE_MARK)))
-        return (FALSE);
+        return (false);
 
     /* Default */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -5214,13 +5214,13 @@ static int see_wall(int dir, int y, int x)
 //	x += ddx[dir];
 
 //	/* Illegal grids are unknown XXX XXX XXX */
-//	if (!in_bounds(y, x)) return (TRUE);
+//	if (!in_bounds(y, x)) return (true);
 
 //	/* Memorized grids are always known */
-//	if (cave_info[y][x] & (CAVE_MARK)) return (FALSE);
+//	if (cave_info[y][x] & (CAVE_MARK)) return (false);
 
 //	/* Default */
-//	return (TRUE);
+//	return (true);
 //}
 
 /*
@@ -5410,15 +5410,15 @@ static void run_init(int dir)
     p_ptr->run_old_dir = dir;
 
     /* Assume looking for open area */
-    p_ptr->run_open_area = TRUE;
+    p_ptr->run_open_area = true;
 
     /* Assume not looking for breaks */
-    p_ptr->run_break_right = FALSE;
-    p_ptr->run_break_left = FALSE;
+    p_ptr->run_break_right = false;
+    p_ptr->run_break_left = false;
 
     /* Assume no nearby walls */
-    deepleft = deepright = FALSE;
-    shortright = shortleft = FALSE;
+    deepleft = deepright = false;
+    shortright = shortleft = false;
 
     /* Find the destination grid */
     row = py + ddy[dir];
@@ -5430,36 +5430,36 @@ static void run_init(int dir)
     /* Check for nearby wall */
     if (see_wall(cycle[i + 1], py, px))
     {
-        p_ptr->run_break_left = TRUE;
-        shortleft = TRUE;
+        p_ptr->run_break_left = true;
+        shortleft = true;
     }
 
     /* Check for distant wall */
     else if (see_wall(cycle[i + 1], row, col))
     {
-        p_ptr->run_break_left = TRUE;
-        deepleft = TRUE;
+        p_ptr->run_break_left = true;
+        deepleft = true;
     }
 
     /* Check for nearby wall */
     if (see_wall(cycle[i - 1], py, px))
     {
-        p_ptr->run_break_right = TRUE;
-        shortright = TRUE;
+        p_ptr->run_break_right = true;
+        shortright = true;
     }
 
     /* Check for distant wall */
     else if (see_wall(cycle[i - 1], row, col))
     {
-        p_ptr->run_break_right = TRUE;
-        deepright = TRUE;
+        p_ptr->run_break_right = true;
+        deepright = true;
     }
 
     /* Looking for a break */
     if (p_ptr->run_break_left && p_ptr->run_break_right)
     {
         /* Not looking for open area */
-        p_ptr->run_open_area = FALSE;
+        p_ptr->run_open_area = false;
 
         /* Hack -- allow angled corridor entry */
         if (dir & 0x01)
@@ -5492,7 +5492,7 @@ static void run_init(int dir)
 /*
  * Update the current "run" path
  *
- * Return TRUE if the running should be stopped
+ * Return true if the running should be stopped
  */
 static bool run_test(void)
 {
@@ -5535,7 +5535,7 @@ static bool run_test(void)
 
             /* Visible monster */
             if (m_ptr->ml)
-                return (TRUE);
+                return (true);
         }
 
         /* Visible objects abort running */
@@ -5544,16 +5544,16 @@ static bool run_test(void)
         {
             /* Visible object */
             if (o_ptr->marked)
-                return (TRUE);
+                return (true);
         }
 
         /* Assume unknown */
-        inv = TRUE;
+        inv = true;
 
         /* Check memorized grids */
         if (cave_info[row][col] & (CAVE_MARK))
         {
-            bool notice = TRUE;
+            bool notice = true;
 
             /* Examine the terrain */
             switch (cave_feat[row][col])
@@ -5573,7 +5573,7 @@ static bool run_test(void)
             case FEAT_WALL_PERM:
             {
                 /* Ignore */
-                notice = FALSE;
+                notice = false;
 
                 /* Done */
                 break;
@@ -5584,7 +5584,7 @@ static bool run_test(void)
             case FEAT_BROKEN:
             {
                 /* ignore */
-                notice = FALSE;
+                notice = false;
 
                 /* Done */
                 break;
@@ -5607,7 +5607,7 @@ static bool run_test(void)
                 if (cave_floorlike_bold(row, col))
                 {
                     /* ignore */
-                    notice = FALSE;
+                    notice = false;
 
                     /* Done */
                     break;
@@ -5617,10 +5617,10 @@ static bool run_test(void)
 
             /* Interesting feature */
             if (notice)
-                return (TRUE);
+                return (true);
 
             /* The grid is "visible" */
-            inv = FALSE;
+            inv = false;
         }
 
         /* Analyze unknown grids and floors */
@@ -5641,13 +5641,13 @@ static bool run_test(void)
             /* Three new directions. Stop running. */
             else if (option2)
             {
-                return (TRUE);
+                return (true);
             }
 
             /* Two non-adjacent new directions.  Stop running. */
             else if (option != cycle[chome[prev_dir] + i - 1])
             {
-                return (TRUE);
+                return (true);
             }
 
             /* Two new (adjacent) directions (case 1) */
@@ -5672,13 +5672,13 @@ static bool run_test(void)
                 if (i < 0)
                 {
                     /* Break to the right */
-                    p_ptr->run_break_right = TRUE;
+                    p_ptr->run_break_right = true;
                 }
 
                 else if (i > 0)
                 {
                     /* Break to the left */
-                    p_ptr->run_break_left = TRUE;
+                    p_ptr->run_break_left = true;
                 }
             }
         }
@@ -5704,7 +5704,7 @@ static bool run_test(void)
 
             /* Visible monster */
             if (m_ptr->ml && (r_ptr->flags1 & (RF1_NEVER_MOVE)))
-                return (TRUE);
+                return (true);
         }
     }
 
@@ -5727,7 +5727,7 @@ static bool run_test(void)
                 /* Looking to break right */
                 if (p_ptr->run_break_right)
                 {
-                    return (TRUE);
+                    return (true);
                 }
             }
 
@@ -5737,7 +5737,7 @@ static bool run_test(void)
                 /* Looking to break left */
                 if (p_ptr->run_break_left)
                 {
-                    return (TRUE);
+                    return (true);
                 }
             }
         }
@@ -5758,7 +5758,7 @@ static bool run_test(void)
                 /* Looking to break left */
                 if (p_ptr->run_break_left)
                 {
-                    return (TRUE);
+                    return (true);
                 }
             }
 
@@ -5768,7 +5768,7 @@ static bool run_test(void)
                 /* Looking to break right */
                 if (p_ptr->run_break_right)
                 {
-                    return (TRUE);
+                    return (true);
                 }
             }
         }
@@ -5780,7 +5780,7 @@ static bool run_test(void)
         /* No options */
         if (!option)
         {
-            return (TRUE);
+            return (true);
         }
 
         /* One option */
@@ -5804,7 +5804,7 @@ static bool run_test(void)
             col = px + 2 * ddx[option];
             if ((cave_info[row][col] & CAVE_MARK) && !cave_wall_bold(row, col))
             {
-                return (TRUE);
+                return (true);
             }
 
             /* Hack -- allow curving */
@@ -5815,11 +5815,11 @@ static bool run_test(void)
     /* About to hit a known wall, stop */
     if (see_wall(p_ptr->run_cur_dir, py, px))
     {
-        return (TRUE);
+        return (true);
     }
 
     /* Failure */
-    return (FALSE);
+    return (false);
 }
 
 /*

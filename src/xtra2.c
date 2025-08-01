@@ -29,11 +29,11 @@ extern bool saving_throw(monster_type* m_ptr, int resistance)
 
     if (skill_check(m_ptr, difficulty, player_score, PLAYER) > 0)
     {
-        return (FALSE);
+        return (false);
     }
     else
     {
-        return (TRUE);
+        return (true);
     }
 }
 
@@ -52,10 +52,10 @@ bool allow_player_aux(monster_type* m_ptr, int player_flag, u32b ident_flag)
     }
 
     if (saving_throw(m_ptr, resistance))
-        return (FALSE);
+        return (false);
 
     // Don't have the right resists or failed the save
-    return (TRUE);
+    return (true);
 }
 
 /* Players with blindness resistance or who make their saving throw don't get
@@ -75,7 +75,7 @@ bool allow_player_blind(monster_type* m_ptr)
  */
 bool set_blind(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -86,7 +86,7 @@ bool set_blind(int v)
         if (!p_ptr->blind)
         {
             msg_print("You are blind!");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -96,7 +96,7 @@ bool set_blind(int v)
         if (p_ptr->blind)
         {
             msg_print("You can see again.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -105,7 +105,7 @@ bool set_blind(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -126,7 +126,7 @@ bool set_blind(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /* Players with confusion resistance or who make their saving throw don't get
@@ -141,7 +141,7 @@ bool allow_player_confusion(monster_type* m_ptr)
  */
 bool set_confused(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -152,7 +152,7 @@ bool set_confused(int v)
         if (!p_ptr->confused)
         {
             msg_print("You are confused!");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -162,7 +162,7 @@ bool set_confused(int v)
         if (p_ptr->confused)
         {
             msg_print("You feel less confused now.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -171,7 +171,7 @@ bool set_confused(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -183,7 +183,7 @@ bool set_confused(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -195,7 +195,7 @@ bool set_poisoned(int v)
     int new;
     int change;
 
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     new = (v > 100) ? 100 : (v < 0) ? 0 : v;
@@ -210,17 +210,17 @@ bool set_poisoned(int v)
             if (change >= 20)
             {
                 msg_print("You have been severely poisoned.");
-                notice = TRUE;
+                notice = true;
             }
             else if (change >= 10)
             {
                 msg_print("You have been badly poisoned.");
-                notice = TRUE;
+                notice = true;
             }
             else
             {
                 msg_print("You have been poisoned.");
-                notice = TRUE;
+                notice = true;
             }
         }
         else
@@ -228,17 +228,17 @@ bool set_poisoned(int v)
             if (change >= 20)
             {
                 msg_print("You have been severely poisoned.");
-                notice = TRUE;
+                notice = true;
             }
             else if (change >= 10)
             {
                 msg_print("You have been badly poisoned.");
-                notice = TRUE;
+                notice = true;
             }
             else
             {
                 msg_print("You have been further poisoned.");
-                notice = TRUE;
+                notice = true;
             }
         }
     }
@@ -249,12 +249,12 @@ bool set_poisoned(int v)
         {
             msg_print("You recover from the poisoning.");
             disturb(0, 0);
-            notice = TRUE;
+            notice = true;
         }
         else if (-change > (p_ptr->poisoned + 4) / 5)
         {
             msg_print("You can feel the poison weakening.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -272,13 +272,13 @@ bool set_poisoned(int v)
 
     /* No change */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /* Players with fear resistance or who make their saving throw don't get
@@ -287,7 +287,7 @@ bool allow_player_fear(monster_type* m_ptr)
 {
     // rage is incompatible with fear -- more than just a resistance
     if (p_ptr->rage)
-        return (FALSE);
+        return (false);
     else
         return (allow_player_aux(m_ptr, p_ptr->resist_fear, TR2_RES_FEAR));
 }
@@ -297,7 +297,7 @@ bool allow_player_fear(monster_type* m_ptr)
  */
 bool set_afraid(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -308,7 +308,7 @@ bool set_afraid(int v)
         if (!p_ptr->afraid)
         {
             msg_print("You are terrified!");
-            notice = TRUE;
+            notice = true;
             if (singing(SNG_CHALLENGE))
             {
                 /* Stop singing */
@@ -323,7 +323,7 @@ bool set_afraid(int v)
         if (p_ptr->afraid)
         {
             msg_print("You feel bolder now.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -332,7 +332,7 @@ bool set_afraid(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -344,7 +344,7 @@ bool set_afraid(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /* Players with free action or who make their saving throw don't get entranced
@@ -359,7 +359,7 @@ bool allow_player_entrancement(monster_type* m_ptr)
  */
 bool set_entranced(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -370,7 +370,7 @@ bool set_entranced(int v)
         if (!p_ptr->entranced)
         {
             msg_print("You fall into a deep trance!");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -380,8 +380,8 @@ bool set_entranced(int v)
         if (p_ptr->entranced)
         {
             msg_print("The trance is broken!");
-            p_ptr->was_entranced = TRUE;
-            notice = TRUE;
+            p_ptr->was_entranced = true;
+            notice = true;
         }
     }
 
@@ -390,7 +390,7 @@ bool set_entranced(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -405,7 +405,7 @@ bool set_entranced(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /* Players with resist hallucination or who make their saving throw don't
@@ -423,7 +423,7 @@ bool allow_player_image(monster_type* m_ptr)
  */
 bool set_image(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -434,7 +434,7 @@ bool set_image(int v)
         if (!p_ptr->image)
         {
             msg_print("Fantastic visions appear before your eyes.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -444,7 +444,7 @@ bool set_image(int v)
         if (p_ptr->image)
         {
             msg_print("You can see clearly again.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -453,7 +453,7 @@ bool set_image(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -468,7 +468,7 @@ bool set_image(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -476,7 +476,7 @@ bool set_image(int v)
  */
 bool set_fast(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -487,7 +487,7 @@ bool set_fast(int v)
         if (!p_ptr->fast)
         {
             msg_print("You feel yourself moving faster!");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -497,7 +497,7 @@ bool set_fast(int v)
         if (p_ptr->fast)
         {
             msg_print("You feel yourself slow down.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -506,7 +506,7 @@ bool set_fast(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -518,7 +518,7 @@ bool set_fast(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /* Players with free action or who make their saving throw don't get slowed */
@@ -532,7 +532,7 @@ bool allow_player_slow(monster_type* m_ptr)
  */
 bool set_slow(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -543,7 +543,7 @@ bool set_slow(int v)
         if (!p_ptr->slow)
         {
             msg_print("You feel yourself moving slower!");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -553,7 +553,7 @@ bool set_slow(int v)
         if (p_ptr->slow)
         {
             msg_print("You feel yourself speed up.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -562,7 +562,7 @@ bool set_slow(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -574,7 +574,7 @@ bool set_slow(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -582,7 +582,7 @@ bool set_slow(int v)
  */
 bool set_rage(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -593,7 +593,7 @@ bool set_rage(int v)
         if (!p_ptr->rage)
         {
             msg_print("You burst into a furious rage!");
-            notice = TRUE;
+            notice = true;
 
             /* Redraw map */
             p_ptr->redraw |= (PR_MAP);
@@ -606,7 +606,7 @@ bool set_rage(int v)
         if (p_ptr->rage)
         {
             msg_print("Your rage subsides.");
-            notice = TRUE;
+            notice = true;
 
             // do_res_stat(A_STR, 1);
             // do_res_stat(A_CON, 1);
@@ -621,7 +621,7 @@ bool set_rage(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -633,7 +633,7 @@ bool set_rage(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -641,7 +641,7 @@ bool set_rage(int v)
  */
 bool set_tmp_str(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -652,7 +652,7 @@ bool set_tmp_str(int v)
         if (!p_ptr->tmp_str)
         {
             msg_print("You feel stronger.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -663,7 +663,7 @@ bool set_tmp_str(int v)
         {
             msg_print("Your strength returns to normal.");
             do_res_stat(A_STR, 3);
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -672,7 +672,7 @@ bool set_tmp_str(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -684,7 +684,7 @@ bool set_tmp_str(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -692,7 +692,7 @@ bool set_tmp_str(int v)
  */
 bool set_tmp_dex(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -703,7 +703,7 @@ bool set_tmp_dex(int v)
         if (!p_ptr->tmp_dex)
         {
             msg_print("You feel more agile.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -714,7 +714,7 @@ bool set_tmp_dex(int v)
         {
             msg_print("Your dexterity returns to normal.");
             do_res_stat(A_DEX, 3);
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -723,7 +723,7 @@ bool set_tmp_dex(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -735,7 +735,7 @@ bool set_tmp_dex(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -743,7 +743,7 @@ bool set_tmp_dex(int v)
  */
 bool set_tmp_con(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -754,7 +754,7 @@ bool set_tmp_con(int v)
         if (!p_ptr->tmp_con)
         {
             msg_print("You feel more resilient.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -765,7 +765,7 @@ bool set_tmp_con(int v)
         {
             msg_print("Your constitution returns to normal.");
             do_res_stat(A_CON, 3);
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -774,7 +774,7 @@ bool set_tmp_con(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -786,7 +786,7 @@ bool set_tmp_con(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -794,7 +794,7 @@ bool set_tmp_con(int v)
  */
 bool set_tmp_gra(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -805,7 +805,7 @@ bool set_tmp_gra(int v)
         if (!p_ptr->tmp_gra)
         {
             msg_print("You feel more attuned to the world.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -816,7 +816,7 @@ bool set_tmp_gra(int v)
         {
             msg_print("Your grace returns to normal.");
             do_res_stat(A_GRA, 3);
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -825,7 +825,7 @@ bool set_tmp_gra(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -837,7 +837,7 @@ bool set_tmp_gra(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -845,7 +845,7 @@ bool set_tmp_gra(int v)
  */
 bool set_tmp_per(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -856,7 +856,7 @@ bool set_tmp_per(int v)
         if (!p_ptr->tmp_per)
         {
             msg_print("You feel your perceptions sharpen.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -866,7 +866,7 @@ bool set_tmp_per(int v)
         if (p_ptr->tmp_per)
         {
             msg_print("Your perception returns to normal.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -875,7 +875,7 @@ bool set_tmp_per(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -887,7 +887,7 @@ bool set_tmp_per(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -898,7 +898,7 @@ bool set_tmp_per(int v)
  */
 bool set_tim_invis(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -909,7 +909,7 @@ bool set_tim_invis(int v)
         if (!p_ptr->tim_invis)
         {
             msg_print("Your vision sharpens.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -919,7 +919,7 @@ bool set_tim_invis(int v)
         if (p_ptr->tim_invis)
         {
             msg_print("Your eyes feel less sensitive.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -928,7 +928,7 @@ bool set_tim_invis(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -943,7 +943,7 @@ bool set_tim_invis(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -955,7 +955,7 @@ bool set_tim_invis(int v)
  */
 bool set_darkened(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -966,7 +966,7 @@ bool set_darkened(int v)
         if (!p_ptr->blind)
         {
             msg_print("Your light dims.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -976,7 +976,7 @@ bool set_darkened(int v)
         if (p_ptr->darkened && !p_ptr->blind)
         {
             msg_print("Your light grows brighter again.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -985,7 +985,7 @@ bool set_darkened(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -1000,7 +1000,7 @@ bool set_darkened(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1008,7 +1008,7 @@ bool set_darkened(int v)
  */
 bool set_oppose_fire(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -1020,14 +1020,14 @@ bool set_oppose_fire(int v)
         if ((p_ptr->resist_fire > 1) && (!p_ptr->oppose_fire))
         {
             msg_print("You feel more resistant to fire!");
-            notice = TRUE;
+            notice = true;
         }
 
         /*if player has neither*/
         else if (!p_ptr->oppose_fire)
         {
             msg_print("You feel resistant to fire!");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -1037,7 +1037,7 @@ bool set_oppose_fire(int v)
         if (p_ptr->oppose_fire)
         {
             msg_print("You feel less resistant to fire.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -1046,7 +1046,7 @@ bool set_oppose_fire(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -1058,7 +1058,7 @@ bool set_oppose_fire(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1066,7 +1066,7 @@ bool set_oppose_fire(int v)
  */
 bool set_oppose_cold(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -1078,13 +1078,13 @@ bool set_oppose_cold(int v)
         if ((p_ptr->resist_cold > 1) && (!p_ptr->oppose_cold))
         {
             msg_print("You feel more resistant to cold!");
-            notice = TRUE;
+            notice = true;
         }
         /*if player has neither*/
         else if (!p_ptr->oppose_cold)
         {
             msg_print("You feel resistant to cold!");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -1094,7 +1094,7 @@ bool set_oppose_cold(int v)
         if (p_ptr->oppose_cold)
         {
             msg_print("You feel less resistant to cold.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -1103,7 +1103,7 @@ bool set_oppose_cold(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -1115,7 +1115,7 @@ bool set_oppose_cold(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1123,7 +1123,7 @@ bool set_oppose_cold(int v)
  */
 bool set_oppose_pois(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
@@ -1135,14 +1135,14 @@ bool set_oppose_pois(int v)
         if ((p_ptr->resist_pois > 1) && (!p_ptr->oppose_pois))
         {
             msg_print("You feel more resistant to poison!");
-            notice = TRUE;
+            notice = true;
         }
 
         /*if player doesn't have permanent resistance to poison*/
         else if (!p_ptr->oppose_pois)
         {
             msg_print("You feel resistant to poison!");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -1152,7 +1152,7 @@ bool set_oppose_pois(int v)
         if (p_ptr->oppose_pois)
         {
             msg_print("You feel less resistant to poison.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -1161,7 +1161,7 @@ bool set_oppose_pois(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -1173,7 +1173,7 @@ bool set_oppose_pois(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /* Players with stun resistance or who make their saving throw don't get stunned
@@ -1192,13 +1192,13 @@ bool set_stun(int v)
 {
     int old_aux, new_aux;
 
-    bool notice = FALSE;
+    bool notice = false;
 
     /*  Don't increase stunning if stunning value is greater than 100.
      *  this is an effort to eliminate the "knocked out" instadeath.
      */
     if ((p_ptr->stun > 100) && (v > p_ptr->stun))
-        return (FALSE);
+        return (false);
 
     /* Hack -- Force sane values */
     v = (v > 105) ? 105 : (v < 0) ? 0 : v;
@@ -1281,7 +1281,7 @@ bool set_stun(int v)
         }
 
         /* Notice */
-        notice = TRUE;
+        notice = true;
     }
 
     /* Decrease stun */
@@ -1309,7 +1309,7 @@ bool set_stun(int v)
         }
 
         /* Notice */
-        notice = TRUE;
+        notice = true;
     }
 
     /* Use the value */
@@ -1317,7 +1317,7 @@ bool set_stun(int v)
 
     /* No change */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -1335,7 +1335,7 @@ bool set_stun(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1345,7 +1345,7 @@ bool set_stun(int v)
  */
 bool set_cut(int v)
 {
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 100) ? 100 : (v < 0) ? 0 : v;
@@ -1356,17 +1356,17 @@ bool set_cut(int v)
         if (v - p_ptr->cut >= 20)
         {
             msg_print("You have been given a severe cut.");
-            notice = TRUE;
+            notice = true;
         }
         else if (v - p_ptr->cut >= 10)
         {
             msg_print("You have been given a deep cut.");
-            notice = TRUE;
+            notice = true;
         }
         else
         {
             msg_print("You have been given a cut.");
-            notice = TRUE;
+            notice = true;
         }
     }
     /* Decrease cut */
@@ -1376,12 +1376,12 @@ bool set_cut(int v)
         {
             msg_print("The bleeding stops.");
             disturb(0, 0);
-            notice = TRUE;
+            notice = true;
         }
         else if ((p_ptr->cut - v) > (p_ptr->cut + 4) / 5)
         {
             msg_print("The bleeding slows.");
-            notice = TRUE;
+            notice = true;
         }
     }
 
@@ -1399,13 +1399,13 @@ bool set_cut(int v)
 
     /* No change */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1415,7 +1415,7 @@ bool set_food(int v)
 {
     int old_aux, new_aux;
 
-    bool notice = FALSE;
+    bool notice = false;
 
     /* Hack -- Force good values */
     v = (v > 20000) ? 20000 : (v < 0) ? 0 : v;
@@ -1535,7 +1535,7 @@ bool set_food(int v)
         }
 
         /* Change */
-        notice = TRUE;
+        notice = true;
     }
 
     /* Food decrease */
@@ -1581,7 +1581,7 @@ bool set_food(int v)
         }
 
         /* Change */
-        notice = TRUE;
+        notice = true;
 
         // maybe identify hunger / sustenance
         ident_hunger();
@@ -1592,7 +1592,7 @@ bool set_food(int v)
 
     /* Nothing to notice */
     if (!notice)
-        return (FALSE);
+        return (false);
 
     /* Disturb */
     disturb(0, 0);
@@ -1607,7 +1607,7 @@ bool set_food(int v)
     handle_stuff();
 
     /* Result */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1645,8 +1645,8 @@ void falling_damage(bool stun)
     if (dice > 0)
     {
         // update the combat rolls window
-        update_combat_rolls1b(NULL, PLAYER, TRUE);
-        update_combat_rolls2(dice, 4, dam, -1, -1, 0, 0, GF_HURT, FALSE);
+        update_combat_rolls1b(NULL, PLAYER, true);
+        update_combat_rolls2(dice, 4, dam, -1, -1, 0, 0, GF_HURT, false);
 
         /* Take the damage */
         take_hit(dam, message);
@@ -1756,7 +1756,7 @@ bool random_stair_location(int* sy, int* sx)
     // If no valid stairs are found, then bail out (paranoia)
     if (stair_num == 0)
     {
-        return (FALSE);
+        return (false);
     }
 
     // Choose a random stair
@@ -1764,7 +1764,7 @@ bool random_stair_location(int* sy, int* sx)
     *sy = stair_y[stair_num];
     *sx = stair_x[stair_num];
 
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -1801,11 +1801,11 @@ extern void break_truce(bool obvious)
             /* Get the monster name (using 'something' for hidden creatures) */
             monster_desc(m_name, sizeof(m_name), m_ptr, 0x04);
 
-            p_ptr->truce = FALSE;
+            p_ptr->truce = false;
         }
 
         if (obvious)
-            p_ptr->truce = FALSE;
+            p_ptr->truce = false;
 
         if (!p_ptr->truce)
         {
@@ -1816,7 +1816,7 @@ extern void break_truce(bool obvious)
 
                 /* Make a lot of noise */
                 update_flow(m_ptr->fy, m_ptr->fx, FLOW_MONSTER_NOISE);
-                monster_perception(FALSE, FALSE, -10);
+                monster_perception(false, false, -10);
             }
             else
             {
@@ -1853,9 +1853,9 @@ bool similar_monsters(int m1y, int m1x, int m2y, int m2x)
 
     /*first check if there are monsters on both coordinates*/
     if (!(cave_m_idx[m1y][m1x] > 0))
-        return (FALSE);
+        return (false);
     if (!(cave_m_idx[m2y][m2x] > 0))
-        return (FALSE);
+        return (false);
 
     /* Access monster 1*/
     m_ptr = &mon_list[cave_m_idx[m1y][m1x]];
@@ -1867,7 +1867,7 @@ bool similar_monsters(int m1y, int m1x, int m2y, int m2x)
 
     /* Monsters have the same symbol */
     if (r_ptr->d_char == nr_ptr->d_char)
-        return (TRUE);
+        return (true);
 
     /*
      * Same race (we are not checking all RF3 types
@@ -1875,12 +1875,12 @@ bool similar_monsters(int m1y, int m1x, int m2y, int m2x)
      * the symbol check
      */
     if ((r_ptr->flags3 & (RF3_DRAGON)) && (nr_ptr->flags3 & (RF3_DRAGON)))
-        return (TRUE);
+        return (true);
     if ((r_ptr->flags3 & (RF3_SERPENT)) && (nr_ptr->flags3 & (RF3_SERPENT)))
-        return (TRUE);
+        return (true);
 
     /*Not the same*/
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -1951,7 +1951,7 @@ extern void create_chosen_artefact(byte name1, int y, int x, bool identify)
     i_ptr->name1 = name1;
 
     /* Mega-Hack -- Actually create the artefact */
-    apply_magic(i_ptr, -1, TRUE, TRUE, TRUE, TRUE);
+    apply_magic(i_ptr, -1, true, true, true, true);
 
     // Identify it if desired
     if (identify)
@@ -1981,9 +1981,9 @@ void drop_loot(monster_type* m_ptr)
 
     bool visible = (m_ptr->ml || (r_ptr->flags1 & (RF1_UNIQUE)));
 
-    bool chest = (r_ptr->flags1 & (RF1_DROP_CHEST)) ? TRUE : FALSE;
-    bool good = FALSE;
-    bool great = FALSE;
+    bool chest = (r_ptr->flags1 & (RF1_DROP_CHEST)) ? true : false;
+    bool good = false;
+    bool great = false;
 
     object_type* i_ptr;
     object_type object_type_body;
@@ -1992,11 +1992,11 @@ void drop_loot(monster_type* m_ptr)
 
     if (r_ptr->flags1 & (RF1_DROP_GOOD))
     {
-        good = TRUE;
+        good = true;
     }
     if (r_ptr->flags1 & (RF1_DROP_GREAT))
     {
-        great = TRUE;
+        great = true;
     }
 
     /* Get the location */
@@ -2049,40 +2049,40 @@ void drop_loot(monster_type* m_ptr)
         if (m_ptr->r_idx == R_IDX_MORGOTH)
         {
             // create the Massive Hammer 'Grond'
-            create_chosen_artefact(ART_GROND, y, x, TRUE);
+            create_chosen_artefact(ART_GROND, y, x, true);
 
             // create the Iron Crown of Morgoth
-            create_chosen_artefact(ART_MORGOTH_3, y, x, TRUE);
+            create_chosen_artefact(ART_MORGOTH_3, y, x, true);
         }
         // Drop Galvorn Armour of Maeglin
         else if (r_ptr->d_char == '@')
         {
             // create the Armour of Maeglin
-            create_chosen_artefact(ART_MAEGLIN, y, x, FALSE);
+            create_chosen_artefact(ART_MAEGLIN, y, x, false);
         }
         // Drop Iron Spear of Boldog
         else if (r_ptr->d_char == 'o')
         {
             // create the Armour of Maeglin
-            create_chosen_artefact(ART_BOLDOG, y, x, FALSE);
+            create_chosen_artefact(ART_BOLDOG, y, x, false);
         }
         // Drop Glend
         else if (r_ptr->d_char == 'G')
         {
             // create the Greatsword 'Glend'
-            create_chosen_artefact(ART_GLEND, y, x, FALSE);
+            create_chosen_artefact(ART_GLEND, y, x, false);
         }
         // Drop Wolf-Hame of Drauglin
         else if (r_ptr->d_char == 'C')
         {
             // create the Wolf-Hame of Draugluin
-            create_chosen_artefact(ART_DRAUGLUIN, y, x, FALSE);
+            create_chosen_artefact(ART_DRAUGLUIN, y, x, false);
         }
         // Drop Bat-Fell of Thuringwethil
         else if (r_ptr->d_char == 'v')
         {
             // create the Bet-Fell of Thuringwethil
-            create_chosen_artefact(ART_THURINGWETHIL, y, x, FALSE);
+            create_chosen_artefact(ART_THURINGWETHIL, y, x, false);
         }
     }
 
@@ -2293,7 +2293,7 @@ void monster_death(int m_idx)
     // Special message and flag setting for killing Morgoth
     if (m_ptr->r_idx == R_IDX_MORGOTH)
     {
-        p_ptr->morgoth_slain = TRUE;
+        p_ptr->morgoth_slain = true;
         msg_print("BUG: Morgoth has been defeated in combat.");
         msg_print(
             "But this is not possible within the fates Iluvatar has decreed.");
@@ -2304,7 +2304,7 @@ void monster_death(int m_idx)
                   "impressive.");
 
         // display the ultimate bug text
-        pause_with_text(ultimate_bug_text, 5, 15);
+        pause_with_text(ultimate_bug_text, 5, 15, NULL, 0);
     }
 
     /* If the player kills a Unique, write a note. */
@@ -2329,7 +2329,7 @@ void monster_death(int m_idx)
     p_ptr->window |= PW_MONLIST;
 
     /* Give some experience for the kill */
-    new_exp = adjusted_mon_exp(r_ptr, TRUE);
+    new_exp = adjusted_mon_exp(r_ptr, true);
     gain_exp(new_exp);
     p_ptr->kill_exp += new_exp;
 
@@ -2352,14 +2352,14 @@ void monster_death(int m_idx)
     {
         int new_exp;
 
-        new_exp = adjusted_mon_exp(r_ptr, FALSE);
+        new_exp = adjusted_mon_exp(r_ptr, false);
 
         // gain experience for encounter
         gain_exp(new_exp);
         p_ptr->encounter_exp += new_exp;
 
         // update stats
-        m_ptr->encountered = TRUE;
+        m_ptr->encountered = true;
         l_ptr->psights++;
         if (l_ptr->tsights < MAX_SHORT)
             l_ptr->tsights++;
@@ -2457,7 +2457,7 @@ s32b adjusted_mon_exp(const monster_race* r_ptr, bool kill)
 /*
  * Decrease a monster's hit points, handle monster death.
  *
- * We return TRUE if the monster has been killed (and deleted).
+ * We return true if the monster has been killed (and deleted).
  *
  * We announce monster death (using an optional "death message"
  * if given, and a otherwise a generic killed/destroyed message).
@@ -2551,7 +2551,7 @@ bool mon_take_hit(int m_idx, int dam, cptr note, int who)
         delete_monster_idx(m_idx);
 
         /* Monster is dead */
-        return (TRUE);
+        return (true);
     }
 
     // Wake it up if there was real damage dealt
@@ -2569,12 +2569,12 @@ bool mon_take_hit(int m_idx, int dam, cptr note, int who)
         m_ptr->min_range = 0;
 
     /* Not dead yet */
-    return (FALSE);
+    return (false);
 }
 
 /*
  * Modify the current panel to the given coordinates, adjusting only to
- * ensure the coordinates are legal, and return TRUE if anything done.
+ * ensure the coordinates are legal, and return true if anything done.
  *
  * Hack -- The surface should never be scrolled around.
  *
@@ -2615,16 +2615,16 @@ bool modify_panel(int wy, int wx)
         p_ptr->window |= (PW_OVERHEAD);
 
         /* Changed */
-        return (TRUE);
+        return (true);
     }
 
     /* No change */
-    return (FALSE);
+    return (false);
 }
 
 /*
  * Perform the minimum "whole panel" adjustment to ensure that the given
- * location is contained inside the current panel, and return TRUE if any
+ * location is contained inside the current panel, and return true if any
  * such adjustment was performed.
  */
 bool adjust_panel(int y, int x)
@@ -2651,7 +2651,7 @@ bool adjust_panel(int y, int x)
 /*
  * Change the current panel to the panel lying in the given direction.
  *
- * Return TRUE if the panel was changed.
+ * Return true if the panel was changed.
  */
 bool change_panel(int dir)
 {
@@ -2788,7 +2788,7 @@ void ang_sort_aux(void* u, void* v, int p, int q)
     b = q;
 
     /* Partition */
-    while (TRUE)
+    while (true)
     {
         /* Slide i2 */
         while (!(*ang_sort_comp)(u, v, b, z))
@@ -2940,7 +2940,7 @@ bool target_able(int m_idx)
 
     /* No monster */
     if (m_idx <= 0)
-        return (FALSE);
+        return (false);
 
     /* Get monster */
     m_ptr = &mon_list[m_idx];
@@ -2948,46 +2948,46 @@ bool target_able(int m_idx)
 
     /* Monster must be alive */
     if (!m_ptr->r_idx)
-        return (FALSE);
+        return (false);
 
     /* Monster must be visible */
     if (!m_ptr->ml)
-        return (FALSE);
+        return (false);
 
     /* Monster must not be peaceful */
     if (r_ptr->flags1 & (RF1_PEACEFUL))
-        return (FALSE);
+        return (false);
 
     /* Monster must be projectable */
     if (!player_can_fire_bold(m_ptr->fy, m_ptr->fx))
-        return (FALSE);
+        return (false);
 
     /* Hack -- no targeting hallucinations */
     if (p_ptr->image)
-        return (FALSE);
+        return (false);
 
     /* Hack -- no targeting things out of sight when raging */
     if (!(p_ptr->is_dead) && (p_ptr->rage)
         && !(cave_info[m_ptr->fy][m_ptr->fx] & (CAVE_SEEN)))
-        return (FALSE);
+        return (false);
 
     /* Hack -- Never target trappers XXX XXX XXX */
-    /* if (CLEAR_ATTR && (CLEAR_CHAR)) return (FALSE); */
+    /* if (CLEAR_ATTR && (CLEAR_CHAR)) return (false); */
 
     /* Assume okay */
-    return (TRUE);
+    return (true);
 }
 
 /*
  * Update (if necessary) and verify (if possible) the target.
  *
- * We return TRUE if the target is "okay" and FALSE otherwise.
+ * We return true if the target is "okay" and false otherwise.
  */
 bool target_okay(int range)
 {
     /* No target */
     if (!p_ptr->target_set)
-        return (FALSE);
+        return (false);
 
     /* Accept some "location" targets */
     if (p_ptr->target_who == 0)
@@ -2997,19 +2997,19 @@ bool target_okay(int range)
             && (distance(
                     p_ptr->py, p_ptr->px, p_ptr->target_row, p_ptr->target_col)
                 > range))
-            return (FALSE);
+            return (false);
 
         // accept things in LOF
         if (cave_info[p_ptr->target_row][p_ptr->target_col] & (CAVE_FIRE))
-            return (TRUE);
+            return (true);
 
         // accept walls (for horn of blasting stuff)
         else if (cave_info[p_ptr->target_row][p_ptr->target_col] & (CAVE_WALL))
-            return (TRUE);
+            return (true);
 
         // reject others
         else
-            return (FALSE);
+            return (false);
     }
 
     /* Check "monster" targets */
@@ -3031,15 +3031,15 @@ bool target_okay(int range)
                 && (distance(p_ptr->py, p_ptr->px, p_ptr->target_row,
                         p_ptr->target_col)
                     > range))
-                return (FALSE);
+                return (false);
 
             /* Good target */
-            return (TRUE);
+            return (true);
         }
     }
 
     /* Assume no target */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -3048,17 +3048,17 @@ bool target_okay(int range)
  * Very similar to target_okay, but does not require projectibility, just line
  * of sight
  *
- * We return TRUE if the target is "okay" and FALSE otherwise.
+ * We return true if the target is "okay" and false otherwise.
  */
 bool target_sighted(void)
 {
     /* No target */
     if (!p_ptr->target_set)
-        return (FALSE);
+        return (false);
 
     /* Accept "location" targets */
     if (p_ptr->target_who == 0)
-        return (TRUE);
+        return (true);
 
     /* Check "monster" targets */
     if (p_ptr->target_who > 0)
@@ -3074,12 +3074,12 @@ bool target_sighted(void)
             p_ptr->target_col = m_ptr->fx;
 
             /* Good target */
-            return (TRUE);
+            return (true);
         }
     }
 
     /* Assume no target */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -3093,7 +3093,7 @@ void target_set_monster(int m_idx)
         monster_type* m_ptr = &mon_list[m_idx];
 
         /* Save target info */
-        p_ptr->target_set = TRUE;
+        p_ptr->target_set = true;
         p_ptr->target_who = m_idx;
         p_ptr->target_row = m_ptr->fy;
         p_ptr->target_col = m_ptr->fx;
@@ -3103,7 +3103,7 @@ void target_set_monster(int m_idx)
     else
     {
         /* Reset target info */
-        p_ptr->target_set = FALSE;
+        p_ptr->target_set = false;
         p_ptr->target_who = 0;
         p_ptr->target_row = 0;
         p_ptr->target_col = 0;
@@ -3119,7 +3119,7 @@ void target_set_location(int y, int x)
     if (in_bounds_fully(y, x))
     {
         /* Save target info */
-        p_ptr->target_set = TRUE;
+        p_ptr->target_set = true;
         p_ptr->target_who = 0;
         p_ptr->target_row = y;
         p_ptr->target_col = x;
@@ -3129,7 +3129,7 @@ void target_set_location(int y, int x)
     else
     {
         /* Reset target info */
-        p_ptr->target_set = FALSE;
+        p_ptr->target_set = false;
         p_ptr->target_who = 0;
         p_ptr->target_row = 0;
         p_ptr->target_col = 0;
@@ -3267,15 +3267,15 @@ static bool determine_location_is_interesting(int y, int x)
 
     /* Player grids are always interesting */
     if (cave_m_idx[y][x] < 0)
-        return (TRUE);
+        return (true);
 
     /* Handle hallucination */
     if (p_ptr->image)
-        return (FALSE);
+        return (false);
 
     /* No looking at things out of sight when raging */
     if (!(p_ptr->is_dead) && (p_ptr->rage) && !(cave_info[y][x] & (CAVE_SEEN)))
-        return (FALSE);
+        return (false);
 
     /* Visible monsters */
     if (cave_m_idx[y][x] > 0)
@@ -3284,7 +3284,7 @@ static bool determine_location_is_interesting(int y, int x)
 
         /* Visible monsters */
         if (m_ptr->ml)
-            return (TRUE);
+            return (true);
     }
 
     /* Objects (only shown when on floors, not when in rubble) */
@@ -3296,7 +3296,7 @@ static bool determine_location_is_interesting(int y, int x)
         {
             /* Memorized object */
             if (o_ptr->marked)
-                return (TRUE);
+                return (true);
         }
     }
 
@@ -3305,41 +3305,41 @@ static bool determine_location_is_interesting(int y, int x)
     {
         /* Notice chasms */
         if (cave_feat[y][x] == FEAT_CHASM)
-            return (TRUE);
+            return (true);
 
         /* Notice glyphs */
         if (cave_glyph(y, x))
-            return (TRUE);
+            return (true);
 
         /* Notice forges */
         if (cave_forge_bold(y, x))
-            return (TRUE);
+            return (true);
 
         /* Notice doors */
         if (cave_feat[y][x] == FEAT_OPEN)
-            return (TRUE);
+            return (true);
         if (cave_feat[y][x] == FEAT_BROKEN)
-            return (TRUE);
+            return (true);
 
         /* Notice stairs */
         if (cave_stair_bold(y, x))
-            return (TRUE);
+            return (true);
 
         /* Notice traps */
         if (cave_trap_bold(y, x) && !cave_floorlike_bold(y, x))
-            return (TRUE);
+            return (true);
 
         /* Notice doors */
         if (cave_known_closed_door_bold(y, x))
-            return (TRUE);
+            return (true);
 
         /* Notice rubble */
         if (cave_feat[y][x] == FEAT_RUBBLE)
-            return (TRUE);
+            return (true);
     }
 
     /* Nope */
-    return (FALSE);
+    return (false);
 }
 
 /*
@@ -3460,7 +3460,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
         query = ' ';
 
         /* Assume boring */
-        boring = TRUE;
+        boring = true;
 
         /* Default */
         s1 = "You see ";
@@ -3505,14 +3505,14 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
             /* Visible */
             if (m_ptr->ml)
             {
-                bool recall = FALSE;
+                bool recall = false;
 
                 char m_name[80];
 
-                bool show_more = FALSE;
+                bool show_more = false;
 
                 /* Not boring */
-                boring = FALSE;
+                boring = false;
 
                 if (p_ptr->rage)
                 {
@@ -3570,14 +3570,14 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                         if ((cave_info[y][x] & (CAVE_SEEN))
                             && m_ptr->hold_o_idx)
                         {
-                            show_more = TRUE;
+                            show_more = true;
                         }
 
                         // known objects on the floor
                         else if (cave_floorlike_bold(y, x) && cave_o_idx[y][x]
                             && (&o_list[cave_o_idx[y][x]])->marked)
                         {
-                            show_more = TRUE;
+                            show_more = true;
                         }
 
                         // standing in a known unusual terrain such as wall or
@@ -3585,7 +3585,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                         else if (!cave_floorlike_bold(y, x)
                             && (cave_info[y][x] & (CAVE_MARK)))
                         {
-                            show_more = TRUE;
+                            show_more = true;
                         }
 
                         if (show_more)
@@ -3670,7 +3670,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                         continue;
 
                     /* Obtain an object description */
-                    object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+                    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
                     /* Describe the object */
                     if (p_ptr->wizard)
@@ -3720,7 +3720,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
         }
 
         /* Assume not floored */
-        floored = FALSE;
+        floored = false;
 
         /* Scan all objects in the grid */
         for (this_o_idx = cave_o_idx[y][x]; this_o_idx; this_o_idx = next_o_idx)
@@ -3746,10 +3746,10 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                     char o_name[80];
 
                     /* Not boring */
-                    boring = FALSE;
+                    boring = false;
 
                     /* Obtain an object description */
-                    object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+                    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
                     /* Describe the object */
                     if (p_ptr->wizard)
@@ -3924,7 +3924,7 @@ static int draw_path(
          */
 
         if (panel_contains(y, x))
-            on_screen = TRUE;
+            on_screen = true;
         else if (on_screen)
             break;
         else
@@ -4050,13 +4050,13 @@ bool target_set_interactive(int mode, int range)
 
     int adjusted_range;
 
-    bool done = FALSE;
+    bool done = false;
 
-    bool flag = TRUE;
+    bool flag = true;
 
     bool valid_target;
 
-    bool new_target = FALSE;
+    bool new_target = false;
 
     char query;
 
@@ -4072,7 +4072,7 @@ bool target_set_interactive(int mode, int range)
 
     // turn off auto if doing wizard mode dungeon modification
     if (wiz)
-        flag = FALSE;
+        flag = false;
 
     if (range == 0)
         adjusted_range = MAX_RANGE;
@@ -4118,11 +4118,11 @@ bool target_set_interactive(int mode, int range)
                     && (((GRID_X(path[max - 1]) <= x) && (x <= px))
                         || ((GRID_X(path[max - 1]) >= x) && (x >= px)))))
             {
-                valid_target = TRUE;
+                valid_target = true;
             }
             else
             {
-                valid_target = FALSE;
+                valid_target = false;
             }
 
             // prepare the relevant prompt
@@ -4151,7 +4151,7 @@ bool target_set_interactive(int mode, int range)
             case ESCAPE:
             case 'q':
             {
-                done = TRUE;
+                done = true;
                 break;
             }
 
@@ -4189,7 +4189,7 @@ bool target_set_interactive(int mode, int range)
 
             case 'm':
             {
-                flag = FALSE;
+                flag = false;
                 break;
             }
 
@@ -4201,21 +4201,21 @@ bool target_set_interactive(int mode, int range)
 
                 if ((p_ptr->py == y) && (p_ptr->px == x))
                 {
-                    done = TRUE;
+                    done = true;
                 }
                 else if ((m_idx > 0) && target_able(m_idx))
                 {
                     health_track(m_idx);
                     target_set_monster(m_idx);
-                    new_target = TRUE;
-                    done = TRUE;
+                    new_target = true;
+                    done = true;
                 }
                 else if (valid_target)
                 {
                     target_set_location(y, x);
                     health_track(0);
-                    new_target = TRUE;
-                    done = TRUE;
+                    new_target = true;
+                    done = true;
                 }
                 else
                 {
@@ -4303,11 +4303,11 @@ bool target_set_interactive(int mode, int range)
                     && (((GRID_X(path[max - 1]) <= x) && (x <= px))
                         || ((GRID_X(path[max - 1]) >= x) && (x >= px)))))
             {
-                valid_target = TRUE;
+                valid_target = true;
             }
             else
             {
-                valid_target = FALSE;
+                valid_target = false;
             }
 
             // prepare the relevant prompt
@@ -4336,7 +4336,7 @@ bool target_set_interactive(int mode, int range)
             case ESCAPE:
             case 'q':
             {
-                done = TRUE;
+                done = true;
                 break;
             }
 
@@ -4354,7 +4354,7 @@ bool target_set_interactive(int mode, int range)
 
             case 'a':
             {
-                flag = TRUE;
+                flag = true;
 
                 m = 0;
                 bd = 999;
@@ -4374,7 +4374,7 @@ bool target_set_interactive(int mode, int range)
 
                 /* Nothing interesting */
                 if (bd == 999)
-                    flag = FALSE;
+                    flag = false;
 
                 break;
             }
@@ -4385,14 +4385,14 @@ bool target_set_interactive(int mode, int range)
             {
                 if ((p_ptr->py == y) && (p_ptr->px == x))
                 {
-                    done = TRUE;
+                    done = true;
                 }
                 else if (valid_target || p_ptr->wizard)
                 {
                     target_set_location(y, x);
                     health_track(0);
-                    new_target = TRUE;
-                    done = TRUE;
+                    new_target = true;
+                    done = true;
                 }
                 else
                 {
@@ -4448,12 +4448,12 @@ bool target_set_interactive(int mode, int range)
         /* Wizard dungeon modification */
         else
         {
-            bool inc_monster = FALSE;
-            bool inc_object = FALSE;
-            bool inc_terrain = FALSE;
-            bool reroll_monster = FALSE;
-            bool reroll_object = FALSE;
-            bool found = FALSE;
+            bool inc_monster = false;
+            bool inc_object = false;
+            bool inc_terrain = false;
+            bool reroll_monster = false;
+            bool reroll_object = false;
+            bool found = false;
 
             y2 = y;
             x2 = x;
@@ -4476,13 +4476,13 @@ bool target_set_interactive(int mode, int range)
             {
                 // increment a monster race
                 if (cave_m_idx[y][x])
-                    inc_monster = TRUE;
+                    inc_monster = true;
                 // increment an object kind
                 else if (cave_o_idx[y][x])
-                    inc_object = TRUE;
+                    inc_object = true;
                 // increment a terrain type
                 else
-                    inc_terrain = TRUE;
+                    inc_terrain = true;
             }
 
             // tab rerolls (and is handled specially)
@@ -4490,16 +4490,16 @@ bool target_set_interactive(int mode, int range)
             {
                 // reroll a monster race
                 if (cave_m_idx[y][x])
-                    reroll_monster = TRUE;
+                    reroll_monster = true;
                 // reroll an object kind
                 else if (cave_o_idx[y][x])
-                    reroll_object = TRUE;
+                    reroll_object = true;
             }
 
             // escape exits
             if (query == ESCAPE)
             {
-                done = TRUE;
+                done = true;
             }
 
             // backspace changes the light level (and is handled specially)
@@ -4544,7 +4544,7 @@ bool target_set_interactive(int mode, int range)
                 {
                     m_ptr = &mon_list[cave_m_idx[y][x]];
                     i = m_ptr->r_idx;
-                    found = TRUE;
+                    found = true;
                 }
 
                 // go through monster race list and find next monster with that
@@ -4563,7 +4563,7 @@ bool target_set_interactive(int mode, int range)
                             && (r_ptr->cur_num < r_ptr->max_num)
                             && (r_ptr->level <= 25))
                         {
-                            found = TRUE;
+                            found = true;
                             i = (i + m_ptr->r_idx) % z_info->r_max;
                             break;
                         }
@@ -4581,7 +4581,7 @@ bool target_set_interactive(int mode, int range)
                         // stop when you find one
                         if (r_ptr->d_char == query)
                         {
-                            found = TRUE;
+                            found = true;
                             break;
                         }
                     }
@@ -4596,7 +4596,7 @@ bool target_set_interactive(int mode, int range)
                         delete_monster_idx(cave_m_idx[y][x]);
                     }
                     // place the new one
-                    place_monster_one(y, x, i, TRUE, TRUE, NULL);
+                    place_monster_one(y, x, i, true, true, NULL);
                 }
             }
 
@@ -4615,7 +4615,7 @@ bool target_set_interactive(int mode, int range)
                 {
                     o_ptr = &o_list[cave_o_idx[y][x]];
                     i = o_ptr->k_idx;
-                    found = TRUE;
+                    found = true;
                 }
 
                 // go through object kind list and find next object kind with
@@ -4632,7 +4632,7 @@ bool target_set_interactive(int mode, int range)
                         // stop when you find one
                         if (k_ptr->d_char == old_k_ptr->d_char)
                         {
-                            found = TRUE;
+                            found = true;
                             i = (i + o_ptr->k_idx) % z_info->k_max;
                             break;
                         }
@@ -4650,7 +4650,7 @@ bool target_set_interactive(int mode, int range)
                         // stop when you find one
                         if (k_ptr->d_char == query)
                         {
-                            found = TRUE;
+                            found = true;
                             break;
                         }
                     }
@@ -4673,7 +4673,7 @@ bool target_set_interactive(int mode, int range)
 
                     /* Apply magic (no messages, no artefacts) */
                     apply_magic(
-                        i_ptr, p_ptr->depth, FALSE, FALSE, FALSE, FALSE);
+                        i_ptr, p_ptr->depth, false, false, false, false);
 
                     // apply the autoinscription (if any)
                     apply_autoinscription(i_ptr);
@@ -4705,7 +4705,7 @@ bool target_set_interactive(int mode, int range)
                         // stop when you find one
                         if (f_ptr->d_char == old_f_ptr->d_char)
                         {
-                            found = TRUE;
+                            found = true;
                             i = (i + cave_feat[y][x]) % z_info->f_max;
                             break;
                         }
@@ -4723,7 +4723,7 @@ bool target_set_interactive(int mode, int range)
                         // stop when you find one
                         if (f_ptr->d_char == query)
                         {
-                            found = TRUE;
+                            found = true;
                             break;
                         }
                     }
@@ -4809,11 +4809,11 @@ bool target_set_interactive(int mode, int range)
             target_set_monster(0);
             health_track(0);
         }
-        return (FALSE);
+        return (false);
     }
 
     /* Success */
-    return (TRUE);
+    return (true);
 }
 
 /*
@@ -4860,7 +4860,7 @@ int rough_direction(int y1, int x1, int y2, int x2)
 /*
  * Get an "aiming direction" (1,2,3,4,6,7,8,9 or 5) from the user.
  *
- * Return TRUE if a direction was chosen, otherwise return FALSE.
+ * Return true if a direction was chosen, otherwise return false.
  *
  * The direction "5" is special, and means "use current target".
  *
@@ -4889,7 +4889,7 @@ bool get_aim_dir(int* dp, int range)
         /* Verify */
         if (!(*dp == 5 && !target_okay(range)))
         {
-            return (TRUE);
+            return (true);
         }
         else
         {
@@ -4993,7 +4993,7 @@ bool get_aim_dir(int* dp, int range)
     /* No direction */
     if (!dir)
     {
-        return (FALSE);
+        return (false);
     }
 
     /* Save the direction */
@@ -5025,13 +5025,13 @@ bool get_aim_dir(int* dp, int range)
 #endif /* ALLOW_REPEAT */
 
     /* A "valid" direction was entered */
-    return (TRUE);
+    return (true);
 }
 
 /*
  * Request a "movement" direction (1,2,3,4,5,6,7,8,9) from the user.
  *
- * Return TRUE if a direction was chosen, otherwise return FALSE.
+ * Return true if a direction was chosen, otherwise return false.
  *
  * Direction "0" is illegal and will not be accepted.
  *
@@ -5050,7 +5050,7 @@ bool get_rep_dir(int* dp)
 
     if (repeat_pull(dp))
     {
-        return (TRUE);
+        return (true);
     }
 
 #endif /* ALLOW_REPEAT */
@@ -5081,7 +5081,7 @@ bool get_rep_dir(int* dp)
 
     /* Aborted */
     if (!dir)
-        return (FALSE);
+        return (false);
 
     /* Save desired direction */
     p_ptr->command_dir = dir;
@@ -5096,13 +5096,13 @@ bool get_rep_dir(int* dp)
 #endif /* ALLOW_REPEAT */
 
     /* Success */
-    return (TRUE);
+    return (true);
 }
 
 /*
  * Apply confusion, if needed, to a direction
  *
- * Display a message and return TRUE if direction changes.
+ * Display a message and return true if direction changes.
  */
 bool confuse_dir(int* dp)
 {
@@ -5147,11 +5147,11 @@ bool confuse_dir(int* dp)
         (*dp) = dir;
 
         /* Confused */
-        return (TRUE);
+        return (true);
     }
 
     /* Not confused */
-    return (FALSE);
+    return (false);
 }
 
 const char entry_poetry[][100] = { { "Into the vast and echoing gloom," },
@@ -5292,55 +5292,84 @@ const char ultimate_bug_text[][100]
 
           { "" } };
 
-/*
- * Show the poetry on entering Morgoth's Throne Room
- */
-void pause_with_text(const char desc[][100], int row, int col)
+/* pause_with_text: prints name+alt, explicit blank line, then start splits */
+void pause_with_text(const char desc[][100], int row, int col,
+                     const char extra[][100], byte extra_attr)
 {
-    char ch;
-    int i = 0;
-    int j = 0;
-    int msec = 50;
+    int i_main = 0, msec = 50;
+    int banner_lines = 0;
 
-    /* Save screen */
+    /* 0. save & clear screen */
     screen_save();
-
-    /* Clear screen */
     Term_clear();
 
-    while (strlen(desc[i]) != 0)
-    {
-        c_put_str(TERM_WHITE, desc[i], row + i, col);
+    /* 1. optional banner */
+    if (extra) {
+        /* Line 1: name+alt */
+        c_put_str(extra_attr,
+                  extra[0],
+                  row,
+                  col - 5);
         Term_xtra(TERM_XTRA_DELAY, msec);
         Term_fresh();
-        i++;
+        banner_lines = 1;
+
+        /* Line 2: blank line */
+        c_put_str(extra_attr,
+                  "",
+                  row + banner_lines,
+                  col - 5);
+        Term_xtra(TERM_XTRA_DELAY, msec);
+        Term_fresh();
+        banner_lines++;
+
+        /* Determine how many extra entries */
+        int n_extra = 0;
+        while (extra[n_extra][0]) n_extra++;
+
+        /* Lines 3+: start splits, last one shifted further right */
+        for (int i = 1; i < n_extra; ++i) {
+            int shift = col - 5;
+            if (i == n_extra - 1) shift += 4;
+            c_put_str(extra_attr,
+                      extra[i],
+                      row + banner_lines,
+                      shift);
+            Term_xtra(TERM_XTRA_DELAY, msec);
+            Term_fresh();
+            banner_lines++;
+        }
+
+        /* separator before stanza */
+        banner_lines++;
     }
 
-    /* Interact until done */
-    while (1)
-    {
-        /* Prompt */
-        hide_cursor = TRUE;
-        ch = inkey();
-        hide_cursor = FALSE;
-
-        /* Press any key */
-        if (ch != EOF)
-            break;
-
-        /* Flush messages */
-        message_flush();
-    }
-
-    for (j = row; j <= row; j++)
-    {
+    /* 2. main stanza */
+    while (desc && desc[i_main][0]) {
         c_put_str(TERM_WHITE,
-            "                                                                 ",
-            j, 1);
+                  desc[i_main],
+                  row + banner_lines + i_main,
+                  col);
         Term_xtra(TERM_XTRA_DELAY, msec);
         Term_fresh();
+        ++i_main;
     }
 
-    /* Load screen */
+    /* 3. wait for key */
+    hide_cursor = true;
+    (void)inkey();
+    hide_cursor = false;
+
+    /* 4. wipe the area used */
+    int total = banner_lines + i_main;
+    for (int j = row; j < row + total; ++j) {
+        c_put_str(TERM_WHITE,
+                  "                                                                 ",
+                  j, 1);
+    }
+
     screen_load();
 }
+
+
+

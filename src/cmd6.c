@@ -103,7 +103,7 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
     p_ptr->previous_action[0] = ACTION_MISC;
 
     /* Identity not known yet */
-    ident = FALSE;
+    ident = false;
 
     // Save the k_idx and awareness info
     kind_index = o_ptr->k_idx;
@@ -216,7 +216,7 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
     p_ptr->previous_action[0] = ACTION_MISC;
 
     /* Not identified yet */
-    ident = FALSE;
+    ident = false;
 
     // Save the k_idx and awareness info
     kind_index = o_ptr->k_idx;
@@ -311,7 +311,7 @@ void do_cmd_play_instrument(object_type* default_o_ptr, int default_item)
     }
 
     /* Not identified yet */
-    ident = FALSE;
+    ident = false;
 
     /* Play the instrument */
     if (!use_object(o_ptr, &ident))
@@ -405,7 +405,7 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     p_ptr->previous_action[0] = ACTION_MISC;
 
     /* Not identified yet */
-    ident = FALSE;
+    ident = false;
 
     /* Notice empty staffs */
     if ((o_ptr->pval <= 1 && (!p_ptr->active_ability[S_WIL][WIL_CHANNELING]))
@@ -426,7 +426,7 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     use_charge = use_object(o_ptr, &ident);
 
     // Break the truce
-    break_truce(FALSE);
+    break_truce(false);
 
     /* Combine / Reorder the pack (later) */
     p_ptr->notice |= (PN_COMBINE | PN_REORDER);
@@ -482,17 +482,17 @@ static bool item_tester_hook_activate(const object_type* o_ptr)
 
     /* Not known */
     if (!object_known_p(o_ptr))
-        return (FALSE);
+        return (false);
 
     /* Extract the flags */
     object_flags(o_ptr, &f1, &f2, &f3);
 
     /* Check activation flag */
     if (f3 & (TR3_ACTIVATE))
-        return (TRUE);
+        return (true);
 
     /* Assume not */
-    return (FALSE);
+    return (false);
 }
 
 /*

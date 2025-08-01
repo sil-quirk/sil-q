@@ -60,7 +60,7 @@ M:C:37
 M:H:165
 
 # Maximum number of player story lines
-M:S:16
+M:S:32
 
 # Maximum number of curses
 M:U:31

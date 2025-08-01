@@ -89,7 +89,7 @@ byte do_feeling; /* Hack -- Level feeling counter */
 
 bool use_sound; /* The "sound" mode is enabled */
 int use_graphics; /* The "graphics" mode is enabled */
-bool use_bigtile = FALSE;
+bool use_bigtile = false;
 
 s16b image_count; /* Grids until next random image    */
 /* Optimizes the hallucination code */
@@ -123,23 +123,23 @@ s16b mon_cnt = 0; /* Number of live monsters */
  */
 
 bool skill_gain_in_progress
-    = FALSE; // whether we are currently in the skill-gain screen
+    = false; // whether we are currently in the skill-gain screen
 
-bool save_game_quietly = FALSE; // whether we are currently trying to save the
+bool save_game_quietly = false; // whether we are currently trying to save the
                                 // game without displaying a message
 
-bool stop_stealth_mode = FALSE; // whether there has been a signal that we need
+bool stop_stealth_mode = false; // whether there has been a signal that we need
                                 // to abort stealth mode
 
 char mini_screenshot_char[7][7]; // Characters in a mini-screenshot array
 byte mini_screenshot_attr[7][7]; // Colours in a mini-screenshot array
 
-bool use_background_colors = FALSE;
+bool use_background_colors = false;
 
 /*
- * TRUE if process_command() is a repeated call.
+ * true if process_command() is a repeated call.
  */
-bool command_repeating = FALSE;
+bool command_repeating = false;
 
 /*
  * Dungeon variables
@@ -148,7 +148,7 @@ bool command_repeating = FALSE;
 byte feeling; /* Most recent feeling */
 s16b rating; /* Level's current rating */
 
-bool good_item_flag; /* True if "Artefact" on this level */
+bool good_item_flag; /* true if "Artefact" on this level */
 
 int closing_flag; /* Dungeon is closing */
 
@@ -377,8 +377,8 @@ s16b stealth_score = 0;
 /*
  * Has the player attacked anyone this round? Has anyone attacked the player?
  */
-bool player_attacked = FALSE;
-bool attacked_player = FALSE;
+bool player_attacked = false;
+bool attacked_player = false;
 
 /*
  * Array[z_info->o_max] of dungeon objects
@@ -759,7 +759,7 @@ int text_out_indent = 0;
 /*
  * Use transparent tiles
  */
-bool use_transparency = FALSE;
+bool use_transparency = false;
 
 /*
  * Buffer to hold the character's notes
