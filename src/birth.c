@@ -224,6 +224,7 @@ void player_wipe(void)
      * next character-creation cycle; otherwise helpers such as
      * show_scores() believe a character still exists. */
     character_generated = false;
+    log_debug("birth.c: character_generated set to false - starting character wipe");
     int i;
     char history[550];
     int stat[A_MAX];

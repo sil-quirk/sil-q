@@ -279,5 +279,5 @@
  * Turn *on* the meta-run curse playground in dbg_show_active_flags().
  * Comment this line out for a clean release build.
  * ------------------------------------------------------------------ */
-#define DEBUG_CURSES  //debug curses functionality
-#define DEBUG  //debug messaging
+// #define DEBUG_CURSES  //debug curses functionality
+// #define DEBUG  //debug messaging

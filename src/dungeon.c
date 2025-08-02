@@ -2606,30 +2606,39 @@ static void dungeon(void)
     }
 
     /* Choose panel */
+    log_debug("Verifying panel position");
     verify_panel();
 
     /* Flush messages */
+    log_debug("Flushing messages");
     message_flush();
 
     /* Hack -- Increase "xtra" depth */
+    log_debug("Increasing character_xtra depth for display setup");
     character_xtra++;
 
     /* Clear */
+    log_debug("Clearing terminal");
     Term_clear();
 
     /* Update stuff */
+    log_info("Starting initial dungeon display setup");
     p_ptr->update |= (PU_BONUS | PU_HP | PU_MANA);
 
     /* Update stuff */
+    log_debug("Running initial update_stuff");
     update_stuff();
 
     /* Fully update the visuals (and monster distances) */
+    log_debug("Setting up view and distance updates");
     p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_DISTANCE);
 
     /* Redraw dungeon */
+    log_debug("Setting up full redraw");
     p_ptr->redraw |= (PR_BASIC | PR_EXTRA | PR_MAP | PR_EQUIPPY | PR_RESIST);
 
     /* Window stuff */
+    log_debug("Setting up window updates");
     p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
 
     /* Window stuff */
@@ -2639,41 +2648,61 @@ static void dungeon(void)
     p_ptr->window |= (PW_OVERHEAD);
 
     /* Update stuff */
+    log_debug("Running second update_stuff");
     update_stuff();
 
     /* Redraw stuff */
+    log_debug("Running redraw_stuff");
     redraw_stuff();
 
     /* Redraw stuff */
+    log_debug("Running window_stuff");
     window_stuff();
 
     /* Hack -- Decrease "xtra" depth */
+    log_debug("Decreasing character_xtra depth after display setup");
     character_xtra--;
 
     /* Update stuff */
+    log_debug("Final update_stuff in setup");
     p_ptr->update |= (PU_BONUS | PU_HP | PU_MANA);
 
     /* Combine / Reorder the pack */
+    log_debug("Setting up inventory notices");
     p_ptr->notice |= (PN_COMBINE | PN_REORDER);
 
     /* Notice stuff */
+    log_debug("Running notice_stuff");
     notice_stuff();
 
     /* Update stuff */
+    log_debug("Running final update_stuff");
     update_stuff();
 
     /* Redraw stuff */
+    log_debug("Running final redraw_stuff");
     redraw_stuff();
 
     /* Window stuff */
+    log_debug("Running final window_stuff");
     window_stuff();
 
     /* Refresh */
+    log_debug("Final terminal refresh");
     Term_fresh();
 
+    log_info("Dungeon display setup completed successfully");
+
+    /* Log final state after setup */
+    log_debug("Final setup state: character_generated=%s, character_icky=%d, update=0x%08X, redraw=0x%08X, window=0x%08X",
+              character_generated ? "true" : "false", character_icky, 
+              p_ptr->update, p_ptr->redraw, p_ptr->window);
+
     /* Handle delayed death */
-    if (p_ptr->is_dead)
+    if (p_ptr->is_dead) {
+        log_info("Player is dead, exiting dungeon");
         return;
+    }
 
     /* Announce (or repeat) the feeling */
     // if ((p_ptr->depth) && (do_feeling)) do_cmd_feeling();
@@ -2700,20 +2729,26 @@ static void dungeon(void)
     /* Reset the object generation level */
     object_level = p_ptr->depth;
 
+    log_info("Starting main dungeon loop for depth %d", p_ptr->depth);
+
     /* Main loop */
     while (true)
     {
         /* Hack -- Compact the monster list occasionally */
-        if (mon_cnt + 10 > MAX_MONSTERS)
+        if (mon_cnt + 10 > MAX_MONSTERS) {
+            log_debug("Compacting monster list (count: %d)", mon_cnt);
             compact_monsters(20);
+        }
 
         /* Hack -- Compress the monster list occasionally */
         if (mon_cnt + 32 < MAX_MONSTERS)
             compact_monsters(0);
 
         /* Hack -- Compact the object list occasionally */
-        if (o_cnt + 32 > z_info->o_max)
+        if (o_cnt + 32 > z_info->o_max) {
+            log_debug("Compacting object list (count: %d)", o_cnt);
             compact_objects(64);
+        }
 
         /* Hack -- Compress the object list occasionally */
         if (o_cnt + 32 < o_max)
@@ -2731,12 +2766,16 @@ static void dungeon(void)
             if (!p_ptr->leaving)
             {
                 /* Update stuff */
-                if (p_ptr->update)
+                if (p_ptr->update) {
+                    log_trace("Main loop: running update_stuff in player turn");
                     update_stuff();
+                }
 
                 /* Redraw stuff */
-                if (p_ptr->redraw)
+                if (p_ptr->redraw) {
+                    log_trace("Main loop: running redraw_stuff in player turn");
                     redraw_stuff();
+                }
 
                 /* Process the player */
                 process_player();
@@ -2744,20 +2783,28 @@ static void dungeon(void)
         }
 
         /* Notice stuff */
-        if (p_ptr->notice)
+        if (p_ptr->notice) {
+            log_trace("Main loop: running notice_stuff");
             notice_stuff();
+        }
 
         /* Update stuff */
-        if (p_ptr->update)
+        if (p_ptr->update) {
+            log_trace("Main loop: running update_stuff after player action");
             update_stuff();
+        }
 
         /* Redraw stuff */
-        if (p_ptr->redraw)
+        if (p_ptr->redraw) {
+            log_trace("Main loop: running redraw_stuff after player action");
             redraw_stuff();
+        }
 
         /* Redraw stuff */
-        if (p_ptr->window)
+        if (p_ptr->window) {
+            log_trace("Main loop: running window_stuff after player action");
             window_stuff();
+        }
 
         /* Place the cursor on the player or target */
         if (hilite_player)
@@ -2770,8 +2817,10 @@ static void dungeon(void)
             Term_fresh();
 
         /* Handle "leaving" */
-        if (p_ptr->leaving)
+        if (p_ptr->leaving) {
+            log_info("Player leaving dungeon level %d", p_ptr->depth);
             break;
+        }
 
         /* Process monsters (any that haven't had a chance to move yet) */
         process_monsters(100);
@@ -3074,6 +3123,7 @@ PlayResult play_game(void)
     bool new_game = false;
     /* Hack -- Increase "icky" depth */
     character_icky++;
+    log_debug("play_game: character_icky incremented to %d", character_icky);
 
     /* Verify main term */
     if (!term_screen)
@@ -3119,11 +3169,13 @@ PlayResult play_game(void)
         if (cr == NAV_TO_MAIN) { 
             log_info("Returning to main menu from character creation"); 
             character_icky--; 
+            log_debug("play_game: character_icky decremented to %d (NAV_TO_MAIN)", character_icky);
             return PLAY_DONE; 
         }
         if (cr == NAV_QUIT) { 
             log_info("Quitting from character creation"); 
             character_icky--; 
+            log_debug("play_game: character_icky decremented to %d (NAV_QUIT)", character_icky); 
             return PLAY_QUIT; 
         }
 
@@ -3187,11 +3239,13 @@ PlayResult play_game(void)
         if (br == NAV_TO_MAIN) { 
             log_info("Returning to main menu from character birth"); 
             character_icky--; 
+            log_debug("play_game: character_icky decremented to %d (birth NAV_TO_MAIN)", character_icky);
             return PLAY_DONE; 
         }
         if (br == NAV_QUIT) { 
             log_info("Quitting from character birth"); 
             character_icky--; 
+            log_debug("play_game: character_icky decremented to %d (birth NAV_QUIT)", character_icky);
             return PLAY_QUIT; 
         }
         /* NAV_OK falls through */
@@ -3285,12 +3339,14 @@ PlayResult play_game(void)
 
     /* Character is now "complete" */
     character_generated = true;
+    log_debug("play_game: character_generated set to true - character creation complete");
 
     /* Start with normal object generation mode */
     object_generation_mode = OB_GEN_MODE_NORMAL;
 
     /* Hack -- Decrease "icky" depth */
     character_icky--;
+    log_debug("play_game: character_icky decremented to %d (character creation complete)", character_icky);
 
     /* Start playing */
     p_ptr->playing = true;

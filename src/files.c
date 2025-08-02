@@ -6033,6 +6033,7 @@ void close_game(void)
 
     /* Hack -- Increase "icky" depth */
     character_icky++;
+    log_debug("files.c: character_icky incremented to %d (opening scores file)", character_icky);
 
     /* Build the filename */
     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
@@ -6118,6 +6119,7 @@ void close_game(void)
 
     /* Hack -- Decrease "icky" depth */
     character_icky--;
+    log_debug("files.c: character_icky decremented to %d (scores file closed)", character_icky);
 
     /* Allow suspending now */
     signals_handle_tstp();

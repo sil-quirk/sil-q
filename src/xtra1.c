@@ -3218,44 +3218,57 @@ void update_stuff(void)
     update_lore();
 
     /* Update stuff */
-    if (!p_ptr->update)
+    if (!p_ptr->update) {
+        log_trace("update_stuff: no updates needed");
         return;
+    }
+
+    log_debug("update_stuff: processing updates 0x%08X", p_ptr->update);
 
     if (p_ptr->update & (PU_BONUS))
     {
         p_ptr->update &= ~(PU_BONUS);
+        log_trace("update_stuff: calculating bonuses");
         calc_bonuses();
     }
 
     if (p_ptr->update & (PU_HP))
     {
         p_ptr->update &= ~(PU_HP);
+        log_trace("update_stuff: calculating hitpoints");
         calc_hitpoints();
     }
 
     if (p_ptr->update & (PU_MANA))
     {
         p_ptr->update &= ~(PU_MANA);
+        log_trace("update_stuff: calculating voice/mana");
         calc_voice();
     }
 
     /* Character is not ready yet, no screen updates */
-    if (!character_generated)
+    if (!character_generated) {
+        log_trace("update_stuff: character not generated yet, skipping screen updates");
         return;
+    }
 
     /* Character is in "icky" mode, no screen updates */
-    if (character_icky)
-        return;
+    // if (character_icky) {
+    //     log_trace("update_stuff: character in icky mode, skipping screen updates");
+    //     return;
+    // }
 
     if (p_ptr->update & (PU_FORGET_VIEW))
     {
         p_ptr->update &= ~(PU_FORGET_VIEW);
+        log_debug("update_stuff: forgetting view");
         forget_view();
     }
 
     if (p_ptr->update & (PU_UPDATE_VIEW))
     {
         p_ptr->update &= ~(PU_UPDATE_VIEW);
+        log_debug("update_stuff: updating view");
         update_view();
     }
 
@@ -3263,6 +3276,7 @@ void update_stuff(void)
     {
         p_ptr->update &= ~(PU_DISTANCE);
         p_ptr->update &= ~(PU_MONSTERS);
+        log_debug("update_stuff: updating distances and monsters");
         update_monsters(true);
     }
 
@@ -3277,6 +3291,8 @@ void update_stuff(void)
         p_ptr->update &= ~(PU_PANEL);
         verify_panel();
     }
+
+    log_trace("update_stuff: completed all updates");
 }
 
 /*
@@ -3285,20 +3301,27 @@ void update_stuff(void)
 void redraw_stuff(void)
 {
     /* Redraw stuff */
-    if (!p_ptr->redraw)
+    if (!p_ptr->redraw) {
+        log_trace("redraw_stuff: no redraws needed");
         return;
+    }
+
+    log_trace("redraw_stuff: processing redraws 0x%08X", p_ptr->redraw);
 
     /* Character is not ready yet, no screen updates */
     if (!character_generated)
         return;
 
     /* Character is in "icky" mode, no screen updates */
-    if (character_icky && !p_ptr->is_dead)
-        return;
+    // if (character_icky && !p_ptr->is_dead) {
+    //     log_trace("redraw_stuff: character in icky mode, skipping screen updates");
+    //     return;
+    // }
 
     if (p_ptr->redraw & (PR_MAP))
     {
         p_ptr->redraw &= ~(PR_MAP);
+        log_debug("redraw_stuff: redrawing map");
         prt_map();
     }
 
@@ -3469,6 +3492,8 @@ void redraw_stuff(void)
         p_ptr->redraw &= ~(PR_TERRAIN);
         prt_terrain();
     }
+
+    log_trace("redraw_stuff: completed all redraws");
 }
 
 /*
@@ -3481,8 +3506,12 @@ void window_stuff(void)
     u32b mask = 0L;
 
     /* Nothing to do */
-    if (!p_ptr->window)
+    if (!p_ptr->window) {
+        log_trace("window_stuff: no window updates needed");
         return;
+    }
+
+    log_debug("window_stuff: processing windows 0x%08X", p_ptr->window);
 
     /* Scan windows */
     for (j = 0; j < ANGBAND_TERM_MAX; j++)
@@ -3550,6 +3579,8 @@ void window_stuff(void)
         p_ptr->window &= ~(PW_MONSTER);
         fix_monster();
     }
+
+    log_trace("window_stuff: completed all window updates");
 }
 
 /*
@@ -3557,6 +3588,9 @@ void window_stuff(void)
  */
 void handle_stuff(void)
 {
+    log_trace("handle_stuff: starting (update=0x%08X, redraw=0x%08X, window=0x%08X)", 
+              p_ptr->update, p_ptr->redraw, p_ptr->window);
+
     /* Update stuff */
     if (p_ptr->update)
         update_stuff();
@@ -3568,4 +3602,6 @@ void handle_stuff(void)
     /* Window stuff */
     if (p_ptr->window)
         window_stuff();
+
+    log_trace("handle_stuff: completed");
 }
