@@ -5257,3 +5257,45 @@ cptr attr_to_text(byte a)
 
     return (base);
 }
+
+/*
+ * Initialises logger. Opens `log.txt` file and sets log level for stdout and
+ * file from `SIL_LOG_LEVEL` environment variable. The `quiet` argument disables
+ * stdout when set to true (essential for terminal modes like ncurses where
+ * screen output would be garbled otherwise).
+ */
+void init_logger(bool quiet)
+{
+    const char* log_level_str = getenv("SIL_LOG_LEVEL");
+    int level = LOG_INFO;
+    if (log_level_str)
+    {
+        for (level = LOG_TRACE; level <= LOG_FATAL; level++)
+        {
+            if (strcmp(log_level_str, log_level_string(level)) == 0)
+            {
+                break;
+            }
+        }
+        if (level > LOG_FATAL)
+        {
+            level = LOG_INFO;
+            log_warn("Unknown log level %s, log level will be set to INFO",
+                log_level_str);
+        }
+    }
+
+    FILE* log_file = my_fopen("log.txt", "w");
+    if (!log_file)
+        quit("could not open log.txt for writing");
+    log_add_fp(log_file, level);
+    log_set_level(level);
+
+    if (quiet)
+    {
+        log_set_quiet(true);
+    }
+
+    log_info("logger initialised");
+    atexit(log_close_files);
+}

@@ -904,6 +904,7 @@ extern char* squelch_to_label(int squelch);
 extern bool use_object(object_type* o_ptr, bool* ident);
 
 /* util.c */
+extern void init_logger(bool quiet);
 extern errr path_parse(char* buf, size_t max, cptr file);
 extern errr path_build(char* buf, size_t max, cptr path, cptr file);
 extern FILE* my_fopen(cptr file, cptr mode);

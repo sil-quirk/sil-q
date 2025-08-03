@@ -3909,7 +3909,6 @@ static void init_stuff(void)
 	validate_dir(ANGBAND_DIR_XTRA_HELP);
 #endif /* 0 */
 }
-// FILE *log_file;
 
 int FAR PASCAL WinMain(
     HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nCmdShow)
@@ -3919,37 +3918,9 @@ int FAR PASCAL WinMain(
     WNDCLASS wc;
     HDC hdc;
 
-        use_background_colors = true;
+    use_background_colors = true;
 
-        //Logging initialization
-        const char* log_level_str = getenv("SIL_LOG_LEVEL");
-        log_set_level(LOG_INFO);
-        if (log_level_str)
-        {
-            for (int i = LOG_TRACE; i <= LOG_FATAL; i++)
-            {
-                if (strcmp(log_level_str, log_level_string(i)) == 0)
-                {
-                    log_set_level(i);
-                    goto LOG_LEVEL_SET;
-                }
-            }
-            log_warn("Unknown log level %s, log level will be set to INFO",
-                log_level_str);
-        }
-  
-    // Open log file in current working directory (create if necessary)
-    log_debug("Attempting to open log file: log.txt");
-    FILE* log_file = fopen("log.txt", "w");
-    if (log_file) {
-        log_debug("Successfully opened log file: log.txt");
-        log_add_fp(log_file, LOG_DEBUG);
-    } else {
-        log_debug("Failed to open log file: log.txt");
-    }
-    LOG_LEVEL_SET:
-
-        log_info("logger initialised");
+    init_logger(false);
 
     // Sil-y: commented this out
     // MSG msg;
