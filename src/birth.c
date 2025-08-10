@@ -9,7 +9,7 @@
  */
 
 #include "angband.h"
-#include "log.h"
+#include "log/log.h"
 #include "z-term.h"
 #include "metarun.h"
 
@@ -488,7 +488,7 @@ static void player_outfit(void)
     p_ptr->update |= (PU_BONUS | PU_MANA);
     p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
     p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
-    
+
     log_debug("Player equipment setup completed");
 }
 
@@ -545,9 +545,9 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             {
                 if (choices[i + top].ghost)
                     strnfmt(buf, sizeof(buf), "%c %s", 'X', choices[i + top].name);
-                else 
+                else
                     strnfmt(buf, sizeof(buf), choices[i + top].name);
-                
+
             }
             else
             {
@@ -632,7 +632,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             else
                 return (cur);
         }
-        //Show scores 
+        //Show scores
         if (c == 's')
             {
                 show_scores(false);
@@ -723,7 +723,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 for (i = num - 1; i > cur; i--)
                 {
                     // if (!(choices[i].ghost))
-                    // 
+                    //
                         next = i;
                     // }
                 }
@@ -932,9 +932,9 @@ static void print_rh_flags(int race, int house, int col, int row)
     HANDLE_UNIQUE_U("Aure entuluva",   UNQ_SNG_HURIN, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Voice of Girdle",   UNQ_SNG_THINGOL, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Forgotten",   UNQ_MIM, TERM_VIOLET,   1);
-    
+
     HANDLE_UNIQUE("Gift of Eru",   RHF_GIFTERU,     TERM_VIOLET,     1);
-    HANDLE_UNIQUE("Seafarer",   RHF_FREE, TERM_VIOLET,   1); 
+    HANDLE_UNIQUE("Seafarer",   RHF_FREE, TERM_VIOLET,   1);
 
     HANDLE_UNIQUE("Kinslayer",   RHF_KINSLAYER, TERM_UMBER,   1); // right
     HANDLE_UNIQUE("Treacherous",   RHF_TREACHERY, TERM_UMBER,   1); // right
@@ -1152,7 +1152,7 @@ static void house_aux_hook(birth_menu c_str)
         Term_putstr(TOTAL_AUX_COL + 21, i, -1, TERM_WHITE,
             "                                         ");
     }
-    
+
     /* Also clear the abilities area (col + 7) but only in the same range */
     for (i = 0; i < DESCRIPTION_ROW; i++)
     {
@@ -1182,19 +1182,19 @@ static void house_aux_hook(birth_menu c_str)
 
         Term_putstr(TOTAL_AUX_COL + 4, TABLE_ROW + i, -1, attr, s);
     }
-    // Check dead   
+    // Check dead
     // if (c_str.ghost) Term_putstr(TOTAL_AUX_COL, QUESTION_ROW + A_MAX + 7, -1, TERM_RED,
     //     "Dead");
     // else Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX +7, -1, TERM_L_BLUE,
     //     "Alive");
     char pretty_name[40];
-    strnfmt(pretty_name, sizeof(pretty_name), "%s%s", c_name + c_info[house_idx].name, c_name + c_info[house_idx].alt_name); 
+    strnfmt(pretty_name, sizeof(pretty_name), "%s%s", c_name + c_info[house_idx].name, c_name + c_info[house_idx].alt_name);
     Term_putstr(
         TOTAL_AUX_COL, HEADER_ROW, -1, TERM_L_BLUE, pretty_name);
-    
+
     print_rh_flags(
         p_ptr->prace, house_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
-    
+
 }
 // Check house flags
 static int is_set(int bit) {
@@ -1255,7 +1255,7 @@ static bool get_player_house(void)
         {
             if (highscore_dead(c_name + c_info[i].name)) houses[house].ghost = true;
             else houses[house].ghost = false;
-                
+
             houses[house].name = c_name + c_info[i].name;
             houses[house].text = c_text + c_info[i].text;
             if (p_ptr->phouse == i)
@@ -1879,7 +1879,7 @@ static NavResult player_birth_aux(void)
 {
 
     log_debug("Initializing character data and history");
-    
+
     my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
     process_player_name(false);
     /* Clear the previous history strings */
@@ -1889,7 +1889,7 @@ static NavResult player_birth_aux(void)
 
     p_ptr->wt = 0;
     p_ptr->ht = 0;
-    p_ptr->age = 0; 
+    p_ptr->age = 0;
 
     /* Point-based flow */
     for (;;)
@@ -1916,8 +1916,8 @@ static NavResult player_birth_aux(void)
     // Reset the number of artefacts
     p_ptr->artefacts = 0;
 
-    log_trace("Final character stats: Str=%d Dex=%d Con=%d Gra=%d", 
-              p_ptr->stat_base[A_STR], p_ptr->stat_base[A_DEX], 
+    log_trace("Final character stats: Str=%d Dex=%d Con=%d Gra=%d",
+              p_ptr->stat_base[A_STR], p_ptr->stat_base[A_DEX],
               p_ptr->stat_base[A_CON], p_ptr->stat_base[A_GRA]);
 
     /* Accept */

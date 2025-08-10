@@ -9,7 +9,7 @@
  */
 
 #include "angband.h"
-#include "log.h"
+#include "log/log.h"
 #include <stdio.h>
 
 void updatecharinfoS(void)
@@ -1339,7 +1339,7 @@ static bool wr_savefile(void)
 
     /* Write the "extra" information */
     log_trace("Writing extra information...\n");
-    
+
     wr_extra();
 
 
@@ -1589,7 +1589,7 @@ bool save_player(void)
         /* Success */
         result = true;
     }
-    else 
+    else
     {
         log_info("Save failed - could not write savefile");
     }
@@ -1604,7 +1604,7 @@ bool save_player(void)
     // // Save Metarun
     // strcpy(meta.name,"F");
     // if (!meta_seek(atoi(meta.id))) meta_write(&meta);
-    
+
     // /* Close it */
     // fd_close(meta_fd);
 

@@ -9,7 +9,7 @@
  */
 
 #include "angband.h"
-#include "log.h"
+#include "log/log.h"
 
 #ifdef SET_UID
 

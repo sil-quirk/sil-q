@@ -11,7 +11,7 @@
 #include "angband.h"
 
 #include "init.h"
-#include "log.h"
+#include "log/log.h"
 #include <stdbool.h>
 
 /*
@@ -2120,7 +2120,7 @@ bool load_player(void)
             playerturn = 0;
 
             /* A dead character was loaded */
-            character_loaded_dead = true; 
+            character_loaded_dead = true;
             log_info("Character loaded dead");
 
             /* Done */

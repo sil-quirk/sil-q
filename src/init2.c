@@ -9,7 +9,7 @@
  */
 
 #include "angband.h"
-#include "log.h"
+#include "log/log.h"
 #include "metarun.h"
 
 #include "h-define.h"
@@ -1645,9 +1645,9 @@ extern void display_introduction(void)
     Term_putstr(12, 14, -1, TERM_WHITE,
         "  Wrest a shining Silmaril from Morgoth's iron crown.");
     Term_putstr(12, 15, -1, TERM_WHITE,
-        "    Endure the curses of evil, guided by the wisdom of the Valar. ");   
+        "    Endure the curses of evil, guided by the wisdom of the Valar. ");
     Term_putstr(12, 16, -1, TERM_WHITE,
-        "      And prove your right to live in the lands of Valinor.");       
+        "      And prove your right to live in the lands of Valinor.");
 
     /* Flush it */
     Term_fresh();
@@ -1811,12 +1811,12 @@ void init_angband(void)
         quit("Cannot initialize histories");
 
     /* Initialize story info */
-    note("[Initializing arrays... (stories)]");        
+    note("[Initializing arrays... (stories)]");
     if (init_st_info())
         quit("Cannot initialize stories");
 
     /* Initialize curses info */
-    note("[Initializing arrays... (curses)]");        
+    note("[Initializing arrays... (curses)]");
     if (init_cu_info())
         quit("Cannot initialize curses");
 
@@ -1873,7 +1873,7 @@ extern NavResult initial_menu(bool *start_new)
 {
     int ch;
 
-    display_introduction();    
+    display_introduction();
 
     /* wizard-mode resurrection warning or blank it out */
     if (arg_wizard)
@@ -1888,13 +1888,13 @@ extern NavResult initial_menu(bool *start_new)
         "______________________________________________________");
 
     /* menu lines (new order) */
-    if (metarun_created == true) 
+    if (metarun_created == true)
     Term_putstr(16, 19, 50, TERM_L_BLUE,
         "Start your story (press space to continue)");
     else
     Term_putstr(16, 19, 50,TERM_L_BLUE,
         "Continue your story (press space to continue)");
-    
+
     Term_putstr(25, 22, 30,TERM_WHITE,
         "press q or ESC to exit");
 

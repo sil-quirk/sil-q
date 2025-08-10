@@ -9,7 +9,7 @@
  */
 
 #include "angband.h"
-#include "log.h"
+#include "log/log.h"
 #include "metarun.h"
 #include "z-term.h"
 
@@ -700,7 +700,7 @@ static bool enter_wizard_mode(void)
 
     /* Mark savefile */
     p_ptr->noscore |= 0x0002;
-    
+
     log_debug("Entering wizard mode - savefile marked");
 
     /* Success */
@@ -767,7 +767,7 @@ static bool verify_debug_mode(void)
  */
 static void process_command(void)
 {
-    log_trace("process_command: character_icky=%d, command='%c' (%d)", 
+    log_trace("process_command: character_icky=%d, command='%c' (%d)",
               character_icky, p_ptr->command_cmd, (int)p_ptr->command_cmd);
 
     /* Debug: Log character_icky state but don't aggressively reset it during normal operation */
@@ -2562,7 +2562,7 @@ static void dungeon(void)
                 int new_exp = i * 50;
                 gain_exp(new_exp);
                 p_ptr->descent_exp += new_exp;
-                
+
                 log_debug("Depth %d reached, gained %d descent experience", i, new_exp);
 
                 // Sil-x
@@ -2595,7 +2595,7 @@ static void dungeon(void)
 
             /* Mark the stairs as known */
             cave_info[p_ptr->py][p_ptr->px] |= (CAVE_MARK);
-            
+
             log_trace("Staircase created and marked at (%d, %d)", p_ptr->py, p_ptr->px);
         }
 
@@ -2703,7 +2703,7 @@ static void dungeon(void)
 
     /* Log final state after setup */
     log_debug("Final setup state: character_generated=%s, character_icky=%d, update=0x%08X, redraw=0x%08X, window=0x%08X",
-              character_generated ? "true" : "false", character_icky, 
+              character_generated ? "true" : "false", character_icky,
               p_ptr->update, p_ptr->redraw, p_ptr->window);
 
     /* Handle delayed death */
@@ -2766,7 +2766,7 @@ static void dungeon(void)
 
         /* Can the player move? */
         while ((p_ptr->energy >= 100) && (!p_ptr->leaving))
-        {   
+        {
             /* Process monster with even more energy first */
             process_monsters(p_ptr->energy + 1);
 
@@ -2977,124 +2977,124 @@ static void death_knowledge(void)
  * Introductory narrative display, one paragraph per prompt.
  * Implemented as a static function to restrict linkage.
  */
-static void print_story_intro(void) 
-{ 
-    int wid, h; 
-    const int indent = 2; 
- 
-    /* Narrative paragraphs as valid C string literals with embedded \n */ 
-    cptr intro_texts[] = { 
-        "You awaken in darkness.\n" 
-        "No name. No memory.\n" 
-        "Only a quiet ache of courage deep inside you,\n" 
-        "like embers buried beneath ash.\n", 
- 
-        "Far below, Morgoth waits upon his throne-\n" 
-        "iron-dark and crowned in flame.\n" 
-        "Upon his brow shine three Silmarils, stolen stars.\n" 
-        "He senses your stirring. He knows you will come.\n", 
- 
-        "Far above, beyond the shadows of Angband,\n" 
-        "the Valar watch silently.\n" 
-        "They offer no guidance, yet their presence\n" 
-        "fills you with strength-and dread.\n", 
- 
-        "You will return many times, each death and rebirth\n" 
-        "etched into the endless stone halls of Mandos.\n" 
-        "Each fall will draw your spirit deeper into shadow,\n" 
-        "closer to a doom from which you cannot escape.\n", 
- 
-        "Yet each victory-each Silmaril wrested from Morgoth's crown-\n" 
-        "will brighten the Valar's hope,\n" 
-        "even as your soul grows thinner,\n" 
-        "your strength fading with every triumph.\n", 
- 
-        "You envy the Edain, whose Gift from Iluvatar\n" 
-        "frees them from the bonds of Mandos and the world.\n" 
-        "Yet you do not know if such release can ever be yours.\n" 
-        "You do not know who-or even what-you truly are.\n", 
- 
-        "For each time you awaken,\n" 
-        "you will carry the names of heroes beloved and feared-\n" 
-        "bright spirits, fiery hearts, proud kings and exiles,\n" 
-        "wanderers beneath sun and stars,\n" 
-        "whose courage you borrow, but whose fates are not your own.\n", 
- 
-        "This is the trial set by the Valar:\n" 
-        "to reclaim your forgotten name,\n" 
-        "to balance shadow and light,\n" 
-        "and to find within the borrowed glory of others\n" 
-        "your true self.\n", 
- 
-        "Now the path before you opens,\n" 
-        "and your trial begins.\n" 
-    }; 
- 
-    int total = sizeof(intro_texts) / sizeof(intro_texts[0]); 
-    Term_get_size(&wid, &h); 
-    int wrap_width = wid - indent; 
- 
-    /* Start on a blank screen */ 
-    Term_clear(); 
-    int row = 1, col = 0; 
- 
-    for (int idx = 0; idx < total; idx++) { 
-        const char *s = intro_texts[idx]; 
-        
-        /* Count lines needed for this paragraph */ 
-        int lines_needed = 0; 
-        int temp_col = col; 
-        for (size_t i = 0; s[i]; i++) { 
-            if (s[i] == '\n' || temp_col >= wrap_width) { 
-                lines_needed++; 
-                temp_col = 0; 
-                if (s[i] == '\n') continue; 
-            } 
-            temp_col++; 
-        } 
-        lines_needed++; /* Add one for the blank line after paragraph */ 
-        
-        /* Check if we have enough space for the whole paragraph */ 
-        if (row + lines_needed >= h - 1) { 
-            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)"); 
-            inkey(); 
-            Term_clear(); 
-            row = 1; 
-        } 
-        
-        col = 0; 
- 
-        /* Print this string, character by character */ 
-        for (size_t i = 0; s[i]; i++) { 
-            char ch = s[i]; 
- 
-            /* Newline or wrap? */ 
-            if (ch == '\n' || col >= wrap_width) { 
-                row++; 
-                col = 0; 
-                if (ch == '\n') continue; 
-            } 
- 
-            Term_putch(indent + col, row, TERM_WHITE, ch); 
-            Term_fresh(); 
-            col++; 
-            
-            /* Delay 25 ms after each character */ 
-            Term_xtra(TERM_XTRA_DELAY, 30); 
-        } 
- 
-        /* Leave one blank line after each paragraph */ 
-        row++; 
-        col = 0; 
+static void print_story_intro(void)
+{
+    int wid, h;
+    const int indent = 2;
+
+    /* Narrative paragraphs as valid C string literals with embedded \n */
+    cptr intro_texts[] = {
+        "You awaken in darkness.\n"
+        "No name. No memory.\n"
+        "Only a quiet ache of courage deep inside you,\n"
+        "like embers buried beneath ash.\n",
+
+        "Far below, Morgoth waits upon his throne-\n"
+        "iron-dark and crowned in flame.\n"
+        "Upon his brow shine three Silmarils, stolen stars.\n"
+        "He senses your stirring. He knows you will come.\n",
+
+        "Far above, beyond the shadows of Angband,\n"
+        "the Valar watch silently.\n"
+        "They offer no guidance, yet their presence\n"
+        "fills you with strength-and dread.\n",
+
+        "You will return many times, each death and rebirth\n"
+        "etched into the endless stone halls of Mandos.\n"
+        "Each fall will draw your spirit deeper into shadow,\n"
+        "closer to a doom from which you cannot escape.\n",
+
+        "Yet each victory-each Silmaril wrested from Morgoth's crown-\n"
+        "will brighten the Valar's hope,\n"
+        "even as your soul grows thinner,\n"
+        "your strength fading with every triumph.\n",
+
+        "You envy the Edain, whose Gift from Iluvatar\n"
+        "frees them from the bonds of Mandos and the world.\n"
+        "Yet you do not know if such release can ever be yours.\n"
+        "You do not know who-or even what-you truly are.\n",
+
+        "For each time you awaken,\n"
+        "you will carry the names of heroes beloved and feared-\n"
+        "bright spirits, fiery hearts, proud kings and exiles,\n"
+        "wanderers beneath sun and stars,\n"
+        "whose courage you borrow, but whose fates are not your own.\n",
+
+        "This is the trial set by the Valar:\n"
+        "to reclaim your forgotten name,\n"
+        "to balance shadow and light,\n"
+        "and to find within the borrowed glory of others\n"
+        "your true self.\n",
+
+        "Now the path before you opens,\n"
+        "and your trial begins.\n"
+    };
+
+    int total = sizeof(intro_texts) / sizeof(intro_texts[0]);
+    Term_get_size(&wid, &h);
+    int wrap_width = wid - indent;
+
+    /* Start on a blank screen */
+    Term_clear();
+    int row = 1, col = 0;
+
+    for (int idx = 0; idx < total; idx++) {
+        const char *s = intro_texts[idx];
+
+        /* Count lines needed for this paragraph */
+        int lines_needed = 0;
+        int temp_col = col;
+        for (size_t i = 0; s[i]; i++) {
+            if (s[i] == '\n' || temp_col >= wrap_width) {
+                lines_needed++;
+                temp_col = 0;
+                if (s[i] == '\n') continue;
+            }
+            temp_col++;
+        }
+        lines_needed++; /* Add one for the blank line after paragraph */
+
+        /* Check if we have enough space for the whole paragraph */
+        if (row + lines_needed >= h - 1) {
+            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
+            inkey();
+            Term_clear();
+            row = 1;
+        }
+
+        col = 0;
+
+        /* Print this string, character by character */
+        for (size_t i = 0; s[i]; i++) {
+            char ch = s[i];
+
+            /* Newline or wrap? */
+            if (ch == '\n' || col >= wrap_width) {
+                row++;
+                col = 0;
+                if (ch == '\n') continue;
+            }
+
+            Term_putch(indent + col, row, TERM_WHITE, ch);
+            Term_fresh();
+            col++;
+
+            /* Delay 25 ms after each character */
+            Term_xtra(TERM_XTRA_DELAY, 30);
+        }
+
+        /* Leave one blank line after each paragraph */
+        row++;
+        col = 0;
 
         /* 1 second pause after paragraph */
         Term_xtra(TERM_XTRA_DELAY, 1000);
-    } 
- 
-    /* Final "finish" prompt with difficulty option */ 
+    }
+
+    /* Final "finish" prompt with difficulty option */
     Term_putstr(8, h - 2, -1, TERM_L_WHITE, "[c] Change difficulty (experienced players)");
-    Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to finish)"); 
-    
+    Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to finish)");
+
     /* Handle input */
     char key = inkey();
     if (key == 'c' || key == 'C')
@@ -3102,8 +3102,8 @@ static void print_story_intro(void)
         Term_clear();
         choose_difficulty_level();
     }
-    
-    Term_clear(); 
+
+    Term_clear();
 }
 
 
@@ -3138,14 +3138,14 @@ static void print_story_intro(void)
 PlayResult play_game(void)
 {
     bool new_game = false;
-    
+
     /* Safety: Fix character_icky imbalance from previous game sessions */
     if (character_icky != 0)
     {
         log_info("play_game: Fixing character_icky imbalance - was %d, resetting to 0", character_icky);
         character_icky = 0;
     }
-    
+
     /* Hack -- Increase "icky" depth */
     character_icky++;
     log_debug("play_game: character_icky incremented to %d", character_icky);
@@ -3191,13 +3191,13 @@ PlayResult play_game(void)
 
         log_info("Choosing character");
         NavResult cr = character_creation();
-        if (cr == NAV_TO_MAIN) { 
-            log_info("Returning to main menu from character creation"); 
-            return PLAY_DONE; 
+        if (cr == NAV_TO_MAIN) {
+            log_info("Returning to main menu from character creation");
+            return PLAY_DONE;
         }
-        if (cr == NAV_QUIT) { 
-            log_info("Quitting from character creation"); 
-            return PLAY_QUIT; 
+        if (cr == NAV_QUIT) {
+            log_info("Quitting from character creation");
+            return PLAY_QUIT;
         }
 
         /* Attempt to load */
@@ -3233,7 +3233,7 @@ PlayResult play_game(void)
 
             /* Seed the "complex" RNG */
             Rand_state_init(seed);
-            
+
             log_debug("RNG initialized with seed: %u", seed);
         }
 
@@ -3247,23 +3247,23 @@ PlayResult play_game(void)
 
         /* Hack -- seed for random artefacts */
         seed_randart = rand_int(0x10000000);
-        
+
         log_debug("Game seeds initialized - flavor: %u, randart: %u", seed_flavor, seed_randart);
 
         /* Roll up a new character */
         NavResult br = player_birth();
-        if (br == NAV_BACK) { 
-            log_debug("Returning to character selection from birth"); 
+        if (br == NAV_BACK) {
+            log_debug("Returning to character selection from birth");
             /* back to Character Selection */
             continue;
         }
-        if (br == NAV_TO_MAIN) { 
-            log_info("Returning to main menu from character birth"); 
-            return PLAY_DONE; 
+        if (br == NAV_TO_MAIN) {
+            log_info("Returning to main menu from character birth");
+            return PLAY_DONE;
         }
-        if (br == NAV_QUIT) { 
-            log_info("Quitting from character birth"); 
-            return PLAY_QUIT; 
+        if (br == NAV_QUIT) {
+            log_info("Quitting from character birth");
+            return PLAY_QUIT;
         }
         /* NAV_OK falls through */
 
@@ -3281,7 +3281,7 @@ PlayResult play_game(void)
 
         /* Start player on level 1 */
         p_ptr->depth = 1;
-        
+
         log_debug("New game state initialized - starting at depth 1, turn 1");
         }
         }
@@ -3364,7 +3364,7 @@ PlayResult play_game(void)
     /* Start playing */
     p_ptr->playing = true;
     metarun_created = false;
-    
+
     log_info("Game session started - entering play mode");
 
     /* Hack -- Enforce "delayed death" */
@@ -3521,14 +3521,14 @@ PlayResult play_game(void)
 
     /* Close stuff */
     log_info("Player '%s' has left the game.", op_ptr->base_name);
-    
+
     /* Hack -- Decrease "icky" depth */
     character_icky--;
     log_debug("play_game: character_icky decremented to %d (function exit)", character_icky);
-    
+
     close_game();
     if (!p_ptr->is_dead && !p_ptr->playing)
         return PLAY_QUIT;
-    else 
+    else
         return PLAY_DONE;
 }

@@ -24,7 +24,7 @@
 #include "z-form.h"
 #include "z-rand.h"
 #include "z-term.h"
-#include "log.h"
+#include "log/log.h"
 
 /*
  * Include the high-level includes.

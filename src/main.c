@@ -18,7 +18,7 @@
 #if !defined(MACINTOSH) && !defined(WINDOWS) && !defined(RISCOS)
 
 #include "main.h"
-#include "log.h"
+#include "log/log.h"
 
 /*
  * Sil-y: game in progress

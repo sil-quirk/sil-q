@@ -10,14 +10,14 @@
 #include "angband.h"
 #include "metarun.h"
 #include "h-define.h"
-#include "log.h"
+#include "log/log.h"
 #include "platform.h"    /* path_build(), fd_*, MKDIR         */
 
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
 
-#include <stdio.h>  
+#include <stdio.h>
 
 /* --------------------------------------------------------------- */
 /*  metarun.c : quick-and-dirty logger                             */
@@ -57,7 +57,7 @@ static void reset_defaults(metarun *m)
     m->last_played = (u32b)time(NULL);
     m->curses_lo   = 0;
     m->curses_hi   = 0;
-    m->curses_seen = 0;   
+    m->curses_seen = 0;
     m->deaths      = 0;
     m->silmarils   = 0;
     log_trace("After init: curses_seen = 0x%08X", m->curses_seen);
@@ -70,9 +70,9 @@ static void apply_difficulty_curses(metarun *m)
     if (m->type >= z_info->rt_max) return; /* invalid runtype */
 
     runtype_type *rt = &runtype_info[m->type];
-    
+
     log_info("Applying curses for runtype %d (%s)", m->type, rt->name);
-    
+
     /* Apply curses based on runtype configuration */
     if (rt->start_curses)
     {
@@ -133,18 +133,18 @@ static void curses_pack_words(void)
 static void curses_unpack_words(void)
 {
     log_trace("curses_unpack_words: before - curses_seen=0x%08X", metar.curses_seen);
-    
-    u32b lo = metar.curses_lo;          
+
+    u32b lo = metar.curses_lo;
     u32b hi = metar.curses_hi;
 
     for (int id = 0; id < 32; id++) {
         u32b cnt = (id < 16)
-                 ? (lo >> (id * 2)) & 0x3    
+                 ? (lo >> (id * 2)) & 0x3
                  : (hi >> ((id - 16) * 2)) & 0x3;
 
-        CURSE_SET(id, (byte)cnt);            
+        CURSE_SET(id, (byte)cnt);
     }
-    
+
     log_trace("curses_unpack_words: after - curses_seen=0x%08X", metar.curses_seen);
 }
 
@@ -193,14 +193,14 @@ errr load_metaruns(bool create_if_missing)
     /* ensure its per-run directory exists */
     ensure_run_dir(&metar);
     curses_unpack_words();    /* NEW: expand words into live table */
-    
+
     /* Apply difficulty curses only if this is a newly created metarun */
     if (metarun_created)
     {
         apply_difficulty_curses(&metar);
         save_metaruns(); /* persist the changes */
     }
-    
+
     log_debug("Loaded metarun %d with %d silmarils, %d deaths", metar.id, metar.silmarils, metar.deaths);
     return 0;
 }
@@ -227,14 +227,14 @@ errr save_metaruns(void)
 
     size_t bytes_to_write = metarun_max * sizeof(metarun);
     size_t bytes_written = fwrite(metaruns, 1, bytes_to_write, fp);
-    
+
     if (bytes_written != bytes_to_write) {
         fclose(fp);
         return -1;
     }
-    
+
     fclose(fp);
-    
+
     log_info("Metarun data saved successfully");
 
     return 0;
@@ -337,7 +337,7 @@ int menu_choose_one_curse(int n)
             pick[i] = weighted_random_curse();
             for (int j = 0; j < i; j++)
                 if (pick[i] == pick[j]) { dup = true; break; }
-            
+
             byte cap = cu_info[pick[i]].max_stacks;
             if (cap && CURSE_GET(pick[i]) >= cap) { dup = true; continue; }
 
@@ -345,7 +345,7 @@ int menu_choose_one_curse(int n)
     }
 
     screen_save();  Term_clear();
-    
+
     /* Fade in the title */
     char str[60];
     const char* seq[] = { "a", "the second", "the third" };
@@ -359,15 +359,15 @@ int menu_choose_one_curse(int n)
 
     /* Show each curse one by one with fade-in effect */
     bool fast_forward = false;
-    
+
     for (int i = 0; i < CURSE_MENU_LINES; i++) {
         curse_type *cu = &cu_info[pick[i]];
         char name_buf[128];
         strnfmt(name_buf, sizeof name_buf, "%c) %s", 'a'+i, cu_name + cu->name);
-        
+
         const char *txt = cu_text + cu->text;
         int need_lines = count_wrapped_lines(txt, text_out_wrap, 4);
-        
+
 #ifdef DEBUG_CURSES
         const char *pow = cu_text + cu->power;
         int need_pow_lines = 0;
@@ -392,7 +392,7 @@ int menu_choose_one_curse(int n)
 
             /* Name line */
             c_put_str(s == steps - 1 ? TERM_L_RED : fade_cols[s], name_buf, row, 2);
-            
+
             /* Poem text */
             Term_gotoxy(4, row + 2);
             text_out_c(s == steps - 1 ? TERM_SLATE : fade_cols[s], txt);
@@ -404,7 +404,7 @@ int menu_choose_one_curse(int n)
                 text_out_c(s == steps - 1 ? TERM_L_RED : fade_cols[s], pow);
             }
 #endif
-            
+
             Term_fresh();
             Term_xtra(TERM_XTRA_DELAY, 200);
         }
@@ -439,7 +439,7 @@ int menu_choose_one_curse(int n)
 
     /* Show the prompt immediately without fade */
     c_put_str(TERM_L_DARK, "Press a, b or c.", row + 1, 2);
-    
+
     sel = -1;
     while (sel < 0 || sel >= CURSE_MENU_LINES) sel = inkey() - 'a';
     screen_load();
@@ -455,7 +455,7 @@ void metarun_clear_all_curses(void)
     log_info("Clearing all curses for current metarun");
     metar.curses_lo = 0;
     metar.curses_hi = 0;
-    metar.curses_seen = 0;        
+    metar.curses_seen = 0;
     save_metaruns();
 }
 
@@ -496,14 +496,14 @@ static void print_heading_fade(cptr title, byte final_attr)
 {
     const byte fade_cols[] = { TERM_L_DARK, TERM_SLATE, final_attr };
     const int steps = (int)(sizeof(fade_cols) / sizeof(fade_cols[0]));
-    int w, h; 
+    int w, h;
     Term_get_size(&w, &h);
-    
+
     // Center the heading
     int title_len = strlen(title);
     int start_col = (w - title_len) / 2;
     if (start_col < 1) start_col = 1;
-    
+
     for (int s = 0; s < steps; s++)
     {
         c_prt(fade_cols[s], title, 2, start_col);
@@ -517,7 +517,7 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
 {
     const byte fade_cols[] = { TERM_L_DARK, TERM_SLATE, TERM_L_WHITE, final_attr };
     const int steps = (int)(sizeof(fade_cols) / sizeof(fade_cols[0]));
-    
+
     text_out_hook   = text_out_to_screen;
     text_out_indent = 2;
     text_out_wrap   = Term->wid - 4;
@@ -535,14 +535,14 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
             Term_fresh();
             return false;
         }
-        
+
         Term_gotoxy(2, row);
         text_out_c(fade_cols[s], txt);
         text_out("\n");
         Term_fresh();
         Term_xtra(TERM_XTRA_DELAY, 125);
     }
-    
+
     Term_xtra(TERM_XTRA_DELAY, 1000); // Pause after paragraph
     return true;
 }
@@ -572,14 +572,14 @@ static void wait_for_keypress_with_prompt(cptr prompt)
 {
     int w, h;
     Term_get_size(&w, &h);
-    
+
     // Clear bottom line and show prompt
     Term_erase(0, h - 1, w);
     c_prt(TERM_L_WHITE, prompt ? prompt : "[Press any key to continue]", h - 1, 2);
     Term_fresh();
-    
+
     (void)inkey();
-    
+
     // Clear the prompt line
     Term_erase(0, h - 1, w);
 }
@@ -607,9 +607,9 @@ static int choose_escape_curses_ui(int n, int out[3])
     /* Display intro with fade-in effect */
     screen_save();
     Term_clear();
-    
+
     print_heading_fade("The Valar's Judgment", TERM_L_BLUE);
-    
+
     char intro_text[512];
     strnfmt(intro_text, sizeof(intro_text),
             "The Valar watch silently as Morgoth's malice reaches out from shadow-"
@@ -617,10 +617,10 @@ static int choose_escape_curses_ui(int n, int out[3])
             "forcing upon you the final choice-%s curse%s you must bear.",
             (n == 1) ? "a" : (n == 2) ? "two" : "three",
             (n == 1) ? "" : "s");
-    
+
     if (!print_paragraph_fade(intro_text, TERM_L_WHITE, 4))
         fast_forward = true;
-    
+
     wait_for_keypress_with_prompt("[Press any key to face your destiny]");
     Term_clear();
 
@@ -634,10 +634,10 @@ static int choose_escape_curses_ui(int n, int out[3])
 
     /* Wipe the menu clutter so narrative starts clean */
     Term_clear();
-    
+
     /* Avoid unused variable warning */
     (void)fast_forward;
-    
+
     return taken;
 }
 
@@ -701,9 +701,9 @@ static void wait_prompt(prompt_t id) {         /* tiny wrapper */
  * ------------------------------------------------------------------ */
 void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
 {
-    log_info("Metarun update: died=%s, escaped=%s, sil_count=%d", 
+    log_info("Metarun update: died=%s, escaped=%s, sil_count=%d",
              died ? "true" : "false", escaped ? "true" : "false", sil_count);
-             
+
     /* -------- Lineage flags -------------------------------------- */
     u32b f_house = c_info[p_ptr->phouse].flags;
     u32b f_race  = p_info[p_ptr->prace].flags;
@@ -766,12 +766,12 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
 
             print_heading_fade(title, TERM_RED);
             print_paragraph_fade(text, TERM_WHITE, 4);
-            
+
             char transition_text[256];
             strnfmt(transition_text, sizeof(transition_text),
                     "The hero whose mantle you took has fallen, their tale ends in shadow. "
                     "Yet your spirit returns, for the Valar's trial is not yet complete.");
-            
+
             if (!fast_forward && !print_paragraph_fade(transition_text, TERM_L_BLUE, 8))
                 fast_forward = true;
             else if (fast_forward)
@@ -808,14 +808,14 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     if (chosen_cnt > 0)
     {
         print_heading_fade("The Binding of Fate", TERM_L_RED);
-        
+
         for (int i = 0; i < chosen_cnt; ++i)
         {
             char buf[128];
             strnfmt(buf, sizeof buf,
                     "The curse of %s binds your fate.",
                     curse_display_name(chosen[i]));
-            
+
             if (!fast_forward && print_paragraph_fade(buf, TERM_RED, 4 + i * 2))
             {
                 // Continue with fade effects
@@ -826,7 +826,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
                 print_paragraph(buf, TERM_RED);
             }
         }
-        
+
         wait_prompt(PROMPT_CONTINUE_TALE);
         Term_clear();
     }
@@ -835,7 +835,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     /* SCENE 3: Victory Declaration                                  */
     /* ============================================================= */
     print_heading_fade("Victory Amid Shadow", TERM_YELLOW);
-    
+
     const char *victory_text;
     switch (sil_count)
     {
@@ -852,12 +852,12 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
             victory_text = "You have achieved the impossible, claiming more Silmarils than should exist. Reality itself bends before your triumph.";
             break;
     }
-    
+
     if (!fast_forward && !print_paragraph_fade(victory_text, TERM_WHITE, 4))
         fast_forward = true;
     else if (fast_forward)
         print_paragraph(victory_text, TERM_WHITE);
-    
+
     if (allow_treachery)
         wait_prompt(PROMPT_FACE_TEMPTATION);
     else
@@ -871,36 +871,36 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     if (allow_treachery)
     {
         static const int pct[3] = { 20, 50, 95 };
-        
+
         /* Enhanced escalating treachery messages */
         static const char *success_msgs[3] = {
             "The first jewel shines brightly, its pure light uncorrupted. You master desire, choosing honor.",
             "The second jewel blazes defiant, temptation growing strong-but once more, you cling to honor.",
             "The third Silmaril's holy flame burns fiercely. Yet against all odds, your will resists corruption."
         };
-        
+
         static const char *failure_msgs[3] = {
             "Greed whispers softly, and you listen. Secretly you withhold the jewel's light, betraying even yourself.",
             "Desire gnaws deeper; you falter, concealing its brilliance in shame, light darkened by your betrayal.",
             "Consumed by lust for its beauty, you claim it secretly, sealing its radiance from all others-a betrayal of all trust."
         };
-        
+
         print_heading_fade("Temptation of Treachery", TERM_L_UMBER);
-        
+
         int current_row = 4;
 
         for (int i = 0; i < sil_count; ++i)
         {
             bool fail = (rand_int(100) < pct[i]);
             if (fail) stolen++;
-            
+
             const char *tempt_text = fail ? failure_msgs[i] : success_msgs[i];
-            
+
             if (!fast_forward && !print_paragraph_fade(tempt_text, fail ? TERM_RED : TERM_WHITE, current_row))
                 fast_forward = true;
             else if (fast_forward)
                 print_paragraph(tempt_text, fail ? TERM_RED : TERM_WHITE);
-            
+
             current_row += 3; // Space for next paragraph
         }
 
@@ -912,7 +912,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
             else if (fast_forward)
                 print_paragraph(shadow_text, TERM_L_DARK);
         }
-        
+
         wait_prompt(PROMPT_CONTINUE_GENERIC);
         Term_clear();
     }
@@ -924,7 +924,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     /* SCENE 5: The Weight of Victory                               */
     /* ============================================================= */
     print_heading_fade("The Weight of Victory", TERM_L_BLUE);
-    
+
     const char *weight_text;
     if (!treachery_occurred)
     {
@@ -944,12 +944,12 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
         };
         weight_text = tainted_frag[sil_count-1];
     }
-    
+
     if (!fast_forward && !print_paragraph_fade(weight_text, treachery_occurred ? TERM_RED : TERM_L_WHITE, 4))
         fast_forward = true;
     else if (fast_forward)
         print_paragraph(weight_text, treachery_occurred ? TERM_RED : TERM_L_WHITE);
-    
+
     if (allow_kinslay)
         wait_prompt(PROMPT_FACE_ECHOES);
     else
@@ -964,7 +964,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     if (allow_kinslay)
     {
         print_heading_fade("Echoes of Kinslaying", TERM_L_RED);
-        
+
         static const int kin_pct[3] = { 20, 50, 95 };
         int current_row = 4;
 
@@ -993,13 +993,13 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
                     "You resist dark whispers recalling Sirion-your sword is stayed, mercy unbroken.";
                     break;
             }
-            
+
             if (!fast_forward && !print_paragraph_fade(echo_text, fail ? TERM_RED : TERM_L_WHITE, current_row))
                 fast_forward = true;
             else if (fast_forward)  print_paragraph(echo_text, fail ? TERM_RED : TERM_L_WHITE);
-            
+
             current_row += 4; // Space for next echo
-            
+
             /* Stop at first failure */
             if (fail) break;
         }
@@ -1012,7 +1012,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
             else if (fast_forward)
                 print_paragraph(doom_text, TERM_L_DARK);
         }
-        
+
         wait_prompt(PROMPT_CONCLUDE_TALE);
         Term_clear();
     }
@@ -1021,7 +1021,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     /* SCENE 7: Final Summary                                       */
     /* ============================================================= */
     print_heading_fade("The Tale Concludes", TERM_YELLOW);
-    
+
     char summary[256];
     strnfmt(summary, sizeof summary,
             "Your legend is written: %d Silmaril%s claimed, %s, %s.",
@@ -1029,7 +1029,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
             (final_sils == 1) ? "" : "s",
             treachery_occurred ? "tainted by treachery" : "pure of heart",
             (kinslaying_victims > 0) ? "stained by kinslaying" : "with honour intact");
-    
+
     if (!fast_forward && !print_paragraph_fade(summary, TERM_L_GREEN, 4))
         fast_forward = true;
     else if (fast_forward)
@@ -1044,17 +1044,17 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     {
         /* Show kinslaying notifications BEFORE screen_load() */
         print_heading_fade("The Price of Blood", TERM_RED);
-        
+
         char kill_msg[128];
         strnfmt(kill_msg, sizeof kill_msg,
                 "Your kinslaying echoes through time. %d innocent%s will fall by your hand...",
                 kinslaying_victims, (kinslaying_victims == 1) ? "" : "s");
-        
+
         if (!fast_forward && !print_paragraph_fade(kill_msg, TERM_RED, 4))
             fast_forward = true;
         else if (fast_forward)
             print_paragraph(kill_msg, TERM_RED);
-        
+
         wait_prompt(PROMPT_WITNESS_CONSEQUENCES);
     }
 
@@ -1091,7 +1091,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
         wait_prompt(PROMPT_RETURN_MIDDLE_EARTH);
     }
 
-    metar.silmarils += final_sils;    
+    metar.silmarils += final_sils;
     log_info("Added %d Silmarils to metarun total (now %d)", final_sils, metar.silmarils);
     print_story(3, true);
 
@@ -1114,13 +1114,13 @@ void check_run_end(void)
     /* Get dynamic win/loss conditions from runtype */
     int win_goal = WINCON_SILMARILS;   /* fallback */
     int death_base = LOSECON_DEATHS;   /* fallback */
-    
+
     if (runtype_info && metar.type < z_info->rt_max)
     {
         win_goal = runtype_info[metar.type].win_con ? runtype_info[metar.type].win_con : WINCON_SILMARILS;
         death_base = runtype_info[metar.type].lose_con ? runtype_info[metar.type].lose_con : LOSECON_DEATHS;
     }
-    
+
     int max_deaths = MAX(1, death_base - 3 * curse_flag_count(CUR_DEATH));
 
     /* Check loss condition first - if both win and loss are satisfied, loss takes precedence */
@@ -1128,21 +1128,21 @@ void check_run_end(void)
         log_info("Metarun DEFEAT: %d deaths reached (limit: %d)", metar.deaths, max_deaths);
         screen_save();
         Term_clear();
-        
+
         print_heading_fade("The Trial's End", TERM_RED);
-        
+
         char defeat_text[256];
         strnfmt(defeat_text, sizeof(defeat_text),
                 "%d hero%s fallen; the halls of Mandos echo with grief. "
                 "This trial ends in shadow—the run is lost. "
                 "Begin anew to reclaim lost hope.",
                 max_deaths, (max_deaths == 1) ? " has" : "es have");
-        
+
         print_paragraph_fade(defeat_text, TERM_WHITE, 4);
-        
+
         wait_for_keypress_with_prompt("[Press any key to begin anew]");
         screen_load();
-        
+
         start_new_metarun();
         return; /* Important: return after handling defeat */
 
@@ -1150,9 +1150,9 @@ void check_run_end(void)
         log_info("Metarun VICTORY: %d Silmarils collected (goal: %d)", metar.silmarils, win_goal);
         screen_save();
         Term_clear();
-        
+
         print_heading_fade("The Trial's End", TERM_YELLOW);
-        
+
         char victory_text[256];
         strnfmt(victory_text, sizeof(victory_text),
                 "%d Silmarils reclaimed from Morgoth's crown! "
@@ -1160,15 +1160,15 @@ void check_run_end(void)
                 "Yet one final ordeal awaits—your ultimate destiny, "
                 "as your true self faces the Last Trial.",
                 win_goal);
-        
+
         print_paragraph_fade(victory_text, TERM_L_GREEN, 4);
-        
+
         const char *implementation_note = "(This final trial is yet to be implemented.)";
         print_paragraph_fade(implementation_note, TERM_L_DARK, 8);
-        
+
         wait_for_keypress_with_prompt("[Press any key to begin anew]");
         screen_load();
-        
+
         start_new_metarun();
     }
 }
@@ -1221,7 +1221,7 @@ static void start_new_metarun(void)
     apply_difficulty_curses(&metar);
 
     /* Persist and prepare */
-    save_metaruns();      /* safe now that metaruns≠NULL */ 
+    save_metaruns();      /* safe now that metaruns≠NULL */
     ensure_run_dir(&metar);
     log_info("New metarun %d created and initialized", metar.id);
 }
@@ -1232,37 +1232,37 @@ static void show_all_active_curses(void)
     int term_height, term_width;
     screen_save();
     Term_clear();
-    
+
     /* Get actual terminal dimensions */
     Term_get_size(&term_width, &term_height);
-    
+
     /* Title */
     Term_putstr(2, 1, -1, TERM_YELLOW, "=== All Active Curses ===");
-    
+
     int row = 3;
     char buf[128];
-    
+
     /* Count active curses */
     int active_count = 0;
     for (int id = 0; id < z_info->cu_max; id++) {
         if (CURSE_GET(id)) active_count++;
     }
-    
+
     if (active_count == 0) {
         Term_putstr(2, row, -1, TERM_L_DARK, "No active curses");
     } else {
-        snprintf(buf, sizeof buf, "%d active curse%s:", 
+        snprintf(buf, sizeof buf, "%d active curse%s:",
                  active_count, (active_count == 1) ? "" : "s");
         Term_putstr(2, row++, -1, TERM_WHITE, buf);
-        
+
 #ifdef DEBUG_CURSES
         Term_putstr(2, row++, -1, TERM_L_DARK, "(showing D:stacks and P:effect)");
 #endif
-        
+
         for (int id = 0; id < z_info->cu_max; id++) {
             byte cnt = CURSE_GET(id);
             if (!cnt) continue;
-            
+
             /* Build line: id, name, D:count, optional P:text */
             cptr name = cu_name + cu_info[id].name;
 #ifdef DEBUG_CURSES
@@ -1272,7 +1272,7 @@ static void show_all_active_curses(void)
             snprintf(buf, sizeof buf, " %2d: %-20s D:%d", id, name, cnt);
 #endif
             Term_putstr(4, row++, -1, TERM_WHITE, buf);
-            
+
             /* Handle page breaks for very long lists using actual terminal height */
             if (row >= term_height - 2) {
                 Term_putstr(2, row, -1, TERM_L_DARK, "[Press any key for more]");
@@ -1283,7 +1283,7 @@ static void show_all_active_curses(void)
             }
         }
     }
-    
+
     Term_putstr(2, row + 1, -1, TERM_L_DARK, "Press any key to return.");
     inkey();
     screen_load();
@@ -1308,7 +1308,7 @@ void print_metarun_stats(void)
     /* Save & clear screen */
     screen_save();
     Term_clear();
-    
+
     /* Get actual terminal dimensions */
     Term_get_size(&term_width, &term_height);
 
@@ -1318,19 +1318,19 @@ void print_metarun_stats(void)
     /* Run ID */
     snprintf(buf, sizeof buf, "Run-ID     : %u", metar.id);
     Term_putstr(col, row++, -1, TERM_WHITE, buf);
-    
+
     /* Difficulty Level - use dynamic name from runtype */
     const char *diff_name = "Unknown";
     int win_goal = WINCON_SILMARILS;  /* fallback */
     int death_limit = LOSECON_DEATHS; /* fallback */
-    
+
     if (runtype_info && metar.type < z_info->rt_max && runtype_info[metar.type].name[0])
     {
         diff_name = runtype_info[metar.type].name;
         win_goal = runtype_info[metar.type].win_con ? runtype_info[metar.type].win_con : WINCON_SILMARILS;
         death_limit = runtype_info[metar.type].lose_con ? runtype_info[metar.type].lose_con : LOSECON_DEATHS;
     }
-    
+
     snprintf(buf, sizeof buf, "Difficulty : %s", diff_name);
     Term_putstr(col, row++, -1, TERM_L_BLUE, buf);
 
@@ -1361,32 +1361,32 @@ void print_metarun_stats(void)
     int curse_start_row = row + 1; /* Add minimal spacing before curses */
     int available_lines = term_height - curse_start_row - 2; /* Reserve 2 lines for prompt only */
     bool curses_truncated = false; /* Track if we had to truncate the curse list */
-    
+
     /* Count active curses first */
     int active_curse_count = 0;
     for (int id = 0; id < z_info->cu_max; id++) {
         if (CURSE_GET(id)) active_curse_count++;
     }
-    
+
     if (active_curse_count > 0) {
         Term_putstr(col, curse_start_row++, -1, TERM_YELLOW, "Active Curses:");
 #ifdef DEBUG_CURSES
         Term_putstr(col, curse_start_row++, -1, TERM_L_DARK, "(showing D:stacks and P:effect)");
         available_lines--; /* Account for debug line */
 #endif
-        
+
         /* Calculate how many curses we can show - be more aggressive with space usage */
         int max_curses_to_show = available_lines;
         if (active_curse_count > max_curses_to_show) {
             max_curses_to_show--; /* Reserve 1 line for "more..." message */
         }
-        
+
         int curses_shown = 0;
-        
+
         for (int id = 0; id < z_info->cu_max && curses_shown < max_curses_to_show; id++) {
             byte cnt = CURSE_GET(id);
             if (!cnt) continue;
-            
+
             /* Build line: id, name, D:count, optional P:text */
             cptr name = cu_name + cu_info[id].name;
 #ifdef DEBUG_CURSES
@@ -1398,16 +1398,16 @@ void print_metarun_stats(void)
             Term_putstr(col + 2, curse_start_row++, -1, TERM_WHITE, buf);
             curses_shown++;
         }
-        
+
         /* Check if there are more curses that couldn't be shown */
         if (curses_shown < active_curse_count) {
             curses_truncated = true;
             int remaining = active_curse_count - curses_shown;
-            snprintf(buf, sizeof buf, "     ... and %d more curse%s (press 's' to see all)", 
+            snprintf(buf, sizeof buf, "     ... and %d more curse%s (press 's' to see all)",
                      remaining, (remaining == 1) ? "" : "s");
             Term_putstr(col + 2, curse_start_row++, -1, TERM_L_DARK, buf);
         }
-        
+
         /* If curses were truncated, mention the 's' option more prominently */
         if (curses_truncated) {
             snprintf(buf, sizeof buf, "[c] Change difficulty  [s] Show history & full curse list  [any other key] Continue");
@@ -1421,7 +1421,7 @@ void print_metarun_stats(void)
 
     /* Enhanced prompt - position it at the bottom of screen */
     Term_putstr(col, term_height - 1, -1, TERM_L_DARK, buf);
-    
+
     char key = inkey();
     if (key == 'c' || key == 'C')
     {
@@ -1433,18 +1433,18 @@ void print_metarun_stats(void)
     {
         screen_load();
         list_metaruns();
-        
+
         /* Also show all curses if they were truncated in the main display */
         if (curses_truncated) {
             show_all_active_curses();
         }
-        
+
         print_metarun_stats(); /* Return to stats after showing history */
         return;
     }
-    
+
     screen_load();
-    
+
     /* Check if metarun has ended after user chooses to continue */
     check_run_end();
 }
@@ -1458,20 +1458,20 @@ static void get_curse_description(int runtype_id, char *buf, size_t buf_size)
         buf[buf_size - 1] = '\0';
         return;
     }
-    
+
     runtype_type *rt = &runtype_info[runtype_id];
-    
+
     if (!rt->start_curses)
     {
         strncpy(buf, "No curses", buf_size - 1);
         buf[buf_size - 1] = '\0';
         return;
     }
-    
+
     /* Count curses and determine stack ranges */
     int curse_count = 0;
     int min_stacks = 255, max_stacks = 0;
-    
+
     for (int curse_id = 0; curse_id < 32; curse_id++)
     {
         if (rt->start_curses & (1UL << curse_id))
@@ -1482,14 +1482,14 @@ static void get_curse_description(int runtype_id, char *buf, size_t buf_size)
             if (stacks > max_stacks) max_stacks = stacks;
         }
     }
-    
+
     if (curse_count == 0)
     {
         strncpy(buf, "No curses", buf_size - 1);
         buf[buf_size - 1] = '\0';
         return;
     }
-    
+
     /* Format the description */
     if (min_stacks == max_stacks)
     {
@@ -1509,22 +1509,22 @@ static void choose_difficulty_menu(void)
 {
     int choice = metar.type;  /* Start with current difficulty */
     int max_difficulty = (runtype_info && z_info->rt_max > 0) ? z_info->rt_max - 1 : 0;
-    
+
     screen_save();
-    
+
     while (true)
     {
         Term_clear();
 
         /* Title */
         Term_putstr(2, 1, -1, TERM_YELLOW, "=== Select Difficulty Level ===");
-        
+
         int row = 3;
         for (int i = 0; i <= max_difficulty; i++)
         {
             byte name_color, desc_color;
             byte runtype_color = TERM_WHITE; /* default color */
-            
+
             /* Get runtype color from U: field */
             if (runtype_info && i < z_info->rt_max && runtype_info[i].name[0])
             {
@@ -1534,7 +1534,7 @@ static void choose_difficulty_menu(void)
             {
                 runtype_color = TERM_WHITE; /* fallback if runtype not loaded */
             }
-            
+
             if (i == choice) {
                 /* Highlight selected difficulty - use runtype color but brighter */
                 name_color = runtype_color;
@@ -1551,43 +1551,43 @@ static void choose_difficulty_menu(void)
                 desc_color = TERM_L_DARK;
                 Term_putstr(2, row, -1, TERM_L_DARK, " ");
             }
-            
+
             /* Get dynamic name and stats from runtype */
             const char *rt_name = "Unknown";
             int win_goal = WINCON_SILMARILS;
             int death_limit = LOSECON_DEATHS;
-            
+
             if (runtype_info && i < z_info->rt_max && runtype_info[i].name[0])
             {
                 rt_name = runtype_info[i].name;
                 win_goal = runtype_info[i].win_con ? runtype_info[i].win_con : WINCON_SILMARILS;
                 death_limit = runtype_info[i].lose_con ? runtype_info[i].lose_con : LOSECON_DEATHS;
             }
-            
+
             char desc_buf[128];
             char curse_buf[64];
             get_curse_description(i, curse_buf, sizeof(curse_buf));
-            snprintf(desc_buf, sizeof(desc_buf), "Win: %d Silmarils, Lose: %d deaths, %s", 
+            snprintf(desc_buf, sizeof(desc_buf), "Win: %d Silmarils, Lose: %d deaths, %s",
                      win_goal, death_limit, curse_buf);
-            
+
             char name_buf[128];
             snprintf(name_buf, sizeof(name_buf), "%d) %s", i, rt_name);
-            
+
             Term_putstr(4, row++, -1, name_color, name_buf);
             Term_putstr(7, row++, -1, desc_color, desc_buf);
-            
+
             /* Add extra spacing between options */
             row++;
         }
-        
+
         /* Instructions */
         Term_putstr(2, row + 1, -1, TERM_L_WHITE, "Use 8/2 (up/down), 0-9 numbers, Enter to confirm, ESC to cancel");
-        
+
         /* Get input */
         char key = inkey();
-        
+
         /* Handle input */
-        if (key == ESCAPE) 
+        if (key == ESCAPE)
         {
             screen_load();
             return;
@@ -1610,31 +1610,31 @@ static void choose_difficulty_menu(void)
             if (new_choice <= max_difficulty) choice = new_choice;
         }
     }
-    
+
     /* Apply the new difficulty */
     if (choice != metar.type)
     {
         log_info("Changing difficulty from %d to %d", metar.type, choice);
-        
+
         /* Clear all existing curses */
         metarun_clear_all_curses();
-        
+
         /* Set new type and apply its curses */
         metar.type = (byte)choice;
         apply_difficulty_curses(&metar);
-        
+
         /* Save changes */
         save_metaruns();
-        
+
         const char *new_name = "Unknown";
         if (runtype_info && choice < z_info->rt_max && runtype_info[choice].name[0])
             new_name = runtype_info[choice].name;
-        
+
         msg_print(format("Difficulty changed to: %s", new_name));
     }
-    
+
     screen_load();
-    
+
     /* Return to metarun stats to show updated information */
     print_metarun_stats();
 }
@@ -1651,17 +1651,17 @@ void list_metaruns(void)
     int row = 4;
     for (s16b i = 0; i < metarun_max; i++) {
         const metarun *m = &metaruns[i];
-        
+
         /* Get dynamic win/loss conditions for this metarun type */
         int win_goal = WINCON_SILMARILS;
         int death_limit = LOSECON_DEATHS;
-        
+
         if (runtype_info && m->type < z_info->rt_max)
         {
             win_goal = runtype_info[m->type].win_con ? runtype_info[m->type].win_con : WINCON_SILMARILS;
             death_limit = runtype_info[m->type].lose_con ? runtype_info[m->type].lose_con : LOSECON_DEATHS;
         }
-        
+
         char res = (m->silmarils >= win_goal) ? 'W' :
                    (m->deaths >= death_limit) ? 'L' : ' ';
         char date[16];
