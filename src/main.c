@@ -29,61 +29,10 @@ bool game_in_progress = false;
  * List of the available modules in the order they are tried.
  */
 static const struct module modules[] = {
-#ifdef USE_GTK
-    { "gtk", help_gtk, init_gtk },
-#endif /* USE_GTK */
-
-#ifdef USE_XAW
-    { "xaw", help_xaw, init_xaw },
-#endif /* USE_XAW */
-
-#ifdef USE_X11
-    { "x11", help_x11, init_x11 },
-#endif /* USE_X11 */
-
-#ifdef USE_XPJ
-    { "xpj", help_xpj, init_xpj },
-#endif /* USE_XPJ */
-
 #ifdef USE_GCU
     { "gcu", help_gcu, init_gcu },
 #endif /* USE_GCU */
-
-#ifdef USE_CAP
-    { "cap", help_cap, init_cap },
-#endif /* USE_CAP */
-
-#ifdef USE_DOS
-    { "dos", help_dos, init_dos },
-#endif /* USE_DOS */
-
-#ifdef USE_IBM
-    { "ibm", help_ibm, init_ibm },
-#endif /* USE_IBM */
-
-#ifdef USE_EMX
-    { "emx", help_emx, init_emx },
-#endif /* USE_EMX */
-
-#ifdef USE_SLA
-    { "sla", help_sla, init_sla },
-#endif /* USE_SLA */
-
-#ifdef USE_LSL
-    { "lsl", help_lsl, init_lsl },
-#endif /* USE_LSL */
-
-#ifdef USE_AMI
-    { "ami", help_ami, init_ami },
-#endif /* USE_AMI */
-
-#ifdef USE_VME
-    { "vme", help_vme, init_vme },
-#endif /* USE_VME */
-
-#ifdef USE_VCS
-    { "vcs", help_vcs, init_vcs },
-#endif /* USE_VCS */
+    { "sdl", help_sdl, init_sdl },
 };
 
 /*

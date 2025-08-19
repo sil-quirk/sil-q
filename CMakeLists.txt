@@ -5,6 +5,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(SDL3 REQUIRED)
 find_package(SDL3_ttf REQUIRED)
+find_package(SDL3_image REQUIRED)
 find_package(Curses)
 if(Curses_FOUND AND NOT TARGET Curses::Curses)
   add_library(Curses::Curses INTERFACE IMPORTED)
@@ -36,6 +37,7 @@ add_executable(sil-more
     src/load.c
     src/main.c
     src/main-gcu.c  # We're GCU-only for a moment
+    src/main-sdl.c
     src/melee1.c
     src/melee2.c
     src/metarun.c
@@ -68,4 +70,4 @@ add_executable(sil-more
 target_compile_options(sil-more PUBLIC -Wall -Wextra -std=c11)
 target_compile_definitions(sil-more PRIVATE -DUSE_GCU)
 target_include_directories(sil-more PRIVATE src)
-target_link_libraries(sil-more PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf Curses::Curses log)
+target_link_libraries(sil-more PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image Curses::Curses log)
