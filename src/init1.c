@@ -11,6 +11,8 @@
 #include "angband.h"
 #include "h-define.h"
 #include "z-form.h" 
+/* Forward declaration for init2 and local placement */
+errr parse_style_levels(char* buf, header* head);
 
 /*
  * This file is used to initialize various variables and arrays for the
@@ -733,6 +735,16 @@ void dbg_show_active_flags(void)
         }
         else if (ch == 'd')  /* debug menu */
         {
+            
+        /* If the player opens the debug menu from debug curses UI from the character sheet,
+        * make sure the save is marked as tempered/debug (noscore 0x0008)
+        * so metarun finalization will purge it just like the Ctrl-A debug path.
+        */
+        if (!(p_ptr->noscore & 0x0008)) {
+            p_ptr->noscore |= 0x0008;
+            log_info("Debug curses UI enabled (noscore=0x%04X, savefile='%s')",
+                    (unsigned)p_ptr->noscore, savefile);
+        }
             do_cmd_debug();
             dbg_show_active_flags();
             break;
@@ -1067,6 +1079,11 @@ errr parse_z_info(char* buf, header* head)
     {
         z_info->rt_max = (u16b)atoi(buf + 4);
     }
+    /* M:Z:<number_of_styles> */
+    else if (buf[2] == 'Z')
+    {
+        z_info->style_max = (u16b)atoi(buf + 4);
+    }
     else
     {
         /* Oops */
@@ -1202,6 +1219,391 @@ errr parse_rt_info(char *buf, header *head)
 
     /* ignore unknown / comment lines                              */
     return PARSE_ERROR_UNDEFINED_DIRECTIVE;
+}
+
+/* ====================  style.txt parser  ===================== */
+
+static style_type* stl_ptr = NULL;
+/* Global defaults for vein overlay when a style omits Y: */
+static byte g_default_vein_row = 19;
+static byte g_default_vein_col = 0;
+
+/* Optional fixed color key for overlays (if provided) */
+static bool g_overlay_key_enabled = false;
+static byte g_overlay_key_r = 255, g_overlay_key_g = 0, g_overlay_key_b = 255; /* default magenta */
+
+/* Accessors used by rendering */
+byte get_default_vein_row(void);
+byte get_default_vein_col(void);
+byte get_default_vein_row(void) { return g_default_vein_row; }
+byte get_default_vein_col(void) { return g_default_vein_col; }
+bool get_overlay_key_enabled(void);
+void get_overlay_key_rgb(byte* r, byte* g, byte* b);
+bool get_overlay_key_enabled(void) { return g_overlay_key_enabled; }
+void get_overlay_key_rgb(byte* r, byte* g, byte* b) { if (r) *r = g_overlay_key_r; if (g) *g = g_overlay_key_g; if (b) *b = g_overlay_key_b; }
+
+/* Forward decl for per-style message parser (M:) */
+static errr parse_style_message_line(char* buf);
+
+errr parse_style_info(char* buf, header* head)
+{
+    /* Note: L:/U: moved to style-levels.txt for clarity. */
+    /* E:<row>:<col> or DY:<row>:<col> — default vein overlay tile (used if a style omits Y:) */
+    {
+        const char* p = buf;
+        while (*p == ' ' || *p == '\t') p++;
+        if (((p[0] == 'D' || p[0] == 'd') && (p[1] == 'Y' || p[1] == 'y') && p[2] == ':') ||
+            ((p[0] == 'E' || p[0] == 'e') && p[1] == ':' ))
+        {
+            const char* q = (p[0] == 'E' || p[0] == 'e') ? (p + 2) : (p + 3);
+            int r, c; if (2 != sscanf(q, "%d:%d", &r, &c)) return PARSE_ERROR_GENERIC;
+            g_default_vein_row = (byte)r; g_default_vein_col = (byte)c; return 0;
+        }
+    }
+
+    /* EK:R:G:B — optional explicit color key for overlays (e.g., 255:0:255) */
+    {
+        const char* p = buf;
+        while (*p == ' ' || *p == '\t') p++;
+        if ((p[0] == 'E' || p[0] == 'e') && (p[1] == 'K' || p[1] == 'k') && p[2] == ':')
+        {
+            int r, g, b; if (3 != sscanf(p + 3, "%d:%d:%d", &r, &g, &b)) return PARSE_ERROR_GENERIC;
+            g_overlay_key_r = (byte)r; g_overlay_key_g = (byte)g; g_overlay_key_b = (byte)b; g_overlay_key_enabled = true; return 0;
+        }
+    }
+    /* N:<index>:<name> */
+    if (buf[0] == 'N')
+    {
+        int idx;
+        char* s = strchr(buf + 2, ':');
+        if (!s) return PARSE_ERROR_GENERIC;
+        *s++ = '\0';
+    idx = atoi(buf + 2);
+
+        if (idx <= error_idx) return PARSE_ERROR_NON_SEQUENTIAL_RECORDS;
+        if (idx >= head->info_num) return PARSE_ERROR_TOO_MANY_ENTRIES;
+        error_idx = idx;
+
+    stl_ptr = ((style_type*)head->info_ptr) + idx;
+    WIPE(stl_ptr, style_type);
+    /* Initialize counts */
+    stl_ptr->floor_count = 0;
+    stl_ptr->door_count = 0;
+        stl_ptr->name = add_name(head, s);
+    if (idx == 0) { /* styles only here */ }
+        return 0;
+    }
+
+    if (!stl_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+
+    /* G:<group_id> (1..6) */
+    if (buf[0] == 'G')
+    {
+        stl_ptr->group = (byte)atoi(buf + 2);
+        return 0;
+    }
+    /* W:row:col  (wall) */
+    if (buf[0] == 'W')
+    {
+        int r, c; if (2 != sscanf(buf + 2, "%d:%d", &r, &c)) return PARSE_ERROR_GENERIC;
+        stl_ptr->wall_row = (byte)r; stl_ptr->wall_col = (byte)c; return 0;
+    }
+    /* Y:row:col  (vein) — use 'Y' since 'V' is reserved for file version */
+    if (buf[0] == 'Y')
+    {
+        int r, c; if (2 != sscanf(buf + 2, "%d:%d", &r, &c)) return PARSE_ERROR_GENERIC;
+    stl_ptr->vein_row = (byte)r; stl_ptr->vein_col = (byte)c; stl_ptr->vein_defined = true; return 0;
+    }
+    /* F:row:col [row:col ...]  (floor) — multiple allowed; tokens separated by spaces */
+    if (buf[0] == 'F')
+    {
+        const char* p = buf + 2;
+        int added = 0;
+        while (*p) {
+            while (*p == ' ' || *p == '\t') p++;
+            if (*p == '\0' || *p == '#') break;
+            int r = -1, c = -1; int n = 0;
+            /* parse r:c */
+            if (sscanf(p, "%d:%d%n", &r, &c, &n) == 2) {
+                if (stl_ptr->floor_count == 0) { stl_ptr->floor_row = (byte)r; stl_ptr->floor_col = (byte)c; }
+                if (stl_ptr->floor_count < 8) {
+                    stl_ptr->floor_rowv[stl_ptr->floor_count] = (byte)r;
+                    stl_ptr->floor_colv[stl_ptr->floor_count] = (byte)c;
+                    stl_ptr->floor_count++;
+                    added++;
+                }
+                p += n;
+            } else {
+                /* stop on invalid token */
+                break;
+            }
+        }
+        if (!added) return PARSE_ERROR_GENERIC;
+        return 0;
+    }
+    /* D:row:col [row:col ...]  (door base) — multiple allowed; tokens separated by spaces */
+    if (buf[0] == 'D')
+    {
+        const char* p = buf + 2;
+        int added = 0;
+        while (*p) {
+            while (*p == ' ' || *p == '\t') p++;
+            if (*p == '\0' || *p == '#') break;
+            int r = -1, c = -1; int n = 0;
+            if (sscanf(p, "%d:%d%n", &r, &c, &n) == 2) {
+                if (stl_ptr->door_count == 0) { stl_ptr->door_row = (byte)r; stl_ptr->door_col = (byte)c; }
+                if (stl_ptr->door_count < 8) {
+                    stl_ptr->door_rowv[stl_ptr->door_count] = (byte)r;
+                    stl_ptr->door_colv[stl_ptr->door_count] = (byte)c;
+                    stl_ptr->door_count++;
+                    added++;
+                }
+                p += n;
+            } else {
+                break;
+            }
+        }
+        if (!added) return PARSE_ERROR_GENERIC;
+        return 0;
+    }
+
+    /* M: <text> — per-style message (banner) */
+    if (buf[0] == 'M')
+    {
+        /* Reuse the message parser; it uses error_idx as current style index */
+        return parse_style_message_line(buf);
+    }
+
+    return PARSE_ERROR_UNDEFINED_DIRECTIVE;
+}
+
+/* ====================  style-levels.txt parser  ===================== */
+
+errr parse_style_levels(char* buf, header* head)
+{
+    (void)head; /* unused */
+    /* Version header clears accumulated rules to allow reparse safely */
+    if (buf[0] == 'V') {
+        styles_rules_clear();
+        styles_vault_rules_clear();
+        styles_default_vault_clear();
+    log_info("parse_style_levels: Version header encountered, cleared existing rules");
+        return 0;
+    }
+    /* Comments or blank lines */
+    if (buf[0] == '#' || buf[0] == '\0') return 0;
+
+    /* L:depth: ... (exact)  or  L:min:max: ... (range)  -> level style rules */
+    if (buf[0] == 'L')
+    {
+        int min_d = 0, max_d = 0;
+        char* s = strchr(buf + 2, ':');
+        if (!s) return PARSE_ERROR_GENERIC;
+        *s++ = '\0';
+        min_d = atoi(buf + 2);
+        /* Decide if this is a range by checking for a ':' before any space after the first ':' */
+        char* first_space = strchr(s, ' ');
+        char* second_colon = strchr(s, ':');
+        char* t;
+        if (second_colon && (!first_space || second_colon < first_space)) {
+            /* Range form: L:min:max: ...  --> s points to max followed by ':' */
+            *second_colon = '\0';
+            max_d = atoi(s);
+            t = second_colon + 1;
+        } else {
+            /* Exact form: L:depth: ... */
+            max_d = min_d;
+            t = s;
+        }
+        int sidx[64]; int wt[64]; int n = 0;
+        while (*t)
+        {
+            while (*t == ' ') t++;
+            if (!*t) break;
+            char* e = t; while (*e && *e != ' ') e++;
+            char hold = *e; if (*e) *e = '\0';
+            char* c = strchr(t, ':'); if (!c) { if (hold) *e = hold; break; }
+            *c = '\0';
+            int si = atoi(t); int w = atoi(c + 1);
+            if (si >= 0 && w > 0 && n < 64) { sidx[n] = si; wt[n] = w; n++; }
+            if (hold) { *e = hold; t = e + 1; } else break;
+        }
+        if (n > 0) {
+            /* Apply to each depth in the range (min_d..max_d), inclusive */
+            if (min_d < 1) min_d = 1;
+            if (max_d > 31) max_d = 31;
+            for (int d = min_d; d <= max_d; ++d) {
+                styles_add_level_rule(d, 0, sidx, wt, n);
+            }
+            log_info("parse_style_levels: L:%d..%d with %d entries (first sidx=%d w=%d)",
+                min_d, max_d, n, sidx[0], wt[0]);
+        }
+        return 0;
+    }
+    /* U:depth: sidx:weight ...   or   U:*: sidx:weight ... (default vault styles) */
+    if (buf[0] == 'U')
+    {
+        char* s = strchr(buf + 2, ':'); if (!s) return PARSE_ERROR_GENERIC; *s++ = '\0';
+        const char* depth_tok = buf + 2;
+        int sidx[64]; int wt[64]; int n = 0;
+        while (*s)
+        {
+            while (*s == ' ') s++;
+            if (!*s) break;
+            char* e = s; while (*e && *e != ' ') e++;
+            char hold = *e; if (*e) *e = '\0';
+            char* c = strchr(s, ':'); if (!c) { if (hold) *e = hold; break; }
+            *c = '\0';
+            int si = (s[0] == '*' && s[1] == '\0') ? -1 : atoi(s);
+            int w = atoi(c + 1);
+            if (w > 0 && n < 64) { sidx[n] = si; wt[n] = w; n++; }
+            if (hold) { *e = hold; s = e + 1; } else break;
+        }
+        if (depth_tok[0] == '*' && depth_tok[1] == '\0') {
+            styles_default_vault_clear();
+            for (int i = 0; i < n; ++i) styles_default_vault_add(sidx[i], wt[i]);
+            log_info("parse_style_levels: U:* default with %d entries (first=%d:%d)", n, sidx[0], wt[0]);
+        } else {
+            int d = atoi(depth_tok);
+            if (n > 0) {
+                styles_set_vault_rule(d, sidx, wt, n);
+                log_info("parse_style_levels: U:%d with %d entries (first=%d:%d)", d, n, sidx[0], wt[0]);
+            }
+        }
+        return 0;
+    }
+    return 0;
+}
+
+/* ====================  style display strings (per-style M:)  ===================== */
+
+/* Per-style banner strings (by style index, allow multiple sayings) */
+#define MAX_STYLE_MSG 8
+static char* g_style_display_text[128][MAX_STYLE_MSG];
+static byte  g_style_display_count[128];
+
+/* Accessor for per-style banner */
+const char* styles_get_style_display(int sidx)
+{
+    if (sidx < 0 || sidx >= 128) return NULL;
+    byte n = g_style_display_count[sidx];
+    if (!n) return NULL;
+    int pick = (n == 1) ? 0 : rand_int(n);
+    return g_style_display_text[sidx][pick];
+}
+
+/* Extend style.txt parser to support per-style messages via M: */
+/* In-record form:  M: <text>         (applies to current style error_idx) */
+/* Global form:     M:<idx>: <text>   (applies to the given style index)   */
+static errr parse_style_message_line(char* buf)
+{
+    if (buf[0] != 'M') return PARSE_ERROR_UNDEFINED_DIRECTIVE;
+    char* s = NULL;
+    int idx = -1;
+    if (buf[1] == ':')
+    {
+        /* Could be M:<idx>: or M: <text> (no idx) */
+        char* p = buf + 2;
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p >= '0' && *p <= '9')
+        {
+            /* M:<idx>:<text> */
+            char* c = strchr(p, ':'); if (!c) return PARSE_ERROR_GENERIC; *c++ = '\0';
+            idx = atoi(p);
+            s = c;
+        }
+        else
+        {
+            /* M: <text> (use current error_idx) */
+            idx = error_idx;
+            s = p;
+        }
+    }
+    else return PARSE_ERROR_GENERIC;
+
+    /* Trim leading spaces */
+    while (*s == ' ' || *s == '\t') s++;
+    /* Strip optional surrounding quotes */
+    if (*s == '"' || *s == '\'') { char q = *s++; char* e = strrchr(s, q); if (e) *e = '\0'; }
+    /* Trim trailing comment */
+    char* h = strchr(s, '#'); if (h) *h = '\0';
+    for (char* t = s + strlen(s) - 1; t >= s && (*t == ' ' || *t == '\t' || *t == '\r' || *t == '\n'); --t) *t = '\0';
+
+    if (idx < 0 || idx >= 128) return PARSE_ERROR_GENERIC;
+    if (g_style_display_count[idx] >= MAX_STYLE_MSG) {
+        log_debug("parse_style_message_line: style %d message list full, dropping: '%s'", idx, s);
+        return 0;
+    }
+    /* Append */
+    g_style_display_text[idx][g_style_display_count[idx]] = string_make(s);
+    g_style_display_count[idx]++;
+    log_debug("parse_style_message_line: added style %d message #%d", idx, g_style_display_count[idx]);
+    return 0;
+}
+
+/* Clear all loaded per-style banner messages (free and NULL them). */
+void styles_clear_display_messages(void)
+{
+    for (int i = 0; i < 128; ++i)
+    {
+        for (int j = 0; j < MAX_STYLE_MSG; ++j) {
+            if (g_style_display_text[i][j]) {
+                string_free(g_style_display_text[i][j]);
+                g_style_display_text[i][j] = NULL;
+            }
+        }
+        g_style_display_count[i] = 0;
+    }
+}
+
+/* Reload only M: lines from style.txt so banners are available even if RAW cache was used. */
+void styles_reload_messages_from_text(void)
+{
+    char path[1024];
+    FILE* fp;
+    char buf[1024];
+    /* Start clean to avoid stale/duplicate entries */
+    styles_clear_display_messages();
+
+    /* Build full path to lib/edit/style.txt */
+    path_build(path, sizeof(path), ANGBAND_DIR_EDIT, format("%s.txt", "style"));
+    fp = my_fopen(path, "r");
+    if (!fp)
+    {
+        log_info("styles_reload_messages_from_text: couldn't open %s", path);
+        return;
+    }
+
+    /* We need to maintain the current style index (error_idx) for in-record M: lines */
+    /* error_idx is the conventional global parser index in this translation unit */
+    error_idx = -1;
+
+    while (my_fgets(fp, buf, sizeof(buf)) == 0)
+    {
+        /* Trim leading spaces */
+        char* s = buf;
+        while (*s == ' ' || *s == '\t') s++;
+        if (*s == '\0' || *s == '#') continue;
+        if (*s == 'N')
+        {
+            /* N:<idx>:<name>  — capture idx to set error_idx */
+            char* colon = strchr(s + 2, ':');
+            if (!colon) continue;
+            *colon = '\0';
+            int idx = atoi(s + 2);
+            error_idx = idx;
+            continue;
+        }
+        if (*s == 'M')
+        {
+            /* Pass through to the same message parser to support both M:<idx>: and in-record M: */
+            (void)parse_style_message_line(s);
+            continue;
+        }
+        /* Ignore other lines */
+    }
+    my_fclose(fp);
+    log_info("styles_reload_messages_from_text: loaded per-style messages from text");
 }
 
 
@@ -1744,6 +2146,11 @@ errr parse_v_info(char* buf, header* head)
         /* Point at the "info" */
         v_ptr = (vault_type*)head->info_ptr + i;
 
+    /* Initialize default values */
+        v_ptr->color = 0; /* Default to depth color */
+    v_ptr->style_count = 0;
+    for (int j = 0; j < 16; ++j) { v_ptr->style_idx[j] = -1; v_ptr->style_weight[j] = 0; }
+
         /* Store the name */
         if (!(v_ptr->name = add_name(head, s)))
             return (PARSE_ERROR_OUT_OF_MEMORY);
@@ -1768,6 +2175,68 @@ errr parse_v_info(char* buf, header* head)
         v_ptr->rarity = rarity;
         v_ptr->hgt = 0;
         v_ptr->wid = 0;
+        /* Note: Don't reset color here - it may have been set by a C: line */
+    }
+
+    /* Process 'C' for "Color" (one line only) */
+    else if (buf[0] == 'C')
+    {
+        int color;
+
+        /* There better be a current v_ptr */
+        if (!v_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Scan for the color value */
+        if (1 != sscanf(buf + 2, "%d", &color))
+            return (PARSE_ERROR_GENERIC);
+
+        /* Verify color range (0-255) */
+        if (color < 0 || color > 255)
+            return (PARSE_ERROR_GENERIC);
+
+        /* Save the color value */
+        v_ptr->color = color;
+    }
+
+    /* Process 'S' for Styles: one or more pairs "sidx:weight" separated by spaces
+     * sidx may be:
+     *   <number>  => exact style index
+     *   *          => the already generated level style (sentinel -1)
+     *   $          => any random style suitable for this depth's floors (sentinel -2)
+     */
+    else if (buf[0] == 'S')
+    {
+        /* There better be a current v_ptr */
+        if (!v_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        char* s = buf + 2;
+        char* tok;
+        while (*s)
+        {
+            while (*s == ' ') s++;
+            if (!*s) break;
+            tok = s;
+            while (*s && *s != ' ') s++;
+            if (*s) { *s = '\0'; s++; }
+            /* parse tok as sidx:weight; '*' means sidx == -1 (level styles)
+             * and '$' means sidx == -2 (any style available at this depth) */
+            char* colon = strchr(tok, ':');
+            if (!colon) return PARSE_ERROR_GENERIC;
+            *colon = '\0';
+            int sidx;
+            if (tok[0] == '*' && tok[1] == '\0') sidx = -1;        /* level style */
+            else if (tok[0] == '$' && tok[1] == '\0') sidx = -2;   /* any depth-available style */
+            else sidx = atoi(tok);
+            int w = atoi(colon + 1);
+            if (v_ptr->style_count < 16 && sidx >= -2 && w > 0)
+            {
+                v_ptr->style_idx[v_ptr->style_count] = (s16b)sidx;
+                v_ptr->style_weight[v_ptr->style_count] = (s16b)w;
+                v_ptr->style_count++;
+            }
+        }
     }
 
     /* Hack -- Process 'F' for flags */

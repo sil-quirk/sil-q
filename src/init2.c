@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "log/log.h"
+#include <stdio.h>
 #include "metarun.h"
 
 #include "h-define.h"
@@ -312,6 +313,7 @@ header g_head;
 header flavor_head;
 header q_head;
 header n_head;
+header style_head;
 
 /*** Initialize from binary image files ***/
 
@@ -368,6 +370,8 @@ static errr init_info_raw(int fd, header* head)
 
 /* local forward */
 static errr init_rt_info(void);
+static errr init_style_info(void);
+/* From init1.c */
 
 /*
  * Initialize the header of an *_info.raw file.
@@ -686,6 +690,49 @@ static errr init_f_info(void)
     f_text = f_head.text_ptr;
 
     return (err);
+}
+
+/*
+ * Initialize the "style_info" array
+ */
+static errr init_style_info(void)
+{
+    errr err;
+    /* Default to zero if not specified yet; will be set by limits.txt */
+    init_header(&style_head, z_info->style_max, sizeof(style_type));
+    style_head.parse_info_txt = parse_style_info;
+    err = init_info("style", &style_head);
+    if (err) return err;
+    /* Ensure M: banner strings are loaded even if RAW cache was used. */
+    styles_reload_messages_from_text();
+    /* Load level/vault rules from separate file (always parse text for side-effects).
+     * We bypass the RAW cache here so manual edits to style-levels.txt take effect
+     * even when ALLOW_TEMPLATES is not defined. */
+    {
+        FILE* fp;
+        char buf[1024];
+        header levels_head;
+        init_header(&levels_head, 1, 1);
+        /* Build full path to lib/edit/style-levels.txt */
+        path_build(buf, sizeof(buf), ANGBAND_DIR_EDIT, format("%s.txt", "style-levels"));
+        fp = my_fopen(buf, "r");
+        if (!fp) quit("Cannot open 'style-levels.txt' file.");
+        /* Parse the file using the style-levels parser (populates global rule tables) */
+        {
+            char linebuf[1024];
+            err = init_info_txt(fp, linebuf, &levels_head, parse_style_levels);
+        }
+        my_fclose(fp);
+        if (err)
+        {
+            /* Report a parse error with helpful context */
+            display_parse_error("style-levels", err, "style-levels");
+            return err;
+        }
+    }
+
+    /* No separate pass for D: depth banners; per requirements, banners come from per-style M: only. */
+    return 0;
 }
 
 /*
@@ -1142,6 +1189,10 @@ extern void re_init_some_things(void)
     FREE(cave_feat);
     C_MAKE(cave_feat, MAX_DUNGEON_HGT, byte_wid);
 
+    /* Color array */
+    FREE(cave_color);
+    C_MAKE(cave_color, MAX_DUNGEON_HGT, byte_wid);
+
     /* Light array */
     FREE(cave_light);
     C_MAKE(cave_light, MAX_DUNGEON_HGT, s16b_wid);
@@ -1258,6 +1309,9 @@ static errr init_other(void)
 
     /* Feature array */
     C_MAKE(cave_feat, MAX_DUNGEON_HGT, byte_wid);
+
+    /* Color array */
+    C_MAKE(cave_color, MAX_DUNGEON_HGT, byte_wid);
 
     /* Light array */
     C_MAKE(cave_light, MAX_DUNGEON_HGT, s16b_wid);
@@ -1815,6 +1869,13 @@ void init_angband(void)
     if (init_st_info())
         quit("Cannot initialize stories");
 
+    /* Initialize style info (visual styles) */
+    note("[Initializing arrays... (styles)]");
+    if (init_style_info())
+        quit("Cannot initialize styles");
+    style_info = (style_type*)style_head.info_ptr;
+    style_name = style_head.name_ptr;
+
     /* Initialize curses info */
     note("[Initializing arrays... (curses)]");
     if (init_cu_info())
@@ -1953,6 +2014,7 @@ void cleanup_angband(void)
     FREE(cave_o_idx);
     FREE(cave_m_idx);
     FREE(cave_feat);
+    FREE(cave_color);
     FREE(cave_info);
     FREE(cave_light);
 
@@ -1986,6 +2048,7 @@ void cleanup_angband(void)
     free_info(&f_head);
     free_info(&z_head);
     free_info(&n_head);
+    free_info(&style_head);
 
     /* Free the format() buffer */
     vformat_kill();

@@ -278,13 +278,6 @@
 #endif
 
 /*
- * On multiuser systems, add the "uid" to savefile names
- */
-#ifdef SET_UID
-#define SAVEFILE_USE_UID
-#endif /* SET_UID */
-
-/*
  * OPTION: Check the "time" against "lib/file/hours.txt"
  */
 /* #define CHECK_TIME */
@@ -327,16 +320,6 @@
 #define DEFAULT_X11_FONT_5 "5x8"
 #define DEFAULT_X11_FONT_6 "5x8"
 #define DEFAULT_X11_FONT_7 "5x8"
-
-/*
- * Hack -- Mach-O (native binary format of OS X) is basically a Un*x
- * but has Mac OS/Windows-like user interface
- */
-#ifdef MACH_O_CARBON
-#ifdef SAVEFILE_USE_UID
-#undef SAVEFILE_USE_UID
-#endif
-#endif
 
 /*
  * Hack -- Special "ancient machine" versions

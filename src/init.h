@@ -112,6 +112,8 @@ extern errr parse_cu_info(char* buf, header* head);
 extern errr parse_q_info(char* buf, header* head);
 extern errr parse_n_info(char* buf, header* head);
 extern errr parse_flavor_info(char* buf, header* head);
+extern errr parse_style_info(char* buf, header* head);
+extern errr parse_style_levels(char* buf, header* head);
 
 /*
  * Error tracking
@@ -142,6 +144,7 @@ extern header g_head;
 extern header q_head;
 extern header n_head;
 extern header flavor_head;
+extern header style_head;
 
 errr parse_rt_info(char *buf, header *head);
 extern header rt_head;

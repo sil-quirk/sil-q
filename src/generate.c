@@ -10,6 +10,10 @@
 
 #include "angband.h"
 #include "metarun.h"
+/* Ensure C library prototypes are visible for tools */
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 /*
  * Note that Level generation is *not* an important bottleneck,
  * though it can be annoyingly slow on older machines...  Thus
@@ -2382,6 +2386,8 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
     int original_object_level = object_level;
     int original_monster_level = monster_level;
 
+    log_trace("build_vault: Building vault '%s' with color=%d", v_name + v_ptr->name, v_ptr->color);
+
     cptr t;
 
     // Check that the vault doesn't contain invalid things for its depth
@@ -2389,10 +2395,10 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
     {
         for (dx = 0; dx < xmax; dx++, t++)
         {
-            // Barrow wights can't be deeper than level 12
-            if ((*t == 'W') && (p_ptr->depth > 12))
+            // Barrow wights can't be deeper than level 15
+            if ((*t == 'W') && (p_ptr->depth > 15))
             {
-                // msg_print("Skipped a barrow wight vault.");
+                log_debug("Skipped a barrow wight vault.");
                 return (false);
             }
 
@@ -2416,7 +2422,39 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             flip_h = true;
     }
 
+    /* Begin the vault style context now that the vault is accepted */
+    styles_begin_vault(-1, 0);
+    /* If vault has explicit style list, use it (support '*'=-1); else apply per-depth default */
+    styles_reset_vault_weights();
+    if (v_ptr->style_count > 0) {
+        for (int si = 0; si < v_ptr->style_count; ++si) {
+            int sidx = v_ptr->style_idx[si];
+            int w = v_ptr->style_weight[si];
+            if (sidx == -1) {
+                int lp = styles_get_level_primary_style();
+                if (lp >= 0) styles_add_vault_weight(lp, w);
+            } else if (sidx == -2) {
+                /* '$' token: pick one random style from the current level's
+                 * available list and add it with the specified weight. */
+                int rs = styles_pick_random_from_level();
+                if (rs >= 0) styles_add_vault_weight(rs, w);
+            } else {
+                styles_add_vault_weight(sidx, w);
+            }
+        }
+    } else {
+        /* No S: provided — choose a random style from the depth-available list */
+        int rs = styles_pick_random_from_level();
+        if (rs >= 0) styles_add_vault_weight(rs, 1);
+    }
+    /* Choose one primary style for the entire vault */
+    styles_select_vault_primary();
+    log_debug("build_vault: level_primary=%d vault_primary=%d",
+        styles_get_level_primary_style(), styles_get_vault_primary_style());
+
     /* Place dungeon features and objects */
+    int vault_primary_sidx_for_encoding = styles_get_vault_primary_style();
+    int v_min_y = 32767, v_min_x = 32767, v_max_y = -32768, v_max_x = -32768; /* track vault bbox */
     for (t = data, dy = 0; dy < ymax; dy++)
     {
         if (flip_v)
@@ -2442,12 +2480,23 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 y = y0 - (xmax / 2) + ax;
             }
 
-            /* Hack -- skip "non-grids" */
+            /* Hack -- skip "non-grids" but still advance bbox only on placed tiles */
             if (*t == ' ')
                 continue;
 
-            /* Lay down a floor */
-            cave_set_feat(y, x, FEAT_FLOOR);
+            /* Track bbox of actual vault content */
+            if (y < v_min_y) v_min_y = y;
+            if (y > v_max_y) v_max_y = y;
+            if (x < v_min_x) v_min_x = x;
+            if (x > v_max_x) v_max_x = x;
+
+            /* Lay down a floor, encoding the vault style and forcing first variant */
+            if (vault_primary_sidx_for_encoding >= 0) {
+                int enc = COLOR_STYLE_BASE + COLOR_STYLE_FLAG_FIRSTVAR + (vault_primary_sidx_for_encoding & (COLOR_STYLE_SLOT_MAX - 1));
+                cave_set_feat_with_color(y, x, FEAT_FLOOR, enc);
+            } else {
+                cave_set_feat(y, x, FEAT_FLOOR);
+            }
 
             /* Part of a vault */
             cave_info[y][x] |= (CAVE_ROOM | CAVE_ICKY);
@@ -2458,28 +2507,27 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             /* Granite wall (outer) */
             case '$':
             {
-                cave_set_feat(y, x, FEAT_WALL_OUTER);
+                cave_set_feat_with_color(y, x, FEAT_WALL_OUTER, 0);
                 break;
             }
-
             /* Granite wall (inner) */
             case '#':
             {
-                cave_set_feat(y, x, FEAT_WALL_INNER);
+                cave_set_feat_with_color(y, x, FEAT_WALL_INNER, 0);
                 break;
             }
 
             /* Quartz vein */
             case '%':
             {
-                cave_set_feat(y, x, FEAT_QUARTZ);
+                cave_set_feat_with_color(y, x, FEAT_QUARTZ, 0);
                 break;
             }
 
             /* Rubble */
             case ':':
             {
-                cave_set_feat(y, x, FEAT_RUBBLE);
+                cave_set_feat_with_color(y, x, FEAT_RUBBLE, 0);
                 break;
             }
 
@@ -2557,6 +2605,78 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             }
         }
     }
+
+    /* After placement, apply a 1-tile style halo so adjacent walls/floors match the vault style.
+     * Refined: do NOT recolor corridor floor tiles that sit just outside a vault door.
+     * We only halo floors when adjacent to a vault wall (not a door), to keep vault
+     * entrances blending into the corridor style. Doors themselves remain excluded. */
+    if (v_min_y <= v_max_y && v_min_x <= v_max_x) {
+        int ay0 = MAX(1, v_min_y - 1);
+        int ax0 = MAX(1, v_min_x - 1);
+        int ay1 = MIN(p_ptr->cur_map_hgt - 2, v_max_y + 1);
+        int ax1 = MIN(p_ptr->cur_map_wid - 2, v_max_x + 1);
+        for (int yy = ay0; yy <= ay1; ++yy) {
+            for (int xx = ax0; xx <= ax1; ++xx) {
+                /* Skip squares that are already part of the vault */
+                if (cave_info[yy][xx] & (CAVE_ICKY)) continue;
+
+                /* Only halo cells adjacent to vault content (8-directional),
+                 * and classify what kind of vault neighbor it is. */
+                bool near_vault_any = false;
+                bool near_vault_wall = false;
+                bool near_vault_door = false;
+                for (int dy2 = -1; dy2 <= 1; ++dy2) {
+                    for (int dx2 = -1; dx2 <= 1; ++dx2) {
+                        if (dy2 == 0 && dx2 == 0) continue;
+                        int ny = yy + dy2, nx = xx + dx2;
+                        if (!(cave_info[ny][nx] & (CAVE_ICKY))) continue;
+                        near_vault_any = true;
+                        int nfeat = cave_feat[ny][nx];
+                        /* Door features */
+                        if (nfeat == FEAT_OPEN || nfeat == FEAT_BROKEN ||
+                            (nfeat >= FEAT_DOOR_HEAD && nfeat <= FEAT_DOOR_TAIL)) {
+                            near_vault_door = true;
+                        }
+                        /* Walls and wall-like */
+                        else if ((nfeat >= FEAT_WALL_HEAD && nfeat <= FEAT_WALL_TAIL) ||
+                                 nfeat == FEAT_QUARTZ || nfeat == FEAT_RUBBLE) {
+                            near_vault_wall = true;
+                        }
+                    }
+                }
+                if (!near_vault_any) continue;
+
+                int feat = cave_feat[yy][xx];
+                /* Skip doors; let corridor/door visuals remain level-styled */
+                if (feat == FEAT_OPEN || feat == FEAT_BROKEN ||
+                    (feat >= FEAT_DOOR_HEAD && feat <= FEAT_DOOR_TAIL)) {
+                    continue;
+                }
+
+                /* Apply to floors only when adjacent to vault walls and NOT adjacent to vault doors */
+                if (cave_floorlike_bold(yy, xx)) {
+                    if (!(near_vault_wall && !near_vault_door)) continue;
+                }
+                /* Apply to walls/veins/rubble regardless, to blend the boundary */
+                else if ((cave_info[yy][xx] & (CAVE_WALL)) || feat == FEAT_QUARTZ || feat == FEAT_RUBBLE) {
+                    /* ok */
+                } else {
+                    continue;
+                }
+
+                {
+                    /* Re-encode color to the vault primary style, forcing first variant */
+                    int sidx = styles_get_vault_primary_style();
+                    if (sidx < 0) sidx = styles_get_level_primary_style();
+                    int enc = COLOR_STYLE_BASE + COLOR_STYLE_FLAG_FIRSTVAR + (sidx & (COLOR_STYLE_SLOT_MAX - 1));
+                    cave_set_feat_with_color(yy, xx, feat, enc);
+                }
+            }
+        }
+    }
+
+    /* Restore level styles after vault placement */
+    styles_end_vault();
 
     /* Place dungeon monsters and objects */
     for (t = data, dy = 0; dy < ymax; dy++)
@@ -3452,13 +3572,16 @@ static void set_perm_boundry(void)
 static void basic_granite(void)
 {
     int y, x;
+    int depth_color = get_depth_color(p_ptr->depth);
+
+    log_trace("basic_granite: Setting all walls to depth color=%d for depth=%d", depth_color, p_ptr->depth);
 
     for (y = 0; y < p_ptr->cur_map_hgt; y++)
     {
         for (x = 0; x < p_ptr->cur_map_wid; x++)
         {
-            /* Create granite wall */
-            cave_set_feat(y, x, FEAT_WALL_EXTRA);
+            /* Create granite wall with depth-based color */
+            cave_set_feat_with_color(y, x, FEAT_WALL_EXTRA, depth_color);
 
             // initialise the corridor id array
             cave_corridor1[y][x] = -1;
@@ -3563,6 +3686,8 @@ static bool cave_gen(void)
 
     room_attempts = l * l * l * l;
 
+    /* Initialize level style weights and start with basic granite */
+    styles_init_for_level();
     /*start with basic granite*/
     basic_granite();
 
@@ -3802,6 +3927,14 @@ static void gates_gen(void)
     p_ptr->cur_map_hgt = (3 * PANEL_HGT);
     p_ptr->cur_map_wid = (2 * PANEL_WID_FIXED);
 
+    /* Initialize level style weights for depth 0 */
+    styles_init_for_level();
+    /* If no primary style was selected (e.g., no rules loaded yet), force style 13 */
+    if (styles_get_level_primary_style() < 0) {
+        styles_set_loaded_level_primary(13);
+        log_info("gates_gen: forced level primary style to 13 for depth 0");
+    }
+
     /*start with basic granite*/
     basic_granite();
 
@@ -3995,6 +4128,12 @@ void generate_cave(void)
 {
     int y, x, i;
 
+    log_info("generate_cave: Function entry - about to start");
+    log_info("generate_cave: Starting cave generation");
+
+    /* Reset per-level color cache so depth group re-rolls when entering a new level */
+    reset_depth_color_cache();
+
     /* The dungeon is not ready */
     character_dungeon = false;
 
@@ -4042,6 +4181,16 @@ if (playerturn == 0) {
 }
 
 
+    log_trace("generate_cave: About to check cave_color array allocation");
+    
+    /* Safety check: make sure cave_color is allocated */
+    if (!cave_color) {
+        log_error("generate_cave: cave_color array is not allocated!");
+        return;
+    }
+    
+    log_trace("generate_cave: cave_color array is properly allocated");
+
     // reset smithing leftover (as there is no access to the old forge)
     p_ptr->smithing_leftover = 0;
 
@@ -4055,10 +4204,19 @@ if (playerturn == 0) {
 
         cptr why = NULL;
 
+        /* Paranoia: Check that cave_color is allocated */
+        if (!cave_color)
+        {
+            log_debug("ERROR: cave_color array is not allocated!");
+            quit("cave_color array not allocated");
+        }
+
         /* Reset */
         o_max = 1;
         mon_max = 1;
         feeling = 0;
+
+        log_trace("generate_cave: About to start cave initialization loop");
 
         /* Start with a blank cave */
         for (y = 0; y < MAX_DUNGEON_HGT; y++)
@@ -4070,6 +4228,9 @@ if (playerturn == 0) {
 
                 /* No features */
                 cave_feat[y][x] = 0;
+
+                /* No colors (use default) */
+                cave_color[y][x] = 0;
 
                 /* No objects */
                 cave_o_idx[y][x] = 0;
@@ -4086,11 +4247,15 @@ if (playerturn == 0) {
             }
         }
 
+        log_trace("generate_cave: Cave initialization completed successfully");
+
         // reset the wandering monster pauses
         for (i = 0; i < MAX_FLOWS; i++)
         {
             wandering_pause[i] = 0;
         }
+
+        log_trace("generate_cave: Wandering monster pauses reset");
 
         /* Mega-Hack -- no player yet */
         p_ptr->px = p_ptr->py = 0;
@@ -4114,29 +4279,35 @@ if (playerturn == 0) {
         /* Build the gates to Angband */
         if (!p_ptr->depth)
         {
+            log_trace("generate_cave: Building gates to Angband");
             gates_gen();
 
             /* Hack -- Clear stairs request */
             p_ptr->create_stair = 0;
+            log_trace("generate_cave: Gates generation completed");
         }
 
         /* Build Morgoth's throne room */
         else if (p_ptr->depth == MORGOTH_DEPTH)
         {
+            log_trace("generate_cave: Building Morgoth's throne room");
             throne_gen();
 
             /* Hack -- Clear stairs request */
             p_ptr->create_stair = 0;
+            log_trace("generate_cave: Throne room generation completed");
         }
 
         /* Build a real level */
         else
         {
+            log_trace("generate_cave: Building regular dungeon level");
             /* Make a dungeon, or report the failure to make one*/
             if (cave_gen())
                 okay = true;
             else
                 okay = false;
+            log_trace("generate_cave: Regular level generation completed, okay=%s", okay ? "true" : "false");
         }
 
         /*message*/

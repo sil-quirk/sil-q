@@ -1452,10 +1452,10 @@ void display_player_xtra_info(int mode)
         score -= curse_flag_count(PEN_FLAG);                                            \
         if (score >  2) score =  2;                                                     \
         if (score < -2) score = -2;                                                     \
-        if (score ==  2)      PUSH(ma_buf,  ma_n,  LABEL " MA", attr_mastery);          \
-        else if (score == 1)  PUSH(af_buf,  af_n,  LABEL " AF", attr_affinity);         \
-        else if (score == -1) PUSH(pen_buf, pen_n, LABEL " PE", attr_penalty);          \
-        else if (score == -2) PUSH(pen_buf, pen_n, LABEL " GP", attr_gr_penalty);       \
+        if (score ==  2)      PUSH(ma_buf,  ma_n,  LABEL "++", attr_mastery);          \
+        else if (score == 1)  PUSH(af_buf,  af_n,  LABEL "+ ", attr_affinity);         \
+        else if (score == -1) PUSH(pen_buf, pen_n, LABEL "- ", attr_penalty);          \
+        else if (score == -2) PUSH(pen_buf, pen_n, LABEL "--", attr_gr_penalty);       \
     } while (0)
 
 #define HANDLE_UNIQUE(LABEL, FLAG, COLOR)                                               \
@@ -2033,29 +2033,22 @@ bool show_buffer(cptr main_buffer, cptr what, int line)
     char ch;
 
     int next = 0;
-    int size = 0;
 
     char buf[1024];
 
     int wid, hgt;
 
-    // hack to soothe compiler warnings since 'what' is unused
-    if (what) { }
-
-    /* Get size */
+    // get current terminal size
     Term_get_size(&wid, &hgt);
+    if (hgt <= 0) hgt = 24;
 
-    /* Count the lines in the buffer */
-    for (j = 0; true; j++)
-    {
-        if (main_buffer[j] == '\n')
-            next++;
-        if (main_buffer[j] == '\0')
-            break;
+    // count lines in the buffer
+    int size = 0;
+    for (j = 0; main_buffer[j] != '\0'; j++) {
+        if (main_buffer[j] == '\n') size++;
     }
-
-    // store the number of lines
-    size = next;
+    // add one more if last line doesn't end with newline
+    if (j > 0 && main_buffer[j-1] != '\n') size++;
 
     /* Display the file */
     while (true)
@@ -3186,18 +3179,8 @@ void process_player_name(bool sf)
     {
         char temp[128];
 
-#ifdef SAVEFILE_USE_UID
-        /* Rename the savefile, using the player_uid and base_name */
-        strnfmt(temp, sizeof(temp), "%d.%s", player_uid, op_ptr->base_name);
-#else
         /* Rename the savefile, using the base name */
         strnfmt(temp, sizeof(temp), "%s", op_ptr->base_name);
-#endif
-
-#ifdef VM
-        /* Hack -- support "flat directory" usage on VM/ESA */
-        strnfmt(temp, sizeof(temp), "%s.sv", op_ptr->base_name);
-#endif /* VM */
 
         /* Build the filename */
         path_build(savefile, sizeof(savefile), ANGBAND_DIR_SAVE, temp);
@@ -4591,6 +4574,240 @@ static bool print_paragraph_fade(cptr text, int row, int indent,
 }
 
 /* -------------------------------------------------------------
+ * Public helper: fade-in a single line/paragraph at a row
+ * ----------------------------------------------------------- */
+void print_fade_line(cptr text, int row, int indent)
+{
+    int wid, h;
+    Term_get_size(&wid, &h);
+    int wrap_width = wid - indent - 1;
+    if (wrap_width < 10) wrap_width = 10;
+    /* Reuse the paragraph fade; ignore Esc return here (non-interactive hint) */
+    (void)print_paragraph_fade(text, row, indent, wrap_width);
+}
+
+/* -------------------------------------------------------------
+ * Public helper: fade-in centered text, wrapping at (wid - 15)
+ *  - Vertically centers the block of 1..N wrapped lines
+ *  - Horizontally centers each line
+ *  - Wraps on word boundaries; if a single word exceeds the
+ *    width, it will be hard-split to avoid overflow
+ * ----------------------------------------------------------- */
+void print_fade_centered(cptr text)
+{
+    if (!text || !*text) return;
+
+    int wid, h;
+    Term_get_size(&wid, &h);
+
+    int max_width = wid - 15;
+    if (max_width < 10) max_width = (wid > 2 ? wid - 2 : wid);
+    if (max_width < 1) max_width = 1;
+
+    /* Simple word-wrapping into a small fixed buffer */
+    enum { MAX_LINES = 32, MAX_LEN = 255 };
+    char lines[MAX_LINES][MAX_LEN + 1];
+    int  nlines = 0;
+
+    const char *p = text;
+    while (*p && nlines < MAX_LINES)
+    {
+        /* Start a new line */
+        int linelen = 0;
+        lines[nlines][0] = '\0';
+
+        /* Skip leading spaces */
+        while (*p && isspace((unsigned char)*p)) p++;
+
+        while (*p)
+        {
+            /* Identify next word */
+            const char *w = p;
+            while (*p && !isspace((unsigned char)*p)) p++;
+            int wlen = (int)(p - w);
+
+            /* If word does not fit on empty line: hard split */
+            if (wlen > max_width && linelen == 0)
+            {
+                int take = (wlen > max_width) ? max_width : wlen;
+                if (take > MAX_LEN) take = MAX_LEN;
+                memcpy(lines[nlines], w, (size_t)take);
+                linelen = take;
+                lines[nlines][linelen] = '\0';
+
+                /* Move pointer back to remaining part of the word */
+                w += take;
+                wlen -= take;
+                p = w; /* continue from remainder */
+                break; /* line filled */
+            }
+
+            /* Would adding this word (plus space if needed) fit? */
+            int need = (linelen ? 1 : 0) + wlen;
+            if (linelen + need <= max_width && linelen + need <= MAX_LEN)
+            {
+                if (linelen)
+                    lines[nlines][linelen++] = ' ';
+                memcpy(lines[nlines] + linelen, w, (size_t)wlen);
+                linelen += wlen;
+                lines[nlines][linelen] = '\0';
+            }
+            else
+            {
+                /* Doesn't fit: rewind so the word is processed on the next line */
+                p = w;
+                break;
+            }
+
+            /* Skip spaces to next word */
+            while (*p && isspace((unsigned char)*p)) { if (*p == '\n') break; p++; }
+
+            /* Stop at hard newline to keep author's breaks */
+            if (*p == '\n') { p++; break; }
+        }
+
+        nlines++;
+
+        /* Respect explicit newline(s) by collapsing consecutive breaks */
+        while (*p == '\n') p++;
+    }
+
+    if (nlines == 0) return;
+
+    /* Vertically center the block */
+    int start_row = (h - nlines) / 2;
+    if (start_row < 0) start_row = 0;
+
+    /* Print each line centered with fade */
+    for (int i = 0; i < nlines; i++)
+    {
+        int len = (int)strlen(lines[i]);
+        if (len > wid) len = wid; /* paranoia */
+        int indent = (wid - len) / 2;
+        if (indent < 0) indent = 0;
+        int wrap_width = wid - indent - 1;
+        if (wrap_width < len) wrap_width = len; /* print as-is */
+        (void)print_paragraph_fade(lines[i], start_row + i, indent, wrap_width);
+    }
+}
+
+/* -------------------------------------------------------------
+ * Public helper: fade-in text at a row, left-aligned with indent
+ *  - Starts at the provided row (no vertical centering)
+ *  - Left aligned at column >= 14, and for each subsequent line
+ *    indentation increases by 2 columns (14, 16, 18, ...)
+ *  - Wraps dynamically per line width to ensure nothing is cut off
+ *  - Adds a 500 ms delay between lines
+ *  - Clears the printed region after a short hold to avoid artifacts
+ * ----------------------------------------------------------- */
+void print_fade_centered_at_row(cptr text, int row_start)
+{
+    if (!text || !*text) return;
+
+    int wid, h;
+    Term_get_size(&wid, &h);
+
+    /* Force to second row (index 1) if the caller requests anything above it */
+    if (row_start < 1) row_start = 1;
+    if (row_start >= h) return; /* off-screen */
+
+    /* Dynamic per-line wrapping and printing */
+    const byte fade_cols[] = { TERM_L_DARK, TERM_SLATE, TERM_L_WHITE, TERM_WHITE, TERM_ORANGE };
+    const int steps = (int)(sizeof(fade_cols) / sizeof(fade_cols[0]));
+
+    enum { MAX_LINES2 = 32, MAX_LEN2 = 255 };
+    const char *p = text;
+    int printed_lines = 0;
+    int line_start_cols[MAX_LINES2];
+    int line_lengths[MAX_LINES2];
+
+    /* Start at the requested column; align to left-half in bigtile to avoid residuals */
+    int base_indent = 14;
+    if (use_bigtile)
+    {
+        /* Left halves are at COL_MAP, COL_MAP+2, ...; if we hit a right half, bump */
+        if (((base_indent - COL_MAP) & 1) != 0) base_indent++;
+    }
+
+    while (*p && printed_lines < MAX_LINES2 && (row_start + printed_lines) < h)
+    {
+    int indent = base_indent + 2 * printed_lines; /* left sticky, step by +2 each line */
+    if (indent >= wid - 1) break; /* nothing to show */
+    int avail = wid - indent - 1;
+    if (avail < 8) avail = 8; /* minimal width */
+
+        char buf[MAX_LEN2 + 1];
+        int  linelen = 0;
+        buf[0] = '\0';
+
+        /* Skip leading spaces/newlines */
+        while (*p && (unsigned char)*p <= ' ') {
+            if (*p == '\n') { p++; break; }
+            p++; 
+        }
+
+        while (*p)
+        {
+            if (*p == '\n') { p++; break; }
+            const char *w = p;
+            while (*p && *p != '\n' && !isspace((unsigned char)*p)) p++;
+            int wlen = (int)(p - w);
+
+            if (wlen > avail && linelen == 0)
+            {
+                int take = (wlen > avail) ? avail : wlen;
+                if (take > MAX_LEN2) take = MAX_LEN2;
+                memcpy(buf, w, (size_t)take);
+                linelen = take;
+                buf[linelen] = '\0';
+                w += take; /* remainder for next loop */
+                p = w; 
+                break;
+            }
+
+            int need = (linelen ? 1 : 0) + wlen;
+            if (linelen + need <= avail && linelen + need <= MAX_LEN2)
+            {
+                if (linelen) buf[linelen++] = ' ';
+                memcpy(buf + linelen, w, (size_t)wlen);
+                linelen += wlen; buf[linelen] = '\0';
+            }
+            else
+            {
+                /* Defer word to the next line */
+                p = w;
+                break;
+            }
+
+            while (*p && isspace((unsigned char)*p)) { if (*p == '\n') break; p++; }
+            if (*p == '\n') { p++; break; }
+        }
+
+        if (linelen == 0) break; /* nothing collected */
+
+        /* Fade this line */
+        for (int s = 0; s < steps; s++)
+        {
+            c_put_str(fade_cols[s], buf, row_start + printed_lines, indent);
+            Term_fresh();
+            Term_xtra(TERM_XTRA_DELAY, 125);
+        }
+
+        line_start_cols[printed_lines] = indent;
+        line_lengths[printed_lines]    = linelen;
+        printed_lines++;
+
+        /* Half-second gap before next line if more text remains */
+        if (*p && (row_start + printed_lines) < h)
+            Term_xtra(TERM_XTRA_DELAY, 500);
+    }
+
+    /* Hold briefly so the player can read (keep 1s as before) */
+    Term_xtra(TERM_XTRA_DELAY, 1000);
+    /* Do not explicitly erase: allow natural redraws to overwrite the text */
+}
+
+/* -------------------------------------------------------------
  * print_story() — paging, subset & fade‑in options
  * ----------------------------------------------------------- */
 void print_story(int last_parts, bool fade_in)
@@ -4981,13 +5198,9 @@ static errr enter_score(high_score* the_score)
         return (0);
     }
 
-    /* Hack -- Quitter */
-    if (!p_ptr->escaped && strstr(p_ptr->died_from, "own hand"))
-    {
-        Term_putstr(15, 8, -1, TERM_L_DARK, "(no high score when quitting)");
-        score_idx = -1;
-        return (0);
-    }
+    /* Allow recording of voluntary death ("their own hand").
+       This ensures aborted characters are written to the score file and
+       won't be treated as alive on the next startup. */
 
 #ifndef SCORE_CHEATERS
     /* Cheaters are not scored */
@@ -5780,13 +5993,14 @@ static void close_game_aux(void)
     high_score the_score;
     int choice = 0, highlight = 1;
 
-    log_info("Processing character death for '%s'", op_ptr->full_name);
+    log_info("Processing character death for '%s' (wizard=%d, noscore=0x%04X, savefile='%s')",
+             op_ptr->full_name, p_ptr->wizard ? 1 : 0, (unsigned)p_ptr->noscore, savefile);
 
     /* Dump bones file */
     // make_bones();
 
     /* Save dead player */
-    log_info("saving dead player");
+    log_info("saving dead player (noscore=0x%04X) -> '%s'", (unsigned)p_ptr->noscore, savefile);
     if (!save_player())
     {
         log_debug("Death save failed - player data may be lost");
@@ -5833,8 +6047,8 @@ static void close_game_aux(void)
     }
 
      /* One more corpse recorded for this metarun */
-    log_info("Player died - updating metarun data"); 
-    metarun_update_on_exit(true,false,0);
+    log_info("Player died - updating metarun data");
+    if (!p_ptr->escaped) metarun_update_on_exit(true, false, 0);
 
      /* You are dead */
      print_tomb(&the_score);
@@ -6856,8 +7070,9 @@ extern void mini_screenshot(void)
         {
             for (x = 0; x <= 6; x++)
             {
+                /* Fallback: blank miniature with dark attributes */
                 mini_screenshot_char[y][x] = ' ';
-                mini_screenshot_char[y][x] = TERM_DARK;
+                mini_screenshot_attr[y][x] = TERM_DARK;
             }
         }
     }
@@ -6918,16 +7133,137 @@ extern void prt_mini_screenshot(int col, int row)
 }
 
 /*
+ * Attempt to auto-load the first "alive" character found in the scorefile.
+ * If a corresponding savefile cannot be loaded, mark the score entry as
+ * dead (cause: "their own hand"), increment the metarun death counter, show
+ * a warning, and continue scanning. Returns true if a character was loaded;
+ * false if no alive entries remain or none could be loaded.
+ */
+bool autoload_alive_from_scores(void)
+{
+    char score_path[1024];
+    path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
+
+    /* Open for read/write so we can patch entries */
+    int fd_local;
+    safe_setuid_grab();
+    fd_local = open(score_path, O_RDWR | O_CREAT, 0644);
+    safe_setuid_drop();
+    if (fd_local < 0) {
+        log_info("autoload: could not open scorefile: %s", score_path);
+        return false;
+    }
+
+    off_t file_end = lseek(fd_local, 0, SEEK_END);
+    int n_recs = (int)(file_end / (off_t)sizeof(high_score));
+    if (n_recs <= 0) {
+        safe_setuid_grab();
+        close(fd_local);
+        safe_setuid_drop();
+        return false;
+    }
+
+    /* Iterate alive entries in order; load first that succeeds. */
+    for (int i = 0; i < n_recs; i++) {
+        high_score entry;
+        if (lseek(fd_local, (off_t)i * (off_t)sizeof entry, SEEK_SET) < 0)
+            break;
+        ssize_t got = read(fd_local, &entry, sizeof entry);
+        if (got != sizeof entry) break;
+
+        /* Alive entries are encoded as how == "(alive and well)" */
+        if (strcmp(entry.how, "(alive and well)") != 0) continue;
+
+        /* Try to load this character by name */
+        char who_buf[sizeof entry.who + 1];
+        memset(who_buf, 0, sizeof who_buf);
+        my_strcpy(who_buf, entry.who, sizeof(who_buf));
+
+        log_info("autoload: found alive entry '%s' – attempting load", who_buf);
+
+        /* Set up savefile path for this name (normalized: non-alnum -> '_') */
+        my_strcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
+        process_player_name(true); /* sets savefile using underscored base_name */
+
+        /* First attempt: normalized filename (underscores) */
+        if (load_player()) {
+            log_info("autoload: successfully loaded '%s' (normalized name)", who_buf);
+            /* Keep the descriptor closed before returning */
+            safe_setuid_grab();
+            close(fd_local);
+            safe_setuid_drop();
+            return true;
+        }
+
+        /* Second attempt: legacy filename that preserves spaces */
+        {
+            char savefile_backup[1024];
+            char alt_temp[128];
+            char alt_path[1024];
+
+            /* Backup the current savefile path */
+            my_strcpy(savefile_backup, savefile, sizeof(savefile_backup));
+
+            /* Build alternative filename using the unmodified who_buf */
+            strnfmt(alt_temp, sizeof(alt_temp), "%s", who_buf);
+            path_build(alt_path, sizeof(alt_path), ANGBAND_DIR_SAVE, alt_temp);
+
+            /* Point global savefile to the alternative and try again */
+            my_strcpy(savefile, alt_path, sizeof(savefile));
+            log_info("autoload: retrying with legacy spaced filename '%s'", savefile);
+            if (load_player()) {
+                log_info("autoload: successfully loaded '%s' (legacy spaced filename)", who_buf);
+
+                /* Restore canonical savefile for future saves (underscored) */
+                my_strcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
+                process_player_name(true);
+
+                safe_setuid_grab();
+                close(fd_local);
+                safe_setuid_drop();
+                return true;
+            }
+
+            /* Restore original (normalized) savefile path before proceeding */
+            my_strcpy(savefile, savefile_backup, sizeof(savefile));
+        }
+
+        /* Failed both attempts – mark as dead by own hand and warn */
+        log_warn("autoload: savefile missing/corrupt for '%s' – marking dead", who_buf);
+        strnfmt(entry.how, sizeof entry.how, "%-.49s", "their own hand");
+        if (lseek(fd_local, (off_t)i * (off_t)sizeof entry, SEEK_SET) >= 0) {
+            (void)write(fd_local, &entry, sizeof entry);
+        }
+
+        /* Increment meta-run death count and persist */
+        metarun_increment_deaths();
+        (void)save_metaruns();
+
+        /* Anti-cheat warning */
+        msg_format("Warning: Alive entry '%s' had no valid savefile. Marked as dead.", who_buf);
+        msg_print("Please do not tamper with savefiles.");
+        message_flush();
+        /* Continue looking for another alive entry */
+    }
+
+    /* None loaded; close and return */
+    safe_setuid_grab();
+    close(fd_local);
+    safe_setuid_drop();
+    return false;
+}
+
+/*
  * Delete the current high-score file and immediately recreate an empty
  * placeholder so subsequent fd_open() calls succeed without special cases.
  */
 void clear_scorefile(void)
 {
-    char buf[1024];
+    char cur_path[1024];
     bool was_open = (highscore_fd >= 0);
 
     /* Full path to "scores.raw" */
-    path_build(buf, sizeof buf, ANGBAND_DIR_APEX, "scores.raw");
+    path_build(cur_path, sizeof cur_path, ANGBAND_DIR_APEX, "scores.raw");
 
     /* Close existing descriptor if open */
     if (was_open) {
@@ -6935,24 +7271,143 @@ void clear_scorefile(void)
         highscore_fd = -1;
     }
 
-    /* Remove it (ignore failure) */
-    (void)fd_kill(buf);
+    /* If the file exists and is non-empty, archive it with timestamp */
+    {
+        /* Peek size */
+        safe_setuid_grab();
+        int fd_probe = open(cur_path, O_RDONLY);
+        off_t sz = -1;
+        if (fd_probe >= 0) {
+            sz = lseek(fd_probe, 0, SEEK_END);
+            close(fd_probe);
+        }
+        safe_setuid_drop();
 
-    /* Grab permissions */
-    safe_setuid_grab();
+        if (sz > 0) {
+            /* Build archive filename: scores-YYYYMMDD-HHMMSS-<run>.raw */
+            time_t now = time(NULL);
+            struct tm *lt = localtime(&now);
+            char stamp[32];
+            if (lt) strftime(stamp, sizeof stamp, "%Y%m%d-%H%M%S", lt);
+            else my_strcpy(stamp, "unknown", sizeof stamp);
+
+            /* Include run id if available (metar declared in metarun.h) */
+            extern metarun metar; /* declared in metarun.h */
+            char arch_leaf[128];
+            strnfmt(arch_leaf, sizeof arch_leaf, "scores-%s-%08u.raw",
+                    stamp, (unsigned)metar.id);
+
+            char arch_path[1024];
+            path_build(arch_path, sizeof arch_path, ANGBAND_DIR_APEX, arch_leaf);
+
+            /* Try to rename; if it fails, fall back to delete */
+            safe_setuid_grab();
+            int rn = rename(cur_path, arch_path);
+            safe_setuid_drop();
+            if (rn != 0) {
+                (void)fd_kill(cur_path); /* fallback */
+            }
+        }
+        else {
+            /* Nothing useful to archive; just remove it */
+            (void)fd_kill(cur_path);
+        }
+    }
 
     /* Re-create a zero-length file properly */
-    int fd = fd_make(buf, 0644);
-    if (fd >= 0) fd_close(fd);
-
-    /* Drop permissions */
+    safe_setuid_grab();
+    int fd_new = fd_make(cur_path, 0644);
+    if (fd_new >= 0) fd_close(fd_new);
     safe_setuid_drop();
 
     /* If the file was previously open, reopen it for read/write */
     if (was_open) {
-        /* Grab permissions again for reopening */
         safe_setuid_grab();
-        highscore_fd = fd_open(buf, O_RDWR);
+        highscore_fd = fd_open(cur_path, O_RDWR);
         safe_setuid_drop();
+    }
+}
+
+/*
+ * Metarun finalizer: iterate all "alive" entries in scores.raw.
+ * For each entry, attempt to load the savefile by name; if load succeeds,
+ * flag the character as dead by their own hand and save back. In either
+ * case, patch the score entry's how field to "their own hand".
+ */
+void metarun_finalize_scores_and_saves(void)
+{
+    log_info("finalize: entry (wizard=%d, noscore=0x%04X, savefile='%s')",
+             p_ptr ? (p_ptr->wizard ? 1 : 0) : -1,
+             p_ptr ? (unsigned)p_ptr->noscore : 0,
+             savefile);
+    char score_path[1024];
+    path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
+
+    /* Open for read/write so we can patch entries */
+    int fd_local;
+    safe_setuid_grab();
+    fd_local = open(score_path, O_RDWR | O_CREAT, 0644);
+    safe_setuid_drop();
+    if (fd_local < 0) {
+        log_info("finalize: could not open scorefile: %s", score_path);
+        return;
+    }
+
+    off_t file_end = lseek(fd_local, 0, SEEK_END);
+    int n_recs = (int)(file_end / (off_t)sizeof(high_score));
+    if (n_recs <= 0) {
+        safe_setuid_grab();
+        close(fd_local);
+        safe_setuid_drop();
+        return;
+    }
+
+    int patched = 0;
+    for (int i = 0; i < n_recs; i++) {
+        high_score entry;
+        if (lseek(fd_local, (off_t)i * (off_t)sizeof entry, SEEK_SET) < 0)
+            break;
+        ssize_t got = read(fd_local, &entry, sizeof entry);
+        if (got != sizeof entry) break;
+
+        /* Only touch entries marked as alive */
+        if (strcmp(entry.how, "(alive and well)") != 0) continue;
+
+        /* Patch score entry regardless of save success */
+        strnfmt(entry.how, sizeof entry.how, "%-.49s", "their own hand");
+        if (lseek(fd_local, (off_t)i * (off_t)sizeof entry, SEEK_SET) >= 0) {
+            (void)write(fd_local, &entry, sizeof entry);
+        }
+        patched++;
+    }
+
+    safe_setuid_grab();
+    close(fd_local);
+    safe_setuid_drop();
+    log_info("finalize: patched %d alive entries to 'their own hand'", patched);
+
+    /*
+     * If the current character is a noscore wizard/debug run, purge their
+     * savefile entirely as part of metarun cleanup, so it can't be resumed.
+     *
+     * Harmonized with start_new_metarun(): allow either wizard OR debug
+     * (0x0008) in combination with any noscore bit (0x000F).
+     */
+    if (p_ptr && (p_ptr->wizard || (p_ptr->noscore & 0x0008)) && (p_ptr->noscore & 0x000F)) {
+        if (savefile[0]) {
+            int rc;
+            safe_setuid_grab();
+            rc = fd_kill(savefile);
+            safe_setuid_drop();
+            if (rc == 0) {
+                log_info("finalize: deleted noscore wizard/debug savefile '%s'", savefile);
+            } else {
+                log_warn("finalize: failed to delete noscore wizard/debug savefile '%s'", savefile);
+            }
+        }
+    } else {
+        log_info("finalize: no direct purge in finalize (wizard=%d, noscore=0x%04X)",
+                 p_ptr ? (p_ptr->wizard ? 1 : 0) : -1,
+                 p_ptr ? (unsigned)p_ptr->noscore : 0);
     }
 }

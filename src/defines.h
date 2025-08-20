@@ -47,8 +47,8 @@
 /*
  * Current version string
  */
-#define VERSION_STRING "1.5.0"
 
+#define VERSION_STRING "1.5.0"
 /*
  * Current version numbers
  */
@@ -187,7 +187,12 @@
 /*
  * Depth-based wall graphics configuration
  */
-#define DEPTH_BASED_WALLS 0  /* Set to 0 to disable depth-based wall graphics */
+#define DEPTH_BASED_WALLS 1  /* Set to 0 to disable depth-based wall graphics */
+
+/* Encoded color range used to store an absolute style index per cell. */
+#ifndef COLOR_STYLE_BASE
+#define COLOR_STYLE_BASE 128 /* 128..(128+style_max-1) map to style_info indices; leaves +64 for first-variant */
+#endif
 
 #if DEPTH_BASED_WALLS
 /* Maximum number of depth tiers for wall graphics */
@@ -204,14 +209,14 @@ typedef struct depth_wall_tier {
 } depth_wall_tier;
 
 /* Default depth-based wall tier configuration */
-/* Distribution: 2+3+4+4+4+3 levels = 20 total levels */
+/* Testing: Level 1 = color 0, Level 2 = color 1, Vaults = color 2 */
 static const depth_wall_tier wall_depth_tiers[MAX_WALL_DEPTH_TIERS] = {
-    { 1,  2,  0, 4,  0, 6},   /* Depths 1-2: original wall/vein pair */
-    { 3,  5, 15,14, 15,15},   /* Depths 3-5: first new pair */
-    { 6,  9, 15,16, 15,17},   /* Depths 6-9: second new pair */
-    {10, 13, 15,18, 15,19},   /* Depths 10-13: third new pair */
-    {14, 17, 15,20, 15,21},   /* Depths 14-17: fourth new pair */
-    {18, 20, 15,22, 15,23}    /* Depths 18-20: fifth new pair */
+    { 1,  1,  0, 4,  0, 6},   /* Depth 1: default granite (0,4) and veins (0,6) - color 0 */
+    { 2,  2, 15,14, 15,18},   /* Depth 2: colored granite (15,14) and veins (15,18) - color 1 */
+    { 3,  5, 15,14, 15,18},   /* Depths 3-5: same colored tiles */
+    { 6, 10, 15,14, 15,18},   /* Depths 6-10: same colored tiles */
+    {11, 15, 15,14, 15,18},   /* Depths 11-15: same colored tiles */
+    {16, 30, 15,14, 15,18}    /* Depths 16-30: same colored tiles */
 };
 #endif /* DEPTH_BASED_WALLS */
 
@@ -3038,6 +3043,22 @@ static const depth_wall_tier wall_depth_tiers[MAX_WALL_DEPTH_TIERS] = {
         || ((cave_feat[Y][X] >= FEAT_TRAP_HEAD)                                \
             && (cave_feat[Y][X] <= FEAT_TRAP_TAIL)                             \
             && (cave_info[Y][X] & (CAVE_HIDDEN))))
+
+/*
+ * Global style color encoding used in cave_color[]
+ * COLOR_STYLE_BASE + sidx encodes absolute style index per-cell.
+ * We reserve an extra offset (COLOR_STYLE_FLAG_FIRSTVAR) to request
+ * the "first variant" of a style for floors/doors, used by vault halos.
+ */
+#ifndef COLOR_STYLE_BASE
+#define COLOR_STYLE_BASE 128
+#endif
+#ifndef COLOR_STYLE_SLOT_MAX
+#define COLOR_STYLE_SLOT_MAX 64
+#endif
+#ifndef COLOR_STYLE_FLAG_FIRSTVAR
+#define COLOR_STYLE_FLAG_FIRSTVAR COLOR_STYLE_SLOT_MAX
+#endif
 
 /*
  * Determine if a "legal" grid is a "trap" grid

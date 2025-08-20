@@ -1109,7 +1109,7 @@ static void wr_dungeon(void)
     wr_byte(p_ptr->cur_map_hgt);
     wr_byte(p_ptr->cur_map_wid);
 
-    /*** Simple "Run-Length-Encoding" of cave ***/
+    /*** Simple "Run-Length-Encoding" of cave_info ***/
 
     /* Note that this will induce two wasted bytes */
     count = 0;
@@ -1147,7 +1147,7 @@ static void wr_dungeon(void)
         wr_byte((byte)prev_char);
     }
 
-    /*** Simple "Run-Length-Encoding" of cave ***/
+    /*** Simple "Run-Length-Encoding" of cave_feat ***/
 
     /* Note that this will induce two wasted bytes */
     count = 0;
@@ -1185,6 +1185,56 @@ static void wr_dungeon(void)
         wr_byte((byte)prev_char);
     }
 
+    /*** Simple "Run-Length-Encoding" of cave_color (style encoding) ***/
+
+    /* Note that this will induce two wasted bytes */
+    count = 0;
+    prev_char = 0;
+
+    for (y = 0; y < p_ptr->cur_map_hgt; y++)
+    {
+        for (x = 0; x < p_ptr->cur_map_wid; x++)
+        {
+            /* Extract the encoded color/style byte */
+            tmp8u = cave_color[y][x];
+
+            /* If the run is broken, or too full, flush it */
+            if ((tmp8u != prev_char) || (count == MAX_UCHAR))
+            {
+                wr_byte((byte)count);
+                wr_byte((byte)prev_char);
+                prev_char = tmp8u;
+                count = 1;
+            }
+            else
+            {
+                count++;
+            }
+        }
+    }
+
+    /* Flush the data (if any) */
+    if (count)
+    {
+        wr_byte((byte)count);
+        wr_byte((byte)prev_char);
+    }
+
+    /* Persist door style variant choices so door visuals survive save/load.
+     * Note: This must come AFTER cave_color so load.c can read it there. */
+    {
+        /* Magic identifier for the door-choices block (0xD00D) */
+        const u16b DOOR_CHOICES_MAGIC = 0xD00D;
+        byte buf[64];
+        int cap = (z_info && z_info->style_max > 0) ? z_info->style_max : 0;
+        if (cap > 64) cap = 64;
+        styles_copy_level_door_choices(buf, cap);
+        log_debug("Writing door-choices block: magic=0x%04X, len=%d", DOOR_CHOICES_MAGIC, cap);
+        wr_u16b(DOOR_CHOICES_MAGIC);
+        wr_byte((byte)cap);
+        for (int i = 0; i < cap; ++i) wr_byte(buf[i]);
+    }
+
     /*** Compact ***/
 
     /* Compact the objects */
@@ -1196,8 +1246,13 @@ static void wr_dungeon(void)
     /*** Dump objects ***/
 
     /* Total objects */
-    wr_u16b(o_max);
-    log_debug("Writing %d objects to savefile", o_max - 1);
+    if (o_max == 0) {
+        log_warn("o_max was 0; clamping to 1 to avoid invalid object count");
+        wr_u16b(1);
+    } else {
+        wr_u16b(o_max);
+    }
+    log_debug("Writing %d objects to savefile (o_max=%u)", o_max ? (o_max - 1) : 0, (unsigned)o_max);
 
     /* Dump the objects */
     for (i = 1; i < o_max; i++)

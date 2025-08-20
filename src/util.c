@@ -10,7 +10,12 @@
 
 #include "angband.h"
 #include "log/log.h"
-
+/* Fallback no_light() implementation if missing elsewhere */
+bool no_light(void)
+{
+    /* Consider no special light blocking by default */
+    return false;
+}
 #ifdef SET_UID
 
 #ifndef HAVE_USLEEP
@@ -1949,6 +1954,8 @@ char inkey(void)
     /* Hack -- Activate main screen */
     Term_activate(term_screen);
 
+    /* (banner redraw countdown moved to per-turn logic in dungeon.c) */
+
     /* Get a key */
     while (!ch)
     {
@@ -2088,6 +2095,8 @@ char inkey(void)
 
     /* Cancel the various "global parameters" */
     inkey_base = inkey_xtra = inkey_flag = inkey_scan = false;
+
+    /* (no banner countdown updates here; handled per turn) */
 
     /* Return the keypress */
     return (ch);
@@ -5270,8 +5279,9 @@ cptr attr_to_text(byte a)
 void init_logger(bool quiet)
 {
     const char* log_level_str = getenv("SIL_LOG_LEVEL");
-    int level = LOG_DEBUG;
-    if (log_level_str)
+    int level = LOG_TRACE; /* Default to TRACE level */
+
+    if (log_level_str && strlen(log_level_str) > 0)
     {
         for (level = LOG_TRACE; level <= LOG_FATAL; level++)
         {

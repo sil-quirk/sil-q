@@ -1,0 +1,34 @@
+# File: style-levels.txt
+# Version header
+V:1.5.0
+
+# Level style rules (exact depths 1..20). Each line:
+# L:<depth>: <style_index>:<weight> [<style_index>:<weight> ...]
+# Example handcrafted distribution; adjust as you like.
+L:0: 13:1
+L:1: 0:4 1:2 2:1
+L:2: 0:2 1:3 2:2 3:1
+L:3: 0:1 1:3 2:3 3:2
+L:4: 2:3 3:3 4:2 6:1
+L:5: 2:1 3:2 4:1 6:3 7:2
+L:6: 3:1 6:4 7:3 5:2
+L:7: 6:3 7:2 5:3 8:2 9:1
+L:8: 5:2 8:3 9:2 10:2 11:2 12:2            
+L:9: 9:1 10:1 11:1 12:1
+L:10: 10:1 11:1 12:1 13:1 14:1
+L:11: 13:3 14:1 15:2
+L:12: 15:2 16:1 17:1 18:1
+L:13: 16:2 17:2 18:2 19:1 20:1
+L:14: 16:2 17:2 18:2 19:2 20:2 21:1 22:2 23:2 24:2
+L:15: 19:2 20:2 21:1 22:2 23:2 24:2 25:2 26:2 27:2
+L:16: 25:1 26:1 28:1 29:1 30:2 31:1 32:1 33:1
+L:17: 33:1 32:1 31:1 30:2 29:1
+L:18: 34:2 35:1 36:1 37:2 38:2 39:2
+L:19: 35:1 36:1 37:2 38:2 39:2
+L:20: 38:1 39:1
+
+# Vault default rules
+# U:* means default for all depths. '*' in style means "same exact level-chosen style".
+U:*: *:9 0:1
+# Per-depth example: depth 5 vaults strongly prefer the level style
+U:5: *:10

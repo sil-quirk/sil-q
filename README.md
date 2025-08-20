@@ -12,28 +12,39 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 - Balance tweaks
 - Add unique RHF flags
   * Earendil
-  * Turin
+  * Turin (done)
   * Celeborn
-  * Maedhros
+  * Maedhros (done)
 - New heroes
-  * Eol
+  * Eol (done) 
+- Dynamic tile system (done)
+-- Wall tiles (done)
+-- Floor tiles (done)
+-- Doors (done)
+- Unique style for each depth (done)
+- Level entrance message depending on the style (done)
+- Difficulty levels for current run (done) 
+- Automatic load if run is not finished (done)
 
-
-## Release of beta 0.8 
+## Release of beta 0.8 (Visual update)
 
 - Change Score to Character database
 - Quest systems
+-- Update to oath system
+- More Vaults
+- More monsters
 
 ## Release of beta 0.9 
+
+- Multiple runs support 
+- SDL 
 
 ### Ideas
 
 - New heroes
-  * Eol
 - More frequent forges for gnomes
 - Calculate the forge probability
 - New Oaths
-- Quests
 - Pride
 - Greed
  

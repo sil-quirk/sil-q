@@ -131,6 +131,7 @@ extern byte* temp_y;
 extern byte* temp_x;
 extern u16b (*cave_info)[256];
 extern byte (*cave_feat)[MAX_DUNGEON_WID];
+extern byte (*cave_color)[MAX_DUNGEON_WID];
 extern s16b (*cave_light)[MAX_DUNGEON_WID];
 extern s16b (*cave_o_idx)[MAX_DUNGEON_WID];
 extern s16b (*cave_m_idx)[MAX_DUNGEON_WID];
@@ -144,6 +145,11 @@ extern byte flow_center_x[MAX_FLOWS];
 extern byte update_center_y[MAX_FLOWS];
 extern byte update_center_x[MAX_FLOWS];
 extern s16b wandering_pause[MAX_FLOWS];
+
+/* Public style color encoding base for save/load */
+#ifndef COLOR_STYLE_BASE
+#define COLOR_STYLE_BASE 128
+#endif
 
 extern s16b stealth_score;
 extern bool player_attacked;
@@ -206,6 +212,13 @@ extern flavor_type* flavor_info;
 extern char* flavor_name;
 extern char* flavor_text;
 extern names_type* n_info;
+extern style_type* style_info;
+/* Default vein tile accessors (defined in init1.c) */
+byte get_default_vein_row(void);
+byte get_default_vein_col(void);
+bool get_overlay_key_enabled(void);
+void get_overlay_key_rgb(byte* r, byte* g, byte* b);
+extern char* style_name;
 
 extern combat_roll combat_rolls[2][MAX_COMBAT_ROLLS];
 extern int combat_number;
@@ -264,6 +277,10 @@ extern bool use_background_colors;
 
 extern metarun metar;
 extern int meta_fd;
+/* metarun/score helpers */
+extern void clear_scorefile(void);
+extern bool autoload_alive_from_scores(void);
+extern void metarun_finalize_scores_and_saves(void);
 
 /*
  * Automatically generated "function declarations"
@@ -305,6 +322,45 @@ extern void wiz_light(void);
 extern void wiz_dark(void);
 extern void gates_illuminate(bool daytime);
 extern void cave_set_feat(int y, int x, int feat);
+extern void cave_set_feat_with_color(int y, int x, int feat, int color);
+extern byte get_depth_color(int depth);
+extern void reset_depth_color_cache(void);
+/* Style-weight APIs */
+extern void styles_init_for_level(void);
+extern void styles_begin_vault(int extra_sidx, int extra_weight);
+extern void styles_end_vault(void);
+extern void styles_reset_level_weights(void);
+extern void styles_add_level_weight(int sidx, int weight);
+extern void styles_reset_vault_weights(void);
+extern void styles_add_vault_weight(int sidx, int weight);
+extern void styles_add_vault_from_level(int factor);
+extern void styles_default_vault_clear(void);
+extern void styles_default_vault_add(int sidx_or_star, int weight);
+extern void styles_apply_vault_list(const int* sidx, const int* weight, int count);
+extern void styles_vault_rules_clear(void);
+extern void styles_set_vault_rule(int depth, const int* sidx, const int* weight, int count);
+extern void styles_apply_vault_default_for_depth(int depth);
+extern int styles_get_level_primary_style(void);
+extern int styles_get_vault_primary_style(void);
+extern void styles_select_vault_primary(void);
+extern int styles_pick_random_from_level(void);
+extern void styles_rules_clear(void);
+extern void styles_add_level_rule(int min_depth, int max_depth, const int* sidx, const int* weight, int count);
+/* Banner strings: from style.txt (per-style via M: lines only) */
+extern const char* styles_get_style_display(int sidx);
+/* After showing the per-style banner on level entry, count down user inputs
+ * and force a full screen redraw when it reaches zero. */
+extern int g_banner_force_redraw_remaining;
+extern void styles_reload_messages_from_text(void);
+extern void styles_clear_display_messages(void);
+extern int p_ptr_depth_proxy(void);
+extern void styles_set_loaded_level_primary(int sidx);
+extern void print_fade_centered(cptr text);
+extern void print_fade_centered_at_row(cptr text, int row_start);
+/* Persisted door-style variant choices for consistency across save/load */
+extern int styles_get_choice_capacity(void);
+extern void styles_copy_level_door_choices(byte* out_buf, int max_n);
+extern void styles_load_level_door_choices(const byte* in_buf, int n);
 extern int project_path(
     u16b* gp, int range, int y1, int x1, int* y2, int* x2, u32b flg);
 extern byte projectable(int y1, int x1, int y2, int x2, u32b flg);
@@ -547,8 +603,11 @@ extern errr meta_read(metarun*);
 extern int meta_seek(int i);
 extern int meta_fill(bool);
 extern void print_story(int last_parts, bool fade_in);
+/* Generic fade-in line printer for arbitrary text */
+extern void print_fade_line(cptr text, int row, int indent);
 extern const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll);
 extern void clear_scorefile(void);
+extern bool autoload_alive_from_scores(void);
 
 /* generate.c */
 extern void place_monster_by_flag(

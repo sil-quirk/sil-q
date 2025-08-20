@@ -1,0 +1,428 @@
+# File: style.txt
+# Versioned like other edit files
+V:1.5.0
+
+# Sections
+# - Styles: N:/G:/W:/Y:/F:/D: define tile coordinates per style.
+#   - W: wall tile (row:col)
+#   - Y: vein tile (row:col). If omitted, a default overlay is used (see E: below).
+#   - F: floor tile(s) (row:col). May include multiple space-separated tokens;
+#        one variant is chosen per level (and per vault) and used consistently.
+#   - D: door tile(s) (row:col). May include multiple space-separated tokens;
+#        one variant is chosen per level (and per vault) and used consistently.
+# - Defaults:
+#   - E:row:col sets the default vein overlay tile used whenever a style omits Y:.
+#     In that case, the vein is drawn as a transparent overlay over the wall.
+#     If Y: is present for a style, the vein fully replaces the wall tile.
+#   - EK:R:G:B (optional) sets an explicit color-key for overlays (Windows renderer).
+#     If not set, the overlay's own top-left pixel color is used as the key.
+#     Use EK if your overlay's transparent color is not the top-left pixel.
+# Notes
+# - Level/vault rules (L:/U:) are in style-levels.txt now.
+# - Lighting/darker variants use col+1 when applicable.
+
+# Default vein overlay tile (used when a style omits Y:)
+E:19:0
+# Example: explicit overlay color-key (magenta). Leave commented unless needed.
+# EK:255:0:255
+
+#First level styles
+
+
+N:0:Grey0 #Default 
+W:0:4
+Y:0:6
+F:23:0 23:4 23:8
+D:0:10 20:6 20:12 20:15
+M:You take your first steps into the mountain's throat, upon stones the colour of ash and regret. The memory of the sun is already a treasure you have lost.
+M:These are the outer courts of Angband, hewn with a brutal purpose in the Elder Days. The very air is a fine dust, ground from the bones of hopeless mountains.
+M:A chill seeps from the seamless grey blocks, the same that lingers in the pass of the Helcaraxë. You are in the North now, and the Valar's light feels a world away.
+N:1:Grey1 #Checker
+W:16:4#Y:18:4
+F:23:0 23:12 23:18
+D:0:10 20:6 20:9 20:12 20:15
+M:The way shifts to a floor of starkly checkered stone, a cold and loveless pattern. You are a piece in a game of sentient, a move upon a board laid by a masterful, evil mind.
+M:A calculated order governs these halls, a design as sharp and unforgiving as a tyrant's law. This is the thought of Sauron given form, a place where all freedom is an illusion.
+M:You tread a path where every step feels foreseen, each tile a square in an inescapable trap. The malice here is not of rage, but of a chilling and absolute intellectual pride.
+N:2:Grey2 #FancyGrey
+W:15:14
+#Y:18:6
+F:23:0, 23:8 23:12
+D:0:10 20:6 20:9 20:12 20:15
+M:The stone refines to a cool and subtle blue, veined like a winter sky. It is the stolen craft of the Dwarves of Nogrod, its beauty enslaved to adorn this pit of dread.
+M:A profound stillness fills these sculpted halls; the air is heavy with the silence that followed the fall of Nargothrond. You feel you walk through a beautiful, elaborate tomb.
+M:Though finely wrought, a deep cold emanates from the polished walls. It is the cold of a heart that once knew light and now hates it with a perfect and undying memory.
+N:3:Grey3 #BigGrey 
+W:15:14
+#Y:18:6
+F:23:0
+D:0:10 20:6 20:9 20:12 20:15 
+M:The perfection of the stonework here is a cage for the spirit, its flawless lines a testament to dominion. This deep place was not built in haste, but with the dark patience of an immortal evil.
+M:Your hope wavers before this unadorned yet flawless craft. It is the cold logic of the abyss given form, where all paths lead only to the Master's unblinking will.
+M:The endless, repeating patterns mock the fleeting lives of Men and the fading of the Elves. Here, you are a brief flicker in a design that is eternal and unchanging.
+N:4:Grey4 #ThickGreyBricks 
+W:18:26
+#Y:18:6
+F:23:12
+D:20:6 20:12 20:15 
+M:The passage narrows, walled by massive, cyclopean blocks of darkened stone. It feels as though you are walking down the throat of the Ered Engrin, the Iron Mountains themselves.
+M:These are the deep foundations of the fortress, laid when the world was young. A slumbering, ancient power resides in the oppressive weight of the rock.
+M:The air grows thin and heavy, smelling of crushed adamant and the outer void. This is the bedrock of woe, where the groaning of the world is a constant, unheard whisper.
+N:5:Green0 #Big slime brick 
+W:15:26
+#Y:18:6
+F:23:0 23:2 23:6 23:12
+D:0:10 20:9 20:15 20:18
+M:You enter a passage of large, sickly green stones that weep a foul, glistening slime. It is a perversion of the green vitality of Yavanna, a life born of decay.
+M:The walls pulse with a faint, internal light, as if the very rock is diseased with evil thought. This is the deep corruption of the Shadow, seeping even into the bones of Arda.
+M:Your hand recoils from the slick, strangely warm stone; it is the warmth of the grave. You feel the fever of a land blighted by the passing of Glaurung the Deceiver.
+N:6:Green1 #MossyWall1 
+W:17:12
+##Y:18:6
+F:23:4 23:8 23:18
+D:0:10 20:6 20:9 20:12 20:15 20:18
+M:Dark green growth clings to the joints of the stonework, thriving in the utter darkness. It is an unnatural life, nurtured by sorrow as the grass grew green upon the Haudh-en-Ndengin.
+M:The air is thick with the scent of wet rot and things that fester in shadow. It is the reek of the accursed forest of Taur-nu-Fuin brought under the earth.
+M:You pass through halls where the walls are furred with a dark, velvety growth. This is the colour of venom, a creeping blight born of dragon-fire and the sorcery of the pit.
+N:7:Green2 #MossyWall2 
+W:17:28
+#Y:18:6
+F:23:8 23:18
+D:0:10 20:6 20:9 20:12 20:15 20:18
+M:A brighter, more virulent growth covers these damp walls, glowing with a feverish light. It is a garish mockery of the green hills of Ossiriand, a memory of life twisted into horror.
+M:Poisonous water drips slowly, each drop echoing like a tolling bell for the damned. The water itself seems tainted, nourishing only this rampant, unnatural growth.
+M:You feel a strange vitality here, but it is the vitality of the swamp and the fen. It is a place of creeping, clinging things that thrive on the ruin of all that is fair.
+N:8:Green3 #FancyGreen 
+W:17:22
+#Y:17:22
+F:23:0 23:18 23:12
+D:0:10 20:6 20:9 20:12 20:15 20:18
+M:The passage opens into a hall of polished green stone, carved with unsettling, serpentine patterns. This is no natural rock, but a substance born of alchemy and a dragon's thought.
+M:A faint, harmonious hum vibrates through the jade-like walls, a music that gnaws at your resolve. It is a song of enthrallment, a lure for the lost children of Húrin.
+M:The elegance of the chamber is a lie, its beauty as cold and sharp as a shard of glass. It is the calculated perfection of the Serpent's gaze, mesmerizing and utterly deadly.
+N:9:Shadow0 #BigCrudeShadow 
+W:16:2
+#Y:18:6
+F:23:12 23:22
+D:0:10 20:6 20:9 20:12 20:15 20:18 20:21 20:24 20:27
+M:You delve into a passage of crude, black stone that seems to drink the very light from your soul. This is the colour of the Void, the Unlight that came with Ungoliant to slay the Two Trees.
+M:The walls are rough and jagged, tearing at your cloak as a foretaste of the malice to come. It is a place of pure hate, unadorned by any craft save that of ruin itself.
+M:An oppressive silence reigns in these black-walled corridors. It is the silence that follows a final scream, a place where all hope has been devoured by the dark.
+N:10:Shadow1 #ShadowSkulls 
+W:16:8
+#Y:18:6
+F:23:8
+D:0:10 20:6 20:12 20:15 20:18 20:21 20:24 20:27
+M:The very masonry is built of the faces of the dead, their silent screams frozen in the stone. You have come to a place where valour and despair are the mortar that binds the walls.
+M:You walk now through a catacomb of sorrow, where the slain of the Nirnaeth Arnoediad form the foundation. A curse lies on this place, the weight of Tears Unnumbered.
+M:The air is cold with the breath of the unhoused fëar, their last cries trapped within the rock. You feel the gaze of a thousand skulls that have no eyes.
+N:11:Shadow2 #PurpleGreen 
+W:17:10
+#Y:18:6
+F:23:6 23:8
+D:20:9 20:15 20:18 20:21 20:24 20:27
+M:You stand in a chamber of mottled purple and green, the colours of a deep and poisoned wound. The very air shimmers with a malevolent, sorcerous energy, the craft of the Necromancer.
+M:The stone is neither living nor dead, but trapped in a state of foul enchantment. The patterns swirl like oil on black water, mesmerizing and corrupting the senses.
+M:A low, discordant hum emanates from the walls, a vibration felt in your teeth and bones. It is the sound of mighty spells being woven, shaping the very fabric of this dungeon.
+N:12:Shadow3 #PurpleBlue 
+W:18:8
+#Y:18:6
+F:23:0
+D:0:10 20:6 20:9 20:12 20:15 20:18 20:21
+M:The walls shift to a deep, shimmering blue and violet, lit by a cold, internal fire. It is like gazing into the heart of a poisoned star, a light without warmth or pity.
+M:This is the colour of high magic, the strange and terrible light that lingered in the webs of Ungoliant. You feel your own spirit being drawn into its beautiful, damning depths.
+M:The beauty of this place is a terrible glamour, a lie laid upon utter despair. It is as fair and as deadly as a Silmaril seen through the eyes of one utterly enthralled.
+N:13:Brown0 #Bigbrick 
+W:16:14
+#Y:18:6
+F:23:6 23:12
+D:20:9 20:15 20:18 20:21 20:24 20:27
+M:The passage is now lined with simple, brown bricks, smelling of dry earth and sterile dust. You are deeper now, in the endless labour-pits of the Noldor captives.
+M:You feel the immense weight of the mountains above you, a crushing and final pressure. These are the deep delvings of those who will never again see the sun upon the plains of Anfauglith.
+M:The walls are the colour of the Gasping Dust after the fires of the Dagor Bragollach. Here there is no life, only the memory of the flame that burned it all to ash.
+N:14:Brown1 #Chocko
+W:17:8
+#Y:18:6
+F:23:12
+D:0:10 20:6 20:9 20:12 20:15 20:18 20:21 20:24 20:27
+M:The walls are made of dark, packed earth, held together by some unseen, binding will. It feels less like a fortress and more like a tomb burrowed by the great worms of the north.
+M:The air is close and smells of the deep roots of mountains, and of the nameless things that gnaw upon them. You are beneath the world now, in a place that living things were meant to shun.
+M:A strange sense of timelessness pervades this earthen tunnel. The slow, grinding patience of the stone itself is the only power at work here, a patience that will outlast stars.
+N:15:Brown2 #Shells
+W:16:26
+#Y:18:6
+F:23:4 23:8 23:18
+D:20:6 20:15 20:18 20:21 20:24 20:27
+M:You enter a hall whose walls are covered in a pale, overlapping pattern, like the scales of a great serpent. They are the colour of old parchment and dried bone, a desert of decay.
+M:It is as if you are walking through the belly of some great, fossilized beast from an elder age. The air is still and dead, holding the silence of a world long devoured.
+M:The intricate patterns are the remnants of forgotten lives, a testament to the endless, devouring hunger of the dark. The silence here is the silence of finality.
+N:16:Rust0 #Crates
+W:15:20
+#Y:18:6
+F:23:0 23:2
+D:0:10 20:6 20:9 20:15 20:18 20:24 20:27
+M:The walls are not of stone, but of stacked and rusting metal chests, bound with iron. The air is sharp with the smell of cold iron and the slow decay of forgotten wars.
+M:You feel you have stumbled into a great, subterranean armoury of some fallen Orc-lord. The tools of a vast and ancient evil lie abandoned in the oppressive dark.
+M:A sense of grim industry pervades the chamber, the work of countless smiths now long dead. Their bitter sweat and the smoke of their forges still cling to the air.
+N:17:Rust1 #Rivets
+W:15:22
+#Y:18:6
+F:23:4 23:18
+D:0:10 20:6 20:9 20:12 20:15 20:18 20:21 20:24 20:27
+M:You now walk between walls of riveted iron plates, weeping with brown rust. Each rivet is a cold, unblinking eye in the darkness, a witness to atrocities.
+M:This is the craft of the Orc, brutal and strong, without art or pity. It is the iron cage of a world enslaved to the furnace and the hammer.
+M:The groaning of stressed metal echoes from deep within the walls. This entire level is a machine of war, straining against the very mountain that houses it.
+N:18:Rust2 #Crosses
+W:15:18
+#Y:18:6
+F:23:18 23:4 23:8
+D:0:10 20:6 20:15 20:18 20:21 20:24 20:27
+M:The rusted plates are marked with a stark, cross-like sigil. It is the device of some forgotten legion, a symbol of sacrifice made to the darkness, not for the light.
+M:You feel a sense of judgment in this place, as if you are walking a path of penance. The walls themselves seem to watch and find you wanting, a lonely child of the light.
+M:The air is heavy with the metallic tang of old blood shed in treachery. This is a place of execution, where faithless Easterlings met the grim justice of the pit.
+N:19:FireRust0 #Crates0
+W:16:12
+#Y:18:6
+F:23:2 23:12 23:18
+D:0:10 20:6 20:9 20:15 20:24
+M:The iron chests and plates that form the walls now glow with a faint, internal heat. The rust upon them is the colour of a dying fire's embers, hot with ancient avarice.
+M:You feel a breath of hot, sulphurous air, as if from the door of a great furnace-heart. The forges of Angband are near, their heat felt even in these silent vaults.
+M:This is not mere rust, but a slow, burning corrosion from some dragon's hoard. The greed and fire of the great worms has seeped into the very iron.
+N:20:FireRust1 #Crates1
+W:16:16
+#Y:18:6
+F:23:8 23:12 23:18
+D:0:10 20:6 20:9 20:12 20:15 20:18 20:21 20:24 20:27
+M:The walls are a lattice of red-hot iron, pulsing with a fierce and steady heat. The light it casts is the colour of blood and the unquenchable vengeance of the House of Fëanor.
+M:You must shield your face from the searing air that rises from the glowing plates. It is the very breath of the fires of doom, the heat of the world's ending given form.
+M:The chamber hums with a barely contained power, the sound of a mighty forge-bellows. Great and terrible things are being shaped in the depths beneath your feet.
+N:21:FireRust2 #Rivets0
+W:16:18
+#Y:18:6
+F:23:12
+D:0:10 20:6 20:9 20:12 20:15 20:18 20:21
+M:The riveted plates now glow a dull, angry red, too hot to touch. The air shimmers around them, distorting the passage ahead into a fiery, hellish haze.
+M:You hear the rhythmic clang of a distant, mighty hammer, a sound that travels through the hot iron. It is the echo of the forging of Grond, the Hammer of the Underworld.
+M:This passage feels like the flue of a great chimney, drawing you ever downward toward the central fire. You are being pulled toward the source of all this burning hate.
+N:22:FireRust3 #Rivets1
+W:16:20
+#Y:18:6
+F:23:0 23:12
+M:The heat lessens, and the plates have cooled to a dark, tempered crimson. It is the colour of iron quenched in the blood of the children of Gondolin.
+M:A sense of grim satisfaction hangs in the air, the quiet after a great and terrible work is done. A weapon has been forged, and its sleeping malice poisons the chamber.
+M:Though cooler, the walls radiate a deep and abiding menace. This is the tempered steel of ruin, waiting for the day it will be carried into the light to lay a kingdom low.
+N:23:FireRust4 #Cross0
+W:17:30
+#Y:18:6
+F:23:12 23:18
+D:0:10 20:6 20:9 20:12 20:15 20:18 20:21 20:24 20:27
+M:The walls are of a dark, purplish metal, almost black, marked with a faint, glowing sigil. The heat is gone, replaced by a chilling, magnetic pull of sorcery.
+M:You feel a strange power emanating from the symbols, a fell magic bound into the very iron. This is not the work of smiths alone, but of the great Necromancers of the age.
+M:The air is still and cold, carrying a faint scent of ozone and deep shadow. You are walking through a conduit of immense and unseen power, a channel for despair.
+N:24:FireRust5 #Cross1
+W:18:20
+#Y:18:6
+F:23:12 23:18
+D:0:10 20:6 20:9 20:12 20:15 20:18 20:21 20:24 20:27
+M:The passage is a dizzying mottle of hot red and dead grey stone. It is a place of fire and ash, the immediate aftermath of some great and terrible burning.
+M:You feel unsteady on your feet, as the very ground seems to shift between heat and cold. The ruin of this place is recent, its wounds still raw and steaming with hate.
+M:The air tastes of bitter cinders and shattered rock. This is the ruin that Glaurung the Golden left in his wake, a land utterly scoured by the malice of his passing.
+N:25:Red0 #Lava
+W:16:22
+#Y:18:6
+F:23:6 23:8
+D:20:6 20:9 20:21
+M:You have come to the heart of the fire, where the walls are not stone but the slow blood of the mountain. Here the very heart of Arda is enslaved to a will of flame and shadow.
+M:The roar of the fire-falls is a song of pure destruction, a symphony for the birth of dragons. You are near the end, in the furnace where the great plagues of the North are forged.
+M:Hope itself seems to melt and turn to ash in this overwhelming heat. Here is only the primal fire of creation, now enslaved to the singular purpose of utter ruin.
+N:26:Red1 #RedBricks
+W:16:24
+#Y:18:6
+F:23:0 23:8: 23:22
+D:20:6 20:9 20:12 20:15 20:18 20:21 20:27
+M:The passage is built of bricks of a brilliant, shocking red, the colour of fresh-spilled heart's-blood. The chamber seems to throb with a vicious, hateful life as you near the Master.
+M:A rage, not your own, rises in your breast as you walk these halls. The very stones cry out for violence and the ruin of all that is fair and good.
+M:You have entered the sanctum of wrath, a place built from the very essence of hatred. The spirits of the Balrogs have passed here, and their fury stains the walls forever.
+N:27:Red2 #Smth
+W:18:22
+#Y:18:6
+F:23:12 23:18
+D:20:6 20:9 20:12 20:15 20:18 20:27
+M:The walls are made of a dark red, fleshy substance, patterned like stretched sinew and muscle. The air is thick and close, like the inside of a vast, living body.
+M:A rhythmic, pulsing vibration can be felt through the soles of your feet. You are not in a passage of stone, but in the guts of some titanic, slumbering creature of the pit.
+M:The smell is of old blood and stranger things, a sweet, cloying odour of monstrous life. The deepest horrors of Angband are not forged, but born of corruption.
+
+N:28:Purple0 #SimpleBricks
+W:17:2
+Y:18:12
+F:23:8 23:22
+D:0:10 20:6 20:9 20:12 20:15 20:18 
+M:You enter a hall of simple, deep purple bricks, the colour of twilight in a dying land. A profound sadness permeates the air, a sense of beauty lost forevermore.
+M:The silence here is heavy with memory, as if this place heard once a song of Lúthien Tinúviel. Now all that remains is a faded echo, a whisper of unbearable grief.
+M:The colour is that of the heather on the high moors under a bruised sky. It is a place of mourning for a world that has been broken beyond repair.
+N:29:Purple1 #FancyBricks
+W:17:0
+Y:18:12
+F:23:8 23:18
+D:0:10 20:6 20:9 20:12 20:15 20:18 20:21
+M:The purple stone is now carved with intricate and flowing designs, a testament to a great and lost craft. It is the art of the Dwarves of Belegost, their skill now enslaved to the Enemy.
+M:You feel a conflict in this place, the beauty of the making warring with the evil of its purpose. The stones themselves seem to cry out from their bondage, a symphony of silent sorrow.
+M:A faint, magical light gleams from the carved runes in the walls. They are words of power, but also words of imprisonment, binding this place together with spells of grief.
+N:30:Purple2 #Crystals
+W:17:6
+#Y:18:6
+F:23:20 23:22
+D:20:6 20:9 20:12 20:15 20:18
+M:The walls are no longer brick, but jagged clusters of glowing purple crystal. Shards of faint light glitter in the oppressive dark, like the captured stars of Elbereth.
+M:A high, clear, ringing sound fills the air, the song of the living crystals. It is beautiful, yet it pierces the heart with a feeling of unbearable, eternal loneliness.
+M:This is a twisted memory of the light of the Silmarils, their glory mimicked in these cold gems. It is a beauty born of theft and shadow, a light that casts no warmth.
+N:31:Purple3 #DirtyPyrpleBricks
+W:17:14
+Y:18:12
+F:23:8 23:22
+D:0:10 20:6 20:9 20:12 20:15 20:18 20:21
+M:The purple bricks are stained with a brown, earthy grime, as if a great filth has washed through here. The air is stale and smells of neglect and the slow decay of pride.
+M:This place was once noble, but has been defiled and turned to a mean purpose. A sense of weary resignation hangs in the dust-choked air, the end of a forgotten kingly line.
+M:You see the lines of a forgotten elegance beneath the stains and the dirt. It is a hall of fallen kings, its glory now a bedding for the beasts of the pit.
+N:32:Purple4 #BigPyrpleBricks
+W:17:16
+#Y:18:6
+F:23:8 23:12 23:22
+D:0:10 20:6 20:9 20:12 20:15 20:18 20:21 20:24
+M:You pass between massive, perfectly smooth blocks of deep purple stone. Their scale is immense, built for giants or beings of a former, mightier age of the world.
+M:A feeling of profound antiquity settles upon you, a sense that you trespass in a place made before your kind ever walked the earth. Its purpose is a mystery, but its power is ancient and terrible.
+M:The silence is absolute, the air utterly still. This is a place of waiting, where ancient things lie dreaming of a dark dawn when they will wake once more.
+N:33:Purple5 #LightPyrpleBricks
+W:17:18
+#Y:18:6
+F:23:12 23:20: 23:22
+D:0:10 20:6 20:9 20:12 20:15 20:18
+M:The walls are a pale, fragile lavender, a colour so unexpected it chills you to the core. It is the shade of a rare flower, blooming in a lightless hell.
+M:A strange fragility permeates this place, as if the walls might shatter at a harsh word. It is a sanctuary of some kind, but one dedicated to a gentle, terrible madness.
+M:The air smells faintly of crushed petals and deep cold. It is the colour of a memory of a lost love, a love that has curdled into a quiet and eternal obsession.
+N:34:Mor0 #Yellowbricks
+W:16:28
+#Y:18:6
+F:23:20 23:18
+D:20:6 20:15 20:18 20:27
+M:You enter a passage of sickly, yellowish-brown stone, the colour of plague and decay. A faint, unpleasant sweetness hangs in the air, the scent of a pestilence.
+M:Your spirits sink in this jaundiced hall, as a deep weariness settles in your limbs. The very stones seem to radiate a slow, creeping sickness that saps the will.
+M:This is the colour of the Great Plague that came from the North, its lingering evil staining the rock. You feel the breath of that ancient malice upon your neck.
+N:35:Mor1 #RedBlack0
+W:16:30
+#Y:18:6
+F:23:20 23:22
+D:20:6 20:9 20:12 20:18
+M:The walls are a stark, unnerving pattern of black and blood-red bricks. This is the heraldry of the Lord of this fortress, the banner of murder and the endless night.
+M:There is no subtlety in these final depths, only a proclamation of brutal power. You are in the heartlands of the enemy, where evil wears its true colours with pride.
+M:A fierce, triumphant arrogance radiates from the walls. This is a celebration of ruin, the colours of a victory won over a field of the dead.
+N:36:Mor2 #RedBlack1
+W:17:20
+#Y:18:6
+F:23:8 23:20 23:22
+D:20:6
+M:The red and black of the walls swirl together in a chaotic, angry pattern. It is the image of a firestorm seen at midnight, a tempest of ash and ember.
+M:Your mind is thrown into confusion by the dizzying, churning patterns. It is a place of madness and rage, where coherent thought is a struggle against the tide.
+M:You hear a thousand screaming voices in the chaos of the stone. It is the sound of the burning of the Havens of the Falas, the slaughter on the shores, given form and colour.
+N:37:Mor3 #blackWhiteDots
+W:18:14
+#Y:18:6
+F:23:20
+D:20:6 20:18
+M:You find yourself in a corridor of black stone, dotted with innumerable, tiny points of white light. It is a perfect image of the night sky, but one seen from a world with no hope of dawn.
+M:A feeling of cosmic despair washes over you, the cold emptiness of the void between the stars. You are small and lost in an infinite, uncaring darkness.
+M:This is the high sorcery of the Enemy, who can show you the beauty of the firmament while reminding you that you are trapped forever beneath it, alone.
+N:38:Mor4 #ShinyRed
+W:18:16
+#Y:18:6
+F:23:20
+D:20:6 20:18 20:21
+M:The walls are coated in a high, red gloss, like wet blood or polished lacquer. The reflections they cast are distorted and monstrous, twisting your own form into a thing of shadow.
+M:A foul, chemical smell pervades the air, the scent of some unholy preservative. The very stones have been embalmed in a sheen of pure evil, a mockery of life.
+M:You feel as if you are walking through the preserved heart of some great beast. The slick, crimson walls seem to beat with a slow, malevolent, and eternal pulse.
+N:39:Mor5 #BlackWhiteShells
+W:18:18
+#Y:18:6
+F:23:20
+D:20:6 20:9 20:15 20:18
+M:The passage is a dizzying mosaic of black and white fragments, a floor of shattered things. It is a place of stark and irreconcilable opposites, of light and dark forever at war.
+M:You feel your resolve fracturing in this hall of endless contrast. There is no grey here, no compromise, only the blinding light of dogma and the absolute dark of oblivion.
+M:This is the floor of a dead sea, where all that remains are the broken remnants of a million lives. It is a monument to a vast and final extinction, the end of all things.
+
+#Vaults
+N:50:Red50 #RedBricks
+W:16:6
+Y:18:6
+F:23:0 23:18
+D:0:10 20:6 20:9 20:12 20:15 20:18 20:21 20:24 20:27
+
+N:51:Grey50 #FancyGreyBlue
+W:15:16
+#Y:18:6
+F:23:2
+D:0:10 20:6 20:9 20:15
+
+N:52:Grey51 #Cavegrey
+W:15:24
+#Y:18:6
+F:23:12 23:18
+D:20:6 20:12 20:15 20:24 20:27
+
+N:53:Grey52 #GreyBigBrick
+W:15:28
+#Y:18:6
+F:23:8 23:12
+D:0:10 20:6 20:9 20:12 20:15 20:18 20:21 20:24 20:27
+
+N:54:Grey53 #Cavegrey1
+W:15:30
+#Y:18:6
+F:23:12
+D:20:6 20:9 20:12 20:15 20:18 20:24 20:27
+
+N:55:Shadow50 #ShadowSkullsGreen
+W:16:8
+#Y:18:6
+F:23:14
+D:0:10 20:6 20:9 20:12 20:15 20:18 20:21 20:24 20:27
+
+N:56:Red51 #Simpleredbricks
+W:16:10
+#Y:18:6
+F:23:6
+D:20:9 20:12 20:15 20:18 20:21 20:24 20:27
+
+N:57:Blue0 #Bluefancy
+W:17:4
+#Y:18:6
+F:23:2
+D:20:6 20:9 20:15 20:18 20:24
+
+N:58:Blue1 #Blue
+W:17:24
+#Y:18:6
+F:23:0
+D:20:6 20:9 20:15 20:27
+
+N:59:Blue2 #Blue
+W:17:26
+#Y:18:6
+F:23:12
+D:20:6 20:9 20:12 20:27
+
+N:60:White0 #Marble
+W:18:24
+#Y:18:6
+F:23:12
+D:20:6 20:9 20:12
+M:You stand in a hall of impossible white, a memory of the stones of lost Gondolin. Its purity is a torment in this place, a holy thing made captive in the endless dark.
+M:The marble is cold with a grief beyond telling, its light a pale ghost of the Two Trees. This is the beauty that drove the Noldor to their doom, now used to mock their lamentable fall.
+M:A silence deeper than despair reigns here, the silence of a desecrated temple. The very air mourns the loss of the light of Aman it was made to reflect.
+N:61:PurplePink0 #Last
+W:18:30
+#Y:18:6
+F:23:12
+D:20:6 20:9 20:12 20:15 20:18 20:21 20:24 20:27
+M:You have reached the final descent, and the walls are a living, pulsing flesh of pink and purple. The air is warm and moist, thick with the smell of blood and strange, cloying perfumes.
+M:The fortress is no longer stone, but a living, breathing thing. This is the heart of the corruption, the body of Angband's most secret and terrible evil.
+M:A deep, instinctual revulsion rises in you, a rejection of this utter perversion of life. The greatest horror is not the dead, but the life that should never have been.

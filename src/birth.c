@@ -632,11 +632,12 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             else
                 return (cur);
         }
-        //Show scores
-        if (c == 's')
-            {
-                show_scores(false);
-            }
+        // Show scores (short): accept both 's' and 'S'
+        if (c == 's' || c == 'S')
+        {
+            show_scores(false);
+            continue; /* Return to the selection loop after showing scores */
+        }
 
         /* Random choice */
         if (c == '*')
@@ -652,7 +653,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         }
 
         /* Alphabetic choice */
-        else if (isalpha(c))
+    else if (isalpha(c))
         {
             /* Options */
             if ((c == 'O') || (c == 'o'))
@@ -669,15 +670,15 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 else
                     choice = c - 'A' + 26;
 
-                /* Validate input */
-                if ((choice > -1) && (choice < num) && !(choices[choice].ghost))
+        /* Validate input */
+        if ((choice > -1) && (choice < num) && !(choices[choice].ghost))
                 {
                     cur = choice;
 
                     /* Done */
                     done = true;
                 }
-                else if (choices[choice].ghost)
+        else if ((choice > -1) && (choice < num) && choices[choice].ghost)
                 {
                     bell("Your race cannot choose that house.");
                 }

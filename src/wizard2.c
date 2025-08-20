@@ -1780,6 +1780,10 @@ void do_cmd_debug(void)
     if (!get_com("Debug Command: ", &cmd))
         return;
 
+    /* Trace which debug command was requested and current flags */
+    log_debug("do_cmd_debug: received '%c' (wizard=%d, noscore=0x%04X)",
+              cmd, p_ptr->wizard ? 1 : 0, (unsigned)p_ptr->noscore);
+
     /* Analyze the command */
     switch (cmd)
     {
@@ -1851,7 +1855,11 @@ void do_cmd_debug(void)
     /* Edit character */
     case 'e':
     {
+    log_info("debug: invoking character edit (before: wizard=%d, noscore=0x%04X)",
+         p_ptr->wizard ? 1 : 0, (unsigned)p_ptr->noscore);
         do_cmd_wiz_change();
+    log_info("debug: finished character edit (after: wizard=%d, noscore=0x%04X)",
+         p_ptr->wizard ? 1 : 0, (unsigned)p_ptr->noscore);
         break;
     }
 

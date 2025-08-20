@@ -11,6 +11,7 @@
 #include "angband.h"
 #include "h-basic.h"
 #include "metarun.h" 
+#include "init.h"
 
 /*
  * Hack -- Link a copyright message into the executable
@@ -305,6 +306,11 @@ u16b (*cave_info)[256];
 byte (*cave_feat)[MAX_DUNGEON_WID];
 
 /*
+ * Array[DUNGEON_HGT][DUNGEON_WID] of cave grid color codes
+ */
+byte (*cave_color)[MAX_DUNGEON_WID];
+
+/*
  * Array[DUNGEON_HGT][DUNGEON_WID] of cave grid light level
  */
 s16b (*cave_light)[MAX_DUNGEON_WID];
@@ -524,6 +530,8 @@ char* a_text;
  * The random name generator tables
  */
 names_type* n_info;
+style_type* style_info;
+char* style_name;
 
 /*
  * The special item arrays

@@ -40,3 +40,17 @@ src.code-workspace
 /lib/xtra/graf/__pycache__
 lib/xtra/graf/check_morgoth.py
 /Sil-More-alpha-0.73
+/Sil-More-alpha-0.74
+/lib/xtra/graf/Tiles_test
+/src/Visuals
+/src/__pycache__
+lib/xtra/graf/16x16+temp.bmp
+lib/xtra/graf/16x16_microchasm_all.png
+lib/xtra/graf/16x16_microchasm_darkcastle_added.png
+lib/xtra/graf/16x16_newer.bmp
+lib/xtra/graf/16x16_stable.bmp
+lib/xtra/graf/Walls.png
+lib/xtra/graf/Walls_inone.png
+lib/edit/style_old.txt
+src/build-warnings.txt
+monsters_ideas.txt

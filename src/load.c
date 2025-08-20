@@ -58,6 +58,16 @@ static u32b v_check = 0L;
  * Hack -- simple "checksum" on the encoded bytes
  */
 static u32b x_check = 0L;
+/* For backward-compatible reading: if the door-choices block is absent,
+ * we prefetch the next u16 (objects count) here after probing. */
+static u16b objects_count_prefetch = 0xFFFF;
+/* Back-compat: some intermediate builds wrote door-choices block before
+ * cave_color (i.e., between cave_feat and cave_color). We'll probe there; if
+ * no magic, treat the two bytes as the first (count,value) pair for the
+ * cave_color RLE, staging them here. */
+static bool color_rle_pair_prefetched = false;
+static byte color_rle_count_prefetch = 0;
+static byte color_rle_value_prefetch = 0;
 
 static u16b new_artefacts;
 static u16b art_norm_count;
@@ -1200,6 +1210,7 @@ static errr rd_inventory(void)
         /* Read the item */
         if (rd_item(i_ptr))
         {
+            log_warn("Error reading inventory item");
             note("Error reading item");
             return (-1);
         }
@@ -1345,7 +1356,7 @@ static errr rd_dungeon(void)
         return (1);
     }
 
-    /*** Run length decoding ***/
+    /*** Run length decoding of cave_info ***/
 
     /* Load the dungeon data */
     for (x = y = 0; y < p_ptr->cur_map_hgt;)
@@ -1373,7 +1384,11 @@ static errr rd_dungeon(void)
         }
     }
 
-    /*** Run length decoding ***/
+    /* No probe after cave_info in current format. */
+
+    /* Note: door-choices are only probed after cave_color for current saves. */
+
+    /*** Run length decoding of cave_feat ***/
 
     /* Load the dungeon data */
     for (x = y = 0; y < p_ptr->cur_map_hgt;)
@@ -1401,6 +1416,73 @@ static errr rd_dungeon(void)
         }
     }
 
+    /* Back-compat probe: some saves wrote door-choices here, before cave_color. */
+    {
+        const u16b DOOR_CHOICES_MAGIC = 0xD00D;
+        u16b maybe_magic;
+        rd_u16b(&maybe_magic);
+        if (maybe_magic == DOOR_CHOICES_MAGIC) {
+            byte n = 0;
+            rd_byte(&n);
+            byte buf[64];
+            int to_read = (n > 64) ? 64 : n;
+            for (int i2 = 0; i2 < to_read; ++i2) rd_byte(&buf[i2]);
+            for (int i2 = to_read; i2 < n; ++i2) { byte skip; rd_byte(&skip); }
+            log_debug("Read door-choices block before cave_color (compat): magic=0x%04X, len=%d (used=%d)", DOOR_CHOICES_MAGIC, n, to_read);
+            styles_load_level_door_choices(buf, to_read);
+        } else {
+            /* Not magic: this was actually the first (count,value) pair for cave_color RLE. */
+            color_rle_pair_prefetched = true;
+            color_rle_count_prefetch = (byte)(maybe_magic & 0x00FF);
+            color_rle_value_prefetch = (byte)((maybe_magic >> 8) & 0x00FF);
+            log_debug("No door-choices before cave_color; staged RLE pair count=%u value=0x%02X", (unsigned)color_rle_count_prefetch, (unsigned)color_rle_value_prefetch);
+        }
+    }
+
+    /*** Run length decoding of cave_color (style encoding) ***/
+    for (x = y = 0; y < p_ptr->cur_map_hgt;) {
+        /* Grab RLE info, using prefetched pair if available first */
+        if (color_rle_pair_prefetched) {
+            count = color_rle_count_prefetch;
+            tmp8u = color_rle_value_prefetch;
+            color_rle_pair_prefetched = false;
+        } else {
+            rd_byte(&count);
+            rd_byte(&tmp8u);
+        }
+        /* Apply the RLE info */
+        for (i = count; i > 0; i--) {
+            cave_color[y][x] = tmp8u;
+            if (++x >= p_ptr->cur_map_wid) {
+                x = 0;
+                if (++y >= p_ptr->cur_map_hgt) break;
+            }
+        }
+    }
+
+    /* Optional extension: persisted door style variant choices (new saves, after cave_color) */
+    {
+        const u16b DOOR_CHOICES_MAGIC = 0xD00D;
+        u16b maybe_magic;
+        rd_u16b(&maybe_magic);
+        log_debug("Probe after cave_color: 0x%04X", maybe_magic);
+        if (maybe_magic == DOOR_CHOICES_MAGIC) {
+            byte n = 0;
+            rd_byte(&n);
+            byte buf[64];
+            int to_read = (n > 64) ? 64 : n;
+            for (int i = 0; i < to_read; ++i) rd_byte(&buf[i]);
+            /* If payload in file was larger than buffer, skip extras */
+            for (int i = to_read; i < n; ++i) { byte skip; rd_byte(&skip); }
+            log_debug("Read door-choices block after cave_color: magic=0x%04X, len=%d (used=%d)", DOOR_CHOICES_MAGIC, n, to_read);
+            styles_load_level_door_choices(buf, to_read);
+        } else {
+            /* Not our magic; interpret it as the first two bytes of the next section. */
+            objects_count_prefetch = maybe_magic;
+            log_debug("No door-choices after cave_color; staged objects count prefetch=%u", (unsigned)objects_count_prefetch);
+        }
+    }
+
     /*** Player ***/
 
     /* Load depth */
@@ -1415,8 +1497,29 @@ static errr rd_dungeon(void)
 
     /*** Objects ***/
 
-    /* Read the item count */
-    rd_u16b(&limit);
+    /* Read the item count (possibly pre-fetched if no door choices block) */
+    {
+        u16b probe = 0;
+        bool used_prefetch = false;
+        if (objects_count_prefetch != 0xFFFF) {
+            probe = objects_count_prefetch;
+            objects_count_prefetch = 0xFFFF; /* reset */
+            used_prefetch = true;
+        } else {
+            rd_u16b(&probe);
+        }
+        /* Validate the count; fall back to a direct read if suspicious */
+        if (probe == 0 || (z_info && probe > z_info->o_max)) {
+            if (used_prefetch) {
+                log_warn("Prefetched objects count looked invalid (%u); reading directly", (unsigned)probe);
+                rd_u16b(&limit);
+            } else {
+                limit = probe;
+            }
+        } else {
+            limit = probe;
+        }
+    }
     log_debug("Loading %d objects from dungeon", limit - 1);
 
     /* Verify maximum */
@@ -1444,6 +1547,7 @@ static errr rd_dungeon(void)
         /* Read the item */
         if (rd_item(i_ptr))
         {
+            log_warn("Error reading dungeon item %d of %d", i, limit - 1);
             note("Error reading item");
             return (-1);
         }
@@ -1454,6 +1558,7 @@ static errr rd_dungeon(void)
         /* Paranoia */
         if (o_idx != i)
         {
+            log_warn("Cannot place object %d: o_pop() returned %d", i, o_idx);
             note(format("Cannot place object %d!", i));
             return (-1);
         }
@@ -1487,6 +1592,14 @@ static errr rd_dungeon(void)
 
     /* Read the monster count */
     rd_u16b(&limit);
+    if (limit == 0) {
+        u16b retry_m = 0;
+        rd_u16b(&retry_m);
+        if (retry_m > 0 && retry_m <= MAX_MONSTERS) {
+            log_warn("Monsters count was 0; using recovery read=%u", (unsigned)retry_m);
+            limit = retry_m;
+        }
+    }
     log_debug("Loading %d monsters from dungeon", limit - 1);
 
     /* Hack -- verify */
@@ -1508,12 +1621,13 @@ static errr rd_dungeon(void)
         /* Clear the monster */
         (void)WIPE(n_ptr, monster_type);
 
-        /* Read the monster */
-        rd_monster(n_ptr);
+    /* Read the monster */
+    rd_monster(n_ptr);
 
         /* Place monster in dungeon */
         if (monster_place(n_ptr->fy, n_ptr->fx, n_ptr) != i)
         {
+            log_warn("Cannot place monster %d at (%d,%d)", i, n_ptr->fy, n_ptr->fx);
             note(format("Cannot place monster %d", i));
             return (-1);
         }
@@ -1563,6 +1677,27 @@ static errr rd_dungeon(void)
     }
 
     /*** Success ***/
+
+    /* After loading the level, pick the level primary style based on the
+     * majority style encoded in cave_color, if any. */
+    {
+        int counts[256];
+        int max_count = 0, best = -1;
+        memset(counts, 0, sizeof(counts));
+        for (y = 0; y < p_ptr->cur_map_hgt; ++y) {
+            for (x = 0; x < p_ptr->cur_map_wid; ++x) {
+                byte c = cave_color[y][x];
+                if (c >= COLOR_STYLE_BASE) {
+                    int idx = c - COLOR_STYLE_BASE;
+                    if (idx >= 0 && idx < 256) {
+                        int v = ++counts[idx];
+                        if (v > max_count) { max_count = v; best = idx; }
+                    }
+                }
+            }
+        }
+        if (best >= 0) styles_set_loaded_level_primary(best);
+    }
 
     /* The dungeon is ready */
     character_dungeon = true;
@@ -2022,6 +2157,10 @@ bool load_player(void)
             /* Attempt to load */
             err = rd_savefile();
             log_info("Read savefile %s", err ? "failed" : "success");
+            if (!err) {
+                log_info("load: post-read flags (is_dead=%d, wizard=%d, noscore=0x%04X)",
+                         p_ptr->is_dead, p_ptr->wizard ? 1 : 0, (unsigned)p_ptr->noscore);
+            }
 
             /* Message (below) */
             if (err)

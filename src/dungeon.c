@@ -10,8 +10,14 @@
 
 #include "angband.h"
 #include "log/log.h"
+/* Countdown for forcing a redraw after showing the per-style banner */
+int g_banner_force_redraw_remaining = 0;
 #include "metarun.h"
 #include "z-term.h"
+#include <time.h>
+#include <string.h>
+#include <stddef.h>
+#include <stdlib.h>
 
 /*
  * Return a "feeling" (or NULL) about an item.  Method 1 (Weak).
@@ -701,7 +707,8 @@ static bool enter_wizard_mode(void)
     /* Mark savefile */
     p_ptr->noscore |= 0x0002;
 
-    log_debug("Entering wizard mode - savefile marked");
+    log_info("Entering wizard mode - savefile marked (noscore=0x%04X, savefile='%s')",
+             (unsigned)p_ptr->noscore, savefile);
 
     /* Success */
     return (true);
@@ -754,6 +761,9 @@ static bool verify_debug_mode(void)
 
     /* Mark savefile */
     p_ptr->noscore |= 0x0008;
+
+    log_info("Debug mode enabled (noscore=0x%04X, savefile='%s')",
+             (unsigned)p_ptr->noscore, savefile);
 
     /* Okay */
     return (true);
@@ -824,7 +834,11 @@ static void process_command(void)
     case KTRL('A'):
     {
         if (verify_debug_mode())
+        {
+            log_info("Ctrl-A debug menu opened (wizard=%d, noscore=0x%04X, savefile='%s')",
+                     p_ptr->wizard ? 1 : 0, (unsigned)p_ptr->noscore, savefile);
             do_cmd_debug();
+        }
         break;
     }
 
@@ -2493,6 +2507,17 @@ static void process_player(void)
 
     playerturn++;
 
+    /* If a banner was recently shown, count down per full player turn and force a full redraw when it expires.
+       This ensures the redraw happens after the third normal action without consuming input. */
+    if (g_banner_force_redraw_remaining > 0)
+    {
+        g_banner_force_redraw_remaining--;
+        if (g_banner_force_redraw_remaining == 0)
+        {
+            do_cmd_redraw();
+        }
+    }
+
     depth_counter_increment = 85 - (playerturn / 850);
     depth_counter_increment += 3 * (p_ptr->depth - min_depth());
 
@@ -2737,6 +2762,23 @@ static void dungeon(void)
     /* Reset the object generation level */
     object_level = p_ptr->depth;
 
+    /* Show per-style entry message now that the level is fully entered and drawn */
+    {
+        extern int styles_get_level_primary_style(void);
+        extern const char* styles_get_style_display(int sidx);
+    extern void print_fade_centered_at_row(cptr text, int row_start);
+        int sidx = styles_get_level_primary_style();
+        if (sidx >= 0) {
+            const char* m = styles_get_style_display(sidx);
+            if (m && m[0]) {
+                /* second row (row index 1) */
+                print_fade_centered_at_row(m, 1);
+                /* After showing the banner, force a full redraw after 3 inputs */
+                g_banner_force_redraw_remaining = 3;
+            }
+        }
+    }
+
     log_info("Starting main dungeon loop for depth %d", p_ptr->depth);
 
     /* Main loop */
@@ -2918,6 +2960,9 @@ static void dungeon(void)
     }
 }
 
+/* Tiny proxy for frontends to query current depth without including player headers */
+int p_ptr_depth_proxy(void) { return p_ptr ? p_ptr->depth : 0; }
+
 /*
  * Process some user pref files
  */
@@ -2977,115 +3022,121 @@ static void death_knowledge(void)
  * Introductory narrative display, one paragraph per prompt.
  * Implemented as a static function to restrict linkage.
  */
-static void print_story_intro(void)
-{
-    int wid, h;
-    const int indent = 2;
-
-    /* Narrative paragraphs as valid C string literals with embedded \n */
-    cptr intro_texts[] = {
-        "You awaken in darkness.\n"
-        "No name. No memory.\n"
-        "Only a quiet ache of courage deep inside you,\n"
-        "like embers buried beneath ash.\n",
-
-        "Far below, Morgoth waits upon his throne-\n"
-        "iron-dark and crowned in flame.\n"
-        "Upon his brow shine three Silmarils, stolen stars.\n"
-        "He senses your stirring. He knows you will come.\n",
-
-        "Far above, beyond the shadows of Angband,\n"
-        "the Valar watch silently.\n"
-        "They offer no guidance, yet their presence\n"
-        "fills you with strength-and dread.\n",
-
-        "You will return many times, each death and rebirth\n"
-        "etched into the endless stone halls of Mandos.\n"
-        "Each fall will draw your spirit deeper into shadow,\n"
-        "closer to a doom from which you cannot escape.\n",
-
-        "Yet each victory-each Silmaril wrested from Morgoth's crown-\n"
-        "will brighten the Valar's hope,\n"
-        "even as your soul grows thinner,\n"
-        "your strength fading with every triumph.\n",
-
-        "You envy the Edain, whose Gift from Iluvatar\n"
-        "frees them from the bonds of Mandos and the world.\n"
-        "Yet you do not know if such release can ever be yours.\n"
-        "You do not know who-or even what-you truly are.\n",
-
-        "For each time you awaken,\n"
-        "you will carry the names of heroes beloved and feared-\n"
-        "bright spirits, fiery hearts, proud kings and exiles,\n"
-        "wanderers beneath sun and stars,\n"
-        "whose courage you borrow, but whose fates are not your own.\n",
-
-        "This is the trial set by the Valar:\n"
-        "to reclaim your forgotten name,\n"
-        "to balance shadow and light,\n"
-        "and to find within the borrowed glory of others\n"
-        "your true self.\n",
-
-        "Now the path before you opens,\n"
-        "and your trial begins.\n"
-    };
-
-    int total = sizeof(intro_texts) / sizeof(intro_texts[0]);
-    Term_get_size(&wid, &h);
-    int wrap_width = wid - indent;
-
-    /* Start on a blank screen */
-    Term_clear();
-    int row = 1, col = 0;
-
-    for (int idx = 0; idx < total; idx++) {
-        const char *s = intro_texts[idx];
-
-        /* Count lines needed for this paragraph */
-        int lines_needed = 0;
-        int temp_col = col;
-        for (size_t i = 0; s[i]; i++) {
-            if (s[i] == '\n' || temp_col >= wrap_width) {
-                lines_needed++;
-                temp_col = 0;
-                if (s[i] == '\n') continue;
+static void print_story_intro(void) 
+{ 
+    int wid, h; 
+    const int indent = 2; 
+ 
+    /* Narrative paragraphs as valid C string literals with embedded \n */ 
+    cptr intro_texts[] = { 
+        "You awaken in darkness.\n" 
+        "No name. No memory.\n" 
+        "Only a quiet ache of courage deep inside you,\n" 
+        "like embers buried beneath ash.\n", 
+ 
+        "Far below, Morgoth waits upon his throne-\n" 
+        "iron-dark and crowned in flame.\n" 
+        "Upon his brow shine three Silmarils, stolen stars.\n" 
+        "He senses your stirring. He knows you will come.\n", 
+ 
+        "Far above, beyond the shadows of Angband,\n" 
+        "the Valar watch silently.\n" 
+        "They offer no guidance, yet their presence\n" 
+        "fills you with strength-and dread.\n", 
+ 
+        "You will return many times, each death and rebirth\n" 
+        "etched into the endless stone halls of Mandos.\n" 
+        "Each fall will draw your spirit deeper into shadow,\n" 
+        "closer to a doom from which you cannot escape.\n", 
+ 
+        "Yet each victory-each Silmaril wrested from Morgoth's crown-\n" 
+        "will brighten the Valar's hope,\n" 
+        "even as your soul grows thinner,\n" 
+        "your strength fading with every triumph.\n", 
+ 
+        "You envy the Edain, whose Gift from Iluvatar\n" 
+        "frees them from the bonds of Mandos and the world.\n" 
+        "Yet you do not know if such release can ever be yours.\n" 
+        "You do not know who-or even what-you truly are.\n", 
+ 
+        "For each time you awaken,\n" 
+        "you will carry the names of heroes beloved and feared-\n" 
+        "bright spirits, fiery hearts, proud kings and exiles,\n" 
+        "wanderers beneath sun and stars,\n" 
+        "whose courage you borrow, but whose fates are not your own.\n", 
+ 
+        "This is the trial set by the Valar:\n" 
+        "to reclaim your forgotten name,\n" 
+        "to balance shadow and light,\n" 
+        "and to find within the borrowed glory of others\n" 
+        "your true self.\n", 
+ 
+        "Now the path before you opens,\n" 
+        "and your trial begins.\n" 
+    }; 
+ 
+    int total = sizeof(intro_texts) / sizeof(intro_texts[0]); 
+    Term_get_size(&wid, &h); 
+    int wrap_width = wid - indent; 
+ 
+    /* Start on a blank screen */ 
+    Term_clear(); 
+    int row = 1, col = 0; 
+ 
+    for (int idx = 0; idx < total; idx++) { 
+        const char *s = intro_texts[idx]; 
+        
+        /* Count lines needed for this paragraph */ 
+        int lines_needed = 0; 
+        int temp_col = col; 
+        for (size_t i = 0; s[i]; i++) { 
+            if (s[i] == '\n' || temp_col >= wrap_width) { 
+                lines_needed++; 
+                temp_col = 0; 
+                if (s[i] == '\n') continue; 
+            } 
+            temp_col++; 
+        } 
+        lines_needed++; /* Add one for the blank line after paragraph */ 
+        
+        /* Check if we have enough space for the whole paragraph */ 
+        if (row + lines_needed >= h - 1) { 
+            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)"); 
+            {
+                char k = inkey();
+                if (k == 'S') { /* Capital S skips the intro entirely */
+                    Term_clear();
+                    return;
+                }
             }
-            temp_col++;
-        }
-        lines_needed++; /* Add one for the blank line after paragraph */
-
-        /* Check if we have enough space for the whole paragraph */
-        if (row + lines_needed >= h - 1) {
-            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
-            inkey();
-            Term_clear();
-            row = 1;
-        }
-
-        col = 0;
-
-        /* Print this string, character by character */
-        for (size_t i = 0; s[i]; i++) {
-            char ch = s[i];
-
-            /* Newline or wrap? */
-            if (ch == '\n' || col >= wrap_width) {
-                row++;
-                col = 0;
-                if (ch == '\n') continue;
-            }
-
-            Term_putch(indent + col, row, TERM_WHITE, ch);
-            Term_fresh();
-            col++;
-
-            /* Delay 25 ms after each character */
-            Term_xtra(TERM_XTRA_DELAY, 30);
-        }
-
-        /* Leave one blank line after each paragraph */
-        row++;
-        col = 0;
+            Term_clear(); 
+            row = 1; 
+        } 
+        
+        col = 0; 
+ 
+        /* Print this string, character by character */ 
+        for (size_t i = 0; s[i]; i++) { 
+            char ch = s[i]; 
+ 
+            /* Newline or wrap? */ 
+            if (ch == '\n' || col >= wrap_width) { 
+                row++; 
+                col = 0; 
+                if (ch == '\n') continue; 
+            } 
+ 
+            Term_putch(indent + col, row, TERM_WHITE, ch); 
+            Term_fresh(); 
+            col++; 
+            
+            /* Delay 25 ms after each character */ 
+            Term_xtra(TERM_XTRA_DELAY, 30); 
+        } 
+ 
+        /* Leave one blank line after each paragraph */ 
+        row++; 
+        col = 0; 
 
         /* 1 second pause after paragraph */
         Term_xtra(TERM_XTRA_DELAY, 1000);
@@ -3097,6 +3148,10 @@ static void print_story_intro(void)
 
     /* Handle input */
     char key = inkey();
+    if (key == 'S') {
+        Term_clear();
+        return; /* Skip without changing difficulty */
+    }
     if (key == 'c' || key == 'C')
     {
         Term_clear();
@@ -3175,21 +3230,41 @@ PlayResult play_game(void)
     }
 
     if (metarun_created)        /* show only the first time ever */
-    print_story_intro();
-    else print_metarun_stats();
+        print_story_intro();
+    else
+        print_metarun_stats();
+
+     /* New startup behavior: try to auto-load any alive character
+         lingering in the scorefile. If successful, skip character
+         selection and proceed directly. */
+     character_loaded = false;
+     character_loaded_dead = false;
+     bool autoloaded = autoload_alive_from_scores();
+     if (autoloaded && character_loaded) {
+        log_info("Auto-loaded alive character from scores; skipping selection");
+        new_game = false;
+    }
 
     log_info("Starting new game session");
 
-    character_dungeon = false;
-    character_loaded = false;
-    character_loaded_dead = false;
+     /* Only reset flags if no character has been loaded yet.
+         If autoload succeeded, keep the loaded state and the
+         dungeon-loaded flag set by load_player(). */
+     if (!character_loaded) {
+          character_dungeon = false;
+          character_loaded = false;
+          character_loaded_dead = false;
+     }
 
     for (;;)
     {
+        /* If we already loaded a living character, break to init */
+        if (character_loaded) break;
+
         /* Wipe the player each time we (re)enter creation */
         player_wipe();
 
-        log_info("Choosing character");
+    log_info("Choosing character");
         NavResult cr = character_creation();
         if (cr == NAV_TO_MAIN) {
             log_info("Returning to main menu from character creation");
@@ -3200,8 +3275,8 @@ PlayResult play_game(void)
             return PLAY_QUIT;
         }
 
-        /* Attempt to load */
-        if (!load_player()) {
+    /* Attempt to load (manual path) */
+    if (!load_player()) {
             log_debug("Failed to load player");
             if (character_loaded_dead) player_wipe();
         }
@@ -3350,6 +3425,7 @@ PlayResult play_game(void)
     if (!character_dungeon)
     {
         log_info("Generating initial dungeon level");
+        /* About to call generate_cave() function */
         generate_cave();
         log_debug("Initial dungeon level generated successfully");
     }
