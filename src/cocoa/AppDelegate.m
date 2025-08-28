@@ -5,8 +5,8 @@
  * Use this file to rebuild the .nib file with Xcode without having to pull
  * in all of the Sil source.  This is the procedure with Xcode 12:
  *
- * 1) Create a new Xcode project for a macOS App.
- * 2) You can set the "Product Name", "Team", "Organization Name",
+ * 1. Create a new Xcode project for a macOS App.
+ * 2. You can set the "Product Name", "Team", "Organization Name",
  *    "Organization Identifier" as you wish.  Setting the product name to
  *    "sil" and the "Organization Identifier" to "net.amirrorclear" will
  *    match the bundle identifier used in the full builds for Sil.  Set
@@ -14,7 +14,7 @@
  *    "Create Document-Based Application" and "Use Core Data" off.
  *    The setting for "Include Tests" doesn't matter; you can turn it
  *    off to avoid extra clutter.
- * 3) In Sil's project settings on the "Info" tab, set the deployment
+ * 3. In Sil's project settings on the "Info" tab, set the deployment
  *    target to what's used in Sil's Makefile.cocoa.  When this was
  *    written, that was 10.6.  Turn off "Use Base Internationalization".
  *    One could leave it on (and use Base.lproj rather than en.lproj
@@ -23,13 +23,13 @@
  *    in the "Build Settings" tab, you'll need to set the setting for
  *    "Apple CLang - Language - Objective-C"->"Weak References in Manual
  *    Retain Release" to "No"; for 10.7 or later that won't be neccessary.
- * 4) In Sil's targets on the "General" tab, verify that "Main Interface"
+ * 4. In Sil's targets on the "General" tab, verify that "Main Interface"
  *    is MainMenu.
- * 5) Copy src/cocoa/AppDelegate.h and src/cocoa/AppDelegate.m from the
+ * 5. Copy src/cocoa/AppDelegate.h and src/cocoa/AppDelegate.m from the
  *    Sil source files to the directory in the project with main.m.  Copy
  *    src/cocoa/en.lproj/MainMenu.xib to the en.lproj subdirectory
  *    of that directory.
- * 6) If you modify MainMenu.xib after copying it over, you may want to
+ * 6. If you modify MainMenu.xib after copying it over, you may want to
  *    set it so that it can be opened in older versions of Xcode.  Select it in
  *    Xcode, and select one of the things, like "File's Owner" from it.  In
  *    the file information panel for it, there will be a section labeled
@@ -37,8 +37,8 @@
  *    the options other than "Latest Xcode" will close the file and save it
  *    with the appropriate flags.  Note that reopening the .xib file in Xcode
  *    and saving it will cause the version to revert to the latest Xcode.
- * 7) Use Xcode's Product->Build For->Running menu entry to build the project.
- * 8) The generated .nib file will be in
+ * 7. Use Xcode's Product->Build For->Running menu entry to build the project.
+ * 8. The generated .nib file will be in
  *    Contents/Resources/en.lproj in the product directory which
  *    is something like
  *    ~/Library/Developer/Xcode/DerivedData/<product_name>-<some_string>/Build/Products/Debug/<product_name>.app
