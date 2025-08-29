@@ -31,7 +31,7 @@
 
 #if defined(MACH_O_CARBON)
 
-/* Default creator signature */
+/** Default creator signature */
 //// Sil-y: changed ANGBAND_CREATOR to SIL_CREATOR throughout
 ////        change with new version
 #ifndef SIL_CREATOR
@@ -59,7 +59,7 @@ static NSString * const AngbandSoundDefaultsKey = @"AllowSound";
 static NSInteger const AngbandWindowMenuItemTagBase = 1000;
 static NSInteger const AngbandCommandMenuItemTagBase = 2000;
 
-/*
+/**
  * We can blit to a large layer or image and then scale it down during live
  * resize, which makes resizing much faster, at the cost of some image quality
  * during resizing
@@ -69,13 +69,13 @@ static NSInteger const AngbandCommandMenuItemTagBase = 2000;
 # define USE_LIVE_RESIZE_CACHE 0
 #endif
 
-/* Application defined event numbers */
+/** Application defined event numbers */
 enum
 {
     AngbandEventWakeup = 1
 };
 
-/* Redeclare some 10.7 constants and methods so we can build on 10.6 */
+/** Redeclare some 10.7 constants and methods so we can build on 10.6 */
 enum
 {
     Angband_NSWindowCollectionBehaviorFullScreenPrimary = 1 << 7,
@@ -86,13 +86,13 @@ enum
 - (void)setRestorable:(BOOL)flag;
 @end
 
-/* Delay handling of pre-emptive "quit" event */
+/** Delay handling of pre-emptive "quit" event */
 static BOOL quit_when_ready = NO;
 
-/* Set to indicate the game is over and we can quit without delay */
+/** Set to indicate the game is over and we can quit without delay */
 static BOOL game_is_finished = NO;
 
-/* Our frames per second (e.g. 60). A value of 0 means unthrottled. */
+/** Our frames per second (e.g. 60). A value of 0 means unthrottled. */
 static int frames_per_second;
 
 @class AngbandView;
@@ -364,7 +364,7 @@ static __strong AngbandSoundCatalog *gSharedSounds = nil;
 @end
 #endif
 
-/*
+/**
  * To handle fonts where an individual glyph's bounding box can extend into
  * neighboring columns, Term_curs_cocoa(), Term_pict_cocoa(),
  * Term_text_cocoa(), and Term_wipe_cocoa() merely record what needs to be
@@ -377,7 +377,6 @@ enum PendingCellChangeType {
     CELL_CHANGE_TEXT,
     CELL_CHANGE_TILE
 };
-/* Possible values to bitwise-or for the mask field in PendingTileChange. */
 #define PICT_MASK_NONE (0x0)
 #define PICT_MASK_ALERT (0x1)
 #define PICT_MASK_GLOW (0x2)
@@ -386,8 +385,16 @@ struct PendingTextChange {
     int color;
 };
 struct PendingTileChange {
-    char fgdCol, fgdRow, bckCol, bckRow;
-    int mask;
+    char fgdCol; /**< column coordinate, within the tile set, for the
+                     foreground tile */
+    char fgdRow; /**< row coordinate, within the tile set, for the
+                     foreground tile */
+    char bckCol; /**< column coordinate, within the tile set, for the
+                     background tile */
+    char bckRow; /**< row coordinate within the tile set, for the
+                     background tile */
+    int mask;    /**< PICT_MASK_NONE or a bitwise-or of one or more of
+                     PICT_MAX_ALERT and PICT_MASK_GLOW */
 };
 struct PendingCellChange {
     union { struct PendingTextChange txc; struct PendingTileChange tic; } v;
@@ -934,7 +941,7 @@ struct PendingCellChange {
 @end
 
 
-/* The max number of glyphs we support.  Currently this only affects
+/** The max number of glyphs we support.  Currently this only affects
  * updateGlyphInfo() for the calculation of the tile size, fontAscender,
  * fontDescender, nColPre, and nColPost.  The rendering in drawWChar() will
  * work for a glyph not in updateGlyphInfo()'s set, though there may be
@@ -943,7 +950,7 @@ struct PendingCellChange {
  */
 #define GLYPH_COUNT 256
 
-/*
+/**
  * An AngbandContext represents a logical Term (i.e. what Angband thinks is
  * a window). This typically maps to one NSView, but may map to more than one
  * NSView (e.g. the Test and real screen saver view).
@@ -952,57 +959,57 @@ struct PendingCellChange {
 {
 @public
 
-    /* The Angband term */
+    /** The Angband term */
     term *terminal;
 
 @private
-    /* Is the last time we drew, so we can throttle drawing. */
+    /** Is the last time we drew, so we can throttle drawing. */
     CFAbsoluteTime lastRefreshTime;
 
-    /*
+    /**
      * Whether we are currently in live resize, which affects how big we
      * render our image.
      */
     int inLiveResize;
 
-    /* Flags whether or not a fullscreen transition is in progress. */
+    /** Flags whether or not a fullscreen transition is in progress. */
     BOOL inFullscreenTransition;
 }
 
-/* Column and row counts, by default 80 x 24 */
+/** Column count, by default 80 */
 @property int cols;
+/** Row count, by default 24 */
 @property int rows;
 
-/* The size of the border between the window edge and the contents */
+/** The size of the border between the window edge and the contents */
 @property (readonly) NSSize borderSize;
 
-/* Our array of views */
+/** Our array of views */
 @property NSMutableArray *angbandViews;
 
-/* The buffered image */
+/** The buffered image */
 @property CGLayerRef angbandLayer;
 
-/* The font of this context */
+/** The font of this context */
 @property NSFont *angbandViewFont;
 
-/* The size of one tile */
+/** The size of one tile */
 @property (readonly) NSSize tileSize;
 
-/* Font's ascender and descender */
+/** Font's ascender */
 @property (readonly) CGFloat fontAscender;
+/** Font's descender */
 @property (readonly) CGFloat fontDescender;
 
-/*
- * These are the number of columns before or after, respectively, a text
- * change that may need to be redrawn.
- */
+/** The number of colums before a text change that may need to be redrawn. */
 @property (readonly) int nColPre;
+/** The number of colums after a text change that may need to be redrawn. */
 @property (readonly) int nColPost;
 
-/* If this context owns a window, here it is. */
+/** If this context owns a window, here it is. */
 @property NSWindow *primaryWindow;
 
-/* Is the record of changes to the contents for the next update. */
+/** Is the record of changes to the contents for the next update. */
 @property PendingTermChanges *changes;
 
 @property (nonatomic, assign) BOOL hasSubwindowFlags;
@@ -1010,75 +1017,75 @@ struct PendingCellChange {
 
 - (void)drawRect:(NSRect)rect inView:(NSView *)view;
 
-/* Called at initialization to set the term */
+/** Called at initialization to set the term */
 - (void)setTerm:(term *)t;
 
-/* Called when the context is going down. */
+/** Called when the context is going down. */
 - (void)dispose;
 
-/* Returns the size of the image. */
+/** Returns the size of the image. */
 - (NSSize)imageSize;
 
-/* Return the rect for a tile at given coordinates. */
+/** Return the rect for a tile at given coordinates. */
 - (NSRect)rectInImageForTileAtX:(int)x Y:(int)y;
 
-/* Draw the given wide character into the given tile rect. */
+/** Draw the given wide character into the given tile rect. */
 - (void)drawWChar:(wchar_t)wchar inRect:(NSRect)tile context:(CGContextRef)ctx;
 
-/* Locks focus on the Angband image, and scales the CTM appropriately. */
+/** Locks focus on the Angband image, and scales the CTM appropriately. */
 - (CGContextRef)lockFocus;
 
-/*
+/**
  * Locks focus on the Angband image but does NOT scale the CTM. Appropriate
  * for drawing hairlines.
  */
 - (CGContextRef)lockFocusUnscaled;
 
-/* Unlocks focus. */
+/** Unlocks focus. */
 - (void)unlockFocus;
 
-/*
+/**
  * Returns the primary window for this angband context, creating it if
  * necessary
  */
 - (NSWindow *)makePrimaryWindow;
 
-/* Called to add a new Angband view */
+/** Called to add a new Angband view */
 - (void)addAngbandView:(AngbandView *)view;
 
-/* Make the context aware that one of its views changed size */
+/** Make the context aware that one of its views changed size */
 - (void)angbandViewDidScale:(AngbandView *)view;
 
-/* Handle becoming the main window */
+/** Handle becoming the main window */
 - (void)windowDidBecomeMain:(NSNotification *)notification;
 
-/* Return whether the context's primary window is ordered in or not */
+/** Return whether the context's primary window is ordered in or not */
 - (BOOL)isOrderedIn;
 
-/* Return whether the context's primary window is key */
+/** Return whether the context's primary window is key */
 - (BOOL)isMainWindow;
 
-/* Invalidate the whole image */
+/** Invalidate the whole image */
 - (void)setNeedsDisplay:(BOOL)val;
 
-/* Invalidate part of the image, with the rect expressed in base coordinates */
+/** Invalidate part of the image, with the rect expressed in base coordinates */
 - (void)setNeedsDisplayInBaseRect:(NSRect)rect;
 
-/* Display (flush) our Angband views */
+/** Display (flush) our Angband views */
 - (void)displayIfNeeded;
 
-/* Resize context to size of contentRect, and optionally save size to
+/** Resize context to size of contentRect, and optionally save size to
  * defaults */
 - (void)resizeTerminalWithContentRect: (NSRect)contentRect saveToDefaults: (BOOL)saveToDefaults;
 
-/*
- * Change the minimum size and size increments for the window associated with
+/**
+ * Change the size bounds and size increments for the window associated with
  * the context.  termIdx is the index for the terminal:  pass it so this
  * function can be used when self->terminal has not yet been set.
  */
 - (void)constrainWindowSize:(int)termIdx;
 
-/* Called from the view to indicate that it is starting or ending live resize */
+/** Called from the view to indicate that it is starting or ending live resize */
 - (void)viewWillStartLiveResize:(AngbandView *)view;
 - (void)viewDidEndLiveResize:(AngbandView *)view;
 - (void)saveWindowVisibleToDefaults: (BOOL)windowVisible;
@@ -1095,7 +1102,7 @@ struct PendingCellChange {
  */
 + (void)setDefaultFont:(NSFont*)font;
 
-/* Internal method */
+/** Internal method */
 - (AngbandView *)activeView;
 
 @end
@@ -1252,7 +1259,7 @@ static BOOL graphics_are_enabled(void)
 static BOOL game_in_progress = NO;
 
 
-/*
+/**
  * Indicate if the user chooses "new" to start a game
  */
 static bool new_game = FALSE; ////
@@ -1299,7 +1306,7 @@ static void record_current_savefile(void);
  */
 static BOOL initialized = NO;
 
-/* Methods for getting the appropriate NSUserDefaults */
+/** Methods for getting the appropriate NSUserDefaults */
 @interface NSUserDefaults (AngbandDefaults)
 + (NSUserDefaults *)angbandDefaults;
 @end
@@ -1311,7 +1318,7 @@ static BOOL initialized = NO;
 }
 @end
 
-/*
+/**
  * Methods for pulling images out of the Angband bundle (which may be separate
  * from the current bundle in the case of a screensaver
  */
@@ -1319,7 +1326,7 @@ static BOOL initialized = NO;
 + (NSImage *)angbandImage:(NSString *)name;
 @end
 
-/* The NSView subclass that draws our Angband image */
+/** The NSView subclass that draws our Angband image */
 @interface AngbandView : NSView
 {
     AngbandContext *angbandContext;
@@ -1332,7 +1339,7 @@ static BOOL initialized = NO;
 
 @implementation NSImage (AngbandImages)
 
-/*
+/**
  * Returns an image in the resource directoy of the bundle containing the
  * Angband view class.
  */
@@ -1370,7 +1377,7 @@ static BOOL initialized = NO;
         floor(self.rows * self.tileSize.height + 2 * self.borderSize.height));
 }
 
-/* qsort-compatible compare function for CGSizes */
+/** qsort-compatible compare function for CGSizes */
 static int compare_advances(const void *ap, const void *bp)
 {
     const CGSize *a = ap, *b = bp;
@@ -3661,7 +3668,7 @@ static errr Term_text_cocoa(int x, int y, int n, byte_hack a, const char *cp)
 }
 
 #if 0
-/* From the Linux mbstowcs(3) man page:
+/** From the Linux mbstowcs(3) man page:
  *   If dest is NULL, n is ignored, and the conversion  proceeds  as  above,
  *   except  that  the converted wide characters are not written out to mem‐
  *   ory, and that no length limit exists.
@@ -3761,7 +3768,7 @@ static void wakeup_event_loop(void)
 }
 
 
-/*
+/**
  * Create and initialize window number "i"
  */
 static term *term_data_link(int i)
@@ -3815,7 +3822,7 @@ static term *term_data_link(int i)
     return newterm;
 }
 
-/*
+/**
  * Load preferences from preferences file for current host+current user+
  * current application.
  */
@@ -4081,7 +4088,7 @@ static void prepare_paths_and_directories(void)
 }
 
 #if 0
-/*
+/**
  * Play sound effects asynchronously.  Select a sound from any available
  * for the required event, and bridge to Cocoa to play it.
  */
@@ -4177,7 +4184,7 @@ static BOOL open_game(void)
     return selectedSomething;
 }
 
-/*
+/**
  * Open the tutorial savefile, stored in xtra/
  */
 static void open_tutorial(void)
@@ -4614,7 +4621,7 @@ static void hook_quit(const char * str)
 /* Used by Angband but by Sil.  Comment them out. */
 #if 0
 
-/* Set HFS file type and creator codes on a path */
+/** Set HFS file type and creator codes on a path */
 static void cocoa_file_open_hook(const char *path, file_type ftype)
 {
     @autoreleasepool {
@@ -4641,7 +4648,7 @@ static void cocoa_file_open_hook(const char *path, file_type ftype)
 }
 
 
-/* A platform-native file save dialogue box, e.g. for saving character dumps */
+/** A platform-native file save dialogue box, e.g. for saving character dumps */
 static bool cocoa_get_file(const char *suggested_name, char *path, size_t len)
 {
     NSSavePanel *panel = [NSSavePanel savePanel];
@@ -4669,7 +4676,7 @@ static bool cocoa_get_file(const char *suggested_name, char *path, size_t len)
 u32b _fcreator;
 u32b _ftype;
 
-/*
+/**
  * (Carbon) [via path_to_spec]
  * Set creator and filetype of a file specified by POSIX-style pathname.
  * Returns 0 on success, -1 in case of errors.
