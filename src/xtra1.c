@@ -2708,6 +2708,41 @@ static void calc_bonuses(void)
         log_trace("ABILITY DEBUG: Mandos' Doom NOT active - have_ability[S_SPC][SPC_MANDOS] = %d", p_ptr->have_ability[S_SPC][SPC_MANDOS]);
     }
 
+    // Helper function to calculate total monsters seen across all races
+    int total_monsters_seen = 0;
+    int total_monsters_killed = 0;
+    int race_idx;
+    for (race_idx = 0; race_idx < z_info->r_max; race_idx++) {
+        monster_race *r_ptr = &r_info[race_idx];
+        monster_lore *l_ptr = &l_list[race_idx];
+        
+        /* Skip non-monsters and unique monsters for mercy calculation */
+        if (!r_ptr->name) continue;
+        if (r_ptr->flags1 & RF1_UNIQUE) continue;
+        
+        total_monsters_seen += l_ptr->psights;
+        total_monsters_killed += l_ptr->pkills;
+    }
+
+    // Niena's Gift of Mercy special ability grants enhanced stealth proportional to mercy shown
+    if (p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY]) {
+        if (total_monsters_seen > 0) {
+            /* Calculate stealth bonus: 10*(seen-killed)/seen, rounded up */
+            int mercy_ratio_times_10 = (10 * (total_monsters_seen - total_monsters_killed));
+            int stealth_bonus = (mercy_ratio_times_10 + total_monsters_seen - 1) / total_monsters_seen; /* Ceiling division */
+            
+            if (stealth_bonus > 0) {
+                p_ptr->skill_misc_mod[S_STL] += stealth_bonus;
+                log_trace("ABILITY DEBUG: Niena's Gift of Mercy active - granting +%d stealth (global: seen=%d, killed=%d, ratio=%.2f)", 
+                         stealth_bonus, total_monsters_seen, total_monsters_killed,
+                         (float)(total_monsters_seen - total_monsters_killed) / total_monsters_seen);
+            } else {
+                log_trace("ABILITY DEBUG: Niena's Gift of Mercy active but no bonus (global: seen=%d, killed=%d)", 
+                         total_monsters_seen, total_monsters_killed);
+            }
+        }
+    }
+
     /*** Handle stats ***/
     calc_stats();
 

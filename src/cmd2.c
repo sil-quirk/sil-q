@@ -296,6 +296,13 @@ void do_cmd_go_up(void)
         p_ptr->tulkas_quest = TULKAS_QUEST_NOT_STARTED;
     }
 
+    /* Reset niena quest */
+    if (p_ptr->niena_quest == NIENA_QUEST_GIVER_PRESENT)
+    {
+        p_ptr->niena_quest = NIENA_QUEST_NOT_STARTED;
+        msg_print("You have failed Niena's mercy quest by leaving the level.");
+    }
+
     // another staircase has been used...
     p_ptr->stairs_taken++;
     p_ptr->staircasiness += 1000;

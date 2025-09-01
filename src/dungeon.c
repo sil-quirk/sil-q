@@ -490,6 +490,9 @@ static void process_world(void)
 
     /* Check for Aule quest interaction every turn */
     check_aule_quest_interaction();
+    
+    /* Check for Niena quest interaction every turn */
+    check_niena_quest_interaction();
 
     /* Stop now unless the turn count is divisible by 10 */
     if (turn % 10)

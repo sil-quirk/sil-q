@@ -236,6 +236,7 @@
 #define R_IDX_TULKAS 18
 #define R_IDX_AULE 19
 #define R_IDX_MANDOS 20
+#define R_IDX_NIENA 6
 #define R_IDX_SPIDER_HATCHLING 32
 #define R_IDX_ORC_ARCHER 51
 #define R_IDX_ORC_CHAMPION 81
@@ -598,9 +599,11 @@
  */
 #define SPC_MANDOS 0
 #define SPC_AULE 1
-#define SPC_OATH_MERCY 2
-#define SPC_OATH_SILENCE 3
-#define SPC_OATH_IRON 4
+#define SPC_NIENA 2
+#define SPC_NIENA_MERCY 6  /* Enhanced stealth from mercy quest */
+#define SPC_OATH_MERCY 3
+#define SPC_OATH_SILENCE 4
+#define SPC_OATH_IRON 5
 
 /*
  * Attack Types
@@ -3519,6 +3522,13 @@
 #define MANDOS_QUEST_ACTIVE 2         /* Accepted quest: must clear all monsters from vault */
 #define MANDOS_QUEST_SUCCESS 3        /* Cleared all monsters (reward granted) */
 #define MANDOS_QUEST_REWARDED 4       /* Reward given, quest fully complete */
+
+/* States for the Niena mercy quest */
+#define NIENA_QUEST_NOT_STARTED 0
+#define NIENA_QUEST_GIVER_PRESENT 1  /* Niena spawned on maximum-size level */
+#define NIENA_QUEST_ACTIVE 2         /* Accepted quest: must reach stairs down without killing */
+#define NIENA_QUEST_SUCCESS 3        /* Reached stairs without killing (reward granted) */
+#define NIENA_QUEST_REWARDED 4       /* Reward given, quest fully complete */
 
 //Defines for number of heroes
 #define FLAG_COUNT 64

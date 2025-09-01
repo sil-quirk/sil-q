@@ -315,6 +315,19 @@ G:@:w
 N:5:<player>
 G:@:w
 
+# Niena quest giver - Mercy quest on maximum-size levels
+N:6:Niena, Lady of Pity
+W:6:1
+G:V:v
+I:2:26d4:0:0
+A:0:0:0:19
+P:[+0]
+F:FEMALE | NEVER_MOVE | SMART | PEACEFUL | UNIQUE | NEVER_BLOW | SPECIAL_GEN
+D:Before you appears Niena, the Lady of Pity, she who mourns for all
+D: suffering in Middle-earth. Her tears have watered the Two Trees, and her
+D: compassion moves even the hardest hearts. She looks upon you with eyes
+D: full of both sorrow and hope, as if she has a task requiring mercy.
+
 
 ##### Dungeon monsters #####
 
@@ -439,7 +452,6 @@ F:MALE | NEVER_MOVE | SMART | PEACEFUL | UNIQUE | NEVER_BLOW | SPECIAL_GEN
 D:Before you stands Mandos, the Doomsman of the Valar, keeper of the halls
 D: of the dead. His presence is solemn and commanding, and his eyes see all
 D: that transpires in the halls of waiting. He seems to have a task for you.
-
 
 ##### 2 #####
 
@@ -2410,6 +2422,20 @@ D: aroused he watched that no one came,
 D: no flitting shade nor hunted shape,
 D: seeking from Angband to escape.
 
+#Quest monsters
+
+# Niena quest giver - Mercy quest on maximum-size levels
+N:260:Niena, Lady of Pity  
+W:6:1
+G:V:v1
+I:2:26d4:0
+A:0:0:0:19
+P:[+0]
+F:FEMALE | NEVER_MOVE | SMART | PEACEFUL | UNIQUE | NEVER_BLOW | SPECIAL_GEN
+D:Before you appears Niena, the Lady of Pity, she who mourns for all
+D: suffering in Middle-earth. Her tears have watered the Two Trees, and her
+D: compassion moves even the hardest hearts. She looks upon you with eyes
+D: full of both sorrow and hope, as if she has a task requiring mercy.
 
 
 

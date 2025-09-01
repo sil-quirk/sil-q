@@ -1584,6 +1584,13 @@ void update_mon(int m_idx, bool full)
             /* Mark as visible */
             m_ptr->ml = true;
 
+            /* Track monster visibility for Niena mercy quest */
+            if (p_ptr->niena_quest == NIENA_QUEST_ACTIVE && m_ptr->r_idx != R_IDX_NIENA) {
+                p_ptr->niena_monsters_seen++;
+                log_trace("Niena quest: Monster seen (total seen=%d, killed=%d)", 
+                         p_ptr->niena_monsters_seen, p_ptr->niena_monsters_killed);
+            }
+
             /* Draw the monster */
             lite_spot(fy, fx);
 

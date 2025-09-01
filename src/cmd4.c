@@ -1355,10 +1355,18 @@ int abilities_menu2(int skilltype, int* highlight)
                 if (p_ptr->active_ability[skilltype][b_ptr->abilitynum])
                 {
                     attr = TERM_WHITE;
+                    /* Debug oath display */
+                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON)) {
+                        log_trace("OATH DISPLAY: %s (%d) - WHITE (innate + active)", b_ptr->name, b_ptr->abilitynum);
+                    }
                 }
                 else
                 {
                     attr = TERM_RED;
+                    /* Debug oath display */
+                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON)) {
+                        log_trace("OATH DISPLAY: %s (%d) - RED (innate but NOT active)", b_ptr->name, b_ptr->abilitynum);
+                    }
                 }
             }
             else
@@ -1366,10 +1374,18 @@ int abilities_menu2(int skilltype, int* highlight)
                 if (p_ptr->active_ability[skilltype][b_ptr->abilitynum])
                 {
                     attr = TERM_L_GREEN;
+                    /* Debug oath display */
+                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON)) {
+                        log_trace("OATH DISPLAY: %s (%d) - GREEN (learned + active)", b_ptr->name, b_ptr->abilitynum);
+                    }
                 }
                 else
                 {
                     attr = TERM_RED;
+                    /* Debug oath display */
+                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON)) {
+                        log_trace("OATH DISPLAY: %s (%d) - RED (learned but NOT active)", b_ptr->name, b_ptr->abilitynum);
+                    }
                 }
             }
         }
@@ -1906,26 +1922,46 @@ void do_cmd_ability_screen(void)
                     // if you already have the ability...
                     else
                     {
-                        // toggle its activity
-                        if (p_ptr->active_ability[skilltype][abilitynum])
+                        // Prevent oath special abilities from being deactivated
+                        if (skilltype == S_SPC && (abilitynum == SPC_OATH_MERCY || 
+                                                   abilitynum == SPC_OATH_SILENCE || 
+                                                   abilitynum == SPC_OATH_IRON))
                         {
-                            p_ptr->active_ability[skilltype][abilitynum]
-                                = false;
-                            Term_putstr(0, 0, -1, TERM_WHITE,
-                                "Ability now switched off.");
-
-                            // need to cancel second song in some cases
-                            if ((skilltype == S_SNG)
-                                && (abilitynum == SNG_WOVEN_THEMES))
+                            if (p_ptr->active_ability[skilltype][abilitynum])
                             {
-                                p_ptr->song2 = SNG_NOTHING;
+                                Term_putstr(0, 0, -1, TERM_WHITE,
+                                    "Sacred oaths cannot be deactivated once sworn.");
+                            }
+                            else
+                            {
+                                p_ptr->active_ability[skilltype][abilitynum] = true;
+                                Term_putstr(0, 0, -1, TERM_WHITE,
+                                    "Oath ability reactivated.");
                             }
                         }
                         else
                         {
-                            p_ptr->active_ability[skilltype][abilitynum] = true;
-                            Term_putstr(0, 0, -1, TERM_WHITE,
-                                "Ability now switched on. ");
+                            // toggle its activity for non-oath abilities
+                            if (p_ptr->active_ability[skilltype][abilitynum])
+                            {
+                                p_ptr->active_ability[skilltype][abilitynum]
+                                    = false;
+                                Term_putstr(0, 0, -1, TERM_WHITE,
+                                    "Ability now switched off.");
+
+                                // need to cancel second song in some cases
+                                if ((skilltype == S_SNG)
+                                    && (abilitynum == SNG_WOVEN_THEMES))
+                                {
+                                    p_ptr->song2 = SNG_NOTHING;
+                                }
+                            }
+                            else
+                            {
+                                p_ptr->active_ability[skilltype][abilitynum] = true;
+                                Term_putstr(0, 0, -1, TERM_WHITE,
+                                    "Ability now switched on. ");
+                            }
                         }
 
                         /* Set the redraw flag for everything */

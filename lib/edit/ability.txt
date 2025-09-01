@@ -717,4 +717,7 @@ D:A warrior's vow of action over words. Grants +1 Strength but breaks if you sin
 N:164:Oath of Iron
 I:8:4:0
 D:An unbreakable resolve to claim a Silmaril. Grants +2 Constitution but breaks if you flee without one.
+N:165:Niena's Gift of Mercy
+I:8:6:0
+D:Enhanced stealth proportional to mercy shown. Grants up to 10 stealth based on (seen-killed)/seen monsters. Awarded by quest; cannot be purchased.
 

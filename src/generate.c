@@ -97,10 +97,94 @@ typedef struct {
 /* Global variable to track pending quest state changes */
 static pending_quest_states_t pending_quest_states = {0};
 
+/* Quest lottery system: determines which quest (if any) "wins" this level */
+static int quest_lottery_winner = 0; /* 0=none, 1=Tulkas, 2=Niena, etc. */
+static bool quest_lottery_resolved = false; /* true once lottery is run for this level */
+
+/* Function to run the quest lottery once per level - determines which quest (if any) gets this level */
+static void run_quest_lottery(void) {
+    if (quest_lottery_resolved) {
+        log_trace("Quest lottery: Already resolved for this level (winner=%d)", quest_lottery_winner);
+        return;
+    }
+    
+    log_trace("Quest lottery: Running for depth %d", p_ptr->depth);
+    
+    /* Reset state */
+    quest_lottery_winner = 0;
+    quest_lottery_resolved = true;
+    
+    /* Quest order: Tulkas first, then Niena */
+    
+    /* 1. Check Tulkas eligibility and roll */
+    if (p_ptr->tulkas_quest == TULKAS_QUEST_NOT_STARTED && 
+        p_ptr->depth >= 6 && p_ptr->depth < 20 &&
+        !metarun_is_quest_completed(METARUN_QUEST_TULKAS)) {
+        
+        int tulkas_chance = 27 - p_ptr->depth;
+        if (one_in_(tulkas_chance)) {
+            quest_lottery_winner = 1; /* Tulkas wins */
+            log_trace("Quest lottery: Tulkas WINS! (1/%d roll succeeded)", tulkas_chance);
+            return;
+        } else {
+            log_trace("Quest lottery: Tulkas roll failed (1/%d)", tulkas_chance);
+        }
+    } else {
+        log_trace("Quest lottery: Tulkas not eligible (quest=%d, depth=%d, completed=%s)", 
+                  p_ptr->tulkas_quest, p_ptr->depth, 
+                  metarun_is_quest_completed(METARUN_QUEST_TULKAS) ? "true" : "false");
+    }
+    
+    /* 2. Check Niena eligibility and roll */
+    if (p_ptr->niena_quest == NIENA_QUEST_NOT_STARTED && 
+        p_ptr->depth >= 14 &&  /* Niena only spawns at level 14+ */
+        !metarun_is_quest_completed(METARUN_QUEST_NIENA)) {
+        
+        /* Niena probability: p_Nienna(lvl) = 0.125 * max(0, min(1, (lvl - 14) / 5)) */
+        /* This gives: 0% before lvl 14, scales from 0% to 12.5% between lvl 14-19, then 12.5% at 19+ */
+        
+        float depth_factor = (float)(p_ptr->depth - 14) / 5.0f;
+        if (depth_factor > 1.0f) depth_factor = 1.0f;  /* cap at 1.0 */
+        if (depth_factor < 0.0f) depth_factor = 0.0f;  /* shouldn't happen due to depth check above */
+        
+        float niena_probability = 0.125f * depth_factor;
+        
+        if (niena_probability > 0.0f) {
+            /* Convert probability to one_in_() parameter: if P = 1/N, then one_in_(N) gives probability P */
+            int niena_chance = (int)(1.0f / niena_probability + 0.5f);  /* round to nearest int */
+            
+            if (one_in_(niena_chance)) {
+                quest_lottery_winner = 2; /* Niena wins */
+                log_trace("Quest lottery: Niena WINS! (1/%d roll succeeded, probability=%.1f%%)", 
+                         niena_chance, niena_probability * 100.0f);
+                return;
+            } else {
+                log_trace("Quest lottery: Niena roll failed (1/%d, probability=%.1f%%)", 
+                         niena_chance, niena_probability * 100.0f);
+            }
+        } else {
+            log_trace("Quest lottery: Niena probability is 0%% at depth %d", p_ptr->depth);
+        }
+    } else {
+        log_trace("Quest lottery: Niena not eligible (quest=%d, depth=%d, completed=%s)", 
+                  p_ptr->niena_quest, p_ptr->depth, 
+                  metarun_is_quest_completed(METARUN_QUEST_NIENA) ? "true" : "false");
+    }
+    
+    /* No quest won the lottery */
+    log_trace("Quest lottery: No quest won - level remains quest-free");
+}
+
 /* Function to reset pending quest state changes */
 static void reset_pending_quest_states(void) {
     pending_quest_states.has_aule_change = false;
     pending_quest_states.has_mandos_change = false;
+    
+    /* Reset quest lottery for new level */
+    quest_lottery_winner = 0;
+    quest_lottery_resolved = false;
+    
+    log_trace("Quest lottery: Reset for new level generation");
 }
 
 /* Function to reset quest states that were set by quest vaults during regeneration */
@@ -138,17 +222,42 @@ static void reset_quest_vault_states(void) {
         p_ptr->tulkas_prize_a_idx = 0;
     }
     
-    /* Always reset quest reservation during regeneration since we're starting fresh */
-    /* The reservation system prevents multiple quests during a SINGLE generation attempt, */
-    /* not across regeneration attempts */
-    if (p_ptr->quest_reserved[0]) {
-        log_trace("Quest vault regeneration: Resetting quest_reserved[0] from 1 to 0 (fresh generation attempt)");
-        p_ptr->quest_reserved[0] = 0;
-    } else {
-        log_trace("Quest vault regeneration: quest_reserved[0] already 0, no reset needed");
+    /* Reset entrance-based quests (Niena) - similar to Tulkas, spawns during generation */
+    if (p_ptr->niena_quest == NIENA_QUEST_GIVER_PRESENT) {
+        log_trace("Quest vault regeneration: Resetting Niena quest from GIVER_PRESENT to NOT_STARTED");
+        p_ptr->niena_quest = NIENA_QUEST_NOT_STARTED;
+        /* Clear Niena-related quest data */
+        p_ptr->niena_monsters_seen = 0;
+        p_ptr->niena_monsters_killed = 0;
     }
     
-    log_trace("Quest vault regeneration: END - quest_reserved[0]=%d", p_ptr->quest_reserved[0]);
+    /* CRITICAL: Preserve quest lottery result during regeneration */
+    /* The lottery determines which quest (if any) owns this level and should persist */
+    /* across all regeneration attempts until the quest succeeds or we abandon the level */
+    
+    /* Reset quest states to allow fresh placement attempts, but preserve reservation */
+    if (quest_lottery_winner == 1) { /* Tulkas won the lottery */
+        /* Keep quest_reserved[0] = 1 since Tulkas owns this level */
+        if (!p_ptr->quest_reserved[0]) {
+            p_ptr->quest_reserved[0] = 1;
+            log_trace("Quest vault regeneration: Tulkas owns this level - ensuring quest_reserved[0] = 1");
+        }
+    } else if (quest_lottery_winner == 2) { /* Niena won the lottery */
+        /* Keep quest_reserved[0] = 1 since Niena owns this level */
+        if (!p_ptr->quest_reserved[0]) {
+            p_ptr->quest_reserved[0] = 1;
+            log_trace("Quest vault regeneration: Niena owns this level - ensuring quest_reserved[0] = 1");
+        }
+    } else {
+        /* No quest won the lottery - safe to reset everything */
+        if (p_ptr->quest_reserved[0]) {
+            log_trace("Quest vault regeneration: No quest owns this level - resetting quest_reserved[0] from 1 to 0");
+            p_ptr->quest_reserved[0] = 0;
+        }
+    }
+    
+    log_trace("Quest vault regeneration: END - quest_reserved[0]=%d, lottery_winner=%d", 
+              p_ptr->quest_reserved[0], quest_lottery_winner);
 }
 
 /* Function to apply pending quest state changes when level generation is successful */
@@ -4396,9 +4505,12 @@ static bool cave_gen(void)
     qv_placed_this_level = false;
     qv_stored_y1 = qv_stored_x1 = qv_stored_y2 = qv_stored_x2 = -1;
     
+    /* Run quest lottery once per level to determine which quest (if any) gets this level */
+    run_quest_lottery();
+    
     /* Debug: Log entry into cave_gen */
-    log_trace("cave_gen: Starting level generation (quest_vault_used=%s)", 
-              p_ptr->quest_vault_used ? "true" : "false");
+    log_trace("cave_gen: Starting level generation (quest_vault_used=%s, lottery_winner=%d)", 
+              p_ptr->quest_vault_used ? "true" : "false", quest_lottery_winner);
     s16b mon_gen, obj_room_gen;
 
     dun_data dun_body;
@@ -4736,27 +4848,23 @@ static bool cave_gen(void)
         p_ptr->depth >= 6 &&  /* Minimum level 6 */
         p_ptr->depth < 20 &&  /* Only up to depth 20 */
         !metarun_is_quest_completed(METARUN_QUEST_TULKAS) && /* Don't spawn if already completed in metarun */
-        !p_ptr->quest_reserved[0])  /* Another quest already spawned this run? */
+        !p_ptr->quest_reserved[0] &&  /* Another quest already spawned this run? */
+        quest_lottery_winner == 1)  /* Tulkas must win the lottery to spawn */
     {
-        /* Probability formula: 1/(25-depth) */
-        int spawn_chance = 20 - p_ptr->depth;
+        /* Lottery system: probability already determined - now attempt placement */
+        /* Try to find a room to spawn Tulkas in */
+        int attempts;
+        bool tulkas_spawned = false;
         
-        if (one_in_(spawn_chance))
+        log_trace("Tulkas spawn: Lottery winner attempting placement at depth %d", p_ptr->depth);
+        
+        /* Check if Tulkas already exists on this level */
+        bool tulkas_exists = false;
+        int j;
+        for (j = 1; j < mon_max; j++)
         {
-            /* Try to find a room to spawn Tulkas in */
-            int attempts;
-            bool tulkas_spawned = false;
-            
-            log_trace("Room-based Tulkas spawn triggered at depth %d (chance was 1/%d)", 
-                     p_ptr->depth, spawn_chance);
-            
-            /* Check if Tulkas already exists on this level */
-            bool tulkas_exists = false;
-            int j;
-            for (j = 1; j < mon_max; j++)
-            {
-                monster_type *m_ptr = &mon_list[j];
-                if (m_ptr->r_idx == R_IDX_TULKAS)
+            monster_type *m_ptr = &mon_list[j];
+            if (m_ptr->r_idx == R_IDX_TULKAS)
                 {
                     tulkas_exists = true;
                     break;
@@ -4832,7 +4940,129 @@ static bool cave_gen(void)
             {
                 log_trace("Tulkas already exists on level, skipping room spawn");
             }
+    }
+
+    /* Check for Niena room-based spawning - LOTTERY SYSTEM */
+    log_trace("Niena spawn check: quest=%d, depth=%d, level_size_l=%d, metarun_completed=%s, lottery_winner=%d", 
+             p_ptr->niena_quest, p_ptr->depth, l,
+             metarun_is_quest_completed(METARUN_QUEST_NIENA) ? "true" : "false",
+             quest_lottery_winner);
+             
+    /* Only attempt Niena spawning if it won the lottery */
+    if (quest_lottery_winner == 2) {
+        log_trace("Niena spawn: Niena WON the lottery - attempting spawn");
+        
+        /* Check level size requirement: must be maximum size (l >= 5) */
+        if (l < 5) {
+            log_trace("Niena spawn: FAILED - level too small (l=%d, need l>=5)", l);
+            return false; /* Force regeneration until we get a big enough level */
         }
+        
+        /* Try to find a room to spawn Niena in near the up stairs */
+        int attempts;
+        bool niena_spawned = false;
+        
+        log_trace("Niena spawn: Lottery winner attempting placement at depth %d, level_size=%d", p_ptr->depth, l);
+        
+        /* Check if Niena already exists on this level */
+        bool niena_exists = false;
+        int j;
+        for (j = 1; j < mon_max; j++)
+        {
+            monster_type *m_ptr = &mon_list[j];
+            if (m_ptr->r_idx == R_IDX_NIENA)
+            {
+                niena_exists = true;
+                break;
+            }
+        }
+        
+        if (!niena_exists)
+        {
+            /* Try to spawn Niena near the player's starting position (up stairs) */
+            int player_y = p_ptr->py;
+            int player_x = p_ptr->px;
+            
+            log_trace("Niena spawn: Attempting to place near player at (%d,%d)", player_y, player_x);
+            
+            /* Verify player has valid coordinates */
+            if (player_y > 0 && player_y < p_ptr->cur_map_hgt - 1 &&
+                player_x > 0 && player_x < p_ptr->cur_map_wid - 1)
+            {
+                /* Try to find a spot in the same room as the player first */
+                for (attempts = 0; attempts < 50 && !niena_spawned; attempts++)
+                {
+                    /* Search in a radius around the player */
+                    int dy = rand_range(-2, 2);
+                    int dx = rand_range(-2, 2);
+                    int try_y = player_y + dy;
+                    int try_x = player_x + dx;
+                    
+                    /* Must be valid coordinates and a floor in the same room */
+                    if (try_y > 0 && try_y < p_ptr->cur_map_hgt - 1 &&
+                        try_x > 0 && try_x < p_ptr->cur_map_wid - 1 &&
+                        cave_floor_bold(try_y, try_x) && 
+                        (cave_info[try_y][try_x] & CAVE_ROOM) &&
+                        !(cave_info[try_y][try_x] & CAVE_ICKY) &&
+                        cave_m_idx[try_y][try_x] == 0)
+                    {
+                        if (place_monster_one(try_y, try_x, R_IDX_NIENA, true, true, NULL))
+                        {
+                            p_ptr->niena_quest = NIENA_QUEST_GIVER_PRESENT;
+                            p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
+                            niena_spawned = true;
+                            log_trace("Niena spawned near player at (%d, %d), player at (%d, %d), quest state: %d", 
+                                     try_y, try_x, player_y, player_x, p_ptr->niena_quest);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                log_trace("Niena spawn: Invalid player coordinates (%d,%d), falling back to any room", player_y, player_x);
+            }
+            
+            /* If that failed, try any room on the level */
+            if (!niena_spawned)
+            {
+                log_trace("Niena spawn: Near-player placement failed, trying any suitable room");
+                for (attempts = 0; attempts < 100 && !niena_spawned; attempts++)
+                {
+                    int room_y = rand_int(p_ptr->cur_map_hgt);
+                    int room_x = rand_int(p_ptr->cur_map_wid);
+                    
+                    /* Must be valid coordinates and a floor in a room */
+                    if (room_y > 0 && room_y < p_ptr->cur_map_hgt - 1 &&
+                        room_x > 0 && room_x < p_ptr->cur_map_wid - 1 &&
+                        cave_floor_bold(room_y, room_x) && 
+                        (cave_info[room_y][room_x] & CAVE_ROOM) &&
+                        !(cave_info[room_y][room_x] & CAVE_ICKY) &&
+                        cave_m_idx[room_y][room_x] == 0)
+                    {
+                        if (place_monster_one(room_y, room_x, R_IDX_NIENA, true, true, NULL))
+                        {
+                            p_ptr->niena_quest = NIENA_QUEST_GIVER_PRESENT;
+                            p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
+                            niena_spawned = true;
+                            log_trace("Niena spawned in fallback room at (%d, %d), quest state: %d", 
+                                     room_y, room_x, p_ptr->niena_quest);
+                        }
+                    }
+                }
+            }
+            
+            if (!niena_spawned)
+            {
+                log_trace("Niena spawn: FAILED to spawn after all attempts - forcing regeneration");
+                return false; /* Force regeneration */
+            }
+        }
+        else
+        {
+            log_trace("Niena already exists on level, skipping room spawn");
+        }
+    } else {
+        log_trace("Niena spawn: SKIPPED - did not win lottery (winner=%d)", quest_lottery_winner);
     }
 
     // place Morgoth if on the run

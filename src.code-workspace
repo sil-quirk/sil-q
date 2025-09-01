@@ -1,8 +1,16 @@
 {
-	"folders": [
-		{
-			"path": "."
-		}
-	],
-	"settings": {}
+  "folders": [
+    { "path": "." }
+  ],
+  "settings": {
+    "terminal.integrated.profiles.windows": {
+      "Cygwin": {
+        "path": "C:\\Soft\\cygwin\\bin\\bash.exe",
+        "args": ["-l"],
+        "env": { "CHERE_INVOKING": "1" },
+        "icon": "terminal-bash"
+      }
+    },
+    "terminal.integrated.defaultProfile.windows": "Cygwin"
+  }
 }

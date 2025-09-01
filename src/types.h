@@ -1148,6 +1148,13 @@ struct player_type
     byte mandos_monsters_remaining; /* Number of monsters left to clear */
     s16b mandos_level;         /* Dungeon depth where vault resides */
     s16b mandos_reserved;      /* padding */
+    /* Niena quest tracking */
+    byte niena_quest;          /* Niena quest state (NIENA_QUEST_*) */
+    byte niena_monsters_seen;  /* Number of monsters seen during quest */
+    byte niena_monsters_killed; /* Number of monsters killed during quest */
+    byte niena_reserved;       /* padding */
+    s16b niena_level;          /* Dungeon depth where quest is active */
+    s16b niena_reserved2;      /* padding */
     /* Generic quest/vault tracking */
     byte quest_vault_used;     /* Has a quest-designated vault generated this game */
     byte quest_reserved[15];   /* quest_reserved[0] = any quest spawned flag (run-wide); rest reserved */

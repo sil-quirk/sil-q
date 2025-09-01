@@ -2383,6 +2383,13 @@ void monster_death(int m_idx)
 
     int multiplier = 1;
 
+    /* Track monster death for Niena mercy quest */
+    if (p_ptr->niena_quest == NIENA_QUEST_ACTIVE && m_ptr->r_idx != R_IDX_NIENA) {
+        p_ptr->niena_monsters_killed++;
+        log_trace("Niena quest: Monster killed (total killed=%d, seen=%d)", 
+                 p_ptr->niena_monsters_killed, p_ptr->niena_monsters_seen);
+    }
+
     /*
      *   1. General monster death things
      */
@@ -6255,6 +6262,212 @@ void check_mandos_quest_completion(int r_idx)
             msg_print("Return to Mandos the Doomsman to claim your reward.");
             
             log_trace("Mandos quest completed - Brodda slain");
+        }
+    }
+}
+
+/*
+ * Handle interaction with Niena for the mercy quest
+ */
+void niena_quest_interaction(void)
+{
+    /* Safety check - ensure valid quest state */
+    if (p_ptr->niena_quest != NIENA_QUEST_GIVER_PRESENT && 
+        p_ptr->niena_quest != NIENA_QUEST_SUCCESS)
+    {
+        log_trace("niena_quest_interaction called with invalid quest state: %d", p_ptr->niena_quest);
+        return;
+    }
+    
+    if (p_ptr->niena_quest == NIENA_QUEST_GIVER_PRESENT)
+    {
+        log_trace("Starting Niena quest interaction - offering mercy quest");
+        
+        /* Give quest message */
+        msg_format("Niena, Lady of Pity, speaks with a voice full of sorrow and hope:");
+        msg_format("'I have seen too much suffering in these halls of stone.'");
+        msg_format("'The creatures here are lost and tormented, driven by fear and darkness.'");
+        msg_format("'If you can find mercy in your heart, I ask you this:'");
+        msg_format("'Reach the stairs downward without taking any life.'");
+        msg_format("'Show that strength can be wedded to compassion.'");
+        msg_format("'All stairs shall be revealed to guide your path.'");
+        
+        /* Accept the quest */
+        p_ptr->niena_quest = NIENA_QUEST_ACTIVE;
+        p_ptr->niena_monsters_seen = 0;
+        p_ptr->niena_monsters_killed = 0;
+        
+        /* Make all stairs visible */
+        int y, x;
+        for (y = 0; y < p_ptr->cur_map_hgt; y++) {
+            for (x = 0; x < p_ptr->cur_map_wid; x++) {
+                if (cave_feat[y][x] == FEAT_MORE || cave_feat[y][x] == FEAT_MORE_SHAFT ||
+                    cave_feat[y][x] == FEAT_LESS || cave_feat[y][x] == FEAT_LESS_SHAFT) {
+                    cave_info[y][x] |= CAVE_MARK;
+                    cave_info[y][x] |= CAVE_SEEN;
+                }
+            }
+        }
+        
+        msg_print("The stairs throughout the level become clearly visible to you.");
+        msg_print("Niena fades away, but her presence lingers in your heart.");
+        
+        /* Update display */
+        p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS);
+        p_ptr->redraw |= (PR_MAP);
+        handle_stuff();
+        
+        log_trace("Niena quest started - all stairs revealed, monsters_seen=%d, monsters_killed=%d", 
+                 p_ptr->niena_monsters_seen, p_ptr->niena_monsters_killed);
+    }
+    else if (p_ptr->niena_quest == NIENA_QUEST_SUCCESS)
+    {
+        log_trace("Completing Niena quest - giving enhanced stealth reward");
+        
+        /* Calculate the stealth bonus: 10 * (seen - killed) / seen, rounded up */
+        int stealth_bonus = 0;
+        if (p_ptr->niena_monsters_seen > 0) {
+            /* Using ceiling division: (a + b - 1) / b */
+            int mercy_ratio_times_10 = (10 * (p_ptr->niena_monsters_seen - p_ptr->niena_monsters_killed));
+            stealth_bonus = (mercy_ratio_times_10 + p_ptr->niena_monsters_seen - 1) / p_ptr->niena_monsters_seen;
+        }
+        
+        msg_print("Niena appears with tears of joy in her eyes!");
+        msg_format("'You have shown that true strength lies in restraint.'");
+        msg_format("'You encountered %d creatures but spared %d of them.'", 
+                  p_ptr->niena_monsters_seen, p_ptr->niena_monsters_seen - p_ptr->niena_monsters_killed);
+        
+        if (stealth_bonus > 0) {
+            msg_format("'Your mercy has been witnessed by all creation.'");
+            msg_format("'I grant you the gift of moving unseen, like shadows at dawn.'");
+            
+            /* Grant the special ability */
+            p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY] = true;
+            p_ptr->active_ability[S_SPC][SPC_NIENA_MERCY] = true;
+            
+            msg_format("You feel blessed with supernatural stealth! (+%d effective stealth)", stealth_bonus);
+        } else {
+            msg_format("'Though you completed the task, your heart was not fully open to mercy.'");
+            msg_format("'Still, you have learned something of compassion today.'");
+            
+            /* Still grant the ability but with no effective bonus */
+            p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY] = true;
+            p_ptr->active_ability[S_SPC][SPC_NIENA_MERCY] = true;
+        }
+        
+        /* Clear quest state */
+        p_ptr->niena_quest = NIENA_QUEST_REWARDED;
+        
+        /* Unlock Mercy oath for future characters in this metarun */
+        metarun_unlock_oath(OATH_MERCY);
+        
+        /* Mark quest completion in metarun for score/persistence */
+        metarun_mark_quest_completed(METARUN_QUEST_NIENA);
+        log_trace("Niena quest marked complete in metarun and Mercy oath unlocked");
+        
+        msg_print("Niena smiles sadly and fades away, leaving you with her blessing.");
+        
+        /* Recalculate bonuses to apply the new stealth bonus */
+        p_ptr->update |= (PU_BONUS);
+        handle_stuff();
+        
+        log_trace("Niena quest completed and rewarded - stealth bonus: %d", stealth_bonus);
+    }
+}
+
+/*
+ * Check if player is adjacent to Niena and handle interaction
+ */
+void check_niena_quest_interaction(void)
+{
+    int y, x;
+    monster_type* m_ptr;
+    
+    /* Only check if quest is in appropriate state */
+    if (p_ptr->niena_quest != NIENA_QUEST_GIVER_PRESENT && 
+        p_ptr->niena_quest != NIENA_QUEST_SUCCESS)
+    {
+        return;
+    }
+    
+    log_trace("check_niena_quest_interaction: checking adjacency, quest state: %d", p_ptr->niena_quest);
+    
+    /* Look in adjacent squares for Niena */
+    for (y = p_ptr->py - 1; y <= p_ptr->py + 1; y++)
+    {
+        for (x = p_ptr->px - 1; x <= p_ptr->px + 1; x++)
+        {
+            /* Skip the player's own square */
+            if (y == p_ptr->py && x == p_ptr->px) continue;
+            
+            /* Skip invalid coordinates */
+            if (!in_bounds(y, x)) continue;
+            
+            /* Check if there's a monster here */
+            if (cave_m_idx[y][x] > 0)
+            {
+                m_ptr = &mon_list[cave_m_idx[y][x]];
+                
+                /* Is it Niena? */
+                if (m_ptr->r_idx == R_IDX_NIENA)
+                {
+                    log_trace("Found Niena adjacent at (%d, %d), triggering interaction", y, x);
+                    niena_quest_interaction();
+                    return;
+                }
+            }
+        }
+    }
+}
+
+/*
+ * Check if the player has completed the Niena mercy quest by reaching down stairs
+ */
+void check_niena_quest_completion(void)
+{
+    /* Only check if quest is active */
+    if (p_ptr->niena_quest != NIENA_QUEST_ACTIVE) {
+        return;
+    }
+    
+    /* Check if player is on down stairs */
+    if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_MORE || 
+        cave_feat[p_ptr->py][p_ptr->px] == FEAT_MORE_SHAFT) {
+        
+        log_trace("Player reached down stairs during Niena quest - quest completed!");
+        log_trace("Final counts: seen=%d, killed=%d", p_ptr->niena_monsters_seen, p_ptr->niena_monsters_killed);
+        
+        p_ptr->niena_quest = NIENA_QUEST_SUCCESS;
+        
+        msg_print("As you step onto the stairs, you feel Niena's presence return.");
+        msg_print("'You have done well, showing mercy where others would show only violence.'");
+        msg_print("Wait here a moment - she wishes to speak with you.");
+        
+        /* Make Niena appear near the player for the reward interaction */
+        int attempts;
+        bool niena_spawned = false;
+        
+        for (attempts = 0; attempts < 20 && !niena_spawned; attempts++)
+        {
+            int try_y = p_ptr->py + rand_range(-2, 2);
+            int try_x = p_ptr->px + rand_range(-2, 2);
+            
+            /* Must be valid coordinates and floor */
+            if (in_bounds(try_y, try_x) && cave_floor_bold(try_y, try_x) && 
+                cave_m_idx[try_y][try_x] == 0)
+            {
+                if (place_monster_one(try_y, try_x, R_IDX_NIENA, true, true, NULL))
+                {
+                    niena_spawned = true;
+                    log_trace("Niena spawned near stairs at (%d, %d) for quest completion", try_y, try_x);
+                }
+            }
+        }
+        
+        if (!niena_spawned) {
+            log_trace("Failed to spawn Niena for quest completion - will complete anyway");
+            /* Complete the quest directly if spawning fails */
+            niena_quest_interaction();
         }
     }
 }
