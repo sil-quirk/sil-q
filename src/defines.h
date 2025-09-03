@@ -599,11 +599,11 @@
  */
 #define SPC_MANDOS 0
 #define SPC_AULE 1
-#define SPC_NIENA 2
+#define SPC_OATH_MERCY 2
+#define SPC_OATH_SILENCE 3  
+#define SPC_OATH_IRON 4
 #define SPC_NIENA_MERCY 6  /* Enhanced stealth from mercy quest */
-#define SPC_OATH_MERCY 3
-#define SPC_OATH_SILENCE 4
-#define SPC_OATH_IRON 5
+#define SPC_OATH_SMITH 7
 
 /*
  * Attack Types
@@ -3488,6 +3488,7 @@
 #define OATH_MERCY_FLAG 1
 #define OATH_SILENCE_FLAG 2
 #define OATH_IRON_FLAG 4
+#define OATH_SMITH_FLAG 8
 
 /*
  * Order of Oath skill
@@ -3495,6 +3496,7 @@
 #define OATH_MERCY 1
 #define OATH_SILENCE 2
 #define OATH_IRON 3
+#define OATH_SMITH 4
 
 /*
  * States for the Tulkas quest

@@ -15,13 +15,21 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 -- Quest vault implementation (done)
 -- Mandos -> kill specific -> get ability (done)
 -- Aule -> forge -> get ability (done)
--- Niena
+-- Niena -> spawn -> get ability (done)
 -- Manwe
 -- Este
 -- Orome
-- Update to oath system
--- After completed quest you get oaths
-- Bug fixes (ongoing) (save names)
+- Update to oath system (done)
+-- After completed quest you get oaths (done)
+- UI
+-- Better oath texts
+-- Better oath menu
+- New oaths
+-- Aule
+- Bug fixes (ongoing) 
+-- save names (done)
+-- new metarun saves
+-- rubble (done)
 ## Release of beta 0.9 
 
 - More Vaults
@@ -33,9 +41,8 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 ### Ideas
 
 - New heroes
-- More frequent forges for gnomes
+- More frequent forges for dwarves
 - Calculate the forge probability
-- New Oaths
 - Pride
 - Greed
  

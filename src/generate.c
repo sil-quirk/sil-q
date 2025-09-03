@@ -108,6 +108,19 @@ static void run_quest_lottery(void) {
         return;
     }
     
+    /* CRITICAL: Do not run lottery if any quest is already active */
+    if (p_ptr->tulkas_quest > TULKAS_QUEST_NOT_STARTED || 
+        p_ptr->niena_quest > NIENA_QUEST_NOT_STARTED ||
+        p_ptr->aule_quest > AULE_QUEST_NOT_STARTED ||
+        p_ptr->mandos_quest > MANDOS_QUEST_NOT_STARTED) {
+        
+        log_trace("Quest lottery: SKIPPED - quest already active (tulkas=%d, niena=%d, aule=%d, mandos=%d)", 
+                  p_ptr->tulkas_quest, p_ptr->niena_quest, p_ptr->aule_quest, p_ptr->mandos_quest);
+        quest_lottery_winner = 0;
+        quest_lottery_resolved = true;
+        return;
+    }
+    
     log_trace("Quest lottery: Running for depth %d", p_ptr->depth);
     
     /* Reset state */

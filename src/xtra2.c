@@ -6047,8 +6047,8 @@ void aule_quest_interaction(void)
         /* Change quest state to prevent repeated interactions */
         p_ptr->aule_quest = AULE_QUEST_REWARDED;
         
-        /* Unlock Mercy oath for future characters in this metarun */
-        metarun_unlock_oath(OATH_MERCY);
+        /* Unlock Smith oath for future characters in this metarun */
+        metarun_unlock_oath(OATH_SMITH);
         
         msg_print("The knowledge of divine craftsmanship flows through you!");
         msg_print("Aule smiles with approval and returns to his eternal labors.");

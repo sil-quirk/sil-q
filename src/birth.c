@@ -13,6 +13,14 @@
 #include "z-term.h"
 #include "metarun.h"
 
+/* Three-column layout constants (same as cmd4.c) */
+#define COL_SKILL 2
+#define COL_ABILITY 15
+#define COL_DESCRIPTION 40
+
+/* Forward declaration of wipe_screen_from function */
+extern void wipe_screen_from(int col);
+
 /* Locations of the tables on the screen */
 #define HEADER_ROW 0
 #define QUESTION_ROW 1
@@ -219,11 +227,17 @@ static void get_extra(void)
     p_ptr->song1 = SNG_NOTHING;
     p_ptr->song2 = SNG_NOTHING;
     
-    /* Clear the abilities and add house abilities */
+    /* Clear the abilities and add house abilities - but preserve oath abilities */
     for (i = 0; i < S_MAX; i++)
     {
         for (j = 0; j < ABILITIES_MAX; j++)
         {
+            /* Preserve oath abilities (SPC_OATH_MERCY, SPC_OATH_SILENCE, SPC_OATH_IRON, SPC_OATH_SMITH) */
+            if (i == S_SPC && (j == SPC_OATH_MERCY || j == SPC_OATH_SILENCE || j == SPC_OATH_IRON || j == SPC_OATH_SMITH))
+            {
+                /* Keep existing oath abilities intact */
+                continue;
+            }
             p_ptr->innate_ability[i][j] = false;
             p_ptr->active_ability[i][j] = false;
         }
@@ -1582,7 +1596,7 @@ NavResult character_creation(void)
 }
 
 /*
- * Oath selection screen with Tolkien thematic descriptions
+ * Oath selection screen with three-column layout following abilities_menu2 pattern
  */
 static NavResult select_oath(void)
 {
@@ -1596,39 +1610,45 @@ static NavResult select_oath(void)
     }
     
     /* Oath descriptions with Tolkien thematics */
-    char *oath_names[4] = {
+    char *oath_names[5] = {
         "None",
         "Mercy",
         "Silence", 
-        "Iron"
+        "Iron",
+        "Smith"
     };
     
-    char *oath_tolkien_desc[4] = {
+    char *oath_tolkien_desc[5] = {
         "Walk free of binding words",
         "\"Let no blood of the Children stain thy blade in these halls of sorrow\"",
         "\"In silence came I, and in silence shall I depart, as befits the wise\"",
-        "\"Though darkness gather and Balrogs rise, I shall not yield nor turn aside\""
+        "\"Though darkness gather and Balrogs rise, I shall not yield nor turn aside\"",
+        "\"By mine own hand shall all blades be wrought, and no other's craft shall I bear\""
     };
     
-    char *oath_restrictions[4] = {
+    char *oath_restrictions[5] = {
         "",
         "You may not attack Men or Elves",
         "You may not sing",
-        "You may not ascend without a Silmaril"
+        "You may not ascend without a Silmaril",
+        "You may not pick up weapons or armour from the ground"
     };
     
-    char *oath_rewards[4] = {
+    char *oath_rewards[5] = {
         "",
         "+1 Grace", 
         "+1 Strength",
-        "+2 Constitution"
+        "+2 Constitution",
+        "+5 Smithing"
     };
     
     int highlight = 1; /* Start highlighting first available oath */
     int choice = 0;
+    int visible_count = 0;
+    int visible_oaths[5]; /* Map display positions to oath indices */
     
     /* Find first available oath to highlight */
-    for (int i = 1; i <= 3; i++) {
+    for (int i = 1; i <= 4; i++) {
         if (available_mask & (1 << (i - 1))) {
             highlight = i;
             break;
@@ -1636,56 +1656,114 @@ static NavResult select_oath(void)
     }
     
     while (true) {
-        /* Clear screen */
+        char buf[80];
+        byte attr;
+        
+        /* Clear screen and use three-column layout */
         Term_clear();
         
-        /* Title */
+        /* Title in left area */
         Term_putstr(2, 1, -1, TERM_L_BLUE, "Choose your Oath:");
         Term_putstr(2, 2, -1, TERM_SLATE, "Oaths are sacred vows that grant power but bind your actions.");
         Term_putstr(2, 3, -1, TERM_SLATE, "Breaking an oath brings curse and shame.");
         
-        /* Instructions */
-        Term_putstr(2, 23, -1, TERM_SLATE, "2/8 -move   Enter -select   ESC -back");
+        /* Instructions at bottom with arrows */
+        Term_putstr(2, 22, -1, TERM_SLATE, "↑↓ Navigate     Enter Accept     Esc Back");
         
-        /* Display oath options with proper spacing */
-        for (int i = 0; i <= 3; i++) {
-            int y = 6 + i * 4; /* Increased spacing from 3 to 4 lines */
-            byte color = TERM_SLATE;
-            char option_char = 'a' + i;
+        /* Clear and setup oath list area (abilities column) */
+        wipe_screen_from(COL_ABILITY);
+        Term_putstr(COL_ABILITY, 1, -1, TERM_WHITE, "Available Oaths");
+        
+        /* Build visible oaths list - only show available or broken */
+        visible_count = 0;
+        
+        /* Always include "None" option */
+        visible_oaths[visible_count] = 0;
+        attr = (highlight == 0) ? TERM_L_BLUE : TERM_WHITE;
+        Term_putstr(COL_ABILITY, 3 + visible_count, -1, attr, format("%c) %s", 'a' + visible_count, oath_names[0]));
+        visible_count++;
+        
+        /* Add available or broken oaths */
+        for (int i = 1; i <= 4; i++) {
+            /* Skip locked oaths (not available and not broken) */
+            if (!(available_mask & (1 << (i - 1))) && !oath_banned(i)) {
+                continue;
+            }
             
-            if (i == 0) {
-                /* None option - always available */
-                color = (highlight == i) ? TERM_L_BLUE : TERM_WHITE;
-                Term_putstr(4, y, -1, color, format("%c) %s", option_char, oath_names[i]));
-                if (highlight == i) {
-                    Term_putstr(6, y + 1, -1, TERM_SLATE, "No binding oath constrains your path.");
-                }
+            visible_oaths[visible_count] = i;
+            
+            /* Determine display color based on oath status */
+            if (oath_banned(i)) {
+                attr = TERM_L_RED; /* Broken oaths in red */
+                strnfmt(buf, 80, "%c) %s (BROKEN)", 'a' + visible_count, oath_names[i]);
             } else {
-                /* Check if this oath is banned (broken) */
-                if (oath_banned(i)) {
-                    color = TERM_L_RED;
-                    Term_putstr(4, y, -1, color, format("%c) %s (BROKEN)", option_char, oath_names[i]));
-                    /* Always show menacing text for broken oaths */
-                    Term_putstr(6, y + 1, -1, TERM_RED, "\"Thy oath lies shattered, thy word worthless as dust.\"");
-                    Term_putstr(6, y + 2, -1, TERM_L_RED, "\"No Valar shall hear thy voice, no light shall guide thy path.\"");
-                    Term_putstr(6, y + 3, -1, TERM_RED, "Forever art thou marked as oathbreaker in this age.");
-                }
-                /* Check if this oath is available */
-                else if (available_mask & (1 << (i - 1))) {
-                    color = (highlight == i) ? TERM_L_BLUE : TERM_WHITE;
-                    Term_putstr(4, y, -1, color, format("%c) %s (Unlocked)", option_char, oath_names[i]));
-                    if (highlight == i) {
-                        Term_putstr(6, y + 1, -1, TERM_YELLOW, oath_tolkien_desc[i]);
-                        Term_putstr(6, y + 2, -1, TERM_SLATE, format("Reward: %s", oath_rewards[i]));
-                        if (strlen(oath_restrictions[i]) > 0) {
-                            Term_putstr(6, y + 3, -1, TERM_L_RED, format("Restriction: %s", oath_restrictions[i]));
-                        }
-                    }
+                attr = (highlight == i) ? TERM_L_BLUE : TERM_WHITE;
+                strnfmt(buf, 80, "%c) %s", 'a' + visible_count, oath_names[i]);
+            }
+            
+            Term_putstr(COL_ABILITY, 3 + visible_count, -1, attr, buf);
+            visible_count++;
+        }
+        
+        /* Display detailed description for highlighted oath in description column */
+        wipe_screen_from(COL_DESCRIPTION);
+        Term_putstr(COL_DESCRIPTION, 1, -1, TERM_WHITE, "Oath Details");
+        
+        if (highlight >= 0 && highlight <= 4) {
+            if (oath_banned(highlight) && highlight > 0) {
+                /* Menacing text for broken oaths */
+                Term_putstr(COL_DESCRIPTION, 3, -1, TERM_L_RED, "OATH BROKEN");
+                Term_putstr(COL_DESCRIPTION, 5, -1, TERM_RED, "\"Thy oath lies shattered,");
+                Term_putstr(COL_DESCRIPTION, 6, -1, TERM_RED, " thy word worthless as dust.\"");
+                Term_putstr(COL_DESCRIPTION, 8, -1, TERM_L_RED, "\"No Valar shall hear thy voice,");
+                Term_putstr(COL_DESCRIPTION, 9, -1, TERM_L_RED, " no light shall guide thy path.\"");
+                Term_putstr(COL_DESCRIPTION, 11, -1, TERM_RED, "Forever marked as oathbreaker");
+                Term_putstr(COL_DESCRIPTION, 12, -1, TERM_RED, "in this age.");
+            } else {
+                /* Quote */
+                Term_putstr(COL_DESCRIPTION, 3, -1, TERM_YELLOW, "Quote:");
+                char* quote = oath_tolkien_desc[highlight];
+                if (strlen(quote) > 35) {
+                    char line1[40], line2[40];
+                    int split_pos = 35;
+                    while (split_pos > 20 && quote[split_pos] != ' ' && quote[split_pos] != ',' && quote[split_pos] != ';')
+                        split_pos--;
+                    
+                    strncpy(line1, quote, split_pos);
+                    line1[split_pos] = '\0';
+                    strcpy(line2, quote + split_pos + (quote[split_pos] == ' ' ? 1 : 0));
+                    
+                    Term_putstr(COL_DESCRIPTION, 4, -1, TERM_SLATE, line1);
+                    Term_putstr(COL_DESCRIPTION, 5, -1, TERM_SLATE, line2);
                 } else {
-                    color = TERM_L_DARK;
-                    Term_putstr(4, y, -1, color, format("%c) %s (Locked)", option_char, oath_names[i]));
-                    if (highlight == i) {
-                        Term_putstr(6, y + 1, -1, TERM_L_DARK, "Complete the corresponding Valar quest to unlock this oath.");
+                    Term_putstr(COL_DESCRIPTION, 4, -1, TERM_SLATE, quote);
+                }
+                
+                /* Reward */
+                if (highlight > 0 && strlen(oath_rewards[highlight]) > 0) {
+                    Term_putstr(COL_DESCRIPTION, 7, -1, TERM_L_GREEN, "Reward:");
+                    Term_putstr(COL_DESCRIPTION, 8, -1, TERM_L_GREEN, oath_rewards[highlight]);
+                }
+                
+                /* Restriction */
+                if (highlight > 0 && strlen(oath_restrictions[highlight]) > 0) {
+                    Term_putstr(COL_DESCRIPTION, 10, -1, TERM_L_RED, "Restriction:");
+                    /* Wrap long restrictions */
+                    char* restriction = oath_restrictions[highlight];
+                    if (strlen(restriction) > 35) {
+                        char rest_line1[40], rest_line2[40];
+                        int rest_split = 35;
+                        while (rest_split > 15 && restriction[rest_split] != ' ')
+                            rest_split--;
+                        
+                        strncpy(rest_line1, restriction, rest_split);
+                        rest_line1[rest_split] = '\0';
+                        strcpy(rest_line2, restriction + rest_split + 1);
+                        
+                        Term_putstr(COL_DESCRIPTION, 11, -1, TERM_L_RED, rest_line1);
+                        Term_putstr(COL_DESCRIPTION, 12, -1, TERM_L_RED, rest_line2);
+                    } else {
+                        Term_putstr(COL_DESCRIPTION, 11, -1, TERM_L_RED, restriction);
                     }
                 }
             }
@@ -1695,11 +1773,11 @@ static NavResult select_oath(void)
         char key = inkey();
         
         /* Handle input */
-        if (key == ESCAPE || key == '4') {
+        if (key == ESCAPE || key == 'q') {
             return NAV_BACK; /* Go back to character creation */
         }
         
-        if (key == '\r' || key == '\n' || key == '6') {
+        if (key == '\r' || key == '\n' || key == ' ') {
             /* Select current highlighted option */
             if (highlight == 0 || ((available_mask & (1 << (highlight - 1))) && !oath_banned(highlight))) {
                 choice = highlight;
@@ -1707,25 +1785,65 @@ static NavResult select_oath(void)
             }
         }
         
-        if (key >= 'a' && key <= 'd') {
-            int selected = key - 'a';
-            if (selected == 0 || ((available_mask & (1 << (selected - 1))) && !oath_banned(selected))) {
-                choice = selected;
+        if (key >= 'a' && key <= 'e') {
+            /* Map letter selection to actual oath index */
+            int display_pos = key - 'a';
+            int actual_index = 0;
+            int current_pos = 0;
+            
+            /* Find the actual oath index for this display position */
+            for (int i = 0; i <= 4; i++) {
+                /* Skip locked oaths */
+                if (i > 0 && !(available_mask & (1 << (i - 1))) && !oath_banned(i)) {
+                    continue;
+                }
+                
+                if (current_pos == display_pos) {
+                    actual_index = i;
+                    break;
+                }
+                current_pos++;
+            }
+            
+            /* Select if valid */
+            if (actual_index == 0 || ((available_mask & (1 << (actual_index - 1))) && !oath_banned(actual_index))) {
+                choice = actual_index;
                 break;
             }
         }
         
-        if (key == '2' || key == '8') {
-            /* Move highlight */
-            int direction = (key == '2') ? 1 : -1;
+        /* Arrow key navigation: Up and Down */
+        if (key == '8') {
+            /* Move highlight to previous available or broken oath */
+            int direction = -1;
             int new_highlight = highlight;
             
             do {
                 new_highlight += direction;
-                if (new_highlight < 0) new_highlight = 3;
-                if (new_highlight > 3) new_highlight = 0;
+                if (new_highlight < 0) new_highlight = 4;
+                if (new_highlight > 4) new_highlight = 0;
                 
-                /* Check if this option can be displayed (selectable or banned for display) */
+                /* Check if this option should be displayed */
+                if (new_highlight == 0 || 
+                    (available_mask & (1 << (new_highlight - 1))) || 
+                    oath_banned(new_highlight)) {
+                    highlight = new_highlight;
+                    break;
+                }
+            } while (new_highlight != highlight);
+        }
+        
+        if (key == '2') {
+            /* Move highlight to next available or broken oath */
+            int direction = 1;
+            int new_highlight = highlight;
+            
+            do {
+                new_highlight += direction;
+                if (new_highlight < 0) new_highlight = 4;
+                if (new_highlight > 4) new_highlight = 0;
+                
+                /* Check if this option should be displayed */
                 if (new_highlight == 0 || 
                     (available_mask & (1 << (new_highlight - 1))) || 
                     oath_banned(new_highlight)) {
@@ -1742,15 +1860,39 @@ static NavResult select_oath(void)
     /* Grant corresponding oath special ability */
     if (choice == OATH_MERCY) {
         p_ptr->have_ability[S_SPC][SPC_OATH_MERCY] = true;
+        p_ptr->innate_ability[S_SPC][SPC_OATH_MERCY] = true;
         p_ptr->active_ability[S_SPC][SPC_OATH_MERCY] = true;
+        log_debug("Granted OATH_MERCY abilities: have=%d, innate=%d, active=%d", 
+                  p_ptr->have_ability[S_SPC][SPC_OATH_MERCY], 
+                  p_ptr->innate_ability[S_SPC][SPC_OATH_MERCY],
+                  p_ptr->active_ability[S_SPC][SPC_OATH_MERCY]);
     }
     else if (choice == OATH_SILENCE) {
         p_ptr->have_ability[S_SPC][SPC_OATH_SILENCE] = true;
+        p_ptr->innate_ability[S_SPC][SPC_OATH_SILENCE] = true;
         p_ptr->active_ability[S_SPC][SPC_OATH_SILENCE] = true;
+        log_debug("Granted OATH_SILENCE abilities: have=%d, innate=%d, active=%d", 
+                  p_ptr->have_ability[S_SPC][SPC_OATH_SILENCE], 
+                  p_ptr->innate_ability[S_SPC][SPC_OATH_SILENCE],
+                  p_ptr->active_ability[S_SPC][SPC_OATH_SILENCE]);
     }
     else if (choice == OATH_IRON) {
         p_ptr->have_ability[S_SPC][SPC_OATH_IRON] = true;
+        p_ptr->innate_ability[S_SPC][SPC_OATH_IRON] = true;
         p_ptr->active_ability[S_SPC][SPC_OATH_IRON] = true;
+        log_debug("Granted OATH_IRON abilities: have=%d, innate=%d, active=%d", 
+                  p_ptr->have_ability[S_SPC][SPC_OATH_IRON], 
+                  p_ptr->innate_ability[S_SPC][SPC_OATH_IRON],
+                  p_ptr->active_ability[S_SPC][SPC_OATH_IRON]);
+    }
+    else if (choice == OATH_SMITH) {
+        p_ptr->have_ability[S_SPC][SPC_OATH_SMITH] = true;
+        p_ptr->innate_ability[S_SPC][SPC_OATH_SMITH] = true;
+        p_ptr->active_ability[S_SPC][SPC_OATH_SMITH] = true;
+        log_debug("Granted OATH_SMITH abilities: have=%d, innate=%d, active=%d", 
+                  p_ptr->have_ability[S_SPC][SPC_OATH_SMITH], 
+                  p_ptr->innate_ability[S_SPC][SPC_OATH_SMITH],
+                  p_ptr->active_ability[S_SPC][SPC_OATH_SMITH]);
     }
     
     if (choice == 0) {

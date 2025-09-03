@@ -142,6 +142,18 @@ void do_cmd_go_up(void)
         p_ptr->oaths_broken |= OATH_IRON_FLAG;
     }
 
+    // warn player if they have an active Niena quest and are trying to leave
+    if (p_ptr->niena_quest == NIENA_QUEST_ACTIVE)
+    {
+        msg_print("Niena's voice echoes in your mind:");
+        msg_print("'If you leave now, you will have failed the mercy quest.'");
+        msg_print("'All the compassion you have shown will be for naught.'");
+        if (!get_check("Are you sure you wish to abandon the quest and ascend? "))
+        {
+            return;
+        }
+    }
+
     /* Hack -- take a turn */
     p_ptr->energy_use = 100;
 
@@ -348,6 +360,18 @@ void do_cmd_go_down(void)
         p_ptr->leaving = true;
         close_game();
         return;
+    }
+
+    // warn player if they have an active Niena quest and are trying to leave
+    if (p_ptr->niena_quest == NIENA_QUEST_ACTIVE)
+    {
+        msg_print("Niena's voice echoes in your mind:");
+        msg_print("'If you leave now, you will have failed the mercy quest.'");
+        msg_print("'All the compassion you have shown will be for naught.'");
+        if (!get_check("Are you sure you wish to abandon the quest and descend? "))
+        {
+            return;
+        }
     }
 
     // Do not descend from the Gates

@@ -4,6 +4,18 @@ applyTo: '**'
 
 # Sil-More Project Memory & Knowledge Base
 
+## Build System Notes
+**IMPORTANT**: Use `Makefile.cyg` for compilation, NOT `Makefile.win`
+- Command: `make -f Makefile.cyg` (in Cygwin bash)
+- Makefile.win has linking issues and should be avoided
+- Always use Cygwin environment for proper compilation
+
+## Log File Location
+**CRITICAL**: The log.txt file location depends on WHERE you run the executable:
+- If run from `/cygdrive/c/Users/efrem/Documents/GitHub/sil-qh/` → log.txt appears in root directory
+- If run from `/cygdrive/c/Users/efrem/Documents/GitHub/sil-qh/src/` → log.txt appears in src directory  
+- Always check the correct location based on where sil.exe was executed
+
 ## Oath System - Complete Implementation & Recent Bug Fixes
 
 ### Overview
@@ -46,10 +58,95 @@ The oath system has been converted from Will abilities to Special abilities that
 - Fixed key handling to properly map letters to visible abilities
 **Status**: ✅ FIXED
 
-#### Issue #5: Broken Oath Display
-**Problem**: Broken oaths were not shown in oath selection screen with menacing text
+#### Issue #5: Smith Oath Menu Bug & UI Redesign (September 2025)
+**Problem**: 
+1. Smith oath not appearing in oath changing menu due to OATH_TYPES=4 but arrays missing Smith entries
+2. Poor UI design that doesn't scale to 10+ oaths 
+3. Text positioning issues with overlapping text
+4. Layout doesn't work well in 80x25 terminal constraints
 
-## Quest System Architecture & Rules
+**Root Cause Analysis**: 
+- Original oath menu used simple vertical layout with hardcoded positioning
+- Didn't follow established UI patterns from the codebase
+- Used `Term_clear()` instead of proper partial screen clearing
+- Wrong column positioning causing text overlap
+
+**Solution - Proper UI Redesign**:
+1. **Fixed Data Issues**:
+   - Updated OATH_TYPES from 4 to 5 
+   - Added Smith oath entries to all arrays (oath_name, oath_desc1, oath_desc2, oath_reward)
+   - **CRITICAL FIX**: Fixed `oath_restrictions` array in birth.c from 4 to 5 entries
+   - Added Smith oath restriction: "You may not pick up weapons or armour from the ground"
+
+2. **Complete UI Redesign Following Established Patterns**:
+   - Studied abilities_menu2() function as the reference implementation
+   - Used proper three-column layout:
+     * COL_SKILL (2): Unused (available for future categories)
+     * COL_ABILITY (17): Compact oath list, 1 line per oath  
+     * COL_DESCRIPTION (42): Detailed descriptions with text wrapping
+   - Used `wipe_screen_from(COL_ABILITY)` instead of `Term_clear()`
+   - Proper color coding: TERM_L_RED for broken, TERM_L_BLUE for highlighted
+   - Text wrapping for long descriptions to fit 38-character column width
+
+3. **User Experience Improvements**:
+   - **Filtering**: Only show available and broken oaths (hide locked ones per user request)
+   - **Input Mapping**: Proper letter selection with display position → actual oath index translation
+   - **Navigation**: Filtered navigation skipping locked oaths completely
+   - **Dual Menu Support**: Fixed both cmd4.c (abilities) and birth.c (character creation) menus
+
+4. **Scalability Achievements**:
+   - Supports up to 20 oaths in 80x25 terminal (rows 4-23)
+   - Clean separation prevents text overlap
+   - Easily extensible for scrolling if >20 oaths needed
+   - Could add oath categories in COL_SKILL column if desired
+
+**Status**: ✅ COMPLETELY FIXED 
+
+**Final Resolution Summary:**
+1. **Root Cause Identified**: User was seeing birth.c `select_oath()` function, not cmd4.c `oath_menu()` 
+2. **Three-Column Design Applied**: Converted birth.c oath menu to proper three-column layout
+3. **Array Bounds Fixed**: Added missing Smith oath to `oath_restrictions[5]` array  
+4. **Filtering Implemented**: Only show available and broken oaths (hide locked ones)
+5. **Debug Logging Added**: Track oath ability assignments for troubleshooting
+6. **Both Menus Fixed**: cmd4.c (abilities) and birth.c (character creation) now use proper UI
+
+**Current State**: 
+- ✅ New three-column oath menu displays during character creation after skill assignment
+- ✅ Smith oath shows correct restriction: "You may not pick up weapons or armour from the ground"  
+- ✅ Filtered display shows only available/broken oaths as requested
+- ✅ Proper debugging added to track oath ability activation issues
+- ✅ Scalable design supports 10+ oaths with proper text wrapping
+
+## Build Environment & Compilation
+
+### Windows Build Setup
+- **Operating System**: Windows with Cygwin environment
+- **Compiler**: MinGW-w64 GCC via Cygwin
+- **Terminal**: Use Cygwin bash terminal for compilation
+- **Makefile**: Use `Makefile.cyg` for Windows builds
+
+### Compilation Commands
+```bash
+# Navigate to source directory
+cd /cygdrive/c/Users/efrem/Documents/GitHub/sil-qh/src
+
+# Clean build
+make -f Makefile.cyg clean
+
+# Full build
+make -f Makefile.cyg
+
+# Parallel build (faster)
+make -f Makefile.cyg -j8
+
+# Build and launch
+make -f Makefile.cyg -j8 launch
+
+# Compile single file for testing
+make -f Makefile.cyg generate.o
+```
+
+### Quest System Architecture & Rules
 
 ### Quest Spawning Logic - Critical Design Pattern
 **Rule**: Spawning quests (Tulkas, Niena, etc.) use a **lottery-then-persist** approach:
@@ -489,7 +586,7 @@ Deprecate XP purchase path for `WIL_OATH`:
 | Quest Flag | Metarun Constant | Oath Bit | Oath ID | Notes |
 |------------|------------------|---------|---------|-------|
 | METARUN_QUEST_MANDOS | Mandos | IRON (4) | 3 | Thematic: Doom / resolve → Iron |
-| METARUN_QUEST_AULE   | Aule   | MERCY (1) | 1 | Craft humility / restraint |
+| METARUN_QUEST_AULE   | Aule   | SMITH (8) | 4 | Craft specialization / forge mastery |
 | METARUN_QUEST_TULKAS | Tulkas | SILENCE (2) | 2 | Discipline after martial prowess |
 | METARUN_QUEST_NIENA  | Niena  | MERCY (1) | 1 | Direct stealth ability (SPC_NIENA) + unlocks Mercy oath |
 

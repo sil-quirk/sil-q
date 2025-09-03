@@ -2326,9 +2326,9 @@ void metarun_restore_quest_states(void)
 bool oath_unlocked(int oath_id)
 {
     if (current_run < 0 || current_run >= metarun_max) return false;
-    if (oath_id < 1 || oath_id > 3) return false;
+    if (oath_id < 1 || oath_id > 4) return false;
     
-    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-3 to bits 1,2,4 */
+    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-4 to bits 1,2,4,8 */
     return (metaruns[current_run].unlocked_oaths & oath_bit) != 0;
 }
 
@@ -2338,9 +2338,9 @@ bool oath_unlocked(int oath_id)
 bool oath_banned(int oath_id)
 {
     if (current_run < 0 || current_run >= metarun_max) return false;
-    if (oath_id < 1 || oath_id > 3) return false;
+    if (oath_id < 1 || oath_id > 4) return false;
     
-    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-3 to bits 1,2,4 */
+    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-4 to bits 1,2,4,8 */
     return (metaruns[current_run].banned_oaths & oath_bit) != 0;
 }
 
@@ -2353,12 +2353,12 @@ void metarun_unlock_oath(int oath_id)
         log_trace("Oath unlock: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
         return;
     }
-    if (oath_id < 1 || oath_id > 3) {
+    if (oath_id < 1 || oath_id > 4) {
         log_trace("Oath unlock: Invalid oath_id=%d", oath_id);
         return;
     }
     
-    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-3 to bits 1,2,4 */
+    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-4 to bits 1,2,4,8 */
     
     /* Update both the global metar and the metaruns array */
     metar.unlocked_oaths |= oath_bit;
@@ -2380,12 +2380,12 @@ void metarun_ban_oath(int oath_id)
         log_trace("Oath ban: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
         return;
     }
-    if (oath_id < 1 || oath_id > 3) {
+    if (oath_id < 1 || oath_id > 4) {
         log_trace("Oath ban: Invalid oath_id=%d", oath_id);
         return;
     }
     
-    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-3 to bits 1,2,4 */
+    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-4 to bits 1,2,4,8 */
     
     /* Update both the global metar and the metaruns array */
     metar.banned_oaths |= oath_bit;

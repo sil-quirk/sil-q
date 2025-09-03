@@ -2780,6 +2780,34 @@ extern void perceive(void)
 }
 
 /*
+ * Check if an object is a weapon or armor that would violate the Oath of the Smith
+ */
+bool is_weapon_or_armor(const object_type* o_ptr)
+{
+    /* Check if it's a weapon */
+    if (o_ptr->tval == TV_SWORD || o_ptr->tval == TV_POLEARM || 
+        o_ptr->tval == TV_HAFTED || o_ptr->tval == TV_BOW)
+        return true;
+        
+    /* Check if it's armor */
+    if (o_ptr->tval == TV_SOFT_ARMOR || o_ptr->tval == TV_MAIL || 
+        o_ptr->tval == TV_SHIELD || o_ptr->tval == TV_HELM || 
+        o_ptr->tval == TV_CROWN || o_ptr->tval == TV_CLOAK || 
+        o_ptr->tval == TV_GLOVES || o_ptr->tval == TV_BOOTS)
+        return true;
+        
+    return false;
+}
+
+/*
+ * Check if an object was smithed by the player
+ */
+bool is_smithed_by_player(const object_type* o_ptr)
+{
+    return (o_ptr->unused1 == 1);
+}
+
+/*
  * Helper routine for py_pickup() and py_pickup_floor().
  *
  * Add the given dungeon object to the character's inventory.
@@ -2789,11 +2817,44 @@ extern void perceive(void)
 void py_pickup_aux(int o_idx)
 {
     object_type* o_ptr;
+    char o_name[120];
+    
     o_ptr = &o_list[o_idx];
 
     /*hack - don't pickup &nothings*/
     if (o_ptr->k_idx)
     {
+        /* Check for Oath of the Smith violation */
+        if (chosen_oath(OATH_SMITH) && !oath_invalid(OATH_SMITH) && 
+            is_weapon_or_armor(o_ptr) && !is_smithed_by_player(o_ptr))
+        {
+            /* Describe the object */
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+            
+            /* Warn the player about oath breaking */
+            if (!get_check(format("Picking up %s would break your Oath of the Smith! Continue? ", o_name)))
+            {
+                /* Player chose not to break oath - abort pickup */
+                return;
+            }
+            
+            /* Player chose to break oath */
+            msg_print("You break your oath of the smith by picking up a weapon or armor you did not forge yourself!");
+            msg_print("The satisfaction of using only your own craftsmanship is lost.");
+            
+            /* Mark oath as broken */
+            p_ptr->oaths_broken |= OATH_SMITH_FLAG;
+            
+            /* Disable the oath's special ability */
+            p_ptr->active_ability[S_SPC][SPC_OATH_SMITH] = false;
+            
+            /* Apply oath breaking curse */
+            apply_oath_breaking_curse(OATH_SMITH);
+            
+            /* Mark oath as permanently banned in metarun */
+            metarun_ban_oath(OATH_SMITH);
+        }
+        
         give_player_item(o_ptr);
 
         // Break the truce if creatures see
@@ -3891,9 +3952,9 @@ bool abort_for_mercy(monster_type* m_ptr)
  */
 void apply_oath_breaking_curse(int oath_id)
 {
-    char oath_names[4][20] = {"", "Mercy", "Silence", "Iron"};
+    char oath_names[5][20] = {"", "Mercy", "Silence", "Iron", "Smith"};
     
-    if (oath_id < 1 || oath_id > 3) return;
+    if (oath_id < 1 || oath_id > 4) return;
     
     log_trace("Applying oath breaking consequences for oath %d (%s)", oath_id, oath_names[oath_id]);
     
@@ -3906,6 +3967,9 @@ void apply_oath_breaking_curse(int oath_id)
     }
     else if (oath_id == OATH_IRON) {
         p_ptr->active_ability[S_SPC][SPC_OATH_IRON] = false;
+    }
+    else if (oath_id == OATH_SMITH) {
+        p_ptr->active_ability[S_SPC][SPC_OATH_SMITH] = false;
     }
     
     /* Remove oath bonuses by recalculating */

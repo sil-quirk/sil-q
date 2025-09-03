@@ -377,8 +377,8 @@ void do_cmd_character_sheet(void)
 }
 
 #define COL_SKILL 2
-#define COL_ABILITY 17
-#define COL_DESCRIPTION 42
+#define COL_ABILITY 15
+#define COL_DESCRIPTION 40
 
 /* ------------------------------------------------------------------
  * add_random_curse()
@@ -1031,15 +1031,16 @@ int bane_menu(int* highlight)
     return (0);
 }
 
-#define OATH_TYPES 4
+#define OATH_TYPES 5
 
-static u32b oath_flag[] = { 0L, OATH_MERCY_FLAG, OATH_SILENCE_FLAG, OATH_IRON_FLAG };
+static u32b oath_flag[] = { 0L, OATH_MERCY_FLAG, OATH_SILENCE_FLAG, OATH_IRON_FLAG, OATH_SMITH_FLAG };
 
 char* oath_name[] = {
     "Nothing",
     "Mercy",
     "Silence",
     "Iron",
+    "Smith",
 };
 
 char* oath_desc1[] = {
@@ -1047,6 +1048,7 @@ char* oath_desc1[] = {
     "to leave Angband without shedding blood of Man or Elf",
     "to leave Angband as you came, grim and silent",
     "that none will daunt you from facing Morgoth forthwith",
+    "to craft all blades and armour by thine own hand",
 };
 
 char* oath_desc2[] = {
@@ -1054,6 +1056,7 @@ char* oath_desc2[] = {
     "attack Men or Elves",
     "sing",
     "go up stairs without a Silmaril",
+    "pick up weapons or armour from the ground",
 };
 
 char* oath_reward[] = {
@@ -1061,6 +1064,7 @@ char* oath_reward[] = {
     "+1 Grace",
     "+1 Strength",
     "+2 Constitution",
+    "+5 Smithing",
 };
 
 bool oath_invalid(int i) { return ((p_ptr->oaths_broken & oath_flag[i]) > 0); }
@@ -1072,123 +1076,196 @@ bool chosen_oath(int oath)
 
 int oath_menu(int* highlight)
 {
-    int i;
-    int ch;
-    int options;
-
-    char buf[120];
-
+    int i, ch;
+    int visible_count = 0;
+    int visible_oaths[OATH_TYPES]; // Map display letters to oath indices
+    char buf[80];
     byte attr;
+    
+    /* Tolkien-themed descriptions for better immersion */
+    char* oath_tolkien_desc[] = {
+        "",
+        "\"Let no blood of the Children stain thy blade in these halls of sorrow\"",
+        "\"In silence came I, and in silence shall I depart, as befits the wise\"", 
+        "\"Though darkness gather and Balrogs rise, I shall not yield nor turn aside\"",
+        "\"By mine own hand shall all blades be wrought, and no other's craft shall I bear\""
+    };
 
-    Term_putstr(COL_DESCRIPTION, 2, -1, TERM_WHITE, "Oath");
+    // Clear the abilities and description area (following abilities_menu2 pattern)
+    wipe_screen_from(COL_ABILITY);
 
-    // clear the description area
-    wipe_screen_from(COL_DESCRIPTION);
+    // Title in the abilities column
+    Term_putstr(COL_ABILITY, 2, -1, TERM_WHITE, "Oaths");
 
-    // list the oaths
+    // Build visible oaths list and display them
     for (i = 1; i < OATH_TYPES; i++)
     {
-        if (!oath_invalid(i))
+        // Map this visible oath to its position  
+        visible_oaths[visible_count] = i;
+        
+        // Determine display color based on oath status
+        if (oath_invalid(i))
         {
-            attr = TERM_SLATE;
+            attr = TERM_L_RED; // Broken oaths in red
         }
         else
         {
-            attr = TERM_L_DARK;
+            attr = (*highlight == visible_count + 1) ? TERM_L_BLUE : TERM_WHITE;
         }
-
-        strnfmt(buf, 120, "%c) %s", (char)'a' + i - 1, oath_name[i]);
-        Term_putstr(COL_DESCRIPTION, i + 3, -1, attr, buf);
-
-        if (*highlight == i)
+        
+        // Format oath name with status indicator
+        if (oath_invalid(i))
         {
-            // highlight the label
-            strnfmt(buf, 120, "%c)", (char)'a' + i - 1);
-            Term_putstr(COL_DESCRIPTION, i + 3, -1, TERM_L_BLUE, buf);
+            strnfmt(buf, 80, "%c) %s (BROKEN)", (char)'a' + visible_count, oath_name[i]);
+        }
+        else
+        {
+            strnfmt(buf, 80, "%c) %s", (char)'a' + visible_count, oath_name[i]);
+        }
+        
+        // Display in abilities column with proper spacing
+        Term_putstr(COL_ABILITY, 4 + visible_count, -1, attr, buf);
+        visible_count++;
+    }
 
-            /* Indent output by 2 character, and wrap at column 70 */
-            text_out_wrap = 79;
-            text_out_indent = COL_DESCRIPTION;
-
-            Term_gotoxy(text_out_indent, OATH_TYPES + 4);
-
-            if (oath_invalid(i))
+    // Display detailed description for highlighted oath in description column
+    if (*highlight >= 1 && *highlight <= visible_count)
+    {
+        int oath_idx = visible_oaths[*highlight - 1];
+        
+        // Clear description area first
+        wipe_screen_from(COL_DESCRIPTION);
+        
+        // Oath title
+        Term_putstr(COL_DESCRIPTION, 2, -1, TERM_WHITE, "Oath Details");
+        
+        if (oath_invalid(oath_idx))
+        {
+            // Menacing text for broken oaths
+            Term_putstr(COL_DESCRIPTION, 4, -1, TERM_L_RED, "OATH BROKEN");
+            Term_putstr(COL_DESCRIPTION, 6, -1, TERM_RED, "\"Thy oath lies shattered,");
+            Term_putstr(COL_DESCRIPTION, 7, -1, TERM_RED, " thy word worthless as dust.\"");
+            Term_putstr(COL_DESCRIPTION, 9, -1, TERM_L_RED, "\"No Valar shall hear thy voice,");
+            Term_putstr(COL_DESCRIPTION, 10, -1, TERM_L_RED, " no light shall guide thy path.\"");
+            Term_putstr(COL_DESCRIPTION, 12, -1, TERM_RED, "Forever marked as oathbreaker");
+            Term_putstr(COL_DESCRIPTION, 13, -1, TERM_RED, "in this age.");
+        }
+        else
+        {
+            // Tolkien-themed quote
+            Term_putstr(COL_DESCRIPTION, 4, -1, TERM_YELLOW, "Quote:");
+            // Split long quotes across multiple lines
+            char* quote = oath_tolkien_desc[oath_idx];
+            if (strlen(quote) > 35) // Description column width is ~38 chars
             {
-                strnfmt(buf, 120, "It is too late to vow %s.",
-                    oath_desc1[i]);
-                text_out_to_screen(attr, buf);
+                char line1[40], line2[40];
+                int split_pos = 35;
+                // Find good split point (space or punctuation)
+                while (split_pos > 20 && quote[split_pos] != ' ' && quote[split_pos] != ',' && quote[split_pos] != ';')
+                    split_pos--;
+                
+                strncpy(line1, quote, split_pos);
+                line1[split_pos] = '\0';
+                strcpy(line2, quote + split_pos + (quote[split_pos] == ' ' ? 1 : 0));
+                
+                Term_putstr(COL_DESCRIPTION, 5, -1, TERM_SLATE, line1);
+                Term_putstr(COL_DESCRIPTION, 6, -1, TERM_SLATE, line2);
             }
             else
             {
-                strnfmt(buf, 120, "You vow %s.\n\n",
-                    oath_desc1[i]);
-                text_out_to_screen(attr, buf);
-                strnfmt(buf, 120, "You may not %s.\n", oath_desc2[i]);
-                text_out_to_screen(attr, buf);
-                strnfmt(buf, 120, "As long as you keep this oath, gain %s.\n\n",
-                    oath_reward[i]);
-                text_out_to_screen(attr, buf);
+                Term_putstr(COL_DESCRIPTION, 5, -1, TERM_SLATE, quote);
             }
-
-            /* Reset text_out() vars */
-            text_out_wrap = 0;
-            text_out_indent = 0;
+            
+            // Oath vow
+            Term_putstr(COL_DESCRIPTION, 8, -1, TERM_WHITE, "Vow:");
+            // Wrap long vows
+            if (strlen(oath_desc1[oath_idx]) > 30)
+            {
+                char vow_line1[35], vow_line2[35];
+                int vow_split = 30;
+                while (vow_split > 15 && oath_desc1[oath_idx][vow_split] != ' ')
+                    vow_split--;
+                
+                strncpy(vow_line1, oath_desc1[oath_idx], vow_split);
+                vow_line1[vow_split] = '\0';
+                strcpy(vow_line2, oath_desc1[oath_idx] + vow_split + 1);
+                
+                Term_putstr(COL_DESCRIPTION, 9, -1, TERM_SLATE, vow_line1);
+                Term_putstr(COL_DESCRIPTION, 10, -1, TERM_SLATE, vow_line2);
+            }
+            else
+            {
+                Term_putstr(COL_DESCRIPTION, 9, -1, TERM_SLATE, oath_desc1[oath_idx]);
+            }
+            
+            // Restriction
+            Term_putstr(COL_DESCRIPTION, 12, -1, TERM_L_RED, "Restriction:");
+            Term_putstr(COL_DESCRIPTION, 13, -1, TERM_L_RED, oath_desc2[oath_idx]);
+            
+            // Reward
+            Term_putstr(COL_DESCRIPTION, 15, -1, TERM_L_GREEN, "Reward:");
+            Term_putstr(COL_DESCRIPTION, 16, -1, TERM_L_GREEN, oath_reward[oath_idx]);
         }
-
-        // keep track of the number of options
-        options = i;
+        
+        // Navigation instructions at bottom
+        Term_putstr(COL_DESCRIPTION, 22, -1, TERM_SLATE, "2/8 - Navigate");
+        Term_putstr(COL_DESCRIPTION, 23, -1, TERM_SLATE, "Enter - Select  ESC - Back");
     }
+
+    // Ensure highlight is within valid range
+    if (*highlight < 1) *highlight = 1;
+    if (*highlight > visible_count) *highlight = visible_count;
 
     /* Flush the prompt */
     Term_fresh();
-
-    /* Place cursor at current choice */
-    Term_gotoxy(COL_DESCRIPTION, 3 + *highlight);
 
     /* Get key (while allowing menu commands) */
     hide_cursor = true;
     ch = inkey();
     hide_cursor = false;
 
-    if ((ch >= 'a') && (ch <= (char)'a' + options - 1))
+    /* Handle letter selection (a-z) for immediate highlighting */
+    if ((ch >= 'a') && (ch < 'a' + visible_count))
     {
         *highlight = (int)ch - 'a' + 1;
-
-        oath_menu(highlight);
-
-        return (*highlight);
+        return oath_menu(highlight); // Recursive call to update display
     }
 
-    if ((ch >= 'A') && (ch <= (char)'A' + options - 1))
+    /* Handle capital letter selection (A-Z) for immediate selection */
+    if ((ch >= 'A') && (ch < 'A' + visible_count))
     {
         *highlight = (int)ch - 'A' + 1;
-        return (*highlight);
+        return visible_oaths[*highlight - 1]; // Return actual oath index
     }
 
+    /* ESC or 'q' - exit menu */
     if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
     {
         return (OATH_TYPES + 1);
     }
 
-    /* Choose current  */
+    /* Enter or Space - select current highlighted oath */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
-        return (*highlight);
+        return visible_oaths[*highlight - 1]; // Return actual oath index
     }
 
-    /* Prev item */
+    /* Navigation: Up (8) */
     if (ch == '8')
     {
-        *highlight = (*highlight + (options - 2)) % options + 1;
+        (*highlight)--;
+        if (*highlight < 1) *highlight = visible_count;
     }
 
-    /* Next item */
+    /* Navigation: Down (2) */
     if (ch == '2')
     {
-        *highlight = *highlight % options + 1;
+        (*highlight)++;
+        if (*highlight > visible_count) *highlight = 1;
     }
 
-    return (0);
+    /* Recursive call to continue menu interaction */
+    return oath_menu(highlight);
 }
 
 int abilities_menu1(int* highlight)
@@ -1314,6 +1391,8 @@ int abilities_menu2(int skilltype, int* highlight)
 
     byte attr;
 
+    log_trace("ABILITIES_MENU2: Entering function with skilltype=%d, highlight=%d", skilltype, *highlight);
+
     // clear the abilities and description area
     wipe_screen_from(COL_ABILITY);
 
@@ -1322,6 +1401,8 @@ int abilities_menu2(int skilltype, int* highlight)
 
     // Add display counter for compact menu layout (avoids gaps from filtered abilities)
     int display_counter = 0;
+
+    log_trace("ABILITIES_MENU2: Starting ability loop, z_info->b_max=%d", z_info->b_max);
 
     // list the abilities
     for (i = 0; i < z_info->b_max; i++)
@@ -1344,58 +1425,95 @@ int abilities_menu2(int skilltype, int* highlight)
         if (skilltype == S_WIL && b_ptr->abilitynum == WIL_OATH)
             continue;
 
+        log_trace("ABILITIES_MENU2: Processing ability %d (skilltype=%d, abilitynum=%d), visible_count=%d", 
+                 i, b_ptr->skilltype, b_ptr->abilitynum, visible_count);
+
+        // Safety check for ability number bounds
+        if (b_ptr->abilitynum >= ABILITIES_MAX) {
+            log_trace("ABILITIES_MENU2: ERROR - abilitynum (%d) >= ABILITIES_MAX (%d), skipping ability %d", 
+                     b_ptr->abilitynum, ABILITIES_MAX, i);
+            continue;
+        }
+
+        // Safety check for array bounds
+        if (visible_count >= ABILITIES_MAX) {
+            log_trace("ABILITIES_MENU2: WARNING - visible_count (%d) reached ABILITIES_MAX (%d), breaking loop", 
+                     visible_count, ABILITIES_MAX);
+            break;
+        }
+
         // Map this visible ability to its position
         visible_abilities[visible_count] = b_ptr->abilitynum;
+
+        log_trace("ABILITIES_MENU2: About to check have_ability[%d][%d]", skilltype, b_ptr->abilitynum);
 
         // Determine the appropriate colour
     if (p_ptr->have_ability[skilltype][b_ptr->abilitynum])
         {
+            log_trace("ABILITIES_MENU2: have_ability=true, checking innate_ability[%d][%d]", skilltype, b_ptr->abilitynum);
+            /* Debug oath checking values */
+            if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON)) {
+                log_trace("OATH DEBUG: %s (%d) - have=%d, innate=%d, active=%d", 
+                         (b_name + b_ptr->name), b_ptr->abilitynum,
+                         p_ptr->have_ability[skilltype][b_ptr->abilitynum],
+                         p_ptr->innate_ability[skilltype][b_ptr->abilitynum],
+                         p_ptr->active_ability[skilltype][b_ptr->abilitynum]);
+            }
             if (p_ptr->innate_ability[skilltype][b_ptr->abilitynum])
             {
+                log_trace("ABILITIES_MENU2: innate_ability=true, checking active_ability[%d][%d]", skilltype, b_ptr->abilitynum);
                 if (p_ptr->active_ability[skilltype][b_ptr->abilitynum])
                 {
+                    log_trace("ABILITIES_MENU2: active_ability=true, setting WHITE");
                     attr = TERM_WHITE;
                     /* Debug oath display */
                     if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON)) {
-                        log_trace("OATH DISPLAY: %s (%d) - WHITE (innate + active)", b_ptr->name, b_ptr->abilitynum);
+                        log_trace("OATH DISPLAY: %s (%d) - WHITE (innate + active)", (b_name + b_ptr->name), b_ptr->abilitynum);
                     }
                 }
                 else
                 {
+                    log_trace("ABILITIES_MENU2: active_ability=false, setting RED");
                     attr = TERM_RED;
                     /* Debug oath display */
                     if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON)) {
-                        log_trace("OATH DISPLAY: %s (%d) - RED (innate but NOT active)", b_ptr->name, b_ptr->abilitynum);
+                        log_trace("OATH DISPLAY: %s (%d) - RED (innate but NOT active)", (b_name + b_ptr->name), b_ptr->abilitynum);
                     }
                 }
             }
             else
             {
+                log_trace("ABILITIES_MENU2: innate_ability=false, checking active_ability[%d][%d]", skilltype, b_ptr->abilitynum);
                 if (p_ptr->active_ability[skilltype][b_ptr->abilitynum])
                 {
+                    log_trace("ABILITIES_MENU2: active_ability=true, setting L_GREEN");
                     attr = TERM_L_GREEN;
                     /* Debug oath display */
                     if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON)) {
-                        log_trace("OATH DISPLAY: %s (%d) - GREEN (learned + active)", b_ptr->name, b_ptr->abilitynum);
+                        log_trace("OATH DISPLAY: %s (%d) - GREEN (learned + active)", (b_name + b_ptr->name), b_ptr->abilitynum);
                     }
                 }
                 else
                 {
+                    log_trace("ABILITIES_MENU2: active_ability=false, setting RED");
                     attr = TERM_RED;
                     /* Debug oath display */
                     if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON)) {
-                        log_trace("OATH DISPLAY: %s (%d) - RED (learned but NOT active)", b_ptr->name, b_ptr->abilitynum);
+                        log_trace("OATH DISPLAY: %s (%d) - RED (learned but NOT active)", (b_name + b_ptr->name), b_ptr->abilitynum);
                     }
                 }
             }
         }
         else
         {
+            log_trace("ABILITIES_MENU2: have_ability=false, checking prereqs");
             if (prereqs(skilltype, b_ptr->abilitynum))
                 attr = TERM_SLATE;
             else
                 attr = TERM_L_DARK;
         }
+
+        log_trace("ABILITIES_MENU2: Color determination complete, attr=%d", attr);
 
         if ((skilltype == S_PER) && (b_ptr->abilitynum == PER_BANE)
             && (p_ptr->bane_type > 0))
@@ -1594,95 +1712,150 @@ int abilities_menu2(int skilltype, int* highlight)
         visible_count++;
     }
 
+    /* Safety check: if no abilities are visible, show message and exit */
+    if (visible_count == 0) {
+        log_trace("ABILITIES_MENU2: No abilities visible for skilltype %d, returning to skills menu", skilltype);
+        Term_putstr(COL_ABILITY, 4, -1, TERM_L_DARK, "No abilities available for this skill.");
+        Term_fresh();
+        inkey(); /* Wait for keypress */
+        return (ABILITIES_MAX + 1); /* Return to skills menu */
+    }
+
+    log_trace("ABILITIES_MENU2: Ability loop complete, visible_count=%d", visible_count);
+
     /* Flush the prompt */
     Term_fresh();
 
     /* Place cursor at current choice */
     Term_gotoxy(COL_ABILITY, 3 + *highlight);
 
+    log_trace("ABILITIES_MENU2: About to call inkey()");
+
     /* Get key (while allowing menu commands) */
     hide_cursor = true;
     ch = inkey();
     hide_cursor = false;
 
+    log_trace("ABILITIES_MENU2: Got input key: '%c' (0x%02x)", ch, ch);
+
     if ((ch >= 'a') && (ch <= (char)'a' + visible_count - 1))
     {
         int selected_index = (int)ch - 'a';
-        *highlight = visible_abilities[selected_index] + 1;
-
-        return abilities_menu2(skilltype, highlight);
+        log_trace("ABILITIES_MENU2: Letter selection 'a'+%d, selected_index=%d, visible_count=%d", 
+                 selected_index, selected_index, visible_count);
+        /* Bounds check for safety */
+        if (selected_index >= 0 && selected_index < visible_count) {
+            *highlight = visible_abilities[selected_index] + 1;
+            log_trace("ABILITIES_MENU2: Valid selection, new highlight=%d, recursing", *highlight);
+            return abilities_menu2(skilltype, highlight);
+        } else {
+            log_trace("ABILITIES_MENU2: Invalid letter selection bounds");
+        }
     }
 
     if ((ch >= 'A') && (ch <= (char)'A' + visible_count - 1))
     {
         int selected_index = (int)ch - 'A';
-        *highlight = visible_abilities[selected_index] + 1;
-
-        return abilities_menu2(skilltype, highlight);
+        log_trace("ABILITIES_MENU2: Capital letter selection 'A'+%d, selected_index=%d, visible_count=%d", 
+                 selected_index, selected_index, visible_count);
+        /* Bounds check for safety */
+        if (selected_index >= 0 && selected_index < visible_count) {
+            *highlight = visible_abilities[selected_index] + 1;
+            log_trace("ABILITIES_MENU2: Valid capital selection, new highlight=%d, recursing", *highlight);
+            return abilities_menu2(skilltype, highlight);
+        } else {
+            log_trace("ABILITIES_MENU2: Invalid capital letter selection bounds");
+        }
     }
 
     if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
     {
+        log_trace("ABILITIES_MENU2: Escape key pressed, returning to skills menu");
         return (ABILITIES_MAX + 1);
     }
 
     if (ch == '\t')
     {
+        log_trace("ABILITIES_MENU2: Tab key pressed, returning with special code");
         return (ABILITIES_MAX + 2);
     }
 
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
+        log_trace("ABILITIES_MENU2: Enter/space pressed, returning highlight=%d", *highlight);
         return (*highlight);
     }
 
     /* Prev item */
     if (ch == '8')
     {
-        /* Find current visible index */
-        int current_visible_index = -1;
-        for (int i = 0; i < visible_count; i++) {
-            if (visible_abilities[i] + 1 == *highlight) {
-                current_visible_index = i;
-                break;
+        log_trace("ABILITIES_MENU2: Up arrow pressed, visible_count=%d", visible_count);
+        /* Only navigate if there are visible abilities */
+        if (visible_count > 0) {
+            /* Find current visible index */
+            int current_visible_index = -1;
+            for (int i = 0; i < visible_count; i++) {
+                if (visible_abilities[i] + 1 == *highlight) {
+                    current_visible_index = i;
+                    break;
+                }
             }
-        }
-        
-        /* Move to previous visible ability */
-        if (current_visible_index > 0) {
-            *highlight = visible_abilities[current_visible_index - 1] + 1;
-        } else if (current_visible_index == 0) {
-            *highlight = visible_abilities[visible_count - 1] + 1;
+            
+            log_trace("ABILITIES_MENU2: Up navigation - current_visible_index=%d", current_visible_index);
+            
+            /* Move to previous visible ability */
+            if (current_visible_index > 0) {
+                *highlight = visible_abilities[current_visible_index - 1] + 1;
+                log_trace("ABILITIES_MENU2: Up - moved to previous: highlight=%d", *highlight);
+            } else if (current_visible_index == 0) {
+                *highlight = visible_abilities[visible_count - 1] + 1;
+                log_trace("ABILITIES_MENU2: Up - wrapped to last: highlight=%d", *highlight);
+            } else {
+                /* Fallback if not found - go to first visible */
+                *highlight = visible_abilities[0] + 1;
+                log_trace("ABILITIES_MENU2: Up - fallback to first: highlight=%d", *highlight);
+            }
         } else {
-            /* Fallback if not found - go to first visible */
-            *highlight = visible_abilities[0] + 1;
+            log_trace("ABILITIES_MENU2: Up navigation skipped - no visible abilities");
         }
     }
 
     /* Next item */
     if (ch == '2')
     {
-        /* Find current visible index */
-        int current_visible_index = -1;
-        for (int i = 0; i < visible_count; i++) {
-            if (visible_abilities[i] + 1 == *highlight) {
-                current_visible_index = i;
-                break;
+        log_trace("ABILITIES_MENU2: Down arrow pressed, visible_count=%d", visible_count);
+        /* Only navigate if there are visible abilities */
+        if (visible_count > 0) {
+            /* Find current visible index */
+            int current_visible_index = -1;
+            for (int i = 0; i < visible_count; i++) {
+                if (visible_abilities[i] + 1 == *highlight) {
+                    current_visible_index = i;
+                    break;
+                }
             }
-        }
-        
-        /* Move to next visible ability */
-        if (current_visible_index >= 0 && current_visible_index < visible_count - 1) {
-            *highlight = visible_abilities[current_visible_index + 1] + 1;
-        } else if (current_visible_index == visible_count - 1) {
-            *highlight = visible_abilities[0] + 1;
+            
+            log_trace("ABILITIES_MENU2: Down navigation - current_visible_index=%d", current_visible_index);
+            
+            /* Move to next visible ability */
+            if (current_visible_index >= 0 && current_visible_index < visible_count - 1) {
+                *highlight = visible_abilities[current_visible_index + 1] + 1;
+                log_trace("ABILITIES_MENU2: Down - moved to next: highlight=%d", *highlight);
+            } else if (current_visible_index == visible_count - 1) {
+                *highlight = visible_abilities[0] + 1;
+                log_trace("ABILITIES_MENU2: Down - wrapped to first: highlight=%d", *highlight);
+            } else {
+                /* Fallback if not found - go to first visible */
+                *highlight = visible_abilities[0] + 1;
+                log_trace("ABILITIES_MENU2: Down - fallback to first: highlight=%d", *highlight);
+            }
         } else {
-            /* Fallback if not found - go to first visible */
-            *highlight = visible_abilities[0] + 1;
+            log_trace("ABILITIES_MENU2: Down navigation skipped - no visible abilities");
         }
     }
 
+    log_trace("ABILITIES_MENU2: Returning 0 (continue loop)");
     return (0);
 }
 
@@ -1706,23 +1879,34 @@ void do_cmd_ability_screen(void)
 
     bool skip_purchase = false;
 
+    log_trace("ABILITY_SCREEN: Entering ability screen");
+
     /* Save screen */
     screen_save();
 
     /* Clear screen */
     Term_clear();
 
+    log_trace("ABILITY_SCREEN: Starting main ability loop");
+
     /* Process Events until "Return to Game" is selected */
     while (!return_to_game)
     {
+        log_trace("ABILITY_SCREEN: Calling abilities_menu1 with highlight1=%d", highlight1);
         skilltype = abilities_menu1(&highlight1) - 1;
+
+        log_trace("ABILITY_SCREEN: abilities_menu1 returned skilltype=%d", skilltype);
 
         // if a skill has been selected...
         if ((skilltype >= 0) && (skilltype < S_MAX))
         {
+            log_trace("ABILITY_SCREEN: Valid skill selected (%d), entering abilities loop", skilltype);
             while (!return_to_skills)
             {
+                log_trace("ABILITY_SCREEN: Calling abilities_menu2 for skilltype=%d with highlight2=%d", skilltype, highlight2);
                 abilitynum = abilities_menu2(skilltype, &highlight2) - 1;
+
+                log_trace("ABILITY_SCREEN: abilities_menu2 returned abilitynum=%d", abilitynum);
 
                 if ((abilitynum >= 0) && (abilitynum < ABILITIES_MAX))
                 {
@@ -6626,6 +6810,9 @@ void create_smithing_item(void)
 
     // Get the item itself
     o_ptr = &inventory[slot];
+    
+    // Mark the item as smithed by the player (using unused1 field)
+    o_ptr->unused1 = 1;  /* 1 = smithed by player, 0 = found item */
 
     // Describe the object
     object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
@@ -10198,6 +10385,15 @@ void do_cmd_knowledge_oaths(void)
     {
         fprintf(fff, "  Oath of Iron: Unlocked");
         if (oath_banned(OATH_IRON))
+            fprintf(fff, " (Banned this run)");
+        fprintf(fff, "\n");
+        has_unlocked = true;
+    }
+    
+    if (oath_unlocked(OATH_SMITH)) 
+    {
+        fprintf(fff, "  Oath of the Smith: Unlocked");
+        if (oath_banned(OATH_SMITH))
             fprintf(fff, " (Banned this run)");
         fprintf(fff, "\n");
         has_unlocked = true;
