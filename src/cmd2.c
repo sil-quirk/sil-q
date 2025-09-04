@@ -125,9 +125,13 @@ void do_cmd_go_up(void)
     if (chosen_oath(OATH_IRON) && !oath_invalid(OATH_IRON) &&
        (silmarils_possessed() == 0))
     {
-        if (get_check("Are you sure you wish to break your oath? "))
+        /* Use oath-specific confirmation prompt */
+        char* prompt = oath_confirmation_prompt(OATH_IRON);
+        if (!prompt || !prompt[0]) prompt = "Are you certain you wish to break your Oath of Iron?";
+        
+        if (get_check_oath_multiline(prompt))
         {
-            msg_print("You break your oath of iron.");
+            /* Curse message and selection handled by apply_oath_breaking_curse */
             do_cmd_note("Broke your oath", p_ptr->depth);
             apply_oath_breaking_curse(OATH_IRON);
         }

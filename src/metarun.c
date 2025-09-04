@@ -1032,6 +1032,81 @@ int choose_escape_curses_ui(int n, int out[3])
     return taken;
 }
 
+/****************  Oath-breaking curse chooser with fade ************/
+
+/*
+ * Shows the oath-specific curse message with fade-in, waits 3 seconds,
+ * then shows the permanent consequence message and curse selection menu.
+ * Returns the selected curse index.
+ */
+int choose_oath_breaking_curse_ui(int oath_id)
+{
+    bool fast_forward = false;
+    
+    /* Display curse message with fade-in effect */
+    screen_save();
+    Term_clear();
+    
+    /* Get oath-specific texts */
+    char* curse_msg = oath_curse_message(oath_id);
+    char* perm_msg = oath_permanent_message(oath_id);
+    
+    /* Show curse message with fade */
+    print_heading_fade("The Weight of Broken Faith", TERM_L_RED);
+    
+    if (curse_msg && curse_msg[0]) {
+        if (!print_paragraph_fade(curse_msg, TERM_RED, 4))
+            fast_forward = true;
+    } else {
+        if (!print_paragraph_fade("The weight of broken faith settles upon you like a shroud.", TERM_RED, 4))
+            fast_forward = true;
+    }
+    
+    /* Hold the message for 5 seconds if not fast-forwarded */
+    if (!fast_forward) {
+        Term_xtra(TERM_XTRA_DELAY, 5000);
+    }
+    
+    /* Transition to curse selection */
+    Term_clear();
+    
+    print_heading_fade("The Valar's Judgment", TERM_L_BLUE);
+    
+    if (perm_msg && perm_msg[0]) {
+        if (!print_paragraph_fade(perm_msg, TERM_L_WHITE, 4))
+            fast_forward = true;
+    } else {
+        if (!print_paragraph_fade("Your oath is forever broken in this age.", TERM_L_WHITE, 4))
+            fast_forward = true;
+    }
+    
+    char intro_text[256];
+    strnfmt(intro_text, sizeof(intro_text),
+            "The breach of your sacred vow has drawn Morgoth's attention. "
+            "His malice reaches out to compound your suffering with a curse you must bear.");
+    
+    if (!print_paragraph_fade(intro_text, TERM_L_WHITE, 7))
+        fast_forward = true;
+    
+    wait_for_keypress_with_prompt("[Press any key to face your judgment]");
+    Term_clear();
+
+    /* Let the player choose 1 curse from 3 options */
+    int idx = menu_choose_one_curse(0);
+    log_debug("Player selected curse %d for oath breaking", idx);
+    
+    /* Wipe the menu clutter so narrative starts clean */
+    Term_clear();
+    
+    /* Restore screen state */
+    screen_load();
+    
+    /* Avoid unused variable warning */
+    (void)fast_forward;
+    
+    return idx;
+}
+
 /******************  Story Fragment helper  ************************/
 
 static void print_story_fragment(byte sil_count, bool treachery_active)

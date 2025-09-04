@@ -837,6 +837,14 @@ struct oath_type
 {
     u32b name; /* Name (offset) */
     u32b text; /* Text (offset) */
+    u32b pledge_text; /* Pledge text (P:) (offset) */
+    u32b forbidden_text; /* Forbidden action text (F:) (offset) */
+    u32b reward_text; /* Reward description text (R:) (offset) */
+    u32b confirmation_prompt; /* Confirmation prompt text (offset) */
+    u32b curse_message; /* Curse message text (offset) */
+    u32b permanent_message; /* Permanent consequence message (offset) */
+    u32b death_message; /* Death/escape message (offset) */
+    u32b banned_text; /* Birth screen banned text (offset) */
     
     byte oath_num; /* Oath index (MERCY, SILENCE, IRON, SMITH) */
     byte difficulty; /* Difficulty level */

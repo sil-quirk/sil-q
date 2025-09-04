@@ -30,6 +30,7 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 -- save names (done)
 -- new metarun saves
 -- rubble (done)
+-- speacial monster
 ## Release of beta 0.9 
 
 - More Vaults

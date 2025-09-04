@@ -176,6 +176,7 @@ static inline void CURSE_SEEN_SET(int id)
 /* ------------------------------------------------------------------ */
 int  menu_choose_one_curse(int n);      /* weighted picker / poem menu  */
 int  choose_escape_curses_ui(int n, int out[3]); /* interactive curse selection */
+int  choose_oath_breaking_curse_ui(int oath_id); /* oath-specific curse selection with fade */
 void metarun_clear_all_curses(void);   /* zero every curse counter     */
 void add_curse_stack(int idx);         /* +1 stack respecting caps     */
 /* NEW: show a menu of all *known* curses (those with CURSE_SEEN). */

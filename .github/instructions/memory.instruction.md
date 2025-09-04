@@ -26,6 +26,87 @@ applyTo: '**'
 
 ## Data File Parsing System - Critical Bug Fixes (September 2025)
 
+### MAJOR: Oath Selection Screen Text Display Update (Version 0.8.7) - September 4, 2025
+**Issue**: Oath selection screen had poor text wrapping, concatenated all text fields, and used hardcoded text instead of parsed oath.txt data
+**Problem Details**:
+- Text was wrapping mid-word and cutting off poorly
+- All oath text fields (T:, D:, P:, F:, R:, B:, U:) were being concatenated into one jumbled mess
+- Display area width calculations were incorrect for terminal layout
+- Hardcoded oath arrays instead of using parsed oath data
+- Broken oath display (Z: banned text) had poor wrapping
+
+**Solution Applied**:
+1. **Fixed oath parser field separation**: Modified oath parser to only store D: (description) directive in the text field, ignoring T:, P:, F:, R:, B:, U: directives for cleaner display
+2. **Fixed column width calculations**: Updated text wrapping to use correct 38-character width for description area (COL_DESCRIPTION = 40, with 2-char margin)
+3. **Improved word wrapping**: Added proper word boundary detection for both regular and broken oath displays to prevent mid-word breaks
+4. **Updated oath.txt format**: Converted multi-line D: directives to single-line descriptions for better parsing
+5. **Integrated parsed oath data**: Updated oath selection screen to use `oath_name_str()` and `oath_description()` functions instead of hardcoded arrays
+6. **Fixed broken oath display**: Applied same word-wrapping logic to Z: (banned text) display for consistent formatting
+
+**Code Changes**:
+- Modified `init1.c` oath parser to only store D: directives in the text field, ignore other text directives
+- Updated `birth.c` oath selection screen to use proper word wrapping with max_width = 38 for both regular and broken oath displays
+- Added word boundary detection to wrap at spaces rather than mid-word for all text displays
+- Modified oath.txt to use single-line D: directives for cleaner parsing
+
+**Final Result**: 
+- Oath selection screen now displays professional-looking text with proper word boundaries
+- All text comes from parsed oath.txt file instead of hardcoded arrays
+- Both regular oath descriptions and broken oath banned text wrap correctly
+- Display fits properly within 80x25 terminal constraints
+- Successfully tested and verified - game reads actual oath data from oath.txt file
+- Updated layout: "Choose your Oath" moved to top center, no first column usage, explanatory text moved to bottom
+
+**Latest Enhancement (September 4, 2025)**:
+- Converted all multi-line Z: directives in oath.txt to single-line format for better parsing and wrapping
+- Updated oath selection layout: title at top, oath list without column constraint, explanatory text at bottom
+- Completely replaced hardcoded oath arrays with dynamic parsed data from oath.txt
+- Improved broken oath display to use actual Z: banned text with proper word wrapping
+- Single-line Z: format allows dynamic terminal-responsive text wrapping instead of fixed multi-line blocks
+
+**Status**: COMPLETE - All oath display issues fully resolved with enhanced layout (September 4, 2025)
+
+**Files Modified**:
+- `src/init1.c`: Modified oath parser to only store description text
+- `src/birth.c`: Enhanced oath selection display with proper text wrapping for all display modes
+- `lib/edit/oath.txt`: Converted to single-line D: descriptions for better display
+- Terminal compatibility: Verified for minimum 80x25 terminal size
+
+**Testing**: Oath selection screen now displays properly formatted text from parsed oath.txt data with consistent wrapping for both regular and broken oath displays
+
+### MAJOR: Oath Parser Text Storage Bug (Version 0.8.7) - FIXED September 4, 2025
+**Critical Issue**: Major bug in oath parsing function causing garbage data in oath.raw
+**Root Cause**: Incorrect use of `add_text()` vs `add_name()` functions in oath parser
+**Problem Details**: 
+- Oath parser was using `add_text()` for C/M/E/Q/Z directives, storing to `head->text_ptr`
+- Helper functions were reading from `oath_name_text` (mapped to `head->name_ptr`)
+- This caused oath text to be written to one buffer but read from another
+- Result: Garbage data displayed for oath confirmation prompts, curse messages, etc.
+
+**Solution Applied**:
+1. **Fixed text storage mapping**: Updated oath parser in `init1.c` line ~5350-5420
+   - C/M/E/Q directives now use `add_name()` to store in name buffer
+   - Z directive continues using `add_text()` for multi-line support
+2. **Fixed helper function**: Updated `oath_banned_text()` in `cmd4.c` to use `oath_desc_text` instead of `oath_name_text`
+3. **Text buffer alignment**: Ensured all oath text properly stored and retrieved from correct buffers
+
+**Code Changes**:
+```c
+// OLD (BUGGY) - used add_text() for all directives
+if (!add_text(&(oath_ptr->confirmation_prompt), head, buf + 2))
+    return (PARSE_ERROR_OUT_OF_MEMORY);
+
+// NEW (FIXED) - use add_name() for single-line text
+if (!(oath_ptr->confirmation_prompt = add_name(head, buf + 2)))
+    return (PARSE_ERROR_OUT_OF_MEMORY);
+```
+
+**Files Modified**:
+- `src/init1.c`: Fixed oath parser text storage (lines 5350-5420)
+- `src/cmd4.c`: Fixed `oath_banned_text()` helper function to use correct text buffer
+
+**Testing**: Verified oath parsing now works correctly without garbage data
+
 ### MAJOR: Oath Parser R: Directive Fix (Version 0.8.7)
 **Critical Issue**: Parse error when processing `R:Freedom of choice` in oath.txt line 28
 **Root Cause**: oath parser R: directive only accepted numeric values, not text descriptions

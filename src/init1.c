@@ -5225,13 +5225,11 @@ errr parse_oath_info(char* buf, header* head)
         }
         else
         {
-            /* Treat as title text and store in description */
-            if (!add_text(&(oath_ptr->text), head, buf + 2))
-                return (PARSE_ERROR_OUT_OF_MEMORY);
+            /* Ignore title text for now - not stored in oath structure */
         }
     }
 
-    /* Process 'R' for "Restrictions" or "Restriction description" */
+    /* Process 'R' for "Restrictions" or "Reward description" */
     else if (buf[0] == 'R')
     {
         int restrictions;
@@ -5247,8 +5245,8 @@ errr parse_oath_info(char* buf, header* head)
         }
         else
         {
-            /* Treat as restriction description text */
-            if (!add_text(&(oath_ptr->text), head, buf + 2))
+            /* Store reward text using add_name for name buffer */
+            if (!(oath_ptr->reward_text = add_name(head, buf + 2)))
                 return (PARSE_ERROR_OUT_OF_MEMORY);
         }
     }
@@ -5288,8 +5286,8 @@ errr parse_oath_info(char* buf, header* head)
         /* There better be a current oath_ptr */
         if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Store the pledge text */
-        if (!add_text(&(oath_ptr->text), head, buf + 2))
+        /* Store pledge text using add_name for name buffer */
+        if (!(oath_ptr->pledge_text = add_name(head, buf + 2)))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
@@ -5299,8 +5297,8 @@ errr parse_oath_info(char* buf, header* head)
         /* There better be a current oath_ptr */
         if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Store the forbidden action text */
-        if (!add_text(&(oath_ptr->text), head, buf + 2))
+        /* Store forbidden action text using add_name for name buffer */
+        if (!(oath_ptr->forbidden_text = add_name(head, buf + 2)))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
@@ -5332,9 +5330,7 @@ errr parse_oath_info(char* buf, header* head)
         /* There better be a current oath_ptr */
         if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Store behavioral restriction text */
-        if (!add_text(&(oath_ptr->text), head, buf + 2))
-            return (PARSE_ERROR_OUT_OF_MEMORY);
+        /* Ignore behavioral restriction text for now - not essential for oath selection */
     }
 
     /* Process 'U' for "Unlock conditions" */
@@ -5343,8 +5339,61 @@ errr parse_oath_info(char* buf, header* head)
         /* There better be a current oath_ptr */
         if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Store unlock condition text */
-        if (!add_text(&(oath_ptr->text), head, buf + 2))
+        /* Ignore unlock condition text for now - not essential for oath selection */
+    }
+
+    /* Process 'C' for "Confirmation prompt" */
+    else if (buf[0] == 'C')
+    {
+        /* There better be a current oath_ptr */
+        if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store confirmation prompt text using add_name for name buffer */
+        if (!(oath_ptr->confirmation_prompt = add_name(head, buf + 2)))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'M' for "Curse Message" */
+    else if (buf[0] == 'M')
+    {
+        /* There better be a current oath_ptr */
+        if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store curse message text using add_name for name buffer */
+        if (!(oath_ptr->curse_message = add_name(head, buf + 2)))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'E' for "pErmanent consequence message" */
+    else if (buf[0] == 'E')
+    {
+        /* There better be a current oath_ptr */
+        if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store permanent consequence message text using add_name for name buffer */
+        if (!(oath_ptr->permanent_message = add_name(head, buf + 2)))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'Q' for "Death/escape message" */
+    else if (buf[0] == 'Q')
+    {
+        /* There better be a current oath_ptr */
+        if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store death/escape message text using add_name for name buffer */
+        if (!(oath_ptr->death_message = add_name(head, buf + 2)))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'Z' for "Banned text (birth screen)" */
+    else if (buf[0] == 'Z')
+    {
+        /* There better be a current oath_ptr */
+        if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store banned text using add_text to allow multiple lines */
+        if (!add_text(&(oath_ptr->banned_text), head, buf + 2))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 

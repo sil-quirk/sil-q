@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "metarun.h"
 
 #ifdef ALLOW_DEBUG
 
@@ -1756,6 +1757,48 @@ static void do_cmd_wiz_query(void)
 }
 
 /*
+ * Unlock all oaths for the current metarun
+ */
+static void do_cmd_wiz_unlock_all_oaths(void)
+{
+    int i;
+    int count = 0;
+    int already_unlocked = 0;
+    
+    /* Unlock oaths 1-4 (OATH_MERCY, OATH_SILENCE, OATH_IRON, OATH_SMITH) */
+    for (i = 1; i <= 4; i++)
+    {
+        if (!oath_unlocked(i))
+        {
+            metarun_unlock_oath(i);
+            count++;
+        }
+        else
+        {
+            already_unlocked++;
+        }
+    }
+    
+    /* Give feedback to the user */
+    if (count > 0)
+    {
+        if (already_unlocked > 0)
+        {
+            msg_format("Unlocked %d oath%s (%d already unlocked).", 
+                      count, (count == 1) ? "" : "s", already_unlocked);
+        }
+        else
+        {
+            msg_format("Unlocked all %d oaths for this metarun.", count);
+        }
+    }
+    else
+    {
+        msg_print("All oaths were already unlocked for this metarun.");
+    }
+}
+
+/*
  * Modify the dungeon
  */
 void do_cmd_wiz_look(void)
@@ -1980,6 +2023,13 @@ void do_cmd_debug(void)
         if (p_ptr->command_arg <= 0)
             p_ptr->command_arg = 255;
         do_cmd_wiz_unhide(p_ptr->command_arg);
+        break;
+    }
+
+    /* Unlock all oaths for this metarun */
+    case 'U':
+    {
+        do_cmd_wiz_unlock_all_oaths();
         break;
     }
 

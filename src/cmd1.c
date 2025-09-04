@@ -2831,16 +2831,17 @@ void py_pickup_aux(int o_idx)
             /* Describe the object */
             object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
             
-            /* Warn the player about oath breaking */
-            if (!get_check(format("Picking up %s would break your Oath of the Smith! Continue? ", o_name)))
+            /* Warn the player about oath breaking using oath-specific text */
+            char* prompt = oath_confirmation_prompt(OATH_SMITH);
+            if (!prompt || !prompt[0]) prompt = "Are you certain you wish to break your Oath of the Smith?";
+            
+            if (!get_check_oath_multiline(prompt))
             {
                 /* Player chose not to break oath - abort pickup */
                 return;
             }
             
-            /* Player chose to break oath */
-            msg_print("You break your oath of the smith by picking up a weapon or armor you did not forge yourself!");
-            msg_print("The satisfaction of using only your own craftsmanship is lost.");
+            /* Player chose to break oath - curse message and selection handled by apply_oath_breaking_curse */
             
             /* Mark oath as broken */
             p_ptr->oaths_broken |= OATH_SMITH_FLAG;
@@ -3935,10 +3936,16 @@ bool abort_for_mercy(monster_type* m_ptr)
     if (!m_ptr->ml)
         return false;
 
-    if (merciless_attack(m_ptr)
-        && !get_check("Are you sure you wish to break your oath? "))
+    if (merciless_attack(m_ptr))
     {
-        return true;
+        /* Use oath-specific confirmation prompt */
+        char* prompt = oath_confirmation_prompt(OATH_MERCY);
+        if (!prompt || !prompt[0]) prompt = "Are you sure you wish to break your oath?";
+        
+        if (!get_check_oath_multiline(prompt))
+        {
+            return true;
+        }
     }
 
     return false;
@@ -3976,27 +3983,23 @@ void apply_oath_breaking_curse(int oath_id)
     p_ptr->update |= (PU_BONUS);
     p_ptr->redraw |= (PR_STATE);
     
-    /* Let the player choose 1 curse from 3 options using the escape UI */
-    int chosen_curses[3];
-    int num_chosen = choose_escape_curses_ui(1, chosen_curses);
+    /* Show oath-specific curse message and let player choose curse */
+    int chosen_curse = choose_oath_breaking_curse_ui(oath_id);
     
-    if (num_chosen > 0) {
+    if (chosen_curse >= 0) {
         /* Apply the chosen curse */
-        add_curse_stack(chosen_curses[0]);
-        msg_print("The weight of broken faith burdens you with an ancient curse!");
-        log_trace("Applied chosen curse %d for breaking oath", chosen_curses[0]);
+        add_curse_stack(chosen_curse);
+        log_trace("Applied chosen curse %d for breaking oath", chosen_curse);
     } else {
         /* Fallback to random curse if UI failed */
         int selected_curse = rand_int(32);
         add_curse_stack(selected_curse);
-        msg_print("The weight of broken faith burdens you with an ancient curse!");
         log_trace("Applied fallback random curse %d for breaking oath", selected_curse);
     }
     
     /* Ban this oath for the rest of the metarun */
     metarun_ban_oath(oath_id);
     
-    msg_format("Your oath of %s is forever broken in this age.", oath_names[oath_id]);
     log_trace("Banned oath %d (%s) from future selection in this metarun", oath_id, oath_names[oath_id]);
 }
 
@@ -4013,7 +4016,7 @@ void break_mercy_oath(monster_type* m_ptr, int damage)
     {
         if (merciless_attack(m_ptr))
         {
-            msg_print("You break your oath of mercy.");
+            /* Curse message and selection handled by apply_oath_breaking_curse */
             do_cmd_note("Broke your oath", p_ptr->depth);
             
             /* Apply oath breaking consequences */

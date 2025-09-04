@@ -770,10 +770,15 @@ void do_cmd_change_song()
         {
             if (chosen_oath(OATH_SILENCE) && !oath_invalid(OATH_SILENCE))
             {
-                if (get_check("Are you sure you wish to break your oath? "))
+                /* Use oath-specific confirmation prompt */
+                char* prompt = oath_confirmation_prompt(OATH_SILENCE);
+                if (!prompt || !prompt[0]) prompt = "Are you certain you wish to break your Oath of Silence?";
+                
+                if (get_check_oath_multiline(prompt))
                 {
                     log_info("Player broke oath of silence to sing");
-                    msg_print("You break your oath of silence.");
+                    
+                    /* Curse message and selection handled by apply_oath_breaking_curse */
                     do_cmd_note("Broke your oath", p_ptr->depth);
                     
                     /* Apply oath breaking consequences */
@@ -1071,6 +1076,79 @@ bool oath_invalid(int i) { return ((p_ptr->oaths_broken & oath_flag[i]) > 0); }
 bool chosen_oath(int oath)
 {
     return p_ptr->oath_type == oath;
+}
+
+/*
+ * Helper functions to retrieve oath text from oath_info
+ */
+char* oath_confirmation_prompt(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].confirmation_prompt) return "";
+    return oath_name_text + oath_info[oath_id].confirmation_prompt;
+}
+
+char* oath_curse_message(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].curse_message) return "";
+    return oath_name_text + oath_info[oath_id].curse_message;
+}
+
+char* oath_permanent_message(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].permanent_message) return "";
+    return oath_name_text + oath_info[oath_id].permanent_message;
+}
+
+char* oath_death_message(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].death_message) return "";
+    return oath_name_text + oath_info[oath_id].death_message;
+}
+
+char* oath_banned_text(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].banned_text) return "";
+    return oath_desc_text + oath_info[oath_id].banned_text;
+}
+
+char* oath_name_str(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].name) return "";
+    return oath_name_text + oath_info[oath_id].name;
+}
+
+char* oath_description(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].text) return "";
+    return oath_desc_text + oath_info[oath_id].text;
+}
+
+char* oath_pledge(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].pledge_text) return "";
+    return oath_name_text + oath_info[oath_id].pledge_text;
+}
+
+char* oath_forbidden(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].forbidden_text) return "";
+    return oath_name_text + oath_info[oath_id].forbidden_text;
+}
+
+char* oath_reward_text(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].reward_text) return "";
+    return oath_name_text + oath_info[oath_id].reward_text;
 }
 
 int oath_menu(int* highlight)

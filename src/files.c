@@ -3348,9 +3348,16 @@ void do_cmd_escape(int silmarils)
     {
         if (oath_invalid(p_ptr->oath_type))
         {
-            do_cmd_note(
-                "You will be remembered always as a shameful oathbreaker.",
-                p_ptr->depth);
+            /* Use oath-specific death/escape message */
+            char* death_msg = oath_death_message(p_ptr->oath_type);
+            if (death_msg && death_msg[0]) {
+                do_cmd_note(death_msg, p_ptr->depth);
+            } else {
+                /* Fallback to generic message if no specific text found */
+                do_cmd_note(
+                    "You passed from the world, but the stain of a faithless heart remains. You will be remembered not for your deeds, but as a shameful Oathbreaker.",
+                    p_ptr->depth);
+            }
         }
         else
         {
