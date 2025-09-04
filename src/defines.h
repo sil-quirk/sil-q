@@ -57,7 +57,7 @@
 /* Version components (0.8.6) */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 8
-#define VERSION_PATCH 6
+#define VERSION_PATCH 7
 #define VERSION_EXTRA 0
 
 /*
@@ -602,6 +602,7 @@
 #define SPC_OATH_MERCY 2
 #define SPC_OATH_SILENCE 3  
 #define SPC_OATH_IRON 4
+#define SPC_TULKAS 5
 #define SPC_NIENA_MERCY 6  /* Enhanced stealth from mercy quest */
 #define SPC_OATH_SMITH 7
 

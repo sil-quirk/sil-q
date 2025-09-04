@@ -1020,7 +1020,20 @@ errr parse_z_info(char* buf, header* head)
             return (PARSE_ERROR_GENERIC);
 
         /* Save the value */
-        z_info->q_max = max;
+        z_info->quest_max = max;
+    }
+
+    /* Process 'W' for "Maximum oath_info[] subindex" */
+    else if (buf[2] == 'W')
+    {
+        int max;
+
+        /* Scan for the value */
+        if (1 != sscanf(buf + 4, "%d", &max))
+            return (PARSE_ERROR_GENERIC);
+
+        /* Save the value */
+        z_info->oath_max = max;
     }
 
     /* Process 'L' for "Maximum flavor_info[] subindex" */
@@ -4956,6 +4969,382 @@ errr parse_flavor_info(char* buf, header* head)
 
         /* Store the text */
         if (!add_text(&flavor_ptr->text, head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    else
+    {
+        /* Oops */
+        return (PARSE_ERROR_UNDEFINED_DIRECTIVE);
+    }
+
+    /* Success */
+    return (0);
+}
+
+/*
+ * Initialize the "quest_info" array, by parsing a ascii "template" file
+ */
+errr parse_quest_info(char* buf, header* head)
+{
+    int i;
+    char *s;
+
+    /* Current entry */
+    static quest_type* quest_ptr = NULL;
+
+    /* Process 'N' for "New/Number/Name" or 'Q' for "Quest" */
+    if (buf[0] == 'N' || buf[0] == 'Q')
+    {
+        /* Find the colon before the name */
+        s = strchr(buf + 2, ':');
+
+        /* Verify that colon */
+        if (!s) return (PARSE_ERROR_GENERIC);
+
+        /* Nuke the colon, advance to the name */
+        *s++ = '\0';
+
+        /* Paranoia -- require a name */
+        if (!*s) return (PARSE_ERROR_GENERIC);
+
+        /* Get the index */
+        i = atoi(buf + 2);
+
+        /* Verify information */
+        if (i <= error_idx) return (PARSE_ERROR_NON_SEQUENTIAL_RECORDS);
+        if (i >= head->info_num) return (PARSE_ERROR_TOO_MANY_ENTRIES);
+
+        /* Save the index */
+        error_idx = i;
+
+        /* Point at the "info" */
+        quest_ptr = (quest_type*)head->info_ptr + i;
+
+        /* Store the name */
+        if (!(quest_ptr->name = add_name(head, s)))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'T' for "Type info" or "Title text" */
+    else if (buf[0] == 'T')
+    {
+        int quest_num, difficulty;
+
+        /* There better be a current quest_ptr */
+        if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Try to scan for numeric values first (Type info) */
+        if (2 == sscanf(buf + 2, "%d:%d", &quest_num, &difficulty))
+        {
+            /* Save the values */
+            quest_ptr->quest_num = quest_num;
+            quest_ptr->difficulty = difficulty;
+        }
+        else
+        {
+            /* Treat as title text and store in description */
+            if (!add_text(&(quest_ptr->text), head, buf + 2))
+                return (PARSE_ERROR_OUT_OF_MEMORY);
+        }
+    }
+
+    /* Process 'C' for "Completion requirements" */
+    else if (buf[0] == 'C')
+    {
+        /* There better be a current quest_ptr */
+        if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store the completion text in description for now */
+        if (!add_text(&(quest_ptr->text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'O' for "Objective" */
+    else if (buf[0] == 'O')
+    {
+        /* There better be a current quest_ptr */
+        if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Add objective text to description */
+        if (!add_text(&(quest_ptr->text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'Y' for "Yarn/story" */
+    else if (buf[0] == 'Y')
+    {
+        /* There better be a current quest_ptr */
+        if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Add story text to description */
+        if (!add_text(&(quest_ptr->text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'A' for "Ability reward" */
+    else if (buf[0] == 'A')
+    {
+        int reward_type, reward_value;
+
+        /* There better be a current quest_ptr */
+        if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Scan for the values */
+        if (2 != sscanf(buf + 2, "%d:%d", &reward_type, &reward_value))
+            return (PARSE_ERROR_GENERIC);
+
+        /* Save the values */
+        quest_ptr->reward_type = reward_type;
+        quest_ptr->reward_value = reward_value;
+    }
+
+    /* Process 'D' for "Description" */
+    else if (buf[0] == 'D')
+    {
+        /* There better be a current quest_ptr */
+        if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store the text */
+        if (!add_text(&(quest_ptr->text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'S' for "Stat bonuses" */
+    else if (buf[0] == 'S')
+    {
+        /* There better be a current quest_ptr */
+        if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse stat bonuses but don't store them for now */
+        /* Format: S:str:dex:con:gra */
+        /* This is handled elsewhere in the quest system */
+    }
+
+    /* Process 'K' for "sKill bonuses" */
+    else if (buf[0] == 'K')
+    {
+        /* There better be a current quest_ptr */
+        if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse skill bonuses but don't store them for now */
+        /* Format: K:skill:bonus */
+        /* This is handled elsewhere in the quest system */
+    }
+
+    /* Process 'I' for "Initialization text" */
+    else if (buf[0] == 'I')
+    {
+        /* There better be a current quest_ptr */
+        if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store the initialization text */
+        if (!add_text(&(quest_ptr->text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'W' for "Win/completion text" */
+    else if (buf[0] == 'W')
+    {
+        /* There better be a current quest_ptr */
+        if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store the completion text */
+        if (!add_text(&(quest_ptr->text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    else
+    {
+        /* Oops */
+        return (PARSE_ERROR_UNDEFINED_DIRECTIVE);
+    }
+
+    /* Success */
+    return (0);
+}
+
+/*
+ * Initialize the "oath_info" array, by parsing a ascii "template" file
+ */
+errr parse_oath_info(char* buf, header* head)
+{
+    int i;
+    char *s;
+
+    /* Current entry */
+    static oath_type* oath_ptr = NULL;
+
+    /* Process 'N' for "New/Number/Name" or 'O' for "Oath" */
+    if (buf[0] == 'N' || buf[0] == 'O')
+    {
+        /* Find the colon before the name */
+        s = strchr(buf + 2, ':');
+
+        /* Verify that colon */
+        if (!s) return (PARSE_ERROR_GENERIC);
+
+        /* Nuke the colon, advance to the name */
+        *s++ = '\0';
+
+        /* Paranoia -- require a name */
+        if (!*s) return (PARSE_ERROR_GENERIC);
+
+        /* Get the index */
+        i = atoi(buf + 2);
+
+        /* Verify information */
+        if (i <= error_idx) return (PARSE_ERROR_NON_SEQUENTIAL_RECORDS);
+        if (i >= head->info_num) return (PARSE_ERROR_TOO_MANY_ENTRIES);
+
+        /* Save the index */
+        error_idx = i;
+
+        /* Point at the "info" */
+        oath_ptr = (oath_type*)head->info_ptr + i;
+
+        /* Store the name */
+        if (!(oath_ptr->name = add_name(head, s)))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'T' for "Type info" or "Title text" */
+    else if (buf[0] == 'T')
+    {
+        int oath_num, difficulty;
+
+        /* There better be a current oath_ptr */
+        if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Try to scan for numeric values first (Type info) */
+        if (2 == sscanf(buf + 2, "%d:%d", &oath_num, &difficulty))
+        {
+            /* Save the values */
+            oath_ptr->oath_num = oath_num;
+            oath_ptr->difficulty = difficulty;
+        }
+        else
+        {
+            /* Treat as title text and store in description */
+            if (!add_text(&(oath_ptr->text), head, buf + 2))
+                return (PARSE_ERROR_OUT_OF_MEMORY);
+        }
+    }
+
+    /* Process 'R' for "Restrictions" or "Restriction description" */
+    else if (buf[0] == 'R')
+    {
+        int restrictions;
+
+        /* There better be a current oath_ptr */
+        if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Try to scan for numeric value first (old format) */
+        if (1 == sscanf(buf + 2, "%d", &restrictions))
+        {
+            /* Save the numeric value */
+            oath_ptr->restrictions = restrictions;
+        }
+        else
+        {
+            /* Treat as restriction description text */
+            if (!add_text(&(oath_ptr->text), head, buf + 2))
+                return (PARSE_ERROR_OUT_OF_MEMORY);
+        }
+    }
+
+    /* Process 'A' for "Ability reward" */
+    else if (buf[0] == 'A')
+    {
+        int reward_type, reward_value;
+
+        /* There better be a current o_ptr */
+        /* There better be a current oath_ptr */
+        if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Scan for the values */
+        if (2 != sscanf(buf + 2, "%d:%d", &reward_type, &reward_value))
+            return (PARSE_ERROR_GENERIC);
+
+        /* Save the values */
+        oath_ptr->reward_type = reward_type;
+        oath_ptr->reward_value = reward_value;
+    }
+
+    /* Process 'D' for "Description" */
+    else if (buf[0] == 'D')
+    {
+        /* There better be a current oath_ptr */
+        if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store the text */
+        if (!add_text(&(oath_ptr->text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'P' for "Pledge text" */
+    else if (buf[0] == 'P')
+    {
+        /* There better be a current oath_ptr */
+        if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store the pledge text */
+        if (!add_text(&(oath_ptr->text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'F' for "Forbidden action text" */
+    else if (buf[0] == 'F')
+    {
+        /* There better be a current oath_ptr */
+        if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store the forbidden action text */
+        if (!add_text(&(oath_ptr->text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'S' for "Stat bonuses" */
+    else if (buf[0] == 'S')
+    {
+        /* There better be a current oath_ptr */
+        if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse stat bonuses but don't store them for now */
+        /* Format: S:str:dex:con:gra */
+        /* This is handled elsewhere in the oath system */
+    }
+
+    /* Process 'K' for "sKill bonuses" */
+    else if (buf[0] == 'K')
+    {
+        /* There better be a current oath_ptr */
+        if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse skill bonuses but don't store them for now */
+        /* Format: K:skill:bonus */
+        /* This is handled elsewhere in the oath system */
+    }
+
+    /* Process 'B' for "Behavioral restrictions" */
+    else if (buf[0] == 'B')
+    {
+        /* There better be a current oath_ptr */
+        if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store behavioral restriction text */
+        if (!add_text(&(oath_ptr->text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'U' for "Unlock conditions" */
+    else if (buf[0] == 'U')
+    {
+        /* There better be a current oath_ptr */
+        if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store unlock condition text */
+        if (!add_text(&(oath_ptr->text), head, buf + 2))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 

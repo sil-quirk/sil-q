@@ -1,0 +1,86 @@
+# File: oath.txt
+
+# This file is used to initialize the "oath_info" array, which is used
+# to store oath information for Sil-Q.
+
+# === Understanding Oath Information ===
+
+# O: Oath index : Oath name
+# T: Title/short description
+# D: Full description text
+# P: Pledge text (what you swear)
+# F: Forbidden action description  
+# R: Reward description
+# S: Stat bonuses (str:dex:con:gra)
+# K: Skill bonuses (skill:bonus pairs)
+# B: Behavioral restrictions/mechanics
+# U: Unlock conditions
+
+# Version stamp (required)
+V:0.8.7
+
+# No Oath (default state)
+O:0:None
+T:No binding oath
+D:You have taken no oath and are free to act as you choose.
+P:I swear no binding words.
+F:None
+R:Freedom of choice
+S:0:0:0:0
+
+# Oath of Mercy
+O:1:Mercy  
+T:To spare the Children of Iluvatar
+D:A solemn vow to leave Angband without shedding the blood of
+D:Man or Elf, showing mercy even to those who might oppose you.
+D:This oath reflects the compassion of Niena the Mourner.
+P:I swear to leave Angband without shedding blood of Man or Elf,
+P:showing mercy to all Children of Iluvatar I encounter.
+F:Attack or harm Men or Elves in any way
+R:+1 Grace - Divine favor for your merciful heart
+S:0:0:0:1
+B:Cannot attack creatures with RF3_MAN or RF3_ELF flags
+U:Complete the Quest of Niena the Mourner
+
+# Oath of Silence
+O:2:Silence
+T:To maintain grim silence  
+D:A vow of absolute silence, taken by those who would enter
+D:and leave Angband as they came - wordless and grim.
+D:This oath embodies the stoic determination of proven warriors.
+P:I swear to leave Angband as I came, grim and silent,
+P:speaking no word and raising no song in these dark halls.
+F:Sing any song or make any vocal utterance
+R:+1 Strength - Power of focused will and discipline  
+S:1:0:0:0
+B:Cannot use any singing abilities or songs
+U:Complete the Quest of Tulkas the Strong
+
+# Oath of Iron
+O:3:Iron
+T:To face Morgoth with unwavering courage
+D:An oath of absolute resolve, sworn by those who will not
+D:be turned aside from their purpose by any force or fear.
+D:You pledge to face even the Dark Lord himself.
+P:I swear that none will daunt me from facing Morgoth forthwith,
+P:and I shall not flee upward until a Silmaril is won.
+F:Go up stairs or flee the depths without possessing a Silmaril
+R:+2 Constitution - Unbreakable fortitude and endurance
+S:0:0:2:0  
+B:Cannot use upstairs until possessing a Silmaril
+U:Complete the Quest of Mandos the Doomsman
+
+# Oath of the Smith
+O:4:Smith
+T:To craft all gear by your own hand
+D:A pledge to rely only upon your own craftsmanship, rejecting
+D:all weapons and armor not forged by your own skill.
+D:This oath honors Aule's mastery of all crafts.
+P:I swear to craft all blades and armor by my own hand,
+P:taking up no weapon or protection wrought by others.
+F:Pick up, wield, or wear weapons or armor crafted by others
+R:+5 Smithing - Divine inspiration in all crafts
+S:0:0:0:0
+K:SMT:5
+B:Cannot equip weapons or armor not self-crafted
+U:Complete the Quest of Aule the Smith

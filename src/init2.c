@@ -311,7 +311,8 @@ header cu_head;
 header b_head;
 header g_head;
 header flavor_head;
-header q_head;
+header quest_head;
+header oath_head;
 header n_head;
 header style_head;
 
@@ -1092,6 +1093,60 @@ static errr init_flavor_info(void)
     flavor_info = flavor_head.info_ptr;
     flavor_name = flavor_head.name_ptr;
     flavor_text = flavor_head.text_ptr;
+
+    return (err);
+}
+
+/*
+ * Initialize the "quest_info" array
+ */
+static errr init_quest_info(void)
+{
+    errr err;
+
+    /* Init the header */
+    init_header(&quest_head, z_info->quest_max, sizeof(quest_type));
+
+#ifdef ALLOW_TEMPLATES
+
+    /* Save a pointer to the parsing function */
+    quest_head.parse_info_txt = parse_quest_info;
+
+#endif /* ALLOW_TEMPLATES */
+
+    err = init_info("quest", &quest_head);
+
+    /* Set the global variables */
+    quest_info = quest_head.info_ptr;
+    quest_name_text = quest_head.name_ptr;
+    quest_desc_text = quest_head.text_ptr;
+
+    return (err);
+}
+
+/*
+ * Initialize the "oath_info" array
+ */
+static errr init_oath_info(void)
+{
+    errr err;
+
+    /* Init the header */
+    init_header(&oath_head, z_info->oath_max, sizeof(oath_type));
+
+#ifdef ALLOW_TEMPLATES
+
+    /* Save a pointer to the parsing function */
+    oath_head.parse_info_txt = parse_oath_info;
+
+#endif /* ALLOW_TEMPLATES */
+
+    err = init_info("oath", &oath_head);
+
+    /* Set the global variables */
+    oath_info = oath_head.info_ptr;
+    oath_name_text = oath_head.name_ptr;
+    oath_desc_text = oath_head.text_ptr;
 
     return (err);
 }
@@ -1909,6 +1964,16 @@ void init_angband(void)
     note("[Initializing arrays... (flavors)]");
     if (init_flavor_info())
         quit("Cannot initialize flavors");
+
+    /* Initialize quest info */
+    note("[Initializing arrays... (quests)]");
+    if (init_quest_info())
+        quit("Cannot initialize quests");
+
+    /* Initialize oath info */
+    note("[Initializing arrays... (oaths)]");
+    if (init_oath_info())
+        quit("Cannot initialize oaths");
 
     /* Initialize some other arrays */
     note("[Initializing arrays... (other)]");

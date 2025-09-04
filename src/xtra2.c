@@ -5661,6 +5661,378 @@ static int select_tulkas_quest_prize(int target_level)
 }
 
 /*
+ * Show quest status for current metarun - only active and completed quests
+ */
+void do_cmd_quest_status(void)
+{
+    char buf[128];
+    int row = 1;
+    int col = 2;
+    bool any_quests = false;
+
+    /* Safety check: ensure we have a valid player and metarun */
+    if (!p_ptr) {
+        msg_print("No character data available.");
+        return;
+    }
+
+    /* Save screen */
+    screen_save();
+    Term_clear();
+
+    /* Title */
+    Term_putstr(col, row++, -1, TERM_YELLOW, "=== Quest Status ===");
+    row++;
+
+    /* Check Tulkas quest */
+    if (p_ptr->tulkas_quest > TULKAS_QUEST_NOT_STARTED) {
+        any_quests = true;
+        cptr tulkas_status;
+        byte color;
+        
+        Term_putstr(col, row++, -1, TERM_YELLOW, "Quest of Tulkas the Strong:");
+        
+        switch (p_ptr->tulkas_quest) {
+            case TULKAS_QUEST_GIVER_PRESENT:
+                tulkas_status = "Available - Tulkas awaits";
+                color = TERM_L_BLUE;
+                Term_putstr(col + 2, row++, -1, color, tulkas_status);
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Challenge: Defeat a randomly assigned enemy");
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Legendary artifact forged in Valinor");
+                break;
+            case TULKAS_QUEST_ACTIVE:
+                if (p_ptr->tulkas_target_r_idx > 0 && p_ptr->tulkas_target_r_idx < z_info->r_max) {
+                    monster_race* r_ptr = &r_info[p_ptr->tulkas_target_r_idx];
+                    strnfmt(buf, sizeof(buf), "Active - Seek %s", r_name + r_ptr->name);
+                    tulkas_status = buf;
+                } else {
+                    tulkas_status = "Active - Seek your assigned target";
+                }
+                color = TERM_WHITE;
+                Term_putstr(col + 2, row++, -1, color, tulkas_status);
+                if (p_ptr->tulkas_prize_a_idx > 0 && p_ptr->tulkas_prize_a_idx < z_info->art_max) {
+                    artefact_type* a_ptr = &a_info[p_ptr->tulkas_prize_a_idx];
+                    if (a_ptr->name[0] != '\0') {
+                        strnfmt(buf, sizeof(buf), "Reward: %s", a_ptr->name);
+                        Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
+                    }
+                }
+                break;
+            case TULKAS_QUEST_COMPLETE:
+                tulkas_status = "Complete - Return for reward";
+                color = TERM_L_GREEN;
+                Term_putstr(col + 2, row++, -1, color, tulkas_status);
+                break;
+            case TULKAS_QUEST_REWARDED:
+                tulkas_status = "Completed this character";
+                color = TERM_L_GREEN;
+                Term_putstr(col + 2, row++, -1, color, tulkas_status);
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Artifact received + Silence oath unlocked");
+                break;
+            default:
+                tulkas_status = "Unknown status";
+                color = TERM_SLATE;
+                Term_putstr(col + 2, row++, -1, color, tulkas_status);
+        }
+        row++;
+    }
+
+    /* Check Aule quest */
+    if (p_ptr->aule_quest > AULE_QUEST_NOT_STARTED) {
+        any_quests = true;
+        cptr aule_status;
+        byte color;
+        
+        Term_putstr(col, row++, -1, TERM_YELLOW, "Quest of Aule the Smith:");
+        
+        switch (p_ptr->aule_quest) {
+            case AULE_QUEST_FORGE_PRESENT:
+                aule_status = "Available - Enter the forge";
+                color = TERM_L_BLUE;
+                Term_putstr(col + 2, row++, -1, color, aule_status);
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Challenge: Forge an artifact with 4+ ego abilities");
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Aule's Forge ability + Smith oath");
+                break;
+            case AULE_QUEST_ACTIVE:
+                aule_status = "Active - Forge a worthy artifact";
+                color = TERM_WHITE;
+                Term_putstr(col + 2, row++, -1, color, aule_status);
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Challenge: Create artifact with 4+ ego abilities");
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Aule's Forge ability + Smith oath");
+                break;
+            case AULE_QUEST_SUCCESS:
+                aule_status = "Complete - Return for reward";
+                color = TERM_L_GREEN;
+                Term_putstr(col + 2, row++, -1, color, aule_status);
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Aule's Forge ability + Smith oath");
+                break;
+            case AULE_QUEST_REWARDED:
+                /* Check if completed this run vs completed in previous metarun */
+                /* If metarun_is_quest_completed() is TRUE, it was completed in current metarun */
+                /* If it's FALSE but quest is REWARDED, it was completed in a previous metarun */
+                if (metarun_is_quest_completed(METARUN_QUEST_AULE)) {
+                    aule_status = "Completed this character";
+                    color = TERM_L_GREEN;
+                    Term_putstr(col + 2, row++, -1, color, aule_status);
+                    Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Aule's Forge ability + Smith oath unlocked");
+                } else {
+                    /* Quest is REWARDED but not in current metarun - must be from previous metarun access */
+                    aule_status = "Available from previous metarun";
+                    color = TERM_L_DARK;
+                    Term_putstr(col + 2, row++, -1, color, aule_status);
+                    Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Smith oath available from previous completion");
+                }
+                break;
+            default:
+                aule_status = "Unknown status";
+                color = TERM_SLATE;
+                Term_putstr(col + 2, row++, -1, color, aule_status);
+        }
+        row++;
+    }
+
+    /* Check Mandos quest */
+    if (p_ptr->mandos_quest > MANDOS_QUEST_NOT_STARTED) {
+        any_quests = true;
+        cptr mandos_status;
+        byte color;
+        
+        Term_putstr(col, row++, -1, TERM_YELLOW, "Quest of Mandos the Doomsman:");
+        
+        switch (p_ptr->mandos_quest) {
+            case MANDOS_QUEST_GIVER_PRESENT:
+                mandos_status = "Available - Enter the tomb";
+                color = TERM_L_BLUE;
+                Term_putstr(col + 2, row++, -1, color, mandos_status);
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Challenge: Clear all enemies from the tomb");
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Mandos' Doom ability + Iron oath");
+                break;
+            case MANDOS_QUEST_ACTIVE:
+                mandos_status = "Active - Clear all foes from the tomb";
+                color = TERM_WHITE;
+                Term_putstr(col + 2, row++, -1, color, mandos_status);
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Challenge: Eliminate all enemies in the tomb");
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Mandos' Doom ability + Iron oath");
+                break;
+            case MANDOS_QUEST_SUCCESS:
+                mandos_status = "Complete - Return for reward";
+                color = TERM_L_GREEN;
+                Term_putstr(col + 2, row++, -1, color, mandos_status);
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Mandos' Doom ability + Iron oath");
+                break;
+            case MANDOS_QUEST_REWARDED:
+                /* Check if completed this run vs completed in previous metarun */
+                /* If metarun_is_quest_completed() is TRUE, it was completed in current metarun */
+                /* If it's FALSE but quest is REWARDED, it was completed in a previous metarun */
+                if (metarun_is_quest_completed(METARUN_QUEST_MANDOS)) {
+                    mandos_status = "Completed this character";
+                    color = TERM_L_GREEN;
+                    Term_putstr(col + 2, row++, -1, color, mandos_status);
+                    Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Mandos' Doom ability + Iron oath unlocked");
+                } else {
+                    /* Quest is REWARDED but not in current metarun - must be from previous metarun access */
+                    mandos_status = "Available from previous metarun";
+                    color = TERM_L_DARK;
+                    Term_putstr(col + 2, row++, -1, color, mandos_status);
+                    Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Iron oath available from previous completion");
+                }
+                break;
+            default:
+                mandos_status = "Unknown status";
+                color = TERM_SLATE;
+                Term_putstr(col + 2, row++, -1, color, mandos_status);
+        }
+        row++;
+    }
+
+    /* Check Niena quest */
+    if (p_ptr->niena_quest > NIENA_QUEST_NOT_STARTED) {
+        any_quests = true;
+        cptr niena_status;
+        byte color;
+        
+        Term_putstr(col, row++, -1, TERM_YELLOW, "Quest of Niena the Mourner:");
+        
+        switch (p_ptr->niena_quest) {
+            case NIENA_QUEST_GIVER_PRESENT:
+                niena_status = "Available - Niena offers mercy";
+                color = TERM_L_BLUE;
+                Term_putstr(col + 2, row++, -1, color, niena_status);
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Challenge: Reach stairs without killing any creatures");
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Enhanced stealth based on mercy shown");
+                break;
+            case NIENA_QUEST_ACTIVE:
+                strnfmt(buf, sizeof(buf), "Active - Show mercy (%d seen, %d killed)",
+                        p_ptr->niena_monsters_seen, p_ptr->niena_monsters_killed);
+                niena_status = buf;
+                color = TERM_WHITE;
+                Term_putstr(col + 2, row++, -1, color, niena_status);
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Challenge: Reach stairs without killing");
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Stealth bonus = 10*(seen-killed)/seen");
+                break;
+            case NIENA_QUEST_SUCCESS:
+                niena_status = "Complete - Return for reward";
+                color = TERM_L_GREEN;
+                Term_putstr(col + 2, row++, -1, color, niena_status);
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Mercy-based stealth enhancement");
+                break;
+            case NIENA_QUEST_REWARDED:
+                niena_status = "Completed this character";
+                color = TERM_L_GREEN;
+                Term_putstr(col + 2, row++, -1, color, niena_status);
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Stealth enhancement received");
+                break;
+            default:
+                niena_status = "Unknown status";
+                color = TERM_SLATE;
+                Term_putstr(col + 2, row++, -1, color, niena_status);
+        }
+        row++;
+    }
+
+    /* Show previous metarun completions */
+    bool has_previous_completions = false;
+    if (metarun_is_quest_completed(METARUN_QUEST_TULKAS) && p_ptr->tulkas_quest != TULKAS_QUEST_REWARDED) {
+        if (!has_previous_completions) {
+            Term_putstr(col, row++, -1, TERM_L_DARK, "Previously Completed in Metarun:");
+            has_previous_completions = true;
+        }
+        Term_putstr(col + 2, row++, -1, TERM_SLATE, "Quest of Tulkas the Strong - Silence oath available");
+    }
+    if (metarun_is_quest_completed(METARUN_QUEST_AULE) && p_ptr->aule_quest != AULE_QUEST_REWARDED) {
+        if (!has_previous_completions) {
+            Term_putstr(col, row++, -1, TERM_L_DARK, "Previously Completed in Metarun:");
+            has_previous_completions = true;
+        }
+        Term_putstr(col + 2, row++, -1, TERM_SLATE, "Quest of Aule the Smith - Smith oath available");
+    }
+    if (metarun_is_quest_completed(METARUN_QUEST_MANDOS) && p_ptr->mandos_quest != MANDOS_QUEST_REWARDED) {
+        if (!has_previous_completions) {
+            Term_putstr(col, row++, -1, TERM_L_DARK, "Previously Completed in Metarun:");
+            has_previous_completions = true;
+        }
+        Term_putstr(col + 2, row++, -1, TERM_SLATE, "Quest of Mandos the Doomsman - Iron oath available");
+    }
+    if (metarun_is_quest_completed(METARUN_QUEST_NIENA) && p_ptr->niena_quest != NIENA_QUEST_REWARDED) {
+        if (!has_previous_completions) {
+            Term_putstr(col, row++, -1, TERM_L_DARK, "Previously Completed in Metarun:");
+            has_previous_completions = true;
+        }
+        Term_putstr(col + 2, row++, -1, TERM_SLATE, "Quest of Niena the Mourner - Mercy oath available");
+    }
+    
+    if (has_previous_completions) {
+        row++;
+    }
+
+    /* If no quests are active or completed */
+    if (!any_quests) {
+        Term_putstr(col, row++, -1, TERM_SLATE, "No active or completed quests this run.");
+        row++;
+        Term_putstr(col, row++, -1, TERM_L_DARK, "Quest vaults may appear as you delve deeper...");
+    }
+
+    row++;
+    Term_putstr(col, row, -1, TERM_L_WHITE, "Press any key to return.");
+    inkey();
+    
+    screen_load();
+}
+
+/*
+ * Quest typewriter menu function - displays quest dialog with typewriter effect
+ * Based on print_story_intro() style
+ */
+static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byte title_color, byte text_color)
+{
+    int wid, h;
+    const int indent = 2;
+    
+    /* Get terminal size */
+    Term_get_size(&wid, &h);
+    int wrap_width = wid - indent * 2;
+    
+    /* Save screen and start fresh */
+    screen_save();
+    Term_clear();
+    
+    /* Display title */
+    int title_y = 1;
+    Term_putstr((wid - strlen(title)) / 2, title_y, -1, title_color, title);
+    
+    int row = 3, col = 0;
+    
+    for (int idx = 0; idx < total_texts; idx++) {
+        const char *s = texts[idx];
+        
+        /* Count lines needed for this paragraph */
+        int lines_needed = 0;
+        int temp_col = col;
+        for (int i = 0; s[i]; i++) {
+            if (s[i] == '\n' || temp_col >= wrap_width) {
+                lines_needed++;
+                temp_col = 0;
+                if (s[i] == '\n') continue;
+            }
+            temp_col++;
+        }
+        lines_needed++; /* Add one for the blank line after paragraph */
+        
+        /* Check if we have enough space for the whole paragraph */
+        if (row + lines_needed >= h - 2) {
+            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to continue)");
+            {
+                char k = inkey();
+                if (k == 'Q' || k == 'q') { /* Q/q skips remaining dialog */
+                    Term_clear();
+                    screen_load();
+                    return;
+                }
+            }
+            Term_clear();
+            /* Redisplay title */
+            Term_putstr((wid - strlen(title)) / 2, title_y, -1, title_color, title);
+            row = 3;
+        }
+        
+        col = 0;
+        
+        /* Print this string, character by character */
+        for (int i = 0; s[i]; i++) {
+            char ch = s[i];
+            
+            /* Newline or wrap? */
+            if (ch == '\n' || col >= wrap_width) {
+                row++;
+                col = 0;
+                if (ch == '\n') continue;
+            }
+            
+            Term_putch(indent + col, row, text_color, ch);
+            Term_fresh();
+            col++;
+            
+            /* Delay 25 ms after each character */
+            Term_xtra(TERM_XTRA_DELAY, 25);
+        }
+        
+        /* Leave one blank line after each paragraph */
+        row++;
+        col = 0;
+        
+        /* 800ms pause after paragraph */
+        Term_xtra(TERM_XTRA_DELAY, 800);
+    }
+    
+    /* Final prompt */
+    Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to continue)");
+    inkey();
+    
+    Term_clear();
+    screen_load();
+}
+
+/*
  * Handle Tulkas interaction
  */
 void tulkas_quest_interaction(void)
@@ -5726,9 +6098,17 @@ void tulkas_quest_interaction(void)
         log_trace("Quest assigned: target=%d (%s), prize=%d (%s)", 
                  target_r_idx, r_name + r_ptr->name, prize_a_idx, a_ptr->name);
         
-        /* Give quest message */
-        msg_format("Tulkas the Strong speaks in a voice like thunder: 'Champion of valor!'");
-        msg_format("'Seek out %s, and prove your might by defeating this foe in battle.'", r_name + r_ptr->name);
+        /* Prepare quest dialog texts */
+        char quest_text1[256];
+        char quest_text2[256]; 
+        char quest_text3[256];
+        
+        strnfmt(quest_text1, sizeof(quest_text1), 
+                "Tulkas the Strong speaks in a voice like thunder:\n'Champion of valor!'");
+        
+        strnfmt(quest_text2, sizeof(quest_text2),
+                "'Seek out %s, and prove your might by defeating this foe in battle.'", 
+                r_name + r_ptr->name);
         
         /* Check if artifact name is valid */
         if (strlen(a_ptr->name) > 0)
@@ -5760,21 +6140,31 @@ void tulkas_quest_interaction(void)
                             k_name + k_ptr->name, a_ptr->name);
                 }
                 
-                msg_format("'When this deed is done, you shall be rewarded with %s.'", full_name);
+                strnfmt(quest_text3, sizeof(quest_text3),
+                        "'When this deed is done, you shall be rewarded with %s.'\n\n"
+                        "Tulkas grins fiercely and vanishes, leaving you with your sacred task.", 
+                        full_name);
             }
             else
             {
                 /* Fallback if object lookup fails */
-                msg_format("'When this deed is done, you shall be rewarded with %s.'", a_ptr->name);
+                strnfmt(quest_text3, sizeof(quest_text3),
+                        "'When this deed is done, you shall be rewarded with %s.'\n\n"
+                        "Tulkas grins fiercely and vanishes, leaving you with your sacred task.", 
+                        a_ptr->name);
             }
         }
         else
         {
             log_trace("Empty artifact name for a_idx %d, using generic message", prize_a_idx);
-            msg_format("'When this deed is done, you shall receive a legendary weapon forged in Valinor.'");
+            strnfmt(quest_text3, sizeof(quest_text3),
+                    "'When this deed is done, you shall receive a legendary weapon forged in Valinor.'\n\n"
+                    "Tulkas grins fiercely and vanishes, leaving you with your sacred task.");
         }
         
-        msg_print("Tulkas grins fiercely and vanishes, leaving you with your sacred task.");
+        /* Display typewriter quest dialog */
+        cptr tulkas_texts[] = { quest_text1, quest_text2, quest_text3 };
+        quest_typewriter_menu("Quest of Tulkas the Strong", tulkas_texts, 3, TERM_YELLOW, TERM_WHITE);
     }
     else if (p_ptr->tulkas_quest == TULKAS_QUEST_COMPLETE)
     {
@@ -5811,10 +6201,14 @@ void tulkas_quest_interaction(void)
         /* Unlock Silence oath for future characters in this metarun */
         metarun_unlock_oath(OATH_SILENCE);
         
-        msg_print("Tulkas appears with a great laugh of triumph!");
-        msg_print("'Well fought, warrior! You have proven your valor in battle.'");
-        msg_print("'Take this gift, forged in the deeps of time before the world's making.'");
-        msg_print("Tulkas strides away with thunderous footsteps, leaving your prize behind.");
+        /* Display typewriter completion dialog */
+        cptr completion_texts[] = {
+            "Tulkas appears with a great laugh of triumph!\n"
+            "'Well fought, warrior! You have proven your valor in battle.'",
+            "'Take this gift, forged in the deeps of time before the world's making.'",
+            "Tulkas strides away with thunderous footsteps, leaving your prize behind."
+        };
+        quest_typewriter_menu("Quest Complete: Tulkas Rewards Your Valor", completion_texts, 3, TERM_L_GREEN, TERM_WHITE);
         
         log_trace("Tulkas quest completed and rewarded");
     }
@@ -6005,13 +6399,21 @@ void aule_quest_interaction(void)
         log_trace("Aule quest explanation - setting to ACTIVE");
         p_ptr->aule_quest = AULE_QUEST_ACTIVE;
         
-        msg_print("Aule speaks in a voice like hammer on anvil:");
-        msg_print("'Mortal, I have watched your progress through these halls.'");
-        msg_print("'If you would prove worthy of my blessing, you must demonstrate'");
-        msg_print("'the mastery of creation that I myself possess.'");
-        msg_print("'Find my forge upon this level and create an item of power.'");
-        msg_print("'Only through the act of creation can you earn my gift.'");
-        msg_print("'Seek the forge and let your hammer sing!'");
+        static cptr aule_texts[] = {
+            "Aule speaks in a voice like hammer on anvil:",
+            "",
+            "'Mortal, I have watched your progress through these halls.",
+            "",
+            "If you would prove worthy of my blessing, you must demonstrate",
+            "the mastery of creation that I myself possess.",
+            "",
+            "Find my forge upon this level and create an item of power.",
+            "",
+            "Only through the act of creation can you earn my gift.",
+            "",
+            "Seek the forge and let your hammer sing!'"
+        };
+        quest_typewriter_menu("Aule the Smith", aule_texts, 12, TERM_YELLOW, TERM_WHITE);
         
         /* Mark in the notes */
         do_cmd_note("Aule has challenged me to use his forge to create an item.", p_ptr->depth);
@@ -6023,9 +6425,18 @@ void aule_quest_interaction(void)
     {
         log_trace("Aule quest completed - giving special ability reward");
         
-        msg_print("Aule nods with satisfaction:");
-        msg_print("'Well done! Your skill at the forge shows promise.'");
-        msg_print("'I grant you the secret of my forge - knowledge beyond mortal smiths.'");
+        static cptr aule_completion_texts[] = {
+            "Aule nods with satisfaction:",
+            "",
+            "'Well done! Your skill at the forge shows promise.",
+            "",
+            "I grant you the secret of my forge - knowledge beyond mortal smiths.",
+            "",
+            "The knowledge of divine craftsmanship flows through you!",
+            "",
+            "May this wisdom serve you well in the dark halls ahead.'"
+        };
+        quest_typewriter_menu("Quest Complete!", aule_completion_texts, 9, TERM_L_GREEN, TERM_WHITE);
         
         /* Grant Aule's Forge special ability instead of artifact */
         if (!p_ptr->have_ability[S_SPC][SPC_AULE]) {
@@ -6050,7 +6461,6 @@ void aule_quest_interaction(void)
         /* Unlock Smith oath for future characters in this metarun */
         metarun_unlock_oath(OATH_SMITH);
         
-        msg_print("The knowledge of divine craftsmanship flows through you!");
         msg_print("Aule smiles with approval and returns to his eternal labors.");
         
         return;
@@ -6103,17 +6513,21 @@ void mandos_quest_interaction(void)
         p_ptr->mandos_quest = MANDOS_QUEST_ACTIVE;
         p_ptr->mandos_level = p_ptr->depth;
         
-        /* Give quest message */
-        msg_print("Mandos speaks with the authority of the Valar:");
-        msg_print("'Mortal, you have descended deep into the darkness.");
-        msg_print("Here lies Brodda the Easterling, a cruel tyrant who oppressed");
-        msg_print("the people of Dor-lómin and brought suffering upon the Edain.'");
-        msg_print("");
-        msg_print("'It was foretold that Túrin Turambar would slay him in righteous");
-        msg_print("vengeance, but fate has been altered. Now this burden falls to you.'");
-        msg_print("");
-        msg_print("'Slay Brodda, and you shall be granted passage deeper into");
-        msg_print("the halls of Mandos, where greater trials await.'");
+        static cptr mandos_texts[] = {
+            "Mandos speaks with the authority of the Valar:",
+            "",
+            "'Mortal, you have descended deep into the darkness.",
+            "",
+            "Here lies Brodda the Easterling, a cruel tyrant who oppressed",
+            "the people of Dor-lómin and brought suffering upon the Edain.",
+            "",
+            "It was foretold that Túrin Turambar would slay him in righteous",
+            "vengeance, but fate has been altered. Now this burden falls to you.",
+            "",
+            "Slay Brodda, and you shall be granted passage deeper into",
+            "the halls of Mandos, where greater trials await.'"
+        };
+        quest_typewriter_menu("Mandos the Doomsman", mandos_texts, 12, TERM_L_DARK, TERM_WHITE);
         
         log_trace("Mandos quest activated - player must slay Brodda");
     }
@@ -6123,15 +6537,19 @@ void mandos_quest_interaction(void)
         if (is_brodda_dead())
         {
             p_ptr->mandos_quest = MANDOS_QUEST_SUCCESS;
-            msg_print("Mandos nods with solemn approval:");
-            msg_print("'Justice has been served. Brodda's cruelty is ended,");
-            msg_print("and the spirits of Dor-lómin may know peace.'");
-            msg_print("");
-            msg_print("'You have proven yourself worthy of deeper knowledge.");
-            msg_print("The path ahead grows ever more perilous, but also");
-            msg_print("more meaningful. Go now, with the blessing of doom.'");
-            msg_print("");
-            msg_print("A strange power flows through you, and the way forward opens.");
+            static cptr mandos_success_texts[] = {
+                "Mandos nods with solemn approval:",
+                "",
+                "'Justice has been served. Brodda's cruelty is ended,",
+                "and the spirits of Dor-lómin may know peace.",
+                "",
+                "You have proven yourself worthy of deeper knowledge.",
+                "The path ahead grows ever more perilous, but also",
+                "more meaningful. Go now, with the blessing of doom.",
+                "",
+                "A strange power flows through you, and the way forward opens.'"
+            };
+            quest_typewriter_menu("Justice Served", mandos_success_texts, 10, TERM_L_GREEN, TERM_WHITE);
             log_trace("Mandos quest completed successfully");
         }
         else
@@ -6148,9 +6566,18 @@ void mandos_quest_interaction(void)
     {
         log_trace("Mandos quest already completed - giving special ability reward");
         
-        msg_print("Mandos acknowledges you with respect:");
-        msg_print("'You have fulfilled the task set before you.");
-        msg_print("'Accept the gift of my doom - protection from the fears that plague mortals.'");
+        static cptr mandos_reward_texts[] = {
+            "Mandos acknowledges you with respect:",
+            "",
+            "'You have fulfilled the task set before you.",
+            "",
+            "Accept the gift of my doom - protection from the fears",
+            "that plague mortals.",
+            "",
+            "The power of the Doomsman flows through you,",
+            "protecting your mind from terror!'"
+        };
+        quest_typewriter_menu("Quest Reward", mandos_reward_texts, 9, TERM_L_GREEN, TERM_WHITE);
         
         /* Grant Mandos' Doom special ability instead of artifact */
         if (!p_ptr->have_ability[S_SPC][SPC_MANDOS]) {
@@ -6177,8 +6604,6 @@ void mandos_quest_interaction(void)
         
         /* Unlock Iron oath for future characters in this metarun */
         metarun_unlock_oath(OATH_IRON);
-        
-        msg_print("The power of the Doomsman flows through you, protecting your mind!");
         msg_print("Mandos bows deeply and fades into shadow, his task complete.");
         
         log_trace("Mandos quest reward given");
@@ -6283,14 +6708,22 @@ void niena_quest_interaction(void)
     {
         log_trace("Starting Niena quest interaction - offering mercy quest");
         
-        /* Give quest message */
-        msg_format("Niena, Lady of Pity, speaks with a voice full of sorrow and hope:");
-        msg_format("'I have seen too much suffering in these halls of stone.'");
-        msg_format("'The creatures here are lost and tormented, driven by fear and darkness.'");
-        msg_format("'If you can find mercy in your heart, I ask you this:'");
-        msg_format("'Reach the stairs downward without taking any life.'");
-        msg_format("'Show that strength can be wedded to compassion.'");
-        msg_format("'All stairs shall be revealed to guide your path.'");
+        static cptr niena_texts[] = {
+            "Niena, Lady of Pity, speaks with a voice full of sorrow and hope:",
+            "",
+            "'I have seen too much suffering in these halls of stone.",
+            "",
+            "The creatures here are lost and tormented, driven by fear and darkness.",
+            "",
+            "If you can find mercy in your heart, I ask you this:",
+            "",
+            "Reach the stairs downward without taking any life.",
+            "",
+            "Show that strength can be wedded to compassion.",
+            "",
+            "All stairs shall be revealed to guide your path.'"
+        };
+        quest_typewriter_menu("Niena, Lady of Pity", niena_texts, 13, TERM_L_BLUE, TERM_WHITE);
         
         /* Accept the quest */
         p_ptr->niena_quest = NIENA_QUEST_ACTIVE;
@@ -6332,23 +6765,43 @@ void niena_quest_interaction(void)
             stealth_bonus = (mercy_ratio_times_10 + p_ptr->niena_monsters_seen - 1) / p_ptr->niena_monsters_seen;
         }
         
-        msg_print("Niena appears with tears of joy in her eyes!");
-        msg_format("'You have shown that true strength lies in restraint.'");
-        msg_format("'You encountered %d creatures but spared %d of them.'", 
-                  p_ptr->niena_monsters_seen, p_ptr->niena_monsters_seen - p_ptr->niena_monsters_killed);
-        
         if (stealth_bonus > 0) {
-            msg_format("'Your mercy has been witnessed by all creation.'");
-            msg_format("'I grant you the gift of moving unseen, like shadows at dawn.'");
+            static cptr niena_completion_high[] = {
+                "Niena appears with tears of joy in her eyes!",
+                "",
+                "'You have shown that true strength lies in restraint.'",
+                "",
+                "Your mercy has been witnessed by all creation.",
+                "",
+                "'I grant you the gift of moving unseen, like shadows at dawn.'",
+                "",
+                "You feel blessed with supernatural stealth!"
+            };
+            quest_typewriter_menu("Niena, Lady of Pity", niena_completion_high, 9, TERM_L_BLUE, TERM_WHITE);
+            
+            /* Show the specific numbers and bonus after the main dialogue */
+            msg_format("You encountered %d creatures but spared %d of them.", 
+                      p_ptr->niena_monsters_seen, p_ptr->niena_monsters_seen - p_ptr->niena_monsters_killed);
+            msg_format("You gain +%d effective stealth from your mercy.", stealth_bonus);
             
             /* Grant the special ability */
             p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY] = true;
             p_ptr->active_ability[S_SPC][SPC_NIENA_MERCY] = true;
-            
-            msg_format("You feel blessed with supernatural stealth! (+%d effective stealth)", stealth_bonus);
         } else {
-            msg_format("'Though you completed the task, your heart was not fully open to mercy.'");
-            msg_format("'Still, you have learned something of compassion today.'");
+            static cptr niena_completion_low[] = {
+                "Niena appears with tears of joy in her eyes!",
+                "",
+                "'You have shown that true strength lies in restraint.'",
+                "",
+                "'Though you completed the task, your heart was not fully open to mercy.'",
+                "",
+                "'Still, you have learned something of compassion today.'"
+            };
+            quest_typewriter_menu("Niena, Lady of Pity", niena_completion_low, 7, TERM_L_BLUE, TERM_WHITE);
+            
+            /* Show the specific numbers after the main dialogue */
+            msg_format("You encountered %d creatures but spared %d of them.", 
+                      p_ptr->niena_monsters_seen, p_ptr->niena_monsters_seen - p_ptr->niena_monsters_killed);
             
             /* Still grant the ability but with no effective bonus */
             p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY] = true;

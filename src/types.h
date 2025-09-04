@@ -87,6 +87,8 @@ typedef struct flavor_type flavor_type;
 typedef struct editing_buffer editing_buffer;
 typedef struct autoinscription autoinscription;
 typedef struct style_type style_type;
+typedef struct quest_type quest_type;
+typedef struct oath_type oath_type;
 
 /**** Available structs ****/
 
@@ -111,9 +113,10 @@ struct maxima
     u16b st_max; /* Max size for "st_info[]" */
     u16b cu_max; /* Max size for "cu_info[]" */
     u16b c_max; /* Max size for "c_info[]" */
-    u16b q_max; /* Max size for "q_info[]" */
+    u16b quest_max; /* Max size for "quest_info[]" */
+    u16b oath_max; /* Max size for "oath_info[]" */
     u16b flavor_max; /* Max size for "flavor_info[]" */
-    u16b o_max; /* Max size for "o_list[]" */
+    u16b o_max; /* Max size for "o_info[]" */
     u16b ghost_other_max; /* Max maintainer player ghost templates */
     u16b art_spec_max; /* Max number of special artefacts */
     u16b art_norm_max; /* Max number for normal artefacts (special - normal) */
@@ -810,6 +813,37 @@ struct style_type {
     byte door_count;                      /* number of door variants */
     byte door_rowv[8], door_colv[8];      /* up to 8 variants */
     bool vein_defined;       /* true if Y: was specified in style.txt */
+};
+
+/*
+ * Information about quest types
+ */
+struct quest_type
+{
+    u32b name; /* Name (offset) */
+    u32b text; /* Text (offset) */
+    
+    byte quest_num; /* Quest index (TULKAS, AULE, MANDOS, NIENA) */
+    byte difficulty; /* Difficulty level */
+    byte reward_type; /* Type of reward (ability, item, etc.) */
+    byte reward_value; /* Specific reward identifier */
+    u32b flags; /* Quest flags */
+};
+
+/*
+ * Information about oath types 
+ */
+struct oath_type
+{
+    u32b name; /* Name (offset) */
+    u32b text; /* Text (offset) */
+    
+    byte oath_num; /* Oath index (MERCY, SILENCE, IRON, SMITH) */
+    byte difficulty; /* Difficulty level */
+    byte restrictions; /* Oath restrictions flags */
+    byte reward_type; /* Type of reward */
+    byte reward_value; /* Specific reward identifier */
+    u32b flags; /* Oath flags */
 };
 
 /*

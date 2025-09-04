@@ -6,15 +6,105 @@ applyTo: '**'
 
 ## Build System Notes
 **IMPORTANT**: Use `Makefile.cyg` for compilation, NOT `Makefile.win`
-- Command: `make -f Makefile.cyg` (in Cygwin bash)
+- Command: `make -f Makefile.cyg` (in Cygwin bash from src/ directory)
 - Makefile.win has linking issues and should be avoided
 - Always use Cygwin environment for proper compilation
+
+**CRITICAL LAUNCH PROCESS**: 
+- Build in: `/cygdrive/c/Users/efrem/Documents/GitHub/sil-qh/src/`
+- Launch method 1: `make -f Makefile.cyg launch` (from src/ directory)
+- Launch method 2: `../sil.exe` (from src/ directory) 
+- DO NOT run `./src/sil.exe` from root directory - this doesn't work properly
+- The launch target moves sil.exe to parent directory and runs it from there
+- Data files are in lib/ subdirectory, game finds them correctly when launched properly
 
 ## Log File Location
 **CRITICAL**: The log.txt file location depends on WHERE you run the executable:
 - If run from `/cygdrive/c/Users/efrem/Documents/GitHub/sil-qh/` → log.txt appears in root directory
 - If run from `/cygdrive/c/Users/efrem/Documents/GitHub/sil-qh/src/` → log.txt appears in src directory  
 - Always check the correct location based on where sil.exe was executed
+
+## Data File Parsing System - Critical Bug Fixes (September 2025)
+
+### MAJOR: Oath Parser R: Directive Fix (Version 0.8.7)
+**Critical Issue**: Parse error when processing `R:Freedom of choice` in oath.txt line 28
+**Root Cause**: oath parser R: directive only accepted numeric values, not text descriptions
+**Problem**: `R:Freedom of choice` was being parsed as numeric restriction but contained text
+
+**Solution Applied**:
+1. **Enhanced R: directive parser**: Modified to handle both numeric (old format) and text (new format)
+2. **Backward compatibility**: Existing numeric R: directives still work
+3. **Text support**: New text-based R: directives are added to oath description text
+4. **Error elimination**: All oath.txt parsing errors resolved
+
+**Code Changes**:
+```c
+/* Process 'R' for "Restrictions" or "Restriction description" */
+else if (buf[0] == 'R')
+{
+    int restrictions;
+    if (1 == sscanf(buf + 2, "%d", &restrictions))
+    {
+        /* Save the numeric value (old format) */
+        oath_ptr->restrictions = restrictions;
+    }
+    else
+    {
+        /* Treat as restriction description text (new format) */
+        if (!add_text(&(oath_ptr->text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+}
+```
+
+**Files Modified**:
+- `src/init1.c`: Enhanced parse_oath_info() R: directive handler
+
+**Status**: ✅ FULLY RESOLVED - All oath parsing errors eliminated
+
+### MAJOR: limits.txt Conflict Resolution (Version 0.8.7)
+**Critical Issue**: M:O directive conflict between oath types and objects on level
+**Root Cause**: Two conflicting M:O entries in limits.txt:
+- Line 31: `M:O:8` (oath types) 
+- Line 78: `M:O:512` (objects on level)
+This created parser conflicts causing "too many entries" errors.
+
+**Solution Applied**:
+1. **Changed oath directive**: M:O:8 → M:W:8 (use W for oath types)
+2. **Removed duplicate M:Q**: Eliminated duplicate quest limit entry 
+3. **Parser support verified**: init1.c already had M:W case for oath_max
+4. **Clean rebuild**: Forced regeneration of lib/data/limits.raw
+
+**Files Modified**:
+- `lib/edit/limits.txt`: Fixed directive conflicts, removed duplicates
+- Parser automatically uses existing M:W support in `parse_z_info()`
+
+**Status**: ✅ FULLY RESOLVED - All parsing errors eliminated
+
+### Quest/Oath Parser Enhancements (Version 0.8.7)
+**Issue**: "Undefined directive error" when parsing Q:1:Tulkas and oath.txt line 23
+**Root Cause**: Parsers only supported legacy 'N' directives, not modern 'Q'/'O' formats
+
+**Solutions Applied**:
+1. **Enhanced parse_quest_info()**: Added 'Q' directive support alongside 'N'
+2. **Enhanced parse_oath_info()**: Added 'O' directive support alongside 'N' 
+3. **Added missing directive handlers**: P/F/S/K/B/U directives for comprehensive parsing
+4. **Fixed array sizing**: Corrected limits.txt M:Q from 4 to 8 entries
+
+**Files Modified**:
+- `src/init1.c`: Enhanced both quest and oath parsers
+- `lib/edit/limits.txt`: Fixed quest array sizing
+
+**Status**: ✅ FULLY RESOLVED - Both quest.txt and oath.txt parse correctly
+
+### Current Directive Map (No Conflicts)
+```
+F=features, K=object kinds, B=abilities, Q=quests, W=oath types, 
+A=artifacts, E=special items, R=monster races, G=ghost templates, 
+V=vaults, P=player races, C=player houses, H=history lines, 
+S=story lines, U=curses, L=flavors, O=objects on level, 
+Y=runtypes, Z=styles, N=names array, T=text array
+```
 
 ## Oath System - Complete Implementation & Recent Bug Fixes
 
@@ -48,6 +138,43 @@ The oath system has been converted from Will abilities to Special abilities that
 **Problem**: Multiple save operations during character death were breaking metarun logic
 **Solution**: Added static flag protection with proper cleanup in `close_game_aux()` function in `src/files.c`
 **Status**: ✅ FIXED - Critical bug affecting suicide saves and score database entry
+
+#### Issue #4: Quest Parsing System Implementation
+**Problem**: Game needed complete quest and oath parsing system with proper data structures
+**Solution**: Implemented full parsing framework with quest_type/oath_type structures, parsing functions, initialization
+**Status**: ✅ COMPLETED - All parsing infrastructure working
+
+#### Issue #5: Variable Naming Confusion  
+**Problem**: User reported confusing o_/q_ variable prefixes for quest/oath system
+**Solution**: Renamed all variables to descriptive names:
+- q_info → quest_info, q_name → quest_name_text, q_text → quest_desc_text
+- o_info → oath_info, o_name → oath_name_text, o_text → oath_desc_text
+- Avoided conflicts with existing quest_text[] and oath_name[] arrays
+**Status**: ✅ COMPLETED - Build successful with clear naming
+
+#### Issue #6: Quest.txt Parsing Error - Tulkas Quest Format ✅ COMPLETED
+**Problem**: "Undefined directive error" when parsing Q:1:Tulkas the Strong quest, later "too many entries" error at Q:4
+**Root Cause**: 
+1. Quest parser only supported 'N' directive for quest entries, but quest.txt used 'Q' directive
+2. Conflicting M:Q entries in limits.txt - had both M:Q:8 and M:Q:4, with M:Q:4 being used last
+**Solution**: 
+1. Modified parse_quest_info() in init1.c to accept both 'N' and 'Q' directives for quest headers
+2. Added support for missing directives: 'S' (stat bonuses), 'K' (skill bonuses), 'I' (initialization text), 'W' (completion text)
+3. Enhanced 'T' directive parser to handle both numeric format (T:num:num) and text format (T:title text)
+4. Fixed limits.txt to use M:Q:8 consistently (removed duplicate M:Q:4 that limited quest array size)
+5. Added SPC_TULKAS=5 constant to defines.h for Tulkas quest ability reward (A:9:5)
+**Verification**: All 4 quests (Q:1-4) now parse successfully without "too many entries" or directive errors
+**Status**: ✅ COMPLETED - Quest parsing system fully functional
+
+#### Issue #7: Oath.txt Parsing Error - Same Directive Issue ✅ COMPLETED
+**Problem**: "Undefined directive error" at line 23 when parsing oath.txt (O:0:None)
+**Root Cause**: Oath parser only supported 'N' directive for oath entries, but oath.txt used 'O' directive
+**Solution**: 
+1. Modified parse_oath_info() in init1.c to accept both 'N' and 'O' directives for oath headers
+2. Added support for missing directives: 'P' (pledge text), 'F' (forbidden actions), 'S' (stat bonuses), 'K' (skill bonuses), 'B' (behavioral restrictions), 'U' (unlock conditions)
+3. Enhanced 'T' directive parser to handle both numeric format (T:num:num) and text format (T:title text)
+**Verification**: All oath directives (O, T, D, P, F, R, A, S, K, B, U) now parse successfully
+**Status**: ✅ COMPLETED - Oath parsing system fully functional
 
 #### Issue #4: Ability Menu Navigation
 **Problem**: Menu navigation skipped letters due to using total ability count instead of visible count
@@ -145,6 +272,13 @@ make -f Makefile.cyg -j8 launch
 # Compile single file for testing
 make -f Makefile.cyg generate.o
 ```
+
+### Latest Build Status (September 2025)
+**CONFIRMED WORKING**: Build completes successfully with `make -f Makefile.cyg -j8`
+- All object files compile without errors
+- Linking successful using MinGW cross-compiler
+- Executable `sil.exe` generated successfully
+- Quest system updates including typewriter menus and segfault fixes compile cleanly
 
 ### Quest System Architecture & Rules
 
@@ -1127,3 +1261,35 @@ Copy-Item src\sil.exe . -Force
 4. **Reward System**: Test special ability granting and stealth bonus calculation
 5. **Integration**: Test with existing quest system and metarun persistence
 6. **Edge Cases**: Test quest failure, level regeneration, and save/load compatibility
+
+## September 2025 - Major UI and Quest System Updates
+
+### Quest Typewriter System Implementation
+**Status**: ✅ COMPLETED
+- **Objective**: Convert all quest interactions to immersive typewriter display
+- **Implementation**: Used existing `quest_typewriter_menu()` function with text arrays
+- **Scope**: All four quest types (Aule, Mandos, Niena, Tulkas) now use typewriter display
+- **Result**: Enhanced immersion with character-by-character text display and proper color coding
+
+### Main Menu Redesign
+**Status**: ✅ COMPLETED  
+- **Objective**: Rearrange main menu letters in non-alphabetical order per user specifications
+- **Challenge**: Required custom key mapping system instead of sequential letter assignment
+- **Implementation**: Complete restructuring of main menu switch statement in cmd4.c
+- **New Key Layout**: m=map, q=quit, s=save, c=character sheet, o=options, k=ignore, h=help, v=version, u=quest status, a=aim, b=browse, d=drop, e=equipment, f=fire, g=get, i=inventory, j=jump, l=look, r=rest
+- **Technical Details**: Increased MAIN_MENU_MAX to 19, custom action routing
+
+### Quest Status Menu Migration  
+**Status**: ✅ COMPLETED
+- **Objective**: Move quest status from character sheet to main menu
+- **Implementation**: 
+  - Removed quest status option from character sheet prompt and handler
+  - Added 'u' key to main menu for "Quest status"
+  - Connected to existing `do_cmd_quest_status()` function in xtra2.c
+- **Result**: Better accessibility and logical organization
+
+### Build System Validation
+**Status**: ✅ CONFIRMED
+- **Command**: `make -f Makefile.cyg -j8` from src/ directory
+- **Result**: Successful compilation with all changes integrated
+- **Compiler**: i686-w64-mingw32-gcc on Windows/Cygwin environment

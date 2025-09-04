@@ -587,6 +587,20 @@ char* cu_text;
 char* cu_name;
 
 /*
+ * The quest arrays
+ */
+quest_type* quest_info;
+char* quest_name_text;
+char* quest_desc_text;
+
+/*
+ * The oath arrays
+ */
+oath_type* oath_info;
+char* oath_name_text;
+char* oath_desc_text;
+
+/*
  * The object flavor arrays
  */
 flavor_type* flavor_info;

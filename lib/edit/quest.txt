@@ -1,0 +1,132 @@
+# File: quest.txt
+
+# This file is used to initialize the "q_info" array, which is used
+# to store quest information for Sil-Q.
+
+# === Understanding Quest Information ===
+
+# Q: Quest index : Quest name
+# T: Title text
+# C: Challenge description
+# O: Associated oath (OATH_SILENCE, OATH_SMITH, OATH_IRON, OATH_MERCY, or NONE)
+# Y: Quest type (0=vault-based, 1=roulet-based)
+# S: Stat bonuses (str:dex:con:gra)
+# K: Skill bonuses (skill:bonus pairs)
+# A: Special abilities granted
+# I: Initialization/quest giving text lines
+# W: Completion/reward text lines
+
+# Version stamp (required)
+V:0.8.7
+
+# Quest of Tulkas the Strong
+Q:1:Tulkas the Strong
+T:The Champion of Valinor seeks a worthy opponent
+C:Defeat the randomly assigned enemy that challenges your might
+O:OATH_SILENCE
+Y:1
+S:1:0:0:0
+A:9:5
+I:Tulkas the Strong, mightiest of the Valar in deeds of prowess,
+I:stands before you with a grin of anticipation.
+I:
+I:"Ho there, brave one! I have long sought a mortal worthy
+I:of true challenge. Face the enemy I shall name, and prove
+I:your valor in battle!"
+I:
+I:"Should you succeed, I shall grant you a treasure forged
+I:in the fires of Valinor itself, and unlock the Oath of
+I:Silence for your future endeavors."
+W:Tulkas roars with delight as you return victorious:
+W:
+W:"Magnificently done! Your prowess rivals the greatest
+W:champions of old. Accept this gift, wrought in the
+W:smithies of the Blessed Realm!"
+W:
+W:"You have also proven worthy of the Oath of Silence -
+W:the path of the grim and wordless warrior is now open
+W:to you in future lives."
+
+# Quest of Aule the Smith  
+Q:2:Aule the Smith
+T:The Master of all crafts seeks one worthy of his secrets
+C:Forge an artifact with four or more ego abilities
+O:OATH_SMITH
+Y:0
+S:0:0:0:0
+K:SMT:2
+A:9:1
+I:Aule the Smith, maker of the Silmarils' vessel and lord
+I:of all crafts, examines your hands with eyes like forge-fire.
+I:
+I:"I see potential in these hands, yet they lack the wisdom
+I:of true mastery. Create for me an artifact of four great
+I:powers or more, and I shall share the secrets of my forge."
+I:
+I:"Success will grant you knowledge beyond mortal smiths,
+I:and open the path of the Smith's Oath - to craft all
+I:your gear by your own hand."
+W:Aule nods with satisfaction as you present your creation:
+W:
+W:"Well done! Your skill shows promise worthy of divine
+W:teaching. I grant you the secret of my forge - knowledge
+W:beyond mortal smiths!"
+W:
+W:"The Smith's Oath is now yours to take - may you craft
+W:all blades and armor by your own skilled hands."
+
+# Quest of Mandos the Doomsman
+Q:3:Mandos the Doomsman  
+T:The Judge of the Dead seeks justice in his tomb
+C:Clear all enemies from the tomb of the slain
+O:OATH_IRON
+Y:0
+S:0:0:1:0
+A:9:0
+I:Mandos the Doomsman, keeper of the Houses of the Dead
+I:and judge of all fates, regards you with eyes of starlight.
+I:
+I:"Death has been defiled in this place. The tomb meant for
+I:the honored dead crawls with foul creatures. Cleanse it
+I:of all enemies, and restore the sanctity of rest."
+I:
+I:"Do this service for the dead, and I shall grant you
+I:my protection against fear, and open the Iron Oath -
+I:the path of unwavering courage."
+W:Mandos bows deeply as you complete your grim task:
+W:
+W:"Justice is done, and the dead may rest in peace.
+W:Accept my blessing - protection from the fears that
+W:plague mortal hearts."
+W:
+W:"The Iron Oath is now yours - may none daunt you
+W:from facing even Morgoth himself with courage
+W:unshaken."
+
+# Quest of Niena the Mourner
+Q:4:Niena the Mourner
+T:The Lady of Mercy tests your compassion
+C:Reach the stairs without killing any creatures you encounter  
+O:OATH_MERCY
+Y:1
+S:0:1:0:1
+K:STL:MERCY_BONUS
+A:9:6
+I:Niena the Mourner, she who weeps for all suffering,
+I:appears before you wreathed in silver tears.
+I:
+I:"Too much death, too much pain... I would see if
+I:mercy yet lives in mortal hearts. Reach the stairs
+I:without taking life, and show that compassion endures."
+I:
+I:"Your restraint shall be rewarded with enhanced stealth,
+I:and access to the Oath of Mercy - to leave Angband
+I:without shedding blood of the Children of Iluvatar."
+W:Niena smiles through her tears as you complete the trial:
+W:
+W:"Beautiful... mercy still lives in mortal hearts.
+W:Your compassion shall be rewarded with the gift
+W:of moving unseen."
+W:
+W:"The Oath of Mercy is yours - may you find a path
+W:through darkness that spills no unnecessary blood."

@@ -1729,6 +1729,18 @@ void print_metarun_stats(void)
     int x;
     int term_height, term_width;
 
+    /* Safety check: ensure metarun system is initialized */
+    if (current_run < 0 || current_run >= metarun_max) {
+        screen_save();
+        Term_clear();
+        Term_putstr(2, 5, -1, TERM_RED, "Error: No metarun data available.");
+        Term_putstr(2, 6, -1, TERM_L_WHITE, "Please start a new game first.");
+        Term_putstr(2, 8, -1, TERM_L_DARK, "Press any key to return.");
+        inkey();
+        screen_load();
+        return;
+    }
+
     /* Save & clear screen */
     screen_save();
     Term_clear();
@@ -1770,7 +1782,12 @@ void print_metarun_stats(void)
     Term_putstr(x + 1, row++, -1, TERM_WHITE, buf);
 
     /* Deaths bar - calculate actual death limit based on difficulty and curses */
-    int max_deaths = MAX(1, death_limit - 3 * curse_flag_count(CUR_DEATH));
+    /* Safe access: Use metarun curse data directly instead of curse_flag_count which may access uninitialized player data */
+    int death_curse_stacks = 0;
+    if (z_info && z_info->cu_max > CUR_DEATH) {
+        death_curse_stacks = CURSE_GET(CUR_DEATH);
+    }
+    int max_deaths = MAX(1, death_limit - 3 * death_curse_stacks);
     snprintf(buf, sizeof buf, "Deaths     : ");
     Term_putstr(col, row, -1, TERM_WHITE, buf);
     x = col + strlen(buf);
