@@ -6847,7 +6847,7 @@ void create_smithing_item(void)
 #define MAIN_MENU_SAVE_QUIT 18
 #define MAIN_MENU_QUEST_STATUS 19
 
-#define MAIN_MENU_MAX 17
+#define MAIN_MENU_MAX 14
 
 #define COL_MAIN 29
 
@@ -6866,39 +6866,33 @@ int main_menu_aux(int* highlight)
     }
 
     Term_putstr(COL_MAIN, 2, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) Known objects");
+        "Character sheet      (c)");
     Term_putstr(COL_MAIN, 3, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) Known artefacts");
+        "Known artefacts      (a)");
     Term_putstr(COL_MAIN, 4, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Character sheet");
+        "Known objects        (b)");
     Term_putstr(COL_MAIN, 5, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) Known monsters");
+        "Known monsters       (n)");
     Term_putstr(COL_MAIN, 6, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Known curses");
+        "Known curses         (u)");
     Term_putstr(COL_MAIN, 7, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Write a note");
+        "Quest status         (t)");
     Term_putstr(COL_MAIN, 8, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Take HTML screenshot");
+        "Halls of Mandos      (h)");
     Term_putstr(COL_MAIN, 9, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Halls of Mandos");
+        "Map                  (m)");
     Term_putstr(COL_MAIN, 10, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "k) Abort current game");
+        "Log                  (l)");
     Term_putstr(COL_MAIN, 11, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "l) Show old messages");
+        "Options and misc     (o)");
     Term_putstr(COL_MAIN, 12, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "m) Map");
+        "Suicide              (k)");
     Term_putstr(COL_MAIN, 13, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-        "o) Options");
+        "Save                 (s)");
     Term_putstr(COL_MAIN, 14, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
-        "q) Save and quit");
+        "Quit with save       (q)");
     Term_putstr(COL_MAIN, 15, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
-        "r) Return to game");
-    Term_putstr(COL_MAIN, 16, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
-        "s) Save game");
-    Term_putstr(COL_MAIN, 17, -1, (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
-        "u) Quest status");
-    Term_putstr(COL_MAIN, 18, -1, (*highlight == 17) ? TERM_L_BLUE : TERM_WHITE,
-        "v) Sil version info");
+        "Return to game       (r)");
 
     /* Flush the prompt */
     Term_fresh();
@@ -6911,25 +6905,22 @@ int main_menu_aux(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    // choose an option by letter - alphabetical mapping
+    // choose an option by letter - alphabetical mapping (updated for new order)
     switch (ch) {
-        case 'a': *highlight = 1; return (*highlight);  // Known objects
-        case 'b': *highlight = 2; return (*highlight);  // Known artefacts  
-        case 'c': *highlight = 3; return (*highlight);  // Character sheet
-        case 'd': *highlight = 4; return (*highlight);  // Known monsters
-        case 'e': *highlight = 5; return (*highlight);  // Known curses
-        case 'f': *highlight = 6; return (*highlight);  // Write a note
-        case 'g': *highlight = 7; return (*highlight);  // Take HTML screenshot
-        case 'h': *highlight = 8; return (*highlight);  // Halls of Mandos
-        case 'k': *highlight = 9; return (*highlight);  // Abort current game
-        case 'l': *highlight = 10; return (*highlight); // Show old messages
-        case 'm': *highlight = 11; return (*highlight); // Map
-        case 'o': *highlight = 12; return (*highlight); // Options
-        case 'q': *highlight = 13; return (*highlight); // Save and quit
+        case 'c': *highlight = 1; return (*highlight);  // Character sheet
+        case 'a': *highlight = 2; return (*highlight);  // Known artefacts
+        case 'b': *highlight = 3; return (*highlight);  // Known objects  
+        case 'n': *highlight = 4; return (*highlight);  // Known monsters
+        case 'u': *highlight = 5; return (*highlight);  // Known curses
+        case 't': *highlight = 6; return (*highlight);  // Quest status
+        case 'h': *highlight = 7; return (*highlight);  // Halls of Mandos
+        case 'm': *highlight = 8; return (*highlight);  // Map
+        case 'l': *highlight = 9; return (*highlight);  // Log
+        case 'o': *highlight = 10; return (*highlight); // Options and misc
+        case 'k': *highlight = 11; return (*highlight); // Suicide
+        case 's': *highlight = 12; return (*highlight); // Save
+        case 'q': *highlight = 13; return (*highlight); // Quit with save
         case 'r': *highlight = 14; return (*highlight); // Return to game
-        case 's': *highlight = 15; return (*highlight); // Save game
-        case 'u': *highlight = 16; return (*highlight); // Quest status
-        case 'v': *highlight = 17; return (*highlight); // Sil version info
     }
 
     /* Choose current  */
@@ -6986,80 +6977,79 @@ void do_cmd_main_menu(void)
         // if an action has been selected...
         switch (actiontype)
         {
-        case 1: // Known objects (a)
-        {
-            do_cmd_knowledge_objects();
-            leave_menu = true;
-            break;
-        }
-        case 2: // Known artefacts (b)
-        {
-            do_cmd_knowledge_artefacts();
-            leave_menu = true;
-            break;
-        }
-        case 3: // Character sheet (c)
+        case 1: // Character sheet (c)
         {
             do_cmd_character_sheet();
             leave_menu = true;
             break;
         }
-        case 4: // Known monsters (d)
+        case 2: // Known artefacts (a)
+        {
+            do_cmd_knowledge_artefacts();
+            leave_menu = true;
+            break;
+        }
+        case 3: // Known objects (b)
+        {
+            do_cmd_knowledge_objects();
+            leave_menu = true;
+            break;
+        }
+        case 4: // Known monsters (n)
         {
             do_cmd_knowledge_monsters();
             leave_menu = true;
             break;
         }
-        case 5: // Known curses (e)
+        case 5: // Known curses (u)
         {
             show_known_curses_menu();
             leave_menu = true;
             break;
         }
-        case 6: // Write a note (f)
+        case 6: // Quest status (t)
         {
-            do_cmd_note("", p_ptr->depth);
+            do_cmd_quest_status();
             leave_menu = true;
             break;
         }
-        case 7: // Take HTML screenshot (g)
-        {
-            // have to do this later to avoid taking a shot of this very menu
-            take_screen_shot = true;
-            leave_menu = true;
-            break;
-        }
-        case 8: // Halls of Mandos (h)
+        case 7: // Halls of Mandos (h)
         {
             show_scores(true);
             leave_menu = true;
             break;
         }
-        case 9: // Abort current game (k)
-        {
-            do_cmd_suicide();
-            leave_menu = true;
-            break;
-        }
-        case 10: // Show old messages (l)
-        {
-            do_cmd_messages();
-            leave_menu = true;
-            break;
-        }
-        case 11: // Map (m)
+        case 8: // Map (m)
         {
             do_cmd_view_map();
             leave_menu = true;
             break;
         }
-        case 12: // Options (o)
+        case 9: // Log (l)
+        {
+            do_cmd_messages();
+            leave_menu = true;
+            break;
+        }
+        case 10: // Options and misc (o)
         {
             do_cmd_options();
             leave_menu = true;
             break;
         }
-        case 13: // Save and quit (q)
+        case 11: // Suicide (k)
+        {
+            do_cmd_suicide();
+            leave_menu = true;
+            break;
+        }
+        case 12: // Save (s)
+        {
+            do_cmd_save_game();
+            leave_menu = true;
+            break;
+        }
+        case 13: // Quit with save (q)
         {
             do_cmd_save_game();
             
@@ -7076,24 +7066,6 @@ void do_cmd_main_menu(void)
         }
         case 14: // Return to game (r)
         {
-            leave_menu = true;
-            break;
-        }
-        case 15: // Save game (s)
-        {
-            do_cmd_save_game();
-            leave_menu = true;
-            break;
-        }
-        case 16: // Quest status (u)
-        {
-            do_cmd_quest_status();
-            leave_menu = true;
-            break;
-        }
-        case 17: // Sil version info (v)
-        {
-            do_cmd_version();
             leave_menu = true;
             break;
         }
@@ -7771,14 +7743,14 @@ static errr option_dump(cptr fname)
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 8;
+    int options = 11;
     #ifdef DEBUG_CURSES
-    options = 9;
+    options = 12;
     #endif
     if (p_ptr->noscore)    
         options++;
 
-    Term_putstr(2, 1, -1, TERM_WHITE, "Options");
+    Term_putstr(2, 1, -1, TERM_WHITE, "Options and misc");
 
     Term_putstr(2, 3, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
         "a) Interface Options");
@@ -7795,12 +7767,18 @@ int options_menu(int* highlight)
     Term_putstr(2, 9, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
         "g) Set Colours");
     Term_putstr(2, 10, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Return to Game");
+        "h) Write a note");
+    Term_putstr(2, 11, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
+        "i) Take HTML screenshot");
+    Term_putstr(2, 12, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
+        "j) Sil version info");
+    Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
+        "k) Return to Game");
 
     if (p_ptr->noscore)
     {
-        Term_putstr(2, 11, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-            "i) Debugging Options");
+        Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
+            "l) Debugging Options");
     }
 
     /* Flush the prompt */
@@ -7856,7 +7834,7 @@ int options_menu(int* highlight)
         return (7);
     }
 
-    if ((ch == 'h') || (ch == 'H') || (ch == ESCAPE) || (ch == 'q'))
+    if ((ch == 'h') || (ch == 'H'))
     {
         *highlight = 8;
         return (8);
@@ -7866,6 +7844,24 @@ int options_menu(int* highlight)
     {
         *highlight = 9;
         return (9);
+    }
+
+    if ((ch == 'j') || (ch == 'J'))
+    {
+        *highlight = 10;
+        return (10);
+    }
+
+    if ((ch == 'k') || (ch == 'K') || (ch == ESCAPE) || (ch == 'q'))
+    {
+        *highlight = 11;
+        return (11);
+    }
+
+    if ((ch == 'l') || (ch == 'L'))
+    {
+        *highlight = 12;
+        return (12);
     }
 
     /* Choose current  */
@@ -7989,11 +7985,38 @@ void do_cmd_options(void)
         }
         case 8:
         {
-            return_to_game = true;
+            do_cmd_note("", p_ptr->depth);
             Term_clear();
             break;
         }
         case 9:
+        {
+            char tmp_val[80];
+            /* Prompt */
+            Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
+            
+            /* Create default filename */
+            sprintf(tmp_val, "%s.html", op_ptr->base_name);
+            
+            /* Take HTML screenshot */
+            html_screenshot(tmp_val);
+            msg_print("HTML screenshot saved.");
+            Term_clear();
+            break;
+        }
+        case 10:
+        {
+            do_cmd_version();
+            Term_clear();
+            break;
+        }
+        case 11:
+        {
+            return_to_game = true;
+            Term_clear();
+            break;
+        }
+        case 12:
         {
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");
             Term_clear();

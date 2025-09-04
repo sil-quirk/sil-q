@@ -5296,6 +5296,7 @@ void init_logger(bool quiet)
 {
     const char* log_level_str = getenv("SIL_LOG_LEVEL");
     int level = LOG_TRACE; /* Default to TRACE level */
+    char log_path[1024];
     
     if (log_level_str && strlen(log_level_str) > 0)
     {
@@ -5314,7 +5315,36 @@ void init_logger(bool quiet)
         }
     }
 
-    FILE* log_file = my_fopen("log.txt", "w");
+    /* Build log file path in same directory as executable */
+    if (argv0)
+    {
+        int i;
+        strcpy(log_path, argv0);
+        
+        /* Find the last directory separator */
+        for (i = strlen(log_path) - 1; i >= 0; i--)
+        {
+            if (log_path[i] == '\\' || log_path[i] == '/')
+            {
+                /* Replace everything after the separator with "log.txt" */
+                strcpy(log_path + i + 1, "log.txt");
+                break;
+            }
+        }
+        
+        /* If no separator found, just use log.txt in current directory */
+        if (i < 0)
+        {
+            strcpy(log_path, "log.txt");
+        }
+    }
+    else
+    {
+        /* Fallback to current directory if argv0 not available */
+        strcpy(log_path, "log.txt");
+    }
+
+    FILE* log_file = my_fopen(log_path, "w");
     if (!log_file)
         quit("could not open log.txt for writing");
     log_add_fp(log_file, level);
