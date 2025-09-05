@@ -376,8 +376,8 @@ void do_cmd_character_sheet(void)
 }
 
 #define COL_SKILL 2
-#define COL_ABILITY 15
-#define COL_DESCRIPTION 40
+#define COL_ABILITY 16
+#define COL_DESCRIPTION 41
 
 /* ------------------------------------------------------------------
  * add_random_curse()
@@ -1469,6 +1469,7 @@ int abilities_menu2(int skilltype, int* highlight)
     byte attr;
 
     log_trace("ABILITIES_MENU2: Entering function with skilltype=%d, highlight=%d", skilltype, *highlight);
+    log_trace("ABILITIES_MENU2: Special abilities debug - skilltype=%d, S_SPC=%d", skilltype, S_SPC);
 
     // clear the abilities and description area
     wipe_screen_from(COL_ABILITY);
@@ -1478,8 +1479,69 @@ int abilities_menu2(int skilltype, int* highlight)
 
     // Add display counter for compact menu layout (avoids gaps from filtered abilities)
     int display_counter = 0;
+    
+    // For special abilities, we may need to adjust highlight to first visible ability
+    int first_visible_ability = -1;
 
     log_trace("ABILITIES_MENU2: Starting ability loop, z_info->b_max=%d", z_info->b_max);
+
+    /* Pre-scan for Special abilities to adjust highlight before display */
+    if (skilltype == S_SPC)
+    {
+        int temp_visible_count = 0;
+        int temp_first_visible = -1;
+        
+        for (i = 0; i < z_info->b_max; i++)
+        {
+            b_ptr = &b_info[i];
+            if (!b_ptr->name || b_ptr->skilltype != skilltype) continue;
+            
+            if (p_ptr->have_ability[skilltype][b_ptr->abilitynum])
+            {
+                if (temp_first_visible == -1)
+                {
+                    temp_first_visible = b_ptr->abilitynum;
+                    log_trace("ABILITIES_MENU2: Pre-scan found first_visible_ability=%d", temp_first_visible);
+                }
+                temp_visible_count++;
+            }
+        }
+        
+        /* Adjust highlight before display if needed */
+        if (temp_visible_count > 0 && temp_first_visible != -1)
+        {
+            log_trace("ABILITIES_MENU2: Pre-display highlight check - current highlight=%d (ability %d)", 
+                     *highlight, *highlight - 1);
+            
+            /* Check if current highlight corresponds to a visible ability */
+            int current_ability_num = *highlight - 1; /* Convert 1-based to 0-based */
+            bool highlight_is_visible = false;
+            
+            for (i = 0; i < z_info->b_max; i++)
+            {
+                b_ptr = &b_info[i];
+                if (!b_ptr->name || b_ptr->skilltype != skilltype) continue;
+                
+                if (b_ptr->abilitynum == current_ability_num && p_ptr->have_ability[skilltype][b_ptr->abilitynum])
+                {
+                    highlight_is_visible = true;
+                    break;
+                }
+            }
+            
+            if (!highlight_is_visible)
+            {
+                int old_highlight = *highlight;
+                *highlight = temp_first_visible + 1; /* Convert back to 1-based */
+                log_trace("ABILITIES_MENU2: PRE-DISPLAY adjusted highlight from %d to %d (first visible ability %d)", 
+                         old_highlight, *highlight, temp_first_visible);
+            }
+            else
+            {
+                log_trace("ABILITIES_MENU2: Pre-display highlight is already visible, no adjustment needed");
+            }
+        }
+    }
 
     // list the abilities
     for (i = 0; i < z_info->b_max; i++)
@@ -1496,7 +1558,16 @@ int abilities_menu2(int skilltype, int* highlight)
 
         /* For special abilities, only show granted abilities */
         if (skilltype == S_SPC && !p_ptr->have_ability[skilltype][b_ptr->abilitynum])
+        {
+            log_trace("ABILITIES_MENU2: Skipping non-granted Special ability %d (%s)", 
+                     b_ptr->abilitynum, b_name + b_ptr->name);
             continue;
+        }
+        
+        if (skilltype == S_SPC) {
+            log_trace("ABILITIES_MENU2: Found granted Special ability %d (%s)", 
+                     b_ptr->abilitynum, b_name + b_ptr->name);
+        }
 
         /* Hide deprecated WIL_OATH ability from menu (now handled at birth) */
         if (skilltype == S_WIL && b_ptr->abilitynum == WIL_OATH)
@@ -1521,6 +1592,16 @@ int abilities_menu2(int skilltype, int* highlight)
 
         // Map this visible ability to its position
         visible_abilities[visible_count] = b_ptr->abilitynum;
+        
+        // Track first visible ability for highlight adjustment
+        if (first_visible_ability == -1) {
+            first_visible_ability = b_ptr->abilitynum;
+            log_trace("ABILITIES_MENU2: Set first_visible_ability=%d (%s)", 
+                     first_visible_ability, b_name + b_ptr->name);
+        }
+
+        log_trace("ABILITIES_MENU2: Added visible ability[%d] = %d (%s)", 
+                 visible_count, b_ptr->abilitynum, b_name + b_ptr->name);
 
         log_trace("ABILITIES_MENU2: About to check have_ability[%d][%d]", skilltype, b_ptr->abilitynum);
 
@@ -1615,8 +1696,13 @@ int abilities_menu2(int skilltype, int* highlight)
         
         Term_putstr(COL_ABILITY, display_row, -1, attr, buf);
 
+        log_trace("ABILITIES_MENU2: Displayed ability %d (%s) at row %d, checking highlight match: %d == %d+1?", 
+                 b_ptr->abilitynum, b_name + b_ptr->name, display_row, *highlight, b_ptr->abilitynum);
+
         if (*highlight == b_ptr->abilitynum + 1)
         {
+            log_trace("ABILITIES_MENU2: HIGHLIGHTING MATCH! highlight=%d matches ability %d+1", 
+                     *highlight, b_ptr->abilitynum);
             // highlight the label
             strnfmt(buf, 80, "%c)", (char)'a' + visible_count);
             Term_putstr(
@@ -1625,13 +1711,47 @@ int abilities_menu2(int skilltype, int* highlight)
             // print the description of the highlighted ability
             if (b_ptr->text >= 0)
             {
+                /* Check if this is a broken oath ability and use Q: text instead */
+                char* description_text = NULL;
+                bool use_death_message = false;
+                
+                if (skilltype == S_SPC && 
+                    (b_ptr->abilitynum == SPC_OATH_MERCY || 
+                     b_ptr->abilitynum == SPC_OATH_SILENCE || 
+                     b_ptr->abilitynum == SPC_OATH_IRON ||
+                     b_ptr->abilitynum == SPC_OATH_SMITH))
+                {
+                    /* Check if this oath is broken */
+                    int oath_id = 0;
+                    if (b_ptr->abilitynum == SPC_OATH_MERCY) oath_id = OATH_MERCY;
+                    else if (b_ptr->abilitynum == SPC_OATH_SILENCE) oath_id = OATH_SILENCE;
+                    else if (b_ptr->abilitynum == SPC_OATH_IRON) oath_id = OATH_IRON;
+                    else if (b_ptr->abilitynum == SPC_OATH_SMITH) oath_id = OATH_SMITH;
+                    
+                    if (oath_id > 0 && oath_invalid(oath_id))
+                    {
+                        description_text = oath_death_message(oath_id);
+                        use_death_message = true;
+                    }
+                }
+                
                 /* Indent output by 2 character, and wrap at column 70 */
                 text_out_wrap = 79;
                 text_out_indent = COL_DESCRIPTION;
 
                 /* History */
                 Term_gotoxy(text_out_indent, 4);
-                text_out_to_screen(TERM_L_WHITE, b_text + b_ptr->text);
+                
+                if (use_death_message && description_text && description_text[0])
+                {
+                    /* Display Q: text in red for broken oaths */
+                    text_out_to_screen(TERM_RED, description_text);
+                }
+                else
+                {
+                    /* Normal ability description */
+                    text_out_to_screen(TERM_L_WHITE, b_text + b_ptr->text);
+                }
 
                 /* Reset text_out() vars */
                 text_out_wrap = 0;
@@ -1978,6 +2098,10 @@ void do_cmd_ability_screen(void)
         if ((skilltype >= 0) && (skilltype < S_MAX))
         {
             log_trace("ABILITY_SCREEN: Valid skill selected (%d), entering abilities loop", skilltype);
+            
+            /* Reset highlight2 to 1 when entering a new skill category */
+            highlight2 = 1;
+            
             while (!return_to_skills)
             {
                 log_trace("ABILITY_SCREEN: Calling abilities_menu2 for skilltype=%d with highlight2=%d", skilltype, highlight2);
@@ -2183,15 +2307,28 @@ void do_cmd_ability_screen(void)
                     // if you already have the ability...
                     else
                     {
-                        // Prevent oath special abilities from being deactivated
+                        // Prevent oath special abilities from being deactivated or reactivated when broken
                         if (skilltype == S_SPC && (abilitynum == SPC_OATH_MERCY || 
                                                    abilitynum == SPC_OATH_SILENCE || 
-                                                   abilitynum == SPC_OATH_IRON))
+                                                   abilitynum == SPC_OATH_IRON ||
+                                                   abilitynum == SPC_OATH_SMITH))
                         {
+                            /* Check if oath is broken */
+                            bool oath_broken = false;
+                            if (abilitynum == SPC_OATH_MERCY && oath_invalid(OATH_MERCY)) oath_broken = true;
+                            if (abilitynum == SPC_OATH_SILENCE && oath_invalid(OATH_SILENCE)) oath_broken = true;
+                            if (abilitynum == SPC_OATH_IRON && oath_invalid(OATH_IRON)) oath_broken = true;
+                            if (abilitynum == SPC_OATH_SMITH && oath_invalid(OATH_SMITH)) oath_broken = true;
+                            
                             if (p_ptr->active_ability[skilltype][abilitynum])
                             {
                                 Term_putstr(0, 0, -1, TERM_WHITE,
                                     "Sacred oaths cannot be deactivated once sworn.");
+                            }
+                            else if (oath_broken)
+                            {
+                                Term_putstr(0, 0, -1, TERM_RED,
+                                    "Broken oaths cannot be reactivated. They are lost forever.");
                             }
                             else
                             {

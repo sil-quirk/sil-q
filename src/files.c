@@ -1720,8 +1720,15 @@ static void display_player_misc_info(void)
 {
     /* Name */
     char name[40];
-    strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name, c_name + hp_ptr->alt_name);
-    c_put_str(TERM_L_BLUE, name, 0, 20);
+    if (p_ptr->oaths_broken) {
+        /* Show "the Oathbreaker" in red if any oath is broken */
+        strnfmt(name, sizeof(name), "%s the Oathbreaker", op_ptr->full_name);
+        c_put_str(TERM_RED, name, 0, 20);
+    } else {
+        /* Normal display with house title */
+        strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name, c_name + hp_ptr->alt_name);
+        c_put_str(TERM_L_BLUE, name, 0, 20);
+    }
 
 }
 

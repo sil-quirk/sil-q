@@ -26,6 +26,43 @@ applyTo: '**'
 
 ## Data File Parsing System - Critical Bug Fixes (September 2025)
 
+### LATEST: Oath Breaking System Enhancement (Version 0.8.7) - September 5, 2025
+**Issue**: Oath breaking experience needed dramatic improvements for better user experience
+**Implemented Enhancements**:
+1. **Improved Oath Breaking UI**: Updated `choose_oath_breaking_curse_ui()` with:
+   - Added Tolkien-style heading: "The Sundering of Sacred Vows"
+   - Shows only E: field (permanent message) from oath.txt with fade effect
+   - 3-second pause after E: text display
+   - Morgoth's attention text displayed in red with fade effect
+   - Proper spacing between text sections
+
+2. **Character Sheet Title Update**: Modified character name display in `files.c`:
+   - When any oath is broken (`p_ptr->oaths_broken`), shows "[Name] the Oathbreaker" in red
+   - Normal house title display when no oaths broken
+
+3. **Abilities Menu Death Message**: Enhanced `abilities_menu2()` in `cmd4.c`:
+   - Displays Q: field (death message) from oath.txt at bottom of abilities menu
+   - Uses proper terminal size calculation and word wrapping
+   - Displayed immediately in red color for broken oaths
+
+4. **Dynamic Text Wrapping**: Updated text wrapping throughout oath system:
+   - Uses `Term_get_size()` for actual terminal dimensions
+   - Proper word boundary detection and wrapping
+   - Respects terminal width with appropriate margins
+
+5. **Multiline Oath Confirmations**: All oath breaking confirmations use `get_check_oath_multiline()`:
+   - Smith oath breaking (cmd1.c)
+   - Mercy oath breaking (cmd1.c) 
+   - Silence oath breaking (cmd4.c)
+   - Iron oath breaking (cmd2.c)
+
+**Code Changes**:
+- `metarun.c`: Enhanced oath breaking UI with heading, spacing, and red text
+- `files.c`: Added oathbreaker title display logic
+- `cmd4.c`: Improved abilities menu with proper Q: text wrapping
+- `birth.c`: Dynamic text wrapping using terminal size
+- All oath breaking locations use multiline confirmation prompts
+
 ### MAJOR: Oath Selection Screen Text Display Update (Version 0.8.7) - September 4, 2025
 **Issue**: Oath selection screen had poor text wrapping, concatenated all text fields, and used hardcoded text instead of parsed oath.txt data
 **Problem Details**:
