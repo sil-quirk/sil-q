@@ -5346,6 +5346,9 @@ void generate_cave(void)
     /*allow uniques to be generated everywhere but in nests/pits*/
     allow_uniques = true;
 
+    /* Restrict quest monsters from spawning outside their quest contexts */
+    get_mon_num_hook = quest_monster_spawn_okay;
+
     // display the entry poetry
 if (playerturn == 0) {
     char extra[4][100];

@@ -1,10 +1,8 @@
-# File: quest.txt
-
+# File: quest.txt (updated from Quest_texts.txt)
 # This file is used to initialize the "q_info" array, which is used
 # to store quest information for Sil-Q.
 
 # === Understanding Quest Information ===
-
 # Q: Quest index : Quest name
 # T: Title text
 # C: Challenge description
@@ -21,112 +19,84 @@ V:0.8.7
 
 # Quest of Tulkas the Strong
 Q:1:Tulkas the Strong
-T:The Champion of Valinor seeks a worthy opponent
-C:Defeat the randomly assigned enemy that challenges your might
-O:OATH_SILENCE
+T:The Strong One tests your mettle in combat
+C:Hunt down the named creature of shadow, [monster name], and return victorious
+O:2
 Y:1
 S:1:0:0:0
-A:9:5
-I:Tulkas the Strong, mightiest of the Valar in deeds of prowess,
-I:stands before you with a grin of anticipation.
+I:The air trembles as if with distant thunder, and a great, booming laugh echoes in the stone halls.
+I:Before you stands Tulkas the Strong, his eyes bright with challenge.
 I:
-I:"Ho there, brave one! I have long sought a mortal worthy
-I:of true challenge. Face the enemy I shall name, and prove
-I:your valor in battle!"
+I:"Ho, champion! I have marked your passage through these lightless depths.
+I:There is fire in your heart and strength in your arm! Such valour pleases me."
 I:
-I:"Should you succeed, I shall grant you a treasure forged
-I:in the fires of Valinor itself, and unlock the Oath of
-I:Silence for your future endeavors."
-W:Tulkas roars with delight as you return victorious:
+I:"But valour must be tested, as steel is tested in the forge!"
+I:"There is a creature of shadow that haunts these ways, a foul beast known as [monster name]."
+I:"Hunt it down. Slay this foe and return to me with word of your victory."
+I:"Do this, and a weapon of great renown, [artifact name], shall be yours!"
+W:A mighty laugh rings out, shaking dust from the ceiling. Tulkas appears before you, radiating power and delight.
 W:
-W:"Magnificently done! Your prowess rivals the greatest
-W:champions of old. Accept this gift, wrought in the
-W:smithies of the Blessed Realm!"
-W:
-W:"You have also proven worthy of the Oath of Silence -
-W:the path of the grim and wordless warrior is now open
-W:to you in future lives."
+W:"A glorious fight! I felt the earth shake with the fall of your foe!"
+W:"You have proven your might and shown courage worthy of the songs of old."
+W:"Take this prize—wrought ere the Sun and Moon first rose—and wield it well!"
 
-# Quest of Aule the Smith  
-Q:2:Aule the Smith
-T:The Master of all crafts seeks one worthy of his secrets
-C:Forge an artifact with four or more ego abilities
-O:OATH_SMITH
+# Quest of Aulë the Smith
+Q:2:Aulë the Smith
+T:The Maker challenges you to prove your craft
+C:At Aulë’s forge, create a masterwork of worth and purpose (25 difficulty at least)
+O:4
 Y:0
 S:0:0:0:0
 K:SMT:2
-A:9:1
-I:Aule the Smith, maker of the Silmarils' vessel and lord
-I:of all crafts, examines your hands with eyes like forge-fire.
+A:8:1
+I:The air is warm with the heat of a distant forge, and a voice like the ringing of a hammer on an anvil speaks.
+I:Aulë the Smith regards you with a deep and knowing gaze.
 I:
-I:"I see potential in these hands, yet they lack the wisdom
-I:of true mastery. Create for me an artifact of four great
-I:powers or more, and I shall share the secrets of my forge."
-I:
-I:"Success will grant you knowledge beyond mortal smiths,
-I:and open the path of the Smith's Oath - to craft all
-I:your gear by your own hand."
-W:Aule nods with satisfaction as you present your creation:
+I:"I have seen your works, mortal. There is a spark of the fire of creation within you."
+I:"But a spark is not a flame. The substance of the earth does not yield its secrets gladly."
+I:"Here is my forge. Its fires burn with the heat of the world's heart."
+I:"Take up the hammer, and from the base matter of this place, create for me a thing of worth and purpose."
+W:You lay your finished work before the Smith. Aulë turns it in his mighty hands, weighing craft and spirit alike.
 W:
-W:"Well done! Your skill shows promise worthy of divine
-W:teaching. I grant you the secret of my forge - knowledge
-W:beyond mortal smiths!"
-W:
-W:"The Smith's Oath is now yours to take - may you craft
-W:all blades and armor by your own skilled hands."
+W:"It is well-wrought. You have listened to the metal and persuaded it to your will."
+W:"You are worthy of my blessing. May your arm never tire at the anvil, and may hidden flaws reveal themselves to your eye."
 
 # Quest of Mandos the Doomsman
-Q:3:Mandos the Doomsman  
-T:The Judge of the Dead seeks justice in his tomb
-C:Clear all enemies from the tomb of the slain
-O:OATH_IRON
+Q:3:Mandos the Doomsman
+T:The Doomsman bids you release a bound spirit
+C:Unmake the false body and free Brodda’s spirit to Mandos’s judgment
+O:3
 Y:0
 S:0:0:1:0
-A:9:0
-I:Mandos the Doomsman, keeper of the Houses of the Dead
-I:and judge of all fates, regards you with eyes of starlight.
+A:8:0
+I:A chill presence fills the chamber, and the air grows still. Before you is a veiled and solemn figure upon a throne of black stone.
+I:It is Mandos, the Judge of the Valar, and his voice is low and grave, like the turning of the ages.
 I:
-I:"Death has been defiled in this place. The tomb meant for
-I:the honored dead crawls with foul creatures. Cleanse it
-I:of all enemies, and restore the sanctity of rest."
-I:
-I:"Do this service for the dead, and I shall grant you
-I:my protection against fear, and open the Iron Oath -
-I:the path of unwavering courage."
-W:Mandos bows deeply as you complete your grim task:
+I:"Child of Middle-earth, here lingers a spirit that should long ago have departed the circles of the world."
+I:"The black power of Morgoth has kept the spirit of Brodda bound to this place and lent it a mockery of life."
+I:"Grant his tormented spirit its final release, that it may at last face my judgment. Fulfill this doom, and the way deeper shall be opened."
+W:As the false body falls, a long, sorrowful sigh echoes, and the spirit is gone. A profound stillness settles upon the place.
 W:
-W:"Justice is done, and the dead may rest in peace.
-W:Accept my blessing - protection from the fears that
-W:plague mortal hearts."
-W:
-W:"The Iron Oath is now yours - may none daunt you
-W:from facing even Morgoth himself with courage
-W:unshaken."
+W:"The mockery is unmade. The spirit of Brodda is unbound and set upon the path to its final judgment."
+W:"You have not wrought vengeance, but restored a thread of the natural order, long tangled by the Enemy’s malice."
+W:"Accept now this gift: a spirit shielded from the great fears that unman the hearts of mortals. Go forth, and walk unafraid."
 
-# Quest of Niena the Mourner
-Q:4:Niena the Mourner
-T:The Lady of Mercy tests your compassion
-C:Reach the stairs without killing any creatures you encounter  
-O:OATH_MERCY
+# Quest of Nienna, Lady of Pity
+Q:4:Nienna, Lady of Pity
+T:The Lady of Pity tests your compassion
+C:Find the downward stair without taking a life
+O:1
 Y:1
 S:0:1:0:1
 K:STL:MERCY_BONUS
-A:9:6
-I:Niena the Mourner, she who weeps for all suffering,
-I:appears before you wreathed in silver tears.
+A:8:6
+I:A soft, sorrowful light gathers in the gloom. In its midst stands a figure cloaked in grey, her eyes holding the memory of every grief.
+I:It is Nienna, the Weeper, and her voice is as gentle as falling rain.
 I:
-I:"Too much death, too much pain... I would see if
-I:mercy yet lives in mortal hearts. Reach the stairs
-I:without taking life, and show that compassion endures."
-I:
-I:"Your restraint shall be rewarded with enhanced stealth,
-I:and access to the Oath of Mercy - to leave Angband
-I:without shedding blood of the Children of Iluvatar."
-W:Niena smiles through her tears as you complete the trial:
+I:"Child, this place is filled with pain. The creatures that dwell here are twisted and marred by long darkness."
+I:"If there is yet pity in your heart, walk the path downward, but raise no hand against the tormented things that dwell here."
+I:"Let compassion be your shield and your guide. As a sign of my faith, the ways of descent shall be revealed to your sight."
+W:As your foot touches the first step of the downward stair, peace washes over you, and the gentle voice of Nienna returns.
 W:
-W:"Beautiful... mercy still lives in mortal hearts.
-W:Your compassion shall be rewarded with the gift
-W:of moving unseen."
-W:
-W:"The Oath of Mercy is yours - may you find a path
-W:through darkness that spills no unnecessary blood."
+W:"You have chosen pity over violence. You have walked through fear and left behind not death, but a glimmer of hope."
+W:"For the mercy you have shown to the lost, I grant you this blessing: may your path be shrouded in silence when compassion is your guide."

@@ -4188,7 +4188,11 @@ int FAR PASCAL WinMain(
 
     use_background_colors = true;
 
-    init_logger(false);
+    /* Get executable path for log file placement */
+    char exe_path[1024];
+    GetModuleFileName(NULL, exe_path, sizeof(exe_path));
+
+    init_logger(false, exe_path);
 
     // Sil-y: commented this out
     // MSG msg;

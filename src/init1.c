@@ -782,7 +782,8 @@ static bool add_text(u32b* offset, header* head, cptr buf)
     /* Advance the index */
     head->text_size += strlen(buf);
 
-    // head->text_ptr[head->text_size] = '\0';
+    /* Ensure proper null termination */
+    head->text_ptr[head->text_size] = '\0';
 
     /* Success */
     return (true);
@@ -5026,49 +5027,56 @@ errr parse_quest_info(char* buf, header* head)
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
-    /* Process 'T' for "Type info" or "Title text" */
+    /* Process 'T' for "Title text" */
     else if (buf[0] == 'T')
     {
-        int quest_num, difficulty;
-
         /* There better be a current quest_ptr */
         if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Try to scan for numeric values first (Type info) */
-        if (2 == sscanf(buf + 2, "%d:%d", &quest_num, &difficulty))
-        {
-            /* Save the values */
-            quest_ptr->quest_num = quest_num;
-            quest_ptr->difficulty = difficulty;
-        }
-        else
-        {
-            /* Treat as title text and store in description */
-            if (!add_text(&(quest_ptr->text), head, buf + 2))
-                return (PARSE_ERROR_OUT_OF_MEMORY);
-        }
+        /* Store title text in dedicated field */
+        if (!add_text(&(quest_ptr->title_text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
-    /* Process 'C' for "Completion requirements" */
+    /* Process 'C' for "Challenge text" */
     else if (buf[0] == 'C')
     {
         /* There better be a current quest_ptr */
         if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Store the completion text in description for now */
-        if (!add_text(&(quest_ptr->text), head, buf + 2))
+        /* Store challenge text in dedicated field */
+        if (!add_text(&(quest_ptr->challenge_text), head, buf + 2))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
-    /* Process 'O' for "Objective" */
-    else if (buf[0] == 'O')
+    /* Process 'Y' for "quest tYpe" */
+    else if (buf[0] == 'Y')
     {
         /* There better be a current quest_ptr */
         if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Add objective text to description */
-        if (!add_text(&(quest_ptr->text), head, buf + 2))
-            return (PARSE_ERROR_OUT_OF_MEMORY);
+        /* Parse quest type */
+        quest_ptr->quest_type = atoi(buf + 2);
+    }
+
+    /* Process 'O' for "Oath" */
+    else if (buf[0] == 'O')
+    {
+        int oath_id;
+        
+        /* There better be a current quest_ptr */
+        if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse oath ID directly as integer */
+        oath_id = atoi(buf + 2);
+        
+        /* Validate oath ID range (0-4) */
+        if (oath_id < 0 || oath_id > 4) {
+            oath_id = 0; /* Default to no oath */
+        }
+        
+        /* Store the oath ID */
+        quest_ptr->oath_id = oath_id;
     }
 
     /* Process 'Y' for "Yarn/story" */
@@ -5085,18 +5093,18 @@ errr parse_quest_info(char* buf, header* head)
     /* Process 'A' for "Ability reward" */
     else if (buf[0] == 'A')
     {
-        int reward_type, reward_value;
+        int ability_type, ability_id;
 
         /* There better be a current quest_ptr */
         if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
         /* Scan for the values */
-        if (2 != sscanf(buf + 2, "%d:%d", &reward_type, &reward_value))
+        if (2 != sscanf(buf + 2, "%d:%d", &ability_type, &ability_id))
             return (PARSE_ERROR_GENERIC);
 
-        /* Save the values */
-        quest_ptr->reward_type = reward_type;
-        quest_ptr->reward_value = reward_value;
+        /* Save the values in the new ability fields */
+        quest_ptr->ability_type = ability_type;
+        quest_ptr->ability_id = ability_id;
     }
 
     /* Process 'D' for "Description" */
@@ -5113,23 +5121,43 @@ errr parse_quest_info(char* buf, header* head)
     /* Process 'S' for "Stat bonuses" */
     else if (buf[0] == 'S')
     {
+        int str_bonus, dex_bonus, con_bonus, gra_bonus;
+        
         /* There better be a current quest_ptr */
         if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Parse stat bonuses but don't store them for now */
-        /* Format: S:str:dex:con:gra */
-        /* This is handled elsewhere in the quest system */
+        /* Parse stat bonuses: S:str:dex:con:gra */
+        if (4 == sscanf(buf + 2, "%d:%d:%d:%d", &str_bonus, &dex_bonus, &con_bonus, &gra_bonus))
+        {
+            quest_ptr->stat_bonuses[0] = str_bonus;
+            quest_ptr->stat_bonuses[1] = dex_bonus;
+            quest_ptr->stat_bonuses[2] = con_bonus;
+            quest_ptr->stat_bonuses[3] = gra_bonus;
+        }
     }
 
     /* Process 'K' for "sKill bonuses" */
     else if (buf[0] == 'K')
     {
+        char skill_name[32];
+        int skill_bonus;
+        
         /* There better be a current quest_ptr */
         if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Parse skill bonuses but don't store them for now */
-        /* Format: K:skill:bonus */
-        /* This is handled elsewhere in the quest system */
+        /* Parse skill bonuses: K:skill:bonus */
+        if (2 == sscanf(buf + 2, "%31[^:]:%d", skill_name, &skill_bonus))
+        {
+            /* Map skill names to skill types (simplified for now) */
+            if (my_stricmp(skill_name, "SMT") == 0) {
+                quest_ptr->skill_type = 1; /* Smithing */
+            } else if (my_stricmp(skill_name, "STL") == 0) {
+                quest_ptr->skill_type = 2; /* Stealth */
+            } else {
+                quest_ptr->skill_type = 0; /* Unknown */
+            }
+            quest_ptr->skill_bonus = skill_bonus;
+        }
     }
 
     /* Process 'I' for "Initialization text" */
@@ -5138,8 +5166,15 @@ errr parse_quest_info(char* buf, header* head)
         /* There better be a current quest_ptr */
         if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Store the initialization text */
-        if (!add_text(&(quest_ptr->text), head, buf + 2))
+        /* Store the initialization text in dedicated field with newline separator */
+        if (quest_ptr->init_text != 0) {
+            /* Add newline separator if not first line */
+            if (!add_text(&(quest_ptr->init_text), head, "\n"))
+                return (PARSE_ERROR_OUT_OF_MEMORY);
+        }
+        
+        /* Store the text (buf + 2 points after "I:") */
+        if (!add_text(&(quest_ptr->init_text), head, buf + 2))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
@@ -5149,8 +5184,15 @@ errr parse_quest_info(char* buf, header* head)
         /* There better be a current quest_ptr */
         if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Store the completion text */
-        if (!add_text(&(quest_ptr->text), head, buf + 2))
+        /* Store the completion text in dedicated field with newline separator */
+        if (quest_ptr->completion_text != 0) {
+            /* Add newline separator if not first line */
+            if (!add_text(&(quest_ptr->completion_text), head, "\n"))
+                return (PARSE_ERROR_OUT_OF_MEMORY);
+        }
+        
+        /* Store the completion text (buf + 2 points after "W:") */
+        if (!add_text(&(quest_ptr->completion_text), head, buf + 2))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 

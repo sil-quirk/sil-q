@@ -3959,11 +3959,21 @@ bool abort_for_mercy(monster_type* m_ptr)
  */
 void apply_oath_breaking_curse(int oath_id)
 {
-    char oath_names[5][20] = {"", "Mercy", "Silence", "Iron", "Smith"};
+    cptr oath_name;
     
     if (oath_id < 1 || oath_id > 4) return;
     
-    log_trace("Applying oath breaking consequences for oath %d (%s)", oath_id, oath_names[oath_id]);
+    /* Get oath name for logging - use static fallback names to avoid dangling pointer */
+    static const char* fallback_oath_names[] = {"", "Mercy", "Silence", "Iron", "Smith"};
+    if (oath_id <= z_info->oath_max && oath_info[oath_id].name) {
+        oath_name = oath_name_text + oath_info[oath_id].name;
+    } else if (oath_id < 5) {
+        oath_name = fallback_oath_names[oath_id];
+    } else {
+        oath_name = "Unknown";
+    }
+    
+    log_trace("Applying oath breaking consequences for oath %d (%s)", oath_id, oath_name);
     
     /* Disable the corresponding special ability */
     if (oath_id == OATH_MERCY) {
@@ -4000,7 +4010,7 @@ void apply_oath_breaking_curse(int oath_id)
     /* Ban this oath for the rest of the metarun */
     metarun_ban_oath(oath_id);
     
-    log_trace("Banned oath %d (%s) from future selection in this metarun", oath_id, oath_names[oath_id]);
+    log_trace("Banned oath %d (%s) from future selection in this metarun", oath_id, oath_name);
 }
 
 void break_mercy_oath(monster_type* m_ptr, int damage)

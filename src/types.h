@@ -821,12 +821,23 @@ struct style_type {
 struct quest_type
 {
     u32b name; /* Name (offset) */
-    u32b text; /* Text (offset) */
+    u32b text; /* Text (offset) - legacy field for compatibility */
+    u32b init_text; /* Initialization text (I:) (offset) */
+    u32b completion_text; /* Completion text (W:) (offset) */
+    u32b title_text; /* Title text (T:) (offset) */
+    u32b challenge_text; /* Challenge text (C:) (offset) */
     
     byte quest_num; /* Quest index (TULKAS, AULE, MANDOS, NIENA) */
     byte difficulty; /* Difficulty level */
     byte reward_type; /* Type of reward (ability, item, etc.) */
     byte reward_value; /* Specific reward identifier */
+    byte oath_id; /* Associated oath ID (links to oath_info array) */
+    byte quest_type; /* Quest type (Y: field - 0=vault, 1=roulet) */
+    byte stat_bonuses[4]; /* Stat bonuses (S: field - str:dex:con:gra) */
+    byte skill_type; /* Skill type for bonuses (K: field first part) */
+    byte skill_bonus; /* Skill bonus amount (K: field second part) */
+    byte ability_type; /* Special ability type (A: field first part) */
+    byte ability_id; /* Special ability ID (A: field second part) */
     u32b flags; /* Quest flags */
 };
 

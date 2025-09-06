@@ -5661,7 +5661,664 @@ static int select_tulkas_quest_prize(int target_level)
 }
 
 /*
+ * Apply quest rewards (stats, skills, abilities) based on quest.txt data
+ */
+void apply_quest_rewards(int quest_idx)
+{
+    quest_type* q_ptr;
+    
+    /* Validate quest index */
+    if (quest_idx <= 0 || quest_idx >= z_info->quest_max) return;
+    
+    q_ptr = &quest_info[quest_idx];
+    
+    /* Apply stat bonuses */
+    for (int i = 0; i < 4; i++) {
+        if (q_ptr->stat_bonuses[i] > 0) {
+            /* stat_bonuses array: [str, dex, con, gra] */
+            int stat_idx = i; /* A_STR=0, A_DEX=1, A_CON=2, A_GRA=3 */
+            
+            for (int j = 0; j < q_ptr->stat_bonuses[i]; j++) {
+                if (p_ptr->stat_base[stat_idx] < BASE_STAT_MAX) {
+                    p_ptr->stat_base[stat_idx]++;
+                }
+            }
+            
+            log_trace("Applied %s bonus: +%d", 
+                     (i == 0 ? "STR" : i == 1 ? "DEX" : i == 2 ? "CON" : "GRA"), 
+                     q_ptr->stat_bonuses[i]);
+        }
+    }
+    
+    /* Apply skill bonus */
+    if (q_ptr->skill_type > 0 && q_ptr->skill_bonus > 0) {
+        /* skill_type: 1=Smithing, 2=Stealth, etc. */
+        if (q_ptr->skill_type == 1) { /* Smithing */
+            p_ptr->skill_base[S_SMT] += q_ptr->skill_bonus;
+            log_trace("Applied Smithing bonus: +%d", q_ptr->skill_bonus);
+        }
+        else if (q_ptr->skill_type == 2) { /* Stealth */
+            p_ptr->skill_base[S_STL] += q_ptr->skill_bonus;
+            log_trace("Applied Stealth bonus: +%d", q_ptr->skill_bonus);
+        }
+        /* Add more skill types as needed */
+    }
+    
+    /* Apply special ability */
+    if (q_ptr->ability_type > 0) {
+        /* ability_type 8 is the main type based on quest.txt */
+        if (q_ptr->ability_type == 8) {
+            switch (q_ptr->ability_id) {
+                case 0: /* Mandos - Fear resistance */
+                    msg_print("You feel protected from the great fears that unman mortal hearts.");
+                    /* This could be implemented as a permanent flag if such system exists */
+                    log_trace("Applied special ability: Fear resistance (Mandos)");
+                    break;
+                    
+                case 1: /* Aule - Enhanced smithing sight */
+                    msg_print("Hidden flaws in crafted items now reveal themselves to your eye.");
+                    /* This could enhance item identification or crafting */
+                    log_trace("Applied special ability: Enhanced smithing sight (Aule)");
+                    break;
+                    
+                case 5: /* Tulkas - Combat prowess */
+                    msg_print("The fire of battle burns ever brighter within you.");
+                    /* This could be a combat bonus */
+                    log_trace("Applied special ability: Combat prowess (Tulkas)");
+                    break;
+                    
+                case 6: /* Nienna - Stealth when showing mercy */
+                    msg_print("Your path shall be shrouded in silence when compassion guides you.");
+                    /* This could enhance stealth when certain conditions are met */
+                    log_trace("Applied special ability: Mercy stealth (Nienna)");
+                    break;
+                    
+                default:
+                    log_trace("Unknown special ability: type %d, id %d", q_ptr->ability_type, q_ptr->ability_id);
+                    break;
+            }
+        }
+        else {
+            log_trace("Unknown ability type: %d", q_ptr->ability_type);
+        }
+    }
+    
+    /* Recalculate bonuses and redraw */
+    p_ptr->update |= (PU_BONUS);
+    p_ptr->redraw |= (PR_STATS);
+}
+
+/*
+ * Get oath ID from quest data
+ */
+int get_quest_oath_id(int quest_idx)
+{
+    quest_type* q_ptr;
+    
+    /* Validate quest index */
+    if (quest_idx <= 0 || quest_idx >= z_info->quest_max) return 0; /* No oath */
+    
+    q_ptr = &quest_info[quest_idx];
+    return q_ptr->oath_id;
+}
+
+/*
+ * Extract quest initialization texts from quest data
+ * Returns array of text strings split by paragraph breaks
+ */
+cptr* extract_quest_init_texts(int quest_idx, int* count)
+{
+    quest_type* q_ptr;
+    cptr full_text;
+    cptr* texts;
+    char* text_copy;
+    char* line_start;
+    char* line_end;
+    int text_count = 0;
+    int max_texts = 20; /* Maximum expected paragraphs */
+    int len;
+    
+    /* Initialize count */
+    *count = 0;
+    
+    /* Validate quest index */
+    if (quest_idx <= 0 || quest_idx >= z_info->quest_max) return NULL;
+    
+    q_ptr = &quest_info[quest_idx];
+    if (!q_ptr->init_text) return NULL;
+    
+    /* Get the initialization text */
+    full_text = q_text + q_ptr->init_text;
+    if (!full_text || strlen(full_text) == 0) return NULL;
+    
+    /* Allocate text array */
+    texts = C_ZNEW(max_texts, cptr);
+    if (!texts) return NULL;
+    
+    /* Create a working copy of the text */
+    len = strlen(full_text);
+    text_copy = C_ZNEW(len + 1, char);
+    if (!text_copy) {
+        FREE(texts);
+        return NULL;
+    }
+    my_strcpy(text_copy, full_text, len + 1);
+    
+    /* Split text by single newlines (each I: line becomes an entry) */
+    line_start = text_copy;
+    while (line_start && *line_start && text_count < max_texts - 1) {
+        /* Find the end of this line */
+        line_end = strchr(line_start, '\n');
+        if (line_end) {
+            *line_end = '\0';
+        }
+        
+        /* Store the line (even if empty - empty lines become paragraph breaks) */
+        texts[text_count] = string_make(line_start);
+        if (texts[text_count]) text_count++;
+        
+        /* Move to next line */
+        if (line_end) {
+            line_start = line_end + 1;
+        } else {
+            /* No more lines to process */
+            break;
+        }
+    }
+    
+    /* Clean up */
+    FREE(text_copy);
+    
+    *count = text_count;
+    return texts;
+}
+
+/*
+ * Extract quest completion texts from quest data
+ * Returns array of text strings split by paragraph breaks
+ */
+cptr* extract_quest_completion_texts(int quest_idx, int* count)
+{
+    quest_type* q_ptr;
+    cptr full_text;
+    cptr* texts;
+    char* text_copy;
+    char* line_start;
+    char* line_end;
+    int text_count = 0;
+    int max_texts = 20; /* Maximum expected paragraphs */
+    int len;
+    
+    /* Initialize count */
+    *count = 0;
+    
+    /* Validate quest index */
+    if (quest_idx <= 0 || quest_idx >= z_info->quest_max) return NULL;
+    
+    q_ptr = &quest_info[quest_idx];
+    if (!q_ptr->completion_text) return NULL;
+    
+    /* Get the completion text */
+    full_text = q_text + q_ptr->completion_text;
+    if (!full_text || strlen(full_text) == 0) return NULL;
+    
+    /* Allocate text array */
+    texts = C_ZNEW(max_texts, cptr);
+    if (!texts) return NULL;
+    
+    /* Create a working copy of the text */
+    len = strlen(full_text);
+    text_copy = C_ZNEW(len + 1, char);
+    if (!text_copy) {
+        FREE(texts);
+        return NULL;
+    }
+    my_strcpy(text_copy, full_text, len + 1);
+    
+    /* Split text by single newlines (each W: line becomes an entry) */
+    line_start = text_copy;
+    while (line_start && text_count < max_texts - 1) {
+        /* Find the end of this line */
+        line_end = strchr(line_start, '\n');
+        if (line_end) {
+            *line_end = '\0';
+        }
+        
+        /* Store the line (even if empty - empty lines become paragraph breaks) */
+        texts[text_count] = string_make(line_start);
+        if (texts[text_count]) text_count++;
+        
+        /* Move to next line */
+        if (line_end) {
+            line_start = line_end + 1;
+        } else {
+            /* This was the last line, we're done */
+            break;
+        }
+    }
+    
+    /* Clean up */
+    FREE(text_copy);
+    
+    *count = text_count;
+    return texts;
+}
+
+/*
+ * Get quest title from quest data
+ */
+static cptr get_quest_title(int quest_idx)
+{
+    log_trace("QUEST TITLE: quest_idx=%d, z_info->quest_max=%d", quest_idx, z_info ? z_info->quest_max : -1);
+    
+    if (!z_info || quest_idx <= 0 || quest_idx >= z_info->quest_max || !quest_info) {
+        log_trace("QUEST TITLE: Invalid bounds check, returning Unknown Quest");
+        return "Unknown Quest";
+    }
+    
+    quest_type* q_ptr = &quest_info[quest_idx];
+    if (!q_ptr) {
+        log_trace("QUEST TITLE: q_ptr is NULL, returning Unknown Quest");
+        return "Unknown Quest";
+    }
+    
+    if (q_ptr->title_text && q_text) {
+        log_trace("QUEST TITLE: Using title_text");
+        return q_text + q_ptr->title_text;
+    }
+    
+    /* Fallback to quest name */
+    if (q_ptr->name && quest_name_text) {
+        log_trace("QUEST TITLE: Using quest name fallback");
+        return quest_name_text + q_ptr->name;
+    }
+    
+    log_trace("QUEST TITLE: No valid text found, returning Unknown Quest");
+    return "Unknown Quest";
+}
+
+/*
+ * Get quest challenge description from quest data
+ */
+static cptr get_quest_challenge(int quest_idx)
+{
+    log_trace("QUEST CHALLENGE: quest_idx=%d, z_info->quest_max=%d", quest_idx, z_info ? z_info->quest_max : -1);
+    
+    if (!z_info || quest_idx <= 0 || quest_idx >= z_info->quest_max || !quest_info) {
+        log_trace("QUEST CHALLENGE: Invalid bounds check, returning Unknown challenge");
+        return "Unknown challenge";
+    }
+    
+    quest_type* q_ptr = &quest_info[quest_idx];
+    if (!q_ptr) {
+        log_trace("QUEST CHALLENGE: q_ptr is NULL, returning Unknown challenge");
+        return "Unknown challenge";
+    }
+    
+    if (q_ptr->challenge_text && q_text) {
+        log_trace("QUEST CHALLENGE: Using challenge_text");
+        return q_text + q_ptr->challenge_text;
+    }
+    
+    log_trace("QUEST CHALLENGE: No valid text found, returning default");
+    return "Face the unknown challenge";
+}
+
+/*
+ * Get oath name from oath ID using oath_info data
+ */
+static cptr get_oath_name_from_id(byte oath_id)
+{
+    if (oath_id <= 0 || oath_id >= z_info->oath_max) return "No oath";
+    
+    oath_type* o_ptr = &oath_info[oath_id];
+    if (o_ptr->name) {
+        return oath_name_text + o_ptr->name;
+    }
+    
+    /* Fallback to hardcoded names if oath_info not loaded */
+    switch(oath_id) {
+        case 0: return "No oath";
+        case 1: return "Mercy oath";
+        case 2: return "Silence oath";
+        case 3: return "Iron oath";  
+        case 4: return "Smith oath";
+        default: return "Unknown oath";
+    }
+}
+
+/*
+ * Display wrapped text for quest status - simple word wrapping
+ */
+static void display_wrapped_text(int col, int *row, cptr text, byte color, int max_width)
+{
+    char line_buf[256];
+    int line_pos = 0;
+    int effective_width = max_width - col - 4; /* Leave margin for indentation */
+    int text_len = strlen(text);
+    int word_start = 0;
+    int i = 0;
+    int loop_count = 0; /* Safety counter for this function call */
+    
+    log_trace("WRAP: Entry - text='%s', max_width=%d, effective_width=%d, text_len=%d", 
+              text ? text : "NULL", max_width, effective_width, text_len);
+    
+    if (effective_width < 20) effective_width = 20; /* Minimum width */
+    
+    line_buf[0] = '\0';
+    
+    log_trace("WRAP: Starting main loop, i=%d, text_len=%d", i, text_len);
+    
+    while (i <= text_len) {
+        log_trace("WRAP: Loop iteration i=%d, text_len=%d, char='%c', loop_count=%d", 
+                  i, text_len, i < text_len ? text[i] : '\0', loop_count);
+        
+        /* Safety check to prevent infinite loop */
+        loop_count++;
+        if (loop_count > 1000) {
+            log_trace("WRAP: SAFETY BREAK - loop_count exceeded 1000, breaking out");
+            break;
+        }
+        
+        /* End of string or found a space */
+        if (i == text_len || text[i] == ' ') {
+            log_trace("WRAP: Found word boundary at i=%d", i);
+            /* Extract the current word */
+            int word_len = i - word_start;
+            char word[128];
+            
+            log_trace("WRAP: word_len=%d, word_start=%d", word_len, word_start);
+            
+            if (word_len > 0 && word_len < sizeof(word)) {
+                my_strcpy(word, text + word_start, word_len + 1);
+                word[word_len] = '\0';
+                
+                log_trace("WRAP: Extracted word='%s', length=%d", word, word_len);
+                
+                /* Check if adding this word would exceed the line width */
+                int new_line_len = line_pos + (line_pos > 0 ? 1 : 0) + word_len;
+                
+                log_trace("WRAP: new_line_len=%d, effective_width=%d, line_pos=%d", new_line_len, effective_width, line_pos);
+                
+                if (new_line_len > effective_width && line_pos > 0) {
+                    /* Output current line and start new line with this word */
+                    log_trace("WRAP: Outputting line: '%s'", line_buf);
+                    Term_putstr(col + 2, (*row)++, -1, color, line_buf);
+                    my_strcpy(line_buf, word, sizeof(line_buf));
+                    line_pos = word_len;
+                    log_trace("WRAP: Started new line with word='%s', line_pos=%d", word, line_pos);
+                } else {
+                    /* Add word to current line */
+                    if (line_pos > 0) {
+                        my_strcat(line_buf, " ", sizeof(line_buf));
+                        line_pos++;
+                        log_trace("WRAP: Added space, line_pos now=%d", line_pos);
+                    }
+                    my_strcat(line_buf, word, sizeof(line_buf));
+                    line_pos += word_len;
+                    log_trace("WRAP: Added word to line, line_buf='%s', line_pos=%d", line_buf, line_pos);
+                }
+            }
+            
+            /* Skip spaces and move to next word */
+            log_trace("WRAP: Skipping spaces starting at i=%d", i);
+            while (i < text_len && text[i] == ' ') {
+                i++;
+                log_trace("WRAP: Skipped space, i now=%d", i);
+            }
+            word_start = i;
+            log_trace("WRAP: Set word_start=%d", word_start);
+        } else {
+            i++;
+            log_trace("WRAP: Advanced i to %d", i);
+        }
+    }
+    
+    /* Output any remaining text in the buffer */
+    if (line_pos > 0) {
+        log_trace("WRAP: Outputting final line: '%s'", line_buf);
+        Term_putstr(col + 2, (*row)++, -1, color, line_buf);
+    }
+    
+    log_trace("WRAP: Function completed");
+}
+
+/*
+ * Simple string search function - finds needle in haystack
+ * Returns pointer to first occurrence, or NULL if not found
+ */
+static char* my_strstr(const char* haystack, const char* needle)
+{
+    if (!haystack || !needle) return NULL;
+    
+    int needle_len = strlen(needle);
+    if (needle_len == 0) return (char*)haystack;
+    
+    for (const char* p = haystack; *p; p++) {
+        int i;
+        for (i = 0; i < needle_len && p[i] && p[i] == needle[i]; i++);
+        if (i == needle_len) {
+            return (char*)p;
+        }
+    }
+    return NULL;
+}
+
+/*
+ * Process placeholders in quest text (challenge, etc.) with actual values
+ */
+static cptr process_quest_placeholders(cptr text, int quest_idx)
+{
+    static char processed_buf[256];
+    
+    log_trace("PLACEHOLDER: Entry - text='%s', quest_idx=%d", text ? text : "NULL", quest_idx);
+    
+    if (!text) {
+        log_trace("PLACEHOLDER: text is NULL, returning empty string");
+        return "";
+    }
+    
+    log_trace("PLACEHOLDER: Copying text to buffer");
+    my_strcpy(processed_buf, text, sizeof(processed_buf));
+    log_trace("PLACEHOLDER: Buffer copied: '%s'", processed_buf);
+    
+    if (quest_idx == QUEST_ID_TULKAS) {
+        log_trace("PLACEHOLDER: Processing Tulkas quest placeholders");
+        /* Replace [monster name] with actual monster name */
+        log_trace("PLACEHOLDER: Looking for [monster name] placeholder");
+        char* monster_pos = my_strstr(processed_buf, "[monster name]");
+        log_trace("PLACEHOLDER: my_strstr returned: %p", monster_pos);
+        if (monster_pos && p_ptr->tulkas_target_r_idx > 0 && p_ptr->tulkas_target_r_idx < z_info->r_max) {
+            log_trace("PLACEHOLDER: Found monster placeholder, r_idx=%d", p_ptr->tulkas_target_r_idx);
+            monster_race* r_ptr = &r_info[p_ptr->tulkas_target_r_idx];
+            char before[128], after[128];
+            int before_len = monster_pos - processed_buf;
+            my_strcpy(before, processed_buf, before_len + 1);
+            before[before_len] = '\0';
+            my_strcpy(after, monster_pos + 14, sizeof(after)); /* 14 = strlen("[monster name]") */
+            strnfmt(processed_buf, sizeof(processed_buf), "%s%s%s", before, r_name + r_ptr->name, after);
+        }
+        
+        /* Replace [artifact name] with actual artifact name */
+        char* artifact_pos = my_strstr(processed_buf, "[artifact name]");
+        if (artifact_pos && p_ptr->tulkas_prize_a_idx > 0 && p_ptr->tulkas_prize_a_idx < z_info->art_max) {
+            artefact_type* a_ptr = &a_info[p_ptr->tulkas_prize_a_idx];
+            char before[128], after[128];
+            int before_len = artifact_pos - processed_buf;
+            my_strcpy(before, processed_buf, before_len + 1);
+            before[before_len] = '\0';
+            my_strcpy(after, artifact_pos + 15, sizeof(after)); /* 15 = strlen("[artifact name]") */
+            
+            /* Get proper artifact name using object_desc */
+            char artifact_name[120];
+            if (a_ptr->name[0] != '\0') {
+                /* Create a temporary object to get proper description */
+                object_type temp_obj;
+                object_wipe(&temp_obj);
+                
+                /* Set up the object as the artifact */
+                s16b k_idx = lookup_kind(a_ptr->tval, a_ptr->sval);
+                if (k_idx > 0) {
+                    object_prep(&temp_obj, k_idx);
+                    temp_obj.name1 = p_ptr->tulkas_prize_a_idx;
+                    temp_obj.ident |= IDENT_KNOWN;
+                    
+                    /* Get the full artifact description */
+                    object_desc(artifact_name, sizeof(artifact_name), &temp_obj, true, 0);
+                } else {
+                    my_strcpy(artifact_name, a_ptr->name, sizeof(artifact_name));
+                }
+            } else {
+                my_strcpy(artifact_name, "a legendary weapon", sizeof(artifact_name));
+            }
+            
+            strnfmt(processed_buf, sizeof(processed_buf), "%s%s%s", before, artifact_name, after);
+        }
+    }
+    
+    return processed_buf;
+}
+
+/*
+ * Get quest reward description for status display using actual quest data
+ */
+static cptr get_quest_reward_text(int quest_idx)
+{
+    static char reward_buf[200];
+    char temp_buf[100];
+    
+    if (quest_idx <= 0 || quest_idx >= z_info->quest_max) return "Unknown reward";
+    
+    quest_type* q_ptr = &quest_info[quest_idx];
+    reward_buf[0] = '\0';
+    
+    /* Handle special Tulkas artifact reward */
+    if (quest_idx == QUEST_ID_TULKAS && p_ptr->tulkas_prize_a_idx > 0 && p_ptr->tulkas_prize_a_idx < z_info->art_max) {
+        artefact_type* a_ptr = &a_info[p_ptr->tulkas_prize_a_idx];
+        if (a_ptr->name[0] != '\0') {
+            /* Create a temporary object to get proper description */
+            object_type temp_obj;
+            object_wipe(&temp_obj);
+            
+            /* Set up the object as the artifact */
+            s16b k_idx = lookup_kind(a_ptr->tval, a_ptr->sval);
+            if (k_idx > 0) {
+                object_prep(&temp_obj, k_idx);
+                temp_obj.name1 = p_ptr->tulkas_prize_a_idx;
+                temp_obj.ident |= IDENT_KNOWN;
+                
+                /* Get the full artifact description */
+                object_desc(reward_buf, sizeof(reward_buf), &temp_obj, true, 0);
+                return reward_buf;
+            } else {
+                my_strcpy(reward_buf, a_ptr->name, sizeof(reward_buf));
+                return reward_buf;
+            }
+        }
+    }
+    
+    /* Build reward description from quest data */
+    bool has_rewards = false;
+    
+    /* Check stat bonuses */
+    if (q_ptr->stat_bonuses[0] || q_ptr->stat_bonuses[1] || q_ptr->stat_bonuses[2] || q_ptr->stat_bonuses[3]) {
+        has_rewards = true;
+        my_strcat(reward_buf, "Stats: ", sizeof(reward_buf));
+        
+        if (q_ptr->stat_bonuses[0]) {
+            strnfmt(temp_buf, sizeof(temp_buf), "+%d Str ", q_ptr->stat_bonuses[0]);
+            my_strcat(reward_buf, temp_buf, sizeof(reward_buf));
+        }
+        if (q_ptr->stat_bonuses[1]) {
+            strnfmt(temp_buf, sizeof(temp_buf), "+%d Dex ", q_ptr->stat_bonuses[1]);
+            my_strcat(reward_buf, temp_buf, sizeof(reward_buf));
+        }
+        if (q_ptr->stat_bonuses[2]) {
+            strnfmt(temp_buf, sizeof(temp_buf), "+%d Con ", q_ptr->stat_bonuses[2]);
+            my_strcat(reward_buf, temp_buf, sizeof(reward_buf));
+        }
+        if (q_ptr->stat_bonuses[3]) {
+            strnfmt(temp_buf, sizeof(temp_buf), "+%d Gra ", q_ptr->stat_bonuses[3]);
+            my_strcat(reward_buf, temp_buf, sizeof(reward_buf));
+        }
+    }
+    
+    /* Check skill bonuses */
+    if (q_ptr->skill_type && q_ptr->skill_bonus) {
+        if (has_rewards) my_strcat(reward_buf, "| ", sizeof(reward_buf));
+        has_rewards = true;
+        
+        /* Convert skill type to name */
+        cptr skill_name = "Unknown";
+        switch (q_ptr->skill_type) {
+            case 0: skill_name = "Melee"; break;
+            case 1: skill_name = "Archery"; break;
+            case 2: skill_name = "Evasion"; break;
+            case 3: skill_name = "Stealth"; break;
+            case 4: skill_name = "Perception"; break;
+            case 5: skill_name = "Will"; break;
+            case 6: skill_name = "Smithing"; break;
+            case 7: skill_name = "Song"; break;
+        }
+        strnfmt(temp_buf, sizeof(temp_buf), "+%d %s ", q_ptr->skill_bonus, skill_name);
+        my_strcat(reward_buf, temp_buf, sizeof(reward_buf));
+    }
+    
+    /* Check special abilities */
+    if (q_ptr->ability_type && q_ptr->ability_id) {
+        if (has_rewards) my_strcat(reward_buf, "| ", sizeof(reward_buf));
+        has_rewards = true;
+        
+        /* Convert ability to description */
+        cptr ability_name = "Special ability";
+        if (q_ptr->ability_type == 8) { /* Common ability type */
+            switch (q_ptr->ability_id) {
+                case 0: ability_name = "Fear immunity"; break;
+                case 1: ability_name = "Smithing mastery"; break;
+                case 6: ability_name = "Stealth blessing"; break;
+                default: ability_name = "Special ability"; break;
+            }
+        }
+        my_strcat(reward_buf, ability_name, sizeof(reward_buf));
+    }
+    
+    /* Check oath association */
+    if (q_ptr->oath_id) {
+        if (has_rewards) my_strcat(reward_buf, " | ", sizeof(reward_buf));
+        has_rewards = true;
+        my_strcat(reward_buf, get_oath_name_from_id(q_ptr->oath_id), sizeof(reward_buf));
+    }
+    
+    if (!has_rewards) {
+        my_strcpy(reward_buf, "Unknown reward", sizeof(reward_buf));
+    }
+    
+    return reward_buf;
+}
+
+/*
+ * Free quest text array returned by extract functions
+ */
+void free_quest_texts(cptr* texts)
+{
+    int i;
+    
+    if (!texts) return;
+    
+    /* Free individual strings */
+    for (i = 0; i < 20; i++) { /* Same max as in extract functions */
+        if (texts[i]) {
+            string_free((char*)texts[i]);
+        }
+    }
+    
+    /* Free the array */
+    FREE(texts);
+}
+
+/*
  * Show quest status for current metarun - only active and completed quests
+ * Now uses quest.txt data instead of hardcoded values
  */
 void do_cmd_quest_status(void)
 {
@@ -5669,12 +6326,22 @@ void do_cmd_quest_status(void)
     int row = 1;
     int col = 2;
     bool any_quests = false;
+    int wid, hgt;
+
+    log_trace("QUEST STATUS: do_cmd_quest_status() called");
 
     /* Safety check: ensure we have a valid player and metarun */
     if (!p_ptr) {
+        log_trace("QUEST STATUS: No player data available");
         msg_print("No character data available.");
         return;
     }
+
+    log_trace("QUEST STATUS: Player exists, quest states - Tulkas: %d, Aule: %d, Mandos: %d",
+              p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest);
+
+    /* Get terminal size for wrapping */
+    Term_get_size(&wid, &hgt);
 
     /* Save screen */
     screen_save();
@@ -5690,35 +6357,47 @@ void do_cmd_quest_status(void)
         cptr tulkas_status;
         byte color;
         
-        Term_putstr(col, row++, -1, TERM_YELLOW, "Quest of Tulkas the Strong:");
+        log_trace("QUEST STATUS: Getting title and challenge for Tulkas quest");
+        cptr quest_title = get_quest_title(QUEST_ID_TULKAS);
+        cptr quest_challenge = get_quest_challenge(QUEST_ID_TULKAS);
+        log_trace("QUEST STATUS: Got title='%s', challenge='%s'", quest_title ? quest_title : "NULL", quest_challenge ? quest_challenge : "NULL");
+        
+        if (!quest_title) quest_title = "Tulkas Quest";
+        if (!quest_challenge) quest_challenge = "Unknown challenge";
+        
+        Term_putstr(col, row++, -1, TERM_YELLOW, quest_title);
         
         switch (p_ptr->tulkas_quest) {
             case TULKAS_QUEST_GIVER_PRESENT:
+                log_trace("QUEST STATUS: Tulkas GIVER_PRESENT case");
                 tulkas_status = "Available - Tulkas awaits";
                 color = TERM_L_BLUE;
                 Term_putstr(col + 2, row++, -1, color, tulkas_status);
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Challenge: Defeat a randomly assigned enemy");
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Legendary artifact forged in Valinor");
+                {
+                    log_trace("QUEST STATUS: About to call process_quest_placeholders");
+                    cptr processed_challenge = process_quest_placeholders(quest_challenge, QUEST_ID_TULKAS);
+                    log_trace("QUEST STATUS: process_quest_placeholders returned: '%s'", processed_challenge ? processed_challenge : "NULL");
+                    display_wrapped_text(col, &row, processed_challenge, TERM_SLATE, wid);
+                }
+                log_trace("QUEST STATUS: Calling get_quest_reward_text for TULKAS (GIVER_PRESENT)");
+                strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_TULKAS));
+                log_trace("QUEST STATUS: Reward text result: '%s'", buf);
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 break;
             case TULKAS_QUEST_ACTIVE:
-                if (p_ptr->tulkas_target_r_idx > 0 && p_ptr->tulkas_target_r_idx < z_info->r_max) {
-                    monster_race* r_ptr = &r_info[p_ptr->tulkas_target_r_idx];
-                    strnfmt(buf, sizeof(buf), "Active - Seek %s", r_name + r_ptr->name);
-                    tulkas_status = buf;
-                } else {
-                    tulkas_status = "Active - Seek your assigned target";
+                log_trace("QUEST STATUS: Tulkas ACTIVE case");
+                {
+                    /* Use processed challenge text instead of hardcoded status */
+                    log_trace("QUEST STATUS: About to call process_quest_placeholders for ACTIVE");
+                    cptr processed_challenge = process_quest_placeholders(quest_challenge, QUEST_ID_TULKAS);
+                    log_trace("QUEST STATUS: process_quest_placeholders returned: '%s'", processed_challenge ? processed_challenge : "NULL");
+                    display_wrapped_text(col, &row, processed_challenge, TERM_WHITE, wid);
+                    strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_TULKAS));
+                    display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
+                    break;
                 }
-                color = TERM_WHITE;
-                Term_putstr(col + 2, row++, -1, color, tulkas_status);
-                if (p_ptr->tulkas_prize_a_idx > 0 && p_ptr->tulkas_prize_a_idx < z_info->art_max) {
-                    artefact_type* a_ptr = &a_info[p_ptr->tulkas_prize_a_idx];
-                    if (a_ptr->name[0] != '\0') {
-                        strnfmt(buf, sizeof(buf), "Reward: %s", a_ptr->name);
-                        Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
-                    }
-                }
-                break;
             case TULKAS_QUEST_COMPLETE:
+                log_trace("QUEST STATUS: Tulkas COMPLETE case");
                 tulkas_status = "Complete - Return for reward";
                 color = TERM_L_GREEN;
                 Term_putstr(col + 2, row++, -1, color, tulkas_status);
@@ -5727,7 +6406,10 @@ void do_cmd_quest_status(void)
                 tulkas_status = "Completed this character";
                 color = TERM_L_GREEN;
                 Term_putstr(col + 2, row++, -1, color, tulkas_status);
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Artifact received + Silence oath unlocked");
+                log_trace("QUEST STATUS: Calling get_quest_reward_text for TULKAS (REWARDED)");
+                strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_TULKAS));
+                log_trace("QUEST STATUS: Reward text result: '%s'", buf);
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 break;
             default:
                 tulkas_status = "Unknown status";
@@ -5743,44 +6425,49 @@ void do_cmd_quest_status(void)
         cptr aule_status;
         byte color;
         
-        Term_putstr(col, row++, -1, TERM_YELLOW, "Quest of Aule the Smith:");
+        cptr quest_title = get_quest_title(QUEST_ID_AULE);
+        cptr quest_challenge = get_quest_challenge(QUEST_ID_AULE);
+        
+        Term_putstr(col, row++, -1, TERM_YELLOW, quest_title);
         
         switch (p_ptr->aule_quest) {
             case AULE_QUEST_FORGE_PRESENT:
                 aule_status = "Available - Enter the forge";
                 color = TERM_L_BLUE;
                 Term_putstr(col + 2, row++, -1, color, aule_status);
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Challenge: Forge an artifact with 4+ ego abilities");
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Aule's Forge ability + Smith oath");
+                display_wrapped_text(col, &row, quest_challenge, TERM_SLATE, wid);
+                strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_AULE));
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 break;
             case AULE_QUEST_ACTIVE:
-                aule_status = "Active - Forge a worthy artifact";
-                color = TERM_WHITE;
-                Term_putstr(col + 2, row++, -1, color, aule_status);
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Challenge: Create artifact with 4+ ego abilities");
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Aule's Forge ability + Smith oath");
+                /* Use challenge text instead of hardcoded status */
+                display_wrapped_text(col, &row, quest_challenge, TERM_WHITE, wid);
+                strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_AULE));
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 break;
             case AULE_QUEST_SUCCESS:
                 aule_status = "Complete - Return for reward";
                 color = TERM_L_GREEN;
                 Term_putstr(col + 2, row++, -1, color, aule_status);
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Aule's Forge ability + Smith oath");
+                strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_AULE));
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 break;
             case AULE_QUEST_REWARDED:
                 /* Check if completed this run vs completed in previous metarun */
-                /* If metarun_is_quest_completed() is TRUE, it was completed in current metarun */
-                /* If it's FALSE but quest is REWARDED, it was completed in a previous metarun */
                 if (metarun_is_quest_completed(METARUN_QUEST_AULE)) {
                     aule_status = "Completed this character";
                     color = TERM_L_GREEN;
                     Term_putstr(col + 2, row++, -1, color, aule_status);
-                    Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Aule's Forge ability + Smith oath unlocked");
+                    strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_AULE));
+                    display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 } else {
                     /* Quest is REWARDED but not in current metarun - must be from previous metarun access */
                     aule_status = "Available from previous metarun";
                     color = TERM_L_DARK;
                     Term_putstr(col + 2, row++, -1, color, aule_status);
-                    Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Smith oath available from previous completion");
+                    cptr oath_name = get_oath_name_from_id(quest_info[QUEST_ID_AULE].oath_id);
+                    strnfmt(buf, sizeof(buf), "Reward: %s available from previous completion", oath_name);
+                    display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 }
                 break;
             default:
@@ -5797,44 +6484,50 @@ void do_cmd_quest_status(void)
         cptr mandos_status;
         byte color;
         
-        Term_putstr(col, row++, -1, TERM_YELLOW, "Quest of Mandos the Doomsman:");
+        cptr quest_title = get_quest_title(QUEST_ID_MANDOS);
+        cptr quest_challenge = get_quest_challenge(QUEST_ID_MANDOS);
+        
+        Term_putstr(col, row++, -1, TERM_YELLOW, quest_title);
         
         switch (p_ptr->mandos_quest) {
             case MANDOS_QUEST_GIVER_PRESENT:
                 mandos_status = "Available - Enter the tomb";
                 color = TERM_L_BLUE;
                 Term_putstr(col + 2, row++, -1, color, mandos_status);
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Challenge: Clear all enemies from the tomb");
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Mandos' Doom ability + Iron oath");
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, quest_challenge);
+                strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_MANDOS));
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 break;
             case MANDOS_QUEST_ACTIVE:
                 mandos_status = "Active - Clear all foes from the tomb";
                 color = TERM_WHITE;
                 Term_putstr(col + 2, row++, -1, color, mandos_status);
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Challenge: Eliminate all enemies in the tomb");
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Mandos' Doom ability + Iron oath");
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, quest_challenge);
+                strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_MANDOS));
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 break;
             case MANDOS_QUEST_SUCCESS:
                 mandos_status = "Complete - Return for reward";
                 color = TERM_L_GREEN;
                 Term_putstr(col + 2, row++, -1, color, mandos_status);
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Mandos' Doom ability + Iron oath");
+                strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_MANDOS));
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 break;
             case MANDOS_QUEST_REWARDED:
                 /* Check if completed this run vs completed in previous metarun */
-                /* If metarun_is_quest_completed() is TRUE, it was completed in current metarun */
-                /* If it's FALSE but quest is REWARDED, it was completed in a previous metarun */
                 if (metarun_is_quest_completed(METARUN_QUEST_MANDOS)) {
                     mandos_status = "Completed this character";
                     color = TERM_L_GREEN;
                     Term_putstr(col + 2, row++, -1, color, mandos_status);
-                    Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Mandos' Doom ability + Iron oath unlocked");
+                    strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_MANDOS));
+                    Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 } else {
                     /* Quest is REWARDED but not in current metarun - must be from previous metarun access */
                     mandos_status = "Available from previous metarun";
                     color = TERM_L_DARK;
                     Term_putstr(col + 2, row++, -1, color, mandos_status);
-                    Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Iron oath available from previous completion");
+                    strnfmt(buf, sizeof(buf), "Reward: %s available from previous completion", oath_name);
+                    Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 }
                 break;
             default:
@@ -5851,15 +6544,19 @@ void do_cmd_quest_status(void)
         cptr niena_status;
         byte color;
         
-        Term_putstr(col, row++, -1, TERM_YELLOW, "Quest of Niena the Mourner:");
+        cptr quest_title = get_quest_title(QUEST_ID_NIENA);
+        cptr quest_challenge = get_quest_challenge(QUEST_ID_NIENA);
+        
+        Term_putstr(col, row++, -1, TERM_YELLOW, quest_title);
         
         switch (p_ptr->niena_quest) {
             case NIENA_QUEST_GIVER_PRESENT:
                 niena_status = "Available - Niena offers mercy";
                 color = TERM_L_BLUE;
                 Term_putstr(col + 2, row++, -1, color, niena_status);
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Challenge: Reach stairs without killing any creatures");
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Enhanced stealth based on mercy shown");
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, quest_challenge);
+                strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_NIENA));
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 break;
             case NIENA_QUEST_ACTIVE:
                 strnfmt(buf, sizeof(buf), "Active - Show mercy (%d seen, %d killed)",
@@ -5867,20 +6564,22 @@ void do_cmd_quest_status(void)
                 niena_status = buf;
                 color = TERM_WHITE;
                 Term_putstr(col + 2, row++, -1, color, niena_status);
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Challenge: Reach stairs without killing");
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, quest_challenge);
                 Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Stealth bonus = 10*(seen-killed)/seen");
                 break;
             case NIENA_QUEST_SUCCESS:
                 niena_status = "Complete - Return for reward";
                 color = TERM_L_GREEN;
                 Term_putstr(col + 2, row++, -1, color, niena_status);
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Mercy-based stealth enhancement");
+                strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_NIENA));
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 break;
             case NIENA_QUEST_REWARDED:
                 niena_status = "Completed this character";
                 color = TERM_L_GREEN;
                 Term_putstr(col + 2, row++, -1, color, niena_status);
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Stealth enhancement received");
+                strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_NIENA));
+                Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 break;
             default:
                 niena_status = "Unknown status";
@@ -5897,28 +6596,44 @@ void do_cmd_quest_status(void)
             Term_putstr(col, row++, -1, TERM_L_DARK, "Previously Completed in Metarun:");
             has_previous_completions = true;
         }
-        Term_putstr(col + 2, row++, -1, TERM_SLATE, "Quest of Tulkas the Strong - Silence oath available");
+        cptr quest_title = get_quest_title(QUEST_ID_TULKAS);
+        cptr oath_name = get_oath_name_from_id(quest_info[1].oath_id);
+        char status_text[150];
+        strnfmt(status_text, sizeof(status_text), "%s - Oath: %s", quest_title, oath_name);
+        display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
     }
     if (metarun_is_quest_completed(METARUN_QUEST_AULE) && p_ptr->aule_quest != AULE_QUEST_REWARDED) {
         if (!has_previous_completions) {
             Term_putstr(col, row++, -1, TERM_L_DARK, "Previously Completed in Metarun:");
             has_previous_completions = true;
         }
-        Term_putstr(col + 2, row++, -1, TERM_SLATE, "Quest of Aule the Smith - Smith oath available");
+        cptr quest_title = get_quest_title(QUEST_ID_AULE);
+        cptr oath_name = get_oath_name_from_id(quest_info[2].oath_id);
+        char status_text[150];
+        strnfmt(status_text, sizeof(status_text), "%s - Oath: %s", quest_title, oath_name);
+        display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
     }
     if (metarun_is_quest_completed(METARUN_QUEST_MANDOS) && p_ptr->mandos_quest != MANDOS_QUEST_REWARDED) {
         if (!has_previous_completions) {
             Term_putstr(col, row++, -1, TERM_L_DARK, "Previously Completed in Metarun:");
             has_previous_completions = true;
         }
-        Term_putstr(col + 2, row++, -1, TERM_SLATE, "Quest of Mandos the Doomsman - Iron oath available");
+        cptr quest_title = get_quest_title(QUEST_ID_MANDOS);
+        cptr oath_name = get_oath_name_from_id(quest_info[3].oath_id);
+        char status_text[150];
+        strnfmt(status_text, sizeof(status_text), "%s - Oath: %s", quest_title, oath_name);
+        display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
     }
     if (metarun_is_quest_completed(METARUN_QUEST_NIENA) && p_ptr->niena_quest != NIENA_QUEST_REWARDED) {
         if (!has_previous_completions) {
             Term_putstr(col, row++, -1, TERM_L_DARK, "Previously Completed in Metarun:");
             has_previous_completions = true;
         }
-        Term_putstr(col + 2, row++, -1, TERM_SLATE, "Quest of Niena the Mourner - Mercy oath available");
+        cptr quest_title = get_quest_title(QUEST_ID_NIENA);
+        cptr oath_name = get_oath_name_from_id(quest_info[4].oath_id);
+        char status_text[150];
+        strnfmt(status_text, sizeof(status_text), "%s - Oath: %s", quest_title, oath_name);
+        display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
     }
     
     if (has_previous_completions) {
@@ -5965,6 +6680,16 @@ static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byt
     for (int idx = 0; idx < total_texts; idx++) {
         const char *s = texts[idx];
         
+        /* Handle empty lines as paragraph breaks */
+        if (!s || strlen(s) == 0) {
+            /* Empty line - just advance row for paragraph break */
+            row++;
+            col = 0;
+            /* Short pause for empty line */
+            Term_xtra(TERM_XTRA_DELAY, 200);
+            continue;
+        }
+        
         /* Count lines needed for this paragraph */
         int lines_needed = 0;
         int temp_col = col;
@@ -5976,7 +6701,7 @@ static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byt
             }
             temp_col++;
         }
-        lines_needed++; /* Add one for the blank line after paragraph */
+        lines_needed++; /* Add one for the text itself */
         
         /* Check if we have enough space for the whole paragraph */
         if (row + lines_needed >= h - 2) {
@@ -5997,15 +6722,72 @@ static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byt
         
         col = 0;
         
-        /* Print this string, character by character */
+        /* Print this string, character by character with smart word wrapping */
         for (int i = 0; s[i]; i++) {
             char ch = s[i];
             
-            /* Newline or wrap? */
-            if (ch == '\n' || col >= wrap_width) {
+            /* Handle explicit newlines */
+            if (ch == '\n') {
                 row++;
                 col = 0;
-                if (ch == '\n') continue;
+                continue;
+            }
+            
+            /* Smart word wrapping: check if we need to wrap before printing */
+            if (col >= wrap_width) {
+                log_trace("WRAP DEBUG: col=%d, wrap_width=%d, char='%c' (0x%02x)", col, wrap_width, ch, (unsigned char)ch);
+                
+                /* If this character is whitespace, skip it and wrap */
+                if (ch == ' ' || ch == '\t') {
+                    log_trace("WRAP DEBUG: Wrapping at whitespace");
+                    row++;
+                    col = 0;
+                    continue; /* Don't print the space */
+                }
+                /* If this is punctuation, look back to see if we can wrap at a previous space */
+                else if (ch == '.' || ch == ',' || ch == '!' || ch == '?' || ch == '"' || ch == '\'' || ch == ')' || ch == ']' || ch == '}' || ch == ':' || ch == ';') {
+                    log_trace("WRAP DEBUG: Found punctuation '%c', looking back for wrap point", ch);
+                    /* Look back for a space within the last few characters on this line */
+                    bool found_wrap_point = false;
+                    int wrap_back = 0;
+                    int wrap_position = -1;
+                    
+                    /* Search back up to 15 characters or to start of line */
+                    for (int j = i - 1; j >= 0 && wrap_back < 15; j--, wrap_back++) {
+                        if (s[j] == ' ' || s[j] == '\t') {
+                            found_wrap_point = true;
+                            wrap_position = j;
+                            log_trace("WRAP DEBUG: Found space %d chars back at position %d", wrap_back, j);
+                            break;
+                        }
+                        if (s[j] == '\n') break; /* Don't cross line boundaries */
+                    }
+                    
+                    if (!found_wrap_point || wrap_back > 10) {
+                        log_trace("WRAP DEBUG: No good wrap point (found=%s, distance=%d) - allowing punctuation overflow", 
+                                 found_wrap_point ? "yes" : "no", wrap_back);
+                        /* No good wrap point found, or it's too far back - allow punctuation to exceed line */
+                        /* Just print the punctuation and continue */
+                    }
+                    else {
+                        log_trace("WRAP DEBUG: Good wrap point found - clearing back to space and rewrapping");
+                        /* Clear back to the wrap point */
+                        for (int clear_col = col - wrap_back; clear_col < col; clear_col++) {
+                            Term_putch(indent + clear_col, row, text_color, ' ');
+                        }
+                        /* Move to next line and back up to reprint the word */
+                        row++;
+                        col = 0;
+                        i = wrap_position; /* Back up to just after the space */
+                        continue; /* Skip printing this character this iteration */
+                    }
+                }
+                else {
+                    log_trace("WRAP DEBUG: Mid-word wrap");
+                    /* Mid-word - wrap to next line */
+                    row++;
+                    col = 0;
+                }
             }
             
             Term_putch(indent + col, row, text_color, ch);
@@ -6016,12 +6798,12 @@ static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byt
             Term_xtra(TERM_XTRA_DELAY, 25);
         }
         
-        /* Leave one blank line after each paragraph */
+        /* Move to next line after text */
         row++;
         col = 0;
         
-        /* 800ms pause after paragraph */
-        Term_xtra(TERM_XTRA_DELAY, 800);
+        /* 400ms pause after each line of text */
+        Term_xtra(TERM_XTRA_DELAY, 400);
     }
     
     /* Final prompt */
@@ -6040,6 +6822,13 @@ void tulkas_quest_interaction(void)
     int target_r_idx, prize_a_idx;
     monster_race* r_ptr;
     artefact_type* a_ptr;
+    
+    /* Prevent multiple interactions in the same turn */
+    static int last_interaction_turn = -1;
+    if (last_interaction_turn == turn) {
+        return; /* Already handled this turn */
+    }
+    last_interaction_turn = turn;
     
     /* Safety check - ensure valid quest state */
     if (p_ptr->tulkas_quest != TULKAS_QUEST_GIVER_PRESENT && 
@@ -6098,73 +6887,75 @@ void tulkas_quest_interaction(void)
         log_trace("Quest assigned: target=%d (%s), prize=%d (%s)", 
                  target_r_idx, r_name + r_ptr->name, prize_a_idx, a_ptr->name);
         
-        /* Prepare quest dialog texts */
-        char quest_text1[256];
-        char quest_text2[256]; 
-        char quest_text3[256];
+        /* Extract initialization texts from quest data */
+        int text_count = 0;
+        cptr* init_texts = extract_quest_init_texts(1, &text_count); /* Tulkas is quest index 1 */
         
-        strnfmt(quest_text1, sizeof(quest_text1), 
-                "Tulkas the Strong speaks in a voice like thunder:\n'Champion of valor!'");
-        
-        strnfmt(quest_text2, sizeof(quest_text2),
-                "'Seek out %s, and prove your might by defeating this foe in battle.'", 
-                r_name + r_ptr->name);
-        
-        /* Check if artifact name is valid */
-        if (strlen(a_ptr->name) > 0)
-        {
-            /* Get the object kind for the artifact */
-            int k_idx = lookup_kind(a_ptr->tval, a_ptr->sval);
-            if (k_idx > 0)
-            {
-                object_kind* k_ptr = &k_info[k_idx];
-                char full_name[80];
+        if (init_texts && text_count > 0) {
+            /* Substitute [monster name] and [artifact name] in the texts */
+            cptr* processed_texts = C_ZNEW(text_count, cptr);
+            for (int i = 0; i < text_count; i++) {
+                char temp_text[1024];
+                my_strcpy(temp_text, init_texts[i], sizeof(temp_text));
                 
-                /* Construct full artifact name: "The [Object Type] [of Name]" */
-                if (a_ptr->name[0] == '\'')
-                {
-                    /* Names like 'Ringil' or 'Glamdring' */
-                    strnfmt(full_name, sizeof(full_name), "The %s %s", 
-                            k_name + k_ptr->name, a_ptr->name);
-                }
-                else if (prefix(a_ptr->name, "of "))
-                {
-                    /* Names like "of Barahir" or "of Dolmed" */
-                    strnfmt(full_name, sizeof(full_name), "The %s %s", 
-                            k_name + k_ptr->name, a_ptr->name);
-                }
-                else
-                {
-                    /* Other naming patterns */
-                    strnfmt(full_name, sizeof(full_name), "The %s %s", 
-                            k_name + k_ptr->name, a_ptr->name);
+                /* Replace [monster name] with actual monster name */
+                char* monster_pos = my_strstr(temp_text, "[monster name]");
+                if (monster_pos) {
+                    char before[512], after[512];
+                    int before_len = monster_pos - temp_text;
+                    my_strcpy(before, temp_text, before_len + 1);
+                    before[before_len] = '\0';
+                    my_strcpy(after, monster_pos + 14, sizeof(after)); /* 14 = strlen("[monster name]") */
+                    strnfmt(temp_text, sizeof(temp_text), "%s%s%s", before, r_name + r_ptr->name, after);
                 }
                 
-                strnfmt(quest_text3, sizeof(quest_text3),
-                        "'When this deed is done, you shall be rewarded with %s.'\n\n"
-                        "Tulkas grins fiercely and vanishes, leaving you with your sacred task.", 
-                        full_name);
+                /* Replace [artifact name] with actual artifact name */
+                char* artifact_pos = my_strstr(temp_text, "[artifact name]");
+                if (artifact_pos) {
+                    char before[512], after[512];
+                    int before_len = artifact_pos - temp_text;
+                    my_strcpy(before, temp_text, before_len + 1);
+                    before[before_len] = '\0';
+                    my_strcpy(after, artifact_pos + 15, sizeof(after)); /* 15 = strlen("[artifact name]") */
+                    
+                    /* Get proper artifact name using object_desc */
+                    char artifact_name[120];
+                    if (a_ptr->name[0] != '\0') {
+                        /* Create a temporary object to get proper description */
+                        object_type temp_obj;
+                        object_wipe(&temp_obj);
+                        
+                        /* Set up the object as the artifact */
+                        s16b k_idx = lookup_kind(a_ptr->tval, a_ptr->sval);
+                        object_prep(&temp_obj, k_idx);
+                        temp_obj.name1 = prize_a_idx;
+                        temp_obj.ident |= IDENT_KNOWN;
+                        
+                        /* Get the full artifact description */
+                        object_desc(artifact_name, sizeof(artifact_name), &temp_obj, true, 0);
+                    } else {
+                        my_strcpy(artifact_name, "a legendary weapon", sizeof(artifact_name));
+                    }
+                    
+                    strnfmt(temp_text, sizeof(temp_text), "%s%s%s", before, artifact_name, after);
+                }
+                
+                processed_texts[i] = string_make(temp_text);
             }
-            else
-            {
-                /* Fallback if object lookup fails */
-                strnfmt(quest_text3, sizeof(quest_text3),
-                        "'When this deed is done, you shall be rewarded with %s.'\n\n"
-                        "Tulkas grins fiercely and vanishes, leaving you with your sacred task.", 
-                        a_ptr->name);
+            
+            /* Display typewriter quest dialog */
+            quest_typewriter_menu("Quest of Tulkas the Strong", processed_texts, text_count, TERM_YELLOW, TERM_WHITE);
+            
+            /* Clean up */
+            for (int i = 0; i < text_count; i++) {
+                if (processed_texts[i]) string_free((char*)processed_texts[i]);
             }
+            FREE(processed_texts);
+            free_quest_texts(init_texts);
+        } else {
+            /* Fallback to simple message if text extraction fails */
+            msg_print("Tulkas the Strong speaks of a great quest, but the words are lost in thunder.");
         }
-        else
-        {
-            log_trace("Empty artifact name for a_idx %d, using generic message", prize_a_idx);
-            strnfmt(quest_text3, sizeof(quest_text3),
-                    "'When this deed is done, you shall receive a legendary weapon forged in Valinor.'\n\n"
-                    "Tulkas grins fiercely and vanishes, leaving you with your sacred task.");
-        }
-        
-        /* Display typewriter quest dialog */
-        cptr tulkas_texts[] = { quest_text1, quest_text2, quest_text3 };
-        quest_typewriter_menu("Quest of Tulkas the Strong", tulkas_texts, 3, TERM_YELLOW, TERM_WHITE);
     }
     else if (p_ptr->tulkas_quest == TULKAS_QUEST_COMPLETE)
     {
@@ -6198,17 +6989,31 @@ void tulkas_quest_interaction(void)
         p_ptr->tulkas_prize_a_idx = 0;
         p_ptr->tulkas_quest_complete = 0;
         
-        /* Unlock Silence oath for future characters in this metarun */
-        metarun_unlock_oath(OATH_SILENCE);
+        /* Unlock oath for future characters in this metarun */
+        int oath_id = get_quest_oath_id(1); /* Tulkas is quest index 1 */
+        if (oath_id > 0) {
+            metarun_unlock_oath(oath_id);
+        }
         
-        /* Display typewriter completion dialog */
-        cptr completion_texts[] = {
-            "Tulkas appears with a great laugh of triumph!\n"
-            "'Well fought, warrior! You have proven your valor in battle.'",
-            "'Take this gift, forged in the deeps of time before the world's making.'",
-            "Tulkas strides away with thunderous footsteps, leaving your prize behind."
-        };
-        quest_typewriter_menu("Quest Complete: Tulkas Rewards Your Valor", completion_texts, 3, TERM_L_GREEN, TERM_WHITE);
+        /* Apply quest rewards from quest.txt data */
+        apply_quest_rewards(1); /* Tulkas is quest index 1 */
+        
+        /* Extract completion texts from quest data */
+        int completion_count = 0;
+        cptr* completion_texts = extract_quest_completion_texts(1, &completion_count); /* Tulkas is quest index 1 */
+        
+        if (completion_texts && completion_count > 0) {
+            /* Display typewriter completion dialog */
+            quest_typewriter_menu("Quest Complete: Tulkas Rewards Your Valor", completion_texts, completion_count, TERM_L_GREEN, TERM_WHITE);
+            free_quest_texts(completion_texts);
+        } else {
+            /* Fallback to simple message if text extraction fails */
+            cptr fallback_texts[] = {
+                "Tulkas appears with a great laugh of triumph!",
+                "'Well fought, warrior! You have proven your valor in battle.'"
+            };
+            quest_typewriter_menu("Quest Complete: Tulkas Rewards Your Valor", fallback_texts, 2, TERM_L_GREEN, TERM_WHITE);
+        }
         
         log_trace("Tulkas quest completed and rewarded");
     }
@@ -6374,6 +7179,13 @@ void check_aule_quest_interaction(void)
  */
 void aule_quest_interaction(void)
 {
+    /* Prevent multiple interactions in the same turn */
+    static int last_interaction_turn = -1;
+    if (last_interaction_turn == turn) {
+        return; /* Already handled this turn */
+    }
+    last_interaction_turn = turn;
+    
     /* Skip interaction if quest already rewarded */
     if (p_ptr->aule_quest == AULE_QUEST_REWARDED)
     {
@@ -6399,21 +7211,21 @@ void aule_quest_interaction(void)
         log_trace("Aule quest explanation - setting to ACTIVE");
         p_ptr->aule_quest = AULE_QUEST_ACTIVE;
         
-        static cptr aule_texts[] = {
-            "Aule speaks in a voice like hammer on anvil:",
-            "",
-            "'Mortal, I have watched your progress through these halls.",
-            "",
-            "If you would prove worthy of my blessing, you must demonstrate",
-            "the mastery of creation that I myself possess.",
-            "",
-            "Find my forge upon this level and create an item of power.",
-            "",
-            "Only through the act of creation can you earn my gift.",
-            "",
-            "Seek the forge and let your hammer sing!'"
-        };
-        quest_typewriter_menu("Aule the Smith", aule_texts, 12, TERM_YELLOW, TERM_WHITE);
+        /* Extract initialization texts from quest data */
+        int text_count = 0;
+        cptr* init_texts = extract_quest_init_texts(2, &text_count); /* Aule is quest index 2 */
+        
+        if (init_texts && text_count > 0) {
+            quest_typewriter_menu("Aule the Smith", init_texts, text_count, TERM_YELLOW, TERM_WHITE);
+            free_quest_texts(init_texts);
+        } else {
+            /* Fallback to simple message if text extraction fails */
+            cptr fallback_texts[] = {
+                "Aule speaks in a voice like hammer on anvil:",
+                "'Find my forge and create something worthy of my attention.'"
+            };
+            quest_typewriter_menu("Aule the Smith", fallback_texts, 2, TERM_YELLOW, TERM_WHITE);
+        }
         
         /* Mark in the notes */
         do_cmd_note("Aule has challenged me to use his forge to create an item.", p_ptr->depth);
@@ -6425,18 +7237,21 @@ void aule_quest_interaction(void)
     {
         log_trace("Aule quest completed - giving special ability reward");
         
-        static cptr aule_completion_texts[] = {
-            "Aule nods with satisfaction:",
-            "",
-            "'Well done! Your skill at the forge shows promise.",
-            "",
-            "I grant you the secret of my forge - knowledge beyond mortal smiths.",
-            "",
-            "The knowledge of divine craftsmanship flows through you!",
-            "",
-            "May this wisdom serve you well in the dark halls ahead.'"
-        };
-        quest_typewriter_menu("Quest Complete!", aule_completion_texts, 9, TERM_L_GREEN, TERM_WHITE);
+        /* Extract completion texts from quest data */
+        int completion_count = 0;
+        cptr* completion_texts = extract_quest_completion_texts(2, &completion_count); /* Aule is quest index 2 */
+        
+        if (completion_texts && completion_count > 0) {
+            quest_typewriter_menu("Quest Complete!", completion_texts, completion_count, TERM_L_GREEN, TERM_WHITE);
+            free_quest_texts(completion_texts);
+        } else {
+            /* Fallback to simple message if text extraction fails */
+            cptr fallback_texts[] = {
+                "Aule nods with satisfaction:",
+                "'Well done! Your skill at the forge shows promise.'"
+            };
+            quest_typewriter_menu("Quest Complete!", fallback_texts, 2, TERM_L_GREEN, TERM_WHITE);
+        }
         
         /* Grant Aule's Forge special ability instead of artifact */
         if (!p_ptr->have_ability[S_SPC][SPC_AULE]) {
@@ -6458,8 +7273,14 @@ void aule_quest_interaction(void)
         /* Change quest state to prevent repeated interactions */
         p_ptr->aule_quest = AULE_QUEST_REWARDED;
         
-        /* Unlock Smith oath for future characters in this metarun */
-        metarun_unlock_oath(OATH_SMITH);
+        /* Unlock oath for future characters in this metarun */
+        int oath_id = get_quest_oath_id(2); /* Aule is quest index 2 */
+        if (oath_id > 0) {
+            metarun_unlock_oath(oath_id);
+        }
+        
+        /* Apply quest rewards from quest.txt data */
+        apply_quest_rewards(2); /* Aule is quest index 2 */
         
         msg_print("Aule smiles with approval and returns to his eternal labors.");
         
@@ -6483,6 +7304,13 @@ void aule_quest_interaction(void)
  */
 void mandos_quest_interaction(void)
 {
+    /* Prevent multiple interactions in the same turn */
+    static int last_interaction_turn = -1;
+    if (last_interaction_turn == turn) {
+        return; /* Already handled this turn */
+    }
+    last_interaction_turn = turn;
+    
     /* Handle first encounter - initialize quest */
     if (p_ptr->mandos_quest == MANDOS_QUEST_NOT_STARTED)
     {
@@ -6513,21 +7341,21 @@ void mandos_quest_interaction(void)
         p_ptr->mandos_quest = MANDOS_QUEST_ACTIVE;
         p_ptr->mandos_level = p_ptr->depth;
         
-        static cptr mandos_texts[] = {
-            "Mandos speaks with the authority of the Valar:",
-            "",
-            "'Mortal, you have descended deep into the darkness.",
-            "",
-            "Here lies Brodda the Easterling, a cruel tyrant who oppressed",
-            "the people of Dor-lómin and brought suffering upon the Edain.",
-            "",
-            "It was foretold that Túrin Turambar would slay him in righteous",
-            "vengeance, but fate has been altered. Now this burden falls to you.",
-            "",
-            "Slay Brodda, and you shall be granted passage deeper into",
-            "the halls of Mandos, where greater trials await.'"
-        };
-        quest_typewriter_menu("Mandos the Doomsman", mandos_texts, 12, TERM_L_DARK, TERM_WHITE);
+        /* Extract initialization texts from quest data */
+        int text_count = 0;
+        cptr* init_texts = extract_quest_init_texts(3, &text_count); /* Mandos is quest index 3 */
+        
+        if (init_texts && text_count > 0) {
+            quest_typewriter_menu("Mandos the Doomsman", init_texts, text_count, TERM_L_DARK, TERM_WHITE);
+            free_quest_texts(init_texts);
+        } else {
+            /* Fallback to simple message if text extraction fails */
+            cptr fallback_texts[] = {
+                "Mandos speaks with the authority of the Valar:",
+                "'Slay Brodda the Easterling and prove your worth.'"
+            };
+            quest_typewriter_menu("Mandos the Doomsman", fallback_texts, 2, TERM_L_DARK, TERM_WHITE);
+        }
         
         log_trace("Mandos quest activated - player must slay Brodda");
     }
@@ -6537,19 +7365,23 @@ void mandos_quest_interaction(void)
         if (is_brodda_dead())
         {
             p_ptr->mandos_quest = MANDOS_QUEST_SUCCESS;
-            static cptr mandos_success_texts[] = {
-                "Mandos nods with solemn approval:",
-                "",
-                "'Justice has been served. Brodda's cruelty is ended,",
-                "and the spirits of Dor-lómin may know peace.",
-                "",
-                "You have proven yourself worthy of deeper knowledge.",
-                "The path ahead grows ever more perilous, but also",
-                "more meaningful. Go now, with the blessing of doom.",
-                "",
-                "A strange power flows through you, and the way forward opens.'"
-            };
-            quest_typewriter_menu("Justice Served", mandos_success_texts, 10, TERM_L_GREEN, TERM_WHITE);
+            
+            /* Extract completion texts from quest data */
+            int completion_count = 0;
+            cptr* completion_texts = extract_quest_completion_texts(3, &completion_count); /* Mandos is quest index 3 */
+            
+            if (completion_texts && completion_count > 0) {
+                quest_typewriter_menu("Justice Served", completion_texts, completion_count, TERM_L_GREEN, TERM_WHITE);
+                free_quest_texts(completion_texts);
+            } else {
+                /* Fallback to simple message if text extraction fails */
+                cptr fallback_texts[] = {
+                    "Mandos nods with solemn approval:",
+                    "'Justice has been served. The path forward opens.'"
+                };
+                quest_typewriter_menu("Justice Served", fallback_texts, 2, TERM_L_GREEN, TERM_WHITE);
+            }
+            
             log_trace("Mandos quest completed successfully");
         }
         else
@@ -6566,18 +7398,21 @@ void mandos_quest_interaction(void)
     {
         log_trace("Mandos quest already completed - giving special ability reward");
         
-        static cptr mandos_reward_texts[] = {
-            "Mandos acknowledges you with respect:",
-            "",
-            "'You have fulfilled the task set before you.",
-            "",
-            "Accept the gift of my doom - protection from the fears",
-            "that plague mortals.",
-            "",
-            "The power of the Doomsman flows through you,",
-            "protecting your mind from terror!'"
-        };
-        quest_typewriter_menu("Quest Reward", mandos_reward_texts, 9, TERM_L_GREEN, TERM_WHITE);
+        /* We'll show the same completion texts again since this is the reward phase */
+        int completion_count = 0;
+        cptr* completion_texts = extract_quest_completion_texts(3, &completion_count); /* Mandos is quest index 3 */
+        
+        if (completion_texts && completion_count > 0) {
+            quest_typewriter_menu("Quest Reward", completion_texts, completion_count, TERM_L_GREEN, TERM_WHITE);
+            free_quest_texts(completion_texts);
+        } else {
+            /* Fallback to simple message if text extraction fails */
+            cptr fallback_texts[] = {
+                "Mandos acknowledges you with respect:",
+                "'Accept the gift of my protection from mortal fears.'"
+            };
+            quest_typewriter_menu("Quest Reward", fallback_texts, 2, TERM_L_GREEN, TERM_WHITE);
+        }
         
         /* Grant Mandos' Doom special ability instead of artifact */
         if (!p_ptr->have_ability[S_SPC][SPC_MANDOS]) {
@@ -6602,8 +7437,15 @@ void mandos_quest_interaction(void)
         /* Change quest state to prevent repeated interactions */
         p_ptr->mandos_quest = MANDOS_QUEST_REWARDED;
         
-        /* Unlock Iron oath for future characters in this metarun */
-        metarun_unlock_oath(OATH_IRON);
+        /* Unlock oath for future characters in this metarun */
+        int oath_id = get_quest_oath_id(3); /* Mandos is quest index 3 */
+        if (oath_id > 0) {
+            metarun_unlock_oath(oath_id);
+        }
+        
+        /* Apply quest rewards from quest.txt data */
+        apply_quest_rewards(3); /* Mandos is quest index 3 */
+        
         msg_print("Mandos bows deeply and fades into shadow, his task complete.");
         
         log_trace("Mandos quest reward given");
@@ -6696,6 +7538,13 @@ void check_mandos_quest_completion(int r_idx)
  */
 void niena_quest_interaction(void)
 {
+    /* Prevent multiple interactions in the same turn */
+    static int last_interaction_turn = -1;
+    if (last_interaction_turn == turn) {
+        return; /* Already handled this turn */
+    }
+    last_interaction_turn = turn;
+    
     /* Safety check - ensure valid quest state */
     if (p_ptr->niena_quest != NIENA_QUEST_GIVER_PRESENT && 
         p_ptr->niena_quest != NIENA_QUEST_SUCCESS)
@@ -6708,22 +7557,21 @@ void niena_quest_interaction(void)
     {
         log_trace("Starting Niena quest interaction - offering mercy quest");
         
-        static cptr niena_texts[] = {
-            "Niena, Lady of Pity, speaks with a voice full of sorrow and hope:",
-            "",
-            "'I have seen too much suffering in these halls of stone.",
-            "",
-            "The creatures here are lost and tormented, driven by fear and darkness.",
-            "",
-            "If you can find mercy in your heart, I ask you this:",
-            "",
-            "Reach the stairs downward without taking any life.",
-            "",
-            "Show that strength can be wedded to compassion.",
-            "",
-            "All stairs shall be revealed to guide your path.'"
-        };
-        quest_typewriter_menu("Niena, Lady of Pity", niena_texts, 13, TERM_L_BLUE, TERM_WHITE);
+        /* Extract initialization texts from quest data */
+        int text_count = 0;
+        cptr* init_texts = extract_quest_init_texts(4, &text_count); /* Nienna is quest index 4 */
+        
+        if (init_texts && text_count > 0) {
+            quest_typewriter_menu("Niena, Lady of Pity", init_texts, text_count, TERM_L_BLUE, TERM_WHITE);
+            free_quest_texts(init_texts);
+        } else {
+            /* Fallback to simple message if text extraction fails */
+            cptr fallback_texts[] = {
+                "Niena, Lady of Pity, speaks with a voice full of sorrow and hope:",
+                "'Show mercy to the creatures here and find the downward path.'"
+            };
+            quest_typewriter_menu("Niena, Lady of Pity", fallback_texts, 2, TERM_L_BLUE, TERM_WHITE);
+        }
         
         /* Accept the quest */
         p_ptr->niena_quest = NIENA_QUEST_ACTIVE;
@@ -6766,18 +7614,21 @@ void niena_quest_interaction(void)
         }
         
         if (stealth_bonus > 0) {
-            static cptr niena_completion_high[] = {
-                "Niena appears with tears of joy in her eyes!",
-                "",
-                "'You have shown that true strength lies in restraint.'",
-                "",
-                "Your mercy has been witnessed by all creation.",
-                "",
-                "'I grant you the gift of moving unseen, like shadows at dawn.'",
-                "",
-                "You feel blessed with supernatural stealth!"
-            };
-            quest_typewriter_menu("Niena, Lady of Pity", niena_completion_high, 9, TERM_L_BLUE, TERM_WHITE);
+            /* Extract completion texts from quest data */
+            int completion_count = 0;
+            cptr* completion_texts = extract_quest_completion_texts(4, &completion_count); /* Nienna is quest index 4 */
+            
+            if (completion_texts && completion_count > 0) {
+                quest_typewriter_menu("Niena, Lady of Pity", completion_texts, completion_count, TERM_L_BLUE, TERM_WHITE);
+                free_quest_texts(completion_texts);
+            } else {
+                /* Fallback to simple message if text extraction fails */
+                cptr fallback_texts[] = {
+                    "Niena appears with tears of joy in her eyes!",
+                    "'You have shown that true strength lies in restraint.'"
+                };
+                quest_typewriter_menu("Niena, Lady of Pity", fallback_texts, 2, TERM_L_BLUE, TERM_WHITE);
+            }
             
             /* Show the specific numbers and bonus after the main dialogue */
             msg_format("You encountered %d creatures but spared %d of them.", 
@@ -6788,16 +7639,23 @@ void niena_quest_interaction(void)
             p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY] = true;
             p_ptr->active_ability[S_SPC][SPC_NIENA_MERCY] = true;
         } else {
-            static cptr niena_completion_low[] = {
-                "Niena appears with tears of joy in her eyes!",
-                "",
-                "'You have shown that true strength lies in restraint.'",
-                "",
-                "'Though you completed the task, your heart was not fully open to mercy.'",
-                "",
-                "'Still, you have learned something of compassion today.'"
-            };
-            quest_typewriter_menu("Niena, Lady of Pity", niena_completion_low, 7, TERM_L_BLUE, TERM_WHITE);
+            /* Extract completion texts from quest data */
+            int completion_count = 0;
+            cptr* completion_texts = extract_quest_completion_texts(4, &completion_count); /* Nienna is quest index 4 */
+            
+            if (completion_texts && completion_count > 1) {
+                /* Use alternate completion text if available */
+                cptr alt_texts[] = {completion_texts[1]};
+                quest_typewriter_menu("Niena, Lady of Pity", alt_texts, 1, TERM_L_BLUE, TERM_WHITE);
+                free_quest_texts(completion_texts);
+            } else {
+                /* Fallback to simple message if text extraction fails */
+                cptr fallback_texts[] = {
+                    "Niena appears, her expression neutral.",
+                    "'You have completed the task, though perhaps not as I hoped.'"
+                };
+                quest_typewriter_menu("Niena, Lady of Pity", fallback_texts, 2, TERM_L_BLUE, TERM_WHITE);
+            }
             
             /* Show the specific numbers after the main dialogue */
             msg_format("You encountered %d creatures but spared %d of them.", 
@@ -6811,8 +7669,14 @@ void niena_quest_interaction(void)
         /* Clear quest state */
         p_ptr->niena_quest = NIENA_QUEST_REWARDED;
         
-        /* Unlock Mercy oath for future characters in this metarun */
-        metarun_unlock_oath(OATH_MERCY);
+        /* Unlock oath for future characters in this metarun */
+        int oath_id = get_quest_oath_id(4); /* Nienna is quest index 4 */
+        if (oath_id > 0) {
+            metarun_unlock_oath(oath_id);
+        }
+        
+        /* Apply quest rewards from quest.txt data */
+        apply_quest_rewards(4); /* Nienna is quest index 4 */
         
         /* Mark quest completion in metarun for score/persistence */
         metarun_mark_quest_completed(METARUN_QUEST_NIENA);

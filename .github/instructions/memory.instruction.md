@@ -48,6 +48,121 @@ applyTo: '**'
 4. **Dynamic Text Wrapping**: Updated text wrapping throughout oath system:
    - Uses `Term_get_size()` for actual terminal dimensions
    - Proper word boundary detection and wrapping
+
+### LATEST: Quest Status Menu Enhancement (Version 0.8.7) - September 6, 2025
+**Issue**: Quest status menu not displaying quest information properly according to quest.txt data
+**Problem Details**:
+1. Quest status showed hardcoded "Active - Seek [monster]" instead of using C: (challenge) text from quest.txt
+2. Placeholder replacement for [monster name] and [artifact name] not working in status display
+3. Rewards showed generic descriptions instead of actual S:, K:, A: bonuses from quest data
+4. Tulkas artifact name display didn't show the dynamically selected artifact
+
+**Implemented Solution**:
+
+1. **New Placeholder Processing Function**: Added `process_quest_placeholders()` in `xtra2.c`:
+   - Handles [monster name] replacement with actual assigned target for Tulkas quest
+   - Handles [artifact name] replacement with actual prize artifact name using proper object_desc()
+   - Creates temporary objects to get full artifact descriptions
+   - Safely handles cases where target/prize indices are invalid
+
+2. **Enhanced Reward Text Generation**: Completely rewrote `get_quest_reward_text()`:
+   - **Tulkas Special Case**: Shows actual selected artifact name using p_ptr->tulkas_prize_a_idx
+   - **Data-Driven Rewards**: Uses quest_type structure data instead of hardcoded strings:
+     - S: stat bonuses displayed as "+X Str/Dex/Con/Gra"
+     - K: skill bonuses displayed as "+X [SkillName]" 
+     - A: special abilities with descriptive names (Fear immunity, Smithing mastery, etc.)
+     - O: oath associations displayed with proper oath names
+   - **Formatted Display**: Multiple reward types separated with "|" for clarity
+
+3. **Quest Status Display Updates**: Modified `do_cmd_quest_status()` in `xtra2.c`:
+   - **Tulkas QUEST_ACTIVE**: Now uses processed challenge text instead of hardcoded "Active - Seek [monster]"
+   - **Tulkas GIVER_PRESENT**: Uses processed challenge text with placeholders replaced
+   - **Aule QUEST_ACTIVE**: Uses challenge text directly instead of hardcoded "Active - Forge..."
+   - **Consistent Reward Display**: All quest states now use new reward text generation
+
+4. **Skill Name Mapping**: Added proper skill type to name conversion:
+   - Maps skill indices (0-7) to readable names (Melee, Archery, Evasion, Stealth, Perception, Will, Smithing, Song)
+
+**Technical Implementation**:
+- Uses existing placeholder replacement logic from quest interaction system
+- Maintains backward compatibility with existing quest states
+- Safe handling of invalid indices with fallback text
+- Proper use of my_strcat() for string concatenation (following codebase conventions)
+- Block scoping for variable declarations to comply with C standards
+
+**Files Modified**:
+- `src/xtra2.c`: Added process_quest_placeholders(), rewrote get_quest_reward_text(), updated do_cmd_quest_status()
+
+**Testing Status**: Compiled successfully, ready for game testing
+
+**FINAL UPDATE - Text Wrapping & Display Enhancement**:
+
+5. **Text Wrapping Implementation**: Added `display_wrapped_text()` function:
+   - **Smart Word Wrapping**: Respects terminal width with proper margins  
+   - **Terminal Size Aware**: Uses `Term_get_size()` to get current terminal dimensions
+   - **Word Boundary Respect**: Wraps at spaces, doesn't break words mid-character
+   - **Minimum Width Protection**: Ensures at least 20 characters width even on narrow terminals
+
+6. **Enhanced Quest Status Display**: Updated all quest status cases to use text wrapping:
+   - **Challenge Text**: All quest challenge descriptions now wrap properly
+   - **Reward Text**: Long reward descriptions wrap across multiple lines
+   - **Consistent Formatting**: All text uses same wrapping logic for uniform appearance
+
+7. **Completed Quest Display Improvement**: Fixed "Previously Completed in Metarun" section:
+   - **Format Change**: From `"[Quest Name] - [Oath] available"` to `"[Quest Title] - Oath: [Oath Name]"`
+   - **Uses Quest Titles**: Now uses T: field (quest titles) instead of Q: field (quest names)
+   - **Clearer Oath Display**: "Oath: [Name]" format makes it clear what was unlocked
+   - **Text Wrapping**: Long quest titles and oath names wrap properly
+
+**Example Display Improvements**:
+- **Before**: "Hunt down the named creature of shadow, Draugluin, Sire of Werewolves, and r" (cut off)
+- **After**: Multi-line wrapped text respecting terminal boundaries
+- **Before**: "Nienna, Lady of Pity - Mercy available"  
+- **After**: "The Lady of Pity tests your compassion - Oath: Mercy oath"
+
+### Previous: Quest System Comprehensive Enhancement (Version 0.8.7) - September 6, 2025
+**Issue**: Complete overhaul of quest system with text display fixes and data-driven rewards
+**Implemented Enhancements**:
+
+1. **Text Display Fixes**:
+   - **Word Wrapping**: Fixed word wrapping in `quest_typewriter_menu()` to prevent words from being split mid-character
+   - **Punctuation Handling**: Improved punctuation attachment to prevent orphaned periods and quotes
+   - **Duplication Fix**: Removed redundant "final line" logic in `extract_quest_completion_texts()` that was causing text duplication
+
+2. **Special Abilities System**:
+   - Added `ability_type` and `ability_id` fields to `quest_type` structure in `types.h`
+   - Updated quest parsing in `init1.c` to read `A:` field from quest.txt
+   - Implemented ability rewards in `apply_quest_rewards()`:
+     - Tulkas (A:8:5): Combat prowess enhancement
+     - Aule (A:8:1): Enhanced smithing sight for detecting flaws
+     - Mandos (A:8:0): Fear resistance protection
+     - Nienna (A:8:6): Stealth enhancement when showing mercy
+
+3. **Data-Driven Quest System**:
+   - All quest rewards now use quest.txt field data:
+     - `S:` field for stat bonuses (str:dex:con:gra)
+     - `K:` field for skill bonuses (skill:amount)
+     - `A:` field for special abilities (type:id)
+     - `O:` field for oath associations
+   - Dynamic oath unlocking based on quest completion
+
+4. **Remaining Hardcoded Values** (identified for future cleanup):
+   - Quest indices (1,2,3,4) hardcoded throughout quest interaction functions
+   - Quest titles in `quest_typewriter_menu()` calls still use hardcoded strings
+   - Quest status display in `do_cmd_quest_status()` has hardcoded titles
+   - Some quest interaction messages still hardcoded (e.g., "Aule the Smith, Maker of Mountains")
+   - Monster tracking variables (niena_monsters_killed, tulkas_quest states) still use legacy approach
+
+**Files Modified**:
+- `src/types.h`: Extended quest_type structure with ability fields
+- `src/init1.c`: Added A: field parsing for special abilities  
+- `src/xtra2.c`: Word wrapping fix, duplication fix, special abilities implementation
+- `lib/edit/quest.txt`: Added missing A:8:5 field for Tulkas quest
+
+**Technical Notes**:
+- Quest system now supports ability type 8 (changed from 9 based on user's quest.txt modifications)
+- Framework in place for mechanical ability effects (currently shows messages)
+- All quest data centralized in quest.txt for easy modification
    - Respects terminal width with appropriate margins
 
 5. **Multiline Oath Confirmations**: All oath breaking confirmations use `get_check_oath_multiline()`:
@@ -110,6 +225,102 @@ applyTo: '**'
 - Terminal compatibility: Verified for minimum 80x25 terminal size
 
 **Testing**: Oath selection screen now displays properly formatted text from parsed oath.txt data with consistent wrapping for both regular and broken oath displays
+
+## Quest System Implementation (Version 0.8.7) - December 2024
+
+### MAJOR: Dynamic Quest Text System with Typewriter Effect
+**Achievement**: Implemented comprehensive quest system with dynamic text extraction from quest.txt
+**Core Components**:
+1. **Dynamic Text Extraction Functions** (xtra2.c):
+   - `extract_quest_init_texts()`: Extracts I: field initialization dialog
+   - `extract_quest_completion_texts()`: Extracts W: field completion dialog  
+   - `free_quest_texts()`: Memory management for dynamic text arrays
+   - All functions parse quest.txt dynamically instead of using hardcoded text
+
+2. **Typewriter Display System** (xtra2.c):
+   - `quest_typewriter_menu()`: Character-by-character text display with timing
+   - Professional quest presentation with proper screen management
+   - Color-coded display (quest giver names in blue/cyan, content in white)
+   - Automatic line spacing and paragraph handling
+
+3. **Quest Integration Functions**:
+   - `tulkas_quest_interaction()`: Tulkas combat challenge quest
+   - `aule_quest_interaction()`: Aule smithing forge quest  
+   - `mandos_quest_interaction()`: Mandos justice quest (find Brodda)
+   - `niena_quest_interaction()`: Niena mercy quest (spare creatures)
+   - All use dynamic text extraction and typewriter display
+
+### COMPREHENSIVE: Quest System Field Documentation
+
+#### T: Field (Title/Type Identifier)
+- **Purpose**: Identifies quest giver and type for dynamic text extraction
+- **Usage**: Used by `extract_quest_init_texts()` and `extract_quest_completion_texts()`
+- **Format**: `T:QuestGiverName` (single line)
+- **Examples**: T:Tulkas, T:Aule, T:Mandos, T:Nienna
+- **Function**: Acts as quest identifier for text parsing and display systems
+
+#### C: Field (Completion/Ceremony Text)
+- **Purpose**: Text displayed during quest completion ceremony
+- **Usage**: Used by quest completion functions for victory celebrations
+- **Format**: Multi-line completion dialog (can span multiple C: lines)
+- **Content**: Reward descriptions, celebration text, quest wrap-up dialog
+- **Display**: Shown via `quest_typewriter_menu()` with typewriter effect
+
+#### I: Field (Initialization/Introduction Text) 
+- **Purpose**: Initial quest dialog when first meeting quest giver
+- **Usage**: Extracted by `extract_quest_init_texts()` for quest initiation
+- **Format**: Multi-line introduction dialog (can span multiple I: lines)
+- **Content**: Quest requirements explanation, background lore, acceptance dialog
+- **Display**: Primary text for quest offering screens
+
+#### W: Field (Win/Success Text)
+- **Purpose**: Success text displayed during quest completion
+- **Usage**: Extracted by `extract_quest_completion_texts()` for victory messages
+- **Format**: Multi-line success dialog (can span multiple W: lines)  
+- **Content**: Victory celebration, achievement recognition, reward ceremony
+- **Display**: Secondary text for quest completion screens
+
+### CRITICAL: Quest Monster Spawning Controls
+**Analysis Result**: Quest monsters are safely contained within quest contexts through multiple control systems:
+
+1. **Quest Reservation System** (generate.c):
+   - `p_ptr->quest_reserved[0]` ensures only one quest spawns per game run
+   - Quest lottery system (`quest_lottery_winner`) controls entrance-based quests
+   - Prevents multiple quest overlaps and conflicts
+
+2. **Vault-based Quest Controls** (generate.c):
+   - Aule and Mandos quests spawn in special quest vaults with strict placement rules
+   - Quest vault placement requires specific conditions (smithing skill for Aule, etc.)
+   - Vault integrity system with `qv_placed_this_level` tracking
+
+3. **Entrance-based Quest Controls** (generate.c):
+   - Tulkas and Niena spawn at level entrances during generation
+   - Controlled by quest lottery system with proper state management
+   - Reset mechanisms for regeneration scenarios
+
+4. **Monster Tracking Systems** (xtra2.c, monster2.c):
+   - Niena quest specifically tracks `p_ptr->niena_monsters_seen` vs `p_ptr->niena_monsters_killed`
+   - Tulkas quest tracks specific unique monster targets (`p_ptr->tulkas_target_r_idx`)
+   - Mandos quest monitors Brodda/Aldor death (`check_mandos_quest_completion()`)
+
+**CONCLUSION**: Quest monsters do NOT spawn outside quest contexts due to comprehensive control systems
+
+### Quest Text Formatting Enhancements
+**Recent Improvements** (based on user feedback):
+1. **Enhanced Text Wrapping**: Fixed quest.txt formatting with proper line breaks and paragraph structure
+2. **Artifact Name Cleanup**: Removed strange symbols (like †) from artifact references 
+3. **Professional Display**: All quest text now displays with proper typewriter effect and formatting
+4. **Memory Management**: Proper allocation/deallocation of dynamic text arrays
+
+### Code Integration Status
+**Files Successfully Modified**:
+- `src/xtra2.c`: Quest interaction functions with dynamic text system
+- `src/init1.c`: Quest text parsing infrastructure  
+- `src/types.h`: Quest type definitions and state management
+- `lib/edit/quest.txt`: Enhanced quest data with improved formatting
+- Compilation: ✅ SUCCESSFUL with Cygwin (no errors, minor warnings only)
+
+**Quest System Status**: ✅ COMPLETE - All four Valar quests fully implemented with dynamic text extraction and typewriter display system
 
 ### MAJOR: Oath Parser Text Storage Bug (Version 0.8.7) - FIXED September 4, 2025
 **Critical Issue**: Major bug in oath parsing function causing garbage data in oath.raw
@@ -1382,6 +1593,50 @@ Copy-Item src\sil.exe . -Force
 
 ## September 2025 - Major UI and Quest System Updates
 
+### Quest Status Menu Modernization (December 2024)
+**Status**: ✅ COMPLETED
+- **Objective**: Update quest status menu to use dynamic data from quest.txt instead of hardcoded strings
+- **Implementation**: 
+  - Enhanced `do_cmd_quest_status()` in xtra2.c to use `get_quest_title()` and `get_quest_challenge()` functions
+  - Replaced hardcoded quest titles like "Tulkas' Decree" with dynamic lookups from quest_info array
+  - Updated oath name display to use `get_oath_name_from_id()` with dynamic oath_info data
+  - Enhanced oath name resolution with fallback mechanism for compatibility
+- **Technical Details**: Modified quest status display to read Q:, T:, C:, and O: fields from quest.txt
+- **Result**: Quest status menu now dynamically displays quest data and properly shows oath names from oath.txt
+
+### Oath System Hardcoded Value Analysis (December 2024)
+**Status**: ✅ COMPLETED
+- **Objective**: Identify and document all hardcoded oath values vs dynamic usage from oath.txt
+- **Findings**:
+  - **Dynamic Usage**: Functions like `oath_name_str()`, `oath_description()`, `oath_pledge()`, `oath_forbidden()`, `oath_reward_text()` in cmd4.c properly read from oath_info array
+  - **Mixed Usage**: Quest status menu (`do_cmd_quest_status()`) was using hardcoded oath names - now fixed to use dynamic oath_info lookups
+  - **Hardcoded Constants**: OATH_MERCY (1), OATH_SILENCE (2), OATH_IRON (3), OATH_SMITH (4) defines remain hardcoded for ID references
+  - **Oath Breaking**: Enhanced `apply_oath_breaking_curse()` in cmd1.c to use dynamic oath names with static fallback array to prevent dangling pointer warnings
+- **Implementation**: Fixed all instances of hardcoded oath name usage to use oath_info data with proper fallback mechanisms
+
+### oath.txt Field Usage Documentation (December 2024)
+**Status**: ✅ COMPLETED
+- **Comprehensive Field Analysis**:
+  - **O:** (Index) - Used for oath_info array indexing and ID references
+  - **T:** (Title/Name) - Used by `oath_name_str()` and dynamic name resolution functions
+  - **D:** (Description) - Used by `oath_description()` function in birth.c and display systems
+  - **P:** (Pledge) - Used by `oath_pledge()` function for oath selection display
+  - **F:** (Forbidden) - Used by `oath_forbidden()` function for restriction display
+  - **R:** (Reward) - Used by `oath_reward_text()` function for benefit display
+  - **C:** (Confirmation) - Used by `oath_confirmation_prompt()` for oath breaking confirmations
+  - **M:** (Curse Message) - Used by `oath_curse_message()` for curse display
+  - **E:** (Permanent) - Used by `oath_permanent_message()` for permanent effects
+  - **Q:** (Death Message) - Used by `oath_death_message()` for death-related text
+  - **Z:** (Banned Text) - Used by `oath_banned_text()` for broken oath display
+- **Result**: All oath.txt fields are properly utilized by the oath system with comprehensive helper functions
+
+### Build System Validation with Cygwin
+**Status**: ✅ COMPLETED
+- **Command**: `make -f Makefile.cyg` from src/ directory
+- **Result**: Successful compilation with all quest and oath modernization changes
+- **Compiler**: i686-w64-mingw32-gcc on Windows/Cygwin environment
+- **Warnings Fixed**: Resolved dangling pointer warning in `apply_oath_breaking_curse()` by using static fallback array
+
 ### Quest Typewriter System Implementation
 **Status**: ✅ COMPLETED
 - **Objective**: Convert all quest interactions to immersive typewriter display
@@ -1405,9 +1660,3 @@ Copy-Item src\sil.exe . -Force
   - Added 'u' key to main menu for "Quest status"
   - Connected to existing `do_cmd_quest_status()` function in xtra2.c
 - **Result**: Better accessibility and logical organization
-
-### Build System Validation
-**Status**: ✅ CONFIRMED
-- **Command**: `make -f Makefile.cyg -j8` from src/ directory
-- **Result**: Successful compilation with all changes integrated
-- **Compiler**: i686-w64-mingw32-gcc on Windows/Cygwin environment

@@ -211,6 +211,7 @@ extern char* cu_name;
 extern quest_type* quest_info;
 extern char* quest_name_text;
 extern char* quest_desc_text;
+extern char* q_text;
 extern oath_type* oath_info;
 extern char* oath_name_text;
 extern char* oath_desc_text;
@@ -724,6 +725,7 @@ extern bool place_monster_one(
     int y, int x, int r_idx, bool slp, bool ingnore_depth, monster_type* m_ptr);
 extern bool place_monster_aux(int y, int x, int r_idx, bool slp, bool grp);
 extern bool place_monster(int y, int x, bool slp, bool grp, bool vault);
+extern bool quest_monster_spawn_okay(int r_idx);
 extern bool alloc_monster(bool on_stairs, bool force_undead);
 extern bool summon_specific(int y1, int x1, int lev, int type);
 extern bool reproduce_monster(int old_m_idx, int new_r_idx);
@@ -982,7 +984,7 @@ extern char* squelch_to_label(int squelch);
 extern bool use_object(object_type* o_ptr, bool* ident);
 
 /* util.c */
-extern void init_logger(bool quiet);
+extern void init_logger(bool quiet, const char* exe_path);
 extern errr path_parse(char* buf, size_t max, cptr file);
 extern errr path_build(char* buf, size_t max, cptr path, cptr file);
 extern errr path_temp(char* buf, size_t max);
@@ -1160,6 +1162,9 @@ extern void scare_onlooking_friends(const monster_type* m_ptr, int amount);
 extern void create_chosen_artefact(byte name1, int y, int x, bool identify);
 extern void drop_loot(monster_type* m_ptr);
 extern void do_cmd_quest_status(void);
+extern cptr* extract_quest_init_texts(int quest_idx, int* count);
+extern cptr* extract_quest_completion_texts(int quest_idx, int* count);
+extern void free_quest_texts(cptr* texts);
 extern void tulkas_quest_interaction(void);
 extern void check_tulkas_quest_interaction(void);
 extern void check_tulkas_quest_completion(int r_idx);

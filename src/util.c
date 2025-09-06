@@ -5401,7 +5401,7 @@ cptr attr_to_text(byte a)
  * stdout when set to true (essential for terminal modes like ncurses where
  * screen output would be garbled otherwise).
  */
-void init_logger(bool quiet)
+void init_logger(bool quiet, const char* exe_path)
 {
     const char* log_level_str = getenv("SIL_LOG_LEVEL");
     int level = LOG_TRACE; /* Default to TRACE level */
@@ -5416,7 +5416,7 @@ void init_logger(bool quiet)
                 break;
             }
         }
-    if (level > LOG_FATAL)
+        if (level > LOG_FATAL)
         {
             level = LOG_INFO;
             log_warn("Unknown log level %s, log level will be set to INFO",
@@ -5425,10 +5425,10 @@ void init_logger(bool quiet)
     }
 
     /* Build log file path in same directory as executable */
-    if (argv0)
+    if (exe_path)
     {
         int i;
-        strcpy(log_path, argv0);
+        strcpy(log_path, exe_path);
         
         /* Find the last directory separator */
         for (i = strlen(log_path) - 1; i >= 0; i--)
@@ -5449,7 +5449,7 @@ void init_logger(bool quiet)
     }
     else
     {
-        /* Fallback to current directory if argv0 not available */
+        /* Fallback to current directory if exe_path not available */
         strcpy(log_path, "log.txt");
     }
 

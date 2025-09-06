@@ -1120,6 +1120,7 @@ static errr init_quest_info(void)
     quest_info = quest_head.info_ptr;
     quest_name_text = quest_head.name_ptr;
     quest_desc_text = quest_head.text_ptr;
+    q_text = quest_head.text_ptr;
 
     return (err);
 }

@@ -592,6 +592,7 @@ char* cu_name;
 quest_type* quest_info;
 char* quest_name_text;
 char* quest_desc_text;
+char* q_text;
 
 /*
  * The oath arrays

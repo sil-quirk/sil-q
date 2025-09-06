@@ -3533,6 +3533,35 @@
 #define NIENA_QUEST_SUCCESS 3        /* Reached stairs without killing (reward granted) */
 #define NIENA_QUEST_REWARDED 4       /* Reward given, quest fully complete */
 
+/*
+ * Quest ID mapping between quest.txt indices and hardcoded game constants
+ * This structure makes it easy to add new quests by associating quest.txt 
+ * quest IDs with the corresponding hardcoded game logic constants.
+ */
+typedef struct quest_mapping {
+    int quest_txt_id;       /* ID used in quest.txt (Q: field) */
+    const char* quest_name; /* Quest name for reference */
+    /* Add quest-specific state constants or function pointers here as needed */
+} quest_mapping;
+
+/* Quest ID mappings - modify this to add new quests */
+#define QUEST_ID_TULKAS  1  /* Tulkas quest in quest.txt */
+#define QUEST_ID_AULE    2  /* Aule quest in quest.txt */  
+#define QUEST_ID_MANDOS  3  /* Mandos quest in quest.txt */
+#define QUEST_ID_NIENA   4  /* Niena quest in quest.txt */
+#define QUEST_ID_OROME   5  /* Orome quest in quest.txt */
+
+/* Quest mapping table - used by extract_quest_init_texts() and related functions */
+static const quest_mapping quest_id_map[] = {
+    { QUEST_ID_TULKAS, "Tulkas the Strong" },
+    { QUEST_ID_AULE,   "Aule the Smith" },
+    { QUEST_ID_MANDOS, "Mandos the Doomsman" },
+    { QUEST_ID_NIENA,  "Niena, Lady of Pity" },
+    { QUEST_ID_OROME,  "Orome the Hunter" }
+};
+
+#define QUEST_COUNT (sizeof(quest_id_map) / sizeof(quest_id_map[0]))
+
 //Defines for number of heroes
 #define FLAG_COUNT 64
 #define FLAG_WORDS ((FLAG_COUNT + 31) / 32)
