@@ -237,6 +237,7 @@
 #define R_IDX_AULE 19
 #define R_IDX_MANDOS 20
 #define R_IDX_NIENA 6
+#define R_IDX_OROME 332
 #define R_IDX_SPIDER_HATCHLING 32
 #define R_IDX_ORC_ARCHER 51
 #define R_IDX_ORC_CHAMPION 81
@@ -602,9 +603,9 @@
 #define SPC_OATH_MERCY 2
 #define SPC_OATH_SILENCE 3  
 #define SPC_OATH_IRON 4
-#define SPC_TULKAS 5
-#define SPC_NIENA_MERCY 6  /* Enhanced stealth from mercy quest */
-#define SPC_OATH_SMITH 7
+#define SPC_NIENA_MERCY 5  /* Enhanced stealth from mercy quest */
+#define SPC_OATH_SMITH 6
+#define SPC_UNIQUE_BANE 7  /* Enhanced effectiveness against unique monsters */
 
 /*
  * Attack Types
@@ -3532,6 +3533,29 @@
 #define NIENA_QUEST_ACTIVE 2         /* Accepted quest: must reach stairs down without killing */
 #define NIENA_QUEST_SUCCESS 3        /* Reached stairs without killing (reward granted) */
 #define NIENA_QUEST_REWARDED 4       /* Reward given, quest fully complete */
+
+/* Oromë quest states */
+#define OROME_QUEST_NOT_STARTED 0
+#define OROME_QUEST_GIVER_PRESENT 1  /* Oromë spawned on hunting grounds level */
+#define OROME_QUEST_ACTIVE 2         /* Accepted quest: must hunt specified monsters */
+#define OROME_QUEST_SUCCESS 3        /* Completed hunt (reward granted) */
+#define OROME_QUEST_REWARDED 4       /* Reward given, quest fully complete */
+
+/* Oromë quest monster types */
+#define OROME_TARGET_WOLF 1
+#define OROME_TARGET_SPIDER 2
+#define OROME_TARGET_SERPENT 3
+#define OROME_TARGET_VAMPIRE 4
+
+/*
+ * Quest Parametric Formula Types (P: field)
+ */
+#define FORMULA_HARDCODED 0      /* Use existing hardcoded functions */
+#define FORMULA_LINEAR_DECAY 1   /* base - depth (e.g., 27 - depth) */
+#define FORMULA_SCALED_RANGE 2   /* max_prob * max(0, min(1, (depth-start)/range)) */
+#define FORMULA_FIXED_PERCENT 3  /* constant percentage regardless of depth */
+#define FORMULA_LINEAR_INTERPOLATE 4 /* linear interpolation between min_prob and max_prob over depth range */
+#define FORMULA_EXPONENTIAL 5    /* exponential growth/decay formula */
 
 /*
  * Quest ID mapping between quest.txt indices and hardcoded game constants

@@ -141,7 +141,13 @@ static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
     },
     [S_SPC] = {
         [SPC_MANDOS] = "Mandos' Doom", /* immunity reward */
-    [SPC_AULE] = "Aule's Forge", /* improved masterpiece forging */
+        [SPC_AULE] = "Aule's Forge", /* improved masterpiece forging */
+        [SPC_OATH_MERCY] = "Oath of Mercy",
+        [SPC_OATH_SILENCE] = "Oath of Silence",
+        [SPC_OATH_IRON] = "Oath of Iron",
+        [SPC_NIENA_MERCY] = "Niena's Gift of Mercy", /* Enhanced stealth from mercy quest */
+        [SPC_OATH_SMITH] = "Oath of the Smith",
+        [SPC_UNIQUE_BANE] = "Unique Bane", /* Enhanced effectiveness against unique monsters */
     },
 };
 

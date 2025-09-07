@@ -5059,6 +5059,64 @@ errr parse_quest_info(char* buf, header* head)
         quest_ptr->quest_type = atoi(buf + 2);
     }
 
+    /* Process 'P' for "Parametric formula" */
+    else if (buf[0] == 'P')
+    {
+        char formula_name[32];
+        
+        /* There better be a current quest_ptr */
+        if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Parse formula: P:FORMULA_TYPE:param1:param2:param3:param4:depth_min:depth_max */
+        /* Example: P:LINEAR_DECAY:27:0:0:0:6:19 */
+        /*          P:SCALED_RANGE:0.125:14:5:0:14:25 */
+        
+        /* Initialize to hardcoded by default */
+        quest_ptr->formula_type = FORMULA_HARDCODED;
+        quest_ptr->formula_params[0] = 0.0f;
+        quest_ptr->formula_params[1] = 0.0f;
+        quest_ptr->formula_params[2] = 0.0f;
+        quest_ptr->formula_params[3] = 0.0f;
+        quest_ptr->depth_min = 0;
+        quest_ptr->depth_max = 25;
+        
+        /* Parse formula name */
+        if (sscanf(buf + 2, "%31[^:]", formula_name) == 1) {
+            char *rest = strchr(buf + 2, ':');
+            if (rest) {
+                rest++; /* Skip the ':' */
+                
+                /* Determine formula type */
+                if (my_stricmp(formula_name, "LINEAR_DECAY") == 0) {
+                    quest_ptr->formula_type = FORMULA_LINEAR_DECAY;
+                    /* Parse: base:unused:unused:unused (depth from E: field) */
+                    sscanf(rest, "%f:%f:%f:%f", 
+                           &quest_ptr->formula_params[0], &quest_ptr->formula_params[1], 
+                           &quest_ptr->formula_params[2], &quest_ptr->formula_params[3]);
+                } else if (my_stricmp(formula_name, "SCALED_RANGE") == 0) {
+                    quest_ptr->formula_type = FORMULA_SCALED_RANGE;
+                    /* Parse: max_prob:start_depth:range:unused (depth from E: field) */
+                    sscanf(rest, "%f:%f:%f:%f", 
+                           &quest_ptr->formula_params[0], &quest_ptr->formula_params[1], 
+                           &quest_ptr->formula_params[2], &quest_ptr->formula_params[3]);
+                } else if (my_stricmp(formula_name, "LINEAR_INTERPOLATE") == 0) {
+                    quest_ptr->formula_type = FORMULA_LINEAR_INTERPOLATE;
+                    /* Parse: min_prob:max_prob:unused:unused (depth from E: field) */
+                    sscanf(rest, "%f:%f:%f:%f", 
+                           &quest_ptr->formula_params[0], &quest_ptr->formula_params[1], 
+                           &quest_ptr->formula_params[2], &quest_ptr->formula_params[3]);
+                } else if (my_stricmp(formula_name, "FIXED_PERCENT") == 0) {
+                    quest_ptr->formula_type = FORMULA_FIXED_PERCENT;
+                    /* Parse: percentage:unused:unused:unused (depth from E: field) */
+                    sscanf(rest, "%f:%f:%f:%f", 
+                           &quest_ptr->formula_params[0], &quest_ptr->formula_params[1], 
+                           &quest_ptr->formula_params[2], &quest_ptr->formula_params[3]);
+                }
+                /* Add more formula types here as needed */
+            }
+        }
+    }
+
     /* Process 'O' for "Oath" */
     else if (buf[0] == 'O')
     {
@@ -5077,6 +5135,88 @@ errr parse_quest_info(char* buf, header* head)
         
         /* Store the oath ID */
         quest_ptr->oath_id = oath_id;
+    }
+
+    /* Process 'E' for "Eligibility requirements" */
+    else if (buf[0] == 'E')
+    {
+        char requirement_type[32];
+        int value1, value2, value3;
+        
+        /* There better be a current quest_ptr */
+        if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Initialize eligibility fields */
+        quest_ptr->eligibility_type = 0; /* Default: no requirements */
+        quest_ptr->eligibility_skill = 0;
+        quest_ptr->eligibility_value = 0;
+        quest_ptr->eligibility_depth_min = 0;
+        quest_ptr->eligibility_depth_max = 0;
+
+        /* Parse eligibility requirements */
+        /* Try parsing with skill name first: E:SKILL_MIN:SMT:10 */
+        char skill_name[32];
+        if (3 == sscanf(buf + 2, "SKILL_MIN:%31[^:]:%d", skill_name, &value1))
+        {
+            quest_ptr->eligibility_type = 1; /* skill_min */
+            
+            /* Map skill names to skill types */
+            if (my_stricmp(skill_name, "MEL") == 0) {
+                quest_ptr->eligibility_skill = S_MEL;
+            } else if (my_stricmp(skill_name, "ARC") == 0) {
+                quest_ptr->eligibility_skill = S_ARC;
+            } else if (my_stricmp(skill_name, "EVN") == 0) {
+                quest_ptr->eligibility_skill = S_EVN;
+            } else if (my_stricmp(skill_name, "STL") == 0) {
+                quest_ptr->eligibility_skill = S_STL;
+            } else if (my_stricmp(skill_name, "PER") == 0) {
+                quest_ptr->eligibility_skill = S_PER;
+            } else if (my_stricmp(skill_name, "WIL") == 0) {
+                quest_ptr->eligibility_skill = S_WIL;
+            } else if (my_stricmp(skill_name, "SMT") == 0) {
+                quest_ptr->eligibility_skill = S_SMT;
+            } else if (my_stricmp(skill_name, "SNG") == 0) {
+                quest_ptr->eligibility_skill = S_SNG;
+            } else {
+                quest_ptr->eligibility_skill = S_MEL; /* Default to Melee */
+            }
+            
+            quest_ptr->eligibility_value = value1; /* minimum value */
+        }
+        /* Fall back to numeric parsing */
+        else if (3 == sscanf(buf + 2, "%31[^:]:%d:%d", requirement_type, &value1, &value2))
+        {
+            /* Format: E:requirement_type:value1:value2 */
+            if (streq(requirement_type, "SKILL_MIN"))
+            {
+                quest_ptr->eligibility_type = 1; /* skill_min */
+                quest_ptr->eligibility_skill = value1; /* skill type (S_SMT, etc.) */
+                quest_ptr->eligibility_value = value2; /* minimum value */
+            }
+            else if (streq(requirement_type, "DEPTH_RANGE"))
+            {
+                quest_ptr->eligibility_type = 3; /* depth_range */
+                quest_ptr->eligibility_depth_min = value1; /* minimum depth */
+                quest_ptr->eligibility_depth_max = value2; /* maximum depth */
+                /* Also set for P: field formula calculations */
+                quest_ptr->depth_min = value1;
+                quest_ptr->depth_max = value2;
+            }
+        }
+        else if (4 == sscanf(buf + 2, "%31[^:]:%d:%d:%d", requirement_type, &value1, &value2, &value3))
+        {
+            /* Format: E:requirement_type:value1:value2:value3 */
+            if (streq(requirement_type, "SKILL_RANGE"))
+            {
+                quest_ptr->eligibility_type = 2; /* skill_range */
+                quest_ptr->eligibility_skill = value1; /* skill type */
+                quest_ptr->eligibility_depth_min = value2; /* min depth */
+                quest_ptr->eligibility_depth_max = value3; /* max depth */
+                /* Also set for P: field formula calculations */
+                quest_ptr->depth_min = value2;
+                quest_ptr->depth_max = value3;
+            }
+        }
     }
 
     /* Process 'Y' for "Yarn/story" */
@@ -5148,13 +5288,25 @@ errr parse_quest_info(char* buf, header* head)
         /* Parse skill bonuses: K:skill:bonus */
         if (2 == sscanf(buf + 2, "%31[^:]:%d", skill_name, &skill_bonus))
         {
-            /* Map skill names to skill types (simplified for now) */
-            if (my_stricmp(skill_name, "SMT") == 0) {
-                quest_ptr->skill_type = 1; /* Smithing */
+            /* Map skill names to skill types using proper constants */
+            if (my_stricmp(skill_name, "MEL") == 0) {
+                quest_ptr->skill_type = S_MEL; /* Melee (0) */
+            } else if (my_stricmp(skill_name, "ARC") == 0) {
+                quest_ptr->skill_type = S_ARC; /* Archery (1) */
+            } else if (my_stricmp(skill_name, "EVN") == 0) {
+                quest_ptr->skill_type = S_EVN; /* Evasion (2) */
             } else if (my_stricmp(skill_name, "STL") == 0) {
-                quest_ptr->skill_type = 2; /* Stealth */
+                quest_ptr->skill_type = S_STL; /* Stealth (3) */
+            } else if (my_stricmp(skill_name, "PER") == 0) {
+                quest_ptr->skill_type = S_PER; /* Perception (4) */
+            } else if (my_stricmp(skill_name, "WIL") == 0) {
+                quest_ptr->skill_type = S_WIL; /* Will (5) */
+            } else if (my_stricmp(skill_name, "SMT") == 0) {
+                quest_ptr->skill_type = S_SMT; /* Smithing (6) */
+            } else if (my_stricmp(skill_name, "SNG") == 0) {
+                quest_ptr->skill_type = S_SNG; /* Song (7) */
             } else {
-                quest_ptr->skill_type = 0; /* Unknown */
+                quest_ptr->skill_type = 0; /* Default to Melee if unknown */
             }
             quest_ptr->skill_bonus = skill_bonus;
         }
@@ -5193,6 +5345,28 @@ errr parse_quest_info(char* buf, header* head)
         
         /* Store the completion text (buf + 2 points after "W:") */
         if (!add_text(&(quest_ptr->completion_text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'R' for "vaRiable name" (quest state mapping) */
+    else if (buf[0] == 'R')
+    {
+        /* There better be a current quest_ptr */
+        if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store the quest state variable name */
+        if (!(quest_ptr->quest_state_var = add_name(head, buf + 2)))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'M' for "Metarun quest ID" */
+    else if (buf[0] == 'M')
+    {
+        /* There better be a current quest_ptr */
+        if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        /* Store the metarun quest ID string */
+        if (!(quest_ptr->metarun_quest_id = add_name(head, buf + 2)))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 

@@ -838,6 +838,24 @@ struct quest_type
     byte skill_bonus; /* Skill bonus amount (K: field second part) */
     byte ability_type; /* Special ability type (A: field first part) */
     byte ability_id; /* Special ability ID (A: field second part) */
+    
+    /* Quest State Mapping (V: and M: fields) */
+    u32b quest_state_var; /* Quest state variable name (V: field) (offset) */
+    u32b metarun_quest_id; /* Metarun quest ID (M: field) (offset) */
+    
+    /* Parametric Formula System (P: field) */
+    byte formula_type; /* 0=hardcoded, 1=linear_decay, 2=scaled_range, 3=fixed_percent */
+    float formula_params[4]; /* Parameters for formula calculation */
+    byte depth_min; /* Minimum depth for formula */
+    byte depth_max; /* Maximum depth for formula */
+    
+    /* Eligibility Requirements (E: field) */
+    byte eligibility_type; /* 0=none, 1=skill_min, 2=skill_max, 3=depth_range, 4=stat_min */
+    byte eligibility_skill; /* Skill type for skill-based requirements */
+    byte eligibility_value; /* Minimum/maximum value for requirement */
+    byte eligibility_depth_min; /* Minimum depth for depth-based requirements */
+    byte eligibility_depth_max; /* Maximum depth for depth-based requirements */
+    
     u32b flags; /* Quest flags */
 };
 
@@ -1208,6 +1226,13 @@ struct player_type
     byte niena_reserved;       /* padding */
     s16b niena_level;          /* Dungeon depth where quest is active */
     s16b niena_reserved2;      /* padding */
+    /* Orome quest tracking */
+    byte orome_quest;          /* Orome quest state (OROME_QUEST_*) */
+    byte orome_target_type;    /* Monster type to hunt (1=wolf, 2=spider, 3=serpent, 4=vampire) */
+    s16b orome_killed_count;   /* Number of target monsters killed */
+    s16b orome_target_count;   /* Required number to kill (100/80/60/30) */
+    s16b orome_level;          /* Dungeon depth where quest started */
+    s16b orome_reserved;       /* padding */
     /* Generic quest/vault tracking */
     byte quest_vault_used;     /* Has a quest-designated vault generated this game */
     byte quest_reserved[15];   /* quest_reserved[0] = any quest spawned flag (run-wide); rest reserved */

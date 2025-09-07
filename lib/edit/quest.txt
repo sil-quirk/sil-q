@@ -8,6 +8,8 @@
 # C: Challenge description
 # O: Associated oath (OATH_SILENCE, OATH_SMITH, OATH_IRON, OATH_MERCY, or NONE)
 # Y: Quest type (0=vault-based, 1=roulet-based)
+# R: Variable name for quest state (e.g., "tulkas_quest", "aule_quest")
+# M: Metarun quest ID (e.g., METARUN_QUEST_TULKAS, METARUN_QUEST_AULE)
 # S: Stat bonuses (str:dex:con:gra)
 # K: Skill bonuses (skill:bonus pairs)
 # A: Special abilities granted
@@ -22,7 +24,11 @@ Q:1:Tulkas the Strong
 T:The Strong One tests your mettle in combat
 C:Hunt down the named creature of shadow, [monster name], and return victorious
 O:2
+E:DEPTH_RANGE:6:19
 Y:1
+R:tulkas_quest
+M:METARUN_QUEST_TULKAS
+P:LINEAR_DECAY:27:0:0:0
 S:1:0:0:0
 I:The air trembles as if with distant thunder, and a great, booming laugh echoes in the stone halls.
 I:Before you stands Tulkas the Strong, his eyes bright with challenge.
@@ -46,6 +52,9 @@ T:The Maker challenges you to prove your craft
 C:At Aulë’s forge, create a masterwork of worth and purpose (25 difficulty at least)
 O:4
 Y:0
+R:aule_quest
+M:METARUN_QUEST_AULE
+E:SKILL_MIN:SMT:10
 S:0:0:0:0
 K:SMT:2
 A:8:1
@@ -67,6 +76,8 @@ T:The Doomsman bids you release a bound spirit
 C:Unmake the false body and free Brodda’s spirit to Mandos’s judgment
 O:3
 Y:0
+R:mandos_quest
+M:METARUN_QUEST_MANDOS
 S:0:0:1:0
 A:8:0
 I:A chill presence fills the chamber, and the air grows still. Before you is a veiled and solemn figure upon a throne of black stone.
@@ -86,7 +97,11 @@ Q:4:Nienna, Lady of Pity
 T:The Lady of Pity tests your compassion
 C:Find the downward stair without taking a life
 O:1
+E:DEPTH_RANGE:14:25
 Y:1
+R:niena_quest
+M:METARUN_QUEST_NIENA
+P:SCALED_RANGE:0.125:14:5:0
 S:0:1:0:1
 K:STL:MERCY_BONUS
 A:8:6
@@ -100,3 +115,28 @@ W:As your foot touches the first step of the downward stair, peace washes over y
 W:
 W:"You have chosen pity over violence. You have walked through fear and left behind not death, but a glimmer of hope."
 W:"For the mercy you have shown to the lost, I grant you this blessing: may your path be shrouded in silence when compassion is your guide."
+
+# Quest of Oromë, the Great Hunter  
+Q:5:Oromë, the Great Hunter
+T:The Great Hunter tests your skill in the hunt
+C:Hunt down the foul kindreds: 100 wolves, 80 spiders, 60 serpents, or 30 vampires
+O:2
+E:DEPTH_RANGE:2:10
+Y:1
+R:orome_quest
+M:METARUN_QUEST_OROME
+P:LINEAR_INTERPOLATE:0.05:0.125:0:0
+S:0:0:0:0
+A:8:7
+I:The air grows wild and clean, smelling of ancient forests under a starlit sky. Suddenly, the clear, mighty blast of a great horn, the Valaróma, echoes from the walls, shaking the very stones and sending a tremor of fear through all evil things. Before you sits a majestic lord upon a great white steed, his face filled with the vigour of the chase. It is Oromë, the Huntsman of the Valar.
+I:
+I:"Hail, hunter! I have heard the echo of your deeds in these sunless caverns, but the shadows here run too deep. The foulest kindreds of the Great Enemy have made their lairs in this gloom: the fell wolves, the venomous spawn of the Great Spider, the cold serpents of the deep, and the blood-drinking horrors of the night."
+I:
+I:"I call upon you to cleanse this darkness! Choose one of these monstrous broods and hunt them without pity. Let your arm be the instrument of my wrath until their numbers are broken and their threat is diminished. When your great hunt is done, I shall return to bestow my blessing upon you."
+W:As the last of your chosen prey falls, the triumphant sound of the Valaróma rings out once more. Oromë appears, his eyes bright with approval.
+W:
+W:"A mighty hunt indeed! The shadows recede, and the foul things of the dark have learned to fear you. You have the eye of a true hunter and a spirit that does not quail before the beasts of night."
+W:
+W:"For this service, I grant you the Hunter's Insight. Henceforth, with every unique and mighty foe you overcome, your understanding of their fell nature shall deepen. Their strengths will reveal their flaws to your eyes, and your arm will strike ever truer against their kind. The greater the beast, the greater your mastery shall become."
+W:
+W:"You have shown a focused purpose, a will that lets deeds speak louder than words. Such resolve makes you worthy to swear an oath of silence, should you choose such a path in a life to come."

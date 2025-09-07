@@ -98,90 +98,435 @@ typedef struct {
 static pending_quest_states_t pending_quest_states = {0};
 
 /* Quest lottery system: determines which quest (if any) "wins" this level */
-static int quest_lottery_winner = 0; /* 0=none, 1=Tulkas, 2=Niena, etc. */
+static int quest_lottery_winner = 0; /* 0=none, quest_id=winner (1=Tulkas, 4=Niena, etc.) */
 static bool quest_lottery_resolved = false; /* true once lottery is run for this level */
 
 /* Function to run the quest lottery once per level - determines which quest (if any) gets this level */
+/* Roulette quest registry entry */
+typedef struct {
+    int quest_id;           /* Quest index from quest.txt */
+    byte* quest_state_ptr;  /* Pointer to quest state variable */
+    u32b metarun_quest_id;  /* Metarun completion tracking ID */
+    bool (*eligibility_check)(int depth, int quest_id); /* Custom eligibility function */
+    bool (*probability_roll)(int depth, int quest_id);  /* Custom probability function */
+} roulette_quest_entry;
+
+/* Forward declarations for quest-specific functions */
+static bool data_driven_eligibility_check(int depth, int quest_id);
+static bool tulkas_eligibility_check(int depth, int quest_id);
+static bool tulkas_probability_roll(int depth, int quest_id);
+static bool niena_eligibility_check(int depth, int quest_id);
+static bool niena_probability_roll(int depth, int quest_id);
+static void run_quest_lottery(void);
+
+/* Generic parametric formula-based functions */
+static bool generic_eligibility_check(int depth, int quest_id);
+static bool generic_probability_roll(int depth, int quest_id);
+
+/* Parametric formula calculation */
+static float calculate_parametric_probability(quest_type* q_ptr, int depth);
+
+/* Roulette quest registry - initialized dynamically based on Y:1 field */
+static roulette_quest_entry roulette_quests[8];  /* Max 8 quests from limits.txt */
+static int roulette_quest_count = 0;
+
+/* Parametric formula calculation */
+static float calculate_parametric_probability(quest_type* q_ptr, int depth) {
+    float probability = 0.0f;
+    
+    /* Check depth bounds */
+    if (depth < q_ptr->depth_min || depth > q_ptr->depth_max) {
+        log_trace("Quest %d: depth %d outside valid range [%d-%d], probability = 0", 
+                  q_ptr->quest_num, depth, q_ptr->depth_min, q_ptr->depth_max);
+        return 0.0f;
+    }
+    
+    log_debug("Quest %d formula calculation: type=%d, depth=%d, params=[%.3f,%.3f,%.3f,%.3f]", 
+              q_ptr->quest_num, q_ptr->formula_type, depth, 
+              q_ptr->formula_params[0], q_ptr->formula_params[1], 
+              q_ptr->formula_params[2], q_ptr->formula_params[3]);
+    
+    switch (q_ptr->formula_type) {
+        case FORMULA_LINEAR_DECAY:
+            /* Formula: 1/(base - depth) */
+            /* Params: [0]=base, others unused */
+            {
+                float base = q_ptr->formula_params[0];
+                float denominator = base - (float)depth;
+                if (denominator > 0.0f) {
+                    probability = 1.0f / denominator;
+                    log_debug("Quest %d LINEAR_DECAY: base=%.1f, depth=%d, denominator=%.1f, probability=%.4f", 
+                              q_ptr->quest_num, base, depth, denominator, probability);
+                } else {
+                    log_debug("Quest %d LINEAR_DECAY: base=%.1f, depth=%d, denominator=%.1f <= 0, probability=0", 
+                              q_ptr->quest_num, base, depth, denominator);
+                }
+            }
+            break;
+            
+        case FORMULA_SCALED_RANGE:
+            /* Formula: max_prob * max(0, min(1, (depth-start_depth)/range)) */
+            /* Params: [0]=max_prob, [1]=start_depth, [2]=range, [3]=unused */
+            {
+                float max_prob = q_ptr->formula_params[0];
+                float start_depth = q_ptr->formula_params[1];
+                float range = q_ptr->formula_params[2];
+                
+                if (range > 0.0f) {
+                    float factor = ((float)depth - start_depth) / range;
+                    if (factor < 0.0f) factor = 0.0f;
+                    if (factor > 1.0f) factor = 1.0f;
+                    probability = max_prob * factor;
+                    log_debug("Quest %d SCALED_RANGE: max_prob=%.3f, start_depth=%.1f, range=%.1f, depth=%d, factor=%.3f, probability=%.4f", 
+                              q_ptr->quest_num, max_prob, start_depth, range, depth, factor, probability);
+                } else {
+                    log_debug("Quest %d SCALED_RANGE: range=%.1f <= 0, probability=0", q_ptr->quest_num, range);
+                }
+            }
+            break;
+            
+        case FORMULA_FIXED_PERCENT:
+            /* Formula: constant percentage */
+            /* Params: [0]=percentage (0.0-1.0), others unused */
+            probability = q_ptr->formula_params[0];
+            log_debug("Quest %d FIXED_PERCENT: constant probability=%.4f", q_ptr->quest_num, probability);
+            break;
+            
+        case FORMULA_HARDCODED:
+        default:
+            /* Use hardcoded functions - should not reach here for parametric calls */
+            probability = 0.0f;
+            log_debug("Quest %d: HARDCODED or unknown formula type %d, probability=0", 
+                      q_ptr->quest_num, q_ptr->formula_type);
+            break;
+    }
+    
+    /* Clamp probability to valid range */
+    if (probability < 0.0f) probability = 0.0f;
+    if (probability > 1.0f) probability = 1.0f;
+    
+    log_info("Quest %d final probability at depth %d: %.4f (%.2f%%)", 
+             q_ptr->quest_num, depth, probability, probability * 100.0f);
+    
+    return probability;
+}
+
+/* Generic eligibility check for parametric quests */
+static bool generic_eligibility_check(int depth, int quest_id) {
+    quest_type* q_ptr = &quest_info[quest_id];
+    
+    /* Check depth bounds */
+    return (depth >= q_ptr->depth_min && depth <= q_ptr->depth_max);
+}
+
+/* Generic probability roll for parametric quests */
+static bool generic_probability_roll(int depth, int quest_id) {
+    quest_type* q_ptr = &quest_info[quest_id];
+    float probability = calculate_parametric_probability(q_ptr, depth);
+    
+    if (probability <= 0.0f) {
+        log_trace("Quest lottery: Quest %d probability is 0%% at depth %d", quest_id, depth);
+        return false;
+    }
+    
+    /* Convert probability to one_in_() parameter */
+    int chance = (int)(1.0f / probability + 0.5f);  /* round to nearest int */
+    int dice_roll = rand_int(chance);  /* Get the actual roll value */
+    bool won = (dice_roll == 0);  /* one_in_(N) succeeds when rand_int(N) == 0 */
+    
+    if (won) {
+        log_trace("Quest lottery: Quest %d WINS! (rolled %d, needed 0, chance was 1/%d = %.1f%%, formula_type=%d)", 
+                 quest_id, dice_roll, chance, probability * 100.0f, q_ptr->formula_type);
+    } else {
+        log_trace("Quest lottery: Quest %d roll failed (rolled %d, needed 0, chance was 1/%d = %.1f%%, formula_type=%d)", 
+                 quest_id, dice_roll, chance, probability * 100.0f, q_ptr->formula_type);
+    }
+    
+    return won;
+}
+
+/* Helper function to map quest state variable name to pointer */
+static byte* get_quest_state_ptr(u32b var_name_offset) {
+    if (!var_name_offset || !quest_name_text) return NULL;
+    
+    /* Get the actual variable name string */
+    cptr actual_name = quest_name_text + var_name_offset;
+    
+    if (my_stricmp(actual_name, "tulkas_quest") == 0) {
+        return &p_ptr->tulkas_quest;
+    } else if (my_stricmp(actual_name, "aule_quest") == 0) {
+        return &p_ptr->aule_quest;
+    } else if (my_stricmp(actual_name, "mandos_quest") == 0) {
+        return &p_ptr->mandos_quest;
+    } else if (my_stricmp(actual_name, "niena_quest") == 0) {
+        return &p_ptr->niena_quest;
+    } else if (my_stricmp(actual_name, "orome_quest") == 0) {
+        return &p_ptr->orome_quest;
+    }
+    
+    return NULL; /* Unknown quest state variable */
+}
+
+/* Helper function to map metarun quest ID string to constant */
+static int get_metarun_quest_id(u32b id_name_offset) {
+    if (!id_name_offset || !quest_name_text) return 0;
+    
+    /* Get the actual ID string */
+    cptr actual_id = quest_name_text + id_name_offset;
+    
+    if (my_stricmp(actual_id, "METARUN_QUEST_TULKAS") == 0) {
+        return METARUN_QUEST_TULKAS;
+    } else if (my_stricmp(actual_id, "METARUN_QUEST_AULE") == 0) {
+        return METARUN_QUEST_AULE;
+    } else if (my_stricmp(actual_id, "METARUN_QUEST_MANDOS") == 0) {
+        return METARUN_QUEST_MANDOS;
+    } else if (my_stricmp(actual_id, "METARUN_QUEST_NIENA") == 0) {
+        return METARUN_QUEST_NIENA;
+    } else if (my_stricmp(actual_id, "METARUN_QUEST_OROME") == 0) {
+        return METARUN_QUEST_OROME;
+    }
+    
+    return 0; /* Unknown metarun quest ID */
+}
+
+/* Initialize the roulette quest registry based on quest.txt Y: field */
+static void init_roulette_quest_registry(void) {
+    roulette_quest_count = 0;
+    
+    /* Scan all quests to find Y:1 (roulette-based) quests */
+    for (int i = 1; i < z_info->quest_max; i++) {
+        quest_type* q_ptr = &quest_info[i];
+        
+        /* Skip if not a roulette quest (Y:1) */
+        if (q_ptr->quest_type != 1) continue;
+        
+        /* Add to registry */
+        roulette_quest_entry* entry = &roulette_quests[roulette_quest_count];
+        entry->quest_id = i;
+        
+        /* Use data-driven mapping for quest state and metarun ID */
+        entry->quest_state_ptr = get_quest_state_ptr(q_ptr->quest_state_var);
+        entry->metarun_quest_id = get_metarun_quest_id(q_ptr->metarun_quest_id);
+        
+        /* Log mapping results */
+        if (entry->quest_state_ptr && entry->metarun_quest_id) {
+            log_trace("Quest lottery: Quest %d mapped successfully (state_ptr=%p, metarun_id=%d)", 
+                      i, entry->quest_state_ptr, entry->metarun_quest_id);
+        } else {
+            log_trace("Quest lottery: Quest %d mapping failed (state_ptr=%p, metarun_id=%d)", 
+                      i, entry->quest_state_ptr, entry->metarun_quest_id);
+            /* Still register the quest but mark as unsupported for state tracking */
+        }
+        
+        /* Use parametric formulas if available, otherwise skip unsupported quests */
+        if (q_ptr->formula_type != FORMULA_HARDCODED) {
+            entry->eligibility_check = generic_eligibility_check;
+            entry->probability_roll = generic_probability_roll;
+            log_trace("Quest lottery: Quest %d using parametric formula (type=%d)", i, q_ptr->formula_type);
+        } else {
+            /* For legacy compatibility, map hardcoded functions for known quests */
+            if (i == 1) { /* Tulkas */
+                entry->eligibility_check = data_driven_eligibility_check; /* Use data-driven eligibility */
+                entry->probability_roll = tulkas_probability_roll;
+                log_trace("Quest lottery: Quest %d using mixed formula (data-driven eligibility + hardcoded probability)", i);
+            } else if (i == 4) { /* Niena */
+                entry->eligibility_check = data_driven_eligibility_check; /* Use data-driven eligibility */
+                entry->probability_roll = niena_probability_roll;
+                log_trace("Quest lottery: Quest %d using mixed formula (data-driven eligibility + hardcoded probability)", i);
+            } else {
+                entry->eligibility_check = NULL;
+                entry->probability_roll = NULL;
+                log_trace("Quest lottery: Quest %d has no formula implementation, skipping", i);
+                continue; /* Skip unsupported quests */
+            }
+        }
+        
+        roulette_quest_count++;
+        log_trace("Quest lottery: Registered roulette quest %d (index %d)", 
+                  entry->quest_id, roulette_quest_count - 1);
+    }
+    
+    log_trace("Quest lottery: Initialized with %d roulette quests (data-driven mapping)", roulette_quest_count);
+}
+
+/* Data-driven eligibility check using quest.txt E: field */
+static bool data_driven_eligibility_check(int depth, int quest_id) {
+    return check_quest_eligibility(quest_id, depth);
+}
+
+/* Tulkas-specific eligibility check */
+static bool tulkas_eligibility_check(int depth, int quest_id) {
+    return (p_ptr->tulkas_quest == TULKAS_QUEST_NOT_STARTED && 
+            depth >= 6 && depth < 20 &&
+            !metarun_is_quest_completed(METARUN_QUEST_TULKAS));
+}
+
+/* Tulkas-specific probability roll */
+static bool tulkas_probability_roll(int depth, int quest_id) {
+    int tulkas_chance = 27 - depth;
+    int dice_roll = rand_int(tulkas_chance);  /* Get the actual roll value */
+    bool won = (dice_roll == 0);  /* one_in_(N) succeeds when rand_int(N) == 0 */
+    
+    if (won) {
+        log_trace("Quest lottery: Tulkas WINS! (rolled %d, needed 0, chance was 1/%d = %.1f%%)", 
+                 dice_roll, tulkas_chance, 100.0f / tulkas_chance);
+    } else {
+        log_trace("Quest lottery: Tulkas roll failed (rolled %d, needed 0, chance was 1/%d = %.1f%%)", 
+                 dice_roll, tulkas_chance, 100.0f / tulkas_chance);
+    }
+    
+    return won;
+}
+
+/* Niena-specific eligibility check */
+static bool niena_eligibility_check(int depth, int quest_id) {
+    return (p_ptr->niena_quest == NIENA_QUEST_NOT_STARTED && 
+            depth >= 14 &&  /* Niena only spawns at level 14+ */
+            !metarun_is_quest_completed(METARUN_QUEST_NIENA));
+}
+
+/* Niena-specific probability roll */
+static bool niena_probability_roll(int depth, int quest_id) {
+    /* Niena probability: p_Nienna(lvl) = 0.125 * max(0, min(1, (lvl - 14) / 5)) */
+    /* This gives: 0% before lvl 14, scales from 0% to 12.5% between lvl 14-19, then 12.5% at 19+ */
+    
+    float depth_factor = (float)(depth - 14) / 5.0f;
+    if (depth_factor > 1.0f) depth_factor = 1.0f;  /* cap at 1.0 */
+    if (depth_factor < 0.0f) depth_factor = 0.0f;  /* shouldn't happen due to depth check above */
+    
+    float niena_probability = 0.125f * depth_factor;
+    
+    if (niena_probability > 0.0f) {
+        /* Convert probability to one_in_() parameter: if P = 1/N, then one_in_(N) gives probability P */
+        int niena_chance = (int)(1.0f / niena_probability + 0.5f);  /* round to nearest int */
+        
+        int dice_roll = rand_int(niena_chance);  /* Get the actual roll value */
+        bool won = (dice_roll == 0);  /* one_in_(N) succeeds when rand_int(N) == 0 */
+        
+        if (won) {
+            log_trace("Quest lottery: Niena WINS! (rolled %d, needed 0, chance was 1/%d = %.1f%%)", 
+                     dice_roll, niena_chance, niena_probability * 100.0f);
+        } else {
+            log_trace("Quest lottery: Niena roll failed (rolled %d, needed 0, chance was 1/%d = %.1f%%)", 
+                     dice_roll, niena_chance, niena_probability * 100.0f);
+        }
+        
+        return won;
+    } else {
+        log_trace("Quest lottery: Niena probability is 0%% at depth %d", depth);
+        return false;
+    }
+}
+
+/* Debug function: manually trigger quest roulette */
+void debug_run_quest_roulette(void) {
+    /* Reset lottery state to allow a new run */
+    quest_lottery_winner = 0;
+    quest_lottery_resolved = false;
+    
+    run_quest_lottery();
+}
+
+/* Debug function: get quest lottery winner */
+int debug_get_quest_lottery_winner(void) {
+    return quest_lottery_winner;
+}
+
 static void run_quest_lottery(void) {
     if (quest_lottery_resolved) {
         log_trace("Quest lottery: Already resolved for this level (winner=%d)", quest_lottery_winner);
         return;
     }
     
+    /* Initialize registry if not done yet */
+    if (roulette_quest_count == 0) {
+        init_roulette_quest_registry();
+    }
+    
     /* CRITICAL: Do not run lottery if any quest is already active */
     if (p_ptr->tulkas_quest > TULKAS_QUEST_NOT_STARTED || 
         p_ptr->niena_quest > NIENA_QUEST_NOT_STARTED ||
+        p_ptr->orome_quest > OROME_QUEST_NOT_STARTED ||
         p_ptr->aule_quest > AULE_QUEST_NOT_STARTED ||
         p_ptr->mandos_quest > MANDOS_QUEST_NOT_STARTED) {
         
-        log_trace("Quest lottery: SKIPPED - quest already active (tulkas=%d, niena=%d, aule=%d, mandos=%d)", 
-                  p_ptr->tulkas_quest, p_ptr->niena_quest, p_ptr->aule_quest, p_ptr->mandos_quest);
+        log_trace("Quest lottery: SKIPPED - quest already active (tulkas=%d, niena=%d, orome=%d, aule=%d, mandos=%d)", 
+                  p_ptr->tulkas_quest, p_ptr->niena_quest, p_ptr->orome_quest, p_ptr->aule_quest, p_ptr->mandos_quest);
         quest_lottery_winner = 0;
         quest_lottery_resolved = true;
         return;
     }
     
-    log_trace("Quest lottery: Running for depth %d", p_ptr->depth);
+    log_trace("Quest lottery: Running for depth %d with %d registered roulette quests", 
+              p_ptr->depth, roulette_quest_count);
     
     /* Reset state */
     quest_lottery_winner = 0;
     quest_lottery_resolved = true;
     
-    /* Quest order: Tulkas first, then Niena */
-    
-    /* 1. Check Tulkas eligibility and roll */
-    if (p_ptr->tulkas_quest == TULKAS_QUEST_NOT_STARTED && 
-        p_ptr->depth >= 6 && p_ptr->depth < 20 &&
-        !metarun_is_quest_completed(METARUN_QUEST_TULKAS)) {
-        
-        int tulkas_chance = 27 - p_ptr->depth;
-        if (one_in_(tulkas_chance)) {
-            quest_lottery_winner = 1; /* Tulkas wins */
-            log_trace("Quest lottery: Tulkas WINS! (1/%d roll succeeded)", tulkas_chance);
-            return;
-        } else {
-            log_trace("Quest lottery: Tulkas roll failed (1/%d)", tulkas_chance);
-        }
-    } else {
-        log_trace("Quest lottery: Tulkas not eligible (quest=%d, depth=%d, completed=%s)", 
-                  p_ptr->tulkas_quest, p_ptr->depth, 
-                  metarun_is_quest_completed(METARUN_QUEST_TULKAS) ? "true" : "false");
+    /* Create a randomized order for quest evaluation */
+    int quest_order[8];  /* Max 8 quests */
+    for (int i = 0; i < roulette_quest_count; i++) {
+        quest_order[i] = i;
     }
     
-    /* 2. Check Niena eligibility and roll */
-    if (p_ptr->niena_quest == NIENA_QUEST_NOT_STARTED && 
-        p_ptr->depth >= 14 &&  /* Niena only spawns at level 14+ */
-        !metarun_is_quest_completed(METARUN_QUEST_NIENA)) {
+    /* Shuffle the quest order using Fisher-Yates algorithm */
+    for (int i = roulette_quest_count - 1; i > 0; i--) {
+        int j = rand_int(i + 1);
+        int temp = quest_order[i];
+        quest_order[i] = quest_order[j];
+        quest_order[j] = temp;
+    }
+    
+    /* Log the randomized quest evaluation order */
+    log_trace("Quest lottery: Random evaluation order generated for %d quests", roulette_quest_count);
+    for (int i = 0; i < roulette_quest_count; i++) {
+        roulette_quest_entry* entry = &roulette_quests[quest_order[i]];
+        log_trace("Quest lottery: Order position %d -> Quest %d (%s)", 
+                  i, entry->quest_id, 
+                  entry->quest_id == 1 ? "Tulkas" : 
+                  entry->quest_id == 4 ? "Niena" : "Unknown");
+    }
+    
+    /* Evaluate quests in random order */
+    for (int order_idx = 0; order_idx < roulette_quest_count; order_idx++) {
+        int quest_idx = quest_order[order_idx];
+        roulette_quest_entry* entry = &roulette_quests[quest_idx];
         
-        /* Niena probability: p_Nienna(lvl) = 0.125 * max(0, min(1, (lvl - 14) / 5)) */
-        /* This gives: 0% before lvl 14, scales from 0% to 12.5% between lvl 14-19, then 12.5% at 19+ */
-        
-        float depth_factor = (float)(p_ptr->depth - 14) / 5.0f;
-        if (depth_factor > 1.0f) depth_factor = 1.0f;  /* cap at 1.0 */
-        if (depth_factor < 0.0f) depth_factor = 0.0f;  /* shouldn't happen due to depth check above */
-        
-        float niena_probability = 0.125f * depth_factor;
-        
-        if (niena_probability > 0.0f) {
-            /* Convert probability to one_in_() parameter: if P = 1/N, then one_in_(N) gives probability P */
-            int niena_chance = (int)(1.0f / niena_probability + 0.5f);  /* round to nearest int */
-            
-            if (one_in_(niena_chance)) {
-                quest_lottery_winner = 2; /* Niena wins */
-                log_trace("Quest lottery: Niena WINS! (1/%d roll succeeded, probability=%.1f%%)", 
-                         niena_chance, niena_probability * 100.0f);
-                return;
-            } else {
-                log_trace("Quest lottery: Niena roll failed (1/%d, probability=%.1f%%)", 
-                         niena_chance, niena_probability * 100.0f);
-            }
-        } else {
-            log_trace("Quest lottery: Niena probability is 0%% at depth %d", p_ptr->depth);
+        /* Skip unsupported quests */
+        if (!entry->quest_state_ptr || !entry->eligibility_check || !entry->probability_roll) {
+            log_trace("Quest lottery: Skipping unsupported quest %d", entry->quest_id);
+            continue;
         }
-    } else {
-        log_trace("Quest lottery: Niena not eligible (quest=%d, depth=%d, completed=%s)", 
-                  p_ptr->niena_quest, p_ptr->depth, 
-                  metarun_is_quest_completed(METARUN_QUEST_NIENA) ? "true" : "false");
+        
+        /* Check quest state - must be NOT_STARTED */
+        if (*entry->quest_state_ptr != 0) { /* 0 = NOT_STARTED for all quest types */
+            log_trace("Quest lottery: Quest %d not eligible (state=%d)", 
+                      entry->quest_id, *entry->quest_state_ptr);
+            continue;
+        }
+        
+        /* Check if quest already completed in metarun */
+        if (metarun_is_quest_completed(entry->metarun_quest_id)) {
+            log_trace("Quest lottery: Quest %d not eligible (metarun completed)", entry->quest_id);
+            continue;
+        }
+        
+        /* Check quest-specific eligibility */
+        if (!entry->eligibility_check(p_ptr->depth, entry->quest_id)) {
+            log_trace("Quest lottery: Quest %d failed eligibility check", entry->quest_id);
+            continue;
+        }
+        
+        /* Roll for quest probability */
+        log_trace("Quest lottery: Evaluating Quest %d for probability roll at depth %d", entry->quest_id, p_ptr->depth);
+        if (entry->probability_roll(p_ptr->depth, entry->quest_id)) {
+            quest_lottery_winner = entry->quest_id;
+            log_trace("Quest lottery: Quest %d WINS the lottery!", entry->quest_id);
+            return;
+        } else {
+            log_trace("Quest lottery: Quest %d failed probability roll, continuing to next quest", entry->quest_id);
+        }
     }
     
     /* No quest won the lottery */
@@ -255,7 +600,7 @@ static void reset_quest_vault_states(void) {
             p_ptr->quest_reserved[0] = 1;
             log_trace("Quest vault regeneration: Tulkas owns this level - ensuring quest_reserved[0] = 1");
         }
-    } else if (quest_lottery_winner == 2) { /* Niena won the lottery */
+    } else if (quest_lottery_winner == 4) { /* Niena won the lottery (quest ID 4) */
         /* Keep quest_reserved[0] = 1 since Niena owns this level */
         if (!p_ptr->quest_reserved[0]) {
             p_ptr->quest_reserved[0] = 1;
@@ -4206,9 +4551,9 @@ static bool try_quest_vault_type(int v_type)
         
         /* Check Aule requirements */
         if (vault_template_has_aule(qv_ptr)) {
-            if (p_ptr->skill_base[S_SMT] < AULE_SMITH_REQ) {
-                log_trace("Quest vault: Aule vault skipped (base smithing %d < %d)", 
-                         p_ptr->skill_base[S_SMT], AULE_SMITH_REQ);
+            /* Use data-driven eligibility check from quest.txt E: field */
+            if (!check_quest_eligibility(2, p_ptr->depth)) { /* Aule is quest index 2 */
+                log_trace("Quest vault: Aule vault skipped (eligibility check failed)");
                 continue;
             }
             if (metarun_is_quest_completed(METARUN_QUEST_AULE)) {
@@ -4837,34 +5182,16 @@ static bool cave_gen(void)
         (void)alloc_monster(false, false);
     }
 
-    /* Check for Tulkas room-based spawning */
-    log_trace("Tulkas spawn check: quest=%d, depth=%d, metarun_completed=%s, quest_reserved[0]=%d", 
+    /* Check for Tulkas quest spawning - only if it won the lottery */
+    log_trace("Tulkas spawn check: quest=%d, depth=%d, metarun_completed=%s, lottery_winner=%d", 
              p_ptr->tulkas_quest, p_ptr->depth, 
              metarun_is_quest_completed(METARUN_QUEST_TULKAS) ? "true" : "false",
-             p_ptr->quest_reserved[0]);
+             quest_lottery_winner);
              
-    if (p_ptr->tulkas_quest != TULKAS_QUEST_NOT_STARTED) {
-        log_trace("Tulkas spawn: SKIPPED - quest already started/completed (state=%d)", p_ptr->tulkas_quest);
-    } else if (p_ptr->depth < 6) {
-        log_trace("Tulkas spawn: SKIPPED - too shallow (depth=%d < 6)", p_ptr->depth);
-    } else if (p_ptr->depth >= 20) {
-        log_trace("Tulkas spawn: SKIPPED - too deep (depth=%d >= 20)", p_ptr->depth);
-    } else if (metarun_is_quest_completed(METARUN_QUEST_TULKAS)) {
-        log_trace("Tulkas spawn: SKIPPED - quest completed in metarun");
-    } else if (p_ptr->quest_reserved[0]) {
-        log_trace("Tulkas spawn: SKIPPED - another quest already spawned this run");
-    } else {
-        log_trace("Tulkas spawn: CONDITIONS MET - attempting spawn");
-    }
-             
-    if (p_ptr->tulkas_quest == TULKAS_QUEST_NOT_STARTED && 
-        p_ptr->depth >= 6 &&  /* Minimum level 6 */
-        p_ptr->depth < 20 &&  /* Only up to depth 20 */
-        !metarun_is_quest_completed(METARUN_QUEST_TULKAS) && /* Don't spawn if already completed in metarun */
-        !p_ptr->quest_reserved[0] &&  /* Another quest already spawned this run? */
-        quest_lottery_winner == 1)  /* Tulkas must win the lottery to spawn */
-    {
-        /* Lottery system: probability already determined - now attempt placement */
+    /* Only attempt Tulkas spawning if it won the lottery */
+    if (quest_lottery_winner == 1) { /* Tulkas is quest ID 1 */
+        log_trace("Tulkas spawn: Tulkas WON the lottery - attempting spawn");
+        
         /* Try to find a room to spawn Tulkas in */
         int attempts;
         bool tulkas_spawned = false;
@@ -4962,7 +5289,7 @@ static bool cave_gen(void)
              quest_lottery_winner);
              
     /* Only attempt Niena spawning if it won the lottery */
-    if (quest_lottery_winner == 2) {
+    if (quest_lottery_winner == 4) { /* Niena is quest ID 4 */
         log_trace("Niena spawn: Niena WON the lottery - attempting spawn");
         
         /* Check level size requirement: must be maximum size (l >= 5) */
@@ -5076,6 +5403,109 @@ static bool cave_gen(void)
         }
     } else {
         log_trace("Niena spawn: SKIPPED - did not win lottery (winner=%d)", quest_lottery_winner);
+    }
+
+    /* Check for Oromë quest spawning - only if it won the lottery */
+    log_trace("Oromë spawn check: quest=%d, depth=%d, metarun_completed=%s, lottery_winner=%d", 
+             p_ptr->orome_quest, p_ptr->depth, 
+             metarun_is_quest_completed(METARUN_QUEST_OROME) ? "true" : "false",
+             quest_lottery_winner);
+             
+    /* Only attempt Oromë spawning if it won the lottery */
+    if (quest_lottery_winner == 5) { /* Oromë is quest ID 5 */
+        log_trace("Oromë spawn: Oromë WON the lottery - attempting spawn");
+        
+        /* Try to find a room to spawn Oromë in */
+        int attempts;
+        bool orome_spawned = false;
+        
+        log_trace("Oromë spawn: Lottery winner attempting placement at depth %d", p_ptr->depth);
+        
+        /* Check if Oromë already exists on this level */
+        bool orome_exists = false;
+        int j;
+        for (j = 1; j < mon_max; j++)
+        {
+            monster_type *m_ptr = &mon_list[j];
+            if (m_ptr->r_idx == R_IDX_OROME)
+            {
+                orome_exists = true;
+                break;
+            }
+        }
+        
+        if (!orome_exists)
+        {
+            /* Try to spawn Oromë near the player's starting room */
+            int player_y = p_ptr->py;
+            int player_x = p_ptr->px;
+            
+            /* Try to find a spot in the same room as the player first */
+            for (attempts = 0; attempts < 50 && !orome_spawned; attempts++)
+            {
+                /* Search in a radius around the player */
+                int dy = rand_range(-2, 2);
+                int dx = rand_range(-2, 2);
+                int try_y = player_y + dy;
+                int try_x = player_x + dx;
+                
+                /* Must be valid coordinates and a floor in the same room */
+                if (try_y > 0 && try_y < p_ptr->cur_map_hgt - 1 &&
+                    try_x > 0 && try_x < p_ptr->cur_map_wid - 1 &&
+                    cave_floor_bold(try_y, try_x) && 
+                    (cave_info[try_y][try_x] & CAVE_ROOM) &&
+                    !(cave_info[try_y][try_x] & CAVE_ICKY) &&
+                    cave_m_idx[try_y][try_x] == 0)
+                {
+                    if (place_monster_one(try_y, try_x, R_IDX_OROME, true, true, NULL))
+                    {
+                        p_ptr->orome_quest = OROME_QUEST_GIVER_PRESENT;
+                        p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
+                        orome_spawned = true;
+                        log_trace("Oromë spawned near player at (%d, %d), player at (%d, %d), quest state: %d", 
+                                 try_y, try_x, player_y, player_x, p_ptr->orome_quest);
+                    }
+                }
+            }
+            
+            /* If that failed, try any room on the level */
+            if (!orome_spawned)
+            {
+                for (attempts = 0; attempts < 100 && !orome_spawned; attempts++)
+                {
+                    int room_y = rand_int(p_ptr->cur_map_hgt);
+                    int room_x = rand_int(p_ptr->cur_map_wid);
+                    
+                    /* Must be a floor in a room, not in a vault/interesting room */
+                    if (cave_floor_bold(room_y, room_x) && 
+                        (cave_info[room_y][room_x] & CAVE_ROOM) &&
+                        !(cave_info[room_y][room_x] & CAVE_ICKY) &&
+                        cave_m_idx[room_y][room_x] == 0)
+                    {
+                        if (place_monster_one(room_y, room_x, R_IDX_OROME, true, true, NULL))
+                        {
+                            p_ptr->orome_quest = OROME_QUEST_GIVER_PRESENT;
+                            p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
+                            orome_spawned = true;
+                            log_trace("Oromë spawned in fallback room at (%d, %d), quest state: %d", 
+                                     room_y, room_x, p_ptr->orome_quest);
+                        }
+                    }
+                }
+            }
+            
+            if (!orome_spawned)
+            {
+                log_trace("Oromë spawn: FAILED - could not place monster after 150 attempts");
+                return false; /* Force regeneration */
+            }
+        }
+        else
+        {
+            log_trace("Oromë already exists on level, skipping room spawn");
+        }
+    } else {
+        log_trace("Oromë spawn: SKIPPED - did not win lottery (winner=%d)", quest_lottery_winner);
     }
 
     // place Morgoth if on the run

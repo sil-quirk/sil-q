@@ -718,9 +718,12 @@ N:164:Oath of Iron
 I:8:4:0
 D:An unbreakable resolve to claim a Silmaril. Grants +2 Constitution but breaks if you flee without one.
 N:165:Niena's Gift of Mercy
-I:8:6:0
+I:8:5:0
 D:Enhanced stealth proportional to mercy shown. Grants up to 10 stealth based on (seen-killed)/seen monsters. Awarded by quest; cannot be purchased.
 N:166:Oath of the Smith
-I:8:7:0
+I:8:6:0
 D:A craftsman's vow to use only their own creations. Grants +5 Smithing skill but breaks if you pick up weapons or armor forged by others.
+N:167:Unique Bane
+I:8:7:0
+D:Knowledge of how to exploit the weaknesses of legendary foes. Grants +3 attack and evasion when fighting unique monsters. Awarded by quest; cannot be purchased.
 

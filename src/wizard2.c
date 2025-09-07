@@ -14,6 +14,11 @@
 #ifdef ALLOW_DEBUG
 
 /*
+ * Debug function declarations
+ */
+static void do_cmd_debug_complete_quest(void);
+
+/*
  * Display the dungeon light levels.
  */
 
@@ -1808,6 +1813,68 @@ void do_cmd_wiz_look(void)
 }
 
 /*
+ * Debug function: Complete current active quest
+ */
+static void do_cmd_debug_complete_quest(void)
+{
+    bool quest_found = false;
+    
+    /* Check for active quests and complete them */
+    if (p_ptr->tulkas_quest > TULKAS_QUEST_NOT_STARTED && p_ptr->tulkas_quest < TULKAS_QUEST_COMPLETE) {
+        msg_print("Completing Tulkas quest...");
+        p_ptr->tulkas_quest = TULKAS_QUEST_COMPLETE;
+        /* Trigger proper quest interaction instead of just applying rewards */
+        tulkas_quest_interaction(); 
+        quest_found = true;
+        log_debug("Debug: Completed Tulkas quest with full interaction");
+    }
+    
+    if (p_ptr->aule_quest > AULE_QUEST_NOT_STARTED && p_ptr->aule_quest < AULE_QUEST_SUCCESS) {
+        msg_print("Completing Aule quest...");
+        p_ptr->aule_quest = AULE_QUEST_SUCCESS;
+        /* Trigger proper quest interaction instead of just applying rewards */
+        aule_quest_interaction();
+        quest_found = true;
+        log_debug("Debug: Completed Aule quest with full interaction");
+    }
+    
+    if (p_ptr->mandos_quest > MANDOS_QUEST_NOT_STARTED && p_ptr->mandos_quest < MANDOS_QUEST_SUCCESS) {
+        msg_print("Completing Mandos quest...");
+        p_ptr->mandos_quest = MANDOS_QUEST_SUCCESS;
+        /* Trigger proper quest interaction instead of just applying rewards */
+        mandos_quest_interaction();
+        quest_found = true;
+        log_debug("Debug: Completed Mandos quest with full interaction");
+    }
+    
+    if (p_ptr->niena_quest > NIENA_QUEST_NOT_STARTED && p_ptr->niena_quest < NIENA_QUEST_SUCCESS) {
+        msg_print("Completing Niena quest...");
+        p_ptr->niena_quest = NIENA_QUEST_SUCCESS;
+        /* Trigger proper quest interaction */
+        niena_quest_interaction();
+        quest_found = true;
+        log_debug("Debug: Completed Niena quest with full interaction");
+    }
+    
+    if (p_ptr->orome_quest > OROME_QUEST_NOT_STARTED && p_ptr->orome_quest < OROME_QUEST_SUCCESS) {
+        msg_print("Completing Oromë quest...");
+        p_ptr->orome_quest = OROME_QUEST_SUCCESS;
+        /* Set kill count to target to simulate completion */
+        p_ptr->orome_killed_count = p_ptr->orome_target_count;
+        /* Trigger proper quest interaction */
+        orome_quest_interaction();
+        quest_found = true;
+        log_debug("Debug: Completed Oromë quest with full interaction");
+    }
+    
+    if (!quest_found) {
+        msg_print("No active quests found to complete.");
+    } else {
+        msg_print("Quest(s) completed! Check your quest log and abilities menu.");
+    }
+}
+
+/*
  * Ask for and parse a "debug command"
  *
  * The "p_ptr->command_arg" may have been set.
@@ -2063,12 +2130,26 @@ void do_cmd_debug(void)
         break;
     }
 
+    /* Grant Unique Bane ability */
+    case 'y':
+    {
+        grant_unique_bane_ability();
+        break;
+    }
+
     /* Zap Monsters (Banishment) */
     case 'z':
     {
         if (p_ptr->command_arg <= 0)
             p_ptr->command_arg = MAX_SIGHT;
         do_cmd_wiz_zap(p_ptr->command_arg);
+        break;
+    }
+
+    /* Complete current quest */
+    case '2':
+    {
+        do_cmd_debug_complete_quest();
         break;
     }
 

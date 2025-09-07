@@ -2390,6 +2390,42 @@ void monster_death(int m_idx)
                  p_ptr->niena_monsters_killed, p_ptr->niena_monsters_seen);
     }
 
+    /* Track monster death for Oromë hunting quest */
+    if (p_ptr->orome_quest == OROME_QUEST_ACTIVE) {
+        bool target_killed = false;
+        
+        /* Check if killed monster matches current hunt target */
+        switch (p_ptr->orome_target_type) {
+            case OROME_TARGET_WOLF:
+                if (r_ptr->flags3 & RF3_WOLF) {
+                    target_killed = true;
+                }
+                break;
+            case OROME_TARGET_SPIDER:
+                if (r_ptr->flags3 & RF3_SPIDER) {
+                    target_killed = true;
+                }
+                break;
+            case OROME_TARGET_SERPENT:
+                if (r_ptr->flags3 & RF3_SERPENT) {
+                    target_killed = true;
+                }
+                break;
+            case OROME_TARGET_VAMPIRE:
+                /* Vampires are identified by 'd_char' = 'v' */
+                if (r_ptr->d_char == 'v') {
+                    target_killed = true;
+                }
+                break;
+        }
+        
+        if (target_killed) {
+            p_ptr->orome_killed_count++;
+            log_trace("Oromë quest: Target monster killed (type=%d, count=%d/%d)", 
+                     p_ptr->orome_target_type, p_ptr->orome_killed_count, p_ptr->orome_target_count);
+        }
+    }
+
     /*
      *   1. General monster death things
      */
@@ -2437,6 +2473,9 @@ void monster_death(int m_idx)
     
     /* Check for Mandos quest completion */
     check_mandos_quest_completion(m_ptr->r_idx);
+    
+    /* Check for Oromë quest completion */
+    check_orome_quest_completion();
 
     /* Give some experience for the kill */
     new_exp = adjusted_mon_exp(r_ptr, true);
@@ -5705,41 +5744,40 @@ void apply_quest_rewards(int quest_idx)
     }
     
     /* Apply special ability */
-    if (q_ptr->ability_type > 0) {
-        /* ability_type 8 is the main type based on quest.txt */
+    if (q_ptr->ability_type > 0 && q_ptr->ability_id >= 0) {
+        /* ability_type 8 is the Special skill type (S_SPC) based on quest.txt */
         if (q_ptr->ability_type == 8) {
-            switch (q_ptr->ability_id) {
-                case 0: /* Mandos - Fear resistance */
-                    msg_print("You feel protected from the great fears that unman mortal hearts.");
-                    /* This could be implemented as a permanent flag if such system exists */
-                    log_trace("Applied special ability: Fear resistance (Mandos)");
-                    break;
-                    
-                case 1: /* Aule - Enhanced smithing sight */
-                    msg_print("Hidden flaws in crafted items now reveal themselves to your eye.");
-                    /* This could enhance item identification or crafting */
-                    log_trace("Applied special ability: Enhanced smithing sight (Aule)");
-                    break;
-                    
-                case 5: /* Tulkas - Combat prowess */
-                    msg_print("The fire of battle burns ever brighter within you.");
-                    /* This could be a combat bonus */
-                    log_trace("Applied special ability: Combat prowess (Tulkas)");
-                    break;
-                    
-                case 6: /* Nienna - Stealth when showing mercy */
-                    msg_print("Your path shall be shrouded in silence when compassion guides you.");
-                    /* This could enhance stealth when certain conditions are met */
-                    log_trace("Applied special ability: Mercy stealth (Nienna)");
-                    break;
-                    
-                default:
-                    log_trace("Unknown special ability: type %d, id %d", q_ptr->ability_type, q_ptr->ability_id);
-                    break;
+            /* Grant the special ability using the ability_id from quest.txt */
+            if (!p_ptr->have_ability[S_SPC][q_ptr->ability_id]) {
+                p_ptr->have_ability[S_SPC][q_ptr->ability_id] = true;
+                p_ptr->innate_ability[S_SPC][q_ptr->ability_id] = true;
+                p_ptr->active_ability[S_SPC][q_ptr->ability_id] = true;
+                
+                /* Get the ability name for the message */
+                ability_type* b_ptr = &b_info[ability_index(S_SPC, q_ptr->ability_id)];
+                if (b_ptr && b_ptr->name && b_name) {
+                    msg_format("You have learned %s!", b_name + b_ptr->name);
+                    log_trace("Applied special ability: %s (skill=%d, ability=%d)", 
+                             b_name + b_ptr->name, q_ptr->ability_type, q_ptr->ability_id);
+                } else {
+                    msg_print("You have gained a new special ability!");
+                    log_trace("Applied special ability: Unknown name (skill=%d, ability=%d)", 
+                             q_ptr->ability_type, q_ptr->ability_id);
+                }
+            } else {
+                /* Already have this ability */
+                ability_type* b_ptr = &b_info[ability_index(S_SPC, q_ptr->ability_id)];
+                if (b_ptr && b_ptr->name && b_name) {
+                    msg_format("You already possess %s.", b_name + b_ptr->name);
+                } else {
+                    msg_print("You already possess this special ability.");
+                }
+                log_trace("Special ability already granted: skill=%d, ability=%d", 
+                         q_ptr->ability_type, q_ptr->ability_id);
             }
         }
         else {
-            log_trace("Unknown ability type: %d", q_ptr->ability_type);
+            log_trace("Unknown ability type: %d (not implemented)", q_ptr->ability_type);
         }
     }
     
@@ -5760,6 +5798,105 @@ int get_quest_oath_id(int quest_idx)
     
     q_ptr = &quest_info[quest_idx];
     return q_ptr->oath_id;
+}
+
+/*
+ * Check quest eligibility based on E: field data and standard quest requirements
+ * Includes metarun completion checks and quest state checks
+ */
+bool check_quest_eligibility(int quest_idx, int depth)
+{
+    quest_type* q_ptr;
+    
+    /* Validate quest index */
+    if (quest_idx <= 0 || quest_idx >= z_info->quest_max) return false;
+    
+    q_ptr = &quest_info[quest_idx];
+    
+    /* Check standard requirements that apply to all quests */
+    /* 1. Quest not already completed in current metarun */
+    u32b metarun_flag = 0;
+    switch (quest_idx) {
+        case 1: metarun_flag = METARUN_QUEST_TULKAS; break;
+        case 2: metarun_flag = METARUN_QUEST_AULE; break;
+        case 3: metarun_flag = METARUN_QUEST_MANDOS; break;
+        case 4: metarun_flag = METARUN_QUEST_NIENA; break;
+        case 5: metarun_flag = METARUN_QUEST_OROME; break;
+    }
+    
+    if (metarun_flag && metarun_is_quest_completed(metarun_flag)) {
+        log_trace("Quest %d eligibility: METARUN_COMPLETED = FAIL", quest_idx);
+        return false;
+    }
+    
+    /* 2. Check quest-specific state (must not be started for roulette quests) */
+    switch (quest_idx) {
+        case 1: /* Tulkas */
+            if (p_ptr->tulkas_quest != TULKAS_QUEST_NOT_STARTED) {
+                log_trace("Quest %d eligibility: TULKAS_ALREADY_STARTED = FAIL", quest_idx);
+                return false;
+            }
+            break;
+        case 4: /* Niena */
+            if (p_ptr->niena_quest != NIENA_QUEST_NOT_STARTED) {
+                log_trace("Quest %d eligibility: NIENA_ALREADY_STARTED = FAIL", quest_idx);
+                return false;
+            }
+            break;
+    }
+    
+    /* 3. Only one quest per run (for roulette quests) */
+    if (q_ptr->quest_type == 1 && p_ptr->quest_reserved[0]) { /* Y:1 = roulette quest */
+        log_trace("Quest %d eligibility: QUEST_RESERVED = FAIL", quest_idx);
+        return false;
+    }
+    
+    /* Check eligibility type from E: field */
+    switch (q_ptr->eligibility_type) {
+        case 0: /* No requirements */
+            log_trace("Quest %d eligibility: NO_REQUIREMENTS = PASS", quest_idx);
+            return true;
+            
+        case 1: /* SKILL_MIN - minimum skill requirement */
+            if (q_ptr->eligibility_skill < S_MAX) {
+                int player_skill = p_ptr->skill_base[q_ptr->eligibility_skill];
+                bool meets_req = (player_skill >= q_ptr->eligibility_value);
+                log_trace("Quest %d eligibility: SKILL_MIN (skill=%d, player=%d, required=%d) = %s",
+                         quest_idx, q_ptr->eligibility_skill, player_skill, q_ptr->eligibility_value,
+                         meets_req ? "PASS" : "FAIL");
+                return meets_req;
+            }
+            return false;
+            
+        case 2: /* SKILL_RANGE - skill requirement within depth range */
+            if (q_ptr->eligibility_skill < S_MAX && 
+                depth >= q_ptr->eligibility_depth_min && 
+                depth <= q_ptr->eligibility_depth_max) {
+                int player_skill = p_ptr->skill_base[q_ptr->eligibility_skill];
+                bool meets_req = (player_skill >= q_ptr->eligibility_value);
+                log_trace("Quest %d eligibility: SKILL_RANGE (skill=%d, player=%d, required=%d, depth=%d in %d-%d) = %s",
+                         quest_idx, q_ptr->eligibility_skill, player_skill, q_ptr->eligibility_value,
+                         depth, q_ptr->eligibility_depth_min, q_ptr->eligibility_depth_max,
+                         meets_req ? "PASS" : "FAIL");
+                return meets_req;
+            }
+            log_trace("Quest %d eligibility: SKILL_RANGE (depth=%d NOT in %d-%d) = FAIL",
+                     quest_idx, depth, q_ptr->eligibility_depth_min, q_ptr->eligibility_depth_max);
+            return false;
+            
+        case 3: /* DEPTH_RANGE - must be within depth range */
+            {
+                bool in_range = (depth >= q_ptr->eligibility_depth_min && depth <= q_ptr->eligibility_depth_max);
+                log_trace("Quest %d eligibility: DEPTH_RANGE (depth=%d in %d-%d) = %s",
+                         quest_idx, depth, q_ptr->eligibility_depth_min, q_ptr->eligibility_depth_max,
+                         in_range ? "PASS" : "FAIL");
+                return in_range;
+            }
+            
+        default:
+            log_trace("Quest %d eligibility: Unknown type %d = FAIL", quest_idx, q_ptr->eligibility_type);
+            return false;
+    }
 }
 
 /*
@@ -6265,20 +6402,23 @@ static cptr get_quest_reward_text(int quest_idx)
     }
     
     /* Check special abilities */
-    if (q_ptr->ability_type && q_ptr->ability_id) {
+    if (q_ptr->ability_type && q_ptr->ability_id >= 0) {
         if (has_rewards) my_strcat(reward_buf, "| ", sizeof(reward_buf));
         has_rewards = true;
         
-        /* Convert ability to description */
+        /* Get ability name from ability database */
         cptr ability_name = "Special ability";
-        if (q_ptr->ability_type == 8) { /* Common ability type */
-            switch (q_ptr->ability_id) {
-                case 0: ability_name = "Fear immunity"; break;
-                case 1: ability_name = "Smithing mastery"; break;
-                case 6: ability_name = "Stealth blessing"; break;
-                default: ability_name = "Special ability"; break;
+        if (q_ptr->ability_type == S_SPC) { /* Special abilities type */
+            /* Use ability_index to find the ability and get its name */
+            int idx = ability_index(S_SPC, q_ptr->ability_id);
+            if (idx >= 0 && idx < z_info->b_max) {
+                ability_type* b_ptr = &b_info[idx];
+                if (b_ptr->name) {
+                    ability_name = b_name + b_ptr->name;
+                }
             }
         }
+        
         my_strcat(reward_buf, ability_name, sizeof(reward_buf));
     }
     
@@ -6403,7 +6543,7 @@ void do_cmd_quest_status(void)
                 Term_putstr(col + 2, row++, -1, color, tulkas_status);
                 break;
             case TULKAS_QUEST_REWARDED:
-                tulkas_status = "Completed this character";
+                tulkas_status = "Completed by this character";
                 color = TERM_L_GREEN;
                 Term_putstr(col + 2, row++, -1, color, tulkas_status);
                 log_trace("QUEST STATUS: Calling get_quest_reward_text for TULKAS (REWARDED)");
@@ -6455,7 +6595,7 @@ void do_cmd_quest_status(void)
             case AULE_QUEST_REWARDED:
                 /* Check if completed this run vs completed in previous metarun */
                 if (metarun_is_quest_completed(METARUN_QUEST_AULE)) {
-                    aule_status = "Completed this character";
+                    aule_status = "Completed by this character";
                     color = TERM_L_GREEN;
                     Term_putstr(col + 2, row++, -1, color, aule_status);
                     strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_AULE));
@@ -6499,12 +6639,12 @@ void do_cmd_quest_status(void)
                 Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 break;
             case MANDOS_QUEST_ACTIVE:
-                mandos_status = "Active - Clear all foes from the tomb";
+                mandos_status = "Active";
                 color = TERM_WHITE;
                 Term_putstr(col + 2, row++, -1, color, mandos_status);
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, quest_challenge);
+                display_wrapped_text(col, &row, quest_challenge, TERM_SLATE, wid);
                 strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_MANDOS));
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 break;
             case MANDOS_QUEST_SUCCESS:
                 mandos_status = "Complete - Return for reward";
@@ -6516,11 +6656,11 @@ void do_cmd_quest_status(void)
             case MANDOS_QUEST_REWARDED:
                 /* Check if completed this run vs completed in previous metarun */
                 if (metarun_is_quest_completed(METARUN_QUEST_MANDOS)) {
-                    mandos_status = "Completed this character";
+                    mandos_status = "Completed by this character";
                     color = TERM_L_GREEN;
                     Term_putstr(col + 2, row++, -1, color, mandos_status);
                     strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_MANDOS));
-                    Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
+                    display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 } else {
                     /* Quest is REWARDED but not in current metarun - must be from previous metarun access */
                     mandos_status = "Available from previous metarun";
@@ -6559,13 +6699,14 @@ void do_cmd_quest_status(void)
                 Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 break;
             case NIENA_QUEST_ACTIVE:
-                strnfmt(buf, sizeof(buf), "Active - Show mercy (%d seen, %d killed)",
+                strnfmt(buf, sizeof(buf), "Active: %d seen, %d killed",
                         p_ptr->niena_monsters_seen, p_ptr->niena_monsters_killed);
                 niena_status = buf;
                 color = TERM_WHITE;
                 Term_putstr(col + 2, row++, -1, color, niena_status);
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, quest_challenge);
-                Term_putstr(col + 2, row++, -1, TERM_SLATE, "Reward: Stealth bonus = 10*(seen-killed)/seen");
+                display_wrapped_text(col, &row, quest_challenge, TERM_SLATE, wid);
+                strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_NIENA));
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 break;
             case NIENA_QUEST_SUCCESS:
                 niena_status = "Complete - Return for reward";
@@ -6575,7 +6716,7 @@ void do_cmd_quest_status(void)
                 Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 break;
             case NIENA_QUEST_REWARDED:
-                niena_status = "Completed this character";
+                niena_status = "Completed by this character";
                 color = TERM_L_GREEN;
                 Term_putstr(col + 2, row++, -1, color, niena_status);
                 strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_NIENA));
@@ -6585,6 +6726,63 @@ void do_cmd_quest_status(void)
                 niena_status = "Unknown status";
                 color = TERM_SLATE;
                 Term_putstr(col + 2, row++, -1, color, niena_status);
+        }
+        row++;
+    }
+
+    /* Check Oromë quest */
+    if (p_ptr->orome_quest > OROME_QUEST_NOT_STARTED) {
+        any_quests = true;
+        cptr orome_status;
+        byte color;
+        
+        cptr quest_title = get_quest_title(QUEST_ID_OROME);
+        cptr quest_challenge = get_quest_challenge(QUEST_ID_OROME);
+        
+        Term_putstr(col, row++, -1, TERM_YELLOW, quest_title);
+        
+        switch (p_ptr->orome_quest) {
+            case OROME_QUEST_GIVER_PRESENT:
+                orome_status = "Available - Oromë awaits";
+                color = TERM_L_BLUE;
+                Term_putstr(col + 2, row++, -1, color, orome_status);
+                display_wrapped_text(col, &row, quest_challenge, TERM_SLATE, wid);
+                strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_OROME));
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
+                break;
+            case OROME_QUEST_ACTIVE:
+                {
+                    cptr monster_names[] = {"wolves", "spiders", "serpents", "vampires"};
+                    cptr monster_name = (p_ptr->orome_target_type >= 1 && p_ptr->orome_target_type <= 4) 
+                                       ? monster_names[p_ptr->orome_target_type - 1] : "creatures";
+                    strnfmt(buf, sizeof(buf), "Active: Hunt %s (%d/%d killed)",
+                            monster_name, p_ptr->orome_killed_count, p_ptr->orome_target_count);
+                    orome_status = buf;
+                    color = TERM_WHITE;
+                    Term_putstr(col + 2, row++, -1, color, orome_status);
+                    display_wrapped_text(col, &row, quest_challenge, TERM_SLATE, wid);
+                    strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_OROME));
+                    display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
+                }
+                break;
+            case OROME_QUEST_SUCCESS:
+                orome_status = "Complete - Return for reward";
+                color = TERM_L_GREEN;
+                Term_putstr(col + 2, row++, -1, color, orome_status);
+                strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_OROME));
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
+                break;
+            case OROME_QUEST_REWARDED:
+                orome_status = "Completed by this character";
+                color = TERM_L_GREEN;
+                Term_putstr(col + 2, row++, -1, color, orome_status);
+                strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_OROME));
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
+                break;
+            default:
+                orome_status = "Unknown status";
+                color = TERM_SLATE;
+                Term_putstr(col + 2, row++, -1, color, orome_status);
         }
         row++;
     }
@@ -6599,7 +6797,7 @@ void do_cmd_quest_status(void)
         cptr quest_title = get_quest_title(QUEST_ID_TULKAS);
         cptr oath_name = get_oath_name_from_id(quest_info[1].oath_id);
         char status_text[150];
-        strnfmt(status_text, sizeof(status_text), "%s - Oath: %s", quest_title, oath_name);
+        strnfmt(status_text, sizeof(status_text), "%s - %s", quest_title, oath_name);
         display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
     }
     if (metarun_is_quest_completed(METARUN_QUEST_AULE) && p_ptr->aule_quest != AULE_QUEST_REWARDED) {
@@ -6610,7 +6808,7 @@ void do_cmd_quest_status(void)
         cptr quest_title = get_quest_title(QUEST_ID_AULE);
         cptr oath_name = get_oath_name_from_id(quest_info[2].oath_id);
         char status_text[150];
-        strnfmt(status_text, sizeof(status_text), "%s - Oath: %s", quest_title, oath_name);
+        strnfmt(status_text, sizeof(status_text), "%s - %s", quest_title, oath_name);
         display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
     }
     if (metarun_is_quest_completed(METARUN_QUEST_MANDOS) && p_ptr->mandos_quest != MANDOS_QUEST_REWARDED) {
@@ -6621,7 +6819,7 @@ void do_cmd_quest_status(void)
         cptr quest_title = get_quest_title(QUEST_ID_MANDOS);
         cptr oath_name = get_oath_name_from_id(quest_info[3].oath_id);
         char status_text[150];
-        strnfmt(status_text, sizeof(status_text), "%s - Oath: %s", quest_title, oath_name);
+        strnfmt(status_text, sizeof(status_text), "%s - %s", quest_title, oath_name);
         display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
     }
     if (metarun_is_quest_completed(METARUN_QUEST_NIENA) && p_ptr->niena_quest != NIENA_QUEST_REWARDED) {
@@ -6632,7 +6830,18 @@ void do_cmd_quest_status(void)
         cptr quest_title = get_quest_title(QUEST_ID_NIENA);
         cptr oath_name = get_oath_name_from_id(quest_info[4].oath_id);
         char status_text[150];
-        strnfmt(status_text, sizeof(status_text), "%s - Oath: %s", quest_title, oath_name);
+        strnfmt(status_text, sizeof(status_text), "%s - %s", quest_title, oath_name);
+        display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
+    }
+    if (metarun_is_quest_completed(METARUN_QUEST_OROME) && p_ptr->orome_quest != OROME_QUEST_REWARDED) {
+        if (!has_previous_completions) {
+            Term_putstr(col, row++, -1, TERM_L_DARK, "Previously Completed in Metarun:");
+            has_previous_completions = true;
+        }
+        cptr quest_title = get_quest_title(QUEST_ID_OROME);
+        cptr oath_name = get_oath_name_from_id(quest_info[5].oath_id);
+        char status_text[150];
+        strnfmt(status_text, sizeof(status_text), "%s - %s", quest_title, oath_name);
         display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
     }
     
@@ -6815,6 +7024,42 @@ static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byt
 }
 
 /*
+ * Remove quest giver monster by R_IDX
+ */
+void remove_quest_giver(int quest_giver_r_idx)
+{
+    int i;
+    
+    log_trace("Attempting to remove quest giver with R_IDX: %d", quest_giver_r_idx);
+    
+    /* Find and remove the quest giver */
+    for (i = 1; i < mon_max; i++)
+    {
+        monster_type *m_ptr = &mon_list[i];
+        
+        /* Skip empty slots */
+        if (!m_ptr->r_idx) continue;
+        
+        /* Check if this is our quest giver */
+        if (m_ptr->r_idx == quest_giver_r_idx)
+        {
+            log_trace("Found quest giver at (%d, %d), removing", m_ptr->fy, m_ptr->fx);
+            
+            /* Add a message about the quest giver departing */
+            msg_print("The quest giver nods approvingly and fades away, their task complete.");
+            
+            /* Remove the monster */
+            delete_monster_idx(i);
+            
+            log_trace("Quest giver successfully removed");
+            return;
+        }
+    }
+    
+    log_trace("Quest giver with R_IDX %d not found on current level", quest_giver_r_idx);
+}
+
+/*
  * Handle Tulkas interaction
  */
 void tulkas_quest_interaction(void)
@@ -6880,6 +7125,9 @@ void tulkas_quest_interaction(void)
         p_ptr->tulkas_target_r_idx = target_r_idx;
         p_ptr->tulkas_prize_a_idx = prize_a_idx;
         p_ptr->tulkas_quest = TULKAS_QUEST_ACTIVE;
+        
+        /* Remove the quest giver now that quest is accepted */
+        remove_quest_giver(R_IDX_TULKAS);
         
         /* Reserve the artifact */
         valar_reserved_artifacts[prize_a_idx] = true;
@@ -7211,6 +7459,15 @@ void aule_quest_interaction(void)
         log_trace("Aule quest explanation - setting to ACTIVE");
         p_ptr->aule_quest = AULE_QUEST_ACTIVE;
         
+        /* Only remove quest giver for roulette-based quests (Y:1) */
+        quest_type* q_ptr = &quest_info[2]; /* Aule is quest index 2 */
+        if (q_ptr->quest_type == 1) { /* Y:1 = roulette-based */
+            remove_quest_giver(R_IDX_AULE);
+            log_trace("Aule quest giver removed (roulette-based quest)");
+        } else {
+            log_trace("Aule quest giver NOT removed (vault-based quest)");
+        }
+        
         /* Extract initialization texts from quest data */
         int text_count = 0;
         cptr* init_texts = extract_quest_init_texts(2, &text_count); /* Aule is quest index 2 */
@@ -7340,6 +7597,15 @@ void mandos_quest_interaction(void)
         /* Set quest state */
         p_ptr->mandos_quest = MANDOS_QUEST_ACTIVE;
         p_ptr->mandos_level = p_ptr->depth;
+        
+        /* Only remove quest giver for roulette-based quests (Y:1) */
+        quest_type* q_ptr = &quest_info[3]; /* Mandos is quest index 3 */
+        if (q_ptr->quest_type == 1) { /* Y:1 = roulette-based */
+            remove_quest_giver(R_IDX_MANDOS);
+            log_trace("Mandos quest giver removed (roulette-based quest)");
+        } else {
+            log_trace("Mandos quest giver NOT removed (vault-based quest)");
+        }
         
         /* Extract initialization texts from quest data */
         int text_count = 0;
@@ -7534,6 +7800,31 @@ void check_mandos_quest_completion(int r_idx)
 }
 
 /*
+ * Handle quest completion checking for Oromë hunting quest
+ */
+void check_orome_quest_completion(void)
+{
+    if (p_ptr->orome_quest == OROME_QUEST_ACTIVE && 
+        p_ptr->orome_killed_count >= p_ptr->orome_target_count)
+    {
+        cptr monster_names[] = {"wolves", "spiders", "serpents", "vampires"};
+        cptr monster_name = (p_ptr->orome_target_type >= 1 && p_ptr->orome_target_type <= 4) 
+                           ? monster_names[p_ptr->orome_target_type - 1] : "creatures";
+        
+        p_ptr->orome_quest = OROME_QUEST_SUCCESS;
+        
+        msg_format("The hunt is complete! You have slain %d %s as commanded.", 
+                   p_ptr->orome_target_count, monster_name);
+        msg_print("Oromë the Huntsman will be pleased with your prowess.");
+        msg_print("Return to claim your reward - the knowledge of Unique Bane!");
+        
+        log_trace("Oromë quest completed - %d %s slain (%d/%d)", 
+                 p_ptr->orome_target_count, monster_name,
+                 p_ptr->orome_killed_count, p_ptr->orome_target_count);
+    }
+}
+
+/*
  * Handle interaction with Niena for the mercy quest
  */
 void niena_quest_interaction(void)
@@ -7577,6 +7868,9 @@ void niena_quest_interaction(void)
         p_ptr->niena_quest = NIENA_QUEST_ACTIVE;
         p_ptr->niena_monsters_seen = 0;
         p_ptr->niena_monsters_killed = 0;
+        
+        /* Remove the quest giver now that quest is accepted */
+        remove_quest_giver(R_IDX_NIENA);
         
         /* Make all stairs visible */
         int y, x;
@@ -7787,6 +8081,222 @@ void check_niena_quest_completion(void)
             niena_quest_interaction();
         }
     }
+}
+
+/*
+ * Handle interaction with Oromë for the hunting quest
+ */
+void orome_quest_interaction(void)
+{
+    /* Prevent multiple interactions in the same turn */
+    static int last_interaction_turn = -1;
+    if (last_interaction_turn == turn) {
+        return; /* Already handled this turn */
+    }
+    last_interaction_turn = turn;
+    
+    /* Safety check - ensure valid quest state */
+    if (p_ptr->orome_quest != OROME_QUEST_GIVER_PRESENT && 
+        p_ptr->orome_quest != OROME_QUEST_SUCCESS)
+    {
+        log_trace("orome_quest_interaction called with invalid quest state: %d", p_ptr->orome_quest);
+        return;
+    }
+    
+    if (p_ptr->orome_quest == OROME_QUEST_GIVER_PRESENT)
+    {
+        log_trace("Starting Oromë quest interaction - offering hunting quest");
+        
+        /* Extract initialization texts from quest data */
+        int text_count = 0;
+        cptr* init_texts = extract_quest_init_texts(5, &text_count); /* Oromë is quest index 5 */
+        
+        if (init_texts && text_count > 0) {
+            quest_typewriter_menu("Oromë the Huntsman", init_texts, text_count, TERM_GREEN, TERM_WHITE);
+            free_quest_texts(init_texts);
+        } else {
+            /* Fallback to simple message if text extraction fails */
+            cptr fallback_texts[] = {
+                "Oromë the Huntsman regards you with keen eyes:",
+                "'Prove your skill as a hunter. The dark creatures multiply.'"
+            };
+            quest_typewriter_menu("Oromë the Huntsman", fallback_texts, 2, TERM_GREEN, TERM_WHITE);
+        }
+        
+        /* Determine hunt target based on dungeon depth */
+        int depth = p_ptr->depth;
+        cptr target_name;
+        int target_count;
+        
+        if (depth <= 250) {
+            p_ptr->orome_target_type = OROME_TARGET_WOLF;
+            target_count = 100;
+            target_name = "wolves";
+        } else if (depth <= 500) {
+            p_ptr->orome_target_type = OROME_TARGET_SPIDER;
+            target_count = 80;
+            target_name = "spiders";
+        } else if (depth <= 750) {
+            p_ptr->orome_target_type = OROME_TARGET_SERPENT;
+            target_count = 60;
+            target_name = "serpents";
+        } else {
+            p_ptr->orome_target_type = OROME_TARGET_VAMPIRE;
+            target_count = 30;
+            target_name = "vampires";
+        }
+        
+        /* Accept the quest */
+        p_ptr->orome_quest = OROME_QUEST_ACTIVE;
+        p_ptr->orome_target_count = target_count;
+        p_ptr->orome_killed_count = 0;
+        p_ptr->orome_level = depth;
+        
+        /* Remove the quest giver now that quest is accepted */
+        remove_quest_giver(R_IDX_OROME);
+        
+        msg_format("You must hunt and slay %d %s to prove your prowess.", target_count, target_name);
+        msg_print("Return when the hunt is complete to claim your reward.");
+        msg_print("Oromë fades into the wild, but his presence lingers in your soul.");
+        
+        log_trace("Oromë quest started - hunt %d %s at depth %d", 
+                 target_count, target_name, depth);
+    }
+    else if (p_ptr->orome_quest == OROME_QUEST_SUCCESS)
+    {
+        log_trace("Completing Oromë quest - giving Unique Bane reward");
+        
+        /* Extract completion texts from quest data */
+        int completion_count = 0;
+        cptr* completion_texts = extract_quest_completion_texts(5, &completion_count); /* Oromë is quest index 5 */
+        
+        if (completion_texts && completion_count > 0) {
+            quest_typewriter_menu("Oromë the Huntsman", completion_texts, completion_count, TERM_GREEN, TERM_WHITE);
+            free_quest_texts(completion_texts);
+        } else {
+            /* Fallback to simple message if text extraction fails */
+            cptr fallback_texts[] = {
+                "Oromë appears with a proud smile!",
+                "'You have proven yourself a true hunter of the wild.'"
+            };
+            quest_typewriter_menu("Oromë the Huntsman", fallback_texts, 2, TERM_GREEN, TERM_WHITE);
+        }
+        
+        /* Show the specific numbers after the main dialogue */
+        cptr monster_names[] = {"wolves", "spiders", "serpents", "vampires"};
+        cptr monster_name = (p_ptr->orome_target_type >= 1 && p_ptr->orome_target_type <= 4) 
+                           ? monster_names[p_ptr->orome_target_type - 1] : "creatures";
+        
+        msg_format("You have slain %d %s as commanded.", 
+                  p_ptr->orome_target_count, monster_name);
+        msg_print("You learn the secret of hunting unique creatures!");
+        
+        /* Grant the Unique Bane special ability */
+        grant_unique_bane_ability();
+        
+        /* Clear quest state */
+        p_ptr->orome_quest = OROME_QUEST_REWARDED;
+        
+        /* Mark quest as completed in metarun */
+        metarun_mark_quest_completed(METARUN_QUEST_OROME);
+        
+        /* Unlock oath for future characters in this metarun */
+        int oath_id = get_quest_oath_id(5); /* Oromë is quest index 5 */
+        if (oath_id > 0) {
+            metarun_unlock_oath(oath_id);
+            msg_format("The %s is now available for future characters in this lineage!", 
+                      get_oath_name_from_id(oath_id));
+        }
+        
+        log_trace("Oromë quest completed - Unique Bane granted, oath unlocked");
+    }
+}
+
+/*
+ * Check if player should interact with Oromë
+ */
+void check_orome_quest_interaction(void)
+{
+    /* Only check if quest can be started or completed */
+    if (p_ptr->orome_quest != OROME_QUEST_GIVER_PRESENT && 
+        p_ptr->orome_quest != OROME_QUEST_SUCCESS) {
+        return;
+    }
+    
+    log_trace("check_orome_quest_interaction: checking adjacency, quest state: %d", p_ptr->orome_quest);
+    
+    /* Check for adjacent Oromë */
+    int y, x;
+    for (y = p_ptr->py - 1; y <= p_ptr->py + 1; y++)
+    {
+        for (x = p_ptr->px - 1; x <= p_ptr->px + 1; x++)
+        {
+            if (in_bounds(y, x) && cave_m_idx[y][x] > 0)
+            {
+                monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
+                if (m_ptr->r_idx == R_IDX_OROME)
+                {
+                    log_trace("Found Oromë adjacent - triggering interaction");
+                    orome_quest_interaction();
+                    return;
+                }
+            }
+        }
+    }
+    
+    /* If quest is completed but Oromë isn't adjacent, try to spawn him */
+    if (p_ptr->orome_quest == OROME_QUEST_SUCCESS)
+    {
+        log_trace("Oromë quest complete but no Oromë found - trying to spawn");
+        
+        /* Try to find a suitable spot near the player */
+        for (y = p_ptr->py - 3; y <= p_ptr->py + 3; y++)
+        {
+            for (x = p_ptr->px - 3; x <= p_ptr->px + 3; x++)
+            {
+                if (in_bounds(y, x) && cave_floor_bold(y, x) && 
+                    cave_m_idx[y][x] == 0 && distance(p_ptr->py, p_ptr->px, y, x) >= 2)
+                {
+                    if (place_monster_one(y, x, R_IDX_OROME, true, true, NULL))
+                    {
+                        msg_print("Oromë the Huntsman materializes nearby, ready to honor your success!");
+                        log_trace("Successfully spawned Oromë for quest completion");
+                        return;
+                    }
+                }
+            }
+        }
+        
+        log_trace("Failed to spawn Oromë for quest completion - will complete anyway");
+        /* Complete the quest directly if spawning fails */
+        orome_quest_interaction();
+    }
+}
+
+/*
+ * Grant the unique bane special ability to the player
+ * This function can be called from quests, debug commands, or other rewards
+ */
+void grant_unique_bane_ability(void)
+{
+    if (p_ptr->have_ability[S_SPC][SPC_UNIQUE_BANE])
+    {
+        msg_print("You already possess the power to hunt unique creatures effectively.");
+        return;
+    }
+    
+    /* Grant the ability */
+    p_ptr->have_ability[S_SPC][SPC_UNIQUE_BANE] = true;
+    p_ptr->active_ability[S_SPC][SPC_UNIQUE_BANE] = true;
+    
+    msg_print("You have learned the art of Unique Bane!");
+    msg_print("You gain significant advantages when fighting unique creatures.");
+    
+    log_trace("Granted Unique Bane special ability to player");
+    
+    /* Recalculate bonuses */
+    p_ptr->update |= (PU_BONUS);
+    handle_stuff();
 }
 
 

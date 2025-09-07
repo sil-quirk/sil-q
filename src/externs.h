@@ -513,6 +513,7 @@ extern int elf_bane_bonus(monster_type* m_ptr);
 extern char* bane_name[];
 extern int bane_bonus(monster_type* m_ptr);
 extern int spider_bane_bonus(void);
+extern int unique_bane_bonus(monster_type* m_ptr);
 extern char* oath_name[];
 extern bool oath_invalid(int i);
 extern bool chosen_oath(int oath);
@@ -636,6 +637,11 @@ extern void place_random_stairs(int y, int x);
 extern byte get_nest_theme(int nestlevel);
 extern byte get_pit_theme(int pitlevel);
 extern void generate_cave(void);
+
+#ifdef ALLOW_DEBUG
+extern void debug_run_quest_roulette(void);
+extern int debug_get_quest_lottery_winner(void);
+#endif /* ALLOW_DEBUG */
 
 /* init2.c */
 extern void init_file_paths(char* path);
@@ -1161,6 +1167,8 @@ extern bool similar_monsters(int m1y, int m1x, int m2y, int m2x);
 extern void scare_onlooking_friends(const monster_type* m_ptr, int amount);
 extern void create_chosen_artefact(byte name1, int y, int x, bool identify);
 extern void drop_loot(monster_type* m_ptr);
+extern void apply_quest_rewards(int quest_idx);
+extern bool check_quest_eligibility(int quest_idx, int depth);
 extern void do_cmd_quest_status(void);
 extern cptr* extract_quest_init_texts(int quest_idx, int* count);
 extern cptr* extract_quest_completion_texts(int quest_idx, int* count);
@@ -1168,6 +1176,7 @@ extern void free_quest_texts(cptr* texts);
 extern void tulkas_quest_interaction(void);
 extern void check_tulkas_quest_interaction(void);
 extern void check_tulkas_quest_completion(int r_idx);
+extern void remove_quest_giver(int quest_giver_r_idx);
 extern void aule_quest_interaction(void);
 extern void check_aule_quest_interaction(void);
 extern void mandos_quest_interaction(void);
@@ -1176,6 +1185,10 @@ extern void check_mandos_quest_completion(int r_idx);
 extern void niena_quest_interaction(void);
 extern void check_niena_quest_interaction(void);
 extern void check_niena_quest_completion(void);
+extern void check_orome_quest_completion(void);
+extern void orome_quest_interaction(void);
+extern void check_orome_quest_interaction(void);
+extern void grant_unique_bane_ability(void);
 extern void anger_morgoth(int level);
 extern void monster_death(int m_idx);
 extern bool mon_take_hit(int m_idx, int dam, cptr note, int who);

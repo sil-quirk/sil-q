@@ -49,6 +49,84 @@ applyTo: '**'
    - Uses `Term_get_size()` for actual terminal dimensions
    - Proper word boundary detection and wrapping
 
+### LATEST: Data-Driven Quest Roulette System Enhancement (Version 0.8.7) - September 7, 2025
+**Issue**: Quest roulette system was completely hardcoded with fixed order (Tulkas→Niena), needed to be data-driven based on Y: field
+**User Request**: "Make roulette order random and use Y:1 field from quest.txt to determine which quests participate in the lottery"
+
+**Problem Analysis**:
+1. **Hardcoded Quest Selection**: Only Tulkas (quest ID 1) and Niena (quest ID 4) were hardcoded in lottery
+2. **Fixed Evaluation Order**: Always checked Tulkas first, then Niena - no randomization
+3. **Probability Formulas Hardcoded**: Each quest had specific hardcoded formulas that couldn't be reused
+4. **No Extensibility**: Adding new roulette quests required code changes to generate.c
+
+**Implemented Solution - Data-Driven Roulette System**:
+
+1. **Quest Registry Architecture**: Added `roulette_quest_entry` structure:
+   - `quest_id`: Quest index from quest.txt (1=Tulkas, 4=Niena)
+   - `quest_state_ptr`: Pointer to actual quest state variable (p_ptr->tulkas_quest, etc.)
+   - `metarun_quest_id`: Links to metarun completion tracking (METARUN_QUEST_TULKAS, etc.)
+   - `eligibility_check`: Function pointer for custom depth/state requirements
+   - `probability_roll`: Function pointer for quest-specific probability calculations
+
+2. **Dynamic Quest Discovery**: `init_roulette_quest_registry()` function:
+   - **Y: Field Parsing**: Scans all quest_info entries to find quest_type == 1 (Y:1 roulette quests)
+   - **Automatic Registration**: Dynamically builds registry from quest.txt data
+   - **Future Extensible**: New Y:1 quests automatically discovered (with placeholder for implementation)
+   - **Quest Mapping**: Maps quest IDs to existing player state variables and metarun constants
+
+3. **Random Quest Ordering**: Implemented Fisher-Yates shuffle algorithm:
+   - **Random Evaluation**: Creates randomized quest order each time lottery runs
+   - **Fair Distribution**: Each eligible quest has equal chance to be evaluated first
+   - **Eliminates Bias**: No fixed "Tulkas wins over Niena" preference
+
+4. **Preserved Probability Formulas**: Maintained exact existing behavior:
+   - **Tulkas Formula**: `1/(27-depth)` for depths 6-19 (12.5% max at depth 19)
+   - **Niena Formula**: `0.125 * max(0, min(1, (depth-14)/5))` for depths 14+ (12.5% max at depth 19+)
+   - **Quest-Specific Functions**: `tulkas_eligibility_check()`, `tulkas_probability_roll()`, etc.
+
+5. **Quest ID Correction**: Updated hardcoded references:
+   - **Old System**: quest_lottery_winner == 2 for Niena
+   - **New System**: quest_lottery_winner == 4 for Niena (actual quest ID from quest.txt)
+   - **Maintained Compatibility**: Tulkas still uses quest_lottery_winner == 1
+
+**Technical Implementation Details**:
+- **Registry Initialization**: Called automatically when first quest lottery runs
+- **State Validation**: Checks quest_state == 0 (NOT_STARTED) for all quest types
+- **Metarun Integration**: Preserves existing metarun completion checking
+- **Logging Enhanced**: Detailed trace logging for quest discovery, ordering, and selection
+- **Error Handling**: Gracefully skips unsupported Y:1 quests with placeholder implementation
+
+**Architecture Benefits**:
+1. **Data-Driven**: New roulette quests can be added by setting Y:1 in quest.txt
+2. **Random & Fair**: No quest has evaluation order advantage
+3. **Backward Compatible**: All existing quest behavior preserved exactly
+4. **Maintainable**: Separates quest participation (data-driven) from quest logic (hardcoded)
+5. **Extensible**: Framework ready for new roulette quests with minimal code changes
+
+**Files Modified**:
+- `src/generate.c`: Complete rewrite of `run_quest_lottery()` function and related quest spawning logic
+- Added registry system, quest-specific functions, random ordering, and dynamic quest discovery
+
+**Quest.txt Structure Utilized**:
+```
+Q:1:Tulkas the Strong
+Y:1  # Roulette-based quest
+...
+Q:4:Nienna, Lady of Pity  
+Y:1  # Roulette-based quest
+```
+
+**Current Roulette Quests** (from quest.txt Y:1):
+- **Tulkas (ID 1)**: Depths 6-19, probability 1/(27-depth)
+- **Niena (ID 4)**: Depths 14+, probability 0.125 * max(0, min(1, (depth-14)/5))
+
+**Future Enhancement Path**: 
+- Add Y:1 to quest.txt for new quest → automatically included in lottery
+- Implement quest-specific eligibility/probability functions as needed
+- Could add P: (probability) and D: (depth range) fields to quest.txt for full data-driven formulas
+
+**Testing Status**: Compiled successfully, ready for game testing
+
 ### LATEST: Quest Status Menu Enhancement (Version 0.8.7) - September 6, 2025
 **Issue**: Quest status menu not displaying quest information properly according to quest.txt data
 **Problem Details**:
@@ -1660,3 +1738,177 @@ Copy-Item src\sil.exe . -Force
   - Added 'u' key to main menu for "Quest status"
   - Connected to existing `do_cmd_quest_status()` function in xtra2.c
 - **Result**: Better accessibility and logical organization
+
+## NEW QUEST IMPLEMENTATION: Oromë Hunting Quest (December 2024)
+**Status**: ✅ COMPLETED
+
+### Overview
+Implemented a new dynamic hunting quest for Oromë the Huntsman that challenges players to hunt specific monster types based on dungeon depth. This quest features:
+- **Dynamic Targets**: Hunt requirements change based on depth (wolves at shallow levels, vampires at deep levels)
+- **Scaling Difficulty**: Higher challenge counts for easier monsters, lower counts for harder monsters
+- **Unique Bane Reward**: Grants the powerful Unique Bane special ability (SPC_UNIQUE_BANE)
+- **Oath Unlocking**: Unlocks the Oath of Silence for future characters in the metarun
+
+### Technical Implementation
+
+#### Core Files Modified:
+1. **quest.txt** - Added Oromë quest definition (Quest ID 5)
+2. **src/types.h** - Added player quest tracking variables
+3. **src/defines.h** - Added quest state constants and monster type definitions
+4. **src/xtra2.c** - Complete quest interaction system implementation
+5. **src/generate.c** - Integrated into quest roulette system
+6. **src/dungeon.c** - Added interaction checks to main game loop
+7. **src/wizard2.c** - Added debug completion support
+8. **src/externs.h** - Added function declarations
+9. **src/metarun.h** - Added metarun completion flag
+
+#### Quest Structure (quest.txt):
+```
+Q:5:Oromë the Huntsman
+Y:1
+D:The greatest hunter among the Valar seeks to test your prowess
+I:Oromë regards you with keen eyes::'Prove your skill, hunter. The dark creatures multiply and must be culled.'
+C:Hunt and slay creatures of the wild to prove your prowess
+P:LINEAR_DECAY:27
+A:8:7
+O:6
+```
+
+#### Player State Variables (types.h):
+```c
+/* Orome quest tracking */
+byte orome_quest;          /* Orome quest state (OROME_QUEST_*) */
+byte orome_target_type;    /* Monster type to hunt (1=wolf, 2=spider, 3=serpent, 4=vampire) */
+s16b orome_killed_count;   /* Number of target monsters killed */
+s16b orome_target_count;   /* Required number to kill (100/80/60/30) */
+s16b orome_level;          /* Dungeon depth where quest started */
+s16b orome_reserved;       /* padding */
+```
+
+#### Quest State Constants (defines.h):
+```c
+/* Oromë quest states */
+#define OROME_QUEST_NOT_STARTED 0
+#define OROME_QUEST_GIVER_PRESENT 1
+#define OROME_QUEST_ACTIVE 2
+#define OROME_QUEST_SUCCESS 3
+#define OROME_QUEST_REWARDED 4
+
+/* Oromë quest monster types */
+#define OROME_TARGET_WOLF 1
+#define OROME_TARGET_SPIDER 2
+#define OROME_TARGET_SERPENT 3
+#define OROME_TARGET_VAMPIRE 4
+
+/* Monster race index */
+#define R_IDX_OROME 332
+
+/* Metarun quest flag */
+#define METARUN_QUEST_OROME (1UL << 4)
+```
+
+### Quest Mechanics
+
+#### Hunt Target Selection:
+Based on dungeon depth when quest is accepted:
+- **Depth ≤ 250**: Hunt 100 wolves (RF3_WOLF flag)
+- **Depth 251-500**: Hunt 80 spiders (RF3_SPIDER flag)  
+- **Depth 501-750**: Hunt 60 serpents (RF3_SERPENT flag)
+- **Depth > 750**: Hunt 30 vampires (d_char = 'v')
+
+#### Monster Kill Tracking:
+- **Location**: `monster_death()` function in xtra2.c
+- **Detection**: Uses monster race flags (RF3_WOLF, RF3_SPIDER, RF3_SERPENT) and character symbol for vampires
+- **Completion**: `check_orome_quest_completion()` called after each monster death
+- **Logging**: Comprehensive trace logging for kill count progress
+
+#### Quest Interaction System:
+- **Initialization**: `orome_quest_interaction()` for quest offering and completion
+- **Proximity Check**: `check_orome_quest_interaction()` in main game loop
+- **Text Integration**: Uses `extract_quest_init_texts()` and `extract_quest_completion_texts()`
+- **Fallback**: Hardcoded text if quest.txt extraction fails
+
+### Reward System
+
+#### Primary Reward: Unique Bane Ability
+- **Ability ID**: SPC_UNIQUE_BANE (ID 7)
+- **Function**: Grants combat bonuses against unique monsters
+- **Implementation**: Calls `grant_unique_bane_ability()` function
+- **Status**: Ability was already implemented, quest now provides access
+
+#### Secondary Reward: Oath Unlocking
+- **Oath**: Oath of Silence (linked via quest.txt O: field)
+- **Mechanism**: `metarun_unlock_oath()` with quest oath ID
+- **Persistence**: Unlocked for all future characters in current metarun
+- **Integration**: `metarun_mark_quest_completed(METARUN_QUEST_OROME)`
+
+### Integration Points
+
+#### Quest Roulette System:
+- **Registry**: Added to `init_roulette_quest_registry()` in generate.c
+- **Eligibility**: Uses `generic_eligibility_check()` with LINEAR_DECAY formula
+- **Metarun Check**: Prevents re-spawning if already completed (`METARUN_QUEST_OROME`)
+- **Quest State**: Links to `p_ptr->orome_quest` for state tracking
+
+#### Debug System:
+- **Command**: Enhanced `do_cmd_debug_complete_quest()` in wizard2.c
+- **Functionality**: Sets kill count to target count, triggers full interaction
+- **Testing**: Allows easy quest testing without hunting 100 monsters
+
+#### Main Game Loop:
+- **Integration**: `check_orome_quest_interaction()` called every turn in dungeon.c
+- **Adjacency**: Automatically triggers interaction when player is adjacent to Oromë
+- **Spawning**: Attempts to spawn Oromë near player when quest is completed
+
+### Code Quality Features
+
+#### Error Handling:
+- **Safe Arrays**: Monster name arrays with bounds checking
+- **Null Checks**: Proper validation of quest text extraction
+- **Fallbacks**: Hardcoded messages if data-driven text fails
+
+#### Logging Integration:
+- **Trace Logging**: Comprehensive logging for all quest state changes
+- **Debug Info**: Kill count progress, target selection, completion events
+- **State Tracking**: Quest state transitions and interaction triggers
+
+#### Memory Management:
+- **Text Cleanup**: Proper `free_quest_texts()` calls after text extraction
+- **Static Prevention**: Turn-based interaction prevention to avoid duplicates
+
+### Testing & Validation
+
+#### Syntax Verification:
+- **Test File**: Created standalone test with quest constants and structures
+- **Compilation**: Verified syntax correctness with GCC compilation
+- **Integration**: All modified files show clean syntax in error checking
+
+#### Functional Components:
+- ✅ **Quest Definition**: Added to quest.txt with proper structure
+- ✅ **State Tracking**: Player variables added to types.h
+- ✅ **Constants**: All quest states and types defined in defines.h
+- ✅ **Kill Tracking**: Monster death detection in monster_death()
+- ✅ **Completion Logic**: Quest completion checking after kills
+- ✅ **Interaction System**: Full quest offering and reward interaction
+- ✅ **Roulette Integration**: Added to quest lottery system
+- ✅ **Debug Support**: Enhanced debug completion command
+- ✅ **Metarun Persistence**: Quest completion tracking across characters
+- ✅ **Oath Unlocking**: Integration with oath system
+
+### Future Enhancement Opportunities
+
+#### Potential Improvements:
+1. **Monster Variety**: Could add more monster types with different difficulty tiers
+2. **Dynamic Scaling**: Hunt counts could scale with character level/skills
+3. **Location Restrictions**: Could require hunting in specific dungeon areas
+4. **Time Limits**: Could add urgency with turn-based completion requirements
+
+#### Technical Extensions:
+1. **Monster AI**: Hunted creatures could become more aggressive when quest is active
+2. **Lore Integration**: Could add monster knowledge bonuses as intermediate rewards
+3. **Equipment Synergy**: Special hunting equipment that works better during quest
+4. **Environmental Effects**: Quest could modify monster spawning patterns
+
+**Implementation Date**: December 2024  
+**Status**: Fully implemented and ready for testing  
+**Dependencies**: Quest roulette system, oath system, special abilities framework

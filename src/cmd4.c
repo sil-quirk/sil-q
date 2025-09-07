@@ -912,6 +912,67 @@ int spider_bane_bonus(void)
         return (0);
 }
 
+int unique_bane_bonus(monster_type* m_ptr)
+{
+    int bonus = 0;
+    monster_race* r_ptr;
+
+    // paranoia
+    if (m_ptr == NULL)
+        return (0);
+
+    // entranced players don't get the bonus
+    if (p_ptr->entranced)
+        return (0);
+
+    // knocked out players don't get the bonus
+    if (p_ptr->stun > 100)
+        return (0);
+
+    // Must have the unique bane special ability
+    if (!p_ptr->active_ability[S_SPC][SPC_UNIQUE_BANE])
+        return (0);
+
+    r_ptr = &r_info[m_ptr->r_idx];
+
+    // Check if the monster is unique
+    if (r_ptr->flags1 & RF1_UNIQUE)
+    {
+        // Calculate bonus based on number of uniques killed (like normal bane)
+        int uniques_killed = 0;
+        int i;
+        
+        // Count all unique monsters that have been killed
+        for (i = 1; i < z_info->r_max; i++) {
+            monster_race* check_r_ptr = &r_info[i];
+            monster_lore* l_ptr = &l_list[i];
+            
+            // Skip if not unique
+            if (!(check_r_ptr->flags1 & RF1_UNIQUE)) continue;
+            
+            // Check if this unique has been killed
+            if (l_ptr->deaths > 0) {
+                uniques_killed++;
+            }
+        }
+        
+        // Calculate bonus using the same formula as normal bane
+        // Bonus increases by 1 for every doubling of kills: 1, 2, 4, 8, 16, etc.
+        int threshold = 1;
+        while (threshold <= uniques_killed) {
+            threshold *= 2;
+            bonus++;
+        }
+        
+        // Minimum bonus of 1 if any uniques have been killed
+        if (uniques_killed > 0 && bonus == 0) {
+            bonus = 1;
+        }
+    }
+
+    return (bonus);
+}
+
 int bane_menu(int* highlight)
 {
     int i, k;
@@ -1361,6 +1422,23 @@ int abilities_menu1(int* highlight)
             log_trace("Special abilities check: have_ability[S_SPC][%d]=%d - FOUND!", i, p_ptr->have_ability[S_SPC][i]);
             show_special = true; 
             break; 
+        }
+    }
+    
+    // Debug: Always show special menu and log specific unique bane status
+    log_trace("DEBUG: Unique Bane status - have=%d, active=%d", 
+             p_ptr->have_ability[S_SPC][SPC_UNIQUE_BANE], 
+             p_ptr->active_ability[S_SPC][SPC_UNIQUE_BANE]);
+    if (p_ptr->have_ability[S_SPC][SPC_UNIQUE_BANE]) {
+        show_special = true;
+        log_trace("DEBUG: Forcing show_special=true due to Unique Bane");
+    }
+    
+    // Additional debug: log ALL special abilities
+    for (i = 0; i < ABILITIES_MAX; i++) {
+        if (p_ptr->have_ability[S_SPC][i]) {
+            log_trace("DEBUG: Special ability %d is ACTIVE (have=%d, active=%d)", 
+                     i, p_ptr->have_ability[S_SPC][i], p_ptr->active_ability[S_SPC][i]);
         }
     }
     log_trace("Special abilities menu: show_special=%s, options=%d", show_special ? "true" : "false", options);

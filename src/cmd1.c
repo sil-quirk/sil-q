@@ -734,6 +734,9 @@ int total_player_attack(monster_type* m_ptr, int base)
     // reward bane ability (if applicable)
     att += bane_bonus(m_ptr);
 
+    // reward unique bane ability (if applicable)
+    att += unique_bane_bonus(m_ptr);
+
     // reward master hunter ability (if applicable)
     att += master_hunter_bonus(m_ptr);
 
@@ -773,6 +776,9 @@ int total_player_evasion(monster_type* m_ptr, bool archery)
 
     // reward successful use of the bane ability
     evn += bane_bonus(m_ptr);
+
+    // reward unique bane ability (if applicable)
+    evn += unique_bane_bonus(m_ptr);
 
     // halve evasion for certain situations (and only halve positive evasion!)
     if (evn > 0)
@@ -823,6 +829,9 @@ int total_monster_attack(monster_type* m_ptr, int base)
     // elf-bane bonus
     att += elf_bane_bonus(m_ptr);
 
+    // unique bane penalty (player ability affecting monster)
+    att -= unique_bane_bonus(m_ptr);
+
     // halve attack score for certain situations (and only halve positive
     // scores!)
     if (att > 0)
@@ -860,6 +869,9 @@ int total_monster_evasion(monster_type* m_ptr, bool archery)
 
     // elf-bane bonus
     evn += elf_bane_bonus(m_ptr);
+
+    // unique bane penalty (player ability affecting monster)
+    evn -= unique_bane_bonus(m_ptr);
 
     // halve evasion for certain situations (and only halve positive evasion!)
     if (evn > 0)

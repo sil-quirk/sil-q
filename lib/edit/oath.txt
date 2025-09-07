@@ -29,7 +29,7 @@ R:Freedom of choice
 S:0:0:0:0
 
 # Oath of Mercy
-O:1:Mercy  
+O:1:Oath of Mercy  
 T:To spare the Children of Iluvatar
 D:A solemn vow to leave Angband without shedding the blood of Man or Elf, showing mercy even to those who might oppose you. This oath reflects the compassion of Niena the Mourner.
 P:I swear to leave Angband without shedding blood of Man or Elf, showing mercy to all Children of Iluvatar I encounter.
@@ -45,7 +45,7 @@ Q:You passed from the world, but the memory of your final deeds remains. You wil
 Z:OATH OF MERCY SUNDERED - Thy hands are stained with the blood of kindred. No prayer for pity shall be heard from a voice that has forsaken it. The shadow of thy deed shall not be lifted in this age of the world. Marked forever as one who broke the bonds of mercy.
 
 # Oath of Silence
-O:2:Silence
+O:2:Oath of Silence
 T:To maintain grim silence  
 D:A vow of absolute silence, taken by those who would enter and leave Angband as they came - wordless and grim. This oath embodies the stoic determination of proven warriors.
 P:I swear to leave Angband as I came, grim and silent, speaking no word and raising no song in these dark halls.
@@ -61,7 +61,7 @@ Q:You passed from the world, and your story ended not with a deed, but with a ho
 Z:OATH OF SILENCE SUNDERED - Thy vow is drowned in empty sound, thy purpose lost. Wisdom has fled from a tongue so quick to betray its own promise. The stillness you forsook shall grant you no peace in this age of the world. Marked forever as one who shattered their silence.
 
 # Oath of Iron
-O:3:Iron
+O:3:Oath of Iron
 T:To face Morgoth with unwavering courage
 D:An oath of absolute resolve, sworn by those who will not be turned aside from their purpose by any force or fear. You pledge to face even the Dark Lord himself.
 P:I swear that none will daunt me from facing Morgoth forthwith, and I shall not flee upward until a Silmaril is won.
@@ -77,7 +77,7 @@ Q:You passed from the world, having fled from your great doom. You will be remem
 Z:OATH OF IRON SHATTERED - Thy will is broken, thy purpose abandoned in the dark. You have fled from the doom you embraced, and no glory shall be found in weakness. The shadow of your cowardice shall not be lifted in this age of the world. Marked forever as one whose will was broken.
 
 # Oath of the Smith
-O:4:Smith
+O:4:Oath of Smith
 T:To craft all gear by your own hand
 D:A pledge to rely only upon your own craftsmanship, rejecting all weapons and armor not forged by your own skill. This oath honors Aule's mastery of all crafts.
 P:I swear to craft all blades and armor by my own hand, taking up no weapon or protection wrought by others.
