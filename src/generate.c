@@ -192,6 +192,27 @@ static float calculate_parametric_probability(quest_type* q_ptr, int depth) {
             log_debug("Quest %d FIXED_PERCENT: constant probability=%.4f", q_ptr->quest_num, probability);
             break;
             
+        case FORMULA_LINEAR_INTERPOLATE:
+            /* Formula: linear interpolation between min_prob and max_prob over depth range */
+            /* Params: [0]=min_prob, [1]=max_prob, [2]=unused, [3]=unused */
+            {
+                float min_prob = q_ptr->formula_params[0];
+                float max_prob = q_ptr->formula_params[1];
+                int depth_range = q_ptr->depth_max - q_ptr->depth_min;
+                
+                if (depth_range > 0) {
+                    float factor = (float)(depth - q_ptr->depth_min) / (float)depth_range;
+                    probability = min_prob + (max_prob - min_prob) * factor;
+                    log_debug("Quest %d LINEAR_INTERPOLATE: min_prob=%.3f, max_prob=%.3f, depth=%d, range=%d, factor=%.3f, probability=%.4f", 
+                              q_ptr->quest_num, min_prob, max_prob, depth, depth_range, factor, probability);
+                } else {
+                    /* Single depth case - use min_prob */
+                    probability = min_prob;
+                    log_debug("Quest %d LINEAR_INTERPOLATE: depth_range=0, using min_prob=%.3f", q_ptr->quest_num, min_prob);
+                }
+            }
+            break;
+            
         case FORMULA_HARDCODED:
         default:
             /* Use hardcoded functions - should not reach here for parametric calls */
@@ -213,10 +234,8 @@ static float calculate_parametric_probability(quest_type* q_ptr, int depth) {
 
 /* Generic eligibility check for parametric quests */
 static bool generic_eligibility_check(int depth, int quest_id) {
-    quest_type* q_ptr = &quest_info[quest_id];
-    
-    /* Check depth bounds */
-    return (depth >= q_ptr->depth_min && depth <= q_ptr->depth_max);
+    /* Use the comprehensive eligibility check that handles E: field data */
+    return check_quest_eligibility(quest_id, depth);
 }
 
 /* Generic probability roll for parametric quests */
@@ -443,14 +462,19 @@ static void run_quest_lottery(void) {
         init_roulette_quest_registry();
     }
     
-    /* CRITICAL: Do not run lottery if any quest is already active */
+    /* CRITICAL: Do not run lottery if any quest is already started on this character */
+    log_trace("Quest lottery: Checking current quest states before lottery");
+    log_trace("Quest lottery: tulkas=%d, niena=%d, orome=%d, aule=%d, mandos=%d", 
+              p_ptr->tulkas_quest, p_ptr->niena_quest, p_ptr->orome_quest, p_ptr->aule_quest, p_ptr->mandos_quest);
+    log_trace("Quest lottery: quest_reserved[0]=%d (any quest spawned flag)", p_ptr->quest_reserved[0]);
+    
     if (p_ptr->tulkas_quest > TULKAS_QUEST_NOT_STARTED || 
         p_ptr->niena_quest > NIENA_QUEST_NOT_STARTED ||
         p_ptr->orome_quest > OROME_QUEST_NOT_STARTED ||
         p_ptr->aule_quest > AULE_QUEST_NOT_STARTED ||
         p_ptr->mandos_quest > MANDOS_QUEST_NOT_STARTED) {
         
-        log_trace("Quest lottery: SKIPPED - quest already active (tulkas=%d, niena=%d, orome=%d, aule=%d, mandos=%d)", 
+        log_trace("Quest lottery: SKIPPED - quest already started on this character (tulkas=%d, niena=%d, orome=%d, aule=%d, mandos=%d)", 
                   p_ptr->tulkas_quest, p_ptr->niena_quest, p_ptr->orome_quest, p_ptr->aule_quest, p_ptr->mandos_quest);
         quest_lottery_winner = 0;
         quest_lottery_resolved = true;
@@ -513,14 +537,19 @@ static void run_quest_lottery(void) {
         }
         
         /* Check quest-specific eligibility */
-        if (!entry->eligibility_check(p_ptr->depth, entry->quest_id)) {
+        log_trace("Quest lottery: Checking eligibility for Quest %d at depth %d", entry->quest_id, p_ptr->depth);
+        bool eligible = entry->eligibility_check(p_ptr->depth, entry->quest_id);
+        log_trace("Quest lottery: Quest %d eligibility result: %s", entry->quest_id, eligible ? "PASS" : "FAIL");
+        if (!eligible) {
             log_trace("Quest lottery: Quest %d failed eligibility check", entry->quest_id);
             continue;
         }
         
         /* Roll for quest probability */
         log_trace("Quest lottery: Evaluating Quest %d for probability roll at depth %d", entry->quest_id, p_ptr->depth);
-        if (entry->probability_roll(p_ptr->depth, entry->quest_id)) {
+        bool won_probability = entry->probability_roll(p_ptr->depth, entry->quest_id);
+        log_trace("Quest lottery: Quest %d probability result: %s", entry->quest_id, won_probability ? "WON" : "LOST");
+        if (won_probability) {
             quest_lottery_winner = entry->quest_id;
             log_trace("Quest lottery: Quest %d WINS the lottery!", entry->quest_id);
             return;
@@ -4551,11 +4580,17 @@ static bool try_quest_vault_type(int v_type)
         
         /* Check Aule requirements */
         if (vault_template_has_aule(qv_ptr)) {
+            log_trace("Quest vault: Aule vault detected - checking eligibility (depth=%d)", p_ptr->depth);
+            log_trace("  Player SMT skill_base = %d", p_ptr->skill_base[S_SMT]);
+            log_trace("  Player SMT skill_use = %d", p_ptr->skill_use[S_SMT]);
+            
             /* Use data-driven eligibility check from quest.txt E: field */
             if (!check_quest_eligibility(2, p_ptr->depth)) { /* Aule is quest index 2 */
                 log_trace("Quest vault: Aule vault skipped (eligibility check failed)");
                 continue;
             }
+            log_trace("Quest vault: Aule eligibility check PASSED");
+            
             if (metarun_is_quest_completed(METARUN_QUEST_AULE)) {
                 log_trace("Quest vault: Aule vault skipped (quest completed in metarun)");
                 continue;
@@ -4564,6 +4599,7 @@ static bool try_quest_vault_type(int v_type)
                 log_trace("Quest vault: Aule vault skipped (another quest already spawned this run)");
                 continue;
             }
+            log_trace("Quest vault: Aule vault APPROVED for generation");
         }
         
         /* Check Mandos requirements */

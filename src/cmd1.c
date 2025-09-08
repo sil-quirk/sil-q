@@ -3942,6 +3942,12 @@ bool merciless_attack(monster_type* m_ptr)
         && ((r_ptr->flags3 & (RF3_MAN)) || (r_ptr->flags3 & (RF3_ELF))));
 }
 
+bool cowardly_attack(monster_type* m_ptr)
+{
+    return (chosen_oath(OATH_VALOROUS) && !oath_invalid(OATH_VALOROUS)
+        && m_ptr->stance == STANCE_FLEEING);  /* Monster is fleeing in terror */
+}
+
 bool abort_for_mercy(monster_type* m_ptr)
 {
     // Unseen enemies are okay to kill
@@ -3963,6 +3969,27 @@ bool abort_for_mercy(monster_type* m_ptr)
     return false;
 }
 
+bool abort_for_valorous(monster_type* m_ptr)
+{
+    // Unseen enemies are okay to kill  
+    if (!m_ptr->ml)
+        return false;
+
+    if (cowardly_attack(m_ptr))
+    {
+        /* Use oath-specific confirmation prompt */
+        char* prompt = oath_confirmation_prompt(OATH_VALOROUS);
+        if (!prompt || !prompt[0]) prompt = "Are you sure you wish to break your oath?";
+        
+        if (!get_check_oath_multiline(prompt))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /*
  * Apply consequences when an oath is broken:
  * 1. Remove oath bonuses (recalculate stats)
@@ -3973,13 +4000,13 @@ void apply_oath_breaking_curse(int oath_id)
 {
     cptr oath_name;
     
-    if (oath_id < 1 || oath_id > 4) return;
+    if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) return;
     
     /* Get oath name for logging - use static fallback names to avoid dangling pointer */
-    static const char* fallback_oath_names[] = {"", "Mercy", "Silence", "Iron", "Smith"};
+    static const char* fallback_oath_names[] = {"", "Mercy", "Silence", "Iron", "Smith", "Valorous"};
     if (oath_id <= z_info->oath_max && oath_info[oath_id].name) {
         oath_name = oath_name_text + oath_info[oath_id].name;
-    } else if (oath_id < 5) {
+    } else if (oath_id < 6) {
         oath_name = fallback_oath_names[oath_id];
     } else {
         oath_name = "Unknown";
@@ -3999,6 +4026,9 @@ void apply_oath_breaking_curse(int oath_id)
     }
     else if (oath_id == OATH_SMITH) {
         p_ptr->active_ability[S_SPC][SPC_OATH_SMITH] = false;
+    }
+    else if (oath_id == OATH_VALOROUS) {
+        p_ptr->active_ability[S_SPC][SPC_OATH_VALOROUS] = false;
     }
     
     /* Remove oath bonuses by recalculating */
@@ -4045,6 +4075,26 @@ void break_mercy_oath(monster_type* m_ptr, int damage)
             apply_oath_breaking_curse(OATH_MERCY);
         }
         p_ptr->oaths_broken |= OATH_MERCY_FLAG;
+    }
+}
+
+void break_valorous_oath(monster_type* m_ptr, int damage)
+{
+    // Unseen enemies are okay to kill
+    if (!m_ptr->ml)
+        return;
+
+    if (damage > 0 && m_ptr->stance == STANCE_FLEEING)
+    {
+        if (cowardly_attack(m_ptr))
+        {
+            /* Curse message and selection handled by apply_oath_breaking_curse */
+            do_cmd_note("Broke your oath", p_ptr->depth);
+            
+            /* Apply oath breaking consequences */
+            apply_oath_breaking_curse(OATH_VALOROUS);
+        }
+        p_ptr->oaths_broken |= OATH_VALOROUS_FLAG;
     }
 }
 
@@ -4203,6 +4253,10 @@ void py_attack_aux(int y, int x, int attack_type)
         abort_attack = true;
     }
     else if (abort_for_mercy(m_ptr))
+    {
+        abort_attack = true;
+    }
+    else if (abort_for_valorous(m_ptr))
     {
         abort_attack = true;
     }
@@ -4400,6 +4454,7 @@ void py_attack_aux(int y, int x, int attack_type)
                 net_dam = 0;
 
             break_mercy_oath(m_ptr, net_dam);
+            break_valorous_oath(m_ptr, net_dam);
 
             // determine the punctuation for the attack ("...", ".", "!" etc)
             attack_punctuation(punctuation, net_dam, crit_bonus_dice);

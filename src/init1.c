@@ -5128,8 +5128,8 @@ errr parse_quest_info(char* buf, header* head)
         /* Parse oath ID directly as integer */
         oath_id = atoi(buf + 2);
         
-        /* Validate oath ID range (0-4) */
-        if (oath_id < 0 || oath_id > 4) {
+        /* Validate oath ID range dynamically using z_info->oath_max */
+        if (oath_id < 0 || !z_info || oath_id >= z_info->oath_max) {
             oath_id = 0; /* Default to no oath */
         }
         
@@ -5146,6 +5146,9 @@ errr parse_quest_info(char* buf, header* head)
         /* There better be a current quest_ptr */
         if (!quest_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
+        log_trace("QUEST PARSE: Processing E: field for quest %d: '%s'", quest_ptr->quest_num, buf);
+        log_trace("QUEST PARSE: buf+2 = '%s'", buf + 2);
+
         /* Initialize eligibility fields */
         quest_ptr->eligibility_type = 0; /* Default: no requirements */
         quest_ptr->eligibility_skill = 0;
@@ -5156,9 +5159,20 @@ errr parse_quest_info(char* buf, header* head)
         /* Parse eligibility requirements */
         /* Try parsing with skill name first: E:SKILL_MIN:SMT:10 */
         char skill_name[32];
-        if (3 == sscanf(buf + 2, "SKILL_MIN:%31[^:]:%d", skill_name, &value1))
+        
+        /* Debug: test the sscanf pattern */
+        char test_input[] = "SKILL_MIN:SMT:10";
+        char test_skill[32];
+        int test_value;
+        int test_result = sscanf(test_input, "SKILL_MIN:%31[^:]:%d", test_skill, &test_value);
+        log_trace("QUEST PARSE: sscanf test on '%s' returned %d, skill='%s', value=%d", 
+                 test_input, test_result, test_skill, test_value);
+        
+        if (2 == sscanf(buf + 2, "SKILL_MIN:%31[^:]:%d", skill_name, &value1))
         {
             quest_ptr->eligibility_type = 1; /* skill_min */
+            
+            log_trace("QUEST PARSE: Successfully parsed SKILL_MIN: skill='%s', value=%d", skill_name, value1);
             
             /* Map skill names to skill types */
             if (my_stricmp(skill_name, "MEL") == 0) {
@@ -5182,16 +5196,24 @@ errr parse_quest_info(char* buf, header* head)
             }
             
             quest_ptr->eligibility_value = value1; /* minimum value */
+            
+            log_trace("QUEST PARSE: Set eligibility_type=1, eligibility_skill=%d, eligibility_value=%d", 
+                     quest_ptr->eligibility_skill, quest_ptr->eligibility_value);
         }
         /* Fall back to numeric parsing */
         else if (3 == sscanf(buf + 2, "%31[^:]:%d:%d", requirement_type, &value1, &value2))
         {
+            log_trace("QUEST PARSE: Trying numeric parsing: type='%s', value1=%d, value2=%d", requirement_type, value1, value2);
+            
             /* Format: E:requirement_type:value1:value2 */
             if (streq(requirement_type, "SKILL_MIN"))
             {
                 quest_ptr->eligibility_type = 1; /* skill_min */
                 quest_ptr->eligibility_skill = value1; /* skill type (S_SMT, etc.) */
                 quest_ptr->eligibility_value = value2; /* minimum value */
+                
+                log_trace("QUEST PARSE: Numeric SKILL_MIN - eligibility_type=1, eligibility_skill=%d, eligibility_value=%d", 
+                         quest_ptr->eligibility_skill, quest_ptr->eligibility_value);
             }
             else if (streq(requirement_type, "DEPTH_RANGE"))
             {
@@ -5216,6 +5238,10 @@ errr parse_quest_info(char* buf, header* head)
                 quest_ptr->depth_min = value2;
                 quest_ptr->depth_max = value3;
             }
+        }
+        else
+        {
+            log_trace("QUEST PARSE: Failed to parse E: field '%s' - leaving as NO_REQUIREMENTS", buf);
         }
     }
 

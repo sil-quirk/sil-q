@@ -2390,39 +2390,43 @@ void monster_death(int m_idx)
                  p_ptr->niena_monsters_killed, p_ptr->niena_monsters_seen);
     }
 
-    /* Track monster death for Oromë hunting quest */
-    if (p_ptr->orome_quest == OROME_QUEST_ACTIVE) {
+    /* Track monster death for Oromë hunting quest - global kill counting */
+    if (p_ptr->orome_quest >= OROME_QUEST_ACTIVE) {
         bool target_killed = false;
         
-        /* Check if killed monster matches current hunt target */
-        switch (p_ptr->orome_target_type) {
-            case OROME_TARGET_WOLF:
-                if (r_ptr->flags3 & RF3_WOLF) {
-                    target_killed = true;
-                }
-                break;
-            case OROME_TARGET_SPIDER:
-                if (r_ptr->flags3 & RF3_SPIDER) {
-                    target_killed = true;
-                }
-                break;
-            case OROME_TARGET_SERPENT:
-                if (r_ptr->flags3 & RF3_SERPENT) {
-                    target_killed = true;
-                }
-                break;
-            case OROME_TARGET_VAMPIRE:
-                /* Vampires are identified by 'd_char' = 'v' */
-                if (r_ptr->d_char == 'v') {
-                    target_killed = true;
-                }
-                break;
+        /* Check if killed monster matches any hunt target type */
+        if (r_ptr->flags3 & RF3_WOLF) {
+            p_ptr->orome_wolves_killed++;
+            target_killed = true;
+            log_trace("Oromë quest: Wolf killed (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
+                     p_ptr->orome_wolves_killed, p_ptr->orome_spiders_killed, 
+                     p_ptr->orome_serpents_killed, p_ptr->orome_vampires_killed);
+        }
+        if (r_ptr->flags3 & RF3_SPIDER) {
+            p_ptr->orome_spiders_killed++;
+            target_killed = true;
+            log_trace("Oromë quest: Spider killed (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
+                     p_ptr->orome_wolves_killed, p_ptr->orome_spiders_killed, 
+                     p_ptr->orome_serpents_killed, p_ptr->orome_vampires_killed);
+        }
+        if (r_ptr->flags3 & RF3_SERPENT) {
+            p_ptr->orome_serpents_killed++;
+            target_killed = true;
+            log_trace("Oromë quest: Serpent killed (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
+                     p_ptr->orome_wolves_killed, p_ptr->orome_spiders_killed, 
+                     p_ptr->orome_serpents_killed, p_ptr->orome_vampires_killed);
+        }
+        /* Vampires are identified by 'd_char' = 'v' */
+        if (r_ptr->d_char == 'v') {
+            p_ptr->orome_vampires_killed++;
+            target_killed = true;
+            log_trace("Oromë quest: Vampire killed (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
+                     p_ptr->orome_wolves_killed, p_ptr->orome_spiders_killed, 
+                     p_ptr->orome_serpents_killed, p_ptr->orome_vampires_killed);
         }
         
         if (target_killed) {
-            p_ptr->orome_killed_count++;
-            log_trace("Oromë quest: Target monster killed (type=%d, count=%d/%d)", 
-                     p_ptr->orome_target_type, p_ptr->orome_killed_count, p_ptr->orome_target_count);
+            log_trace("Oromë quest: Hunt target monster killed, checking for completion thresholds...");
         }
     }
 
@@ -5813,6 +5817,13 @@ bool check_quest_eligibility(int quest_idx, int depth)
     
     q_ptr = &quest_info[quest_idx];
     
+    /* Debug quest 2 specifically - show what was actually loaded */
+    if (quest_idx == 2) {
+        log_trace("Quest %d (Aule) LOADED DATA: eligibility_type=%d, eligibility_skill=%d, eligibility_value=%d", 
+                 quest_idx, q_ptr->eligibility_type, q_ptr->eligibility_skill, q_ptr->eligibility_value);
+        log_trace("Quest %d (Aule) LOADED DATA: This data was loaded from save file, not parsed from quest.txt", quest_idx);
+    }
+    
     /* Check standard requirements that apply to all quests */
     /* 1. Quest not already completed in current metarun */
     u32b metarun_flag = 0;
@@ -5861,6 +5872,16 @@ bool check_quest_eligibility(int quest_idx, int depth)
             if (q_ptr->eligibility_skill < S_MAX) {
                 int player_skill = p_ptr->skill_base[q_ptr->eligibility_skill];
                 bool meets_req = (player_skill >= q_ptr->eligibility_value);
+                
+                /* Enhanced logging for debugging smith skill issues */
+                if (q_ptr->eligibility_skill == S_SMT) {
+                    log_trace("SMT SKILL DEBUG: Quest %d eligibility check:", quest_idx);
+                    log_trace("  skill_base[S_SMT] = %d", p_ptr->skill_base[S_SMT]);
+                    log_trace("  skill_use[S_SMT] = %d", p_ptr->skill_use[S_SMT]);
+                    log_trace("  required value = %d", q_ptr->eligibility_value);
+                    log_trace("  meets requirement = %s", meets_req ? "YES" : "NO");
+                }
+                
                 log_trace("Quest %d eligibility: SKILL_MIN (skill=%d, player=%d, required=%d) = %s",
                          quest_idx, q_ptr->eligibility_skill, player_skill, q_ptr->eligibility_value,
                          meets_req ? "PASS" : "FAIL");
@@ -6167,13 +6188,21 @@ static void display_wrapped_text(int col, int *row, cptr text, byte color, int m
             log_trace("WRAP: word_len=%d, word_start=%d", word_len, word_start);
             
             if (word_len > 0 && word_len < sizeof(word)) {
-                my_strcpy(word, text + word_start, word_len + 1);
-                word[word_len] = '\0';
+                /* Copy the word manually to avoid buffer issues */
+                int copy_len = word_len;
+                if (copy_len >= sizeof(word)) copy_len = sizeof(word) - 1;
                 
-                log_trace("WRAP: Extracted word='%s', length=%d", word, word_len);
+                /* Manual copy to avoid strncpy issues */
+                int j;
+                for (j = 0; j < copy_len; j++) {
+                    word[j] = text[word_start + j];
+                }
+                word[copy_len] = '\0';
+                
+                log_trace("WRAP: Extracted word='%s', length=%d", word, copy_len);
                 
                 /* Check if adding this word would exceed the line width */
-                int new_line_len = line_pos + (line_pos > 0 ? 1 : 0) + word_len;
+                int new_line_len = line_pos + (line_pos > 0 ? 1 : 0) + copy_len;
                 
                 log_trace("WRAP: new_line_len=%d, effective_width=%d, line_pos=%d", new_line_len, effective_width, line_pos);
                 
@@ -6181,8 +6210,39 @@ static void display_wrapped_text(int col, int *row, cptr text, byte color, int m
                     /* Output current line and start new line with this word */
                     log_trace("WRAP: Outputting line: '%s'", line_buf);
                     Term_putstr(col + 2, (*row)++, -1, color, line_buf);
-                    my_strcpy(line_buf, word, sizeof(line_buf));
-                    line_pos = word_len;
+                    
+                    /* Check if the word itself is too long for a line */
+                    if (copy_len > effective_width) {
+                        /* Break the word across multiple lines */
+                        int word_pos = 0;
+                        while (word_pos < copy_len) {
+                            int chunk_len = effective_width;
+                            if (word_pos + chunk_len > copy_len) {
+                                chunk_len = copy_len - word_pos;
+                            }
+                            
+                            /* Extract chunk of the word */
+                            char chunk[256];
+                            int k;
+                            for (k = 0; k < chunk_len && word_pos + k < copy_len; k++) {
+                                chunk[k] = word[word_pos + k];
+                            }
+                            chunk[k] = '\0';
+                            
+                            /* Output this chunk */
+                            log_trace("WRAP: Outputting long word chunk: '%s'", chunk);
+                            Term_putstr(col + 2, (*row)++, -1, color, chunk);
+                            word_pos += chunk_len;
+                        }
+                        
+                        /* Reset line buffer */
+                        line_buf[0] = '\0';
+                        line_pos = 0;
+                    } else {
+                        /* Word fits on a new line */
+                        my_strcpy(line_buf, word, sizeof(line_buf));
+                        line_pos = copy_len;
+                    }
                     log_trace("WRAP: Started new line with word='%s', line_pos=%d", word, line_pos);
                 } else {
                     /* Add word to current line */
@@ -6192,7 +6252,7 @@ static void display_wrapped_text(int col, int *row, cptr text, byte color, int m
                         log_trace("WRAP: Added space, line_pos now=%d", line_pos);
                     }
                     my_strcat(line_buf, word, sizeof(line_buf));
-                    line_pos += word_len;
+                    line_pos += copy_len;
                     log_trace("WRAP: Added word to line, line_buf='%s', line_pos=%d", line_buf, line_pos);
                 }
             }
@@ -6543,8 +6603,14 @@ void do_cmd_quest_status(void)
                 Term_putstr(col + 2, row++, -1, color, tulkas_status);
                 break;
             case TULKAS_QUEST_REWARDED:
-                tulkas_status = "Completed by this character";
-                color = TERM_L_GREEN;
+                /* Simple logic: if completed in metarun, show as previous character */
+                if (metarun_is_quest_completed(METARUN_QUEST_TULKAS)) {
+                    tulkas_status = "Completed in previous run";
+                    color = TERM_L_DARK;
+                } else {
+                    tulkas_status = "Completed by this character";
+                    color = TERM_L_GREEN;
+                }
                 Term_putstr(col + 2, row++, -1, color, tulkas_status);
                 log_trace("QUEST STATUS: Calling get_quest_reward_text for TULKAS (REWARDED)");
                 strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_TULKAS));
@@ -6593,22 +6659,17 @@ void do_cmd_quest_status(void)
                 display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 break;
             case AULE_QUEST_REWARDED:
-                /* Check if completed this run vs completed in previous metarun */
-                if (metarun_is_quest_completed(METARUN_QUEST_AULE)) {
+                /* Attribute to this run unless metarun-only completion (aule_level==0) */
+                if (metarun_is_quest_completed(METARUN_QUEST_AULE) && p_ptr->aule_level == 0) {
+                    aule_status = "Completed in previous run";
+                    color = TERM_L_DARK;
+                } else {
                     aule_status = "Completed by this character";
                     color = TERM_L_GREEN;
-                    Term_putstr(col + 2, row++, -1, color, aule_status);
-                    strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_AULE));
-                    display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
-                } else {
-                    /* Quest is REWARDED but not in current metarun - must be from previous metarun access */
-                    aule_status = "Available from previous metarun";
-                    color = TERM_L_DARK;
-                    Term_putstr(col + 2, row++, -1, color, aule_status);
-                    cptr oath_name = get_oath_name_from_id(quest_info[QUEST_ID_AULE].oath_id);
-                    strnfmt(buf, sizeof(buf), "Reward: %s available from previous completion", oath_name);
-                    display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 }
+                Term_putstr(col + 2, row++, -1, color, aule_status);
+                strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_AULE));
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 break;
             default:
                 aule_status = "Unknown status";
@@ -6654,21 +6715,17 @@ void do_cmd_quest_status(void)
                 Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 break;
             case MANDOS_QUEST_REWARDED:
-                /* Check if completed this run vs completed in previous metarun */
-                if (metarun_is_quest_completed(METARUN_QUEST_MANDOS)) {
+                /* Attribute to this run unless metarun-only completion (mandos_level==0) */
+                if (metarun_is_quest_completed(METARUN_QUEST_MANDOS) && p_ptr->mandos_level == 0) {
+                    mandos_status = "Completed in previous run";
+                    color = TERM_L_DARK;
+                } else {
                     mandos_status = "Completed by this character";
                     color = TERM_L_GREEN;
-                    Term_putstr(col + 2, row++, -1, color, mandos_status);
-                    strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_MANDOS));
-                    display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
-                } else {
-                    /* Quest is REWARDED but not in current metarun - must be from previous metarun access */
-                    mandos_status = "Available from previous metarun";
-                    color = TERM_L_DARK;
-                    Term_putstr(col + 2, row++, -1, color, mandos_status);
-                    strnfmt(buf, sizeof(buf), "Reward: %s available from previous completion", oath_name);
-                    Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 }
+                Term_putstr(col + 2, row++, -1, color, mandos_status);
+                strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_MANDOS));
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 break;
             default:
                 mandos_status = "Unknown status";
@@ -6716,8 +6773,14 @@ void do_cmd_quest_status(void)
                 Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 break;
             case NIENA_QUEST_REWARDED:
-                niena_status = "Completed by this character";
-                color = TERM_L_GREEN;
+                /* Attribute to this run unless metarun-only completion (niena_level==0) */
+                if (metarun_is_quest_completed(METARUN_QUEST_NIENA) && p_ptr->niena_level == 0) {
+                    niena_status = "Completed in previous run";
+                    color = TERM_L_DARK;
+                } else {
+                    niena_status = "Completed by this character";
+                    color = TERM_L_GREEN;
+                }
                 Term_putstr(col + 2, row++, -1, color, niena_status);
                 strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_NIENA));
                 Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
@@ -6735,7 +6798,7 @@ void do_cmd_quest_status(void)
         any_quests = true;
         cptr orome_status;
         byte color;
-        
+
         cptr quest_title = get_quest_title(QUEST_ID_OROME);
         cptr quest_challenge = get_quest_challenge(QUEST_ID_OROME);
         
@@ -6752,14 +6815,25 @@ void do_cmd_quest_status(void)
                 break;
             case OROME_QUEST_ACTIVE:
                 {
-                    cptr monster_names[] = {"wolves", "spiders", "serpents", "vampires"};
-                    cptr monster_name = (p_ptr->orome_target_type >= 1 && p_ptr->orome_target_type <= 4) 
-                                       ? monster_names[p_ptr->orome_target_type - 1] : "creatures";
-                    strnfmt(buf, sizeof(buf), "Active: Hunt %s (%d/%d killed)",
-                            monster_name, p_ptr->orome_killed_count, p_ptr->orome_target_count);
+                    strnfmt(buf, sizeof(buf), "Active: Hunt the fell kindreds");
                     orome_status = buf;
                     color = TERM_WHITE;
                     Term_putstr(col + 2, row++, -1, color, orome_status);
+                    
+                    /* Show current kill counts for all monster types */
+                    strnfmt(buf, sizeof(buf), "Wolves killed: %d/100", p_ptr->orome_wolves_killed);
+                    display_wrapped_text(col + 4, &row, buf, 
+                                       p_ptr->orome_wolves_killed >= 100 ? TERM_L_GREEN : TERM_SLATE, wid);
+                    strnfmt(buf, sizeof(buf), "Spiders killed: %d/80", p_ptr->orome_spiders_killed);
+                    display_wrapped_text(col + 4, &row, buf, 
+                                       p_ptr->orome_spiders_killed >= 80 ? TERM_L_GREEN : TERM_SLATE, wid);
+                    strnfmt(buf, sizeof(buf), "Serpents killed: %d/60", p_ptr->orome_serpents_killed);
+                    display_wrapped_text(col + 4, &row, buf, 
+                                       p_ptr->orome_serpents_killed >= 60 ? TERM_L_GREEN : TERM_SLATE, wid);
+                    strnfmt(buf, sizeof(buf), "Vampires killed: %d/30", p_ptr->orome_vampires_killed);
+                    display_wrapped_text(col + 4, &row, buf, 
+                                       p_ptr->orome_vampires_killed >= 30 ? TERM_L_GREEN : TERM_SLATE, wid);
+                    
                     display_wrapped_text(col, &row, quest_challenge, TERM_SLATE, wid);
                     strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_OROME));
                     display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
@@ -6773,8 +6847,23 @@ void do_cmd_quest_status(void)
                 display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 break;
             case OROME_QUEST_REWARDED:
-                orome_status = "Completed by this character";
-                color = TERM_L_GREEN;
+                /*
+                 * Previous logic always showed "Completed in previous run" because
+                 * metarun_mark_quest_completed() is called at the moment the reward
+                 * is given. That incorrectly hid the fact the current character
+                 * earned the reward. We distinguish by using orome_level which is
+                 * set when the quest is accepted. For metarun-restored completions
+                 * (new characters benefiting from prior lineage), orome_level will
+                 * still be zero (default initialization). Any legitimate run that
+                 * started the quest will have a non-zero orome_level.
+                 */
+                if (metarun_is_quest_completed(METARUN_QUEST_OROME) && p_ptr->orome_level == 0) {
+                    orome_status = "Completed in previous run";
+                    color = TERM_L_DARK;
+                } else {
+                    orome_status = "Completed by this character";
+                    color = TERM_L_GREEN;
+                }
                 Term_putstr(col + 2, row++, -1, color, orome_status);
                 strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_OROME));
                 display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
@@ -6931,80 +7020,80 @@ static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byt
         
         col = 0;
         
-        /* Print this string, character by character with smart word wrapping */
-        for (int i = 0; s[i]; i++) {
-            char ch = s[i];
-            
+        /* Print this string with proper word wrapping and typewriter effect */
+        int i = 0;
+        while (s[i]) {
             /* Handle explicit newlines */
-            if (ch == '\n') {
+            if (s[i] == '\n') {
                 row++;
                 col = 0;
+                i++;
                 continue;
             }
             
-            /* Smart word wrapping: check if we need to wrap before printing */
-            if (col >= wrap_width) {
-                log_trace("WRAP DEBUG: col=%d, wrap_width=%d, char='%c' (0x%02x)", col, wrap_width, ch, (unsigned char)ch);
-                
-                /* If this character is whitespace, skip it and wrap */
-                if (ch == ' ' || ch == '\t') {
-                    log_trace("WRAP DEBUG: Wrapping at whitespace");
-                    row++;
-                    col = 0;
-                    continue; /* Don't print the space */
+            /* Find the end of the current word (or until we hit wrap width) */
+            int word_start = i;
+            int word_len = 0;
+            bool has_space_after = false;
+            
+            /* Build the current word/phrase until we hit whitespace, newline, or exceed reasonable length */
+            while (s[i] && s[i] != '\n' && word_len < wrap_width) {
+                if (s[i] == ' ' || s[i] == '\t') {
+                    has_space_after = true;
+                    break;
                 }
-                /* If this is punctuation, look back to see if we can wrap at a previous space */
-                else if (ch == '.' || ch == ',' || ch == '!' || ch == '?' || ch == '"' || ch == '\'' || ch == ')' || ch == ']' || ch == '}' || ch == ':' || ch == ';') {
-                    log_trace("WRAP DEBUG: Found punctuation '%c', looking back for wrap point", ch);
-                    /* Look back for a space within the last few characters on this line */
-                    bool found_wrap_point = false;
-                    int wrap_back = 0;
-                    int wrap_position = -1;
-                    
-                    /* Search back up to 15 characters or to start of line */
-                    for (int j = i - 1; j >= 0 && wrap_back < 15; j--, wrap_back++) {
-                        if (s[j] == ' ' || s[j] == '\t') {
-                            found_wrap_point = true;
-                            wrap_position = j;
-                            log_trace("WRAP DEBUG: Found space %d chars back at position %d", wrap_back, j);
-                            break;
-                        }
-                        if (s[j] == '\n') break; /* Don't cross line boundaries */
-                    }
-                    
-                    if (!found_wrap_point || wrap_back > 10) {
-                        log_trace("WRAP DEBUG: No good wrap point (found=%s, distance=%d) - allowing punctuation overflow", 
-                                 found_wrap_point ? "yes" : "no", wrap_back);
-                        /* No good wrap point found, or it's too far back - allow punctuation to exceed line */
-                        /* Just print the punctuation and continue */
-                    }
-                    else {
-                        log_trace("WRAP DEBUG: Good wrap point found - clearing back to space and rewrapping");
-                        /* Clear back to the wrap point */
-                        for (int clear_col = col - wrap_back; clear_col < col; clear_col++) {
-                            Term_putch(indent + clear_col, row, text_color, ' ');
-                        }
-                        /* Move to next line and back up to reprint the word */
-                        row++;
-                        col = 0;
-                        i = wrap_position; /* Back up to just after the space */
-                        continue; /* Skip printing this character this iteration */
-                    }
-                }
-                else {
-                    log_trace("WRAP DEBUG: Mid-word wrap");
-                    /* Mid-word - wrap to next line */
-                    row++;
-                    col = 0;
-                }
+                word_len++;
+                i++;
             }
             
-            Term_putch(indent + col, row, text_color, ch);
-            Term_fresh();
-            col++;
+            log_trace("WRAP DEBUG: word='%.*s', word_len=%d, col=%d, wrap_width=%d", word_len, &s[word_start], word_len, col, wrap_width);
             
-            /* Delay 25 ms after each character */
-            Term_xtra(TERM_XTRA_DELAY, 25);
+            /* Check if this word fits on the current line */
+            if (col + word_len > wrap_width && col > 0) {
+                /* Word doesn't fit, wrap to next line */
+                log_trace("WRAP DEBUG: Wrapping word to next line (col=%d + word_len=%d > wrap_width=%d)", col, word_len, wrap_width);
+                row++;
+                col = 0;
+            }
+            
+            /* Print the word character by character with typewriter effect */
+            for (int j = word_start; j < word_start + word_len; j++) {
+                Term_putch(indent + col, row, text_color, s[j]);
+                Term_fresh();
+                col++;
+                
+                /* Delay 25 ms after each character for typewriter effect */
+                Term_xtra(TERM_XTRA_DELAY, 25);
+            }
+            
+            /* Handle the space/whitespace after the word */
+            if (has_space_after) {
+                if (s[i] == ' ') {
+                    /* Only print space if we're not at the end of a line */
+                    if (col < wrap_width) {
+                        Term_putch(indent + col, row, text_color, ' ');
+                        Term_fresh();
+                        col++;
+                        
+                        /* Delay for space too */
+                        Term_xtra(TERM_XTRA_DELAY, 25);
+                    }
+                    i++; /* Skip the space */
+                }
+                else if (s[i] == '\t') {
+                    /* Handle tab - convert to spaces but respect wrap width */
+                    int tab_spaces = 4 - (col % 4);
+                    for (int t = 0; t < tab_spaces && col < wrap_width; t++) {
+                        Term_putch(indent + col, row, text_color, ' ');
+                        Term_fresh();
+                        col++;
+                        
+                        /* Delay for tab spaces */
+                        Term_xtra(TERM_XTRA_DELAY, 25);
+                    }
+                    i++; /* Skip the tab */
+                }
+            }
         }
         
         /* Move to next line after text */
@@ -7057,6 +7146,62 @@ void remove_quest_giver(int quest_giver_r_idx)
     }
     
     log_trace("Quest giver with R_IDX %d not found on current level", quest_giver_r_idx);
+}
+
+/*
+ * Check if a quest giver is present on the current level
+ */
+bool is_quest_giver_present(int quest_giver_r_idx)
+{
+    int i;
+    
+    /* Find the quest giver */
+    for (i = 1; i < mon_max; i++)
+    {
+        monster_type *m_ptr = &mon_list[i];
+        
+        /* Skip empty slots */
+        if (!m_ptr->r_idx) continue;
+        
+        /* Check if this is our quest giver */
+        if (m_ptr->r_idx == quest_giver_r_idx)
+        {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+/*
+ * Spawn a quest giver near the player (for debug completion)
+ */
+bool spawn_quest_giver_near_player(int quest_giver_r_idx)
+{
+    int y, x;
+    
+    log_trace("Attempting to spawn quest giver R_IDX %d near player", quest_giver_r_idx);
+    
+    /* Try to find a suitable spot near the player */
+    for (y = p_ptr->py - 3; y <= p_ptr->py + 3; y++)
+    {
+        for (x = p_ptr->px - 3; x <= p_ptr->px + 3; x++)
+        {
+            if (in_bounds(y, x) && cave_floor_bold(y, x) && 
+                cave_m_idx[y][x] == 0 && distance(p_ptr->py, p_ptr->px, y, x) >= 2)
+            {
+                if (place_monster_one(y, x, quest_giver_r_idx, true, true, NULL))
+                {
+                    msg_print("A quest giver materializes nearby!");
+                    log_trace("Successfully spawned quest giver at (%d, %d)", y, x);
+                    return true;
+                }
+            }
+        }
+    }
+    
+    log_trace("Failed to spawn quest giver near player");
+    return false;
 }
 
 /*
@@ -7262,6 +7407,9 @@ void tulkas_quest_interaction(void)
             };
             quest_typewriter_menu("Quest Complete: Tulkas Rewards Your Valor", fallback_texts, 2, TERM_L_GREEN, TERM_WHITE);
         }
+        
+        /* Remove the quest giver after giving reward */
+        remove_quest_giver(R_IDX_TULKAS);
         
         log_trace("Tulkas quest completed and rewarded");
     }
@@ -7541,6 +7689,9 @@ void aule_quest_interaction(void)
         
         msg_print("Aule smiles with approval and returns to his eternal labors.");
         
+        /* Remove the quest giver after giving reward */
+        remove_quest_giver(R_IDX_AULE);
+        
         return;
     }
     
@@ -7714,6 +7865,9 @@ void mandos_quest_interaction(void)
         
         msg_print("Mandos bows deeply and fades into shadow, his task complete.");
         
+        /* Remove the quest giver after giving reward */
+        remove_quest_giver(R_IDX_MANDOS);
+        
         log_trace("Mandos quest reward given");
     }
     else if (p_ptr->mandos_quest == MANDOS_QUEST_REWARDED)
@@ -7804,23 +7958,46 @@ void check_mandos_quest_completion(int r_idx)
  */
 void check_orome_quest_completion(void)
 {
-    if (p_ptr->orome_quest == OROME_QUEST_ACTIVE && 
-        p_ptr->orome_killed_count >= p_ptr->orome_target_count)
-    {
-        cptr monster_names[] = {"wolves", "spiders", "serpents", "vampires"};
-        cptr monster_name = (p_ptr->orome_target_type >= 1 && p_ptr->orome_target_type <= 4) 
-                           ? monster_names[p_ptr->orome_target_type - 1] : "creatures";
+    if (p_ptr->orome_quest == OROME_QUEST_ACTIVE) {
+        /* Check thresholds for each monster type */
+        bool quest_complete = false;
+        cptr monster_name = "";
+        int kill_count = 0;
         
-        p_ptr->orome_quest = OROME_QUEST_SUCCESS;
+        if (p_ptr->orome_wolves_killed >= 100) {
+            quest_complete = true;
+            monster_name = "wolves";
+            kill_count = p_ptr->orome_wolves_killed;
+        }
+        else if (p_ptr->orome_spiders_killed >= 80) {
+            quest_complete = true;
+            monster_name = "spiders";
+            kill_count = p_ptr->orome_spiders_killed;
+        }
+        else if (p_ptr->orome_serpents_killed >= 60) {
+            quest_complete = true;
+            monster_name = "serpents";
+            kill_count = p_ptr->orome_serpents_killed;
+        }
+        else if (p_ptr->orome_vampires_killed >= 30) {
+            quest_complete = true;
+            monster_name = "vampires";
+            kill_count = p_ptr->orome_vampires_killed;
+        }
         
-        msg_format("The hunt is complete! You have slain %d %s as commanded.", 
-                   p_ptr->orome_target_count, monster_name);
-        msg_print("Oromë the Huntsman will be pleased with your prowess.");
-        msg_print("Return to claim your reward - the knowledge of Unique Bane!");
-        
-        log_trace("Oromë quest completed - %d %s slain (%d/%d)", 
-                 p_ptr->orome_target_count, monster_name,
-                 p_ptr->orome_killed_count, p_ptr->orome_target_count);
+        if (quest_complete) {
+            p_ptr->orome_quest = OROME_QUEST_SUCCESS;
+            
+            msg_format("The hunt is complete! You have slain %d %s, proving your prowess!", 
+                       kill_count, monster_name);
+            msg_print("Oromë the Huntsman will be pleased with your mastery.");
+            msg_print("Seek him out to claim your reward - the knowledge of Unique Bane!");
+            
+            log_trace("Oromë quest completed - %d %s slain (wolves=%d, spiders=%d, serpents=%d, vampires=%d)", 
+                     kill_count, monster_name,
+                     p_ptr->orome_wolves_killed, p_ptr->orome_spiders_killed, 
+                     p_ptr->orome_serpents_killed, p_ptr->orome_vampires_killed);
+        }
     }
 }
 
@@ -7977,6 +8154,9 @@ void niena_quest_interaction(void)
         log_trace("Niena quest marked complete in metarun and Mercy oath unlocked");
         
         msg_print("Niena smiles sadly and fades away, leaving you with her blessing.");
+        
+        /* Remove the quest giver after giving reward */
+        remove_quest_giver(R_IDX_NIENA);
         
         /* Recalculate bonuses to apply the new stealth bonus */
         p_ptr->update |= (PU_BONUS);
@@ -8191,11 +8371,12 @@ void orome_quest_interaction(void)
                   p_ptr->orome_target_count, monster_name);
         msg_print("You learn the secret of hunting unique creatures!");
         
-        /* Grant the Unique Bane special ability */
-        grant_unique_bane_ability();
-        
         /* Clear quest state */
         p_ptr->orome_quest = OROME_QUEST_REWARDED;
+        log_trace("Orome reward: Quest state set to REWARDED (%d)", OROME_QUEST_REWARDED);
+        
+        /* Apply quest rewards from quest.txt data */
+        apply_quest_rewards(5); /* Oromë is quest index 5 */
         
         /* Mark quest as completed in metarun */
         metarun_mark_quest_completed(METARUN_QUEST_OROME);
@@ -8207,6 +8388,9 @@ void orome_quest_interaction(void)
             msg_format("The %s is now available for future characters in this lineage!", 
                       get_oath_name_from_id(oath_id));
         }
+        
+        /* Remove the quest giver after giving reward */
+        remove_quest_giver(R_IDX_OROME);
         
         log_trace("Oromë quest completed - Unique Bane granted, oath unlocked");
     }
@@ -8279,15 +8463,25 @@ void check_orome_quest_interaction(void)
  */
 void grant_unique_bane_ability(void)
 {
+    log_trace("grant_unique_bane_ability: Function called, checking current state");
+    log_trace("grant_unique_bane_ability: have_ability[S_SPC][SPC_UNIQUE_BANE] = %s",
+             p_ptr->have_ability[S_SPC][SPC_UNIQUE_BANE] ? "TRUE" : "FALSE");
+    
     if (p_ptr->have_ability[S_SPC][SPC_UNIQUE_BANE])
     {
+        log_trace("grant_unique_bane_ability: Player already has ability, showing message and returning");
         msg_print("You already possess the power to hunt unique creatures effectively.");
         return;
     }
     
+    log_trace("grant_unique_bane_ability: Setting ability flags to TRUE");
     /* Grant the ability */
     p_ptr->have_ability[S_SPC][SPC_UNIQUE_BANE] = true;
     p_ptr->active_ability[S_SPC][SPC_UNIQUE_BANE] = true;
+    
+    log_trace("grant_unique_bane_ability: After setting flags - have_ability=%s, active_ability=%s",
+             p_ptr->have_ability[S_SPC][SPC_UNIQUE_BANE] ? "TRUE" : "FALSE",
+             p_ptr->active_ability[S_SPC][SPC_UNIQUE_BANE] ? "TRUE" : "FALSE");
     
     msg_print("You have learned the art of Unique Bane!");
     msg_print("You gain significant advantages when fighting unique creatures.");

@@ -5435,22 +5435,47 @@ void init_logger(bool quiet, const char* exe_path)
         {
             if (log_path[i] == '\\' || log_path[i] == '/')
             {
+#if LOG_MODE_TIMESTAMP
+                /* Create timestamped log filename */
+                time_t now = time(NULL);
+                struct tm *timeinfo = localtime(&now);
+                char timestamp[32];
+                strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", timeinfo);
+                sprintf(log_path + i + 1, "log_%s.txt", timestamp);
+#else
                 /* Replace everything after the separator with "log.txt" */
                 strcpy(log_path + i + 1, "log.txt");
+#endif
                 break;
             }
         }
         
-        /* If no separator found, just use log.txt in current directory */
+        /* If no separator found, use appropriate filename in current directory */
         if (i < 0)
         {
+#if LOG_MODE_TIMESTAMP
+            time_t now = time(NULL);
+            struct tm *timeinfo = localtime(&now);
+            char timestamp[32];
+            strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", timeinfo);
+            sprintf(log_path, "log_%s.txt", timestamp);
+#else
             strcpy(log_path, "log.txt");
+#endif
         }
     }
     else
     {
         /* Fallback to current directory if exe_path not available */
+#if LOG_MODE_TIMESTAMP
+        time_t now = time(NULL);
+        struct tm *timeinfo = localtime(&now);
+        char timestamp[32];
+        strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", timeinfo);
+        sprintf(log_path, "log_%s.txt", timestamp);
+#else
         strcpy(log_path, "log.txt");
+#endif
     }
 
     FILE* log_file = my_fopen(log_path, "w");

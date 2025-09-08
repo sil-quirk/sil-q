@@ -35,6 +35,7 @@ D:A solemn vow to leave Angband without shedding the blood of Man or Elf, showin
 P:I swear to leave Angband without shedding blood of Man or Elf, showing mercy to all Children of Iluvatar I encounter.
 F:Attack or harm Men or Elves in any way
 R:+1 Grace - Divine favor for your merciful heart
+A:8:2
 S:0:0:0:1
 B:Cannot attack creatures with RF3_MAN or RF3_ELF flags
 U:Complete the Quest of Niena the Mourner
@@ -51,6 +52,7 @@ D:A vow of absolute silence, taken by those who would enter and leave Angband as
 P:I swear to leave Angband as I came, grim and silent, speaking no word and raising no song in these dark halls.
 F:Sing any song or make any vocal utterance
 R:+1 Strength - Power of focused will and discipline  
+A:8:3
 S:1:0:0:0
 B:Cannot use any singing abilities or songs
 U:Complete the Quest of Tulkas the Strong
@@ -67,6 +69,7 @@ D:An oath of absolute resolve, sworn by those who will not be turned aside from 
 P:I swear that none will daunt me from facing Morgoth forthwith, and I shall not flee upward until a Silmaril is won.
 F:Go up stairs or flee the depths without possessing a Silmaril
 R:+2 Constitution - Unbreakable fortitude and endurance
+A:8:4
 S:0:0:2:0  
 B:Cannot use upstairs until possessing a Silmaril
 U:Complete the Quest of Mandos the Doomsman
@@ -83,6 +86,7 @@ D:A pledge to rely only upon your own craftsmanship, rejecting all weapons and a
 P:I swear to craft all blades and armor by my own hand, taking up no weapon or protection wrought by others.
 F:Pick up, wield, or wear weapons or armor crafted by others
 R:+5 Smithing - Divine inspiration in all crafts
+A:8:6
 S:0:0:0:0
 K:SMT:5
 B:Cannot equip weapons or armor not self-crafted
@@ -92,3 +96,20 @@ M:As you grasp the foreign craft, the fire of your own forge grows dim within yo
 E:You have cast aside self-reliance for the fleeting ease of another's work. Your Oath of the Smith is forever broken, a tribute to the craft you forsook in this age.
 Q:You passed from the world, armed not with your own mastery, but with the craft of another. You will be remembered as a smith who lost faith in his own hands.
 Z:OATH OF THE SMITH FORSAKEN - Thy forge is cold, thy hammer idle. You have scorned the work of your own hands for the craft of a stranger. No mastery shall be found by those who betray their own skill in this age of the world. Marked forever as one who abandoned their craft.
+
+# Oath of the Valorous Heart
+O:5:Oath of the Valorous Heart
+T:To fight with honor and restraint
+D:A true contest of might is a test of will against will, not a felling of the broken. To strike down a foe whose courage has failed is no display of strength. It is the work of a brute, not a warrior. This oath embodies the honorable restraint of those who have proven their valor in fair combat.
+P:I swear to face my enemy while it has the heart to fight, and to let the craven flee into the darkness. In this honorable restraint, my resolve shall be sharpened, and I will perceive weaknesses hidden from others.
+F:Attack or deal damage to enemies that are fleeing in terror
+R:+1 Dexterity - Enhanced reflexes from honorable combat discipline
+A:8:7
+S:0:1:0:0
+B:Cannot attack creatures with M_FEAR flag (fleeing in terror)
+U:Complete the Quest of Tulkas the Strong
+C:Your foe's will has shattered; it turns and flees for its life. To strike it now is to stain your victory with a craven's blow and dishonor the strength you swore to uphold. Are you certain you wish to break your Oath of the Valorous Heart?
+M:As your weapon strikes the fleeing foe, the glory of the battle turns to shame. The warrior's pride within you falters, a curse born of a dishonorable act.
+E:You have chosen a brute's work over a warrior's honor. Your Oath of the Valorous Heart is forever broken, a testament to the valor you have discarded in this age.
+Q:You passed from the world, and your tale is a tainted one. You will be remembered as a warrior who lacked honor, striking down the terrified who fled your might.
+Z:OATH OF THE VALOROUS HEART SUNDERED - Thy blade is stained by a coward's stroke. The noble spirit of honorable combat has fled from thee. No glory shall be found in a victory won over a foe whose heart has failed in this age of the world. Marked forever as one who preyed upon the broken.

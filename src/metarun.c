@@ -185,6 +185,83 @@ static bool is_versioned_meta_file(int fd, int file_size)
     return true;
 }
 
+/*
+ * Clean up old save and score files when starting fresh (no meta.raw exists)
+ */
+void cleanup_old_game_files(void)
+{
+    char cleanup_command[2048];
+    
+    log_info("Starting fresh game cleanup...");
+    
+    /* Clean up save directory using ANGBAND_DIR_SAVE */
+    /* Check if save directory exists before attempting cleanup */
+    #ifdef WINDOWS
+    /* Windows: Check if directory exists using dir command */
+    strnfmt(cleanup_command, sizeof(cleanup_command), 
+            "dir \"%s\" >nul 2>&1", ANGBAND_DIR_SAVE);
+    #else
+    /* Unix/Linux/macOS: Check if directory exists */
+    strnfmt(cleanup_command, sizeof(cleanup_command), 
+            "test -d '%s'", ANGBAND_DIR_SAVE);
+    #endif
+    
+    if (system(cleanup_command) == 0) {
+        log_info("Cleaning up old save files from: %s", ANGBAND_DIR_SAVE);
+        
+        #ifdef WINDOWS
+        /* Windows: Delete all files in save directory except .gitignore */
+        strnfmt(cleanup_command, sizeof(cleanup_command), 
+                "cd /d \"%s\" 2>nul && for %%f in (*) do if not \"%%f\"==\".gitignore\" del /q \"%%f\" 2>nul", ANGBAND_DIR_SAVE);
+        #else
+        /* Unix/Linux/macOS: Delete all files except .gitignore */
+        strnfmt(cleanup_command, sizeof(cleanup_command), 
+                "find '%s' -type f ! -name '.gitignore' -delete 2>/dev/null", ANGBAND_DIR_SAVE);
+        #endif
+        
+        int result = system(cleanup_command);
+        if (result == 0) {
+            log_info("Old save files cleaned successfully");
+        } else {
+            log_debug("Save cleanup completed with result: %d", result);
+        }
+    } else {
+        log_debug("Save directory does not exist or is not accessible: %s", ANGBAND_DIR_SAVE);
+    }
+    
+    /* Clean up score file */
+    char score_file[1024];
+    path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw");
+    
+    /* Check if score file exists before attempting cleanup */
+    #ifdef WINDOWS
+    strnfmt(cleanup_command, sizeof(cleanup_command), "if exist \"%s\" echo exists", score_file);
+    #else
+    strnfmt(cleanup_command, sizeof(cleanup_command), "test -f '%s'", score_file);
+    #endif
+    
+    if (system(cleanup_command) == 0) {
+        log_info("Cleaning up old score file: %s", score_file);
+        
+        #ifdef WINDOWS
+        strnfmt(cleanup_command, sizeof(cleanup_command), "del /q \"%s\" 2>nul", score_file);
+        #else
+        strnfmt(cleanup_command, sizeof(cleanup_command), "rm -f '%s' 2>/dev/null", score_file);
+        #endif
+        
+        int result = system(cleanup_command);
+        if (result == 0) {
+            log_info("Old score file cleaned successfully");
+        } else {
+            log_debug("Score cleanup completed with result: %d", result);
+        }
+    } else {
+        log_debug("Score file does not exist: %s", score_file);
+    }
+    
+    log_info("Fresh game cleanup completed");
+}
+
 errr load_metaruns(bool create_if_missing)
 {
     char fn[1024];
@@ -1651,6 +1728,9 @@ static void start_new_metarun(void)
               p_ptr ? (p_ptr->wizard ? 1 : 0) : -1,
               p_ptr ? (unsigned)p_ptr->noscore : 0,
               savefile);
+     /* Before wiping scores for the next run, backup and clear save files */
+     backup_and_clear_saves();
+     
      /* Before wiping scores for the next run, finalize current ones:
          - mark all alive entries as dead by their own hand
          - save any corresponding savefiles as dead
@@ -2398,8 +2478,24 @@ void metarun_restore_quest_states(void)
         }
     }
     
-    log_trace("Metarun restore: Final quest states - Tulkas: %d, Aule: %d, Mandos: %d",
-              p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest);
+    /* Restore Niena quest state */
+    if (completed & METARUN_QUEST_NIENA) {
+        if (p_ptr->niena_quest < NIENA_QUEST_REWARDED) {
+            p_ptr->niena_quest = NIENA_QUEST_REWARDED;
+            log_trace("Metarun restore: Niena quest set to REWARDED (%d)", NIENA_QUEST_REWARDED);
+        }
+    }
+    
+    /* Restore Orome quest state */
+    if (completed & METARUN_QUEST_OROME) {
+        if (p_ptr->orome_quest < OROME_QUEST_REWARDED) {
+            p_ptr->orome_quest = OROME_QUEST_REWARDED;
+            log_trace("Metarun restore: Orome quest set to REWARDED (%d)", OROME_QUEST_REWARDED);
+        }
+    }
+    
+    log_trace("Metarun restore: Final quest states - Tulkas: %d, Aule: %d, Mandos: %d, Niena: %d, Orome: %d",
+              p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->niena_quest, p_ptr->orome_quest);
 }
 
 /* ------------------------------------------------------------------ */
@@ -2412,9 +2508,9 @@ void metarun_restore_quest_states(void)
 bool oath_unlocked(int oath_id)
 {
     if (current_run < 0 || current_run >= metarun_max) return false;
-    if (oath_id < 1 || oath_id > 4) return false;
+    if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) return false;
     
-    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-4 to bits 1,2,4,8 */
+    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-5 to bits 1,2,4,8,16 */
     return (metaruns[current_run].unlocked_oaths & oath_bit) != 0;
 }
 
@@ -2424,9 +2520,9 @@ bool oath_unlocked(int oath_id)
 bool oath_banned(int oath_id)
 {
     if (current_run < 0 || current_run >= metarun_max) return false;
-    if (oath_id < 1 || oath_id > 4) return false;
+    if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) return false;
     
-    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-4 to bits 1,2,4,8 */
+    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-5 to bits 1,2,4,8,16 */
     return (metaruns[current_run].banned_oaths & oath_bit) != 0;
 }
 
@@ -2439,7 +2535,7 @@ void metarun_unlock_oath(int oath_id)
         log_trace("Oath unlock: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
         return;
     }
-    if (oath_id < 1 || oath_id > 4) {
+    if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) {
         log_trace("Oath unlock: Invalid oath_id=%d", oath_id);
         return;
     }
@@ -2466,12 +2562,12 @@ void metarun_ban_oath(int oath_id)
         log_trace("Oath ban: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
         return;
     }
-    if (oath_id < 1 || oath_id > 4) {
+    if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) {
         log_trace("Oath ban: Invalid oath_id=%d", oath_id);
         return;
     }
     
-    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-4 to bits 1,2,4,8 */
+    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-5 to bits 1,2,4,8,16 */
     
     /* Update both the global metar and the metaruns array */
     metar.banned_oaths |= oath_bit;

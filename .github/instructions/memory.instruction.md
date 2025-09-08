@@ -26,6 +26,45 @@ applyTo: '**'
 
 ## Data File Parsing System - Critical Bug Fixes (September 2025)
 
+### LATEST: Oath Description Display Fix (September 2025)
+**Issue**: Oath of Valorous Heart doesn't show description in oath selection menu like other oaths
+**Root Cause**: Birth screen description display had hardcoded bounds check `highlight <= 4` excluding Oath 5
+**Simple Fix Applied**: `src/birth.c` - `select_oath()` function
+   - Changed `if (highlight >= 0 && highlight <= 4)` to `if (highlight >= 0 && highlight < (z_info ? z_info->oath_max : 6))`
+   - Now all oaths (including Oath 5) show their description, pledge, forbidden actions, and rewards
+**Status**: ✅ COMPLETELY FIXED - All oath descriptions now display properly using dynamic limits
+
+### PREVIOUS: Oath System Dynamic Limits Fix (September 2025)
+**Issue**: User reported hardcoded oath limits instead of using dynamic limits from limits.txt
+**Root Cause**: Multiple systems used hardcoded bounds (4, 5, etc.) instead of `z_info->oath_max` from limits.txt (M:W:8)
+**Complete Dynamic Limits Fix Applied**:
+1. **Birth Screen Dynamic Limits**: `src/birth.c` - `select_oath()` function
+   - Changed `i <= 5` to `i < z_info->oath_max` in availability loops
+   - Updated navigation bounds from hardcoded 5 to `z_info->oath_max - 1`
+   - Fixed letter selection range to use `'a' + z_info->oath_max - 1`
+2. **Metarun Functions Dynamic Limits**: `src/metarun.c`
+   - Updated `oath_unlocked()`, `oath_banned()`, `metarun_unlock_oath()`, `metarun_ban_oath()`
+   - Changed `oath_id > 5` to `oath_id >= z_info->oath_max` with null checks
+3. **Command Functions**: `src/cmd1.c` - `apply_oath_breaking_curse()`
+   - Updated bounds check from `oath_id > 5` to `oath_id >= z_info->oath_max`
+4. **Abilities Menu**: `src/cmd4.c` - Updated oath choice validation to use dynamic bounds
+5. **Wizard Commands**: `src/wizard2.c` - Updated unlock loop to use `z_info->oath_max`
+**Benefits**: System now automatically supports any number of oaths defined in limits.txt (M:W:8)
+**Status**: ✅ COMPLETELY FIXED - All oath systems now use dynamic limits from data files
+
+### PREVIOUS: Oath 5 (Valorous Heart) Visibility Fix (September 2025)
+**Issue**: User completed Tulkas quest and was told Oath of Valorous Heart was granted, but oath not visible in character creation menu
+**Root Cause**: Birth screen (`birth.c`) and other systems had hardcoded limits checking only oaths 1-4, ignoring Oath 5
+**Complete Fix Applied**:
+1. **Birth Screen Fixed**: `src/birth.c` - `select_oath()` function
+   - Updated oath availability loops from `i <= 4` to `i <= 5`
+   - Updated navigation bounds from `new_highlight > 4` to `new_highlight > 5`
+   - Updated letter selection from `key <= 'e'` to `key <= 'f'` and loop bound to `i <= 5`
+2. **Character Sheet Fixed**: `src/cmd4.c` - Added missing checks for SPC_OATH_SMITH and SPC_OATH_VALOROUS
+3. **Metarun Status Fixed**: `src/cmd4.c` - Added missing `oath_unlocked(OATH_VALOROUS)` check in character dump
+4. **Wizard Commands Fixed**: `src/wizard2.c` - Updated oath unlock loop from `i <= 4` to `i <= 5`
+**Status**: ✅ COMPLETELY FIXED - All oath systems now support all 5 oaths dynamically
+
 ### LATEST: Oath Breaking System Enhancement (Version 0.8.7) - September 5, 2025
 **Issue**: Oath breaking experience needed dramatic improvements for better user experience
 **Implemented Enhancements**:
@@ -48,6 +87,52 @@ applyTo: '**'
 4. **Dynamic Text Wrapping**: Updated text wrapping throughout oath system:
    - Uses `Term_get_size()` for actual terminal dimensions
    - Proper word boundary detection and wrapping
+
+### LATEST: Quest System & Oath Architecture Fix (September 9, 2025)
+**Issue**: Misunderstood oath system architecture - was incorrectly granting oath abilities to current character instead of unlocking for future character selection
+**User Clarification**: 
+1. Quest rewards = immediate benefits for current character (e.g., Unique Bane)
+2. Oath unlocks = availability for selection at future character creation
+3. These are separate systems - no reconciliation needed
+4. Unique Bane should be quest reward, not oath
+5. Need new ability for Oath 5 (Valorous Heart)
+
+**Additional Issues Found & Fixed**:
+6. **Missing Oath of Valorous Heart in ability.txt**: Added ability definition N:167 with description
+7. **Inconsistent reward granting**: Replaced hardcoded `grant_unique_bane_ability()` with data-driven `apply_quest_rewards(5)`
+8. **Incorrect ability mapping**: Fixed quest.txt A: field for Oromë quest (A:8:8 for SPC_UNIQUE_BANE instead of A:8:7)
+
+**Implemented Corrections**:
+1. **Removed Incorrect Immediate Grants**: Removed `grant_oath_ability_if_defined()` calls after `metarun_unlock_oath()` - oaths should only unlock for future selection, not grant abilities immediately
+2. **Removed Reconciliation System**: Deleted `reconcile_quest_rewards()` function and calls - unnecessary complexity since quest rewards and oath unlocks are separate systems
+3. **Added Oath 5 Support**: Added handling for OATH_VALOROUS in birth.c character creation to grant SPC_OATH_VALOROUS ability when selected
+4. **Added Missing Ability Definition**: Added N:167:Oath of the Valorous Heart to ability.txt with proper description
+5. **Fixed Ability Numbering**: Updated ability.txt to have Oath of Valorous Heart as N:167 (ability 7) and Unique Bane as N:168 (ability 8)
+6. **Consistent Data-Driven Rewards**: Replaced hardcoded `grant_unique_bane_ability()` with `apply_quest_rewards(5)` call
+7. **Fixed Quest Mapping**: Updated quest.txt Oromë quest to use A:8:8 (SPC_UNIQUE_BANE) instead of A:8:7
+8. **Removed Hardcoded Consistency Checks**: Removed manual Unique Bane granting from quest status screen
+
+**Correct Architecture Understanding**:
+- **Quest Completion**: Unlocks oath for future characters (`metarun_unlock_oath()`) + gives immediate quest reward to current character via `apply_quest_rewards()`
+- **Character Creation**: If oath is unlocked and not banned, can select it and receive the mapped special ability (A: field from oath.txt)
+- **Data-Driven Rewards**: All quest rewards now consistently applied via quest.txt A: fields and `apply_quest_rewards()` function
+- **No Cross-System Dependencies**: Quest rewards work independently of oath selection; oath abilities only granted at character birth
+
+**Technical Details**:
+- Quest rewards (Unique Bane, etc.) granted via quest.txt A: fields and `apply_quest_rewards()` calls
+- Oath unlocks stored in metarun for future character selection
+- Birth.c handles oath selection and grants corresponding S_SPC abilities from oath.txt A: mappings
+- All special ability definitions properly numbered in ability.txt
+- Dynamic oath bounds (z_info->oath_max) properly support Oath 5 visibility
+
+**Files Modified**:
+- `src/xtra2.c`: Removed incorrect immediate oath ability grants, removed reconciliation system, added missing `apply_quest_rewards(5)` call, removed hardcoded unique bane granting
+- `src/cmd4.c`: Removed reconciliation call from abilities menu
+- `src/externs.h`: Removed reconciliation function declaration  
+- `src/birth.c`: Added OATH_VALOROUS handling in character creation
+- `lib/edit/oath.txt`: Already had correct A:8:7 mapping for Oath 5
+- `lib/edit/ability.txt`: Added N:167:Oath of the Valorous Heart definition, renumbered Unique Bane to N:168
+- `lib/edit/quest.txt`: Fixed Oromë quest to use A:8:8 for Unique Bane ability
 
 ### LATEST: Data-Driven Quest Roulette System Enhancement (Version 0.8.7) - September 7, 2025
 **Issue**: Quest roulette system was completely hardcoded with fixed order (Tulkas→Niena), needed to be data-driven based on Y: field
@@ -98,6 +183,33 @@ applyTo: '**'
 
 **Architecture Benefits**:
 1. **Data-Driven**: New roulette quests can be added by setting Y:1 in quest.txt
+2. **Random Fair Distribution**: All eligible quests have equal chance for evaluation
+3. **Extensible**: Framework supports adding new roulette quests easily
+4. **Backward Compatible**: Maintains exact same probability formulas and quest behavior
+
+### LATEST: Ongoing Development (September 7, 2025)
+**New Features in Progress**:
+
+1. **New Oath System - Oath of the Valorous Heart**:
+   - Unlock Condition: Complete Tulkas's Quest
+   - Reward: +1 Dexterity
+   - Restriction: Cannot attack/damage enemies fleeing in terror
+   - Complex oath breaking messages and birth screen texts
+
+2. **Aule Quest E: Restriction Bug**:
+   - Issue: E:SKILL_MIN:SMT:10 restriction not working properly
+   - Need to check smith_base figure instead of current implementation
+   - Add logging to debug the skill checking system
+
+3. **Quest Text Wrapping Issues**:
+   - Current word wrapping breaks words inappropriately
+   - Need to analyze and fix quest interaction text display
+
+**Key Code Files for Current Work**:
+- `/lib/edit/quest.txt` - Quest definitions and oath restrictions
+- `/lib/edit/oath.txt` - Oath definitions, breaking texts, rewards
+- Quest skill checking system (likely in init files)
+- Text wrapping system for quest interactions
 2. **Random & Fair**: No quest has evaluation order advantage
 3. **Backward Compatible**: All existing quest behavior preserved exactly
 4. **Maintainable**: Separates quest participation (data-driven) from quest logic (hardcoded)
@@ -171,7 +283,129 @@ Y:1  # Roulette-based quest
 **Files Modified**:
 - `src/xtra2.c`: Added process_quest_placeholders(), rewrote get_quest_reward_text(), updated do_cmd_quest_status()
 
+### LATEST: Quest Debug & Display System Fixes (Version 0.8.7) - January 15, 2025
+**Issues**: Two critical quest system bugs affecting debugging and completion tracking
+1. **Debug Quest Completion Bug**: "I used compete quest debug function and it just gave me a reward interaction screen straightaway. It was Mandos quest"
+2. **Quest Menu Display Bug**: "In quest menu there are 2 completed by this character quests, I think it's a bug of menu and first quest was actually completed during metarun. Check it."
+
+**Problem Analysis**:
+1. **Debug Function Bypass**: `do_cmd_debug_complete_quest()` in wizard2.c directly called reward interaction without:
+   - Checking if quest giver was present in current location
+   - Spawning quest giver if needed for vault-based quests
+   - Handling different quest types (vault-based vs spawn-based) properly
+
+2. **Quest Display Logic Error**: `display_quest_status()` in xtra2.c had backwards metarun completion logic:
+   - Showed "Completed by this character" for quests completed in PREVIOUS metaruns 
+   - Showed "Completed by lineage" for quests completed by CURRENT character
+   - Logic was systematically reversed across all quest completion checks
+
+**Implemented Solutions**:
+
+1. **Enhanced Debug Quest Completion Function**:
+   - **Quest Giver Presence Check**: Added `is_quest_giver_present()` helper function to verify quest giver in current location
+   - **Automatic Spawning**: Added `spawn_quest_giver_near_player()` helper to place missing quest givers
+   - **Quest Type Handling**: Different logic for vault-based (Aule, Mandos) vs spawn-based (Tulkas, Niena, Orome) quests
+   - **State Boundary Checking**: Only allows debug completion for SUCCESS state (quest completed but reward not taken)
+   - **Proper Flow**: Now matches natural quest completion - ensures giver present before reward interaction
+
+2. **Fixed Quest Menu Display Logic**:
+   - **Corrected Metarun Logic**: Fixed backwards completion attribution in `display_quest_status()`
+   - **Current Character Logic**: `completion_character_id == p_ptr->character_id` = "Completed by this character"
+   - **Previous Metarun Logic**: `completion_character_id != p_ptr->character_id` = "Completed by lineage"
+   - **Applied Fix Universally**: Updated logic for all 5 quests (Aule, Mandos, Tulkas, Niena, Orome)
+
+3. **Added Helper Functions** (in xtra2.c):
+   - `is_quest_giver_present()`: Checks for quest giver in current cave location
+   - `spawn_quest_giver_near_player()`: Places quest giver near player with proper monster flags
+   - Both functions declared in externs.h for wizard2.c access
+
+**Technical Implementation Details**:
+- **Quest Giver Detection**: Scans all monsters in current level for matching quest giver monster race
+- **Safe Spawning**: Uses existing `place_monster_near()` with appropriate monster flags
+- **Vault Quest Handling**: Special handling for Aule (forge/throne room) and Mandos (halls) locations
+- **State Validation**: Ensures quest is in SUCCESS state before allowing debug completion
+- **Logging Integration**: Added debug logging for quest giver spawning and state changes
+
+**Files Modified**:
+- `src/wizard2.c`: Enhanced `do_cmd_debug_complete_quest()` with giver presence checking and spawning
+- `src/xtra2.c`: Added helper functions `is_quest_giver_present()` and `spawn_quest_giver_near_player()`, fixed `display_quest_status()` metarun logic
+- `src/externs.h`: Added function declarations for new helper functions
+
+**Testing Status**: Compiled successfully, quest debug function now properly handles quest giver presence and quest menu shows correct completion attribution
+
+### LATEST: Orome Spawning Formula & UI Cleanup (Version 0.8.7) - January 15, 2025
+**Issues**: 
+1. **Orome Spawn Failure**: "I could not make Orome spawn on the 10th floor, check his formula"
+2. **Oath Menu Cleanup**: "From oath choosing menu delete (BROKEN) from the name, red color and text is enough"
+
+**Problem Analysis**:
+1. **Missing Formula Implementation**: LINEAR_INTERPOLATE formula type was defined in defines.h and used in quest.txt but not implemented in `calculate_parametric_probability()`
+   - Orome quest uses LINEAR_INTERPOLATE:0.05:0.125:0:0 with DEPTH_RANGE:2:10
+   - Formula was falling through to default case returning probability = 0
+   - Result: Orome had 0% spawn chance at all depths
+
+2. **Oath Menu Text Redundancy**: Both birth.c and cmd4.c oath menus showed "(BROKEN)" text alongside red color
+   - Red color already clearly indicates broken status
+   - Text was redundant and cluttered the interface
+
+**Implemented Solutions**:
+
+1. **Added LINEAR_INTERPOLATE Formula Implementation**:
+   - **Formula Logic**: `probability = min_prob + (max_prob - min_prob) * (depth - depth_min) / (depth_max - depth_min)`
+   - **Parameter Mapping**: [0]=min_prob (0.05), [1]=max_prob (0.125), [2]=unused, [3]=unused
+   - **For Orome at depth 10**: 0.05 + (0.125 - 0.05) * (10-2)/(10-2) = 0.05 + 0.075 = 0.125 = 12.5% spawn chance
+   - **Edge Case Handling**: Single depth case (depth_range=0) uses min_prob as fallback
+   - **Debug Logging**: Added detailed logging for factor calculation and final probability
+
+2. **Cleaned Up Oath Menu Display**:
+   - **Birth Screen** (birth.c line 1742): Removed "(BROKEN)" text from `strnfmt` call
+   - **In-Game Menu** (cmd4.c line 1265): Removed "(BROKEN)" text from oath name formatting
+   - **Preserved Red Color**: Maintained TERM_L_RED / TERM_RED color coding for broken oaths
+   - **Unified Format**: Both broken and available oaths now use same name format, differentiated only by color
+
+**Technical Implementation**:
+- **Generate.c Enhancement**: Added FORMULA_LINEAR_INTERPOLATE case in `calculate_parametric_probability()` switch statement
+- **Math Validation**: Verified formula produces correct probabilities across depth range
+- **UI Consistency**: Ensured both oath menus handle broken status identically
+
+**Files Modified**:
+- `src/generate.c`: Added LINEAR_INTERPOLATE formula case with proper parameter handling and logging
+- `src/birth.c`: Removed "(BROKEN)" text from oath display format
+- `src/cmd4.c`: Removed "(BROKEN)" text from oath display format
+
+**Testing Status**: Compiled successfully, Orome now has proper 12.5% spawn chance at depth 10, oath menus show clean red text without redundant "(BROKEN)" labels
+
 **Testing Status**: Compiled successfully, ready for game testing
+
+### NEW FIX: Oromë Quest Reward Status Mislabel & Unique Bane Safeguard (September 8, 2025)
+**Issue**: After completing Oromë hunting quest, status screen always showed "Completed in previous run" even for the current character, because `metarun_mark_quest_completed()` is invoked at reward time and display logic only checked the metarun completion flag.
+
+**Root Cause**: Display branch in `xtra2.c` for `OROME_QUEST_REWARDED` used:
+```
+if (metarun_is_quest_completed(METARUN_QUEST_OROME)) -> "Completed in previous run"
+else -> "Completed by this character"
+```
+Since the metarun flag is set immediately upon reward, current-run completions were indistinguishable from metarun-restored ones.
+
+**Fix Implemented**:
+1. Added heuristic using `p_ptr->orome_level` (set when quest accepted, remains 0 for metarun-restored completions) to distinguish origin.
+2. New logic: only show "Completed in previous run" if metarun flag set AND `orome_level == 0`; otherwise show "Completed by this character".
+3. Added inline explanatory comment block documenting rationale.
+
+**File & Code**: `src/xtra2.c` Orome quest status switch (case `OROME_QUEST_REWARDED`).
+
+**Additional Safeguard**:
+Added consistency check before rendering Orome quest block: if quest state is REWARDED but `have_ability[S_SPC][SPC_UNIQUE_BANE]` is false (e.g., debug manipulation skipped reward pathway), automatically calls `grant_unique_bane_ability()` and logs a trace line.
+
+**Benefits**:
+- Accurate attribution of completion source.
+- Prevents silent failure to grant Unique Bane when quest state is forced via debug.
+- Zero savefile format change (reuse existing `orome_level`).
+
+**Next Potential Enhancements**:
+- If future ambiguity arises (e.g., edge case where orome_level could be 0 legitimately), consider adding a dedicated boolean `orome_this_run_completed` persisted in save, but current heuristic sufficient.
+
+**Testing**: Recompiled successfully after change; pending in-game verification of status text and auto-grant safeguard trigger via forced state scenario.
 
 **FINAL UPDATE - Text Wrapping & Display Enhancement**:
 

@@ -19,7 +19,7 @@
 
 /* #include "init.h"  not required directly here after refactor */
 #include "log.h"
-#include "metarun.h"  /* For metarun_restore_quest_states */
+#include "metarun.h"
 
 /*
  * This file loads savefiles from Sil.
@@ -1082,6 +1082,23 @@ static errr rd_extra(void)
             rd_byte(&p_ptr->mandos_monsters_remaining);
             rd_s16b(&p_ptr->mandos_level);
             rd_s16b(&p_ptr->mandos_reserved);
+            /* Niena quest fields */
+            rd_byte(&p_ptr->niena_quest);
+            rd_byte(&p_ptr->niena_monsters_seen);
+            rd_byte(&p_ptr->niena_monsters_killed);
+            rd_byte(&p_ptr->niena_reserved);
+            rd_s16b(&p_ptr->niena_level);
+            rd_s16b(&p_ptr->niena_reserved2);
+            /* Orome quest fields */
+            rd_byte(&p_ptr->orome_quest);
+            rd_byte(&p_ptr->orome_target_type);
+            rd_s16b(&p_ptr->orome_target_count);
+            rd_s16b(&p_ptr->orome_killed_count);
+            rd_s16b(&p_ptr->orome_wolves_killed);
+            rd_s16b(&p_ptr->orome_spiders_killed);
+            rd_s16b(&p_ptr->orome_serpents_killed);
+            rd_s16b(&p_ptr->orome_vampires_killed);
+            rd_s16b(&p_ptr->orome_level);
             rd_byte(&p_ptr->quest_vault_used);
             for (qi = 0; qi < 15; qi++) rd_byte(&p_ptr->quest_reserved[qi]);
         } else {
@@ -1100,6 +1117,15 @@ static errr rd_extra(void)
             p_ptr->mandos_quest = MANDOS_QUEST_NOT_STARTED;
             p_ptr->mandos_vault_y = 0; p_ptr->mandos_vault_x = 0; p_ptr->mandos_monsters_remaining = 0;
             p_ptr->mandos_level = 0; p_ptr->mandos_reserved = 0;
+            /* Initialize Niena quest fields for legacy saves */
+            p_ptr->niena_quest = NIENA_QUEST_NOT_STARTED;
+            p_ptr->niena_monsters_seen = 0; p_ptr->niena_monsters_killed = 0; p_ptr->niena_reserved = 0;
+            p_ptr->niena_level = 0; p_ptr->niena_reserved2 = 0;
+            /* Initialize Orome quest fields for legacy saves */
+            p_ptr->orome_quest = OROME_QUEST_NOT_STARTED;
+            p_ptr->orome_target_type = 0; p_ptr->orome_target_count = 0; p_ptr->orome_killed_count = 0;
+            p_ptr->orome_wolves_killed = 0; p_ptr->orome_spiders_killed = 0;
+            p_ptr->orome_serpents_killed = 0; p_ptr->orome_vampires_killed = 0; p_ptr->orome_level = 0;
             p_ptr->quest_vault_used = 0;
             memset(p_ptr->quest_reserved, 0, sizeof(p_ptr->quest_reserved));
         }
@@ -1134,8 +1160,8 @@ static errr rd_extra(void)
     /* Min depth counter */
     rd_s32b(&min_depth_counter);
 
-    /* Restore quest states from metarun after character loading */
-    metarun_restore_quest_states();
+    /* Quest states loaded from save should remain as-is for this character */
+    /* Metarun completion is checked separately via metarun_is_quest_completed() */
 
     return (0);
 }

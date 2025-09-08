@@ -2564,6 +2564,8 @@ static void calc_bonuses(void)
         p_ptr->stat_misc_mod[A_GRA]++;
     if (p_ptr->active_ability[S_SPC][SPC_OATH_SMITH] && !oath_invalid(OATH_SMITH))
         p_ptr->skill_misc_mod[S_SMT] += 5;  /* +5 Smithing skill bonus */
+    if (p_ptr->active_ability[S_SPC][SPC_OATH_VALOROUS] && !oath_invalid(OATH_VALOROUS))
+        p_ptr->stat_misc_mod[A_DEX]++;  /* +1 Dexterity bonus */
 
     if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
     {

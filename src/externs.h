@@ -289,6 +289,7 @@ extern int meta_fd;
 extern void clear_scorefile(void);
 extern bool autoload_alive_from_scores(void);
 extern void metarun_finalize_scores_and_saves(void);
+extern void backup_and_clear_saves(void);
 
 /*
  * Automatically generated "function declarations"
@@ -433,7 +434,9 @@ extern int focused_attack_bonus(void);
 extern int master_hunter_bonus(monster_type* m_ptr);
 extern bool knock_back(int y1, int x1, int y2, int x2);
 extern bool abort_for_mercy(monster_type* m_ptr);
+extern bool abort_for_valorous(monster_type* m_ptr);
 extern void break_mercy_oath(monster_type* m_ptr, int damage);
+extern void break_valorous_oath(monster_type* m_ptr, int damage);
 extern void attack_punctuation(
     char* punctuation, int net_dam, int crit_bonus_dice);
 extern void py_attack_aux(int y, int x, int attack_type);
@@ -514,6 +517,7 @@ extern char* bane_name[];
 extern int bane_bonus(monster_type* m_ptr);
 extern int spider_bane_bonus(void);
 extern int unique_bane_bonus(monster_type* m_ptr);
+extern int unique_bane_type_killed(void);
 extern char* oath_name[];
 extern bool oath_invalid(int i);
 extern bool chosen_oath(int oath);
@@ -1177,6 +1181,8 @@ extern void tulkas_quest_interaction(void);
 extern void check_tulkas_quest_interaction(void);
 extern void check_tulkas_quest_completion(int r_idx);
 extern void remove_quest_giver(int quest_giver_r_idx);
+extern bool is_quest_giver_present(int quest_giver_r_idx);
+extern bool spawn_quest_giver_near_player(int quest_giver_r_idx);
 extern void aule_quest_interaction(void);
 extern void check_aule_quest_interaction(void);
 extern void mandos_quest_interaction(void);

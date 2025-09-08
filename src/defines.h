@@ -74,6 +74,13 @@
 #define RANDART_VERSION 62
 
 /*
+ * Log file naming mode
+ * 0 = Always use "log.txt" (overwrite previous log)
+ * 1 = Create new log with timestamp each time
+ */
+#define LOG_MODE_TIMESTAMP 1
+
+/*
  * Number of grids in each block (vertically)
  * Probably hard-coded to 11, see "generate.c"
  */
@@ -605,7 +612,8 @@
 #define SPC_OATH_IRON 4
 #define SPC_NIENA_MERCY 5  /* Enhanced stealth from mercy quest */
 #define SPC_OATH_SMITH 6
-#define SPC_UNIQUE_BANE 7  /* Enhanced effectiveness against unique monsters */
+#define SPC_OATH_VALOROUS 7  /* Oath of the Valorous Heart */
+#define SPC_UNIQUE_BANE 8  /* Enhanced effectiveness against unique monsters */
 
 /*
  * Attack Types
@@ -3491,6 +3499,7 @@
 #define OATH_SILENCE_FLAG 2
 #define OATH_IRON_FLAG 4
 #define OATH_SMITH_FLAG 8
+#define OATH_VALOROUS_FLAG 16
 
 /*
  * Order of Oath skill
@@ -3499,6 +3508,7 @@
 #define OATH_SILENCE 2
 #define OATH_IRON 3
 #define OATH_SMITH 4
+#define OATH_VALOROUS 5
 
 /*
  * States for the Tulkas quest

@@ -7855,3 +7855,91 @@ void metarun_finalize_scores_and_saves(void)
                  p_ptr ? (unsigned)p_ptr->noscore : 0);
     }
 }
+
+/*
+ * Backup all save files to a timestamped ZIP archive and delete originals
+ * Called when starting a new metarun to preserve old saves
+ */
+void backup_and_clear_saves(void)
+{
+    char save_dir[1024];
+    char backup_name[1024];
+    char zip_command[2048];
+    char timestamp[64];
+    time_t now;
+    struct tm *timeinfo;
+    
+    /* Build save directory path */
+    path_build(save_dir, sizeof(save_dir), ANGBAND_DIR_USER, "save");
+    
+    /* Check if save directory exists and has files to backup */
+    #ifdef WINDOWS
+    char check_command[1024];
+    strnfmt(check_command, sizeof(check_command), "dir /b \"%s\" 2>nul | findstr /v \"^$\" >nul", save_dir);
+    int has_files = (system(check_command) == 0);
+    #else
+    char check_command[1024];
+    strnfmt(check_command, sizeof(check_command), "ls -1 '%s' 2>/dev/null | grep -q .", save_dir);
+    int has_files = (system(check_command) == 0);
+    #endif
+    
+    if (!has_files) {
+        log_info("No save files found to backup in %s", save_dir);
+        return;
+    }
+    
+    /* Get current timestamp for backup filename */
+    time(&now);
+    timeinfo = localtime(&now);
+    strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", timeinfo);
+    
+    /* Build backup filename */
+    strnfmt(backup_name, sizeof(backup_name), "saves_metarun_%s.zip", timestamp);
+    
+    log_info("Creating save backup: %s", backup_name);
+    
+    /* Create ZIP command - use native zip command for cross-platform compatibility */
+    #ifdef WINDOWS
+    /* Windows: try to use built-in PowerShell Compress-Archive or external zip */
+    strnfmt(zip_command, sizeof(zip_command), 
+            "cd /d \"%s\" && powershell -Command \"Compress-Archive -Path * -DestinationPath '%s' -Force\" 2>nul || "
+            "zip -r \"%s\" * 2>nul", 
+            save_dir, backup_name, backup_name);
+    #else
+    /* Unix/Linux/macOS: use standard zip command */
+    strnfmt(zip_command, sizeof(zip_command), 
+            "cd '%s' && zip -r '%s' * >/dev/null 2>&1", 
+            save_dir, backup_name);
+    #endif
+    
+    /* Execute backup command */
+    int result = system(zip_command);
+    if (result == 0) {
+        log_info("Save backup created successfully: %s", backup_name);
+        
+        /* Now delete all save files (but keep the backup ZIP) */
+        char cleanup_command[1024];
+        
+        #ifdef WINDOWS
+        /* Windows: delete all files except the backup ZIP */
+        strnfmt(cleanup_command, sizeof(cleanup_command), 
+                "cd /d \"%s\" && for %%f in (*) do if /i not \"%%f\"==\"%s\" del \"%%f\" 2>nul",
+                save_dir, backup_name);
+        #else
+        /* Unix/Linux/macOS: delete all files except the backup ZIP */
+        strnfmt(cleanup_command, sizeof(cleanup_command), 
+                "cd '%s' && find . -maxdepth 1 -type f ! -name '%s' -delete 2>/dev/null",
+                save_dir, backup_name);
+        #endif
+        
+        int cleanup_result = system(cleanup_command);
+        if (cleanup_result == 0) {
+            log_info("Old save files deleted successfully");
+        } else {
+            log_warn("Failed to delete some old save files (result=%d)", cleanup_result);
+        }
+    } else {
+        log_warn("Failed to create save backup (result=%d)", result);
+        /* Continue anyway - we don't want to block metarun creation */
+    }
+}

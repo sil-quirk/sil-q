@@ -723,7 +723,10 @@ D:Enhanced stealth proportional to mercy shown. Grants up to 10 stealth based on
 N:166:Oath of the Smith
 I:8:6:0
 D:A craftsman's vow to use only their own creations. Grants +5 Smithing skill but breaks if you pick up weapons or armor forged by others.
-N:167:Unique Bane
+N:167:Oath of the Valorous Heart
 I:8:7:0
+D:A warrior's oath of honorable combat. Grants +1 Dexterity but breaks if you attack enemies fleeing in terror.
+N:168:Unique Bane
+I:8:8:0
 D:Knowledge of how to exploit the weaknesses of legendary foes. Grants +3 attack and evasion when fighting unique monsters. Awarded by quest; cannot be purchased.
 

@@ -147,6 +147,7 @@ static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
         [SPC_OATH_IRON] = "Oath of Iron",
         [SPC_NIENA_MERCY] = "Niena's Gift of Mercy", /* Enhanced stealth from mercy quest */
         [SPC_OATH_SMITH] = "Oath of the Smith",
+        [SPC_OATH_VALOROUS] = "Oath of the Valorous Heart",
         [SPC_UNIQUE_BANE] = "Unique Bane", /* Enhanced effectiveness against unique monsters */
     },
 };
@@ -238,8 +239,8 @@ static void get_extra(void)
     {
         for (j = 0; j < ABILITIES_MAX; j++)
         {
-            /* Preserve oath abilities (SPC_OATH_MERCY, SPC_OATH_SILENCE, SPC_OATH_IRON, SPC_OATH_SMITH) */
-            if (i == S_SPC && (j == SPC_OATH_MERCY || j == SPC_OATH_SILENCE || j == SPC_OATH_IRON || j == SPC_OATH_SMITH))
+            /* Preserve oath abilities (SPC_OATH_MERCY, SPC_OATH_SILENCE, SPC_OATH_IRON, SPC_OATH_SMITH, SPC_OATH_VALOROUS) */
+            if (i == S_SPC && (j == SPC_OATH_MERCY || j == SPC_OATH_SILENCE || j == SPC_OATH_IRON || j == SPC_OATH_SMITH || j == SPC_OATH_VALOROUS))
             {
                 /* Keep existing oath abilities intact */
                 continue;
@@ -457,17 +458,21 @@ void player_wipe(void)
     p_ptr->mandos_level = 0;
     p_ptr->mandos_reserved = 0;
     
+    /* Niena quest init */
+    p_ptr->niena_quest = NIENA_QUEST_NOT_STARTED;
+    p_ptr->niena_level = 0;
+    
+    /* Orome quest init */
+    p_ptr->orome_quest = OROME_QUEST_NOT_STARTED;
+    p_ptr->orome_killed_count = 0;
+    p_ptr->orome_target_type = 0;
+    p_ptr->orome_target_count = 0;
+    
     p_ptr->quest_vault_used = 0;
     
-    /* Restore metarun-completed quest states after wiping - only for living characters */
-    if (character_loaded && !p_ptr->is_dead) {
-        /* Need to call metarun restore again since we just wiped quest states */
-        extern void metarun_restore_quest_states(void);
-        metarun_restore_quest_states();
-        log_trace("Birth: Restored metarun quest states after player_wipe() for living character");
-    } else if (character_loaded_dead || p_ptr->is_dead) {
-        log_trace("Birth: Skipping metarun quest restoration for dead character");
-    }
+    /* Quest states should always start at NOT_STARTED for new characters */
+    /* Metarun completion is checked separately via metarun_is_quest_completed() */
+    log_trace("Birth: All quest states initialized to NOT_STARTED for new character");
     for (i = 0; i < 15; i++) p_ptr->quest_reserved[i] = 0; /* quest_reserved[0] = any quest spawned flag */
 
     /*re-set the thefts counter*/
@@ -1699,7 +1704,7 @@ static NavResult select_oath(void)
     int visible_count = 0;
     
     /* Find first available oath to highlight */
-    for (int i = 1; i <= 4; i++) {
+    for (int i = 1; z_info && i < z_info->oath_max; i++) {
         if (available_mask & (1 << (i - 1))) {
             highlight = i;
             break;
@@ -1728,7 +1733,7 @@ static NavResult select_oath(void)
         visible_count++;
         
         /* Add available or broken oaths */
-        for (int i = 1; i <= 4; i++) {
+        for (int i = 1; z_info && i < z_info->oath_max; i++) {
             /* Skip locked oaths (not available and not broken) */
             if (!(available_mask & (1 << (i - 1))) && !oath_banned(i)) {
                 continue;
@@ -1738,7 +1743,7 @@ static NavResult select_oath(void)
             if (oath_banned(i)) {
                 /* Broken oaths: red when not highlighted, bright red when highlighted */
                 attr = (highlight == i) ? TERM_L_RED : TERM_RED;
-                strnfmt(buf, 80, "%c) %s (BROKEN)", 'a' + visible_count, oath_name_str(i));
+                strnfmt(buf, 80, "%c) %s", 'a' + visible_count, oath_name_str(i));
             } else {
                 /* Available oaths: bright blue when highlighted, white when not */
                 attr = (highlight == i) ? TERM_L_BLUE : TERM_WHITE;
@@ -1753,7 +1758,7 @@ static NavResult select_oath(void)
         wipe_screen_from(COL_DESCRIPTION);
         Term_putstr(COL_DESCRIPTION, 2, -1, TERM_WHITE, "Oath Details");
         
-        if (highlight >= 0 && highlight <= 4) {
+        if (highlight >= 0 && highlight < (z_info ? z_info->oath_max : 6)) {
             if (oath_banned(highlight) && highlight > 0) {
                 /* Use oath-specific banned text */
                 char* banned_text = oath_banned_text(highlight);
@@ -1840,14 +1845,14 @@ static NavResult select_oath(void)
             }
         }
         
-        if (key >= 'a' && key <= 'e') {
+        if (key >= 'a' && key <= 'a' + (z_info ? z_info->oath_max : 6) - 1) {
             /* Map letter selection to actual oath index */
             int display_pos = key - 'a';
             int actual_index = 0;
             int current_pos = 0;
             
             /* Find the actual oath index for this display position */
-            for (int i = 0; i <= 4; i++) {
+            for (int i = 0; z_info && i < z_info->oath_max; i++) {
                 /* Skip locked oaths */
                 if (i > 0 && !(available_mask & (1 << (i - 1))) && !oath_banned(i)) {
                     continue;
@@ -1875,8 +1880,8 @@ static NavResult select_oath(void)
             
             do {
                 new_highlight += direction;
-                if (new_highlight < 0) new_highlight = 4;
-                if (new_highlight > 4) new_highlight = 0;
+                if (new_highlight < 0) new_highlight = z_info ? z_info->oath_max - 1 : 5;
+                if (new_highlight >= (z_info ? z_info->oath_max : 6)) new_highlight = 0;
                 
                 /* Check if this option should be displayed */
                 if (new_highlight == 0 || 
@@ -1895,8 +1900,8 @@ static NavResult select_oath(void)
             
             do {
                 new_highlight += direction;
-                if (new_highlight < 0) new_highlight = 4;
-                if (new_highlight > 4) new_highlight = 0;
+                if (new_highlight < 0) new_highlight = z_info ? z_info->oath_max - 1 : 5;
+                if (new_highlight >= (z_info ? z_info->oath_max : 6)) new_highlight = 0;
                 
                 /* Check if this option should be displayed */
                 if (new_highlight == 0 || 
@@ -1948,6 +1953,15 @@ static NavResult select_oath(void)
                   p_ptr->have_ability[S_SPC][SPC_OATH_SMITH], 
                   p_ptr->innate_ability[S_SPC][SPC_OATH_SMITH],
                   p_ptr->active_ability[S_SPC][SPC_OATH_SMITH]);
+    }
+    else if (choice == OATH_VALOROUS) {
+        p_ptr->have_ability[S_SPC][SPC_OATH_VALOROUS] = true;
+        p_ptr->innate_ability[S_SPC][SPC_OATH_VALOROUS] = true;
+        p_ptr->active_ability[S_SPC][SPC_OATH_VALOROUS] = true;
+        log_debug("Granted OATH_VALOROUS abilities: have=%d, innate=%d, active=%d", 
+                  p_ptr->have_ability[S_SPC][SPC_OATH_VALOROUS], 
+                  p_ptr->innate_ability[S_SPC][SPC_OATH_VALOROUS],
+                  p_ptr->active_ability[S_SPC][SPC_OATH_VALOROUS]);
     }
     
     if (choice == 0) {

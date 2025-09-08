@@ -175,6 +175,8 @@ static inline void CURSE_SEEN_SET(int id)
 /* ------------------------------------------------------------------ */
 /*  Public helpers implemented in metarun.c                           */
 /* ------------------------------------------------------------------ */
+extern bool metarun_created;           /* Flag set when new metarun file created */
+void cleanup_old_game_files(void);     /* Clean save/score files on fresh start */
 int  menu_choose_one_curse(int n);      /* weighted picker / poem menu  */
 int  choose_escape_curses_ui(int n, int out[3]); /* interactive curse selection */
 int  choose_oath_breaking_curse_ui(int oath_id); /* oath-specific curse selection with fade */

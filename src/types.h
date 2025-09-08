@@ -1232,7 +1232,11 @@ struct player_type
     s16b orome_killed_count;   /* Number of target monsters killed */
     s16b orome_target_count;   /* Required number to kill (100/80/60/30) */
     s16b orome_level;          /* Dungeon depth where quest started */
-    s16b orome_reserved;       /* padding */
+    /* New global monster type counters for Orome quest */
+    s16b orome_wolves_killed;  /* Total wolves killed (any type) */
+    s16b orome_spiders_killed; /* Total spiders killed (any type) */
+    s16b orome_serpents_killed; /* Total serpents killed (any type) */
+    s16b orome_vampires_killed; /* Total vampires killed (any type) */
     /* Generic quest/vault tracking */
     byte quest_vault_used;     /* Has a quest-designated vault generated this game */
     byte quest_reserved[15];   /* quest_reserved[0] = any quest spawned flag (run-wide); rest reserved */

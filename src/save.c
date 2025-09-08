@@ -993,6 +993,23 @@ static void wr_extra(void)
     wr_byte(p_ptr->mandos_monsters_remaining);
     wr_s16b(p_ptr->mandos_level);
     wr_s16b(p_ptr->mandos_reserved);
+    /* Niena quest fields */
+    wr_byte(p_ptr->niena_quest);
+    wr_byte(p_ptr->niena_monsters_seen);
+    wr_byte(p_ptr->niena_monsters_killed);
+    wr_byte(p_ptr->niena_reserved);
+    wr_s16b(p_ptr->niena_level);
+    wr_s16b(p_ptr->niena_reserved2);
+    /* Orome quest fields */
+    wr_byte(p_ptr->orome_quest);
+    wr_byte(p_ptr->orome_target_type);
+    wr_s16b(p_ptr->orome_target_count);
+    wr_s16b(p_ptr->orome_killed_count);
+    wr_s16b(p_ptr->orome_wolves_killed);
+    wr_s16b(p_ptr->orome_spiders_killed);
+    wr_s16b(p_ptr->orome_serpents_killed);
+    wr_s16b(p_ptr->orome_vampires_killed);
+    wr_s16b(p_ptr->orome_level);
     wr_byte(p_ptr->quest_vault_used);
     for (i = 0; i < 15; i++) wr_byte(p_ptr->quest_reserved[i]);
 #else

@@ -938,39 +938,43 @@ int unique_bane_bonus(monster_type* m_ptr)
     // Check if the monster is unique
     if (r_ptr->flags1 & RF1_UNIQUE)
     {
-        // Calculate bonus based on number of uniques killed (like normal bane)
-        int uniques_killed = 0;
-        int i;
-        
-        // Count all unique monsters that have been killed
-        for (i = 1; i < z_info->r_max; i++) {
-            monster_race* check_r_ptr = &r_info[i];
-            monster_lore* l_ptr = &l_list[i];
-            
-            // Skip if not unique
-            if (!(check_r_ptr->flags1 & RF1_UNIQUE)) continue;
-            
-            // Check if this unique has been killed
-            if (l_ptr->deaths > 0) {
-                uniques_killed++;
-            }
-        }
-        
         // Calculate bonus using the same formula as normal bane
-        // Bonus increases by 1 for every doubling of kills: 1, 2, 4, 8, 16, etc.
-        int threshold = 1;
-        while (threshold <= uniques_killed) {
+        int uniques_killed = unique_bane_type_killed();
+        
+        // Use same scaling as bane_bonus_aux: 1, 2, 4, 8, 16, etc.
+        int threshold = 2;
+        bonus = 0;
+        while (threshold <= uniques_killed)
+        {
             threshold *= 2;
             bonus++;
-        }
-        
-        // Minimum bonus of 1 if any uniques have been killed
-        if (uniques_killed > 0 && bonus == 0) {
-            bonus = 1;
         }
     }
 
     return (bonus);
+}
+
+/* Calculate total unique monsters killed for unique bane */
+int unique_bane_type_killed(void)
+{
+    int uniques_killed = 0;
+    int i;
+    
+    // Count all unique monsters that have been killed
+    for (i = 1; i < z_info->r_max; i++) {
+        monster_race* check_r_ptr = &r_info[i];
+        monster_lore* l_ptr = &l_list[i];
+        
+        // Skip if not unique
+        if (!(check_r_ptr->flags1 & RF1_UNIQUE)) continue;
+        
+        // Check if this unique has been killed
+        if (l_ptr->deaths > 0) {
+            uniques_killed++;
+        }
+    }
+    
+    return uniques_killed;
 }
 
 int bane_menu(int* highlight)
@@ -1098,7 +1102,7 @@ int bane_menu(int* highlight)
 
 #define OATH_TYPES 5
 
-static u32b oath_flag[] = { 0L, OATH_MERCY_FLAG, OATH_SILENCE_FLAG, OATH_IRON_FLAG, OATH_SMITH_FLAG };
+static u32b oath_flag[] = { 0L, OATH_MERCY_FLAG, OATH_SILENCE_FLAG, OATH_IRON_FLAG, OATH_SMITH_FLAG, OATH_VALOROUS_FLAG };
 
 char* oath_name[] = {
     "Nothing",
@@ -1106,6 +1110,7 @@ char* oath_name[] = {
     "Silence",
     "Iron",
     "Smith",
+    "Valorous Heart",
 };
 
 char* oath_desc1[] = {
@@ -1114,6 +1119,7 @@ char* oath_desc1[] = {
     "to leave Angband as you came, grim and silent",
     "that none will daunt you from facing Morgoth forthwith",
     "to craft all blades and armour by thine own hand",
+    "to face your enemy while it has the heart to fight",
 };
 
 char* oath_desc2[] = {
@@ -1122,6 +1128,7 @@ char* oath_desc2[] = {
     "sing",
     "go up stairs without a Silmaril",
     "pick up weapons or armour from the ground",
+    "attack or deal damage to enemies that are fleeing in terror",
 };
 
 char* oath_reward[] = {
@@ -1130,6 +1137,7 @@ char* oath_reward[] = {
     "+1 Strength",
     "+2 Constitution",
     "+5 Smithing",
+    "+1 Dexterity",
 };
 
 bool oath_invalid(int i) { return ((p_ptr->oaths_broken & oath_flag[i]) > 0); }
@@ -1216,7 +1224,8 @@ int oath_menu(int* highlight)
 {
     int i, ch;
     int visible_count = 0;
-    int visible_oaths[OATH_TYPES]; // Map display letters to oath indices
+    /* Support up to 16 oaths without realloc; actual used = z_info->oath_max */
+    int visible_oaths[16]; // Map display letters to oath indices
     char buf[80];
     byte attr;
     
@@ -1235,8 +1244,8 @@ int oath_menu(int* highlight)
     // Title in the abilities column
     Term_putstr(COL_ABILITY, 2, -1, TERM_WHITE, "Oaths");
 
-    // Build visible oaths list and display them
-    for (i = 1; i < OATH_TYPES; i++)
+    // Build visible oaths list and display them (1..z_info->oath_max-1)
+    for (i = 1; z_info && i < z_info->oath_max; i++)
     {
         // Map this visible oath to its position  
         visible_oaths[visible_count] = i;
@@ -1254,7 +1263,7 @@ int oath_menu(int* highlight)
         // Format oath name with status indicator
         if (oath_invalid(i))
         {
-            strnfmt(buf, 80, "%c) %s (BROKEN)", (char)'a' + visible_count, oath_name[i]);
+            strnfmt(buf, 80, "%c) %s", (char)'a' + visible_count, oath_name[i]);
         }
         else
         {
@@ -1379,7 +1388,8 @@ int oath_menu(int* highlight)
     /* ESC or 'q' - exit menu */
     if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
     {
-        return (OATH_TYPES + 1);
+        /* Return a sentinel that's outside valid oath indices */
+        return (z_info ? z_info->oath_max + 1 : OATH_TYPES + 1);
     }
 
     /* Enter or Space - select current highlighted oath */
@@ -1398,7 +1408,7 @@ int oath_menu(int* highlight)
     /* Navigation: Down (2) */
     if (ch == '2')
     {
-        (*highlight)++;
+    (*highlight)++;
         if (*highlight > visible_count) *highlight = 1;
     }
 
@@ -1688,7 +1698,7 @@ int abilities_menu2(int skilltype, int* highlight)
         {
             log_trace("ABILITIES_MENU2: have_ability=true, checking innate_ability[%d][%d]", skilltype, b_ptr->abilitynum);
             /* Debug oath checking values */
-            if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON)) {
+            if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON || b_ptr->abilitynum == SPC_OATH_SMITH || b_ptr->abilitynum == SPC_OATH_VALOROUS)) {
                 log_trace("OATH DEBUG: %s (%d) - have=%d, innate=%d, active=%d", 
                          (b_name + b_ptr->name), b_ptr->abilitynum,
                          p_ptr->have_ability[skilltype][b_ptr->abilitynum],
@@ -1703,7 +1713,7 @@ int abilities_menu2(int skilltype, int* highlight)
                     log_trace("ABILITIES_MENU2: active_ability=true, setting WHITE");
                     attr = TERM_WHITE;
                     /* Debug oath display */
-                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON)) {
+                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON || b_ptr->abilitynum == SPC_OATH_SMITH || b_ptr->abilitynum == SPC_OATH_VALOROUS)) {
                         log_trace("OATH DISPLAY: %s (%d) - WHITE (innate + active)", (b_name + b_ptr->name), b_ptr->abilitynum);
                     }
                 }
@@ -1712,7 +1722,7 @@ int abilities_menu2(int skilltype, int* highlight)
                     log_trace("ABILITIES_MENU2: active_ability=false, setting RED");
                     attr = TERM_RED;
                     /* Debug oath display */
-                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON)) {
+                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON || b_ptr->abilitynum == SPC_OATH_SMITH || b_ptr->abilitynum == SPC_OATH_VALOROUS)) {
                         log_trace("OATH DISPLAY: %s (%d) - RED (innate but NOT active)", (b_name + b_ptr->name), b_ptr->abilitynum);
                     }
                 }
@@ -1725,7 +1735,7 @@ int abilities_menu2(int skilltype, int* highlight)
                     log_trace("ABILITIES_MENU2: active_ability=true, setting L_GREEN");
                     attr = TERM_L_GREEN;
                     /* Debug oath display */
-                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON)) {
+                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON || b_ptr->abilitynum == SPC_OATH_SMITH || b_ptr->abilitynum == SPC_OATH_VALOROUS)) {
                         log_trace("OATH DISPLAY: %s (%d) - GREEN (learned + active)", (b_name + b_ptr->name), b_ptr->abilitynum);
                     }
                 }
@@ -1734,7 +1744,7 @@ int abilities_menu2(int skilltype, int* highlight)
                     log_trace("ABILITIES_MENU2: active_ability=false, setting RED");
                     attr = TERM_RED;
                     /* Debug oath display */
-                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON)) {
+                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON || b_ptr->abilitynum == SPC_OATH_SMITH || b_ptr->abilitynum == SPC_OATH_VALOROUS)) {
                         log_trace("OATH DISPLAY: %s (%d) - RED (learned but NOT active)", (b_name + b_ptr->name), b_ptr->abilitynum);
                     }
                 }
@@ -1797,7 +1807,8 @@ int abilities_menu2(int skilltype, int* highlight)
                     (b_ptr->abilitynum == SPC_OATH_MERCY || 
                      b_ptr->abilitynum == SPC_OATH_SILENCE || 
                      b_ptr->abilitynum == SPC_OATH_IRON ||
-                     b_ptr->abilitynum == SPC_OATH_SMITH))
+                     b_ptr->abilitynum == SPC_OATH_SMITH ||
+                     b_ptr->abilitynum == SPC_OATH_VALOROUS))
                 {
                     /* Check if this oath is broken */
                     int oath_id = 0;
@@ -1805,6 +1816,7 @@ int abilities_menu2(int skilltype, int* highlight)
                     else if (b_ptr->abilitynum == SPC_OATH_SILENCE) oath_id = OATH_SILENCE;
                     else if (b_ptr->abilitynum == SPC_OATH_IRON) oath_id = OATH_IRON;
                     else if (b_ptr->abilitynum == SPC_OATH_SMITH) oath_id = OATH_SMITH;
+                    else if (b_ptr->abilitynum == SPC_OATH_VALOROUS) oath_id = OATH_VALOROUS;
                     
                     if (oath_id > 0 && oath_invalid(oath_id))
                     {
@@ -1979,6 +1991,41 @@ int abilities_menu2(int skilltype, int* highlight)
                 else
                     Term_putstr(COL_DESCRIPTION, 14, -1, TERM_WHITE,
                         format("Bonus: %s.", oath_reward[p_ptr->oath_type]));
+            }
+            // if you have the unique bane special ability
+            else if ((skilltype == S_SPC) && (b_ptr->abilitynum == SPC_UNIQUE_BANE))
+            {
+                int uniques_killed = unique_bane_type_killed();
+                int current_bonus = 0;
+                int next_threshold = 2;
+                
+                // Calculate current bonus using same formula as bane
+                int threshold = 2;
+                while (threshold <= uniques_killed)
+                {
+                    threshold *= 2;
+                    current_bonus++;
+                }
+                
+                // Calculate next threshold
+                if (current_bonus == 0) {
+                    next_threshold = 2;
+                } else {
+                    next_threshold = threshold;  // This is the next power of 2
+                }
+                
+                Term_putstr(COL_DESCRIPTION, 10, -1, TERM_WHITE, "Unique Bane:");
+                Term_putstr(COL_DESCRIPTION, 12, -1, TERM_WHITE,
+                    format("  %d uniques slain, giving a %+d bonus", 
+                           uniques_killed, current_bonus));
+                           
+                if (current_bonus == 0 && uniques_killed < 2) {
+                    Term_putstr(COL_DESCRIPTION, 13, -1, TERM_SLATE,
+                        format("  (next bonus at %d uniques)", next_threshold));
+                } else if (next_threshold <= 64) {  // Don't show if threshold is too high
+                    Term_putstr(COL_DESCRIPTION, 13, -1, TERM_SLATE,
+                        format("  (next bonus at %d uniques)", next_threshold));
+                }
             }
         }
 
@@ -2268,7 +2315,7 @@ void do_cmd_ability_screen(void)
                                         oathchoice = oath_menu(&highlight3);
 
                                         if ((oathchoice >= 1)
-                                            && (oathchoice <= OATH_TYPES))
+                                            && (oathchoice <= (z_info ? z_info->oath_max - 1 : OATH_TYPES)))
                                         {
                                             if (oath_invalid(oathchoice))
                                             {
@@ -2282,7 +2329,7 @@ void do_cmd_ability_screen(void)
                                                 return_to_abilities = true;
                                             }
                                         }
-                                        else if (oathchoice == OATH_TYPES + 1)
+                                        else if (oathchoice == (z_info ? z_info->oath_max + 1 : OATH_TYPES + 1))
                                         {
                                             return_to_abilities = true;
                                             return_to_skills = true;
@@ -2389,7 +2436,8 @@ void do_cmd_ability_screen(void)
                         if (skilltype == S_SPC && (abilitynum == SPC_OATH_MERCY || 
                                                    abilitynum == SPC_OATH_SILENCE || 
                                                    abilitynum == SPC_OATH_IRON ||
-                                                   abilitynum == SPC_OATH_SMITH))
+                                                   abilitynum == SPC_OATH_SMITH ||
+                                                   abilitynum == SPC_OATH_VALOROUS))
                         {
                             /* Check if oath is broken */
                             bool oath_broken = false;
@@ -2397,6 +2445,7 @@ void do_cmd_ability_screen(void)
                             if (abilitynum == SPC_OATH_SILENCE && oath_invalid(OATH_SILENCE)) oath_broken = true;
                             if (abilitynum == SPC_OATH_IRON && oath_invalid(OATH_IRON)) oath_broken = true;
                             if (abilitynum == SPC_OATH_SMITH && oath_invalid(OATH_SMITH)) oath_broken = true;
+                            if (abilitynum == SPC_OATH_VALOROUS && oath_invalid(OATH_VALOROUS)) oath_broken = true;
                             
                             if (p_ptr->active_ability[skilltype][abilitynum])
                             {
@@ -10704,6 +10753,20 @@ void do_cmd_knowledge_oaths(void)
         else
             fprintf(fff, "Current Oath: Oath of Iron (Broken)\n\n");
     }
+    else if (p_ptr->have_ability[S_SPC][SPC_OATH_SMITH])
+    {
+        if (p_ptr->active_ability[S_SPC][SPC_OATH_SMITH])
+            fprintf(fff, "Current Oath: Oath of the Smith (Active)\n\n");
+        else
+            fprintf(fff, "Current Oath: Oath of the Smith (Broken)\n\n");
+    }
+    else if (p_ptr->have_ability[S_SPC][SPC_OATH_VALOROUS])
+    {
+        if (p_ptr->active_ability[S_SPC][SPC_OATH_VALOROUS])
+            fprintf(fff, "Current Oath: Oath of Valorous Heart (Active)\n\n");
+        else
+            fprintf(fff, "Current Oath: Oath of Valorous Heart (Broken)\n\n");
+    }
     else
     {
         fprintf(fff, "Current Oath: None\n\n");
@@ -10745,6 +10808,15 @@ void do_cmd_knowledge_oaths(void)
     {
         fprintf(fff, "  Oath of the Smith: Unlocked");
         if (oath_banned(OATH_SMITH))
+            fprintf(fff, " (Banned this run)");
+        fprintf(fff, "\n");
+        has_unlocked = true;
+    }
+    
+    if (oath_unlocked(OATH_VALOROUS)) 
+    {
+        fprintf(fff, "  Oath of Valorous Heart: Unlocked");
+        if (oath_banned(OATH_VALOROUS))
             fprintf(fff, " (Banned this run)");
         fprintf(fff, "\n");
         has_unlocked = true;

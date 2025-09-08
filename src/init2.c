@@ -2004,6 +2004,11 @@ void init_angband(void)
     /*Build the randart probability tables based on the standard Artefact Set*/
     build_randart_tables();
 
+    /* Clean up old files if this is a fresh start (no existing metarun) */
+    if (metarun_created) {
+        cleanup_old_game_files();
+    }
+
     /* Done */
     note("                                              ");
 }

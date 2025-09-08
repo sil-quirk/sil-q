@@ -4183,6 +4183,7 @@ void do_cmd_fire(int quiver)
                         net_dam = 0;
 
                     break_mercy_oath(m_ptr, net_dam);
+                    break_valorous_oath(m_ptr, net_dam);
 
                     /* Handle unseen monster */
                     if (!(m_ptr->ml))
@@ -5041,6 +5042,7 @@ void do_cmd_throw(bool automatic)
                     net_dam = 0;
 
                 break_mercy_oath(m_ptr, net_dam);
+                break_valorous_oath(m_ptr, net_dam);
 
                 /* Handle unseen monster */
                 if (!(m_ptr->ml))
