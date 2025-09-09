@@ -2607,7 +2607,7 @@ D:#########
 # Aldor's vault
 
 N:400:the Tomb of the King
-X:7:8:1
+X:7:8:10
 S:60:1
 F:NO_ROTATION | QUEST
 D:  ###                           
@@ -2841,7 +2841,7 @@ D:###################################
 
 # Quest vault: Aule's Forge (small)
 N:460:Aule's Forge (Small)
-X:6:5:1
+X:6:5:5
 S:57:1
 F:QUEST | LIGHT
 D:    #$#    
