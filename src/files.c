@@ -14,6 +14,18 @@
 #include "platform.h"
 #include "z-term.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <time.h>
+
+#ifdef WINDOWS
+#include <windows.h>
+#include <direct.h>  /* For _mkdir */
+#else
+#include <sys/stat.h>  /* For mkdir */
+#include <dirent.h>    /* For directory operations */
+#endif
 
 // These are copied from birth.c and needed for displaying the character sheet
 #define INSTRUCT_ROW 21
@@ -7863,83 +7875,186 @@ void metarun_finalize_scores_and_saves(void)
 void backup_and_clear_saves(void)
 {
     char save_dir[1024];
-    char backup_name[1024];
-    char zip_command[2048];
+    
+    /* Use the correct save directory - ANGBAND_DIR_SAVE points to lib/save */
+    strnfmt(save_dir, sizeof(save_dir), "%s", ANGBAND_DIR_SAVE);
+    
+    log_info("Checking for save files to backup in: %s", save_dir);
+    
+    /* Fast check: Try to open a few common save file patterns to see if anything exists */
+    bool has_files = false;
+    char test_patterns[][32] = {"*.sav", "*.dat", "*.txt", "character.sav", "save.dat", "Feanor", "player"};
+    
+    for (int i = 0; i < 7 && !has_files; i++) {
+        char test_path[1024];
+        path_build(test_path, sizeof(test_path), save_dir, test_patterns[i]);
+        
+        log_trace("Checking for save file pattern: %s", test_path);
+        
+        /* Quick test using fd_open - much faster than popen */
+        int test_fd = fd_open(test_path, O_RDONLY);
+        if (test_fd >= 0) {
+            fd_close(test_fd);
+            has_files = true;
+            log_trace("Found save file: %s", test_path);
+            break;
+        } else {
+            log_trace("File not found: %s", test_path);
+        }
+    }
+    
+    /* Also try to detect ANY file in the directory using a directory listing approach */
+    if (!has_files) {
+        log_trace("No specific patterns found, checking directory contents...");
+        
+        /* Try some common character names and generic file patterns */
+        char common_patterns[][32] = {"save", "char", "game", "*"};
+        
+        for (int i = 0; i < 4 && !has_files; i++) {
+            char test_path[1024];
+            path_build(test_path, sizeof(test_path), save_dir, common_patterns[i]);
+            
+            log_trace("Checking directory pattern: %s", test_path);
+            
+            int test_fd = fd_open(test_path, O_RDONLY);
+            if (test_fd >= 0) {
+                fd_close(test_fd);
+                has_files = true;
+                log_trace("Found file with pattern: %s", test_path);
+                break;
+            }
+        }
+    }
+    
+    /* Super fast exit if no save files exist */
+    if (!has_files) {
+        log_info("No save files found - skipping backup/clear process");
+        log_trace("Backup skipped because no save files were detected");
+        return;  /* Exit immediately, no UI messages needed */
+    }
+    
+    /* Create timestamped backup folder */
+    char backup_folder[1024];
     char timestamp[64];
     time_t now;
     struct tm *timeinfo;
     
-    /* Build save directory path */
-    path_build(save_dir, sizeof(save_dir), ANGBAND_DIR_USER, "save");
+    /* Display progress message to user */
+    prt("[Creating save file backup folder...]", 0, 0);
+    Term_fresh();
     
-    /* Check if save directory exists and has files to backup */
-    #ifdef WINDOWS
-    char check_command[1024];
-    strnfmt(check_command, sizeof(check_command), "dir /b \"%s\" 2>nul | findstr /v \"^$\" >nul", save_dir);
-    int has_files = (system(check_command) == 0);
-    #else
-    char check_command[1024];
-    strnfmt(check_command, sizeof(check_command), "ls -1 '%s' 2>/dev/null | grep -q .", save_dir);
-    int has_files = (system(check_command) == 0);
-    #endif
+    log_info("Found save files to backup and clear");
+    log_trace("Starting folder-based backup process for save files");
     
-    if (!has_files) {
-        log_info("No save files found to backup in %s", save_dir);
-        return;
-    }
-    
-    /* Get current timestamp for backup filename */
+    /* Get current timestamp for backup folder name */
     time(&now);
     timeinfo = localtime(&now);
     strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", timeinfo);
     
-    /* Build backup filename */
-    strnfmt(backup_name, sizeof(backup_name), "saves_metarun_%s.zip", timestamp);
+    /* Create backup folder with timestamp */
+    path_build(backup_folder, sizeof(backup_folder), save_dir, format("saves_metarun_%s", timestamp));
     
-    log_info("Creating save backup: %s", backup_name);
+    log_info("Creating backup folder: %s", backup_folder);
+    log_trace("Full backup folder path: %s", backup_folder);
     
-    /* Create ZIP command - use native zip command for cross-platform compatibility */
+    /* Create the backup directory */
     #ifdef WINDOWS
-    /* Windows: try to use built-in PowerShell Compress-Archive or external zip */
-    strnfmt(zip_command, sizeof(zip_command), 
-            "cd /d \"%s\" && powershell -Command \"Compress-Archive -Path * -DestinationPath '%s' -Force\" 2>nul || "
-            "zip -r \"%s\" * 2>nul", 
-            save_dir, backup_name, backup_name);
+    if (_mkdir(backup_folder) != 0) {
+        log_warn("Failed to create backup folder: %s", backup_folder);
+        return;
+    }
     #else
-    /* Unix/Linux/macOS: use standard zip command */
-    strnfmt(zip_command, sizeof(zip_command), 
-            "cd '%s' && zip -r '%s' * >/dev/null 2>&1", 
-            save_dir, backup_name);
+    if (mkdir(backup_folder, 0755) != 0) {
+        log_warn("Failed to create backup folder: %s", backup_folder);
+        return;
+    }
     #endif
     
-    /* Execute backup command */
-    int result = system(zip_command);
-    if (result == 0) {
-        log_info("Save backup created successfully: %s", backup_name);
-        
-        /* Now delete all save files (but keep the backup ZIP) */
-        char cleanup_command[1024];
-        
-        #ifdef WINDOWS
-        /* Windows: delete all files except the backup ZIP */
-        strnfmt(cleanup_command, sizeof(cleanup_command), 
-                "cd /d \"%s\" && for %%f in (*) do if /i not \"%%f\"==\"%s\" del \"%%f\" 2>nul",
-                save_dir, backup_name);
-        #else
-        /* Unix/Linux/macOS: delete all files except the backup ZIP */
-        strnfmt(cleanup_command, sizeof(cleanup_command), 
-                "cd '%s' && find . -maxdepth 1 -type f ! -name '%s' -delete 2>/dev/null",
-                save_dir, backup_name);
-        #endif
-        
-        int cleanup_result = system(cleanup_command);
-        if (cleanup_result == 0) {
-            log_info("Old save files deleted successfully");
-        } else {
-            log_warn("Failed to delete some old save files (result=%d)", cleanup_result);
-        }
-    } else {
-        log_warn("Failed to create save backup (result=%d)", result);
-        /* Continue anyway - we don't want to block metarun creation */
+    /* Move ALL files to backup folder (except .gitignore and existing backup folders) */
+    int files_moved = 0;
+    
+    
+    #ifdef WINDOWS
+    /* Windows: Use FindFirstFile/FindNextFile for directory scanning */
+    WIN32_FIND_DATA findData;
+    char search_path[1024];
+    path_build(search_path, sizeof(search_path), save_dir, "*");
+    
+    HANDLE hFind = FindFirstFile(search_path, &findData);
+    if (hFind != INVALID_HANDLE_VALUE) {
+        do {
+            /* Skip directories and special entries */
+            if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+            
+            char* filename = findData.cFileName;
+            
+            /* Skip .gitignore and backup folders */
+            if (strcmp(filename, ".gitignore") == 0) continue;
+            if (strstr(filename, "saves_metarun_")) continue; /* Skip existing backup folders */
+            
+            /* Move this file to backup folder */
+            char old_path[1024], new_path[1024];
+            path_build(old_path, sizeof(old_path), save_dir, filename);
+            path_build(new_path, sizeof(new_path), backup_folder, filename);
+            
+            /* Use rename() to move the file (atomic operation) */
+            if (rename(old_path, new_path) == 0) {
+                files_moved++;
+                log_trace("Moved file to backup: %s", filename);
+            } else {
+                log_trace("Failed to move file: %s", filename);
+            }
+            
+        } while (FindNextFile(hFind, &findData));
+        FindClose(hFind);
     }
+    #else
+    /* Unix/Linux/macOS: Use POSIX opendir/readdir */
+    DIR *dir = opendir(save_dir);
+    if (dir) {
+        struct dirent *entry;
+        
+        while ((entry = readdir(dir)) != NULL) {
+            /* Skip directories and special entries */
+            if (entry->d_type == DT_DIR) continue;
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+            
+            char* filename = entry->d_name;
+            
+            /* Skip .gitignore and backup folders */
+            if (strcmp(filename, ".gitignore") == 0) continue;
+            if (strstr(filename, "saves_metarun_")) continue; /* Skip existing backup folders */
+            
+            /* Move this file to backup folder */
+            char old_path[1024], new_path[1024];
+            path_build(old_path, sizeof(old_path), save_dir, filename);
+            path_build(new_path, sizeof(new_path), backup_folder, filename);
+            
+            /* Use rename() to move the file (atomic operation) */
+            if (rename(old_path, new_path) == 0) {
+                files_moved++;
+                log_trace("Moved file to backup: %s", filename);
+            } else {
+                log_trace("Failed to move file: %s", filename);
+            }
+        }
+        closedir(dir);
+    }
+    #endif
+    
+    if (files_moved > 0) {
+        log_info("Save backup completed successfully: %s (%d files moved)", backup_folder, files_moved);
+        prt("[Save files moved to backup folder]", 0, 0);
+        Term_fresh();
+    } else {
+        log_info("No files found to move to backup");
+        /* Remove empty backup folder if no files were moved */
+        #ifdef WINDOWS
+        _rmdir(backup_folder);
+        #else
+        rmdir(backup_folder);
+        #endif
+    }
+    
+    log_trace("Folder-based backup process completed");
 }

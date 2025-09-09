@@ -11,7 +11,16 @@
 #include "metarun.h"
 #include "h-define.h"
 #include "log.h"
-#include "platform.h"    /* path_build(), fd_*, MKDIR         */  
+#include "platform.h"    /* path_build(), fd_*, MKDIR         */
+#include <time.h>
+#include <string.h>  
+
+#ifdef WINDOWS
+#include <windows.h>
+#else
+#include <dirent.h>
+#include <sys/types.h>
+#endif  
 
 /* --------------------------------------------------------------- */
 /*  metarun.c : quick-and-dirty logger                             */
@@ -190,76 +199,182 @@ static bool is_versioned_meta_file(int fd, int file_size)
  */
 void cleanup_old_game_files(void)
 {
-    char cleanup_command[2048];
+    log_info("*** FRESH STARTUP CLEANUP STARTING ***");
     
-    log_info("Starting fresh game cleanup...");
+    /* Use the correct save directory - ANGBAND_DIR_SAVE points to lib/save */
+    char save_dir[1024];
+    strnfmt(save_dir, sizeof(save_dir), "%s", ANGBAND_DIR_SAVE);
     
-    /* Clean up save directory using ANGBAND_DIR_SAVE */
-    /* Check if save directory exists before attempting cleanup */
+    log_trace("Fresh startup: checking save directory: %s", save_dir);
+    
+    /* Platform-agnostic approach: scan directory for ANY files (except .gitignore and archives) */
+    bool has_save_files = false;
+    
     #ifdef WINDOWS
-    /* Windows: Check if directory exists using dir command */
-    strnfmt(cleanup_command, sizeof(cleanup_command), 
-            "dir \"%s\" >nul 2>&1", ANGBAND_DIR_SAVE);
+    /* Windows: Use FindFirstFile/FindNextFile for directory scanning */
+    WIN32_FIND_DATA findData;
+    char search_path[1024];
+    path_build(search_path, sizeof(search_path), save_dir, "*");
+    
+    HANDLE hFind = FindFirstFile(search_path, &findData);
+    if (hFind != INVALID_HANDLE_VALUE) {
+        do {
+            /* Skip directories and special entries */
+            if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+            
+            char* filename = findData.cFileName;
+            
+            /* Skip .gitignore and archive files */
+            if (strcmp(filename, ".gitignore") == 0) continue;
+            if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
+            
+            /* Found a save file! */
+            has_save_files = true;
+            log_trace("Fresh startup: found save file: %s", filename);
+            break;
+            
+        } while (FindNextFile(hFind, &findData));
+        FindClose(hFind);
+    }
     #else
-    /* Unix/Linux/macOS: Check if directory exists */
-    strnfmt(cleanup_command, sizeof(cleanup_command), 
-            "test -d '%s'", ANGBAND_DIR_SAVE);
+    /* Unix/Linux/macOS: Use POSIX opendir/readdir */
+    DIR *dir = opendir(save_dir);
+    if (dir) {
+        struct dirent *entry;
+        
+        while ((entry = readdir(dir)) != NULL) {
+            /* Skip directories and special entries */
+            if (entry->d_type == DT_DIR) continue;
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+            
+            char* filename = entry->d_name;
+            
+            /* Skip .gitignore and archive files */
+            if (strcmp(filename, ".gitignore") == 0) continue;
+            if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
+            
+            /* Found a save file! */
+            has_save_files = true;
+            log_trace("Fresh startup: found save file: %s", filename);
+            break;
+        }
+        closedir(dir);
+    }
     #endif
     
-    if (system(cleanup_command) == 0) {
-        log_info("Cleaning up old save files from: %s", ANGBAND_DIR_SAVE);
+    /* ULTRA FAST EXIT if no save files detected */
+    if (!has_save_files) {
+        log_info("*** NO SAVE FILES DETECTED - INSTANT FRESH START ***");
         
-        #ifdef WINDOWS
-        /* Windows: Delete all files in save directory except .gitignore */
-        strnfmt(cleanup_command, sizeof(cleanup_command), 
-                "cd /d \"%s\" 2>nul && for %%f in (*) do if not \"%%f\"==\".gitignore\" del /q \"%%f\" 2>nul", ANGBAND_DIR_SAVE);
-        #else
-        /* Unix/Linux/macOS: Delete all files except .gitignore */
-        strnfmt(cleanup_command, sizeof(cleanup_command), 
-                "find '%s' -type f ! -name '.gitignore' -delete 2>/dev/null", ANGBAND_DIR_SAVE);
-        #endif
+        /* Quick score file check and removal */
+        char score_file[1024];
+        path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw");
         
-        int result = system(cleanup_command);
-        if (result == 0) {
-            log_info("Old save files cleaned successfully");
+        int score_fd = fd_open(score_file, O_RDONLY);
+        if (score_fd >= 0) {
+            fd_close(score_fd);
+            log_info("*** REMOVING SCORE FILE FOR FRESH START ***");
+            
+            /* Platform-agnostic file removal using standard C */
+            remove(score_file);
         } else {
-            log_debug("Save cleanup completed with result: %d", result);
+            log_trace("Fresh startup: no score file found");
         }
-    } else {
-        log_debug("Save directory does not exist or is not accessible: %s", ANGBAND_DIR_SAVE);
+        
+        log_info("*** INSTANT FRESH STARTUP COMPLETED ***");
+        return;  /* INSTANT EXIT - no shell commands needed */
     }
     
-    /* Clean up score file */
+    /* Comprehensive cleanup: delete ALL files except .gitignore and archive files using ONLY standard C */
+    log_info("*** FOUND SAVE FILES - DELETING ALL NON-ARCHIVE FILES ***");
+    
+    /* Use ONLY standard C functions - no shell commands for better portability */
+    int files_deleted = 0;
+    
+    #ifdef WINDOWS
+    /* Windows: Use FindFirstFile/FindNextFile to enumerate and delete */
+    WIN32_FIND_DATA cleanupFindData;
+    char cleanup_search_path[1024];
+    path_build(cleanup_search_path, sizeof(cleanup_search_path), save_dir, "*");
+    
+    HANDLE hCleanupFind = FindFirstFile(cleanup_search_path, &cleanupFindData);
+    if (hCleanupFind != INVALID_HANDLE_VALUE) {
+        do {
+            /* Skip directories and special entries */
+            if (cleanupFindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+            
+            char* filename = cleanupFindData.cFileName;
+            
+            /* Skip .gitignore and archive files */
+            if (strcmp(filename, ".gitignore") == 0) continue;
+            if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
+            
+            /* Delete this file using standard C */
+            char file_path[1024];
+            path_build(file_path, sizeof(file_path), save_dir, filename);
+            
+            if (remove(file_path) == 0) {
+                files_deleted++;
+                log_trace("Fresh startup: deleted file: %s", filename);
+            } else {
+                log_trace("Fresh startup: failed to delete: %s", filename);
+            }
+            
+        } while (FindNextFile(hCleanupFind, &cleanupFindData));
+        FindClose(hCleanupFind);
+    }
+    #else
+    /* Unix/Linux/macOS: Use opendir/readdir to enumerate and delete */
+    DIR *dir = opendir(save_dir);
+    if (dir) {
+        struct dirent *entry;
+        
+        while ((entry = readdir(dir)) != NULL) {
+            /* Skip directories and special entries */
+            if (entry->d_type == DT_DIR) continue;
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+            
+            char* filename = entry->d_name;
+            
+            /* Skip .gitignore and archive files */
+            if (strcmp(filename, ".gitignore") == 0) continue;
+            if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
+            
+            /* Delete this file using standard C */
+            char file_path[1024];
+            path_build(file_path, sizeof(file_path), save_dir, filename);
+            
+            if (remove(file_path) == 0) {
+                files_deleted++;
+                log_trace("Fresh startup: deleted file: %s", filename);
+            } else {
+                log_trace("Fresh startup: failed to delete: %s", filename);
+            }
+        }
+        closedir(dir);
+    }
+    #endif
+    
+    if (files_deleted > 0) {
+        log_info("*** FRESH STARTUP DELETED %d FILES USING STANDARD C ***", files_deleted);
+    } else {
+        log_info("*** NO FILES FOUND TO DELETE ***");
+    }
+    
+    /* Score file cleanup */
     char score_file[1024];
     path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw");
     
-    /* Check if score file exists before attempting cleanup */
-    #ifdef WINDOWS
-    strnfmt(cleanup_command, sizeof(cleanup_command), "if exist \"%s\" echo exists", score_file);
-    #else
-    strnfmt(cleanup_command, sizeof(cleanup_command), "test -f '%s'", score_file);
-    #endif
-    
-    if (system(cleanup_command) == 0) {
-        log_info("Cleaning up old score file: %s", score_file);
+    int score_fd = fd_open(score_file, O_RDONLY);
+    if (score_fd >= 0) {
+        fd_close(score_fd);
+        log_info("*** REMOVING SCORE FILE FOR FRESH START ***");
         
-        #ifdef WINDOWS
-        strnfmt(cleanup_command, sizeof(cleanup_command), "del /q \"%s\" 2>nul", score_file);
-        #else
-        strnfmt(cleanup_command, sizeof(cleanup_command), "rm -f '%s' 2>/dev/null", score_file);
-        #endif
-        
-        int result = system(cleanup_command);
-        if (result == 0) {
-            log_info("Old score file cleaned successfully");
-        } else {
-            log_debug("Score cleanup completed with result: %d", result);
-        }
-    } else {
-        log_debug("Score file does not exist: %s", score_file);
+        /* Platform-agnostic file removal using standard C */
+        remove(score_file);
     }
     
-    log_info("Fresh game cleanup completed");
+    log_info("*** FRESH STARTUP CLEANUP COMPLETED ***");
 }
 
 errr load_metaruns(bool create_if_missing)
@@ -438,6 +553,27 @@ errr load_metaruns(bool create_if_missing)
  * ------------------------------------------------------------------ */
 static errr backup_file(const char *filepath)
 {
+    static u32b last_backup_time = 0;
+    static char last_backed_up_file[1024] = "";
+    u32b current_time = (u32b)time(NULL);
+    
+    /* Throttle backups: only create backup if 
+     * 1. This is a different file than last time, OR
+     * 2. More than 300 seconds (5 minutes) have passed since last backup of this file
+     */
+    if (my_stricmp(last_backed_up_file, filepath) != 0) {
+        /* Different file - always backup */
+        log_info("backup_file: backing up different file: %s", filepath);
+    } else if (current_time - last_backup_time >= 300) {
+        /* Same file but enough time has passed (5 minutes instead of 1 minute) */
+        log_info("backup_file: backing up %s after %u seconds", filepath, current_time - last_backup_time);
+    } else {
+        /* Same file, recent backup - skip */
+        log_debug("backup_file: skipping backup of %s (last backup %u seconds ago)", 
+                  filepath, current_time - last_backup_time);
+        return 0;
+    }
+    
     /* Check if original file exists */
     int fd_src = fd_open(filepath, O_RDONLY);
     if (fd_src < 0) {
@@ -470,44 +606,60 @@ static errr backup_file(const char *filepath)
     }
     fd_close(fd_src);
     
-    /* Simple backup rotation: bak1 (newest) -> bak2 -> bak3 (oldest) */
+    /* Optimize backup rotation: Only do full rotation once per session/day
+     * For frequent saves, just overwrite .bak1 */
     char backup_path1[1024], backup_path2[1024], backup_path3[1024];
     strnfmt(backup_path1, sizeof(backup_path1), "%s.bak1", filepath);
     strnfmt(backup_path2, sizeof(backup_path2), "%s.bak2", filepath);
     strnfmt(backup_path3, sizeof(backup_path3), "%s.bak3", filepath);
     
-    log_info("backup_file: rotating backups for %s", filepath);
-    
-    /* Rotate: bak2 -> bak3, bak1 -> bak2, current -> bak1 */
-    fd_kill(backup_path3);                    /* Remove oldest */
-    log_info("backup_file: removed old bak3");
-    
-    /* Move bak2 to bak3 (if bak2 exists) - preserves timestamp */
-    int fd_test2 = fd_open(backup_path2, O_RDONLY);
-    if (fd_test2 >= 0) {
-        fd_close(fd_test2);
-        log_info("backup_file: moving bak2 to bak3 (preserving timestamp)");
-        if (fd_move(backup_path2, backup_path3) == 0) {
-            log_info("backup_file: successfully moved bak2 to bak3");
-        } else {
-            log_error("backup_file: failed to move bak2 to bak3");
-        }
-    } else {
-        log_info("backup_file: no bak2 file to move");
-    }
-    
-    /* Move bak1 to bak2 (if bak1 exists) - preserves timestamp */
+    /* Check if this is the first backup of the day (roughly) */
+    bool should_rotate = false;
     int fd_test1 = fd_open(backup_path1, O_RDONLY);
     if (fd_test1 >= 0) {
+        /* Check if bak1 is old enough to warrant rotation (use simple time check) */
+        /* If we created a backup within the last hour, don't rotate */
+        if (current_time - last_backup_time >= 3600) {  /* 1 hour */
+            should_rotate = true;
+            log_info("backup_file: enough time passed since last backup, will rotate backups");
+        }
         fd_close(fd_test1);
-        log_info("backup_file: moving bak1 to bak2 (preserving timestamp)");
-        if (fd_move(backup_path1, backup_path2) == 0) {
-            log_info("backup_file: successfully moved bak1 to bak2");
-        } else {
-            log_error("backup_file: failed to move bak1 to bak2");
+    } else {
+        /* No bak1 exists, create fresh backup */
+        should_rotate = false;
+        log_info("backup_file: no existing backup, creating fresh bak1");
+    }
+    
+    if (should_rotate) {
+        log_info("backup_file: rotating backups for %s", filepath);
+        
+        /* Rotate: bak2 -> bak3, bak1 -> bak2, current -> bak1 */
+        fd_kill(backup_path3);                    /* Remove oldest */
+        log_debug("backup_file: removed old bak3");
+        
+        /* Move bak2 to bak3 (if bak2 exists) */
+        int fd_test2 = fd_open(backup_path2, O_RDONLY);
+        if (fd_test2 >= 0) {
+            fd_close(fd_test2);
+            log_debug("backup_file: moving bak2 to bak3");
+            if (fd_move(backup_path2, backup_path3) != 0) {
+                log_debug("backup_file: failed to move bak2 to bak3");
+            }
+        }
+        
+        /* Move bak1 to bak2 (if bak1 exists) */
+        fd_test1 = fd_open(backup_path1, O_RDONLY);
+        if (fd_test1 >= 0) {
+            fd_close(fd_test1);
+            log_debug("backup_file: moving bak1 to bak2");
+            if (fd_move(backup_path1, backup_path2) != 0) {
+                log_debug("backup_file: failed to move bak1 to bak2");
+            }
         }
     } else {
-        log_info("backup_file: no bak1 file to move");
+        /* Just overwrite bak1 for frequent saves */
+        log_debug("backup_file: overwriting existing bak1 (frequent save)");
+        fd_kill(backup_path1);
     }
     
     /* Create new bak1 from current file */
@@ -523,7 +675,10 @@ static errr backup_file(const char *filepath)
     FREE(buffer);
     
     if (result == 0) {
-        log_info("backup_file: successfully created backup rotation for %s", filepath);
+        log_info("backup_file: successfully created backup for %s", filepath);
+        /* Update throttling variables only on successful backup */
+        last_backup_time = current_time;
+        my_strcpy(last_backed_up_file, filepath, sizeof(last_backed_up_file));
     } else {
         log_error("backup_file: failed to write bak1 for %s", filepath);
     }
