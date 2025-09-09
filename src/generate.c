@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 /* Quest vault debug instrumentation */
-#define DEBUG_QUEST_VAULT 1
+#define DEBUG_QUEST_VAULT 0
 #if DEBUG_QUEST_VAULT
 static int qv_y1 = -1, qv_x1 = -1, qv_y2 = -1, qv_x2 = -1;
 static int qv_h = 0, qv_w = 0;
