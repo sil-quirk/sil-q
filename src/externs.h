@@ -435,10 +435,13 @@ extern int master_hunter_bonus(monster_type* m_ptr);
 extern bool knock_back(int y1, int x1, int y2, int x2);
 extern bool abort_for_mercy(monster_type* m_ptr);
 extern bool abort_for_valorous(monster_type* m_ptr);
+extern bool cowardly_attack(monster_type* m_ptr);
+extern bool is_aoe_attack_type(int attack_type);
 extern void break_mercy_oath(monster_type* m_ptr, int damage);
-extern void break_valorous_oath(monster_type* m_ptr, int damage);
+extern void break_valorous_oath(monster_type* m_ptr, int damage, int attack_type, int damage_source);
 extern void attack_punctuation(
     char* punctuation, int net_dam, int crit_bonus_dice);
+extern int count_open_adjacent_squares(int y, int x);
 extern void py_attack_aux(int y, int x, int attack_type);
 extern void py_attack(int y, int x, int attack_type);
 extern void flanking_or_retreat(int y, int x);

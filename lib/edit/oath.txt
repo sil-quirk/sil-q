@@ -86,9 +86,9 @@ D:A pledge to rely only upon your own craftsmanship, rejecting all weapons and a
 P:I swear to craft all blades and armor by my own hand, taking up no weapon or protection wrought by others.
 F:Pick up, wield, or wear weapons or armor crafted by others
 R:+5 Smithing - Divine inspiration in all crafts
-A:8:6
+A:8:6:0
 S:0:0:0:0
-K:SMT:5
+K:6:5
 B:Cannot equip weapons or armor not self-crafted
 U:Complete the Quest of Aule the Smith
 C:Your hand reaches for a tool not of your own making. To take it up is to scorn your own craft and admit the weakness of your skill. Are you certain you wish to break your Oath of the Smith?
@@ -98,7 +98,7 @@ Q:You passed from the world, armed not with your own mastery, but with the craft
 Z:OATH OF THE SMITH FORSAKEN - Thy forge is cold, thy hammer idle. You have scorned the work of your own hands for the craft of a stranger. No mastery shall be found by those who betray their own skill in this age of the world. Marked forever as one who abandoned their craft.
 
 # Oath of the Valorous Heart
-O:5:Oath of the Valorous Heart
+O:5:Oath of Valor
 T:To fight with honor and restraint
 D:A true contest of might is a test of will against will, not a felling of the broken. To strike down a foe whose courage has failed is no display of strength. It is the work of a brute, not a warrior. This oath embodies the honorable restraint of those who have proven their valor in fair combat.
 P:I swear to face my enemy while it has the heart to fight, and to let the craven flee into the darkness. In this honorable restraint, my resolve shall be sharpened, and I will perceive weaknesses hidden from others.

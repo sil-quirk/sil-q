@@ -1098,7 +1098,6 @@ static errr rd_extra(void)
             rd_s16b(&p_ptr->orome_spiders_killed);
             rd_s16b(&p_ptr->orome_serpents_killed);
             rd_s16b(&p_ptr->orome_vampires_killed);
-            rd_s16b(&p_ptr->orome_level);
             rd_byte(&p_ptr->quest_vault_used);
             for (qi = 0; qi < 15; qi++) rd_byte(&p_ptr->quest_reserved[qi]);
         } else {
@@ -1125,7 +1124,7 @@ static errr rd_extra(void)
             p_ptr->orome_quest = OROME_QUEST_NOT_STARTED;
             p_ptr->orome_target_type = 0; p_ptr->orome_target_count = 0; p_ptr->orome_killed_count = 0;
             p_ptr->orome_wolves_killed = 0; p_ptr->orome_spiders_killed = 0;
-            p_ptr->orome_serpents_killed = 0; p_ptr->orome_vampires_killed = 0; p_ptr->orome_level = 0;
+            p_ptr->orome_serpents_killed = 0; p_ptr->orome_vampires_killed = 0;
             p_ptr->quest_vault_used = 0;
             memset(p_ptr->quest_reserved, 0, sizeof(p_ptr->quest_reserved));
         }

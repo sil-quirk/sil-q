@@ -2556,16 +2556,45 @@ static void calc_bonuses(void)
     }
 
     /* Oath bonuses (granted by special oath abilities, disabled if oath is broken) */
-    if (p_ptr->active_ability[S_SPC][SPC_OATH_IRON] && !oath_invalid(OATH_IRON))
-        p_ptr->stat_misc_mod[A_CON] += 2;
-    if (p_ptr->active_ability[S_SPC][SPC_OATH_SILENCE] && !oath_invalid(OATH_SILENCE))
-        p_ptr->stat_misc_mod[A_STR]++;
-    if (p_ptr->active_ability[S_SPC][SPC_OATH_MERCY] && !oath_invalid(OATH_MERCY))
-        p_ptr->stat_misc_mod[A_GRA]++;
-    if (p_ptr->active_ability[S_SPC][SPC_OATH_SMITH] && !oath_invalid(OATH_SMITH))
-        p_ptr->skill_misc_mod[S_SMT] += 5;  /* +5 Smithing skill bonus */
-    if (p_ptr->active_ability[S_SPC][SPC_OATH_VALOROUS] && !oath_invalid(OATH_VALOROUS))
-        p_ptr->stat_misc_mod[A_DEX]++;  /* +1 Dexterity bonus */
+    /* Apply dynamic oath bonuses based on oath.txt data */
+    for (int oath_idx = 0; oath_idx < z_info->oath_max; oath_idx++)
+    {
+        oath_type *oath_ptr = &oath_info[oath_idx];
+        
+        /* Check if player has this oath and it's not broken */
+        if (oath_ptr->oath_num >= OATH_MERCY && oath_ptr->oath_num <= OATH_VALOROUS)
+        {
+            int special_ability = -1;
+            
+            /* Map oath number to special ability */
+            switch(oath_ptr->oath_num)
+            {
+                case OATH_IRON: special_ability = SPC_OATH_IRON; break;
+                case OATH_SILENCE: special_ability = SPC_OATH_SILENCE; break;
+                case OATH_MERCY: special_ability = SPC_OATH_MERCY; break;
+                case OATH_SMITH: special_ability = SPC_OATH_SMITH; break;
+                case OATH_VALOROUS: special_ability = SPC_OATH_VALOROUS; break;
+            }
+            
+            /* Apply bonuses if player has oath and it's not broken */
+            if (special_ability >= 0 && 
+                p_ptr->active_ability[S_SPC][special_ability] && 
+                !oath_invalid(oath_ptr->oath_num))
+            {
+                /* Apply stat bonuses */
+                p_ptr->stat_misc_mod[A_STR] += oath_ptr->stat_bonuses[0];
+                p_ptr->stat_misc_mod[A_DEX] += oath_ptr->stat_bonuses[1];
+                p_ptr->stat_misc_mod[A_CON] += oath_ptr->stat_bonuses[2];
+                p_ptr->stat_misc_mod[A_GRA] += oath_ptr->stat_bonuses[3];
+                
+                /* Apply skill bonuses */
+                if (oath_ptr->skill_type > 0 && oath_ptr->skill_type < S_MAX)
+                {
+                    p_ptr->skill_misc_mod[oath_ptr->skill_type] += oath_ptr->skill_bonus;
+                }
+            }
+        }
+    }
 
     if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
     {

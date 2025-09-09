@@ -103,8 +103,7 @@ R:niena_quest
 M:METARUN_QUEST_NIENA
 P:SCALED_RANGE:0.125:14:5:0
 S:0:1:0:1
-K:STL:MERCY_BONUS
-A:8:6
+A:8:5
 I:A soft, sorrowful light gathers in the gloom. In its midst stands a figure cloaked in grey, her eyes holding the memory of every grief.
 I:It is Nienna, the Weeper, and her voice is as gentle as falling rain.
 I:

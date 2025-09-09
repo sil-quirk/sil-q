@@ -880,6 +880,9 @@ struct oath_type
     byte restrictions; /* Oath restrictions flags */
     byte reward_type; /* Type of reward */
     byte reward_value; /* Specific reward identifier */
+    byte stat_bonuses[4]; /* Stat bonuses (S: field - str:dex:con:gra) */
+    byte skill_type; /* Skill type for bonuses (K: field first part) */
+    byte skill_bonus; /* Skill bonus amount (K: field second part) */
     u32b flags; /* Oath flags */
 };
 
@@ -1231,7 +1234,6 @@ struct player_type
     byte orome_target_type;    /* Monster type to hunt (1=wolf, 2=spider, 3=serpent, 4=vampire) */
     s16b orome_killed_count;   /* Number of target monsters killed */
     s16b orome_target_count;   /* Required number to kill (100/80/60/30) */
-    s16b orome_level;          /* Dungeon depth where quest started */
     /* New global monster type counters for Orome quest */
     s16b orome_wolves_killed;  /* Total wolves killed (any type) */
     s16b orome_spiders_killed; /* Total spiders killed (any type) */

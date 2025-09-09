@@ -1917,51 +1917,29 @@ static NavResult select_oath(void)
     /* Set the chosen oath */
     p_ptr->oath_type = choice;
     
-    /* Grant corresponding oath special ability */
-    if (choice == OATH_MERCY) {
-        p_ptr->have_ability[S_SPC][SPC_OATH_MERCY] = true;
-        p_ptr->innate_ability[S_SPC][SPC_OATH_MERCY] = true;
-        p_ptr->active_ability[S_SPC][SPC_OATH_MERCY] = true;
-        log_debug("Granted OATH_MERCY abilities: have=%d, innate=%d, active=%d", 
-                  p_ptr->have_ability[S_SPC][SPC_OATH_MERCY], 
-                  p_ptr->innate_ability[S_SPC][SPC_OATH_MERCY],
-                  p_ptr->active_ability[S_SPC][SPC_OATH_MERCY]);
-    }
-    else if (choice == OATH_SILENCE) {
-        p_ptr->have_ability[S_SPC][SPC_OATH_SILENCE] = true;
-        p_ptr->innate_ability[S_SPC][SPC_OATH_SILENCE] = true;
-        p_ptr->active_ability[S_SPC][SPC_OATH_SILENCE] = true;
-        log_debug("Granted OATH_SILENCE abilities: have=%d, innate=%d, active=%d", 
-                  p_ptr->have_ability[S_SPC][SPC_OATH_SILENCE], 
-                  p_ptr->innate_ability[S_SPC][SPC_OATH_SILENCE],
-                  p_ptr->active_ability[S_SPC][SPC_OATH_SILENCE]);
-    }
-    else if (choice == OATH_IRON) {
-        p_ptr->have_ability[S_SPC][SPC_OATH_IRON] = true;
-        p_ptr->innate_ability[S_SPC][SPC_OATH_IRON] = true;
-        p_ptr->active_ability[S_SPC][SPC_OATH_IRON] = true;
-        log_debug("Granted OATH_IRON abilities: have=%d, innate=%d, active=%d", 
-                  p_ptr->have_ability[S_SPC][SPC_OATH_IRON], 
-                  p_ptr->innate_ability[S_SPC][SPC_OATH_IRON],
-                  p_ptr->active_ability[S_SPC][SPC_OATH_IRON]);
-    }
-    else if (choice == OATH_SMITH) {
-        p_ptr->have_ability[S_SPC][SPC_OATH_SMITH] = true;
-        p_ptr->innate_ability[S_SPC][SPC_OATH_SMITH] = true;
-        p_ptr->active_ability[S_SPC][SPC_OATH_SMITH] = true;
-        log_debug("Granted OATH_SMITH abilities: have=%d, innate=%d, active=%d", 
-                  p_ptr->have_ability[S_SPC][SPC_OATH_SMITH], 
-                  p_ptr->innate_ability[S_SPC][SPC_OATH_SMITH],
-                  p_ptr->active_ability[S_SPC][SPC_OATH_SMITH]);
-    }
-    else if (choice == OATH_VALOROUS) {
-        p_ptr->have_ability[S_SPC][SPC_OATH_VALOROUS] = true;
-        p_ptr->innate_ability[S_SPC][SPC_OATH_VALOROUS] = true;
-        p_ptr->active_ability[S_SPC][SPC_OATH_VALOROUS] = true;
-        log_debug("Granted OATH_VALOROUS abilities: have=%d, innate=%d, active=%d", 
-                  p_ptr->have_ability[S_SPC][SPC_OATH_VALOROUS], 
-                  p_ptr->innate_ability[S_SPC][SPC_OATH_VALOROUS],
-                  p_ptr->active_ability[S_SPC][SPC_OATH_VALOROUS]);
+    /* Grant corresponding oath special ability using oath.txt data */
+    if (choice > 0 && choice < z_info->oath_max) 
+    {
+        oath_type *oath_ptr = &oath_info[choice];
+        
+        /* Apply ability reward from A: field in oath.txt */
+        if (oath_ptr->reward_type > 0 && oath_ptr->reward_value > 0)
+        {
+            int skill_category = oath_ptr->reward_type;
+            int ability_id = oath_ptr->reward_value;
+            
+            /* Grant the ability specified in oath.txt */
+            p_ptr->have_ability[skill_category][ability_id] = true;
+            p_ptr->innate_ability[skill_category][ability_id] = true;
+            p_ptr->active_ability[skill_category][ability_id] = true;
+            
+            log_debug("Granted oath %d abilities from data: skill=%d, ability=%d", 
+                      choice, skill_category, ability_id);
+        }
+        else
+        {
+            log_debug("No ability reward found for oath %d", choice);
+        }
     }
     
     if (choice == 0) {

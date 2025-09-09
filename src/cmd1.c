@@ -3991,6 +3991,35 @@ bool abort_for_valorous(monster_type* m_ptr)
 }
 
 /*
+ * Check if an attack type is an Area of Effect (AoE) attack
+ * vs a direct targeted attack
+ */
+bool is_aoe_attack_type(int attack_type)
+{
+    switch (attack_type)
+    {
+        case ATT_MAIN:
+        case ATT_FLANKING:
+        case ATT_CONTROLLED_RETREAT:
+        case ATT_POLEARM:
+        case ATT_RIPOSTE:
+        case ATT_OPPORTUNIST:
+        case ATT_ZONE_OF_CONTROL:
+        case ATT_OPPORTUNITY:
+        case ATT_IMPALE:
+            return false;  // Direct targeted attacks
+            
+        case ATT_WHIRLWIND:
+        case ATT_RAGE:
+        case ATT_FOLLOW_THROUGH:
+            return true;   // AoE attacks
+            
+        default:
+            return false;  // Default to direct attack
+    }
+}
+
+/*
  * Apply consequences when an oath is broken:
  * 1. Remove oath bonuses (recalculate stats)
  * 2. Apply a random metarun curse
@@ -4078,23 +4107,49 @@ void break_mercy_oath(monster_type* m_ptr, int damage)
     }
 }
 
-void break_valorous_oath(monster_type* m_ptr, int damage)
+void break_valorous_oath(monster_type* m_ptr, int damage, int attack_type, int damage_source)
 {
     // Unseen enemies are okay to kill
     if (!m_ptr->ml)
+        return;
+
+    // Only break oath for player-caused damage  
+    // damage_source: -1 = player, 0+ = monster index
+    if (damage_source != -1)
         return;
 
     if (damage > 0 && m_ptr->stance == STANCE_FLEEING)
     {
         if (cowardly_attack(m_ptr))
         {
-            /* Curse message and selection handled by apply_oath_breaking_curse */
-            do_cmd_note("Broke your oath", p_ptr->depth);
-            
-            /* Apply oath breaking consequences */
-            apply_oath_breaking_curse(OATH_VALOROUS);
+            // For direct attacks, oath should only break if the warning was accepted
+            // For AoE attacks, break only if the attack actually kills the monster
+            if (is_aoe_attack_type(attack_type))
+            {
+                /* AoE attack - only break oath if the monster dies */
+                if (m_ptr->hp <= damage)
+                {
+                    /* AoE attack killed fleeing enemy - break oath immediately */
+                    do_cmd_note("Broke your oath through area attack that killed fleeing enemy", p_ptr->depth);
+                    
+                    /* Apply oath breaking consequences */
+                    apply_oath_breaking_curse(OATH_VALOROUS);
+                    p_ptr->oaths_broken |= OATH_VALOROUS_FLAG;
+                }
+                // If AoE attack doesn't kill, don't break oath
+            }
+            else
+            {
+                /* Direct attack - oath only breaks if warning was accepted
+                 * The warning is handled by abort_for_valorous() before we get here
+                 * If we reach this point for a direct attack, the player confirmed breaking the oath */
+                do_cmd_note("Broke your oath", p_ptr->depth);
+                
+                /* Apply oath breaking consequences */
+                apply_oath_breaking_curse(OATH_VALOROUS);
+                p_ptr->oaths_broken |= OATH_VALOROUS_FLAG;
+            }
         }
-        p_ptr->oaths_broken |= OATH_VALOROUS_FLAG;
     }
 }
 
@@ -4256,8 +4311,10 @@ void py_attack_aux(int y, int x, int attack_type)
     {
         abort_attack = true;
     }
-    else if (abort_for_valorous(m_ptr))
+    else if (!is_aoe_attack_type(attack_type) && abort_for_valorous(m_ptr))
     {
+        // Only show valorous oath warning for direct attacks
+        // AoE attacks will break oath immediately without warning
         abort_attack = true;
     }
 
@@ -4454,7 +4511,7 @@ void py_attack_aux(int y, int x, int attack_type)
                 net_dam = 0;
 
             break_mercy_oath(m_ptr, net_dam);
-            break_valorous_oath(m_ptr, net_dam);
+            break_valorous_oath(m_ptr, net_dam, attack_type, -1);  // -1 indicates player damage
 
             // determine the punctuation for the attack ("...", ".", "!" etc)
             attack_punctuation(punctuation, net_dam, crit_bonus_dice);
@@ -4722,6 +4779,75 @@ void py_attack_aux(int y, int x, int attack_type)
     break_truce(false);
 }
 
+/*
+ * Count the maximum number of continuous passable adjacent squares 
+ * (not walls, not rubble, not closed doors)
+ * Returns the longest sequence of adjacent passable squares
+ */
+int count_open_adjacent_squares(int y, int x)
+{
+    bool passable[8];
+    int i;
+    int max_continuous = 0;
+    int current_continuous = 0;
+    
+    /* First, check which adjacent squares are passable */
+    for (i = 0; i < 8; i++)
+    {
+        int adj_y = y + ddy_ddd[i];
+        int adj_x = x + ddx_ddd[i];
+        
+        /* Check bounds */
+        if (!in_bounds(adj_y, adj_x))
+        {
+            passable[i] = false;
+            continue;
+        }
+            
+        /* Check if square is passable (not wall, not rubble, not closed door) */
+        if (cave_floor_bold(adj_y, adj_x) || 
+            cave_feat[adj_y][adj_x] == FEAT_OPEN ||
+            (cave_feat[adj_y][adj_x] >= FEAT_TRAP_HEAD && cave_feat[adj_y][adj_x] <= FEAT_TRAP_TAIL))
+        {
+            passable[i] = true;
+        }
+        else
+        {
+            passable[i] = false;
+        }
+        log_trace("Adjacent square %d: (%d,%d) feat=%d passable=%d", i, adj_y, adj_x, cave_feat[adj_y][adj_x], passable[i]);
+    }
+    
+    /* Now find the longest continuous sequence of passable squares */
+    /* We need to check sequences that are actually adjacent in the game world */
+    /* Direction mapping: 0=S, 1=N, 2=E, 3=W, 4=SE, 5=SW, 6=NE, 7=NW */
+    /* Clockwise order in game world: N(1), NE(6), E(2), SE(4), S(0), SW(5), W(3), NW(7) */
+    int clockwise_order[8] = {1, 6, 2, 4, 0, 5, 3, 7};
+    
+    for (int start = 0; start < 8; start++)
+    {
+        current_continuous = 0;
+        /* Count consecutive passable squares going clockwise from start */
+        for (int offset = 0; offset < 8; offset++)
+        {
+            int idx = clockwise_order[(start + offset) % 8];
+            if (passable[idx])
+            {
+                current_continuous++;
+            }
+            else
+            {
+                break; /* Stop at first non-passable square */
+            }
+        }
+        if (current_continuous > max_continuous)
+            max_continuous = current_continuous;
+    }
+    
+    log_trace("count_open_adjacent_squares result: max_continuous=%d", max_continuous);
+    return max_continuous;
+}
+
 bool whirlwind_possible(void)
 {
     if (!p_ptr->active_ability[S_MEL][MEL_WHIRLWIND_ATTACK])
@@ -4755,8 +4881,16 @@ void py_attack(int y, int x, int attack_type)
     dir = dir_from_delta(y - p_ptr->py, x - p_ptr->px);
     dir0 = chome[dir];
 
-    if ((p_ptr->rage || whirlwind_possible())
-        && (adj_mon_count(p_ptr->py, p_ptr->px) > 1) && !p_ptr->afraid)
+    // Debug logging for whirlwind
+    int open_squares = count_open_adjacent_squares(p_ptr->py, p_ptr->px);
+    int adjacent_monsters = adj_mon_count(p_ptr->py, p_ptr->px);
+    bool whirlwind_poss = whirlwind_possible();
+    
+    log_trace("Whirlwind debug: rage=%d, whirlwind_possible=%d, open_squares=%d, adj_monsters=%d, afraid=%d", 
+              p_ptr->rage, whirlwind_poss, open_squares, adjacent_monsters, p_ptr->afraid);
+    
+    if ((p_ptr->rage || (whirlwind_poss && open_squares >= 5))
+        && (adjacent_monsters > 1) && !p_ptr->afraid)
     {
         int i;
         bool clockwise = one_in_(2);
@@ -4765,6 +4899,10 @@ void py_attack(int y, int x, int attack_type)
         if (p_ptr->rage)
         {
             msg_print("You strike out at everything around you!");
+        }
+        else
+        {
+            msg_print("You whirl around, striking at everything nearby!");
         }
 
         // attack the adjacent squares in sequence

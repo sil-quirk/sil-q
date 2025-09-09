@@ -6603,14 +6603,10 @@ void do_cmd_quest_status(void)
                 Term_putstr(col + 2, row++, -1, color, tulkas_status);
                 break;
             case TULKAS_QUEST_REWARDED:
-                /* Simple logic: if completed in metarun, show as previous character */
-                if (metarun_is_quest_completed(METARUN_QUEST_TULKAS)) {
-                    tulkas_status = "Completed in previous run";
-                    color = TERM_L_DARK;
-                } else {
-                    tulkas_status = "Completed by this character";
-                    color = TERM_L_GREEN;
-                }
+                /* For Tulkas quest (not location-specific), completed by this character means
+                 * the character progressed through the quest states to REWARDED */
+                tulkas_status = "Completed by this character";
+                color = TERM_L_GREEN;
                 Term_putstr(col + 2, row++, -1, color, tulkas_status);
                 log_trace("QUEST STATUS: Calling get_quest_reward_text for TULKAS (REWARDED)");
                 strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_TULKAS));
@@ -6659,14 +6655,10 @@ void do_cmd_quest_status(void)
                 display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 break;
             case AULE_QUEST_REWARDED:
-                /* Attribute to this run unless metarun-only completion (aule_level==0) */
-                if (metarun_is_quest_completed(METARUN_QUEST_AULE) && p_ptr->aule_level == 0) {
-                    aule_status = "Completed in previous run";
-                    color = TERM_L_DARK;
-                } else {
-                    aule_status = "Completed by this character";
-                    color = TERM_L_GREEN;
-                }
+                /* Universal quest attribution logic:
+                 * If quest state is REWARDED, it was completed by this character */
+                aule_status = "Completed by this character";
+                color = TERM_L_GREEN;
                 Term_putstr(col + 2, row++, -1, color, aule_status);
                 strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_AULE));
                 display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
@@ -6715,14 +6707,10 @@ void do_cmd_quest_status(void)
                 Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 break;
             case MANDOS_QUEST_REWARDED:
-                /* Attribute to this run unless metarun-only completion (mandos_level==0) */
-                if (metarun_is_quest_completed(METARUN_QUEST_MANDOS) && p_ptr->mandos_level == 0) {
-                    mandos_status = "Completed in previous run";
-                    color = TERM_L_DARK;
-                } else {
-                    mandos_status = "Completed by this character";
-                    color = TERM_L_GREEN;
-                }
+                /* Universal quest attribution logic:
+                 * If quest state is REWARDED, it was completed by this character */
+                mandos_status = "Completed by this character";
+                color = TERM_L_GREEN;
                 Term_putstr(col + 2, row++, -1, color, mandos_status);
                 strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_MANDOS));
                 display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
@@ -6773,14 +6761,10 @@ void do_cmd_quest_status(void)
                 Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
                 break;
             case NIENA_QUEST_REWARDED:
-                /* Attribute to this run unless metarun-only completion (niena_level==0) */
-                if (metarun_is_quest_completed(METARUN_QUEST_NIENA) && p_ptr->niena_level == 0) {
-                    niena_status = "Completed in previous run";
-                    color = TERM_L_DARK;
-                } else {
-                    niena_status = "Completed by this character";
-                    color = TERM_L_GREEN;
-                }
+                /* Universal quest attribution logic:
+                 * If quest state is REWARDED, it was completed by this character */
+                niena_status = "Completed by this character";
+                color = TERM_L_GREEN;
                 Term_putstr(col + 2, row++, -1, color, niena_status);
                 strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_NIENA));
                 Term_putstr(col + 2, row++, -1, TERM_SLATE, buf);
@@ -6847,23 +6831,10 @@ void do_cmd_quest_status(void)
                 display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
                 break;
             case OROME_QUEST_REWARDED:
-                /*
-                 * Previous logic always showed "Completed in previous run" because
-                 * metarun_mark_quest_completed() is called at the moment the reward
-                 * is given. That incorrectly hid the fact the current character
-                 * earned the reward. We distinguish by using orome_level which is
-                 * set when the quest is accepted. For metarun-restored completions
-                 * (new characters benefiting from prior lineage), orome_level will
-                 * still be zero (default initialization). Any legitimate run that
-                 * started the quest will have a non-zero orome_level.
-                 */
-                if (metarun_is_quest_completed(METARUN_QUEST_OROME) && p_ptr->orome_level == 0) {
-                    orome_status = "Completed in previous run";
-                    color = TERM_L_DARK;
-                } else {
-                    orome_status = "Completed by this character";
-                    color = TERM_L_GREEN;
-                }
+                /* For Orome quest (not location-specific), completed by this character means
+                 * the character progressed through the quest states to REWARDED */
+                orome_status = "Completed by this character";
+                color = TERM_L_GREEN;
                 Term_putstr(col + 2, row++, -1, color, orome_status);
                 strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_OROME));
                 display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
@@ -7658,20 +7629,6 @@ void aule_quest_interaction(void)
             quest_typewriter_menu("Quest Complete!", fallback_texts, 2, TERM_L_GREEN, TERM_WHITE);
         }
         
-        /* Grant Aule's Forge special ability instead of artifact */
-        if (!p_ptr->have_ability[S_SPC][SPC_AULE]) {
-            p_ptr->have_ability[S_SPC][SPC_AULE] = true;
-            p_ptr->active_ability[S_SPC][SPC_AULE] = true;
-            msg_print("You have learned Aule's Forge!");
-            log_trace("Aule quest: granted Aule's Forge special ability");
-            
-            /* Recalculate bonuses since this affects smithing */
-            p_ptr->update |= (PU_BONUS);
-            p_ptr->redraw |= (PR_STATE);
-        } else {
-            msg_print("You already possess the wisdom of Aule's Forge.");
-        }
-        
         /* Mark quest as completed in metarun */
         metarun_mark_quest_completed(METARUN_QUEST_AULE);
         
@@ -7829,22 +7786,6 @@ void mandos_quest_interaction(void)
                 "'Accept the gift of my protection from mortal fears.'"
             };
             quest_typewriter_menu("Quest Reward", fallback_texts, 2, TERM_L_GREEN, TERM_WHITE);
-        }
-        
-        /* Grant Mandos' Doom special ability instead of artifact */
-        if (!p_ptr->have_ability[S_SPC][SPC_MANDOS]) {
-            p_ptr->have_ability[S_SPC][SPC_MANDOS] = true;
-            p_ptr->active_ability[S_SPC][SPC_MANDOS] = true;
-            msg_print("You have learned Mandos' Doom!");
-            log_trace("Mandos quest: granted Mandos' Doom special ability");
-            log_trace("Special ability check: have_ability[S_SPC][SPC_MANDOS]=%d, active_ability[S_SPC][SPC_MANDOS]=%d", 
-                     p_ptr->have_ability[S_SPC][SPC_MANDOS], p_ptr->active_ability[S_SPC][SPC_MANDOS]);
-            
-            /* Recalculate bonuses since this affects resistances */
-            p_ptr->update |= (PU_BONUS);
-            p_ptr->redraw |= (PR_STATE);
-        } else {
-            msg_print("You already possess the protection of Mandos' Doom.");
         }
         
         /* Mark quest as completed in metarun */
@@ -8045,6 +7986,7 @@ void niena_quest_interaction(void)
         p_ptr->niena_quest = NIENA_QUEST_ACTIVE;
         p_ptr->niena_monsters_seen = 0;
         p_ptr->niena_monsters_killed = 0;
+        p_ptr->niena_level = p_ptr->depth; /* Track where quest was started */
         
         /* Remove the quest giver now that quest is accepted */
         remove_quest_giver(R_IDX_NIENA);
@@ -8105,10 +8047,6 @@ void niena_quest_interaction(void)
             msg_format("You encountered %d creatures but spared %d of them.", 
                       p_ptr->niena_monsters_seen, p_ptr->niena_monsters_seen - p_ptr->niena_monsters_killed);
             msg_format("You gain +%d effective stealth from your mercy.", stealth_bonus);
-            
-            /* Grant the special ability */
-            p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY] = true;
-            p_ptr->active_ability[S_SPC][SPC_NIENA_MERCY] = true;
         } else {
             /* Extract completion texts from quest data */
             int completion_count = 0;
@@ -8131,10 +8069,6 @@ void niena_quest_interaction(void)
             /* Show the specific numbers after the main dialogue */
             msg_format("You encountered %d creatures but spared %d of them.", 
                       p_ptr->niena_monsters_seen, p_ptr->niena_monsters_seen - p_ptr->niena_monsters_killed);
-            
-            /* Still grant the ability but with no effective bonus */
-            p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY] = true;
-            p_ptr->active_ability[S_SPC][SPC_NIENA_MERCY] = true;
         }
         
         /* Clear quest state */
@@ -8330,7 +8264,6 @@ void orome_quest_interaction(void)
         p_ptr->orome_quest = OROME_QUEST_ACTIVE;
         p_ptr->orome_target_count = target_count;
         p_ptr->orome_killed_count = 0;
-        p_ptr->orome_level = depth;
         
         /* Remove the quest giver now that quest is accepted */
         remove_quest_giver(R_IDX_OROME);

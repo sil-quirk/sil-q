@@ -2482,6 +2482,7 @@ void metarun_restore_quest_states(void)
     if (completed & METARUN_QUEST_NIENA) {
         if (p_ptr->niena_quest < NIENA_QUEST_REWARDED) {
             p_ptr->niena_quest = NIENA_QUEST_REWARDED;
+            p_ptr->niena_level = 0; /* Clear depth for previous run attribution */
             log_trace("Metarun restore: Niena quest set to REWARDED (%d)", NIENA_QUEST_REWARDED);
         }
     }

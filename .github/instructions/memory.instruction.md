@@ -26,6 +26,36 @@ applyTo: '**'
 
 ## Data File Parsing System - Critical Bug Fixes (September 2025)
 
+### LATEST: Quest Attribution System Overhaul (September 2025)
+**Issue**: Quest attribution logic incorrectly implemented with level-based discriminators for all quests
+**Root Cause**: Misunderstood quest system architecture - level tracking only needed for location-specific quests
+**Corrected Understanding**:
+- **Level tracking** (`niena_level`, `mandos_level`, `aule_level`) only for **location-specific quests** tied to specific dungeon levels
+- **Quest attribution** should be based on **quest state** (`tulkas_quest`, `orome_quest`, etc.) for non-location-specific quests
+
+**Implementation**:
+1. **Removed incorrect level discriminators** for non-location-specific quests:
+   - Removed `tulkas_level` and `orome_level` fields from `player_type` struct
+   - Removed all save/load/init code for these fields
+   - Removed level assignments from quest completion code
+2. **Fixed quest attribution logic**:
+   - **Tulkas & Orome**: Use quest state-based attribution - `QUEST_REWARDED` state = "completed by this character"  
+   - **Niena, Mandos, Aule**: Continue using level-based discriminators (location-specific)
+3. **Preserved "completed in previous run" display**: Existing "Previously Completed in Metarun" section handles proper display
+
+**New Implementation Requirements (COMPLETED - September 2025)**:
+- ✅ **Universal attribution logic**: All quests now use same pattern: `metarun_is_quest_completed() && quest_state != QUEST_REWARDED` = "completed in previous run"  
+- ✅ **Level-dependent quest warnings**: Aule, Mandos, Niena have warnings when leaving level before quest completion
+- ✅ **Quest state consistency**: All quests follow same state-based attribution regardless of location-dependency
+
+**Final Implementation**:
+- **src/xtra2.c**: Updated all quest REWARDED cases to show "Completed by this character" (universal logic)
+- **src/cmd2.c**: Added level departure warnings and quest failure logic for all location-specific quests
+- **Quest state progression**: NOT_STARTED → GIVER_PRESENT → ACTIVE → COMPLETE/SUCCESS → REWARDED
+- **Attribution rule**: REWARDED state = "completed by this character", else use metarun completion status
+
+**Status**: ✅ Architecture corrected - ready for universal implementation
+
 ### LATEST: Oath Description Display Fix (September 2025)
 **Issue**: Oath of Valorous Heart doesn't show description in oath selection menu like other oaths
 **Root Cause**: Birth screen description display had hardcoded bounds check `highlight <= 4` excluding Oath 5
@@ -33,6 +63,54 @@ applyTo: '**'
    - Changed `if (highlight >= 0 && highlight <= 4)` to `if (highlight >= 0 && highlight < (z_info ? z_info->oath_max : 6))`
    - Now all oaths (including Oath 5) show their description, pledge, forbidden actions, and rewards
 **Status**: ✅ COMPLETELY FIXED - All oath descriptions now display properly using dynamic limits
+
+### LATEST: Whirlwind Attack System Enhancement (September 2025)
+**Enhancement**: Updated whirlwind attack to require at least 5 open adjacent squares for more tactical gameplay
+**New Behavior**:
+1. **Whirlwind in Corridors**: No longer triggers if fewer than 5 open adjacent squares
+2. **Whirlwind in Open Areas**: Works as before when sufficient space is available
+3. **Rage Attacks**: Unaffected - still work in tight spaces for thematic reasons
+4. **Tactical Positioning**: Players must position themselves strategically to use whirlwind effectively
+
+**Technical Implementation**:
+- **New Helper Function**: `count_open_adjacent_squares(int y, int x)` counts passable adjacent squares
+  - Counts floor tiles, open doors, and trap squares as "open"
+  - Excludes walls, rubble, and closed doors
+- **Updated Whirlwind Logic**: Modified `py_attack()` in `cmd1.c`
+  - Changed condition from `whirlwind_possible()` to `whirlwind_possible() && count_open_adjacent_squares(p_ptr->py, p_ptr->px) >= 5`
+  - Added message "You whirl around, striking at everything nearby!" for whirlwind
+- **Preserved Rage Behavior**: Rage attacks still work in confined spaces (unchanged)
+
+**Code Files Modified**:
+- `src/cmd1.c`: Added adjacency counting function, updated whirlwind logic
+- `src/externs.h`: Added function declaration
+
+**Status**: ✅ IMPLEMENTED AND TESTED - Whirlwind now requires tactical positioning
+
+### LATEST: Oath of Valorous Heart Logic Rework (September 2025)
+**Enhancement**: Implemented sophisticated oath-breaking logic for Oath of Valorous Heart
+**New Behavior**:
+1. **Direct Attacks (button press/targeting)**: Shows warning prompt before attacking fleeing monsters; oath only breaks if player confirms
+2. **Player AoE Attacks (whirlwind, follow-through, rage, spells)**: Immediately breaks oath when damaging fleeing monsters (no warning)
+3. **Monster AoE Attacks (dragon breath, earthquake, etc.)**: Does NOT count toward oath breaking
+
+**Technical Implementation**:
+- **New Helper Function**: `is_aoe_attack_type()` categorizes attack types as direct vs AoE
+- **Updated Function Signature**: `break_valorous_oath(monster_type* m_ptr, int damage, int attack_type, int damage_source)`
+  - `attack_type`: Identifies direct vs AoE attacks (ATT_MAIN, ATT_WHIRLWIND, etc.)
+  - `damage_source`: -1 for player, monster index for monster attacks
+- **Modified Logic**: `abort_for_valorous()` only triggers warnings for direct attacks using `!is_aoe_attack_type()`
+- **Comprehensive Coverage**: Updated all call sites in melee (`cmd1.c`), archery (`cmd2.c`), and spell damage (`spells1.c`)
+- **AoE Attack Types**: ATT_WHIRLWIND, ATT_RAGE, ATT_FOLLOW_THROUGH classified as immediate oath-breaking
+- **Direct Attack Types**: ATT_MAIN, ATT_FLANKING, ATT_POLEARM, ATT_RIPOSTE, etc. trigger confirmation prompts
+
+**Code Files Modified**:
+- `src/cmd1.c`: Added helper function, updated oath logic, modified attack flow
+- `src/cmd2.c`: Updated archery attack calls
+- `src/spells1.c`: Added oath checking for spell/AoE damage in `project_m()`  
+- `src/externs.h`: Updated function declarations
+
+**Status**: ✅ IMPLEMENTED AND TESTED - Nuanced oath-breaking system working as intended
 
 ### PREVIOUS: Oath System Dynamic Limits Fix (September 2025)
 **Issue**: User reported hardcoded oath limits instead of using dynamic limits from limits.txt

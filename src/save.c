@@ -1009,7 +1009,6 @@ static void wr_extra(void)
     wr_s16b(p_ptr->orome_spiders_killed);
     wr_s16b(p_ptr->orome_serpents_killed);
     wr_s16b(p_ptr->orome_vampires_killed);
-    wr_s16b(p_ptr->orome_level);
     wr_byte(p_ptr->quest_vault_used);
     for (i = 0; i < 15; i++) wr_byte(p_ptr->quest_reserved[i]);
 #else

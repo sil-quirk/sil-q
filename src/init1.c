@@ -5445,6 +5445,14 @@ errr parse_oath_info(char* buf, header* head)
         /* Point at the "info" */
         oath_ptr = (oath_type*)head->info_ptr + i;
 
+        /* Initialize the new fields */
+        oath_ptr->stat_bonuses[0] = 0;
+        oath_ptr->stat_bonuses[1] = 0;
+        oath_ptr->stat_bonuses[2] = 0;
+        oath_ptr->stat_bonuses[3] = 0;
+        oath_ptr->skill_type = 0;
+        oath_ptr->skill_bonus = 0;
+
         /* Store the name */
         if (!(oath_ptr->name = add_name(head, s)))
             return (PARSE_ERROR_OUT_OF_MEMORY);
@@ -5547,23 +5555,43 @@ errr parse_oath_info(char* buf, header* head)
     /* Process 'S' for "Stat bonuses" */
     else if (buf[0] == 'S')
     {
+        int str, dex, con, gra;
+
         /* There better be a current oath_ptr */
         if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Parse stat bonuses but don't store them for now */
+        /* Parse stat bonuses and store them */
         /* Format: S:str:dex:con:gra */
-        /* This is handled elsewhere in the oath system */
+        if (4 != sscanf(buf + 2, "%d:%d:%d:%d", &str, &dex, &con, &gra))
+        {
+            return (PARSE_ERROR_GENERIC);
+        }
+
+        /* Store the stat bonuses */
+        oath_ptr->stat_bonuses[0] = str;
+        oath_ptr->stat_bonuses[1] = dex;
+        oath_ptr->stat_bonuses[2] = con;
+        oath_ptr->stat_bonuses[3] = gra;
     }
 
     /* Process 'K' for "sKill bonuses" */
     else if (buf[0] == 'K')
     {
+        int skill_type, skill_bonus;
+
         /* There better be a current oath_ptr */
         if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Parse skill bonuses but don't store them for now */
+        /* Parse skill bonuses and store them */
         /* Format: K:skill:bonus */
-        /* This is handled elsewhere in the oath system */
+        if (2 != sscanf(buf + 2, "%d:%d", &skill_type, &skill_bonus))
+        {
+            return (PARSE_ERROR_GENERIC);
+        }
+
+        /* Store the skill bonuses */
+        oath_ptr->skill_type = skill_type;
+        oath_ptr->skill_bonus = skill_bonus;
     }
 
     /* Process 'B' for "Behavioral restrictions" */

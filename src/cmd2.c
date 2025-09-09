@@ -158,6 +158,28 @@ void do_cmd_go_up(void)
         }
     }
 
+    // warn player if they have an active Aule quest and are trying to leave
+    if (p_ptr->aule_quest >= AULE_QUEST_ACTIVE && p_ptr->aule_quest < AULE_QUEST_REWARDED)
+    {
+        msg_print("The forge fires dim as you prepare to leave...");
+        msg_print("Abandoning Aule's forge will mean failure of the quest.");
+        if (!get_check("Are you sure you wish to abandon the forge and ascend? "))
+        {
+            return;
+        }
+    }
+
+    // warn player if they have an active Mandos quest and are trying to leave
+    if (p_ptr->mandos_quest >= MANDOS_QUEST_ACTIVE && p_ptr->mandos_quest < MANDOS_QUEST_REWARDED)
+    {
+        msg_print("The spirits in the tomb grow restless as you prepare to leave...");
+        msg_print("Abandoning the tomb will mean failure of Mandos' quest.");
+        if (!get_check("Are you sure you wish to abandon the tomb and ascend? "))
+        {
+            return;
+        }
+    }
+
     /* Hack -- take a turn */
     p_ptr->energy_use = 100;
 
@@ -319,6 +341,28 @@ void do_cmd_go_up(void)
         msg_print("You have failed Niena's mercy quest by leaving the level.");
     }
 
+    /* Reset aule quest if active */
+    if (p_ptr->aule_quest >= AULE_QUEST_ACTIVE && p_ptr->aule_quest < AULE_QUEST_REWARDED)
+    {
+        p_ptr->aule_quest = AULE_QUEST_NOT_STARTED;
+        msg_print("You have abandoned Aule's forge. The quest is lost.");
+    }
+    else if (p_ptr->aule_quest == AULE_QUEST_FORGE_PRESENT)
+    {
+        p_ptr->aule_quest = AULE_QUEST_NOT_STARTED;
+    }
+
+    /* Reset mandos quest if active */
+    if (p_ptr->mandos_quest >= MANDOS_QUEST_ACTIVE && p_ptr->mandos_quest < MANDOS_QUEST_REWARDED)
+    {
+        p_ptr->mandos_quest = MANDOS_QUEST_NOT_STARTED;
+        msg_print("You have abandoned the tomb. Mandos' quest is lost.");
+    }
+    else if (p_ptr->mandos_quest == MANDOS_QUEST_GIVER_PRESENT)
+    {
+        p_ptr->mandos_quest = MANDOS_QUEST_NOT_STARTED;
+    }
+
     // another staircase has been used...
     p_ptr->stairs_taken++;
     p_ptr->staircasiness += 1000;
@@ -373,6 +417,28 @@ void do_cmd_go_down(void)
         msg_print("'If you leave now, you will have failed the mercy quest.'");
         msg_print("'All the compassion you have shown will be for naught.'");
         if (!get_check("Are you sure you wish to abandon the quest and descend? "))
+        {
+            return;
+        }
+    }
+
+    // warn player if they have an active Aule quest and are trying to leave
+    if (p_ptr->aule_quest >= AULE_QUEST_ACTIVE && p_ptr->aule_quest < AULE_QUEST_REWARDED)
+    {
+        msg_print("The forge fires dim as you prepare to leave...");
+        msg_print("Abandoning Aule's forge will mean failure of the quest.");
+        if (!get_check("Are you sure you wish to abandon the forge and descend? "))
+        {
+            return;
+        }
+    }
+
+    // warn player if they have an active Mandos quest and are trying to leave
+    if (p_ptr->mandos_quest >= MANDOS_QUEST_ACTIVE && p_ptr->mandos_quest < MANDOS_QUEST_REWARDED)
+    {
+        msg_print("The spirits in the tomb grow restless as you prepare to leave...");
+        msg_print("Abandoning the tomb will mean failure of Mandos' quest.");
+        if (!get_check("Are you sure you wish to abandon the tomb and descend? "))
         {
             return;
         }
@@ -482,6 +548,39 @@ void do_cmd_go_down(void)
     if (p_ptr->tulkas_quest == TULKAS_QUEST_GIVER_PRESENT)
     {
         p_ptr->tulkas_quest = TULKAS_QUEST_NOT_STARTED;
+    }
+
+    /* Reset aule quest if active */
+    if (p_ptr->aule_quest >= AULE_QUEST_ACTIVE && p_ptr->aule_quest < AULE_QUEST_REWARDED)
+    {
+        p_ptr->aule_quest = AULE_QUEST_NOT_STARTED;
+        msg_print("You have abandoned Aule's forge. The quest is lost.");
+    }
+    else if (p_ptr->aule_quest == AULE_QUEST_FORGE_PRESENT)
+    {
+        p_ptr->aule_quest = AULE_QUEST_NOT_STARTED;
+    }
+
+    /* Reset mandos quest if active */
+    if (p_ptr->mandos_quest >= MANDOS_QUEST_ACTIVE && p_ptr->mandos_quest < MANDOS_QUEST_REWARDED)
+    {
+        p_ptr->mandos_quest = MANDOS_QUEST_NOT_STARTED;
+        msg_print("You have abandoned the tomb. Mandos' quest is lost.");
+    }
+    else if (p_ptr->mandos_quest == MANDOS_QUEST_GIVER_PRESENT)
+    {
+        p_ptr->mandos_quest = MANDOS_QUEST_NOT_STARTED;
+    }
+
+    /* Reset niena quest if active */
+    if (p_ptr->niena_quest >= NIENA_QUEST_ACTIVE && p_ptr->niena_quest < NIENA_QUEST_REWARDED)
+    {
+        p_ptr->niena_quest = NIENA_QUEST_NOT_STARTED;
+        msg_print("You have abandoned Niena's mercy quest. The quest is lost.");
+    }
+    else if (p_ptr->niena_quest == NIENA_QUEST_GIVER_PRESENT)
+    {
+        p_ptr->niena_quest = NIENA_QUEST_NOT_STARTED;
     }
 
     // another staircase has been used...
@@ -3822,6 +3921,11 @@ void do_cmd_fire(int quiver)
         {
             return;
         }
+        
+        if (abort_for_valorous(m_ptr))
+        {
+            return;
+        }
     }
 
     /* Get local object */
@@ -4183,7 +4287,7 @@ void do_cmd_fire(int quiver)
                         net_dam = 0;
 
                     break_mercy_oath(m_ptr, net_dam);
-                    break_valorous_oath(m_ptr, net_dam);
+                    break_valorous_oath(m_ptr, net_dam, ATT_MAIN, -1);  // Direct archery shot
 
                     /* Handle unseen monster */
                     if (!(m_ptr->ml))
@@ -4752,6 +4856,20 @@ void do_cmd_throw(bool automatic)
         {
             spatial_target = true;
         }
+        else
+        {
+            monster_type* target_m_ptr = &mon_list[cave_m_idx[ty][tx]];
+            
+            if (abort_for_mercy(target_m_ptr))
+            {
+                return;
+            }
+            
+            if (abort_for_valorous(target_m_ptr))
+            {
+                return;
+            }
+        }
     }
 
     if ((dir == DIRECTION_UP) || (dir == DIRECTION_DOWN))
@@ -5042,7 +5160,7 @@ void do_cmd_throw(bool automatic)
                     net_dam = 0;
 
                 break_mercy_oath(m_ptr, net_dam);
-                break_valorous_oath(m_ptr, net_dam);
+                break_valorous_oath(m_ptr, net_dam, ATT_MAIN, -1);  // Direct thrown weapon
 
                 /* Handle unseen monster */
                 if (!(m_ptr->ml))
