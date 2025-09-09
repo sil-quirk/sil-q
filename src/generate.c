@@ -15,13 +15,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stddef.h>
-/* Some legacy build configurations (strict C89 without prototypes) may not
- * expose standard C library prototypes before usage; declare defensively. */
-#ifndef HAVE_STRCHR_PROTO
-extern char *strchr(const char *, int);
-extern size_t strlen(const char *);
-extern void *memset(void *, int, size_t);
-#endif
 /* Quest vault debug instrumentation */
 #define DEBUG_QUEST_VAULT 1
 #if DEBUG_QUEST_VAULT

@@ -325,7 +325,7 @@ void cleanup_old_game_files(void)
     }
     #else
     /* Unix/Linux/macOS: Use opendir/readdir to enumerate and delete */
-    DIR *dir = opendir(save_dir);
+    dir = opendir(save_dir);
     if (dir) {
         struct dirent *entry;
         
