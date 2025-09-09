@@ -6,38 +6,38 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 
 
 # Road Map
-
-## Release of beta 0.8 (Visual update) (done)
-
-- SDL 
-- Quest systems
--- Tulkas -> kill unique - get artifact (done)
--- Quest vault implementation (done)
--- Mandos -> kill specific -> get ability (done)
--- Aule -> forge -> get ability (done)
--- Niena -> spawn -> get ability (done)
--- Manwe
--- Este
--- Orome
+ 
+- Quest systems 
+  * Tulkas -> kill unique -> get artifact (done) 
+  * Quest vault implementation (done) 
+  * Mandos -> kill specific -> get ability (done) 
+  * Aule -> forge -> get ability (done) 
+  * Niena -> spawn -> get ability (done) 
+  * Orome (done)
 - Update to oath system (done)
--- After completed quest you get oaths (done)
+  * After completed quest you get oaths (done)
 - UI
--- Better oath texts
--- Better oath menu
+  * Better oath texts (done)
+  * Better oath menu (done)
 - New oaths
--- Aule
+  * Smith (done)
+  * Valor (done)
 - Bug fixes (ongoing) 
--- save names (done)
--- new metarun saves
--- rubble (done)
--- speacial monster
-## Release of beta 0.9 
+  * save names (done)
+  * new metarun saves (done)
+  * rubble (done)
+  * speacial monster (done)
+## Release of beta 0.87 (done) 
+- SDL
 
+## Release of beta 0.9 
 - More Vaults
 - More monsters
 - Change Score to Character database
 - Multiple runs support 
-
+- New Quests
+  * Manwe
+  * Este
 
 ### Ideas
 
@@ -101,16 +101,13 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 - Level entrance message depending on the style (done)
 - Difficulty levels for current run (done) 
 - Automatic load if run is not finished (done)
-
+## Release of beta 0.8 (Visual update) (done)
 
 # Compiling Instructions 
 
-Compiling Sil-Q is not very difficult, and has been tested on Windows, Linux, and OS X.
+Compiling Sil-More is not very difficult, and has been tested on Windows, Linux, and OS X.
 
-Makefiles for various other systems still exist as a legacy from Sil. If you manage
-to build Sil-Q for a system other than Windows, Linux, or OS X please create a git branch
-with any changes necessary, update this file and open a github pull request against
-https://github.com/sil-quirk/sil-q.
+Makefiles for various other systems still exist as a legacy from Sil.
 
 The first step is the same on all systems, so do this and then look through
 this file for advice on your specific system.
@@ -125,13 +122,10 @@ this file for advice on your specific system.
    in the Sil folder as well.
 
 
-## Linux or Unix with gcc  (tested with Sil-Q)
+## Linux or Unix with gcc
 
-   There are several different unix setups for Sil-Q:
-
-   X11: Allows multiple windows, has correct colours.
    GCU: Works in a terminal using 'curses', has only 16 or 8 colours.
-   CAP: Works even in old terminals, but is monochrome.
+
 
 1. Mess with the Makefile:
 
@@ -141,15 +135,15 @@ this file for advice on your specific system.
    Remove the # comments from that section's code.
    Comment out the default section.
 
-2. Compile Sil-Q:
+2. Compile Sil-More:
 
    Run "make -f Makefile.std install" in the src directory.
 
-3. Run Sil-Q:
+3. Run Sil-More:
 
-   Go back to the Sil folder and start Sil-Q with "sil".
+   Go back to the Sil folder and start Sil-More with "sil".
 
-## Windows with Cygwin   (tested with Sil-Q)
+## Windows with Cygwin  (You can also download latest Release)
 
 1. Getting the free Cygwin compiler:
 
@@ -160,14 +154,14 @@ this file for advice on your specific system.
    Note you will have to ensure "make" and the mingw C compiler are installed
    as they may not be included in your Cygwin default installation.
 
-2. Compile Sil-Q:
+2. Compile Sil-More:
 
    In the Cygwin terminal change to the src directory and run
    "make -f Makefile.cyg install".
    Sil should now be compiled and installed into the Sil folder.
    The executable file will be called Sil.exe.
 
-3. Run Sil-Q:
+3. Run Sil-More:
 
    Go back to the Sil folder and run Sil.exe.
 
@@ -175,13 +169,13 @@ this file for advice on your specific system.
 
 1. Acquire Microsoft Visual Studio 2022.
 
-2. Compile Sil-Q:
+2. Compile Sil-More:
 
    Assuming you have MSVC 2022, this should be as simple as selecting Debug or
    Release, opening sil-q.sln in the msvc2019 directory and selecting Build Solution
    from the Build menu.
 
-3. Run Sil-Q:
+3. Run Sil-More:
 
    Go back to the Sil folder and run Sil.exe.
 
@@ -191,7 +185,7 @@ NOTE: This is a very new and very raw port, and requires testing.
 
 ### Prerequisites
 
-Sil-q requires some C compiler (any modern like gcc or clang would work), `ncurses`, and, optionally, `git`. As for the C compiler and `git`, these are likely already installed on your Mac. You can check it. Start Terminal.app (or any other terminal emulator of your choice) and run:
+Sil-more requires some C compiler (any modern like gcc or clang would work), `ncurses`, and, optionally, `git`. As for the C compiler and `git`, these are likely already installed on your Mac. You can check it. Start Terminal.app (or any other terminal emulator of your choice) and run:
 
 ```shell
 gcc -dumpversion
@@ -244,7 +238,7 @@ This will probably also pull its dependencies as brew tracks and installs them a
 Now to the actual building! First, clone the repo:
 
 ```shell
-git clone https://github.com/k0rtesss/sil-qh
+git clone https://github.com/k0rtesss/sil-more
 ```
 
 Or simply download and unpack the ZIP archive from the GitHub page clicking on Code > Download ZIP.
@@ -252,7 +246,7 @@ Or simply download and unpack the ZIP archive from the GitHub page clicking on C
 In any case, in terminal, navigate to the folder:
 
 ```shell
-cd ~/sil-qh
+cd ~/sil-more
 ```
 
 or wherever you've cloned or downloaded it.
@@ -301,7 +295,7 @@ and restart.
 
    Use App Store to get Xcode, a free set of development tools from Apple.
 
-2. Compile Sil-Q:
+2. Compile Sil-More:
 
    In a Terminal window, change to the src directory and run
    "make -f Makefile.cocoa install".
@@ -319,7 +313,7 @@ and restart.
    "make -f Makefile.cocoa clean" to clean up any object files that may not
    match your new set of selected architectures.
 
-3. Run Sil-Q:
+3. Run Sil-More:
 
    In a Finder window, navigate to where you placed Sil.app.  Then double
    click on it to run it.  If you are running 10.15 or later and haven't run
