@@ -160,7 +160,7 @@
 
 # Version stamp (required)
 
-V:1.5.0
+V:0.8.7
 
 #################################################################
 # Here is the list of 'Special' artefacts. 
@@ -1491,7 +1491,8 @@ B:1/1
 D:This pair of gloves bears the insignia of the House of the Swallow,
 D: who defend Gondolin from harm with their mighty bows.
 
-
+
+
 ## The Set of Gloves of Celebrimbor
 ## 1st age namesake
 ## (ability 6/4 is Expertise)

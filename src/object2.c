@@ -1830,6 +1830,10 @@ static bool make_artefact_special(object_type* o_ptr)
         if (a_ptr->cur_num)
             continue;
 
+        /* Cannot make an artefact reserved for Valar quest */
+        if (valar_reserved_artifacts && valar_reserved_artifacts[i])
+            continue;
+
         /* Enforce minimum "depth" (loosely) */
         if (a_ptr->level > depth_check)
         {
@@ -1905,6 +1909,10 @@ static bool make_artefact(object_type* o_ptr, bool allow_insta)
 
         /* Cannot make an artefact twice */
         if (a_ptr->cur_num)
+            continue;
+
+        /* Cannot make an artefact reserved for Valar quest */
+        if (valar_reserved_artifacts && valar_reserved_artifacts[i])
             continue;
 
         /* Must have the correct fields */

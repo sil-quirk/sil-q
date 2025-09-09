@@ -2300,6 +2300,11 @@ static void calc_bonuses(void)
     {
         for (j = 0; j < ABILITIES_MAX; j++)
         {
+            /* For Special abilities skill, preserve quest-granted abilities */
+            if (i == S_SPC) {
+                /* Don't reset special abilities - they're not item-granted */
+                continue;
+            }
             p_ptr->have_ability[i][j] = p_ptr->innate_ability[i][j];
         }
     }
@@ -2500,6 +2505,9 @@ static void calc_bonuses(void)
     /* Clear the old item granted abilities */
     for (i = 0; i < S_MAX; i++)
     {
+        /* Skip special abilities - they persist once granted */
+        if (i == S_SPC) continue;
+        
         for (j = 0; j < ABILITIES_MAX; j++)
         {
             if (!p_ptr->have_ability[i][j])
@@ -2547,14 +2555,45 @@ static void calc_bonuses(void)
         }
     }
 
-    if (p_ptr->active_ability[S_WIL][WIL_OATH])
+    /* Oath bonuses (granted by special oath abilities, disabled if oath is broken) */
+    /* Apply dynamic oath bonuses based on oath.txt data */
+    for (int oath_idx = 0; oath_idx < z_info->oath_max; oath_idx++)
     {
-        if (chosen_oath(OATH_IRON) && !oath_invalid(OATH_IRON))
-            p_ptr->stat_misc_mod[A_CON]+=2;
-        else if (chosen_oath(OATH_SILENCE) && !oath_invalid(OATH_SILENCE))
-            p_ptr->stat_misc_mod[A_STR]++;
-        else if (chosen_oath(OATH_MERCY) && !oath_invalid(OATH_MERCY))
-            p_ptr->stat_misc_mod[A_GRA]++;
+        oath_type *oath_ptr = &oath_info[oath_idx];
+        
+        /* Check if player has this oath and it's not broken */
+        if (oath_ptr->oath_num >= OATH_MERCY && oath_ptr->oath_num <= OATH_VALOROUS)
+        {
+            int special_ability = -1;
+            
+            /* Map oath number to special ability */
+            switch(oath_ptr->oath_num)
+            {
+                case OATH_IRON: special_ability = SPC_OATH_IRON; break;
+                case OATH_SILENCE: special_ability = SPC_OATH_SILENCE; break;
+                case OATH_MERCY: special_ability = SPC_OATH_MERCY; break;
+                case OATH_SMITH: special_ability = SPC_OATH_SMITH; break;
+                case OATH_VALOROUS: special_ability = SPC_OATH_VALOROUS; break;
+            }
+            
+            /* Apply bonuses if player has oath and it's not broken */
+            if (special_ability >= 0 && 
+                p_ptr->active_ability[S_SPC][special_ability] && 
+                !oath_invalid(oath_ptr->oath_num))
+            {
+                /* Apply stat bonuses */
+                p_ptr->stat_misc_mod[A_STR] += oath_ptr->stat_bonuses[0];
+                p_ptr->stat_misc_mod[A_DEX] += oath_ptr->stat_bonuses[1];
+                p_ptr->stat_misc_mod[A_CON] += oath_ptr->stat_bonuses[2];
+                p_ptr->stat_misc_mod[A_GRA] += oath_ptr->stat_bonuses[3];
+                
+                /* Apply skill bonuses */
+                if (oath_ptr->skill_type > 0 && oath_ptr->skill_type < S_MAX)
+                {
+                    p_ptr->skill_misc_mod[oath_ptr->skill_type] += oath_ptr->skill_bonus;
+                }
+            }
+        }
     }
 
     if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
@@ -2662,6 +2701,79 @@ static void calc_bonuses(void)
         p_ptr->resist_stun += 1;
         p_ptr->resist_hallu += 1;
         p_ptr->hunger -= 1;
+    }
+
+    // Mandos' Doom special ability grants immunity to fear, hallucination,
+    // entrancement, rage, stun and confusion (implemented as high resistance + clear)
+    if (p_ptr->have_ability[S_SPC][SPC_MANDOS]) {
+        p_ptr->resist_fear += 100; // effectively immune
+        p_ptr->resist_hallu += 100;
+        p_ptr->resist_stun += 100;
+        p_ptr->resist_confu += 100; // added confusion immunity
+        log_trace("ABILITY DEBUG: Mandos' Doom active - granting mental immunities (fear+100, hallu+100, stun+100, confu+100). Total resist_confu: %d", p_ptr->resist_confu);
+        // Clear timed effects each turn
+        if (p_ptr->afraid) {
+            (void)set_afraid(0);
+            log_trace("ABILITY DEBUG: Mandos' Doom - cleared fear effect");
+        }
+        if (p_ptr->image) {
+            p_ptr->image = 0;  // No set_image function found
+            p_ptr->redraw |= (PR_MAP);  // Manually trigger redraw for hallucination
+            log_trace("ABILITY DEBUG: Mandos' Doom - cleared hallucination effect");
+        }
+        if (p_ptr->entranced) {
+            (void)set_entranced(0);
+            log_trace("ABILITY DEBUG: Mandos' Doom - cleared entrancement effect");
+        }
+        if (p_ptr->rage) {
+            (void)set_rage(0);
+            log_trace("ABILITY DEBUG: Mandos' Doom - cleared rage effect");
+        }
+        if (p_ptr->stun) {
+            (void)set_stun(0);
+            log_trace("ABILITY DEBUG: Mandos' Doom - cleared stun effect");
+        }
+        if (p_ptr->confused) {
+            (void)set_confused(0);
+            log_trace("ABILITY DEBUG: Mandos' Doom - cleared confusion effect");
+        }
+    } else {
+        log_trace("ABILITY DEBUG: Mandos' Doom NOT active - have_ability[S_SPC][SPC_MANDOS] = %d", p_ptr->have_ability[S_SPC][SPC_MANDOS]);
+    }
+
+    // Helper function to calculate total monsters seen across all races
+    int total_monsters_seen = 0;
+    int total_monsters_killed = 0;
+    int race_idx;
+    for (race_idx = 0; race_idx < z_info->r_max; race_idx++) {
+        monster_race *r_ptr = &r_info[race_idx];
+        monster_lore *l_ptr = &l_list[race_idx];
+        
+        /* Skip non-monsters and unique monsters for mercy calculation */
+        if (!r_ptr->name) continue;
+        if (r_ptr->flags1 & RF1_UNIQUE) continue;
+        
+        total_monsters_seen += l_ptr->psights;
+        total_monsters_killed += l_ptr->pkills;
+    }
+
+    // Niena's Gift of Mercy special ability grants enhanced stealth proportional to mercy shown
+    if (p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY]) {
+        if (total_monsters_seen > 0) {
+            /* Calculate stealth bonus: 10*(seen-killed)/seen, rounded up */
+            int mercy_ratio_times_10 = (10 * (total_monsters_seen - total_monsters_killed));
+            int stealth_bonus = (mercy_ratio_times_10 + total_monsters_seen - 1) / total_monsters_seen; /* Ceiling division */
+            
+            if (stealth_bonus > 0) {
+                p_ptr->skill_misc_mod[S_STL] += stealth_bonus;
+                log_trace("ABILITY DEBUG: Niena's Gift of Mercy active - granting +%d stealth (global: seen=%d, killed=%d, ratio=%.2f)", 
+                         stealth_bonus, total_monsters_seen, total_monsters_killed,
+                         (float)(total_monsters_seen - total_monsters_killed) / total_monsters_seen);
+            } else {
+                log_trace("ABILITY DEBUG: Niena's Gift of Mercy active but no bonus (global: seen=%d, killed=%d)", 
+                         total_monsters_seen, total_monsters_killed);
+            }
+        }
     }
 
     /*** Handle stats ***/
@@ -3236,7 +3348,7 @@ void update_stuff(void)
 
     /* Update stuff */
     if (!p_ptr->update) {
-        log_trace("update_stuff: no updates needed");
+        // log_trace("update_stuff: no updates needed");
         return;
     }
 
@@ -3245,35 +3357,35 @@ void update_stuff(void)
     if (p_ptr->update & (PU_BONUS))
     {
         p_ptr->update &= ~(PU_BONUS);
-        log_trace("update_stuff: calculating bonuses");
+        // log_trace("update_stuff: calculating bonuses");
         calc_bonuses();
     }
 
     if (p_ptr->update & (PU_HP))
     {
         p_ptr->update &= ~(PU_HP);
-        log_trace("update_stuff: calculating hitpoints");
+        // log_trace("update_stuff: calculating hitpoints");
         calc_hitpoints();
     }
 
     if (p_ptr->update & (PU_MANA))
     {
         p_ptr->update &= ~(PU_MANA);
-        log_trace("update_stuff: calculating voice/mana");
+        // log_trace("update_stuff: calculating voice/mana");
         calc_voice();
     }
 
     /* Character is not ready yet, no screen updates */
     if (!character_generated) {
-        log_trace("update_stuff: character not generated yet, skipping screen updates");
+        // log_trace("update_stuff: character not generated yet, skipping screen updates");
         return;
     }
 
-    log_trace("update_stuff: character_icky=%d", character_icky);
+    // log_trace("update_stuff: character_icky=%d", character_icky);
 
     /* Character is in "icky" mode, no screen updates */
     if (character_icky) {
-        log_trace("update_stuff: character in icky mode (value=%d), skipping screen updates", character_icky);
+        // log_trace("update_stuff: character in icky mode (value=%d), skipping screen updates", character_icky);
         return;
     }
 
@@ -3311,7 +3423,12 @@ void update_stuff(void)
         verify_panel();
     }
 
-    log_trace("update_stuff: completed all updates");
+    /* Check quest completion status for metarun tracking */
+    // log_trace("update_stuff: About to call metarun_check_and_update_quests()");
+    metarun_check_and_update_quests();
+    // log_trace("update_stuff: Finished calling metarun_check_and_update_quests()");
+
+    // log_trace("update_stuff: completed all updates");
 }
 
 /*
@@ -3321,22 +3438,22 @@ void redraw_stuff(void)
 {
     /* Redraw stuff */
     if (!p_ptr->redraw) {
-        log_trace("redraw_stuff: no redraws needed");
+        // log_trace("redraw_stuff: no redraws needed");
         return;
     }
 
-    log_trace("redraw_stuff: processing redraws 0x%08X", p_ptr->redraw);
+    // log_trace("redraw_stuff: processing redraws 0x%08X", p_ptr->redraw);
 
     /* Character is not ready yet, no screen updates */
     if (!character_generated)
         return;
 
-    log_trace("redraw_stuff: character_icky=%d, character_generated=%s", 
-              character_icky, character_generated ? "true" : "false");
+    // log_trace("redraw_stuff: character_icky=%d, character_generated=%s", 
+            //   character_icky, character_generated ? "true" : "false");
 
     /* Character is in "icky" mode, no screen updates */
     if (character_icky && !p_ptr->is_dead) {
-        log_trace("redraw_stuff: character in icky mode (value=%d), skipping screen updates", character_icky);
+        // log_trace("redraw_stuff: character in icky mode (value=%d), skipping screen updates", character_icky);
         return;
     }
 
@@ -3515,7 +3632,7 @@ void redraw_stuff(void)
         prt_terrain();
     }
 
-    log_trace("redraw_stuff: completed all redraws");
+    // log_trace("redraw_stuff: completed all redraws");
 }
 
 /*
@@ -3529,7 +3646,7 @@ void window_stuff(void)
 
     /* Nothing to do */
     if (!p_ptr->window) {
-        log_trace("window_stuff: no window updates needed");
+        // log_trace("window_stuff: no window updates needed");
         return;
     }
 
@@ -3602,7 +3719,7 @@ void window_stuff(void)
         fix_monster();
     }
 
-    log_trace("window_stuff: completed all window updates");
+    // log_trace("window_stuff: completed all window updates");
 }
 
 /*

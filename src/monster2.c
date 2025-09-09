@@ -1584,6 +1584,13 @@ void update_mon(int m_idx, bool full)
             /* Mark as visible */
             m_ptr->ml = true;
 
+            /* Track monster visibility for Niena mercy quest */
+            if (p_ptr->niena_quest == NIENA_QUEST_ACTIVE && m_ptr->r_idx != R_IDX_NIENA) {
+                p_ptr->niena_monsters_seen++;
+                log_trace("Niena quest: Monster seen (total seen=%d, killed=%d)", 
+                         p_ptr->niena_monsters_seen, p_ptr->niena_monsters_killed);
+            }
+
             /* Draw the monster */
             lite_spot(fy, fx);
 
@@ -2719,6 +2726,32 @@ static bool place_monster_group(
  * Hack -- help pick an escort type
  */
 static int place_monster_idx = 0;
+
+/*
+ * Check if a quest monster should be allowed to spawn normally
+ * Prevents quest monsters from spawning outside their quest contexts
+ */
+bool quest_monster_spawn_okay(int r_idx)
+{
+    /* Prevent quest monsters from spawning outside their quest contexts */
+    switch (r_idx) {
+        case R_IDX_TULKAS:
+            /* Tulkas only spawns through quest logic */
+            return false;
+        case R_IDX_NIENA:
+            /* Niena only spawns through quest logic at depth 14+ */
+            return false;
+        case R_IDX_AULE:
+            /* Aule only spawns in special vaults/quest contexts */
+            return false;
+        case R_IDX_MANDOS:
+            /* Mandos only spawns in special vaults/quest contexts */
+            return false;
+        default:
+            /* All other monsters can spawn normally */
+            return true;
+    }
+}
 
 /*
  * Hack -- help pick an escort type

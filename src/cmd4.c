@@ -290,8 +290,7 @@ void do_cmd_character_sheet(void)
 
         /* Prompt */
         Term_putstr(1, 23, -1, TERM_SLATE,
-            "notes  story stats  save to file  abilities  curses  increase "
-            "skills  ESC");
+            "notes  story stats  save to file  abilities  curses  increase skills  ESC");
         Term_putstr(1, 23, -1, TERM_L_WHITE, "n");
         Term_putstr(8, 23, -1, TERM_L_WHITE, "s");
         Term_putstr(29, 23, -1, TERM_L_WHITE, "f");
@@ -377,8 +376,8 @@ void do_cmd_character_sheet(void)
 }
 
 #define COL_SKILL 2
-#define COL_ABILITY 17
-#define COL_DESCRIPTION 42
+#define COL_ABILITY 16
+#define COL_DESCRIPTION 41
 
 /* ------------------------------------------------------------------
  * add_random_curse()
@@ -771,11 +770,19 @@ void do_cmd_change_song()
         {
             if (chosen_oath(OATH_SILENCE) && !oath_invalid(OATH_SILENCE))
             {
-                if (get_check("Are you sure you wish to break your oath? "))
+                /* Use oath-specific confirmation prompt */
+                char* prompt = oath_confirmation_prompt(OATH_SILENCE);
+                if (!prompt || !prompt[0]) prompt = "Are you certain you wish to break your Oath of Silence?";
+                
+                if (get_check_oath_multiline(prompt))
                 {
                     log_info("Player broke oath of silence to sing");
-                    msg_print("You break your oath of silence.");
+                    
+                    /* Curse message and selection handled by apply_oath_breaking_curse */
                     do_cmd_note("Broke your oath", p_ptr->depth);
+                    
+                    /* Apply oath breaking consequences */
+                    apply_oath_breaking_curse(OATH_SILENCE);
                 }
                 else
                 {
@@ -905,6 +912,71 @@ int spider_bane_bonus(void)
         return (0);
 }
 
+int unique_bane_bonus(monster_type* m_ptr)
+{
+    int bonus = 0;
+    monster_race* r_ptr;
+
+    // paranoia
+    if (m_ptr == NULL)
+        return (0);
+
+    // entranced players don't get the bonus
+    if (p_ptr->entranced)
+        return (0);
+
+    // knocked out players don't get the bonus
+    if (p_ptr->stun > 100)
+        return (0);
+
+    // Must have the unique bane special ability
+    if (!p_ptr->active_ability[S_SPC][SPC_UNIQUE_BANE])
+        return (0);
+
+    r_ptr = &r_info[m_ptr->r_idx];
+
+    // Check if the monster is unique
+    if (r_ptr->flags1 & RF1_UNIQUE)
+    {
+        // Calculate bonus using the same formula as normal bane
+        int uniques_killed = unique_bane_type_killed();
+        
+        // Use same scaling as bane_bonus_aux: 1, 2, 4, 8, 16, etc.
+        int threshold = 2;
+        bonus = 0;
+        while (threshold <= uniques_killed)
+        {
+            threshold *= 2;
+            bonus++;
+        }
+    }
+
+    return (bonus);
+}
+
+/* Calculate total unique monsters killed for unique bane */
+int unique_bane_type_killed(void)
+{
+    int uniques_killed = 0;
+    int i;
+    
+    // Count all unique monsters that have been killed
+    for (i = 1; i < z_info->r_max; i++) {
+        monster_race* check_r_ptr = &r_info[i];
+        monster_lore* l_ptr = &l_list[i];
+        
+        // Skip if not unique
+        if (!(check_r_ptr->flags1 & RF1_UNIQUE)) continue;
+        
+        // Check if this unique has been killed
+        if (l_ptr->deaths > 0) {
+            uniques_killed++;
+        }
+    }
+    
+    return uniques_killed;
+}
+
 int bane_menu(int* highlight)
 {
     int i, k;
@@ -1028,15 +1100,17 @@ int bane_menu(int* highlight)
     return (0);
 }
 
-#define OATH_TYPES 4
+#define OATH_TYPES 5
 
-static u32b oath_flag[] = { 0L, OATH_MERCY_FLAG, OATH_SILENCE_FLAG, OATH_IRON_FLAG };
+static u32b oath_flag[] = { 0L, OATH_MERCY_FLAG, OATH_SILENCE_FLAG, OATH_IRON_FLAG, OATH_SMITH_FLAG, OATH_VALOROUS_FLAG };
 
 char* oath_name[] = {
     "Nothing",
     "Mercy",
     "Silence",
     "Iron",
+    "Smith",
+    "Valorous Heart",
 };
 
 char* oath_desc1[] = {
@@ -1044,6 +1118,8 @@ char* oath_desc1[] = {
     "to leave Angband without shedding blood of Man or Elf",
     "to leave Angband as you came, grim and silent",
     "that none will daunt you from facing Morgoth forthwith",
+    "to craft all blades and armour by thine own hand",
+    "to face your enemy while it has the heart to fight",
 };
 
 char* oath_desc2[] = {
@@ -1051,6 +1127,8 @@ char* oath_desc2[] = {
     "attack Men or Elves",
     "sing",
     "go up stairs without a Silmaril",
+    "pick up weapons or armour from the ground",
+    "attack or deal damage to enemies that are fleeing in terror",
 };
 
 char* oath_reward[] = {
@@ -1058,6 +1136,8 @@ char* oath_reward[] = {
     "+1 Grace",
     "+1 Strength",
     "+2 Constitution",
+    "+5 Smithing",
+    "+1 Dexterity",
 };
 
 bool oath_invalid(int i) { return ((p_ptr->oaths_broken & oath_flag[i]) > 0); }
@@ -1067,125 +1147,273 @@ bool chosen_oath(int oath)
     return p_ptr->oath_type == oath;
 }
 
+/*
+ * Helper functions to retrieve oath text from oath_info
+ */
+char* oath_confirmation_prompt(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].confirmation_prompt) return "";
+    return oath_name_text + oath_info[oath_id].confirmation_prompt;
+}
+
+char* oath_curse_message(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].curse_message) return "";
+    return oath_name_text + oath_info[oath_id].curse_message;
+}
+
+char* oath_permanent_message(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].permanent_message) return "";
+    return oath_name_text + oath_info[oath_id].permanent_message;
+}
+
+char* oath_death_message(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].death_message) return "";
+    return oath_name_text + oath_info[oath_id].death_message;
+}
+
+char* oath_banned_text(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].banned_text) return "";
+    return oath_desc_text + oath_info[oath_id].banned_text;
+}
+
+char* oath_name_str(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].name) return "";
+    return oath_name_text + oath_info[oath_id].name;
+}
+
+char* oath_description(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].text) return "";
+    return oath_desc_text + oath_info[oath_id].text;
+}
+
+char* oath_pledge(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].pledge_text) return "";
+    return oath_name_text + oath_info[oath_id].pledge_text;
+}
+
+char* oath_forbidden(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].forbidden_text) return "";
+    return oath_name_text + oath_info[oath_id].forbidden_text;
+}
+
+char* oath_reward_text(int oath_id)
+{
+    if (oath_id < 0 || oath_id >= z_info->oath_max) return "";
+    if (!oath_info[oath_id].reward_text) return "";
+    return oath_name_text + oath_info[oath_id].reward_text;
+}
+
 int oath_menu(int* highlight)
 {
-    int i;
-    int ch;
-    int options;
-
-    char buf[120];
-
+    int i, ch;
+    int visible_count = 0;
+    /* Support up to 16 oaths without realloc; actual used = z_info->oath_max */
+    int visible_oaths[16]; // Map display letters to oath indices
+    char buf[80];
     byte attr;
+    
+    /* Tolkien-themed descriptions for better immersion */
+    char* oath_tolkien_desc[] = {
+        "",
+        "\"Let no blood of the Children stain thy blade in these halls of sorrow\"",
+        "\"In silence came I, and in silence shall I depart, as befits the wise\"", 
+        "\"Though darkness gather and Balrogs rise, I shall not yield nor turn aside\"",
+        "\"By mine own hand shall all blades be wrought, and no other's craft shall I bear\""
+    };
 
-    Term_putstr(COL_DESCRIPTION, 2, -1, TERM_WHITE, "Oath");
+    // Clear the abilities and description area (following abilities_menu2 pattern)
+    wipe_screen_from(COL_ABILITY);
 
-    // clear the description area
-    wipe_screen_from(COL_DESCRIPTION);
+    // Title in the abilities column
+    Term_putstr(COL_ABILITY, 2, -1, TERM_WHITE, "Oaths");
 
-    // list the oaths
-    for (i = 1; i < OATH_TYPES; i++)
+    // Build visible oaths list and display them (1..z_info->oath_max-1)
+    for (i = 1; z_info && i < z_info->oath_max; i++)
     {
-        if (!oath_invalid(i))
+        // Map this visible oath to its position  
+        visible_oaths[visible_count] = i;
+        
+        // Determine display color based on oath status
+        if (oath_invalid(i))
         {
-            attr = TERM_SLATE;
+            attr = TERM_L_RED; // Broken oaths in red
         }
         else
         {
-            attr = TERM_L_DARK;
+            attr = (*highlight == visible_count + 1) ? TERM_L_BLUE : TERM_WHITE;
         }
-
-        strnfmt(buf, 120, "%c) %s", (char)'a' + i - 1, oath_name[i]);
-        Term_putstr(COL_DESCRIPTION, i + 3, -1, attr, buf);
-
-        if (*highlight == i)
+        
+        // Format oath name with status indicator
+        if (oath_invalid(i))
         {
-            // highlight the label
-            strnfmt(buf, 120, "%c)", (char)'a' + i - 1);
-            Term_putstr(COL_DESCRIPTION, i + 3, -1, TERM_L_BLUE, buf);
+            strnfmt(buf, 80, "%c) %s", (char)'a' + visible_count, oath_name[i]);
+        }
+        else
+        {
+            strnfmt(buf, 80, "%c) %s", (char)'a' + visible_count, oath_name[i]);
+        }
+        
+        // Display in abilities column with proper spacing
+        Term_putstr(COL_ABILITY, 4 + visible_count, -1, attr, buf);
+        visible_count++;
+    }
 
-            /* Indent output by 2 character, and wrap at column 70 */
-            text_out_wrap = 79;
-            text_out_indent = COL_DESCRIPTION;
-
-            Term_gotoxy(text_out_indent, OATH_TYPES + 4);
-
-            if (oath_invalid(i))
+    // Display detailed description for highlighted oath in description column
+    if (*highlight >= 1 && *highlight <= visible_count)
+    {
+        int oath_idx = visible_oaths[*highlight - 1];
+        
+        // Clear description area first
+        wipe_screen_from(COL_DESCRIPTION);
+        
+        // Oath title
+        Term_putstr(COL_DESCRIPTION, 2, -1, TERM_WHITE, "Oath Details");
+        
+        if (oath_invalid(oath_idx))
+        {
+            // Menacing text for broken oaths
+            Term_putstr(COL_DESCRIPTION, 4, -1, TERM_L_RED, "OATH BROKEN");
+            Term_putstr(COL_DESCRIPTION, 6, -1, TERM_RED, "\"Thy oath lies shattered,");
+            Term_putstr(COL_DESCRIPTION, 7, -1, TERM_RED, " thy word worthless as dust.\"");
+            Term_putstr(COL_DESCRIPTION, 9, -1, TERM_L_RED, "\"No Valar shall hear thy voice,");
+            Term_putstr(COL_DESCRIPTION, 10, -1, TERM_L_RED, " no light shall guide thy path.\"");
+            Term_putstr(COL_DESCRIPTION, 12, -1, TERM_RED, "Forever marked as oathbreaker");
+            Term_putstr(COL_DESCRIPTION, 13, -1, TERM_RED, "in this age.");
+        }
+        else
+        {
+            // Tolkien-themed quote
+            Term_putstr(COL_DESCRIPTION, 4, -1, TERM_YELLOW, "Quote:");
+            // Split long quotes across multiple lines
+            char* quote = oath_tolkien_desc[oath_idx];
+            if (strlen(quote) > 35) // Description column width is ~38 chars
             {
-                strnfmt(buf, 120, "It is too late to vow %s.",
-                    oath_desc1[i]);
-                text_out_to_screen(attr, buf);
+                char line1[40], line2[40];
+                int split_pos = 35;
+                // Find good split point (space or punctuation)
+                while (split_pos > 20 && quote[split_pos] != ' ' && quote[split_pos] != ',' && quote[split_pos] != ';')
+                    split_pos--;
+                
+                strncpy(line1, quote, split_pos);
+                line1[split_pos] = '\0';
+                strcpy(line2, quote + split_pos + (quote[split_pos] == ' ' ? 1 : 0));
+                
+                Term_putstr(COL_DESCRIPTION, 5, -1, TERM_SLATE, line1);
+                Term_putstr(COL_DESCRIPTION, 6, -1, TERM_SLATE, line2);
             }
             else
             {
-                strnfmt(buf, 120, "You vow %s.\n\n",
-                    oath_desc1[i]);
-                text_out_to_screen(attr, buf);
-                strnfmt(buf, 120, "You may not %s.\n", oath_desc2[i]);
-                text_out_to_screen(attr, buf);
-                strnfmt(buf, 120, "As long as you keep this oath, gain %s.\n\n",
-                    oath_reward[i]);
-                text_out_to_screen(attr, buf);
+                Term_putstr(COL_DESCRIPTION, 5, -1, TERM_SLATE, quote);
             }
-
-            /* Reset text_out() vars */
-            text_out_wrap = 0;
-            text_out_indent = 0;
+            
+            // Oath vow
+            Term_putstr(COL_DESCRIPTION, 8, -1, TERM_WHITE, "Vow:");
+            // Wrap long vows
+            if (strlen(oath_desc1[oath_idx]) > 30)
+            {
+                char vow_line1[35], vow_line2[35];
+                int vow_split = 30;
+                while (vow_split > 15 && oath_desc1[oath_idx][vow_split] != ' ')
+                    vow_split--;
+                
+                strncpy(vow_line1, oath_desc1[oath_idx], vow_split);
+                vow_line1[vow_split] = '\0';
+                strcpy(vow_line2, oath_desc1[oath_idx] + vow_split + 1);
+                
+                Term_putstr(COL_DESCRIPTION, 9, -1, TERM_SLATE, vow_line1);
+                Term_putstr(COL_DESCRIPTION, 10, -1, TERM_SLATE, vow_line2);
+            }
+            else
+            {
+                Term_putstr(COL_DESCRIPTION, 9, -1, TERM_SLATE, oath_desc1[oath_idx]);
+            }
+            
+            // Restriction
+            Term_putstr(COL_DESCRIPTION, 12, -1, TERM_L_RED, "Restriction:");
+            Term_putstr(COL_DESCRIPTION, 13, -1, TERM_L_RED, oath_desc2[oath_idx]);
+            
+            // Reward
+            Term_putstr(COL_DESCRIPTION, 15, -1, TERM_L_GREEN, "Reward:");
+            Term_putstr(COL_DESCRIPTION, 16, -1, TERM_L_GREEN, oath_reward[oath_idx]);
         }
-
-        // keep track of the number of options
-        options = i;
+        
+        // Navigation instructions at bottom
+        Term_putstr(COL_DESCRIPTION, 22, -1, TERM_SLATE, "2/8 - Navigate");
+        Term_putstr(COL_DESCRIPTION, 23, -1, TERM_SLATE, "Enter - Select  ESC - Back");
     }
+
+    // Ensure highlight is within valid range
+    if (*highlight < 1) *highlight = 1;
+    if (*highlight > visible_count) *highlight = visible_count;
 
     /* Flush the prompt */
     Term_fresh();
-
-    /* Place cursor at current choice */
-    Term_gotoxy(COL_DESCRIPTION, 3 + *highlight);
 
     /* Get key (while allowing menu commands) */
     hide_cursor = true;
     ch = inkey();
     hide_cursor = false;
 
-    if ((ch >= 'a') && (ch <= (char)'a' + options - 1))
+    /* Handle letter selection (a-z) for immediate highlighting */
+    if ((ch >= 'a') && (ch < 'a' + visible_count))
     {
         *highlight = (int)ch - 'a' + 1;
-
-        oath_menu(highlight);
-
-        return (*highlight);
+        return oath_menu(highlight); // Recursive call to update display
     }
 
-    if ((ch >= 'A') && (ch <= (char)'A' + options - 1))
+    /* Handle capital letter selection (A-Z) for immediate selection */
+    if ((ch >= 'A') && (ch < 'A' + visible_count))
     {
         *highlight = (int)ch - 'A' + 1;
-        return (*highlight);
+        return visible_oaths[*highlight - 1]; // Return actual oath index
     }
 
+    /* ESC or 'q' - exit menu */
     if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
     {
-        return (OATH_TYPES + 1);
+        /* Return a sentinel that's outside valid oath indices */
+        return (z_info ? z_info->oath_max + 1 : OATH_TYPES + 1);
     }
 
-    /* Choose current  */
+    /* Enter or Space - select current highlighted oath */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
-        return (*highlight);
+        return visible_oaths[*highlight - 1]; // Return actual oath index
     }
 
-    /* Prev item */
+    /* Navigation: Up (8) */
     if (ch == '8')
     {
-        *highlight = (*highlight + (options - 2)) % options + 1;
+        (*highlight)--;
+        if (*highlight < 1) *highlight = visible_count;
     }
 
-    /* Next item */
+    /* Navigation: Down (2) */
     if (ch == '2')
     {
-        *highlight = *highlight % options + 1;
+    (*highlight)++;
+        if (*highlight > visible_count) *highlight = 1;
     }
 
-    return (0);
+    /* Recursive call to continue menu interaction */
+    return oath_menu(highlight);
 }
 
 int abilities_menu1(int* highlight)
@@ -1193,6 +1421,40 @@ int abilities_menu1(int* highlight)
     int i;
     int ch;
     int options = S_MAX;
+    bool show_special = false;
+
+    // Determine if any special abilities are present (owned or active)
+    log_trace("Special abilities detection: Starting loop, ABILITIES_MAX=%d", ABILITIES_MAX);
+    for (i = 0; i < ABILITIES_MAX; i++) {
+        log_trace("Special abilities detection: checking slot %d, have_ability[S_SPC][%d]=%d", 
+                 i, i, p_ptr->have_ability[S_SPC][i]);
+        if (p_ptr->have_ability[S_SPC][i]) { 
+            log_trace("Special abilities check: have_ability[S_SPC][%d]=%d - FOUND!", i, p_ptr->have_ability[S_SPC][i]);
+            show_special = true; 
+            break; 
+        }
+    }
+    
+    // Debug: Always show special menu and log specific unique bane status
+    log_trace("DEBUG: Unique Bane status - have=%d, active=%d", 
+             p_ptr->have_ability[S_SPC][SPC_UNIQUE_BANE], 
+             p_ptr->active_ability[S_SPC][SPC_UNIQUE_BANE]);
+    if (p_ptr->have_ability[S_SPC][SPC_UNIQUE_BANE]) {
+        show_special = true;
+        log_trace("DEBUG: Forcing show_special=true due to Unique Bane");
+    }
+    
+    // Additional debug: log ALL special abilities
+    for (i = 0; i < ABILITIES_MAX; i++) {
+        if (p_ptr->have_ability[S_SPC][i]) {
+            log_trace("DEBUG: Special ability %d is ACTIVE (have=%d, active=%d)", 
+                     i, p_ptr->have_ability[S_SPC][i], p_ptr->active_ability[S_SPC][i]);
+        }
+    }
+    log_trace("Special abilities menu: show_special=%s, options=%d", show_special ? "true" : "false", options);
+    if (!show_special) {
+        options = S_MAX - 1; // hide Special category
+    }
 
     char buf[80];
 
@@ -1227,7 +1489,7 @@ int abilities_menu1(int* highlight)
         *highlight = (int)ch - 'a' + 1;
 
         // relist the skills
-        for (i = 0; i < options; i++)
+    for (i = 0; i < options; i++)
         {
             strnfmt(buf, 80, "%c) %s", (char)'a' + i, skill_names_full[i]);
 
@@ -1243,7 +1505,7 @@ int abilities_menu1(int* highlight)
         *highlight = (int)ch - 'A' + 1;
 
         // relist the skills
-        for (i = 0; i < options; i++)
+    for (i = 0; i < options; i++)
         {
             strnfmt(buf, 80, "%c) %s", (char)'a' + i, skill_names_full[i]);
 
@@ -1256,7 +1518,7 @@ int abilities_menu1(int* highlight)
 
     if ((ch == ESCAPE) || (ch == 'q') || (ch == '\t'))
     {
-        return (options + 1);
+        return (S_MAX + 1);  // Always return S_MAX + 1 to exit, regardless of options
     }
 
     /* Choose current  */
@@ -1287,17 +1549,87 @@ int abilities_menu2(int skilltype, int* highlight)
     ability_type* b_ptr;
 
     int ch;
-    int options = 0; // a default value to soothe compilation warnings
+    int visible_count = 0; // Count of actually visible abilities
+    int visible_abilities[ABILITIES_MAX]; // Map display letters to ability numbers
 
     char buf[80];
 
     byte attr;
+
+    log_trace("ABILITIES_MENU2: Entering function with skilltype=%d, highlight=%d", skilltype, *highlight);
+    log_trace("ABILITIES_MENU2: Special abilities debug - skilltype=%d, S_SPC=%d", skilltype, S_SPC);
 
     // clear the abilities and description area
     wipe_screen_from(COL_ABILITY);
 
     // abilities title
     Term_putstr(COL_ABILITY, 2, -1, TERM_WHITE, "Abilities");
+
+    // Add display counter for compact menu layout (avoids gaps from filtered abilities)
+    int display_counter = 0;
+    
+    // For special abilities, we may need to adjust highlight to first visible ability
+    int first_visible_ability = -1;
+
+    log_trace("ABILITIES_MENU2: Starting ability loop, z_info->b_max=%d", z_info->b_max);
+
+    /* Pre-scan for Special abilities to adjust highlight before display */
+    if (skilltype == S_SPC)
+    {
+        int temp_visible_count = 0;
+        int temp_first_visible = -1;
+        
+        for (i = 0; i < z_info->b_max; i++)
+        {
+            b_ptr = &b_info[i];
+            if (!b_ptr->name || b_ptr->skilltype != skilltype) continue;
+            
+            if (p_ptr->have_ability[skilltype][b_ptr->abilitynum])
+            {
+                if (temp_first_visible == -1)
+                {
+                    temp_first_visible = b_ptr->abilitynum;
+                    log_trace("ABILITIES_MENU2: Pre-scan found first_visible_ability=%d", temp_first_visible);
+                }
+                temp_visible_count++;
+            }
+        }
+        
+        /* Adjust highlight before display if needed */
+        if (temp_visible_count > 0 && temp_first_visible != -1)
+        {
+            log_trace("ABILITIES_MENU2: Pre-display highlight check - current highlight=%d (ability %d)", 
+                     *highlight, *highlight - 1);
+            
+            /* Check if current highlight corresponds to a visible ability */
+            int current_ability_num = *highlight - 1; /* Convert 1-based to 0-based */
+            bool highlight_is_visible = false;
+            
+            for (i = 0; i < z_info->b_max; i++)
+            {
+                b_ptr = &b_info[i];
+                if (!b_ptr->name || b_ptr->skilltype != skilltype) continue;
+                
+                if (b_ptr->abilitynum == current_ability_num && p_ptr->have_ability[skilltype][b_ptr->abilitynum])
+                {
+                    highlight_is_visible = true;
+                    break;
+                }
+            }
+            
+            if (!highlight_is_visible)
+            {
+                int old_highlight = *highlight;
+                *highlight = temp_first_visible + 1; /* Convert back to 1-based */
+                log_trace("ABILITIES_MENU2: PRE-DISPLAY adjusted highlight from %d to %d (first visible ability %d)", 
+                         old_highlight, *highlight, temp_first_visible);
+            }
+            else
+            {
+                log_trace("ABILITIES_MENU2: Pre-display highlight is already visible, no adjustment needed");
+            }
+        }
+    }
 
     // list the abilities
     for (i = 0; i < z_info->b_max; i++)
@@ -1312,76 +1644,204 @@ int abilities_menu2(int skilltype, int* highlight)
         if (b_ptr->skilltype != skilltype)
             continue;
 
-        // Determine the appropriate colour
-        if (p_ptr->have_ability[skilltype][b_ptr->abilitynum])
+        /* For special abilities, only show granted abilities */
+        if (skilltype == S_SPC && !p_ptr->have_ability[skilltype][b_ptr->abilitynum])
         {
+            log_trace("ABILITIES_MENU2: Skipping non-granted Special ability %d (%s)", 
+                     b_ptr->abilitynum, b_name + b_ptr->name);
+            continue;
+        }
+        
+        if (skilltype == S_SPC) {
+            log_trace("ABILITIES_MENU2: Found granted Special ability %d (%s)", 
+                     b_ptr->abilitynum, b_name + b_ptr->name);
+        }
+
+        /* Hide deprecated WIL_OATH ability from menu (now handled at birth) */
+        if (skilltype == S_WIL && b_ptr->abilitynum == WIL_OATH)
+            continue;
+
+        log_trace("ABILITIES_MENU2: Processing ability %d (skilltype=%d, abilitynum=%d), visible_count=%d", 
+                 i, b_ptr->skilltype, b_ptr->abilitynum, visible_count);
+
+        // Safety check for ability number bounds
+        if (b_ptr->abilitynum >= ABILITIES_MAX) {
+            log_trace("ABILITIES_MENU2: ERROR - abilitynum (%d) >= ABILITIES_MAX (%d), skipping ability %d", 
+                     b_ptr->abilitynum, ABILITIES_MAX, i);
+            continue;
+        }
+
+        // Safety check for array bounds
+        if (visible_count >= ABILITIES_MAX) {
+            log_trace("ABILITIES_MENU2: WARNING - visible_count (%d) reached ABILITIES_MAX (%d), breaking loop", 
+                     visible_count, ABILITIES_MAX);
+            break;
+        }
+
+        // Map this visible ability to its position
+        visible_abilities[visible_count] = b_ptr->abilitynum;
+        
+        // Track first visible ability for highlight adjustment
+        if (first_visible_ability == -1) {
+            first_visible_ability = b_ptr->abilitynum;
+            log_trace("ABILITIES_MENU2: Set first_visible_ability=%d (%s)", 
+                     first_visible_ability, b_name + b_ptr->name);
+        }
+
+        log_trace("ABILITIES_MENU2: Added visible ability[%d] = %d (%s)", 
+                 visible_count, b_ptr->abilitynum, b_name + b_ptr->name);
+
+        log_trace("ABILITIES_MENU2: About to check have_ability[%d][%d]", skilltype, b_ptr->abilitynum);
+
+        // Determine the appropriate colour
+    if (p_ptr->have_ability[skilltype][b_ptr->abilitynum])
+        {
+            log_trace("ABILITIES_MENU2: have_ability=true, checking innate_ability[%d][%d]", skilltype, b_ptr->abilitynum);
+            /* Debug oath checking values */
+            if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON || b_ptr->abilitynum == SPC_OATH_SMITH || b_ptr->abilitynum == SPC_OATH_VALOROUS)) {
+                log_trace("OATH DEBUG: %s (%d) - have=%d, innate=%d, active=%d", 
+                         (b_name + b_ptr->name), b_ptr->abilitynum,
+                         p_ptr->have_ability[skilltype][b_ptr->abilitynum],
+                         p_ptr->innate_ability[skilltype][b_ptr->abilitynum],
+                         p_ptr->active_ability[skilltype][b_ptr->abilitynum]);
+            }
             if (p_ptr->innate_ability[skilltype][b_ptr->abilitynum])
             {
+                log_trace("ABILITIES_MENU2: innate_ability=true, checking active_ability[%d][%d]", skilltype, b_ptr->abilitynum);
                 if (p_ptr->active_ability[skilltype][b_ptr->abilitynum])
                 {
+                    log_trace("ABILITIES_MENU2: active_ability=true, setting WHITE");
                     attr = TERM_WHITE;
+                    /* Debug oath display */
+                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON || b_ptr->abilitynum == SPC_OATH_SMITH || b_ptr->abilitynum == SPC_OATH_VALOROUS)) {
+                        log_trace("OATH DISPLAY: %s (%d) - WHITE (innate + active)", (b_name + b_ptr->name), b_ptr->abilitynum);
+                    }
                 }
                 else
                 {
+                    log_trace("ABILITIES_MENU2: active_ability=false, setting RED");
                     attr = TERM_RED;
+                    /* Debug oath display */
+                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON || b_ptr->abilitynum == SPC_OATH_SMITH || b_ptr->abilitynum == SPC_OATH_VALOROUS)) {
+                        log_trace("OATH DISPLAY: %s (%d) - RED (innate but NOT active)", (b_name + b_ptr->name), b_ptr->abilitynum);
+                    }
                 }
             }
             else
             {
+                log_trace("ABILITIES_MENU2: innate_ability=false, checking active_ability[%d][%d]", skilltype, b_ptr->abilitynum);
                 if (p_ptr->active_ability[skilltype][b_ptr->abilitynum])
                 {
+                    log_trace("ABILITIES_MENU2: active_ability=true, setting L_GREEN");
                     attr = TERM_L_GREEN;
+                    /* Debug oath display */
+                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON || b_ptr->abilitynum == SPC_OATH_SMITH || b_ptr->abilitynum == SPC_OATH_VALOROUS)) {
+                        log_trace("OATH DISPLAY: %s (%d) - GREEN (learned + active)", (b_name + b_ptr->name), b_ptr->abilitynum);
+                    }
                 }
                 else
                 {
+                    log_trace("ABILITIES_MENU2: active_ability=false, setting RED");
                     attr = TERM_RED;
+                    /* Debug oath display */
+                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON || b_ptr->abilitynum == SPC_OATH_SMITH || b_ptr->abilitynum == SPC_OATH_VALOROUS)) {
+                        log_trace("OATH DISPLAY: %s (%d) - RED (learned but NOT active)", (b_name + b_ptr->name), b_ptr->abilitynum);
+                    }
                 }
             }
         }
         else
         {
+            log_trace("ABILITIES_MENU2: have_ability=false, checking prereqs");
             if (prereqs(skilltype, b_ptr->abilitynum))
                 attr = TERM_SLATE;
             else
                 attr = TERM_L_DARK;
         }
 
+        log_trace("ABILITIES_MENU2: Color determination complete, attr=%d", attr);
+
         if ((skilltype == S_PER) && (b_ptr->abilitynum == PER_BANE)
             && (p_ptr->bane_type > 0))
         {
-            strnfmt(buf, 80, "%c) %s-%s", (char)'a' + b_ptr->abilitynum,
+            strnfmt(buf, 80, "%c) %s-%s", (char)'a' + visible_count,
                 bane_name[p_ptr->bane_type], (b_name + b_ptr->name));
         }
         else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH)
             && (p_ptr->oath_type > 0))
         {
-            strnfmt(buf, 80, "%c) %s: %s", (char)'a' + b_ptr->abilitynum,
+            strnfmt(buf, 80, "%c) %s: %s", (char)'a' + visible_count,
                 (b_name + b_ptr->name), oath_name[p_ptr->oath_type]);
         }
         else
         {
-            strnfmt(buf, 80, "%c) %s", (char)'a' + b_ptr->abilitynum,
+            strnfmt(buf, 80, "%c) %s", (char)'a' + visible_count,
                 (b_name + b_ptr->name));
         }
-        Term_putstr(COL_ABILITY, b_ptr->abilitynum + 4, -1, attr, buf);
+        
+        /* Calculate display row using sequential counter (avoids gaps from filtered abilities) */
+        int display_row = display_counter + 4;
+        
+        Term_putstr(COL_ABILITY, display_row, -1, attr, buf);
+
+        log_trace("ABILITIES_MENU2: Displayed ability %d (%s) at row %d, checking highlight match: %d == %d+1?", 
+                 b_ptr->abilitynum, b_name + b_ptr->name, display_row, *highlight, b_ptr->abilitynum);
 
         if (*highlight == b_ptr->abilitynum + 1)
         {
+            log_trace("ABILITIES_MENU2: HIGHLIGHTING MATCH! highlight=%d matches ability %d+1", 
+                     *highlight, b_ptr->abilitynum);
             // highlight the label
-            strnfmt(buf, 80, "%c)", (char)'a' + b_ptr->abilitynum);
+            strnfmt(buf, 80, "%c)", (char)'a' + visible_count);
             Term_putstr(
-                COL_ABILITY, b_ptr->abilitynum + 4, -1, TERM_L_BLUE, buf);
+                COL_ABILITY, display_row, -1, TERM_L_BLUE, buf);
 
             // print the description of the highlighted ability
             if (b_ptr->text >= 0)
             {
+                /* Check if this is a broken oath ability and use Q: text instead */
+                char* description_text = NULL;
+                bool use_death_message = false;
+                
+                if (skilltype == S_SPC && 
+                    (b_ptr->abilitynum == SPC_OATH_MERCY || 
+                     b_ptr->abilitynum == SPC_OATH_SILENCE || 
+                     b_ptr->abilitynum == SPC_OATH_IRON ||
+                     b_ptr->abilitynum == SPC_OATH_SMITH ||
+                     b_ptr->abilitynum == SPC_OATH_VALOROUS))
+                {
+                    /* Check if this oath is broken */
+                    int oath_id = 0;
+                    if (b_ptr->abilitynum == SPC_OATH_MERCY) oath_id = OATH_MERCY;
+                    else if (b_ptr->abilitynum == SPC_OATH_SILENCE) oath_id = OATH_SILENCE;
+                    else if (b_ptr->abilitynum == SPC_OATH_IRON) oath_id = OATH_IRON;
+                    else if (b_ptr->abilitynum == SPC_OATH_SMITH) oath_id = OATH_SMITH;
+                    else if (b_ptr->abilitynum == SPC_OATH_VALOROUS) oath_id = OATH_VALOROUS;
+                    
+                    if (oath_id > 0 && oath_invalid(oath_id))
+                    {
+                        description_text = oath_death_message(oath_id);
+                        use_death_message = true;
+                    }
+                }
+                
                 /* Indent output by 2 character, and wrap at column 70 */
                 text_out_wrap = 79;
                 text_out_indent = COL_DESCRIPTION;
 
                 /* History */
                 Term_gotoxy(text_out_indent, 4);
-                text_out_to_screen(TERM_L_WHITE, b_text + b_ptr->text);
+                
+                if (use_death_message && description_text && description_text[0])
+                {
+                    /* Display Q: text in red for broken oaths */
+                    text_out_to_screen(TERM_RED, description_text);
+                }
+                else
+                {
+                    /* Normal ability description */
+                    text_out_to_screen(TERM_L_WHITE, b_text + b_ptr->text);
+                }
 
                 /* Reset text_out() vars */
                 text_out_wrap = 0;
@@ -1455,7 +1915,11 @@ int abilities_menu2(int skilltype, int* highlight)
                     Term_putstr(COL_DESCRIPTION + 2, 13, -1, TERM_GREEN, buf);
                 }
 
-                if (prereqs(skilltype, b_ptr->abilitynum))
+                if (skilltype == S_SPC)
+                {
+                    // Special abilities cannot be purchased; show as granted only
+                }
+                else if (prereqs(skilltype, b_ptr->abilitynum))
                 {
                     // Normalize flag check to 0 or 1
                     int is_free = (c_info[p_ptr->phouse].flags & RHF_FREE) ? 1 : 0;
@@ -1528,11 +1992,58 @@ int abilities_menu2(int skilltype, int* highlight)
                     Term_putstr(COL_DESCRIPTION, 14, -1, TERM_WHITE,
                         format("Bonus: %s.", oath_reward[p_ptr->oath_type]));
             }
+            // if you have the unique bane special ability
+            else if ((skilltype == S_SPC) && (b_ptr->abilitynum == SPC_UNIQUE_BANE))
+            {
+                int uniques_killed = unique_bane_type_killed();
+                int current_bonus = 0;
+                int next_threshold = 2;
+                
+                // Calculate current bonus using same formula as bane
+                int threshold = 2;
+                while (threshold <= uniques_killed)
+                {
+                    threshold *= 2;
+                    current_bonus++;
+                }
+                
+                // Calculate next threshold
+                if (current_bonus == 0) {
+                    next_threshold = 2;
+                } else {
+                    next_threshold = threshold;  // This is the next power of 2
+                }
+                
+                Term_putstr(COL_DESCRIPTION, 10, -1, TERM_WHITE, "Unique Bane:");
+                Term_putstr(COL_DESCRIPTION, 12, -1, TERM_WHITE,
+                    format("  %d uniques slain, giving a %+d bonus", 
+                           uniques_killed, current_bonus));
+                           
+                if (current_bonus == 0 && uniques_killed < 2) {
+                    Term_putstr(COL_DESCRIPTION, 13, -1, TERM_SLATE,
+                        format("  (next bonus at %d uniques)", next_threshold));
+                } else if (next_threshold <= 64) {  // Don't show if threshold is too high
+                    Term_putstr(COL_DESCRIPTION, 13, -1, TERM_SLATE,
+                        format("  (next bonus at %d uniques)", next_threshold));
+                }
+            }
         }
 
-        // keep track of the number of options
-        options = b_ptr->abilitynum + 1;
+        // increment display counter and visible count for next ability
+        display_counter++;
+        visible_count++;
     }
+
+    /* Safety check: if no abilities are visible, show message and exit */
+    if (visible_count == 0) {
+        log_trace("ABILITIES_MENU2: No abilities visible for skilltype %d, returning to skills menu", skilltype);
+        Term_putstr(COL_ABILITY, 4, -1, TERM_L_DARK, "No abilities available for this skill.");
+        Term_fresh();
+        inkey(); /* Wait for keypress */
+        return (ABILITIES_MAX + 1); /* Return to skills menu */
+    }
+
+    log_trace("ABILITIES_MENU2: Ability loop complete, visible_count=%d", visible_count);
 
     /* Flush the prompt */
     Term_fresh();
@@ -1540,53 +2051,133 @@ int abilities_menu2(int skilltype, int* highlight)
     /* Place cursor at current choice */
     Term_gotoxy(COL_ABILITY, 3 + *highlight);
 
+    log_trace("ABILITIES_MENU2: About to call inkey()");
+
     /* Get key (while allowing menu commands) */
     hide_cursor = true;
     ch = inkey();
     hide_cursor = false;
 
-    if ((ch >= 'a') && (ch <= (char)'a' + options - 1))
-    {
-        *highlight = (int)ch - 'a' + 1;
+    log_trace("ABILITIES_MENU2: Got input key: '%c' (0x%02x)", ch, ch);
 
-        return abilities_menu2(skilltype, highlight);
+    if ((ch >= 'a') && (ch <= (char)'a' + visible_count - 1))
+    {
+        int selected_index = (int)ch - 'a';
+        log_trace("ABILITIES_MENU2: Letter selection 'a'+%d, selected_index=%d, visible_count=%d", 
+                 selected_index, selected_index, visible_count);
+        /* Bounds check for safety */
+        if (selected_index >= 0 && selected_index < visible_count) {
+            *highlight = visible_abilities[selected_index] + 1;
+            log_trace("ABILITIES_MENU2: Valid selection, new highlight=%d, recursing", *highlight);
+            return abilities_menu2(skilltype, highlight);
+        } else {
+            log_trace("ABILITIES_MENU2: Invalid letter selection bounds");
+        }
     }
 
-    if ((ch >= 'A') && (ch <= (char)'A' + options - 1))
+    if ((ch >= 'A') && (ch <= (char)'A' + visible_count - 1))
     {
-        *highlight = (int)ch - 'A' + 1;
-
-        return abilities_menu2(skilltype, highlight);
+        int selected_index = (int)ch - 'A';
+        log_trace("ABILITIES_MENU2: Capital letter selection 'A'+%d, selected_index=%d, visible_count=%d", 
+                 selected_index, selected_index, visible_count);
+        /* Bounds check for safety */
+        if (selected_index >= 0 && selected_index < visible_count) {
+            *highlight = visible_abilities[selected_index] + 1;
+            log_trace("ABILITIES_MENU2: Valid capital selection, new highlight=%d, recursing", *highlight);
+            return abilities_menu2(skilltype, highlight);
+        } else {
+            log_trace("ABILITIES_MENU2: Invalid capital letter selection bounds");
+        }
     }
 
     if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
     {
+        log_trace("ABILITIES_MENU2: Escape key pressed, returning to skills menu");
         return (ABILITIES_MAX + 1);
     }
 
     if (ch == '\t')
     {
+        log_trace("ABILITIES_MENU2: Tab key pressed, returning with special code");
         return (ABILITIES_MAX + 2);
     }
 
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
+        log_trace("ABILITIES_MENU2: Enter/space pressed, returning highlight=%d", *highlight);
         return (*highlight);
     }
 
     /* Prev item */
     if (ch == '8')
     {
-        *highlight = (*highlight + (options - 2)) % options + 1;
+        log_trace("ABILITIES_MENU2: Up arrow pressed, visible_count=%d", visible_count);
+        /* Only navigate if there are visible abilities */
+        if (visible_count > 0) {
+            /* Find current visible index */
+            int current_visible_index = -1;
+            for (int i = 0; i < visible_count; i++) {
+                if (visible_abilities[i] + 1 == *highlight) {
+                    current_visible_index = i;
+                    break;
+                }
+            }
+            
+            log_trace("ABILITIES_MENU2: Up navigation - current_visible_index=%d", current_visible_index);
+            
+            /* Move to previous visible ability */
+            if (current_visible_index > 0) {
+                *highlight = visible_abilities[current_visible_index - 1] + 1;
+                log_trace("ABILITIES_MENU2: Up - moved to previous: highlight=%d", *highlight);
+            } else if (current_visible_index == 0) {
+                *highlight = visible_abilities[visible_count - 1] + 1;
+                log_trace("ABILITIES_MENU2: Up - wrapped to last: highlight=%d", *highlight);
+            } else {
+                /* Fallback if not found - go to first visible */
+                *highlight = visible_abilities[0] + 1;
+                log_trace("ABILITIES_MENU2: Up - fallback to first: highlight=%d", *highlight);
+            }
+        } else {
+            log_trace("ABILITIES_MENU2: Up navigation skipped - no visible abilities");
+        }
     }
 
     /* Next item */
     if (ch == '2')
     {
-        *highlight = *highlight % options + 1;
+        log_trace("ABILITIES_MENU2: Down arrow pressed, visible_count=%d", visible_count);
+        /* Only navigate if there are visible abilities */
+        if (visible_count > 0) {
+            /* Find current visible index */
+            int current_visible_index = -1;
+            for (int i = 0; i < visible_count; i++) {
+                if (visible_abilities[i] + 1 == *highlight) {
+                    current_visible_index = i;
+                    break;
+                }
+            }
+            
+            log_trace("ABILITIES_MENU2: Down navigation - current_visible_index=%d", current_visible_index);
+            
+            /* Move to next visible ability */
+            if (current_visible_index >= 0 && current_visible_index < visible_count - 1) {
+                *highlight = visible_abilities[current_visible_index + 1] + 1;
+                log_trace("ABILITIES_MENU2: Down - moved to next: highlight=%d", *highlight);
+            } else if (current_visible_index == visible_count - 1) {
+                *highlight = visible_abilities[0] + 1;
+                log_trace("ABILITIES_MENU2: Down - wrapped to first: highlight=%d", *highlight);
+            } else {
+                /* Fallback if not found - go to first visible */
+                *highlight = visible_abilities[0] + 1;
+                log_trace("ABILITIES_MENU2: Down - fallback to first: highlight=%d", *highlight);
+            }
+        } else {
+            log_trace("ABILITIES_MENU2: Down navigation skipped - no visible abilities");
+        }
     }
 
+    log_trace("ABILITIES_MENU2: Returning 0 (continue loop)");
     return (0);
 }
 
@@ -1610,28 +2201,48 @@ void do_cmd_ability_screen(void)
 
     bool skip_purchase = false;
 
+    log_trace("ABILITY_SCREEN: Entering ability screen");
+
     /* Save screen */
     screen_save();
 
     /* Clear screen */
     Term_clear();
 
+    log_trace("ABILITY_SCREEN: Starting main ability loop");
+
     /* Process Events until "Return to Game" is selected */
     while (!return_to_game)
     {
+        log_trace("ABILITY_SCREEN: Calling abilities_menu1 with highlight1=%d", highlight1);
         skilltype = abilities_menu1(&highlight1) - 1;
+
+        log_trace("ABILITY_SCREEN: abilities_menu1 returned skilltype=%d", skilltype);
 
         // if a skill has been selected...
         if ((skilltype >= 0) && (skilltype < S_MAX))
         {
+            log_trace("ABILITY_SCREEN: Valid skill selected (%d), entering abilities loop", skilltype);
+            
+            /* Reset highlight2 to 1 when entering a new skill category */
+            highlight2 = 1;
+            
             while (!return_to_skills)
             {
+                log_trace("ABILITY_SCREEN: Calling abilities_menu2 for skilltype=%d with highlight2=%d", skilltype, highlight2);
                 abilitynum = abilities_menu2(skilltype, &highlight2) - 1;
+
+                log_trace("ABILITY_SCREEN: abilities_menu2 returned abilitynum=%d", abilitynum);
 
                 if ((abilitynum >= 0) && (abilitynum < ABILITIES_MAX))
                 {
                     if (!p_ptr->have_ability[skilltype][abilitynum])
                     {
+                        // Special abilities cannot be purchased
+                        if (skilltype == S_SPC) {
+                            bell("This special ability cannot be purchased.");
+                            continue;
+                        }
                         if (prereqs(skilltype, abilitynum))
                         {
                             // Normalize flag check to 0 or 1
@@ -1704,7 +2315,7 @@ void do_cmd_ability_screen(void)
                                         oathchoice = oath_menu(&highlight3);
 
                                         if ((oathchoice >= 1)
-                                            && (oathchoice <= OATH_TYPES))
+                                            && (oathchoice <= (z_info ? z_info->oath_max - 1 : OATH_TYPES)))
                                         {
                                             if (oath_invalid(oathchoice))
                                             {
@@ -1718,7 +2329,7 @@ void do_cmd_ability_screen(void)
                                                 return_to_abilities = true;
                                             }
                                         }
-                                        else if (oathchoice == OATH_TYPES + 1)
+                                        else if (oathchoice == (z_info ? z_info->oath_max + 1 : OATH_TYPES + 1))
                                         {
                                             return_to_abilities = true;
                                             return_to_skills = true;
@@ -1728,6 +2339,12 @@ void do_cmd_ability_screen(void)
                                     }
 
                                     return_to_abilities = false;
+                                }
+
+                                // Block purchasing Masterpiece if Aule's Forge already owned
+                                if (skilltype == S_SMT && abilitynum == SMT_MASTERPIECE && p_ptr->have_ability[S_SPC][SPC_AULE]) {
+                                    bell("Aule's Forge supersedes Masterpiece; you cannot purchase it.");
+                                    skip_purchase = true;
                                 }
 
                                 if (!skip_purchase)
@@ -1815,26 +2432,61 @@ void do_cmd_ability_screen(void)
                     // if you already have the ability...
                     else
                     {
-                        // toggle its activity
-                        if (p_ptr->active_ability[skilltype][abilitynum])
+                        // Prevent oath special abilities from being deactivated or reactivated when broken
+                        if (skilltype == S_SPC && (abilitynum == SPC_OATH_MERCY || 
+                                                   abilitynum == SPC_OATH_SILENCE || 
+                                                   abilitynum == SPC_OATH_IRON ||
+                                                   abilitynum == SPC_OATH_SMITH ||
+                                                   abilitynum == SPC_OATH_VALOROUS))
                         {
-                            p_ptr->active_ability[skilltype][abilitynum]
-                                = false;
-                            Term_putstr(0, 0, -1, TERM_WHITE,
-                                "Ability now switched off.");
-
-                            // need to cancel second song in some cases
-                            if ((skilltype == S_SNG)
-                                && (abilitynum == SNG_WOVEN_THEMES))
+                            /* Check if oath is broken */
+                            bool oath_broken = false;
+                            if (abilitynum == SPC_OATH_MERCY && oath_invalid(OATH_MERCY)) oath_broken = true;
+                            if (abilitynum == SPC_OATH_SILENCE && oath_invalid(OATH_SILENCE)) oath_broken = true;
+                            if (abilitynum == SPC_OATH_IRON && oath_invalid(OATH_IRON)) oath_broken = true;
+                            if (abilitynum == SPC_OATH_SMITH && oath_invalid(OATH_SMITH)) oath_broken = true;
+                            if (abilitynum == SPC_OATH_VALOROUS && oath_invalid(OATH_VALOROUS)) oath_broken = true;
+                            
+                            if (p_ptr->active_ability[skilltype][abilitynum])
                             {
-                                p_ptr->song2 = SNG_NOTHING;
+                                Term_putstr(0, 0, -1, TERM_WHITE,
+                                    "Sacred oaths cannot be deactivated once sworn.");
+                            }
+                            else if (oath_broken)
+                            {
+                                Term_putstr(0, 0, -1, TERM_RED,
+                                    "Broken oaths cannot be reactivated. They are lost forever.");
+                            }
+                            else
+                            {
+                                p_ptr->active_ability[skilltype][abilitynum] = true;
+                                Term_putstr(0, 0, -1, TERM_WHITE,
+                                    "Oath ability reactivated.");
                             }
                         }
                         else
                         {
-                            p_ptr->active_ability[skilltype][abilitynum] = true;
-                            Term_putstr(0, 0, -1, TERM_WHITE,
-                                "Ability now switched on. ");
+                            // toggle its activity for non-oath abilities
+                            if (p_ptr->active_ability[skilltype][abilitynum])
+                            {
+                                p_ptr->active_ability[skilltype][abilitynum]
+                                    = false;
+                                Term_putstr(0, 0, -1, TERM_WHITE,
+                                    "Ability now switched off.");
+
+                                // need to cancel second song in some cases
+                                if ((skilltype == S_SNG)
+                                    && (abilitynum == SNG_WOVEN_THEMES))
+                                {
+                                    p_ptr->song2 = SNG_NOTHING;
+                                }
+                            }
+                            else
+                            {
+                                p_ptr->active_ability[skilltype][abilitynum] = true;
+                                Term_putstr(0, 0, -1, TERM_WHITE,
+                                    "Ability now switched on. ");
+                            }
                         }
 
                         /* Set the redraw flag for everything */
@@ -3492,12 +4144,39 @@ int object_difficulty(object_type* o_ptr)
     if ((o_ptr->tval == TV_ARROW) && (o_ptr->number == 1))
         dif /= 2;
 
-    // Deal with masterpiece
-    if ((dif > p_ptr->skill_use[S_SMT] + forge_bonus(p_ptr->py, p_ptr->px))
-        && p_ptr->active_ability[S_SMT][SMT_MASTERPIECE])
-    {
-        smithing_cost.drain += dif
-            - (p_ptr->skill_use[S_SMT] + forge_bonus(p_ptr->py, p_ptr->px));
+    // Deal with masterpiece and Aule's Forge
+    int effective_skill = p_ptr->skill_use[S_SMT] + forge_bonus(p_ptr->py, p_ptr->px);
+    
+    if (p_ptr->have_ability[S_SPC][SPC_AULE]) {
+        // Aule's Forge: supersedes Masterpiece, allows burning base skill for 2x difficulty allowance
+        int max_aule_difficulty = effective_skill + (p_ptr->skill_base[S_SMT] * 2);
+        if (dif > effective_skill) {
+            if (dif <= max_aule_difficulty) {
+                // Can craft this with Aule's Forge - drain base skill efficiently
+                int excess = dif - effective_skill;
+                smithing_cost.drain += (excess + 1) / 2; // drain 1 skill for every 2 excess points
+                log_trace("ABILITY DEBUG: Aule's Forge drain - base_skill: %d, skill_use: %d, effective: %d, max_aule: %d, difficulty: %d, excess: %d, drain: %d", 
+                         p_ptr->skill_base[S_SMT], p_ptr->skill_use[S_SMT], effective_skill, max_aule_difficulty, dif, excess, (excess + 1) / 2);
+            } else {
+                // Too difficult even with Aule's Forge
+                smithing_cost.drain += p_ptr->skill_base[S_SMT] + (dif - max_aule_difficulty);
+                log_trace("ABILITY DEBUG: Aule's Forge insufficient - max possible: %d, difficulty: %d", max_aule_difficulty, dif);
+            }
+        } else {
+            log_trace("ABILITY DEBUG: Aule's Forge active - no drain needed (difficulty %d <= effective skill %d)", dif, effective_skill);
+        }
+    } else if (p_ptr->active_ability[S_SMT][SMT_MASTERPIECE]) {
+        // Regular Masterpiece ability - allows burning base skill for 1x difficulty allowance
+        int max_masterpiece_difficulty = effective_skill + p_ptr->skill_base[S_SMT];
+        if (dif > effective_skill) {
+            if (dif <= max_masterpiece_difficulty) {
+                // Can craft this with Masterpiece - drain base skill normally
+                smithing_cost.drain += dif - effective_skill;
+            } else {
+                // Too difficult even with Masterpiece
+                smithing_cost.drain += p_ptr->skill_base[S_SMT] + (dif - max_masterpiece_difficulty);
+            }
+        }
     }
 
     // determine which additional smithing abilities would be required
@@ -3623,8 +4302,18 @@ int too_difficult(object_type* o_ptr)
     int ability = p_ptr->skill_use[S_SMT] + forge_bonus(p_ptr->py, p_ptr->px);
     int dif = object_difficulty(o_ptr);
 
-    if (p_ptr->active_ability[S_SMT][SMT_MASTERPIECE])
+    if (p_ptr->have_ability[S_SPC][SPC_AULE]) {
+        // Aule's Forge: can craft up to skill_use + (skill_base * 2)
+        int max_aule_difficulty = ability + (p_ptr->skill_base[S_SMT] * 2);
+        log_trace("ABILITY DEBUG: Aule's Forge too_difficult check - max possible: %d, difficulty: %d", max_aule_difficulty, dif);
+        if (max_aule_difficulty >= dif)
+            return (false);
+        else
+            return (true);
+    } else if (p_ptr->active_ability[S_SMT][SMT_MASTERPIECE]) {
+        // Masterpiece: can craft up to skill_use + skill_base
         ability += p_ptr->skill_base[S_SMT];
+    }
 
     if (ability < dif)
         return (true);
@@ -6462,6 +7151,9 @@ void create_smithing_item(void)
 
     // Get the item itself
     o_ptr = &inventory[slot];
+    
+    // Mark the item as smithed by the player (using unused1 field)
+    o_ptr->unused1 = 1;  /* 1 = smithed by player, 0 = found item */
 
     // Describe the object
     object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
@@ -6495,8 +7187,9 @@ void create_smithing_item(void)
 #define MAIN_MENU_ABORT 16
 #define MAIN_MENU_SAVE 17
 #define MAIN_MENU_SAVE_QUIT 18
+#define MAIN_MENU_QUEST_STATUS 19
 
-#define MAIN_MENU_MAX 18
+#define MAIN_MENU_MAX 14
 
 #define COL_MAIN 29
 
@@ -6515,41 +7208,33 @@ int main_menu_aux(int* highlight)
     }
 
     Term_putstr(COL_MAIN, 2, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) Return to game");
+        "Character sheet      (c)");
     Term_putstr(COL_MAIN, 3, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) Character sheet");
+        "Known artefacts      (a)");
     Term_putstr(COL_MAIN, 4, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Options");
+        "Known objects        (b)");
     Term_putstr(COL_MAIN, 5, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) Map");
+        "Known monsters       (n)");
     Term_putstr(COL_MAIN, 6, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Halls of Mandos");
+        "Known curses         (u)");
     Term_putstr(COL_MAIN, 7, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Known objects");
+        "Quest status         (t)");
     Term_putstr(COL_MAIN, 8, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Known artefacts");
+        "Halls of Mandos      (h)");
     Term_putstr(COL_MAIN, 9, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Known monsters");
+        "Map                  (m)");
     Term_putstr(COL_MAIN, 10, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Known curses");
+        "Log                  (l)");
     Term_putstr(COL_MAIN, 11, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "j) Write a note");
+        "Options and misc     (o)");
     Term_putstr(COL_MAIN, 12, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "k) Take HTML screenshot");
+        "Suicide              (k)");
     Term_putstr(COL_MAIN, 13, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-        "l) Set macros");
+        "Save                 (s)");
     Term_putstr(COL_MAIN, 14, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
-        "m) Set colours");
+        "Quit with save       (q)");
     Term_putstr(COL_MAIN, 15, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
-        "n) Show old messages");
-    Term_putstr(COL_MAIN, 16, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
-        "o) Sil version info");
-    Term_putstr(COL_MAIN, 17, -1, (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
-        "p) Abort current game");
-    Term_putstr(COL_MAIN, 18, -1, (*highlight == 17) ? TERM_L_BLUE : TERM_WHITE,
-        "q) Save game");
-    Term_putstr(COL_MAIN, 19, -1, (*highlight == 18) ? TERM_L_BLUE : TERM_WHITE,
-        "r) Save and quit");
+        "Return to game       (r)");
 
     /* Flush the prompt */
     Term_fresh();
@@ -6562,12 +7247,22 @@ int main_menu_aux(int* highlight)
     ch = inkey();
     hide_cursor = false;
 
-    // choose an option by letter
-    if ((ch >= 'a') && (ch <= (char)'a' + MAIN_MENU_MAX - 1))
-    {
-        *highlight = (int)ch - 'a' + 1;
-
-        return (*highlight);
+    // choose an option by letter - alphabetical mapping (updated for new order)
+    switch (ch) {
+        case 'c': *highlight = 1; return (*highlight);  // Character sheet
+        case 'a': *highlight = 2; return (*highlight);  // Known artefacts
+        case 'b': *highlight = 3; return (*highlight);  // Known objects  
+        case 'n': *highlight = 4; return (*highlight);  // Known monsters
+        case 'u': *highlight = 5; return (*highlight);  // Known curses
+        case 't': *highlight = 6; return (*highlight);  // Quest status
+        case 'h': *highlight = 7; return (*highlight);  // Halls of Mandos
+        case 'm': *highlight = 8; return (*highlight);  // Map
+        case 'l': *highlight = 9; return (*highlight);  // Log
+        case 'o': *highlight = 10; return (*highlight); // Options and misc
+        case 'k': *highlight = 11; return (*highlight); // Suicide
+        case 's': *highlight = 12; return (*highlight); // Save
+        case 'q': *highlight = 13; return (*highlight); // Quit with save
+        case 'r': *highlight = 14; return (*highlight); // Return to game
     }
 
     /* Choose current  */
@@ -6624,110 +7319,82 @@ void do_cmd_main_menu(void)
         // if an action has been selected...
         switch (actiontype)
         {
-        case MAIN_MENU_RETURN:
-        {
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_CHARACTER:
+        case 1: // Character sheet (c)
         {
             do_cmd_character_sheet();
             leave_menu = true;
             break;
         }
-        case MAIN_MENU_OPTIONS:
-        {
-            do_cmd_options();
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_MAP:
-        {
-            do_cmd_view_map();
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_SCORES:
-        {
-            show_scores(true);
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_KNOWN_OBJECTS:
-        {
-            do_cmd_knowledge_objects();
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_KNOWN_ARTEFACTS:
+        case 2: // Known artefacts (a)
         {
             do_cmd_knowledge_artefacts();
             leave_menu = true;
             break;
         }
-        case MAIN_MENU_KNOWN_MONSTERS:
+        case 3: // Known objects (b)
+        {
+            do_cmd_knowledge_objects();
+            leave_menu = true;
+            break;
+        }
+        case 4: // Known monsters (n)
         {
             do_cmd_knowledge_monsters();
             leave_menu = true;
             break;
         }
-        case MAIN_MENU_KNOWN_CURSES:
+        case 5: // Known curses (u)
         {
             show_known_curses_menu();
             leave_menu = true;
             break;
         }
-        case MAIN_MENU_NOTE:
+        case 6: // Quest status (t)
         {
-            do_cmd_note("", p_ptr->depth);
+            do_cmd_quest_status();
             leave_menu = true;
             break;
         }
-        case MAIN_MENU_SCREENSHOT:
+        case 7: // Halls of Mandos (h)
         {
-            // have to do this later to avoid taking a shot of this very menu
-            take_screen_shot = true;
+            show_scores(true);
             leave_menu = true;
             break;
         }
-        case MAIN_MENU_MACROS:
+        case 8: // Map (m)
         {
-            do_cmd_macros();
+            do_cmd_view_map();
             leave_menu = true;
             break;
         }
-        case MAIN_MENU_COLORS:
-        {
-            do_cmd_colors();
-            leave_menu = true;
-            break;
-        }
-        case MAIN_MENU_MESSAGES:
+        case 9: // Log (l)
         {
             do_cmd_messages();
             leave_menu = true;
             break;
         }
-        case MAIN_MENU_VERSION:
+        case 10: // Options and misc (o)
         {
-            do_cmd_version();
+            do_cmd_options();
             leave_menu = true;
             break;
         }
-        case MAIN_MENU_ABORT:
+        case 11: // Suicide (k)
         {
             do_cmd_suicide();
             leave_menu = true;
             break;
         }
-        case MAIN_MENU_SAVE:
+        case 12: // Save (s)
         {
             do_cmd_save_game();
             leave_menu = true;
             break;
         }
-        case MAIN_MENU_SAVE_QUIT:
+        case 13: // Quit with save (q)
         {
+            do_cmd_save_game();
+            
             /* Stop playing */
             p_ptr->playing = false;
             
@@ -6736,6 +7403,11 @@ void do_cmd_main_menu(void)
 
             /* Leaving */
             p_ptr->leaving = true;
+            leave_menu = true;
+            break;
+        }
+        case 14: // Return to game (r)
+        {
             leave_menu = true;
             break;
         }
@@ -7413,14 +8085,14 @@ static errr option_dump(cptr fname)
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 6;
+    int options = 11;
     #ifdef DEBUG_CURSES
-    options = 7;
+    options = 12;
     #endif
     if (p_ptr->noscore)    
         options++;
 
-    Term_putstr(2, 1, -1, TERM_WHITE, "Options");
+    Term_putstr(2, 1, -1, TERM_WHITE, "Options and misc");
 
     Term_putstr(2, 3, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
         "a) Interface Options");
@@ -7433,12 +8105,22 @@ int options_menu(int* highlight)
     Term_putstr(2, 7, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
         "e) Append Options to a 'Pref' File");
     Term_putstr(2, 8, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Return to Game");
+        "f) Set Macros");
+    Term_putstr(2, 9, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
+        "g) Set Colours");
+    Term_putstr(2, 10, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
+        "h) Write a note");
+    Term_putstr(2, 11, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
+        "i) Take HTML screenshot");
+    Term_putstr(2, 12, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
+        "j) Sil version info");
+    Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
+        "k) Return to Game");
 
     if (p_ptr->noscore)
     {
-        Term_putstr(2, 9, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-            "g) Debugging Options");
+        Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
+            "l) Debugging Options");
     }
 
     /* Flush the prompt */
@@ -7482,7 +8164,7 @@ int options_menu(int* highlight)
         return (5);
     }
 
-    if ((ch == 'f') || (ch == 'F') || (ch == ESCAPE) || (ch == 'q'))
+    if ((ch == 'f') || (ch == 'F'))
     {
         *highlight = 6;
         return (6);
@@ -7492,6 +8174,36 @@ int options_menu(int* highlight)
     {
         *highlight = 7;
         return (7);
+    }
+
+    if ((ch == 'h') || (ch == 'H'))
+    {
+        *highlight = 8;
+        return (8);
+    }
+
+    if ((ch == 'i') || (ch == 'I'))
+    {
+        *highlight = 9;
+        return (9);
+    }
+
+    if ((ch == 'j') || (ch == 'J'))
+    {
+        *highlight = 10;
+        return (10);
+    }
+
+    if ((ch == 'k') || (ch == 'K') || (ch == ESCAPE) || (ch == 'q'))
+    {
+        *highlight = 11;
+        return (11);
+    }
+
+    if ((ch == 'l') || (ch == 'L'))
+    {
+        *highlight = 12;
+        return (12);
     }
 
     /* Choose current  */
@@ -7603,11 +8315,50 @@ void do_cmd_options(void)
         }
         case 6:
         {
-            return_to_game = true;
+            do_cmd_macros();
             Term_clear();
             break;
         }
         case 7:
+        {
+            do_cmd_colors();
+            Term_clear();
+            break;
+        }
+        case 8:
+        {
+            do_cmd_note("", p_ptr->depth);
+            Term_clear();
+            break;
+        }
+        case 9:
+        {
+            char tmp_val[80];
+            /* Prompt */
+            Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
+            
+            /* Create default filename */
+            sprintf(tmp_val, "%s.html", op_ptr->base_name);
+            
+            /* Take HTML screenshot */
+            html_screenshot(tmp_val);
+            msg_print("HTML screenshot saved.");
+            Term_clear();
+            break;
+        }
+        case 10:
+        {
+            do_cmd_version();
+            Term_clear();
+            break;
+        }
+        case 11:
+        {
+            return_to_game = true;
+            Term_clear();
+            break;
+        }
+        case 12:
         {
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");
             Term_clear();
@@ -9960,6 +10711,134 @@ void ghost_challenge(void)
 void do_cmd_knowledge_notes(void) { show_buffer(notes_buffer, "Notes", 0); }
 
 /*
+ * Display oath status information
+ */
+void do_cmd_knowledge_oaths(void)
+{
+    FILE* fff;
+    char file_name[1024];
+    
+    /* Temporary file */
+    if (path_temp(file_name, sizeof(file_name)))
+        return;
+
+    /* Open a new file */
+    fff = my_fopen(file_name, "w");
+
+    /* File type is "TEXT" */
+    FILE_TYPE(FILE_TYPE_TEXT);
+
+    /* Scan the oaths */
+    fprintf(fff, "Oath Status\n\n");
+    
+    /* Check current character oath */
+    if (p_ptr->have_ability[S_SPC][SPC_OATH_MERCY])
+    {
+        if (p_ptr->active_ability[S_SPC][SPC_OATH_MERCY])
+            fprintf(fff, "Current Oath: Oath of Mercy (Active)\n\n");
+        else
+            fprintf(fff, "Current Oath: Oath of Mercy (Broken)\n\n");
+    }
+    else if (p_ptr->have_ability[S_SPC][SPC_OATH_SILENCE])
+    {
+        if (p_ptr->active_ability[S_SPC][SPC_OATH_SILENCE])
+            fprintf(fff, "Current Oath: Oath of Silence (Active)\n\n");
+        else
+            fprintf(fff, "Current Oath: Oath of Silence (Broken)\n\n");
+    }
+    else if (p_ptr->have_ability[S_SPC][SPC_OATH_IRON])
+    {
+        if (p_ptr->active_ability[S_SPC][SPC_OATH_IRON])
+            fprintf(fff, "Current Oath: Oath of Iron (Active)\n\n");
+        else
+            fprintf(fff, "Current Oath: Oath of Iron (Broken)\n\n");
+    }
+    else if (p_ptr->have_ability[S_SPC][SPC_OATH_SMITH])
+    {
+        if (p_ptr->active_ability[S_SPC][SPC_OATH_SMITH])
+            fprintf(fff, "Current Oath: Oath of the Smith (Active)\n\n");
+        else
+            fprintf(fff, "Current Oath: Oath of the Smith (Broken)\n\n");
+    }
+    else if (p_ptr->have_ability[S_SPC][SPC_OATH_VALOROUS])
+    {
+        if (p_ptr->active_ability[S_SPC][SPC_OATH_VALOROUS])
+            fprintf(fff, "Current Oath: Oath of Valorous Heart (Active)\n\n");
+        else
+            fprintf(fff, "Current Oath: Oath of Valorous Heart (Broken)\n\n");
+    }
+    else
+    {
+        fprintf(fff, "Current Oath: None\n\n");
+    }
+    
+    /* Display metarun oath status */
+    fprintf(fff, "Metarun Oath Status:\n");
+    
+    /* Check unlocked oaths */
+    bool has_unlocked = false;
+    if (oath_unlocked(OATH_MERCY)) 
+    {
+        fprintf(fff, "  Oath of Mercy: Unlocked");
+        if (oath_banned(OATH_MERCY))
+            fprintf(fff, " (Banned this run)");
+        fprintf(fff, "\n");
+        has_unlocked = true;
+    }
+    
+    if (oath_unlocked(OATH_SILENCE)) 
+    {
+        fprintf(fff, "  Oath of Silence: Unlocked");
+        if (oath_banned(OATH_SILENCE))
+            fprintf(fff, " (Banned this run)");
+        fprintf(fff, "\n");
+        has_unlocked = true;
+    }
+    
+    if (oath_unlocked(OATH_IRON)) 
+    {
+        fprintf(fff, "  Oath of Iron: Unlocked");
+        if (oath_banned(OATH_IRON))
+            fprintf(fff, " (Banned this run)");
+        fprintf(fff, "\n");
+        has_unlocked = true;
+    }
+    
+    if (oath_unlocked(OATH_SMITH)) 
+    {
+        fprintf(fff, "  Oath of the Smith: Unlocked");
+        if (oath_banned(OATH_SMITH))
+            fprintf(fff, " (Banned this run)");
+        fprintf(fff, "\n");
+        has_unlocked = true;
+    }
+    
+    if (oath_unlocked(OATH_VALOROUS)) 
+    {
+        fprintf(fff, "  Oath of Valorous Heart: Unlocked");
+        if (oath_banned(OATH_VALOROUS))
+            fprintf(fff, " (Banned this run)");
+        fprintf(fff, "\n");
+        has_unlocked = true;
+    }
+    
+    if (!has_unlocked)
+    {
+        fprintf(fff, "  No oaths unlocked yet.\n");
+        fprintf(fff, "  Complete Valar quests to unlock new oaths.\n");
+    }
+    
+    /* Close the file */
+    my_fclose(fff);
+
+    /* Display the file contents */
+    show_file(file_name, "Oath Status", 0);
+
+    /* Remove the file */
+    fd_kill(file_name);
+}
+
+/*
  * Hack -- save a screen dump to a file
  */
 void do_cmd_save_screen(void)
@@ -11653,9 +12532,10 @@ void do_cmd_knowledge(void)
 
         /*allow the player to see the notes taken if that option is selected*/
         c_put_str(TERM_WHITE, "(6) Display character notes file", 9, 5);
+        prt("(7) Display oath status", 10, 5);
 
         /* Prompt */
-        prt("Command: ", 12, 0);
+        prt("Command: ", 13, 0);
 
         /* Prompt */
         ch = inkey();
@@ -11699,6 +12579,12 @@ void do_cmd_knowledge(void)
         {
             /* Spawn */
             do_cmd_knowledge_notes();
+        }
+
+        /* Oath status */
+        else if (ch == '7')
+        {
+            do_cmd_knowledge_oaths();
         }
 
         /* Unknown option */

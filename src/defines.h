@@ -48,26 +48,37 @@
  * Current version string
  */
 
-#define VERSION_STRING "0.8"
+/* Formalized new fork versioning */
+/* Bumped to 0.8.6 for introduction of new skill S_SPC (Special abilities) */
+#define VERSION_STRING "0.8.6"
 /*
  * Current version numbers
  */
-#define VERSION_MAJOR 1
-#define VERSION_MINOR 5
-#define VERSION_PATCH 0
+/* Version components (0.8.6) */
+#define VERSION_MAJOR 0
+#define VERSION_MINOR 8
+#define VERSION_PATCH 7
 #define VERSION_EXTRA 0
 
 /*
  * Oldest version number that can still be imported
  */
-#define OLD_VERSION_MAJOR 1
-#define OLD_VERSION_MINOR 5
+/* Oldest loadable version in new scheme */
+#define OLD_VERSION_MAJOR 0
+#define OLD_VERSION_MINOR 8
 #define OLD_VERSION_PATCH 0
 
 /*
  * Version of random artefact code.
  */
 #define RANDART_VERSION 62
+
+/*
+ * Log file naming mode
+ * 0 = Always use "log.txt" (overwrite previous log)
+ * 1 = Create new log with timestamp each time
+ */
+#define LOG_MODE_TIMESTAMP 1
 
 /*
  * Number of grids in each block (vertically)
@@ -194,31 +205,31 @@
 #define COLOR_STYLE_BASE 128 /* 128..(128+style_max-1) map to style_info indices; leaves +64 for first-variant */
 #endif
 
-#if DEPTH_BASED_WALLS
-/* Maximum number of depth tiers for wall graphics */
-#define MAX_WALL_DEPTH_TIERS 6
+// #if DEPTH_BASED_WALLS
+// /* Maximum number of depth tiers for wall graphics */
+// #define MAX_WALL_DEPTH_TIERS 6
 
-/* Structure to define depth-based wall tile mappings */
-typedef struct depth_wall_tier {
-    int min_depth;      /* Minimum depth for this tier (inclusive) */
-    int max_depth;      /* Maximum depth for this tier (inclusive) */
-    int wall_row;       /* Tileset row for wall tiles */
-    int wall_col;       /* Tileset column for wall tiles */
-    int vein_row;       /* Tileset row for vein tiles */
-    int vein_col;       /* Tileset column for vein tiles */
-} depth_wall_tier;
+// /* Structure to define depth-based wall tile mappings */
+// // typedef struct depth_wall_tier {
+// //     int min_depth;      /* Minimum depth for this tier (inclusive) */
+// //     int max_depth;      /* Maximum depth for this tier (inclusive) */
+// //     int wall_row;       /* Tileset row for wall tiles */
+// //     int wall_col;       /* Tileset column for wall tiles */
+// //     int vein_row;       /* Tileset row for vein tiles */
+// //     int vein_col;       /* Tileset column for vein tiles */
+// // } depth_wall_tier;
 
-/* Default depth-based wall tier configuration */
-/* Testing: Level 1 = color 0, Level 2 = color 1, Vaults = color 2 */
-static const depth_wall_tier wall_depth_tiers[MAX_WALL_DEPTH_TIERS] = {
-    { 1,  1,  0, 4,  0, 6},   /* Depth 1: default granite (0,4) and veins (0,6) - color 0 */
-    { 2,  2, 15,14, 15,18},   /* Depth 2: colored granite (15,14) and veins (15,18) - color 1 */
-    { 3,  5, 15,14, 15,18},   /* Depths 3-5: same colored tiles */
-    { 6, 10, 15,14, 15,18},   /* Depths 6-10: same colored tiles */
-    {11, 15, 15,14, 15,18},   /* Depths 11-15: same colored tiles */
-    {16, 30, 15,14, 15,18}    /* Depths 16-30: same colored tiles */
-};
-#endif /* DEPTH_BASED_WALLS */
+// // /* Default depth-based wall tier configuration */
+// // /* Testing: Level 1 = color 0, Level 2 = color 1, Vaults = color 2 */
+// // static const depth_wall_tier wall_depth_tiers[MAX_WALL_DEPTH_TIERS] = {
+// //     { 1,  1,  0, 4,  0, 6},   /* Depth 1: default granite (0,4) and veins (0,6) - color 0 */
+// //     { 2,  2, 15,14, 15,18},   /* Depth 2: colored granite (15,14) and veins (15,18) - color 1 */
+// //     { 3,  5, 15,14, 15,18},   /* Depths 3-5: same colored tiles */
+// //     { 6, 10, 15,14, 15,18},   /* Depths 6-10: same colored tiles */
+// //     {11, 15, 15,14, 15,18},   /* Depths 11-15: same colored tiles */
+// //     {16, 30, 15,14, 15,18}    /* Depths 16-30: same colored tiles */
+// // };
+// #endif /* DEPTH_BASED_WALLS */
 
 /*
  * Locations of various monsters in the monster.txt file
@@ -229,6 +240,11 @@ static const depth_wall_tier wall_depth_tiers[MAX_WALL_DEPTH_TIERS] = {
 #define R_IDX_ORC_THRALLMASTER 15
 #define R_IDX_ALERT_HUMAN_THRALL 16
 #define R_IDX_ALERT_ELF_THRALL 17
+#define R_IDX_TULKAS 18
+#define R_IDX_AULE 19
+#define R_IDX_MANDOS 20
+#define R_IDX_NIENA 6
+#define R_IDX_OROME 332
 #define R_IDX_SPIDER_HATCHLING 32
 #define R_IDX_ORC_ARCHER 51
 #define R_IDX_ORC_CHAMPION 81
@@ -586,6 +602,20 @@ static const depth_wall_tier wall_depth_tiers[MAX_WALL_DEPTH_TIERS] = {
 #define SNG_EXCHANGE_THEMES 101
 
 /*
+ * Special abilities (quest rewards etc.)
+ * These are not purchaseable with experience; they are only granted.
+ */
+#define SPC_MANDOS 0
+#define SPC_AULE 1
+#define SPC_OATH_MERCY 2
+#define SPC_OATH_SILENCE 3  
+#define SPC_OATH_IRON 4
+#define SPC_NIENA_MERCY 5  /* Enhanced stealth from mercy quest */
+#define SPC_OATH_SMITH 6
+#define SPC_OATH_VALOROUS 7  /* Oath of the Valorous Heart */
+#define SPC_UNIQUE_BANE 8  /* Enhanced effectiveness against unique monsters */
+
+/*
  * Attack Types
  */
 
@@ -691,11 +721,12 @@ static const depth_wall_tier wall_depth_tiers[MAX_WALL_DEPTH_TIERS] = {
 #define S_WIL 5
 #define S_SMT 6
 #define S_SNG 7
+#define S_SPC 8 /* Special (quest) abilities */
 
 /*
  * Total number of skills.
  */
-#define S_MAX 8
+#define S_MAX 9
 
 /*
  * The internal maximum for a given skill (the minimum is 0).
@@ -2032,7 +2063,7 @@ static const depth_wall_tier wall_depth_tiers[MAX_WALL_DEPTH_TIERS] = {
 #define VLT_WEBS 0x00000008L /* Vault has spider webs */
 #define VLT_LIGHT 0x00000010L /* Vault is always generated with light */
 #define VLT_SURFACE 0x00000020L
-#define VLT_VLTXXXX7 0x00000040L
+#define VLT_QUEST   0x00000040L /* Quest vault – only once per game, max one per level */
 #define VLT_VLTXXXX8 0x00000080L
 #define VLT_VLTXXXX9 0x00000100L
 #define VLT_VLTXXX10 0x00000200L
@@ -3467,6 +3498,8 @@ static const depth_wall_tier wall_depth_tiers[MAX_WALL_DEPTH_TIERS] = {
 #define OATH_MERCY_FLAG 1
 #define OATH_SILENCE_FLAG 2
 #define OATH_IRON_FLAG 4
+#define OATH_SMITH_FLAG 8
+#define OATH_VALOROUS_FLAG 16
 
 /*
  * Order of Oath skill
@@ -3474,14 +3507,94 @@ static const depth_wall_tier wall_depth_tiers[MAX_WALL_DEPTH_TIERS] = {
 #define OATH_MERCY 1
 #define OATH_SILENCE 2
 #define OATH_IRON 3
+#define OATH_SMITH 4
+#define OATH_VALOROUS 5
 
 /*
- * States for the thrall quest
+ * States for the Tulkas quest
  */
-#define QUEST_NOT_STARTED 0
-#define QUEST_GIVER_PRESENT 1
-#define QUEST_REWARD_MAP 2
-#define QUEST_COMPLETE 10
+#define TULKAS_QUEST_NOT_STARTED 0
+#define TULKAS_QUEST_GIVER_PRESENT 1
+#define TULKAS_QUEST_ACTIVE 2
+#define TULKAS_QUEST_COMPLETE 3
+#define TULKAS_QUEST_REWARDED 4
+
+/* States for the Aule forging quest */
+#define AULE_QUEST_NOT_STARTED 0
+#define AULE_QUEST_FORGE_PRESENT 1  /* Entered Aule's forge vault */
+#define AULE_QUEST_ACTIVE 2         /* Accepted quest: must forge qualifying artifact at this forge */
+#define AULE_QUEST_SUCCESS 3        /* Forged qualifying artifact (reward granted) */
+/* Retain old value 4 for save compatibility (quest no longer fails) */
+#define AULE_QUEST_FAILED 4         /* Legacy: previously used for failure; now unused */
+#define AULE_QUEST_REWARDED 5       /* Reward has been granted to prevent repeated interactions */
+/* Minimum smithing skill required for Aule quest vault to spawn */
+#define AULE_SMITH_REQ 10
+
+/* States for the Mandos clearing quest */
+#define MANDOS_QUEST_NOT_STARTED 0
+#define MANDOS_QUEST_GIVER_PRESENT 1  /* Entered Tomb of the King with Mandos */
+#define MANDOS_QUEST_ACTIVE 2         /* Accepted quest: must clear all monsters from vault */
+#define MANDOS_QUEST_SUCCESS 3        /* Cleared all monsters (reward granted) */
+#define MANDOS_QUEST_REWARDED 4       /* Reward given, quest fully complete */
+
+/* States for the Niena mercy quest */
+#define NIENA_QUEST_NOT_STARTED 0
+#define NIENA_QUEST_GIVER_PRESENT 1  /* Niena spawned on maximum-size level */
+#define NIENA_QUEST_ACTIVE 2         /* Accepted quest: must reach stairs down without killing */
+#define NIENA_QUEST_SUCCESS 3        /* Reached stairs without killing (reward granted) */
+#define NIENA_QUEST_REWARDED 4       /* Reward given, quest fully complete */
+
+/* Oromë quest states */
+#define OROME_QUEST_NOT_STARTED 0
+#define OROME_QUEST_GIVER_PRESENT 1  /* Oromë spawned on hunting grounds level */
+#define OROME_QUEST_ACTIVE 2         /* Accepted quest: must hunt specified monsters */
+#define OROME_QUEST_SUCCESS 3        /* Completed hunt (reward granted) */
+#define OROME_QUEST_REWARDED 4       /* Reward given, quest fully complete */
+
+/* Oromë quest monster types */
+#define OROME_TARGET_WOLF 1
+#define OROME_TARGET_SPIDER 2
+#define OROME_TARGET_SERPENT 3
+#define OROME_TARGET_VAMPIRE 4
+
+/*
+ * Quest Parametric Formula Types (P: field)
+ */
+#define FORMULA_HARDCODED 0      /* Use existing hardcoded functions */
+#define FORMULA_LINEAR_DECAY 1   /* base - depth (e.g., 27 - depth) */
+#define FORMULA_SCALED_RANGE 2   /* max_prob * max(0, min(1, (depth-start)/range)) */
+#define FORMULA_FIXED_PERCENT 3  /* constant percentage regardless of depth */
+#define FORMULA_LINEAR_INTERPOLATE 4 /* linear interpolation between min_prob and max_prob over depth range */
+#define FORMULA_EXPONENTIAL 5    /* exponential growth/decay formula */
+
+/*
+ * Quest ID mapping between quest.txt indices and hardcoded game constants
+ * This structure makes it easy to add new quests by associating quest.txt 
+ * quest IDs with the corresponding hardcoded game logic constants.
+ */
+typedef struct quest_mapping {
+    int quest_txt_id;       /* ID used in quest.txt (Q: field) */
+    const char* quest_name; /* Quest name for reference */
+    /* Add quest-specific state constants or function pointers here as needed */
+} quest_mapping;
+
+/* Quest ID mappings - modify this to add new quests */
+#define QUEST_ID_TULKAS  1  /* Tulkas quest in quest.txt */
+#define QUEST_ID_AULE    2  /* Aule quest in quest.txt */  
+#define QUEST_ID_MANDOS  3  /* Mandos quest in quest.txt */
+#define QUEST_ID_NIENA   4  /* Niena quest in quest.txt */
+#define QUEST_ID_OROME   5  /* Orome quest in quest.txt */
+
+/* Quest mapping table - used by extract_quest_init_texts() and related functions */
+static const quest_mapping quest_id_map[] = {
+    { QUEST_ID_TULKAS, "Tulkas the Strong" },
+    { QUEST_ID_AULE,   "Aule the Smith" },
+    { QUEST_ID_MANDOS, "Mandos the Doomsman" },
+    { QUEST_ID_NIENA,  "Niena, Lady of Pity" },
+    { QUEST_ID_OROME,  "Orome the Hunter" }
+};
+
+#define QUEST_COUNT (sizeof(quest_id_map) / sizeof(quest_id_map[0]))
 
 //Defines for number of heroes
 #define FLAG_COUNT 64

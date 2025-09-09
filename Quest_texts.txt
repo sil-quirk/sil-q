@@ -1,0 +1,158 @@
+Oath Descriptions
+Here are thematic descriptions for each oath, suitable for a character creation screen.
+
+Oath of Mercy
+
+“For the Children of Ilúvatar, both the Firstborn and the Followers, hold a fate beyond the circles of this world. To spill their blood in anger is to bring a shadow upon your soul. This oath you shall swear: to turn your blade from Elf and Man, and in so doing, find a grace that violence cannot afford.”
+
+Oath of Silence
+
+“It is said that much was wrought in the Elder Days by thought and not by voice. In the deep places of the earth, and in the silent watch of the stars, true power resides not in song but in solemn purpose. Swear this oath: to forgo all songs of power, and let your deeds alone be your voice. In that stillness, you shall find an unlooked-for strength.”
+
+Oath of Iron
+
+“Let the darkness gather and the fires of the deep rage. Let despair be your companion and all hope seem lost. There is a will that does not bend, a spirit that will not break. Swear this oath: to never seek escape, to never ascend toward the light, until you have reclaimed a Silmaril from the shadow. In this doom, your heart shall be hardened as the foundations of the mountains.”
+
+Oath of the Smith
+
+“The craft of the hand is the gift of the Maker. To wield a blade forged in another’s fire is to trust a stranger's heart. True mastery is born of one's own sweat and skill. Swear this oath: to bear no weapon and wear no mail save that which you have wrought yourself. By this covenant, the secrets of anvil and fire shall be laid bare to you.”
+
+Quest Dialogs
+Here are expanded and stylized dialogs for your Valar quest givers.
+
+1. Tulkas the Strong
+Quest Dialog:
+
+The air trembles as if with distant thunder, and a great, booming laugh echoes in the stone halls. Before you stands Tulkas the Strong, his eyes bright with challenge.
+
+"Ho, champion! I have marked your passage through these lightless depths. There is fire in your heart and strength in your arm! Such valour pleases me."
+
+"But valour must be tested, as steel is tested in the forge! Words are wind, but deeds are stone. I would see your mettle for myself."
+
+"There is a creature of shadow that haunts these ways, a foul beast known as [monster name]. Hunt it down. Slay this foe and return to me with word of your victory. Do this, and a weapon of great renown, [artifact name], shall be yours!"
+
+Completion Dialog:
+
+A mighty laugh rings out, shaking dust from the ceiling. Tulkas appears before you, his form radiating power and delight.
+
+"A glorious fight! I felt the earth shake with the fall of your foe! You have proven your might, little warrior, and shown courage worthy of the songs of old."
+
+"Take this prize! It was shaped ere the Sun and Moon first rose, and has a thirst for the servants of shadow. Wield it well!"
+
+With a final, approving nod, Tulkas the Strong strides away, his thunderous footsteps fading into the deep.
+
+Reviewing User Intent
+
+I'm currently focused on the user's directive to revise the Mandos quest. My primary consideration is the subtle shift: the quest's objective is now the spirit of Brodda, not Brodda's physical form. This necessitates a fundamental change in the quest's mechanics and narrative. I need to consider how to handle the new aspect of the spirit.
+
+Considering Narrative Shift
+
+I've been meticulously examining the user's intent, particularly the significant change in the Mandos quest.  The core challenge lies in shifting from a physical target (Brodda) to a spiritual one.  I'm now drafting the revised quest dialog for Mandos, aiming to preserve the original tone while incorporating this new dynamic. The provided example is proving helpful as I shape the narrative.
+
+Crafting Quest Narrative
+
+I'm now revising the narrative for the Mandos quest. My focus is on crafting compelling dialog that preserves the original tone while introducing the spiritual dimension of Brodda's predicament. I'm aiming to eloquently articulate Mandos' request for the player. I'm taking the previous input into account as well, as I work on the dialog for Mandos. I'm working to integrate the idea that Túrin did slay Brodda, but Morgoth's influence is at play, as per the user's direction.
+
+Refining Mandos' Words
+
+I'm now revising Mandos' dialog to accurately reflect the change in Brodda's nature. I'm focusing on crafting a solemn, authoritative introduction, followed by a clear explanation of the spirit's entrapment. I'm also ensuring the dialog acknowledges the original lore correctly and conveys the significance of freeing Brodda's spirit. My goal is to craft the new quest dialog to be more compelling and fitting for Mandos' role.
+
+Crafting Completion Dialogue
+
+I am now focusing on refining the completion dialogue with Mandos to reflect the spirit's release. I have modified the existing completion dialog to highlight the restoration of natural order, emphasizing the removal of Morgoth's influence. I am aiming to highlight the significance of the act in freeing the spirit from an unnatural state so it may find its final judgment. The completion dialog is:  "The mockery is unmade. The spirit of Brodda is at last unbound from its earthly prison and set upon the path to its final judgment. You have not wrought vengeance, but restored a thread of the natural order, long tangled by the Enemy's malice. The spirits of Dor-Lómin find peace in your wake".
+
+Integrating Lore & Intent
+
+I'm now revising the quest dialog with Mandos to explicitly acknowledge that Túrin did slay Brodda, using the provided lore. The focus is now on how Morgoth has perverted this natural course, binding Brodda's spirit.  The text should emphasize the unnatural nature of the spirit's captivity. I'm also ensuring the dialog reflects the solemn tone consistent with Mandos's character.
+
+Of course. It is wise to honor the established tales of the Elder Days. Turin's deed must stand, and the presence of Brodda must then be an echo, a shadow bound by a greater malice. Here is the updated text for the quest of Mandos, the Doomsman, reflecting this new lore.
+
+Updated Quest Dialog: Mandos, the Doomsman
+Quest Dialog:
+
+A chill presence fills the chamber, and the air grows still. Before you is a veiled and solemn figure seated upon a throne of black stone. It is Mandos, the Judge of the Valar, and his voice is low and grave, like the turning of the ages.
+
+"'Child of Middle-earth, you have come to a place where the echoes of the past cling like shadows. Here lingers a spirit that should long ago have departed the circles of the world.'"
+
+"'You see before you a vessel that holds the spirit of Brodda the Easterling, a cruel tyrant who oppressed the people of Dor-lómin. Long ago, the hand of Túrin Turambar brought him justice, as was his doom. But the malice of the Great Enemy does not end with death.'"
+
+"'The black power of Morgoth has kept his spirit bound to this place, far from my halls, and lent it a new and terrible form. This abomination is but an echo, a mockery of life that must be ended. Grant his tormented spirit its final release, so that it may at last face my judgment. Fulfill this doom, and the way deeper shall be opened to you.'"
+
+Completion Dialog:
+
+As the false body of Brodda falls, a long, sorrowful sigh echoes in the chamber, and the spirit is gone. A profound stillness settles upon the place. Upon your return, the Doomsman acknowledges you.
+
+"'The mockery is unmade. The spirit of Brodda is at last unbound from its earthly prison and set upon the path to its final judgment.'"
+
+"'You have not wrought vengeance, but have restored a thread of the natural order, long tangled by the Enemy's malice. The spirits of the Edain whom he wronged can finally know true peace.'"
+
+"'You have looked upon the workings of fate and have not faltered. Accept now this gift: a spirit shielded from the great fears that unman the hearts of mortals. Go forth, and walk unafraid.'"
+
+3. Aulë the Smith
+Quest Dialog:
+
+The air is warm with the heat of a distant forge, and a voice like the ringing of a hammer on an anvil speaks. Aulë the Smith, the Maker, regards you with a deep and knowing gaze.
+
+"'I have seen your works, mortal. I have seen the stone you have hewn and the metal you have shaped. There is a spark of the fire of creation within you.'"
+
+"'But a spark is not a flame. Skill must be honed by trial. The substance of the earth does not yield its secrets gladly. Show me that you are a master of your craft.'"
+
+"'Here is my forge. Its fires burn with the heat of the world's heart. Take up the hammer, and from the base matter of this place, create for me a thing of worth and purpose. Let me see the skill of your hands and the ingenuity of your mind.'"
+
+Completion Dialog (New):
+
+You lay your finished work before the Smith. Aulë takes it in his mighty hands, his gaze missing no detail. He turns it over, feeling its weight, its balance, its very spirit.
+
+"'It is well-wrought. The hand that made this knows the song of the metal. You have not merely forced its shape, but listened to the substance and persuaded it to your will. This is true craft.'"
+
+"'You are worthy of my blessing. May your arm never tire at the anvil, and may the hidden flaws of rock and steel ever reveal themselves to your eye.'"
+
+4. Nienna, Lady of Pity
+Quest Dialog:
+
+A soft, sorrowful light gathers in the gloom. In its midst stands a figure cloaked in grey, and her eyes hold the memory of every grief the world has ever known. It is Nienna, the Weeper, and her voice is as gentle as falling rain.
+
+"'Child, this place is filled with pain. The creatures that dwell here are not all born of evil, but are twisted and marred by the darkness they have long endured. They are lost, and in their fear, they lash out.'"
+
+"'I have wept for them, as I weep for all the sorrows of Arda. If there is yet pity in your heart, I ask of you a difficult task.'"
+
+"'Find the path downward, but raise no hand against the tormented things that dwell here. Show them a mercy they have never known. Let compassion be your shield and your guide. As a sign of my faith in you, the ways of descent shall be revealed to your sight.'"
+
+Completion Dialog:
+
+As your foot touches the first step of the downward stair, a feeling of peace washes over you, and the gentle voice of Nienna returns.
+
+"'You have chosen pity over violence. You have walked through the valley of fear and left behind not death, but a glimmer of hope. Such a deed is a light in the deepest darkness.'"
+
+"'For the mercy you have shown to the lost, I grant you this blessing: may your path be shrouded in silence, and your footsteps fall without echo when compassion is your guide.'"
+
+A tear, shining like a star, falls upon the stone and vanishes. The presence of Nienna fades, leaving you with her quiet blessing.
+
+Oath Breaking Texts
+These texts aim to make the consequence of breaking an oath feel profound and sorrowful.
+
+Confirmation Prompt:
+
+"Your hand falters. To break a sworn oath is to invite a shadow upon your soul and forever mar your spirit. Are you certain you wish to forsake your word?"
+
+Curse Message:
+
+"The weight of your broken faith settles upon you like a shroud. The Valar turn their gaze away; a doom of your own making now enfolds you."
+
+Permanent Consequence Message:
+
+"The echo of your broken word shall haunt the ages of this world. Your Oath of [name] is sundered, and can never be made whole again in this age."
+
+Oathbreaker Death/Escape Message:
+
+"You passed from the world, but the stain of a faithless heart remains. You will be remembered not for your deeds, but as a shameful Oathbreaker."
+
+Birth Screen For Banned Oaths:
+
+OATH SUNDERED
+
+"Thy word is broken, thy vow as empty as the wind."
+
+"Who shall trust thy hand or hearken to thy voice? A shadow lies upon thee that shall not be lifted in this age of the world."
+
+Marked forever as one who forsook their oath.

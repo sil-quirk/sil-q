@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "metarun.h"
 
 bool graphics_are_ascii()
 {
@@ -79,7 +80,7 @@ void reward_player_for_quest(cptr m_name, unsigned int quest_index)
             msg_format("%^s murmurs the song of staunching.", m_name);
             set_cut(0);
             hp_player(50, true, true);
-            p_ptr->thrall_quest = QUEST_COMPLETE;
+            // Note: Old thrall quest removed
             return;
         }
     }
@@ -92,17 +93,17 @@ void reward_player_for_quest(cptr m_name, unsigned int quest_index)
         msg_format("%^s gives you a ragged herb.", m_name);
         object_prep(&herb, O_IDX_HERB_RAGE);
         give_player_item(&herb);
-        p_ptr->thrall_quest = QUEST_COMPLETE;
+        // Note: Old thrall quest removed
         break;
     case 2:
         msg_format("%^s gives you a ragged herb.", m_name);
         object_prep(&herb, O_IDX_HERB_TERROR);
         give_player_item(&herb);
-        p_ptr->thrall_quest = QUEST_COMPLETE;
+        // Note: Old thrall quest removed
         break;
     default:
         msg_format("%^s tells you about some passages a little way off.", m_name);
-        p_ptr->thrall_quest = QUEST_REWARD_MAP;
+        // Note: Old thrall quest map reward removed
     }
 }
 
@@ -127,11 +128,7 @@ void do_quest(monster_type* m_ptr)
     /* Get the monster name */
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 
-    if (p_ptr->thrall_quest > QUEST_GIVER_PRESENT)
-    {
-        msg_format("%^s thanks you again.", m_name);
-        return;
-    }
+    // Note: Old thrall quest logic removed - Valar quest handles this differently
 
     msg_format("Looking up at you, %s begs you for %s.", m_name,
         quest_text[quest_index]);
@@ -737,6 +734,9 @@ int total_player_attack(monster_type* m_ptr, int base)
     // reward bane ability (if applicable)
     att += bane_bonus(m_ptr);
 
+    // reward unique bane ability (if applicable)
+    att += unique_bane_bonus(m_ptr);
+
     // reward master hunter ability (if applicable)
     att += master_hunter_bonus(m_ptr);
 
@@ -776,6 +776,9 @@ int total_player_evasion(monster_type* m_ptr, bool archery)
 
     // reward successful use of the bane ability
     evn += bane_bonus(m_ptr);
+
+    // reward unique bane ability (if applicable)
+    evn += unique_bane_bonus(m_ptr);
 
     // halve evasion for certain situations (and only halve positive evasion!)
     if (evn > 0)
@@ -826,6 +829,9 @@ int total_monster_attack(monster_type* m_ptr, int base)
     // elf-bane bonus
     att += elf_bane_bonus(m_ptr);
 
+    // unique bane penalty (player ability affecting monster)
+    att -= unique_bane_bonus(m_ptr);
+
     // halve attack score for certain situations (and only halve positive
     // scores!)
     if (att > 0)
@@ -863,6 +869,9 @@ int total_monster_evasion(monster_type* m_ptr, bool archery)
 
     // elf-bane bonus
     evn += elf_bane_bonus(m_ptr);
+
+    // unique bane penalty (player ability affecting monster)
+    evn -= unique_bane_bonus(m_ptr);
 
     // halve evasion for certain situations (and only halve positive evasion!)
     if (evn > 0)
@@ -2783,6 +2792,34 @@ extern void perceive(void)
 }
 
 /*
+ * Check if an object is a weapon or armor that would violate the Oath of the Smith
+ */
+bool is_weapon_or_armor(const object_type* o_ptr)
+{
+    /* Check if it's a weapon */
+    if (o_ptr->tval == TV_SWORD || o_ptr->tval == TV_POLEARM || 
+        o_ptr->tval == TV_HAFTED || o_ptr->tval == TV_BOW)
+        return true;
+        
+    /* Check if it's armor */
+    if (o_ptr->tval == TV_SOFT_ARMOR || o_ptr->tval == TV_MAIL || 
+        o_ptr->tval == TV_SHIELD || o_ptr->tval == TV_HELM || 
+        o_ptr->tval == TV_CROWN || o_ptr->tval == TV_CLOAK || 
+        o_ptr->tval == TV_GLOVES || o_ptr->tval == TV_BOOTS)
+        return true;
+        
+    return false;
+}
+
+/*
+ * Check if an object was smithed by the player
+ */
+bool is_smithed_by_player(const object_type* o_ptr)
+{
+    return (o_ptr->unused1 == 1);
+}
+
+/*
  * Helper routine for py_pickup() and py_pickup_floor().
  *
  * Add the given dungeon object to the character's inventory.
@@ -2792,11 +2829,45 @@ extern void perceive(void)
 void py_pickup_aux(int o_idx)
 {
     object_type* o_ptr;
+    char o_name[120];
+    
     o_ptr = &o_list[o_idx];
 
     /*hack - don't pickup &nothings*/
     if (o_ptr->k_idx)
     {
+        /* Check for Oath of the Smith violation */
+        if (chosen_oath(OATH_SMITH) && !oath_invalid(OATH_SMITH) && 
+            is_weapon_or_armor(o_ptr) && !is_smithed_by_player(o_ptr))
+        {
+            /* Describe the object */
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+            
+            /* Warn the player about oath breaking using oath-specific text */
+            char* prompt = oath_confirmation_prompt(OATH_SMITH);
+            if (!prompt || !prompt[0]) prompt = "Are you certain you wish to break your Oath of the Smith?";
+            
+            if (!get_check_oath_multiline(prompt))
+            {
+                /* Player chose not to break oath - abort pickup */
+                return;
+            }
+            
+            /* Player chose to break oath - curse message and selection handled by apply_oath_breaking_curse */
+            
+            /* Mark oath as broken */
+            p_ptr->oaths_broken |= OATH_SMITH_FLAG;
+            
+            /* Disable the oath's special ability */
+            p_ptr->active_ability[S_SPC][SPC_OATH_SMITH] = false;
+            
+            /* Apply oath breaking curse */
+            apply_oath_breaking_curse(OATH_SMITH);
+            
+            /* Mark oath as permanently banned in metarun */
+            metarun_ban_oath(OATH_SMITH);
+        }
+        
         give_player_item(o_ptr);
 
         // Break the truce if creatures see
@@ -3871,19 +3942,146 @@ bool merciless_attack(monster_type* m_ptr)
         && ((r_ptr->flags3 & (RF3_MAN)) || (r_ptr->flags3 & (RF3_ELF))));
 }
 
+bool cowardly_attack(monster_type* m_ptr)
+{
+    return (chosen_oath(OATH_VALOROUS) && !oath_invalid(OATH_VALOROUS)
+        && m_ptr->stance == STANCE_FLEEING);  /* Monster is fleeing in terror */
+}
+
 bool abort_for_mercy(monster_type* m_ptr)
 {
     // Unseen enemies are okay to kill
     if (!m_ptr->ml)
         return false;
 
-    if (merciless_attack(m_ptr)
-        && !get_check("Are you sure you wish to break your oath? "))
+    if (merciless_attack(m_ptr))
     {
-        return true;
+        /* Use oath-specific confirmation prompt */
+        char* prompt = oath_confirmation_prompt(OATH_MERCY);
+        if (!prompt || !prompt[0]) prompt = "Are you sure you wish to break your oath?";
+        
+        if (!get_check_oath_multiline(prompt))
+        {
+            return true;
+        }
     }
 
     return false;
+}
+
+bool abort_for_valorous(monster_type* m_ptr)
+{
+    // Unseen enemies are okay to kill  
+    if (!m_ptr->ml)
+        return false;
+
+    if (cowardly_attack(m_ptr))
+    {
+        /* Use oath-specific confirmation prompt */
+        char* prompt = oath_confirmation_prompt(OATH_VALOROUS);
+        if (!prompt || !prompt[0]) prompt = "Are you sure you wish to break your oath?";
+        
+        if (!get_check_oath_multiline(prompt))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/*
+ * Check if an attack type is an Area of Effect (AoE) attack
+ * vs a direct targeted attack
+ */
+bool is_aoe_attack_type(int attack_type)
+{
+    switch (attack_type)
+    {
+        case ATT_MAIN:
+        case ATT_FLANKING:
+        case ATT_CONTROLLED_RETREAT:
+        case ATT_POLEARM:
+        case ATT_RIPOSTE:
+        case ATT_OPPORTUNIST:
+        case ATT_ZONE_OF_CONTROL:
+        case ATT_OPPORTUNITY:
+        case ATT_IMPALE:
+            return false;  // Direct targeted attacks
+            
+        case ATT_WHIRLWIND:
+        case ATT_RAGE:
+        case ATT_FOLLOW_THROUGH:
+            return true;   // AoE attacks
+            
+        default:
+            return false;  // Default to direct attack
+    }
+}
+
+/*
+ * Apply consequences when an oath is broken:
+ * 1. Remove oath bonuses (recalculate stats)
+ * 2. Apply a random metarun curse
+ * 3. Ban the oath for the rest of this metarun
+ */
+void apply_oath_breaking_curse(int oath_id)
+{
+    cptr oath_name;
+    
+    if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) return;
+    
+    /* Get oath name for logging - use static fallback names to avoid dangling pointer */
+    static const char* fallback_oath_names[] = {"", "Mercy", "Silence", "Iron", "Smith", "Valorous"};
+    if (oath_id <= z_info->oath_max && oath_info[oath_id].name) {
+        oath_name = oath_name_text + oath_info[oath_id].name;
+    } else if (oath_id < 6) {
+        oath_name = fallback_oath_names[oath_id];
+    } else {
+        oath_name = "Unknown";
+    }
+    
+    log_trace("Applying oath breaking consequences for oath %d (%s)", oath_id, oath_name);
+    
+    /* Disable the corresponding special ability */
+    if (oath_id == OATH_MERCY) {
+        p_ptr->active_ability[S_SPC][SPC_OATH_MERCY] = false;
+    }
+    else if (oath_id == OATH_SILENCE) {
+        p_ptr->active_ability[S_SPC][SPC_OATH_SILENCE] = false;
+    }
+    else if (oath_id == OATH_IRON) {
+        p_ptr->active_ability[S_SPC][SPC_OATH_IRON] = false;
+    }
+    else if (oath_id == OATH_SMITH) {
+        p_ptr->active_ability[S_SPC][SPC_OATH_SMITH] = false;
+    }
+    else if (oath_id == OATH_VALOROUS) {
+        p_ptr->active_ability[S_SPC][SPC_OATH_VALOROUS] = false;
+    }
+    
+    /* Remove oath bonuses by recalculating */
+    p_ptr->update |= (PU_BONUS);
+    p_ptr->redraw |= (PR_STATE);
+    
+    /* Show oath-specific curse message and let player choose curse */
+    int chosen_curse = choose_oath_breaking_curse_ui(oath_id);
+    
+    if (chosen_curse >= 0) {
+        /* Apply the chosen curse */
+        add_curse_stack(chosen_curse);
+        log_trace("Applied chosen curse %d for breaking oath", chosen_curse);
+    } else {
+        /* Fallback to random curse if UI failed */
+        int selected_curse = rand_int(32);
+        add_curse_stack(selected_curse);
+        log_trace("Applied fallback random curse %d for breaking oath", selected_curse);
+    }
+    
+    /* Ban this oath for the rest of the metarun */
+    metarun_ban_oath(oath_id);
+    
+    log_trace("Banned oath %d (%s) from future selection in this metarun", oath_id, oath_name);
 }
 
 void break_mercy_oath(monster_type* m_ptr, int damage)
@@ -3899,10 +4097,59 @@ void break_mercy_oath(monster_type* m_ptr, int damage)
     {
         if (merciless_attack(m_ptr))
         {
-            msg_print("You break your oath of mercy.");
+            /* Curse message and selection handled by apply_oath_breaking_curse */
             do_cmd_note("Broke your oath", p_ptr->depth);
+            
+            /* Apply oath breaking consequences */
+            apply_oath_breaking_curse(OATH_MERCY);
         }
         p_ptr->oaths_broken |= OATH_MERCY_FLAG;
+    }
+}
+
+void break_valorous_oath(monster_type* m_ptr, int damage, int attack_type, int damage_source)
+{
+    // Unseen enemies are okay to kill
+    if (!m_ptr->ml)
+        return;
+
+    // Only break oath for player-caused damage  
+    // damage_source: -1 = player, 0+ = monster index
+    if (damage_source != -1)
+        return;
+
+    if (damage > 0 && m_ptr->stance == STANCE_FLEEING)
+    {
+        if (cowardly_attack(m_ptr))
+        {
+            // For direct attacks, oath should only break if the warning was accepted
+            // For AoE attacks, break only if the attack actually kills the monster
+            if (is_aoe_attack_type(attack_type))
+            {
+                /* AoE attack - only break oath if the monster dies */
+                if (m_ptr->hp <= damage)
+                {
+                    /* AoE attack killed fleeing enemy - break oath immediately */
+                    do_cmd_note("Broke your oath through area attack that killed fleeing enemy", p_ptr->depth);
+                    
+                    /* Apply oath breaking consequences */
+                    apply_oath_breaking_curse(OATH_VALOROUS);
+                    p_ptr->oaths_broken |= OATH_VALOROUS_FLAG;
+                }
+                // If AoE attack doesn't kill, don't break oath
+            }
+            else
+            {
+                /* Direct attack - oath only breaks if warning was accepted
+                 * The warning is handled by abort_for_valorous() before we get here
+                 * If we reach this point for a direct attack, the player confirmed breaking the oath */
+                do_cmd_note("Broke your oath", p_ptr->depth);
+                
+                /* Apply oath breaking consequences */
+                apply_oath_breaking_curse(OATH_VALOROUS);
+                p_ptr->oaths_broken |= OATH_VALOROUS_FLAG;
+            }
+        }
     }
 }
 
@@ -4062,6 +4309,12 @@ void py_attack_aux(int y, int x, int attack_type)
     }
     else if (abort_for_mercy(m_ptr))
     {
+        abort_attack = true;
+    }
+    else if (!is_aoe_attack_type(attack_type) && abort_for_valorous(m_ptr))
+    {
+        // Only show valorous oath warning for direct attacks
+        // AoE attacks will break oath immediately without warning
         abort_attack = true;
     }
 
@@ -4258,6 +4511,7 @@ void py_attack_aux(int y, int x, int attack_type)
                 net_dam = 0;
 
             break_mercy_oath(m_ptr, net_dam);
+            break_valorous_oath(m_ptr, net_dam, attack_type, -1);  // -1 indicates player damage
 
             // determine the punctuation for the attack ("...", ".", "!" etc)
             attack_punctuation(punctuation, net_dam, crit_bonus_dice);
@@ -4525,6 +4779,75 @@ void py_attack_aux(int y, int x, int attack_type)
     break_truce(false);
 }
 
+/*
+ * Count the maximum number of continuous passable adjacent squares 
+ * (not walls, not rubble, not closed doors)
+ * Returns the longest sequence of adjacent passable squares
+ */
+int count_open_adjacent_squares(int y, int x)
+{
+    bool passable[8];
+    int i;
+    int max_continuous = 0;
+    int current_continuous = 0;
+    
+    /* First, check which adjacent squares are passable */
+    for (i = 0; i < 8; i++)
+    {
+        int adj_y = y + ddy_ddd[i];
+        int adj_x = x + ddx_ddd[i];
+        
+        /* Check bounds */
+        if (!in_bounds(adj_y, adj_x))
+        {
+            passable[i] = false;
+            continue;
+        }
+            
+        /* Check if square is passable (not wall, not rubble, not closed door) */
+        if (cave_floor_bold(adj_y, adj_x) || 
+            cave_feat[adj_y][adj_x] == FEAT_OPEN ||
+            (cave_feat[adj_y][adj_x] >= FEAT_TRAP_HEAD && cave_feat[adj_y][adj_x] <= FEAT_TRAP_TAIL))
+        {
+            passable[i] = true;
+        }
+        else
+        {
+            passable[i] = false;
+        }
+        log_trace("Adjacent square %d: (%d,%d) feat=%d passable=%d", i, adj_y, adj_x, cave_feat[adj_y][adj_x], passable[i]);
+    }
+    
+    /* Now find the longest continuous sequence of passable squares */
+    /* We need to check sequences that are actually adjacent in the game world */
+    /* Direction mapping: 0=S, 1=N, 2=E, 3=W, 4=SE, 5=SW, 6=NE, 7=NW */
+    /* Clockwise order in game world: N(1), NE(6), E(2), SE(4), S(0), SW(5), W(3), NW(7) */
+    int clockwise_order[8] = {1, 6, 2, 4, 0, 5, 3, 7};
+    
+    for (int start = 0; start < 8; start++)
+    {
+        current_continuous = 0;
+        /* Count consecutive passable squares going clockwise from start */
+        for (int offset = 0; offset < 8; offset++)
+        {
+            int idx = clockwise_order[(start + offset) % 8];
+            if (passable[idx])
+            {
+                current_continuous++;
+            }
+            else
+            {
+                break; /* Stop at first non-passable square */
+            }
+        }
+        if (current_continuous > max_continuous)
+            max_continuous = current_continuous;
+    }
+    
+    log_trace("count_open_adjacent_squares result: max_continuous=%d", max_continuous);
+    return max_continuous;
+}
+
 bool whirlwind_possible(void)
 {
     if (!p_ptr->active_ability[S_MEL][MEL_WHIRLWIND_ATTACK])
@@ -4558,8 +4881,16 @@ void py_attack(int y, int x, int attack_type)
     dir = dir_from_delta(y - p_ptr->py, x - p_ptr->px);
     dir0 = chome[dir];
 
-    if ((p_ptr->rage || whirlwind_possible())
-        && (adj_mon_count(p_ptr->py, p_ptr->px) > 1) && !p_ptr->afraid)
+    // Debug logging for whirlwind
+    int open_squares = count_open_adjacent_squares(p_ptr->py, p_ptr->px);
+    int adjacent_monsters = adj_mon_count(p_ptr->py, p_ptr->px);
+    bool whirlwind_poss = whirlwind_possible();
+    
+    log_trace("Whirlwind debug: rage=%d, whirlwind_possible=%d, open_squares=%d, adj_monsters=%d, afraid=%d", 
+              p_ptr->rage, whirlwind_poss, open_squares, adjacent_monsters, p_ptr->afraid);
+    
+    if ((p_ptr->rage || (whirlwind_poss && open_squares >= 5))
+        && (adjacent_monsters > 1) && !p_ptr->afraid)
     {
         int i;
         bool clockwise = one_in_(2);
@@ -4568,6 +4899,10 @@ void py_attack(int y, int x, int attack_type)
         if (p_ptr->rage)
         {
             msg_print("You strike out at everything around you!");
+        }
+        else
+        {
+            msg_print("You whirl around, striking at everything nearby!");
         }
 
         // attack the adjacent squares in sequence
@@ -5095,6 +5430,12 @@ void move_player(int dir)
 
         /* Move player */
         monster_swap(py, px, y, x);
+
+        /* Check for Mandos quest interaction after movement */
+        check_mandos_quest_interaction();
+        
+        /* Check for Niena quest completion after movement */
+        check_niena_quest_completion();
 
         if (cave_feat[y][x] == FEAT_SUNLIGHT
             && cave_feat[py][px] != FEAT_SUNLIGHT)

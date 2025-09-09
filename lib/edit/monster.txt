@@ -286,7 +286,7 @@
 
 # Version stamp (required)
 
-V:1.5.0
+V:0.8.7
 
 
 ##### Non-race (contains the player picture) #####
@@ -314,6 +314,19 @@ G:@:w
 # Edain
 N:5:<player>
 G:@:w
+
+# Niena quest giver - Mercy quest on maximum-size levels
+N:6:Niena, Lady of Pity
+W:6:1
+G:V:v
+I:2:26d4:0:0
+A:0:0:0:19
+P:[+0]
+F:FEMALE | NEVER_MOVE | SMART | PEACEFUL | UNIQUE | NEVER_BLOW | SPECIAL_GEN
+D:Before you appears Niena, the Lady of Pity, she who mourns for all
+D: suffering in Middle-earth. Her tears have watered the Two Trees, and her
+D: compassion moves even the hardest hearts. She looks upon you with eyes
+D: full of both sorrow and hope, as if she has a task requiring mercy.
 
 
 ##### Dungeon monsters #####
@@ -404,6 +417,41 @@ F:MALE | ELF | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
 D:A chained elf crouches here, filthy hair hanging to his shoulders.
 D: Dried blood encrusts a noble face. His eyes are fixed on you. 
 
+# Can't move from idx 18 for dungeon generation reasons
+N:18:Tulkas Unclad
+W:1:1
+G:V:v
+I:2:20d4:0
+A:0:0:0:15
+P:[+0]
+F:MALE | NEVER_MOVE | SMART | PEACEFUL | UNIQUE | NEVER_BLOW
+D:The mighty Vala of war and strength, Tulkas the Strong, has taken
+D: physical form to test and reward worthy heroes. His presence radiates
+D: courage and valor, and he seems eager to speak with you.
+
+# Can't move from idx 19 for quest logic (Aulë forge quest giver)
+N:19:Aule the Smith
+W:5:1
+G:V:u
+I:2:24d4:0
+A:0:0:0:18
+P:[+0]
+F:MALE | NEVER_MOVE | SMART | PEACEFUL | UNIQUE | NEVER_BLOW | SPECIAL_GEN
+D:Here stands Aule, the great Smith among the Valar, patient and intent.
+D: His eyes weigh your craft, not your valor. Beside him lies a mighty forge
+D: whose fires await a work worthy of his approval.
+
+# Can't move from idx 20 for quest logic (Mandos clearing quest giver)
+N:20:Mandos the Doomsman
+W:8:1
+G:V:D
+I:2:28d4:0
+A:0:0:0:20
+P:[+0]
+F:MALE | NEVER_MOVE | SMART | PEACEFUL | UNIQUE | NEVER_BLOW | SPECIAL_GEN
+D:Before you stands Mandos, the Doomsman of the Valar, keeper of the halls
+D: of the dead. His presence is solemn and commanding, and his eyes see all
+D: that transpires in the halls of waiting. He seems to have a task for you.
 
 ##### 2 #####
 
@@ -1065,9 +1113,9 @@ D:Son of Ulfang, the Black, and the leader in the treason against
 D: the elves in the Battle of Unnumbered Tears.
 
 
-# need to leave Aldor at location 117
+# need to leave Brodda at location 117
 
-N:117:Aldor, the Risen King
+N:117:Brodda, the Easterling Lord
 W:11:100
 G:W:R
 I:2:8d4:0
@@ -1081,10 +1129,10 @@ F:UNDEAD | HURT_LITE | RES_COLD | TERRITORIAL
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | RES_CRIT
 S:SPELL_PCT_20
 S:SLOW | HOLD
-D:A king of men before the Noldor returned to Middle-earth,
-D: the black power of Morgoth has kept his spirit bound to
-D: this place, far from Mandos' halls. He is arrayed in
-D: finery and holds a long blade in ghostly fingers.
+D:A cruel Easterling who ruled Dor-lomin with an iron fist after
+D: the Nirnaeth Arnoediad. He oppressed the people of Húrin's
+D: house and was foretold to die by Túrin's blade, but fate
+D: has been altered. The dark power binds his spirit here still.
 
 
 ##### 12 #####
@@ -2374,6 +2422,20 @@ D: aroused he watched that no one came,
 D: no flitting shade nor hunted shape,
 D: seeking from Angband to escape.
 
+#Quest monsters
+
+# Niena quest giver - Mercy quest on maximum-size levels
+N:260:Niena, Lady of Pity  
+W:6:1
+G:V:v1
+I:2:26d4:0
+A:0:0:0:19
+P:[+0]
+F:FEMALE | NEVER_MOVE | SMART | PEACEFUL | UNIQUE | NEVER_BLOW | SPECIAL_GEN
+D:Before you appears Niena, the Lady of Pity, she who mourns for all
+D: suffering in Middle-earth. Her tears have watered the Two Trees, and her
+D: compassion moves even the hardest hearts. She looks upon you with eyes
+D: full of both sorrow and hope, as if she has a task requiring mercy.
 
 
 
