@@ -961,8 +961,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     { OPT_display_hits, OPT_auto_display_lists, OPT_instant_run,
         OPT_center_player, OPT_run_avoid_center, OPT_hilite_player,
         OPT_hilite_target, OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
-        OPT_delay_factor, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_delay_factor, OPT_main_combat_rolls, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Birth ***/
 

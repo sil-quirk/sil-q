@@ -684,6 +684,7 @@ extern void update_combat_rolls1b(
 extern void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps,
     int prot, int prt_percent, int dam_type, bool melee);
 extern void display_combat_rolls(void);
+extern void display_main_combat_rolls(void);
 extern void do_betrayal_ring_amulet();
 
 /* melee2.c */

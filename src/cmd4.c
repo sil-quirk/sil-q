@@ -7802,6 +7802,12 @@ extern void do_cmd_options_aux(int page, cptr info)
                     "Hitpoint warning threshold (0% to 90%)",
                     op_ptr->hitpoint_warn * 10);
             }
+            else if (opt[i] == OPT_main_combat_rolls)
+            {
+                strnfmt(buf, sizeof(buf), "%-48s: %d",
+                    "Main terminal combat roll lines (0=off, 1-3=lines)",
+                    op_ptr->main_combat_rolls);
+            }
             else
             {
                 strnfmt(buf, sizeof(buf), "%-48s: %s", option_desc[opt[i]],
@@ -7916,6 +7922,16 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->hitpoint_warn + 1
                         : 9;
                 }
+                else if (opt[k] == OPT_main_combat_rolls)
+                {
+                    op_ptr->main_combat_rolls = (op_ptr->main_combat_rolls < 4)
+                        ? op_ptr->main_combat_rolls + 1
+                        : 4;
+                    
+                    /* Refresh main terminal display when option changes */
+                    display_main_combat_rolls();
+                    p_ptr->redraw |= (PR_MAP);
+                }
                 else
                 {
                     op_ptr->opt[opt[k]] = true;
@@ -7940,6 +7956,16 @@ extern void do_cmd_options_aux(int page, cptr info)
                     op_ptr->hitpoint_warn = (op_ptr->hitpoint_warn > 0)
                         ? op_ptr->hitpoint_warn - 1
                         : 0;
+                }
+                else if (opt[k] == OPT_main_combat_rolls)
+                {
+                    op_ptr->main_combat_rolls = (op_ptr->main_combat_rolls > 0)
+                        ? op_ptr->main_combat_rolls - 1
+                        : 0;
+                    
+                    /* Refresh main terminal display when option changes */
+                    display_main_combat_rolls();
+                    p_ptr->redraw |= (PR_MAP);
                 }
                 else
                 {

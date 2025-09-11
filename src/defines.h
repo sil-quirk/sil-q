@@ -115,7 +115,7 @@
 /*
  * Number of grids in each screen (vertically)
  */
-#define SCREEN_HGT (Term->hgt - ROW_MAP - 1)
+#define SCREEN_HGT (Term->hgt - ROW_MAP - 1 - (op_ptr ? op_ptr->main_combat_rolls : 0))
 
 /*
  * Number of grids in each screen (horizontally)
@@ -331,7 +331,7 @@
 #define MAX_COMBAT_ROLLS 50
 
 // Types of combat roll storage
-#define COMBAT_ROLL_NONE 1
+#define COMBAT_ROLL_NONE 0
 #define COMBAT_ROLL_ROLL 1
 #define COMBAT_ROLL_AUTO 2
 
@@ -2508,6 +2508,7 @@
 #define OPT_forgo_attacking_unwary 6
 #define OPT_delay_factor 10
 #define OPT_hitpoint_warning 11
+#define OPT_main_combat_rolls 12
 // xxx always_repeat
 // xxx depth_in_feet
 // xxx stack_force_notes

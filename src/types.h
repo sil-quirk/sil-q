@@ -903,6 +903,8 @@ struct player_other
     byte hitpoint_warn; /* Hitpoint warning (0 to 9) */
 
     byte delay_factor; /* Delay factor (0 to 9) */
+
+    byte main_combat_rolls; /* Main terminal combat rolls (0-3) */
 };
 
 /*

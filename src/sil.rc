@@ -7,6 +7,8 @@ ANGBAND MENU
 		MENUITEM "&New", 100
 		MENUITEM "&Open...", 101
 		MENUITEM SEPARATOR
+		MENUITEM "&Fullscreen\tF11", 105
+		MENUITEM SEPARATOR
 		MENUITEM "&Save", 110
 		MENUITEM SEPARATOR
 		MENUITEM "E&xit", 130
@@ -51,6 +53,15 @@ ANGBAND MENU
 		MENUITEM "&Sound", 410
 		MENUITEM SEPARATOR
 		MENUITEM "&Map", 420
+		MENUITEM SEPARATOR
+		POPUP "&Sub-window Style"
+		{
+			MENUITEM "&Normal (with title bars)", 430
+			MENUITEM "&Borderless", 431
+			MENUITEM "&Minimal borders", 432
+		}
+		MENUITEM SEPARATOR
+		MENUITEM "&Toggle Menu Bar\tF12", 433
 	}
 
 }

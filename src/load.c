@@ -654,8 +654,25 @@ static void rd_options(void)
     rd_byte(&b);
     op_ptr->hitpoint_warn = b;
 
-    // 8 spare bytes
-    strip_bytes(8);
+    /* Read "main_combat_rolls" - with backward compatibility */
+    if (older_than(0, 8, 7))
+    {
+        /* Old saves don't have this field - use default */
+        op_ptr->main_combat_rolls = 1;
+        /* Skip 8 spare bytes for old saves */
+        strip_bytes(8);
+    }
+    else
+    {
+        /* New saves have this field */
+        rd_byte(&b);
+        op_ptr->main_combat_rolls = b;
+        /* Ensure it's in valid range */
+        if (op_ptr->main_combat_rolls < 0 || op_ptr->main_combat_rolls > 4)
+            op_ptr->main_combat_rolls = 1;
+        /* Skip 7 remaining spare bytes */
+        strip_bytes(7);
+    }
 
     /*** Normal Options ***/
 
