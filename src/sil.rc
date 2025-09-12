@@ -62,6 +62,13 @@ ANGBAND MENU
 		}
 		MENUITEM SEPARATOR
 		MENUITEM "&Toggle Menu Bar\tF12", 433
+		MENUITEM SEPARATOR
+		POPUP "&Profiles"
+		{
+			MENUITEM "&Save Current Profile", 440
+			MENUITEM "&Load Profile...", 441
+			MENUITEM "&Save Profile As...", 442
+		}
 	}
 
 }

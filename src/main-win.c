@@ -121,6 +121,10 @@
 #define IDM_OPTIONS_SUBWIN_STYLE_2 432
 #define IDM_OPTIONS_TOGGLE_MENU 433
 
+#define IDM_PROFILE_SAVE 440
+#define IDM_PROFILE_LOAD 441
+#define IDM_PROFILE_SAVEAS 442
+
 /*
  * This may need to be removed for some compilers XXX XXX XXX
  */
@@ -263,6 +267,14 @@ unsigned _cdecl _dos_getfileattr(const char*, unsigned*);
  * Forward declare
  */
 typedef struct _term_data term_data;
+
+/*
+ * Forward declare functions
+ */
+static void set_subwindow_fullscreen_style(int style);
+static bool enter_fullscreen(term_data* td);
+static bool exit_fullscreen(term_data* td);
+static errr Term_xtra_win_react(void);
 
 /*
  * Extra "term" data
@@ -426,6 +438,14 @@ static cptr sound_file[SOUND_MAX][SAMPLE_MAX];
  * Full path to ANGBAND.INI
  */
 static cptr ini_file = NULL;
+
+/*
+ * Current subwindow style for fullscreen mode
+ * 0 = normal (with title bars)
+ * 1 = borderless popup windows  
+ * 2 = minimal borders only
+ */
+static int subwindow_style = 0;
 
 /*
  * Name of application
@@ -929,6 +949,14 @@ static void save_prefs(void)
     strcpy(buf, arg_sound ? "1" : "0");
     WritePrivateProfileString("Angband", "Sound", buf, ini_file);
 
+    /* Save the main window fullscreen state */
+    strcpy(buf, data[0].fullscreen ? "1" : "0");
+    WritePrivateProfileString("Angband", "Fullscreen", buf, ini_file);
+
+    /* Save the subwindow style for fullscreen mode */
+    sprintf(buf, "%d", subwindow_style);
+    WritePrivateProfileString("Angband", "SubwindowStyle", buf, ini_file);
+
     /* Save window prefs */
     for (i = 0; i < MAX_TERM_DATA; i++)
     {
@@ -999,6 +1027,12 @@ static void load_prefs(void)
     /* Extract the "arg_sound" flag */
     arg_sound = (GetPrivateProfileInt("Angband", "Sound", 0, ini_file) != 0);
 
+    /* Extract the main window fullscreen state */
+    data[0].fullscreen = (GetPrivateProfileInt("Angband", "Fullscreen", 0, ini_file) != 0);
+
+    /* Extract the subwindow style for fullscreen mode */
+    subwindow_style = GetPrivateProfileInt("Angband", "SubwindowStyle", 0, ini_file);
+
     /* Extract the "arg_fiddle" flag */
     arg_fiddle = (GetPrivateProfileInt("Angband", "Fiddle", 0, ini_file) != 0);
 
@@ -1036,6 +1070,160 @@ static void load_prefs(void)
         data[0].cols = 80;
     if (data[0].rows < 24)
         data[0].rows = 24;
+}
+
+/*
+ * Save current preferences to a specific profile file
+ */
+static void save_profile(cptr profile_path)
+{
+    cptr old_ini_file = ini_file;
+    
+    /* Temporarily switch to the profile file */
+    ini_file = profile_path;
+    
+    /* Save preferences using existing function */
+    save_prefs();
+    
+    /* Restore original ini file */
+    ini_file = old_ini_file;
+}
+
+/*
+ * Load preferences from a specific profile file
+ */
+static void load_profile(cptr profile_path)
+{
+    cptr old_ini_file = ini_file;
+    bool was_fullscreen;
+    
+    /* Safety check */
+    if (!profile_path || !data[0].w) {
+        plog("Error: Invalid profile path or window not initialized");
+        return;
+    }
+    
+    was_fullscreen = data[0].fullscreen;
+    
+    /* Temporarily switch to the profile file */
+    ini_file = profile_path;
+    
+    /* Load preferences using existing function */
+    load_prefs();
+    
+    /* Restore original ini file */
+    ini_file = old_ini_file;
+    
+    /* Apply fullscreen state changes if needed */
+    if (data[0].w && IsWindow(data[0].w)) {
+        /* Window exists and is valid - handle state changes */
+        if (data[0].fullscreen && !was_fullscreen) {
+            /* Need to enter fullscreen mode */
+            if (enter_fullscreen(&data[0])) {
+                /* Apply subwindow style only if fullscreen was successful */
+                set_subwindow_fullscreen_style(subwindow_style);
+            }
+        } else if (!data[0].fullscreen && was_fullscreen) {
+            /* Need to exit fullscreen mode */
+            exit_fullscreen(&data[0]);
+        } else if (data[0].fullscreen && was_fullscreen) {
+            /* Already in fullscreen - just update subwindow style */
+            set_subwindow_fullscreen_style(subwindow_style);
+        }
+    }
+    /* If window doesn't exist yet, changes will be applied during initialization */
+}
+
+/*
+ * Show profile save dialog and save current profile
+ */
+static void profile_save_as(void)
+{
+    OPENFILENAME ofn;
+    char profile_path[1024];
+    char profile_dir[1024];
+    
+    /* Get the directory where the main ini file is located */
+    strcpy(profile_dir, ini_file);
+    for (int i = strlen(profile_dir) - 1; i >= 0; i--) {
+        if (profile_dir[i] == '\\') {
+            profile_dir[i] = '\0';
+            break;
+        }
+    }
+    
+    /* Initialize file dialog */
+    profile_path[0] = '\0';
+    memset(&ofn, 0, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = data[0].w;
+    ofn.lpstrFilter = "Profile Files (*.ini)\0*.ini\0All Files (*.*)\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFile = profile_path;
+    ofn.nMaxFile = sizeof(profile_path);
+    ofn.lpstrInitialDir = profile_dir;
+    ofn.lpstrTitle = "Save Profile As";
+    ofn.Flags = OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR;
+    ofn.lpstrDefExt = "ini";
+    
+    if (GetSaveFileName(&ofn)) {
+        save_profile(profile_path);
+        plog("Profile saved successfully.");
+    }
+}
+
+/*
+ * Show profile load dialog and load selected profile
+ */
+static void profile_load(void)
+{
+    OPENFILENAME ofn;
+    char profile_path[1024];
+    char profile_dir[1024];
+    
+    /* Get the directory where the main ini file is located */
+    strcpy(profile_dir, ini_file);
+    for (int i = strlen(profile_dir) - 1; i >= 0; i--) {
+        if (profile_dir[i] == '\\') {
+            profile_dir[i] = '\0';
+            break;
+        }
+    }
+    
+    /* Initialize file dialog */
+    profile_path[0] = '\0';
+    memset(&ofn, 0, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = data[0].w;
+    ofn.lpstrFilter = "Profile Files (*.ini)\0*.ini\0All Files (*.*)\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFile = profile_path;
+    ofn.nMaxFile = sizeof(profile_path);
+    ofn.lpstrInitialDir = profile_dir;
+    ofn.lpstrTitle = "Load Profile";
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY | OFN_NOCHANGEDIR;
+    
+    if (GetOpenFileName(&ofn)) {
+        /* Add safety check */
+        if (!check_file(profile_path)) {
+            plog("Error: Could not access profile file");
+            return;
+        }
+        
+        load_profile(profile_path);
+        
+        /* Minimal reaction to changes - avoid potentially unsafe operations */
+        plog("Profile loaded successfully.");
+    }
+}
+
+/*
+ * Save current preferences to the main ini file
+ */
+static void profile_save_current(void)
+{
+    save_prefs();
+    plog("Current profile saved to main settings file.");
 }
 
 #ifdef USE_SOUND
@@ -2828,12 +3016,21 @@ static bool enter_fullscreen(term_data* td)
     SetFocus(td->w);
     
     /* Reposition visible sub-windows as overlays */
+    int subwindow_count = 0;
     for (i = 1; i < MAX_TERM_DATA; i++)
     {
         if (data[i].visible && data[i].w && IsWindow(data[i].w))
         {
-            int x = 10 + (i-1) * 220;  /* Spread horizontally */
-            int y = 10;                 /* Near top */
+            subwindow_count++;
+            /* Use loaded positions, but ensure they're reasonable for fullscreen */
+            int x = data[i].pos_x;
+            int y = data[i].pos_y;
+            
+            /* Ensure subwindows are visible in fullscreen - adjust if needed */
+            if (x < 0) x = 10 + (i-1) * 220;  /* Fallback to spread horizontally */
+            if (y < 0) y = 10;                /* Fallback to near top */
+            if (x > 1200) x = 10 + (i-1) * 220;  /* Don't go too far right */
+            if (y > 800) y = 10;              /* Don't go too far down */
             
             /* Save original state with validation */
             data[i].saved_visible = true;
@@ -2847,7 +3044,6 @@ static bool enter_fullscreen(term_data* td)
             /* Validate that we got valid style values */
             if (data[i].saved_style == 0 || data[i].saved_style == (DWORD)-1)
             {
-                plog("Warning: Could not save window style for sub-window - using default");
                 /* Set a reasonable default style */
                 data[i].saved_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
                 data[i].saved_ex_style = WS_EX_WINDOWEDGE;
@@ -2857,7 +3053,7 @@ static bool enter_fullscreen(term_data* td)
             if (!SetWindowPos(data[i].w, HWND_TOPMOST, x, y, 0, 0,
                              SWP_NOSIZE | SWP_SHOWWINDOW))
             {
-                plog("Warning: Could not position sub-window as overlay");
+                /* Position failed - continue anyway */
             }
         }
         else
@@ -2958,9 +3154,7 @@ static bool exit_fullscreen(term_data* td)
     
     if (errors > 0)
     {
-        char msg[128];
-        sprintf(msg, "Exited fullscreen mode with %d warnings - check log", errors);
-        plog(msg);
+        plog("Exited fullscreen mode with warnings - check log");
     }
     else
     {
@@ -3067,133 +3261,109 @@ static void move_subwindow(term_data* td, int dx, int dy)
 static void set_subwindow_fullscreen_style(int style)
 {
     int i;
-    int count = 0;
-    int errors = 0;
+    static bool style_application_in_progress = false;
+    
+    /* Prevent recursive calls */
+    if (style_application_in_progress) {
+        return;
+    }
+    
+    style_application_in_progress = true;
+    
+    /* Safety check: only operate when main window is in fullscreen */
+    if (!data[0].fullscreen)
+    {
+        style_application_in_progress = false;
+        return;
+    }
     
     for (i = 1; i < MAX_TERM_DATA; i++)
     {
         /* Safety checks to prevent crashes */
-        if (!data[i].w || !IsWindow(data[i].w))
+        if (!data[i].w || !IsWindow(data[i].w) || !data[i].visible)
         {
-            continue;  /* Skip invalid window handles */
+            continue;  /* Skip invalid or invisible windows */
         }
         
-        if (data[i].visible && data[i].fullscreen)
+        /* Get current style - if this fails, skip this window */
+        DWORD current_style = GetWindowLong(data[i].w, GWL_STYLE);
+        if (current_style == 0) {
+            continue;
+        }
+        
+        DWORD new_style = current_style;
+        DWORD new_ex_style = GetWindowLong(data[i].w, GWL_EXSTYLE);
+        
+        /* Apply style changes based on requested style */
+        switch (style)
         {
-            DWORD new_style = 0;
-            DWORD new_ex_style = 0;
-            LONG result;
-            bool style_changed = false;
-            DWORD error_code;
+        case 1: /* Borderless */
+            /* Remove decorations to make borderless */
+            new_style = current_style & ~(WS_CAPTION | WS_THICKFRAME | WS_BORDER | WS_SYSMENU);
+            new_style |= WS_OVERLAPPED;
+            break;
             
-            count++;
+        case 2: /* Minimal borders */
+            /* Minimal visual borders, but intentionally NOT resizable in fullscreen overlay.
+             * Previous implementation retained WS_THICKFRAME allowing edge resize which
+             * triggered instability/crash on some systems when in fullscreen. We drop
+             * WS_THICKFRAME to prevent resizing while still giving a thin outline (WS_BORDER). */
+            new_style = current_style & ~(WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_THICKFRAME | WS_MAXIMIZEBOX);
+            new_style |= WS_BORDER; /* Thin border only, non-resizable */
+            log_debug("Applied minimal (non-resizable) subwindow style to index %d", i);
+            break;
             
-            /* Clear any previous errors before attempting operations */
-            SetLastError(0);
-            
-            switch (style)
+        default: /* Normal style - restore original */
+            /* Use saved style if available, otherwise use a safe default */
+            if (data[i].saved_style != 0 && data[i].saved_style != (DWORD)-1)
             {
-            case 1: /* Borderless */
-                /* Get current style and modify it safely */
-                new_style = GetWindowLong(data[i].w, GWL_STYLE);
-                error_code = GetLastError();
-                if (new_style != 0 || error_code == 0)
-                {
-                    /* Remove frame elements but keep essential flags */
-                    new_style &= ~(WS_CAPTION | WS_THICKFRAME | WS_BORDER | WS_DLGFRAME);
-                    new_style |= WS_POPUP;
-                    /* Use conservative extended style - avoid WS_EX_TOPMOST which can cause issues */
-                    new_ex_style = WS_EX_TOOLWINDOW;
-                    style_changed = true;
-                }
-                break;
-                
-            case 2: /* Minimal borders */
-                /* Get current style and modify it safely */
-                new_style = GetWindowLong(data[i].w, GWL_STYLE);
-                error_code = GetLastError();
-                if (new_style != 0 || error_code == 0)
-                {
-                    /* Use a safer approach: keep as overlapped window but remove caption/sizing */
-                    new_style &= ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
-                    new_style |= WS_BORDER;  /* Just add border, don't use WS_POPUP */
-                    /* Use less aggressive extended style */
-                    new_ex_style = WS_EX_TOOLWINDOW;  /* Remove WS_EX_TOPMOST to avoid conflicts */
-                    style_changed = true;
-                }
-                break;
-                
-            default: /* Restore original style */
-                /* Validate saved style values before using them */
-                if (data[i].saved_style != 0 && data[i].saved_style != (DWORD)-1)
-                {
-                    new_style = data[i].saved_style;
-                    new_ex_style = data[i].saved_ex_style;
-                    style_changed = true;
-                }
-                break;
+                new_style = data[i].saved_style;
+                new_ex_style = data[i].saved_ex_style;
+            }
+            else
+            {
+                /* Safe default for normal style */
+                new_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+                new_ex_style = WS_EX_TOOLWINDOW;
+            }
+            break;
+        }
+        
+        /* Apply the style changes - do this carefully */
+        bool style_will_change = (new_style != current_style);
+        bool ex_style_will_change = false;
+        
+        DWORD current_ex_style = GetWindowLong(data[i].w, GWL_EXSTYLE);
+        if (new_ex_style != current_ex_style)
+        {
+            ex_style_will_change = true;
+        }
+        
+        /* Only use hide/show if we're actually changing styles */
+        if (style_will_change || ex_style_will_change)
+        {
+            /* Apply style changes */
+            if (style_will_change)
+            {
+                SetWindowLong(data[i].w, GWL_STYLE, new_style);
             }
             
-            /* Apply style changes with comprehensive error checking */
-            if (style_changed)
+            if (ex_style_will_change)
             {
-                /* Validate style combinations before applying */
-                if ((new_style & WS_POPUP) && (new_style & WS_CHILD))
-                {
-                    errors++;
-                    continue;
-                }
-                
-                /* Apply regular style */
-                SetLastError(0);
-                result = SetWindowLong(data[i].w, GWL_STYLE, new_style);
-                error_code = GetLastError();
-                
-                if (result == 0 && error_code != 0)
-                {
-                    errors++;
-                    continue;
-                }
-                
-                /* Apply extended style */
-                SetLastError(0);
-                result = SetWindowLong(data[i].w, GWL_EXSTYLE, new_ex_style);
-                error_code = GetLastError();
-                
-                if (result == 0 && error_code != 0)
-                {
-                    errors++;
-                    /* Don't continue here - the main style was set successfully */
-                }
-                
-                /* Apply changes with proper flags - CRITICAL for frame changes */
-                SetLastError(0);
-                BOOL pos_result = SetWindowPos(data[i].w, HWND_TOPMOST, 0, 0, 0, 0,
-                                              SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED | SWP_NOCOPYBITS);
-                error_code = GetLastError();
-                
-                if (!pos_result)
-                {
-                    errors++;
-                }
-                
-                /* Force a redraw to ensure changes are visible */
-                InvalidateRect(data[i].w, NULL, TRUE);
-                UpdateWindow(data[i].w);
+                SetWindowLong(data[i].w, GWL_EXSTYLE, new_ex_style);
             }
+            
+            /* Force proper redraw after style change */
+            InvalidateRect(data[i].w, NULL, TRUE);
+            UpdateWindow(data[i].w);
+            
+            /* Trigger a paint message to ensure content is redrawn */
+            RedrawWindow(data[i].w, NULL, NULL, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
         }
     }
     
-    /* Show result summary only if there were errors */
-    if (count > 0 && errors > 0)
-    {
-        char msg[256];
-        if (style == 0) sprintf(msg, "Applied normal style to %d sub-windows (%d errors)", count, errors);
-        else if (style == 1) sprintf(msg, "Applied borderless style to %d sub-windows (%d errors)", count, errors);
-        else if (style == 2) sprintf(msg, "Applied minimal border style to %d sub-windows (%d errors)", count, errors);
-        else sprintf(msg, "Applied unknown style to %d sub-windows (%d errors)", count, errors);
-        plog(msg);
-    }
+    /* Clean up */
+    style_application_in_progress = false;
 }
 
 /*
@@ -3379,8 +3549,52 @@ static void init_windows(void)
     /* Create a "brush" for drawing the "cursor" */
     hbrBlue = CreateSolidBrush(win_clr[TERM_BLUE]);
 
-    /* Process pending messages */
+    /* Process pending messages first */
     (void)Term_xtra_win_flush();
+    
+    /* Process any remaining messages to ensure window is fully ready */
+    MSG msg;
+    while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    /* Apply fullscreen mode if it was loaded from preferences */
+    if (data[0].fullscreen) {
+        /* Reset fullscreen flag first to ensure proper state transition */
+        data[0].fullscreen = false;
+        
+        if (enter_fullscreen(&data[0])) {
+            /* Give more time for windows to settle and be properly drawn */
+            Sleep(200);
+            
+            /* Ensure all windows are properly painted before applying styles */
+            for (int i = 1; i < MAX_TERM_DATA; i++) {
+                if (data[i].visible && data[i].w && IsWindow(data[i].w)) {
+                    UpdateWindow(data[i].w);
+                }
+            }
+            
+            /* Apply subwindow style */
+            set_subwindow_fullscreen_style(subwindow_style);
+            
+            /* Force all terminals to refresh their content */
+            for (int i = 0; i < MAX_TERM_DATA; i++) {
+                if (data[i].visible && data[i].w && IsWindow(data[i].w)) {
+                    /* Force the terminal to redraw its content */
+                    if (angband_term[i]) {
+                        Term_activate(angband_term[i]);
+                        Term_redraw();
+                    }
+                }
+            }
+            
+            /* Restore main terminal as active */
+            if (angband_term[0]) {
+                Term_activate(angband_term[0]);
+            }
+        }
+    }
 }
 
 /*
@@ -3790,6 +4004,7 @@ static void process_menus(WORD wCmd)
         /* Only allow style changes when main window is in fullscreen */
         if (data[0].fullscreen)
         {
+            subwindow_style = 0;  /* Update the variable */
             set_subwindow_fullscreen_style(0);  /* Keep title bars */
         }
         else
@@ -3804,6 +4019,7 @@ static void process_menus(WORD wCmd)
         /* Only allow style changes when main window is in fullscreen */
         if (data[0].fullscreen)
         {
+            subwindow_style = 1;  /* Update the variable */
             set_subwindow_fullscreen_style(1);  /* Borderless */
         }
         else
@@ -3818,6 +4034,7 @@ static void process_menus(WORD wCmd)
         /* Only allow style changes when main window is in fullscreen */
         if (data[0].fullscreen)
         {
+            subwindow_style = 2;  /* Update the variable */
             set_subwindow_fullscreen_style(2);  /* Minimal borders */
         }
         else
@@ -3830,6 +4047,25 @@ static void process_menus(WORD wCmd)
     case IDM_OPTIONS_TOGGLE_MENU:
     {
         toggle_main_menu();
+        break;
+    }
+
+    /* Profile management */
+    case IDM_PROFILE_SAVE:
+    {
+        profile_save_current();
+        break;
+    }
+
+    case IDM_PROFILE_LOAD:
+    {
+        profile_load();
+        break;
+    }
+
+    case IDM_PROFILE_SAVEAS:
+    {
+        profile_save_as();
         break;
     }
     }
@@ -4085,12 +4321,34 @@ static LRESULT FAR PASCAL AngbandWndProc(
 
         case SIZE_RESTORED:
         {
-            int cols = (LOWORD(lParam) - td->size_ow1) / td->tile_wid;
-            int rows = (HIWORD(lParam) - td->size_oh1) / td->tile_hgt;
+            /* Compute client area in signed space to avoid unsigned underflow
+             * when the window is dragged smaller than decoration overhead.
+             * (size_ow1/size_oh1 stored as unsigned; subtracting them from a
+             * smaller LOWORD/HIWORD produced huge wrapped values -> massive
+             * cols/rows -> allocation attempts -> crash/exit.) */
+            int inner_w = (int)LOWORD(lParam) - (int)td->size_ow1;
+            int inner_h = (int)HIWORD(lParam) - (int)td->size_oh1;
+            if (inner_w < 0) inner_w = 0;
+            if (inner_h < 0) inner_h = 0;
+            int cols = (td->tile_wid > 0) ? inner_w / td->tile_wid : 0;
+            int rows = (td->tile_hgt > 0) ? inner_h / td->tile_hgt : 0;
+
+            /* Hard upper bounds to prevent pathological allocations */
+            if (cols > 500) cols = 500;
+            if (rows > 300) rows = 300;
+
+            /* Safety: clamp to at least 1x1 to avoid invalid/negative sizes
+             * (observed crash when resizing minimal-style subwindows causing
+             * td->cols/rows to become negative which later corrupted state). */
+            if (cols < 1) cols = 1;
+            if (rows < 1) rows = 1;
 
             /* New size */
             if ((td->cols != cols) || (td->rows != rows))
             {
+                if (cols == 500 || rows == 300 || cols == 1 || rows == 1) {
+                    log_debug("WM_SIZE(main): resized to cols=%d rows=%d (inner_w=%d inner_h=%d) style=%d fullscreen=%d", cols, rows, inner_w, inner_h, subwindow_style, td->fullscreen);
+                }
                 /* Save the new size */
                 td->cols = cols;
                 td->rows = rows;
@@ -4266,12 +4524,34 @@ static LRESULT FAR PASCAL AngbandListProc(
 
         td->size_hack = true;
 
-        cols = (LOWORD(lParam) - td->size_ow1) / td->tile_wid;
-        rows = (HIWORD(lParam) - td->size_oh1) / td->tile_hgt;
+    /* Use signed arithmetic to avoid unsigned wrap when window smaller
+     * than non-client overhead; previously could yield huge values in
+     * minimal style leading to instability and exit. */
+    int inner_w = (int)LOWORD(lParam) - (int)td->size_ow1;
+    int inner_h = (int)HIWORD(lParam) - (int)td->size_oh1;
+    if (inner_w < 0) inner_w = 0;
+    if (inner_h < 0) inner_h = 0;
+    cols = (td->tile_wid > 0) ? inner_w / td->tile_wid : 0;
+    rows = (td->tile_hgt > 0) ? inner_h / td->tile_hgt : 0;
+
+    if (cols > 500) cols = 500;
+    if (rows > 300) rows = 300;
+
+    /* Safety: clamp to at least 1 cell in each dimension. Without this,
+     * fast edge drags (especially in minimal border style where caption
+     * metrics differ) can yield 0 or negative interim values which then
+     * store into td->cols/rows and desync from Term->wid/hgt after a
+     * failed Term_resize(). That mismatch later triggers instability
+     * and application exit. */
+    if (cols < 1) cols = 1;
+    if (rows < 1) rows = 1;
 
         /* New size */
         if ((td->cols != cols) || (td->rows != rows))
         {
+            if (cols == 500 || rows == 300 || cols == 1 || rows == 1) {
+                log_debug("WM_SIZE(sub): resized to cols=%d rows=%d (inner_w=%d inner_h=%d) style=%d fullscreen=%d", cols, rows, inner_w, inner_h, subwindow_style, td->fullscreen);
+            }
             /* Save old term */
             term* old_term = Term;
 
@@ -4872,3 +5152,4 @@ int FAR PASCAL WinMain(
 }
 
 #endif /* WINDOWS */
+
