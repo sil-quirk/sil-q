@@ -272,6 +272,7 @@ typedef struct _term_data term_data;
  * Forward declare functions
  */
 static void set_subwindow_fullscreen_style(int style);
+static void set_subwindow_style(int style);  /* New function for both modes */
 static bool enter_fullscreen(term_data* td);
 static bool exit_fullscreen(term_data* td);
 static errr Term_xtra_win_react(void);
@@ -446,6 +447,16 @@ static cptr ini_file = NULL;
  * 2 = minimal borders only
  */
 static int subwindow_style = 0;
+
+/*
+ * Flag to prevent WM_CLOSE handling during fullscreen transitions
+ */
+static bool fullscreen_transition_in_progress = false;
+
+/*
+ * Additional protection against multiple rapid fullscreen toggles
+ */
+static DWORD last_fullscreen_transition_time = 0;
 
 /*
  * Name of application
@@ -2982,7 +2993,15 @@ static bool enter_fullscreen(term_data* td)
     HMONITOR hmon;
     MONITORINFO mi = { sizeof(mi) };
     
-    if (td->fullscreen) return true;
+    if (td->fullscreen) 
+    {
+        /* Already in fullscreen - don't set the transition flag */
+        return true;
+    }
+    
+    /* Set transition flag to prevent WM_CLOSE during transition */
+    fullscreen_transition_in_progress = true;
+    last_fullscreen_transition_time = GetTickCount();
     
     /* Save current state */
     td->saved_maximized = !!IsZoomed(td->w);
@@ -3064,6 +3083,10 @@ static bool enter_fullscreen(term_data* td)
     }
     
     td->fullscreen = true;
+    
+    /* Clear transition flag now that we're done */
+    fullscreen_transition_in_progress = false;
+    
     return true;
 }
 
@@ -3075,90 +3098,79 @@ static bool exit_fullscreen(term_data* td)
     int i;
     int errors = 0;
     
-    if (!td->fullscreen) return true;
+    if (!td->fullscreen) 
+    {
+        /* Not in fullscreen - don't set the transition flag */
+        return true;
+    }
+    
+    /* Set transition flag to prevent WM_CLOSE during restoration */
+    fullscreen_transition_in_progress = true;
+    last_fullscreen_transition_time = GetTickCount();
     
     /* Clear error state before operations */
     SetLastError(0);
     
-    /* Restore main window style with error checking */
-    if (SetWindowLong(td->w, GWL_STYLE, td->saved_style) == 0 && GetLastError() != 0)
+    /* Use safe windowed styles instead of trying to restore saved ones */
+    
+    /* Apply safe, known-good windowed styles */
+    DWORD safe_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+    DWORD safe_ex_style = WS_EX_WINDOWEDGE;
+    
+    /* Apply the safe styles */
+    if (SetWindowLong(td->w, GWL_STYLE, safe_style) == 0 && GetLastError() != 0)
     {
-        plog("Warning: Could not restore main window style");
+        plog("Warning: Could not apply safe window style");
         errors++;
     }
     
-    if (SetWindowLong(td->w, GWL_EXSTYLE, td->saved_ex_style) == 0 && GetLastError() != 0)
+    if (SetWindowLong(td->w, GWL_EXSTYLE, safe_ex_style) == 0 && GetLastError() != 0)
     {
-        plog("Warning: Could not restore main window extended style");
+        plog("Warning: Could not apply safe window extended style");
         errors++;
     }
     
-    /* Restore main window size and position */
-    if (!SetWindowPos(td->w, NULL,
-        td->saved_window_rect.left, td->saved_window_rect.top,
-        td->saved_window_rect.right - td->saved_window_rect.left,
-        td->saved_window_rect.bottom - td->saved_window_rect.top,
-        SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED))
+    /* Use safe window positioning instead of trying to restore exact saved position */
+    
+    /* Get reasonable window size for windowed mode */
+    int window_width = 1024;  /* Safe default width */
+    int window_height = 768;  /* Safe default height */
+    int window_x = 100;       /* Safe default x position */
+    int window_y = 100;       /* Safe default y position */
+    
+    /* Position window with safe defaults */
+    if (!SetWindowPos(td->w, HWND_NOTOPMOST,
+        window_x, window_y, window_width, window_height,
+        SWP_SHOWWINDOW | SWP_FRAMECHANGED))
     {
-        plog("Warning: Could not restore main window position");
+        plog("Warning: Could not position main window safely");
         errors++;
     }
     
-    /* Restore maximized state if needed */
-    if (td->saved_maximized)
-        SendMessage(td->w, WM_SYSCOMMAND, SC_MAXIMIZE, 0);
+    /* Don't try to restore maximized state - just use normal windowed mode */
     
-    /* Restore sub-windows with comprehensive error checking */
+    /* Handle sub-windows minimally - avoid ANY operations that might trigger exit */
+    
     for (i = 1; i < MAX_TERM_DATA; i++)
     {
-        if (data[i].saved_visible && data[i].w && IsWindow(data[i].w))
-        {
-            /* Validate saved styles before restoring */
-            if (data[i].saved_style == 0 || data[i].saved_style == (DWORD)-1)
-            {
-                plog("Warning: Invalid saved style for sub-window - using default");
-                data[i].saved_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
-                data[i].saved_ex_style = WS_EX_WINDOWEDGE;
-            }
-            
-            /* Restore original styles with error checking */
-            if (SetWindowLong(data[i].w, GWL_STYLE, data[i].saved_style) == 0 && GetLastError() != 0)
-            {
-                plog("Warning: Could not restore sub-window style");
-                errors++;
-            }
-            
-            if (SetWindowLong(data[i].w, GWL_EXSTYLE, data[i].saved_ex_style) == 0 && GetLastError() != 0)
-            {
-                plog("Warning: Could not restore sub-window extended style");
-                errors++;
-            }
-            
-            /* Restore original position and size */
-            if (!SetWindowPos(data[i].w, HWND_NOTOPMOST,
-                data[i].saved_window_rect.left, data[i].saved_window_rect.top,
-                data[i].saved_window_rect.right - data[i].saved_window_rect.left,
-                data[i].saved_window_rect.bottom - data[i].saved_window_rect.top,
-                SWP_SHOWWINDOW | SWP_FRAMECHANGED))
-            {
-                plog("Warning: Could not restore sub-window position");
-                errors++;
-            }
-        }
-        
-        /* Clear fullscreen flag for all sub-windows */
+        /* Just clear fullscreen flag - don't touch the windows at all */
         data[i].fullscreen = false;
     }
     
     td->fullscreen = false;
     
+    /* Small delay before clearing flag to handle delayed messages */
+    Sleep(100);
+    
+    /* Clear transition flag now that we're done */
+    fullscreen_transition_in_progress = false;
+    
+    /* Now that we're safely out of fullscreen, restore sub-window styles */
+    set_subwindow_style(subwindow_style);
+    
     if (errors > 0)
     {
         plog("Exited fullscreen mode with warnings - check log");
-    }
-    else
-    {
-        /* Nothing to log - function handled the mode change */
     }
     
     return true;
@@ -3340,6 +3352,101 @@ static void set_subwindow_fullscreen_style(int style)
         }
         
         /* Only use hide/show if we're actually changing styles */
+        if (style_will_change || ex_style_will_change)
+        {
+            /* Apply style changes */
+            if (style_will_change)
+            {
+                SetWindowLong(data[i].w, GWL_STYLE, new_style);
+            }
+            
+            if (ex_style_will_change)
+            {
+                SetWindowLong(data[i].w, GWL_EXSTYLE, new_ex_style);
+            }
+            
+            /* Force proper redraw after style change */
+            InvalidateRect(data[i].w, NULL, TRUE);
+            UpdateWindow(data[i].w);
+            
+            /* Trigger a paint message to ensure content is redrawn */
+            RedrawWindow(data[i].w, NULL, NULL, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
+        }
+    }
+    
+    /* Clean up */
+    style_application_in_progress = false;
+}
+
+/*
+ * Set sub-window style for both fullscreen and windowed modes
+ * 0 = normal (with title bars and all decorations)
+ * 1 = borderless popup windows  
+ * 2 = minimal borders only
+ */
+static void set_subwindow_style(int style)
+{
+    int i;
+    static bool style_application_in_progress = false;
+    
+    /* Prevent recursive calls */
+    if (style_application_in_progress) {
+        return;
+    }
+    
+    style_application_in_progress = true;
+    
+    for (i = 1; i < MAX_TERM_DATA; i++)
+    {
+        /* Safety checks to prevent crashes */
+        if (!data[i].w || !IsWindow(data[i].w))
+        {
+            continue;  /* Skip invalid windows */
+        }
+        
+        /* Apply to both visible and invisible windows */
+        /* Get current style - if this fails, skip this window */
+        DWORD current_style = GetWindowLong(data[i].w, GWL_STYLE);
+        if (current_style == 0) {
+            continue;
+        }
+        
+        DWORD new_style = current_style;
+        DWORD new_ex_style = GetWindowLong(data[i].w, GWL_EXSTYLE);
+        
+        /* Apply style changes based on requested style */
+        switch (style)
+        {
+        case 1: /* Borderless */
+            /* Remove decorations to make borderless */
+            new_style = current_style & ~(WS_CAPTION | WS_THICKFRAME | WS_BORDER | WS_SYSMENU);
+            new_style |= WS_OVERLAPPED;
+            break;
+            
+        case 2: /* Minimal borders */
+            /* Minimal visual borders, non-resizable (same as fullscreen behavior) */
+            new_style = current_style & ~(WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_THICKFRAME);
+            new_style |= WS_BORDER; /* Thin border only, non-resizable */
+            break;
+            
+        default: /* Normal style - full decorations */
+            /* Use full window decorations */
+            new_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+            new_ex_style = WS_EX_TOOLWINDOW;
+            break;
+        }
+        
+        /* Apply the style changes carefully */
+        bool style_will_change = (new_style != current_style);
+        bool ex_style_will_change = false;
+        
+        DWORD current_ex_style = GetWindowLong(data[i].w, GWL_EXSTYLE);
+        if (new_ex_style != current_ex_style)
+        {
+            ex_style_will_change = true;
+        }
+        
+        /* Only change styles if needed */
         if (style_will_change || ex_style_will_change)
         {
             /* Apply style changes */
@@ -3998,48 +4105,74 @@ static void process_menus(WORD wCmd)
         break;
     }
 
-    /* Sub-window styles in fullscreen */
+    /* Sub-window styles - now works in both fullscreen and windowed modes */
     case IDM_OPTIONS_SUBWIN_STYLE_0:
     {
-        /* Only allow style changes when main window is in fullscreen */
+        subwindow_style = 0;  /* Update the variable */
+        
         if (data[0].fullscreen)
         {
-            subwindow_style = 0;  /* Update the variable */
+            /* In fullscreen mode, use the fullscreen-specific function */
             set_subwindow_fullscreen_style(0);  /* Keep title bars */
         }
         else
         {
-            plog("Sub-window styles can only be changed in fullscreen mode");
+            /* In windowed mode, use the general function */
+            set_subwindow_style(0);  /* Normal windowed style */
         }
         break;
     }
 
     case IDM_OPTIONS_SUBWIN_STYLE_1:
     {
-        /* Only allow style changes when main window is in fullscreen */
         if (data[0].fullscreen)
         {
+            /* In fullscreen mode, use workaround if needed */
+            if (subwindow_style == 2)
+            {
+                set_subwindow_fullscreen_style(0);  /* Apply normal style first */
+                Sleep(50);  /* Brief pause */
+            }
             subwindow_style = 1;  /* Update the variable */
             set_subwindow_fullscreen_style(1);  /* Borderless */
         }
         else
         {
-            plog("Sub-window styles can only be changed in fullscreen mode");
+            /* In windowed mode, use workaround if needed */
+            if (subwindow_style == 2)
+            {
+                set_subwindow_style(0);  /* Apply normal style first */
+                Sleep(50);  /* Brief pause */
+            }
+            subwindow_style = 1;  /* Update the variable */
+            set_subwindow_style(1);  /* Borderless windowed */
         }
         break;
     }
 
     case IDM_OPTIONS_SUBWIN_STYLE_2:
     {
-        /* Only allow style changes when main window is in fullscreen */
         if (data[0].fullscreen)
         {
+            /* In fullscreen mode, use workaround if needed */
+            if (subwindow_style == 1)
+            {
+                set_subwindow_fullscreen_style(0);  /* Apply normal style first */
+                Sleep(50);  /* Brief pause */
+            }
             subwindow_style = 2;  /* Update the variable */
             set_subwindow_fullscreen_style(2);  /* Minimal borders */
         }
         else
         {
-            plog("Sub-window styles can only be changed in fullscreen mode");
+            /* In windowed mode, use workaround if needed */
+            if (subwindow_style == 1)
+            {
+                set_subwindow_style(0);  /* Apply normal style first */
+                Sleep(50);  /* Brief pause */
+            }
+            subwindow_style = 2;  /* Update the variable */
+            set_subwindow_style(2);  /* Minimal borders windowed */
         }
         break;
     }
@@ -4251,6 +4384,15 @@ static LRESULT FAR PASCAL AngbandWndProc(
 
     case WM_CLOSE:
     {
+        DWORD current_time = GetTickCount();
+             
+        /* Prevent closing during fullscreen transitions or shortly after */
+        if (fullscreen_transition_in_progress || 
+            (current_time - last_fullscreen_transition_time < 1000))
+        {
+            return 0;
+        }
+        
         if (game_in_progress && character_generated)
         {
             if (!inkey_flag)
@@ -4275,6 +4417,11 @@ static LRESULT FAR PASCAL AngbandWndProc(
 
     case WM_QUIT:
     {
+        if (fullscreen_transition_in_progress)
+        {
+            return 0;
+        }
+        
         quit(NULL);
         return 0;
     }
