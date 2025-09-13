@@ -356,7 +356,7 @@ int main(int argc, char* argv[])
 #endif /* VMS */
 
 // Initialise logger in 'quiet' mode (don't write to stdout).
-init_logger(true);
+init_logger(true, argv[0]);
 
 #ifdef SAFE_SETUID
 

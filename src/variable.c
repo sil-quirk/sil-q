@@ -527,6 +527,11 @@ artefact_type* a_info;
 char* a_text;
 
 /*
+ * Valar quest artifact reservation
+ */
+bool* valar_reserved_artifacts;
+
+/*
  * The random name generator tables
  */
 names_type* n_info;
@@ -580,6 +585,21 @@ char* st_name;
 curse_type* cu_info;
 char* cu_text;
 char* cu_name;
+
+/*
+ * The quest arrays
+ */
+quest_type* quest_info;
+char* quest_name_text;
+char* quest_desc_text;
+char* q_text;
+
+/*
+ * The oath arrays
+ */
+oath_type* oath_info;
+char* oath_name_text;
+char* oath_desc_text;
 
 /*
  * The object flavor arrays
@@ -818,7 +838,7 @@ char g_vault_name[80];
 /*
  * The "highscore" file descriptor, if available.
  */
-int highscore_fd;
+FILE* highscore_fd;
 
 /*
  * The metarun file descriptor, if available.

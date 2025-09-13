@@ -26,7 +26,7 @@ void updatecharinfoS(void)
 
     FILE* oFile = fopen(tmp_Path, "w");
     if (!oFile) {
-        log_debug("Failed to open character output file: %s", tmp_Path);
+        log_warn("Failed to open character output file: %s", tmp_Path);
         return;
     }
 
@@ -796,6 +796,12 @@ static void wr_extra(void)
         {
             wr_byte(p_ptr->innate_ability[i][j]);
             wr_byte(p_ptr->active_ability[i][j]);
+            wr_byte(p_ptr->have_ability[i][j]);
+            
+            /* Debug special abilities save */
+            if (i == S_SPC && p_ptr->have_ability[i][j] != 0) {
+                log_trace("Save: Special ability %d has value %d", j, p_ptr->have_ability[i][j]);
+            }
         }
     }
 
@@ -942,9 +948,7 @@ static void wr_extra(void)
     wr_u16b(p_ptr->noscore);
     wr_u16b(p_ptr->smithing_leftover);
     wr_byte(p_ptr->unique_forge_made ? 1 : 0);
-    log_trace("Unique forge made: %d", p_ptr->unique_forge_made ? 1 : 0);
     wr_byte(p_ptr->unique_forge_seen ? 1 : 0);
-    log_trace("Unique forge seen: %d", p_ptr->unique_forge_seen ? 1 : 0);
 
     /* Write death */
     wr_byte(p_ptr->is_dead ? 1 : 0);
@@ -952,11 +956,9 @@ static void wr_extra(void)
 
     /* Write feeling */
     wr_byte(feeling);
-    log_trace("Feeling: %d", feeling);
 
     /* Turn of last "feeling" */
     wr_byte(do_feeling);
-    log_trace("Do feeling: %d", do_feeling);
 
     /* Current turn */
     wr_s32b(turn);
@@ -968,10 +970,50 @@ static void wr_extra(void)
 
     wr_byte(p_ptr->oath_type);
     wr_byte(p_ptr->oaths_broken);
-    wr_byte(p_ptr->thrall_quest);
 
-    wr_s32b(p_ptr->unused2);
-    wr_s32b(p_ptr->unused3);
+    /* From 0.8.6 onward, write quest block preceded by marker 0x51 */
+#if (VERSION_MAJOR > 0) || (VERSION_MAJOR == 0 && (VERSION_MINOR > 8 || (VERSION_MINOR == 8 && VERSION_PATCH >= 6)))
+    log_trace("Writing quest block marker 0x51 (version %s)", VERSION_STRING);
+    wr_byte(0x51); /* quest block marker */
+    wr_byte(p_ptr->tulkas_quest);
+    wr_s16b(p_ptr->tulkas_target_r_idx);
+    wr_s16b(p_ptr->tulkas_prize_a_idx);
+    wr_byte(p_ptr->tulkas_quest_complete);
+    /* Aule quest fields */
+    wr_byte(p_ptr->aule_quest);
+    wr_byte(p_ptr->aule_forge_y);
+    wr_byte(p_ptr->aule_forge_x);
+    wr_byte(p_ptr->aule_reserved);
+    wr_s16b(p_ptr->aule_level);
+    wr_s16b(p_ptr->aule_last_object_diff);
+    /* Mandos quest fields */
+    wr_byte(p_ptr->mandos_quest);
+    wr_byte(p_ptr->mandos_vault_y);
+    wr_byte(p_ptr->mandos_vault_x);
+    wr_byte(p_ptr->mandos_monsters_remaining);
+    wr_s16b(p_ptr->mandos_level);
+    wr_s16b(p_ptr->mandos_reserved);
+    /* Niena quest fields */
+    wr_byte(p_ptr->niena_quest);
+    wr_byte(p_ptr->niena_monsters_seen);
+    wr_byte(p_ptr->niena_monsters_killed);
+    wr_byte(p_ptr->niena_reserved);
+    wr_s16b(p_ptr->niena_level);
+    wr_s16b(p_ptr->niena_reserved2);
+    /* Orome quest fields */
+    wr_byte(p_ptr->orome_quest);
+    wr_byte(p_ptr->orome_target_type);
+    wr_s16b(p_ptr->orome_target_count);
+    wr_s16b(p_ptr->orome_killed_count);
+    wr_s16b(p_ptr->orome_wolves_killed);
+    wr_s16b(p_ptr->orome_spiders_killed);
+    wr_s16b(p_ptr->orome_serpents_killed);
+    wr_s16b(p_ptr->orome_vampires_killed);
+    wr_byte(p_ptr->quest_vault_used);
+    for (i = 0; i < 15; i++) wr_byte(p_ptr->quest_reserved[i]);
+#else
+    /* Older versions (<=0.8.5) had no quest block; do not write marker */
+#endif
 
     wr_s32b(min_depth_counter);
     log_trace("Min depth counter: %d", min_depth_counter);
@@ -1449,7 +1491,7 @@ static bool wr_savefile(void)
     /* Error in save */
     if (ferror(fff) || (fflush(fff) == EOF))
     {
-        log_debug("Save file write error detected");
+        log_error("Save file write error detected");
         return false;
     }
 
@@ -1515,7 +1557,7 @@ static bool save_player_aux(cptr name)
         }
         else
         {
-            log_debug("Failed to open savefile for writing: %s", name);
+            log_error("Failed to open savefile for writing: %s", name);
         }
 
         /* Grab permissions */
@@ -1530,13 +1572,13 @@ static bool save_player_aux(cptr name)
     }
     else
     {
-        log_debug("Failed to create savefile: %s", name);
+        log_error("Failed to create savefile: %s", name);
     }
 
     /* Failure */
     if (!ok)
     {
-        log_debug("save_player_aux failed for file: %s", name);
+        log_error("save_player_aux failed for file: %s", name);
         return (false);
     }
 
@@ -1646,7 +1688,7 @@ bool save_player(void)
     }
     else
     {
-        log_info("Save failed - could not write savefile");
+        log_error("Save failed - could not write savefile");
     }
 
     char buf[1024];

@@ -1,6 +1,6 @@
 # File: style.txt
 # Versioned like other edit files
-V:1.5.0
+V:0.8.7
 
 # Sections
 # - Styles: N:/G:/W:/Y:/F:/D: define tile coordinates per style.

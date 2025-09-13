@@ -1,0 +1,141 @@
+# File: quest.txt (updated from Quest_texts.txt)
+# This file is used to initialize the "q_info" array, which is used
+# to store quest information for Sil-Q.
+
+# === Understanding Quest Information ===
+# Q: Quest index : Quest name
+# T: Title text
+# C: Challenge description
+# O: Associated oath (OATH_SILENCE, OATH_SMITH, OATH_IRON, OATH_MERCY, or NONE)
+# Y: Quest type (0=vault-based, 1=roulet-based)
+# R: Variable name for quest state (e.g., "tulkas_quest", "aule_quest")
+# M: Metarun quest ID (e.g., METARUN_QUEST_TULKAS, METARUN_QUEST_AULE)
+# S: Stat bonuses (str:dex:con:gra)
+# K: Skill bonuses (skill:bonus pairs)
+# A: Special abilities granted
+# I: Initialization/quest giving text lines
+# W: Completion/reward text lines
+
+# Version stamp (required)
+V:0.8.7
+
+# Quest of Tulkas the Strong
+Q:1:Tulkas the Strong
+T:The Strong One tests your mettle in combat
+C:Hunt down the named creature of shadow, [monster name], and return victorious
+O:5
+E:DEPTH_RANGE:6:19
+Y:1
+R:tulkas_quest
+M:METARUN_QUEST_TULKAS
+P:LINEAR_DECAY:27:0:0:0
+S:1:0:0:0
+I:The air trembles as if with distant thunder, and a great, booming laugh echoes in the stone halls.
+I:Before you stands Tulkas the Strong, his eyes bright with challenge.
+I:
+I:"Ho, champion! I have marked your passage through these lightless depths.
+I:There is fire in your heart and strength in your arm! Such valour pleases me."
+I:
+I:"But valour must be tested, as steel is tested in the forge!"
+I:"There is a creature of shadow that haunts these ways, a foul beast known as [monster name]."
+I:"Hunt it down. Slay this foe and return to me with word of your victory."
+I:"Do this, and a weapon of great renown, [artifact name], shall be yours!"
+W:A mighty laugh rings out, shaking dust from the ceiling. Tulkas appears before you, radiating power and delight.
+W:
+W:"A glorious fight! I felt the earth shake with the fall of your foe!"
+W:"You have proven your might and shown courage worthy of the songs of old."
+W:"Take this prize—wrought ere the Sun and Moon first rose—and wield it well!"
+
+# Quest of Aulë the Smith
+Q:2:Aulë the Smith
+T:The Maker challenges you to prove your craft
+C:At Aulë’s forge, create a masterwork of worth and purpose (25 difficulty at least)
+O:4
+Y:0
+R:aule_quest
+M:METARUN_QUEST_AULE
+E:SKILL_MIN:SMT:10
+S:0:0:0:0
+K:SMT:2
+A:8:1
+I:The air is warm with the heat of a distant forge, and a voice like the ringing of a hammer on an anvil speaks.
+I:Aulë the Smith regards you with a deep and knowing gaze.
+I:
+I:"I have seen your works, mortal. There is a spark of the fire of creation within you."
+I:"But a spark is not a flame. The substance of the earth does not yield its secrets gladly."
+I:"Here is my forge. Its fires burn with the heat of the world's heart."
+I:"Take up the hammer, and from the base matter of this place, create for me a thing of worth and purpose."
+W:You lay your finished work before the Smith. Aulë turns it in his mighty hands, weighing craft and spirit alike.
+W:
+W:"It is well-wrought. You have listened to the metal and persuaded it to your will."
+W:"You are worthy of my blessing. May your arm never tire at the anvil, and may hidden flaws reveal themselves to your eye."
+
+# Quest of Mandos the Doomsman
+Q:3:Mandos the Doomsman
+T:The Doomsman bids you release a bound spirit
+C:Unmake the false body and free Brodda’s spirit to Mandos’s judgment
+O:3
+Y:0
+R:mandos_quest
+M:METARUN_QUEST_MANDOS
+S:0:0:1:0
+A:8:0
+I:A chill presence fills the chamber, and the air grows still. Before you is a veiled and solemn figure upon a throne of black stone.
+I:It is Mandos, the Judge of the Valar, and his voice is low and grave, like the turning of the ages.
+I:
+I:"Child of Middle-earth, here lingers a spirit that should long ago have departed the circles of the world."
+I:"The black power of Morgoth has kept the spirit of Brodda bound to this place and lent it a mockery of life."
+I:"Grant his tormented spirit its final release, that it may at last face my judgment. Fulfill this doom, and the way deeper shall be opened."
+W:As the false body falls, a long, sorrowful sigh echoes, and the spirit is gone. A profound stillness settles upon the place.
+W:
+W:"The mockery is unmade. The spirit of Brodda is unbound and set upon the path to its final judgment."
+W:"You have not wrought vengeance, but restored a thread of the natural order, long tangled by the Enemy’s malice."
+W:"Accept now this gift: a spirit shielded from the great fears that unman the hearts of mortals. Go forth, and walk unafraid."
+
+# Quest of Nienna, Lady of Pity
+Q:4:Nienna, Lady of Pity
+T:The Lady of Pity tests your compassion
+C:Find the downward stair without taking a life
+O:1
+E:DEPTH_RANGE:14:25
+Y:1
+R:niena_quest
+M:METARUN_QUEST_NIENA
+P:SCALED_RANGE:0.125:14:5:0
+S:0:1:0:1
+A:8:5
+I:A soft, sorrowful light gathers in the gloom. In its midst stands a figure cloaked in grey, her eyes holding the memory of every grief.
+I:It is Nienna, the Weeper, and her voice is as gentle as falling rain.
+I:
+I:"Child, this place is filled with pain. The creatures that dwell here are twisted and marred by long darkness."
+I:"If there is yet pity in your heart, walk the path downward, but raise no hand against the tormented things that dwell here."
+I:"Let compassion be your shield and your guide. As a sign of my faith, the ways of descent shall be revealed to your sight."
+W:As your foot touches the first step of the downward stair, peace washes over you, and the gentle voice of Nienna returns.
+W:
+W:"You have chosen pity over violence. You have walked through fear and left behind not death, but a glimmer of hope."
+W:"For the mercy you have shown to the lost, I grant you this blessing: may your path be shrouded in silence when compassion is your guide."
+
+# Quest of Oromë, the Great Hunter  
+Q:5:Oromë, the Great Hunter
+T:The Great Hunter tests your skill in the hunt
+C:Hunt down the foul kindreds throughout your journey: 100 wolves, 80 spiders, 60 serpents, or 30 vampires
+O:2
+E:DEPTH_RANGE:2:10
+Y:1
+R:orome_quest
+M:METARUN_QUEST_OROME
+P:LINEAR_INTERPOLATE:0.05:0.125:0:0
+S:0:0:0:0
+A:8:8
+I:The air grows wild and clean, smelling of ancient forests under a starlit sky. Suddenly, the clear, mighty blast of a great horn, the Valaróma, echoes from the walls, shaking the very stones and sending a tremor of fear through all evil things. Before you sits a majestic lord upon a great white steed, his face filled with the vigour of the chase. It is Oromë, the Huntsman of the Valar.
+I:
+I:"Hail, hunter! I have heard the echo of your deeds in these sunless caverns, but the shadows here run too deep. The foulest kindreds of the Great Enemy have made their lairs throughout this realm: the fell wolves in their packs, the venomous spawn of the Great Spider, the cold serpents of the deep, and the blood-drinking horrors of the night."
+I:
+I:"I call upon you to cleanse this darkness throughout your entire journey! Hunt any of these monstrous broods without pity - slay 100 wolves, 80 spiders, 60 serpents, or 30 vampires. Let your arm be the instrument of my wrath until their numbers are broken. When your great hunt reaches its goal, I shall return to bestow my blessing upon you."
+W:As the last of your chosen prey falls, the triumphant sound of the Valaróma rings out once more. Oromë appears, his eyes bright with approval.
+W:
+W:"A mighty hunt indeed! The shadows recede, and the foul things of the dark have learned to fear you. You have the eye of a true hunter and a spirit that does not quail before the beasts of night."
+W:
+W:"For this service, I grant you the Hunter's Insight. Henceforth, with every unique and mighty foe you overcome, your understanding of their fell nature shall deepen. Their strengths will reveal their flaws to your eyes, and your arm will strike ever truer against their kind. The more you kill, the greater your mastery shall become."
+W:
+W:"You have shown a focused purpose, a will that lets deeds speak louder than words. Such resolve makes you worthy to swear an oath of silence, should you choose such a path in a life to come."

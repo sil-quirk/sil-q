@@ -11,12 +11,28 @@
 #include "angband.h"
 #include "h-basic.h"
 #include "metarun.h"
+#include "platform.h"
 #include "z-term.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <time.h>
+
+#ifdef WINDOWS
+#include <windows.h>
+#include <direct.h>  /* For _mkdir */
+#else
+#include <sys/stat.h>  /* For mkdir */
+#include <dirent.h>    /* For directory operations */
+#endif
 
 // These are copied from birth.c and needed for displaying the character sheet
 #define INSTRUCT_ROW 21
 #define QUESTION_COL 2
+
+/* Forward declaration for score update function */
+static void upsert_live_score_on_save(void);
 
 /*
  * Hack -- drop permissions
@@ -1514,8 +1530,11 @@ void display_player_xtra_info(int mode)
         Term_putstr(col_flags, row_flags++, -1, pen_buf[i].col, pen_buf[i].txt);
 
     /* -------------------- SKILLS (unchanged position) ------------------- */
-    for (skill = 0; skill < S_MAX; skill++)
+    for (skill = 0; skill < S_MAX; skill++) {
+        /* Skip Special abilities skill - not meant for display */
+        if (skill == S_SPC) continue;
         display_skill(skill, 6 + skill, col_skills);
+    }
 
     /* -------------------- History (unchanged) --------------------------- */
     text_out_wrap   = 79;
@@ -1713,8 +1732,15 @@ static void display_player_misc_info(void)
 {
     /* Name */
     char name[40];
-    strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name, c_name + hp_ptr->alt_name);
-    c_put_str(TERM_L_BLUE, name, 0, 20);
+    if (p_ptr->oaths_broken) {
+        /* Show "the Oathbreaker" in red if any oath is broken */
+        strnfmt(name, sizeof(name), "%s the Oathbreaker", op_ptr->full_name);
+        c_put_str(TERM_RED, name, 0, 20);
+    } else {
+        /* Normal display with house title */
+        strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name, c_name + hp_ptr->alt_name);
+        c_put_str(TERM_L_BLUE, name, 0, 20);
+    }
 
 }
 
@@ -2294,7 +2320,7 @@ bool show_file(cptr name, cptr what, int line)
     /* Oops */
     if (!fff)
     {
-        log_info("Failed to open help file: %s", name);
+        log_warn("Failed to open help file: %s", name);
         /* Message */
         msg_format("Cannot open '%s'.", name);
         message_flush();
@@ -3148,9 +3174,19 @@ void process_player_name(bool sf)
             quit_fmt("Illegal control char (0x%02X) in player name", c);
         }
 
-        /* Convert all non-alphanumeric symbols */
-        if (!isalpha((unsigned char)c) && !isdigit((unsigned char)c))
+        /* Convert illegal file system characters but preserve some readability */
+        if (iscntrl((unsigned char)c) || c == '/' || c == '\\' || c == ':' || 
+            c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|')
+        {
+            /* Convert illegal characters to underscore */
             c = '_';
+        }
+        else if (c == ' ')
+        {
+            /* Convert spaces to underscores for file system compatibility */
+            c = '_';
+        }
+        /* Keep all other characters (letters, digits, punctuation) */
 
         /* Build "base_name" */
         op_ptr->base_name[i] = c;
@@ -3331,9 +3367,16 @@ void do_cmd_escape(int silmarils)
     {
         if (oath_invalid(p_ptr->oath_type))
         {
-            do_cmd_note(
-                "You will be remembered always as a shameful oathbreaker.",
-                p_ptr->depth);
+            /* Use oath-specific death/escape message */
+            char* death_msg = oath_death_message(p_ptr->oath_type);
+            if (death_msg && death_msg[0]) {
+                do_cmd_note(death_msg, p_ptr->depth);
+            } else {
+                /* Fallback to generic message if no specific text found */
+                do_cmd_note(
+                    "You passed from the world, but the stain of a faithless heart remains. You will be remembered not for your deeds, but as a shameful Oathbreaker.",
+                    p_ptr->depth);
+            }
         }
         else
         {
@@ -3431,22 +3474,24 @@ void do_cmd_save_game(void)
     /* Save the player */
     /* Make sure meta-run data (curses, flags, etc.) is up-to-date even
       when the player merely saves & quits. */
-   log_info("Saving game and updating metarun data");    
+    log_info("Saving game and updating metarun data");    
    metarun_update_on_exit(false, false, 0);
 
     if (save_player())
     {
-        log_info("Game saved successfully");
+    log_debug("Game saved successfully");
         if (!save_game_quietly)
         {
             prt("Saving game... done.", 0, 0);
         }
+
+    upsert_live_score_on_save();
     }
 
     /* Save failed (oops) */
     else
     {
-        log_info("Game save failed");
+    log_error("Game save failed");
         prt("Saving game... failed!", 0, 0);
     }
 
@@ -3570,16 +3615,291 @@ static void death_examine(void)
     }
 }
 
+/* 
+ * Global flag to track if scores.raw is in versioned format
+ */
+static bool scores_file_is_versioned = false;   /* true if scores.raw has a header */
+static u32b scores_file_entry_count = 0;        /* cached header entry count (may lag until update) */
 
+/* Forward declarations for functions used in versioned score handling */
+static errr highscore_read(high_score* score);
+static errr create_score(high_score* the_score);
+
+/*
+ * Seek score 'i' in the highscore file (with version awareness)
+ */
+static int highscore_seek_versioned(int i)
+{
+    log_debug("Seeking to score position %d in highscore file", i);
+    
+    long offset;
+    if (scores_file_is_versioned) {
+        offset = sizeof(score_file_header) + i * sizeof(high_score);
+    } else {
+        offset = i * sizeof(high_score);
+    }
+    
+    log_debug("Calculated offset: %ld (header_size=%d, entry_size=%d, versioned=%s)", 
+              offset, (int)sizeof(score_file_header), (int)sizeof(high_score), 
+              scores_file_is_versioned ? "yes" : "no");
+    
+    int result = fseek(highscore_fd, offset, SEEK_SET);
+    if (result != 0) {
+        log_warn("Failed to seek to offset %ld (error=%d)", offset, result);
+    }
+    return result;
+}
+
+/*
+ * Check if scores.raw is in versioned format
+ */
+static bool detect_versioned_scores_file(const char *filepath)
+{
+    FILE* file = fopen(filepath, "rb");
+    if (!file) return false;
+    
+    /* Get file size */
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    if (file_size < (long)sizeof(score_file_header)) {
+        fclose(file);
+        return false;
+    }
+    
+    score_file_header header;
+    if (fread(&header, sizeof(header), 1, file) != 1) {
+        fclose(file);
+        return false;
+    }
+    
+    /* Basic sanity on version bytes */
+    if (header.version_major > 127 || header.version_minor > 127 ||
+        header.version_patch > 127) {
+        fclose(file);
+        return false;
+    }
+
+    /* Compute actual entry count from file size */
+    long payload = file_size - (long)sizeof(score_file_header);
+    if (payload < 0 || (payload % (long)sizeof(high_score)) != 0) {
+        fclose(file);
+        return false; /* not aligned */
+    }
+    u32b actual_entries = (u32b)(payload / (long)sizeof(high_score));
+
+    scores_file_entry_count = header.entry_count; /* cache what header says */
+    bool mismatch = (header.entry_count != actual_entries);
+    static bool logged_once = false;
+    if (!logged_once) {
+        if (mismatch) {
+            log_debug("scores.raw header entry_count=%u but file has %u entries (will reconcile if opened writable)",
+                      header.entry_count, actual_entries);
+        } else {
+            log_trace("Detected versioned scores file: v%d.%d.%d (%u entries)",
+                      header.version_major, header.version_minor, header.version_patch, header.entry_count);
+        }
+        logged_once = true;
+    }
+    fclose(file);
+    return true;
+}
+
+/*
+ * Convert legacy scores.raw to versioned format
+ */
+static errr convert_scores_to_versioned(const char *filepath)
+{
+    /* Read existing scores */
+    FILE* file_old = fopen(filepath, "rb");
+    if (!file_old) return -1;
+    
+    /* Get file size */
+    fseek(file_old, 0, SEEK_END);
+    long file_size = ftell(file_old);
+    fseek(file_old, 0, SEEK_SET);
+    
+    u32b entry_count = file_size / sizeof(high_score);
+    
+    high_score *scores = C_ZNEW(entry_count, high_score);
+    if (fread(scores, sizeof(high_score), entry_count, file_old) != entry_count) {
+        FREE(scores);
+        fclose(file_old);
+        return -1;
+    }
+    fclose(file_old);
+    
+    /* Backup original file */
+    char backup_path[1024];
+    strnfmt(backup_path, sizeof(backup_path), "%s.legacy", filepath);
+    
+    /* Use system move/rename since we don't have fd_move equivalent with FILE* */
+    rename(filepath, backup_path);
+    
+    /* Create new versioned file */
+    FILE* file_new = fopen(filepath, "wb");
+    if (!file_new) {
+        FREE(scores);
+        return -1;
+    }
+    
+    /* Write version header */
+    score_file_header header;
+    header.version_major = VERSION_MAJOR;
+    header.version_minor = VERSION_MINOR;
+    header.version_patch = VERSION_PATCH;
+    header.version_extra = VERSION_EXTRA;
+    header.entry_count = entry_count;
+    header.reserved[0] = 0;
+    header.reserved[1] = 0;
+    
+    if (fwrite(&header, sizeof(header), 1, file_new) != 1) {
+        fclose(file_new);
+        FREE(scores);
+        return -1;
+    }
+    
+    /* Write scores */
+    if (fwrite(scores, sizeof(high_score), entry_count, file_new) != entry_count) {
+        fclose(file_new);
+        FREE(scores);
+        return -1;
+    }
+    
+    fclose(file_new);
+    FREE(scores);
+    
+    log_info("Converted legacy scores.raw to versioned format (%u entries)", entry_count);
+    scores_file_is_versioned = true;
+    scores_file_entry_count = entry_count;
+    return 0;
+}
+
+/*
+ * Convert POSIX file flags to FILE* mode string
+ */
+static const char* file_mode_from_flags(int mode)
+{
+    if (mode & O_CREAT) {
+        if (mode & O_RDWR) {
+            /* For read/write with create, we need special handling to avoid truncating existing files */
+            return NULL;  /* Special case - handled by caller */
+        }
+        else return "wb";  /* Create/truncate for write only */
+    }
+    else if (mode & O_RDWR) return "r+b"; /* Open existing for read/write */
+    else return "rb";                      /* Open existing for read only */
+}
+
+/*
+ * Open scores file, detecting and handling version format
+ */
+static FILE* open_scores_file_versioned(const char *filepath, int mode)
+{
+    /* First check if file exists and detect format */
+    scores_file_is_versioned = detect_versioned_scores_file(filepath);
+    
+    if (!scores_file_is_versioned) {
+        /* Check if it's a legacy file that can be converted */
+        FILE* test_file = fopen(filepath, "rb");
+        if (test_file) {
+            fseek(test_file, 0, SEEK_END);
+            long file_size = ftell(test_file);
+            fclose(test_file);
+            
+            /* If file exists and size is reasonable, convert it */
+            if (file_size > 0 && (file_size % sizeof(high_score)) == 0) {
+                if (mode != O_RDONLY) {  /* Only convert if we're opening for write */
+                    convert_scores_to_versioned(filepath);
+                }
+            }
+        }
+    }
+    
+    FILE* file = NULL;
+    const char* mode_str = file_mode_from_flags(mode);
+    
+    if (mode_str == NULL) {
+        /* Special case: O_RDWR | O_CREAT - try to open existing first, then create */
+        file = fopen(filepath, "r+b");
+        if (!file) {
+            /* File doesn't exist, create it */
+            file = fopen(filepath, "w+b");
+        }
+    } else {
+        file = fopen(filepath, mode_str);
+    }
+
+    /* If versioned and writable, reconcile header entry count with actual bytes */
+    if (file && scores_file_is_versioned && mode != O_RDONLY) {
+        fseek(file, 0, SEEK_END);
+        long file_size = ftell(file);
+        fseek(file, 0, SEEK_SET);
+        
+        if (file_size >= (long)sizeof(score_file_header)) {
+            score_file_header header;
+            if (fread(&header, sizeof(header), 1, file) == 1) {
+                long payload = file_size - (long)sizeof(score_file_header);
+                if (payload >= 0 && (payload % (long)sizeof(high_score)) == 0) {
+                    u32b actual_entries = (u32b)(payload / (long)sizeof(high_score));
+                    if (header.entry_count != actual_entries) {
+                        log_info("Reconciling scores header: entry_count %u -> %u", header.entry_count, actual_entries);
+                        header.entry_count = actual_entries;
+                        fseek(file, 0, SEEK_SET);
+                        fwrite(&header, sizeof(header), 1, file);
+                        scores_file_entry_count = actual_entries;
+                    }
+                }
+            }
+        }
+    }
+    return file;
+}
+
+/*
+ * Update the entry count in a versioned scores file header
+ */
+static void update_scores_file_header_count(void)
+{
+    if (!scores_file_is_versioned) return;
+    
+    /* Count the actual entries in the file */
+    u32b count = 0;
+    high_score temp_score;
+    
+    /* Count entries by reading through the file */
+    highscore_seek_versioned(0);
+    while (count < MAX_HISCORES && highscore_read(&temp_score) == 0) {
+        /* Check if this is a valid entry (has a name) */
+        if (temp_score.who[0] != '\0') {
+            count++;
+        } else {
+            break; /* Stop at first empty entry */
+        }
+    }
+    
+    /* Update the header if count changed */
+    if (scores_file_entry_count != count) {
+        score_file_header header;
+        fseek(highscore_fd, 0, SEEK_SET);
+        fread(&header, sizeof(header), 1, highscore_fd);
+        
+        header.entry_count = count;
+        fseek(highscore_fd, 0, SEEK_SET);
+        fwrite(&header, sizeof(header), 1, highscore_fd);
+        fflush(highscore_fd);
+        scores_file_entry_count = count;
+        log_debug("Updated scores file header count to %u", count);
+    }
+}
 
 /*
  * Seek score 'i' in the highscore file
  */
 static int highscore_seek(int i)
 {
-    log_debug("Seeking to score position %d in highscore file", i);
-    /* Seek for the requested record */
-    return (fd_seek(highscore_fd, i * sizeof(high_score)));
+    return highscore_seek_versioned(i);
 }
 
 /*
@@ -3587,30 +3907,152 @@ static int highscore_seek(int i)
  */
 static errr highscore_read(high_score* score)
 {
-    errr result;
-    log_debug("Reading score from highscore file");
-    /* Read the record, note failure */
-    result = fd_read(highscore_fd, (char*)(score), sizeof(high_score));
-    if (result != 0) {
-        log_info("Failed to read score from highscore file (error: %d)", result);
+    log_trace("Reading score from highscore file");
+    
+    /* Check current file position before reading */
+    long current_pos = ftell(highscore_fd);
+    fseek(highscore_fd, 0, SEEK_END);
+    long file_size = ftell(highscore_fd);
+    fseek(highscore_fd, current_pos, SEEK_SET);
+    
+    log_debug("Before read: position=%ld, file_size=%ld, bytes_to_read=%d", 
+              current_pos, file_size, (int)sizeof(high_score));
+    
+    /* Check if we have enough bytes left in the file */
+    if (current_pos + (long)sizeof(high_score) > file_size) {
+        log_debug("Not enough data: need %d bytes but only %ld available", 
+                  (int)sizeof(high_score), file_size - current_pos);
+        return (1); /* EOF */
     }
-    return result;
+    
+    /* Use fread for reliable reading */
+    size_t items_read = fread(score, sizeof(high_score), 1, highscore_fd);
+    if (items_read != 1) {
+        if (feof(highscore_fd)) {
+            log_trace("EOF reached while reading score");
+        } else if (ferror(highscore_fd)) {
+            log_trace("File error while reading score");
+        } else {
+            log_trace("Partial read: got %d items, expected 1", (int)items_read);
+        }
+        return (1);
+    }
+    
+    log_debug("Successfully read score: what='%.8s' who='%.16s' how='%.50s'", 
+              score->what, score->who, score->how);
+    return (0);
 }
 
 /*
  * Write one score to the highscore file
  */
+/* Helper: detect an all-zero (blank) score record */
+static bool is_blank_score(const high_score *s) {
+    static const high_score blank_ref; /* zero-initialised */
+    return (memcmp(s, &blank_ref, sizeof(high_score)) == 0);
+}
+
 static int highscore_write(const high_score* score)
 {
-    int result;
-    log_debug("Writing score for player '%s' to highscore file", score->who);
-    /* Write the record, note failure */
-    result = fd_write(highscore_fd, (cptr)(score), sizeof(high_score));
-    if (result != 0) {
-        log_info("Failed to write score to highscore file (error: %d)", result);
+    if (is_blank_score(score)) {
+        log_warn("Refusing to write blank highscore record (ignored)");
+        return 0; /* treat as success but do nothing */
     }
-    return result;
+    log_debug("Writing score for player '%s' to highscore file", score->who[0] ? score->who : "<noname>");
+    
+    size_t items_written = fwrite(score, sizeof(high_score), 1, highscore_fd);
+    if (items_written != 1) {
+        log_error("Failed to write score to highscore file");
+        return 1;
+    }
+    
+    /* Flush the file to ensure it's written */
+    fflush(highscore_fd);
+    
+    if (scores_file_is_versioned) {
+        /* Ensure header reflects any new entries */
+        update_scores_file_header_count();
+    }
+    return 0;
 }   
+
+/*
+ * Create backup of scores file with 3-backup rotation
+ */
+static errr backup_scores_file(const char *filepath)
+{
+    /* Check if original file exists */
+    int fd_src = fd_open(filepath, O_RDONLY);
+    if (fd_src < 0) {
+        /* Original file doesn't exist, no backup needed */
+        return 0;
+    }
+    
+    /* Get file size */
+    int file_size = fd_file_size(fd_src);
+    if (file_size <= 0) {
+        fd_close(fd_src);
+        return 0;
+    }
+    
+    /* Read original file */
+    char *buffer = C_ZNEW(file_size, char);
+    if (!buffer) {
+        fd_close(fd_src);
+        return -1;
+    }
+    
+    if (fd_read(fd_src, buffer, file_size) != 0) {
+        FREE(buffer);
+        fd_close(fd_src);
+        return -1;
+    }
+    fd_close(fd_src);
+    
+    /* Simple backup rotation: bak1 (newest) -> bak2 -> bak3 (oldest) */
+    char backup_path1[1024], backup_path2[1024], backup_path3[1024];
+    strnfmt(backup_path1, sizeof(backup_path1), "%s.bak1", filepath);
+    strnfmt(backup_path2, sizeof(backup_path2), "%s.bak2", filepath);
+    strnfmt(backup_path3, sizeof(backup_path3), "%s.bak3", filepath);
+    
+    /* Rotate: bak2 -> bak3, bak1 -> bak2, current -> bak1 */
+    fd_kill(backup_path3);                    /* Remove oldest */
+    
+    /* Move bak2 to bak3 (if bak2 exists) - preserves timestamp */
+    int fd_test2 = fd_open(backup_path2, O_RDONLY);
+    if (fd_test2 >= 0) {
+        fd_close(fd_test2);
+        if (fd_move(backup_path2, backup_path3) != 0) {
+            log_error("backup_scores_file: failed to move bak2 to bak3");
+        }
+    }
+    
+    /* Move bak1 to bak2 (if bak1 exists) - preserves timestamp */
+    int fd_test1 = fd_open(backup_path1, O_RDONLY);
+    if (fd_test1 >= 0) {
+        fd_close(fd_test1);
+        if (fd_move(backup_path1, backup_path2) != 0) {
+            log_error("backup_scores_file: failed to move bak1 to bak2");
+        }
+    }
+    
+    /* Create new bak1 from current file */
+    int fd_dst = fd_make(backup_path1, 0644);
+    if (fd_dst < 0) {
+        FREE(buffer);
+        return -1;
+    }
+    
+    errr result = fd_write(fd_dst, buffer, file_size);
+    fd_close(fd_dst);
+    FREE(buffer);
+    
+    if (result == 0) {
+        log_info("Created scores backup: %s (rotated 3 backups)", backup_path1);
+    }
+    
+    return result;
+}
 
 /*
  * An integer value representing the player's "points".
@@ -3704,39 +4146,41 @@ int score_points(high_score* score)
 static int highscore_where(high_score* score)
 {
     int i;
-
     high_score the_score;
 
-    log_debug("Determining placement for score from player '%s'", score->who);
+    log_trace("Determining placement for score from player '%s'", score->who);
 
-    /* Paranoia -- it may not have opened */
-    if (highscore_fd < 0) {
-        log_info("Highscore file not opened, cannot determine score placement");
-        return (-1);
+    if (!highscore_fd) {
+        log_warn("Highscore file not opened, cannot determine score placement");
+        return -1;
     }
 
-    /* Go to the start of the highscore file */
+    /* Empty versioned file */
+    if (scores_file_is_versioned && scores_file_entry_count == 0)
+        return 0;
+
     if (highscore_seek(0)) {
-        log_info("Failed to seek to start of highscore file");
-        return (-1);
+        log_error("Failed to seek to start of highscore file");
+        return -1;
     }
 
-    /* Read until we get a score match (or the end of the scores) */
-    for (i = 0; i < MAX_HISCORES; i++)
-    {
-        if (highscore_read(&the_score))
-            return (i);
+    int limit = MAX_HISCORES;
+    if (scores_file_is_versioned && scores_file_entry_count > 0 &&
+        scores_file_entry_count < MAX_HISCORES)
+        limit = scores_file_entry_count; /* only scan existing */
 
-        if (strcmp(score->who, the_score.who) == 0) {
-            log_debug("Found existing score for player '%s' at position %d", score->who, i);
-            return (i);
+    for (i = 0; i < limit; i++) {
+        if (highscore_read(&the_score)) {
+            return i; /* EOF early */
         }
-
+        if (strcmp(score->who, the_score.who) == 0)
+            return i; /* update existing */
     }
 
-    log_debug("Player '%s' will be placed at position %d (last entry)", score->who, MAX_HISCORES - 1);
-    /* The "last" entry is always usable */
-    return (MAX_HISCORES - 1);
+    if (limit < MAX_HISCORES)
+        return limit; /* append */
+
+    return MAX_HISCORES - 1; /* overwrite last */
 }
 
 /*
@@ -3748,29 +4192,40 @@ extern int highscore_dead(char* name)
 {
     int i;
     high_score the_score;
+    bool opened_here = false;
 
-    /* Paranoia -- it may not have opened */
-    if (highscore_fd < 0)
-        return (0);
-
-    /* Go to the start of the highscore file */
-    if (highscore_seek(0))
-        return (0);
-
-    /* Read until we get a score match (or the end of the scores) */
-    for (i = 0; i < MAX_HISCORES; i++)
-    {
-        if (highscore_read(&the_score))
-            return (0);
-        //name match
-        if (strcmp(name, the_score.who) == 0)
-            if (strcmp(the_score.how, "(alive and well)") !=0)
-                return (1);
-
+    /* Open the file on-demand (read-only) using version detection */
+    if (!highscore_fd) {
+        char buf[1024];
+        path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+        highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
+        if (!highscore_fd) return 0; /* cannot determine */
+        opened_here = true;
     }
 
-    /* The "last" entry is always usable */
-    return (0);
+    /* Go to the start of the highscore file */
+    if (highscore_seek(0)) {
+        if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
+        return 0;
+    }
+
+    /* Early exit: header says zero entries */
+    if (scores_file_is_versioned && scores_file_entry_count == 0) {
+        if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
+        return 0;
+    }
+
+    for (i = 0; i < MAX_HISCORES; i++) {
+        if (highscore_read(&the_score)) break; /* EOF */
+        if (strcmp(name, the_score.who) == 0) {
+            int dead = (strcmp(the_score.how, "(alive and well)") != 0);
+            if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
+            return dead;
+        }
+    }
+
+    if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
+    return 0; /* not found => treat as alive */
 }
 
 // Count the number of silmarils delivered
@@ -3783,7 +4238,7 @@ extern int highscore_count()
     high_score the_score;
 
     /* Paranoia -- it may not have opened */
-    if (highscore_fd < 0)
+    if (!highscore_fd)
         return 0;
 
     /* Seek to the beginning */
@@ -3816,8 +4271,8 @@ static int highscore_add(high_score* score)
     log_info("Adding score entry for player '%s'", score->who);
 
     /* Paranoia -- it may not have opened */
-    if (highscore_fd < 0) {
-        log_info("Cannot add score - highscore file not opened");
+    if (!highscore_fd) {
+    log_warn("Cannot add score - highscore file not opened");
         return (-1);
     }
 
@@ -3826,37 +4281,118 @@ static int highscore_add(high_score* score)
     
     /* Hack -- Not on the list */
     if (slot < 0) {
-        log_info("Score for player '%s' rejected - not eligible for high scores", score->who);
+    log_warn("Score for player '%s' rejected - not eligible for high scores", score->who);
         return (-1);
     }
     
     highscore_seek(slot);
     highscore_write(score);
+    
+    /* Update header count if using versioned format */
+    update_scores_file_header_count();
+    
     log_debug("Added score entry for %s at position %d", score->who, slot);
     return (slot);
 }
 
-// static int hero_in_scores(const char *name)
-// {
-//     char buf[1024];
-//     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
-//     FILE *fp = fopen(buf, "rb");
-//     if (!fp) return 0;
+/*
+ * Helper used by do_cmd_save_game to upsert a live "(alive and well)" entry
+ * into scores.raw without duplicating the full logic inline (avoids forward
+ * declaration issues). Safe to call repeatedly; it will update an existing
+ * live entry for the same player name or append a new one.
+ */
+static void upsert_live_score_on_save(void)
+{
+    log_info("upsert_live_score_on_save: Starting score save process");
+    char score_path[1024];
+    path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw");
+    log_debug("upsert_live_score_on_save: Score path: %s", score_path);
 
-//     high_score entry;
-//     for (int i = 0; i < MAX_HISCORES; i++)
-//     {
-//         if (fread(&entry, sizeof(entry), 1, fp) != 1) break;
-//         if (strcmp(entry.who, name) == 0)
-//         {
-//             fclose(fp);
-//             return 1;
-//         }
-//     }
+    safe_setuid_grab();
+    FILE* live_fd = open_scores_file_versioned(score_path, O_RDWR | O_CREAT);
+    safe_setuid_drop();
+    if (!live_fd) {
+        log_warn("Could not open scores.raw to upsert live save entry");
+        return;
+    }
 
-//     fclose(fp);
-//     return 0;
-// }
+    /* Preserve global highscore state while we reuse helpers */
+    FILE* prev_fd = highscore_fd;
+    bool prev_versioned = scores_file_is_versioned;
+    u32b prev_count = scores_file_entry_count;
+    highscore_fd = live_fd;
+
+    /* If newly created ensure a header exists */
+    if (!prev_versioned && !detect_versioned_scores_file(score_path)) {
+        /* Create brand new versioned file header */
+        score_file_header header;
+        header.version_major = VERSION_MAJOR;
+        header.version_minor = VERSION_MINOR;
+        header.version_patch = VERSION_PATCH;
+        header.version_extra = VERSION_EXTRA;
+        header.entry_count = 0;
+        header.reserved[0] = 0;
+        header.reserved[1] = 0;
+        fseek(highscore_fd, 0, SEEK_SET);
+        fwrite(&header, sizeof(header), 1, highscore_fd);
+        fflush(highscore_fd);
+        scores_file_is_versioned = true;
+        scores_file_entry_count = 0;
+    }
+
+    /* Build live score snapshot */
+    char saved_how[sizeof(p_ptr->died_from)];
+    my_strcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
+    my_strcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
+    high_score live_score;
+    log_debug("upsert_live_score_on_save: Creating score for player '%s' house=%d", 
+              op_ptr->full_name, p_ptr->phouse);
+    create_score(&live_score);
+    log_debug("upsert_live_score_on_save: Created score - who='%s' house='%s' how='%s'", 
+              live_score.who, live_score.p_h, live_score.how);
+    my_strcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
+
+    /* Scan for existing live entry for this character */
+    if (highscore_seek(0) == 0) {
+        high_score tmp; bool found=false; int idx;
+        for (idx=0; idx < MAX_HISCORES; idx++) {
+            if (highscore_read(&tmp)) break; /* EOF */
+            if (streq(tmp.who, live_score.who) && streq(tmp.how, "(alive and well)")) { found=true; break; }
+        }
+        if (found) {
+            log_debug("Updating existing live score entry for %s at %d (save)", live_score.who, idx);
+            highscore_seek(idx);
+            highscore_write(&live_score);
+        } else {
+            log_debug("Inserting new live score entry for %s (save)", live_score.who);
+            highscore_add(&live_score);
+        }
+    }
+
+    /* Instrumentation: log header entry count vs physical file */
+    fseek(highscore_fd, 0, SEEK_END);
+    long phys_size = ftell(highscore_fd);
+    fseek(highscore_fd, 0, SEEK_SET);
+    if (scores_file_is_versioned) {
+        score_file_header hdrchk;
+        fseek(highscore_fd, 0, SEEK_SET);
+        if (fread(&hdrchk, sizeof(hdrchk), 1, highscore_fd) == 1) {
+            long payload = phys_size - (long)sizeof(score_file_header);
+            long logical = (payload >= 0) ? (payload / (long)sizeof(high_score)) : -1;
+            log_debug("scores.raw post-save header.entry_count=%u physical_entries=%ld file_size=%ld", hdrchk.entry_count, logical, phys_size);
+        }
+    } else {
+        long logical = phys_size / (long)sizeof(high_score);
+        log_debug("scores.raw legacy post-save physical_entries=%ld file_size=%ld", logical, phys_size);
+    }
+
+    fclose(highscore_fd);
+    highscore_fd = prev_fd;
+    scores_file_is_versioned = prev_versioned;
+    scores_file_entry_count = prev_count;
+}
+
+/* Removed obsolete duplicated hero_in_scores fragment */
 
 #define RACE_PRIORITIES (sizeof(race_priority) / sizeof(race_priority[0]))
 
@@ -3865,10 +4401,8 @@ static int highscore_add(high_score* score)
 static int race_has_house(uint16_t race, uint16_t house)
 {
     if (house >= z_info->c_max) return 0;
-
     const uint16_t word  = house / 32U;
     const uint16_t shift = house % 32U;
-
     return (p_info[race].choice[word] & (1U << shift)) != 0U;
 }
 
@@ -4141,65 +4675,6 @@ extern void display_single_score(
     }
 }
 
-static void display_single_score_short(byte attr, int row, int col,
-                                       high_score const *hs)
-{
-    int  depth  = atoi(hs->cur_dun) * 50;
-    char depth_buf[8];
-    char out[90];
-    char symbol_buf[16] = "";  /* Buffer for silmaril and Morgoth symbols */
-
-    /* depth, name, verdict --------------------------------------------- */
-    strnfmt(depth_buf, sizeof depth_buf, "%4d ft", depth);
-
-    /* Build symbol string for silmarils and Morgoth */
-    int silm_count = atoi(hs->silmarils);
-    int pos = 0;
-    
-    /* Add * for each silmaril */
-    for (int i = 0; i < silm_count && i < 3; i++) {
-        symbol_buf[pos++] = '*';
-    }
-    
-    /* Add V for Morgoth slain */
-    if (hs->morgoth_slain[0] == 't') {
-        if (pos > 0) symbol_buf[pos++] = ' ';  /* Space before V if there are silmarils */
-        symbol_buf[pos++] = 'V';
-    }
-    
-    symbol_buf[pos] = '\0';  /* Null terminate */
-
-    /* verdict */
-    const char *verdict;
-    if (hs->escaped[0]=='t')
-        verdict = "escaped Angband";
-    else if (!strcmp(hs->how, "(alive and well)"))
-        verdict = "alive";
-    else
-        verdict = format("slain by %s", hs->how);
-
-    /* one-liner with symbols after depth */
-    if (symbol_buf[0]) {
-        strnfmt(out, sizeof out, " %s %s %s — %s", depth_buf, symbol_buf, hs->who, verdict);
-    } else {
-        strnfmt(out, sizeof out, " %s  %s — %s", depth_buf, hs->who, verdict);
-    }
-    
-    /* Color the symbols appropriately */
-    c_put_str(attr, out, row, col);
-    
-    /* Re-color the symbols if present */
-    if (symbol_buf[0]) {
-        int symbol_start = col + strlen(depth_buf) + 2;  /* Position after depth + space */
-        for (int i = 0; symbol_buf[i]; i++) {
-            if (symbol_buf[i] == '*') {
-                Term_putch(symbol_start + i, row, TERM_YELLOW, '*');
-            } else if (symbol_buf[i] == 'V') {
-                Term_putch(symbol_start + i, row, TERM_L_DARK, 'V');
-            }
-        }
-    }
-}
 
 
 /*
@@ -4228,7 +4703,7 @@ static void display_scores_aux(int from, int to, int note, high_score* score)
     byte attr;
 
     /* Paranoia -- it may not have opened */
-    if (highscore_fd < 0)
+    if (!highscore_fd)
         return;
 
     /* Assume we will show the first 10 */
@@ -4239,15 +4714,14 @@ static void display_scores_aux(int from, int to, int note, high_score* score)
     if (to > MAX_HISCORES)
         to = MAX_HISCORES;
 
-    /* Seek to the beginning */
-    if (highscore_seek(0))
-        return;
-
-    /* Hack -- Count the high scores */
-    for (count = 0; count < MAX_HISCORES; count++)
-    {
-        if (highscore_read(&the_score))
-            break;
+    /* Short-circuit empty versioned file without scanning */
+    if (scores_file_is_versioned && scores_file_entry_count == 0) {
+        count = 0;
+    } else {
+        if (highscore_seek(0)) return;
+        for (count = 0; count < MAX_HISCORES; count++) {
+            if (highscore_read(&the_score)) break;
+        }
     }
 
     /* Hack -- allow "fake" entry to be last */
@@ -4326,7 +4800,7 @@ static void display_scores_aux_short(int from, int to, int note,
 {
     char ch;
     int  j, k, n, count, place;
-    bool fake = false;
+    /* 'fake' flag removed (preview now handled only via long form) */
     high_score the_score;
     byte attr;
     char tmp[80];
@@ -4355,11 +4829,8 @@ static void display_scores_aux_short(int from, int to, int note,
             /* Fake record? ------------------------------------------ */
             if ((note == j) && score) { 
                 the_score = *score; 
-                fake = true; 
-            }
-            else
+            } else
             {
-                fake = false;
                 if (highscore_seek(j) || highscore_read(&the_score)) break;
             }
             
@@ -4441,10 +4912,10 @@ void display_scores(int from, int to)
     log_debug("Opening highscore file: %s", buf);
 
     /* Open the binary high score file, for reading */
-    highscore_fd = fd_open(buf, O_RDONLY);
+    highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
     
-    if (highscore_fd < 0) {
-        log_info("Failed to open highscore file for reading");
+    if (!highscore_fd) {
+    log_error("Failed to open highscore file for reading");
         return;
     }
 
@@ -4459,10 +4930,10 @@ void display_scores(int from, int to)
 
     log_debug("Closing highscore file");
     /* Shut the high score file */
-    fd_close(highscore_fd);
+    fclose(highscore_fd);
 
     /* Forget the high score fd */
-    highscore_fd = -1;
+    highscore_fd = NULL;
 
     /* Wait for response */
     Term_putstr(15, 23, -1, TERM_L_WHITE, "(press any key)");
@@ -4478,14 +4949,14 @@ void display_scores_short(int from, int to)
 {
     char buf[1024];
     path_build(buf, sizeof buf, ANGBAND_DIR_APEX, "scores.raw");
-    highscore_fd = fd_open(buf, O_RDONLY);
+    highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
 
     Term_clear();
     put_str("               Names of the Fallen (compact)", 0, 0);
 
     display_scores_aux_short(from, to, -1, NULL);
 
-    fd_close(highscore_fd);  highscore_fd = -1;
+    fclose(highscore_fd);  highscore_fd = NULL;
 }
 
 /* =============================================================
@@ -4718,8 +5189,8 @@ void print_fade_centered_at_row(cptr text, int row_start)
     enum { MAX_LINES2 = 32, MAX_LEN2 = 255 };
     const char *p = text;
     int printed_lines = 0;
-    int line_start_cols[MAX_LINES2];
-    int line_lengths[MAX_LINES2];
+    /* Removed tracking arrays (line_start_cols/line_lengths) as they were
+       only used for a future erase effect that is no longer implemented. */
 
     /* Start at the requested column; align to left-half in bigtile to avoid residuals */
     int base_indent = 14;
@@ -4793,17 +5264,16 @@ void print_fade_centered_at_row(cptr text, int row_start)
             Term_xtra(TERM_XTRA_DELAY, 125);
         }
 
-        line_start_cols[printed_lines] = indent;
-        line_lengths[printed_lines]    = linelen;
+    /* Tracking of per-line geometry removed (unused). */
         printed_lines++;
 
         /* Half-second gap before next line if more text remains */
         if (*p && (row_start + printed_lines) < h)
-            Term_xtra(TERM_XTRA_DELAY, 500);
+            Term_xtra(TERM_XTRA_DELAY, 400);
     }
 
     /* Hold briefly so the player can read (keep 1s as before) */
-    Term_xtra(TERM_XTRA_DELAY, 1000);
+    Term_xtra(TERM_XTRA_DELAY, 500);
     /* Do not explicitly erase: allow natural redraws to overwrite the text */
 }
 
@@ -4817,8 +5287,8 @@ void print_story(int last_parts, bool fade_in)
     bool fast_forward = false;
     bool show_page_instantly = false;
 
-    log_info("=== Starting story display (parts=%d, fade_in=%s) ===", last_parts, fade_in ? "true" : "false");
-    log_trace("last_parts=%d, fade_in=%s", last_parts, fade_in ? "true" : "false");
+    log_debug("=== Starting story display (parts=%d, fade_in=%s) ===", last_parts, fade_in ? "true" : "false");
+    log_debug("last_parts=%d, fade_in=%s", last_parts, fade_in ? "true" : "false");
 
     /* Convenience macro to keep the bottom‑line hint fresh */
 #define REDRAW_HINT() \
@@ -4833,7 +5303,7 @@ void print_story(int last_parts, bool fade_in)
     static int sel_idx[1024];
     if (max_st > (int)N_ELEMENTS(sel_idx)) max_st = (int)N_ELEMENTS(sel_idx);
 
-    log_trace("Building story list: sils=%d, rt=%d, max_st=%d", sils, rt, max_st);
+    log_debug("Building story list: sils=%d, rt=%d, max_st=%d", sils, rt, max_st);
 
     for (int i = 0; i < max_st; i++)
     {
@@ -4849,7 +5319,7 @@ void print_story(int last_parts, bool fade_in)
         }
     }
 
-    log_info("Found %d matching stories for display", total);
+    log_debug("Found %d matching stories for display", total);
     
     if (total == 0) {
         log_debug("No stories match criteria - sils=%d, rt=%d", sils, rt);
@@ -4871,37 +5341,30 @@ void print_story(int last_parts, bool fade_in)
 
     /* Restrict to the last N parts if requested ------------- */
     int start = (last_parts > 0 && last_parts < total) ? total - last_parts : 0;
-    log_trace("Story range: start=%d, total=%d", start, total);
+    log_debug("Story range: start=%d, total=%d", start, total);
 
     /* Screen prep ------------------------------------------- */
     Term_get_size(&wid, &h);
-    log_trace("Screen size: %dx%d", wid, h);
     screen_save();
     Term_clear();
 
     Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
     int row = 2;
-    log_trace("Initial row position: %d", row);
     REDRAW_HINT();
 
     /* Main loop -------------------------------------------- */
     for (int idx = start; idx < total; idx++)
     {
         story_type *st = &st_info[sel_idx[idx]];
-        log_trace("=== PROCESSING STORY %d/%d (idx=%d) ===", idx - start + 1, total - start, idx);
-        log_trace("Story name: '%s'", st_name + st->name);
-        log_trace("Row before heading: %d", row);
 
         /* Check if we need to paginate BEFORE rendering this story */
         /* Estimate space needed: 1 for heading + ~4 for text + 1 for blank line */
         int estimated_space_needed = 6;
         if (row + estimated_space_needed >= h - 2)
         {
-            log_trace("PRE-PAGINATION: estimated space %d would exceed limit", estimated_space_needed);
             if (!fast_forward)
             {
                 show_page_instantly = false;
-                log_trace("Waiting for user input...");
                 REDRAW_HINT();
                 char ch = inkey();
                 if (ch == ESCAPE)
@@ -4909,50 +5372,41 @@ void print_story(int last_parts, bool fade_in)
                     fast_forward = true;
                     fade_in = false;
                     Term_erase(0, h - 1, wid);
-                    log_info("User pressed ESC - enabling fast forward mode");
+                    log_debug("User pressed ESC - enabling fast forward mode");
                 }
                 else
                 {
-                    log_trace("User pressed Enter - new page");
                     row = 2;
                     Term_clear();
                     Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
                     REDRAW_HINT();
-                    log_trace("New page started, row reset to %d", row);
                 }
             }
             else
             {
-                log_trace("Fast-forward mode: auto-pagination");
                 row = 2;
                 Term_clear();
                 Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
-                log_trace("Auto-paginated, row reset to %d", row);
             }
         }
 
         /* Heading */
         Term_putstr(indent, row++, -1, TERM_L_BLUE, st_name + st->name);
-        log_trace("Row after heading: %d", row);
 
         /* Body */
         int wrap_width = wid - indent - 1;
         if (wrap_width < 20) wrap_width = 20;
         cptr text      = st_text + st->text;
-        log_trace("Text length: %d, wrap_width: %d", (int)strlen(text), wrap_width);
 
         if (fade_in && !fast_forward && !show_page_instantly)
         {
-            log_trace("Using fade-in for text at row %d", row);
             if (!print_paragraph_fade(text, row, indent, wrap_width))
             {
                 show_page_instantly = true; /* Esc was pressed during fade */
-                log_trace("Fade interrupted, switching to instant display");
             }
         }
         else
         {
-            log_trace("Rendering text directly at row %d", row);
             text_out_indent = indent;
             text_out_wrap   = wrap_width;
             Term_gotoxy(indent, row);
@@ -4966,35 +5420,24 @@ void print_story(int last_parts, bool fade_in)
         /* Get actual cursor position after text rendering */
         int cursor_x, cursor_y;
         Term_locate(&cursor_x, &cursor_y);
-        int text_rows = cursor_y - row + 1;
-        log_trace("Text spans %d rows (actual cursor tracking)", text_rows);
-        row = cursor_y + 1; /* Position after the text */
-        log_trace("Row after text: %d", row);
+    /* Advance row past rendered text */
+    row = cursor_y + 1;
 
         /* Check if we'll have room for the blank line before adding it */
         bool will_add_blank_line = (idx < total - 1);
-        log_trace("Will add blank line: %s (idx=%d, total=%d)", 
-                  will_add_blank_line ? "YES" : "NO", idx, total);
         
         /* Pagination logic - check if we need to paginate BEFORE adding blank line */
-        int space_needed = will_add_blank_line ? 1 : 0;
-        int available_space = h - 2 - row;
-        log_trace("Space check: row=%d, space_needed=%d, available=%d (h=%d)", 
-                  row, space_needed, available_space, h);
+    int space_needed = will_add_blank_line ? 1 : 0;
         
         bool paginated = false;
         if (row + space_needed >= h - 2)
         {
-            log_trace("PAGINATION TRIGGERED: row+space=%d >= h-2=%d", 
-                      row + space_needed, h - 2);
-            
             paginated = true;
             if (!fast_forward)
             {
                 /* Reset show_page_instantly for next page */
                 show_page_instantly = false;
                 
-                log_trace("Waiting for user input...");
                 REDRAW_HINT();
                 char ch = inkey();
                 if (ch == ESCAPE)
@@ -5002,61 +5445,42 @@ void print_story(int last_parts, bool fade_in)
                     fast_forward = true;
                     fade_in      = false;   /* Disable delays for rest of story */
                     Term_erase(0, h - 1, wid); /* clear hint line */
-                    log_info("User pressed ESC - enabling fast forward mode");
+                    log_debug("User pressed ESC - enabling fast forward mode");
                 }
                 else /* Enter */
                 {
-                    log_trace("User pressed Enter - new page");
                     row = 2;
                     Term_clear();
                     Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
                     REDRAW_HINT();
-                    log_trace("New page started, row reset to %d", row);
                     continue;
                 }
             }
             else
             {
-                log_trace("Fast-forward mode: auto-pagination");
+                /* fast‑forward mode: auto‑clear, no waits */
+                row = 2;
+                Term_clear();
+                Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
             }
-            /* fast‑forward mode: auto‑clear, no waits */
-            row = 2;
-            Term_clear();
-            Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
-            log_trace("Auto-paginated, row reset to %d", row);
         }
 
         /* Add visible blank spacer line between paragraphs if there's room and we didn't paginate */
         if (will_add_blank_line && !paginated)
         {
-            log_trace("ADDING BLANK LINE at row %d", row);
             Term_putstr(indent, row, -1, TERM_WHITE, "");
             row++;
-            log_trace("Row after blank line: %d", row);
         }
-        else if (paginated)
-        {
-            log_trace("NOT adding blank line (paginated - page break provides separation)");
-        }
-        else
-        {
-            log_trace("NOT adding blank line (last story)");
-        }
-        
-        log_trace("=== END STORY %d ===", idx - start + 1);
     }
-
-    log_trace("=== MAIN LOOP COMPLETE ===");
 
     /* Footer ------------------------------------------------ */
     Term_erase(0, h - 1, wid); /* clear bottom line entirely */
     Term_putstr(indent, h - 1, -1, TERM_L_WHITE,
                 "[Press any key to continue]");
-    log_trace("Waiting for final key press...");
     (void)inkey();
     screen_load();
     
-    log_info("=== Story display completed ===");
+    log_debug("Story display completed");
 
 #undef REDRAW_HINT
 }
@@ -5174,7 +5598,7 @@ static errr enter_score(high_score* the_score)
 #endif /* SCORE_CHEATERS */
 
     /* No score file */
-    if (highscore_fd < 0)
+    if (!highscore_fd)
     {
         Term_putstr(15, 8, -1, TERM_L_DARK, "(no high score file found)");
         return (0);
@@ -5227,7 +5651,9 @@ static errr enter_score(high_score* the_score)
     safe_setuid_grab();
 
     /* Lock (for writing) the highscore file, or fail */
-    if (fd_lock(highscore_fd, F_WRLCK))
+    /* TODO: File locking not supported with FILE* - temporarily disabled */
+    /* if (fd_lock(highscore_fd, F_WRLCK)) */
+    if (0)
         return (1);
 
     /* Drop permissions */
@@ -5240,7 +5666,9 @@ static errr enter_score(high_score* the_score)
     safe_setuid_grab();
 
     /* Unlock the highscore file, or fail */
-    if (fd_lock(highscore_fd, F_UNLCK))
+    /* TODO: File locking not supported with FILE* - temporarily disabled */
+    /* if (fd_lock(highscore_fd, F_UNLCK)) */
+    if (0)
         return (1);
 
     /* Drop permissions */
@@ -5262,7 +5690,7 @@ static void top_twenty(void)
     Term_clear();
 
     /* No score file */
-    if (highscore_fd < 0)
+    if (!highscore_fd)
     {
         msg_print("Score file unavailable.");
         message_flush();
@@ -5299,90 +5727,56 @@ static void top_twenty(void)
 static errr predict_score(void)
 {
     int j;
-
     high_score the_score;
-
-    /* No score file */
-    if (highscore_fd < 0)
-    {
-        msg_print("Score file unavailable.");
-        message_flush();
-        return (0);
-    }
-
-    // create the fake score
+    /* Build a temporary (in‑memory only) score snapshot */
     create_score(&the_score);
 
-    /* See where the entry would be placed */
+    /* Determine hypothetical placement */
     j = highscore_where(&the_score);
-    
-    /* Hack -- Not on the list */
-    if (j < 0)
-        return (-1);
-    highscore_seek(j);
-    highscore_write(&the_score);
+    if (j < 0) return -1; /* not eligible */
 
-    /* Hack -- Display the top fifteen scores */
-    if (j < 10)
-    {
+    /* We never write the preview to disk – just show it using the existing
+       "fake record" mechanism (note=j, score=&the_score). */
+    if (j < 10) {
         display_scores_aux(0, 15, j, &the_score);
-    }
-
-    /* Display some "useful" scores */
-    else
-    {
+    } else {
         display_scores_aux(0, 5, -1, NULL);
         display_scores_aux(j - 2, j + 7, j, &the_score);
     }
-
-    /* Success */
-    return (0);
+    return 0;    
 }
 
+/* (Removed stray duplicated code block that opened/printed scores.) */
+/* Display the high score table (optionally long form) without committing a new score.
+ * If character_generated is true and player is alive, show predicted placement.
+ */
 void show_scores(bool longscore)
 {
     char buf[1024];
 
-    /* Build the filename */
     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
-
-    /* Open the binary high score file, for reading */
-    highscore_fd = fd_open(buf, O_RDONLY);
-
-    /* Paranoia -- No score file */
-    if (highscore_fd < 0)
-    {
+    highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
+    if (!highscore_fd) {
         msg_print("Score file unavailable.");
+        return;
     }
-    else
-    {
-        /* Save Screen */
-        screen_save();
 
-        /* Clear screen */
-        Term_clear();
+    screen_save();
+    Term_clear();
 
-        /* Display the scores */
-        if (character_generated)
-            predict_score();
-        else
-            if (longscore)
-                display_scores_aux(0, MAX_HISCORES, -1, NULL);
-            else
-                display_scores_aux_short(0, MAX_HISCORES, -1, NULL);  
-
-        /* Shut the high score file */
-        (void)fd_close(highscore_fd);
-
-        /* Forget the high score fd */
-        highscore_fd = -1;
-
-        /* Load screen */
-        screen_load();
-
-        /* Hack - Flush it */
-        Term_fresh();
+    if (character_generated && !p_ptr->is_dead) {
+        /* Preview placement for a living character */
+        predict_score();
+    } else if (longscore) {
+        display_scores_aux(0, MAX_HISCORES, -1, NULL);
+    } else {
+        display_scores_aux_short(0, MAX_HISCORES, -1, NULL);
     }
+
+    fclose(highscore_fd);
+    highscore_fd = NULL;
+    screen_load();
+    Term_fresh();
 }
 
 /*  Returns NULL when nothing was slain, or a static string with the
@@ -5408,24 +5802,28 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     char score_path[1024];
     path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
 
-    /* 3) Open global highscore_fd if not already open */
-    if (highscore_fd < 0) {
-        log_trace("highscore_fd < 0, opening %s", score_path);
+    /* 3) Open global highscore_fd (version-aware) if not already open */
+    if (!highscore_fd) {
+        log_trace("highscore_fd < 0, opening %s (version-aware)", score_path);
         safe_setuid_grab();
-        highscore_fd = open(score_path, O_RDWR | O_CREAT, 0644);
+        highscore_fd = open_scores_file_versioned(score_path, O_RDWR);
         safe_setuid_drop();
-        if (highscore_fd < 0) {
+        if (!highscore_fd) {
             quit(format("Cannot open %s (%d)", score_path, errno));
-            return NULL;  /* NOTREACHED */
+            return NULL; /* NOTREACHED */
         }
-        log_trace("opened highscore_fd=%d", highscore_fd);
+        log_trace("opened highscore_fd=%d (versioned=%d)", highscore_fd, scores_file_is_versioned ? 1 : 0);
     }
 
-    /* 4) Determine number of records */
-    off_t file_end = lseek(highscore_fd, 0, SEEK_END);
-    int n_recs    = (int)(file_end / sizeof(high_score));
-    log_trace("hi-score file size=%lld, records=%d",
-            (long long)file_end, n_recs);
+    /* 4) Determine number of records (exclude header if present) */
+    fseek(highscore_fd, 0, SEEK_END);
+    off_t file_end = ftell(highscore_fd);
+    off_t payload  = file_end;
+    if (scores_file_is_versioned && payload >= (off_t)sizeof(score_file_header))
+        payload -= (off_t)sizeof(score_file_header);
+    int n_recs = (int)(payload / (off_t)sizeof(high_score));
+    log_trace("hi-score file size=%lld, payload=%lld, records=%d (versioned=%d)",
+              (long long)file_end, (long long)payload, n_recs, scores_file_is_versioned ? 1 : 0);
 
     /* 5) Iterate races in priority order */
     for (size_t i = 0; i < RACE_PRIORITIES; ++i) {
@@ -5435,7 +5833,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
         /* 5.a) Build pool of eligible houses */
         uint16_t *pool = malloc(z_info->c_max * sizeof *pool);
         if (!pool) {
-            close(highscore_fd);
+            fclose(highscore_fd);
             quit("Out of memory in kinslayer_try_kill()");
         }
         size_t pool_n = 0;
@@ -5458,13 +5856,12 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
         int hit = -1;
         high_score entry;
         for (int r = 0; r < n_recs; ++r) {
-            lseek(highscore_fd, (off_t)r * sizeof entry, SEEK_SET);
-            if (read(highscore_fd, &entry, sizeof entry) != sizeof entry) break;
+            if (highscore_seek(r)) break;
+            if (highscore_read(&entry)) break;
             if (entry.p_r[0] == '0' + (race/10) &&
                 entry.p_r[1] == '0' + (race%10) &&
                 entry.p_h[0] == '0' + (hsel/10) &&
-                entry.p_h[1] == '0' + (hsel%10))
-            {
+                entry.p_h[1] == '0' + (hsel%10)) {
                 hit = r;
                 break;
             }
@@ -5472,18 +5869,20 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
         log_trace("scan: entry_offset=%d", hit);
 
         if (hit >= 0) {
-            /* 5.d) Found – check alive */
-            if (highscore_dead(entry.how)) {
-                log_trace("hero already dead – skip");
+            /* 5.d) Found – check alive (use 'who', not 'how') */
+            if (highscore_dead(entry.who)) {
+                log_debug("hero already dead – skip");
                 continue;
             }
             /* kill existing */
-            lseek(highscore_fd, (off_t)hit * sizeof entry, SEEK_SET);
-            read(highscore_fd, &entry, sizeof entry);
-            strnfmt(entry.how, sizeof entry.how, op_ptr->base_name);
-            lseek(highscore_fd, (off_t)hit * sizeof entry, SEEK_SET);
-            write(highscore_fd, &entry, sizeof entry);
-            log_info("Kinslayer killed existing hero: \"%s\"", entry.who);
+            if (highscore_seek(hit) == 0 && highscore_read(&entry) == 0) {
+                strnfmt(entry.how, sizeof entry.how, op_ptr->base_name);
+                highscore_seek(hit);
+                highscore_write(&entry);
+                log_info("Kinslayer killed existing hero: \"%s\"", entry.who);
+            } else {
+                log_warn("Failed to re-read existing entry at slot %d", hit);
+            }
         }
         else {
             /* 5.e) No record – insert dummy */
@@ -5495,36 +5894,33 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
             highscore_seek(0);
             int slot = highscore_add(&dummy);
             if (slot < 0)
-                log_trace("error: highscore_add() failed");
+                log_error("highscore_add() failed");
             else
                 log_info("Kinslayer inserted dummy entry \"%s\" at slot %d",
                         dummy.who, slot);
         }
 
-        /* 6) UI is now handled by metarun_update_on_exit()                  */
+        /* 6) UI is now handled by metarun_update_on_exit() */
         static char killed_house[32];
         my_strcpy(killed_house, hname, sizeof killed_house);
-        return killed_house;
 
-        /* 7) Close the descriptor and reset */
+        /* 7) Close the descriptor and reset before returning */
         safe_setuid_grab();
-        if (close(highscore_fd) != 0)
-            log_trace("warning: close(highscore_fd=%d) failed, errno=%d",
-                    highscore_fd, errno);
+        if (fclose(highscore_fd) != 0) {
+            log_warn("fclose(highscore_fd) failed, errno=%d", errno);
+        }
         safe_setuid_drop();
-        highscore_fd = -1;
-
-        return NULL;
+        highscore_fd = NULL;
+        return killed_house;
     }
 
     /* 8) No kill performed – close and exit */
     safe_setuid_grab();
-    if (close(highscore_fd) != 0)
-        log_trace("warning: close(highscore_fd=%d) failed, errno=%d",
-                highscore_fd, errno);
+    if (fclose(highscore_fd) != 0)
+        log_warn("fclose(highscore_fd) failed, errno=%d", errno);
     safe_setuid_drop();
-    highscore_fd = -1;
-    log_trace("finished – no kill performed");
+    highscore_fd = NULL;
+    log_debug("finished – no kill performed");
     return NULL;
 }
 
@@ -5989,11 +6385,20 @@ static int final_menu(int* highlight)
  */
 static void close_game_aux(void)
 {
+    static bool death_processing = false;
     bool wants_to_quit = false;
     high_score the_score;
     int choice = 0, highlight = 1;
 
-    log_info("Processing character death for '%s' (wizard=%d, noscore=0x%04X, savefile='%s')",
+    /* Prevent duplicate death processing */
+    if (death_processing)
+    {
+        log_debug("Death processing already in progress - skipping duplicate call");
+        return;
+    }
+    death_processing = true;
+
+    log_debug("Processing character death for '%s' (wizard=%d, noscore=0x%04X, savefile='%s')",
              op_ptr->full_name, p_ptr->wizard ? 1 : 0, (unsigned)p_ptr->noscore, savefile);
 
     /* Dump bones file */
@@ -6003,7 +6408,7 @@ static void close_game_aux(void)
     log_info("saving dead player (noscore=0x%04X) -> '%s'", (unsigned)p_ptr->noscore, savefile);
     if (!save_player())
     {
-        log_debug("Death save failed - player data may be lost");
+        log_error("Death save failed - player data may be lost");
         msg_print("death save failed!");
         message_flush();
     }
@@ -6217,6 +6622,8 @@ static void close_game_aux(void)
         }
     }
 
+    /* Reset death processing flag for next character */
+    death_processing = false;
 }
 
 /*
@@ -6254,17 +6661,20 @@ void close_game(void)
 
     log_debug("Opening scores file for read/write: %s", buf);
 
+    /* Create backup before opening for write operations */
+    backup_scores_file(buf);
+
     /* Grab permissions */
     safe_setuid_grab();
 
     /* Open the high score file, for reading/writing */
-    highscore_fd = fd_open(buf, O_RDWR);
+    highscore_fd = open_scores_file_versioned(buf, O_RDWR);
 
     /* Drop permissions */
     safe_setuid_drop();
     
-    if (highscore_fd < 0) {
-        log_info("Failed to open scores file for read/write");
+    if (!highscore_fd) {
+    log_error("Failed to open scores file for read/write");
     }
 
     /* Handle death */
@@ -6313,6 +6723,59 @@ void close_game(void)
         if (inkey() != ESCAPE)
             predict_score();
 
+        /* Update the live character entry in the scores file so that
+           scores.raw acts as a database of current running characters.
+           We record an entry with how == "(alive and well)". */
+        if (highscore_fd >= 0) {
+            char saved_how[sizeof(p_ptr->died_from)];
+            my_strcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
+            my_strcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
+            high_score live_score;
+            create_score(&live_score);
+
+            /* Restore original (probably redundant during quit) */
+            my_strcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
+
+            /* Acquire write lock while we upsert */
+            safe_setuid_grab();
+            /* TODO: File locking not supported with FILE* - temporarily disabled */
+            /* bool have_lock = (fd_lock(highscore_fd, F_WRLCK) == 0); */
+            bool have_lock = true; /* assume we have lock for now */
+            safe_setuid_drop();
+
+            if (!have_lock) {
+                log_warn("Could not acquire lock to upsert live score entry");
+            } else {
+                /* Try to find existing alive entry for this player */
+                if (highscore_seek(0) == 0) {
+                    high_score tmp;
+                    int idx;
+                    bool found = false;
+                    for (idx = 0; idx < MAX_HISCORES; idx++) {
+                        if (highscore_read(&tmp)) break; /* EOF */
+                        if (streq(tmp.who, live_score.who) && streq(tmp.how, "(alive and well)")) {
+                            found = true; break;
+                        }
+                    }
+                    if (found) {
+                        log_debug("Updating existing live score entry for %s at %d", live_score.who, idx);
+                        highscore_seek(idx);
+                        highscore_write(&live_score);
+                        update_scores_file_header_count();
+                    } else {
+                        log_debug("Inserting new live score entry for %s", live_score.who);
+                        highscore_add(&live_score); /* adds (may not perfectly shift ordering) */
+                    }
+                }
+
+                /* Release lock */
+                safe_setuid_grab();
+                /* TODO: File locking not supported with FILE* - temporarily disabled */
+                /* (void)fd_lock(highscore_fd, F_UNLCK); */
+                safe_setuid_drop();
+            }
+        }
+
         // Sil-y: Sil used to crash on loading a saved game from the main menu
         //        immediately after quitting via Control-X.
         //        adding the following lines seems to stop that.
@@ -6324,10 +6787,10 @@ void close_game(void)
 
     /* Shut the high score file */
     log_debug("Closing highscore file");
-    fd_close(highscore_fd);
+    fclose(highscore_fd);
 
     /* Forget the high score fd */
-    highscore_fd = -1;
+    highscore_fd = NULL;
 
     log_info("Game close sequence completed");
 
@@ -7144,112 +7607,102 @@ bool autoload_alive_from_scores(void)
     char score_path[1024];
     path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
 
-    /* Open for read/write so we can patch entries */
-    int fd_local;
-    safe_setuid_grab();
-    fd_local = open(score_path, O_RDWR | O_CREAT, 0644);
-    safe_setuid_drop();
-    if (fd_local < 0) {
-        log_info("autoload: could not open scorefile: %s", score_path);
+    /* Preserve global scorefile state */
+    FILE*  saved_fd = highscore_fd;
+    bool saved_versioned = scores_file_is_versioned;
+    u32b saved_entry_count = scores_file_entry_count;
+
+    /* Open with version detection (read/write so we can patch entries) */
+    highscore_fd = open_scores_file_versioned(score_path, O_RDWR | O_CREAT);
+    if (!highscore_fd) {
+        log_warn("autoload: could not open scorefile: %s", score_path);
+        /* restore */
+        highscore_fd = saved_fd; scores_file_is_versioned = saved_versioned; scores_file_entry_count = saved_entry_count;
         return false;
     }
 
-    off_t file_end = lseek(fd_local, 0, SEEK_END);
-    int n_recs = (int)(file_end / (off_t)sizeof(high_score));
+    /* Determine number of records */
+    int n_recs;
+    fseek(highscore_fd, 0, SEEK_END);
+    long file_size = ftell(highscore_fd);
+    fseek(highscore_fd, 0, SEEK_SET);
+    
+    if (scores_file_is_versioned) {
+        long payload = file_size - (long)sizeof(score_file_header);
+        if (payload < 0) payload = 0;
+        n_recs = payload / (long)sizeof(high_score);
+        /* Prefer header entry count if sane */
+        if (scores_file_entry_count > 0 && (int)scores_file_entry_count <= n_recs)
+            n_recs = (int)scores_file_entry_count;
+        log_trace("autoload: versioned scorefile n_recs=%d header_count=%u", n_recs, scores_file_entry_count);
+    } else {
+        n_recs = file_size / (long)sizeof(high_score);
+        log_trace("autoload: legacy scorefile n_recs=%d", n_recs);
+    }
     if (n_recs <= 0) {
-        safe_setuid_grab();
-        close(fd_local);
-        safe_setuid_drop();
+        fclose(highscore_fd);
+        highscore_fd = saved_fd; scores_file_is_versioned = saved_versioned; scores_file_entry_count = saved_entry_count;
         return false;
     }
 
-    /* Iterate alive entries in order; load first that succeeds. */
-    for (int i = 0; i < n_recs; i++) {
+    /* Iterate alive entries */
+    for (int i = 0; i < n_recs; ++i) {
+        if (highscore_seek(i)) break;
         high_score entry;
-        if (lseek(fd_local, (off_t)i * (off_t)sizeof entry, SEEK_SET) < 0)
-            break;
-        ssize_t got = read(fd_local, &entry, sizeof entry);
-        if (got != sizeof entry) break;
-
-        /* Alive entries are encoded as how == "(alive and well)" */
+        if (highscore_read(&entry)) break; /* EOF */
         if (strcmp(entry.how, "(alive and well)") != 0) continue;
 
-        /* Try to load this character by name */
         char who_buf[sizeof entry.who + 1];
         memset(who_buf, 0, sizeof who_buf);
         my_strcpy(who_buf, entry.who, sizeof(who_buf));
+        log_info("autoload: found alive entry '%s' (index %d) – attempting load", who_buf, i);
 
-        log_info("autoload: found alive entry '%s' – attempting load", who_buf);
-
-        /* Set up savefile path for this name (normalized: non-alnum -> '_') */
         my_strcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
-        process_player_name(true); /* sets savefile using underscored base_name */
+        process_player_name(true);
 
-        /* First attempt: normalized filename (underscores) */
         if (load_player()) {
-            log_info("autoload: successfully loaded '%s' (normalized name)", who_buf);
-            /* Keep the descriptor closed before returning */
-            safe_setuid_grab();
-            close(fd_local);
-            safe_setuid_drop();
+            log_info("autoload: successfully loaded '%s' (normalized)", who_buf);
+            fclose(highscore_fd);
+            highscore_fd = saved_fd; scores_file_is_versioned = saved_versioned; scores_file_entry_count = saved_entry_count;
             return true;
         }
 
-        /* Second attempt: legacy filename that preserves spaces */
-        {
-            char savefile_backup[1024];
-            char alt_temp[128];
-            char alt_path[1024];
-
-            /* Backup the current savefile path */
-            my_strcpy(savefile_backup, savefile, sizeof(savefile_backup));
-
-            /* Build alternative filename using the unmodified who_buf */
-            strnfmt(alt_temp, sizeof(alt_temp), "%s", who_buf);
-            path_build(alt_path, sizeof(alt_path), ANGBAND_DIR_SAVE, alt_temp);
-
-            /* Point global savefile to the alternative and try again */
-            my_strcpy(savefile, alt_path, sizeof(savefile));
-            log_info("autoload: retrying with legacy spaced filename '%s'", savefile);
-            if (load_player()) {
-                log_info("autoload: successfully loaded '%s' (legacy spaced filename)", who_buf);
-
-                /* Restore canonical savefile for future saves (underscored) */
-                my_strcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
-                process_player_name(true);
-
-                safe_setuid_grab();
-                close(fd_local);
-                safe_setuid_drop();
-                return true;
-            }
-
-            /* Restore original (normalized) savefile path before proceeding */
+        /* Legacy spaced filename attempt */
+        char savefile_backup[1024];
+        char alt_temp[128];
+        char alt_path[1024];
+        my_strcpy(savefile_backup, savefile, sizeof(savefile_backup));
+        strnfmt(alt_temp, sizeof(alt_temp), "%s", who_buf);
+        path_build(alt_path, sizeof(alt_path), ANGBAND_DIR_SAVE, alt_temp);
+        my_strcpy(savefile, alt_path, sizeof(savefile));
+        log_info("autoload: retrying with legacy spaced filename '%s'", savefile);
+        if (load_player()) {
+            log_info("autoload: successfully loaded '%s' (legacy spaced)", who_buf);
+            /* Restore canonical name */
+            my_strcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
+            process_player_name(true);
+            fclose(highscore_fd);
+            highscore_fd = saved_fd; scores_file_is_versioned = saved_versioned; scores_file_entry_count = saved_entry_count;
             my_strcpy(savefile, savefile_backup, sizeof(savefile));
+            return true;
         }
+        my_strcpy(savefile, savefile_backup, sizeof(savefile));
 
-        /* Failed both attempts – mark as dead by own hand and warn */
+        /* Mark as dead and continue */
         log_warn("autoload: savefile missing/corrupt for '%s' – marking dead", who_buf);
         strnfmt(entry.how, sizeof entry.how, "%-.49s", "their own hand");
-        if (lseek(fd_local, (off_t)i * (off_t)sizeof entry, SEEK_SET) >= 0) {
-            (void)write(fd_local, &entry, sizeof entry);
+        if (highscore_seek(i) == 0) {
+            highscore_write(&entry);
         }
-
-        /* Increment meta-run death count and persist */
         metarun_increment_deaths();
         (void)save_metaruns();
-
-        /* Anti-cheat warning */
         msg_format("Warning: Alive entry '%s' had no valid savefile. Marked as dead.", who_buf);
         msg_print("Please do not tamper with savefiles.");
         message_flush();
-        /* Continue looking for another alive entry */
     }
 
-    /* None loaded; close and return */
-    safe_setuid_grab();
-    close(fd_local);
-    safe_setuid_drop();
+    fclose(highscore_fd);
+    highscore_fd = saved_fd; scores_file_is_versioned = saved_versioned; scores_file_entry_count = saved_entry_count;
     return false;
 }
 
@@ -7260,15 +7713,15 @@ bool autoload_alive_from_scores(void)
 void clear_scorefile(void)
 {
     char cur_path[1024];
-    bool was_open = (highscore_fd >= 0);
+    bool was_open = (highscore_fd != NULL);
 
     /* Full path to "scores.raw" */
     path_build(cur_path, sizeof cur_path, ANGBAND_DIR_APEX, "scores.raw");
 
     /* Close existing descriptor if open */
     if (was_open) {
-        fd_close(highscore_fd);
-        highscore_fd = -1;
+        fclose(highscore_fd);
+        highscore_fd = NULL;
     }
 
     /* If the file exists and is non-empty, archive it with timestamp */
@@ -7323,7 +7776,7 @@ void clear_scorefile(void)
     /* If the file was previously open, reopen it for read/write */
     if (was_open) {
         safe_setuid_grab();
-        highscore_fd = fd_open(cur_path, O_RDWR);
+        highscore_fd = open_scores_file_versioned(cur_path, O_RDWR);
         safe_setuid_drop();
     }
 }
@@ -7349,12 +7802,15 @@ void metarun_finalize_scores_and_saves(void)
     fd_local = open(score_path, O_RDWR | O_CREAT, 0644);
     safe_setuid_drop();
     if (fd_local < 0) {
-        log_info("finalize: could not open scorefile: %s", score_path);
+    log_warn("finalize: could not open scorefile: %s", score_path);
         return;
     }
 
     off_t file_end = lseek(fd_local, 0, SEEK_END);
-    int n_recs = (int)(file_end / (off_t)sizeof(high_score));
+    off_t payload2 = file_end;
+    if (scores_file_is_versioned && payload2 >= (off_t)sizeof(score_file_header))
+        payload2 -= (off_t)sizeof(score_file_header);
+    int n_recs = (int)(payload2 / (off_t)sizeof(high_score));
     if (n_recs <= 0) {
         safe_setuid_grab();
         close(fd_local);
@@ -7410,4 +7866,195 @@ void metarun_finalize_scores_and_saves(void)
                  p_ptr ? (p_ptr->wizard ? 1 : 0) : -1,
                  p_ptr ? (unsigned)p_ptr->noscore : 0);
     }
+}
+
+/*
+ * Backup all save files to a timestamped ZIP archive and delete originals
+ * Called when starting a new metarun to preserve old saves
+ */
+void backup_and_clear_saves(void)
+{
+    char save_dir[1024];
+    
+    /* Use the correct save directory - ANGBAND_DIR_SAVE points to lib/save */
+    strnfmt(save_dir, sizeof(save_dir), "%s", ANGBAND_DIR_SAVE);
+    
+    log_info("Checking for save files to backup in: %s", save_dir);
+    
+    /* Fast check: Try to open a few common save file patterns to see if anything exists */
+    bool has_files = false;
+    char test_patterns[][32] = {"*.sav", "*.dat", "*.txt", "character.sav", "save.dat", "Feanor", "player"};
+    
+    for (int i = 0; i < 7 && !has_files; i++) {
+        char test_path[1024];
+        path_build(test_path, sizeof(test_path), save_dir, test_patterns[i]);
+        
+        log_trace("Checking for save file pattern: %s", test_path);
+        
+        /* Quick test using fd_open - much faster than popen */
+        int test_fd = fd_open(test_path, O_RDONLY);
+        if (test_fd >= 0) {
+            fd_close(test_fd);
+            has_files = true;
+            log_trace("Found save file: %s", test_path);
+            break;
+        } else {
+            log_trace("File not found: %s", test_path);
+        }
+    }
+    
+    /* Also try to detect ANY file in the directory using a directory listing approach */
+    if (!has_files) {
+        log_trace("No specific patterns found, checking directory contents...");
+        
+        /* Try some common character names and generic file patterns */
+        char common_patterns[][32] = {"save", "char", "game", "*"};
+        
+        for (int i = 0; i < 4 && !has_files; i++) {
+            char test_path[1024];
+            path_build(test_path, sizeof(test_path), save_dir, common_patterns[i]);
+            
+            log_trace("Checking directory pattern: %s", test_path);
+            
+            int test_fd = fd_open(test_path, O_RDONLY);
+            if (test_fd >= 0) {
+                fd_close(test_fd);
+                has_files = true;
+                log_trace("Found file with pattern: %s", test_path);
+                break;
+            }
+        }
+    }
+    
+    /* Super fast exit if no save files exist */
+    if (!has_files) {
+        log_info("No save files found - skipping backup/clear process");
+        log_trace("Backup skipped because no save files were detected");
+        return;  /* Exit immediately, no UI messages needed */
+    }
+    
+    /* Create timestamped backup folder */
+    char backup_folder[1024];
+    char timestamp[64];
+    time_t now;
+    struct tm *timeinfo;
+    
+    /* Display progress message to user */
+    prt("[Creating save file backup folder...]", 0, 0);
+    Term_fresh();
+    
+    log_info("Found save files to backup and clear");
+    log_trace("Starting folder-based backup process for save files");
+    
+    /* Get current timestamp for backup folder name */
+    time(&now);
+    timeinfo = localtime(&now);
+    strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", timeinfo);
+    
+    /* Create backup folder with timestamp */
+    path_build(backup_folder, sizeof(backup_folder), save_dir, format("saves_metarun_%s", timestamp));
+    
+    log_info("Creating backup folder: %s", backup_folder);
+    log_trace("Full backup folder path: %s", backup_folder);
+    
+    /* Create the backup directory */
+    #ifdef WINDOWS
+    if (_mkdir(backup_folder) != 0) {
+        log_warn("Failed to create backup folder: %s", backup_folder);
+        return;
+    }
+    #else
+    if (mkdir(backup_folder, 0755) != 0) {
+        log_warn("Failed to create backup folder: %s", backup_folder);
+        return;
+    }
+    #endif
+    
+    /* Move ALL files to backup folder (except .gitignore and existing backup folders) */
+    int files_moved = 0;
+    
+    
+    #ifdef WINDOWS
+    /* Windows: Use FindFirstFile/FindNextFile for directory scanning */
+    WIN32_FIND_DATA findData;
+    char search_path[1024];
+    path_build(search_path, sizeof(search_path), save_dir, "*");
+    
+    HANDLE hFind = FindFirstFile(search_path, &findData);
+    if (hFind != INVALID_HANDLE_VALUE) {
+        do {
+            /* Skip directories and special entries */
+            if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+            
+            char* filename = findData.cFileName;
+            
+            /* Skip .gitignore and backup folders */
+            if (strcmp(filename, ".gitignore") == 0) continue;
+            if (strstr(filename, "saves_metarun_")) continue; /* Skip existing backup folders */
+            
+            /* Move this file to backup folder */
+            char old_path[1024], new_path[1024];
+            path_build(old_path, sizeof(old_path), save_dir, filename);
+            path_build(new_path, sizeof(new_path), backup_folder, filename);
+            
+            /* Use rename() to move the file (atomic operation) */
+            if (rename(old_path, new_path) == 0) {
+                files_moved++;
+                log_trace("Moved file to backup: %s", filename);
+            } else {
+                log_trace("Failed to move file: %s", filename);
+            }
+            
+        } while (FindNextFile(hFind, &findData));
+        FindClose(hFind);
+    }
+    #else
+    /* Unix/Linux/macOS: Use POSIX opendir/readdir */
+    DIR *dir = opendir(save_dir);
+    if (dir) {
+        struct dirent *entry;
+        
+        while ((entry = readdir(dir)) != NULL) {
+            /* Skip directories and special entries */
+            if (entry->d_type == DT_DIR) continue;
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+            
+            char* filename = entry->d_name;
+            
+            /* Skip .gitignore and backup folders */
+            if (strcmp(filename, ".gitignore") == 0) continue;
+            if (strstr(filename, "saves_metarun_")) continue; /* Skip existing backup folders */
+            
+            /* Move this file to backup folder */
+            char old_path[1024], new_path[1024];
+            path_build(old_path, sizeof(old_path), save_dir, filename);
+            path_build(new_path, sizeof(new_path), backup_folder, filename);
+            
+            /* Use rename() to move the file (atomic operation) */
+            if (rename(old_path, new_path) == 0) {
+                files_moved++;
+                log_trace("Moved file to backup: %s", filename);
+            } else {
+                log_trace("Failed to move file: %s", filename);
+            }
+        }
+        closedir(dir);
+    }
+    #endif
+    
+    if (files_moved > 0) {
+        log_info("Save backup completed successfully: %s (%d files moved)", backup_folder, files_moved);
+        prt("[Save files moved to backup folder]", 0, 0);
+        Term_fresh();
+    } else {
+        log_info("No files found to move to backup");
+        /* Remove empty backup folder if no files were moved */
+        #ifdef WINDOWS
+        _rmdir(backup_folder);
+        #else
+        rmdir(backup_folder);
+        #endif
+    }
+    
+    log_trace("Folder-based backup process completed");
 }

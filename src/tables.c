@@ -119,13 +119,13 @@ cptr stat_names_full[A_MAX]
  * Abbreviations of skills
  */
 cptr skill_names[S_MAX]
-    = { "Mel", "Arc", "Evn", "Stl", "Per", "Wil", "Cmt", "Sng" };
+    = { "Mel", "Arc", "Evn", "Stl", "Per", "Wil", "Cmt", "Sng", "Spc" };
 
 /*
  * Full skill names
  */
 cptr skill_names_full[S_MAX] = { "Melee", "Archery", "Evasion", "Stealth",
-    "Perception", "Will", "Smithing", "Song" };
+    "Perception", "Will", "Smithing", "Song", "Special" };
 
 /*
  * Certain "screens" always use the main screen, including News, Birth,

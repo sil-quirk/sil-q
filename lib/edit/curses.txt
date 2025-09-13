@@ -11,7 +11,7 @@
 
 # Version stamp (required)
 
-V:1.5.0
+V:0.8.7
 
 
 N:0:Burden of Ancient Stone

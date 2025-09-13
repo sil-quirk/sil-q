@@ -485,6 +485,18 @@ static void process_world(void)
 
     bool was_ghost = false;
 
+    /* Check for Tulkas quest interaction every turn */
+    check_tulkas_quest_interaction();
+
+    /* Check for Aule quest interaction every turn */
+    check_aule_quest_interaction();
+    
+    /* Check for Niena quest interaction every turn */
+    check_niena_quest_interaction();
+    
+    /* Check for Oromë quest interaction every turn */
+    check_orome_quest_interaction();
+
     /* Stop now unless the turn count is divisible by 10 */
     if (turn % 10)
         return;
@@ -1840,6 +1852,19 @@ static void process_player(void)
                 msg_print("You complete your work.");
 
                 create_smithing_item();
+
+                /* Aule quest: check for success condition during forging */
+                {
+                    int diff = object_difficulty(smith_o_ptr);
+                    p_ptr->aule_last_object_diff = diff;
+                    if (diff > 20 && p_ptr->aule_quest == AULE_QUEST_ACTIVE) {
+                        p_ptr->aule_quest = AULE_QUEST_SUCCESS;
+                        log_trace("Aule quest: state -> SUCCESS (diff=%d)", diff);
+                        msg_print("Your forging radiates unparalleled craft!");
+                        msg_print("You sense that Aule would be pleased with this work...");
+                        msg_print("Seek out Aule to receive his blessing.");
+                    }
+                }
             }
 
             /* Reduce smithing count */
@@ -1857,6 +1882,7 @@ static void process_player(void)
             /* Redraw the state */
             p_ptr->redraw |= (PR_STATE);
         }
+    /* Aule quest: no longer requires standing at special forge; acceptance handled during forging */
 
         /* Fletching */
         else if (p_ptr->fletching)
@@ -2817,13 +2843,11 @@ static void dungeon(void)
             {
                 /* Update stuff */
                 if (p_ptr->update) {
-                    log_trace("Main loop: running update_stuff in player turn");
                     update_stuff();
                 }
 
                 /* Redraw stuff */
                 if (p_ptr->redraw) {
-                    log_trace("Main loop: running redraw_stuff in player turn");
                     redraw_stuff();
                 }
 
@@ -2834,25 +2858,21 @@ static void dungeon(void)
 
         /* Notice stuff */
         if (p_ptr->notice) {
-            log_trace("Main loop: running notice_stuff");
             notice_stuff();
         }
 
         /* Update stuff */
         if (p_ptr->update) {
-            log_trace("Main loop: running update_stuff after player action");
             update_stuff();
         }
 
         /* Redraw stuff */
         if (p_ptr->redraw) {
-            log_trace("Main loop: running redraw_stuff after player action");
             redraw_stuff();
         }
 
         /* Redraw stuff */
         if (p_ptr->window) {
-            log_trace("Main loop: running window_stuff after player action");
             window_stuff();
         }
 
@@ -2867,7 +2887,7 @@ static void dungeon(void)
             Term_fresh();
 
         /* Handle "leaving" */
-        if (p_ptr->leaving) {
+    if (p_ptr->leaving) {
             log_info("Player leaving dungeon level %d", p_ptr->depth);
             break;
         }
@@ -2902,7 +2922,7 @@ static void dungeon(void)
             Term_fresh();
 
         /* Handle "leaving" */
-        if (p_ptr->leaving)
+    if (p_ptr->leaving)
             break;
 
         /* Process the world */
@@ -2935,7 +2955,7 @@ static void dungeon(void)
             Term_fresh();
 
         /* Handle "leaving" */
-        if (p_ptr->leaving)
+    if (p_ptr->leaving)
             break;
 
         /* Give the player some energy */
@@ -3380,6 +3400,12 @@ PlayResult play_game(void)
     print_story(15,1);
 
     log_debug("Game initialization complete, starting main game loop");
+    log_trace("QUEST DEBUG: Quest states loaded - Aule: %d, Mandos: %d, Tulkas: %d", 
+             p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->tulkas_quest);
+    log_trace("QUEST DEBUG: Special abilities - have_ability[S_SPC][SPC_MANDOS]=%d, have_ability[S_SPC][SPC_AULE]=%d",
+             p_ptr->have_ability[S_SPC][SPC_MANDOS], p_ptr->have_ability[S_SPC][SPC_AULE]);
+    log_trace("QUEST DEBUG: Special abilities - active_ability[S_SPC][SPC_MANDOS]=%d, active_ability[S_SPC][SPC_AULE]=%d",
+             p_ptr->active_ability[S_SPC][SPC_MANDOS], p_ptr->active_ability[S_SPC][SPC_AULE]);
 
     /* Flash a message */
     prt("Please wait...", 0, 0);
@@ -3604,7 +3630,17 @@ PlayResult play_game(void)
 
     close_game();
     if (!p_ptr->is_dead && !p_ptr->playing)
-        return PLAY_QUIT;
-    else
+    {
+        if (p_ptr->quit_to_menu)
+        {
+            p_ptr->quit_to_menu = false; /* Reset the flag */
+            return PLAY_DONE;
+        }
+        else
+        {
+            return PLAY_QUIT;
+        }
+    } else {
         return PLAY_DONE;
+    }
 }

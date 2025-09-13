@@ -77,6 +77,7 @@
 #     H - silent watcher
 #     o - orc champion
 #     O - orc captain
+#     P - Valar Projection
 #     z - thrall
 #     Z - orc thrallmaster
 #     f - cat warrior
@@ -98,6 +99,7 @@
 #     G - Gorthaur
 #     V - Morgoth
 #     C - Carcharoth
+#     N - Mandos
 #
 
 # Future Vault Thoughts
@@ -138,7 +140,7 @@
 
 # Version stamp (required)
 
-V:1.5.0
+V:0.8.7
 
 ### The Gates of Angband (type 10) -- maximum size 66x44 ??? ###
 ### This must be the first vault record
@@ -2605,14 +2607,14 @@ D:#########
 # Aldor's vault
 
 N:400:the Tomb of the King
-X:8:8:1
+X:7:8:10
 S:60:1
-F:NO_ROTATION | TEST
+F:NO_ROTATION | QUEST
 D:  ###                           
 D: ##W##   #############    ##$$$$
 D:##...## ##W###....+..##  ##;...$
 D:#&...*###...##.####...####.;...$
-D:#A....+.....^..#&;+W..+..+.....$
+D:#A....+.....^..#&;+W..+..+....N$
 D:#&...*###...##.####...####.;...$
 D:##...## ##W###....+..##  ##;...$
 D: ##W##   #############    ##$$$$
@@ -2729,7 +2731,6 @@ D:#########$$$$$$$$$#####
 N:405:the Chambers of Thu
 X:8:18:1
 S:32:1
-F:TEST
 D:#########%%%%%%%%%##########
 D:######.s.%%&.3.&%%&#S#&#S#&#
 D:######.#..%%*4*%%**#.#2#*#1#
@@ -2836,3 +2837,21 @@ D:#&..###s##...s^^^##**..........s.~#
 D:#######&########################..#
 D:###################################
 
+#Quest Vaults
+
+# Quest vault: Aule's Forge (small)
+N:460:Aule's Forge (Small)
+X:6:5:5
+S:57:1
+F:QUEST | LIGHT
+D:    #$#    
+D:   ##.##   
+D:  ##...##  
+D: ##...2.## 
+D:##...#...##
+D:$...#0#...$
+D:##...L...##
+D: ##.....## 
+D:  ##...##  
+D:   ##.##   
+D:    #$#    

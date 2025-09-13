@@ -1101,9 +1101,8 @@ static bool apply_style_floor_graphics(int y, int x, int feat, int info, byte* a
         }
         byte fr = (s->floor_count > 0) ? s->floor_rowv[choice] : s->floor_row;
         byte fc = (s->floor_count > 0) ? s->floor_colv[choice] : s->floor_col;
-        *a = (byte)(fr | 0x80);
-        *c = (char)(fc | 0x80);
-        log_trace("FLOOR override: STYLE idx=%d at (%d,%d) -> (row=%d,col=%d)", sidx, y, x, s->floor_row, s->floor_col);
+    *a = (byte)(fr | 0x80);
+    *c = (char)(fc | 0x80);
         /* Let special_lighting_floor() adjust brightness afterwards */
         return true;
     }
@@ -1135,9 +1134,8 @@ static bool apply_style_door_graphics(int y, int x, int feat, int info, byte* a,
         int row = (s->door_count > 0) ? s->door_rowv[choice] : s->door_row;
         int col = (s->door_count > 0) ? s->door_colv[choice] : s->door_col;
         if (feat == FEAT_OPEN) col += 1; else if (feat == FEAT_BROKEN) col += 2;
-        *a = (byte)(row | 0x80);
-        *c = (char)(col | 0x80);
-        log_trace("DOOR override: STYLE idx=%d at (%d,%d) feat=%d -> (row=%d,col=%d)", sidx, y, x, feat, row, col);
+    *a = (byte)(row | 0x80);
+    *c = (char)(col | 0x80);
         return true;
     }
 
@@ -1527,18 +1525,11 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
             (void)apply_style_door_graphics(y, x, feat, info, &a, &c);
 
 #if DEPTH_BASED_WALLS
-            /* Debug: Check if we reach wall processing */
-            if (feat >= FEAT_WALL_HEAD && feat <= FEAT_WALL_TAIL) {
-                log_trace("Wall feature %d detected, graphics_are_ascii()=%d", feat, graphics_are_ascii());
-            }
-
             /* Apply style-based wall/vein graphics for non-ASCII graphics */
-            if (!graphics_are_ascii() && (feat >= FEAT_WALL_HEAD && feat <= FEAT_WALL_TAIL))
+            if (!graphics_are_ascii() && (feat >= FEAT_WALL_HEAD && feat <= FEAT_WALL_TAIL) && feat != FEAT_RUBBLE)
             {
                 /* Get the cave color for this location */
                 byte color_value = cave_color[y][x];
-
-                log_trace("DEPTH_BASED_WALLS: At (%d,%d) feat=%d, cave_color=%d, depth=%d", y, x, feat, color_value, p_ptr->depth);
 
                 /* Decode style index from cave_color (first-variant flag is ignored here) */
                 int sidx2 = style_index_for_color(color_value);
@@ -1550,7 +1541,6 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                             /* Full replacement vein tile */
                             a = (byte)(s->vein_row | 0x80);
                             c = (char)(s->vein_col | 0x80);
-                            log_trace("DEPTH_BASED_WALLS: STYLE idx=%d vein replacement -> (row=%d,col=%d)", sidx2, s->vein_row, s->vein_col);
                         } else {
                             /* Overlay default vein tile on this style's wall tile */
                             extern byte get_default_vein_row(void);
@@ -1566,7 +1556,6 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                             }
                             *tap = wall_a; *tcp = wall_c;
                             a = (byte)(dv_r | 0x80); c = (char)(dv_c | 0x80);
-                            log_trace("DEPTH_BASED_WALLS: STYLE idx=%d vein overlay default -> (row=%d,col=%d) over wall(row=%d,col=%d)", sidx2, dv_r, dv_c, s->wall_row, s->wall_col);
                             if (use_graphics == GRAPHICS_MICROCHASM && feat_supports_lighting(feat)) {
                                 if (p_ptr->blind || (!(info & (CAVE_GLOW)) && cave_light[y][x] <= 0)) {
                                     c += 1;
@@ -1608,7 +1597,6 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                         style_type* s2 = &style_info[sidx2];
                         a = (byte)(s2->wall_row | 0x80);
                         c = (char)(s2->wall_col | 0x80);
-                        log_trace("DEPTH_BASED_WALLS: STYLE idx=%d for wall -> (row=%d,col=%d)", sidx2, s2->wall_row, s2->wall_col);
                     } else {
                         int fb = (g_vault_primary_style >= 0 && (cave_info[y][x] & CAVE_ICKY)) ? g_vault_primary_style : g_level_primary_style;
                         if (fb >= 0 && style_info[fb].name) {
@@ -1631,8 +1619,6 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                         c += 1;
                     }
                 }
-
-                log_trace("DEPTH_BASED_WALLS: final_a=%d, final_c=%d", a, c);
 
                 /* Apply the updated tile coordinates to both main and terrain */
                 *ap = a;
@@ -1800,7 +1786,7 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
         }
         else
         {
-            r_ptr = &r_info[p_ptr->prace];
+            r_ptr = &r_info[p_ptr->prace]; // XXX grafic for player
 
             a = r_ptr->x_attr;
             c = r_ptr->x_char;
@@ -4862,11 +4848,9 @@ byte get_depth_color(int depth)
         int sidx = g_level_primary_style;
         if (sidx < 0) sidx = 13; /* default Gates style */
         byte c = (byte)(COLOR_STYLE_BASE + (sidx & (COLOR_STYLE_SLOT_MAX - 1)));
-        log_trace("get_depth_color(0): forcing style idx=%d -> %d", sidx, c);
         return c;
     }
     byte c = get_active_style_color();
-    log_trace("get_depth_color: returning %d", c);
     return c;
 }
 
@@ -4884,11 +4868,9 @@ void cave_set_feat_with_color(int y, int x, int feat, int color)
         /* Preserve existing per-cell style if already encoded. */
         if (cave_color[y][x] >= COLOR_STYLE_BASE) {
             /* Keep the chosen style for this cell; only the feature changes. */
-            log_trace("cave_set_feat_with_color: (%d,%d) feat=%d, color=0 -> preserve cave_color=%d", y, x, feat, cave_color[y][x]);
         } else {
             /* No style encoded yet: use active style (level or vault). */
             cave_color[y][x] = get_active_style_color();
-            log_trace("cave_set_feat_with_color: (%d,%d) feat=%d, color=0 -> init cave_color=%d", y, x, feat, cave_color[y][x]);
         }
     }
     else
@@ -4896,7 +4878,6 @@ void cave_set_feat_with_color(int y, int x, int feat, int color)
         /* If a raw style index is passed, encode it; if already encoded, keep */
         if (color < COLOR_STYLE_BASE) cave_color[y][x] = (byte)(COLOR_STYLE_BASE + color);
         else cave_color[y][x] = color;
-        log_trace("cave_set_feat_with_color: (%d,%d) feat=%d, color=%d -> cave_color=%d", y, x, feat, color, cave_color[y][x]);
     }
 
     /* Handle "wall/door" grids */

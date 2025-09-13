@@ -87,6 +87,8 @@ typedef struct flavor_type flavor_type;
 typedef struct editing_buffer editing_buffer;
 typedef struct autoinscription autoinscription;
 typedef struct style_type style_type;
+typedef struct quest_type quest_type;
+typedef struct oath_type oath_type;
 
 /**** Available structs ****/
 
@@ -111,9 +113,10 @@ struct maxima
     u16b st_max; /* Max size for "st_info[]" */
     u16b cu_max; /* Max size for "cu_info[]" */
     u16b c_max; /* Max size for "c_info[]" */
-    u16b q_max; /* Max size for "q_info[]" */
+    u16b quest_max; /* Max size for "quest_info[]" */
+    u16b oath_max; /* Max size for "oath_info[]" */
     u16b flavor_max; /* Max size for "flavor_info[]" */
-    u16b o_max; /* Max size for "o_list[]" */
+    u16b o_max; /* Max size for "o_info[]" */
     u16b ghost_other_max; /* Max maintainer player ghost templates */
     u16b art_spec_max; /* Max number of special artefacts */
     u16b art_norm_max; /* Max number for normal artefacts (special - normal) */
@@ -732,6 +735,7 @@ struct player_character
 
     u32b flags; /* House Flags (ie RHF flags) */
     u32b flags_u; /* House Flags (ie RHF flags) */
+    byte power; /* Power rating: 0=weak, 1=average, 2=powerful, 3=very powerful */
     start_item start_items[MAX_START_ITEMS];       /* NEW: bonus kit */
 };
 
@@ -809,6 +813,77 @@ struct style_type {
     byte door_count;                      /* number of door variants */
     byte door_rowv[8], door_colv[8];      /* up to 8 variants */
     bool vein_defined;       /* true if Y: was specified in style.txt */
+};
+
+/*
+ * Information about quest types
+ */
+struct quest_type
+{
+    u32b name; /* Name (offset) */
+    u32b text; /* Text (offset) - legacy field for compatibility */
+    u32b init_text; /* Initialization text (I:) (offset) */
+    u32b completion_text; /* Completion text (W:) (offset) */
+    u32b title_text; /* Title text (T:) (offset) */
+    u32b challenge_text; /* Challenge text (C:) (offset) */
+    
+    byte quest_num; /* Quest index (TULKAS, AULE, MANDOS, NIENA) */
+    byte difficulty; /* Difficulty level */
+    byte reward_type; /* Type of reward (ability, item, etc.) */
+    byte reward_value; /* Specific reward identifier */
+    byte oath_id; /* Associated oath ID (links to oath_info array) */
+    byte quest_type; /* Quest type (Y: field - 0=vault, 1=roulet) */
+    byte stat_bonuses[4]; /* Stat bonuses (S: field - str:dex:con:gra) */
+    byte skill_type; /* Skill type for bonuses (K: field first part) */
+    byte skill_bonus; /* Skill bonus amount (K: field second part) */
+    byte ability_type; /* Special ability type (A: field first part) */
+    byte ability_id; /* Special ability ID (A: field second part) */
+    
+    /* Quest State Mapping (V: and M: fields) */
+    u32b quest_state_var; /* Quest state variable name (V: field) (offset) */
+    u32b metarun_quest_id; /* Metarun quest ID (M: field) (offset) */
+    
+    /* Parametric Formula System (P: field) */
+    byte formula_type; /* 0=hardcoded, 1=linear_decay, 2=scaled_range, 3=fixed_percent */
+    float formula_params[4]; /* Parameters for formula calculation */
+    byte depth_min; /* Minimum depth for formula */
+    byte depth_max; /* Maximum depth for formula */
+    
+    /* Eligibility Requirements (E: field) */
+    byte eligibility_type; /* 0=none, 1=skill_min, 2=skill_max, 3=depth_range, 4=stat_min */
+    byte eligibility_skill; /* Skill type for skill-based requirements */
+    byte eligibility_value; /* Minimum/maximum value for requirement */
+    byte eligibility_depth_min; /* Minimum depth for depth-based requirements */
+    byte eligibility_depth_max; /* Maximum depth for depth-based requirements */
+    
+    u32b flags; /* Quest flags */
+};
+
+/*
+ * Information about oath types 
+ */
+struct oath_type
+{
+    u32b name; /* Name (offset) */
+    u32b text; /* Text (offset) */
+    u32b pledge_text; /* Pledge text (P:) (offset) */
+    u32b forbidden_text; /* Forbidden action text (F:) (offset) */
+    u32b reward_text; /* Reward description text (R:) (offset) */
+    u32b confirmation_prompt; /* Confirmation prompt text (offset) */
+    u32b curse_message; /* Curse message text (offset) */
+    u32b permanent_message; /* Permanent consequence message (offset) */
+    u32b death_message; /* Death/escape message (offset) */
+    u32b banned_text; /* Birth screen banned text (offset) */
+    
+    byte oath_num; /* Oath index (MERCY, SILENCE, IRON, SMITH) */
+    byte difficulty; /* Difficulty level */
+    byte restrictions; /* Oath restrictions flags */
+    byte reward_type; /* Type of reward */
+    byte reward_value; /* Specific reward identifier */
+    byte stat_bonuses[4]; /* Stat bonuses (S: field - str:dex:con:gra) */
+    byte skill_type; /* Skill type for bonuses (K: field first part) */
+    byte skill_bonus; /* Skill bonus amount (K: field second part) */
+    u32b flags; /* Oath flags */
 };
 
 /*
@@ -988,6 +1063,7 @@ struct player_type
     bool playing; /* true if player is playing the game */
     bool restoring; /* true if player is restoring a game */
     bool leaving; /* true if player is leaving the game */
+    bool quit_to_menu; /* true if player wants to quit to menu instead of exiting */
 
     s16b create_stair; /* Create a staircase on next level */
     s16b create_rubble; /* Create rubble on next level */
@@ -1128,53 +1204,111 @@ struct player_type
     byte oath_type; /* which oath the player has chosen to keep */
     byte oaths_broken; /* which possible oaths the player has broken */
 
-    byte thrall_quest;
-
-    s32b unused2; // Room for expansion without breaking savefiles
-    s32b unused3; // Room for expansion without breaking savefiles
+    byte tulkas_quest; /* Tulkas quest state */
+    s16b tulkas_target_r_idx; /* Target unique monster for Tulkas quest */
+    s16b tulkas_prize_a_idx; /* Artifact prize for Tulkas quest */
+    byte tulkas_quest_complete; /* Whether quest is completed but reward not given */
+    /* Aule quest tracking */
+    byte aule_quest;           /* Aule quest state (AULE_QUEST_*) */
+    byte aule_forge_y;         /* Y coord of Aule's forge (for validation) */
+    byte aule_forge_x;         /* X coord of Aule's forge */
+    byte aule_reserved;        /* padding */
+    s16b aule_level;           /* Dungeon depth where forge resides */
+    s16b aule_last_object_diff;/* Difficulty of last forged object (for logging) */
+    /* Mandos quest tracking */
+    byte mandos_quest;         /* Mandos quest state (MANDOS_QUEST_*) */
+    byte mandos_vault_y;       /* Y coord of Mandos' vault center */
+    byte mandos_vault_x;       /* X coord of Mandos' vault center */
+    byte mandos_monsters_remaining; /* Number of monsters left to clear */
+    s16b mandos_level;         /* Dungeon depth where vault resides */
+    s16b mandos_reserved;      /* padding */
+    /* Niena quest tracking */
+    byte niena_quest;          /* Niena quest state (NIENA_QUEST_*) */
+    byte niena_monsters_seen;  /* Number of monsters seen during quest */
+    byte niena_monsters_killed; /* Number of monsters killed during quest */
+    byte niena_reserved;       /* padding */
+    s16b niena_level;          /* Dungeon depth where quest is active */
+    s16b niena_reserved2;      /* padding */
+    /* Orome quest tracking */
+    byte orome_quest;          /* Orome quest state (OROME_QUEST_*) */
+    byte orome_target_type;    /* Monster type to hunt (1=wolf, 2=spider, 3=serpent, 4=vampire) */
+    s16b orome_killed_count;   /* Number of target monsters killed */
+    s16b orome_target_count;   /* Required number to kill (100/80/60/30) */
+    /* New global monster type counters for Orome quest */
+    s16b orome_wolves_killed;  /* Total wolves killed (any type) */
+    s16b orome_spiders_killed; /* Total spiders killed (any type) */
+    s16b orome_serpents_killed; /* Total serpents killed (any type) */
+    s16b orome_vampires_killed; /* Total vampires killed (any type) */
+    /* Generic quest/vault tracking */
+    byte quest_vault_used;     /* Has a quest-designated vault generated this game */
+    byte quest_reserved[15];   /* quest_reserved[0] = any quest spawned flag (run-wide); rest reserved */
 };
 
 /*
- * Semi-Portable High Score List Entry (128 bytes)
+ * Version header for scores.raw file (16 bytes)
+ */
+typedef struct score_file_header
+{
+    byte version_major;  /* Major version (0) */
+    byte version_minor;  /* Minor version (8) */
+    byte version_patch;  /* Patch version (5) */
+    byte version_extra;  /* Extra version (0) */
+    u32b entry_count;    /* Number of score entries in file */
+    u32b reserved[2];    /* Reserved for future use */
+} score_file_header;
+
+/*
+ * High Score List Entry (on-disk record length = 133 bytes)
  *
- * All fields listed below are null terminated ascii strings.
+ * All fields are fixed-length, null-terminated ascii strings with any
+ * unused trailing bytes left as zeros. The historical comment claimed
+ * 128 bytes; additions (longer 'how' field + extra flags) increased
+ * this without updating the note. We freeze the on-disk layout at the
+ * sum of the declared field lengths (8+5+10+10+16+8+2+3+3+4+4+4+50+2+2+2=133).
  *
- * In addition, the "number" fields are right justified, and
- * space padded, to the full available length (minus the "null").
- *
- * Note that "string comparisons" are thus valid on "pts".
+ * Portability: we need a packed representation without relying on
+ * non‑standard attributes under non-GNU compilers (e.g. MSVC). We use
+ * #pragma pack for MSVC and GCC/Clang attribute elsewhere. If neither
+ * is available we accept potential padding (in which case add manual
+ * serialization before shipping to that platform).
  */
 
-typedef struct high_score high_score;
+#if defined(_MSC_VER)
+#pragma pack(push,1)
+#endif
 
 struct high_score
 {
-    char what[8]; /* Version info (string) */
-
-    char pts[5]; /* obsolete */
-
-    char turns[10]; /* Turns Taken (number) */
-
-    char day[10]; /* Time stamp (string) */
-
-    char who[16]; /* Player Name (string) */
-
-    char uid[8]; /* Player UID (number) */
-
-    char unused[2]; /* Was sex */
-    char p_r[3]; /* Player Race (number) */
-    char p_h[3]; /* Player House (number) */
-
-    char cur_lev[4]; /* Current Player Level (number) */
-    char cur_dun[4]; /* Current Dungeon Level (number) */
-    char max_dun[4]; /* Max Dungeon Level (number) */
-
-    char how[50]; /* Method of death (string) */
-
-    char silmarils[2]; /* Number of Silmarils (number) */
+    char what[8];        /* Version info (string) */
+    char pts[5];         /* obsolete */
+    char turns[10];      /* Turns Taken (number) */
+    char day[10];        /* Time stamp (string) */
+    char who[16];        /* Player Name (string) */
+    char uid[8];         /* Player UID (number) */
+    char unused[2];      /* Was sex */
+    char p_r[3];         /* Player Race (number) */
+    char p_h[3];         /* Player House (number) */
+    char cur_lev[4];     /* Current Player Level (number) */
+    char cur_dun[4];     /* Current Dungeon Level (number) */
+    char max_dun[4];     /* Max Dungeon Level (number) */
+    char how[50];        /* Method of death (string) */
+    char silmarils[2];   /* Number of Silmarils (number) */
     char morgoth_slain[2]; /* Has player slain Morgoth (t/f) */
-    char escaped[2]; /* Has player escaped (t/f) */
-};
+    char escaped[2];     /* Has player escaped (t/f) */
+}
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((packed))
+#endif
+;
+
+#if defined(_MSC_VER)
+#pragma pack(pop)
+#endif
+
+typedef struct high_score high_score;
+
+/* C89-friendly compile-time size check (negative array size => error) */
+typedef char high_score_size_must_be_133[(sizeof(struct high_score) == 133) ? 1 : -1];
 
 
 

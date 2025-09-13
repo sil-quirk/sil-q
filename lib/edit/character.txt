@@ -1,31 +1,31 @@
-# File: house.txt
+# File: character.txt
 #
-# This file is used to create the "lib/data/house.raw" file, which is
-# used to initialize the "player house" information for Sil.
+# This file is used to create the "lib/data/character.raw" file, which is
+# used to initialize the "player character" information for Sil.
 #
 # Do not modify this file unless you know exactly what you are doing,
 # unless you wish to risk possible system crashes and broken savefiles.
 #
 #
-# === Understanding house.txt ===
+# === Understanding character.txt ===
 #
-# N: house number : house name
-# A: alternate house name
-# B: short house name
-# F: house flag
+# N: character number : character name
+# A: character name
+# B: character welcome string
+# F: character flag
 # S: str : dex : con : 
 # C: abilities : number
 #
 # 'N' indicates the beginning of an entry. The serial number must
-#     increase for each new house.
+#     increase for each new character.
 #
-# 'A' is the alternate house name, so it can be used in the form:
-#     Caranthir of <house name>
+# 'A' is the alternate character name, so it can be used in the form:
+#     Caranthir of <character name>
 #
-# 'B' is the short house name when it needs to be displayed in
+# 'B' is the short character name when it needs to be displayed in
 #     a small space.
 #
-# 'F' is the house flags, which modify certain skills
+# 'F' is the character flags, which modify certain skills
 #
 # 'S' is the bonuses to stats: Str, Dex, Con, Gra
 #List of RHF and Unique flags
@@ -53,13 +53,14 @@
 
 # Version stamp (required)
 
-V:1.5.0
+V:0.8.7
 
 N:0:Houseless
 A:Houseless
 B:Houseless
 S:0:0:0:0
 C:1:1
+P:1
 
 #Great Smith, Proud, Fiery
 #Should be big stats but some flaw
@@ -72,6 +73,7 @@ F:SMT_AFFINITY | WIL_AFFINITY | STL_PENALTY | TREACHERY
 U:SMT_FEANOR 
 C:6:5:6:2  # Jeweller Artifice
 S:2:2:1:2
+P:3
 D:Mighty spirit aflame, brightest and proudest among Eldar craftsmen, yet 
 D:fallen under shadow, whose hand wrought Silmarils kindled grief and war. 
 D:His fierce oath forever binds sons to ruin, and echoes still unbroken 
@@ -90,6 +92,7 @@ F:WIL_AFFINITY | EVN_AFFINITY | MEL_AFFINITY | SMT_PENALTY | STL_PENALTY | ARC_P
 U:WIL_FIN
 S:3:2:2:1
 C:2:8:5:9  # Majesty Riposte
+P:3
 D:High King courageous, whose defiance shook Morgoth upon his dark throne; 
 D:riding alone to Angband’s gates, fearless, shining in wrathful valor. 
 D:Though fallen, his horn still echoes through desolate wastes of the North, 
@@ -107,6 +110,7 @@ B:You move in wisdom-voice of gentle counsel, longing for healing beyond bloodsh
 F:PER_AFFINITY | SMT_PENALTY 
 S:1:1:0:3
 C:7:12:7:7   # Song of the Trees #Woven Themes
+P:2
 D:Wise-hearted and gentle, fairest prince who turned back from doom, 
 D:ruling now in Valinor's quiet peace, sorrowful yet patient, waiting 
 D:for the day when the bitter wounds dividing Noldor and Valar heal. 
@@ -125,6 +129,8 @@ F:WIL_AFFINITY | STL_PENALTY
 U:MEL_MAEDHROS
 S:1:1:3:0
 C:5:8 #Vengeance
+P:1
+P:1
 D:Eldest son of fire-hearted Feanor, whose flame-red hair now shadows grief; 
 D:once chained in torment on cliffs of Thangorodrim, yet unbroken in spirit. 
 D:Leading brothers in doom-bound quest, his nobility falters beneath oath 
@@ -142,6 +148,7 @@ B:You begin your hunt-crafty son of Fëanor, whose subtlety sows ruin unseen.
 F:SMT_AFFINITY | STL_AFFINITY | PER_PENALTY | ARC_AFFINITY | MEL_PENALTY | WIL_PENALTY | TREACHERY
 S:0:3:0:-1
 C:3:4 #Opportunist
+P:0
 D:Keen-eyed, crafty-handed son of Feanor, closest heir to father's fire; 
 D:skilled smith whose subtle tongue kindles divisions, pride, and betrayal. 
 D:His deeds shadowed by ambition, foreshadowing sorrow yet unborn, 
@@ -158,6 +165,7 @@ B:You step forward bravely-valiant prince, friend and rescuer in darkest hour.
 F:WIL_AFFINITY | ARC_AFFINITY | KINSLAYER
 S:1:2:1:1
 C:1:5 #Versatility
+P:2
 D:Brave-hearted prince, valiant son of Fingolfin, friend to mighty Maedhros; 
 D:fearless rescuer who cut friend free from torment upon dread peaks. 
 D:His valor brightens briefly as High King, yet fate cruelly casts him down 
@@ -174,6 +182,7 @@ B:You set forth secretly-Lord of Gondolin, guardian of hidden splendor doomed by
 F:WIL_AFFINITY | STL_AFFINITY | PER_AFFINITY | MEL_PENALTY | ARC_PENALTY | KINSLAYER
 S:0:0:2:2
 C:3:5 #Vanish
+P:1
 D:Lord of hidden Gondolin, builder of white walls beneath encircling peaks; 
 D:proud and secretive, whose city once stood fair against Morgoth’s malice. 
 D:Yet pride sealed doom, ignoring warnings whispered by Ulmo’s waves, 
@@ -190,6 +199,7 @@ B:You walk beneath twilight-Lady of Light, whose gaze sees peril and power yet u
 F:PER_AFFINITY | SMT_PENALTY | CURSE
 S:0:1:1:2
 C:4:6:4:7  # Listen Outwit
+P:2
 D:Fair-haired daughter of Finarfin, exile proud and wise beyond her years, 
 D:eyes aglow with foresight, bearing grief of kin lost, kingdoms fallen. 
 D:Dwelling now beneath twilight, silent watcher amid deepening shadows, 
@@ -207,6 +217,7 @@ F:PER_AFFINITY | SNG_AFFINITY | WIL_AFFINITY | CURSE
 U:SNG_FIN
 S:0:1:0:3
 C:7:9 #Staying
+P:2
 D:Noble-hearted builder of halls beneath Nargothrond’s fair stone towers, 
 D:friend steadfast and gentle, beloved of Men, faithful unto death itself. 
 D:Sacrificed life to fulfill oaths made in love, honor, and courage, 
@@ -223,6 +234,7 @@ B:You rise in valor-golden defender of Gondolin, whose courage felled a Balrog.
 F:MEL_AFFINITY | ARC_PENALTY
 S:2:2:1:1
 C:2:9:0:12  # Rapid Attack Control retreat
+P:3
 D:Golden-haired lord, valiant defender of Gondolin’s doomed white towers; 
 D:fierce guardian whose final battle cast Balrog down to fiery ruin. 
 D:Fallen hero, whose sacrifice on mountain heights foreshadows rebirth, 
@@ -239,6 +251,7 @@ B:You march proudly-captain of Gondolin, whose blade sang bravely against fire.
 F:MEL_AFFINITY | KINSLAYER | ARC_PENALTY | EVN_PENALTY
 S:2:1:1:1
 C:0:6 #Impale
+P:1
 D:Valiant Lord of Gondolin, whose silver sword sang beneath city's towers; 
 D:captain beloved, noble guardian at the gates of secret splendor. 
 D:His voice echoed brightly in fountain-filled squares, stern yet gentle, 
@@ -256,6 +269,7 @@ F:WIL_AFFINITY | PER_AFFINITY | ARC_PENALTY | SMT_PENALTY
 U:SNG_THINGOL
 S:2:1:1:3
 C:5:9:7:11  # Song of Mastery Majesty
+P:3
 D:King of grey twilight, tallest among Elves, ruling hidden Doriath fair; 
 D:whose wisdom guarded realms beneath enchanted forests, untouched by time. 
 D:Pride stirred by Silmaril's light, destiny darkened through treasure's lure, 
@@ -272,6 +286,7 @@ B:You watch patiently-shipwright, keeper of hope, guiding stars across endless s
 F:PER_AFFINITY | SMT_AFFINITY | ARC_PENALTY | FREE | BOW_PROFICIENCY| SMT_PENALTY
 S:0:1:1:2
 C:4:2:4:4 # Keen Senses Alchemy
+P:2
 D:Wise shipwright, silver-bearded master mariner dwelling by western shores; 
 D:foresight guiding weary hearts toward hope amid tides of endless grief. 
 D:His keen eyes witness sorrows deepening, ships departing into twilight; 
@@ -286,6 +301,7 @@ B:You guard faithfully-Heavy-Handed captain of Doriath, steadfast amid sorrow.
 F:MEL_AFFINITY| SMT_PENALTY
 S:2:1:0:0
 C:0:10 # Smite
+P:1
 D:Brave huntsman, faithful captain of Thingol’s guard beneath starlit woods, 
 D:whose spear guarded borders of Doriath, steadfast amid darkness growing. 
 D:Witness of grief and ruin, whose noble heart wept silent tears unshed, 
@@ -301,6 +317,7 @@ F:WIL_AFFINITY | SNG_AFFINITY | STL_AFFINITY | EVN_AFFINITY | ARC_PENALTY| SMT_P
 U:SNG_LUT
 S:-1:3:1:3
 C:7:10:5:0   # Curse Breaking #Lorien
+P:3
 D:Fairest daughter of twilight, song and star blended beneath woodland leaves, 
 D:whose voice defied Morgoth himself, beauty challenging darkness eternal. 
 D:Love binding mortal heart to immortal soul, weaving fate unforeseen, 
@@ -315,6 +332,7 @@ B:You journey onward-messenger steadfast, bearer of hope whispered by Ulmo.
 F:PER_PENALTY | FREE | BOW_PROFICIENCY| SMT_PENALTY
 S:0:1:1:0
 C:4:0 # Quick Study
+P:0
 D:Faithful mariner, storm-tossed survivor, bearer of Ulmo’s whispered hope, 
 D:last messenger of Gondolin’s hidden splendor, guided by fate unseen. 
 D:His weary eyes glimpsed future sorrow, guiding mortal hero toward doom, 
@@ -329,6 +347,7 @@ B:You stalk bravely-Strongbow of Doriath, loyal heart doomed by friendship.
 F:ARC_AFFINITY | SNG_PENALTY | BOW_PROFICIENCY| SMT_PENALTY
 S:1:2:0:0
 C:1:7 # Deadly Hail
+P:1
 D:Strongbow of Doriath, brave-hearted ranger whose arrows sang in twilight, 
 D:friend steadfast beyond measure, whose courage guarded realms in peril. 
 D:Devoted companion to mortal friend, bound by love and tragic fate, 
@@ -345,6 +364,7 @@ U:SMT_TELCHAR
 S:1:1:1:2
 C:6:3:6:0  # Weaponsmith # Enchantment
 E:4:0:0:30     # | Mithril (25)
+P:1
 D:Renowned smith of Nogrod, whose mighty hammer shaped legends in iron; 
 D:hands crafting marvels bound to fateful deeds beyond dwarven halls. 
 D:Maker of swords whose edge would cleave darkness and challenge fate itself, 
@@ -360,6 +380,7 @@ F:PER_AFFINITY | SMT_AFFINITY | MEL_PENALTY
 U:SMT_GAMIL
 S:0:0:0:2
 C:6:4 # Expertise
+P:0
 D:Master smith hidden deep beneath mountains, legend among Naugrim lords, 
 D:whose skilled hands taught crafts divine, shaping metal into destiny. 
 D:Secrets wrought in darkness beneath earth, wisdom shining in shadows deep, 
@@ -374,6 +395,7 @@ B:You move darkly-dwarven king, whose greed binds doom and betrayal.
 F:PER_PENALTY | TREACHERY
 S:1:1:1:-1
 C:3:2 # Cruel blow
+P:0
 D:Proud dwarven king, lord of wealth whose eyes darkened with greedy fire, 
 D:driven by lust for Silmaril’s beauty, weaving betrayal and doom. 
 D:His heart foreshadows bitter conflict, dwarven honor stained by greed, 
@@ -388,6 +410,7 @@ B:You stand resolutely-lord of Belegost, whose courage wounded dragon’s pride.
 F:WIL_AFFINITY | MEL_AFFINITY
 S:2:1:2:1
 C:0:8 # Whirlwind Attack
+P:1
 D:Mighty dwarven lord of Belegost, brave-hearted defender of stone halls, 
 D:whose fierce courage challenged dragons beneath red fire and shadow. 
 D:Armor clad in valor, battling boldly amid ruinous flames unleashed, 
@@ -402,7 +425,8 @@ B:You lurk warily-petty dwarf, guardian of bitter secrets, shadow-bound.
 F:SNG_AFFINITY | MEL_PENALTY | STL_AFFINITY | TREACHERY | SMT_PENALTY
 U:MIM
 S:-1:1:-1:-1
-C:7:4:3:0:3:1:3:2:3:3:3:4:3:6 # Song of Silence and all stealth
+C:7:4:3:0:3:1:3:2:3:3:3:4:3:5 # Song of Silence and all stealth
+P:0
 D:Petty dwarf, last remnant of forgotten people, dwelling hidden in shadows; 
 D:heart bitter, sorrowful survivor of ancient wrongs beneath grey hills. 
 D:Guardian of secrets bound to sorrow, foreshadowing betrayal and grief, 
@@ -417,6 +441,7 @@ B:You brave darkness-mortal hero whose courage stole Silmaril from Morgoth.
 F:EVN_AFFINITY | STL_AFFINITY | WIL_AFFINITY
 S:1:2:1:1
 C:0:7:3:1  # Assassination # Subtlety
+P:1
 D:Mortal hero, brave-hearted wanderer beneath stars, defying darkness,
 D:whose love challenged fate itself, winning Silmaril with courage unmatched. 
 D:Destined to tread perilous paths, hand of shadow bound in silver fire, 
@@ -431,6 +456,7 @@ B:You defend honor-bold mortal lord, bearer of friendship beyond darkness.
 F:EVN_AFFINITY 
 S:1:0:1:1
 C:0:9 # Zone of control
+P:0
 D:Valiant chieftain of mortal Men, defender bold amid ruinous shadows, 
 D:whose loyal heart defied Morgoth’s wrath beneath northern darkness. 
 D:Bearer of ring pledging friendship eternal between mortal and Elf-kind, 
@@ -446,6 +472,7 @@ F:EVN_AFFINITY | STL_AFFINITY | WIL_AFFINITY | PER_AFFINITY | SNG_AFFINITY | MEL
 U:EARENDIL
 S:1:2:2:4
 C:7:7:5:4  # Inner Light # Song of the Trees
+P:3
 D:Mariner foretold by prophecy, born of Eldar and mortal blood entwined, 
 D:destined to voyage oceans unseen, bearing hope amid endless night. 
 D:Guided by stars, his ship shall challenge darkness beyond western seas, 
@@ -460,6 +487,7 @@ B:You lead fiercely-shieldmaiden of the Haladin, spirit unbowed by shadow.
 F:STL_AFFINITY
 S:0:1:2:0
 C:2:6  # Blocking :2:1 # Flanking
+P:0
 D:Proud-hearted shieldmaiden, leader brave of forest-dwelling folk, 
 D:steadfast in valor, defying darkness beneath shadowed woodland halls. 
 D:Unyielding in courage, guiding people through peril and loss, 
@@ -474,6 +502,7 @@ B:You charge nobly-golden-haired lord, whose valor shaped mortal legacy.
 F:MEL_AFFINITY 
 S:3:1:2:1
 C:0:10:0:4:C:0:2  # Charge # Smite # Knock Back
+P:2
 D:Noble lord, golden-haired leader beloved among Edain’s bravest houses, 
 D:whose banner shone proudly upon battlefield, courage bright in darkness. 
 D:Heart generous yet fierce, bound in friendship and honor with Eldar lords, 
@@ -489,6 +518,7 @@ F:EVN_AFFINITY | MEL_AFFINITY | PER_PENALTY | MOR_CURSE | STL_AFFINITY
 U:WIL_TURIN
 S:2:2:2:-1
 C:5:2:0:10:0:5  # Follow-Through  # Smite # Strength in Adversity
+P:2
 D:Dark-haired warrior, tragic son of doom, shadow-haunted mortal hero, 
 D:whose blade, black and shining, cleaves fate amid relentless sorrow. 
 D:Driven by pride and grief, defying Morgoth’s curse yet bound within it, 
@@ -504,6 +534,7 @@ F:EVN_AFFINITY | MEL_AFFINITY
 U:WIL_TUOR
 S:1:1:2:1
 C:5:1  # Channeling # Focused Attack 4:1:
+P:1
 D:Mortal messenger chosen by Ulmo, guided by wave and whispered dream, 
 D:bearer of hidden hope to Gondolin, destined to kindle fading valor. 
 D:Heart bound in love with Eldar princess, bloodline uniting two worlds, 
@@ -519,6 +550,7 @@ F:EVN_AFFINITY | WIL_AFFINITY | PER_PENALTY | SNG_AFFINITY | MOR_CURSE
 U:SNG_HURIN
 S:2:1:2:0
 C:5:3:5:5:5:7:7:8  # Song of Slaying  # Poison Resistance  # Indomitable # Formidable
+P:2
 D:Mightiest mortal warrior, defiant heart opposing Morgoth’s darkness, 
 D:whose valor on Anfauglith echoed courage beyond mortal despair. 
 D:Bound cruelly to doom, witnessing ruin wrought upon kin and realm alike, 
@@ -527,12 +559,13 @@ D:Foreshadowing tragic deeds borne of bitterness and wrathful grief,
 D:memory enduring in pride and tragedy, hero forever defiant; 
 D:Húrin, steadfast flame, challenging darkness even unto bitterest end. 
 
-N:31:Idril Celebrindal
-A: of Gondolin
+N:31:Idril
+A: Celebrindal of Gondolin
 B:You watch carefully-princess whose foresight preserves hope amid ruin.
 F:STL_AFFINITY | MEL_PENALTY | SMT_PENALTY | PER_AFFINITY | ARC_PENALTY
 S:-1:2:0:2
 C:7:9
+P:2
 C:4:7 # Listen
 D:Silver-footed princess of Gondolin, whose beauty shone brightly amid ruin, 
 D:wise-hearted, foresight guiding hidden paths through doom and shadow. 
@@ -547,6 +580,7 @@ A:, Star of Radiance
 B:You rule steadily-star-bright king, whose courage shines in darkest hour.
 S:1:1:1:1
 C:0:3 # Polearm
+P:1
 D:Star-bright heir of kings, child of Eldar bloodline noble and doomed,
 D:destined to bear crown amid shadows of ruinous First Age’s end. 
 D:Heart strong with wisdom and valor, guiding remnants toward distant shores, 
@@ -561,6 +595,7 @@ B:You guard quietly-wise prince, whose strength endures beyond sorrow.
 S:1:1:0:1
 F:ARC_PENALTY | FREE | BOW_PROFICIENCY| SMT_PENALTY
 C:7:11
+P:1
 D:Noble prince of twilight woods, wise lord whose heart bears hidden grief, 
 D:destined guardian of fading realms beneath shadows yet unseen. 
 D:Bound by love to Lady whose wisdom shapes fate of realms unknown, 
@@ -575,6 +610,7 @@ B:You sing sorrowfully-minstrel whose lament echoes through twilight.
 F:SNG_AFFINITY | WIL_PENALTY | PER_PENALTY| SMT_PENALTY
 S:0:1:-1:3
 C:7:5:7:12 # Song of Staunching and Woven Themes
+P:1
 D:Greatest minstrel of twilight realm, singer whose melodies haunted woods, 
 D:heart bound secretly in sorrowful longing, songs shaped by love unseen. 
 D:His lament echoes through ages, voice weaving melancholy fate, 
@@ -590,6 +626,7 @@ F:WIL_AFFINITY | SNG_AFFINITY | PER_AFFINITY | ARC_PENALTY| SMT_PENALTY
 U:SNG_MEL
 S:1:0:1:5
 C:7:11:7:6 # Song of Mastery Song of Thresholds
+P:3
 D:Maia of divine grace, veiled in mortal form, guardian of twilight woods, 
 D:whose enchantment shielded realms from Morgoth’s shadow and despair. 
 D:Love bound her heart to Elf-lord Thingol, fate entwined tragically, 
@@ -604,6 +641,7 @@ B:You hunt relentlessly-fiery prince whose pride leads to treachery.
 F:ARC_AFFINITY | EVN_AFFINITY | WIL_PENALTY | SMT_PENALTY | TREACHERY | BOW_PROFICIENCY
 S:1:1:2:0
 C:4:8:0:3  # Polearm Mastery # Master Hunter
+P:1
 D:Fierce-hearted third son of Fëanor, fiery hunter beneath wild woods, 
 D:prideful prince whose noble beauty hid ambition and cunning deeds. 
 D:Hunter whose hound’s loyalty outshone his own heart’s shadowed honor, 
@@ -619,6 +657,7 @@ F:SMT_AFFINITY | TREACHERY | BOW_PROFICIENCY | SNG_PENALTY | STL_AFFINITY | PER_
 U:SMT_EOL
 S:1:2:2:0
 C:0:11  # Two Weapon Fighting
+P:2
 D:Dark-hearted smith dwelling deep beneath gloomy forest halls unseen, 
 D:crafting meteoric iron into blades of peril and subtle enchantment. 
 D:Secretive and proud, bound by jealousy, shadow hiding heart’s desire, 

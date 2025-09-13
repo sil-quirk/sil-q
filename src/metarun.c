@@ -12,12 +12,15 @@
 #include "h-define.h"
 #include "log/log.h"
 #include "platform.h"    /* path_build(), fd_*, MKDIR         */
-
-#include <string.h>
-#include <stdlib.h>
 #include <time.h>
-
+#include <string.h>  
 #include <stdio.h>
+#ifdef WINDOWS
+#include <windows.h>
+#else
+#include <dirent.h>
+#include <sys/types.h>
+#endif  
 
 /* --------------------------------------------------------------- */
 /*  metarun.c : quick-and-dirty logger                             */
@@ -60,7 +63,25 @@ static void reset_defaults(metarun *m)
     m->curses_seen = 0;
     m->deaths      = 0;
     m->silmarils   = 0;
-    log_trace("After init: curses_seen = 0x%08X", m->curses_seen);
+    
+    /* Initialize persistent settings with defaults */
+    for (int i = 0; i < 8; i++) {
+        m->persistent_options[i] = 0;
+    }
+    for (int i = 0; i < ANGBAND_TERM_MAX; i++) {
+        m->persistent_window_flags[i] = 0;
+    }
+    m->persistent_delay_factor = 5;      /* Default delay factor */
+    m->persistent_hitpoint_warn = 3;     /* Default hitpoint warning */
+    m->persistent_options_initialized = 0; /* Mark as not initialized yet */
+    
+    /* Initialize quest tracking */
+    m->completed_quests = 0;             /* No quests completed initially */
+    for (int i = 0; i < 15; i++) {
+        m->quest_reserved[i] = 0;
+    }
+    
+    log_debug("After init: curses_seen = 0x%08X", m->curses_seen);
 }
 
 /* Apply initial curses based on difficulty level (runtype) */
@@ -132,9 +153,9 @@ static void curses_pack_words(void)
  * ---------------------------------------------------------------- */
 static void curses_unpack_words(void)
 {
-    log_trace("curses_unpack_words: before - curses_seen=0x%08X", metar.curses_seen);
-
-    u32b lo = metar.curses_lo;
+    log_debug("curses_unpack_words: before - curses_seen=0x%08X", metar.curses_seen);
+    
+    u32b lo = metar.curses_lo;          
     u32b hi = metar.curses_hi;
 
     for (int id = 0; id < 32; id++) {
@@ -144,12 +165,218 @@ static void curses_unpack_words(void)
 
         CURSE_SET(id, (byte)cnt);
     }
-
-    log_trace("curses_unpack_words: after - curses_seen=0x%08X", metar.curses_seen);
+    
+    log_debug("curses_unpack_words: after - curses_seen=0x%08X", metar.curses_seen);
 }
 
 
 /* =======================  load / save  ========================= */
+
+/* Check if a file is in the new versioned format */
+static bool is_versioned_meta_file(int fd, int file_size)
+{
+    if (file_size < sizeof(meta_file_header)) return false;
+    
+    meta_file_header header;
+    fd_seek(fd, 0);
+    if (fd_read(fd, (char*)&header, sizeof(header)) != 0) return false;
+    
+    /* Check for reasonable version numbers (0-255) and entry count */
+    if (header.version_major > 255 || header.version_minor > 255 || 
+        header.version_patch > 255 || header.version_extra > 255) return false;
+    
+    /* Check if the entry count makes sense with file size */
+    size_t expected_size = sizeof(meta_file_header) + header.entry_count * sizeof(metarun);
+    if (expected_size != file_size) return false;
+    
+    log_info("Detected versioned meta file: v%d.%d.%d, %u entries", 
+             header.version_major, header.version_minor, header.version_patch, header.entry_count);
+    return true;
+}
+
+/*
+ * Clean up old save and score files when starting fresh (no meta.raw exists)
+ */
+void cleanup_old_game_files(void)
+{
+    log_info("*** FRESH STARTUP CLEANUP STARTING ***");
+    
+    /* Use the correct save directory - ANGBAND_DIR_SAVE points to lib/save */
+    char save_dir[1024];
+    strnfmt(save_dir, sizeof(save_dir), "%s", ANGBAND_DIR_SAVE);
+    
+    log_trace("Fresh startup: checking save directory: %s", save_dir);
+    
+    /* Platform-agnostic approach: scan directory for ANY files (except .gitignore and archives) */
+    bool has_save_files = false;
+    
+    #ifdef WINDOWS
+    /* Windows: Use FindFirstFile/FindNextFile for directory scanning */
+    WIN32_FIND_DATA findData;
+    char search_path[1024];
+    path_build(search_path, sizeof(search_path), save_dir, "*");
+    
+    HANDLE hFind = FindFirstFile(search_path, &findData);
+    if (hFind != INVALID_HANDLE_VALUE) {
+        do {
+            /* Skip directories and special entries */
+            if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+            
+            char* filename = findData.cFileName;
+            
+            /* Skip .gitignore and archive files */
+            if (strcmp(filename, ".gitignore") == 0) continue;
+            if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
+            
+            /* Found a save file! */
+            has_save_files = true;
+            log_trace("Fresh startup: found save file: %s", filename);
+            break;
+            
+        } while (FindNextFile(hFind, &findData));
+        FindClose(hFind);
+    }
+    #else
+    /* Unix/Linux/macOS: Use POSIX opendir/readdir */
+    DIR *dir = opendir(save_dir);
+    if (dir) {
+        struct dirent *entry;
+        
+        while ((entry = readdir(dir)) != NULL) {
+            /* Skip directories and special entries */
+            if (entry->d_type == DT_DIR) continue;
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+            
+            char* filename = entry->d_name;
+            
+            /* Skip .gitignore and archive files */
+            if (strcmp(filename, ".gitignore") == 0) continue;
+            if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
+            
+            /* Found a save file! */
+            has_save_files = true;
+            log_trace("Fresh startup: found save file: %s", filename);
+            break;
+        }
+        closedir(dir);
+    }
+    #endif
+    
+    /* ULTRA FAST EXIT if no save files detected */
+    if (!has_save_files) {
+        log_info("*** NO SAVE FILES DETECTED - INSTANT FRESH START ***");
+        
+        /* Quick score file check and removal */
+        char score_file[1024];
+        path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw");
+        
+        int score_fd = fd_open(score_file, O_RDONLY);
+        if (score_fd >= 0) {
+            fd_close(score_fd);
+            log_info("*** REMOVING SCORE FILE FOR FRESH START ***");
+            
+            /* Platform-agnostic file removal using standard C */
+            remove(score_file);
+        } else {
+            log_trace("Fresh startup: no score file found");
+        }
+        
+        log_info("*** INSTANT FRESH STARTUP COMPLETED ***");
+        return;  /* INSTANT EXIT - no shell commands needed */
+    }
+    
+    /* Comprehensive cleanup: delete ALL files except .gitignore and archive files using ONLY standard C */
+    log_info("*** FOUND SAVE FILES - DELETING ALL NON-ARCHIVE FILES ***");
+    
+    /* Use ONLY standard C functions - no shell commands for better portability */
+    int files_deleted = 0;
+    
+    #ifdef WINDOWS
+    /* Windows: Use FindFirstFile/FindNextFile to enumerate and delete */
+    WIN32_FIND_DATA cleanupFindData;
+    char cleanup_search_path[1024];
+    path_build(cleanup_search_path, sizeof(cleanup_search_path), save_dir, "*");
+    
+    HANDLE hCleanupFind = FindFirstFile(cleanup_search_path, &cleanupFindData);
+    if (hCleanupFind != INVALID_HANDLE_VALUE) {
+        do {
+            /* Skip directories and special entries */
+            if (cleanupFindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+            
+            char* filename = cleanupFindData.cFileName;
+            
+            /* Skip .gitignore and archive files */
+            if (strcmp(filename, ".gitignore") == 0) continue;
+            if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
+            
+            /* Delete this file using standard C */
+            char file_path[1024];
+            path_build(file_path, sizeof(file_path), save_dir, filename);
+            
+            if (remove(file_path) == 0) {
+                files_deleted++;
+                log_trace("Fresh startup: deleted file: %s", filename);
+            } else {
+                log_trace("Fresh startup: failed to delete: %s", filename);
+            }
+            
+        } while (FindNextFile(hCleanupFind, &cleanupFindData));
+        FindClose(hCleanupFind);
+    }
+    #else
+    /* Unix/Linux/macOS: Use opendir/readdir to enumerate and delete */
+    dir = opendir(save_dir);
+    if (dir) {
+        struct dirent *entry;
+        
+        while ((entry = readdir(dir)) != NULL) {
+            /* Skip directories and special entries */
+            if (entry->d_type == DT_DIR) continue;
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+            
+            char* filename = entry->d_name;
+            
+            /* Skip .gitignore and archive files */
+            if (strcmp(filename, ".gitignore") == 0) continue;
+            if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
+            
+            /* Delete this file using standard C */
+            char file_path[1024];
+            path_build(file_path, sizeof(file_path), save_dir, filename);
+            
+            if (remove(file_path) == 0) {
+                files_deleted++;
+                log_trace("Fresh startup: deleted file: %s", filename);
+            } else {
+                log_trace("Fresh startup: failed to delete: %s", filename);
+            }
+        }
+        closedir(dir);
+    }
+    #endif
+    
+    if (files_deleted > 0) {
+        log_info("*** FRESH STARTUP DELETED %d FILES USING STANDARD C ***", files_deleted);
+    } else {
+        log_info("*** NO FILES FOUND TO DELETE ***");
+    }
+    
+    /* Score file cleanup */
+    char score_file[1024];
+    path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw");
+    
+    int score_fd = fd_open(score_file, O_RDONLY);
+    if (score_fd >= 0) {
+        fd_close(score_fd);
+        log_info("*** REMOVING SCORE FILE FOR FRESH START ***");
+        
+        /* Platform-agnostic file removal using standard C */
+        remove(score_file);
+    }
+    
+    log_info("*** FRESH STARTUP CLEANUP COMPLETED ***");
+}
+
 errr load_metaruns(bool create_if_missing)
 {
     char fn[1024];
@@ -159,12 +386,23 @@ errr load_metaruns(bool create_if_missing)
     fd = fd_open(fn, O_RDONLY);
 
     if (fd < 0 && create_if_missing) {
-        log_info("Creating new metarun file: %s", fn);
+        log_info("Creating new versioned metarun file: %s", fn);
         FILE_TYPE(FILE_TYPE_DATA);
         fd = fd_make(fn, 0644);
         if (fd < 0) return -1;
 
-        metarun seed; reset_defaults(&seed);
+        /* Write versioned header */
+        meta_file_header header;
+        header.version_major = VERSION_MAJOR;
+        header.version_minor = VERSION_MINOR;
+        header.version_patch = VERSION_PATCH;
+        header.version_extra = VERSION_EXTRA;
+        header.entry_count = 1;
+        
+        fd_write(fd, (cptr)&header, sizeof(header));
+        
+        metarun seed; 
+        reset_defaults(&seed);
         fd_write(fd, (cptr)&seed, sizeof seed);
         fd_close(fd);
         fd = fd_open(fn, O_RDONLY);
@@ -173,22 +411,126 @@ errr load_metaruns(bool create_if_missing)
     else log_info("Loading existing metarun file: %s", fn);
     if (fd < 0) return -1;
 
-    metarun_max = (s16b)(fd_file_size(fd) / sizeof(metarun));
-    metaruns    = C_ZNEW(metarun_max, metarun);
-    fd_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
+    /* Check if this is a versioned file */
+    int file_size = fd_file_size(fd);
+    bool is_versioned = is_versioned_meta_file(fd, file_size);
+    
+    if (is_versioned) {
+        /* Load versioned format */
+        meta_file_header header;
+        fd_seek(fd, 0);
+        fd_read(fd, (char*)&header, sizeof(header));
+        
+        log_info("Loading versioned meta file v%d.%d.%d with %u entries", 
+                 header.version_major, header.version_minor, header.version_patch, header.entry_count);
+        
+        metarun_max = header.entry_count;
+        metaruns = C_ZNEW(metarun_max, metarun);
+        fd_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
+    }
+    else {
+        /* Legacy format detection and conversion */
+        s16b old_count = (s16b)(file_size / sizeof(metarun_old));
+        s16b new_count = (s16b)(file_size / sizeof(metarun));
+        
+        bool is_old_format = false;
+        
+        log_info("File size: %d bytes, old struct: %d bytes, new struct: %d bytes", 
+                 file_size, (int)sizeof(metarun_old), (int)sizeof(metarun));
+        log_info("Old count would be: %d, new count would be: %d", old_count, new_count);
+        
+        /* If the file is exactly divisible by new format size, it's new format */
+        if ((file_size % sizeof(metarun)) == 0) {
+            is_old_format = false;
+            metarun_max = new_count;
+            log_info("Loading legacy new format metarun file with %d entries", new_count);
+        } else if ((file_size % sizeof(metarun_old)) == 0) {
+            /* Only consider old format if new format doesn't fit exactly */
+            is_old_format = true;
+            metarun_max = old_count;
+            log_info("Detected legacy old format metarun file, converting %d entries", old_count);
+        } else {
+            /* File size doesn't match either format - default to new format with truncation */
+            is_old_format = false;
+            metarun_max = new_count;  /* This will truncate partial entries */
+            log_info("File size doesn't match known formats exactly, assuming new format with %d complete entries", new_count);
+        }
+
+        metaruns = C_ZNEW(metarun_max, metarun);
+        
+        if (is_old_format) {
+            /* Load old format and convert to new format */
+            metarun_old *old_data = C_ZNEW(metarun_max, metarun_old);
+            fd_seek(fd, 0);
+            fd_read(fd, (char*)old_data, metarun_max * sizeof(metarun_old));
+            
+            /* Convert each old entry to new format */
+            for (s16b i = 0; i < metarun_max; i++) {
+                /* Copy old fields */
+                metaruns[i].id = old_data[i].id;
+                metaruns[i].type = old_data[i].type;
+                metaruns[i].deaths = old_data[i].deaths;
+                metaruns[i].silmarils = old_data[i].silmarils;
+                metaruns[i].last_played = old_data[i].last_played;
+                metaruns[i].curses_lo = old_data[i].curses_lo;
+                metaruns[i].curses_hi = old_data[i].curses_hi;
+                metaruns[i].curses_seen = old_data[i].curses_seen;
+                
+                /* Initialize new persistent settings fields with defaults */
+                for (int j = 0; j < 8; j++) {
+                    metaruns[i].persistent_options[j] = 0;
+                }
+                for (int j = 0; j < ANGBAND_TERM_MAX; j++) {
+                    metaruns[i].persistent_window_flags[j] = 0;
+                }
+                metaruns[i].persistent_delay_factor = 5;
+                metaruns[i].persistent_hitpoint_warn = 3;
+                metaruns[i].persistent_options_initialized = 0;
+                
+                /* Initialize quest tracking fields for old format */
+                metaruns[i].completed_quests = 0;
+                for (int j = 0; j < 15; j++) {
+                    metaruns[i].quest_reserved[j] = 0;
+                }
+            }
+            
+            FREE(old_data);
+            log_info("Successfully converted legacy old format to new format");
+        } else {
+            /* Load new format directly */
+            fd_seek(fd, 0);
+            fd_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
+            log_info("Loaded legacy new format entries");
+        }
+    }
+    
     fd_close(fd);
 
     /* choose current run */
     u32b latest = 0;
+    current_run = -1;  /* Initialize to invalid value so any valid entry will be selected */
+    
     for (s16b i = 0; i < metarun_max; i++) {
+        log_debug("Metarun %d: id=%u, last_played=%u, deaths=%u, silmarils=%u", 
+                  i, metaruns[i].id, metaruns[i].last_played, metaruns[i].deaths, metaruns[i].silmarils);
+                  
         if (metaruns[i].last_played > latest ||
             (metaruns[i].last_played == latest && i > current_run))
         {
             latest      = metaruns[i].last_played;
             current_run = i;
+            log_debug("Selected metarun %d as current (last_played=%u)", i, latest);
         }
     }
+    
+    if (current_run < 0 || current_run >= metarun_max) {
+        log_info("No valid metarun found, defaulting to entry 0");
+        current_run = 0;
+    }
+    
     metar = metaruns[current_run];
+    log_debug("Final current_run=%d, metar: id=%u, deaths=%u, silmarils=%u", 
+              current_run, metar.id, metar.deaths, metar.silmarils);
 
     /* ensure its per-run directory exists */
     ensure_run_dir(&metar);
@@ -209,33 +551,208 @@ errr load_metaruns(bool create_if_missing)
  *  Safely write the meta-run array.  Bail out if the indices look     *
  *  wrong – avoids dereferencing a freed/reallocated block.           *
  * ------------------------------------------------------------------ */
+static errr backup_file(const char *filepath)
+{
+    static u32b last_backup_time = 0;
+    static char last_backed_up_file[1024] = "";
+    u32b current_time = (u32b)time(NULL);
+    
+    /* Throttle backups: only create backup if 
+     * 1. This is a different file than last time, OR
+     * 2. More than 300 seconds (5 minutes) have passed since last backup of this file
+     */
+    if (my_stricmp(last_backed_up_file, filepath) != 0) {
+        /* Different file - always backup */
+        log_info("backup_file: backing up different file: %s", filepath);
+    } else if (current_time - last_backup_time >= 300) {
+        /* Same file but enough time has passed (5 minutes instead of 1 minute) */
+        log_info("backup_file: backing up %s after %u seconds", filepath, current_time - last_backup_time);
+    } else {
+        /* Same file, recent backup - skip */
+        log_debug("backup_file: skipping backup of %s (last backup %u seconds ago)", 
+                  filepath, current_time - last_backup_time);
+        return 0;
+    }
+    
+    /* Check if original file exists */
+    int fd_src = fd_open(filepath, O_RDONLY);
+    if (fd_src < 0) {
+        /* Original file doesn't exist, no backup needed */
+        log_info("backup_file: original file %s doesn't exist, no backup needed", filepath);
+        return 0;
+    }
+    
+    /* Get file size */
+    int file_size = fd_file_size(fd_src);
+    if (file_size <= 0) {
+        log_info("backup_file: original file %s is empty, no backup needed", filepath);
+        fd_close(fd_src);
+        return 0;
+    }
+    
+    log_info("backup_file: creating backup for %s (size: %d bytes)", filepath, file_size);
+    
+    /* Read original file */
+    char *buffer = C_ZNEW(file_size, char);
+    if (!buffer) {
+        fd_close(fd_src);
+        return -1;
+    }
+    
+    if (fd_read(fd_src, buffer, file_size) != 0) {
+        FREE(buffer);
+        fd_close(fd_src);
+        return -1;
+    }
+    fd_close(fd_src);
+    
+    /* Optimize backup rotation: Only do full rotation once per session/day
+     * For frequent saves, just overwrite .bak1 */
+    char backup_path1[1024], backup_path2[1024], backup_path3[1024];
+    strnfmt(backup_path1, sizeof(backup_path1), "%s.bak1", filepath);
+    strnfmt(backup_path2, sizeof(backup_path2), "%s.bak2", filepath);
+    strnfmt(backup_path3, sizeof(backup_path3), "%s.bak3", filepath);
+    
+    /* Check if this is the first backup of the day (roughly) */
+    bool should_rotate = false;
+    int fd_test1 = fd_open(backup_path1, O_RDONLY);
+    if (fd_test1 >= 0) {
+        /* Check if bak1 is old enough to warrant rotation (use simple time check) */
+        /* If we created a backup within the last hour, don't rotate */
+        if (current_time - last_backup_time >= 3600) {  /* 1 hour */
+            should_rotate = true;
+            log_info("backup_file: enough time passed since last backup, will rotate backups");
+        }
+        fd_close(fd_test1);
+    } else {
+        /* No bak1 exists, create fresh backup */
+        should_rotate = false;
+        log_info("backup_file: no existing backup, creating fresh bak1");
+    }
+    
+    if (should_rotate) {
+        log_info("backup_file: rotating backups for %s", filepath);
+        
+        /* Rotate: bak2 -> bak3, bak1 -> bak2, current -> bak1 */
+        fd_kill(backup_path3);                    /* Remove oldest */
+        log_debug("backup_file: removed old bak3");
+        
+        /* Move bak2 to bak3 (if bak2 exists) */
+        int fd_test2 = fd_open(backup_path2, O_RDONLY);
+        if (fd_test2 >= 0) {
+            fd_close(fd_test2);
+            log_debug("backup_file: moving bak2 to bak3");
+            if (fd_move(backup_path2, backup_path3) != 0) {
+                log_debug("backup_file: failed to move bak2 to bak3");
+            }
+        }
+        
+        /* Move bak1 to bak2 (if bak1 exists) */
+        fd_test1 = fd_open(backup_path1, O_RDONLY);
+        if (fd_test1 >= 0) {
+            fd_close(fd_test1);
+            log_debug("backup_file: moving bak1 to bak2");
+            if (fd_move(backup_path1, backup_path2) != 0) {
+                log_debug("backup_file: failed to move bak1 to bak2");
+            }
+        }
+    } else {
+        /* Just overwrite bak1 for frequent saves */
+        log_debug("backup_file: overwriting existing bak1 (frequent save)");
+        fd_kill(backup_path1);
+    }
+    
+    /* Create new bak1 from current file */
+    log_info("backup_file: creating new bak1 from current file (size: %d)", file_size);
+    int fd_dst = fd_make(backup_path1, 0644);
+    if (fd_dst < 0) {
+        FREE(buffer);
+        return -1;
+    }
+    
+    errr result = fd_write(fd_dst, buffer, file_size);
+    fd_close(fd_dst);
+    FREE(buffer);
+    
+    if (result == 0) {
+        log_info("backup_file: successfully created backup for %s", filepath);
+        /* Update throttling variables only on successful backup */
+        last_backup_time = current_time;
+        my_strcpy(last_backed_up_file, filepath, sizeof(last_backed_up_file));
+    } else {
+        log_error("backup_file: failed to write bak1 for %s", filepath);
+    }
+    
+    return result;
+}
+
 errr save_metaruns(void)
 {
+    static u32b last_save_time = 0;
+    u32b current_time = (u32b)time(NULL);
+    
+    /* Log save frequency tracking */
+    if (last_save_time > 0) {
+        u32b time_since_last = current_time - last_save_time;
+        log_info("save_metaruns() called again after %u seconds", time_since_last);
+    } else {
+        log_info("save_metaruns() called for the first time this session");
+    }
+    last_save_time = current_time;
+
     curses_pack_words();      /* NEW: ensure words hold 2-bit data */
 
     char fn[1024];
     build_meta_path(fn, sizeof fn, NULL, META_RAW);
 
-    metar.last_played      = (u32b)time(NULL);
+    /* Create backup before saving */
+    backup_file(fn);
+
+    log_debug("Before save: current_run=%d, metar: id=%u, deaths=%u, silmarils=%u", 
+              current_run, metar.id, metar.deaths, metar.silmarils);
+              
+    metar.last_played      = current_time;
     metaruns[current_run] = metar;            /* safe: array is valid */
+    
+    log_debug("After updating array: metaruns[%d]: id=%u, deaths=%u, silmarils=%u", 
+              current_run, metaruns[current_run].id, metaruns[current_run].deaths, metaruns[current_run].silmarils);
 
-    /* Use standard C file operations instead of the problematic fd_* functions */
-    FILE *fp = fopen(fn, "wb");
-    if (!fp) {
+    /* After backup is created in backup_file(), remove the original so fd_make can succeed */
+    fd_kill(fn);
+    
+    /* Write using the new versioned format */
+    int fd = fd_make(fn, 0644);
+    if (fd < 0) {
+        log_info("Failed to create metarun file for writing");
         return -1;
     }
 
-    size_t bytes_to_write = metarun_max * sizeof(metarun);
-    size_t bytes_written = fwrite(metaruns, 1, bytes_to_write, fp);
-
-    if (bytes_written != bytes_to_write) {
-        fclose(fp);
+    /* Write version header first */
+    meta_file_header header;
+    header.version_major = VERSION_MAJOR;
+    header.version_minor = VERSION_MINOR;
+    header.version_patch = VERSION_PATCH;
+    header.version_extra = VERSION_EXTRA;
+    header.entry_count = metarun_max;
+    
+    errr result = fd_write(fd, (cptr)&header, sizeof(header));
+    if (result != 0) {
+        fd_close(fd);
+        log_info("Failed to write metarun header to file");
         return -1;
     }
 
-    fclose(fp);
-
-    log_info("Metarun data saved successfully");
+    /* Write metarun data */
+    int bytes_to_write = metarun_max * sizeof(metarun);
+    result = fd_write(fd, (cptr)metaruns, bytes_to_write);
+    fd_close(fd);
+    
+    if (result != 0) {
+        log_info("Failed to write metarun data to file");
+        return -1;
+    }
+    
+    log_info("Metarun data saved successfully (%d bytes, %d entries)", bytes_to_write, metarun_max);
 
     return 0;
 }
@@ -265,8 +782,87 @@ void metarun_gain_silmarils(byte n)
 }
 
 /* ---------------------------------------------------------------
+ * Persistent Settings Management
+ * ------------------------------------------------------------- */
+
+/*
+ * Save current game options to the metarun persistent settings
+ */
+void metarun_save_persistent_settings(void)
+{
+    log_info("Saving persistent settings to metarun");
+    
+    /* Save options */
+    for (int i = 0; i < 8; i++) {
+        metar.persistent_options[i] = 0;
+    }
+    
+    /* Pack options into the persistent storage */
+    for (int i = 0; i < OPT_MAX; i++) {
+        int word_idx = i / 32;
+        int bit_idx = i % 32;
+        
+        if (word_idx < 8 && option_text[i] && op_ptr->opt[i]) {
+            metar.persistent_options[word_idx] |= (1UL << bit_idx);
+        }
+    }
+    
+    /* Save special settings */
+    metar.persistent_delay_factor = op_ptr->delay_factor;
+    metar.persistent_hitpoint_warn = op_ptr->hitpoint_warn;
+    
+    /* Save window flags */
+    for (int i = 0; i < ANGBAND_TERM_MAX; i++) {
+        metar.persistent_window_flags[i] = op_ptr->window_flag[i];
+    }
+    
+    /* Mark as initialized */
+    metar.persistent_options_initialized = 1;
+    
+    /* Save the metarun data */
+    save_metaruns();
+    
+    log_info("Persistent settings saved successfully");
+}
+
+/*
+ * Load metarun persistent settings to current game options
+ */
+void metarun_load_persistent_settings(void)
+{
+    /* Only load if settings have been previously saved */
+    if (!metar.persistent_options_initialized) {
+        log_info("No persistent settings found, using defaults");
+        return;
+    }
+    
+    log_info("Loading persistent settings from metarun");
+    
+    /* Load options */
+    for (int i = 0; i < OPT_MAX; i++) {
+        int word_idx = i / 32;
+        int bit_idx = i % 32;
+        
+        if (word_idx < 8 && option_text[i]) {
+            op_ptr->opt[i] = (metar.persistent_options[word_idx] & (1UL << bit_idx)) != 0;
+        }
+    }
+    
+    /* Load special settings */
+    op_ptr->delay_factor = metar.persistent_delay_factor;
+    op_ptr->hitpoint_warn = metar.persistent_hitpoint_warn;
+    
+    /* Load window flags */
+    for (int i = 0; i < ANGBAND_TERM_MAX; i++) {
+        op_ptr->window_flag[i] = metar.persistent_window_flags[i];
+    }
+    
+    log_info("Persistent settings loaded successfully");
+}
+
+/* ---------------------------------------------------------------
  * Pick a curse at random, respecting weights, stacks, caps,
- * and the RHF_CURSE tail-lift.
+ * and the RHF_CURSE tail-lift and exclusion of most weighted curses.
  * ------------------------------------------------------------- */
 static int weighted_random_curse(void)
 {
@@ -294,6 +890,9 @@ static int weighted_random_curse(void)
         byte cap = cu_info[i].max_stacks;
         if (cap && cnt >= cap) continue;           /* cap reached */
 
+        /* RHF_CURSE excludes the most weighted choices */
+        if (tilt && w == w_max) continue;
+
         long base = tilt
             ? w + ((w_max + 1 - w) >> 1)           /* lift the tail */
             : w;
@@ -312,6 +911,9 @@ static int weighted_random_curse(void)
         byte cnt = CURSE_GET(i);
         byte cap = cu_info[i].max_stacks;
         if (cap && cnt >= cap) continue;
+
+        /* RHF_CURSE excludes the most weighted choices */
+        if (tilt && w == w_max) continue;
 
         long base = tilt
             ? w + ((w_max + 1 - w) >> 1)
@@ -616,7 +1218,7 @@ static cptr curse_display_name(int idx)
  * number of curses actually chosen and fills `out` with their indices.
  * The display is cleared afterwards so we can start narrative fresh.
  */
-static int choose_escape_curses_ui(int n, int out[3])
+int choose_escape_curses_ui(int n, int out[3])
 {
     // int rolls = any_curse_flag_active(CUR_NOCHOICE) ? 1 : n;
     int taken = 0;
@@ -652,11 +1254,83 @@ static int choose_escape_curses_ui(int n, int out[3])
 
     /* Wipe the menu clutter so narrative starts clean */
     Term_clear();
-
+    
+    /* Restore screen state to fix character_icky imbalance */
+    screen_load();
+    
     /* Avoid unused variable warning */
     (void)fast_forward;
 
     return taken;
+}
+
+/****************  Oath-breaking curse chooser with fade ************/
+
+/*
+ * Shows the oath-specific curse message with fade-in, waits 3 seconds,
+ * then shows the permanent consequence message and curse selection menu.
+ * Returns the selected curse index.
+ */
+int choose_oath_breaking_curse_ui(int oath_id)
+{
+    bool fast_forward = false;
+    
+    /* Display curse message with fade-in effect */
+    screen_save();
+    Term_clear();
+    
+    /* Add Tolkien-style heading */
+    print_heading_fade("The Sundering of Sacred Vows", TERM_L_RED);
+    
+    /* Get oath-specific permanent message (E: field from oath.txt) */
+    char* perm_msg = oath_permanent_message(oath_id);
+    
+    /* Add empty line before E: text */
+    Term_putstr(2, 4, -1, TERM_SLATE, "");
+    
+    /* Show only the permanent message (E: field) with fade */
+    if (perm_msg && perm_msg[0]) {
+        if (!print_paragraph_fade(perm_msg, TERM_L_RED, 5))
+            fast_forward = true;
+    } else {
+        if (!print_paragraph_fade("Your oath is forever broken in this age.", TERM_L_RED, 5))
+            fast_forward = true;
+    }
+    
+    /* Hold the message for 3 seconds if not fast-forwarded */
+    if (!fast_forward) {
+        Term_xtra(TERM_XTRA_DELAY, 3000);
+    }
+    
+    /* Add empty line before attention text */
+    Term_putstr(2, 8, -1, TERM_SLATE, "");
+    
+    /* Show Morgoth's attention text with fade in red */
+    char intro_text[256];
+    strnfmt(intro_text, sizeof(intro_text),
+            "The breach of your sacred vow has drawn Morgoth's attention. "
+            "His malice reaches out to compound your suffering with a curse you must bear.");
+    
+    if (!print_paragraph_fade(intro_text, TERM_RED, 9))
+        fast_forward = true;
+    
+    wait_for_keypress_with_prompt("[Press any key to face your judgment]");
+    Term_clear();
+
+    /* Let the player choose 1 curse from 3 options */
+    int idx = menu_choose_one_curse(0);
+    log_debug("Player selected curse %d for oath breaking", idx);
+    
+    /* Wipe the menu clutter so narrative starts clean */
+    Term_clear();
+    
+    /* Restore screen state */
+    screen_load();
+    
+    /* Avoid unused variable warning */
+    (void)fast_forward;
+    
+    return idx;
 }
 
 /******************  Story Fragment helper  ************************/
@@ -1117,6 +1791,10 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     screen_load();
 
     check_run_end();
+    /* Save persistent settings when exiting */
+    metarun_save_persistent_settings();
+    
+    /* Save metarun data (deaths, silmarils, etc.) */
     save_metaruns();
 }
 
@@ -1205,6 +1883,9 @@ static void start_new_metarun(void)
               p_ptr ? (p_ptr->wizard ? 1 : 0) : -1,
               p_ptr ? (unsigned)p_ptr->noscore : 0,
               savefile);
+     /* Before wiping scores for the next run, backup and clear save files */
+     backup_and_clear_saves();
+     
      /* Before wiping scores for the next run, finalize current ones:
          - mark all alive entries as dead by their own hand
          - save any corresponding savefiles as dead
@@ -1352,6 +2033,18 @@ void print_metarun_stats(void)
     int x;
     int term_height, term_width;
 
+    /* Safety check: ensure metarun system is initialized */
+    if (current_run < 0 || current_run >= metarun_max) {
+        screen_save();
+        Term_clear();
+        Term_putstr(2, 5, -1, TERM_RED, "Error: No metarun data available.");
+        Term_putstr(2, 6, -1, TERM_L_WHITE, "Please start a new game first.");
+        Term_putstr(2, 8, -1, TERM_L_DARK, "Press any key to return.");
+        inkey();
+        screen_load();
+        return;
+    }
+
     /* Save & clear screen */
     screen_save();
     Term_clear();
@@ -1393,7 +2086,12 @@ void print_metarun_stats(void)
     Term_putstr(x + 1, row++, -1, TERM_WHITE, buf);
 
     /* Deaths bar - calculate actual death limit based on difficulty and curses */
-    int max_deaths = MAX(1, death_limit - 3 * curse_flag_count(CUR_DEATH));
+    /* Safe access: Use metarun curse data directly instead of curse_flag_count which may access uninitialized player data */
+    int death_curse_stacks = 0;
+    if (z_info && z_info->cu_max > CUR_DEATH) {
+        death_curse_stacks = CURSE_GET(CUR_DEATH);
+    }
+    int max_deaths = MAX(1, death_limit - 3 * death_curse_stacks);
     snprintf(buf, sizeof buf, "Deaths     : ");
     Term_putstr(col, row, -1, TERM_WHITE, buf);
     x = col + strlen(buf);
@@ -1740,17 +2438,10 @@ void show_known_curses_menu(void)
     int row = 2;
     int id;
 
-    log_trace("show_known_curses_menu: metar.curses_seen=0x%08lX",
-            (unsigned long) metar.curses_seen);
-
-
     /* Collect and count first */
     for (id = 0; id < (int)z_info->cu_max; id++)
         if (CURSE_SEEN(id)) {
                 shown++;
-                int seen = CURSE_SEEN(id) ? 1 : 0;
-                log_trace("show_known_curses_menu: id=%d, name='%s', Seen=%d",
-                id, cu_name + cu_info[id].name, seen);
             }
     if (!shown) {
         log_debug("No curses have been seen yet");
@@ -1816,4 +2507,248 @@ void show_known_curses_menu(void)
 void choose_difficulty_level(void)
 {
     choose_difficulty_menu();
+}
+
+/* ================================================================== */
+/*  Quest completion tracking functions                               */
+/* ================================================================== */
+
+/* Check if a specific quest is completed in the CURRENT metarun */
+bool metarun_is_quest_completed(u32b quest_flag)
+{
+    /* Only check the current metarun, not all metaruns */
+    if (current_run < 0 || current_run >= metarun_max) {
+        log_trace("Metarun quest check: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
+        return false;
+    }
+    
+    if (metaruns[current_run].completed_quests & quest_flag) {
+        log_trace("Metarun quest check: Found quest 0x%x completed in current metarun[%d] (id=%d)", 
+                  quest_flag, current_run, metaruns[current_run].id);
+        return true;
+    }
+    
+    log_trace("Metarun quest check: Quest 0x%x not completed in current metarun[%d] (id=%d)", 
+              quest_flag, current_run, metaruns[current_run].id);
+    return false;
+}
+
+/* Mark a quest as completed in the current metarun */
+void metarun_mark_quest_completed(u32b quest_flag)
+{
+    if (current_run < 0 || current_run >= metarun_max) return;
+    /* IMPORTANT: modify the live 'metar' copy first, THEN persist.
+     * Previous code wrote directly to metaruns[current_run] and was
+     * immediately overwritten inside save_metaruns() when that
+     * function copied the stale 'metar' struct back into the array.
+     * (metaruns[current_run] = metar;). This caused lost quest flags.
+     */
+    if (!(metar.completed_quests & quest_flag)) {
+        metar.completed_quests |= quest_flag;                  /* update live */
+        metaruns[current_run].completed_quests = metar.completed_quests; /* keep array in sync early (optional) */
+        log_trace("Metarun: Quest flag 0x%x added (completed_quests=0x%08X)", quest_flag, metar.completed_quests);
+        save_metaruns();
+    } else {
+        log_trace("Metarun: Quest flag 0x%x already set (completed_quests=0x%08X) - no save needed", quest_flag, metar.completed_quests);
+    }
+}
+
+/* Check and update quest completion status based on player state */
+void metarun_check_and_update_quests(void)
+{
+    log_trace("Metarun quest check: Entry - current_run=%d, metarun_max=%d", current_run, metarun_max);
+    
+    if (current_run < 0 || current_run >= metarun_max) {
+        log_trace("Metarun quest check: Early return - current_run=%d, metarun_max=%d", current_run, metarun_max);
+        return;
+    }
+    
+    log_trace("Metarun quest check: current_run=%d, tulkas=%d, aule=%d, mandos=%d", 
+              current_run, p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest);
+    
+    /* Check Tulkas quest completion - only mark as metarun-complete when REWARDED */
+    if (p_ptr->tulkas_quest == TULKAS_QUEST_REWARDED) {
+        if (!metarun_is_quest_completed(METARUN_QUEST_TULKAS)) {
+            log_trace("Metarun: Marking Tulkas quest as completed (rewarded, was %d)", p_ptr->tulkas_quest);
+            metarun_mark_quest_completed(METARUN_QUEST_TULKAS);
+        } else {
+            log_trace("Metarun: Tulkas quest already marked as completed");
+        }
+    }
+    
+    /* Check Aule quest completion - only mark as metarun-complete when REWARDED */
+    if (p_ptr->aule_quest == AULE_QUEST_REWARDED) {
+        if (!metarun_is_quest_completed(METARUN_QUEST_AULE)) {
+            log_trace("Metarun: Marking Aule quest as completed (rewarded)");
+            metarun_mark_quest_completed(METARUN_QUEST_AULE);
+        } else {
+            log_trace("Metarun: Aule quest already marked as completed");
+        }
+    }
+
+    /* Check Mandos quest completion - only mark as metarun-complete when REWARDED */
+    if (p_ptr->mandos_quest == MANDOS_QUEST_REWARDED) {
+        if (!metarun_is_quest_completed(METARUN_QUEST_MANDOS)) {
+            log_trace("Metarun: Marking Mandos quest as completed (rewarded)");
+            metarun_mark_quest_completed(METARUN_QUEST_MANDOS);
+        } else {
+            log_trace("Metarun: Mandos quest already marked as completed");
+        }
+    }
+}
+
+/* Restore quest states from metarun data after character loading */
+void metarun_restore_quest_states(void)
+{
+    if (current_run < 0 || current_run >= metarun_max) {
+        log_trace("Metarun restore: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
+        return;
+    }
+    
+    u32b completed = metaruns[current_run].completed_quests;
+    log_trace("Metarun restore: Restoring quest states from metarun[%d], completed_quests=0x%08X", 
+              current_run, completed);
+    
+    /* Restore Tulkas quest state */
+    if (completed & METARUN_QUEST_TULKAS) {
+        if (p_ptr->tulkas_quest < TULKAS_QUEST_REWARDED) {
+            p_ptr->tulkas_quest = TULKAS_QUEST_REWARDED;
+            log_trace("Metarun restore: Tulkas quest set to REWARDED (%d)", TULKAS_QUEST_REWARDED);
+        }
+    }
+    
+    /* Restore Aule quest state */
+    if (completed & METARUN_QUEST_AULE) {
+        if (p_ptr->aule_quest < AULE_QUEST_REWARDED) {
+            p_ptr->aule_quest = AULE_QUEST_REWARDED;
+            log_trace("Metarun restore: Aule quest set to REWARDED (%d)", AULE_QUEST_REWARDED);
+        }
+    }
+    
+    /* Restore Mandos quest state */
+    if (completed & METARUN_QUEST_MANDOS) {
+        if (p_ptr->mandos_quest < MANDOS_QUEST_REWARDED) {
+            p_ptr->mandos_quest = MANDOS_QUEST_REWARDED;
+            log_trace("Metarun restore: Mandos quest set to REWARDED (%d)", MANDOS_QUEST_REWARDED);
+        }
+    }
+    
+    /* Restore Niena quest state */
+    if (completed & METARUN_QUEST_NIENA) {
+        if (p_ptr->niena_quest < NIENA_QUEST_REWARDED) {
+            p_ptr->niena_quest = NIENA_QUEST_REWARDED;
+            p_ptr->niena_level = 0; /* Clear depth for previous run attribution */
+            log_trace("Metarun restore: Niena quest set to REWARDED (%d)", NIENA_QUEST_REWARDED);
+        }
+    }
+    
+    /* Restore Orome quest state */
+    if (completed & METARUN_QUEST_OROME) {
+        if (p_ptr->orome_quest < OROME_QUEST_REWARDED) {
+            p_ptr->orome_quest = OROME_QUEST_REWARDED;
+            log_trace("Metarun restore: Orome quest set to REWARDED (%d)", OROME_QUEST_REWARDED);
+        }
+    }
+    
+    log_trace("Metarun restore: Final quest states - Tulkas: %d, Aule: %d, Mandos: %d, Niena: %d, Orome: %d",
+              p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->niena_quest, p_ptr->orome_quest);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Oath system tracking                                              */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Check if an oath is unlocked in the current metarun
+ */
+bool oath_unlocked(int oath_id)
+{
+    if (current_run < 0 || current_run >= metarun_max) return false;
+    if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) return false;
+    
+    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-5 to bits 1,2,4,8,16 */
+    return (metaruns[current_run].unlocked_oaths & oath_bit) != 0;
+}
+
+/*
+ * Check if an oath is banned in the current metarun
+ */
+bool oath_banned(int oath_id)
+{
+    if (current_run < 0 || current_run >= metarun_max) return false;
+    if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) return false;
+    
+    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-5 to bits 1,2,4,8,16 */
+    return (metaruns[current_run].banned_oaths & oath_bit) != 0;
+}
+
+/*
+ * Unlock an oath in the current metarun
+ */
+void metarun_unlock_oath(int oath_id)
+{
+    if (current_run < 0 || current_run >= metarun_max) {
+        log_trace("Oath unlock: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
+        return;
+    }
+    if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) {
+        log_trace("Oath unlock: Invalid oath_id=%d", oath_id);
+        return;
+    }
+    
+    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-4 to bits 1,2,4,8 */
+    
+    /* Update both the global metar and the metaruns array */
+    metar.unlocked_oaths |= oath_bit;
+    metaruns[current_run].unlocked_oaths |= oath_bit;
+    
+    log_trace("Oath unlock: Unlocked oath %d (bit %d) in metarun[%d], unlocked_oaths=0x%02X", 
+              oath_id, oath_bit, current_run, metaruns[current_run].unlocked_oaths);
+    
+    /* Save immediately to persist the change */
+    save_metaruns();
+}
+
+/*
+ * Ban an oath in the current metarun (when broken)
+ */
+void metarun_ban_oath(int oath_id)
+{
+    if (current_run < 0 || current_run >= metarun_max) {
+        log_trace("Oath ban: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
+        return;
+    }
+    if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) {
+        log_trace("Oath ban: Invalid oath_id=%d", oath_id);
+        return;
+    }
+    
+    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-5 to bits 1,2,4,8,16 */
+    
+    /* Update both the global metar and the metaruns array */
+    metar.banned_oaths |= oath_bit;
+    metaruns[current_run].banned_oaths |= oath_bit;
+    
+    log_trace("Oath ban: Banned oath %d (bit %d) in metarun[%d], banned_oaths=0x%02X", 
+              oath_id, oath_bit, current_run, metaruns[current_run].banned_oaths);
+    
+    /* Save immediately to persist the change */
+    save_metaruns();
+}
+
+/*
+ * Get bitmask of oaths available for selection (unlocked but not banned)
+ */
+int get_available_oaths_mask(void)
+{
+    if (current_run < 0 || current_run >= metarun_max) return 0;
+    
+    byte unlocked = metaruns[current_run].unlocked_oaths;
+    byte banned = metaruns[current_run].banned_oaths;
+    byte available = unlocked & ~banned;
+    
+    log_trace("Oath availability: unlocked=0x%02X, banned=0x%02X, available=0x%02X", 
+              unlocked, banned, available);
+    
+    return available;
 }

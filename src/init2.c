@@ -311,7 +311,8 @@ header cu_head;
 header b_head;
 header g_head;
 header flavor_head;
-header q_head;
+header quest_head;
+header oath_head;
 header n_head;
 header style_head;
 
@@ -1096,6 +1097,61 @@ static errr init_flavor_info(void)
     return (err);
 }
 
+/*
+ * Initialize the "quest_info" array
+ */
+static errr init_quest_info(void)
+{
+    errr err;
+
+    /* Init the header */
+    init_header(&quest_head, z_info->quest_max, sizeof(quest_type));
+
+#ifdef ALLOW_TEMPLATES
+
+    /* Save a pointer to the parsing function */
+    quest_head.parse_info_txt = parse_quest_info;
+
+#endif /* ALLOW_TEMPLATES */
+
+    err = init_info("quest", &quest_head);
+
+    /* Set the global variables */
+    quest_info = quest_head.info_ptr;
+    quest_name_text = quest_head.name_ptr;
+    quest_desc_text = quest_head.text_ptr;
+    q_text = quest_head.text_ptr;
+
+    return (err);
+}
+
+/*
+ * Initialize the "oath_info" array
+ */
+static errr init_oath_info(void)
+{
+    errr err;
+
+    /* Init the header */
+    init_header(&oath_head, z_info->oath_max, sizeof(oath_type));
+
+#ifdef ALLOW_TEMPLATES
+
+    /* Save a pointer to the parsing function */
+    oath_head.parse_info_txt = parse_oath_info;
+
+#endif /* ALLOW_TEMPLATES */
+
+    err = init_info("oath", &oath_head);
+
+    /* Set the global variables */
+    oath_info = oath_head.info_ptr;
+    oath_name_text = oath_head.name_ptr;
+    oath_desc_text = oath_head.text_ptr;
+
+    return (err);
+}
+
 extern void autoinscribe_clean(void)
 {
     if (inscriptions)
@@ -1681,7 +1737,7 @@ extern void display_introduction(void)
         "       No stain yet on the moon was seen...              ");
 
     Term_putstr(12, 5, -1, TERM_WHITE,
-        "Welcome to SilQ: Heroes of the First Age                ");
+        "Welcome to Sil-More, Shining Darkness                ");
     Term_putstr(12, 6, -1, TERM_WHITE,
         "  An adventure set in Middle-earth's mythic past,                    ");
     Term_putstr(12, 7, -1, TERM_WHITE,
@@ -1800,6 +1856,20 @@ void init_angband(void)
             /* Crash and burn */
             init_angband_aux(why);
         }
+        else
+        {
+            /* Write version header to new scores file */
+            score_file_header header;
+            header.version_major = VERSION_MAJOR;
+            header.version_minor = VERSION_MINOR;
+            header.version_patch = VERSION_PATCH;
+            header.version_extra = VERSION_EXTRA;
+            header.entry_count = 0;
+            header.reserved[0] = 0;
+            header.reserved[1] = 0;
+            
+            fd_write(fd, (cptr)&header, sizeof(header));
+        }
     }
 
     /* Close it */
@@ -1896,6 +1966,16 @@ void init_angband(void)
     if (init_flavor_info())
         quit("Cannot initialize flavors");
 
+    /* Initialize quest info */
+    note("[Initializing arrays... (quests)]");
+    if (init_quest_info())
+        quit("Cannot initialize quests");
+
+    /* Initialize oath info */
+    note("[Initializing arrays... (oaths)]");
+    if (init_oath_info())
+        quit("Cannot initialize oaths");
+
     /* Initialize some other arrays */
     note("[Initializing arrays... (other)]");
     if (init_other())
@@ -1923,6 +2003,11 @@ void init_angband(void)
 
     /*Build the randart probability tables based on the standard Artefact Set*/
     build_randart_tables();
+
+    /* Clean up old files if this is a fresh start (no existing metarun) */
+    if (metarun_created) {
+        cleanup_old_game_files();
+    }
 
     /* Done */
     note("                                              ");

@@ -1,0 +1,178 @@
+# File: Makefile.cocoa
+
+# This is a Makefile for Mac OS X Cocoa port of Angband.
+#
+# Based on Makefile.osx
+
+# default target
+all: install
+
+# settings
+CC = clang
+LD = ld
+OPT ?= -O2
+
+ARCHS = x86_64
+ARCHFLAGS = $(addprefix -arch ,$(ARCHS))
+WARNINGS = -W -Wall -Wno-unused-parameter -Wno-missing-field-initializers
+JUST_C = -std=c99 -Wdeclaration-after-statement
+OBJ_CFLAGS = -std=c99 -x objective-c -fobjc-arc
+CFLAGS = -g -I. $(WARNINGS) $(OPT) -DMACH_O_CARBON -DCOCOA -DUSE_PRIVATE_SAVE_PATH -DPRIVATE_USER_PATH -DRUNTIME_PRIVATE_USER_PATH -DHAVE_MKSTEMP \
+	-fno-stack-protector -mmacosx-version-min=10.6 $(ARCHFLAGS)
+LIBS = -framework Cocoa
+# Fix for bug #1663: Set the deployment target via environment variable
+# for the final link command. See http://grauonline.de/wordpress/?p=71
+# or http://stackoverflow.com/questions/5509885/creating-app-for-old-mac-from-new-mac-machine
+DEPLOYMENT_TARGET = MACOSX_DEPLOYMENT_TARGET=10.5
+
+# Import user prefs
+# If you don't want to edit this file, put your module redefinitions
+# and build flags in "./config"
+-include config
+
+# Check for autoconf.h; do not warn on nonexistence
+autoconf= $(wildcard autoconf.h)
+ifneq ($(autoconf),)
+CFLAGS += -DHAVE_CONFIG_H
+endif
+
+# Note that Makefile.inc sets VERSION, and so we must run version.sh after
+# including Makefile.inc
+include Makefile.inc
+
+APPNAME = $(NAME).app
+EXE = $(PROG)
+
+OBJS = $(BASEOBJS)
+OSX_OBJS = main-cocoa.o
+
+
+
+#
+# Build the "Angband" program
+#
+
+
+$(EXE).o: $(OBJS)
+	@for A in $(ARCHS); do \
+		printf "%10s %-20s\n" LD $@.$$A; \
+		$(LD) -r -arch $$A -o $@.$$A $(OBJS); \
+		LIPO_ARGS="$$LIPO_ARGS -arch $$A $@.$$A"; \
+	done; \
+	lipo $$LIPO_ARGS -create -output $@
+
+$(EXE): $(EXE).o $(OSX_OBJS)
+	$(DEPLOYMENT_TARGET) $(CC) $(CFLAGS) $(LDFLAGS) -o $(EXE) $(EXE).o $(OSX_OBJS) $(LIBS) 
+
+
+#
+# Clean up old junk
+#
+
+clean:
+	-rm -f $(OBJS) $(EXE) $(addprefix $(EXE).o.,$(ARCHS)) $(EXE).o $(OSX_OBJS)
+
+
+#
+# Basic build rules and dependencies
+#
+
+main-cocoa.o : main-cocoa.m
+	@printf "%10s %-20s (objective-c)\n" CC $<
+	$(CC) $(CFLAGS) $(OBJ_CFLAGS) -c -o $@ $<
+%.o : %.c
+	@printf "%10s %-20s\n" CC $<
+	$(CC) $(JUST_C) $(CFLAGS) -c -o $@ $<
+
+
+#
+# Installation.
+# Application bundle -- a directory looking like an ordinary application
+#
+
+# Bundle of the game (it must be a directory whose name ends in ".app")
+APPBNDL = ../$(APPNAME)
+
+# A bundle must have these subdirectories
+APPCONT = $(APPBNDL)/Contents
+APPBIN = $(APPCONT)/MacOS
+APPRES = $(APPCONT)/Resources
+
+# Auxiliary files. Please note that it still uses resouce fork based
+# resources for menus, dialogues and sounds, so that it isn't safe to use
+# utilities that doesn't understand them (virtually all Un*x commands) to
+# copy or archive the application.
+#
+# The graphics tiles have been moved out of the resource fork, but, again,
+# it isn't generally safe just to convert GIF or BMP files to PNG, because
+# the Mac OS takes dpi values stored in various images quite seriously.
+# Almost all tilesets for *band requires adjustment, with the sole exception
+# of 8x8.png for Vanilla.  Make sure setting dpi to 72, *not* preserving
+# the actual size of image.  When you have them ready, put them in
+# the lib/xtra/graf directory and rebuild.
+PLIST = cocoa/Sil-Cocoa.xml
+
+ICONFILES = cocoa/Sil_Icons.icns cocoa/Save.icns cocoa/Edit.icns cocoa/Data.icns
+
+install: $(EXE) $(ICONFILES) $(PLIST)
+	@echo making directories...
+	@mkdir -p $(APPBNDL)
+	@mkdir -p $(APPCONT)
+	@mkdir -p $(APPBIN)
+	@mkdir -p $(APPRES)
+	@mkdir -p $(APPRES)/en.lproj
+	@mkdir -p $(APPRES)/lib/docs
+	@mkdir -p $(APPRES)/lib/edit
+	@mkdir -p $(APPRES)/lib/pref
+	@mkdir -p $(APPRES)/lib/xtra
+	@mkdir -p $(APPRES)/lib/xtra/graf
+
+	@echo copying files...
+	@cp ../lib/docs/*.txt $(APPRES)/lib/docs
+	@cp ../lib/edit/*.txt $(APPRES)/lib/edit
+	@cp ../lib/pref/*.prf $(APPRES)/lib/pref
+	@cp ../lib/xtra/tutorial $(APPRES)/lib/xtra
+	@cp ../lib/xtra/graf/16x16_microchasm.png $(APPRES)/lib/xtra/graf
+
+	install -m 755 $(EXE) $(APPBIN)
+	install -m 644 $(ICONFILES) $(APPRES)
+	cp cocoa/en.lproj/MainMenu.nib $(APPRES)/en.lproj
+	sed -e 's/\$$VERSION\$$/$(VERSION)/' -e 's/\$$COPYRIGHT\$$/$(COPYRIGHT)/' \
+		-e 's/\$$NAME\$$/$(NAME)/' -e 's/\$$EXECUTABLE\$$/$(EXE)/' \
+		$(PLIST) > $(APPCONT)/Info.plist
+
+	SetFile -a B $(APPBNDL)
+
+
+vars:
+	@echo LDFLAGS = $(LDFLAGS)
+	@echo CFLAGS = $(CFLAGS)
+	@echo BASEOBJS = $(BASEOBJS)
+
+
+
+PACKAGE_NAME = $(NAME)-$(VERSION)
+
+# In the unlikely event that tar+zip isn't enough...
+
+dist: install
+	@rm -rf disttemp*
+	mkdir disttemp
+	cp -R -p "$(APPBNDL)" disttemp
+	SetFile -a B disttemp/$(APPNAME)
+	find .. -name '*.pdf' -depth 1 -print0 | xargs -0 -J % cp -p % disttemp
+
+	@-rm ../"$(PACKAGE_NAME)-osx.dmg"
+
+	hdiutil create -quiet -fs HFS+ -volname $(PACKAGE_NAME) -srcfolder disttemp disttemp.dmg
+	hdiutil convert disttemp.dmg -quiet -format UDZO -imagekey zlib-level=6 -o ../"$(PACKAGE_NAME)-osx.dmg"
+
+	rm -rf disttemp*
+
+tests:
+	$(MAKE) -C tests all CFLAGS="-I.. $(CFLAGS)" LDFLAGS="$(LIBS)" DEFAULT_CONFIG_PATH=../lib
+
+test-clean:
+	$(MAKE) -C tests clean
+
+.PHONY : tests test-clean

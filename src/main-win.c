@@ -2467,7 +2467,7 @@ static errr Term_pict_win(int x, int y, int n, const byte* ap, const char* cp,
             }
             if (s_rows && s_cols && (row >= s_rows || col >= s_cols))
             {
-                log_info("main-win: WARN out-of-range tile row=%d col=%d (max rows=%d cols=%d)", row, col, s_rows, s_cols);
+                log_warn("main-win: out-of-range tile row=%d col=%d (max rows=%d cols=%d)", row, col, s_rows, s_cols);
                 /* Clamp to prevent GDI from sampling outside */
                 if (row >= s_rows) row = s_rows - 1;
                 if (col >= s_cols) col = s_cols - 1;
@@ -4068,8 +4068,17 @@ static void init_stuff(void)
     /* Save the "program name" */
     argv0 = string_make(path);
 
-    /* Get the name of the "*.ini" file */
-    strcpy(path + strlen(path) - 4, ".INI");
+    /* Get the directory path from the executable */
+    /* Find the last directory separator and keep everything before it */
+    for (i = strlen(path) - 1; i >= 0; i--)
+    {
+        if (path[i] == '\\')
+        {
+            /* Replace the executable name with "sil.INI" */
+            strcpy(path + i + 1, "sil.INI");
+            break;
+        }
+    }
 
     /* Save the the name of the ini-file */
     ini_file = string_make(path);
@@ -4179,7 +4188,11 @@ int FAR PASCAL WinMain(
 
     use_background_colors = true;
 
-    init_logger(false);
+    /* Get executable path for log file placement */
+    char exe_path[1024];
+    GetModuleFileName(NULL, exe_path, sizeof(exe_path));
+
+    init_logger(false, exe_path);
 
     // Sil-y: commented this out
     // MSG msg;

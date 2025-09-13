@@ -232,7 +232,7 @@ errr path_parse(char* buf, size_t max, cptr file)
  *
  * This filename is always in "system-specific" form.
  */
-static errr path_temp(char* buf, size_t max)
+errr path_temp(char* buf, size_t max)
 {
     cptr s;
 
@@ -775,8 +775,11 @@ errr fd_read(int fd, char* buf, size_t n)
     while (n >= 16384)
     {
         /* Read a piece */
-        if (read(fd, buf, 16384) != 16384)
+        ssize_t bytes_read = read(fd, buf, 16384);
+        if (bytes_read != 16384) {
+            /* For large reads, we need exact bytes */
             return (1);
+        }
 
         /* Shorten the task */
         buf += 16384;
@@ -788,8 +791,20 @@ errr fd_read(int fd, char* buf, size_t n)
 #endif
 
     /* Read the final piece */
-    if (read(fd, buf, n) != (int)n)
+    ssize_t bytes_read = read(fd, buf, n);
+    if (bytes_read < 0) {
+        /* Read error */
         return (1);
+    }
+    if (bytes_read == 0 && n > 0) {
+        /* EOF when we expected data */
+        return (1);
+    }
+    if (bytes_read != (ssize_t)n) {
+        /* For score files and other structured data, we need exact bytes.
+         * However, let's log this for debugging. */
+        return (1);
+    }
 
     /* Success */
     return (0);
@@ -3875,6 +3890,115 @@ bool get_check(cptr prompt)
 }
 
 /*
+ * Multiline version of get_check() for long oath confirmation prompts
+ * Displays text with proper word wrapping and fade effects
+ */
+bool get_check_oath_multiline(cptr prompt)
+{
+    char ch;
+    int wid, h;
+    
+    /* Paranoia */
+    message_flush();
+    
+    /* Get terminal size */
+    Term_get_size(&wid, &h);
+    
+    /* Save screen */
+    screen_save();
+    Term_clear();
+    
+    /* Title */
+    Term_putstr((wid - 24) / 2, 2, -1, TERM_L_RED, "Breaking a Sacred Oath");
+    
+    /* Display the oath confirmation prompt with word wrapping */
+    if (prompt && prompt[0]) {
+        char* desc_ptr = (char*)prompt;
+        char line_buffer[80];
+        int row = 5;
+        int max_width = 70; /* Leave margins */
+        
+        while (*desc_ptr && row < h - 4) {
+            int line_len = 0;
+            char* line_start = desc_ptr;
+            
+            /* Find the longest line that fits */
+            while (*desc_ptr && line_len < max_width) {
+                if (*desc_ptr == ' ') {
+                    /* Potential break point */
+                    if (line_len > 0 && line_len + 1 < max_width) {
+                        strncpy(line_buffer, line_start, line_len);
+                        line_buffer[line_len] = '\0';
+                    }
+                }
+                line_len++;
+                desc_ptr++;
+            }
+            
+            /* Back up to last space if we exceeded width */
+            if (line_len >= max_width && *desc_ptr) {
+                while (desc_ptr > line_start && *desc_ptr != ' ') {
+                    desc_ptr--;
+                    line_len--;
+                }
+                if (*desc_ptr == ' ') desc_ptr++; /* Skip the space */
+            }
+            
+            /* Copy the line */
+            int actual_len = desc_ptr - line_start;
+            if (actual_len > 79) actual_len = 79;
+            strncpy(line_buffer, line_start, actual_len);
+            line_buffer[actual_len] = '\0';
+            
+            /* Remove trailing space */
+            while (actual_len > 0 && line_buffer[actual_len - 1] == ' ') {
+                actual_len--;
+                line_buffer[actual_len] = '\0';
+            }
+            
+            /* Display centered line */
+            if (actual_len > 0) {
+                int start_col = (wid - actual_len) / 2;
+                if (start_col < 1) start_col = 1;
+                Term_putstr(start_col, row, -1, TERM_WHITE, line_buffer);
+                row++;
+            }
+            
+            /* Skip whitespace for next line */
+            while (*desc_ptr && *desc_ptr == ' ') desc_ptr++;
+            
+            if (!*desc_ptr) break;
+        }
+    }
+    
+    /* Prompt at bottom */
+    Term_putstr((wid - 20) / 2, h - 3, -1, TERM_YELLOW, "Are you certain? [y/n]");
+    
+    /* Get an acceptable answer */
+    while (true)
+    {
+        ch = inkey();
+        if (quick_messages)
+            break;
+        if (ch == ESCAPE)
+            break;
+        if (strchr("YyNn", ch))
+            break;
+        bell("Illegal response to a 'yes/no' question!");
+    }
+    
+    /* Restore screen */
+    screen_load();
+    
+    /* Normal negation */
+    if ((ch != 'Y') && (ch != 'y'))
+        return (false);
+    
+    /* Success */
+    return (true);
+}
+
+/*
  * Give a prompt, then get a choice withing a certain range.
  */
 int get_menu_choice(s16b max, char* prompt)
@@ -5276,11 +5400,12 @@ cptr attr_to_text(byte a)
  * stdout when set to true (essential for terminal modes like ncurses where
  * screen output would be garbled otherwise).
  */
-void init_logger(bool quiet)
+void init_logger(bool quiet, const char* exe_path)
 {
     const char* log_level_str = getenv("SIL_LOG_LEVEL");
     int level = LOG_TRACE; /* Default to TRACE level */
-
+    char log_path[1024];
+    
     if (log_level_str && strlen(log_level_str) > 0)
     {
         for (level = LOG_TRACE; level <= LOG_FATAL; level++)
@@ -5298,7 +5423,61 @@ void init_logger(bool quiet)
         }
     }
 
-    FILE* log_file = my_fopen("log.txt", "w");
+    /* Build log file path in same directory as executable */
+    if (exe_path)
+    {
+        int i;
+        strcpy(log_path, exe_path);
+        
+        /* Find the last directory separator */
+        for (i = strlen(log_path) - 1; i >= 0; i--)
+        {
+            if (log_path[i] == '\\' || log_path[i] == '/')
+            {
+#if LOG_MODE_TIMESTAMP
+                /* Create timestamped log filename */
+                time_t now = time(NULL);
+                struct tm *timeinfo = localtime(&now);
+                char timestamp[32];
+                strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", timeinfo);
+                sprintf(log_path + i + 1, "log_%s.txt", timestamp);
+#else
+                /* Replace everything after the separator with "log.txt" */
+                strcpy(log_path + i + 1, "log.txt");
+#endif
+                break;
+            }
+        }
+        
+        /* If no separator found, use appropriate filename in current directory */
+        if (i < 0)
+        {
+#if LOG_MODE_TIMESTAMP
+            time_t now = time(NULL);
+            struct tm *timeinfo = localtime(&now);
+            char timestamp[32];
+            strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", timeinfo);
+            sprintf(log_path, "log_%s.txt", timestamp);
+#else
+            strcpy(log_path, "log.txt");
+#endif
+        }
+    }
+    else
+    {
+        /* Fallback to current directory if exe_path not available */
+#if LOG_MODE_TIMESTAMP
+        time_t now = time(NULL);
+        struct tm *timeinfo = localtime(&now);
+        char timestamp[32];
+        strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", timeinfo);
+        sprintf(log_path, "log_%s.txt", timestamp);
+#else
+        strcpy(log_path, "log.txt");
+#endif
+    }
+
+    FILE* log_file = my_fopen(log_path, "w");
     if (!log_file)
         quit("could not open log.txt for writing");
     log_add_fp(log_file, level);

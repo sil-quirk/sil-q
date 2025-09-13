@@ -28,7 +28,7 @@
 
 # Version stamp (required)
 
-V:1.5.0
+V:0.8.7
 
 # Melee ---------------------------------------------
 
@@ -114,7 +114,8 @@ I:0:8:9
 P:0/3:0/5
 D:Whenever you attack an enemy, you get a free attack on all other
 D: enemies adjacent to you. The original attack must be a regular,
-D: flanking or controlled retreat attack.
+D: flanking or controlled retreat attack. Requires at least 5 continuous
+D: open adjacent squares (not walls or rubble) for sufficient room to maneuver.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -699,4 +700,34 @@ T:35:0:99  # Cloak
 N:153:Grace
 I:7:13:12
 D:You gain a point of grace.
+
+# Special (quest) abilities ---------------------------------------------
+
+N:160:Mandos' Doom
+I:8:0:0
+D:Grants immunity to fear, hallucination, trance, rage, stun and confusion. Awarded by quest; cannot be purchased.
+N:161:Aule's Forge
+I:8:1:0
+D:Grants superior mastery at the forge: counts as Masterpiece with +2 extra difficulty allowance. Supersedes Masterpiece.
+N:162:Oath of Mercy
+I:8:2:0
+D:A sacred vow to spare the defeated. Grants +1 Grace but breaks if you slay a helpless foe.
+N:163:Oath of Silence
+I:8:3:0
+D:A warrior's vow of action over words. Grants +1 Strength but breaks if you sing any song.
+N:164:Oath of Iron
+I:8:4:0
+D:An unbreakable resolve to claim a Silmaril. Grants +2 Constitution but breaks if you flee without one.
+N:165:Niena's Gift of Mercy
+I:8:5:0
+D:Enhanced stealth proportional to mercy shown. Grants up to 10 stealth based on (seen-killed)/seen monsters. Awarded by quest; cannot be purchased.
+N:166:Oath of the Smith
+I:8:6:0
+D:A craftsman's vow to use only their own creations. Grants +5 Smithing skill but breaks if you pick up weapons or armor forged by others.
+N:167:Oath of the Valorous Heart
+I:8:7:0
+D:A warrior's oath of honorable combat. Grants +1 Dexterity but breaks if you attack enemies fleeing in terror.
+N:168:Unique Bane
+I:8:8:0
+D:Knowledge of how to exploit the weaknesses of legendary foes. Grants +3 attack and evasion when fighting unique monsters. Awarded by quest; cannot be purchased.
 

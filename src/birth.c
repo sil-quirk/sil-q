@@ -13,6 +13,14 @@
 #include "z-term.h"
 #include "metarun.h"
 
+/* Three-column layout constants (same as cmd4.c) */
+#define COL_SKILL 2
+#define COL_ABILITY 15
+#define COL_DESCRIPTION 25
+
+/* Forward declaration of wipe_screen_from function */
+extern void wipe_screen_from(int col);
+
 /* Locations of the tables on the screen */
 #define HEADER_ROW 0
 #define QUESTION_ROW 1
@@ -131,6 +139,17 @@ static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
         [SNG_WOVEN_THEMES]  = "Woven Themes",
         [SNG_GRA]           = NULL,
     },
+    [S_SPC] = {
+        [SPC_MANDOS] = "Mandos' Doom", /* immunity reward */
+        [SPC_AULE] = "Aule's Forge", /* improved masterpiece forging */
+        [SPC_OATH_MERCY] = "Oath of Mercy",
+        [SPC_OATH_SILENCE] = "Oath of Silence",
+        [SPC_OATH_IRON] = "Oath of Iron",
+        [SPC_NIENA_MERCY] = "Niena's Gift of Mercy", /* Enhanced stealth from mercy quest */
+        [SPC_OATH_SMITH] = "Oath of the Smith",
+        [SPC_OATH_VALOROUS] = "Oath of the Valorous Heart",
+        [SPC_UNIQUE_BANE] = "Unique Bane", /* Enhanced effectiveness against unique monsters */
+    },
 };
 
 /*
@@ -206,12 +225,47 @@ static int curses_stat_adj(int s)   /* s = 0-3  (STR-DEX-CON-GRA) */
  */
 static void get_extra(void)
 {
+    int i, j;
+    
     p_ptr->new_exp = p_ptr->exp = get_start_xp();
     log_debug("Set starting experience to %d", p_ptr->exp);
 
     /* Player is not singing */
     p_ptr->song1 = SNG_NOTHING;
     p_ptr->song2 = SNG_NOTHING;
+    
+    /* Clear the abilities and add house abilities - but preserve oath abilities */
+    for (i = 0; i < S_MAX; i++)
+    {
+        for (j = 0; j < ABILITIES_MAX; j++)
+        {
+            /* Preserve oath abilities (SPC_OATH_MERCY, SPC_OATH_SILENCE, SPC_OATH_IRON, SPC_OATH_SMITH, SPC_OATH_VALOROUS) */
+            if (i == S_SPC && (j == SPC_OATH_MERCY || j == SPC_OATH_SILENCE || j == SPC_OATH_IRON || j == SPC_OATH_SMITH || j == SPC_OATH_VALOROUS))
+            {
+                /* Keep existing oath abilities intact */
+                continue;
+            }
+            p_ptr->innate_ability[i][j] = false;
+            p_ptr->active_ability[i][j] = false;
+        }
+    }
+    
+    /* Grant all parsed house abilities */
+    for (int slot = 0; slot < HOUSE_ABILITY_MAX; slot++)
+    {
+        int stat = c_info[p_ptr->phouse].a_adj[slot][0];
+        /* sentinel: no more entries */
+        if (stat < 0) break;
+
+        int ab = c_info[p_ptr->phouse].a_adj[slot][1];
+        /* sanity-check bounds */
+        if (stat < S_MAX && ab < ABILITIES_MAX)
+        {
+            p_ptr->innate_ability[stat][ab] = true;
+            p_ptr->active_ability[stat][ab] = true;
+            log_debug("Assigned house ability: stat=%d, ability=%d", stat, ab);
+        }
+    }
 }
 
 /*
@@ -311,6 +365,16 @@ void player_wipe(void)
         a_ptr->cur_num = 0;
         a_ptr->found_num = 0;
     }
+    
+    /* Initialize Valar artifact reservation array */
+    if (!valar_reserved_artifacts)
+    {
+        C_MAKE(valar_reserved_artifacts, z_info->art_max, bool);
+    }
+    for (i = 0; i < z_info->art_max; i++)
+    {
+        valar_reserved_artifacts[i] = false;
+    }
 
     /*re-set the object_level*/
     object_level = 0;
@@ -373,10 +437,43 @@ void player_wipe(void)
     p_ptr->oath_type = 0;
     p_ptr->oaths_broken = 0;
 
-    p_ptr->thrall_quest = QUEST_NOT_STARTED;
+    p_ptr->tulkas_quest = TULKAS_QUEST_NOT_STARTED;
+    p_ptr->tulkas_target_r_idx = 0;
+    p_ptr->tulkas_prize_a_idx = 0;
+    p_ptr->tulkas_quest_complete = 0;
 
-    p_ptr->unused2 = 0;
-    p_ptr->unused3 = 0;
+    /* Aule quest init */
+    p_ptr->aule_quest = AULE_QUEST_NOT_STARTED;
+    p_ptr->aule_forge_y = 0;
+    p_ptr->aule_forge_x = 0;
+    p_ptr->aule_reserved = 0;
+    p_ptr->aule_level = 0;
+    p_ptr->aule_last_object_diff = 0;
+    
+    /* Mandos quest init */
+    p_ptr->mandos_quest = MANDOS_QUEST_NOT_STARTED;
+    p_ptr->mandos_vault_y = 0;
+    p_ptr->mandos_vault_x = 0;
+    p_ptr->mandos_monsters_remaining = 0;
+    p_ptr->mandos_level = 0;
+    p_ptr->mandos_reserved = 0;
+    
+    /* Niena quest init */
+    p_ptr->niena_quest = NIENA_QUEST_NOT_STARTED;
+    p_ptr->niena_level = 0;
+    
+    /* Orome quest init */
+    p_ptr->orome_quest = OROME_QUEST_NOT_STARTED;
+    p_ptr->orome_killed_count = 0;
+    p_ptr->orome_target_type = 0;
+    p_ptr->orome_target_count = 0;
+    
+    p_ptr->quest_vault_used = 0;
+    
+    /* Quest states should always start at NOT_STARTED for new characters */
+    /* Metarun completion is checked separately via metarun_is_quest_completed() */
+    log_trace("Birth: All quest states initialized to NOT_STARTED for new character");
+    for (i = 0; i < 15; i++) p_ptr->quest_reserved[i] = 0; /* quest_reserved[0] = any quest spawned flag */
 
     /*re-set the thefts counter*/
     recent_failed_thefts = 0;
@@ -517,7 +614,6 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
     int top = 0, next;
     int i, dir;
     char c;
-    char buf[300];
     bool done = false;
     int hgt;
     byte attr;
@@ -541,25 +637,10 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         /* Redraw the list */
         for (i = 0; ((i + top < num) && (i <= hgt)); i++)
         {
-            if (i + top < 26)
-            {
-                if (choices[i + top].ghost)
-                    strnfmt(buf, sizeof(buf), "%c %s", 'X', choices[i + top].name);
-                else
-                    strnfmt(buf, sizeof(buf), choices[i + top].name);
-
-            }
-            else
-            {
-                /* ToDo: Fix the ASCII dependency */
-                strnfmt(buf, sizeof(buf),/*  "%c) %s", 'A' + (i + top - 26), */
-                    choices[i + top].name);
-            }
-
             /* Clear */
             Term_erase(col, i + TABLE_ROW, wid);
 
-            /* Display */
+            /* Display name part */
             if (i == (cur - top))
             {
                 /* Highlight the current selection */
@@ -576,7 +657,14 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                     attr = TERM_WHITE;
             }
 
-            Term_putstr(col, i + TABLE_ROW, wid, attr, buf);
+            /* Display character name */
+            char name_part[256];
+            if (choices[i + top].ghost)
+                strnfmt(name_part, sizeof(name_part), "%c %s", 'X', choices[i + top].name);
+            else 
+                strnfmt(name_part, sizeof(name_part), "%s", choices[i + top].name);
+            
+            Term_putstr(col, i + TABLE_ROW, wid, attr, name_part);
         }
 
         Term_erase(0, DESCRIPTION_ROW + 0, 255);
@@ -1123,6 +1211,14 @@ static bool get_player_race(void)
     return (true);
 }
 
+// Check house flags
+static int is_set(int bit) {
+    if (bit < 0 || bit >= FLAG_COUNT) return 0;  // Out of bounds
+    int word = bit / 32;
+    int shift = bit % 32;
+    return (rp_ptr->choice[word] & (1U << shift)) != 0;
+}
+
 /*
  * Display additional information about each house during the selection.
  */
@@ -1189,20 +1285,75 @@ static void house_aux_hook(birth_menu c_str)
     // else Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX +7, -1, TERM_L_BLUE,
     //     "Alive");
     char pretty_name[40];
-    strnfmt(pretty_name, sizeof(pretty_name), "%s%s", c_name + c_info[house_idx].name, c_name + c_info[house_idx].alt_name);
-    Term_putstr(
-        TOTAL_AUX_COL, HEADER_ROW, -1, TERM_L_BLUE, pretty_name);
-
+    strnfmt(pretty_name, sizeof(pretty_name), "%s%s", c_name + c_info[house_idx].name, c_name + c_info[house_idx].alt_name); 
+    
+    /* Add power stars to the character name */
+    char power_stars[16];
+    byte star_attr;
+    byte power = c_info[house_idx].power;
+    switch (power)
+    {
+        case 0: 
+            star_attr = TERM_RED; 
+            strnfmt(power_stars, sizeof(power_stars), " *"); 
+            break;           /* Weak - 1 red star */
+        case 1: 
+            star_attr = TERM_WHITE; 
+            strnfmt(power_stars, sizeof(power_stars), " **"); 
+            break;          /* Average - 2 white stars */
+        case 2: 
+            star_attr = TERM_GREEN; 
+            strnfmt(power_stars, sizeof(power_stars), " ***"); 
+            break;         /* Powerful - 3 green stars */
+        case 3: 
+            star_attr = TERM_L_GREEN; 
+            strnfmt(power_stars, sizeof(power_stars), " ***"); 
+            break;        /* Very Powerful - 4 bright green stars */
+        default: 
+            star_attr = TERM_WHITE; 
+            strnfmt(power_stars, sizeof(power_stars), " **"); 
+            break;         /* Default to average */
+    }
+    
+    Term_putstr(TOTAL_AUX_COL, HEADER_ROW, -1, TERM_L_BLUE, pretty_name);
+    Term_putstr(TOTAL_AUX_COL + strlen(pretty_name), HEADER_ROW, -1, star_attr, power_stars);
+    
     print_rh_flags(
         p_ptr->prace, house_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
-
-}
-// Check house flags
-static int is_set(int bit) {
-    if (bit < 0 || bit >= FLAG_COUNT) return 0;  // Out of bounds
-    int word = bit / 32;
-    int shift = bit % 32;
-    return (rp_ptr->choice[word] & (1U << shift)) != 0;
+    
+    /* Display power rating legend on left side at row 10 with alive counts */
+    int legend_col = 2;  /* Left side */
+    int legend_row = 10; /* Row 10 as requested (moved up one row) */
+    
+    /* Count alive heroes by power level across ALL races */
+    int power_counts[4] = {0, 0, 0, 0};  /* weak, average, powerful, very powerful */
+    for (int i = 0; i < z_info->c_max; i++)
+    {
+        /* Count only characters that are NOT dead (alive) */
+        if (highscore_dead(c_name + c_info[i].name) == 0)  /* If NOT dead (alive) */
+        {
+            byte power = c_info[i].power;
+            if (power >= 0 && power <= 3)
+                power_counts[power]++;
+        }
+    }
+    
+    /* Display legend without "Power Rating:" header */
+    Term_putstr(legend_col, legend_row, -1, TERM_L_GREEN, "***");
+    strnfmt(s, sizeof(s), "Mighty %d", power_counts[3]);
+    Term_putstr(legend_col + 4, legend_row, -1, TERM_WHITE, s);
+    
+    Term_putstr(legend_col, legend_row + 1, -1, TERM_GREEN, "***");
+    strnfmt(s, sizeof(s), "Strong %d", power_counts[2]);
+    Term_putstr(legend_col + 4, legend_row + 1, -1, TERM_WHITE, s);
+    
+    Term_putstr(legend_col, legend_row + 2, -1, TERM_WHITE, "**");
+    strnfmt(s, sizeof(s), "Fair %d", power_counts[1]);
+    Term_putstr(legend_col + 4, legend_row + 2, -1, TERM_WHITE, s);
+    
+    Term_putstr(legend_col, legend_row + 3, -1, TERM_RED, "*");
+    strnfmt(s, sizeof(s), "Weak %d", power_counts[0]);
+    Term_putstr(legend_col + 4, legend_row + 3, -1, TERM_WHITE, s);
 }
 /*
  * Player house
@@ -1237,14 +1388,9 @@ static bool get_player_house(void)
     /* Build the filename */
     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
 
-    /* Grab permissions */
-    safe_setuid_grab();
-
-    /* Open the high score file, for reading/writing */
-    highscore_fd = fd_open(buf, O_RDWR);
-
-    /* Drop permissions */
-    safe_setuid_drop();
+     /* Open via highscore_dead on demand; no manual open needed here.
+         (Legacy direct fd_open removed – versioned score files have a header.) */
+     highscore_fd = NULL; /* ensure closed */
 
     /* Tabulate houses */
 
@@ -1265,11 +1411,8 @@ static bool get_player_house(void)
         }
     }
 
-    /* Shut the high score file */
-    fd_close(highscore_fd);
-
-    /* Forget the high score fd */
-    highscore_fd = -1;
+    /* highscore_dead opens/closes internally now; ensure descriptor not leaked */
+    if (highscore_fd) { fclose(highscore_fd); highscore_fd = NULL; }
 
     house_choice = get_player_choice(
         houses, house, old_house_choice, CLASS_COL, 22, house_aux_hook);
@@ -1459,6 +1602,351 @@ NavResult character_creation(void)
     /* Done */
     return NAV_OK;
 
+}
+
+/*
+ * Helper function to display wrapped text at a given position
+ * Returns the number of lines used
+ */
+static int display_wrapped_text(cptr text, int start_col, int start_row, int max_width, byte color)
+{
+    if (!text || !text[0]) return 0;
+    
+    /* Get actual terminal size if max_width is not specified */
+    int term_width, term_height;
+    Term_get_size(&term_width, &term_height);
+    
+    if (max_width <= 0) {
+        max_width = term_width - start_col - 2; /* Leave some margin */
+    }
+    
+    char line_buffer[256]; /* Increased buffer size for wider terminals */
+    int row = start_row;
+    int line_pos = 0;
+    const char* text_ptr = text;
+    
+    while (*text_ptr && row < term_height - 1) { /* Use actual terminal height */
+        /* Skip leading spaces at start of line */
+        while (*text_ptr == ' ' && line_pos == 0) text_ptr++;
+        
+        if (*text_ptr == '\n') {
+            /* Explicit line break */
+            line_buffer[line_pos] = '\0';
+            if (line_pos > 0) {
+                Term_putstr(start_col, row, -1, color, line_buffer);
+                row++;
+            }
+            line_pos = 0;
+            text_ptr++;
+            continue;
+        }
+        
+        if (line_pos >= max_width) {
+            /* Need to wrap - find last space for word boundary */
+            int wrap_pos = line_pos - 1;
+            while (wrap_pos > 0 && line_buffer[wrap_pos] != ' ') {
+                wrap_pos--;
+            }
+            
+            if (wrap_pos > 0) {
+                /* Found a space - wrap at word boundary */
+                line_buffer[wrap_pos] = '\0';
+                Term_putstr(start_col, row, -1, color, line_buffer);
+                
+                /* Move remaining text to next line */
+                int remaining = line_pos - wrap_pos - 1;
+                for (int i = 0; i < remaining; i++) {
+                    line_buffer[i] = line_buffer[wrap_pos + 1 + i];
+                }
+                line_pos = remaining;
+            } else {
+                /* No space found - hard wrap */
+                line_buffer[line_pos] = '\0';
+                Term_putstr(start_col, row, -1, color, line_buffer);
+                line_pos = 0;
+            }
+            row++;
+            continue;
+        }
+        
+        /* Add character to current line */
+        line_buffer[line_pos++] = *text_ptr++;
+    }
+    
+    /* Display final line if any */
+    if (line_pos > 0) {
+        line_buffer[line_pos] = '\0';
+        Term_putstr(start_col, row, -1, color, line_buffer);
+        row++;
+    }
+    
+    return row - start_row;
+}
+
+/*
+ * Oath selection screen with three-column layout following abilities_menu2 pattern
+ */
+static NavResult select_oath(void)
+{
+    int available_mask = get_available_oaths_mask();
+    
+    /* If no oaths are available, skip oath selection */
+    if (available_mask == 0) {
+        p_ptr->oath_type = 0; /* No oath */
+        log_debug("No oaths available, skipping oath selection");
+        return NAV_OK;
+    }
+    
+    int highlight = 1; /* Start highlighting first available oath */
+    int choice = 0;
+    int visible_count = 0;
+    
+    /* Find first available oath to highlight */
+    for (int i = 1; z_info && i < z_info->oath_max; i++) {
+        if (available_mask & (1 << (i - 1))) {
+            highlight = i;
+            break;
+        }
+    }
+    
+    while (true) {
+        char buf[80];
+        byte attr;
+        
+        /* Clear screen and use full-width layout */
+        Term_clear();
+        
+        /* Title at the top center */
+        Term_putstr(30, 0, -1, TERM_L_BLUE, "Choose your Oath");
+        
+        /* Setup oath list area (left side) */
+        Term_putstr(2, 2, -1, TERM_WHITE, "Available Oaths");
+        
+        /* Build visible oaths list - only show available or broken */
+        visible_count = 0;
+        
+        /* Always include "None" option */
+        attr = (highlight == 0) ? TERM_L_BLUE : TERM_WHITE;
+        Term_putstr(2, 4 + visible_count, -1, attr, format("%c) %s", 'a' + visible_count, oath_name_str(0)));
+        visible_count++;
+        
+        /* Add available or broken oaths */
+        for (int i = 1; z_info && i < z_info->oath_max; i++) {
+            /* Skip locked oaths (not available and not broken) */
+            if (!(available_mask & (1 << (i - 1))) && !oath_banned(i)) {
+                continue;
+            }
+            
+            /* Determine display color based on oath status and highlight */
+            if (oath_banned(i)) {
+                /* Broken oaths: red when not highlighted, bright red when highlighted */
+                attr = (highlight == i) ? TERM_L_RED : TERM_RED;
+                strnfmt(buf, 80, "%c) %s", 'a' + visible_count, oath_name_str(i));
+            } else {
+                /* Available oaths: bright blue when highlighted, white when not */
+                attr = (highlight == i) ? TERM_L_BLUE : TERM_WHITE;
+                strnfmt(buf, 80, "%c) %s", 'a' + visible_count, oath_name_str(i));
+            }
+            
+            Term_putstr(2, 4 + visible_count, -1, attr, buf);
+            visible_count++;
+        }
+        
+        /* Display detailed description for highlighted oath in description column */
+        wipe_screen_from(COL_DESCRIPTION);
+        Term_putstr(COL_DESCRIPTION, 2, -1, TERM_WHITE, "Oath Details");
+        
+        if (highlight >= 0 && highlight < (z_info ? z_info->oath_max : 6)) {
+            if (oath_banned(highlight) && highlight > 0) {
+                /* Use oath-specific banned text */
+                char* banned_text = oath_banned_text(highlight);
+                if (banned_text && banned_text[0]) {
+                    /* Display the oath-specific banned text with improved wrapping */
+                    display_wrapped_text(banned_text, COL_DESCRIPTION, 4, 0, TERM_L_RED);
+                } else {
+                    /* Fallback to generic broken oath text */
+                    Term_putstr(COL_DESCRIPTION, 4, -1, TERM_L_RED, "OATH BROKEN");
+                    Term_putstr(COL_DESCRIPTION, 6, -1, TERM_RED, "\"Thy oath lies shattered,");
+                    Term_putstr(COL_DESCRIPTION, 7, -1, TERM_RED, " thy word worthless as dust.\"");
+                    Term_putstr(COL_DESCRIPTION, 9, -1, TERM_L_RED, "\"No Valar shall hear thy voice,");
+                    Term_putstr(COL_DESCRIPTION, 10, -1, TERM_L_RED, " no light shall guide thy path.\"");
+                    Term_putstr(COL_DESCRIPTION, 12, -1, TERM_RED, "Forever marked as oathbreaker");
+                    Term_putstr(COL_DESCRIPTION, 13, -1, TERM_RED, "in this age.");
+                }
+            } else {
+                /* Display oath description */
+                if (highlight == 0) {
+                    Term_putstr(COL_DESCRIPTION, 4, -1, TERM_SLATE, "Walk free of binding words");
+                    Term_putstr(COL_DESCRIPTION, 6, -1, TERM_SLATE, "Take no oath and remain unbound");
+                    Term_putstr(COL_DESCRIPTION, 7, -1, TERM_SLATE, "by sacred vows.");
+                } else {
+                    /* Get oath description and display it */
+                    char* description = oath_description(highlight);
+                    if (description && description[0]) {
+                        Term_putstr(COL_DESCRIPTION, 4, -1, TERM_YELLOW, "Description:");
+                        
+                        /* Display description with improved word wrapping */
+                        int row = 5;
+                        row += display_wrapped_text(description, COL_DESCRIPTION, row, 0, TERM_SLATE);
+                        
+                        /* Add space before additional info */
+                        row++;
+                        
+                        /* Display Pledge (P:) */
+                        char* pledge = oath_pledge(highlight);
+                        if (pledge && pledge[0]) {
+                            Term_putstr(COL_DESCRIPTION, row, -1, TERM_L_BLUE, "Pledge:");
+                            row++;
+                            row += display_wrapped_text(pledge, COL_DESCRIPTION, row, 0, TERM_L_BLUE);
+                        }
+                        
+                        /* Display Forbidden (F:) */
+                        char* forbidden = oath_forbidden(highlight);
+                        if (forbidden && forbidden[0]) {
+                            Term_putstr(COL_DESCRIPTION, row, -1, TERM_L_RED, "Forbidden:");
+                            row++;
+                            row += display_wrapped_text(forbidden, COL_DESCRIPTION, row, 0, TERM_L_RED);
+                        }
+                        
+                        /* Display Reward (R:) */
+                        char* reward = oath_reward_text(highlight);
+                        if (reward && reward[0]) {
+                            Term_putstr(COL_DESCRIPTION, row, -1, TERM_L_GREEN, "Reward:");
+                            row++;
+                            row += display_wrapped_text(reward, COL_DESCRIPTION, row, 0, TERM_L_GREEN);
+                        }
+                    }
+                }
+            }
+        }
+        
+        /* Footer text at bottom */
+        Term_putstr(2, 20, -1, TERM_SLATE, "Oaths are sacred vows that grant power but bind your actions.");
+        Term_putstr(2, 21, -1, TERM_SLATE, "Breaking an oath brings curse and shame.");
+        
+        /* Instructions at bottom with arrows */
+        Term_putstr(2, 23, -1, TERM_SLATE, "↑↓ Navigate     Enter Accept     Esc Back");
+        
+        /* Get input */
+        char key = inkey();
+        
+        /* Handle input */
+        if (key == ESCAPE || key == 'q') {
+            return NAV_BACK; /* Go back to character creation */
+        }
+        
+        if (key == '\r' || key == '\n' || key == ' ') {
+            /* Select current highlighted option */
+            if (highlight == 0 || ((available_mask & (1 << (highlight - 1))) && !oath_banned(highlight))) {
+                choice = highlight;
+                break;
+            }
+        }
+        
+        if (key >= 'a' && key <= 'a' + (z_info ? z_info->oath_max : 6) - 1) {
+            /* Map letter selection to actual oath index */
+            int display_pos = key - 'a';
+            int actual_index = 0;
+            int current_pos = 0;
+            
+            /* Find the actual oath index for this display position */
+            for (int i = 0; z_info && i < z_info->oath_max; i++) {
+                /* Skip locked oaths */
+                if (i > 0 && !(available_mask & (1 << (i - 1))) && !oath_banned(i)) {
+                    continue;
+                }
+                
+                if (current_pos == display_pos) {
+                    actual_index = i;
+                    break;
+                }
+                current_pos++;
+            }
+            
+            /* Select if valid */
+            if (actual_index == 0 || ((available_mask & (1 << (actual_index - 1))) && !oath_banned(actual_index))) {
+                choice = actual_index;
+                break;
+            }
+        }
+        
+        /* Arrow key navigation: Up and Down */
+        if (key == '8') {
+            /* Move highlight to previous available or broken oath */
+            int direction = -1;
+            int new_highlight = highlight;
+            
+            do {
+                new_highlight += direction;
+                if (new_highlight < 0) new_highlight = z_info ? z_info->oath_max - 1 : 5;
+                if (new_highlight >= (z_info ? z_info->oath_max : 6)) new_highlight = 0;
+                
+                /* Check if this option should be displayed */
+                if (new_highlight == 0 || 
+                    (available_mask & (1 << (new_highlight - 1))) || 
+                    oath_banned(new_highlight)) {
+                    highlight = new_highlight;
+                    break;
+                }
+            } while (new_highlight != highlight);
+        }
+        
+        if (key == '2') {
+            /* Move highlight to next available or broken oath */
+            int direction = 1;
+            int new_highlight = highlight;
+            
+            do {
+                new_highlight += direction;
+                if (new_highlight < 0) new_highlight = z_info ? z_info->oath_max - 1 : 5;
+                if (new_highlight >= (z_info ? z_info->oath_max : 6)) new_highlight = 0;
+                
+                /* Check if this option should be displayed */
+                if (new_highlight == 0 || 
+                    (available_mask & (1 << (new_highlight - 1))) || 
+                    oath_banned(new_highlight)) {
+                    highlight = new_highlight;
+                    break;
+                }
+            } while (new_highlight != highlight);
+        }
+    }
+    
+    /* Set the chosen oath */
+    p_ptr->oath_type = choice;
+    
+    /* Grant corresponding oath special ability using oath.txt data */
+    if (choice > 0 && choice < z_info->oath_max) 
+    {
+        oath_type *oath_ptr = &oath_info[choice];
+        
+        /* Apply ability reward from A: field in oath.txt */
+        if (oath_ptr->reward_type > 0 && oath_ptr->reward_value > 0)
+        {
+            int skill_category = oath_ptr->reward_type;
+            int ability_id = oath_ptr->reward_value;
+            
+            /* Grant the ability specified in oath.txt */
+            p_ptr->have_ability[skill_category][ability_id] = true;
+            p_ptr->innate_ability[skill_category][ability_id] = true;
+            p_ptr->active_ability[skill_category][ability_id] = true;
+            
+            log_debug("Granted oath %d abilities from data: skill=%d, ability=%d", 
+                      choice, skill_category, ability_id);
+        }
+        else
+        {
+            log_debug("No ability reward found for oath %d", choice);
+        }
+    }
+    
+    if (choice == 0) {
+        log_debug("No oath selected");
+    } else {
+        log_debug("Oath selected: %s (%d)", oath_name_str(choice), choice);
+    }
+    
+    return NAV_OK;
 }
 
 /*
@@ -1699,6 +2187,9 @@ extern NavResult gain_skills(void)
         /* Process skills */
         for (i = 0; i < S_MAX; i++)
         {
+            /* Skip Special abilities skill - not trainable */
+            if (i == S_SPC) continue;
+            
             /* Total cost */
             total_cost += skill_cost(old_base[i], skill_gain[i]);
         }
@@ -1728,6 +2219,9 @@ extern NavResult gain_skills(void)
         /* update the skills */
         for (i = 0; i < S_MAX; i++)
         {
+            /* Skip Special abilities skill - not trainable */
+            if (i == S_SPC) continue;
+            
             p_ptr->skill_base[i] = old_base[i] + skill_gain[i];
         }
 
@@ -1759,6 +2253,9 @@ extern NavResult gain_skills(void)
         /* Display the costs */
         for (i = 0; i < S_MAX; i++)
         {
+            /* Skip Special abilities skill - not trainable */
+            if (i == S_SPC) continue;
+            
             if (i == skill)
             {
                 byte attr = TERM_L_BLUE;
@@ -1805,7 +2302,10 @@ extern NavResult gain_skills(void)
         if (((ch == 'Q') || (ch == 'q')) && (turn == 0)) {
             /* restore state before leaving */
             p_ptr->new_exp = old_new_exp;
-            for (i = 0; i < S_MAX; i++) p_ptr->skill_base[i] = old_base[i];
+            for (i = 0; i < S_MAX; i++) {
+                if (i != S_SPC) /* Don't restore Special abilities skill */
+                    p_ptr->skill_base[i] = old_base[i];
+            }
             skill_gain_in_progress = false;
             return NAV_TO_MAIN;
         }
@@ -1821,8 +2321,10 @@ extern NavResult gain_skills(void)
         if (ch == ESCAPE)
         {
             p_ptr->new_exp = old_new_exp;
-            for (i = 0; i < S_MAX; i++)
-                p_ptr->skill_base[i] = old_base[i];
+            for (i = 0; i < S_MAX; i++) {
+                if (i != S_SPC) /* Don't restore Special abilities skill */
+                    p_ptr->skill_base[i] = old_base[i];
+            }
             result = NAV_BACK;   /* go back to Character Selection */
             break;
         }
@@ -1830,13 +2332,17 @@ extern NavResult gain_skills(void)
         /* Prev skill */
         if (ch == '8')
         {
-            skill = (skill + S_MAX - 1) % S_MAX;
+            do {
+                skill = (skill + S_MAX - 1) % S_MAX;
+            } while (skill == S_SPC); /* Skip Special abilities skill */
         }
 
         /* Next skill */
         if (ch == '2')
         {
-            skill = (skill + 1) % S_MAX;
+            do {
+                skill = (skill + 1) % S_MAX;
+            } while (skill == S_SPC); /* Skip Special abilities skill */
         }
 
         /* Decrease skill */
@@ -1848,7 +2354,10 @@ extern NavResult gain_skills(void)
         /* Increase stat */
         if (ch == '6')
         {
-            skill_gain[skill]++;
+            /* Don't allow increasing Special abilities skill */
+            if (skill != S_SPC) {
+                skill_gain[skill]++;
+            }
         }
     }
 
@@ -1891,6 +2400,12 @@ static NavResult player_birth_aux(void)
     p_ptr->wt = 0;
     p_ptr->ht = 0;
     p_ptr->age = 0;
+
+    /* Oath selection (after character creation, before stats) */
+    log_debug("Entering oath selection");
+    NavResult oath_result = select_oath();
+    if (oath_result != NAV_OK) return oath_result;
+    log_debug("Oath selection completed");
 
     /* Point-based flow */
     for (;;)
@@ -1989,6 +2504,9 @@ NavResult player_birth()
 
     /* Hack -- outfit the player */
     player_outfit();
+
+    /* Load persistent settings from metarun if this is a continuing metarun */
+    metarun_load_persistent_settings();
 
     log_info("Character creation completed: %s the %s", op_ptr->full_name, p_name + rp_ptr->name);
 
