@@ -11,6 +11,30 @@
 #include "angband.h"
 
 /*
+ * Main combat rolls startup deferral state
+ * original_main_combat_rolls: saved non-zero configured value at game start
+ * main_combat_rolls_deferral_active: true while we have temporarily forced 0
+ * main_combat_rolls_restored: becomes true once we restore the original value
+ */
+static int  original_main_combat_rolls = -1;
+static bool main_combat_rolls_deferral_active = false;
+static bool main_combat_rolls_restored = false;
+
+/* Helper invoked from any combat roll updater to restore deferred value */
+static void maybe_restore_main_combat_rolls(void)
+{
+    if (main_combat_rolls_deferral_active && !main_combat_rolls_restored) {
+        if (op_ptr->main_combat_rolls == 0 && original_main_combat_rolls > 0) {
+            op_ptr->main_combat_rolls = original_main_combat_rolls;
+            main_combat_rolls_restored = true;
+            main_combat_rolls_deferral_active = false;
+            p_ptr->redraw |= (PR_MAP); /* recompute SCREEN_HGT */
+            log_trace("maybe_restore_main_combat_rolls: restored to %d", op_ptr->main_combat_rolls);
+        }
+    }
+}
+
+/*
  * Critical hits by monsters can inflict cuts and stuns.
  *
  * The chance is greater for WOUND and BATTER attacks
@@ -2742,6 +2766,8 @@ void update_combat_rolls1(const monster_type* m_ptr1,
     const monster_type* m_ptr2, bool vis, int att, int att_roll, int evn,
     int evn_roll)
 {
+    /* Ensure we restore deferred main_combat_rolls before recording first roll */
+    maybe_restore_main_combat_rolls();
     monster_race* r_ptr1;
     monster_race* r_ptr2;
 
@@ -2865,6 +2891,8 @@ void update_combat_rolls1(const monster_type* m_ptr1,
 void update_combat_rolls1b(
     const monster_type* m_ptr1, const monster_type* m_ptr2, bool vis)
 {
+    /* Ensure we restore deferred main_combat_rolls before recording first roll */
+    maybe_restore_main_combat_rolls();
     monster_race* r_ptr1;
     monster_race* r_ptr2;
 
@@ -2967,6 +2995,8 @@ void update_combat_rolls1b(
 void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps, int prot,
     int prt_percent, int dam_type, bool melee)
 {
+    /* Ensure we restore deferred main_combat_rolls before completing roll */
+    maybe_restore_main_combat_rolls();
     log_trace("[ROLL2] enter: combat_number=%d old=%d last_index=%d", combat_number, combat_number_old, combat_number - 1);
     if (combat_number - 1 < MAX_COMBAT_ROLLS)
     {
@@ -3431,6 +3461,20 @@ void display_combat_rolls(void)
 }
 
 /*
+ * Clear all 4 combat rolls lines in main terminal (used when settings change)
+ */
+void clear_main_combat_rolls_area(void)
+{
+    int i;
+    const int col_offset = COL_MAP; /* align with display offset */
+    /* Clear all 4 possible lines (one row up from bottom to avoid status line) */
+    for (i = 0; i < 4; i++)
+    {
+        Term_putstr(col_offset, Term->hgt - 4 - 1 + i, 65, TERM_WHITE, "                                                                 ");
+    }
+}
+
+/*
  * Display recent combat rolls in the main terminal's bottom rows
  */
 void display_main_combat_rolls(void)
@@ -3450,14 +3494,28 @@ void display_main_combat_rolls(void)
     int num_lines = op_ptr->main_combat_rolls;
     bool is_player_attack;
     int res = 1;
+    /* One-time deferral initialization: if we have never saved the original value
+       and it is >0, stash and zero it so we start with full map height. */
+    if (original_main_combat_rolls == -1) {
+        original_main_combat_rolls = num_lines; /* could be 0 */
+        if (original_main_combat_rolls > 0) {
+            op_ptr->main_combat_rolls = 0;
+            num_lines = 0;
+            main_combat_rolls_deferral_active = true;
+            log_trace("display_main_combat_rolls: deferring initial lines (saved %d)", original_main_combat_rolls);
+        }
+    }
     
     log_trace("display_main_combat_rolls: Starting - combat_number=%d, combat_number_old=%d, num_lines=%d", 
               combat_number, combat_number_old, num_lines);
     
-    /* Clear the actual lines that will be used for display (from bottom) */
+    /* Column offset: start just after the left-side info box (COL_MAP) */
+    const int col_offset = COL_MAP; /* defined in defines.h (currently 13) */
+
+    /* Clear the actual lines that will be used for display (from bottom - one row up to avoid status line) */
     for (i = 0; i < num_lines; i++)
     {
-        Term_erase(0, Term->hgt - num_lines + i, 65);
+        Term_putstr(col_offset, Term->hgt - num_lines - 1 + i, 65, TERM_WHITE, "                                                                 ");
     }
     
     /* Do nothing more if combat rolls are disabled */
@@ -3466,8 +3524,8 @@ void display_main_combat_rolls(void)
     /* Show nothing if no recent combat in either round */
     if (combat_number == 0 && combat_number_old == 0) return;
     
-    /* Calculate where to start displaying */
-    start_row = Term->hgt - num_lines;
+    /* Calculate where to start displaying (one row up from bottom to avoid status line) */
+    start_row = Term->hgt - num_lines - 1;
     
     /* Collect all attacks with newest first (to show most recent at the top) */
     int total_entries = 0;
@@ -3573,7 +3631,7 @@ void display_main_combat_rolls(void)
         }
         
         /* Display exactly like Combat Rolls window */
-        Term_putstr(0, display_row, 1, TERM_WHITE, " ");
+    Term_putstr(col_offset, display_row, 1, TERM_WHITE, " ");
         Term_addch(combat_rolls[round][i].attacker_attr, combat_rolls[round][i].attacker_char);
         
         /* Attack roll display */

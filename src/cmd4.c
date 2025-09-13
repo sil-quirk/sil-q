@@ -7928,7 +7928,8 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->main_combat_rolls + 1
                         : 4;
                     
-                    /* Refresh main terminal display when option changes */
+                    /* Clear all 4 lines and refresh display when option changes */
+                    clear_main_combat_rolls_area();
                     display_main_combat_rolls();
                     p_ptr->redraw |= (PR_MAP);
                 }
@@ -7963,7 +7964,8 @@ extern void do_cmd_options_aux(int page, cptr info)
                         ? op_ptr->main_combat_rolls - 1
                         : 0;
                     
-                    /* Refresh main terminal display when option changes */
+                    /* Clear all 4 lines and refresh display when option changes */
+                    clear_main_combat_rolls_area();
                     display_main_combat_rolls();
                     p_ptr->redraw |= (PR_MAP);
                 }

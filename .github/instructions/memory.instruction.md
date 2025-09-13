@@ -65,6 +65,48 @@ m (+15) 28  5   23 [-5] @ -> (2d6) 12  6  0  (monster blocked attack)
 
 **COMBAT ROLLS FEATURE: PRODUCTION READY AND COMPLETE** 🎉
 
+## LATEST: Combat Logs Display Improvements - September 14, 2025
+**STATUS**: ✅ **COMPLETED**
+**Issue**: Two problems with combat logs main terminal display:
+1. Writes on the very bottom screen (status screen area) - needs to be one row up
+2. Clears one more string than used for combat rolls causing unwanted behavior
+
+**✅ SOLUTION IMPLEMENTED**: 
+- **Position Fixed**: Changed display position to avoid status screen conflict (moved one row up from bottom)
+- **Clearing Fixed**: Replaced all `Term_erase()` calls with `Term_putstr()` using 65 spaces for clearing
+- **Simplified Logic**: Removed complex clearing logic to ensure only used strings are visible
+- **Settings Change**: Added `clear_main_combat_rolls_area()` function that clears all 4 lines when combat rolls setting changes
+
+**Technical Changes Applied**:
+- **Position Fix**: Changed `start_row = Term->hgt - num_lines - 1` (one row up from bottom)
+- **Clearing Fix**: Replaced `Term_erase(0, Term->hgt - num_lines + i, 65)` with `Term_putstr(0, Term->hgt - num_lines - 1 + i, 65, TERM_WHITE, "                                                                 ")`
+- **New Function**: Added `clear_main_combat_rolls_area()` function that clears all 4 possible lines when settings change
+- **Settings Integration**: Updated both increase/decrease cases in `cmd4.c` to call `clear_main_combat_rolls_area()` before `display_main_combat_rolls()`
+- **Function Declaration**: Added function declaration in `externs.h`
+
+**Files Modified**:
+- ✅ `src/melee1.c` - Main display function `display_main_combat_rolls()` and new clearing function
+- ✅ `src/cmd4.c` - Settings change handlers to clear all lines before redraw  
+- ✅ `src/externs.h` - Function declaration for new clearing function
+
+**Result**: Combat logs now display correctly one row up from the bottom (avoiding status line conflict), use simple space-based clearing approach, and properly clear all lines when settings change to prevent display artifacts.
+
+**COMBAT LOGS DISPLAY: FULLY FIXED AND OPTIMIZED** 🎉
+
+### New Preference (September 14, 2025)
+User wants:
+1. Always clear exactly 65 character width (no wider) for combat roll lines.
+2. Combat roll strings in main terminal must start immediately after the left info panel (using `COL_MAP` = 13 as horizontal offset).
+3. Game should start with `main_combat_rolls` treated as 0 so the full map shows initially; original configured value restored automatically just before the first combat roll is displayed.
+
+Implementation Notes:
+- Added startup hack in `display_main_combat_rolls()` that caches the original `op_ptr->main_combat_rolls`, sets it to 0, and restores it when combat data exists.
+- All clearing and output for main combat rolls now use `col_offset = COL_MAP` and width 65 via `Term_putstr(col_offset, row, 65, ...)`.
+- `clear_main_combat_rolls_area()` also uses the offset and width 65 for consistency.
+- Map redraw (`PR_MAP`) forced when restoring original value so `SCREEN_HGT` recalculates cleanly.
+
+Status: ✅ Implemented.
+
 ## LATEST: Combat Rolls Order Fix - Root Cause Found (September 11, 2025)
 **STATUS**: ✅ **ROOT CAUSE IDENTIFIED AND FIXED**
 **Issue**: Main terminal and Combat Rolls window showed attacks in different order despite having same data
