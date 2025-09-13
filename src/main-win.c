@@ -2992,6 +2992,8 @@ static bool enter_fullscreen(term_data* td)
     int i;
     HMONITOR hmon;
     MONITORINFO mi = { sizeof(mi) };
+    /* Track if any subwindow was previously topmost (rare) so we can restore. */
+    bool any_prev_topmost = false;
     
     if (td->fullscreen) 
     {
@@ -3068,7 +3070,7 @@ static bool enter_fullscreen(term_data* td)
                 data[i].saved_ex_style = WS_EX_WINDOWEDGE;
             }
             
-            /* Position as overlay - use HWND_TOPMOST to ensure they stay on top */
+            /* Position as overlay - use HWND_TOPMOST to ensure they stay on top during fullscreen */
             if (!SetWindowPos(data[i].w, HWND_TOPMOST, x, y, 0, 0,
                              SWP_NOSIZE | SWP_SHOWWINDOW))
             {
@@ -3153,7 +3155,12 @@ static bool exit_fullscreen(term_data* td)
     
     for (i = 1; i < MAX_TERM_DATA; i++)
     {
-        /* Just clear fullscreen flag - don't touch the windows at all */
+        if (data[i].w && IsWindow(data[i].w)) {
+            /* Ensure subwindows are no longer always-on-top once leaving fullscreen */
+            /* Use SWP_NOMOVE/NOSIZE to only affect z-order & show state */
+            SetWindowPos(data[i].w, HWND_NOTOPMOST, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
         data[i].fullscreen = false;
     }
     
@@ -3167,6 +3174,15 @@ static bool exit_fullscreen(term_data* td)
     
     /* Now that we're safely out of fullscreen, restore sub-window styles */
     set_subwindow_style(subwindow_style);
+
+    /* As an additional safety, reassert standard z-order (non-topmost) for subwindows a second time
+       after style changes which sometimes implicitly raise z-order on certain Windows versions. */
+    for (i = 1; i < MAX_TERM_DATA; i++) {
+        if (data[i].w && IsWindow(data[i].w)) {
+            SetWindowPos(data[i].w, HWND_NOTOPMOST, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
+    }
     
     if (errors > 0)
     {
