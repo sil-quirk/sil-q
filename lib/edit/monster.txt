@@ -419,7 +419,7 @@ D: Dried blood encrusts a noble face. His eyes are fixed on you.
 
 # Can't move from idx 18 for dungeon generation reasons
 N:18:Tulkas Unclad
-W:1:1
+W:1:10000
 G:V:v
 I:2:20d4:0
 A:0:0:0:15
@@ -431,7 +431,7 @@ D: courage and valor, and he seems eager to speak with you.
 
 # Can't move from idx 19 for quest logic (Aulë forge quest giver)
 N:19:Aule the Smith
-W:5:1
+W:5:10000
 G:V:u
 I:2:24d4:0
 A:0:0:0:18
@@ -443,7 +443,7 @@ D: whose fires await a work worthy of his approval.
 
 # Can't move from idx 20 for quest logic (Mandos clearing quest giver)
 N:20:Mandos the Doomsman
-W:8:1
+W:8:10000
 G:V:D
 I:2:28d4:0
 A:0:0:0:20
@@ -2426,7 +2426,7 @@ D: seeking from Angband to escape.
 
 # Niena quest giver - Mercy quest on maximum-size levels
 N:260:Niena, Lady of Pity  
-W:6:1
+W:6:10000
 G:V:v1
 I:2:26d4:0
 A:0:0:0:19

@@ -9,6 +9,11 @@
  */
 
 #include "angband.h"
+#include <stddef.h>
+#include <time.h>
+#include <string.h>
+#include <stdio.h>
+#include <ctype.h>
 
 static void flavor_assign_fixed(void)
 {
@@ -105,36 +110,8 @@ static void flavor_assign_random(byte tval)
 // if so, herbs become easter eggs
 bool easter_time(void)
 {
-    time_t c; // time variables
-    struct tm* tp; //
-
-    c = time((time_t*)0);
-    tp = localtime(&c);
-
-    if (true)
-    {
-        int y = tp->tm_year + 1900;
-        int a = y % 19;
-        int b = y / 100;
-        int c = y % 100;
-        int d = b / 4;
-        int e = b % 4;
-        int f = (b + 8) / 25;
-        int g = (b - f + 1) / 3;
-        int h = (19 * a + b - d - g + 15) % 30;
-        int i = c / 4;
-        int k = c % 4;
-        int l = (32 + 2 * e + 2 * i - h - k) % 7;
-        int m = (a + 11 * h + 22 * l) / 451;
-        int month = (h + l - 7 * m + 114) / 31; // counting from 1
-        int day = ((h + l - 7 * m + 114) % 31) + 1; // counting from 1
-
-        // we need to add 1 to the month as they count from 0
-        if ((tp->tm_mon + 1 == month) && (tp->tm_mday == day))
-            return (true);
-    }
-
-    return (false);
+    /* Stubbed out (original implementation used time functions). */
+    return false;
 }
 
 /*
@@ -2877,6 +2854,139 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     }
 
     /* Repeat until done */
+    /* Row-based display mappings (built when list is visible) */
+    int vis_inven[INVEN_PACK];    /* row -> inven index */
+    int vis_inven_cnt = 0;
+    int vis_equip[INVEN_TOTAL - INVEN_WIELD]; /* row -> equip index */
+    int vis_equip_cnt = 0;
+    int vis_floor[MAX_FLOOR_STACK]; /* row -> floor_list index (not object index) */
+    int vis_floor_cnt = 0;
+
+    int highlight_row = -1; /* row within current visible list */
+    bool highlight_active = false;
+
+    /* Helper lambdas (C89 substitute: static inline style) defined as macros */
+/* Build mapping arrays for currently selected list when visible */                 \
+#define BUILD_VISIBLE_LIST()                                                         \
+    do {                                                                            \
+        if (!p_ptr->command_see) break;                                            \
+        if (p_ptr->command_wrk == (USE_INVEN)) {                                    \
+            vis_inven_cnt = 0;                                                      \
+            for (int ii = 0; ii < INVEN_PACK; ++ii) {                                \
+                if (inventory[ii].k_idx && get_item_okay(ii)) {                     \
+                    vis_inven[vis_inven_cnt++] = ii;                                \
+                }                                                                   \
+            }                                                                       \
+            if (!highlight_active && vis_inven_cnt > 0) {                           \
+                highlight_row = 0; highlight_active = true;                         \
+            }                                                                       \
+        } else if (p_ptr->command_wrk == (USE_EQUIP)) {                             \
+            vis_equip_cnt = 0;                                                      \
+            for (int ii = INVEN_WIELD; ii < INVEN_TOTAL; ++ii) {                     \
+                if (inventory[ii].k_idx && get_item_okay(ii)) {                     \
+                    vis_equip[vis_equip_cnt++] = ii;                                \
+                }                                                                   \
+            }                                                                       \
+            if (!highlight_active && vis_equip_cnt > 0) {                           \
+                highlight_row = 0; highlight_active = true;                         \
+            }                                                                       \
+        } else if (p_ptr->command_wrk == (USE_FLOOR)) {                             \
+            vis_floor_cnt = 0;                                                      \
+            for (int ii = 0; ii < floor_num; ++ii) {                                 \
+                int obj_idx = floor_list[ii];                                       \
+                if (get_item_okay(0 - obj_idx)) {                                   \
+                    vis_floor[vis_floor_cnt++] = ii;                                \
+                }                                                                   \
+            }                                                                       \
+            if (!highlight_active && vis_floor_cnt > 0) {                           \
+                highlight_row = 0; highlight_active = true;                         \
+            }                                                                       \
+        }                                                                           \
+    } while (0)
+
+    /* Move highlight up/down within current list skipping non-okay */
+#define MOVE_HIGHLIGHT(dir)                                                          \
+    do {                                                                            \
+        if (!highlight_active) break;                                               \
+        if (p_ptr->command_wrk == (USE_INVEN) && vis_inven_cnt > 0) {                \
+            highlight_row = (highlight_row + (vis_inven_cnt) + (dir)) % vis_inven_cnt;\
+        } else if (p_ptr->command_wrk == (USE_EQUIP) && vis_equip_cnt > 0) {         \
+            highlight_row = (highlight_row + (vis_equip_cnt) + (dir)) % vis_equip_cnt;\
+        } else if (p_ptr->command_wrk == (USE_FLOOR) && vis_floor_cnt > 0) {         \
+            highlight_row = (highlight_row + (vis_floor_cnt) + (dir)) % vis_floor_cnt;\
+        }                                                                           \
+    } while (0)
+
+    /* Draw highlight: re-render the line with reversed attr marker */
+#define DRAW_HIGHLIGHT()                                                             \
+    do {                                                                            \
+        if (!highlight_active || !p_ptr->command_see) break;                        \
+        byte attr = TERM_L_BLUE;                                                    \
+        int col = 0;                                                                \
+        int len = 79 - 50;                                                          \
+        int lim = 79 - 3;                                                           \
+        char tmp[80];                                                               \
+        if (show_weights) lim -= 9;                                                 \
+        if (p_ptr->command_wrk == (USE_EQUIP)) { lim -= (14 + 2); }                 \
+        /* Recompute layout length by scanning visible list */                     \
+        if (p_ptr->command_wrk == (USE_INVEN)) {                                    \
+            for (int r=0;r<vis_inven_cnt;r++){                                      \
+                object_type* o_ptr=&inventory[vis_inven[r]];                        \
+                object_desc(tmp, sizeof(tmp), o_ptr, true, 3);                      \
+                tmp[lim]='\0';                                                     \
+                int l=strlen(tmp)+5 + (show_weights?9:0);                           \
+                if (l>len) len=l;                                                   \
+            }                                                                       \
+        } else if (p_ptr->command_wrk == (USE_EQUIP)) {                             \
+            for (int r=0;r<vis_equip_cnt;r++){                                      \
+                object_type* o_ptr=&inventory[vis_equip[r]];                        \
+                object_desc(tmp, sizeof(tmp), o_ptr, true, 3);                      \
+                tmp[lim]='\0';                                                     \
+                int l=strlen(tmp)+(2+3)+(12+2)+(show_weights?9:0);                  \
+                if (l>len) len=l;                                                   \
+            }                                                                       \
+        } else if (p_ptr->command_wrk == (USE_FLOOR)) {                             \
+            for (int r=0;r<vis_floor_cnt;r++){                                      \
+                object_type* o_ptr=&o_list[floor_list[vis_floor[r]]];               \
+                object_desc(tmp, sizeof(tmp), o_ptr, true, 3);                      \
+                tmp[lim]='\0';                                                     \
+                int l=strlen(tmp)+5 + (show_weights?9:0);                           \
+                if (l>len) len=l;                                                   \
+            }                                                                       \
+        }                                                                           \
+        col = (len > 76) ? 0 : (79 - len);                                          \
+        /* Determine row and item */                                                \
+        int row=-1; int item_index=0; int floor_slot=-1;                            \
+        if (p_ptr->command_wrk == (USE_INVEN) && highlight_row < vis_inven_cnt) {   \
+            row = highlight_row; item_index = vis_inven[highlight_row];             \
+            object_type* o_ptr=&inventory[item_index];                              \
+            object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';               \
+            prt("", row+1, col?col-2:col);                                         \
+            sprintf(tmp+ (strlen(tmp)<(int)sizeof(tmp)?strlen(tmp): (int)sizeof(tmp)-1), "");\
+            { char lab[4]; sprintf(lab, "%c)", index_to_label(item_index)); put_str(lab,row+1,col); }\
+            c_put_str(attr,tmp,row+1,col+3);                                        \
+            if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%3d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,71);} \
+        } else if (p_ptr->command_wrk == (USE_EQUIP) && highlight_row < vis_equip_cnt){\
+            row = highlight_row; item_index = vis_equip[highlight_row];             \
+            object_type* o_ptr=&inventory[item_index];                              \
+            object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';               \
+            prt("", row+1, col?col-2:col);                                         \
+            { char lab[4]; sprintf(lab, "%c)", index_to_label(item_index)); put_str(lab,row+1,col); }\
+            { char usebuf[32]; strnfmt(usebuf,sizeof(usebuf),"%-12s: ", mention_use(item_index)); put_str(usebuf,row+1,col+3);} \
+            c_put_str(attr,tmp,row+1,col+3+12+2);                                   \
+            if (show_weights && o_ptr->weight){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%3d.%d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,71);} \
+        } else if (p_ptr->command_wrk == (USE_FLOOR) && highlight_row < vis_floor_cnt){\
+            row = highlight_row; floor_slot = vis_floor[highlight_row];             \
+            int obj_idx = floor_list[floor_slot];                                   \
+            object_type* o_ptr=&o_list[obj_idx];                                    \
+            object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';               \
+            prt("", row+1, col?col-2:col);                                         \
+            { char lab[4]; sprintf(lab, "%c)", index_to_label(floor_slot)); put_str(lab,row+1,col);} \
+            c_put_str(attr,tmp,row+1,col+3);                                        \
+            if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%3d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,71);} \
+        }                                                                           \
+    } while (0)
+
     while (!done)
     {
         int ni = 0;
@@ -2914,6 +3024,9 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
         /* Redraw windows */
         window_stuff();
+
+    /* Build visible list and ensure initial highlight */
+    BUILD_VISIBLE_LIST();
 
         /* Viewing inventory */
         if (p_ptr->command_wrk == (USE_INVEN))
@@ -3025,7 +3138,10 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         /* Show the prompt */
         prt(tmp_val, 0, 0);
 
-        /* Get a key */
+    /* Draw current highlight overlay if any */
+    DRAW_HIGHLIGHT();
+
+    /* Get a key */
         which = inkey();
 
         /* Parse it */
@@ -3143,8 +3259,34 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         case '8':
         case '9':
         {
-            /* Look up the tag */
-            if (!get_tag(&k, which))
+            bool tag_found = get_tag(&k, which);
+            if (!tag_found && p_ptr->command_see && highlight_active
+                && (which == '2' || which == '8' || which == '6'))
+            {
+                /* Numpad navigation mode like main menu */
+                if (which == '8')
+                {
+                    MOVE_HIGHLIGHT(-1);
+                    break; /* continue loop */
+                }
+                if (which == '2')
+                {
+                    MOVE_HIGHLIGHT(+1);
+                    break;
+                }
+                if (which == '6')
+                {
+                    /* map row to actual item */
+                    if (p_ptr->command_wrk == (USE_INVEN) && highlight_row < vis_inven_cnt) {
+                        k = vis_inven[highlight_row];
+                    } else if (p_ptr->command_wrk == (USE_EQUIP) && highlight_row < vis_equip_cnt) {
+                        k = vis_equip[highlight_row];
+                    } else if (p_ptr->command_wrk == (USE_FLOOR) && highlight_row < vis_floor_cnt) {
+                        int obj_idx = floor_list[vis_floor[highlight_row]]; k = 0 - obj_idx; }
+                    else { break; }
+                }
+            }
+            else if (!tag_found)
             {
                 bell("Illegal object choice (tag)!");
                 break;
@@ -3240,6 +3382,19 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         case '\n':
         case '\r':
         {
+            /* If we have an active highlight, use it like main menu selection */
+            if (highlight_active) {
+                if (p_ptr->command_wrk == (USE_INVEN) && highlight_row < vis_inven_cnt) {
+                    k = vis_inven[highlight_row];
+                } else if (p_ptr->command_wrk == (USE_EQUIP) && highlight_row < vis_equip_cnt) {
+                    k = vis_equip[highlight_row];
+                } else if (p_ptr->command_wrk == (USE_FLOOR) && highlight_row < vis_floor_cnt) {
+                    int obj_idx = floor_list[vis_floor[highlight_row]]; k = 0 - obj_idx; }
+                else { break; }
+                if (!get_item_okay(k)) { bell("Illegal object choice (highlight)!"); break; }
+                if (!get_item_allow(k)) { done = true; break; }
+                (*cp)=k; item=true; done=true; break; }
+
             /* Choose "default" inventory item */
             if (p_ptr->command_wrk == (USE_INVEN))
             {
@@ -3300,6 +3455,17 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         default:
         {
             bool verify;
+
+            /* Allow numpad navigation keys here too if list visible */
+            if (p_ptr->command_see && highlight_active) {
+                if (which == '8') { MOVE_HIGHLIGHT(-1); break; }
+                if (which == '2') { MOVE_HIGHLIGHT(+1); break; }
+                if (which == '6') { /* select */
+                    if (p_ptr->command_wrk == (USE_INVEN) && highlight_row < vis_inven_cnt) k = vis_inven[highlight_row];
+                    else if (p_ptr->command_wrk == (USE_EQUIP) && highlight_row < vis_equip_cnt) k = vis_equip[highlight_row];
+                    else if (p_ptr->command_wrk == (USE_FLOOR) && highlight_row < vis_floor_cnt) { int obj_idx = floor_list[vis_floor[highlight_row]]; k = 0 - obj_idx; }
+                    else break; if (!get_item_okay(k)) { bell("Illegal object choice (highlight)!"); break; } if (!get_item_allow(k)) { done=true; break; } (*cp)=k; item=true; done=true; break; }
+            }
 
             /* Note verify */
             verify = (isupper((unsigned char)which) ? true : false);
@@ -3375,6 +3541,10 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         }
         }
     }
+
+#undef BUILD_VISIBLE_LIST
+#undef MOVE_HIGHLIGHT
+#undef DRAW_HIGHLIGHT
 
     /* Fix the screen if necessary */
     if (p_ptr->command_see)

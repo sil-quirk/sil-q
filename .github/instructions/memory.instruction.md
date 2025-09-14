@@ -93,6 +93,14 @@ m (+15) 28  5   23 [-5] @ -> (2d6) 12  6  0  (monster blocked attack)
 
 **COMBAT LOGS DISPLAY: FULLY FIXED AND OPTIMIZED** 🎉
 
+### Inventory / Equipment Numpad Navigation Highlight Preference (September 14, 2025)
+The user expects the highlight for numpad-driven browsing in the item selection UI (triggered via '*' or '/' during commands) to line up exactly with the dynamically computed left column used by `show_inven()` / `show_equip()`. The first implementation highlighted starting at fixed columns (0 / 5) causing visual misalignment (see screenshot). Future adjustments must:
+1. Use the same `col` value calculated inside the respective show functions when re-drawing a highlighted line.
+2. Repaint the full line region (index, label, description, and weight) rather than only the description start.
+3. Avoid overwriting adjacent UI (prompt line at row 0 and other side panels).
+4. Prefer using existing color attributes plus a distinct highlight attribute (e.g., TERM_L_BLUE or inverse) without shifting horizontal placement.
+Persist this requirement for future UI refinement.
+
 ### New Preference (September 14, 2025)
 User wants:
 1. Always clear exactly 65 character width (no wider) for combat roll lines.

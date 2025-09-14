@@ -783,6 +783,9 @@ void do_cmd_change_song()
                     
                     /* Apply oath breaking consequences */
                     apply_oath_breaking_curse(OATH_SILENCE);
+                    
+                    /* Only mark oath as broken if player actually has it */
+                    p_ptr->oaths_broken |= OATH_SILENCE_FLAG;
                 }
                 else
                 {
@@ -790,8 +793,6 @@ void do_cmd_change_song()
                     return;
                 }
             }
-
-            p_ptr->oaths_broken |= OATH_SILENCE_FLAG;
         }
 
         log_info("Player changed song to %s", song_choice == SNG_NOTHING ? "silence" : 
