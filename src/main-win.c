@@ -121,10 +121,6 @@
 #define IDM_OPTIONS_SUBWIN_STYLE_2 432
 #define IDM_OPTIONS_TOGGLE_MENU 433
 
-#define IDM_PROFILE_SAVE 440
-#define IDM_PROFILE_LOAD 441
-#define IDM_PROFILE_SAVEAS 442
-
 /*
  * This may need to be removed for some compilers XXX XXX XXX
  */
@@ -454,9 +450,19 @@ static int subwindow_style = 0;
 static bool fullscreen_transition_in_progress = false;
 
 /*
+ * Flag to prevent WM_CLOSE handling during subwindow visibility operations
+ */
+static bool subwindow_operation_in_progress = false;
+
+/*
  * Additional protection against multiple rapid fullscreen toggles
  */
 static DWORD last_fullscreen_transition_time = 0;
+
+/*
+ * Track if user toggled fullscreen preference during this session
+ */
+static bool fullscreen_mode_toggled_this_session = false;
 
 /*
  * Name of application
@@ -1044,6 +1050,8 @@ static void load_prefs(void)
     /* Extract the subwindow style for fullscreen mode */
     subwindow_style = GetPrivateProfileInt("Angband", "SubwindowStyle", 0, ini_file);
 
+    /* Extract the fullscreen startup preference */
+    /* If preference exists in file, use it; otherwise initialize to SAME as current mode */
     /* Extract the "arg_fiddle" flag */
     arg_fiddle = (GetPrivateProfileInt("Angband", "Fiddle", 0, ini_file) != 0);
 
@@ -1084,157 +1092,104 @@ static void load_prefs(void)
 }
 
 /*
- * Save current preferences to a specific profile file
+ * Load preferences from a specific ini file
  */
-static void save_profile(cptr profile_path)
+static void load_specific_profile(cptr profile_path)
 {
     cptr old_ini_file = ini_file;
     
-    /* Temporarily switch to the profile file */
+    /* Temporarily change ini_file to target profile */
     ini_file = profile_path;
     
-    /* Save preferences using existing function */
-    save_prefs();
-    
-    /* Restore original ini file */
-    ini_file = old_ini_file;
-}
-
-/*
- * Load preferences from a specific profile file
- */
-static void load_profile(cptr profile_path)
-{
-    cptr old_ini_file = ini_file;
-    bool was_fullscreen;
-    
-    /* Safety check */
-    if (!profile_path || !data[0].w) {
-        plog("Error: Invalid profile path or window not initialized");
-        return;
-    }
-    
-    was_fullscreen = data[0].fullscreen;
-    
-    /* Temporarily switch to the profile file */
-    ini_file = profile_path;
-    
-    /* Load preferences using existing function */
+    /* Load the profile */
     load_prefs();
     
-    /* Restore original ini file */
+    /* Restore original ini_file */
+    ini_file = old_ini_file;
+}
+
+/*
+ * Save current settings to both main sil.ini and mode-specific backup file
+ * NEW LOGIC: Save current layout to appropriate mode file, then copy chosen profile to sil.ini
+ */
+static void save_dual_profile(void)
+{
+    char backup_path[1024];
+    char source_path[1024];
+    char ini_dir[1024];
+    cptr old_ini_file = ini_file;
+    FILE *source, *dest;
+    char buffer[1024];
+    
+    /* Extract directory from current ini_file */
+    strcpy(ini_dir, ini_file);
+    for (int i = strlen(ini_dir) - 1; i >= 0; i--) {
+        if (ini_dir[i] == '\\') {
+            ini_dir[i + 1] = '\0';
+            break;
+        }
+    }
+    
+    /* Step 1: Save current layout to appropriate mode-specific file */
+    if (data[0].fullscreen) {
+        sprintf(backup_path, "%ssilF.ini", ini_dir);
+    } else {
+        sprintf(backup_path, "%ssilW.ini", ini_dir);
+    }
+    
+    /* Save current settings to mode-specific file */
+    ini_file = backup_path;
+    save_prefs();
     ini_file = old_ini_file;
     
-    /* Apply fullscreen state changes if needed */
-    if (data[0].w && IsWindow(data[0].w)) {
-        /* Window exists and is valid - handle state changes */
-        if (data[0].fullscreen && !was_fullscreen) {
-            /* Need to enter fullscreen mode */
-            if (enter_fullscreen(&data[0])) {
-                /* Apply subwindow style only if fullscreen was successful */
-                set_subwindow_fullscreen_style(subwindow_style);
+    /* Step 2: Copy chosen profile to sil.ini based on toggle state */
+    if (fullscreen_mode_toggled_this_session) {
+        /* User toggled - copy the OPPOSITE mode profile */
+        if (data[0].fullscreen) {
+            sprintf(source_path, "%ssilW.ini", ini_dir);  /* Currently fullscreen, switch to windowed */
+        } else {
+            sprintf(source_path, "%ssilF.ini", ini_dir);  /* Currently windowed, switch to fullscreen */
+        }
+    } else {
+        /* User didn't toggle - copy the SAME mode profile */
+        if (data[0].fullscreen) {
+            sprintf(source_path, "%ssilF.ini", ini_dir);  /* Stay fullscreen */
+        } else {
+            sprintf(source_path, "%ssilW.ini", ini_dir);  /* Stay windowed */
+        }
+    }
+    
+    /* Copy chosen profile to sil.ini */
+    source = fopen(source_path, "r");
+    if (source) {
+        dest = fopen(ini_file, "w");
+        if (dest) {
+            while (fgets(buffer, sizeof(buffer), source)) {
+                fputs(buffer, dest);
             }
-        } else if (!data[0].fullscreen && was_fullscreen) {
-            /* Need to exit fullscreen mode */
-            exit_fullscreen(&data[0]);
-        } else if (data[0].fullscreen && was_fullscreen) {
-            /* Already in fullscreen - just update subwindow style */
-            set_subwindow_fullscreen_style(subwindow_style);
+            fclose(dest);
+        }
+        fclose(source);
+    } else {
+        /* If chosen profile doesn't exist, create it based on current settings */
+        if (fullscreen_mode_toggled_this_session) {
+            /* User toggled but opposite profile doesn't exist - create it */
+            bool target_fullscreen = !data[0].fullscreen;  /* Opposite of current mode */
+            
+            /* Temporarily set fullscreen state to target mode */
+            bool original_fullscreen = data[0].fullscreen;
+            data[0].fullscreen = target_fullscreen;
+            
+            /* Save with the target fullscreen state */
+            save_prefs();
+            
+            /* Restore original state */
+            data[0].fullscreen = original_fullscreen;
+        } else {
+            /* User didn't toggle - just save current settings normally */
+            save_prefs();
         }
     }
-    /* If window doesn't exist yet, changes will be applied during initialization */
-}
-
-/*
- * Show profile save dialog and save current profile
- */
-static void profile_save_as(void)
-{
-    OPENFILENAME ofn;
-    char profile_path[1024];
-    char profile_dir[1024];
-    
-    /* Get the directory where the main ini file is located */
-    strcpy(profile_dir, ini_file);
-    for (int i = strlen(profile_dir) - 1; i >= 0; i--) {
-        if (profile_dir[i] == '\\') {
-            profile_dir[i] = '\0';
-            break;
-        }
-    }
-    
-    /* Initialize file dialog */
-    profile_path[0] = '\0';
-    memset(&ofn, 0, sizeof(ofn));
-    ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = data[0].w;
-    ofn.lpstrFilter = "Profile Files (*.ini)\0*.ini\0All Files (*.*)\0*.*\0";
-    ofn.nFilterIndex = 1;
-    ofn.lpstrFile = profile_path;
-    ofn.nMaxFile = sizeof(profile_path);
-    ofn.lpstrInitialDir = profile_dir;
-    ofn.lpstrTitle = "Save Profile As";
-    ofn.Flags = OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR;
-    ofn.lpstrDefExt = "ini";
-    
-    if (GetSaveFileName(&ofn)) {
-        save_profile(profile_path);
-        plog("Profile saved successfully.");
-    }
-}
-
-/*
- * Show profile load dialog and load selected profile
- */
-static void profile_load(void)
-{
-    OPENFILENAME ofn;
-    char profile_path[1024];
-    char profile_dir[1024];
-    
-    /* Get the directory where the main ini file is located */
-    strcpy(profile_dir, ini_file);
-    for (int i = strlen(profile_dir) - 1; i >= 0; i--) {
-        if (profile_dir[i] == '\\') {
-            profile_dir[i] = '\0';
-            break;
-        }
-    }
-    
-    /* Initialize file dialog */
-    profile_path[0] = '\0';
-    memset(&ofn, 0, sizeof(ofn));
-    ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = data[0].w;
-    ofn.lpstrFilter = "Profile Files (*.ini)\0*.ini\0All Files (*.*)\0*.*\0";
-    ofn.nFilterIndex = 1;
-    ofn.lpstrFile = profile_path;
-    ofn.nMaxFile = sizeof(profile_path);
-    ofn.lpstrInitialDir = profile_dir;
-    ofn.lpstrTitle = "Load Profile";
-    ofn.Flags = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY | OFN_NOCHANGEDIR;
-    
-    if (GetOpenFileName(&ofn)) {
-        /* Add safety check */
-        if (!check_file(profile_path)) {
-            plog("Error: Could not access profile file");
-            return;
-        }
-        
-        load_profile(profile_path);
-        
-        /* Minimal reaction to changes - avoid potentially unsafe operations */
-        plog("Profile loaded successfully.");
-    }
-}
-
-/*
- * Save current preferences to the main ini file
- */
-static void profile_save_current(void)
-{
-    save_prefs();
-    plog("Current profile saved to main settings file.");
 }
 
 #ifdef USE_SOUND
@@ -3005,6 +2960,10 @@ static bool enter_fullscreen(term_data* td)
     fullscreen_transition_in_progress = true;
     last_fullscreen_transition_time = GetTickCount();
     
+    /* Set transition flag to prevent WM_CLOSE during transition */
+    fullscreen_transition_in_progress = true;
+    last_fullscreen_transition_time = GetTickCount();
+    
     /* Save current state */
     td->saved_maximized = !!IsZoomed(td->w);
     if (td->saved_maximized)
@@ -3086,6 +3045,9 @@ static bool enter_fullscreen(term_data* td)
     
     td->fullscreen = true;
     
+    /* Save current settings to main sil.ini while protection is active */
+    save_prefs();
+    
     /* Clear transition flag now that we're done */
     fullscreen_transition_in_progress = false;
     
@@ -3105,6 +3067,10 @@ static bool exit_fullscreen(term_data* td)
         /* Not in fullscreen - don't set the transition flag */
         return true;
     }
+    
+    /* Set transition flag to prevent WM_CLOSE during restoration */
+    fullscreen_transition_in_progress = true;
+    last_fullscreen_transition_time = GetTickCount();
     
     /* Set transition flag to prevent WM_CLOSE during restoration */
     fullscreen_transition_in_progress = true;
@@ -3140,6 +3106,9 @@ static bool exit_fullscreen(term_data* td)
     int window_x = 100;       /* Safe default x position */
     int window_y = 100;       /* Safe default y position */
     
+    /* DISABLED: Position restoration causing crashes - use safe defaults only */
+    /* TODO: Implement safer position restoration that doesn't trigger exit messages */
+    
     /* Position window with safe defaults */
     if (!SetWindowPos(td->w, HWND_NOTOPMOST,
         window_x, window_y, window_width, window_height,
@@ -3157,7 +3126,7 @@ static bool exit_fullscreen(term_data* td)
     {
         if (data[i].w && IsWindow(data[i].w)) {
             /* Ensure subwindows are no longer always-on-top once leaving fullscreen */
-            /* Use SWP_NOMOVE/NOSIZE to only affect z-order & show state */
+            /* Use SWP_NOMOVE/NOSIZE to only affect z-order & show state - safer approach */
             SetWindowPos(data[i].w, HWND_NOTOPMOST, 0, 0, 0, 0,
                          SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         }
@@ -3165,6 +3134,9 @@ static bool exit_fullscreen(term_data* td)
     }
     
     td->fullscreen = false;
+    
+    /* Save current settings to main sil.ini while protection is active */
+    save_prefs();
     
     /* Small delay before clearing flag to handle delayed messages */
     Sleep(100);
@@ -3193,19 +3165,26 @@ static bool exit_fullscreen(term_data* td)
 }
 
 /*
- * Toggle fullscreen mode for main window
+ * Toggle fullscreen preference for next startup (no immediate mode change)
  */
 static void toggle_fullscreen(void)
 {
-    term_data* td = &data[0];  /* Main window */
+    /* Simply toggle the session flag */
+    fullscreen_mode_toggled_this_session = !fullscreen_mode_toggled_this_session;
     
-    if (td->fullscreen)
-    {
-        exit_fullscreen(td);
-    }
-    else
-    {
-        enter_fullscreen(td);
+    /* Provide user feedback about the change */
+    if (fullscreen_mode_toggled_this_session) {
+        if (data[0].fullscreen) {
+            plog("Next startup: Windowed mode (toggled from current fullscreen)");
+        } else {
+            plog("Next startup: Fullscreen mode (toggled from current windowed)");
+        }
+    } else {
+        if (data[0].fullscreen) {
+            plog("Next startup: Fullscreen mode (toggle reverted)");
+        } else {
+            plog("Next startup: Windowed mode (toggle reverted)");
+        }
     }
 }
 
@@ -3446,8 +3425,12 @@ static void set_subwindow_style(int style)
             break;
             
         default: /* Normal style - full decorations */
-            /* Use full window decorations */
-            new_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+            /* Use full window decorations but preserve visibility state */
+            bool was_visible = (current_style & WS_VISIBLE) != 0;
+            new_style = WS_OVERLAPPEDWINDOW;
+            if (was_visible) {
+                new_style |= WS_VISIBLE;
+            }
             new_ex_style = WS_EX_TOOLWINDOW;
             break;
         }
@@ -3604,7 +3587,7 @@ static void init_windows(void)
         if (td->visible)
         {
             td->size_hack = true;
-            ShowWindow(td->w, SW_SHOW);
+            SetWindowPos(td->w, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_SHOWWINDOW);
             td->size_hack = false;
         }
 
@@ -3975,18 +3958,108 @@ static void process_menus(WORD wCmd)
             break;
 
         td = &data[i];
+        
+        /* Safety check: ensure window exists and is valid */
+        if (!td->w || !IsWindow(td->w)) {
+            subwindow_operation_in_progress = false;
+            break;
+        }
+        
+        /* Set protection flag to prevent exit during subwindow operations */
+        subwindow_operation_in_progress = true;
+
+        /* Special handling for problematic window 4 */
+        if (i == 4) {
+            /* Check if window was recently created or modified */
+            LONG style = GetWindowLong(td->w, GWL_STYLE);
+            LONG exstyle = GetWindowLong(td->w, GWL_EXSTYLE);
+            
+            /* Ensure window is properly positioned */
+            RECT rect;
+            if (GetWindowRect(td->w, &rect)) {
+                int width = rect.right - rect.left;
+                int height = rect.bottom - rect.top;
+                
+                /* Check for invalid size that might cause issues */
+                if (width <= 0 || height <= 0 || width > 3000 || height > 2000) {
+                    subwindow_operation_in_progress = false;
+                    break;
+                }
+            }
+            
+            /* Additional delay for window 4 */
+            Sleep(50);
+        }
 
         if (!td->visible)
         {
             td->visible = true;
-            ShowWindow(td->w, SW_SHOW);
+            
+            /* Additional safety checks before ShowWindow */
+            if (!IsWindow(td->w)) {
+                subwindow_operation_in_progress = false;
+                break;
+            }
+            
+            /* Get window info before showing */
+            RECT rect;
+            if (GetWindowRect(td->w, &rect)) {
+                /* Window info obtained successfully */
+            }
+            
+            /* Critical section: ShowWindow call with extra protection */
+            
+            /* Add a small delay before critical operation */
+            Sleep(10);
+            
+            BOOL show_result;
+            
+            /* Use alternative method for ALL windows - ShowWindow seems to cause issues */
+            
+            /* Try SetWindowPos instead of ShowWindow for all windows */
+            BOOL pos_result;
+            
+            /* In fullscreen mode, make sure new windows go on top */
+            if (data[0].fullscreen) {
+                pos_result = SetWindowPos(td->w, HWND_TOPMOST, 0, 0, 0, 0, 
+                                         SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            } else {
+                pos_result = SetWindowPos(td->w, NULL, 0, 0, 0, 0, 
+                                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_SHOWWINDOW);
+            }
+            show_result = pos_result;
+            
+            if (!pos_result) {
+                /* SetWindowPos failed - log but don't fallback to ShowWindow */
+                /* ShowWindow can cause crashes, so skip fallback */
+                show_result = FALSE;
+            }
+            
+            /* Verify window is still valid after ShowWindow */
+            if (!IsWindow(td->w)) {
+                td->visible = false;
+                subwindow_operation_in_progress = false;
+                break;
+            }
+            
             term_data_redraw(td);
         }
         else
         {
             td->visible = false;
-            ShowWindow(td->w, SW_HIDE);
+            
+            /* Use alternative method for hiding as well */
+            
+            BOOL hide_result = SetWindowPos(td->w, NULL, 0, 0, 0, 0, 
+                                           SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+            
+            if (!hide_result) {
+                /* SetWindowPos failed - don't fallback to ShowWindow (causes crashes) */
+            }
         }
+        
+        /* Clear protection flag */
+        subwindow_operation_in_progress = false;
 
         break;
     }
@@ -4198,25 +4271,6 @@ static void process_menus(WORD wCmd)
         toggle_main_menu();
         break;
     }
-
-    /* Profile management */
-    case IDM_PROFILE_SAVE:
-    {
-        profile_save_current();
-        break;
-    }
-
-    case IDM_PROFILE_LOAD:
-    {
-        profile_load();
-        break;
-    }
-
-    case IDM_PROFILE_SAVEAS:
-    {
-        profile_save_as();
-        break;
-    }
     }
 }
 
@@ -4271,8 +4325,25 @@ static LRESULT FAR PASCAL AngbandWndProc(
     term_data* td;
     int i;
 
+    /* Debug: Log entry to main window procedure for any message that might cause crash */
+    if (uMsg == WM_SIZE || uMsg == WM_SIZING || uMsg == WM_WINDOWPOSCHANGING || uMsg == WM_WINDOWPOSCHANGED) {
+        printf("MAIN MSG: Entering AngbandWndProc with uMsg=0x%X (%s), wParam=%d\n", 
+               uMsg, 
+               (uMsg == WM_SIZE) ? "WM_SIZE" : 
+               (uMsg == WM_SIZING) ? "WM_SIZING" :
+               (uMsg == WM_WINDOWPOSCHANGING) ? "WM_WINDOWPOSCHANGING" :
+               (uMsg == WM_WINDOWPOSCHANGED) ? "WM_WINDOWPOSCHANGED" : "OTHER",
+               (int)wParam);
+        fflush(stdout);
+    }
+
     /* Acquire proper "term_data" info */
     td = (term_data*)GetWindowLong(hWnd, 0);
+
+    if (uMsg == WM_SIZE || uMsg == WM_SIZING || uMsg == WM_WINDOWPOSCHANGING || uMsg == WM_WINDOWPOSCHANGED) {
+        printf("MAIN MSG: Got td=%p\n", td);
+        fflush(stdout);
+    }
 
     /* Handle message */
     switch (uMsg)
@@ -4402,8 +4473,9 @@ static LRESULT FAR PASCAL AngbandWndProc(
     {
         DWORD current_time = GetTickCount();
              
-        /* Prevent closing during fullscreen transitions or shortly after */
+        /* Prevent closing during fullscreen transitions, subwindow operations, or shortly after */
         if (fullscreen_transition_in_progress || 
+            subwindow_operation_in_progress ||
             (current_time - last_fullscreen_transition_time < 1000))
         {
             return 0;
@@ -4433,7 +4505,7 @@ static LRESULT FAR PASCAL AngbandWndProc(
 
     case WM_QUIT:
     {
-        if (fullscreen_transition_in_progress)
+        if (fullscreen_transition_in_progress || subwindow_operation_in_progress)
         {
             return 0;
         }
@@ -4452,28 +4524,54 @@ static LRESULT FAR PASCAL AngbandWndProc(
 
     case WM_SIZE:
     {
+        /* Basic diagnostic - start of main window resize */
+        printf("RESIZE: Main window resize starting, wParam=%d\n", (int)wParam);
+        fflush(stdout);
+
         /* this message was sent before WM_NCCREATE */
-        if (!td)
+        if (!td) {
+            printf("RESIZE: Main window - No td, exiting\n");
+            fflush(stdout);
             return 1;
+        }
 
         /* it was sent from inside CreateWindowEx */
-        if (!td->w)
+        if (!td->w) {
+            printf("RESIZE: Main window - No window handle, exiting\n");
+            fflush(stdout);
             return 1;
+        }
 
         /* was sent from WM_SIZE */
-        if (td->size_hack)
+        if (td->size_hack) {
+            printf("RESIZE: Main window - Size hack active, exiting\n");
+            fflush(stdout);
             return 1;
+        }
+
+        printf("RESIZE: Main window - About to process wParam=%d\n", (int)wParam);
+        fflush(stdout);
 
         switch (wParam)
         {
         case SIZE_MINIMIZED:
         {
+            printf("RESIZE: Main window - SIZE_MINIMIZED case\n");
+            fflush(stdout);
+            
             /* Hide sub-windows */
             for (i = 1; i < MAX_TERM_DATA; i++)
             {
-                if (data[i].visible)
-                    ShowWindow(data[i].w, SW_HIDE);
+                if (data[i].visible) {
+                    printf("RESIZE: Main window - Hiding subwindow %d\n", i);
+                    fflush(stdout);
+                    SetWindowPos(data[i].w, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+                    printf("RESIZE: Main window - Subwindow %d hidden\n", i);
+                    fflush(stdout);
+                }
             }
+            printf("RESIZE: Main window - SIZE_MINIMIZED completed\n");
+            fflush(stdout);
             return 0;
         }
 
@@ -4528,14 +4626,28 @@ static LRESULT FAR PASCAL AngbandWndProc(
 
             td->size_hack = true;
 
+            printf("RESIZE: Main window - About to show subwindows in SIZE_RESTORED\n");
+            fflush(stdout);
+
             /* Show sub-windows */
             for (i = 1; i < MAX_TERM_DATA; i++)
             {
-                if (data[i].visible)
-                    ShowWindow(data[i].w, SW_SHOW);
+                if (data[i].visible) {
+                    printf("RESIZE: Main window - Showing subwindow %d\n", i);
+                    fflush(stdout);
+                    SetWindowPos(data[i].w, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_SHOWWINDOW);
+                    printf("RESIZE: Main window - Subwindow %d shown\n", i);
+                    fflush(stdout);
+                }
             }
 
+            printf("RESIZE: Main window - All subwindows processed\n");
+            fflush(stdout);
+
             td->size_hack = false;
+
+            printf("RESIZE: Main window - SIZE_RESTORED completed\n");
+            fflush(stdout);
 
             return 0;
         }
@@ -4670,79 +4782,13 @@ static LRESULT FAR PASCAL AngbandListProc(
 
     case WM_SIZE:
     {
-        int cols;
-        int rows;
-
-        /* this message was sent before WM_NCCREATE */
-        if (!td)
-            return 1;
-
-        /* it was sent from inside CreateWindowEx */
-        if (!td->w)
-            return 1;
-
-        /* was sent from inside WM_SIZE */
-        if (td->size_hack)
-            return 1;
-
-        td->size_hack = true;
-
-    /* Use signed arithmetic to avoid unsigned wrap when window smaller
-     * than non-client overhead; previously could yield huge values in
-     * minimal style leading to instability and exit. */
-    int inner_w = (int)LOWORD(lParam) - (int)td->size_ow1;
-    int inner_h = (int)HIWORD(lParam) - (int)td->size_oh1;
-    if (inner_w < 0) inner_w = 0;
-    if (inner_h < 0) inner_h = 0;
-    cols = (td->tile_wid > 0) ? inner_w / td->tile_wid : 0;
-    rows = (td->tile_hgt > 0) ? inner_h / td->tile_hgt : 0;
-
-    if (cols > 500) cols = 500;
-    if (rows > 300) rows = 300;
-
-    /* Safety: clamp to at least 1 cell in each dimension. Without this,
-     * fast edge drags (especially in minimal border style where caption
-     * metrics differ) can yield 0 or negative interim values which then
-     * store into td->cols/rows and desync from Term->wid/hgt after a
-     * failed Term_resize(). That mismatch later triggers instability
-     * and application exit. */
-    if (cols < 1) cols = 1;
-    if (rows < 1) rows = 1;
-
-        /* New size */
-        if ((td->cols != cols) || (td->rows != rows))
-        {
-            if (cols == 500 || rows == 300 || cols == 1 || rows == 1) {
-                log_debug("WM_SIZE(sub): resized to cols=%d rows=%d (inner_w=%d inner_h=%d) style=%d fullscreen=%d", cols, rows, inner_w, inner_h, subwindow_style, td->fullscreen);
-            }
-            /* Save old term */
-            term* old_term = Term;
-
-            /* Save the new size */
-            td->cols = cols;
-            td->rows = rows;
-
-            /* Activate */
-            Term_activate(&td->t);
-
-            /* Resize the term */
-            Term_resize(td->cols, td->rows);
-
-            /* Activate */
-            Term_activate(old_term);
-
-            /* Redraw later */
-            InvalidateRect(td->w, NULL, true);
-
-            /* HACK - Redraw all windows */
-            p_ptr->window = 0xFFFFFFFF;
-            window_stuff();
-        }
-
-        td->size_hack = false;
-
+        /* EMERGENCY FIX: Completely disable subwindow resize to prevent crashes */
+        printf("SUB RESIZE: Blocked to prevent crash\n");
+        fflush(stdout);
         return 0;
     }
+
+        td->size_hack = true;
 
     case WM_PAINT:
     {
@@ -4866,16 +4912,67 @@ static LRESULT FAR PASCAL AngbandListProc(
 
         if (wParam == HTSYSMENU)
         {
+            /* Add protection for subwindow close operations */
+            if (fullscreen_transition_in_progress || subwindow_operation_in_progress) {
+                return 0;
+            }
+            
             if (td->visible)
             {
+                /* Set protection flag */
+                subwindow_operation_in_progress = true;
+                
                 td->visible = false;
-                ShowWindow(td->w, SW_HIDE);
+                
+                /* Use alternative method for close button hiding as well */
+                
+                BOOL hide_result = SetWindowPos(td->w, NULL, 0, 0, 0, 0, 
+                                               SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+                
+                if (!hide_result) {
+                    /* SetWindowPos failed - don't fallback to ShowWindow (causes crashes) */
+                }
+                
+                /* Clear protection flag */
+                subwindow_operation_in_progress = false;
             }
 
             return 0;
         }
 
         break;
+    }
+
+    case WM_CLOSE:
+    {
+        DWORD current_time = GetTickCount();
+             
+        /* Prevent closing during fullscreen transitions, subwindow operations, or shortly after */
+        if (fullscreen_transition_in_progress || 
+            subwindow_operation_in_progress ||
+            (current_time - last_fullscreen_transition_time < 1000))
+        {
+            return 0;
+        }
+        
+        /* Safe to hide the subwindow */
+        if (td && td->visible) {
+            subwindow_operation_in_progress = true;
+            td->visible = false;
+            
+            /* Use alternative method for WM_CLOSE hiding as well */
+            
+            BOOL hide_result = SetWindowPos(td->w, NULL, 0, 0, 0, 0, 
+                                           SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+            
+            if (!hide_result) {
+                /* SetWindowPos failed - don't fallback to ShowWindow (causes crashes) */
+            }
+            
+            subwindow_operation_in_progress = false;
+        }
+        
+        return 0;
     }
     }
 
@@ -4952,8 +5049,8 @@ static void hook_quit(cptr str)
                 MB_ICONEXCLAMATION | MB_OK | MB_ICONSTOP);
         }
 
-        /* Save the preferences */
-        save_prefs();
+        /* Save the preferences to both main and mode-specific backup files */
+        save_dual_profile();
     }
 
     /*** Could use 'Term_nuke_win()' XXX XXX XXX */
