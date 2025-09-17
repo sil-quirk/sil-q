@@ -4,6 +4,75 @@ applyTo: '**'
 
 # Sil-More Project Memory & Knowledge Base
 
+## Project Compilation Requirements
+**IMPORTANT**: Always compile using `-j8` flag for faster parallel compilation:
+```bash
+make -f Makefile.cyg -j8
+```
+
+## Combat History Menu Feature - FULLY COMPLETED (September 2025)  
+**STATUS**: ✅ **PRODUCTION READY AND FULLY FUNCTIONAL**
+**Feature**: Browsable combat history accessible from main menu
+
+### What Was Implemented:
+1. **New Menu Entry**: "Combat history (x)" in main menu between Log and Options
+2. **Combat Roll Storage**: Circular buffer system storing up to 100 combat rounds
+3. **Browsable Interface**: Message log-style navigation with search functionality
+4. **Perfect Formatting**: Exact replication of combat rolls window formatting
+5. **Proper Color Coding**: Full color scheme matching combat rolls window
+6. **Real-time Recording**: Automatically captures all combat data as it happens
+
+### Technical Implementation:
+- **Storage System**: `combat_history_round` structure with `combat_history[MAX_COMBAT_HISTORY]` array
+- **History Recording**: `add_combat_round_to_history()` called from `new_combat_round()`
+- **Display Function**: `do_cmd_combat_history()` with full color and alignment support
+- **Menu Integration**: Added to main menu as option 10, shifts other options down
+- **Column Alignment**: Exact column positioning matching combat rolls window
+- **Color Management**: Proper attack/defense/damage color coding per combat roll type
+
+### Menu Navigation:
+- **Browse**: `p`/`n` for older/newer, `+`/`-` for 10-line jumps
+- **Search**: `/` to find specific combat data, `=` to highlight terms
+- **Scroll**: `4`/`6` for horizontal scrolling of long combat lines
+- **Access**: Main menu → 'x' key → Combat history
+
+### Display Format:
+```
+Turn 22491: @ (+20) 35  - 46 [+40] @
+           T (+20) 21  - 53 [+40] @  
+           @ (+23) 29  2 27 [+14] T -> (2d9) 12  5  7
+           ? (+20) 30  5 25 [+20] @ -> (2d8)  7  7  0
+```
+
+### Storage Details:
+- **Capacity**: 100 combat rounds in circular buffer
+- **Data Persistence**: Stored in `combat_history[MAX_COMBAT_HISTORY]` with head/count tracking
+- **Turn Tracking**: Each round includes turn number for temporal reference
+
+## September 2025 Interface Improvements
+**STATUS**: ✅ **COMPLETED**
+
+### Auto Drop-down Lists Default (Task 1)
+**Goal**: Change "Automatically display drop-down lists" option default from false to true
+- **Location**: Found in `src/tables.c` line 744 in the default options array
+- **Change**: Updated `false, /* OPT_auto_display_lists */` to `true, /* OPT_auto_display_lists */`
+- **Impact**: New games will now have drop-down lists enabled by default, improving user experience
+
+### Help Menu Enhancement (Task 2)
+**Goal**: Add "Help" to main menu and reorganize keys
+- **Implementation**: Added Help as option 8 in main menu with key 'h'
+- **Changes Made**:
+  - Added `#define MAIN_MENU_HELP 20` constant in `src/cmd4.c`
+  - Increased `MAIN_MENU_MAX` from 15 to 16
+  - Modified main menu display to show "Help (h)" at line 9
+  - Changed "Halls of Mandos" to use key 'd' instead of 'h'
+  - Updated key mapping switch statement to handle 'h' → Help, 'd' → Halls of Mandos  
+  - Added case 8 in action handler to call `do_cmd_help()`
+  - Renumbered all subsequent menu items and their handlers
+- **Help Content**: Shows 3 pages covering movement, terrain/items, and miscellaneous commands
+- **Access**: Main menu → 'h' key → Help pages (navigate with any key, '-'/8 to go back)
+- **Complete Roll Data**: All attack, damage, protection details preserved
+
 ## Combat Rolls Display Feature - FULLY COMPLETED (September 2025)
 **STATUS**: ✅ **PRODUCTION READY AND FULLY FUNCTIONAL**
 **Feature**: Main terminal combat roll display for real-time combat feedback
@@ -3981,3 +4050,141 @@ Based on dungeon depth when quest is accepted:
 **Implementation Date**: December 2024  
 **Status**: Fully implemented and ready for testing  
 **Dependencies**: Quest roulette system, oath system, special abilities framework
+
+## Enhanced Help System with Role-Based Colors - COMPLETED (September 2025)
+**STATUS**: ✅ **PRODUCTION READY AND FULLY FUNCTIONAL**
+**Feature**: Comprehensive help system with sophisticated color coding and Steam Deck support
+
+### What Was Implemented:
+
+#### 1. **Role-Based Color System**
+- **Smart Color Roles**: 17 distinct color roles for consistent theming
+- **Element-Specific Colors**: Dedicated colors for fire, cold, poison, darkness, light, lightning, acid
+- **Semantic Coloring**: Colors based on meaning (good/bad/warning/term/key/UI)
+- **Consistent Theming**: Unified color scheme across all help pages
+
+#### 2. **Enhanced Help Content** 
+- **7-8 Dynamic Pages**: Conditional page count based on platform features
+- **Rich Content**: Comprehensive Sil-More gameplay guide with tactical advice
+- **Valar Quest Integration**: Atmospheric quest system help with mystical tone
+- **ASCII Compatibility**: All special characters replaced with ASCII equivalents
+
+#### 3. **Steam Deck Support** (Conditional)
+- **Platform-Specific Page**: Case 8 wrapped in `#ifdef STEAMDECK_SUPPORT`
+- **Realistic Layout**: Compact 80x24-compatible Steam Deck representation
+- **Unicode Symbols**: Authentic control symbols (◀▲▼▶, ≡, ☰, ⚏, █)
+- **Color-Coded Controls**: D-pad in blue, buttons in thematic colors
+- **Key Bindings**: Essential controls with clear visual mapping
+
+#### 4. **80x24 Terminal Compatibility**
+- **Responsive Layout**: All pages designed for minimal 80x24 terminals
+- **Compact Design**: Information dense but readable layouts
+- **Proper Spacing**: Strategic use of vertical and horizontal space
+- **No Overflow**: All content fits within standard terminal dimensions
+
+### Technical Implementation:
+
+#### **Color Role System** (`files.c:2660-2720`):
+```c
+typedef enum {
+    ROLE_HEADER,     /* Page titles */
+    ROLE_SECTION,    /* Section headings */
+    ROLE_BODY,       /* Main text */
+    ROLE_SUBTLE,     /* Hints/secondary info */
+    ROLE_GOOD,       /* Positive elements */
+    ROLE_WARN,       /* Caution/thresholds */
+    ROLE_BAD,        /* Danger/harmful */
+    ROLE_TERM,       /* Game terminology */
+    ROLE_KEY,        /* Keyboard keys */
+    ROLE_UI,         /* UI elements */
+    /* Element-specific roles */
+    ROLE_ELEM_FIRE,      /* TERM_L_RED */
+    ROLE_ELEM_COLD,      /* TERM_L_BLUE */
+    ROLE_ELEM_POISON,    /* TERM_L_GREEN */
+    ROLE_ELEM_DARKNESS,  /* TERM_L_DARK */
+    ROLE_ELEM_LIGHT,     /* TERM_YELLOW */
+    ROLE_ELEM_LIGHTNING, /* TERM_YELLOW */
+    ROLE_ELEM_ACID       /* TERM_UMBER */
+} color_role_t;
+```
+
+#### **Helper Functions**:
+- `put_role(color_role_t role, const char *s, int row, int col)` - Main color wrapper
+- `put_then_advance()` - Color with automatic column advancement
+- Dynamic page counting with conditional Steam Deck support
+
+#### **Steam Deck Layout** (Conditional):
+```
+    L4   L5                         R4   R5    
+     L2   L1                       R1   R2     
+                                                
+  D-Pad  LS     [   SCREEN   ]     RS   Y
+          LT                        RT         
+  Menu          LP         RP          View    
+                               X   A
+                                 B                 
+```
+
+### Comprehensive Steam Deck Button Mappings:
+
+#### **Left Side Controls:**
+- **A** - Interact with square (pick up, stairs, forge) - `,` key
+- **X** - Use object from dropdown list - `u` key  
+- **Y** - Sing/Stealth toggle - `s`/`S` keys
+- **B** - Shoot bow - `f` key
+- **D-pad** - Movement directions
+- **Left Stick** - Numpad navigation
+- **Left Trackpad** - Numpad functionality
+- **Menu Button** - Enter key
+- **L1** - Change dropdown menus - `/` key
+- **L2** - Shift modifier
+- **L4** - Inventory - `i` key
+- **L5** - Abilities - `Tab` key
+
+#### **Right Side Controls:**
+- **Right Stick** - All letter commands
+- **Right Trackpad** - Useful letter shortcuts
+- **View Button** - Escape/Main Menu
+- **R1** - Inspect Item
+- **R2** - Ctrl modifier
+- **R4** - Equipment screen - `e` key
+- **R5** - Yes confirmation - `y` key
+
+### Page Structure (7-8 pages):
+1. **[1/N] GOAL & HEROES** - Game objectives, hero selection, Valar quest help
+2. **[2/N] START & DEPTH** - Beginning gameplay, depth mechanics, elements
+3. **[3/N] COMBAT & DEFENCE** - Combat mechanics, tactics, strategies
+4. **[4/N] EARLY TIPS** - Crafting, tactics, tone & approach wisdom
+5. **[5/N] MOVEMENT & MISC** - Movement commands and miscellaneous
+6. **[6/N] TERRAIN & ITEMS** - World elements and item types
+7. **[7/N] ADVANCED COMMANDS** - Complex commands and shortcuts
+8. **[8/N] STEAM DECK** - Steam Deck controls (ifdef protected)
+
+### Navigation Features:
+- **Intuitive Keys**: `<-`/`4` (prev), `->`/`6`/Space (next), `Q`/Esc (quit)
+- **Direct Navigation**: `X` + `1-N` for direct page jumps (prevents key conflicts)
+- **Dynamic Prompts**: Page count adapts to available features
+- **Character Selection Help**: `H` key accessible during character creation
+
+### Color Enhancement Examples:
+- **Fire Elements**: Bright red for danger, burns, flame of Udun
+- **Cold Elements**: Blue for cold, ice, hypothermia warnings  
+- **Poison Elements**: Green for toxins, poison counters, cleansing
+- **Game Terms**: Blue for Evasion, Protection, Armour, mechanics
+- **Heroes**: Blue for legendary names (Feanor, Fingolfin, Beren, Luthien)
+- **Warnings**: Red for permadeath, game over, surrounded, free strikes
+- **Positive**: Green for Silmarils, gear, tactics, successes
+
+### Dependencies:
+- **Platform Detection**: `#ifdef STEAMDECK_SUPPORT` for conditional compilation
+- **Color Constants**: Standard TERM_* color definitions
+- **Steam Deck Framework**: Steam Deck key enums and mapping functions (when enabled)
+
+### Integration Points:
+- **Character Creation**: Help accessible via `H` key in birth menus
+- **Main Help**: Standard `?` command with enhanced navigation
+- **Options Integration**: "Steam Deck bindings" configuration reference
+
+**Implementation Date**: September 2025  
+**Status**: Fully implemented with role-based colors and Steam Deck support  
+**Compatibility**: 80x24 terminals, ASCII-only character support, conditional features

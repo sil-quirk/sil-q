@@ -235,6 +235,10 @@ extern int turns_since_combat;
 extern char combat_roll_special_char;
 extern byte combat_roll_special_attr;
 
+extern combat_history_round combat_history[MAX_COMBAT_HISTORY];
+extern int combat_history_head;   /* Index of the most recent entry */
+extern int combat_history_count;  /* Number of stored rounds */
+
 extern bool project_path_ignore;
 extern int project_path_ignore_y;
 extern int project_path_ignore_x;
@@ -686,6 +690,9 @@ extern void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps,
 extern void display_combat_rolls(void);
 extern void display_main_combat_rolls(void);
 extern void clear_main_combat_rolls_area(void);
+extern void add_combat_round_to_history(void);
+extern void do_cmd_combat_history(void);
+extern void display_combat_round_details(combat_history_round* round);
 extern void do_betrayal_ring_amulet();
 
 /* melee2.c */

@@ -727,9 +727,16 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             show_scores(false);
             continue; /* Return to the selection loop after showing scores */
         }
+        
+        // Show help: accept both 'h' and 'H'
+        if (c == 'h' || c == 'H')
+        {
+            do_cmd_help();
+            continue; /* Return to the selection loop after showing help */
+        }
 
         /* Random choice */
-        if (c == '*')
+        if (c == 'r')
         {
             /* Ensure legal choice */
             do
@@ -1484,7 +1491,7 @@ NavResult character_creation(void)
         QUESTION_COL, HEADER_ROW, -1, TERM_L_BLUE, "Character Selection:");
 
     Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-        "* -random    ESC -back   o -options   s -scores   q -quit");
+        "r -random    ESC -back   o -options   s -scores   h -help   q -quit");
 
     while (phase <= 2)
     {

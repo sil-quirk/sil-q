@@ -741,7 +741,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* xxx scroll_target */
     false, /* OPT_auto_more */
     false, /* OPT_know_monster_info */
-    false, /* OPT_auto_display_lists */
+    true, /* OPT_auto_display_lists */
     true, /* OPT_easy_main_menu */
     false, /* xxx verify_quest_leave */
     false, /* xxx mark_squelch_items */

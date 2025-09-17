@@ -7189,8 +7189,9 @@ void create_smithing_item(void)
 #define MAIN_MENU_SAVE 17
 #define MAIN_MENU_SAVE_QUIT 18
 #define MAIN_MENU_QUEST_STATUS 19
+#define MAIN_MENU_HELP 20
 
-#define MAIN_MENU_MAX 14
+#define MAIN_MENU_MAX 16
 
 #define COL_MAIN 29
 
@@ -7221,20 +7222,28 @@ int main_menu_aux(int* highlight)
     Term_putstr(COL_MAIN, 7, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
         "Quest status         (t)");
     Term_putstr(COL_MAIN, 8, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "Halls of Mandos      (h)");
+        "Halls of Mandos      (d)");
     Term_putstr(COL_MAIN, 9, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
         "Map                  (m)");
     Term_putstr(COL_MAIN, 10, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
         "Log                  (l)");
     Term_putstr(COL_MAIN, 11, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "Options and misc     (o)");
+        "Combat history       (x)");
     Term_putstr(COL_MAIN, 12, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "Suicide              (k)");
+        "Options and misc     (o)");
     Term_putstr(COL_MAIN, 13, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-        "Save                 (s)");
+        "Help                 (h)");
     Term_putstr(COL_MAIN, 14, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
-        "Quit with save       (q)");
+        "Suicide              (k)");
     Term_putstr(COL_MAIN, 15, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
+        "Save                 (s)");
+    Term_putstr(COL_MAIN, 16, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
+        "Suicide              (k)");
+    Term_putstr(COL_MAIN, 15, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
+        "Save                 (s)");
+    Term_putstr(COL_MAIN, 16, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
+        "Quit with save       (q)");
+    Term_putstr(COL_MAIN, 17, -1, (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
         "Return to game       (r)");
 
     /* Flush the prompt */
@@ -7256,14 +7265,16 @@ int main_menu_aux(int* highlight)
         case 'n': *highlight = 4; return (*highlight);  // Known monsters
         case 'u': *highlight = 5; return (*highlight);  // Known curses
         case 't': *highlight = 6; return (*highlight);  // Quest status
-        case 'h': *highlight = 7; return (*highlight);  // Halls of Mandos
+        case 'd': *highlight = 7; return (*highlight);  // Halls of Mandos
         case 'm': *highlight = 8; return (*highlight);  // Map
         case 'l': *highlight = 9; return (*highlight);  // Log
-        case 'o': *highlight = 10; return (*highlight); // Options and misc
-        case 'k': *highlight = 11; return (*highlight); // Suicide
-        case 's': *highlight = 12; return (*highlight); // Save
-        case 'q': *highlight = 13; return (*highlight); // Quit with save
-        case 'r': *highlight = 14; return (*highlight); // Return to game
+        case 'x': *highlight = 10; return (*highlight); // Combat history
+        case 'o': *highlight = 11; return (*highlight); // Options and misc
+        case 'h': *highlight = 12; return (*highlight); // Help
+        case 'k': *highlight = 13; return (*highlight); // Suicide
+        case 's': *highlight = 14; return (*highlight); // Save
+        case 'q': *highlight = 15; return (*highlight); // Quit with save
+        case 'r': *highlight = 16; return (*highlight); // Return to game
     }
 
     /* Choose current  */
@@ -7356,7 +7367,7 @@ void do_cmd_main_menu(void)
             leave_menu = true;
             break;
         }
-        case 7: // Halls of Mandos (h)
+        case 7: // Halls of Mandos (d)
         {
             show_scores(true);
             leave_menu = true;
@@ -7374,25 +7385,37 @@ void do_cmd_main_menu(void)
             leave_menu = true;
             break;
         }
-        case 10: // Options and misc (o)
+        case 10: // Combat history (x)
+        {
+            do_cmd_combat_history();
+            leave_menu = true;
+            break;
+        }
+        case 11: // Options and misc (o)
         {
             do_cmd_options();
             leave_menu = true;
             break;
         }
-        case 11: // Suicide (k)
+        case 12: // Help (h)
+        {
+            do_cmd_help();
+            leave_menu = true;
+            break;
+        }
+        case 13: // Suicide (k)
         {
             do_cmd_suicide();
             leave_menu = true;
             break;
         }
-        case 12: // Save (s)
+        case 14: // Save (s)
         {
             do_cmd_save_game();
             leave_menu = true;
             break;
         }
-        case 13: // Quit with save (q)
+        case 15: // Quit with save (q)
         {
             do_cmd_save_game();
             
@@ -7407,7 +7430,7 @@ void do_cmd_main_menu(void)
             leave_menu = true;
             break;
         }
-        case 14: // Return to game (r)
+        case 16: // Return to game (r)
         {
             leave_menu = true;
             break;
@@ -7806,7 +7829,7 @@ extern void do_cmd_options_aux(int page, cptr info)
             else if (opt[i] == OPT_main_combat_rolls)
             {
                 strnfmt(buf, sizeof(buf), "%-48s: %d",
-                    "Main terminal combat roll lines (0=off, 1-3=lines)",
+                    "Main terminal combat roll lines (0=off, 1-4=lines)",
                     op_ptr->main_combat_rolls);
             }
             else

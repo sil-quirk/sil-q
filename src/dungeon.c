@@ -1175,6 +1175,14 @@ static void process_command(void)
         break;
     }
 
+    /* Character sheet (alternative key) */
+    case 'h':
+    case 'H':
+    {
+        do_cmd_character_sheet();
+        break;
+    }
+
     /* Main menu */
     case 'm':
     {

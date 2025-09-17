@@ -330,6 +330,11 @@
  */
 #define MAX_COMBAT_ROLLS 50
 
+/*
+ * Number of combat rounds stored in combat history
+ */
+#define MAX_COMBAT_HISTORY 100
+
 // Types of combat roll storage
 #define COMBAT_ROLL_NONE 0
 #define COMBAT_ROLL_ROLL 1

@@ -1344,6 +1344,15 @@ struct combat_roll
                    effective) */
 };
 
+typedef struct combat_history_round combat_history_round;
+
+struct combat_history_round
+{
+    int turn_count;           /* The turn number when this round occurred */
+    int num_rolls;            /* Number of combat rolls in this round */
+    combat_roll rolls[MAX_COMBAT_ROLLS]; /* The actual combat rolls */
+};
+
 struct flavor_type
 {
     u32b text; /* Text (offset) */
