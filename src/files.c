@@ -2721,83 +2721,6 @@ static inline int put_then_advance(color_role_t role, const char *s, int row, in
     return col + (int)strlen(s);
 }
 
-/* -------- Steam Deck controls support ----------------------------------- */
-/* Enum for Steam Deck buttons so bindings are dynamic and not hard-coded in strings. */
-
-typedef enum {
-    SD_NONE = 0,
-    SD_A, SD_B, SD_X, SD_Y,
-    SD_L1, SD_R1, SD_L2, SD_R2,      /* bumpers + triggers */
-    SD_L4, SD_R4,                    /* rear grip buttons */
-    SD_DPAD_UP, SD_DPAD_DOWN, SD_DPAD_LEFT, SD_DPAD_RIGHT,
-    SD_LS, SD_RS,                    /* left/right stick (press) */
-    SD_MENU, SD_VIEW,                /* "+" (menu) and "≡" (view) equivalents */
-    SD_STEAM, SD_QAM,                /* Steam and Quick Access */
-    SD_TOUCH_L, SD_TOUCH_R,          /* trackpads (click) */
-    SD__COUNT
-} steamdeck_key_t;
-
-static const char *steamdeck_key_name(steamdeck_key_t k) {
-    switch (k) {
-    case SD_A: return "A"; case SD_B: return "B"; case SD_X: return "X"; case SD_Y: return "Y";
-    case SD_L1: return "L1"; case SD_R1: return "R1"; case SD_L2: return "L2"; case SD_R2: return "R2";
-    case SD_L4: return "L4"; case SD_R4: return "R4";
-    case SD_DPAD_UP: return "D↑"; case SD_DPAD_DOWN: return "D↓"; case SD_DPAD_LEFT: return "D←"; case SD_DPAD_RIGHT: return "D→";
-    case SD_LS: return "LS"; case SD_RS: return "RS";
-    case SD_MENU: return "Menu"; case SD_VIEW: return "View";
-    case SD_STEAM: return "Steam"; case SD_QAM: return "QAM";
-    case SD_TOUCH_L: return "PadL"; case SD_TOUCH_R: return "PadR";
-    default: return "-";
-    }
-}
-
-/* Suggested default bindings for common actions in this game. Change at runtime if desired. */
-typedef enum {
-    ACT_MOVE, ACT_LOOK, ACT_STEALTH, ACT_FIRE, ACT_SING, ACT_INTERACT,
-    ACT_MENU, ACT_ABILITIES, ACT_CHARACTER, ACT_OPTIONS,
-    ACT_SAVE, ACT_QUIT, ACT_MAP, ACT_WAIT, ACT_RUN, ACT_NOTE, ACT_SCREENSHOT,
-    ACT__COUNT
-} action_t;
-
-static struct { action_t act; steamdeck_key_t key; } g_sd_bindings[] = {
-    {ACT_MOVE,      SD_LS},        /* left stick / dpad for fine movement */
-    {ACT_LOOK,      SD_TOUCH_R},   /* right pad for precise look */
-    {ACT_STEALTH,   SD_R1},
-    {ACT_FIRE,      SD_R2},
-    {ACT_SING,      SD_A},
-    {ACT_INTERACT,  SD_X},
-    {ACT_MENU,      SD_MENU},
-    {ACT_ABILITIES, SD_VIEW},
-    {ACT_CHARACTER, SD_Y},
-    {ACT_OPTIONS,   SD_STEAM},
-    {ACT_SAVE,      SD_L4},
-    {ACT_QUIT,      SD_R4},
-    {ACT_MAP,       SD_RS},
-    {ACT_WAIT,      SD_B},
-    {ACT_RUN,       SD_L1},
-    {ACT_NOTE,      SD_QAM},
-    {ACT_SCREENSHOT,SD_TOUCH_L},
-};
-
-static const char *action_name(action_t a) {
-    switch (a) {
-        case ACT_MOVE: return "move"; case ACT_LOOK: return "look"; case ACT_STEALTH: return "stealth"; case ACT_FIRE: return "fire"; case ACT_SING: return "sing"; case ACT_INTERACT: return "interact"; case ACT_MENU: return "main menu"; case ACT_ABILITIES: return "abilities"; case ACT_CHARACTER: return "character sheet"; case ACT_OPTIONS: return "options"; case ACT_SAVE: return "save"; case ACT_QUIT: return "abort game"; case ACT_MAP: return "map"; case ACT_WAIT: return "wait/rest"; case ACT_RUN: return "run"; case ACT_NOTE: return "write note"; case ACT_SCREENSHOT: return "screenshot"; default: return "?";
-    }
-}
-
-/* Look up current key for an action */
-static steamdeck_key_t sd_key_for(action_t a) {
-    for (int i = 0, N = (int)(sizeof(g_sd_bindings)/sizeof(g_sd_bindings[0])); i < N; ++i)
-        if (g_sd_bindings[i].act == a) return g_sd_bindings[i].key;
-    return SD_NONE;
-}
-
-/* Update binding at runtime (callable from your options UI) */
-static void sd_bind(action_t a, steamdeck_key_t k) {
-    for (int i = 0, N = (int)(sizeof(g_sd_bindings)/sizeof(g_sd_bindings[0])); i < N; ++i)
-        if (g_sd_bindings[i].act == a) { g_sd_bindings[i].key = k; return; }
-}
-
 /* -------- Help pages ----------------------------------------------------- */
 
 void show_help_screen(int i)
@@ -3106,11 +3029,11 @@ void show_help_screen(int i)
         put_role(ROLE_SECTION, "Movement etc", row - 2, col - 1);
 
         put_role(ROLE_KEY,   "7 8 9", row, col);
-        put_role(ROLE_SUBTLE," \|/ ", row + 1, col);
+        put_role(ROLE_SUBTLE," \\|/ ", row + 1, col);
         put_role(ROLE_KEY,   "4 5 6", row + 2, col);
         put_role(ROLE_SUBTLE,"-", row + 2, col + 1);
         put_role(ROLE_SUBTLE,"-", row + 2, col + 3);
-        put_role(ROLE_SUBTLE," /|\ ", row + 3, col);
+        put_role(ROLE_SUBTLE," /|\\ ", row + 3, col);
         put_role(ROLE_KEY,   "1 2 3", row + 4, col);
 
         put_role(ROLE_SUBTLE, "Use the numbers or arrow keys", row + 0, col2);
@@ -3160,7 +3083,7 @@ void show_help_screen(int i)
         put_role(ROLE_KEY, " M", row, col); put_role(ROLE_SUBTLE, "display map of level", row, col + 3); row += 2;
         put_role(ROLE_KEY, " m", row, col); put_role(ROLE_UI,  "main menu", row, col + 3); row++;
         put_role(ROLE_KEY, "Tab", row, col - 1); put_role(ROLE_UI,  "display ability screen", row, col + 3); row++;
-        if (angband_keyset) put_role(ROLE_KEY, " C", row, col); else put_role(ROLE_KEY, " @/h", row, col); put_role(ROLE_UI, "display character sheet", row, col + 5); row++;
+        if (angband_keyset) put_role(ROLE_KEY, " C", row, col); else put_role(ROLE_KEY, " @/h", row, col-2); put_role(ROLE_UI, "display character sheet", row, col + 3); row++;
         if (angband_keyset) put_role(ROLE_KEY, " =", row, col); else put_role(ROLE_KEY, " O", row, col); put_role(ROLE_UI, "set options", row, col + 3); row += 2;
         put_role(ROLE_KEY, "^s", row, col); put_role(ROLE_UI,  "save", row, col + 3); row++;
         put_role(ROLE_KEY, "^x", row, col); put_role(ROLE_UI,  "save and quit", row, col + 3); row++;
@@ -3198,7 +3121,7 @@ void show_help_screen(int i)
         put_role(ROLE_SECTION, "Items", row - 2, col - 1);
         c_put_str(TERM_L_WHITE, "| ", row, col); put_role(ROLE_BODY, "blades", row, col + 2); row++;
         c_put_str(TERM_SLATE, "/ ", row, col); put_role(ROLE_BODY, "axes & polearms", row, col + 2); row++;
-        c_put_str(TERM_UMBER, "\ ", row, col); put_role(ROLE_BODY, "blunt weapons", row, col + 2); row++;
+        c_put_str(TERM_UMBER, "\\ ", row, col); put_role(ROLE_BODY, "blunt weapons", row, col + 2); row++;
         c_put_str(TERM_L_UMBER, "( ", row, col); put_role(ROLE_BODY, "soft armour", row, col + 2); row++;
         c_put_str(TERM_L_WHITE, "[ ", row, col); put_role(ROLE_BODY, "mail", row, col + 2); row++;
         c_put_str(TERM_L_WHITE, ") ", row, col); put_role(ROLE_BODY, "shields", row, col + 2); row++;
@@ -3270,11 +3193,11 @@ void show_help_screen(int i)
         put_role(ROLE_SECTION, "hjkl movement", row - 2, col - 1);
 
         put_role(ROLE_KEY,   "y k u", row, col);
-        put_role(ROLE_SUBTLE," \|/ ", row + 1, col);
+        put_role(ROLE_SUBTLE," \\|/ ", row + 1, col);
         put_role(ROLE_KEY,   "h z l", row + 2, col);
         put_role(ROLE_SUBTLE,"-", row + 2, col + 1);
         put_role(ROLE_SUBTLE,"-", row + 2, col + 3);
-        put_role(ROLE_SUBTLE," /|\ ", row + 3, col);
+        put_role(ROLE_SUBTLE," /|\\ ", row + 3, col);
         put_role(ROLE_KEY,   "b j n", row + 4, col);
 
         put_role(ROLE_SUBTLE, "If the hjkl movement option is on", row, col2);

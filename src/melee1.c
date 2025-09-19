@@ -3994,7 +3994,7 @@ void display_main_combat_rolls(void)
     int a_hit;
     int a_dam_roll;
     int a_prot_roll;
-    int a_net_dam;
+    int a_net_dam = TERM_L_RED; /* Default color for damage */
     int round;
     int start_row;
     int num_lines = op_ptr->main_combat_rolls;

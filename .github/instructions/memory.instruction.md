@@ -337,6 +337,88 @@ default: /* Normal */
 ### LATEST: Windows Fullscreen & Sub-window System - PRODUCTION READY (September 12, 2025)
 **STATUS**: ✅ **PRODUCTION READY - ALL ISSUES RESOLVED**
 
+## Windows Mode Subwindow Size Saving Bug Fix - COMPLETED ✅
+**Issue**: In Windows mode, subwindow sizes were not being saved correctly to ini file after closing the app
+**Root Cause**: Emergency fix completely blocked WM_SIZE messages for subwindows, preventing td->cols and td->rows from being updated when windows were resized
+**Solution**: Replace emergency blocking with safe WM_SIZE handling that properly updates window dimensions
+
+**Technical Implementation**:
+```c
+case WM_SIZE:
+{
+    /* Safe subwindow resize handling - update cols/rows for ini saving */
+    if (!td || td->size_hack)
+        return 0;
+        
+    /* Prevent infinite recursion during window operations */
+    if (fullscreen_transition_in_progress || subwindow_operation_in_progress)
+        return 0;
+        
+    /* Only process for visible subwindows */
+    if (!td->visible || td == &data[0])
+        return 0;
+        
+    /* Extract client area size from lParam */
+    int client_w = LOWORD(lParam);
+    int client_h = HIWORD(lParam);
+    
+    /* Calculate inner dimensions (subtract window decorations) */
+    int inner_w = client_w - (int)td->size_ow1 - (int)td->size_ow2;
+    int inner_h = client_h - (int)td->size_oh1 - (int)td->size_oh2;
+    
+    /* Ensure non-negative values */
+    if (inner_w < 0) inner_w = 0;
+    if (inner_h < 0) inner_h = 0;
+    
+    /* Calculate new cols and rows */
+    int cols = (td->tile_wid > 0) ? inner_w / td->tile_wid : 0;
+    int rows = (td->tile_hgt > 0) ? inner_h / td->tile_hgt : 0;
+    
+    /* Apply bounds checking */
+    if (cols > 500) cols = 500;
+    if (rows > 300) rows = 300;
+    if (cols < 1) cols = 1;
+    if (rows < 1) rows = 1;
+    
+    /* Update the terminal data if changed */
+    if ((td->cols != cols) || (td->rows != rows))
+    {
+        td->cols = cols;
+        td->rows = rows;
+        
+        /* Activate the terminal and resize it */
+        Term_activate(&td->t);
+        Term_resize(td->cols, td->rows);
+        
+        /* Mark for redraw */
+        InvalidateRect(td->w, NULL, true);
+    }
+    
+    td->size_hack = true;
+    return 0;
+}
+```
+
+**Original Problem Code**:
+```c
+case WM_SIZE:
+{
+    /* EMERGENCY FIX: Completely disable subwindow resize to prevent crashes */
+    printf("SUB RESIZE: Blocked to prevent crash\n");
+    fflush(stdout);
+    return 0;
+}
+```
+
+**Key Points**:
+1. **Size Calculation**: Uses same algorithm as main window: `cols = inner_w / tile_wid`
+2. **Bounds Checking**: Limits to 500x300 maximum, 1x1 minimum to prevent crashes
+3. **Safety Checks**: Only processes visible subwindows, avoids main window, prevents recursion
+4. **Terminal Integration**: Properly calls `Term_activate()` and `Term_resize()` for live updates
+5. **INI Saving**: Now `td->cols` and `td->rows` are properly updated, so `save_prefs_aux()` saves correct sizes
+
+**Testing**: Subwindow sizes are now correctly saved to NumCols/NumRows in ini file sections Term-1 through Term-7
+
 ## Fullscreen Exit Bug Fix - COMPLETED ✅
 **Issue**: Application exited when transitioning from fullscreen to normal mode
 **Root Cause**: Window style restoration operations triggered WM_CLOSE messages during transitions
@@ -4188,3 +4270,80 @@ typedef enum {
 **Implementation Date**: September 2025  
 **Status**: Fully implemented with role-based colors and Steam Deck support  
 **Compatibility**: 80x24 terminals, ASCII-only character support, conditional features
+
+## Compiler Warning Elimination - COMPLETED (September 2025)
+**STATUS**: ✅ **ALL COMPILATION WARNINGS ELIMINATED**
+
+### Overview:
+Systematically eliminated all GCC compiler warnings during build process using `make -f Makefile.cyg -j8`. Achieved zero-warning compilation for improved code quality and maintainability.
+
+### Warnings Fixed:
+
+1. **Unused Functions (generate.c)**:
+   - Removed `niena_eligibility_check()` and `tulkas_eligibility_check()` functions
+   - These were replaced by data-driven `data_driven_eligibility_check()` approach
+   - Cleaned up forward declarations
+
+2. **Const Qualifier Discarded (init1.c)**:
+   - Fixed assignment in `parse_style_message_line()` function
+   - Changed `g_style_display_text` declaration from `char*` to `const char*`
+   - Maintains consistency with `string_make()` return type
+
+3. **Array Bounds Issue (init1.c)**:
+   - Fixed aggressive loop optimization warning in `combined_level()` function
+   - Added missing table entry for `S_SPC` skill (Special abilities)
+   - Extended lookup table from 8 to 9 entries to match `S_MAX`
+
+4. **Unused Variables (main-win.c)**:
+   - Removed unused variables: `any_prev_topmost`, `exstyle`, `style`, `show_result`
+   - Cleaned up fullscreen transition and window handling code
+
+5. **Unused Functions (main-win.c)**:
+   - Added `__attribute__((unused))` to `exit_fullscreen()` and `load_specific_profile()`
+   - Preserved functions for future use rather than deletion
+   - Added documentation comments explaining current status
+
+6. **Uninitialized Variable (melee1.c)**:
+   - Initialized `a_net_dam` variable in `display_main_combat_rolls()` function
+   - Set default value to `TERM_L_RED` (standard damage color)
+   - Fixed potential undefined behavior
+
+7. **Unused Functions (metarun.c)**:
+   - Added `__attribute__((unused))` to `print_story_fragment()` and `print_heading()`
+   - These are narrative system helpers for future use
+
+8. **Invalid Escape Sequences (files.c)**:
+   - Fixed `\|` invalid escape sequences to just `|`
+   - Fixed `\040` invalid escape sequences to `\\` (proper backslash)
+   - Updated help screen character display strings
+
+9. **Unused Steam Deck Functions (files.c)**:
+   - Added `__attribute__((unused))` to Steam Deck controller interface functions
+   - Functions: `steamdeck_key_name()`, `action_name()`, `sd_key_for()`, `sd_bind()`
+   - Also marked `g_sd_bindings[]` array as unused
+
+10. **Format String Issues (object1.c)**:
+    - Removed pointless empty `sprintf()` call from `DRAW_HIGHLIGHT` macro
+    - Fixed misleading indentation by properly formatting long statement chains
+    - Improved code readability in item selection logic
+
+11. **Buffer Overflow Prevention (wizard2.c, util.c)**:
+    - Replaced `sprintf()` with `snprintf()` for safer buffer operations
+    - Increased `tmp_val` buffer size from 3 to 8 characters in wizard quantity function
+    - Fixed format truncation warnings while maintaining safe boundaries
+
+### Technical Details:
+- **Build Command**: `make -f Makefile.cyg -j8`
+- **Warning Count**: Reduced from ~20 warnings to 0
+- **Safety Improvements**: Buffer overflow prevention, uninitialized variable fixes
+- **Code Quality**: Better formatting, clearer function intent, reduced technical debt
+
+### Impact:
+- **Cleaner Builds**: Zero compiler warnings for professional code quality
+- **Enhanced Safety**: Buffer overflow and uninitialized variable protections
+- **Maintainability**: Clearer code structure and properly documented unused functions
+- **Future-Proofing**: Preserved functionality for future features while eliminating noise
+
+**Completion Date**: September 17, 2025  
+**Build Status**: Clean compilation with zero warnings  
+**Safety Level**: Enhanced with buffer overflow and initialization protections

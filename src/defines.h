@@ -78,7 +78,7 @@
  * 0 = Always use "log.txt" (overwrite previous log)
  * 1 = Create new log with timestamp each time
  */
-#define LOG_MODE_TIMESTAMP 1
+#define LOG_MODE_TIMESTAMP 0
 
 /*
  * Number of grids in each block (vertically)

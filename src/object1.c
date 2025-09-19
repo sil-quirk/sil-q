@@ -2962,7 +2962,6 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             object_type* o_ptr=&inventory[item_index];                              \
             object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';               \
             prt("", row+1, col?col-2:col);                                         \
-            sprintf(tmp+ (strlen(tmp)<(int)sizeof(tmp)?strlen(tmp): (int)sizeof(tmp)-1), "");\
             { char lab[4]; sprintf(lab, "%c)", index_to_label(item_index)); put_str(lab,row+1,col); }\
             c_put_str(attr,tmp,row+1,col+3);                                        \
             if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%3d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,71);} \
@@ -3461,10 +3460,29 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 if (which == '8') { MOVE_HIGHLIGHT(-1); break; }
                 if (which == '2') { MOVE_HIGHLIGHT(+1); break; }
                 if (which == '6') { /* select */
-                    if (p_ptr->command_wrk == (USE_INVEN) && highlight_row < vis_inven_cnt) k = vis_inven[highlight_row];
-                    else if (p_ptr->command_wrk == (USE_EQUIP) && highlight_row < vis_equip_cnt) k = vis_equip[highlight_row];
-                    else if (p_ptr->command_wrk == (USE_FLOOR) && highlight_row < vis_floor_cnt) { int obj_idx = floor_list[vis_floor[highlight_row]]; k = 0 - obj_idx; }
-                    else break; if (!get_item_okay(k)) { bell("Illegal object choice (highlight)!"); break; } if (!get_item_allow(k)) { done=true; break; } (*cp)=k; item=true; done=true; break; }
+                    if (p_ptr->command_wrk == (USE_INVEN) && highlight_row < vis_inven_cnt) 
+                        k = vis_inven[highlight_row];
+                    else if (p_ptr->command_wrk == (USE_EQUIP) && highlight_row < vis_equip_cnt) 
+                        k = vis_equip[highlight_row];
+                    else if (p_ptr->command_wrk == (USE_FLOOR) && highlight_row < vis_floor_cnt) { 
+                        int obj_idx = floor_list[vis_floor[highlight_row]]; 
+                        k = 0 - obj_idx; 
+                    }
+                    else break; 
+                    
+                    if (!get_item_okay(k)) { 
+                        bell("Illegal object choice (highlight)!"); 
+                        break; 
+                    } 
+                    if (!get_item_allow(k)) { 
+                        done=true; 
+                        break; 
+                    } 
+                    (*cp)=k; 
+                    item=true; 
+                    done=true; 
+                    break; 
+                }
             }
 
             /* Note verify */

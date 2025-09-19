@@ -270,7 +270,6 @@ typedef struct _term_data term_data;
 static void set_subwindow_fullscreen_style(int style);
 static void set_subwindow_style(int style);  /* New function for both modes */
 static bool enter_fullscreen(term_data* td);
-static bool exit_fullscreen(term_data* td);
 static errr Term_xtra_win_react(void);
 
 /*
@@ -322,6 +321,12 @@ struct _term_data
     RECT saved_window_rect;
     bool saved_maximized;
     bool saved_visible;
+    
+    /* Saved border offsets for fullscreen mode */
+    uint saved_size_ow1;
+    uint saved_size_oh1;
+    uint saved_size_ow2;
+    uint saved_size_oh2;
     
     /* Menu toggle state */
     HMENU saved_menu;
@@ -848,6 +853,10 @@ static void term_getsize(term_data* td)
     /* Window sizes */
     wid = td->cols * td->tile_wid + td->size_ow1 + td->size_ow2;
     hgt = td->rows * td->tile_hgt + td->size_oh1 + td->size_oh2;
+    
+    log_debug("TERM_GETSIZE: cols=%d, rows=%d, tile=%dx%d, borders=(%d,%d,%d,%d), calc_size=%dx%d",
+              td->cols, td->rows, td->tile_wid, td->tile_hgt,
+              td->size_ow1, td->size_oh1, td->size_ow2, td->size_oh2, wid, hgt);
 
     /* Fake window size */
     rc.left = 0;
@@ -892,6 +901,10 @@ static void save_prefs_aux(term_data* td, cptr sec_name)
     /* Paranoia */
     if (!td->w)
         return;
+
+    /* Debug: Log what we're saving */
+    printf("SAVE DEBUG: Saving %s - cols=%d, rows=%d\n", sec_name, td->cols, td->rows);
+    fflush(stdout);
 
     /* Visible */
     strcpy(buf, td->visible ? "1" : "0");
@@ -1017,6 +1030,9 @@ static void load_prefs_aux(term_data* td, cptr sec_name)
     /* Window size */
     td->cols = GetPrivateProfileInt(sec_name, "NumCols", td->cols, ini_file);
     td->rows = GetPrivateProfileInt(sec_name, "NumRows", td->rows, ini_file);
+    
+    log_debug("LOAD_PREFS_AUX: %s - loaded cols=%d, rows=%d, tile=%dx%d", 
+              sec_name, td->cols, td->rows, td->tile_wid, td->tile_hgt);
 
     /* Window position */
     td->pos_x
@@ -1046,9 +1062,11 @@ static void load_prefs(void)
 
     /* Extract the main window fullscreen state */
     data[0].fullscreen = (GetPrivateProfileInt("Angband", "Fullscreen", 0, ini_file) != 0);
+    log_debug("LOAD_PREFS: Loaded fullscreen setting = %d", data[0].fullscreen);
 
     /* Extract the subwindow style for fullscreen mode */
     subwindow_style = GetPrivateProfileInt("Angband", "SubwindowStyle", 0, ini_file);
+    log_debug("LOAD_PREFS: Loaded subwindow style = %d", subwindow_style);
 
     /* Extract the fullscreen startup preference */
     /* If preference exists in file, use it; otherwise initialize to SAME as current mode */
@@ -1089,23 +1107,6 @@ static void load_prefs(void)
         data[0].cols = 80;
     if (data[0].rows < 24)
         data[0].rows = 24;
-}
-
-/*
- * Load preferences from a specific ini file
- */
-static void load_specific_profile(cptr profile_path)
-{
-    cptr old_ini_file = ini_file;
-    
-    /* Temporarily change ini_file to target profile */
-    ini_file = profile_path;
-    
-    /* Load the profile */
-    load_prefs();
-    
-    /* Restore original ini_file */
-    ini_file = old_ini_file;
 }
 
 /*
@@ -2416,6 +2417,15 @@ static errr Term_wipe_win(int x, int y, int n)
     rc.top = y * td->tile_hgt + td->size_oh1;
     rc.bottom = rc.top + td->tile_hgt;
 
+    /* Debug: Log rendering coordinates and border offsets for first few calls */
+    static int debug_count = 0;
+    if (debug_count < 5) {
+        log_trace("RENDER: Term_wipe_win x=%d, y=%d, n=%d, tile=%dx%d, borders=(%d,%d), rect=(%d,%d,%d,%d)", 
+                  x, y, n, td->tile_wid, td->tile_hgt, td->size_ow1, td->size_oh1, 
+                  rc.left, rc.top, rc.right, rc.bottom);
+        debug_count++;
+    }
+
     hdc = GetDC(td->w);
     SetBkColor(hdc, RGB(0, 0, 0));
     SelectObject(hdc, td->font_id);
@@ -2947,8 +2957,6 @@ static bool enter_fullscreen(term_data* td)
     int i;
     HMONITOR hmon;
     MONITORINFO mi = { sizeof(mi) };
-    /* Track if any subwindow was previously topmost (rare) so we can restore. */
-    bool any_prev_topmost = false;
     
     if (td->fullscreen) 
     {
@@ -2973,6 +2981,31 @@ static bool enter_fullscreen(term_data* td)
     td->saved_ex_style = GetWindowLong(td->w, GWL_EXSTYLE);
     GetWindowRect(td->w, &td->saved_window_rect);
     
+    /* Save border offsets and set them to 0 for pixel-perfect fullscreen */
+    td->saved_size_ow1 = td->size_ow1;
+    td->saved_size_oh1 = td->size_oh1;
+    td->saved_size_ow2 = td->size_ow2;
+    td->saved_size_oh2 = td->size_oh2;
+    
+    log_debug("FULLSCREEN: Saving border offsets - ow1=%d, oh1=%d, ow2=%d, oh2=%d", 
+              td->size_ow1, td->size_oh1, td->size_ow2, td->size_oh2);
+    
+    td->size_ow1 = 0;
+    td->size_oh1 = 0;
+    td->size_ow2 = 0;
+    td->size_oh2 = 0;
+    
+    log_debug("FULLSCREEN: Set all border offsets to 0 for pixel-perfect rendering");
+    log_trace("FULLSCREEN: Current tile dimensions - wid=%d, hgt=%d", td->tile_wid, td->tile_hgt);
+    log_trace("FULLSCREEN: Current terminal size - cols=%d, rows=%d", td->cols, td->rows);
+    
+    /* Save and remove menu bar for true fullscreen */
+    if (!td->saved_menu) {
+        td->saved_menu = GetMenu(td->w);
+        SetMenu(td->w, NULL);
+        log_debug("FULLSCREEN: Saved and removed menu bar");
+    }
+    
     /* Remove window decorations */
     SetWindowLong(td->w, GWL_STYLE,
         td->saved_style & ~(WS_CAPTION | WS_THICKFRAME));
@@ -2984,12 +3017,20 @@ static bool enter_fullscreen(term_data* td)
     hmon = MonitorFromWindow(td->w, MONITOR_DEFAULTTONEAREST);
     GetMonitorInfo(hmon, &mi);
     
+    log_debug("FULLSCREEN: Monitor dimensions - left=%d, top=%d, right=%d, bottom=%d", 
+              mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right, mi.rcMonitor.bottom);
+    log_trace("FULLSCREEN: Before SetWindowPos - border offsets ow1=%d, oh1=%d, ow2=%d, oh2=%d", 
+              td->size_ow1, td->size_oh1, td->size_ow2, td->size_oh2);
+    
     /* Resize to full monitor */
     SetWindowPos(td->w, NULL,
         mi.rcMonitor.left, mi.rcMonitor.top,
         mi.rcMonitor.right - mi.rcMonitor.left,
         mi.rcMonitor.bottom - mi.rcMonitor.top,
         SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        
+    log_trace("FULLSCREEN: After SetWindowPos - border offsets ow1=%d, oh1=%d, ow2=%d, oh2=%d", 
+              td->size_ow1, td->size_oh1, td->size_ow2, td->size_oh2);
     
     /* Ensure main window has focus */
     SetForegroundWindow(td->w);
@@ -3051,115 +3092,81 @@ static bool enter_fullscreen(term_data* td)
     /* Clear transition flag now that we're done */
     fullscreen_transition_in_progress = false;
     
+    log_trace("FULLSCREEN: Final check - border offsets ow1=%d, oh1=%d, ow2=%d, oh2=%d", 
+              td->size_ow1, td->size_oh1, td->size_ow2, td->size_oh2);
+    
     return true;
 }
 
 /*
- * Exit fullscreen mode and restore normal window layout
+ * Exit fullscreen mode and restore window to normal state
  */
 static bool exit_fullscreen(term_data* td)
 {
-    int i;
-    int errors = 0;
-    
-    if (!td->fullscreen) 
-    {
-        /* Not in fullscreen - don't set the transition flag */
-        return true;
+    if (!td->fullscreen) {
+        return false;
     }
     
-    /* Set transition flag to prevent WM_CLOSE during restoration */
+    /* Set transition flag to prevent WM_CLOSE during transition */
     fullscreen_transition_in_progress = true;
     last_fullscreen_transition_time = GetTickCount();
     
-    /* Set transition flag to prevent WM_CLOSE during restoration */
-    fullscreen_transition_in_progress = true;
-    last_fullscreen_transition_time = GetTickCount();
+    /* Restore border offsets */
+    td->size_ow1 = td->saved_size_ow1;
+    td->size_oh1 = td->saved_size_oh1;
+    td->size_ow2 = td->saved_size_ow2;
+    td->size_oh2 = td->saved_size_oh2;
     
-    /* Clear error state before operations */
-    SetLastError(0);
+    log_debug("EXIT_FULLSCREEN: Restored border offsets - ow1=%d, oh1=%d, ow2=%d, oh2=%d", 
+              td->size_ow1, td->size_oh1, td->size_ow2, td->size_oh2);
     
-    /* Use safe windowed styles instead of trying to restore saved ones */
-    
-    /* Apply safe, known-good windowed styles */
-    DWORD safe_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
-    DWORD safe_ex_style = WS_EX_WINDOWEDGE;
-    
-    /* Apply the safe styles */
-    if (SetWindowLong(td->w, GWL_STYLE, safe_style) == 0 && GetLastError() != 0)
-    {
-        plog("Warning: Could not apply safe window style");
-        errors++;
+    /* Restore menu bar */
+    if (td->saved_menu) {
+        SetMenu(td->w, td->saved_menu);
+        td->saved_menu = NULL;
+        log_debug("EXIT_FULLSCREEN: Restored menu bar");
     }
     
-    if (SetWindowLong(td->w, GWL_EXSTYLE, safe_ex_style) == 0 && GetLastError() != 0)
-    {
-        plog("Warning: Could not apply safe window extended style");
-        errors++;
+    /* Restore window style */
+    SetWindowLong(td->w, GWL_STYLE, td->saved_style);
+    SetWindowLong(td->w, GWL_EXSTYLE, td->saved_ex_style);
+    
+    /* Restore window position and size */
+    SetWindowPos(td->w, NULL,
+        td->saved_window_rect.left, td->saved_window_rect.top,
+        td->saved_window_rect.right - td->saved_window_rect.left,
+        td->saved_window_rect.bottom - td->saved_window_rect.top,
+        SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    
+    /* Restore maximized state if needed */
+    if (td->saved_maximized) {
+        ShowWindow(td->w, SW_MAXIMIZE);
     }
     
-    /* Use safe window positioning instead of trying to restore exact saved position */
-    
-    /* Get reasonable window size for windowed mode */
-    int window_width = 1024;  /* Safe default width */
-    int window_height = 768;  /* Safe default height */
-    int window_x = 100;       /* Safe default x position */
-    int window_y = 100;       /* Safe default y position */
-    
-    /* DISABLED: Position restoration causing crashes - use safe defaults only */
-    /* TODO: Implement safer position restoration that doesn't trigger exit messages */
-    
-    /* Position window with safe defaults */
-    if (!SetWindowPos(td->w, HWND_NOTOPMOST,
-        window_x, window_y, window_width, window_height,
-        SWP_SHOWWINDOW | SWP_FRAMECHANGED))
-    {
-        plog("Warning: Could not position main window safely");
-        errors++;
-    }
-    
-    /* Don't try to restore maximized state - just use normal windowed mode */
-    
-    /* Handle sub-windows minimally - avoid ANY operations that might trigger exit */
-    
-    for (i = 1; i < MAX_TERM_DATA; i++)
-    {
-        if (data[i].w && IsWindow(data[i].w)) {
-            /* Ensure subwindows are no longer always-on-top once leaving fullscreen */
-            /* Use SWP_NOMOVE/NOSIZE to only affect z-order & show state - safer approach */
-            SetWindowPos(data[i].w, HWND_NOTOPMOST, 0, 0, 0, 0,
-                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    /* Reset sub-windows */
+    for (int i = 1; i < MAX_TERM_DATA; i++) {
+        if (data[i].fullscreen && data[i].w && IsWindow(data[i].w)) {
+            data[i].fullscreen = false;
+            
+            /* Restore style */
+            SetWindowLong(data[i].w, GWL_STYLE, data[i].saved_style);
+            SetWindowLong(data[i].w, GWL_EXSTYLE, data[i].saved_ex_style);
+            
+            /* Restore position */
+            SetWindowPos(data[i].w, NULL,
+                data[i].saved_window_rect.left, data[i].saved_window_rect.top,
+                data[i].saved_window_rect.right - data[i].saved_window_rect.left,
+                data[i].saved_window_rect.bottom - data[i].saved_window_rect.top,
+                SWP_NOZORDER | (data[i].saved_visible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW) | SWP_FRAMECHANGED);
         }
-        data[i].fullscreen = false;
     }
     
     td->fullscreen = false;
     
-    /* Save current settings to main sil.ini while protection is active */
-    save_prefs();
-    
-    /* Small delay before clearing flag to handle delayed messages */
-    Sleep(100);
-    
-    /* Clear transition flag now that we're done */
+    /* Clear transition flag */
     fullscreen_transition_in_progress = false;
     
-    /* Now that we're safely out of fullscreen, restore sub-window styles */
-    set_subwindow_style(subwindow_style);
-
-    /* As an additional safety, reassert standard z-order (non-topmost) for subwindows a second time
-       after style changes which sometimes implicitly raise z-order on certain Windows versions. */
-    for (i = 1; i < MAX_TERM_DATA; i++) {
-        if (data[i].w && IsWindow(data[i].w)) {
-            SetWindowPos(data[i].w, HWND_NOTOPMOST, 0, 0, 0, 0,
-                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-        }
-    }
-    
-    if (errors > 0)
-    {
-        plog("Exited fullscreen mode with warnings - check log");
-    }
+    log_debug("EXIT_FULLSCREEN: Completed");
     
     return true;
 }
@@ -3525,6 +3532,15 @@ static void init_windows(void)
     /* Load prefs */
     load_prefs();
 
+    /* If fullscreen mode is enabled, set border offsets to 0 NOW, before any window creation */
+    if (data[0].fullscreen) {
+        log_debug("INIT: Fullscreen mode detected - setting border offsets to 0 BEFORE window creation");
+        data[0].size_ow1 = 0;
+        data[0].size_oh1 = 0;
+        data[0].size_ow2 = 0;
+        data[0].size_oh2 = 0;
+    }
+
     /* Main window (need these before term_getsize gets called) */
     td = &data[0];
     td->dwStyle = (WS_OVERLAPPED | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX
@@ -3666,7 +3682,9 @@ static void init_windows(void)
     }
 
     /* Apply fullscreen mode if it was loaded from preferences */
+    log_debug("INIT: Checking fullscreen preference - data[0].fullscreen=%d", data[0].fullscreen);
     if (data[0].fullscreen) {
+        log_debug("INIT: Fullscreen enabled, calling enter_fullscreen");
         /* Reset fullscreen flag first to ensure proper state transition */
         data[0].fullscreen = false;
         
@@ -3970,10 +3988,6 @@ static void process_menus(WORD wCmd)
 
         /* Special handling for problematic window 4 */
         if (i == 4) {
-            /* Check if window was recently created or modified */
-            LONG style = GetWindowLong(td->w, GWL_STYLE);
-            LONG exstyle = GetWindowLong(td->w, GWL_EXSTYLE);
-            
             /* Ensure window is properly positioned */
             RECT rect;
             if (GetWindowRect(td->w, &rect)) {
@@ -4012,8 +4026,6 @@ static void process_menus(WORD wCmd)
             /* Add a small delay before critical operation */
             Sleep(10);
             
-            BOOL show_result;
-            
             /* Use alternative method for ALL windows - ShowWindow seems to cause issues */
             
             /* Try SetWindowPos instead of ShowWindow for all windows */
@@ -4027,12 +4039,10 @@ static void process_menus(WORD wCmd)
                 pos_result = SetWindowPos(td->w, NULL, 0, 0, 0, 0, 
                                          SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_SHOWWINDOW);
             }
-            show_result = pos_result;
             
             if (!pos_result) {
                 /* SetWindowPos failed - log but don't fallback to ShowWindow */
                 /* ShowWindow can cause crashes, so skip fallback */
-                show_result = FALSE;
             }
             
             /* Verify window is still valid after ShowWindow */
@@ -4587,12 +4597,20 @@ static LRESULT FAR PASCAL AngbandWndProc(
              * (size_ow1/size_oh1 stored as unsigned; subtracting them from a
              * smaller LOWORD/HIWORD produced huge wrapped values -> massive
              * cols/rows -> allocation attempts -> crash/exit.) */
-            int inner_w = (int)LOWORD(lParam) - (int)td->size_ow1;
-            int inner_h = (int)HIWORD(lParam) - (int)td->size_oh1;
-            if (inner_w < 0) inner_w = 0;
-            if (inner_h < 0) inner_h = 0;
-            int cols = (td->tile_wid > 0) ? inner_w / td->tile_wid : 0;
-            int rows = (td->tile_hgt > 0) ? inner_h / td->tile_hgt : 0;
+            
+        int window_w = (int)LOWORD(lParam);
+        int window_h = (int)HIWORD(lParam);
+        int inner_w = window_w - (int)td->size_ow1;
+        int inner_h = window_h - (int)td->size_oh1;
+        if (inner_w < 0) inner_w = 0;
+        if (inner_h < 0) inner_h = 0;
+        
+        int cols = (td->tile_wid > 0) ? inner_w / td->tile_wid : 0;
+        int rows = (td->tile_hgt > 0) ? inner_h / td->tile_hgt : 0;
+        
+        log_trace("WM_SIZE: window=%dx%d, borders=(%d,%d), inner=%dx%d, tiles=%dx%d, calc=%dx%d, fullscreen=%d", 
+                  window_w, window_h, td->size_ow1, td->size_oh1, inner_w, inner_h, 
+                  td->tile_wid, td->tile_hgt, cols, rows, td->fullscreen);
 
             /* Hard upper bounds to prevent pathological allocations */
             if (cols > 500) cols = 500;
@@ -4782,13 +4800,76 @@ static LRESULT FAR PASCAL AngbandListProc(
 
     case WM_SIZE:
     {
-        /* EMERGENCY FIX: Completely disable subwindow resize to prevent crashes */
-        printf("SUB RESIZE: Blocked to prevent crash\n");
+        /* Always log WM_SIZE messages for debugging */
+        printf("SUB RESIZE: WM_SIZE called for window %d, wParam=%d, td=%p, visible=%d, size_hack=%d\n", 
+               td ? (int)(td - data) : -1, (int)wParam, td, td ? td->visible : -1, td ? td->size_hack : -1);
         fflush(stdout);
+        
+        /* Safe subwindow resize handling - update cols/rows for ini saving */
+        if (!td || td->size_hack)
+            return 0;
+            
+        /* Prevent infinite recursion during window operations */
+        if (fullscreen_transition_in_progress || subwindow_operation_in_progress)
+            return 0;
+            
+        /* Only process for visible subwindows */
+        if (!td->visible || td == &data[0])
+            return 0;
+            
+        /* Debug: Log subwindow resize attempts */
+        printf("SUB RESIZE: Window %d - WM_SIZE triggered, wParam=%d\n", 
+               (int)(td - data), (int)wParam);
+        fflush(stdout);
+            
+        /* Extract client area size from lParam */
+        int client_w = LOWORD(lParam);
+        int client_h = HIWORD(lParam);
+        
+        /* Calculate inner dimensions - match main window formula exactly */
+        int inner_w = client_w - (int)td->size_ow1;
+        int inner_h = client_h - (int)td->size_oh1;
+        
+        /* Ensure non-negative values */
+        if (inner_w < 0) inner_w = 0;
+        if (inner_h < 0) inner_h = 0;
+        
+        /* Calculate new cols and rows */
+        int cols = (td->tile_wid > 0) ? inner_w / td->tile_wid : 0;
+        int rows = (td->tile_hgt > 0) ? inner_h / td->tile_hgt : 0;
+        
+        /* Apply bounds checking */
+        if (cols > 500) cols = 500;
+        if (rows > 300) rows = 300;
+        if (cols < 1) cols = 1;
+        if (rows < 1) rows = 1;
+        
+        /* Debug: Log size calculation */
+        printf("SUB RESIZE: Window %d - client=%dx%d, inner=%dx%d, tiles=%dx%d, cols=%d->%d, rows=%d->%d\n", 
+               (int)(td - data), client_w, client_h, inner_w, inner_h, 
+               td->tile_wid, td->tile_hgt, td->cols, cols, td->rows, rows);
+        fflush(stdout);
+        
+        /* Update the terminal data if changed */
+        if ((td->cols != cols) || (td->rows != rows))
+        {
+            printf("SUB RESIZE: Window %d - Updating size from %dx%d to %dx%d\n", 
+                   (int)(td - data), td->cols, td->rows, cols, rows);
+            fflush(stdout);
+                   
+            td->cols = cols;
+            td->rows = rows;
+            
+            /* Activate the terminal and resize it */
+            Term_activate(&td->t);
+            Term_resize(td->cols, td->rows);
+            
+            /* Mark for redraw */
+            InvalidateRect(td->w, NULL, true);
+        }
+        
         return 0;
     }
-
-        td->size_hack = true;
 
     case WM_PAINT:
     {

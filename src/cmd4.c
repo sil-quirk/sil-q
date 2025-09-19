@@ -1425,34 +1425,18 @@ int abilities_menu1(int* highlight)
     bool show_special = false;
 
     // Determine if any special abilities are present (owned or active)
-    log_trace("Special abilities detection: Starting loop, ABILITIES_MAX=%d", ABILITIES_MAX);
     for (i = 0; i < ABILITIES_MAX; i++) {
-        log_trace("Special abilities detection: checking slot %d, have_ability[S_SPC][%d]=%d", 
-                 i, i, p_ptr->have_ability[S_SPC][i]);
         if (p_ptr->have_ability[S_SPC][i]) { 
-            log_trace("Special abilities check: have_ability[S_SPC][%d]=%d - FOUND!", i, p_ptr->have_ability[S_SPC][i]);
             show_special = true; 
             break; 
         }
     }
     
-    // Debug: Always show special menu and log specific unique bane status
-    log_trace("DEBUG: Unique Bane status - have=%d, active=%d", 
-             p_ptr->have_ability[S_SPC][SPC_UNIQUE_BANE], 
-             p_ptr->active_ability[S_SPC][SPC_UNIQUE_BANE]);
+    // Debug: Always show special menu for unique bane status
     if (p_ptr->have_ability[S_SPC][SPC_UNIQUE_BANE]) {
         show_special = true;
-        log_trace("DEBUG: Forcing show_special=true due to Unique Bane");
     }
     
-    // Additional debug: log ALL special abilities
-    for (i = 0; i < ABILITIES_MAX; i++) {
-        if (p_ptr->have_ability[S_SPC][i]) {
-            log_trace("DEBUG: Special ability %d is ACTIVE (have=%d, active=%d)", 
-                     i, p_ptr->have_ability[S_SPC][i], p_ptr->active_ability[S_SPC][i]);
-        }
-    }
-    log_trace("Special abilities menu: show_special=%s, options=%d", show_special ? "true" : "false", options);
     if (!show_special) {
         options = S_MAX - 1; // hide Special category
     }
@@ -1557,9 +1541,6 @@ int abilities_menu2(int skilltype, int* highlight)
 
     byte attr;
 
-    log_trace("ABILITIES_MENU2: Entering function with skilltype=%d, highlight=%d", skilltype, *highlight);
-    log_trace("ABILITIES_MENU2: Special abilities debug - skilltype=%d, S_SPC=%d", skilltype, S_SPC);
-
     // clear the abilities and description area
     wipe_screen_from(COL_ABILITY);
 
@@ -1571,8 +1552,6 @@ int abilities_menu2(int skilltype, int* highlight)
     
     // For special abilities, we may need to adjust highlight to first visible ability
     int first_visible_ability = -1;
-
-    log_trace("ABILITIES_MENU2: Starting ability loop, z_info->b_max=%d", z_info->b_max);
 
     /* Pre-scan for Special abilities to adjust highlight before display */
     if (skilltype == S_SPC)
@@ -1590,7 +1569,6 @@ int abilities_menu2(int skilltype, int* highlight)
                 if (temp_first_visible == -1)
                 {
                     temp_first_visible = b_ptr->abilitynum;
-                    log_trace("ABILITIES_MENU2: Pre-scan found first_visible_ability=%d", temp_first_visible);
                 }
                 temp_visible_count++;
             }
@@ -1599,9 +1577,6 @@ int abilities_menu2(int skilltype, int* highlight)
         /* Adjust highlight before display if needed */
         if (temp_visible_count > 0 && temp_first_visible != -1)
         {
-            log_trace("ABILITIES_MENU2: Pre-display highlight check - current highlight=%d (ability %d)", 
-                     *highlight, *highlight - 1);
-            
             /* Check if current highlight corresponds to a visible ability */
             int current_ability_num = *highlight - 1; /* Convert 1-based to 0-based */
             bool highlight_is_visible = false;
@@ -1620,14 +1595,7 @@ int abilities_menu2(int skilltype, int* highlight)
             
             if (!highlight_is_visible)
             {
-                int old_highlight = *highlight;
                 *highlight = temp_first_visible + 1; /* Convert back to 1-based */
-                log_trace("ABILITIES_MENU2: PRE-DISPLAY adjusted highlight from %d to %d (first visible ability %d)", 
-                         old_highlight, *highlight, temp_first_visible);
-            }
-            else
-            {
-                log_trace("ABILITIES_MENU2: Pre-display highlight is already visible, no adjustment needed");
             }
         }
     }
@@ -1648,34 +1616,20 @@ int abilities_menu2(int skilltype, int* highlight)
         /* For special abilities, only show granted abilities */
         if (skilltype == S_SPC && !p_ptr->have_ability[skilltype][b_ptr->abilitynum])
         {
-            log_trace("ABILITIES_MENU2: Skipping non-granted Special ability %d (%s)", 
-                     b_ptr->abilitynum, b_name + b_ptr->name);
             continue;
-        }
-        
-        if (skilltype == S_SPC) {
-            log_trace("ABILITIES_MENU2: Found granted Special ability %d (%s)", 
-                     b_ptr->abilitynum, b_name + b_ptr->name);
         }
 
         /* Hide deprecated WIL_OATH ability from menu (now handled at birth) */
         if (skilltype == S_WIL && b_ptr->abilitynum == WIL_OATH)
             continue;
 
-        log_trace("ABILITIES_MENU2: Processing ability %d (skilltype=%d, abilitynum=%d), visible_count=%d", 
-                 i, b_ptr->skilltype, b_ptr->abilitynum, visible_count);
-
         // Safety check for ability number bounds
         if (b_ptr->abilitynum >= ABILITIES_MAX) {
-            log_trace("ABILITIES_MENU2: ERROR - abilitynum (%d) >= ABILITIES_MAX (%d), skipping ability %d", 
-                     b_ptr->abilitynum, ABILITIES_MAX, i);
             continue;
         }
 
         // Safety check for array bounds
         if (visible_count >= ABILITIES_MAX) {
-            log_trace("ABILITIES_MENU2: WARNING - visible_count (%d) reached ABILITIES_MAX (%d), breaking loop", 
-                     visible_count, ABILITIES_MAX);
             break;
         }
 
@@ -1685,82 +1639,41 @@ int abilities_menu2(int skilltype, int* highlight)
         // Track first visible ability for highlight adjustment
         if (first_visible_ability == -1) {
             first_visible_ability = b_ptr->abilitynum;
-            log_trace("ABILITIES_MENU2: Set first_visible_ability=%d (%s)", 
-                     first_visible_ability, b_name + b_ptr->name);
         }
 
-        log_trace("ABILITIES_MENU2: Added visible ability[%d] = %d (%s)", 
-                 visible_count, b_ptr->abilitynum, b_name + b_ptr->name);
-
-        log_trace("ABILITIES_MENU2: About to check have_ability[%d][%d]", skilltype, b_ptr->abilitynum);
-
         // Determine the appropriate colour
-    if (p_ptr->have_ability[skilltype][b_ptr->abilitynum])
+        if (p_ptr->have_ability[skilltype][b_ptr->abilitynum])
         {
-            log_trace("ABILITIES_MENU2: have_ability=true, checking innate_ability[%d][%d]", skilltype, b_ptr->abilitynum);
-            /* Debug oath checking values */
-            if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON || b_ptr->abilitynum == SPC_OATH_SMITH || b_ptr->abilitynum == SPC_OATH_VALOROUS)) {
-                log_trace("OATH DEBUG: %s (%d) - have=%d, innate=%d, active=%d", 
-                         (b_name + b_ptr->name), b_ptr->abilitynum,
-                         p_ptr->have_ability[skilltype][b_ptr->abilitynum],
-                         p_ptr->innate_ability[skilltype][b_ptr->abilitynum],
-                         p_ptr->active_ability[skilltype][b_ptr->abilitynum]);
-            }
             if (p_ptr->innate_ability[skilltype][b_ptr->abilitynum])
             {
-                log_trace("ABILITIES_MENU2: innate_ability=true, checking active_ability[%d][%d]", skilltype, b_ptr->abilitynum);
                 if (p_ptr->active_ability[skilltype][b_ptr->abilitynum])
                 {
-                    log_trace("ABILITIES_MENU2: active_ability=true, setting WHITE");
                     attr = TERM_WHITE;
-                    /* Debug oath display */
-                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON || b_ptr->abilitynum == SPC_OATH_SMITH || b_ptr->abilitynum == SPC_OATH_VALOROUS)) {
-                        log_trace("OATH DISPLAY: %s (%d) - WHITE (innate + active)", (b_name + b_ptr->name), b_ptr->abilitynum);
-                    }
                 }
                 else
                 {
-                    log_trace("ABILITIES_MENU2: active_ability=false, setting RED");
                     attr = TERM_RED;
-                    /* Debug oath display */
-                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON || b_ptr->abilitynum == SPC_OATH_SMITH || b_ptr->abilitynum == SPC_OATH_VALOROUS)) {
-                        log_trace("OATH DISPLAY: %s (%d) - RED (innate but NOT active)", (b_name + b_ptr->name), b_ptr->abilitynum);
-                    }
                 }
             }
             else
             {
-                log_trace("ABILITIES_MENU2: innate_ability=false, checking active_ability[%d][%d]", skilltype, b_ptr->abilitynum);
                 if (p_ptr->active_ability[skilltype][b_ptr->abilitynum])
                 {
-                    log_trace("ABILITIES_MENU2: active_ability=true, setting L_GREEN");
                     attr = TERM_L_GREEN;
-                    /* Debug oath display */
-                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON || b_ptr->abilitynum == SPC_OATH_SMITH || b_ptr->abilitynum == SPC_OATH_VALOROUS)) {
-                        log_trace("OATH DISPLAY: %s (%d) - GREEN (learned + active)", (b_name + b_ptr->name), b_ptr->abilitynum);
-                    }
                 }
                 else
                 {
-                    log_trace("ABILITIES_MENU2: active_ability=false, setting RED");
                     attr = TERM_RED;
-                    /* Debug oath display */
-                    if (skilltype == S_SPC && (b_ptr->abilitynum == SPC_OATH_MERCY || b_ptr->abilitynum == SPC_OATH_SILENCE || b_ptr->abilitynum == SPC_OATH_IRON || b_ptr->abilitynum == SPC_OATH_SMITH || b_ptr->abilitynum == SPC_OATH_VALOROUS)) {
-                        log_trace("OATH DISPLAY: %s (%d) - RED (learned but NOT active)", (b_name + b_ptr->name), b_ptr->abilitynum);
-                    }
                 }
             }
         }
         else
         {
-            log_trace("ABILITIES_MENU2: have_ability=false, checking prereqs");
             if (prereqs(skilltype, b_ptr->abilitynum))
                 attr = TERM_SLATE;
             else
                 attr = TERM_L_DARK;
         }
-
-        log_trace("ABILITIES_MENU2: Color determination complete, attr=%d", attr);
 
         if ((skilltype == S_PER) && (b_ptr->abilitynum == PER_BANE)
             && (p_ptr->bane_type > 0))
@@ -1785,13 +1698,8 @@ int abilities_menu2(int skilltype, int* highlight)
         
         Term_putstr(COL_ABILITY, display_row, -1, attr, buf);
 
-        log_trace("ABILITIES_MENU2: Displayed ability %d (%s) at row %d, checking highlight match: %d == %d+1?", 
-                 b_ptr->abilitynum, b_name + b_ptr->name, display_row, *highlight, b_ptr->abilitynum);
-
         if (*highlight == b_ptr->abilitynum + 1)
         {
-            log_trace("ABILITIES_MENU2: HIGHLIGHTING MATCH! highlight=%d matches ability %d+1", 
-                     *highlight, b_ptr->abilitynum);
             // highlight the label
             strnfmt(buf, 80, "%c)", (char)'a' + visible_count);
             Term_putstr(
@@ -2037,14 +1945,11 @@ int abilities_menu2(int skilltype, int* highlight)
 
     /* Safety check: if no abilities are visible, show message and exit */
     if (visible_count == 0) {
-        log_trace("ABILITIES_MENU2: No abilities visible for skilltype %d, returning to skills menu", skilltype);
         Term_putstr(COL_ABILITY, 4, -1, TERM_L_DARK, "No abilities available for this skill.");
         Term_fresh();
         inkey(); /* Wait for keypress */
         return (ABILITIES_MAX + 1); /* Return to skills menu */
     }
-
-    log_trace("ABILITIES_MENU2: Ability loop complete, visible_count=%d", visible_count);
 
     /* Flush the prompt */
     Term_fresh();
@@ -2052,68 +1957,50 @@ int abilities_menu2(int skilltype, int* highlight)
     /* Place cursor at current choice */
     Term_gotoxy(COL_ABILITY, 3 + *highlight);
 
-    log_trace("ABILITIES_MENU2: About to call inkey()");
-
     /* Get key (while allowing menu commands) */
     hide_cursor = true;
     ch = inkey();
     hide_cursor = false;
 
-    log_trace("ABILITIES_MENU2: Got input key: '%c' (0x%02x)", ch, ch);
-
     if ((ch >= 'a') && (ch <= (char)'a' + visible_count - 1))
     {
         int selected_index = (int)ch - 'a';
-        log_trace("ABILITIES_MENU2: Letter selection 'a'+%d, selected_index=%d, visible_count=%d", 
-                 selected_index, selected_index, visible_count);
         /* Bounds check for safety */
         if (selected_index >= 0 && selected_index < visible_count) {
             *highlight = visible_abilities[selected_index] + 1;
-            log_trace("ABILITIES_MENU2: Valid selection, new highlight=%d, recursing", *highlight);
             return abilities_menu2(skilltype, highlight);
-        } else {
-            log_trace("ABILITIES_MENU2: Invalid letter selection bounds");
         }
     }
 
     if ((ch >= 'A') && (ch <= (char)'A' + visible_count - 1))
     {
         int selected_index = (int)ch - 'A';
-        log_trace("ABILITIES_MENU2: Capital letter selection 'A'+%d, selected_index=%d, visible_count=%d", 
-                 selected_index, selected_index, visible_count);
         /* Bounds check for safety */
         if (selected_index >= 0 && selected_index < visible_count) {
             *highlight = visible_abilities[selected_index] + 1;
-            log_trace("ABILITIES_MENU2: Valid capital selection, new highlight=%d, recursing", *highlight);
             return abilities_menu2(skilltype, highlight);
-        } else {
-            log_trace("ABILITIES_MENU2: Invalid capital letter selection bounds");
         }
     }
 
     if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
     {
-        log_trace("ABILITIES_MENU2: Escape key pressed, returning to skills menu");
         return (ABILITIES_MAX + 1);
     }
 
     if (ch == '\t')
     {
-        log_trace("ABILITIES_MENU2: Tab key pressed, returning with special code");
         return (ABILITIES_MAX + 2);
     }
 
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
-        log_trace("ABILITIES_MENU2: Enter/space pressed, returning highlight=%d", *highlight);
         return (*highlight);
     }
 
     /* Prev item */
     if (ch == '8')
     {
-        log_trace("ABILITIES_MENU2: Up arrow pressed, visible_count=%d", visible_count);
         /* Only navigate if there are visible abilities */
         if (visible_count > 0) {
             /* Find current visible index */
@@ -2125,29 +2012,21 @@ int abilities_menu2(int skilltype, int* highlight)
                 }
             }
             
-            log_trace("ABILITIES_MENU2: Up navigation - current_visible_index=%d", current_visible_index);
-            
             /* Move to previous visible ability */
             if (current_visible_index > 0) {
                 *highlight = visible_abilities[current_visible_index - 1] + 1;
-                log_trace("ABILITIES_MENU2: Up - moved to previous: highlight=%d", *highlight);
             } else if (current_visible_index == 0) {
                 *highlight = visible_abilities[visible_count - 1] + 1;
-                log_trace("ABILITIES_MENU2: Up - wrapped to last: highlight=%d", *highlight);
             } else {
                 /* Fallback if not found - go to first visible */
                 *highlight = visible_abilities[0] + 1;
-                log_trace("ABILITIES_MENU2: Up - fallback to first: highlight=%d", *highlight);
             }
-        } else {
-            log_trace("ABILITIES_MENU2: Up navigation skipped - no visible abilities");
         }
     }
 
     /* Next item */
     if (ch == '2')
     {
-        log_trace("ABILITIES_MENU2: Down arrow pressed, visible_count=%d", visible_count);
         /* Only navigate if there are visible abilities */
         if (visible_count > 0) {
             /* Find current visible index */
@@ -2159,26 +2038,18 @@ int abilities_menu2(int skilltype, int* highlight)
                 }
             }
             
-            log_trace("ABILITIES_MENU2: Down navigation - current_visible_index=%d", current_visible_index);
-            
             /* Move to next visible ability */
             if (current_visible_index >= 0 && current_visible_index < visible_count - 1) {
                 *highlight = visible_abilities[current_visible_index + 1] + 1;
-                log_trace("ABILITIES_MENU2: Down - moved to next: highlight=%d", *highlight);
             } else if (current_visible_index == visible_count - 1) {
                 *highlight = visible_abilities[0] + 1;
-                log_trace("ABILITIES_MENU2: Down - wrapped to first: highlight=%d", *highlight);
             } else {
                 /* Fallback if not found - go to first visible */
                 *highlight = visible_abilities[0] + 1;
-                log_trace("ABILITIES_MENU2: Down - fallback to first: highlight=%d", *highlight);
             }
-        } else {
-            log_trace("ABILITIES_MENU2: Down navigation skipped - no visible abilities");
         }
     }
 
-    log_trace("ABILITIES_MENU2: Returning 0 (continue loop)");
     return (0);
 }
 

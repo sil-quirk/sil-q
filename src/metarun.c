@@ -153,7 +153,7 @@ static void curses_pack_words(void)
  * ---------------------------------------------------------------- */
 static void curses_unpack_words(void)
 {
-    log_debug("curses_unpack_words: before - curses_seen=0x%08X", metar.curses_seen);
+    log_trace("curses_unpack_words: before - curses_seen=0x%08X", metar.curses_seen);
     
     u32b lo = metar.curses_lo;          
     u32b hi = metar.curses_hi;
@@ -166,7 +166,7 @@ static void curses_unpack_words(void)
         CURSE_SET(id, (byte)cnt);            
     }
     
-    log_debug("curses_unpack_words: after - curses_seen=0x%08X", metar.curses_seen);
+    log_trace("curses_unpack_words: after - curses_seen=0x%08X", metar.curses_seen);
 }
 
 
@@ -569,7 +569,7 @@ static errr backup_file(const char *filepath)
         log_info("backup_file: backing up %s after %u seconds", filepath, current_time - last_backup_time);
     } else {
         /* Same file, recent backup - skip */
-        log_debug("backup_file: skipping backup of %s (last backup %u seconds ago)", 
+        log_trace("backup_file: skipping backup of %s (last backup %u seconds ago)", 
                   filepath, current_time - last_backup_time);
         return 0;
     }
@@ -1167,16 +1167,6 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
     return true;
 }
 
-static void print_heading(cptr title, byte attr)
-{
-    int w, h; Term_get_size(&w, &h);
-    int cx, cy; Term_locate(&cx, &cy);
-    if (cy < 0 || cy >= h) cy = 0;
-
-    c_prt(attr, title, cy, 1);
-    Term_gotoxy(1, cy + 1);
-}
-
 static void print_paragraph(cptr txt, byte attr)
 {
     text_out_hook   = text_out_to_screen;
@@ -1331,21 +1321,6 @@ int choose_oath_breaking_curse_ui(int oath_id)
     (void)fast_forward;
     
     return idx;
-}
-
-/******************  Story Fragment helper  ************************/
-
-static void print_story_fragment(byte sil_count, bool treachery_active)
-{
-    /* Only appear if player has Treachery lineage */
-    if (!treachery_active) return;
-
-    static const char *frag[3] = {
-        "A lone jewel's fire flickers against the dark, yet whispers of greed coil round your heart.",
-        "Twin jewels blaze, twin desires battle within you-honour and avarice locked in fierce embrace.",
-        "Three sacred stars burn in your grasp; their glory sets the shadow seething with envy and dread."
-    };
-    print_paragraph(frag[sil_count - 1], TERM_L_WHITE);
 }
 
 /* ------------------------------------------------------------------ */

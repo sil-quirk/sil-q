@@ -6,30 +6,17 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 
 
 # Road Map
- 
-- Quest systems 
-  * Tulkas -> kill unique -> get artifact (done) 
-  * Quest vault implementation (done) 
-  * Mandos -> kill specific -> get ability (done) 
-  * Aule -> forge -> get ability (done) 
-  * Niena -> spawn -> get ability (done) 
-  * Orome (done)
-- Update to oath system (done)
-  * After completed quest you get oaths (done)
-- UI
-  * Better oath texts (done)
-  * Better oath menu (done)
-- New oaths
-  * Smith (done)
-  * Valor (done)
-- Bug fixes (ongoing) 
-  * save names (done)
-  * new metarun saves (done)
-  * rubble (done)
-  * speacial monster (done)
-## Release of beta 0.87 (done) 
-- SDL
 
+- Fullscreen mode for windows (done) 
+- Combat rolls logs (done) 
+- Help screen update (done) 
+- Combat rolls logs (done) 
+- Steamdeck keybinds, art, etc (done)
+- Bug fixes (ongoing) 
+  * OathBreaking (done)
+## Release of beta 0.88 (Steam Deck update)
+
+- SDL
 ## Release of beta 0.9 
 - More Vaults
 - More monsters
@@ -47,61 +34,20 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 - Pride
 - Greed
  
-## Done
+## Done (moved to the end of the file)
 
-- Implement main curses (done)
-- Implement common RHF flags (done)
-  * Cheap cost (done)
-  * Morgoth Curse (done)
-- Add more debugging functions (done)
-- Add unique RHF flags (done)
-  * Feanor (done)
-  * Telchar (done)
-  * Gamil (done)
-  * Melian (done)
-  * Thingol (done)
-  * Tuor (done)
-  * Hurin (done)
-- Figure out last abilities and balance tweaks (done)
-  * All starting abilities (done)
-  * Multiple starting abilities (done)
+# Steam Deck installation
 
-
-## Release closed alpha 0.5 (done)
-
-- Bug fixes (ongoing)
-- UI fixes (done)
-  * Start menu (done)
-  * Character menu (done)
-- Decriptions update (done)
-
-## Release alpha 0.6 (UI updates) (done)
-
-- Bug fixes (ongoing) 
-- UI updates 
-  * Score menu (done) 
-  * Final menu (done) 
-- Flavor ideas for final menus (done) 
-
-## Release of alpha 0.7 (Storyline updates) (done)
-
-- Balance tweaks
-- Add unique RHF flags
-  * Earendil
-  * Turin (done)
-  * Celeborn
-  * Maedhros (done)
-- New heroes
-  * Eol (done) 
-- Dynamic tile system (done)
--- Wall tiles (done)
--- Floor tiles (done)
--- Doors (done)
-- Unique style for each depth (done)
-- Level entrance message depending on the style (done)
-- Difficulty levels for current run (done) 
-- Automatic load if run is not finished (done)
-## Release of beta 0.8 (Visual update) (done)
+- Long press power button and enter Desktop Mode.
+- Download latest Steam Deck release (from release page .zip file marked as steamdeck).
+- You can also download it to the flash drive and then mount in desktop mode (bottom right corner).
+- Unzip to any folder (even downloads will work fine).
+- Open Steam and in the top menu select games->Add a Non-Steam Game
+- Find Sil-More.exe and add it. Change the name to Sil-More in Properties.
+- In properties -> compatibilty use current version of Proton.
+- (optional) If you want to see artwork in your steam deck menus, Properties -> Customization. We have prepaired a CoverArt folder for you (do not forget to png in filter).
+- Open controller setup. You should see the layout on Community layouts or in search. If not, open the link Steam-Deck-layout-Sil-More in game folder.
+- Return back to Game mode and enjoy Sil-More!  
 
 # Compiling Instructions 
 
@@ -320,3 +266,81 @@ and restart.
    Sil-Q or Sil before, you'll see a dialog about granting Sil-Q access to
    your Documents folder since it wants to place saved games, the high
    score file, and some other data in Documents/Sil.
+
+
+## Done
+- Implement main curses (done)
+- Implement common RHF flags (done)
+  * Cheap cost (done)
+  * Morgoth Curse (done)
+- Add more debugging functions (done)
+- Add unique RHF flags (done)
+  * Feanor (done)
+  * Telchar (done)
+  * Gamil (done)
+  * Melian (done)
+  * Thingol (done)
+  * Tuor (done)
+  * Hurin (done)
+- Figure out last abilities and balance tweaks (done)
+  * All starting abilities (done)
+  * Multiple starting abilities (done)
+
+
+## Release closed alpha 0.5 (done)
+
+- Bug fixes (ongoing)
+- UI fixes (done)
+  * Start menu (done)
+  * Character menu (done)
+- Decriptions update (done)
+
+## Release alpha 0.6 (UI updates) (done)
+
+- Bug fixes (ongoing) 
+- UI updates 
+  * Score menu (done) 
+  * Final menu (done) 
+- Flavor ideas for final menus (done) 
+
+## Release of alpha 0.7 (Storyline updates) (done)
+
+- Balance tweaks
+- Add unique RHF flags
+  * Earendil
+  * Turin (done)
+  * Celeborn
+  * Maedhros (done)
+- New heroes
+  * Eol (done) 
+- Dynamic tile system (done)
+-- Wall tiles (done)
+-- Floor tiles (done)
+-- Doors (done)
+- Unique style for each depth (done)
+- Level entrance message depending on the style (done)
+- Difficulty levels for current run (done) 
+- Automatic load if run is not finished (done)
+## Release of beta 0.8 (Visual update) (done)
+
+- Quest systems 
+  * Tulkas -> kill unique -> get artifact (done) 
+  * Quest vault implementation (done) 
+  * Mandos -> kill specific -> get ability (done) 
+  * Aule -> forge -> get ability (done) 
+  * Niena -> spawn -> get ability (done) 
+  * Orome (done)
+- Update to oath system (done)
+  * After completed quest you get oaths (done)
+- UI
+  * Better oath texts (done)
+  * Better oath menu (done)
+- New oaths
+  * Smith (done)
+  * Valor (done)
+- Bug fixes (ongoing) 
+  * save names (done)
+  * new metarun saves (done)
+  * rubble (done)
+  * speacial monster (done)
+## Release of beta 0.87 (Quests and Oaths update) (done) 
