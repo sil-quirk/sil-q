@@ -1175,6 +1175,14 @@ static void process_command(void)
         break;
     }
 
+    /* Character sheet (alternative key) */
+    case 'h':
+    case 'H':
+    {
+        do_cmd_character_sheet();
+        break;
+    }
+
     /* Main menu */
     case 'm':
     {
@@ -1807,8 +1815,7 @@ static void process_player(void)
         /* Assume free turn */
         p_ptr->energy_use = 0;
 
-        // Reset number of attacks this turn
-        new_combat_round();
+    // Reset number of attacks this turn happens at start of player energy loop
 
         // get base stealth score for the round
         // this will get modified by the type of action
@@ -2556,6 +2563,14 @@ static void process_player(void)
     // defeating their purpose
     p_ptr->window |= (PW_INVEN | PW_EQUIP);
     p_ptr->window |= (PW_COMBAT_ROLLS);
+    /*
+     * Do NOT refresh the main-terminal combat rolls here.
+     * We refresh them after monster processing in the main loop so that
+     * both sides of the current round (player and monsters) are included.
+     * Calling display_main_combat_rolls() here caused the bottom log to
+     * show the player's current attack paired with the previous round's
+     * monster attack, creating a one-turn delay illusion for monsters.
+     */
 }
 
 /*
@@ -2702,6 +2717,12 @@ static void dungeon(void)
 
     /* Window stuff */
     p_ptr->window |= (PW_MONSTER | PW_MONLIST | PW_COMBAT_ROLLS);
+    
+    /* Update main terminal combat rolls if enabled */
+    if (op_ptr->main_combat_rolls > 0)
+    {
+        display_main_combat_rolls();
+    }
 
     /* Window stuff */
     p_ptr->window |= (PW_OVERHEAD);
@@ -2832,11 +2853,28 @@ static void dungeon(void)
 
         /*** Apply energy ***/
 
-        /* Can the player move? */
+          /* Can the player move? */
         while ((p_ptr->energy >= 100) && (!p_ptr->leaving))
-        {   
-            /* Process monster with even more energy first */
+          {
+            /* Start a new combat round BEFORE any actors move this turn.
+                    This ensures monsters that act before the player (due to higher
+                    energy) are recorded in the same current round as the player's
+                    actions, avoiding a one-turn lag in the bottom log. */
+            log_trace("[LOOP] Begin player-energy turn: energy=%d", p_ptr->energy);
+                new_combat_round();
+            log_trace("[LOOP] After new_combat_round: turns_since_combat=%d combat_number=%d old=%d", turns_since_combat, combat_number, combat_number_old);
+
+                /* Process monster with even more energy first */
+            log_trace("[LOOP] process_monsters pre-player: threshold=%d", p_ptr->energy + 1);
             process_monsters(p_ptr->energy + 1);
+            log_trace("[LOOP] after process_monsters pre-player: combat_number=%d old=%d", combat_number, combat_number_old);
+
+                /* Show newly added monster attacks immediately so they are not perceived as a turn late */
+                if (op_ptr->main_combat_rolls > 0)
+                {
+                    log_trace("[LOOP] interim display_main_combat_rolls pre-player");
+                    display_main_combat_rolls();
+                }
 
             /* If still alive */
             if (!p_ptr->leaving)
@@ -2852,7 +2890,9 @@ static void dungeon(void)
                 }
 
                 /* Process the player */
+                log_trace("[LOOP] process_player start");
                 process_player();
+                log_trace("[LOOP] process_player end: combat_number=%d old=%d", combat_number, combat_number_old);
             }
         }
 
@@ -2893,7 +2933,16 @@ static void dungeon(void)
         }
 
         /* Process monsters (any that haven't had a chance to move yet) */
-        process_monsters(100);
+    log_trace("[LOOP] process_monsters post-player: threshold=100");
+    process_monsters(100);
+    log_trace("[LOOP] after process_monsters post-player: combat_number=%d old=%d", combat_number, combat_number_old);
+
+        /* Update main terminal combat rolls after monster processing */
+        if (op_ptr->main_combat_rolls > 0)
+        {
+            log_trace("[LOOP] display_main_combat_rolls() now");
+            display_main_combat_rolls();
+        }
 
         /* Notice stuff */
         if (p_ptr->notice)

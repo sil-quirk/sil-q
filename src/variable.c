@@ -619,6 +619,13 @@ char combat_roll_special_char;
 byte combat_roll_special_attr;
 
 /*
+ * Combat history storage for browsing past combat rounds
+ */
+combat_history_round combat_history[MAX_COMBAT_HISTORY];
+int combat_history_head = 0;
+int combat_history_count = 0;
+
+/*
  * Hacky variables for ignoring a square during project_path() function
  */
 bool project_path_ignore;

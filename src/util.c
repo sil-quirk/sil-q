@@ -2980,7 +2980,7 @@ void msg_debug(cptr fmt, ...)
     va_list vp;
 
     char buf[1024];
-    char buf2[1024];
+    char buf2[1030]; /* Slightly larger to accommodate "<< >>" wrapper */
 
     /* Begin the Varargs Stuff */
     va_start(vp, fmt);
@@ -2991,7 +2991,7 @@ void msg_debug(cptr fmt, ...)
     /* End the Varargs Stuff */
     va_end(vp);
 
-    sprintf(buf2, "<< %s >>", buf);
+    snprintf(buf2, sizeof(buf2), "<< %s >>", buf);
 
     /* Display */
     msg_print_aux(MSG_GENERIC, buf2);

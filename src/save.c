@@ -680,9 +680,13 @@ static void wr_options(void)
     /* Write "hitpoint_warn" */
     wr_byte(op_ptr->hitpoint_warn);
 
-    // 8 spare bytes
+    /* Write "main_combat_rolls" */
+    wr_byte(op_ptr->main_combat_rolls);
+
+    // 7 spare bytes
+    wr_byte(0);
     wr_u32b(0L);
-    wr_u32b(0L);
+    wr_u16b(0);
 
     /*** Normal options ***/
 

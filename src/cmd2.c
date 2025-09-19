@@ -134,16 +134,14 @@ void do_cmd_go_up(void)
             /* Curse message and selection handled by apply_oath_breaking_curse */
             do_cmd_note("Broke your oath", p_ptr->depth);
             apply_oath_breaking_curse(OATH_IRON);
+            
+            /* Only mark oath as broken if player actually has it */
+            p_ptr->oaths_broken |= OATH_IRON_FLAG;
         }
         else
         {
             return;
         }
-    }
-
-    if (silmarils_possessed() == 0)
-    {
-        p_ptr->oaths_broken |= OATH_IRON_FLAG;
     }
 
     // warn player if they have an active Niena quest and are trying to leave

@@ -106,9 +106,7 @@ typedef struct {
 
 /* Forward declarations for quest-specific functions */
 static bool data_driven_eligibility_check(int depth, int quest_id);
-static bool tulkas_eligibility_check(int depth, int quest_id);
 static bool tulkas_probability_roll(int depth, int quest_id);
-static bool niena_eligibility_check(int depth, int quest_id);
 static bool niena_probability_roll(int depth, int quest_id);
 static void run_quest_lottery(void);
 
@@ -366,13 +364,6 @@ static bool data_driven_eligibility_check(int depth, int quest_id) {
     return check_quest_eligibility(quest_id, depth);
 }
 
-/* Tulkas-specific eligibility check */
-static bool tulkas_eligibility_check(int depth, int quest_id) {
-    return (p_ptr->tulkas_quest == TULKAS_QUEST_NOT_STARTED && 
-            depth >= 6 && depth < 20 &&
-            !metarun_is_quest_completed(METARUN_QUEST_TULKAS));
-}
-
 /* Tulkas-specific probability roll */
 static bool tulkas_probability_roll(int depth, int quest_id) {
     int tulkas_chance = 27 - depth;
@@ -388,13 +379,6 @@ static bool tulkas_probability_roll(int depth, int quest_id) {
     }
     
     return won;
-}
-
-/* Niena-specific eligibility check */
-static bool niena_eligibility_check(int depth, int quest_id) {
-    return (p_ptr->niena_quest == NIENA_QUEST_NOT_STARTED && 
-            depth >= 14 &&  /* Niena only spawns at level 14+ */
-            !metarun_is_quest_completed(METARUN_QUEST_NIENA));
 }
 
 /* Niena-specific probability roll */

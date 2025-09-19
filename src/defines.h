@@ -78,7 +78,7 @@
  * 0 = Always use "log.txt" (overwrite previous log)
  * 1 = Create new log with timestamp each time
  */
-#define LOG_MODE_TIMESTAMP 1
+#define LOG_MODE_TIMESTAMP 0
 
 /*
  * Number of grids in each block (vertically)
@@ -115,7 +115,7 @@
 /*
  * Number of grids in each screen (vertically)
  */
-#define SCREEN_HGT (Term->hgt - ROW_MAP - 1)
+#define SCREEN_HGT (Term->hgt - ROW_MAP - 1 - (op_ptr ? op_ptr->main_combat_rolls : 0))
 
 /*
  * Number of grids in each screen (horizontally)
@@ -330,8 +330,13 @@
  */
 #define MAX_COMBAT_ROLLS 50
 
+/*
+ * Number of combat rounds stored in combat history
+ */
+#define MAX_COMBAT_HISTORY 100
+
 // Types of combat roll storage
-#define COMBAT_ROLL_NONE 1
+#define COMBAT_ROLL_NONE 0
 #define COMBAT_ROLL_ROLL 1
 #define COMBAT_ROLL_AUTO 2
 
@@ -2508,6 +2513,7 @@
 #define OPT_forgo_attacking_unwary 6
 #define OPT_delay_factor 10
 #define OPT_hitpoint_warning 11
+#define OPT_main_combat_rolls 12
 // xxx always_repeat
 // xxx depth_in_feet
 // xxx stack_force_notes

@@ -4102,8 +4102,10 @@ void break_mercy_oath(monster_type* m_ptr, int damage)
             
             /* Apply oath breaking consequences */
             apply_oath_breaking_curse(OATH_MERCY);
+            
+            /* Only mark oath as broken if player actually has it */
+            p_ptr->oaths_broken |= OATH_MERCY_FLAG;
         }
-        p_ptr->oaths_broken |= OATH_MERCY_FLAG;
     }
 }
 
