@@ -23,7 +23,6 @@ enum {
 };
 
 static font_mode_t g_font_mode = FONTMODE_BITMAP;
-static int g_scale = 1;
 static bool g_tiles_mode = true;
 static bool g_fullscreen = true;
 static SDL_Color g_palette[16];
@@ -34,7 +33,8 @@ typedef struct {
     SDL_Texture* canvas; // individual
     SDL_Texture* font_atlas; // individual
     SDL_Texture* tileset; // shared
-    float dpi_scale; // shared
+    TTF_Font* font;
+    float scale; // shared
     // Need to store these because these can vary between TTF and bitmap.
     int glyph_w;
     int glyph_h;
@@ -87,6 +87,11 @@ static void sdl_window_load_ttf_font(sdl_window* d, int window_width);
 static sdl_window* sdl_window_from_term(term* t)
 {
     return (sdl_window*)t->data;
+}
+
+static sdl_view* sdl_view_from_term(term* t)
+{
+    return &g_views[(size_t)t->data];
 }
 
 static void sdl_window_handle_event(sdl_window* d, const SDL_Event* ev)
@@ -168,51 +173,52 @@ static void sdl_window_handle_event(sdl_window* d, const SDL_Event* ev)
         }
     } else if (ev->type == SDL_EVENT_WINDOW_RESIZED) {
         log_debug("window resized to %dx%d", ev->window.data1, ev->window.data2);
-        int cols = d->dpi_scale * ev->window.data1 / d->cell_w;
-        int rows = d->dpi_scale * ev->window.data2 / d->cell_h;
-        if (cols != d->cols || rows != d->rows) {
-            bool recalc = false;
-            if ((d->cols >= 80 && cols < 80) || (d->rows >= 25 && rows < 25)) {
-                log_debug("window too small, downscale");
-                g_scale = 1;
-                recalc = true;
-            } else if (g_scale == 1 && cols >= 2 * 80 && rows >= 2 * 25) {
-                log_debug("window big enough, upscale");
-                g_scale = 2;
-                recalc = true;
-            }
-            if (recalc) {
-                d->cell_h = d->dpi_scale * g_scale * GLYPH_HEIGHT;
-                d->cell_w = d->dpi_scale * g_scale * GLYPH_WIDTH;
-                sdl_window_load_ttf_font(d, d->cols * d->cell_w);
-            }
-            cols = d->dpi_scale * ev->window.data1 / d->cell_w;
-            rows = d->dpi_scale * ev->window.data2 / d->cell_h;
+        return;
+        // int cols = d->scale * ev->window.data1 / d->cell_w;
+        // int rows = d->scale * ev->window.data2 / d->cell_h;
+        // if (cols != d->cols || rows != d->rows) {
+        //     bool recalc = false;
+        //     if ((d->cols >= 80 && cols < 80) || (d->rows >= 25 && rows < 25)) {
+        //         log_debug("window too small, downscale");
+        //         g_scale = 1;
+        //         recalc = true;
+        //     } else if (g_scale == 1 && cols >= 2 * 80 && rows >= 2 * 25) {
+        //         log_debug("window big enough, upscale");
+        //         g_scale = 2;
+        //         recalc = true;
+        //     }
+        //     if (recalc) {
+        //         d->cell_h = d->scale * g_scale * GLYPH_HEIGHT;
+        //         d->cell_w = d->scale * g_scale * GLYPH_WIDTH;
+        //         sdl_window_load_ttf_font(d, d->cols * d->cell_w);
+        //     }
+        //     cols = d->scale * ev->window.data1 / d->cell_w;
+        //     rows = d->scale * ev->window.data2 / d->cell_h;
 
-            log_debug("resized from %dx%d to %dx%d", d->rows, d->cols, rows, cols);
-            d->cols = cols;
-            d->rows = rows;
-            Term_activate(&d->t);
-            Term_resize(cols, rows);
-            // Term_xtra(TERM_XTRA_FRESH, 0);
+        //     log_debug("resized from %dx%d to %dx%d", d->rows, d->cols, rows, cols);
+        //     d->cols = cols;
+        //     d->rows = rows;
+        //     Term_activate(&d->t);
+        //     Term_resize(cols, rows);
+        //     // Term_xtra(TERM_XTRA_FRESH, 0);
 
-            // Recreate canvas for new logical size
-            if (d->canvas)
-                SDL_DestroyTexture(d->canvas);
-            d->canvas = SDL_CreateTexture(d->renderer,
-                SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET,
-                d->cols * d->cell_w, d->rows * d->cell_h);
-            if (d->canvas) {
-                SDL_SetTextureBlendMode(d->canvas, SDL_BLENDMODE_NONE);
-                SDL_SetTextureScaleMode(d->canvas, SDL_SCALEMODE_NEAREST);
-                SDL_SetRenderTarget(d->renderer, d->canvas);
-                SDL_SetRenderDrawColor(d->renderer, 0, 0, 0, 255);
-                SDL_RenderClear(d->renderer);
-            } else {
-                log_error("Failed to recreate canvas: %s", SDL_GetError());
-            }
-            d->need_present = true;
-        }
+        //     // Recreate canvas for new logical size
+        //     if (d->canvas)
+        //         SDL_DestroyTexture(d->canvas);
+        //     d->canvas = SDL_CreateTexture(d->renderer,
+        //         SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET,
+        //         d->cols * d->cell_w, d->rows * d->cell_h);
+        //     if (d->canvas) {
+        //         SDL_SetTextureBlendMode(d->canvas, SDL_BLENDMODE_NONE);
+        //         SDL_SetTextureScaleMode(d->canvas, SDL_SCALEMODE_NEAREST);
+        //         SDL_SetRenderTarget(d->renderer, d->canvas);
+        //         SDL_SetRenderDrawColor(d->renderer, 0, 0, 0, 255);
+        //         SDL_RenderClear(d->renderer);
+        //     } else {
+        //         log_error("Failed to recreate canvas: %s", SDL_GetError());
+        //     }
+        //     d->need_present = true;
+        // }
     }
 }
 
@@ -524,7 +530,7 @@ static void sdl_window_load_ttf_font(sdl_window* d, int window_width)
                 break;
             }
         } else {
-            int cols = d->dpi_scale * window_width / measured_w;
+            int cols = d->scale * window_width / measured_w;
             if (cols >= 80) {
                 log_debug("adjust cell size from %d to %d", d->cell_w, measured_w);
                 d->cell_w = measured_w;
@@ -601,10 +607,11 @@ static void sdl_window_create(sdl_window* d, int scale, int window_width, int wi
     // Ensure predictable alpha blending (cursor/text)
     SDL_SetRenderDrawBlendMode(d->renderer, SDL_BLENDMODE_BLEND);
 
-    float dpi_scale = SDL_GetWindowDisplayScale(d->window);
-    d->dpi_scale = dpi_scale;
-    d->cell_h = dpi_scale * scale * GLYPH_HEIGHT;
-    d->cell_w = dpi_scale * scale * GLYPH_WIDTH;
+    // TODO: set default recommended scale to dpi_scale.
+    // float dpi_scale = SDL_GetWindowDisplayScale(d->window);
+    d->scale = scale;
+    d->cell_h = scale * GLYPH_HEIGHT;
+    d->cell_w = scale * GLYPH_WIDTH;
 
     if (g_font_mode == FONTMODE_TTF) {
         sdl_window_load_ttf_font(d, window_width);
@@ -629,10 +636,10 @@ static void sdl_window_create(sdl_window* d, int scale, int window_width, int wi
     SDL_SetTextureColorMod(d->font_atlas, 255, 255, 255);
     SDL_SetTextureAlphaMod(d->font_atlas, 255);
 
-    d->cols = dpi_scale * window_width / d->cell_w;
-    d->rows = dpi_scale * window_height / d->cell_h;
-    d->margin_x = (dpi_scale * window_width - d->cols * d->cell_w) / 2;
-    d->margin_y = (dpi_scale * window_height - d->rows * d->cell_h) / 2;
+    d->cols = scale * window_width / d->cell_w;
+    d->rows = scale * window_height / d->cell_h;
+    d->margin_x = (scale * window_width - d->cols * d->cell_w) / 2;
+    d->margin_y = (scale * window_height - d->rows * d->cell_h) / 2;
 
     // Create a persistent offscreen canvas to render into
     d->canvas = SDL_CreateTexture(d->renderer, SDL_PIXELFORMAT_RGBA8888,
@@ -679,6 +686,7 @@ static void sdl_window_create(sdl_window* d, int scale, int window_width, int wi
 
 errr init_sdl(int argc, char **argv)
 {
+    int scale = 1;
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--font")) {
             if (argc > i + 1) {
@@ -698,10 +706,9 @@ errr init_sdl(int argc, char **argv)
         } else if (!strcmp(argv[i], "--scale")) {
             if (argc > i + 1) {
                 const char* scale_str = argv[++i];
-                double scale = SDL_atof(scale_str);
+                scale = SDL_atoi(scale_str);
                 if (scale <= 0)
                     quit("wrong scale value, must be >= 1");
-                g_scale = scale;
             } else {
                 log_error("--scale requires an argument");
                 quit("--scale requires an argument");
@@ -758,7 +765,7 @@ errr init_sdl(int argc, char **argv)
     #undef RGB
 
     // Create all windows.
-    sdl_window_create(&windows[0], g_scale, screen.w, screen.h, g_fullscreen);
+    sdl_window_create(&windows[0], scale, screen.w, screen.h, g_fullscreen);
     sdl_window_link_term(&windows[0], 0);
     Term_activate(&windows[0].t); // TODO: need to call it somewhere!
 
