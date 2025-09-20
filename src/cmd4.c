@@ -8130,7 +8130,7 @@ int options_menu(int* highlight)
     }
 
     /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' '))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
         return (*highlight);
     }

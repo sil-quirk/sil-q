@@ -77,7 +77,13 @@ static void reset_defaults(metarun *m)
     
     /* Initialize quest tracking */
     m->completed_quests = 0;             /* No quests completed initially */
-    for (int i = 0; i < 15; i++) {
+    
+    /* Initialize oath system tracking */
+    m->unlocked_oaths = 0;               /* No oaths unlocked initially */
+    m->banned_oaths = 0;                 /* No oaths banned initially */
+    m->max_difficulty_reached = 0;       /* Start with easiest difficulty */
+    
+    for (int i = 0; i < 12; i++) {       /* Updated to 12 due to new field */
         m->quest_reserved[i] = 0;
     }
     
@@ -1058,10 +1064,84 @@ int menu_choose_one_curse(int n)
     }
 
     /* Show the prompt immediately without fade */
-    c_put_str(TERM_L_DARK, "Press a, b or c.", row + 1, 2);
+    c_put_str(TERM_L_DARK, "Arrows to navigate     Space/Enter Accept     a/b/c Select", row + 1, 2);
     
-    sel = -1;
-    while (sel < 0 || sel >= CURSE_MENU_LINES) sel = inkey() - 'a';
+    /* Menu navigation variables */
+    int highlight = 0;  /* Currently highlighted option (0, 1, 2) */
+    bool menu_done = false;
+    int option_rows[CURSE_MENU_LINES];  /* Store the row for each option */
+    
+    /* Calculate row positions for each option */
+    int calc_row = 4;
+    for (int i = 0; i < CURSE_MENU_LINES; i++) {
+        option_rows[i] = calc_row;
+        curse_type *cu = &cu_info[pick[i]];
+        const char *txt = cu_text + cu->text;
+        int need_lines = count_wrapped_lines(txt, text_out_wrap, 4);
+        calc_row += need_lines + 3;
+    }
+    
+    while (!menu_done) {
+        /* Ensure text output settings are consistent */
+        text_out_hook = text_out_to_screen;
+        text_out_wrap = Term->wid - 2;
+        
+        /* Update highlight display for each option */
+        for (int i = 0; i < CURSE_MENU_LINES; i++) {
+            curse_type *cu = &cu_info[pick[i]];
+            char name_buf[128];
+            strnfmt(name_buf, sizeof name_buf, "%c) %s", 'a'+i, cu_name + cu->name);
+            
+            /* Clear the line first to remove any previous highlighting */
+            Term_erase(2, option_rows[i], strlen(name_buf));
+            
+            /* Display the option with highlighting */
+            if (i == highlight) {
+                c_put_str(TERM_RED, name_buf, option_rows[i], 2);     /* Highlighted - red */
+            } else {
+                c_put_str(TERM_L_RED, name_buf, option_rows[i], 2);   /* Normal - light red */
+            }
+        }
+        
+        /* Position cursor at the end of the highlighted option text */
+        curse_type *highlighted_cu = &cu_info[pick[highlight]];
+        char highlighted_name_buf[128];
+        strnfmt(highlighted_name_buf, sizeof highlighted_name_buf, "%c) %s", 'a'+highlight, cu_name + highlighted_cu->name);
+        int cursor_col = 2 + strlen(highlighted_name_buf);
+        Term_gotoxy(cursor_col, option_rows[highlight]);
+        Term_fresh();
+        char key = inkey();
+        
+        /* Handle input */
+        if (key >= 'a' && key < 'a' + CURSE_MENU_LINES) {
+            /* Letter shortcuts */
+            sel = key - 'a';
+            menu_done = true;
+        }
+        else if (key >= 'A' && key < 'A' + CURSE_MENU_LINES) {
+            /* Capital letter shortcuts */
+            sel = key - 'A';
+            menu_done = true;
+        }
+        else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+            /* Enter, Space, or numpad 6 - select current highlight */
+            sel = highlight;
+            menu_done = true;
+        }
+        else if (key == '8' || key == 'k') {
+            /* Up navigation */
+            highlight = (highlight + CURSE_MENU_LINES - 1) % CURSE_MENU_LINES;
+        }
+        else if (key == '2' || key == 'j') {
+            /* Down navigation */
+            highlight = (highlight + 1) % CURSE_MENU_LINES;
+        }
+        else if (key == ESCAPE) {
+            /* Escape - default to first option */
+            sel = 0;
+            menu_done = true;
+        }
+    }
     screen_load();
     return pick[sel];
 }
@@ -2244,6 +2324,7 @@ static void choose_difficulty_menu(void)
         {
             byte name_color, desc_color;
             byte runtype_color = TERM_WHITE; /* default color */
+            bool is_locked = (i < metar.max_difficulty_reached); /* Lock easier difficulties */
             
             /* Get runtype color from U: field */
             if (runtype_info && i < z_info->rt_max && runtype_info[i].name[0])
@@ -2255,7 +2336,13 @@ static void choose_difficulty_menu(void)
                 runtype_color = TERM_WHITE; /* fallback if runtype not loaded */
             }
             
-            if (i == choice) {
+            if (is_locked) {
+                /* Locked (easier) difficulties - greyed out */
+                name_color = TERM_L_DARK;
+                desc_color = TERM_L_DARK;
+                Term_putstr(2, row, -1, TERM_L_DARK, "-");
+            }
+            else if (i == choice) {
                 /* Highlight selected difficulty - use runtype color but brighter */
                 name_color = runtype_color;
                 desc_color = TERM_L_WHITE;
@@ -2287,11 +2374,21 @@ static void choose_difficulty_menu(void)
             char desc_buf[128];
             char curse_buf[64];
             get_curse_description(i, curse_buf, sizeof(curse_buf));
-            snprintf(desc_buf, sizeof(desc_buf), "Win: %d Silmarils, Lose: %d deaths, %s", 
-                     win_goal, death_limit, curse_buf);
+            
+            if (is_locked) {
+                snprintf(desc_buf, sizeof(desc_buf), "[LOCKED] Win: %d Silmarils, Lose: %d deaths, %s", 
+                         win_goal, death_limit, curse_buf);
+            } else {
+                snprintf(desc_buf, sizeof(desc_buf), "Win: %d Silmarils, Lose: %d deaths, %s", 
+                         win_goal, death_limit, curse_buf);
+            }
             
             char name_buf[128];
-            snprintf(name_buf, sizeof(name_buf), "%d) %s", i, rt_name);
+            if (is_locked) {
+                snprintf(name_buf, sizeof(name_buf), "%c) %s [LOCKED]", 'a'+i, rt_name);
+            } else {
+                snprintf(name_buf, sizeof(name_buf), "%c) %s", 'a'+i, rt_name);
+            }
             
             Term_putstr(4, row++, -1, name_color, name_buf);
             Term_putstr(7, row++, -1, desc_color, desc_buf);
@@ -2301,7 +2398,7 @@ static void choose_difficulty_menu(void)
         }
         
         /* Instructions */
-        Term_putstr(2, row + 1, -1, TERM_L_WHITE, "Use 8/2 (up/down), 0-9 numbers, Enter to confirm, ESC to cancel");
+        Term_putstr(2, row + 1, -1, TERM_L_WHITE, "Arrows to navigate     Space/Enter Accept     Esc Cancel");
         
         /* Get input */
         char key = inkey();
@@ -2312,36 +2409,124 @@ static void choose_difficulty_menu(void)
             screen_load();
             return;
         }
-        else if (key == '\r' || key == '\n')  /* Enter key */
+        else if (key == '\r' || key == '\n' || key == ' ' || key == '6')  /* Enter/Space/6 key */
         {
+            /* Check if trying to select a locked difficulty */
+            if (choice < metar.max_difficulty_reached) {
+                /* Show warning and stay in menu */
+                Term_putstr(2, row + 3, -1, TERM_RED, "Cannot select easier difficulty - locked for this story run!");
+                Term_fresh();
+                Term_xtra(TERM_XTRA_DELAY, 2000);
+                continue;
+            }
             break;  /* Confirm selection */
         }
         else if (key == '8' || key == 'k' || key == '-')  /* Up */
         {
-            if (choice > 0) choice--;
+            /* Navigate up but skip locked difficulties */
+            int new_choice = choice - 1;
+            while (new_choice >= 0 && new_choice < metar.max_difficulty_reached) {
+                new_choice--;
+            }
+            if (new_choice >= 0) choice = new_choice;
         }
-        else if (key == '2' || key == 'j' || key == '+' || key == ' ')  /* Down */
+        else if (key == '2' || key == 'j' || key == '+')  /* Down */
         {
+            /* Navigate down normally */
             if (choice < max_difficulty) choice++;
         }
-        else if (key >= '0' && key <= '9')  /* Direct number selection */
+        else if (key >= 'a' && key <= 'z')  /* Letter selection */
         {
-            int new_choice = key - '0';
-            if (new_choice <= max_difficulty) choice = new_choice;
+            int new_choice = key - 'a';
+            if (new_choice <= max_difficulty) {
+                if (new_choice < metar.max_difficulty_reached) {
+                    /* Show warning for locked difficulty */
+                    Term_putstr(2, row + 3, -1, TERM_RED, "Cannot select easier difficulty - locked for this story run!");
+                    Term_fresh();
+                    Term_xtra(TERM_XTRA_DELAY, 2000);
+                } else {
+                    choice = new_choice;
+                }
+            }
+        }
+        else if (key >= 'A' && key <= 'Z')  /* Capital letter selection */
+        {
+            int new_choice = key - 'A';
+            if (new_choice <= max_difficulty) {
+                if (new_choice < metar.max_difficulty_reached) {
+                    /* Show warning for locked difficulty */
+                    Term_putstr(2, row + 3, -1, TERM_RED, "Cannot select easier difficulty - locked for this story run!");
+                    Term_fresh();
+                    Term_xtra(TERM_XTRA_DELAY, 2000);
+                } else {
+                    choice = new_choice;
+                }
+            }
         }
     }
     
     /* Apply the new difficulty */
     if (choice != metar.type)
     {
+        /* Warn if increasing difficulty */
+        if (choice > metar.type) {
+            screen_save();
+            Term_clear();
+            Term_putstr(2, 5, -1, TERM_YELLOW, "WARNING: Increasing Difficulty");
+            Term_putstr(2, 7, -1, TERM_WHITE, "If you increase the difficulty level, you will NOT be able to");
+            Term_putstr(2, 8, -1, TERM_WHITE, "go back to an easier level for the rest of this story run.");
+            Term_putstr(2, 10, -1, TERM_L_RED, "This change is PERMANENT for this meta-run!");
+            Term_putstr(2, 12, -1, TERM_L_WHITE, "Do you want to continue? (y/n)");
+            
+            char confirm = inkey();
+            screen_load();
+            
+            if (confirm != 'y' && confirm != 'Y') {
+                return; /* Cancel the change */
+            }
+        }
+        
         log_info("Changing difficulty from %d to %d", metar.type, choice);
         
-        /* Clear all existing curses */
+        /* Store current curses to preserve them */
+        u32b preserved_curses_lo = metar.curses_lo;
+        u32b preserved_curses_hi = metar.curses_hi;
+        u32b preserved_curses_seen = metar.curses_seen;
+        
+        /* Temporarily clear curses to get base difficulty curses */
         metarun_clear_all_curses();
         
-        /* Set new type and apply its curses */
+        /* Set new type and apply its base curses */
         metar.type = (byte)choice;
         apply_difficulty_curses(&metar);
+        
+        /* Merge preserved curses with new difficulty curses (ADD stacks, don't just take max) */
+        for (int curse_id = 0; curse_id < 32; curse_id++) {
+            byte preserved_stacks = (curse_id < 16) ? 
+                ((preserved_curses_lo >> (curse_id * 2)) & 3) :
+                ((preserved_curses_hi >> ((curse_id - 16) * 2)) & 3);
+            
+            byte current_stacks = CURSE_GET(curse_id);
+            byte total_stacks = preserved_stacks + current_stacks;
+            
+            /* Respect per-curse maximum stacks */
+            byte max_allowed = cu_info[curse_id].max_stacks;
+            if (max_allowed > 0 && total_stacks > max_allowed) {
+                total_stacks = max_allowed;
+            }
+            
+            if (total_stacks > 0) {
+                CURSE_SET(curse_id, total_stacks);
+            }
+        }
+        
+        /* Update maximum difficulty reached */
+        if (choice > metar.max_difficulty_reached) {
+            metar.max_difficulty_reached = (byte)choice;
+        }
+        
+        /* Restore seen flags */
+        metar.curses_seen |= preserved_curses_seen;
         
         /* Save changes */
         save_metaruns();

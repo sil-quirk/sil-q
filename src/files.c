@@ -3067,8 +3067,9 @@ void show_help_screen(int i)
         put_role(ROLE_SUBTLE, "Interacting with your own square also:", row, col); row++;
         put_role(ROLE_SUBTLE, "- picks up an item", row, col + 2); row++;
         put_role(ROLE_SUBTLE, "- uses a staircase/forge", row, col + 2); row++;
-        put_role(ROLE_SUBTLE, "- can be done by pressing ,", row, col + 2);
+        put_role(ROLE_SUBTLE, "- can be done by pressing , or Space", row, col + 2);
         put_role(ROLE_KEY,    ",", row, col + 28);
+        put_role(ROLE_KEY,    "Space", row, col + 33);
 
         row = 3; col = 52;
         put_role(ROLE_SECTION, "Miscellaneous", row - 2, col);
@@ -6552,7 +6553,7 @@ static int final_menu(int* highlight)
     }
 
     /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' '))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
         return (*highlight);
     }

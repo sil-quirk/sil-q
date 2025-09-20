@@ -2492,6 +2492,13 @@ bool place_monster_one(
         return (false);
     }
 
+    /* Check quest monster spawning restrictions when not ignoring depth */
+    if (!ignore_depth && get_mon_num_hook && !(*get_mon_num_hook)(r_idx))
+    {
+        /* Cannot create */
+        return (false);
+    }
+
     /* Get local monster */
     n_ptr = &monster_type_body;
 
@@ -3484,6 +3491,8 @@ bool summon_specific(int y1, int x1, int lev, int type)
 {
     int i, x, y, r_idx;
 
+    bool (*get_mon_num_hook_temp)(int r_idx) = get_mon_num_hook;
+
     /* Look for a location */
     for (i = 0; i < 20; ++i)
     {
@@ -3521,8 +3530,8 @@ bool summon_specific(int y1, int x1, int lev, int type)
     /* Pick a monster, using the given level */
     r_idx = get_mon_num(lev, false, true, false);
 
-    /* Remove restriction */
-    get_mon_num_hook = NULL;
+    /* Restore the previous hook */
+    get_mon_num_hook = get_mon_num_hook_temp;
 
     /* Prepare allocation table */
     get_mon_num_prep();

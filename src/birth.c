@@ -715,7 +715,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
             return (INVALID_CHOICE);
 
         /* Make a choice */
-        if ((c == '\n') || (c == '\r') || (c == '6')) {
+        if ((c == '\n') || (c == '\r') || (c == ' ') || (c == '6')) {
             if (choices[cur].ghost)
                 bell("Your race cannot choose that house.");
             else
@@ -1851,7 +1851,7 @@ static NavResult select_oath(void)
             return NAV_BACK; /* Go back to character creation */
         }
         
-        if (key == '\r' || key == '\n' || key == ' ') {
+        if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
             /* Select current highlighted option */
             if (highlight == 0 || ((available_mask & (1 << (highlight - 1))) && !oath_banned(highlight))) {
                 choice = highlight;
@@ -2111,7 +2111,7 @@ static NavResult player_birth_aux_2(void)
             return NAV_BACK;
 
         /* Done */
-        if ((ch == '\r') || (ch == '\n'))
+        if ((ch == '\r') || (ch == '\n') || (ch == ' '))
             return NAV_OK;
 
         /* Prev stat */
@@ -2327,7 +2327,7 @@ extern NavResult gain_skills(void)
         }
 
         /* Done */
-        if ((ch == '\r') || (ch == '\n'))
+        if ((ch == '\r') || (ch == '\n') || (ch == ' '))
         {
             result = NAV_OK;
             break;
