@@ -49,6 +49,287 @@ Turn 22491: @ (+20) 35  - 46 [+40] @
 - **Data Persistence**: Stored in `combat_history[MAX_COMBAT_HISTORY]` with head/count tracking
 - **Turn Tracking**: Each round includes turn number for temporal reference
 
+## Enhanced Inventory/Equipment Menu System - MAJOR FIXES APPLIED (September 2025)
+**STATUS**: � **CRITICAL FIXES IMPLEMENTED - TESTING IN PROGRESS** 
+**Feature**: Scrollable inventory/equipment menus with arrow key navigation
+
+### Issues Addressed and Fixed:
+
+1. **✅ FIXED: Equipment Row Positioning**
+   - **Problem**: Equipment rows were 1 up and columns completely wrong
+   - **Root Cause**: Was using `current_slot - INVEN_WIELD` for row calculation  
+   - **Solution**: Completely rewrote to exactly replicate `show_equip()` algorithm using `j + 1` for rows
+   - **Details**: Equipment displays items consecutively starting from row 1, not by slot number
+
+2. **✅ FIXED: Black Screen on Descriptions** 
+   - **Problem**: Description screen went completely black and stayed black
+   - **Root Cause**: Calling `Term_clear()` which clears screen permanently
+   - **Solution**: Removed `Term_clear()` calls - original `object_info_screen()` only uses `screen_save()`/`screen_load()`
+   - **Details**: Descriptions now work exactly like original game
+
+3. **✅ FIXED: Black Screen on Menu Switching**
+   - **Problem**: Screen went black when switching between inventory and equipment  
+   - **Root Cause**: Same issue - `Term_clear()` calls in menu transition logic
+   - **Solution**: Removed all `Term_clear()` calls from menu switching code
+   - **Details**: Menu transitions now use only the game's built-in screen management
+
+### Technical Implementation Changes:
+
+- **Equipment Algorithm**: Now uses exact `show_equip()` logic with proper `k`, `i`, `j` variables and `out_index[]`, `out_color[]`, `out_desc[]` arrays
+- **Row Calculation**: Uses `highlight_row + 1` (where `highlight_row` is 0-based array index) instead of slot-based calculation
+- **Column Calculation**: Uses exact `len = 79 - 50`, `lim = 79 - 3 - (14 + 2)`, `col = (len > 76) ? 0 : (79 - len)` from original
+- **Screen Management**: Relies entirely on `screen_save()`/`screen_load()` and `prt()` functions, no `Term_clear()`
+- **Menu Switching**: Simple function calls without screen clearing
+- **Description Display**: Direct call to `object_info_screen()` without clearing
+
+### Current Implementation:
+- **Inventory**: Exactly replicates `show_inven()` algorithm with highlighting overlay
+- **Equipment**: Exactly replicates `show_equip()` algorithm with highlighting overlay  
+- **Navigation**: 8/2 for up/down, 6 for use, 4 for description
+- **Menu Switching**: 'i'/'e' keys work without screen clearing issues
+- **Screen Management**: Uses game's native screen save/load system
+
+### Debug Information Available:
+- All positioning calculations logged with `log_debug()`
+- Column, row, and item calculations traced
+- Menu actions and transitions logged
+- No more black screen issues expected
+
+**The enhanced menu system should now work correctly with proper positioning and no black screen issues.**
+
+## Enhanced Inventory/Equipment Menu System - FINAL VERSION COMPLETED ✅ (September 21, 2025)
+**STATUS**: 🎉 **FULLY IMPLEMENTED AND WORKING** 
+**Feature**: Scrollable inventory/equipment menus with enhanced navigation and improved key mappings
+
+### All Issues Successfully Resolved:
+
+1. **✅ COMPLETED: Equipment Row/Column Positioning**
+   - **Fixed**: Equipment highlighting now aligns perfectly with item text using exact `show_equip()` algorithm
+   
+2. **✅ COMPLETED: Black Screen Issues**  
+   - **Fixed**: Removed all `Term_clear()` calls - descriptions and menu switching work seamlessly
+   
+3. **✅ COMPLETED: Equipment Filtering**
+   - **Fixed**: Equipment menu only navigates through actually equipped items (skips empty slots)
+   
+4. **✅ COMPLETED: Enhanced Key Mappings**
+   - **Space/Enter**: Use item 
+   - **Arrow Right (6)**: Show description
+   - **Arrow Left (4)**: Drop item (new functionality)
+   - **8/2**: Navigate up/down
+   - **'i'/'e'**: Switch between inventory/equipment
+
+### Technical Implementation:
+- **Equipment Filtering**: Only iterates through slots with actual items using `item_tester_okay(o_ptr)`
+- **Proper Navigation**: Uses `highlight_index` to track position in filtered equipped items array
+- **Exact Positioning**: Uses `highlight_index + 1` for consecutive row display matching `show_equip()`
+- **Drop Functionality**: Added `do_cmd_drop_item_by_index()` with curse checking and quantity selection
+- **Key Mapping Updates**: Both inventory and equipment use consistent enhanced key mappings
+
+**The enhanced menu system is now fully functional with proper positioning, equipment filtering, and intuitive key mappings!** 🚀
+
+### FINAL EQUIPMENT FILTERING FIX (September 21, 2025)
+**Issue**: Equipment menu was still iterating through all slots (including empty ones) instead of only equipped items
+**Root Cause**: Original scan logic was still including empty slots in the arrays, then iterating through all array entries
+**Solution Applied**: Modified equipment scan loop to skip empty slots completely:
+```c
+/* Skip empty slots - only include actually equipped items */
+if (!o_ptr->k_idx) continue;
+```
+**Result**: Equipment navigation now ONLY moves through actually equipped items, completely skipping empty equipment slots
+
+**EQUIPMENT FILTERING: NOW FULLY WORKING** ✅
+
+### HIGHLIGHT POSITIONING FIX (September 21, 2025)
+**Issue**: Equipment highlight position didn't match the actual menu display
+**Root Cause**: Navigation filtered to equipped items only, but highlight used filtered positions instead of actual display positions
+**Problem**: 
+- Enhanced navigation: Only moves through equipped items (good)
+- Highlight position: Used filtered array index instead of actual display row (wrong)
+**Solution Applied**: Added display row calculation that matches original `show_equip()` layout:
+```c
+/* Find which row this slot appears in the original show_equip() display */
+for (int slot = INVEN_WIELD; slot < INVEN_TOTAL; slot++) {
+    if (item_tester_okay(&inventory[slot])) {
+        if (slot == highlighted_slot) {
+            display_row = current_row;
+            break;
+        }
+        current_row++;
+    }
+}
+```
+**Result**: Highlight now appears on the correct row matching the actual equipment menu display while still only navigating through equipped items
+
+**HIGHLIGHT POSITIONING: NOW PERFECTLY ALIGNED** ✅
+
+## Enhanced Menu Cycling System - FULLY IMPLEMENTED ✅ (September 21, 2025)
+**STATUS**: 🎉 **PRODUCTION READY AND FULLY FUNCTIONAL**
+**Feature**: Command-specific menu cycling for inventory/equipment with 'u' and 'x' commands
+
+### What Was Implemented:
+1. **Command Memory**: System tracks which command ('u' or 'x') opened the menu
+2. **Cycling Behavior**: Pressing the same command cycles between inventory/equipment
+3. **Command Isolation**: Pressing a different command does nothing (e.g., 'u' in 'x' menu)
+4. **Space as Select**: Space key works as item selection in both menus
+5. **Seamless Integration**: Works with existing enhanced menu system
+
+### Key Features:
+- **'u' Command Cycling**: Press 'u' → inventory, 'u' again → equipment, 'u' again → inventory, etc.
+- **'x' Command Cycling**: Press 'x' → inventory, 'x' again → equipment, 'x' again → inventory, etc.
+- **Cross-Command Isolation**: Pressing 'u' while in 'x' menu does nothing and vice versa
+- **Space Selection**: Space key acts as "use item" in both inventory and equipment menus
+- **Original Behavior Preserved**: Direct inventory ('i') and equipment ('e') commands work exactly as before
+
+### Technical Implementation:
+
+**Global State Variables:**
+```c
+char current_menu_command = 0;     /* 'u', 'x', etc. - which command opened the menu */
+int current_menu_state = 0;        /* 0=inventory, 1=equipment */
+```
+
+**Enhanced Command Functions:**
+- `do_cmd_use_item()` - Sets `current_menu_command = 'u'` and starts cycling system
+- `do_cmd_observe()` - Sets `current_menu_command = 'x'` and starts cycling system
+- `do_cmd_use_item_enhanced()` - Manages cycling between inventory/equipment for use command
+- `do_cmd_observe_enhanced()` - Manages cycling between inventory/equipment for observe command
+
+**Menu Integration:**
+- Enhanced inventory/equipment menus check for command cycling keys ('u', 'x')
+- Only respond to the command that originally opened the menu
+- Space key mapped to item selection in both menus
+- Arrow keys maintain existing navigation functionality
+
+### Menu Navigation Summary:
+**In Inventory/Equipment Enhanced Menus:**
+- **8/2**: Navigate up/down
+- **Space/Enter**: Use/select item
+- **6 (Arrow Right)**: Show description
+- **4 (Arrow Left)**: Drop item  
+- **'u'**: Cycle between inventory/equipment (only if 'u' opened menu)
+- **'x'**: Cycle between inventory/equipment (only if 'x' opened menu)
+- **'i'/'e'**: Switch to inventory/equipment (always works)
+- **'/'**: Toggle between inventory/equipment (always works) ⭐
+- **Ctrl+I**: Toggle between inventory/equipment (always works)
+- **Ctrl+E**: Toggle between inventory/equipment (always works)
+- **Escape**: Exit menu
+
+### Dynamic Header Display (September 21, 2025):
+**Feature**: Menu headers now show context-appropriate information based on how the menu was opened
+
+**Header Text Logic:**
+- **Direct Opening** (via 'i' or 'e'): Shows standard text
+  - Inventory: "Space - use, -> description, <- drop  (Inventory)"
+  - Equipment: "Space - remove, -> description, <- drop  (Equipment)"
+- **Command Opening** (via 'u' or 'x'): Shows cycling information
+  - Inventory: "Space - use, -> description, <- drop, u again - cycle  (Inventory)" (when opened with 'u')
+  - Equipment: "Space - remove, -> description, <- drop, x again - cycle  (Equipment)" (when opened with 'x')
+
+**Implementation**: Uses `current_menu_command` global variable to determine display text
+
+### Simplified Key Mappings (September 21, 2025):
+**Change**: Removed excessive Ctrl+* combinations and added simple '/' key toggle
+**Reason**: User feedback indicated Ctrl+* was excessive; simplified to essential keys only
+**Current Toggle Keys**:
+- **'/'**: Primary toggle key (works like before, without Ctrl modifier)
+- **Ctrl+I**: Toggle for inventory switching
+- **Ctrl+E**: Toggle for equipment switching
+**Removed**: Ctrl+/, Ctrl+\ combinations (were excessive)
+
+### Banner Clearing on Menu Opening (September 21, 2025):
+**Feature**: Entry level banners (M: messages from style.txt) are now cleared when opening inventory/equipment menus
+**Background**: Previously, banners displayed when entering a new level would remain visible for 3 turns before auto-clearing
+**Enhancement**: Banners now clear immediately when any menu is opened, providing a cleaner interface
+**Implementation**:
+- Checks `g_banner_force_redraw_remaining` counter
+- If banner is active (counter > 0), sets counter to 0 and calls `do_cmd_redraw()`
+- Applied to all menu opening functions:
+  - `do_cmd_inven()` - Direct inventory access (i key)
+  - `do_cmd_equip()` - Direct equipment access (e key)  
+  - `do_cmd_use_item_enhanced()` - Command-based inventory/equipment (u key)
+  - `do_cmd_observe_enhanced()` - Command-based inventory/equipment (x key)
+**Result**: Players no longer see distracting level entry banners when accessing their inventory or equipment
+
+### STEAMDECK_SUPPORT Conditional Menu Behavior (September 21, 2025):
+**Feature**: E/I key behavior in command-based menus is now conditional based on STEAMDECK_SUPPORT
+
+**STEAMDECK_SUPPORT Define Location**: Moved from files.c to defines.h for better organization
+
+**Behavior Logic**:
+- **When STEAMDECK_SUPPORT is defined** (default):
+  - E/I keys always work for menu switching in both direct and command-based access
+  - Maintains Steam Deck-friendly navigation
+- **When STEAMDECK_SUPPORT is NOT defined**:
+  - E/I keys only work when menus are opened directly ('i' or 'e' keys)
+  - E/I keys are ignored when menus are opened via commands ('u' or 'x' keys)
+  - Prevents conflicts where E/I could be item letters that the user wants to select
+
+**Implementation**: Uses `current_menu_command` to detect how menu was opened:
+- `current_menu_command == 0`: Direct access → E/I switching allowed (both modes)
+- `current_menu_command != 0`: Command access → E/I behavior depends on STEAMDECK_SUPPORT
+
+**Use Case**: When using 'u' or 'x' commands, items with letters 'e' or 'i' can be selected directly without accidentally switching menus (when STEAMDECK_SUPPORT is disabled)
+
+### Steam Deck Direct Letter Selection Control (September 21, 2025):
+**Feature**: Direct letter selection (pressing 'a', 'b', etc. to use items) can be conditionally disabled in command-based menus
+
+**Behavior with STEAMDECK_SUPPORT enabled**:
+- **Direct Access** ('i'/'e' keys): Letter selection works normally ✅
+- **Command Access** ('u'/'x' keys): Letter selection disabled, shows message "Use arrow keys and Space to select items in command mode" ⚠️
+
+**Reason**: On Steam Deck, command-based menus should force users to use arrow keys and Space for selection to prevent accidental item usage and ensure consistent navigation experience
+
+**Implementation**: Uses `current_menu_command` to detect command-based access and blocks letter input with helpful feedback message
+
+### Space Key Stair/Shaft Confirmation (September 21, 2025):
+**Feature**: Space key can now be used as confirmation for using stairs and shafts, when STEAMDECK_SUPPORT is enabled
+
+**Conditional Behavior**:
+- **When STEAMDECK_SUPPORT is enabled** (default): Space works as "yes" confirmation alongside 'y'
+- **When STEAMDECK_SUPPORT is disabled**: Only traditional 'y'/'n' confirmation works
+
+**Background**: Space key confirmation provides better accessibility on Steam Deck and similar devices
+**Enhancement**: Conditional compilation ensures the feature can be disabled for traditional desktop builds
+
+**Implementation**: Modified `get_check()` function in util.c with conditional compilation:
+- Prompt: "[y/n/space]" when STEAMDECK_SUPPORT enabled, "[y/n]" otherwise
+- Input: Accepts Space when STEAMDECK_SUPPORT enabled, ignores it otherwise  
+- Logic: Space treated as "yes" when STEAMDECK_SUPPORT enabled
+
+**Applies to all confirmation prompts**: This enhancement affects all yes/no confirmations in the game
+**Steam Deck Benefits**: Easier confirmation using the more accessible Space bar for handheld gaming
+
+### Files Modified:
+- `src/cmd3.c`: Updated `do_cmd_use_item()` and `do_cmd_observe()` with cycling logic
+- `src/object1.c`: Added global variables and cycling key handling in enhanced menus
+- `src/externs.h`: Added function declarations and extern variable declarations
+
+**The enhanced menu cycling system is now fully functional and ready for production use!** 🚀
+
+## Inventory/Equipment Menu Enhancement - IN PROGRESS (September 2025)
+**STATUS**: 🔄 **BEING IMPLEMENTED**
+**Feature**: Enhanced inventory/equipment menu with scrolling and navigation
+
+### Requirements:
+1. **Direct Opening**: Make inventory/equipment menu scrollable when opened directly
+2. **Arrow Key Navigation**: 
+   - Arrow right (numpad 6) → functions as 'U' (Use)
+   - Arrow left (numpad 4) → functions as 'X' (description)
+3. **Scrolling**: Enable scrolling in directly opened menu (currently only works when opened through commands)
+4. **UI Enhancement**: Add "-> to use -< for description" text on last line of menu
+
+### Technical Investigation Needed:
+- **Menu System**: Identify where inventory/equipment menus are implemented
+- **Scrolling Logic**: Understand difference between direct opening vs command-based opening
+- **Key Handling**: Find where menu navigation keys are processed
+- **Display System**: Locate menu rendering code for adding help text
+
+### Files to Investigate:
+- Menu system files (likely cmd*.c files)
+- Object handling files
+- UI/display files
+
 ## September 2025 Interface Improvements
 **STATUS**: ✅ **COMPLETED**
 

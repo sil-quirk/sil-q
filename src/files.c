@@ -2651,7 +2651,6 @@ bool show_file(cptr name, cptr what, int line)
     return (ch != '?');
 }
 
-#define STEAMDECK_SUPPORT
 #ifdef STEAMDECK_SUPPORT
 #define HELP_TOTAL_PAGES 8
 #else

@@ -28,22 +28,11 @@ static bool item_tester_hook_wear(const object_type* o_ptr)
 }
 
 /*
- * Use an item, a unified 'use' command.
+ * Use an item by index, helper for enhanced menus
  */
-void do_cmd_use_item(void)
+void do_cmd_use_item_by_index(int item)
 {
-    int item;
     object_type* o_ptr;
-    cptr q, s;
-
-    /* Unrestricted choice */
-    item_tester_tval = 0;
-
-    /* Get an item */
-    q = "Use which item? ";
-    s = "You have no items use.";
-    if (!get_item(&item, q, s, (USE_INVEN | USE_EQUIP | USE_FLOOR)))
-        return;
 
     /* Get the item (in the pack) */
     if (item >= 0)
@@ -100,71 +89,58 @@ void do_cmd_use_item(void)
                             "Proceed? "))
                     {
                         do_cmd_refuel_torch(o_ptr, item, false);
-                    }
-                    else
-                    {
                         try_to_wield = false;
                     }
-                    break;
                 }
-                if ((l_ptr->sval == SV_LIGHT_MALLORN)
+                else if ((l_ptr->sval == SV_LIGHT_MALLORN)
                     && (o_ptr->tval != TV_FLASK))
                 {
-                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_MALLORN)
+                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_TORCH)
                         || get_check(
-                            "Refueling from this torch will waste some fuel. "
-                            "Proceed? "))
+                            "Refueling from this mallorn torch will waste "
+                            "some fuel. Proceed? "))
                     {
                         do_cmd_refuel_torch(o_ptr, item, true);
-                    }
-                    else
-                    {
                         try_to_wield = false;
                     }
-                    break;
                 }
                 else if (l_ptr->sval == SV_LIGHT_LANTERN)
                 {
-                    if (((o_ptr->tval == TV_FLASK)
-                            && ((l_ptr->timeout + o_ptr->pval <= FUEL_LAMP)
-                                || get_check("Refueling from this flask will "
-                                             "waste some fuel. "
-                                             "Proceed? ")))
-                        || ((o_ptr->tval == TV_LIGHT)
-                            && (o_ptr->sval == SV_LIGHT_LANTERN)
-                            && ((l_ptr->timeout + o_ptr->timeout <= FUEL_LAMP)
-                                || get_check("Refueling from this lantern will "
-                                             "waste some fuel. "
-                                             "Proceed? "))))
+                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_LAMP)
+                        || get_check(
+                            "Refueling from this flask will waste some oil. "
+                            "Proceed? "))
                     {
                         do_cmd_refuel_lamp(o_ptr, item);
-                    }
-                    else
-                    {
                         try_to_wield = false;
                     }
-                    break;
-                }
-                else if (o_ptr->tval == TV_FLASK)
-                {
-                    msg_print(
-                        "That can only be used to refuel a wielded lantern.");
-                    break;
                 }
             }
 
-            if (!item_tester_hook_wear(o_ptr))
+            if (try_to_wield)
             {
-                msg_print("It is far too large to be worn.");
-            }
-            else if (try_to_wield)
-            {
-                do_cmd_wield(o_ptr, item);
+                /* Handle arrows specially */
+                if (o_ptr->tval == TV_ARROW)
+                {
+                    do_cmd_wield(o_ptr, item);
+                }
+                else
+                {
+                    do_cmd_wield(o_ptr, item);
+                }
             }
         }
         else
         {
-            do_cmd_takeoff(o_ptr, item);
+            /* Handle equipped arrows specially */
+            if (o_ptr->tval == TV_ARROW)
+            {
+                do_cmd_takeoff(o_ptr, item);
+            }
+            else
+            {
+                do_cmd_takeoff(o_ptr, item);
+            }
         }
         break;
     }
@@ -213,47 +189,144 @@ void do_cmd_use_item(void)
 }
 
 /*
+ * Use an item, a unified 'use' command.
+ */
+void do_cmd_use_item(void)
+{
+    /* Set up for enhanced menu cycling */
+    extern char current_menu_command;
+    extern int current_menu_state;
+    
+    /* Mark that 'u' command opened this menu */
+    current_menu_command = 'u';
+    current_menu_state = 0;  /* Start with inventory */
+    
+    /* Start the enhanced menu system */
+    do_cmd_use_item_enhanced();
+}
+
+/*
+ * Enhanced use item command that supports cycling between inventory/equipment
+ */
+void do_cmd_use_item_enhanced(void)
+{
+    extern char current_menu_command;
+    extern int current_menu_state;
+    
+    /* Clear any active banner before starting enhanced menu cycle */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+    
+    /* Continue cycling until user escapes or performs an action */
+    while (true)
+    {
+        if (current_menu_state == 0) {
+            /* Display inventory */
+            do_cmd_inven();
+            
+            /* Check if user wants to switch to equipment */
+            extern int enhanced_menu_action;
+            if (enhanced_menu_action == 1) {
+                /* Switch to equipment */
+                current_menu_state = 1;
+                enhanced_menu_action = 0;  /* Reset */
+                continue;
+            }
+            else if (enhanced_menu_action == 2) {
+                /* Examine item - handled by do_cmd_inven */
+                enhanced_menu_action = 0;  /* Reset */
+                break;
+            }
+            else {
+                /* Exit or item was used */
+                break;
+            }
+        }
+        else {
+            /* Display equipment */
+            do_cmd_equip();
+            
+            /* Check if user wants to switch to inventory */
+            extern int enhanced_equip_action;
+            if (enhanced_equip_action == 1) {
+                /* Switch to inventory */
+                current_menu_state = 0;
+                enhanced_equip_action = 0;  /* Reset */
+                continue;
+            }
+            else if (enhanced_equip_action == 2) {
+                /* Examine item - handled by do_cmd_equip */
+                enhanced_equip_action = 0;  /* Reset */
+                break;
+            }
+            else {
+                /* Exit or item was used */
+                break;
+            }
+        }
+    }
+    
+    /* Clear the command state */
+    current_menu_command = 0;
+    current_menu_state = 0;
+}
+
+/*
  * Display inventory
  */
 void do_cmd_inven(void)
 {
+    log_debug("do_cmd_inven: Starting inventory command");
+    
+    /* Clear any active banner before showing the menu */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+    
     /* Hack -- Start in "inventory" mode */
     p_ptr->command_wrk = (USE_INVEN);
 
     /* Save screen */
     screen_save();
+    log_debug("do_cmd_inven: Screen saved");
 
     /* Hack -- show empty slots */
     item_tester_full = true;
 
-    /* Display the inventory */
-    show_inven();
+    /* Force viewing mode */
+    p_ptr->command_see = true;
+
+    /* Display the inventory with scrolling capability */
+    show_inven_enhanced();
 
     /* Hack -- hide empty slots */
     item_tester_full = false;
 
-    /* Prompt for a command */
-    prt("(Inventory) Command: ", 0, 0);
-
-    /* Hack -- Get a new command */
-    p_ptr->command_new = inkey();
-
     /* Load screen */
     screen_load();
-
-    /* Hack -- Process "Escape" */
-    if (p_ptr->command_new == ESCAPE)
-    {
-        /* Reset stuff */
-        p_ptr->command_new = 0;
+    log_debug("do_cmd_inven: Screen loaded");
+    
+    /* Handle any actions from the enhanced menu */
+    extern int enhanced_menu_action;
+    extern int enhanced_examine_item;
+    
+    if (enhanced_menu_action == 1) {
+        /* User wants to switch to equipment */
+        log_debug("do_cmd_inven: Switching to equipment");
+        do_cmd_equip();
     }
-
-    /* Hack -- Process normal keys */
-    else
-    {
-        /* Hack -- Use "display" mode */
-        p_ptr->command_see = true;
+    else if (enhanced_menu_action == 2) {
+        /* User wants to examine an item */
+        log_debug("do_cmd_inven: Examining item %d", enhanced_examine_item);
+        object_info_screen(&inventory[enhanced_examine_item]);
     }
+    
+    log_debug("do_cmd_inven: Exiting");
 }
 
 /*
@@ -261,43 +334,54 @@ void do_cmd_inven(void)
  */
 void do_cmd_equip(void)
 {
+    log_debug("do_cmd_equip: Starting equipment command");
+    
+    /* Clear any active banner before showing the menu */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+    
     /* Hack -- Start in "equipment" mode */
     p_ptr->command_wrk = (USE_EQUIP);
 
     /* Save screen */
     screen_save();
+    log_debug("do_cmd_equip: Screen saved");
 
     /* Hack -- show empty slots */
     item_tester_full = true;
 
-    /* Display the equipment */
-    show_equip();
+    /* Force viewing mode */
+    p_ptr->command_see = true;
+
+    /* Display the equipment with scrolling capability */
+    show_equip_enhanced();
 
     /* Hack -- undo the hack above */
     item_tester_full = false;
 
-    /* Prompt for a command */
-    prt("(Equipment) Command: ", 0, 0);
-
-    /* Hack -- Get a new command */
-    p_ptr->command_new = inkey();
-
     /* Load screen */
     screen_load();
-
-    /* Hack -- Process "Escape" */
-    if (p_ptr->command_new == ESCAPE)
-    {
-        /* Reset stuff */
-        p_ptr->command_new = 0;
+    log_debug("do_cmd_equip: Screen loaded");
+    
+    /* Handle any actions from the enhanced menu */
+    extern int enhanced_equip_action;
+    extern int enhanced_equip_examine_item;
+    
+    if (enhanced_equip_action == 1) {
+        /* User wants to switch to inventory */
+        log_debug("do_cmd_equip: Switching to inventory");
+        do_cmd_inven();
     }
-
-    /* Hack -- Process normal keys */
-    else
-    {
-        /* Enter "display" mode */
-        p_ptr->command_see = true;
+    else if (enhanced_equip_action == 2) {
+        /* User wants to examine an item */
+        log_debug("do_cmd_equip: Examining item %d", enhanced_equip_examine_item);
+        object_info_screen(&inventory[enhanced_equip_examine_item]);
     }
+    
+    log_debug("do_cmd_equip: Exiting");
 }
 
 /*
@@ -852,6 +936,60 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
 }
 
 /*
+ * Drop an item by index (for enhanced menus)
+ */
+void do_cmd_drop_item_by_index(int item)
+{
+    int amt;
+    object_type* o_ptr;
+
+    /* Paranoia */
+    if (item < 0 || item >= INVEN_TOTAL)
+        return;
+
+    /* Get the item */
+    o_ptr = &inventory[item];
+
+    /* Nothing there */
+    if (!o_ptr->k_idx)
+        return;
+
+    /* Get a quantity */
+    amt = get_quantity(NULL, o_ptr->number);
+
+    /* Allow user abort */
+    if (amt <= 0)
+        return;
+
+    /* Hack -- Cannot remove cursed items */
+    if ((item >= INVEN_WIELD) && cursed_p(o_ptr))
+    {
+        if (p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+        {
+            /* Message */
+            msg_print("With a great strength of will, you break the curse!");
+
+            /* Uncurse the object */
+            uncurse_object(o_ptr);
+        }
+        else
+        {
+            /* Oops */
+            msg_print("You cannot bear to part with it.");
+
+            /* Nope */
+            return;
+        }
+    }
+
+    /* Take a turn */
+    p_ptr->energy_use = 50;
+
+    /* Drop (some of) the item */
+    inven_drop(item, amt);
+}
+
+/*
  * Drop an item
  */
 void do_cmd_drop(void)
@@ -1386,32 +1524,85 @@ void do_cmd_destroy(void)
  */
 void do_cmd_observe(void)
 {
-    int item;
+    /* Set up for enhanced menu cycling */
+    extern char current_menu_command;
+    extern int current_menu_state;
+    
+    /* Mark that 'x' command opened this menu */
+    current_menu_command = 'x';
+    current_menu_state = 0;  /* Start with inventory */
+    
+    /* Start the enhanced menu system */
+    do_cmd_observe_enhanced();
+}
 
-    object_type* o_ptr;
-
-    cptr q, s;
-
-    /* Get an item */
-    q = "Examine which item? ";
-    s = "You have nothing to examine.";
-    if (!get_item(&item, q, s, (USE_EQUIP | USE_INVEN | USE_FLOOR)))
-        return;
-
-    /* Get the item (in the pack) */
-    if (item >= 0)
-    {
-        o_ptr = &inventory[item];
+/*
+ * Enhanced observe command that supports cycling between inventory/equipment
+ */
+void do_cmd_observe_enhanced(void)
+{
+    extern char current_menu_command;
+    extern int current_menu_state;
+    
+    /* Clear any active banner before starting enhanced menu cycle */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
     }
-
-    /* Get the item (on the floor) */
-    else
+    
+    /* Continue cycling until user escapes or performs an action */
+    while (true)
     {
-        o_ptr = &o_list[0 - item];
+        if (current_menu_state == 0) {
+            /* Display inventory */
+            do_cmd_inven();
+            
+            /* Check if user wants to switch to equipment */
+            extern int enhanced_menu_action;
+            if (enhanced_menu_action == 1) {
+                /* Switch to equipment */
+                current_menu_state = 1;
+                enhanced_menu_action = 0;  /* Reset */
+                continue;
+            }
+            else if (enhanced_menu_action == 2) {
+                /* Examine item - handled by do_cmd_inven */
+                enhanced_menu_action = 0;  /* Reset */
+                break;
+            }
+            else {
+                /* Exit or item was used */
+                break;
+            }
+        }
+        else {
+            /* Display equipment */
+            do_cmd_equip();
+            
+            /* Check if user wants to switch to inventory */
+            extern int enhanced_equip_action;
+            if (enhanced_equip_action == 1) {
+                /* Switch to inventory */
+                current_menu_state = 0;
+                enhanced_equip_action = 0;  /* Reset */
+                continue;
+            }
+            else if (enhanced_equip_action == 2) {
+                /* Examine item - handled by do_cmd_equip */
+                enhanced_equip_action = 0;  /* Reset */
+                break;
+            }
+            else {
+                /* Exit or item was used */
+                break;
+            }
+        }
     }
-
-    /* Describe */
-    object_info_screen(o_ptr);
+    
+    /* Clear the command state */
+    current_menu_command = 0;
+    current_menu_state = 0;
 }
 
 /*

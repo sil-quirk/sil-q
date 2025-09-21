@@ -488,14 +488,18 @@ extern void do_cmd_fire(int quiver);
 extern void do_cmd_throw(bool automatic);
 
 /* cmd3.c */
+extern void do_cmd_use_item_by_index(int item);
 extern void do_cmd_use_item(void);
+extern void do_cmd_use_item_enhanced(void);
 extern void do_cmd_inven(void);
 extern void do_cmd_equip(void);
 extern void do_cmd_wield(object_type* default_o_ptr, int default_item);
 extern void do_cmd_takeoff(object_type* default_o_ptr, int default_item);
+extern void do_cmd_drop_item_by_index(int item);
 extern void do_cmd_drop(void);
 extern void do_cmd_destroy(void);
 extern void do_cmd_observe(void);
+extern void do_cmd_observe_enhanced(void);
 extern void do_cmd_uninscribe(void);
 extern void do_cmd_inscribe(void);
 extern void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item);
@@ -785,6 +789,8 @@ extern void display_inven(void);
 extern void display_equip(void);
 extern void show_inven(void);
 extern void show_equip(void);
+extern void show_inven_enhanced(void);
+extern void show_equip_enhanced(void);
 extern void show_floor(const int* floor_list, int floor_num);
 extern void toggle_inven_equip(void);
 extern bool get_item(int* cp, cptr pmt, cptr str, int mode);
@@ -1317,3 +1323,11 @@ extern int  any_curse_flag_active(u32b flag); /* CUR-only */
 
 // init1.c
 extern void dbg_show_active_flags(void);
+
+// Enhanced menu system globals
+extern int enhanced_menu_action;
+extern int enhanced_examine_item;
+extern int enhanced_equip_action;
+extern int enhanced_equip_examine_item;
+extern char current_menu_command;
+extern int current_menu_state;

@@ -48,6 +48,9 @@
  * Current version string
  */
 
+/* Steam Deck support toggle */
+// #define STEAMDECK_SUPPORT
+
 /* Formalized new fork versioning */
 /* Bumped to 0.8.6 for introduction of new skill S_SPC (Special abilities) */
 #define VERSION_STRING "0.8.6"

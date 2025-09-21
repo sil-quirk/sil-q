@@ -3616,3 +3616,585 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     /* Result */
     return (item);
 }
+
+/* Global variables for menu switching */
+int enhanced_menu_action = 0;  /* 0=none, 1=switch_to_equip, 2=examine_item */
+int enhanced_examine_item = -1; /* Item to examine */
+
+/* Global variables for command-specific menu cycling */
+char current_menu_command = 0;     /* 'u', 'x', etc. - which command opened the menu */
+int current_menu_state = 0;        /* 0=inventory, 1=equipment */
+
+/*
+ * Enhanced inventory display with scrolling and navigation
+ * EXACTLY replicates show_inven() algorithm then adds highlighting
+ */
+void show_inven_enhanced(void)
+{
+    int which;
+    bool done = false;
+    char out_val[160];
+    
+    log_debug("show_inven_enhanced: Starting enhanced inventory display");
+    
+    /* Clear any previous menu action */
+    enhanced_menu_action = 0;
+    enhanced_examine_item = -1;
+    
+    /* Variables exactly matching show_inven() */
+    int i, k, z;
+    int col, len, lim;
+    int highlight_row = -1;
+    bool highlight_active = false;
+    
+    object_type* o_ptr;
+    char o_name[80];
+    char tmp_val[80];
+    
+    /* Arrays exactly matching show_inven() */
+    int out_index[24];
+    byte out_color[24];
+    char out_desc[24][80];
+    
+    /* Default length (exactly like show_inven) */
+    len = 79 - 50;
+    
+    /* Maximum space allowed for descriptions (exactly like show_inven) */
+    lim = 79 - 3;
+    
+    /* Require space for weight if needed (exactly like show_inven) */
+    if (show_weights) lim -= 9;
+    
+    /* Find the "final" slot (exactly like show_inven) */
+    z = 0;  /* Initialize z */
+    for (i = 0; i < INVEN_PACK; i++)
+    {
+        o_ptr = &inventory[i];
+        if (!o_ptr->k_idx) continue;
+        z = i + 1;
+    }
+    
+    /* Display the inventory (exactly like show_inven first loop) */
+    for (k = 0, i = 0; i < z; i++)
+    {
+        o_ptr = &inventory[i];
+        
+        /* Is this item acceptable? */
+        if (!item_tester_okay(o_ptr)) continue;
+        
+        /* Describe the object (exactly like show_inven) */
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+        
+        /* Hack -- enforce max length (exactly like show_inven) */
+        o_name[lim] = '\0';
+        
+        /* Save the index (exactly like show_inven) */
+        out_index[k] = i;
+        
+        /* Get inventory color (exactly like show_inven) */
+        if (weapon_glows(o_ptr))
+            out_color[k] = TERM_L_BLUE;
+        else
+            out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+            
+        /* Save the object description (exactly like show_inven) */
+        my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
+        
+        /* Find the predicted "line length" (exactly like show_inven) */
+        int l = strlen(out_desc[k]) + 5;
+        
+        /* Be sure to account for the weight (exactly like show_inven) */
+        if (show_weights) l += 9;
+        
+        /* Maintain the maximum length (exactly like show_inven) */
+        if (l > len) len = l;
+        
+        /* Advance to next "line" (exactly like show_inven) */
+        k++;
+    }
+    
+    /* Find the column to start in (exactly like show_inven) */
+    col = (len > 76) ? 0 : (79 - len);
+    
+    log_debug("show_inven_enhanced: k=%d items, len=%d, col=%d", k, len, col);
+    
+    /* Enable highlight if we have items */
+    if (k > 0) {
+        highlight_row = 0;
+        highlight_active = true;
+    }
+    
+    /* Main interaction loop */
+    while (!done)
+    {
+        /* Display inventory first (call the original) */
+        show_inven();
+        
+        /* Show the prompt - different text based on how menu was opened */
+        extern char current_menu_command;
+        if (current_menu_command == 'u') {
+            sprintf(out_val, "Space-Use, %c again-cycle  (Inventory)", current_menu_command);
+        }
+        else if (current_menu_command == 'x') {
+            sprintf(out_val, "Space-Use, %c again - cycle  (Inventory)", current_menu_command);
+        }
+        else {
+            sprintf(out_val, "Space-Use, -> description, <- drop  (Inventory)");
+        }
+        prt(out_val, 0, 0);
+        
+        /* Highlight current selection (using exact show_inven output algorithm) */
+        if (highlight_active && highlight_row >= 0 && highlight_row < k)
+        {
+            /* Get the index (exactly like show_inven second loop) */
+            i = out_index[highlight_row];
+            
+            /* Get the item (exactly like show_inven second loop) */
+            o_ptr = &inventory[i];
+            
+            /* Clear the line (exactly like show_inven second loop) */
+            prt("", highlight_row + 1, col ? col - 2 : col);
+            
+            /* Prepare an index (exactly like show_inven second loop) */
+            sprintf(tmp_val, "%c)", index_to_label(i));
+            
+            /* Clear the line with the index (exactly like show_inven) */
+            c_put_str(TERM_L_BLUE, tmp_val, highlight_row + 1, col);
+            
+            /* Display the entry itself (exactly like show_inven) */
+            c_put_str(TERM_L_BLUE, out_desc[highlight_row], highlight_row + 1, col + 3);
+            
+            /* Display the weight if needed (exactly like show_inven) */
+            if (show_weights)
+            {
+                int wgt = o_ptr->weight * o_ptr->number;
+                sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
+                c_put_str(TERM_L_BLUE, tmp_val, highlight_row + 1, 71);
+            }
+            
+            log_debug("show_inven_enhanced: Highlighted row %d, item %c at col %d", highlight_row, index_to_label(i), col);
+        }
+        
+        /* Get a key */
+        which = inkey();
+        
+        /* Parse it */
+        switch (which)
+        {
+        case ESCAPE:
+            done = true;
+            break;
+            
+        case 'i':
+            /* Already in inventory */
+            break;
+            
+        case 'e':
+            /* Only allow switching to equipment in certain conditions */
+#ifdef STEAMDECK_SUPPORT
+            /* Steam Deck: Always allow E/I switching */
+            enhanced_menu_action = 1;
+            done = true;
+#else
+            /* Standard: Only allow if not opened via command (direct access only) */
+            extern char current_menu_command;
+            if (current_menu_command == 0) {
+                /* Direct access (i key) - allow switching */
+                enhanced_menu_action = 1;
+                done = true;
+            }
+            /* If opened via command (u/x), ignore E key to avoid conflicts */
+#endif
+            break;
+            
+        /* Handle cycling when the original command is pressed */
+        case 'u':
+        case 'x':
+            if (current_menu_command == which) {
+                /* Same command - cycle to equipment */
+                enhanced_menu_action = 1;
+                done = true;
+            }
+            /* Different command does nothing */
+            break;
+            
+        /* Toggle keys - switch to equipment */
+        case '/':           /* / - toggle to equipment */
+        case KTRL('I'):     /* Ctrl+I - toggle to equipment */
+        case KTRL('E'):     /* Ctrl+E - toggle to equipment */
+            enhanced_menu_action = 1;
+            done = true;
+            break;
+            
+        case '8':
+            if (highlight_active && k > 0) {
+                highlight_row = (highlight_row + k - 1) % k;
+            }
+            break;
+            
+        case '2':
+            if (highlight_active && k > 0) {
+                highlight_row = (highlight_row + 1) % k;
+            }
+            break;
+            
+        case ' ':        /* Space - use item */
+        case '\r':       /* Enter - use item */
+        case '\n':       /* Enter (alternative) - use item */
+            if (highlight_active && highlight_row >= 0 && highlight_row < k) {
+                done = true;
+                do_cmd_use_item_by_index(out_index[highlight_row]);
+            }
+            break;
+            
+        case '6':        /* Arrow right - description */
+            if (highlight_active && highlight_row >= 0 && highlight_row < k) {
+                /* Mark that we want to examine an item */
+                enhanced_menu_action = 2;
+                enhanced_examine_item = out_index[highlight_row];
+                done = true;
+            }
+            break;
+            
+        case '4':        /* Arrow left - drop item */
+            if (highlight_active && highlight_row >= 0 && highlight_row < k) {
+                done = true;
+                do_cmd_drop_item_by_index(out_index[highlight_row]);
+            }
+            break;
+            
+        default:
+            /* Handle item selection by letter */
+            if ((which >= 'a' && which <= 'z') || (which >= 'A' && which <= 'Z')) {
+#ifdef STEAMDECK_SUPPORT
+                /* Steam Deck: Disable direct letter selection when opened via command */
+                extern char current_menu_command;
+                if (current_menu_command != 0) {
+                    /* Menu opened via command (u/x) - ignore letter selection */
+                    bell("Use arrow keys and Space to select items in command mode");
+                    break;
+                }
+#endif
+                int item = label_to_inven(which);
+                if (item >= 0 && inventory[item].k_idx) {
+                    done = true;
+                    p_ptr->command_new = which;
+                    p_ptr->command_see = true;
+                }
+                else {
+                    bell("Illegal object choice!");
+                }
+            }
+            else {
+                bell("Invalid command!");
+            }
+            break;
+        }
+    }
+    
+    log_debug("show_inven_enhanced: Exiting, action=%d", enhanced_menu_action);
+}
+
+/* Global variables for equipment menu switching */
+int enhanced_equip_action = 0;  /* 0=none, 1=switch_to_inven, 2=examine_item */
+int enhanced_equip_examine_item = -1; /* Item to examine */
+
+/*
+ * Enhanced equipment display with scrolling and navigation
+ * EXACTLY replicates show_equip() algorithm then adds highlighting
+ * Only navigates through actually equipped items
+ */
+void show_equip_enhanced(void)
+{
+    int which;
+    bool done = false;
+    char out_val[160];
+    
+    log_debug("show_equip_enhanced: Starting equipment enhanced menu");
+    
+    /* Clear any previous menu action */
+    enhanced_equip_action = 0;
+    enhanced_equip_examine_item = -1;
+    
+    /* Variables exactly matching show_equip() */
+    int i, k, l;
+    int col, len, lim;
+    int highlight_index = -1;  /* Index in the equipped items array */
+    bool highlight_active = false;
+    
+    object_type* o_ptr;
+    char tmp_val[80];
+    char o_name[80];
+    
+    /* Arrays exactly matching show_equip() */
+    int out_index[24];        /* Slot numbers of equipped items */
+    byte out_color[24];
+    char out_desc[24][80];
+    
+    /* Default length (exactly like show_equip) */
+    len = 79 - 50;
+    
+    /* Maximum space allowed for descriptions (exactly like show_equip) */
+    lim = 79 - 3;
+    
+    /* Require space for labels (exactly like show_equip) */
+    lim -= (14 + 2);
+    
+    /* Require space for weight if needed (exactly like show_equip) */
+    if (show_weights) lim -= 9;
+    
+    /* Scan the equipment list - ONLY INCLUDE EQUIPPED ITEMS */
+    for (k = 0, i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+    {
+        o_ptr = &inventory[i];
+        
+        /* Skip empty slots - only include actually equipped items */
+        if (!o_ptr->k_idx) continue;
+        
+        /* Is this item acceptable? (exactly like show_equip) */
+        if (!item_tester_okay(o_ptr)) continue;
+        
+        /* Description (exactly like show_equip) */
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+        
+        /* Truncate the description (exactly like show_equip) */
+        o_name[lim] = 0;
+        
+        /* Save the index (exactly like show_equip) */
+        out_index[k] = i;
+        
+        /* Get inventory color (exactly like show_equip) */
+        out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+        
+        /* Save the description (exactly like show_equip) */
+        my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
+        
+        /* Extract the maximal length (exactly like show_equip) */
+        l = strlen(out_desc[k]) + (2 + 3);
+        
+        /* Increase length for labels (exactly like show_equip) */
+        l += (12 + 2);
+        
+        /* Increase length for weight if needed (exactly like show_equip) */
+        if (show_weights) l += 9;
+        
+        /* Maintain the max-length (exactly like show_equip) */
+        if (l > len) len = l;
+        
+        /* Advance the entry (exactly like show_equip) */
+        k++;
+    }
+    
+    /* Find the column to start in (exactly like show_equip) */
+    col = (len > 76) ? 0 : (79 - len);
+    
+    log_debug("show_equip_enhanced: k=%d equipped items, len=%d, col=%d", k, len, col);
+    
+    /* Enable highlight if we have items */
+    if (k > 0) {
+        highlight_index = 0;  /* Start at first equipped item */
+        highlight_active = true;
+    }
+    
+    /* Main interaction loop */
+    while (!done)
+    {
+        /* Display equipment first (call the original) */
+        show_equip();
+        
+        /* Show the prompt - different text based on how menu was opened */
+        extern char current_menu_command;
+        if (current_menu_command == 'u') {
+            sprintf(out_val, "Space-Remove, %c again - cycle  (Equipment)", current_menu_command);
+        }
+        else if (current_menu_command == 'x') {
+            sprintf(out_val, "Space-Remove, %c again - cycle  (Equipment)", current_menu_command);
+        }
+        else {
+            sprintf(out_val, "Space-Remove, -> description, <- drop  (Equipment)");
+        }
+        prt(out_val, 0, 0);
+        
+        /* Highlight current selection - find the display row for this equipped item */
+        if (highlight_active && highlight_index >= 0 && highlight_index < k)
+        {
+            /* Get the actual slot index of the highlighted equipped item */
+            int highlighted_slot = out_index[highlight_index];
+            
+            log_debug("show_equip_enhanced: Highlighting equipped item %d (slot %d)", highlight_index, highlighted_slot);
+            
+            /* Find which row this slot appears in the original show_equip() display */
+            int display_row = -1;
+            int current_row = 1;  /* show_equip starts at row 1 */
+            
+            /* Scan through all equipment slots to find the display row */
+            for (int slot = INVEN_WIELD; slot < INVEN_TOTAL; slot++)
+            {
+                object_type* slot_o_ptr = &inventory[slot];
+                
+                /* Check if this slot would be displayed by show_equip() */
+                if (item_tester_okay(slot_o_ptr)) 
+                {
+                    if (slot == highlighted_slot) 
+                    {
+                        display_row = current_row;
+                        break;
+                    }
+                    current_row++;
+                }
+            }
+            
+            if (display_row > 0)
+            {
+                /* Get the item */
+                object_type* o_ptr = &inventory[highlighted_slot];
+                
+                log_debug("show_equip_enhanced: Found display row %d for slot %d", display_row, highlighted_slot);
+                
+                /* Clear the line (exactly like show_equip) */
+                prt("", display_row, col ? col - 2 : col);
+                
+                /* Prepare an index (exactly like show_equip) */
+                sprintf(tmp_val, "%c)", index_to_label(highlighted_slot));
+                
+                /* Highlight the line with the index (exactly like show_equip) */
+                c_put_str(TERM_L_BLUE, tmp_val, display_row, col);
+                
+                /* Mention the use (exactly like show_equip) */
+                strnfmt(tmp_val, sizeof(tmp_val), "%-12s: ", mention_use(highlighted_slot));
+                c_put_str(TERM_L_BLUE, tmp_val, display_row, col + 3);
+                
+                /* Display the entry itself (exactly like show_equip) */
+                c_put_str(TERM_L_BLUE, out_desc[highlight_index], display_row, col + 3 + 12 + 2);
+                
+                /* Display the weight if needed (exactly like show_equip) */
+                if (show_weights && o_ptr->weight)
+                {
+                    int wgt = o_ptr->weight * o_ptr->number;
+                    sprintf(tmp_val, "%3d.%d lb", wgt / 10, wgt % 10);
+                    c_put_str(TERM_L_BLUE, tmp_val, display_row, 71);
+                }
+                
+                log_debug("show_equip_enhanced: Drew highlight at display row %d, col %d", display_row, col);
+            }
+        }
+        
+        /* Get a key */
+        which = inkey();
+        
+        /* Parse it */
+        switch (which)
+        {
+        case ESCAPE:
+            done = true;
+            break;
+        
+        case 'e':
+            /* Already in equipment */
+            break;
+        
+        case 'i':
+            /* Only allow switching to inventory in certain conditions */
+#ifdef STEAMDECK_SUPPORT
+            /* Steam Deck: Always allow E/I switching */
+            enhanced_equip_action = 1;
+            done = true;
+#else
+            /* Standard: Only allow if not opened via command (direct access only) */
+            extern char current_menu_command;
+            if (current_menu_command == 0) {
+                /* Direct access (e key) - allow switching */
+                enhanced_equip_action = 1;
+                done = true;
+            }
+            /* If opened via command (u/x), ignore I key to avoid conflicts */
+#endif
+            break;
+        
+        /* Handle cycling when the original command is pressed */
+        case 'u':
+        case 'x':
+            if (current_menu_command == which) {
+                /* Same command - cycle to inventory */
+                enhanced_equip_action = 1;
+                done = true;
+            }
+            /* Different command does nothing */
+            break;
+        
+        /* Toggle keys - switch to inventory */
+        case '/':           /* / - toggle to inventory */
+        case KTRL('I'):     /* Ctrl+I - toggle to inventory */
+        case KTRL('E'):     /* Ctrl+E - toggle to inventory */
+            enhanced_equip_action = 1;
+            done = true;
+            break;
+        
+        case '8':
+            if (highlight_active && k > 0) {
+                highlight_index = (highlight_index + k - 1) % k;
+            }
+            break;
+        
+        case '2':
+            if (highlight_active && k > 0) {
+                highlight_index = (highlight_index + 1) % k;
+            }
+            break;
+        
+        case ' ':        /* Space - use item */
+        case '\r':       /* Enter - use item */
+        case '\n':       /* Enter (alternative) - use item */
+            if (highlight_active && highlight_index >= 0 && highlight_index < k) {
+                done = true;
+                do_cmd_use_item_by_index(out_index[highlight_index]);
+            }
+            break;
+        
+        case '6':        /* Arrow right - description */
+            if (highlight_active && highlight_index >= 0 && highlight_index < k) {
+                /* Mark that we want to examine an item */
+                enhanced_equip_action = 2;
+                enhanced_equip_examine_item = out_index[highlight_index];
+                done = true;
+            }
+            break;
+        
+        case '4':        /* Arrow left - drop item */
+            if (highlight_active && highlight_index >= 0 && highlight_index < k) {
+                done = true;
+                do_cmd_drop_item_by_index(out_index[highlight_index]);
+            }
+            break;
+        
+        default:
+            /* Handle item selection by letter */
+            if ((which >= 'a' && which <= 'z') || (which >= 'A' && which <= 'Z')) {
+#ifdef STEAMDECK_SUPPORT
+                /* Steam Deck: Disable direct letter selection when opened via command */
+                extern char current_menu_command;
+                if (current_menu_command != 0) {
+                    /* Menu opened via command (u/x) - ignore letter selection */
+                    bell("Use arrow keys and Space to select items in command mode");
+                    break;
+                }
+#endif
+                int item = label_to_equip(which);
+                if (item >= INVEN_WIELD && item < INVEN_TOTAL && inventory[item].k_idx) {
+                    done = true;
+                    p_ptr->command_new = which;
+                    p_ptr->command_see = true;
+                }
+                else {
+                    bell("Illegal object choice!");
+                }
+            }
+            else {
+                bell("Invalid command!");
+            }
+            break;
+        }
+    }
+    
+    log_debug("show_equip_enhanced: Exiting equipment enhanced menu, action=%d", enhanced_equip_action);
+}

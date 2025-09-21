@@ -988,11 +988,14 @@ void object_info_screen(const object_type* o_ptr)
 {
     bool has_description, has_info;
 
+    log_trace("object_info_screen: Starting item description display");
+
     /* Redirect output to the screen */
     text_out_hook = text_out_to_screen;
 
     /* Save the screen */
     screen_save();
+    log_trace("object_info_screen: Screen saved");
 
     has_description = screen_out_head(o_ptr);
 
@@ -1015,11 +1018,17 @@ void object_info_screen(const object_type* o_ptr)
 
     text_out_c(TERM_L_BLUE, "\n\n(press any key)\n");
 
+    log_trace("object_info_screen: About to wait for input");
+
     /* Wait for input */
     (void)inkey();
 
+    log_trace("object_info_screen: Input received, about to load screen");
+
     /* Load the screen */
     screen_load();
+    
+    log_trace("object_info_screen: Screen loaded, exiting");
 
     return;
 }
