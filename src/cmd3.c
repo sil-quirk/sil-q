@@ -213,6 +213,14 @@ void do_cmd_use_item_enhanced(void)
     extern char current_menu_command;
     extern int current_menu_state;
     
+    /* Clear any previous menu actions at start of new session */
+    extern int enhanced_menu_action;
+    extern int enhanced_equip_action;
+    enhanced_menu_action = 0;
+    enhanced_equip_action = 0;
+    
+    log_trace("do_cmd_use_item_enhanced: Starting enhanced use item cycle");
+    
     /* Clear any active banner before starting enhanced menu cycle */
     extern int g_banner_force_redraw_remaining;
     if (g_banner_force_redraw_remaining > 0) {
@@ -232,12 +240,12 @@ void do_cmd_use_item_enhanced(void)
             if (enhanced_menu_action == 1) {
                 /* Switch to equipment */
                 current_menu_state = 1;
-                enhanced_menu_action = 0;  /* Reset */
+                enhanced_menu_action = 0;  /* Reset after using */
                 continue;
             }
             else if (enhanced_menu_action == 2) {
                 /* Examine item - handled by do_cmd_inven */
-                enhanced_menu_action = 0;  /* Reset */
+                enhanced_menu_action = 0;  /* Reset after using */
                 break;
             }
             else {
@@ -254,12 +262,12 @@ void do_cmd_use_item_enhanced(void)
             if (enhanced_equip_action == 1) {
                 /* Switch to inventory */
                 current_menu_state = 0;
-                enhanced_equip_action = 0;  /* Reset */
+                enhanced_equip_action = 0;  /* Reset after using */
                 continue;
             }
             else if (enhanced_equip_action == 2) {
                 /* Examine item - handled by do_cmd_equip */
-                enhanced_equip_action = 0;  /* Reset */
+                enhanced_equip_action = 0;  /* Reset after using */
                 break;
             }
             else {
@@ -272,6 +280,116 @@ void do_cmd_use_item_enhanced(void)
     /* Clear the command state */
     current_menu_command = 0;
     current_menu_state = 0;
+}
+
+/*
+ * Direct access inventory with cycling support
+ */
+void do_cmd_inven_direct(void)
+{
+    log_debug("do_cmd_inven_direct: Starting direct access inventory with cycling");
+    
+    int menu_state = 0;  /* 0=inventory, 1=equipment */
+    
+    while (true) {
+        if (menu_state == 0) {
+            /* Display inventory */
+            log_trace("do_cmd_inven_direct: Showing inventory");
+            do_cmd_inven();
+            
+            /* Check action */
+            extern int enhanced_menu_action;
+            if (enhanced_menu_action == 1) {
+                /* Switch to equipment */
+                log_trace("do_cmd_inven_direct: Switching to equipment");
+                menu_state = 1;
+                enhanced_menu_action = 0;
+                continue;
+            }
+            else {
+                /* Exit or item examined */
+                enhanced_menu_action = 0;
+                break;
+            }
+        }
+        else {
+            /* Display equipment */
+            log_trace("do_cmd_inven_direct: Showing equipment");
+            do_cmd_equip();
+            
+            /* Check action */
+            extern int enhanced_equip_action;
+            if (enhanced_equip_action == 1) {
+                /* Switch to inventory */
+                log_trace("do_cmd_inven_direct: Switching to inventory");
+                menu_state = 0;
+                enhanced_equip_action = 0;
+                continue;
+            }
+            else {
+                /* Exit or item examined */
+                enhanced_equip_action = 0;
+                break;
+            }
+        }
+    }
+    
+    log_debug("do_cmd_inven_direct: Direct access cycling finished");
+}
+
+/*
+ * Direct access equipment with cycling support
+ */
+void do_cmd_equip_direct(void)
+{
+    log_debug("do_cmd_equip_direct: Starting direct access equipment with cycling");
+    
+    int menu_state = 1;  /* 0=inventory, 1=equipment */
+    
+    while (true) {
+        if (menu_state == 0) {
+            /* Display inventory */
+            log_trace("do_cmd_equip_direct: Showing inventory");
+            do_cmd_inven();
+            
+            /* Check action */
+            extern int enhanced_menu_action;
+            if (enhanced_menu_action == 1) {
+                /* Switch to equipment */
+                log_trace("do_cmd_equip_direct: Switching to equipment");
+                menu_state = 1;
+                enhanced_menu_action = 0;
+                continue;
+            }
+            else {
+                /* Exit or item examined */
+                enhanced_menu_action = 0;
+                break;
+            }
+        }
+        else {
+            /* Display equipment */
+            log_trace("do_cmd_equip_direct: Showing equipment");
+            do_cmd_equip();
+            
+            /* Check action */
+            extern int enhanced_equip_action;
+            if (enhanced_equip_action == 1) {
+                /* Switch to inventory */
+                log_trace("do_cmd_equip_direct: Switching to inventory");
+                menu_state = 0;
+                enhanced_equip_action = 0;
+                continue;
+            }
+            else {
+                /* Exit or item examined */
+                enhanced_equip_action = 0;
+                break;
+            }
+        }
+    }
+    
+    log_debug("do_cmd_equip_direct: Direct access cycling finished");
 }
 
 /*
@@ -315,15 +433,21 @@ void do_cmd_inven(void)
     extern int enhanced_menu_action;
     extern int enhanced_examine_item;
     
-    if (enhanced_menu_action == 1) {
-        /* User wants to switch to equipment */
-        log_debug("do_cmd_inven: Switching to equipment");
-        do_cmd_equip();
-    }
-    else if (enhanced_menu_action == 2) {
+    /* Note: Menu switching (action=1) is handled by the direct access wrappers or cycling logic */
+    if (enhanced_menu_action == 2) {
         /* User wants to examine an item */
-        log_debug("do_cmd_inven: Examining item %d", enhanced_examine_item);
-        object_info_screen(&inventory[enhanced_examine_item]);
+        log_trace("do_cmd_inven: Examining item %d", enhanced_examine_item);
+        if (enhanced_examine_item < 0) {
+            /* Floor item - negative index */
+            int floor_item_idx = 0 - enhanced_examine_item;
+            object_info_screen(&o_list[floor_item_idx]);
+        } else {
+            /* Inventory item - positive index */
+            object_info_screen(&inventory[enhanced_examine_item]);
+        }
+        log_trace("do_cmd_inven: Finished examining item, enhanced_menu_action is still %d", enhanced_menu_action);
+        
+        /* Note: Action variable reset is handled by the cycling logic */
     }
     
     log_debug("do_cmd_inven: Exiting");
@@ -370,15 +494,18 @@ void do_cmd_equip(void)
     extern int enhanced_equip_action;
     extern int enhanced_equip_examine_item;
     
-    if (enhanced_equip_action == 1) {
-        /* User wants to switch to inventory */
-        log_debug("do_cmd_equip: Switching to inventory");
-        do_cmd_inven();
-    }
-    else if (enhanced_equip_action == 2) {
+    /* Handle any actions from the enhanced menu */
+    extern int enhanced_equip_action;
+    extern int enhanced_equip_examine_item;
+    
+    /* Note: Menu switching (action=1) is handled by the direct access wrappers or cycling logic */
+    if (enhanced_equip_action == 2) {
         /* User wants to examine an item */
-        log_debug("do_cmd_equip: Examining item %d", enhanced_equip_examine_item);
+        log_trace("do_cmd_equip: Examining item %d", enhanced_equip_examine_item);
         object_info_screen(&inventory[enhanced_equip_examine_item]);
+        log_trace("do_cmd_equip: Finished examining item, enhanced_equip_action is still %d", enhanced_equip_action);
+        
+        /* Note: Action variable reset is handled by the cycling logic */
     }
     
     log_debug("do_cmd_equip: Exiting");
@@ -1544,6 +1671,14 @@ void do_cmd_observe_enhanced(void)
     extern char current_menu_command;
     extern int current_menu_state;
     
+    /* Clear any previous menu actions at start of new session */
+    extern int enhanced_menu_action;
+    extern int enhanced_equip_action;
+    enhanced_menu_action = 0;
+    enhanced_equip_action = 0;
+    
+    log_trace("do_cmd_observe_enhanced: Starting enhanced observe cycle");
+    
     /* Clear any active banner before starting enhanced menu cycle */
     extern int g_banner_force_redraw_remaining;
     if (g_banner_force_redraw_remaining > 0) {
@@ -1554,47 +1689,60 @@ void do_cmd_observe_enhanced(void)
     /* Continue cycling until user escapes or performs an action */
     while (true)
     {
+        log_trace("do_cmd_observe_enhanced: Loop iteration, current_menu_state=%d", current_menu_state);
+        
         if (current_menu_state == 0) {
+            log_trace("do_cmd_observe_enhanced: Displaying inventory");
             /* Display inventory */
             do_cmd_inven();
             
             /* Check if user wants to switch to equipment */
             extern int enhanced_menu_action;
+            log_trace("do_cmd_observe_enhanced: After inventory, enhanced_menu_action=%d", enhanced_menu_action);
             if (enhanced_menu_action == 1) {
                 /* Switch to equipment */
+                log_trace("do_cmd_observe_enhanced: Switching to equipment");
                 current_menu_state = 1;
-                enhanced_menu_action = 0;  /* Reset */
+                enhanced_menu_action = 0;  /* Reset after using */
                 continue;
             }
             else if (enhanced_menu_action == 2) {
                 /* Examine item - handled by do_cmd_inven */
-                enhanced_menu_action = 0;  /* Reset */
+                log_trace("do_cmd_observe_enhanced: Examining item, exiting cycle");
+                enhanced_menu_action = 0;  /* Reset after using */
                 break;
             }
             else {
                 /* Exit or item was used */
+                log_trace("do_cmd_observe_enhanced: Exiting cycle (inven action=%d)", enhanced_menu_action);
                 break;
             }
         }
         else {
             /* Display equipment */
+            log_trace("do_cmd_observe_enhanced: Displaying equipment, current_menu_state=%d", current_menu_state);
             do_cmd_equip();
+            log_trace("do_cmd_observe_enhanced: Returned from equipment, current_menu_state=%d", current_menu_state);
             
             /* Check if user wants to switch to inventory */
             extern int enhanced_equip_action;
+            log_trace("do_cmd_observe_enhanced: After equipment, enhanced_equip_action=%d", enhanced_equip_action);
             if (enhanced_equip_action == 1) {
                 /* Switch to inventory */
+                log_trace("do_cmd_observe_enhanced: Switching to inventory");
                 current_menu_state = 0;
-                enhanced_equip_action = 0;  /* Reset */
+                enhanced_equip_action = 0;  /* Reset after using */
                 continue;
             }
             else if (enhanced_equip_action == 2) {
                 /* Examine item - handled by do_cmd_equip */
-                enhanced_equip_action = 0;  /* Reset */
+                log_trace("do_cmd_observe_enhanced: Examining item, exiting cycle");
+                enhanced_equip_action = 0;  /* Reset after using */
                 break;
             }
             else {
                 /* Exit or item was used */
+                log_trace("do_cmd_observe_enhanced: Exiting cycle (equip action=%d)", enhanced_equip_action);
                 break;
             }
         }

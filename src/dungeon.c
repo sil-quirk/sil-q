@@ -887,16 +887,17 @@ static void process_command(void)
     }
 
     /* Equipment list */
+    /* Equipment list */
     case 'e':
     {
-        do_cmd_equip();
+        do_cmd_equip_direct();
         break;
     }
 
     /* Inventory list */
     case 'i':
     {
-        do_cmd_inven();
+        do_cmd_inven_direct();
         break;
     }
 

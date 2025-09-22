@@ -3637,24 +3637,26 @@ void show_inven_enhanced(void)
     
     log_debug("show_inven_enhanced: Starting enhanced inventory display");
     
-    /* Clear any previous menu action */
-    enhanced_menu_action = 0;
-    enhanced_examine_item = -1;
-    
     /* Variables exactly matching show_inven() */
     int i, k, z;
     int col, len, lim;
     int highlight_row = -1;
     bool highlight_active = false;
     
+    /* Floor items variables */
+    int floor_list[MAX_FLOOR_STACK];
+    int floor_num;
+    bool has_floor_items = false;
+    
     object_type* o_ptr;
     char o_name[80];
     char tmp_val[80];
     
-    /* Arrays exactly matching show_inven() */
-    int out_index[24];
-    byte out_color[24];
-    char out_desc[24][80];
+    /* Arrays exactly matching show_inven() - expanded to include floor items */
+    int out_index[48];      /* Increased to handle inventory + floor items */
+    byte out_color[48];
+    char out_desc[48][80];
+    bool out_is_floor[48];  /* Track which entries are floor items */
     
     /* Default length (exactly like show_inven) */
     len = 79 - 50;
@@ -3664,6 +3666,17 @@ void show_inven_enhanced(void)
     
     /* Require space for weight if needed (exactly like show_inven) */
     if (show_weights) lim -= 9;
+    
+    /* Scan floor items first to see if we have any */
+    floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px, 0x00);
+    has_floor_items = false;
+    for (i = 0; i < floor_num; i++) {
+        o_ptr = &o_list[floor_list[i]];
+        if (item_tester_okay(o_ptr)) {
+            has_floor_items = true;
+            break;
+        }
+    }
     
     /* Find the "final" slot (exactly like show_inven) */
     z = 0;  /* Initialize z */
@@ -3690,6 +3703,7 @@ void show_inven_enhanced(void)
         
         /* Save the index (exactly like show_inven) */
         out_index[k] = i;
+        out_is_floor[k] = false;  /* This is an inventory item */
         
         /* Get inventory color (exactly like show_inven) */
         if (weapon_glows(o_ptr))
@@ -3713,6 +3727,45 @@ void show_inven_enhanced(void)
         k++;
     }
     
+    /* Add floor items after inventory items */
+    if (has_floor_items) {
+        for (i = 0; i < floor_num; i++)
+        {
+            o_ptr = &o_list[floor_list[i]];
+            
+            /* Is this item acceptable? */
+            if (!item_tester_okay(o_ptr)) continue;
+            
+            /* Describe the object (similar to show_floor) */
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+            
+            /* Hack -- enforce max length */
+            o_name[lim] = '\0';
+            
+            /* Save the floor list index (negative for floor items) */
+            out_index[k] = 0 - floor_list[i];  /* Use negative index like get_item */
+            out_is_floor[k] = true;  /* This is a floor item */
+            
+            /* Get floor item color */
+            out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+                
+            /* Save the object description */
+            my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
+            
+            /* Find the predicted "line length" */
+            int l = strlen(out_desc[k]) + 5;
+            
+            /* Be sure to account for the weight */
+            if (show_weights) l += 9;
+            
+            /* Maintain the maximum length */
+            if (l > len) len = l;
+            
+            /* Advance to next "line" */
+            k++;
+        }
+    }
+    
     /* Find the column to start in (exactly like show_inven) */
     col = (len > 76) ? 0 : (79 - len);
     
@@ -3730,6 +3783,37 @@ void show_inven_enhanced(void)
         /* Display inventory first (call the original) */
         show_inven();
         
+        /* Now render floor items after inventory if we have any */
+        if (has_floor_items) {
+            int inventory_items = 0;
+            /* Count inventory items to know where to start floor items */
+            for (i = 0; i < k; i++) {
+                if (!out_is_floor[i]) {
+                    inventory_items++;
+                }
+            }
+            
+            /* Render floor items starting after inventory items */
+            for (i = 0; i < k; i++) {
+                if (out_is_floor[i]) {
+                    object_type* floor_o_ptr = &o_list[0 - out_index[i]];
+                    
+                    /* Display the floor item */
+                    sprintf(tmp_val, "-)");
+                    put_str(tmp_val, inventory_items + 1, col);
+                    c_put_str(out_color[i], out_desc[i], inventory_items + 1, col + 3);
+                    
+                    /* Display the weight if needed */
+                    if (show_weights) {
+                        int wgt = floor_o_ptr->weight * floor_o_ptr->number;
+                        sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
+                        c_put_str(out_color[i], tmp_val, inventory_items + 1, 71);
+                    }
+                    inventory_items++;
+                }
+            }
+        }
+        
         /* Show the prompt - different text based on how menu was opened */
         extern char current_menu_command;
         if (current_menu_command == 'u') {
@@ -3746,17 +3830,30 @@ void show_inven_enhanced(void)
         /* Highlight current selection (using exact show_inven output algorithm) */
         if (highlight_active && highlight_row >= 0 && highlight_row < k)
         {
-            /* Get the index (exactly like show_inven second loop) */
-            i = out_index[highlight_row];
+            /* Get the index and determine if it's a floor item */
+            bool is_floor_item = out_is_floor[highlight_row];
             
-            /* Get the item (exactly like show_inven second loop) */
-            o_ptr = &inventory[i];
-            
-            /* Clear the line (exactly like show_inven second loop) */
-            prt("", highlight_row + 1, col ? col - 2 : col);
-            
-            /* Prepare an index (exactly like show_inven second loop) */
-            sprintf(tmp_val, "%c)", index_to_label(i));
+            if (is_floor_item) {
+                /* Floor item - get the object from the floor list */
+                int floor_idx = 0 - out_index[highlight_row];  /* Convert back to positive */
+                o_ptr = &o_list[floor_idx];
+                
+                /* Clear the line */
+                prt("", highlight_row + 1, col ? col - 2 : col);
+                
+                /* Prepare an index with '-' for floor items */
+                sprintf(tmp_val, "-)");
+            } else {
+                /* Regular inventory item */
+                i = out_index[highlight_row];
+                o_ptr = &inventory[i];
+                
+                /* Clear the line (exactly like show_inven second loop) */
+                prt("", highlight_row + 1, col ? col - 2 : col);
+                
+                /* Prepare an index (exactly like show_inven second loop) */
+                sprintf(tmp_val, "%c)", index_to_label(i));
+            }
             
             /* Clear the line with the index (exactly like show_inven) */
             c_put_str(TERM_L_BLUE, tmp_val, highlight_row + 1, col);
@@ -3772,16 +3869,23 @@ void show_inven_enhanced(void)
                 c_put_str(TERM_L_BLUE, tmp_val, highlight_row + 1, 71);
             }
             
-            log_debug("show_inven_enhanced: Highlighted row %d, item %c at col %d", highlight_row, index_to_label(i), col);
+            log_debug("show_inven_enhanced: Highlighted row %d, item %s at col %d", 
+                     highlight_row, 
+                     is_floor_item ? "floor" : "inventory",
+                     col);
         }
         
         /* Get a key */
         which = inkey();
         
+        log_trace("show_inven_enhanced: Key pressed: %d ('%c')", which, (which >= 32 && which <= 126) ? which : '?');
+        
         /* Parse it */
         switch (which)
         {
         case ESCAPE:
+            log_trace("show_inven_enhanced: ESC pressed, setting action to 0 and exiting");
+            enhanced_menu_action = 0;  /* Explicitly set to exit */
             done = true;
             break;
             
@@ -3790,21 +3894,27 @@ void show_inven_enhanced(void)
             break;
             
         case 'e':
-            /* Only allow switching to equipment in certain conditions */
+            /* Handle E key based on access mode and STEAMDECK support */
+            {
+                extern char current_menu_command;
+                if (current_menu_command != 0) {
+                    /* Command access (u/x pressed) */
 #ifdef STEAMDECK_SUPPORT
-            /* Steam Deck: Always allow E/I switching */
-            enhanced_menu_action = 1;
-            done = true;
+                    /* STEAMDECK: E/I switch menus */
+                    enhanced_menu_action = 1;
+                    done = true;
 #else
-            /* Standard: Only allow if not opened via command (direct access only) */
-            extern char current_menu_command;
-            if (current_menu_command == 0) {
-                /* Direct access (i key) - allow switching */
-                enhanced_menu_action = 1;
-                done = true;
-            }
-            /* If opened via command (u/x), ignore E key to avoid conflicts */
+                    /* Non-STEAMDECK: E/I are just letters, not menu switching */
+                    /* Fall through to default letter handling */
+                    goto default_case;
 #endif
+                } else {
+                    /* Direct access (i/e pressed): E/I switch menus */
+                    enhanced_menu_action = 1;
+                    log_trace("show_inven_enhanced: Direct access E key - switching to equipment (action=1)");
+                    done = true;
+                }
+            }
             break;
             
         /* Handle cycling when the original command is pressed */
@@ -3813,6 +3923,7 @@ void show_inven_enhanced(void)
             if (current_menu_command == which) {
                 /* Same command - cycle to equipment */
                 enhanced_menu_action = 1;
+                log_trace("show_inven_enhanced: Command cycling (%c) - switching to equipment (action=1)", which);
                 done = true;
             }
             /* Different command does nothing */
@@ -3838,12 +3949,22 @@ void show_inven_enhanced(void)
             }
             break;
             
-        case ' ':        /* Space - use item */
-        case '\r':       /* Enter - use item */
-        case '\n':       /* Enter (alternative) - use item */
+        case ' ':        /* Space - use item or examine based on context */
+        case '\r':       /* Enter - use item or examine based on context */
+        case '\n':       /* Enter (alternative) - use item or examine based on context */
             if (highlight_active && highlight_row >= 0 && highlight_row < k) {
                 done = true;
-                do_cmd_use_item_by_index(out_index[highlight_row]);
+                
+                /* Handle based on menu context */
+                extern char current_menu_command;
+                if (current_menu_command == 'x') {
+                    /* Examine mode - mark for examination */
+                    enhanced_menu_action = 2;
+                    enhanced_examine_item = out_index[highlight_row];
+                } else {
+                    /* Use mode - use the item */
+                    do_cmd_use_item_by_index(out_index[highlight_row]);
+                }
             }
             break;
             
@@ -3858,30 +3979,105 @@ void show_inven_enhanced(void)
             
         case '4':        /* Arrow left - drop item */
             if (highlight_active && highlight_row >= 0 && highlight_row < k) {
-                done = true;
-                do_cmd_drop_item_by_index(out_index[highlight_row]);
+                if (!out_is_floor[highlight_row]) {
+                    /* Can only drop inventory items, not floor items */
+                    done = true;
+                    do_cmd_drop_item_by_index(out_index[highlight_row]);
+                } else {
+                    bell("Cannot drop floor items!");
+                }
             }
             break;
             
         default:
-            /* Handle item selection by letter */
-            if ((which >= 'a' && which <= 'z') || (which >= 'A' && which <= 'Z')) {
-#ifdef STEAMDECK_SUPPORT
-                /* Steam Deck: Disable direct letter selection when opened via command */
+        default_case:
+            /* Handle item selection by letter or dash */
+            if ((which >= 'a' && which <= 'z') || (which >= 'A' && which <= 'Z') || which == '-') {
                 extern char current_menu_command;
+                bool allow_letters = false;
+                
+                /* Determine if letter selection is allowed based on access mode and STEAMDECK support */
                 if (current_menu_command != 0) {
-                    /* Menu opened via command (u/x) - ignore letter selection */
-                    bell("Use arrow keys and Space to select items in command mode");
+                    /* Command access (u/x pressed) */
+#ifdef STEAMDECK_SUPPORT
+                    /* STEAMDECK: Letters disabled */
+                    allow_letters = false;
+#else
+                    /* Non-STEAMDECK: Letters enabled */
+                    allow_letters = true;
+#endif
+                } else {
+                    /* Direct access (i/e pressed): Letters disabled */
+                    allow_letters = false;
+                }
+                
+                if (!allow_letters) {
+                    bell("Use arrow keys and Space to select items in this mode");
                     break;
                 }
-#endif
-                int item = label_to_inven(which);
-                if (item >= 0 && inventory[item].k_idx) {
-                    done = true;
-                    p_ptr->command_new = which;
-                    p_ptr->command_see = true;
+                bool item_found = false;
+                
+                /* Check for dash (-) which selects floor item */
+                if (which == '-' && has_floor_items) {
+                    /* Find the floor item in our display list */
+                    for (i = 0; i < k; i++) {
+                        if (out_is_floor[i]) {
+                            done = true;
+                            item_found = true;
+                            
+                            /* Handle based on menu context */
+                            extern char current_menu_command;
+                            if (current_menu_command != 0) {
+                                /* Command mode - directly call the appropriate function */
+                                if (current_menu_command == 'u') {
+                                    do_cmd_use_item_by_index(out_index[i]);
+                                } else if (current_menu_command == 'x') {
+                                    /* For observe mode, mark for examination */
+                                    enhanced_menu_action = 2;
+                                    enhanced_examine_item = out_index[i];
+                                }
+                            } else {
+                                /* Direct access mode - use the floor item directly */
+                                do_cmd_use_item_by_index(out_index[i]);
+                            }
+                            break;
+                        }
+                    }
                 }
-                else {
+                
+                /* If no floor item found, check inventory items by letter */
+                if (!item_found && which != '-') {
+                    int item = label_to_inven(which);
+                    if (item >= 0 && inventory[item].k_idx) {
+                        /* Check if this inventory item is in our display list */
+                        for (i = 0; i < k; i++) {
+                            if (!out_is_floor[i] && out_index[i] == item) {
+                                done = true;
+                                item_found = true;
+                                
+                                /* Handle based on menu context */
+                                extern char current_menu_command;
+                                if (current_menu_command != 0) {
+                                    /* Command mode - directly call the appropriate function */
+                                    if (current_menu_command == 'u') {
+                                        do_cmd_use_item_by_index(item);
+                                    } else if (current_menu_command == 'x') {
+                                        /* For observe mode, mark for examination */
+                                        enhanced_menu_action = 2;
+                                        enhanced_examine_item = item;
+                                    }
+                                } else {
+                                    /* Direct access mode - use the traditional method */
+                                    p_ptr->command_new = which;
+                                    p_ptr->command_see = true;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (!item_found) {
                     bell("Illegal object choice!");
                 }
             }
@@ -3892,7 +4088,7 @@ void show_inven_enhanced(void)
         }
     }
     
-    log_debug("show_inven_enhanced: Exiting, action=%d", enhanced_menu_action);
+    log_trace("show_inven_enhanced: Exiting, action=%d", enhanced_menu_action);
 }
 
 /* Global variables for equipment menu switching */
@@ -3911,10 +4107,6 @@ void show_equip_enhanced(void)
     char out_val[160];
     
     log_debug("show_equip_enhanced: Starting equipment enhanced menu");
-    
-    /* Clear any previous menu action */
-    enhanced_equip_action = 0;
-    enhanced_equip_examine_item = -1;
     
     /* Variables exactly matching show_equip() */
     int i, k, l;
@@ -4082,10 +4274,14 @@ void show_equip_enhanced(void)
         /* Get a key */
         which = inkey();
         
+        log_trace("show_equip_enhanced: Key pressed: %d ('%c')", which, (which >= 32 && which <= 126) ? which : '?');
+        
         /* Parse it */
         switch (which)
         {
         case ESCAPE:
+            log_trace("show_equip_enhanced: ESC pressed, setting action to 0 and exiting");
+            enhanced_equip_action = 0;  /* Explicitly set to exit */
             done = true;
             break;
         
@@ -4094,21 +4290,27 @@ void show_equip_enhanced(void)
             break;
         
         case 'i':
-            /* Only allow switching to inventory in certain conditions */
+            /* Handle I key based on access mode and STEAMDECK support */
+            {
+                extern char current_menu_command;
+                if (current_menu_command != 0) {
+                    /* Command access (u/x pressed) */
 #ifdef STEAMDECK_SUPPORT
-            /* Steam Deck: Always allow E/I switching */
-            enhanced_equip_action = 1;
-            done = true;
+                    /* STEAMDECK: E/I switch menus */
+                    enhanced_equip_action = 1;
+                    done = true;
 #else
-            /* Standard: Only allow if not opened via command (direct access only) */
-            extern char current_menu_command;
-            if (current_menu_command == 0) {
-                /* Direct access (e key) - allow switching */
-                enhanced_equip_action = 1;
-                done = true;
-            }
-            /* If opened via command (u/x), ignore I key to avoid conflicts */
+                    /* Non-STEAMDECK: E/I are just letters, not menu switching */
+                    /* Fall through to default letter handling */
+                    goto equip_default_case;
 #endif
+                } else {
+                    /* Direct access (i/e pressed): E/I switch menus */
+                    enhanced_equip_action = 1;
+                    log_trace("show_equip_enhanced: Direct access I key - switching to inventory (action=1)");
+                    done = true;
+                }
+            }
             break;
         
         /* Handle cycling when the original command is pressed */
@@ -4117,6 +4319,7 @@ void show_equip_enhanced(void)
             if (current_menu_command == which) {
                 /* Same command - cycle to inventory */
                 enhanced_equip_action = 1;
+                log_trace("show_equip_enhanced: Command cycling (%c) - switching to inventory (action=1)", which);
                 done = true;
             }
             /* Different command does nothing */
@@ -4142,12 +4345,22 @@ void show_equip_enhanced(void)
             }
             break;
         
-        case ' ':        /* Space - use item */
-        case '\r':       /* Enter - use item */
-        case '\n':       /* Enter (alternative) - use item */
+        case ' ':        /* Space - use item or examine based on context */
+        case '\r':       /* Enter - use item or examine based on context */
+        case '\n':       /* Enter (alternative) - use item or examine based on context */
             if (highlight_active && highlight_index >= 0 && highlight_index < k) {
                 done = true;
-                do_cmd_use_item_by_index(out_index[highlight_index]);
+                
+                /* Handle based on menu context */
+                extern char current_menu_command;
+                if (current_menu_command == 'x') {
+                    /* Examine mode - mark for examination */
+                    enhanced_equip_action = 2;
+                    enhanced_equip_examine_item = out_index[highlight_index];
+                } else {
+                    /* Use mode - use the item */
+                    do_cmd_use_item_by_index(out_index[highlight_index]);
+                }
             }
             break;
         
@@ -4168,22 +4381,51 @@ void show_equip_enhanced(void)
             break;
         
         default:
+        equip_default_case:
             /* Handle item selection by letter */
             if ((which >= 'a' && which <= 'z') || (which >= 'A' && which <= 'Z')) {
-#ifdef STEAMDECK_SUPPORT
-                /* Steam Deck: Disable direct letter selection when opened via command */
                 extern char current_menu_command;
+                bool allow_letters = false;
+                
+                /* Determine if letter selection is allowed based on access mode and STEAMDECK support */
                 if (current_menu_command != 0) {
-                    /* Menu opened via command (u/x) - ignore letter selection */
-                    bell("Use arrow keys and Space to select items in command mode");
+                    /* Command access (u/x pressed) */
+#ifdef STEAMDECK_SUPPORT
+                    /* STEAMDECK: Letters disabled */
+                    allow_letters = false;
+#else
+                    /* Non-STEAMDECK: Letters enabled */
+                    allow_letters = true;
+#endif
+                } else {
+                    /* Direct access (i/e pressed): Letters disabled */
+                    allow_letters = false;
+                }
+                
+                if (!allow_letters) {
+                    bell("Use arrow keys and Space to select items in this mode");
                     break;
                 }
-#endif
                 int item = label_to_equip(which);
                 if (item >= INVEN_WIELD && item < INVEN_TOTAL && inventory[item].k_idx) {
                     done = true;
-                    p_ptr->command_new = which;
-                    p_ptr->command_see = true;
+                    
+                    /* Handle based on menu context */
+                    extern char current_menu_command;
+                    if (current_menu_command != 0) {
+                        /* Command mode - directly call the appropriate function */
+                        if (current_menu_command == 'u') {
+                            do_cmd_use_item_by_index(item);
+                        } else if (current_menu_command == 'x') {
+                            /* For observe mode, mark for examination */
+                            enhanced_equip_action = 2;
+                            enhanced_equip_examine_item = item;
+                        }
+                    } else {
+                        /* Direct access mode - use the traditional method */
+                        p_ptr->command_new = which;
+                        p_ptr->command_see = true;
+                    }
                 }
                 else {
                     bell("Illegal object choice!");
@@ -4196,5 +4438,5 @@ void show_equip_enhanced(void)
         }
     }
     
-    log_debug("show_equip_enhanced: Exiting equipment enhanced menu, action=%d", enhanced_equip_action);
+    log_trace("show_equip_enhanced: Exiting equipment enhanced menu, action=%d", enhanced_equip_action);
 }

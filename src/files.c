@@ -3221,7 +3221,7 @@ void show_help_screen(int i)
         col = 1;
         put_role(ROLE_ELEM_COLD, "D-pad: Up/Down/Left/Right", row, col); put_role(ROLE_BODY, " - Movement", row, col + 25); row++;
         row++;
-        put_role(ROLE_GOOD, "A", row, col); put_role(ROLE_BODY, " Green - Interact (,) - Pick up, stairs, forge", row, col + 2); row++;
+        put_role(ROLE_GOOD, "A", row, col); put_role(ROLE_BODY, " Green - Space - Interact (,) - Pick up, stairs, forge", row, col + 2); row++;
         put_role(ROLE_ELEM_COLD, "X", row, col); put_role(ROLE_BODY, " Blue  - Use object (u)", row, col + 2); row++;
         put_role(ROLE_ELEM_FIRE, "Y", row, col); put_role(ROLE_BODY, " Yellow- Sing/stealth (s)", row, col + 2); row++;
         put_role(ROLE_BAD, "B", row, col); put_role(ROLE_BODY, " Red   - Shoot bow (f)", row, col + 2); row++;
@@ -3232,9 +3232,9 @@ void show_help_screen(int i)
         put_role(ROLE_KEY, "Left Stick", row, col); put_role(ROLE_BODY, " - Numpad", row, col + 15); row++;
         put_role(ROLE_KEY, "Left Trackpad", row, col); put_role(ROLE_BODY, " - Numpad", row, col + 15); row++;
         put_role(ROLE_UI, "Menu Button", row, col); put_role(ROLE_BODY, " - Enter", row, col + 15); row++;
-        put_role(ROLE_KEY, "L1 (Bumper)", row, col); put_role(ROLE_BODY, " - Change menus (/)", row, col + 15); row++;
+        put_role(ROLE_KEY, "L1 (Bumper)", row, col); put_role(ROLE_BODY, " - Equipped items (e)", row, col + 15); row++;
         put_role(ROLE_KEY, "L2 (Trigger)", row, col); put_role(ROLE_BODY, " - Shift", row, col + 15); row++;
-        put_role(ROLE_KEY, "L4 (Back)", row, col); put_role(ROLE_BODY, " - Inventory (i)", row, col + 15); row++;
+        put_role(ROLE_KEY, "L4 (Back)", row, col); put_role(ROLE_BODY, " - Look (l)", row, col + 15); row++;
         put_role(ROLE_KEY, "L5 (Back)", row, col); put_role(ROLE_BODY, " - Abilities (Tab)", row, col + 15); row++;
 
         /* Right side controls */
@@ -3243,10 +3243,10 @@ void show_help_screen(int i)
         put_role(ROLE_KEY, "Right Stick", row, col); put_role(ROLE_BODY, " - Letters", row, col + 16); row++;
         put_role(ROLE_KEY, "Right Trackpad", row, col); put_role(ROLE_BODY, " - Useful letters", row, col + 16); row++;
         put_role(ROLE_UI, "View Button", row, col); put_role(ROLE_BODY, " - Esc/Main Menu", row, col + 16); row++;
-        put_role(ROLE_KEY, "R1 (Bumper)", row, col); put_role(ROLE_BODY, " - Inspect Item", row, col + 16); row++;
+        put_role(ROLE_KEY, "R1 (Bumper)", row, col); put_role(ROLE_BODY, " - Inventory (i)", row, col + 16); row++;
         put_role(ROLE_KEY, "R2 (Trigger)", row, col); put_role(ROLE_BODY, " - Ctrl", row, col + 16); row++;
-        put_role(ROLE_KEY, "R4 (Back)", row, col); put_role(ROLE_BODY, " - Equipment (e)", row, col + 16); row++;
-        put_role(ROLE_KEY, "R5 (Back)", row, col); put_role(ROLE_BODY, " - Yes (y)", row, col + 16); row++;
+        put_role(ROLE_KEY, "R4 (Back)", row, col); put_role(ROLE_BODY, " - Description (x)", row, col + 16); row++;
+        put_role(ROLE_KEY, "R5 (Back)", row, col); put_role(ROLE_BODY, " - Character sheet (h)", row, col + 16); row++;
         
         row += 2;
         put_role(ROLE_SUBTLE, "Customize bindings via Steam Input settings.", row, 1);

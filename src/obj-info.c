@@ -899,14 +899,21 @@ static bool screen_out_head(const object_type* o_ptr)
 
     bool has_description = false;
 
+    log_trace("screen_out_head: Starting, Term->wid=%d, Term->hgt=%d", Term->wid, Term->hgt);
+    log_trace("screen_out_head: Current cursor position: x=%d, y=%d", Term->scr->cx, Term->scr->cy);
+
     /* Allocate memory to the size of the screen */
     o_name = C_RNEW(name_size, char);
 
     /* Description */
     object_desc(o_name, name_size, o_ptr, true, 3);
 
+    log_trace("screen_out_head: About to print object name at current position");
+    
     /* Print, in colour */
     text_out_c(TERM_YELLOW, format("%^s", o_name));
+
+    log_trace("screen_out_head: After printing object name, cursor position: x=%d, y=%d", Term->scr->cx, Term->scr->cy);
 
     /* Free up the memory */
     FREE(o_name);
@@ -989,13 +996,24 @@ void object_info_screen(const object_type* o_ptr)
     bool has_description, has_info;
 
     log_trace("object_info_screen: Starting item description display");
+    log_trace("object_info_screen: BEFORE reset - text_out_indent=%d, text_out_wrap=%d", text_out_indent, text_out_wrap);
 
     /* Redirect output to the screen */
     text_out_hook = text_out_to_screen;
+    
+    /* Reset text output positioning to ensure proper layout */
+    text_out_wrap = 0;
+    text_out_indent = 0;
+
+    log_trace("object_info_screen: AFTER reset - text_out_indent=%d, text_out_wrap=%d", text_out_indent, text_out_wrap);
 
     /* Save the screen */
     screen_save();
     log_trace("object_info_screen: Screen saved");
+
+    /* Ensure cursor starts at top-left for proper text layout */
+    Term_gotoxy(0, 0);
+    log_trace("object_info_screen: Reset cursor to (0,0), now at x=%d, y=%d", Term->scr->cx, Term->scr->cy);
 
     has_description = screen_out_head(o_ptr);
 
@@ -1028,7 +1046,11 @@ void object_info_screen(const object_type* o_ptr)
     /* Load the screen */
     screen_load();
     
-    log_trace("object_info_screen: Screen loaded, exiting");
+    /* Ensure text output variables are reset after use */
+    text_out_wrap = 0;
+    text_out_indent = 0;
+    
+    log_trace("object_info_screen: Screen loaded, exiting - text_out_indent=%d, text_out_wrap=%d", text_out_indent, text_out_wrap);
 
     return;
 }
