@@ -46,7 +46,7 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 - Find Sil-More.exe and add it. Change the name to Sil-More in Properties.
 - In properties -> compatibilty use current version of Proton.
 - (optional) If you want to see artwork in your steam deck menus, Properties -> Customization. We have prepaired a CoverArt folder for you (do not forget to png in filter).
-- Open controller setup. You should see the layout on Community layouts or in search. If not, open the link Steam-Deck-layout-Sil-More in game folder, current link is steam://controllerconfig/4068119597/3573031141.
+- Open controller setup. You should see the layout on Community layouts or in search. If not, open the link Steam-Deck-layout-Sil-More in game folder, current link is steam://controllerconfig/4068119597/3573052583.
 - Return back to Game mode and enjoy Sil-More!  
 
 # Compiling Instructions 
