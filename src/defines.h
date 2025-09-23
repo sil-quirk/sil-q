@@ -49,7 +49,7 @@
  */
 
 /* Steam Deck support toggle */
-#define STEAMDECK_SUPPORT
+// #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning */
 /* Bumped to 0.8.6 for introduction of new skill S_SPC (Special abilities) */
@@ -1564,6 +1564,7 @@
  *	GRID: Select from all grids
  *	LIST_OBJECT: List objects in sight
  *	LIST_MONSTER: List monsters in sight
+ *	UNIFIED: Unified look mode with sidebar and map highlighting
  */
 #define TARGET_KILL 0x01
 #define TARGET_LOOK 0x02
@@ -1572,6 +1573,7 @@
 #define TARGET_WIZ 0x10
 #define TARGET_LIST_OBJECT 0x20
 #define TARGET_LIST_MONSTER 0x40
+#define TARGET_UNIFIED 0x80
 
 /*
  * Bit flags for the "monster_desc" function
@@ -2947,6 +2949,16 @@
 #define artefact_p(T) ((T)->name1 ? true : false)
 
 /*
+ * Return the appropriate character for a monster based on graphics mode
+ */
+#define monster_char(R) (graphics_are_ascii() ? (R)->d_char : (R)->x_char)
+
+/*
+ * Return the appropriate attribute for a monster based on graphics mode  
+ */
+#define monster_attr(R) (graphics_are_ascii() ? (R)->d_attr : (R)->x_attr)
+
+/*
  * Ego-Items use the "name2" field
  */
 #define ego_item_p(T) ((T)->name2 ? true : false)
@@ -3608,6 +3620,19 @@ static const quest_mapping quest_id_map[] = {
 //Defines for number of heroes
 #define FLAG_COUNT 64
 #define FLAG_WORDS ((FLAG_COUNT + 31) / 32)
+
+/*
+ * Unified look mode state structure
+ */
+typedef struct unified_look_state {
+    int cursor_y, cursor_x;           /* Map cursor position */
+    int selected_entity;              /* Currently highlighted sidebar entity (-1 if none) */
+    bool show_monsters, show_objects; /* Sidebar visibility toggles */
+    int display_mode;                 /* Navigation mode (0=manual, 1=entity) */
+    int highlighted_y, highlighted_x; /* Currently highlighted entity coordinates */
+    bool in_sidebar_mode;             /* True when navigating sidebar, false when scrolling map */
+    int look_mode;                    /* Look mode: 0=normal unified look, 1=L-style scrolling */
+} unified_look_state;
 
 /* ------------------------------------------------------------------
  *  Metarun (multi-run) support

@@ -510,10 +510,13 @@ extern void do_cmd_refuel_torch(
 extern void do_cmd_refuel(void);
 extern void do_cmd_target(void);
 extern void do_cmd_look(void);
+extern void do_cmd_unified_look(void);
 extern void do_cmd_locate(void);
 extern void do_cmd_query_symbol(void);
 extern void do_cmd_view_monsters(void);
 extern void do_cmd_view_objects(void);
+extern void show_unified_sidebar(unified_look_state* state);
+extern void highlight_entity_on_map(int y, int x, bool highlight);
 extern bool ang_sort_comp_hook(const void* u, const void* v, int a, int b);
 extern void ang_sort_swap_hook(void* u, void* v, int a, int b);
 extern void py_steal(int y, int x);

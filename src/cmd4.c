@@ -12631,8 +12631,8 @@ void show_nearby_monsters(bool line_of_sight_only)
                 &lines[j].alert_color))
             return;
 
-        lines[j].monster_character = r_ptr->d_char;
-        lines[j].monster_color = r_ptr->d_attr;
+        lines[j].monster_character = monster_char(r_ptr);
+        lines[j].monster_color = monster_attr(r_ptr);
 
         lines[j].distance
             = distance(p_ptr->py, p_ptr->px, temp_y[i], temp_x[i]);
@@ -12665,6 +12665,10 @@ void show_nearby_monsters(bool line_of_sight_only)
         prt("", i + 1, col);
 
         c_put_str(lines[i].monster_color, monster_char, i + 1, col + 2);
+        if (use_bigtile)
+        {
+            Term_putch(col + 3, i + 1, 255, -1);
+        }
         c_put_str(distance_color, lines[i].direction, i + 1, col + 6);
         c_put_str(TERM_WHITE, lines[i].name, i + 1,
             col + sizeof(lines[j].direction) + 6);
@@ -12759,6 +12763,10 @@ void show_nearby_objects(bool line_of_sight_only)
         prt("", i + 1, col);
 
         c_put_str(lines[i].object_color, o_char, i + 1, col + 2);
+        if (use_bigtile)
+        {
+            Term_putch(col + 3, i + 1, 255, -1);
+        }
         c_put_str(distance_color, lines[i].direction, i + 1, col + 6);
         c_put_str(TERM_WHITE, lines[i].name, i + 1,
             col + sizeof(lines[j].direction) + 6);
@@ -12782,6 +12790,13 @@ void do_cmd_view_monsters()
     char get_char = '[';
     bool show_los = true;
 
+    /* Clear entry level banner when using [ command */
+    if (g_banner_force_redraw_remaining > 0)
+    {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+
     while (get_char == '[')
     {
         screen_save();
@@ -12802,6 +12817,13 @@ void do_cmd_view_objects()
     char get_char = ']';
     bool show_los = true;
 
+    /* Clear entry level banner when using ] command */
+    if (g_banner_force_redraw_remaining > 0)
+    {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+
     while (get_char == ']')
     {
         screen_save();
@@ -12815,4 +12837,255 @@ void do_cmd_view_objects()
         show_los = !show_los;
         screen_load();
     }
+}
+
+/*
+ * Show unified sidebar with monsters and objects
+ */
+void show_unified_sidebar(unified_look_state* state)
+{
+    int sidebar_col = 50; /* Right side of screen */
+    int line = 1;
+    int i;
+    int monster_count = 0;
+    int object_count = 0;
+    char entity_char[2];
+    entity_char[1] = '\0';
+    static int previous_line_count = 0; /* Track previous display size */
+    
+    /* Clear only the lines used in previous display, including pictogram column */
+    for (i = 1; i <= previous_line_count && i < 23; i++)
+    {
+        /* Clear from pictogram column (sidebar_col - 1) to end of line */
+        prt("                                     ", i, sidebar_col - 1);
+    }
+    
+    /* Show monsters section */
+    if (state->show_monsters)
+    {
+        prt("MONSTERS:", line++, sidebar_col);
+        
+        /* Get monster list */
+        get_sorted_target_list(TARGET_LIST_MONSTER, 0);
+        
+        for (i = 0; i < temp_n && line < 12; i++)
+        {
+            int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
+            monster_type* m_ptr = &mon_list[m_idx];
+            monster_race* r_ptr = &r_info[m_ptr->r_idx];
+            char m_name[40];
+            char morale_text[8];
+            
+            if (!m_ptr->ml) continue;
+            if (!player_has_los_bold(temp_y[i], temp_x[i])) continue;
+            
+            monster_desc(m_name, sizeof(m_name), m_ptr, 0x80);
+            
+            /* Create HP bar with asterisks and health color (like health_redraw) */
+            int hp_len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
+            byte health_color = health_attr(m_ptr->hp, m_ptr->maxhp);
+            char hp_bar[10];
+            
+            /* Build health bar with status indicators */
+            if (m_ptr->confused && m_ptr->stunned)
+            {
+                strncpy(hp_bar, "cscscscs", hp_len);
+            }
+            else if (m_ptr->confused)
+            {
+                strncpy(hp_bar, "cccccccc", hp_len);
+            }
+            else if (m_ptr->stunned)
+            {
+                strncpy(hp_bar, "ssssssss", hp_len);
+            }
+            else
+            {
+                strncpy(hp_bar, "********", hp_len);
+            }
+            hp_bar[hp_len] = '\0';
+            
+            /* Create morale number with proper color */
+            int morale_color = TERM_WHITE;
+            int morale_num = 0;
+            
+            if (m_ptr->alertness < ALERTNESS_UNWARY)
+            {
+                morale_color = TERM_BLUE;
+                morale_num = m_ptr->alertness;
+            }
+            else if (m_ptr->alertness < ALERTNESS_ALERT)
+            {
+                morale_color = TERM_L_BLUE;
+                morale_num = m_ptr->alertness;
+            }
+            else
+            {
+                /* Get proper morale display using alertness function */
+                char dummy_text[20];
+                get_alertness_text(m_ptr, sizeof(dummy_text), dummy_text, &morale_color);
+                
+                /* Calculate morale number */
+                if (m_ptr->morale >= 0)
+                    morale_num = (m_ptr->morale + 9) / 10;
+                else
+                    morale_num = m_ptr->morale / 10;
+            }
+            
+            strnfmt(morale_text, sizeof(morale_text), "%d", morale_num);
+            
+            /* Use pictogram (tile) appropriate for graphics mode */
+            entity_char[0] = monster_char(r_ptr);
+            
+            /* Highlight if selected with cursor-style highlighting */
+            if (state->in_sidebar_mode && state->selected_entity == monster_count)
+            {
+                log_trace("Highlighting monster %d at (%d,%d)", monster_count, temp_y[i], temp_x[i]);
+                
+                /* Show pictogram in natural color */
+                c_put_str(monster_attr(r_ptr), entity_char, line, sidebar_col + 1);
+                if (use_bigtile)
+                {
+                    Term_putch(sidebar_col + 2, line, 255, -1);
+                }
+                
+                /* Get terminal width for exact layout calculation */
+                int term_wid = Term->wid;
+                int available_width = term_wid - sidebar_col - 3;
+                
+                /* Simple layout: name + 8 for health + 3 for morale */
+                int name_width = available_width - 8 - 3 - 2; /* -2 for spaces */
+                if (name_width < 4) name_width = 4; /* minimum name width */
+                
+                /* Truncate monster name to fit available width */
+                char truncated_name[80];
+                my_strcpy(truncated_name, m_name, sizeof(truncated_name));
+                if (strlen(truncated_name) > name_width) {
+                    truncated_name[name_width] = '\0';
+                }
+                
+                /* Create padded health bar (8 chars) */
+                char padded_hp_bar[10];
+                strnfmt(padded_hp_bar, sizeof(padded_hp_bar), "%-8s", hp_bar);
+                
+                /* Create padded morale text (3 chars) */
+                char padded_morale[5];
+                strnfmt(padded_morale, sizeof(padded_morale), "%-3s", morale_text);
+                
+                /* Display name, health bar, and morale */
+                c_put_str(TERM_L_BLUE, truncated_name, line, sidebar_col + 3);
+                c_put_str(health_color, padded_hp_bar, line, sidebar_col + 3 + name_width + 1);
+                c_put_str(morale_color, padded_morale, line, sidebar_col + 3 + name_width + 1 + 8 + 1);
+                
+                /* Update highlighted position and cursor */
+                state->highlighted_y = temp_y[i];
+                state->highlighted_x = temp_x[i];
+                state->cursor_y = temp_y[i];
+                state->cursor_x = temp_x[i];
+                highlight_entity_on_map(temp_y[i], temp_x[i], true);
+            }
+            else
+            {
+                /* Normal display - show pictogram, name, HP and morale with proper colors */
+                c_put_str(monster_attr(r_ptr), entity_char, line, sidebar_col + 1);
+                if (use_bigtile)
+                {
+                    Term_putch(sidebar_col + 2, line, 255, -1);
+                }
+                
+                /* Get terminal width for exact layout calculation */
+                int term_wid = Term->wid;
+                int available_width = term_wid - sidebar_col - 3;
+                
+                /* Simple layout: name + 8 for health + 3 for morale */
+                int name_width = available_width - 8 - 3 - 2; /* -2 for spaces */
+                if (name_width < 4) name_width = 4; /* minimum name width */
+                
+                /* Truncate monster name to fit available width */
+                char truncated_name[80];
+                my_strcpy(truncated_name, m_name, sizeof(truncated_name));
+                if (strlen(truncated_name) > name_width) {
+                    truncated_name[name_width] = '\0';
+                }
+                
+                /* Create padded health bar (8 chars) */
+                char padded_hp_bar[10];
+                strnfmt(padded_hp_bar, sizeof(padded_hp_bar), "%-8s", hp_bar);
+                
+                /* Create padded morale text (3 chars) */
+                char padded_morale[5];
+                strnfmt(padded_morale, sizeof(padded_morale), "%-3s", morale_text);
+                
+                /* Display name, health bar, and morale */
+                c_put_str(TERM_WHITE, truncated_name, line, sidebar_col + 3);
+                c_put_str(health_color, padded_hp_bar, line, sidebar_col + 3 + name_width + 1);
+                c_put_str(morale_color, padded_morale, line, sidebar_col + 3 + name_width + 1 + 8 + 1);
+            }
+            
+            line++;
+            monster_count++;
+        }
+    }
+    
+    /* Show objects section */
+    if (state->show_objects)
+    {
+        prt("OBJECTS:", line++, sidebar_col);
+        
+        /* Get object list */
+        get_sorted_target_list(TARGET_LIST_OBJECT, 0);
+        
+        int object_start = (state->show_monsters) ? monster_count : 0;
+        for (i = 0; i < temp_n && line < 22; i++)
+        {
+            int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
+            object_type* o_ptr = &o_list[o_idx];
+            char o_name[60];
+            
+            /* Show all objects in viewport, regardless of player visibility */
+            /* Skip empty object slots */
+            if (!o_idx) continue;
+            
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+            
+            entity_char[0] = object_char(o_ptr);
+            
+            /* Highlight if selected with cursor-style highlighting */
+            if (state->in_sidebar_mode && state->selected_entity == (object_start + object_count))
+            {
+                log_trace("Highlighting object %d at (%d,%d)", object_start + object_count, temp_y[i], temp_x[i]);
+                
+                /* Show pictogram in natural color, text with blue highlighting */
+                c_put_str(object_attr(o_ptr), entity_char, line, sidebar_col + 1);
+                if (use_bigtile)
+                {
+                    Term_putch(sidebar_col + 2, line, 255, -1);
+                }
+                c_put_str(TERM_L_BLUE, format("%-20s", o_name), line, sidebar_col + 3);
+                
+                /* Update highlighted position and cursor */
+                state->highlighted_y = temp_y[i];
+                state->highlighted_x = temp_x[i];
+                state->cursor_y = temp_y[i];
+                state->cursor_x = temp_x[i];
+                highlight_entity_on_map(temp_y[i], temp_x[i], true);
+            }
+            else
+            {
+                /* Normal display */
+                c_put_str(object_attr(o_ptr), entity_char, line, sidebar_col + 1);
+                if (use_bigtile)
+                {
+                    Term_putch(sidebar_col + 2, line, 255, -1);
+                }
+                c_put_str(TERM_WHITE, o_name, line, sidebar_col + 3);
+            }
+            
+            line++;
+            object_count++;
+        }
+    }
+    
+    /* Save current line count for next clearing operation */
+    previous_line_count = line - 1;
 }

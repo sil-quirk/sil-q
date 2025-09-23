@@ -2306,10 +2306,629 @@ void do_cmd_target(void)
  */
 void do_cmd_look(void)
 {
-    /* Look around */
-    if (target_set_interactive(TARGET_LOOK, 0))
+    /* Use the new unified look system */
+    do_cmd_unified_look();
+}
+
+/*
+ * Unified look command - combines look, scroll, and view functionality
+ */
+void do_cmd_unified_look(void)
+{
+    unified_look_state state;
+    int y, x, i;
+    char query;
+    bool done = false;
+    bool need_redraw = true;
+    int original_wy, original_wx; /* Store original viewport */
+    
+    /* Clear entry level banner when using look command */
+    if (g_banner_force_redraw_remaining > 0)
     {
-        msg_print("Target Selected.");
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+    
+    log_trace("=== UNIFIED LOOK STARTED ===");
+    
+    /* Store original viewport */
+    original_wy = p_ptr->wy;
+    original_wx = p_ptr->wx;
+    
+    log_trace("Original viewport: (%d,%d)", original_wy, original_wx);
+    
+    /* Initialize state */
+    state.cursor_y = p_ptr->py;
+    state.cursor_x = p_ptr->px;
+    state.selected_entity = -1;
+    state.show_monsters = true;
+    state.show_objects = true;
+    state.display_mode = 0; /* 0 = manual, 1 = entity */
+    state.highlighted_y = -1;
+    state.highlighted_x = -1;
+    state.in_sidebar_mode = false;
+    state.look_mode = 0; /* 0 = normal unified look, 1 = L-style scrolling */
+    
+    /* Main interaction loop */
+    while (!done)
+    {
+        bool screen_saved = false;
+        
+        if (need_redraw)
+        {
+            /* Save screen to preserve underlying display */
+            screen_save();
+            screen_saved = true;
+            
+            /* Show unified sidebar */
+            show_unified_sidebar(&state);
+            
+            /* Show cursor position info */
+            y = state.cursor_y;
+            x = state.cursor_x;
+            
+            /* Display current location info at bottom */
+            /* Show help text based on current mode */
+            if (state.look_mode == 0)
+            {
+                prt("[Arrows]=Move Cursor [Tab]=Select [Enter]=Examine [t]=Target [l]=Panel Mode [ESC]=Exit", 0, 0);
+            }
+            else
+            {
+                prt("[Arrows]=Scroll Panels [Tab]=Select [Enter]=Examine [t]=Target [l]=Cursor Mode [ESC]=Exit", 0, 0);
+            }
+            
+            /* Move cursor to position */
+            move_cursor_relative(state.cursor_y, state.cursor_x);
+            
+            need_redraw = false;
+        }
+        
+        /* Get input */
+        query = inkey();
+        log_trace("Unified look key input: '%c' (%d) [char: %c, isupper: %d]", 
+                 query, (int)query, (query >= 32 && query <= 126) ? query : '?', 
+                 (query >= 'A' && query <= 'Z') ? 1 : 0);
+        
+        /* Restore screen after input if we saved it */
+        if (screen_saved)
+        {
+            screen_load();
+        }
+        
+        /* Analyze input */
+        switch (query)
+        {
+            /* Handle capital letters - most are now ignored since we use arrows for scrolling */
+            case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G':
+            case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N':
+            case 'O': case 'P': case 'R': case 'S': case 'T': case 'U':
+            case 'V': case 'W': case 'X': case 'Y': case 'Z':
+            {
+                /* Capital letters are now ignored - use 'l' to switch to panel scroll mode */
+                log_trace("Capital letter ignored: '%c' (%d) - use 'l' to switch modes", query, (int)query);
+                break;
+            }
+            
+            case ESCAPE:
+            case 'q':
+            case 'Q':
+                /* Clear any highlighting before exit */
+                if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    state.highlighted_y = -1;
+                    state.highlighted_x = -1;
+                }
+                done = true;
+                break;
+                
+            /* Common menu keys - exit unified look and let them be processed normally */
+            case 'i':            /* Inventory */
+            case 'e':            /* Equipment */  
+            case '/':            /* Identify symbol */
+            case '?':            /* Help */
+            case 'x':            /* Examine/Look */
+            case '[':            /* View monsters */
+            case ']':            /* View objects */
+            case 'f':            /* Fire/Throw */
+            case 'w':            /* Wield/Wear */
+            case 'd':            /* Drop */
+            case 'k':            /* Destroy */
+            case 'r':            /* Read scroll */
+            case 'u':            /* Use staff */
+            case 'a':            /* Activate */
+            case 'z':            /* Zap rod */
+            case 's':            /* Stand still / Search */
+            case '.':            /* Run */
+            case ',':            /* Stay */
+            case '<':            /* Go up stairs */
+            case '>':            /* Go down stairs */
+            case 'g':            /* Get/Pickup */
+            case 'c':            /* Close */
+            case 'j':            /* Jam */
+            case '+':            /* Alter */
+            case '*':            /* Target */
+            case '@':            /* Center map */
+            case '(':            /* Dungeon history */
+            case '|':            /* Screenshots */
+            case '~':            /* Various things */
+            case '!':            /* OS command */
+                /* Clear any highlighting before exit */
+                if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    state.highlighted_y = -1;
+                    state.highlighted_x = -1;
+                }
+                done = true;
+                /* Don't consume the key - let it be processed by the main game loop */
+                Term_keypress(query);
+                break;
+                
+            case '2':
+            case '8':
+            case '4':
+            case '6':
+            case '1':
+            case '3':
+            case '7':
+            case '9':
+            {
+                /* Arrow key behavior depends on current mode */
+                if (state.look_mode == 0)
+                {
+                    /* Mode 0: Normal unified look - manual cursor scrolling */
+                    int dir = target_dir(query);
+                    if (dir)
+                    {
+                        state.cursor_y += ddy[dir];
+                        state.cursor_x += ddx[dir];
+                        
+                        /* Keep in bounds - use actual map size */
+                        if (state.cursor_y < 0) state.cursor_y = 0;
+                        if (state.cursor_y >= p_ptr->cur_map_hgt) state.cursor_y = p_ptr->cur_map_hgt - 1;
+                        if (state.cursor_x < 0) state.cursor_x = 0;
+                        if (state.cursor_x >= p_ptr->cur_map_wid) state.cursor_x = p_ptr->cur_map_wid - 1;
+                        
+                        /* Handle viewport scrolling when cursor reaches screen edge */
+                        if (!panel_contains(state.cursor_y, state.cursor_x))
+                        {
+                            /* Log viewport scrolling */
+                            log_trace("Viewport scroll: cursor at (%d,%d), panel (%d,%d)", 
+                                     state.cursor_y, state.cursor_x, p_ptr->wy, p_ptr->wx);
+                            
+                            /* Center the viewport on the cursor */
+                            int new_wy = state.cursor_y - SCREEN_HGT / 2;
+                            int new_wx = state.cursor_x - SCREEN_WID / 2;
+                            
+                            /* Use proper panel management function */
+                            if (modify_panel(new_wy, new_wx))
+                            {
+                                /* Handle viewport updates immediately */
+                                handle_stuff();
+                            }
+                            
+                            log_trace("New viewport: (%d,%d)", p_ptr->wy, p_ptr->wx);
+                        }
+                        
+                        state.in_sidebar_mode = false;
+                        state.selected_entity = -1;
+                        
+                        /* Clear old highlighting */
+                        if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                        {
+                            highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                            state.highlighted_y = -1;
+                            state.highlighted_x = -1;
+                        }
+                        
+                        need_redraw = true;
+                    }
+                }
+                else
+                {
+                    /* Mode 1: Panel scrolling - arrows scroll whole panels like capital letters */
+                    int dir = target_dir(query);
+                    if (dir)
+                    {
+                        log_trace("Panel scrolling mode: key='%c', dir=%d", query, dir);
+                        
+                        int old_wy = p_ptr->wy;
+                        int old_wx = p_ptr->wx;
+                        
+                        log_trace("Old viewport: (%d,%d)", old_wy, old_wx);
+                        
+                        /* Apply the motion by full panels */
+                        int new_wy = p_ptr->wy + (ddy[dir] * PANEL_HGT);
+                        int new_wx = p_ptr->wx + (ddx[dir] * PANEL_WID);
+                        
+                        /* Constrain viewport to map boundaries */
+                        if (new_wy < 0) new_wy = 0;
+                        if (new_wx < 0) new_wx = 0;
+                        if (new_wy > p_ptr->cur_map_hgt - SCREEN_HGT) new_wy = p_ptr->cur_map_hgt - SCREEN_HGT;
+                        if (new_wx > p_ptr->cur_map_wid - SCREEN_WID) new_wx = p_ptr->cur_map_wid - SCREEN_WID;
+                        
+                        /* Additional safety checks */
+                        if (new_wy < 0) new_wy = 0;
+                        if (new_wx < 0) new_wx = 0;
+                            
+                        log_trace("Constrained viewport: (%d,%d)", new_wy, new_wx);
+
+                        /* Use proper panel management function */
+                        if (modify_panel(new_wy, new_wx))
+                        {
+                            /* Update cursor to same relative position */
+                            state.cursor_y = state.cursor_y + (p_ptr->wy - old_wy);
+                            state.cursor_x = state.cursor_x + (p_ptr->wx - old_wx);
+                            
+                            /* Boundary check cursor */
+                            if (state.cursor_y < 0) state.cursor_y = 0;
+                            if (state.cursor_y >= p_ptr->cur_map_hgt) state.cursor_y = p_ptr->cur_map_hgt - 1;
+                            if (state.cursor_x < 0) state.cursor_x = 0;
+                            if (state.cursor_x >= p_ptr->cur_map_wid) state.cursor_x = p_ptr->cur_map_wid - 1;
+                            
+                            log_trace("New cursor: (%d,%d)", state.cursor_y, state.cursor_x);
+
+                            /* Handle viewport updates immediately */
+                            handle_stuff();
+                            
+                            need_redraw = true;
+                        }
+                        else
+                        {
+                            log_trace("Viewport unchanged");
+                        }
+                    }
+                }
+                break;
+            }
+            
+            case '\t': /* Tab key */
+            {
+                /* Cycle through sidebar entities */
+                log_trace("Tab key pressed - cycling entities");
+                
+                state.in_sidebar_mode = true;
+                
+                /* Count total entities */
+                int total_entities = 0;
+                if (state.show_monsters)
+                {
+                    get_sorted_target_list(TARGET_LIST_MONSTER, 0);
+                    for (i = 0; i < temp_n; i++)
+                    {
+                        int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
+                        monster_type* m_ptr = &mon_list[m_idx];
+                        if (m_ptr->ml && player_has_los_bold(temp_y[i], temp_x[i]))
+                            total_entities++;
+                    }
+                }
+                if (state.show_objects)
+                {
+                    get_sorted_target_list(TARGET_LIST_OBJECT, 0);
+                    for (i = 0; i < temp_n; i++)
+                    {
+                        int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
+                        /* Count all objects in viewport, regardless of player visibility */
+                        if (o_idx)
+                            total_entities++;
+                    }
+                }
+                
+                log_trace("Total entities: %d", total_entities);
+                
+                if (total_entities > 0)
+                {
+                    /* Clear previous highlighting */
+                    if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                    {
+                        highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    }
+                    
+                    /* Advance selection */
+                    int old_selection = state.selected_entity;
+                    state.selected_entity++;
+                    if (state.selected_entity >= total_entities)
+                        state.selected_entity = 0;
+                        
+                    log_trace("Entity selection: %d -> %d", old_selection, state.selected_entity);
+                    
+                    /* Update cursor position to match selected entity */
+                    /* This will be set properly in show_unified_sidebar when it determines the highlighted position */
+                }
+                
+                need_redraw = true;
+                break;
+            }
+            
+            case '\r': /* Enter key */
+            case ' ':
+            {
+                /* Examine current target */
+                if (state.in_sidebar_mode && state.selected_entity >= 0 && 
+                    state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    /* Examine selected entity */
+                    if (cave_m_idx[state.highlighted_y][state.highlighted_x] > 0)
+                    {
+                        /* Monster examination */
+                        monster_type* m_ptr = &mon_list[cave_m_idx[state.highlighted_y][state.highlighted_x]];
+                        if (m_ptr->ml)
+                        {
+                            /* Save screen */
+                            screen_save();
+                            
+                            /* Show monster recall */
+                            screen_roff(m_ptr->r_idx);
+                            
+                            /* Wait for input */
+                            inkey();
+                            
+                            /* Restore screen */
+                            screen_load();
+                        }
+                    }
+                    else if (cave_o_idx[state.highlighted_y][state.highlighted_x] > 0)
+                    {
+                        /* Object examination */
+                        object_type* o_ptr = &o_list[cave_o_idx[state.highlighted_y][state.highlighted_x]];
+                        if (o_ptr->marked)
+                        {
+                            /* Save screen */
+                            screen_save();
+                            
+                            /* Show object info */
+                            object_info_screen(o_ptr);
+                            
+                            /* Restore screen */
+                            screen_load();
+                        }
+                    }
+                }
+                else
+                {
+                    /* Examine cursor position */
+                    y = state.cursor_y;
+                    x = state.cursor_x;
+                    
+                    if (cave_m_idx[y][x] > 0)
+                    {
+                        monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
+                        if (m_ptr->ml)
+                        {
+                            screen_save();
+                            screen_roff(m_ptr->r_idx);
+                            inkey();
+                            screen_load();
+                        }
+                    }
+                    else if (cave_o_idx[y][x] > 0)
+                    {
+                        object_type* o_ptr = &o_list[cave_o_idx[y][x]];
+                        if (o_ptr->marked)
+                        {
+                            screen_save();
+                            object_info_screen(o_ptr);
+                            screen_load();
+                        }
+                    }
+                }
+                need_redraw = true;
+                break;
+            }
+            
+            case 'm':
+            {
+                /* Cycle display modes: objects+monsters -> monsters -> objects -> objects+monsters */
+                if (state.show_monsters && state.show_objects)
+                {
+                    /* From both to monsters only */
+                    state.show_objects = false;
+                }
+                else if (state.show_monsters && !state.show_objects)
+                {
+                    /* From monsters only to objects only */
+                    state.show_monsters = false;
+                    state.show_objects = true;
+                }
+                else
+                {
+                    /* From objects only (or neither) to both */
+                    state.show_monsters = true;
+                    state.show_objects = true;
+                }
+                
+                /* Reset selection when changing display */
+                state.selected_entity = -1;
+                state.in_sidebar_mode = false;
+                if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    state.highlighted_y = -1;
+                    state.highlighted_x = -1;
+                }
+                
+                need_redraw = true;
+                break;
+            }
+            
+            case 'o':
+            {
+                /* Same cycling as 'm' key */
+                if (state.show_monsters && state.show_objects)
+                {
+                    /* From both to monsters only */
+                    state.show_objects = false;
+                }
+                else if (state.show_monsters && !state.show_objects)
+                {
+                    /* From monsters only to objects only */
+                    state.show_monsters = false;
+                    state.show_objects = true;
+                }
+                else
+                {
+                    /* From objects only (or neither) to both */
+                    state.show_monsters = true;
+                    state.show_objects = true;
+                }
+                
+                /* Reset selection when changing display */
+                state.selected_entity = -1;
+                state.in_sidebar_mode = false;
+                if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    state.highlighted_y = -1;
+                    state.highlighted_x = -1;
+                }
+                
+                need_redraw = true;
+                break;
+            }
+            
+            case 'l':
+            {
+                /* Cycle look modes: 0=normal unified look, 1=L-style scrolling */
+                state.look_mode = (state.look_mode + 1) % 2;
+                log_trace("Look mode changed to: %d", state.look_mode);
+                
+                /* Update help text based on mode */
+                need_redraw = true;
+                break;
+            }
+            
+            case 't':
+            {
+                /* Target monster at cursor position or selected position */
+                int target_y = state.cursor_y;
+                int target_x = state.cursor_x;
+                
+                /* Use highlighted position if in sidebar mode */
+                if (state.in_sidebar_mode && state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    target_y = state.highlighted_y;
+                    target_x = state.highlighted_x;
+                }
+                
+                int m_idx = cave_m_idx[target_y][target_x];
+                if (m_idx > 0)
+                {
+                    /* Set target to the monster */
+                    target_set_monster(m_idx);
+                    
+                    /* Get monster description for message */
+                    char m_name[80];
+                    monster_desc(m_name, sizeof(m_name), &mon_list[m_idx], 0x80);
+                    msg_format("Target set to %s.", m_name);
+                    
+                    /* Exit unified look after targeting */
+                    done = true;
+                }
+                else
+                {
+                    msg_print("No monster at cursor position.");
+                }
+                break;
+            }
+            
+            case 'p':
+            {
+                /* Return to player position */
+                state.cursor_y = p_ptr->py;
+                state.cursor_x = p_ptr->px;
+                state.in_sidebar_mode = false;
+                state.selected_entity = -1;
+                need_redraw = true;
+                break;
+            }
+            
+            default:
+            {
+                /* Unhandled key - exit like ESC */
+                log_trace("Unhandled key in unified look: '%c' (%d) - exiting", query, (int)query);
+                /* Clear any highlighting before exit */
+                if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    state.highlighted_y = -1;
+                    state.highlighted_x = -1;
+                }
+                done = true;
+                break;
+            }
+        }
+    }
+    
+    /* Clear any highlighting */
+    if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+    {
+        highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+    }
+    
+    log_trace("=== UNIFIED LOOK ENDED ===");
+    
+    /* Restore original viewport */
+    if (p_ptr->wy != original_wy || p_ptr->wx != original_wx)
+    {
+        p_ptr->wy = original_wy;
+        p_ptr->wx = original_wx;
+        p_ptr->redraw |= (PR_MAP);
+        p_ptr->window |= (PW_OVERHEAD);
+        handle_stuff();
+    }
+}
+
+/*
+ * Highlight an entity on the map 
+ */
+void highlight_entity_on_map(int y, int x, bool highlight)
+{
+    if (highlight)
+    {
+        /* Get the original character and color, but show with blue background */
+        char display_char;
+        byte display_attr;
+        
+        /* Determine what to display based on what's at this location */
+        if (cave_m_idx[y][x] > 0)
+        {
+            /* For monsters, show normal appearance (no color change) */
+            monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
+            monster_race* r_ptr = &r_info[m_ptr->r_idx];
+            display_char = monster_char(r_ptr);
+            display_attr = monster_attr(r_ptr); /* Keep original monster color */
+            log_trace("Highlighting monster '%c' at (%d,%d) -> showing normal color", 
+                     display_char, y, x);
+        }
+        else if (cave_o_idx[y][x] > 0)
+        {
+            /* For objects, show normal appearance (no color change) */
+            object_type* o_ptr = &o_list[cave_o_idx[y][x]];
+            display_char = object_char(o_ptr);
+            display_attr = object_attr(o_ptr); /* Keep original object color */
+            log_trace("Highlighting object '%c' at (%d,%d) -> showing normal color", 
+                     display_char, y, x);
+        }
+        else
+        {
+            /* Empty space - use a cursor */
+            display_char = '+';
+            display_attr = TERM_L_BLUE;
+            log_trace("Highlighting empty space at (%d,%d) -> showing blue cursor", y, x);
+        }
+        
+        /* Draw highlighted character */
+        print_rel(display_char, display_attr, y, x);
+        log_trace("Applied blue highlighting: char='%c', attr=%d", 
+                 display_char, display_attr);
+    }
+    else
+    {
+        /* Restore original display */
+        lite_spot(y, x);
+        log_trace("Restored original display at (%d,%d)", y, x);
     }
 }
 
@@ -2319,6 +2938,13 @@ void do_cmd_look(void)
 void do_cmd_locate(void)
 {
     int dir, y1, x1, y2, x2;
+
+    /* Clear entry level banner when using L command */
+    if (g_banner_force_redraw_remaining > 0)
+    {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
 
     /* Start at current panel */
     y2 = y1 = p_ptr->wy;
