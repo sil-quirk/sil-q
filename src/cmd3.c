@@ -2406,11 +2406,19 @@ void do_cmd_unified_look(void)
             /* Show help text based on current mode */
             if (state.look_mode == 0)
             {
-                prt("[Arrows]=Move Cursor [Tab]=Select [Enter]=Examine [t]=Target [l]=Panel Mode [ESC]=Exit", 0, 0);
+#ifdef STEAMDECK_SUPPORT
+                prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Pan [ESC]", 0, 0);
+#else
+                prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Pan [ESC]", 0, 0);
+#endif
             }
             else
             {
-                prt("[Arrows]=Scroll Panels [Tab]=Select [Enter]=Examine [t]=Target [l]=Cursor Mode [ESC]=Exit", 0, 0);
+#ifdef STEAMDECK_SUPPORT
+                prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Curs [ESC]", 0, 0);
+#else
+                prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Curs [ESC]", 0, 0);
+#endif
             }
             
             /* Move cursor to position */
@@ -2435,6 +2443,7 @@ void do_cmd_unified_look(void)
         handle_stuff();
         
         /* Analyze input */
+        log_trace("Processing key: '%c' (%d), backtick is %d", query, (int)query, (int)'`');
         switch (query)
         {
             /* Handle capital letters - most are now ignored since we use arrows for scrolling */
@@ -2449,7 +2458,6 @@ void do_cmd_unified_look(void)
             }
             
             case ESCAPE:
-            case 'q':
             case 'Q':
                 /* Clear any highlighting before exit */
                 if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
@@ -2462,11 +2470,24 @@ void do_cmd_unified_look(void)
                 break;
                 
             /* Common menu keys - exit unified look and let them be processed normally */
-            case 'i':            /* Inventory */
-            case 'e':            /* Equipment */  
             case '/':            /* Identify symbol */
             case '?':            /* Help */
             case 'x':            /* Examine/Look */
+            case 's':
+            {
+                /* Switch between cursor mode and panel scrolling mode */
+                state.look_mode = (state.look_mode + 1) % 2;
+                log_trace("'s' key pressed - look mode changed to: %d", state.look_mode);
+                
+                /* Update help text based on mode */
+                need_redraw = true;
+                break;
+            }
+            
+#ifndef STEAMDECK_SUPPORT
+            case 'i':            /* Inventory */
+            case 'e':            /* Equipment */  
+#endif
             case '[':            /* View monsters */
             case ']':            /* View objects */
             case 'f':            /* Fire/Throw */
@@ -2477,7 +2498,6 @@ void do_cmd_unified_look(void)
             case 'u':            /* Use staff */
             case 'a':            /* Activate */
             case 'z':            /* Zap rod */
-            case 's':            /* Stand still / Search */
             case '.':            /* Run */
             case ',':            /* Stay */
             case '<':            /* Go up stairs */
@@ -2657,6 +2677,9 @@ void do_cmd_unified_look(void)
             }
             
             case '\t': /* Tab key */
+#ifdef STEAMDECK_SUPPORT
+            case 'i': /* I key - forward cycling (Steam Deck) */
+#endif
             {
                 log_trace("Tab key pressed - cycling entities");
                 
@@ -2710,6 +2733,70 @@ void do_cmd_unified_look(void)
                         state.selected_entity = 0;
                         
                     log_trace("Entity selection: %d -> %d", old_selection, state.selected_entity);
+                }
+                
+                need_redraw = true;
+                break;
+            }
+            
+            case '`': /* Backtick key - reverse Tab cycling */
+            case 'q': /* Q key - reverse Tab cycling */
+#ifdef STEAMDECK_SUPPORT
+            case 'e': /* E key - reverse Tab cycling (Steam Deck) */
+#endif
+            {
+                log_trace("REVERSE CYCLING: Key handler reached - cycling entities backward");
+                
+                /* Global sidebar cycling only - no square cycling */
+                state.in_sidebar_mode = true;
+                state.square_cycling_mode = false; /* Always disable square cycling */
+                
+                /* Count total VISIBLE entities using same logic as sidebar */
+                int total_entities = 0;
+                if (state.show_monsters)
+                {
+                    get_sorted_target_list(TARGET_LIST_MONSTER, 0);
+                    for (i = 0; i < temp_n; i++)
+                    {
+                        int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
+                        /* Skip empty monster slots */
+                        if (!m_idx) continue;
+                        /* Skip monsters that are not visible to the player */
+                        if (!mon_list[m_idx].ml) continue;
+                        /* This monster will be shown in sidebar, count it */
+                        total_entities++;
+                    }
+                }
+                if (state.show_objects)
+                {
+                    get_sorted_target_list(TARGET_LIST_OBJECT, 0);
+                    for (i = 0; i < temp_n; i++)
+                    {
+                        int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
+                        /* Skip empty object slots */
+                        if (!o_idx) continue;
+                        /* This object will be shown in sidebar, count it */
+                        total_entities++;
+                    }
+                }
+                
+                log_trace("Total visible entities: %d", total_entities);
+                
+                if (total_entities > 0)
+                {
+                    /* Clear previous highlighting */
+                    if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                    {
+                        highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    }
+                    
+                    /* Move backward in selection */
+                    int old_selection = state.selected_entity;
+                    state.selected_entity--;
+                    if (state.selected_entity < 0)
+                        state.selected_entity = total_entities - 1;
+                        
+                    log_trace("Entity selection (backward): %d -> %d", old_selection, state.selected_entity);
                 }
                 
                 need_redraw = true;
@@ -2831,27 +2918,19 @@ void do_cmd_unified_look(void)
             
             case 'm':
             {
-                log_trace("'m' key pressed - cycling display modes");
-                /* Cycle display modes: objects+monsters -> monsters -> objects -> objects+monsters */
-                if (state.show_monsters && state.show_objects)
+                log_trace("'m' key pressed - cycling monster display");
+                /* Cycle monsters: monsters -> nothing -> monsters */
+                if (state.show_monsters)
                 {
-                    /* From both to monsters only */
-                    state.show_objects = false;
-                    log_trace("Mode changed to: monsters only");
-                }
-                else if (state.show_monsters && !state.show_objects)
-                {
-                    /* From monsters only to objects only */
+                    /* From showing monsters to hiding monsters */
                     state.show_monsters = false;
-                    state.show_objects = true;
-                    log_trace("Mode changed to: objects only");
+                    log_trace("Mode changed to: monsters hidden");
                 }
                 else
                 {
-                    /* From objects only (or neither) to both */
+                    /* From hiding monsters to showing monsters */
                     state.show_monsters = true;
-                    state.show_objects = true;
-                    log_trace("Mode changed to: both monsters and objects");
+                    log_trace("Mode changed to: monsters shown");
                 }
                 
                 /* Reset selection when changing display */
@@ -2874,27 +2953,19 @@ void do_cmd_unified_look(void)
             
             case 'o':
             {
-                log_trace("'o' key pressed - cycling display modes");
-                /* Same cycling as 'm' key */
-                if (state.show_monsters && state.show_objects)
+                log_trace("'o' key pressed - cycling object display");
+                /* Cycle objects: objects -> nothing -> objects */
+                if (state.show_objects)
                 {
-                    /* From both to monsters only */
+                    /* From showing objects to hiding objects */
                     state.show_objects = false;
-                    log_trace("Mode changed to: monsters only");
-                }
-                else if (state.show_monsters && !state.show_objects)
-                {
-                    /* From monsters only to objects only */
-                    state.show_monsters = false;
-                    state.show_objects = true;
-                    log_trace("Mode changed to: objects only");
+                    log_trace("Mode changed to: objects hidden");
                 }
                 else
                 {
-                    /* From objects only (or neither) to both */
-                    state.show_monsters = true;
+                    /* From hiding objects to showing objects */
                     state.show_objects = true;
-                    log_trace("Mode changed to: both monsters and objects");
+                    log_trace("Mode changed to: objects shown");
                 }
                 
                 /* Reset selection when changing display */
@@ -2917,13 +2988,46 @@ void do_cmd_unified_look(void)
             
             case 'l':
             {
-                /* Cycle look modes: 0=normal unified look, 1=L-style scrolling */
-                state.look_mode = (state.look_mode + 1) % 2;
-                log_trace("Look mode changed to: %d", state.look_mode);
+                log_trace("'l' key pressed - cycling through display modes");
+                /* Cycle display modes: monsters+objects -> objects -> nothing -> monsters+objects */
+                if (state.show_monsters && state.show_objects)
+                {
+                    /* From both to objects only */
+                    state.show_monsters = false;
+                    state.show_objects = true;
+                    log_trace("Mode changed to: objects only");
+                }
+                else if (!state.show_monsters && state.show_objects)
+                {
+                    /* From objects only to nothing */
+                    state.show_monsters = false;
+                    state.show_objects = false;
+                    log_trace("Mode changed to: nothing (all hidden)");
+                }
+                else
+                {
+                    /* From nothing (or monsters only) to both */
+                    state.show_monsters = true;
+                    state.show_objects = true;
+                    log_trace("Mode changed to: both monsters and objects");
+                }
                 
-                /* Update help text based on mode */
+                /* Reset selection when changing display */
+                state.selected_entity = -1;
+                state.in_sidebar_mode = false;
+                if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    state.highlighted_y = -1;
+                    state.highlighted_x = -1;
+                }
+                
+                /* Force a complete redraw */
+                handle_stuff();
                 need_redraw = true;
-                break;
+                log_trace("'l' key: set need_redraw=true, continuing to redraw immediately");
+                /* Continue to top of loop to process redraw immediately */
+                continue;
             }
             
             case 't':
