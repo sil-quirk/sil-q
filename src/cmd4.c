@@ -487,11 +487,12 @@ bool prereqs(int skilltype, int abilitynum)
 }
 
 /*
- * Display the available songs (modelled on show_inven).
+ * Display the available songs (modelled on show_inven) with optional highlighting.
  */
-void show_songs(void)
+void show_songs_with_highlight(int highlight)
 {
     int i, j, k = 0;
+    int current_line = 0;
 
     int col = 26;
 
@@ -527,8 +528,12 @@ void show_songs(void)
     /* Clear the line with the (possibly indented) index */
     put_str("s)", 1, col);
 
-    /* Display the entry itself */
-    c_put_str(TERM_SLATE, "Stop Singing", 1, col + 3);
+    /* Display the entry itself - highlight if selected */
+    if (highlight == current_line)
+        c_put_str(TERM_L_BLUE, "Stop Singing", 1, col + 3);
+    else
+        c_put_str(TERM_SLATE, "Stop Singing", 1, col + 3);
+    current_line++;
 
     /* Output each entry */
     for (j = 0; j < k; j++)
@@ -545,8 +550,12 @@ void show_songs(void)
         /* Clear the line with the (possibly indented) index */
         put_str(tmp_val, j + 2, col);
 
-        /* Display the entry itself */
-        c_put_str(TERM_L_WHITE, out_desc[j], j + 2, col + 3);
+        /* Display the entry itself - highlight if selected */
+        if (highlight == current_line)
+            c_put_str(TERM_L_BLUE, out_desc[j], j + 2, col + 3);
+        else
+            c_put_str(TERM_L_WHITE, out_desc[j], j + 2, col + 3);
+        current_line++;
     }
 
     // add a line for the 'exchange themes' command
@@ -558,8 +567,11 @@ void show_songs(void)
         /* Clear the line with the (possibly indented) index */
         put_str("x)", j + 2, col);
 
-        /* Display the entry itself */
-        c_put_str(TERM_L_BLUE, "Exchange themes", j + 2, col + 3);
+        /* Display the entry itself - highlight if selected */
+        if (highlight == current_line)
+            c_put_str(TERM_L_BLUE, "Exchange themes", j + 2, col + 3);
+        else
+            c_put_str(TERM_L_BLUE, "Exchange themes", j + 2, col + 3);
 
         j++;
     }
@@ -569,6 +581,14 @@ void show_songs(void)
         prt("", j + 2, col - 2);
 }
 
+/*
+ * Display the available songs (modelled on show_inven).
+ */
+void show_songs(void)
+{
+    show_songs_with_highlight(-1); // No highlighting
+}
+
 void do_cmd_change_song()
 {
     int i;
@@ -576,6 +596,7 @@ void do_cmd_change_song()
 
     int options = 0;
     int song_choice = -1;
+    int highlight = 0; // Add highlight tracking
 
     char out_val[80];
     char tmp_val[80];
@@ -625,7 +646,7 @@ void do_cmd_change_song()
     {
         /* Redraw if needed */
         if (p_ptr->command_see)
-            show_songs();
+            show_songs_with_highlight(highlight);
 
         /* Begin the prompt */
         sprintf(out_val, "Songs: s");
@@ -668,16 +689,59 @@ void do_cmd_change_song()
         switch (which)
         {
         case ESCAPE:
-        case '\r':
         {
             log_trace("Song selection cancelled by player");
             done = true;
             break;
         }
 
+        case '\r': // Enter - select highlighted item when menu is visible, otherwise exit
+        {
+            if (p_ptr->command_see)
+            {
+                // Convert highlight to appropriate song choice (same logic as '6' and Space keys)
+                if (highlight == 0)
+                {
+                    song_choice = SNG_NOTHING; // Stop singing
+                }
+                else
+                {
+                    // Find the i-th available song
+                    int song_count = 1;
+                    for (i = 0; i < SNG_WOVEN_THEMES; i++)
+                    {
+                        if (p_ptr->active_ability[S_SNG][i])
+                        {
+                            if (song_count == highlight)
+                            {
+                                song_choice = i;
+                                break;
+                            }
+                            song_count++;
+                        }
+                    }
+                    // Check for exchange themes option
+                    if (song_choice == -1 && p_ptr->song2 != SNG_NOTHING && highlight == song_count)
+                    {
+                        song_choice = SNG_EXCHANGE_THEMES;
+                    }
+                }
+                
+                if (song_choice >= 0)
+                {
+                    done = true;
+                }
+            }
+            else
+            {
+                log_trace("Song selection cancelled by player");
+                done = true;
+            }
+            break;
+        }
+
         case '*':
         case '?':
-        case ' ':
         {
             /* Hide the list */
             if (p_ptr->command_see)
@@ -699,6 +763,133 @@ void do_cmd_change_song()
                 p_ptr->command_see = true;
             }
 
+            break;
+        }
+
+        case ' ': // Space - select highlighted item when menu is visible, otherwise toggle menu
+        {
+            if (p_ptr->command_see)
+            {
+                // Convert highlight to appropriate song choice (same logic as '6' key)
+                if (highlight == 0)
+                {
+                    song_choice = SNG_NOTHING; // Stop singing
+                }
+                else
+                {
+                    // Find the i-th available song
+                    int song_count = 1;
+                    for (i = 0; i < SNG_WOVEN_THEMES; i++)
+                    {
+                        if (p_ptr->active_ability[S_SNG][i])
+                        {
+                            if (song_count == highlight)
+                            {
+                                song_choice = i;
+                                break;
+                            }
+                            song_count++;
+                        }
+                    }
+                    // Check for exchange themes option
+                    if (song_choice == -1 && p_ptr->song2 != SNG_NOTHING && highlight == song_count)
+                    {
+                        song_choice = SNG_EXCHANGE_THEMES;
+                    }
+                }
+                
+                if (song_choice >= 0)
+                {
+                    done = true;
+                }
+            }
+            else
+            {
+                /* Show the list */
+                /* Save screen */
+                screen_save();
+
+                /* Flip flag */
+                p_ptr->command_see = true;
+            }
+            break;
+        }
+
+        case '2': // Down arrow / scroll down
+        {
+            if (p_ptr->command_see)
+            {
+                // Get total available songs + stop singing + exchange themes
+                int total_options = 1; // "Stop Singing"
+                for (i = 0; i < SNG_WOVEN_THEMES; i++)
+                {
+                    if (p_ptr->active_ability[S_SNG][i])
+                        total_options++;
+                }
+                if (p_ptr->song2 != SNG_NOTHING)
+                    total_options++; // "Exchange themes"
+
+                highlight = (highlight + 1) % total_options;
+            }
+            break;
+        }
+
+        case '8': // Up arrow / scroll up
+        {
+            if (p_ptr->command_see)
+            {
+                // Get total available songs + stop singing + exchange themes
+                int total_options = 1; // "Stop Singing"
+                for (i = 0; i < SNG_WOVEN_THEMES; i++)
+                {
+                    if (p_ptr->active_ability[S_SNG][i])
+                        total_options++;
+                }
+                if (p_ptr->song2 != SNG_NOTHING)
+                    total_options++; // "Exchange themes"
+
+                highlight = (highlight - 1 + total_options) % total_options;
+            }
+            break;
+        }
+
+        case '6': // Right arrow / select highlighted
+        {
+            if (p_ptr->command_see)
+            {
+                // Convert highlight to appropriate song choice
+                if (highlight == 0)
+                {
+                    song_choice = SNG_NOTHING; // Stop singing
+                }
+                else
+                {
+                    // Find the i-th available song
+                    int song_count = 1;
+                    for (i = 0; i < SNG_WOVEN_THEMES; i++)
+                    {
+                        if (p_ptr->active_ability[S_SNG][i])
+                        {
+                            if (song_count == highlight)
+                            {
+                                song_choice = i;
+                                break;
+                            }
+                            song_count++;
+                        }
+                    }
+                    // Check for exchange themes option
+                    if (song_choice == -1 && p_ptr->song2 != SNG_NOTHING && highlight == song_count)
+                    {
+                        song_choice = SNG_EXCHANGE_THEMES;
+                    }
+                }
+                
+                if (song_choice >= 0)
+                {
+                    done = true;
+                }
+            }
             break;
         }
 
@@ -12566,7 +12757,7 @@ void write_direction_from_player_to_buffer(
     }
 }
 
-#define MAX_VIEW_LINES 20
+#define MAX_VIEW_LINES 50
 
 typedef struct view_monster_data_line view_monster_data_line;
 struct view_monster_data_line
@@ -12597,6 +12788,10 @@ void show_nearby_monsters(bool line_of_sight_only)
     int i, j;
     int col;
     int longest_name_length = 0;
+    
+    /* Get terminal height and calculate available space */
+    int term_hgt = Term->hgt;
+    int max_lines = MIN(MAX_VIEW_LINES, term_hgt - 3); /* Leave space for header and footer */
 
     get_sorted_target_list(TARGET_LIST_MONSTER, 0);
 
@@ -12609,7 +12804,7 @@ void show_nearby_monsters(bool line_of_sight_only)
         char m_name[40];
         int name_length;
 
-        if (j >= 20)
+        if (j >= max_lines)
             break;
         if (!m_ptr->ml)
             continue;
@@ -12696,6 +12891,10 @@ void show_nearby_objects(bool line_of_sight_only)
     int i, j;
     int col;
     int longest_name_length = 0;
+    
+    /* Get terminal height and calculate available space */
+    int term_hgt = Term->hgt;
+    int max_lines = MIN(MAX_VIEW_LINES, term_hgt - 3); /* Leave space for header and footer */
 
     get_sorted_target_list(TARGET_LIST_OBJECT, 0);
 
@@ -12707,7 +12906,7 @@ void show_nearby_objects(bool line_of_sight_only)
         char o_name[60];
         int name_length;
 
-        if (j >= 20)
+        if (j >= max_lines)
             break;
         if (!player_can_see_bold(temp_y[i], temp_x[i]) && line_of_sight_only)
             continue;
@@ -12849,26 +13048,60 @@ void show_unified_sidebar(unified_look_state* state)
     int i;
     int monster_count = 0;
     int object_count = 0;
+    char clear_line[256];
+    int clear_width;
     char entity_char[2];
     entity_char[1] = '\0';
     static int previous_line_count = 0; /* Track previous display size */
     
-    /* Clear only the lines used in previous display, including pictogram column */
-    for (i = 1; i <= previous_line_count && i < 23; i++)
-    {
-        /* Clear from pictogram column (sidebar_col - 1) to end of line */
-        prt("                                     ", i, sidebar_col - 1);
+    /* Get terminal height and calculate available space */
+    int term_hgt = Term->hgt;
+    int max_display_line = term_hgt - 2; /* Leave space for bottom line */
+    
+    /* Calculate layout positions once for both monsters and objects */
+    int term_wid = Term->wid;
+    int available_width = term_wid - sidebar_col - 3;
+    int name_width = available_width - 8 - 3 - 2; /* -2 for spaces */
+    
+    /* Adjust for bigtile mode - pictogram takes extra space */
+    if (use_bigtile) {
+        name_width = name_width - 1;  /* Reduce name width by 1 for bigtile */
     }
+    
+    if (name_width < 4) name_width = 4; /* minimum name width */
+    
+    /* Calculate exact positions */
+    int pictogram_col = sidebar_col + 1;
+    int name_col = sidebar_col + 3;  /* Keep name at original position */
+    int health_col = name_col + name_width + 1;
+    int morale_col = health_col + 8 + 1;
+    
+    /* Prepare clearing string */
+    clear_width = Term->wid - (sidebar_col - 1);
+    if (clear_width > 255) clear_width = 255;
+    memset(clear_line, ' ', clear_width);
+    clear_line[clear_width] = '\0';
+    
+    log_trace("show_unified_sidebar: previous_line_count=%d, term_hgt=%d, max_display_line=%d", 
+              previous_line_count, term_hgt, max_display_line);
+    log_trace("show_unified_sidebar: sidebar_col=%d, Term->wid=%d, clear_start=%d, clear_width=%d", 
+              sidebar_col, Term->wid, sidebar_col - 1, clear_width);
+    log_trace("show_unified_sidebar: show_monsters=%d, show_objects=%d", 
+              state->show_monsters ? 1 : 0, state->show_objects ? 1 : 0);
+    
+    /* Don't clear anything - let screen_save/screen_load handle restoration */
+    log_trace("show_unified_sidebar: skipping clear - letting screen management handle it");
     
     /* Show monsters section */
     if (state->show_monsters)
     {
+        log_trace("show_unified_sidebar: displaying MONSTERS header at line %d", line);
         prt("MONSTERS:", line++, sidebar_col);
         
         /* Get monster list */
         get_sorted_target_list(TARGET_LIST_MONSTER, 0);
         
-        for (i = 0; i < temp_n && line < 12; i++)
+        for (i = 0; i < temp_n && line < max_display_line; i++)
         {
             int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
             monster_type* m_ptr = &mon_list[m_idx];
@@ -12876,10 +13109,15 @@ void show_unified_sidebar(unified_look_state* state)
             char m_name[40];
             char morale_text[8];
             
-            if (!m_ptr->ml) continue;
-            if (!player_has_los_bold(temp_y[i], temp_x[i])) continue;
+            /* Show only visible monsters on screen (like the [ monsters menu) */
+            /* Skip empty monster slots */
+            if (!m_idx) continue;
             
-            monster_desc(m_name, sizeof(m_name), m_ptr, 0x80);
+            /* Skip monsters that are not visible to the player */
+            if (!m_ptr->ml) continue;
+            
+            /* Generate monster name without articles using race name function */
+            monster_desc_race(m_name, sizeof(m_name), m_ptr->r_idx);
             
             /* Create HP bar with asterisks and health color (like health_redraw) */
             int hp_len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
@@ -12937,89 +13175,142 @@ void show_unified_sidebar(unified_look_state* state)
             /* Use pictogram (tile) appropriate for graphics mode */
             entity_char[0] = monster_char(r_ptr);
             
-            /* Highlight if selected with cursor-style highlighting */
-            if (state->in_sidebar_mode && state->selected_entity == monster_count)
+            /* Truncate monster name to fit available width */
+            char truncated_name[80];
+            memset(truncated_name, 0, sizeof(truncated_name)); /* Clear entire buffer first */
+            my_strcpy(truncated_name, m_name, sizeof(truncated_name));
+            int original_name_len = strlen(truncated_name);
+            if (strlen(truncated_name) > name_width) {
+                truncated_name[name_width] = '\0';
+            }
+            int final_name_len = strlen(truncated_name);
+            
+            /* BIGTILE FIX: If using bigtile and name length is odd, add space to make it even */
+            if (use_bigtile && (final_name_len % 2 == 1) && (final_name_len + 1 <= name_width)) {
+                strcat(truncated_name, " ");
+                final_name_len = strlen(truncated_name);
+                log_debug("BIGTILE FIX: Added space to monster name '%s', new length=%d", truncated_name, final_name_len);
+            }
+            
+            /* Log all the layout details */
+            log_debug("SIDEBAR LAYOUT: term_wid=%d, sidebar_col=%d", term_wid, sidebar_col);
+            log_debug("SIDEBAR LAYOUT: available_width=%d, name_width=%d", available_width, name_width);
+            log_debug("SIDEBAR LAYOUT: monster='%s', original_len=%d, final_len=%d", truncated_name, original_name_len, final_name_len);
+            log_debug("SIDEBAR LAYOUT: pictogram_col=%d, name_col=%d, health_col=%d, morale_col=%d", pictogram_col, name_col, health_col, morale_col);
+            log_debug("SIDEBAR LAYOUT: use_bigtile=%d", use_bigtile);
+            
+            /* Create padded health bar (8 chars) */
+            char padded_hp_bar[10];
+            strnfmt(padded_hp_bar, sizeof(padded_hp_bar), "%-8s", hp_bar);
+            
+            /* Create padded morale text (3 chars) */
+            char padded_morale[5];
+            strnfmt(padded_morale, sizeof(padded_morale), "%-3s", morale_text);
+            
+            /* Add comprehensive logging for exact character analysis */
+            log_debug("CHAR ANALYSIS: monster='%s'", m_name);
+            log_debug("CHAR ANALYSIS: original_len=%d, name_width=%d", (int)strlen(m_name), name_width);
+            log_debug("CHAR ANALYSIS: truncated_name='%s', strlen=%d", truncated_name, (int)strlen(truncated_name));
+            log_debug("CHAR ANALYSIS: padded_hp_bar='%s', strlen=%d", padded_hp_bar, (int)strlen(padded_hp_bar));
+            log_debug("CHAR ANALYSIS: morale_text='%s', strlen=%d", morale_text, (int)strlen(morale_text));
+            log_debug("CHAR ANALYSIS: padded_morale='%s', strlen=%d", padded_morale, (int)strlen(padded_morale));
+            
+            /* Log exact column positions for each character */
+            log_debug("POSITION: name_col=%d, name_width=%d, name_end_col=%d", name_col, name_width, name_col + name_width - 1);
+            log_debug("POSITION: health_col=%d, health_width=8, health_end_col=%d", health_col, health_col + 8 - 1);
+            log_debug("POSITION: morale_col=%d, morale_width=3, morale_end_col=%d", morale_col, morale_col + 3 - 1);
+            
+            /* Highlight if selected with cursor-style highlighting only */
+            bool highlight_this_monster = (state->in_sidebar_mode && state->selected_entity == monster_count);
+            
+            if (highlight_this_monster)
             {
                 log_trace("Highlighting monster %d at (%d,%d)", monster_count, temp_y[i], temp_x[i]);
                 
+                /* Clear only the exact areas where text will be displayed */
+                Term_erase(pictogram_col, line, 2);  /* Clear pictogram area (1-2 chars) */
+                Term_erase(name_col, line, final_name_len);  /* Clear only actual name length */
+                Term_erase(health_col, line, 8);  /* Clear health bar area */
+                Term_erase(morale_col, line, 3);  /* Clear morale area */
+                
                 /* Show pictogram in natural color */
-                c_put_str(monster_attr(r_ptr), entity_char, line, sidebar_col + 1);
+                log_debug("SIDEBAR DISPLAY: Placing pictogram '%c' at col %d", entity_char[0], pictogram_col);
+                c_put_str(monster_attr(r_ptr), entity_char, line, pictogram_col);
                 if (use_bigtile)
                 {
+                    log_debug("SIDEBAR DISPLAY: Placing bigtile at col %d", sidebar_col + 2);
                     Term_putch(sidebar_col + 2, line, 255, -1);
                 }
                 
-                /* Get terminal width for exact layout calculation */
-                int term_wid = Term->wid;
-                int available_width = term_wid - sidebar_col - 3;
-                
-                /* Simple layout: name + 8 for health + 3 for morale */
-                int name_width = available_width - 8 - 3 - 2; /* -2 for spaces */
-                if (name_width < 4) name_width = 4; /* minimum name width */
-                
-                /* Truncate monster name to fit available width */
-                char truncated_name[80];
-                my_strcpy(truncated_name, m_name, sizeof(truncated_name));
-                if (strlen(truncated_name) > name_width) {
-                    truncated_name[name_width] = '\0';
-                }
-                
-                /* Create padded health bar (8 chars) */
-                char padded_hp_bar[10];
-                strnfmt(padded_hp_bar, sizeof(padded_hp_bar), "%-8s", hp_bar);
-                
-                /* Create padded morale text (3 chars) */
-                char padded_morale[5];
-                strnfmt(padded_morale, sizeof(padded_morale), "%-3s", morale_text);
+                /* Log what we're about to display */
+                log_debug("DISPLAY (highlighted): name='%s' at col %d with width %d", truncated_name, name_col, name_width);
+                log_debug("DISPLAY (highlighted): health='%s' at col %d", padded_hp_bar, health_col);
+                log_debug("DISPLAY (highlighted): morale='%s' at col %d", padded_morale, morale_col);
                 
                 /* Display name, health bar, and morale */
-                c_put_str(TERM_L_BLUE, truncated_name, line, sidebar_col + 3);
-                c_put_str(health_color, padded_hp_bar, line, sidebar_col + 3 + name_width + 1);
-                c_put_str(morale_color, padded_morale, line, sidebar_col + 3 + name_width + 1 + 8 + 1);
+                Term_putstr(name_col, line, final_name_len, TERM_L_BLUE, truncated_name);
+                Term_putstr(health_col, line, 8, health_color, padded_hp_bar);
+                Term_putstr(morale_col, line, 3, morale_color, padded_morale);
+                
+                /* Log what was actually displayed */
+                log_debug("DISPLAYED (highlighted): Term_putstr(%d, %d, %d, TERM_L_BLUE, '%s')", name_col, line, final_name_len, truncated_name);
+                log_debug("DISPLAYED (highlighted): Term_putstr(%d, %d, 8, health_color, '%s') - LIMITED LENGTH!", health_col, line, padded_hp_bar);
+                log_debug("DISPLAYED (highlighted): Term_putstr(%d, %d, 3, morale_color, '%s') - LIMITED LENGTH!", morale_col, line, padded_morale);
+                
+                /* Log the exact bytes of the truncated_name string */
+                log_debug("STRING BYTES (highlighted): truncated_name length=%d", (int)strlen(truncated_name));
+                for (int b = 0; b < name_width && b < 40; b++) {
+                    char c = truncated_name[b];  /* Read actual character at position b */
+                    log_debug("STRING BYTES (highlighted): [%d] = '%c' (0x%02x)", b, (c >= 32 && c < 127) ? c : '?', (unsigned char)c);
+                    if (c == '\0') break;  /* Stop at null terminator */
+                }
                 
                 /* Update highlighted position and cursor */
                 state->highlighted_y = temp_y[i];
                 state->highlighted_x = temp_x[i];
                 state->cursor_y = temp_y[i];
                 state->cursor_x = temp_x[i];
-                highlight_entity_on_map(temp_y[i], temp_x[i], true);
+                highlight_entity_on_map_type(temp_y[i], temp_x[i], true, 1); /* Prefer monster display */
             }
             else
             {
+                /* Clear only the exact areas where text will be displayed */
+                Term_erase(pictogram_col, line, 2);  /* Clear pictogram area (1-2 chars) */
+                Term_erase(name_col, line, final_name_len);  /* Clear only actual name length */
+                Term_erase(health_col, line, 8);  /* Clear health bar area */
+                Term_erase(morale_col, line, 3);  /* Clear morale area */
+                
                 /* Normal display - show pictogram, name, HP and morale with proper colors */
-                c_put_str(monster_attr(r_ptr), entity_char, line, sidebar_col + 1);
+                log_debug("SIDEBAR DISPLAY (normal): Placing pictogram '%c' at col %d", entity_char[0], pictogram_col);
+                c_put_str(monster_attr(r_ptr), entity_char, line, pictogram_col);
                 if (use_bigtile)
                 {
+                    log_debug("SIDEBAR DISPLAY (normal): Placing bigtile at col %d", sidebar_col + 2);
                     Term_putch(sidebar_col + 2, line, 255, -1);
                 }
                 
-                /* Get terminal width for exact layout calculation */
-                int term_wid = Term->wid;
-                int available_width = term_wid - sidebar_col - 3;
-                
-                /* Simple layout: name + 8 for health + 3 for morale */
-                int name_width = available_width - 8 - 3 - 2; /* -2 for spaces */
-                if (name_width < 4) name_width = 4; /* minimum name width */
-                
-                /* Truncate monster name to fit available width */
-                char truncated_name[80];
-                my_strcpy(truncated_name, m_name, sizeof(truncated_name));
-                if (strlen(truncated_name) > name_width) {
-                    truncated_name[name_width] = '\0';
-                }
-                
-                /* Create padded health bar (8 chars) */
-                char padded_hp_bar[10];
-                strnfmt(padded_hp_bar, sizeof(padded_hp_bar), "%-8s", hp_bar);
-                
-                /* Create padded morale text (3 chars) */
-                char padded_morale[5];
-                strnfmt(padded_morale, sizeof(padded_morale), "%-3s", morale_text);
+                /* Log what we're about to display */
+                log_debug("DISPLAY (normal): name='%s' at col %d with width %d", truncated_name, name_col, name_width);
+                log_debug("DISPLAY (normal): health='%s' at col %d", padded_hp_bar, health_col);
+                log_debug("DISPLAY (normal): morale='%s' at col %d", padded_morale, morale_col);
                 
                 /* Display name, health bar, and morale */
-                c_put_str(TERM_WHITE, truncated_name, line, sidebar_col + 3);
-                c_put_str(health_color, padded_hp_bar, line, sidebar_col + 3 + name_width + 1);
-                c_put_str(morale_color, padded_morale, line, sidebar_col + 3 + name_width + 1 + 8 + 1);
+                Term_putstr(name_col, line, final_name_len, TERM_WHITE, truncated_name);
+                Term_putstr(health_col, line, 8, health_color, padded_hp_bar);
+                Term_putstr(morale_col, line, 3, morale_color, padded_morale);
+                
+                /* Log what was actually displayed */
+                log_debug("DISPLAYED (normal): Term_putstr(%d, %d, %d, TERM_WHITE, '%s')", name_col, line, final_name_len, truncated_name);
+                log_debug("DISPLAYED (normal): Term_putstr(%d, %d, 8, health_color, '%s') - LIMITED LENGTH!", health_col, line, padded_hp_bar);
+                log_debug("DISPLAYED (normal): Term_putstr(%d, %d, 3, morale_color, '%s') - LIMITED LENGTH!", morale_col, line, padded_morale);
+                
+                /* Log the exact bytes of the truncated_name string */
+                log_debug("STRING BYTES (normal): truncated_name length=%d", (int)strlen(truncated_name));
+                for (int b = 0; b < name_width && b < 40; b++) {
+                    char c = truncated_name[b];  /* Read actual character at position b */
+                    log_debug("STRING BYTES (normal): [%d] = '%c' (0x%02x)", b, (c >= 32 && c < 127) ? c : '?', (unsigned char)c);
+                    if (c == '\0') break;  /* Stop at null terminator */
+                }
             }
             
             line++;
@@ -13035,25 +13326,99 @@ void show_unified_sidebar(unified_look_state* state)
         /* Get object list */
         get_sorted_target_list(TARGET_LIST_OBJECT, 0);
         
-        int object_start = (state->show_monsters) ? monster_count : 0;
-        for (i = 0; i < temp_n && line < 22; i++)
+        /* Create array to hold and sort objects */
+        typedef struct {
+            int o_idx;
+            int y, x;
+            object_type* o_ptr;
+            bool is_artifact;
+            int difficulty;
+            int arrow_stack_size;
+        } sorted_object;
+        
+        sorted_object objects[temp_n];
+        int valid_objects = 0;
+        int arrow_count = 0;
+        
+        /* First pass: collect and filter objects */
+        for (i = 0; i < temp_n; i++)
         {
             int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
             object_type* o_ptr = &o_list[o_idx];
-            char o_name[60];
             
-            /* Show all objects in viewport, regardless of player visibility */
             /* Skip empty object slots */
             if (!o_idx) continue;
             
-            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+            /* Arrow filtering: limit to 5 stacks */
+            if (o_ptr->tval == TV_ARROW) {
+                arrow_count++;
+                if (arrow_count > 5) continue;
+            }
+            
+            /* Store object data for sorting */
+            objects[valid_objects].o_idx = o_idx;
+            objects[valid_objects].y = temp_y[i];
+            objects[valid_objects].x = temp_x[i];
+            objects[valid_objects].o_ptr = o_ptr;
+            objects[valid_objects].is_artifact = (o_ptr->name1 > 0);
+            objects[valid_objects].difficulty = object_difficulty(o_ptr);
+            objects[valid_objects].arrow_stack_size = (o_ptr->tval == TV_ARROW) ? o_ptr->number : 0;
+            valid_objects++;
+        }
+        
+        /* Sort objects: artifacts first, then by difficulty (descending) */
+        for (i = 0; i < valid_objects - 1; i++) {
+            for (int j = i + 1; j < valid_objects; j++) {
+                bool should_swap = false;
+                
+                /* Primary sort: artifacts first */
+                if (objects[i].is_artifact != objects[j].is_artifact) {
+                    should_swap = objects[j].is_artifact;
+                }
+                /* Secondary sort: by difficulty (highest first) */
+                else if (objects[i].difficulty != objects[j].difficulty) {
+                    should_swap = objects[j].difficulty > objects[i].difficulty;
+                }
+                
+                if (should_swap) {
+                    sorted_object temp = objects[i];
+                    objects[i] = objects[j];
+                    objects[j] = temp;
+                }
+            }
+        }
+        
+        int object_start = (state->show_monsters) ? monster_count : 0;
+        for (i = 0; i < valid_objects && line < max_display_line; i++)
+        {
+            object_type* o_ptr = objects[i].o_ptr;
+            char o_name[60];
+            
+            /* Generate object name with stats but without articles (false, 1) */
+            object_desc(o_name, sizeof(o_name), o_ptr, false, 1);
+            
+            /* Add difficulty indicator for artifacts */
+            if (objects[i].is_artifact) {
+                char temp_name[60];
+                my_strcpy(temp_name, o_name, sizeof(temp_name));
+                snprintf(o_name, sizeof(o_name), "%s ★", temp_name);
+            }
+            
+            /* BIGTILE FIX: If using bigtile and object name length is odd, add space to make it even */
+            int o_name_len = strlen(o_name);
+            if (use_bigtile && (o_name_len % 2 == 1) && (o_name_len + 1 < sizeof(o_name))) {
+                strcat(o_name, " ");
+                log_debug("BIGTILE FIX: Added space to object name '%s', new length=%d", o_name, (int)strlen(o_name));
+            }
             
             entity_char[0] = object_char(o_ptr);
             
-            /* Highlight if selected with cursor-style highlighting */
-            if (state->in_sidebar_mode && state->selected_entity == (object_start + object_count))
+            /* Highlight if selected with cursor-style highlighting only */
+            bool highlight_this_object = (state->in_sidebar_mode && state->selected_entity == (object_start + object_count));
+            
+            if (highlight_this_object)
             {
-                log_trace("Highlighting object %d at (%d,%d)", object_start + object_count, temp_y[i], temp_x[i]);
+                log_trace("Highlighting object %d at (%d,%d)", object_start + object_count, objects[i].y, objects[i].x);
                 
                 /* Show pictogram in natural color, text with blue highlighting */
                 c_put_str(object_attr(o_ptr), entity_char, line, sidebar_col + 1);
@@ -13061,14 +13426,14 @@ void show_unified_sidebar(unified_look_state* state)
                 {
                     Term_putch(sidebar_col + 2, line, 255, -1);
                 }
-                c_put_str(TERM_L_BLUE, format("%-20s", o_name), line, sidebar_col + 3);
+                c_put_str(TERM_L_BLUE, format("%-20s", o_name), line, name_col);
                 
                 /* Update highlighted position and cursor */
-                state->highlighted_y = temp_y[i];
-                state->highlighted_x = temp_x[i];
-                state->cursor_y = temp_y[i];
-                state->cursor_x = temp_x[i];
-                highlight_entity_on_map(temp_y[i], temp_x[i], true);
+                state->highlighted_y = objects[i].y;
+                state->highlighted_x = objects[i].x;
+                state->cursor_y = objects[i].y;
+                state->cursor_x = objects[i].x;
+                highlight_entity_on_map_type(objects[i].y, objects[i].x, true, 2); /* Prefer object display */
             }
             else
             {
@@ -13078,7 +13443,7 @@ void show_unified_sidebar(unified_look_state* state)
                 {
                     Term_putch(sidebar_col + 2, line, 255, -1);
                 }
-                c_put_str(TERM_WHITE, o_name, line, sidebar_col + 3);
+                c_put_str(TERM_WHITE, o_name, line, name_col);
             }
             
             line++;
@@ -13087,5 +13452,18 @@ void show_unified_sidebar(unified_look_state* state)
     }
     
     /* Save current line count for next clearing operation */
-    previous_line_count = line - 1;
+    int current_line_count = line - 1;
+    
+    log_trace("show_unified_sidebar: current_line_count=%d, previous_line_count=%d", 
+              current_line_count, previous_line_count);
+    
+    /* If the new display is shorter than the previous one, don't clear - let screen_load handle it */
+    if (previous_line_count > current_line_count)
+    {
+        log_trace("show_unified_sidebar: display got shorter (%d->%d) but not clearing - screen_load will restore", 
+                  previous_line_count, current_line_count);
+    }
+    
+    previous_line_count = current_line_count;
+    log_trace("show_unified_sidebar: function complete, set previous_line_count=%d", previous_line_count);
 }

@@ -2348,6 +2348,24 @@ void do_cmd_unified_look(void)
     state.highlighted_x = -1;
     state.in_sidebar_mode = false;
     state.look_mode = 0; /* 0 = normal unified look, 1 = L-style scrolling */
+    state.current_square_entity = 0; /* 0 = monster, 1 = object */
+    state.square_cycling_mode = false; /* Start in normal sidebar cycling mode */
+    
+    /* Track monster health at initial cursor position for left sidebar display */
+    int initial_m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
+    if (initial_m_idx > 0 && mon_list[initial_m_idx].ml)
+    {
+        /* Track this monster for health display */
+        health_track(initial_m_idx);
+    }
+    else
+    {
+        /* Clear health tracking when not starting on a visible monster */
+        health_track(0);
+    }
+    
+    /* Process redraw flags to update health bar immediately */
+    handle_stuff();
     
     /* Main interaction loop */
     while (!done)
@@ -2362,6 +2380,23 @@ void do_cmd_unified_look(void)
             
             /* Show unified sidebar */
             show_unified_sidebar(&state);
+            
+            /* Track monster health at current cursor position for left sidebar display */
+            /* This handles Tab cycling and any other cursor position updates */
+            int cursor_m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
+            if (cursor_m_idx > 0 && mon_list[cursor_m_idx].ml)
+            {
+                /* Track this monster for health display */
+                health_track(cursor_m_idx);
+            }
+            else
+            {
+                /* Clear health tracking when cursor is not on a visible monster */
+                health_track(0);
+            }
+            
+            /* Process redraw flags to update health bar immediately */
+            handle_stuff();
             
             /* Show cursor position info */
             y = state.cursor_y;
@@ -2395,6 +2430,9 @@ void do_cmd_unified_look(void)
         {
             screen_load();
         }
+        
+        /* Update health bar display after screen restore */
+        handle_stuff();
         
         /* Analyze input */
         switch (query)
@@ -2514,6 +2552,8 @@ void do_cmd_unified_look(void)
                         
                         state.in_sidebar_mode = false;
                         state.selected_entity = -1;
+                        state.square_cycling_mode = false;
+                        state.current_square_entity = 0;
                         
                         /* Clear old highlighting */
                         if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
@@ -2522,6 +2562,22 @@ void do_cmd_unified_look(void)
                             state.highlighted_y = -1;
                             state.highlighted_x = -1;
                         }
+                        
+                        /* Track monster health at cursor position for left sidebar display */
+                        int m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
+                        if (m_idx > 0 && mon_list[m_idx].ml)
+                        {
+                            /* Track this monster for health display */
+                            health_track(m_idx);
+                        }
+                        else
+                        {
+                            /* Clear health tracking when not on a visible monster */
+                            health_track(0);
+                        }
+                        
+                        /* Process redraw flags to update health bar immediately */
+                        handle_stuff();
                         
                         need_redraw = true;
                     }
@@ -2573,6 +2629,22 @@ void do_cmd_unified_look(void)
                             /* Handle viewport updates immediately */
                             handle_stuff();
                             
+                            /* Track monster health at cursor position for left sidebar display */
+                            int m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
+                            if (m_idx > 0 && mon_list[m_idx].ml)
+                            {
+                                /* Track this monster for health display */
+                                health_track(m_idx);
+                            }
+                            else
+                            {
+                                /* Clear health tracking when not on a visible monster */
+                                health_track(0);
+                            }
+                            
+                            /* Process redraw flags to update health bar immediately */
+                            handle_stuff();
+                            
                             need_redraw = true;
                         }
                         else
@@ -2586,12 +2658,13 @@ void do_cmd_unified_look(void)
             
             case '\t': /* Tab key */
             {
-                /* Cycle through sidebar entities */
                 log_trace("Tab key pressed - cycling entities");
                 
+                /* Global sidebar cycling only - no square cycling */
                 state.in_sidebar_mode = true;
+                state.square_cycling_mode = false; /* Always disable square cycling */
                 
-                /* Count total entities */
+                /* Count total VISIBLE entities using same logic as sidebar */
                 int total_entities = 0;
                 if (state.show_monsters)
                 {
@@ -2599,9 +2672,12 @@ void do_cmd_unified_look(void)
                     for (i = 0; i < temp_n; i++)
                     {
                         int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
-                        monster_type* m_ptr = &mon_list[m_idx];
-                        if (m_ptr->ml && player_has_los_bold(temp_y[i], temp_x[i]))
-                            total_entities++;
+                        /* Skip empty monster slots */
+                        if (!m_idx) continue;
+                        /* Skip monsters that are not visible to the player */
+                        if (!mon_list[m_idx].ml) continue;
+                        /* This monster will be shown in sidebar, count it */
+                        total_entities++;
                     }
                 }
                 if (state.show_objects)
@@ -2610,13 +2686,14 @@ void do_cmd_unified_look(void)
                     for (i = 0; i < temp_n; i++)
                     {
                         int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
-                        /* Count all objects in viewport, regardless of player visibility */
-                        if (o_idx)
-                            total_entities++;
+                        /* Skip empty object slots */
+                        if (!o_idx) continue;
+                        /* This object will be shown in sidebar, count it */
+                        total_entities++;
                     }
                 }
                 
-                log_trace("Total entities: %d", total_entities);
+                log_trace("Total visible entities: %d", total_entities);
                 
                 if (total_entities > 0)
                 {
@@ -2633,9 +2710,6 @@ void do_cmd_unified_look(void)
                         state.selected_entity = 0;
                         
                     log_trace("Entity selection: %d -> %d", old_selection, state.selected_entity);
-                    
-                    /* Update cursor position to match selected entity */
-                    /* This will be set properly in show_unified_sidebar when it determines the highlighted position */
                 }
                 
                 need_redraw = true;
@@ -2645,17 +2719,51 @@ void do_cmd_unified_look(void)
             case '\r': /* Enter key */
             case ' ':
             {
+                log_trace("EXAMINATION: Enter/Space key pressed for examination");
+                
                 /* Examine current target */
+                log_trace("EXAMINATION: state.in_sidebar_mode=%d, state.selected_entity=%d", 
+                         state.in_sidebar_mode, state.selected_entity);
+                log_trace("EXAMINATION: state.highlighted_y=%d, state.highlighted_x=%d", 
+                         state.highlighted_y, state.highlighted_x);
+                
                 if (state.in_sidebar_mode && state.selected_entity >= 0 && 
                     state.highlighted_y >= 0 && state.highlighted_x >= 0)
                 {
-                    /* Examine selected entity */
-                    if (cave_m_idx[state.highlighted_y][state.highlighted_x] > 0)
+                    log_trace("EXAMINATION: Sidebar mode examination conditions met");
+                    
+                    int cursor_m_idx = cave_m_idx[state.highlighted_y][state.highlighted_x];
+                    int cursor_o_idx = cave_o_idx[state.highlighted_y][state.highlighted_x];
+                    
+                    log_trace("EXAMINATION: At highlighted position (%d,%d) - m_idx=%d, o_idx=%d", 
+                             state.highlighted_y, state.highlighted_x, cursor_m_idx, cursor_o_idx);
+                    
+                    /* Prioritize OBJECT first, then visible monster */
+                    if (cursor_o_idx > 0)
                     {
+                        log_trace("EXAMINATION: Found object, examining object %d", cursor_o_idx);
+                        /* Object examination */
+                        object_type* o_ptr = &o_list[cursor_o_idx];
+                        log_trace("EXAMINATION: Showing object info screen");
+                        /* Save screen */
+                        screen_save();
+                        
+                        /* Show object info */
+                        object_info_screen(o_ptr);
+                        
+                        /* Restore screen */
+                        screen_load();
+                        log_trace("EXAMINATION: Object examination completed");
+                    }
+                    else if (cursor_m_idx > 0)
+                    {
+                        log_trace("EXAMINATION: Found monster, examining monster %d", cursor_m_idx);
                         /* Monster examination */
-                        monster_type* m_ptr = &mon_list[cave_m_idx[state.highlighted_y][state.highlighted_x]];
+                        monster_type* m_ptr = &mon_list[cursor_m_idx];
+                        log_trace("EXAMINATION: Monster ml=%d", m_ptr->ml);
                         if (m_ptr->ml)
                         {
+                            log_trace("EXAMINATION: Showing monster recall");
                             /* Save screen */
                             screen_save();
                             
@@ -2667,51 +2775,54 @@ void do_cmd_unified_look(void)
                             
                             /* Restore screen */
                             screen_load();
+                            log_trace("EXAMINATION: Monster recall completed");
+                        }
+                        else
+                        {
+                            log_trace("EXAMINATION: Monster not visible (ml=0), skipping examination");
                         }
                     }
-                    else if (cave_o_idx[state.highlighted_y][state.highlighted_x] > 0)
+                    else
                     {
-                        /* Object examination */
-                        object_type* o_ptr = &o_list[cave_o_idx[state.highlighted_y][state.highlighted_x]];
-                        if (o_ptr->marked)
-                        {
-                            /* Save screen */
-                            screen_save();
-                            
-                            /* Show object info */
-                            object_info_screen(o_ptr);
-                            
-                            /* Restore screen */
-                            screen_load();
-                        }
+                        log_trace("EXAMINATION: No entities found at highlighted position");
                     }
                 }
                 else
                 {
+                    log_trace("EXAMINATION: Sidebar mode examination conditions NOT met - using cursor position examination");
                     /* Examine cursor position */
                     y = state.cursor_y;
                     x = state.cursor_x;
                     
-                    if (cave_m_idx[y][x] > 0)
+                    int cursor_m_idx = cave_m_idx[y][x];
+                    int cursor_o_idx = cave_o_idx[y][x];
+                    bool has_visible_monster = (cursor_m_idx > 0) && (mon_list[cursor_m_idx].ml);
+                    bool has_object = (cursor_o_idx > 0);
+                    
+                    log_trace("EXAMINATION: Cursor position (%d,%d) - has_visible_monster=%d, has_object=%d", 
+                             y, x, has_visible_monster, has_object);
+                    
+                    /* Prioritize OBJECT first, then visible monster */
+                    if (has_object)
                     {
-                        monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
-                        if (m_ptr->ml)
-                        {
-                            screen_save();
-                            screen_roff(m_ptr->r_idx);
-                            inkey();
-                            screen_load();
-                        }
+                        log_trace("EXAMINATION: Examining object at cursor position");
+                        object_type* o_ptr = &o_list[cursor_o_idx];
+                        screen_save();
+                        object_info_screen(o_ptr);
+                        screen_load();
                     }
-                    else if (cave_o_idx[y][x] > 0)
+                    else if (has_visible_monster)
                     {
-                        object_type* o_ptr = &o_list[cave_o_idx[y][x]];
-                        if (o_ptr->marked)
-                        {
-                            screen_save();
-                            object_info_screen(o_ptr);
-                            screen_load();
-                        }
+                        log_trace("EXAMINATION: Examining visible monster at cursor position");
+                        monster_type* m_ptr = &mon_list[cursor_m_idx];
+                        screen_save();
+                        screen_roff(m_ptr->r_idx);
+                        inkey();
+                        screen_load();
+                    }
+                    else
+                    {
+                        log_trace("EXAMINATION: No visible entities at cursor position");
                     }
                 }
                 need_redraw = true;
@@ -2720,23 +2831,27 @@ void do_cmd_unified_look(void)
             
             case 'm':
             {
+                log_trace("'m' key pressed - cycling display modes");
                 /* Cycle display modes: objects+monsters -> monsters -> objects -> objects+monsters */
                 if (state.show_monsters && state.show_objects)
                 {
                     /* From both to monsters only */
                     state.show_objects = false;
+                    log_trace("Mode changed to: monsters only");
                 }
                 else if (state.show_monsters && !state.show_objects)
                 {
                     /* From monsters only to objects only */
                     state.show_monsters = false;
                     state.show_objects = true;
+                    log_trace("Mode changed to: objects only");
                 }
                 else
                 {
                     /* From objects only (or neither) to both */
                     state.show_monsters = true;
                     state.show_objects = true;
+                    log_trace("Mode changed to: both monsters and objects");
                 }
                 
                 /* Reset selection when changing display */
@@ -2749,29 +2864,37 @@ void do_cmd_unified_look(void)
                     state.highlighted_x = -1;
                 }
                 
+                /* Force a complete redraw */
+                handle_stuff();
                 need_redraw = true;
-                break;
+                log_trace("'m' key: set need_redraw=true, continuing to redraw immediately");
+                /* Continue to top of loop to process redraw immediately */
+                continue;
             }
             
             case 'o':
             {
+                log_trace("'o' key pressed - cycling display modes");
                 /* Same cycling as 'm' key */
                 if (state.show_monsters && state.show_objects)
                 {
                     /* From both to monsters only */
                     state.show_objects = false;
+                    log_trace("Mode changed to: monsters only");
                 }
                 else if (state.show_monsters && !state.show_objects)
                 {
                     /* From monsters only to objects only */
                     state.show_monsters = false;
                     state.show_objects = true;
+                    log_trace("Mode changed to: objects only");
                 }
                 else
                 {
                     /* From objects only (or neither) to both */
                     state.show_monsters = true;
                     state.show_objects = true;
+                    log_trace("Mode changed to: both monsters and objects");
                 }
                 
                 /* Reset selection when changing display */
@@ -2784,8 +2907,12 @@ void do_cmd_unified_look(void)
                     state.highlighted_x = -1;
                 }
                 
+                /* Force a complete redraw */
+                handle_stuff();
                 need_redraw = true;
-                break;
+                log_trace("'o' key: set need_redraw=true, continuing to redraw immediately");
+                /* Continue to top of loop to process redraw immediately */
+                continue;
             }
             
             case 'l':
@@ -2869,6 +2996,9 @@ void do_cmd_unified_look(void)
     
     log_trace("=== UNIFIED LOOK ENDED ===");
     
+    /* Clear health tracking before exiting look command */
+    health_track(0);
+    
     /* Restore original viewport */
     if (p_ptr->wy != original_wy || p_ptr->wx != original_wx)
     {
@@ -2885,16 +3015,42 @@ void do_cmd_unified_look(void)
  */
 void highlight_entity_on_map(int y, int x, bool highlight)
 {
+    highlight_entity_on_map_type(y, x, highlight, 0); /* Default: auto-detect */
+}
+
+void highlight_entity_on_map_type(int y, int x, bool highlight, int entity_type)
+{
     if (highlight)
     {
         /* Get the original character and color, but show with blue background */
         char display_char;
         byte display_attr;
         
-        /* Determine what to display based on what's at this location */
-        if (cave_m_idx[y][x] > 0)
+        /* Determine what to display based on entity_type preference */
+        /* entity_type: 0=auto-detect, 1=prefer monster, 2=prefer object */
+        
+        if (entity_type == 2 && cave_o_idx[y][x] > 0)
         {
-            /* For monsters, show normal appearance (no color change) */
+            /* Prefer object display */
+            object_type* o_ptr = &o_list[cave_o_idx[y][x]];
+            display_char = object_char(o_ptr);
+            display_attr = object_attr(o_ptr); /* Keep original object color */
+            log_trace("Highlighting object '%c' at (%d,%d) -> showing normal color", 
+                     display_char, y, x);
+        }
+        else if (entity_type == 1 && cave_m_idx[y][x] > 0)
+        {
+            /* Prefer monster display */
+            monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
+            monster_race* r_ptr = &r_info[m_ptr->r_idx];
+            display_char = monster_char(r_ptr);
+            display_attr = monster_attr(r_ptr); /* Keep original monster color */
+            log_trace("Highlighting monster '%c' at (%d,%d) -> showing normal color", 
+                     display_char, y, x);
+        }
+        else if (cave_m_idx[y][x] > 0)
+        {
+            /* Auto-detect: For monsters, show normal appearance (no color change) */
             monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
             monster_race* r_ptr = &r_info[m_ptr->r_idx];
             display_char = monster_char(r_ptr);
@@ -2904,7 +3060,7 @@ void highlight_entity_on_map(int y, int x, bool highlight)
         }
         else if (cave_o_idx[y][x] > 0)
         {
-            /* For objects, show normal appearance (no color change) */
+            /* Auto-detect: For objects, show normal appearance (no color change) */
             object_type* o_ptr = &o_list[cave_o_idx[y][x]];
             display_char = object_char(o_ptr);
             display_attr = object_attr(o_ptr); /* Keep original object color */

@@ -3290,6 +3290,76 @@ void target_set_location(int y, int x)
 }
 
 /*
+ * Sorting hook -- comp function -- by "monster priority"
+ *
+ * Sorts monsters by: 1) Uniques first, 2) Then by depth (higher depth first), 3) Then by distance
+ * We use "u" and "v" to point to arrays of "x" and "y" positions.
+ */
+static bool ang_sort_comp_monster_priority(const void* u, const void* v, int a, int b)
+{
+    int py = p_ptr->py;
+    int px = p_ptr->px;
+
+    byte* x = (byte*)(u);
+    byte* y = (byte*)(v);
+
+    int m_idx_a, m_idx_b;
+    monster_type* m_ptr_a;
+    monster_type* m_ptr_b;
+    monster_race* r_ptr_a;
+    monster_race* r_ptr_b;
+    
+    /* Get monster indices */
+    m_idx_a = cave_m_idx[y[a]][x[a]];
+    m_idx_b = cave_m_idx[y[b]][x[b]];
+    
+    /* Safety check */
+    if (!m_idx_a && !m_idx_b) return false;
+    if (!m_idx_a) return false; /* b comes first */
+    if (!m_idx_b) return true;  /* a comes first */
+    
+    /* Get monster pointers */
+    m_ptr_a = &mon_list[m_idx_a];
+    m_ptr_b = &mon_list[m_idx_b];
+    r_ptr_a = &r_info[m_ptr_a->r_idx];
+    r_ptr_b = &r_info[m_ptr_b->r_idx];
+    
+    /* Check if either is unique */
+    bool unique_a = (r_ptr_a->flags1 & RF1_UNIQUE) != 0;
+    bool unique_b = (r_ptr_b->flags1 & RF1_UNIQUE) != 0;
+    
+    /* Uniques always come first */
+    if (unique_a && !unique_b) return true;  /* a comes first */
+    if (!unique_a && unique_b) return false; /* b comes first */
+    
+    /* Both unique or both non-unique, sort by depth (higher depth first) */
+    if (r_ptr_a->level != r_ptr_b->level)
+    {
+        return (r_ptr_a->level >= r_ptr_b->level);
+    }
+    
+    /* Same depth, sort by distance (closer first) */
+    int da, db, kx, ky;
+
+    /* Absolute distance components for a */
+    kx = x[a] - px;
+    kx = ABS(kx);
+    ky = y[a] - py;
+    ky = ABS(ky);
+    da = ((kx > ky) ? (kx + kx + ky) : (ky + ky + kx));
+
+    /* Absolute distance components for b */
+    kx = x[b] - px;
+    kx = ABS(kx);
+    ky = y[b] - py;
+    ky = ABS(ky);
+    db = ((kx > ky) ? (kx + kx + ky) : (ky + ky + kx));
+
+    /* Compare the distances */
+    return (da <= db);
+}
+
+/*
  * Sorting hook -- comp function -- by "distance to player"
  *
  * We use "u" and "v" to point to arrays of "x" and "y" positions,
@@ -3558,7 +3628,16 @@ void get_sorted_target_list(int mode, int range)
     }
 
     /* Set the sort hooks */
-    ang_sort_comp = ang_sort_comp_distance;
+    if (mode & (TARGET_LIST_MONSTER))
+    {
+        /* Use monster priority sorting (uniques first, then by depth, then by distance) */
+        ang_sort_comp = ang_sort_comp_monster_priority;
+    }
+    else
+    {
+        /* Use distance sorting for objects and other targets */
+        ang_sort_comp = ang_sort_comp_distance;
+    }
     ang_sort_swap = ang_sort_swap_distance;
 
     /* Sort the positions */

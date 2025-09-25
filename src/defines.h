@@ -3632,6 +3632,8 @@ typedef struct unified_look_state {
     int highlighted_y, highlighted_x; /* Currently highlighted entity coordinates */
     bool in_sidebar_mode;             /* True when navigating sidebar, false when scrolling map */
     int look_mode;                    /* Look mode: 0=normal unified look, 1=L-style scrolling */
+    int current_square_entity;        /* Which entity on current square to show (0=monster, 1=object) */
+    bool square_cycling_mode;         /* True when Tab cycles entities on current square */
 } unified_look_state;
 
 /* ------------------------------------------------------------------
