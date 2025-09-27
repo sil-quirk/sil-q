@@ -769,6 +769,7 @@ extern void message_pain(int m_idx, int dam);
 extern bool object_info_out(const object_type* o_ptr);
 extern void note_info_screen(const object_type* o_ptr);
 extern void object_info_screen(const object_type* o_ptr);
+extern void object_info_screen_multi(const object_type** objects, const char** headings, int count);
 extern void describe_item_with_comparisons(int item_index, bool include_comparisons);
 
 /* object1.c */

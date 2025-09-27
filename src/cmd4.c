@@ -13393,41 +13393,82 @@ void show_unified_sidebar(unified_look_state* state)
         {
             object_type* o_ptr = objects[i].o_ptr;
             char o_name[60];
-            
+
             /* Generate object name with stats but without articles (false, 1) */
             object_desc(o_name, sizeof(o_name), o_ptr, false, 1);
-            
+
             /* Add difficulty indicator for artifacts */
             if (objects[i].is_artifact) {
                 char temp_name[60];
                 my_strcpy(temp_name, o_name, sizeof(temp_name));
                 snprintf(o_name, sizeof(o_name), "%s ★", temp_name);
             }
-            
+
             /* BIGTILE FIX: If using bigtile and object name length is odd, add space to make it even */
             int o_name_len = strlen(o_name);
             if (use_bigtile && (o_name_len % 2 == 1) && (o_name_len + 1 < sizeof(o_name))) {
                 strcat(o_name, " ");
                 log_debug("BIGTILE FIX: Added space to object name '%s', new length=%d", o_name, (int)strlen(o_name));
             }
-            
+
             entity_char[0] = object_char(o_ptr);
-            
-            /* Highlight if selected with cursor-style highlighting only */
+
+            int weight_total = o_ptr->weight * o_ptr->number;
+            char weight_buf[16];
+            strnfmt(weight_buf, sizeof(weight_buf), "%3d.%1d lb", weight_total / 10, weight_total % 10);
+
+            int max_weight_width = (morale_col + 3) - health_col;
+            if (max_weight_width < 1) max_weight_width = 1;
+            const char* weight_text = weight_buf;
+            int weight_len = (int)strlen(weight_buf);
+            if (weight_len > max_weight_width)
+            {
+                weight_text += weight_len - max_weight_width;
+                weight_len = max_weight_width;
+            }
+            int weight_col = morale_col + 3 - weight_len;
+            if (weight_col < health_col) weight_col = health_col;
+
+            char display_name[128];
+            my_strcpy(display_name, o_name, sizeof(display_name));
+            int final_name_len = (int)strlen(display_name);
+
+            int gap_to_weight = weight_col - name_col;
+            int max_name_len = (gap_to_weight > 1) ? gap_to_weight - 1 : 1;
+            if (max_name_len < 1) max_name_len = 1;
+            if (max_name_len > (int)sizeof(display_name) - 1) max_name_len = (int)sizeof(display_name) - 1;
+
+            if (final_name_len > max_name_len)
+            {
+                display_name[max_name_len] = '\0';
+                final_name_len = max_name_len;
+            }
+
+            if (use_bigtile && (final_name_len % 2 == 1) && (final_name_len < max_name_len) && (final_name_len + 1 < (int)sizeof(display_name)))
+            {
+                display_name[final_name_len++] = ' ';
+                display_name[final_name_len] = '\0';
+            }
+
+
             bool highlight_this_object = (state->in_sidebar_mode && state->selected_entity == (object_start + object_count));
-            
+
+            byte name_attr = highlight_this_object ? TERM_L_BLUE : TERM_WHITE;
+            byte weight_attr = highlight_this_object ? TERM_L_BLUE : TERM_L_UMBER;
+
             if (highlight_this_object)
             {
                 log_trace("Highlighting object %d at (%d,%d)", object_start + object_count, objects[i].y, objects[i].x);
-                
-                /* Show pictogram in natural color, text with blue highlighting */
+
                 c_put_str(object_attr(o_ptr), entity_char, line, sidebar_col + 1);
                 if (use_bigtile)
                 {
                     Term_putch(sidebar_col + 2, line, 255, -1);
                 }
-                c_put_str(TERM_L_BLUE, format("%-20s", o_name), line, name_col);
-                
+
+                Term_putstr(name_col, line, final_name_len, name_attr, display_name);
+                Term_putstr(weight_col, line, weight_len, weight_attr, weight_text);
+
                 /* Update highlighted position and cursor */
                 state->highlighted_y = objects[i].y;
                 state->highlighted_x = objects[i].x;
@@ -13443,14 +13484,15 @@ void show_unified_sidebar(unified_look_state* state)
                 {
                     Term_putch(sidebar_col + 2, line, 255, -1);
                 }
-                c_put_str(TERM_WHITE, o_name, line, name_col);
+                Term_putstr(name_col, line, final_name_len, name_attr, display_name);
+                Term_putstr(weight_col, line, weight_len, weight_attr, weight_text);
             }
-            
+
             line++;
             object_count++;
         }
     }
-    
+
     /* Save current line count for next clearing operation */
     int current_line_count = line - 1;
     

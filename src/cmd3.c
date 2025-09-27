@@ -2408,6 +2408,43 @@ void do_cmd_look(void)
 /*
  * Unified look command - combines look, scroll, and view functionality
  */
+static int unified_look_count_visible_entities(unified_look_state* state)
+{
+    int total_entities = 0;
+    int i;
+
+    if (state->show_monsters)
+    {
+        get_sorted_target_list(TARGET_LIST_MONSTER, 0);
+
+        for (i = 0; i < temp_n; i++)
+        {
+            int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
+
+            if (!m_idx) continue;
+            if (!mon_list[m_idx].ml) continue;
+
+            total_entities++;
+        }
+    }
+
+    if (state->show_objects)
+    {
+        get_sorted_target_list(TARGET_LIST_OBJECT, 0);
+
+        for (i = 0; i < temp_n; i++)
+        {
+            int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
+
+            if (!o_idx) continue;
+
+            total_entities++;
+        }
+    }
+
+    return total_entities;
+}
+
 void do_cmd_unified_look(void)
 {
     unified_look_state state;
@@ -2445,6 +2482,14 @@ void do_cmd_unified_look(void)
     state.look_mode = 0; /* 0 = normal unified look, 1 = L-style scrolling */
     state.current_square_entity = 0; /* 0 = monster, 1 = object */
     state.square_cycling_mode = false; /* Start in normal sidebar cycling mode */
+
+    int total_visible_entities = unified_look_count_visible_entities(&state);
+    if (total_visible_entities > 0)
+    {
+        state.in_sidebar_mode = true;
+        state.selected_entity = 0;
+        log_trace("Unified look: initial sidebar selection set to first entity");
+    }
     
     /* Track monster health at initial cursor position for left sidebar display */
     int initial_m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
@@ -2783,33 +2828,7 @@ void do_cmd_unified_look(void)
                 state.square_cycling_mode = false; /* Always disable square cycling */
                 
                 /* Count total VISIBLE entities using same logic as sidebar */
-                int total_entities = 0;
-                if (state.show_monsters)
-                {
-                    get_sorted_target_list(TARGET_LIST_MONSTER, 0);
-                    for (i = 0; i < temp_n; i++)
-                    {
-                        int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
-                        /* Skip empty monster slots */
-                        if (!m_idx) continue;
-                        /* Skip monsters that are not visible to the player */
-                        if (!mon_list[m_idx].ml) continue;
-                        /* This monster will be shown in sidebar, count it */
-                        total_entities++;
-                    }
-                }
-                if (state.show_objects)
-                {
-                    get_sorted_target_list(TARGET_LIST_OBJECT, 0);
-                    for (i = 0; i < temp_n; i++)
-                    {
-                        int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
-                        /* Skip empty object slots */
-                        if (!o_idx) continue;
-                        /* This object will be shown in sidebar, count it */
-                        total_entities++;
-                    }
-                }
+                int total_entities = unified_look_count_visible_entities(&state);
                 
                 log_trace("Total visible entities: %d", total_entities);
                 
@@ -2847,33 +2866,7 @@ void do_cmd_unified_look(void)
                 state.square_cycling_mode = false; /* Always disable square cycling */
                 
                 /* Count total VISIBLE entities using same logic as sidebar */
-                int total_entities = 0;
-                if (state.show_monsters)
-                {
-                    get_sorted_target_list(TARGET_LIST_MONSTER, 0);
-                    for (i = 0; i < temp_n; i++)
-                    {
-                        int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
-                        /* Skip empty monster slots */
-                        if (!m_idx) continue;
-                        /* Skip monsters that are not visible to the player */
-                        if (!mon_list[m_idx].ml) continue;
-                        /* This monster will be shown in sidebar, count it */
-                        total_entities++;
-                    }
-                }
-                if (state.show_objects)
-                {
-                    get_sorted_target_list(TARGET_LIST_OBJECT, 0);
-                    for (i = 0; i < temp_n; i++)
-                    {
-                        int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
-                        /* Skip empty object slots */
-                        if (!o_idx) continue;
-                        /* This object will be shown in sidebar, count it */
-                        total_entities++;
-                    }
-                }
+                int total_entities = unified_look_count_visible_entities(&state);
                 
                 log_trace("Total visible entities: %d", total_entities);
                 

@@ -3156,6 +3156,54 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         case '?':
         case ' ':
         {
+            bool handled_space = false;
+
+            if (which == ' ' && p_ptr->command_see && highlight_active)
+            {
+                int k = 0;
+                bool have_selection = false;
+
+                if (p_ptr->command_wrk == (USE_INVEN) && highlight_row >= 0 && highlight_row < vis_inven_cnt)
+                {
+                    k = vis_inven[highlight_row];
+                    have_selection = true;
+                }
+                else if (p_ptr->command_wrk == (USE_EQUIP) && highlight_row >= 0 && highlight_row < vis_equip_cnt)
+                {
+                    k = vis_equip[highlight_row];
+                    have_selection = true;
+                }
+                else if (p_ptr->command_wrk == (USE_FLOOR) && highlight_row >= 0 && highlight_row < vis_floor_cnt)
+                {
+                    int obj_idx = floor_list[vis_floor[highlight_row]];
+                    k = 0 - obj_idx;
+                    have_selection = true;
+                }
+
+                if (have_selection)
+                {
+                    if ((k >= 0 && k < INVEN_WIELD && !allow_inven) ||
+                        (k >= INVEN_WIELD && k < INVEN_TOTAL && !allow_equip) ||
+                        (k < 0 && !allow_floor) ||
+                        !get_item_okay(k) ||
+                        !get_item_allow(k))
+                    {
+                        have_selection = false;
+                    }
+                }
+
+                if (have_selection)
+                {
+                    (*cp) = k;
+                    item = true;
+                    done = true;
+                    handled_space = true;
+                }
+            }
+
+            if (handled_space)
+                break;
+
             /* Hide the list */
             if (p_ptr->command_see)
             {
@@ -3649,6 +3697,10 @@ static void append_compare_slot(int* slots, int* count, int slot)
 
 void describe_item_with_comparisons(int item_index, bool include_comparisons)
 {
+    const object_type* objects[MAX_COMPARE_LINES + 1];
+    const char* headings[MAX_COMPARE_LINES + 1];
+    char heading_texts[MAX_COMPARE_LINES + 1][64];
+    int count = 0;
     object_type* base_obj;
     bool is_floor = (item_index < 0);
 
@@ -3658,6 +3710,8 @@ void describe_item_with_comparisons(int item_index, bool include_comparisons)
     if (is_floor)
     {
         int floor_idx = 0 - item_index;
+        if (floor_idx <= 0 || floor_idx >= o_max)
+            return;
         base_obj = &o_list[floor_idx];
     }
     else
@@ -3670,39 +3724,47 @@ void describe_item_with_comparisons(int item_index, bool include_comparisons)
     if (!base_obj->k_idx)
         return;
 
-    object_info_screen(base_obj);
+    strnfmt(heading_texts[count], sizeof(heading_texts[count]), "%s:",
+        is_floor ? "Selected item (floor)" : "Selected item");
+    headings[count] = heading_texts[count];
+    objects[count++] = base_obj;
 
-    if (!include_comparisons)
-        return;
-
-    int slots[MAX_COMPARE_LINES];
-    int slot_count = 0;
-
-    append_compare_slot(slots, &slot_count, wield_slot(base_obj));
-
-    if (base_obj->tval == TV_RING)
+    if (include_comparisons)
     {
-        append_compare_slot(slots, &slot_count, INVEN_LEFT);
-        append_compare_slot(slots, &slot_count, INVEN_RIGHT);
-    }
-    else if (base_obj->tval == TV_ARROW)
-    {
-        append_compare_slot(slots, &slot_count, INVEN_QUIVER1);
-        append_compare_slot(slots, &slot_count, INVEN_QUIVER2);
+        int slots[MAX_COMPARE_LINES];
+        int slot_count = 0;
+
+        append_compare_slot(slots, &slot_count, wield_slot(base_obj));
+
+        if (base_obj->tval == TV_RING)
+        {
+            append_compare_slot(slots, &slot_count, INVEN_LEFT);
+            append_compare_slot(slots, &slot_count, INVEN_RIGHT);
+        }
+        else if (base_obj->tval == TV_ARROW)
+        {
+            append_compare_slot(slots, &slot_count, INVEN_QUIVER1);
+            append_compare_slot(slots, &slot_count, INVEN_QUIVER2);
+        }
+
+        for (int i = 0; i < slot_count && count < MAX_COMPARE_LINES + 1; i++)
+        {
+            int slot = slots[i];
+            if (slot < INVEN_WIELD || slot >= INVEN_TOTAL)
+                continue;
+
+            object_type* equip_obj = &inventory[slot];
+            strnfmt(heading_texts[count], sizeof(heading_texts[count]), "%s:", mention_use(slot));
+            headings[count] = heading_texts[count];
+            if (equip_obj->k_idx)
+                objects[count] = equip_obj;
+            else
+                objects[count] = NULL;
+            count++;
+        }
     }
 
-    for (int i = 0; i < slot_count; i++)
-    {
-        int slot = slots[i];
-        if (slot < INVEN_WIELD || slot >= INVEN_TOTAL)
-            continue;
-
-        object_type* equip_obj = &inventory[slot];
-        if (!equip_obj->k_idx)
-            continue;
-
-        object_info_screen(equip_obj);
-    }
+    object_info_screen_multi(objects, headings, count);
 }
 
 void show_inven_enhanced(void)
