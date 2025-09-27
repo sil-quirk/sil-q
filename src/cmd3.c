@@ -453,17 +453,13 @@ void do_cmd_inven(void)
     switch (action)
     {
     case ENHANCED_ACTION_EXAMINE:
+    {
         log_trace("do_cmd_inven: Examining item %d", selected_index);
-        if (selected_index < 0)
-        {
-            int floor_item_idx = 0 - selected_index;
-            object_info_screen(&o_list[floor_item_idx]);
-        }
-        else
-        {
-            object_info_screen(&inventory[selected_index]);
-        }
+        extern char current_menu_command;
+        bool include_comparisons = (current_menu_command == 'u' || current_menu_command == 'x');
+        describe_item_with_comparisons(selected_index, include_comparisons);
         break;
+    }
 
     case ENHANCED_ACTION_USE:
         log_trace("do_cmd_inven: Using item %d", selected_index);

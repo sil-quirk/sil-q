@@ -3629,6 +3629,82 @@ int current_menu_state = 0;        /* 0=inventory, 1=equipment */
  * Enhanced inventory display with scrolling and navigation
  * EXACTLY replicates show_inven() algorithm then adds highlighting
  */
+#define MAX_COMPARE_LINES 2
+
+static void append_compare_slot(int* slots, int* count, int slot)
+{
+    if (slot < INVEN_WIELD || slot >= INVEN_TOTAL)
+        return;
+
+    for (int i = 0; i < *count; i++)
+    {
+        if (slots[i] == slot)
+            return;
+    }
+
+    if (*count < MAX_COMPARE_LINES)
+        slots[(*count)++] = slot;
+}
+
+
+void describe_item_with_comparisons(int item_index, bool include_comparisons)
+{
+    object_type* base_obj;
+    bool is_floor = (item_index < 0);
+
+    if (item_index == -1)
+        return;
+
+    if (is_floor)
+    {
+        int floor_idx = 0 - item_index;
+        base_obj = &o_list[floor_idx];
+    }
+    else
+    {
+        if (item_index < 0 || item_index >= INVEN_TOTAL)
+            return;
+        base_obj = &inventory[item_index];
+    }
+
+    if (!base_obj->k_idx)
+        return;
+
+    object_info_screen(base_obj);
+
+    if (!include_comparisons)
+        return;
+
+    int slots[MAX_COMPARE_LINES];
+    int slot_count = 0;
+
+    append_compare_slot(slots, &slot_count, wield_slot(base_obj));
+
+    if (base_obj->tval == TV_RING)
+    {
+        append_compare_slot(slots, &slot_count, INVEN_LEFT);
+        append_compare_slot(slots, &slot_count, INVEN_RIGHT);
+    }
+    else if (base_obj->tval == TV_ARROW)
+    {
+        append_compare_slot(slots, &slot_count, INVEN_QUIVER1);
+        append_compare_slot(slots, &slot_count, INVEN_QUIVER2);
+    }
+
+    for (int i = 0; i < slot_count; i++)
+    {
+        int slot = slots[i];
+        if (slot < INVEN_WIELD || slot >= INVEN_TOTAL)
+            continue;
+
+        object_type* equip_obj = &inventory[slot];
+        if (!equip_obj->k_idx)
+            continue;
+
+        object_info_screen(equip_obj);
+    }
+}
+
 void show_inven_enhanced(void)
 {
     int which;
@@ -3642,6 +3718,7 @@ void show_inven_enhanced(void)
     int col, len, lim;
     int highlight_row = -1;
     bool highlight_active = false;
+    int previous_total_rows = 0;
     
     /* Floor items variables */
     int floor_list[MAX_FLOOR_STACK];
@@ -3760,24 +3837,108 @@ void show_inven_enhanced(void)
         /* Show the prompt - different text based on how menu was opened */
         extern char current_menu_command;
         if (current_menu_command == 'u') {
-            sprintf(out_val, "Space-Use, %c again-cycle  (Inventory)", current_menu_command);
+            sprintf(out_val, "Space-Use, -> description, %c again-cycle  (Inventory)", current_menu_command);
         }
         else if (current_menu_command == 'x') {
-            sprintf(out_val, "Space-Use, %c again - cycle  (Inventory)", current_menu_command);
+            sprintf(out_val, "Space-Examine, -> description, %c again - cycle  (Inventory)", current_menu_command);
         }
         else {
             sprintf(out_val, "Space-Use, -> description, <- drop  (Inventory)");
         }
         prt(out_val, 0, 0);
-        
+
+        bool allow_compare = (current_menu_command == 'u' || current_menu_command == 'x');
+
+        int compare_count = 0;
+        char compare_label[MAX_COMPARE_LINES][4];
+        char compare_prefix[MAX_COMPARE_LINES][20];
+        char compare_desc[MAX_COMPARE_LINES][80];
+        byte compare_attr[MAX_COMPARE_LINES];
+        bool compare_has_weight[MAX_COMPARE_LINES];
+        int compare_weight[MAX_COMPARE_LINES];
+
+        for (int c = 0; c < MAX_COMPARE_LINES; c++)
+        {
+            compare_label[c][0] = '\0';
+            compare_prefix[c][0] = '\0';
+            compare_desc[c][0] = '\0';
+            compare_attr[c] = TERM_SLATE;
+            compare_has_weight[c] = false;
+            compare_weight[c] = 0;
+        }
+
+        if (allow_compare && highlight_active && highlight_row >= 0 && highlight_row < k)
+        {
+            object_type* highlighted_obj = out_is_floor[highlight_row]
+                ? &o_list[0 - out_index[highlight_row]]
+                : &inventory[out_index[highlight_row]];
+            int slot_candidates[MAX_COMPARE_LINES];
+            int slot_count = 0;
+
+            int primary_slot = wield_slot(highlighted_obj);
+            append_compare_slot(slot_candidates, &slot_count, primary_slot);
+
+            if (highlighted_obj->tval == TV_RING)
+            {
+                append_compare_slot(slot_candidates, &slot_count, INVEN_LEFT);
+                append_compare_slot(slot_candidates, &slot_count, INVEN_RIGHT);
+            }
+            else if (highlighted_obj->tval == TV_ARROW)
+            {
+                append_compare_slot(slot_candidates, &slot_count, INVEN_QUIVER1);
+                append_compare_slot(slot_candidates, &slot_count, INVEN_QUIVER2);
+            }
+
+            for (int idx = 0; idx < slot_count; idx++)
+            {
+                int slot = slot_candidates[idx];
+
+                strnfmt(compare_label[idx], sizeof(compare_label[idx]), "%c)", index_to_label(slot));
+                strnfmt(compare_prefix[idx], sizeof(compare_prefix[idx]), "%-12s: ", mention_use(slot));
+
+                int compare_lim = 79 - 3 - (12 + 2);
+                if (show_weights)
+                    compare_lim -= 9;
+                if (compare_lim < 0)
+                    compare_lim = 0;
+                if (compare_lim >= (int)sizeof(compare_desc[idx]))
+                    compare_lim = (int)sizeof(compare_desc[idx]) - 1;
+
+                object_type* equipped_obj = &inventory[slot];
+                if (equipped_obj->k_idx)
+                {
+                    object_desc(compare_desc[idx], sizeof(compare_desc[idx]), equipped_obj, true, 3);
+                    compare_desc[idx][compare_lim] = '\0';
+                    compare_attr[idx] = weapon_glows(equipped_obj) ? TERM_L_BLUE
+                        : tval_to_attr[equipped_obj->tval % N_ELEMENTS(tval_to_attr)];
+                    if (show_weights && equipped_obj->weight)
+                    {
+                        compare_has_weight[idx] = true;
+                        compare_weight[idx] = equipped_obj->weight * equipped_obj->number;
+                    }
+                }
+                else
+                {
+                    cptr empty_text = describe_empty_slot(slot);
+                    my_strcpy(compare_desc[idx], empty_text, sizeof(compare_desc[idx]));
+                    if (compare_lim < (int)sizeof(compare_desc[idx]))
+                        compare_desc[idx][compare_lim] = '\0';
+                    compare_attr[idx] = TERM_SLATE;
+                }
+            }
+
+            compare_count = slot_count;
+        }
+
         /* Render combined list with floor entries first */
+        int next_row = 1;
         for (int j = 0; j < k; j++)
         {
             bool is_floor_item = out_is_floor[j];
             object_type* line_obj = is_floor_item ? &o_list[0 - out_index[j]] : &inventory[out_index[j]];
             bool is_highlight = highlight_active && (highlight_row == j);
             byte line_attr = is_highlight ? TERM_L_BLUE : out_color[j];
-            int row = j + 1;
+            int row = next_row;
 
             prt("", row, col ? col - 2 : col);
 
@@ -3799,10 +3960,57 @@ void show_inven_enhanced(void)
                 strnfmt(tmp_val, sizeof(tmp_val), "%3d.%1d lb", wgt / 10, wgt % 10);
                 c_put_str(line_attr, tmp_val, row, 71);
             }
+
+            next_row++;
+
+            if (compare_count > 0 && j == highlight_row)
+            {
+                for (int idx = 0; idx < compare_count; idx++)
+                {
+                    int compare_row = next_row;
+
+                    prt("", compare_row, col ? col - 2 : col);
+                    if (compare_label[idx][0])
+                        c_put_str(compare_attr[idx], compare_label[idx], compare_row, col);
+
+                    c_put_str(TERM_WHITE, compare_prefix[idx], compare_row, col + 3);
+                    c_put_str(compare_attr[idx], compare_desc[idx], compare_row, col + 3 + 12 + 2);
+
+                    if (show_weights)
+                    {
+                        if (compare_has_weight[idx])
+                        {
+                            strnfmt(tmp_val, sizeof(tmp_val), "%3d.%1d lb", compare_weight[idx] / 10, compare_weight[idx] % 10);
+                            c_put_str(compare_attr[idx], tmp_val, compare_row, 71);
+                        }
+                        else
+                        {
+                            prt("", compare_row, 71);
+                        }
+                    }
+
+                    next_row++;
+                }
+            }
         }
 
-        if (k && k < 23)
-            prt("", k + 1, col ? col - 2 : col);
+        int total_rows = next_row - 1;
+
+        if (total_rows && total_rows < 23)
+            prt("", total_rows + 1, col ? col - 2 : col);
+
+        if (total_rows < previous_total_rows)
+        {
+            int clear_col = col ? col - 2 : col;
+            for (int clear_row = total_rows + 1; clear_row <= previous_total_rows; clear_row++)
+            {
+                prt("", clear_row, clear_col);
+                if (show_weights)
+                    prt("", clear_row, 71);
+            }
+        }
+
+        previous_total_rows = total_rows;
 
         if (highlight_active && highlight_row >= 0 && highlight_row < k)
         {
@@ -4669,4 +4877,5 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
     return true;
 }
 
+#undef MAX_COMPARE_LINES
 #undef MAX_IDENT_ENTRIES
