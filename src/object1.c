@@ -3618,8 +3618,8 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 }
 
 /* Global variables for menu switching */
-int enhanced_menu_action = 0;  /* 0=none, 1=switch_to_equip, 2=examine_item */
-int enhanced_examine_item = -1; /* Item to examine */
+int enhanced_menu_action = ENHANCED_ACTION_NONE;
+int enhanced_inventory_selected_item = -1;
 
 /* Global variables for command-specific menu cycling */
 char current_menu_command = 0;     /* 'u', 'x', etc. - which command opened the menu */
@@ -3820,7 +3820,7 @@ void show_inven_enhanced(void)
         {
         case ESCAPE:
             log_trace("show_inven_enhanced: ESC pressed, setting action to 0 and exiting");
-            enhanced_menu_action = 0;  /* Explicitly set to exit */
+            enhanced_menu_action = ENHANCED_ACTION_NONE;  /* Explicitly set to exit */
             done = true;
             break;
             
@@ -3836,7 +3836,7 @@ void show_inven_enhanced(void)
                     /* Command access (u/x pressed) */
 #ifdef STEAMDECK_SUPPORT
                     /* STEAMDECK: E/I switch menus */
-                    enhanced_menu_action = 1;
+                    enhanced_menu_action = ENHANCED_ACTION_SWITCH;
                     done = true;
 #else
                     /* Non-STEAMDECK: E/I are just letters, not menu switching */
@@ -3845,7 +3845,7 @@ void show_inven_enhanced(void)
 #endif
                 } else {
                     /* Direct access (i/e pressed): E/I switch menus */
-                    enhanced_menu_action = 1;
+                    enhanced_menu_action = ENHANCED_ACTION_SWITCH;
                     log_trace("show_inven_enhanced: Direct access E key - switching to equipment (action=1)");
                     done = true;
                 }
@@ -3857,7 +3857,7 @@ void show_inven_enhanced(void)
         case 'x':
             if (current_menu_command == which) {
                 /* Same command - cycle to equipment */
-                enhanced_menu_action = 1;
+                enhanced_menu_action = ENHANCED_ACTION_SWITCH;
                 log_trace("show_inven_enhanced: Command cycling (%c) - switching to equipment (action=1)", which);
                 done = true;
             }
@@ -3868,7 +3868,7 @@ void show_inven_enhanced(void)
         case '/':           /* / - toggle to equipment */
         case KTRL('I'):     /* Ctrl+I - toggle to equipment */
         case KTRL('E'):     /* Ctrl+E - toggle to equipment */
-            enhanced_menu_action = 1;
+            enhanced_menu_action = ENHANCED_ACTION_SWITCH;
             done = true;
             break;
             
@@ -3889,25 +3889,26 @@ void show_inven_enhanced(void)
         case '\n':       /* Enter (alternative) - use item or examine based on context */
             if (highlight_active && highlight_row >= 0 && highlight_row < k) {
                 done = true;
-                
+
                 /* Handle based on menu context */
                 extern char current_menu_command;
                 if (current_menu_command == 'x') {
                     /* Examine mode - mark for examination */
-                    enhanced_menu_action = 2;
-                    enhanced_examine_item = out_index[highlight_row];
+                    enhanced_menu_action = ENHANCED_ACTION_EXAMINE;
+                    enhanced_inventory_selected_item = out_index[highlight_row];
                 } else {
-                    /* Use mode - use the item */
-                    do_cmd_use_item_by_index(out_index[highlight_row]);
+                    /* Use mode - defer use until after menu restore */
+                    enhanced_menu_action = ENHANCED_ACTION_USE;
+                    enhanced_inventory_selected_item = out_index[highlight_row];
                 }
             }
             break;
-            
+
         case '6':        /* Arrow right - description */
             if (highlight_active && highlight_row >= 0 && highlight_row < k) {
                 /* Mark that we want to examine an item */
-                enhanced_menu_action = 2;
-                enhanced_examine_item = out_index[highlight_row];
+                enhanced_menu_action = ENHANCED_ACTION_EXAMINE;
+                enhanced_inventory_selected_item = out_index[highlight_row];
                 done = true;
             }
             break;
@@ -3917,7 +3918,8 @@ void show_inven_enhanced(void)
                 if (!out_is_floor[highlight_row]) {
                     /* Can only drop inventory items, not floor items */
                     done = true;
-                    do_cmd_drop_item_by_index(out_index[highlight_row]);
+                    enhanced_menu_action = ENHANCED_ACTION_DROP;
+                    enhanced_inventory_selected_item = out_index[highlight_row];
                 } else {
                     bell("Cannot drop floor items!");
                 }
@@ -3963,17 +3965,19 @@ void show_inven_enhanced(void)
                             /* Handle based on menu context */
                             extern char current_menu_command;
                             if (current_menu_command != 0) {
-                                /* Command mode - directly call the appropriate function */
+                                /* Command mode - defer action */
                                 if (current_menu_command == 'u') {
-                                    do_cmd_use_item_by_index(out_index[i]);
+                                    enhanced_menu_action = ENHANCED_ACTION_USE;
+                                    enhanced_inventory_selected_item = out_index[i];
                                 } else if (current_menu_command == 'x') {
                                     /* For observe mode, mark for examination */
-                                    enhanced_menu_action = 2;
-                                    enhanced_examine_item = out_index[i];
+                                    enhanced_menu_action = ENHANCED_ACTION_EXAMINE;
+                                    enhanced_inventory_selected_item = out_index[i];
                                 }
                             } else {
                                 /* Direct access mode - use the floor item directly */
-                                do_cmd_use_item_by_index(out_index[i]);
+                                enhanced_menu_action = ENHANCED_ACTION_USE;
+                                enhanced_inventory_selected_item = out_index[i];
                             }
                             break;
                         }
@@ -3993,13 +3997,14 @@ void show_inven_enhanced(void)
                                 /* Handle based on menu context */
                                 extern char current_menu_command;
                                 if (current_menu_command != 0) {
-                                    /* Command mode - directly call the appropriate function */
+                                    /* Command mode - defer action */
                                     if (current_menu_command == 'u') {
-                                        do_cmd_use_item_by_index(item);
+                                        enhanced_menu_action = ENHANCED_ACTION_USE;
+                                        enhanced_inventory_selected_item = item;
                                     } else if (current_menu_command == 'x') {
                                         /* For observe mode, mark for examination */
-                                        enhanced_menu_action = 2;
-                                        enhanced_examine_item = item;
+                                        enhanced_menu_action = ENHANCED_ACTION_EXAMINE;
+                                        enhanced_inventory_selected_item = item;
                                     }
                                 } else {
                                     /* Direct access mode - use the traditional method */
@@ -4027,8 +4032,8 @@ void show_inven_enhanced(void)
 }
 
 /* Global variables for equipment menu switching */
-int enhanced_equip_action = 0;  /* 0=none, 1=switch_to_inven, 2=examine_item */
-int enhanced_equip_examine_item = -1; /* Item to examine */
+int enhanced_equip_action = ENHANCED_ACTION_NONE;
+int enhanced_equipment_selected_item = -1;
 
 /*
  * Enhanced equipment display with scrolling and navigation
@@ -4216,7 +4221,7 @@ void show_equip_enhanced(void)
         {
         case ESCAPE:
             log_trace("show_equip_enhanced: ESC pressed, setting action to 0 and exiting");
-            enhanced_equip_action = 0;  /* Explicitly set to exit */
+            enhanced_equip_action = ENHANCED_ACTION_NONE;  /* Explicitly set to exit */
             done = true;
             break;
         
@@ -4232,7 +4237,7 @@ void show_equip_enhanced(void)
                     /* Command access (u/x pressed) */
 #ifdef STEAMDECK_SUPPORT
                     /* STEAMDECK: E/I switch menus */
-                    enhanced_equip_action = 1;
+                    enhanced_equip_action = ENHANCED_ACTION_SWITCH;
                     done = true;
 #else
                     /* Non-STEAMDECK: E/I are just letters, not menu switching */
@@ -4241,7 +4246,7 @@ void show_equip_enhanced(void)
 #endif
                 } else {
                     /* Direct access (i/e pressed): E/I switch menus */
-                    enhanced_equip_action = 1;
+                    enhanced_equip_action = ENHANCED_ACTION_SWITCH;
                     log_trace("show_equip_enhanced: Direct access I key - switching to inventory (action=1)");
                     done = true;
                 }
@@ -4253,7 +4258,7 @@ void show_equip_enhanced(void)
         case 'x':
             if (current_menu_command == which) {
                 /* Same command - cycle to inventory */
-                enhanced_equip_action = 1;
+                enhanced_equip_action = ENHANCED_ACTION_SWITCH;
                 log_trace("show_equip_enhanced: Command cycling (%c) - switching to inventory (action=1)", which);
                 done = true;
             }
@@ -4264,7 +4269,7 @@ void show_equip_enhanced(void)
         case '/':           /* / - toggle to inventory */
         case KTRL('I'):     /* Ctrl+I - toggle to inventory */
         case KTRL('E'):     /* Ctrl+E - toggle to inventory */
-            enhanced_equip_action = 1;
+            enhanced_equip_action = ENHANCED_ACTION_SWITCH;
             done = true;
             break;
         
@@ -4285,33 +4290,35 @@ void show_equip_enhanced(void)
         case '\n':       /* Enter (alternative) - use item or examine based on context */
             if (highlight_active && highlight_index >= 0 && highlight_index < k) {
                 done = true;
-                
+
                 /* Handle based on menu context */
                 extern char current_menu_command;
                 if (current_menu_command == 'x') {
                     /* Examine mode - mark for examination */
-                    enhanced_equip_action = 2;
-                    enhanced_equip_examine_item = out_index[highlight_index];
+                    enhanced_equip_action = ENHANCED_ACTION_EXAMINE;
+                    enhanced_equipment_selected_item = out_index[highlight_index];
                 } else {
-                    /* Use mode - use the item */
-                    do_cmd_use_item_by_index(out_index[highlight_index]);
+                    /* Use mode - defer action */
+                    enhanced_equip_action = ENHANCED_ACTION_USE;
+                    enhanced_equipment_selected_item = out_index[highlight_index];
                 }
             }
             break;
-        
+
         case '6':        /* Arrow right - description */
             if (highlight_active && highlight_index >= 0 && highlight_index < k) {
                 /* Mark that we want to examine an item */
-                enhanced_equip_action = 2;
-                enhanced_equip_examine_item = out_index[highlight_index];
+                enhanced_equip_action = ENHANCED_ACTION_EXAMINE;
+                enhanced_equipment_selected_item = out_index[highlight_index];
                 done = true;
             }
             break;
-        
+
         case '4':        /* Arrow left - drop item */
             if (highlight_active && highlight_index >= 0 && highlight_index < k) {
                 done = true;
-                do_cmd_drop_item_by_index(out_index[highlight_index]);
+                enhanced_equip_action = ENHANCED_ACTION_DROP;
+                enhanced_equipment_selected_item = out_index[highlight_index];
             }
             break;
         
@@ -4348,13 +4355,14 @@ void show_equip_enhanced(void)
                     /* Handle based on menu context */
                     extern char current_menu_command;
                     if (current_menu_command != 0) {
-                        /* Command mode - directly call the appropriate function */
+                        /* Command mode - defer action */
                         if (current_menu_command == 'u') {
-                            do_cmd_use_item_by_index(item);
+                            enhanced_equip_action = ENHANCED_ACTION_USE;
+                            enhanced_equipment_selected_item = item;
                         } else if (current_menu_command == 'x') {
                             /* For observe mode, mark for examination */
-                            enhanced_equip_action = 2;
-                            enhanced_equip_examine_item = item;
+                            enhanced_equip_action = ENHANCED_ACTION_EXAMINE;
+                            enhanced_equipment_selected_item = item;
                         }
                     } else {
                         /* Direct access mode - use the traditional method */

@@ -250,13 +250,13 @@ void do_cmd_use_item_enhanced(void)
             
             /* Check if user wants to switch to equipment */
             extern int enhanced_menu_action;
-            if (enhanced_menu_action == 1) {
+            if (enhanced_menu_action == ENHANCED_ACTION_SWITCH) {
                 /* Switch to equipment */
                 current_menu_state = 1;
                 enhanced_menu_action = 0;  /* Reset after using */
                 continue;
             }
-            else if (enhanced_menu_action == 2) {
+            else if (enhanced_menu_action == ENHANCED_ACTION_EXAMINE) {
                 /* Examine item - handled by do_cmd_inven */
                 enhanced_menu_action = 0;  /* Reset after using */
                 break;
@@ -272,13 +272,13 @@ void do_cmd_use_item_enhanced(void)
             
             /* Check if user wants to switch to inventory */
             extern int enhanced_equip_action;
-            if (enhanced_equip_action == 1) {
+            if (enhanced_equip_action == ENHANCED_ACTION_SWITCH) {
                 /* Switch to inventory */
                 current_menu_state = 0;
                 enhanced_equip_action = 0;  /* Reset after using */
                 continue;
             }
-            else if (enhanced_equip_action == 2) {
+            else if (enhanced_equip_action == ENHANCED_ACTION_EXAMINE) {
                 /* Examine item - handled by do_cmd_equip */
                 enhanced_equip_action = 0;  /* Reset after using */
                 break;
@@ -312,7 +312,7 @@ void do_cmd_inven_direct(void)
             
             /* Check action */
             extern int enhanced_menu_action;
-            if (enhanced_menu_action == 1) {
+            if (enhanced_menu_action == ENHANCED_ACTION_SWITCH) {
                 /* Switch to equipment */
                 log_trace("do_cmd_inven_direct: Switching to equipment");
                 menu_state = 1;
@@ -332,7 +332,7 @@ void do_cmd_inven_direct(void)
             
             /* Check action */
             extern int enhanced_equip_action;
-            if (enhanced_equip_action == 1) {
+            if (enhanced_equip_action == ENHANCED_ACTION_SWITCH) {
                 /* Switch to inventory */
                 log_trace("do_cmd_inven_direct: Switching to inventory");
                 menu_state = 0;
@@ -367,7 +367,7 @@ void do_cmd_equip_direct(void)
             
             /* Check action */
             extern int enhanced_menu_action;
-            if (enhanced_menu_action == 1) {
+            if (enhanced_menu_action == ENHANCED_ACTION_SWITCH) {
                 /* Switch to equipment */
                 log_trace("do_cmd_equip_direct: Switching to equipment");
                 menu_state = 1;
@@ -387,7 +387,7 @@ void do_cmd_equip_direct(void)
             
             /* Check action */
             extern int enhanced_equip_action;
-            if (enhanced_equip_action == 1) {
+            if (enhanced_equip_action == ENHANCED_ACTION_SWITCH) {
                 /* Switch to inventory */
                 log_trace("do_cmd_equip_direct: Switching to inventory");
                 menu_state = 0;
@@ -422,6 +422,8 @@ void do_cmd_inven(void)
     /* Hack -- Start in "inventory" mode */
     p_ptr->command_wrk = (USE_INVEN);
 
+    enhanced_inventory_selected_item = -1;
+
     /* Save screen */
     screen_save();
     log_debug("do_cmd_inven: Screen saved");
@@ -442,6 +444,45 @@ void do_cmd_inven(void)
     screen_load();
     log_debug("do_cmd_inven: Screen loaded");
 
+    extern int enhanced_menu_action;
+    extern int enhanced_inventory_selected_item;
+
+    int action = enhanced_menu_action;
+    int selected_index = enhanced_inventory_selected_item;
+
+    switch (action)
+    {
+    case ENHANCED_ACTION_EXAMINE:
+        log_trace("do_cmd_inven: Examining item %d", selected_index);
+        if (selected_index < 0)
+        {
+            int floor_item_idx = 0 - selected_index;
+            object_info_screen(&o_list[floor_item_idx]);
+        }
+        else
+        {
+            object_info_screen(&inventory[selected_index]);
+        }
+        break;
+
+    case ENHANCED_ACTION_USE:
+        log_trace("do_cmd_inven: Using item %d", selected_index);
+        if (selected_index != -1)
+            do_cmd_use_item_by_index(selected_index);
+        break;
+
+    case ENHANCED_ACTION_DROP:
+        log_trace("do_cmd_inven: Dropping item %d", selected_index);
+        if (selected_index >= 0)
+            do_cmd_drop_item_by_index(selected_index);
+        else
+            bell("Cannot drop floor items from this menu!");
+        break;
+
+    default:
+        break;
+    }
+
     if (enhanced_drop_refresh_pending)
     {
         p_ptr->redraw |= (PR_MAP);
@@ -452,27 +493,10 @@ void do_cmd_inven(void)
     /* Ensure the main display reflects any changes (drops, etc.) */
     handle_stuff();
     Term_fresh();
-    
-    /* Handle any actions from the enhanced menu */
-    extern int enhanced_menu_action;
-    extern int enhanced_examine_item;
-    
-    /* Note: Menu switching (action=1) is handled by the direct access wrappers or cycling logic */
-    if (enhanced_menu_action == 2) {
-        /* User wants to examine an item */
-        log_trace("do_cmd_inven: Examining item %d", enhanced_examine_item);
-        if (enhanced_examine_item < 0) {
-            /* Floor item - negative index */
-            int floor_item_idx = 0 - enhanced_examine_item;
-            object_info_screen(&o_list[floor_item_idx]);
-        } else {
-            /* Inventory item - positive index */
-            object_info_screen(&inventory[enhanced_examine_item]);
-        }
-        log_trace("do_cmd_inven: Finished examining item, enhanced_menu_action is still %d", enhanced_menu_action);
-        
-        /* Note: Action variable reset is handled by the cycling logic */
-    }
+
+    if (action != ENHANCED_ACTION_SWITCH)
+        enhanced_menu_action = ENHANCED_ACTION_NONE;
+    enhanced_inventory_selected_item = -1;
     
     log_debug("do_cmd_inven: Exiting");
 }
@@ -494,6 +518,8 @@ void do_cmd_equip(void)
     /* Hack -- Start in "equipment" mode */
     p_ptr->command_wrk = (USE_EQUIP);
 
+    enhanced_equipment_selected_item = -1;
+
     /* Save screen */
     screen_save();
     log_debug("do_cmd_equip: Screen saved");
@@ -514,6 +540,36 @@ void do_cmd_equip(void)
     screen_load();
     log_debug("do_cmd_equip: Screen loaded");
 
+    extern int enhanced_equip_action;
+    extern int enhanced_equipment_selected_item;
+
+    int action = enhanced_equip_action;
+    int selected_index = enhanced_equipment_selected_item;
+
+    switch (action)
+    {
+    case ENHANCED_ACTION_EXAMINE:
+        log_trace("do_cmd_equip: Examining item %d", selected_index);
+        if (selected_index >= INVEN_WIELD && selected_index < INVEN_TOTAL)
+            object_info_screen(&inventory[selected_index]);
+        break;
+
+    case ENHANCED_ACTION_USE:
+        log_trace("do_cmd_equip: Using item %d", selected_index);
+        if (selected_index != -1)
+            do_cmd_use_item_by_index(selected_index);
+        break;
+
+    case ENHANCED_ACTION_DROP:
+        log_trace("do_cmd_equip: Dropping item %d", selected_index);
+        if (selected_index >= INVEN_WIELD)
+            do_cmd_drop_item_by_index(selected_index);
+        break;
+
+    default:
+        break;
+    }
+
     if (enhanced_drop_refresh_pending)
     {
         p_ptr->redraw |= (PR_MAP);
@@ -524,24 +580,10 @@ void do_cmd_equip(void)
     /* Ensure the main display reflects any changes (drops, etc.) */
     handle_stuff();
     Term_fresh();
-    
-    /* Handle any actions from the enhanced menu */
-    extern int enhanced_equip_action;
-    extern int enhanced_equip_examine_item;
-    
-    /* Handle any actions from the enhanced menu */
-    extern int enhanced_equip_action;
-    extern int enhanced_equip_examine_item;
-    
-    /* Note: Menu switching (action=1) is handled by the direct access wrappers or cycling logic */
-    if (enhanced_equip_action == 2) {
-        /* User wants to examine an item */
-        log_trace("do_cmd_equip: Examining item %d", enhanced_equip_examine_item);
-        object_info_screen(&inventory[enhanced_equip_examine_item]);
-        log_trace("do_cmd_equip: Finished examining item, enhanced_equip_action is still %d", enhanced_equip_action);
-        
-        /* Note: Action variable reset is handled by the cycling logic */
-    }
+
+    if (action != ENHANCED_ACTION_SWITCH)
+        enhanced_equip_action = ENHANCED_ACTION_NONE;
+    enhanced_equipment_selected_item = -1;
     
     log_debug("do_cmd_equip: Exiting");
 }
@@ -1752,14 +1794,14 @@ void do_cmd_observe_enhanced(void)
             /* Check if user wants to switch to equipment */
             extern int enhanced_menu_action;
             log_trace("do_cmd_observe_enhanced: After inventory, enhanced_menu_action=%d", enhanced_menu_action);
-            if (enhanced_menu_action == 1) {
+            if (enhanced_menu_action == ENHANCED_ACTION_SWITCH) {
                 /* Switch to equipment */
                 log_trace("do_cmd_observe_enhanced: Switching to equipment");
                 current_menu_state = 1;
                 enhanced_menu_action = 0;  /* Reset after using */
                 continue;
             }
-            else if (enhanced_menu_action == 2) {
+            else if (enhanced_menu_action == ENHANCED_ACTION_EXAMINE) {
                 /* Examine item - handled by do_cmd_inven */
                 log_trace("do_cmd_observe_enhanced: Examining item, exiting cycle");
                 enhanced_menu_action = 0;  /* Reset after using */
@@ -1780,14 +1822,14 @@ void do_cmd_observe_enhanced(void)
             /* Check if user wants to switch to inventory */
             extern int enhanced_equip_action;
             log_trace("do_cmd_observe_enhanced: After equipment, enhanced_equip_action=%d", enhanced_equip_action);
-            if (enhanced_equip_action == 1) {
+            if (enhanced_equip_action == ENHANCED_ACTION_SWITCH) {
                 /* Switch to inventory */
                 log_trace("do_cmd_observe_enhanced: Switching to inventory");
                 current_menu_state = 0;
                 enhanced_equip_action = 0;  /* Reset after using */
                 continue;
             }
-            else if (enhanced_equip_action == 2) {
+            else if (enhanced_equip_action == ENHANCED_ACTION_EXAMINE) {
                 /* Examine item - handled by do_cmd_equip */
                 log_trace("do_cmd_observe_enhanced: Examining item, exiting cycle");
                 enhanced_equip_action = 0;  /* Reset after using */

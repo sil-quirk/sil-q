@@ -1334,9 +1334,15 @@ extern int  any_curse_flag_active(u32b flag); /* CUR-only */
 extern void dbg_show_active_flags(void);
 
 // Enhanced menu system globals
+#define ENHANCED_ACTION_NONE 0
+#define ENHANCED_ACTION_SWITCH 1
+#define ENHANCED_ACTION_EXAMINE 2
+#define ENHANCED_ACTION_USE 3
+#define ENHANCED_ACTION_DROP 4
+
 extern int enhanced_menu_action;
-extern int enhanced_examine_item;
+extern int enhanced_inventory_selected_item;
 extern int enhanced_equip_action;
-extern int enhanced_equip_examine_item;
+extern int enhanced_equipment_selected_item;
 extern char current_menu_command;
 extern int current_menu_state;
