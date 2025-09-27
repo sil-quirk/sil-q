@@ -766,11 +766,14 @@
 #define ROW_EXP 8
 #define COL_EXP 0 /* "EXP xxxxxxxx" */
 
-#define ROW_HP 10
+#define ROW_HP 9
 #define COL_HP 0 /* "HP xxxxxxxxx" */
 
-#define ROW_SP 11
+#define ROW_SP 10
 #define COL_SP 0 /* "SP xxxxxxxxx" */
+
+#define ROW_LIGHT 11
+#define COL_LIGHT 0 /* Torch icon + fuel */
 
 #define ROW_EQUIPPY 13
 #define COL_EQUIPPY 0 /* equippy chars */
@@ -1639,7 +1642,7 @@
 #define PR_CUT 0x00001000L /* Display Extra (Cut) */
 #define PR_STUN 0x00002000L /* Display Extra (Stun) */
 #define PR_HUNGER 0x00004000L /* Display Extra (Hunger) */
-#define PR_XXX2 0x00008000L /* Previously: Display Monster Mana Bar */
+#define PR_LIGHT 0x00008000L /* Display Light status */
 #define PR_BLIND 0x00010000L /* Display Extra (Blind) */
 #define PR_CONFUSED 0x00020000L /* Display Extra (Confused) */
 #define PR_AFRAID 0x00040000L /* Display Extra (Afraid) */

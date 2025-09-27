@@ -603,6 +603,7 @@ static void process_world(void)
         {
             /* Decrease life-span */
             o_ptr->timeout--;
+            p_ptr->redraw |= (PR_LIGHT);
 
             /* Hack -- notice interesting fuel steps */
             if ((o_ptr->timeout < 100) || (!(o_ptr->timeout % 100)))

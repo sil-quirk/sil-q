@@ -2820,6 +2820,61 @@ bool is_smithed_by_player(const object_type* o_ptr)
 }
 
 /*
+ * Prompt the player to drop an inventory item so a new object can be picked up.
+ * Returns true if an item was dropped, false if the player declined or nothing was dropped.
+ */
+static bool prompt_replace_pack_item(const object_type* incoming)
+{
+    char incoming_name[80];
+    char prompt[160];
+
+    object_desc(incoming_name, sizeof(incoming_name), incoming, true, 3);
+    msg_format("No room for %s.", incoming_name);
+    msg_print("Choose an item to replace.");
+
+    strnfmt(prompt, sizeof(prompt), "Replace which item to pick up %s? ", incoming_name);
+
+    while (true)
+    {
+        int item;
+
+        if (!get_item(&item, prompt,
+                "You have nothing to replace.", (USE_INVEN)))
+        {
+            return false;
+        }
+
+        if ((item < 0) || (item >= INVEN_PACK))
+        {
+            bell("Illegal object choice!");
+            continue;
+        }
+
+        object_type* drop_ptr = &inventory[item];
+
+        if (!drop_ptr->k_idx)
+        {
+            bell("That slot is empty.");
+            continue;
+        }
+
+        if (cursed_p(drop_ptr))
+        {
+            msg_print("You cannot bear to part with it.");
+            continue;
+        }
+
+        inven_drop(item, drop_ptr->number);
+
+        /* Let inventory housekeeping run before we attempt the pickup again */
+        p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+        notice_stuff();
+
+        return true;
+    }
+}
+
+/*
  * Helper routine for py_pickup() and py_pickup_floor().
  *
  * Add the given dungeon object to the character's inventory.
@@ -3021,11 +3076,20 @@ void py_pickup(void)
         /* Note that the pack is too full */
         if (!inven_carry_okay(o_ptr))
         {
-            if (o_ptr->k_idx)
-                msg_format("You have no room for %s.", o_name);
+            if (!prompt_replace_pack_item(o_ptr))
+            {
+                if (o_ptr->k_idx)
+                    msg_format("You have no room for %s.", o_name);
+                continue;
+            }
 
-            /* Check the next object */
-            continue;
+            /* Still no room after dropping something */
+            if (!inven_carry_okay(o_ptr))
+            {
+                if (o_ptr->k_idx)
+                    msg_format("You still have no room for %s.", o_name);
+                continue;
+            }
         }
 
         // Check whether it would be too heavy

@@ -522,7 +522,7 @@ static bool use_staff(object_type* o_ptr, bool* ident)
 
     case SV_STAFF_UNDERSTANDING:
     {
-        if (!ident_spell())
+        if (!ident_spell(true))
             use_charge = false;
         *ident = true;
         break;

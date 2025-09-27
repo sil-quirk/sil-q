@@ -2146,7 +2146,7 @@ void do_cmd_debug(void)
     /* Identify */
     case 'i':
     {
-        (void)ident_spell();
+        (void)ident_spell(true);
         break;
     }
 

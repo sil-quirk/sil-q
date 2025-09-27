@@ -480,6 +480,84 @@ static void prt_hp(void)
     c_put_str(color, tmp, ROW_HP, COL_HP + 12 - len);
 }
 
+static void prt_light(void)
+{
+    object_type* o_ptr = &inventory[INVEN_LITE];
+    int icon_col = COL_LIGHT;
+
+    /* Clear the line */
+    Term_erase(icon_col, ROW_LIGHT, 13);
+
+    /* Nothing equipped */
+    if (!o_ptr->k_idx)
+        return;
+
+    byte attr = object_attr(o_ptr);
+    char icon = object_char(o_ptr);
+
+    /* Draw the icon (supporting bigtile visuals) */
+    Term_putch(icon_col, ROW_LIGHT, attr, icon);
+    if (use_bigtile)
+    {
+        Term_putch(icon_col + 1, ROW_LIGHT, 255, -1);
+    }
+    else
+    {
+        Term_putch(icon_col + 1, ROW_LIGHT, attr, icon);
+    }
+
+    Term_putch(icon_col + 2, ROW_LIGHT, TERM_WHITE, ' ');
+
+    bool infinite = false;
+    long fuel = 0;
+    byte fuel_attr = TERM_L_WHITE;
+    char buf[16];
+
+    if (o_ptr->tval == TV_LIGHT)
+    {
+        switch (o_ptr->sval)
+        {
+        case SV_LIGHT_TORCH:
+        case SV_LIGHT_LANTERN:
+        case SV_LIGHT_MALLORN:
+            fuel = o_ptr->timeout;
+            break;
+        default:
+            infinite = true;
+            break;
+        }
+    }
+    else
+    {
+        u32b f1, f2, f3;
+        object_flags(o_ptr, &f1, &f2, &f3);
+        if (f2 & TR2_LIGHT)
+            infinite = true;
+    }
+
+    if (infinite)
+    {
+        my_strcpy(buf, "inf", sizeof(buf));
+        fuel_attr = TERM_L_GREEN;
+    }
+    else
+    {
+        if (fuel < 0)
+            fuel = 0;
+
+        if (fuel == 0)
+            fuel_attr = TERM_RED;
+        else if (fuel <= 100)
+            fuel_attr = TERM_ORANGE;
+
+        strnfmt(buf, sizeof(buf), "%ld", fuel);
+    }
+
+    char aligned[16];
+    strnfmt(aligned, sizeof(aligned), "%9s", buf);
+    Term_putstr(icon_col + 3, ROW_LIGHT, 9, fuel_attr, aligned);
+}
+
 /*
  * Prints player's max/cur spell points
  */
@@ -770,6 +848,11 @@ static void prt_state(void)
     if (p_ptr->fletching)
     {
         my_strcpy(text, "Fletching ", sizeof(text));
+    }
+    else if (p_ptr->rage)
+    {
+        attr = TERM_RED;
+        my_strcpy(text, "Rage      ", sizeof(text));
     }
 
     /* Resting */
@@ -1194,6 +1277,9 @@ static void prt_frame_basic(void)
 
     /* Spellpoints */
     prt_sp();
+
+    /* Light */
+    prt_light();
 
     /* Melee */
     prt_mel();
@@ -1921,6 +2007,8 @@ void calc_torch(void)
         /* Update the visuals */
         p_ptr->update |= (PU_UPDATE_VIEW | PU_MONSTERS);
     }
+
+    p_ptr->redraw |= (PR_LIGHT);
 }
 
 int affinity_level(int skilltype)
@@ -2799,6 +2887,11 @@ static void calc_bonuses(void)
         p_ptr->skill_misc_mod[S_STL] += STEALTH_MODE_BONUS;
     }
 
+    if (p_ptr->rage)
+    {
+        p_ptr->skill_misc_mod[S_STL] -= 3;
+    }
+
     // sprinting speed the player up
     if (sprinting())
     {
@@ -3469,7 +3562,7 @@ void redraw_stuff(void)
         p_ptr->redraw &= ~(PR_BASIC);
         p_ptr->redraw &= ~(PR_STATS);
         p_ptr->redraw &= ~(PR_MEL | PR_EXP | PR_ARC);
-        p_ptr->redraw &= ~(PR_ARMOR | PR_HP | PR_VOICE | PR_SONG);
+        p_ptr->redraw &= ~(PR_ARMOR | PR_HP | PR_VOICE | PR_SONG | PR_LIGHT);
         p_ptr->redraw &= ~(PR_DEPTH | PR_HEALTHBAR);
         p_ptr->redraw &= ~(PR_RESIST);
         prt_frame_basic();
@@ -3539,6 +3632,12 @@ void redraw_stuff(void)
     {
         p_ptr->redraw &= ~(PR_VOICE);
         prt_sp();
+    }
+
+    if (p_ptr->redraw & (PR_LIGHT))
+    {
+        p_ptr->redraw &= ~(PR_LIGHT);
+        prt_light();
     }
 
     /* Sil - Hack: always redraw song (really should invent redraw flag for it

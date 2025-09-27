@@ -27,6 +27,19 @@ static bool item_tester_hook_wear(const object_type* o_ptr)
     return (false);
 }
 
+static bool item_tester_hook_ring_slots(const object_type* o_ptr)
+{
+    return (o_ptr == &inventory[INVEN_LEFT]) || (o_ptr == &inventory[INVEN_RIGHT]);
+}
+
+static bool item_tester_hook_quiver_slots(const object_type* o_ptr)
+{
+    return (o_ptr == &inventory[INVEN_QUIVER1]) || (o_ptr == &inventory[INVEN_QUIVER2]);
+}
+
+/* Flag indicating enhanced menus need to refresh the main display after closing */
+static bool enhanced_drop_refresh_pending = false;
+
 /*
  * Use an item by index, helper for enhanced menus
  */
@@ -428,6 +441,17 @@ void do_cmd_inven(void)
     /* Load screen */
     screen_load();
     log_debug("do_cmd_inven: Screen loaded");
+
+    if (enhanced_drop_refresh_pending)
+    {
+        p_ptr->redraw |= (PR_MAP);
+        p_ptr->window |= (PW_MESSAGE);
+        enhanced_drop_refresh_pending = false;
+    }
+
+    /* Ensure the main display reflects any changes (drops, etc.) */
+    handle_stuff();
+    Term_fresh();
     
     /* Handle any actions from the enhanced menu */
     extern int enhanced_menu_action;
@@ -489,6 +513,17 @@ void do_cmd_equip(void)
     /* Load screen */
     screen_load();
     log_debug("do_cmd_equip: Screen loaded");
+
+    if (enhanced_drop_refresh_pending)
+    {
+        p_ptr->redraw |= (PR_MAP);
+        p_ptr->window |= (PW_MESSAGE);
+        enhanced_drop_refresh_pending = false;
+    }
+
+    /* Ensure the main display reflects any changes (drops, etc.) */
+    handle_stuff();
+    Term_fresh();
     
     /* Handle any actions from the enhanced menu */
     extern int enhanced_equip_action;
@@ -590,14 +625,21 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     if ((o_ptr->tval == TV_RING) && inventory[INVEN_LEFT].k_idx
         && inventory[INVEN_RIGHT].k_idx)
     {
-        /* Restrict the choices */
         item_tester_tval = TV_RING;
+        item_tester_hook = item_tester_hook_ring_slots;
+        item_tester_full = false;
 
-        /* Choose a ring from the equipment only */
         q = "Replace which ring? ";
         s = "Oops.";
         if (!get_item(&slot, q, s, USE_EQUIP))
+        {
+            item_tester_tval = 0;
+            item_tester_hook = NULL;
             return;
+        }
+
+        item_tester_tval = 0;
+        item_tester_hook = NULL;
     }
 
     // Special cases for merging arrows
@@ -617,12 +659,21 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     {
         /* Restrict the choices */
         item_tester_tval = TV_ARROW;
+        item_tester_hook = item_tester_hook_quiver_slots;
+        item_tester_full = false;
 
         /* Choose a set of arrows from the equipment only */
         q = "Replace which set of arrows? ";
         s = "Oops.";
         if (!get_item(&slot, q, s, USE_EQUIP))
+        {
+            item_tester_tval = 0;
+            item_tester_hook = NULL;
             return;
+        }
+
+        item_tester_tval = 0;
+        item_tester_hook = NULL;
     }
 
     // Ask about two weapon fighting if necessary
@@ -1114,6 +1165,8 @@ void do_cmd_drop_item_by_index(int item)
 
     /* Drop (some of) the item */
     inven_drop(item, amt);
+
+    enhanced_drop_refresh_pending = true;
 }
 
 /*
@@ -2117,6 +2170,8 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
 
     // get another chance to identify the lamp
     ident_on_wield(j_ptr);
+
+    p_ptr->redraw |= (PR_LIGHT);
 }
 
 /*
@@ -2240,6 +2295,8 @@ void do_cmd_refuel_torch(
 
     // get another chance to identify the torch
     ident_on_wield(j_ptr);
+
+    p_ptr->redraw |= (PR_LIGHT);
 }
 
 /*

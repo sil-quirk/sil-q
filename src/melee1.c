@@ -3071,6 +3071,8 @@ void display_combat_rolls(void)
 
     int res = 1; // a default value to soothe compilation warnings
 
+    int round_max_line[2] = { 0, 0 };
+
     /* Clear the window */
     for (i = 0; i < Term->hgt; i++)
     {
@@ -3084,16 +3086,11 @@ void display_combat_rolls(void)
         if (round == 1)
         {
             combat_num_for_round = combat_number_old;
-            line_jump = player_attacks + monster_attacks + 2;
-            if (player_attacks > 0)
-                line_jump++;
-            if (monster_attacks > 0)
-                line_jump++;
-            if (combat_number + combat_number_old > 0)
+            line_jump = (round_max_line[0] > 0) ? round_max_line[0] + 1 : 0;
+            if ((combat_number > 0) && (combat_number_old > 0))
             {
-                Term_putstr(0, line_jump - 1, 80, TERM_L_DARK,
-                    "__________________________________________________________"
-                    "_____________________");
+                Term_putstr(0, line_jump, 60, TERM_L_DARK,
+                    "------------------------------------------------------------");
             }
         }
         total_player_attacks = 0;
@@ -3158,6 +3155,8 @@ void display_combat_rolls(void)
                     a_prot_roll = TERM_DARK;
 
                 line = player_attacks + line_jump;
+                if (line > round_max_line[round])
+                    round_max_line[round] = line;
             }
             else
             {
@@ -3174,9 +3173,9 @@ void display_combat_rolls(void)
                 else
                     a_prot_roll = TERM_DARK;
 
-                line = 1 + total_player_attacks + monster_attacks + line_jump;
-                if (total_player_attacks == 0)
-                    line--;
+                line = total_player_attacks + monster_attacks + line_jump;
+                if (line > round_max_line[round])
+                    round_max_line[round] = line;
             }
 
             /* Display the entry itself */

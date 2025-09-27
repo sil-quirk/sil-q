@@ -642,6 +642,12 @@ void do_cmd_toggle_stealth(void)
     /* Start stealth mode */
     else
     {
+        if (p_ptr->rage)
+        {
+            msg_print("You are far too enraged to move stealthily.");
+            return;
+        }
+
         /* Set the stealth mode flag */
         p_ptr->stealth_mode = true;
 

@@ -5447,6 +5447,7 @@ errr parse_oath_info(char* buf, header* head)
         oath_ptr = (oath_type*)head->info_ptr + i;
 
         /* Initialize the new fields */
+    oath_ptr->oath_num = i;
         oath_ptr->stat_bonuses[0] = 0;
         oath_ptr->stat_bonuses[1] = 0;
         oath_ptr->stat_bonuses[2] = 0;

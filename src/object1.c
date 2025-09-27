@@ -3687,83 +3687,60 @@ void show_inven_enhanced(void)
         z = i + 1;
     }
     
-    /* Display the inventory (exactly like show_inven first loop) */
-    for (k = 0, i = 0; i < z; i++)
+    /* Build combined list with floor items first, then inventory */
+    k = 0;
+
+    if (has_floor_items)
     {
-        o_ptr = &inventory[i];
-        
-        /* Is this item acceptable? */
-        if (!item_tester_okay(o_ptr)) continue;
-        
-        /* Describe the object (exactly like show_inven) */
-        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
-        
-        /* Hack -- enforce max length (exactly like show_inven) */
-        o_name[lim] = '\0';
-        
-        /* Save the index (exactly like show_inven) */
-        out_index[k] = i;
-        out_is_floor[k] = false;  /* This is an inventory item */
-        
-        /* Get inventory color (exactly like show_inven) */
-        if (weapon_glows(o_ptr))
-            out_color[k] = TERM_L_BLUE;
-        else
-            out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
-            
-        /* Save the object description (exactly like show_inven) */
-        my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
-        
-        /* Find the predicted "line length" (exactly like show_inven) */
-        int l = strlen(out_desc[k]) + 5;
-        
-        /* Be sure to account for the weight (exactly like show_inven) */
-        if (show_weights) l += 9;
-        
-        /* Maintain the maximum length (exactly like show_inven) */
-        if (l > len) len = l;
-        
-        /* Advance to next "line" (exactly like show_inven) */
-        k++;
-    }
-    
-    /* Add floor items after inventory items */
-    if (has_floor_items) {
         for (i = 0; i < floor_num; i++)
         {
             o_ptr = &o_list[floor_list[i]];
-            
-            /* Is this item acceptable? */
-            if (!item_tester_okay(o_ptr)) continue;
-            
-            /* Describe the object (similar to show_floor) */
+
+            if (!item_tester_okay(o_ptr))
+                continue;
+
             object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
-            
-            /* Hack -- enforce max length */
             o_name[lim] = '\0';
-            
-            /* Save the floor list index (negative for floor items) */
-            out_index[k] = 0 - floor_list[i];  /* Use negative index like get_item */
-            out_is_floor[k] = true;  /* This is a floor item */
-            
-            /* Get floor item color */
-            out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
-                
-            /* Save the object description */
+
+            out_index[k] = 0 - floor_list[i];
+            out_is_floor[k] = true;
+            out_color[k] = weapon_glows(o_ptr) ? TERM_L_BLUE
+                : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
             my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
-            
-            /* Find the predicted "line length" */
-            int l = strlen(out_desc[k]) + 5;
-            
-            /* Be sure to account for the weight */
-            if (show_weights) l += 9;
-            
-            /* Maintain the maximum length */
-            if (l > len) len = l;
-            
-            /* Advance to next "line" */
+
+            int l = (int)strlen(out_desc[k]) + 5;
+            if (show_weights)
+                l += 9;
+            if (l > len)
+                len = l;
+
             k++;
         }
+    }
+
+    for (i = 0; i < z; i++)
+    {
+        o_ptr = &inventory[i];
+
+        if (!item_tester_okay(o_ptr))
+            continue;
+
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+        o_name[lim] = '\0';
+
+        out_index[k] = i;
+        out_is_floor[k] = false;
+        out_color[k] = weapon_glows(o_ptr) ? TERM_L_BLUE
+            : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+        my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
+
+        int l = (int)strlen(out_desc[k]) + 5;
+        if (show_weights)
+            l += 9;
+        if (l > len)
+            len = l;
+
+        k++;
     }
     
     /* Find the column to start in (exactly like show_inven) */
@@ -3780,40 +3757,6 @@ void show_inven_enhanced(void)
     /* Main interaction loop */
     while (!done)
     {
-        /* Display inventory first (call the original) */
-        show_inven();
-        
-        /* Now render floor items after inventory if we have any */
-        if (has_floor_items) {
-            int inventory_items = 0;
-            /* Count inventory items to know where to start floor items */
-            for (i = 0; i < k; i++) {
-                if (!out_is_floor[i]) {
-                    inventory_items++;
-                }
-            }
-            
-            /* Render floor items starting after inventory items */
-            for (i = 0; i < k; i++) {
-                if (out_is_floor[i]) {
-                    object_type* floor_o_ptr = &o_list[0 - out_index[i]];
-                    
-                    /* Display the floor item */
-                    sprintf(tmp_val, "-)");
-                    put_str(tmp_val, inventory_items + 1, col);
-                    c_put_str(out_color[i], out_desc[i], inventory_items + 1, col + 3);
-                    
-                    /* Display the weight if needed */
-                    if (show_weights) {
-                        int wgt = floor_o_ptr->weight * floor_o_ptr->number;
-                        sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
-                        c_put_str(out_color[i], tmp_val, inventory_items + 1, 71);
-                    }
-                    inventory_items++;
-                }
-            }
-        }
-        
         /* Show the prompt - different text based on how menu was opened */
         extern char current_menu_command;
         if (current_menu_command == 'u') {
@@ -3827,52 +3770,44 @@ void show_inven_enhanced(void)
         }
         prt(out_val, 0, 0);
         
-        /* Highlight current selection (using exact show_inven output algorithm) */
-        if (highlight_active && highlight_row >= 0 && highlight_row < k)
+        /* Render combined list with floor entries first */
+        for (int j = 0; j < k; j++)
         {
-            /* Get the index and determine if it's a floor item */
-            bool is_floor_item = out_is_floor[highlight_row];
-            
-            if (is_floor_item) {
-                /* Floor item - get the object from the floor list */
-                int floor_idx = 0 - out_index[highlight_row];  /* Convert back to positive */
-                o_ptr = &o_list[floor_idx];
-                
-                /* Clear the line */
-                prt("", highlight_row + 1, col ? col - 2 : col);
-                
-                /* Prepare an index with '-' for floor items */
-                sprintf(tmp_val, "-)");
-            } else {
-                /* Regular inventory item */
-                i = out_index[highlight_row];
-                o_ptr = &inventory[i];
-                
-                /* Clear the line (exactly like show_inven second loop) */
-                prt("", highlight_row + 1, col ? col - 2 : col);
-                
-                /* Prepare an index (exactly like show_inven second loop) */
-                sprintf(tmp_val, "%c)", index_to_label(i));
-            }
-            
-            /* Clear the line with the index (exactly like show_inven) */
-            c_put_str(TERM_L_BLUE, tmp_val, highlight_row + 1, col);
-            
-            /* Display the entry itself (exactly like show_inven) */
-            c_put_str(TERM_L_BLUE, out_desc[highlight_row], highlight_row + 1, col + 3);
-            
-            /* Display the weight if needed (exactly like show_inven) */
+            bool is_floor_item = out_is_floor[j];
+            object_type* line_obj = is_floor_item ? &o_list[0 - out_index[j]] : &inventory[out_index[j]];
+            bool is_highlight = highlight_active && (highlight_row == j);
+            byte line_attr = is_highlight ? TERM_L_BLUE : out_color[j];
+            int row = j + 1;
+
+            prt("", row, col ? col - 2 : col);
+
+            if (is_floor_item)
+                strnfmt(tmp_val, sizeof(tmp_val), "-)");
+            else
+                strnfmt(tmp_val, sizeof(tmp_val), "%c)", index_to_label(out_index[j]));
+
+            if (is_highlight)
+                c_put_str(TERM_L_BLUE, tmp_val, row, col);
+            else
+                put_str(tmp_val, row, col);
+
+            c_put_str(line_attr, out_desc[j], row, col + 3);
+
             if (show_weights)
             {
-                int wgt = o_ptr->weight * o_ptr->number;
-                sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
-                c_put_str(TERM_L_BLUE, tmp_val, highlight_row + 1, 71);
+                int wgt = line_obj->weight * line_obj->number;
+                strnfmt(tmp_val, sizeof(tmp_val), "%3d.%1d lb", wgt / 10, wgt % 10);
+                c_put_str(line_attr, tmp_val, row, 71);
             }
-            
-            log_debug("show_inven_enhanced: Highlighted row %d, item %s at col %d", 
-                     highlight_row, 
-                     is_floor_item ? "floor" : "inventory",
-                     col);
+        }
+
+        if (k && k < 23)
+            prt("", k + 1, col ? col - 2 : col);
+
+        if (highlight_active && highlight_row >= 0 && highlight_row < k)
+        {
+            log_debug("show_inven_enhanced: Highlighted row %d (%s)", highlight_row,
+                out_is_floor[highlight_row] ? "floor" : "inventory");
         }
         
         /* Get a key */
@@ -4440,3 +4375,290 @@ void show_equip_enhanced(void)
     
     log_trace("show_equip_enhanced: Exiting equipment enhanced menu, action=%d", enhanced_equip_action);
 }
+
+typedef enum
+{
+    IDENT_ENTRY_INVEN,
+    IDENT_ENTRY_EQUIP,
+    IDENT_ENTRY_FLOOR
+} ident_entry_type;
+
+typedef struct
+{
+    ident_entry_type type;
+    int index;
+    int floor_o_idx;
+    object_type* o_ptr;
+    char label[4];
+    char prefix[20];
+    char desc[80];
+    byte color;
+} ident_entry;
+
+#define MAX_IDENT_ENTRIES (INVEN_PACK + (INVEN_TOTAL - INVEN_WIELD) + MAX_FLOOR_STACK)
+
+static void build_ident_entry_label(int order, char out[4])
+{
+    char label = index_to_label(order);
+    out[0] = label;
+    out[1] = ')';
+    out[2] = '\0';
+}
+
+static void draw_ident_line(const ident_entry* entry, int row, int col, bool highlight)
+{
+    byte attr = highlight ? TERM_L_BLUE : entry->color;
+    byte label_attr = highlight ? TERM_L_BLUE : TERM_WHITE;
+    int offset = col + 3;
+    char weight_buf[16];
+
+    prt("", row, col ? col - 2 : col);
+
+    if (highlight)
+        c_put_str(label_attr, entry->label, row, col);
+    else
+        put_str(entry->label, row, col);
+
+    if (entry->prefix[0] != '\0')
+    {
+        if (highlight)
+            c_put_str(attr, entry->prefix, row, offset);
+        else
+            put_str(entry->prefix, row, offset);
+        offset += (int)strlen(entry->prefix);
+    }
+
+    c_put_str(attr, entry->desc, row, offset);
+
+    if (show_weights)
+    {
+        int wgt = entry->o_ptr->weight * entry->o_ptr->number;
+        if (entry->o_ptr->weight || entry->type != IDENT_ENTRY_EQUIP)
+        {
+            strnfmt(weight_buf, sizeof(weight_buf), "%3d.%1d lb", wgt / 10, wgt % 10);
+            c_put_str(attr, weight_buf, row, 71);
+        }
+    }
+}
+
+bool display_unified_identify_menu(bool include_floor, int* out_item, object_type** out_object)
+{
+    ident_entry entries[MAX_IDENT_ENTRIES];
+    int entry_count = 0;
+    int len = 79 - 50;
+    const int base_lim = 79 - 3;
+    const int lim_no_weight = base_lim - (show_weights ? 9 : 0);
+    int floor_list[MAX_FLOOR_STACK];
+    int floor_num = 0;
+
+    if (include_floor)
+        floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px, 0x00);
+
+    if (include_floor)
+    {
+        for (int i = 0; i < floor_num && entry_count < MAX_IDENT_ENTRIES; i++)
+        {
+            int o_idx = floor_list[i];
+            object_type* o_ptr = &o_list[o_idx];
+            if (!o_ptr->k_idx || object_known_p(o_ptr))
+                continue;
+
+            ident_entry* entry = &entries[entry_count];
+            entry->type = IDENT_ENTRY_FLOOR;
+            entry->index = 0;
+            entry->floor_o_idx = o_idx;
+            entry->o_ptr = o_ptr;
+            strnfmt(entry->label, sizeof(entry->label), "-)");
+            entry->prefix[0] = '\0';
+
+            object_desc(entry->desc, sizeof(entry->desc), o_ptr, true, 3);
+            if (lim_no_weight >= 0)
+                entry->desc[lim_no_weight] = '\0';
+
+            entry->color = weapon_glows(o_ptr) ? TERM_L_BLUE
+                : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+
+            int row_len = (int)strlen(entry->desc) + 5;
+            if (show_weights)
+                row_len += 9;
+            if (row_len > len)
+                len = row_len;
+
+            entry_count++;
+        }
+    }
+
+    for (int i = 0; i < INVEN_PACK && entry_count < MAX_IDENT_ENTRIES; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+        if (!o_ptr->k_idx || object_known_p(o_ptr))
+            continue;
+
+        ident_entry* entry = &entries[entry_count];
+        entry->type = IDENT_ENTRY_INVEN;
+        entry->index = i;
+        entry->floor_o_idx = 0;
+        entry->o_ptr = o_ptr;
+        build_ident_entry_label(entry_count, entry->label);
+        entry->prefix[0] = '\0';
+
+        object_desc(entry->desc, sizeof(entry->desc), o_ptr, true, 3);
+        if (lim_no_weight >= 0)
+            entry->desc[lim_no_weight] = '\0';
+
+        entry->color = weapon_glows(o_ptr) ? TERM_L_BLUE
+            : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+
+        int row_len = (int)strlen(entry->desc) + 5;
+        if (show_weights)
+            row_len += 9;
+        if (row_len > len)
+            len = row_len;
+
+        entry_count++;
+    }
+
+    for (int i = INVEN_WIELD; i < INVEN_TOTAL && entry_count < MAX_IDENT_ENTRIES; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+        if (!o_ptr->k_idx || object_known_p(o_ptr))
+            continue;
+
+        ident_entry* entry = &entries[entry_count];
+        entry->type = IDENT_ENTRY_EQUIP;
+        entry->index = i;
+        entry->floor_o_idx = 0;
+        entry->o_ptr = o_ptr;
+        build_ident_entry_label(entry_count, entry->label);
+        strnfmt(entry->prefix, sizeof(entry->prefix), "%-12s: ", mention_use(i));
+
+        int prefix_len = (int)strlen(entry->prefix);
+        int desc_lim = lim_no_weight - prefix_len;
+        if (desc_lim < 0)
+            desc_lim = 0;
+
+        object_desc(entry->desc, sizeof(entry->desc), o_ptr, true, 3);
+        entry->desc[desc_lim] = '\0';
+
+        entry->color = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+
+        int row_len = prefix_len + (int)strlen(entry->desc) + 5;
+        if (show_weights && o_ptr->weight)
+            row_len += 9;
+        if (row_len > len)
+            len = row_len;
+
+        entry_count++;
+    }
+
+    if (entry_count == 0)
+    {
+        msg_print("There is nothing unidentified here.");
+        return false;
+    }
+
+    int col = (len > 76) ? 0 : (79 - len);
+    int highlight = 0;
+    bool done = false;
+    bool success = false;
+
+    screen_save();
+
+    int clear_start = (col > 1) ? (col - 2) : col;
+    int clear_width = 80 - clear_start;
+    if (clear_width < 0)
+        clear_width = 0;
+    int base_rows = MIN(23, entry_count + 1);
+    int rows_to_clear = base_rows;
+
+    log_trace("display_unified_identify_menu: init clear entry_count=%d, start_col=%d, width=%d, rows=%d",
+        entry_count, clear_start, clear_width, rows_to_clear);
+
+    while (!done)
+    {
+        Term_erase(0, 0, 255);
+
+        for (int row = 1; row <= rows_to_clear && row < 24; row++)
+        {
+            Term_erase(clear_start, row, clear_width);
+        }
+        log_trace("display_unified_identify_menu: redraw cleared rows 1-%d from col %d width %d",
+            MIN(rows_to_clear, 23), clear_start, clear_width);
+
+        char prompt[80];
+        strnfmt(prompt, sizeof(prompt),
+            "Identify: Space, <- Inspect, ESC to cancel");
+        prt(prompt, 0, 0);
+
+        for (int i = 0; i < entry_count; i++)
+        {
+            draw_ident_line(&entries[i], i + 1, col, (i == highlight));
+        }
+
+        if (entry_count && entry_count < 23)
+            prt("", entry_count + 1, col ? col - 2 : col);
+
+        rows_to_clear = base_rows;
+
+        int key = inkey();
+
+        switch (key)
+        {
+        case ESCAPE:
+            done = true;
+            success = false;
+            break;
+
+        case '8':
+        case 'k':
+        case 'K':
+            highlight = (highlight + entry_count - 1) % entry_count;
+            break;
+
+        case '2':
+        case 'j':
+        case 'J':
+            highlight = (highlight + 1) % entry_count;
+            break;
+
+        case '4':
+        case 'h':
+        case 'H':
+            object_info_screen(entries[highlight].o_ptr);
+            break;
+
+        case ' ':
+        case 13:
+        case 10:
+            success = true;
+            done = true;
+            break;
+
+        default:
+            bell("Invalid command!");
+            break;
+        }
+    }
+
+    screen_load();
+
+    if (!success)
+        return false;
+
+    ident_entry* chosen = &entries[highlight];
+
+    if (chosen->type == IDENT_ENTRY_FLOOR)
+    {
+        *out_item = 0 - chosen->floor_o_idx;
+        *out_object = &o_list[chosen->floor_o_idx];
+    }
+    else
+    {
+        *out_item = chosen->index;
+        *out_object = &inventory[chosen->index];
+    }
+
+    return true;
+}
+
+#undef MAX_IDENT_ENTRIES

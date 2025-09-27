@@ -154,8 +154,9 @@ bool set_blind(int v)
     /* Fully update the visuals */
     p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS);
 
-    /* Redraw map */
-    p_ptr->redraw |= (PR_MAP);
+    /* Redraw map and refresh side panels that lose their contents when the
+     * screen is cleared by hallucination messages. */
+    p_ptr->redraw |= (PR_MAP | PR_EXTRA | PR_STATE | PR_BASIC | PR_MISC);
 
     /* Redraw the "blind" */
     p_ptr->redraw |= (PR_BLIND);
@@ -650,44 +651,52 @@ bool set_rage(int v)
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
 
-    /* Open */
-    if (v)
-    {
-        if (!p_ptr->rage)
-        {
-            msg_print("You burst into a furious rage!");
-            notice = true;
+    bool was_raging = (p_ptr->rage > 0);
+    bool will_rage = (v > 0);
 
-            /* Redraw map */
-            p_ptr->redraw |= (PR_MAP);
-            
-            /* Turin house has 50% chance to become hallucinated when raged */
-            if ((c_info[p_ptr->phouse].flags_u & UNQ_WIL_TURIN) && one_in_(2))
-            {
-                msg_print("The rage clouds your vision!");
-                (void)set_image(p_ptr->image + damroll(3, 4));
-            }
-        }
-    }
-
-    /* Shut */
-    else
-    {
-        if (p_ptr->rage)
-        {
-            msg_print("Your rage subsides.");
-            notice = true;
-
-            // do_res_stat(A_STR, 1);
-            // do_res_stat(A_CON, 1);
-
-            /* Redraw map */
-            p_ptr->redraw |= (PR_MAP);
-        }
-    }
-
-    /* Use the value */
+    /* Apply the new value before kicking off redraws so map_info sees it */
     p_ptr->rage = v;
+
+    /* Rage just started */
+    if (will_rage && !was_raging)
+    {
+        msg_print("You burst into a furious rage!");
+        notice = true;
+
+        p_ptr->redraw |= (PR_MAP | PR_STATE);
+        p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS
+            | PU_DISTANCE);
+
+        if (p_ptr->stealth_mode)
+        {
+            msg_print("Your fury shatters your stealth!");
+            p_ptr->stealth_mode = false;
+            stop_stealth_mode = false;
+            p_ptr->update |= (PU_BONUS);
+            p_ptr->redraw |= (PR_SPEED);
+        }
+
+        /* Turin house has 50% chance to become hallucinated when raged */
+        if ((c_info[p_ptr->phouse].flags_u & UNQ_WIL_TURIN) && one_in_(2))
+        {
+            msg_print("The rage clouds your vision!");
+            (void)set_image(p_ptr->image + damroll(3, 4));
+        }
+    }
+
+    /* Rage just ended */
+    else if (!will_rage && was_raging)
+    {
+        msg_print("Your rage subsides.");
+        notice = true;
+
+        // do_res_stat(A_STR, 1);
+        // do_res_stat(A_CON, 1);
+
+        p_ptr->redraw |= (PR_MAP | PR_STATE);
+        p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS
+            | PU_DISTANCE);
+    }
 
     /* Nothing to notice */
     if (!notice)
