@@ -3709,7 +3709,7 @@ bool term_get_string(cptr prompt, char* buf, size_t len)
  */
 s16b get_quantity(cptr prompt, int max)
 {
-    int amt = 1;
+    int amt = (max > 0) ? max : 1;
 
     /* Use "command_arg" */
     if (p_ptr->command_arg)

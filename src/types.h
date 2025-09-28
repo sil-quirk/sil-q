@@ -519,6 +519,7 @@ struct object_type
     byte name2; /* Ego-Item type, if any */
 
     byte pickup; /* Auto pick up this item next time it is stepped on */
+    s16b pickup_slot; /* Preferred inventory slot when auto-picked */
 
     byte xtra1; /* Extra info type */
 

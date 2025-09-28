@@ -52,15 +52,15 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning */
-/* Bumped to 0.8.6 for introduction of new skill S_SPC (Special abilities) */
-#define VERSION_STRING "0.8.6"
+/* Bumped to 0.8.9 for throwable/quiver integration */
+#define VERSION_STRING "0.8.9"
 /*
  * Current version numbers
  */
-/* Version components (0.8.6) */
+/* Version components (0.8.9) */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 8
-#define VERSION_PATCH 8
+#define VERSION_PATCH 9
 #define VERSION_EXTRA 0
 
 /*

@@ -1492,6 +1492,9 @@ void object_wipe(object_type* o_ptr)
 {
     /* Wipe the structure */
     (void)WIPE(o_ptr, object_type);
+
+    /* Reset preferred pickup slot */
+    o_ptr->pickup_slot = -1;
 }
 
 /*
@@ -4816,6 +4819,20 @@ bool inven_carry_okay(const object_type* o_ptr)
         }
     }
 
+    if (k_info[o_ptr->k_idx].flags3 & (TR3_THROWING))
+    {
+        for (j = INVEN_QUIVER1; j <= INVEN_QUIVER2; j++)
+        {
+            object_type* j_ptr = &inventory[j];
+
+            if (!j_ptr->k_idx)
+                return (true);
+
+            if (object_similar(j_ptr, o_ptr))
+                return (true);
+        }
+    }
+
     /* Nope */
     return (false);
 }
@@ -4848,6 +4865,50 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
     /*paranoia, don't pick up "&nothings"*/
     if (!o_ptr->k_idx)
         return (-1);
+
+    int desired_slot = o_ptr->pickup_slot;
+    bool wants_throw_slot = (desired_slot == INVEN_QUIVER1) || (desired_slot == INVEN_QUIVER2);
+
+    if (wants_throw_slot)
+    {
+        object_type* d_ptr = &inventory[desired_slot];
+        bool is_throwing = (k_info[o_ptr->k_idx].flags3 & (TR3_THROWING)) != 0;
+
+        if (is_throwing)
+        {
+            if (d_ptr->k_idx == 0)
+            {
+                int placed = MIN(o_ptr->number, MAX_STACK_SIZE - 1);
+                object_copy(d_ptr, o_ptr);
+                d_ptr->number = placed;
+                d_ptr->pickup = false;
+                d_ptr->pickup_slot = -1;
+                o_ptr->number -= placed;
+                o_ptr->pickup = false;
+                o_ptr->pickup_slot = -1;
+
+                p_ptr->equip_cnt++;
+                p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+                p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+
+                if (o_ptr->number <= 0)
+                    return (desired_slot);
+            }
+            else if (object_similar(d_ptr, o_ptr))
+            {
+                object_absorb(d_ptr, o_ptr);
+                d_ptr->pickup = false;
+                d_ptr->pickup_slot = -1;
+                o_ptr->pickup = false;
+                o_ptr->pickup_slot = -1;
+                p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+
+                if (o_ptr->number == 0)
+                    return (desired_slot);
+            }
+        }
+        o_ptr->pickup_slot = -1;
+    }
 
     // Check for combining in quiver first
     if (o_ptr->tval == TV_ARROW && combine_ammo)
@@ -4904,6 +4965,7 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
         if ((empty_quiver > 0) && o_ptr->pickup)
         {
             o_ptr->pickup = false;
+            o_ptr->pickup_slot = -1;
             do_cmd_wield(o_ptr, -1);
             return (-1);
         }
@@ -4976,6 +5038,7 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
 
     /* Reset the pickup flag */
     o_ptr->pickup = false;
+    o_ptr->pickup_slot = -1;
 
     /* Reorder the pack */
     if (i < INVEN_PACK)

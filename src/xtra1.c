@@ -2547,8 +2547,12 @@ static void calc_bonuses(void)
         if (f2 & (TR2_SUST_GRA))
             p_ptr->sustain_gra += 1;
 
+        bool throwing_quiver = ((i == INVEN_QUIVER1) || (i == INVEN_QUIVER2))
+            && (k_info[o_ptr->k_idx].flags3 & (TR3_THROWING));
+
         /* Apply the bonus to evasion */
-        p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
+        if (!throwing_quiver)
+            p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
 
         // Parrying grants extra bonus for weapon evasion:
         if (p_ptr->active_ability[S_EVN][EVN_PARRY] && (i == INVEN_WIELD))

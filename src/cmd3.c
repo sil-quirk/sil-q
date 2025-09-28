@@ -37,6 +37,25 @@ static bool item_tester_hook_quiver_slots(const object_type* o_ptr)
     return (o_ptr == &inventory[INVEN_QUIVER1]) || (o_ptr == &inventory[INVEN_QUIVER2]);
 }
 
+bool throw_slot_menu_active = false;
+bool throw_slot_enabled[INVEN_TOTAL];
+
+static bool item_tester_hook_throw_slots(const object_type* o_ptr)
+{
+    if (!throw_slot_menu_active)
+        return false;
+
+    if (!o_ptr)
+        return false;
+
+    if ((o_ptr < inventory) || (o_ptr >= inventory + INVEN_TOTAL))
+        return false;
+
+    int slot = (int)(o_ptr - inventory);
+
+    return throw_slot_enabled[slot];
+}
+
 /* Flag indicating enhanced menus need to refresh the main display after closing */
 static bool enhanced_drop_refresh_pending = false;
 
@@ -609,6 +628,9 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     char o_name[80];
 
     bool combine = false;
+    bool is_throwing = false;
+
+    u32b f1, f2, f3;
 
     // use specified item if possible
     if (default_o_ptr != NULL)
@@ -680,38 +702,157 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         item_tester_hook = NULL;
     }
 
-    // Special cases for merging arrows
-    if (object_similar(&inventory[INVEN_QUIVER1], o_ptr))
-    {
-        slot = INVEN_QUIVER1;
-        combine = true;
-    }
-    else if (object_similar(&inventory[INVEN_QUIVER2], o_ptr))
-    {
-        slot = INVEN_QUIVER2;
-        combine = true;
-    }
-    /* Ask for arrow set to replace */
-    else if ((o_ptr->tval == TV_ARROW) && inventory[INVEN_QUIVER1].k_idx
-        && inventory[INVEN_QUIVER2].k_idx)
-    {
-        /* Restrict the choices */
-        item_tester_tval = TV_ARROW;
-        item_tester_hook = item_tester_hook_quiver_slots;
-        item_tester_full = false;
+    object_flags(o_ptr, &f1, &f2, &f3);
+    is_throwing = (f3 & (TR3_THROWING)) != 0;
 
-        /* Choose a set of arrows from the equipment only */
-        q = "Replace which set of arrows? ";
-        s = "Oops.";
-        if (!get_item(&slot, q, s, USE_EQUIP))
+    if (is_throwing)
+    {
+        bool any_throw_dest = false;
+        int slot_choice;
+
+        throw_slot_menu_active = true;
+
+        for (i = 0; i < INVEN_TOTAL; i++)
+            throw_slot_enabled[i] = false;
+
         {
-            item_tester_tval = 0;
-            item_tester_hook = NULL;
+            object_type* wield_ptr = &inventory[INVEN_WIELD];
+            bool allow_wield = true;
+
+            if (wield_ptr->k_idx && cursed_p(wield_ptr)
+                && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+            {
+                allow_wield = false;
+            }
+
+            if (allow_wield)
+            {
+                throw_slot_enabled[INVEN_WIELD] = true;
+                any_throw_dest = true;
+            }
+        }
+
+        {
+            object_type* q1_ptr = &inventory[INVEN_QUIVER1];
+            bool allow_quiver = true;
+
+            if (q1_ptr->k_idx && cursed_p(q1_ptr)
+                && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+            {
+                allow_quiver = false;
+            }
+
+            if (allow_quiver)
+            {
+                throw_slot_enabled[INVEN_QUIVER1] = true;
+                any_throw_dest = true;
+            }
+        }
+
+        {
+            object_type* q2_ptr = &inventory[INVEN_QUIVER2];
+            bool allow_quiver = true;
+
+            if (q2_ptr->k_idx && cursed_p(q2_ptr)
+                && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+            {
+                allow_quiver = false;
+            }
+
+            if (allow_quiver)
+            {
+                throw_slot_enabled[INVEN_QUIVER2] = true;
+                any_throw_dest = true;
+            }
+        }
+
+        if (!any_throw_dest)
+        {
+            msg_print("You have no available slot for that throwing weapon.");
+            throw_slot_menu_active = false;
             return;
         }
 
-        item_tester_tval = 0;
+        slot_choice = slot;
+
+        if (!throw_slot_enabled[slot_choice])
+        {
+            if (throw_slot_enabled[INVEN_QUIVER1])
+                slot_choice = INVEN_QUIVER1;
+            else if (throw_slot_enabled[INVEN_QUIVER2])
+                slot_choice = INVEN_QUIVER2;
+            else
+                slot_choice = INVEN_WIELD;
+        }
+
+        item_tester_hook = item_tester_hook_throw_slots;
+        item_tester_full = false;
+
+        q = "Place throwing weapon where? ";
+        s = "Oops.";
+        if (!get_item(&slot_choice, q, s, USE_EQUIP))
+        {
+            item_tester_hook = NULL;
+            item_tester_full = false;
+
+            for (i = 0; i < INVEN_TOTAL; i++)
+                throw_slot_enabled[i] = false;
+
+            throw_slot_menu_active = false;
+            return;
+        }
+
         item_tester_hook = NULL;
+        item_tester_full = false;
+        throw_slot_menu_active = false;
+
+        slot = slot_choice;
+
+        if ((slot == INVEN_QUIVER1) || (slot == INVEN_QUIVER2))
+        {
+            if (inventory[slot].k_idx
+                && object_similar(&inventory[slot], o_ptr))
+                combine = true;
+        }
+
+        for (i = 0; i < INVEN_TOTAL; i++)
+            throw_slot_enabled[i] = false;
+    }
+    else
+    {
+        // Special cases for merging arrows
+        if (object_similar(&inventory[INVEN_QUIVER1], o_ptr))
+        {
+            slot = INVEN_QUIVER1;
+            combine = true;
+        }
+        else if (object_similar(&inventory[INVEN_QUIVER2], o_ptr))
+        {
+            slot = INVEN_QUIVER2;
+            combine = true;
+        }
+        /* Ask for arrow set to replace */
+        else if ((o_ptr->tval == TV_ARROW) && inventory[INVEN_QUIVER1].k_idx
+            && inventory[INVEN_QUIVER2].k_idx)
+        {
+            /* Restrict the choices */
+            item_tester_tval = TV_ARROW;
+            item_tester_hook = item_tester_hook_quiver_slots;
+            item_tester_full = false;
+
+            /* Choose a set of arrows from the equipment only */
+            q = "Replace which set of arrows? ";
+            s = "Oops.";
+            if (!get_item(&slot, q, s, USE_EQUIP))
+            {
+                item_tester_tval = 0;
+                item_tester_hook = NULL;
+                return;
+            }
+
+            item_tester_tval = 0;
+            item_tester_hook = NULL;
+        }
     }
 
     // Ask about two weapon fighting if necessary
@@ -885,14 +1026,20 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Obtain local object */
     object_copy(i_ptr, o_ptr);
 
-    // Handle quantity differently for arrows
-    if (i_ptr->tval == TV_ARROW)
+    bool target_is_quiver = (slot == INVEN_QUIVER1) || (slot == INVEN_QUIVER2);
+
+    // Handle quantity differently for arrows or throwing weapons heading to a quiver
+    if ((i_ptr->tval == TV_ARROW) || (is_throwing && target_is_quiver))
     {
         if (combine)
-            quantity = MIN(
-                o_ptr->number, MAX_STACK_SIZE - 1 - (&inventory[slot])->number);
+        {
+            quantity = MIN(o_ptr->number,
+                MAX_STACK_SIZE - 1 - (&inventory[slot])->number);
+        }
         else
-            quantity = o_ptr->number;
+        {
+            quantity = MIN(o_ptr->number, MAX_STACK_SIZE - 1);
+        }
     }
     else
     {
@@ -3768,3 +3915,4 @@ void do_cmd_query_symbol(void)
     /* Free the "who" array */
     FREE(who);
 }
+

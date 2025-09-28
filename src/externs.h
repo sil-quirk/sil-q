@@ -486,6 +486,9 @@ extern int throwing_range(const object_type* i_ptr);
 extern void attacks_of_opportunity(int neutralized_y, int neutralized_x);
 extern void do_cmd_fire(int quiver);
 extern void do_cmd_throw(bool automatic);
+extern void do_cmd_throw_from_slot(int slot);
+extern bool throw_slot_menu_active;
+extern bool throw_slot_enabled[INVEN_TOTAL];
 
 /* cmd3.c */
 extern void do_cmd_use_item_by_index(int item);
@@ -1348,3 +1351,4 @@ extern int enhanced_equip_action;
 extern int enhanced_equipment_selected_item;
 extern char current_menu_command;
 extern int current_menu_state;
+

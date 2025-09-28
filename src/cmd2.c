@@ -11,6 +11,9 @@
 #include "angband.h"
 #include "metarun.h"
 
+#define THROW_PENDING_NONE -9999
+static int throw_pending_slot = THROW_PENDING_NONE;
+
 /*
  * Determines the shallowest a player is allowed to go.
  * As time goes on, they are forced deeper and deeper.
@@ -3844,6 +3847,38 @@ void do_cmd_fire(int quiver)
     bool deadly_hail_bonus = false;
     bool puncture = false;
 
+    // Determine the projectile in the requested quiver
+    if (quiver == 1)
+    {
+        o_ptr = &inventory[INVEN_QUIVER1];
+        item = INVEN_QUIVER1;
+
+        if (!o_ptr->k_idx)
+        {
+            msg_print("You have nothing in your 1st quiver.");
+            return;
+        }
+    }
+    else
+    {
+        o_ptr = &inventory[INVEN_QUIVER2];
+        item = INVEN_QUIVER2;
+
+        if (!o_ptr->k_idx)
+        {
+            msg_print("You have nothing in your 2nd quiver.");
+            return;
+        }
+    }
+
+    /* Determine whether the item should be thrown directly */
+    object_flags(o_ptr, &f1, &f2, &f3);
+    if (f3 & (TR3_THROWING))
+    {
+        do_cmd_throw_from_slot(item);
+        return;
+    }
+
     /* Get the "bow" (if any) */
     j_ptr = &inventory[INVEN_BOW];
 
@@ -3859,30 +3894,6 @@ void do_cmd_fire(int quiver)
 
     // bow flags
     object_flags(j_ptr, &f1, &f2, &f3);
-
-    // determine the arrow to fire
-    if (quiver == 1)
-    {
-        o_ptr = &inventory[INVEN_QUIVER1];
-        item = INVEN_QUIVER1;
-
-        if (!o_ptr->k_idx)
-        {
-            msg_print("You have no arrows in your 1st quiver.");
-            return;
-        }
-    }
-    else
-    {
-        o_ptr = &inventory[INVEN_QUIVER2];
-        item = INVEN_QUIVER2;
-
-        if (!o_ptr->k_idx)
-        {
-            msg_print("You have no arrows in your 2nd quiver.");
-            return;
-        }
-    }
 
     /* Handle player fear */
     if (p_ptr->afraid)
@@ -3946,6 +3957,7 @@ void do_cmd_fire(int quiver)
 
     /* Set pickup on fired arrow */
     i_ptr->pickup = true;
+    i_ptr->pickup_slot = item;
 
     /* Sound */
     sound(MSG_SHOOT);
@@ -4717,7 +4729,18 @@ void do_cmd_throw(bool automatic)
     u32b noticed_flag
         = 0; // if a slay is noticed it is recorded here and the item identified
 
-    if (automatic)
+    int preset_item = throw_pending_slot;
+    bool preset = (preset_item != THROW_PENDING_NONE);
+
+    if (preset)
+    {
+        item = preset_item;
+        automatic = false;
+    }
+
+    throw_pending_slot = THROW_PENDING_NONE;
+
+    if (!preset && automatic)
     {
         bool found = false;
 
@@ -4748,8 +4771,7 @@ void do_cmd_throw(bool automatic)
             return;
         }
     }
-
-    else
+    else if (!preset)
     {
         /* Get an item */
         q = "Throw which item? ";
@@ -4766,6 +4788,13 @@ void do_cmd_throw(bool automatic)
     else
     {
         o_ptr = &o_list[0 - item];
+    }
+
+    if (!o_ptr->k_idx)
+    {
+        if (preset)
+            msg_print("You have nothing ready to throw.");
+        return;
     }
 
     /* Hack -- Cannot remove cursed items */
@@ -4832,6 +4861,8 @@ void do_cmd_throw(bool automatic)
         return;
 
     /* Take off equipment first */
+    int original_slot = (item >= INVEN_WIELD) ? item : -1;
+
     if (item >= INVEN_WIELD)
     {
         /* Take off first */
@@ -4921,6 +4952,10 @@ void do_cmd_throw(bool automatic)
 
     /* Set pickup on thrown item */
     i_ptr->pickup = true;
+    if ((original_slot == INVEN_QUIVER1) || (original_slot == INVEN_QUIVER2))
+        i_ptr->pickup_slot = original_slot;
+    else
+        i_ptr->pickup_slot = -1;
 
     /* Reduce and describe inventory */
     if (item >= 0)
@@ -5318,3 +5353,13 @@ void do_cmd_throw(bool automatic)
     // Break the truce if creatures see
     break_truce(false);
 }
+
+/*
+ * Throw the item currently stored in the supplied slot.
+ */
+void do_cmd_throw_from_slot(int slot)
+{
+    throw_pending_slot = slot;
+    do_cmd_throw(false);
+}
+

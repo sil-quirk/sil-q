@@ -1677,6 +1677,19 @@ cptr describe_use(int i)
  */
 bool item_tester_okay(const object_type* o_ptr)
 {
+    bool in_inventory = (o_ptr >= inventory) && (o_ptr < inventory + INVEN_TOTAL);
+
+    if (throw_slot_menu_active && in_inventory)
+    {
+        int idx = (int)(o_ptr - inventory);
+
+        if (!throw_slot_enabled[idx])
+            return (false);
+
+        if (!o_ptr->k_idx)
+            return (true);
+    }
+
     /* Hack -- allow listing empty slots */
     if (item_tester_full)
         return (true);
@@ -2189,21 +2202,29 @@ void show_equip(void)
     {
         o_ptr = &inventory[i];
 
+        bool is_empty = !o_ptr->k_idx;
+
         /* Is this item acceptable? */
         if (!item_tester_okay(o_ptr))
             continue;
 
-        /* Description */
-        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+        if (is_empty)
+        {
+            my_strcpy(o_name, describe_empty_slot(i), sizeof(o_name));
+            out_color[k] = TERM_L_DARK;
+        }
+        else
+        {
+            /* Description */
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+            out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+        }
 
         /* Truncate the description */
         o_name[lim] = 0;
 
         /* Save the index */
         out_index[k] = i;
-
-        /* Get inventory color */
-        out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
 
         /* Save the description */
         my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
@@ -2883,7 +2904,13 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         } else if (p_ptr->command_wrk == (USE_EQUIP)) {                             \
             vis_equip_cnt = 0;                                                      \
             for (int ii = INVEN_WIELD; ii < INVEN_TOTAL; ++ii) {                     \
-                if (inventory[ii].k_idx && get_item_okay(ii)) {                     \
+                bool include_slot = false;                                          \
+                if (inventory[ii].k_idx) {                                          \
+                    include_slot = get_item_okay(ii);                               \
+                } else if (throw_slot_menu_active && throw_slot_enabled[ii]) {      \
+                    include_slot = true;                                            \
+                }                                                                   \
+                if (include_slot) {                                                 \
                     vis_equip[vis_equip_cnt++] = ii;                                \
                 }                                                                   \
             }                                                                       \
@@ -4257,7 +4284,7 @@ void show_inven_enhanced(void)
                 /* If no floor item found, check inventory items by letter */
                 if (!item_found && which != '-') {
                     int item = label_to_inven(which);
-                    if (item >= 0 && inventory[item].k_idx) {
+                    if (item >= 0 && (inventory[item].k_idx || (throw_slot_menu_active && throw_slot_enabled[item]))) {
                         /* Check if this inventory item is in our display list */
                         for (i = 0; i < k; i++) {
                             if (!out_is_floor[i] && out_index[i] == item) {
@@ -4349,24 +4376,28 @@ void show_equip_enhanced(void)
     for (k = 0, i = INVEN_WIELD; i < INVEN_TOTAL; i++)
     {
         o_ptr = &inventory[i];
-        
-        /* Skip empty slots - only include actually equipped items */
-        if (!o_ptr->k_idx) continue;
+        bool is_empty = !o_ptr->k_idx;
         
         /* Is this item acceptable? (exactly like show_equip) */
         if (!item_tester_okay(o_ptr)) continue;
         
-        /* Description (exactly like show_equip) */
-        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+        if (is_empty)
+        {
+            my_strcpy(o_name, describe_empty_slot(i), sizeof(o_name));
+            out_color[k] = TERM_L_DARK;
+        }
+        else
+        {
+            /* Description (exactly like show_equip) */
+            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+            out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+        }
         
         /* Truncate the description (exactly like show_equip) */
         o_name[lim] = 0;
         
         /* Save the index (exactly like show_equip) */
         out_index[k] = i;
-        
-        /* Get inventory color (exactly like show_equip) */
-        out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
         
         /* Save the description (exactly like show_equip) */
         my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
@@ -4619,7 +4650,7 @@ void show_equip_enhanced(void)
                     break;
                 }
                 int item = label_to_equip(which);
-                if (item >= INVEN_WIELD && item < INVEN_TOTAL && inventory[item].k_idx) {
+                if (item >= INVEN_WIELD && item < INVEN_TOTAL && (inventory[item].k_idx || (throw_slot_menu_active && throw_slot_enabled[item]))) {
                     done = true;
                     
                     /* Handle based on menu context */
@@ -4941,3 +4972,4 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
 
 #undef MAX_COMPARE_LINES
 #undef MAX_IDENT_ENTRIES
+

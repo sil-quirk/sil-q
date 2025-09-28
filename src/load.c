@@ -333,6 +333,16 @@ static errr rd_item(object_type* o_ptr)
     rd_byte(&o_ptr->pd);
     rd_byte(&o_ptr->ps);
     rd_byte(&o_ptr->pickup);
+    if ((sf_major > 0) ||
+        (sf_major == 0 && sf_minor > 8) ||
+        (sf_major == 0 && sf_minor == 8 && sf_patch >= 9))
+    {
+        rd_s16b(&o_ptr->pickup_slot);
+    }
+    else
+    {
+        o_ptr->pickup_slot = -1;
+    }
 
     rd_u32b(&o_ptr->ident);
 

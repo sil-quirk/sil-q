@@ -467,6 +467,7 @@ static void wr_item(const object_type* o_ptr)
     wr_byte(o_ptr->pd);
     wr_byte(o_ptr->ps);
     wr_byte(o_ptr->pickup);
+    wr_s16b(o_ptr->pickup_slot);
 
     wr_u32b(o_ptr->ident);
 

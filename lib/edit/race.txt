@@ -39,7 +39,7 @@
 
 # Version stamp (required)
 
-V:0.8.8
+V:0.8.9
 
 N:0:Feanorians
 S:0:1:2:2

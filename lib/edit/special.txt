@@ -52,7 +52,7 @@
 
 # Version stamp (required)
 
-V:0.8.8
+V:0.8.9
 
 
 
