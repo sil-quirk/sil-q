@@ -2291,6 +2291,12 @@ void show_equip(void)
                 c_put_str(out_color[j], tmp_val, j + 1, 71);
             }
         }
+
+        if (i == INVEN_QUIVER2)
+        {
+            int note_col = col + 3 + 12 + 2 + (int)strlen(out_desc[j]);
+            c_put_str(TERM_L_DARK, " (keeps passive bonuses)", j + 1, note_col);
+        }
     }
 
     /* Make a "shadow" below the list (only if needed) */
@@ -4508,6 +4514,12 @@ void show_equip_enhanced(void)
                     c_put_str(TERM_L_BLUE, tmp_val, display_row, 71);
                 }
                 
+                if (highlighted_slot == INVEN_QUIVER2)
+                {
+                    int note_col = col + 3 + 12 + 2 + (int)strlen(out_desc[highlight_index]);
+                    c_put_str(TERM_L_DARK, " (keeps passive bonuses)", display_row, note_col);
+                }
+                
                 log_debug("show_equip_enhanced: Drew highlight at display row %d, col %d", display_row, col);
             }
         }
@@ -4972,4 +4984,6 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
 
 #undef MAX_COMPARE_LINES
 #undef MAX_IDENT_ENTRIES
+
+
 

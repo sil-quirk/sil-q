@@ -3069,10 +3069,39 @@ void do_cmd_unified_look(void)
                         log_trace("EXAMINATION: Showing object info screen");
                         /* Save screen */
                         screen_save();
-                        
-                        /* Show object info */
-                        object_info_screen(o_ptr);
-                        
+                        /* Show object info, with comparison if applicable */
+                        if (wield_slot(o_ptr) >= INVEN_WIELD && wield_slot(o_ptr) < INVEN_TOTAL)
+                        {
+                            int slot = wield_slot(o_ptr);
+                            const object_type* compare_objects[2];
+                            const char* compare_headings[2];
+                            char selected_heading[32];
+                            char equipped_heading[32];
+
+                            strnfmt(selected_heading, sizeof(selected_heading), "Selected item");
+                            strnfmt(equipped_heading, sizeof(equipped_heading), "%s", mention_use(slot));
+
+                            compare_objects[0] = o_ptr;
+                            compare_headings[0] = selected_heading;
+
+                            if (inventory[slot].k_idx)
+                            {
+                                compare_objects[1] = &inventory[slot];
+                            }
+                            else
+                            {
+                                compare_objects[1] = NULL;
+                            }
+
+                            compare_headings[1] = equipped_heading;
+
+                            object_info_screen_multi(compare_objects, compare_headings, 2);
+                        }
+                        else
+                        {
+                            object_info_screen(o_ptr);
+                        }
+
                         /* Restore screen */
                         screen_load();
                         log_trace("EXAMINATION: Object examination completed");
@@ -3130,7 +3159,39 @@ void do_cmd_unified_look(void)
                         log_trace("EXAMINATION: Examining object at cursor position");
                         object_type* o_ptr = &o_list[cursor_o_idx];
                         screen_save();
-                        object_info_screen(o_ptr);
+
+                        if (wield_slot(o_ptr) >= INVEN_WIELD && wield_slot(o_ptr) < INVEN_TOTAL)
+                        {
+                            int slot = wield_slot(o_ptr);
+                            const object_type* compare_objects[2];
+                            const char* compare_headings[2];
+                            char selected_heading[32];
+                            char equipped_heading[32];
+
+                            strnfmt(selected_heading, sizeof(selected_heading), "Selected item");
+                            strnfmt(equipped_heading, sizeof(equipped_heading), "%s", mention_use(slot));
+
+                            compare_objects[0] = o_ptr;
+                            compare_headings[0] = selected_heading;
+
+                            if (inventory[slot].k_idx)
+                            {
+                                compare_objects[1] = &inventory[slot];
+                            }
+                            else
+                            {
+                                compare_objects[1] = NULL;
+                            }
+
+                            compare_headings[1] = equipped_heading;
+
+                            object_info_screen_multi(compare_objects, compare_headings, 2);
+                        }
+                        else
+                        {
+                            object_info_screen(o_ptr);
+                        }
+
                         screen_load();
                     }
                     else if (has_visible_monster)

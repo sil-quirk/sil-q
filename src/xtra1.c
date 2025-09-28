@@ -2426,6 +2426,18 @@ static void calc_bonuses(void)
         /* Extract the item flags */
         object_flags(o_ptr, &f1, &f2, &f3);
 
+        bool is_quiver1 = (i == INVEN_QUIVER1);
+        bool is_quiver2 = (i == INVEN_QUIVER2);
+        bool is_throwing_item
+            = (k_info[o_ptr->k_idx].flags3 & (TR3_THROWING)) != 0;
+
+        bool throwing_quiver = is_quiver2 && is_throwing_item;
+
+        if (is_quiver1)
+            continue;
+        if (is_quiver2 && !is_throwing_item)
+            continue;
+
         /* Affect stats */
         if (f1 & (TR1_STR))
             p_ptr->stat_equip_mod[A_STR] += o_ptr->pval;
@@ -2547,13 +2559,6 @@ static void calc_bonuses(void)
         if (f2 & (TR2_SUST_GRA))
             p_ptr->sustain_gra += 1;
 
-        bool throwing_quiver = ((i == INVEN_QUIVER1) || (i == INVEN_QUIVER2))
-            && (k_info[o_ptr->k_idx].flags3 & (TR3_THROWING));
-
-        /* Apply the bonus to evasion */
-        if (!throwing_quiver)
-            p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
-
         // Parrying grants extra bonus for weapon evasion:
         if (p_ptr->active_ability[S_EVN][EVN_PARRY] && (i == INVEN_WIELD))
         {
@@ -2565,7 +2570,10 @@ static void calc_bonuses(void)
             armour_weight += o_ptr->weight;
 
         // add the abilities
-        for (j = 0; j < o_ptr->abilities; j++)
+        int ability_count = o_ptr->abilities;
+        if (throwing_quiver && ability_count > 1)
+            ability_count = 1;
+        for (j = 0; j < ability_count; j++)
         {
             p_ptr->have_ability[o_ptr->skilltype[j]][o_ptr->abilitynum[j]]
                 = true;
@@ -2586,7 +2594,7 @@ static void calc_bonuses(void)
         /* Hack -- do not apply "arrow" to-hit bonuses at all */
         if (i == INVEN_QUIVER1)
             continue;
-        if (i == INVEN_QUIVER2)
+        if ((i == INVEN_QUIVER2) && !throwing_quiver)
             continue;
 
         /* Apply the bonus to hit */
