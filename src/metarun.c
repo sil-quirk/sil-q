@@ -1535,8 +1535,16 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
         byte target_order = has_gift_eru ? 0 : metar.deaths;
 
         /* Build a pool of candidate story entries.                    */
-        int pool[z_info->st_max], pool_sz = 0;
-        for (int i = 0; i < z_info->st_max; i++) {
+        int *pool = C_ZNEW(z_info->st_max, int);
+        int pool_sz = 0;
+        if (!pool) {
+            screen_load();                 /* restore game view            */
+            check_run_end();
+            save_metaruns();
+            FREE(pool);
+            return;
+        }
+        for (int i = 0; i < z_info->st_max && pool; i++) {
             story_type *st = &st_info[i];
             if (!st->name)            continue;                /* unused slot   */
             if (st->st_type != 1)     continue;                /* not “death”   */
@@ -1548,7 +1556,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
 
         /* Fallback – allow any order-0 message if nothing matched.   */
         if (!pool_sz && target_order) {
-            for (int i = 0; i < z_info->st_max; i++) {
+            for (int i = 0; i < z_info->st_max && pool; i++) {
                 story_type *st = &st_info[i];
                 if (!st->name || st->st_type != 1) continue;
                 if (st->order != 0)   continue;
@@ -1566,12 +1574,12 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
 
             print_heading_fade(title, TERM_RED);
             print_paragraph_fade(text, TERM_WHITE, 4);
-            
+
             char transition_text[256];
             strnfmt(transition_text, sizeof(transition_text),
                     "The hero whose mantle you took has fallen, their tale ends in shadow. "
                     "Yet your spirit returns, for the Valar's trial is not yet complete.");
-            
+
             if (!fast_forward && !print_paragraph_fade(transition_text, TERM_L_BLUE, 8))
                 fast_forward = true;
             else if (fast_forward)
@@ -1580,6 +1588,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
         }
 
         screen_load();                 /* restore game view            */
+        FREE(pool);
         check_run_end();
         save_metaruns();
         return;
