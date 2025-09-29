@@ -127,6 +127,17 @@ this file for advice on your specific system.
 
 NOTE: This is a very new and very raw port, and requires testing.
 
+## Metarun recovery regression check
+
+To verify the metarun loader heals a truncated `meta.raw`, you can perform a quick manual test:
+
+1. Launch the game once to generate a normal `lib/save/meta.raw`, then exit.
+2. Make a backup copy of the file and truncate the original (for example, open it in a hex editor and delete everything after the 64-byte header, or run `python -c "open('lib/save/meta.raw','r+b').truncate(64)"`).
+3. Start the game again. The log (`log.txt`) should report that the loader detected an empty metarun array, seeded a default entry, and saved a healed file.
+4. Exit and confirm a fresh `meta.raw` now contains one run entry (and optionally restore your backup).
+
+This flow ensures we never crash when the metarun history is missing or truncated.
+
 ## macOS
 
 ### Prerequisites
