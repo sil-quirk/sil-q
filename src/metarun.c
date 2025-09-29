@@ -495,7 +495,7 @@ errr load_metaruns(bool create_if_missing)
                 
                 /* Initialize quest tracking fields for old format */
                 metaruns[i].completed_quests = 0;
-                for (int j = 0; j < 15; j++) {
+                for (int j = 0; j < (int)N_ELEMENTS(metaruns[i].quest_reserved); j++) {
                     metaruns[i].quest_reserved[j] = 0;
                 }
             }
