@@ -3328,6 +3328,51 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             break;
         }
 
+        case 'x':
+        case 'X':
+#ifdef ARROW_RIGHT
+        case ARROW_RIGHT:
+#endif
+        {
+            if (p_ptr->command_see && highlight_active)
+            {
+                int examine_index = 0;
+                bool have_selection = false;
+
+                if (p_ptr->command_wrk == (USE_INVEN) && highlight_row >= 0 && highlight_row < vis_inven_cnt)
+                {
+                    examine_index = vis_inven[highlight_row];
+                    have_selection = true;
+                }
+                else if (p_ptr->command_wrk == (USE_EQUIP) && highlight_row >= 0 && highlight_row < vis_equip_cnt)
+                {
+                    examine_index = vis_equip[highlight_row];
+                    have_selection = true;
+                }
+                else if (p_ptr->command_wrk == (USE_FLOOR) && highlight_row >= 0 && highlight_row < vis_floor_cnt)
+                {
+                    int obj_idx = floor_list[vis_floor[highlight_row]];
+                    examine_index = 0 - obj_idx;
+                    have_selection = true;
+                }
+
+                if (have_selection)
+                {
+                    describe_item_with_comparisons(examine_index, true);
+                }
+                else
+                {
+                    bell("Nothing is selected to examine.");
+                }
+            }
+            else
+            {
+                bell("No highlighted item to examine.");
+            }
+
+            break;
+        }
+
         case '0':
         case '1':
         case '2':
