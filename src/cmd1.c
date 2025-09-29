@@ -2816,6 +2816,28 @@ bool is_weapon_or_armor(const object_type* o_ptr)
 /*
  * Check if an object was smithed by the player
  */
+static const object_type* replacement_filter_incoming = NULL;
+
+static bool pack_item_matches_replacement_type(const object_type* incoming,
+                                               const object_type* candidate)
+{
+    if (!incoming || !candidate || !candidate->k_idx)
+        return false;
+
+    if (incoming->tval == candidate->tval)
+        return true;
+
+    int incoming_slot = wield_slot(incoming);
+    if (incoming_slot >= INVEN_WIELD && incoming_slot < INVEN_TOTAL)
+    {
+        int candidate_slot = wield_slot(candidate);
+        if (candidate_slot == incoming_slot)
+            return true;
+    }
+
+    return false;
+}
+
 bool is_smithed_by_player(const object_type* o_ptr)
 {
     return (o_ptr->unused1 == 1);
@@ -3066,10 +3088,20 @@ typedef enum
 
 static bool item_tester_limit_group(const object_type* o_ptr)
 {
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (cursed_p(o_ptr))
+        return false;
+
+    if (replacement_filter_incoming
+        && !pack_item_matches_replacement_type(replacement_filter_incoming, o_ptr))
+        return false;
+
     return inven_carry_limit_can_replace(o_ptr);
 }
 
-static bool pack_has_limit_candidates(void)
+static bool pack_has_limit_candidates(const object_type* incoming)
 {
     for (int i = 0; i < INVEN_PACK; i++)
     {
@@ -3079,6 +3111,9 @@ static bool pack_has_limit_candidates(void)
             continue;
 
         if (!inven_carry_limit_can_replace(j_ptr))
+            continue;
+
+        if (!pack_item_matches_replacement_type(incoming, j_ptr))
             continue;
 
         if (cursed_p(j_ptr))
@@ -3098,6 +3133,11 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
     int limit = inven_carry_limit_value();
     bool replaced = false;
 
+    bool old_item_tester_full = item_tester_full;
+    byte old_item_tester_tval = item_tester_tval;
+    bool (*old_item_tester_hook)(const object_type*) = item_tester_hook;
+    const object_type* old_filter = replacement_filter_incoming;
+
     if (label)
         msg_format("You already carry %s (limit %d).", label, limit);
     else
@@ -3108,9 +3148,10 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
     strnfmt(prompt, sizeof(prompt),
             "Replace which item to pick up %s? ", incoming_name);
 
+    replacement_filter_incoming = incoming;
     item_tester_tval = 0;
     item_tester_hook = item_tester_limit_group;
-    item_tester_full = true;
+    item_tester_full = false;
 
     while (true)
     {
@@ -3145,10 +3186,6 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
             continue;
         }
 
-        item_tester_hook = NULL;
-        item_tester_tval = 0;
-        item_tester_full = false;
-
         inven_drop(item, drop_ptr->number);
 
         p_ptr->notice |= (PN_COMBINE | PN_REORDER);
@@ -3158,9 +3195,10 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
         break;
     }
 
-    item_tester_hook = NULL;
-    item_tester_tval = 0;
-    item_tester_full = false;
+    replacement_filter_incoming = old_filter;
+    item_tester_hook = old_item_tester_hook;
+    item_tester_tval = old_item_tester_tval;
+    item_tester_full = old_item_tester_full;
 
     return replaced;
 }
@@ -3226,7 +3264,7 @@ static pickup_failure_result handle_zero_limit_pickup(object_type* incoming,
 static pickup_failure_result handle_group_limit_pickup(object_type* incoming,
                                                        const char* incoming_name)
 {
-    if (!pack_has_limit_candidates())
+    if (!pack_has_limit_candidates(incoming))
         return PICKUP_FAILURE_ABORT;
 
     if (!prompt_replace_pack_item_limit(incoming, incoming_name))
