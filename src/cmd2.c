@@ -5091,7 +5091,8 @@ void do_cmd_throw(bool automatic)
             bool fatal_blow = false;
 
             // Determine the player's attack score after all modifiers
-            total_attack_mod = total_player_attack(m_ptr, attack_mod);
+            int stealth_bonus = stealth_melee_bonus(m_ptr, true);
+            total_attack_mod = total_player_attack(m_ptr, attack_mod + stealth_bonus);
 
             /* Monsters might notice */
             player_attacked = true;
@@ -5215,6 +5216,25 @@ void do_cmd_throw(bool automatic)
 
                     /* Get "the monster" or "it" */
                     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+
+                    if (p_ptr->active_ability[S_STL][STL_CRUEL_BLOW]
+                        && (crit_bonus_dice > 0) && (net_dam > 0)
+                        && !(r_ptr->flags1 & (RF1_RES_CRIT)))
+                    {
+                        int cruel_blow_multiplier
+                            = (30 - (60 / (crit_bonus_dice + 2)));
+                        if (skill_check(PLAYER, cruel_blow_multiplier,
+                                monster_skill(m_ptr, S_WIL), m_ptr)
+                            > 0)
+                        {
+                            msg_format("%s reels in pain!", m_name);
+
+                            if (!(r_ptr->flags3 & (RF3_NO_CONF)))
+                                m_ptr->confused += crit_bonus_dice + 1;
+
+                            scare_onlooking_friends(m_ptr, -20);
+                        }
+                    }
 
                     // determine the punctuation for the attack ("...", ".", "!"
                     // etc)

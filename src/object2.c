@@ -10,6 +10,27 @@
 
 #include "angband.h"
 
+int object_stack_limit(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return MAX_STACK_SIZE - 1;
+
+    if (o_ptr->tval == TV_SWORD && o_ptr->sval == SV_DAGGER)
+        return 7;
+
+    if (o_ptr->tval == TV_POLEARM && o_ptr->sval == SV_SPEAR)
+        return 5;
+
+    if (o_ptr->tval == TV_ARROW)
+        return 48;
+
+    return MAX_STACK_SIZE - 1;
+}
+
+
+
+
+
 /*
  * Excise a dungeon object from any stacks
  */
@@ -1405,10 +1426,9 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
     }
 
     /* Maximal "stacking" limit */
-    // if (total >= MAX_STACK_SIZE) return (false);
-    if (o_ptr->number == MAX_STACK_SIZE - 1)
+    if (o_ptr->number >= object_stack_limit(o_ptr))
         return (false);
-    if (j_ptr->number == MAX_STACK_SIZE - 1)
+    if (j_ptr->number >= object_stack_limit(j_ptr))
         return (false);
 
     /* They match, so they must be similar */
@@ -1434,13 +1454,21 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
 void object_absorb(object_type* o_ptr, object_type* j_ptr)
 {
     int total = o_ptr->number + j_ptr->number;
+    int limit = object_stack_limit(o_ptr);
 
-    /* Add together the item counts */
-    o_ptr->number = ((total < MAX_STACK_SIZE) ? total : (MAX_STACK_SIZE - 1));
+    if (limit > object_stack_limit(j_ptr))
+        limit = object_stack_limit(j_ptr);
 
-    // determine the new count for j_ptr
-    j_ptr->number
-        = ((total < MAX_STACK_SIZE) ? 0 : total - (MAX_STACK_SIZE - 1));
+    if (total > limit)
+    {
+        o_ptr->number = limit;
+        j_ptr->number = total - limit;
+    }
+    else
+    {
+        o_ptr->number = total;
+        j_ptr->number = 0;
+    }
 
     /* Hack -- Blend "known" status */
     if (object_known_p(j_ptr))
@@ -4878,7 +4906,8 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
         {
             if (d_ptr->k_idx == 0)
             {
-                int placed = MIN(o_ptr->number, MAX_STACK_SIZE - 1);
+                int limit = object_stack_limit(o_ptr);
+                int placed = MIN(o_ptr->number, limit);
                 object_copy(d_ptr, o_ptr);
                 d_ptr->number = placed;
                 d_ptr->pickup = false;
@@ -5154,6 +5183,19 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
 
     /* Get the new object */
     j_ptr = &inventory[i];
+
+    int limit = object_stack_limit(j_ptr);
+    if (j_ptr->number > limit)
+    {
+        int excess = j_ptr->number - limit;
+        j_ptr->number = limit;
+        if (o_ptr != j_ptr)
+            o_ptr->number = excess;
+    }
+    else if (o_ptr != j_ptr)
+    {
+        o_ptr->number -= j_ptr->number;
+    }
 
     /* Forget stack */
     j_ptr->next_o_idx = 0;
@@ -5567,3 +5609,5 @@ void reorder_pack(bool display_message)
     if (flag && display_message)
         msg_print("You reorder some items in your pack.");
 }
+
+

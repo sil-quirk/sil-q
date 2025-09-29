@@ -405,7 +405,7 @@ extern int total_player_attack(monster_type* m_ptr, int base);
 extern int total_player_evasion(monster_type* m_ptr, bool archery);
 extern int total_monster_attack(monster_type* m_ptr, int base);
 extern int total_monster_evasion(monster_type* m_ptr, bool archery);
-extern int stealth_melee_bonus(const monster_type* m_ptr);
+extern int stealth_melee_bonus(const monster_type* m_ptr, bool allow_unseen);
 extern int overwhelming_att_mod(monster_type* m_ptr);
 extern int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
     int skill_type, bool thrown, monster_type* attacker);
@@ -856,6 +856,7 @@ extern void floor_item_increase(int item, int num);
 extern void floor_item_optimize(int item);
 extern void check_pack_overflow(void);
 extern bool inven_carry_okay(const object_type* o_ptr);
+extern int object_stack_limit(const object_type* o_ptr);
 extern s16b inven_carry(object_type* o_ptr, bool combine_ammo);
 extern s16b inven_takeoff(int item, int amt);
 extern void inven_drop(int item, int amt);
@@ -1351,4 +1352,5 @@ extern int enhanced_equip_action;
 extern int enhanced_equipment_selected_item;
 extern char current_menu_command;
 extern int current_menu_state;
+
 

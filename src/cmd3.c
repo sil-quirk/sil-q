@@ -32,11 +32,6 @@ static bool item_tester_hook_ring_slots(const object_type* o_ptr)
     return (o_ptr == &inventory[INVEN_LEFT]) || (o_ptr == &inventory[INVEN_RIGHT]);
 }
 
-static bool item_tester_hook_quiver_slots(const object_type* o_ptr)
-{
-    return (o_ptr == &inventory[INVEN_QUIVER1]) || (o_ptr == &inventory[INVEN_QUIVER2]);
-}
-
 bool throw_slot_menu_active = false;
 bool throw_slot_enabled[INVEN_TOTAL];
 
@@ -832,26 +827,96 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
             combine = true;
         }
         /* Ask for arrow set to replace */
-        else if ((o_ptr->tval == TV_ARROW) && inventory[INVEN_QUIVER1].k_idx
-            && inventory[INVEN_QUIVER2].k_idx)
+        else if (o_ptr->tval == TV_ARROW)
         {
-            /* Restrict the choices */
-            item_tester_tval = TV_ARROW;
-            item_tester_hook = item_tester_hook_quiver_slots;
-            item_tester_full = false;
+            bool any_quiver_dest = false;
+            int slot_choice = slot;
 
-            /* Choose a set of arrows from the equipment only */
-            q = "Replace which set of arrows? ";
-            s = "Oops.";
-            if (!get_item(&slot, q, s, USE_EQUIP))
+            throw_slot_menu_active = true;
+
+            for (i = 0; i < INVEN_TOTAL; i++)
+                throw_slot_enabled[i] = false;
+
             {
-                item_tester_tval = 0;
-                item_tester_hook = NULL;
+                object_type* q1_ptr = &inventory[INVEN_QUIVER1];
+                bool allow_quiver = true;
+
+                if (q1_ptr->k_idx && cursed_p(q1_ptr)
+                    && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+                {
+                    allow_quiver = false;
+                }
+
+                if (allow_quiver)
+                {
+                    throw_slot_enabled[INVEN_QUIVER1] = true;
+                    any_quiver_dest = true;
+                }
+            }
+
+            {
+                object_type* q2_ptr = &inventory[INVEN_QUIVER2];
+                bool allow_quiver = true;
+
+                if (q2_ptr->k_idx && cursed_p(q2_ptr)
+                    && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+                {
+                    allow_quiver = false;
+                }
+
+                if (allow_quiver)
+                {
+                    throw_slot_enabled[INVEN_QUIVER2] = true;
+                    any_quiver_dest = true;
+                }
+            }
+
+            if (!any_quiver_dest)
+            {
+                msg_print("You have no available quiver slot for those arrows.");
+                throw_slot_menu_active = false;
+                for (i = 0; i < INVEN_TOTAL; i++)
+                    throw_slot_enabled[i] = false;
                 return;
             }
 
-            item_tester_tval = 0;
+            if (!throw_slot_enabled[slot_choice])
+            {
+                if (throw_slot_enabled[INVEN_QUIVER1])
+                    slot_choice = INVEN_QUIVER1;
+                else if (throw_slot_enabled[INVEN_QUIVER2])
+                    slot_choice = INVEN_QUIVER2;
+            }
+
+            item_tester_hook = item_tester_hook_throw_slots;
+            item_tester_full = false;
+
+            q = "Place arrows in which quiver? ";
+            s = "Oops.";
+            if (!get_item(&slot_choice, q, s, USE_EQUIP))
+            {
+                item_tester_hook = NULL;
+                item_tester_full = false;
+                throw_slot_menu_active = false;
+                for (i = 0; i < INVEN_TOTAL; i++)
+                    throw_slot_enabled[i] = false;
+                return;
+            }
+
             item_tester_hook = NULL;
+            item_tester_full = false;
+            throw_slot_menu_active = false;
+
+            slot = slot_choice;
+
+            if ((slot == INVEN_QUIVER1) || (slot == INVEN_QUIVER2))
+            {
+                if (inventory[slot].k_idx && object_similar(&inventory[slot], o_ptr))
+                    combine = true;
+            }
+
+            for (i = 0; i < INVEN_TOTAL; i++)
+                throw_slot_enabled[i] = false;
         }
     }
 

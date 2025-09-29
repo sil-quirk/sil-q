@@ -43,6 +43,7 @@ char* quest_outcome[] = {
 void give_player_item(object_type * o_ptr)
 {
     char o_name[80];
+
     int slot = inven_carry(o_ptr, true);
 
     /* reset the pointer to the new location to pick up the count of the item
@@ -903,13 +904,15 @@ int total_monster_evasion(monster_type* m_ptr, bool archery)
  * but we also give a bonus for high stealth characters who have ASSASSINATION.
  */
 
-int stealth_melee_bonus(const monster_type* m_ptr)
+int stealth_melee_bonus(const monster_type* m_ptr, bool allow_unseen)
 {
     int stealth_bonus = 0;
 
     if (p_ptr->active_ability[S_STL][STL_ASSASSINATION])
     {
-        if ((m_ptr->alertness < ALERTNESS_ALERT) && m_ptr->ml
+        bool visible_target = allow_unseen || m_ptr->ml;
+
+        if ((m_ptr->alertness < ALERTNESS_ALERT) && visible_target
             && !(p_ptr->confused))
         {
             stealth_bonus = p_ptr->skill_use[S_STL];
@@ -2927,6 +2930,14 @@ void py_pickup_aux(int o_idx)
 
         // Break the truce if creatures see
         break_truce(false);
+
+        o_ptr = &o_list[o_idx];
+        if (o_ptr->k_idx && (o_ptr->number > 0))
+        {
+            note_spot(p_ptr->py, p_ptr->px);
+            lite_spot(p_ptr->py, p_ptr->px);
+            return;
+        }
     }
 
     /* Delete the object */
@@ -4504,7 +4515,7 @@ void py_attack_aux(int y, int x, int attack_type)
         // retreat attack, and not charging)
         if ((is_normal_attack(attack_type)) && !charge)
         {
-            stealth_bonus = stealth_melee_bonus(m_ptr);
+            stealth_bonus = stealth_melee_bonus(m_ptr, false);
         }
         else
         {
