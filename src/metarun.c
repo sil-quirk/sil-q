@@ -90,6 +90,28 @@ static void reset_defaults(metarun *m)
     log_debug("After init: curses_seen = 0x%08X", m->curses_seen);
 }
 
+static bool ensure_default_metarun_slot(const char *reason)
+{
+    if (metarun_max > 0 && metaruns) return false;
+
+    if (metaruns) {
+        FREE(metaruns);
+        metaruns = NULL;
+    }
+
+    if (reason && *reason)
+        log_warn("Metarun recovery triggered (%s); creating default entry", reason);
+    else
+        log_warn("Metarun recovery triggered; creating default entry");
+
+    metarun_max = 1;
+    metaruns = C_ZNEW(metarun_max, metarun);
+    reset_defaults(&metaruns[0]);
+    metarun_created = true;
+
+    return true;
+}
+
 /* Apply initial curses based on difficulty level (runtype) */
 static void apply_difficulty_curses(metarun *m)
 {
@@ -421,18 +443,25 @@ errr load_metaruns(bool create_if_missing)
     int file_size = fd_file_size(fd);
     bool is_versioned = is_versioned_meta_file(fd, file_size);
     
+    const char *recovery_reason = NULL;
+
     if (is_versioned) {
         /* Load versioned format */
         meta_file_header header;
         fd_seek(fd, 0);
         fd_read(fd, (char*)&header, sizeof(header));
-        
-        log_info("Loading versioned meta file v%d.%d.%d with %u entries", 
+
+        log_info("Loading versioned meta file v%d.%d.%d with %u entries",
                  header.version_major, header.version_minor, header.version_patch, header.entry_count);
-        
+
         metarun_max = header.entry_count;
-        metaruns = C_ZNEW(metarun_max, metarun);
-        fd_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
+        if (metarun_max > 0) {
+            metaruns = C_ZNEW(metarun_max, metarun);
+            fd_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
+        } else {
+            recovery_reason = "versioned meta.raw reported zero entries";
+            log_warn("Versioned meta file had no entries; scheduling default metarun creation");
+        }
     }
     else {
         /* Legacy format detection and conversion */
@@ -462,14 +491,15 @@ errr load_metaruns(bool create_if_missing)
             log_info("File size doesn't match known formats exactly, assuming new format with %d complete entries", new_count);
         }
 
-        metaruns = C_ZNEW(metarun_max, metarun);
-        
-        if (is_old_format) {
+        if (metarun_max > 0)
+            metaruns = C_ZNEW(metarun_max, metarun);
+
+        if (is_old_format && metarun_max > 0) {
             /* Load old format and convert to new format */
             metarun_old *old_data = C_ZNEW(metarun_max, metarun_old);
             fd_seek(fd, 0);
             fd_read(fd, (char*)old_data, metarun_max * sizeof(metarun_old));
-            
+
             /* Convert each old entry to new format */
             for (s16b i = 0; i < metarun_max; i++) {
                 /* Copy old fields */
@@ -495,47 +525,70 @@ errr load_metaruns(bool create_if_missing)
                 
                 /* Initialize quest tracking fields for old format */
                 metaruns[i].completed_quests = 0;
-                for (int j = 0; j < 15; j++) {
+                for (int j = 0; j < (int)N_ELEMENTS(metaruns[i].quest_reserved); j++) {
                     metaruns[i].quest_reserved[j] = 0;
                 }
             }
-            
+
             FREE(old_data);
             log_info("Successfully converted legacy old format to new format");
-        } else {
+        } else if (!is_old_format && metarun_max > 0) {
             /* Load new format directly */
             fd_seek(fd, 0);
             fd_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
             log_info("Loaded legacy new format entries");
+        } else {
+            recovery_reason = "legacy meta.raw truncated without any complete entries";
+            log_warn("Legacy meta file did not contain any complete entries; scheduling default metarun creation");
         }
     }
-    
+
     fd_close(fd);
+
+    bool seeded_default = false;
+    if (metarun_max <= 0 || !metaruns) {
+        seeded_default = ensure_default_metarun_slot(recovery_reason);
+    }
 
     /* choose current run */
     u32b latest = 0;
     current_run = -1;  /* Initialize to invalid value so any valid entry will be selected */
-    
-    for (s16b i = 0; i < metarun_max; i++) {
-        log_debug("Metarun %d: id=%u, last_played=%u, deaths=%u, silmarils=%u", 
-                  i, metaruns[i].id, metaruns[i].last_played, metaruns[i].deaths, metaruns[i].silmarils);
-                  
-        if (metaruns[i].last_played > latest ||
-            (metaruns[i].last_played == latest && i > current_run))
-        {
-            latest      = metaruns[i].last_played;
-            current_run = i;
-            log_debug("Selected metarun %d as current (last_played=%u)", i, latest);
+
+    if (metarun_max > 0 && metaruns) {
+        for (s16b i = 0; i < metarun_max; i++) {
+            log_debug("Metarun %d: id=%u, last_played=%u, deaths=%u, silmarils=%u",
+                      i, metaruns[i].id, metaruns[i].last_played, metaruns[i].deaths, metaruns[i].silmarils);
+
+            if (metaruns[i].last_played > latest ||
+                (metaruns[i].last_played == latest && i > current_run))
+            {
+                latest      = metaruns[i].last_played;
+                current_run = i;
+                log_debug("Selected metarun %d as current (last_played=%u)", i, latest);
+            }
         }
     }
-    
+
     if (current_run < 0 || current_run >= metarun_max) {
+        if (ensure_default_metarun_slot("no valid metarun could be selected")) {
+            seeded_default = true;
+        }
         log_info("No valid metarun found, defaulting to entry 0");
         current_run = 0;
     }
-    
+
+    if (metarun_max <= 0 || !metaruns) {
+        if (ensure_default_metarun_slot("metarun array unavailable before final selection")) {
+            seeded_default = true;
+        }
+    }
+
+    if (seeded_default) {
+        log_info("Metarun loader seeded a default entry to recover from a corrupt or empty meta.raw");
+    }
+
     metar = metaruns[current_run];
-    log_debug("Final current_run=%d, metar: id=%u, deaths=%u, silmarils=%u", 
+    log_debug("Final current_run=%d, metar: id=%u, deaths=%u, silmarils=%u",
               current_run, metar.id, metar.deaths, metar.silmarils);
 
     /* ensure its per-run directory exists */

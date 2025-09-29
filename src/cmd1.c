@@ -43,7 +43,6 @@ char* quest_outcome[] = {
 void give_player_item(object_type * o_ptr)
 {
     char o_name[80];
-
     int slot = inven_carry(o_ptr, true);
 
     /* reset the pointer to the new location to pick up the count of the item
@@ -2817,6 +2816,28 @@ bool is_weapon_or_armor(const object_type* o_ptr)
 /*
  * Check if an object was smithed by the player
  */
+static const object_type* replacement_filter_incoming = NULL;
+
+static bool pack_item_matches_replacement_type(const object_type* incoming,
+                                               const object_type* candidate)
+{
+    if (!incoming || !candidate || !candidate->k_idx)
+        return false;
+
+    if (incoming->tval == candidate->tval)
+        return true;
+
+    int incoming_slot = wield_slot(incoming);
+    if (incoming_slot >= INVEN_WIELD && incoming_slot < INVEN_TOTAL)
+    {
+        int candidate_slot = wield_slot(candidate);
+        if (candidate_slot == incoming_slot)
+            return true;
+    }
+
+    return false;
+}
+
 bool is_smithed_by_player(const object_type* o_ptr)
 {
     return (o_ptr->unused1 == 1);
@@ -2884,6 +2905,7 @@ static bool prompt_replace_pack_item(const object_type* incoming)
  *
  * Delete the object afterwards.
  */
+
 void py_pickup_aux(int o_idx)
 {
     object_type* o_ptr;
@@ -2930,14 +2952,6 @@ void py_pickup_aux(int o_idx)
 
         // Break the truce if creatures see
         break_truce(false);
-
-        o_ptr = &o_list[o_idx];
-        if (o_ptr->k_idx && (o_ptr->number > 0))
-        {
-            note_spot(p_ptr->py, p_ptr->px);
-            lite_spot(p_ptr->py, p_ptr->px);
-            return;
-        }
     }
 
     /* Delete the object */
@@ -3041,11 +3055,251 @@ void do_cmd_pickup_from_pile(void)
     notice_stuff();
 }
 
-/*
- * Make the player carry everything in a grid.
- *
- * If "pickup" is false then nothing will be picked up.
- */
+static void report_pack_limit_failure(const char* o_name, bool still)
+{
+    if (inven_carry_limit_failed())
+    {
+        cptr label = inven_carry_limit_label();
+        int limit = inven_carry_limit_value();
+
+        if (label)
+        {
+            if (still)
+                msg_format("Your pack still cannot hold more %s (limit %d).", label,
+                           limit);
+            else
+                msg_format("Your pack cannot hold more %s (limit %d).", label, limit);
+            return;
+        }
+    }
+
+    if (still)
+        msg_format("You still have no room for %s.", o_name);
+    else
+        msg_format("You have no room for %s.", o_name);
+}
+
+typedef enum
+{
+    PICKUP_FAILURE_ABORT = 0,
+    PICKUP_FAILURE_RETRY,
+    PICKUP_FAILURE_EQUIPPED
+} pickup_failure_result;
+
+static bool item_tester_limit_group(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (cursed_p(o_ptr))
+        return false;
+
+    if (replacement_filter_incoming
+        && !pack_item_matches_replacement_type(replacement_filter_incoming, o_ptr))
+        return false;
+
+    return inven_carry_limit_can_replace(o_ptr);
+}
+
+static bool pack_has_limit_candidates(const object_type* incoming)
+{
+    for (int i = 0; i < INVEN_PACK; i++)
+    {
+        object_type* j_ptr = &inventory[i];
+
+        if (!j_ptr->k_idx)
+            continue;
+
+        if (!inven_carry_limit_can_replace(j_ptr))
+            continue;
+
+        if (!pack_item_matches_replacement_type(incoming, j_ptr))
+            continue;
+
+        if (cursed_p(j_ptr))
+            continue;
+
+        return true;
+    }
+
+    return false;
+}
+
+static bool prompt_replace_pack_item_limit(const object_type* incoming,
+                                           const char* incoming_name)
+{
+    char prompt[160];
+    cptr label = inven_carry_limit_label();
+    int limit = inven_carry_limit_value();
+    bool replaced = false;
+
+    bool old_item_tester_full = item_tester_full;
+    byte old_item_tester_tval = item_tester_tval;
+    bool (*old_item_tester_hook)(const object_type*) = item_tester_hook;
+    const object_type* old_filter = replacement_filter_incoming;
+
+    if (label)
+        msg_format("You already carry %s (limit %d).", label, limit);
+    else
+        msg_print("You cannot carry any more of those.");
+
+    msg_print("Choose an item to replace.");
+
+    strnfmt(prompt, sizeof(prompt),
+            "Replace which item to pick up %s? ", incoming_name);
+
+    replacement_filter_incoming = incoming;
+    item_tester_tval = 0;
+    item_tester_hook = item_tester_limit_group;
+    item_tester_full = false;
+
+    while (true)
+    {
+        int item;
+
+        if (!get_item(&item, prompt, "You have nothing to replace.", USE_INVEN))
+            break;
+
+        if ((item < 0) || (item >= INVEN_PACK))
+        {
+            bell("Illegal object choice!");
+            continue;
+        }
+
+        object_type* drop_ptr = &inventory[item];
+
+        if (!drop_ptr->k_idx)
+        {
+            bell("That slot is empty.");
+            continue;
+        }
+
+        if (!inven_carry_limit_can_replace(drop_ptr))
+        {
+            msg_print("That will not make enough room.");
+            continue;
+        }
+
+        if (cursed_p(drop_ptr))
+        {
+            msg_print("You cannot bear to part with it.");
+            continue;
+        }
+
+        inven_drop(item, drop_ptr->number);
+
+        p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+        notice_stuff();
+
+        replaced = true;
+        break;
+    }
+
+    replacement_filter_incoming = old_filter;
+    item_tester_hook = old_item_tester_hook;
+    item_tester_tval = old_item_tester_tval;
+    item_tester_full = old_item_tester_full;
+
+    return replaced;
+}
+
+static pickup_failure_result handle_zero_limit_pickup(object_type* incoming,
+                                                      int floor_o_idx,
+                                                      const char* incoming_name)
+{
+    int slot = wield_slot(incoming);
+
+    msg_format("You cannot carry %s in your pack.", incoming_name);
+
+    if (slot < INVEN_WIELD || slot >= INVEN_TOTAL)
+    {
+        msg_print("It does not fit anywhere on your body.");
+        return PICKUP_FAILURE_ABORT;
+    }
+
+    object_type* equip_ptr = &inventory[slot];
+
+    if (!equip_ptr->k_idx)
+    {
+        if (get_check("Wear it now? "))
+        {
+            do_cmd_wield(incoming, 0 - floor_o_idx);
+            return PICKUP_FAILURE_EQUIPPED;
+        }
+
+        msg_print("You leave it on the ground.");
+        return PICKUP_FAILURE_ABORT;
+    }
+
+    if (cursed_p(equip_ptr))
+    {
+        char equipped_name[80];
+        object_desc(equipped_name, sizeof(equipped_name), equip_ptr, true, 3);
+        msg_format("You cannot remove %s.", equipped_name);
+        return PICKUP_FAILURE_ABORT;
+    }
+
+    screen_save();
+    show_equip();
+    msg_print(NULL);
+    screen_load();
+
+    char equipped_name[80];
+    object_desc(equipped_name, sizeof(equipped_name), equip_ptr, true, 3);
+
+    char prompt[160];
+    strnfmt(prompt, sizeof(prompt), "Replace %s with %s? ", equipped_name,
+            incoming_name);
+
+    if (get_check(prompt))
+    {
+        do_cmd_wield(incoming, 0 - floor_o_idx);
+        return PICKUP_FAILURE_EQUIPPED;
+    }
+
+    msg_print("You decide to keep your current equipment.");
+    return PICKUP_FAILURE_ABORT;
+}
+
+static pickup_failure_result handle_group_limit_pickup(object_type* incoming,
+                                                       const char* incoming_name)
+{
+    if (!pack_has_limit_candidates(incoming))
+        return PICKUP_FAILURE_ABORT;
+
+    if (!prompt_replace_pack_item_limit(incoming, incoming_name))
+        return PICKUP_FAILURE_ABORT;
+
+    return PICKUP_FAILURE_RETRY;
+}
+
+static pickup_failure_result resolve_pickup_failure(object_type* incoming,
+                                                    int floor_o_idx,
+                                                    const char* incoming_name,
+                                                    bool attempted_replacement)
+{
+    if (inven_carry_limit_failed())
+    {
+        if (inven_carry_limit_value() <= 0)
+            return handle_zero_limit_pickup(incoming, floor_o_idx,
+                                            incoming_name);
+
+        pickup_failure_result limit_result =
+            handle_group_limit_pickup(incoming, incoming_name);
+
+        if (limit_result == PICKUP_FAILURE_ABORT)
+            report_pack_limit_failure(incoming_name, attempted_replacement);
+
+        return limit_result;
+    }
+
+    if (prompt_replace_pack_item(incoming))
+        return PICKUP_FAILURE_RETRY;
+
+    report_pack_limit_failure(incoming_name, attempted_replacement);
+    return PICKUP_FAILURE_ABORT;
+}
+
 void py_pickup(void)
 {
     int py = p_ptr->py;
@@ -3084,24 +3338,35 @@ void py_pickup(void)
             continue;
         }
 
-        /* Note that the pack is too full */
-        if (!inven_carry_okay(o_ptr))
+        bool attempted_replacement = false;
+        bool skip_current_item = false;
+
+        while (!inven_carry_okay(o_ptr))
         {
-            if (!prompt_replace_pack_item(o_ptr))
+            pickup_failure_result failure = resolve_pickup_failure(
+                o_ptr, this_o_idx, o_name, attempted_replacement);
+
+            if (failure == PICKUP_FAILURE_RETRY)
             {
-                if (o_ptr->k_idx)
-                    msg_format("You have no room for %s.", o_name);
+                attempted_replacement = true;
                 continue;
             }
 
-            /* Still no room after dropping something */
-            if (!inven_carry_okay(o_ptr))
+            if (failure == PICKUP_FAILURE_EQUIPPED)
             {
-                if (o_ptr->k_idx)
-                    msg_format("You still have no room for %s.", o_name);
-                continue;
+                done_pickup = true;
+                skip_current_item = true;
             }
+            else
+            {
+                skip_current_item = true;
+            }
+
+            break;
         }
+
+        if (skip_current_item)
+            continue;
 
         // Check whether it would be too heavy
         if (p_ptr->total_weight + o_ptr->weight > weight_limit() * 3 / 2)
@@ -6286,4 +6551,8 @@ void run_step(int dir)
     /* Move the player */
     move_player(p_ptr->run_cur_dir);
 }
+
+
+
+
 

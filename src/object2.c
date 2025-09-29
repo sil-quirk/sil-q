@@ -10,6 +10,328 @@
 
 #include "angband.h"
 
+enum inventory_limit_group
+{
+    INV_LIMIT_NONE = 0,
+    INV_LIMIT_ARROW,
+    INV_LIMIT_BOW,
+    INV_LIMIT_DIGGING,
+    INV_LIMIT_BOOTS,
+    INV_LIMIT_GLOVES,
+    INV_LIMIT_HELM_CROWN,
+    INV_LIMIT_ROUND_SHIELD,
+    INV_LIMIT_OTHER_SHIELD,
+    INV_LIMIT_CLOAK,
+    INV_LIMIT_SOFT_ARMOUR,
+    INV_LIMIT_MAIL,
+    INV_LIMIT_MELEE_WEAPON
+};
+
+static bool carry_limit_last_failed = false;
+static enum inventory_limit_group carry_limit_last_group = INV_LIMIT_NONE;
+static int carry_limit_last_limit = 0;
+static char carry_limit_last_label[64];
+
+static void clear_inventory_limit_failure(void)
+{
+    carry_limit_last_failed = false;
+    carry_limit_last_group = INV_LIMIT_NONE;
+    carry_limit_last_limit = 0;
+    carry_limit_last_label[0] = '\0';
+}
+
+static bool object_is_truly_two_handed(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return false;
+
+    switch (o_ptr->tval)
+    {
+        case TV_HAFTED:
+            return (o_ptr->sval == SV_QUARTERSTAFF);
+        case TV_POLEARM:
+            return (o_ptr->sval == SV_GREAT_SPEAR) || (o_ptr->sval == SV_GLAIVE)
+                || (o_ptr->sval == SV_GREAT_AXE);
+        case TV_SWORD:
+            return (o_ptr->sval == SV_GREAT_SWORD)
+                || (o_ptr->sval == SV_MITHRIL_GREAT_SWORD);
+        default:
+            break;
+    }
+
+    return false;
+}
+
+static bool get_inventory_limit_info(const object_type* o_ptr,
+                                     enum inventory_limit_group* group,
+                                     int* limit,
+                                     int* cost)
+{
+    enum inventory_limit_group local_group = INV_LIMIT_NONE;
+    int local_limit = 0;
+    int local_cost = 1;
+    bool found = true;
+
+    if (!o_ptr || !o_ptr->k_idx)
+    {
+        found = false;
+    }
+    else
+    {
+        switch (o_ptr->tval)
+        {
+            case TV_ARROW:
+                local_group = INV_LIMIT_ARROW;
+                local_limit = 2;
+                break;
+            case TV_BOW:
+                local_group = INV_LIMIT_BOW;
+                local_limit = 1;
+                break;
+            case TV_DIGGING:
+                local_group = INV_LIMIT_DIGGING;
+                local_limit = 1;
+                break;
+            case TV_BOOTS:
+                local_group = INV_LIMIT_BOOTS;
+                local_limit = 2;
+                break;
+            case TV_GLOVES:
+                local_group = INV_LIMIT_GLOVES;
+                local_limit = 2;
+                break;
+            case TV_HELM:
+            case TV_CROWN:
+                local_group = INV_LIMIT_HELM_CROWN;
+                local_limit = 1;
+                break;
+            case TV_SHIELD:
+                if (o_ptr->sval == SV_ROUND_SHIELD)
+                {
+                    local_group = INV_LIMIT_ROUND_SHIELD;
+                    local_limit = 1;
+                }
+                else
+                {
+                    local_group = INV_LIMIT_OTHER_SHIELD;
+                    local_limit = 0;
+                }
+                break;
+            case TV_CLOAK:
+                local_group = INV_LIMIT_CLOAK;
+                local_limit = 3;
+                break;
+            case TV_SOFT_ARMOR:
+                if (o_ptr->sval == SV_ROBE)
+                {
+                    local_group = INV_LIMIT_CLOAK;
+                    local_limit = 3;
+                }
+                else
+                {
+                    local_group = INV_LIMIT_SOFT_ARMOUR;
+                    local_limit = 1;
+                }
+                break;
+            case TV_MAIL:
+                local_group = INV_LIMIT_MAIL;
+                local_limit = 0;
+                break;
+            case TV_HAFTED:
+            case TV_POLEARM:
+            case TV_SWORD:
+                local_group = INV_LIMIT_MELEE_WEAPON;
+                local_limit = 2;
+                local_cost = object_is_truly_two_handed(o_ptr) ? 2 : 1;
+                break;
+            default:
+                found = false;
+                break;
+        }
+    }
+
+    if (found)
+    {
+        if (p_ptr->active_ability[S_EVN][EVN_HEAVY_ARMOUR])
+        {
+            if (local_group == INV_LIMIT_MAIL
+                || local_group == INV_LIMIT_HELM_CROWN
+                || local_group == INV_LIMIT_ROUND_SHIELD
+                || local_group == INV_LIMIT_OTHER_SHIELD)
+            {
+                local_limit += 1;
+            }
+        }
+    }
+
+    if (group)
+        *group = local_group;
+    if (limit)
+        *limit = local_limit;
+    if (cost)
+        *cost = local_cost;
+
+    return found;
+}
+
+static int inventory_limit_usage(enum inventory_limit_group group)
+{
+    int usage = 0;
+
+    if (group == INV_LIMIT_NONE)
+        return 0;
+
+    for (int idx = 0; idx <= INVEN_PACK; idx++)
+    {
+        object_type* slot_ptr = &inventory[idx];
+
+        if (!slot_ptr->k_idx)
+            continue;
+
+        enum inventory_limit_group slot_group;
+        int slot_limit;
+        int slot_cost;
+
+        if (!get_inventory_limit_info(slot_ptr, &slot_group, &slot_limit,
+                                       &slot_cost))
+            continue;
+
+        if (slot_group != group)
+            continue;
+
+        usage += slot_cost;
+    }
+
+    return usage;
+}
+
+static void fill_inventory_limit_label(enum inventory_limit_group group,
+                                       const object_type* o_ptr)
+{
+    switch (group)
+    {
+        case INV_LIMIT_ARROW:
+            my_strcpy(carry_limit_last_label, "arrow stacks",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_BOW:
+            my_strcpy(carry_limit_last_label, "bows",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_DIGGING:
+            my_strcpy(carry_limit_last_label, "digging tools",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_BOOTS:
+            my_strcpy(carry_limit_last_label, "pairs of boots",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_GLOVES:
+            my_strcpy(carry_limit_last_label, "pairs of gloves",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_HELM_CROWN:
+            my_strcpy(carry_limit_last_label, "helms or crowns",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_ROUND_SHIELD:
+            my_strcpy(carry_limit_last_label, "round shields",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_OTHER_SHIELD:
+            my_strcpy(carry_limit_last_label, "non-round shields",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_CLOAK:
+            my_strcpy(carry_limit_last_label, "cloaks",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_SOFT_ARMOUR:
+            my_strcpy(carry_limit_last_label, "soft armour",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_MAIL:
+            my_strcpy(carry_limit_last_label, "mail armour",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_MELEE_WEAPON:
+            if (object_is_truly_two_handed(o_ptr))
+                my_strcpy(carry_limit_last_label,
+                          "two-handed melee weapons",
+                          sizeof(carry_limit_last_label));
+            else
+                my_strcpy(carry_limit_last_label, "melee weapons",
+                          sizeof(carry_limit_last_label));
+            break;
+        default:
+            my_strcpy(carry_limit_last_label, "items of this type",
+                      sizeof(carry_limit_last_label));
+            break;
+    }
+}
+
+static void set_inventory_limit_failure(enum inventory_limit_group group,
+                                        int limit,
+                                        const object_type* o_ptr)
+{
+    carry_limit_last_failed = true;
+    carry_limit_last_group = group;
+    carry_limit_last_limit = limit;
+    fill_inventory_limit_label(group, o_ptr);
+}
+
+bool inven_carry_limit_can_replace(const object_type* o_ptr)
+{
+    enum inventory_limit_group group;
+    int limit;
+    int cost;
+
+    if (!carry_limit_last_failed)
+        return false;
+
+    if (carry_limit_last_limit <= 0)
+        return false;
+
+    if (!o_ptr)
+        return false;
+
+    if (!get_inventory_limit_info(o_ptr, &group, &limit, &cost))
+        return false;
+
+    if (group != carry_limit_last_group)
+        return false;
+
+    return (cost > 0);
+}
+
+static bool inventory_type_slot_available(const object_type* o_ptr,
+                                          bool record_failure)
+{
+    enum inventory_limit_group group;
+    int limit;
+    int cost;
+
+    if (!get_inventory_limit_info(o_ptr, &group, &limit, &cost))
+        return true;
+
+    if (limit <= 0)
+    {
+        if (record_failure)
+            set_inventory_limit_failure(group, limit, o_ptr);
+        return false;
+    }
+
+    int used = inventory_limit_usage(group);
+
+    if (used + cost <= limit)
+        return true;
+
+    if (record_failure)
+        set_inventory_limit_failure(group, limit, o_ptr);
+
+    return false;
+}
+
 int object_stack_limit(const object_type* o_ptr)
 {
     if (!o_ptr)
@@ -4795,20 +5117,16 @@ bool inven_carry_okay(const object_type* o_ptr)
 {
     int j;
 
-    /* Empty slot? */
-    if (p_ptr->inven_cnt < INVEN_PACK)
-        return (true);
+    clear_inventory_limit_failure();
 
     /* Similar slot? */
     for (j = 0; j < INVEN_PACK; j++)
     {
         object_type* j_ptr = &inventory[j];
 
-        /* Skip non-objects */
         if (!j_ptr->k_idx)
             continue;
 
-        /* Check if the two items can be combined */
         if (object_similar(j_ptr, o_ptr))
             return (true);
     }
@@ -4818,33 +5136,23 @@ bool inven_carry_okay(const object_type* o_ptr)
     {
         int empty_quiver = 0;
 
-        // arrows combine with similar arrows
         for (j = INVEN_QUIVER1; j <= INVEN_QUIVER2; j++)
         {
             object_type* j_ptr = &inventory[j];
 
-            /* Skip non-objects */
             if (!j_ptr->k_idx)
             {
-                // keep track of the first empty quiver
                 if (empty_quiver == 0)
                     empty_quiver = j;
                 continue;
             }
 
-            /* Check if the two items can be combined */
             if (object_similar(j_ptr, o_ptr))
-            {
                 return (true);
-            }
         }
 
-        // arrows that have been fired can also fit back into an empty quiver
-        // slot
         if ((empty_quiver > 0) && o_ptr->pickup)
-        {
             return (true);
-        }
     }
 
     if (k_info[o_ptr->k_idx].flags3 & (TR3_THROWING))
@@ -4861,8 +5169,13 @@ bool inven_carry_okay(const object_type* o_ptr)
         }
     }
 
-    /* Nope */
-    return (false);
+    if (!inventory_type_slot_available(o_ptr, true))
+        return (false);
+
+    if (p_ptr->inven_cnt >= INVEN_PACK)
+        return (false);
+
+    return (true);
 }
 
 /*
@@ -4889,6 +5202,8 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
     int n = -1;
 
     object_type* j_ptr;
+
+    clear_inventory_limit_failure();
 
     /*paranoia, don't pick up "&nothings"*/
     if (!o_ptr->k_idx)
@@ -5046,6 +5361,9 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
     }
 
     /* Paranoia */
+    if (!inventory_type_slot_available(o_ptr, true))
+        return (-1);
+
     if (p_ptr->inven_cnt > INVEN_PACK)
         return (-1);
 
@@ -5223,6 +5541,27 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
 
     /* Return the slot */
     return (i);
+}
+
+bool inven_carry_limit_failed(void)
+{
+    return carry_limit_last_failed;
+}
+
+cptr inven_carry_limit_label(void)
+{
+    if (!carry_limit_last_failed)
+        return NULL;
+
+    if (!carry_limit_last_label[0])
+        return NULL;
+
+    return carry_limit_last_label;
+}
+
+int inven_carry_limit_value(void)
+{
+    return carry_limit_last_limit;
 }
 
 /*
@@ -5609,5 +5948,3 @@ void reorder_pack(bool display_message)
     if (flag && display_message)
         msg_print("You reorder some items in your pack.");
 }
-
-

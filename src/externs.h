@@ -856,6 +856,10 @@ extern void floor_item_increase(int item, int num);
 extern void floor_item_optimize(int item);
 extern void check_pack_overflow(void);
 extern bool inven_carry_okay(const object_type* o_ptr);
+extern bool inven_carry_limit_failed(void);
+extern cptr inven_carry_limit_label(void);
+extern int inven_carry_limit_value(void);
+extern bool inven_carry_limit_can_replace(const object_type* o_ptr);
 extern int object_stack_limit(const object_type* o_ptr);
 extern s16b inven_carry(object_type* o_ptr, bool combine_ammo);
 extern s16b inven_takeoff(int item, int amt);
@@ -1352,5 +1356,3 @@ extern int enhanced_equip_action;
 extern int enhanced_equipment_selected_item;
 extern char current_menu_command;
 extern int current_menu_state;
-
-
