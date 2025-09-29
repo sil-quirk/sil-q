@@ -5180,10 +5180,10 @@ bool inven_carry_okay(const object_type* o_ptr)
         }
     }
 
-    if (p_ptr->inven_cnt >= INVEN_PACK)
+    if (!inventory_type_slot_available(o_ptr, true))
         return (false);
 
-    if (!inventory_type_slot_available(o_ptr, true))
+    if (p_ptr->inven_cnt >= INVEN_PACK)
         return (false);
 
     return (true);
@@ -5372,10 +5372,10 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
     }
 
     /* Paranoia */
-    if (p_ptr->inven_cnt > INVEN_PACK)
+    if (!inventory_type_slot_available(o_ptr, true))
         return (-1);
 
-    if (!inventory_type_slot_available(o_ptr, true))
+    if (p_ptr->inven_cnt > INVEN_PACK)
         return (-1);
 
     /* Find an empty slot */
