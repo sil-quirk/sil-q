@@ -67,122 +67,111 @@ static bool get_inventory_limit_info(const object_type* o_ptr,
                                      int* limit,
                                      int* cost)
 {
+    enum inventory_limit_group local_group = INV_LIMIT_NONE;
+    int local_limit = 0;
+    int local_cost = 1;
+    bool found = true;
+
     if (!o_ptr || !o_ptr->k_idx)
     {
-        if (group)
-            *group = INV_LIMIT_NONE;
-        if (limit)
-            *limit = 0;
-        if (cost)
-            *cost = 1;
-        return false;
+        found = false;
+    }
+    else
+    {
+        switch (o_ptr->tval)
+        {
+            case TV_ARROW:
+                local_group = INV_LIMIT_ARROW;
+                local_limit = 2;
+                break;
+            case TV_BOW:
+                local_group = INV_LIMIT_BOW;
+                local_limit = 1;
+                break;
+            case TV_DIGGING:
+                local_group = INV_LIMIT_DIGGING;
+                local_limit = 1;
+                break;
+            case TV_BOOTS:
+                local_group = INV_LIMIT_BOOTS;
+                local_limit = 2;
+                break;
+            case TV_GLOVES:
+                local_group = INV_LIMIT_GLOVES;
+                local_limit = 2;
+                break;
+            case TV_HELM:
+            case TV_CROWN:
+                local_group = INV_LIMIT_HELM_CROWN;
+                local_limit = 1;
+                break;
+            case TV_SHIELD:
+                if (o_ptr->sval == SV_ROUND_SHIELD)
+                {
+                    local_group = INV_LIMIT_ROUND_SHIELD;
+                    local_limit = 1;
+                }
+                else
+                {
+                    local_group = INV_LIMIT_OTHER_SHIELD;
+                    local_limit = 0;
+                }
+                break;
+            case TV_CLOAK:
+                local_group = INV_LIMIT_CLOAK;
+                local_limit = 3;
+                break;
+            case TV_SOFT_ARMOR:
+                if (o_ptr->sval == SV_ROBE)
+                {
+                    local_group = INV_LIMIT_CLOAK;
+                    local_limit = 3;
+                }
+                else
+                {
+                    local_group = INV_LIMIT_SOFT_ARMOUR;
+                    local_limit = 1;
+                }
+                break;
+            case TV_MAIL:
+                local_group = INV_LIMIT_MAIL;
+                local_limit = 0;
+                break;
+            case TV_HAFTED:
+            case TV_POLEARM:
+            case TV_SWORD:
+                local_group = INV_LIMIT_MELEE_WEAPON;
+                local_limit = 2;
+                local_cost = object_is_truly_two_handed(o_ptr) ? 2 : 1;
+                break;
+            default:
+                found = false;
+                break;
+        }
     }
 
-    switch (o_ptr->tval)
+    if (found)
     {
-        case TV_ARROW:
-            if (group)
-                *group = INV_LIMIT_ARROW;
-            if (limit)
-                *limit = 2;
-            if (cost)
-                *cost = 1;
-            return true;
-        case TV_BOW:
-            if (group)
-                *group = INV_LIMIT_BOW;
-            if (limit)
-                *limit = 1;
-            if (cost)
-                *cost = 1;
-            return true;
-        case TV_DIGGING:
-            if (group)
-                *group = INV_LIMIT_DIGGING;
-            if (limit)
-                *limit = 1;
-            if (cost)
-                *cost = 1;
-            return true;
-        case TV_BOOTS:
-            if (group)
-                *group = INV_LIMIT_BOOTS;
-            if (limit)
-                *limit = 2;
-            if (cost)
-                *cost = 1;
-            return true;
-        case TV_GLOVES:
-            if (group)
-                *group = INV_LIMIT_GLOVES;
-            if (limit)
-                *limit = 2;
-            if (cost)
-                *cost = 1;
-            return true;
-        case TV_HELM:
-        case TV_CROWN:
-            if (group)
-                *group = INV_LIMIT_HELM_CROWN;
-            if (limit)
-                *limit = 1;
-            if (cost)
-                *cost = 1;
-            return true;
-        case TV_SHIELD:
-            if (group)
-                *group = (o_ptr->sval == SV_ROUND_SHIELD) ? INV_LIMIT_ROUND_SHIELD
-                                                         : INV_LIMIT_OTHER_SHIELD;
-            if (limit)
-                *limit = (o_ptr->sval == SV_ROUND_SHIELD) ? 1 : 0;
-            if (cost)
-                *cost = 1;
-            return true;
-        case TV_CLOAK:
-            if (group)
-                *group = INV_LIMIT_CLOAK;
-            if (limit)
-                *limit = 3;
-            if (cost)
-                *cost = 1;
-            return true;
-        case TV_SOFT_ARMOR:
-            if (group)
-                *group = INV_LIMIT_SOFT_ARMOUR;
-            if (limit)
-                *limit = 1;
-            if (cost)
-                *cost = 1;
-            return true;
-        case TV_MAIL:
-            if (group)
-                *group = INV_LIMIT_MAIL;
-            if (limit)
-                *limit = 0;
-            if (cost)
-                *cost = 1;
-            return true;
-        case TV_HAFTED:
-        case TV_POLEARM:
-        case TV_SWORD:
-            if (group)
-                *group = INV_LIMIT_MELEE_WEAPON;
-            if (limit)
-                *limit = 2;
-            if (cost)
-                *cost = object_is_truly_two_handed(o_ptr) ? 2 : 1;
-            return true;
-        default:
-            break;
+        if (p_ptr->active_ability[S_EVN][EVN_HEAVY_ARMOUR])
+        {
+            if (local_group == INV_LIMIT_MAIL
+                || local_group == INV_LIMIT_HELM_CROWN
+                || local_group == INV_LIMIT_ROUND_SHIELD
+                || local_group == INV_LIMIT_OTHER_SHIELD)
+            {
+                local_limit += 1;
+            }
+        }
     }
 
     if (group)
-        *group = INV_LIMIT_NONE;
+        *group = local_group;
     if (limit)
-        *limit = 0;
+        *limit = local_limit;
     if (cost)
-        *cost = 1;
-    return false;
+        *cost = local_cost;
+
+    return found;
 }
 
 static int inventory_limit_usage(enum inventory_limit_group group)
