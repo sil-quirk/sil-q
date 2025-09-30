@@ -11404,18 +11404,20 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
     int grp_idx[], int grp_cur, int grp_top, int group_totals[])
 {
     int i;
+    int total_col = col + wid - 3;
 
     for (i = 0; i < per_page && (grp_idx[i] >= 0); i++)
     {
         int grp = grp_idx[grp_top + i];
         byte attr = (grp_top + i == grp_cur) ? TERM_L_BLUE
             : (group_totals[grp] ? TERM_WHITE : TERM_L_DARK);
-        char buf[32];
-
-        strnfmt(buf, sizeof(buf), "%-12s %3d", supply_group_text[grp], group_totals[grp]);
+        char buf[8];
 
         Term_erase(col, row + i, wid);
-        c_put_str(attr, buf, row + i, col);
+        c_put_str(attr, supply_group_text[grp], row + i, col);
+
+        strnfmt(buf, sizeof(buf), "%3d", group_totals[grp]);
+        c_put_str(attr, buf, row + i, total_col);
     }
 }
 
@@ -12675,7 +12677,7 @@ void do_cmd_knowledge_supplies(void)
     int column = 0;
     bool flag = false;
     bool redraw = true;
-    const int count_col = 67;
+    const int count_col = 68;
     const int sym_col = 75;
 
     for (i = 0; i < SUPPLY_GROUP_MAX; i++)
@@ -12779,6 +12781,8 @@ void do_cmd_knowledge_supplies(void)
 
         case 'R':
         case 'r':
+        case 'X':
+        case 'x':
             if (!column && entry_cnt)
             {
                 column = 1;
