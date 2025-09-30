@@ -573,6 +573,7 @@ extern void do_cmd_knowledge_notes(void);
 extern void do_cmd_knowledge_oaths(void);
 extern void do_cmd_knowledge_artefacts(void);
 extern void do_cmd_knowledge_monsters(void);
+extern void do_cmd_knowledge_supplies(void);
 extern void do_cmd_knowledge_objects(void);
 extern void do_cmd_knowledge_kills(void);
 extern void ghost_challenge(void);

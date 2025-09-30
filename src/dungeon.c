@@ -1324,6 +1324,13 @@ static void process_command(void)
         break;
     }
 
+    /* Supplies overview */
+    case 'j':
+    {
+        do_cmd_knowledge_supplies();
+        break;
+    }
+
     /* Check knowledge */
     case '~':
     {

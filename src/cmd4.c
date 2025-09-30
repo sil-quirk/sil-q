@@ -51,6 +51,30 @@ struct object_list_entry
     int tval, sval;
 };
 
+
+typedef struct supply_list_entry supply_list_entry;
+struct supply_list_entry
+{
+    int item_idx; /* First inventory slot containing this kind */
+    int k_idx;    /* Object kind index */
+    int total;    /* Total quantity across the pack */
+};
+
+enum
+{
+    SUPPLY_GROUP_HERBS,
+    SUPPLY_GROUP_POTIONS,
+    SUPPLY_GROUP_STAVES,
+    SUPPLY_GROUP_MAX
+};
+
+static cptr supply_group_text[SUPPLY_GROUP_MAX + 1] = {
+    "Herbs",
+    "Potions",
+    "Staves",
+    NULL
+};
+
 /*
  * Remove old lines from pref files
  */
@@ -7300,10 +7324,6 @@ int main_menu_aux(int* highlight)
     Term_putstr(COL_MAIN, 15, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
         "Save                 (s)");
     Term_putstr(COL_MAIN, 16, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
-        "Suicide              (k)");
-    Term_putstr(COL_MAIN, 15, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
-        "Save                 (s)");
-    Term_putstr(COL_MAIN, 16, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
         "Quit with save       (q)");
     Term_putstr(COL_MAIN, 17, -1, (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
         "Return to game       (r)");
@@ -7320,23 +7340,56 @@ int main_menu_aux(int* highlight)
     hide_cursor = false;
 
     // choose an option by letter - alphabetical mapping (updated for new order)
-    switch (ch) {
-        case 'c': *highlight = 1; return (*highlight);  // Character sheet
-        case 'a': *highlight = 2; return (*highlight);  // Known artefacts
-        case 'b': *highlight = 3; return (*highlight);  // Known objects  
-        case 'n': *highlight = 4; return (*highlight);  // Known monsters
-        case 'u': *highlight = 5; return (*highlight);  // Known curses
-        case 't': *highlight = 6; return (*highlight);  // Quest status
-        case 'd': *highlight = 7; return (*highlight);  // Halls of Mandos
-        case 'm': *highlight = 8; return (*highlight);  // Map
-        case 'l': *highlight = 9; return (*highlight);  // Log
-        case 'x': *highlight = 10; return (*highlight); // Combat history
-        case 'o': *highlight = 11; return (*highlight); // Options and misc
-        case 'h': *highlight = 12; return (*highlight); // Help
-        case 'k': *highlight = 13; return (*highlight); // Suicide
-        case 's': *highlight = 14; return (*highlight); // Save
-        case 'q': *highlight = 15; return (*highlight); // Quit with save
-        case 'r': *highlight = 16; return (*highlight); // Return to game
+    switch (ch)
+    {
+    case 'c':
+        *highlight = 1;
+        return (*highlight);  // Character sheet
+    case 'a':
+        *highlight = 2;
+        return (*highlight);  // Known artefacts
+    case 'b':
+        *highlight = 3;
+        return (*highlight);  // Known objects
+    case 'n':
+        *highlight = 4;
+        return (*highlight);  // Known monsters
+    case 'u':
+        *highlight = 5;
+        return (*highlight);  // Known curses
+    case 't':
+        *highlight = 6;
+        return (*highlight);  // Quest status
+    case 'd':
+        *highlight = 7;
+        return (*highlight);  // Halls of Mandos
+    case 'm':
+        *highlight = 8;
+        return (*highlight);  // Map
+    case 'l':
+        *highlight = 9;
+        return (*highlight);  // Log
+    case 'x':
+        *highlight = 10;
+        return (*highlight); // Combat history
+    case 'o':
+        *highlight = 11;
+        return (*highlight); // Options and misc
+    case 'h':
+        *highlight = 12;
+        return (*highlight); // Help
+    case 'k':
+        *highlight = 13;
+        return (*highlight); // Suicide
+    case 's':
+        *highlight = 14;
+        return (*highlight); // Save
+    case 'q':
+        *highlight = 15;
+        return (*highlight); // Quit with save
+    case 'r':
+        *highlight = 16;
+        return (*highlight); // Return to game
     }
 
     /* Choose current  */
@@ -7480,10 +7533,10 @@ void do_cmd_main_menu(void)
         case 15: // Quit with save (q)
         {
             do_cmd_save_game();
-            
+
             /* Stop playing */
             p_ptr->playing = false;
-            
+
             /* Mark that we want to quit to menu, not exit application */
             p_ptr->quit_to_menu = true;
 
@@ -11201,6 +11254,245 @@ static void display_group_list(int col, int row, int wid, int per_page,
     }
 }
 
+static bool supply_kind_matches(int group, int tval, int sval)
+{
+    switch (group)
+    {
+    case SUPPLY_GROUP_HERBS:
+        return (tval == TV_FOOD) && (sval <= SV_FOOD_SICKNESS);
+    case SUPPLY_GROUP_POTIONS:
+        return (tval == TV_POTION);
+    case SUPPLY_GROUP_STAVES:
+        return (tval == TV_STAFF);
+    default:
+        return false;
+    }
+}
+
+static bool supply_item_matches(int group, const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return false;
+
+    return supply_kind_matches(group, o_ptr->tval, o_ptr->sval);
+}
+
+static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
+{
+    int i;
+
+    for (i = 0; i < SUPPLY_GROUP_MAX; i++)
+        totals[i] = 0;
+
+    for (i = 0; i < INVEN_PACK; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        if ((o_ptr->tval == TV_FOOD) && (o_ptr->sval <= SV_FOOD_SICKNESS))
+            totals[SUPPLY_GROUP_HERBS] += o_ptr->number;
+        else if (o_ptr->tval == TV_POTION)
+            totals[SUPPLY_GROUP_POTIONS] += o_ptr->number;
+        else if (o_ptr->tval == TV_STAFF)
+            totals[SUPPLY_GROUP_STAVES] += o_ptr->number;
+    }
+}
+
+static bool supply_kind_is_known(const object_kind* k_ptr)
+{
+    if (!k_ptr)
+        return false;
+
+    if (cheat_know || p_ptr->wizard)
+        return true;
+
+    return k_ptr->aware || k_ptr->everseen || k_ptr->tried;
+}
+
+static int collect_supply_entries(int group_idx, supply_list_entry entries[])
+{
+    int count = 0;
+    int capacity = z_info->k_max;
+    int i;
+
+    if (!entries)
+        return 0;
+
+    C_WIPE(entries, capacity, supply_list_entry);
+
+    /* Aggregate carried items first */
+    for (i = 0; i < INVEN_PACK; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+        int j;
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        if (!supply_item_matches(group_idx, o_ptr))
+            continue;
+
+        for (j = 0; j < count; j++)
+        {
+            if (entries[j].k_idx == o_ptr->k_idx)
+            {
+                entries[j].total += o_ptr->number;
+                if (entries[j].item_idx < 0)
+                    entries[j].item_idx = i;
+                break;
+            }
+        }
+
+        if (j == count)
+        {
+            if (count >= capacity)
+                break;
+
+            entries[count].k_idx = o_ptr->k_idx;
+            entries[count].item_idx = i;
+            entries[count].total = o_ptr->number;
+            count++;
+        }
+    }
+
+    /* Add known kinds even when none are carried */
+    for (i = 0; i < z_info->k_max; i++)
+    {
+        object_kind* k_ptr = &k_info[i];
+        int j;
+
+        if (!k_ptr->name)
+            continue;
+
+        if (!supply_kind_matches(group_idx, k_ptr->tval, k_ptr->sval))
+            continue;
+
+        if (!supply_kind_is_known(k_ptr))
+            continue;
+
+        for (j = 0; j < count; j++)
+        {
+            if (entries[j].k_idx == i)
+                break;
+        }
+
+        if (j == count)
+        {
+            if (count >= capacity)
+                break;
+
+            entries[count].k_idx = i;
+            entries[count].item_idx = -1;
+            entries[count].total = 0;
+            count++;
+        }
+    }
+
+    if (count < capacity)
+    {
+        entries[count].k_idx = -1;
+        entries[count].item_idx = -1;
+        entries[count].total = 0;
+    }
+
+    return count;
+}
+
+static void display_supply_group_list(int col, int row, int wid, int per_page,
+    int grp_idx[], int grp_cur, int grp_top, int group_totals[])
+{
+    int i;
+
+    for (i = 0; i < per_page && (grp_idx[i] >= 0); i++)
+    {
+        int grp = grp_idx[grp_top + i];
+        byte attr = (grp_top + i == grp_cur) ? TERM_L_BLUE
+            : (group_totals[grp] ? TERM_WHITE : TERM_L_DARK);
+        char buf[32];
+
+        strnfmt(buf, sizeof(buf), "%-12s %3d", supply_group_text[grp], group_totals[grp]);
+
+        Term_erase(col, row + i, wid);
+        c_put_str(attr, buf, row + i, col);
+    }
+}
+
+static void display_supply_list(int col, int row, int per_page,
+    supply_list_entry entries[], int entry_cnt, int entry_cur, int entry_top,
+    int count_col, int sym_col)
+{
+    int i;
+
+    for (i = 0; i < per_page; i++)
+    {
+        int idx = entry_top + i;
+        int y = row + i;
+
+        Term_erase(col, y, 255);
+
+        if (idx >= entry_cnt)
+            continue;
+
+        supply_list_entry* entry = &entries[idx];
+        object_type* o_ptr;
+        object_type fake;
+        object_kind* k_ptr;
+        bool aware;
+        byte base_attr, cursor_attr, attr;
+        byte sym_attr;
+        char sym_char;
+        char name[80];
+        char count_buf[8];
+
+        if (entry->k_idx < 0 || entry->k_idx >= z_info->k_max)
+            continue;
+
+        k_ptr = &k_info[entry->k_idx];
+        aware = k_ptr->aware;
+        base_attr = aware ? TERM_WHITE : TERM_SLATE;
+        cursor_attr = aware ? TERM_L_BLUE : TERM_BLUE;
+        attr = (idx == entry_cur) ? cursor_attr : base_attr;
+
+        if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+        {
+            o_ptr = &inventory[entry->item_idx];
+        }
+        else
+        {
+            object_wipe(&fake);
+            object_prep(&fake, entry->k_idx);
+            fake.number = (entry->total > 0) ? entry->total : 1;
+            if (aware)
+                fake.ident |= IDENT_KNOWN;
+            o_ptr = &fake;
+        }
+
+        object_desc(name, sizeof(name), o_ptr, true, 3);
+        c_prt(attr, name, y, col);
+
+        strnfmt(count_buf, sizeof(count_buf), "x%-3d", entry->total);
+        c_put_str(attr, count_buf, y, count_col);
+
+        sym_attr = object_attr(o_ptr);
+        sym_char = object_char(o_ptr);
+        Term_putch(sym_col, y, sym_attr, sym_char);
+        if (use_bigtile)
+        {
+            if (sym_attr & 0x80)
+                Term_putch(sym_col + 1, y, 255, -1);
+            else
+                Term_putch(sym_col + 1, y, 0, ' ');
+        }
+    }
+
+    for (; i < per_page; i++)
+    {
+        Term_erase(col, row + i, 255);
+    }
+}
+
 /*
  * Move the cursor in a browser window
  */
@@ -12368,6 +12660,206 @@ static void display_object_list(int col, int row, int per_page,
 /*
  * Display known objects
  */
+void do_cmd_knowledge_supplies(void)
+{
+    int i;
+    int max = 0;
+    int grp_cnt = SUPPLY_GROUP_MAX;
+    int grp_idx[SUPPLY_GROUP_MAX + 1];
+    int group_totals[SUPPLY_GROUP_MAX];
+    supply_list_entry* entries;
+    int grp_cur = 0;
+    int grp_top = 0;
+    int entry_cur = 0;
+    int entry_top = 0;
+    int column = 0;
+    bool flag = false;
+    bool redraw = true;
+    const int count_col = 67;
+    const int sym_col = 75;
+
+    for (i = 0; i < SUPPLY_GROUP_MAX; i++)
+    {
+        int len = strlen(supply_group_text[i]) + 5;
+        if (len > max)
+            max = len;
+        grp_idx[i] = i;
+    }
+    grp_idx[grp_cnt] = -1;
+    max += 2;
+
+    C_MAKE(entries, z_info->k_max, supply_list_entry);
+
+    screen_save();
+
+    while (!flag)
+    {
+        int entry_cnt;
+
+        compute_supply_group_totals(group_totals);
+
+        if (grp_cur >= grp_cnt)
+            grp_cur = grp_cnt - 1;
+        if (grp_cur < 0)
+            grp_cur = 0;
+
+        entry_cnt = collect_supply_entries(grp_idx[grp_cur], entries);
+
+        if (entry_cnt == 0)
+        {
+            entry_cur = 0;
+            entry_top = 0;
+            if (column)
+                column = 0;
+        }
+        else
+        {
+            if (entry_cur >= entry_cnt)
+                entry_cur = entry_cnt - 1;
+            if (entry_cur < 0)
+                entry_cur = 0;
+
+            if (entry_cur < entry_top)
+                entry_top = entry_cur;
+            if (entry_cur >= entry_top + BROWSER_ROWS)
+                entry_top = entry_cur - BROWSER_ROWS + 1;
+            if (entry_top < 0)
+                entry_top = 0;
+        }
+
+        if (grp_cur < grp_top)
+            grp_top = grp_cur;
+        if (grp_cur >= grp_top + BROWSER_ROWS)
+            grp_top = grp_cur - BROWSER_ROWS + 1;
+        if (grp_top < 0)
+            grp_top = 0;
+
+        if (redraw)
+        {
+            clear_from(0);
+
+            prt("Supplies - Potions, Herbs, Staves", 2, 0);
+            prt("Group", 4, 0);
+            prt("Name", 4, max + 3);
+            prt("Qty", 4, count_col);
+            prt("Sym", 4, sym_col);
+
+            for (i = 0; i < 78; i++)
+                Term_putch(i, 5, TERM_L_DARK, '=');
+
+            for (i = 0; i < BROWSER_ROWS; i++)
+                Term_putch(max + 1, 6 + i, TERM_L_DARK, '|');
+
+            redraw = false;
+        }
+
+        display_supply_group_list(0, 6, max, BROWSER_ROWS, grp_idx, grp_cur, grp_top, group_totals);
+        display_supply_list(max + 3, 6, BROWSER_ROWS, entries, entry_cnt, entry_cur, entry_top, count_col, sym_col);
+
+        Term_putstr(1, 23, -1, TERM_SLATE, "<dir>   recall   u/Space   ESC");
+        Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
+        Term_putstr(9, 23, -1, TERM_L_WHITE, "r");
+        Term_putstr(18, 23, -1, TERM_L_WHITE, "u/Space");
+        Term_putstr(28, 23, -1, TERM_L_WHITE, "ESC");
+
+        if (!column)
+            Term_gotoxy(0, 6 + (grp_cur - grp_top));
+        else if (entry_cnt)
+            Term_gotoxy(max + 3, 6 + (entry_cur - entry_top));
+        else
+            Term_gotoxy(0, 6 + (grp_cur - grp_top));
+
+        char ch = inkey();
+
+        switch (ch)
+        {
+        case ESCAPE:
+            flag = true;
+            break;
+
+        case 'R':
+        case 'r':
+            if (!column && entry_cnt)
+            {
+                column = 1;
+            }
+            else if (column && entry_cnt)
+            {
+                supply_list_entry* entry = &entries[entry_cur];
+                if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+                {
+                    object_info_screen(&inventory[entry->item_idx]);
+                    redraw = true;
+                }
+                else if (entry->k_idx >= 0)
+                {
+                    object_kind* k_ptr = &k_info[entry->k_idx];
+                    if (k_ptr->aware)
+                    {
+                        desc_obj_fake(entry->k_idx);
+                        redraw = true;
+                    }
+                    else
+                    {
+                        bell("You have not identified that yet.");
+                        msg_print("You have not identified that yet.");
+                    }
+                }
+            }
+            break;
+
+        case 'u':
+        case 'U':
+        case ' ':
+            if (!column && entry_cnt)
+            {
+                column = 1;
+            }
+            else if (column && entry_cnt)
+            {
+                supply_list_entry* entry = &entries[entry_cur];
+                if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+                {
+                    object_type* o_ptr = &inventory[entry->item_idx];
+
+                    switch (o_ptr->tval)
+                    {
+                    case TV_FOOD:
+                        do_cmd_eat_food(o_ptr, entry->item_idx);
+                        break;
+                    case TV_POTION:
+                        do_cmd_quaff_potion(o_ptr, entry->item_idx);
+                        break;
+                    case TV_STAFF:
+                        do_cmd_activate_staff(o_ptr, entry->item_idx);
+                        break;
+                    default:
+                        bell("Cannot use that item here!");
+                        break;
+                    }
+
+                    handle_stuff();
+                    redraw = true;
+                }
+                else
+                {
+                    bell("You do not have any of that item.");
+                    msg_print("You do not have any of that item.");
+                }
+            }
+            break;
+
+        default:
+            browser_cursor(ch, &column, &grp_cur, grp_cnt, &entry_cur, entry_cnt);
+            break;
+        }
+    }
+
+    KILL(entries);
+
+    screen_load();
+}
+
 void do_cmd_knowledge_objects(void)
 {
     int i, len, max;
