@@ -12,5 +12,25 @@
     },
     "terminal.integrated.env.windows": {
         "PATH": "/usr/bin:/bin:${env:PATH}"
+    },
+    "clangd.path": "C:\\Users\\efrem\\AppData\\Roaming\\Code\\User\\globalStorage\\llvm-vs-code-extensions.vscode-clangd\\install\\19.1.2\\clangd_19.1.2\\bin\\clangd.exe",
+    "clangd.arguments": [
+        "--compile-commands-dir=src",
+        "--background-index",
+        "--clang-tidy",
+        "--completion-style=detailed",
+        "--header-insertion=iwyu",
+        "--pch-storage=memory"
+    ],
+    "clangd.checkUpdates": false,
+    "clangd.serverCompletionRanking": true,
+    "clangd.detectExtensionConflicts": true,
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "C_Cpp.autocomplete": "disabled",
+    "C_Cpp.errorSquiggles": "disabled",
+    "C_Cpp.configurationWarnings": "disabled",
+    "files.associations": {
+        "*.h": "c",
+        "*.c": "c"
     }
 }
