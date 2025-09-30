@@ -74,13 +74,6 @@
 #define RANDART_VERSION 62
 
 /*
- * Log file naming mode
- * 0 = Always use "log.txt" (overwrite previous log)
- * 1 = Create new log with timestamp each time
- */
-#define LOG_MODE_TIMESTAMP 1
-
-/*
  * Number of grids in each block (vertically)
  * Probably hard-coded to 11, see "generate.c"
  */

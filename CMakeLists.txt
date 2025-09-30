@@ -3,6 +3,12 @@ project(sil-more)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+option(LOG_MODE_TIMESTAMP "Create new log with timestamp each time" OFF)
+
+if (LOG_MODE_TIMESTAMP)
+  target_compile_definitions(sil-more PUBLIC LOG_MODE_TIMESTAMP)
+endif()
+
 find_package(SDL3 REQUIRED)
 find_package(SDL3_ttf REQUIRED)
 find_package(SDL3_image REQUIRED)
