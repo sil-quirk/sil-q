@@ -2,6 +2,7 @@
 #include "main.h"
 #include "z-term.h"
 #include "log/log.h"
+#include "pane.h"
 #include <string.h>
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -39,42 +40,8 @@ typedef struct sdl_view {
     term t;
 } sdl_view;
 
-enum direction {
-    DIR_VER,
-    DIR_HOR,
-};
-
-enum pane {
-    PANE_MAIN = 0,
-    PANE_INVENTORY = 1,
-    PANE_WORN = 2, // worn items
-    PANE_ROLLS = 3,
-    PANE_INFO = 4, // monster info window
-    PANE_CHARACTER = 5, // — character sheet
-    PANE_LOG = 6,
-    PANE_MONSTERS = 7, // — visible monsters window
-};
-
-typedef struct {
-    enum direction dir;
-    float ratio;
-    // Size in cells or in pixels. Positive means size of the top or left part
-    // is set, negative means bottom or right part is set.
-    int size;
-    // Font size, only for cells mode.
-    int font_size;
-    int margin;
-} split_options;
-
-typedef struct {
-    SDL_Rect rect;
-    int index;
-} pane;
-
 sdl_state g_state;
 sdl_view g_views[MAX_TERM_DATA];
-
-static void split(SDL_Rect rect, SDL_Rect* first, SDL_Rect* second, split_options opts);
 
 static sdl_view* sdl_view_from_term(term* t)
 {
@@ -627,7 +594,7 @@ static void sdl_window_create(int window_width, int window_height, bool fullscre
     }
 }
 
-static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font_size, int scale)
+static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font_size, int scale, int margin)
 {
     log_debug("view rect=(%d %d %d %d)", rect.x, rect.y, rect.w, rect.h);
 
@@ -652,7 +619,11 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
     d->cols = g_state.system_scale * rect.w / d->cell_w;
     d->rows = g_state.system_scale * rect.h / d->cell_h;
     d->margin_x = (g_state.system_scale * rect.w - d->cols * d->cell_w) / 2;
+    if (d->margin_x < margin)
+        d->margin_x = margin;
     d->margin_y = (g_state.system_scale * rect.h - d->rows * d->cell_h) / 2;
+    if (d->margin_y < margin)
+        d->margin_y = margin;
     log_debug("view cols=%d rows=%d cell=(%d, %d) margin=(%d, %d)",
         d->cols, d->rows, d->cell_w, d->cell_h,
         d->margin_x, d->margin_y);
@@ -745,30 +716,61 @@ errr init_sdl(int argc, char **argv)
     #undef RGB
 
     // Create all windows.
-    // "lib/xtra/font/font_8x16.png"
     const char font_path[] = "lib/xtra/font/InputMono-Bold.ttf";
     sdl_window_create(screen.w, screen.h, fullscreen, tiles_mode);
 
     int aux_font = 18;
+    int margin = 4;
     SDL_Rect panes[MAX_TERM_DATA] = {0};
 
-    {
-        SDL_Rect top, right, bottom;
-        split(screen, &top, &bottom, (split_options){.dir = DIR_HOR, .size = -4, .font_size = aux_font});
-        split(top, &panes[PANE_MAIN], &right, (split_options){.dir = DIR_VER, .size = -40, .font_size = aux_font});
-        split(right, &top, &panes[PANE_MONSTERS], (split_options){.dir = DIR_HOR, .size = -4, .font_size = aux_font});
-        split(top, &panes[PANE_INVENTORY], &panes[PANE_WORN], (split_options){.dir = DIR_HOR, .ratio = 0.5});
-        split(bottom, &panes[PANE_ROLLS], &panes[PANE_LOG], (split_options){.dir = DIR_VER, .ratio = 0.75});
+    const struct pane_config pane_config[] = {
+        // On the right
+        {.pane = PANE_INVENTORY, .where = PLACE_RIGHT},
+        {.pane = PANE_WORN, .where = PLACE_RIGHT},
+        {.pane = PANE_INFO, .where = PLACE_RIGHT, .rect.rows = 8},
+        // In the bottom
+        {.pane = PANE_ROLLS, .where = PLACE_BOTTOM, .rect.rows = 4},
+        {.pane = PANE_LOG, .where = PLACE_BOTTOM},
+    };
+    const int pane_config_count = sizeof(pane_config) / sizeof(struct pane_config);
+
+    place_panes(pane_config, pane_config_count, panes, &screen, aux_font / 2, aux_font, margin);
+    for (int i = 0; i < PANE_MAX; i++) {
+        const SDL_Rect* r = &panes[i];
+        log_debug("pane %d is at (%d, %d) size %dx%d", i, r->x, r->y, r->w, r->h);
     }
 
-    sdl_view_create(&g_views[0], panes[PANE_MAIN], font_path, 0, scale);
+    // Check whether after splitting the window the main view is larger than
+    // 80x25. If it isn't, remove panes along the corresponding axis (or axes).
+    {
+        int cell_w = scale * TILE_SIZE / 2;
+        int cell_h = scale * TILE_SIZE;
+        int cols = g_state.system_scale * panes[PANE_MAIN].w / cell_w;
+        int rows = g_state.system_scale * panes[PANE_MAIN].h / cell_h;
+        if (cols < 80) {
+            log_warn("main view too small, %d cols < 80 — removing right panes", cols);
+            for (int i = 0; i < pane_config_count; i++)
+                if (pane_config[i].where == PLACE_RIGHT)
+                    panes[pane_config[i].pane].w = 0;
+            panes[PANE_MAIN].w = screen.w;
+        }
+        if (rows < 25) {
+            log_warn("main view too small, %d rows < 25 — removing bottom panes", rows);
+            for (int i = 0; i < pane_config_count; i++)
+                if (pane_config[i].where == PLACE_BOTTOM)
+                    panes[pane_config[i].pane].w = 0;
+            panes[PANE_MAIN].h = screen.h;
+        }
+    }
+
+    sdl_view_create(&g_views[0], panes[PANE_MAIN], font_path, 0, scale, 0);
     sdl_view_link_term(&g_views[0], 0);
     Term_activate(&g_views[0].t);
 
     for (int i = 1; i < MAX_TERM_DATA; i++) {
         if (!panes[i].w)
             continue;
-        sdl_view_create(&g_views[i], panes[i], font_path, aux_font, 0);
+        sdl_view_create(&g_views[i], panes[i], font_path, aux_font, 0, margin);
         sdl_view_link_term(&g_views[i], i);
     }
 
@@ -787,44 +789,4 @@ errr init_sdl(int argc, char **argv)
     log_debug("init_sdl: SDL term opened (tiles_mode=%d higher_pict=%d always_pict=%d)",
             tiles_mode, Term->higher_pict, Term->always_pict);
     return 0;
-}
-
-static void split(SDL_Rect rect, SDL_Rect* first, SDL_Rect* second, split_options opts)
-{
-    // opts.margin = opts.margin ? opts.margin : 4;
-    int size[2] = {rect.w, rect.h};
-    if (opts.ratio) {
-        // Split using ratio.
-        size[opts.dir] *= opts.ratio;
-    } else {
-        if (size == 0)
-            ; // TODO: error
-        int pixel_size;
-        if (opts.font_size) {
-            // Split by cell size given this font size.
-            pixel_size = opts.size * opts.font_size;
-            if (opts.dir == DIR_VER)
-                pixel_size /= 2;
-        } else {
-            pixel_size = opts.size;
-        }
-        // Split by pixel size.
-        if (pixel_size > 0)
-            size[opts.dir] = pixel_size;
-        else
-            size[opts.dir] = size[opts.dir] + pixel_size;
-    }
-
-    *first = (SDL_Rect){
-        .x = rect.x,
-        .y = rect.y,
-        .w = size[0],
-        .h = size[1],
-    };
-    *second = (SDL_Rect){
-        .x = rect.x + (1 - opts.dir) * (size[0] + opts.margin),
-        .y = rect.y + opts.dir * (size[1] + opts.margin),
-        .w = rect.w - (1 - opts.dir) * (size[0] + opts.margin),
-        .h = rect.h - opts.dir * (size[1] + opts.margin),
-    };
 }

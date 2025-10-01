@@ -52,6 +52,7 @@ add_executable(sil-more
     src/obj-info.c
     src/object1.c
     src/object2.c
+    src/pane.c
     src/randart.c
     # src/readdib.c  # No Windows yet
     src/save.c
