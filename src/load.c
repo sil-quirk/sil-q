@@ -1506,6 +1506,7 @@ static errr rd_inventory(void)
         u16b supply_count = 0;
         rd_u16b(&supply_count);
         log_debug("Loading %u supply entries", (unsigned)supply_count);
+        supplies_set_allow_overflow(true);
         for (u16b si = 0; si < supply_count; si++)
         {
             object_type supply;
@@ -1514,6 +1515,7 @@ static errr rd_inventory(void)
             {
                 log_warn("Error reading supply entry");
                 note("Error reading supplies");
+                supplies_set_allow_overflow(false);
                 return (-1);
             }
 
@@ -1546,6 +1548,7 @@ static errr rd_inventory(void)
             if (supply.k_idx)
                 supplies_absorb_object(&supply);
         }
+        supplies_set_allow_overflow(false);
     }
     else
     {

@@ -34,6 +34,7 @@ void supplies_init(void);
 void supplies_dispose(void);
 void supplies_reset_store(void);
 
+void supplies_set_allow_overflow(bool allow);
 bool supplies_is_supply_object(const struct object_type* o_ptr);
 
 /* Returns true when absorbed (src is wiped). */

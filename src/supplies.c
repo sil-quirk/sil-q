@@ -20,6 +20,12 @@ static supply_menu_action g_pending_action = SUPPLY_MENU_ACTION_NONE;
 static int g_pending_group = SUPPLY_GROUP_MAX;
 static bool g_pending_hotkey = false;
 
+#define SUPPLIES_MAX_WEIGHT 500 /* 50 lbs expressed in tenths */
+
+static bool g_supply_allow_overflow = false;
+static bool g_supply_limit_warned = false;
+
+
 static void supplies_sync_staff_entry(supply_entry* entry)
 {
     if (!entry)
@@ -75,6 +81,43 @@ static void supplies_reserve(int minimum)
     g_supply_capacity = new_capacity;
 }
 
+static int supplies_staff_weight(int charges)
+{
+    if (charges <= 0)
+        return 0;
+
+    int units = (charges + CHANNELING_CHARGE_MULTIPLIER - 1) / CHANNELING_CHARGE_MULTIPLIER;
+    return units * 5;
+}
+
+static bool supplies_can_add_weight(int current_weight, int addition)
+{
+    if (addition <= 0)
+        return true;
+
+    if (g_supply_allow_overflow)
+        return true;
+
+    if (current_weight + addition <= SUPPLIES_MAX_WEIGHT)
+        return true;
+
+    if (!g_supply_limit_warned)
+    {
+        msg_print("Your supply cache cannot carry any more weight.");
+        g_supply_limit_warned = true;
+    }
+
+    return false;
+}
+
+
+void supplies_set_allow_overflow(bool allow)
+{
+    g_supply_allow_overflow = allow;
+    if (allow)
+        g_supply_limit_warned = false;
+}
+
 void supplies_init(void)
 {
     if (g_supply_initialized)
@@ -101,6 +144,7 @@ void supplies_dispose(void)
     g_pending_action = SUPPLY_MENU_ACTION_NONE;
     g_pending_group = SUPPLY_GROUP_MAX;
     g_pending_hotkey = false;
+    g_supply_limit_warned = false;
 }
 
 void supplies_reset_store(void)
@@ -116,6 +160,7 @@ void supplies_reset_store(void)
     g_pending_action = SUPPLY_MENU_ACTION_NONE;
     g_pending_group = SUPPLY_GROUP_MAX;
     g_pending_hotkey = false;
+    g_supply_limit_warned = false;
 }
 
 bool supplies_is_supply_object(const object_type* o_ptr)
@@ -167,8 +212,34 @@ bool supplies_absorb_object(object_type* src)
         object_wipe(src);
         return true;
     }
-
     int idx = supplies_find_similar(src);
+
+    int current_weight = supplies_total_weight();
+    if (src->tval == TV_STAFF)
+    {
+        if (idx >= 0)
+        {
+            supply_entry* existing = &g_supply_entries[idx];
+            int existing_weight = supplies_staff_weight(existing->staff_charges);
+            current_weight -= existing_weight;
+            int new_weight = supplies_staff_weight(existing->staff_charges + src->pval);
+            if (!supplies_can_add_weight(current_weight, new_weight))
+                return false;
+        }
+        else
+        {
+            int add_weight = supplies_staff_weight(src->pval);
+            if (!supplies_can_add_weight(current_weight, add_weight))
+                return false;
+        }
+    }
+    else
+    {
+        int add_weight = src->weight * src->number;
+        if (!supplies_can_add_weight(current_weight, add_weight))
+            return false;
+    }
+
 
     if (src->tval == TV_STAFF)
     {
@@ -274,9 +345,7 @@ int supplies_total_weight(void)
             continue;
         if (obj->tval == TV_STAFF)
         {
-            int charges = entry->staff_charges;
-            if (charges > 0)
-                total += ((charges + 4) / 5) * 20;
+            total += supplies_staff_weight(entry->staff_charges);
         }
         else
             total += obj->weight * obj->number;
@@ -390,6 +459,7 @@ bool supplies_consume_quantity(int idx, int amount)
                 g_supply_entries[move - 1] = g_supply_entries[move];
             g_supply_count--;
             supplies_mark_dirty();
+            g_supply_limit_warned = false;
             return true;
         }
 
@@ -402,10 +472,12 @@ bool supplies_consume_quantity(int idx, int amount)
                 g_supply_entries[move - 1] = g_supply_entries[move];
             g_supply_count--;
             supplies_mark_dirty();
+            g_supply_limit_warned = false;
             return true;
         }
 
         supplies_sync_staff_entry(entry);
+        g_supply_limit_warned = false;
         supplies_mark_dirty();
         return false;
     }
@@ -418,10 +490,12 @@ bool supplies_consume_quantity(int idx, int amount)
             g_supply_entries[move - 1] = g_supply_entries[move];
         g_supply_count--;
         supplies_mark_dirty();
+        g_supply_limit_warned = false;
         return true;
     }
 
     obj->number -= amount;
+    g_supply_limit_warned = false;
     supplies_mark_dirty();
     return false;
 }
@@ -451,6 +525,7 @@ void supplies_refresh_entry(int idx)
             return;
         }
         supplies_sync_staff_entry(entry);
+        g_supply_limit_warned = false;
         supplies_mark_dirty();
     }
 }
@@ -528,7 +603,8 @@ void supplies_ingest_pack(void)
 
         object_type copy;
         object_copy(&copy, o_ptr);
-        supplies_absorb_object(&copy);
+        if (!supplies_absorb_object(&copy))
+            continue;
         inven_item_increase(i, -o_ptr->number);
         inven_item_optimize(i);
         i--;
@@ -612,15 +688,6 @@ bool supplies_pending_hotkey(void)
 {
     return g_pending_hotkey;
 }
-
-
-
-
-
-
-
-
-
 
 
 

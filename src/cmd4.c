@@ -105,24 +105,34 @@ static bool supplies_menu_drop_entry(supply_list_entry* entry)
     if (!o_ptr || !o_ptr->k_idx)
         return false;
 
-    int max_amt = (o_ptr->tval == TV_STAFF) ? o_ptr->pval : o_ptr->number;
-    if (max_amt <= 0)
-        return false;
-
     char prompt_buf[64];
     const char* prompt = NULL;
+    int actual_amt = 0;
     if (o_ptr->tval == TV_STAFF)
     {
-        strnfmt(prompt_buf, sizeof(prompt_buf), "Charges to drop (0-%d): ", max_amt);
+        int max_visible = supplies_visible_staff_charges(o_ptr->pval);
+        if (max_visible <= 0)
+            return false;
+        strnfmt(prompt_buf, sizeof(prompt_buf), "Charges to drop (0-%d): ", max_visible);
         prompt = prompt_buf;
+        int visible_amt = get_quantity(prompt, max_visible);
+        if (visible_amt <= 0)
+            return false;
+        int mult = p_ptr->active_ability[S_WIL][WIL_CHANNELING] ? 1 : CHANNELING_CHARGE_MULTIPLIER;
+        actual_amt = visible_amt * mult;
+        if (actual_amt > o_ptr->pval)
+            actual_amt = o_ptr->pval;
     }
-
-    int amt = get_quantity(prompt, max_amt);
-    if (amt <= 0)
-        return false;
-
+    else
+    {
+        int max_amt = o_ptr->number;
+        int amt = get_quantity(prompt, max_amt);
+        if (amt <= 0)
+            return false;
+        actual_amt = amt;
+    }
     supplies_begin_action(entry->supply_idx);
-    bool dropped = supplies_drop_amount(entry->supply_idx, amt);
+    bool dropped = supplies_drop_amount(entry->supply_idx, actual_amt);
     supplies_end_action();
 
     if (dropped)
@@ -14232,3 +14242,5 @@ void show_unified_sidebar(unified_look_state* state)
     previous_line_count = current_line_count;
     log_trace("show_unified_sidebar: function complete, set previous_line_count=%d", previous_line_count);
 }
+
+
