@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "supplies.h"
 
 enum inventory_limit_group
 {
@@ -5172,7 +5173,24 @@ bool inven_carry_okay(const object_type* o_ptr)
     if (!inventory_type_slot_available(o_ptr, true))
         return (false);
 
-    if (p_ptr->inven_cnt >= INVEN_PACK)
+    bool supply_item = supplies_is_supply_object(o_ptr);
+    bool supplies_present = (supplies_entry_count() > 0);
+    int logical_items = p_ptr->inven_cnt + (supplies_present ? 1 : 0);
+
+    if (supply_item)
+    {
+        if (!supplies_present)
+        {
+            /* Need to allocate one slot for the supplies bundle. */
+            if (logical_items >= INVEN_PACK)
+                return (false);
+        }
+
+        return (true);
+    }
+
+    /* Non-supply item */
+    if (logical_items >= INVEN_PACK)
         return (false);
 
     return (true);
@@ -5208,6 +5226,15 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
     /*paranoia, don't pick up "&nothings"*/
     if (!o_ptr->k_idx)
         return (-1);
+
+    if (supplies_is_supply_object(o_ptr))
+    {
+        object_type copy;
+        object_copy(&copy, o_ptr);
+        if (supplies_absorb_object(&copy))
+            return SUPPLIES_INDEX;
+        /* If absorption failed, treat as normal item. */
+    }
 
     int desired_slot = o_ptr->pickup_slot;
     bool wants_throw_slot = (desired_slot == INVEN_QUIVER1) || (desired_slot == INVEN_QUIVER2);
@@ -5648,8 +5675,18 @@ s16b inven_takeoff(int item, int amt)
     /* Carry the object */
     slot = inven_carry(i_ptr, false);
 
-    /* Message */
-    msg_format("%s %s (%c).", act, o_name, index_to_label(slot));
+    if (slot == SUPPLIES_INDEX)
+    {
+        char label = supplies_label_char();
+        if (!label)
+            label = 'a';
+        msg_format("%s %s (%c).", act, o_name, label);
+    }
+    else
+    {
+        /* Message */
+        msg_format("%s %s (%c).", act, o_name, index_to_label(slot));
+    }
 
     /* Return slot */
     return (slot);

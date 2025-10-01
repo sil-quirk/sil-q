@@ -58,15 +58,17 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
     bool aware;
     int kind_index;
 
-    object_type* o_ptr;
+    object_type* o_ptr = NULL;
+    int supply_index = supplies_current_action();
+    bool from_supplies = (supply_index >= 0);
 
     cptr q, s;
 
-    // use specified item if possible
+    /* Use specified item if possible */
     if (default_o_ptr != NULL)
     {
         o_ptr = default_o_ptr;
-        item = default_item;
+        item = from_supplies ? SUPPLIES_INDEX : default_item;
     }
     /* Get an item */
     else
@@ -77,8 +79,21 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
         /* Get an item */
         q = "Eat which item? ";
         s = "You have nothing to eat.";
+        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_HERBS, true);
         if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        {
+            supplies_clear_pending_action();
             return;
+        }
+
+        if (item == SUPPLIES_INDEX)
+        {
+            supplies_clear_pending_action();
+            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_HERBS, true, true);
+            return;
+        }
+
+        supplies_clear_pending_action();
 
         /* Get the item (in the pack) */
         if (item >= 0)
@@ -91,7 +106,13 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
         {
             o_ptr = &o_list[0 - item];
         }
+
+        from_supplies = false;
+        supply_index = -1;
     }
+
+    if (!o_ptr)
+        return;
 
     /* Sound */
     sound(MSG_EAT);
@@ -127,8 +148,13 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
     /* Window stuff */
     p_ptr->window |= (PW_INVEN | PW_EQUIP);
 
-    /* Destroy a food in the pack */
-    if (item >= 0)
+    /* Destroy a food in the pack or supplies */
+    if (from_supplies && supply_index >= 0)
+    {
+        supplies_consume_quantity(supply_index, 1);
+        supplies_refresh_entry(supply_index);
+    }
+    else if (item >= 0)
     {
         inven_item_increase(item, -1);
         inven_item_describe(item);
@@ -172,14 +198,16 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
     bool ident;
     bool aware;
     int kind_index;
-    object_type* o_ptr;
+    object_type* o_ptr = NULL;
+    int supply_index = supplies_current_action();
+    bool from_supplies = (supply_index >= 0);
     cptr q, s;
 
-    // use specified item if possible
+    /* Use specified item if possible */
     if (default_o_ptr != NULL)
     {
         o_ptr = default_o_ptr;
-        item = default_item;
+        item = from_supplies ? SUPPLIES_INDEX : default_item;
     }
     /* Get an item */
     else
@@ -190,8 +218,21 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
         /* Get an item */
         q = "Quaff which potion? ";
         s = "You have no potions to quaff.";
+        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_POTIONS, true);
         if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        {
+            supplies_clear_pending_action();
             return;
+        }
+
+        if (item == SUPPLIES_INDEX)
+        {
+            supplies_clear_pending_action();
+            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_POTIONS, true, true);
+            return;
+        }
+
+        supplies_clear_pending_action();
 
         /* Get the item (in the pack) */
         if (item >= 0)
@@ -204,7 +245,13 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
         {
             o_ptr = &o_list[0 - item];
         }
+
+        from_supplies = false;
+        supply_index = -1;
     }
+
+    if (!o_ptr)
+        return;
 
     /* Sound */
     sound(MSG_QUAFF);
@@ -240,8 +287,13 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
     /* Window stuff */
     p_ptr->window |= (PW_INVEN | PW_EQUIP);
 
-    /* Destroy a potion in the pack */
-    if (item >= 0)
+    /* Destroy a potion in the pack or supplies */
+    if (from_supplies && supply_index >= 0)
+    {
+        supplies_consume_quantity(supply_index, 1);
+        supplies_refresh_entry(supply_index);
+    }
+    else if (item >= 0)
     {
         inven_item_increase(item, -1);
         inven_item_describe(item);
@@ -355,17 +407,19 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
 
     bool ident;
 
-    object_type* o_ptr;
+    object_type* o_ptr = NULL;
 
     bool use_charge;
 
     cptr q, s;
+    int supply_index = supplies_current_action();
+    bool from_supplies = (supply_index >= 0);
 
-    // use specified item if possible
+    /* Use specified item if possible */
     if (default_o_ptr != NULL)
     {
         o_ptr = default_o_ptr;
-        item = default_item;
+        item = from_supplies ? SUPPLIES_INDEX : default_item;
     }
     /* Get an item */
     else
@@ -376,8 +430,21 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
         /* Get an item */
         q = "Activate which staff? ";
         s = "You have no staff to activate.";
+        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_STAVES, true);
         if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        {
+            supplies_clear_pending_action();
             return;
+        }
+
+        if (item == SUPPLIES_INDEX)
+        {
+            supplies_clear_pending_action();
+            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_STAVES, true, true);
+            return;
+        }
+
+        supplies_clear_pending_action();
 
         /* Get the item (in the pack) */
         if (item >= 0)
@@ -390,7 +457,13 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
         {
             o_ptr = &o_list[0 - item];
         }
+
+        from_supplies = false;
+        supply_index = -1;
     }
+
+    if (!o_ptr)
+        return;
 
     if (o_ptr->ident & (IDENT_EMPTY))
     {
@@ -460,13 +533,14 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     // mark times used
     o_ptr->xtra1++;
 
-    /* Describe charges in the pack */
-    if (item >= 0)
+    if (from_supplies && supply_index >= 0)
+    {
+        supplies_refresh_entry(supply_index);
+    }
+    else if (item >= 0)
     {
         inven_item_charges(item);
     }
-
-    /* Describe charges on the floor */
     else
     {
         floor_item_charges(0 - item);

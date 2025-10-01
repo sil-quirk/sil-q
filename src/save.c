@@ -1479,6 +1479,23 @@ static bool wr_savefile(void)
     /* Add a sentinel */
     wr_u16b(0xFFFF);
 
+    /* Write supplies cache */
+    {
+        u16b supply_count = (u16b)supplies_entry_count();
+        wr_u16b(supply_count);
+        log_debug("Writing %u supply entries", (unsigned)supply_count);
+        for (u16b si = 0; si < supply_count; si++) {
+            object_type* supply_obj = supplies_entry_at(si);
+            if (supply_obj && supply_obj->k_idx) {
+                wr_item(supply_obj);
+            } else {
+                object_type blank;
+                object_wipe(&blank);
+                wr_item(&blank);
+            }
+        }
+    }
+
     /* Player is not dead, write the dungeon */
     if (!p_ptr->is_dead)
     {

@@ -43,7 +43,22 @@ char* quest_outcome[] = {
 void give_player_item(object_type * o_ptr)
 {
     char o_name[80];
+    object_type copy = *o_ptr;
+
     int slot = inven_carry(o_ptr, true);
+
+    if (slot == SUPPLIES_INDEX)
+    {
+        object_desc(o_name, sizeof(o_name), &copy, true, 3);
+        char label = supplies_label_char();
+        if (!label)
+            label = 'a';
+        msg_format("You add %s to your supplies (%c).", o_name, label);
+        return;
+    }
+
+    if (slot < 0)
+        return;
 
     /* reset the pointer to the new location to pick up the count of the item
        in the inventory */
@@ -51,8 +66,7 @@ void give_player_item(object_type * o_ptr)
 
     object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
-    if (slot >= 0)
-        msg_format("You have %s (%c).", o_name, index_to_label(slot));
+    msg_format("You have %s (%c).", o_name, index_to_label(slot));
 }
 
 /*

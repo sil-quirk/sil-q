@@ -1131,15 +1131,25 @@ static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
             /* Carry the object */
             slot = inven_carry(i_ptr, true);
 
-            /* Get the object again */
-            i_ptr = &inventory[slot];
+            if (slot == SUPPLIES_INDEX)
+            {
+                object_desc(o_name, sizeof(o_name), i_ptr, true, 3);
+                char label = supplies_label_char();
+                if (!label)
+                    label = 'a';
+                msg_format("You add %s to your supplies (%c).", o_name, label);
+            }
+            else if (slot >= 0)
+            {
+                /* Get the object again */
+                i_ptr = &inventory[slot];
 
-            /* Describe the object */
-            object_desc(o_name, sizeof(o_name), i_ptr, true, 3);
+                /* Describe the object */
+                object_desc(o_name, sizeof(o_name), i_ptr, true, 3);
 
-            /* Message */
-            if (slot >= 0)
+                /* Message */
                 msg_format("You have %s (%c).", o_name, index_to_label(slot));
+            }
 
             // Break the truce if creatures see
             break_truce(false);

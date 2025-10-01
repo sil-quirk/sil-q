@@ -39,6 +39,7 @@ EXOBJS = \
 	object2.o \
 	randart.o \
 	readdib.o \
+	supplies.o \
 	save.o \
 	spells1.o \
 	spells2.o \

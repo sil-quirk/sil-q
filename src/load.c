@@ -1499,6 +1499,34 @@ static errr rd_inventory(void)
 
     log_debug("Inventory loaded: %d items carried, %d items equipped", p_ptr->inven_cnt, p_ptr->equip_cnt);
 
+    supplies_reset_store();
+
+    if (sf_extra >= 1)
+    {
+        u16b supply_count = 0;
+        rd_u16b(&supply_count);
+        log_debug("Loading %u supply entries", (unsigned)supply_count);
+        for (u16b si = 0; si < supply_count; si++)
+        {
+            object_type supply;
+            object_wipe(&supply);
+            if (rd_item(&supply))
+            {
+                log_warn("Error reading supply entry");
+                note("Error reading supplies");
+                return (-1);
+            }
+            if (supply.k_idx)
+                supplies_absorb_object(&supply);
+        }
+    }
+    else
+    {
+        log_debug("No supply block present in save (sf_extra=%u)", (unsigned)sf_extra);
+    }
+
+    supplies_ingest_pack();
+
     /* Success */
     return (0);
 }

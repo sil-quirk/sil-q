@@ -51,6 +51,40 @@ static bool item_tester_hook_throw_slots(const object_type* o_ptr)
     return throw_slot_enabled[slot];
 }
 
+bool open_supplies_menu_with_context(supply_menu_action default_action, int default_group, bool default_focus, bool default_hotkey)
+{
+    supply_menu_request request = {0};
+    supply_menu_action action = default_action;
+    bool hotkey = default_hotkey;
+    bool focus = default_focus;
+    int group = default_group;
+
+    if (supplies_has_pending_action())
+    {
+        supply_menu_action pending = supplies_pending_action();
+        if (pending != SUPPLY_MENU_ACTION_NONE)
+            action = pending;
+        hotkey = supplies_pending_hotkey();
+        int pending_group = supplies_pending_group();
+        if (pending_group >= 0 && pending_group < SUPPLY_GROUP_MAX)
+        {
+            focus = true;
+            group = pending_group;
+        }
+        supplies_clear_pending_action();
+    }
+
+    request.action = action;
+    request.hotkey_mode = hotkey;
+    if (focus && group >= 0 && group < SUPPLY_GROUP_MAX)
+    {
+        request.focus_group = true;
+        request.group = group;
+    }
+
+    return do_cmd_knowledge_supplies(&request);
+}
+
 /* Flag indicating enhanced menus need to refresh the main display after closing */
 static bool enhanced_drop_refresh_pending = false;
 
@@ -59,6 +93,12 @@ static bool enhanced_drop_refresh_pending = false;
  */
 void do_cmd_use_item_by_index(int item)
 {
+    if (item == SUPPLIES_INDEX)
+    {
+        open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, -1, false, true);
+        return;
+    }
+
     object_type* o_ptr;
 
     /* Get the item (in the pack) */
@@ -488,6 +528,25 @@ void do_cmd_inven(void)
         else
             bell("Cannot drop floor items from this menu!");
         break;
+
+    case ENHANCED_ACTION_SUPPLIES:
+    {
+        log_trace("do_cmd_inven: Opening supplies menu (command=%c)", current_menu_command ? current_menu_command : '0');
+        supply_menu_action default_action = SUPPLY_MENU_ACTION_NONE;
+        bool default_hotkey = false;
+        if (current_menu_command == 'u')
+        {
+            default_action = SUPPLY_MENU_ACTION_USE;
+            default_hotkey = true;
+        }
+        else if (current_menu_command == 'd')
+        {
+            default_action = SUPPLY_MENU_ACTION_DROP;
+            default_hotkey = true;
+        }
+        open_supplies_menu_with_context(default_action, -1, false, default_hotkey);
+        break;
+    }
 
     default:
         break;
@@ -1368,6 +1427,12 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
  */
 void do_cmd_drop_item_by_index(int item)
 {
+    if (item == SUPPLIES_INDEX)
+    {
+        open_supplies_menu_with_context(SUPPLY_MENU_ACTION_DROP, -1, false, true);
+        return;
+    }
+
     int amt;
     object_type* o_ptr;
 
@@ -1435,6 +1500,12 @@ void do_cmd_drop(void)
     s = "You have nothing to drop.";
     if (!get_item(&item, q, s, (USE_EQUIP | USE_INVEN)))
         return;
+
+    if (item == SUPPLIES_INDEX)
+    {
+        open_supplies_menu_with_context(SUPPLY_MENU_ACTION_DROP, -1, false, true);
+        return;
+    }
 
     /* Get the item (in the pack) */
     if (item >= 0)
@@ -1740,14 +1811,25 @@ void prise_silmaril(void)
             // Get it
             slot = inven_carry(o_ptr, false);
 
-            /* Get the object again */
-            o_ptr = &inventory[slot];
+            if (slot == SUPPLIES_INDEX)
+            {
+                object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+                char label = supplies_label_char();
+                if (!label)
+                    label = 'a';
+                msg_format("You add %s to your supplies (%c).", o_name, label);
+            }
+            else if (slot >= 0)
+            {
+                /* Get the object again */
+                o_ptr = &inventory[slot];
 
-            /* Describe the object */
-            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+                /* Describe the object */
+                object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
-            /* Message */
-            msg_format("You have %s (%c).", o_name, index_to_label(slot));
+                /* Message */
+                msg_format("You have %s (%c).", o_name, index_to_label(slot));
+            }
 
             // Break the truce (always)
             break_truce(true);
@@ -2376,7 +2458,11 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
 
             /* Carry or drop */
             if (item >= 0)
+            {
                 item = inven_carry(i_ptr, false);
+                if (item == SUPPLIES_INDEX)
+                    item = -1;
+            }
             else
                 drop_near(i_ptr, 0, p_ptr->py, p_ptr->px);
         }

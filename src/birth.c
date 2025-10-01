@@ -318,6 +318,8 @@ void player_wipe(void)
     /* Wipe the player */
     (void)WIPE(p_ptr, player_type);
 
+    supplies_reset_store();
+
     // only save the old information if there was a character loaded
     if (character_loaded_dead)
     {
@@ -523,7 +525,25 @@ static void give_start_items(const start_item *list)
         object_known(i_ptr);
 
         /* Carry it */
-        inven_slot = inven_carry(i_ptr, true);
+        int carry_slot = inven_carry(i_ptr, true);
+
+        if (carry_slot == SUPPLIES_INDEX)
+        {
+            object_type copy;
+            object_copy(&copy, i_ptr);
+            char name[80];
+            object_desc(name, sizeof(name), &copy, true, 3);
+            char label = supplies_label_char();
+            if (!label)
+                label = 'a';
+            msg_format("You start with %s (%c) in your supplies.", name, label);
+            continue;
+        }
+
+        if (carry_slot < 0)
+            continue;
+
+        inven_slot = carry_slot;
 
         /* Auto-wield if slot empty */
         if (slot >= INVEN_WIELD && inventory[slot].tval == 0)

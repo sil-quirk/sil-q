@@ -1327,7 +1327,7 @@ static void process_command(void)
     /* Supplies overview */
     case 'j':
     {
-        do_cmd_knowledge_supplies();
+        do_cmd_knowledge_supplies(NULL);
         break;
     }
 
