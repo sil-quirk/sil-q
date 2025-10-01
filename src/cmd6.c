@@ -399,7 +399,16 @@ void do_cmd_play_instrument(object_type* default_o_ptr, int default_item)
  */
 static bool item_tester_hook_staff_or_gem(const object_type* o_ptr)
 {
-    return (o_ptr->tval == TV_STAFF || o_ptr->tval == TV_GEM);
+    if (!o_ptr)
+        return false;
+
+    if (o_ptr->tval == TV_GEM)
+        return true;
+
+    if (o_ptr->tval == TV_STAFF)
+        return (o_ptr == &inventory[INVEN_STAFF]);
+
+    return false;
 }
 
 /*
@@ -432,14 +441,13 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     /* Get an item */
     else
     {
-        /* Restrict choices to staves and gems */
+        /* Restrict choices to equipped staff slot or carried gems */
         item_tester_hook = item_tester_hook_staff_or_gem;
 
-        /* Get an item */
-        q = "Activate which staff or gem? ";
-        s = "You have no staff or gem to activate.";
-        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_STAVES, true);
-        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        q = "Activate which walking staff or gem? ";
+        s = "You have no walking staff or gem to activate.";
+        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_GEMS, true);
+        if (!get_item(&item, q, s, (USE_EQUIP | USE_INVEN | USE_FLOOR)))
         {
             supplies_clear_pending_action();
             return;
@@ -448,19 +456,16 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
         if (item == SUPPLIES_INDEX)
         {
             supplies_clear_pending_action();
-            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_STAVES, true, true);
+            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_GEMS, true, true);
             return;
         }
 
         supplies_clear_pending_action();
 
-        /* Get the item (in the pack) */
         if (item >= 0)
         {
             o_ptr = &inventory[item];
         }
-
-        /* Get the item (on the floor) */
         else
         {
             o_ptr = &o_list[0 - item];
@@ -472,6 +477,12 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
 
     if (!o_ptr)
         return;
+
+    if (o_ptr->tval == TV_STAFF && o_ptr != &inventory[INVEN_STAFF])
+    {
+        msg_print("You must equip the staff before using it.");
+        return;
+    }
 
     if (o_ptr->ident & (IDENT_EMPTY))
     {

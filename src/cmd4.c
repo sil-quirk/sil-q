@@ -105,32 +105,13 @@ static bool supplies_menu_drop_entry(supply_list_entry* entry)
     if (!o_ptr || !o_ptr->k_idx)
         return false;
 
-    char prompt_buf[64];
-    const char* prompt = NULL;
-    int actual_amt = 0;
-    if (o_ptr->tval == TV_STAFF)
-    {
-        int max_visible = supplies_visible_staff_charges(o_ptr->pval);
-        if (max_visible <= 0)
-            return false;
-        strnfmt(prompt_buf, sizeof(prompt_buf), "Charges to drop (0-%d): ", max_visible);
-        prompt = prompt_buf;
-        int visible_amt = get_quantity(prompt, max_visible);
-        if (visible_amt <= 0)
-            return false;
-        int mult = p_ptr->active_ability[S_WIL][WIL_CHANNELING] ? 1 : CHANNELING_CHARGE_MULTIPLIER;
-        actual_amt = visible_amt * mult;
-        if (actual_amt > o_ptr->pval)
-            actual_amt = o_ptr->pval;
-    }
-    else
-    {
-        int max_amt = o_ptr->number;
-        int amt = get_quantity(prompt, max_amt);
-        if (amt <= 0)
-            return false;
-        actual_amt = amt;
-    }
+    int max_amt = (o_ptr->tval == TV_GEM) ? supplies_entry_units(entry->supply_idx) : o_ptr->number;
+    if (max_amt <= 0)
+        return false;
+
+    int actual_amt = get_quantity(NULL, max_amt);
+    if (actual_amt <= 0)
+        return false;
     supplies_begin_action(entry->supply_idx);
     bool dropped = supplies_drop_amount(entry->supply_idx, actual_amt);
     supplies_end_action();
@@ -144,7 +125,6 @@ static bool supplies_menu_drop_entry(supply_list_entry* entry)
 static cptr supply_group_text[SUPPLY_GROUP_MAX + 1] = {
     "Herbs",
     "Potions",
-    "Staves",
     "Gems",
     NULL
 };
@@ -11336,8 +11316,6 @@ static bool supply_kind_matches(int group, int tval, int sval)
         return (tval == TV_FOOD) && (sval <= SV_FOOD_SICKNESS);
     case SUPPLY_GROUP_POTIONS:
         return (tval == TV_POTION);
-    case SUPPLY_GROUP_STAVES:
-        return (tval == TV_STAFF);
     case SUPPLY_GROUP_GEMS:
         return (tval == TV_GEM);
     default:
@@ -11371,8 +11349,6 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
             totals[SUPPLY_GROUP_HERBS] += o_ptr->number;
         else if (o_ptr->tval == TV_POTION)
             totals[SUPPLY_GROUP_POTIONS] += o_ptr->number;
-        else if (o_ptr->tval == TV_STAFF)
-            totals[SUPPLY_GROUP_STAVES] += supplies_visible_staff_charges(o_ptr->pval);
         else if (o_ptr->tval == TV_GEM)
             totals[SUPPLY_GROUP_GEMS] += o_ptr->number;
     }
@@ -11387,10 +11363,8 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
             totals[SUPPLY_GROUP_HERBS] += s_ptr->number;
         else if (s_ptr->tval == TV_POTION)
             totals[SUPPLY_GROUP_POTIONS] += s_ptr->number;
-        else if (s_ptr->tval == TV_STAFF)
-            totals[SUPPLY_GROUP_STAVES] += supplies_visible_staff_charges(s_ptr->pval);
         else if (s_ptr->tval == TV_GEM)
-            totals[SUPPLY_GROUP_GEMS] += s_ptr->number;
+            totals[SUPPLY_GROUP_GEMS] += supplies_entry_units(i);
     }
 }
 
@@ -11428,7 +11402,7 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
         if (!supply_item_matches(group_idx, o_ptr))
             continue;
 
-        int value = (o_ptr->tval == TV_STAFF) ? o_ptr->pval : o_ptr->number;
+        int value = o_ptr->number;
 
         for (j = 0; j < count; j++)
         {
@@ -11466,7 +11440,7 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
         if (!supply_item_matches(group_idx, s_ptr))
             continue;
 
-        int value = (s_ptr->tval == TV_STAFF) ? s_ptr->pval : s_ptr->number;
+        int value = (s_ptr->tval == TV_GEM) ? supplies_entry_units(i) : s_ptr->number;
 
         for (j = 0; j < count; j++)
         {
@@ -11598,14 +11572,6 @@ static void display_supply_list(int col, int row, int per_page,
         if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
         {
             o_ptr = &inventory[entry->item_idx];
-            if (o_ptr->tval == TV_STAFF)
-            {
-                object_copy(&fake, o_ptr);
-                fake.pval = entry->total;
-                if (fake.number <= 0)
-                    fake.number = 1;
-                o_ptr = &fake;
-            }
         }
         else
         {
@@ -11613,28 +11579,14 @@ static void display_supply_list(int col, int row, int per_page,
             object_prep(&fake, entry->k_idx);
             if (aware)
                 fake.ident |= IDENT_KNOWN;
-            if (fake.tval == TV_STAFF)
-            {
-                fake.number = 1;
-                fake.pval = entry->total;
-            }
-            else
-            {
-                fake.number = (entry->total > 0) ? entry->total : 1;
-            }
+            fake.number = (entry->total > 0) ? entry->total : 1;
             o_ptr = &fake;
         }
 
         object_desc(name, sizeof(name), o_ptr, true, 3);
         c_prt(attr, name, y, col);
 
-        if (o_ptr->tval == TV_STAFF)
-        {
-            int visible = supplies_visible_staff_charges(entry->total);
-            strnfmt(count_buf, sizeof(count_buf), "x%-3d", visible);
-        }
-        else
-            strnfmt(count_buf, sizeof(count_buf), "x%-3d", entry->total);
+        strnfmt(count_buf, sizeof(count_buf), "x%-3d", entry->total);
         c_put_str(attr, count_buf, y, count_col);
 
         sym_attr = object_attr(o_ptr);
@@ -12913,7 +12865,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         {
             clear_from(0);
 
-            prt("Supplies - Herbs, Potions, Staves, Gems", 2, 0);
+            prt("Supplies - Herbs, Potions, Gems", 2, 0);
             prt("Group", 4, 0);
             prt("Name", 4, max + 3);
             prt("Qty", 4, count_col);

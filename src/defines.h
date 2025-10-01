@@ -658,23 +658,24 @@
  */
 #define INVEN_WIELD 24
 #define INVEN_BOW 25
-#define INVEN_LEFT 26
-#define INVEN_RIGHT 27
-#define INVEN_NECK 28
-#define INVEN_LITE 29
-#define INVEN_BODY 30
-#define INVEN_OUTER 31
-#define INVEN_ARM 32
-#define INVEN_HEAD 33
-#define INVEN_HANDS 34
-#define INVEN_FEET 35
-#define INVEN_QUIVER1 36
-#define INVEN_QUIVER2 37
+#define INVEN_STAFF 26
+#define INVEN_LEFT 27
+#define INVEN_RIGHT 28
+#define INVEN_NECK 29
+#define INVEN_LITE 30
+#define INVEN_BODY 31
+#define INVEN_OUTER 32
+#define INVEN_ARM 33
+#define INVEN_HEAD 34
+#define INVEN_HANDS 35
+#define INVEN_FEET 36
+#define INVEN_QUIVER1 37
+#define INVEN_QUIVER2 38
 
 /*
  * Total number of inventory slots (hard-coded).
  */
-#define INVEN_TOTAL 38
+#define INVEN_TOTAL 39
 
 /*
  * A "stack" of items is limited to less than 100 items (hard-coded).
@@ -1376,6 +1377,7 @@
 #define SV_GEM_TREASURES 8
 #define SV_GEM_FOES 9
 #define SV_GEM_SELF_KNOWLEDGE 12
+#define SV_GEM_WARDING 13
 #define SV_GEM_RECHARGING 16
 #define SV_GEM_SHADOWS 18
 

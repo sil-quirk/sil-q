@@ -1486,16 +1486,16 @@ static bool wr_savefile(void)
         log_debug("Writing %u supply entries", (unsigned)supply_count);
         for (u16b si = 0; si < supply_count; si++) {
             object_type* supply_obj = supplies_entry_at(si);
-            s32b staff_charges = 0;
+            s32b stored_units = 0;
             if (supply_obj && supply_obj->k_idx) {
                 wr_item(supply_obj);
-                staff_charges = supplies_entry_staff_charges(si);
+                stored_units = supplies_entry_units(si);
             } else {
                 object_type blank;
                 object_wipe(&blank);
                 wr_item(&blank);
             }
-            wr_s32b(staff_charges);
+            wr_s32b(stored_units);
         }
     }
 

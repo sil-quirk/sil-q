@@ -283,6 +283,47 @@ static void strip_bytes(int n)
  * This function attempts to "repair" old savefiles, and to extract
  * the most up to date values for various object fields.
  */
+static void convert_old_staff_of_warding(object_type* o_ptr)
+{
+    if (!o_ptr || o_ptr->tval != TV_STAFF || o_ptr->sval != SV_STAFF_WARDING)
+        return;
+
+    int uses = 0;
+    if (o_ptr->pval > 0)
+    {
+        uses = o_ptr->pval / CHANNELING_CHARGE_MULTIPLIER;
+        if (uses <= 0)
+            uses = 1;
+    }
+    else if (o_ptr->number > 0)
+    {
+        uses = o_ptr->number;
+    }
+
+    if (uses < 0)
+        uses = 0;
+
+    o_ptr->tval = TV_GEM;
+    o_ptr->sval = SV_GEM_WARDING;
+    o_ptr->pval = 0;
+    o_ptr->timeout = 0;
+
+    if (uses > MAX_STACK_SIZE - 1)
+        uses = MAX_STACK_SIZE - 1;
+    o_ptr->number = uses;
+
+    object_kind* k_ptr = &k_info[o_ptr->k_idx];
+    if (k_ptr)
+    {
+        o_ptr->weight = k_ptr->weight;
+    }
+
+    if (o_ptr->number <= 0)
+        o_ptr->ident |= IDENT_EMPTY;
+    else
+        o_ptr->ident &= ~(IDENT_EMPTY);
+}
+
 static errr rd_item(object_type* o_ptr)
 {
     u32b f1, f2, f3;
@@ -502,6 +543,8 @@ static errr rd_item(object_type* o_ptr)
         if (!e_ptr->cost)
             o_ptr->ident |= (IDENT_BROKEN);
     }
+
+    convert_old_staff_of_warding(o_ptr);
 
     /* Success */
     return (0);
@@ -1519,31 +1562,17 @@ static errr rd_inventory(void)
                 return (-1);
             }
 
-            s32b staff_charges = 0;
+            s32b stored_units = 0;
             if (sf_extra >= 2)
-                rd_s32b(&staff_charges);
-            else
-                staff_charges = supply.pval;
-
-            if (supply.tval == TV_STAFF)
-            {
-                int charges = (int)staff_charges;
-                if (charges < 0)
-                    charges = 0;
-                if (charges > 32767)
-                    charges = 32767;
-                supply.pval = (s16b)charges;
-                if (charges <= 0)
-                    supply.ident |= IDENT_EMPTY;
-                else
-                    supply.ident &= ~(IDENT_EMPTY);
-                if (supply.number <= 0 && charges > 0)
-                    supply.number = 1;
-            }
+                rd_s32b(&stored_units);
             else if (supply.tval == TV_GEM)
+                stored_units = supply.number > 0 ? supply.number : supply.pval;
+
+            if (supply.tval == TV_GEM)
             {
-                /* Gems use number, not pval */
-                int count = (int)staff_charges;
+                int count = (int)stored_units;
+                if (count <= 0)
+                    count = supply.number;
                 if (count < 0)
                     count = 0;
                 if (count > 255)
@@ -1554,10 +1583,6 @@ static errr rd_inventory(void)
                     supply.ident |= IDENT_EMPTY;
                 else
                     supply.ident &= ~(IDENT_EMPTY);
-            }
-            else if (sf_extra >= 2)
-            {
-                /* consume stored charges for non-staff entries */
             }
 
             if (supply.k_idx)

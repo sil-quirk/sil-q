@@ -16,6 +16,7 @@ enum inventory_limit_group
     INV_LIMIT_NONE = 0,
     INV_LIMIT_ARROW,
     INV_LIMIT_BOW,
+    INV_LIMIT_STAFF,
     INV_LIMIT_DIGGING,
     INV_LIMIT_BOOTS,
     INV_LIMIT_GLOVES,
@@ -87,6 +88,10 @@ static bool get_inventory_limit_info(const object_type* o_ptr,
                 break;
             case TV_BOW:
                 local_group = INV_LIMIT_BOW;
+                local_limit = 1;
+                break;
+            case TV_STAFF:
+                local_group = INV_LIMIT_STAFF;
                 local_limit = 1;
                 break;
             case TV_DIGGING:
@@ -217,6 +222,10 @@ static void fill_inventory_limit_label(enum inventory_limit_group group,
             break;
         case INV_LIMIT_BOW:
             my_strcpy(carry_limit_last_label, "bows",
+                      sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_STAFF:
+            my_strcpy(carry_limit_last_label, "walking staves",
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_DIGGING:
@@ -2357,9 +2366,6 @@ static void charge_staff(object_type* o_ptr)
     case SV_STAFF_SELF_KNOWLEDGE:
         o_ptr->pval = mult * damroll(2, 2);
         break;
-    case SV_STAFF_WARDING:
-        o_ptr->pval = mult * damroll(2, 2);
-        break;
     case SV_STAFF_DISMAY:
         o_ptr->pval = mult * damroll(2, 2);
         break;
@@ -3666,7 +3672,7 @@ static bool kind_is_staff(int k_idx)
             return (true);
         if (k_ptr->sval == SV_STAFF_SLUMBER)
             return (true);
-        if (k_ptr->sval == SV_STAFF_WARDING)
+        if (k_ptr->sval == SV_STAFF_WARDING || k_ptr->sval == SV_GEM_WARDING)
             return (true);
         if (k_ptr->sval == SV_STAFF_RECHARGING)
             return (true);

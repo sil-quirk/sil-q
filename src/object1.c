@@ -1440,7 +1440,6 @@ static void format_supply_summary(char* buf, size_t len)
 {
     int potions = 0;
     int herbs = 0;
-    int staves = 0;
     int gems = 0;
     bool first = true;
     char segment[32];
@@ -1448,11 +1447,11 @@ static void format_supply_summary(char* buf, size_t len)
     if (!buf || len == 0)
         return;
 
-    supplies_count_totals(&potions, &herbs, &staves, &gems);
+    supplies_count_totals(&potions, &herbs, &gems);
 
     my_strcpy(buf, "Supplies", len);
 
-    if (potions <= 0 && herbs <= 0 && staves <= 0 && gems <= 0)
+    if (potions <= 0 && herbs <= 0 && gems <= 0)
         return;
 
     my_strcat(buf, " (", len);
@@ -1471,16 +1470,6 @@ static void format_supply_summary(char* buf, size_t len)
             my_strcat(buf, ", ", len);
         strnfmt(segment, sizeof(segment), "%d herb%s", herbs,
             (herbs == 1) ? "" : "s");
-        my_strcat(buf, segment, len);
-        first = false;
-    }
-
-    if (staves > 0)
-    {
-        if (!first)
-            my_strcat(buf, ", ", len);
-        strnfmt(segment, sizeof(segment), "%d staff%s", staves,
-            (staves == 1) ? "" : "s");
         my_strcat(buf, segment, len);
         first = false;
     }
@@ -1517,6 +1506,11 @@ s16b wield_slot(const object_type* o_ptr)
     case TV_BOW:
     {
         return (INVEN_BOW);
+    }
+
+    case TV_STAFF:
+    {
+        return (INVEN_STAFF);
     }
 
     case TV_RING:
@@ -1608,6 +1602,9 @@ cptr describe_empty_slot(int i)
     case INVEN_BOW:
         p = "(no bow)";
         break;
+    case INVEN_STAFF:
+        p = "(no walking staff)";
+        break;
     case INVEN_LEFT:
         p = "(no left ring)";
         break;
@@ -1669,6 +1666,9 @@ cptr mention_use(int i)
     case INVEN_BOW:
         p = "Shooting";
         break;
+    case INVEN_STAFF:
+        p = "Walking staff";
+        break;
     case INVEN_LEFT:
         p = "Left ring";
         break;
@@ -1729,6 +1729,9 @@ cptr describe_use(int i)
         break;
     case INVEN_BOW:
         p = "wielding";
+        break;
+    case INVEN_STAFF:
+        p = "using as a walking staff";
         break;
     case INVEN_LEFT:
         p = "wearing on your left hand";

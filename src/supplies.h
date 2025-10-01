@@ -9,7 +9,6 @@ typedef enum supply_group
 {
     SUPPLY_GROUP_HERBS = 0,
     SUPPLY_GROUP_POTIONS,
-    SUPPLY_GROUP_STAVES,
     SUPPLY_GROUP_GEMS,
     SUPPLY_GROUP_MAX
 } supply_group;
@@ -43,11 +42,10 @@ bool supplies_absorb_object(struct object_type* src);
 
 int supplies_entry_count(void);
 struct object_type* supplies_entry_at(int idx);
-int supplies_entry_staff_charges(int idx);
-int supplies_visible_staff_charges(int charges);
+int supplies_entry_units(int idx);
 
 int supplies_total_weight(void);
-void supplies_count_totals(int* potions, int* herbs, int* staves, int* gems);
+void supplies_count_totals(int* potions, int* herbs, int* gems);
 
 bool supplies_has_group(int group);
 int supplies_first_entry_for_group(int group);
