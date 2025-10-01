@@ -147,6 +147,7 @@ void flavor_init(void)
     flavor_assign_random(TV_RING);
     flavor_assign_random(TV_AMULET);
     flavor_assign_random(TV_STAFF);
+    flavor_assign_random(TV_GEM);
     flavor_assign_random(TV_HORN);
     flavor_assign_random(TV_FOOD);
     flavor_assign_random(TV_POTION);
@@ -694,6 +695,18 @@ void object_desc(
         if (aware)
             append_name = true;
         basenm = (flavor ? "& # Staff~" : "& Staff~");
+
+        break;
+    }
+
+    /* Gems */
+    case TV_GEM:
+    {
+        /* Color the object */
+        modstr = flavor_text + flavor_info[k_ptr->flavor].text;
+        if (aware)
+            append_name = true;
+        basenm = (flavor ? "& # Gem~" : "& Gem~");
 
         break;
     }
@@ -1428,17 +1441,18 @@ static void format_supply_summary(char* buf, size_t len)
     int potions = 0;
     int herbs = 0;
     int staves = 0;
+    int gems = 0;
     bool first = true;
     char segment[32];
 
     if (!buf || len == 0)
         return;
 
-    supplies_count_totals(&potions, &herbs, &staves);
+    supplies_count_totals(&potions, &herbs, &staves, &gems);
 
     my_strcpy(buf, "Supplies", len);
 
-    if (potions <= 0 && herbs <= 0 && staves <= 0)
+    if (potions <= 0 && herbs <= 0 && staves <= 0 && gems <= 0)
         return;
 
     my_strcat(buf, " (", len);
@@ -1465,8 +1479,18 @@ static void format_supply_summary(char* buf, size_t len)
     {
         if (!first)
             my_strcat(buf, ", ", len);
-        strnfmt(segment, sizeof(segment), "%d staff charge%s", staves,
+        strnfmt(segment, sizeof(segment), "%d staff%s", staves,
             (staves == 1) ? "" : "s");
+        my_strcat(buf, segment, len);
+        first = false;
+    }
+
+    if (gems > 0)
+    {
+        if (!first)
+            my_strcat(buf, ", ", len);
+        strnfmt(segment, sizeof(segment), "%d gem%s", gems,
+            (gems == 1) ? "" : "s");
         my_strcat(buf, segment, len);
     }
 

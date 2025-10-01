@@ -395,6 +395,14 @@ void do_cmd_play_instrument(object_type* default_o_ptr, int default_item)
 }
 
 /*
+ * Hook to determine if an object is a staff or gem
+ */
+static bool item_tester_hook_staff_or_gem(const object_type* o_ptr)
+{
+    return (o_ptr->tval == TV_STAFF || o_ptr->tval == TV_GEM);
+}
+
+/*
  * Use a staff
  *
  * One charge of one staff disappears.
@@ -424,12 +432,12 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     /* Get an item */
     else
     {
-        /* Restrict choices to staves */
-        item_tester_tval = TV_STAFF;
+        /* Restrict choices to staves and gems */
+        item_tester_hook = item_tester_hook_staff_or_gem;
 
         /* Get an item */
-        q = "Activate which staff? ";
-        s = "You have no staff to activate.";
+        q = "Activate which staff or gem? ";
+        s = "You have no staff or gem to activate.";
         supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_STAVES, true);
         if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
         {
@@ -480,22 +488,37 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     /* Not identified yet */
     ident = false;
 
-    /* Notice empty staffs */
-    if ((o_ptr->pval <= 1 && (!p_ptr->active_ability[S_WIL][WIL_CHANNELING]))
-        || o_ptr->pval <= 0)
+    /* Notice empty staffs/gems */
+    if (o_ptr->tval == TV_STAFF)
     {
-        flush();
-        msg_print("The staff has no charges left.");
-        o_ptr->ident |= (IDENT_EMPTY);
-        p_ptr->notice |= (PN_COMBINE | PN_REORDER);
-        p_ptr->window |= (PW_INVEN);
-        return;
+        if ((o_ptr->pval <= 1 && (!p_ptr->active_ability[S_WIL][WIL_CHANNELING]))
+            || o_ptr->pval <= 0)
+        {
+            flush();
+            msg_print("The staff has no charges left.");
+            o_ptr->ident |= (IDENT_EMPTY);
+            p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+            p_ptr->window |= (PW_INVEN);
+            return;
+        }
+    }
+    else if (o_ptr->tval == TV_GEM)
+    {
+        if (o_ptr->number <= 0)
+        {
+            flush();
+            msg_print("You have no gems left.");
+            o_ptr->ident |= (IDENT_EMPTY);
+            p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+            p_ptr->window |= (PW_INVEN);
+            return;
+        }
     }
 
     /* Sound */
     sound(MSG_ZAP);
 
-    /* Use the staff */
+    /* Use the staff/gem */
     use_charge = use_object(o_ptr, &ident);
 
     // Break the truce
@@ -520,16 +543,24 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     if (!use_charge)
         return;
 
-    /* Use a single charge if channeling, otherwise double */
-    if (p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+    /* Consume the item */
+    if (o_ptr->tval == TV_STAFF)
     {
-        o_ptr->pval--;
+        /* Use a single charge if channeling, otherwise double */
+        if (p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+        {
+            o_ptr->pval--;
+        }
+        else
+        {
+            o_ptr->pval -= CHANNELING_CHARGE_MULTIPLIER;
+        }
     }
-    else
+    else if (o_ptr->tval == TV_GEM)
     {
-        o_ptr->pval -= CHANNELING_CHARGE_MULTIPLIER;
+        /* Gems are consumed whole - decrease number */
+        o_ptr->number--;
     }
-
     // mark times used
     o_ptr->xtra1++;
 

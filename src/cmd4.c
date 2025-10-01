@@ -145,6 +145,7 @@ static cptr supply_group_text[SUPPLY_GROUP_MAX + 1] = {
     "Herbs",
     "Potions",
     "Staves",
+    "Gems",
     NULL
 };
 
@@ -386,12 +387,12 @@ void do_cmd_character_sheet(void)
         display_player(mode);
 
         /* Prompt */
-        Term_putstr(1, 23, -1, TERM_SLATE,
-            "notes  story stats  save to file  abilities  curses  increase skills  ESC");
-        Term_putstr(1, 23, -1, TERM_L_WHITE, "n");
-        Term_putstr(8, 23, -1, TERM_L_WHITE, "s");
-        Term_putstr(29, 23, -1, TERM_L_WHITE, "f");
-        Term_putstr(35, 23, -1, TERM_L_WHITE, "a");
+        Term_putstr(1, 23, -1, TERM_SLATE, "<dir>   recall   u/Space   drop   ESC");
+        Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
+        Term_putstr(9, 23, -1, TERM_L_WHITE, "recall");
+        Term_putstr(18, 23, -1, TERM_L_WHITE, "u/Space");
+        Term_putstr(28, 23, -1, TERM_L_WHITE, "drop");
+        Term_putstr(35, 23, -1, TERM_L_WHITE, "ESC");
         Term_putstr(46, 23, -1, TERM_L_WHITE, "c");
         Term_putstr(54, 23, -1, TERM_L_WHITE, "i");
         Term_putstr(71, 23, -1, TERM_L_WHITE, "ESC");
@@ -11337,6 +11338,8 @@ static bool supply_kind_matches(int group, int tval, int sval)
         return (tval == TV_POTION);
     case SUPPLY_GROUP_STAVES:
         return (tval == TV_STAFF);
+    case SUPPLY_GROUP_GEMS:
+        return (tval == TV_GEM);
     default:
         return false;
     }
@@ -11370,6 +11373,8 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
             totals[SUPPLY_GROUP_POTIONS] += o_ptr->number;
         else if (o_ptr->tval == TV_STAFF)
             totals[SUPPLY_GROUP_STAVES] += supplies_visible_staff_charges(o_ptr->pval);
+        else if (o_ptr->tval == TV_GEM)
+            totals[SUPPLY_GROUP_GEMS] += o_ptr->number;
     }
 
     for (i = 0; i < supplies_entry_count(); i++)
@@ -11384,6 +11389,8 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
             totals[SUPPLY_GROUP_POTIONS] += s_ptr->number;
         else if (s_ptr->tval == TV_STAFF)
             totals[SUPPLY_GROUP_STAVES] += supplies_visible_staff_charges(s_ptr->pval);
+        else if (s_ptr->tval == TV_GEM)
+            totals[SUPPLY_GROUP_GEMS] += s_ptr->number;
     }
 }
 
@@ -12906,7 +12913,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         {
             clear_from(0);
 
-            prt("Supplies - Potions, Herbs, Staves", 2, 0);
+            prt("Supplies - Herbs, Potions, Staves, Gems", 2, 0);
             prt("Group", 4, 0);
             prt("Name", 4, max + 3);
             prt("Qty", 4, count_col);

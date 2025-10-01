@@ -22,6 +22,8 @@ static bool g_pending_hotkey = false;
 
 #define SUPPLIES_MAX_WEIGHT 500 /* 50 lbs expressed in tenths */
 
+#define IS_STAFF_OR_GEM(o_ptr) ((o_ptr)->tval == TV_STAFF || (o_ptr)->tval == TV_GEM)
+
 static bool g_supply_allow_overflow = false;
 static bool g_supply_limit_warned = false;
 
@@ -51,8 +53,30 @@ static void supplies_sync_staff_entry(supply_entry* entry)
 
     if (obj->number <= 0)
         obj->number = 1;
-    else if (obj->number > 255)
-        obj->number = 255;
+}
+
+static void supplies_sync_gem_entry(supply_entry* entry)
+{
+    if (!entry)
+        return;
+
+    object_type* obj = &entry->obj;
+    if (!obj->k_idx || obj->tval != TV_GEM)
+        return;
+
+    /* Gems use number, not charges */
+    obj->number = entry->staff_charges;  /* Reusing staff_charges field for gem count */
+    obj->pval = -entry->staff_charges;
+
+    if (entry->staff_charges <= 0)
+    {
+        obj->ident |= IDENT_EMPTY;
+        obj->number = 0;
+        obj->pval = 0;
+        return;
+    }
+
+    obj->ident &= ~(IDENT_EMPTY);
 }
 
 static void supplies_reserve(int minimum)
@@ -171,7 +195,7 @@ bool supplies_is_supply_object(const object_type* o_ptr)
     if (o_ptr->tval == TV_POTION)
         return true;
 
-    if (o_ptr->tval == TV_STAFF)
+    if (IS_STAFF_OR_GEM(o_ptr))
         return true;
 
     if (o_ptr->tval == TV_FOOD && o_ptr->sval <= SV_FOOD_SICKNESS)
@@ -207,10 +231,21 @@ bool supplies_absorb_object(object_type* src)
 
     supplies_init();
 
-    if (src->tval == TV_STAFF && src->pval <= 0)
+    if (src->tval == TV_STAFF)
     {
-        object_wipe(src);
-        return true;
+        if (src->pval <= 0)
+        {
+            object_wipe(src);
+            return true;
+        }
+    }
+    else if (src->tval == TV_GEM)
+    {
+        if (src->number <= 0)
+        {
+            object_wipe(src);
+            return true;
+        }
     }
     int idx = supplies_find_similar(src);
 
@@ -233,6 +268,25 @@ bool supplies_absorb_object(object_type* src)
                 return false;
         }
     }
+    else if (src->tval == TV_GEM)
+    {
+        if (idx >= 0)
+        {
+            supply_entry* existing = &g_supply_entries[idx];
+            int existing_weight = existing->obj.weight * existing->staff_charges;
+            current_weight -= existing_weight;
+            int new_count = existing->staff_charges + src->number;
+            int new_weight = existing->obj.weight * new_count;
+            if (!supplies_can_add_weight(current_weight, new_weight))
+                return false;
+        }
+        else
+        {
+            int add_weight = src->weight * src->number;
+            if (!supplies_can_add_weight(current_weight, add_weight))
+                return false;
+        }
+    }
     else
     {
         int add_weight = src->weight * src->number;
@@ -241,15 +295,24 @@ bool supplies_absorb_object(object_type* src)
     }
 
 
-    if (src->tval == TV_STAFF)
+    if (IS_STAFF_OR_GEM(src))
     {
         if (idx >= 0)
         {
             supply_entry* entry = &g_supply_entries[idx];
-            entry->staff_charges += src->pval;
-            if (src->number > 0)
-                entry->obj.number += src->number;
-            supplies_sync_staff_entry(entry);
+            if (src->tval == TV_STAFF)
+            {
+                entry->staff_charges += src->pval;
+                if (src->number > 0)
+                    entry->obj.number += src->number;
+                supplies_sync_staff_entry(entry);
+            }
+            else if (src->tval == TV_GEM)
+            {
+                /* Gems use number, not pval */
+                entry->staff_charges += src->number;
+                supplies_sync_gem_entry(entry);
+            }
             object_wipe(src);
             supplies_mark_dirty();
             return true;
@@ -289,6 +352,12 @@ bool supplies_absorb_object(object_type* src)
         entry->obj.number = (src->number > 0) ? src->number : 1;
         supplies_sync_staff_entry(entry);
     }
+    else if (src->tval == TV_GEM)
+    {
+        /* Gems use number, not pval */
+        entry->staff_charges = src->number;
+        supplies_sync_gem_entry(entry);
+    }
     else
     {
         if (entry->obj.number > 255)
@@ -324,6 +393,9 @@ int supplies_entry_staff_charges(int idx)
 
 int supplies_visible_staff_charges(int charges)
 {
+    if (charges < 0)
+        return -charges;
+
     if (charges <= 0)
         return 0;
 
@@ -347,13 +419,17 @@ int supplies_total_weight(void)
         {
             total += supplies_staff_weight(entry->staff_charges);
         }
+        else if (obj->tval == TV_GEM)
+        {
+            total += obj->weight * entry->staff_charges;
+        }
         else
             total += obj->weight * obj->number;
     }
     return total;
 }
 
-void supplies_count_totals(int* potions, int* herbs, int* staves)
+void supplies_count_totals(int* potions, int* herbs, int* staves, int* gems)
 {
     if (potions)
         *potions = 0;
@@ -361,6 +437,8 @@ void supplies_count_totals(int* potions, int* herbs, int* staves)
         *herbs = 0;
     if (staves)
         *staves = 0;
+    if (gems)
+        *gems = 0;
 
     for (int i = 0; i < g_supply_count; i++)
     {
@@ -378,6 +456,11 @@ void supplies_count_totals(int* potions, int* herbs, int* staves)
         {
             if (staves)
                 *staves += supplies_visible_staff_charges(entry->staff_charges);
+        }
+        else if (obj->tval == TV_GEM)
+        {
+            if (gems)
+                *gems += entry->staff_charges;  /* Gems don't use charge multiplier */
         }
         else if (obj->tval == TV_FOOD && obj->sval <= SV_FOOD_SICKNESS)
         {
@@ -413,6 +496,10 @@ int supplies_first_entry_for_group(int group)
             if (entry->tval == TV_STAFF)
                 return i;
             break;
+        case SUPPLY_GROUP_GEMS:
+            if (entry->tval == TV_GEM)
+                return i;
+            break;
         default:
             break;
         }
@@ -446,7 +533,7 @@ bool supplies_consume_quantity(int idx, int amount)
     if (!obj->k_idx || amount <= 0)
         return false;
 
-    if (obj->tval == TV_STAFF)
+    if (IS_STAFF_OR_GEM(obj))
     {
         if (entry->staff_charges <= 0)
             return false;
@@ -476,7 +563,10 @@ bool supplies_consume_quantity(int idx, int amount)
             return true;
         }
 
-        supplies_sync_staff_entry(entry);
+        if (obj->tval == TV_STAFF)
+            supplies_sync_staff_entry(entry);
+        else if (obj->tval == TV_GEM)
+            supplies_sync_gem_entry(entry);
         g_supply_limit_warned = false;
         supplies_mark_dirty();
         return false;
@@ -511,9 +601,13 @@ void supplies_refresh_entry(int idx)
     if (!obj->k_idx)
         return;
 
-    if (obj->tval == TV_STAFF)
+    if (IS_STAFF_OR_GEM(obj))
     {
-        entry->staff_charges = obj->pval;
+        if (obj->tval == TV_STAFF)
+            entry->staff_charges = obj->pval;
+        else if (obj->tval == TV_GEM)
+            entry->staff_charges = obj->number;
+            
         if (entry->staff_charges <= 0)
         {
             object_wipe(obj);
@@ -524,7 +618,11 @@ void supplies_refresh_entry(int idx)
             supplies_mark_dirty();
             return;
         }
-        supplies_sync_staff_entry(entry);
+        
+        if (obj->tval == TV_STAFF)
+            supplies_sync_staff_entry(entry);
+        else if (obj->tval == TV_GEM)
+            supplies_sync_gem_entry(entry);
         g_supply_limit_warned = false;
         supplies_mark_dirty();
     }
@@ -540,7 +638,7 @@ bool supplies_drop_amount(int idx, int amount)
     if (!obj->k_idx)
         return false;
 
-    if (obj->tval == TV_STAFF)
+    if (IS_STAFF_OR_GEM(obj))
     {
         if (entry->staff_charges <= 0 || amount <= 0)
             return false;
@@ -551,21 +649,38 @@ bool supplies_drop_amount(int idx, int amount)
         object_type drop;
         object_wipe(&drop);
         object_copy(&drop, obj);
-        drop.number = 1;
-        drop.pval = amount;
+        
+        if (obj->tval == TV_STAFF)
+        {
+            drop.number = 1;
+            drop.pval = amount;
+        }
+        else if (obj->tval == TV_GEM)
+        {
+            drop.number = amount;
+            drop.pval = 0;
+        }
+        
         drop.ident &= ~(IDENT_EMPTY);
 
         drop_near(&drop, 0, p_ptr->py, p_ptr->px);
         bool removed = supplies_consume_quantity(idx, amount);
 
-        if (!removed && idx < g_supply_count && g_supply_entries[idx].obj.tval == TV_STAFF)
+        if (!removed && idx < g_supply_count && IS_STAFF_OR_GEM(&g_supply_entries[idx].obj))
         {
             supply_entry* updated = &g_supply_entries[idx];
-            if (updated->obj.number > 0)
-                updated->obj.number--;
-            if (updated->staff_charges > 0 && updated->obj.number <= 0)
-                updated->obj.number = 1;
-            supplies_sync_staff_entry(updated);
+            if (updated->obj.tval == TV_STAFF)
+            {
+                if (updated->obj.number > 0)
+                    updated->obj.number--;
+                if (updated->staff_charges > 0 && updated->obj.number <= 0)
+                    updated->obj.number = 1;
+                supplies_sync_staff_entry(updated);
+            }
+            else if (updated->obj.tval == TV_GEM)
+            {
+                supplies_sync_gem_entry(updated);
+            }
             supplies_mark_dirty();
         }
 
@@ -688,6 +803,4 @@ bool supplies_pending_hotkey(void)
 {
     return g_pending_hotkey;
 }
-
-
 

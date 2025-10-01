@@ -228,6 +228,7 @@ void do_cmd_use_item_by_index(int item)
         break;
     }
     case TV_STAFF:
+    case TV_GEM:
     {
         do_cmd_activate_staff(o_ptr, item);
         break;

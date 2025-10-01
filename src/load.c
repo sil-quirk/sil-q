@@ -1540,6 +1540,21 @@ static errr rd_inventory(void)
                 if (supply.number <= 0 && charges > 0)
                     supply.number = 1;
             }
+            else if (supply.tval == TV_GEM)
+            {
+                /* Gems use number, not pval */
+                int count = (int)staff_charges;
+                if (count < 0)
+                    count = 0;
+                if (count > 255)
+                    count = 255;
+                supply.number = (byte)count;
+                supply.pval = 0;
+                if (count <= 0)
+                    supply.ident |= IDENT_EMPTY;
+                else
+                    supply.ident &= ~(IDENT_EMPTY);
+            }
             else if (sf_extra >= 2)
             {
                 /* consume stored charges for non-staff entries */

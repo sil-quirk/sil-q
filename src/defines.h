@@ -1199,6 +1199,7 @@
 #define TV_AMULET 40 /* " Amulets (including Specials)        */
 #define TV_RING 45 /* = Rings (including Specials)          */
 #define TV_STAFF 55 /* _ Staffs                              */
+#define TV_GEM 56 /* * Gems                                */
 #define TV_HORN 66 /* ? Horns                               */
 #define TV_POTION 75 /* ! Potions                             */
 #define TV_FLASK 77 /* ! Flasks of Oil                       */
@@ -1365,6 +1366,18 @@
 #define SV_STAFF_RECHARGING 16
 #define SV_STAFF_SUMMONING 17
 #define SV_STAFF_SHADOWS 18
+
+/* The "sval" codes for TV_GEM */
+#define SV_GEM_FREEDOM 2
+#define SV_GEM_LIGHT 3
+#define SV_GEM_SANCTITY 5
+#define SV_GEM_UNDERSTANDING 6
+#define SV_GEM_REVELATIONS 7
+#define SV_GEM_TREASURES 8
+#define SV_GEM_FOES 9
+#define SV_GEM_SELF_KNOWLEDGE 12
+#define SV_GEM_RECHARGING 16
+#define SV_GEM_SHADOWS 18
 
 /* The "sval" codes for TV_HORN */
 #define SV_HORN_TERROR 0

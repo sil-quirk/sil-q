@@ -1405,8 +1405,9 @@ static s32b object_value_real(const object_type* o_ptr)
     /* Analyze the item */
     switch (o_ptr->tval)
     {
-    /* Staffs */
+    /* Staffs and Gems */
     case TV_STAFF:
+    case TV_GEM:
     {
         /* Pay extra for charges, depending on standard number of
          * charges.  Handle new-style wands correctly.
@@ -1598,8 +1599,9 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
         break;
     }
 
-    /* Staves */
+    /* Staves and Gems */
     case TV_STAFF:
+    case TV_GEM:
     {
         /* Don't merge as it messes with charges etc. */
         return (false);
@@ -2727,6 +2729,38 @@ static void a_m_aux_4(object_type* o_ptr, int level, bool fine, bool special)
         break;
     }
 
+    case TV_GEM:
+    {
+        /* Gems use number instead of charges - spawn same quantity as charge_staff would have given */
+        int charges = 0;
+        
+        switch (o_ptr->sval)
+        {
+        case SV_GEM_FREEDOM:
+        case SV_GEM_LIGHT:
+        case SV_GEM_REVELATIONS:
+        case SV_GEM_FOES:
+            charges = damroll(4, 2);
+            break;
+        case SV_GEM_SANCTITY:
+        case SV_GEM_UNDERSTANDING:
+        case SV_GEM_TREASURES:
+        case SV_GEM_SELF_KNOWLEDGE:
+        case SV_GEM_RECHARGING:
+        case SV_GEM_SHADOWS:
+            charges = damroll(2, 2);
+            break;
+        default:
+            charges = damroll(2, 2);
+            break;
+        }
+        
+        o_ptr->number = charges;
+        o_ptr->pval = 0;  /* Gems don't use pval */
+        
+        break;
+    }
+
     case TV_HORN:
     {
         /* Transfer the pval. */
@@ -3623,7 +3657,7 @@ static bool kind_is_staff(int k_idx)
         return false;
 
     /* Analyze the item type */
-    if (k_ptr->tval == TV_STAFF)
+    if (k_ptr->tval == TV_STAFF || k_ptr->tval == TV_GEM)
     {
         /*staffs suitable for a chest*/
         if (k_ptr->sval == SV_STAFF_UNDERSTANDING)
@@ -4824,24 +4858,33 @@ void inven_item_charges(int item)
     int visible_charges = 0;
     object_type* o_ptr = &inventory[item];
 
-    /* Require staff */
-    if (o_ptr->tval != TV_STAFF)
+    /* Require staff or gem */
+    if (o_ptr->tval != TV_STAFF && o_ptr->tval != TV_GEM)
         return;
 
     /* Require known item */
     if (!object_known_p(o_ptr))
         return;
 
-    visible_charges = o_ptr->pval;
-
-    if (!p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+    if (o_ptr->tval == TV_STAFF)
     {
-        visible_charges /= CHANNELING_CHARGE_MULTIPLIER;
-    }
+        visible_charges = o_ptr->pval;
 
-    /* Print a message */
-    msg_format("You have %d charge%s remaining.", visible_charges,
-        (visible_charges != 1) ? "s" : "");
+        if (!p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+        {
+            visible_charges /= CHANNELING_CHARGE_MULTIPLIER;
+        }
+
+        /* Print a message */
+        msg_format("You have %d charge%s remaining.", visible_charges,
+            (visible_charges != 1) ? "s" : "");
+    }
+    else if (o_ptr->tval == TV_GEM)
+    {
+        /* Gems show number, not charges */
+        msg_format("You have %d gem%s remaining.", o_ptr->number,
+            (o_ptr->number != 1) ? "s" : "");
+    }
 }
 
 /*
@@ -4978,24 +5021,33 @@ void floor_item_charges(int item)
     int visible_charges = 0;
     object_type* o_ptr = &o_list[item];
 
-    /* Require staff */
-    if (o_ptr->tval != TV_STAFF)
+    /* Require staff or gem */
+    if (o_ptr->tval != TV_STAFF && o_ptr->tval != TV_GEM)
         return;
 
     /* Require known item */
     if (!object_known_p(o_ptr))
         return;
 
-    visible_charges = o_ptr->pval;
-
-    if (!p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+    if (o_ptr->tval == TV_STAFF)
     {
-        visible_charges /= CHANNELING_CHARGE_MULTIPLIER;
-    }
+        visible_charges = o_ptr->pval;
 
-    /* Print a message */
-    msg_format("There are %d charge%s remaining.", visible_charges,
-        (visible_charges != 1) ? "s" : "");
+        if (!p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+        {
+            visible_charges /= CHANNELING_CHARGE_MULTIPLIER;
+        }
+
+        /* Print a message */
+        msg_format("There are %d charge%s remaining.", visible_charges,
+            (visible_charges != 1) ? "s" : "");
+    }
+    else if (o_ptr->tval == TV_GEM)
+    {
+        /* Gems show number, not charges */
+        msg_format("There are %d gem%s.", o_ptr->number,
+            (o_ptr->number != 1) ? "s" : "");
+    }
 }
 
 /*

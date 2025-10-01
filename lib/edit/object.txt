@@ -993,9 +993,9 @@ D:It may shut and lock all doors in line of sight.
 
 
 N:192:Freedom
-G:_:d
-I:55:2:0
-W:9:0:50:400
+G:*:d
+I:56:2:0
+W:9:0:5:400
 P:0:0d0:0:0d0
 A:6/4:12/2
 D:It reveals doors and traps in line of sight and may
@@ -1003,9 +1003,9 @@ D: open or destroy them.
 
 
 N:193:Light
-G:_:d
-I:55:3:0
-W:2:0:50:250
+G:*:d
+I:56:3:0
+W:2:0:5:250
 P:0:0d0:0:0d0
 A:3/2:9/4
 D:It lights up an area with a radius of 7 squares, plus the entire room
@@ -1014,18 +1014,18 @@ D: any light-sensitive creatures within the area of effect.
 
 
 N:195:Sanctity
-G:_:d
-I:55:5:0
-W:6:0:50:400
+G:*:d
+I:56:5:0
+W:6:0:5:400
 P:0:0d0:0:0d0
 A:4/2:10/4
 D:It removes curses from the items in your possession.
 
 
 N:196:Understanding
-G:_:d
-I:55:6:0
-W:10:0:50:400
+G:*:d
+I:56:6:0
+W:10:0:5:400
 P:0:0d0:0:0d0
 A:8/2:14/1
 D:It identifies an item. 
@@ -1033,27 +1033,27 @@ D: (This may be aborted without using up a charge.)
 
 
 N:197:Revelations
-G:_:d
-I:55:7:0
-W:13:0:50:400
+G:*:d
+I:56:7:0
+W:13:0:5:400
 P:0:0d0:0:0d0
 A:13/3
 D:It reveals your surroundings.
 
 
 N:198:Treasures
-G:_:d
-I:55:8:0
-W:13:0:50:400
+G:*:d
+I:56:8:0
+W:13:0:5:400
 P:0:0d0:0:0d0
 A:13/6
 D:It shows you the whereabouts of all items on the level.
 
 
 N:199:Foes
-G:_:d
-I:55:9:0
-W:13:0:50:400
+G:*:d
+I:56:9:0
+W:13:0:5:400
 P:0:0d0:0:0d0
 A:6/4:14/2
 D:It shows you the whereabouts of all monsters on the level.
@@ -1078,9 +1078,9 @@ D:It causes fear in all monsters in line of sight.
 
 
 N:202:Self Knowledge
-G:_:d
-I:55:12:0
-W:7:0:50:400
+G:*:d
+I:56:12:0
+W:7:0:5:400
 P:0:0d0:0:0d0
 A:2/3
 D:It lets you know all of your status effects and also gives a slight chance to feel current curses and traits.
@@ -1106,9 +1106,9 @@ D:It confuses all monsters in line of sight.
 
 
 N:206:Recharging
-G:_:d
-I:55:16:0
-W:11:0:50:400
+G:*:d
+I:56:16:0
+W:11:0:5:400
 P:0:0d0:0:0d0
 A:11/12
 D:It allows you to partially recharge another staff.
@@ -1124,9 +1124,9 @@ D:It summons monsters to the stairs on the current level.
 
 
 N:211:Shadows
-G:_:d
-I:55:18:0
-W:9:0:50:0
+G:*:d
+I:56:18:0
+W:9:0:5:0
 P:0:0d0:0:0d0
 A:3/3
 D:It darkens an area with a radius of 7 squares, plus the entire room
