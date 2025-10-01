@@ -2165,8 +2165,33 @@ void show_inven(void)
         z = i + 1;
     }
 
-    /* Display the inventory */
-    for (k = 0, i = 0; i < z; i++)
+    /* Avoid exceeding the available rows in the vanilla inventory view. */
+    int max_rows = (Term ? Term->hgt : 24) - 1;
+    if (max_rows < 1)
+        max_rows = INVEN_PACK;
+    if (include_supplies && z >= max_rows)
+        include_supplies = false;
+
+    k = 0;
+
+    if (include_supplies && k < (int)N_ELEMENTS(out_index))
+    {
+        char supply_desc[80];
+        format_supply_summary(supply_desc, sizeof(supply_desc));
+        out_index[k] = SUPPLIES_INDEX;
+        out_color[k] = TERM_L_WHITE;
+        my_strcpy(out_desc[k], supply_desc, sizeof(out_desc[0]));
+
+        l = (int)strlen(out_desc[k]) + 5;
+        if (show_weights)
+            l += 9;
+        if (l > len)
+            len = l;
+
+        k++;
+    }
+
+    for (i = 0; i < z && k < (int)N_ELEMENTS(out_index); i++)
     {
         o_ptr = &inventory[i];
 
@@ -2204,23 +2229,6 @@ void show_inven(void)
             len = l;
 
         /* Advance to next "line" */
-        k++;
-    }
-
-    if (include_supplies && k < (int)N_ELEMENTS(out_index))
-    {
-        char supply_desc[80];
-        format_supply_summary(supply_desc, sizeof(supply_desc));
-        out_index[k] = SUPPLIES_INDEX;
-        out_color[k] = TERM_L_WHITE;
-        my_strcpy(out_desc[k], supply_desc, sizeof(out_desc[0]));
-
-        l = (int)strlen(out_desc[k]) + 5;
-        if (show_weights)
-            l += 9;
-        if (l > len)
-            len = l;
-
         k++;
     }
 
@@ -3018,13 +3026,13 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         if (!p_ptr->command_see) break;                                            \
         if (p_ptr->command_wrk == (USE_INVEN)) {                                    \
             vis_inven_cnt = 0;                                                      \
-            for (int ii = 0; ii < INVEN_PACK; ++ii) {                                \
+            if (supplies_visible_for_current_filter() && vis_inven_cnt < (INVEN_PACK + 1)) { \
+                vis_inven[vis_inven_cnt++] = SUPPLIES_INDEX;                        \
+            }                                                                       \
+            for (int ii = 0; ii < INVEN_PACK && vis_inven_cnt < (INVEN_PACK + 1); ++ii) { \
                 if (inventory[ii].k_idx && get_item_okay(ii)) {                     \
                     vis_inven[vis_inven_cnt++] = ii;                                \
                 }                                                                   \
-            }                                                                       \
-            if (supplies_visible_for_current_filter() && vis_inven_cnt < (INVEN_PACK + 1)) { \
-                vis_inven[vis_inven_cnt++] = SUPPLIES_INDEX;                        \
             }                                                                       \
             if (!highlight_active && vis_inven_cnt > 0) {                           \
                 highlight_row = 0; highlight_active = true;                         \
@@ -3084,8 +3092,13 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         /* Recompute layout length by scanning visible list */                     \
         if (p_ptr->command_wrk == (USE_INVEN)) {                                    \
             for (int r=0;r<vis_inven_cnt;r++){                                      \
-                object_type* o_ptr=&inventory[vis_inven[r]];                        \
-                object_desc(tmp, sizeof(tmp), o_ptr, true, 3);                      \
+                int entry = vis_inven[r];                                           \
+                if (entry == SUPPLIES_INDEX) {                                      \
+                    format_supply_summary(tmp, sizeof(tmp));                       \
+                } else {                                                            \
+                    object_type* o_ptr=&inventory[entry];                           \
+                    object_desc(tmp, sizeof(tmp), o_ptr, true, 3);                  \
+                }                                                                   \
                 tmp[lim]='\0';                                                     \
                 int l=strlen(tmp)+5 + (show_weights?9:0);                           \
                 if (l>len) len=l;                                                   \
@@ -3112,12 +3125,24 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         int row=-1; int item_index=0; int floor_slot=-1;                            \
         if (p_ptr->command_wrk == (USE_INVEN) && highlight_row < vis_inven_cnt) {   \
             row = highlight_row; item_index = vis_inven[highlight_row];             \
-            object_type* o_ptr=&inventory[item_index];                              \
-            object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';               \
             prt("", row+1, col?col-2:col);                                         \
-            { char lab[4]; sprintf(lab, "%c)", index_to_label(item_index)); put_str(lab,row+1,col); }\
-            c_put_str(attr,tmp,row+1,col+3);                                        \
-            if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%3d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,71);} \
+            if (item_index == SUPPLIES_INDEX) {                                     \
+                char label = supplies_label_char();                                 \
+                int slot = supplies_virtual_slot();                                 \
+                if (!label && slot >= 0) label = index_to_label(slot);              \
+                if (!label) label = 'a';                                            \
+                format_supply_summary(tmp, sizeof(tmp));                            \
+                tmp[lim]='\0';                                                     \
+                { char lab[4]; sprintf(lab, "%c)", label); put_str(lab,row+1,col); }\
+                c_put_str(attr,tmp,row+1,col+3);                                    \
+                if (show_weights){ int wgt = supplies_total_weight(); char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,71);} \
+            } else {                                                                \
+                object_type* o_ptr=&inventory[item_index];                          \
+                object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';           \
+                { char lab[4]; sprintf(lab, "%c)", index_to_label(item_index)); put_str(lab,row+1,col); }\
+                c_put_str(attr,tmp,row+1,col+3);                                    \
+                if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,71);} \
+            }                                                                       \
         } else if (p_ptr->command_wrk == (USE_EQUIP) && highlight_row < vis_equip_cnt){\
             row = highlight_row; item_index = vis_equip[highlight_row];             \
             object_type* o_ptr=&inventory[item_index];                              \
@@ -3135,7 +3160,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             prt("", row+1, col?col-2:col);                                         \
             { char lab[4]; sprintf(lab, "%c)", index_to_label(floor_slot)); put_str(lab,row+1,col);} \
             c_put_str(attr,tmp,row+1,col+3);                                        \
-            if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%3d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,71);} \
+            if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,71);} \
         }                                                                           \
     } while (0)
 
@@ -4058,7 +4083,26 @@ void show_inven_enhanced(void)
         }
     }
 
-    for (i = 0; i < z; i++)
+    if (include_supplies && k < (int)N_ELEMENTS(out_index))
+    {
+        char supply_desc[80];
+        format_supply_summary(supply_desc, sizeof(supply_desc));
+        out_index[k] = SUPPLIES_INDEX;
+        out_is_floor[k] = false;
+        out_is_supply[k] = true;
+        out_color[k] = TERM_L_WHITE;
+        my_strcpy(out_desc[k], supply_desc, sizeof(out_desc[0]));
+
+        int l = (int)strlen(out_desc[k]) + 5;
+        if (show_weights)
+            l += 9;
+        if (l > len)
+            len = l;
+
+        k++;
+    }
+
+    for (i = 0; i < z && k < (int)N_ELEMENTS(out_index); i++)
     {
         o_ptr = &inventory[i];
 
@@ -4074,25 +4118,6 @@ void show_inven_enhanced(void)
         out_color[k] = weapon_glows(o_ptr) ? TERM_L_BLUE
             : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
         my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
-
-        int l = (int)strlen(out_desc[k]) + 5;
-        if (show_weights)
-            l += 9;
-        if (l > len)
-            len = l;
-
-        k++;
-    }
-    
-    if (include_supplies && k < (int)N_ELEMENTS(out_index))
-    {
-        char supply_desc[80];
-        format_supply_summary(supply_desc, sizeof(supply_desc));
-        out_index[k] = SUPPLIES_INDEX;
-        out_is_floor[k] = false;
-        out_is_supply[k] = true;
-        out_color[k] = TERM_L_WHITE;
-        my_strcpy(out_desc[k], supply_desc, sizeof(out_desc[0]));
 
         int l = (int)strlen(out_desc[k]) + 5;
         if (show_weights)
