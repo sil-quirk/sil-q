@@ -11614,7 +11614,7 @@ static void display_supply_list(int col, int row, int per_page,
         if (o_ptr->tval == TV_STAFF)
         {
             int visible = supplies_visible_staff_charges(entry->total);
-            strnfmt(count_buf, sizeof(count_buf), "ch%-3d", visible);
+            strnfmt(count_buf, sizeof(count_buf), "x%-3d", visible);
         }
         else
             strnfmt(count_buf, sizeof(count_buf), "x%-3d", entry->total);

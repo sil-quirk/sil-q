@@ -2411,6 +2411,7 @@ static void calc_bonuses(void)
         if (f2 & (TR2_DANGER))
             p_ptr->danger += 1;
     }
+    p_ptr->total_weight += supplies_total_weight();
 
     /*** Analyze equipment ***/
 
