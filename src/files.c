@@ -18,6 +18,8 @@
 #include <string.h>
 #include <ctype.h>
 #include <time.h>
+#include <limits.h>
+#include <stdint.h>
 
 #ifdef WINDOWS
 #include <windows.h>
@@ -4080,12 +4082,18 @@ static void update_scores_file_header_count(void)
     /* Update the header if count changed */
     if (scores_file_entry_count != count) {
         score_file_header header;
-        fseek(highscore_fd, 0, SEEK_SET);
-        fread(&header, sizeof(header), 1, highscore_fd);
-        
+        if (fseek(highscore_fd, 0, SEEK_SET) != 0)
+            return;
+        size_t read_items = fread(&header, sizeof(header), 1, highscore_fd);
+        if (read_items != 1)
+            return;
+
         header.entry_count = count;
-        fseek(highscore_fd, 0, SEEK_SET);
-        fwrite(&header, sizeof(header), 1, highscore_fd);
+        if (fseek(highscore_fd, 0, SEEK_SET) != 0)
+            return;
+        size_t written_items = fwrite(&header, sizeof(header), 1, highscore_fd);
+        if (written_items != 1)
+            return;
         fflush(highscore_fd);
         scores_file_entry_count = count;
         log_debug("Updated scores file header count to %u", count);
@@ -4252,89 +4260,250 @@ static errr backup_scores_file(const char *filepath)
     return result;
 }
 
-/*
- * An integer value representing the player's "points".
- *
- * In reality it isn't so much a score as a number that has the same ordering
- * as the scores.
- *
- * It ranges from 100,000 to 141,399,999
- */
-int score_points(high_score* score)
+static int clampi(int value, int minimum, int maximum)
 {
-    int points = 0;
+    if (value < minimum)
+        return minimum;
+    if (value > maximum)
+        return maximum;
+    return value;
+}
+
+static int parse_score_int(const char* field, size_t field_len, int fallback)
+{
+    if (!field)
+        return fallback;
+
+    char buffer[16];
+    size_t copy_len = field_len;
+    if (copy_len >= sizeof(buffer))
+        copy_len = sizeof(buffer) - 1;
+
+    memcpy(buffer, field, copy_len);
+    buffer[copy_len] = '\0';
+
+    char* start = buffer;
+    while (*start && isspace((unsigned char)*start))
+        start++;
+
+    if (*start == '\0')
+        return fallback;
+
+    char* end = NULL;
+    long value = strtol(start, &end, 10);
+    if (start == end)
+        return fallback;
+
+    if (value > INT_MAX)
+        return INT_MAX;
+    if (value < INT_MIN)
+        return INT_MIN;
+
+    return (int)value;
+}
+
+typedef struct score_breakdown
+{
+    int base_score;
+    int mult_bp;
     int silmarils;
+    int max_depth;
+    int cur_depth;
+    int depth_up;
+    int curses;
+    int house_power;
+    bool escaped;
+    bool morgoth_slain;
+} score_breakdown;
 
-    int maxturns = 100000;
-    int challenge_factor = maxturns;
-    int silmarils_factor = challenge_factor * 10;
-    int depth_factor = silmarils_factor * 10;
-    int morgoth_factor = depth_factor * 100;
+static score_breakdown calculate_score_breakdown(const high_score* score)
+{
+    score_breakdown result = {0};
 
-    log_debug("Calculating score points for player '%s'", score->who);
+    int raw_max_depth = parse_score_int(score->max_dun, sizeof(score->max_dun), 0);
+    int raw_cur_depth = parse_score_int(score->cur_dun, sizeof(score->cur_dun), 0);
+    int silmarils = parse_score_int(score->silmarils, sizeof(score->silmarils), 0);
+    int curses = parse_score_int(score->pts, sizeof(score->pts), 0);
 
-    // these lines fix a few potential problems with the score record...
-    score->silmarils[1] = '\0';
-    score->cur_dun[3] = '\0';
+    if (silmarils < 0)
+        silmarils = 0;
+    curses = clampi(curses, 0, 1000);
 
-    // points from turns taken (00000 to 99999)
-    points = maxturns - atoi(score->turns);
-    if (points < 0)
-        points = 0;
-    if (points >= maxturns)
-        points = maxturns - 1;
+    int depth_down = clampi(raw_max_depth, 0, MORGOTH_DEPTH);
+    int depth_up = clampi(40 - raw_cur_depth, 0, MORGOTH_DEPTH);
 
-    // points from challenge factor (0 00000 to 3 00000)
-    // Bit of a hack - relies on values in races.txt
-    if (p_ptr->prace == 1 || p_ptr->prace == 2)
+    int base = 10 * depth_down;
+    if (silmarils > 0)
     {
-        points += challenge_factor * 3;
-    }
-    else if (p_ptr->prace == 3)
-    {
-        points += challenge_factor * 5;
-    }
-
-    if (!birth_fixed_exp)
-    {
-        points += challenge_factor * 1;
-    }
-
-    if (!oath_invalid(OATH_IRON))
-    {
-        points += challenge_factor * 2;
+        base += 5 * depth_up;
+        base += 100;
+        if (silmarils > 1)
+            base += 50;
+        if (silmarils > 2)
+            base += 50;
     }
 
-    // points from silmarils (0 0 00000 to 3 0 00000)
-    silmarils = atoi(score->silmarils);
-    points += silmarils_factor * silmarils;
+    bool morgoth = (score->morgoth_slain[0] == 't');
+    if (morgoth)
+        base += 300;
 
-    // points from depth (01 0 0 00000 to 40 0 0 00000)
-    if (silmarils == 0)
-    {
-        points += depth_factor * atoi(score->max_dun);
-    }
-    else
-    {
-        points += depth_factor * (40 - atoi(score->cur_dun));
-    }
+    bool escaped = (score->escaped[0] == 't');
+    if (escaped)
+        base += 100;
 
-    // points for escaping (changes 40 0 0 00000 to 41 0 0 00000)
-    if (score->escaped[0] == 't')
+    int house_index = parse_score_int(score->p_h, sizeof(score->p_h), -1);
+    int house_power = 3;
+    if (house_index >= 0 && z_info && c_info && house_index < z_info->c_max)
     {
-        points += depth_factor;
+        house_power = c_info[house_index].power;
     }
 
-    // points slaying Morgoth  (0 00 0 0 00000 to 1 00 0 0 00000)
-    if (score->morgoth_slain[0] == 't')
+    house_power = clampi(house_power, -100, 100);
+
+    int mult_bp = 1000 + (3 - house_power) * 100 + curses * 25;
+    if (mult_bp < 0)
+        mult_bp = 0;
+
+    result.base_score = base;
+    result.mult_bp = mult_bp;
+    result.silmarils = silmarils;
+    result.max_depth = depth_down;
+    result.cur_depth = clampi(raw_cur_depth, 0, MORGOTH_DEPTH);
+    result.depth_up = depth_up;
+    result.curses = curses;
+    result.house_power = house_power;
+    result.escaped = escaped;
+    result.morgoth_slain = morgoth;
+
+    return result;
+}
+
+static int score_points_from_breakdown(const score_breakdown* breakdown)
+{
+    int64_t base = breakdown->base_score;
+    int64_t mult = breakdown->mult_bp;
+
+    if (base < 0)
+        base = 0;
+    if (mult < 0)
+        mult = 0;
+
+    int64_t total = base * mult;
+    if (total < 0)
+        total = 0;
+
+    int64_t scaled = total / 1000;
+    if (scaled > INT_MAX)
+        return INT_MAX;
+    if (scaled < 0)
+        return 0;
+
+    return (int)scaled;
+}
+
+/*
+ * Compute the score for a record using the modern Sil-QH rules.
+ *
+ * Base points:
+ *   - 10 per level of descent, clamped to [0, MORGOTH_DEPTH].
+ *   - If at least one Silmaril is recovered, add 5 per level of ascent
+ *     from depth 40, clamped to the same range.
+ *   - Flat bonuses: +100 for the first Silmaril, +50 for the second and
+ *     third, +300 for slaying Morgoth, +100 for escaping.
+ *
+ * Multipliers:
+ *   - 1000 basis points baseline.
+ *   - (3 - house_power) * 100 basis points.
+ *   - +25 basis points per stored curse stack (capped generously).
+ */
+int score_points(const high_score* score)
+{
+    if (!score)
+        return 0;
+
+    score_breakdown breakdown = calculate_score_breakdown(score);
+    int total = score_points_from_breakdown(&breakdown);
+
+    const char* who = (score->who[0] != '\0') ? score->who : "<unknown>";
+    log_debug(
+        "score_points: '%s' base=%d mult=%d (power=%d curses=%d sil=%d depth_down=%d depth_up=%d escaped=%s morgoth=%s) => %d",
+        who, breakdown.base_score, breakdown.mult_bp, breakdown.house_power,
+        breakdown.curses, breakdown.silmarils, breakdown.max_depth,
+        breakdown.depth_up, breakdown.escaped ? "yes" : "no",
+        breakdown.morgoth_slain ? "yes" : "no", total);
+
+    return total;
+}
+
+static int compare_scores(const high_score* a, const high_score* b)
+{
+    if (a == NULL || b == NULL)
+        return 0;
+
+    score_breakdown breakdown_a = calculate_score_breakdown(a);
+    score_breakdown breakdown_b = calculate_score_breakdown(b);
+
+    int score_a = score_points_from_breakdown(&breakdown_a);
+    int score_b = score_points_from_breakdown(&breakdown_b);
+
+    if (score_a > score_b)
+        return -1;
+    if (score_a < score_b)
+        return 1;
+
+    if (breakdown_a.escaped != breakdown_b.escaped)
+        return breakdown_a.escaped ? -1 : 1;
+
+    bool a_has_sil = (breakdown_a.silmarils > 0);
+    bool b_has_sil = (breakdown_b.silmarils > 0);
+    if (a_has_sil != b_has_sil)
+        return a_has_sil ? -1 : 1;
+
+    if (breakdown_a.morgoth_slain != breakdown_b.morgoth_slain)
+        return breakdown_a.morgoth_slain ? -1 : 1;
+
+    if (breakdown_a.silmarils != breakdown_b.silmarils)
+        return (breakdown_a.silmarils > breakdown_b.silmarils) ? -1 : 1;
+
+    if (breakdown_a.max_depth != breakdown_b.max_depth)
+        return (breakdown_a.max_depth > breakdown_b.max_depth) ? -1 : 1;
+
+    if (breakdown_a.mult_bp != breakdown_b.mult_bp)
+        return (breakdown_a.mult_bp > breakdown_b.mult_bp) ? -1 : 1;
+
+    return 0;
+}
+
+static int compare_scores_qsort(const void* va, const void* vb)
+{
+    const high_score* a = (const high_score*)va;
+    const high_score* b = (const high_score*)vb;
+    return compare_scores(a, b);
+}
+
+static int load_scores_into_array(high_score* entries, int capacity)
+{
+    if (!highscore_fd || capacity <= 0)
+        return 0;
+
+    if (highscore_seek(0))
+        return 0;
+
+    int count = 0;
+    while (count < capacity)
     {
-        points += morgoth_factor;
+        high_score temp;
+        if (highscore_read(&temp))
+            break;
+        if (temp.who[0] == '\0')
+            break;
+        entries[count++] = temp;
     }
 
-    log_debug("Final score points for '%s': %d (silmarils=%d, escaped=%c, morgoth=%c)", 
-              score->who, points, silmarils, score->escaped[0], score->morgoth_slain[0]);
+    /* Leave the file positioned at the first entry for subsequent readers */
+    highscore_seek(0);
 
-    return (points);
+    return count;
 }
 
 /*
@@ -4343,42 +4512,49 @@ int score_points(high_score* score)
  */
 static int highscore_where(high_score* score)
 {
-    int i;
-    high_score the_score;
-
     log_trace("Determining placement for score from player '%s'", score->who);
 
-    if (!highscore_fd) {
+    if (!highscore_fd)
+    {
         log_warn("Highscore file not opened, cannot determine score placement");
         return -1;
     }
 
-    /* Empty versioned file */
-    if (scores_file_is_versioned && scores_file_entry_count == 0)
-        return 0;
+    high_score entries[MAX_HISCORES + 1];
+    int count = load_scores_into_array(entries, MAX_HISCORES);
 
-    if (highscore_seek(0)) {
-        log_error("Failed to seek to start of highscore file");
-        return -1;
-    }
+    entries[count++] = (*score);
 
-    int limit = MAX_HISCORES;
-    if (scores_file_is_versioned && scores_file_entry_count > 0 &&
-        scores_file_entry_count < MAX_HISCORES)
-        limit = scores_file_entry_count; /* only scan existing */
+    qsort(entries, count, sizeof(high_score), compare_scores_qsort);
 
-    for (i = 0; i < limit; i++) {
-        if (highscore_read(&the_score)) {
-            return i; /* EOF early */
+    int candidate = -1;
+    for (int i = 0; i < count; i++)
+    {
+        if (memcmp(&entries[i], score, sizeof(high_score)) == 0)
+        {
+            candidate = i;
+            break;
         }
-        if (strcmp(score->who, the_score.who) == 0)
-            return i; /* update existing */
     }
 
-    if (limit < MAX_HISCORES)
-        return limit; /* append */
+    if (candidate < 0)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            if (streq(entries[i].who, score->who)
+                && streq(entries[i].day, score->day)
+                && streq(entries[i].how, score->how))
+            {
+                candidate = i;
+                break;
+            }
+        }
+    }
 
-    return MAX_HISCORES - 1; /* overwrite last */
+    if (candidate >= 0 && candidate < MAX_HISCORES)
+        return candidate;
+
+    return -1;
 }
 
 /*
@@ -4463,34 +4639,113 @@ extern int highscore_count()
  */
 static int highscore_add(high_score* score)
 {
-    int slot;
-    // bool done = false;
-
     log_info("Adding score entry for player '%s'", score->who);
 
-    /* Paranoia -- it may not have opened */
-    if (!highscore_fd) {
-    log_warn("Cannot add score - highscore file not opened");
-        return (-1);
+    if (!highscore_fd)
+    {
+        log_warn("Cannot add score - highscore file not opened");
+        return -1;
     }
 
-    /* Determine where the score should go */
-    slot = highscore_where(score);
-    
-    /* Hack -- Not on the list */
-    if (slot < 0) {
-    log_warn("Score for player '%s' rejected - not eligible for high scores", score->who);
-        return (-1);
+    high_score entries[MAX_HISCORES + 1];
+    int count = load_scores_into_array(entries, MAX_HISCORES);
+    bool replaced = false;
+
+    for (int i = 0; i < count; i++)
+    {
+        if (streq(entries[i].who, score->who))
+        {
+            entries[i] = (*score);
+            replaced = true;
+            break;
+        }
     }
-    
-    highscore_seek(slot);
-    highscore_write(score);
-    
-    /* Update header count if using versioned format */
-    update_scores_file_header_count();
-    
-    log_debug("Added score entry for %s at position %d", score->who, slot);
-    return (slot);
+
+    if (!replaced)
+    {
+        entries[count++] = (*score);
+    }
+
+    qsort(entries, count, sizeof(high_score), compare_scores_qsort);
+
+    if (count > MAX_HISCORES)
+        count = MAX_HISCORES;
+
+    int slot = -1;
+    for (int i = 0; i < count; i++)
+    {
+        if (memcmp(&entries[i], score, sizeof(high_score)) == 0)
+        {
+            slot = i;
+            break;
+        }
+    }
+
+    if (slot < 0)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            if (streq(entries[i].who, score->who)
+                && streq(entries[i].day, score->day)
+                && streq(entries[i].how, score->how))
+            {
+                slot = i;
+                break;
+            }
+        }
+    }
+
+    if (highscore_seek(0))
+    {
+        log_error("Failed to seek before rewriting high score table");
+        return slot;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        if (fwrite(&entries[i], sizeof(high_score), 1, highscore_fd) != 1)
+        {
+            log_error("Failed to rewrite high score table entry %d", i);
+            return -1;
+        }
+    }
+
+    fflush(highscore_fd);
+
+    if (scores_file_is_versioned)
+    {
+        score_file_header header;
+        if (fseek(highscore_fd, 0, SEEK_SET) == 0
+            && fread(&header, sizeof(header), 1, highscore_fd) == 1)
+        {
+            header.entry_count = count;
+            fseek(highscore_fd, 0, SEEK_SET);
+            fwrite(&header, sizeof(header), 1, highscore_fd);
+            fflush(highscore_fd);
+            scores_file_entry_count = count;
+        }
+        else
+        {
+            log_warn("Unable to refresh high score header after rewrite");
+        }
+
+        highscore_seek(0);
+    }
+    else
+    {
+        highscore_seek(0);
+    }
+
+    log_debug(
+        "Sorted high score table written (%d entries). Player '%s' slot=%d replaced=%s",
+        count, score->who, slot, replaced ? "yes" : "no");
+
+    if (slot < 0 && !replaced)
+    {
+        log_warn("Score for player '%s' did not reach the published high score table", score->who);
+    }
+
+    return slot;
 }
 
 /*
@@ -5723,9 +5978,13 @@ static errr create_score(high_score* the_score)
     /* Save the version */
     strnfmt(the_score->what, sizeof(the_score->what), "%s", VERSION_STRING);
 
-    /* Calculate and save the points */
-    strnfmt(the_score->pts, sizeof(the_score->pts), "    ");
-    the_score->pts[4] = '\0';
+    /* Store the total number of active curse stacks */
+    int curse_total = 0;
+    for (int id = 0; id < 32; ++id)
+    {
+        curse_total += CURSE_GET(id);
+    }
+    strnfmt(the_score->pts, sizeof(the_score->pts), "%4d", curse_total);
 
     /* Save the current player turn */
     strnfmt(
