@@ -635,6 +635,8 @@ extern void display_scores(int from, int to);
 extern void display_scores_short(int from, int to);
 extern void close_game(void);
 extern void exit_game_panic(void);
+extern errr create_score(high_score* the_score);
+extern int score_points(high_score* score);
 #ifdef HANDLE_SIGNALS
 extern void (*(*signal_aux)(int, void (*)(int)))(int);
 #endif

@@ -3823,7 +3823,7 @@ static u32b scores_file_entry_count = 0;        /* cached header entry count (ma
 
 /* Forward declarations for functions used in versioned score handling */
 static errr highscore_read(high_score* score);
-static errr create_score(high_score* the_score);
+errr create_score(high_score* the_score);
 
 /*
  * Seek score 'i' in the highscore file (with version awareness)
@@ -5970,7 +5970,7 @@ extern int silmarils_possessed(void)
 /*
  * Creates a score record for the player
  */
-static errr create_score(high_score* the_score)
+errr create_score(high_score* the_score)
 {
     /* Clear the record */
     (void)WIPE(the_score, high_score);
