@@ -51,7 +51,6 @@ struct object_list_entry
     int tval, sval;
 };
 
-
 typedef struct supply_list_entry supply_list_entry;
 
 struct supply_list_entry
@@ -61,6 +60,8 @@ struct supply_list_entry
     int total;      /* Total quantity across the pack */
     int supply_idx; /* Index inside the supply cache (-1 if not present) */
 };
+
+
 
 static bool supplies_menu_use_entry(supply_list_entry* entry)
 {
@@ -104,7 +105,19 @@ static bool supplies_menu_drop_entry(supply_list_entry* entry)
     if (!o_ptr || !o_ptr->k_idx)
         return false;
 
-    int amt = get_quantity(NULL, o_ptr->number);
+    int max_amt = (o_ptr->tval == TV_STAFF) ? o_ptr->pval : o_ptr->number;
+    if (max_amt <= 0)
+        return false;
+
+    char prompt_buf[64];
+    const char* prompt = NULL;
+    if (o_ptr->tval == TV_STAFF)
+    {
+        strnfmt(prompt_buf, sizeof(prompt_buf), "Charges to drop (0-%d): ", max_amt);
+        prompt = prompt_buf;
+    }
+
+    int amt = get_quantity(prompt, max_amt);
     if (amt <= 0)
         return false;
 
@@ -11346,7 +11359,7 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
         else if (o_ptr->tval == TV_POTION)
             totals[SUPPLY_GROUP_POTIONS] += o_ptr->number;
         else if (o_ptr->tval == TV_STAFF)
-            totals[SUPPLY_GROUP_STAVES] += o_ptr->number;
+            totals[SUPPLY_GROUP_STAVES] += supplies_visible_staff_charges(o_ptr->pval);
     }
 
     for (i = 0; i < supplies_entry_count(); i++)
@@ -11360,7 +11373,7 @@ static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
         else if (s_ptr->tval == TV_POTION)
             totals[SUPPLY_GROUP_POTIONS] += s_ptr->number;
         else if (s_ptr->tval == TV_STAFF)
-            totals[SUPPLY_GROUP_STAVES] += s_ptr->number;
+            totals[SUPPLY_GROUP_STAVES] += supplies_visible_staff_charges(s_ptr->pval);
     }
 }
 
@@ -11398,11 +11411,13 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
         if (!supply_item_matches(group_idx, o_ptr))
             continue;
 
+        int value = (o_ptr->tval == TV_STAFF) ? o_ptr->pval : o_ptr->number;
+
         for (j = 0; j < count; j++)
         {
             if (entries[j].k_idx == o_ptr->k_idx)
             {
-                entries[j].total += o_ptr->number;
+                entries[j].total += value;
                 if (entries[j].item_idx < 0)
                     entries[j].item_idx = i;
                 break;
@@ -11416,7 +11431,7 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
 
             entries[count].k_idx = o_ptr->k_idx;
             entries[count].item_idx = i;
-            entries[count].total = o_ptr->number;
+            entries[count].total = value;
             entries[count].supply_idx = -1;
             count++;
         }
@@ -11434,11 +11449,13 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
         if (!supply_item_matches(group_idx, s_ptr))
             continue;
 
+        int value = (s_ptr->tval == TV_STAFF) ? s_ptr->pval : s_ptr->number;
+
         for (j = 0; j < count; j++)
         {
             if (entries[j].k_idx == s_ptr->k_idx)
             {
-                entries[j].total += s_ptr->number;
+                entries[j].total += value;
                 if (entries[j].item_idx < 0)
                     entries[j].item_idx = SUPPLIES_INDEX;
                 entries[j].supply_idx = i;
@@ -11453,7 +11470,7 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
 
             entries[count].k_idx = s_ptr->k_idx;
             entries[count].item_idx = SUPPLIES_INDEX;
-            entries[count].total = s_ptr->number;
+            entries[count].total = value;
             entries[count].supply_idx = i;
             count++;
         }
@@ -11564,21 +11581,43 @@ static void display_supply_list(int col, int row, int per_page,
         if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
         {
             o_ptr = &inventory[entry->item_idx];
+            if (o_ptr->tval == TV_STAFF)
+            {
+                object_copy(&fake, o_ptr);
+                fake.pval = entry->total;
+                if (fake.number <= 0)
+                    fake.number = 1;
+                o_ptr = &fake;
+            }
         }
         else
         {
             object_wipe(&fake);
             object_prep(&fake, entry->k_idx);
-            fake.number = (entry->total > 0) ? entry->total : 1;
             if (aware)
                 fake.ident |= IDENT_KNOWN;
+            if (fake.tval == TV_STAFF)
+            {
+                fake.number = 1;
+                fake.pval = entry->total;
+            }
+            else
+            {
+                fake.number = (entry->total > 0) ? entry->total : 1;
+            }
             o_ptr = &fake;
         }
 
         object_desc(name, sizeof(name), o_ptr, true, 3);
         c_prt(attr, name, y, col);
 
-        strnfmt(count_buf, sizeof(count_buf), "x%-3d", entry->total);
+        if (o_ptr->tval == TV_STAFF)
+        {
+            int visible = supplies_visible_staff_charges(entry->total);
+            strnfmt(count_buf, sizeof(count_buf), "ch%-3d", visible);
+        }
+        else
+            strnfmt(count_buf, sizeof(count_buf), "x%-3d", entry->total);
         c_put_str(attr, count_buf, y, count_col);
 
         sym_attr = object_attr(o_ptr);

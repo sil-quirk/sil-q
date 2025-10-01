@@ -61,7 +61,7 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 8
 #define VERSION_PATCH 9
-#define VERSION_EXTRA 1
+#define VERSION_EXTRA 2
 
 /*
  * Oldest version number that can still be imported

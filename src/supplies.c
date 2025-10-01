@@ -6,6 +6,7 @@
 typedef struct supply_entry
 {
     object_type obj;
+    int staff_charges;
 } supply_entry;
 
 static supply_entry* g_supply_entries = NULL;
@@ -18,6 +19,35 @@ static int g_active_supply_action = -1;
 static supply_menu_action g_pending_action = SUPPLY_MENU_ACTION_NONE;
 static int g_pending_group = SUPPLY_GROUP_MAX;
 static bool g_pending_hotkey = false;
+
+static void supplies_sync_staff_entry(supply_entry* entry)
+{
+    if (!entry)
+        return;
+
+    object_type* obj = &entry->obj;
+    if (!obj->k_idx || obj->tval != TV_STAFF)
+        return;
+
+    if (entry->staff_charges < 0)
+        entry->staff_charges = 0;
+
+    obj->pval = entry->staff_charges;
+
+    if (entry->staff_charges <= 0)
+    {
+        obj->ident |= IDENT_EMPTY;
+        obj->pval = 0;
+        return;
+    }
+
+    obj->ident &= ~(IDENT_EMPTY);
+
+    if (obj->number <= 0)
+        obj->number = 1;
+    else if (obj->number > 255)
+        obj->number = 255;
+}
 
 static void supplies_reserve(int minimum)
 {
@@ -38,6 +68,7 @@ static void supplies_reserve(int minimum)
     for (int i = g_supply_count; i < new_capacity; i++)
     {
         object_wipe(&new_entries[i].obj);
+        new_entries[i].staff_charges = 0;
     }
 
     g_supply_entries = new_entries;
@@ -76,7 +107,10 @@ void supplies_reset_store(void)
 {
     supplies_init();
     for (int i = 0; i < g_supply_capacity; i++)
+    {
         object_wipe(&g_supply_entries[i].obj);
+        g_supply_entries[i].staff_charges = 0;
+    }
     g_supply_count = 0;
     g_active_supply_action = -1;
     g_pending_action = SUPPLY_MENU_ACTION_NONE;
@@ -128,22 +162,73 @@ bool supplies_absorb_object(object_type* src)
 
     supplies_init();
 
-    int idx = supplies_find_similar(src);
-    if (idx >= 0)
+    if (src->tval == TV_STAFF && src->pval <= 0)
     {
-        object_absorb(&g_supply_entries[idx].obj, src);
+        object_wipe(src);
+        return true;
+    }
+
+    int idx = supplies_find_similar(src);
+
+    if (src->tval == TV_STAFF)
+    {
+        if (idx >= 0)
+        {
+            supply_entry* entry = &g_supply_entries[idx];
+            entry->staff_charges += src->pval;
+            if (src->number > 0)
+                entry->obj.number += src->number;
+            supplies_sync_staff_entry(entry);
+            object_wipe(src);
+            supplies_mark_dirty();
+            return true;
+        }
+    }
+    else if (idx >= 0)
+    {
+        supply_entry* entry = &g_supply_entries[idx];
+        int total = entry->obj.number + src->number;
+        int moved = MIN(total, 255);
+        entry->obj.number = moved;
+        entry->staff_charges = 0;
+        int leftover = total - moved;
         object_wipe(src);
         supplies_mark_dirty();
+        while (leftover > 0)
+        {
+            supplies_reserve(g_supply_count + 1);
+            entry = &g_supply_entries[idx];
+            supply_entry* extra = &g_supply_entries[g_supply_count];
+            object_copy(&extra->obj, &entry->obj);
+            extra->obj.number = MIN(leftover, 255);
+            extra->staff_charges = 0;
+            leftover -= extra->obj.number;
+            g_supply_count++;
+        }
         return true;
     }
 
     supplies_reserve(g_supply_count + 1);
-    object_copy(&g_supply_entries[g_supply_count].obj, src);
+    supply_entry* entry = &g_supply_entries[g_supply_count];
+    object_copy(&entry->obj, src);
+    entry->staff_charges = 0;
+    if (src->tval == TV_STAFF)
+    {
+        entry->staff_charges = src->pval;
+        entry->obj.number = (src->number > 0) ? src->number : 1;
+        supplies_sync_staff_entry(entry);
+    }
+    else
+    {
+        if (entry->obj.number > 255)
+            entry->obj.number = 255;
+    }
     object_wipe(src);
     g_supply_count++;
     supplies_mark_dirty();
     return true;
 }
+
 
 int supplies_entry_count(void)
 {
@@ -157,15 +242,44 @@ object_type* supplies_entry_at(int idx)
     return &g_supply_entries[idx].obj;
 }
 
+int supplies_entry_staff_charges(int idx)
+{
+    if (idx < 0 || idx >= g_supply_count)
+        return 0;
+
+    return g_supply_entries[idx].staff_charges;
+}
+
+
+int supplies_visible_staff_charges(int charges)
+{
+    if (charges <= 0)
+        return 0;
+
+    if (!p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+        return charges / CHANNELING_CHARGE_MULTIPLIER;
+
+    return charges;
+}
+
+
 int supplies_total_weight(void)
 {
     int total = 0;
     for (int i = 0; i < g_supply_count; i++)
     {
-        object_type* entry = &g_supply_entries[i].obj;
-        if (!entry->k_idx)
+        supply_entry* entry = &g_supply_entries[i];
+        object_type* obj = &entry->obj;
+        if (!obj->k_idx)
             continue;
-        total += entry->weight * entry->number;
+        if (obj->tval == TV_STAFF)
+        {
+            int charges = entry->staff_charges;
+            if (charges > 0)
+                total += ((charges + 4) / 5) * 20;
+        }
+        else
+            total += obj->weight * obj->number;
     }
     return total;
 }
@@ -181,28 +295,28 @@ void supplies_count_totals(int* potions, int* herbs, int* staves)
 
     for (int i = 0; i < g_supply_count; i++)
     {
-        object_type* entry = &g_supply_entries[i].obj;
-        if (!entry->k_idx)
+        supply_entry* entry = &g_supply_entries[i];
+        object_type* obj = &entry->obj;
+        if (!obj->k_idx)
             continue;
 
-        if (entry->tval == TV_POTION)
+        if (obj->tval == TV_POTION)
         {
             if (potions)
-                *potions += entry->number;
+                *potions += obj->number;
         }
-        else if (entry->tval == TV_STAFF)
+        else if (obj->tval == TV_STAFF)
         {
             if (staves)
-                *staves += entry->number;
+                *staves += supplies_visible_staff_charges(entry->staff_charges);
         }
-        else if (entry->tval == TV_FOOD && entry->sval <= SV_FOOD_SICKNESS)
+        else if (obj->tval == TV_FOOD && obj->sval <= SV_FOOD_SICKNESS)
         {
             if (herbs)
-                *herbs += entry->number;
+                *herbs += obj->number;
         }
     }
 }
-
 bool supplies_has_group(int group)
 {
     return supplies_first_entry_for_group(group) >= 0;
@@ -239,32 +353,67 @@ int supplies_first_entry_for_group(int group)
 
 char supplies_label_char(void)
 {
-    int slot = supplies_virtual_slot();
-    if (slot < 0)
+    if (g_supply_count <= 0)
         return 0;
-    return index_to_label(slot);
+    return 'a';
 }
 
 int supplies_virtual_slot(void)
 {
     if (g_supply_count == 0)
         return -1;
-    /* Supplies are shown after all normal inventory items. */
-    return p_ptr->inven_cnt;
+    /* Supplies occupy a virtual slot before the pack. */
+    return 0;
 }
 
 bool supplies_consume_quantity(int idx, int amount)
 {
-    object_type* entry = supplies_entry_at(idx);
-    if (!entry || !entry->k_idx)
+    if (idx < 0 || idx >= g_supply_count)
         return false;
 
-    if (amount <= 0)
+    supply_entry* entry = &g_supply_entries[idx];
+    object_type* obj = &entry->obj;
+
+    if (!obj->k_idx || amount <= 0)
         return false;
 
-    if (amount >= entry->number)
+    if (obj->tval == TV_STAFF)
     {
-        object_wipe(entry);
+        if (entry->staff_charges <= 0)
+            return false;
+
+        if (amount >= entry->staff_charges)
+        {
+            object_wipe(obj);
+            entry->staff_charges = 0;
+            for (int move = idx + 1; move < g_supply_count; move++)
+                g_supply_entries[move - 1] = g_supply_entries[move];
+            g_supply_count--;
+            supplies_mark_dirty();
+            return true;
+        }
+
+        entry->staff_charges -= amount;
+        if (entry->staff_charges <= 0)
+        {
+            object_wipe(obj);
+            entry->staff_charges = 0;
+            for (int move = idx + 1; move < g_supply_count; move++)
+                g_supply_entries[move - 1] = g_supply_entries[move];
+            g_supply_count--;
+            supplies_mark_dirty();
+            return true;
+        }
+
+        supplies_sync_staff_entry(entry);
+        supplies_mark_dirty();
+        return false;
+    }
+
+    if (amount >= obj->number)
+    {
+        object_wipe(obj);
+        entry->staff_charges = 0;
         for (int move = idx + 1; move < g_supply_count; move++)
             g_supply_entries[move - 1] = g_supply_entries[move];
         g_supply_count--;
@@ -272,42 +421,98 @@ bool supplies_consume_quantity(int idx, int amount)
         return true;
     }
 
-    entry->number -= amount;
+    obj->number -= amount;
     supplies_mark_dirty();
     return false;
 }
 
+
 void supplies_refresh_entry(int idx)
 {
-    object_type* entry = supplies_entry_at(idx);
-    if (!entry || !entry->k_idx)
+    if (idx < 0 || idx >= g_supply_count)
         return;
 
-    if (entry->tval == TV_STAFF && entry->pval <= 0)
-        supplies_consume_quantity(idx, entry->number);
+    supply_entry* entry = &g_supply_entries[idx];
+    object_type* obj = &entry->obj;
+    if (!obj->k_idx)
+        return;
+
+    if (obj->tval == TV_STAFF)
+    {
+        entry->staff_charges = obj->pval;
+        if (entry->staff_charges <= 0)
+        {
+            object_wipe(obj);
+            entry->staff_charges = 0;
+            for (int move = idx + 1; move < g_supply_count; move++)
+                g_supply_entries[move - 1] = g_supply_entries[move];
+            g_supply_count--;
+            supplies_mark_dirty();
+            return;
+        }
+        supplies_sync_staff_entry(entry);
+        supplies_mark_dirty();
+    }
 }
 
 bool supplies_drop_amount(int idx, int amount)
 {
-    object_type* entry = supplies_entry_at(idx);
-    if (!entry || !entry->k_idx)
+    if (idx < 0 || idx >= g_supply_count)
         return false;
+
+    supply_entry* entry = &g_supply_entries[idx];
+    object_type* obj = &entry->obj;
+    if (!obj->k_idx)
+        return false;
+
+    if (obj->tval == TV_STAFF)
+    {
+        if (entry->staff_charges <= 0 || amount <= 0)
+            return false;
+
+        if (amount > entry->staff_charges)
+            amount = entry->staff_charges;
+
+        object_type drop;
+        object_wipe(&drop);
+        object_copy(&drop, obj);
+        drop.number = 1;
+        drop.pval = amount;
+        drop.ident &= ~(IDENT_EMPTY);
+
+        drop_near(&drop, 0, p_ptr->py, p_ptr->px);
+        bool removed = supplies_consume_quantity(idx, amount);
+
+        if (!removed && idx < g_supply_count && g_supply_entries[idx].obj.tval == TV_STAFF)
+        {
+            supply_entry* updated = &g_supply_entries[idx];
+            if (updated->obj.number > 0)
+                updated->obj.number--;
+            if (updated->staff_charges > 0 && updated->obj.number <= 0)
+                updated->obj.number = 1;
+            supplies_sync_staff_entry(updated);
+            supplies_mark_dirty();
+        }
+
+        return true;
+    }
 
     if (amount <= 0)
         return false;
 
-    if (amount > entry->number)
-        amount = entry->number;
+    if (amount > obj->number)
+        amount = obj->number;
 
     object_type drop;
     object_wipe(&drop);
-    object_copy(&drop, entry);
+    object_copy(&drop, obj);
     drop.number = amount;
 
     drop_near(&drop, 0, p_ptr->py, p_ptr->px);
     supplies_consume_quantity(idx, amount);
     return true;
 }
+
 
 void supplies_ingest_pack(void)
 {
@@ -407,3 +612,15 @@ bool supplies_pending_hotkey(void)
 {
     return g_pending_hotkey;
 }
+
+
+
+
+
+
+
+
+
+
+
+

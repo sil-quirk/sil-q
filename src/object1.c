@@ -1340,9 +1340,12 @@ void identify_random_gen(const object_type* o_ptr)
  */
 char index_to_label(int i)
 {
-    /* Indexes for "inven" are easy */
+    /* Indexes for "inven" get an offset when supplies are present */
     if (i < INVEN_WIELD)
-        return (I2A(i));
+    {
+        int offset = (supplies_entry_count() > 0) ? 1 : 0;
+        return (I2A(i + offset));
+    }
 
     /* Indexes for "equip" are offset */
     return (I2A(i - INVEN_WIELD));
@@ -1362,16 +1365,13 @@ s16b label_to_inven(int c)
 
     if (supplies_entry_count() > 0)
     {
-        char supply_label = supplies_label_char();
-        int supply_slot = supplies_virtual_slot();
-        if (supply_label && c == supply_label)
+        if (c == supplies_label_char())
             return SUPPLIES_INDEX;
-        if (supply_slot >= 0 && i == supply_slot)
-            return SUPPLIES_INDEX;
+        i -= 1;
     }
 
     /* Verify the index */
-    if ((i < 0) || (i > INVEN_PACK))
+    if ((i < 0) || (i >= INVEN_PACK))
         return (-1);
 
     /* Empty slots can never be chosen */
@@ -1465,7 +1465,7 @@ static void format_supply_summary(char* buf, size_t len)
     {
         if (!first)
             my_strcat(buf, ", ", len);
-        strnfmt(segment, sizeof(segment), "%d staff%s", staves,
+        strnfmt(segment, sizeof(segment), "%d staff charge%s", staves,
             (staves == 1) ? "" : "s");
         my_strcat(buf, segment, len);
     }

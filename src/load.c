@@ -1516,6 +1516,33 @@ static errr rd_inventory(void)
                 note("Error reading supplies");
                 return (-1);
             }
+
+            s32b staff_charges = 0;
+            if (sf_extra >= 2)
+                rd_s32b(&staff_charges);
+            else
+                staff_charges = supply.pval;
+
+            if (supply.tval == TV_STAFF)
+            {
+                int charges = (int)staff_charges;
+                if (charges < 0)
+                    charges = 0;
+                if (charges > 32767)
+                    charges = 32767;
+                supply.pval = (s16b)charges;
+                if (charges <= 0)
+                    supply.ident |= IDENT_EMPTY;
+                else
+                    supply.ident &= ~(IDENT_EMPTY);
+                if (supply.number <= 0 && charges > 0)
+                    supply.number = 1;
+            }
+            else if (sf_extra >= 2)
+            {
+                /* consume stored charges for non-staff entries */
+            }
+
             if (supply.k_idx)
                 supplies_absorb_object(&supply);
         }
@@ -2592,3 +2619,4 @@ bool load_player(void)
     /* Oops */
     return (false);
 }
+

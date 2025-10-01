@@ -41,6 +41,8 @@ bool supplies_absorb_object(struct object_type* src);
 
 int supplies_entry_count(void);
 struct object_type* supplies_entry_at(int idx);
+int supplies_entry_staff_charges(int idx);
+int supplies_visible_staff_charges(int charges);
 
 int supplies_total_weight(void);
 void supplies_count_totals(int* potions, int* herbs, int* staves);
