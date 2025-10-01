@@ -1322,7 +1322,7 @@ void display_player_xtra_info(int mode)
                      cur, 5, TERM_L_GREEN,
                      '/', rhs, 6, TERM_L_GREEN);
 
-    /* Burden: cur(4)/max(4) — integer pounds */
+    /* Burden: cur(4)/max(4) - integer pounds */
     {
         long cur_b = (long)(p_ptr->total_weight / 10L);
         long max_b = (long)(weight_limit() / 10L);
@@ -1363,7 +1363,7 @@ void display_player_xtra_info(int mode)
     put_single20_right(col_stats, row_stats++,
                        "Light", val, 12, TERM_L_GREEN);
 
-    /* Melee main-hand — keep () */
+    /* Melee main-hand - keep () */
     strnfmt(val, sizeof(val), "(%+d,%dd%d)",
             p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
     put_single20_right(col_stats, row_stats++,
@@ -1393,7 +1393,7 @@ void display_player_xtra_info(int mode)
     put_single20_right(col_stats, row_stats++,
                        "Bows", val, 14, TERM_L_BLUE);
 
-    /* Armor — keep [] */
+    /* Armor - keep [] */
     strnfmt(val, sizeof(val), "[%+d,%d-%d]",
             p_ptr->skill_use[S_EVN], p_min(GF_HURT, true), p_max(GF_HURT, true));
     put_single20_right(col_stats, row_stats++,
@@ -2651,452 +2651,613 @@ bool show_file(cptr name, cptr what, int line)
     return (ch != '?');
 }
 
+#ifdef STEAMDECK_SUPPORT
+#define HELP_TOTAL_PAGES 8
+#else
+#define HELP_TOTAL_PAGES 7
+#endif
+
+/* Drop-in replacement for show_help_screen(int i)
+ * Adds a tiny role-based colour shim for consistent, accessible styling.
+ *
+ * Extras in this version:
+ *  - Element-specific roles (darkness, poison, cold, fire, +light, lightning, acid)
+ *  - Page 8: Steam Deck controls, with a drawn layout and dynamic key enum/mapping.
+ *
+ * Usage: paste this whole block where show_help_screen is defined. It only
+ * depends on c_put_str() and the TERM_* colour constants already in your codebase.
+ */
+
+/* -------- Role-based colour shim ---------------------------------------- */
+
+typedef enum {
+    ROLE_HEADER,  /* Page title */
+    ROLE_SECTION, /* Section headings */
+    ROLE_BODY,    /* Main body text */
+    ROLE_SUBTLE,  /* Hints/parentheticals */
+    ROLE_GOOD,    /* Positive things, boons, successes */
+    ROLE_WARN,    /* Caution/thresholds */
+    ROLE_BAD,     /* Harmful/danger state */
+    ROLE_TERM,    /* Game terms/keywords */
+    ROLE_KEY,     /* Literal keys and glyphs in docs (NOT gameplay glyphs) */
+    ROLE_UI,      /* Meta UI labels (menus, screens) */
+    /* Element roles (so we can colour by element consistently) */
+    ROLE_ELEM_FIRE,
+    ROLE_ELEM_COLD,
+    ROLE_ELEM_POISON,
+    ROLE_ELEM_DARKNESS,
+    ROLE_ELEM_LIGHT,
+    ROLE__COUNT
+} color_role_t;
+
+/* Default theme (dark background). You can swap values at runtime if you add a menu hook. */
+static int HELP_THEME[ROLE__COUNT] = {
+    [ROLE_HEADER]       = TERM_L_WHITE + TERM_SHADE,
+    [ROLE_SECTION]      = TERM_YELLOW,
+    [ROLE_BODY]         = TERM_L_WHITE,
+    [ROLE_SUBTLE]       = TERM_SLATE,
+    [ROLE_GOOD]         = TERM_L_GREEN,
+    [ROLE_WARN]         = TERM_ORANGE,
+    [ROLE_BAD]          = TERM_L_RED,
+    [ROLE_TERM]         = TERM_L_BLUE,
+    [ROLE_KEY]          = TERM_WHITE,
+    [ROLE_UI]           = TERM_UMBER,
+    /* Elements per user request */
+    [ROLE_ELEM_FIRE]        = TERM_L_RED,
+    [ROLE_ELEM_COLD]        = TERM_BLUE,   /* cold -> blue */
+    [ROLE_ELEM_POISON]      = TERM_L_GREEN,  /* poison -> green */
+    [ROLE_ELEM_DARKNESS]    = TERM_L_DARK,   /* darkness -> dark */
+    [ROLE_ELEM_LIGHT]       = TERM_YELLOW,   /* light/radiance */
+};
+
+static inline void put_role(color_role_t role, const char *s, int row, int col) {
+    c_put_str(HELP_THEME[role], s, row, col);
+}
+
+/* Optional tiny helpers to reduce manual offsets when printing spans */
+static inline int put_then_advance(color_role_t role, const char *s, int row, int col) {
+    put_role(role, s, row, col);
+    return col + (int)strlen(s);
+}
+
+/* -------- Help pages ----------------------------------------------------- */
+
 void show_help_screen(int i)
 {
     int row, col, col2;
+    char page_header[96];
 
     switch (i)
     {
     case 1:
     {
-        row = 3;
-        col = 3;
-        col2 = col + 8;
+        /* SIL-MORE: HELP [1/8]: GOAL & HEROES */
+        row = 0; col = 1;
+        sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: GOAL & HEROES", i, HELP_TOTAL_PAGES);
+        put_role(ROLE_HEADER, page_header, row, col);
+        row += 2;
 
-        c_put_str(TERM_L_WHITE + TERM_SHADE, "Movement etc", row - 2, col - 1);
+        put_role(ROLE_SECTION, "GOAL", row, col); row++;
+        put_role(ROLE_BODY, "- Steal ", row, col);
+        put_role(ROLE_TERM, "Silmarils", row, col + 8);
+        put_role(ROLE_BODY, " across runs; the saga ends when you've taken ", row, col + 17);
+        put_role(ROLE_WARN, "fifteen", row, col + 64);
+        put_role(ROLE_BODY, ".", row, col + 71);
+        row++;
+        put_role(ROLE_BODY, "- Plan for the ", row, col);
+        put_role(ROLE_TERM, "long war", row, col + 15);
+        put_role(ROLE_BODY, ": every ", row, col + 23);
+        put_role(ROLE_TERM, "Silmaril", row, col + 31);
+        put_role(ROLE_BODY, " twists ", row, col + 39);
+        put_role(ROLE_TERM, "fate", row, col + 47);
+        put_role(ROLE_BODY, " and reshapes play.", row, col + 51);
+        row++;
+        put_role(ROLE_BODY, "- ", row, col);
+        put_role(ROLE_BAD, "Permadeath", row, col + 2);
+        put_role(ROLE_BODY, ": a fallen hero is gone for the saga.", row, col + 12);
+        row++;
+        put_role(ROLE_BODY, "- Hit ", row, col);
+        put_role(ROLE_WARN, "15 total deaths", row, col + 6);
+        put_role(ROLE_BODY, " -> ", row, col + 21);
+        put_role(ROLE_BAD, "game over", row, col + 25);
+        put_role(ROLE_BODY, ".", row, col + 34);
+        row += 2;
 
-        c_put_str(TERM_WHITE, "7 8 9", row, col);
-        c_put_str(TERM_SLATE, " \\|/ ", row + 1, col);
-        c_put_str(TERM_WHITE, "4 5 6", row + 2, col);
-        c_put_str(TERM_SLATE, "-", row + 2, col + 1);
-        c_put_str(TERM_SLATE, "-", row + 2, col + 3);
-        c_put_str(TERM_SLATE, " /|\\ ", row + 3, col);
-        c_put_str(TERM_WHITE, "1 2 3", row + 4, col);
+        put_role(ROLE_SECTION, "HEROES OF LEGEND", row, col); row++;
+        put_role(ROLE_BODY, "- Choose a fixed hero: ", row, col);
+        put_role(ROLE_TERM, "Feanor, Fingolfin, Beren, Luthien", row, col + 23);
+        put_role(ROLE_BODY, ", and others.", row, col + 56);
+        row++;
+        put_role(ROLE_BODY, "- Each bears a signature trait: ", row, col);
+        put_role(ROLE_TERM, "Master Artisan, Elven Dance, Creator of Angrist", row, col + 32);
+        put_role(ROLE_BODY, ".", row, col + 80);
+        row++;
+        put_role(ROLE_BODY, "- Some traits are shared across lines: ", row, col);
+        put_role(ROLE_TERM, "Kinslayer, Gift of Eru", row, col + 39);
+        put_role(ROLE_BODY, ", and more.", row, col + 61);
+        row++;
+        put_role(ROLE_BODY, "- A power rating is shown during selection. New? Start with the most powerful.", row, col);
+        row++;
+        put_role(ROLE_BODY, "- Expert? Forge your own path-synergy beats raw rating.", row, col);
+        row++;
+        put_role(ROLE_BODY, "- Remember: the game ends after 15 ", row, col);
+        put_role(ROLE_TERM, "Silmarils", row, col + 36);
+        put_role(ROLE_BODY, ", not one.", row, col + 45);
+        row++;
+        put_role(ROLE_BODY, "- Tags are intentionally sparse-learn by doing.", row, col);
+        row++;
+        put_role(ROLE_BODY, "- Hint - The Stave of Self-Knowledge can show hidden traits.", row, col);
+        row += 2;
 
-        c_put_str(TERM_SLATE, "Use the numbers or arrow keys", row + 0, col2);
-        c_put_str(TERM_WHITE, "numbers", row + 0, col2 + 8);
-        c_put_str(TERM_WHITE, "arrow keys", row + 0, col2 + 19);
-        c_put_str(TERM_SLATE, "to move, attack, or open doors", row + 1, col2);
-        c_put_str(TERM_SLATE, "(You may need numlock)", row + 2, col2);
-        c_put_str(TERM_WHITE, "numlock", row + 2, col2 + 14);
-        c_put_str(
-            TERM_SLATE, "Use 5 or z to wait a turn (& search)", row + 4, col2);
-        c_put_str(TERM_WHITE, "5", row + 4, col2 + 4);
-        c_put_str(TERM_WHITE, "z", row + 4, col2 + 9);
-
-        row += 6;
-
-        c_put_str(TERM_SLATE, "Use shift or . to move continuously", row, col);
-        c_put_str(TERM_WHITE, "shift", row, col + 4);
-        c_put_str(TERM_WHITE, ".", row, col + 13);
+        put_role(ROLE_SECTION, "HELP FROM VALAR", row, col); row++;
+        put_role(ROLE_BODY, "- The ", row, col);
+        put_role(ROLE_TERM, "Valar", row, col + 6);
+        put_role(ROLE_BODY, " guide worthy heroes through ", row, col + 11);
+        put_role(ROLE_TERM, "sacred quests", row, col + 40);
+        put_role(ROLE_BODY, ".", row, col + 53);
         row++;
-        c_put_str(
-            TERM_SLATE, "- direction 5 or z rests until healed", row, col + 2);
+        put_role(ROLE_BODY, "- Seek the ", row, col);
+        put_role(ROLE_TERM, "halls of knowledge", row, col + 11);
+        put_role(ROLE_BODY, " where ancient wisdom dwells.", row, col + 29);
         row++;
+        put_role(ROLE_BODY, "- Each quest reveals ", row, col);
+        put_role(ROLE_TERM, "hidden truths", row, col + 21);
+        put_role(ROLE_BODY, " and grants ", row, col + 34);
+        put_role(ROLE_GOOD, "divine blessings", row, col + 46);
+        put_role(ROLE_BODY, ".", row, col + 62);
         row++;
-
-        c_put_str(TERM_SLATE,
-            "Use control or / to interact with a square:", row, col);
-        c_put_str(TERM_WHITE, "control", row, col + 4);
-        if (angband_keyset)
-            c_put_str(TERM_WHITE, "+", row, col + 15);
-        else
-            c_put_str(TERM_WHITE, "/", row, col + 15);
-        row++;
-
-        c_put_str(TERM_SLATE, "- tunnels through rubble/walls", row, col + 2);
-        row++;
-        c_put_str(TERM_SLATE, "- closes open doors", row, col + 2);
-        row++;
-        c_put_str(TERM_SLATE, "- bashes closed doors", row, col + 2);
-        row++;
-        c_put_str(TERM_SLATE, "- disarms floor traps", row, col + 2);
-        row++;
-        c_put_str(TERM_SLATE, "- disarms/opens chests and searches skeletons",
-            row, col + 2);
-        row++;
-        c_put_str(
-            TERM_SLATE, "- attacks monsters without moving", row, col + 2);
-        row++;
-        row++;
-        c_put_str(
-            TERM_SLATE, "Interacting with your own square also:", row, col);
-        row++;
-        c_put_str(TERM_SLATE, "- picks up an item", row, col + 2);
-        row++;
-        c_put_str(TERM_SLATE, "- uses a staircase/forge", row, col + 2);
-        row++;
-        c_put_str(TERM_SLATE, "- can be done by pressing ,", row, col + 2);
-        c_put_str(TERM_WHITE, ",", row, col + 28);
-        row++;
-        row++;
-
-        row = 3;
-        col = 52;
-
-        c_put_str(TERM_L_WHITE + TERM_SHADE, "Miscellaneous", row - 2, col);
-
-        //			if (angband_keyset)	c_put_str(TERM_WHITE, "
-        // R",  row, col); 			else
-        // c_put_str(TERM_WHITE, " Z",  row, col);
-        // c_put_str(TERM_SLATE, "rest (until recovered)",  row, col + 3);
-        // row++; 			if (angband_keyset)
-        // c_put_str(TERM_WHITE, " R",  row, col); 			else
-        // c_put_str(TERM_WHITE, " ,",  row, col);
-        // c_put_str(TERM_SLATE, "interact with own square",  row, col + 3);
-        // row++;
-        c_put_str(TERM_WHITE, "f F", row, col - 1);
-        c_put_str(TERM_SLATE, "/", row, col);
-        c_put_str(TERM_SLATE, "fire from quiver 1/2", row, col + 3);
-        row++;
-        if (angband_keyset)
-            c_put_str(TERM_WHITE, " a", row, col);
-        else
-            c_put_str(TERM_WHITE, " s", row, col);
-        c_put_str(TERM_SLATE, "sing", row, col + 3);
-        row++;
-        c_put_str(TERM_WHITE, " S", row, col);
-        c_put_str(TERM_SLATE, "stealth mode", row, col + 3);
-        row++;
-        c_put_str(TERM_WHITE, " n", row, col);
-        c_put_str(TERM_SLATE, "repeat last command", row, col + 3);
-        row++;
-        if (angband_keyset)
-            c_put_str(TERM_WHITE, " 0", row, col);
-        else
-            c_put_str(TERM_WHITE, " R", row, col);
-        c_put_str(TERM_SLATE, "repeat next command", row, col + 3);
-        row++;
-        row++;
-        c_put_str(TERM_WHITE, " l", row, col);
-        c_put_str(TERM_SLATE, "look (at things)", row, col + 3);
-        row++;
-        c_put_str(TERM_WHITE, " L", row, col);
-        c_put_str(TERM_SLATE, "look (around dungeon)", row, col + 3);
-        row++;
-        c_put_str(TERM_WHITE, " M", row, col);
-        c_put_str(TERM_SLATE, "display map of level", row, col + 3);
-        row++;
-        row++;
-        c_put_str(TERM_WHITE, " m", row, col);
-        c_put_str(TERM_SLATE, "main menu", row, col + 3);
-        row++;
-        c_put_str(TERM_WHITE, "Tab", row, col - 1);
-        c_put_str(TERM_SLATE, "display ability screen", row, col + 3);
-        row++;
-        if (angband_keyset)
-            c_put_str(TERM_WHITE, " C", row, col);
-        else
-            c_put_str(TERM_WHITE, " @", row, col);
-        c_put_str(TERM_SLATE, "display character sheet", row, col + 3);
-        row++;
-        if (angband_keyset)
-            c_put_str(TERM_WHITE, " =", row, col);
-        else
-            c_put_str(TERM_WHITE, " O", row, col);
-        c_put_str(TERM_SLATE, "set options", row, col + 3);
-        row++;
-        row++;
-        c_put_str(TERM_WHITE, "^s", row, col);
-        c_put_str(TERM_SLATE, "save", row, col + 3);
-        row++;
-        c_put_str(TERM_WHITE, "^x", row, col);
-        c_put_str(TERM_SLATE, "save and quit", row, col + 3);
-        row++;
-        c_put_str(TERM_WHITE, " Q", row, col);
-        c_put_str(TERM_SLATE, "abort current game", row, col + 3);
-        row++;
-
+        put_role(ROLE_BODY, "- The path of ", row, col);
+        put_role(ROLE_WARN, "redemption", row, col + 14);
+        put_role(ROLE_BODY, " is always open to those who seek it.", row, col + 24);
         break;
     }
+
     case 2:
     {
-        row = 3;
-        col = 3;
+        /* SIL-MORE: HELP [2/8]: START & DEPTH */
+        row = 0; col = 1;
+        sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: START & DEPTH", i, HELP_TOTAL_PAGES);
+        put_role(ROLE_HEADER, page_header, row, col);
+        row += 2;
 
-        c_put_str(TERM_L_WHITE + TERM_SHADE, "Terrain ", row - 2, col - 1);
+        put_role(ROLE_SECTION, "START", row, col); row++;
+        put_role(ROLE_BODY, "- You begin with a ", row, col);
+        put_role(ROLE_SUBTLE, "basic weapon", row, col + 19);
+        put_role(ROLE_BODY, " and ", row, col + 31);
+        put_role(ROLE_WARN, "no armour", row, col + 36);
+        put_role(ROLE_BODY, "-", row, col + 45);
+        put_role(ROLE_GOOD, "gear up fast", row, col + 46);
+        put_role(ROLE_BODY, ".", row, col + 58);
+        row++;
+        put_role(ROLE_BODY, "- Search early rooms for ", row, col);
+        put_role(ROLE_GOOD, "armour, torches, bow and arrows", row, col + 25);
+        put_role(ROLE_BODY, ".", row, col + 56);
+        row += 2;
 
-        if (hybrid_walls)
-        {
-            c_put_str(TERM_L_WHITE + (MAX_COLORS * BG_DARK), "#", row, col);
-        }
-        else if (solid_walls)
-        {
-            c_put_str(TERM_L_WHITE + (MAX_COLORS * BG_SAME), "#", row, col);
-        }
-        else
-        {
-            c_put_str(TERM_L_WHITE, "#", row, col);
-        }
-        c_put_str(TERM_WHITE, "wall", row, col + 2);
+        put_role(ROLE_SECTION, "DEPTH & ESCAPE", row, col); row++;
+        put_role(ROLE_BODY, "- Angband drags you down: your ", row, col);
+        put_role(ROLE_TERM, "Minimum Depth", row, col + 31);
+        put_role(ROLE_BODY, " rises as time passes.", row, col + 44);
         row++;
-        c_put_str(TERM_WHITE + (MAX_COLORS * BG_SAME), "%", row, col);
-        c_put_str(TERM_WHITE, "quartz vein", row, col + 2);
+        put_role(ROLE_BODY, "- You cannot climb above it unless bearing a ", row, col);
+        put_role(ROLE_TERM, "Silmaril", row, col + 45);
+        put_role(ROLE_BODY, ".", row, col + 53);
         row++;
-        c_put_str(TERM_SLATE, ":", row, col);
-        c_put_str(TERM_WHITE, "rubble", row, col + 2);
-        row++;
-        c_put_str(TERM_L_UMBER, "+", row, col);
-        c_put_str(TERM_WHITE, "closed door", row, col + 2);
-        row++;
-        c_put_str(TERM_L_UMBER, "'", row, col);
-        c_put_str(TERM_WHITE, "open door", row, col + 2);
-        row++;
-        c_put_str(TERM_L_GREEN, "+", row, col);
-        c_put_str(TERM_L_BLUE, "+", row, col + 1);
-        c_put_str(TERM_VIOLET, "+", row, col + 2);
-        c_put_str(TERM_WHITE, "warded doors", row, col + 4);
-        row++;
-        c_put_str(TERM_L_WHITE, ">", row, col);
-        c_put_str(TERM_WHITE, "staircase down", row, col + 2);
-        row++;
-        c_put_str(TERM_L_WHITE, "<", row, col);
-        c_put_str(TERM_WHITE, "staircase up", row, col + 2);
-        row++;
-        c_put_str(TERM_SLATE, "0", row, col);
-        c_put_str(TERM_WHITE, "forge", row, col + 2);
-        row++;
-        c_put_str(TERM_YELLOW, "^", row, col);
-        c_put_str(TERM_WHITE, "trap", row, col + 2);
-        row++;
-        c_put_str(TERM_L_GREEN, ";", row, col);
-        c_put_str(TERM_WHITE, "warding glyph", row, col + 2);
-        row++;
-        c_put_str(TERM_L_WHITE, ".", row, col);
-        c_put_str(TERM_WHITE, "empty floor", row, col + 2);
-        row++;
+        put_role(ROLE_BODY, "- Every lvl is generated anew-don't be afraid to climb back upstairs if stuck.", row, col);
+        row += 2;
 
-        row = 3;
-        col = 27;
-
-        c_put_str(TERM_L_WHITE + TERM_SHADE, "Items", row - 2, col - 1);
-
-        c_put_str(TERM_L_WHITE, "| ", row, col);
-        c_put_str(TERM_WHITE, "blades", row, col + 2);
+        put_role(ROLE_SECTION, "ELEMENTS", row, col); row++;
+        /* Fire */
+        put_role(ROLE_BODY, "- ", row, col);
+        put_role(ROLE_ELEM_FIRE, "Fire", row, col + 2);
+        put_role(ROLE_BODY, ": common; ", row, col + 6);
+        put_role(ROLE_ELEM_FIRE, "burns and ruins", row, col + 16);
+        put_role(ROLE_BODY, " many wares; treat ", row, col + 31);
+        put_role(ROLE_ELEM_FIRE, "flame of Udun", row, col + 50);
+        put_role(ROLE_BODY, " with respect.", row, col + 63);
         row++;
-        c_put_str(TERM_SLATE, "/ ", row, col);
-        c_put_str(TERM_WHITE, "axes & polearms", row, col + 2);
+        /* Cold */
+        put_role(ROLE_BODY, "- ", row, col);
+        put_role(ROLE_ELEM_COLD, "Cold", row, col + 2);
+        put_role(ROLE_BODY, ": rarer; can ", row, col + 6);
+        put_role(ROLE_ELEM_COLD, "destroy potions/oil", row, col + 19);
+        put_role(ROLE_BODY, "; ", row, col + 38);
+        put_role(ROLE_GOOD, "warmth is life", row, col + 40);
+        put_role(ROLE_BODY, ".", row, col + 54);
         row++;
-        c_put_str(TERM_UMBER, "\\ ", row, col);
-        c_put_str(TERM_WHITE, "blunt weapons", row, col + 2);
+        /* Poison */
+        put_role(ROLE_BODY, "- ", row, col);
+        put_role(ROLE_ELEM_POISON, "Poison", row, col + 2);
+        put_role(ROLE_BODY, ": builds a ", row, col + 8);
+        put_role(ROLE_WARN, "counter", row, col + 19);
+        put_role(ROLE_BODY, " and ", row, col + 26);
+        put_role(ROLE_BAD, "bleeds you over time", row, col + 31);
+        put_role(ROLE_BODY, "-", row, col + 51);
+        put_role(ROLE_GOOD, "cleanse", row, col + 52);
+        put_role(ROLE_BODY, " or wait it out.", row, col + 59);
         row++;
-        c_put_str(TERM_L_UMBER, "( ", row, col);
-        c_put_str(TERM_WHITE, "soft armour", row, col + 2);
-        row++;
-        c_put_str(TERM_L_WHITE, "[ ", row, col);
-        c_put_str(TERM_WHITE, "mail", row, col + 2);
-        row++;
-        c_put_str(TERM_L_WHITE, ") ", row, col);
-        c_put_str(TERM_WHITE, "shields", row, col + 2);
-        row++;
-        c_put_str(TERM_L_WHITE, "] ", row, col);
-        c_put_str(TERM_WHITE, "misc armour", row, col + 2);
-        row++;
-        c_put_str(TERM_RED, "= ", row, col);
-        c_put_str(TERM_WHITE, "rings", row, col + 2);
-        row++;
-        c_put_str(TERM_ORANGE, "\" ", row, col);
-        c_put_str(TERM_WHITE, "amulets", row, col + 2);
-        row++;
-        c_put_str(TERM_L_UMBER, "~ ", row, col);
-        c_put_str(TERM_WHITE, "light sources", row, col + 2);
-        row++;
-        c_put_str(TERM_UMBER, "} ", row, col);
-        c_put_str(TERM_WHITE, "bows", row, col + 2);
-        row++;
-        c_put_str(TERM_L_UMBER, "- ", row, col);
-        c_put_str(TERM_WHITE, "arrows", row, col + 2);
-        row++;
-        c_put_str(TERM_L_UMBER, ", ", row, col);
-        c_put_str(TERM_WHITE, "food", row, col + 2);
-        row++;
-        c_put_str(TERM_L_BLUE, "! ", row, col);
-        c_put_str(TERM_WHITE, "potions", row, col + 2);
-        row++;
-        c_put_str(TERM_UMBER, "_ ", row, col);
-        c_put_str(TERM_WHITE, "staves", row, col + 2);
-        row++;
-        c_put_str(TERM_L_UMBER, "? ", row, col);
-        c_put_str(TERM_WHITE, "instruments", row, col + 2);
-        row++;
-        c_put_str(TERM_YELLOW, "! ", row, col);
-        c_put_str(TERM_WHITE, "flasks of oil", row, col + 2);
+        /* Darkness */
+        put_role(ROLE_BODY, "- ", row, col);
+        put_role(ROLE_ELEM_DARKNESS, "Darkness", row, col + 2);
+        put_role(ROLE_BODY, ": only bright ", row, col + 10);
+        put_role(ROLE_ELEM_LIGHT, "light", row, col + 24);
+        put_role(ROLE_BODY, " truly resists it; carry your own dawn.", row, col + 30);
         row++;
 
-        row = 3;
-        col = 52;
+        put_role(ROLE_BODY, "- Mixed elemental attacks will roll extra dice when you lack resistance.", row, col);
+        row += 2;
 
-        c_put_str(TERM_L_WHITE + TERM_SHADE, "Item Commands", row - 2, col - 1);
-
-        if (angband_keyset)
-            c_put_str(TERM_WHITE, "U", row, col);
-        else
-            c_put_str(TERM_WHITE, "u", row, col);
-        c_put_str(TERM_SLATE, "use", row, col + 2);
+        put_role(ROLE_SECTION, "STATUS & MORALE", row, col); row++;
+        put_role(ROLE_BODY, "- Foes are Asleep, Unwary, Alert; your noise sets the stage.", row, col);
         row++;
-        c_put_str(TERM_WHITE, "d", row, col);
-        c_put_str(TERM_SLATE, "drop", row, col + 2);
+        put_role(ROLE_BODY, "- Stealth turns (S) and waiting are potent for slipping past sentries.", row, col);
         row++;
-        if (angband_keyset)
-            c_put_str(TERM_WHITE, "I", row, col);
-        else
-            c_put_str(TERM_WHITE, "x", row, col);
-        c_put_str(TERM_SLATE, "examine", row, col + 2);
-        row++;
-        if (angband_keyset)
-            c_put_str(TERM_WHITE, "v", row, col);
-        else
-            c_put_str(TERM_WHITE, "t", row, col);
-        c_put_str(TERM_SLATE, "throw", row, col + 2);
-        row++;
-        if (angband_keyset)
-            c_put_str(TERM_WHITE, "^v", row, col - 1);
-        else
-            c_put_str(TERM_WHITE, "^t", row, col - 1);
-        c_put_str(TERM_SLATE, "throw (auto-target)", row, col + 2);
-        row++;
-        c_put_str(TERM_WHITE, "k", row, col);
-        c_put_str(TERM_SLATE, "destroy", row, col + 2);
-        row++;
-        c_put_str(TERM_WHITE, "{", row, col);
-        c_put_str(TERM_SLATE, "inscribe", row, col + 2);
-        row++;
-
+        put_role(ROLE_BODY, "- Foes can be Aggressive, Confident, Fleeing and run if their morale breaks.", row, col);
         break;
     }
 
     case 3:
     {
-        row = 3;
-        col = 3;
+        /* SIL-MORE: HELP [3/8]: COMBAT & DEFENCE */
+        row = 0; col = 1;
+        sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: COMBAT & DEFENCE", i, HELP_TOTAL_PAGES);
+        put_role(ROLE_HEADER, page_header, row, col);
+        row += 2;
 
-        c_put_str(TERM_L_DARK + TERM_SHADE, "Superfluous", row - 2, col - 1);
+        put_role(ROLE_SECTION, "COMBAT BASICS", row, col); row++;
+        put_role(ROLE_BODY, "- Two opposed rolls decide hits: your Melee vs their ", row, col);
+        put_role(ROLE_TERM, "Evasion", row, col + 53);
+        put_role(ROLE_BODY, " (and vice versa).", row, col + 60);
+        row++;
+        put_role(ROLE_BODY, "- On a hit, your Damage meets their ", row, col);
+        put_role(ROLE_TERM, "Protection", row, col + 37);
+        put_role(ROLE_BODY, "; only the excess gets through.", row, col + 47);
+        row++;
+        put_role(ROLE_BODY, "- ", row, col);
+        put_role(ROLE_TERM, "Evasion", row, col + 2);
+        put_role(ROLE_BODY, " avoids getting hit; ", row, col + 9);
+        put_role(ROLE_TERM, "Armour", row, col + 30);
+        put_role(ROLE_BODY, " (", row, col + 36);
+        put_role(ROLE_TERM, "Protection", row, col + 38);
+        put_role(ROLE_BODY, ") soaks what lands.", row, col + 48);
+        row++;
+        put_role(ROLE_BODY, "- Being ", row, col);
+        put_role(ROLE_BAD, "surrounded", row, col + 8);
+        put_role(ROLE_BODY, " crushes your evasion-fight in ", row, col + 18);
+        put_role(ROLE_GOOD, "doorways and angles", row, col + 50);
+        put_role(ROLE_BODY, ".", row, col + 69);
+        row++;
+        put_role(ROLE_BODY, "- Firing a bow in melee invites ", row, col);
+        put_role(ROLE_BAD, "free strikes", row, col + 33);
+        put_role(ROLE_BODY, "; make space before shooting.", row, col + 45);
+        row++;
+        put_role(ROLE_BODY, "- Great successes can trigger ", row, col);
+        put_role(ROLE_GOOD, "criticals", row, col + 30);
+        put_role(ROLE_BODY, " for extra hurt.", row, col + 39);
+        row += 2;
 
-        c_put_str(TERM_L_WHITE, "i", row, col);
-        c_put_str(TERM_L_DARK, "display inventory", row, col + 2);
+        put_role(ROLE_SECTION, "NUMBERS AT A GLANCE", row, col); row++;
+        put_role(ROLE_BODY, "- Weapons show (attack, damage). ", row, col);
+        put_role(ROLE_TERM, "Armour", row, col + 33);
+        put_role(ROLE_BODY, " shows [evasion, protection].", row, col + 39);
         row++;
-        c_put_str(TERM_L_WHITE, "e", row, col);
-        c_put_str(TERM_L_DARK, "display equipped items", row, col + 2);
-        row++;
-        row++;
-        c_put_str(TERM_L_WHITE, "g", row, col);
-        c_put_str(TERM_L_DARK, "get", row, col + 2);
-        row++;
-        c_put_str(TERM_L_WHITE, "w", row, col);
-        c_put_str(TERM_L_DARK, "wear/wield", row, col + 2);
-        row++;
-        if (angband_keyset)
-            c_put_str(TERM_L_WHITE, "t", row, col);
-        else
-            c_put_str(TERM_L_WHITE, "r", row, col);
-        c_put_str(TERM_L_DARK, "remove", row, col + 2);
-        row++;
-        c_put_str(TERM_L_WHITE, "E", row, col);
-        c_put_str(TERM_L_DARK, "eat food", row, col + 2);
-        row++;
-        c_put_str(TERM_L_WHITE, "q", row, col);
-        c_put_str(TERM_L_DARK, "quaff potion", row, col + 2);
-        row++;
-        if (angband_keyset)
-            c_put_str(TERM_L_WHITE, "u", row, col);
-        else
-            c_put_str(TERM_L_WHITE, "a", row, col);
-        c_put_str(TERM_L_DARK, "activate staff", row, col + 2);
-        row++;
-        c_put_str(TERM_L_WHITE, "p", row, col);
-        c_put_str(TERM_L_DARK, "play instrument", row, col + 2);
-        row++;
-        row++;
+        put_role(ROLE_BODY, "- Light weapons tend to crit; heavy weapons grind with raw dice.", row, col);
+        row += 2;
 
-        c_put_str(TERM_L_WHITE, "o", row, col);
-        c_put_str(TERM_L_DARK, "open door/chest", row, col + 2);
+        put_role(ROLE_SECTION, "EVASION VS ARMOUR", row, col); row++;
+        put_role(ROLE_BODY, "- ", row, col);
+        put_role(ROLE_TERM, "Evasion", row, col + 2);
+        put_role(ROLE_BODY, " helps you not be hit at all; it scales with position and pressure.", row, col + 9);
         row++;
-        c_put_str(TERM_L_WHITE, "c", row, col);
-        c_put_str(TERM_L_DARK, "close door", row, col + 2);
+        put_role(ROLE_BODY, "- ", row, col);
+        put_role(ROLE_TERM, "Armour", row, col + 2);
+        put_role(ROLE_BODY, " reduces damage after a hit; more protection, less pain.", row, col + 8);
         row++;
-        c_put_str(TERM_L_WHITE, "b", row, col);
-        c_put_str(TERM_L_DARK, "bash door", row, col + 2);
-        row++;
-        c_put_str(TERM_L_WHITE, "D", row, col);
-        c_put_str(TERM_L_DARK, "disarm trap", row, col + 2);
-        row++;
-        c_put_str(TERM_L_WHITE, "T", row, col);
-        c_put_str(TERM_L_DARK, "tunnel", row, col + 2);
-        row++;
-        c_put_str(TERM_L_WHITE, ">", row, col);
-        c_put_str(TERM_L_DARK, "descend stairs", row, col + 2);
-        row++;
-        c_put_str(TERM_L_WHITE, "<", row, col);
-        c_put_str(TERM_L_DARK, "ascend stairs", row, col + 2);
-        row++;
-        c_put_str(TERM_L_WHITE, "0", row, col);
-        c_put_str(TERM_L_DARK, "forge an item", row, col + 2);
-        row++;
-
-        row = 3;
-        col = 34;
-
-        c_put_str(TERM_L_DARK + TERM_SHADE, "Advanced", row - 2, col);
-
-        c_put_str(TERM_L_WHITE, " :", row, col);
-        c_put_str(TERM_L_DARK, "write a note", row, col + 3);
-        row++;
-        c_put_str(TERM_L_WHITE, " )", row, col);
-        c_put_str(TERM_L_DARK, "save screen shot", row, col + 3);
-        row++;
-        row++;
-        if (angband_keyset)
-            c_put_str(TERM_L_WHITE, " @", row, col);
-        else
-            c_put_str(TERM_L_WHITE, " $", row, col);
-        c_put_str(TERM_L_DARK, "set macros", row, col + 3);
-        row++;
-        c_put_str(TERM_L_WHITE, " &", row, col);
-        c_put_str(TERM_L_DARK, "set colours", row, col + 3);
-        row++;
-        row++;
-        c_put_str(TERM_L_WHITE, "^p", row, col);
-        c_put_str(TERM_L_DARK, "display prior messages", row, col + 3);
-        row++;
-        c_put_str(TERM_L_WHITE, "^r", row, col);
-        c_put_str(TERM_L_DARK, "redraw screen", row, col + 3);
-        row++;
-        c_put_str(TERM_L_WHITE, "^e", row, col);
-        c_put_str(
-            TERM_L_DARK, "switch inven/equip display in windows", row, col + 3);
-        row++;
-        c_put_str(TERM_L_WHITE, " V", row, col);
-        c_put_str(TERM_L_DARK, "version information", row, col + 3);
-        row++;
-
-        row = 16;
-        col = 35;
-        col2 = 43;
-
-        c_put_str(TERM_L_DARK + TERM_SHADE, "hjkl movement", row - 2, col - 1);
-
-        c_put_str(TERM_L_WHITE, "y k u", row, col);
-        c_put_str(TERM_L_DARK, " \\|/ ", row + 1, col);
-        c_put_str(TERM_L_WHITE, "h z l", row + 2, col);
-        c_put_str(TERM_L_DARK, "-", row + 2, col + 1);
-        c_put_str(TERM_L_DARK, "-", row + 2, col + 3);
-        c_put_str(TERM_L_DARK, " /|\\ ", row + 3, col);
-        c_put_str(TERM_L_WHITE, "b j n", row + 4, col);
-
-        c_put_str(TERM_L_DARK, "If the hjkl movement option is on", row, col2);
-        c_put_str(
-            TERM_L_DARK, "then these keys move you around", row + 1, col2);
-
-        c_put_str(TERM_L_DARK, "Use shift to 'run'", row + 3, col2);
-        c_put_str(TERM_L_WHITE, "shift", row + 3, col2 + 4);
-        c_put_str(TERM_L_DARK, "Use control for the underlying", row + 4, col2);
-        c_put_str(TERM_L_WHITE, "control", row + 4, col2 + 4);
-        c_put_str(TERM_L_DARK, "key-commands", row + 5, col2);
-
+        put_role(ROLE_BODY, "- Build around one or balance both; edges matter in tight fights.", row, col);
         break;
     }
+
+    case 4:
+    {
+        /* SIL-MORE: HELP [4/8]: EARLY TIPS */
+        row = 0; col = 1;
+        sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: EARLY TIPS", i, HELP_TOTAL_PAGES);
+        put_role(ROLE_HEADER, page_header, row, col);
+        row += 2;
+
+        put_role(ROLE_SECTION, "CRAFT & GEAR", row, col); row++;
+        put_role(ROLE_BODY, "- Guaranteed ", row, col);
+        put_role(ROLE_GOOD, "forges", row, col + 13);
+        put_role(ROLE_BODY, " at 100', 300', and 500'-plan your craft route.", row, col + 19);
+        row++;
+        put_role(ROLE_BODY, "- Find armour and a bow first; control fights before you win them.", row, col);
+        row += 2;
+
+        put_role(ROLE_SECTION, "TACTICS", row, col); row++;
+        put_role(ROLE_BODY, "- Do not rush: this is tactical. Lure, isolate, and retreat often.", row, col);
+        row++;
+        put_role(ROLE_BODY, "- Doors and corners are force multipliers-avoid being surrounded.", row, col);
+        row++;
+        put_role(ROLE_BODY, "- Stairs are traffic-reset, ambush, or move on; do not loiter.", row, col);
+        row += 2;
+
+        put_role(ROLE_SECTION, "ABILITIES", row, col); row++;
+        put_role(ROLE_BODY, "- Abilities matter: a single pick can flip a matchup.", row, col);
+        row++;
+        put_role(ROLE_BODY, "- Choose abilities that reinforce your plan: stealth, control, or brute force.", row, col);
+        row += 2;
+
+        put_role(ROLE_SECTION, "TONE & APPROACH", row, col); row++;
+        put_role(ROLE_BODY, "- ", row, col);
+        put_role(ROLE_TERM, "Cunning", row, col + 2);
+        put_role(ROLE_BODY, " over ", row, col + 9);
+        put_role(ROLE_BAD, "cruelty", row, col + 15);
+        put_role(ROLE_BODY, "; ", row, col + 22);
+        put_role(ROLE_SECTION, "light", row, col + 24);
+        put_role(ROLE_BODY, " over ", row, col + 29);
+        put_role(ROLE_SUBTLE, "darkness", row, col + 35);
+        put_role(ROLE_BODY, "; ", row, col + 43);
+        put_role(ROLE_GOOD, "retreat is wisdom", row, col + 45);
+        put_role(ROLE_BODY, ".", row, col + 62);
+        row++;
+        put_role(ROLE_BODY, "- ", row, col);
+        put_role(ROLE_GOOD, "Doors, distance, and silence", row, col + 2);
+        put_role(ROLE_BODY, " are ", row, col + 30);
+        put_role(ROLE_TERM, "weapons", row, col + 35);
+        put_role(ROLE_BODY, ".", row, col + 42);
+        row++;
+        put_role(ROLE_BODY, "- Your ", row, col);
+        put_role(ROLE_TERM, "legend", row, col + 7);
+        put_role(ROLE_BODY, " is a ", row, col + 13);
+        put_role(ROLE_TERM, "mosaic of choices", row, col + 19);
+        put_role(ROLE_BODY, "-small ", row, col + 36);
+        put_role(ROLE_GOOD, "edges", row, col + 43);
+        put_role(ROLE_BODY, " add up.", row, col + 48);
+        row++;
+        put_role(ROLE_BODY, "- You are the light you carry. Choose your fights; write your legend.", row, col);
+        break;
+    }
+
+    case 5:
+    {
+        /* SIL-MORE: HELP [5/8]: MOVEMENT & MISCELLANEOUS */
+        sprintf(page_header, "HELP [%d/%d]: MOVEMENT & MISCELLANEOUS", i, HELP_TOTAL_PAGES);
+        put_role(ROLE_HEADER, page_header, 0, 1);
+
+        row = 3; col = 3; col2 = col + 8;
+        put_role(ROLE_SECTION, "Movement etc", row - 2, col - 1);
+
+        put_role(ROLE_KEY,   "7 8 9", row, col);
+        put_role(ROLE_SUBTLE," \\|/ ", row + 1, col);
+        put_role(ROLE_KEY,   "4 5 6", row + 2, col);
+        put_role(ROLE_SUBTLE,"-", row + 2, col + 1);
+        put_role(ROLE_SUBTLE,"-", row + 2, col + 3);
+        put_role(ROLE_SUBTLE," /|\\ ", row + 3, col);
+        put_role(ROLE_KEY,   "1 2 3", row + 4, col);
+
+        put_role(ROLE_SUBTLE, "Use the numbers or arrow keys", row + 0, col2);
+        put_role(ROLE_KEY,    "numbers", row + 0, col2 + 8);
+        put_role(ROLE_KEY,    "arrow keys", row + 0, col2 + 19);
+        put_role(ROLE_SUBTLE, "to move, attack, or open doors", row + 1, col2);
+        put_role(ROLE_SUBTLE, "(You may need numlock)", row + 2, col2);
+        put_role(ROLE_KEY,    "numlock", row + 2, col2 + 14);
+        put_role(ROLE_SUBTLE, "Use 5 or z to wait a turn (& search)", row + 4, col2);
+        put_role(ROLE_KEY,    "5", row + 4, col2 + 4);
+        put_role(ROLE_KEY,    "z", row + 4, col2 + 9);
+
+        row += 6;
+        put_role(ROLE_SUBTLE, "Use shift or . to move continuously", row, col);
+        put_role(ROLE_KEY,    "shift", row, col + 4);
+        put_role(ROLE_KEY,    ".", row, col + 13);
+        row++;
+        put_role(ROLE_SUBTLE, "- direction 5 or z rests until healed", row, col + 2);
+        row += 2;
+
+        put_role(ROLE_SUBTLE, "Use control or / to interact with a square:", row, col);
+        put_role(ROLE_KEY,    "control", row, col + 4);
+        if (angband_keyset) put_role(ROLE_KEY, "+", row, col + 15); else put_role(ROLE_KEY, "/", row, col + 15);
+        row++;
+        put_role(ROLE_SUBTLE, "- tunnels through rubble/walls", row, col + 2); row++;
+        put_role(ROLE_SUBTLE, "- closes open doors", row, col + 2);           row++;
+        put_role(ROLE_SUBTLE, "- bashes closed doors", row, col + 2);          row++;
+        put_role(ROLE_SUBTLE, "- disarms floor traps", row, col + 2);          row++;
+        put_role(ROLE_SUBTLE, "- disarms/opens chests and searches skeletons", row, col + 2); row++;
+        put_role(ROLE_SUBTLE, "- attacks monsters without moving", row, col + 2); row += 2;
+        put_role(ROLE_SUBTLE, "Interacting with your own square also:", row, col); row++;
+        put_role(ROLE_SUBTLE, "- picks up an item", row, col + 2); row++;
+        put_role(ROLE_SUBTLE, "- uses a staircase/forge", row, col + 2); row++;
+        put_role(ROLE_SUBTLE, "- can be done by pressing , or Space", row, col + 2);
+        put_role(ROLE_KEY,    ",", row, col + 28);
+        put_role(ROLE_KEY,    "Space", row, col + 33);
+
+        row = 3; col = 52;
+        put_role(ROLE_SECTION, "Miscellaneous", row - 2, col);
+
+        put_role(ROLE_KEY,  "f F", row, col - 1); put_role(ROLE_SUBTLE, "/", row, col); put_role(ROLE_SUBTLE, "fire from quiver 1/2", row, col + 3); row++;
+        if (angband_keyset) put_role(ROLE_KEY, " a", row, col); else put_role(ROLE_KEY, " s", row, col); put_role(ROLE_SUBTLE, "sing", row, col + 3); row++;
+        put_role(ROLE_KEY, " S", row, col); put_role(ROLE_SUBTLE, "stealth mode", row, col + 3); row++;
+        put_role(ROLE_KEY, " n", row, col); put_role(ROLE_SUBTLE, "repeat last command", row, col + 3); row++;
+        if (angband_keyset) put_role(ROLE_KEY, " 0", row, col); else put_role(ROLE_KEY, " R", row, col); put_role(ROLE_SUBTLE, "repeat next command", row, col + 3); row += 2;
+        put_role(ROLE_KEY, " l", row, col); put_role(ROLE_SUBTLE, "look (at things)", row, col + 3); row++;
+        put_role(ROLE_KEY, " L", row, col); put_role(ROLE_SUBTLE, "look (around dungeon)", row, col + 3); row++;
+        put_role(ROLE_KEY, " M", row, col); put_role(ROLE_SUBTLE, "display map of level", row, col + 3); row += 2;
+        put_role(ROLE_KEY, " m", row, col); put_role(ROLE_UI,  "main menu", row, col + 3); row++;
+        put_role(ROLE_KEY, "Tab", row, col - 1); put_role(ROLE_UI,  "display ability screen", row, col + 3); row++;
+        if (angband_keyset) put_role(ROLE_KEY, " C", row, col); else put_role(ROLE_KEY, " @/h", row, col-2); put_role(ROLE_UI, "display character sheet", row, col + 3); row++;
+        if (angband_keyset) put_role(ROLE_KEY, " =", row, col); else put_role(ROLE_KEY, " O", row, col); put_role(ROLE_UI, "set options", row, col + 3); row += 2;
+        put_role(ROLE_KEY, "^s", row, col); put_role(ROLE_UI,  "save", row, col + 3); row++;
+        put_role(ROLE_KEY, "^x", row, col); put_role(ROLE_UI,  "save and quit", row, col + 3); row++;
+        // put_role(ROLE_KEY, " Q", row, col); put_role(ROLE_UI,  "abort current game", row, col + 3);
+        break;
+    }
+
+    case 6:
+    {
+        /* SIL-MORE: HELP [6/8]: TERRAIN & ITEMS */
+        sprintf(page_header, "HELP [%d/%d]: TERRAIN & ITEMS", i, HELP_TOTAL_PAGES);
+        put_role(ROLE_HEADER, page_header, 0, 1);
+
+        row = 3; col = 3;
+        put_role(ROLE_SECTION, "Terrain ", row - 2, col - 1);
+
+        /* Keep gameplay glyph colours as-is; only change the labels to ROLE_BODY */
+        if (hybrid_walls) { c_put_str(TERM_L_WHITE + (MAX_COLORS * BG_DARK), "#", row, col); }
+        else if (solid_walls) { c_put_str(TERM_L_WHITE + (MAX_COLORS * BG_SAME), "#", row, col); }
+        else { c_put_str(TERM_L_WHITE, "#", row, col); }
+        put_role(ROLE_BODY, "wall", row, col + 2); row++;
+        c_put_str(TERM_WHITE + (MAX_COLORS * BG_SAME), "%", row, col); put_role(ROLE_BODY, "quartz vein", row, col + 2); row++;
+        c_put_str(TERM_SLATE, ":", row, col); put_role(ROLE_BODY, "rubble", row, col + 2); row++;
+        c_put_str(TERM_L_UMBER, "+", row, col); put_role(ROLE_BODY, "closed door", row, col + 2); row++;
+        c_put_str(TERM_L_UMBER, "'", row, col); put_role(ROLE_BODY, "open door", row, col + 2); row++;
+        c_put_str(TERM_L_GREEN, "+", row, col); c_put_str(TERM_L_BLUE, "+", row, col + 1); c_put_str(TERM_VIOLET, "+", row, col + 2); put_role(ROLE_BODY, "warded doors", row, col + 4); row++;
+        c_put_str(TERM_L_WHITE, ">", row, col); put_role(ROLE_BODY, "staircase down", row, col + 2); row++;
+        c_put_str(TERM_L_WHITE, "<", row, col); put_role(ROLE_BODY, "staircase up", row, col + 2); row++;
+        c_put_str(TERM_SLATE, "0", row, col); put_role(ROLE_BODY, "forge", row, col + 2); row++;
+        c_put_str(TERM_YELLOW, "^", row, col); put_role(ROLE_BODY, "trap", row, col + 2); row++;
+        c_put_str(TERM_L_GREEN, ";", row, col); put_role(ROLE_BODY, "warding glyph", row, col + 2); row++;
+        c_put_str(TERM_L_WHITE, ".", row, col); put_role(ROLE_BODY, "empty floor", row, col + 2); row++;
+
+        row = 3; col = 27;
+        put_role(ROLE_SECTION, "Items", row - 2, col - 1);
+        c_put_str(TERM_L_WHITE, "| ", row, col); put_role(ROLE_BODY, "blades", row, col + 2); row++;
+        c_put_str(TERM_SLATE, "/ ", row, col); put_role(ROLE_BODY, "axes & polearms", row, col + 2); row++;
+        c_put_str(TERM_UMBER, "\\ ", row, col); put_role(ROLE_BODY, "blunt weapons", row, col + 2); row++;
+        c_put_str(TERM_L_UMBER, "( ", row, col); put_role(ROLE_BODY, "soft armour", row, col + 2); row++;
+        c_put_str(TERM_L_WHITE, "[ ", row, col); put_role(ROLE_BODY, "mail", row, col + 2); row++;
+        c_put_str(TERM_L_WHITE, ") ", row, col); put_role(ROLE_BODY, "shields", row, col + 2); row++;
+        c_put_str(TERM_L_WHITE, "] ", row, col); put_role(ROLE_BODY, "misc armour", row, col + 2); row++;
+        c_put_str(TERM_RED, "= ", row, col); put_role(ROLE_BODY, "rings", row, col + 2); row++;
+        c_put_str(TERM_ORANGE, "\" ", row, col); put_role(ROLE_BODY, "amulets", row, col + 2); row++;
+        c_put_str(TERM_L_UMBER, "~ ", row, col); put_role(ROLE_BODY, "light sources", row, col + 2); row++;
+        c_put_str(TERM_UMBER, "} ", row, col); put_role(ROLE_BODY, "bows", row, col + 2); row++;
+        c_put_str(TERM_L_UMBER, "- ", row, col); put_role(ROLE_BODY, "arrows", row, col + 2); row++;
+        c_put_str(TERM_L_UMBER, ", ", row, col); put_role(ROLE_BODY, "food", row, col + 2); row++;
+        c_put_str(TERM_L_BLUE, "! ", row, col); put_role(ROLE_BODY, "potions", row, col + 2); row++;
+        c_put_str(TERM_UMBER, "_ ", row, col); put_role(ROLE_BODY, "staves", row, col + 2); row++;
+        c_put_str(TERM_L_UMBER, "? ", row, col); put_role(ROLE_BODY, "instruments", row, col + 2); row++;
+        c_put_str(TERM_YELLOW, "! ", row, col); put_role(ROLE_BODY, "flasks of oil", row, col + 2); row++;
+
+        row = 3; col = 52;
+        put_role(ROLE_SECTION, "Item Commands", row - 2, col - 1);
+        if (angband_keyset) put_role(ROLE_KEY, "U", row, col); else put_role(ROLE_KEY, "u", row, col); put_role(ROLE_UI, "use", row, col + 2); row++;
+        put_role(ROLE_KEY, "d", row, col); put_role(ROLE_UI, "drop", row, col + 2); row++;
+        if (angband_keyset) put_role(ROLE_KEY, "I", row, col); else put_role(ROLE_KEY, "x", row, col); put_role(ROLE_UI, "examine", row, col + 2); row++;
+        if (angband_keyset) put_role(ROLE_KEY, "v", row, col); else put_role(ROLE_KEY, "t", row, col); put_role(ROLE_UI, "throw", row, col + 2); row++;
+        if (angband_keyset) put_role(ROLE_KEY, "^v", row, col - 1); else put_role(ROLE_KEY, "^t", row, col - 1); put_role(ROLE_UI, "throw (auto-target)", row, col + 2); row++;
+        put_role(ROLE_KEY, "k", row, col); put_role(ROLE_UI, "destroy", row, col + 2); row++;
+        put_role(ROLE_KEY, "{", row, col); put_role(ROLE_UI, "inscribe", row, col + 2); row++;
+        break;
+    }
+
+    case 7:
+    {
+        /* SIL-MORE: HELP [7/8]: ADVANCED COMMANDS */
+        sprintf(page_header, "HELP [%d/%d]: ADVANCED COMMANDS", i, HELP_TOTAL_PAGES);
+        put_role(ROLE_HEADER, page_header, 0, 1);
+
+        row = 3; col = 3;
+        put_role(ROLE_SECTION, "Superfluous", row - 2, col - 1);
+
+        put_role(ROLE_KEY, "i", row, col); put_role(ROLE_UI,  "display inventory", row, col + 2); row++;
+        put_role(ROLE_KEY, "e", row, col); put_role(ROLE_UI,  "display equipped items", row, col + 2); row += 2;
+        put_role(ROLE_KEY, "g", row, col); put_role(ROLE_UI,  "get", row, col + 2); row++;
+        put_role(ROLE_KEY, "w", row, col); put_role(ROLE_UI,  "wear/wield", row, col + 2); row++;
+        if (angband_keyset) put_role(ROLE_KEY, "t", row, col); else put_role(ROLE_KEY, "r", row, col); put_role(ROLE_UI,  "remove", row, col + 2); row++;
+        put_role(ROLE_KEY, "E", row, col); put_role(ROLE_UI,  "eat food", row, col + 2); row++;
+        put_role(ROLE_KEY, "q", row, col); put_role(ROLE_UI,  "quaff potion", row, col + 2); row++;
+        if (angband_keyset) put_role(ROLE_KEY, "u", row, col); else put_role(ROLE_KEY, "a", row, col); put_role(ROLE_UI,  "activate staff", row, col + 2); row++;
+        put_role(ROLE_KEY, "p", row, col); put_role(ROLE_UI,  "play instrument", row, col + 2); row += 2;
+
+        put_role(ROLE_KEY, "o", row, col); put_role(ROLE_UI,  "open door/chest", row, col + 2); row++;
+        put_role(ROLE_KEY, "c", row, col); put_role(ROLE_UI,  "close door", row, col + 2); row++;
+        put_role(ROLE_KEY, "b", row, col); put_role(ROLE_UI,  "bash door", row, col + 2); row++;
+        put_role(ROLE_KEY, "D", row, col); put_role(ROLE_UI,  "disarm trap", row, col + 2); row++;
+        put_role(ROLE_KEY, "T", row, col); put_role(ROLE_UI,  "tunnel", row, col + 2); row++;
+        put_role(ROLE_KEY, ">", row, col); put_role(ROLE_UI,  "descend stairs", row, col + 2); row++;
+        put_role(ROLE_KEY, "<", row, col); put_role(ROLE_UI,  "ascend stairs", row, col + 2); row++;
+        put_role(ROLE_KEY, "0", row, col); put_role(ROLE_UI,  "forge an item", row, col + 2); row++;
+
+        row = 3; col = 34;
+        put_role(ROLE_SECTION, "Advanced", row - 2, col);
+
+        put_role(ROLE_KEY,  " :", row, col); put_role(ROLE_UI,   "write a note", row, col + 3); row++;
+        put_role(ROLE_KEY,  " )", row, col); put_role(ROLE_UI,   "save screen shot", row, col + 3); row += 2;
+        if (angband_keyset) put_role(ROLE_KEY, " @", row, col); else put_role(ROLE_KEY, " $", row, col); put_role(ROLE_UI,   "set macros", row, col + 3); row++;
+        put_role(ROLE_KEY,  " &", row, col); put_role(ROLE_UI,   "set colours", row, col + 3); row += 2;
+        put_role(ROLE_KEY,  "^p", row, col); put_role(ROLE_UI,   "display prior messages", row, col + 3); row++;
+        put_role(ROLE_KEY,  "^r", row, col); put_role(ROLE_UI,   "redraw screen", row, col + 3); row++;
+        put_role(ROLE_KEY,  "^e", row, col); put_role(ROLE_UI,   "switch inven/equip display in windows", row, col + 3); row++;
+        put_role(ROLE_KEY,  " V", row, col); put_role(ROLE_UI,   "version information", row, col + 3); row++;
+
+        row = 16; col = 35; col2 = 43;
+        put_role(ROLE_SECTION, "hjkl movement", row - 2, col - 1);
+
+        put_role(ROLE_KEY,   "y k u", row, col);
+        put_role(ROLE_SUBTLE," \\|/ ", row + 1, col);
+        put_role(ROLE_KEY,   "h z l", row + 2, col);
+        put_role(ROLE_SUBTLE,"-", row + 2, col + 1);
+        put_role(ROLE_SUBTLE,"-", row + 2, col + 3);
+        put_role(ROLE_SUBTLE," /|\\ ", row + 3, col);
+        put_role(ROLE_KEY,   "b j n", row + 4, col);
+
+        put_role(ROLE_SUBTLE, "If the hjkl movement option is on", row, col2);
+        put_role(ROLE_SUBTLE, "then these keys move you around", row + 1, col2);
+        put_role(ROLE_SUBTLE, "Use shift to 'run'", row + 3, col2); put_role(ROLE_KEY, "shift", row + 3, col2 + 4);
+        put_role(ROLE_SUBTLE, "Use control for the underlying", row + 4, col2); put_role(ROLE_KEY, "control", row + 4, col2 + 4);
+        put_role(ROLE_SUBTLE, "key-commands", row + 5, col2);
+        break;
+    }
+
+#ifdef STEAMDECK_SUPPORT
+    case 8:
+    {
+        /* SIL-MORE: HELP [8/8]: STEAM DECK CONTROLS */
+        row = 0; col = 1;
+        sprintf(page_header, "SIL-MORE: SHINING DARKNESS - HELP [%d/%d]: STEAM DECK CONTROLS", i, HELP_TOTAL_PAGES);
+        put_role(ROLE_HEADER, page_header, row, col);
+        row += 2;
+
+        /* Movement and Action Controls */
+        col = 1;
+        put_role(ROLE_ELEM_COLD, "D-pad: Up/Down/Left/Right", row, col); put_role(ROLE_BODY, " - Movement", row, col + 25); row++;
+        row++;
+        put_role(ROLE_GOOD, "A", row, col); put_role(ROLE_BODY, " Green - Space - Interact (,) - Pick up, stairs, forge", row, col + 2); row++;
+        put_role(ROLE_ELEM_COLD, "X", row, col); put_role(ROLE_BODY, " Blue  - Use object (u)", row, col + 2); row++;
+        put_role(ROLE_ELEM_FIRE, "Y", row, col); put_role(ROLE_BODY, " Yellow- Sing/stealth (s)", row, col + 2); row++;
+        put_role(ROLE_BAD, "B", row, col); put_role(ROLE_BODY, " Red   - Shoot bow (f)", row, col + 2); row++;
+        row++;
+        
+        /* Left side controls */
+        put_role(ROLE_SECTION, "LEFT SIDE CONTROLS", row, col); row += 2;
+        put_role(ROLE_KEY, "Left Stick", row, col); put_role(ROLE_BODY, " - Numpad", row, col + 15); row++;
+        put_role(ROLE_KEY, "Left Trackpad", row, col); put_role(ROLE_BODY, " - Numpad", row, col + 15); row++;
+        put_role(ROLE_UI, "Menu Button", row, col); put_role(ROLE_BODY, " - Enter", row, col + 15); row++;
+        put_role(ROLE_KEY, "L1 (Bumper)", row, col); put_role(ROLE_BODY, " - Equipped items (e)", row, col + 15); row++;
+        put_role(ROLE_KEY, "L2 (Trigger)", row, col); put_role(ROLE_BODY, " - Shift", row, col + 15); row++;
+        put_role(ROLE_KEY, "L4 (Back)", row, col); put_role(ROLE_BODY, " - Look (l)", row, col + 15); row++;
+        put_role(ROLE_KEY, "L5 (Back)", row, col); put_role(ROLE_BODY, " - Abilities (Tab)", row, col + 15); row++;
+
+        /* Right side controls */
+        col = 42; row = 9;
+        put_role(ROLE_SECTION, "RIGHT SIDE CONTROLS", row, col); row += 2;
+        put_role(ROLE_KEY, "Right Stick", row, col); put_role(ROLE_BODY, " - Letters", row, col + 16); row++;
+        put_role(ROLE_KEY, "Right Trackpad", row, col); put_role(ROLE_BODY, " - Useful letters", row, col + 16); row++;
+        put_role(ROLE_UI, "View Button", row, col); put_role(ROLE_BODY, " - Esc/Main Menu", row, col + 16); row++;
+        put_role(ROLE_KEY, "R1 (Bumper)", row, col); put_role(ROLE_BODY, " - Inventory (i)", row, col + 16); row++;
+        put_role(ROLE_KEY, "R2 (Trigger)", row, col); put_role(ROLE_BODY, " - Ctrl", row, col + 16); row++;
+        put_role(ROLE_KEY, "R4 (Back)", row, col); put_role(ROLE_BODY, " - Description (x)", row, col + 16); row++;
+        put_role(ROLE_KEY, "R5 (Back)", row, col); put_role(ROLE_BODY, " - Character sheet (h)", row, col + 16); row++;
+        
+        row += 2;
+        put_role(ROLE_SUBTLE, "Customize bindings via Steam Input settings.", row, 1);
+        
+        break;
+    }
+#endif /* STEAMDECK_SUPPORT */
     }
 }
+
+
 
 /*
  * Peruse the On-Line-Help
@@ -3116,21 +3277,58 @@ void do_cmd_help(void)
         Term_clear();
 
         show_help_screen(i);
+        int wid, hgt;
 
-        /* Prompt */
-        c_put_str(TERM_L_WHITE, "(press any key)", 23, 53);
+        // get current terminal size
+        Term_get_size(&wid, &hgt);
+        /* Better navigation prompt */
+        {
+            char nav[128];
+            strnfmt(nav, sizeof(nav),
+                "Navigation: [<-/4] Prev  [->/6/Space] Next  [X+1-%d] Page  [Q/Esc] Quit",
+                HELP_TOTAL_PAGES);
+            c_put_str(TERM_WHITE, nav, hgt - 1, 1);
+        }
         ch = inkey();
 
-        /* Most keys take you a page forwards, 'up' or '-' or '8' take you back
-         */
+        /* Enhanced navigation */
         if (ch != EOF)
         {
-            if ((ch == '8') || (ch == '-'))
+            /* Quit commands */
+            if ((ch == 'q') || (ch == 'Q') || (ch == ESCAPE))
+            {
+                break;
+            }
+            /* Previous page */
+            else if ((ch == '8') || (ch == '-') || (ch == '4'))
             {
                 i--;
                 if (i < 1)
                     i = 1;
             }
+            /* Next page */
+            else if ((ch == '2') || (ch == '6') || (ch == ' ') || (ch == '\r') || (ch == '\n'))
+            {
+                i++;
+            }
+            /* Direct page navigation with 'x' prefix */
+            else if (ch == 'x' || ch == 'X')
+            {
+                /* Wait for second key */
+                char prompt[32];
+                sprintf(prompt, "Page (1-%d): ", HELP_TOTAL_PAGES);
+                c_put_str(TERM_YELLOW, prompt, 23, 60);
+                char ch2 = inkey();
+                if ((ch2 >= '1') && (ch2 <= ('0' + HELP_TOTAL_PAGES)))
+                {
+                    int target = ch2 - '0';
+                    if (target <= HELP_TOTAL_PAGES)
+                        i = target;
+                }
+                /* Clear the prompt */
+                c_put_str(TERM_L_WHITE, "                ", 23, 60);
+            }
+            /* Default: next page */
             else
             {
                 i++;
@@ -3138,7 +3336,7 @@ void do_cmd_help(void)
         }
 
         /* Done */
-        if (i > 3)
+        if (i > HELP_TOTAL_PAGES)
             break;
 
         /* Flush messages */
@@ -4407,7 +4605,7 @@ static int race_has_house(uint16_t race, uint16_t house)
 }
 
 /* ------------------------------------------------------------------ */
-/* helper – build a dummy hi‑score entry so we can immediately kill it */
+/* helper - build a dummy hi‑score entry so we can immediately kill it */
 static void build_dummy_entry(high_score *e, uint16_t race, uint16_t house)
 {
     memset(e, 0, sizeof(*e));
@@ -4416,7 +4614,7 @@ static void build_dummy_entry(high_score *e, uint16_t race, uint16_t house)
     strnfmt(e->what, sizeof e->what, "%s",
             "Hero of the First Age");
 
-    /* 15‑char player name – house name fits nicely */
+    /* 15‑char player name - house name fits nicely */
     const char *hname = c_name + c_info[house].name;
     strnfmt(e->who,  sizeof e->who,  "%-.15s", hname);
 
@@ -4429,7 +4627,7 @@ static void build_dummy_entry(high_score *e, uint16_t race, uint16_t house)
     strftime(e->day, sizeof(e->day), "@%Y%m%d",
         localtime(&now));
 
-    /* immediate cause of death – will be overwritten below anyway      */
+    /* immediate cause of death - will be overwritten below anyway      */
     strnfmt(e->how,  sizeof e->how, op_ptr->base_name);
 }
 
@@ -4944,7 +5142,7 @@ void display_scores(int from, int to)
     quit(NULL);
 }
 
-/* Public entry – compact list --------------------------------------- */
+/* Public entry - compact list --------------------------------------- */
 void display_scores_short(int from, int to)
 {
     char buf[1024];
@@ -4963,16 +5161,16 @@ void display_scores_short(int from, int to)
  * Story display helpers & updated print_story() implementation
  * =============================================================
  *  Added features
- *    1.  Optional `last_parts` argument — when >0 only the *last*
+ *    1.  Optional `last_parts` argument - when >0 only the *last*
  *        N matching story chapters are shown.
- *    2.  Optional `fade_in` boolean — when true, paragraphs are
+ *    2.  Optional `fade_in` boolean - when true, paragraphs are
  *        displayed with a colour fade‑in effect.
  *
  *  Timing (per @Roman request 2025‑07‑30, amended)
  *    • 125 ms between colour steps
  *    • 1 second pause after each paragraph/"block"
  *
- *  UI tweaks 2025‑07‑30 — v4
+ *  UI tweaks 2025‑07‑30 - v4
  *    • Prints a **visible blank line** between paragraphs (not just
  *      a row counter increment).
  *    • [Esc] now finishes the *current* page instantly (no fades /
@@ -5278,7 +5476,7 @@ void print_fade_centered_at_row(cptr text, int row_start)
 }
 
 /* -------------------------------------------------------------
- * print_story() — paging, subset & fade‑in options
+ * print_story() - paging, subset & fade‑in options
  * ----------------------------------------------------------- */
 void print_story(int last_parts, bool fade_in)
 {
@@ -5735,7 +5933,7 @@ static errr predict_score(void)
     j = highscore_where(&the_score);
     if (j < 0) return -1; /* not eligible */
 
-    /* We never write the preview to disk – just show it using the existing
+    /* We never write the preview to disk - just show it using the existing
        "fake record" mechanism (note=j, score=&the_score). */
     if (j < 10) {
         display_scores_aux(0, 15, j, &the_score);
@@ -5869,9 +6067,9 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
         log_trace("scan: entry_offset=%d", hit);
 
         if (hit >= 0) {
-            /* 5.d) Found – check alive (use 'who', not 'how') */
+            /* 5.d) Found - check alive (use 'who', not 'how') */
             if (highscore_dead(entry.who)) {
-                log_debug("hero already dead – skip");
+                log_debug("hero already dead - skip");
                 continue;
             }
             /* kill existing */
@@ -5885,10 +6083,10 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
             }
         }
         else {
-            /* 5.e) No record – insert dummy */
+            /* 5.e) No record - insert dummy */
             high_score dummy;
             build_dummy_entry(&dummy, race, hsel);
-            log_trace("no existing record – inserting dummy \"%s\"", dummy.who);
+            log_trace("no existing record - inserting dummy \"%s\"", dummy.who);
 
             /* position for add */
             highscore_seek(0);
@@ -5914,13 +6112,13 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
         return killed_house;
     }
 
-    /* 8) No kill performed – close and exit */
+    /* 8) No kill performed - close and exit */
     safe_setuid_grab();
     if (fclose(highscore_fd) != 0)
         log_warn("fclose(highscore_fd) failed, errno=%d", errno);
     safe_setuid_drop();
     highscore_fd = NULL;
-    log_debug("finished – no kill performed");
+    log_debug("finished - no kill performed");
     return NULL;
 }
 
@@ -6354,7 +6552,7 @@ static int final_menu(int* highlight)
     }
 
     /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' '))
+    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
         return (*highlight);
     }
@@ -7655,7 +7853,7 @@ bool autoload_alive_from_scores(void)
         char who_buf[sizeof entry.who + 1];
         memset(who_buf, 0, sizeof who_buf);
         my_strcpy(who_buf, entry.who, sizeof(who_buf));
-        log_info("autoload: found alive entry '%s' (index %d) – attempting load", who_buf, i);
+        log_info("autoload: found alive entry '%s' (index %d) - attempting load", who_buf, i);
 
         my_strcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
         process_player_name(true);
@@ -7689,7 +7887,7 @@ bool autoload_alive_from_scores(void)
         my_strcpy(savefile, savefile_backup, sizeof(savefile));
 
         /* Mark as dead and continue */
-        log_warn("autoload: savefile missing/corrupt for '%s' – marking dead", who_buf);
+        log_warn("autoload: savefile missing/corrupt for '%s' - marking dead", who_buf);
         strnfmt(entry.how, sizeof entry.how, "%-.49s", "their own hand");
         if (highscore_seek(i) == 0) {
             highscore_write(&entry);

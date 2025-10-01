@@ -28,7 +28,7 @@
 
 # Version stamp (required)
 
-V:0.8.7
+V:0.8.9
 
 # Melee ---------------------------------------------
 
@@ -114,8 +114,8 @@ I:0:8:9
 P:0/3:0/5
 D:Whenever you attack an enemy, you get a free attack on all other
 D: enemies adjacent to you. The original attack must be a regular,
-D: flanking or controlled retreat attack. Requires at least 5 continuous
-D: open adjacent squares (not walls or rubble) for sufficient room to maneuver.
+D: flanking or controlled retreat attack. Requires 5 continuous
+D: open adjacent squares.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -652,7 +652,7 @@ T:35:0:99  # Cloak
 N:147:Song of the Trees
 I:7:7:5
 P:7/0:7/5
-D:Increases your light level by 1 point per 5 points
+D:Increases your light radius by 1 point per 5 points
 D: of Song.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak

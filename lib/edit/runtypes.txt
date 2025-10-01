@@ -10,7 +10,7 @@
 
 # Version stamp (required)
 
-V:0.8.7
+V:0.8.9
 
 N:0:Echoes (Normal)
 C:

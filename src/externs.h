@@ -235,6 +235,10 @@ extern int turns_since_combat;
 extern char combat_roll_special_char;
 extern byte combat_roll_special_attr;
 
+extern combat_history_round combat_history[MAX_COMBAT_HISTORY];
+extern int combat_history_head;   /* Index of the most recent entry */
+extern int combat_history_count;  /* Number of stored rounds */
+
 extern bool project_path_ignore;
 extern int project_path_ignore_y;
 extern int project_path_ignore_x;
@@ -401,7 +405,7 @@ extern int total_player_attack(monster_type* m_ptr, int base);
 extern int total_player_evasion(monster_type* m_ptr, bool archery);
 extern int total_monster_attack(monster_type* m_ptr, int base);
 extern int total_monster_evasion(monster_type* m_ptr, bool archery);
-extern int stealth_melee_bonus(const monster_type* m_ptr);
+extern int stealth_melee_bonus(const monster_type* m_ptr, bool allow_unseen);
 extern int overwhelming_att_mod(monster_type* m_ptr);
 extern int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
     int skill_type, bool thrown, monster_type* attacker);
@@ -482,16 +486,25 @@ extern int throwing_range(const object_type* i_ptr);
 extern void attacks_of_opportunity(int neutralized_y, int neutralized_x);
 extern void do_cmd_fire(int quiver);
 extern void do_cmd_throw(bool automatic);
+extern void do_cmd_throw_from_slot(int slot);
+extern bool throw_slot_menu_active;
+extern bool throw_slot_enabled[INVEN_TOTAL];
 
 /* cmd3.c */
+extern void do_cmd_use_item_by_index(int item);
 extern void do_cmd_use_item(void);
+extern void do_cmd_use_item_enhanced(void);
 extern void do_cmd_inven(void);
+extern void do_cmd_inven_direct(void);
 extern void do_cmd_equip(void);
+extern void do_cmd_equip_direct(void);
 extern void do_cmd_wield(object_type* default_o_ptr, int default_item);
 extern void do_cmd_takeoff(object_type* default_o_ptr, int default_item);
+extern void do_cmd_drop_item_by_index(int item);
 extern void do_cmd_drop(void);
 extern void do_cmd_destroy(void);
 extern void do_cmd_observe(void);
+extern void do_cmd_observe_enhanced(void);
 extern void do_cmd_uninscribe(void);
 extern void do_cmd_inscribe(void);
 extern void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item);
@@ -500,10 +513,14 @@ extern void do_cmd_refuel_torch(
 extern void do_cmd_refuel(void);
 extern void do_cmd_target(void);
 extern void do_cmd_look(void);
+extern void do_cmd_unified_look(void);
 extern void do_cmd_locate(void);
 extern void do_cmd_query_symbol(void);
 extern void do_cmd_view_monsters(void);
 extern void do_cmd_view_objects(void);
+extern void show_unified_sidebar(unified_look_state* state);
+extern void highlight_entity_on_map(int y, int x, bool highlight);
+extern void highlight_entity_on_map_type(int y, int x, bool highlight, int entity_type);
 extern bool ang_sort_comp_hook(const void* u, const void* v, int a, int b);
 extern void ang_sort_swap_hook(void* u, void* v, int a, int b);
 extern void py_steal(int y, int x);
@@ -514,6 +531,8 @@ extern void do_cmd_redraw(void);
 extern void options_birth_menu(bool adult);
 extern void do_cmd_character_sheet(void);
 extern void do_cmd_change_song(void);
+extern void show_songs_with_highlight(int highlight);
+extern void wipe_screen_from(int col);
 extern int ability_index(int skilltype, int abilitynum);
 extern int elf_bane_bonus(monster_type* m_ptr);
 extern char* bane_name[];
@@ -684,6 +703,11 @@ extern void update_combat_rolls1b(
 extern void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps,
     int prot, int prt_percent, int dam_type, bool melee);
 extern void display_combat_rolls(void);
+extern void display_main_combat_rolls(void);
+extern void clear_main_combat_rolls_area(void);
+extern void add_combat_round_to_history(void);
+extern void do_cmd_combat_history(void);
+extern void display_combat_round_details(combat_history_round* round);
 extern void do_betrayal_ring_amulet();
 
 /* melee2.c */
@@ -748,6 +772,8 @@ extern void message_pain(int m_idx, int dam);
 extern bool object_info_out(const object_type* o_ptr);
 extern void note_info_screen(const object_type* o_ptr);
 extern void object_info_screen(const object_type* o_ptr);
+extern void object_info_screen_multi(const object_type** objects, const char** headings, int count);
+extern void describe_item_with_comparisons(int item_index, bool include_comparisons);
 
 /* object1.c */
 extern bool easter_time(void);
@@ -776,6 +802,8 @@ extern void display_inven(void);
 extern void display_equip(void);
 extern void show_inven(void);
 extern void show_equip(void);
+extern void show_inven_enhanced(void);
+extern void show_equip_enhanced(void);
 extern void show_floor(const int* floor_list, int floor_num);
 extern void toggle_inven_equip(void);
 extern bool get_item(int* cp, cptr pmt, cptr str, int mode);
@@ -828,6 +856,11 @@ extern void floor_item_increase(int item, int num);
 extern void floor_item_optimize(int item);
 extern void check_pack_overflow(void);
 extern bool inven_carry_okay(const object_type* o_ptr);
+extern bool inven_carry_limit_failed(void);
+extern cptr inven_carry_limit_label(void);
+extern int inven_carry_limit_value(void);
+extern bool inven_carry_limit_can_replace(const object_type* o_ptr);
+extern int object_stack_limit(const object_type* o_ptr);
 extern s16b inven_carry(object_type* o_ptr, bool combine_ammo);
 extern s16b inven_takeoff(int item, int amt);
 extern void inven_drop(int item, int amt);
@@ -923,7 +956,8 @@ extern bool item_tester_hook_non_herb_food(const object_type* o_ptr);
 extern bool item_tester_hook_light_with_fuel(const object_type* o_ptr);
 extern bool item_tester_hook_enchantable_amulet(const object_type* o_ptr);
 extern int do_ident_item(int item, object_type* o_ptr);
-extern bool ident_spell(void);
+extern bool ident_spell(bool include_floor);
+extern bool display_unified_identify_menu(bool include_floor, int* out_item, object_type** out_object);
 extern bool item_tester_hook_recharge(const object_type* o_ptr);
 extern void recharge_staff_wand(object_type* o_ptr, int lev, int num);
 extern bool recharge(int num);
@@ -1308,3 +1342,17 @@ extern int  any_curse_flag_active(u32b flag); /* CUR-only */
 
 // init1.c
 extern void dbg_show_active_flags(void);
+
+// Enhanced menu system globals
+#define ENHANCED_ACTION_NONE 0
+#define ENHANCED_ACTION_SWITCH 1
+#define ENHANCED_ACTION_EXAMINE 2
+#define ENHANCED_ACTION_USE 3
+#define ENHANCED_ACTION_DROP 4
+
+extern int enhanced_menu_action;
+extern int enhanced_inventory_selected_item;
+extern int enhanced_equip_action;
+extern int enhanced_equipment_selected_item;
+extern char current_menu_command;
+extern int current_menu_state;

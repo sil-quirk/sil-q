@@ -1,0 +1,16 @@
+{
+    "terminal.integrated.defaultProfile.windows": "Cygwin",
+    "terminal.integrated.profiles.windows": {
+        "Cygwin": {
+            "path": "C:\\Soft\\Cygwin\\bin\\bash.exe",
+            "args": ["--login"],
+            "env": {
+                "PATH": "/usr/bin:/bin:${env:PATH}"
+            },
+            "icon": "terminal-bash"
+        }
+    },
+    "terminal.integrated.env.windows": {
+        "PATH": "/usr/bin:/bin:${env:PATH}"
+    }
+}

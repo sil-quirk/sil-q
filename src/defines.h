@@ -48,16 +48,19 @@
  * Current version string
  */
 
+/* Steam Deck support toggle */
+// #define STEAMDECK_SUPPORT
+
 /* Formalized new fork versioning */
-/* Bumped to 0.8.6 for introduction of new skill S_SPC (Special abilities) */
-#define VERSION_STRING "0.8.6"
+/* Bumped to 0.8.9 for throwable/quiver integration */
+#define VERSION_STRING "0.8.9"
 /*
  * Current version numbers
  */
-/* Version components (0.8.6) */
+/* Version components (0.8.9) */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 8
-#define VERSION_PATCH 7
+#define VERSION_PATCH 9
 #define VERSION_EXTRA 0
 
 /*
@@ -108,7 +111,7 @@
 /*
  * Number of grids in each screen (vertically)
  */
-#define SCREEN_HGT (Term->hgt - ROW_MAP - 1)
+#define SCREEN_HGT (Term->hgt - ROW_MAP - 1 - (op_ptr ? op_ptr->main_combat_rolls : 0))
 
 /*
  * Number of grids in each screen (horizontally)
@@ -323,8 +326,13 @@
  */
 #define MAX_COMBAT_ROLLS 50
 
+/*
+ * Number of combat rounds stored in combat history
+ */
+#define MAX_COMBAT_HISTORY 100
+
 // Types of combat roll storage
-#define COMBAT_ROLL_NONE 1
+#define COMBAT_ROLL_NONE 0
 #define COMBAT_ROLL_ROLL 1
 #define COMBAT_ROLL_AUTO 2
 
@@ -601,7 +609,7 @@
 #define SPC_MANDOS 0
 #define SPC_AULE 1
 #define SPC_OATH_MERCY 2
-#define SPC_OATH_SILENCE 3  
+#define SPC_OATH_SILENCE 3
 #define SPC_OATH_IRON 4
 #define SPC_NIENA_MERCY 5  /* Enhanced stealth from mercy quest */
 #define SPC_OATH_SMITH 6
@@ -751,11 +759,14 @@
 #define ROW_EXP 8
 #define COL_EXP 0 /* "EXP xxxxxxxx" */
 
-#define ROW_HP 10
+#define ROW_HP 9
 #define COL_HP 0 /* "HP xxxxxxxxx" */
 
-#define ROW_SP 11
+#define ROW_SP 10
 #define COL_SP 0 /* "SP xxxxxxxxx" */
+
+#define ROW_LIGHT 11
+#define COL_LIGHT 0 /* Torch icon + fuel */
 
 #define ROW_EQUIPPY 13
 #define COL_EQUIPPY 0 /* equippy chars */
@@ -1549,6 +1560,7 @@
  *	GRID: Select from all grids
  *	LIST_OBJECT: List objects in sight
  *	LIST_MONSTER: List monsters in sight
+ *	UNIFIED: Unified look mode with sidebar and map highlighting
  */
 #define TARGET_KILL 0x01
 #define TARGET_LOOK 0x02
@@ -1557,6 +1569,7 @@
 #define TARGET_WIZ 0x10
 #define TARGET_LIST_OBJECT 0x20
 #define TARGET_LIST_MONSTER 0x40
+#define TARGET_UNIFIED 0x80
 
 /*
  * Bit flags for the "monster_desc" function
@@ -1622,7 +1635,7 @@
 #define PR_CUT 0x00001000L /* Display Extra (Cut) */
 #define PR_STUN 0x00002000L /* Display Extra (Stun) */
 #define PR_HUNGER 0x00004000L /* Display Extra (Hunger) */
-#define PR_XXX2 0x00008000L /* Previously: Display Monster Mana Bar */
+#define PR_LIGHT 0x00008000L /* Display Light status */
 #define PR_BLIND 0x00010000L /* Display Extra (Blind) */
 #define PR_CONFUSED 0x00020000L /* Display Extra (Confused) */
 #define PR_AFRAID 0x00040000L /* Display Extra (Afraid) */
@@ -2501,6 +2514,7 @@
 #define OPT_forgo_attacking_unwary 6
 #define OPT_delay_factor 10
 #define OPT_hitpoint_warning 11
+#define OPT_main_combat_rolls 12
 // xxx always_repeat
 // xxx depth_in_feet
 // xxx stack_force_notes
@@ -2929,6 +2943,16 @@
  * Artefacts use the "name1" field
  */
 #define artefact_p(T) ((T)->name1 ? true : false)
+
+/*
+ * Return the appropriate character for a monster based on graphics mode
+ */
+#define monster_char(R) (graphics_are_ascii() ? (R)->d_char : (R)->x_char)
+
+/*
+ * Return the appropriate attribute for a monster based on graphics mode
+ */
+#define monster_attr(R) (graphics_are_ascii() ? (R)->d_attr : (R)->x_attr)
 
 /*
  * Ego-Items use the "name2" field
@@ -3562,7 +3586,7 @@
 
 /*
  * Quest ID mapping between quest.txt indices and hardcoded game constants
- * This structure makes it easy to add new quests by associating quest.txt 
+ * This structure makes it easy to add new quests by associating quest.txt
  * quest IDs with the corresponding hardcoded game logic constants.
  */
 typedef struct quest_mapping {
@@ -3573,7 +3597,7 @@ typedef struct quest_mapping {
 
 /* Quest ID mappings - modify this to add new quests */
 #define QUEST_ID_TULKAS  1  /* Tulkas quest in quest.txt */
-#define QUEST_ID_AULE    2  /* Aule quest in quest.txt */  
+#define QUEST_ID_AULE    2  /* Aule quest in quest.txt */
 #define QUEST_ID_MANDOS  3  /* Mandos quest in quest.txt */
 #define QUEST_ID_NIENA   4  /* Niena quest in quest.txt */
 #define QUEST_ID_OROME   5  /* Orome quest in quest.txt */
@@ -3592,6 +3616,21 @@ static const quest_mapping quest_id_map[] = {
 //Defines for number of heroes
 #define FLAG_COUNT 64
 #define FLAG_WORDS ((FLAG_COUNT + 31) / 32)
+
+/*
+ * Unified look mode state structure
+ */
+typedef struct unified_look_state {
+    int cursor_y, cursor_x;           /* Map cursor position */
+    int selected_entity;              /* Currently highlighted sidebar entity (-1 if none) */
+    bool show_monsters, show_objects; /* Sidebar visibility toggles */
+    int display_mode;                 /* Navigation mode (0=manual, 1=entity) */
+    int highlighted_y, highlighted_x; /* Currently highlighted entity coordinates */
+    bool in_sidebar_mode;             /* True when navigating sidebar, false when scrolling map */
+    int look_mode;                    /* Look mode: 0=normal unified look, 1=L-style scrolling */
+    int current_square_entity;        /* Which entity on current square to show (0=monster, 1=object) */
+    bool square_cycling_mode;         /* True when Tab cycles entities on current square */
+} unified_look_state;
 
 /* ------------------------------------------------------------------
  *  Metarun (multi-run) support

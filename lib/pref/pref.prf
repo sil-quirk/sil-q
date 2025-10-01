@@ -32,9 +32,11 @@
 A:z
 C:0:5
 
-# Control-z / , -- Interact with own square
+# Control-z / , / Space -- Interact with own square
 A:/5
 C:0:,
+A:/5
+C:0: 
 A:/5
 C:0:^Z
 
@@ -64,9 +66,11 @@ C:0:9
 A:z
 C:1:5
 
-# Control-z / , -- Interact with own square
+# Control-z / , / Space -- Interact with own square
 A:/5
 C:1:,
+A:/5
+C:1: 
 A:/5
 C:1:^Z
 
@@ -146,9 +150,11 @@ C:1:W
 A:z
 C:2:5
 
-# Control-z / , -- Interact with own square
+# Control-z / , / Space -- Interact with own square
 A:/5
 C:2:,
+A:/5
+C:2: 
 A:/5
 C:2:^Z
 
@@ -258,9 +264,11 @@ C:2:^t
 A:z
 C:3:5
 
-# Control-z / , -- Interact with own square
+# Control-z / , / Space -- Interact with own square
 A:/5
 C:3:,
+A:/5
+C:3: 
 A:/5
 C:3:^Z
 

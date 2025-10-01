@@ -519,6 +519,7 @@ struct object_type
     byte name2; /* Ego-Item type, if any */
 
     byte pickup; /* Auto pick up this item next time it is stepped on */
+    s16b pickup_slot; /* Preferred inventory slot when auto-picked */
 
     byte xtra1; /* Extra info type */
 
@@ -903,6 +904,8 @@ struct player_other
     byte hitpoint_warn; /* Hitpoint warning (0 to 9) */
 
     byte delay_factor; /* Delay factor (0 to 9) */
+
+    byte main_combat_rolls; /* Main terminal combat rolls (0-3) */
 };
 
 /*
@@ -1340,6 +1343,15 @@ struct combat_roll
                         normally) */
     bool melee; /* Was it a melee attack? (used for working out if blocking is
                    effective) */
+};
+
+typedef struct combat_history_round combat_history_round;
+
+struct combat_history_round
+{
+    int turn_count;           /* The turn number when this round occurred */
+    int num_rolls;            /* Number of combat rolls in this round */
+    combat_roll rolls[MAX_COMBAT_ROLLS]; /* The actual combat rolls */
 };
 
 struct flavor_type

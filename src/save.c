@@ -467,6 +467,7 @@ static void wr_item(const object_type* o_ptr)
     wr_byte(o_ptr->pd);
     wr_byte(o_ptr->ps);
     wr_byte(o_ptr->pickup);
+    wr_s16b(o_ptr->pickup_slot);
 
     wr_u32b(o_ptr->ident);
 
@@ -680,9 +681,13 @@ static void wr_options(void)
     /* Write "hitpoint_warn" */
     wr_byte(op_ptr->hitpoint_warn);
 
-    // 8 spare bytes
+    /* Write "main_combat_rolls" */
+    wr_byte(op_ptr->main_combat_rolls);
+
+    // 7 spare bytes
+    wr_byte(0);
     wr_u32b(0L);
-    wr_u32b(0L);
+    wr_u16b(0);
 
     /*** Normal options ***/
 

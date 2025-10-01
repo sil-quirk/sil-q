@@ -1476,58 +1476,22 @@ bool item_tester_hook_enchantable_amulet(const object_type* o_ptr)
     return (false);
 }
 
-static bool item_tester_unknown(const object_type* o_ptr)
-{
-    if (object_known_p(o_ptr))
-        return false;
-    else
-        return true;
-}
-
 /*
- * Identify an object in the inventory (or on the floor)
- * This routine does *not* automatically combine objects.
- * Returns true if something was identified, else false.
+ * Identify an object chosen from the unified unidentified list.
+ * Returns true if an item was identified.
  */
-bool ident_spell(void)
+bool ident_spell(bool include_floor)
 {
     int item;
-
-    int squelch;
-
     object_type* o_ptr;
 
-    cptr q, s;
+    if (!display_unified_identify_menu(include_floor, &item, &o_ptr))
+        return false;
 
-    /* Only un-id'ed items */
-    item_tester_hook = item_tester_unknown;
-
-    /* Get an item */
-    q = "Identify which item? ";
-    s = "You have nothing to identify.";
-    if (!get_item(&item, q, s, (USE_EQUIP | USE_INVEN | USE_FLOOR)))
-        return (false);
-
-    /* Get the item (in the pack) */
-    if (item >= 0)
-    {
-        o_ptr = &inventory[item];
-    }
-
-    /* Get the item (on the floor) */
-    else
-    {
-        o_ptr = &o_list[0 - item];
-    }
-
-    /* Identify the object and get squelch setting */
-    squelch = do_ident_item(item, o_ptr);
-
-    /* Now squelch it if needed */
+    int squelch = do_ident_item(item, o_ptr);
     do_squelch_item(squelch, item, o_ptr);
 
-    /* Something happened */
-    return (true);
+    return true;
 }
 
 /*

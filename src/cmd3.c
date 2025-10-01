@@ -27,23 +27,39 @@ static bool item_tester_hook_wear(const object_type* o_ptr)
     return (false);
 }
 
-/*
- * Use an item, a unified 'use' command.
- */
-void do_cmd_use_item(void)
+static bool item_tester_hook_ring_slots(const object_type* o_ptr)
 {
-    int item;
+    return (o_ptr == &inventory[INVEN_LEFT]) || (o_ptr == &inventory[INVEN_RIGHT]);
+}
+
+bool throw_slot_menu_active = false;
+bool throw_slot_enabled[INVEN_TOTAL];
+
+static bool item_tester_hook_throw_slots(const object_type* o_ptr)
+{
+    if (!throw_slot_menu_active)
+        return false;
+
+    if (!o_ptr)
+        return false;
+
+    if ((o_ptr < inventory) || (o_ptr >= inventory + INVEN_TOTAL))
+        return false;
+
+    int slot = (int)(o_ptr - inventory);
+
+    return throw_slot_enabled[slot];
+}
+
+/* Flag indicating enhanced menus need to refresh the main display after closing */
+static bool enhanced_drop_refresh_pending = false;
+
+/*
+ * Use an item by index, helper for enhanced menus
+ */
+void do_cmd_use_item_by_index(int item)
+{
     object_type* o_ptr;
-    cptr q, s;
-
-    /* Unrestricted choice */
-    item_tester_tval = 0;
-
-    /* Get an item */
-    q = "Use which item? ";
-    s = "You have no items use.";
-    if (!get_item(&item, q, s, (USE_INVEN | USE_EQUIP | USE_FLOOR)))
-        return;
 
     /* Get the item (in the pack) */
     if (item >= 0)
@@ -100,71 +116,58 @@ void do_cmd_use_item(void)
                             "Proceed? "))
                     {
                         do_cmd_refuel_torch(o_ptr, item, false);
-                    }
-                    else
-                    {
                         try_to_wield = false;
                     }
-                    break;
                 }
-                if ((l_ptr->sval == SV_LIGHT_MALLORN)
+                else if ((l_ptr->sval == SV_LIGHT_MALLORN)
                     && (o_ptr->tval != TV_FLASK))
                 {
-                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_MALLORN)
+                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_TORCH)
                         || get_check(
-                            "Refueling from this torch will waste some fuel. "
-                            "Proceed? "))
+                            "Refueling from this mallorn torch will waste "
+                            "some fuel. Proceed? "))
                     {
                         do_cmd_refuel_torch(o_ptr, item, true);
-                    }
-                    else
-                    {
                         try_to_wield = false;
                     }
-                    break;
                 }
                 else if (l_ptr->sval == SV_LIGHT_LANTERN)
                 {
-                    if (((o_ptr->tval == TV_FLASK)
-                            && ((l_ptr->timeout + o_ptr->pval <= FUEL_LAMP)
-                                || get_check("Refueling from this flask will "
-                                             "waste some fuel. "
-                                             "Proceed? ")))
-                        || ((o_ptr->tval == TV_LIGHT)
-                            && (o_ptr->sval == SV_LIGHT_LANTERN)
-                            && ((l_ptr->timeout + o_ptr->timeout <= FUEL_LAMP)
-                                || get_check("Refueling from this lantern will "
-                                             "waste some fuel. "
-                                             "Proceed? "))))
+                    if ((o_ptr->timeout + l_ptr->timeout <= FUEL_LAMP)
+                        || get_check(
+                            "Refueling from this flask will waste some oil. "
+                            "Proceed? "))
                     {
                         do_cmd_refuel_lamp(o_ptr, item);
-                    }
-                    else
-                    {
                         try_to_wield = false;
                     }
-                    break;
-                }
-                else if (o_ptr->tval == TV_FLASK)
-                {
-                    msg_print(
-                        "That can only be used to refuel a wielded lantern.");
-                    break;
                 }
             }
 
-            if (!item_tester_hook_wear(o_ptr))
+            if (try_to_wield)
             {
-                msg_print("It is far too large to be worn.");
-            }
-            else if (try_to_wield)
-            {
-                do_cmd_wield(o_ptr, item);
+                /* Handle arrows specially */
+                if (o_ptr->tval == TV_ARROW)
+                {
+                    do_cmd_wield(o_ptr, item);
+                }
+                else
+                {
+                    do_cmd_wield(o_ptr, item);
+                }
             }
         }
         else
         {
-            do_cmd_takeoff(o_ptr, item);
+            /* Handle equipped arrows specially */
+            if (o_ptr->tval == TV_ARROW)
+            {
+                do_cmd_takeoff(o_ptr, item);
+            }
+            else
+            {
+                do_cmd_takeoff(o_ptr, item);
+            }
         }
         break;
     }
@@ -213,47 +216,299 @@ void do_cmd_use_item(void)
 }
 
 /*
+ * Use an item, a unified 'use' command.
+ */
+void do_cmd_use_item(void)
+{
+    /* Set up for enhanced menu cycling */
+    extern char current_menu_command;
+    extern int current_menu_state;
+    
+    /* Mark that 'u' command opened this menu */
+    current_menu_command = 'u';
+    current_menu_state = 0;  /* Start with inventory */
+    
+    /* Start the enhanced menu system */
+    do_cmd_use_item_enhanced();
+}
+
+/*
+ * Enhanced use item command that supports cycling between inventory/equipment
+ */
+void do_cmd_use_item_enhanced(void)
+{
+    extern char current_menu_command;
+    extern int current_menu_state;
+    
+    /* Clear any previous menu actions at start of new session */
+    extern int enhanced_menu_action;
+    extern int enhanced_equip_action;
+    enhanced_menu_action = 0;
+    enhanced_equip_action = 0;
+    
+    log_trace("do_cmd_use_item_enhanced: Starting enhanced use item cycle");
+    
+    /* Clear any active banner before starting enhanced menu cycle */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+    
+    /* Continue cycling until user escapes or performs an action */
+    while (true)
+    {
+        if (current_menu_state == 0) {
+            /* Display inventory */
+            do_cmd_inven();
+            
+            /* Check if user wants to switch to equipment */
+            extern int enhanced_menu_action;
+            if (enhanced_menu_action == ENHANCED_ACTION_SWITCH) {
+                /* Switch to equipment */
+                current_menu_state = 1;
+                enhanced_menu_action = 0;  /* Reset after using */
+                continue;
+            }
+            else if (enhanced_menu_action == ENHANCED_ACTION_EXAMINE) {
+                /* Examine item - handled by do_cmd_inven */
+                enhanced_menu_action = 0;  /* Reset after using */
+                break;
+            }
+            else {
+                /* Exit or item was used */
+                break;
+            }
+        }
+        else {
+            /* Display equipment */
+            do_cmd_equip();
+            
+            /* Check if user wants to switch to inventory */
+            extern int enhanced_equip_action;
+            if (enhanced_equip_action == ENHANCED_ACTION_SWITCH) {
+                /* Switch to inventory */
+                current_menu_state = 0;
+                enhanced_equip_action = 0;  /* Reset after using */
+                continue;
+            }
+            else if (enhanced_equip_action == ENHANCED_ACTION_EXAMINE) {
+                /* Examine item - handled by do_cmd_equip */
+                enhanced_equip_action = 0;  /* Reset after using */
+                break;
+            }
+            else {
+                /* Exit or item was used */
+                break;
+            }
+        }
+    }
+    
+    /* Clear the command state */
+    current_menu_command = 0;
+    current_menu_state = 0;
+}
+
+/*
+ * Direct access inventory with cycling support
+ */
+void do_cmd_inven_direct(void)
+{
+    log_debug("do_cmd_inven_direct: Starting direct access inventory with cycling");
+    
+    int menu_state = 0;  /* 0=inventory, 1=equipment */
+    
+    while (true) {
+        if (menu_state == 0) {
+            /* Display inventory */
+            log_trace("do_cmd_inven_direct: Showing inventory");
+            do_cmd_inven();
+            
+            /* Check action */
+            extern int enhanced_menu_action;
+            if (enhanced_menu_action == ENHANCED_ACTION_SWITCH) {
+                /* Switch to equipment */
+                log_trace("do_cmd_inven_direct: Switching to equipment");
+                menu_state = 1;
+                enhanced_menu_action = 0;
+                continue;
+            }
+            else {
+                /* Exit or item examined */
+                enhanced_menu_action = 0;
+                break;
+            }
+        }
+        else {
+            /* Display equipment */
+            log_trace("do_cmd_inven_direct: Showing equipment");
+            do_cmd_equip();
+            
+            /* Check action */
+            extern int enhanced_equip_action;
+            if (enhanced_equip_action == ENHANCED_ACTION_SWITCH) {
+                /* Switch to inventory */
+                log_trace("do_cmd_inven_direct: Switching to inventory");
+                menu_state = 0;
+                enhanced_equip_action = 0;
+                continue;
+            }
+            else {
+                /* Exit or item examined */
+                enhanced_equip_action = 0;
+                break;
+            }
+        }
+    }
+    
+    log_debug("do_cmd_inven_direct: Direct access cycling finished");
+}
+
+/*
+ * Direct access equipment with cycling support
+ */
+void do_cmd_equip_direct(void)
+{
+    log_debug("do_cmd_equip_direct: Starting direct access equipment with cycling");
+    
+    int menu_state = 1;  /* 0=inventory, 1=equipment */
+    
+    while (true) {
+        if (menu_state == 0) {
+            /* Display inventory */
+            log_trace("do_cmd_equip_direct: Showing inventory");
+            do_cmd_inven();
+            
+            /* Check action */
+            extern int enhanced_menu_action;
+            if (enhanced_menu_action == ENHANCED_ACTION_SWITCH) {
+                /* Switch to equipment */
+                log_trace("do_cmd_equip_direct: Switching to equipment");
+                menu_state = 1;
+                enhanced_menu_action = 0;
+                continue;
+            }
+            else {
+                /* Exit or item examined */
+                enhanced_menu_action = 0;
+                break;
+            }
+        }
+        else {
+            /* Display equipment */
+            log_trace("do_cmd_equip_direct: Showing equipment");
+            do_cmd_equip();
+            
+            /* Check action */
+            extern int enhanced_equip_action;
+            if (enhanced_equip_action == ENHANCED_ACTION_SWITCH) {
+                /* Switch to inventory */
+                log_trace("do_cmd_equip_direct: Switching to inventory");
+                menu_state = 0;
+                enhanced_equip_action = 0;
+                continue;
+            }
+            else {
+                /* Exit or item examined */
+                enhanced_equip_action = 0;
+                break;
+            }
+        }
+    }
+    
+    log_debug("do_cmd_equip_direct: Direct access cycling finished");
+}
+
+/*
  * Display inventory
  */
 void do_cmd_inven(void)
 {
+    log_debug("do_cmd_inven: Starting inventory command");
+    
+    /* Clear any active banner before showing the menu */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+    
     /* Hack -- Start in "inventory" mode */
     p_ptr->command_wrk = (USE_INVEN);
 
+    enhanced_inventory_selected_item = -1;
+
     /* Save screen */
     screen_save();
+    log_debug("do_cmd_inven: Screen saved");
 
     /* Hack -- show empty slots */
     item_tester_full = true;
 
-    /* Display the inventory */
-    show_inven();
+    /* Force viewing mode */
+    p_ptr->command_see = true;
+
+    /* Display the inventory with scrolling capability */
+    show_inven_enhanced();
 
     /* Hack -- hide empty slots */
     item_tester_full = false;
 
-    /* Prompt for a command */
-    prt("(Inventory) Command: ", 0, 0);
-
-    /* Hack -- Get a new command */
-    p_ptr->command_new = inkey();
-
     /* Load screen */
     screen_load();
+    log_debug("do_cmd_inven: Screen loaded");
 
-    /* Hack -- Process "Escape" */
-    if (p_ptr->command_new == ESCAPE)
+    extern int enhanced_menu_action;
+    extern int enhanced_inventory_selected_item;
+
+    int action = enhanced_menu_action;
+    int selected_index = enhanced_inventory_selected_item;
+
+    switch (action)
     {
-        /* Reset stuff */
-        p_ptr->command_new = 0;
+    case ENHANCED_ACTION_EXAMINE:
+    {
+        log_trace("do_cmd_inven: Examining item %d", selected_index);
+        extern char current_menu_command;
+        bool include_comparisons = (current_menu_command == 'u' || current_menu_command == 'x');
+        describe_item_with_comparisons(selected_index, include_comparisons);
+        break;
     }
 
-    /* Hack -- Process normal keys */
-    else
-    {
-        /* Hack -- Use "display" mode */
-        p_ptr->command_see = true;
+    case ENHANCED_ACTION_USE:
+        log_trace("do_cmd_inven: Using item %d", selected_index);
+        if (selected_index != -1)
+            do_cmd_use_item_by_index(selected_index);
+        break;
+
+    case ENHANCED_ACTION_DROP:
+        log_trace("do_cmd_inven: Dropping item %d", selected_index);
+        if (selected_index >= 0)
+            do_cmd_drop_item_by_index(selected_index);
+        else
+            bell("Cannot drop floor items from this menu!");
+        break;
+
+    default:
+        break;
     }
+
+    if (enhanced_drop_refresh_pending)
+    {
+        p_ptr->redraw |= (PR_MAP);
+        p_ptr->window |= (PW_MESSAGE);
+        enhanced_drop_refresh_pending = false;
+    }
+
+    /* Ensure the main display reflects any changes (drops, etc.) */
+    handle_stuff();
+    Term_fresh();
+
+    if (action != ENHANCED_ACTION_SWITCH)
+        enhanced_menu_action = ENHANCED_ACTION_NONE;
+    enhanced_inventory_selected_item = -1;
+    
+    log_debug("do_cmd_inven: Exiting");
 }
 
 /*
@@ -261,43 +516,86 @@ void do_cmd_inven(void)
  */
 void do_cmd_equip(void)
 {
+    log_debug("do_cmd_equip: Starting equipment command");
+    
+    /* Clear any active banner before showing the menu */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+    
     /* Hack -- Start in "equipment" mode */
     p_ptr->command_wrk = (USE_EQUIP);
 
+    enhanced_equipment_selected_item = -1;
+
     /* Save screen */
     screen_save();
+    log_debug("do_cmd_equip: Screen saved");
 
     /* Hack -- show empty slots */
     item_tester_full = true;
 
-    /* Display the equipment */
-    show_equip();
+    /* Force viewing mode */
+    p_ptr->command_see = true;
+
+    /* Display the equipment with scrolling capability */
+    show_equip_enhanced();
 
     /* Hack -- undo the hack above */
     item_tester_full = false;
 
-    /* Prompt for a command */
-    prt("(Equipment) Command: ", 0, 0);
-
-    /* Hack -- Get a new command */
-    p_ptr->command_new = inkey();
-
     /* Load screen */
     screen_load();
+    log_debug("do_cmd_equip: Screen loaded");
 
-    /* Hack -- Process "Escape" */
-    if (p_ptr->command_new == ESCAPE)
+    extern int enhanced_equip_action;
+    extern int enhanced_equipment_selected_item;
+
+    int action = enhanced_equip_action;
+    int selected_index = enhanced_equipment_selected_item;
+
+    switch (action)
     {
-        /* Reset stuff */
-        p_ptr->command_new = 0;
+    case ENHANCED_ACTION_EXAMINE:
+        log_trace("do_cmd_equip: Examining item %d", selected_index);
+        if (selected_index >= INVEN_WIELD && selected_index < INVEN_TOTAL)
+            object_info_screen(&inventory[selected_index]);
+        break;
+
+    case ENHANCED_ACTION_USE:
+        log_trace("do_cmd_equip: Using item %d", selected_index);
+        if (selected_index != -1)
+            do_cmd_use_item_by_index(selected_index);
+        break;
+
+    case ENHANCED_ACTION_DROP:
+        log_trace("do_cmd_equip: Dropping item %d", selected_index);
+        if (selected_index >= INVEN_WIELD)
+            do_cmd_drop_item_by_index(selected_index);
+        break;
+
+    default:
+        break;
     }
 
-    /* Hack -- Process normal keys */
-    else
+    if (enhanced_drop_refresh_pending)
     {
-        /* Enter "display" mode */
-        p_ptr->command_see = true;
+        p_ptr->redraw |= (PR_MAP);
+        p_ptr->window |= (PW_MESSAGE);
+        enhanced_drop_refresh_pending = false;
     }
+
+    /* Ensure the main display reflects any changes (drops, etc.) */
+    handle_stuff();
+    Term_fresh();
+
+    if (action != ENHANCED_ACTION_SWITCH)
+        enhanced_equip_action = ENHANCED_ACTION_NONE;
+    enhanced_equipment_selected_item = -1;
+    
+    log_debug("do_cmd_equip: Exiting");
 }
 
 /*
@@ -325,6 +623,9 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     char o_name[80];
 
     bool combine = false;
+    bool is_throwing = false;
+
+    u32b f1, f2, f3;
 
     // use specified item if possible
     if (default_o_ptr != NULL)
@@ -379,39 +680,244 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     if ((o_ptr->tval == TV_RING) && inventory[INVEN_LEFT].k_idx
         && inventory[INVEN_RIGHT].k_idx)
     {
-        /* Restrict the choices */
         item_tester_tval = TV_RING;
+        item_tester_hook = item_tester_hook_ring_slots;
+        item_tester_full = false;
 
-        /* Choose a ring from the equipment only */
         q = "Replace which ring? ";
         s = "Oops.";
         if (!get_item(&slot, q, s, USE_EQUIP))
+        {
+            item_tester_tval = 0;
+            item_tester_hook = NULL;
             return;
+        }
+
+        item_tester_tval = 0;
+        item_tester_hook = NULL;
     }
 
-    // Special cases for merging arrows
-    if (object_similar(&inventory[INVEN_QUIVER1], o_ptr))
-    {
-        slot = INVEN_QUIVER1;
-        combine = true;
-    }
-    else if (object_similar(&inventory[INVEN_QUIVER2], o_ptr))
-    {
-        slot = INVEN_QUIVER2;
-        combine = true;
-    }
-    /* Ask for arrow set to replace */
-    else if ((o_ptr->tval == TV_ARROW) && inventory[INVEN_QUIVER1].k_idx
-        && inventory[INVEN_QUIVER2].k_idx)
-    {
-        /* Restrict the choices */
-        item_tester_tval = TV_ARROW;
+    object_flags(o_ptr, &f1, &f2, &f3);
+    is_throwing = (f3 & (TR3_THROWING)) != 0;
 
-        /* Choose a set of arrows from the equipment only */
-        q = "Replace which set of arrows? ";
+    if (is_throwing)
+    {
+        bool any_throw_dest = false;
+        int slot_choice;
+
+        throw_slot_menu_active = true;
+
+        for (i = 0; i < INVEN_TOTAL; i++)
+            throw_slot_enabled[i] = false;
+
+        {
+            object_type* wield_ptr = &inventory[INVEN_WIELD];
+            bool allow_wield = true;
+
+            if (wield_ptr->k_idx && cursed_p(wield_ptr)
+                && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+            {
+                allow_wield = false;
+            }
+
+            if (allow_wield)
+            {
+                throw_slot_enabled[INVEN_WIELD] = true;
+                any_throw_dest = true;
+            }
+        }
+
+        {
+            object_type* q1_ptr = &inventory[INVEN_QUIVER1];
+            bool allow_quiver = true;
+
+            if (q1_ptr->k_idx && cursed_p(q1_ptr)
+                && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+            {
+                allow_quiver = false;
+            }
+
+            if (allow_quiver)
+            {
+                throw_slot_enabled[INVEN_QUIVER1] = true;
+                any_throw_dest = true;
+            }
+        }
+
+        {
+            object_type* q2_ptr = &inventory[INVEN_QUIVER2];
+            bool allow_quiver = true;
+
+            if (q2_ptr->k_idx && cursed_p(q2_ptr)
+                && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+            {
+                allow_quiver = false;
+            }
+
+            if (allow_quiver)
+            {
+                throw_slot_enabled[INVEN_QUIVER2] = true;
+                any_throw_dest = true;
+            }
+        }
+
+        if (!any_throw_dest)
+        {
+            msg_print("You have no available slot for that throwing weapon.");
+            throw_slot_menu_active = false;
+            return;
+        }
+
+        slot_choice = slot;
+
+        if (!throw_slot_enabled[slot_choice])
+        {
+            if (throw_slot_enabled[INVEN_QUIVER1])
+                slot_choice = INVEN_QUIVER1;
+            else if (throw_slot_enabled[INVEN_QUIVER2])
+                slot_choice = INVEN_QUIVER2;
+            else
+                slot_choice = INVEN_WIELD;
+        }
+
+        item_tester_hook = item_tester_hook_throw_slots;
+        item_tester_full = false;
+
+        q = "Place throwing weapon where? ";
         s = "Oops.";
-        if (!get_item(&slot, q, s, USE_EQUIP))
+        if (!get_item(&slot_choice, q, s, USE_EQUIP))
+        {
+            item_tester_hook = NULL;
+            item_tester_full = false;
+
+            for (i = 0; i < INVEN_TOTAL; i++)
+                throw_slot_enabled[i] = false;
+
+            throw_slot_menu_active = false;
             return;
+        }
+
+        item_tester_hook = NULL;
+        item_tester_full = false;
+        throw_slot_menu_active = false;
+
+        slot = slot_choice;
+
+        if ((slot == INVEN_QUIVER1) || (slot == INVEN_QUIVER2))
+        {
+            if (inventory[slot].k_idx
+                && object_similar(&inventory[slot], o_ptr))
+                combine = true;
+        }
+
+        for (i = 0; i < INVEN_TOTAL; i++)
+            throw_slot_enabled[i] = false;
+    }
+    else
+    {
+        // Special cases for merging arrows
+        if (object_similar(&inventory[INVEN_QUIVER1], o_ptr))
+        {
+            slot = INVEN_QUIVER1;
+            combine = true;
+        }
+        else if (object_similar(&inventory[INVEN_QUIVER2], o_ptr))
+        {
+            slot = INVEN_QUIVER2;
+            combine = true;
+        }
+        /* Ask for arrow set to replace */
+        else if (o_ptr->tval == TV_ARROW)
+        {
+            bool any_quiver_dest = false;
+            int slot_choice = slot;
+
+            throw_slot_menu_active = true;
+
+            for (i = 0; i < INVEN_TOTAL; i++)
+                throw_slot_enabled[i] = false;
+
+            {
+                object_type* q1_ptr = &inventory[INVEN_QUIVER1];
+                bool allow_quiver = true;
+
+                if (q1_ptr->k_idx && cursed_p(q1_ptr)
+                    && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+                {
+                    allow_quiver = false;
+                }
+
+                if (allow_quiver)
+                {
+                    throw_slot_enabled[INVEN_QUIVER1] = true;
+                    any_quiver_dest = true;
+                }
+            }
+
+            {
+                object_type* q2_ptr = &inventory[INVEN_QUIVER2];
+                bool allow_quiver = true;
+
+                if (q2_ptr->k_idx && cursed_p(q2_ptr)
+                    && !p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+                {
+                    allow_quiver = false;
+                }
+
+                if (allow_quiver)
+                {
+                    throw_slot_enabled[INVEN_QUIVER2] = true;
+                    any_quiver_dest = true;
+                }
+            }
+
+            if (!any_quiver_dest)
+            {
+                msg_print("You have no available quiver slot for those arrows.");
+                throw_slot_menu_active = false;
+                for (i = 0; i < INVEN_TOTAL; i++)
+                    throw_slot_enabled[i] = false;
+                return;
+            }
+
+            if (!throw_slot_enabled[slot_choice])
+            {
+                if (throw_slot_enabled[INVEN_QUIVER1])
+                    slot_choice = INVEN_QUIVER1;
+                else if (throw_slot_enabled[INVEN_QUIVER2])
+                    slot_choice = INVEN_QUIVER2;
+            }
+
+            item_tester_hook = item_tester_hook_throw_slots;
+            item_tester_full = false;
+
+            q = "Place arrows in which quiver? ";
+            s = "Oops.";
+            if (!get_item(&slot_choice, q, s, USE_EQUIP))
+            {
+                item_tester_hook = NULL;
+                item_tester_full = false;
+                throw_slot_menu_active = false;
+                for (i = 0; i < INVEN_TOTAL; i++)
+                    throw_slot_enabled[i] = false;
+                return;
+            }
+
+            item_tester_hook = NULL;
+            item_tester_full = false;
+            throw_slot_menu_active = false;
+
+            slot = slot_choice;
+
+            if ((slot == INVEN_QUIVER1) || (slot == INVEN_QUIVER2))
+            {
+                if (inventory[slot].k_idx && object_similar(&inventory[slot], o_ptr))
+                    combine = true;
+            }
+
+            for (i = 0; i < INVEN_TOTAL; i++)
+                throw_slot_enabled[i] = false;
+        }
     }
 
     // Ask about two weapon fighting if necessary
@@ -585,14 +1091,20 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Obtain local object */
     object_copy(i_ptr, o_ptr);
 
-    // Handle quantity differently for arrows
-    if (i_ptr->tval == TV_ARROW)
+    bool target_is_quiver = (slot == INVEN_QUIVER1) || (slot == INVEN_QUIVER2);
+
+    // Handle quantity differently for arrows or throwing weapons heading to a quiver
+    if ((i_ptr->tval == TV_ARROW) || (is_throwing && target_is_quiver))
     {
         if (combine)
-            quantity = MIN(
-                o_ptr->number, MAX_STACK_SIZE - 1 - (&inventory[slot])->number);
+        {
+            quantity = MIN(o_ptr->number,
+                MAX_STACK_SIZE - 1 - (&inventory[slot])->number);
+        }
         else
-            quantity = o_ptr->number;
+        {
+            quantity = MIN(o_ptr->number, MAX_STACK_SIZE - 1);
+        }
     }
     else
     {
@@ -849,6 +1361,62 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
     }
 
     p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST | PR_MAP);
+}
+
+/*
+ * Drop an item by index (for enhanced menus)
+ */
+void do_cmd_drop_item_by_index(int item)
+{
+    int amt;
+    object_type* o_ptr;
+
+    /* Paranoia */
+    if (item < 0 || item >= INVEN_TOTAL)
+        return;
+
+    /* Get the item */
+    o_ptr = &inventory[item];
+
+    /* Nothing there */
+    if (!o_ptr->k_idx)
+        return;
+
+    /* Get a quantity */
+    amt = get_quantity(NULL, o_ptr->number);
+
+    /* Allow user abort */
+    if (amt <= 0)
+        return;
+
+    /* Hack -- Cannot remove cursed items */
+    if ((item >= INVEN_WIELD) && cursed_p(o_ptr))
+    {
+        if (p_ptr->active_ability[S_WIL][WIL_CURSE_BREAKING])
+        {
+            /* Message */
+            msg_print("With a great strength of will, you break the curse!");
+
+            /* Uncurse the object */
+            uncurse_object(o_ptr);
+        }
+        else
+        {
+            /* Oops */
+            msg_print("You cannot bear to part with it.");
+
+            /* Nope */
+            return;
+        }
+    }
+
+    /* Take a turn */
+    p_ptr->energy_use = 50;
+
+    /* Drop (some of) the item */
+    inven_drop(item, amt);
+
+    enhanced_drop_refresh_pending = true;
 }
 
 /*
@@ -1386,32 +1954,106 @@ void do_cmd_destroy(void)
  */
 void do_cmd_observe(void)
 {
-    int item;
+    /* Set up for enhanced menu cycling */
+    extern char current_menu_command;
+    extern int current_menu_state;
+    
+    /* Mark that 'x' command opened this menu */
+    current_menu_command = 'x';
+    current_menu_state = 0;  /* Start with inventory */
+    
+    /* Start the enhanced menu system */
+    do_cmd_observe_enhanced();
+}
 
-    object_type* o_ptr;
-
-    cptr q, s;
-
-    /* Get an item */
-    q = "Examine which item? ";
-    s = "You have nothing to examine.";
-    if (!get_item(&item, q, s, (USE_EQUIP | USE_INVEN | USE_FLOOR)))
-        return;
-
-    /* Get the item (in the pack) */
-    if (item >= 0)
-    {
-        o_ptr = &inventory[item];
+/*
+ * Enhanced observe command that supports cycling between inventory/equipment
+ */
+void do_cmd_observe_enhanced(void)
+{
+    extern char current_menu_command;
+    extern int current_menu_state;
+    
+    /* Clear any previous menu actions at start of new session */
+    extern int enhanced_menu_action;
+    extern int enhanced_equip_action;
+    enhanced_menu_action = 0;
+    enhanced_equip_action = 0;
+    
+    log_trace("do_cmd_observe_enhanced: Starting enhanced observe cycle");
+    
+    /* Clear any active banner before starting enhanced menu cycle */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
     }
-
-    /* Get the item (on the floor) */
-    else
+    
+    /* Continue cycling until user escapes or performs an action */
+    while (true)
     {
-        o_ptr = &o_list[0 - item];
+        log_trace("do_cmd_observe_enhanced: Loop iteration, current_menu_state=%d", current_menu_state);
+        
+        if (current_menu_state == 0) {
+            log_trace("do_cmd_observe_enhanced: Displaying inventory");
+            /* Display inventory */
+            do_cmd_inven();
+            
+            /* Check if user wants to switch to equipment */
+            extern int enhanced_menu_action;
+            log_trace("do_cmd_observe_enhanced: After inventory, enhanced_menu_action=%d", enhanced_menu_action);
+            if (enhanced_menu_action == ENHANCED_ACTION_SWITCH) {
+                /* Switch to equipment */
+                log_trace("do_cmd_observe_enhanced: Switching to equipment");
+                current_menu_state = 1;
+                enhanced_menu_action = 0;  /* Reset after using */
+                continue;
+            }
+            else if (enhanced_menu_action == ENHANCED_ACTION_EXAMINE) {
+                /* Examine item - handled by do_cmd_inven */
+                log_trace("do_cmd_observe_enhanced: Examining item, exiting cycle");
+                enhanced_menu_action = 0;  /* Reset after using */
+                break;
+            }
+            else {
+                /* Exit or item was used */
+                log_trace("do_cmd_observe_enhanced: Exiting cycle (inven action=%d)", enhanced_menu_action);
+                break;
+            }
+        }
+        else {
+            /* Display equipment */
+            log_trace("do_cmd_observe_enhanced: Displaying equipment, current_menu_state=%d", current_menu_state);
+            do_cmd_equip();
+            log_trace("do_cmd_observe_enhanced: Returned from equipment, current_menu_state=%d", current_menu_state);
+            
+            /* Check if user wants to switch to inventory */
+            extern int enhanced_equip_action;
+            log_trace("do_cmd_observe_enhanced: After equipment, enhanced_equip_action=%d", enhanced_equip_action);
+            if (enhanced_equip_action == ENHANCED_ACTION_SWITCH) {
+                /* Switch to inventory */
+                log_trace("do_cmd_observe_enhanced: Switching to inventory");
+                current_menu_state = 0;
+                enhanced_equip_action = 0;  /* Reset after using */
+                continue;
+            }
+            else if (enhanced_equip_action == ENHANCED_ACTION_EXAMINE) {
+                /* Examine item - handled by do_cmd_equip */
+                log_trace("do_cmd_observe_enhanced: Examining item, exiting cycle");
+                enhanced_equip_action = 0;  /* Reset after using */
+                break;
+            }
+            else {
+                /* Exit or item was used */
+                log_trace("do_cmd_observe_enhanced: Exiting cycle (equip action=%d)", enhanced_equip_action);
+                break;
+            }
+        }
     }
-
-    /* Describe */
-    object_info_screen(o_ptr);
+    
+    /* Clear the command state */
+    current_menu_command = 0;
+    current_menu_state = 0;
 }
 
 /*
@@ -1778,6 +2420,8 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
 
     // get another chance to identify the lamp
     ident_on_wield(j_ptr);
+
+    p_ptr->redraw |= (PR_LIGHT);
 }
 
 /*
@@ -1901,6 +2545,8 @@ void do_cmd_refuel_torch(
 
     // get another chance to identify the torch
     ident_on_wield(j_ptr);
+
+    p_ptr->redraw |= (PR_LIGHT);
 }
 
 /*
@@ -1967,10 +2613,943 @@ void do_cmd_target(void)
  */
 void do_cmd_look(void)
 {
-    /* Look around */
-    if (target_set_interactive(TARGET_LOOK, 0))
+    /* Use the new unified look system */
+    do_cmd_unified_look();
+}
+
+/*
+ * Unified look command - combines look, scroll, and view functionality
+ */
+static int unified_look_count_visible_entities(unified_look_state* state)
+{
+    int total_entities = 0;
+    int i;
+
+    if (state->show_monsters)
     {
-        msg_print("Target Selected.");
+        get_sorted_target_list(TARGET_LIST_MONSTER, 0);
+
+        for (i = 0; i < temp_n; i++)
+        {
+            int m_idx = cave_m_idx[temp_y[i]][temp_x[i]];
+
+            if (!m_idx) continue;
+            if (!mon_list[m_idx].ml) continue;
+
+            total_entities++;
+        }
+    }
+
+    if (state->show_objects)
+    {
+        get_sorted_target_list(TARGET_LIST_OBJECT, 0);
+
+        for (i = 0; i < temp_n; i++)
+        {
+            int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
+
+            if (!o_idx) continue;
+
+            total_entities++;
+        }
+    }
+
+    return total_entities;
+}
+
+void do_cmd_unified_look(void)
+{
+    unified_look_state state;
+    int y, x, i;
+    char query;
+    bool done = false;
+    bool need_redraw = true;
+    int original_wy, original_wx; /* Store original viewport */
+    
+    /* Clear entry level banner when using look command */
+    if (g_banner_force_redraw_remaining > 0)
+    {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+    
+    log_trace("=== UNIFIED LOOK STARTED ===");
+    
+    /* Store original viewport */
+    original_wy = p_ptr->wy;
+    original_wx = p_ptr->wx;
+    
+    log_trace("Original viewport: (%d,%d)", original_wy, original_wx);
+    
+    /* Initialize state */
+    state.cursor_y = p_ptr->py;
+    state.cursor_x = p_ptr->px;
+    state.selected_entity = -1;
+    state.show_monsters = true;
+    state.show_objects = true;
+    state.display_mode = 0; /* 0 = manual, 1 = entity */
+    state.highlighted_y = -1;
+    state.highlighted_x = -1;
+    state.in_sidebar_mode = false;
+    state.look_mode = 0; /* 0 = normal unified look, 1 = L-style scrolling */
+    state.current_square_entity = 0; /* 0 = monster, 1 = object */
+    state.square_cycling_mode = false; /* Start in normal sidebar cycling mode */
+
+    int total_visible_entities = unified_look_count_visible_entities(&state);
+    if (total_visible_entities > 0)
+    {
+        state.in_sidebar_mode = true;
+        state.selected_entity = 0;
+        log_trace("Unified look: initial sidebar selection set to first entity");
+    }
+    
+    /* Track monster health at initial cursor position for left sidebar display */
+    int initial_m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
+    if (initial_m_idx > 0 && mon_list[initial_m_idx].ml)
+    {
+        /* Track this monster for health display */
+        health_track(initial_m_idx);
+    }
+    else
+    {
+        /* Clear health tracking when not starting on a visible monster */
+        health_track(0);
+    }
+    
+    /* Process redraw flags to update health bar immediately */
+    handle_stuff();
+    
+    /* Main interaction loop */
+    while (!done)
+    {
+        bool screen_saved = false;
+        
+        if (need_redraw)
+        {
+            /* Save screen to preserve underlying display */
+            screen_save();
+            screen_saved = true;
+            
+            /* Show unified sidebar */
+            show_unified_sidebar(&state);
+            
+            /* Track monster health at current cursor position for left sidebar display */
+            /* This handles Tab cycling and any other cursor position updates */
+            int cursor_m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
+            if (cursor_m_idx > 0 && mon_list[cursor_m_idx].ml)
+            {
+                /* Track this monster for health display */
+                health_track(cursor_m_idx);
+            }
+            else
+            {
+                /* Clear health tracking when cursor is not on a visible monster */
+                health_track(0);
+            }
+            
+            /* Process redraw flags to update health bar immediately */
+            handle_stuff();
+            
+            /* Show cursor position info */
+            y = state.cursor_y;
+            x = state.cursor_x;
+            
+            /* Display current location info at bottom */
+            /* Show help text based on current mode */
+            if (state.look_mode == 0)
+            {
+#ifdef STEAMDECK_SUPPORT
+                prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Pan [ESC]", 0, 0);
+#else
+                prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Pan [ESC]", 0, 0);
+#endif
+            }
+            else
+            {
+#ifdef STEAMDECK_SUPPORT
+                prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Curs [ESC]", 0, 0);
+#else
+                prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Curs [ESC]", 0, 0);
+#endif
+            }
+            
+            /* Move cursor to position */
+            move_cursor_relative(state.cursor_y, state.cursor_x);
+            
+            need_redraw = false;
+        }
+        
+        /* Get input */
+        query = inkey();
+        log_trace("Unified look key input: '%c' (%d) [char: %c, isupper: %d]", 
+                 query, (int)query, (query >= 32 && query <= 126) ? query : '?', 
+                 (query >= 'A' && query <= 'Z') ? 1 : 0);
+        
+        /* Restore screen after input if we saved it */
+        if (screen_saved)
+        {
+            screen_load();
+        }
+        
+        /* Update health bar display after screen restore */
+        handle_stuff();
+        
+        /* Analyze input */
+        log_trace("Processing key: '%c' (%d), backtick is %d", query, (int)query, (int)'`');
+        switch (query)
+        {
+            /* Handle capital letters - most are now ignored since we use arrows for scrolling */
+            case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G':
+            case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N':
+            case 'O': case 'P': case 'R': case 'S': case 'T': case 'U':
+            case 'V': case 'W': case 'X': case 'Y': case 'Z':
+            {
+                /* Capital letters are now ignored - use 'l' to switch to panel scroll mode */
+                log_trace("Capital letter ignored: '%c' (%d) - use 'l' to switch modes", query, (int)query);
+                break;
+            }
+            
+            case ESCAPE:
+            case 'Q':
+                /* Clear any highlighting before exit */
+                if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    state.highlighted_y = -1;
+                    state.highlighted_x = -1;
+                }
+                done = true;
+                break;
+                
+            /* Common menu keys - exit unified look and let them be processed normally */
+            case '/':            /* Identify symbol */
+            case '?':            /* Help */
+            case 'x':            /* Examine/Look */
+            case 's':
+            {
+                /* Switch between cursor mode and panel scrolling mode */
+                state.look_mode = (state.look_mode + 1) % 2;
+                log_trace("'s' key pressed - look mode changed to: %d", state.look_mode);
+                
+                /* Update help text based on mode */
+                need_redraw = true;
+                break;
+            }
+            
+#ifndef STEAMDECK_SUPPORT
+            case 'i':            /* Inventory */
+            case 'e':            /* Equipment */  
+#endif
+            case '[':            /* View monsters */
+            case ']':            /* View objects */
+            case 'f':            /* Fire/Throw */
+            case 'w':            /* Wield/Wear */
+            case 'd':            /* Drop */
+            case 'k':            /* Destroy */
+            case 'r':            /* Read scroll */
+            case 'u':            /* Use staff */
+            case 'a':            /* Activate */
+            case 'z':            /* Zap rod */
+            case '.':            /* Run */
+            case ',':            /* Stay */
+            case '<':            /* Go up stairs */
+            case '>':            /* Go down stairs */
+            case 'g':            /* Get/Pickup */
+            case 'c':            /* Close */
+            case 'j':            /* Jam */
+            case '+':            /* Alter */
+            case '*':            /* Target */
+            case '@':            /* Center map */
+            case '(':            /* Dungeon history */
+            case '|':            /* Screenshots */
+            case '~':            /* Various things */
+            case '!':            /* OS command */
+                /* Clear any highlighting before exit */
+                if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    state.highlighted_y = -1;
+                    state.highlighted_x = -1;
+                }
+                done = true;
+                /* Don't consume the key - let it be processed by the main game loop */
+                Term_keypress(query);
+                break;
+                
+            case '2':
+            case '8':
+            case '4':
+            case '6':
+            case '1':
+            case '3':
+            case '7':
+            case '9':
+            {
+                /* Arrow key behavior depends on current mode */
+                if (state.look_mode == 0)
+                {
+                    /* Mode 0: Normal unified look - manual cursor scrolling */
+                    int dir = target_dir(query);
+                    if (dir)
+                    {
+                        state.cursor_y += ddy[dir];
+                        state.cursor_x += ddx[dir];
+                        
+                        /* Keep in bounds - use actual map size */
+                        if (state.cursor_y < 0) state.cursor_y = 0;
+                        if (state.cursor_y >= p_ptr->cur_map_hgt) state.cursor_y = p_ptr->cur_map_hgt - 1;
+                        if (state.cursor_x < 0) state.cursor_x = 0;
+                        if (state.cursor_x >= p_ptr->cur_map_wid) state.cursor_x = p_ptr->cur_map_wid - 1;
+                        
+                        /* Handle viewport scrolling when cursor reaches screen edge */
+                        if (!panel_contains(state.cursor_y, state.cursor_x))
+                        {
+                            /* Log viewport scrolling */
+                            log_trace("Viewport scroll: cursor at (%d,%d), panel (%d,%d)", 
+                                     state.cursor_y, state.cursor_x, p_ptr->wy, p_ptr->wx);
+                            
+                            /* Center the viewport on the cursor */
+                            int new_wy = state.cursor_y - SCREEN_HGT / 2;
+                            int new_wx = state.cursor_x - SCREEN_WID / 2;
+                            
+                            /* Use proper panel management function */
+                            if (modify_panel(new_wy, new_wx))
+                            {
+                                /* Handle viewport updates immediately */
+                                handle_stuff();
+                            }
+                            
+                            log_trace("New viewport: (%d,%d)", p_ptr->wy, p_ptr->wx);
+                        }
+                        
+                        state.in_sidebar_mode = false;
+                        state.selected_entity = -1;
+                        state.square_cycling_mode = false;
+                        state.current_square_entity = 0;
+                        
+                        /* Clear old highlighting */
+                        if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                        {
+                            highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                            state.highlighted_y = -1;
+                            state.highlighted_x = -1;
+                        }
+                        
+                        /* Track monster health at cursor position for left sidebar display */
+                        int m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
+                        if (m_idx > 0 && mon_list[m_idx].ml)
+                        {
+                            /* Track this monster for health display */
+                            health_track(m_idx);
+                        }
+                        else
+                        {
+                            /* Clear health tracking when not on a visible monster */
+                            health_track(0);
+                        }
+                        
+                        /* Process redraw flags to update health bar immediately */
+                        handle_stuff();
+                        
+                        need_redraw = true;
+                    }
+                }
+                else
+                {
+                    /* Mode 1: Panel scrolling - arrows scroll whole panels like capital letters */
+                    int dir = target_dir(query);
+                    if (dir)
+                    {
+                        log_trace("Panel scrolling mode: key='%c', dir=%d", query, dir);
+                        
+                        int old_wy = p_ptr->wy;
+                        int old_wx = p_ptr->wx;
+                        
+                        log_trace("Old viewport: (%d,%d)", old_wy, old_wx);
+                        
+                        /* Apply the motion by full panels */
+                        int new_wy = p_ptr->wy + (ddy[dir] * PANEL_HGT);
+                        int new_wx = p_ptr->wx + (ddx[dir] * PANEL_WID);
+                        
+                        /* Constrain viewport to map boundaries */
+                        if (new_wy < 0) new_wy = 0;
+                        if (new_wx < 0) new_wx = 0;
+                        if (new_wy > p_ptr->cur_map_hgt - SCREEN_HGT) new_wy = p_ptr->cur_map_hgt - SCREEN_HGT;
+                        if (new_wx > p_ptr->cur_map_wid - SCREEN_WID) new_wx = p_ptr->cur_map_wid - SCREEN_WID;
+                        
+                        /* Additional safety checks */
+                        if (new_wy < 0) new_wy = 0;
+                        if (new_wx < 0) new_wx = 0;
+                            
+                        log_trace("Constrained viewport: (%d,%d)", new_wy, new_wx);
+
+                        /* Use proper panel management function */
+                        if (modify_panel(new_wy, new_wx))
+                        {
+                            /* Update cursor to same relative position */
+                            state.cursor_y = state.cursor_y + (p_ptr->wy - old_wy);
+                            state.cursor_x = state.cursor_x + (p_ptr->wx - old_wx);
+                            
+                            /* Boundary check cursor */
+                            if (state.cursor_y < 0) state.cursor_y = 0;
+                            if (state.cursor_y >= p_ptr->cur_map_hgt) state.cursor_y = p_ptr->cur_map_hgt - 1;
+                            if (state.cursor_x < 0) state.cursor_x = 0;
+                            if (state.cursor_x >= p_ptr->cur_map_wid) state.cursor_x = p_ptr->cur_map_wid - 1;
+                            
+                            log_trace("New cursor: (%d,%d)", state.cursor_y, state.cursor_x);
+
+                            /* Handle viewport updates immediately */
+                            handle_stuff();
+                            
+                            /* Track monster health at cursor position for left sidebar display */
+                            int m_idx = cave_m_idx[state.cursor_y][state.cursor_x];
+                            if (m_idx > 0 && mon_list[m_idx].ml)
+                            {
+                                /* Track this monster for health display */
+                                health_track(m_idx);
+                            }
+                            else
+                            {
+                                /* Clear health tracking when not on a visible monster */
+                                health_track(0);
+                            }
+                            
+                            /* Process redraw flags to update health bar immediately */
+                            handle_stuff();
+                            
+                            need_redraw = true;
+                        }
+                        else
+                        {
+                            log_trace("Viewport unchanged");
+                        }
+                    }
+                }
+                break;
+            }
+            
+            case '\t': /* Tab key */
+#ifdef STEAMDECK_SUPPORT
+            case 'i': /* I key - forward cycling (Steam Deck) */
+#endif
+            {
+                log_trace("Tab key pressed - cycling entities");
+                
+                /* Global sidebar cycling only - no square cycling */
+                state.in_sidebar_mode = true;
+                state.square_cycling_mode = false; /* Always disable square cycling */
+                
+                /* Count total VISIBLE entities using same logic as sidebar */
+                int total_entities = unified_look_count_visible_entities(&state);
+                
+                log_trace("Total visible entities: %d", total_entities);
+                
+                if (total_entities > 0)
+                {
+                    /* Clear previous highlighting */
+                    if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                    {
+                        highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    }
+                    
+                    /* Advance selection */
+                    int old_selection = state.selected_entity;
+                    state.selected_entity++;
+                    if (state.selected_entity >= total_entities)
+                        state.selected_entity = 0;
+                        
+                    log_trace("Entity selection: %d -> %d", old_selection, state.selected_entity);
+                }
+                
+                need_redraw = true;
+                break;
+            }
+            
+            case '`': /* Backtick key - reverse Tab cycling */
+            case 'q': /* Q key - reverse Tab cycling */
+#ifdef STEAMDECK_SUPPORT
+            case 'e': /* E key - reverse Tab cycling (Steam Deck) */
+#endif
+            {
+                log_trace("REVERSE CYCLING: Key handler reached - cycling entities backward");
+                
+                /* Global sidebar cycling only - no square cycling */
+                state.in_sidebar_mode = true;
+                state.square_cycling_mode = false; /* Always disable square cycling */
+                
+                /* Count total VISIBLE entities using same logic as sidebar */
+                int total_entities = unified_look_count_visible_entities(&state);
+                
+                log_trace("Total visible entities: %d", total_entities);
+                
+                if (total_entities > 0)
+                {
+                    /* Clear previous highlighting */
+                    if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                    {
+                        highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    }
+                    
+                    /* Move backward in selection */
+                    int old_selection = state.selected_entity;
+                    state.selected_entity--;
+                    if (state.selected_entity < 0)
+                        state.selected_entity = total_entities - 1;
+                        
+                    log_trace("Entity selection (backward): %d -> %d", old_selection, state.selected_entity);
+                }
+                
+                need_redraw = true;
+                break;
+            }
+            
+            case '\r': /* Enter key */
+            case ' ':
+            {
+                log_trace("EXAMINATION: Enter/Space key pressed for examination");
+                
+                /* Examine current target */
+                log_trace("EXAMINATION: state.in_sidebar_mode=%d, state.selected_entity=%d", 
+                         state.in_sidebar_mode, state.selected_entity);
+                log_trace("EXAMINATION: state.highlighted_y=%d, state.highlighted_x=%d", 
+                         state.highlighted_y, state.highlighted_x);
+                
+                if (state.in_sidebar_mode && state.selected_entity >= 0 && 
+                    state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    log_trace("EXAMINATION: Sidebar mode examination conditions met");
+                    
+                    int cursor_m_idx = cave_m_idx[state.highlighted_y][state.highlighted_x];
+                    int cursor_o_idx = cave_o_idx[state.highlighted_y][state.highlighted_x];
+                    
+                    log_trace("EXAMINATION: At highlighted position (%d,%d) - m_idx=%d, o_idx=%d", 
+                             state.highlighted_y, state.highlighted_x, cursor_m_idx, cursor_o_idx);
+                    
+                    /* Prioritize OBJECT first, then visible monster */
+                    if (cursor_o_idx > 0)
+                    {
+                        log_trace("EXAMINATION: Found object, examining object %d", cursor_o_idx);
+                        /* Object examination */
+                        object_type* o_ptr = &o_list[cursor_o_idx];
+                        log_trace("EXAMINATION: Showing object info screen");
+                        /* Save screen */
+                        screen_save();
+                        /* Show object info, with comparison if applicable */
+                        if (wield_slot(o_ptr) >= INVEN_WIELD && wield_slot(o_ptr) < INVEN_TOTAL)
+                        {
+                            int slot = wield_slot(o_ptr);
+                            const object_type* compare_objects[2];
+                            const char* compare_headings[2];
+                            char selected_heading[32];
+                            char equipped_heading[32];
+
+                            strnfmt(selected_heading, sizeof(selected_heading), "Selected item");
+                            strnfmt(equipped_heading, sizeof(equipped_heading), "%s", mention_use(slot));
+
+                            compare_objects[0] = o_ptr;
+                            compare_headings[0] = selected_heading;
+
+                            if (inventory[slot].k_idx)
+                            {
+                                compare_objects[1] = &inventory[slot];
+                            }
+                            else
+                            {
+                                compare_objects[1] = NULL;
+                            }
+
+                            compare_headings[1] = equipped_heading;
+
+                            object_info_screen_multi(compare_objects, compare_headings, 2);
+                        }
+                        else
+                        {
+                            object_info_screen(o_ptr);
+                        }
+
+                        /* Restore screen */
+                        screen_load();
+                        log_trace("EXAMINATION: Object examination completed");
+                    }
+                    else if (cursor_m_idx > 0)
+                    {
+                        log_trace("EXAMINATION: Found monster, examining monster %d", cursor_m_idx);
+                        /* Monster examination */
+                        monster_type* m_ptr = &mon_list[cursor_m_idx];
+                        log_trace("EXAMINATION: Monster ml=%d", m_ptr->ml);
+                        if (m_ptr->ml)
+                        {
+                            log_trace("EXAMINATION: Showing monster recall");
+                            /* Save screen */
+                            screen_save();
+                            
+                            /* Show monster recall */
+                            screen_roff(m_ptr->r_idx);
+                            
+                            /* Wait for input */
+                            inkey();
+                            
+                            /* Restore screen */
+                            screen_load();
+                            log_trace("EXAMINATION: Monster recall completed");
+                        }
+                        else
+                        {
+                            log_trace("EXAMINATION: Monster not visible (ml=0), skipping examination");
+                        }
+                    }
+                    else
+                    {
+                        log_trace("EXAMINATION: No entities found at highlighted position");
+                    }
+                }
+                else
+                {
+                    log_trace("EXAMINATION: Sidebar mode examination conditions NOT met - using cursor position examination");
+                    /* Examine cursor position */
+                    y = state.cursor_y;
+                    x = state.cursor_x;
+                    
+                    int cursor_m_idx = cave_m_idx[y][x];
+                    int cursor_o_idx = cave_o_idx[y][x];
+                    bool has_visible_monster = (cursor_m_idx > 0) && (mon_list[cursor_m_idx].ml);
+                    bool has_object = (cursor_o_idx > 0);
+                    
+                    log_trace("EXAMINATION: Cursor position (%d,%d) - has_visible_monster=%d, has_object=%d", 
+                             y, x, has_visible_monster, has_object);
+                    
+                    /* Prioritize OBJECT first, then visible monster */
+                    if (has_object)
+                    {
+                        log_trace("EXAMINATION: Examining object at cursor position");
+                        object_type* o_ptr = &o_list[cursor_o_idx];
+                        screen_save();
+
+                        if (wield_slot(o_ptr) >= INVEN_WIELD && wield_slot(o_ptr) < INVEN_TOTAL)
+                        {
+                            int slot = wield_slot(o_ptr);
+                            const object_type* compare_objects[2];
+                            const char* compare_headings[2];
+                            char selected_heading[32];
+                            char equipped_heading[32];
+
+                            strnfmt(selected_heading, sizeof(selected_heading), "Selected item");
+                            strnfmt(equipped_heading, sizeof(equipped_heading), "%s", mention_use(slot));
+
+                            compare_objects[0] = o_ptr;
+                            compare_headings[0] = selected_heading;
+
+                            if (inventory[slot].k_idx)
+                            {
+                                compare_objects[1] = &inventory[slot];
+                            }
+                            else
+                            {
+                                compare_objects[1] = NULL;
+                            }
+
+                            compare_headings[1] = equipped_heading;
+
+                            object_info_screen_multi(compare_objects, compare_headings, 2);
+                        }
+                        else
+                        {
+                            object_info_screen(o_ptr);
+                        }
+
+                        screen_load();
+                    }
+                    else if (has_visible_monster)
+                    {
+                        log_trace("EXAMINATION: Examining visible monster at cursor position");
+                        monster_type* m_ptr = &mon_list[cursor_m_idx];
+                        screen_save();
+                        screen_roff(m_ptr->r_idx);
+                        inkey();
+                        screen_load();
+                    }
+                    else
+                    {
+                        log_trace("EXAMINATION: No visible entities at cursor position");
+                    }
+                }
+                need_redraw = true;
+                break;
+            }
+            
+            case 'm':
+            {
+                log_trace("'m' key pressed - cycling monster display");
+                /* Cycle monsters: monsters -> nothing -> monsters */
+                if (state.show_monsters)
+                {
+                    /* From showing monsters to hiding monsters */
+                    state.show_monsters = false;
+                    log_trace("Mode changed to: monsters hidden");
+                }
+                else
+                {
+                    /* From hiding monsters to showing monsters */
+                    state.show_monsters = true;
+                    log_trace("Mode changed to: monsters shown");
+                }
+                
+                /* Reset selection when changing display */
+                state.selected_entity = -1;
+                state.in_sidebar_mode = false;
+                if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    state.highlighted_y = -1;
+                    state.highlighted_x = -1;
+                }
+                
+                /* Force a complete redraw */
+                handle_stuff();
+                need_redraw = true;
+                log_trace("'m' key: set need_redraw=true, continuing to redraw immediately");
+                /* Continue to top of loop to process redraw immediately */
+                continue;
+            }
+            
+            case 'o':
+            {
+                log_trace("'o' key pressed - cycling object display");
+                /* Cycle objects: objects -> nothing -> objects */
+                if (state.show_objects)
+                {
+                    /* From showing objects to hiding objects */
+                    state.show_objects = false;
+                    log_trace("Mode changed to: objects hidden");
+                }
+                else
+                {
+                    /* From hiding objects to showing objects */
+                    state.show_objects = true;
+                    log_trace("Mode changed to: objects shown");
+                }
+                
+                /* Reset selection when changing display */
+                state.selected_entity = -1;
+                state.in_sidebar_mode = false;
+                if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    state.highlighted_y = -1;
+                    state.highlighted_x = -1;
+                }
+                
+                /* Force a complete redraw */
+                handle_stuff();
+                need_redraw = true;
+                log_trace("'o' key: set need_redraw=true, continuing to redraw immediately");
+                /* Continue to top of loop to process redraw immediately */
+                continue;
+            }
+            
+            case 'l':
+            {
+                log_trace("'l' key pressed - cycling through display modes");
+                /* Cycle display modes: monsters+objects -> objects -> nothing -> monsters+objects */
+                if (state.show_monsters && state.show_objects)
+                {
+                    /* From both to objects only */
+                    state.show_monsters = false;
+                    state.show_objects = true;
+                    log_trace("Mode changed to: objects only");
+                }
+                else if (!state.show_monsters && state.show_objects)
+                {
+                    /* From objects only to nothing */
+                    state.show_monsters = false;
+                    state.show_objects = false;
+                    log_trace("Mode changed to: nothing (all hidden)");
+                }
+                else
+                {
+                    /* From nothing (or monsters only) to both */
+                    state.show_monsters = true;
+                    state.show_objects = true;
+                    log_trace("Mode changed to: both monsters and objects");
+                }
+                
+                /* Reset selection when changing display */
+                state.selected_entity = -1;
+                state.in_sidebar_mode = false;
+                if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    state.highlighted_y = -1;
+                    state.highlighted_x = -1;
+                }
+                
+                /* Force a complete redraw */
+                handle_stuff();
+                need_redraw = true;
+                log_trace("'l' key: set need_redraw=true, continuing to redraw immediately");
+                /* Continue to top of loop to process redraw immediately */
+                continue;
+            }
+            
+            case 't':
+            {
+                /* Target monster at cursor position or selected position */
+                int target_y = state.cursor_y;
+                int target_x = state.cursor_x;
+                
+                /* Use highlighted position if in sidebar mode */
+                if (state.in_sidebar_mode && state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    target_y = state.highlighted_y;
+                    target_x = state.highlighted_x;
+                }
+                
+                int m_idx = cave_m_idx[target_y][target_x];
+                if (m_idx > 0)
+                {
+                    /* Set target to the monster */
+                    target_set_monster(m_idx);
+                    
+                    /* Get monster description for message */
+                    char m_name[80];
+                    monster_desc(m_name, sizeof(m_name), &mon_list[m_idx], 0x80);
+                    msg_format("Target set to %s.", m_name);
+                    
+                    /* Exit unified look after targeting */
+                    done = true;
+                }
+                else
+                {
+                    msg_print("No monster at cursor position.");
+                }
+                break;
+            }
+            
+            case 'p':
+            {
+                /* Return to player position */
+                state.cursor_y = p_ptr->py;
+                state.cursor_x = p_ptr->px;
+                state.in_sidebar_mode = false;
+                state.selected_entity = -1;
+                need_redraw = true;
+                break;
+            }
+            
+            default:
+            {
+                /* Unhandled key - exit like ESC */
+                log_trace("Unhandled key in unified look: '%c' (%d) - exiting", query, (int)query);
+                /* Clear any highlighting before exit */
+                if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    state.highlighted_y = -1;
+                    state.highlighted_x = -1;
+                }
+                done = true;
+                break;
+            }
+        }
+    }
+    
+    /* Clear any highlighting */
+    if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+    {
+        highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+    }
+    
+    log_trace("=== UNIFIED LOOK ENDED ===");
+    
+    /* Clear health tracking before exiting look command */
+    health_track(0);
+    
+    /* Restore original viewport */
+    if (p_ptr->wy != original_wy || p_ptr->wx != original_wx)
+    {
+        p_ptr->wy = original_wy;
+        p_ptr->wx = original_wx;
+        p_ptr->redraw |= (PR_MAP);
+        p_ptr->window |= (PW_OVERHEAD);
+        handle_stuff();
+    }
+}
+
+/*
+ * Highlight an entity on the map 
+ */
+void highlight_entity_on_map(int y, int x, bool highlight)
+{
+    highlight_entity_on_map_type(y, x, highlight, 0); /* Default: auto-detect */
+}
+
+void highlight_entity_on_map_type(int y, int x, bool highlight, int entity_type)
+{
+    if (highlight)
+    {
+        /* Get the original character and color, but show with blue background */
+        char display_char;
+        byte display_attr;
+        
+        /* Determine what to display based on entity_type preference */
+        /* entity_type: 0=auto-detect, 1=prefer monster, 2=prefer object */
+        
+        if (entity_type == 2 && cave_o_idx[y][x] > 0)
+        {
+            /* Prefer object display */
+            object_type* o_ptr = &o_list[cave_o_idx[y][x]];
+            display_char = object_char(o_ptr);
+            display_attr = object_attr(o_ptr); /* Keep original object color */
+            log_trace("Highlighting object '%c' at (%d,%d) -> showing normal color", 
+                     display_char, y, x);
+        }
+        else if (entity_type == 1 && cave_m_idx[y][x] > 0)
+        {
+            /* Prefer monster display */
+            monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
+            monster_race* r_ptr = &r_info[m_ptr->r_idx];
+            display_char = monster_char(r_ptr);
+            display_attr = monster_attr(r_ptr); /* Keep original monster color */
+            log_trace("Highlighting monster '%c' at (%d,%d) -> showing normal color", 
+                     display_char, y, x);
+        }
+        else if (cave_m_idx[y][x] > 0)
+        {
+            /* Auto-detect: For monsters, show normal appearance (no color change) */
+            monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
+            monster_race* r_ptr = &r_info[m_ptr->r_idx];
+            display_char = monster_char(r_ptr);
+            display_attr = monster_attr(r_ptr); /* Keep original monster color */
+            log_trace("Highlighting monster '%c' at (%d,%d) -> showing normal color", 
+                     display_char, y, x);
+        }
+        else if (cave_o_idx[y][x] > 0)
+        {
+            /* Auto-detect: For objects, show normal appearance (no color change) */
+            object_type* o_ptr = &o_list[cave_o_idx[y][x]];
+            display_char = object_char(o_ptr);
+            display_attr = object_attr(o_ptr); /* Keep original object color */
+            log_trace("Highlighting object '%c' at (%d,%d) -> showing normal color", 
+                     display_char, y, x);
+        }
+        else
+        {
+            /* Empty space - use a cursor */
+            display_char = '+';
+            display_attr = TERM_L_BLUE;
+            log_trace("Highlighting empty space at (%d,%d) -> showing blue cursor", y, x);
+        }
+        
+        /* Draw highlighted character */
+        print_rel(display_char, display_attr, y, x);
+        log_trace("Applied blue highlighting: char='%c', attr=%d", 
+                 display_char, display_attr);
+    }
+    else
+    {
+        /* Restore original display */
+        lite_spot(y, x);
+        log_trace("Restored original display at (%d,%d)", y, x);
     }
 }
 
@@ -1980,6 +3559,13 @@ void do_cmd_look(void)
 void do_cmd_locate(void)
 {
     int dir, y1, x1, y2, x2;
+
+    /* Clear entry level banner when using L command */
+    if (g_banner_force_redraw_remaining > 0)
+    {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
 
     /* Start at current panel */
     y2 = y1 = p_ptr->wy;
@@ -2455,3 +4041,4 @@ void do_cmd_query_symbol(void)
     /* Free the "who" array */
     FREE(who);
 }
+

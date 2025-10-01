@@ -88,8 +88,9 @@ typedef struct metarun
     /* ----- oath system tracking -------------------------------- */
     byte unlocked_oaths;        /* Bitmask of oaths unlocked this metarun (1=Mercy, 2=Silence, 4=Iron) */
     byte banned_oaths;          /* Bitmask of oaths broken/banned this metarun (cannot select again) */
+    byte max_difficulty_reached; /* Maximum difficulty level reached this metarun (cannot go back) */
     
-    byte quest_reserved[13];    /* Reserved for future quest expansion (reduced from 15 to accommodate oath fields) */
+    byte quest_reserved[12];    /* Reserved for future quest expansion (reduced from 15 to accommodate oath and max_difficulty fields) */
 
 } metarun;
 

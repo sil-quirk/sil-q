@@ -741,7 +741,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* xxx scroll_target */
     false, /* OPT_auto_more */
     false, /* OPT_know_monster_info */
-    false, /* OPT_auto_display_lists */
+    true, /* OPT_auto_display_lists */
     true, /* OPT_easy_main_menu */
     false, /* xxx verify_quest_leave */
     false, /* xxx mark_squelch_items */
@@ -961,8 +961,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     { OPT_display_hits, OPT_auto_display_lists, OPT_instant_run,
         OPT_center_player, OPT_run_avoid_center, OPT_hilite_player,
         OPT_hilite_target, OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
-        OPT_delay_factor, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_delay_factor, OPT_main_combat_rolls, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Birth ***/
 

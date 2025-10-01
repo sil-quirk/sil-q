@@ -17,7 +17,7 @@
 # W: Completion/reward text lines
 
 # Version stamp (required)
-V:0.8.7
+V:0.8.9
 
 # Quest of Tulkas the Strong
 Q:1:Tulkas the Strong
@@ -46,10 +46,10 @@ W:"A glorious fight! I felt the earth shake with the fall of your foe!"
 W:"You have proven your might and shown courage worthy of the songs of old."
 W:"Take this prize—wrought ere the Sun and Moon first rose—and wield it well!"
 
-# Quest of Aulë the Smith
-Q:2:Aulë the Smith
+# Quest of Aule the Smith
+Q:2:Aule the Smith
 T:The Maker challenges you to prove your craft
-C:At Aulë’s forge, create a masterwork of worth and purpose (25 difficulty at least)
+C:At Aule’s forge, create a masterwork of worth and purpose (25 difficulty at least)
 O:4
 Y:0
 R:aule_quest
@@ -59,13 +59,13 @@ S:0:0:0:0
 K:SMT:2
 A:8:1
 I:The air is warm with the heat of a distant forge, and a voice like the ringing of a hammer on an anvil speaks.
-I:Aulë the Smith regards you with a deep and knowing gaze.
+I:Aule the Smith regards you with a deep and knowing gaze.
 I:
 I:"I have seen your works, mortal. There is a spark of the fire of creation within you."
 I:"But a spark is not a flame. The substance of the earth does not yield its secrets gladly."
 I:"Here is my forge. Its fires burn with the heat of the world's heart."
 I:"Take up the hammer, and from the base matter of this place, create for me a thing of worth and purpose."
-W:You lay your finished work before the Smith. Aulë turns it in his mighty hands, weighing craft and spirit alike.
+W:You lay your finished work before the Smith. Aule turns it in his mighty hands, weighing craft and spirit alike.
 W:
 W:"It is well-wrought. You have listened to the metal and persuaded it to your will."
 W:"You are worthy of my blessing. May your arm never tire at the anvil, and may hidden flaws reveal themselves to your eye."
@@ -78,7 +78,7 @@ O:3
 Y:0
 R:mandos_quest
 M:METARUN_QUEST_MANDOS
-S:0:0:1:0
+S:0:0:0:0
 A:8:0
 I:A chill presence fills the chamber, and the air grows still. Before you is a veiled and solemn figure upon a throne of black stone.
 I:It is Mandos, the Judge of the Valar, and his voice is low and grave, like the turning of the ages.
@@ -115,8 +115,8 @@ W:
 W:"You have chosen pity over violence. You have walked through fear and left behind not death, but a glimmer of hope."
 W:"For the mercy you have shown to the lost, I grant you this blessing: may your path be shrouded in silence when compassion is your guide."
 
-# Quest of Oromë, the Great Hunter  
-Q:5:Oromë, the Great Hunter
+# Quest of Orome, the Great Hunter  
+Q:5:Orome, the Great Hunter
 T:The Great Hunter tests your skill in the hunt
 C:Hunt down the foul kindreds throughout your journey: 100 wolves, 80 spiders, 60 serpents, or 30 vampires
 O:2
@@ -127,12 +127,12 @@ M:METARUN_QUEST_OROME
 P:LINEAR_INTERPOLATE:0.05:0.125:0:0
 S:0:0:0:0
 A:8:8
-I:The air grows wild and clean, smelling of ancient forests under a starlit sky. Suddenly, the clear, mighty blast of a great horn, the Valaróma, echoes from the walls, shaking the very stones and sending a tremor of fear through all evil things. Before you sits a majestic lord upon a great white steed, his face filled with the vigour of the chase. It is Oromë, the Huntsman of the Valar.
+I:The air grows wild and clean, smelling of ancient forests under a starlit sky. Suddenly, the clear, mighty blast of a great horn, the Valaróma, echoes from the walls, shaking the very stones and sending a tremor of fear through all evil things. Before you sits a majestic lord upon a great white steed, his face filled with the vigour of the chase. It is Orome, the Huntsman of the Valar.
 I:
 I:"Hail, hunter! I have heard the echo of your deeds in these sunless caverns, but the shadows here run too deep. The foulest kindreds of the Great Enemy have made their lairs throughout this realm: the fell wolves in their packs, the venomous spawn of the Great Spider, the cold serpents of the deep, and the blood-drinking horrors of the night."
 I:
 I:"I call upon you to cleanse this darkness throughout your entire journey! Hunt any of these monstrous broods without pity - slay 100 wolves, 80 spiders, 60 serpents, or 30 vampires. Let your arm be the instrument of my wrath until their numbers are broken. When your great hunt reaches its goal, I shall return to bestow my blessing upon you."
-W:As the last of your chosen prey falls, the triumphant sound of the Valaróma rings out once more. Oromë appears, his eyes bright with approval.
+W:As the last of your chosen prey falls, the triumphant sound of the Valaróma rings out once more. Orome appears, his eyes bright with approval.
 W:
 W:"A mighty hunt indeed! The shadows recede, and the foul things of the dark have learned to fear you. You have the eye of a true hunter and a spirit that does not quail before the beasts of night."
 W:

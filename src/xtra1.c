@@ -480,6 +480,84 @@ static void prt_hp(void)
     c_put_str(color, tmp, ROW_HP, COL_HP + 12 - len);
 }
 
+static void prt_light(void)
+{
+    object_type* o_ptr = &inventory[INVEN_LITE];
+    int icon_col = COL_LIGHT;
+
+    /* Clear the line */
+    Term_erase(icon_col, ROW_LIGHT, 13);
+
+    /* Nothing equipped */
+    if (!o_ptr->k_idx)
+        return;
+
+    byte attr = object_attr(o_ptr);
+    char icon = object_char(o_ptr);
+
+    /* Draw the icon (supporting bigtile visuals) */
+    Term_putch(icon_col, ROW_LIGHT, attr, icon);
+    if (use_bigtile)
+    {
+        Term_putch(icon_col + 1, ROW_LIGHT, 255, -1);
+    }
+    else
+    {
+        Term_putch(icon_col + 1, ROW_LIGHT, attr, icon);
+    }
+
+    Term_putch(icon_col + 2, ROW_LIGHT, TERM_WHITE, ' ');
+
+    bool infinite = false;
+    long fuel = 0;
+    byte fuel_attr = TERM_L_WHITE;
+    char buf[16];
+
+    if (o_ptr->tval == TV_LIGHT)
+    {
+        switch (o_ptr->sval)
+        {
+        case SV_LIGHT_TORCH:
+        case SV_LIGHT_LANTERN:
+        case SV_LIGHT_MALLORN:
+            fuel = o_ptr->timeout;
+            break;
+        default:
+            infinite = true;
+            break;
+        }
+    }
+    else
+    {
+        u32b f1, f2, f3;
+        object_flags(o_ptr, &f1, &f2, &f3);
+        if (f2 & TR2_LIGHT)
+            infinite = true;
+    }
+
+    if (infinite)
+    {
+        my_strcpy(buf, "inf", sizeof(buf));
+        fuel_attr = TERM_L_GREEN;
+    }
+    else
+    {
+        if (fuel < 0)
+            fuel = 0;
+
+        if (fuel == 0)
+            fuel_attr = TERM_RED;
+        else if (fuel <= 100)
+            fuel_attr = TERM_ORANGE;
+
+        strnfmt(buf, sizeof(buf), "%ld", fuel);
+    }
+
+    char aligned[16];
+    strnfmt(aligned, sizeof(aligned), "%9s", buf);
+    Term_putstr(icon_col + 3, ROW_LIGHT, 9, fuel_attr, aligned);
+}
+
 /*
  * Prints player's max/cur spell points
  */
@@ -770,6 +848,11 @@ static void prt_state(void)
     if (p_ptr->fletching)
     {
         my_strcpy(text, "Fletching ", sizeof(text));
+    }
+    else if (p_ptr->rage)
+    {
+        attr = TERM_RED;
+        my_strcpy(text, "Rage      ", sizeof(text));
     }
 
     /* Resting */
@@ -1194,6 +1277,9 @@ static void prt_frame_basic(void)
 
     /* Spellpoints */
     prt_sp();
+
+    /* Light */
+    prt_light();
 
     /* Melee */
     prt_mel();
@@ -1921,6 +2007,8 @@ void calc_torch(void)
         /* Update the visuals */
         p_ptr->update |= (PU_UPDATE_VIEW | PU_MONSTERS);
     }
+
+    p_ptr->redraw |= (PR_LIGHT);
 }
 
 int affinity_level(int skilltype)
@@ -2338,6 +2426,18 @@ static void calc_bonuses(void)
         /* Extract the item flags */
         object_flags(o_ptr, &f1, &f2, &f3);
 
+        bool is_quiver1 = (i == INVEN_QUIVER1);
+        bool is_quiver2 = (i == INVEN_QUIVER2);
+        bool is_throwing_item
+            = (k_info[o_ptr->k_idx].flags3 & (TR3_THROWING)) != 0;
+
+        bool throwing_quiver = is_quiver2 && is_throwing_item;
+
+        if (is_quiver1)
+            continue;
+        if (is_quiver2 && !is_throwing_item)
+            continue;
+
         /* Affect stats */
         if (f1 & (TR1_STR))
             p_ptr->stat_equip_mod[A_STR] += o_ptr->pval;
@@ -2459,9 +2559,6 @@ static void calc_bonuses(void)
         if (f2 & (TR2_SUST_GRA))
             p_ptr->sustain_gra += 1;
 
-        /* Apply the bonus to evasion */
-        p_ptr->skill_equip_mod[S_EVN] += o_ptr->evn;
-
         // Parrying grants extra bonus for weapon evasion:
         if (p_ptr->active_ability[S_EVN][EVN_PARRY] && (i == INVEN_WIELD))
         {
@@ -2473,7 +2570,10 @@ static void calc_bonuses(void)
             armour_weight += o_ptr->weight;
 
         // add the abilities
-        for (j = 0; j < o_ptr->abilities; j++)
+        int ability_count = o_ptr->abilities;
+        if (throwing_quiver && ability_count > 1)
+            ability_count = 1;
+        for (j = 0; j < ability_count; j++)
         {
             p_ptr->have_ability[o_ptr->skilltype[j]][o_ptr->abilitynum[j]]
                 = true;
@@ -2494,7 +2594,7 @@ static void calc_bonuses(void)
         /* Hack -- do not apply "arrow" to-hit bonuses at all */
         if (i == INVEN_QUIVER1)
             continue;
-        if (i == INVEN_QUIVER2)
+        if ((i == INVEN_QUIVER2) && !throwing_quiver)
             continue;
 
         /* Apply the bonus to hit */
@@ -2797,6 +2897,11 @@ static void calc_bonuses(void)
         if (p_ptr->previous_action[0] != 5)
             p_ptr->pspeed -= 1;
         p_ptr->skill_misc_mod[S_STL] += STEALTH_MODE_BONUS;
+    }
+
+    if (p_ptr->rage)
+    {
+        p_ptr->skill_misc_mod[S_STL] -= 3;
     }
 
     // sprinting speed the player up
@@ -3469,7 +3574,7 @@ void redraw_stuff(void)
         p_ptr->redraw &= ~(PR_BASIC);
         p_ptr->redraw &= ~(PR_STATS);
         p_ptr->redraw &= ~(PR_MEL | PR_EXP | PR_ARC);
-        p_ptr->redraw &= ~(PR_ARMOR | PR_HP | PR_VOICE | PR_SONG);
+        p_ptr->redraw &= ~(PR_ARMOR | PR_HP | PR_VOICE | PR_SONG | PR_LIGHT);
         p_ptr->redraw &= ~(PR_DEPTH | PR_HEALTHBAR);
         p_ptr->redraw &= ~(PR_RESIST);
         prt_frame_basic();
@@ -3539,6 +3644,12 @@ void redraw_stuff(void)
     {
         p_ptr->redraw &= ~(PR_VOICE);
         prt_sp();
+    }
+
+    if (p_ptr->redraw & (PR_LIGHT))
+    {
+        p_ptr->redraw &= ~(PR_LIGHT);
+        prt_light();
     }
 
     /* Sil - Hack: always redraw song (really should invent redraw flag for it

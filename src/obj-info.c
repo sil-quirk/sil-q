@@ -899,14 +899,35 @@ static bool screen_out_head(const object_type* o_ptr)
 
     bool has_description = false;
 
+    log_trace("screen_out_head: Starting, Term->wid=%d, Term->hgt=%d", Term->wid, Term->hgt);
+    log_trace("screen_out_head: Current cursor position: x=%d, y=%d", Term->scr->cx, Term->scr->cy);
+
     /* Allocate memory to the size of the screen */
     o_name = C_RNEW(name_size, char);
 
     /* Description */
     object_desc(o_name, name_size, o_ptr, true, 3);
 
+    log_trace("screen_out_head: About to print object name at current position");
+    
     /* Print, in colour */
     text_out_c(TERM_YELLOW, format("%^s", o_name));
+
+    /* Show weight information */
+    {
+        char weight_buf[64];
+        int total_weight = o_ptr->weight * o_ptr->number;
+        int each_weight = o_ptr->weight;
+        if (o_ptr->number > 1) {
+            strnfmt(weight_buf, sizeof(weight_buf), " %3d.%1d lb (%3d.%1d lb each)",
+                total_weight / 10, total_weight % 10, each_weight / 10, each_weight % 10);
+        } else {
+            strnfmt(weight_buf, sizeof(weight_buf), " %3d.%1d lb", total_weight / 10, total_weight % 10);
+        }
+        text_out_c(TERM_L_UMBER, weight_buf);
+    }
+
+    log_trace("screen_out_head: After printing object name, cursor position: x=%d, y=%d", Term->scr->cx, Term->scr->cy);
 
     /* Free up the memory */
     FREE(o_name);
@@ -988,11 +1009,25 @@ void object_info_screen(const object_type* o_ptr)
 {
     bool has_description, has_info;
 
+    log_trace("object_info_screen: Starting item description display");
+    log_trace("object_info_screen: BEFORE reset - text_out_indent=%d, text_out_wrap=%d", text_out_indent, text_out_wrap);
+
     /* Redirect output to the screen */
     text_out_hook = text_out_to_screen;
+    
+    /* Reset text output positioning to ensure proper layout */
+    text_out_wrap = 0;
+    text_out_indent = 0;
+
+    log_trace("object_info_screen: AFTER reset - text_out_indent=%d, text_out_wrap=%d", text_out_indent, text_out_wrap);
 
     /* Save the screen */
     screen_save();
+    log_trace("object_info_screen: Screen saved");
+
+    /* Ensure cursor starts at top-left for proper text layout */
+    Term_gotoxy(0, 0);
+    log_trace("object_info_screen: Reset cursor to (0,0), now at x=%d, y=%d", Term->scr->cx, Term->scr->cy);
 
     has_description = screen_out_head(o_ptr);
 
@@ -1015,11 +1050,83 @@ void object_info_screen(const object_type* o_ptr)
 
     text_out_c(TERM_L_BLUE, "\n\n(press any key)\n");
 
+    log_trace("object_info_screen: About to wait for input");
+
     /* Wait for input */
     (void)inkey();
 
+    log_trace("object_info_screen: Input received, about to load screen");
+
     /* Load the screen */
     screen_load();
+    
+    /* Ensure text output variables are reset after use */
+    text_out_wrap = 0;
+    text_out_indent = 0;
+    
+    log_trace("object_info_screen: Screen loaded, exiting - text_out_indent=%d, text_out_wrap=%d", text_out_indent, text_out_wrap);
 
     return;
 }
+
+void object_info_screen_multi(const object_type** objects, const char** headings, int count)
+{
+    if (count <= 0 || objects == NULL)
+        return;
+
+    text_out_hook = text_out_to_screen;
+    text_out_wrap = 0;
+    text_out_indent = 0;
+
+    screen_save();
+    Term_gotoxy(0, 0);
+
+    for (int i = 0; i < count; i++)
+    {
+        if (i > 0)
+        {
+            text_out_c(TERM_L_DARK, "\n----------------------------------------\n\n");
+        }
+
+        Term_erase(0, Term->scr->cy, 255);
+
+        if (headings && headings[i] && headings[i][0])
+        {
+            text_out_c(TERM_L_BLUE, headings[i]);
+            text_out_c(TERM_L_BLUE, "\n");
+        }
+
+        if (objects[i])
+        {
+            bool has_description = screen_out_head(objects[i]);
+
+            object_info_out_flags = object_flags_known;
+
+            new_paragraph = true;
+            bool has_info = object_info_out(objects[i]);
+            new_paragraph = false;
+
+            if (!object_known_p(objects[i]))
+            {
+                p_text_out("\n\n   This item has not been identified.");
+            }
+            else if ((!has_description) && (!has_info))
+            {
+                p_text_out("\n\n   This item does not seem to possess any special abilities.");
+            }
+        }
+        else
+        {
+            p_text_out("\n   (slot is empty)");
+        }
+    }
+
+    text_out_c(TERM_L_BLUE, "\n\n(press any key)\n");
+    (void)inkey();
+
+    screen_load();
+
+    text_out_wrap = 0;
+    text_out_indent = 0;
+}
+

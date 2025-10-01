@@ -77,14 +77,14 @@ INCS = \
 #
 
 
-default: sil
+default: Sil-More.exe
 
-install: sil cleanobjs movebin lineendings
+install: Sil-More.exe cleanobjs movebin lineendings
 
-launch: sil movebin exec
+launch: Sil-More.exe movebin exec
 
 movebin:
-	mv -f sil.exe ../sil.exe
+	mv -f Sil-More.exe ../Sil-More.exe
 
 lineendings:
 	./unix2doslib
@@ -93,12 +93,12 @@ cleanobjs:
 	rm -f $(EXOBJS)
 
 cleanbin:
-	rm -f sil.exe
+	rm -f Sil-More.exe
 
 clean:	cleanobjs cleanbin
 
 exec:	
-	.././sil.exe
+	.././Sil-More.exe
 
 
 
@@ -106,8 +106,8 @@ exec:
 # Dependency rules
 #
 
-sil: $(EXOBJS)
-	$(CC) -o sil $(EXOBJS) $(INCDIRS) $(LIBDIRS) $(LIBS)
+Sil-More.exe: $(EXOBJS)
+	$(CC) -o Sil-More.exe $(EXOBJS) $(INCDIRS) $(LIBDIRS) $(LIBS)
 
 
 #

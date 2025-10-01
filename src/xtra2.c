@@ -154,8 +154,9 @@ bool set_blind(int v)
     /* Fully update the visuals */
     p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS);
 
-    /* Redraw map */
-    p_ptr->redraw |= (PR_MAP);
+    /* Redraw map and refresh side panels that lose their contents when the
+     * screen is cleared by hallucination messages. */
+    p_ptr->redraw |= (PR_MAP | PR_EXTRA | PR_STATE | PR_BASIC | PR_MISC);
 
     /* Redraw the "blind" */
     p_ptr->redraw |= (PR_BLIND);
@@ -650,44 +651,52 @@ bool set_rage(int v)
     /* Hack -- Force good values */
     v = (v > 10000) ? 10000 : (v < 0) ? 0 : v;
 
-    /* Open */
-    if (v)
-    {
-        if (!p_ptr->rage)
-        {
-            msg_print("You burst into a furious rage!");
-            notice = true;
+    bool was_raging = (p_ptr->rage > 0);
+    bool will_rage = (v > 0);
 
-            /* Redraw map */
-            p_ptr->redraw |= (PR_MAP);
-            
-            /* Turin house has 50% chance to become hallucinated when raged */
-            if ((c_info[p_ptr->phouse].flags_u & UNQ_WIL_TURIN) && one_in_(2))
-            {
-                msg_print("The rage clouds your vision!");
-                (void)set_image(p_ptr->image + damroll(3, 4));
-            }
-        }
-    }
-
-    /* Shut */
-    else
-    {
-        if (p_ptr->rage)
-        {
-            msg_print("Your rage subsides.");
-            notice = true;
-
-            // do_res_stat(A_STR, 1);
-            // do_res_stat(A_CON, 1);
-
-            /* Redraw map */
-            p_ptr->redraw |= (PR_MAP);
-        }
-    }
-
-    /* Use the value */
+    /* Apply the new value before kicking off redraws so map_info sees it */
     p_ptr->rage = v;
+
+    /* Rage just started */
+    if (will_rage && !was_raging)
+    {
+        msg_print("You burst into a furious rage!");
+        notice = true;
+
+        p_ptr->redraw |= (PR_MAP | PR_STATE);
+        p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS
+            | PU_DISTANCE);
+
+        if (p_ptr->stealth_mode)
+        {
+            msg_print("Your fury shatters your stealth!");
+            p_ptr->stealth_mode = false;
+            stop_stealth_mode = false;
+            p_ptr->update |= (PU_BONUS);
+            p_ptr->redraw |= (PR_SPEED);
+        }
+
+        /* Turin house has 50% chance to become hallucinated when raged */
+        if ((c_info[p_ptr->phouse].flags_u & UNQ_WIL_TURIN) && one_in_(2))
+        {
+            msg_print("The rage clouds your vision!");
+            (void)set_image(p_ptr->image + damroll(3, 4));
+        }
+    }
+
+    /* Rage just ended */
+    else if (!will_rage && was_raging)
+    {
+        msg_print("Your rage subsides.");
+        notice = true;
+
+        // do_res_stat(A_STR, 1);
+        // do_res_stat(A_CON, 1);
+
+        p_ptr->redraw |= (PR_MAP | PR_STATE);
+        p_ptr->update |= (PU_FORGET_VIEW | PU_UPDATE_VIEW | PU_MONSTERS
+            | PU_DISTANCE);
+    }
 
     /* Nothing to notice */
     if (!notice)
@@ -3290,6 +3299,76 @@ void target_set_location(int y, int x)
 }
 
 /*
+ * Sorting hook -- comp function -- by "monster priority"
+ *
+ * Sorts monsters by: 1) Uniques first, 2) Then by depth (higher depth first), 3) Then by distance
+ * We use "u" and "v" to point to arrays of "x" and "y" positions.
+ */
+static bool ang_sort_comp_monster_priority(const void* u, const void* v, int a, int b)
+{
+    int py = p_ptr->py;
+    int px = p_ptr->px;
+
+    byte* x = (byte*)(u);
+    byte* y = (byte*)(v);
+
+    int m_idx_a, m_idx_b;
+    monster_type* m_ptr_a;
+    monster_type* m_ptr_b;
+    monster_race* r_ptr_a;
+    monster_race* r_ptr_b;
+    
+    /* Get monster indices */
+    m_idx_a = cave_m_idx[y[a]][x[a]];
+    m_idx_b = cave_m_idx[y[b]][x[b]];
+    
+    /* Safety check */
+    if (!m_idx_a && !m_idx_b) return false;
+    if (!m_idx_a) return false; /* b comes first */
+    if (!m_idx_b) return true;  /* a comes first */
+    
+    /* Get monster pointers */
+    m_ptr_a = &mon_list[m_idx_a];
+    m_ptr_b = &mon_list[m_idx_b];
+    r_ptr_a = &r_info[m_ptr_a->r_idx];
+    r_ptr_b = &r_info[m_ptr_b->r_idx];
+    
+    /* Check if either is unique */
+    bool unique_a = (r_ptr_a->flags1 & RF1_UNIQUE) != 0;
+    bool unique_b = (r_ptr_b->flags1 & RF1_UNIQUE) != 0;
+    
+    /* Uniques always come first */
+    if (unique_a && !unique_b) return true;  /* a comes first */
+    if (!unique_a && unique_b) return false; /* b comes first */
+    
+    /* Both unique or both non-unique, sort by depth (higher depth first) */
+    if (r_ptr_a->level != r_ptr_b->level)
+    {
+        return (r_ptr_a->level >= r_ptr_b->level);
+    }
+    
+    /* Same depth, sort by distance (closer first) */
+    int da, db, kx, ky;
+
+    /* Absolute distance components for a */
+    kx = x[a] - px;
+    kx = ABS(kx);
+    ky = y[a] - py;
+    ky = ABS(ky);
+    da = ((kx > ky) ? (kx + kx + ky) : (ky + ky + kx));
+
+    /* Absolute distance components for b */
+    kx = x[b] - px;
+    kx = ABS(kx);
+    ky = y[b] - py;
+    ky = ABS(ky);
+    db = ((kx > ky) ? (kx + kx + ky) : (ky + ky + kx));
+
+    /* Compare the distances */
+    return (da <= db);
+}
+
+/*
  * Sorting hook -- comp function -- by "distance to player"
  *
  * We use "u" and "v" to point to arrays of "x" and "y" positions,
@@ -3558,7 +3637,16 @@ void get_sorted_target_list(int mode, int range)
     }
 
     /* Set the sort hooks */
-    ang_sort_comp = ang_sort_comp_distance;
+    if (mode & (TARGET_LIST_MONSTER))
+    {
+        /* Use monster priority sorting (uniques first, then by depth, then by distance) */
+        ang_sort_comp = ang_sort_comp_monster_priority;
+    }
+    else
+    {
+        /* Use distance sorting for objects and other targets */
+        ang_sort_comp = ang_sort_comp_distance;
+    }
     ang_sort_swap = ang_sort_swap_distance;
 
     /* Sort the positions */

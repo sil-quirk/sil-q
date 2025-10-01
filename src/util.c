@@ -2979,7 +2979,7 @@ void msg_debug(cptr fmt, ...)
     va_list vp;
 
     char buf[1024];
-    char buf2[1024];
+    char buf2[1030]; /* Slightly larger to accommodate "<< >>" wrapper */
 
     /* Begin the Varargs Stuff */
     va_start(vp, fmt);
@@ -2990,7 +2990,7 @@ void msg_debug(cptr fmt, ...)
     /* End the Varargs Stuff */
     va_end(vp);
 
-    sprintf(buf2, "<< %s >>", buf);
+    snprintf(buf2, sizeof(buf2), "<< %s >>", buf);
 
     /* Display */
     msg_print_aux(MSG_GENERIC, buf2);
@@ -3708,65 +3708,196 @@ bool term_get_string(cptr prompt, char* buf, size_t len)
  */
 s16b get_quantity(cptr prompt, int max)
 {
-    int amt = 1;
+    int amt = (max > 0) ? max : 1;
 
     /* Use "command_arg" */
     if (p_ptr->command_arg)
     {
-        /* Extract a number */
         amt = p_ptr->command_arg;
-
-        /* Clear "command_arg" */
         p_ptr->command_arg = 0;
     }
 
 #ifdef ALLOW_REPEAT
 
-    /* Get the item index */
     else if ((max != 1) && repeat_pull(&amt))
     {
-        /* nothing */
+        /* use repeated value */
     }
 
 #endif /* ALLOW_REPEAT */
 
-    /* Prompt if needed */
     else if (max != 1)
     {
-        char tmp[80];
+        char prompt_buf[80];
+        char entry_buf[16] = "";
+        int entry_len = 0;
+        int current = amt;
+        bool done = false;
+        bool canceled = false;
+        int ch;
 
-        char buf[80];
-
-        /* Build a prompt if needed */
         if (!prompt)
         {
-            /* Build a prompt */
-            sprintf(tmp, "Quantity (0-%d): ", max);
-
-            /* Use that prompt */
-            prompt = tmp;
+            strnfmt(prompt_buf, sizeof(prompt_buf), "Quantity (0-%d): ", max);
+            prompt = prompt_buf;
         }
 
-        /* Build the default */
-        sprintf(buf, "%d", amt);
+        if (max < 0)
+            max = 0;
 
-        /* Ask for a quantity */
-        if (!term_get_string(prompt, buf, 7))
+        current = MAX(0, MIN(current, max));
+
+        while (!done)
+        {
+            char header[120];
+            strnfmt(header, sizeof(header), "%s%d/%d", prompt, current, max);
+            prt(header, 0, 0);
+            prt("Use arrows or +/- to adjust, digits type exact value, Enter=OK, Esc=cancel.",
+                1, 0);
+
+            ch = inkey();
+            switch (ch)
+            {
+            case ESCAPE:
+                canceled = true;
+                done = true;
+                break;
+
+            case '\r':
+            case '\n':
+#ifdef KC_ENTER
+            case KC_ENTER:
+#endif
+                done = true;
+                break;
+
+            case '+':
+            case '=':
+            case '8':
+            case 'k':
+            case 'K':
+#ifdef ARROW_UP
+            case ARROW_UP:
+#endif
+                if (max > 0)
+                {
+                    if (current >= max)
+                        current = 0;
+                    else
+                        current++;
+                }
+                else
+                {
+                    current = 0;
+                }
+                entry_len = 0;
+                entry_buf[0] = '\0';
+                break;
+
+            case '-':
+            case '_':
+            case '2':
+            case 'j':
+            case 'J':
+#ifdef ARROW_DOWN
+            case ARROW_DOWN:
+#endif
+                if (max > 0)
+                {
+                    if (current > 0)
+                        current--;
+                    else
+                        current = max;
+                }
+                else
+                {
+                    current = 0;
+                }
+                entry_len = 0;
+                entry_buf[0] = '\0';
+                break;
+
+#ifdef KC_PGUP
+            case KC_PGUP:
+                if (max > 0)
+                {
+                    current += 10;
+                    if (current > max)
+                        current = 0;
+                }
+                else
+                {
+                    current = 0;
+                }
+                entry_len = 0;
+                entry_buf[0] = '\0';
+                break;
+#endif
+
+#ifdef KC_PGDOWN
+            case KC_PGDOWN:
+                if (max > 0)
+                {
+                    current -= 10;
+                    if (current < 0)
+                        current = max;
+                }
+                else
+                {
+                    current = 0;
+                }
+                entry_len = 0;
+                entry_buf[0] = '\0';
+                break;
+#endif
+
+            case '\b':
+            case 0x7F:
+                if (entry_len > 0)
+                {
+                    entry_buf[--entry_len] = '\0';
+                    current = entry_len ? MAX(0, MIN(atoi(entry_buf), max)) : 0;
+                }
+                else
+                {
+                    bell("Nothing to erase.");
+                }
+                break;
+
+            default:
+                if (isdigit((unsigned char)ch))
+                {
+                    if (entry_len < (int)sizeof(entry_buf) - 1)
+                    {
+                        entry_buf[entry_len++] = (char)ch;
+                        entry_buf[entry_len] = '\0';
+                        current = MAX(0, MIN(atoi(entry_buf), max));
+                    }
+                    else
+                    {
+                        bell("Quantity too large.");
+                    }
+                }
+                else
+                {
+                    bell("Illegal response to quantity prompt!");
+                }
+                break;
+            }
+        }
+
+        prt("", 0, 0);
+        prt("", 1, 0);
+
+        if (canceled)
             return (0);
 
-        /* Extract a number */
-        amt = atoi(buf);
-
-        /* A non-number means "all" */
-        if (!isdigit((unsigned char)buf[0]))
-            amt = max;
+        amt = current;
     }
 
-    /* Enforce the maximum */
     if (amt > max)
         amt = max;
 
-    /* Enforce the minimum */
     if (amt < 0)
         amt = 0;
 
@@ -3777,7 +3908,6 @@ s16b get_quantity(cptr prompt, int max)
 
 #endif /* ALLOW_REPEAT */
 
-    /* Return the result */
     return (amt);
 }
 
@@ -3860,7 +3990,11 @@ bool get_check(cptr prompt)
     message_flush();
 
     /* Hack -- Build a "useful" prompt */
+#ifdef STEAMDECK_SUPPORT
+    strnfmt(buf, 78, "%.70s[y/n/space] ", prompt);
+#else
     strnfmt(buf, 78, "%.70s[y/n] ", prompt);
+#endif
 
     /* Prompt for it */
     prt(buf, 0, 0);
@@ -3873,7 +4007,11 @@ bool get_check(cptr prompt)
             break;
         if (ch == ESCAPE)
             break;
+#ifdef STEAMDECK_SUPPORT
+        if (strchr("YyNn", ch) || ch == ' ')
+#else
         if (strchr("YyNn", ch))
+#endif
             break;
         bell("Illegal response to a 'yes/no' question!");
     }
@@ -3882,7 +4020,11 @@ bool get_check(cptr prompt)
     prt("", 0, 0);
 
     /* Normal negation */
+#ifdef STEAMDECK_SUPPORT
+    if ((ch != 'Y') && (ch != 'y') && (ch != ' '))
+#else
     if ((ch != 'Y') && (ch != 'y'))
+#endif
         return (false);
 
     /* Success */

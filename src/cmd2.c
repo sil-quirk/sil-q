@@ -11,6 +11,9 @@
 #include "angband.h"
 #include "metarun.h"
 
+#define THROW_PENDING_NONE -9999
+static int throw_pending_slot = THROW_PENDING_NONE;
+
 /*
  * Determines the shallowest a player is allowed to go.
  * As time goes on, they are forced deeper and deeper.
@@ -134,16 +137,14 @@ void do_cmd_go_up(void)
             /* Curse message and selection handled by apply_oath_breaking_curse */
             do_cmd_note("Broke your oath", p_ptr->depth);
             apply_oath_breaking_curse(OATH_IRON);
+            
+            /* Only mark oath as broken if player actually has it */
+            p_ptr->oaths_broken |= OATH_IRON_FLAG;
         }
         else
         {
             return;
         }
-    }
-
-    if (silmarils_possessed() == 0)
-    {
-        p_ptr->oaths_broken |= OATH_IRON_FLAG;
     }
 
     // warn player if they have an active Niena quest and are trying to leave
@@ -644,6 +645,12 @@ void do_cmd_toggle_stealth(void)
     /* Start stealth mode */
     else
     {
+        if (p_ptr->rage)
+        {
+            msg_print("You are far too enraged to move stealthily.");
+            return;
+        }
+
         /* Set the stealth mode flag */
         p_ptr->stealth_mode = true;
 
@@ -3840,6 +3847,38 @@ void do_cmd_fire(int quiver)
     bool deadly_hail_bonus = false;
     bool puncture = false;
 
+    // Determine the projectile in the requested quiver
+    if (quiver == 1)
+    {
+        o_ptr = &inventory[INVEN_QUIVER1];
+        item = INVEN_QUIVER1;
+
+        if (!o_ptr->k_idx)
+        {
+            msg_print("You have nothing in your 1st quiver.");
+            return;
+        }
+    }
+    else
+    {
+        o_ptr = &inventory[INVEN_QUIVER2];
+        item = INVEN_QUIVER2;
+
+        if (!o_ptr->k_idx)
+        {
+            msg_print("You have nothing in your 2nd quiver.");
+            return;
+        }
+    }
+
+    /* Determine whether the item should be thrown directly */
+    object_flags(o_ptr, &f1, &f2, &f3);
+    if (f3 & (TR3_THROWING))
+    {
+        do_cmd_throw_from_slot(item);
+        return;
+    }
+
     /* Get the "bow" (if any) */
     j_ptr = &inventory[INVEN_BOW];
 
@@ -3855,30 +3894,6 @@ void do_cmd_fire(int quiver)
 
     // bow flags
     object_flags(j_ptr, &f1, &f2, &f3);
-
-    // determine the arrow to fire
-    if (quiver == 1)
-    {
-        o_ptr = &inventory[INVEN_QUIVER1];
-        item = INVEN_QUIVER1;
-
-        if (!o_ptr->k_idx)
-        {
-            msg_print("You have no arrows in your 1st quiver.");
-            return;
-        }
-    }
-    else
-    {
-        o_ptr = &inventory[INVEN_QUIVER2];
-        item = INVEN_QUIVER2;
-
-        if (!o_ptr->k_idx)
-        {
-            msg_print("You have no arrows in your 2nd quiver.");
-            return;
-        }
-    }
 
     /* Handle player fear */
     if (p_ptr->afraid)
@@ -3942,6 +3957,7 @@ void do_cmd_fire(int quiver)
 
     /* Set pickup on fired arrow */
     i_ptr->pickup = true;
+    i_ptr->pickup_slot = item;
 
     /* Sound */
     sound(MSG_SHOOT);
@@ -4713,7 +4729,18 @@ void do_cmd_throw(bool automatic)
     u32b noticed_flag
         = 0; // if a slay is noticed it is recorded here and the item identified
 
-    if (automatic)
+    int preset_item = throw_pending_slot;
+    bool preset = (preset_item != THROW_PENDING_NONE);
+
+    if (preset)
+    {
+        item = preset_item;
+        automatic = false;
+    }
+
+    throw_pending_slot = THROW_PENDING_NONE;
+
+    if (!preset && automatic)
     {
         bool found = false;
 
@@ -4744,8 +4771,7 @@ void do_cmd_throw(bool automatic)
             return;
         }
     }
-
-    else
+    else if (!preset)
     {
         /* Get an item */
         q = "Throw which item? ";
@@ -4762,6 +4788,13 @@ void do_cmd_throw(bool automatic)
     else
     {
         o_ptr = &o_list[0 - item];
+    }
+
+    if (!o_ptr->k_idx)
+    {
+        if (preset)
+            msg_print("You have nothing ready to throw.");
+        return;
     }
 
     /* Hack -- Cannot remove cursed items */
@@ -4828,6 +4861,8 @@ void do_cmd_throw(bool automatic)
         return;
 
     /* Take off equipment first */
+    int original_slot = (item >= INVEN_WIELD) ? item : -1;
+
     if (item >= INVEN_WIELD)
     {
         /* Take off first */
@@ -4917,6 +4952,10 @@ void do_cmd_throw(bool automatic)
 
     /* Set pickup on thrown item */
     i_ptr->pickup = true;
+    if ((original_slot == INVEN_QUIVER1) || (original_slot == INVEN_QUIVER2))
+        i_ptr->pickup_slot = original_slot;
+    else
+        i_ptr->pickup_slot = -1;
 
     /* Reduce and describe inventory */
     if (item >= 0)
@@ -5052,7 +5091,8 @@ void do_cmd_throw(bool automatic)
             bool fatal_blow = false;
 
             // Determine the player's attack score after all modifiers
-            total_attack_mod = total_player_attack(m_ptr, attack_mod);
+            int stealth_bonus = stealth_melee_bonus(m_ptr, true);
+            total_attack_mod = total_player_attack(m_ptr, attack_mod + stealth_bonus);
 
             /* Monsters might notice */
             player_attacked = true;
@@ -5176,6 +5216,25 @@ void do_cmd_throw(bool automatic)
 
                     /* Get "the monster" or "it" */
                     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+
+                    if (p_ptr->active_ability[S_STL][STL_CRUEL_BLOW]
+                        && (crit_bonus_dice > 0) && (net_dam > 0)
+                        && !(r_ptr->flags1 & (RF1_RES_CRIT)))
+                    {
+                        int cruel_blow_multiplier
+                            = (30 - (60 / (crit_bonus_dice + 2)));
+                        if (skill_check(PLAYER, cruel_blow_multiplier,
+                                monster_skill(m_ptr, S_WIL), m_ptr)
+                            > 0)
+                        {
+                            msg_format("%s reels in pain!", m_name);
+
+                            if (!(r_ptr->flags3 & (RF3_NO_CONF)))
+                                m_ptr->confused += crit_bonus_dice + 1;
+
+                            scare_onlooking_friends(m_ptr, -20);
+                        }
+                    }
 
                     // determine the punctuation for the attack ("...", ".", "!"
                     // etc)
@@ -5314,3 +5373,13 @@ void do_cmd_throw(bool automatic)
     // Break the truce if creatures see
     break_truce(false);
 }
+
+/*
+ * Throw the item currently stored in the supplied slot.
+ */
+void do_cmd_throw_from_slot(int slot)
+{
+    throw_pending_slot = slot;
+    do_cmd_throw(false);
+}
+

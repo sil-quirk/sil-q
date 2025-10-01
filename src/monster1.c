@@ -1637,11 +1637,9 @@ void roff_top(int r_idx)
     byte a1;
     char c1;
 
-    /* Get the chars */
-    c1 = r_ptr->d_char;
-
-    /* Get the attrs */
-    a1 = r_ptr->d_attr;
+    /* Get the chars and attrs using graphics-aware macros */
+    c1 = monster_char(r_ptr);
+    a1 = monster_attr(r_ptr);
 
     /* Clear the top line */
     Term_erase(0, 0, 255);
@@ -1661,6 +1659,10 @@ void roff_top(int r_idx)
     /* Append the "standard" attr/char info */
     Term_addstr(-1, TERM_WHITE, " - ");
     Term_addch(a1, c1);
+    if (use_bigtile)
+    {
+        Term_addch(255, -1);
+    }
     Term_addstr(-1, TERM_SLATE, "");
 }
 

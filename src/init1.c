@@ -481,7 +481,8 @@ static int combined_level(int skill)
         { RHF_PER_AFFINITY, RHF_PER_PENALTY },   /* S_PER */
         { RHF_WIL_AFFINITY, RHF_WIL_PENALTY },   /* S_WIL */
         { RHF_SMT_AFFINITY, RHF_SMT_PENALTY },   /* S_SMT */
-        { RHF_SNG_AFFINITY, RHF_SNG_PENALTY }    /* S_SNG */
+        { RHF_SNG_AFFINITY, RHF_SNG_PENALTY },   /* S_SNG */
+        { 0, 0 }                                 /* S_SPC - no flags yet */
     };
 
     /* masks --------------------------------------------------------- */
@@ -1493,7 +1494,7 @@ errr parse_style_levels(char* buf, header* head)
 
 /* Per-style banner strings (by style index, allow multiple sayings) */
 #define MAX_STYLE_MSG 8
-static char* g_style_display_text[128][MAX_STYLE_MSG];
+static const char* g_style_display_text[128][MAX_STYLE_MSG];
 static byte  g_style_display_count[128];
 
 /* Accessor for per-style banner */
@@ -1551,7 +1552,7 @@ static errr parse_style_message_line(char* buf)
     /* Append */
     g_style_display_text[idx][g_style_display_count[idx]] = string_make(s);
     g_style_display_count[idx]++;
-    log_trace("parse_style_message_line: added style %d message #%d", idx, g_style_display_count[idx]);
+    /* Removed excessive TRACE log that was generating 90+ messages per startup */
     return 0;
 }
 
@@ -4180,7 +4181,7 @@ errr parse_c_info(char* buf, header* head)
     /* Current entry */
     static player_house* ph_ptr = NULL;
 
-    log_debug("Parsing characters");
+    log_trace("Parsing characters");
 
     /* Process 'N' for "New/Number/Name" */
     if (buf[0] == 'N')
@@ -4216,7 +4217,7 @@ errr parse_c_info(char* buf, header* head)
             return (PARSE_ERROR_OUT_OF_MEMORY);
 
         /* Debug: announce new house and its name */
-        log_debug("New character #%d: \"%s\"", idx,
+        log_trace("New character #%d: \"%s\"", idx,
                 head->name_ptr + ph_ptr->name);
 
         /* Sentinel‐initialize all ability slots to "empty" */
@@ -4225,7 +4226,7 @@ errr parse_c_info(char* buf, header* head)
             ph_ptr->a_adj[j][0] = -1;
             ph_ptr->a_adj[j][1] = -1;
         }
-        log_debug("  a_adj slots 0..%d set to -1", HOUSE_ABILITY_MAX - 1);
+        log_trace("  a_adj slots 0..%d set to -1", HOUSE_ABILITY_MAX - 1);
 
         /* Initialize starting items array */
         for (j = 0; j < MAX_START_ITEMS; j++)
@@ -5446,6 +5447,7 @@ errr parse_oath_info(char* buf, header* head)
         oath_ptr = (oath_type*)head->info_ptr + i;
 
         /* Initialize the new fields */
+    oath_ptr->oath_num = i;
         oath_ptr->stat_bonuses[0] = 0;
         oath_ptr->stat_bonuses[1] = 0;
         oath_ptr->stat_bonuses[2] = 0;

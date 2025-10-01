@@ -901,17 +901,17 @@ static void wiz_quantity_item(object_type* o_ptr)
 {
     int tmp_int;
 
-    char tmp_val[3];
+    char tmp_val[8]; /* Increased buffer size to prevent truncation warnings */
 
     /* Never duplicate artefacts */
     if (artefact_p(o_ptr))
         return;
 
     /* Default */
-    sprintf(tmp_val, "%d", o_ptr->number);
+    snprintf(tmp_val, sizeof(tmp_val), "%d", o_ptr->number);
 
     /* Query */
-    if (term_get_string("Quantity: ", tmp_val, 3))
+    if (term_get_string("Quantity: ", tmp_val, sizeof(tmp_val) - 1))
     {
         /* Extract */
         tmp_int = atoi(tmp_val);
@@ -2146,7 +2146,7 @@ void do_cmd_debug(void)
     /* Identify */
     case 'i':
     {
-        (void)ident_spell();
+        (void)ident_spell(true);
         break;
     }
 

@@ -490,10 +490,10 @@ static void process_world(void)
 
     /* Check for Aule quest interaction every turn */
     check_aule_quest_interaction();
-    
+
     /* Check for Niena quest interaction every turn */
     check_niena_quest_interaction();
-    
+
     /* Check for Oromë quest interaction every turn */
     check_orome_quest_interaction();
 
@@ -603,6 +603,7 @@ static void process_world(void)
         {
             /* Decrease life-span */
             o_ptr->timeout--;
+            p_ptr->redraw |= (PR_LIGHT);
 
             /* Hack -- notice interesting fuel steps */
             if ((o_ptr->timeout < 100) || (!(o_ptr->timeout % 100)))
@@ -887,16 +888,17 @@ static void process_command(void)
     }
 
     /* Equipment list */
+    /* Equipment list */
     case 'e':
     {
-        do_cmd_equip();
+        do_cmd_equip_direct();
         break;
     }
 
     /* Inventory list */
     case 'i':
     {
-        do_cmd_inven();
+        do_cmd_inven_direct();
         break;
     }
 
@@ -1172,6 +1174,14 @@ static void process_command(void)
     case '?':
     {
         do_cmd_help();
+        break;
+    }
+
+    /* Character sheet (alternative key) */
+    case 'h':
+    case 'H':
+    {
+        do_cmd_character_sheet();
         break;
     }
 
@@ -1807,8 +1817,7 @@ static void process_player(void)
         /* Assume free turn */
         p_ptr->energy_use = 0;
 
-        // Reset number of attacks this turn
-        new_combat_round();
+    // Reset number of attacks this turn happens at start of player energy loop
 
         // get base stealth score for the round
         // this will get modified by the type of action
@@ -2556,6 +2565,14 @@ static void process_player(void)
     // defeating their purpose
     p_ptr->window |= (PW_INVEN | PW_EQUIP);
     p_ptr->window |= (PW_COMBAT_ROLLS);
+    /*
+     * Do NOT refresh the main-terminal combat rolls here.
+     * We refresh them after monster processing in the main loop so that
+     * both sides of the current round (player and monsters) are included.
+     * Calling display_main_combat_rolls() here caused the bottom log to
+     * show the player's current attack paired with the previous round's
+     * monster attack, creating a one-turn delay illusion for monsters.
+     */
 }
 
 /*
@@ -2703,6 +2720,12 @@ static void dungeon(void)
     /* Window stuff */
     p_ptr->window |= (PW_MONSTER | PW_MONLIST | PW_COMBAT_ROLLS);
 
+    /* Update main terminal combat rolls if enabled */
+    if (op_ptr->main_combat_rolls > 0)
+    {
+        display_main_combat_rolls();
+    }
+
     /* Window stuff */
     p_ptr->window |= (PW_OVERHEAD);
 
@@ -2832,11 +2855,28 @@ static void dungeon(void)
 
         /*** Apply energy ***/
 
-        /* Can the player move? */
+          /* Can the player move? */
         while ((p_ptr->energy >= 100) && (!p_ptr->leaving))
-        {
-            /* Process monster with even more energy first */
+          {
+            /* Start a new combat round BEFORE any actors move this turn.
+                    This ensures monsters that act before the player (due to higher
+                    energy) are recorded in the same current round as the player's
+                    actions, avoiding a one-turn lag in the bottom log. */
+            log_trace("[LOOP] Begin player-energy turn: energy=%d", p_ptr->energy);
+                new_combat_round();
+            log_trace("[LOOP] After new_combat_round: turns_since_combat=%d combat_number=%d old=%d", turns_since_combat, combat_number, combat_number_old);
+
+                /* Process monster with even more energy first */
+            log_trace("[LOOP] process_monsters pre-player: threshold=%d", p_ptr->energy + 1);
             process_monsters(p_ptr->energy + 1);
+            log_trace("[LOOP] after process_monsters pre-player: combat_number=%d old=%d", combat_number, combat_number_old);
+
+                /* Show newly added monster attacks immediately so they are not perceived as a turn late */
+                if (op_ptr->main_combat_rolls > 0)
+                {
+                    log_trace("[LOOP] interim display_main_combat_rolls pre-player");
+                    display_main_combat_rolls();
+                }
 
             /* If still alive */
             if (!p_ptr->leaving)
@@ -2852,7 +2892,9 @@ static void dungeon(void)
                 }
 
                 /* Process the player */
+                log_trace("[LOOP] process_player start");
                 process_player();
+                log_trace("[LOOP] process_player end: combat_number=%d old=%d", combat_number, combat_number_old);
             }
         }
 
@@ -2893,7 +2935,16 @@ static void dungeon(void)
         }
 
         /* Process monsters (any that haven't had a chance to move yet) */
-        process_monsters(100);
+    log_trace("[LOOP] process_monsters post-player: threshold=100");
+    process_monsters(100);
+    log_trace("[LOOP] after process_monsters post-player: combat_number=%d old=%d", combat_number, combat_number_old);
+
+        /* Update main terminal combat rolls after monster processing */
+        if (op_ptr->main_combat_rolls > 0)
+        {
+            log_trace("[LOOP] display_main_combat_rolls() now");
+            display_main_combat_rolls();
+        }
 
         /* Notice stuff */
         if (p_ptr->notice)
@@ -3042,86 +3093,86 @@ static void death_knowledge(void)
  * Introductory narrative display, one paragraph per prompt.
  * Implemented as a static function to restrict linkage.
  */
-static void print_story_intro(void) 
-{ 
-    int wid, h; 
-    const int indent = 2; 
- 
-    /* Narrative paragraphs as valid C string literals with embedded \n */ 
-    cptr intro_texts[] = { 
-        "You awaken in darkness.\n" 
-        "No name. No memory.\n" 
-        "Only a quiet ache of courage deep inside you,\n" 
-        "like embers buried beneath ash.\n", 
- 
-        "Far below, Morgoth waits upon his throne-\n" 
-        "iron-dark and crowned in flame.\n" 
-        "Upon his brow shine three Silmarils, stolen stars.\n" 
-        "He senses your stirring. He knows you will come.\n", 
- 
-        "Far above, beyond the shadows of Angband,\n" 
-        "the Valar watch silently.\n" 
-        "They offer no guidance, yet their presence\n" 
-        "fills you with strength-and dread.\n", 
- 
-        "You will return many times, each death and rebirth\n" 
-        "etched into the endless stone halls of Mandos.\n" 
-        "Each fall will draw your spirit deeper into shadow,\n" 
-        "closer to a doom from which you cannot escape.\n", 
- 
-        "Yet each victory-each Silmaril wrested from Morgoth's crown-\n" 
-        "will brighten the Valar's hope,\n" 
-        "even as your soul grows thinner,\n" 
-        "your strength fading with every triumph.\n", 
- 
-        "You envy the Edain, whose Gift from Iluvatar\n" 
-        "frees them from the bonds of Mandos and the world.\n" 
-        "Yet you do not know if such release can ever be yours.\n" 
-        "You do not know who-or even what-you truly are.\n", 
- 
-        "For each time you awaken,\n" 
-        "you will carry the names of heroes beloved and feared-\n" 
-        "bright spirits, fiery hearts, proud kings and exiles,\n" 
-        "wanderers beneath sun and stars,\n" 
-        "whose courage you borrow, but whose fates are not your own.\n", 
- 
-        "This is the trial set by the Valar:\n" 
-        "to reclaim your forgotten name,\n" 
-        "to balance shadow and light,\n" 
-        "and to find within the borrowed glory of others\n" 
-        "your true self.\n", 
- 
-        "Now the path before you opens,\n" 
-        "and your trial begins.\n" 
-    }; 
- 
-    int total = sizeof(intro_texts) / sizeof(intro_texts[0]); 
-    Term_get_size(&wid, &h); 
-    int wrap_width = wid - indent; 
- 
-    /* Start on a blank screen */ 
-    Term_clear(); 
-    int row = 1, col = 0; 
- 
-    for (int idx = 0; idx < total; idx++) { 
-        const char *s = intro_texts[idx]; 
-        
-        /* Count lines needed for this paragraph */ 
-        int lines_needed = 0; 
-        int temp_col = col; 
-        for (size_t i = 0; s[i]; i++) { 
-            if (s[i] == '\n' || temp_col >= wrap_width) { 
-                lines_needed++; 
-                temp_col = 0; 
-                if (s[i] == '\n') continue; 
-            } 
-            temp_col++; 
-        } 
-        lines_needed++; /* Add one for the blank line after paragraph */ 
-        
-        /* Check if we have enough space for the whole paragraph */ 
-        if (row + lines_needed >= h - 1) { 
-            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)"); 
+static void print_story_intro(void)
+{
+    int wid, h;
+    const int indent = 2;
+
+    /* Narrative paragraphs as valid C string literals with embedded \n */
+    cptr intro_texts[] = {
+        "You awaken in darkness.\n"
+        "No name. No memory.\n"
+        "Only a quiet ache of courage deep inside you,\n"
+        "like embers buried beneath ash.\n",
+
+        "Far below, Morgoth waits upon his throne-\n"
+        "iron-dark and crowned in flame.\n"
+        "Upon his brow shine three Silmarils, stolen stars.\n"
+        "He senses your stirring. He knows you will come.\n",
+
+        "Far above, beyond the shadows of Angband,\n"
+        "the Valar watch silently.\n"
+        "They offer no guidance, yet their presence\n"
+        "fills you with strength-and dread.\n",
+
+        "You will return many times, each death and rebirth\n"
+        "etched into the endless stone halls of Mandos.\n"
+        "Each fall will draw your spirit deeper into shadow,\n"
+        "closer to a doom from which you cannot escape.\n",
+
+        "Yet each victory-each Silmaril wrested from Morgoth's crown-\n"
+        "will brighten the Valar's hope,\n"
+        "even as your soul grows thinner,\n"
+        "your strength fading with every triumph.\n",
+
+        "You envy the Edain, whose Gift from Iluvatar\n"
+        "frees them from the bonds of Mandos and the world.\n"
+        "Yet you do not know if such release can ever be yours.\n"
+        "You do not know who-or even what-you truly are.\n",
+
+        "For each time you awaken,\n"
+        "you will carry the names of heroes beloved and feared-\n"
+        "bright spirits, fiery hearts, proud kings and exiles,\n"
+        "wanderers beneath sun and stars,\n"
+        "whose courage you borrow, but whose fates are not your own.\n",
+
+        "This is the trial set by the Valar:\n"
+        "to reclaim your forgotten name,\n"
+        "to balance shadow and light,\n"
+        "and to find within the borrowed glory of others\n"
+        "your true self.\n",
+
+        "Now the path before you opens,\n"
+        "and your trial begins.\n"
+    };
+
+    int total = sizeof(intro_texts) / sizeof(intro_texts[0]);
+    Term_get_size(&wid, &h);
+    int wrap_width = wid - indent;
+
+    /* Start on a blank screen */
+    Term_clear();
+    int row = 1, col = 0;
+
+    for (int idx = 0; idx < total; idx++) {
+        const char *s = intro_texts[idx];
+
+        /* Count lines needed for this paragraph */
+        int lines_needed = 0;
+        int temp_col = col;
+        for (size_t i = 0; s[i]; i++) {
+            if (s[i] == '\n' || temp_col >= wrap_width) {
+                lines_needed++;
+                temp_col = 0;
+                if (s[i] == '\n') continue;
+            }
+            temp_col++;
+        }
+        lines_needed++; /* Add one for the blank line after paragraph */
+
+        /* Check if we have enough space for the whole paragraph */
+        if (row + lines_needed >= h - 1) {
+            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
             {
                 char k = inkey();
                 if (k == 'S') { /* Capital S skips the intro entirely */
@@ -3129,34 +3180,34 @@ static void print_story_intro(void)
                     return;
                 }
             }
-            Term_clear(); 
-            row = 1; 
-        } 
-        
-        col = 0; 
- 
-        /* Print this string, character by character */ 
-        for (size_t i = 0; s[i]; i++) { 
-            char ch = s[i]; 
- 
-            /* Newline or wrap? */ 
-            if (ch == '\n' || col >= wrap_width) { 
-                row++; 
-                col = 0; 
-                if (ch == '\n') continue; 
-            } 
- 
-            Term_putch(indent + col, row, TERM_WHITE, ch); 
-            Term_fresh(); 
-            col++; 
-            
-            /* Delay 25 ms after each character */ 
-            Term_xtra(TERM_XTRA_DELAY, 30); 
-        } 
- 
-        /* Leave one blank line after each paragraph */ 
-        row++; 
-        col = 0; 
+            Term_clear();
+            row = 1;
+        }
+
+        col = 0;
+
+        /* Print this string, character by character */
+        for (size_t i = 0; s[i]; i++) {
+            char ch = s[i];
+
+            /* Newline or wrap? */
+            if (ch == '\n' || col >= wrap_width) {
+                row++;
+                col = 0;
+                if (ch == '\n') continue;
+            }
+
+            Term_putch(indent + col, row, TERM_WHITE, ch);
+            Term_fresh();
+            col++;
+
+            /* Delay 25 ms after each character */
+            Term_xtra(TERM_XTRA_DELAY, 30);
+        }
+
+        /* Leave one blank line after each paragraph */
+        row++;
+        col = 0;
 
         /* 1 second pause after paragraph */
         Term_xtra(TERM_XTRA_DELAY, 1000);
@@ -3400,7 +3451,7 @@ PlayResult play_game(void)
     print_story(15,1);
 
     log_debug("Game initialization complete, starting main game loop");
-    log_trace("QUEST DEBUG: Quest states loaded - Aule: %d, Mandos: %d, Tulkas: %d", 
+    log_trace("QUEST DEBUG: Quest states loaded - Aule: %d, Mandos: %d, Tulkas: %d",
              p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->tulkas_quest);
     log_trace("QUEST DEBUG: Special abilities - have_ability[S_SPC][SPC_MANDOS]=%d, have_ability[S_SPC][SPC_AULE]=%d",
              p_ptr->have_ability[S_SPC][SPC_MANDOS], p_ptr->have_ability[S_SPC][SPC_AULE]);
