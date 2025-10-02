@@ -442,7 +442,41 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
 
     if (o_ptr->tval == TV_STAFF && o_ptr != &inventory[INVEN_STAFF])
     {
-        msg_print("You must equip the staff before using it.");
+        object_type* wielded = &inventory[INVEN_STAFF];
+        const int max_name_len = 12;
+        /* Limit names so the prompt stays within 80 columns */
+        char staff_name[80];
+        char equipped_name[80];
+        char prompt[120];
+        const char* source = from_supplies ? "your supplies" : (default_item >= 0 ? "your pack" : "the floor");
+
+        object_desc(staff_name, sizeof(staff_name), o_ptr, true, 3);
+
+        if (from_supplies)
+        {
+            msg_print("You cannot use a staff from supplies. Move it to your pack and equip it first.");
+            return;
+        }
+
+        if (wielded->k_idx)
+        {
+            object_desc(equipped_name, sizeof(equipped_name), wielded, true, 3);
+            strnfmt(prompt, sizeof(prompt),
+                "You cannot use a staff from %s. Replace %.*s with %.*s?",
+                source, max_name_len, equipped_name, max_name_len, staff_name);
+        }
+        else
+        {
+            my_strcpy(equipped_name, "no staff", sizeof(equipped_name));
+            strnfmt(prompt, sizeof(prompt),
+                "You cannot use a staff from %s. Equip %.*s now?",
+                source, max_name_len, staff_name);
+        }
+
+        if (get_check(prompt))
+        {
+            do_cmd_wield(o_ptr, default_item);
+        }
         return;
     }
 
@@ -464,8 +498,7 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     /* Notice empty staffs/gems */
     if (o_ptr->tval == TV_STAFF)
     {
-        if ((o_ptr->pval <= 1 && (!p_ptr->active_ability[S_WIL][WIL_CHANNELING]))
-            || o_ptr->pval <= 0)
+        if (o_ptr->pval < CHANNELING_CHARGE_MULTIPLIER)
         {
             flush();
             msg_print("The staff has no charges left.");
@@ -519,15 +552,10 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     /* Consume the item */
     if (o_ptr->tval == TV_STAFF)
     {
-        /* Use a single charge if channeling, otherwise double */
-        if (p_ptr->active_ability[S_WIL][WIL_CHANNELING])
-        {
-            o_ptr->pval--;
-        }
-        else
-        {
-            o_ptr->pval -= CHANNELING_CHARGE_MULTIPLIER;
-        }
+        /* Staffs always expend their bundled charges */
+        o_ptr->pval -= CHANNELING_CHARGE_MULTIPLIER;
+        if (o_ptr->pval < 0)
+            o_ptr->pval = 0;
     }
     else if (o_ptr->tval == TV_GEM)
     {

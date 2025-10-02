@@ -3387,21 +3387,27 @@ void py_pickup(void)
 
             if (target)
             {
-                int existing_charges = MAX(target->pval, 0);
-                int donor_charges = MAX(o_ptr->pval, 0);
-                if (donor_charges > 0)
+                int mult = CHANNELING_CHARGE_MULTIPLIER;
+                int existing_raw = MAX(target->pval, 0);
+                int donor_raw = MAX(o_ptr->pval, 0);
+                int existing_uses = existing_raw / mult;
+                int donor_uses = donor_raw / mult;
+                if (donor_uses > 0)
                 {
-                    double existing_term = pow((double)existing_charges, 1.5);
-                    double donor_term = pow((double)donor_charges, 1.5);
-                    double combined_raw = 0.0;
+                    double existing_term = pow((double)existing_uses, 1.5);
+                    double donor_term = pow((double)donor_uses, 1.5);
+                    double combined_uses_raw = 0.0;
                     double sum_terms = existing_term + donor_term;
                     if (sum_terms > 0.0)
-                        combined_raw = pow(sum_terms, 2.0 / 3.0);
-                    int combined = (int)(combined_raw + 0.5);
-                    if (combined > 32767)
-                        combined = 32767;
-                    int gain = combined - existing_charges;
-                    if (gain > 0)
+                        combined_uses_raw = pow(sum_terms, 2.0 / 3.0);
+                    int combined_uses = (int)(combined_uses_raw + 0.5);
+                    long combined_pval = (long)combined_uses * mult;
+                    long max_pval = (long)(32767 / mult) * mult;
+                    if (combined_pval > max_pval)
+                        combined_pval = max_pval;
+                    combined_uses = (int)(combined_pval / mult);
+                    int gain_uses = combined_uses - existing_uses;
+                    if (gain_uses > 0)
                     {
                         char target_name[80];
                         char donor_name[80];
@@ -3411,10 +3417,10 @@ void py_pickup(void)
                         object_desc(target_name, sizeof(target_name), target, true, 3);
                         object_desc(donor_name, sizeof(donor_name), o_ptr, true, 3);
                         strnfmt(prompt, sizeof(prompt), "Channel to %d charges from %.*s into %.*s? ",
-                            combined, max_name_len, donor_name, max_name_len, target_name);
+                            combined_uses, max_name_len, donor_name, max_name_len, target_name);
                         if (get_check(prompt))
                         {
-                            target->pval = (s16b)combined;
+                            target->pval = (s16b)combined_pval;
                             target->ident &= ~(IDENT_EMPTY);
                             o_ptr->pval = 0;
                             o_ptr->ident |= IDENT_EMPTY;
@@ -3423,7 +3429,7 @@ void py_pickup(void)
                             p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
                             p_ptr->window |= (PW_EQUIP | PW_PLAYER_0 | PW_INVEN);
                             msg_format("You channel %d charge%s into %s (now %d).",
-                                gain, (gain == 1) ? "" : "s", target_name, combined);
+                                gain_uses, (gain_uses == 1) ? "" : "s", target_name, combined_uses);
                             delete_object_idx(this_o_idx);
                             done_pickup = true;
                             p_ptr->previous_action[0] = ACTION_MISC;

@@ -4874,12 +4874,10 @@ void inven_item_charges(int item)
 
     if (o_ptr->tval == TV_STAFF)
     {
-        visible_charges = o_ptr->pval;
-
-        if (!p_ptr->active_ability[S_WIL][WIL_CHANNELING])
-        {
-            visible_charges /= CHANNELING_CHARGE_MULTIPLIER;
-        }
+        visible_charges = (o_ptr->pval + CHANNELING_CHARGE_MULTIPLIER - 1)
+            / CHANNELING_CHARGE_MULTIPLIER;
+        if (visible_charges < 0)
+            visible_charges = 0;
 
         /* Print a message */
         msg_format("You have %d charge%s remaining.", visible_charges,
@@ -5037,12 +5035,10 @@ void floor_item_charges(int item)
 
     if (o_ptr->tval == TV_STAFF)
     {
-        visible_charges = o_ptr->pval;
-
-        if (!p_ptr->active_ability[S_WIL][WIL_CHANNELING])
-        {
-            visible_charges /= CHANNELING_CHARGE_MULTIPLIER;
-        }
+        visible_charges = (o_ptr->pval + CHANNELING_CHARGE_MULTIPLIER - 1)
+            / CHANNELING_CHARGE_MULTIPLIER;
+        if (visible_charges < 0)
+            visible_charges = 0;
 
         /* Print a message */
         msg_format("There are %d charge%s remaining.", visible_charges,

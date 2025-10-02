@@ -805,6 +805,7 @@ extern void display_equip(void);
 extern void show_inven(void);
 extern void show_equip(void);
 extern void show_inven_enhanced(void);
+extern void inventory_menu_set_include_equip(bool include);
 extern void show_equip_enhanced(void);
 extern void show_floor(const int* floor_list, int floor_num);
 extern void toggle_inven_equip(void);

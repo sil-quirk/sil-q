@@ -10,7 +10,15 @@
 
 #include "angband.h"
 #include "supplies.h"
+#define ENHANCED_MAX_LIST 80
 #include <stddef.h>
+static bool inventory_menu_include_equip = false;
+
+void inventory_menu_set_include_equip(bool include)
+{
+    inventory_menu_include_equip = include;
+}
+
 #include <time.h>
 #include <string.h>
 #include <stdio.h>
@@ -2177,7 +2185,7 @@ void show_inven(void)
     if (show_weights)
         lim -= 9;
 
-    bool include_supplies = supplies_visible_for_current_filter();
+    bool include_supplies = !inventory_menu_include_equip && supplies_visible_for_current_filter();
 
     /* Find the "final" slot */
     for (i = 0; i < INVEN_PACK; i++)
@@ -4036,18 +4044,19 @@ void show_inven_enhanced(void)
     int floor_list[MAX_FLOOR_STACK];
     int floor_num;
     bool has_floor_items = false;
-    bool include_supplies = supplies_visible_for_current_filter();
+    bool include_supplies = !inventory_menu_include_equip && supplies_visible_for_current_filter();
     
     object_type* o_ptr;
     char o_name[80];
     char tmp_val[80];
     
     /* Arrays exactly matching show_inven() - expanded to include floor items */
-    int out_index[48];      /* Increased to handle inventory + floor items */
-    byte out_color[48];
-    char out_desc[48][80];
-    bool out_is_floor[48];  /* Track which entries are floor items */
-    bool out_is_supply[48]; /* Track which entries are supply items */
+    int out_index[ENHANCED_MAX_LIST];
+    byte out_color[ENHANCED_MAX_LIST];
+    char out_desc[ENHANCED_MAX_LIST][80];
+    bool out_is_floor[ENHANCED_MAX_LIST];  /* Track which entries are floor items */
+    bool out_is_supply[ENHANCED_MAX_LIST]; /* Track which entries are supply items */
+bool out_is_equip[ENHANCED_MAX_LIST];
     
     /* Default length (exactly like show_inven) */
     len = 79 - 50;
