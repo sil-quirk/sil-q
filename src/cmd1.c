@@ -2962,6 +2962,46 @@ void py_pickup_aux(int o_idx)
             /* Mark oath as permanently banned in metarun */
             metarun_ban_oath(OATH_SMITH);
         }
+
+        /* Check for supply items with partial pickup option */
+        if (supplies_is_supply_object(o_ptr) && o_ptr->number > 1)
+        {
+            int max_qty = supplies_max_absorbable_quantity(o_ptr);
+            
+            /* If we can't absorb all of it but can absorb some, offer partial pickup */
+            if (max_qty > 0 && max_qty < o_ptr->number)
+            {
+                object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+                
+                char prompt[160];
+                strnfmt(prompt, sizeof(prompt), 
+                        "Your supply cache can only hold %d of %d. Pick up how many? (0-%d): ",
+                        max_qty, o_ptr->number, max_qty);
+                
+                int qty = get_quantity(prompt, max_qty);
+                
+                if (qty <= 0)
+                {
+                    msg_print("You leave it on the ground.");
+                    return;
+                }
+                
+                /* Create a partial object to pick up */
+                object_type partial;
+                object_copy(&partial, o_ptr);
+                partial.number = qty;
+                
+                give_player_item(&partial);
+                
+                /* Reduce the floor object */
+                o_ptr->number -= qty;
+                
+                /* Break the truce if creatures see */
+                break_truce(false);
+                
+                return;
+            }
+        }
         
         give_player_item(o_ptr);
 
@@ -3079,6 +3119,14 @@ static void report_pack_limit_failure(const char* o_name, bool still)
 
         if (label)
         {
+            /* Special message for supply weight limit */
+            if (strcmp(label, "supply weight") == 0)
+            {
+                msg_format("Your supply cache cannot carry any more weight (limit %d lbs).",
+                           limit);
+                return;
+            }
+
             if (still)
                 msg_format("Your pack still cannot hold more %s (limit %d).", label,
                            limit);

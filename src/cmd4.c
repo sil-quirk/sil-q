@@ -1232,13 +1232,12 @@ int unique_bane_type_killed(void)
     // Count all unique monsters that have been killed
     for (i = 1; i < z_info->r_max; i++) {
         monster_race* check_r_ptr = &r_info[i];
-        monster_lore* l_ptr = &l_list[i];
         
         // Skip if not unique
         if (!(check_r_ptr->flags1 & RF1_UNIQUE)) continue;
         
-        // Check if this unique has been killed
-        if (l_ptr->deaths > 0) {
+        // Check if this unique has been killed (max_num is set to 0 when killed)
+        if (check_r_ptr->max_num == 0) {
             uniques_killed++;
         }
     }
@@ -12886,8 +12885,9 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
         Term_putstr(9, 23, -1, TERM_L_WHITE, "r");
         Term_putstr(18, 23, -1, TERM_L_WHITE, "u/Space");
-        Term_putstr(28, 23, -1, TERM_L_WHITE, "d");
-        Term_putstr(36, 23, -1, TERM_L_WHITE, "ESC");
+        Term_putstr(30, 23, -1, TERM_L_WHITE, "d");
+        Term_putstr(30, 23, -1, TERM_L_WHITE, "drop");
+        Term_putstr(37, 23, -1, TERM_L_WHITE, "ESC");
 
         if (!column)
             Term_gotoxy(0, 6 + (grp_cur - grp_top));

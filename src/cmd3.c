@@ -1158,12 +1158,14 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     {
         if (combine)
         {
+            int stack_limit = object_stack_limit(&inventory[slot]);
             quantity = MIN(o_ptr->number,
-                MAX_STACK_SIZE - 1 - (&inventory[slot])->number);
+                stack_limit - (&inventory[slot])->number);
         }
         else
         {
-            quantity = MIN(o_ptr->number, MAX_STACK_SIZE - 1);
+            int stack_limit = object_stack_limit(i_ptr);
+            quantity = MIN(o_ptr->number, stack_limit);
         }
     }
     else

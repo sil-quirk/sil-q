@@ -37,6 +37,12 @@ void supplies_reset_store(void);
 void supplies_set_allow_overflow(bool allow);
 bool supplies_is_supply_object(const struct object_type* o_ptr);
 
+/* Returns true if object can be added without exceeding weight limit. */
+bool supplies_can_absorb_object(const struct object_type* o_ptr);
+
+/* Returns maximum quantity that can be absorbed within weight limit. */
+int supplies_max_absorbable_quantity(const struct object_type* o_ptr);
+
 /* Returns true when absorbed (src is wiped). */
 bool supplies_absorb_object(struct object_type* src);
 

@@ -20,7 +20,7 @@ static supply_menu_action g_pending_action = SUPPLY_MENU_ACTION_NONE;
 static int g_pending_group = SUPPLY_GROUP_MAX;
 static bool g_pending_hotkey = false;
 
-#define SUPPLIES_MAX_WEIGHT 500 /* 50 lbs expressed in tenths */
+#define SUPPLIES_MAX_WEIGHT 250 /* 25 lbs expressed in tenths */
 
 #define IS_GEM(o_ptr) ((o_ptr)->tval == TV_GEM)
 
@@ -179,6 +179,73 @@ static int supplies_find_similar(const object_type* src)
             return i;
     }
     return -1;
+}
+
+bool supplies_can_absorb_object(const object_type* o_ptr)
+{
+    if (!supplies_is_supply_object(o_ptr))
+        return false;
+
+    if (g_supply_allow_overflow)
+        return true;
+
+    int current_weight = supplies_total_weight();
+    int idx = supplies_find_similar(o_ptr);
+
+    if (o_ptr->tval == TV_GEM)
+    {
+        if (idx >= 0)
+        {
+            supply_entry* existing = &g_supply_entries[idx];
+            int existing_weight = existing->obj.weight * existing->stored_count;
+            current_weight -= existing_weight;
+            int new_count = existing->stored_count + o_ptr->number;
+            int new_weight = existing->obj.weight * new_count;
+            return supplies_can_add_weight(current_weight, new_weight);
+        }
+        
+        int add_weight = o_ptr->weight * o_ptr->number;
+        return supplies_can_add_weight(current_weight, add_weight);
+    }
+    
+    int add_weight = o_ptr->weight * o_ptr->number;
+    return supplies_can_add_weight(current_weight, add_weight);
+}
+
+int supplies_max_absorbable_quantity(const object_type* o_ptr)
+{
+    if (!supplies_is_supply_object(o_ptr))
+        return 0;
+
+    if (g_supply_allow_overflow)
+        return o_ptr->number;
+
+    if (o_ptr->weight <= 0)
+        return o_ptr->number;
+
+    int current_weight = supplies_total_weight();
+    int available_weight = SUPPLIES_MAX_WEIGHT - current_weight;
+
+    if (available_weight <= 0)
+        return 0;
+
+    int idx = supplies_find_similar(o_ptr);
+
+    if (o_ptr->tval == TV_GEM)
+    {
+        if (idx >= 0)
+        {
+            supply_entry* existing = &g_supply_entries[idx];
+            int existing_weight = existing->obj.weight * existing->stored_count;
+            available_weight = SUPPLIES_MAX_WEIGHT - (current_weight - existing_weight);
+        }
+        
+        int max_count = available_weight / o_ptr->weight;
+        return MIN(max_count, o_ptr->number);
+    }
+    
+    int max_count = available_weight / o_ptr->weight;
+    return MIN(max_count, o_ptr->number);
 }
 
 static void supplies_mark_dirty(void)

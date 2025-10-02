@@ -2063,6 +2063,102 @@ typedef struct fletch_choice_s
     int index;
 } fletch_choice_t;
 
+static void distribute_fletchered_arrows(const object_type* arrows)
+{
+    if (!arrows || arrows->number <= 0 || arrows->k_idx == 0)
+        return;
+
+    object_type leftover = *arrows;
+    bool combined_existing = false;
+
+    /* Try to top up quiver slots first */
+    for (int slot = INVEN_QUIVER1; slot <= INVEN_QUIVER2 && leftover.number > 0; slot++)
+    {
+        object_type* slot_obj = &inventory[slot];
+        if (!slot_obj->k_idx)
+            continue;
+        if (!object_similar(slot_obj, &leftover))
+            continue;
+        int before = leftover.number;
+        object_absorb(slot_obj, &leftover);
+        if (leftover.number != before)
+            combined_existing = true;
+    }
+
+    /* Then fill stacks in the main pack */
+    for (int slot = 0; slot < INVEN_PACK && leftover.number > 0; slot++)
+    {
+        object_type* slot_obj = &inventory[slot];
+        if (!slot_obj->k_idx)
+            continue;
+        if (!object_similar(slot_obj, &leftover))
+            continue;
+        int before = leftover.number;
+        object_absorb(slot_obj, &leftover);
+        if (leftover.number != before)
+            combined_existing = true;
+    }
+
+    /* Finally, attempt to add to any other equipped stacks */
+    for (int slot = INVEN_WIELD; slot < INVEN_TOTAL && leftover.number > 0; slot++)
+    {
+        if (slot >= INVEN_QUIVER1 && slot <= INVEN_QUIVER2)
+            continue;
+        object_type* slot_obj = &inventory[slot];
+        if (!slot_obj->k_idx)
+            continue;
+        if (!object_similar(slot_obj, &leftover))
+            continue;
+        int before = leftover.number;
+        object_absorb(slot_obj, &leftover);
+        if (leftover.number != before)
+            combined_existing = true;
+    }
+
+    if (combined_existing)
+    {
+        p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+        p_ptr->window |= (PW_INVEN | PW_EQUIP);
+    }
+
+    if (leftover.number <= 0)
+        return;
+
+    object_type carry_obj = leftover;
+    int carry_slot = inven_carry(&carry_obj, true);
+
+    if (carry_slot == SUPPLIES_INDEX)
+    {
+        char arrow_name[80];
+        object_desc(arrow_name, sizeof(arrow_name), &carry_obj, true, 3);
+        char label = supplies_label_char();
+        if (!label)
+            label = 'a';
+        msg_format("You add %s to your supplies (%c).", arrow_name, label);
+    }
+    else if (carry_slot >= 0)
+    {
+        object_type* carried = &inventory[carry_slot];
+        char arrow_name[80];
+        object_desc(arrow_name, sizeof(arrow_name), carried, true, 3);
+        msg_format("You have %s (%c).", arrow_name, index_to_label(carry_slot));
+
+        if (carry_obj.number > 0)
+        {
+            drop_near(&carry_obj, 0, p_ptr->py, p_ptr->px);
+            msg_print("Some arrows spill to the ground.");
+        }
+    }
+    else
+    {
+        drop_near(&carry_obj, 0, p_ptr->py, p_ptr->px);
+        msg_print("Your pack is too full; you leave the arrows on the ground.");
+    }
+
+    p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+    p_ptr->window |= (PW_INVEN | PW_EQUIP);
+}
+
 static bool fletchery_choose_source(fletch_choice_t* out_choice)
 {
     extern int enhanced_menu_action;
@@ -2077,7 +2173,8 @@ static bool fletchery_choose_source(fletch_choice_t* out_choice)
     int old_command_wrk = p_ptr->command_wrk;
     char old_menu_command = current_menu_command;
 
-    item_tester_full = true;
+    /* Only show fletchery candidates */
+    item_tester_full = false;
     item_tester_hook = item_tester_hook_fletchery_source;
     p_ptr->command_wrk = (USE_INVEN);
     p_ptr->command_see = true;
@@ -2229,95 +2326,7 @@ void do_cmd_fletchery(void)
         arrow_proto.number = produced_total;
         arrow_proto.att = 3;
 
-        object_type leftover = arrow_proto;
-        bool combined_existing = false;
-
-        /* Try to top up quiver slots first */
-        for (int slot = INVEN_QUIVER1; slot <= INVEN_QUIVER2 && leftover.number > 0; slot++)
-        {
-            object_type* slot_obj = &inventory[slot];
-            if (!slot_obj->k_idx)
-                continue;
-            if (!object_similar(slot_obj, &leftover))
-                continue;
-            int before = leftover.number;
-            object_absorb(slot_obj, &leftover);
-            if (leftover.number != before)
-                combined_existing = true;
-        }
-
-        /* Then fill stacks in the main pack */
-        for (int slot = 0; slot < INVEN_PACK && leftover.number > 0; slot++)
-        {
-            object_type* slot_obj = &inventory[slot];
-            if (!slot_obj->k_idx)
-                continue;
-            if (!object_similar(slot_obj, &leftover))
-                continue;
-            int before = leftover.number;
-            object_absorb(slot_obj, &leftover);
-            if (leftover.number != before)
-                combined_existing = true;
-        }
-
-        /* Finally, attempt to add to any other equipped stacks */
-        for (int slot = INVEN_WIELD; slot < INVEN_TOTAL && leftover.number > 0; slot++)
-        {
-            if (slot >= INVEN_QUIVER1 && slot <= INVEN_QUIVER2)
-                continue;
-            object_type* slot_obj = &inventory[slot];
-            if (!slot_obj->k_idx)
-                continue;
-            if (!object_similar(slot_obj, &leftover))
-                continue;
-            int before = leftover.number;
-            object_absorb(slot_obj, &leftover);
-            if (leftover.number != before)
-                combined_existing = true;
-        }
-
-        if (combined_existing)
-        {
-            p_ptr->notice |= (PN_COMBINE | PN_REORDER);
-            p_ptr->window |= (PW_INVEN | PW_EQUIP);
-        }
-
-        if (leftover.number > 0)
-        {
-            object_type carry_obj = leftover;
-            int carry_slot = inven_carry(&carry_obj, true);
-
-            if (carry_slot == SUPPLIES_INDEX)
-            {
-                char arrow_name[80];
-                object_desc(arrow_name, sizeof(arrow_name), &carry_obj, true, 3);
-                char label = supplies_label_char();
-                if (!label)
-                    label = 'a';
-                msg_format("You add %s to your supplies (%c).", arrow_name, label);
-            }
-            else if (carry_slot >= 0)
-            {
-                object_type* carried = &inventory[carry_slot];
-                char arrow_name[80];
-                object_desc(arrow_name, sizeof(arrow_name), carried, true, 3);
-                msg_format("You have %s (%c).", arrow_name, index_to_label(carry_slot));
-
-                if (carry_obj.number > 0)
-                {
-                    drop_near(&carry_obj, 0, p_ptr->py, p_ptr->px);
-                    msg_print("Some arrows spill to the ground.");
-                }
-            }
-            else
-            {
-                drop_near(&carry_obj, 0, p_ptr->py, p_ptr->px);
-                msg_print("Your pack is too full; you leave the arrows on the ground.");
-            }
-        }
-
-        p_ptr->notice |= (PN_COMBINE | PN_REORDER);
-        p_ptr->window |= (PW_INVEN | PW_EQUIP);
+        distribute_fletchered_arrows(&arrow_proto);
         return;
     }
 
@@ -2353,7 +2362,7 @@ void finish_fletching(int turns_left)
         inven_item_optimize(p_ptr->fletch_item);
 
         /* Add new arrows */
-        inven_carry(i_ptr, true);
+        distribute_fletchered_arrows(i_ptr);
     }
     else
     {

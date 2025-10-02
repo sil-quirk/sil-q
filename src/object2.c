@@ -26,7 +26,8 @@ enum inventory_limit_group
     INV_LIMIT_CLOAK,
     INV_LIMIT_SOFT_ARMOUR,
     INV_LIMIT_MAIL,
-    INV_LIMIT_MELEE_WEAPON
+    INV_LIMIT_MELEE_WEAPON,
+    INV_LIMIT_SUPPLY_WEIGHT
 };
 
 static bool carry_limit_last_failed = false;
@@ -272,6 +273,10 @@ static void fill_inventory_limit_label(enum inventory_limit_group group,
             else
                 my_strcpy(carry_limit_last_label, "melee weapons",
                           sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_SUPPLY_WEIGHT:
+            my_strcpy(carry_limit_last_label, "supply weight",
+                      sizeof(carry_limit_last_label));
             break;
         default:
             my_strcpy(carry_limit_last_label, "items of this type",
@@ -5240,6 +5245,22 @@ bool inven_carry_okay(const object_type* o_ptr)
                 return (false);
         }
 
+        /* Check if the item would exceed the supply weight limit */
+        if (!supplies_can_absorb_object(o_ptr))
+        {
+            /* Check if we can do partial pickup */
+            int max_qty = supplies_max_absorbable_quantity(o_ptr);
+            if (max_qty > 0 && o_ptr->number > 1)
+            {
+                /* Partial pickup is possible, allow it through */
+                return (true);
+            }
+            
+            /* Can't pick up any, show error */
+            set_inventory_limit_failure(INV_LIMIT_SUPPLY_WEIGHT, 25, o_ptr);
+            return (false);
+        }
+
         return (true);
     }
 
@@ -5627,6 +5648,11 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
 bool inven_carry_limit_failed(void)
 {
     return carry_limit_last_failed;
+}
+
+enum inventory_limit_group inven_carry_limit_group(void)
+{
+    return carry_limit_last_group;
 }
 
 cptr inven_carry_limit_label(void)
