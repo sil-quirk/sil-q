@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "metarun.h"
+#include <math.h>
 
 bool graphics_are_ascii()
 {
@@ -3386,34 +3387,49 @@ void py_pickup(void)
 
             if (target)
             {
-                int transfer = o_ptr->pval / 2;
-                if (transfer > 0)
+                int existing_charges = MAX(target->pval, 0);
+                int donor_charges = MAX(o_ptr->pval, 0);
+                if (donor_charges > 0)
                 {
-                    char target_name[80];
-                    char donor_name[80];
-                    char prompt[160];
-                    object_desc(target_name, sizeof(target_name), target, true, 3);
-                    object_desc(donor_name, sizeof(donor_name), o_ptr, true, 3);
-                    strnfmt(prompt, sizeof(prompt), "Channel half the charges from %s into %s? ", donor_name, target_name);
-                    if (get_check(prompt))
+                    double existing_term = pow((double)existing_charges, 1.5);
+                    double donor_term = pow((double)donor_charges, 1.5);
+                    double combined_raw = 0.0;
+                    double sum_terms = existing_term + donor_term;
+                    if (sum_terms > 0.0)
+                        combined_raw = pow(sum_terms, 2.0 / 3.0);
+                    int combined = (int)(combined_raw + 0.5);
+                    if (combined > 32767)
+                        combined = 32767;
+                    int gain = combined - existing_charges;
+                    if (gain > 0)
                     {
-                        long total = (long)target->pval + transfer;
-                        if (total > 32767)
-                            total = 32767;
-                        target->pval = (s16b)total;
-                        target->ident &= ~(IDENT_EMPTY);
-                        o_ptr->pval = 0;
-                        o_ptr->ident |= IDENT_EMPTY;
-                        if (target_slot >= 0 && target_slot < INVEN_TOTAL)
-                            inven_item_charges(target_slot);
-                        p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
-                        p_ptr->window |= (PW_EQUIP | PW_PLAYER_0 | PW_INVEN);
-                        msg_format("You draw %d charge%s into %s.", transfer, (transfer == 1) ? "" : "s", target_name);
-                        delete_object_idx(this_o_idx);
-                        done_pickup = true;
-                        p_ptr->previous_action[0] = ACTION_MISC;
-                        p_ptr->energy_use = 100;
-                        skip_current_item = true;
+                        char target_name[80];
+                        char donor_name[80];
+                        char prompt[80];
+                        /* Limit names so the combined total stays visible in 80-column prompts */
+                        const int max_name_len = 20;
+                        object_desc(target_name, sizeof(target_name), target, true, 3);
+                        object_desc(donor_name, sizeof(donor_name), o_ptr, true, 3);
+                        strnfmt(prompt, sizeof(prompt), "Channel to %d charges from %.*s into %.*s? ",
+                            combined, max_name_len, donor_name, max_name_len, target_name);
+                        if (get_check(prompt))
+                        {
+                            target->pval = (s16b)combined;
+                            target->ident &= ~(IDENT_EMPTY);
+                            o_ptr->pval = 0;
+                            o_ptr->ident |= IDENT_EMPTY;
+                            if (target_slot >= 0 && target_slot < INVEN_TOTAL)
+                                inven_item_charges(target_slot);
+                            p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
+                            p_ptr->window |= (PW_EQUIP | PW_PLAYER_0 | PW_INVEN);
+                            msg_format("You channel %d charge%s into %s (now %d).",
+                                gain, (gain == 1) ? "" : "s", target_name, combined);
+                            delete_object_idx(this_o_idx);
+                            done_pickup = true;
+                            p_ptr->previous_action[0] = ACTION_MISC;
+                            p_ptr->energy_use = 100;
+                            skip_current_item = true;
+                        }
                     }
                 }
             }
