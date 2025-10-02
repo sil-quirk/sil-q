@@ -3355,6 +3355,73 @@ void py_pickup(void)
         bool attempted_replacement = false;
         bool skip_current_item = false;
 
+        if (p_ptr->active_ability[S_WIL][WIL_CHANNELING] && o_ptr->tval == TV_STAFF && o_ptr->pval > 0)
+        {
+            int target_slot = -1;
+            object_type* target = NULL;
+
+            object_type* wielded = &inventory[INVEN_STAFF];
+            if (wielded->k_idx && wielded->k_idx == o_ptr->k_idx)
+            {
+                target = wielded;
+                target_slot = INVEN_STAFF;
+            }
+
+            if (!target)
+            {
+                for (int i = 0; i < INVEN_PACK; i++)
+                {
+                    object_type* pack_obj = &inventory[i];
+                    if (!pack_obj->k_idx)
+                        continue;
+                    if (pack_obj->tval != TV_STAFF)
+                        continue;
+                    if (pack_obj->k_idx != o_ptr->k_idx)
+                        continue;
+                    target = pack_obj;
+                    target_slot = i;
+                    break;
+                }
+            }
+
+            if (target)
+            {
+                int transfer = o_ptr->pval / 2;
+                if (transfer > 0)
+                {
+                    char target_name[80];
+                    char donor_name[80];
+                    char prompt[160];
+                    object_desc(target_name, sizeof(target_name), target, true, 3);
+                    object_desc(donor_name, sizeof(donor_name), o_ptr, true, 3);
+                    strnfmt(prompt, sizeof(prompt), "Channel half the charges from %s into %s? ", donor_name, target_name);
+                    if (get_check(prompt))
+                    {
+                        long total = (long)target->pval + transfer;
+                        if (total > 32767)
+                            total = 32767;
+                        target->pval = (s16b)total;
+                        target->ident &= ~(IDENT_EMPTY);
+                        o_ptr->pval = 0;
+                        o_ptr->ident |= IDENT_EMPTY;
+                        if (target_slot >= 0 && target_slot < INVEN_TOTAL)
+                            inven_item_charges(target_slot);
+                        p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
+                        p_ptr->window |= (PW_EQUIP | PW_PLAYER_0 | PW_INVEN);
+                        msg_format("You draw %d charge%s into %s.", transfer, (transfer == 1) ? "" : "s", target_name);
+                        delete_object_idx(this_o_idx);
+                        done_pickup = true;
+                        p_ptr->previous_action[0] = ACTION_MISC;
+                        p_ptr->energy_use = 100;
+                        skip_current_item = true;
+                    }
+                }
+            }
+        }
+
+        if (skip_current_item)
+            continue;
+
         while (!inven_carry_okay(o_ptr))
         {
             pickup_failure_result failure = resolve_pickup_failure(

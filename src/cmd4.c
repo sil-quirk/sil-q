@@ -367,12 +367,11 @@ void do_cmd_character_sheet(void)
         display_player(mode);
 
         /* Prompt */
-        Term_putstr(1, 23, -1, TERM_SLATE, "<dir>   recall   u/Space   drop   ESC");
-        Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
-        Term_putstr(9, 23, -1, TERM_L_WHITE, "recall");
-        Term_putstr(18, 23, -1, TERM_L_WHITE, "u/Space");
-        Term_putstr(28, 23, -1, TERM_L_WHITE, "drop");
-        Term_putstr(35, 23, -1, TERM_L_WHITE, "ESC");
+        Term_putstr(1, 23, -1, TERM_SLATE, "notes  story stats  save to file  abilities  curses  increase skills  ESC");
+        Term_putstr(1, 23, -1, TERM_L_WHITE, "n");
+        Term_putstr(8, 23, -1, TERM_L_WHITE, "s");
+        Term_putstr(29, 23, -1, TERM_L_WHITE, "f");
+        Term_putstr(35, 23, -1, TERM_L_WHITE, "a");
         Term_putstr(46, 23, -1, TERM_L_WHITE, "c");
         Term_putstr(54, 23, -1, TERM_L_WHITE, "i");
         Term_putstr(71, 23, -1, TERM_L_WHITE, "ESC");
@@ -13049,6 +13048,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
 
     KILL(entries);
     screen_load();
+    Term_erase(0, 23, 255);
 
     return acted;
 }

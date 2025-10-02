@@ -61,7 +61,6 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
     object_type* o_ptr = NULL;
     int supply_index = supplies_current_action();
     bool from_supplies = (supply_index >= 0);
-
     cptr q, s;
 
     /* Use specified item if possible */
@@ -328,7 +327,6 @@ void do_cmd_play_instrument(object_type* default_o_ptr, int default_item)
     bool ident;
 
     object_type* o_ptr;
-
     cptr q, s;
 
     // use specified item if possible
@@ -395,23 +393,6 @@ void do_cmd_play_instrument(object_type* default_o_ptr, int default_item)
 }
 
 /*
- * Hook to determine if an object is a staff or gem
- */
-static bool item_tester_hook_staff_or_gem(const object_type* o_ptr)
-{
-    if (!o_ptr)
-        return false;
-
-    if (o_ptr->tval == TV_GEM)
-        return true;
-
-    if (o_ptr->tval == TV_STAFF)
-        return (o_ptr == &inventory[INVEN_STAFF]);
-
-    return false;
-}
-
-/*
  * Use a staff
  *
  * One charge of one staff disappears.
@@ -428,10 +409,9 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
 
     bool use_charge;
 
-    cptr q, s;
     int supply_index = supplies_current_action();
     bool from_supplies = (supply_index >= 0);
-
+    
     /* Use specified item if possible */
     if (default_o_ptr != NULL)
     {
@@ -441,38 +421,20 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     /* Get an item */
     else
     {
-        /* Restrict choices to equipped staff slot or carried gems */
-        item_tester_hook = item_tester_hook_staff_or_gem;
+        object_type* staff_slot = &inventory[INVEN_STAFF];
 
-        q = "Activate which walking staff or gem? ";
-        s = "You have no walking staff or gem to activate.";
-        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_GEMS, true);
-        if (!get_item(&item, q, s, (USE_EQUIP | USE_INVEN | USE_FLOOR)))
+        if (staff_slot->k_idx && !(staff_slot->ident & IDENT_EMPTY))
         {
-            supplies_clear_pending_action();
-            return;
-        }
-
-        if (item == SUPPLIES_INDEX)
-        {
-            supplies_clear_pending_action();
-            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_GEMS, true, true);
-            return;
-        }
-
-        supplies_clear_pending_action();
-
-        if (item >= 0)
-        {
-            o_ptr = &inventory[item];
+            o_ptr = staff_slot;
+            item = INVEN_STAFF;
+            from_supplies = false;
+            supply_index = -1;
         }
         else
         {
-            o_ptr = &o_list[0 - item];
+            msg_print("You are not wielding a walking staff.");
+            return;
         }
-
-        from_supplies = false;
-        supply_index = -1;
     }
 
     if (!o_ptr)
