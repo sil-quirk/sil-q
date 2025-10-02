@@ -5692,6 +5692,14 @@ s16b inven_takeoff(int item, int amt)
     /* Modify quantity */
     i_ptr->number = amt;
 
+    object_type drop_obj;
+    object_copy(&drop_obj, i_ptr);
+    drop_obj.pickup = false;
+    drop_obj.pickup_slot = -1;
+
+    object_type drop_template;
+    object_copy(&drop_template, &drop_obj);
+
     /* Describe the object */
     object_desc(o_name, sizeof(o_name), i_ptr, true, 3);
 
@@ -5739,15 +5747,69 @@ s16b inven_takeoff(int item, int amt)
         if (!label)
             label = 'a';
         msg_format("%s %s (%c).", act, o_name, label);
+        return slot;
     }
-    else
+
+    if (slot >= 0)
     {
         /* Message */
         msg_format("%s %s (%c).", act, o_name, index_to_label(slot));
+        return slot;
     }
 
-    /* Return slot */
-    return (slot);
+    /* Could not carry the item; place it on the floor instead. */
+    msg_format("%s %s.", act, o_name);
+
+    if (inven_carry_limit_failed())
+    {
+        cptr label = inven_carry_limit_label();
+        int limit = inven_carry_limit_value();
+
+        if (label)
+            msg_format("Your pack cannot hold more %s (limit %d).", label, limit);
+        else
+            msg_print("You have no room in your pack.");
+    }
+    else
+    {
+        msg_print("You have no room in your pack.");
+    }
+
+    s16b o_idx = floor_carry(p_ptr->py, p_ptr->px, &drop_obj);
+
+    if (o_idx > 0)
+    {
+        msg_print("It lands at your feet.");
+        return (0 - o_idx);
+    }
+
+    for (int d = 0; d < 8; d++)
+    {
+        int yy = p_ptr->py + ddy_ddd[d];
+        int xx = p_ptr->px + ddx_ddd[d];
+
+        if (!in_bounds_fully(yy, xx))
+            continue;
+
+        if (!cave_floor_bold(yy, xx))
+            continue;
+
+        if (cave_o_idx[yy][xx] != 0)
+            continue;
+
+        object_copy(&drop_obj, &drop_template);
+        o_idx = floor_carry(yy, xx, &drop_obj);
+        if (o_idx > 0)
+        {
+            msg_print("It lands nearby.");
+            return (0 - o_idx);
+        }
+    }
+
+    object_copy(&drop_obj, &drop_template);
+    drop_near(&drop_obj, 0, p_ptr->py, p_ptr->px);
+    msg_print("It falls nearby.");
+    return (-1);
 }
 
 /*
@@ -5783,6 +5845,9 @@ void inven_drop(int item, int amt)
     {
         /* Take off first */
         item = inven_takeoff(item, amt);
+
+        if (item < 0)
+            return;
 
         /* Get the original object */
         o_ptr = &inventory[item];

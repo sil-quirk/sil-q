@@ -4879,7 +4879,10 @@ void do_cmd_throw(bool automatic)
         item = inven_takeoff(item, 1);
 
         /* Get the original object */
-        o_ptr = &inventory[item];
+        if (item >= 0)
+            o_ptr = &inventory[item];
+        else
+            o_ptr = &o_list[0 - item];
     }
 
     /* Start at the player */
