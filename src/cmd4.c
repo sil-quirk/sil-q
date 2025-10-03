@@ -83,6 +83,7 @@ static bool supplies_menu_use_entry(supply_list_entry* entry)
         do_cmd_quaff_potion(o_ptr, SUPPLIES_INDEX);
         break;
     case TV_STAFF:
+    case TV_GEM:
         do_cmd_activate_staff(o_ptr, SUPPLIES_INDEX);
         break;
     default:
@@ -13960,6 +13961,7 @@ void show_unified_sidebar(unified_look_state* state)
                 /* Update highlighted position and cursor */
                 state->highlighted_y = temp_y[i];
                 state->highlighted_x = temp_x[i];
+                state->highlighted_entity_type = 1; /* Monster */
                 state->cursor_y = temp_y[i];
                 state->cursor_x = temp_x[i];
                 highlight_entity_on_map_type(temp_y[i], temp_x[i], true, 1); /* Prefer monster display */
@@ -14164,6 +14166,7 @@ void show_unified_sidebar(unified_look_state* state)
                 /* Update highlighted position and cursor */
                 state->highlighted_y = objects[i].y;
                 state->highlighted_x = objects[i].x;
+                state->highlighted_entity_type = 2; /* Object */
                 state->cursor_y = objects[i].y;
                 state->cursor_x = objects[i].x;
                 highlight_entity_on_map_type(objects[i].y, objects[i].x, true, 2); /* Prefer object display */

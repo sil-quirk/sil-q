@@ -3648,6 +3648,7 @@ typedef struct unified_look_state {
     bool show_monsters, show_objects; /* Sidebar visibility toggles */
     int display_mode;                 /* Navigation mode (0=manual, 1=entity) */
     int highlighted_y, highlighted_x; /* Currently highlighted entity coordinates */
+    int highlighted_entity_type;      /* Type of highlighted entity: 1=monster, 2=object, 0=none */
     bool in_sidebar_mode;             /* True when navigating sidebar, false when scrolling map */
     int look_mode;                    /* Look mode: 0=normal unified look, 1=L-style scrolling */
     int current_square_entity;        /* Which entity on current square to show (0=monster, 1=object) */

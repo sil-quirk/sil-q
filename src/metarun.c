@@ -1845,6 +1845,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
         print_paragraph(summary, TERM_L_GREEN);
 
     Term_xtra(TERM_XTRA_DELAY, 3000);
+    Term_clear();
 
     /* ============================================================= */
     /* SCENE 8: Kinslaying Execution & Notifications               */

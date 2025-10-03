@@ -2779,6 +2779,7 @@ void do_cmd_unified_look(void)
     state.display_mode = 0; /* 0 = manual, 1 = entity */
     state.highlighted_y = -1;
     state.highlighted_x = -1;
+    state.highlighted_entity_type = 0; /* 0 = none, 1 = monster, 2 = object */
     state.in_sidebar_mode = false;
     state.look_mode = 0; /* 0 = normal unified look, 1 = L-style scrolling */
     state.current_square_entity = 0; /* 0 = monster, 1 = object */
@@ -2843,23 +2844,59 @@ void do_cmd_unified_look(void)
             y = state.cursor_y;
             x = state.cursor_x;
             
-            /* Display current location info at bottom */
-            /* Show help text based on current mode */
-            if (state.look_mode == 0)
+            /* Display entity name in left sidebar if cursor is on something */
             {
+                char out_val[256];
+                int cursor_m_idx = cave_m_idx[y][x];
+                int cursor_o_idx = cave_o_idx[y][x];
+                bool has_visible_monster = (cursor_m_idx > 0) && (mon_list[cursor_m_idx].ml);
+                bool has_object = (cursor_o_idx > 0);
+                
+                /* Priority: monster first, then object */
+                if (has_visible_monster)
+                {
+                    monster_type* m_ptr = &mon_list[cursor_m_idx];
+                    char m_name[80];
+                    
+                    /* Get the monster name with indefinite article */
+                    monster_desc(m_name, sizeof(m_name), m_ptr, 0x08);
+                    
+                    /* Display "You see <monster name>" in left sidebar */
+                    strnfmt(out_val, sizeof(out_val), "You see %s.", m_name);
+                    prt(out_val, 0, 0);
+                }
+                else if (has_object)
+                {
+                    object_type* o_ptr = &o_list[cursor_o_idx];
+                    char o_name[80];
+                    
+                    /* Get the object name with indefinite article */
+                    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+                    
+                    /* Display "You see <object name>" in left sidebar */
+                    strnfmt(out_val, sizeof(out_val), "You see %s.", o_name);
+                    prt(out_val, 0, 0);
+                }
+                else
+                {
+                    /* Display help text based on current mode */
+                    if (state.look_mode == 0)
+                    {
 #ifdef STEAMDECK_SUPPORT
-                prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Pan [ESC]", 0, 0);
+                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Pan [ESC]", 0, 0);
 #else
-                prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Pan [ESC]", 0, 0);
+                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Pan [ESC]", 0, 0);
 #endif
-            }
-            else
-            {
+                    }
+                    else
+                    {
 #ifdef STEAMDECK_SUPPORT
-                prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Curs [ESC]", 0, 0);
+                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Curs [ESC]", 0, 0);
 #else
-                prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Curs [ESC]", 0, 0);
+                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Curs [ESC]", 0, 0);
 #endif
+                    }
+                }
             }
             
             /* Move cursor to position */
@@ -3022,6 +3059,7 @@ void do_cmd_unified_look(void)
                             highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
                             state.highlighted_y = -1;
                             state.highlighted_x = -1;
+                            state.highlighted_entity_type = 0;
                         }
                         
                         /* Track monster health at cursor position for left sidebar display */
@@ -3211,13 +3249,42 @@ void do_cmd_unified_look(void)
                     int cursor_m_idx = cave_m_idx[state.highlighted_y][state.highlighted_x];
                     int cursor_o_idx = cave_o_idx[state.highlighted_y][state.highlighted_x];
                     
-                    log_trace("EXAMINATION: At highlighted position (%d,%d) - m_idx=%d, o_idx=%d", 
-                             state.highlighted_y, state.highlighted_x, cursor_m_idx, cursor_o_idx);
+                    log_trace("EXAMINATION: At highlighted position (%d,%d) - m_idx=%d, o_idx=%d, entity_type=%d", 
+                             state.highlighted_y, state.highlighted_x, cursor_m_idx, cursor_o_idx, state.highlighted_entity_type);
                     
-                    /* Prioritize OBJECT first, then visible monster */
-                    if (cursor_o_idx > 0)
+                    /* Examine the entity based on what was highlighted in the sidebar */
+                    /* Entity type: 1 = monster, 2 = object */
+                    if (state.highlighted_entity_type == 1 && cursor_m_idx > 0)
                     {
-                        log_trace("EXAMINATION: Found object, examining object %d", cursor_o_idx);
+                        /* Monster was highlighted - examine monster */
+                        log_trace("EXAMINATION: Highlighted entity is monster, examining monster %d", cursor_m_idx);
+                        monster_type* m_ptr = &mon_list[cursor_m_idx];
+                        log_trace("EXAMINATION: Monster ml=%d", m_ptr->ml);
+                        if (m_ptr->ml)
+                        {
+                            log_trace("EXAMINATION: Showing monster recall");
+                            /* Save screen */
+                            screen_save();
+                            
+                            /* Show monster recall */
+                            screen_roff(m_ptr->r_idx);
+                            
+                            /* Wait for input */
+                            inkey();
+                            
+                            /* Restore screen */
+                            screen_load();
+                            log_trace("EXAMINATION: Monster recall completed");
+                        }
+                        else
+                        {
+                            log_trace("EXAMINATION: Monster not visible (ml=0), skipping examination");
+                        }
+                    }
+                    else if (state.highlighted_entity_type == 2 && cursor_o_idx > 0)
+                    {
+                        /* Object was highlighted - examine object */
+                        log_trace("EXAMINATION: Highlighted entity is object, examining object %d", cursor_o_idx);
                         /* Object examination */
                         object_type* o_ptr = &o_list[cursor_o_idx];
                         log_trace("EXAMINATION: Showing object info screen");
@@ -3535,6 +3602,7 @@ void do_cmd_unified_look(void)
                     highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
                     state.highlighted_y = -1;
                     state.highlighted_x = -1;
+                    state.highlighted_entity_type = 0;
                 }
                 done = true;
                 break;
@@ -3546,6 +3614,9 @@ void do_cmd_unified_look(void)
     if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
     {
         highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+        state.highlighted_y = -1;
+        state.highlighted_x = -1;
+        state.highlighted_entity_type = 0;
     }
     
     log_trace("=== UNIFIED LOOK ENDED ===");
