@@ -1578,6 +1578,7 @@ void shatter_weapon(int silnum)
     int i;
     object_type* w_ptr = &inventory[INVEN_WIELD];
     char w_name[80];
+    int anger_level;
 
     p_ptr->crown_shatter = true;
 
@@ -1601,6 +1602,9 @@ void shatter_weapon(int silnum)
     inven_item_increase(INVEN_WIELD, -1);
     inven_item_optimize(INVEN_WIELD);
 
+    /* Determine anger level based on which Silmaril (2nd = state 3, 3rd = state 4) */
+    anger_level = (silnum == 2) ? 3 : 4;
+
     /* Process monsters */
     for (i = 1; i < mon_max; i++)
     {
@@ -1614,7 +1618,7 @@ void shatter_weapon(int silnum)
             {
                 msg_print("A shard strikes Morgoth upon his cheek.");
                 set_alertness(m_ptr, ALERTNESS_VERY_ALERT);
-                anger_morgoth(2);
+                anger_morgoth(anger_level);
             }
         }
     }
@@ -1668,6 +1672,14 @@ void prise_silmaril(void)
             freed_msg = "The fates be damned! You free a second Silmaril.";
         else
             freed_msg = "You free a second Silmaril.";
+
+        msg_print(
+            "As you reach for the second jewel, you feel the weight of "
+            "Morgoth's wrath pressing upon you.");
+        msg_print(
+            "To take another Silmaril will kindle a fury beyond measure.");
+        if (!get_check("Will you dare to claim it? "))
+            return;
 
         break;
     }
@@ -1761,7 +1773,7 @@ void prise_silmaril(void)
                 {
                     monster_type* m_ptr = &mon_list[i];
 
-                    /* If Morgoth, then anger him */
+                    /* If Morgoth, then anger him to state 3 for 2nd Silmaril */
                     if (m_ptr->r_idx == R_IDX_MORGOTH
                         && m_ptr->alertness >= ALERTNESS_ALERT)
                     {
@@ -1769,7 +1781,7 @@ void prise_silmaril(void)
                             && los(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx))
                         {
                             msg_print("Morgoth howls with rage!");
-                            anger_morgoth(2);
+                            anger_morgoth(3);
                         }
                     }
                 }
@@ -1857,7 +1869,7 @@ void prise_silmaril(void)
         msg_print("You hear a cry of vengeance echo through the iron hells.");
         msg_print("You feel your doom awaiting you.");
         wake_all_monsters(0);
-        anger_morgoth(2);
+        anger_morgoth(4);  // Final Silmaril pushes Morgoth to desperate state
     }
 }
 
