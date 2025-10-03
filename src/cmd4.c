@@ -7289,18 +7289,32 @@ void create_smithing_item(void)
     // Get the slot of the forged item
     slot = inven_carry(smith_o_ptr, true);
 
-    // Get the item itself
-    o_ptr = &inventory[slot];
-    
-    // Mark the item as smithed by the player (using unused1 field)
-    o_ptr->unused1 = 1;  /* 1 = smithed by player, 0 = found item */
-
-    // Describe the object
-    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
-
-    // Message
-    if (slot >= 0)
+    // Check if the item couldn't fit in inventory (e.g., group limit)
+    if (slot < 0)
     {
+        // Drop it on the floor instead
+        log_debug("Smithed item couldn't fit in inventory, dropping to floor");
+        drop_near(smith_o_ptr, 0, p_ptr->py, p_ptr->px);
+        
+        // Describe the object
+        object_desc(o_name, sizeof(o_name), smith_o_ptr, true, 3);
+        
+        // Message
+        msg_format("You have forged %s, but it falls to the floor.", o_name);
+        log_info("Created smithing item (dropped): %s", o_name);
+    }
+    else
+    {
+        // Get the item itself
+        o_ptr = &inventory[slot];
+        
+        // Mark the item as smithed by the player (using unused1 field)
+        o_ptr->unused1 = 1;  /* 1 = smithed by player, 0 = found item */
+
+        // Describe the object
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+
+        // Message
         msg_format("You have %s (%c).", o_name, index_to_label(slot));
         log_info("Created smithing item: %s", o_name);
     }

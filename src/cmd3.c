@@ -105,12 +105,14 @@ void do_cmd_use_item_by_index(int item)
     if (item >= 0)
     {
         o_ptr = &inventory[item];
+        log_debug("do_cmd_use_item_by_index: Using item from inventory, index=%d", item);
     }
 
     /* Get the item (on the floor) */
     else
     {
         o_ptr = &o_list[0 - item];
+        log_debug("do_cmd_use_item_by_index: Using item from floor, index=%d, o_list index=%d", item, 0 - item);
     }
 
     // determine the action based on the item type
@@ -186,7 +188,8 @@ void do_cmd_use_item_by_index(int item)
 
             if (try_to_wield)
             {
-                /* Handle arrows specially */
+                log_debug("do_cmd_use_item_by_index: Calling do_cmd_wield with item=%d (o_ptr tval=%d)", item, o_ptr->tval);
+                /* Handle arrows and throwing weapons */
                 if (o_ptr->tval == TV_ARROW)
                 {
                     do_cmd_wield(o_ptr, item);
@@ -687,6 +690,11 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
     u32b f1, f2, f3;
 
+    /* Ensure throw_slot_menu_active is false at start */
+    throw_slot_menu_active = false;
+    for (i = 0; i < INVEN_TOTAL; i++)
+        throw_slot_enabled[i] = false;
+
     // use specified item if possible
     if (default_o_ptr != NULL)
     {
@@ -760,11 +768,14 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     object_flags(o_ptr, &f1, &f2, &f3);
     is_throwing = (f3 & (TR3_THROWING)) != 0;
 
+    log_debug("do_cmd_wield: item=%d, is_throwing=%d, slot=%d", item, is_throwing, slot);
+
     if (is_throwing)
     {
         bool any_throw_dest = false;
         int slot_choice;
 
+        log_debug("do_cmd_wield: Throwing weapon detected, showing slot menu");
         throw_slot_menu_active = true;
 
         for (i = 0; i < INVEN_TOTAL; i++)
@@ -823,6 +834,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
         if (!any_throw_dest)
         {
+            log_debug("do_cmd_wield: No available slot for throwing weapon, returning");
             msg_print("You have no available slot for that throwing weapon.");
             throw_slot_menu_active = false;
             return;
@@ -845,8 +857,20 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
         q = "Place throwing weapon where? ";
         s = "Oops.";
-        if (!get_item(&slot_choice, q, s, USE_EQUIP))
+
+        bool saved_command_see = p_ptr->command_see;
+        byte saved_command_wrk = p_ptr->command_wrk;
+        p_ptr->command_see = true;
+        p_ptr->command_wrk = (USE_EQUIP);
+
+        bool slot_selected = get_item(&slot_choice, q, s, USE_EQUIP);
+
+        p_ptr->command_see = saved_command_see;
+        p_ptr->command_wrk = saved_command_wrk;
+
+        if (!slot_selected)
         {
+            log_debug("do_cmd_wield: User cancelled slot selection, cleaning up and returning");
             item_tester_hook = NULL;
             item_tester_full = false;
 
@@ -856,6 +880,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
             throw_slot_menu_active = false;
             return;
         }
+
+        log_debug("do_cmd_wield: User selected slot %d for throwing weapon", slot_choice);
 
         item_tester_hook = NULL;
         item_tester_full = false;
@@ -953,7 +979,18 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
             q = "Place arrows in which quiver? ";
             s = "Oops.";
-            if (!get_item(&slot_choice, q, s, USE_EQUIP))
+
+            bool saved_command_see = p_ptr->command_see;
+            byte saved_command_wrk = p_ptr->command_wrk;
+            p_ptr->command_see = true;
+            p_ptr->command_wrk = (USE_EQUIP);
+
+            bool slot_selected = get_item(&slot_choice, q, s, USE_EQUIP);
+
+            p_ptr->command_see = saved_command_see;
+            p_ptr->command_wrk = saved_command_wrk;
+
+            if (!slot_selected)
             {
                 item_tester_hook = NULL;
                 item_tester_full = false;
