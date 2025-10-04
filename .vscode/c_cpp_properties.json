@@ -1,0 +1,26 @@
+{
+    "configurations": [
+        {
+            "name": "Cygwin MinGW32",
+            "includePath": [
+                "${workspaceFolder}/src/**",
+                "C:/Soft/Cygwin/usr/lib/gcc/i686-w64-mingw32/13/include",
+                "C:/Soft/Cygwin/usr/lib/gcc/i686-w64-mingw32/13/include-fixed", 
+                "C:/Soft/Cygwin/usr/i686-w64-mingw32/sys-root/mingw/include"
+            ],
+            "defines": [
+                "WINDOWS",
+                "LOG_USE_COLOR",
+                "_WIN32",
+                "__MINGW32__"
+            ],
+            "compilerPath": "C:/Soft/Cygwin/usr/bin/i686-w64-mingw32-gcc.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "gcc-x86",
+            "compileCommands": "${workspaceFolder}/src/compile_commands.json",
+            "configurationProvider": "llvm-vs-code-extensions.vscode-clangd"
+        }
+    ],
+    "version": 4
+}

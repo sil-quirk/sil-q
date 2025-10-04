@@ -386,6 +386,7 @@ extern void disturb(int stop_stealth, int unused_flag);
 /* cmd1.c */
 extern void apply_oath_breaking_curse(int oath_type);
 extern void give_player_item(object_type * o_ptr);
+extern bool player_auto_identifies_object(const object_type* o_ptr);
 extern bool graphics_are_ascii();
 extern void new_wandering_flow(monster_type* m_ptr, int y, int x);
 extern void new_wandering_destination(
@@ -502,6 +503,7 @@ extern void do_cmd_wield(object_type* default_o_ptr, int default_item);
 extern void do_cmd_takeoff(object_type* default_o_ptr, int default_item);
 extern void do_cmd_drop_item_by_index(int item);
 extern void do_cmd_drop(void);
+extern bool open_supplies_menu_with_context(supply_menu_action default_action, int default_group, bool default_focus, bool default_hotkey);
 extern void do_cmd_destroy(void);
 extern void do_cmd_observe(void);
 extern void do_cmd_observe_enhanced(void);
@@ -573,6 +575,7 @@ extern void do_cmd_knowledge_notes(void);
 extern void do_cmd_knowledge_oaths(void);
 extern void do_cmd_knowledge_artefacts(void);
 extern void do_cmd_knowledge_monsters(void);
+extern bool do_cmd_knowledge_supplies(const supply_menu_request* request);
 extern void do_cmd_knowledge_objects(void);
 extern void do_cmd_knowledge_kills(void);
 extern void ghost_challenge(void);
@@ -805,6 +808,7 @@ extern void display_equip(void);
 extern void show_inven(void);
 extern void show_equip(void);
 extern void show_inven_enhanced(void);
+extern void inventory_menu_set_include_equip(bool include);
 extern void show_equip_enhanced(void);
 extern void show_floor(const int* floor_list, int floor_num);
 extern void toggle_inven_equip(void);
@@ -1351,6 +1355,7 @@ extern void dbg_show_active_flags(void);
 #define ENHANCED_ACTION_EXAMINE 2
 #define ENHANCED_ACTION_USE 3
 #define ENHANCED_ACTION_DROP 4
+#define ENHANCED_ACTION_SUPPLIES 5
 
 extern int enhanced_menu_action;
 extern int enhanced_inventory_selected_item;

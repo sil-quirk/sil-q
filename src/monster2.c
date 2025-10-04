@@ -1924,7 +1924,7 @@ void describe_floor_object(void)
 
     // arms and armour show weight
     else if (((wield_slot(o_ptr) >= INVEN_WIELD)
-                 && (wield_slot(o_ptr) <= INVEN_BOW))
+                 && (wield_slot(o_ptr) <= INVEN_STAFF))
         || ((wield_slot(o_ptr) >= INVEN_BODY)
             && (wield_slot(o_ptr) <= INVEN_FEET)))
     {

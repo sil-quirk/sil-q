@@ -51,6 +51,40 @@ static bool item_tester_hook_throw_slots(const object_type* o_ptr)
     return throw_slot_enabled[slot];
 }
 
+bool open_supplies_menu_with_context(supply_menu_action default_action, int default_group, bool default_focus, bool default_hotkey)
+{
+    supply_menu_request request = {0};
+    supply_menu_action action = default_action;
+    bool hotkey = default_hotkey;
+    bool focus = default_focus;
+    int group = default_group;
+
+    if (supplies_has_pending_action())
+    {
+        supply_menu_action pending = supplies_pending_action();
+        if (pending != SUPPLY_MENU_ACTION_NONE)
+            action = pending;
+        hotkey = supplies_pending_hotkey();
+        int pending_group = supplies_pending_group();
+        if (pending_group >= 0 && pending_group < SUPPLY_GROUP_MAX)
+        {
+            focus = true;
+            group = pending_group;
+        }
+        supplies_clear_pending_action();
+    }
+
+    request.action = action;
+    request.hotkey_mode = hotkey;
+    if (focus && group >= 0 && group < SUPPLY_GROUP_MAX)
+    {
+        request.focus_group = true;
+        request.group = group;
+    }
+
+    return do_cmd_knowledge_supplies(&request);
+}
+
 /* Flag indicating enhanced menus need to refresh the main display after closing */
 static bool enhanced_drop_refresh_pending = false;
 
@@ -59,18 +93,26 @@ static bool enhanced_drop_refresh_pending = false;
  */
 void do_cmd_use_item_by_index(int item)
 {
+    if (item == SUPPLIES_INDEX)
+    {
+        open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, -1, false, true);
+        return;
+    }
+
     object_type* o_ptr;
 
     /* Get the item (in the pack) */
     if (item >= 0)
     {
         o_ptr = &inventory[item];
+        log_debug("do_cmd_use_item_by_index: Using item from inventory, index=%d", item);
     }
 
     /* Get the item (on the floor) */
     else
     {
         o_ptr = &o_list[0 - item];
+        log_debug("do_cmd_use_item_by_index: Using item from floor, index=%d, o_list index=%d", item, 0 - item);
     }
 
     // determine the action based on the item type
@@ -146,7 +188,8 @@ void do_cmd_use_item_by_index(int item)
 
             if (try_to_wield)
             {
-                /* Handle arrows specially */
+                log_debug("do_cmd_use_item_by_index: Calling do_cmd_wield with item=%d (o_ptr tval=%d)", item, o_ptr->tval);
+                /* Handle arrows and throwing weapons */
                 if (o_ptr->tval == TV_ARROW)
                 {
                     do_cmd_wield(o_ptr, item);
@@ -188,6 +231,7 @@ void do_cmd_use_item_by_index(int item)
         break;
     }
     case TV_STAFF:
+    case TV_GEM:
     {
         do_cmd_activate_staff(o_ptr, item);
         break;
@@ -489,6 +533,25 @@ void do_cmd_inven(void)
             bell("Cannot drop floor items from this menu!");
         break;
 
+    case ENHANCED_ACTION_SUPPLIES:
+    {
+        log_trace("do_cmd_inven: Opening supplies menu (command=%c)", current_menu_command ? current_menu_command : '0');
+        supply_menu_action default_action = SUPPLY_MENU_ACTION_NONE;
+        bool default_hotkey = false;
+        if (current_menu_command == 'u')
+        {
+            default_action = SUPPLY_MENU_ACTION_USE;
+            default_hotkey = true;
+        }
+        else if (current_menu_command == 'd')
+        {
+            default_action = SUPPLY_MENU_ACTION_DROP;
+            default_hotkey = true;
+        }
+        open_supplies_menu_with_context(default_action, -1, false, default_hotkey);
+        break;
+    }
+
     default:
         break;
     }
@@ -627,6 +690,11 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
     u32b f1, f2, f3;
 
+    /* Ensure throw_slot_menu_active is false at start */
+    throw_slot_menu_active = false;
+    for (i = 0; i < INVEN_TOTAL; i++)
+        throw_slot_enabled[i] = false;
+
     // use specified item if possible
     if (default_o_ptr != NULL)
     {
@@ -700,11 +768,14 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     object_flags(o_ptr, &f1, &f2, &f3);
     is_throwing = (f3 & (TR3_THROWING)) != 0;
 
+    log_debug("do_cmd_wield: item=%d, is_throwing=%d, slot=%d", item, is_throwing, slot);
+
     if (is_throwing)
     {
         bool any_throw_dest = false;
         int slot_choice;
 
+        log_debug("do_cmd_wield: Throwing weapon detected, showing slot menu");
         throw_slot_menu_active = true;
 
         for (i = 0; i < INVEN_TOTAL; i++)
@@ -763,6 +834,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
         if (!any_throw_dest)
         {
+            log_debug("do_cmd_wield: No available slot for throwing weapon, returning");
             msg_print("You have no available slot for that throwing weapon.");
             throw_slot_menu_active = false;
             return;
@@ -785,8 +857,20 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
         q = "Place throwing weapon where? ";
         s = "Oops.";
-        if (!get_item(&slot_choice, q, s, USE_EQUIP))
+
+        bool saved_command_see = p_ptr->command_see;
+        byte saved_command_wrk = p_ptr->command_wrk;
+        p_ptr->command_see = true;
+        p_ptr->command_wrk = (USE_EQUIP);
+
+        bool slot_selected = get_item(&slot_choice, q, s, USE_EQUIP);
+
+        p_ptr->command_see = saved_command_see;
+        p_ptr->command_wrk = saved_command_wrk;
+
+        if (!slot_selected)
         {
+            log_debug("do_cmd_wield: User cancelled slot selection, cleaning up and returning");
             item_tester_hook = NULL;
             item_tester_full = false;
 
@@ -796,6 +880,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
             throw_slot_menu_active = false;
             return;
         }
+
+        log_debug("do_cmd_wield: User selected slot %d for throwing weapon", slot_choice);
 
         item_tester_hook = NULL;
         item_tester_full = false;
@@ -893,7 +979,18 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
             q = "Place arrows in which quiver? ";
             s = "Oops.";
-            if (!get_item(&slot_choice, q, s, USE_EQUIP))
+
+            bool saved_command_see = p_ptr->command_see;
+            byte saved_command_wrk = p_ptr->command_wrk;
+            p_ptr->command_see = true;
+            p_ptr->command_wrk = (USE_EQUIP);
+
+            bool slot_selected = get_item(&slot_choice, q, s, USE_EQUIP);
+
+            p_ptr->command_see = saved_command_see;
+            p_ptr->command_wrk = saved_command_wrk;
+
+            if (!slot_selected)
             {
                 item_tester_hook = NULL;
                 item_tester_full = false;
@@ -1098,12 +1195,14 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     {
         if (combine)
         {
+            int stack_limit = object_stack_limit(&inventory[slot]);
             quantity = MIN(o_ptr->number,
-                MAX_STACK_SIZE - 1 - (&inventory[slot])->number);
+                stack_limit - (&inventory[slot])->number);
         }
         else
         {
-            quantity = MIN(o_ptr->number, MAX_STACK_SIZE - 1);
+            int stack_limit = object_stack_limit(i_ptr);
+            quantity = MIN(o_ptr->number, stack_limit);
         }
     }
     else
@@ -1368,6 +1467,12 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
  */
 void do_cmd_drop_item_by_index(int item)
 {
+    if (item == SUPPLIES_INDEX)
+    {
+        open_supplies_menu_with_context(SUPPLY_MENU_ACTION_DROP, -1, false, true);
+        return;
+    }
+
     int amt;
     object_type* o_ptr;
 
@@ -1435,6 +1540,12 @@ void do_cmd_drop(void)
     s = "You have nothing to drop.";
     if (!get_item(&item, q, s, (USE_EQUIP | USE_INVEN)))
         return;
+
+    if (item == SUPPLIES_INDEX)
+    {
+        open_supplies_menu_with_context(SUPPLY_MENU_ACTION_DROP, -1, false, true);
+        return;
+    }
 
     /* Get the item (in the pack) */
     if (item >= 0)
@@ -1504,6 +1615,7 @@ void shatter_weapon(int silnum)
     int i;
     object_type* w_ptr = &inventory[INVEN_WIELD];
     char w_name[80];
+    int anger_level;
 
     p_ptr->crown_shatter = true;
 
@@ -1527,6 +1639,9 @@ void shatter_weapon(int silnum)
     inven_item_increase(INVEN_WIELD, -1);
     inven_item_optimize(INVEN_WIELD);
 
+    /* Determine anger level based on which Silmaril (2nd = state 3, 3rd = state 4) */
+    anger_level = (silnum == 2) ? 3 : 4;
+
     /* Process monsters */
     for (i = 1; i < mon_max; i++)
     {
@@ -1540,7 +1655,7 @@ void shatter_weapon(int silnum)
             {
                 msg_print("A shard strikes Morgoth upon his cheek.");
                 set_alertness(m_ptr, ALERTNESS_VERY_ALERT);
-                anger_morgoth(2);
+                anger_morgoth(anger_level);
             }
         }
     }
@@ -1594,6 +1709,14 @@ void prise_silmaril(void)
             freed_msg = "The fates be damned! You free a second Silmaril.";
         else
             freed_msg = "You free a second Silmaril.";
+
+        msg_print(
+            "As you reach for the second jewel, you feel the weight of "
+            "Morgoth's wrath pressing upon you.");
+        msg_print(
+            "To take another Silmaril will kindle a fury beyond measure.");
+        if (!get_check("Will you dare to claim it? "))
+            return;
 
         break;
     }
@@ -1687,7 +1810,7 @@ void prise_silmaril(void)
                 {
                     monster_type* m_ptr = &mon_list[i];
 
-                    /* If Morgoth, then anger him */
+                    /* If Morgoth, then anger him to state 3 for 2nd Silmaril */
                     if (m_ptr->r_idx == R_IDX_MORGOTH
                         && m_ptr->alertness >= ALERTNESS_ALERT)
                     {
@@ -1695,7 +1818,7 @@ void prise_silmaril(void)
                             && los(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx))
                         {
                             msg_print("Morgoth howls with rage!");
-                            anger_morgoth(2);
+                            anger_morgoth(3);
                         }
                     }
                 }
@@ -1740,14 +1863,25 @@ void prise_silmaril(void)
             // Get it
             slot = inven_carry(o_ptr, false);
 
-            /* Get the object again */
-            o_ptr = &inventory[slot];
+            if (slot == SUPPLIES_INDEX)
+            {
+                object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+                char label = supplies_label_char();
+                if (!label)
+                    label = 'a';
+                msg_format("You add %s to your supplies (%c).", o_name, label);
+            }
+            else if (slot >= 0)
+            {
+                /* Get the object again */
+                o_ptr = &inventory[slot];
 
-            /* Describe the object */
-            object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+                /* Describe the object */
+                object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
-            /* Message */
-            msg_format("You have %s (%c).", o_name, index_to_label(slot));
+                /* Message */
+                msg_format("You have %s (%c).", o_name, index_to_label(slot));
+            }
 
             // Break the truce (always)
             break_truce(true);
@@ -1772,7 +1906,7 @@ void prise_silmaril(void)
         msg_print("You hear a cry of vengeance echo through the iron hells.");
         msg_print("You feel your doom awaiting you.");
         wake_all_monsters(0);
-        anger_morgoth(2);
+        anger_morgoth(4);  // Final Silmaril pushes Morgoth to desperate state
     }
 }
 
@@ -2376,7 +2510,11 @@ void do_cmd_refuel_lamp(object_type* default_o_ptr, int default_item)
 
             /* Carry or drop */
             if (item >= 0)
+            {
                 item = inven_carry(i_ptr, false);
+                if (item == SUPPLIES_INDEX)
+                    item = -1;
+            }
             else
                 drop_near(i_ptr, 0, p_ptr->py, p_ptr->px);
         }
@@ -2690,6 +2828,7 @@ void do_cmd_unified_look(void)
     state.display_mode = 0; /* 0 = manual, 1 = entity */
     state.highlighted_y = -1;
     state.highlighted_x = -1;
+    state.highlighted_entity_type = 0; /* 0 = none, 1 = monster, 2 = object */
     state.in_sidebar_mode = false;
     state.look_mode = 0; /* 0 = normal unified look, 1 = L-style scrolling */
     state.current_square_entity = 0; /* 0 = monster, 1 = object */
@@ -2754,23 +2893,59 @@ void do_cmd_unified_look(void)
             y = state.cursor_y;
             x = state.cursor_x;
             
-            /* Display current location info at bottom */
-            /* Show help text based on current mode */
-            if (state.look_mode == 0)
+            /* Display entity name in left sidebar if cursor is on something */
             {
+                char out_val[256];
+                int cursor_m_idx = cave_m_idx[y][x];
+                int cursor_o_idx = cave_o_idx[y][x];
+                bool has_visible_monster = (cursor_m_idx > 0) && (mon_list[cursor_m_idx].ml);
+                bool has_object = (cursor_o_idx > 0);
+                
+                /* Priority: monster first, then object */
+                if (has_visible_monster)
+                {
+                    monster_type* m_ptr = &mon_list[cursor_m_idx];
+                    char m_name[80];
+                    
+                    /* Get the monster name with indefinite article */
+                    monster_desc(m_name, sizeof(m_name), m_ptr, 0x08);
+                    
+                    /* Display "You see <monster name>" in left sidebar */
+                    strnfmt(out_val, sizeof(out_val), "You see %s.", m_name);
+                    prt(out_val, 0, 0);
+                }
+                else if (has_object)
+                {
+                    object_type* o_ptr = &o_list[cursor_o_idx];
+                    char o_name[80];
+                    
+                    /* Get the object name with indefinite article */
+                    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+                    
+                    /* Display "You see <object name>" in left sidebar */
+                    strnfmt(out_val, sizeof(out_val), "You see %s.", o_name);
+                    prt(out_val, 0, 0);
+                }
+                else
+                {
+                    /* Display help text based on current mode */
+                    if (state.look_mode == 0)
+                    {
 #ifdef STEAMDECK_SUPPORT
-                prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Pan [ESC]", 0, 0);
+                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Pan [ESC]", 0, 0);
 #else
-                prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Pan [ESC]", 0, 0);
+                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Pan [ESC]", 0, 0);
 #endif
-            }
-            else
-            {
+                    }
+                    else
+                    {
 #ifdef STEAMDECK_SUPPORT
-                prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Curs [ESC]", 0, 0);
+                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Curs [ESC]", 0, 0);
 #else
-                prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Curs [ESC]", 0, 0);
+                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Curs [ESC]", 0, 0);
 #endif
+                    }
+                }
             }
             
             /* Move cursor to position */
@@ -2933,6 +3108,7 @@ void do_cmd_unified_look(void)
                             highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
                             state.highlighted_y = -1;
                             state.highlighted_x = -1;
+                            state.highlighted_entity_type = 0;
                         }
                         
                         /* Track monster health at cursor position for left sidebar display */
@@ -3122,13 +3298,42 @@ void do_cmd_unified_look(void)
                     int cursor_m_idx = cave_m_idx[state.highlighted_y][state.highlighted_x];
                     int cursor_o_idx = cave_o_idx[state.highlighted_y][state.highlighted_x];
                     
-                    log_trace("EXAMINATION: At highlighted position (%d,%d) - m_idx=%d, o_idx=%d", 
-                             state.highlighted_y, state.highlighted_x, cursor_m_idx, cursor_o_idx);
+                    log_trace("EXAMINATION: At highlighted position (%d,%d) - m_idx=%d, o_idx=%d, entity_type=%d", 
+                             state.highlighted_y, state.highlighted_x, cursor_m_idx, cursor_o_idx, state.highlighted_entity_type);
                     
-                    /* Prioritize OBJECT first, then visible monster */
-                    if (cursor_o_idx > 0)
+                    /* Examine the entity based on what was highlighted in the sidebar */
+                    /* Entity type: 1 = monster, 2 = object */
+                    if (state.highlighted_entity_type == 1 && cursor_m_idx > 0)
                     {
-                        log_trace("EXAMINATION: Found object, examining object %d", cursor_o_idx);
+                        /* Monster was highlighted - examine monster */
+                        log_trace("EXAMINATION: Highlighted entity is monster, examining monster %d", cursor_m_idx);
+                        monster_type* m_ptr = &mon_list[cursor_m_idx];
+                        log_trace("EXAMINATION: Monster ml=%d", m_ptr->ml);
+                        if (m_ptr->ml)
+                        {
+                            log_trace("EXAMINATION: Showing monster recall");
+                            /* Save screen */
+                            screen_save();
+                            
+                            /* Show monster recall */
+                            screen_roff(m_ptr->r_idx);
+                            
+                            /* Wait for input */
+                            inkey();
+                            
+                            /* Restore screen */
+                            screen_load();
+                            log_trace("EXAMINATION: Monster recall completed");
+                        }
+                        else
+                        {
+                            log_trace("EXAMINATION: Monster not visible (ml=0), skipping examination");
+                        }
+                    }
+                    else if (state.highlighted_entity_type == 2 && cursor_o_idx > 0)
+                    {
+                        /* Object was highlighted - examine object */
+                        log_trace("EXAMINATION: Highlighted entity is object, examining object %d", cursor_o_idx);
                         /* Object examination */
                         object_type* o_ptr = &o_list[cursor_o_idx];
                         log_trace("EXAMINATION: Showing object info screen");
@@ -3446,6 +3651,7 @@ void do_cmd_unified_look(void)
                     highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
                     state.highlighted_y = -1;
                     state.highlighted_x = -1;
+                    state.highlighted_entity_type = 0;
                 }
                 done = true;
                 break;
@@ -3457,6 +3663,9 @@ void do_cmd_unified_look(void)
     if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
     {
         highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+        state.highlighted_y = -1;
+        state.highlighted_x = -1;
+        state.highlighted_entity_type = 0;
     }
     
     log_trace("=== UNIFIED LOOK ENDED ===");

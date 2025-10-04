@@ -283,6 +283,47 @@ static void strip_bytes(int n)
  * This function attempts to "repair" old savefiles, and to extract
  * the most up to date values for various object fields.
  */
+static void convert_old_staff_of_warding(object_type* o_ptr)
+{
+    if (!o_ptr || o_ptr->tval != TV_STAFF || o_ptr->sval != SV_STAFF_WARDING)
+        return;
+
+    int uses = 0;
+    if (o_ptr->pval > 0)
+    {
+        uses = o_ptr->pval / CHANNELING_CHARGE_MULTIPLIER;
+        if (uses <= 0)
+            uses = 1;
+    }
+    else if (o_ptr->number > 0)
+    {
+        uses = o_ptr->number;
+    }
+
+    if (uses < 0)
+        uses = 0;
+
+    o_ptr->tval = TV_GEM;
+    o_ptr->sval = SV_GEM_WARDING;
+    o_ptr->pval = 0;
+    o_ptr->timeout = 0;
+
+    if (uses > MAX_STACK_SIZE - 1)
+        uses = MAX_STACK_SIZE - 1;
+    o_ptr->number = uses;
+
+    object_kind* k_ptr = &k_info[o_ptr->k_idx];
+    if (k_ptr)
+    {
+        o_ptr->weight = k_ptr->weight;
+    }
+
+    if (o_ptr->number <= 0)
+        o_ptr->ident |= IDENT_EMPTY;
+    else
+        o_ptr->ident &= ~(IDENT_EMPTY);
+}
+
 static errr rd_item(object_type* o_ptr)
 {
     u32b f1, f2, f3;
@@ -502,6 +543,8 @@ static errr rd_item(object_type* o_ptr)
         if (!e_ptr->cost)
             o_ptr->ident |= (IDENT_BROKEN);
     }
+
+    convert_old_staff_of_warding(o_ptr);
 
     /* Success */
     return (0);
@@ -1498,6 +1541,61 @@ static errr rd_inventory(void)
     }
 
     log_debug("Inventory loaded: %d items carried, %d items equipped", p_ptr->inven_cnt, p_ptr->equip_cnt);
+
+    supplies_reset_store();
+
+    if (sf_extra >= 1)
+    {
+        u16b supply_count = 0;
+        rd_u16b(&supply_count);
+        log_debug("Loading %u supply entries", (unsigned)supply_count);
+        supplies_set_allow_overflow(true);
+        for (u16b si = 0; si < supply_count; si++)
+        {
+            object_type supply;
+            object_wipe(&supply);
+            if (rd_item(&supply))
+            {
+                log_warn("Error reading supply entry");
+                note("Error reading supplies");
+                supplies_set_allow_overflow(false);
+                return (-1);
+            }
+
+            s32b stored_units = 0;
+            if (sf_extra >= 2)
+                rd_s32b(&stored_units);
+            else if (supply.tval == TV_GEM)
+                stored_units = supply.number > 0 ? supply.number : supply.pval;
+
+            if (supply.tval == TV_GEM)
+            {
+                int count = (int)stored_units;
+                if (count <= 0)
+                    count = supply.number;
+                if (count < 0)
+                    count = 0;
+                if (count > 255)
+                    count = 255;
+                supply.number = (byte)count;
+                supply.pval = 0;
+                if (count <= 0)
+                    supply.ident |= IDENT_EMPTY;
+                else
+                    supply.ident &= ~(IDENT_EMPTY);
+            }
+
+            if (supply.k_idx)
+                supplies_absorb_object(&supply);
+        }
+        supplies_set_allow_overflow(false);
+    }
+    else
+    {
+        log_debug("No supply block present in save (sf_extra=%u)", (unsigned)sf_extra);
+    }
+
+    supplies_ingest_pack();
 
     /* Success */
     return (0);
@@ -2564,3 +2662,4 @@ bool load_player(void)
     /* Oops */
     return (false);
 }
+

@@ -208,6 +208,20 @@ static void ensure_run_dir(const metarun *m)
     path_build(dir, sizeof dir, ANGBAND_DIR_APEX, dir);         MKDIR(dir);
 }
 
+static bool sync_current_metarun_slot(bool stamp_time)
+{
+    if (!metaruns || current_run < 0 || current_run >= metarun_max) {
+        return false;
+    }
+
+    if (stamp_time) {
+        metar.last_played = (u32b)time(NULL);
+    }
+
+    metaruns[current_run] = metar;
+    return true;
+}
+
 /* forward declarations */
 static void start_new_metarun(void);
 static void choose_difficulty_menu(void);
@@ -975,7 +989,14 @@ int any_curse_flag_active(u32b flag)
 void metarun_increment_deaths(void)
 {
     /* Clamp to byte range; defer saving/UI to caller */
-    if (metar.deaths < 255) metar.deaths++;
+    if (metar.deaths >= 255) return;
+
+    metar.deaths++;
+
+    if (!sync_current_metarun_slot(false)) {
+        log_warn("metarun_increment_deaths: unable to sync current slot (idx=%d, max=%d)",
+                 current_run, metarun_max);
+    }
     refresh_current_metar_score();
 }
 
@@ -987,6 +1008,11 @@ void metarun_gain_silmarils(byte n)
     if (total < 0) total = 0;
     metar.silmarils = (byte)total;
     refresh_current_metar_score();
+
+    if (!sync_current_metarun_slot(false)) {
+        log_warn("metarun_gain_silmarils: unable to sync current slot (idx=%d, max=%d)",
+                 current_run, metarun_max);
+    }
 }
 
 /* ---------------------------------------------------------------
@@ -1680,7 +1706,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
 
         /* Treat as a death unless Eru intervenes */
         if (died && !has_gift_eru)
-            metar.deaths++;
+            metarun_increment_deaths();
 
     /* ------------------------------------------------------------- */
     /* 0. Branch: did we return with Silmarils?                      */
@@ -2010,6 +2036,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
         print_paragraph(summary, TERM_L_GREEN);
 
     Term_xtra(TERM_XTRA_DELAY, 3000);
+    Term_clear();
 
     /* ============================================================= */
     /* SCENE 8: Kinslaying Execution & Notifications               */
@@ -2047,6 +2074,9 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
                 kinslayer_try_kill(k + 1, /*do_roll=*/false);
             if (!house) continue;               /* should not happen */
 
+            metarun_increment_deaths();
+            log_info("Metarun: kinslaying victim counted as death (%u total)", (unsigned)metar.deaths);
+
             char buf[96];
             strnfmt(buf, sizeof buf,
                     "A hero %s has fallen beneath your blade.", house);
@@ -2065,7 +2095,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
         wait_prompt(PROMPT_RETURN_MIDDLE_EARTH);
     }
 
-    metar.silmarils += final_sils;
+    metarun_gain_silmarils(final_sils);
     log_info("Added %d Silmarils to metarun total (now %d)", final_sils, metar.silmarils);
     refresh_current_metar_score();
     print_story(3, true);
@@ -2166,6 +2196,13 @@ static void start_new_metarun(void)
               p_ptr ? (p_ptr->wizard ? 1 : 0) : -1,
               p_ptr ? (unsigned)p_ptr->noscore : 0,
               savefile);
+
+    u32b previous_id = metar.id;
+    if (!sync_current_metarun_slot(true)) {
+        log_warn("metarun: unable to snapshot current run before rollover (idx=%d, max=%d)",
+                 current_run, metarun_max);
+    }
+
      /* Before wiping scores for the next run, backup and clear save files */
      backup_and_clear_saves();
      
@@ -2220,7 +2257,7 @@ static void start_new_metarun(void)
 
     /* Initialize the brand-new slot */
     reset_defaults(&metaruns[metarun_max - 1]);
-    metaruns[metarun_max - 1].id = metar.id + 1;
+    metaruns[metarun_max - 1].id = previous_id + 1;
     metaruns[metarun_max - 1].type = 0; /* Default to type 0 (Normal) for new metaruns */
 
     /* Update globals */
