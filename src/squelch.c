@@ -1056,6 +1056,7 @@ static tval_desc raw_tvals[] = {
     { TV_AMULET, "Amulets" },
     { TV_RING, "Rings" },
     { TV_STAFF, "Staves" },
+    { TV_GEM, "Gems" },
     { TV_HORN, "Horns" },
     { TV_POTION, "Potions" },
     { TV_FLASK, "Flasks" },

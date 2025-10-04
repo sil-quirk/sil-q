@@ -1447,6 +1447,7 @@ bool use_object(object_type* o_ptr, bool* ident)
     }
 
     case TV_STAFF:
+    case TV_GEM:
     {
         used = use_staff(o_ptr, ident);
         break;

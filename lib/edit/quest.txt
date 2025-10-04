@@ -78,7 +78,7 @@ O:3
 Y:0
 R:mandos_quest
 M:METARUN_QUEST_MANDOS
-S:0:0:0:0
+S:0:0:1:0
 A:8:0
 I:A chill presence fills the chamber, and the air grows still. Before you is a veiled and solemn figure upon a throne of black stone.
 I:It is Mandos, the Judge of the Valar, and his voice is low and grave, like the turning of the ages.
@@ -102,7 +102,7 @@ Y:1
 R:niena_quest
 M:METARUN_QUEST_NIENA
 P:SCALED_RANGE:0.125:14:5:0
-S:0:1:0:1
+S:0:0:0:1
 A:8:5
 I:A soft, sorrowful light gathers in the gloom. In its midst stands a figure cloaked in grey, her eyes holding the memory of every grief.
 I:It is Nienna, the Weeper, and her voice is as gentle as falling rain.
@@ -125,7 +125,7 @@ Y:1
 R:orome_quest
 M:METARUN_QUEST_OROME
 P:LINEAR_INTERPOLATE:0.05:0.125:0:0
-S:0:0:0:0
+S:0:1:0:0
 A:8:8
 I:The air grows wild and clean, smelling of ancient forests under a starlit sky. Suddenly, the clear, mighty blast of a great horn, the Valaróma, echoes from the walls, shaking the very stones and sending a tremor of fear through all evil things. Before you sits a majestic lord upon a great white steed, his face filled with the vigour of the chase. It is Orome, the Huntsman of the Valar.
 I:

@@ -51,9 +51,9 @@ T:To maintain grim silence
 D:A vow of absolute silence, taken by those who would enter and leave Angband as they came - wordless and grim. This oath embodies the stoic determination of proven warriors.
 P:I swear to leave Angband as I came, grim and silent, speaking no word and raising no song in these dark halls.
 F:Sing any song or make any vocal utterance
-R:+1 Strength - Power of focused will and discipline  
+R:+1 Strength - Stoic fortitude and inner resilience
 A:8:3
-S:1:0:0:0
+S:0:1:0:0
 B:Cannot use any singing abilities or songs
 U:Complete the Quest of Tulkas the Strong
 C:A word forms on your lips. To give it voice is to shatter the solemn vow you have sworn and lose the strength found in stillness. Are you certain you wish to break your Oath of Silence?
@@ -68,9 +68,9 @@ T:To face Morgoth with unwavering courage
 D:An oath of absolute resolve, sworn by those who will not be turned aside from their purpose by any force or fear. You pledge to face even the Dark Lord himself.
 P:I swear that none will daunt me from facing Morgoth forthwith, and I shall not flee upward until a Silmaril is won.
 F:Go up stairs or flee the depths without possessing a Silmaril
-R:+2 Constitution - Unbreakable fortitude and endurance
+R:+1 Constitution - Unbreakable fortitude and endurance
 A:8:4
-S:0:0:2:0  
+S:0:0:1:0  
 B:Cannot use upstairs until possessing a Silmaril
 U:Complete the Quest of Mandos the Doomsman
 C:The path of escape lies before you, a refuge for the weary and the weak. To take it is to yield to despair and prove your will is not equal to your doom. Are you certain you wish to break your Oath of Iron?
@@ -103,9 +103,9 @@ T:To fight with honor and restraint
 D:A true contest of might is a test of will against will, not a felling of the broken. To strike down a foe whose courage has failed is no display of strength. It is the work of a brute, not a warrior. This oath embodies the honorable restraint of those who have proven their valor in fair combat.
 P:I swear to face my enemy while it has the heart to fight, and to let the craven flee into the darkness. In this honorable restraint, my resolve shall be sharpened, and I will perceive weaknesses hidden from others.
 F:Attack or deal damage to enemies that are fleeing in terror
-R:+1 Dexterity - Enhanced reflexes from honorable combat discipline
+R:+1 Strength - Honed physical prowess through honorable combat
 A:8:7
-S:0:1:0:0
+S:1:0:0:0
 B:Cannot attack creatures with M_FEAR flag (fleeing in terror)
 U:Complete the Quest of Tulkas the Strong
 C:Your foe's will has shattered; it turns and flees for its life. To strike it now is to stain your victory with a craven's blow and dishonor the strength you swore to uphold. Are you certain you wish to break your Oath of the Valorous Heart?

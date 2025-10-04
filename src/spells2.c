@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "metarun.h"
+#include "supplies.h"
 
 // Function declarations
 void analyze_weapon_properties(int* count, char s[][200], char t[][200], bool good[], 
@@ -3286,6 +3287,19 @@ void identify_and_squelch_pack(void)
             do_squelch_item(squelch, item, o_ptr);
         }
     }
+
+    /* Identify supplies */
+    int supply_count = supplies_entry_count();
+    for (int supply_idx = 0; supply_idx < supply_count; supply_idx++)
+    {
+        o_ptr = supplies_entry_at(supply_idx);
+        if (!o_ptr || !o_ptr->k_idx)
+            continue;
+        if (object_known_p(o_ptr))
+            continue;
+
+        (void)do_ident_item(SUPPLIES_INDEX + supply_idx, o_ptr);
+    }
 }
 
 /* Mass-identify handler */
@@ -3342,7 +3356,13 @@ int do_ident_item(int item, object_type* o_ptr)
     object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     /* Describe */
-    if (item >= INVEN_WIELD)
+    if (item >= SUPPLIES_INDEX)
+    {
+        int supply_index = item - SUPPLIES_INDEX;
+        msg_format("In your supplies: %s.  %s", o_name, squelch_to_label(squelch));
+        supplies_refresh_entry(supply_index);
+    }
+    else if (item >= INVEN_WIELD)
     {
         msg_format(
             "%^s: %s (%c).", describe_use(item), o_name, index_to_label(item));

@@ -318,6 +318,8 @@ void player_wipe(void)
     /* Wipe the player */
     (void)WIPE(p_ptr, player_type);
 
+    supplies_reset_store();
+
     // only save the old information if there was a character loaded
     if (character_loaded_dead)
     {
@@ -520,10 +522,38 @@ static void give_start_items(const start_item *list)
         /* Light sources start with fuel */
         if (slot == INVEN_LITE) i_ptr->timeout = 2000;
 
-        object_known(i_ptr);
+        bool start_known = true;
+        if ((i_ptr->tval == TV_POTION)
+            || (i_ptr->tval == TV_FOOD && i_ptr->sval <= SV_FOOD_SICKNESS)
+            || (i_ptr->tval == TV_GEM))
+        {
+            if (!player_auto_identifies_object(i_ptr))
+                start_known = false;
+        }
+
+        if (start_known)
+            object_known(i_ptr);
 
         /* Carry it */
-        inven_slot = inven_carry(i_ptr, true);
+        int carry_slot = inven_carry(i_ptr, true);
+
+        if (carry_slot == SUPPLIES_INDEX)
+        {
+            object_type copy;
+            object_copy(&copy, i_ptr);
+            char name[80];
+            object_desc(name, sizeof(name), &copy, true, 3);
+            char label = supplies_label_char();
+            if (!label)
+                label = 'a';
+            msg_format("You start with %s (%c) in your supplies.", name, label);
+            continue;
+        }
+
+        if (carry_slot < 0)
+            continue;
+
+        inven_slot = carry_slot;
 
         /* Auto-wield if slot empty */
         if (slot >= INVEN_WIELD && inventory[slot].tval == 0)
@@ -1816,20 +1846,22 @@ static NavResult select_oath(void)
                             row += display_wrapped_text(pledge, COL_DESCRIPTION, row, 0, TERM_L_BLUE);
                         }
                         
+                        /* Display Reward (R:) - MOVED TO TOP FOR VISIBILITY */
+                        char* reward = oath_reward_text(highlight);
+                        log_debug("Oath %d reward text: '%s'", highlight, reward ? reward : "NULL");
+                        if (reward && reward[0]) {
+                            Term_putstr(COL_DESCRIPTION, row, -1, TERM_L_GREEN, "Reward:");
+                            row++;
+                            row += display_wrapped_text(reward, COL_DESCRIPTION, row, 0, TERM_L_GREEN);
+                            row++; /* Add spacing after reward */
+                        }
+                        
                         /* Display Forbidden (F:) */
                         char* forbidden = oath_forbidden(highlight);
                         if (forbidden && forbidden[0]) {
                             Term_putstr(COL_DESCRIPTION, row, -1, TERM_L_RED, "Forbidden:");
                             row++;
                             row += display_wrapped_text(forbidden, COL_DESCRIPTION, row, 0, TERM_L_RED);
-                        }
-                        
-                        /* Display Reward (R:) */
-                        char* reward = oath_reward_text(highlight);
-                        if (reward && reward[0]) {
-                            Term_putstr(COL_DESCRIPTION, row, -1, TERM_L_GREEN, "Reward:");
-                            row++;
-                            row += display_wrapped_text(reward, COL_DESCRIPTION, row, 0, TERM_L_GREEN);
                         }
                     }
                 }

@@ -5481,26 +5481,15 @@ errr parse_oath_info(char* buf, header* head)
         }
     }
 
-    /* Process 'R' for "Restrictions" or "Reward description" */
+    /* Process 'R' for "Reward description" */
     else if (buf[0] == 'R')
     {
-        int restrictions;
-
         /* There better be a current oath_ptr */
         if (!oath_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Try to scan for numeric value first (old format) */
-        if (1 == sscanf(buf + 2, "%d", &restrictions))
-        {
-            /* Save the numeric value */
-            oath_ptr->restrictions = restrictions;
-        }
-        else
-        {
-            /* Store reward text using add_name for name buffer */
-            if (!(oath_ptr->reward_text = add_name(head, buf + 2)))
-                return (PARSE_ERROR_OUT_OF_MEMORY);
-        }
+        /* Store reward text using add_name for name buffer */
+        if (!(oath_ptr->reward_text = add_name(head, buf + 2)))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
     /* Process 'A' for "Ability reward" */

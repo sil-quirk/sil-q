@@ -51,6 +51,85 @@ struct object_list_entry
     int tval, sval;
 };
 
+typedef struct supply_list_entry supply_list_entry;
+
+struct supply_list_entry
+{
+    int item_idx;   /* First inventory slot containing this kind */
+    int k_idx;      /* Object kind index */
+    int total;      /* Total quantity across the pack */
+    int supply_idx; /* Index inside the supply cache (-1 if not present) */
+};
+
+
+
+static bool supplies_menu_use_entry(supply_list_entry* entry)
+{
+    if (!entry || entry->supply_idx < 0)
+        return false;
+
+    object_type* o_ptr = supplies_entry_at(entry->supply_idx);
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    supplies_begin_action(entry->supply_idx);
+
+    switch (o_ptr->tval)
+    {
+    case TV_FOOD:
+        do_cmd_eat_food(o_ptr, SUPPLIES_INDEX);
+        break;
+    case TV_POTION:
+        do_cmd_quaff_potion(o_ptr, SUPPLIES_INDEX);
+        break;
+    case TV_STAFF:
+    case TV_GEM:
+        do_cmd_activate_staff(o_ptr, SUPPLIES_INDEX);
+        break;
+    default:
+        supplies_end_action();
+        bell("Cannot use that item here!");
+        msg_print("Cannot use that item here.");
+        return false;
+    }
+
+    supplies_end_action();
+    return true;
+}
+
+static bool supplies_menu_drop_entry(supply_list_entry* entry)
+{
+    if (!entry || entry->supply_idx < 0)
+        return false;
+
+    object_type* o_ptr = supplies_entry_at(entry->supply_idx);
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    int max_amt = (o_ptr->tval == TV_GEM) ? supplies_entry_units(entry->supply_idx) : o_ptr->number;
+    if (max_amt <= 0)
+        return false;
+
+    int actual_amt = get_quantity(NULL, max_amt);
+    if (actual_amt <= 0)
+        return false;
+    supplies_begin_action(entry->supply_idx);
+    bool dropped = supplies_drop_amount(entry->supply_idx, actual_amt);
+    supplies_end_action();
+
+    if (dropped)
+        handle_stuff();
+
+    return dropped;
+}
+
+static cptr supply_group_text[SUPPLY_GROUP_MAX + 1] = {
+    "Herbs",
+    "Potions",
+    "Gems",
+    NULL
+};
+
 /*
  * Remove old lines from pref files
  */
@@ -289,8 +368,7 @@ void do_cmd_character_sheet(void)
         display_player(mode);
 
         /* Prompt */
-        Term_putstr(1, 23, -1, TERM_SLATE,
-            "notes  story stats  save to file  abilities  curses  increase skills  ESC");
+        Term_putstr(1, 23, -1, TERM_SLATE, "notes  story stats  save to file  abilities  curses  increase skills  ESC");
         Term_putstr(1, 23, -1, TERM_L_WHITE, "n");
         Term_putstr(8, 23, -1, TERM_L_WHITE, "s");
         Term_putstr(29, 23, -1, TERM_L_WHITE, "f");
@@ -1155,13 +1233,12 @@ int unique_bane_type_killed(void)
     // Count all unique monsters that have been killed
     for (i = 1; i < z_info->r_max; i++) {
         monster_race* check_r_ptr = &r_info[i];
-        monster_lore* l_ptr = &l_list[i];
         
         // Skip if not unique
         if (!(check_r_ptr->flags1 & RF1_UNIQUE)) continue;
         
-        // Check if this unique has been killed
-        if (l_ptr->deaths > 0) {
+        // Check if this unique has been killed (max_num is set to 0 when killed)
+        if (check_r_ptr->max_num == 0) {
             uniques_killed++;
         }
     }
@@ -4204,7 +4281,7 @@ int object_difficulty(object_type* o_ptr)
     dif = dif * dif_mult / 100;
 
     // Artefact arrows are much easier
-    if ((o_ptr->tval == TV_ARROW) && (o_ptr->number == 1))
+    if ((o_ptr->tval == TV_ARROW) && (o_ptr->name1))
         dif /= 2;
 
     // Deal with masterpiece and Aule's Forge
@@ -4697,6 +4774,35 @@ void pay_costs()
     p_ptr->redraw |= (PR_EXP | PR_BASIC);
 }
 
+// Determine default stack sizes for smithing-created items.
+// Normal: arrows 24/18/12, daggers & spears 3/2/1 (normal/enchanted/artefact).
+// This keeps arrows and throwable weapons in sensible stack counts.
+static byte smith_default_stack_size(const object_type* o_ptr)
+{
+    bool is_arrow = (o_ptr->tval == TV_ARROW);
+    bool is_spear = (o_ptr->tval == TV_POLEARM) && (o_ptr->sval == SV_SPEAR);
+    bool is_dagger = (o_ptr->tval == TV_SWORD) && (o_ptr->sval == SV_DAGGER);
+
+    if (!(is_arrow || is_spear || is_dagger))
+    {
+        return (o_ptr->number ? o_ptr->number : 1);
+    }
+
+    bool is_artifact = (o_ptr->name1 != 0);
+    bool is_enchanted = (!is_artifact) && (o_ptr->name2 != 0);
+
+    if (is_arrow)
+    {
+        if (is_artifact) return 12;
+        if (is_enchanted) return 18;
+        return 24;
+    }
+
+    if (is_artifact) return 1;
+    if (is_enchanted) return 2;
+    return 3;
+}
+
 /*
  * Creates the base object (not in the dungeon, but just as a work in progress).
  */
@@ -4717,11 +4823,8 @@ void create_base_object(int tval, int sval)
     // display all attributes
     smith_o_ptr->ident |= (IDENT_KNOWN | IDENT_SPOIL);
 
-    // create arrows by the two dozen
-    if (tval == TV_ARROW)
-    {
-        smith_o_ptr->number = 12;
-    }
+    // Apply default stack sizes for smithing output
+    smith_o_ptr->number = smith_default_stack_size(smith_o_ptr);
 }
 
 /*
@@ -5319,6 +5422,9 @@ void create_special(int name2)
 
     // make it into that special type
     object_into_special(smith_o_ptr, p_ptr->skill_use[S_SMT], true);
+
+    // Re-evaluate stack size now that an enchantment is applied
+    smith_o_ptr->number = smith_default_stack_size(smith_o_ptr);
 }
 
 /*
@@ -5555,8 +5661,8 @@ void prepare_artefact(void)
     // set its 'artefact' name to reflect the chosen type
     smith_o_ptr->name1 = smith_a_name;
 
-    // make sure there is only one of the item (needed for arrows)
-    smith_o_ptr->number = 1;
+    // Restore default stack sizes for arrows and other throwable gear
+    smith_o_ptr->number = smith_default_stack_size(smith_o_ptr);
 
     // as abilities are represented on the o_ptr not the a_ptr in Sil
     // we need to synchronise them on the smith_o_ptr
@@ -7212,18 +7318,32 @@ void create_smithing_item(void)
     // Get the slot of the forged item
     slot = inven_carry(smith_o_ptr, true);
 
-    // Get the item itself
-    o_ptr = &inventory[slot];
-    
-    // Mark the item as smithed by the player (using unused1 field)
-    o_ptr->unused1 = 1;  /* 1 = smithed by player, 0 = found item */
-
-    // Describe the object
-    object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
-
-    // Message
-    if (slot >= 0)
+    // Check if the item couldn't fit in inventory (e.g., group limit)
+    if (slot < 0)
     {
+        // Drop it on the floor instead
+        log_debug("Smithed item couldn't fit in inventory, dropping to floor");
+        drop_near(smith_o_ptr, 0, p_ptr->py, p_ptr->px);
+        
+        // Describe the object
+        object_desc(o_name, sizeof(o_name), smith_o_ptr, true, 3);
+        
+        // Message
+        msg_format("You have forged %s, but it falls to the floor.", o_name);
+        log_info("Created smithing item (dropped): %s", o_name);
+    }
+    else
+    {
+        // Get the item itself
+        o_ptr = &inventory[slot];
+        
+        // Mark the item as smithed by the player (using unused1 field)
+        o_ptr->unused1 = 1;  /* 1 = smithed by player, 0 = found item */
+
+        // Describe the object
+        object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+
+        // Message
         msg_format("You have %s (%c).", o_name, index_to_label(slot));
         log_info("Created smithing item: %s", o_name);
     }
@@ -7300,10 +7420,6 @@ int main_menu_aux(int* highlight)
     Term_putstr(COL_MAIN, 15, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
         "Save                 (s)");
     Term_putstr(COL_MAIN, 16, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
-        "Suicide              (k)");
-    Term_putstr(COL_MAIN, 15, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
-        "Save                 (s)");
-    Term_putstr(COL_MAIN, 16, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
         "Quit with save       (q)");
     Term_putstr(COL_MAIN, 17, -1, (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
         "Return to game       (r)");
@@ -7320,23 +7436,56 @@ int main_menu_aux(int* highlight)
     hide_cursor = false;
 
     // choose an option by letter - alphabetical mapping (updated for new order)
-    switch (ch) {
-        case 'c': *highlight = 1; return (*highlight);  // Character sheet
-        case 'a': *highlight = 2; return (*highlight);  // Known artefacts
-        case 'b': *highlight = 3; return (*highlight);  // Known objects  
-        case 'n': *highlight = 4; return (*highlight);  // Known monsters
-        case 'u': *highlight = 5; return (*highlight);  // Known curses
-        case 't': *highlight = 6; return (*highlight);  // Quest status
-        case 'd': *highlight = 7; return (*highlight);  // Halls of Mandos
-        case 'm': *highlight = 8; return (*highlight);  // Map
-        case 'l': *highlight = 9; return (*highlight);  // Log
-        case 'x': *highlight = 10; return (*highlight); // Combat history
-        case 'o': *highlight = 11; return (*highlight); // Options and misc
-        case 'h': *highlight = 12; return (*highlight); // Help
-        case 'k': *highlight = 13; return (*highlight); // Suicide
-        case 's': *highlight = 14; return (*highlight); // Save
-        case 'q': *highlight = 15; return (*highlight); // Quit with save
-        case 'r': *highlight = 16; return (*highlight); // Return to game
+    switch (ch)
+    {
+    case 'c':
+        *highlight = 1;
+        return (*highlight);  // Character sheet
+    case 'a':
+        *highlight = 2;
+        return (*highlight);  // Known artefacts
+    case 'b':
+        *highlight = 3;
+        return (*highlight);  // Known objects
+    case 'n':
+        *highlight = 4;
+        return (*highlight);  // Known monsters
+    case 'u':
+        *highlight = 5;
+        return (*highlight);  // Known curses
+    case 't':
+        *highlight = 6;
+        return (*highlight);  // Quest status
+    case 'd':
+        *highlight = 7;
+        return (*highlight);  // Halls of Mandos
+    case 'm':
+        *highlight = 8;
+        return (*highlight);  // Map
+    case 'l':
+        *highlight = 9;
+        return (*highlight);  // Log
+    case 'x':
+        *highlight = 10;
+        return (*highlight); // Combat history
+    case 'o':
+        *highlight = 11;
+        return (*highlight); // Options and misc
+    case 'h':
+        *highlight = 12;
+        return (*highlight); // Help
+    case 'k':
+        *highlight = 13;
+        return (*highlight); // Suicide
+    case 's':
+        *highlight = 14;
+        return (*highlight); // Save
+    case 'q':
+        *highlight = 15;
+        return (*highlight); // Quit with save
+    case 'r':
+        *highlight = 16;
+        return (*highlight); // Return to game
     }
 
     /* Choose current  */
@@ -7480,10 +7629,10 @@ void do_cmd_main_menu(void)
         case 15: // Quit with save (q)
         {
             do_cmd_save_game();
-            
+
             /* Stop playing */
             p_ptr->playing = false;
-            
+
             /* Mark that we want to quit to menu, not exit application */
             p_ptr->quit_to_menu = true;
 
@@ -11201,6 +11350,305 @@ static void display_group_list(int col, int row, int wid, int per_page,
     }
 }
 
+static bool supply_kind_matches(int group, int tval, int sval)
+{
+    switch (group)
+    {
+    case SUPPLY_GROUP_HERBS:
+        return (tval == TV_FOOD) && (sval <= SV_FOOD_SICKNESS);
+    case SUPPLY_GROUP_POTIONS:
+        return (tval == TV_POTION);
+    case SUPPLY_GROUP_GEMS:
+        return (tval == TV_GEM);
+    default:
+        return false;
+    }
+}
+
+static bool supply_item_matches(int group, const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return false;
+
+    return supply_kind_matches(group, o_ptr->tval, o_ptr->sval);
+}
+
+static void compute_supply_group_totals(int totals[SUPPLY_GROUP_MAX])
+{
+    int i;
+
+    for (i = 0; i < SUPPLY_GROUP_MAX; i++)
+        totals[i] = 0;
+
+    for (i = 0; i < INVEN_PACK; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        if ((o_ptr->tval == TV_FOOD) && (o_ptr->sval <= SV_FOOD_SICKNESS))
+            totals[SUPPLY_GROUP_HERBS] += o_ptr->number;
+        else if (o_ptr->tval == TV_POTION)
+            totals[SUPPLY_GROUP_POTIONS] += o_ptr->number;
+        else if (o_ptr->tval == TV_GEM)
+            totals[SUPPLY_GROUP_GEMS] += o_ptr->number;
+    }
+
+    for (i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* s_ptr = supplies_entry_at(i);
+        if (!s_ptr || !s_ptr->k_idx)
+            continue;
+
+        if ((s_ptr->tval == TV_FOOD) && (s_ptr->sval <= SV_FOOD_SICKNESS))
+            totals[SUPPLY_GROUP_HERBS] += s_ptr->number;
+        else if (s_ptr->tval == TV_POTION)
+            totals[SUPPLY_GROUP_POTIONS] += s_ptr->number;
+        else if (s_ptr->tval == TV_GEM)
+            totals[SUPPLY_GROUP_GEMS] += supplies_entry_units(i);
+    }
+}
+
+static bool supply_kind_is_known(const object_kind* k_ptr)
+{
+    if (!k_ptr)
+        return false;
+
+    if (cheat_know || p_ptr->wizard)
+        return true;
+
+    return k_ptr->aware || k_ptr->everseen || k_ptr->tried;
+}
+
+static int collect_supply_entries(int group_idx, supply_list_entry entries[])
+{
+    int count = 0;
+    int capacity = z_info->k_max;
+    int i;
+
+    if (!entries)
+        return 0;
+
+    C_WIPE(entries, capacity, supply_list_entry);
+
+    /* Aggregate carried items first */
+    for (i = 0; i < INVEN_PACK; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+        int j;
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        if (!supply_item_matches(group_idx, o_ptr))
+            continue;
+
+        int value = o_ptr->number;
+
+        for (j = 0; j < count; j++)
+        {
+            if (entries[j].k_idx == o_ptr->k_idx)
+            {
+                entries[j].total += value;
+                if (entries[j].item_idx < 0)
+                    entries[j].item_idx = i;
+                break;
+            }
+        }
+
+        if (j == count)
+        {
+            if (count >= capacity)
+                break;
+
+            entries[count].k_idx = o_ptr->k_idx;
+            entries[count].item_idx = i;
+            entries[count].total = value;
+            entries[count].supply_idx = -1;
+            count++;
+        }
+    }
+
+    /* Aggregate supplies from the cache */
+    for (i = 0; i < supplies_entry_count(); i++)
+    {
+        object_type* s_ptr = supplies_entry_at(i);
+        int j;
+
+        if (!s_ptr || !s_ptr->k_idx)
+            continue;
+
+        if (!supply_item_matches(group_idx, s_ptr))
+            continue;
+
+        int value = (s_ptr->tval == TV_GEM) ? supplies_entry_units(i) : s_ptr->number;
+
+        for (j = 0; j < count; j++)
+        {
+            if (entries[j].k_idx == s_ptr->k_idx)
+            {
+                entries[j].total += value;
+                if (entries[j].item_idx < 0)
+                    entries[j].item_idx = SUPPLIES_INDEX;
+                entries[j].supply_idx = i;
+                break;
+            }
+        }
+
+        if (j == count)
+        {
+            if (count >= capacity)
+                break;
+
+            entries[count].k_idx = s_ptr->k_idx;
+            entries[count].item_idx = SUPPLIES_INDEX;
+            entries[count].total = value;
+            entries[count].supply_idx = i;
+            count++;
+        }
+    }
+
+    /* Add known kinds even when none are carried */
+    for (i = 0; i < z_info->k_max; i++)
+    {
+        object_kind* k_ptr = &k_info[i];
+        int j;
+
+        if (!k_ptr->name)
+            continue;
+
+        if (!supply_kind_matches(group_idx, k_ptr->tval, k_ptr->sval))
+            continue;
+
+        if (!supply_kind_is_known(k_ptr))
+            continue;
+
+        for (j = 0; j < count; j++)
+        {
+            if (entries[j].k_idx == i)
+                break;
+        }
+
+        if (j == count)
+        {
+            if (count >= capacity)
+                break;
+
+            entries[count].k_idx = i;
+            entries[count].item_idx = -1;
+            entries[count].total = 0;
+            entries[count].supply_idx = -1;
+            count++;
+        }
+    }
+
+    if (count < capacity)
+    {
+        entries[count].k_idx = -1;
+        entries[count].item_idx = -1;
+        entries[count].total = 0;
+        entries[count].supply_idx = -1;
+    }
+
+    return count;
+}
+
+static void display_supply_group_list(int col, int row, int wid, int per_page,
+    int grp_idx[], int grp_cur, int grp_top, int group_totals[])
+{
+    int i;
+    int total_col = col + wid - 3;
+
+    for (i = 0; i < per_page && (grp_idx[i] >= 0); i++)
+    {
+        int grp = grp_idx[grp_top + i];
+        byte attr = (grp_top + i == grp_cur) ? TERM_L_BLUE
+            : (group_totals[grp] ? TERM_WHITE : TERM_L_DARK);
+        char buf[8];
+
+        Term_erase(col, row + i, wid);
+        c_put_str(attr, supply_group_text[grp], row + i, col);
+
+        strnfmt(buf, sizeof(buf), "%3d", group_totals[grp]);
+        c_put_str(attr, buf, row + i, total_col);
+    }
+}
+
+static void display_supply_list(int col, int row, int per_page,
+    supply_list_entry entries[], int entry_cnt, int entry_cur, int entry_top,
+    int count_col, int sym_col)
+{
+    int i;
+
+    for (i = 0; i < per_page; i++)
+    {
+        int idx = entry_top + i;
+        int y = row + i;
+
+        Term_erase(col, y, 255);
+
+        if (idx >= entry_cnt)
+            continue;
+
+        supply_list_entry* entry = &entries[idx];
+        object_type* o_ptr;
+        object_type fake;
+        object_kind* k_ptr;
+        bool aware;
+        byte base_attr, cursor_attr, attr;
+        byte sym_attr;
+        char sym_char;
+        char name[80];
+        char count_buf[8];
+
+        if (entry->k_idx < 0 || entry->k_idx >= z_info->k_max)
+            continue;
+
+        k_ptr = &k_info[entry->k_idx];
+        aware = k_ptr->aware;
+        base_attr = aware ? TERM_WHITE : TERM_SLATE;
+        cursor_attr = aware ? TERM_L_BLUE : TERM_BLUE;
+        attr = (idx == entry_cur) ? cursor_attr : base_attr;
+
+        if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+        {
+            o_ptr = &inventory[entry->item_idx];
+        }
+        else
+        {
+            object_wipe(&fake);
+            object_prep(&fake, entry->k_idx);
+            if (aware)
+                fake.ident |= IDENT_KNOWN;
+            fake.number = (entry->total > 0) ? entry->total : 1;
+            o_ptr = &fake;
+        }
+
+        object_desc(name, sizeof(name), o_ptr, true, 3);
+        c_prt(attr, name, y, col);
+
+        strnfmt(count_buf, sizeof(count_buf), "x%-3d", entry->total);
+        c_put_str(attr, count_buf, y, count_col);
+
+        sym_attr = object_attr(o_ptr);
+        sym_char = object_char(o_ptr);
+        Term_putch(sym_col, y, sym_attr, sym_char);
+        if (use_bigtile)
+        {
+            if (sym_attr & 0x80)
+                Term_putch(sym_col + 1, y, 255, -1);
+            else
+                Term_putch(sym_col + 1, y, 0, ' ');
+        }
+    }
+
+    for (; i < per_page; i++)
+    {
+        Term_erase(col, row + i, 255);
+    }
+}
+
 /*
  * Move the cursor in a browser window
  */
@@ -12368,6 +12816,297 @@ static void display_object_list(int col, int row, int per_page,
 /*
  * Display known objects
  */
+bool do_cmd_knowledge_supplies(const supply_menu_request* request)
+{
+    int i;
+    int max = 0;
+    int grp_cnt = SUPPLY_GROUP_MAX;
+    int grp_idx[SUPPLY_GROUP_MAX + 1];
+    int group_totals[SUPPLY_GROUP_MAX];
+    supply_list_entry* entries;
+    int grp_cur = 0;
+    int grp_top = 0;
+    int entry_cur = 0;
+    int entry_top = 0;
+    int column = 0;
+    bool flag = false;
+    bool redraw = true;
+    const int count_col = 68;
+    const int sym_col = 75;
+    supply_menu_action forced_action = SUPPLY_MENU_ACTION_NONE;
+    bool hotkey_mode = false;
+    bool acted = false;
+    bool refresh_after_close = false;
+
+    if (request)
+    {
+        forced_action = request->action;
+        hotkey_mode = request->hotkey_mode;
+        if (request->focus_group && request->group >= 0 && request->group < SUPPLY_GROUP_MAX)
+            grp_cur = request->group;
+        if (forced_action != SUPPLY_MENU_ACTION_NONE)
+            column = 1;
+    }
+
+    for (i = 0; i < SUPPLY_GROUP_MAX; i++)
+    {
+        int len = strlen(supply_group_text[i]) + 5;
+        if (len > max)
+            max = len;
+        grp_idx[i] = i;
+    }
+    grp_idx[grp_cnt] = -1;
+    max += 2;
+
+    C_MAKE(entries, z_info->k_max, supply_list_entry);
+
+    screen_save();
+
+    while (!flag)
+    {
+        int entry_cnt;
+
+        compute_supply_group_totals(group_totals);
+
+        if (grp_cur >= grp_cnt)
+            grp_cur = grp_cnt - 1;
+        if (grp_cur < 0)
+            grp_cur = 0;
+
+        entry_cnt = collect_supply_entries(grp_idx[grp_cur], entries);
+
+        if (entry_cnt == 0)
+        {
+            entry_cur = 0;
+            entry_top = 0;
+            if (column)
+                column = 0;
+        }
+        else
+        {
+            if (entry_cur >= entry_cnt)
+                entry_cur = entry_cnt - 1;
+            if (entry_cur < 0)
+                entry_cur = 0;
+
+            if (entry_cur < entry_top)
+                entry_top = entry_cur;
+            if (entry_cur >= entry_top + BROWSER_ROWS)
+                entry_top = entry_cur - BROWSER_ROWS + 1;
+            if (entry_top < 0)
+                entry_top = 0;
+        }
+
+        if (grp_cur < grp_top)
+            grp_top = grp_cur;
+        if (grp_cur >= grp_top + BROWSER_ROWS)
+            grp_top = grp_cur - BROWSER_ROWS + 1;
+        if (grp_top < 0)
+            grp_top = 0;
+
+        if (redraw)
+        {
+            clear_from(0);
+
+            prt("Supplies - Herbs, Potions, Gems", 2, 0);
+            prt("Group", 4, 0);
+            prt("Name", 4, max + 3);
+            prt("Qty", 4, count_col);
+            prt("Sym", 4, sym_col);
+
+            for (i = 0; i < 78; i++)
+                Term_putch(i, 5, TERM_L_DARK, '=');
+
+            for (i = 0; i < BROWSER_ROWS; i++)
+                Term_putch(max + 1, 6 + i, TERM_L_DARK, '|');
+
+            redraw = false;
+        }
+
+        display_supply_group_list(0, 6, max, BROWSER_ROWS, grp_idx, grp_cur, grp_top, group_totals);
+        display_supply_list(max + 3, 6, BROWSER_ROWS, entries, entry_cnt, entry_cur, entry_top, count_col, sym_col);
+
+        Term_putstr(1, 23, -1, TERM_SLATE, "<dir>   recall   u/Space   d drop   ESC");
+        Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
+        Term_putstr(9, 23, -1, TERM_L_WHITE, "r");
+        Term_putstr(18, 23, -1, TERM_L_WHITE, "u/Space");
+        Term_putstr(30, 23, -1, TERM_L_WHITE, "d");
+        Term_putstr(30, 23, -1, TERM_L_WHITE, "drop");
+        Term_putstr(37, 23, -1, TERM_L_WHITE, "ESC");
+
+        if (!column)
+            Term_gotoxy(0, 6 + (grp_cur - grp_top));
+        else if (entry_cnt)
+            Term_gotoxy(max + 3, 6 + (entry_cur - entry_top));
+        else
+            Term_gotoxy(0, 6 + (grp_cur - grp_top));
+
+        char ch = inkey();
+
+        if ((ch == '\r' || ch == '\n') && column && entry_cnt)
+        {
+            if (forced_action == SUPPLY_MENU_ACTION_USE)
+                ch = 'u';
+            else if (forced_action == SUPPLY_MENU_ACTION_DROP)
+                ch = 'd';
+        }
+
+        switch (ch)
+        {
+        case ESCAPE:
+            flag = true;
+            break;
+
+        case 'R':
+        case 'r':
+        case 'X':
+        case 'x':
+            if (!column && entry_cnt)
+            {
+                column = 1;
+            }
+            else if (column && entry_cnt)
+            {
+                supply_list_entry* entry = &entries[entry_cur];
+                if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+                {
+                    object_info_screen(&inventory[entry->item_idx]);
+                    redraw = true;
+                }
+                else if (entry->k_idx >= 0)
+                {
+                    object_kind* k_ptr = &k_info[entry->k_idx];
+                    if (k_ptr->aware)
+                    {
+                        desc_obj_fake(entry->k_idx);
+                        redraw = true;
+                    }
+                    else
+                    {
+                        bell("You have not identified that yet.");
+                        msg_print("You have not identified that yet.");
+                    }
+                }
+            }
+            break;
+
+        case 'u':
+        case 'U':
+        case ' ':
+            if (!column && entry_cnt)
+            {
+                column = 1;
+            }
+            else if (column && entry_cnt)
+            {
+                supply_list_entry* entry = &entries[entry_cur];
+                bool handled = false;
+
+                if (entry->item_idx == SUPPLIES_INDEX && entry->supply_idx >= 0)
+                {
+                    handled = supplies_menu_use_entry(entry);
+                }
+                else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+                {
+                    object_type* o_ptr = &inventory[entry->item_idx];
+
+                    switch (o_ptr->tval)
+                    {
+                    case TV_FOOD:
+                        do_cmd_eat_food(o_ptr, entry->item_idx);
+                        handled = true;
+                        break;
+                    case TV_POTION:
+                        do_cmd_quaff_potion(o_ptr, entry->item_idx);
+                        handled = true;
+                        break;
+                    case TV_STAFF:
+                        do_cmd_activate_staff(o_ptr, entry->item_idx);
+                        handled = true;
+                        break;
+                    default:
+                        bell("Cannot use that item here!");
+                        break;
+                    }
+
+                    if (handled)
+                        handle_stuff();
+                }
+                else
+                {
+                    bell("You do not have any of that item.");
+                    msg_print("You do not have any of that item.");
+                }
+
+                if (handled)
+                {
+                    acted = true;
+                    redraw = true;
+                    if (hotkey_mode || forced_action == SUPPLY_MENU_ACTION_USE)
+                        flag = true;
+                }
+            }
+            break;
+
+        case 'd':
+        case 'D':
+            if (!column && entry_cnt)
+            {
+                column = 1;
+            }
+            else if (column && entry_cnt)
+            {
+                supply_list_entry* entry = &entries[entry_cur];
+                bool dropped = false;
+
+                if (entry->item_idx == SUPPLIES_INDEX && entry->supply_idx >= 0)
+                {
+                    dropped = supplies_menu_drop_entry(entry);
+                }
+                else if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
+                {
+                    do_cmd_drop_item_by_index(entry->item_idx);
+                    dropped = true;
+                }
+                else
+                {
+                    bell("Nothing to drop here.");
+                    msg_print("Nothing to drop here.");
+                }
+
+                if (dropped)
+                {
+                    acted = true;
+                    redraw = true;
+                    handle_stuff();
+                    refresh_after_close = true;
+                    if (hotkey_mode || forced_action == SUPPLY_MENU_ACTION_DROP)
+                        flag = true;
+                }
+            }
+            break;
+
+        default:
+            browser_cursor(ch, &column, &grp_cur, grp_cnt, &entry_cur, entry_cnt);
+            break;
+        }
+    }
+
+    KILL(entries);
+    screen_load();
+    Term_erase(0, 23, 255);
+
+    if (refresh_after_close)
+    {
+        p_ptr->redraw |= (PR_MAP);
+        p_ptr->window |= (PW_MESSAGE);
+        handle_stuff();
+        Term_fresh();
+    }
+
+    return acted;
+}
+
 void do_cmd_knowledge_objects(void)
 {
     int i, len, max;
@@ -12641,12 +13380,13 @@ void do_cmd_knowledge(void)
         prt("(1) Display known artefacts", 4, 5);
         prt("(2) Display known monsters", 5, 5);
         prt("(3) Display known objects", 6, 5);
-        prt("(4) Display names of the fallen", 7, 5);
-        prt("(5) Display kill counts", 8, 5);
+        prt("(4) Display supplies overview", 7, 5);
+        prt("(5) Display names of the fallen", 8, 5);
+        prt("(6) Display kill counts", 9, 5);
 
         /*allow the player to see the notes taken if that option is selected*/
-        c_put_str(TERM_WHITE, "(6) Display character notes file", 9, 5);
-        prt("(7) Display oath status", 10, 5);
+        c_put_str(TERM_WHITE, "(7) Display character notes file", 10, 5);
+        prt("(8) Display oath status", 11, 5);
 
         /* Prompt */
         prt("Command: ", 13, 0);
@@ -12679,24 +13419,30 @@ void do_cmd_knowledge(void)
         /* Scores */
         else if (ch == '4')
         {
-            show_scores(true);
+            do_cmd_knowledge_supplies(NULL);
         }
 
         /* Scores */
         else if (ch == '5')
         {
+            show_scores(true);
+        }
+
+        /* Kill counts */
+        else if (ch == '6')
+        {
             do_cmd_knowledge_kills();
         }
 
         /* Notes file, if one exists */
-        else if (ch == '6')
+        else if (ch == '7')
         {
             /* Spawn */
             do_cmd_knowledge_notes();
         }
 
         /* Oath status */
-        else if (ch == '7')
+        else if (ch == '8')
         {
             do_cmd_knowledge_oaths();
         }
@@ -13268,6 +14014,7 @@ void show_unified_sidebar(unified_look_state* state)
                 /* Update highlighted position and cursor */
                 state->highlighted_y = temp_y[i];
                 state->highlighted_x = temp_x[i];
+                state->highlighted_entity_type = 1; /* Monster */
                 state->cursor_y = temp_y[i];
                 state->cursor_x = temp_x[i];
                 highlight_entity_on_map_type(temp_y[i], temp_x[i], true, 1); /* Prefer monster display */
@@ -13472,6 +14219,7 @@ void show_unified_sidebar(unified_look_state* state)
                 /* Update highlighted position and cursor */
                 state->highlighted_y = objects[i].y;
                 state->highlighted_x = objects[i].x;
+                state->highlighted_entity_type = 2; /* Object */
                 state->cursor_y = objects[i].y;
                 state->cursor_x = objects[i].x;
                 highlight_entity_on_map_type(objects[i].y, objects[i].x, true, 2); /* Prefer object display */
