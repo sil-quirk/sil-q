@@ -28,6 +28,18 @@ static bool g_supply_allow_overflow = false;
 static bool g_supply_limit_warned = false;
 
 
+static void supplies_apply_auto_identification(object_type* obj)
+{
+    if (!obj || !obj->k_idx)
+        return;
+
+    if (player_auto_identifies_object(obj))
+    {
+        ident(obj);
+        apply_autoinscription(obj);
+    }
+}
+
 static void supplies_sync_gem_entry(supply_entry* entry)
 {
     if (!entry)
@@ -308,6 +320,7 @@ bool supplies_absorb_object(object_type* src)
             /* Gems use number, not pval */
             entry->stored_count += src->number;
             supplies_sync_gem_entry(entry);
+            supplies_apply_auto_identification(&entry->obj);
             object_wipe(src);
             supplies_mark_dirty();
             return true;
@@ -321,6 +334,7 @@ bool supplies_absorb_object(object_type* src)
         entry->obj.number = moved;
         entry->stored_count = 0;
         int leftover = total - moved;
+        supplies_apply_auto_identification(&entry->obj);
         object_wipe(src);
         supplies_mark_dirty();
         while (leftover > 0)
@@ -331,6 +345,7 @@ bool supplies_absorb_object(object_type* src)
             object_copy(&extra->obj, &entry->obj);
             extra->obj.number = MIN(leftover, 255);
             extra->stored_count = 0;
+            supplies_apply_auto_identification(&extra->obj);
             leftover -= extra->obj.number;
             g_supply_count++;
         }
@@ -352,6 +367,7 @@ bool supplies_absorb_object(object_type* src)
         if (entry->obj.number > 255)
             entry->obj.number = 255;
     }
+    supplies_apply_auto_identification(&entry->obj);
     object_wipe(src);
     g_supply_count++;
     supplies_mark_dirty();
@@ -573,6 +589,7 @@ void supplies_refresh_entry(int idx)
         }
 
         supplies_sync_gem_entry(entry);
+        supplies_apply_auto_identification(obj);
         g_supply_limit_warned = false;
         supplies_mark_dirty();
     }

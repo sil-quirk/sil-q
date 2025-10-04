@@ -4981,24 +4981,27 @@ typedef enum
 {
     IDENT_ENTRY_INVEN,
     IDENT_ENTRY_EQUIP,
-    IDENT_ENTRY_FLOOR
+    IDENT_ENTRY_FLOOR,
+    IDENT_ENTRY_SUPPLY
 } ident_entry_type;
 
 typedef struct
 {
     ident_entry_type type;
     int index;
+    int supply_index;
     int floor_o_idx;
     object_type* o_ptr;
-    char label[4];
-    char prefix[20];
+    char label[6];
+    char prefix[24];
     char desc[80];
     byte color;
 } ident_entry;
 
-#define MAX_IDENT_ENTRIES (INVEN_PACK + (INVEN_TOTAL - INVEN_WIELD) + MAX_FLOOR_STACK)
+#define MAX_IDENT_SUPPLY 256
+#define MAX_IDENT_ENTRIES (INVEN_PACK + (INVEN_TOTAL - INVEN_WIELD) + MAX_FLOOR_STACK + MAX_IDENT_SUPPLY)
 
-static void build_ident_entry_label(int order, char out[4])
+static void build_ident_entry_label(int order, char out[6])
 {
     char label = index_to_label(order);
     out[0] = label;
@@ -5051,6 +5054,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
     const int lim_no_weight = base_lim - (show_weights ? 9 : 0);
     int floor_list[MAX_FLOOR_STACK];
     int floor_num = 0;
+    int supply_count = supplies_entry_count();
 
     if (include_floor)
         floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px, 0x00);
@@ -5067,6 +5071,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
             ident_entry* entry = &entries[entry_count];
             entry->type = IDENT_ENTRY_FLOOR;
             entry->index = 0;
+            entry->supply_index = -1;
             entry->floor_o_idx = o_idx;
             entry->o_ptr = o_ptr;
             strnfmt(entry->label, sizeof(entry->label), "-)");
@@ -5089,6 +5094,50 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         }
     }
 
+    for (int i = 0; i < supply_count && entry_count < MAX_IDENT_ENTRIES; i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+        if (!o_ptr || !o_ptr->k_idx || object_known_p(o_ptr))
+            continue;
+
+        ident_entry* entry = &entries[entry_count];
+        entry->type = IDENT_ENTRY_SUPPLY;
+        entry->index = i;
+        entry->supply_index = i;
+        entry->floor_o_idx = 0;
+        entry->o_ptr = o_ptr;
+        build_ident_entry_label(entry_count, entry->label);
+
+        const char* supply_prefix = "Supplies: ";
+        if (o_ptr->tval == TV_POTION)
+            supply_prefix = "Supplies (potions): ";
+        else if (o_ptr->tval == TV_GEM)
+            supply_prefix = "Supplies (gems): ";
+        else if (o_ptr->tval == TV_FOOD && o_ptr->sval <= SV_FOOD_SICKNESS)
+            supply_prefix = "Supplies (herbs): ";
+
+        strnfmt(entry->prefix, sizeof(entry->prefix), "%s", supply_prefix);
+
+        int prefix_len = (int)strlen(entry->prefix);
+        int desc_lim = lim_no_weight - prefix_len;
+        if (desc_lim < 0)
+            desc_lim = 0;
+
+        object_desc(entry->desc, sizeof(entry->desc), o_ptr, true, 3);
+        entry->desc[desc_lim] = '\0';
+
+        entry->color = weapon_glows(o_ptr) ? TERM_L_BLUE
+            : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+
+        int row_len = prefix_len + (int)strlen(entry->desc) + 5;
+        if (show_weights && o_ptr->weight)
+            row_len += 9;
+        if (row_len > len)
+            len = row_len;
+
+        entry_count++;
+    }
+
     for (int i = 0; i < INVEN_PACK && entry_count < MAX_IDENT_ENTRIES; i++)
     {
         object_type* o_ptr = &inventory[i];
@@ -5098,6 +5147,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         ident_entry* entry = &entries[entry_count];
         entry->type = IDENT_ENTRY_INVEN;
         entry->index = i;
+        entry->supply_index = -1;
         entry->floor_o_idx = 0;
         entry->o_ptr = o_ptr;
         build_ident_entry_label(entry_count, entry->label);
@@ -5128,6 +5178,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         ident_entry* entry = &entries[entry_count];
         entry->type = IDENT_ENTRY_EQUIP;
         entry->index = i;
+        entry->supply_index = -1;
         entry->floor_o_idx = 0;
         entry->o_ptr = o_ptr;
         build_ident_entry_label(entry_count, entry->label);
@@ -5252,6 +5303,11 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
     {
         *out_item = 0 - chosen->floor_o_idx;
         *out_object = &o_list[chosen->floor_o_idx];
+    }
+    else if (chosen->type == IDENT_ENTRY_SUPPLY)
+    {
+        *out_item = SUPPLIES_INDEX + chosen->supply_index;
+        *out_object = chosen->o_ptr;
     }
     else
     {

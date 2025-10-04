@@ -5307,7 +5307,10 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
         object_type copy;
         object_copy(&copy, o_ptr);
         if (supplies_absorb_object(&copy))
+        {
+            object_wipe(o_ptr);
             return SUPPLIES_INDEX;
+        }
         /* If absorption failed, treat as normal item. */
     }
 
@@ -5412,7 +5415,13 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
         {
             o_ptr->pickup = false;
             o_ptr->pickup_slot = -1;
-            do_cmd_wield(o_ptr, -1);
+
+            if ((o_ptr >= o_list) && (o_ptr < o_list + o_max))
+            {
+                int floor_idx = (int)(o_ptr - o_list);
+                do_cmd_wield(o_ptr, 0 - floor_idx);
+            }
+
             return (-1);
         }
     }

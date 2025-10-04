@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "metarun.h"
+#include "supplies.h"
 
 /*
  * Determines the total melee damage dice (before criticals and slays)
@@ -3302,6 +3303,43 @@ void notice_stuff(void)
     }
 }
 
+bool player_auto_identifies_object(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    bool alchemy = p_ptr->active_ability[S_PER][PER_ALCHEMY]
+        || p_ptr->have_ability[S_PER][PER_ALCHEMY];
+    bool channeling = p_ptr->active_ability[S_WIL][WIL_CHANNELING]
+        || p_ptr->have_ability[S_WIL][WIL_CHANNELING];
+    bool jeweller = p_ptr->active_ability[S_SMT][SMT_JEWELLER]
+        || p_ptr->have_ability[S_SMT][SMT_JEWELLER];
+    bool enchantment = p_ptr->active_ability[S_SMT][SMT_ENCHANTMENT]
+        || p_ptr->have_ability[S_SMT][SMT_ENCHANTMENT];
+
+    bool is_potion = (o_ptr->tval == TV_POTION);
+    bool is_herb = (o_ptr->tval == TV_FOOD) && (o_ptr->sval <= SV_FOOD_SICKNESS);
+    bool is_gem = (o_ptr->tval == TV_GEM);
+    bool is_staff = (o_ptr->tval == TV_STAFF);
+    bool is_horn = (o_ptr->tval == TV_HORN);
+    bool is_jewellery = (o_ptr->tval == TV_RING) || (o_ptr->tval == TV_AMULET)
+        || (o_ptr->tval == TV_LIGHT) || is_horn;
+
+    if (alchemy && (is_potion || is_herb || is_gem))
+        return true;
+
+    if (channeling && (is_staff || is_horn))
+        return true;
+
+    if (jeweller && is_jewellery)
+        return true;
+
+    if (enchantment && !(is_potion || is_herb || is_gem))
+        return true;
+
+    return false;
+}
+
 /*
  * Helper function for update_lore()
  */
@@ -3310,21 +3348,7 @@ void update_lore_aux(object_type* o_ptr)
     // identify seen items
     if (!object_known_p(o_ptr))
     {
-        bool alchemy = p_ptr->active_ability[S_PER][PER_ALCHEMY];
-        bool channeling = p_ptr->active_ability[S_WIL][WIL_CHANNELING];
-        bool jeweller = p_ptr->active_ability[S_SMT][SMT_JEWELLER];
-        bool enchantment = p_ptr->active_ability[S_SMT][SMT_ENCHANTMENT];
-
-        bool staffOrHorn = o_ptr->tval == TV_HORN || o_ptr->tval == TV_STAFF;
-        bool foodOrPotion = o_ptr->tval == TV_FOOD || o_ptr->tval == TV_POTION;
-        bool jewellery = o_ptr->tval == TV_RING || o_ptr->tval == TV_AMULET
-            || o_ptr->tval == TV_LIGHT || o_ptr->tval == TV_HORN;
-        bool enchantedItem = !staffOrHorn && !foodOrPotion
-            && o_ptr->tval != TV_CHEST && o_ptr->tval != TV_SKELETON;
-
-        if ((channeling && staffOrHorn)
-            || (alchemy && (staffOrHorn || foodOrPotion))
-            || (jeweller && (jewellery)) || (enchantment && enchantedItem))
+        if (player_auto_identifies_object(o_ptr))
         {
             ident(o_ptr);
         }
@@ -3442,6 +3466,16 @@ void update_lore(void)
             continue;
 
         update_lore_aux(o_ptr);
+    }
+
+    int supply_count = supplies_entry_count();
+    for (int s_idx = 0; s_idx < supply_count; s_idx++)
+    {
+        object_type* supply_obj = supplies_entry_at(s_idx);
+        if (!supply_obj || !supply_obj->k_idx)
+            continue;
+
+        update_lore_aux(supply_obj);
     }
 }
 

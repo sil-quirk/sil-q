@@ -3007,6 +3007,13 @@ void py_pickup_aux(int o_idx)
 
         // Break the truce if creatures see
         break_truce(false);
+
+        if (!o_ptr->k_idx || o_ptr->number <= 0)
+        {
+            delete_object_idx(o_idx);
+        }
+
+        return;
     }
 
     /* Delete the object */

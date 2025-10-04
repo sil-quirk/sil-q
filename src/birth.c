@@ -522,7 +522,17 @@ static void give_start_items(const start_item *list)
         /* Light sources start with fuel */
         if (slot == INVEN_LITE) i_ptr->timeout = 2000;
 
-        object_known(i_ptr);
+        bool start_known = true;
+        if ((i_ptr->tval == TV_POTION)
+            || (i_ptr->tval == TV_FOOD && i_ptr->sval <= SV_FOOD_SICKNESS)
+            || (i_ptr->tval == TV_GEM))
+        {
+            if (!player_auto_identifies_object(i_ptr))
+                start_known = false;
+        }
+
+        if (start_known)
+            object_known(i_ptr);
 
         /* Carry it */
         int carry_slot = inven_carry(i_ptr, true);

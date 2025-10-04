@@ -386,6 +386,7 @@ extern void disturb(int stop_stealth, int unused_flag);
 /* cmd1.c */
 extern void apply_oath_breaking_curse(int oath_type);
 extern void give_player_item(object_type * o_ptr);
+extern bool player_auto_identifies_object(const object_type* o_ptr);
 extern bool graphics_are_ascii();
 extern void new_wandering_flow(monster_type* m_ptr, int y, int x);
 extern void new_wandering_destination(
