@@ -2927,6 +2927,9 @@ void py_pickup_aux(int o_idx)
     char o_name[120];
     
     o_ptr = &o_list[o_idx];
+    // Remember the floor position even if give_player_item wipes the object
+    int pickup_y = o_ptr->iy;
+    int pickup_x = o_ptr->ix;
 
     /*hack - don't pickup &nothings*/
     if (o_ptr->k_idx)
@@ -3010,6 +3013,11 @@ void py_pickup_aux(int o_idx)
 
         if (!o_ptr->k_idx || o_ptr->number <= 0)
         {
+            if (!o_ptr->k_idx)
+            {
+                o_ptr->iy = pickup_y;
+                o_ptr->ix = pickup_x;
+            }
             delete_object_idx(o_idx);
         }
 
@@ -3017,6 +3025,8 @@ void py_pickup_aux(int o_idx)
     }
 
     /* Delete the object */
+    o_ptr->iy = pickup_y;
+    o_ptr->ix = pickup_x;
     delete_object_idx(o_idx);
 }
 

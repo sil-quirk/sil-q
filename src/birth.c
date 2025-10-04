@@ -1846,20 +1846,22 @@ static NavResult select_oath(void)
                             row += display_wrapped_text(pledge, COL_DESCRIPTION, row, 0, TERM_L_BLUE);
                         }
                         
+                        /* Display Reward (R:) - MOVED TO TOP FOR VISIBILITY */
+                        char* reward = oath_reward_text(highlight);
+                        log_debug("Oath %d reward text: '%s'", highlight, reward ? reward : "NULL");
+                        if (reward && reward[0]) {
+                            Term_putstr(COL_DESCRIPTION, row, -1, TERM_L_GREEN, "Reward:");
+                            row++;
+                            row += display_wrapped_text(reward, COL_DESCRIPTION, row, 0, TERM_L_GREEN);
+                            row++; /* Add spacing after reward */
+                        }
+                        
                         /* Display Forbidden (F:) */
                         char* forbidden = oath_forbidden(highlight);
                         if (forbidden && forbidden[0]) {
                             Term_putstr(COL_DESCRIPTION, row, -1, TERM_L_RED, "Forbidden:");
                             row++;
                             row += display_wrapped_text(forbidden, COL_DESCRIPTION, row, 0, TERM_L_RED);
-                        }
-                        
-                        /* Display Reward (R:) */
-                        char* reward = oath_reward_text(highlight);
-                        if (reward && reward[0]) {
-                            Term_putstr(COL_DESCRIPTION, row, -1, TERM_L_GREEN, "Reward:");
-                            row++;
-                            row += display_wrapped_text(reward, COL_DESCRIPTION, row, 0, TERM_L_GREEN);
                         }
                     }
                 }

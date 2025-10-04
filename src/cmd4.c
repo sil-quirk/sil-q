@@ -4281,7 +4281,7 @@ int object_difficulty(object_type* o_ptr)
     dif = dif * dif_mult / 100;
 
     // Artefact arrows are much easier
-    if ((o_ptr->tval == TV_ARROW) && (o_ptr->number == 1))
+    if ((o_ptr->tval == TV_ARROW) && (o_ptr->name1))
         dif /= 2;
 
     // Deal with masterpiece and Aule's Forge
@@ -4774,6 +4774,35 @@ void pay_costs()
     p_ptr->redraw |= (PR_EXP | PR_BASIC);
 }
 
+// Determine default stack sizes for smithing-created items.
+// Normal: arrows 24/18/12, daggers & spears 3/2/1 (normal/enchanted/artefact).
+// This keeps arrows and throwable weapons in sensible stack counts.
+static byte smith_default_stack_size(const object_type* o_ptr)
+{
+    bool is_arrow = (o_ptr->tval == TV_ARROW);
+    bool is_spear = (o_ptr->tval == TV_POLEARM) && (o_ptr->sval == SV_SPEAR);
+    bool is_dagger = (o_ptr->tval == TV_SWORD) && (o_ptr->sval == SV_DAGGER);
+
+    if (!(is_arrow || is_spear || is_dagger))
+    {
+        return (o_ptr->number ? o_ptr->number : 1);
+    }
+
+    bool is_artifact = (o_ptr->name1 != 0);
+    bool is_enchanted = (!is_artifact) && (o_ptr->name2 != 0);
+
+    if (is_arrow)
+    {
+        if (is_artifact) return 12;
+        if (is_enchanted) return 18;
+        return 24;
+    }
+
+    if (is_artifact) return 1;
+    if (is_enchanted) return 2;
+    return 3;
+}
+
 /*
  * Creates the base object (not in the dungeon, but just as a work in progress).
  */
@@ -4794,11 +4823,8 @@ void create_base_object(int tval, int sval)
     // display all attributes
     smith_o_ptr->ident |= (IDENT_KNOWN | IDENT_SPOIL);
 
-    // create arrows by the two dozen
-    if (tval == TV_ARROW)
-    {
-        smith_o_ptr->number = 12;
-    }
+    // Apply default stack sizes for smithing output
+    smith_o_ptr->number = smith_default_stack_size(smith_o_ptr);
 }
 
 /*
@@ -5396,6 +5422,9 @@ void create_special(int name2)
 
     // make it into that special type
     object_into_special(smith_o_ptr, p_ptr->skill_use[S_SMT], true);
+
+    // Re-evaluate stack size now that an enchantment is applied
+    smith_o_ptr->number = smith_default_stack_size(smith_o_ptr);
 }
 
 /*
@@ -5632,8 +5661,8 @@ void prepare_artefact(void)
     // set its 'artefact' name to reflect the chosen type
     smith_o_ptr->name1 = smith_a_name;
 
-    // make sure there is only one of the item (needed for arrows)
-    smith_o_ptr->number = 1;
+    // Restore default stack sizes for arrows and other throwable gear
+    smith_o_ptr->number = smith_default_stack_size(smith_o_ptr);
 
     // as abilities are represented on the o_ptr not the a_ptr in Sil
     // we need to synchronise them on the smith_o_ptr
@@ -12807,6 +12836,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     supply_menu_action forced_action = SUPPLY_MENU_ACTION_NONE;
     bool hotkey_mode = false;
     bool acted = false;
+    bool refresh_after_close = false;
 
     if (request)
     {
@@ -13049,6 +13079,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                     acted = true;
                     redraw = true;
                     handle_stuff();
+                    refresh_after_close = true;
                     if (hotkey_mode || forced_action == SUPPLY_MENU_ACTION_DROP)
                         flag = true;
                 }
@@ -13064,6 +13095,14 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     KILL(entries);
     screen_load();
     Term_erase(0, 23, 255);
+
+    if (refresh_after_close)
+    {
+        p_ptr->redraw |= (PR_MAP);
+        p_ptr->window |= (PW_MESSAGE);
+        handle_stuff();
+        Term_fresh();
+    }
 
     return acted;
 }
@@ -14218,5 +14257,3 @@ void show_unified_sidebar(unified_look_state* state)
     previous_line_count = current_line_count;
     log_trace("show_unified_sidebar: function complete, set previous_line_count=%d", previous_line_count);
 }
-
-
