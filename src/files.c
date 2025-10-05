@@ -191,8 +191,8 @@ static s16b tokenize_whitespace(char *buf, s16b num, char **tokens)
 
 
 /*------------------------------------------------------------------------
- *  A hard‐coded priority list of races.  Highest‐priority first.
- *  Fill this out with your own RACE_… constants, in the order you like.
+ *  A hard-coded priority list of races.  Highest-priority first.
+ *  Fill this out with your own RACE_... constants, in the order you like.
  *------------------------------------------------------------------------*/
 static const int race_priority[] = {
     3, //Sindar
@@ -1375,7 +1375,7 @@ void display_player_xtra_info(int mode)
     {
         attacks++;
         put_single20_right(col_stats, row_stats++,
-                           "Melee×2", val, 14, TERM_L_BLUE);
+                           "Melee x2", val, 14, TERM_L_BLUE);
     }
 
     /* Offhand if present */
@@ -1500,7 +1500,7 @@ void display_player_xtra_info(int mode)
     HANDLE_SKILL_EX("bow",        RHF_BOW_PROFICIENCY, 0);
     HANDLE_SKILL_EX("axe",        RHF_AXE_PROFICIENCY, 0);
 
-    /* Uniques (all into one buffer; they’ll print first) */
+    /* Uniques (all into one buffer; they'll print first) */
     HANDLE_UNIQUE_U("Master Artisan",     UNQ_SMT_FEANOR,   TERM_VIOLET);
     HANDLE_UNIQUE_U("Chosen of Ulmo",     UNQ_WIL_TUOR,     TERM_VIOLET);
     HANDLE_UNIQUE_U("Indomitable Will",   UNQ_EARENDIL,     TERM_VIOLET);
@@ -1521,7 +1521,7 @@ void display_player_xtra_info(int mode)
     HANDLE_UNIQUE("Doom of Mandos",       RHF_CURSE,        TERM_UMBER);
     HANDLE_UNIQUE("Morgoth Curse",        RHF_MOR_CURSE,    TERM_UMBER);
 
-    /* Render: uniques → MA → AF → penalties */
+    /* Render: uniques -> MA -> AF -> penalties */
     for (int i = 0; i < uniq_n; ++i)
         Term_putstr(col_flags, row_flags++, -1, uniq_buf[i].col, uniq_buf[i].txt);
     for (int i = 0; i < ma_n; ++i)
@@ -4379,6 +4379,9 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
 }
 
 static bool force_interactive_scores = false;
+static bool score_last_layout_short = false;
+static bool forced_highlight_active = false;
+static high_score forced_highlight_entry;
 
 static int score_points_from_breakdown(const score_breakdown* breakdown)
 {
@@ -4486,20 +4489,24 @@ static int compare_scores_qsort(const void* va, const void* vb)
 static long score_day_key(const high_score* entry)
 {
     if (!entry)
+        return LONG_MIN;
+
+    if (streq(entry->how, "(alive and well)"))
         return LONG_MAX;
 
     if (entry->day[0] != '@')
-        return LONG_MAX - 1;
+        return LONG_MIN + 1;
 
     char buf[32];
     my_strcpy(buf, entry->day + 1, sizeof(buf));
     char* end = NULL;
     long value = strtol(buf, &end, 10);
     if (value <= 0 || !end || *end != '\0')
-        return LONG_MAX - 1;
+        return LONG_MIN + 1;
 
     return value;
 }
+
 
 static int compare_scores_chronological(const void* va, const void* vb)
 {
@@ -4676,8 +4683,71 @@ static int find_score_index(const high_score* entries, int count, const high_sco
     return -1;
 }
 
+static void set_forced_highlight_entry(const high_score* entry)
+{
+    if (entry) {
+        forced_highlight_entry = *entry;
+        forced_highlight_active = true;
+    } else {
+        forced_highlight_active = false;
+    }
+}
+
+static byte score_entry_color(const high_score* entry, bool highlight)
+{
+    if (highlight) return TERM_YELLOW;
+
+    if (!entry) return TERM_SLATE;
+
+    if (streq(entry->how, "(alive and well)"))
+        return TERM_L_GREEN;
+
+    if (entry->escaped[0] == 't')
+        return TERM_GREEN;
+
+    if (entry->morgoth_slain[0] == 't')
+        return TERM_L_RED;
+
+    int sil = atoi(entry->silmarils);
+    if (sil > 0)
+        return TERM_ORANGE;
+
+    int depth = atoi(entry->max_dun);
+    if (depth >= 10)
+        return TERM_WHITE;
+    if (depth >= 5)
+        return TERM_L_WHITE;
+
+    return TERM_SLATE;
+}
+
+static void display_single_score_short(byte attr, int place, int row, const high_score* entry)
+{
+    char depth_commas[16];
+    char verdict_buf[80];
+    const char* verdict;
+
+    int depth_ft = atoi(entry->cur_dun) * 50;
+    comma_number(depth_commas, depth_ft);
+
+    if (entry->escaped[0] == 't') {
+        verdict = "Escaped Angband";
+    } else if (streq(entry->how, "(alive and well)")) {
+        verdict = "Alive";
+    } else {
+        strnfmt(verdict_buf, sizeof(verdict_buf), "Slain by %s", entry->how);
+        verdict = verdict_buf;
+    }
+
+    int pts = score_points(entry);
+    char line[160];
+    strnfmt(line, sizeof(line), "%2d. %5s ft %-18s [%3d pts] %s",
+            place, depth_commas, entry->who, pts, verdict);
+    c_put_str(attr, line, 3 + row, 0);
+}
+
 static char display_scores_pages(const high_score* entries, int count, int highlight_index,
-                                 score_view_order order, int page_size)
+                                 score_view_order order, bool detailed, int page_size)
 {
     Term_clear();
 
@@ -4699,19 +4769,34 @@ static char display_scores_pages(const high_score* entries, int count, int highl
 
         char order_buf[64];
         strnfmt(order_buf, sizeof(order_buf), "Order: %s", score_view_order_label(order));
-        put_str(order_buf, 2, 0);
+        c_put_str(TERM_L_WHITE, order_buf, 2, 0);
 
-        for (int row = 0; row < page_size && (start + row) < count; row++)
+        char layout_buf[32];
+        strnfmt(layout_buf, sizeof(layout_buf), "Layout: %s", detailed ? "Full" : "Short");
+        c_put_str(TERM_SLATE, layout_buf, 2, 40);
+
+        int entries_per_page = detailed ? page_size : page_size * 4;
+
+        for (int row = 0; row < entries_per_page && (start + row) < count; row++)
         {
             int idx = start + row;
-            byte attr = (idx == highlight_index) ? TERM_WHITE : TERM_SLATE;
-            display_single_score(attr, row * 4, 0, idx + 1, false, (high_score*)&entries[idx]);
+            bool is_highlight = (idx == highlight_index);
+            byte attr = score_entry_color(&entries[idx], is_highlight);
+
+            if (detailed)
+            {
+                display_single_score(attr, row * 4, 0, start + row + 1, false, (high_score*)&entries[idx]);
+            }
+            else
+            {
+                display_single_score_short(attr, start + row + 1, row, &entries[idx]);
+            }
         }
 
-        bool has_more = (start + page_size < count);
+        bool has_more = (start + entries_per_page < count);
 
         char footer[80];
-        strnfmt(footer, sizeof(footer), "[S] Toggle order   [ESC] Exit   (press any other key to %s)",
+        strnfmt(footer, sizeof(footer), "[S] Toggle order   [L] Layout   [ESC] Exit   (press any other key to %s)",
                 has_more ? "continue" : "close");
         Term_putstr(1, 23, -1, TERM_L_WHITE, footer);
 
@@ -4722,11 +4807,13 @@ static char display_scores_pages(const high_score* entries, int count, int highl
             return ESCAPE;
         if (ch == 's' || ch == 'S' || ch == 'o' || ch == 'O')
             return ch;
+        if (ch == 'l' || ch == 'L')
+            return ch;
 
         if (!has_more)
             break;
 
-        start += page_size;
+        start += entries_per_page;
     }
 
     return 0;
@@ -5079,7 +5166,7 @@ static void upsert_live_score_on_save(void)
 #define RACE_PRIORITIES (sizeof(race_priority) / sizeof(race_priority[0]))
 
 /* ------------------------------------------------------------------ */
-/* bit‑test whether RACE can belong to HOUSE                          */
+/* bit-test whether RACE can belong to HOUSE                          */
 static int race_has_house(uint16_t race, uint16_t house)
 {
     if (house >= z_info->c_max) return 0;
@@ -5089,7 +5176,7 @@ static int race_has_house(uint16_t race, uint16_t house)
 }
 
 /* ------------------------------------------------------------------ */
-/* helper - build a dummy hi‑score entry so we can immediately kill it */
+/* helper - build a dummy hi-score entry so we can immediately kill it */
 static void build_dummy_entry(high_score *e, uint16_t race, uint16_t house)
 {
     memset(e, 0, sizeof(*e));
@@ -5098,11 +5185,11 @@ static void build_dummy_entry(high_score *e, uint16_t race, uint16_t house)
     strnfmt(e->what, sizeof e->what, "%s",
             "Hero of the First Age");
 
-    /* 15‑char player name - house name fits nicely */
+    /* 15-char player name - house name fits nicely */
     const char *hname = c_name + c_info[house].name;
     strnfmt(e->who,  sizeof e->who,  "%-.15s", hname);
 
-    /* race & house: two digits each, zero‑padded                       */
+    /* race & house: two digits each, zero-padded                       */
     strnfmt(e->p_r,  sizeof e->p_r,  "%02u", race);
     strnfmt(e->p_h,  sizeof e->p_h,  "%02u", house);
 
@@ -5234,7 +5321,7 @@ extern void display_single_score(
     }
 
     /* if not displayed in a place, then don't write the place number */
-    /* show the score as human-readable commas, e.g. “123 456”            */
+    /* show the score as human-readable commas, e.g. "123 456"            */
     char score_commas[16];
     comma_number(score_commas, score_points(the_score));
 
@@ -5296,8 +5383,8 @@ extern void display_single_score(
         }
     }
 
-    /* “Alive” entry: either the synthetic/fake score or a real one whose
-       cause-of-death text is literally “(alive and well)”                */
+    /* "Alive" entry: either the synthetic/fake score or a real one whose
+       cause-of-death text is literally "(alive and well)"                */
     else if (fake || streq(the_score->how, "(alive and well)"))
     {
         strnfmt(out_val, sizeof(out_val),
@@ -5491,28 +5578,7 @@ void display_scores(int from, int to)
     (void)to;
 
     log_info("Displaying high scores with interactive controls");
-
-    high_score ordered_by_score[MAX_HISCORES];
-    high_score ordered_by_time[MAX_HISCORES];
-
-    int count_score = collect_high_scores(ordered_by_score, MAX_HISCORES, true);
-    int count_time = collect_high_scores(ordered_by_time, MAX_HISCORES, false);
-
-    score_view_order order = SCORE_VIEW_ORDER_SCORE;
-    while (true)
-    {
-        const high_score* list = (order == SCORE_VIEW_ORDER_SCORE) ? ordered_by_score : ordered_by_time;
-        int count = (order == SCORE_VIEW_ORDER_SCORE) ? count_score : count_time;
-
-        char response = display_scores_pages(list, count, -1, order, 5);
-        if (response == 's' || response == 'S' || response == 'o' || response == 'O')
-        {
-            order = (order == SCORE_VIEW_ORDER_SCORE) ? SCORE_VIEW_ORDER_CHRONOLOGY : SCORE_VIEW_ORDER_SCORE;
-            continue;
-        }
-        break;
-    }
-
+    show_scores_interactive(true);
     quit(NULL);
 }
 
@@ -5522,26 +5588,10 @@ void display_scores_short(int from, int to)
     (void)from;
     (void)to;
 
-    high_score ordered_by_score[MAX_HISCORES];
-    high_score ordered_by_time[MAX_HISCORES];
-
-    int count_score = collect_high_scores(ordered_by_score, MAX_HISCORES, true);
-    int count_time = collect_high_scores(ordered_by_time, MAX_HISCORES, false);
-
-    score_view_order order = SCORE_VIEW_ORDER_SCORE;
-    while (true)
-    {
-        const high_score* list = (order == SCORE_VIEW_ORDER_SCORE) ? ordered_by_score : ordered_by_time;
-        int count = (order == SCORE_VIEW_ORDER_SCORE) ? count_score : count_time;
-
-        char response = display_scores_pages(list, count, -1, order, 5);
-        if (response == 's' || response == 'S' || response == 'o' || response == 'O')
-        {
-            order = (order == SCORE_VIEW_ORDER_SCORE) ? SCORE_VIEW_ORDER_CHRONOLOGY : SCORE_VIEW_ORDER_SCORE;
-            continue;
-        }
-        break;
-    }
+    bool previous_layout = score_last_layout_short;
+    score_last_layout_short = true;
+    show_scores_interactive(true);
+    score_last_layout_short = previous_layout;
 }
 
 
@@ -5552,19 +5602,19 @@ void display_scores_short(int from, int to)
  *    1.  Optional `last_parts` argument - when >0 only the *last*
  *        N matching story chapters are shown.
  *    2.  Optional `fade_in` boolean - when true, paragraphs are
- *        displayed with a colour fade‑in effect.
+ *        displayed with a colour fade-in effect.
  *
- *  Timing (per @Roman request 2025‑07‑30, amended)
- *    • 125 ms between colour steps
- *    • 1 second pause after each paragraph/"block"
+ *  Timing (per @Roman request 2025-07-30, amended)
+ *    * 125 ms between colour steps
+ *    * 1 second pause after each paragraph/"block"
  *
- *  UI tweaks 2025‑07‑30 - v4
- *    • Prints a **visible blank line** between paragraphs (not just
+ *  UI tweaks 2025-07-30 - v4
+ *    * Prints a **visible blank line** between paragraphs (not just
  *      a row counter increment).
- *    • [Esc] now finishes the *current* page instantly (no fades /
+ *    * [Esc] now finishes the *current* page instantly (no fades /
  *      delays) and proceeds through the rest of the story without
- *      further prompts, auto‑scrolling as needed. Nothing skipped.
- *    • Footer fully wipes the bottom line before drawing its prompt
+ *      further prompts, auto-scrolling as needed. Nothing skipped.
+ *    * Footer fully wipes the bottom line before drawing its prompt
  *      to avoid text overlap.
  *
  * ===========================================================*/
@@ -5573,7 +5623,7 @@ void display_scores_short(int from, int to)
 #include <stdbool.h>
 
 /* -------------------------------------------------------------
- * Helper: colour fade‑in paragraph printer
+ * Helper: colour fade-in paragraph printer
  * Returns true if completed normally, false if interrupted by Esc
  * ----------------------------------------------------------- */
 static bool print_paragraph_fade(cptr text, int row, int indent,
@@ -5864,7 +5914,7 @@ void print_fade_centered_at_row(cptr text, int row_start)
 }
 
 /* -------------------------------------------------------------
- * print_story() - paging, subset & fade‑in options
+ * print_story() - paging, subset & fade-in options
  * ----------------------------------------------------------- */
 void print_story(int last_parts, bool fade_in)
 {
@@ -5876,10 +5926,10 @@ void print_story(int last_parts, bool fade_in)
     log_debug("=== Starting story display (parts=%d, fade_in=%s) ===", last_parts, fade_in ? "true" : "false");
     log_debug("last_parts=%d, fade_in=%s", last_parts, fade_in ? "true" : "false");
 
-    /* Convenience macro to keep the bottom‑line hint fresh */
+    /* Convenience macro to keep the bottom-line hint fresh */
 #define REDRAW_HINT() \
     Term_putstr(indent, h - 1, -1, TERM_SLATE, \
-                "[Enter] next  •  [Esc] fast forward")
+                "[Enter] next  *  [Esc] fast forward")
 
     /* Build list of matching entries ------------------------ */
     int sils   = metar.silmarils;
@@ -5898,7 +5948,7 @@ void print_story(int last_parts, bool fade_in)
         if (st->st_type != 0)               continue; /* opening */
         if (!(st->runtypes == 0 ||
               (rt < 32 && (st->runtypes & (1UL << rt)))))
-            continue;                                   /* run‑type */
+            continue;                                   /* run-type */
         if (st->order <= (byte)sils) {
             sel_idx[total++] = i;
             log_trace("Added story %d (order=%d) to selection", i, st->order);
@@ -6044,7 +6094,7 @@ void print_story(int last_parts, bool fade_in)
             }
             else
             {
-                /* fast‑forward mode: auto‑clear, no waits */
+                /* fast-forward mode: auto-clear, no waits */
                 row = 2;
                 Term_clear();
                 Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
@@ -6274,43 +6324,6 @@ static errr enter_score(high_score* the_score)
  *
  * Assumes "signals_ignore_tstp()" has been called.
  */
-static void top_twenty(void)
-{
-    Term_clear();
-
-    if (!highscore_fd)
-    {
-        msg_print("Score file unavailable.");
-        message_flush();
-        return;
-    }
-
-    high_score ordered_by_score[MAX_HISCORES];
-    high_score ordered_by_time[MAX_HISCORES];
-
-    int count_score = collect_high_scores(ordered_by_score, MAX_HISCORES, true);
-    int count_time = collect_high_scores(ordered_by_time, MAX_HISCORES, false);
-
-    int highlight_score = (score_idx >= 0 && score_idx < count_score) ? score_idx : -1;
-    const high_score* highlight_entry = (highlight_score >= 0) ? &ordered_by_score[highlight_score] : NULL;
-    int highlight_time = find_score_index(ordered_by_time, count_time, highlight_entry);
-
-    score_view_order order = SCORE_VIEW_ORDER_SCORE;
-    while (true)
-    {
-        const high_score* list = (order == SCORE_VIEW_ORDER_SCORE) ? ordered_by_score : ordered_by_time;
-        int count = (order == SCORE_VIEW_ORDER_SCORE) ? count_score : count_time;
-        int highlight = (order == SCORE_VIEW_ORDER_SCORE) ? highlight_score : highlight_time;
-
-        char response = display_scores_pages(list, count, highlight, order, 5);
-        if (response == 's' || response == 'S' || response == 'o' || response == 'O')
-        {
-            order = (order == SCORE_VIEW_ORDER_SCORE) ? SCORE_VIEW_ORDER_CHRONOLOGY : SCORE_VIEW_ORDER_SCORE;
-            continue;
-        }
-        break;
-    }
-}
 
 /*
  * Predict the player's location, and display it.
@@ -6319,7 +6332,7 @@ static errr predict_score(void)
 {
     int j;
     high_score the_score;
-    /* Build a temporary (in‑memory only) score snapshot */
+    /* Build a temporary (in-memory only) score snapshot */
     create_score(&the_score);
 
     /* Determine hypothetical placement */
@@ -6343,7 +6356,7 @@ static errr predict_score(void)
  */
 void show_scores(bool longscore)
 {
-    bool preview_allowed = (!force_interactive_scores && character_generated && !p_ptr->is_dead);
+    bool preview_allowed = (!force_interactive_scores && !forced_highlight_active && character_generated && !p_ptr->is_dead);
     log_info("show_scores: longscore=%d force_interactive=%d generated=%d dead=%d preview=%d",
              longscore ? 1 : 0,
              force_interactive_scores ? 1 : 0,
@@ -6378,27 +6391,64 @@ void show_scores(bool longscore)
     int count_time = collect_high_scores(ordered_by_time, MAX_HISCORES, false);
 
     int page_size = 5;
+    bool detailed = !score_last_layout_short;
     score_view_order order = SCORE_VIEW_ORDER_SCORE;
+
+    high_score current_score;
+    int highlight_score = -1;
+    int highlight_time = -1;
+    if (forced_highlight_active)
+    {
+        highlight_score = find_score_index(ordered_by_score, count_score, &forced_highlight_entry);
+        highlight_time = find_score_index(ordered_by_time, count_time, &forced_highlight_entry);
+        log_debug("show_scores: forced highlight indices score=%d time=%d for %s",
+                  highlight_score, highlight_time, forced_highlight_entry.who);
+    }
+    else if (character_generated)
+    {
+        char saved_how[sizeof(p_ptr->died_from)];
+        my_strcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
+        if (!p_ptr->is_dead)
+            my_strcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
+        create_score(&current_score);
+        my_strcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
+        highlight_score = find_score_index(ordered_by_score, count_score, &current_score);
+        highlight_time = find_score_index(ordered_by_time, count_time, &current_score);
+        log_debug("show_scores: highlight indices score=%d time=%d for %s",
+                  highlight_score, highlight_time,
+                  current_score.who);
+    }
 
     screen_save();
     while (true)
     {
         const high_score* list = (order == SCORE_VIEW_ORDER_SCORE) ? ordered_by_score : ordered_by_time;
         int count = (order == SCORE_VIEW_ORDER_SCORE) ? count_score : count_time;
+        int highlight = (order == SCORE_VIEW_ORDER_SCORE) ? highlight_score : highlight_time;
 
-        log_debug("show_scores: rendering page (order=%s count=%d)",
-                  (order == SCORE_VIEW_ORDER_SCORE) ? "score" : "time", count);
+        log_debug("show_scores: rendering page (order=%s count=%d highlight=%d)",
+                  (order == SCORE_VIEW_ORDER_SCORE) ? "score" : "time",
+                  count, highlight);
 
-        char response = display_scores_pages(list, count, -1, order, page_size);
+        char response = display_scores_pages(list, count, highlight, order, detailed, page_size);
         if (response == 's' || response == 'S' || response == 'o' || response == 'O')
         {
             order = (order == SCORE_VIEW_ORDER_SCORE) ? SCORE_VIEW_ORDER_CHRONOLOGY : SCORE_VIEW_ORDER_SCORE;
+            continue;
+        }
+        if (response == 'l' || response == 'L')
+        {
+            detailed = !detailed;
+            score_last_layout_short = !detailed;
             continue;
         }
         break;
     }
     screen_load();
     Term_fresh();
+
+    forced_highlight_active = false;
+    score_last_layout_short = !detailed;
 }
 
 void show_scores_interactive(bool longscore)
@@ -6408,6 +6458,28 @@ void show_scores_interactive(bool longscore)
     log_debug("show_scores_interactive: forcing interactive display (longscore=%d)", longscore ? 1 : 0);
     show_scores(longscore);
     force_interactive_scores = previous;
+}
+
+void show_scores_interactive_highlight(bool longscore, const high_score* entry)
+{
+    high_score saved_entry;
+    bool had_forced = forced_highlight_active;
+    if (had_forced) saved_entry = forced_highlight_entry;
+
+    if (entry) {
+        set_forced_highlight_entry(entry);
+    } else {
+        forced_highlight_active = false;
+    }
+
+    show_scores_interactive(longscore);
+
+    if (had_forced) {
+        forced_highlight_entry = saved_entry;
+        forced_highlight_active = true;
+    } else {
+        forced_highlight_active = false;
+    }
 }
 
 /*  Returns NULL when nothing was slain, or a static string with the
@@ -7105,14 +7177,7 @@ static void close_game_aux(void)
         // view scores
         case 1:
         {
-            /* Save screen */
-            screen_save();
-
-            /* Show the scores */
-            top_twenty();
-
-            /* Load screen */
-            screen_load();
+            show_scores_interactive_highlight(true, &the_score);
             break;
         }
 
@@ -8689,3 +8754,4 @@ void backup_and_clear_saves(void)
     
     log_trace("Folder-based backup process completed");
 }
+

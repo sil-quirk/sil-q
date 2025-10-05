@@ -1132,19 +1132,14 @@ void object_desc(
             object_desc_chr_macro(t, ' ');
             object_desc_chr_macro(t, p1);
 
-            if (p_ptr->active_ability[S_WIL][WIL_CHANNELING])
-            {
-                object_desc_num_macro(t, o_ptr->pval);
-            }
-            else
-            {
-                object_desc_num_macro(
-                    t, o_ptr->pval / CHANNELING_CHARGE_MULTIPLIER);
-            }
+            /* Always show actual usable charges (internal pval is 2x for mechanics) */
+            int visible_charges = (o_ptr->pval + CHANNELING_CHARGE_MULTIPLIER - 1)
+                / CHANNELING_CHARGE_MULTIPLIER;
+            object_desc_num_macro(t, visible_charges);
 
             /*write out the word charge(s) as appropriate*/
             object_desc_str_macro(t, " charge");
-            if (o_ptr->pval != 1)
+            if (visible_charges != 1)
             {
                 object_desc_chr_macro(t, 's');
             }

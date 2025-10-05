@@ -629,6 +629,7 @@ extern void do_cmd_suicide(void);
 extern void do_cmd_save_game(void);
 extern void show_scores(bool);
 extern void show_scores_interactive(bool);
+extern void show_scores_interactive_highlight(bool, const high_score*);
 extern void comma_number(char* output, int number);
 extern void atomonth(int number, char* output);
 extern void display_single_score(
