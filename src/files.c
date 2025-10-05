@@ -3494,7 +3494,7 @@ bool get_name(void)
 
     /* Process the player name */
     my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
-    process_player_name(false);
+    process_player_name(true);
     
     log_info("Character name confirmed: '%s'", op_ptr->full_name);
  
@@ -4378,6 +4378,8 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     return result;
 }
 
+static bool force_interactive_scores = false;
+
 static int score_points_from_breakdown(const score_breakdown* breakdown)
 {
     int64_t base = breakdown->base_score;
@@ -4481,6 +4483,45 @@ static int compare_scores_qsort(const void* va, const void* vb)
     return compare_scores(a, b);
 }
 
+static long score_day_key(const high_score* entry)
+{
+    if (!entry)
+        return LONG_MAX;
+
+    if (entry->day[0] != '@')
+        return LONG_MAX - 1;
+
+    char buf[32];
+    my_strcpy(buf, entry->day + 1, sizeof(buf));
+    char* end = NULL;
+    long value = strtol(buf, &end, 10);
+    if (value <= 0 || !end || *end != '\0')
+        return LONG_MAX - 1;
+
+    return value;
+}
+
+static int compare_scores_chronological(const void* va, const void* vb)
+{
+    const high_score* a = (const high_score*)va;
+    const high_score* b = (const high_score*)vb;
+
+    long day_a = score_day_key(a);
+    long day_b = score_day_key(b);
+    if (day_a != day_b)
+        return (day_a > day_b) ? -1 : 1;
+
+    int cmp = strcmp(a->who, b->who);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = strcmp(a->how, b->how);
+    if (cmp != 0)
+        return cmp;
+
+    return compare_scores(a, b);
+}
+
 static int load_scores_into_array(high_score* entries, int capacity)
 {
     if (!highscore_fd || capacity <= 0)
@@ -4505,6 +4546,192 @@ static int load_scores_into_array(high_score* entries, int capacity)
 
     return count;
 }
+
+static int deduplicate_scores_by_name(high_score* entries, int count)
+{
+    if (count <= 1)
+        return count;
+
+    high_score unique[MAX_HISCORES + 1];
+    int unique_scores[MAX_HISCORES + 1];
+    int unique_count = 0;
+
+    for (int i = 0; i < count; i++)
+    {
+        int pts = score_points(&entries[i]);
+        bool merged = false;
+
+        for (int j = 0; j < unique_count; j++)
+        {
+            if (streq(entries[i].who, unique[j].who))
+            {
+                if (pts > unique_scores[j]
+                    || (pts == unique_scores[j] && strcmp(entries[i].day, unique[j].day) > 0)
+                    || (pts == unique_scores[j] && streq(entries[i].day, unique[j].day)
+                        && strcmp(entries[i].how, unique[j].how) > 0))
+                {
+                    unique[j] = entries[i];
+                    unique_scores[j] = pts;
+                }
+                merged = true;
+                break;
+            }
+        }
+
+        if (!merged)
+        {
+            unique[unique_count] = entries[i];
+            unique_scores[unique_count] = pts;
+            unique_count++;
+        }
+    }
+
+    for (int i = 0; i < unique_count; i++)
+    {
+        entries[i] = unique[i];
+    }
+
+    return unique_count;
+}
+
+int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
+{
+    if (!out || capacity <= 0)
+        return 0;
+
+    char score_path[1024];
+    path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw");
+
+    FILE* saved_fd = highscore_fd;
+    bool saved_versioned = scores_file_is_versioned;
+    u32b saved_count = scores_file_entry_count;
+
+    safe_setuid_grab();
+    highscore_fd = open_scores_file_versioned(score_path, O_RDONLY);
+    safe_setuid_drop();
+    if (!highscore_fd)
+    {
+        highscore_fd = saved_fd;
+        scores_file_is_versioned = saved_versioned;
+        scores_file_entry_count = saved_count;
+        return 0;
+    }
+
+    int limit = capacity;
+    if (limit > MAX_HISCORES)
+        limit = MAX_HISCORES;
+
+    int count = load_scores_into_array(out, limit);
+
+    if (sort_by_score)
+    {
+        qsort(out, count, sizeof(high_score), compare_scores_qsort);
+    }
+    else
+    {
+        qsort(out, count, sizeof(high_score), compare_scores_chronological);
+    }
+
+    count = deduplicate_scores_by_name(out, count);
+
+    fclose(highscore_fd);
+    highscore_fd = saved_fd;
+    scores_file_is_versioned = saved_versioned;
+    scores_file_entry_count = saved_count;
+
+    return count;
+}
+
+typedef enum
+{
+    SCORE_VIEW_ORDER_SCORE = 0,
+    SCORE_VIEW_ORDER_CHRONOLOGY = 1
+} score_view_order;
+
+static const char* score_view_order_label(score_view_order order)
+{
+    return (order == SCORE_VIEW_ORDER_CHRONOLOGY)
+        ? "Date (newest first)"
+        : "Score (highest first)";
+}
+
+static bool score_identity_matches(const high_score* a, const high_score* b)
+{
+    if (!a || !b)
+        return false;
+    return streq(a->who, b->who)
+        && streq(a->day, b->day)
+        && streq(a->how, b->how);
+}
+
+static int find_score_index(const high_score* entries, int count, const high_score* target)
+{
+    if (!target)
+        return -1;
+    for (int i = 0; i < count; i++)
+    {
+        if (score_identity_matches(&entries[i], target))
+            return i;
+    }
+    return -1;
+}
+
+static char display_scores_pages(const high_score* entries, int count, int highlight_index,
+                                 score_view_order order, int page_size)
+{
+    Term_clear();
+
+    if (!entries || count <= 0)
+    {
+        c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
+        c_put_str(TERM_SLATE, "No recorded heroes yet.", 3, 0);
+        Term_putstr(2, 23, -1, TERM_L_WHITE, "(press any key)");
+        (void)inkey();
+        return 0;
+    }
+
+    int start = 0;
+
+    while (start < count)
+    {
+        Term_clear();
+        c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
+
+        char order_buf[64];
+        strnfmt(order_buf, sizeof(order_buf), "Order: %s", score_view_order_label(order));
+        put_str(order_buf, 2, 0);
+
+        for (int row = 0; row < page_size && (start + row) < count; row++)
+        {
+            int idx = start + row;
+            byte attr = (idx == highlight_index) ? TERM_WHITE : TERM_SLATE;
+            display_single_score(attr, row * 4, 0, idx + 1, false, (high_score*)&entries[idx]);
+        }
+
+        bool has_more = (start + page_size < count);
+
+        char footer[80];
+        strnfmt(footer, sizeof(footer), "[S] Toggle order   [ESC] Exit   (press any other key to %s)",
+                has_more ? "continue" : "close");
+        Term_putstr(1, 23, -1, TERM_L_WHITE, footer);
+
+        char ch = inkey();
+        prt("", 23, 0);
+
+        if (ch == ESCAPE)
+            return ESCAPE;
+        if (ch == 's' || ch == 'S' || ch == 'o' || ch == 'O')
+            return ch;
+
+        if (!has_more)
+            break;
+
+        start += page_size;
+    }
+
+    return 0;
+}
+
 
 /*
  * Just determine where a new score *would* be placed
@@ -4667,6 +4894,8 @@ static int highscore_add(high_score* score)
     }
 
     qsort(entries, count, sizeof(high_score), compare_scores_qsort);
+
+    count = deduplicate_scores_by_name(entries, count);
 
     if (count > MAX_HISCORES)
         count = MAX_HISCORES;
@@ -5248,103 +5477,6 @@ static void display_scores_aux(int from, int to, int note, high_score* score)
 }
 
 /* Show 20 compact entries per page ---------------------------------- */
-static void display_scores_aux_short(int from, int to, int note,
-                                     high_score *score)
-{
-    char ch;
-    int  j, k, n, count, place;
-    /* 'fake' flag removed (preview now handled only via long form) */
-    high_score the_score;
-    byte attr;
-    char tmp[80];
-
-    /* Count records -------------------------------------------------- */
-    if (highscore_seek(0)) return;
-    for (count = 0; count < MAX_HISCORES; count++)
-        if (highscore_read(&the_score)) break;
-
-    if (count > to) count = to;
-
-    /* Paginate ------------------------------------------------------- */
-    for (k = from, j = from, place = k + 1; k < count; k += 20)
-    {
-        Term_clear();
-        c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
-        if (k) { 
-            strnfmt(tmp, sizeof tmp, "(from position %d)", place);
-            put_str(tmp, 1, 42); 
-        }
-
-        for (n = 0; j < count && n < 20; place++, j++, n++)
-        {
-            attr = (j == note) ? TERM_WHITE : TERM_SLATE;
-
-            /* Fake record? ------------------------------------------ */
-            if ((note == j) && score) { 
-                the_score = *score; 
-            } else
-            {
-                if (highscore_seek(j) || highscore_read(&the_score)) break;
-            }
-            
-            /* Format each line with consistent column alignment */
-            int depth = atoi(the_score.cur_dun) * 50;
-            char line[120];
-            char symbols[8] = "";
-            
-            /* Build symbols string */
-            int silm_count = atoi(the_score.silmarils);
-            int pos = 0;
-            for (int i = 0; i < silm_count && i < 3; i++) {
-                symbols[pos++] = '*';
-            }
-            if (the_score.morgoth_slain[0] == 't') {
-                if (pos > 0) symbols[pos++] = ' ';
-                symbols[pos++] = 'V';
-            }
-            symbols[pos] = '\0';
-            
-            /* Format verdict */
-            const char *verdict;
-            if (the_score.escaped[0] == 't')
-                verdict = "escaped Angband";
-            else if (!strcmp(the_score.how, "(alive and well)"))
-                verdict = "alive";
-            else
-                verdict = format("slain by %s", the_score.how);
-            
-            /* Create formatted line with fixed column widths */
-            if (symbols[0]) {
-                strnfmt(line, sizeof line, " %4dft %-4s %-15s - %s", 
-                        depth, symbols, the_score.who, verdict);
-            } else {
-                strnfmt(line, sizeof line, " %4dft      %-15s - %s", 
-                        depth, the_score.who, verdict);
-            }
-            
-            /* Display the line */
-            c_put_str(attr, line, 3 + n, 0);
-            
-            /* Re-color the symbols */
-            if (symbols[0]) {
-                int symbol_start = 8; /* Position after "depth ft " */
-                for (int i = 0; symbols[i]; i++) {
-                    if (symbols[i] == '*') {
-                        Term_putch(symbol_start + i, 3 + n, TERM_YELLOW, '*');
-                    } else if (symbols[i] == 'V') {
-                        Term_putch(symbol_start + i, 3 + n, TERM_RED, 'V');
-                    }
-                }
-            }
-        }
-
-        Term_putstr(15, 23, -1, TERM_L_WHITE, "(press any key)");
-        ch = inkey();  
-        prt("", 23, 0);
-        if (ch == ESCAPE) break;
-    }
-}
-
 
 
 /*
@@ -5355,62 +5487,63 @@ static void display_scores_aux_short(int from, int to, int note,
  */
 void display_scores(int from, int to)
 {
-    char buf[1024];
+    (void)from;
+    (void)to;
 
-    log_info("Displaying high scores from %d to %d", from, to);
+    log_info("Displaying high scores with interactive controls");
 
-    /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
-    
-    log_debug("Opening highscore file: %s", buf);
+    high_score ordered_by_score[MAX_HISCORES];
+    high_score ordered_by_time[MAX_HISCORES];
 
-    /* Open the binary high score file, for reading */
-    highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
-    
-    if (!highscore_fd) {
-    log_error("Failed to open highscore file for reading");
-        return;
+    int count_score = collect_high_scores(ordered_by_score, MAX_HISCORES, true);
+    int count_time = collect_high_scores(ordered_by_time, MAX_HISCORES, false);
+
+    score_view_order order = SCORE_VIEW_ORDER_SCORE;
+    while (true)
+    {
+        const high_score* list = (order == SCORE_VIEW_ORDER_SCORE) ? ordered_by_score : ordered_by_time;
+        int count = (order == SCORE_VIEW_ORDER_SCORE) ? count_score : count_time;
+
+        char response = display_scores_pages(list, count, -1, order, 5);
+        if (response == 's' || response == 'S' || response == 'o' || response == 'O')
+        {
+            order = (order == SCORE_VIEW_ORDER_SCORE) ? SCORE_VIEW_ORDER_CHRONOLOGY : SCORE_VIEW_ORDER_SCORE;
+            continue;
+        }
+        break;
     }
 
-    /* Clear screen */
-    Term_clear();
-
-    /* Title */
-    put_str("               Names of the Fallen", 0, 0);
-
-    /* Display the scores */
-    display_scores_aux(from, to, -1, NULL);
-
-    log_debug("Closing highscore file");
-    /* Shut the high score file */
-    fclose(highscore_fd);
-
-    /* Forget the high score fd */
-    highscore_fd = NULL;
-
-    /* Wait for response */
-    Term_putstr(15, 23, -1, TERM_L_WHITE, "(press any key)");
-    (void)inkey();
-    prt("", 23, 0);
-
-    /* Quit */
     quit(NULL);
 }
 
-/* Public entry - compact list --------------------------------------- */
+/* Public entry - compact list */
 void display_scores_short(int from, int to)
 {
-    char buf[1024];
-    path_build(buf, sizeof buf, ANGBAND_DIR_APEX, "scores.raw");
-    highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
+    (void)from;
+    (void)to;
 
-    Term_clear();
-    put_str("               Names of the Fallen (compact)", 0, 0);
+    high_score ordered_by_score[MAX_HISCORES];
+    high_score ordered_by_time[MAX_HISCORES];
 
-    display_scores_aux_short(from, to, -1, NULL);
+    int count_score = collect_high_scores(ordered_by_score, MAX_HISCORES, true);
+    int count_time = collect_high_scores(ordered_by_time, MAX_HISCORES, false);
 
-    fclose(highscore_fd);  highscore_fd = NULL;
+    score_view_order order = SCORE_VIEW_ORDER_SCORE;
+    while (true)
+    {
+        const high_score* list = (order == SCORE_VIEW_ORDER_SCORE) ? ordered_by_score : ordered_by_time;
+        int count = (order == SCORE_VIEW_ORDER_SCORE) ? count_score : count_time;
+
+        char response = display_scores_pages(list, count, -1, order, 5);
+        if (response == 's' || response == 'S' || response == 'o' || response == 'O')
+        {
+            order = (order == SCORE_VIEW_ORDER_SCORE) ? SCORE_VIEW_ORDER_CHRONOLOGY : SCORE_VIEW_ORDER_SCORE;
+            continue;
+        }
+        break;
+    }
 }
+
 
 /* =============================================================
  * Story display helpers & updated print_story() implementation
@@ -6143,10 +6276,8 @@ static errr enter_score(high_score* the_score)
  */
 static void top_twenty(void)
 {
-    /* Clear screen */
     Term_clear();
 
-    /* No score file */
     if (!highscore_fd)
     {
         msg_print("Score file unavailable.");
@@ -6154,28 +6285,31 @@ static void top_twenty(void)
         return;
     }
 
-    /* Player's score unavailable */
-    if (score_idx == -1)
-    {
-        display_scores_aux(0, 10, -1, NULL);
-        return;
-    }
+    high_score ordered_by_score[MAX_HISCORES];
+    high_score ordered_by_time[MAX_HISCORES];
 
-    /* Hack -- Display the top fifteen scores */
-    else if (score_idx < 10)
-    {
-        display_scores_aux(0, 15, score_idx, NULL);
-    }
+    int count_score = collect_high_scores(ordered_by_score, MAX_HISCORES, true);
+    int count_time = collect_high_scores(ordered_by_time, MAX_HISCORES, false);
 
-    /* Display the scores surrounding the player */
-    else
-    {
-        display_scores_aux(0, 5, score_idx, NULL);
-        display_scores_aux(score_idx - 2, score_idx + 7, score_idx, NULL);
-    }
+    int highlight_score = (score_idx >= 0 && score_idx < count_score) ? score_idx : -1;
+    const high_score* highlight_entry = (highlight_score >= 0) ? &ordered_by_score[highlight_score] : NULL;
+    int highlight_time = find_score_index(ordered_by_time, count_time, highlight_entry);
 
-    /* Success */
-    return;
+    score_view_order order = SCORE_VIEW_ORDER_SCORE;
+    while (true)
+    {
+        const high_score* list = (order == SCORE_VIEW_ORDER_SCORE) ? ordered_by_score : ordered_by_time;
+        int count = (order == SCORE_VIEW_ORDER_SCORE) ? count_score : count_time;
+        int highlight = (order == SCORE_VIEW_ORDER_SCORE) ? highlight_score : highlight_time;
+
+        char response = display_scores_pages(list, count, highlight, order, 5);
+        if (response == 's' || response == 'S' || response == 'o' || response == 'O')
+        {
+            order = (order == SCORE_VIEW_ORDER_SCORE) ? SCORE_VIEW_ORDER_CHRONOLOGY : SCORE_VIEW_ORDER_SCORE;
+            continue;
+        }
+        break;
+    }
 }
 
 /*
@@ -6209,31 +6343,71 @@ static errr predict_score(void)
  */
 void show_scores(bool longscore)
 {
-    char buf[1024];
+    bool preview_allowed = (!force_interactive_scores && character_generated && !p_ptr->is_dead);
+    log_info("show_scores: longscore=%d force_interactive=%d generated=%d dead=%d preview=%d",
+             longscore ? 1 : 0,
+             force_interactive_scores ? 1 : 0,
+             character_generated ? 1 : 0,
+             p_ptr->is_dead ? 1 : 0,
+             preview_allowed ? 1 : 0);
 
-    path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
-    highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
-    if (!highscore_fd) {
-        msg_print("Score file unavailable.");
+    if (preview_allowed)
+    {
+        char buf[1024];
+        path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+        highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
+        if (!highscore_fd) {
+            msg_print("Score file unavailable.");
+            return;
+        }
+
+        screen_save();
+        Term_clear();
+        predict_score();
+        fclose(highscore_fd);
+        highscore_fd = NULL;
+        screen_load();
+        Term_fresh();
         return;
     }
 
+    high_score ordered_by_score[MAX_HISCORES];
+    high_score ordered_by_time[MAX_HISCORES];
+
+    int count_score = collect_high_scores(ordered_by_score, MAX_HISCORES, true);
+    int count_time = collect_high_scores(ordered_by_time, MAX_HISCORES, false);
+
+    int page_size = 5;
+    score_view_order order = SCORE_VIEW_ORDER_SCORE;
+
     screen_save();
-    Term_clear();
+    while (true)
+    {
+        const high_score* list = (order == SCORE_VIEW_ORDER_SCORE) ? ordered_by_score : ordered_by_time;
+        int count = (order == SCORE_VIEW_ORDER_SCORE) ? count_score : count_time;
 
-    if (character_generated && !p_ptr->is_dead) {
-        /* Preview placement for a living character */
-        predict_score();
-    } else if (longscore) {
-        display_scores_aux(0, MAX_HISCORES, -1, NULL);
-    } else {
-        display_scores_aux_short(0, MAX_HISCORES, -1, NULL);
+        log_debug("show_scores: rendering page (order=%s count=%d)",
+                  (order == SCORE_VIEW_ORDER_SCORE) ? "score" : "time", count);
+
+        char response = display_scores_pages(list, count, -1, order, page_size);
+        if (response == 's' || response == 'S' || response == 'o' || response == 'O')
+        {
+            order = (order == SCORE_VIEW_ORDER_SCORE) ? SCORE_VIEW_ORDER_CHRONOLOGY : SCORE_VIEW_ORDER_SCORE;
+            continue;
+        }
+        break;
     }
-
-    fclose(highscore_fd);
-    highscore_fd = NULL;
     screen_load();
     Term_fresh();
+}
+
+void show_scores_interactive(bool longscore)
+{
+    bool previous = force_interactive_scores;
+    force_interactive_scores = true;
+    log_debug("show_scores_interactive: forcing interactive display (longscore=%d)", longscore ? 1 : 0);
+    show_scores(longscore);
+    force_interactive_scores = previous;
 }
 
 /*  Returns NULL when nothing was slain, or a static string with the

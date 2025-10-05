@@ -7580,7 +7580,8 @@ void do_cmd_main_menu(void)
         }
         case 7: // Halls of Mandos (d)
         {
-            show_scores(true);
+            log_info("main menu: opening Halls of Mandos view");
+            show_scores_interactive(true);
             leave_menu = true;
             break;
         }
@@ -13425,7 +13426,7 @@ void do_cmd_knowledge(void)
         /* Scores */
         else if (ch == '5')
         {
-            show_scores(true);
+            show_scores_interactive(true);
         }
 
         /* Kill counts */
