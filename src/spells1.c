@@ -2650,31 +2650,17 @@ static bool project_m(
             /* Hurt by light - ONLY affects HURT_LITE monsters */
             if (r_ptr->flags3 & (RF3_HURT_LITE))
             {
-                /* Obvious effect */
-                if (seen)
-                    obvious = true;
-
                 /* Memorize the effects */
                 if (seen)
                     l_ptr->flags3 |= (RF3_HURT_LITE);
 
-                // do stunning
-                stun_monster(m_ptr, dam);
-
-                /*possibly update the monster health bar*/
-                if (p_ptr->health_who == cave_m_idx[m_ptr->fy][m_ptr->fx])
-                    p_ptr->redraw |= (PR_HEALTHBAR);
-
-                /* Special effect */
-                note = " cringes from the light!";
-                
-                /* Deal damage based on light level and Will save */
-                /* Only if light level > 2 and player-caused (who < 0) */
+                /* Stun and damage work when light level > 2 and player-caused */
                 if ((who < 0) && (light_level > 2))
                 {
                     int resistance;
                     int result;
                     int actual_dam;
+                    int stun_amount;
                     int skill_to_use;
                     
                     /* Determine skill to use for resistance check */
@@ -2698,9 +2684,26 @@ static bool project_m(
                         resistance + distance(p_ptr->py, p_ptr->px, y, x),
                         m_ptr);
                     
-                    /* If successful, deal damage based on light level */
+                    /* If successful, deal damage and stun based on light level */
                     if (result > 0)
                     {
+                        /* Calculate stun amount based on song skill (or Will for items) */
+                        /* Stun scales with skill: 1-5 at skill 5, up to 5-25 at skill 25 */
+                        stun_amount = damroll(dd, skill_to_use / 5);
+                        
+                        /* Reduce stun based on Will resistance (same formula as damage) */
+                        stun_amount = (stun_amount * result) / (result + 5);
+                        
+                        /* Apply stun if any */
+                        if (stun_amount > 0)
+                        {
+                            stun_monster(m_ptr, stun_amount);
+                            
+                            /*possibly update the monster health bar*/
+                            if (p_ptr->health_who == cave_m_idx[m_ptr->fy][m_ptr->fx])
+                                p_ptr->redraw |= (PR_HEALTHBAR);
+                        }
+                        
                         /* Use light level as dice sides, dd from the attack */
                         actual_dam = damroll(dd, light_level);
                         
@@ -2717,23 +2720,31 @@ static bool project_m(
                                 obvious = true;
                             
                             /* Message for visible monsters */
-                            if (seen && (dam > 0))
+                            if (seen)
                                 note = " is seared by radiant light!";
                         }
                         else
                         {
                             dam = 0;
+                            
+                            /* Stunned but no damage */
+                            if (seen)
+                                note = " cringes from the light!";
                         }
                     }
                     else
                     {
-                        /* Failed Will save - no damage */
+                        /* Failed Will save - no damage or stun */
                         dam = 0;
+                        
+                        /* Message for resisted light */
+                        if (seen)
+                            note = " resists the light!";
                     }
                 }
                 else
                 {
-                    /* Light level too low or not player-caused - no damage */
+                    /* Light level too low or not player-caused - no damage or stun */
                     dam = 0;
                 }
             }
