@@ -61,7 +61,7 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 8
 #define VERSION_PATCH 9
-#define VERSION_EXTRA 0
+#define VERSION_EXTRA 2
 
 /*
  * Oldest version number that can still be imported
@@ -651,23 +651,24 @@
  */
 #define INVEN_WIELD 24
 #define INVEN_BOW 25
-#define INVEN_LEFT 26
-#define INVEN_RIGHT 27
-#define INVEN_NECK 28
-#define INVEN_LITE 29
-#define INVEN_BODY 30
-#define INVEN_OUTER 31
-#define INVEN_ARM 32
-#define INVEN_HEAD 33
-#define INVEN_HANDS 34
-#define INVEN_FEET 35
-#define INVEN_QUIVER1 36
-#define INVEN_QUIVER2 37
+#define INVEN_STAFF 26
+#define INVEN_LEFT 27
+#define INVEN_RIGHT 28
+#define INVEN_NECK 29
+#define INVEN_LITE 30
+#define INVEN_BODY 31
+#define INVEN_OUTER 32
+#define INVEN_ARM 33
+#define INVEN_HEAD 34
+#define INVEN_HANDS 35
+#define INVEN_FEET 36
+#define INVEN_QUIVER1 37
+#define INVEN_QUIVER2 38
 
 /*
  * Total number of inventory slots (hard-coded).
  */
-#define INVEN_TOTAL 38
+#define INVEN_TOTAL 39
 
 /*
  * A "stack" of items is limited to less than 100 items (hard-coded).
@@ -1192,6 +1193,7 @@
 #define TV_AMULET 40 /* " Amulets (including Specials)        */
 #define TV_RING 45 /* = Rings (including Specials)          */
 #define TV_STAFF 55 /* _ Staffs                              */
+#define TV_GEM 56 /* * Gems                                */
 #define TV_HORN 66 /* ? Horns                               */
 #define TV_POTION 75 /* ! Potions                             */
 #define TV_FLASK 77 /* ! Flasks of Oil                       */
@@ -1358,6 +1360,19 @@
 #define SV_STAFF_RECHARGING 16
 #define SV_STAFF_SUMMONING 17
 #define SV_STAFF_SHADOWS 18
+
+/* The "sval" codes for TV_GEM */
+#define SV_GEM_FREEDOM 2
+#define SV_GEM_LIGHT 3
+#define SV_GEM_SANCTITY 5
+#define SV_GEM_UNDERSTANDING 6
+#define SV_GEM_REVELATIONS 7
+#define SV_GEM_TREASURES 8
+#define SV_GEM_FOES 9
+#define SV_GEM_SELF_KNOWLEDGE 12
+#define SV_GEM_WARDING 13
+#define SV_GEM_RECHARGING 16
+#define SV_GEM_SHADOWS 18
 
 /* The "sval" codes for TV_HORN */
 #define SV_HORN_TERROR 0
@@ -3624,8 +3639,10 @@ typedef struct unified_look_state {
     int cursor_y, cursor_x;           /* Map cursor position */
     int selected_entity;              /* Currently highlighted sidebar entity (-1 if none) */
     bool show_monsters, show_objects; /* Sidebar visibility toggles */
+    bool limit_objects_top_five;      /* Limit object groups to top five entries */
     int display_mode;                 /* Navigation mode (0=manual, 1=entity) */
     int highlighted_y, highlighted_x; /* Currently highlighted entity coordinates */
+    int highlighted_entity_type;      /* Type of highlighted entity: 1=monster, 2=object, 0=none */
     bool in_sidebar_mode;             /* True when navigating sidebar, false when scrolling map */
     int look_mode;                    /* Look mode: 0=normal unified look, 1=L-style scrolling */
     int current_square_entity;        /* Which entity on current square to show (0=monster, 1=object) */

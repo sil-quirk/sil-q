@@ -417,7 +417,10 @@ void do_betrayal_ring_amulet()
         int near_x = p_ptr->px;
 
         item = inven_takeoff(item, 1);
-        o_ptr = &inventory[item];
+        if (item >= 0)
+            o_ptr = &inventory[item];
+        else
+            o_ptr = &o_list[0 - item];
 
         /* Describe */
         object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
@@ -474,8 +477,16 @@ void do_betrayal_ring_amulet()
             drop_near(i_ptr, 0, near_y, near_x);
         }
 
-        inven_item_increase(item, -1);
-        inven_item_optimize(item);
+        if (item >= 0)
+        {
+            inven_item_increase(item, -1);
+            inven_item_optimize(item);
+        }
+        else
+        {
+            floor_item_increase(0 - item, -1);
+            floor_item_optimize(0 - item);
+        }
     }
 }
 
@@ -1615,7 +1626,10 @@ bool make_attack_normal(monster_type* m_ptr)
                         item = inven_takeoff(item, 1);
 
                         /* Get the original object */
-                        o_ptr = &inventory[item];
+                        if (item >= 0)
+                            o_ptr = &inventory[item];
+                        else
+                            o_ptr = &o_list[0 - item];
                     }
 
                     /* Get local object */
@@ -1640,8 +1654,16 @@ bool make_attack_normal(monster_type* m_ptr)
                     drop_near(i_ptr, 0, near_y, near_x);
 
                     /* Modify, Optimize */
-                    inven_item_increase(item, -1);
-                    inven_item_optimize(item);
+                    if (item >= 0)
+                    {
+                        inven_item_increase(item, -1);
+                        inven_item_optimize(item);
+                    }
+                    else
+                    {
+                        floor_item_increase(0 - item, -1);
+                        floor_item_optimize(0 - item);
+                    }
                 }
 
                 break;

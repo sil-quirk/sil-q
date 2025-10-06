@@ -1283,7 +1283,7 @@ typedef struct score_file_header
 struct high_score
 {
     char what[8];        /* Version info (string) */
-    char pts[5];         /* obsolete */
+    char pts[5];         /* Total active curse stacks (right-aligned decimal) */
     char turns[10];      /* Turns Taken (number) */
     char day[10];        /* Time stamp (string) */
     char who[16];        /* Player Name (string) */

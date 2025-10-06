@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "metarun.h"
+#include <math.h>
 
 bool graphics_are_ascii()
 {
@@ -43,7 +44,22 @@ char* quest_outcome[] = {
 void give_player_item(object_type * o_ptr)
 {
     char o_name[80];
+    object_type copy = *o_ptr;
+
     int slot = inven_carry(o_ptr, true);
+
+    if (slot == SUPPLIES_INDEX)
+    {
+        object_desc(o_name, sizeof(o_name), &copy, true, 3);
+        char label = supplies_label_char();
+        if (!label)
+            label = 'a';
+        msg_format("You add %s to your supplies (%c).", o_name, label);
+        return;
+    }
+
+    if (slot < 0)
+        return;
 
     /* reset the pointer to the new location to pick up the count of the item
        in the inventory */
@@ -51,8 +67,7 @@ void give_player_item(object_type * o_ptr)
 
     object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
-    if (slot >= 0)
-        msg_format("You have %s (%c).", o_name, index_to_label(slot));
+    msg_format("You have %s (%c).", o_name, index_to_label(slot));
 }
 
 /*
@@ -2912,6 +2927,9 @@ void py_pickup_aux(int o_idx)
     char o_name[120];
     
     o_ptr = &o_list[o_idx];
+    // Remember the floor position even if give_player_item wipes the object
+    int pickup_y = o_ptr->iy;
+    int pickup_x = o_ptr->ix;
 
     /*hack - don't pickup &nothings*/
     if (o_ptr->k_idx)
@@ -2947,14 +2965,68 @@ void py_pickup_aux(int o_idx)
             /* Mark oath as permanently banned in metarun */
             metarun_ban_oath(OATH_SMITH);
         }
+
+        /* Check for supply items with partial pickup option */
+        if (supplies_is_supply_object(o_ptr) && o_ptr->number > 1)
+        {
+            int max_qty = supplies_max_absorbable_quantity(o_ptr);
+            
+            /* If we can't absorb all of it but can absorb some, offer partial pickup */
+            if (max_qty > 0 && max_qty < o_ptr->number)
+            {
+                object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+                
+                char prompt[160];
+                strnfmt(prompt, sizeof(prompt), 
+                        "Your supply cache can only hold %d of %d. Pick up how many? (0-%d): ",
+                        max_qty, o_ptr->number, max_qty);
+                
+                int qty = get_quantity(prompt, max_qty);
+                
+                if (qty <= 0)
+                {
+                    msg_print("You leave it on the ground.");
+                    return;
+                }
+                
+                /* Create a partial object to pick up */
+                object_type partial;
+                object_copy(&partial, o_ptr);
+                partial.number = qty;
+                
+                give_player_item(&partial);
+                
+                /* Reduce the floor object */
+                o_ptr->number -= qty;
+                
+                /* Break the truce if creatures see */
+                break_truce(false);
+                
+                return;
+            }
+        }
         
         give_player_item(o_ptr);
 
         // Break the truce if creatures see
         break_truce(false);
+
+        if (!o_ptr->k_idx || o_ptr->number <= 0)
+        {
+            if (!o_ptr->k_idx)
+            {
+                o_ptr->iy = pickup_y;
+                o_ptr->ix = pickup_x;
+            }
+            delete_object_idx(o_idx);
+        }
+
+        return;
     }
 
     /* Delete the object */
+    o_ptr->iy = pickup_y;
+    o_ptr->ix = pickup_x;
     delete_object_idx(o_idx);
 }
 
@@ -3064,6 +3136,14 @@ static void report_pack_limit_failure(const char* o_name, bool still)
 
         if (label)
         {
+            /* Special message for supply weight limit */
+            if (strcmp(label, "supply weight") == 0)
+            {
+                msg_format("Your supply cache cannot carry any more weight (limit %d lbs).",
+                           limit);
+                return;
+            }
+
             if (still)
                 msg_format("Your pack still cannot hold more %s (limit %d).", label,
                            limit);
@@ -3340,6 +3420,94 @@ void py_pickup(void)
 
         bool attempted_replacement = false;
         bool skip_current_item = false;
+
+        if (p_ptr->active_ability[S_WIL][WIL_CHANNELING] && o_ptr->tval == TV_STAFF && o_ptr->pval > 0)
+        {
+            int target_slot = -1;
+            object_type* target = NULL;
+
+            object_type* wielded = &inventory[INVEN_STAFF];
+            if (wielded->k_idx && wielded->k_idx == o_ptr->k_idx)
+            {
+                target = wielded;
+                target_slot = INVEN_STAFF;
+            }
+
+            if (!target)
+            {
+                for (int i = 0; i < INVEN_PACK; i++)
+                {
+                    object_type* pack_obj = &inventory[i];
+                    if (!pack_obj->k_idx)
+                        continue;
+                    if (pack_obj->tval != TV_STAFF)
+                        continue;
+                    if (pack_obj->k_idx != o_ptr->k_idx)
+                        continue;
+                    target = pack_obj;
+                    target_slot = i;
+                    break;
+                }
+            }
+
+            if (target)
+            {
+                int mult = CHANNELING_CHARGE_MULTIPLIER;
+                int existing_raw = MAX(target->pval, 0);
+                int donor_raw = MAX(o_ptr->pval, 0);
+                int existing_uses = existing_raw / mult;
+                int donor_uses = donor_raw / mult;
+                if (donor_uses > 0)
+                {
+                    double existing_term = pow((double)existing_uses, 1.5);
+                    double donor_term = pow((double)donor_uses, 1.5);
+                    double combined_uses_raw = 0.0;
+                    double sum_terms = existing_term + donor_term;
+                    if (sum_terms > 0.0)
+                        combined_uses_raw = pow(sum_terms, 2.0 / 3.0);
+                    int combined_uses = (int)(combined_uses_raw + 0.5);
+                    long combined_pval = (long)combined_uses * mult;
+                    long max_pval = (long)(32767 / mult) * mult;
+                    if (combined_pval > max_pval)
+                        combined_pval = max_pval;
+                    combined_uses = (int)(combined_pval / mult);
+                    int gain_uses = combined_uses - existing_uses;
+                    if (gain_uses > 0)
+                    {
+                        char target_name[80];
+                        char donor_name[80];
+                        char prompt[80];
+                        /* Limit names so the combined total stays visible in 80-column prompts */
+                        const int max_name_len = 20;
+                        object_desc(target_name, sizeof(target_name), target, true, 3);
+                        object_desc(donor_name, sizeof(donor_name), o_ptr, true, 3);
+                        strnfmt(prompt, sizeof(prompt), "Channel to %d charges from %.*s into %.*s? ",
+                            combined_uses, max_name_len, donor_name, max_name_len, target_name);
+                        if (get_check(prompt))
+                        {
+                            target->pval = (s16b)combined_pval;
+                            target->ident &= ~(IDENT_EMPTY);
+                            o_ptr->pval = 0;
+                            o_ptr->ident |= IDENT_EMPTY;
+                            if (target_slot >= 0 && target_slot < INVEN_TOTAL)
+                                inven_item_charges(target_slot);
+                            p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
+                            p_ptr->window |= (PW_EQUIP | PW_PLAYER_0 | PW_INVEN);
+                            msg_format("You channel %d charge%s into %s (now %d).",
+                                gain_uses, (gain_uses == 1) ? "" : "s", target_name, combined_uses);
+                            delete_object_idx(this_o_idx);
+                            done_pickup = true;
+                            p_ptr->previous_action[0] = ACTION_MISC;
+                            p_ptr->energy_use = 100;
+                            skip_current_item = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (skip_current_item)
+            continue;
 
         while (!inven_carry_okay(o_ptr))
         {

@@ -32,6 +32,7 @@
 #include "config.h"
 #include "defines.h"
 #include "types.h"
+#include "supplies.h"
 #include "externs.h"
 
 /***** Some older copyright messages follow below *****/

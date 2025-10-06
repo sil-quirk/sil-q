@@ -5792,6 +5792,36 @@ static int select_tulkas_quest_prize(int target_level)
 }
 
 /*
+ * Get metarun quest flag from quest index by looking up the M: field in quest.txt
+ * Returns 0 if quest has no metarun tracking or quest_idx is invalid
+ */
+static u32b get_metarun_quest_flag(int quest_idx)
+{
+    quest_type* q_ptr;
+    const char* metarun_id;
+    
+    /* Validate quest index */
+    if (quest_idx <= 0 || quest_idx >= z_info->quest_max) return 0;
+    
+    q_ptr = &quest_info[quest_idx];
+    
+    /* Get the metarun quest ID string from the M: field */
+    if (q_ptr->metarun_quest_id == 0) return 0;
+    metarun_id = quest_name_text + q_ptr->metarun_quest_id;
+    
+    /* Map the string to the corresponding flag value */
+    if (streq(metarun_id, "METARUN_QUEST_TULKAS")) return METARUN_QUEST_TULKAS;
+    if (streq(metarun_id, "METARUN_QUEST_AULE")) return METARUN_QUEST_AULE;
+    if (streq(metarun_id, "METARUN_QUEST_MANDOS")) return METARUN_QUEST_MANDOS;
+    if (streq(metarun_id, "METARUN_QUEST_NIENA")) return METARUN_QUEST_NIENA;
+    if (streq(metarun_id, "METARUN_QUEST_OROME")) return METARUN_QUEST_OROME;
+    
+    /* Unknown or future quest */
+    log_debug("get_metarun_quest_flag: Unknown metarun_quest_id '%s' for quest_idx %d", metarun_id, quest_idx);
+    return 0;
+}
+
+/*
  * Apply quest rewards (stats, skills, abilities) based on quest.txt data
  */
 void apply_quest_rewards(int quest_idx)
@@ -5914,14 +5944,7 @@ bool check_quest_eligibility(int quest_idx, int depth)
     
     /* Check standard requirements that apply to all quests */
     /* 1. Quest not already completed in current metarun */
-    u32b metarun_flag = 0;
-    switch (quest_idx) {
-        case 1: metarun_flag = METARUN_QUEST_TULKAS; break;
-        case 2: metarun_flag = METARUN_QUEST_AULE; break;
-        case 3: metarun_flag = METARUN_QUEST_MANDOS; break;
-        case 4: metarun_flag = METARUN_QUEST_NIENA; break;
-        case 5: metarun_flag = METARUN_QUEST_OROME; break;
-    }
+    u32b metarun_flag = get_metarun_quest_flag(quest_idx);
     
     if (metarun_flag && metarun_is_quest_completed(metarun_flag)) {
         log_trace("Quest %d eligibility: METARUN_COMPLETED = FAIL", quest_idx);

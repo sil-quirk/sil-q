@@ -9,7 +9,17 @@
  */
 
 #include "angband.h"
+#include "supplies.h"
+#include <ctype.h>
+#define ENHANCED_MAX_LIST 80
 #include <stddef.h>
+static bool inventory_menu_include_equip = false;
+
+void inventory_menu_set_include_equip(bool include)
+{
+    inventory_menu_include_equip = include;
+}
+
 #include <time.h>
 #include <string.h>
 #include <stdio.h>
@@ -146,6 +156,7 @@ void flavor_init(void)
     flavor_assign_random(TV_RING);
     flavor_assign_random(TV_AMULET);
     flavor_assign_random(TV_STAFF);
+    flavor_assign_random(TV_GEM);
     flavor_assign_random(TV_HORN);
     flavor_assign_random(TV_FOOD);
     flavor_assign_random(TV_POTION);
@@ -530,6 +541,271 @@ void strip_name(char* buf, int k_idx)
  *   2 -- Amulet of Death [1,+3] <+2>
  *   3 -- Rings of Death [1,+3] <+2> {nifty}
  */
+static void object_desc_trim_spaces(char* s)
+{
+    if (!s) return;
+
+    char* start = s;
+    while (*start && isspace((unsigned char)*start))
+        ++start;
+
+    if (start != s)
+        memmove(s, start, strlen(start) + 1);
+
+    size_t len = strlen(s);
+    while (len > 0 && isspace((unsigned char)s[len - 1]))
+        s[--len] = '\0';
+}
+
+static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* o_ptr, bool apply_rules)
+{
+    if (!buf) return;
+
+    char source[256];
+    size_t src_idx = 0;
+    bool insert_space = false;
+
+    for (size_t i = 0; buf[i] && src_idx < sizeof(source) - 1; ++i)
+    {
+        unsigned char c = (unsigned char)buf[i];
+
+        if (c < 32)
+        {
+            if (src_idx > 0 && source[src_idx - 1] != ' ')
+                insert_space = true;
+            continue;
+        }
+
+        if (insert_space && c != ' ' && src_idx < sizeof(source) - 1)
+            source[src_idx++] = ' ';
+
+        insert_space = false;
+
+        source[src_idx++] = (char)c;
+    }
+    source[src_idx] = '\0';
+
+    my_strcpy(buf, source, max);
+
+    size_t len = strlen(source);
+    if (!len)
+        return;
+
+    size_t stats_idx = len;
+    for (size_t i = 0; i < len; ++i)
+    {
+        char c = source[i];
+        if (c == '(' || c == '[' || c == '<' || c == '{')
+        {
+            stats_idx = i;
+            break;
+        }
+    }
+
+    char base[256];
+    char stats[256];
+    base[0] = '\0';
+    stats[0] = '\0';
+
+    if (stats_idx < len)
+    {
+        strnfmt(base, sizeof(base), "%.*s", (int)stats_idx, source);
+        my_strcpy(stats, source + stats_idx, sizeof(stats));
+    }
+    else
+    {
+        my_strcpy(base, source, sizeof(base));
+    }
+
+    object_desc_trim_spaces(base);
+    object_desc_trim_spaces(stats);
+
+    if (!base[0])
+    {
+        my_strcpy(buf, stats, max);
+        return;
+    }
+
+    char trailing_suffix[64];
+    trailing_suffix[0] = '\0';
+
+    if (apply_rules)
+    {
+        size_t base_len_tmp = strlen(base);
+        size_t idx = base_len_tmp;
+
+        while (idx > 0 && isspace((unsigned char)base[idx - 1]))
+            --idx;
+
+        size_t digit_start = idx;
+        while (digit_start > 0 && isdigit((unsigned char)base[digit_start - 1]))
+            --digit_start;
+
+        if (digit_start < idx)
+        {
+            size_t copy_len = idx - digit_start;
+            if (copy_len < sizeof(trailing_suffix))
+            {
+                strnfmt(trailing_suffix, sizeof(trailing_suffix), "%.*s", (int)copy_len, base + digit_start);
+                base[digit_start] = '\0';
+                object_desc_trim_spaces(base);
+            }
+        }
+    }
+
+    if (!apply_rules)
+    {
+        char rebuilt_basic[256];
+        rebuilt_basic[0] = '\0';
+        my_strcpy(rebuilt_basic, base, sizeof(rebuilt_basic));
+        if (stats[0])
+        {
+            if (rebuilt_basic[0])
+                my_strcat(rebuilt_basic, " ", sizeof(rebuilt_basic));
+            my_strcat(rebuilt_basic, stats, sizeof(rebuilt_basic));
+        }
+        object_desc_trim_spaces(rebuilt_basic);
+        my_strcpy(buf, rebuilt_basic, max);
+        return;
+    }
+
+    char lower[256];
+    size_t base_len = strlen(base);
+    for (size_t i = 0; i < base_len && i < sizeof(lower) - 1; ++i)
+        lower[i] = (char)tolower((unsigned char)base[i]);
+    lower[base_len] = '\0';
+
+    char* last = NULL;
+    for (char* search = lower; (search = strstr(search, " of ")) != NULL; ++search)
+        last = search;
+
+    char first_part[256];
+    char second_part[256];
+    first_part[0] = '\0';
+    second_part[0] = '\0';
+
+    if (last)
+    {
+        size_t index = (size_t)(last - lower);
+        strnfmt(first_part, sizeof(first_part), "%.*s", (int)index, base);
+        my_strcpy(second_part, base + index + 4, sizeof(second_part));
+    }
+    else
+    {
+        my_strcpy(first_part, base, sizeof(first_part));
+    }
+
+    object_desc_trim_spaces(first_part);
+    object_desc_trim_spaces(second_part);
+
+    char short_first[128];
+    short_first[0] = '\0';
+
+    if (first_part[0])
+    {
+        char* cursor = first_part;
+        char* chosen = first_part;
+        size_t chosen_len = strlen(first_part);
+
+        while (*cursor)
+        {
+            while (*cursor && isspace((unsigned char)*cursor))
+                ++cursor;
+            if (!*cursor)
+                break;
+
+            char* word_start = cursor;
+            bool has_alpha = false;
+            while (*cursor && !isspace((unsigned char)*cursor))
+            {
+                if (isalpha((unsigned char)*cursor))
+                    has_alpha = true;
+                ++cursor;
+            }
+
+            size_t word_len = (size_t)(cursor - word_start);
+            if (has_alpha)
+            {
+                chosen = word_start;
+                chosen_len = word_len;
+            }
+        }
+
+        if (chosen_len > 0)
+            strnfmt(short_first, sizeof(short_first), "%.*s", (int)chosen_len, chosen);
+    }
+
+    char cleaned_second[256];
+    cleaned_second[0] = '\0';
+    const char* s = second_part;
+    while (s && *s)
+    {
+        while (isspace((unsigned char)*s))
+            ++s;
+        if (!*s)
+            break;
+
+        const char* token_start = s;
+        while (*s && !isspace((unsigned char)*s))
+            ++s;
+        size_t token_len = (size_t)(s - token_start);
+        if (!token_len)
+            continue;
+
+        char token[64];
+        strnfmt(token, sizeof(token), "%.*s", (int)token_len, token_start);
+
+        char token_lower[64];
+        size_t tok_len = strlen(token);
+        for (size_t k = 0; k < tok_len && k < sizeof(token_lower) - 1; ++k)
+            token_lower[k] = (char)tolower((unsigned char)token[k]);
+        token_lower[tok_len] = '\0';
+
+        if (!strcmp(token_lower, "of") || !strcmp(token_lower, "a") || !strcmp(token_lower, "the"))
+            continue;
+
+        if (cleaned_second[0])
+            my_strcat(cleaned_second, " ", sizeof(cleaned_second));
+        my_strcat(cleaned_second, token, sizeof(cleaned_second));
+    }
+
+    char name_part[256];
+    name_part[0] = '\0';
+    if (short_first[0])
+        my_strcpy(name_part, short_first, sizeof(name_part));
+
+    if (cleaned_second[0])
+    {
+        if (name_part[0])
+            my_strcat(name_part, " ", sizeof(name_part));
+        my_strcat(name_part, cleaned_second, sizeof(name_part));
+    }
+
+    if (!name_part[0])
+        my_strcpy(name_part, base, sizeof(name_part));
+
+    if (trailing_suffix[0])
+    {
+        if (name_part[0])
+            my_strcat(name_part, " ", sizeof(name_part));
+        my_strcat(name_part, trailing_suffix, sizeof(name_part));
+    }
+
+    object_desc_trim_spaces(name_part);
+
+    char rebuilt[256];
+    rebuilt[0] = '\0';
+    my_strcpy(rebuilt, name_part, sizeof(rebuilt));
+    if (stats[0])
+    {
+        if (rebuilt[0])
+            my_strcat(rebuilt, " ", sizeof(rebuilt));
+        my_strcat(rebuilt, stats, sizeof(rebuilt));
+    }
+
+    object_desc_trim_spaces(rebuilt);
+    my_strcpy(buf, rebuilt, max);
+}
 void object_desc(
     char* buf, size_t max, const object_type* o_ptr, int pref, int mode)
 {
@@ -693,6 +969,18 @@ void object_desc(
         if (aware)
             append_name = true;
         basenm = (flavor ? "& # Staff~" : "& Staff~");
+
+        break;
+    }
+
+    /* Gems */
+    case TV_GEM:
+    {
+        /* Color the object */
+        modstr = flavor_text + flavor_info[k_ptr->flavor].text;
+        if (aware)
+            append_name = true;
+        basenm = (flavor ? "& # Gem~" : "& Gem~");
 
         break;
     }
@@ -1110,19 +1398,14 @@ void object_desc(
             object_desc_chr_macro(t, ' ');
             object_desc_chr_macro(t, p1);
 
-            if (p_ptr->active_ability[S_WIL][WIL_CHANNELING])
-            {
-                object_desc_num_macro(t, o_ptr->pval);
-            }
-            else
-            {
-                object_desc_num_macro(
-                    t, o_ptr->pval / CHANNELING_CHARGE_MULTIPLIER);
-            }
+            /* Always show actual usable charges (internal pval is 2x for mechanics) */
+            int visible_charges = (o_ptr->pval + CHANNELING_CHARGE_MULTIPLIER - 1)
+                / CHANNELING_CHARGE_MULTIPLIER;
+            object_desc_num_macro(t, visible_charges);
 
             /*write out the word charge(s) as appropriate*/
             object_desc_str_macro(t, " charge");
-            if (o_ptr->pval != 1)
+            if (visible_charges != 1)
             {
                 object_desc_chr_macro(t, 's');
             }
@@ -1288,6 +1571,12 @@ object_desc_done:
     /* Terminate */
     *t = '\0';
 
+    if ((mode == 4) && !pref)
+    {
+        bool apply_rules = !artefact_p(o_ptr);
+        object_desc_mode4_shorten(tmp_buf, sizeof(tmp_buf), o_ptr, apply_rules);
+    }
+
     /* Copy the string over */
     my_strcpy(buf, tmp_buf, max);
 }
@@ -1339,9 +1628,12 @@ void identify_random_gen(const object_type* o_ptr)
  */
 char index_to_label(int i)
 {
-    /* Indexes for "inven" are easy */
+    /* Indexes for "inven" get an offset when supplies are present */
     if (i < INVEN_WIELD)
-        return (I2A(i));
+    {
+        int offset = (supplies_entry_count() > 0) ? 1 : 0;
+        return (I2A(i + offset));
+    }
 
     /* Indexes for "equip" are offset */
     return (I2A(i - INVEN_WIELD));
@@ -1359,8 +1651,15 @@ s16b label_to_inven(int c)
     /* Convert */
     i = (islower((unsigned char)c) ? A2I(c) : -1);
 
+    if (supplies_entry_count() > 0)
+    {
+        if (c == supplies_label_char())
+            return SUPPLIES_INDEX;
+        i -= 1;
+    }
+
     /* Verify the index */
-    if ((i < 0) || (i > INVEN_PACK))
+    if ((i < 0) || (i >= INVEN_PACK))
         return (-1);
 
     /* Empty slots can never be chosen */
@@ -1395,6 +1694,74 @@ s16b label_to_equip(int c)
     return (i);
 }
 
+static bool supplies_visible_for_current_filter(void)
+{
+    if (supplies_entry_count() <= 0)
+        return false;
+
+    if (item_tester_full)
+        return true;
+
+    if (!item_tester_tval && !item_tester_hook)
+        return true;
+
+    if (supplies_has_pending_action())
+        return true;
+
+    return supplies_any_match_item_tester();
+}
+
+static void format_supply_summary(char* buf, size_t len)
+{
+    int potions = 0;
+    int herbs = 0;
+    int gems = 0;
+    bool first = true;
+    char segment[32];
+
+    if (!buf || len == 0)
+        return;
+
+    supplies_count_totals(&potions, &herbs, &gems);
+
+    my_strcpy(buf, "Supplies", len);
+
+    if (potions <= 0 && herbs <= 0 && gems <= 0)
+        return;
+
+    my_strcat(buf, " (", len);
+
+    if (potions > 0)
+    {
+        strnfmt(segment, sizeof(segment), "%d potion%s", potions,
+            (potions == 1) ? "" : "s");
+        my_strcat(buf, segment, len);
+        first = false;
+    }
+
+    if (herbs > 0)
+    {
+        if (!first)
+            my_strcat(buf, ", ", len);
+        strnfmt(segment, sizeof(segment), "%d herb%s", herbs,
+            (herbs == 1) ? "" : "s");
+        my_strcat(buf, segment, len);
+        first = false;
+    }
+
+    if (gems > 0)
+    {
+        if (!first)
+            my_strcat(buf, ", ", len);
+        strnfmt(segment, sizeof(segment), "%d gem%s", gems,
+            (gems == 1) ? "" : "s");
+        my_strcat(buf, segment, len);
+    }
+
+    my_strcat(buf, ")", len);
+}
+
+
 /*
  * Determine which equipment slot (if any) an item likes
  */
@@ -1414,6 +1781,11 @@ s16b wield_slot(const object_type* o_ptr)
     case TV_BOW:
     {
         return (INVEN_BOW);
+    }
+
+    case TV_STAFF:
+    {
+        return (INVEN_STAFF);
     }
 
     case TV_RING:
@@ -1505,6 +1877,9 @@ cptr describe_empty_slot(int i)
     case INVEN_BOW:
         p = "(no bow)";
         break;
+    case INVEN_STAFF:
+        p = "(no walking staff)";
+        break;
     case INVEN_LEFT:
         p = "(no left ring)";
         break;
@@ -1566,6 +1941,9 @@ cptr mention_use(int i)
     case INVEN_BOW:
         p = "Shooting";
         break;
+    case INVEN_STAFF:
+        p = "Walking staff";
+        break;
     case INVEN_LEFT:
         p = "Left ring";
         break;
@@ -1626,6 +2004,9 @@ cptr describe_use(int i)
         break;
     case INVEN_BOW:
         p = "wielding";
+        break;
+    case INVEN_STAFF:
+        p = "using as a walking staff";
         break;
     case INVEN_LEFT:
         p = "wearing on your left hand";
@@ -2071,6 +2452,8 @@ void show_inven(void)
     if (show_weights)
         lim -= 9;
 
+    bool include_supplies = !inventory_menu_include_equip && supplies_visible_for_current_filter();
+
     /* Find the "final" slot */
     for (i = 0; i < INVEN_PACK; i++)
     {
@@ -2084,8 +2467,33 @@ void show_inven(void)
         z = i + 1;
     }
 
-    /* Display the inventory */
-    for (k = 0, i = 0; i < z; i++)
+    /* Avoid exceeding the available rows in the vanilla inventory view. */
+    int max_rows = (Term ? Term->hgt : 24) - 1;
+    if (max_rows < 1)
+        max_rows = INVEN_PACK;
+    if (include_supplies && z >= max_rows)
+        include_supplies = false;
+
+    k = 0;
+
+    if (include_supplies && k < (int)N_ELEMENTS(out_index))
+    {
+        char supply_desc[80];
+        format_supply_summary(supply_desc, sizeof(supply_desc));
+        out_index[k] = SUPPLIES_INDEX;
+        out_color[k] = TERM_L_WHITE;
+        my_strcpy(out_desc[k], supply_desc, sizeof(out_desc[0]));
+
+        l = (int)strlen(out_desc[k]) + 5;
+        if (show_weights)
+            l += 9;
+        if (l > len)
+            len = l;
+
+        k++;
+    }
+
+    for (i = 0; i < z && k < (int)N_ELEMENTS(out_index); i++)
     {
         o_ptr = &inventory[i];
 
@@ -2132,28 +2540,40 @@ void show_inven(void)
     /* Output each entry */
     for (j = 0; j < k; j++)
     {
-        /* Get the index */
-        i = out_index[j];
+        int idx = out_index[j];
+        bool is_supply = (idx == SUPPLIES_INDEX);
 
-        /* Get the item */
-        o_ptr = &inventory[i];
+        if (!is_supply)
+            o_ptr = &inventory[idx];
 
-        /* Clear the line */
         prt("", j + 1, col ? col - 2 : col);
 
-        /* Prepare an index --(-- */
-        sprintf(tmp_val, "%c)", index_to_label(i));
+        if (is_supply)
+        {
+            char label = supplies_label_char();
+            int slot = supplies_virtual_slot();
+            if (!label && slot >= 0)
+                label = index_to_label(slot);
+            if (!label)
+                label = 'a';
+            sprintf(tmp_val, "%c)", label);
+        }
+        else
+        {
+            sprintf(tmp_val, "%c)", index_to_label(idx));
+        }
 
-        /* Clear the line with the (possibly indented) index */
         put_str(tmp_val, j + 1, col);
 
-        /* Display the entry itself */
         c_put_str(out_color[j], out_desc[j], j + 1, col + 3);
 
-        /* Display the weight if needed */
         if (show_weights)
         {
-            int wgt = o_ptr->weight * o_ptr->number;
+            int wgt;
+            if (is_supply)
+                wgt = supplies_total_weight();
+            else
+                wgt = o_ptr->weight * o_ptr->number;
             sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
             c_put_str(out_color[j], tmp_val, j + 1, 71);
         }
@@ -2475,6 +2895,9 @@ static bool verify_item(cptr prompt, int item)
 
     object_type* o_ptr;
 
+    if (item == SUPPLIES_INDEX)
+        return true;
+
     /* Inventory */
     if (item >= 0)
     {
@@ -2505,6 +2928,9 @@ static bool verify_item(cptr prompt, int item)
 static bool get_item_allow(int item)
 {
     cptr s;
+
+    if (item == SUPPLIES_INDEX)
+        return true;
 
     object_type* o_ptr;
 
@@ -2554,6 +2980,9 @@ static bool get_item_allow(int item)
 static bool get_item_okay(int item)
 {
     object_type* o_ptr;
+
+    if (item == SUPPLIES_INDEX)
+        return supplies_visible_for_current_filter();
 
     /* Inventory */
     if (item >= 0)
@@ -2882,7 +3311,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
     /* Repeat until done */
     /* Row-based display mappings (built when list is visible) */
-    int vis_inven[INVEN_PACK];    /* row -> inven index */
+    int vis_inven[INVEN_PACK + 1];    /* row -> inven index */
     int vis_inven_cnt = 0;
     int vis_equip[INVEN_TOTAL - INVEN_WIELD]; /* row -> equip index */
     int vis_equip_cnt = 0;
@@ -2899,7 +3328,10 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         if (!p_ptr->command_see) break;                                            \
         if (p_ptr->command_wrk == (USE_INVEN)) {                                    \
             vis_inven_cnt = 0;                                                      \
-            for (int ii = 0; ii < INVEN_PACK; ++ii) {                                \
+            if (supplies_visible_for_current_filter() && vis_inven_cnt < (INVEN_PACK + 1)) { \
+                vis_inven[vis_inven_cnt++] = SUPPLIES_INDEX;                        \
+            }                                                                       \
+            for (int ii = 0; ii < INVEN_PACK && vis_inven_cnt < (INVEN_PACK + 1); ++ii) { \
                 if (inventory[ii].k_idx && get_item_okay(ii)) {                     \
                     vis_inven[vis_inven_cnt++] = ii;                                \
                 }                                                                   \
@@ -2936,8 +3368,6 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             }                                                                       \
         }                                                                           \
     } while (0)
-
-    /* Move highlight up/down within current list skipping non-okay */
 #define MOVE_HIGHLIGHT(dir)                                                          \
     do {                                                                            \
         if (!highlight_active) break;                                               \
@@ -2964,8 +3394,13 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         /* Recompute layout length by scanning visible list */                     \
         if (p_ptr->command_wrk == (USE_INVEN)) {                                    \
             for (int r=0;r<vis_inven_cnt;r++){                                      \
-                object_type* o_ptr=&inventory[vis_inven[r]];                        \
-                object_desc(tmp, sizeof(tmp), o_ptr, true, 3);                      \
+                int entry = vis_inven[r];                                           \
+                if (entry == SUPPLIES_INDEX) {                                      \
+                    format_supply_summary(tmp, sizeof(tmp));                       \
+                } else {                                                            \
+                    object_type* o_ptr=&inventory[entry];                           \
+                    object_desc(tmp, sizeof(tmp), o_ptr, true, 3);                  \
+                }                                                                   \
                 tmp[lim]='\0';                                                     \
                 int l=strlen(tmp)+5 + (show_weights?9:0);                           \
                 if (l>len) len=l;                                                   \
@@ -2992,12 +3427,24 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         int row=-1; int item_index=0; int floor_slot=-1;                            \
         if (p_ptr->command_wrk == (USE_INVEN) && highlight_row < vis_inven_cnt) {   \
             row = highlight_row; item_index = vis_inven[highlight_row];             \
-            object_type* o_ptr=&inventory[item_index];                              \
-            object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';               \
             prt("", row+1, col?col-2:col);                                         \
-            { char lab[4]; sprintf(lab, "%c)", index_to_label(item_index)); put_str(lab,row+1,col); }\
-            c_put_str(attr,tmp,row+1,col+3);                                        \
-            if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%3d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,71);} \
+            if (item_index == SUPPLIES_INDEX) {                                     \
+                char label = supplies_label_char();                                 \
+                int slot = supplies_virtual_slot();                                 \
+                if (!label && slot >= 0) label = index_to_label(slot);              \
+                if (!label) label = 'a';                                            \
+                format_supply_summary(tmp, sizeof(tmp));                            \
+                tmp[lim]='\0';                                                     \
+                { char lab[4]; sprintf(lab, "%c)", label); put_str(lab,row+1,col); }\
+                c_put_str(attr,tmp,row+1,col+3);                                    \
+                if (show_weights){ int wgt = supplies_total_weight(); char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,71);} \
+            } else {                                                                \
+                object_type* o_ptr=&inventory[item_index];                          \
+                object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';           \
+                { char lab[4]; sprintf(lab, "%c)", index_to_label(item_index)); put_str(lab,row+1,col); }\
+                c_put_str(attr,tmp,row+1,col+3);                                    \
+                if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,71);} \
+            }                                                                       \
         } else if (p_ptr->command_wrk == (USE_EQUIP) && highlight_row < vis_equip_cnt){\
             row = highlight_row; item_index = vis_equip[highlight_row];             \
             object_type* o_ptr=&inventory[item_index];                              \
@@ -3015,7 +3462,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             prt("", row+1, col?col-2:col);                                         \
             { char lab[4]; sprintf(lab, "%c)", index_to_label(floor_slot)); put_str(lab,row+1,col);} \
             c_put_str(attr,tmp,row+1,col+3);                                        \
-            if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%3d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,71);} \
+            if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,71);} \
         }                                                                           \
     } while (0)
 
@@ -3864,16 +4311,19 @@ void show_inven_enhanced(void)
     int floor_list[MAX_FLOOR_STACK];
     int floor_num;
     bool has_floor_items = false;
+    bool include_supplies = !inventory_menu_include_equip && supplies_visible_for_current_filter();
     
     object_type* o_ptr;
     char o_name[80];
     char tmp_val[80];
     
     /* Arrays exactly matching show_inven() - expanded to include floor items */
-    int out_index[48];      /* Increased to handle inventory + floor items */
-    byte out_color[48];
-    char out_desc[48][80];
-    bool out_is_floor[48];  /* Track which entries are floor items */
+    int out_index[ENHANCED_MAX_LIST];
+    byte out_color[ENHANCED_MAX_LIST];
+    char out_desc[ENHANCED_MAX_LIST][80];
+    bool out_is_floor[ENHANCED_MAX_LIST];  /* Track which entries are floor items */
+    bool out_is_supply[ENHANCED_MAX_LIST]; /* Track which entries are supply items */
+bool out_is_equip[ENHANCED_MAX_LIST];
     
     /* Default length (exactly like show_inven) */
     len = 79 - 50;
@@ -3921,6 +4371,7 @@ void show_inven_enhanced(void)
 
             out_index[k] = 0 - floor_list[i];
             out_is_floor[k] = true;
+            out_is_supply[k] = false;
             out_color[k] = weapon_glows(o_ptr) ? TERM_L_BLUE
                 : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
             my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
@@ -3935,7 +4386,26 @@ void show_inven_enhanced(void)
         }
     }
 
-    for (i = 0; i < z; i++)
+    if (include_supplies && k < (int)N_ELEMENTS(out_index))
+    {
+        char supply_desc[80];
+        format_supply_summary(supply_desc, sizeof(supply_desc));
+        out_index[k] = SUPPLIES_INDEX;
+        out_is_floor[k] = false;
+        out_is_supply[k] = true;
+        out_color[k] = TERM_L_WHITE;
+        my_strcpy(out_desc[k], supply_desc, sizeof(out_desc[0]));
+
+        int l = (int)strlen(out_desc[k]) + 5;
+        if (show_weights)
+            l += 9;
+        if (l > len)
+            len = l;
+
+        k++;
+    }
+
+    for (i = 0; i < z && k < (int)N_ELEMENTS(out_index); i++)
     {
         o_ptr = &inventory[i];
 
@@ -3947,6 +4417,7 @@ void show_inven_enhanced(void)
 
         out_index[k] = i;
         out_is_floor[k] = false;
+        out_is_supply[k] = false;
         out_color[k] = weapon_glows(o_ptr) ? TERM_L_BLUE
             : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
         my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
@@ -3959,7 +4430,7 @@ void show_inven_enhanced(void)
 
         k++;
     }
-    
+
     /* Find the column to start in (exactly like show_inven) */
     col = (len > 76) ? 0 : (79 - len);
     
@@ -4009,65 +4480,75 @@ void show_inven_enhanced(void)
 
         if (allow_compare && highlight_active && highlight_row >= 0 && highlight_row < k)
         {
-            object_type* highlighted_obj = out_is_floor[highlight_row]
-                ? &o_list[0 - out_index[highlight_row]]
-                : &inventory[out_index[highlight_row]];
-            int slot_candidates[MAX_COMPARE_LINES];
-            int slot_count = 0;
+            bool highlighted_is_supply = out_is_supply[highlight_row];
+            object_type* highlighted_obj = NULL;
 
-            int primary_slot = wield_slot(highlighted_obj);
-            append_compare_slot(slot_candidates, &slot_count, primary_slot);
-
-            if (highlighted_obj->tval == TV_RING)
+            if (!highlighted_is_supply)
             {
-                append_compare_slot(slot_candidates, &slot_count, INVEN_LEFT);
-                append_compare_slot(slot_candidates, &slot_count, INVEN_RIGHT);
-            }
-            else if (highlighted_obj->tval == TV_ARROW)
-            {
-                append_compare_slot(slot_candidates, &slot_count, INVEN_QUIVER1);
-                append_compare_slot(slot_candidates, &slot_count, INVEN_QUIVER2);
+                highlighted_obj = out_is_floor[highlight_row]
+                    ? &o_list[0 - out_index[highlight_row]]
+                    : &inventory[out_index[highlight_row]];
             }
 
-            for (int idx = 0; idx < slot_count; idx++)
+            if (highlighted_obj)
             {
-                int slot = slot_candidates[idx];
+                int slot_candidates[MAX_COMPARE_LINES];
+                int slot_count = 0;
 
-                strnfmt(compare_label[idx], sizeof(compare_label[idx]), "%c)", index_to_label(slot));
-                strnfmt(compare_prefix[idx], sizeof(compare_prefix[idx]), "%-12s: ", mention_use(slot));
+                int primary_slot = wield_slot(highlighted_obj);
+                append_compare_slot(slot_candidates, &slot_count, primary_slot);
 
-                int compare_lim = 79 - 3 - (12 + 2);
-                if (show_weights)
-                    compare_lim -= 9;
-                if (compare_lim < 0)
-                    compare_lim = 0;
-                if (compare_lim >= (int)sizeof(compare_desc[idx]))
-                    compare_lim = (int)sizeof(compare_desc[idx]) - 1;
-
-                object_type* equipped_obj = &inventory[slot];
-                if (equipped_obj->k_idx)
+                if (highlighted_obj->tval == TV_RING)
                 {
-                    object_desc(compare_desc[idx], sizeof(compare_desc[idx]), equipped_obj, true, 3);
-                    compare_desc[idx][compare_lim] = '\0';
-                    compare_attr[idx] = weapon_glows(equipped_obj) ? TERM_L_BLUE
-                        : tval_to_attr[equipped_obj->tval % N_ELEMENTS(tval_to_attr)];
-                    if (show_weights && equipped_obj->weight)
+                    append_compare_slot(slot_candidates, &slot_count, INVEN_LEFT);
+                    append_compare_slot(slot_candidates, &slot_count, INVEN_RIGHT);
+                }
+                else if (highlighted_obj->tval == TV_ARROW)
+                {
+                    append_compare_slot(slot_candidates, &slot_count, INVEN_QUIVER1);
+                    append_compare_slot(slot_candidates, &slot_count, INVEN_QUIVER2);
+                }
+
+                for (int idx = 0; idx < slot_count; idx++)
+                {
+                    int slot = slot_candidates[idx];
+
+                    strnfmt(compare_label[idx], sizeof(compare_label[idx]), "%c)", index_to_label(slot));
+                    strnfmt(compare_prefix[idx], sizeof(compare_prefix[idx]), "%-12s: ", mention_use(slot));
+
+                    int compare_lim = 79 - 3 - (12 + 2);
+                    if (show_weights)
+                        compare_lim -= 9;
+                    if (compare_lim < 0)
+                        compare_lim = 0;
+                    if (compare_lim >= (int)sizeof(compare_desc[idx]))
+                        compare_lim = (int)sizeof(compare_desc[idx]) - 1;
+
+                    object_type* equipped_obj = &inventory[slot];
+                    if (equipped_obj->k_idx)
                     {
-                        compare_has_weight[idx] = true;
-                        compare_weight[idx] = equipped_obj->weight * equipped_obj->number;
+                        object_desc(compare_desc[idx], sizeof(compare_desc[idx]), equipped_obj, true, 3);
+                        compare_desc[idx][compare_lim] = '\0';
+                        compare_attr[idx] = weapon_glows(equipped_obj) ? TERM_L_BLUE
+                            : tval_to_attr[equipped_obj->tval % N_ELEMENTS(tval_to_attr)];
+                        if (show_weights && equipped_obj->weight)
+                        {
+                            compare_has_weight[idx] = true;
+                            compare_weight[idx] = equipped_obj->weight * equipped_obj->number;
+                        }
+                    }
+                    else
+                    {
+                        cptr empty_text = describe_empty_slot(slot);
+                        my_strcpy(compare_desc[idx], empty_text, sizeof(compare_desc[idx]));
+                        if (compare_lim < (int)sizeof(compare_desc[idx]))
+                            compare_desc[idx][compare_lim] = '\0';
+                        compare_attr[idx] = TERM_SLATE;
                     }
                 }
-                else
-                {
-                    cptr empty_text = describe_empty_slot(slot);
-                    my_strcpy(compare_desc[idx], empty_text, sizeof(compare_desc[idx]));
-                    if (compare_lim < (int)sizeof(compare_desc[idx]))
-                        compare_desc[idx][compare_lim] = '\0';
-                    compare_attr[idx] = TERM_SLATE;
-                }
-            }
 
-            compare_count = slot_count;
+                compare_count = slot_count;
+            }
         }
 
         /* Render combined list with floor entries first */
@@ -4075,15 +4556,31 @@ void show_inven_enhanced(void)
         for (int j = 0; j < k; j++)
         {
             bool is_floor_item = out_is_floor[j];
-            object_type* line_obj = is_floor_item ? &o_list[0 - out_index[j]] : &inventory[out_index[j]];
+            bool is_supply_item = out_is_supply[j];
+            object_type* line_obj = NULL;
             bool is_highlight = highlight_active && (highlight_row == j);
             byte line_attr = is_highlight ? TERM_L_BLUE : out_color[j];
             int row = next_row;
+
+            if (is_floor_item)
+                line_obj = &o_list[0 - out_index[j]];
+            else if (!is_supply_item)
+                line_obj = &inventory[out_index[j]];
 
             prt("", row, col ? col - 2 : col);
 
             if (is_floor_item)
                 strnfmt(tmp_val, sizeof(tmp_val), "-)");
+            else if (is_supply_item)
+            {
+                char label = supplies_label_char();
+                int slot = supplies_virtual_slot();
+                if (!label && slot >= 0)
+                    label = index_to_label(slot);
+                if (!label)
+                    label = 'a';
+                strnfmt(tmp_val, sizeof(tmp_val), "%c)", label);
+            }
             else
                 strnfmt(tmp_val, sizeof(tmp_val), "%c)", index_to_label(out_index[j]));
 
@@ -4096,7 +4593,11 @@ void show_inven_enhanced(void)
 
             if (show_weights)
             {
-                int wgt = line_obj->weight * line_obj->number;
+                int wgt = 0;
+                if (is_supply_item)
+                    wgt = supplies_total_weight();
+                else if (line_obj)
+                    wgt = line_obj->weight * line_obj->number;
                 strnfmt(tmp_val, sizeof(tmp_val), "%3d.%1d lb", wgt / 10, wgt % 10);
                 c_put_str(line_attr, tmp_val, row, 71);
             }
@@ -4154,8 +4655,9 @@ void show_inven_enhanced(void)
 
         if (highlight_active && highlight_row >= 0 && highlight_row < k)
         {
-            log_debug("show_inven_enhanced: Highlighted row %d (%s)", highlight_row,
-                out_is_floor[highlight_row] ? "floor" : "inventory");
+            const char* row_type = out_is_floor[highlight_row] ? "floor"
+                : (out_is_supply[highlight_row] ? "supply" : "inventory");
+            log_debug("show_inven_enhanced: Highlighted row %d (%s)", highlight_row, row_type);
         }
         
         /* Get a key */
@@ -4746,24 +5248,27 @@ typedef enum
 {
     IDENT_ENTRY_INVEN,
     IDENT_ENTRY_EQUIP,
-    IDENT_ENTRY_FLOOR
+    IDENT_ENTRY_FLOOR,
+    IDENT_ENTRY_SUPPLY
 } ident_entry_type;
 
 typedef struct
 {
     ident_entry_type type;
     int index;
+    int supply_index;
     int floor_o_idx;
     object_type* o_ptr;
-    char label[4];
-    char prefix[20];
+    char label[6];
+    char prefix[24];
     char desc[80];
     byte color;
 } ident_entry;
 
-#define MAX_IDENT_ENTRIES (INVEN_PACK + (INVEN_TOTAL - INVEN_WIELD) + MAX_FLOOR_STACK)
+#define MAX_IDENT_SUPPLY 256
+#define MAX_IDENT_ENTRIES (INVEN_PACK + (INVEN_TOTAL - INVEN_WIELD) + MAX_FLOOR_STACK + MAX_IDENT_SUPPLY)
 
-static void build_ident_entry_label(int order, char out[4])
+static void build_ident_entry_label(int order, char out[6])
 {
     char label = index_to_label(order);
     out[0] = label;
@@ -4816,6 +5321,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
     const int lim_no_weight = base_lim - (show_weights ? 9 : 0);
     int floor_list[MAX_FLOOR_STACK];
     int floor_num = 0;
+    int supply_count = supplies_entry_count();
 
     if (include_floor)
         floor_num = scan_floor(floor_list, MAX_FLOOR_STACK, p_ptr->py, p_ptr->px, 0x00);
@@ -4832,6 +5338,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
             ident_entry* entry = &entries[entry_count];
             entry->type = IDENT_ENTRY_FLOOR;
             entry->index = 0;
+            entry->supply_index = -1;
             entry->floor_o_idx = o_idx;
             entry->o_ptr = o_ptr;
             strnfmt(entry->label, sizeof(entry->label), "-)");
@@ -4854,6 +5361,50 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         }
     }
 
+    for (int i = 0; i < supply_count && entry_count < MAX_IDENT_ENTRIES; i++)
+    {
+        object_type* o_ptr = supplies_entry_at(i);
+        if (!o_ptr || !o_ptr->k_idx || object_known_p(o_ptr))
+            continue;
+
+        ident_entry* entry = &entries[entry_count];
+        entry->type = IDENT_ENTRY_SUPPLY;
+        entry->index = i;
+        entry->supply_index = i;
+        entry->floor_o_idx = 0;
+        entry->o_ptr = o_ptr;
+        build_ident_entry_label(entry_count, entry->label);
+
+        const char* supply_prefix = "Supplies: ";
+        if (o_ptr->tval == TV_POTION)
+            supply_prefix = "Supplies (potions): ";
+        else if (o_ptr->tval == TV_GEM)
+            supply_prefix = "Supplies (gems): ";
+        else if (o_ptr->tval == TV_FOOD && o_ptr->sval <= SV_FOOD_SICKNESS)
+            supply_prefix = "Supplies (herbs): ";
+
+        strnfmt(entry->prefix, sizeof(entry->prefix), "%s", supply_prefix);
+
+        int prefix_len = (int)strlen(entry->prefix);
+        int desc_lim = lim_no_weight - prefix_len;
+        if (desc_lim < 0)
+            desc_lim = 0;
+
+        object_desc(entry->desc, sizeof(entry->desc), o_ptr, true, 3);
+        entry->desc[desc_lim] = '\0';
+
+        entry->color = weapon_glows(o_ptr) ? TERM_L_BLUE
+            : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+
+        int row_len = prefix_len + (int)strlen(entry->desc) + 5;
+        if (show_weights && o_ptr->weight)
+            row_len += 9;
+        if (row_len > len)
+            len = row_len;
+
+        entry_count++;
+    }
+
     for (int i = 0; i < INVEN_PACK && entry_count < MAX_IDENT_ENTRIES; i++)
     {
         object_type* o_ptr = &inventory[i];
@@ -4863,6 +5414,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         ident_entry* entry = &entries[entry_count];
         entry->type = IDENT_ENTRY_INVEN;
         entry->index = i;
+        entry->supply_index = -1;
         entry->floor_o_idx = 0;
         entry->o_ptr = o_ptr;
         build_ident_entry_label(entry_count, entry->label);
@@ -4893,6 +5445,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         ident_entry* entry = &entries[entry_count];
         entry->type = IDENT_ENTRY_EQUIP;
         entry->index = i;
+        entry->supply_index = -1;
         entry->floor_o_idx = 0;
         entry->o_ptr = o_ptr;
         build_ident_entry_label(entry_count, entry->label);
@@ -5018,6 +5571,11 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         *out_item = 0 - chosen->floor_o_idx;
         *out_object = &o_list[chosen->floor_o_idx];
     }
+    else if (chosen->type == IDENT_ENTRY_SUPPLY)
+    {
+        *out_item = SUPPLIES_INDEX + chosen->supply_index;
+        *out_object = chosen->o_ptr;
+    }
     else
     {
         *out_item = chosen->index;
@@ -5029,6 +5587,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
 
 #undef MAX_COMPARE_LINES
 #undef MAX_IDENT_ENTRIES
+
 
 
 

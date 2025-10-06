@@ -58,15 +58,16 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
     bool aware;
     int kind_index;
 
-    object_type* o_ptr;
-
+    object_type* o_ptr = NULL;
+    int supply_index = supplies_current_action();
+    bool from_supplies = (supply_index >= 0);
     cptr q, s;
 
-    // use specified item if possible
+    /* Use specified item if possible */
     if (default_o_ptr != NULL)
     {
         o_ptr = default_o_ptr;
-        item = default_item;
+        item = from_supplies ? SUPPLIES_INDEX : default_item;
     }
     /* Get an item */
     else
@@ -77,8 +78,21 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
         /* Get an item */
         q = "Eat which item? ";
         s = "You have nothing to eat.";
+        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_HERBS, true);
         if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        {
+            supplies_clear_pending_action();
             return;
+        }
+
+        if (item == SUPPLIES_INDEX)
+        {
+            supplies_clear_pending_action();
+            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_HERBS, true, true);
+            return;
+        }
+
+        supplies_clear_pending_action();
 
         /* Get the item (in the pack) */
         if (item >= 0)
@@ -91,7 +105,13 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
         {
             o_ptr = &o_list[0 - item];
         }
+
+        from_supplies = false;
+        supply_index = -1;
     }
+
+    if (!o_ptr)
+        return;
 
     /* Sound */
     sound(MSG_EAT);
@@ -127,8 +147,13 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
     /* Window stuff */
     p_ptr->window |= (PW_INVEN | PW_EQUIP);
 
-    /* Destroy a food in the pack */
-    if (item >= 0)
+    /* Destroy a food in the pack or supplies */
+    if (from_supplies && supply_index >= 0)
+    {
+        supplies_consume_quantity(supply_index, 1);
+        supplies_refresh_entry(supply_index);
+    }
+    else if (item >= 0)
     {
         inven_item_increase(item, -1);
         inven_item_describe(item);
@@ -172,14 +197,16 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
     bool ident;
     bool aware;
     int kind_index;
-    object_type* o_ptr;
+    object_type* o_ptr = NULL;
+    int supply_index = supplies_current_action();
+    bool from_supplies = (supply_index >= 0);
     cptr q, s;
 
-    // use specified item if possible
+    /* Use specified item if possible */
     if (default_o_ptr != NULL)
     {
         o_ptr = default_o_ptr;
-        item = default_item;
+        item = from_supplies ? SUPPLIES_INDEX : default_item;
     }
     /* Get an item */
     else
@@ -190,8 +217,21 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
         /* Get an item */
         q = "Quaff which potion? ";
         s = "You have no potions to quaff.";
+        supplies_set_pending_action(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_POTIONS, true);
         if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
+        {
+            supplies_clear_pending_action();
             return;
+        }
+
+        if (item == SUPPLIES_INDEX)
+        {
+            supplies_clear_pending_action();
+            open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_POTIONS, true, true);
+            return;
+        }
+
+        supplies_clear_pending_action();
 
         /* Get the item (in the pack) */
         if (item >= 0)
@@ -204,7 +244,13 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
         {
             o_ptr = &o_list[0 - item];
         }
+
+        from_supplies = false;
+        supply_index = -1;
     }
+
+    if (!o_ptr)
+        return;
 
     /* Sound */
     sound(MSG_QUAFF);
@@ -240,8 +286,13 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
     /* Window stuff */
     p_ptr->window |= (PW_INVEN | PW_EQUIP);
 
-    /* Destroy a potion in the pack */
-    if (item >= 0)
+    /* Destroy a potion in the pack or supplies */
+    if (from_supplies && supply_index >= 0)
+    {
+        supplies_consume_quantity(supply_index, 1);
+        supplies_refresh_entry(supply_index);
+    }
+    else if (item >= 0)
     {
         inven_item_increase(item, -1);
         inven_item_describe(item);
@@ -276,7 +327,6 @@ void do_cmd_play_instrument(object_type* default_o_ptr, int default_item)
     bool ident;
 
     object_type* o_ptr;
-
     cptr q, s;
 
     // use specified item if possible
@@ -355,41 +405,79 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
 
     bool ident;
 
-    object_type* o_ptr;
+    object_type* o_ptr = NULL;
 
     bool use_charge;
 
-    cptr q, s;
-
-    // use specified item if possible
+    int supply_index = supplies_current_action();
+    bool from_supplies = (supply_index >= 0);
+    
+    /* Use specified item if possible */
     if (default_o_ptr != NULL)
     {
         o_ptr = default_o_ptr;
-        item = default_item;
+        item = from_supplies ? SUPPLIES_INDEX : default_item;
     }
     /* Get an item */
     else
     {
-        /* Restrict choices to staves */
-        item_tester_tval = TV_STAFF;
+        object_type* staff_slot = &inventory[INVEN_STAFF];
 
-        /* Get an item */
-        q = "Activate which staff? ";
-        s = "You have no staff to activate.";
-        if (!get_item(&item, q, s, (USE_INVEN | USE_FLOOR)))
-            return;
-
-        /* Get the item (in the pack) */
-        if (item >= 0)
+        if (staff_slot->k_idx && !(staff_slot->ident & IDENT_EMPTY))
         {
-            o_ptr = &inventory[item];
+            o_ptr = staff_slot;
+            item = INVEN_STAFF;
+            from_supplies = false;
+            supply_index = -1;
         }
-
-        /* Get the item (on the floor) */
         else
         {
-            o_ptr = &o_list[0 - item];
+            msg_print("You are not wielding a walking staff.");
+            return;
         }
+    }
+
+    if (!o_ptr)
+        return;
+
+    if (o_ptr->tval == TV_STAFF && o_ptr != &inventory[INVEN_STAFF])
+    {
+        object_type* wielded = &inventory[INVEN_STAFF];
+        const int max_name_len = 12;
+        /* Limit names so the prompt stays within 80 columns */
+        char staff_name[80];
+        char equipped_name[80];
+        char prompt[120];
+        const char* source = from_supplies ? "your supplies" : (default_item >= 0 ? "your pack" : "the floor");
+
+        object_desc(staff_name, sizeof(staff_name), o_ptr, true, 3);
+
+        if (from_supplies)
+        {
+            msg_print("You cannot use a staff from supplies. Move it to your pack and equip it first.");
+            return;
+        }
+
+        if (wielded->k_idx)
+        {
+            object_desc(equipped_name, sizeof(equipped_name), wielded, true, 3);
+            strnfmt(prompt, sizeof(prompt),
+                "You cannot use a staff from %s. Replace %.*s with %.*s?",
+                source, max_name_len, equipped_name, max_name_len, staff_name);
+        }
+        else
+        {
+            my_strcpy(equipped_name, "no staff", sizeof(equipped_name));
+            strnfmt(prompt, sizeof(prompt),
+                "You cannot use a staff from %s. Equip %.*s now?",
+                source, max_name_len, staff_name);
+        }
+
+        if (get_check(prompt))
+        {
+            do_cmd_wield(o_ptr, default_item);
+        }
+        return;
     }
 
     if (o_ptr->ident & (IDENT_EMPTY))
@@ -407,22 +495,36 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     /* Not identified yet */
     ident = false;
 
-    /* Notice empty staffs */
-    if ((o_ptr->pval <= 1 && (!p_ptr->active_ability[S_WIL][WIL_CHANNELING]))
-        || o_ptr->pval <= 0)
+    /* Notice empty staffs/gems */
+    if (o_ptr->tval == TV_STAFF)
     {
-        flush();
-        msg_print("The staff has no charges left.");
-        o_ptr->ident |= (IDENT_EMPTY);
-        p_ptr->notice |= (PN_COMBINE | PN_REORDER);
-        p_ptr->window |= (PW_INVEN);
-        return;
+        if (o_ptr->pval < CHANNELING_CHARGE_MULTIPLIER)
+        {
+            flush();
+            msg_print("The staff has no charges left.");
+            o_ptr->ident |= (IDENT_EMPTY);
+            p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+            p_ptr->window |= (PW_INVEN);
+            return;
+        }
+    }
+    else if (o_ptr->tval == TV_GEM)
+    {
+        if (o_ptr->number <= 0)
+        {
+            flush();
+            msg_print("You have no gems left.");
+            o_ptr->ident |= (IDENT_EMPTY);
+            p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+            p_ptr->window |= (PW_INVEN);
+            return;
+        }
     }
 
     /* Sound */
     sound(MSG_ZAP);
 
-    /* Use the staff */
+    /* Use the staff/gem */
     use_charge = use_object(o_ptr, &ident);
 
     // Break the truce
@@ -447,26 +549,30 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     if (!use_charge)
         return;
 
-    /* Use a single charge if channeling, otherwise double */
-    if (p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+    /* Consume the item */
+    if (o_ptr->tval == TV_STAFF)
     {
-        o_ptr->pval--;
-    }
-    else
-    {
+        /* Staffs always expend their bundled charges */
         o_ptr->pval -= CHANNELING_CHARGE_MULTIPLIER;
+        if (o_ptr->pval < 0)
+            o_ptr->pval = 0;
     }
-
+    else if (o_ptr->tval == TV_GEM)
+    {
+        /* Gems are consumed whole - decrease number */
+        o_ptr->number--;
+    }
     // mark times used
     o_ptr->xtra1++;
 
-    /* Describe charges in the pack */
-    if (item >= 0)
+    if (from_supplies && supply_index >= 0)
+    {
+        supplies_refresh_entry(supply_index);
+    }
+    else if (item >= 0)
     {
         inven_item_charges(item);
     }
-
-    /* Describe charges on the floor */
     else
     {
         floor_item_charges(0 - item);

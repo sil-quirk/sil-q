@@ -9,12 +9,14 @@
  */
 
 #include "angband.h"
+#include "supplies.h"
 
 enum inventory_limit_group
 {
     INV_LIMIT_NONE = 0,
     INV_LIMIT_ARROW,
     INV_LIMIT_BOW,
+    INV_LIMIT_STAFF,
     INV_LIMIT_DIGGING,
     INV_LIMIT_BOOTS,
     INV_LIMIT_GLOVES,
@@ -24,7 +26,8 @@ enum inventory_limit_group
     INV_LIMIT_CLOAK,
     INV_LIMIT_SOFT_ARMOUR,
     INV_LIMIT_MAIL,
-    INV_LIMIT_MELEE_WEAPON
+    INV_LIMIT_MELEE_WEAPON,
+    INV_LIMIT_SUPPLY_WEIGHT
 };
 
 static bool carry_limit_last_failed = false;
@@ -86,6 +89,10 @@ static bool get_inventory_limit_info(const object_type* o_ptr,
                 break;
             case TV_BOW:
                 local_group = INV_LIMIT_BOW;
+                local_limit = 1;
+                break;
+            case TV_STAFF:
+                local_group = INV_LIMIT_STAFF;
                 local_limit = 1;
                 break;
             case TV_DIGGING:
@@ -218,6 +225,10 @@ static void fill_inventory_limit_label(enum inventory_limit_group group,
             my_strcpy(carry_limit_last_label, "bows",
                       sizeof(carry_limit_last_label));
             break;
+        case INV_LIMIT_STAFF:
+            my_strcpy(carry_limit_last_label, "walking staves",
+                      sizeof(carry_limit_last_label));
+            break;
         case INV_LIMIT_DIGGING:
             my_strcpy(carry_limit_last_label, "digging tools",
                       sizeof(carry_limit_last_label));
@@ -262,6 +273,10 @@ static void fill_inventory_limit_label(enum inventory_limit_group group,
             else
                 my_strcpy(carry_limit_last_label, "melee weapons",
                           sizeof(carry_limit_last_label));
+            break;
+        case INV_LIMIT_SUPPLY_WEIGHT:
+            my_strcpy(carry_limit_last_label, "supply weight",
+                      sizeof(carry_limit_last_label));
             break;
         default:
             my_strcpy(carry_limit_last_label, "items of this type",
@@ -1404,8 +1419,9 @@ static s32b object_value_real(const object_type* o_ptr)
     /* Analyze the item */
     switch (o_ptr->tval)
     {
-    /* Staffs */
+    /* Staffs and Gems */
     case TV_STAFF:
+    case TV_GEM:
     {
         /* Pay extra for charges, depending on standard number of
          * charges.  Handle new-style wands correctly.
@@ -1597,8 +1613,9 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
         break;
     }
 
-    /* Staves */
+    /* Staves and Gems */
     case TV_STAFF:
+    case TV_GEM:
     {
         /* Don't merge as it messes with charges etc. */
         return (false);
@@ -2354,9 +2371,6 @@ static void charge_staff(object_type* o_ptr)
     case SV_STAFF_SELF_KNOWLEDGE:
         o_ptr->pval = mult * damroll(2, 2);
         break;
-    case SV_STAFF_WARDING:
-        o_ptr->pval = mult * damroll(2, 2);
-        break;
     case SV_STAFF_DISMAY:
         o_ptr->pval = mult * damroll(2, 2);
         break;
@@ -2723,6 +2737,38 @@ static void a_m_aux_4(object_type* o_ptr, int level, bool fine, bool special)
         /* Hack -- charge staffs */
         charge_staff(o_ptr);
 
+        break;
+    }
+
+    case TV_GEM:
+    {
+        /* Gems use number instead of charges - spawn same quantity as charge_staff would have given */
+        int charges = 0;
+        
+        switch (o_ptr->sval)
+        {
+        case SV_GEM_FREEDOM:
+        case SV_GEM_LIGHT:
+        case SV_GEM_REVELATIONS:
+        case SV_GEM_FOES:
+            charges = damroll(4, 2);
+            break;
+        case SV_GEM_SANCTITY:
+        case SV_GEM_UNDERSTANDING:
+        case SV_GEM_TREASURES:
+        case SV_GEM_SELF_KNOWLEDGE:
+        case SV_GEM_RECHARGING:
+        case SV_GEM_SHADOWS:
+            charges = damroll(2, 2);
+            break;
+        default:
+            charges = damroll(2, 2);
+            break;
+        }
+        
+        o_ptr->number = charges;
+        o_ptr->pval = 0;  /* Gems don't use pval */
+        
         break;
     }
 
@@ -3622,7 +3668,7 @@ static bool kind_is_staff(int k_idx)
         return false;
 
     /* Analyze the item type */
-    if (k_ptr->tval == TV_STAFF)
+    if (k_ptr->tval == TV_STAFF || k_ptr->tval == TV_GEM)
     {
         /*staffs suitable for a chest*/
         if (k_ptr->sval == SV_STAFF_UNDERSTANDING)
@@ -3631,7 +3677,7 @@ static bool kind_is_staff(int k_idx)
             return (true);
         if (k_ptr->sval == SV_STAFF_SLUMBER)
             return (true);
-        if (k_ptr->sval == SV_STAFF_WARDING)
+        if (k_ptr->sval == SV_STAFF_WARDING || k_ptr->sval == SV_GEM_WARDING)
             return (true);
         if (k_ptr->sval == SV_STAFF_RECHARGING)
             return (true);
@@ -4823,24 +4869,31 @@ void inven_item_charges(int item)
     int visible_charges = 0;
     object_type* o_ptr = &inventory[item];
 
-    /* Require staff */
-    if (o_ptr->tval != TV_STAFF)
+    /* Require staff or gem */
+    if (o_ptr->tval != TV_STAFF && o_ptr->tval != TV_GEM)
         return;
 
     /* Require known item */
     if (!object_known_p(o_ptr))
         return;
 
-    visible_charges = o_ptr->pval;
-
-    if (!p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+    if (o_ptr->tval == TV_STAFF)
     {
-        visible_charges /= CHANNELING_CHARGE_MULTIPLIER;
-    }
+        visible_charges = (o_ptr->pval + CHANNELING_CHARGE_MULTIPLIER - 1)
+            / CHANNELING_CHARGE_MULTIPLIER;
+        if (visible_charges < 0)
+            visible_charges = 0;
 
-    /* Print a message */
-    msg_format("You have %d charge%s remaining.", visible_charges,
-        (visible_charges != 1) ? "s" : "");
+        /* Print a message */
+        msg_format("You have %d charge%s remaining.", visible_charges,
+            (visible_charges != 1) ? "s" : "");
+    }
+    else if (o_ptr->tval == TV_GEM)
+    {
+        /* Gems show number, not charges */
+        msg_format("You have %d gem%s remaining.", o_ptr->number,
+            (o_ptr->number != 1) ? "s" : "");
+    }
 }
 
 /*
@@ -4977,24 +5030,31 @@ void floor_item_charges(int item)
     int visible_charges = 0;
     object_type* o_ptr = &o_list[item];
 
-    /* Require staff */
-    if (o_ptr->tval != TV_STAFF)
+    /* Require staff or gem */
+    if (o_ptr->tval != TV_STAFF && o_ptr->tval != TV_GEM)
         return;
 
     /* Require known item */
     if (!object_known_p(o_ptr))
         return;
 
-    visible_charges = o_ptr->pval;
-
-    if (!p_ptr->active_ability[S_WIL][WIL_CHANNELING])
+    if (o_ptr->tval == TV_STAFF)
     {
-        visible_charges /= CHANNELING_CHARGE_MULTIPLIER;
-    }
+        visible_charges = (o_ptr->pval + CHANNELING_CHARGE_MULTIPLIER - 1)
+            / CHANNELING_CHARGE_MULTIPLIER;
+        if (visible_charges < 0)
+            visible_charges = 0;
 
-    /* Print a message */
-    msg_format("There are %d charge%s remaining.", visible_charges,
-        (visible_charges != 1) ? "s" : "");
+        /* Print a message */
+        msg_format("There are %d charge%s remaining.", visible_charges,
+            (visible_charges != 1) ? "s" : "");
+    }
+    else if (o_ptr->tval == TV_GEM)
+    {
+        /* Gems show number, not charges */
+        msg_format("There are %d gem%s.", o_ptr->number,
+            (o_ptr->number != 1) ? "s" : "");
+    }
 }
 
 /*
@@ -5172,7 +5232,40 @@ bool inven_carry_okay(const object_type* o_ptr)
     if (!inventory_type_slot_available(o_ptr, true))
         return (false);
 
-    if (p_ptr->inven_cnt >= INVEN_PACK)
+    bool supply_item = supplies_is_supply_object(o_ptr);
+    bool supplies_present = (supplies_entry_count() > 0);
+    int logical_items = p_ptr->inven_cnt + (supplies_present ? 1 : 0);
+
+    if (supply_item)
+    {
+        if (!supplies_present)
+        {
+            /* Need to allocate one slot for the supplies bundle. */
+            if (logical_items >= INVEN_PACK)
+                return (false);
+        }
+
+        /* Check if the item would exceed the supply weight limit */
+        if (!supplies_can_absorb_object(o_ptr))
+        {
+            /* Check if we can do partial pickup */
+            int max_qty = supplies_max_absorbable_quantity(o_ptr);
+            if (max_qty > 0 && o_ptr->number > 1)
+            {
+                /* Partial pickup is possible, allow it through */
+                return (true);
+            }
+            
+            /* Can't pick up any, show error */
+            set_inventory_limit_failure(INV_LIMIT_SUPPLY_WEIGHT, 25, o_ptr);
+            return (false);
+        }
+
+        return (true);
+    }
+
+    /* Non-supply item */
+    if (logical_items >= INVEN_PACK)
         return (false);
 
     return (true);
@@ -5208,6 +5301,18 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
     /*paranoia, don't pick up "&nothings"*/
     if (!o_ptr->k_idx)
         return (-1);
+
+    if (supplies_is_supply_object(o_ptr))
+    {
+        object_type copy;
+        object_copy(&copy, o_ptr);
+        if (supplies_absorb_object(&copy))
+        {
+            object_wipe(o_ptr);
+            return SUPPLIES_INDEX;
+        }
+        /* If absorption failed, treat as normal item. */
+    }
 
     int desired_slot = o_ptr->pickup_slot;
     bool wants_throw_slot = (desired_slot == INVEN_QUIVER1) || (desired_slot == INVEN_QUIVER2);
@@ -5310,7 +5415,13 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
         {
             o_ptr->pickup = false;
             o_ptr->pickup_slot = -1;
-            do_cmd_wield(o_ptr, -1);
+
+            if ((o_ptr >= o_list) && (o_ptr < o_list + o_max))
+            {
+                int floor_idx = (int)(o_ptr - o_list);
+                do_cmd_wield(o_ptr, 0 - floor_idx);
+            }
+
             return (-1);
         }
     }
@@ -5548,6 +5659,11 @@ bool inven_carry_limit_failed(void)
     return carry_limit_last_failed;
 }
 
+enum inventory_limit_group inven_carry_limit_group(void)
+{
+    return carry_limit_last_group;
+}
+
 cptr inven_carry_limit_label(void)
 {
     if (!carry_limit_last_failed)
@@ -5607,6 +5723,14 @@ s16b inven_takeoff(int item, int amt)
     /* Modify quantity */
     i_ptr->number = amt;
 
+    object_type drop_obj;
+    object_copy(&drop_obj, i_ptr);
+    drop_obj.pickup = false;
+    drop_obj.pickup_slot = -1;
+
+    object_type drop_template;
+    object_copy(&drop_template, &drop_obj);
+
     /* Describe the object */
     object_desc(o_name, sizeof(o_name), i_ptr, true, 3);
 
@@ -5648,11 +5772,75 @@ s16b inven_takeoff(int item, int amt)
     /* Carry the object */
     slot = inven_carry(i_ptr, false);
 
-    /* Message */
-    msg_format("%s %s (%c).", act, o_name, index_to_label(slot));
+    if (slot == SUPPLIES_INDEX)
+    {
+        char label = supplies_label_char();
+        if (!label)
+            label = 'a';
+        msg_format("%s %s (%c).", act, o_name, label);
+        return slot;
+    }
 
-    /* Return slot */
-    return (slot);
+    if (slot >= 0)
+    {
+        /* Message */
+        msg_format("%s %s (%c).", act, o_name, index_to_label(slot));
+        return slot;
+    }
+
+    /* Could not carry the item; place it on the floor instead. */
+    msg_format("%s %s.", act, o_name);
+
+    if (inven_carry_limit_failed())
+    {
+        cptr label = inven_carry_limit_label();
+        int limit = inven_carry_limit_value();
+
+        if (label)
+            msg_format("Your pack cannot hold more %s (limit %d).", label, limit);
+        else
+            msg_print("You have no room in your pack.");
+    }
+    else
+    {
+        msg_print("You have no room in your pack.");
+    }
+
+    s16b o_idx = floor_carry(p_ptr->py, p_ptr->px, &drop_obj);
+
+    if (o_idx > 0)
+    {
+        msg_print("It lands at your feet.");
+        return (0 - o_idx);
+    }
+
+    for (int d = 0; d < 8; d++)
+    {
+        int yy = p_ptr->py + ddy_ddd[d];
+        int xx = p_ptr->px + ddx_ddd[d];
+
+        if (!in_bounds_fully(yy, xx))
+            continue;
+
+        if (!cave_floor_bold(yy, xx))
+            continue;
+
+        if (cave_o_idx[yy][xx] != 0)
+            continue;
+
+        object_copy(&drop_obj, &drop_template);
+        o_idx = floor_carry(yy, xx, &drop_obj);
+        if (o_idx > 0)
+        {
+            msg_print("It lands nearby.");
+            return (0 - o_idx);
+        }
+    }
+
+    object_copy(&drop_obj, &drop_template);
+    drop_near(&drop_obj, 0, p_ptr->py, p_ptr->px);
+    msg_print("It falls nearby.");
+    return (-1);
 }
 
 /*
@@ -5688,6 +5876,9 @@ void inven_drop(int item, int amt)
     {
         /* Take off first */
         item = inven_takeoff(item, amt);
+
+        if (item < 0)
+            return;
 
         /* Get the original object */
         o_ptr = &inventory[item];

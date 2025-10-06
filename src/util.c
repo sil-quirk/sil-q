@@ -3765,6 +3765,7 @@ s16b get_quantity(cptr prompt, int max)
 
             case '\r':
             case '\n':
+            case ' ':
 #ifdef KC_ENTER
             case KC_ENTER:
 #endif

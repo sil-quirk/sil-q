@@ -9,7 +9,7 @@
 CC = /usr/bin/i686-w64-mingw32-gcc
 WRES = /usr/bin/i686-w64-mingw32-windres
 LIBS = -s -mwindows -e _mainCRTStartup -lwinmm -lmsimg32
-CFLAGS = -Wall -O2 -fno-strength-reduce -DWINDOWS -DLOG_USE_COLOR -std=c11
+CFLAGS = -Wall -O2 -fno-strength-reduce -DWINDOWS -DLOG_USE_COLOR -std=c17
 
 EXOBJS = \
 	sil.res \
@@ -39,6 +39,7 @@ EXOBJS = \
 	object2.o \
 	randart.o \
 	readdib.o \
+	supplies.o \
 	save.o \
 	spells1.o \
 	spells2.o \
