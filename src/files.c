@@ -5915,9 +5915,6 @@ void print_fade_centered_at_row(cptr text, int row_start)
     if (row_start >= h) return; /* off-screen */
 
     /* Dynamic per-line wrapping and printing */
-    const byte fade_cols[] = { TERM_L_DARK, TERM_SLATE, TERM_L_WHITE, TERM_WHITE, TERM_ORANGE };
-    const int steps = (int)(sizeof(fade_cols) / sizeof(fade_cols[0]));
-
     enum { MAX_LINES2 = 32, MAX_LEN2 = 255 };
     const char *p = text;
     int printed_lines = 0;
@@ -5988,24 +5985,18 @@ void print_fade_centered_at_row(cptr text, int row_start)
 
         if (linelen == 0) break; /* nothing collected */
 
-        /* Fade this line */
-        for (int s = 0; s < steps; s++)
-        {
-            c_put_str(fade_cols[s], buf, row_start + printed_lines, indent);
-            Term_fresh();
-            Term_xtra(TERM_XTRA_DELAY, 125);
-        }
+        /* Show this line directly in orange (no fade effect for level entry banners) */
+        c_put_str(TERM_ORANGE, buf, row_start + printed_lines, indent);
+        Term_fresh();
 
     /* Tracking of per-line geometry removed (unused). */
         printed_lines++;
 
-        /* Half-second gap before next line if more text remains */
+        /* 700ms gap before next line if more text remains */
         if (*p && (row_start + printed_lines) < h)
-            Term_xtra(TERM_XTRA_DELAY, 400);
+            Term_xtra(TERM_XTRA_DELAY, 800);
     }
 
-    /* Hold briefly so the player can read (keep 1s as before) */
-    Term_xtra(TERM_XTRA_DELAY, 500);
     /* Do not explicitly erase: allow natural redraws to overwrite the text */
 }
 
