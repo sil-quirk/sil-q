@@ -788,6 +788,7 @@ bool hates_cold(const object_type* o_ptr)
     switch (o_ptr->tval)
     {
     case TV_POTION:
+    case TV_GEM:
     case TV_FLASK:
     {
         return (true);

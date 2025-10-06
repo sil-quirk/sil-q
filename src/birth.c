@@ -754,7 +754,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         // Show scores (short): accept both 's' and 'S'
         if (c == 's' || c == 'S')
         {
-            show_scores(false);
+            show_scores_interactive(false);
             continue; /* Return to the selection loop after showing scores */
         }
         
@@ -1561,9 +1561,6 @@ NavResult character_creation(void)
             phase++;
         }
     }
-
-    //Check if savefile in progress
-    path_build(savefile, sizeof(savefile), ANGBAND_DIR_SAVE, c_name + hp_ptr->name);
 
     /* Clear the base values of the skills */
     for (i = 0; i < A_MAX; i++)

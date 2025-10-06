@@ -13,7 +13,10 @@
 #include "log.h"
 #include "platform.h"    /* path_build(), fd_*, MKDIR         */
 #include <time.h>
-#include <string.h>  
+#include <string.h>
+#include <stdlib.h>
+
+#define METARUN_V5_SIZE (sizeof(metarun) - (2 * sizeof(u32b)))
 
 #ifdef WINDOWS
 #include <windows.h>
@@ -39,6 +42,87 @@ bool            metarun_created = false;
 
 /* ==================  tiny local helpers  ======================= */
 static int rng_int(int max) { return max ? (int)(rand() % max) : 0; }
+
+static int popcount32(u32b value)
+{
+    int count = 0;
+    while (value) {
+        value &= (value - 1);
+        count++;
+    }
+    return count;
+}
+
+/* Calculate best run score from the high score table
+ * All scores in the score file belong to the current metarun */
+static u32b get_best_run_score_from_highscores(void)
+{
+    #define MAX_SCORES 100
+    high_score scores[MAX_SCORES];
+    int count = collect_high_scores(scores, MAX_SCORES, true);
+    u32b best = 0;
+    
+    for (int i = 0; i < count; i++) {
+        int pts = score_points(&scores[i]);
+        if (pts > 0 && (u32b)pts > best) {
+            best = (u32b)pts;
+        }
+    }
+    
+    #undef MAX_SCORES
+    return best;
+}
+
+static u32b compute_metarun_score(const metarun *m)
+{
+    if (!m) return 0;
+
+    /* Calculate best_run_score from high scores on-demand */
+    u32b best_run = get_best_run_score_from_highscores();
+    
+    int quest_count = popcount32(m->completed_quests);
+    
+    s32b total = (s32b)best_run;
+    total += (s32b)m->silmarils * 120;
+    total -= (s32b)m->deaths * 60;
+    total += (s32b)60 * quest_count;
+    total -= (s32b)100 * popcount32(m->banned_oaths);
+
+    log_debug("compute_metarun_score: best_run=%u, sils=%d, deaths=%d, quest_count=%d (0x%08X), banned=%d => total=%d",
+              best_run, m->silmarils, m->deaths, quest_count, m->completed_quests, 
+              popcount32(m->banned_oaths), total);
+
+    if (total < 0) total = 0;
+    return (u32b)total;
+}
+
+static void refresh_current_metar_score(void)
+{
+    if (!metaruns) return;
+    if (current_run < 0 || current_run >= metarun_max) return;
+
+    metar.score = compute_metarun_score(&metar);
+    metaruns[current_run].score = metar.score;
+}
+
+static int compare_metarun_indices(const void *a, const void *b)
+{
+    const s16b ia = *(const s16b *)a;
+    const s16b ib = *(const s16b *)b;
+
+    if (!metaruns) return 0;
+
+    const metarun *ma = &metaruns[ia];
+    const metarun *mb = &metaruns[ib];
+
+    if (ma->score != mb->score)
+        return (ma->score < mb->score) ? 1 : -1;
+    if (ma->last_played != mb->last_played)
+        return (ma->last_played < mb->last_played) ? 1 : -1;
+    if (ma->id < mb->id) return -1;
+    if (ma->id > mb->id) return 1;
+    return 0;
+}
 
 static void build_meta_path(char *buf, size_t len,
                             const metarun *m, const char *leaf)
@@ -86,7 +170,9 @@ static void reset_defaults(metarun *m)
     for (int i = 0; i < 12; i++) {       /* Updated to 12 due to new field */
         m->quest_reserved[i] = 0;
     }
-    
+
+    m->score = compute_metarun_score(m);
+
     log_debug("After init: curses_seen = 0x%08X", m->curses_seen);
 }
 
@@ -218,20 +304,27 @@ static void curses_unpack_words(void)
 static bool is_versioned_meta_file(int fd, int file_size)
 {
     if (file_size < sizeof(meta_file_header)) return false;
-    
+
     meta_file_header header;
     fd_seek(fd, 0);
     if (fd_read(fd, (char*)&header, sizeof(header)) != 0) return false;
-    
+
     /* Check for reasonable version numbers (0-255) and entry count */
-    if (header.version_major > 255 || header.version_minor > 255 || 
+    if (header.version_major > 255 || header.version_minor > 255 ||
         header.version_patch > 255 || header.version_extra > 255) return false;
-    
+
     /* Check if the entry count makes sense with file size */
-    size_t expected_size = sizeof(meta_file_header) + header.entry_count * sizeof(metarun);
-    if (expected_size != file_size) return false;
-    
-    log_info("Detected versioned meta file: v%d.%d.%d, %u entries", 
+    size_t payload = file_size - sizeof(meta_file_header);
+    if (header.entry_count == 0) {
+        if (payload != 0) return false;
+    } else {
+        if ((payload % header.entry_count) != 0) return false;
+        size_t entry_size = payload / header.entry_count;
+        if (entry_size != sizeof(metarun) && entry_size != METARUN_V5_SIZE)
+            return false;
+    }
+
+    log_info("Detected versioned meta file: v%d.%d.%d, %u entries",
              header.version_major, header.version_minor, header.version_patch, header.entry_count);
     return true;
 }
@@ -435,16 +528,17 @@ errr load_metaruns(bool create_if_missing)
 
         /* Write versioned header */
         meta_file_header header;
-        header.version_major = VERSION_MAJOR;
-        header.version_minor = VERSION_MINOR;
-        header.version_patch = VERSION_PATCH;
-        header.version_extra = VERSION_EXTRA;
+        header.version_major = METARUN_FILE_VERSION_MAJOR;
+        header.version_minor = METARUN_FILE_VERSION_MINOR;
+        header.version_patch = METARUN_FILE_VERSION_PATCH;
+        header.version_extra = METARUN_FILE_VERSION_EXTRA;
         header.entry_count = 1;
-        
+
         fd_write(fd, (cptr)&header, sizeof(header));
-        
-        metarun seed; 
+
+        metarun seed;
         reset_defaults(&seed);
+        seed.score = compute_metarun_score(&seed);
         fd_write(fd, (cptr)&seed, sizeof seed);
         fd_close(fd);
         fd = fd_open(fn, O_RDONLY);
@@ -469,9 +563,79 @@ errr load_metaruns(bool create_if_missing)
                  header.version_major, header.version_minor, header.version_patch, header.entry_count);
 
         metarun_max = header.entry_count;
+        size_t payload = (file_size >= (int)sizeof(meta_file_header))
+                       ? (size_t)file_size - sizeof(meta_file_header)
+                       : 0;
+        size_t entry_size = (metarun_max > 0)
+                          ? (payload / (size_t)metarun_max)
+                          : 0;
+
         if (metarun_max > 0) {
             metaruns = C_ZNEW(metarun_max, metarun);
-            fd_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
+
+            if (entry_size == sizeof(metarun)) {
+                fd_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
+            } else if (entry_size == METARUN_V5_SIZE) {
+                typedef struct metarun_v5 {
+                    u32b id;
+                    byte type;
+                    byte deaths;
+                    byte silmarils;
+                    u32b last_played;
+                    u32b curses_lo;
+                    u32b curses_hi;
+                    u32b curses_seen;
+                    u32b persistent_options[8];
+                    byte persistent_delay_factor;
+                    byte persistent_hitpoint_warn;
+                    u32b persistent_window_flags[ANGBAND_TERM_MAX];
+                    byte persistent_options_initialized;
+                    u32b completed_quests;
+                    byte unlocked_oaths;
+                    byte banned_oaths;
+                    byte max_difficulty_reached;
+                    byte quest_reserved[12];
+                } metarun_v5;
+
+                metarun_v5 *legacy = C_ZNEW(metarun_max, metarun_v5);
+                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v5));
+
+                for (s16b i = 0; i < metarun_max; i++) {
+                    metaruns[i].id = legacy[i].id;
+                    metaruns[i].type = legacy[i].type;
+                    metaruns[i].deaths = legacy[i].deaths;
+                    metaruns[i].silmarils = legacy[i].silmarils;
+                    metaruns[i].last_played = legacy[i].last_played;
+                    metaruns[i].curses_lo = legacy[i].curses_lo;
+                    metaruns[i].curses_hi = legacy[i].curses_hi;
+                    metaruns[i].curses_seen = legacy[i].curses_seen;
+                    C_COPY(metaruns[i].persistent_options, legacy[i].persistent_options, 8, u32b);
+                    metaruns[i].persistent_delay_factor = legacy[i].persistent_delay_factor;
+                    metaruns[i].persistent_hitpoint_warn = legacy[i].persistent_hitpoint_warn;
+                    C_COPY(metaruns[i].persistent_window_flags, legacy[i].persistent_window_flags, ANGBAND_TERM_MAX, u32b);
+                    metaruns[i].persistent_options_initialized = legacy[i].persistent_options_initialized;
+                    metaruns[i].completed_quests = legacy[i].completed_quests;
+                    metaruns[i].unlocked_oaths = legacy[i].unlocked_oaths;
+                    metaruns[i].banned_oaths = legacy[i].banned_oaths;
+                    metaruns[i].max_difficulty_reached = legacy[i].max_difficulty_reached;
+                    C_COPY(metaruns[i].quest_reserved, legacy[i].quest_reserved, 12, byte);
+                    metaruns[i].best_run_score = 0;
+                }
+
+                FREE(legacy);
+            } else {
+                recovery_reason = "versioned meta.raw had unexpected entry size";
+                log_warn("Versioned meta file entry size %zu did not match known formats", entry_size);
+                FREE(metaruns);
+                metaruns = NULL;
+                metarun_max = 0;
+            }
+
+            if (metaruns) {
+                for (s16b i = 0; i < metarun_max; i++) {
+                    metaruns[i].score = compute_metarun_score(&metaruns[i]);
+                }
+            }
         } else {
             recovery_reason = "versioned meta.raw reported zero entries";
             log_warn("Versioned meta file had no entries; scheduling default metarun creation");
@@ -515,16 +679,16 @@ errr load_metaruns(bool create_if_missing)
             fd_read(fd, (char*)old_data, metarun_max * sizeof(metarun_old));
 
             /* Convert each old entry to new format */
-            for (s16b i = 0; i < metarun_max; i++) {
-                /* Copy old fields */
-                metaruns[i].id = old_data[i].id;
-                metaruns[i].type = old_data[i].type;
-                metaruns[i].deaths = old_data[i].deaths;
-                metaruns[i].silmarils = old_data[i].silmarils;
-                metaruns[i].last_played = old_data[i].last_played;
-                metaruns[i].curses_lo = old_data[i].curses_lo;
-                metaruns[i].curses_hi = old_data[i].curses_hi;
-                metaruns[i].curses_seen = old_data[i].curses_seen;
+                for (s16b i = 0; i < metarun_max; i++) {
+                    /* Copy old fields */
+                    metaruns[i].id = old_data[i].id;
+                    metaruns[i].type = old_data[i].type;
+                    metaruns[i].deaths = old_data[i].deaths;
+                    metaruns[i].silmarils = old_data[i].silmarils;
+                    metaruns[i].last_played = old_data[i].last_played;
+                    metaruns[i].curses_lo = old_data[i].curses_lo;
+                    metaruns[i].curses_hi = old_data[i].curses_hi;
+                    metaruns[i].curses_seen = old_data[i].curses_seen;
                 
                 /* Initialize new persistent settings fields with defaults */
                 for (int j = 0; j < 8; j++) {
@@ -537,20 +701,27 @@ errr load_metaruns(bool create_if_missing)
                 metaruns[i].persistent_hitpoint_warn = 3;
                 metaruns[i].persistent_options_initialized = 0;
                 
-                /* Initialize quest tracking fields for old format */
-                metaruns[i].completed_quests = 0;
-                for (int j = 0; j < (int)N_ELEMENTS(metaruns[i].quest_reserved); j++) {
-                    metaruns[i].quest_reserved[j] = 0;
-                }
-            }
+                    /* Initialize quest tracking fields for old format */
+                    metaruns[i].completed_quests = 0;
+                    for (int j = 0; j < (int)N_ELEMENTS(metaruns[i].quest_reserved); j++) {
+                        metaruns[i].quest_reserved[j] = 0;
+                    }
 
-            FREE(old_data);
-            log_info("Successfully converted legacy old format to new format");
+                    metaruns[i].best_run_score = 0;
+                    metaruns[i].score = compute_metarun_score(&metaruns[i]);
+                }
+
+                FREE(old_data);
+                log_info("Successfully converted legacy old format to new format");
         } else if (!is_old_format && metarun_max > 0) {
             /* Load new format directly */
             fd_seek(fd, 0);
             fd_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
             log_info("Loaded legacy new format entries");
+
+            for (s16b i = 0; i < metarun_max; i++) {
+                metaruns[i].score = compute_metarun_score(&metaruns[i]);
+            }
         } else {
             recovery_reason = "legacy meta.raw truncated without any complete entries";
             log_warn("Legacy meta file did not contain any complete entries; scheduling default metarun creation");
@@ -602,6 +773,8 @@ errr load_metaruns(bool create_if_missing)
     }
 
     metar = metaruns[current_run];
+    metar.score = compute_metarun_score(&metar);
+    metaruns[current_run].score = metar.score;
     log_debug("Final current_run=%d, metar: id=%u, deaths=%u, silmarils=%u",
               current_run, metar.id, metar.deaths, metar.silmarils);
 
@@ -774,6 +947,7 @@ errr save_metaruns(void)
     last_save_time = current_time;
 
     curses_pack_words();      /* NEW: ensure words hold 2-bit data */
+    refresh_current_metar_score();
 
     char fn[1024];
     build_meta_path(fn, sizeof fn, NULL, META_RAW);
@@ -781,14 +955,15 @@ errr save_metaruns(void)
     /* Create backup before saving */
     backup_file(fn);
 
-    log_debug("Before save: current_run=%d, metar: id=%u, deaths=%u, silmarils=%u", 
-              current_run, metar.id, metar.deaths, metar.silmarils);
+    log_debug("Before save: current_run=%d, metar: id=%u, deaths=%u, silmarils=%u, score=%u", 
+              current_run, metar.id, metar.deaths, metar.silmarils, metar.score);
               
     metar.last_played      = current_time;
     metaruns[current_run] = metar;            /* safe: array is valid */
     
-    log_debug("After updating array: metaruns[%d]: id=%u, deaths=%u, silmarils=%u", 
-              current_run, metaruns[current_run].id, metaruns[current_run].deaths, metaruns[current_run].silmarils);
+    log_debug("After updating array: metaruns[%d]: id=%u, deaths=%u, silmarils=%u, score=%u", 
+              current_run, metaruns[current_run].id, metaruns[current_run].deaths, metaruns[current_run].silmarils,
+              metaruns[current_run].score);
 
     /* After backup is created in backup_file(), remove the original so fd_make can succeed */
     fd_kill(fn);
@@ -802,10 +977,10 @@ errr save_metaruns(void)
 
     /* Write version header first */
     meta_file_header header;
-    header.version_major = VERSION_MAJOR;
-    header.version_minor = VERSION_MINOR;
-    header.version_patch = VERSION_PATCH;
-    header.version_extra = VERSION_EXTRA;
+    header.version_major = METARUN_FILE_VERSION_MAJOR;
+    header.version_minor = METARUN_FILE_VERSION_MINOR;
+    header.version_patch = METARUN_FILE_VERSION_PATCH;
+    header.version_extra = METARUN_FILE_VERSION_EXTRA;
     header.entry_count = metarun_max;
     
     errr result = fd_write(fd, (cptr)&header, sizeof(header));
@@ -850,6 +1025,7 @@ void metarun_increment_deaths(void)
         log_warn("metarun_increment_deaths: unable to sync current slot (idx=%d, max=%d)",
                  current_run, metarun_max);
     }
+    refresh_current_metar_score();
 }
 
 void metarun_gain_silmarils(byte n)
@@ -859,6 +1035,7 @@ void metarun_gain_silmarils(byte n)
     if (total > 255) total = 255;
     if (total < 0) total = 0;
     metar.silmarils = (byte)total;
+    refresh_current_metar_score();
 
     if (!sync_current_metarun_slot(false)) {
         log_warn("metarun_gain_silmarils: unable to sync current slot (idx=%d, max=%d)",
@@ -1541,9 +1718,9 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     bool escaped_with_sils = escaped && (sil_count > 0);
     bool fast_forward = false; // Track if user wants to skip fade effects
 
-        /* Treat as a death unless Eru intervenes */
-        if (died && !has_gift_eru)
-            metarun_increment_deaths();
+    /* Treat as a death unless Eru intervenes */
+    if (died && !has_gift_eru)
+        metarun_increment_deaths();
 
     /* ------------------------------------------------------------- */
     /* 0. Branch: did we return with Silmarils?                      */
@@ -1615,12 +1792,14 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
 
         screen_load();                 /* restore game view            */
         FREE(pool);
+        refresh_current_metar_score();
         check_run_end();
         save_metaruns();
         return;
     }
     else if (!escaped_with_sils) {
         log_debug("Player escaped without Silmarils - no narrative needed");
+        refresh_current_metar_score();
         save_metaruns();
         return;                        /* no further narrative needed  */
     }
@@ -1932,6 +2111,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
 
     metarun_gain_silmarils(final_sils);
     log_info("Added %d Silmarils to metarun total (now %d)", final_sils, metar.silmarils);
+    refresh_current_metar_score();
     print_story(3, true);
 
     /* Restore the saved play-screen only after every narrative beat */
@@ -2187,6 +2367,9 @@ void print_metarun_stats(void)
     int x;
     int term_height, term_width;
 
+    /* Refresh score with current c_info data before displaying */
+    refresh_current_metar_score();
+
     /* Safety check: ensure metarun system is initialized */
     if (current_run < 0 || current_run >= metarun_max) {
         screen_save();
@@ -2227,6 +2410,14 @@ void print_metarun_stats(void)
     
     snprintf(buf, sizeof buf, "Difficulty : %s", diff_name);
     Term_putstr(col, row++, -1, TERM_L_BLUE, buf);
+
+    snprintf(buf, sizeof buf, "Meta Score : %lu", (unsigned long)metar.score);
+    Term_putstr(col, row++, -1, TERM_WHITE, buf);
+
+    /* Calculate best run score from high scores on-demand */
+    u32b best_run = get_best_run_score_from_highscores();
+    snprintf(buf, sizeof buf, "Best Run   : %lu", (unsigned long)best_run);
+    Term_putstr(col, row++, -1, TERM_WHITE, buf);
 
     /* Silmarils bar - use dynamic win goal */
     snprintf(buf, sizeof buf, "Silmarils  : ");
@@ -2650,31 +2841,53 @@ void list_metaruns(void)
     Term_clear();
     c_prt(TERM_L_GREEN, "Meta-run history", 1, 2);
     c_put_str(TERM_L_DARK,
-              " ID       Sil  Dth  Res  Last played", 3, 2);
+              " *ID      Score     Sil  Dth  Res  Last played", 3, 2);
+
+    refresh_current_metar_score();
+
+    if (metarun_max > 0 && metaruns) {
+        for (s16b i = 0; i < metarun_max; i++) {
+            metaruns[i].score = compute_metarun_score(&metaruns[i]);
+        }
+    }
+
+    s16b *order = NULL;
+    if (metarun_max > 0 && metaruns) {
+        order = C_ZNEW(metarun_max, s16b);
+        for (s16b i = 0; i < metarun_max; i++) order[i] = i;
+        qsort(order, metarun_max, sizeof(s16b), compare_metarun_indices);
+    }
 
     int row = 4;
     for (s16b i = 0; i < metarun_max; i++) {
-        const metarun *m = &metaruns[i];
-        
+        s16b idx = order ? order[i] : i;
+        const metarun *m = &metaruns[idx];
+
         /* Get dynamic win/loss conditions for this metarun type */
         int win_goal = WINCON_SILMARILS;
         int death_limit = LOSECON_DEATHS;
-        
+
         if (runtype_info && m->type < z_info->rt_max)
         {
             win_goal = runtype_info[m->type].win_con ? runtype_info[m->type].win_con : WINCON_SILMARILS;
             death_limit = runtype_info[m->type].lose_con ? runtype_info[m->type].lose_con : LOSECON_DEATHS;
         }
-        
+
         char res = (m->silmarils >= win_goal) ? 'W' :
                    (m->deaths >= death_limit) ? 'L' : ' ';
         char date[16];
         strftime(date, sizeof date, "%Y-%m-%d",
                  localtime((time_t*)&m->last_played));
 
-        c_put_str((i == current_run) ? TERM_YELLOW : TERM_WHITE,
-                  format("%08u   %2d   %2d   %c   %s",
-                         m->id, m->silmarils, m->deaths, res, date),
+        byte attr = (idx == current_run) ? TERM_YELLOW : TERM_WHITE;
+        char marker = (idx == current_run) ? '*' : ' ';
+
+        c_put_str(attr,
+                  format("%c%08u %8lu   %2d   %2d   %c   %s",
+                         marker,
+                         (unsigned)m->id,
+                         (unsigned long)m->score,
+                         m->silmarils, m->deaths, res, date),
                   row++, 2);
 
         if (row >= 23 && i+1 < metarun_max) {   /* page break */
@@ -2683,9 +2896,11 @@ void list_metaruns(void)
             row = 4;
             c_prt(TERM_L_GREEN, "Meta-run history (cont.)", 1, 2);
             c_put_str(TERM_L_DARK,
-                      " ID       Sil  Dth  Res  Last played", 3, 2);
+                      " *ID      Score     Sil  Dth  Res  Last played", 3, 2);
         }
     }
+
+    FREE(order);
     c_put_str(TERM_L_DARK, "Press any key to return.", row+1, 2);
     inkey();
     screen_load();
@@ -2806,6 +3021,7 @@ void metarun_mark_quest_completed(u32b quest_flag)
         metar.completed_quests |= quest_flag;                  /* update live */
         metaruns[current_run].completed_quests = metar.completed_quests; /* keep array in sync early (optional) */
         log_trace("Metarun: Quest flag 0x%x added (completed_quests=0x%08X)", quest_flag, metar.completed_quests);
+        refresh_current_metar_score();
         save_metaruns();
     } else {
         log_trace("Metarun: Quest flag 0x%x already set (completed_quests=0x%08X) - no save needed", quest_flag, metar.completed_quests);
@@ -2987,11 +3203,12 @@ void metarun_ban_oath(int oath_id)
     /* Update both the global metar and the metaruns array */
     metar.banned_oaths |= oath_bit;
     metaruns[current_run].banned_oaths |= oath_bit;
-    
-    log_trace("Oath ban: Banned oath %d (bit %d) in metarun[%d], banned_oaths=0x%02X", 
+
+    log_trace("Oath ban: Banned oath %d (bit %d) in metarun[%d], banned_oaths=0x%02X",
               oath_id, oath_bit, current_run, metaruns[current_run].banned_oaths);
-    
+
     /* Save immediately to persist the change */
+    refresh_current_metar_score();
     save_metaruns();
 }
 

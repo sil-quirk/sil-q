@@ -18,6 +18,8 @@
 #include <string.h>
 #include <ctype.h>
 #include <time.h>
+#include <limits.h>
+#include <stdint.h>
 
 #ifdef WINDOWS
 #include <windows.h>
@@ -189,8 +191,8 @@ static s16b tokenize_whitespace(char *buf, s16b num, char **tokens)
 
 
 /*------------------------------------------------------------------------
- *  A hard‐coded priority list of races.  Highest‐priority first.
- *  Fill this out with your own RACE_… constants, in the order you like.
+ *  A hard-coded priority list of races.  Highest-priority first.
+ *  Fill this out with your own RACE_... constants, in the order you like.
  *------------------------------------------------------------------------*/
 static const int race_priority[] = {
     3, //Sindar
@@ -1373,7 +1375,7 @@ void display_player_xtra_info(int mode)
     {
         attacks++;
         put_single20_right(col_stats, row_stats++,
-                           "Melee×2", val, 14, TERM_L_BLUE);
+                           "Melee x2", val, 14, TERM_L_BLUE);
     }
 
     /* Offhand if present */
@@ -1498,7 +1500,7 @@ void display_player_xtra_info(int mode)
     HANDLE_SKILL_EX("bow",        RHF_BOW_PROFICIENCY, 0);
     HANDLE_SKILL_EX("axe",        RHF_AXE_PROFICIENCY, 0);
 
-    /* Uniques (all into one buffer; they’ll print first) */
+    /* Uniques (all into one buffer; they'll print first) */
     HANDLE_UNIQUE_U("Master Artisan",     UNQ_SMT_FEANOR,   TERM_VIOLET);
     HANDLE_UNIQUE_U("Chosen of Ulmo",     UNQ_WIL_TUOR,     TERM_VIOLET);
     HANDLE_UNIQUE_U("Indomitable Will",   UNQ_EARENDIL,     TERM_VIOLET);
@@ -1519,7 +1521,7 @@ void display_player_xtra_info(int mode)
     HANDLE_UNIQUE("Doom of Mandos",       RHF_CURSE,        TERM_UMBER);
     HANDLE_UNIQUE("Morgoth Curse",        RHF_MOR_CURSE,    TERM_UMBER);
 
-    /* Render: uniques → MA → AF → penalties */
+    /* Render: uniques -> MA -> AF -> penalties */
     for (int i = 0; i < uniq_n; ++i)
         Term_putstr(col_flags, row_flags++, -1, uniq_buf[i].col, uniq_buf[i].txt);
     for (int i = 0; i < ma_n; ++i)
@@ -3492,7 +3494,7 @@ bool get_name(void)
 
     /* Process the player name */
     my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
-    process_player_name(false);
+    process_player_name(true);
     
     log_info("Character name confirmed: '%s'", op_ptr->full_name);
  
@@ -3821,7 +3823,7 @@ static u32b scores_file_entry_count = 0;        /* cached header entry count (ma
 
 /* Forward declarations for functions used in versioned score handling */
 static errr highscore_read(high_score* score);
-static errr create_score(high_score* the_score);
+errr create_score(high_score* the_score);
 
 /*
  * Seek score 'i' in the highscore file (with version awareness)
@@ -4080,12 +4082,18 @@ static void update_scores_file_header_count(void)
     /* Update the header if count changed */
     if (scores_file_entry_count != count) {
         score_file_header header;
-        fseek(highscore_fd, 0, SEEK_SET);
-        fread(&header, sizeof(header), 1, highscore_fd);
-        
+        if (fseek(highscore_fd, 0, SEEK_SET) != 0)
+            return;
+        size_t read_items = fread(&header, sizeof(header), 1, highscore_fd);
+        if (read_items != 1)
+            return;
+
         header.entry_count = count;
-        fseek(highscore_fd, 0, SEEK_SET);
-        fwrite(&header, sizeof(header), 1, highscore_fd);
+        if (fseek(highscore_fd, 0, SEEK_SET) != 0)
+            return;
+        size_t written_items = fwrite(&header, sizeof(header), 1, highscore_fd);
+        if (written_items != 1)
+            return;
         fflush(highscore_fd);
         scores_file_entry_count = count;
         log_debug("Updated scores file header count to %u", count);
@@ -4252,134 +4260,826 @@ static errr backup_scores_file(const char *filepath)
     return result;
 }
 
-/*
- * An integer value representing the player's "points".
- *
- * In reality it isn't so much a score as a number that has the same ordering
- * as the scores.
- *
- * It ranges from 100,000 to 141,399,999
- */
-int score_points(high_score* score)
+static int clampi(int value, int minimum, int maximum)
 {
-    int points = 0;
+    if (value < minimum)
+        return minimum;
+    if (value > maximum)
+        return maximum;
+    return value;
+}
+
+static int parse_score_int(const char* field, size_t field_len, int fallback)
+{
+    if (!field)
+        return fallback;
+
+    char buffer[16];
+    size_t copy_len = field_len;
+    if (copy_len >= sizeof(buffer))
+        copy_len = sizeof(buffer) - 1;
+
+    memcpy(buffer, field, copy_len);
+    buffer[copy_len] = '\0';
+
+    char* start = buffer;
+    while (*start && isspace((unsigned char)*start))
+        start++;
+
+    if (*start == '\0')
+        return fallback;
+
+    char* end = NULL;
+    long value = strtol(start, &end, 10);
+    if (start == end)
+        return fallback;
+
+    if (value > INT_MAX)
+        return INT_MAX;
+    if (value < INT_MIN)
+        return INT_MIN;
+
+    return (int)value;
+}
+
+typedef struct score_breakdown
+{
+    int base_score;
+    int mult_bp;
     int silmarils;
+    int max_depth;
+    int cur_depth;
+    int depth_up;
+    int curses;
+    int house_power;
+    bool escaped;
+    bool morgoth_slain;
+} score_breakdown;
 
-    int maxturns = 100000;
-    int challenge_factor = maxturns;
-    int silmarils_factor = challenge_factor * 10;
-    int depth_factor = silmarils_factor * 10;
-    int morgoth_factor = depth_factor * 100;
+static score_breakdown calculate_score_breakdown(const high_score* score)
+{
+    score_breakdown result = {0};
 
-    log_debug("Calculating score points for player '%s'", score->who);
+    int raw_max_depth = parse_score_int(score->max_dun, sizeof(score->max_dun), 0);
+    int raw_cur_depth = parse_score_int(score->cur_dun, sizeof(score->cur_dun), 0);
+    int silmarils = parse_score_int(score->silmarils, sizeof(score->silmarils), 0);
+    int curses = parse_score_int(score->pts, sizeof(score->pts), 0);
 
-    // these lines fix a few potential problems with the score record...
-    score->silmarils[1] = '\0';
-    score->cur_dun[3] = '\0';
+    if (silmarils < 0)
+        silmarils = 0;
+    curses = clampi(curses, 0, 1000);
 
-    // points from turns taken (00000 to 99999)
-    points = maxturns - atoi(score->turns);
-    if (points < 0)
-        points = 0;
-    if (points >= maxturns)
-        points = maxturns - 1;
+    int depth_down = clampi(raw_max_depth, 0, MORGOTH_DEPTH);
+    int depth_up = clampi(40 - raw_cur_depth, 0, MORGOTH_DEPTH);
 
-    // points from challenge factor (0 00000 to 3 00000)
-    // Bit of a hack - relies on values in races.txt
-    if (p_ptr->prace == 1 || p_ptr->prace == 2)
+    int base = 10 * depth_down;
+    if (silmarils > 0)
     {
-        points += challenge_factor * 3;
-    }
-    else if (p_ptr->prace == 3)
-    {
-        points += challenge_factor * 5;
-    }
-
-    if (!birth_fixed_exp)
-    {
-        points += challenge_factor * 1;
-    }
-
-    if (!oath_invalid(OATH_IRON))
-    {
-        points += challenge_factor * 2;
+        base += 5 * depth_up;
+        base += 100;
+        if (silmarils > 1)
+            base += 50;
+        if (silmarils > 2)
+            base += 50;
     }
 
-    // points from silmarils (0 0 00000 to 3 0 00000)
-    silmarils = atoi(score->silmarils);
-    points += silmarils_factor * silmarils;
+    bool morgoth = (score->morgoth_slain[0] == 't');
+    if (morgoth)
+        base += 300;
 
-    // points from depth (01 0 0 00000 to 40 0 0 00000)
-    if (silmarils == 0)
+    bool escaped = (score->escaped[0] == 't');
+    if (escaped)
+        base += 100;
+
+    int house_index = parse_score_int(score->p_h, sizeof(score->p_h), -1);
+    int house_power = 3;
+    if (house_index >= 0 && z_info && c_info && house_index < z_info->c_max)
     {
-        points += depth_factor * atoi(score->max_dun);
+        house_power = c_info[house_index].power;
+        log_trace("calculate_score_breakdown: house_index=%d, house_power=%d (from c_info)", house_index, house_power);
     }
     else
     {
-        points += depth_factor * (40 - atoi(score->cur_dun));
+        log_debug("calculate_score_breakdown: Using default house_power=3 (house_index=%d, z_info=%p, c_info=%p, z_info->c_max=%d)",
+                 house_index, (void*)z_info, (void*)c_info, z_info ? z_info->c_max : -1);
     }
 
-    // points for escaping (changes 40 0 0 00000 to 41 0 0 00000)
-    if (score->escaped[0] == 't')
-    {
-        points += depth_factor;
-    }
+    house_power = clampi(house_power, -100, 100);
 
-    // points slaying Morgoth  (0 00 0 0 00000 to 1 00 0 0 00000)
-    if (score->morgoth_slain[0] == 't')
-    {
-        points += morgoth_factor;
-    }
+    int mult_bp = 1000 + (3 - house_power) * 100 + curses * 25;
+    if (mult_bp < 0)
+        mult_bp = 0;
 
-    log_debug("Final score points for '%s': %d (silmarils=%d, escaped=%c, morgoth=%c)", 
-              score->who, points, silmarils, score->escaped[0], score->morgoth_slain[0]);
+    result.base_score = base;
+    result.mult_bp = mult_bp;
+    result.silmarils = silmarils;
+    result.max_depth = depth_down;
+    result.cur_depth = clampi(raw_cur_depth, 0, MORGOTH_DEPTH);
+    result.depth_up = depth_up;
+    result.curses = curses;
+    result.house_power = house_power;
+    result.escaped = escaped;
+    result.morgoth_slain = morgoth;
 
-    return (points);
+    return result;
+}
+
+static bool force_interactive_scores = false;
+static bool score_last_layout_short = false;
+static bool forced_highlight_active = false;
+static high_score forced_highlight_entry;
+
+static int score_points_from_breakdown(const score_breakdown* breakdown)
+{
+    int64_t base = breakdown->base_score;
+    int64_t mult = breakdown->mult_bp;
+
+    if (base < 0)
+        base = 0;
+    if (mult < 0)
+        mult = 0;
+
+    int64_t total = base * mult;
+    if (total < 0)
+        total = 0;
+
+    int64_t scaled = total / 1000;
+    if (scaled > INT_MAX)
+        return INT_MAX;
+    if (scaled < 0)
+        return 0;
+
+    return (int)scaled;
 }
 
 /*
- * Just determine where a new score *would* be placed
- * Return the location (0 is best) or -1 on failure
+ * Compute the score for a record using the modern Sil-QH rules.
+ *
+ * Base points:
+ *   - 10 per level of descent, clamped to [0, MORGOTH_DEPTH].
+ *   - If at least one Silmaril is recovered, add 5 per level of ascent
+ *     from depth 40, clamped to the same range.
+ *   - Flat bonuses: +100 for the first Silmaril, +50 for the second and
+ *     third, +300 for slaying Morgoth, +100 for escaping.
+ *
+ * Multipliers:
+ *   - 1000 basis points baseline.
+ *   - (3 - house_power) * 100 basis points.
+ *   - +25 basis points per stored curse stack (capped generously).
  */
-static int highscore_where(high_score* score)
+int score_points(const high_score* score)
 {
-    int i;
-    high_score the_score;
-
-    log_trace("Determining placement for score from player '%s'", score->who);
-
-    if (!highscore_fd) {
-        log_warn("Highscore file not opened, cannot determine score placement");
-        return -1;
-    }
-
-    /* Empty versioned file */
-    if (scores_file_is_versioned && scores_file_entry_count == 0)
+    if (!score)
         return 0;
 
-    if (highscore_seek(0)) {
-        log_error("Failed to seek to start of highscore file");
-        return -1;
-    }
+    score_breakdown breakdown = calculate_score_breakdown(score);
+    int total = score_points_from_breakdown(&breakdown);
 
-    int limit = MAX_HISCORES;
-    if (scores_file_is_versioned && scores_file_entry_count > 0 &&
-        scores_file_entry_count < MAX_HISCORES)
-        limit = scores_file_entry_count; /* only scan existing */
+    const char* who = (score->who[0] != '\0') ? score->who : "<unknown>";
+    log_debug(
+        "score_points: '%s' base=%d mult=%d (power=%d curses=%d sil=%d depth_down=%d depth_up=%d escaped=%s morgoth=%s) => %d",
+        who, breakdown.base_score, breakdown.mult_bp, breakdown.house_power,
+        breakdown.curses, breakdown.silmarils, breakdown.max_depth,
+        breakdown.depth_up, breakdown.escaped ? "yes" : "no",
+        breakdown.morgoth_slain ? "yes" : "no", total);
 
-    for (i = 0; i < limit; i++) {
-        if (highscore_read(&the_score)) {
-            return i; /* EOF early */
-        }
-        if (strcmp(score->who, the_score.who) == 0)
-            return i; /* update existing */
-    }
-
-    if (limit < MAX_HISCORES)
-        return limit; /* append */
-
-    return MAX_HISCORES - 1; /* overwrite last */
+    return total;
 }
+
+static int compare_scores(const high_score* a, const high_score* b)
+{
+    if (a == NULL || b == NULL)
+        return 0;
+
+    score_breakdown breakdown_a = calculate_score_breakdown(a);
+    score_breakdown breakdown_b = calculate_score_breakdown(b);
+
+    int score_a = score_points_from_breakdown(&breakdown_a);
+    int score_b = score_points_from_breakdown(&breakdown_b);
+
+    if (score_a > score_b)
+        return -1;
+    if (score_a < score_b)
+        return 1;
+
+    if (breakdown_a.escaped != breakdown_b.escaped)
+        return breakdown_a.escaped ? -1 : 1;
+
+    bool a_has_sil = (breakdown_a.silmarils > 0);
+    bool b_has_sil = (breakdown_b.silmarils > 0);
+    if (a_has_sil != b_has_sil)
+        return a_has_sil ? -1 : 1;
+
+    if (breakdown_a.morgoth_slain != breakdown_b.morgoth_slain)
+        return breakdown_a.morgoth_slain ? -1 : 1;
+
+    if (breakdown_a.silmarils != breakdown_b.silmarils)
+        return (breakdown_a.silmarils > breakdown_b.silmarils) ? -1 : 1;
+
+    if (breakdown_a.max_depth != breakdown_b.max_depth)
+        return (breakdown_a.max_depth > breakdown_b.max_depth) ? -1 : 1;
+
+    if (breakdown_a.mult_bp != breakdown_b.mult_bp)
+        return (breakdown_a.mult_bp > breakdown_b.mult_bp) ? -1 : 1;
+
+    return 0;
+}
+
+static int compare_scores_qsort(const void* va, const void* vb)
+{
+    const high_score* a = (const high_score*)va;
+    const high_score* b = (const high_score*)vb;
+    return compare_scores(a, b);
+}
+
+static long score_day_key(const high_score* entry)
+{
+    if (!entry)
+        return LONG_MIN;
+
+    if (streq(entry->how, "(alive and well)"))
+        return LONG_MAX;
+
+    if (entry->day[0] != '@')
+        return LONG_MIN + 1;
+
+    char buf[32];
+    my_strcpy(buf, entry->day + 1, sizeof(buf));
+    char* end = NULL;
+    long value = strtol(buf, &end, 10);
+    if (value <= 0 || !end || *end != '\0')
+        return LONG_MIN + 1;
+
+    return value;
+}
+
+
+static int compare_scores_chronological(const void* va, const void* vb)
+{
+    const high_score* a = (const high_score*)va;
+    const high_score* b = (const high_score*)vb;
+
+    long day_a = score_day_key(a);
+    long day_b = score_day_key(b);
+    if (day_a != day_b)
+        return (day_a > day_b) ? -1 : 1;
+
+    int cmp = strcmp(a->who, b->who);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = strcmp(a->how, b->how);
+    if (cmp != 0)
+        return cmp;
+
+    return compare_scores(a, b);
+}
+
+static int load_scores_into_array(high_score* entries, int capacity)
+{
+    if (!highscore_fd || capacity <= 0)
+        return 0;
+
+    if (highscore_seek(0))
+        return 0;
+
+    int count = 0;
+    while (count < capacity)
+    {
+        high_score temp;
+        if (highscore_read(&temp))
+            break;
+        if (temp.who[0] == '\0')
+            break;
+        entries[count++] = temp;
+    }
+
+    /* Leave the file positioned at the first entry for subsequent readers */
+    highscore_seek(0);
+
+    return count;
+}
+
+static int deduplicate_scores_by_name(high_score* entries, int count)
+{
+    if (count <= 1)
+        return count;
+
+    high_score unique[MAX_HISCORES + 1];
+    int unique_scores[MAX_HISCORES + 1];
+    int unique_count = 0;
+
+    for (int i = 0; i < count; i++)
+    {
+        int pts = score_points(&entries[i]);
+        bool merged = false;
+
+        for (int j = 0; j < unique_count; j++)
+        {
+            if (streq(entries[i].who, unique[j].who))
+            {
+                if (pts > unique_scores[j]
+                    || (pts == unique_scores[j] && strcmp(entries[i].day, unique[j].day) > 0)
+                    || (pts == unique_scores[j] && streq(entries[i].day, unique[j].day)
+                        && strcmp(entries[i].how, unique[j].how) > 0))
+                {
+                    unique[j] = entries[i];
+                    unique_scores[j] = pts;
+                }
+                merged = true;
+                break;
+            }
+        }
+
+        if (!merged)
+        {
+            unique[unique_count] = entries[i];
+            unique_scores[unique_count] = pts;
+            unique_count++;
+        }
+    }
+
+    for (int i = 0; i < unique_count; i++)
+    {
+        entries[i] = unique[i];
+    }
+
+    return unique_count;
+}
+
+int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
+{
+    if (!out || capacity <= 0)
+        return 0;
+
+    char score_path[1024];
+    path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw");
+
+    FILE* saved_fd = highscore_fd;
+    bool saved_versioned = scores_file_is_versioned;
+    u32b saved_count = scores_file_entry_count;
+
+    safe_setuid_grab();
+    highscore_fd = open_scores_file_versioned(score_path, O_RDONLY);
+    safe_setuid_drop();
+    if (!highscore_fd)
+    {
+        highscore_fd = saved_fd;
+        scores_file_is_versioned = saved_versioned;
+        scores_file_entry_count = saved_count;
+        return 0;
+    }
+
+    int limit = capacity;
+    if (limit > MAX_HISCORES)
+        limit = MAX_HISCORES;
+
+    int count = load_scores_into_array(out, limit);
+
+    if (sort_by_score)
+    {
+        qsort(out, count, sizeof(high_score), compare_scores_qsort);
+    }
+    else
+    {
+        qsort(out, count, sizeof(high_score), compare_scores_chronological);
+    }
+
+    count = deduplicate_scores_by_name(out, count);
+
+    fclose(highscore_fd);
+    highscore_fd = saved_fd;
+    scores_file_is_versioned = saved_versioned;
+    scores_file_entry_count = saved_count;
+
+    return count;
+}
+
+typedef enum
+{
+    SCORE_VIEW_ORDER_SCORE = 0,
+    SCORE_VIEW_ORDER_CHRONOLOGY = 1
+} score_view_order;
+
+static const char* score_view_order_label(score_view_order order)
+{
+    return (order == SCORE_VIEW_ORDER_CHRONOLOGY)
+        ? "Date (newest first)"
+        : "Score (highest first)";
+}
+
+static bool score_identity_matches(const high_score* a, const high_score* b)
+{
+    if (!a || !b)
+        return false;
+    return streq(a->who, b->who)
+        && streq(a->day, b->day)
+        && streq(a->how, b->how);
+}
+
+static int find_score_index(const high_score* entries, int count, const high_score* target)
+{
+    if (!target)
+        return -1;
+    for (int i = 0; i < count; i++)
+    {
+        if (score_identity_matches(&entries[i], target))
+            return i;
+    }
+    return -1;
+}
+
+static void set_forced_highlight_entry(const high_score* entry)
+{
+    if (entry) {
+        forced_highlight_entry = *entry;
+        forced_highlight_active = true;
+    } else {
+        forced_highlight_active = false;
+    }
+}
+
+static byte score_entry_color(const high_score* entry, bool highlight)
+{
+    if (highlight) return TERM_YELLOW;
+
+    if (!entry) return TERM_SLATE;
+
+    if (streq(entry->how, "(alive and well)"))
+        return TERM_L_GREEN;
+
+    if (entry->escaped[0] == 't')
+        return TERM_GREEN;
+
+    if (entry->morgoth_slain[0] == 't')
+        return TERM_L_RED;
+
+    int sil = atoi(entry->silmarils);
+    if (sil > 0)
+        return TERM_ORANGE;
+
+    int depth = atoi(entry->max_dun);
+    if (depth >= 10)
+        return TERM_WHITE;
+    if (depth >= 5)
+        return TERM_L_WHITE;
+
+    return TERM_SLATE;
+}
+
+static void truncate_preserving_words(const char* src, char* dst, size_t dst_size, int max_width)
+{
+    if (!dst || dst_size == 0)
+        return;
+    if (!src)
+        src = "";
+    if (max_width <= 0)
+    {
+        dst[0] = '\0';
+        return;
+    }
+
+    size_t limit = dst_size - 1;
+    if ((size_t)max_width > limit)
+        max_width = (int)limit;
+
+    int len = (int)strlen(src);
+    if (len <= max_width)
+    {
+        strnfmt(dst, dst_size, "%s", src);
+        return;
+    }
+
+    if (max_width <= 3)
+    {
+        int fill = MIN(max_width, (int)limit);
+        for (int i = 0; i < fill; i++) dst[i] = '.';
+        dst[fill] = '\0';
+        return;
+    }
+
+    int cut = max_width - 3;
+    int candidate = cut;
+    while (candidate > 0 && !isspace((unsigned char)src[candidate - 1]))
+        candidate--;
+    if (candidate >= 3)
+        cut = candidate;
+
+    char head[64];
+    strnfmt(head, sizeof(head), "%.*s", cut, src);
+    int head_len = (int)strlen(head);
+    while (head_len > 0 && isspace((unsigned char)head[head_len - 1]))
+        head[--head_len] = '\0';
+
+    strnfmt(dst, dst_size, "%s...", head);
+}
+
+static void truncate_preserving_tail(const char* src, char* dst, size_t dst_size, int max_width)
+{
+    if (!dst || dst_size == 0)
+        return;
+    if (!src)
+        src = "";
+    if (max_width <= 0)
+    {
+        dst[0] = '\0';
+        return;
+    }
+
+    size_t limit = dst_size - 1;
+    if ((size_t)max_width > limit)
+        max_width = (int)limit;
+
+    int len = (int)strlen(src);
+    if (len <= max_width)
+    {
+        strnfmt(dst, dst_size, "%s", src);
+        return;
+    }
+
+    if (max_width <= 4)
+    {
+        int fill = MIN(max_width, (int)limit);
+        for (int i = 0; i < fill; i++) dst[i] = '.';
+        dst[fill] = '\0';
+        return;
+    }
+
+    int end = len;
+    while (end > 0 && isspace((unsigned char)src[end - 1]))
+        end--;
+    int tail_start = end;
+    while (tail_start > 0 && !isspace((unsigned char)src[tail_start - 1]))
+        tail_start--;
+    int tail_len = end - tail_start;
+
+    if (tail_len >= max_width - 3)
+    {
+        const char* tail_ptr = src + len - (max_width - 3);
+        strnfmt(dst, dst_size, "...%.*s", max_width - 3, tail_ptr);
+        return;
+    }
+
+    int remaining = max_width - 3 - tail_len;
+    if (remaining < 3)
+        remaining = 3;
+
+    int head_end = tail_start;
+    if (head_end > remaining)
+        head_end = remaining;
+    int candidate = head_end;
+    while (candidate > 0 && !isspace((unsigned char)src[candidate - 1]))
+        candidate--;
+    if (candidate >= 3)
+        head_end = candidate;
+
+    char head[96];
+    strnfmt(head, sizeof(head), "%.*s", head_end, src);
+    int head_len = (int)strlen(head);
+    while (head_len > 0 && isspace((unsigned char)head[head_len - 1]))
+        head[--head_len] = '\0';
+
+    const char* tail_ptr = src + tail_start;
+    while (*tail_ptr && isspace((unsigned char)*tail_ptr))
+        tail_ptr++;
+
+    size_t pos = 0;
+    dst[0] = '\0';
+
+    if (head_len > 0)
+    {
+        size_t copy = (size_t)head_len;
+        if (copy > (size_t)max_width) copy = (size_t)max_width;
+        memcpy(dst + pos, head, copy);
+        pos += copy;
+    }
+
+    if (pos + 3 > (size_t)max_width)
+    {
+        int fill = MIN(max_width, (int)limit);
+        for (int i = 0; i < fill; i++) dst[i] = '.';
+        dst[fill] = '\0';
+        return;
+    }
+
+    memcpy(dst + pos, "...", 3);
+    pos += 3;
+
+    size_t tail_copy = strlen(tail_ptr);
+    if (tail_copy > (size_t)max_width - pos)
+        tail_copy = (size_t)max_width - pos;
+    memcpy(dst + pos, tail_ptr, tail_copy);
+    pos += tail_copy;
+    dst[pos] = '\0';
+}
+
+static void display_single_score_short(byte attr, int place, int row, const high_score* entry)
+{
+    char depth_commas[16];
+    char verdict_buf[80];
+    const char* verdict;
+
+    int depth_ft = atoi(entry->cur_dun) * 50;
+    comma_number(depth_commas, depth_ft);
+
+    if (entry->escaped[0] == 't') {
+        verdict = "Escaped Angband";
+    } else if (streq(entry->how, "(alive and well)")) {
+        verdict = "Alive";
+    } else {
+        strnfmt(verdict_buf, sizeof(verdict_buf), "Slain by %s", entry->how);
+        verdict = verdict_buf;
+    }
+
+    int pts = score_points(entry);
+
+    char prefix[32];
+    strnfmt(prefix, sizeof(prefix), "%2d. %5s ft ", place, depth_commas);
+
+    char points_buf[32];
+    strnfmt(points_buf, sizeof(points_buf), "[%d pts]", pts);
+
+    const int line_width = 80;
+    int prefix_len = (int)strlen(prefix);
+    int points_len = (int)strlen(points_buf);
+    if (prefix_len > line_width) prefix_len = line_width;
+    if (points_len > line_width) points_len = line_width;
+
+    const char* name_src = entry->who[0] ? entry->who : "(unknown)";
+    int available = line_width - prefix_len - points_len - 2;
+    if (available < 0) available = 0;
+
+    int name_len = (int)strlen(name_src);
+    int verdict_len = (int)strlen(verdict);
+
+    int name_min = MIN(name_len, 8);
+    if (name_min < 4) name_min = MIN(name_len, 4);
+    int name_ideal = MIN(name_len, 18);
+
+    int verdict_min = MIN(verdict_len, 16);
+    if (verdict_min < 12) verdict_min = MIN(verdict_len, 12);
+
+    int name_width = MIN(name_ideal, available);
+    if (name_width < MIN(available, name_min))
+        name_width = MIN(available, name_min);
+    int verdict_width = available - name_width;
+    if (verdict_width < 0) verdict_width = 0;
+
+    int deficit = verdict_min - verdict_width;
+    if (deficit > 0)
+    {
+        int reducible = name_width - name_min;
+        if (reducible < 0) reducible = 0;
+        int transfer = MIN(deficit, reducible);
+        name_width -= transfer;
+        verdict_width += transfer;
+    }
+
+    if (name_width < 0) name_width = 0;
+    if (verdict_width < 0) verdict_width = 0;
+
+    char name_field[64];
+    char verdict_field[96];
+    truncate_preserving_words(name_src, name_field, sizeof(name_field), name_width);
+    truncate_preserving_tail(verdict, verdict_field, sizeof(verdict_field), verdict_width);
+
+    int name_render_len = (int)strlen(name_field);
+    if (name_width > 0 && name_render_len > name_width)
+        name_render_len = name_width;
+
+    int verdict_render_len = (int)strlen(verdict_field);
+    if (verdict_width > 0 && verdict_render_len > verdict_width)
+        verdict_render_len = verdict_width;
+
+    char line[line_width + 1];
+    for (int i = 0; i < line_width; i++) line[i] = ' ';
+    line[line_width] = '\0';
+
+    int pos = 0;
+    if (prefix_len > 0)
+    {
+        int copy = MIN(prefix_len, line_width - pos);
+        memcpy(line + pos, prefix, copy);
+        pos += copy;
+    }
+
+    if (name_render_len > 0 && pos < line_width)
+    {
+        int copy = MIN(name_render_len, line_width - pos);
+        memcpy(line + pos, name_field, copy);
+        pos += copy;
+    }
+
+    int pad_target = prefix_len + name_width;
+    if (pad_target > line_width) pad_target = line_width;
+    while (pos < pad_target) line[pos++] = ' ';
+    if (pos < line_width) line[pos++] = ' ';
+
+    if (points_len > 0 && pos < line_width)
+    {
+        int copy = MIN(points_len, line_width - pos);
+        memcpy(line + pos, points_buf, copy);
+        pos += copy;
+    }
+
+    if (pos < line_width) line[pos++] = ' ';
+
+    if (verdict_render_len > 0 && pos < line_width)
+    {
+        int copy = MIN(verdict_render_len, line_width - pos);
+        memcpy(line + pos, verdict_field, copy);
+        pos += copy;
+    }
+
+    c_put_str(attr, line, 3 + row, 0);
+}
+
+
+static char display_scores_pages(const high_score* entries, int count, int highlight_index,
+                                 score_view_order order, bool detailed, int page_size)
+{
+    Term_clear();
+
+    if (!entries || count <= 0)
+    {
+        c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
+        c_put_str(TERM_SLATE, "No recorded heroes yet.", 3, 0);
+        Term_putstr(2, 23, -1, TERM_L_WHITE, "(press any key)");
+        (void)inkey();
+        return 0;
+    }
+
+    int start_index = 0;
+    bool highlight_pending = true;
+
+    while (start_index < count)
+    {
+        int entries_per_page = detailed ? page_size : (page_size * 4);
+        if (entries_per_page < 1) entries_per_page = 1;
+
+        if (highlight_pending && highlight_index >= 0)
+        {
+            int max_start = (count - entries_per_page);
+            if (max_start < 0) max_start = 0;
+            start_index = (highlight_index / entries_per_page) * entries_per_page;
+            if (start_index > max_start) start_index = max_start;
+            highlight_pending = false;
+        }
+
+        Term_clear();
+        c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
+
+        char order_buf[64];
+        strnfmt(order_buf, sizeof(order_buf), "Order: %s", score_view_order_label(order));
+        c_put_str(TERM_L_WHITE, order_buf, 2, 0);
+
+        char layout_buf[32];
+        strnfmt(layout_buf, sizeof(layout_buf), "Layout: %s", detailed ? "Full" : "Short");
+        c_put_str(TERM_SLATE, layout_buf, 2, 40);
+
+        for (int row = 0; row < entries_per_page && (start_index + row) < count; row++)
+        {
+            int idx = start_index + row;
+            bool is_highlight = (idx == highlight_index);
+            byte attr = score_entry_color(&entries[idx], is_highlight);
+
+            if (detailed)
+            {
+                display_single_score(attr, row * 4, 0, start_index + row + 1, false, (high_score*)&entries[idx]);
+            }
+            else
+            {
+                display_single_score_short(attr, start_index + row + 1, row, &entries[idx]);
+            }
+        }
+
+        bool has_more = (start_index + entries_per_page < count);
+
+        char footer[80];
+        strnfmt(footer, sizeof(footer), "[S] Toggle order   [L] Layout   [ESC] Exit   (press any other key to %s)",
+                has_more ? "continue" : "close");
+        Term_putstr(1, 23, -1, TERM_L_WHITE, footer);
+
+        char ch = inkey();
+        prt("", 23, 0);
+
+        if (ch == ESCAPE)
+            return ESCAPE;
+        if (ch == 's' || ch == 'S' || ch == 'o' || ch == 'O')
+            return ch;
+        if (ch == 'l' || ch == 'L')
+            return ch;
+
+        if (!has_more)
+            break;
+
+        start_index += entries_per_page;
+    }
+
+    return 0;
+}
+
+
 
 /*
  * Just determine whether a charackter is dead using high score
@@ -4463,34 +5163,115 @@ extern int highscore_count()
  */
 static int highscore_add(high_score* score)
 {
-    int slot;
-    // bool done = false;
-
     log_info("Adding score entry for player '%s'", score->who);
 
-    /* Paranoia -- it may not have opened */
-    if (!highscore_fd) {
-    log_warn("Cannot add score - highscore file not opened");
-        return (-1);
+    if (!highscore_fd)
+    {
+        log_warn("Cannot add score - highscore file not opened");
+        return -1;
     }
 
-    /* Determine where the score should go */
-    slot = highscore_where(score);
-    
-    /* Hack -- Not on the list */
-    if (slot < 0) {
-    log_warn("Score for player '%s' rejected - not eligible for high scores", score->who);
-        return (-1);
+    high_score entries[MAX_HISCORES + 1];
+    int count = load_scores_into_array(entries, MAX_HISCORES);
+    bool replaced = false;
+
+    for (int i = 0; i < count; i++)
+    {
+        if (streq(entries[i].who, score->who))
+        {
+            entries[i] = (*score);
+            replaced = true;
+            break;
+        }
     }
-    
-    highscore_seek(slot);
-    highscore_write(score);
-    
-    /* Update header count if using versioned format */
-    update_scores_file_header_count();
-    
-    log_debug("Added score entry for %s at position %d", score->who, slot);
-    return (slot);
+
+    if (!replaced)
+    {
+        entries[count++] = (*score);
+    }
+
+    qsort(entries, count, sizeof(high_score), compare_scores_qsort);
+
+    count = deduplicate_scores_by_name(entries, count);
+
+    if (count > MAX_HISCORES)
+        count = MAX_HISCORES;
+
+    int slot = -1;
+    for (int i = 0; i < count; i++)
+    {
+        if (memcmp(&entries[i], score, sizeof(high_score)) == 0)
+        {
+            slot = i;
+            break;
+        }
+    }
+
+    if (slot < 0)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            if (streq(entries[i].who, score->who)
+                && streq(entries[i].day, score->day)
+                && streq(entries[i].how, score->how))
+            {
+                slot = i;
+                break;
+            }
+        }
+    }
+
+    if (highscore_seek(0))
+    {
+        log_error("Failed to seek before rewriting high score table");
+        return slot;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        if (fwrite(&entries[i], sizeof(high_score), 1, highscore_fd) != 1)
+        {
+            log_error("Failed to rewrite high score table entry %d", i);
+            return -1;
+        }
+    }
+
+    fflush(highscore_fd);
+
+    if (scores_file_is_versioned)
+    {
+        score_file_header header;
+        if (fseek(highscore_fd, 0, SEEK_SET) == 0
+            && fread(&header, sizeof(header), 1, highscore_fd) == 1)
+        {
+            header.entry_count = count;
+            fseek(highscore_fd, 0, SEEK_SET);
+            fwrite(&header, sizeof(header), 1, highscore_fd);
+            fflush(highscore_fd);
+            scores_file_entry_count = count;
+        }
+        else
+        {
+            log_warn("Unable to refresh high score header after rewrite");
+        }
+
+        highscore_seek(0);
+    }
+    else
+    {
+        highscore_seek(0);
+    }
+
+    log_debug(
+        "Sorted high score table written (%d entries). Player '%s' slot=%d replaced=%s",
+        count, score->who, slot, replaced ? "yes" : "no");
+
+    if (slot < 0 && !replaced)
+    {
+        log_warn("Score for player '%s' did not reach the published high score table", score->who);
+    }
+
+    return slot;
 }
 
 /*
@@ -4595,7 +5376,7 @@ static void upsert_live_score_on_save(void)
 #define RACE_PRIORITIES (sizeof(race_priority) / sizeof(race_priority[0]))
 
 /* ------------------------------------------------------------------ */
-/* bit‑test whether RACE can belong to HOUSE                          */
+/* bit-test whether RACE can belong to HOUSE                          */
 static int race_has_house(uint16_t race, uint16_t house)
 {
     if (house >= z_info->c_max) return 0;
@@ -4605,7 +5386,7 @@ static int race_has_house(uint16_t race, uint16_t house)
 }
 
 /* ------------------------------------------------------------------ */
-/* helper - build a dummy hi‑score entry so we can immediately kill it */
+/* helper - build a dummy hi-score entry so we can immediately kill it */
 static void build_dummy_entry(high_score *e, uint16_t race, uint16_t house)
 {
     memset(e, 0, sizeof(*e));
@@ -4614,11 +5395,11 @@ static void build_dummy_entry(high_score *e, uint16_t race, uint16_t house)
     strnfmt(e->what, sizeof e->what, "%s",
             "Hero of the First Age");
 
-    /* 15‑char player name - house name fits nicely */
+    /* 15-char player name - house name fits nicely */
     const char *hname = c_name + c_info[house].name;
     strnfmt(e->who,  sizeof e->who,  "%-.15s", hname);
 
-    /* race & house: two digits each, zero‑padded                       */
+    /* race & house: two digits each, zero-padded                       */
     strnfmt(e->p_r,  sizeof e->p_r,  "%02u", race);
     strnfmt(e->p_h,  sizeof e->p_h,  "%02u", house);
 
@@ -4750,7 +5531,7 @@ extern void display_single_score(
     }
 
     /* if not displayed in a place, then don't write the place number */
-    /* show the score as human-readable commas, e.g. “123 456”            */
+    /* show the score as human-readable commas, e.g. "123 456"            */
     char score_commas[16];
     comma_number(score_commas, score_points(the_score));
 
@@ -4812,8 +5593,8 @@ extern void display_single_score(
         }
     }
 
-    /* “Alive” entry: either the synthetic/fake score or a real one whose
-       cause-of-death text is literally “(alive and well)”                */
+    /* "Alive" entry: either the synthetic/fake score or a real one whose
+       cause-of-death text is literally "(alive and well)"                */
     else if (fake || streq(the_score->how, "(alive and well)"))
     {
         strnfmt(out_val, sizeof(out_val),
@@ -4882,214 +5663,9 @@ extern void display_single_score(
  *
  * Mega-Hack -- allow "fake" entry at the given position.
  */
-static void display_scores_aux(int from, int to, int note, high_score* score)
-{
-    char ch;
 
-    int j, k, n;
-    int count;
-    int place, fake;
-    int silm=0;
-
-    log_debug("Displaying scores from position %d to %d (note=%d)", from, to, note);
-    int morg=0;
-
-    high_score the_score;
-
-    char tmp_val[160];
-
-    byte attr;
-
-    /* Paranoia -- it may not have opened */
-    if (!highscore_fd)
-        return;
-
-    /* Assume we will show the first 10 */
-    if (from < 0)
-        from = 0;
-    if (to < 0)
-        to = 10;
-    if (to > MAX_HISCORES)
-        to = MAX_HISCORES;
-
-    /* Short-circuit empty versioned file without scanning */
-    if (scores_file_is_versioned && scores_file_entry_count == 0) {
-        count = 0;
-    } else {
-        if (highscore_seek(0)) return;
-        for (count = 0; count < MAX_HISCORES; count++) {
-            if (highscore_read(&the_score)) break;
-        }
-    }
-
-    /* Hack -- allow "fake" entry to be last */
-    if ((note == count) && score)
-        count++;
-
-    /* Forget about the last entries */
-    if (count > to)
-        count = to;
-
-    /* Show 5 per page, until "done" */
-    for (k = from, j = from, place = k + 1; k < count; k += 5)
-    {
-        /* Clear screen */
-        Term_clear();
-
-        /* Title */
-        c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
-
-        /* Indicate non-top scores */
-        if (k > 0)
-        {
-            strnfmt(tmp_val, sizeof(tmp_val), "(from position %d)", place);
-            put_str(tmp_val, 1, 40);
-        }
-
-        /* Dump 5 entries */
-        for (n = 0; j < count && n < 5; place++, j++, n++)
-        {
-            /* Hack -- indicate death in white */
-            attr = (j == note) ? TERM_WHITE : TERM_SLATE;
-
-            /* Mega-Hack -- insert a "fake" record */
-            if ((note == j) && score)
-            {
-                the_score = (*score);
-                attr = TERM_WHITE;
-                score = NULL;
-                fake = true;
-                note = -1;
-                // j--;
-            }
-
-            /* Read a normal record */
-            else
-            {
-                fake = false;
-                /* Read the proper record */
-                if (highscore_seek(j))
-                    break;
-                if (highscore_read(&the_score))
-                    break;
-            }
-
-            display_single_score(attr, n * 4, 0, place, fake, &the_score);
-            if (the_score.escaped[0] == 't') {
-                silm+=atoi(the_score.silmarils);
-                if (the_score.morgoth_slain[0] == 't') morg++;
-            }
-        }
-
-        /* Wait for response */
-        Term_putstr(15, 24, -1, TERM_L_WHITE, "(press any key)");
-        ch = inkey();
-        prt("", 23, 0);
-
-        /* Hack -- notice Escape */
-        if (ch == ESCAPE)
-            break;
-    }
-}
 
 /* Show 20 compact entries per page ---------------------------------- */
-static void display_scores_aux_short(int from, int to, int note,
-                                     high_score *score)
-{
-    char ch;
-    int  j, k, n, count, place;
-    /* 'fake' flag removed (preview now handled only via long form) */
-    high_score the_score;
-    byte attr;
-    char tmp[80];
-
-    /* Count records -------------------------------------------------- */
-    if (highscore_seek(0)) return;
-    for (count = 0; count < MAX_HISCORES; count++)
-        if (highscore_read(&the_score)) break;
-
-    if (count > to) count = to;
-
-    /* Paginate ------------------------------------------------------- */
-    for (k = from, j = from, place = k + 1; k < count; k += 20)
-    {
-        Term_clear();
-        c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
-        if (k) { 
-            strnfmt(tmp, sizeof tmp, "(from position %d)", place);
-            put_str(tmp, 1, 42); 
-        }
-
-        for (n = 0; j < count && n < 20; place++, j++, n++)
-        {
-            attr = (j == note) ? TERM_WHITE : TERM_SLATE;
-
-            /* Fake record? ------------------------------------------ */
-            if ((note == j) && score) { 
-                the_score = *score; 
-            } else
-            {
-                if (highscore_seek(j) || highscore_read(&the_score)) break;
-            }
-            
-            /* Format each line with consistent column alignment */
-            int depth = atoi(the_score.cur_dun) * 50;
-            char line[120];
-            char symbols[8] = "";
-            
-            /* Build symbols string */
-            int silm_count = atoi(the_score.silmarils);
-            int pos = 0;
-            for (int i = 0; i < silm_count && i < 3; i++) {
-                symbols[pos++] = '*';
-            }
-            if (the_score.morgoth_slain[0] == 't') {
-                if (pos > 0) symbols[pos++] = ' ';
-                symbols[pos++] = 'V';
-            }
-            symbols[pos] = '\0';
-            
-            /* Format verdict */
-            const char *verdict;
-            if (the_score.escaped[0] == 't')
-                verdict = "escaped Angband";
-            else if (!strcmp(the_score.how, "(alive and well)"))
-                verdict = "alive";
-            else
-                verdict = format("slain by %s", the_score.how);
-            
-            /* Create formatted line with fixed column widths */
-            if (symbols[0]) {
-                strnfmt(line, sizeof line, " %4dft %-4s %-15s - %s", 
-                        depth, symbols, the_score.who, verdict);
-            } else {
-                strnfmt(line, sizeof line, " %4dft      %-15s - %s", 
-                        depth, the_score.who, verdict);
-            }
-            
-            /* Display the line */
-            c_put_str(attr, line, 3 + n, 0);
-            
-            /* Re-color the symbols */
-            if (symbols[0]) {
-                int symbol_start = 8; /* Position after "depth ft " */
-                for (int i = 0; symbols[i]; i++) {
-                    if (symbols[i] == '*') {
-                        Term_putch(symbol_start + i, 3 + n, TERM_YELLOW, '*');
-                    } else if (symbols[i] == 'V') {
-                        Term_putch(symbol_start + i, 3 + n, TERM_RED, 'V');
-                    }
-                }
-            }
-        }
-
-        Term_putstr(15, 23, -1, TERM_L_WHITE, "(press any key)");
-        ch = inkey();  
-        prt("", 23, 0);
-        if (ch == ESCAPE) break;
-    }
-}
-
 
 
 /*
@@ -5100,62 +5676,26 @@ static void display_scores_aux_short(int from, int to, int note,
  */
 void display_scores(int from, int to)
 {
-    char buf[1024];
+    (void)from;
+    (void)to;
 
-    log_info("Displaying high scores from %d to %d", from, to);
-
-    /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
-    
-    log_debug("Opening highscore file: %s", buf);
-
-    /* Open the binary high score file, for reading */
-    highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
-    
-    if (!highscore_fd) {
-    log_error("Failed to open highscore file for reading");
-        return;
-    }
-
-    /* Clear screen */
-    Term_clear();
-
-    /* Title */
-    put_str("               Names of the Fallen", 0, 0);
-
-    /* Display the scores */
-    display_scores_aux(from, to, -1, NULL);
-
-    log_debug("Closing highscore file");
-    /* Shut the high score file */
-    fclose(highscore_fd);
-
-    /* Forget the high score fd */
-    highscore_fd = NULL;
-
-    /* Wait for response */
-    Term_putstr(15, 23, -1, TERM_L_WHITE, "(press any key)");
-    (void)inkey();
-    prt("", 23, 0);
-
-    /* Quit */
+    log_info("Displaying high scores with interactive controls");
+    show_scores_interactive(true);
     quit(NULL);
 }
 
-/* Public entry - compact list --------------------------------------- */
+/* Public entry - compact list */
 void display_scores_short(int from, int to)
 {
-    char buf[1024];
-    path_build(buf, sizeof buf, ANGBAND_DIR_APEX, "scores.raw");
-    highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
+    (void)from;
+    (void)to;
 
-    Term_clear();
-    put_str("               Names of the Fallen (compact)", 0, 0);
-
-    display_scores_aux_short(from, to, -1, NULL);
-
-    fclose(highscore_fd);  highscore_fd = NULL;
+    bool previous_layout = score_last_layout_short;
+    score_last_layout_short = true;
+    show_scores_interactive(true);
+    score_last_layout_short = previous_layout;
 }
+
 
 /* =============================================================
  * Story display helpers & updated print_story() implementation
@@ -5164,19 +5704,19 @@ void display_scores_short(int from, int to)
  *    1.  Optional `last_parts` argument - when >0 only the *last*
  *        N matching story chapters are shown.
  *    2.  Optional `fade_in` boolean - when true, paragraphs are
- *        displayed with a colour fade‑in effect.
+ *        displayed with a colour fade-in effect.
  *
- *  Timing (per @Roman request 2025‑07‑30, amended)
- *    • 125 ms between colour steps
- *    • 1 second pause after each paragraph/"block"
+ *  Timing (per @Roman request 2025-07-30, amended)
+ *    * 125 ms between colour steps
+ *    * 1 second pause after each paragraph/"block"
  *
- *  UI tweaks 2025‑07‑30 - v4
- *    • Prints a **visible blank line** between paragraphs (not just
+ *  UI tweaks 2025-07-30 - v4
+ *    * Prints a **visible blank line** between paragraphs (not just
  *      a row counter increment).
- *    • [Esc] now finishes the *current* page instantly (no fades /
+ *    * [Esc] now finishes the *current* page instantly (no fades /
  *      delays) and proceeds through the rest of the story without
- *      further prompts, auto‑scrolling as needed. Nothing skipped.
- *    • Footer fully wipes the bottom line before drawing its prompt
+ *      further prompts, auto-scrolling as needed. Nothing skipped.
+ *    * Footer fully wipes the bottom line before drawing its prompt
  *      to avoid text overlap.
  *
  * ===========================================================*/
@@ -5185,7 +5725,7 @@ void display_scores_short(int from, int to)
 #include <stdbool.h>
 
 /* -------------------------------------------------------------
- * Helper: colour fade‑in paragraph printer
+ * Helper: colour fade-in paragraph printer
  * Returns true if completed normally, false if interrupted by Esc
  * ----------------------------------------------------------- */
 static bool print_paragraph_fade(cptr text, int row, int indent,
@@ -5381,9 +5921,6 @@ void print_fade_centered_at_row(cptr text, int row_start)
     if (row_start >= h) return; /* off-screen */
 
     /* Dynamic per-line wrapping and printing */
-    const byte fade_cols[] = { TERM_L_DARK, TERM_SLATE, TERM_L_WHITE, TERM_WHITE, TERM_ORANGE };
-    const int steps = (int)(sizeof(fade_cols) / sizeof(fade_cols[0]));
-
     enum { MAX_LINES2 = 32, MAX_LEN2 = 255 };
     const char *p = text;
     int printed_lines = 0;
@@ -5454,29 +5991,23 @@ void print_fade_centered_at_row(cptr text, int row_start)
 
         if (linelen == 0) break; /* nothing collected */
 
-        /* Fade this line */
-        for (int s = 0; s < steps; s++)
-        {
-            c_put_str(fade_cols[s], buf, row_start + printed_lines, indent);
-            Term_fresh();
-            Term_xtra(TERM_XTRA_DELAY, 125);
-        }
+        /* Show this line directly in orange (no fade effect for level entry banners) */
+        c_put_str(TERM_ORANGE, buf, row_start + printed_lines, indent);
+        Term_fresh();
 
     /* Tracking of per-line geometry removed (unused). */
         printed_lines++;
 
-        /* Half-second gap before next line if more text remains */
+        /* 700ms gap before next line if more text remains */
         if (*p && (row_start + printed_lines) < h)
-            Term_xtra(TERM_XTRA_DELAY, 400);
+            Term_xtra(TERM_XTRA_DELAY, 800);
     }
 
-    /* Hold briefly so the player can read (keep 1s as before) */
-    Term_xtra(TERM_XTRA_DELAY, 500);
     /* Do not explicitly erase: allow natural redraws to overwrite the text */
 }
 
 /* -------------------------------------------------------------
- * print_story() - paging, subset & fade‑in options
+ * print_story() - paging, subset & fade-in options
  * ----------------------------------------------------------- */
 void print_story(int last_parts, bool fade_in)
 {
@@ -5488,10 +6019,10 @@ void print_story(int last_parts, bool fade_in)
     log_debug("=== Starting story display (parts=%d, fade_in=%s) ===", last_parts, fade_in ? "true" : "false");
     log_debug("last_parts=%d, fade_in=%s", last_parts, fade_in ? "true" : "false");
 
-    /* Convenience macro to keep the bottom‑line hint fresh */
+    /* Convenience macro to keep the bottom-line hint fresh */
 #define REDRAW_HINT() \
     Term_putstr(indent, h - 1, -1, TERM_SLATE, \
-                "[Enter] next  •  [Esc] fast forward")
+                "[Enter] next  *  [Esc] fast forward")
 
     /* Build list of matching entries ------------------------ */
     int sils   = metar.silmarils;
@@ -5510,7 +6041,7 @@ void print_story(int last_parts, bool fade_in)
         if (st->st_type != 0)               continue; /* opening */
         if (!(st->runtypes == 0 ||
               (rt < 32 && (st->runtypes & (1UL << rt)))))
-            continue;                                   /* run‑type */
+            continue;                                   /* run-type */
         if (st->order <= (byte)sils) {
             sel_idx[total++] = i;
             log_trace("Added story %d (order=%d) to selection", i, st->order);
@@ -5600,7 +6131,11 @@ void print_story(int last_parts, bool fade_in)
         {
             if (!print_paragraph_fade(text, row, indent, wrap_width))
             {
-                show_page_instantly = true; /* Esc was pressed during fade */
+                /* Esc was pressed during fade - enable fast-forward for all remaining content */
+                show_page_instantly = true;
+                fast_forward = true;
+                fade_in = false;
+                log_debug("User pressed ESC during fade - enabling fast forward mode");
             }
         }
         else
@@ -5656,7 +6191,7 @@ void print_story(int last_parts, bool fade_in)
             }
             else
             {
-                /* fast‑forward mode: auto‑clear, no waits */
+                /* fast-forward mode: auto-clear, no waits */
                 row = 2;
                 Term_clear();
                 Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
@@ -5715,7 +6250,7 @@ extern int silmarils_possessed(void)
 /*
  * Creates a score record for the player
  */
-static errr create_score(high_score* the_score)
+errr create_score(high_score* the_score)
 {
     /* Clear the record */
     (void)WIPE(the_score, high_score);
@@ -5723,9 +6258,13 @@ static errr create_score(high_score* the_score)
     /* Save the version */
     strnfmt(the_score->what, sizeof(the_score->what), "%s", VERSION_STRING);
 
-    /* Calculate and save the points */
-    strnfmt(the_score->pts, sizeof(the_score->pts), "    ");
-    the_score->pts[4] = '\0';
+    /* Store the total number of active curse stacks */
+    int curse_total = 0;
+    for (int id = 0; id < 32; ++id)
+    {
+        curse_total += CURSE_GET(id);
+    }
+    strnfmt(the_score->pts, sizeof(the_score->pts), "%4d", curse_total);
 
     /* Save the current player turn */
     strnfmt(
@@ -5882,99 +6421,210 @@ static errr enter_score(high_score* the_score)
  *
  * Assumes "signals_ignore_tstp()" has been called.
  */
-static void top_twenty(void)
-{
-    /* Clear screen */
-    Term_clear();
-
-    /* No score file */
-    if (!highscore_fd)
-    {
-        msg_print("Score file unavailable.");
-        message_flush();
-        return;
-    }
-
-    /* Player's score unavailable */
-    if (score_idx == -1)
-    {
-        display_scores_aux(0, 10, -1, NULL);
-        return;
-    }
-
-    /* Hack -- Display the top fifteen scores */
-    else if (score_idx < 10)
-    {
-        display_scores_aux(0, 15, score_idx, NULL);
-    }
-
-    /* Display the scores surrounding the player */
-    else
-    {
-        display_scores_aux(0, 5, score_idx, NULL);
-        display_scores_aux(score_idx - 2, score_idx + 7, score_idx, NULL);
-    }
-
-    /* Success */
-    return;
-}
 
 /*
  * Predict the player's location, and display it.
  */
-static errr predict_score(void)
+static bool build_live_preview_score(high_score* out)
 {
-    int j;
-    high_score the_score;
-    /* Build a temporary (in‑memory only) score snapshot */
-    create_score(&the_score);
+    if (!out || !character_generated)
+        return false;
 
-    /* Determine hypothetical placement */
-    j = highscore_where(&the_score);
-    if (j < 0) return -1; /* not eligible */
+    char saved_how[sizeof(p_ptr->died_from)];
+    my_strcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
 
-    /* We never write the preview to disk - just show it using the existing
-       "fake record" mechanism (note=j, score=&the_score). */
-    if (j < 10) {
-        display_scores_aux(0, 15, j, &the_score);
-    } else {
-        display_scores_aux(0, 5, -1, NULL);
-        display_scores_aux(j - 2, j + 7, j, &the_score);
-    }
-    return 0;    
+    time_t previous_time = death_time;
+    time_t now = time(NULL);
+    if (now != (time_t)-1)
+        death_time = now;
+
+    my_strcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
+
+    bool ok = (create_score(out) == 0);
+
+    my_strcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
+    death_time = previous_time;
+
+    return ok;
 }
 
-/* (Removed stray duplicated code block that opened/printed scores.) */
+static bool ensure_entry_visible(high_score* entries, int* count, int capacity,
+                                 const high_score* target, bool sort_by_score, int* highlight_index)
+{
+    if (!entries || !count || !target || capacity <= 0)
+        return false;
+
+    int idx = find_score_index(entries, *count, target);
+    if (idx >= 0)
+    {
+        if (highlight_index) *highlight_index = idx;
+        return true;
+    }
+
+    if (*count < capacity)
+    {
+        entries[*count] = *target;
+        (*count)++;
+    }
+    else
+    {
+        entries[capacity - 1] = *target;
+        *count = capacity;
+    }
+
+    if (sort_by_score)
+        qsort(entries, *count, sizeof(high_score), compare_scores_qsort);
+    else
+        qsort(entries, *count, sizeof(high_score), compare_scores_chronological);
+
+    *count = deduplicate_scores_by_name(entries, *count);
+    if (*count > MAX_HISCORES)
+        *count = MAX_HISCORES;
+
+    idx = find_score_index(entries, *count, target);
+
+    if (idx < 0)
+    {
+        for (int i = 0; i < *count; i++)
+        {
+            if (streq(entries[i].who, target->who))
+            {
+                entries[i] = *target;
+                if (sort_by_score)
+                    qsort(entries, *count, sizeof(high_score), compare_scores_qsort);
+                else
+                    qsort(entries, *count, sizeof(high_score), compare_scores_chronological);
+                idx = find_score_index(entries, *count, target);
+                break;
+            }
+        }
+    }
+
+    if (highlight_index && idx >= 0)
+        *highlight_index = idx;
+
+    return idx >= 0;
+}
+
 /* Display the high score table (optionally long form) without committing a new score.
  * If character_generated is true and player is alive, show predicted placement.
  */
 void show_scores(bool longscore)
 {
-    char buf[1024];
+    bool preview_allowed = (!force_interactive_scores && !forced_highlight_active && character_generated && !p_ptr->is_dead);
+    log_info("show_scores: longscore=%d force_interactive=%d generated=%d dead=%d preview=%d",
+             longscore ? 1 : 0,
+             force_interactive_scores ? 1 : 0,
+             character_generated ? 1 : 0,
+             p_ptr->is_dead ? 1 : 0,
+             preview_allowed ? 1 : 0);
 
-    path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
-    highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
-    if (!highscore_fd) {
-        msg_print("Score file unavailable.");
-        return;
+    high_score ordered_by_score[MAX_HISCORES + 1];
+    high_score ordered_by_time[MAX_HISCORES + 1];
+
+    int count_score = collect_high_scores(ordered_by_score, MAX_HISCORES, true);
+    int count_time = collect_high_scores(ordered_by_time, MAX_HISCORES, false);
+
+    const int capacity = MAX_HISCORES + 1;
+    int page_size = 5;
+    bool detailed = !score_last_layout_short;
+    score_view_order order = SCORE_VIEW_ORDER_SCORE;
+
+    high_score highlight_buffer;
+    const high_score* highlight_entry = NULL;
+    if (forced_highlight_active)
+    {
+        highlight_entry = &forced_highlight_entry;
+    }
+    else if (character_generated)
+    {
+        if (p_ptr->is_dead)
+        {
+            if (create_score(&highlight_buffer) == 0)
+                highlight_entry = &highlight_buffer;
+        }
+        else if (build_live_preview_score(&highlight_buffer))
+        {
+            highlight_entry = &highlight_buffer;
+        }
+    }
+
+    int highlight_score = -1;
+    int highlight_time = -1;
+    if (highlight_entry)
+    {
+        highlight_score = find_score_index(ordered_by_score, count_score, highlight_entry);
+        highlight_time = find_score_index(ordered_by_time, count_time, highlight_entry);
+        log_debug("show_scores: highlight indices score=%d time=%d for %s",
+                  highlight_score, highlight_time, highlight_entry->who);
+
+        if (highlight_score < 0)
+            ensure_entry_visible(ordered_by_score, &count_score, capacity, highlight_entry, true, &highlight_score);
+        if (highlight_time < 0)
+            ensure_entry_visible(ordered_by_time, &count_time, capacity, highlight_entry, false, &highlight_time);
     }
 
     screen_save();
-    Term_clear();
+    while (true)
+    {
+        const high_score* list = (order == SCORE_VIEW_ORDER_SCORE) ? ordered_by_score : ordered_by_time;
+        int count = (order == SCORE_VIEW_ORDER_SCORE) ? count_score : count_time;
+        int highlight = (order == SCORE_VIEW_ORDER_SCORE) ? highlight_score : highlight_time;
 
-    if (character_generated && !p_ptr->is_dead) {
-        /* Preview placement for a living character */
-        predict_score();
-    } else if (longscore) {
-        display_scores_aux(0, MAX_HISCORES, -1, NULL);
-    } else {
-        display_scores_aux_short(0, MAX_HISCORES, -1, NULL);
+        log_debug("show_scores: rendering page (order=%s count=%d highlight=%d)",
+                  (order == SCORE_VIEW_ORDER_SCORE) ? "score" : "time",
+                  count, highlight);
+
+        char response = display_scores_pages(list, count, highlight, order, detailed, page_size);
+        if (response == 's' || response == 'S' || response == 'o' || response == 'O')
+        {
+            order = (order == SCORE_VIEW_ORDER_SCORE) ? SCORE_VIEW_ORDER_CHRONOLOGY : SCORE_VIEW_ORDER_SCORE;
+            continue;
+        }
+        if (response == 'l' || response == 'L')
+        {
+            detailed = !detailed;
+            score_last_layout_short = !detailed;
+            continue;
+        }
+        break;
     }
-
-    fclose(highscore_fd);
-    highscore_fd = NULL;
     screen_load();
     Term_fresh();
+
+    forced_highlight_active = false;
+    score_last_layout_short = !detailed;
+}
+
+void show_scores_interactive(bool longscore)
+{
+    bool previous = force_interactive_scores;
+    force_interactive_scores = true;
+    log_debug("show_scores_interactive: forcing interactive display (longscore=%d)", longscore ? 1 : 0);
+    show_scores(longscore);
+    force_interactive_scores = previous;
+}
+
+void show_scores_interactive_highlight(bool longscore, const high_score* entry)
+{
+    high_score saved_entry;
+    bool had_forced = forced_highlight_active;
+    if (had_forced) saved_entry = forced_highlight_entry;
+
+    if (entry) {
+        set_forced_highlight_entry(entry);
+    } else {
+        forced_highlight_active = false;
+    }
+
+    show_scores_interactive(longscore);
+
+    if (had_forced) {
+        forced_highlight_entry = saved_entry;
+        forced_highlight_active = true;
+    } else {
+        forced_highlight_active = false;
+    }
 }
 
 /*  Returns NULL when nothing was slain, or a static string with the
@@ -6672,14 +7322,7 @@ static void close_game_aux(void)
         // view scores
         case 1:
         {
-            /* Save screen */
-            screen_save();
-
-            /* Show the scores */
-            top_twenty();
-
-            /* Load screen */
-            screen_load();
+            show_scores_interactive_highlight(true, &the_score);
             break;
         }
 
@@ -6914,12 +7557,17 @@ void close_game(void)
         /* Save the game */
         do_cmd_save_game();
 
-        /* Prompt for scores XXX XXX XXX */
-        Term_putstr(21, 0, -1, TERM_L_BLUE, "-more-");
-
-        /* Predict score (or ESCAPE) */
-        if (inkey() != ESCAPE)
-            predict_score();
+        Term_putstr(6, 0, -1, TERM_L_BLUE, "View high scores? (ESC to skip)");
+        char prompt_key = inkey();
+        Term_erase(0, 0, 255);
+        if (prompt_key != ESCAPE)
+        {
+            high_score preview;
+            if (build_live_preview_score(&preview))
+                show_scores_interactive_highlight(true, &preview);
+            else
+                show_scores_interactive(true);
+        }
 
         /* Update the live character entry in the scores file so that
            scores.raw acts as a database of current running characters.
@@ -8256,3 +8904,4 @@ void backup_and_clear_saves(void)
     
     log_trace("Folder-based backup process completed");
 }
+

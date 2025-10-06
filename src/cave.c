@@ -1561,6 +1561,27 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                                     c += 1;
                                 }
                             }
+                            
+                            /* Check for visible monster on this vein before returning */
+                            if ((m_idx > 0) && !hide_square) {
+                                monster_type* m_ptr = &mon_list[m_idx];
+                                if (m_ptr->ml) {
+                                    monster_race* r_ptr = &r_info[m_ptr->r_idx];
+                                    if (image) r_ptr = &r_info[m_ptr->image_r_idx];
+                                    byte da = r_ptr->x_attr;
+                                    char dc = r_ptr->x_char;
+                                    if ((da & 0x80) && (dc & 0x80)) {
+                                        a = da; c = dc;
+                                    } else if (r_ptr->flags1 & (RF1_ATTR_MULTI)) {
+                                        a = multi_hued_attr(r_ptr); c = dc;
+                                    } else if (!(r_ptr->flags1 & (RF1_ATTR_CLEAR | RF1_CHAR_CLEAR))) {
+                                        a = da; c = dc;
+                                    }
+                                    if (rage_active && graphics_are_ascii()) a = TERM_RED;
+                                    if (!graphics_are_ascii() && m_ptr->alertness >= ALERTNESS_ALERT) c += GRAPHICS_ALERT_MASK;
+                                }
+                            }
+                            
                             *ap = a; *cp = c;
                             return;
                         }
@@ -1581,9 +1602,30 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                                     c += 1; wall_c += 1;
                                 }
                             }
-                            *ap = a; *cp = c; /* overlay vein */
                             *tap = wall_a; *tcp = wall_c; /* base wall */
                             log_warn("VEIN fallback: unencoded cave_color=%d at (%d,%d); using primary style %d wall(row=%d,col=%d)", color_value, y, x, fb, sfb->wall_row, sfb->wall_col);
+                            
+                            /* Check for visible monster on this vein before returning */
+                            if ((m_idx > 0) && !hide_square) {
+                                monster_type* m_ptr = &mon_list[m_idx];
+                                if (m_ptr->ml) {
+                                    monster_race* r_ptr = &r_info[m_ptr->r_idx];
+                                    if (image) r_ptr = &r_info[m_ptr->image_r_idx];
+                                    byte da = r_ptr->x_attr;
+                                    char dc = r_ptr->x_char;
+                                    if ((da & 0x80) && (dc & 0x80)) {
+                                        a = da; c = dc;
+                                    } else if (r_ptr->flags1 & (RF1_ATTR_MULTI)) {
+                                        a = multi_hued_attr(r_ptr); c = dc;
+                                    } else if (!(r_ptr->flags1 & (RF1_ATTR_CLEAR | RF1_CHAR_CLEAR))) {
+                                        a = da; c = dc;
+                                    }
+                                    if (rage_active && graphics_are_ascii()) a = TERM_RED;
+                                    if (!graphics_are_ascii() && m_ptr->alertness >= ALERTNESS_ALERT) c += GRAPHICS_ALERT_MASK;
+                                }
+                            }
+                            
+                            *ap = a; *cp = c;
                             return;
                         } else {
                             /* Give up: leave existing tiles */
@@ -1620,14 +1662,11 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
                     }
                 }
 
-                /* Apply the updated tile coordinates to both main and terrain */
-                *ap = a;
-                *cp = c;
+                /* Save both terrain and display attributes */
                 *tap = a;
                 *tcp = c;
 
-                /* Early return since we've set the values */
-                return;
+                /* Don't return early - let monster display code run */
             }
             else {
                 /* Standard lighting effects for non-wall features */
