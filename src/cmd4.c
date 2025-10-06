@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include <ctype.h>
 #include "h-define.h"
 #include "metarun.h"
 
@@ -459,8 +460,8 @@ void do_cmd_character_sheet(void)
 
 /* ------------------------------------------------------------------
  * add_random_curse()
- *   â€“ Marks the item cursed
- *   â€“ Gives it random negative modifiers
+ *   – Marks the item cursed
+ *   – Gives it random negative modifiers
  *   Compatible with SIL-QH object_type (no flags1/2/3 fields)
  * ------------------------------------------------------------------ */
 void add_random_curse(object_type *o_ptr)
@@ -469,7 +470,7 @@ void add_random_curse(object_type *o_ptr)
     o_ptr->ident |= IDENT_CURSED;
 
     /* 2. negative pval / attack / evasion */
-    if (o_ptr->pval > 0)  o_ptr->pval = -(rand_int(3) + 1); /* â€“1 â€¦ â€“3 */
+    if (o_ptr->pval > 0)  o_ptr->pval = -(rand_int(3) + 1); /* –1 … –3 */
     if (o_ptr->att > 0) o_ptr->att = -(rand_int(3) + 1);
     if (o_ptr->evn > 0) o_ptr->evn = -(rand_int(3) + 1);
 
@@ -3755,9 +3756,9 @@ int object_difficulty(object_type* o_ptr)
 
     /* ------------------------------------------------------------------
      *  GAMIL house bonus
-     *  â€“ Craft mithril items without mithril material
-     *  â€“ Costs 3 forge uses instead of 1
-     *  â€“ Mark item with TR3_CANT_MELT so the melt-menu ignores it
+     *  – Craft mithril items without mithril material
+     *  – Costs 3 forge uses instead of 1
+     *  – Mark item with TR3_CANT_MELT so the melt-menu ignores it
      * ------------------------------------------------------------------ */
 
 
@@ -3766,8 +3767,8 @@ int object_difficulty(object_type* o_ptr)
         dif_mult -= 25;
 
     /*  FEANOR house bonus
-     *  â€“ 40% off on all lamps
-     *  â€“ 25% off on any fire- or light-branded object */
+     *  – 40% off on all lamps
+     *  – 25% off on any fire- or light-branded object */
     if (feanor_bonus)
     {
         /* 40% off on all lamps */
@@ -4267,14 +4268,14 @@ int object_difficulty(object_type* o_ptr)
         smithing_cost.mithril += o_ptr->weight;
     }
 
-   /* Gamil house bonus â€” override normal mithril cost */
-  if ((c_info[p_ptr->phouse].flags_u & UNQ_SMT_GAMIL)      /* youâ€™re Gamil */
+   /* Gamil house bonus — override normal mithril cost */
+  if ((c_info[p_ptr->phouse].flags_u & UNQ_SMT_GAMIL)      /* you’re Gamil */
       && (k_ptr->flags3 & TR3_MITHRIL)                     /* item is mithril */
       && (mithril_carried() < smithing_cost.mithril))      /* no mithril on hand */
   {
       smithing_cost.uses    = MAX(smithing_cost.uses, 3);  /* cost 3 forge uses */
       smithing_cost.mithril = 0;                           /* waive material */
-      o_ptr->ident         |= IDENT_CANT_MELT;             /* canâ€™t melt later */
+      o_ptr->ident         |= IDENT_CANT_MELT;             /* can’t melt later */
   }
 
     // Apply the difficulty multiplier
@@ -5802,7 +5803,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
             if (smithing_flag_types[i].flag == TR1_SHARPNESS2 &&
                 !(c_info[p_ptr->phouse].flags_u & UNQ_SMT_TELCHAR))
             {
-                /* donâ€™t even consider it */
+                /* don’t even consider it */
                 continue;
             }
             flag[num] = smithing_flag_types[i].flag;
@@ -6673,7 +6674,7 @@ int melt_menu_aux(int* highlight)
 
         object_flags(o_ptr, &f1, &f2, &f3);
         
-        /* ignore mithril items that carry the â€œcanâ€™t meltâ€ tag         */
+        /* ignore mithril items that carry the “can’t melt” tag         */
         if ((f3 & TR3_MITHRIL) && !(o_ptr->ident & IDENT_CANT_MELT))
 
         {
@@ -13785,6 +13786,160 @@ void do_cmd_view_objects()
     }
 }
 
+enum unified_sidebar_object_group {
+    LOOK_GROUP_ARTIFACT = 0,
+    LOOK_GROUP_WEAPON,
+    LOOK_GROUP_ARMOUR,
+    LOOK_GROUP_CONSUMABLE,
+    LOOK_GROUP_OTHER,
+    LOOK_GROUP_COUNT
+};
+
+static int unified_sidebar_object_group(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return LOOK_GROUP_OTHER;
+
+    if (artefact_p(o_ptr))
+        return LOOK_GROUP_ARTIFACT;
+
+    switch (o_ptr->tval)
+    {
+    case TV_HAFTED:
+    case TV_POLEARM:
+    case TV_SWORD:
+    case TV_BOW:
+    case TV_DIGGING:
+    case TV_ARROW:
+        return LOOK_GROUP_WEAPON;
+
+    case TV_BOOTS:
+    case TV_GLOVES:
+    case TV_HELM:
+    case TV_CROWN:
+    case TV_SHIELD:
+    case TV_CLOAK:
+    case TV_SOFT_ARMOR:
+    case TV_MAIL:
+        return LOOK_GROUP_ARMOUR;
+
+    case TV_FOOD:
+        if (o_ptr->sval < SV_FOOD_MIN_FOOD)
+            return LOOK_GROUP_CONSUMABLE;
+        break;
+
+    case TV_POTION:
+    case TV_GEM:
+        return LOOK_GROUP_CONSUMABLE;
+    }
+
+    return LOOK_GROUP_OTHER;
+}
+
+static void sidebar_trim_spaces(char* s)
+{
+    if (!s) return;
+
+    char* start = s;
+    while (*start && isspace((unsigned char)*start))
+        ++start;
+
+    if (start != s)
+        memmove(s, start, strlen(start) + 1);
+
+    size_t len = strlen(s);
+    while (len > 0 && isspace((unsigned char)s[len - 1]))
+        s[--len] = '\0';
+}
+
+static int sidebar_find_stats_pos(const char* s)
+{
+    if (!s) return -1;
+    for (int i = 0; s[i]; ++i)
+    {
+        char c = s[i];
+        if (c == '(' || c == '[' || c == '<' || c == '{')
+            return i;
+    }
+    return -1;
+}
+
+static void sidebar_compact_name(const char* src, int max_len, char* dest, size_t dest_sz)
+{
+    if (!dest_sz) return;
+    dest[0] = 0;
+
+    if (!src) return;
+
+    int src_len = (int)strlen(src);
+    if (max_len < 1)
+    {
+        log_debug("sidebar_compact_name: max_len < 1 for src='%s'", src);
+        return;
+    }
+
+    if (src_len <= max_len)
+    {
+        strnfmt(dest, dest_sz, "%s", src);
+        log_debug("sidebar_compact_name: no shortening needed src='%s' len=%d max=%d", src, src_len, max_len);
+        return;
+    }
+
+    int stats_pos = sidebar_find_stats_pos(src);
+    log_debug("sidebar_compact_name: shortening src='%s' len=%d max=%d stats_pos=%d", src, src_len, max_len, stats_pos);
+
+    if (stats_pos < 0)
+    {
+        strnfmt(dest, dest_sz, "%.*s", max_len, src);
+        sidebar_trim_spaces(dest);
+        log_debug("sidebar_compact_name: no stats segment, result='%s'", dest);
+        return;
+    }
+
+    int stats_len = src_len - stats_pos;
+    if (stats_len >= max_len)
+    {
+        const char* stats_start = src + (src_len - max_len);
+        strnfmt(dest, dest_sz, "%.*s", max_len, stats_start);
+        sidebar_trim_spaces(dest);
+        log_debug("sidebar_compact_name: stats only result='%s'", dest);
+        return;
+    }
+
+    int base_space = max_len - stats_len;
+    if (base_space < 0) base_space = 0;
+    int copy_len = base_space;
+    if (copy_len > stats_pos)
+        copy_len = stats_pos;
+    if (copy_len < 0)
+        copy_len = 0;
+
+    char base_slice[128];
+    base_slice[0] = 0;
+    if (copy_len > 0)
+    {
+        int base_offset = stats_pos - copy_len;
+        if (base_offset < 0)
+            base_offset = 0;
+        const char* base_start = src + base_offset;
+        strnfmt(base_slice, sizeof(base_slice), "%.*s", copy_len, base_start);
+        sidebar_trim_spaces(base_slice);
+    }
+
+    dest[0] = 0;
+    if (base_slice[0])
+    {
+        my_strcpy(dest, base_slice, dest_sz);
+        size_t len = strlen(dest);
+        if (len && dest[len - 1] != ' ')
+            my_strcat(dest, " ", dest_sz);
+    }
+
+    my_strcat(dest, src + stats_pos, dest_sz);
+    sidebar_trim_spaces(dest);
+    log_debug("sidebar_compact_name: combined result='%s'", dest);
+}
+
 /*
  * Show unified sidebar with monsters and objects
  */
@@ -13800,6 +13955,10 @@ void show_unified_sidebar(unified_look_state* state)
     char entity_char[2];
     entity_char[1] = '\0';
     static int previous_line_count = 0; /* Track previous display size */
+    static int prev_name_len[256];
+    static int prev_weight_len[256];
+    const int prev_array_capacity = (int)(sizeof(prev_name_len) / sizeof(prev_name_len[0]));
+
     
     /* Get terminal height and calculate available space */
     int term_hgt = Term->hgt;
@@ -14081,53 +14240,85 @@ void show_unified_sidebar(unified_look_state* state)
             object_type* o_ptr;
             bool is_artifact;
             int difficulty;
-            int arrow_stack_size;
+            int level;
+            int group;
+            int distance;
+            int original_index;
         } sorted_object;
         
         sorted_object objects[temp_n];
         int valid_objects = 0;
-        int arrow_count = 0;
         
         /* First pass: collect and filter objects */
         for (i = 0; i < temp_n; i++)
         {
             int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
+            if (!o_idx)
+                continue;
+
             object_type* o_ptr = &o_list[o_idx];
-            
-            /* Skip empty object slots */
-            if (!o_idx) continue;
-            
-            /* Arrow filtering: limit to 5 stacks */
-            if (o_ptr->tval == TV_ARROW) {
-                arrow_count++;
-                if (arrow_count > 5) continue;
-            }
-            
-            /* Store object data for sorting */
-            objects[valid_objects].o_idx = o_idx;
-            objects[valid_objects].y = temp_y[i];
-            objects[valid_objects].x = temp_x[i];
-            objects[valid_objects].o_ptr = o_ptr;
-            objects[valid_objects].is_artifact = (o_ptr->name1 > 0);
-            objects[valid_objects].difficulty = object_difficulty(o_ptr);
-            objects[valid_objects].arrow_stack_size = (o_ptr->tval == TV_ARROW) ? o_ptr->number : 0;
+
+            if ((o_ptr->tval == TV_ARROW) && (o_ptr->number < 10))
+                continue;
+
+            sorted_object* entry = &objects[valid_objects];
+
+            entry->o_idx = o_idx;
+            entry->y = temp_y[i];
+            entry->x = temp_x[i];
+            entry->o_ptr = o_ptr;
+            entry->is_artifact = artefact_p(o_ptr) ? true : false;
+            entry->difficulty = object_difficulty(o_ptr);
+            entry->level = k_info[o_ptr->k_idx].level;
+            entry->group = unified_sidebar_object_group(o_ptr);
+            entry->distance = distance(p_ptr->py, p_ptr->px, entry->y, entry->x);
+            entry->original_index = i;
+
             valid_objects++;
         }
-        
-        /* Sort objects: artifacts first, then by difficulty (descending) */
+
         for (i = 0; i < valid_objects - 1; i++) {
             for (int j = i + 1; j < valid_objects; j++) {
+                sorted_object* a = &objects[i];
+                sorted_object* b = &objects[j];
                 bool should_swap = false;
-                
-                /* Primary sort: artifacts first */
-                if (objects[i].is_artifact != objects[j].is_artifact) {
-                    should_swap = objects[j].is_artifact;
+
+                if (a->group != b->group) {
+                    should_swap = (b->group < a->group);
                 }
-                /* Secondary sort: by difficulty (highest first) */
-                else if (objects[i].difficulty != objects[j].difficulty) {
-                    should_swap = objects[j].difficulty > objects[i].difficulty;
+                else {
+                    switch (a->group) {
+                    case LOOK_GROUP_ARTIFACT:
+                    case LOOK_GROUP_WEAPON:
+                    case LOOK_GROUP_ARMOUR:
+                        if (b->difficulty > a->difficulty)
+                            should_swap = true;
+                        else if ((b->difficulty == a->difficulty) && (b->level > a->level))
+                            should_swap = true;
+                        else if ((b->difficulty == a->difficulty) && (b->level == a->level)
+                                 && (b->distance < a->distance))
+                            should_swap = true;
+                        else if ((b->difficulty == a->difficulty) && (b->level == a->level)
+                                 && (b->distance == a->distance) && (b->original_index < a->original_index))
+                            should_swap = true;
+                        break;
+
+                    case LOOK_GROUP_CONSUMABLE:
+                    case LOOK_GROUP_OTHER:
+                        if (b->level > a->level)
+                            should_swap = true;
+                        else if ((b->level == a->level) && (b->difficulty > a->difficulty))
+                            should_swap = true;
+                        else if ((b->level == a->level) && (b->difficulty == a->difficulty)
+                                 && (b->distance < a->distance))
+                            should_swap = true;
+                        else if ((b->level == a->level) && (b->difficulty == a->difficulty)
+                                 && (b->distance == a->distance) && (b->original_index < a->original_index))
+                            should_swap = true;
+                        break;
+                    }
                 }
-                
+
                 if (should_swap) {
                     sorted_object temp = objects[i];
                     objects[i] = objects[j];
@@ -14135,29 +14326,22 @@ void show_unified_sidebar(unified_look_state* state)
                 }
             }
         }
-        
+
+        int group_display_counts[LOOK_GROUP_COUNT] = {0};
         int object_start = (state->show_monsters) ? monster_count : 0;
         for (i = 0; i < valid_objects && line < max_display_line; i++)
         {
-            object_type* o_ptr = objects[i].o_ptr;
+            sorted_object* entry = &objects[i];
+            object_type* o_ptr = entry->o_ptr;
             char o_name[60];
 
-            /* Generate object name with stats but without articles (false, 1) */
-            object_desc(o_name, sizeof(o_name), o_ptr, false, 1);
+            if (state->limit_objects_top_five && group_display_counts[entry->group] >= 5)
+                continue;
 
-            /* Add difficulty indicator for artifacts */
-            if (objects[i].is_artifact) {
-                char temp_name[60];
-                my_strcpy(temp_name, o_name, sizeof(temp_name));
-                snprintf(o_name, sizeof(o_name), "%s â˜…", temp_name);
-            }
+            group_display_counts[entry->group]++;
 
-            /* BIGTILE FIX: If using bigtile and object name length is odd, add space to make it even */
-            int o_name_len = strlen(o_name);
-            if (use_bigtile && (o_name_len % 2 == 1) && (o_name_len + 1 < sizeof(o_name))) {
-                strcat(o_name, " ");
-                log_debug("BIGTILE FIX: Added space to object name '%s', new length=%d", o_name, (int)strlen(o_name));
-            }
+            /* Generate object name with stats but without articles (mode 4) */
+            object_desc(o_name, sizeof(o_name), o_ptr, false, 4);
 
             entity_char[0] = object_char(o_ptr);
 
@@ -14178,19 +14362,17 @@ void show_unified_sidebar(unified_look_state* state)
             if (weight_col < health_col) weight_col = health_col;
 
             char display_name[128];
-            my_strcpy(display_name, o_name, sizeof(display_name));
-            int final_name_len = (int)strlen(display_name);
-
             int gap_to_weight = weight_col - name_col;
             int max_name_len = (gap_to_weight > 1) ? gap_to_weight - 1 : 1;
             if (max_name_len < 1) max_name_len = 1;
             if (max_name_len > (int)sizeof(display_name) - 1) max_name_len = (int)sizeof(display_name) - 1;
 
-            if (final_name_len > max_name_len)
-            {
-                display_name[max_name_len] = '\0';
-                final_name_len = max_name_len;
-            }
+            sidebar_compact_name(o_name, max_name_len, display_name, sizeof(display_name));
+            int final_name_len = (int)strlen(display_name);
+            int original_name_len = (int)strlen(o_name);
+            bool shortened = (original_name_len != final_name_len) || (original_name_len > max_name_len);
+            log_debug("sidebar object: idx=%d name='%s' compact='%s' orig_len=%d compact_len=%d max_len=%d gap=%d weight_col=%d name_col=%d weight_len=%d shortened=%d",
+                entry->o_idx, o_name, display_name, original_name_len, final_name_len, max_name_len, gap_to_weight, weight_col, name_col, weight_len, shortened ? 1 : 0);
 
             if (use_bigtile && (final_name_len % 2 == 1) && (final_name_len < max_name_len) && (final_name_len + 1 < (int)sizeof(display_name)))
             {
@@ -14198,6 +14380,37 @@ void show_unified_sidebar(unified_look_state* state)
                 display_name[final_name_len] = '\0';
             }
 
+            int row_index = line;
+            if (row_index < 0) row_index = 0;
+            if (row_index >= prev_array_capacity) row_index = prev_array_capacity - 1;
+
+            int old_name_len = prev_name_len[row_index];
+            if (old_name_len > final_name_len)
+            {
+                int diff = old_name_len - final_name_len;
+                if (diff > 0)
+                {
+                    char blank[128];
+                    if (diff >= (int)sizeof(blank)) diff = (int)sizeof(blank) - 1;
+                    memset(blank, ' ', diff);
+                    blank[diff] = '\0';
+                    Term_putstr(name_col + final_name_len, line, diff, TERM_WHITE, blank);
+                }
+            }
+
+            int old_weight_len = prev_weight_len[row_index];
+            if (old_weight_len > weight_len)
+            {
+                int diff = old_weight_len - weight_len;
+                if (diff > 0)
+                {
+                    char blank[32];
+                    if (diff >= (int)sizeof(blank)) diff = (int)sizeof(blank) - 1;
+                    memset(blank, ' ', diff);
+                    blank[diff] = '\0';
+                    Term_putstr(weight_col + weight_len, line, diff, TERM_WHITE, blank);
+                }
+            }
 
             bool highlight_this_object = (state->in_sidebar_mode && state->selected_entity == (object_start + object_count));
 
@@ -14206,39 +14419,48 @@ void show_unified_sidebar(unified_look_state* state)
 
             if (highlight_this_object)
             {
-                log_trace("Highlighting object %d at (%d,%d)", object_start + object_count, objects[i].y, objects[i].x);
+                log_trace("Highlighting object %d at (%d,%d)", object_start + object_count, entry->y, entry->x);
 
-                c_put_str(object_attr(o_ptr), entity_char, line, sidebar_col + 1);
+                Term_erase(pictogram_col, line, 2);
                 if (use_bigtile)
                 {
                     Term_putch(sidebar_col + 2, line, 255, -1);
                 }
 
+                c_put_str(object_attr(o_ptr), entity_char, line, sidebar_col + 1);
                 Term_putstr(name_col, line, final_name_len, name_attr, display_name);
                 Term_putstr(weight_col, line, weight_len, weight_attr, weight_text);
 
-                /* Update highlighted position and cursor */
-                state->highlighted_y = objects[i].y;
-                state->highlighted_x = objects[i].x;
+                state->highlighted_y = entry->y;
+                state->highlighted_x = entry->x;
                 state->highlighted_entity_type = 2; /* Object */
-                state->cursor_y = objects[i].y;
-                state->cursor_x = objects[i].x;
-                highlight_entity_on_map_type(objects[i].y, objects[i].x, true, 2); /* Prefer object display */
+                state->cursor_y = entry->y;
+                state->cursor_x = entry->x;
+                highlight_entity_on_map_type(entry->y, entry->x, true, 2); /* Prefer object display */
             }
             else
             {
-                /* Normal display */
-                c_put_str(object_attr(o_ptr), entity_char, line, sidebar_col + 1);
+                Term_erase(pictogram_col, line, 2);
                 if (use_bigtile)
                 {
                     Term_putch(sidebar_col + 2, line, 255, -1);
                 }
+                c_put_str(object_attr(o_ptr), entity_char, line, sidebar_col + 1);
                 Term_putstr(name_col, line, final_name_len, name_attr, display_name);
                 Term_putstr(weight_col, line, weight_len, weight_attr, weight_text);
             }
 
+            prev_name_len[row_index] = final_name_len;
+            prev_weight_len[row_index] = weight_len;
+
             line++;
             object_count++;
+        for (int idx = line; idx < prev_array_capacity && idx <= previous_line_count; ++idx)
+        {
+            prev_name_len[idx] = 0;
+            prev_weight_len[idx] = 0;
+        }
+
         }
     }
 
@@ -14258,3 +14480,4 @@ void show_unified_sidebar(unified_look_state* state)
     previous_line_count = current_line_count;
     log_trace("show_unified_sidebar: function complete, set previous_line_count=%d", previous_line_count);
 }
+

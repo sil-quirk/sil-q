@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "supplies.h"
+#include <ctype.h>
 #define ENHANCED_MAX_LIST 80
 #include <stddef.h>
 static bool inventory_menu_include_equip = false;
@@ -540,6 +541,184 @@ void strip_name(char* buf, int k_idx)
  *   2 -- Amulet of Death [1,+3] <+2>
  *   3 -- Rings of Death [1,+3] <+2> {nifty}
  */
+static void object_desc_trim_spaces(char* s)
+{
+    if (!s) return;
+
+    char* start = s;
+    while (*start && isspace((unsigned char)*start))
+        ++start;
+
+    if (start != s)
+        memmove(s, start, strlen(start) + 1);
+
+    size_t len = strlen(s);
+    while (len > 0 && isspace((unsigned char)s[len - 1]))
+        s[--len] = '\0';
+}
+
+static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* o_ptr, bool apply_rules)
+{
+    if (!buf) return;
+
+    char base[256];
+    char stats[256];
+    base[0] = '\0';
+    stats[0] = '\0';
+
+    size_t len = strlen(buf);
+    size_t stats_idx = len;
+    for (size_t i = 0; i < len; ++i)
+    {
+        char c = buf[i];
+        if (c == '(' || c == '[' || c == '<' || c == '{')
+        {
+            stats_idx = i;
+            break;
+        }
+    }
+
+    if (stats_idx < len)
+    {
+        strnfmt(base, sizeof(base), "%.*s", (int)stats_idx, buf);
+        my_strcpy(stats, buf + stats_idx, sizeof(stats));
+    }
+    else
+    {
+        my_strcpy(base, buf, sizeof(base));
+    }
+
+    object_desc_trim_spaces(base);
+
+    if (!apply_rules)
+    {
+        char rebuilt[256];
+        rebuilt[0] = '\0';
+        my_strcpy(rebuilt, base, sizeof(rebuilt));
+        if (stats[0])
+        {
+            if (rebuilt[0])
+                my_strcat(rebuilt, " ", sizeof(rebuilt));
+            my_strcat(rebuilt, stats, sizeof(rebuilt));
+        }
+        object_desc_trim_spaces(rebuilt);
+        my_strcpy(buf, rebuilt, max);
+        return;
+    }
+
+    char lower[256];
+    size_t base_len = strlen(base);
+    for (size_t i = 0; i < base_len && i < sizeof(lower) - 1; ++i)
+        lower[i] = (char)tolower((unsigned char)base[i]);
+    lower[base_len] = '\0';
+
+    char* last = NULL;
+    for (char* search = lower; (search = strstr(search, " of ")) != NULL; ++search)
+        last = search;
+
+    char first_part[256];
+    char second_part[256];
+    first_part[0] = '\0';
+    second_part[0] = '\0';
+
+    if (last)
+    {
+        size_t index = (size_t)(last - lower);
+        strnfmt(first_part, sizeof(first_part), "%.*s", (int)index, base);
+        my_strcpy(second_part, base + index + 4, sizeof(second_part));
+    }
+    else
+    {
+        my_strcpy(first_part, base, sizeof(first_part));
+    }
+
+    object_desc_trim_spaces(first_part);
+    object_desc_trim_spaces(second_part);
+
+    char short_first[128];
+    short_first[0] = '\0';
+    if (first_part[0])
+    {
+        char* last_word = first_part;
+        for (char* p = first_part; *p; ++p)
+        {
+            if (isspace((unsigned char)*p))
+            {
+                while (isspace((unsigned char)*(p + 1)))
+                    ++p;
+                if (*(p + 1))
+                    last_word = p + 1;
+            }
+        }
+        my_strcpy(short_first, last_word, sizeof(short_first));
+        object_desc_trim_spaces(short_first);
+    }
+
+    char cleaned_second[256];
+    cleaned_second[0] = '\0';
+    const char* s = second_part;
+    while (s && *s)
+    {
+        while (isspace((unsigned char)*s))
+            ++s;
+        if (!*s)
+            break;
+
+        const char* token_start = s;
+        while (*s && !isspace((unsigned char)*s))
+            ++s;
+        size_t token_len = (size_t)(s - token_start);
+        if (!token_len)
+            continue;
+
+        char token[64];
+        strnfmt(token, sizeof(token), "%.*s", (int)token_len, token_start);
+
+        char token_lower[64];
+        size_t tok_len = strlen(token);
+        for (size_t k = 0; k < tok_len && k < sizeof(token_lower) - 1; ++k)
+            token_lower[k] = (char)tolower((unsigned char)token[k]);
+        token_lower[tok_len] = '\0';
+
+        if (!strcmp(token_lower, "of") || !strcmp(token_lower, "a") || !strcmp(token_lower, "the"))
+            continue;
+
+        if (cleaned_second[0])
+            my_strcat(cleaned_second, " ", sizeof(cleaned_second));
+        my_strcat(cleaned_second, token, sizeof(cleaned_second));
+    }
+
+    char name_part[256];
+    name_part[0] = '\0';
+    if (short_first[0])
+        my_strcpy(name_part, short_first, sizeof(name_part));
+
+    if (cleaned_second[0])
+    {
+        if (name_part[0])
+            my_strcat(name_part, " ", sizeof(name_part));
+        my_strcat(name_part, cleaned_second, sizeof(name_part));
+    }
+
+    if (!name_part[0])
+        my_strcpy(name_part, base, sizeof(name_part));
+
+    object_desc_trim_spaces(name_part);
+
+    char rebuilt[256];
+    rebuilt[0] = '\0';
+    my_strcpy(rebuilt, name_part, sizeof(rebuilt));
+    if (stats[0])
+    {
+        if (rebuilt[0])
+            my_strcat(rebuilt, " ", sizeof(rebuilt));
+        my_strcat(rebuilt, stats, sizeof(rebuilt));
+    }
+
+    object_desc_trim_spaces(rebuilt);
+    my_strcpy(buf, rebuilt, max);
+}
+
 void object_desc(
     char* buf, size_t max, const object_type* o_ptr, int pref, int mode)
 {
@@ -1301,6 +1480,12 @@ void object_desc(
     }
 
 object_desc_done:
+
+    if ((mode == 4) && !pref)
+    {
+        bool apply_rules = !artefact_p(o_ptr);
+        object_desc_mode4_shorten(tmp_buf, sizeof(tmp_buf), o_ptr, apply_rules);
+    }
 
     /* Terminate */
     *t = '\0';

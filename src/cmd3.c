@@ -2758,6 +2758,56 @@ void do_cmd_look(void)
 /*
  * Unified look command - combines look, scroll, and view functionality
  */
+enum unified_sidebar_object_group {
+    LOOK_GROUP_ARTIFACT = 0,
+    LOOK_GROUP_WEAPON,
+    LOOK_GROUP_ARMOUR,
+    LOOK_GROUP_CONSUMABLE,
+    LOOK_GROUP_OTHER,
+    LOOK_GROUP_COUNT
+};
+
+static int unified_sidebar_object_group(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return LOOK_GROUP_OTHER;
+
+    if (artefact_p(o_ptr))
+        return LOOK_GROUP_ARTIFACT;
+
+    switch (o_ptr->tval)
+    {
+    case TV_HAFTED:
+    case TV_POLEARM:
+    case TV_SWORD:
+    case TV_BOW:
+    case TV_DIGGING:
+    case TV_ARROW:
+        return LOOK_GROUP_WEAPON;
+
+    case TV_BOOTS:
+    case TV_GLOVES:
+    case TV_HELM:
+    case TV_CROWN:
+    case TV_SHIELD:
+    case TV_CLOAK:
+    case TV_SOFT_ARMOR:
+    case TV_MAIL:
+        return LOOK_GROUP_ARMOUR;
+
+    case TV_FOOD:
+        if (o_ptr->sval < SV_FOOD_MIN_FOOD)
+            return LOOK_GROUP_CONSUMABLE;
+        break;
+
+    case TV_POTION:
+    case TV_GEM:
+        return LOOK_GROUP_CONSUMABLE;
+    }
+
+    return LOOK_GROUP_OTHER;
+}
+
 static int unified_look_count_visible_entities(unified_look_state* state)
 {
     int total_entities = 0;
@@ -2780,14 +2830,26 @@ static int unified_look_count_visible_entities(unified_look_state* state)
 
     if (state->show_objects)
     {
+        int group_counts[LOOK_GROUP_COUNT] = {0};
+
         get_sorted_target_list(TARGET_LIST_OBJECT, 0);
 
         for (i = 0; i < temp_n; i++)
         {
             int o_idx = cave_o_idx[temp_y[i]][temp_x[i]];
+            if (!o_idx)
+                continue;
 
-            if (!o_idx) continue;
+            object_type* o_ptr = &o_list[o_idx];
 
+            if ((o_ptr->tval == TV_ARROW) && (o_ptr->number < 10))
+                continue;
+
+            int group = unified_sidebar_object_group(o_ptr);
+            if (state->limit_objects_top_five && group_counts[group] >= 5)
+                continue;
+
+            group_counts[group]++;
             total_entities++;
         }
     }
@@ -2798,7 +2860,7 @@ static int unified_look_count_visible_entities(unified_look_state* state)
 void do_cmd_unified_look(void)
 {
     unified_look_state state;
-    int y, x, i;
+    int y, x;
     char query;
     bool done = false;
     bool need_redraw = true;
@@ -2825,6 +2887,7 @@ void do_cmd_unified_look(void)
     state.selected_entity = -1;
     state.show_monsters = true;
     state.show_objects = true;
+    state.limit_objects_top_five = false;
     state.display_mode = 0; /* 0 = manual, 1 = entity */
     state.highlighted_y = -1;
     state.highlighted_x = -1;
@@ -2932,17 +2995,17 @@ void do_cmd_unified_look(void)
                     if (state.look_mode == 0)
                     {
 #ifdef STEAMDECK_SUPPORT
-                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Pan [ESC]", 0, 0);
+                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [T]=Top5 [s]=Pan [ESC]", 0, 0);
 #else
-                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Pan [ESC]", 0, 0);
+                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [T]=Top5 [s]=Pan [ESC]", 0, 0);
 #endif
                     }
                     else
                     {
 #ifdef STEAMDECK_SUPPORT
-                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Curs [ESC]", 0, 0);
+                        prt("[i/e]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [T]=Top5 [s]=Curs [ESC]", 0, 0);
 #else
-                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [s]=Curs [ESC]", 0, 0);
+                        prt("[Tab/q]=Select [Space]=Exam [t]=Target [l]=Disp [m]=Monst [o]=Obj [T]=Top5 [s]=Curs [ESC]", 0, 0);
 #endif
                     }
                 }
@@ -2973,10 +3036,29 @@ void do_cmd_unified_look(void)
         log_trace("Processing key: '%c' (%d), backtick is %d", query, (int)query, (int)'`');
         switch (query)
         {
+            case 'T':
+            {
+                state.limit_objects_top_five = !state.limit_objects_top_five;
+                log_trace("'T' key pressed - top five toggle now %d", state.limit_objects_top_five ? 1 : 0);
+
+                state.selected_entity = -1;
+                state.in_sidebar_mode = false;
+                if (state.highlighted_y >= 0 && state.highlighted_x >= 0)
+                {
+                    highlight_entity_on_map(state.highlighted_y, state.highlighted_x, false);
+                    state.highlighted_y = -1;
+                    state.highlighted_x = -1;
+                }
+
+                handle_stuff();
+                need_redraw = true;
+                continue;
+            }
+
             /* Handle capital letters - most are now ignored since we use arrows for scrolling */
             case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G':
             case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N':
-            case 'O': case 'P': case 'R': case 'S': case 'T': case 'U':
+            case 'O': case 'P': case 'R': case 'S': case 'U':
             case 'V': case 'W': case 'X': case 'Y': case 'Z':
             {
                 /* Capital letters are now ignored - use 'l' to switch to panel scroll mode */

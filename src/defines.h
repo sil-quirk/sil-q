@@ -3646,6 +3646,7 @@ typedef struct unified_look_state {
     int cursor_y, cursor_x;           /* Map cursor position */
     int selected_entity;              /* Currently highlighted sidebar entity (-1 if none) */
     bool show_monsters, show_objects; /* Sidebar visibility toggles */
+    bool limit_objects_top_five;      /* Limit object groups to top five entries */
     int display_mode;                 /* Navigation mode (0=manual, 1=entity) */
     int highlighted_y, highlighted_x; /* Currently highlighted entity coordinates */
     int highlighted_entity_type;      /* Type of highlighted entity: 1=monster, 2=object, 0=none */
