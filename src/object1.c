@@ -1568,14 +1568,14 @@ void object_desc(
 
 object_desc_done:
 
+    /* Terminate */
+    *t = '\0';
+
     if ((mode == 4) && !pref)
     {
         bool apply_rules = !artefact_p(o_ptr);
         object_desc_mode4_shorten(tmp_buf, sizeof(tmp_buf), o_ptr, apply_rules);
     }
-
-    /* Terminate */
-    *t = '\0';
 
     /* Copy the string over */
     my_strcpy(buf, tmp_buf, max);
