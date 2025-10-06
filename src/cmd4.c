@@ -14425,6 +14425,8 @@ void show_unified_sidebar(unified_look_state* state)
             sorted_object* entry = &objects[i];
             object_type* o_ptr = entry->o_ptr;
             char o_name[60];
+            char name_source[80];
+            byte base_color = TERM_WHITE;
 
             if (state->limit_objects_top_five && group_display_counts[entry->group] >= 5)
                 continue;
@@ -14433,6 +14435,19 @@ void show_unified_sidebar(unified_look_state* state)
 
             /* Generate object name with stats but without articles (mode 4) */
             object_desc(o_name, sizeof(o_name), o_ptr, false, 4);
+
+            my_strcpy(name_source, o_name, sizeof(name_source));
+            if (entry->is_artifact)
+            {
+                size_t len = strlen(name_source);
+                if (len + 1 < sizeof(name_source))
+                {
+                    memmove(name_source + 1, name_source, len + 1);
+                    name_source[0] = '*';
+                }
+            }
+
+            base_color = weapon_glows(o_ptr) ? TERM_L_BLUE : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
 
             entity_char[0] = object_char(o_ptr);
 
@@ -14458,14 +14473,14 @@ void show_unified_sidebar(unified_look_state* state)
             if (max_name_len < 1) max_name_len = 1;
             if (max_name_len > (int)sizeof(display_name) - 1) max_name_len = (int)sizeof(display_name) - 1;
 
-            sidebar_compact_name(o_name, max_name_len, display_name, sizeof(display_name));
+            sidebar_compact_name(name_source, max_name_len, display_name, sizeof(display_name));
             int final_name_len = (int)strlen(display_name);
-            int original_name_len = (int)strlen(o_name);
+            int original_name_len = (int)strlen(name_source);
             bool shortened = (original_name_len != final_name_len) || (original_name_len > max_name_len);
-            log_debug("sidebar object: idx=%d name='%s' compact='%s' orig_len=%d compact_len=%d max_len=%d gap=%d weight_col=%d name_col=%d weight_len=%d shortened=%d",
-                entry->o_idx, o_name, display_name, original_name_len, final_name_len, max_name_len, gap_to_weight, weight_col, name_col, weight_len, shortened ? 1 : 0);
+            log_debug("sidebar object: idx=%d name='%s' compact='%s' color=%d orig_len=%d compact_len=%d max_len=%d gap=%d weight_col=%d name_col=%d weight_len=%d shortened=%d",
+                entry->o_idx, name_source, display_name, base_color, original_name_len, final_name_len, max_name_len, gap_to_weight, weight_col, name_col, weight_len, shortened ? 1 : 0);
 
-            if (use_bigtile && (final_name_len % 2 == 1) && (final_name_len < max_name_len) && (final_name_len + 1 < (int)sizeof(display_name)))
+            if (use_bigtile && (final_name_len % 2 == 1) && (final_name_len < gap_to_weight) && (final_name_len + 1 < (int)sizeof(display_name)))
             {
                 display_name[final_name_len++] = ' ';
                 display_name[final_name_len] = '\0';
@@ -14505,8 +14520,8 @@ void show_unified_sidebar(unified_look_state* state)
 
             bool highlight_this_object = (state->in_sidebar_mode && state->selected_entity == (object_start + object_count));
 
-            byte name_attr = highlight_this_object ? TERM_L_BLUE : TERM_WHITE;
-            byte weight_attr = highlight_this_object ? TERM_L_BLUE : TERM_L_UMBER;
+            byte name_attr = highlight_this_object ? TERM_L_BLUE : base_color;
+            byte weight_attr = highlight_this_object ? TERM_L_BLUE : base_color;
 
             if (highlight_this_object)
             {

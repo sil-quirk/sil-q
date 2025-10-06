@@ -561,16 +561,40 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
 {
     if (!buf) return;
 
-    char base[256];
-    char stats[256];
-    base[0] = '\0';
-    stats[0] = '\0';
+    char source[256];
+    size_t src_idx = 0;
+    bool insert_space = false;
 
-    size_t len = strlen(buf);
+    for (size_t i = 0; buf[i] && src_idx < sizeof(source) - 1; ++i)
+    {
+        unsigned char c = (unsigned char)buf[i];
+
+        if (c < 32)
+        {
+            if (src_idx > 0 && source[src_idx - 1] != ' ')
+                insert_space = true;
+            continue;
+        }
+
+        if (insert_space && c != ' ' && src_idx < sizeof(source) - 1)
+            source[src_idx++] = ' ';
+
+        insert_space = false;
+
+        source[src_idx++] = (char)c;
+    }
+    source[src_idx] = '\0';
+
+    my_strcpy(buf, source, max);
+
+    size_t len = strlen(source);
+    if (!len)
+        return;
+
     size_t stats_idx = len;
     for (size_t i = 0; i < len; ++i)
     {
-        char c = buf[i];
+        char c = source[i];
         if (c == '(' || c == '[' || c == '<' || c == '{')
         {
             stats_idx = i;
@@ -578,31 +602,70 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
         }
     }
 
+    char base[256];
+    char stats[256];
+    base[0] = '\0';
+    stats[0] = '\0';
+
     if (stats_idx < len)
     {
-        strnfmt(base, sizeof(base), "%.*s", (int)stats_idx, buf);
-        my_strcpy(stats, buf + stats_idx, sizeof(stats));
+        strnfmt(base, sizeof(base), "%.*s", (int)stats_idx, source);
+        my_strcpy(stats, source + stats_idx, sizeof(stats));
     }
     else
     {
-        my_strcpy(base, buf, sizeof(base));
+        my_strcpy(base, source, sizeof(base));
     }
 
     object_desc_trim_spaces(base);
+    object_desc_trim_spaces(stats);
+
+    if (!base[0])
+    {
+        my_strcpy(buf, stats, max);
+        return;
+    }
+
+    char trailing_suffix[64];
+    trailing_suffix[0] = '\0';
+
+    if (apply_rules)
+    {
+        size_t base_len_tmp = strlen(base);
+        size_t idx = base_len_tmp;
+
+        while (idx > 0 && isspace((unsigned char)base[idx - 1]))
+            --idx;
+
+        size_t digit_start = idx;
+        while (digit_start > 0 && isdigit((unsigned char)base[digit_start - 1]))
+            --digit_start;
+
+        if (digit_start < idx)
+        {
+            size_t copy_len = idx - digit_start;
+            if (copy_len < sizeof(trailing_suffix))
+            {
+                strnfmt(trailing_suffix, sizeof(trailing_suffix), "%.*s", (int)copy_len, base + digit_start);
+                base[digit_start] = '\0';
+                object_desc_trim_spaces(base);
+            }
+        }
+    }
 
     if (!apply_rules)
     {
-        char rebuilt[256];
-        rebuilt[0] = '\0';
-        my_strcpy(rebuilt, base, sizeof(rebuilt));
+        char rebuilt_basic[256];
+        rebuilt_basic[0] = '\0';
+        my_strcpy(rebuilt_basic, base, sizeof(rebuilt_basic));
         if (stats[0])
         {
-            if (rebuilt[0])
-                my_strcat(rebuilt, " ", sizeof(rebuilt));
-            my_strcat(rebuilt, stats, sizeof(rebuilt));
+            if (rebuilt_basic[0])
+                my_strcat(rebuilt_basic, " ", sizeof(rebuilt_basic));
+            my_strcat(rebuilt_basic, stats, sizeof(rebuilt_basic));
         }
-        object_desc_trim_spaces(rebuilt);
-        my_strcpy(buf, rebuilt, max);
+        object_desc_trim_spaces(rebuilt_basic);
+        my_strcpy(buf, rebuilt_basic, max);
         return;
     }
 
@@ -637,21 +700,39 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
 
     char short_first[128];
     short_first[0] = '\0';
+
     if (first_part[0])
     {
-        char* last_word = first_part;
-        for (char* p = first_part; *p; ++p)
+        char* cursor = first_part;
+        char* chosen = first_part;
+        size_t chosen_len = strlen(first_part);
+
+        while (*cursor)
         {
-            if (isspace((unsigned char)*p))
+            while (*cursor && isspace((unsigned char)*cursor))
+                ++cursor;
+            if (!*cursor)
+                break;
+
+            char* word_start = cursor;
+            bool has_alpha = false;
+            while (*cursor && !isspace((unsigned char)*cursor))
             {
-                while (isspace((unsigned char)*(p + 1)))
-                    ++p;
-                if (*(p + 1))
-                    last_word = p + 1;
+                if (isalpha((unsigned char)*cursor))
+                    has_alpha = true;
+                ++cursor;
+            }
+
+            size_t word_len = (size_t)(cursor - word_start);
+            if (has_alpha)
+            {
+                chosen = word_start;
+                chosen_len = word_len;
             }
         }
-        my_strcpy(short_first, last_word, sizeof(short_first));
-        object_desc_trim_spaces(short_first);
+
+        if (chosen_len > 0)
+            strnfmt(short_first, sizeof(short_first), "%.*s", (int)chosen_len, chosen);
     }
 
     char cleaned_second[256];
@@ -703,6 +784,13 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
     if (!name_part[0])
         my_strcpy(name_part, base, sizeof(name_part));
 
+    if (trailing_suffix[0])
+    {
+        if (name_part[0])
+            my_strcat(name_part, " ", sizeof(name_part));
+        my_strcat(name_part, trailing_suffix, sizeof(name_part));
+    }
+
     object_desc_trim_spaces(name_part);
 
     char rebuilt[256];
@@ -718,7 +806,6 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
     object_desc_trim_spaces(rebuilt);
     my_strcpy(buf, rebuilt, max);
 }
-
 void object_desc(
     char* buf, size_t max, const object_type* o_ptr, int pref, int mode)
 {
@@ -5500,6 +5587,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
 
 #undef MAX_COMPARE_LINES
 #undef MAX_IDENT_ENTRIES
+
 
 
 
