@@ -58,6 +58,7 @@ add_executable(sil-more
     src/save.c
     src/spells1.c
     src/spells2.c
+    src/supplies.c
     src/squelch.c
     src/tables.c
     src/use-obj.c

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(log)
+project(log LANGUAGES C)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_library(log OBJECT)
