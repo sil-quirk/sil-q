@@ -13908,28 +13908,119 @@ static void sidebar_compact_name(const char* src, int max_len, char* dest, size_
 
     int base_space = max_len - stats_len;
     if (base_space < 0) base_space = 0;
-    int copy_len = base_space;
-    if (copy_len > stats_pos)
-        copy_len = stats_pos;
-    if (copy_len < 0)
-        copy_len = 0;
 
-    char base_slice[128];
-    base_slice[0] = 0;
-    if (copy_len > 0)
+    char base_full[128];
+    char base_compact[128];
+    base_full[0] = 0;
+    base_compact[0] = 0;
+
+    if (stats_pos > 0)
     {
-        int base_offset = stats_pos - copy_len;
-        if (base_offset < 0)
-            base_offset = 0;
-        const char* base_start = src + base_offset;
-        strnfmt(base_slice, sizeof(base_slice), "%.*s", copy_len, base_start);
-        sidebar_trim_spaces(base_slice);
+        strnfmt(base_full, sizeof(base_full), "%.*s", stats_pos, src);
+        sidebar_trim_spaces(base_full);
+    }
+
+    if (base_space > 0 && base_full[0])
+    {
+        int base_full_len = (int)strlen(base_full);
+        if (base_full_len <= base_space)
+        {
+            my_strcpy(base_compact, base_full, sizeof(base_compact));
+        }
+        else
+        {
+            const char* word_start[16];
+            int word_len[16];
+            int word_count = 0;
+            const char* p = base_full;
+
+            while (*p && word_count < 16)
+            {
+                while (*p && isspace((unsigned char)*p))
+                    ++p;
+                if (!*p)
+                    break;
+
+                word_start[word_count] = p;
+                const char* q = p;
+                while (*q && !isspace((unsigned char)*q))
+                    ++q;
+                word_len[word_count] = (int)(q - p);
+                ++word_count;
+                p = q;
+            }
+
+            int remaining = base_space;
+            bool first_word = true;
+
+            for (int i = 0; i < word_count && remaining > 0; ++i)
+            {
+                int needed_space = first_word ? 0 : 1;
+                if (remaining <= needed_space)
+                    break;
+
+                if (!first_word)
+                {
+                    my_strcat(base_compact, " ", sizeof(base_compact));
+                    --remaining;
+                }
+
+                int take = word_len[i];
+                if (take > remaining)
+                {
+                    if (first_word)
+                    {
+                        take = remaining;
+                        if (take > 0)
+                        {
+                            char temp[64];
+                            strnfmt(temp, sizeof(temp), "%.*s", take, word_start[i]);
+                            my_strcat(base_compact, temp, sizeof(base_compact));
+                            remaining -= take;
+                        }
+                    }
+                    else if (remaining > 1)
+                    {
+                        char temp[64];
+                        int partial = remaining;
+                        strnfmt(temp, sizeof(temp), "%.*s", partial, word_start[i]);
+                        my_strcat(base_compact, temp, sizeof(base_compact));
+                        remaining = 0;
+                    }
+                    else
+                    {
+                        size_t len = strlen(base_compact);
+                        if (len && base_compact[len - 1] == ' ')
+                            base_compact[len - 1] = '\0';
+                        break;
+                    }
+                }
+                else
+                {
+                    char temp[64];
+                    strnfmt(temp, sizeof(temp), "%.*s", take, word_start[i]);
+                    my_strcat(base_compact, temp, sizeof(base_compact));
+                    remaining -= take;
+                }
+
+                first_word = false;
+            }
+
+            sidebar_trim_spaces(base_compact);
+
+            if (!base_compact[0] && base_space > 0)
+            {
+                int take = (base_space < base_full_len) ? base_space : base_full_len;
+                strnfmt(base_compact, sizeof(base_compact), "%.*s", take, base_full);
+                sidebar_trim_spaces(base_compact);
+            }
+        }
     }
 
     dest[0] = 0;
-    if (base_slice[0])
+    if (base_compact[0])
     {
-        my_strcpy(dest, base_slice, dest_sz);
+        my_strcpy(dest, base_compact, dest_sz);
         size_t len = strlen(dest);
         if (len && dest[len - 1] != ' ')
             my_strcat(dest, " ", dest_sz);
@@ -14480,4 +14571,5 @@ void show_unified_sidebar(unified_look_state* state)
     previous_line_count = current_line_count;
     log_trace("show_unified_sidebar: function complete, set previous_line_count=%d", previous_line_count);
 }
+
 
