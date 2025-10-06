@@ -6134,7 +6134,11 @@ void print_story(int last_parts, bool fade_in)
         {
             if (!print_paragraph_fade(text, row, indent, wrap_width))
             {
-                show_page_instantly = true; /* Esc was pressed during fade */
+                /* Esc was pressed during fade - enable fast-forward for all remaining content */
+                show_page_instantly = true;
+                fast_forward = true;
+                fade_in = false;
+                log_debug("User pressed ESC during fade - enabling fast forward mode");
             }
         }
         else
