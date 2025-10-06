@@ -628,6 +628,8 @@ extern void do_cmd_escape(int);
 extern void do_cmd_suicide(void);
 extern void do_cmd_save_game(void);
 extern void show_scores(bool);
+extern void show_scores_interactive(bool);
+extern void show_scores_interactive_highlight(bool, const high_score*);
 extern void comma_number(char* output, int number);
 extern void atomonth(int number, char* output);
 extern void display_single_score(
@@ -636,8 +638,11 @@ extern int highscore_dead(char* name);
 extern int highscore_count();
 extern void display_scores(int from, int to);
 extern void display_scores_short(int from, int to);
+extern int collect_high_scores(high_score* out, int capacity, bool sort_by_score);
 extern void close_game(void);
 extern void exit_game_panic(void);
+extern errr create_score(high_score* the_score);
+extern int score_points(const high_score* score);
 #ifdef HANDLE_SIGNALS
 extern void (*(*signal_aux)(int, void (*)(int)))(int);
 #endif

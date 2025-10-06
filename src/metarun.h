@@ -38,11 +38,16 @@
 /* ------------------------------------------------------------------ */
 
 /* Version header for meta.raw file */
+#define METARUN_FILE_VERSION_MAJOR 0
+#define METARUN_FILE_VERSION_MINOR 8
+#define METARUN_FILE_VERSION_PATCH 6
+#define METARUN_FILE_VERSION_EXTRA 0
+
 typedef struct meta_file_header
 {
     byte version_major;  /* Major version (0) */
     byte version_minor;  /* Minor version (8) */
-    byte version_patch;  /* Patch version (5) */
+    byte version_patch;  /* Patch version (6) */
     byte version_extra;  /* Extra version (0) */
     u32b entry_count;    /* Number of metarun entries in file */
 } meta_file_header;
@@ -70,6 +75,9 @@ typedef struct metarun
     byte deaths;        /* how many characters have died so far       */
     byte silmarils;     /* Silmarils recovered so far                 */
     u32b last_played;   /* time() of the most recent character        */
+
+    u32b score;         /* aggregate campaign score                    */
+    u32b best_run_score;/* best individual run score                   */
 
     u32b curses_lo;     /* curse IDs  0–15  – 2 bits each (max 4) */
     u32b curses_hi;     /* curse IDs 16–31  – 2 bits each (max 4) */
