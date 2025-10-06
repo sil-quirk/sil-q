@@ -53,15 +53,44 @@ static int popcount32(u32b value)
     return count;
 }
 
+/* Calculate best run score from the high score table
+ * All scores in the score file belong to the current metarun */
+static u32b get_best_run_score_from_highscores(void)
+{
+    #define MAX_SCORES 100
+    high_score scores[MAX_SCORES];
+    int count = collect_high_scores(scores, MAX_SCORES, true);
+    u32b best = 0;
+    
+    for (int i = 0; i < count; i++) {
+        int pts = score_points(&scores[i]);
+        if (pts > 0 && (u32b)pts > best) {
+            best = (u32b)pts;
+        }
+    }
+    
+    #undef MAX_SCORES
+    return best;
+}
+
 static u32b compute_metarun_score(const metarun *m)
 {
     if (!m) return 0;
 
-    s32b total = (s32b)m->best_run_score;
+    /* Calculate best_run_score from high scores on-demand */
+    u32b best_run = get_best_run_score_from_highscores();
+    
+    int quest_count = popcount32(m->completed_quests);
+    
+    s32b total = (s32b)best_run;
     total += (s32b)m->silmarils * 120;
     total -= (s32b)m->deaths * 60;
-    total += (s32b)60 * popcount32(m->completed_quests);
+    total += (s32b)60 * quest_count;
     total -= (s32b)100 * popcount32(m->banned_oaths);
+
+    log_debug("compute_metarun_score: best_run=%u, sils=%d, deaths=%d, quest_count=%d (0x%08X), banned=%d => total=%d",
+              best_run, m->silmarils, m->deaths, quest_count, m->completed_quests, 
+              popcount32(m->banned_oaths), total);
 
     if (total < 0) total = 0;
     return (u32b)total;
@@ -74,7 +103,6 @@ static void refresh_current_metar_score(void)
 
     metar.score = compute_metarun_score(&metar);
     metaruns[current_run].score = metar.score;
-    metaruns[current_run].best_run_score = metar.best_run_score;
 }
 
 static int compare_metarun_indices(const void *a, const void *b)
@@ -747,7 +775,6 @@ errr load_metaruns(bool create_if_missing)
     metar = metaruns[current_run];
     metar.score = compute_metarun_score(&metar);
     metaruns[current_run].score = metar.score;
-    metaruns[current_run].best_run_score = metar.best_run_score;
     log_debug("Final current_run=%d, metar: id=%u, deaths=%u, silmarils=%u",
               current_run, metar.id, metar.deaths, metar.silmarils);
 
@@ -928,14 +955,15 @@ errr save_metaruns(void)
     /* Create backup before saving */
     backup_file(fn);
 
-    log_debug("Before save: current_run=%d, metar: id=%u, deaths=%u, silmarils=%u", 
-              current_run, metar.id, metar.deaths, metar.silmarils);
+    log_debug("Before save: current_run=%d, metar: id=%u, deaths=%u, silmarils=%u, score=%u", 
+              current_run, metar.id, metar.deaths, metar.silmarils, metar.score);
               
     metar.last_played      = current_time;
     metaruns[current_run] = metar;            /* safe: array is valid */
     
-    log_debug("After updating array: metaruns[%d]: id=%u, deaths=%u, silmarils=%u", 
-              current_run, metaruns[current_run].id, metaruns[current_run].deaths, metaruns[current_run].silmarils);
+    log_debug("After updating array: metaruns[%d]: id=%u, deaths=%u, silmarils=%u, score=%u", 
+              current_run, metaruns[current_run].id, metaruns[current_run].deaths, metaruns[current_run].silmarils,
+              metaruns[current_run].score);
 
     /* After backup is created in backup_file(), remove the original so fd_make can succeed */
     fd_kill(fn);
@@ -1690,23 +1718,9 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     bool escaped_with_sils = escaped && (sil_count > 0);
     bool fast_forward = false; // Track if user wants to skip fade effects
 
-    high_score temp_score;
-    int current_score = 0;
-    errr score_err = create_score(&temp_score);
-    if (score_err == 0) {
-        current_score = score_points(&temp_score);
-        if (current_score < 0) current_score = 0;
-        if ((u32b)current_score > metar.best_run_score) {
-            log_debug("Updating best_run_score from %u to %d", (unsigned)metar.best_run_score, current_score);
-            metar.best_run_score = (u32b)current_score;
-        }
-    } else {
-        log_warn("create_score() failed during metarun update (err=%d)", score_err);
-    }
-
-        /* Treat as a death unless Eru intervenes */
-        if (died && !has_gift_eru)
-            metarun_increment_deaths();
+    /* Treat as a death unless Eru intervenes */
+    if (died && !has_gift_eru)
+        metarun_increment_deaths();
 
     /* ------------------------------------------------------------- */
     /* 0. Branch: did we return with Silmarils?                      */
@@ -2353,6 +2367,9 @@ void print_metarun_stats(void)
     int x;
     int term_height, term_width;
 
+    /* Refresh score with current c_info data before displaying */
+    refresh_current_metar_score();
+
     /* Safety check: ensure metarun system is initialized */
     if (current_run < 0 || current_run >= metarun_max) {
         screen_save();
@@ -2397,7 +2414,9 @@ void print_metarun_stats(void)
     snprintf(buf, sizeof buf, "Meta Score : %lu", (unsigned long)metar.score);
     Term_putstr(col, row++, -1, TERM_WHITE, buf);
 
-    snprintf(buf, sizeof buf, "Best Run   : %lu", (unsigned long)metar.best_run_score);
+    /* Calculate best run score from high scores on-demand */
+    u32b best_run = get_best_run_score_from_highscores();
+    snprintf(buf, sizeof buf, "Best Run   : %lu", (unsigned long)best_run);
     Term_putstr(col, row++, -1, TERM_WHITE, buf);
 
     /* Silmarils bar - use dynamic win goal */

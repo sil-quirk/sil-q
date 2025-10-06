@@ -4356,6 +4356,12 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     if (house_index >= 0 && z_info && c_info && house_index < z_info->c_max)
     {
         house_power = c_info[house_index].power;
+        log_trace("calculate_score_breakdown: house_index=%d, house_power=%d (from c_info)", house_index, house_power);
+    }
+    else
+    {
+        log_debug("calculate_score_breakdown: Using default house_power=3 (house_index=%d, z_info=%p, c_info=%p, z_info->c_max=%d)",
+                 house_index, (void*)z_info, (void*)c_info, z_info ? z_info->c_max : -1);
     }
 
     house_power = clampi(house_power, -100, 100);
