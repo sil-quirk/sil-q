@@ -15,6 +15,31 @@ enum {
     MAX_TERM_DATA = 8,
 };
 
+struct config {
+    int main_view_scale;
+    int aux_view_font_size;
+    int margin;
+    bool fullscreen;
+    bool tiles;
+} config = {
+    .aux_view_font_size = 18,
+    .main_view_scale = 1,
+    .margin = 4,
+    .fullscreen = true,
+    .tiles = true,
+};
+
+const struct pane_config pane_config[] = {
+    // On the right
+    {.pane = PANE_INVENTORY, .where = PLACE_RIGHT},
+    {.pane = PANE_WORN, .where = PLACE_RIGHT},
+    {.pane = PANE_INFO, .where = PLACE_RIGHT, .rect.rows = 8},
+    // In the bottom
+    {.pane = PANE_ROLLS, .where = PLACE_BOTTOM, .rect.rows = 4},
+    {.pane = PANE_LOG, .where = PLACE_BOTTOM},
+};
+const int pane_config_count = sizeof(pane_config) / sizeof(struct pane_config);
+
 typedef struct sdl_state {
     SDL_Window* window;
     SDL_Renderer* renderer;
@@ -38,14 +63,104 @@ typedef struct sdl_view {
     int margin_x;
     int margin_y;
     term t;
+    bool term_ready;
 } sdl_view;
 
 sdl_state g_state;
 sdl_view g_views[MAX_TERM_DATA];
 
+static sdl_view* sdl_view_from_term(term* t);
+static void sdl_view_destroy(sdl_view* d);
+static void resize(const SDL_Rect* screen);
+static void sdl_handle_event(sdl_state* st, const SDL_Event* ev);
+static errr callback_sdl_xtra(int n, int v);
+static void draw_cursor(int x, int y, bool big);
+static errr callback_sdl_curs(int x, int y);
+static errr callback_sdl_bigcurs(int x, int y);
+static errr callback_sdl_wipe(int x, int y, int n);
+static errr callback_sdl_text(int x, int y, int n, byte a, cptr s);
+static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* cp,
+                       const byte* tap, const char* tcp);
+static void callback_sdl_nuke();
+static void callback_sdl_init(term* t);
+static errr sdl_view_link_term(sdl_view* d, int term_index);
+static SDL_Texture* sdl_load_ttf_font(const char* font_path, int font_size, int* actual_font_size);
+static void sdl_window_create(int window_width, int window_height, bool fullscreen, bool use_tiles);
+static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font_size, int scale, int margin);
+
 static sdl_view* sdl_view_from_term(term* t)
 {
     return &g_views[(size_t)t->data];
+}
+
+static void sdl_view_destroy(sdl_view* d)
+{
+    if (d->canvas) {
+        SDL_DestroyTexture(d->canvas);
+        d->canvas = NULL;
+    }
+    if (d->font_atlas) {
+        SDL_DestroyTexture(d->font_atlas);
+        d->font_atlas = NULL;
+    }
+}
+
+static void resize(const SDL_Rect* screen)
+{
+    log_warn("resize enter");
+    SDL_Rect panes[MAX_TERM_DATA] = {0};
+    place_panes(pane_config, pane_config_count, panes, screen,
+        config.aux_view_font_size / 2, config.aux_view_font_size, config.margin);
+    for (int i = 0; i < PANE_MAX; i++) {
+        const SDL_Rect* r = &panes[i];
+        log_debug("pane %d is at (%d, %d) size %dx%d", i, r->x, r->y, r->w, r->h);
+    }
+
+    // Check whether after splitting the window the main view is larger than
+    // 80x25. If it isn't, remove panes along the corresponding axis (or axes).
+    {
+        int cell_w = config.main_view_scale * TILE_SIZE / 2;
+        int cell_h = config.main_view_scale * TILE_SIZE;
+        int cols = g_state.system_scale * panes[PANE_MAIN].w / cell_w;
+        int rows = g_state.system_scale * panes[PANE_MAIN].h / cell_h;
+        if (cols < 80) {
+            log_warn("main view too small, %d cols < 80 — removing right panes", cols);
+            for (int i = 0; i < pane_config_count; i++) {
+                if (pane_config[i].where == PLACE_RIGHT)
+                    panes[pane_config[i].pane].w = 0;
+            }
+            panes[PANE_MAIN].w = screen->w;
+        }
+        if (rows < 25) {
+            log_warn("main view too small, %d rows < 25 — removing bottom panes", rows);
+            for (int i = 0; i < pane_config_count; i++) {
+                if (pane_config[i].where == PLACE_BOTTOM)
+                    panes[pane_config[i].pane].w = 0;
+            }
+            panes[PANE_MAIN].h = screen->h;
+        }
+    }
+
+    const char font_path[] = "lib/xtra/font/InputMono-Bold.ttf";
+
+    for (int i = 1; i < MAX_TERM_DATA; i++) {
+        // Always destroy the old pane to prevent its display in cases when we
+        // have removed one of the bars or both of them due to the size
+        // restrictions.
+        sdl_view_destroy(&g_views[i]);
+        if (panes[i].w) {
+            sdl_view_create(&g_views[i], panes[i], font_path, config.aux_view_font_size, 0, config.margin);
+            sdl_view_link_term(&g_views[i], i);
+        }
+    }
+
+    sdl_view_destroy(&g_views[0]);
+    sdl_view_create(&g_views[0], panes[PANE_MAIN], font_path, 0, config.main_view_scale, config.margin);
+    sdl_view_link_term(&g_views[0], 0);
+
+    Term_activate(&g_views[0].t);
+    // Don't strictly need this as `sdl_view_create` already sets this flag.
+    g_state.need_present = true;
 }
 
 static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
@@ -127,52 +242,8 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         }
     } else if (ev->type == SDL_EVENT_WINDOW_RESIZED) {
         log_debug("window resized to %dx%d", ev->window.data1, ev->window.data2);
-        return;
-        // int cols = d->scale * ev->window.data1 / d->cell_w;
-        // int rows = d->scale * ev->window.data2 / d->cell_h;
-        // if (cols != d->cols || rows != d->rows) {
-        //     bool recalc = false;
-        //     if ((d->cols >= 80 && cols < 80) || (d->rows >= 25 && rows < 25)) {
-        //         log_debug("window too small, downscale");
-        //         g_scale = 1;
-        //         recalc = true;
-        //     } else if (g_scale == 1 && cols >= 2 * 80 && rows >= 2 * 25) {
-        //         log_debug("window big enough, upscale");
-        //         g_scale = 2;
-        //         recalc = true;
-        //     }
-        //     if (recalc) {
-        //         d->cell_h = d->scale * g_scale * GLYPH_HEIGHT;
-        //         d->cell_w = d->scale * g_scale * GLYPH_WIDTH;
-        //         sdl_window_load_ttf_font(d, d->cols * d->cell_w);
-        //     }
-        //     cols = d->scale * ev->window.data1 / d->cell_w;
-        //     rows = d->scale * ev->window.data2 / d->cell_h;
-
-        //     log_debug("resized from %dx%d to %dx%d", d->rows, d->cols, rows, cols);
-        //     d->cols = cols;
-        //     d->rows = rows;
-        //     Term_activate(&d->t);
-        //     Term_resize(cols, rows);
-        //     // Term_xtra(TERM_XTRA_FRESH, 0);
-
-        //     // Recreate canvas for new logical size
-        //     if (d->canvas)
-        //         SDL_DestroyTexture(d->canvas);
-        //     d->canvas = SDL_CreateTexture(d->renderer,
-        //         SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET,
-        //         d->cols * d->cell_w, d->rows * d->cell_h);
-        //     if (d->canvas) {
-        //         SDL_SetTextureBlendMode(d->canvas, SDL_BLENDMODE_NONE);
-        //         SDL_SetTextureScaleMode(d->canvas, SDL_SCALEMODE_NEAREST);
-        //         SDL_SetRenderTarget(d->renderer, d->canvas);
-        //         SDL_SetRenderDrawColor(d->renderer, 0, 0, 0, 255);
-        //         SDL_RenderClear(d->renderer);
-        //     } else {
-        //         log_error("Failed to recreate canvas: %s", SDL_GetError());
-        //     }
-        //     d->need_present = true;
-        // }
+        SDL_Rect window = {.w = ev->window.data1, .h = ev->window.data2};
+        resize(&window);
     }
 }
 
@@ -257,6 +328,8 @@ static errr callback_sdl_xtra(int n, int v)
 static void draw_cursor(int x, int y, bool big)
 {
     sdl_view* d = sdl_view_from_term(Term);
+    if (!d->canvas)
+        return;
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
     SDL_Rect clip = { x * d->cell_w, y * d->cell_h, d->cell_w * (big + 1), d->cell_h };
     SDL_SetRenderClipRect(g_state.renderer, &clip);
@@ -282,6 +355,8 @@ static errr callback_sdl_bigcurs(int x, int y)
 static errr callback_sdl_wipe(int x, int y, int n)
 {
     sdl_view* d = sdl_view_from_term(Term);
+    if (!d->canvas)
+        return 0;
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
     SDL_Rect clip = { x * d->cell_w, y * d->cell_h, n * d->cell_w, d->cell_h };
     SDL_SetRenderClipRect(g_state.renderer, &clip);
@@ -296,7 +371,7 @@ static errr callback_sdl_wipe(int x, int y, int n)
 static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
 {
     sdl_view* d = sdl_view_from_term(Term);
-    if (!d)
+    if (!d || !d->canvas)
         return 0;
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
 
@@ -347,18 +422,17 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
                        const byte* tap, const char* tcp)
 {
     sdl_view* d = sdl_view_from_term(Term);
-    if (!d)
+    if (!d || !d->canvas)
         return 0;
     log_trace("sdl3_pict stripe start: y=%d x=%d n=%d", y, x, n);
 
+    SDL_SetRenderTarget(g_state.renderer, d->canvas);
     SDL_SetRenderClipRect(g_state.renderer, &(SDL_Rect){
         x * d->cell_w,
         y * d->cell_h,
         n * d->cell_w * (use_bigtile + 1),
         d->cell_h,
     });
-
-    SDL_SetRenderTarget(g_state.renderer, d->canvas);
 
     SDL_FRect src = {
         .w = TILE_SIZE,
@@ -450,6 +524,14 @@ static void callback_sdl_init(term* t)
 static errr sdl_view_link_term(sdl_view* d, int term_index)
 {
     term* t = &d->t;
+    if (d->term_ready) {
+        term* old = Term;
+        Term_activate(t);
+        Term_resize(d->cols, d->rows);
+        Term_redraw();
+        Term_activate(old);
+        return 0;
+    }
     term_init(t, d->cols, d->rows, 256);
     t->soft_cursor = true;
     t->higher_pict = g_state.use_tiles;
@@ -466,6 +548,7 @@ static errr sdl_view_link_term(sdl_view* d, int term_index)
     size_t* view_index = (size_t*)&t->data;
     *view_index = term_index;
     angband_term[term_index] = t;
+    d->term_ready = true;
     return 0;
 }
 
@@ -649,25 +732,21 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
 
 errr init_sdl(int argc, char **argv)
 {
-    int scale = 1;
-    bool fullscreen = true;
-    bool tiles_mode = true;
-
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--scale")) {
             if (argc > i + 1) {
                 const char* scale_str = argv[++i];
-                scale = SDL_atoi(scale_str);
-                if (scale <= 0)
+                config.main_view_scale = SDL_atoi(scale_str);
+                if (config.main_view_scale <= 0)
                     quit("wrong scale value, must be >= 1");
             } else {
                 log_error("--scale requires an argument");
                 quit("--scale requires an argument");
             }
         } else if (!strcmp(argv[i], "--ascii")) {
-            tiles_mode = false;
+            config.tiles = false;
         } else if (!strcmp(argv[i], "--windowed")) {
-            fullscreen = false;
+            config.fullscreen = false;
         } else {
             log_error("unrecognised command line switch `%s`", argv[i]);
             quit("unrecognised command line switch");
@@ -716,66 +795,12 @@ errr init_sdl(int argc, char **argv)
     #undef RGB
 
     // Create all windows.
-    const char font_path[] = "lib/xtra/font/InputMono-Bold.ttf";
-    sdl_window_create(screen.w, screen.h, fullscreen, tiles_mode);
+    sdl_window_create(screen.w, screen.h, config.fullscreen, config.tiles);
 
-    int aux_font = 18;
-    int margin = 4;
-    SDL_Rect panes[MAX_TERM_DATA] = {0};
-
-    const struct pane_config pane_config[] = {
-        // On the right
-        {.pane = PANE_INVENTORY, .where = PLACE_RIGHT},
-        {.pane = PANE_WORN, .where = PLACE_RIGHT},
-        {.pane = PANE_INFO, .where = PLACE_RIGHT, .rect.rows = 8},
-        // In the bottom
-        {.pane = PANE_ROLLS, .where = PLACE_BOTTOM, .rect.rows = 4},
-        {.pane = PANE_LOG, .where = PLACE_BOTTOM},
-    };
-    const int pane_config_count = sizeof(pane_config) / sizeof(struct pane_config);
-
-    place_panes(pane_config, pane_config_count, panes, &screen, aux_font / 2, aux_font, margin);
-    for (int i = 0; i < PANE_MAX; i++) {
-        const SDL_Rect* r = &panes[i];
-        log_debug("pane %d is at (%d, %d) size %dx%d", i, r->x, r->y, r->w, r->h);
-    }
-
-    // Check whether after splitting the window the main view is larger than
-    // 80x25. If it isn't, remove panes along the corresponding axis (or axes).
-    {
-        int cell_w = scale * TILE_SIZE / 2;
-        int cell_h = scale * TILE_SIZE;
-        int cols = g_state.system_scale * panes[PANE_MAIN].w / cell_w;
-        int rows = g_state.system_scale * panes[PANE_MAIN].h / cell_h;
-        if (cols < 80) {
-            log_warn("main view too small, %d cols < 80 — removing right panes", cols);
-            for (int i = 0; i < pane_config_count; i++)
-                if (pane_config[i].where == PLACE_RIGHT)
-                    panes[pane_config[i].pane].w = 0;
-            panes[PANE_MAIN].w = screen.w;
-        }
-        if (rows < 25) {
-            log_warn("main view too small, %d rows < 25 — removing bottom panes", rows);
-            for (int i = 0; i < pane_config_count; i++)
-                if (pane_config[i].where == PLACE_BOTTOM)
-                    panes[pane_config[i].pane].w = 0;
-            panes[PANE_MAIN].h = screen.h;
-        }
-    }
-
-    sdl_view_create(&g_views[0], panes[PANE_MAIN], font_path, 0, scale, 0);
-    sdl_view_link_term(&g_views[0], 0);
-    Term_activate(&g_views[0].t);
-
-    for (int i = 1; i < MAX_TERM_DATA; i++) {
-        if (!panes[i].w)
-            continue;
-        sdl_view_create(&g_views[i], panes[i], font_path, aux_font, 0, margin);
-        sdl_view_link_term(&g_views[i], i);
-    }
+    // init splits and views
 
     ANGBAND_SYS = "sdl";
-    if (tiles_mode) {
+    if (config.tiles) {
         ANGBAND_GRAF = "new";
         arg_graphics = GRAPHICS_MICROCHASM;
         use_graphics = GRAPHICS_MICROCHASM;
@@ -786,7 +811,9 @@ errr init_sdl(int argc, char **argv)
         use_graphics = GRAPHICS_PSEUDO;
     }
 
+    resize(&screen);
+
     log_debug("init_sdl: SDL term opened (tiles_mode=%d higher_pict=%d always_pict=%d)",
-            tiles_mode, Term->higher_pict, Term->always_pict);
+            config.tiles, Term->higher_pict, Term->always_pict);
     return 0;
 }
