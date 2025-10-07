@@ -7,9 +7,14 @@ option(USE_SDL "Build with SDL support" ON)
 option(USE_GCU "Build with GCU (ncurses) support" OFF)
 
 option(LOG_MODE_TIMESTAMP "Create new log with timestamp each time" OFF)
+option(STEAMDECK_SUPPORT "Build for Steam Deck" OFF)
 
 if (LOG_MODE_TIMESTAMP)
   target_compile_definitions(sil-more PUBLIC LOG_MODE_TIMESTAMP)
+endif()
+
+if (STEAMDECK_SUPPORT)
+    target_compile_definitions(sil-more PUBLIC STEAMDECK_SUPPORT)
 endif()
 
 find_package(SDL3 REQUIRED)
