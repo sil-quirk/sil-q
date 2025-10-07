@@ -316,6 +316,7 @@ extern bool cave_valid_bold(int y, int x);
 extern bool feat_supports_lighting(int feat);
 extern void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp);
 extern void map_info_default(int y, int x, byte* ap, char* cp);
+extern int player_tile_offset(void);
 extern void move_cursor_relative(int y, int x);
 extern void print_rel(char c, byte a, int y, int x);
 extern void note_spot(int y, int x);
