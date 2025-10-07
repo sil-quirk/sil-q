@@ -460,9 +460,6 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
         byte a = ap[i];
         char c = cp[i];
 
-        int row = a & 0x3F;
-        int col = c & 0x3F;
-
         bool glow = a & GRAPHICS_GLOW_MASK;
         bool alert = c & GRAPHICS_ALERT_MASK;
 
@@ -475,17 +472,18 @@ static errr callback_sdl_pict(int x, int y, int n, const byte* ap, const char* c
         src.y = (tap[i] & 0x3F) * TILE_SIZE;
         SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
 
-        /* Draw base tile */
-        src.x = col * TILE_SIZE;
-        src.y = row * TILE_SIZE;
-        SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
-
         /* Overlays (glow / alert) */
         if (glow) {
             src.x = (0x7F & misc_to_char[ICON_GLOW]) * TILE_SIZE;
             src.y = (0x7F & misc_to_attr[ICON_GLOW]) * TILE_SIZE;
             SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
         }
+
+        /* Draw base tile */
+        src.x = (c & 0x3F) * TILE_SIZE;
+        src.y = (a & 0x3F) * TILE_SIZE;
+        SDL_RenderTexture(g_state.renderer, g_state.tileset, &src, &dst);
+
         if (alert) {
             src.x = (0x7F & misc_to_char[ICON_ALERT]) * TILE_SIZE;
             src.y = (0x7F & misc_to_attr[ICON_ALERT]) * TILE_SIZE;
