@@ -15,7 +15,7 @@
  * all the others use this file for their "main()" function.
  */
 
-#if !defined(MACINTOSH) && !defined(WINDOWS) && !defined(RISCOS)
+#if !defined(MACINTOSH) && !defined(RISCOS) && !(defined(WINDOWS) && !defined(USE_SDL))
 
 #include "main.h"
 #include "log/log.h"
@@ -319,6 +319,8 @@ int main(int argc, char* argv[])
     cptr mstr = NULL;
 
     bool args = true;
+    // Initialise logger in 'quiet' mode (don't write to stdout).
+    init_logger(true, argv[0]);
 
     /* Initialize character_icky to ensure it starts at 0 */
     character_icky = 0;
@@ -345,6 +347,7 @@ int main(int argc, char* argv[])
     /* Get the file paths */
     init_stuff();
 
+
 #ifdef SET_UID
 
     /* Get the user id (?) */
@@ -354,9 +357,6 @@ int main(int argc, char* argv[])
     /* Mega-Hack -- Factor group id */
     player_uid += (getgid() * 1000);
 #endif /* VMS */
-
-// Initialise logger in 'quiet' mode (don't write to stdout).
-init_logger(true, argv[0]);
 
 #ifdef SAFE_SETUID
 

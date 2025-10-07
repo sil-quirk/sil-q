@@ -1,7 +1,10 @@
-cmake_minimum_required(VERSION 3.15)
-project(sil-more LANGUAGES C)
+cmake_minimum_required(VERSION 3.10)
+project(sil-more C)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+option(USE_SDL "Build with SDL support" ON)
+option(USE_GCU "Build with GCU (ncurses) support" OFF)
 
 option(LOG_MODE_TIMESTAMP "Create new log with timestamp each time" OFF)
 
@@ -42,7 +45,6 @@ add_executable(sil-more
     src/init2.c
     src/load.c
     src/main.c
-    src/main-gcu.c  # We're GCU-only for a moment
     src/main-sdl.c
     src/melee1.c
     src/melee2.c
@@ -54,12 +56,11 @@ add_executable(sil-more
     src/object2.c
     src/pane.c
     src/randart.c
-    # src/readdib.c  # No Windows yet
     src/save.c
     src/spells1.c
     src/spells2.c
-    src/supplies.c
     src/squelch.c
+    src/supplies.c
     src/tables.c
     src/use-obj.c
     src/util.c
@@ -75,7 +76,32 @@ add_executable(sil-more
     src/z-virt.c
 )
 
+# add_library(log STATIC src/log/log.c)
+target_include_directories(log PUBLIC src/log)
+
+if(USE_SDL)
+  list(APPEND SIL_MORE_SOURCES src/main-sdl.c)
+endif()
+
+# add_executable(sil-more ${SIL_MORE_SOURCES})
+
 target_compile_options(sil-more PUBLIC -Wall -Wextra -std=c11)
-target_compile_definitions(sil-more PRIVATE -DUSE_GCU)
 target_include_directories(sil-more PRIVATE src)
-target_link_libraries(sil-more PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image Curses::Curses log)
+
+if(MINGW)
+  target_link_options(sil-more PRIVATE -mconsole)
+endif()
+
+if(USE_SDL)
+  find_package(SDL3 REQUIRED CONFIG)
+  find_package(SDL3_ttf REQUIRED CONFIG)
+  find_package(SDL3_image REQUIRED CONFIG)
+  target_compile_definitions(sil-more PRIVATE USE_SDL)
+  target_link_libraries(sil-more PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image log)
+endif()
+
+if(USE_GCU)
+  find_package(Curses REQUIRED)
+  target_compile_definitions(sil-more PRIVATE USE_GCU)
+  target_link_libraries(sil-more PRIVATE Curses::Curses log)
+endif()

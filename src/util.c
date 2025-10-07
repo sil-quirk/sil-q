@@ -5631,6 +5631,6 @@ void init_logger(bool quiet, const char* exe_path)
         log_set_quiet(true);
     }
 
-    log_info("logger initialised");
+    log_info("logger initialised with level %d", level);
     atexit(log_close_files);
 }

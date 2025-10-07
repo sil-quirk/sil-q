@@ -3465,6 +3465,9 @@ PlayResult play_game(void)
     log_trace("QUEST DEBUG: Special abilities - active_ability[S_SPC][SPC_MANDOS]=%d, active_ability[S_SPC][SPC_AULE]=%d",
              p_ptr->active_ability[S_SPC][SPC_MANDOS], p_ptr->active_ability[S_SPC][SPC_AULE]);
 
+    /* Validate quest states after load (auto-complete if targets are dead) */
+    validate_tulkas_quest_on_load();
+
     /* Flash a message */
     prt("Please wait...", 0, 0);
 
@@ -3517,6 +3520,39 @@ PlayResult play_game(void)
     /* Character is now "complete" */
     character_generated = true;
     log_debug("play_game: character_generated set to true - character creation complete");
+
+    /* If Tulkas quest was auto-completed on load, spawn Tulkas and show messages */
+    if (p_ptr->tulkas_quest == TULKAS_QUEST_COMPLETE && p_ptr->tulkas_quest_complete == 1)
+    {
+        int y, x;
+        bool spawned = false;
+        
+        log_trace("Spawning Tulkas for auto-completed quest on load");
+        
+        /* Try to find a suitable spot near the player */
+        for (y = p_ptr->py - 3; y <= p_ptr->py + 3 && !spawned; y++)
+        {
+            for (x = p_ptr->px - 3; x <= p_ptr->px + 3 && !spawned; x++)
+            {
+                if (in_bounds(y, x) && cave_floor_bold(y, x) && 
+                    cave_m_idx[y][x] == 0 && distance(p_ptr->py, p_ptr->px, y, x) >= 2)
+                {
+                    if (place_monster_one(y, x, R_IDX_TULKAS, true, true, NULL))
+                    {
+                        msg_print("Upon loading, you recall that your quest target has already fallen!");
+                        msg_print("Tulkas Unclad materializes nearby with a booming laugh, ready to reward your valor!");
+                        spawned = true;
+                        log_trace("Tulkas spawned at (%d, %d) for auto-completed quest", y, x);
+                    }
+                }
+            }
+        }
+        
+        if (!spawned)
+        {
+            log_trace("Failed to spawn Tulkas near player, will retry on next level");
+        }
+    }
 
     /* Start with normal object generation mode */
     object_generation_mode = OB_GEN_MODE_NORMAL;

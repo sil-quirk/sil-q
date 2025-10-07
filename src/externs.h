@@ -1226,6 +1226,7 @@ extern void free_quest_texts(cptr* texts);
 extern void tulkas_quest_interaction(void);
 extern void check_tulkas_quest_interaction(void);
 extern void check_tulkas_quest_completion(int r_idx);
+extern void validate_tulkas_quest_on_load(void);
 extern void remove_quest_giver(int quest_giver_r_idx);
 extern bool is_quest_giver_present(int quest_giver_r_idx);
 extern bool spawn_quest_giver_near_player(int quest_giver_r_idx);

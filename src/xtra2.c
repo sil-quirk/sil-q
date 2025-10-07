@@ -5640,9 +5640,10 @@ static int select_tulkas_quest_target(void)
             continue;
         }
         
-        /* Must be unique, alive, and at appropriate depth */
+        /* Must be unique, alive (max_num > 0), not yet generated, and at appropriate depth */
         if ((r_ptr->flags1 & RF1_UNIQUE) &&
-            (r_ptr->cur_num == 0) &&
+            (r_ptr->max_num > 0) &&  /* Unique is still alive (not killed yet) */
+            (r_ptr->cur_num == 0) &&  /* Unique hasn't been generated yet */
             (r_ptr->level >= p_ptr->depth) &&
             (r_ptr->level <= MORGOTH_DEPTH) &&
             (i != R_IDX_TULKAS))
@@ -5653,8 +5654,12 @@ static int select_tulkas_quest_target(void)
         }
     }
     
-    if (count == 0) return 0; /* No valid targets */
+    if (count == 0) {
+        log_trace("select_tulkas_quest_target: No valid unique targets found");
+        return 0; /* No valid targets */
+    }
     
+    log_trace("select_tulkas_quest_target: Found %d valid unique targets", count);
     return valid_targets[rand_int(count)];
 }
 
@@ -7331,6 +7336,16 @@ void tulkas_quest_interaction(void)
             return;
         }
         
+        /* Validate that the target unique is still alive (double-check after selection) */
+        if (r_ptr->max_num == 0)
+        {
+            log_trace("Target unique %d (%s) has already been killed (max_num=0)", target_r_idx, r_name + r_ptr->name);
+            msg_print("Tulkas frowns. 'The foe I had in mind has already fallen. Impressive, but I have no new challenge for you now.'");
+            /* Remove Tulkas since he has nothing to offer */
+            remove_quest_giver(R_IDX_TULKAS);
+            return;
+        }
+        
         /* Select prize artifact that is 5 levels higher than the target monster */
         prize_a_idx = select_tulkas_quest_prize(r_ptr->level);
         if (prize_a_idx == 0 || prize_a_idx >= z_info->art_max)
@@ -7572,6 +7587,63 @@ void check_tulkas_quest_completion(int r_idx)
                 }
             }
         }
+    }
+}
+
+/*
+ * Validate Tulkas quest target on game load
+ * Auto-completes the quest if the assigned target is already dead
+ * This fixes stuck saves where players have dead targets assigned
+ */
+void validate_tulkas_quest_on_load(void)
+{
+    monster_race* r_ptr;
+    
+    /* Only validate if quest is in ACTIVE state */
+    if (p_ptr->tulkas_quest != TULKAS_QUEST_ACTIVE)
+    {
+        return;
+    }
+    
+    /* Check if we have a valid target assigned */
+    if (p_ptr->tulkas_target_r_idx <= 0 || p_ptr->tulkas_target_r_idx >= z_info->r_max)
+    {
+        log_trace("validate_tulkas_quest_on_load: Invalid target r_idx=%d, skipping", p_ptr->tulkas_target_r_idx);
+        return;
+    }
+    
+    r_ptr = &r_info[p_ptr->tulkas_target_r_idx];
+    
+    /* Check if the target unique is already dead (max_num == 0) */
+    if (r_ptr->max_num == 0)
+    {
+        log_trace("validate_tulkas_quest_on_load: Target unique %d (%s) is dead (max_num=0), auto-completing quest",
+                 p_ptr->tulkas_target_r_idx, r_name + r_ptr->name);
+        
+        /* Validate we have a valid artifact prize */
+        if (p_ptr->tulkas_prize_a_idx <= 0 || p_ptr->tulkas_prize_a_idx >= z_info->art_max)
+        {
+            log_trace("validate_tulkas_quest_on_load: Invalid prize artifact index: %d, clearing quest", p_ptr->tulkas_prize_a_idx);
+            
+            /* Clear quest state without reward */
+            p_ptr->tulkas_quest = TULKAS_QUEST_REWARDED;
+            p_ptr->tulkas_target_r_idx = 0;
+            p_ptr->tulkas_prize_a_idx = 0;
+            p_ptr->tulkas_quest_complete = 0;
+            return;
+        }
+        
+        /* Set quest to COMPLETE state - this will trigger normal completion flow */
+        /* Tulkas will spawn near player on next level generation/turn */
+        p_ptr->tulkas_quest = TULKAS_QUEST_COMPLETE;
+        p_ptr->tulkas_quest_complete = 1;
+        
+        log_trace("validate_tulkas_quest_on_load: Quest set to COMPLETE state, Tulkas will spawn on next turn");
+    }
+    else
+    {
+        log_trace("validate_tulkas_quest_on_load: Target unique %d (%s) is still alive (max_num=%d)",
+                 p_ptr->tulkas_target_r_idx, r_name + r_ptr->name, r_ptr->max_num);
     }
 }
 

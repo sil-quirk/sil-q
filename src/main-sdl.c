@@ -121,8 +121,9 @@ static void resize(const SDL_Rect* screen)
     {
         int cell_w = config.main_view_scale * TILE_SIZE / 2;
         int cell_h = config.main_view_scale * TILE_SIZE;
-        int cols = g_state.system_scale * panes[PANE_MAIN].w / cell_w;
-        int rows = g_state.system_scale * panes[PANE_MAIN].h / cell_h;
+        // panes are already in window coordinate space, no need to multiply by system_scale
+        int cols = panes[PANE_MAIN].w / cell_w;
+        int rows = panes[PANE_MAIN].h / cell_h;
         if (cols < 80) {
             log_warn("main view too small, %d cols < 80 — removing right panes", cols);
             for (int i = 0; i < pane_config_count; i++) {
@@ -242,6 +243,14 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         }
     } else if (ev->type == SDL_EVENT_WINDOW_RESIZED) {
         log_debug("window resized to %dx%d", ev->window.data1, ev->window.data2);
+        
+        // Update scale factor in case window moved to a different display
+        float new_scale = SDL_GetWindowDisplayScale(st->window);
+        if (new_scale > 0.0f && new_scale != st->system_scale) {
+            log_info("display scale changed from %g to %g", st->system_scale, new_scale);
+            st->system_scale = new_scale;
+        }
+        
         SDL_Rect window = {.w = ev->window.data1, .h = ev->window.data2};
         resize(&window);
     }
@@ -285,23 +294,24 @@ static errr callback_sdl_xtra(int n, int v)
             SDL_SetRenderTarget(g_state.renderer, NULL);
             SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
             SDL_RenderClear(g_state.renderer);
-            int s = g_state.system_scale;
+            // Render all view canvases to the window
             for (int i = 0; i < MAX_TERM_DATA; i++) {
                 sdl_view* view = &g_views[i];
                 if (!view->canvas)
                     continue;
+                // rect and margin are already in window coordinates, no scaling needed
                 SDL_RenderTexture(g_state.renderer, view->canvas, NULL, &(SDL_FRect){
-                    .x = s * (view->rect.x + view->margin_x),
-                    .y = s * (view->rect.y + view->margin_y),
+                    .x = view->rect.x + view->margin_x,
+                    .y = view->rect.y + view->margin_y,
                     .w = view->canvas->w,
                     .h = view->canvas->h,
                 });
                 SDL_SetRenderDrawColor(g_state.renderer, 255, 255, 255, 128);
                 SDL_FRect frame = {
-                    .x = s * view->rect.x,
-                    .y = s * view->rect.y,
-                    .w = s * view->rect.w,
-                    .h = s * view->rect.h,
+                    .x = view->rect.x,
+                    .y = view->rect.y,
+                    .w = view->rect.w,
+                    .h = view->rect.h,
                 };
                 SDL_RenderRect(g_state.renderer, &frame);
             }
@@ -647,8 +657,19 @@ static void sdl_window_create(int window_width, int window_height, bool fullscre
     }
     if (fullscreen)
         SDL_HideCursor();
-    g_state.system_scale = SDL_GetWindowDisplayScale(g_state.window);
-    log_debug("window scale is %g", g_state.system_scale);
+    
+    // Verify the window's display scale matches what we calculated earlier
+    float window_scale = SDL_GetWindowDisplayScale(g_state.window);
+    log_debug("window scale is %g (system_scale was %g)", window_scale, g_state.system_scale);
+    
+    // Update system_scale if the window ended up on a different display
+    // or if the window creation changed the effective scale
+    if (window_scale > 0.0f && window_scale != g_state.system_scale) {
+        log_warn("window scale (%g) differs from display scale (%g), using window scale", 
+                 window_scale, g_state.system_scale);
+        g_state.system_scale = window_scale;
+    }
+    
     // Ensure predictable alpha blending (cursor/text)
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
     g_state.use_tiles = use_tiles;
@@ -699,12 +720,14 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
     SDL_SetTextureAlphaMod(d->font_atlas, 255);
 
     d->rect = rect;
-    d->cols = g_state.system_scale * rect.w / d->cell_w;
-    d->rows = g_state.system_scale * rect.h / d->cell_h;
-    d->margin_x = (g_state.system_scale * rect.w - d->cols * d->cell_w) / 2;
+    // rect dimensions are already in the same coordinate space as our rendering,
+    // so we don't multiply by system_scale here
+    d->cols = rect.w / d->cell_w;
+    d->rows = rect.h / d->cell_h;
+    d->margin_x = (rect.w - d->cols * d->cell_w) / 2;
     if (d->margin_x < margin)
         d->margin_x = margin;
-    d->margin_y = (g_state.system_scale * rect.h - d->rows * d->cell_h) / 2;
+    d->margin_y = (rect.h - d->rows * d->cell_h) / 2;
     if (d->margin_y < margin)
         d->margin_y = margin;
     log_debug("view cols=%d rows=%d cell=(%d, %d) margin=(%d, %d)",
@@ -772,7 +795,19 @@ errr init_sdl(int argc, char **argv)
         log_error("SDL_GetDisplayBounds failed: %s", SDL_GetError());
         quit("could not get primary display bounds");
     }
-    log_info("primary display: %d %d %d %d", screen.x, screen.y, screen.w, screen.h);
+    
+    // Get the display's content scale factor BEFORE creating the window
+    // This is needed because SDL_GetDisplayBounds returns logical coordinates,
+    // but we need to know the scale factor to properly calculate physical pixels
+    float display_scale = SDL_GetDisplayContentScale(primary);
+    if (display_scale <= 0.0f) {
+        log_warn("SDL_GetDisplayContentScale failed or returned invalid value, assuming 1.0: %s", SDL_GetError());
+        display_scale = 1.0f;
+    }
+    g_state.system_scale = display_scale;
+    
+    log_info("primary display: %d %d %d %d (logical), scale: %g", 
+             screen.x, screen.y, screen.w, screen.h, display_scale);
 
     // Initialize palette mapping from term attrs to SDL_Color.
     #define RGB(_r,_g,_b) (SDL_Color){.r = (_r), .g = (_g), .b = (_b)}

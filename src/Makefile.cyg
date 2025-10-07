@@ -10,6 +10,7 @@ CC = /usr/bin/i686-w64-mingw32-gcc
 WRES = /usr/bin/i686-w64-mingw32-windres
 LIBS = -s -mwindows -e _mainCRTStartup -lwinmm -lmsimg32
 CFLAGS = -Wall -O2 -fno-strength-reduce -DWINDOWS -DLOG_USE_COLOR -std=c17
+INCDIRS = -I. -Ilog
 
 EXOBJS = \
 	sil.res \
@@ -114,7 +115,7 @@ Sil-More.exe: $(EXOBJS)
 #
 # Compiling sil.rc
 
-sil.res : sil.rc
+sil.res : icons/sil.rc
 	$(WRES) $< -O coff -F pe-i386 -o $@
 
 
@@ -164,7 +165,7 @@ init2.o: init2.c $(INCS) init.h
 load.o: load.c $(INCS)  init.h
 	$(CC) $(CFLAGS) $(INCDIRS) -c -o $@ $<
 
-log.o: log.c log.h
+log.o: log/log.c log/log.h
 	$(CC) $(CFLAGS) $(INCDIRS) -c -o $@ $<
 
 main.o: main.c $(INCS)
