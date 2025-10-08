@@ -1327,6 +1327,8 @@ struct combat_roll
     byte attacker_attr; /* Default attribute of the attacker */
     char defender_char; /* The symbol of the defender */
     byte defender_attr; /* Default attribute of the defender */
+    bool is_attacker_player; /* TRUE if the attacker is the player */
+    bool is_defender_player; /* TRUE if the defender is the player */
     int att; /* The attack bonus */
     int att_roll; /* The attack roll (d20 value) */
     int evn; /* The evasion bonus */

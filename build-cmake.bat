@@ -72,4 +72,4 @@ echo Executable: sil-more-windows-sdl3\sil-more.exe
 echo.
 echo Run with: sil-more-windows-sdl3\run.bat
 echo.
-pause
+

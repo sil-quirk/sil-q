@@ -3509,7 +3509,23 @@ static bool determine_location_is_interesting(int y, int x)
     if (!(p_ptr->is_dead) && (p_ptr->rage) && !(cave_info[y][x] & (CAVE_SEEN)))
         return (false);
 
-    /* Visible monsters */
+    /* Check for objects first (only shown when on floors, not when in rubble) */
+    /* This is checked BEFORE monsters to prevent showing unmarked objects under detected monsters */
+    if (cave_floorlike_bold(y, x))
+    {
+        /* Scan all objects in the grid */
+        for (o_ptr = get_first_object(y, x); o_ptr;
+             o_ptr = get_next_object(o_ptr))
+        {
+            /* Memorized object - this makes the location interesting */
+            if (o_ptr->marked)
+                return (true);
+        }
+    }
+
+    /* Visible monsters (checked AFTER objects) */
+    /* This ensures that a location with a monster but no marked objects */
+    /* is interesting for monster targeting but NOT for object listing */
     if (cave_m_idx[y][x] > 0)
     {
         monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
@@ -3517,19 +3533,6 @@ static bool determine_location_is_interesting(int y, int x)
         /* Visible monsters */
         if (m_ptr->ml)
             return (true);
-    }
-
-    /* Objects (only shown when on floors, not when in rubble) */
-    if (cave_floorlike_bold(y, x))
-    {
-        /* Scan all objects in the grid */
-        for (o_ptr = get_first_object(y, x); o_ptr;
-             o_ptr = get_next_object(o_ptr))
-        {
-            /* Memorized object */
-            if (o_ptr->marked)
-                return (true);
-        }
     }
 
     /* Interesting memorized features */

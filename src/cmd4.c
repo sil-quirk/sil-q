@@ -460,8 +460,8 @@ void do_cmd_character_sheet(void)
 
 /* ------------------------------------------------------------------
  * add_random_curse()
- *   – Marks the item cursed
- *   – Gives it random negative modifiers
+ *   ï¿½ Marks the item cursed
+ *   ï¿½ Gives it random negative modifiers
  *   Compatible with SIL-QH object_type (no flags1/2/3 fields)
  * ------------------------------------------------------------------ */
 void add_random_curse(object_type *o_ptr)
@@ -470,7 +470,7 @@ void add_random_curse(object_type *o_ptr)
     o_ptr->ident |= IDENT_CURSED;
 
     /* 2. negative pval / attack / evasion */
-    if (o_ptr->pval > 0)  o_ptr->pval = -(rand_int(3) + 1); /* –1 … –3 */
+    if (o_ptr->pval > 0)  o_ptr->pval = -(rand_int(3) + 1); /* ï¿½1 ï¿½ ï¿½3 */
     if (o_ptr->att > 0) o_ptr->att = -(rand_int(3) + 1);
     if (o_ptr->evn > 0) o_ptr->evn = -(rand_int(3) + 1);
 
@@ -3756,9 +3756,9 @@ int object_difficulty(object_type* o_ptr)
 
     /* ------------------------------------------------------------------
      *  GAMIL house bonus
-     *  – Craft mithril items without mithril material
-     *  – Costs 3 forge uses instead of 1
-     *  – Mark item with TR3_CANT_MELT so the melt-menu ignores it
+     *  ï¿½ Craft mithril items without mithril material
+     *  ï¿½ Costs 3 forge uses instead of 1
+     *  ï¿½ Mark item with TR3_CANT_MELT so the melt-menu ignores it
      * ------------------------------------------------------------------ */
 
 
@@ -3767,8 +3767,8 @@ int object_difficulty(object_type* o_ptr)
         dif_mult -= 25;
 
     /*  FEANOR house bonus
-     *  – 40% off on all lamps
-     *  – 25% off on any fire- or light-branded object */
+     *  ï¿½ 40% off on all lamps
+     *  ï¿½ 25% off on any fire- or light-branded object */
     if (feanor_bonus)
     {
         /* 40% off on all lamps */
@@ -4268,14 +4268,14 @@ int object_difficulty(object_type* o_ptr)
         smithing_cost.mithril += o_ptr->weight;
     }
 
-   /* Gamil house bonus — override normal mithril cost */
-  if ((c_info[p_ptr->phouse].flags_u & UNQ_SMT_GAMIL)      /* you’re Gamil */
+   /* Gamil house bonus ï¿½ override normal mithril cost */
+  if ((c_info[p_ptr->phouse].flags_u & UNQ_SMT_GAMIL)      /* youï¿½re Gamil */
       && (k_ptr->flags3 & TR3_MITHRIL)                     /* item is mithril */
       && (mithril_carried() < smithing_cost.mithril))      /* no mithril on hand */
   {
       smithing_cost.uses    = MAX(smithing_cost.uses, 3);  /* cost 3 forge uses */
       smithing_cost.mithril = 0;                           /* waive material */
-      o_ptr->ident         |= IDENT_CANT_MELT;             /* can’t melt later */
+      o_ptr->ident         |= IDENT_CANT_MELT;             /* canï¿½t melt later */
   }
 
     // Apply the difficulty multiplier
@@ -5803,7 +5803,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
             if (smithing_flag_types[i].flag == TR1_SHARPNESS2 &&
                 !(c_info[p_ptr->phouse].flags_u & UNQ_SMT_TELCHAR))
             {
-                /* don’t even consider it */
+                /* donï¿½t even consider it */
                 continue;
             }
             flag[num] = smithing_flag_types[i].flag;
@@ -6674,7 +6674,7 @@ int melt_menu_aux(int* highlight)
 
         object_flags(o_ptr, &f1, &f2, &f3);
         
-        /* ignore mithril items that carry the “can’t melt” tag         */
+        /* ignore mithril items that carry the ï¿½canï¿½t meltï¿½ tag         */
         if ((f3 & TR3_MITHRIL) && !(o_ptr->ident & IDENT_CANT_MELT))
 
         {
@@ -14349,6 +14349,10 @@ void show_unified_sidebar(unified_look_state* state)
 
             object_type* o_ptr = &o_list[o_idx];
 
+            /* Only show marked (memorized) objects that the player has actually seen */
+            if (!o_ptr->marked)
+                continue;
+
             if ((o_ptr->tval == TV_ARROW) && (o_ptr->number < 10))
                 continue;
 
@@ -14437,7 +14441,8 @@ void show_unified_sidebar(unified_look_state* state)
             object_desc(o_name, sizeof(o_name), o_ptr, false, 4);
 
             my_strcpy(name_source, o_name, sizeof(name_source));
-            if (entry->is_artifact)
+            /* Only show asterisk for artifacts that are identified */
+            if (entry->is_artifact && object_known_p(o_ptr))
             {
                 size_t len = strlen(name_source);
                 if (len + 1 < sizeof(name_source))
