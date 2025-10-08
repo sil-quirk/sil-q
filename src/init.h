@@ -49,15 +49,12 @@ typedef errr (*parse_info_txt_func)(char* buf, header* head);
  * choice here, at least, until the "race" array is split into "normal"
  * and "unique" monsters, which may or may not actually help.
  *
- * Note that, on some machines, for example, the Macintosh, the standard
- * "read()" and "write()" functions cannot handle more than 32767 bytes
- * at one time, so we need replacement functions, see "util.c" for details.
+ * Note that the "read()" and "write()" functions and the "malloc()" 
+ * function should be able to handle reasonably large buffers, but we 
+ * still try to work within reasonable limits.
  *
- * Note that, on some machines, for example, the Macintosh, the standard
- * "malloc()" function cannot handle more than 32767 bytes at one time,
- * but we may assume that the "ralloc()" function can handle up to 65535
- * butes at one time.  We should not, however, assume that the "ralloc()"
- * function can handle more than 65536 bytes at a time, since this might
+ * Note that we should not assume that the "ralloc()" function can 
+ * handle more than 65536 bytes at a time, since this might
  * result in segmentation problems on certain older machines, and in fact,
  * we should not assume that it can handle exactly 65536 bytes at a time,
  * since the internal functions may use an unsigned short to specify size.

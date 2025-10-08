@@ -1295,11 +1295,6 @@ extern void repeat_clear(void);
 extern void repeat_check(void);
 #endif /* ALLOW_REPEAT */
 
-#ifdef RISCOS
-/* main-ros.c */
-extern char* riscosify_name(cptr path);
-#endif /* RISCOS */
-
 #if defined(MACH_O_CARBON)
 /* main-mac.c, or its derivatives */
 extern u32b _fcreator;

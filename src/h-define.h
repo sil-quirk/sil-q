@@ -15,15 +15,6 @@
 #endif /* NULL */
 
 /*
- * Hack -- assist "main-ros.c" XXX XXX XXX
- */
-#ifdef RISCOS
-#define O_RDONLY 0
-#define O_WRONLY 1
-#define O_RDWR 2
-#endif
-
-/*
  * Hack -- force definitions -- see fd_seek()
  */
 #ifndef SEEK_SET

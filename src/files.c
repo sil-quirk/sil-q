@@ -3354,9 +3354,9 @@ void do_cmd_help(void)
  *
  * If "sf" is true, then we initialize "savefile" based on player name.
  *
- * Some platforms (Windows, Macintosh, Amiga) leave the "savefile" empty
- * when a new character is created, and then when the character is done
- * being created, they call this function to choose a new savefile name.
+ * Some platforms (Windows) leave the "savefile" empty when a new 
+ * character is created, and then when the character is done being 
+ * created, they call this function to choose a new savefile name.
  */
 void process_player_name(bool sf)
 {

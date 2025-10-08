@@ -14,13 +14,6 @@
  */
 
 /*
- * OPTION: Compile on a Macintosh machine
- */
-#ifndef MACINTOSH
-/* #define MACINTOSH */
-#endif
-
-/*
  * OPTION: Compile on a Windows machine
  */
 #ifndef WINDOWS
@@ -112,15 +105,6 @@
 #endif
 
 /*
- * Extract the "RISCOS" flag from the compiler
- */
-#ifdef __riscos
-#ifndef RISCOS
-#define RISCOS
-#endif
-#endif
-
-/*
  * Extract the "SGI" flag from the compiler
  */
 #ifdef sgi
@@ -159,15 +143,6 @@
 #endif
 
 /*
- * Remove the WINDOWS flag when using MACINTOSH
- */
-#ifdef MACINTOSH
-#ifdef WINDOWS
-#undef WINDOWS
-#endif
-#endif
-
-/*
  * OPTION: set "SET_UID" if the machine is a "multi-user" machine.
  * This option is used to verify the use of "uids" and "gids" for
  * various "Unix" calls, and of "pids" for getting a random seed,
@@ -184,9 +159,7 @@
 //        passwords But caused some other odd problems such as the highscores
 //        not working properly
 
-#if !defined(MACINTOSH) && !defined(WINDOWS) && !defined(MSDOS)                \
-    && !defined(USE_EMX) && !defined(AMIGA) && !defined(RISCOS)                \
-    && !defined(VM)
+#if !defined(WINDOWS) && !defined(MSDOS) && !defined(USE_EMX) && !defined(VM)
 #define SET_UID
 #endif
 
@@ -217,10 +190,6 @@
  */
 #undef PATH_SEP
 #define PATH_SEP "/"
-#ifdef MACINTOSH
-#undef PATH_SEP
-#define PATH_SEP ":"
-#endif
 #if defined(WINDOWS) || defined(WINNT)
 #undef PATH_SEP
 #define PATH_SEP "\\"
@@ -228,10 +197,6 @@
 #if defined(MSDOS) || defined(OS2) || defined(USE_EMX)
 #undef PATH_SEP
 #define PATH_SEP "\\"
-#endif
-#ifdef AMIGA
-#undef PATH_SEP
-#define PATH_SEP "/"
 #endif
 #ifdef __GO32__
 #undef PATH_SEP
@@ -243,17 +208,8 @@
 #endif
 
 /*
- * The Macintosh allows the use of a "file type" when creating a file
+ * File type definitions (no longer platform-specific)
  */
-
-#if (defined(MACINTOSH) || defined(MACH_O_CARBON))
-#define FILE_TYPE_TEXT 'TEXT'
-#define FILE_TYPE_DATA 'DATA'
-#define FILE_TYPE_SAVE 'SAVE'
-#define FILE_TYPE(X) (_ftype = (X))
-#endif
-
-////half hack %%%%
 #ifndef FILE_TYPE_TEXT
 #define FILE_TYPE_TEXT
 #define FILE_TYPE_DATA

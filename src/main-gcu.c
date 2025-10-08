@@ -15,8 +15,7 @@
  * To use this file, you must define "USE_GCU" in the Makefile.
  *
  *
- * Note that this file is not "intended" to support non-Unix machines,
- * nor is it intended to support VMS or other bizarre setups.
+ * Note that this file is not "intended" to support non-Unix machines.
  *
  * Also, this package assumes that the underlying "curses" handles both
  * the "nonl()" and "cbreak()" commands correctly, see the "OPTION" below.

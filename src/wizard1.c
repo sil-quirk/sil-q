@@ -1041,8 +1041,4 @@ void do_cmd_spoilers(void)
 
 #else
 
-#ifdef MACINTOSH
-static int i = 0;
-#endif
-
 #endif

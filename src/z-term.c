@@ -18,7 +18,7 @@
  * This file provides a generic, efficient, terminal window package,
  * which can be used not only on standard terminal environments such
  * as dumb terminals connected to a Unix box, but also in more modern
- * "graphic" environments, such as the Macintosh or Unix/X11.
+ * "graphic" environments, such as modern GUI systems or Unix/X11.
  *
  * Each "window" works like a standard "dumb terminal", that is, it
  * can display a two dimensional array of grids containing colored
@@ -27,7 +27,7 @@
  *
  * In fact, this package can simply be used, if desired, to support
  * programs which will look the same on a dumb terminal as they do
- * on a graphic platform such as the Macintosh.
+ * on a graphic platform.
  *
  * This package was designed to help port the game "Angband" to a wide
  * variety of different platforms.  Angband, like many other games in

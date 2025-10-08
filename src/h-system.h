@@ -41,16 +41,11 @@
 
 #include <time.h>
 
-#if defined(MACINTOSH) && defined(__MWERKS__)
-#include <unix.h>
-#endif
-
 #if defined(WINDOWS) || defined(MSDOS) || defined(USE_EMX)
 #include <io.h>
 #endif
 
-#if !defined(MACINTOSH) && !defined(AMIGA) && !defined(RISCOS) && !defined(VM) \
-    && !defined(__MWERKS__)
+#if !defined(__MWERKS__)
 #if defined(__TURBOC__) || defined(__WATCOMC__)
 #include <mem.h>
 #else
@@ -58,7 +53,7 @@
 #endif
 #endif
 
-#if !defined(NeXT) && !defined(RISCOS)
+#if !defined(NeXT)
 #include <fcntl.h>
 #endif
 
