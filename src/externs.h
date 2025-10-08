@@ -1295,15 +1295,6 @@ extern void repeat_clear(void);
 extern void repeat_check(void);
 #endif /* ALLOW_REPEAT */
 
-#if defined(MACH_O_CARBON)
-/* main-mac.c, or its derivatives */
-extern u32b _fcreator;
-extern u32b _ftype;
-#if defined(MACH_O_CARBON)
-extern void fsetfileinfo(cptr path, u32b fcreator, u32b ftype);
-#endif
-#endif
-
 #ifdef ALLOW_DEBUG
 /* wizard2.c */
 void display_light_map(void);

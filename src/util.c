@@ -202,13 +202,6 @@ errr path_parse(char* buf, size_t max, cptr file)
     /*accept the filename*/
     my_strcpy(buf, file, max);
 
-#if defined(MAC_MPW) && defined(CARBON)
-
-    /* Fix it according to the current operating system */
-    convert_pathname(buf);
-
-#endif
-
     /* Success */
     return (0);
 }
@@ -303,14 +296,6 @@ FILE* my_fopen(cptr file, cptr mode)
 
     /* Attempt to fopen the file anyway */
     fff = fopen(buf, mode);
-
-#if defined(MACH_O_CARBON)
-
-    /* Set file creator and type */
-    if (fff && strchr(mode, 'w'))
-        fsetfileinfo(buf, _fcreator, _ftype);
-
-#endif
 
     /* Return open file or NULL */
     return (fff);
@@ -800,7 +785,7 @@ errr fd_close(int fd)
     return (0);
 }
 
-#if defined(CHECK_MODIFICATION_TIME) && !defined(MAC_MPW)
+#ifdef CHECK_MODIFICATION_TIME
 #include <sys/types.h>
 #include <sys/stat.h>
 
