@@ -2423,6 +2423,33 @@ void display_equip(void)
 }
 
 /*
+ * Helper function to draw an item tile/pictogram when in graphics mode.
+ * This should be called before displaying the item description text.
+ * Returns the column offset where text should start after the tile.
+ */
+static int draw_item_tile(int x, int y, object_type* o_ptr)
+{
+    /* Only draw tiles in graphics mode (not ASCII or pseudo-graphics) */
+    if (use_graphics != GRAPHICS_NONE && use_graphics != GRAPHICS_PSEUDO && o_ptr && o_ptr->k_idx)
+    {
+        /* Draw the tile using the standard object display functions */
+        Term_putch(x, y, object_attr(o_ptr), object_char(o_ptr));
+        
+        /* Handle bigtile mode (tiles that occupy 2 cells) */
+        if (use_bigtile)
+        {
+            Term_putch(x + 1, y, 255, -1);
+            return x + 2; /* Text starts 2 cells after tile */
+        }
+        
+        return x + 1; /* Text starts 1 cell after tile */
+    }
+    
+    /* No tile drawn, text starts at the same position */
+    return x;
+}
+
+/*
  * Display the inventory.
  *
  * Hack -- do not display "trailing" empty slots
@@ -2471,8 +2498,13 @@ void show_inven(void)
     int max_rows = (Term ? Term->hgt : 24) - 1;
     if (max_rows < 1)
         max_rows = INVEN_PACK;
-    if (include_supplies && z >= max_rows)
-        include_supplies = false;
+    
+    /* Reserve one row for supplies if they will be shown */
+    int effective_max_items = include_supplies ? (max_rows - 1) : max_rows;
+    
+    /* Limit displayed items to leave room for supplies */
+    if (z > effective_max_items)
+        z = effective_max_items;
 
     k = 0;
 
@@ -2546,26 +2578,16 @@ void show_inven(void)
         if (!is_supply)
             o_ptr = &inventory[idx];
 
-        prt("", j + 1, col ? col - 2 : col);
+        prt("", j + 1, col);
 
-        if (is_supply)
+        /* Draw tile if in graphics mode and not a supply entry */
+        int text_col = col;
+        if (!is_supply && o_ptr->k_idx)
         {
-            char label = supplies_label_char();
-            int slot = supplies_virtual_slot();
-            if (!label && slot >= 0)
-                label = index_to_label(slot);
-            if (!label)
-                label = 'a';
-            sprintf(tmp_val, "%c)", label);
-        }
-        else
-        {
-            sprintf(tmp_val, "%c)", index_to_label(idx));
+            text_col = draw_item_tile(col, j + 1, o_ptr);
         }
 
-        put_str(tmp_val, j + 1, col);
-
-        c_put_str(out_color[j], out_desc[j], j + 1, col + 3);
+        c_put_str(out_color[j], out_desc[j], j + 1, text_col);
 
         if (show_weights)
         {
@@ -2575,13 +2597,32 @@ void show_inven(void)
             else
                 wgt = o_ptr->weight * o_ptr->number;
             sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
-            c_put_str(out_color[j], tmp_val, j + 1, 71);
+            c_put_str(out_color[j], tmp_val, j + 1, 70);
         }
+
+        /* Print the item letter at the end */
+        if (is_supply)
+        {
+            char label = supplies_label_char();
+            int slot = supplies_virtual_slot();
+            if (!label && slot >= 0)
+                label = index_to_label(slot);
+            if (!label)
+                label = 'a';
+            sprintf(tmp_val, " (%c)", label);
+        }
+        else
+        {
+            sprintf(tmp_val, " (%c)", index_to_label(idx));
+        }
+
+        int label_col = show_weights ? 78 : 71;
+        put_str(tmp_val, j + 1, label_col);
     }
 
     /* Make a "shadow" below the list (only if needed) */
     if (j && (j < 23))
-        prt("", j + 1, col ? col - 2 : col);
+        prt("", j + 1, col);
 }
 
 /*
@@ -2680,62 +2721,68 @@ void show_equip(void)
         o_ptr = &inventory[i];
 
         /* Clear the line */
-        prt("", j + 1, col ? col - 2 : col);
-
-        /* Prepare an index --(-- */
-        sprintf(tmp_val, "%c)", index_to_label(i));
-
-        /* Clear the line with the (possibly indented) index */
-        put_str(tmp_val, j + 1, col);
+        prt("", j + 1, col);
 
         /* Mention the use */
         strnfmt(tmp_val, sizeof(tmp_val), "%-12s: ", mention_use(i));
-        put_str(tmp_val, j + 1, col + 3);
+        put_str(tmp_val, j + 1, col);
+
+        /* Draw tile if in graphics mode and item exists */
+        int text_col = col + 12 + 2;
+        if (o_ptr->k_idx)
+        {
+            text_col = draw_item_tile(col + 12 + 2, j + 1, o_ptr);
+        }
 
         /* Display the entry itself */
-        c_put_str(out_color[j], out_desc[j], j + 1, col + 3 + 12 + 2);
+        c_put_str(out_color[j], out_desc[j], j + 1, text_col);
 
         /* Display the weight if needed */
         if (show_weights && o_ptr->weight)
         {
             int wgt = o_ptr->weight * o_ptr->number;
-            sprintf(tmp_val, "%3d.%d lb", wgt / 10, wgt % 10);
+            sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
 
             if ((i >= INVEN_BODY) && (i <= INVEN_FEET))
             {
-                c_put_str(TERM_SLATE, tmp_val, j + 1, 71);
+                c_put_str(TERM_SLATE, tmp_val, j + 1, 70);
                 armour_weight += wgt;
             }
             else
             {
-                c_put_str(out_color[j], tmp_val, j + 1, 71);
+                c_put_str(out_color[j], tmp_val, j + 1, 70);
             }
         }
 
         if (i == INVEN_QUIVER2)
         {
-            int note_col = col + 3 + 12 + 2 + (int)strlen(out_desc[j]);
+            int note_col = col + 12 + 2 + (int)strlen(out_desc[j]);
             c_put_str(TERM_L_DARK, " (keeps passive bonuses)", j + 1, note_col);
         }
+
+        /* Print the item letter at the end */
+        sprintf(tmp_val, " (%c)", index_to_label(i));
+        int label_col = show_weights ? 78 : 71;
+        put_str(tmp_val, j + 1, label_col);
     }
 
     /* Make a "shadow" below the list (only if needed) */
     if (j && (j < 23))
-        prt("", j + 1, col ? col - 2 : col);
+        prt("", j + 1, col);
 
     /* Put in the total weight */
     if (armour_weight)
     {
         int col = 52;
         /* Blank the line for the total */
-        prt("", j + 2, col ? col - 2 : col);
-        c_put_str(TERM_L_DARK, "--------", INVEN_TOTAL - INVEN_WIELD + 1, 71);
+        prt("", j + 2, col);
+        c_put_str(TERM_L_DARK, "--------", INVEN_TOTAL - INVEN_WIELD + 1, 70);
         sprintf(tmp_val, "armour: %3d.%1d lb", armour_weight / 10,
             armour_weight % 10);
-        c_put_str(TERM_SLATE, tmp_val, INVEN_TOTAL - INVEN_WIELD + 2, 71 - 8);
+        c_put_str(TERM_SLATE, tmp_val, INVEN_TOTAL - INVEN_WIELD + 2, 70 - 8);
         /* Make a new "shadow" below the list (only if needed) */
         if (j && (j + 3 < 23))
-            prt("", j + 3, col ? col - 2 : col);
+            prt("", j + 3, col);
     }
 }
 
@@ -2819,29 +2866,35 @@ void show_floor(const int* floor_list, int floor_num)
         o_ptr = &o_list[i];
 
         /* Clear the line */
-        prt("", j + 1, col ? col - 2 : col);
+        prt("", j + 1, col);
 
-        /* Prepare an index --(-- */
-        sprintf(tmp_val, "%c)", index_to_label(out_index[j]));
-
-        /* Clear the line with the (possibly indented) index */
-        put_str(tmp_val, j + 1, col);
+        /* Draw tile if in graphics mode */
+        int text_col = col;
+        if (o_ptr->k_idx)
+        {
+            text_col = draw_item_tile(col, j + 1, o_ptr);
+        }
 
         /* Display the entry itself */
-        c_put_str(out_color[j], out_desc[j], j + 1, col + 3);
+        c_put_str(out_color[j], out_desc[j], j + 1, text_col);
 
         /* Display the weight if needed */
         if (show_weights)
         {
             int wgt = o_ptr->weight * o_ptr->number;
             sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
-            c_put_str(out_color[j], tmp_val, j + 1, 71);
+            c_put_str(out_color[j], tmp_val, j + 1, 70);
         }
+
+        /* Print the item letter at the end */
+        sprintf(tmp_val, " (%c)", index_to_label(out_index[j]));
+        int label_col = show_weights ? 78 : 71;
+        put_str(tmp_val, j + 1, label_col);
     }
 
     /* Make a "shadow" below the list (only if needed) */
     if (j && (j < 23))
-        prt("", j + 1, col ? col - 2 : col);
+        prt("", j + 1, col);
 }
 
 /*
@@ -3328,11 +3381,14 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         if (!p_ptr->command_see) break;                                            \
         if (p_ptr->command_wrk == (USE_INVEN)) {                                    \
             vis_inven_cnt = 0;                                                      \
-            if (supplies_visible_for_current_filter() && vis_inven_cnt < (INVEN_PACK + 1)) { \
+            bool has_supplies = supplies_visible_for_current_filter();              \
+            if (has_supplies && vis_inven_cnt < INVEN_PACK) {                       \
                 vis_inven[vis_inven_cnt++] = SUPPLIES_INDEX;                        \
             }                                                                       \
-            for (int ii = 0; ii < INVEN_PACK && vis_inven_cnt < (INVEN_PACK + 1); ++ii) { \
+            for (int ii = 0; ii < INVEN_PACK && vis_inven_cnt < INVEN_PACK; ++ii) { \
                 if (inventory[ii].k_idx && get_item_okay(ii)) {                     \
+                    /* Stop adding items if we've hit the limit (leaving room for supplies) */ \
+                    if (has_supplies && vis_inven_cnt >= INVEN_PACK) break;         \
                     vis_inven[vis_inven_cnt++] = ii;                                \
                 }                                                                   \
             }                                                                       \
@@ -3427,7 +3483,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         int row=-1; int item_index=0; int floor_slot=-1;                            \
         if (p_ptr->command_wrk == (USE_INVEN) && highlight_row < vis_inven_cnt) {   \
             row = highlight_row; item_index = vis_inven[highlight_row];             \
-            prt("", row+1, col?col-2:col);                                         \
+            prt("", row+1, col);                                         \
             if (item_index == SUPPLIES_INDEX) {                                     \
                 char label = supplies_label_char();                                 \
                 int slot = supplies_virtual_slot();                                 \
@@ -3435,34 +3491,37 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 if (!label) label = 'a';                                            \
                 format_supply_summary(tmp, sizeof(tmp));                            \
                 tmp[lim]='\0';                                                     \
-                { char lab[4]; sprintf(lab, "%c)", label); put_str(lab,row+1,col); }\
-                c_put_str(attr,tmp,row+1,col+3);                                    \
-                if (show_weights){ int wgt = supplies_total_weight(); char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,71);} \
+                c_put_str(attr,tmp,row+1,col);                                    \
+                if (show_weights){ int wgt = supplies_total_weight(); char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
+                { char lab[8]; sprintf(lab, " (%c)", label); int label_col = show_weights ? 78 : 71; c_put_str(attr,lab,row+1,label_col); }\
             } else {                                                                \
                 object_type* o_ptr=&inventory[item_index];                          \
                 object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';           \
-                { char lab[4]; sprintf(lab, "%c)", index_to_label(item_index)); put_str(lab,row+1,col); }\
-                c_put_str(attr,tmp,row+1,col+3);                                    \
-                if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,71);} \
+                int text_col = draw_item_tile(col, row+1, o_ptr);                   \
+                c_put_str(attr,tmp,row+1,text_col);                                    \
+                if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
+                { char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index)); int label_col = show_weights ? 78 : 71; c_put_str(attr,lab,row+1,label_col); }\
             }                                                                       \
         } else if (p_ptr->command_wrk == (USE_EQUIP) && highlight_row < vis_equip_cnt){\
             row = highlight_row; item_index = vis_equip[highlight_row];             \
             object_type* o_ptr=&inventory[item_index];                              \
             object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';               \
-            prt("", row+1, col?col-2:col);                                         \
-            { char lab[4]; sprintf(lab, "%c)", index_to_label(item_index)); put_str(lab,row+1,col); }\
-            { char usebuf[32]; strnfmt(usebuf,sizeof(usebuf),"%-12s: ", mention_use(item_index)); put_str(usebuf,row+1,col+3);} \
-            c_put_str(attr,tmp,row+1,col+3+12+2);                                   \
-            if (show_weights && o_ptr->weight){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%3d.%d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,71);} \
+            prt("", row+1, col);                                         \
+            { char usebuf[32]; strnfmt(usebuf,sizeof(usebuf),"%-12s: ", mention_use(item_index)); c_put_str(attr,usebuf,row+1,col);} \
+            int text_col = draw_item_tile(col+12+2, row+1, o_ptr);                  \
+            c_put_str(attr,tmp,row+1,text_col);                                   \
+            if (show_weights && o_ptr->weight){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%3d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,70);} \
+            { char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index)); int label_col = show_weights ? 78 : 71; c_put_str(attr,lab,row+1,label_col); }\
         } else if (p_ptr->command_wrk == (USE_FLOOR) && highlight_row < vis_floor_cnt){\
             row = highlight_row; floor_slot = vis_floor[highlight_row];             \
             int obj_idx = floor_list[floor_slot];                                   \
             object_type* o_ptr=&o_list[obj_idx];                                    \
             object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';               \
-            prt("", row+1, col?col-2:col);                                         \
-            { char lab[4]; sprintf(lab, "%c)", index_to_label(floor_slot)); put_str(lab,row+1,col);} \
-            c_put_str(attr,tmp,row+1,col+3);                                        \
-            if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,71);} \
+            prt("", row+1, col);                                         \
+            int text_col = draw_item_tile(col, row+1, o_ptr);                       \
+            c_put_str(attr,tmp,row+1,text_col);                                        \
+            if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
+            { char lab[8]; sprintf(lab, " (%c)", index_to_label(floor_slot)); int label_col = show_weights ? 78 : 71; c_put_str(attr,lab,row+1,label_col); }\
         }                                                                           \
     } while (0)
 
@@ -4323,7 +4382,6 @@ void show_inven_enhanced(void)
     char out_desc[ENHANCED_MAX_LIST][80];
     bool out_is_floor[ENHANCED_MAX_LIST];  /* Track which entries are floor items */
     bool out_is_supply[ENHANCED_MAX_LIST]; /* Track which entries are supply items */
-bool out_is_equip[ENHANCED_MAX_LIST];
     
     /* Default length (exactly like show_inven) */
     len = 79 - 50;
@@ -4352,6 +4410,14 @@ bool out_is_equip[ENHANCED_MAX_LIST];
         o_ptr = &inventory[i];
         if (!o_ptr->k_idx) continue;
         z = i + 1;
+    }
+    
+    /* Limit displayed items to leave room for supplies if they will be shown */
+    if (include_supplies)
+    {
+        int max_items = INVEN_PACK - 1;  /* Reserve one slot for supplies */
+        if (z > max_items)
+            z = max_items;
     }
     
     /* Build combined list with floor items first, then inventory */
@@ -4467,6 +4533,7 @@ bool out_is_equip[ENHANCED_MAX_LIST];
         byte compare_attr[MAX_COMPARE_LINES];
         bool compare_has_weight[MAX_COMPARE_LINES];
         int compare_weight[MAX_COMPARE_LINES];
+        object_type* compare_obj[MAX_COMPARE_LINES]; /* Track object pointers for tile display */
 
         for (int c = 0; c < MAX_COMPARE_LINES; c++)
         {
@@ -4476,6 +4543,7 @@ bool out_is_equip[ENHANCED_MAX_LIST];
             compare_attr[c] = TERM_SLATE;
             compare_has_weight[c] = false;
             compare_weight[c] = 0;
+            compare_obj[c] = NULL;
         }
 
         if (allow_compare && highlight_active && highlight_row >= 0 && highlight_row < k)
@@ -4513,7 +4581,7 @@ bool out_is_equip[ENHANCED_MAX_LIST];
                 {
                     int slot = slot_candidates[idx];
 
-                    strnfmt(compare_label[idx], sizeof(compare_label[idx]), "%c)", index_to_label(slot));
+                    strnfmt(compare_label[idx], sizeof(compare_label[idx]), "%c", index_to_label(slot));
                     strnfmt(compare_prefix[idx], sizeof(compare_prefix[idx]), "%-12s: ", mention_use(slot));
 
                     int compare_lim = 79 - 3 - (12 + 2);
@@ -4527,6 +4595,7 @@ bool out_is_equip[ENHANCED_MAX_LIST];
                     object_type* equipped_obj = &inventory[slot];
                     if (equipped_obj->k_idx)
                     {
+                        compare_obj[idx] = equipped_obj; /* Store for tile display */
                         object_desc(compare_desc[idx], sizeof(compare_desc[idx]), equipped_obj, true, 3);
                         compare_desc[idx][compare_lim] = '\0';
                         compare_attr[idx] = weapon_glows(equipped_obj) ? TERM_L_BLUE
@@ -4539,6 +4608,7 @@ bool out_is_equip[ENHANCED_MAX_LIST];
                     }
                     else
                     {
+                        compare_obj[idx] = NULL; /* No object for empty slots */
                         cptr empty_text = describe_empty_slot(slot);
                         my_strcpy(compare_desc[idx], empty_text, sizeof(compare_desc[idx]));
                         if (compare_lim < (int)sizeof(compare_desc[idx]))
@@ -4567,29 +4637,16 @@ bool out_is_equip[ENHANCED_MAX_LIST];
             else if (!is_supply_item)
                 line_obj = &inventory[out_index[j]];
 
-            prt("", row, col ? col - 2 : col);
+            prt("", row, col);
 
-            if (is_floor_item)
-                strnfmt(tmp_val, sizeof(tmp_val), "-)");
-            else if (is_supply_item)
+            /* Draw tile if in graphics mode and not a supply entry */
+            int text_col = col;
+            if (line_obj && line_obj->k_idx)
             {
-                char label = supplies_label_char();
-                int slot = supplies_virtual_slot();
-                if (!label && slot >= 0)
-                    label = index_to_label(slot);
-                if (!label)
-                    label = 'a';
-                strnfmt(tmp_val, sizeof(tmp_val), "%c)", label);
+                text_col = draw_item_tile(col, row, line_obj);
             }
-            else
-                strnfmt(tmp_val, sizeof(tmp_val), "%c)", index_to_label(out_index[j]));
 
-            if (is_highlight)
-                c_put_str(TERM_L_BLUE, tmp_val, row, col);
-            else
-                put_str(tmp_val, row, col);
-
-            c_put_str(line_attr, out_desc[j], row, col + 3);
+            c_put_str(line_attr, out_desc[j], row, text_col);
 
             if (show_weights)
             {
@@ -4599,8 +4656,30 @@ bool out_is_equip[ENHANCED_MAX_LIST];
                 else if (line_obj)
                     wgt = line_obj->weight * line_obj->number;
                 strnfmt(tmp_val, sizeof(tmp_val), "%3d.%1d lb", wgt / 10, wgt % 10);
-                c_put_str(line_attr, tmp_val, row, 71);
+                c_put_str(line_attr, tmp_val, row, 70);
             }
+
+            /* Print the item letter at the end */
+            if (is_floor_item)
+                strnfmt(tmp_val, sizeof(tmp_val), " (-)");
+            else if (is_supply_item)
+            {
+                char label = supplies_label_char();
+                int slot = supplies_virtual_slot();
+                if (!label && slot >= 0)
+                    label = index_to_label(slot);
+                if (!label)
+                    label = 'a';
+                strnfmt(tmp_val, sizeof(tmp_val), " (%c)", label);
+            }
+            else
+                strnfmt(tmp_val, sizeof(tmp_val), " (%c)", index_to_label(out_index[j]));
+
+            int label_col = show_weights ? 78 : 71;
+            if (is_highlight)
+                c_put_str(TERM_L_BLUE, tmp_val, row, label_col);
+            else
+                put_str(tmp_val, row, label_col);
 
             next_row++;
 
@@ -4610,24 +4689,39 @@ bool out_is_equip[ENHANCED_MAX_LIST];
                 {
                     int compare_row = next_row;
 
-                    prt("", compare_row, col ? col - 2 : col);
-                    if (compare_label[idx][0])
-                        c_put_str(compare_attr[idx], compare_label[idx], compare_row, col);
+                    prt("", compare_row, col);
 
-                    c_put_str(TERM_WHITE, compare_prefix[idx], compare_row, col + 3);
-                    c_put_str(compare_attr[idx], compare_desc[idx], compare_row, col + 3 + 12 + 2);
+                    c_put_str(TERM_WHITE, compare_prefix[idx], compare_row, col);
+
+                    /* Draw tile if in graphics mode for equipped items */
+                    int compare_text_col = col + 12 + 2;
+                    if (compare_obj[idx] && compare_obj[idx]->k_idx)
+                    {
+                        compare_text_col = draw_item_tile(col + 12 + 2, compare_row, compare_obj[idx]);
+                    }
+
+                    c_put_str(compare_attr[idx], compare_desc[idx], compare_row, compare_text_col);
 
                     if (show_weights)
                     {
                         if (compare_has_weight[idx])
                         {
                             strnfmt(tmp_val, sizeof(tmp_val), "%3d.%1d lb", compare_weight[idx] / 10, compare_weight[idx] % 10);
-                            c_put_str(compare_attr[idx], tmp_val, compare_row, 71);
+                            c_put_str(compare_attr[idx], tmp_val, compare_row, 70);
                         }
                         else
                         {
-                            prt("", compare_row, 71);
+                            prt("", compare_row, 70);
                         }
+                    }
+
+                    /* Print the item letter at the end of compare line */
+                    if (compare_label[idx][0])
+                    {
+                        char label_str[8];
+                        strnfmt(label_str, sizeof(label_str), " (%s", compare_label[idx]);
+                        int label_col = show_weights ? 78 : 71;
+                        c_put_str(compare_attr[idx], label_str, compare_row, label_col);
                     }
 
                     next_row++;
@@ -4638,16 +4732,16 @@ bool out_is_equip[ENHANCED_MAX_LIST];
         int total_rows = next_row - 1;
 
         if (total_rows && total_rows < 23)
-            prt("", total_rows + 1, col ? col - 2 : col);
+            prt("", total_rows + 1, col);
 
         if (total_rows < previous_total_rows)
         {
-            int clear_col = col ? col - 2 : col;
+            int clear_col = col;
             for (int clear_row = total_rows + 1; clear_row <= previous_total_rows; clear_row++)
             {
                 prt("", clear_row, clear_col);
                 if (show_weights)
-                    prt("", clear_row, 71);
+                    prt("", clear_row, 70);
             }
         }
 
@@ -5038,34 +5132,41 @@ void show_equip_enhanced(void)
                 log_debug("show_equip_enhanced: Found display row %d for slot %d", display_row, highlighted_slot);
                 
                 /* Clear the line (exactly like show_equip) */
-                prt("", display_row, col ? col - 2 : col);
-                
-                /* Prepare an index (exactly like show_equip) */
-                sprintf(tmp_val, "%c)", index_to_label(highlighted_slot));
-                
-                /* Highlight the line with the index (exactly like show_equip) */
-                c_put_str(TERM_L_BLUE, tmp_val, display_row, col);
+                prt("", display_row, col);
                 
                 /* Mention the use (exactly like show_equip) */
                 strnfmt(tmp_val, sizeof(tmp_val), "%-12s: ", mention_use(highlighted_slot));
-                c_put_str(TERM_L_BLUE, tmp_val, display_row, col + 3);
+                c_put_str(TERM_L_BLUE, tmp_val, display_row, col);
+                
+                /* Draw tile if in graphics mode */
+                int text_col = col + 12 + 2;
+                if (o_ptr->k_idx)
+                {
+                    text_col = draw_item_tile(col + 12 + 2, display_row, o_ptr);
+                }
                 
                 /* Display the entry itself (exactly like show_equip) */
-                c_put_str(TERM_L_BLUE, out_desc[highlight_index], display_row, col + 3 + 12 + 2);
+                c_put_str(TERM_L_BLUE, out_desc[highlight_index], display_row, text_col);
                 
                 /* Display the weight if needed (exactly like show_equip) */
                 if (show_weights && o_ptr->weight)
                 {
                     int wgt = o_ptr->weight * o_ptr->number;
-                    sprintf(tmp_val, "%3d.%d lb", wgt / 10, wgt % 10);
-                    c_put_str(TERM_L_BLUE, tmp_val, display_row, 71);
+                    sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
+                    c_put_str(TERM_L_BLUE, tmp_val, display_row, 70);
                 }
                 
                 if (highlighted_slot == INVEN_QUIVER2)
                 {
-                    int note_col = col + 3 + 12 + 2 + (int)strlen(out_desc[highlight_index]);
+                    /* Account for potential tile offset when calculating note position */
+                    int note_col = text_col + (int)strlen(out_desc[highlight_index]);
                     c_put_str(TERM_L_DARK, " (keeps passive bonuses)", display_row, note_col);
                 }
+
+                /* Print the item letter at the end with highlight */
+                sprintf(tmp_val, " (%c)", index_to_label(highlighted_slot));
+                int label_col = show_weights ? 78 : 71;
+                c_put_str(TERM_L_BLUE, tmp_val, display_row, label_col);
                 
                 log_debug("show_equip_enhanced: Drew highlight at display row %d, col %d", display_row, col);
             }
@@ -5283,7 +5384,7 @@ static void draw_ident_line(const ident_entry* entry, int row, int col, bool hig
     int offset = col + 3;
     char weight_buf[16];
 
-    prt("", row, col ? col - 2 : col);
+    prt("", row, col);
 
     if (highlight)
         c_put_str(label_attr, entry->label, row, col);
@@ -5307,7 +5408,7 @@ static void draw_ident_line(const ident_entry* entry, int row, int col, bool hig
         if (entry->o_ptr->weight || entry->type != IDENT_ENTRY_EQUIP)
         {
             strnfmt(weight_buf, sizeof(weight_buf), "%3d.%1d lb", wgt / 10, wgt % 10);
-            c_put_str(attr, weight_buf, row, 71);
+            c_put_str(attr, weight_buf, row, 70);
         }
     }
 }
@@ -5515,7 +5616,7 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         }
 
         if (entry_count && entry_count < 23)
-            prt("", entry_count + 1, col ? col - 2 : col);
+            prt("", entry_count + 1, col);
 
         rows_to_clear = base_rows;
 

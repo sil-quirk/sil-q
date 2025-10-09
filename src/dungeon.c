@@ -3258,10 +3258,10 @@ static void print_story_intro(void)
  * If the savefile does not exist, cannot be loaded, or contains a dead
  * (non-wizard-mode) character, then a new game will be started.
  *
- * Several platforms (Windows, Macintosh) start brand new games
- * with "savefile" and "op_ptr->base_name" both empty, and initialize
- * them later based on the player name.  To prevent weirdness, we must
- * initialize "op_ptr->base_name" to "nameless" if it is empty.
+ * Some platforms (Windows) start brand new games with "savefile" and 
+ * "op_ptr->base_name" both empty, and initialize them later based on 
+ * the player name. To prevent weirdness, we must initialize 
+ * "op_ptr->base_name" to "nameless" if it is empty.
  *
  * Note that we load the RNG state from savefiles and
  * so we only initialize it if we were unable to load it.  The loading

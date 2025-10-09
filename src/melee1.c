@@ -2843,18 +2843,41 @@ void update_combat_rolls1(const monster_type* m_ptr1,
                 = combat_roll_special_char;
             combat_rolls[0][combat_number].attacker_attr
                 = combat_roll_special_attr;
+            combat_rolls[0][combat_number].is_attacker_player = false;
         }
         else if (vis || (m_ptr1 == PLAYER))
         {
-            combat_rolls[0][combat_number].attacker_char = r_ptr1->d_char;
-
-            if (p_ptr->rage && (m_ptr1 != PLAYER))
+            if (m_ptr1 == PLAYER)
             {
-                combat_rolls[0][combat_number].attacker_attr = TERM_RED;
+                /* Player appearance */
+                combat_rolls[0][combat_number].is_attacker_player = true;
+                if (graphics_are_ascii())
+                {
+                    combat_rolls[0][combat_number].attacker_char = r_ptr1->d_char;
+                    combat_rolls[0][combat_number].attacker_attr = r_ptr1->d_attr;
+                }
+                else
+                {
+                    /* In graphics mode, use race sprite with equipment offset */
+                    monster_race* player_r_ptr = &r_info[p_ptr->prace];
+                    combat_rolls[0][combat_number].attacker_char = player_r_ptr->x_char + player_tile_offset();
+                    combat_rolls[0][combat_number].attacker_attr = player_r_ptr->x_attr;
+                }
             }
             else
             {
-                combat_rolls[0][combat_number].attacker_attr = r_ptr1->d_attr;
+                /* Monster appearance */
+                combat_rolls[0][combat_number].is_attacker_player = false;
+                combat_rolls[0][combat_number].attacker_char = graphics_are_ascii() ? r_ptr1->d_char : r_ptr1->x_char;
+
+                if (p_ptr->rage)
+                {
+                    combat_rolls[0][combat_number].attacker_attr = TERM_RED;
+                }
+                else
+                {
+                    combat_rolls[0][combat_number].attacker_attr = graphics_are_ascii() ? r_ptr1->d_attr : r_ptr1->x_attr;
+                }
             }
         }
         else
@@ -2868,18 +2891,41 @@ void update_combat_rolls1(const monster_type* m_ptr1,
         {
             combat_rolls[0][combat_number].defender_char = ']';
             combat_rolls[0][combat_number].defender_attr = TERM_L_DARK;
+            combat_rolls[0][combat_number].is_defender_player = false;
         }
         else if (vis || (m_ptr2 == PLAYER))
         {
-            combat_rolls[0][combat_number].defender_char = r_ptr2->d_char;
-
-            if (p_ptr->rage && (m_ptr2 != PLAYER))
+            if (m_ptr2 == PLAYER)
             {
-                combat_rolls[0][combat_number].defender_attr = TERM_RED;
+                /* Player appearance */
+                combat_rolls[0][combat_number].is_defender_player = true;
+                if (graphics_are_ascii())
+                {
+                    combat_rolls[0][combat_number].defender_char = r_ptr2->d_char;
+                    combat_rolls[0][combat_number].defender_attr = r_ptr2->d_attr;
+                }
+                else
+                {
+                    /* In graphics mode, use race sprite with equipment offset */
+                    monster_race* player_r_ptr = &r_info[p_ptr->prace];
+                    combat_rolls[0][combat_number].defender_char = player_r_ptr->x_char + player_tile_offset();
+                    combat_rolls[0][combat_number].defender_attr = player_r_ptr->x_attr;
+                }
             }
             else
             {
-                combat_rolls[0][combat_number].defender_attr = r_ptr2->d_attr;
+                /* Monster appearance */
+                combat_rolls[0][combat_number].is_defender_player = false;
+                combat_rolls[0][combat_number].defender_char = graphics_are_ascii() ? r_ptr2->d_char : r_ptr2->x_char;
+
+                if (p_ptr->rage)
+                {
+                    combat_rolls[0][combat_number].defender_attr = TERM_RED;
+                }
+                else
+                {
+                    combat_rolls[0][combat_number].defender_attr = graphics_are_ascii() ? r_ptr2->d_attr : r_ptr2->x_attr;
+                }
             }
         }
         else
@@ -2963,41 +3009,88 @@ void update_combat_rolls1b(
                 = combat_roll_special_char;
             combat_rolls[0][combat_number].attacker_attr
                 = combat_roll_special_attr;
+            combat_rolls[0][combat_number].is_attacker_player = false;
         }
         else if (vis || (m_ptr1 == PLAYER))
         {
-            combat_rolls[0][combat_number].attacker_char = r_ptr1->d_char;
-
-            if (p_ptr->rage && (m_ptr1 != PLAYER))
+            if (m_ptr1 == PLAYER)
             {
-                combat_rolls[0][combat_number].attacker_attr = TERM_RED;
+                /* Player appearance */
+                combat_rolls[0][combat_number].is_attacker_player = true;
+                if (graphics_are_ascii())
+                {
+                    combat_rolls[0][combat_number].attacker_char = r_ptr1->d_char;
+                    combat_rolls[0][combat_number].attacker_attr = r_ptr1->d_attr;
+                }
+                else
+                {
+                    /* In graphics mode, use race sprite with equipment offset */
+                    monster_race* player_r_ptr = &r_info[p_ptr->prace];
+                    combat_rolls[0][combat_number].attacker_char = player_r_ptr->x_char + player_tile_offset();
+                    combat_rolls[0][combat_number].attacker_attr = player_r_ptr->x_attr;
+                }
             }
             else
             {
-                combat_rolls[0][combat_number].attacker_attr = r_ptr1->d_attr;
+                /* Monster appearance */
+                combat_rolls[0][combat_number].is_attacker_player = false;
+                combat_rolls[0][combat_number].attacker_char = graphics_are_ascii() ? r_ptr1->d_char : r_ptr1->x_char;
+
+                if (p_ptr->rage)
+                {
+                    combat_rolls[0][combat_number].attacker_attr = TERM_RED;
+                }
+                else
+                {
+                    combat_rolls[0][combat_number].attacker_attr = graphics_are_ascii() ? r_ptr1->d_attr : r_ptr1->x_attr;
+                }
             }
         }
         else
         {
+            combat_rolls[0][combat_number].is_attacker_player = false;
             combat_rolls[0][combat_number].attacker_char = '?';
             combat_rolls[0][combat_number].attacker_attr = TERM_SLATE;
         }
 
         if (vis || (m_ptr2 == PLAYER))
         {
-            combat_rolls[0][combat_number].defender_char = r_ptr2->d_char;
-
-            if (p_ptr->rage && (m_ptr2 != PLAYER))
+            if (m_ptr2 == PLAYER)
             {
-                combat_rolls[0][combat_number].defender_attr = TERM_RED;
+                /* Player appearance */
+                combat_rolls[0][combat_number].is_defender_player = true;
+                if (graphics_are_ascii())
+                {
+                    combat_rolls[0][combat_number].defender_char = r_ptr2->d_char;
+                    combat_rolls[0][combat_number].defender_attr = r_ptr2->d_attr;
+                }
+                else
+                {
+                    /* In graphics mode, use race sprite with equipment offset */
+                    monster_race* player_r_ptr = &r_info[p_ptr->prace];
+                    combat_rolls[0][combat_number].defender_char = player_r_ptr->x_char + player_tile_offset();
+                    combat_rolls[0][combat_number].defender_attr = player_r_ptr->x_attr;
+                }
             }
             else
             {
-                combat_rolls[0][combat_number].defender_attr = r_ptr2->d_attr;
+                /* Monster appearance */
+                combat_rolls[0][combat_number].is_defender_player = false;
+                combat_rolls[0][combat_number].defender_char = graphics_are_ascii() ? r_ptr2->d_char : r_ptr2->x_char;
+
+                if (p_ptr->rage)
+                {
+                    combat_rolls[0][combat_number].defender_attr = TERM_RED;
+                }
+                else
+                {
+                    combat_rolls[0][combat_number].defender_attr = graphics_are_ascii() ? r_ptr2->d_attr : r_ptr2->x_attr;
+                }
             }
         }
         else
         {
+            combat_rolls[0][combat_number].is_defender_player = false;
             combat_rolls[0][combat_number].defender_char = '?';
             combat_rolls[0][combat_number].defender_attr = TERM_SLATE;
         }
@@ -3095,6 +3188,8 @@ void display_combat_rolls(void)
 
     int round_max_line[2] = { 0, 0 };
 
+    int max_display_height = Term->hgt; // Track available window height
+
     /* Clear the window */
     for (i = 0; i < Term->hgt; i++)
     {
@@ -3109,26 +3204,27 @@ void display_combat_rolls(void)
         {
             combat_num_for_round = combat_number_old;
             line_jump = (round_max_line[0] > 0) ? round_max_line[0] + 1 : 0;
-            if ((combat_number > 0) && (combat_number_old > 0))
-            {
-                Term_putstr(0, line_jump, 60, TERM_L_DARK,
-                    "------------------------------------------------------------");
-            }
+            // if ((combat_number > 0) && (combat_number_old > 0))
+            // {
+            //     Term_putstr(0, line_jump, 60, TERM_L_DARK,
+            //         "------------------------------------------------------------");
+            // }
         }
         total_player_attacks = 0;
         player_attacks = 0;
         monster_attacks = 0;
 
+        /* Count player attacks (iterate forward to count total) */
         for (i = 0; i < combat_num_for_round; i++)
         {
-            if ((combat_rolls[round][i].attacker_char == r_info[0].d_char)
-                && (combat_rolls[round][i].attacker_attr == r_info[0].d_attr))
+            if (combat_rolls[round][i].is_attacker_player)
             {
                 total_player_attacks++;
             }
         }
 
-        for (i = 0; i < combat_num_for_round; i++)
+        /* Display attacks in reverse order (newest first) */
+        for (i = combat_num_for_round - 1; i >= 0; i--)
         {
             log_trace("display_combat_rolls: Round=%d, i=%d, att_type=%d, attacker=%c, defender=%c", 
                       round, i, combat_rolls[round][i].att_type,
@@ -3139,8 +3235,9 @@ void display_combat_rolls(void)
             res = 1;
 
             // determine the appropriate resistance if the player was attacked
-            if ((combat_rolls[round][i].defender_char == r_info[0].d_char)
-                && (combat_rolls[round][i].defender_attr == r_info[0].d_attr))
+            log_debug("Defender check: is_defender_player=%d", combat_rolls[round][i].is_defender_player);
+            
+            if (combat_rolls[round][i].is_defender_player)
             {
                 switch (combat_rolls[round][i].dam_type)
                 {
@@ -3160,11 +3257,8 @@ void display_combat_rolls(void)
                 }
             }
 
-            if ((combat_rolls[round][i].attacker_char == r_info[0].d_char)
-                && (combat_rolls[round][i].attacker_attr == r_info[0].d_attr))
+            if (combat_rolls[round][i].is_attacker_player)
             {
-                player_attacks++;
-
                 a_att = TERM_L_BLUE;
                 a_evn = TERM_WHITE;
                 a_hit = TERM_L_RED;
@@ -3176,14 +3270,14 @@ void display_combat_rolls(void)
                 else
                     a_prot_roll = TERM_DARK;
 
-                line = player_attacks + line_jump;
+                /* In reverse iteration, assign lines from top (newest first) */
+                line = (total_player_attacks - 1 - player_attacks) + line_jump;
+                player_attacks++;
                 if (line > round_max_line[round])
                     round_max_line[round] = line;
             }
             else
             {
-                monster_attacks++;
-
                 a_att = TERM_WHITE;
                 a_evn = TERM_L_BLUE;
                 a_hit = TERM_L_RED;
@@ -3195,15 +3289,44 @@ void display_combat_rolls(void)
                 else
                     a_prot_roll = TERM_DARK;
 
-                line = total_player_attacks + monster_attacks + line_jump;
+                /* Monster attacks go below player attacks, also newest first */
+                int total_monster_attacks = combat_num_for_round - total_player_attacks;
+                line = total_player_attacks + (total_monster_attacks - 1 - monster_attacks) + line_jump;
+                monster_attacks++;
                 if (line > round_max_line[round])
                     round_max_line[round] = line;
             }
 
+            /* Skip this roll if it would be displayed beyond window height */
+            if (line >= max_display_height)
+            {
+                log_trace("display_combat_rolls: Skipping roll at line %d (beyond max %d)", line, max_display_height);
+                continue;
+            }
+
+            /* Clear this line to prevent leftover text from previous frames */
+            Term_erase(0, line, 255);
+
+            /* Calculate column offset for bigtile mode */
+            int col_offset = (use_bigtile && !graphics_are_ascii()) ? 1 : 0;
+            int base_col = 2 + col_offset; /* Start of text after icon */
+
             /* Display the entry itself */
             Term_putstr(0, line, 1, TERM_WHITE, " ");
-            Term_addch(combat_rolls[round][i].attacker_attr,
-                combat_rolls[round][i].attacker_char);
+            /* Use Term_queue_char for proper tile support in graphics mode */
+            Term_queue_char(1, line, 
+                combat_rolls[round][i].attacker_attr,
+                combat_rolls[round][i].attacker_char,
+                0, 0);
+            /* Handle bigtile mode - monsters need 2 character width */
+            if (use_bigtile && !graphics_are_ascii())
+            {
+                /* Draw the second half of the bigtile */
+                if (combat_rolls[round][i].attacker_attr & 0x80)
+                    Term_queue_char(2, line, 255, -1, 0, 0);
+                else
+                    Term_queue_char(2, line, TERM_WHITE, ' ', 0, 0);
+            }
 
             // First display the attack side of the roll
 
@@ -3211,6 +3334,8 @@ void display_combat_rolls(void)
             // breath or other elemental attack)
             if (combat_rolls[round][i].att_type == COMBAT_ROLL_ROLL)
             {
+                int col = base_col;
+                
                 if (combat_rolls[round][i].att < 10)
                 {
                     strnfmt(buf, sizeof(buf), "  (%+d)",
@@ -3221,12 +3346,14 @@ void display_combat_rolls(void)
                     strnfmt(
                         buf, sizeof(buf), " (%+d)", combat_rolls[round][i].att);
                 }
-                Term_addstr(-1, a_att, buf);
+                Term_putstr(col, line, -1, a_att, buf);
+                col += 6;
 
                 strnfmt(buf, sizeof(buf), "%4d",
                     combat_rolls[round][i].att
                         + combat_rolls[round][i].att_roll);
-                Term_addstr(-1, a_att, buf);
+                Term_putstr(col, line, -1, a_att, buf);
+                col += 4;
 
                 net_att = combat_rolls[round][i].att_roll
                     + combat_rolls[round][i].att
@@ -3235,17 +3362,19 @@ void display_combat_rolls(void)
                 if (net_att > 0)
                 {
                     strnfmt(buf, sizeof(buf), "%4d", net_att);
-                    Term_addstr(-1, a_hit, buf);
+                    Term_putstr(col, line, -1, a_hit, buf);
                 }
                 else
                 {
-                    Term_addstr(-1, TERM_SLATE, "   -");
+                    Term_putstr(col, line, -1, TERM_SLATE, "   -");
                 }
+                col += 4;
 
                 strnfmt(buf, sizeof(buf), "%4d",
                     combat_rolls[round][i].evn
                         + combat_rolls[round][i].evn_roll);
-                Term_addstr(-1, a_evn, buf);
+                Term_putstr(col, line, -1, a_evn, buf);
+                col += 4;
 
                 if (combat_rolls[round][i].evn < 10)
                 {
@@ -3257,21 +3386,60 @@ void display_combat_rolls(void)
                     strnfmt(buf, sizeof(buf), "  [%+d]",
                         combat_rolls[round][i].evn);
                 }
-                Term_addstr(-1, a_evn, buf);
+                Term_putstr(col, line, -1, a_evn, buf);
+                col += 7;
 
                 // add the defender char
-                Term_addch(TERM_WHITE, ' ');
-                Term_addch(combat_rolls[round][i].defender_attr,
-                    combat_rolls[round][i].defender_char);
+                Term_putstr(col, line, 1, TERM_WHITE, " ");
+                col += 1;
+                
+                /* Use Term_queue_char for proper tile support in graphics mode */
+                Term_queue_char(col, line,
+                    combat_rolls[round][i].defender_attr,
+                    combat_rolls[round][i].defender_char,
+                    0, 0);
+                /* Handle bigtile mode for defender */
+                if (use_bigtile && !graphics_are_ascii())
+                {
+                    if (combat_rolls[round][i].defender_attr & 0x80)
+                        Term_queue_char(col + 1, line, 255, -1, 0, 0);
+                    else
+                        Term_queue_char(col + 1, line, TERM_WHITE, ' ', 0, 0);
+                    col += 2;
+                }
+                else
+                {
+                    col += 1;
+                }
             }
             else if (combat_rolls[round][i].att_type == COMBAT_ROLL_AUTO)
             {
-                Term_addstr(-1, TERM_L_DARK, "                         ");
+                int col = base_col;
+                Term_putstr(col, line, -1, TERM_L_DARK, "                         ");
+                col += 25;
 
                 // add the defender char
-                Term_addch(TERM_WHITE, ' ');
-                Term_addch(combat_rolls[round][i].defender_attr,
-                    combat_rolls[round][i].defender_char);
+                Term_putstr(col, line, 1, TERM_WHITE, " ");
+                col += 1;
+                
+                /* Use Term_queue_char for proper tile support in graphics mode */
+                Term_queue_char(col, line,
+                    combat_rolls[round][i].defender_attr,
+                    combat_rolls[round][i].defender_char,
+                    0, 0);
+                /* Handle bigtile mode for defender */
+                if (use_bigtile && !graphics_are_ascii())
+                {
+                    if (combat_rolls[round][i].defender_attr & 0x80)
+                        Term_queue_char(col + 1, line, 255, -1, 0, 0);
+                    else
+                        Term_queue_char(col + 1, line, TERM_WHITE, ' ', 0, 0);
+                    col += 2;
+                }
+                else
+                {
+                    col += 1;
+                }
             }
 
             // Now display the damage side of the roll
@@ -3279,11 +3447,36 @@ void display_combat_rolls(void)
             if ((net_att > 0)
                 || (combat_rolls[round][i].att_type == COMBAT_ROLL_AUTO))
             {
-                Term_addstr(-1, TERM_L_DARK, "  ->");
+                /* Continue from where we left off after defender icon */
+                int col;
+                if (combat_rolls[round][i].att_type == COMBAT_ROLL_ROLL)
+                {
+                    /* After attack roll section + defender icon */
+                    col = base_col + 25 + 1; /* 25 chars attack info + space */
+                    /* Add bigtile width for defender icon if needed */
+                    if (use_bigtile && !graphics_are_ascii())
+                        col += 2;
+                    else
+                        col += 1;
+                }
+                else
+                {
+                    /* After AUTO section + defender icon */
+                    col = base_col + 25 + 1; /* 25 chars placeholder + space */
+                    /* Add bigtile width for defender icon if needed */
+                    if (use_bigtile && !graphics_are_ascii())
+                        col += 2;
+                    else
+                        col += 1;
+                }
+                
+                Term_putstr(col, line, -1, TERM_L_DARK, "  ->");
+                col += 4;
 
+                /* Damage dice - always use 9 chars width for alignment */
                 if (combat_rolls[round][i].ds < 10)
                 {
-                    strnfmt(buf, sizeof(buf), "   (%dd%d)",
+                    strnfmt(buf, sizeof(buf), "   (%dd%d) ",
                         combat_rolls[round][i].dd, combat_rolls[round][i].ds);
                 }
                 else
@@ -3291,10 +3484,12 @@ void display_combat_rolls(void)
                     strnfmt(buf, sizeof(buf), "  (%dd%d)",
                         combat_rolls[round][i].dd, combat_rolls[round][i].ds);
                 }
-                Term_addstr(-1, a_dam_roll, buf);
+                Term_putstr(col, line, -1, a_dam_roll, buf);
+                col += 9;
 
                 strnfmt(buf, sizeof(buf), "%4d", combat_rolls[round][i].dam);
-                Term_addstr(-1, a_dam_roll, buf);
+                Term_putstr(col, line, -1, a_dam_roll, buf);
+                col += 4;
 
                 if (combat_rolls[round][i].att_type == COMBAT_ROLL_ROLL)
                 {
@@ -3317,12 +3512,25 @@ void display_combat_rolls(void)
                         buf, sizeof(buf), "%4d", combat_rolls[round][i].prot);
                     Term_addstr(-1, a_prot_roll, buf);
 
-                    // if monster is being hit, show protection dice
-                    if ((combat_rolls[round][i].defender_char
-                            != r_info[0].d_char)
-                        || (combat_rolls[round][i].defender_attr
-                            != r_info[0].d_attr))
+                    // if player is being hit, show protection *range* (pd and ps are min/max values, not dice)
+                    log_debug("COMBAT_ROLL_ROLL protection: is_defender_player=%d", combat_rolls[round][i].is_defender_player);
+                    
+                    if (combat_rolls[round][i].is_defender_player)
                     {
+                        log_debug(">>> PLAYER IS DEFENDER - showing range format");
+                        strnfmt(buf, sizeof(buf), "  [%d-%d]",
+                            (combat_rolls[round][i].pd
+                                * combat_rolls[round][i].prt_percent)
+                                / 100,
+                            (combat_rolls[round][i].ps
+                                * combat_rolls[round][i].prt_percent)
+                                / 100);
+                        Term_addstr(-1, a_prot_roll, buf);
+                    }
+                    // if monster is being hit, show protection dice
+                    else
+                    {
+                        log_debug(">>> MONSTER IS DEFENDER (COMBAT_ROLL_ROLL) - showing dice format");
                         if ((combat_rolls[round][i].ps < 1)
                             || (combat_rolls[round][i].pd < 1))
                         {
@@ -3338,7 +3546,7 @@ void display_combat_rolls(void)
                         }
                         else
                         {
-                            strnfmt(buf, sizeof(buf), "  [dd%d]",
+                            strnfmt(buf, sizeof(buf), "  [%dd%d]",
                                 combat_rolls[round][i].pd,
                                 combat_rolls[round][i].ps);
                             Term_addstr(-1, a_prot_roll, buf);
@@ -3350,19 +3558,6 @@ void display_combat_rolls(void)
                                 combat_rolls[round][i].prt_percent);
                             Term_addstr(-1, a_prot_roll, buf);
                         }
-                    }
-
-                    // if player is being hit, show protection *range*
-                    else
-                    {
-                        strnfmt(buf, sizeof(buf), "  [%d-%d]",
-                            (combat_rolls[round][i].pd
-                                * combat_rolls[round][i].prt_percent)
-                                / 100,
-                            (combat_rolls[round][i].ps
-                                * combat_rolls[round][i].prt_percent)
-                                / 100);
-                        Term_addstr(-1, a_prot_roll, buf);
                     }
                 }
 
@@ -3394,11 +3589,34 @@ void display_combat_rolls(void)
                         buf, sizeof(buf), "%4d", combat_rolls[round][i].prot);
                     Term_addstr(-1, a_prot_roll, buf);
 
+                    // if player is being hit, show protection *range* (pd and ps are min/max values, not dice)
+                    log_debug("COMBAT_ROLL_AUTO protection: is_defender_player=%d", combat_rolls[round][i].is_defender_player);
+                    
+                    if (combat_rolls[round][i].is_defender_player)
+                    {
+                        log_debug(">>> PLAYER IS DEFENDER (AUTO) - showing range format");
+                        if (!(combat_rolls[round][i].melee))
+                        {
+                            if (res > 1)
+                            {
+                                strnfmt(buf, sizeof(buf), "  1/%d then", res);
+                                Term_addstr(-1, TERM_L_BLUE, buf);
+                            }
+                            else if (res < 0)
+                            {
+                                strnfmt(buf, sizeof(buf), "  x%d then", -res);
+                                Term_addstr(-1, TERM_L_BLUE, buf);
+                            }
+                        }
+
+                        /* Player protection range varies in length based on values */
+                        strnfmt(buf, sizeof(buf), "  [%d-%d]",
+                            combat_rolls[round][i].pd,
+                            combat_rolls[round][i].ps);
+                        Term_addstr(-1, a_prot_roll, buf);
+                    }
                     // if monster is being hit, show protection dice
-                    if ((combat_rolls[round][i].defender_char
-                            != r_info[0].d_char)
-                        || (combat_rolls[round][i].defender_attr
-                            != r_info[0].d_attr))
+                    else
                     {
                         if ((combat_rolls[round][i].ps < 1)
                             || (combat_rolls[round][i].pd < 1))
@@ -3415,7 +3633,7 @@ void display_combat_rolls(void)
                         }
                         else
                         {
-                            strnfmt(buf, sizeof(buf), "  [dd%d]",
+                            strnfmt(buf, sizeof(buf), "  [%dd%d]",
                                 combat_rolls[round][i].pd,
                                 combat_rolls[round][i].ps);
                             Term_addstr(-1, a_prot_roll, buf);
@@ -3427,56 +3645,6 @@ void display_combat_rolls(void)
                                 combat_rolls[round][i].prt_percent);
                             Term_addstr(-1, a_prot_roll, buf);
                         }
-                    }
-
-                    // if a player is being hit, show protection range etc
-                    else
-                    {
-                        if (!(combat_rolls[round][i].melee))
-                        {
-                            if (res > 1)
-                            {
-                                strnfmt(buf, sizeof(buf), "  1/%d then", res);
-                                Term_addstr(-1, TERM_L_BLUE, buf);
-                            }
-                            else if (res < 0)
-                            {
-                                strnfmt(buf, sizeof(buf), "  x%d then", -res);
-                                Term_addstr(-1, TERM_L_BLUE, buf);
-                            }
-                        }
-
-                        if (combat_rolls[round][i].ps < 10)
-                        {
-                            strnfmt(buf, sizeof(buf), "  [%d-%d]",
-                                combat_rolls[round][i].pd,
-                                combat_rolls[round][i].ps);
-                            Term_addstr(-1, a_prot_roll, buf);
-                        }
-                        else
-                        {
-                            strnfmt(buf, sizeof(buf), " [%d-%d]",
-                                combat_rolls[round][i].pd,
-                                combat_rolls[round][i].ps);
-                            Term_addstr(-1, a_prot_roll, buf);
-                        }
-
-                        /*
-                                                 // no protection, only
-                           resistance else
-                                                 {
-                                                 net_dam =
-                           combat_rolls[round][i].dam / res; strnfmt(buf, sizeof
-                           (buf), "%4d", net_dam); Term_addstr(-1, a_net_dam,
-                           buf);
-
-                                                 if (res > 1)
-                                                 {
-                                                 strnfmt(buf, sizeof (buf), "
-                           /%d", res); Term_addstr(-1, TERM_L_BLUE, buf);
-                                                 }
-                                                 }
-                                                 */
                     }
                 }
             }
@@ -4158,8 +4326,28 @@ void display_main_combat_rolls(void)
         }
         
         /* Display exactly like Combat Rolls window */
-    Term_putstr(col_offset, display_row, 1, TERM_WHITE, " ");
-        Term_addch(combat_rolls[round][i].attacker_attr, combat_rolls[round][i].attacker_char);
+        Term_putstr(col_offset, display_row, 1, TERM_WHITE, " ");
+        
+        /* Display attacker icon with bigtile support */
+        Term_queue_char(col_offset + 1, display_row,
+            combat_rolls[round][i].attacker_attr,
+            combat_rolls[round][i].attacker_char,
+            0, 0);
+        
+        /* Handle bigtile mode - monsters need 2 character width */
+        int icon_width = 1;
+        if (use_bigtile && !graphics_are_ascii())
+        {
+            /* Draw the second half of the bigtile */
+            if (combat_rolls[round][i].attacker_attr & 0x80)
+                Term_queue_char(col_offset + 2, display_row, 255, -1, 0, 0);
+            else
+                Term_queue_char(col_offset + 2, display_row, TERM_WHITE, ' ', 0, 0);
+            icon_width = 2;
+        }
+        
+        /* Position cursor after the icon for subsequent Term_addstr calls */
+        Term_gotoxy(col_offset + 1 + icon_width, display_row);
         
         /* Attack roll display */
         if (combat_rolls[round][i].att_type == COMBAT_ROLL_ROLL)
@@ -4202,14 +4390,50 @@ void display_main_combat_rolls(void)
             }
             Term_addstr(-1, a_evn, buf);
 
-            Term_addch(TERM_WHITE, ' ');
-            Term_addch(combat_rolls[round][i].defender_attr, combat_rolls[round][i].defender_char);
+            /* Add space and defender icon with bigtile support */
+            Term_addstr(-1, TERM_WHITE, " ");
+            int cx, cy;
+            Term_locate(&cx, &cy);
+            Term_queue_char(cx, cy, 
+                combat_rolls[round][i].defender_attr,
+                combat_rolls[round][i].defender_char,
+                0, 0);
+            if (use_bigtile && !graphics_are_ascii())
+            {
+                if (combat_rolls[round][i].defender_attr & 0x80)
+                    Term_queue_char(cx + 1, cy, 255, -1, 0, 0);
+                else
+                    Term_queue_char(cx + 1, cy, TERM_WHITE, ' ', 0, 0);
+                Term_gotoxy(cx + 2, cy);
+            }
+            else
+            {
+                Term_gotoxy(cx + 1, cy);
+            }
         }
         else if (combat_rolls[round][i].att_type == COMBAT_ROLL_AUTO)
         {
             Term_addstr(-1, TERM_L_DARK, "                         ");
-            Term_addch(TERM_WHITE, ' ');
-            Term_addch(combat_rolls[round][i].defender_attr, combat_rolls[round][i].defender_char);
+            /* Add space and defender icon with bigtile support */
+            Term_addstr(-1, TERM_WHITE, " ");
+            int cx, cy;
+            Term_locate(&cx, &cy);
+            Term_queue_char(cx, cy,
+                combat_rolls[round][i].defender_attr,
+                combat_rolls[round][i].defender_char,
+                0, 0);
+            if (use_bigtile && !graphics_are_ascii())
+            {
+                if (combat_rolls[round][i].defender_attr & 0x80)
+                    Term_queue_char(cx + 1, cy, 255, -1, 0, 0);
+                else
+                    Term_queue_char(cx + 1, cy, TERM_WHITE, ' ', 0, 0);
+                Term_gotoxy(cx + 2, cy);
+            }
+            else
+            {
+                Term_gotoxy(cx + 1, cy);
+            }
         }
 
         /* Damage display */

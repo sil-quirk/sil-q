@@ -4,6 +4,14 @@
   ],
   "settings": {
     "terminal.integrated.profiles.windows": {
+      "PowerShell": {
+        "source": "PowerShell",
+        "icon": "terminal-powershell",
+        "overrideName": true,
+        "env": {
+          "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
+        }
+      },
       "Cygwin": {
         "path": "C:\\Soft\\cygwin\\bin\\bash.exe",
         "args": ["-l"],
@@ -11,6 +19,6 @@
         "icon": "terminal-bash"
       }
     },
-    "terminal.integrated.defaultProfile.windows": "Cygwin"
+    "terminal.integrated.defaultProfile.windows": "PowerShell"
   }
 }

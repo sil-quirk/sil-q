@@ -5670,8 +5670,4 @@ errr parse_oath_info(char* buf, header* head)
 
 #else /* ALLOW_TEMPLATES */
 
-#ifdef MACINTOSH
-static int i = 0;
-#endif
-
 #endif /* ALLOW_TEMPLATES */

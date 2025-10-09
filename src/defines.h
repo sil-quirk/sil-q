@@ -3247,7 +3247,7 @@
  * Angband "attributes" (with symbols, and base (R,G,B) codes)
  *
  * The "(R,G,B)" codes are given in "fourths" of the "maximal" value,
- * and should "gamma corrected" on most (non-Macintosh) machines.
+ * and should be "gamma corrected" on most machines.
  */
 #define TERM_DARK 0 /* 'd' */ /* 0,0,0 */
 #define TERM_WHITE 1 /* 'w' */ /* 4,4,4 */

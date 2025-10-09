@@ -31,7 +31,7 @@
  * The old "USE_NCU" option has been replaced with "USE_GCU".
  *
  * Several other such options are available for non-unix machines,
- * such as "MACINTOSH", "WINDOWS", "USE_IBM", "USE_EMX".
+ * such as "WINDOWS", "USE_IBM".
  *
  * You may also need to specify the "system", using defines such as
  * "SOLARIS" (for Solaris), etc, see "h-config.h" for more info.
@@ -58,7 +58,7 @@
  * Currently used whenever available, if you get a warning about
  * "nodelay()" undefined, then make sure to undefine this.
  */
-#if defined(SYS_V) || defined(AMIGA)
+#ifdef SYS_V
 #define USE_GETCH
 #endif
 
@@ -215,29 +215,9 @@
 #define USE_GRAPHICS
 
 /*
- * Hack -- Macintosh stuff
- */
-#ifdef MACINTOSH
-
-/* Do not handle signals */
-#undef HANDLE_SIGNALS
-
-#endif
-
-/*
  * Hack -- Windows stuff
  */
 #ifdef WINDOWS
-
-/* Do not handle signals */
-#undef HANDLE_SIGNALS
-
-#endif
-
-/*
- * Hack -- EMX stuff
- */
-#ifdef USE_EMX
 
 /* Do not handle signals */
 #undef HANDLE_SIGNALS
@@ -320,15 +300,6 @@
 #define DEFAULT_X11_FONT_5 "5x8"
 #define DEFAULT_X11_FONT_6 "5x8"
 #define DEFAULT_X11_FONT_7 "5x8"
-
-/*
- * Hack -- Special "ancient machine" versions
- */
-#if defined(USE_286) || defined(ANGBAND_LITE_MAC)
-#ifndef ANGBAND_LITE
-#define ANGBAND_LITE
-#endif
-#endif
 
 /*
  * OPTION: Attempt to minimize the size of the game

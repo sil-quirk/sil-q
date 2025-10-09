@@ -118,60 +118,6 @@ void safe_setuid_grab(void)
 #endif /* SET_UID */
 }
 
-#if 0
-
-/*
- * Use this (perhaps) for Angband 2.8.4
- *
- * Extract "tokens" from a buffer
- *
- * This function uses "whitespace" as delimiters, and treats any amount of
- * whitespace as a single delimiter.  We will never return any empty tokens.
- * When given an empty buffer, or a buffer containing only "whitespace", we
-r * will return no tokens.  We will never extract more than "num" tokens.
- *
- * By running a token through the "text_to_ascii()" function, you can allow
- * that token to include (encoded) whitespace, using "\s" to encode spaces.
- *
- * We save pointers to the tokens in "tokens", and return the number found.
- */
-static s16b tokenize_whitespace(char *buf, s16b num, char **tokens)
-{
-	int k = 0;
-
-	char *s = buf;
-
-
-	/* Process */
-	while (k < num)
-	{
-		char *t;
-
-		/* Skip leading whitespace */
-		for ( ; *s && isspace((unsigned char)*s); ++s) /* loop */;
-
-		/* All done */
-		if (!*s) break;
-
-		/* Find next whitespace, if any */
-		for (t = s; *t && !isspace((unsigned char)*t); ++t) /* loop */;
-
-		/* Nuke and advance (if necessary) */
-		if (*t) *t++ = '\0';
-
-		/* Save the token */
-		tokens[k++] = s;
-
-		/* Advance */
-		s = t;
-	}
-
-	/* Count */
-	return (k);
-}
-
-#endif
-
 /*
  * Extract the first few "tokens" from a buffer
  *
@@ -3354,9 +3300,9 @@ void do_cmd_help(void)
  *
  * If "sf" is true, then we initialize "savefile" based on player name.
  *
- * Some platforms (Windows, Macintosh, Amiga) leave the "savefile" empty
- * when a new character is created, and then when the character is done
- * being created, they call this function to choose a new savefile name.
+ * Some platforms (Windows) leave the "savefile" empty when a new 
+ * character is created, and then when the character is done being 
+ * created, they call this function to choose a new savefile name.
  */
 void process_player_name(bool sf)
 {
@@ -3391,14 +3337,6 @@ void process_player_name(bool sf)
         /* Build "base_name" */
         op_ptr->base_name[i] = c;
     }
-
-#if defined(MSDOS)
-
-    /* Max length */
-    if (i > 8)
-        i = 8;
-
-#endif
 
     /* Terminate */
     op_ptr->base_name[i] = '\0';
@@ -6245,6 +6183,26 @@ extern int silmarils_possessed(void)
     }
 
     return silmarils;
+}
+
+/*
+ * Checks if the player has Morgoth's crown (any version) in inventory
+ * Returns the crown artifact number (ART_MORGOTH_0-3) or 0 if not found
+ */
+extern int has_iron_crown(void)
+{
+    int i;
+
+    for (i = 0; i < INVEN_TOTAL; i++)
+    {
+        int name1 = (&inventory[i])->name1;
+        if ((name1 >= ART_MORGOTH_0) && (name1 <= ART_MORGOTH_3))
+        {
+            return name1;  // Return which crown variant they have
+        }
+    }
+
+    return 0;  // No crown
 }
 
 /*

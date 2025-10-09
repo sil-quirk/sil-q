@@ -316,6 +316,7 @@ extern bool cave_valid_bold(int y, int x);
 extern bool feat_supports_lighting(int feat);
 extern void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp);
 extern void map_info_default(int y, int x, byte* ap, char* cp);
+extern int player_tile_offset(void);
 extern void move_cursor_relative(int y, int x);
 extern void print_rel(char c, byte a, int y, int x);
 extern void note_spot(int y, int x);
@@ -652,6 +653,7 @@ extern void signals_init(void);
 extern void mini_screenshot(void);
 extern void prt_mini_screenshot(int col, int row);
 extern int silmarils_possessed(void);
+extern int has_iron_crown(void);
 extern FILE* highscore_fd;
 extern int meta_write(const metarun*);
 extern errr meta_read(metarun*);
@@ -1293,20 +1295,6 @@ extern bool repeat_pull(int* what);
 extern void repeat_clear(void);
 extern void repeat_check(void);
 #endif /* ALLOW_REPEAT */
-
-#ifdef RISCOS
-/* main-ros.c */
-extern char* riscosify_name(cptr path);
-#endif /* RISCOS */
-
-#if defined(MACH_O_CARBON)
-/* main-mac.c, or its derivatives */
-extern u32b _fcreator;
-extern u32b _ftype;
-#if defined(MACH_O_CARBON)
-extern void fsetfileinfo(cptr path, u32b fcreator, u32b ftype);
-#endif
-#endif
 
 #ifdef ALLOW_DEBUG
 /* wizard2.c */

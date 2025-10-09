@@ -2328,47 +2328,84 @@ void drop_loot(monster_type* m_ptr)
  */
 void anger_morgoth(int level)
 {
+    monster_race* r_ptr = &r_info[R_IDX_MORGOTH];
+    
+    log_debug("anger_morgoth: called with level=%d, current morgoth_state=%d", 
+              level, p_ptr->morgoth_state);
+    
     if (p_ptr->morgoth_state >= level)
-        return;
-
-    switch (level)
     {
-    case 0:
-        /* starting values - for comparison. */
-        (&r_info[R_IDX_MORGOTH])->evn = 20;
-        (&r_info[R_IDX_MORGOTH])->blow[0].att = 20;
-        (&r_info[R_IDX_MORGOTH])->wil = 25;
-        (&r_info[R_IDX_MORGOTH])->per = 10;
-        break;
-    case 1: // loses crown
-        (&r_info[R_IDX_MORGOTH])->evn = 22;
-        (&r_info[R_IDX_MORGOTH])->light = 0;
-        (&r_info[R_IDX_MORGOTH])->per = 15;
-        break;
-    case 2: // hurt or Sils stolen
-        (&r_info[R_IDX_MORGOTH])->blow[0].att = 30;
-        (&r_info[R_IDX_MORGOTH])->blow[0].dd = 7;
-        (&r_info[R_IDX_MORGOTH])->wil = 30;
-        (&r_info[R_IDX_MORGOTH])->per = 20;
-        (&r_info[R_IDX_MORGOTH])->evn = 25;
-        break;
-    case 3: // badly hurt
-        (&r_info[R_IDX_MORGOTH])->pd = 7;
-        (&r_info[R_IDX_MORGOTH])->wil = 35;
-        (&r_info[R_IDX_MORGOTH])->per = 25;
-        break;
-    case 4: // desperate
-        (&r_info[R_IDX_MORGOTH])->evn = 30;
-        (&r_info[R_IDX_MORGOTH])->blow[0].att = 40;
-        (&r_info[R_IDX_MORGOTH])->blow[0].dd = 8;
-        (&r_info[R_IDX_MORGOTH])->wil = 40;
-        (&r_info[R_IDX_MORGOTH])->per = 30;
-        break;
-    default:
+        log_debug("anger_morgoth: no change, already at or above level %d", level);
         return;
     }
 
+    log_debug("anger_morgoth: transitioning from state %d to state %d", 
+              p_ptr->morgoth_state, level);
+    log_debug("anger_morgoth: BEFORE - att=%d dd=%dd%d evn=%d pd=%d wil=%d per=%d light=%d",
+              r_ptr->blow[0].att, r_ptr->blow[0].dd, r_ptr->blow[0].ds,
+              r_ptr->evn, r_ptr->pd, r_ptr->wil, r_ptr->per, r_ptr->light);
+
+    /* Apply all changes cumulatively up to the target level */
+    /* This ensures stats are correct even when skipping intermediate states */
+    
+    /* State 0: Base values (for reference) */
+    if (level >= 0)
+    {
+        r_ptr->evn = 20;
+        r_ptr->blow[0].att = 20;
+        r_ptr->blow[0].dd = 6;
+        r_ptr->pd = 5;
+        r_ptr->wil = 25;
+        r_ptr->per = 10;
+        r_ptr->light = 7;
+    }
+    
+    /* State 1: Crown lost */
+    if (level >= 1)
+    {
+        r_ptr->evn = 22;
+        r_ptr->light = 0;
+        r_ptr->per = 15;
+        log_debug("anger_morgoth: applying state 1 changes - crown lost");
+    }
+    
+    /* State 2: Hurt or 1st Silmaril stolen */
+    if (level >= 2)
+    {
+        r_ptr->blow[0].att = 30;
+        r_ptr->blow[0].dd = 7;
+        r_ptr->wil = 30;
+        r_ptr->per = 20;
+        r_ptr->evn = 25;
+        log_debug("anger_morgoth: applying state 2 changes - hurt or silmaril");
+    }
+    
+    /* State 3: Badly hurt or 2nd Silmaril */
+    if (level >= 3)
+    {
+        r_ptr->pd = 7;
+        r_ptr->wil = 35;
+        r_ptr->per = 25;
+        log_debug("anger_morgoth: applying state 3 changes - badly hurt");
+    }
+    
+    /* State 4: Desperate or 3rd Silmaril */
+    if (level >= 4)
+    {
+        r_ptr->evn = 30;
+        r_ptr->blow[0].att = 40;
+        r_ptr->blow[0].dd = 8;
+        r_ptr->wil = 40;
+        r_ptr->per = 30;
+        log_debug("anger_morgoth: applying state 4 changes - desperate");
+    }
+
     p_ptr->morgoth_state = level;
+    
+    log_debug("anger_morgoth: AFTER - att=%d dd=%dd%d evn=%d pd=%d wil=%d per=%d light=%d",
+              r_ptr->blow[0].att, r_ptr->blow[0].dd, r_ptr->blow[0].ds,
+              r_ptr->evn, r_ptr->pd, r_ptr->wil, r_ptr->per, r_ptr->light);
+    log_debug("anger_morgoth: state successfully changed to %d", p_ptr->morgoth_state);
 }
 
 /*
@@ -3509,7 +3546,23 @@ static bool determine_location_is_interesting(int y, int x)
     if (!(p_ptr->is_dead) && (p_ptr->rage) && !(cave_info[y][x] & (CAVE_SEEN)))
         return (false);
 
-    /* Visible monsters */
+    /* Check for objects first (only shown when on floors, not when in rubble) */
+    /* This is checked BEFORE monsters to prevent showing unmarked objects under detected monsters */
+    if (cave_floorlike_bold(y, x))
+    {
+        /* Scan all objects in the grid */
+        for (o_ptr = get_first_object(y, x); o_ptr;
+             o_ptr = get_next_object(o_ptr))
+        {
+            /* Memorized object - this makes the location interesting */
+            if (o_ptr->marked)
+                return (true);
+        }
+    }
+
+    /* Visible monsters (checked AFTER objects) */
+    /* This ensures that a location with a monster but no marked objects */
+    /* is interesting for monster targeting but NOT for object listing */
     if (cave_m_idx[y][x] > 0)
     {
         monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
@@ -3517,19 +3570,6 @@ static bool determine_location_is_interesting(int y, int x)
         /* Visible monsters */
         if (m_ptr->ml)
             return (true);
-    }
-
-    /* Objects (only shown when on floors, not when in rubble) */
-    if (cave_floorlike_bold(y, x))
-    {
-        /* Scan all objects in the grid */
-        for (o_ptr = get_first_object(y, x); o_ptr;
-             o_ptr = get_next_object(o_ptr))
-        {
-            /* Memorized object */
-            if (o_ptr->marked)
-                return (true);
-        }
     }
 
     /* Interesting memorized features */

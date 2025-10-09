@@ -1026,7 +1026,9 @@ struct player_type
 
     byte truce; /* Player will not be attacked initially at 1000ft */
     byte crown_hint; /* Player has been told about the Iron Crown */
-    byte crown_shatter; /* Player has had a weapon shattered by the Crown */
+    byte crown_shatter; /* DEPRECATED - kept for save compatibility */
+    byte crown_shatter_sil2; /* Weapon shattered attempting 2nd Silmaril */
+    byte crown_shatter_sil3; /* Weapon shattered attempting 3rd Silmaril */
     byte cursed; /* Player has been cursed by taking a third Silmaril */
     byte on_the_run; /* Player is on the run from Angband */
     byte morgoth_slain; /* Player has slain Morgoth */
@@ -1327,6 +1329,8 @@ struct combat_roll
     byte attacker_attr; /* Default attribute of the attacker */
     char defender_char; /* The symbol of the defender */
     byte defender_attr; /* Default attribute of the defender */
+    bool is_attacker_player; /* TRUE if the attacker is the player */
+    bool is_defender_player; /* TRUE if the defender is the player */
     int att; /* The attack bonus */
     int att_roll; /* The attack roll (d20 value) */
     int evn; /* The evasion bonus */

@@ -546,6 +546,13 @@ static errr rd_item(object_type* o_ptr)
 
     convert_old_staff_of_warding(o_ptr);
 
+    /* Log staff loading for debugging disappearing staff bug */
+    if (o_ptr->tval == TV_STAFF)
+    {
+        log_debug("Loaded staff: k_idx=%d sval=%d pval=%d number=%d", 
+                  o_ptr->k_idx, o_ptr->sval, o_ptr->pval, o_ptr->number);
+    }
+
     /* Success */
     return (0);
 }
@@ -946,6 +953,8 @@ static errr rd_extra(void)
 
     /* More info */
     rd_s16b(&p_ptr->morgoth_state);
+    
+    log_debug("load: morgoth_state loaded as %d", p_ptr->morgoth_state);
 
     /* Read the flags */
     rd_byte(&p_ptr->song1);
@@ -1092,6 +1101,17 @@ static errr rd_extra(void)
 
     /* Current player turn */
     rd_s32b(&playerturn);
+    
+    /* New shatter flags - read from end for save compatibility */
+    /* Old saves won't have these, so default to 0 */
+    if (!older_than(1, 5, 1)) {  /* Only read if save is new enough */
+        rd_byte(&p_ptr->crown_shatter_sil2);
+        rd_byte(&p_ptr->crown_shatter_sil3);
+    }
+    else {
+        p_ptr->crown_shatter_sil2 = 0;
+        p_ptr->crown_shatter_sil3 = 0;
+    }
 
     // rd_byte(&tmp8u);
     // p_ptr->killed_enemy_with_arrow = tmp8u;
@@ -1512,6 +1532,13 @@ static errr rd_inventory(void)
             /* Copy object */
             object_copy(&inventory[n], i_ptr);
 
+            /* Log equipped staff loading */
+            if (i_ptr->tval == TV_STAFF)
+            {
+                log_debug("Loaded equipped staff at slot %d: k_idx=%d sval=%d pval=%d number=%d",
+                          n, i_ptr->k_idx, i_ptr->sval, i_ptr->pval, i_ptr->number);
+            }
+
             /* One more item */
             p_ptr->equip_cnt++;
         }
@@ -1534,6 +1561,13 @@ static errr rd_inventory(void)
 
             /* Copy object */
             object_copy(&inventory[n], i_ptr);
+
+            /* Log pack staff loading */
+            if (i_ptr->tval == TV_STAFF)
+            {
+                log_debug("Loaded pack staff at slot %d: k_idx=%d sval=%d pval=%d number=%d",
+                          n, i_ptr->k_idx, i_ptr->sval, i_ptr->pval, i_ptr->number);
+            }
 
             /* One more item */
             p_ptr->inven_cnt++;
@@ -2626,6 +2660,22 @@ bool load_player(void)
         // count the artefacts seen for the player
         p_ptr->artefacts = artefact_count();
         log_debug("Character has seen %d artefacts", p_ptr->artefacts);
+
+        /* Reapply Morgoth's anger state to the r_info template */
+        if (p_ptr->morgoth_state > 0)
+        {
+            log_debug("load: reapplying morgoth_state %d to r_info template", 
+                     p_ptr->morgoth_state);
+            
+            /* Save current state, then reset to 0 and reapply */
+            s16b saved_state = p_ptr->morgoth_state;
+            p_ptr->morgoth_state = 0;
+            anger_morgoth(saved_state);
+        }
+        else
+        {
+            log_debug("load: morgoth_state is 0, no reapplication needed");
+        }
 
         /* Success */
         return (true);

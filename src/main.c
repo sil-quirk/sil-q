@@ -15,7 +15,7 @@
  * all the others use this file for their "main()" function.
  */
 
-#if !defined(MACINTOSH) && !defined(RISCOS) && !(defined(WINDOWS) && !defined(USE_SDL))
+#if !(defined(WINDOWS) && !defined(USE_SDL))
 
 #include "main.h"
 #include "log/log.h"
@@ -58,23 +58,6 @@ static void quit_hook(cptr s)
         term_nuke(angband_term[j]);
     }
 }
-
-/*
- * Set the stack size (for the Amiga)
- */
-#ifdef AMIGA
-#include <dos.h>
-__near long __stack = 32768L;
-#endif /* AMIGA */
-
-/*
- * Set the stack size and overlay buffer (see main-286.c")
- */
-#ifdef USE_286
-#include <dos.h>
-extern unsigned _stklen = 32768U;
-extern unsigned _ovrbuffer = 0x1500;
-#endif /* USE_286 */
 
 #ifdef PRIVATE_USER_PATH
 
@@ -139,9 +122,6 @@ static void create_user_dir(void)
  * since the "init_file_paths()" function will simply append the
  * relevant "sub-directory names" to the given path.
  *
- * Note that the "path" must be "Sil:" for the Amiga, and it
- * is ignored for "VM/ESA", so I just combined the two.
- *
  * Make sure that the path doesn't overflow the buffer.  We have
  * to leave enough space for the path separator, directory, and
  * filenames.
@@ -149,13 +129,6 @@ static void create_user_dir(void)
 static void init_stuff(void)
 {
     char path[1024];
-
-#if defined(AMIGA) || defined(VM)
-
-    /* Hack -- prepare "path" */
-    my_strcpy(path, "Sil:", sizeof(path));
-
-#else /* AMIGA / VM */
 
     cptr tail = NULL;
 
@@ -175,8 +148,6 @@ static void init_stuff(void)
     /* Hack -- Add a path separator (only if needed) */
     if (!suffix(path, PATH_SEP))
         my_strcat(path, PATH_SEP, sizeof(path));
-
-#endif /* AMIGA / VM */
 
     /* Initialize */
     init_file_paths(path);
@@ -329,14 +300,6 @@ int main(int argc, char* argv[])
     /* Save the "program name" XXX XXX XXX */
     argv0 = argv[0];
 
-#ifdef USE_286
-    /* Attempt to use XMS (or EMS) memory for swap space */
-    if (_OvrInitExt(0L, 0L))
-    {
-        _OvrInitEms(0, 0, 64);
-    }
-#endif /* USE_286 */
-
 #ifdef SET_UID
 
     /* Default permissions on files */
@@ -353,11 +316,6 @@ int main(int argc, char* argv[])
     /* Get the user id (?) */
     player_uid = getuid();
 
-#ifdef VMS
-    /* Mega-Hack -- Factor group id */
-    player_uid += (getgid() * 1000);
-#endif /* VMS */
-
 #ifdef SAFE_SETUID
 
 #if defined(HAVE_SETEGID) || defined(SAFE_SETUID_POSIX)
@@ -367,23 +325,6 @@ int main(int argc, char* argv[])
     player_egid = getegid();
 
 #endif /* defined(HAVE_SETEGID) || defined(SAFE_SETUID_POSIX) */
-
-#if 0 /* XXX XXX XXX */
-
-	/* Redundant setting necessary in case root is running the game */
-	/* If not root or game not setuid the following two calls do nothing */
-
-	if (setgid(getegid()) != 0)
-	{
-		quit("setgid(): cannot set permissions correctly!");
-	}
-
-	if (setuid(geteuid()) != 0)
-	{
-		quit("setuid(): cannot set permissions correctly!");
-	}
-
-#endif /* 0 */
 
 #endif /* SAFE_SETUID */
 
@@ -655,4 +596,4 @@ int main(int argc, char* argv[])
     return (0);
 }
 
-#endif /* !defined(MACINTOSH) && !defined(WINDOWS) && !defined(RISCOS) */
+#endif /* !defined(WINDOWS) || defined(USE_SDL) */

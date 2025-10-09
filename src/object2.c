@@ -1792,6 +1792,14 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
  */
 void object_absorb(object_type* o_ptr, object_type* j_ptr)
 {
+    /* Log staff absorption attempts - this should never happen! */
+    if (o_ptr->tval == TV_STAFF || j_ptr->tval == TV_STAFF)
+    {
+        log_error("BUG: object_absorb called on staff! o_ptr: tval=%d k_idx=%d number=%d, j_ptr: tval=%d k_idx=%d number=%d",
+                  o_ptr->tval, o_ptr->k_idx, o_ptr->number, 
+                  j_ptr->tval, j_ptr->k_idx, j_ptr->number);
+    }
+
     int total = o_ptr->number + j_ptr->number;
     int limit = object_stack_limit(o_ptr);
 
@@ -4931,6 +4939,13 @@ void inven_item_increase(int item, int num)
 {
     object_type* o_ptr = &inventory[item];
 
+    /* Log staff number changes for debugging */
+    if (o_ptr->tval == TV_STAFF)
+    {
+        log_debug("inven_item_increase called on staff at slot %d: num=%d, current number=%d pval=%d k_idx=%d sval=%d",
+                  item, num, o_ptr->number, o_ptr->pval, o_ptr->k_idx, o_ptr->sval);
+    }
+
     /* Apply */
     num += o_ptr->number;
 
@@ -4948,6 +4963,18 @@ void inven_item_increase(int item, int num)
     {
         /* Add the number */
         o_ptr->number += num;
+
+        /* Log staff number after change */
+        if (o_ptr->tval == TV_STAFF)
+        {
+            log_debug("inven_item_increase: staff at slot %d now has number=%d (changed by %d)",
+                      item, o_ptr->number, num);
+            if (o_ptr->number == 0)
+            {
+                log_error("WARNING: Staff number changed to 0! This will cause deletion. k_idx=%d sval=%d pval=%d",
+                          o_ptr->k_idx, o_ptr->sval, o_ptr->pval);
+            }
+        }
 
         /* Recalculate bonuses */
         p_ptr->update |= (PU_BONUS);
@@ -4974,9 +5001,23 @@ void inven_item_optimize(int item)
     if (!o_ptr->k_idx)
         return;
 
+    /* Log staff optimization attempts for debugging */
+    if (o_ptr->tval == TV_STAFF)
+    {
+        log_debug("inven_item_optimize called on staff at slot %d: k_idx=%d sval=%d pval=%d number=%d",
+                  item, o_ptr->k_idx, o_ptr->sval, o_ptr->pval, o_ptr->number);
+    }
+
     /* Only optimize empty items */
     if (o_ptr->number)
         return;
+
+    /* Log staff deletion */
+    if (o_ptr->tval == TV_STAFF)
+    {
+        log_error("STAFF DELETION BUG: Deleting staff at slot %d with number=0! k_idx=%d sval=%d pval=%d",
+                  item, o_ptr->k_idx, o_ptr->sval, o_ptr->pval);
+    }
 
     /* The item is in the pack */
     if (item < INVEN_WIELD)
