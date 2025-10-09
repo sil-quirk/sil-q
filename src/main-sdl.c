@@ -667,7 +667,7 @@ static void sdl_window_create(int window_width, int window_height, bool fullscre
         g_state.use_tiles = true;
         // d->tile_w = 2 * GLYPH_WIDTH;
         // d->tile_h = GLYPH_HEIGHT;
-        SDL_Surface* ts = IMG_Load("lib/xtra/graf/16x16_new.png");
+        SDL_Surface* ts = IMG_Load("lib/xtra/graf/16x16.png");
         if (ts) {
             log_debug("tileset loaded");
             g_state.tileset = SDL_CreateTextureFromSurface(g_state.renderer, ts);
