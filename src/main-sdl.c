@@ -110,7 +110,9 @@ static void resize(const SDL_Rect* screen)
     log_warn("resize enter");
     SDL_Rect panes[MAX_TERM_DATA] = {0};
     place_panes(pane_config, pane_config_count, panes, screen,
-        config.aux_view_font_size / 2, config.aux_view_font_size, config.margin);
+        g_state.system_scale * config.aux_view_font_size / 2,
+        g_state.system_scale * config.aux_view_font_size,
+        g_state.system_scale * config.margin);
     for (int i = 0; i < PANE_MAX; i++) {
         const SDL_Rect* r = &panes[i];
         log_debug("pane %d is at (%d, %d) size %dx%d", i, r->x, r->y, r->w, r->h);
@@ -243,16 +245,24 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         }
     } else if (ev->type == SDL_EVENT_WINDOW_RESIZED) {
         log_debug("window resized to %dx%d", ev->window.data1, ev->window.data2);
-        
-        // Update scale factor in case window moved to a different display
-        float new_scale = SDL_GetWindowDisplayScale(st->window);
-        if (new_scale > 0.0f && new_scale != st->system_scale) {
-            log_info("display scale changed from %g to %g", st->system_scale, new_scale);
-            st->system_scale = new_scale;
-        }
-        
-        SDL_Rect window = {.w = ev->window.data1, .h = ev->window.data2};
+        SDL_Rect window = { 0 };
+        SDL_GetWindowSizeInPixels(g_state.window, &window.w, &window.h);
+        log_debug("new window size in pixels %dx%d", window.w, window.h);
+        // SDL_Rect window = {.w = ev->window.data1, .h = ev->window.data2};
         resize(&window);
+    } else if (ev->type == SDL_EVENT_DISPLAY_CONTENT_SCALE_CHANGED ||
+        ev->type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED ||
+        ev->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
+
+        float scale = SDL_GetWindowPixelDensity(g_state.window);
+        if (scale != g_state.system_scale) {
+            log_info("new system scale is %g", scale);
+            g_state.system_scale = scale;
+            SDL_Rect window = { 0 };
+            SDL_GetWindowSizeInPixels(g_state.window, &window.w, &window.h);
+            log_debug("window size in pixels %dx%d", window.w, window.h);
+            resize(&window);
+        }
     }
 }
 
@@ -642,32 +652,22 @@ static void sdl_window_create(int window_width, int window_height, bool fullscre
 {
     SDL_WindowFlags flags = SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_RESIZABLE;
     if (fullscreen) {
-        // g_state.margin_x = (window_width % GLYPH_WIDTH) / 2;
-        // g_state.margin_y = (window_height % GLYPH_HEIGHT) / 2;
-        // log_debug("margin_x=%d margin_y=%d", d->margin_x, d->margin_y);
         flags |= SDL_WINDOW_FULLSCREEN;
     }
+
     if (!SDL_CreateWindowAndRenderer("Sil-more SDL3", window_width, window_height,
             flags, &g_state.window, &g_state.renderer))
     {
         log_error("SDL_CreateWindowAndRenderer failed: %s", SDL_GetError());
         quit("could not create SDL window");
     }
+
     if (fullscreen)
         SDL_HideCursor();
-    
-    // Verify the window's display scale matches what we calculated earlier
-    float window_scale = SDL_GetWindowDisplayScale(g_state.window);
-    log_debug("window scale is %g (system_scale was %g)", window_scale, g_state.system_scale);
-    
-    // Update system_scale if the window ended up on a different display
-    // or if the window creation changed the effective scale
-    if (window_scale > 0.0f && window_scale != g_state.system_scale) {
-        log_warn("window scale (%g) differs from display scale (%g), using window scale", 
-                 window_scale, g_state.system_scale);
-        g_state.system_scale = window_scale;
-    }
-    
+
+    g_state.system_scale = SDL_GetWindowDisplayScale(g_state.window);
+    log_debug("window scale is %g", g_state.system_scale);
+
     // Ensure predictable alpha blending (cursor/text)
     SDL_SetRenderDrawBlendMode(g_state.renderer, SDL_BLENDMODE_BLEND);
     g_state.use_tiles = use_tiles;
@@ -718,8 +718,6 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
     SDL_SetTextureAlphaMod(d->font_atlas, 255);
 
     d->rect = rect;
-    // rect dimensions are already in the same coordinate space as our rendering,
-    // so we don't multiply by system_scale here
     d->cols = rect.w / d->cell_w;
     d->rows = rect.h / d->cell_h;
     d->margin_x = (rect.w - d->cols * d->cell_w) / 2;
@@ -793,19 +791,8 @@ errr init_sdl(int argc, char **argv)
         log_error("SDL_GetDisplayBounds failed: %s", SDL_GetError());
         quit("could not get primary display bounds");
     }
-    
-    // Get the display's content scale factor BEFORE creating the window
-    // This is needed because SDL_GetDisplayBounds returns logical coordinates,
-    // but we need to know the scale factor to properly calculate physical pixels
-    float display_scale = SDL_GetDisplayContentScale(primary);
-    if (display_scale <= 0.0f) {
-        log_warn("SDL_GetDisplayContentScale failed or returned invalid value, assuming 1.0: %s", SDL_GetError());
-        display_scale = 1.0f;
-    }
-    g_state.system_scale = display_scale;
-    
-    log_info("primary display: %d %d %d %d (logical), scale: %g", 
-             screen.x, screen.y, screen.w, screen.h, display_scale);
+
+    log_info("primary display: %d %d %d %d", screen.x, screen.y, screen.w, screen.h);
 
     // Initialize palette mapping from term attrs to SDL_Color.
     #define RGB(_r,_g,_b) (SDL_Color){.r = (_r), .g = (_g), .b = (_b)}
@@ -827,10 +814,7 @@ errr init_sdl(int argc, char **argv)
     g_state.palette[15] = RGB(231, 185, 3); // light umber
     #undef RGB
 
-    // Create all windows.
     sdl_window_create(screen.w, screen.h, config.fullscreen, config.tiles);
-
-    // init splits and views
 
     ANGBAND_SYS = "sdl";
     if (config.tiles) {
@@ -844,7 +828,10 @@ errr init_sdl(int argc, char **argv)
         use_graphics = GRAPHICS_PSEUDO;
     }
 
-    resize(&screen);
+    SDL_Rect window = { 0 };
+    SDL_GetWindowSizeInPixels(g_state.window, &window.w, &window.h);
+    log_debug("window pixel size %dx%d", window.w, window.h);
+    resize(&window);
 
     log_debug("init_sdl: SDL term opened (tiles_mode=%d higher_pict=%d always_pict=%d)",
             config.tiles, Term->higher_pict, Term->always_pict);
