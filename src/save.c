@@ -967,6 +967,11 @@ static void wr_extra(void)
 
     /* Current turn */
     wr_s32b(turn);
+
+    /* New shatter flags - added at end for save compatibility */
+    wr_byte(p_ptr->crown_shatter_sil2);
+    wr_byte(p_ptr->crown_shatter_sil3);
+    wr_s32b(turn);
     log_trace("Current turn: %d", turn);
     wr_s32b(playerturn);
     log_trace("Player turn: %d", playerturn);

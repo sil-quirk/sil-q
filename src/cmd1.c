@@ -343,8 +343,12 @@ void drop_iron_crown(monster_type* m_ptr, const char* msg)
 {
     int i, near_y, near_x;
 
+    log_debug("drop_iron_crown: called, ART_MORGOTH_3 cur_num=%d", 
+              (&a_info[ART_MORGOTH_3])->cur_num);
+
     if ((&a_info[ART_MORGOTH_3])->cur_num == 0)
     {
+        log_debug("drop_iron_crown: crown not yet dropped, dropping now");
         msg_print(msg);
 
         // choose a nearby location, but not his own square
@@ -358,12 +362,19 @@ void drop_iron_crown(monster_type* m_ptr, const char* msg)
                 break;
         }
 
+        log_debug("drop_iron_crown: dropping crown at (%d, %d)", near_y, near_x);
+        
         // drop it there
         create_chosen_artefact(ART_MORGOTH_3, near_y, near_x, true);
 
+        log_debug("drop_iron_crown: calling anger_morgoth(1) - crown lost");
         // lower Morgoth's protection, remove his light source, increase his
         // will and perception and evasion
         anger_morgoth(1);
+    }
+    else
+    {
+        log_debug("drop_iron_crown: crown already dropped, skipping");
     }
 }
 

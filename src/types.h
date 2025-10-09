@@ -1026,7 +1026,9 @@ struct player_type
 
     byte truce; /* Player will not be attacked initially at 1000ft */
     byte crown_hint; /* Player has been told about the Iron Crown */
-    byte crown_shatter; /* Player has had a weapon shattered by the Crown */
+    byte crown_shatter; /* DEPRECATED - kept for save compatibility */
+    byte crown_shatter_sil2; /* Weapon shattered attempting 2nd Silmaril */
+    byte crown_shatter_sil3; /* Weapon shattered attempting 3rd Silmaril */
     byte cursed; /* Player has been cursed by taking a third Silmaril */
     byte on_the_run; /* Player is on the run from Angband */
     byte morgoth_slain; /* Player has slain Morgoth */

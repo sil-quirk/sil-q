@@ -653,6 +653,7 @@ extern void signals_init(void);
 extern void mini_screenshot(void);
 extern void prt_mini_screenshot(int col, int row);
 extern int silmarils_possessed(void);
+extern int has_iron_crown(void);
 extern FILE* highscore_fd;
 extern int meta_write(const metarun*);
 extern errr meta_read(metarun*);

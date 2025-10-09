@@ -6186,6 +6186,26 @@ extern int silmarils_possessed(void)
 }
 
 /*
+ * Checks if the player has Morgoth's crown (any version) in inventory
+ * Returns the crown artifact number (ART_MORGOTH_0-3) or 0 if not found
+ */
+extern int has_iron_crown(void)
+{
+    int i;
+
+    for (i = 0; i < INVEN_TOTAL; i++)
+    {
+        int name1 = (&inventory[i])->name1;
+        if ((name1 >= ART_MORGOTH_0) && (name1 <= ART_MORGOTH_3))
+        {
+            return name1;  // Return which crown variant they have
+        }
+    }
+
+    return 0;  // No crown
+}
+
+/*
  * Creates a score record for the player
  */
 errr create_score(high_score* the_score)

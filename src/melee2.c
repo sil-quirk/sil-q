@@ -4828,6 +4828,8 @@ static void process_monster(monster_type* m_ptr)
         && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_WOUNDED
         && p_ptr->morgoth_state < 2)
     {
+        log_debug("process_monster: Morgoth WOUNDED (hp=%d/%d), calling anger_morgoth(2)",
+                 m_ptr->hp, m_ptr->maxhp);
         msg_print("Morgoth grows angry.");
         message_flush();
         anger_morgoth(2);
@@ -4836,6 +4838,8 @@ static void process_monster(monster_type* m_ptr)
         && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_BADLY_WOUNDED
         && p_ptr->morgoth_state < 3)
     {
+        log_debug("process_monster: Morgoth BADLY_WOUNDED (hp=%d/%d), calling anger_morgoth(3)",
+                 m_ptr->hp, m_ptr->maxhp);
         msg_print("Morgoth unslings his mighty shield.");
         message_flush();
         anger_morgoth(3);
@@ -4844,6 +4848,8 @@ static void process_monster(monster_type* m_ptr)
         && health_level(m_ptr->hp, m_ptr->maxhp) <= HEALTH_ALMOST_DEAD
         && p_ptr->morgoth_state < 4)
     {
+        log_debug("process_monster: Morgoth ALMOST_DEAD (hp=%d/%d), calling anger_morgoth(4)",
+                 m_ptr->hp, m_ptr->maxhp);
         msg_print("Morgoth grows desperate.");
         message_flush();
         anger_morgoth(4);
