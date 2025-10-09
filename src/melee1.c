@@ -3214,16 +3214,17 @@ void display_combat_rolls(void)
         player_attacks = 0;
         monster_attacks = 0;
 
+        /* Count player attacks (iterate forward to count total) */
         for (i = 0; i < combat_num_for_round; i++)
         {
-            if ((combat_rolls[round][i].attacker_char == r_info[0].d_char)
-                && (combat_rolls[round][i].attacker_attr == r_info[0].d_attr))
+            if (combat_rolls[round][i].is_attacker_player)
             {
                 total_player_attacks++;
             }
         }
 
-        for (i = 0; i < combat_num_for_round; i++)
+        /* Display attacks in reverse order (newest first) */
+        for (i = combat_num_for_round - 1; i >= 0; i--)
         {
             log_trace("display_combat_rolls: Round=%d, i=%d, att_type=%d, attacker=%c, defender=%c", 
                       round, i, combat_rolls[round][i].att_type,
@@ -3269,7 +3270,8 @@ void display_combat_rolls(void)
                 else
                     a_prot_roll = TERM_DARK;
 
-                line = player_attacks + line_jump;
+                /* In reverse iteration, assign lines from top (newest first) */
+                line = (total_player_attacks - 1 - player_attacks) + line_jump;
                 player_attacks++;
                 if (line > round_max_line[round])
                     round_max_line[round] = line;
@@ -3287,7 +3289,9 @@ void display_combat_rolls(void)
                 else
                     a_prot_roll = TERM_DARK;
 
-                line = total_player_attacks + monster_attacks + line_jump;
+                /* Monster attacks go below player attacks, also newest first */
+                int total_monster_attacks = combat_num_for_round - total_player_attacks;
+                line = total_player_attacks + (total_monster_attacks - 1 - monster_attacks) + line_jump;
                 monster_attacks++;
                 if (line > round_max_line[round])
                     round_max_line[round] = line;
@@ -3299,6 +3303,9 @@ void display_combat_rolls(void)
                 log_trace("display_combat_rolls: Skipping roll at line %d (beyond max %d)", line, max_display_height);
                 continue;
             }
+
+            /* Clear this line to prevent leftover text from previous frames */
+            Term_erase(0, line, 255);
 
             /* Calculate column offset for bigtile mode */
             int col_offset = (use_bigtile && !graphics_are_ascii()) ? 1 : 0;
@@ -4319,8 +4326,28 @@ void display_main_combat_rolls(void)
         }
         
         /* Display exactly like Combat Rolls window */
-    Term_putstr(col_offset, display_row, 1, TERM_WHITE, " ");
-        Term_addch(combat_rolls[round][i].attacker_attr, combat_rolls[round][i].attacker_char);
+        Term_putstr(col_offset, display_row, 1, TERM_WHITE, " ");
+        
+        /* Display attacker icon with bigtile support */
+        Term_queue_char(col_offset + 1, display_row,
+            combat_rolls[round][i].attacker_attr,
+            combat_rolls[round][i].attacker_char,
+            0, 0);
+        
+        /* Handle bigtile mode - monsters need 2 character width */
+        int icon_width = 1;
+        if (use_bigtile && !graphics_are_ascii())
+        {
+            /* Draw the second half of the bigtile */
+            if (combat_rolls[round][i].attacker_attr & 0x80)
+                Term_queue_char(col_offset + 2, display_row, 255, -1, 0, 0);
+            else
+                Term_queue_char(col_offset + 2, display_row, TERM_WHITE, ' ', 0, 0);
+            icon_width = 2;
+        }
+        
+        /* Position cursor after the icon for subsequent Term_addstr calls */
+        Term_gotoxy(col_offset + 1 + icon_width, display_row);
         
         /* Attack roll display */
         if (combat_rolls[round][i].att_type == COMBAT_ROLL_ROLL)
@@ -4363,14 +4390,50 @@ void display_main_combat_rolls(void)
             }
             Term_addstr(-1, a_evn, buf);
 
-            Term_addch(TERM_WHITE, ' ');
-            Term_addch(combat_rolls[round][i].defender_attr, combat_rolls[round][i].defender_char);
+            /* Add space and defender icon with bigtile support */
+            Term_addstr(-1, TERM_WHITE, " ");
+            int cx, cy;
+            Term_locate(&cx, &cy);
+            Term_queue_char(cx, cy, 
+                combat_rolls[round][i].defender_attr,
+                combat_rolls[round][i].defender_char,
+                0, 0);
+            if (use_bigtile && !graphics_are_ascii())
+            {
+                if (combat_rolls[round][i].defender_attr & 0x80)
+                    Term_queue_char(cx + 1, cy, 255, -1, 0, 0);
+                else
+                    Term_queue_char(cx + 1, cy, TERM_WHITE, ' ', 0, 0);
+                Term_gotoxy(cx + 2, cy);
+            }
+            else
+            {
+                Term_gotoxy(cx + 1, cy);
+            }
         }
         else if (combat_rolls[round][i].att_type == COMBAT_ROLL_AUTO)
         {
             Term_addstr(-1, TERM_L_DARK, "                         ");
-            Term_addch(TERM_WHITE, ' ');
-            Term_addch(combat_rolls[round][i].defender_attr, combat_rolls[round][i].defender_char);
+            /* Add space and defender icon with bigtile support */
+            Term_addstr(-1, TERM_WHITE, " ");
+            int cx, cy;
+            Term_locate(&cx, &cy);
+            Term_queue_char(cx, cy,
+                combat_rolls[round][i].defender_attr,
+                combat_rolls[round][i].defender_char,
+                0, 0);
+            if (use_bigtile && !graphics_are_ascii())
+            {
+                if (combat_rolls[round][i].defender_attr & 0x80)
+                    Term_queue_char(cx + 1, cy, 255, -1, 0, 0);
+                else
+                    Term_queue_char(cx + 1, cy, TERM_WHITE, ' ', 0, 0);
+                Term_gotoxy(cx + 2, cy);
+            }
+            else
+            {
+                Term_gotoxy(cx + 1, cy);
+            }
         }
 
         /* Damage display */

@@ -1,0 +1,23 @@
+[
+  {
+    "name": "MSYS2 MinGW64",
+    "description": "MSYS2 MinGW64 toolchain for SDL3 builds",
+    "preferredGenerator": {
+      "name": "MinGW Makefiles"
+    },
+    "environmentVariables": {
+      "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
+    },
+    "compilers": {
+      "C": "C:/msys64/mingw64/bin/gcc.exe",
+      "CXX": "C:/msys64/mingw64/bin/g++.exe"
+    },
+    "toolchainFile": "",
+    "cmakeSettings": {
+      "CMAKE_PREFIX_PATH": "C:/msys64/mingw64",
+      "CMAKE_BUILD_TYPE": "Release",
+      "USE_SDL": "ON",
+      "USE_GCU": "OFF"
+    }
+  }
+]

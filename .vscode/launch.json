@@ -1,0 +1,68 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run SDL3 (Windowed, Scale 4)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/sil-more-windows-sdl3/sil-more.exe",
+            "args": ["-msdl", "--", "--windowed", "--scale", "4"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/sil-more-windows-sdl3",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "C:\\msys64\\mingw64\\bin\\gdb.exe",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "Build and Deploy"
+        },
+        {
+            "name": "Run SDL3 (No Build)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/sil-more-windows-sdl3/sil-more.exe",
+            "args": ["-msdl", "--", "--windowed", "--scale", "4"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/sil-more-windows-sdl3",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "C:\\msys64\\mingw64\\bin\\gdb.exe",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "Debug SDL3 (Fullscreen)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/sil-more-windows-sdl3/sil-more.exe",
+            "args": ["-msdl", "--", "--scale", "4"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/sil-more-windows-sdl3",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "C:\\msys64\\mingw64\\bin\\gdb.exe",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "Build and Deploy"
+        }
+    ]
+}
+

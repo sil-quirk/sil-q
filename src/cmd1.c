@@ -3481,6 +3481,11 @@ void py_pickup(void)
                         const int max_name_len = 20;
                         object_desc(target_name, sizeof(target_name), target, true, 3);
                         object_desc(donor_name, sizeof(donor_name), o_ptr, true, 3);
+                        
+                        log_debug("Channeling: donor floor staff k_idx=%d pval=%d number=%d, target inv slot %d k_idx=%d pval=%d number=%d",
+                                  o_ptr->k_idx, o_ptr->pval, o_ptr->number,
+                                  target_slot, target->k_idx, target->pval, target->number);
+                        
                         strnfmt(prompt, sizeof(prompt), "Channel to %d charges from %.*s into %.*s? ",
                             combined_uses, max_name_len, donor_name, max_name_len, target_name);
                         if (get_check(prompt))
@@ -3489,6 +3494,10 @@ void py_pickup(void)
                             target->ident &= ~(IDENT_EMPTY);
                             o_ptr->pval = 0;
                             o_ptr->ident |= IDENT_EMPTY;
+                            
+                            log_debug("Channeling complete: target now has pval=%d number=%d, donor has pval=%d number=%d",
+                                      target->pval, target->number, o_ptr->pval, o_ptr->number);
+                            
                             if (target_slot >= 0 && target_slot < INVEN_TOTAL)
                                 inven_item_charges(target_slot);
                             p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
@@ -3496,6 +3505,9 @@ void py_pickup(void)
                             msg_format("You channel %d charge%s into %s (now %d).",
                                 gain_uses, (gain_uses == 1) ? "" : "s", target_name, combined_uses);
                             delete_object_idx(this_o_idx);
+                            
+                            log_debug("Channeling: deleted floor object idx %d", this_o_idx);
+                            
                             done_pickup = true;
                             p_ptr->previous_action[0] = ACTION_MISC;
                             p_ptr->energy_use = 100;

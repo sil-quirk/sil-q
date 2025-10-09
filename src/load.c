@@ -546,6 +546,13 @@ static errr rd_item(object_type* o_ptr)
 
     convert_old_staff_of_warding(o_ptr);
 
+    /* Log staff loading for debugging disappearing staff bug */
+    if (o_ptr->tval == TV_STAFF)
+    {
+        log_debug("Loaded staff: k_idx=%d sval=%d pval=%d number=%d", 
+                  o_ptr->k_idx, o_ptr->sval, o_ptr->pval, o_ptr->number);
+    }
+
     /* Success */
     return (0);
 }
@@ -1512,6 +1519,13 @@ static errr rd_inventory(void)
             /* Copy object */
             object_copy(&inventory[n], i_ptr);
 
+            /* Log equipped staff loading */
+            if (i_ptr->tval == TV_STAFF)
+            {
+                log_debug("Loaded equipped staff at slot %d: k_idx=%d sval=%d pval=%d number=%d",
+                          n, i_ptr->k_idx, i_ptr->sval, i_ptr->pval, i_ptr->number);
+            }
+
             /* One more item */
             p_ptr->equip_cnt++;
         }
@@ -1534,6 +1548,13 @@ static errr rd_inventory(void)
 
             /* Copy object */
             object_copy(&inventory[n], i_ptr);
+
+            /* Log pack staff loading */
+            if (i_ptr->tval == TV_STAFF)
+            {
+                log_debug("Loaded pack staff at slot %d: k_idx=%d sval=%d pval=%d number=%d",
+                          n, i_ptr->k_idx, i_ptr->sval, i_ptr->pval, i_ptr->number);
+            }
 
             /* One more item */
             p_ptr->inven_cnt++;
