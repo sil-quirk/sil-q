@@ -14,7 +14,7 @@
 # There are 4 keysets (0, 1, 2, 3), representing the Sil and Angband-style sets
 #   without and with the hjkl movement
 #
-# When you press the 'key', the underlying 'action' is triggered. 
+# When you press the 'key', the underlying 'action' is triggered.
 
 
 ##### Force certain options #####
@@ -438,5 +438,8 @@ C:3:^t
 
 ?:[EQU $SYS acn]
 %:pref-acn.prf
+
+?:[EQU $SYS sdl]
+%:pref-sdl.prf
 
 ?:1
