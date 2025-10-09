@@ -644,8 +644,8 @@ D: The air around it shimmers with heat.
 N:54:Gorgol, the Butcher
 W:5:10
 G:o:G
-I:2:12d4:0
-A:15:2:1:5
+I:2:14d4:0
+A:15:2:1:6
 P:[+4,3d4]
 B:HIT:HURT:(+6,3d7)
 F:UNIQUE | MALE | ESCORT | SMART
@@ -789,7 +789,7 @@ D: its treasure long since been plundered.
 N:76:Boldog, the Merciless
 W:7:20
 G:o:y
-I:2:13d4:0
+I:2:15d4:0
 A:15:4:1:6
 P:[+6,3d4]
 B:HIT:HURT:(+11,1d16)
@@ -798,7 +798,7 @@ F:NO_FEAR
 F:OPEN_DOOR | BASH_DOOR | UNLOCK_DOOR | ORC | SMART
 F:DROP_1D2 | DROP_GOOD | DROP_CHOSEN
 F:HURT_LITE
-S:SPELL_PCT_15 | POW_9
+S:SPELL_PCT_15 | POW_11
 S:ARROW2
 D:A great captain of the orcs, who led many raids into the
 D: lands of the elves.
@@ -853,9 +853,9 @@ D:A giant buzzing wasp, its stinger drips venom.
 N:84:Balcmeg, the Relentless
 W:8:20
 G:o:o
-I:2:15d4:0
+I:2:17d4:0
 A:15:3:1:9
-P:[+4,4d4]
+P:[+6,5d4]
 B:HIT:HURT:(+8,3d8)
 F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART | ORC
 F:DROP_100 | UNIQUE_FRIEND | DROP_GOOD | HURT_LITE
@@ -869,7 +869,7 @@ W:8:20
 G:o:v
 I:2:10d4:0
 A:15:5:1:5
-P:[+16,2d4]
+P:[+17,2d4]
 B:HIT:HURT:(+16,1d7)
 F:UNIQUE | MALE | OPEN_DOOR | UNLOCK_DOOR | SMART | ORC
 F:DROP_100 | UNIQUE_FRIEND | DROP_GREAT | HURT_LITE | CRUEL_BLOW
@@ -942,10 +942,10 @@ D: reflect no light.
 N:95:Orcobal, Champion of the Orcs
 W:9:15
 G:o:B
-I:2:15d4:0
+I:2:17d4:0
 A:15:5:1:8
 P:[+8,3d4]
-B:HIT:HURT:(+10,3d10)
+B:HIT:HURT:(+12,3d10)
 F:UNIQUE | MALE | ESCORT
 F:DROP_1D2 | DROP_GOOD | OPEN_DOOR | BASH_DOOR | ORC
 F:HURT_LITE | SMART
@@ -1016,9 +1016,9 @@ D: fangs hanging from its mouth.
 N:105:Othrod, the Orc Lord
 W:10:10
 G:o:R
-I:2:15d4:0
+I:2:18d4:0
 A:15:6:1:9
-P:[+9,4d4]
+P:[+11,4d4]
 B:HIT:HURT:(+15,2d9)
 B:WHIP:DISARM:(+12,2d4)
 F:UNIQUE | MALE | ESCORTS | SMART
@@ -1103,8 +1103,8 @@ G:@:U1
 I:2:14d4:1
 A:15:6:1:11
 P:[+13,3d4]
-B:HIT:HURT:(+16,2d7)
-S:SPELL_PCT_75 | POW_21
+B:HIT:HURT:(+18,2d7)
+S:SPELL_PCT_75 | POW_24
 S:ARROW1
 F:UNIQUE | MAN | MALE | DROP_100 | ESCORT | SMART
 F:DROP_GOOD | OPEN_DOOR | BASH_DOOR | TAKE_ITEM | UNLOCK_DOOR
@@ -1119,9 +1119,10 @@ N:117:Brodda, the Easterling Lord
 W:11:100
 G:W:R
 I:2:8d4:0
-A:10:12:5:12
+A:10:12:5:14
 P:[+8,3d4]
 B:TOUCH:LOSE_CON:(+15)
+B:TOUCH:LOSE_STR:(+15)
 B:HIT:HURT:(+15,2d9)
 F:UNIQUE | MALE | SMART
 F:DROP_100 | DROP_GREAT | OPEN_DOOR | SPECIAL_GEN
@@ -1200,14 +1201,14 @@ D: its fearsome breath.
 N:125:Ulfang the Black
 W:12:10
 G:@:s
-I:2:15d4:1
+I:2:18d4:1
 A:15:6:1:11
 P:[+13,4d4]
 B:HIT:HURT:(+19,2d8)
 F:UNIQUE | MAN | MALE | DROP_2D2 | ESCORT | SMART
 F:DROP_GOOD | OPEN_DOOR | BASH_DOOR | TAKE_ITEM
 F:OPPORTUNIST
-S:SPELL_PCT_5 | POW_18 | RALLY
+S:SPELL_PCT_5 | POW_20 | RALLY
 D:Ulfang was a great leader of the Easterlings and led them in
 D: their treachery. He and his sons once openly swore allegiance
 D: to the High Elves, but were secretly in the pay of Morgoth.
@@ -1220,10 +1221,10 @@ D: to the High Elves, but were secretly in the pay of Morgoth.
 N:126:Duruin, Least of the Balrogs
 W:12:30
 G:R:o
-I:2:28d4:-3
+I:2:32d4:-3
 A:5:7:1:12
 P:[+13,4d4]
-B:HIT:FIRE:(+18,2d12)
+B:HIT:FIRE:(+20,2d12)
 B:WHIP:DISARM:(+14,3d6)
 F:UNIQUE | MALE | SMART | GLOW
 F:DROP_1D2 | DROP_100 | DROP_GREAT
@@ -1298,10 +1299,10 @@ D: An icy chill surrounds it.
 N:135:Gilim, the Giant of Eruman
 W:13:10
 G:G:w
-I:2:35d4:2
+I:2:40d4:2
 A:15:5:0:10
 P:[+9,1d4]
-B:HIT:COLD:(+10,4d9)
+B:HIT:COLD:(+10,4d11)
 F:DROP_1D2 | DROP_GOOD | OPEN_DOOR | BASH_DOOR
 F:RES_COLD
 F:UNIQUE | MALE | SMART
@@ -1363,7 +1364,7 @@ D: almost that of a person. A cold gleaming blade is in its hand.
 N:145:Delthaur, Balrog of Terror
 W:14:20
 G:R:g
-I:2:32d4:-3
+I:2:36d4:-3
 A:5:7:1:14
 P:[+15,4d4]
 B:HIT:FIRE:(+20,3d10)
@@ -1372,7 +1373,7 @@ F:UNIQUE | MALE | SMART | GLOW
 F:DROP_1D2 | DROP_100 | DROP_GREAT
 F:NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
-S:SPELL_PCT_15
+S:SPELL_PCT_20
 S:SCARE
 D:Some have called the Balrogs 'Demons of Terror', but none
 D: inspires such fear as Delthaur. The very air around him
@@ -1382,10 +1383,10 @@ D: is filled with menace.
 N:146:Nan, the Giant
 W:14:30
 G:G:G
-I:2:40d4:2
+I:2:45d4:2
 A:15:5:0:11
 P:[+11,1d4]
-B:HIT:HURT:(+15,3d13)
+B:HIT:HURT:(+15,3d15)
 F:DROP_1D2 | DROP_GOOD | DROP_CHOSEN | OPEN_DOOR | BASH_DOOR
 F:UNIQUE | MALE | SMART
 S:SPELL_PCT_10 | POW_12
@@ -1539,13 +1540,13 @@ D: teeth, and the mesmerising eyes...
 N:165:Umuiyan, the Doorkeeper
 W:16:15
 G:f:y
-I:3:12d4:0
+I:3:14d4:0
 A:20:13:10:8
 P:[+20,1d4]
 B:CLAW:WOUND:(+25,1d11)
 F:ESCORT | UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART
 F:DROP_100 | UNLOCK_DOOR | DROP_GOOD
-S:SPELL_PCT_50 | POW_21
+S:SPELL_PCT_60 | POW_21
 S:ARROW2
 D:This cat seems older than most, and more sly.
 D: He has long guarded the entrance to the fortress of Tevildo.
@@ -1556,9 +1557,9 @@ D: He has long guarded the entrance to the fortress of Tevildo.
 N:166:Belegwath, Balrog of Shadow
 W:16:20
 G:R:v
-I:2:36d4:-5
+I:2:36d4:-6
 A:5:9:1:15
-P:[+17,4d4]
+P:[+19,4d4]
 B:HIT:FIRE:(+22,2d14)
 B:WHIP:DISARM:(+18,3d8)
 F:UNIQUE | MALE | SMART | GLOW
@@ -1668,8 +1669,8 @@ D: to discern even as it fires its cruel bow.
 N:176:Scatha the Worm
 W:17:30
 G:d:B
-I:2:35d4:0
-A:30:9:2:18
+I:2:38d4:0
+A:30:9:2:20
 P:[+14,2d4]
 B:CLAW:HURT:(+20,3d11)
 B:BITE:WOUND:(+17,2d21)
@@ -1688,10 +1689,10 @@ D: treachery his hoard is large for a young worm.
 N:177:Oikeroi, Guard of Tevildo
 W:17:15
 G:f:o
-I:3:18d4:0
+I:3:20d4:0
 A:15:13:10:9
 P:[+21,1d4]
-B:CLAW:WOUND:(+28,1d11)
+B:CLAW:WOUND:(+30,1d11)
 F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART
 F:UNLOCK_DOOR | UNIQUE_FRIEND | DROP_1D2 | DROP_GOOD
 D:A fierce and warlike cat, thane of Tevildo
@@ -1778,13 +1779,13 @@ D: yet young.
 N:185:Tevildo, Prince of Cats
 W:18:10
 G:f:u
-I:3:14d4:0
+I:3:16d4:0
 A:15:14:10:10
-P:[+22,1d4]
+P:[+24,1d4]
 B:CLAW:WOUND:(+26,1d13)
 F:UNIQUE | MALE | OPEN_DOOR | BASH_DOOR | SMART
 F:UNLOCK_DOOR | UNIQUE_FRIEND | DROP_1D2 | DROP_GREAT
-F:CRUEL_BLOW
+F:CRUEL_BLOW | EXCHANGE_PLACES
 D:Renowned for his cruelty even among the cruel
 D: cat-people, is it a wonder that this fierce
 D: warrior is royalty?
@@ -1795,7 +1796,7 @@ D: warrior is royalty?
 N:186:Turkano, Balrog of the Hosts
 W:18:20
 G:R:b
-I:2:40d4:-3
+I:2:44d4:-3
 A:5:9:1:19
 P:[+19,5d4]
 B:HIT:FIRE:(+24,2d16)
@@ -1879,14 +1880,14 @@ W:19:30
 G:d:y1
 I:3:35d4:0
 A:30:9:2:19
-P:[+14,2d4]
+P:[+16,2d4]
 B:CLAW:HURT:(+23,3d11)
 B:BITE:FIRE:(+19,2d21)
 F:UNIQUE | MALE
 F:DROP_2D2 | DROP_GOOD | SMART | FLYING | TERRITORIAL
 F:BASH_DOOR | DRAGON
 F:RES_FIRE | HURT_COLD
-S:SPELL_PCT_20 | POW_20
+S:SPELL_PCT_20 | POW_22
 S:BRTH_FIRE | CONF | HOLD
 D:A dragon with the inquisitiveness of youth --
 D: but a young dragon is a deadly foe still, and
@@ -1896,13 +1897,13 @@ D: this one flies through the dark halls on great wings.
 N:196:Maeglin, Betrayer of Gondolin
 W:19:100
 G:@:D1
-I:2:15d4:2
+I:2:18d4:2
 A:15:15:5:18
 P:[+23,5d4]
 B:HIT:HURT:(+33,2d8)
 F:UNIQUE | ELF | MALE | DROP_1D2 | UNLOCK_DOOR | DROP_CHOSEN
 F:DROP_GREAT | OPEN_DOOR | BASH_DOOR | TAKE_ITEM | SMART
-F:RIPOSTE
+F:RIPOSTE | CRUEL_BLOW
 D:Named "sharp-glance" by his father Eol, the dark elf. Maeglin
 D: was close in the counsels of Turgon, King of Gondolin, but
 D: betrayed him to the black enemy Morgoth Bauglir.
@@ -1989,10 +1990,10 @@ D: side when his black banner was raised in defiance of Iluvatar.
 N:205:Draugluin, Sire of Werewolves
 W:20:15
 G:C:W
-I:3:22d4:0
+I:3:25d4:0
 A:20:17:5:15
 P:[+24,3d4]
-B:CLAW:WOUND:(+26,3d9)
+B:CLAW:WOUND:(+28,3d9)
 B:BITE:POISON:(+23,2d13)
 F:UNIQUE | MALE | ESCORT | SMART
 F:RAND_25 | DROP_1D2 | DROP_CHOSEN
@@ -2010,7 +2011,7 @@ G:R:y
 I:3:44d4:-3
 A:5:12:1:19
 P:[+21,5d4]
-B:HIT:FIRE:(+26,3d12)
+B:HIT:FIRE:(+28,3d14)
 B:WHIP:DISARM:(+22,3d8)
 F:UNIQUE | MALE | SMART | GLOW
 F:DROP_1D2 | DROP_100 | DROP_GREAT
@@ -2070,9 +2071,9 @@ D: everything around it as prey.
 N:214:Dagorhir, the Elfbane
 W:21:15
 G:T:r
-I:2:24d4:0
+I:2:35d4:0
 A:15:6:0:10
-P:[+17,4d4]
+P:[+17,6d4]
 B:HIT:BATTER:(+17,4d10)
 F:UNIQUE | ESCORT | DROP_1D2 | DROP_GOOD | REGENERATE | NO_FEAR
 F:OPEN_DOOR | BASH_DOOR | TROLL | MALE | HURT_LITE | SMART
@@ -2087,7 +2088,7 @@ W:21:30
 G:D:B
 I:2:60d4:0
 A:30:13:0:22
-P:[+14,2d4]
+P:[+17,3d4]
 B:CLAW:HURT:(+24,3d13)
 B:BITE:WOUND:(+19,2d23)
 F:UNIQUE | MALE | TERRITORIAL
@@ -2154,7 +2155,7 @@ D: do they move with such active malice...
 N:224:Shelob, Spider of Darkness
 W:22:30
 G:M:D1
-I:2:22d4:-3
+I:2:25d4:-4
 A:20:8:3:16
 P:[+20,2d4]
 B:BITE:ENTRANCE:(+25,2d15)
@@ -2171,7 +2172,7 @@ D: of its light, that she takes to weave her deadly webs.
 N:225:Lungorthin, Lord of Balrogs
 W:22:20
 G:R:w
-I:2:48d4:-3
+I:2:52d4:-3
 A:5:14:1:21
 P:[+23,5d4]
 B:HIT:FIRE:(+28,2d18)
@@ -2180,7 +2181,7 @@ F:UNIQUE | MALE | SMART | GLOW
 F:DROP_1D2 | DROP_100 | DROP_GREAT
 F:NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
-S:SPELL_PCT_10 | POW_10
+S:SPELL_PCT_10 | POW_14
 S:BRTH_FIRE
 D:A massive form cloaked in flame.  Lungorthin stares balefully at you
 D: with eyes that smoulder.  The dungeon floor where he stands is
@@ -2225,10 +2226,10 @@ D: clear how one could ever slay such a thing.
 N:233:Ancalagon the Black
 W:23:6
 G:d:D
-I:3:35d4:0
+I:3:40d4:0
 A:30:11:2:22
 P:[+17,2d4]
-B:CLAW:HURT:(+29,3d11)
+B:CLAW:HURT:(+31,3d11)
 B:BITE:FIRE:(+25,2d21)
 F:UNIQUE | MALE
 F:DROP_2D2
@@ -2246,10 +2247,10 @@ D: with great thunder, and lightning, and a tempest of fire.
 N:234:Thuringwethil, the Vampire Messenger
 W:23:3
 G:v:r
-I:4:16d4:0
+I:4:18d4:0
 A:10:15:7:20
 P:[+30,1d4]
-B:CLAW:WOUND:(+35,3d7)
+B:CLAW:WOUND:(+37,3d7)
 B:BITE:LOSE_ALL:(+29,2d9)
 F:UNIQUE | FEMALE
 F:DROP_2D2 | DROP_GOOD | DROP_CHOSEN | SMART
@@ -2268,10 +2269,10 @@ D: her wings and eyes give away her true form.
 N:241:Gothmog, High Captain of Balrogs
 W:24:3
 G:R:r
-I:2:52d4:-3
+I:2:56d4:-3
 A:5:15:1:22
-P:[+25,6d4]
-B:HIT:FIRE:(+30,3d14)
+P:[+25,7d4]
+B:HIT:FIRE:(+32,3d14)
 B:WHIP:DISARM:(+26,3d10)
 F:UNIQUE | MALE | SMART | GLOW
 F:DROP_1D2 | DROP_100 | DROP_GREAT
@@ -2289,14 +2290,14 @@ D: Ungoliant's rage.
 N:242:Ungoliant, the Gloomweaver
 W:24:3
 G:M:D
-I:2:36d4:-6
+I:2:40d4:-7
 A:20:8:3:24
 P:[+20,3d4]
 B:BITE:POISON:(+24,2d21)
 F:UNIQUE | FEMALE
 F:SMART | BASH_DOOR | TERRITORIAL
 F:SPIDER | HURT_LITE | RES_POIS
-S:SPELL_PCT_15 | POW_8
+S:SPELL_PCT_15 | POW_12
 S:BRTH_DARK
 D:This enormous, hideous spirit of void is in the form of a spider of
 D: immense proportions.  She is surrounded by a cloud of Unlight as she
@@ -2311,7 +2312,7 @@ N:243:Glaurung, the Deceiver
 W:24:3
 G:D:y1
 I:2:60d4:0
-A:20:10:0:24
+A:20:10:0:26
 P:[+16,2d4]
 B:CLAW:HURT:(+29,3d15)
 B:BITE:FIRE:(+24,2d25)
@@ -2319,7 +2320,7 @@ F:UNIQUE | MALE
 F:DROP_3D2 | DROP_GREAT
 F:SMART | BASH_DOOR | TERRITORIAL
 F:DRAGON | RES_FIRE | HURT_COLD
-S:SPELL_PCT_40 | POW_28
+S:SPELL_PCT_45 | POW_28
 S:BRTH_FIRE | SCARE | HOLD | CONF
 D:Lo! the golden dragon of the God of Hell...
 D: Father and forefather to the other dragons, he is grown
@@ -2335,7 +2336,7 @@ W:24:3
 G:C:u
 I:3:30d4:0
 A:10:20:5:24
-P:[+29,3d4]
+P:[+31,3d4]
 B:CLAW:WOUND:(+31,3d11)
 B:BITE:POISON:(+28,2d15)
 F:UNIQUE | MALE
@@ -2399,10 +2400,10 @@ D: burning him. You need to get to that crown.
 N:253:Carcharoth, the Jaws of Thirst
 W:25:1
 G:C:r
-I:4:30d4:0
+I:4:35d4:0
 A:20:20:5:20
 P:[+30,2d4]
-B:BITE:POISON:(+29,2d17)
+B:BITE:POISON:(+31,2d17)
 F:UNIQUE | MALE | FORCE_DEPTH
 F:SMART
 F:WOLF
