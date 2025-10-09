@@ -271,18 +271,9 @@ static errr callback_sdl_xtra(int n, int v)
     sdl_view* d = sdl_view_from_term(Term);
     switch (n) {
     case TERM_XTRA_EVENT: {
-        int wait_ms = v;
         SDL_Event ev;
-
-        if (wait_ms > 0) {
-            // Wait for an event with timeout
-            if (SDL_WaitEventTimeout(&ev, wait_ms))
-                sdl_handle_event(&g_state, &ev);
-        } else {
-            // Poll for events without waiting
-            if (SDL_PollEvent(&ev))
-                sdl_handle_event(&g_state, &ev);
-        }
+        if (SDL_WaitEvent(&ev))
+            sdl_handle_event(&g_state, &ev);
         return 0;
     }
     case TERM_XTRA_FLUSH:
