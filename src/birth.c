@@ -2434,7 +2434,7 @@ static NavResult player_birth_aux(void)
     log_debug("Initializing character data and history");
 
     my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
-    process_player_name(false);
+    process_player_name(true);  /* CRITICAL: Must pass true to update savefile path! */
     /* Clear the previous history strings */
     p_ptr->history[0] = '\0';
     my_strcat(

@@ -8493,6 +8493,7 @@ bool autoload_alive_from_scores(void)
         my_strcpy(savefile, savefile_backup, sizeof(savefile));
 
         /* Mark as dead and continue */
+#if ANTICHEAT
         log_warn("autoload: savefile missing/corrupt for '%s' - marking dead", who_buf);
         strnfmt(entry.how, sizeof entry.how, "%-.49s", "their own hand");
         if (highscore_seek(i) == 0) {
@@ -8503,6 +8504,10 @@ bool autoload_alive_from_scores(void)
         msg_format("Warning: Alive entry '%s' had no valid savefile. Marked as dead.", who_buf);
         msg_print("Please do not tamper with savefiles.");
         message_flush();
+#else
+        log_warn("autoload: savefile missing/corrupt for '%s' - skipping (ANTICHEAT disabled)", who_buf);
+        /* Continue to next entry without marking as dead */
+#endif
     }
 
     fclose(highscore_fd);

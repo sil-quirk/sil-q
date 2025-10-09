@@ -410,7 +410,7 @@ B:You stand resolutely-lord of Belegost, whose courage wounded dragon’s pride.
 F:WIL_AFFINITY | MEL_AFFINITY
 S:2:1:2:1
 C:0:8 # Whirlwind Attack
-P:1
+P:2
 D:Mighty dwarven lord of Belegost, brave-hearted defender of stone halls, 
 D:whose fierce courage challenged dragons beneath red fire and shadow. 
 D:Armor clad in valor, battling boldly amid ruinous flames unleashed, 
