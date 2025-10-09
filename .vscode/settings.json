@@ -9,13 +9,18 @@
             "overrideName": true,
             "env": {
                 "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
+            }
+        },
         "Cygwin": {
             "path": "C:\\Soft\\Cygwin\\bin\\bash.exe",
             "args": ["--login"],
             "env": {
                 "PATH": "/usr/bin:/bin:${env:PATH}"
             },
-            "icon": "terminal-bash"
+            "icon": "terminal-bash",
+            "overrideName": true
+        },
+        "Command Prompt": {
             "path": [
                 "${env:windir}\\Sysnative\\cmd.exe",
                 "${env:windir}\\System32\\cmd.exe"
