@@ -1099,16 +1099,58 @@ static errr rd_extra(void)
     /* Current turn */
     rd_s32b(&turn);
 
-    /* Current player turn */
-    rd_s32b(&playerturn);
-    
-    /* New shatter flags - read from end for save compatibility */
-    /* Old saves won't have these, so default to 0 */
-    if (!older_than(1, 5, 1)) {  /* Only read if save is new enough */
+    /* Player turn / crown shatter flags changed layout across sf_extra revisions */
+    if (sf_extra >= 3)
+    {
+        /* New format: playerturn stored immediately after turn, then shatter flags */
+        rd_s32b(&playerturn);
         rd_byte(&p_ptr->crown_shatter_sil2);
         rd_byte(&p_ptr->crown_shatter_sil3);
     }
-    else {
+    else if (sf_extra == 2)
+    {
+        /* Legacy 0.8.9.x saves wrote shatter flags first and duplicated the turn */
+        rd_byte(&p_ptr->crown_shatter_sil2);
+        rd_byte(&p_ptr->crown_shatter_sil3);
+
+        s32b turn_repeat = 0;
+        rd_s32b(&turn_repeat);
+        if (turn_repeat == turn)
+        {
+            rd_s32b(&playerturn);
+        }
+        else
+        {
+            /* No duplicate present (unexpected but recoverable) */
+            playerturn = turn_repeat;
+
+            long rewind_pos = ftell(fff);
+            u32b saved_v_check = v_check, saved_x_check = x_check, saved_offset = load_byte_offset;
+            byte saved_xor = xor_byte;
+
+            s32b maybe_playerturn = 0;
+            rd_s32b(&maybe_playerturn);
+            if (maybe_playerturn != playerturn)
+            {
+                /* Not an echoed player turn, restore stream state */
+                fseek(fff, rewind_pos, SEEK_SET);
+                v_check = saved_v_check;
+                x_check = saved_x_check;
+                load_byte_offset = saved_offset;
+                xor_byte = saved_xor;
+            }
+        }
+    }
+    else
+    {
+        /* Very old saves: playerturn present but no shatter flags */
+        rd_s32b(&playerturn);
+        p_ptr->crown_shatter_sil2 = 0;
+        p_ptr->crown_shatter_sil3 = 0;
+    }
+
+    if (sf_extra < 2)
+    {
         p_ptr->crown_shatter_sil2 = 0;
         p_ptr->crown_shatter_sil3 = 0;
     }
