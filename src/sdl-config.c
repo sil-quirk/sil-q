@@ -156,6 +156,31 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
         } else {
             log_warn("tiles not found or not a boolean");
         }
+        
+        // Window position and size for windowed mode
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "windowX");
+        if (cJSON_IsNumber(item)) {
+            config->window_x = item->valueint;
+            log_debug("Loaded windowX: %d", config->window_x);
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "windowY");
+        if (cJSON_IsNumber(item)) {
+            config->window_y = item->valueint;
+            log_debug("Loaded windowY: %d", config->window_y);
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "windowWidth");
+        if (cJSON_IsNumber(item)) {
+            config->window_width = item->valueint;
+            log_debug("Loaded windowWidth: %d", config->window_width);
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "windowHeight");
+        if (cJSON_IsNumber(item)) {
+            config->window_height = item->valueint;
+            log_debug("Loaded windowHeight: %d", config->window_height);
+        }
     } else {
         log_warn("'sdl' object not found in JSON");
     }
@@ -242,6 +267,12 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddBoolToObject(sdl, "fullscreen", config->fullscreen);
     cJSON_AddBoolToObject(sdl, "tiles", config->tiles);
     
+    // Save window position and size for windowed mode
+    cJSON_AddNumberToObject(sdl, "windowX", config->window_x);
+    cJSON_AddNumberToObject(sdl, "windowY", config->window_y);
+    cJSON_AddNumberToObject(sdl, "windowWidth", config->window_width);
+    cJSON_AddNumberToObject(sdl, "windowHeight", config->window_height);
+    
     cJSON_AddItemToObject(root, "sdl", sdl);
     
     // Create panes array
@@ -311,6 +342,12 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->margin = 4;
     config->fullscreen = true;
     config->tiles = true;
+    
+    // Default window position and size (will be overridden by actual screen size)
+    config->window_x = -1;  // -1 means centered
+    config->window_y = -1;  // -1 means centered
+    config->window_width = 0;  // 0 means use default calculation
+    config->window_height = 0; // 0 means use default calculation
 }
 
 void sdl_config_apply_cmdline(struct sdl_config* config, int argc, char** argv)

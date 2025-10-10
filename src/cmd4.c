@@ -8347,12 +8347,317 @@ static errr option_dump(cptr fname)
     return (0);
 }
 
+/*
+ * Display and manage SDL pane settings
+ * Interactive menu to edit SDL configuration
+ */
+void do_cmd_pane_settings(void)
+{
+#ifdef USE_SDL
+    int k = 0;
+    int n = 7; /* Total number of options (not including save/quit) */
+    bool done = false;
+    bool settings_changed = false;
+    int dir;
+    
+    /* Save screen */
+    screen_save();
+    
+    while (!done)
+    {
+        /* Clear screen */
+        Term_clear();
+        
+        /* Display title */
+        Term_putstr(2, 1, -1, TERM_L_BLUE, "SDL Pane Settings");
+        
+        /* Display current settings */
+        char buf[80];
+        int y = 3;
+        byte a;
+        
+        /* Option 0: Main View Scale */
+        a = (k == 0) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(buf, sizeof(buf), "%-48s: %d", "Main View Scale (1-10)", get_sdl_main_view_scale());
+        c_prt(a, buf, y++, 2);
+        
+        /* Option 1: Aux View Font Size */
+        a = (k == 1) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(buf, sizeof(buf), "%-48s: %d", "Aux View Font Size (8-48)", get_sdl_aux_view_font_size());
+        c_prt(a, buf, y++, 2);
+        
+        /* Option 2: Margin */
+        a = (k == 2) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(buf, sizeof(buf), "%-48s: %d", "Margin (0-20)", get_sdl_margin());
+        c_prt(a, buf, y++, 2);
+        
+        /* Option 3: Fullscreen */
+        a = (k == 3) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(buf, sizeof(buf), "%-48s: %s", "Fullscreen", get_sdl_fullscreen() ? "yes" : "no ");
+        c_prt(a, buf, y++, 2);
+        
+        /* Option 4: Tiles */
+        a = (k == 4) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(buf, sizeof(buf), "%-48s: %s", "Tiles", get_sdl_tiles() ? "yes" : "no ");
+        c_prt(a, buf, y++, 2);
+        
+        y++; /* Blank line */
+        
+        /* Option 5: View Pane Configuration */
+        a = (k == 5) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(buf, sizeof(buf), "View Pane Configuration (%d panes)", get_pane_config_count());
+        c_prt(a, buf, y++, 2);
+        
+        y++; /* Blank line */
+        
+        /* Option 6: Save/Quit */
+        a = (k == 6) ? TERM_L_BLUE : TERM_WHITE;
+        if (settings_changed)
+        {
+            c_prt(a, "Save Changes and Return", y++, 2);
+        }
+        else
+        {
+            c_prt(a, "Return to Options Menu", y++, 2);
+        }
+        
+        /* Display help */
+        y = Term->hgt - 3;
+        if (settings_changed)
+        {
+            Term_putstr(2, y++, -1, TERM_YELLOW, "Settings changed - they will be saved to sil_sdl.json.");
+            Term_putstr(2, y++, -1, TERM_YELLOW, "Restart the game for changes to take effect.");
+        }
+        Term_putstr(2, y++, -1, TERM_SLATE, "(direction keys to set, Return/Escape to accept)");
+        
+        /* Hilite current option */
+        move_cursor(k + 3, 52);
+        
+        /* Get key */
+        hide_cursor = true;
+        char ch = inkey();
+        hide_cursor = false;
+        
+        /* Try to translate the key into a direction */
+        dir = target_dir(ch);
+        if ((dir == 2) || (dir == 4) || (dir == 6) || (dir == 8))
+            ch = I2D(dir);
+        
+        /* Process input */
+        switch (ch)
+        {
+        case ESCAPE:
+        case '\n':
+        case '\r':
+        {
+            /* Save if changed, then exit */
+            if (settings_changed)
+            {
+                if (save_pane_config_to_json())
+                {
+                    msg_print("Settings saved to sil_sdl.json");
+                    msg_print("Restart the game for changes to take effect.");
+                }
+            }
+            done = true;
+            break;
+        }
+        
+        case '-':
+        case '8':
+        {
+            /* Move up */
+            k = (n + k - 1) % n;
+            break;
+        }
+        
+        case '2':
+        {
+            /* Move down */
+            k = (k + 1) % n;
+            break;
+        }
+        
+        case 't':
+        case '5':
+        case ' ':
+        {
+            /* Toggle or activate current option */
+            if (k == 3) /* Fullscreen */
+            {
+                set_sdl_fullscreen(!get_sdl_fullscreen());
+                settings_changed = true;
+            }
+            else if (k == 4) /* Tiles */
+            {
+                set_sdl_tiles(!get_sdl_tiles());
+                settings_changed = true;
+            }
+            else if (k == 5) /* View Pane Configuration */
+            {
+                char pane_info[8192];
+                get_sdl_config_info(pane_info, sizeof(pane_info));
+                
+                screen_save();
+                Term_clear();
+                Term_putstr(2, 1, -1, TERM_L_BLUE, "Pane Configuration Details");
+                Term_putstr(2, 2, -1, TERM_WHITE, "==========================");
+                
+                int py = 4;
+                char* pline = strtok(pane_info, "\n");
+                while (pline != NULL && py < Term->hgt - 3)
+                {
+                    byte color = TERM_WHITE;
+                    if (strstr(pline, "===") != NULL)
+                        color = TERM_YELLOW;
+                    else if (strstr(pline, "Pane ") == pline)
+                        color = TERM_L_GREEN;
+                    
+                    Term_putstr(2, py++, -1, color, pline);
+                    pline = strtok(NULL, "\n");
+                }
+                
+                Term_putstr(2, Term->hgt - 2, -1, TERM_SLATE, "Edit sil_sdl.json manually to change pane layout.");
+                Term_putstr(2, Term->hgt - 1, -1, TERM_L_BLUE, "Press any key to return...");
+                (void)inkey();
+                screen_load();
+            }
+            else if (k == 6) /* Save/Return */
+            {
+                if (settings_changed)
+                {
+                    if (save_pane_config_to_json())
+                    {
+                        msg_print("Settings saved to sil_sdl.json");
+                        msg_print("Restart the game for changes to take effect.");
+                    }
+                }
+                done = true;
+            }
+            break;
+        }
+        
+        case 'y':
+        case '6':
+        {
+            /* Increase value or set to yes */
+            int val;
+            
+            if (k == 0) /* Main View Scale */
+            {
+                val = get_sdl_main_view_scale();
+                if (val < 10)
+                {
+                    set_sdl_main_view_scale(val + 1);
+                    settings_changed = true;
+                }
+            }
+            else if (k == 1) /* Aux View Font Size */
+            {
+                val = get_sdl_aux_view_font_size();
+                if (val < 48)
+                {
+                    set_sdl_aux_view_font_size(val + 1);
+                    settings_changed = true;
+                }
+            }
+            else if (k == 2) /* Margin */
+            {
+                val = get_sdl_margin();
+                if (val < 20)
+                {
+                    set_sdl_margin(val + 1);
+                    settings_changed = true;
+                }
+            }
+            else if (k == 3) /* Fullscreen */
+            {
+                set_sdl_fullscreen(true);
+                settings_changed = true;
+            }
+            else if (k == 4) /* Tiles */
+            {
+                set_sdl_tiles(true);
+                settings_changed = true;
+            }
+            break;
+        }
+        
+        case 'n':
+        case '4':
+        {
+            /* Decrease value or set to no */
+            int val;
+            
+            if (k == 0) /* Main View Scale */
+            {
+                val = get_sdl_main_view_scale();
+                if (val > 1)
+                {
+                    set_sdl_main_view_scale(val - 1);
+                    settings_changed = true;
+                }
+            }
+            else if (k == 1) /* Aux View Font Size */
+            {
+                val = get_sdl_aux_view_font_size();
+                if (val > 8)
+                {
+                    set_sdl_aux_view_font_size(val - 1);
+                    settings_changed = true;
+                }
+            }
+            else if (k == 2) /* Margin */
+            {
+                val = get_sdl_margin();
+                if (val > 0)
+                {
+                    set_sdl_margin(val - 1);
+                    settings_changed = true;
+                }
+            }
+            else if (k == 3) /* Fullscreen */
+            {
+                set_sdl_fullscreen(false);
+                settings_changed = true;
+            }
+            else if (k == 4) /* Tiles */
+            {
+                set_sdl_tiles(false);
+                settings_changed = true;
+            }
+            break;
+        }
+        
+        default:
+        {
+            bell("Illegal command for pane settings!");
+            break;
+        }
+        }
+    }
+    
+    /* Restore screen */
+    screen_load();
+#else
+    /* Not using SDL */
+    screen_save();
+    Term_clear();
+    Term_putstr(2, 1, -1, TERM_L_BLUE, "SDL Pane Settings");
+    Term_putstr(2, 3, -1, TERM_WHITE, "This feature is only available in SDL builds.");
+    Term_putstr(2, 5, -1, TERM_L_BLUE, "Press any key to return...");
+    (void)inkey();
+    screen_load();
+#endif
+}
+
+
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 11;
+    int options = 12;
     #ifdef DEBUG_CURSES
-    options = 12;
+    options = 13;
     #endif
     if (p_ptr->noscore)    
         options++;
@@ -8360,32 +8665,34 @@ int options_menu(int* highlight)
     Term_putstr(2, 1, -1, TERM_WHITE, "Options and misc");
 
     Term_putstr(2, 3, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) Interface Options");
+        "a) Pane Settings");
     Term_putstr(2, 4, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) Visual Options");
+        "b) Interface Options");
     Term_putstr(2, 5, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Challenge Options");
+        "c) Visual Options");
     Term_putstr(2, 6, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) Load a 'Pref' File");
+        "d) Challenge Options");
     Term_putstr(2, 7, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Append Options to a 'Pref' File");
+        "e) Load a 'Pref' File");
     Term_putstr(2, 8, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Set Macros");
+        "f) Append Options to a 'Pref' File");
     Term_putstr(2, 9, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Set Colours");
+        "g) Set Macros");
     Term_putstr(2, 10, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Write a note");
+        "h) Set Colours");
     Term_putstr(2, 11, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Take HTML screenshot");
+        "i) Write a note");
     Term_putstr(2, 12, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "j) Sil version info");
+        "j) Take HTML screenshot");
     Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "k) Return to Game");
+        "k) Sil version info");
+    Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
+        "l) Return to Game");
 
     if (p_ptr->noscore)
     {
-        Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-            "l) Debugging Options");
+        Term_putstr(2, 15, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
+            "m) Debugging Options");
     }
 
     /* Flush the prompt */
@@ -8459,16 +8766,22 @@ int options_menu(int* highlight)
         return (10);
     }
 
-    if ((ch == 'k') || (ch == 'K') || (ch == ESCAPE) || (ch == 'q'))
+    if ((ch == 'k') || (ch == 'K'))
     {
         *highlight = 11;
         return (11);
     }
 
-    if ((ch == 'l') || (ch == 'L'))
+    if ((ch == 'l') || (ch == 'L') || (ch == ESCAPE) || (ch == 'q'))
     {
         *highlight = 12;
         return (12);
+    }
+
+    if ((ch == 'm') || (ch == 'M'))
+    {
+        *highlight = 13;
+        return (13);
     }
 
     /* Choose current  */
@@ -8522,30 +8835,36 @@ void do_cmd_options(void)
         {
         case 1:
         {
-            do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
+            do_cmd_pane_settings();
             Term_clear();
             break;
         }
         case 2:
         {
-            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
+            do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
             Term_clear();
             break;
         }
         case 3:
         {
-            do_cmd_options_aux(CHALLENGE_PAGE, "Challenge Options");
+            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
             Term_clear();
             break;
         }
         case 4:
+        {
+            do_cmd_options_aux(CHALLENGE_PAGE, "Challenge Options");
+            Term_clear();
+            break;
+        }
+        case 5:
         {
             /* Ask for and load a user pref file */
             do_cmd_pref_file_hack(12);
             Term_clear();
             break;
         }
-        case 5:
+        case 6:
         {
             /* Prompt */
             Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
@@ -8578,25 +8897,25 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 6:
+        case 7:
         {
             do_cmd_macros();
             Term_clear();
             break;
         }
-        case 7:
+        case 8:
         {
             do_cmd_colors();
             Term_clear();
             break;
         }
-        case 8:
+        case 9:
         {
             do_cmd_note("", p_ptr->depth);
             Term_clear();
             break;
         }
-        case 9:
+        case 10:
         {
             char tmp_val[80];
             /* Prompt */
@@ -8611,19 +8930,19 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 10:
+        case 11:
         {
             do_cmd_version();
             Term_clear();
             break;
         }
-        case 11:
+        case 12:
         {
             return_to_game = true;
             Term_clear();
             break;
         }
-        case 12:
+        case 13:
         {
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");
             Term_clear();

@@ -10,6 +10,12 @@ struct sdl_config {
     int margin;
     bool fullscreen;
     bool tiles;
+    
+    // Window position and size for windowed mode
+    int window_x;
+    int window_y;
+    int window_width;
+    int window_height;
 };
 
 // Load SDL configuration from JSON file

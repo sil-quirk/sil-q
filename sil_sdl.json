@@ -3,8 +3,12 @@
 		"mainViewScale":	3,
 		"auxViewFontSize":	18,
 		"margin":	4,
-		"fullscreen":	true,
-		"tiles":	true
+		"fullscreen":	false,
+		"tiles":	true,
+		"windowX":	100,
+		"windowY":	100,
+		"windowWidth":	2779,
+		"windowHeight":	1466
 	},
 	"panes":	[{
 			"type":	"INVENTORY",

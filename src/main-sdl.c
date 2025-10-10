@@ -20,6 +20,9 @@ enum {
 // SDL configuration (loaded from INI file)
 struct sdl_config config;
 
+// Configuration file path (needed for saving on exit)
+static char config_file_path[1024];
+
 // Default pane configuration
 static const struct pane_config default_pane_config[] = {
     // On the right
@@ -69,6 +72,7 @@ static sdl_view* sdl_view_from_term(term* t);
 static void sdl_view_destroy(sdl_view* d);
 static void resize(const SDL_Rect* screen);
 static void sdl_handle_event(sdl_state* st, const SDL_Event* ev);
+static void sdl_quit_hook(cptr str);
 static errr callback_sdl_xtra(int n, int v);
 static void draw_cursor(int x, int y, bool big);
 static errr callback_sdl_curs(int x, int y);
@@ -82,6 +86,7 @@ static void callback_sdl_init(term* t);
 static errr sdl_view_link_term(sdl_view* d, int term_index);
 static SDL_Texture* sdl_load_ttf_font(const char* font_path, int font_size, int* actual_font_size);
 static void sdl_window_create(int window_width, int window_height, bool fullscreen, bool use_tiles);
+static void sdl_window_set_position(int x, int y);
 static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font_size, int scale, int margin);
 
 static sdl_view* sdl_view_from_term(term* t)
@@ -661,6 +666,14 @@ static SDL_Texture* sdl_load_ttf_font(const char* font_path, int font_size, int*
     return font_atlas;
 }
 
+static void sdl_window_set_position(int x, int y)
+{
+    if (g_state.window && x >= 0 && y >= 0) {
+        SDL_SetWindowPosition(g_state.window, x, y);
+        log_debug("Window position set to (%d, %d)", x, y);
+    }
+}
+
 static void sdl_window_create(int window_width, int window_height, bool fullscreen, bool use_tiles)
 {
     SDL_WindowFlags flags = SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_RESIZABLE;
@@ -761,6 +774,26 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
     }
 }
 
+// Quit hook to save window configuration on exit
+static void sdl_quit_hook(cptr str)
+{
+    (void)str; // Unused parameter
+    
+    // Only save if we have a valid window and config file path
+    if (g_state.window && config_file_path[0] != '\0') {
+        // Get current window position and size if not in fullscreen
+        if (!config.fullscreen) {
+            SDL_GetWindowPosition(g_state.window, &config.window_x, &config.window_y);
+            SDL_GetWindowSize(g_state.window, &config.window_width, &config.window_height);
+            log_debug("Saving window position (%d, %d) and size (%dx%d)",
+                     config.window_x, config.window_y, config.window_width, config.window_height);
+        }
+        
+        // Save configuration
+        sdl_config_save(config_file_path, &config, pane_config, pane_config_count);
+    }
+}
+
 
 errr init_sdl(int argc, char **argv)
 {
@@ -782,6 +815,13 @@ errr init_sdl(int argc, char **argv)
     // Try to load from JSON file
     const char* config_file = "sil_sdl.json";
     log_debug("Attempting to load config from: %s", config_file);
+    
+    // Save config file path for later use on exit
+    my_strcpy(config_file_path, config_file, sizeof(config_file_path));
+    
+    // Register quit hook to save configuration on exit
+    quit_aux = sdl_quit_hook;
+    
     sdl_config_load(config_file, &config, pane_config, &pane_config_count, MAX_PANE_CONFIGS);
     log_debug("After loading JSON: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
               config.main_view_scale, config.aux_view_font_size, config.margin,
@@ -856,7 +896,30 @@ errr init_sdl(int argc, char **argv)
     g_state.palette[15] = RGB(231, 185, 3); // light umber
     #undef RGB
 
-    sdl_window_create(screen.w, screen.h, config.fullscreen, config.tiles);
+    // Use full display size for fullscreen, reasonable default for windowed mode
+    int window_width, window_height;
+    if (config.fullscreen) {
+        window_width = screen.w;
+        window_height = screen.h;
+    } else {
+        // Use saved dimensions if valid, otherwise default to 3/4 of screen size
+        if (config.window_width > 0 && config.window_height > 0) {
+            window_width = config.window_width;
+            window_height = config.window_height;
+            log_debug("Using saved window size: %dx%d", window_width, window_height);
+        } else {
+            window_width = screen.w * 3 / 4;
+            window_height = screen.h * 3 / 4;
+            log_debug("Using default window size: %dx%d", window_width, window_height);
+        }
+    }
+    
+    sdl_window_create(window_width, window_height, config.fullscreen, config.tiles);
+    
+    // Set window position for windowed mode
+    if (!config.fullscreen && config.window_x >= 0 && config.window_y >= 0) {
+        sdl_window_set_position(config.window_x, config.window_y);
+    }
 
     ANGBAND_SYS = "sdl";
     if (config.tiles) {
@@ -878,8 +941,131 @@ errr init_sdl(int argc, char **argv)
     log_debug("init_sdl: SDL term opened (tiles_mode=%d higher_pict=%d always_pict=%d)",
             config.tiles, Term->higher_pict, Term->always_pict);
     
-    // Save configuration for next time
-    sdl_config_save(config_file, &config, pane_config, pane_config_count);
-    
     return 0;
 }
+
+/*
+ * Get SDL configuration info as formatted string
+ * Called from cmd4.c for the pane settings menu
+ */
+void get_sdl_config_info(char* buf, size_t size)
+{
+    size_t offset = 0;
+    
+    // SDL settings
+    offset += (size_t)strnfmt(buf + offset, size - offset, "=== SDL Settings ===\n");
+    offset += (size_t)strnfmt(buf + offset, size - offset, "Main View Scale: %d\n", config.main_view_scale);
+    offset += (size_t)strnfmt(buf + offset, size - offset, "Aux View Font Size: %d\n", config.aux_view_font_size);
+    offset += (size_t)strnfmt(buf + offset, size - offset, "Margin: %d\n", config.margin);
+    offset += (size_t)strnfmt(buf + offset, size - offset, "Fullscreen: %s\n", config.fullscreen ? "Yes" : "No");
+    offset += (size_t)strnfmt(buf + offset, size - offset, "Tiles: %s\n\n", config.tiles ? "Yes" : "No");
+    
+    // Pane configurations
+    offset += (size_t)strnfmt(buf + offset, size - offset, "=== Pane Configuration ===\n");
+    offset += (size_t)strnfmt(buf + offset, size - offset, "Total Panes: %d\n\n", pane_config_count);
+    
+    for (int i = 0; i < pane_config_count && i < MAX_PANE_CONFIGS; i++) {
+        const struct pane_config* pc = &pane_config[i];
+        const char* type_str = "UNKNOWN";
+        const char* where_str = (pc->where == PLACE_BOTTOM) ? "BOTTOM" : "RIGHT";
+        
+        switch (pc->pane) {
+            case PANE_MAIN: type_str = "MAIN"; break;
+            case PANE_INVENTORY: type_str = "INVENTORY"; break;
+            case PANE_WORN: type_str = "WORN"; break;
+            case PANE_ROLLS: type_str = "ROLLS"; break;
+            case PANE_INFO: type_str = "INFO"; break;
+            case PANE_CHARACTER: type_str = "CHARACTER"; break;
+            case PANE_LOG: type_str = "LOG"; break;
+            case PANE_MONSTERS: type_str = "MONSTERS"; break;
+            default: break;
+        }
+        
+        offset += (size_t)strnfmt(buf + offset, size - offset, "Pane %d: %s\n", i + 1, type_str);
+        offset += (size_t)strnfmt(buf + offset, size - offset, "  Placement: %s\n", where_str);
+        if (pc->rect.rows > 0)
+            offset += (size_t)strnfmt(buf + offset, size - offset, "  Rows: %d\n", pc->rect.rows);
+        if (pc->rect.cols > 0)
+            offset += (size_t)strnfmt(buf + offset, size - offset, "  Cols: %d\n", pc->rect.cols);
+        if (pc->ratio > 0.0f)
+            offset += (size_t)strnfmt(buf + offset, size - offset, "  Ratio: %.2f\n", pc->ratio);
+        offset += (size_t)strnfmt(buf + offset, size - offset, "\n");
+    }
+    
+    offset += (size_t)strnfmt(buf + offset, size - offset, "\nConfiguration file: %s\n", config_file_path);
+}
+
+/*
+ * Save current pane configuration to JSON file
+ * Returns TRUE on success, FALSE on failure
+ */
+bool save_pane_config_to_json(void)
+{
+    sdl_config_save(config_file_path, &config, pane_config, pane_config_count);
+    log_info("Pane configuration saved to: %s", config_file_path);
+    return true;
+}
+
+/*
+ * Accessor functions for SDL configuration values
+ * These allow the options menu to read and modify settings
+ */
+int get_sdl_main_view_scale(void)
+{
+    return config.main_view_scale;
+}
+
+void set_sdl_main_view_scale(int value)
+{
+    if (value > 0 && value <= 10)
+        config.main_view_scale = value;
+}
+
+int get_sdl_aux_view_font_size(void)
+{
+    return config.aux_view_font_size;
+}
+
+void set_sdl_aux_view_font_size(int value)
+{
+    if (value >= 8 && value <= 48)
+        config.aux_view_font_size = value;
+}
+
+int get_sdl_margin(void)
+{
+    return config.margin;
+}
+
+void set_sdl_margin(int value)
+{
+    if (value >= 0 && value <= 20)
+        config.margin = value;
+}
+
+bool get_sdl_fullscreen(void)
+{
+    return config.fullscreen;
+}
+
+void set_sdl_fullscreen(bool value)
+{
+    config.fullscreen = value;
+}
+
+bool get_sdl_tiles(void)
+{
+    return config.tiles;
+}
+
+void set_sdl_tiles(bool value)
+{
+    config.tiles = value;
+}
+
+int get_pane_config_count(void)
+{
+    return pane_config_count;
+}
+
+

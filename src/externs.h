@@ -565,6 +565,7 @@ extern void do_cmd_message_one(void);
 extern void do_cmd_messages(void);
 extern void do_cmd_options_aux(int page, cptr info);
 extern void do_cmd_options(void);
+extern void do_cmd_pane_settings(void);
 extern void do_cmd_pref(void);
 extern void do_cmd_macros(void);
 extern void do_cmd_visuals(void);
@@ -1355,3 +1356,21 @@ extern int enhanced_equip_action;
 extern int enhanced_equipment_selected_item;
 extern char current_menu_command;
 extern int current_menu_state;
+
+/* SDL pane configuration functions (main-sdl.c) */
+#ifdef USE_SDL
+extern void get_sdl_config_info(char* buf, size_t size);
+extern bool save_pane_config_to_json(void);
+extern int get_sdl_main_view_scale(void);
+extern void set_sdl_main_view_scale(int value);
+extern int get_sdl_aux_view_font_size(void);
+extern void set_sdl_aux_view_font_size(int value);
+extern int get_sdl_margin(void);
+extern void set_sdl_margin(int value);
+extern bool get_sdl_fullscreen(void);
+extern void set_sdl_fullscreen(bool value);
+extern bool get_sdl_tiles(void);
+extern void set_sdl_tiles(bool value);
+extern int get_pane_config_count(void);
+#endif
+
