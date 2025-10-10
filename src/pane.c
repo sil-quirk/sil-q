@@ -4,10 +4,10 @@ static struct pane_specs pane_specs[PANE_MAX] = {
     // For each type of pane, list where it can be placed.
     [PANE_INVENTORY] = {.placement = PLACE_RIGHT, .min_rect.cols = 40},
     [PANE_WORN] = {.placement = PLACE_RIGHT, .min_rect.cols = 30},
-    [PANE_ROLLS] = {.placement = PLACE_BOTTOM, .min_rect.rows = 2, .min_rect.cols = 80}, // check
-    [PANE_INFO] = {.placement = PLACE_RIGHT | PLACE_BOTTOM}, // fill
-    [PANE_CHARACTER] = {.placement = PLACE_BOTTOM, .min_rect.cols = 60}, // fill
-    [PANE_LOG] = {.placement = PLACE_RIGHT | PLACE_BOTTOM}, // fill
+    [PANE_ROLLS] = {.placement = PLACE_BOTTOM, .min_rect.rows = 1, .min_rect.cols = 65}, 
+    [PANE_INFO] = {.placement = PLACE_RIGHT | PLACE_BOTTOM, .min_rect.rows = 1}, // fill
+    [PANE_CHARACTER] = {.placement = PLACE_BOTTOM, .min_rect.cols = 60},
+    [PANE_LOG] = {.placement = PLACE_RIGHT | PLACE_BOTTOM}, 
     [PANE_MONSTERS] = {.placement = PLACE_RIGHT}, // fill
 };
 

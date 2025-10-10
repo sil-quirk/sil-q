@@ -19,6 +19,12 @@ if (-not (Test-Path sil-more-windows-sdl3/lib)) {
     Copy-Item -Recurse lib sil-more-windows-sdl3/lib -Force
 }
 
+# Copy JSON config file if it doesn't exist
+if (-not (Test-Path sil-more-windows-sdl3/sil_sdl.json)) {
+    Write-Host "Copying SDL configuration file..." -ForegroundColor Yellow
+    Copy-Item sil_sdl.json sil-more-windows-sdl3/ -Force
+}
+
 # Copy DLLs
 Write-Host "Copying DLLs..." -ForegroundColor Yellow
 $dlls = @(

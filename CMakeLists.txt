@@ -36,6 +36,7 @@ add_subdirectory(src/log)
 add_executable(sil-more
     src/birth.c
     src/cave.c
+    src/cJSON.c
     src/cmd1.c
     src/cmd2.c
     src/cmd3.c
@@ -62,6 +63,7 @@ add_executable(sil-more
     src/pane.c
     src/randart.c
     src/save.c
+    src/sdl-config.c
     src/spells1.c
     src/spells2.c
     src/squelch.c

@@ -3,6 +3,7 @@
 #include "z-term.h"
 #include "log/log.h"
 #include "pane.h"
+#include "sdl-config.h"
 #include <string.h>
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -13,23 +14,14 @@ const char help_sdl[] = "SDL3";
 enum {
     TILE_SIZE = 16,
     MAX_TERM_DATA = 8,
+    MAX_PANE_CONFIGS = 8,
 };
 
-struct config {
-    int main_view_scale;
-    int aux_view_font_size;
-    int margin;
-    bool fullscreen;
-    bool tiles;
-} config = {
-    .aux_view_font_size = 18,
-    .main_view_scale = 1,
-    .margin = 4,
-    .fullscreen = true,
-    .tiles = true,
-};
+// SDL configuration (loaded from INI file)
+struct sdl_config config;
 
-const struct pane_config pane_config[] = {
+// Default pane configuration
+static const struct pane_config default_pane_config[] = {
     // On the right
     {.pane = PANE_INVENTORY, .where = PLACE_RIGHT},
     {.pane = PANE_WORN, .where = PLACE_RIGHT},
@@ -38,7 +30,11 @@ const struct pane_config pane_config[] = {
     {.pane = PANE_ROLLS, .where = PLACE_BOTTOM, .rect.rows = 4},
     {.pane = PANE_LOG, .where = PLACE_BOTTOM},
 };
-const int pane_config_count = sizeof(pane_config) / sizeof(struct pane_config);
+const int default_pane_config_count = sizeof(default_pane_config) / sizeof(struct pane_config);
+
+// Active pane configuration (may be loaded from INI)
+struct pane_config pane_config[MAX_PANE_CONFIGS];
+int pane_config_count = 0;
 
 typedef struct sdl_state {
     SDL_Window* window;
@@ -123,24 +119,37 @@ static void resize(const SDL_Rect* screen)
     {
         int cell_w = config.main_view_scale * TILE_SIZE / 2;
         int cell_h = config.main_view_scale * TILE_SIZE;
+        log_debug("Cell dimensions: %dx%d (scale=%d, TILE_SIZE=%d)", cell_w, cell_h, config.main_view_scale, TILE_SIZE);
         // panes are already in window coordinate space, no need to multiply by system_scale
         int cols = panes[PANE_MAIN].w / cell_w;
         int rows = panes[PANE_MAIN].h / cell_h;
+        log_debug("Main view: %dx%d pixels = %dx%d cells (minimum required: 80x25)", 
+                  panes[PANE_MAIN].w, panes[PANE_MAIN].h, cols, rows);
         if (cols < 80) {
             log_warn("main view too small, %d cols < 80 — removing right panes", cols);
+            log_debug("Before removing right panes: main view width = %d", panes[PANE_MAIN].w);
             for (int i = 0; i < pane_config_count; i++) {
-                if (pane_config[i].where == PLACE_RIGHT)
+                if (pane_config[i].where == PLACE_RIGHT) {
+                    log_debug("Removing pane %d (type=%d) from right", i, pane_config[i].pane);
                     panes[pane_config[i].pane].w = 0;
+                }
             }
             panes[PANE_MAIN].w = screen->w;
+            log_debug("After removing right panes: main view width = %d, cols = %d", 
+                      panes[PANE_MAIN].w, panes[PANE_MAIN].w / cell_w);
         }
         if (rows < 25) {
             log_warn("main view too small, %d rows < 25 — removing bottom panes", rows);
+            log_debug("Before removing bottom panes: main view height = %d", panes[PANE_MAIN].h);
             for (int i = 0; i < pane_config_count; i++) {
-                if (pane_config[i].where == PLACE_BOTTOM)
+                if (pane_config[i].where == PLACE_BOTTOM) {
+                    log_debug("Removing pane %d (type=%d) from bottom", i, pane_config[i].pane);
                     panes[pane_config[i].pane].w = 0;
+                }
             }
             panes[PANE_MAIN].h = screen->h;
+            log_debug("After removing bottom panes: main view height = %d, rows = %d",
+                      panes[PANE_MAIN].h, panes[PANE_MAIN].h / cell_h);
         }
     }
 
@@ -254,7 +263,7 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         ev->type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED ||
         ev->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
 
-        float scale = SDL_GetWindowPixelDensity(g_state.window);
+        float scale = SDL_GetWindowDisplayScale(g_state.window);
         if (scale != g_state.system_scale) {
             log_info("new system scale is %g", scale);
             g_state.system_scale = scale;
@@ -272,8 +281,21 @@ static errr callback_sdl_xtra(int n, int v)
     switch (n) {
     case TERM_XTRA_EVENT: {
         SDL_Event ev;
-        if (SDL_WaitEvent(&ev))
-            sdl_handle_event(&g_state, &ev);
+        if (v) {
+            if (SDL_WaitEvent(&ev))
+                sdl_handle_event(&g_state, &ev);
+        } else {
+            /* Non-blocking scan so animation loops (intro fades, etc.) keep running */
+            bool handled = false;
+            while (SDL_PollEvent(&ev)) {
+                handled = true;
+                sdl_handle_event(&g_state, &ev);
+            }
+
+            /* Avoid pegging a CPU core when we're repeatedly asked to poll */
+            if (!handled)
+                SDL_Delay(1);
+        }
         return 0;
     }
     case TERM_XTRA_FLUSH:
@@ -742,28 +764,57 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
 
 errr init_sdl(int argc, char **argv)
 {
-    for (int i = 1; i < argc; ++i) {
-        if (!strcmp(argv[i], "--scale")) {
-            if (argc > i + 1) {
-                const char* scale_str = argv[++i];
-                config.main_view_scale = SDL_atoi(scale_str);
-                if (config.main_view_scale <= 0)
-                    quit("wrong scale value, must be >= 1");
-            } else {
-                log_error("--scale requires an argument");
-                quit("--scale requires an argument");
-            }
-        } else if (!strcmp(argv[i], "--ascii")) {
-            config.tiles = false;
-        } else if (!strcmp(argv[i], "--windowed")) {
-            config.fullscreen = false;
-        } else {
-            log_error("unrecognised command line switch `%s`", argv[i]);
-            quit("unrecognised command line switch");
-        }
+    log_debug("init_sdl starting");
+    
+    // Set defaults first
+    sdl_config_set_defaults(&config);
+    log_debug("After defaults: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
+              config.main_view_scale, config.aux_view_font_size, config.margin,
+              config.fullscreen, config.tiles);
+    
+    // Copy default pane configuration
+    pane_config_count = default_pane_config_count;
+    for (int i = 0; i < default_pane_config_count && i < MAX_PANE_CONFIGS; i++) {
+        pane_config[i] = default_pane_config[i];
     }
-
-    log_debug("init_sdl");
+    log_debug("Default pane count: %d", pane_config_count);
+    
+    // Try to load from JSON file
+    const char* config_file = "sil_sdl.json";
+    log_debug("Attempting to load config from: %s", config_file);
+    sdl_config_load(config_file, &config, pane_config, &pane_config_count, MAX_PANE_CONFIGS);
+    log_debug("After loading JSON: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
+              config.main_view_scale, config.aux_view_font_size, config.margin,
+              config.fullscreen, config.tiles);
+    
+    // Apply command-line overrides
+    sdl_config_apply_cmdline(&config, argc, argv);
+    log_debug("After command-line: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
+              config.main_view_scale, config.aux_view_font_size, config.margin,
+              config.fullscreen, config.tiles);
+    
+    // Validate configuration
+    if (config.main_view_scale <= 0) {
+        log_warn("Invalid main_view_scale %d, using 1", config.main_view_scale);
+        config.main_view_scale = 1;
+    }
+    if (config.aux_view_font_size <= 0) {
+        log_warn("Invalid aux_view_font_size %d, using 18", config.aux_view_font_size);
+        config.aux_view_font_size = 18;
+    }
+    if (config.margin < 0) {
+        log_warn("Invalid margin %d, using 0", config.margin);
+        config.margin = 0;
+    }
+    
+    log_info("SDL Configuration:");
+    log_info("  Main view scale: %d", config.main_view_scale);
+    log_info("  Aux view font size: %d", config.aux_view_font_size);
+    log_info("  Margin: %d", config.margin);
+    log_info("  Fullscreen: %s", config.fullscreen ? "true" : "false");
+    log_info("  Tiles: %s", config.tiles ? "true" : "false");
+    log_info("  Pane configurations: %d", pane_config_count);
+    
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         log_error("SDL_Init failed: %s", SDL_GetError());
         quit("could not init SDL");
@@ -826,5 +877,9 @@ errr init_sdl(int argc, char **argv)
 
     log_debug("init_sdl: SDL term opened (tiles_mode=%d higher_pict=%d always_pict=%d)",
             config.tiles, Term->higher_pict, Term->always_pict);
+    
+    // Save configuration for next time
+    sdl_config_save(config_file, &config, pane_config, pane_config_count);
+    
     return 0;
 }
