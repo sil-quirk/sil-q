@@ -887,23 +887,25 @@ u32b curse_flag_mask(void)
     return m;
 }
 
-/* Count active curses that carry an RHF flag (cu_info[].flags) */
+/* Count active curse STACKS that carry an RHF flag (cu_info[].flags) */
 int curse_flag_count_rhf(u32b rhf_flag)
 {
     int count = 0;
     /* Iterate over every defined curse */
     for (int i = 0; i < z_info->cu_max; i++)
     {
-        /* Only consider curses the player actually has */
-        if (curse_count(i) > 0)
+        /* Get the stack count for this curse */
+        int stacks = curse_count(i);
+        if (stacks > 0)
         {
-            if (cu_info[i].flags & rhf_flag) count++;
+            /* Add ALL stacks if this curse has the flag */
+            if (cu_info[i].flags & rhf_flag) count += stacks;
         }
     }
     return count;
 }
 
-/* Count active curses that carry a CUR flag (cu_info[].flags_u) */
+/* Count active curse STACKS that carry a CUR flag (cu_info[].flags_u) */
 int curse_flag_count_cur(u32b cur_flag)
 {
     int count = 0;
@@ -911,18 +913,23 @@ int curse_flag_count_cur(u32b cur_flag)
     /* Iterate over every defined curse */
     for (int i = 0; i < z_info->cu_max; i++)
     {
-        /* Only consider curses the player actually has */
-        if (curse_count(i) > 0)
-            if (cu_info[i].flags_u & cur_flag) count++;
+        /* Get the stack count for this curse */
+        int stacks = curse_count(i);
+        if (stacks > 0)
+        {
+            /* Add ALL stacks if this curse has the flag */
+            if (cu_info[i].flags_u & cur_flag) count += stacks;
+        }
     }
 
     return count;
 }
 
 /*
- * Legacy helper: count either word.
+ * Legacy helper: sum stacks from both flag words (RHF and CUR).
  * NOTE: RHF and CUR sets share bit positions; prefer the precise
  * variants above in new code to avoid false positives.
+ * Returns the TOTAL number of curse STACKS that have the given flag.
  */
 int curse_flag_count(u32b flag)
 {

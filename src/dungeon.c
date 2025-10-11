@@ -2291,11 +2291,9 @@ static void process_player(void)
     if (p_ptr->food >= PY_FOOD_MAX)
         i *= 50;
 
-    /* CUR_HUNGER doubles digestion per stack */
-    {
-        int h = curse_flag_count(CUR_HUNGER);
-        if (h) i <<= h;    /* i *= 2, 4, 8 … */
-    }
+    /* CUR_HUNGER increases p_ptr->hunger modifier (applied in calc_bonuses) */
+    /* This is now handled via p_ptr->hunger in calc_bonuses() */
+    /* Each stack adds +1 to hunger rate, giving 3x, 9x, 27x scaling */
 
     /* Digest some food */
     (void)set_food(p_ptr->food - i);

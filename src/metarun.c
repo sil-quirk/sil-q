@@ -53,9 +53,8 @@ static int popcount32(u32b value)
     return count;
 }
 
-/* Calculate best run score from the high score table
- * All scores in the score file belong to the current metarun */
-static u32b get_best_run_score_from_highscores(void)
+/* Get the actual best (maximum) individual run score for display */
+static u32b get_best_individual_score(void)
 {
     #define MAX_SCORES 100
     high_score scores[MAX_SCORES];
@@ -73,12 +72,68 @@ static u32b get_best_run_score_from_highscores(void)
     return best;
 }
 
+/* Calculate weighted run score from the high score table
+ * All scores in the score file belong to the current metarun
+ * Formula: best + second/2 + third/4 + fourth/8 + ...
+ * This is used for metarun score calculation, not for display
+ */
+static u32b get_weighted_run_score_from_highscores(void)
+{
+    #define MAX_SCORES 100
+    high_score scores[MAX_SCORES];
+    int count = collect_high_scores(scores, MAX_SCORES, true);
+    
+    if (count == 0) return 0;
+
+    /* Collect all valid scores into an array */
+    u32b valid_scores[MAX_SCORES];
+    int valid_count = 0;
+
+    for (int i = 0; i < count; i++) {
+        int pts = score_points(&scores[i]);
+        if (pts > 0) {
+            valid_scores[valid_count++] = (u32b)pts;
+        }
+    }
+
+    if (valid_count == 0) return 0;
+
+    /* Sort scores in descending order (simple bubble sort, count is small) */
+    for (int i = 0; i < valid_count - 1; i++) {
+        for (int j = 0; j < valid_count - i - 1; j++) {
+            if (valid_scores[j] < valid_scores[j + 1]) {
+                u32b temp = valid_scores[j];
+                valid_scores[j] = valid_scores[j + 1];
+                valid_scores[j + 1] = temp;
+            }
+        }
+    }
+
+    /* Calculate weighted sum: best + second/2 + third/4 + fourth/8 + ... */
+    u32b weighted_sum = 0;
+    u32b divisor = 1;
+
+    for (int i = 0; i < valid_count; i++) {
+        weighted_sum += valid_scores[i] / divisor;
+        divisor *= 2;
+        
+        /* Stop if divisor gets too large (score contribution becomes negligible) */
+        if (divisor > 1024) break;
+    }
+
+    log_debug("get_weighted_run_score_from_highscores: %d valid scores, weighted_sum=%u (best=%u)",
+              valid_count, weighted_sum, valid_count > 0 ? valid_scores[0] : 0);
+
+    #undef MAX_SCORES
+    return weighted_sum;
+}
+
 static u32b compute_metarun_score(const metarun *m)
 {
     if (!m) return 0;
 
-    /* Calculate best_run_score from high scores on-demand */
-    u32b best_run = get_best_run_score_from_highscores();
+    /* Calculate weighted run score from high scores for metarun calculation */
+    u32b best_run = get_weighted_run_score_from_highscores();
 
     int quest_count = popcount32(m->completed_quests);
 
@@ -2414,8 +2469,8 @@ void print_metarun_stats(void)
     snprintf(buf, sizeof buf, "Meta Score : %lu", (unsigned long)metar.score);
     Term_putstr(col, row++, -1, TERM_WHITE, buf);
 
-    /* Calculate best run score from high scores on-demand */
-    u32b best_run = get_best_run_score_from_highscores();
+    /* Display the actual best individual run score (not weighted) */
+    u32b best_run = get_best_individual_score();
     snprintf(buf, sizeof buf, "Best Run   : %lu", (unsigned long)best_run);
     Term_putstr(col, row++, -1, TERM_WHITE, buf);
 

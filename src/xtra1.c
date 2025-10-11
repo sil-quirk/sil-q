@@ -2805,6 +2805,12 @@ static void calc_bonuses(void)
         p_ptr->hunger -= 1;
     }
 
+    /* CUR_HUNGER curse: each stack adds +1 to hunger rate (3x, 9x, 27x scaling) */
+    {
+        int h = curse_flag_count(CUR_HUNGER);
+        if (h) p_ptr->hunger += h;
+    }
+
     // Mandos' Doom special ability grants immunity to fear, hallucination,
     // entrancement, rage, stun and confusion (implemented as high resistance + clear)
     if (p_ptr->have_ability[S_SPC][SPC_MANDOS]) {
