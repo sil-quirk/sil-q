@@ -2645,35 +2645,112 @@ static bool project_m(
         // wall lighting)
         if (cave_info[y][x] & (CAVE_VIEW))
         {
-            /* Hurt by light */
+            int light_level = cave_light[y][x];
+            
+            /* Hurt by light - ONLY affects HURT_LITE monsters */
             if (r_ptr->flags3 & (RF3_HURT_LITE))
             {
-                /* Obvious effect */
-                if (seen)
-                    obvious = true;
-
                 /* Memorize the effects */
                 if (seen)
                     l_ptr->flags3 |= (RF3_HURT_LITE);
 
-                // do stunning
-                stun_monster(m_ptr, dam);
-
-                /*possibly update the monster health bar*/
-                if (p_ptr->health_who == cave_m_idx[m_ptr->fy][m_ptr->fx])
-                    p_ptr->redraw |= (PR_HEALTHBAR);
-
-                /* No "real" damage */
-                dam = 0;
-
-                /* Special effect */
-                note = " cringes from the light!";
+                /* Stun and damage work when light level > 2 and player-caused */
+                if ((who < 0) && (light_level > 2))
+                {
+                    int resistance;
+                    int result;
+                    int actual_dam;
+                    int stun_amount;
+                    int skill_to_use;
+                    
+                    /* Determine skill to use for resistance check */
+                    /* If ds > 10, it's likely a song score, otherwise use Will */
+                    if (ds > 10)
+                    {
+                        /* Song of Trees - ds contains song score */
+                        skill_to_use = ds;
+                    }
+                    else
+                    {
+                        /* Gem/Staff of Light - use player's Will skill */
+                        skill_to_use = p_ptr->skill_use[S_WIL];
+                    }
+                    
+                    /* Get monster's Will resistance */
+                    resistance = monster_skill(m_ptr, S_WIL);
+                    
+                    /* Adjust difficulty by the distance to the player */
+                    result = skill_check(PLAYER, skill_to_use, 
+                        resistance + distance(p_ptr->py, p_ptr->px, y, x),
+                        m_ptr);
+                    
+                    /* If successful, deal damage and stun based on light level */
+                    if (result > 0)
+                    {
+                        /* Calculate stun amount based on song skill (or Will for items) */
+                        /* Stun scales with skill: 1-5 at skill 5, up to 5-25 at skill 25 */
+                        stun_amount = damroll(dd, skill_to_use / 5);
+                        
+                        /* Reduce stun based on Will resistance (same formula as damage) */
+                        stun_amount = (stun_amount * result) / (result + 5);
+                        
+                        /* Apply stun if any */
+                        if (stun_amount > 0)
+                        {
+                            stun_monster(m_ptr, stun_amount);
+                            
+                            /*possibly update the monster health bar*/
+                            if (p_ptr->health_who == cave_m_idx[m_ptr->fy][m_ptr->fx])
+                                p_ptr->redraw |= (PR_HEALTHBAR);
+                        }
+                        
+                        /* Use light level as dice sides, dd from the attack */
+                        actual_dam = damroll(dd, light_level);
+                        
+                        /* Reduce damage based on how much the monster resisted */
+                        actual_dam = (actual_dam * result) / (result + 5);
+                        
+                        if (actual_dam > 0)
+                        {
+                            /* Override dam with actual calculated damage */
+                            dam = actual_dam;
+                            
+                            /* Obvious effect */
+                            if (seen)
+                                obvious = true;
+                            
+                            /* Message for visible monsters */
+                            if (seen)
+                                note = " is seared by radiant light!";
+                        }
+                        else
+                        {
+                            dam = 0;
+                            
+                            /* Stunned but no damage */
+                            if (seen)
+                                note = " cringes from the light!";
+                        }
+                    }
+                    else
+                    {
+                        /* Failed Will save - no damage or stun */
+                        dam = 0;
+                        
+                        /* Message for resisted light */
+                        if (seen)
+                            note = " resists the light!";
+                    }
+                }
+                else
+                {
+                    /* Light level too low or not player-caused - no damage or stun */
+                    dam = 0;
+                }
             }
-
-            /* Normally no damage */
             else
             {
-                /* No damage */
+                /* Not hurt by light - no damage */
                 dam = 0;
             }
         }
@@ -5574,6 +5651,16 @@ void sing_song_of_elbereth(int score)
     }
 }
 
+void sing_song_of_trees(int score)
+{
+    int rad = 1 + (score / 5); // Radius increases with song skill
+    int dd = 1 + (score / 10); // Number of dice based on song skill
+    int ds = score;            // Dice sides based on song skill
+    
+    /* Call light around the player using GF_LIGHT */
+    light_area(dd, ds, rad);
+}
+
 void sing_song_of_lorien(int score)
 {
     int i;
@@ -5732,6 +5819,9 @@ void sing(void)
         {
             if ((p_ptr->song_duration % 3) == type - 1)
                 cost += 1;
+            
+            sing_song_of_trees(score);
+            
             break;
         }
         case SNG_STAYING:
