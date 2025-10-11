@@ -94,6 +94,20 @@ static sdl_view* sdl_view_from_term(term* t)
     return &g_views[(size_t)t->data];
 }
 
+/*
+ * Synchronize the SDL palette from angband_color_table.
+ * This allows color customizations from .prf files to work.
+ */
+static void sdl_sync_palette(void)
+{
+    for (int i = 0; i < 16; i++) {
+        g_state.palette[i].r = angband_color_table[i][1];
+        g_state.palette[i].g = angband_color_table[i][2];
+        g_state.palette[i].b = angband_color_table[i][3];
+        g_state.palette[i].a = 255;
+    }
+}
+
 static void sdl_view_destroy(sdl_view* d)
 {
     if (d->canvas) {
@@ -356,6 +370,8 @@ static errr callback_sdl_xtra(int n, int v)
         /* React to global setting changes (graphics mode, colors, etc.) */
         log_debug("TERM_XTRA_REACT received (tiles_mode=%d use_graphics=%d arg_graphics=%d)",
                   g_state.use_tiles, use_graphics, arg_graphics);
+        /* Reload colors from angband_color_table (may have been changed by .prf files) */
+        sdl_sync_palette();
         reset_visuals(true);
         return 0;
     default:
@@ -876,25 +892,8 @@ errr init_sdl(int argc, char **argv)
 
     log_info("primary display: %d %d %d %d", screen.x, screen.y, screen.w, screen.h);
 
-    // Initialize palette mapping from term attrs to SDL_Color.
-    #define RGB(_r,_g,_b) (SDL_Color){.r = (_r), .g = (_g), .b = (_b)}
-    g_state.palette[0] = RGB(0, 0, 0);
-    g_state.palette[1] = RGB(255, 255, 255);
-    g_state.palette[2] = RGB(127, 127, 127);
-    g_state.palette[3] = RGB(255, 186, 0); // orange
-    g_state.palette[4] = RGB(255, 39, 23); // red
-    g_state.palette[5] = RGB(0, 255, 0); // green
-    g_state.palette[6] = RGB(0, 0, 255); // blue
-    g_state.palette[7] = RGB(96, 78, 69); // umber
-    g_state.palette[8] = RGB(80, 80, 80); // dark grey
-    g_state.palette[9] = RGB(192, 192, 192); // light grey
-    g_state.palette[10] = RGB(255, 73, 255); // purple
-    g_state.palette[11] = RGB(252, 236, 0); // yellow
-    g_state.palette[12] = RGB(255, 39, 23); // light red
-    g_state.palette[13] = RGB(0, 255, 0); // light green
-    g_state.palette[14] = RGB(61, 132, 255); // light blue
-    g_state.palette[15] = RGB(231, 185, 3); // light umber
-    #undef RGB
+    // Initialize palette from angband_color_table (supports .prf file customization)
+    sdl_sync_palette();
 
     // Use full display size for fullscreen, reasonable default for windowed mode
     int window_width, window_height;
