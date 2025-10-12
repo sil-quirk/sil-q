@@ -3035,10 +3035,66 @@ void do_cmd_unified_look(void)
                 char out_val[256];
                 int cursor_m_idx = cave_m_idx[y][x];
                 int cursor_o_idx = cave_o_idx[y][x];
+                int feat = cave_feat[y][x];
                 bool has_visible_monster = (cursor_m_idx > 0) && (mon_list[cursor_m_idx].ml);
-                bool has_object = (cursor_o_idx > 0);
+                bool has_marked_object = (cursor_o_idx > 0) && (o_list[cursor_o_idx].marked);
+                bool has_known_feature = false;
+                cptr feature_name = NULL;
                 
-                /* Priority: monster first, then object */
+                /* Check for known/revealed features (traps, doors, stairs, shafts) */
+                if (cave_info[y][x] & (CAVE_MARK))
+                {
+                    /* Traps */
+                    if (feat >= FEAT_TRAP_HEAD && feat <= FEAT_TRAP_TAIL)
+                    {
+                        has_known_feature = true;
+                        feature_name = f_name + f_info[feat].name;
+                    }
+                    /* Doors (closed, locked, jammed) */
+                    else if (feat >= FEAT_DOOR_HEAD && feat <= FEAT_DOOR_TAIL)
+                    {
+                        has_known_feature = true;
+                        feature_name = f_name + f_info[feat].name;
+                    }
+                    /* Open door */
+                    else if (feat == FEAT_OPEN)
+                    {
+                        has_known_feature = true;
+                        feature_name = "open door";
+                    }
+                    /* Broken door */
+                    else if (feat == FEAT_BROKEN)
+                    {
+                        has_known_feature = true;
+                        feature_name = "broken door";
+                    }
+                    /* Stairs up */
+                    else if (feat == FEAT_LESS)
+                    {
+                        has_known_feature = true;
+                        feature_name = "up staircase";
+                    }
+                    /* Stairs down */
+                    else if (feat == FEAT_MORE)
+                    {
+                        has_known_feature = true;
+                        feature_name = "down staircase";
+                    }
+                    /* Shaft up */
+                    else if (feat == FEAT_LESS_SHAFT)
+                    {
+                        has_known_feature = true;
+                        feature_name = "up shaft";
+                    }
+                    /* Shaft down */
+                    else if (feat == FEAT_MORE_SHAFT)
+                    {
+                        has_known_feature = true;
+                        feature_name = "down shaft";
+                    }
+                }
+                
+                /* Priority: monster first, then object (only if marked), then feature */
                 if (has_visible_monster)
                 {
                     monster_type* m_ptr = &mon_list[cursor_m_idx];
@@ -3051,7 +3107,7 @@ void do_cmd_unified_look(void)
                     strnfmt(out_val, sizeof(out_val), "You see %s.", m_name);
                     prt(out_val, 0, 0);
                 }
-                else if (has_object)
+                else if (has_marked_object)
                 {
                     object_type* o_ptr = &o_list[cursor_o_idx];
                     char o_name[80];
@@ -3061,6 +3117,12 @@ void do_cmd_unified_look(void)
                     
                     /* Display "You see <object name>" in left sidebar */
                     strnfmt(out_val, sizeof(out_val), "You see %s.", o_name);
+                    prt(out_val, 0, 0);
+                }
+                else if (has_known_feature)
+                {
+                    /* Display "You see <feature name>" in left sidebar */
+                    strnfmt(out_val, sizeof(out_val), "You see %s.", feature_name);
                     prt(out_val, 0, 0);
                 }
                 else
