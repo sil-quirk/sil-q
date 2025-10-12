@@ -2951,8 +2951,8 @@ void update_combat_rolls1(const monster_type* m_ptr1,
     log_trace("[ROLL1] exit: combat_number=%d old=%d", combat_number, combat_number_old);
     }
 
-    /* Window stuff */
-    p_ptr->window |= (PW_COMBAT_ROLLS);
+    /* Window stuff - DO NOT set flag here; wait for update_combat_rolls2() to complete the data */
+    /* p_ptr->window |= (PW_COMBAT_ROLLS); */
 }
 
 /*
@@ -3103,8 +3103,8 @@ void update_combat_rolls1b(
     log_trace("[ROLL1B] exit: combat_number=%d old=%d", combat_number, combat_number_old);
     }
 
-    /* Window stuff */
-    p_ptr->window |= (PW_COMBAT_ROLLS);
+    /* Window stuff - DO NOT set flag here; defer to main loop to avoid mid-combat updates */
+    /* p_ptr->window |= (PW_COMBAT_ROLLS); */
 }
 
 /*
@@ -3151,6 +3151,9 @@ void update_combat_rolls2(int dd, int ds, int dam, int pd, int ps, int prot,
     }
     log_trace("[ROLL2] exit: index=%d done", combat_number - 1);
     }
+    
+    /* Window stuff - DO NOT set flag here; defer to main loop to avoid mid-combat updates */
+    /* p_ptr->window |= (PW_COMBAT_ROLLS); */
 }
 
 /*

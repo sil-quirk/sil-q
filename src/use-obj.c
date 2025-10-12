@@ -635,7 +635,7 @@ static bool use_staff(object_type* o_ptr, bool* ident)
      *   to trigger hallucination (set_image).
      * -------------------------------------------------- */
     {
-        int stacks = curse_flag_count(CUR_HALLU);
+        int stacks = curse_flag_count_cur(CUR_HALLU);
         if (stacks && use_charge)  /* only when a potion actually took effect */
         {
             int chance = stacks * 20;

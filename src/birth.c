@@ -925,17 +925,6 @@ int curse_flag_count_cur(u32b cur_flag)
     return count;
 }
 
-/*
- * Legacy helper: sum stacks from both flag words (RHF and CUR).
- * NOTE: RHF and CUR sets share bit positions; prefer the precise
- * variants above in new code to avoid false positives.
- * Returns the TOTAL number of curse STACKS that have the given flag.
- */
-int curse_flag_count(u32b flag)
-{
-    return curse_flag_count_rhf(flag) + curse_flag_count_cur(flag);
-}
-
 
 /*
  * Show race/house flags in priority order.

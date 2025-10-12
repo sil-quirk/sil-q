@@ -7287,7 +7287,7 @@ void create_smithing_item(void)
         /* New escape-curse: smithing can back-fire               */
         /* ------------------------------------------------------ */
         {
-            int stacks = curse_flag_count(CUR_SMITHCURSE);          /* 0-3 */
+            int stacks = curse_flag_count_cur(CUR_SMITHCURSE);          /* 0-3 */
             if (stacks &&            /* must have the curse          */
                 !(smith_o_ptr->ident & IDENT_CURSED) &&             /* not already */
                 (smith_o_ptr->tval != TV_LIGHT))                    /* skip torches */

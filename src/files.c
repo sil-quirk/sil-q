@@ -1412,8 +1412,8 @@ void display_player_xtra_info(int mode)
         if (c_info[house].flags & (AFF_FLAG)) score++;                                  \
         if (p_info[race].flags  & (PEN_FLAG)) score--;                                  \
         if (c_info[house].flags & (PEN_FLAG)) score--;                                  \
-        score += curse_flag_count(AFF_FLAG);                                            \
-        score -= curse_flag_count(PEN_FLAG);                                            \
+        score += curse_flag_count_rhf(AFF_FLAG);                                        \
+        score -= curse_flag_count_rhf(PEN_FLAG);                                        \
         if (score >  2) score =  2;                                                     \
         if (score < -2) score = -2;                                                     \
         if (score ==  2)      PUSH(ma_buf,  ma_n,  LABEL "++", attr_mastery);          \

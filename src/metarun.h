@@ -199,7 +199,6 @@ void choose_difficulty_level(void);   /* Difficulty selection menu    */
 u32b curse_flag_mask(void);            /* bitmask of active flags      */
 int  curse_flag_count_rhf(u32b rhf_flag);  /* #curses with RHF bit  */
 int  curse_flag_count_cur(u32b cur_flag);  /* #curses with CUR bit  */
-int  curse_flag_count(u32b flag);          /* legacy: RHF+CUR */
 int  any_curse_flag_active(u32b flag);     /* CUR-only helper      */
 
 #endif /* METARUN_H */

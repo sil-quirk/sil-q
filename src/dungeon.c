@@ -2569,14 +2569,16 @@ static void process_player(void)
     // Sil-y: note that these are now being set every single turn, somewhat
     // defeating their purpose
     p_ptr->window |= (PW_INVEN | PW_EQUIP);
-    p_ptr->window |= (PW_COMBAT_ROLLS);
+    
     /*
-     * Do NOT refresh the main-terminal combat rolls here.
+     * Do NOT set PW_COMBAT_ROLLS unconditionally here - it should only be
+     * set when combat data actually changes (via update_combat_rolls functions).
+     * Setting it every turn causes the combat roll subwindow to refresh with
+     * stale data before new combat happens, creating a one-turn delay.
+     * 
+     * Also, do NOT refresh the main-terminal combat rolls here.
      * We refresh them after monster processing in the main loop so that
      * both sides of the current round (player and monsters) are included.
-     * Calling display_main_combat_rolls() here caused the bottom log to
-     * show the player's current attack paired with the previous round's
-     * monster attack, creating a one-turn delay illusion for monsters.
      */
 }
 
@@ -2900,6 +2902,11 @@ static void dungeon(void)
                 log_trace("[LOOP] process_player start");
                 process_player();
                 log_trace("[LOOP] process_player end: combat_number=%d old=%d", combat_number, combat_number_old);
+                
+                /* Set combat rolls window flag after player actions complete */
+                if (combat_number > 0) {
+                    p_ptr->window |= (PW_COMBAT_ROLLS);
+                }
             }
         }
 
@@ -2943,6 +2950,11 @@ static void dungeon(void)
     log_trace("[LOOP] process_monsters post-player: threshold=100");
     process_monsters(100);
     log_trace("[LOOP] after process_monsters post-player: combat_number=%d old=%d", combat_number, combat_number_old);
+    
+        /* Set combat rolls window flag after all monster actions complete */
+        if (combat_number > 0) {
+            p_ptr->window |= (PW_COMBAT_ROLLS);
+        }
 
         /* Update main terminal combat rolls after monster processing */
         if (op_ptr->main_combat_rolls > 0)

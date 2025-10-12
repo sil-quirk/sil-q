@@ -1259,6 +1259,84 @@ void add_curse_stack(int idx)
     save_metaruns();
 }
 
+/* Show all currently active curses with identification info */
+static void show_active_curses_during_selection(void)
+{
+    int row = 2;
+    int id;
+    int active_count = 0;
+
+    /* Count active curses */
+    for (id = 0; id < (int)z_info->cu_max; id++)
+        if (CURSE_GET(id)) active_count++;
+
+    if (!active_count) {
+        msg_print("You have no active curses yet.");
+        return;
+    }
+
+    log_info("Displaying %d active curses", active_count);
+
+    screen_save();
+    Term_clear();
+    Term_putstr(1, 0, -1, TERM_L_WHITE + TERM_SHADE, "Currently Active Curses:");
+
+    row = 2;
+
+    /* Enable wrapped text helper */
+    text_out_hook = text_out_to_screen;
+    text_out_wrap = Term->wid - 4;   /* generous rhs margin */
+
+    for (id = 0; id < (int)z_info->cu_max; id++)
+    {
+        byte stacks = CURSE_GET(id);
+        if (!stacks) continue;
+
+        curse_type *c = &cu_info[id];
+        cptr cname  = cu_name + c->name;
+        cptr cdesc  = cu_text + c->text;
+        cptr cpower = cu_text + c->power;
+        bool identified = CURSE_SEEN(id);
+
+        char buf[128];
+
+        /* Name with stack count - always show the actual curse name */
+        strnfmt(buf, sizeof(buf), "%s (x%d)%s", cname, stacks, identified ? "" : " [unidentified]");
+        c_put_str(identified ? TERM_L_RED : TERM_L_DARK, buf, row, 1);
+        row++;
+
+        /* Description (always shown) */
+        Term_gotoxy(3, row);
+        text_out_c(TERM_WHITE, cdesc);
+        row += count_wrapped_lines(cdesc, text_out_wrap, 3);
+
+        /* Power line (only if identified and present) */
+        if (identified && *cpower)
+        {
+            Term_gotoxy(3, row);
+            text_out_c(TERM_L_RED, cpower);
+            row += count_wrapped_lines(cpower, text_out_wrap, 3);
+        }
+
+        /* Add spacing between curses */
+        row++;
+
+        /* Page wrap (match self_knowledge style) */
+        if (row >= 21)
+        {
+            Term_putstr(1, row, -1, TERM_L_WHITE, "(press any key for more)");
+            (void)inkey();
+            Term_clear();
+            Term_putstr(1, 0, -1, TERM_L_WHITE + TERM_SHADE, "Currently Active Curses:");
+            row = 2;
+        }
+    }
+
+    Term_putstr(1, row+1, -1, TERM_L_WHITE, "(press any key to return)");
+    (void)inkey();
+    screen_load();
+}
+
 int menu_choose_one_curse(int n)
 {
     /* if any active curse has the "no‐choice" flag, skip the menu */
@@ -1375,7 +1453,7 @@ int menu_choose_one_curse(int n)
     }
 
     /* Show the prompt immediately without fade */
-    c_put_str(TERM_L_DARK, "Arrows to navigate     Space/Enter Accept     a/b/c Select", row + 1, 2);
+    c_put_str(TERM_L_DARK, "Arrows:nav  Space/Enter:Accept  a/b/c:Select  ?/x/h:Active", row + 1, 2);
 
     /* Menu navigation variables */
     int highlight = 0;  /* Currently highlighted option (0, 1, 2) */
@@ -1446,6 +1524,37 @@ int menu_choose_one_curse(int n)
         else if (key == '2' || key == 'j') {
             /* Down navigation */
             highlight = (highlight + 1) % CURSE_MENU_LINES;
+        }
+        else if (key == '?' || key == 'x' || key == 'X' || key == 'h' || key == 'H') {
+            /* Show currently active curses */
+            show_active_curses_during_selection();
+            /* After returning, need to redraw the curse selection screen */
+            Term_clear();
+            print_heading_fade(str, TERM_YELLOW);
+            
+            /* Redraw all curse options */
+            int redraw_row = 4;
+            text_out_hook = text_out_to_screen;
+            text_out_wrap = Term->wid - 2;
+            
+            for (int i = 0; i < CURSE_MENU_LINES; i++) {
+                curse_type *cu = &cu_info[pick[i]];
+                char name_buf[128];
+                strnfmt(name_buf, sizeof name_buf, "%c) %s", 'a'+i, cu_name + cu->name);
+                
+                c_put_str((i == highlight) ? TERM_RED : TERM_L_RED, name_buf, redraw_row, 2);
+                
+                const char *txt = cu_text + cu->text;
+                Term_gotoxy(4, redraw_row + 2);
+                text_out_c(TERM_SLATE, txt);
+                
+                int need_lines = count_wrapped_lines(txt, text_out_wrap, 4);
+                redraw_row += need_lines + 3;
+            }
+            
+            /* Redraw prompt */
+            c_put_str(TERM_L_DARK, "Arrows:nav  Space/Enter:Accept  a/b/c:Select  ?/x/h:Active", row + 1, 2);
+            Term_fresh();
         }
         else if (key == ESCAPE) {
             /* Escape - default to first option */
@@ -2199,7 +2308,7 @@ void check_run_end(void)
         death_base = runtype_info[metar.type].lose_con ? runtype_info[metar.type].lose_con : LOSECON_DEATHS;
     }
 
-    int max_deaths = MAX(1, death_base - 3 * curse_flag_count(CUR_DEATH));
+    int max_deaths = MAX(1, death_base - 3 * curse_flag_count_cur(CUR_DEATH));
 
     /* Check loss condition first - if both win and loss are satisfied, loss takes precedence */
     if (metar.deaths >= max_deaths) {

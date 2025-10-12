@@ -1995,7 +1995,7 @@ void calc_torch(void)
 
     /* Apply light-related meta-run curses */
     {
-        int r = curse_flag_count(CUR_LIGHTR);
+        int r = curse_flag_count_cur(CUR_LIGHTR);
 
         /* radius penalty: −1 per stack, never below zero */
         if (r)
@@ -2039,8 +2039,8 @@ int affinity_level(int skilltype)
     if (hp_ptr->flags & penalty_flag)  level--;
 
     /* every copy of the same curse flag */
-    level += curse_flag_count(affinity_flag);
-    level -= curse_flag_count(penalty_flag);
+    level += curse_flag_count_rhf(affinity_flag);
+    level -= curse_flag_count_rhf(penalty_flag);
 
     /* keep inside the allowed range */
     if (level >  2) level =  2;
@@ -2160,7 +2160,7 @@ int weight_limit(void)
         }
     }
 
-    int max = curse_flag_count(CUR_WEAK);
+    int max = curse_flag_count_cur(CUR_WEAK);
     for (i = 0; i < max; i++) limit*=0.8;
 
     // if (any_curse_flag_active(CUR_WEAK)) return (limit*0.8);
@@ -2807,7 +2807,7 @@ static void calc_bonuses(void)
 
     /* CUR_HUNGER curse: each stack adds +1 to hunger rate (3x, 9x, 27x scaling) */
     {
-        int h = curse_flag_count(CUR_HUNGER);
+        int h = curse_flag_count_cur(CUR_HUNGER);
         if (h) p_ptr->hunger += h;
     }
 
