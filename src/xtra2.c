@@ -2328,47 +2328,84 @@ void drop_loot(monster_type* m_ptr)
  */
 void anger_morgoth(int level)
 {
+    monster_race* r_ptr = &r_info[R_IDX_MORGOTH];
+    
+    log_debug("anger_morgoth: called with level=%d, current morgoth_state=%d", 
+              level, p_ptr->morgoth_state);
+    
     if (p_ptr->morgoth_state >= level)
-        return;
-
-    switch (level)
     {
-    case 0:
-        /* starting values - for comparison. */
-        (&r_info[R_IDX_MORGOTH])->evn = 20;
-        (&r_info[R_IDX_MORGOTH])->blow[0].att = 20;
-        (&r_info[R_IDX_MORGOTH])->wil = 25;
-        (&r_info[R_IDX_MORGOTH])->per = 10;
-        break;
-    case 1: // loses crown
-        (&r_info[R_IDX_MORGOTH])->evn = 22;
-        (&r_info[R_IDX_MORGOTH])->light = 0;
-        (&r_info[R_IDX_MORGOTH])->per = 15;
-        break;
-    case 2: // hurt or Sils stolen
-        (&r_info[R_IDX_MORGOTH])->blow[0].att = 30;
-        (&r_info[R_IDX_MORGOTH])->blow[0].dd = 7;
-        (&r_info[R_IDX_MORGOTH])->wil = 30;
-        (&r_info[R_IDX_MORGOTH])->per = 20;
-        (&r_info[R_IDX_MORGOTH])->evn = 25;
-        break;
-    case 3: // badly hurt
-        (&r_info[R_IDX_MORGOTH])->pd = 7;
-        (&r_info[R_IDX_MORGOTH])->wil = 35;
-        (&r_info[R_IDX_MORGOTH])->per = 25;
-        break;
-    case 4: // desperate
-        (&r_info[R_IDX_MORGOTH])->evn = 30;
-        (&r_info[R_IDX_MORGOTH])->blow[0].att = 40;
-        (&r_info[R_IDX_MORGOTH])->blow[0].dd = 8;
-        (&r_info[R_IDX_MORGOTH])->wil = 40;
-        (&r_info[R_IDX_MORGOTH])->per = 30;
-        break;
-    default:
+        log_debug("anger_morgoth: no change, already at or above level %d", level);
         return;
     }
 
+    log_debug("anger_morgoth: transitioning from state %d to state %d", 
+              p_ptr->morgoth_state, level);
+    log_debug("anger_morgoth: BEFORE - att=%d dd=%dd%d evn=%d pd=%d wil=%d per=%d light=%d",
+              r_ptr->blow[0].att, r_ptr->blow[0].dd, r_ptr->blow[0].ds,
+              r_ptr->evn, r_ptr->pd, r_ptr->wil, r_ptr->per, r_ptr->light);
+
+    /* Apply all changes cumulatively up to the target level */
+    /* This ensures stats are correct even when skipping intermediate states */
+    
+    /* State 0: Base values (for reference) */
+    if (level >= 0)
+    {
+        r_ptr->evn = 20;
+        r_ptr->blow[0].att = 20;
+        r_ptr->blow[0].dd = 6;
+        r_ptr->pd = 5;
+        r_ptr->wil = 25;
+        r_ptr->per = 10;
+        r_ptr->light = 7;
+    }
+    
+    /* State 1: Crown lost */
+    if (level >= 1)
+    {
+        r_ptr->evn = 22;
+        r_ptr->light = 0;
+        r_ptr->per = 15;
+        log_debug("anger_morgoth: applying state 1 changes - crown lost");
+    }
+    
+    /* State 2: Hurt or 1st Silmaril stolen */
+    if (level >= 2)
+    {
+        r_ptr->blow[0].att = 30;
+        r_ptr->blow[0].dd = 7;
+        r_ptr->wil = 30;
+        r_ptr->per = 20;
+        r_ptr->evn = 25;
+        log_debug("anger_morgoth: applying state 2 changes - hurt or silmaril");
+    }
+    
+    /* State 3: Badly hurt or 2nd Silmaril */
+    if (level >= 3)
+    {
+        r_ptr->pd = 7;
+        r_ptr->wil = 35;
+        r_ptr->per = 25;
+        log_debug("anger_morgoth: applying state 3 changes - badly hurt");
+    }
+    
+    /* State 4: Desperate or 3rd Silmaril */
+    if (level >= 4)
+    {
+        r_ptr->evn = 30;
+        r_ptr->blow[0].att = 40;
+        r_ptr->blow[0].dd = 8;
+        r_ptr->wil = 40;
+        r_ptr->per = 30;
+        log_debug("anger_morgoth: applying state 4 changes - desperate");
+    }
+
     p_ptr->morgoth_state = level;
+    
+    log_debug("anger_morgoth: AFTER - att=%d dd=%dd%d evn=%d pd=%d wil=%d per=%d light=%d",
+              r_ptr->blow[0].att, r_ptr->blow[0].dd, r_ptr->blow[0].ds,
+              r_ptr->evn, r_ptr->pd, r_ptr->wil, r_ptr->per, r_ptr->light);
+    log_debug("anger_morgoth: state successfully changed to %d", p_ptr->morgoth_state);
 }
 
 /*
@@ -3509,7 +3546,23 @@ static bool determine_location_is_interesting(int y, int x)
     if (!(p_ptr->is_dead) && (p_ptr->rage) && !(cave_info[y][x] & (CAVE_SEEN)))
         return (false);
 
-    /* Visible monsters */
+    /* Check for objects first (only shown when on floors, not when in rubble) */
+    /* This is checked BEFORE monsters to prevent showing unmarked objects under detected monsters */
+    if (cave_floorlike_bold(y, x))
+    {
+        /* Scan all objects in the grid */
+        for (o_ptr = get_first_object(y, x); o_ptr;
+             o_ptr = get_next_object(o_ptr))
+        {
+            /* Memorized object - this makes the location interesting */
+            if (o_ptr->marked)
+                return (true);
+        }
+    }
+
+    /* Visible monsters (checked AFTER objects) */
+    /* This ensures that a location with a monster but no marked objects */
+    /* is interesting for monster targeting but NOT for object listing */
     if (cave_m_idx[y][x] > 0)
     {
         monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
@@ -3517,19 +3570,6 @@ static bool determine_location_is_interesting(int y, int x)
         /* Visible monsters */
         if (m_ptr->ml)
             return (true);
-    }
-
-    /* Objects (only shown when on floors, not when in rubble) */
-    if (cave_floorlike_bold(y, x))
-    {
-        /* Scan all objects in the grid */
-        for (o_ptr = get_first_object(y, x); o_ptr;
-             o_ptr = get_next_object(o_ptr))
-        {
-            /* Memorized object */
-            if (o_ptr->marked)
-                return (true);
-        }
     }
 
     /* Interesting memorized features */
@@ -5640,9 +5680,10 @@ static int select_tulkas_quest_target(void)
             continue;
         }
         
-        /* Must be unique, alive, and at appropriate depth */
+        /* Must be unique, alive (max_num > 0), not yet generated, and at appropriate depth */
         if ((r_ptr->flags1 & RF1_UNIQUE) &&
-            (r_ptr->cur_num == 0) &&
+            (r_ptr->max_num > 0) &&  /* Unique is still alive (not killed yet) */
+            (r_ptr->cur_num == 0) &&  /* Unique hasn't been generated yet */
             (r_ptr->level >= p_ptr->depth) &&
             (r_ptr->level <= MORGOTH_DEPTH) &&
             (i != R_IDX_TULKAS))
@@ -5653,8 +5694,12 @@ static int select_tulkas_quest_target(void)
         }
     }
     
-    if (count == 0) return 0; /* No valid targets */
+    if (count == 0) {
+        log_trace("select_tulkas_quest_target: No valid unique targets found");
+        return 0; /* No valid targets */
+    }
     
+    log_trace("select_tulkas_quest_target: Found %d valid unique targets", count);
     return valid_targets[rand_int(count)];
 }
 
@@ -7331,6 +7376,16 @@ void tulkas_quest_interaction(void)
             return;
         }
         
+        /* Validate that the target unique is still alive (double-check after selection) */
+        if (r_ptr->max_num == 0)
+        {
+            log_trace("Target unique %d (%s) has already been killed (max_num=0)", target_r_idx, r_name + r_ptr->name);
+            msg_print("Tulkas frowns. 'The foe I had in mind has already fallen. Impressive, but I have no new challenge for you now.'");
+            /* Remove Tulkas since he has nothing to offer */
+            remove_quest_giver(R_IDX_TULKAS);
+            return;
+        }
+        
         /* Select prize artifact that is 5 levels higher than the target monster */
         prize_a_idx = select_tulkas_quest_prize(r_ptr->level);
         if (prize_a_idx == 0 || prize_a_idx >= z_info->art_max)
@@ -7572,6 +7627,63 @@ void check_tulkas_quest_completion(int r_idx)
                 }
             }
         }
+    }
+}
+
+/*
+ * Validate Tulkas quest target on game load
+ * Auto-completes the quest if the assigned target is already dead
+ * This fixes stuck saves where players have dead targets assigned
+ */
+void validate_tulkas_quest_on_load(void)
+{
+    monster_race* r_ptr;
+    
+    /* Only validate if quest is in ACTIVE state */
+    if (p_ptr->tulkas_quest != TULKAS_QUEST_ACTIVE)
+    {
+        return;
+    }
+    
+    /* Check if we have a valid target assigned */
+    if (p_ptr->tulkas_target_r_idx <= 0 || p_ptr->tulkas_target_r_idx >= z_info->r_max)
+    {
+        log_trace("validate_tulkas_quest_on_load: Invalid target r_idx=%d, skipping", p_ptr->tulkas_target_r_idx);
+        return;
+    }
+    
+    r_ptr = &r_info[p_ptr->tulkas_target_r_idx];
+    
+    /* Check if the target unique is already dead (max_num == 0) */
+    if (r_ptr->max_num == 0)
+    {
+        log_trace("validate_tulkas_quest_on_load: Target unique %d (%s) is dead (max_num=0), auto-completing quest",
+                 p_ptr->tulkas_target_r_idx, r_name + r_ptr->name);
+        
+        /* Validate we have a valid artifact prize */
+        if (p_ptr->tulkas_prize_a_idx <= 0 || p_ptr->tulkas_prize_a_idx >= z_info->art_max)
+        {
+            log_trace("validate_tulkas_quest_on_load: Invalid prize artifact index: %d, clearing quest", p_ptr->tulkas_prize_a_idx);
+            
+            /* Clear quest state without reward */
+            p_ptr->tulkas_quest = TULKAS_QUEST_REWARDED;
+            p_ptr->tulkas_target_r_idx = 0;
+            p_ptr->tulkas_prize_a_idx = 0;
+            p_ptr->tulkas_quest_complete = 0;
+            return;
+        }
+        
+        /* Set quest to COMPLETE state - this will trigger normal completion flow */
+        /* Tulkas will spawn near player on next level generation/turn */
+        p_ptr->tulkas_quest = TULKAS_QUEST_COMPLETE;
+        p_ptr->tulkas_quest_complete = 1;
+        
+        log_trace("validate_tulkas_quest_on_load: Quest set to COMPLETE state, Tulkas will spawn on next turn");
+    }
+    else
+    {
+        log_trace("validate_tulkas_quest_on_load: Target unique %d (%s) is still alive (max_num=%d)",
+                 p_ptr->tulkas_target_r_idx, r_name + r_ptr->name, r_ptr->max_num);
     }
 }
 

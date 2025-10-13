@@ -9,7 +9,7 @@
  */
 
 #include "angband.h"
-#include "log.h"
+#include "log/log.h"
 #include "z-term.h"
 #include "metarun.h"
 
@@ -615,7 +615,7 @@ static void player_outfit(void)
     p_ptr->update |= (PU_BONUS | PU_MANA);
     p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
     p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
-    
+
     log_debug("Player equipment setup completed");
 }
 
@@ -667,7 +667,6 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         /* Redraw the list */
         for (i = 0; ((i + top < num) && (i <= hgt)); i++)
         {
-
             /* Clear */
             Term_erase(col, i + TABLE_ROW, wid);
 
@@ -850,7 +849,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 for (i = num - 1; i > cur; i--)
                 {
                     // if (!(choices[i].ghost))
-                    // 
+                    //
                         next = i;
                     // }
                 }
@@ -888,23 +887,25 @@ u32b curse_flag_mask(void)
     return m;
 }
 
-/* Count active curses that carry an RHF flag (cu_info[].flags) */
+/* Count active curse STACKS that carry an RHF flag (cu_info[].flags) */
 int curse_flag_count_rhf(u32b rhf_flag)
 {
     int count = 0;
     /* Iterate over every defined curse */
     for (int i = 0; i < z_info->cu_max; i++)
     {
-        /* Only consider curses the player actually has */
-        if (curse_count(i) > 0)
+        /* Get the stack count for this curse */
+        int stacks = curse_count(i);
+        if (stacks > 0)
         {
-            if (cu_info[i].flags & rhf_flag) count++;
+            /* Add ALL stacks if this curse has the flag */
+            if (cu_info[i].flags & rhf_flag) count += stacks;
         }
     }
     return count;
 }
 
-/* Count active curses that carry a CUR flag (cu_info[].flags_u) */
+/* Count active curse STACKS that carry a CUR flag (cu_info[].flags_u) */
 int curse_flag_count_cur(u32b cur_flag)
 {
     int count = 0;
@@ -912,22 +913,16 @@ int curse_flag_count_cur(u32b cur_flag)
     /* Iterate over every defined curse */
     for (int i = 0; i < z_info->cu_max; i++)
     {
-        /* Only consider curses the player actually has */
-        if (curse_count(i) > 0)
-            if (cu_info[i].flags_u & cur_flag) count++;
+        /* Get the stack count for this curse */
+        int stacks = curse_count(i);
+        if (stacks > 0)
+        {
+            /* Add ALL stacks if this curse has the flag */
+            if (cu_info[i].flags_u & cur_flag) count += stacks;
+        }
     }
 
     return count;
-}
-
-/*
- * Legacy helper: count either word.
- * NOTE: RHF and CUR sets share bit positions; prefer the precise
- * variants above in new code to avoid false positives.
- */
-int curse_flag_count(u32b flag)
-{
-    return curse_flag_count_rhf(flag) + curse_flag_count_cur(flag);
 }
 
 
@@ -1059,9 +1054,9 @@ static void print_rh_flags(int race, int house, int col, int row)
     HANDLE_UNIQUE_U("Aure entuluva",   UNQ_SNG_HURIN, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Voice of Girdle",   UNQ_SNG_THINGOL, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Forgotten",   UNQ_MIM, TERM_VIOLET,   1);
-    
+
     HANDLE_UNIQUE("Gift of Eru",   RHF_GIFTERU,     TERM_VIOLET,     1);
-    HANDLE_UNIQUE("Seafarer",   RHF_FREE, TERM_VIOLET,   1); 
+    HANDLE_UNIQUE("Seafarer",   RHF_FREE, TERM_VIOLET,   1);
 
     HANDLE_UNIQUE("Kinslayer",   RHF_KINSLAYER, TERM_UMBER,   1); // right
     HANDLE_UNIQUE("Treacherous",   RHF_TREACHERY, TERM_UMBER,   1); // right
@@ -1287,7 +1282,7 @@ static void house_aux_hook(birth_menu c_str)
         Term_putstr(TOTAL_AUX_COL + 21, i, -1, TERM_WHITE,
             "                                         ");
     }
-    
+
     /* Also clear the abilities area (col + 7) but only in the same range */
     for (i = 0; i < DESCRIPTION_ROW; i++)
     {
@@ -1317,7 +1312,7 @@ static void house_aux_hook(birth_menu c_str)
 
         Term_putstr(TOTAL_AUX_COL + 4, TABLE_ROW + i, -1, attr, s);
     }
-    // Check dead   
+    // Check dead
     // if (c_str.ghost) Term_putstr(TOTAL_AUX_COL, QUESTION_ROW + A_MAX + 7, -1, TERM_RED,
     //     "Dead");
     // else Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX +7, -1, TERM_L_BLUE,
@@ -1392,7 +1387,6 @@ static void house_aux_hook(birth_menu c_str)
     Term_putstr(legend_col, legend_row + 3, -1, TERM_RED, "*");
     strnfmt(s, sizeof(s), "Weak %d", power_counts[0]);
     Term_putstr(legend_col + 4, legend_row + 3, -1, TERM_WHITE, s);
-    
 }
 /*
  * Player house
@@ -1441,7 +1435,7 @@ static bool get_player_house(void)
         {
             if (highscore_dead(c_name + c_info[i].name)) houses[house].ghost = true;
             else houses[house].ghost = false;
-                
+
             houses[house].name = c_name + c_info[i].name;
             houses[house].text = c_text + c_info[i].text;
             if (p_ptr->phouse == i)
@@ -2434,9 +2428,9 @@ static NavResult player_birth_aux(void)
 {
 
     log_debug("Initializing character data and history");
-    
+
     my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
-    process_player_name(false);
+    process_player_name(true);  /* CRITICAL: Must pass true to update savefile path! */
     /* Clear the previous history strings */
     p_ptr->history[0] = '\0';
     my_strcat(
@@ -2444,7 +2438,7 @@ static NavResult player_birth_aux(void)
 
     p_ptr->wt = 0;
     p_ptr->ht = 0;
-    p_ptr->age = 0; 
+    p_ptr->age = 0;
 
     /* Oath selection (after character creation, before stats) */
     log_debug("Entering oath selection");
@@ -2477,8 +2471,8 @@ static NavResult player_birth_aux(void)
     // Reset the number of artefacts
     p_ptr->artefacts = 0;
 
-    log_trace("Final character stats: Str=%d Dex=%d Con=%d Gra=%d", 
-              p_ptr->stat_base[A_STR], p_ptr->stat_base[A_DEX], 
+    log_trace("Final character stats: Str=%d Dex=%d Con=%d Gra=%d",
+              p_ptr->stat_base[A_STR], p_ptr->stat_base[A_DEX],
               p_ptr->stat_base[A_CON], p_ptr->stat_base[A_GRA]);
 
     /* Accept */

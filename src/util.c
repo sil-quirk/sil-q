@@ -9,14 +9,13 @@
  */
 
 #include "angband.h"
+#include "log/log.h"
 /* Fallback no_light() implementation if missing elsewhere */
 bool no_light(void)
 {
     /* Consider no special light blocking by default */
     return false;
 }
-#include "log.h"
-
 #ifdef SET_UID
 
 #ifndef HAVE_USLEEP
@@ -110,21 +109,11 @@ void user_name(char* buf, size_t len, int id)
  * path, and a leading "tilde" to indicate a special directory, and default to a
  * relative path, but MSDOS uses a leading "drivename plus colon" to indicate
  * the use of a "special drive", and then the rest of the path is parsed
- * "normally", and MACINTOSH uses a leading colon to indicate a relative path,
- * and an embedded colon to indicate a "drive plus absolute path", and finally
- * defaults to a file in the current working directory, which may or may not be
- * defined.
+ * "normally", and defaults to a file in the current working directory, which 
+ * may or may not be defined.
  *
  * We should probably parse a leading "~~/" as referring to "ANGBAND_DIR". (?)
  */
-
-#ifdef RISCOS
-
-/*
- * Most of the "file" routines for "RISCOS" should be in "main-ros.c"
- */
-
-#else /* RISCOS */
 
 #ifdef SET_UID
 
@@ -212,13 +201,6 @@ errr path_parse(char* buf, size_t max, cptr file)
 {
     /*accept the filename*/
     my_strcpy(buf, file, max);
-
-#if defined(MAC_MPW) && defined(CARBON)
-
-    /* Fix it according to the current operating system */
-    convert_pathname(buf);
-
-#endif
 
     /* Success */
     return (0);
@@ -315,14 +297,6 @@ FILE* my_fopen(cptr file, cptr mode)
     /* Attempt to fopen the file anyway */
     fff = fopen(buf, mode);
 
-#if defined(MACH_O_CARBON)
-
-    /* Set file creator and type */
-    if (fff && strchr(mode, 'w'))
-        fsetfileinfo(buf, _fcreator, _ftype);
-
-#endif
-
     /* Return open file or NULL */
     return (fff);
 }
@@ -343,8 +317,6 @@ errr my_fclose(FILE* fff)
     /* Success */
     return (0);
 }
-
-#endif /* RISCOS */
 
 #ifdef HAVE_MKSTEMP
 
@@ -436,18 +408,6 @@ errr my_fgets(FILE* fff, char* buf, size_t n)
             return (0);
         }
 
-#if defined(MACINTOSH) || defined(MACH_O_CARBON)
-
-        /*
-         * Be nice to the Macintosh, where a file can have Mac or Unix
-         * end of line, especially since the introduction of OS X.
-         * MPW tools were also very tolerant to the Unix EOL.
-         */
-        if (c == '\r')
-            c = '\n';
-
-#endif /* MACINTOSH || MACH_O_CARBON */
-
         /* End of line */
         if (c == '\n')
         {
@@ -518,17 +478,6 @@ errr my_fputs(FILE* fff, cptr buf, size_t n)
     /* Success */
     return (0);
 }
-
-#ifdef RISCOS
-
-/*
- * Most of the "file" routines for "RISCOS" should be in "main-ros.c"
- *
- * Many of them can be rewritten now that only "fd_open()" and "fd_make()"
- * and "my_fopen()" should ever create files.
- */
-
-#else /* RISCOS */
 
 /*
  * Several systems have no "O_BINARY" flag
@@ -617,25 +566,8 @@ int fd_make(cptr file, int mode)
     if (path_parse(buf, sizeof(buf), file))
         return (-1);
 
-#if defined(MACINTOSH)
-
-    /* Create the file, fail if exists, write-only, binary */
-    fd = open(buf, O_CREAT | O_EXCL | O_WRONLY | O_BINARY);
-
-#else
-
     /* Create the file, fail if exists, write-only, binary */
     fd = open(buf, O_CREAT | O_EXCL | O_WRONLY | O_BINARY, mode);
-
-#endif
-
-#if defined(MAC_MPW) || defined(MACH_O_CARBON)
-
-    /* Set file creator and type */
-    if (fd >= 0)
-        fsetfileinfo(buf, _fcreator, _ftype);
-
-#endif
 
     /* Return descriptor */
     return (fd);
@@ -654,17 +586,8 @@ int fd_open(cptr file, int flags)
     if (path_parse(buf, sizeof(buf), file))
         return (-1);
 
-#if defined(MACINTOSH) || defined(WINDOWS)
-
-    /* Attempt to open the file */
-    return (open(buf, flags | O_BINARY));
-
-#else
-
     /* Attempt to open the file */
     return (open(buf, flags | O_BINARY, 0));
-
-#endif
 }
 
 /*
@@ -862,13 +785,9 @@ errr fd_close(int fd)
     return (0);
 }
 
-#if defined(CHECK_MODIFICATION_TIME) && !defined(MAC_MPW)
-#ifdef MACINTOSH
-#include <stat.h>
-#else
+#ifdef CHECK_MODIFICATION_TIME
 #include <sys/types.h>
 #include <sys/stat.h>
-#endif /* MACINTOSH */
 
 errr check_modification_date(int fd, cptr template_file)
 {
@@ -903,8 +822,6 @@ errr check_modification_date(int fd, cptr template_file)
 }
 
 #endif /* CHECK_MODIFICATION_TIME */
-
-#endif /* RISCOS */
 
 /*
  * Convert a decimal to a single digit hex number
@@ -4260,8 +4177,7 @@ static char request_command_buffer[256];
  *
  * Note that "caret" ("^") is treated specially, and is used to
  * allow manual input of control characters.  This can be used
- * on many machines to request repeated tunneling (Ctrl-H) and
- * on the Macintosh to request "Control-Caret".
+ * on many machines to request repeated tunneling (Ctrl-H).
  *
  * Note that "backslash" is treated specially, and is used to bypass any
  * keymap entry for the following character.  This is useful for macros.
@@ -5632,6 +5548,6 @@ void init_logger(bool quiet, const char* exe_path)
         log_set_quiet(true);
     }
 
-    log_info("logger initialised");
+    log_info("logger initialised with level %d", level);
     atexit(log_close_files);
 }

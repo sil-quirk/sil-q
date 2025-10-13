@@ -61,7 +61,7 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 8
 #define VERSION_PATCH 9
-#define VERSION_EXTRA 2
+#define VERSION_EXTRA 3
 
 /*
  * Oldest version number that can still be imported
@@ -75,13 +75,6 @@
  * Version of random artefact code.
  */
 #define RANDART_VERSION 62
-
-/*
- * Log file naming mode
- * 0 = Always use "log.txt" (overwrite previous log)
- * 1 = Create new log with timestamp each time
- */
-#define LOG_MODE_TIMESTAMP 0
 
 /*
  * Number of grids in each block (vertically)
@@ -616,7 +609,7 @@
 #define SPC_MANDOS 0
 #define SPC_AULE 1
 #define SPC_OATH_MERCY 2
-#define SPC_OATH_SILENCE 3  
+#define SPC_OATH_SILENCE 3
 #define SPC_OATH_IRON 4
 #define SPC_NIENA_MERCY 5  /* Enhanced stealth from mercy quest */
 #define SPC_OATH_SMITH 6
@@ -2972,7 +2965,7 @@
 #define monster_char(R) (graphics_are_ascii() ? (R)->d_char : (R)->x_char)
 
 /*
- * Return the appropriate attribute for a monster based on graphics mode  
+ * Return the appropriate attribute for a monster based on graphics mode
  */
 #define monster_attr(R) (graphics_are_ascii() ? (R)->d_attr : (R)->x_attr)
 
@@ -3254,7 +3247,7 @@
  * Angband "attributes" (with symbols, and base (R,G,B) codes)
  *
  * The "(R,G,B)" codes are given in "fourths" of the "maximal" value,
- * and should "gamma corrected" on most (non-Macintosh) machines.
+ * and should be "gamma corrected" on most machines.
  */
 #define TERM_DARK 0 /* 'd' */ /* 0,0,0 */
 #define TERM_WHITE 1 /* 'w' */ /* 4,4,4 */
@@ -3608,7 +3601,7 @@
 
 /*
  * Quest ID mapping between quest.txt indices and hardcoded game constants
- * This structure makes it easy to add new quests by associating quest.txt 
+ * This structure makes it easy to add new quests by associating quest.txt
  * quest IDs with the corresponding hardcoded game logic constants.
  */
 typedef struct quest_mapping {
@@ -3619,7 +3612,7 @@ typedef struct quest_mapping {
 
 /* Quest ID mappings - modify this to add new quests */
 #define QUEST_ID_TULKAS  1  /* Tulkas quest in quest.txt */
-#define QUEST_ID_AULE    2  /* Aule quest in quest.txt */  
+#define QUEST_ID_AULE    2  /* Aule quest in quest.txt */
 #define QUEST_ID_MANDOS  3  /* Mandos quest in quest.txt */
 #define QUEST_ID_NIENA   4  /* Niena quest in quest.txt */
 #define QUEST_ID_OROME   5  /* Orome quest in quest.txt */

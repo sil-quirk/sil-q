@@ -118,60 +118,6 @@ void safe_setuid_grab(void)
 #endif /* SET_UID */
 }
 
-#if 0
-
-/*
- * Use this (perhaps) for Angband 2.8.4
- *
- * Extract "tokens" from a buffer
- *
- * This function uses "whitespace" as delimiters, and treats any amount of
- * whitespace as a single delimiter.  We will never return any empty tokens.
- * When given an empty buffer, or a buffer containing only "whitespace", we
-r * will return no tokens.  We will never extract more than "num" tokens.
- *
- * By running a token through the "text_to_ascii()" function, you can allow
- * that token to include (encoded) whitespace, using "\s" to encode spaces.
- *
- * We save pointers to the tokens in "tokens", and return the number found.
- */
-static s16b tokenize_whitespace(char *buf, s16b num, char **tokens)
-{
-	int k = 0;
-
-	char *s = buf;
-
-
-	/* Process */
-	while (k < num)
-	{
-		char *t;
-
-		/* Skip leading whitespace */
-		for ( ; *s && isspace((unsigned char)*s); ++s) /* loop */;
-
-		/* All done */
-		if (!*s) break;
-
-		/* Find next whitespace, if any */
-		for (t = s; *t && !isspace((unsigned char)*t); ++t) /* loop */;
-
-		/* Nuke and advance (if necessary) */
-		if (*t) *t++ = '\0';
-
-		/* Save the token */
-		tokens[k++] = s;
-
-		/* Advance */
-		s = t;
-	}
-
-	/* Count */
-	return (k);
-}
-
-#endif
-
 /*
  * Extract the first few "tokens" from a buffer
  *
@@ -1466,8 +1412,8 @@ void display_player_xtra_info(int mode)
         if (c_info[house].flags & (AFF_FLAG)) score++;                                  \
         if (p_info[race].flags  & (PEN_FLAG)) score--;                                  \
         if (c_info[house].flags & (PEN_FLAG)) score--;                                  \
-        score += curse_flag_count(AFF_FLAG);                                            \
-        score -= curse_flag_count(PEN_FLAG);                                            \
+        score += curse_flag_count_rhf(AFF_FLAG);                                        \
+        score -= curse_flag_count_rhf(PEN_FLAG);                                        \
         if (score >  2) score =  2;                                                     \
         if (score < -2) score = -2;                                                     \
         if (score ==  2)      PUSH(ma_buf,  ma_n,  LABEL "++", attr_mastery);          \
@@ -3354,9 +3300,9 @@ void do_cmd_help(void)
  *
  * If "sf" is true, then we initialize "savefile" based on player name.
  *
- * Some platforms (Windows, Macintosh, Amiga) leave the "savefile" empty
- * when a new character is created, and then when the character is done
- * being created, they call this function to choose a new savefile name.
+ * Some platforms (Windows) leave the "savefile" empty when a new 
+ * character is created, and then when the character is done being 
+ * created, they call this function to choose a new savefile name.
  */
 void process_player_name(bool sf)
 {
@@ -3391,14 +3337,6 @@ void process_player_name(bool sf)
         /* Build "base_name" */
         op_ptr->base_name[i] = c;
     }
-
-#if defined(MSDOS)
-
-    /* Max length */
-    if (i > 8)
-        i = 8;
-
-#endif
 
     /* Terminate */
     op_ptr->base_name[i] = '\0';
@@ -6248,6 +6186,26 @@ extern int silmarils_possessed(void)
 }
 
 /*
+ * Checks if the player has Morgoth's crown (any version) in inventory
+ * Returns the crown artifact number (ART_MORGOTH_0-3) or 0 if not found
+ */
+extern int has_iron_crown(void)
+{
+    int i;
+
+    for (i = 0; i < INVEN_TOTAL; i++)
+    {
+        int name1 = (&inventory[i])->name1;
+        if ((name1 >= ART_MORGOTH_0) && (name1 <= ART_MORGOTH_3))
+        {
+            return name1;  // Return which crown variant they have
+        }
+    }
+
+    return 0;  // No crown
+}
+
+/*
  * Creates a score record for the player
  */
 errr create_score(high_score* the_score)
@@ -8535,6 +8493,7 @@ bool autoload_alive_from_scores(void)
         my_strcpy(savefile, savefile_backup, sizeof(savefile));
 
         /* Mark as dead and continue */
+#if ANTICHEAT
         log_warn("autoload: savefile missing/corrupt for '%s' - marking dead", who_buf);
         strnfmt(entry.how, sizeof entry.how, "%-.49s", "their own hand");
         if (highscore_seek(i) == 0) {
@@ -8545,6 +8504,10 @@ bool autoload_alive_from_scores(void)
         msg_format("Warning: Alive entry '%s' had no valid savefile. Marked as dead.", who_buf);
         msg_print("Please do not tamper with savefiles.");
         message_flush();
+#else
+        log_warn("autoload: savefile missing/corrupt for '%s' - skipping (ANTICHEAT disabled)", who_buf);
+        /* Continue to next entry without marking as dead */
+#endif
     }
 
     fclose(highscore_fd);

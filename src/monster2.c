@@ -1184,15 +1184,15 @@ int monster_skill(monster_type* m_ptr, int skill_type)
         break;
     case S_STL:
         skill = r_ptr->stl;
-        skill += 2 * curse_flag_count(CUR_MON_STL);   /* +2 Stl per curse */
+        skill += 2 * curse_flag_count_cur(CUR_MON_STL);   /* +2 Stl per curse */
         break;
     case S_PER:
         skill = r_ptr->per;
-        skill += 2 * curse_flag_count(CUR_MON_PER);   /* +2 Per per curse */
+        skill += 2 * curse_flag_count_cur(CUR_MON_PER);   /* +2 Per per curse */
         break;
     case S_WIL:
         skill = r_ptr->wil;
-        skill += 2 * curse_flag_count(CUR_MON_WIL);   /* +2 Wil per curse */
+        skill += 2 * curse_flag_count_cur(CUR_MON_WIL);   /* +2 Wil per curse */
         break;
     case S_SMT:
         msg_debug("Can't determine the monster's Smithing score.");
@@ -2572,7 +2572,7 @@ bool place_monster_one(
 
         /* Apply unique‐HP curses: +25% per CUR_MONSTERHP_U flag */
         {
-            int curses = curse_flag_count(CUR_U_MON_HP);
+            int curses = curse_flag_count_cur(CUR_U_MON_HP);
             if (curses > 0)
                 n_ptr->maxhp = (n_ptr->maxhp * (100 + 25 * curses)) / 100;
         }
@@ -2584,7 +2584,7 @@ bool place_monster_one(
 
         /* Apply normal‐HP curses: +25% per CUR_MONSTERHP flag */
         {
-            int curses = curse_flag_count(CUR_MON_HP);
+            int curses = curse_flag_count_cur(CUR_MON_HP);
             if (curses > 0)
                 n_ptr->maxhp = (n_ptr->maxhp * (100 + 25 * curses)) / 100;
         }

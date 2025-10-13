@@ -15,15 +15,6 @@
 #endif /* NULL */
 
 /*
- * Hack -- assist "main-ros.c" XXX XXX XXX
- */
-#ifdef RISCOS
-#define O_RDONLY 0
-#define O_WRONLY 1
-#define O_RDWR 2
-#endif
-
-/*
  * Hack -- force definitions -- see fd_seek()
  */
 #ifndef SEEK_SET
@@ -93,22 +84,13 @@
     ((((a) <= (b)) && ((b) <= (c))) || (((c) <= (b)) && ((b) <= (a))))
 
 /*
- * Hack -- allow use of "ASCII" and "EBCDIC" for "indexes", "digits",
+ * Hack -- allow use of "ASCII" for "indexes", "digits",
  * and "Control-Characters".
  *
  * Note that all "index" values must be "lowercase letters", while
  * all "digits" must be "digits".  Control characters can be made
- * from any legal characters.  XXX XXX XXX
+ * from any legal characters.
  */
-#ifdef VM
-#define A2I(X) alphatoindex(X)
-#define I2A(X) indextoalpha(X)
-#define D2I(X) ((X) - '0')
-#define I2D(X) ((X) + '0')
-#define KTRL(X) ((X)&0x1F)
-#define UN_KTRL(X) ((X) + 64)
-#define ESCAPE '\033'
-#else
 #define A2I(X) ((X) - 'a')
 #define I2A(X) ((X) + 'a')
 #define D2I(X) ((X) - '0')
@@ -116,6 +98,5 @@
 #define KTRL(X) ((X)&0x1F)
 #define UN_KTRL(X) ((X) + 64)
 #define ESCAPE '\033'
-#endif
 
 #endif

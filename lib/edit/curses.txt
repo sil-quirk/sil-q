@@ -232,7 +232,7 @@ P:More monsters
 N:29:Voracious Curse
 S:0:0:0:0
 U:HUNGER
-A:3/3
+A:2/2
 D:A hollow gnaws within you, insatiable and relentless. Hunger stalks your every step, the emptiness a ceaseless torment.
 P:Digestion rate ×2
 

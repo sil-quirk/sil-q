@@ -51,7 +51,7 @@ T:To maintain grim silence
 D:A vow of absolute silence, taken by those who would enter and leave Angband as they came - wordless and grim. This oath embodies the stoic determination of proven warriors.
 P:I swear to leave Angband as I came, grim and silent, speaking no word and raising no song in these dark halls.
 F:Sing any song or make any vocal utterance
-R:+1 Strength - Stoic fortitude and inner resilience
+R:+1 Dexterity - Stoic fortitude and inner resilience
 A:8:3
 S:0:1:0:0
 B:Cannot use any singing abilities or songs

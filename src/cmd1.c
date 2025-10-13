@@ -343,8 +343,12 @@ void drop_iron_crown(monster_type* m_ptr, const char* msg)
 {
     int i, near_y, near_x;
 
+    log_debug("drop_iron_crown: called, ART_MORGOTH_3 cur_num=%d", 
+              (&a_info[ART_MORGOTH_3])->cur_num);
+
     if ((&a_info[ART_MORGOTH_3])->cur_num == 0)
     {
+        log_debug("drop_iron_crown: crown not yet dropped, dropping now");
         msg_print(msg);
 
         // choose a nearby location, but not his own square
@@ -358,12 +362,19 @@ void drop_iron_crown(monster_type* m_ptr, const char* msg)
                 break;
         }
 
+        log_debug("drop_iron_crown: dropping crown at (%d, %d)", near_y, near_x);
+        
         // drop it there
         create_chosen_artefact(ART_MORGOTH_3, near_y, near_x, true);
 
+        log_debug("drop_iron_crown: calling anger_morgoth(1) - crown lost");
         // lower Morgoth's protection, remove his light source, increase his
         // will and perception and evasion
         anger_morgoth(1);
+    }
+    else
+    {
+        log_debug("drop_iron_crown: crown already dropped, skipping");
     }
 }
 
@@ -3481,6 +3492,11 @@ void py_pickup(void)
                         const int max_name_len = 20;
                         object_desc(target_name, sizeof(target_name), target, true, 3);
                         object_desc(donor_name, sizeof(donor_name), o_ptr, true, 3);
+                        
+                        log_debug("Channeling: donor floor staff k_idx=%d pval=%d number=%d, target inv slot %d k_idx=%d pval=%d number=%d",
+                                  o_ptr->k_idx, o_ptr->pval, o_ptr->number,
+                                  target_slot, target->k_idx, target->pval, target->number);
+                        
                         strnfmt(prompt, sizeof(prompt), "Channel to %d charges from %.*s into %.*s? ",
                             combined_uses, max_name_len, donor_name, max_name_len, target_name);
                         if (get_check(prompt))
@@ -3489,6 +3505,10 @@ void py_pickup(void)
                             target->ident &= ~(IDENT_EMPTY);
                             o_ptr->pval = 0;
                             o_ptr->ident |= IDENT_EMPTY;
+                            
+                            log_debug("Channeling complete: target now has pval=%d number=%d, donor has pval=%d number=%d",
+                                      target->pval, target->number, o_ptr->pval, o_ptr->number);
+                            
                             if (target_slot >= 0 && target_slot < INVEN_TOTAL)
                                 inven_item_charges(target_slot);
                             p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST);
@@ -3496,6 +3516,9 @@ void py_pickup(void)
                             msg_format("You channel %d charge%s into %s (now %d).",
                                 gain_uses, (gain_uses == 1) ? "" : "s", target_name, combined_uses);
                             delete_object_idx(this_o_idx);
+                            
+                            log_debug("Channeling: deleted floor object idx %d", this_o_idx);
+                            
                             done_pickup = true;
                             p_ptr->previous_action[0] = ACTION_MISC;
                             p_ptr->energy_use = 100;
@@ -5004,7 +5027,7 @@ void py_attack_aux(int y, int x, int attack_type)
             if (smite)
                 dam = total_dice * mds;
 
-            prt = damroll((r_ptr->pd + curse_flag_count(CUR_MON_ARM_DICE)), (r_ptr->ps+curse_flag_count(CUR_MON_ARM_SIDE)));
+            prt = damroll((r_ptr->pd + curse_flag_count_cur(CUR_MON_ARM_DICE)), (r_ptr->ps+curse_flag_count_cur(CUR_MON_ARM_SIDE)));
             prt_percent = prt_after_sharpness(o_ptr, &noticed_flag);
 
             if (prt_percent < 0)

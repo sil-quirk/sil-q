@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "log/log.h"
 #include <string.h> /* memset, strstr */
 #include <stdio.h>  /* FILE, getc, ftell, fseek, ferror */
 #include <sys/types.h>
@@ -18,7 +19,6 @@
 #include <stdbool.h>
 
 /* #include "init.h"  not required directly here after refactor */
-#include "log.h"
 #include "metarun.h"
 
 /*
@@ -546,6 +546,13 @@ static errr rd_item(object_type* o_ptr)
 
     convert_old_staff_of_warding(o_ptr);
 
+    /* Log staff loading for debugging disappearing staff bug */
+    if (o_ptr->tval == TV_STAFF)
+    {
+        log_debug("Loaded staff: k_idx=%d sval=%d pval=%d number=%d", 
+                  o_ptr->k_idx, o_ptr->sval, o_ptr->pval, o_ptr->number);
+    }
+
     /* Success */
     return (0);
 }
@@ -946,6 +953,8 @@ static errr rd_extra(void)
 
     /* More info */
     rd_s16b(&p_ptr->morgoth_state);
+    
+    log_debug("load: morgoth_state loaded as %d", p_ptr->morgoth_state);
 
     /* Read the flags */
     rd_byte(&p_ptr->song1);
@@ -1090,8 +1099,61 @@ static errr rd_extra(void)
     /* Current turn */
     rd_s32b(&turn);
 
-    /* Current player turn */
-    rd_s32b(&playerturn);
+    /* Player turn / crown shatter flags changed layout across sf_extra revisions */
+    if (sf_extra >= 3)
+    {
+        /* New format: playerturn stored immediately after turn, then shatter flags */
+        rd_s32b(&playerturn);
+        rd_byte(&p_ptr->crown_shatter_sil2);
+        rd_byte(&p_ptr->crown_shatter_sil3);
+    }
+    else if (sf_extra == 2)
+    {
+        /* Legacy 0.8.9.x saves wrote shatter flags first and duplicated the turn */
+        rd_byte(&p_ptr->crown_shatter_sil2);
+        rd_byte(&p_ptr->crown_shatter_sil3);
+
+        s32b turn_repeat = 0;
+        rd_s32b(&turn_repeat);
+        if (turn_repeat == turn)
+        {
+            rd_s32b(&playerturn);
+        }
+        else
+        {
+            /* No duplicate present (unexpected but recoverable) */
+            playerturn = turn_repeat;
+
+            long rewind_pos = ftell(fff);
+            u32b saved_v_check = v_check, saved_x_check = x_check, saved_offset = load_byte_offset;
+            byte saved_xor = xor_byte;
+
+            s32b maybe_playerturn = 0;
+            rd_s32b(&maybe_playerturn);
+            if (maybe_playerturn != playerturn)
+            {
+                /* Not an echoed player turn, restore stream state */
+                fseek(fff, rewind_pos, SEEK_SET);
+                v_check = saved_v_check;
+                x_check = saved_x_check;
+                load_byte_offset = saved_offset;
+                xor_byte = saved_xor;
+            }
+        }
+    }
+    else
+    {
+        /* Very old saves: playerturn present but no shatter flags */
+        rd_s32b(&playerturn);
+        p_ptr->crown_shatter_sil2 = 0;
+        p_ptr->crown_shatter_sil3 = 0;
+    }
+
+    if (sf_extra < 2)
+    {
+        p_ptr->crown_shatter_sil2 = 0;
+        p_ptr->crown_shatter_sil3 = 0;
+    }
 
     // rd_byte(&tmp8u);
     // p_ptr->killed_enemy_with_arrow = tmp8u;
@@ -1512,6 +1574,13 @@ static errr rd_inventory(void)
             /* Copy object */
             object_copy(&inventory[n], i_ptr);
 
+            /* Log equipped staff loading */
+            if (i_ptr->tval == TV_STAFF)
+            {
+                log_debug("Loaded equipped staff at slot %d: k_idx=%d sval=%d pval=%d number=%d",
+                          n, i_ptr->k_idx, i_ptr->sval, i_ptr->pval, i_ptr->number);
+            }
+
             /* One more item */
             p_ptr->equip_cnt++;
         }
@@ -1534,6 +1603,13 @@ static errr rd_inventory(void)
 
             /* Copy object */
             object_copy(&inventory[n], i_ptr);
+
+            /* Log pack staff loading */
+            if (i_ptr->tval == TV_STAFF)
+            {
+                log_debug("Loaded pack staff at slot %d: k_idx=%d sval=%d pval=%d number=%d",
+                          n, i_ptr->k_idx, i_ptr->sval, i_ptr->pval, i_ptr->number);
+            }
 
             /* One more item */
             p_ptr->inven_cnt++;
@@ -2604,7 +2680,7 @@ bool load_player(void)
             playerturn = 0;
 
             /* A dead character was loaded */
-            character_loaded_dead = true; 
+            character_loaded_dead = true;
             log_info("Character loaded dead");
 
             /* Done */
@@ -2626,6 +2702,22 @@ bool load_player(void)
         // count the artefacts seen for the player
         p_ptr->artefacts = artefact_count();
         log_debug("Character has seen %d artefacts", p_ptr->artefacts);
+
+        /* Reapply Morgoth's anger state to the r_info template */
+        if (p_ptr->morgoth_state > 0)
+        {
+            log_debug("load: reapplying morgoth_state %d to r_info template", 
+                     p_ptr->morgoth_state);
+            
+            /* Save current state, then reset to 0 and reapply */
+            s16b saved_state = p_ptr->morgoth_state;
+            p_ptr->morgoth_state = 0;
+            anger_morgoth(saved_state);
+        }
+        else
+        {
+            log_debug("load: morgoth_state is 0, no reapplication needed");
+        }
 
         /* Success */
         return (true);

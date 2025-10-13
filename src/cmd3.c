@@ -1617,7 +1617,19 @@ void shatter_weapon(int silnum)
     char w_name[80];
     int anger_level;
 
-    p_ptr->crown_shatter = true;
+    log_debug("shatter_weapon: called for silmaril #%d", silnum);
+    
+    /* Set the appropriate shatter flag for this silmaril */
+    if (silnum == 2)
+    {
+        p_ptr->crown_shatter_sil2 = true;
+        log_debug("shatter_weapon: set crown_shatter_sil2 = true");
+    }
+    else if (silnum == 3)
+    {
+        p_ptr->crown_shatter_sil3 = true;
+        log_debug("shatter_weapon: set crown_shatter_sil3 = true");
+    }
 
     /* Get the basic name of the object */
     object_desc(w_name, sizeof(w_name), w_ptr, false, 0);
@@ -1642,6 +1654,8 @@ void shatter_weapon(int silnum)
     /* Determine anger level based on which Silmaril (2nd = state 3, 3rd = state 4) */
     anger_level = (silnum == 2) ? 3 : 4;
 
+    log_debug("shatter_weapon: anger_level=%d for silmaril #%d", anger_level, silnum);
+
     /* Process monsters */
     for (i = 1; i < mon_max; i++)
     {
@@ -1650,12 +1664,21 @@ void shatter_weapon(int silnum)
         /* If Morgoth, then anger him */
         if (m_ptr->r_idx == R_IDX_MORGOTH)
         {
+            log_debug("shatter_weapon: found Morgoth at (%d,%d), cdis=%d, alertness=%d",
+                     m_ptr->fy, m_ptr->fx, m_ptr->cdis, m_ptr->alertness);
+            
             if ((m_ptr->cdis <= 5)
                 && los(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx))
             {
+                log_debug("shatter_weapon: Morgoth sees shard strike, calling anger_morgoth(%d)", 
+                         anger_level);
                 msg_print("A shard strikes Morgoth upon his cheek.");
                 set_alertness(m_ptr, ALERTNESS_VERY_ALERT);
                 anger_morgoth(anger_level);
+            }
+            else
+            {
+                log_debug("shatter_weapon: Morgoth doesn't see/is too far");
             }
         }
     }
@@ -1692,6 +1715,11 @@ void prise_silmaril(void)
 
     // the Crown is on the ground
     o_ptr = &o_list[cave_o_idx[p_ptr->py][p_ptr->px]];
+
+    log_debug("prise_silmaril: attempting to prise silmaril from crown artifact %d", 
+             o_ptr->name1);
+    log_debug("prise_silmaril: current morgoth_state=%d, silmarils_possessed=%d",
+             p_ptr->morgoth_state, silmarils_possessed());
 
     switch (o_ptr->name1)
     {
@@ -1794,17 +1822,47 @@ void prise_silmaril(void)
         {
         case ART_MORGOTH_3:
         {
+            /* Process monsters - anger Morgoth when 1st Silmaril is taken */
+            for (int i = 1; i < mon_max; i++)
+            {
+                monster_type* m_ptr = &mon_list[i];
+
+                /* If Morgoth, then anger him to state 2 for 1st Silmaril */
+                if (m_ptr->r_idx == R_IDX_MORGOTH
+                    && m_ptr->alertness >= ALERTNESS_ALERT)
+                {
+                    log_debug("prise_silmaril: found Morgoth at (%d,%d), cdis=%d",
+                             m_ptr->fy, m_ptr->fx, m_ptr->cdis);
+                    
+                    if ((m_ptr->cdis <= 5)
+                        && los(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx))
+                    {
+                        log_debug("prise_silmaril: Morgoth sees 1st silmaril taken, calling anger_morgoth(2)");
+                        msg_print("Morgoth roars in fury!");
+                        anger_morgoth(2);
+                    }
+                    else
+                    {
+                        log_debug("prise_silmaril: Morgoth alert but doesn't see/too far");
+                    }
+                }
+            }
             break;
         }
         case ART_MORGOTH_2:
         {
-            if (!p_ptr->crown_shatter && one_in_(2))
+            /* 50% chance to shatter if not already shattered on 2nd silmaril */
+            if (!p_ptr->crown_shatter_sil2 && one_in_(2))
             {
+                log_debug("prise_silmaril: 2nd silmaril shatter check failed (50%%), calling shatter_weapon(2)");
                 shatter_weapon(2);
                 freed = false;
             }
             else
             {
+                log_debug("prise_silmaril: 2nd silmaril - no shatter (already_shattered=%d)", 
+                         p_ptr->crown_shatter_sil2);
+                
                 /* Process monsters */
                 for (int i = 1; i < mon_max; i++)
                 {
@@ -1814,11 +1872,19 @@ void prise_silmaril(void)
                     if (m_ptr->r_idx == R_IDX_MORGOTH
                         && m_ptr->alertness >= ALERTNESS_ALERT)
                     {
+                        log_debug("prise_silmaril: found Morgoth at (%d,%d), cdis=%d",
+                                 m_ptr->fy, m_ptr->fx, m_ptr->cdis);
+                        
                         if ((m_ptr->cdis <= 5)
                             && los(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx))
                         {
+                            log_debug("prise_silmaril: Morgoth sees 2nd silmaril taken, calling anger_morgoth(3)");
                             msg_print("Morgoth howls with rage!");
                             anger_morgoth(3);
+                        }
+                        else
+                        {
+                            log_debug("prise_silmaril: Morgoth alert but doesn't see/too far");
                         }
                     }
                 }
@@ -1827,13 +1893,17 @@ void prise_silmaril(void)
         }
         case ART_MORGOTH_1:
         {
-            if (!p_ptr->crown_shatter)
+            /* 100% shatter on 3rd silmaril if not already shattered on 3rd */
+            if (!p_ptr->crown_shatter_sil3)
             {
+                log_debug("prise_silmaril: 3rd silmaril shatter check (100%%), calling shatter_weapon(3)");
                 shatter_weapon(3);
                 freed = false;
             }
             else
             {
+                log_debug("prise_silmaril: 3rd silmaril - no shatter (already_shattered=%d), but cursed!",
+                         p_ptr->crown_shatter_sil3);
                 p_ptr->cursed = true;
             }
             break;
@@ -1903,11 +1973,15 @@ void prise_silmaril(void)
     // check for taking of final Silmaril
     if (o_ptr->name1 == ART_MORGOTH_0)
     {
+        log_debug("prise_silmaril: final silmaril taken! Calling anger_morgoth(4)");
         msg_print("You hear a cry of vengeance echo through the iron hells.");
         msg_print("You feel your doom awaiting you.");
         wake_all_monsters(0);
         anger_morgoth(4);  // Final Silmaril pushes Morgoth to desperate state
     }
+    
+    log_debug("prise_silmaril: complete, freed=%s, final morgoth_state=%d", 
+             freed ? "true" : "false", p_ptr->morgoth_state);
 }
 
 /*
@@ -2961,10 +3035,66 @@ void do_cmd_unified_look(void)
                 char out_val[256];
                 int cursor_m_idx = cave_m_idx[y][x];
                 int cursor_o_idx = cave_o_idx[y][x];
+                int feat = cave_feat[y][x];
                 bool has_visible_monster = (cursor_m_idx > 0) && (mon_list[cursor_m_idx].ml);
-                bool has_object = (cursor_o_idx > 0);
+                bool has_marked_object = (cursor_o_idx > 0) && (o_list[cursor_o_idx].marked);
+                bool has_known_feature = false;
+                cptr feature_name = NULL;
                 
-                /* Priority: monster first, then object */
+                /* Check for known/revealed features (traps, doors, stairs, shafts) */
+                if (cave_info[y][x] & (CAVE_MARK))
+                {
+                    /* Traps */
+                    if (feat >= FEAT_TRAP_HEAD && feat <= FEAT_TRAP_TAIL)
+                    {
+                        has_known_feature = true;
+                        feature_name = f_name + f_info[feat].name;
+                    }
+                    /* Doors (closed, locked, jammed) */
+                    else if (feat >= FEAT_DOOR_HEAD && feat <= FEAT_DOOR_TAIL)
+                    {
+                        has_known_feature = true;
+                        feature_name = f_name + f_info[feat].name;
+                    }
+                    /* Open door */
+                    else if (feat == FEAT_OPEN)
+                    {
+                        has_known_feature = true;
+                        feature_name = "open door";
+                    }
+                    /* Broken door */
+                    else if (feat == FEAT_BROKEN)
+                    {
+                        has_known_feature = true;
+                        feature_name = "broken door";
+                    }
+                    /* Stairs up */
+                    else if (feat == FEAT_LESS)
+                    {
+                        has_known_feature = true;
+                        feature_name = "up staircase";
+                    }
+                    /* Stairs down */
+                    else if (feat == FEAT_MORE)
+                    {
+                        has_known_feature = true;
+                        feature_name = "down staircase";
+                    }
+                    /* Shaft up */
+                    else if (feat == FEAT_LESS_SHAFT)
+                    {
+                        has_known_feature = true;
+                        feature_name = "up shaft";
+                    }
+                    /* Shaft down */
+                    else if (feat == FEAT_MORE_SHAFT)
+                    {
+                        has_known_feature = true;
+                        feature_name = "down shaft";
+                    }
+                }
+                
+                /* Priority: monster first, then object (only if marked), then feature */
                 if (has_visible_monster)
                 {
                     monster_type* m_ptr = &mon_list[cursor_m_idx];
@@ -2977,7 +3107,7 @@ void do_cmd_unified_look(void)
                     strnfmt(out_val, sizeof(out_val), "You see %s.", m_name);
                     prt(out_val, 0, 0);
                 }
-                else if (has_object)
+                else if (has_marked_object)
                 {
                     object_type* o_ptr = &o_list[cursor_o_idx];
                     char o_name[80];
@@ -2987,6 +3117,12 @@ void do_cmd_unified_look(void)
                     
                     /* Display "You see <object name>" in left sidebar */
                     strnfmt(out_val, sizeof(out_val), "You see %s.", o_name);
+                    prt(out_val, 0, 0);
+                }
+                else if (has_known_feature)
+                {
+                    /* Display "You see <feature name>" in left sidebar */
+                    strnfmt(out_val, sizeof(out_val), "You see %s.", feature_name);
                     prt(out_val, 0, 0);
                 }
                 else

@@ -4229,7 +4229,7 @@ void update_view(void)
      *   of −5 (same as full darkness elsewhere in the engine).
      * ------------------------------------------------------------ */
     {
-        int dark_stacks = curse_flag_count(CUR_LIGHTP);
+        int dark_stacks = curse_flag_count_cur(CUR_LIGHTP);
         if (dark_stacks)
         {
             int i, g, y, x;

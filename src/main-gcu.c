@@ -15,8 +15,7 @@
  * To use this file, you must define "USE_GCU" in the Makefile.
  *
  *
- * Note that this file is not "intended" to support non-Unix machines,
- * nor is it intended to support VMS or other bizarre setups.
+ * Note that this file is not "intended" to support non-Unix machines.
  *
  * Also, this package assumes that the underlying "curses" handles both
  * the "nonl()" and "cbreak()" commands correctly, see the "OPTION" below.
@@ -354,18 +353,6 @@ static void keymap_game_prepare(void)
     game_termio.c_cc[VKILL] = (char)-1;
     game_termio.c_cc[VEOF] = (char)-1;
     game_termio.c_cc[VEOL] = (char)-1;
-
-#if 0
-	/* Disable the non-posix control characters */
-	game_termio.c_cc[VEOL2] = (char)-1;
-	game_termio.c_cc[VSWTCH] = (char)-1;
-	game_termio.c_cc[VDSUSP] = (char)-1;
-	game_termio.c_cc[VREPRINT] = (char)-1;
-	game_termio.c_cc[VDISCARD] = (char)-1;
-	game_termio.c_cc[VWERASE] = (char)-1;
-	game_termio.c_cc[VLNEXT] = (char)-1;
-	game_termio.c_cc[VSTATUS] = (char)-1;
-#endif
 
     /* Normally, block until a character is read */
     game_termio.c_cc[VMIN] = 1;

@@ -1,0 +1,101 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "CMake: Configure",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-G", "MinGW Makefiles",
+                "-B", "build",
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_PREFIX_PATH=C:/msys64/mingw64",
+                "-DUSE_SDL=ON",
+                "-DUSE_GCU=OFF"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
+                }
+            },
+            "problemMatcher": [],
+            "detail": "Configure CMake project with MinGW and SDL3"
+        },
+        {
+            "label": "CMake: Build",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build", "build",
+                "--parallel"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
+                }
+            },
+            "dependsOn": ["CMake: Configure"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"],
+            "detail": "Build using CMake"
+        },
+        {
+            "label": "CMake: Deploy",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File",
+                "${workspaceFolder}/.vscode/deploy.ps1"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
+                }
+            },
+            "dependsOn": ["CMake: Build"],
+            "problemMatcher": [],
+            "detail": "Deploy executable, DLLs, and game data to sil-more-windows-sdl3"
+        },
+        {
+            "label": "Build and Deploy",
+            "dependsOn": ["CMake: Deploy"],
+            "dependsOrder": "sequence",
+            "problemMatcher": [],
+            "detail": "Full build workflow: configure, build, and deploy (matches build-cmake.bat)"
+        },
+        {
+            "label": "Run Game",
+            "type": "shell",
+            "command": ".\\run.bat",
+            "options": {
+                "cwd": "${workspaceFolder}/sil-more-windows-sdl3"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "focus": true,
+                "panel": "dedicated"
+            },
+            "detail": "Run the SDL3 build"
+        },
+        {
+            "label": "Build and Run",
+            "dependsOn": ["Build and Deploy", "Run Game"],
+            "dependsOrder": "sequence",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "detail": "Build, deploy, and run the game"
+        }
+    ]
+}

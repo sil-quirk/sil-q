@@ -1,26 +1,48 @@
 {
-    "terminal.integrated.defaultProfile.windows": "Cygwin",
+    // Terminal configuration - Use PowerShell with MSYS64 environment
+    // This overrides any user-level settings
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
     "terminal.integrated.profiles.windows": {
+        "PowerShell": {
+            "source": "PowerShell",
+            "icon": "terminal-powershell",
+            "overrideName": true,
+            "env": {
+                "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
+            }
+        },
         "Cygwin": {
             "path": "C:\\Soft\\Cygwin\\bin\\bash.exe",
             "args": ["--login"],
             "env": {
                 "PATH": "/usr/bin:/bin:${env:PATH}"
             },
-            "icon": "terminal-bash"
+            "icon": "terminal-bash",
+            "overrideName": true
+        },
+        "Command Prompt": {
+            "path": [
+                "${env:windir}\\Sysnative\\cmd.exe",
+                "${env:windir}\\System32\\cmd.exe"
+            ],
+            "args": [],
+            "icon": "terminal-cmd",
+            "overrideName": true
+        },
+        "Git Bash": {
+            "source": "Git Bash",
+            "overrideName": true
         }
-    },
-    "terminal.integrated.env.windows": {
-        "PATH": "/usr/bin:/bin:${env:PATH}"
     },
     "clangd.path": "C:\\Users\\efrem\\AppData\\Roaming\\Code\\User\\globalStorage\\llvm-vs-code-extensions.vscode-clangd\\install\\19.1.2\\clangd_19.1.2\\bin\\clangd.exe",
     "clangd.arguments": [
-        "--compile-commands-dir=src",
+        "--compile-commands-dir=${workspaceFolder}",
         "--background-index",
         "--clang-tidy",
         "--completion-style=detailed",
         "--header-insertion=iwyu",
-        "--pch-storage=memory"
+        "--pch-storage=memory",
+        "--query-driver=C:\\msys64\\mingw64\\bin\\gcc.exe,C:\\msys64\\mingw64\\bin\\g++.exe,C:\\msys64\\mingw64\\bin\\cc.exe"
     ],
     "clangd.checkUpdates": false,
     "clangd.serverCompletionRanking": true,
@@ -32,5 +54,35 @@
     "files.associations": {
         "*.h": "c",
         "*.c": "c"
-    }
+    },
+    "cmake.generator": "MinGW Makefiles",
+    "cmake.configureSettings": {
+        "CMAKE_PREFIX_PATH": "C:/msys64/mingw64",
+        "USE_SDL": "ON",
+        "USE_GCU": "OFF"
+    },
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "cmake.cmakePath": "C:/msys64/mingw64/bin/cmake.exe",
+    "cmake.preferredGenerators": [
+        "MinGW Makefiles"
+    ],
+    "cmake.configureOnOpen": false,
+    "cmake.buildBeforeRun": true,
+    "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
+    "cmake.environment": {
+        "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
+    },
+    "cmake.configureEnvironment": {
+        "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
+    },
+    "cmake.additionalKits": [
+        "${workspaceFolder}/.vscode/cmake-kits.json"
+    ],
+    "cmake.buildEnvironment": {
+        "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
+    },
+    // Enable CMake build task integration
+    "cmake.buildTask": true,
+    // Launch configuration
+    "cmake.launchBehavior": "reuseTerminal"
 }

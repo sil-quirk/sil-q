@@ -297,6 +297,74 @@ void do_cmd_go_up(void)
 
             // remove the 'truce' flag if it hasn't been done already
             p_ptr->truce = false;
+            
+            /* Check for crown theft and silmarils */
+            /* Priority: Crown theft is more serious than individual silmarils */
+            int crown_art = has_iron_crown();
+            int sils = silmarils_possessed();
+            int target_state = 1;  // Default: just crown dropped
+            
+            log_debug("do_cmd_go_up: pursuit begins - has_crown=%d, silmarils=%d, current_state=%d",
+                     crown_art, sils, p_ptr->morgoth_state);
+            
+            /* Determine target anger state based on what player has */
+            if (crown_art > 0)
+            {
+                /* Player has the crown itself - this is a major theft! */
+                /* Crown with 0 silmarils still means you stole his crown → State 3 */
+                target_state = 3;
+                log_debug("do_cmd_go_up: player has crown (art=%d), target_state=3", crown_art);
+                
+                /* If crown still has silmarils on it, that's even worse */
+                if (crown_art == ART_MORGOTH_3)  // 3 silmarils on crown
+                {
+                    target_state = 4;
+                    log_debug("do_cmd_go_up: crown has all 3 silmarils, target_state=4");
+                }
+            }
+            else if (sils > 0)
+            {
+                /* Player has prised silmarils (not carrying crown) */
+                target_state = 1 + sils;  /* 1 sil → state 2, 2 sils → state 3, 3 sils → state 4 */
+                log_debug("do_cmd_go_up: player has %d prised silmarils, target_state=%d", sils, target_state);
+            }
+            
+            /* Apply anger if target exceeds current state */
+            if (target_state > p_ptr->morgoth_state)
+            {
+                if (crown_art > 0)
+                {
+                    /* Crown theft messages */
+                    if (target_state >= 4)
+                    {
+                        msg_print("Morgoth's rage shakes the very foundations of Angband!");
+                        msg_print("You have stolen his crown with all the Silmarils intact!");
+                    }
+                    else  // State 3
+                    {
+                        msg_print("Morgoth howls in rage - you have stolen his Iron Crown!");
+                    }
+                }
+                else if (sils > 0)
+                {
+                    /* Silmaril theft messages (without crown) */
+                    switch(sils)
+                    {
+                        case 1:
+                            msg_print("Morgoth roars with rage as he realizes a Silmaril is missing!");
+                            break;
+                        case 2:
+                            msg_print("Morgoth howls in fury - two Silmarils stolen!");
+                            break;
+                        case 3:
+                            msg_print("Morgoth's wrath is terrible - all Silmarils are gone!");
+                            break;
+                    }
+                }
+                
+                log_debug("do_cmd_go_up: calling anger_morgoth(%d)", target_state);
+                anger_morgoth(target_state);
+            }
         }
 
         // deal with trapped stairs when going upwards

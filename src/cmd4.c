@@ -460,8 +460,8 @@ void do_cmd_character_sheet(void)
 
 /* ------------------------------------------------------------------
  * add_random_curse()
- *   – Marks the item cursed
- *   – Gives it random negative modifiers
+ *   ï¿½ Marks the item cursed
+ *   ï¿½ Gives it random negative modifiers
  *   Compatible with SIL-QH object_type (no flags1/2/3 fields)
  * ------------------------------------------------------------------ */
 void add_random_curse(object_type *o_ptr)
@@ -470,7 +470,7 @@ void add_random_curse(object_type *o_ptr)
     o_ptr->ident |= IDENT_CURSED;
 
     /* 2. negative pval / attack / evasion */
-    if (o_ptr->pval > 0)  o_ptr->pval = -(rand_int(3) + 1); /* –1 … –3 */
+    if (o_ptr->pval > 0)  o_ptr->pval = -(rand_int(3) + 1); /* ï¿½1 ï¿½ ï¿½3 */
     if (o_ptr->att > 0) o_ptr->att = -(rand_int(3) + 1);
     if (o_ptr->evn > 0) o_ptr->evn = -(rand_int(3) + 1);
 
@@ -3756,9 +3756,9 @@ int object_difficulty(object_type* o_ptr)
 
     /* ------------------------------------------------------------------
      *  GAMIL house bonus
-     *  – Craft mithril items without mithril material
-     *  – Costs 3 forge uses instead of 1
-     *  – Mark item with TR3_CANT_MELT so the melt-menu ignores it
+     *  ï¿½ Craft mithril items without mithril material
+     *  ï¿½ Costs 3 forge uses instead of 1
+     *  ï¿½ Mark item with TR3_CANT_MELT so the melt-menu ignores it
      * ------------------------------------------------------------------ */
 
 
@@ -3767,8 +3767,8 @@ int object_difficulty(object_type* o_ptr)
         dif_mult -= 25;
 
     /*  FEANOR house bonus
-     *  – 40% off on all lamps
-     *  – 25% off on any fire- or light-branded object */
+     *  ï¿½ 40% off on all lamps
+     *  ï¿½ 25% off on any fire- or light-branded object */
     if (feanor_bonus)
     {
         /* 40% off on all lamps */
@@ -4268,14 +4268,14 @@ int object_difficulty(object_type* o_ptr)
         smithing_cost.mithril += o_ptr->weight;
     }
 
-   /* Gamil house bonus — override normal mithril cost */
-  if ((c_info[p_ptr->phouse].flags_u & UNQ_SMT_GAMIL)      /* you’re Gamil */
+   /* Gamil house bonus ï¿½ override normal mithril cost */
+  if ((c_info[p_ptr->phouse].flags_u & UNQ_SMT_GAMIL)      /* youï¿½re Gamil */
       && (k_ptr->flags3 & TR3_MITHRIL)                     /* item is mithril */
       && (mithril_carried() < smithing_cost.mithril))      /* no mithril on hand */
   {
       smithing_cost.uses    = MAX(smithing_cost.uses, 3);  /* cost 3 forge uses */
       smithing_cost.mithril = 0;                           /* waive material */
-      o_ptr->ident         |= IDENT_CANT_MELT;             /* can’t melt later */
+      o_ptr->ident         |= IDENT_CANT_MELT;             /* canï¿½t melt later */
   }
 
     // Apply the difficulty multiplier
@@ -5803,7 +5803,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
             if (smithing_flag_types[i].flag == TR1_SHARPNESS2 &&
                 !(c_info[p_ptr->phouse].flags_u & UNQ_SMT_TELCHAR))
             {
-                /* don’t even consider it */
+                /* donï¿½t even consider it */
                 continue;
             }
             flag[num] = smithing_flag_types[i].flag;
@@ -6674,7 +6674,7 @@ int melt_menu_aux(int* highlight)
 
         object_flags(o_ptr, &f1, &f2, &f3);
         
-        /* ignore mithril items that carry the “can’t melt” tag         */
+        /* ignore mithril items that carry the ï¿½canï¿½t meltï¿½ tag         */
         if ((f3 & TR3_MITHRIL) && !(o_ptr->ident & IDENT_CANT_MELT))
 
         {
@@ -7287,7 +7287,7 @@ void create_smithing_item(void)
         /* New escape-curse: smithing can back-fire               */
         /* ------------------------------------------------------ */
         {
-            int stacks = curse_flag_count(CUR_SMITHCURSE);          /* 0-3 */
+            int stacks = curse_flag_count_cur(CUR_SMITHCURSE);          /* 0-3 */
             if (stacks &&            /* must have the curse          */
                 !(smith_o_ptr->ident & IDENT_CURSED) &&             /* not already */
                 (smith_o_ptr->tval != TV_LIGHT))                    /* skip torches */
@@ -8347,12 +8347,317 @@ static errr option_dump(cptr fname)
     return (0);
 }
 
+/*
+ * Display and manage SDL pane settings
+ * Interactive menu to edit SDL configuration
+ */
+void do_cmd_pane_settings(void)
+{
+#ifdef USE_SDL
+    int k = 0;
+    int n = 7; /* Total number of options (not including save/quit) */
+    bool done = false;
+    bool settings_changed = false;
+    int dir;
+    
+    /* Save screen */
+    screen_save();
+    
+    while (!done)
+    {
+        /* Clear screen */
+        Term_clear();
+        
+        /* Display title */
+        Term_putstr(2, 1, -1, TERM_L_BLUE, "SDL Pane Settings");
+        
+        /* Display current settings */
+        char buf[80];
+        int y = 3;
+        byte a;
+        
+        /* Option 0: Main View Scale */
+        a = (k == 0) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(buf, sizeof(buf), "%-48s: %d", "Main View Scale (1-10)", get_sdl_main_view_scale());
+        c_prt(a, buf, y++, 2);
+        
+        /* Option 1: Aux View Font Size */
+        a = (k == 1) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(buf, sizeof(buf), "%-48s: %d", "Aux View Font Size (8-48)", get_sdl_aux_view_font_size());
+        c_prt(a, buf, y++, 2);
+        
+        /* Option 2: Margin */
+        a = (k == 2) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(buf, sizeof(buf), "%-48s: %d", "Margin (0-20)", get_sdl_margin());
+        c_prt(a, buf, y++, 2);
+        
+        /* Option 3: Fullscreen */
+        a = (k == 3) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(buf, sizeof(buf), "%-48s: %s", "Fullscreen", get_sdl_fullscreen() ? "yes" : "no ");
+        c_prt(a, buf, y++, 2);
+        
+        /* Option 4: Tiles */
+        a = (k == 4) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(buf, sizeof(buf), "%-48s: %s", "Tiles", get_sdl_tiles() ? "yes" : "no ");
+        c_prt(a, buf, y++, 2);
+        
+        y++; /* Blank line */
+        
+        /* Option 5: View Pane Configuration */
+        a = (k == 5) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(buf, sizeof(buf), "View Pane Configuration (%d panes)", get_pane_config_count());
+        c_prt(a, buf, y++, 2);
+        
+        y++; /* Blank line */
+        
+        /* Option 6: Save/Quit */
+        a = (k == 6) ? TERM_L_BLUE : TERM_WHITE;
+        if (settings_changed)
+        {
+            c_prt(a, "Save Changes and Return", y++, 2);
+        }
+        else
+        {
+            c_prt(a, "Return to Options Menu", y++, 2);
+        }
+        
+        /* Display help */
+        y = Term->hgt - 3;
+        if (settings_changed)
+        {
+            Term_putstr(2, y++, -1, TERM_YELLOW, "Settings changed - they will be saved to sil_sdl.json.");
+            Term_putstr(2, y++, -1, TERM_YELLOW, "Restart the game for changes to take effect.");
+        }
+        Term_putstr(2, y++, -1, TERM_SLATE, "(direction keys to set, Return/Escape to accept)");
+        
+        /* Hilite current option */
+        move_cursor(k + 3, 52);
+        
+        /* Get key */
+        hide_cursor = true;
+        char ch = inkey();
+        hide_cursor = false;
+        
+        /* Try to translate the key into a direction */
+        dir = target_dir(ch);
+        if ((dir == 2) || (dir == 4) || (dir == 6) || (dir == 8))
+            ch = I2D(dir);
+        
+        /* Process input */
+        switch (ch)
+        {
+        case ESCAPE:
+        case '\n':
+        case '\r':
+        {
+            /* Save if changed, then exit */
+            if (settings_changed)
+            {
+                if (save_pane_config_to_json())
+                {
+                    msg_print("Settings saved to sil_sdl.json");
+                    msg_print("Restart the game for changes to take effect.");
+                }
+            }
+            done = true;
+            break;
+        }
+        
+        case '-':
+        case '8':
+        {
+            /* Move up */
+            k = (n + k - 1) % n;
+            break;
+        }
+        
+        case '2':
+        {
+            /* Move down */
+            k = (k + 1) % n;
+            break;
+        }
+        
+        case 't':
+        case '5':
+        case ' ':
+        {
+            /* Toggle or activate current option */
+            if (k == 3) /* Fullscreen */
+            {
+                set_sdl_fullscreen(!get_sdl_fullscreen());
+                settings_changed = true;
+            }
+            else if (k == 4) /* Tiles */
+            {
+                set_sdl_tiles(!get_sdl_tiles());
+                settings_changed = true;
+            }
+            else if (k == 5) /* View Pane Configuration */
+            {
+                char pane_info[8192];
+                get_sdl_config_info(pane_info, sizeof(pane_info));
+                
+                screen_save();
+                Term_clear();
+                Term_putstr(2, 1, -1, TERM_L_BLUE, "Pane Configuration Details");
+                Term_putstr(2, 2, -1, TERM_WHITE, "==========================");
+                
+                int py = 4;
+                char* pline = strtok(pane_info, "\n");
+                while (pline != NULL && py < Term->hgt - 3)
+                {
+                    byte color = TERM_WHITE;
+                    if (strstr(pline, "===") != NULL)
+                        color = TERM_YELLOW;
+                    else if (strstr(pline, "Pane ") == pline)
+                        color = TERM_L_GREEN;
+                    
+                    Term_putstr(2, py++, -1, color, pline);
+                    pline = strtok(NULL, "\n");
+                }
+                
+                Term_putstr(2, Term->hgt - 2, -1, TERM_SLATE, "Edit sil_sdl.json manually to change pane layout.");
+                Term_putstr(2, Term->hgt - 1, -1, TERM_L_BLUE, "Press any key to return...");
+                (void)inkey();
+                screen_load();
+            }
+            else if (k == 6) /* Save/Return */
+            {
+                if (settings_changed)
+                {
+                    if (save_pane_config_to_json())
+                    {
+                        msg_print("Settings saved to sil_sdl.json");
+                        msg_print("Restart the game for changes to take effect.");
+                    }
+                }
+                done = true;
+            }
+            break;
+        }
+        
+        case 'y':
+        case '6':
+        {
+            /* Increase value or set to yes */
+            int val;
+            
+            if (k == 0) /* Main View Scale */
+            {
+                val = get_sdl_main_view_scale();
+                if (val < 10)
+                {
+                    set_sdl_main_view_scale(val + 1);
+                    settings_changed = true;
+                }
+            }
+            else if (k == 1) /* Aux View Font Size */
+            {
+                val = get_sdl_aux_view_font_size();
+                if (val < 48)
+                {
+                    set_sdl_aux_view_font_size(val + 1);
+                    settings_changed = true;
+                }
+            }
+            else if (k == 2) /* Margin */
+            {
+                val = get_sdl_margin();
+                if (val < 20)
+                {
+                    set_sdl_margin(val + 1);
+                    settings_changed = true;
+                }
+            }
+            else if (k == 3) /* Fullscreen */
+            {
+                set_sdl_fullscreen(true);
+                settings_changed = true;
+            }
+            else if (k == 4) /* Tiles */
+            {
+                set_sdl_tiles(true);
+                settings_changed = true;
+            }
+            break;
+        }
+        
+        case 'n':
+        case '4':
+        {
+            /* Decrease value or set to no */
+            int val;
+            
+            if (k == 0) /* Main View Scale */
+            {
+                val = get_sdl_main_view_scale();
+                if (val > 1)
+                {
+                    set_sdl_main_view_scale(val - 1);
+                    settings_changed = true;
+                }
+            }
+            else if (k == 1) /* Aux View Font Size */
+            {
+                val = get_sdl_aux_view_font_size();
+                if (val > 8)
+                {
+                    set_sdl_aux_view_font_size(val - 1);
+                    settings_changed = true;
+                }
+            }
+            else if (k == 2) /* Margin */
+            {
+                val = get_sdl_margin();
+                if (val > 0)
+                {
+                    set_sdl_margin(val - 1);
+                    settings_changed = true;
+                }
+            }
+            else if (k == 3) /* Fullscreen */
+            {
+                set_sdl_fullscreen(false);
+                settings_changed = true;
+            }
+            else if (k == 4) /* Tiles */
+            {
+                set_sdl_tiles(false);
+                settings_changed = true;
+            }
+            break;
+        }
+        
+        default:
+        {
+            bell("Illegal command for pane settings!");
+            break;
+        }
+        }
+    }
+    
+    /* Restore screen */
+    screen_load();
+#else
+    /* Not using SDL */
+    screen_save();
+    Term_clear();
+    Term_putstr(2, 1, -1, TERM_L_BLUE, "SDL Pane Settings");
+    Term_putstr(2, 3, -1, TERM_WHITE, "This feature is only available in SDL builds.");
+    Term_putstr(2, 5, -1, TERM_L_BLUE, "Press any key to return...");
+    (void)inkey();
+    screen_load();
+#endif
+}
+
+
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 11;
+    int options = 12;
     #ifdef DEBUG_CURSES
-    options = 12;
+    options = 13;
     #endif
     if (p_ptr->noscore)    
         options++;
@@ -8360,32 +8665,34 @@ int options_menu(int* highlight)
     Term_putstr(2, 1, -1, TERM_WHITE, "Options and misc");
 
     Term_putstr(2, 3, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) Interface Options");
+        "a) Pane Settings");
     Term_putstr(2, 4, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) Visual Options");
+        "b) Interface Options");
     Term_putstr(2, 5, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Challenge Options");
+        "c) Visual Options");
     Term_putstr(2, 6, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) Load a 'Pref' File");
+        "d) Challenge Options");
     Term_putstr(2, 7, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Append Options to a 'Pref' File");
+        "e) Load a 'Pref' File");
     Term_putstr(2, 8, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Set Macros");
+        "f) Append Options to a 'Pref' File");
     Term_putstr(2, 9, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Set Colours");
+        "g) Set Macros");
     Term_putstr(2, 10, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Write a note");
+        "h) Set Colours");
     Term_putstr(2, 11, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Take HTML screenshot");
+        "i) Write a note");
     Term_putstr(2, 12, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "j) Sil version info");
+        "j) Take HTML screenshot");
     Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "k) Return to Game");
+        "k) Sil version info");
+    Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
+        "l) Return to Game");
 
     if (p_ptr->noscore)
     {
-        Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-            "l) Debugging Options");
+        Term_putstr(2, 15, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
+            "m) Debugging Options");
     }
 
     /* Flush the prompt */
@@ -8459,16 +8766,22 @@ int options_menu(int* highlight)
         return (10);
     }
 
-    if ((ch == 'k') || (ch == 'K') || (ch == ESCAPE) || (ch == 'q'))
+    if ((ch == 'k') || (ch == 'K'))
     {
         *highlight = 11;
         return (11);
     }
 
-    if ((ch == 'l') || (ch == 'L'))
+    if ((ch == 'l') || (ch == 'L') || (ch == ESCAPE) || (ch == 'q'))
     {
         *highlight = 12;
         return (12);
+    }
+
+    if ((ch == 'm') || (ch == 'M'))
+    {
+        *highlight = 13;
+        return (13);
     }
 
     /* Choose current  */
@@ -8522,30 +8835,36 @@ void do_cmd_options(void)
         {
         case 1:
         {
-            do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
+            do_cmd_pane_settings();
             Term_clear();
             break;
         }
         case 2:
         {
-            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
+            do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
             Term_clear();
             break;
         }
         case 3:
         {
-            do_cmd_options_aux(CHALLENGE_PAGE, "Challenge Options");
+            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
             Term_clear();
             break;
         }
         case 4:
+        {
+            do_cmd_options_aux(CHALLENGE_PAGE, "Challenge Options");
+            Term_clear();
+            break;
+        }
+        case 5:
         {
             /* Ask for and load a user pref file */
             do_cmd_pref_file_hack(12);
             Term_clear();
             break;
         }
-        case 5:
+        case 6:
         {
             /* Prompt */
             Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
@@ -8578,25 +8897,25 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 6:
+        case 7:
         {
             do_cmd_macros();
             Term_clear();
             break;
         }
-        case 7:
+        case 8:
         {
             do_cmd_colors();
             Term_clear();
             break;
         }
-        case 8:
+        case 9:
         {
             do_cmd_note("", p_ptr->depth);
             Term_clear();
             break;
         }
-        case 9:
+        case 10:
         {
             char tmp_val[80];
             /* Prompt */
@@ -8611,19 +8930,19 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 10:
+        case 11:
         {
             do_cmd_version();
             Term_clear();
             break;
         }
-        case 11:
+        case 12:
         {
             return_to_game = true;
             Term_clear();
             break;
         }
-        case 12:
+        case 13:
         {
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");
             Term_clear();
@@ -14036,7 +14355,7 @@ static void sidebar_compact_name(const char* src, int max_len, char* dest, size_
  */
 void show_unified_sidebar(unified_look_state* state)
 {
-    int sidebar_col = 50; /* Right side of screen */
+    int sidebar_col = 0; /* Left side of screen - column 0 */
     int line = 1;
     int i;
     int monster_count = 0;
@@ -14047,7 +14366,6 @@ void show_unified_sidebar(unified_look_state* state)
     entity_char[1] = '\0';
     static int previous_line_count = 0; /* Track previous display size */
     static int prev_name_len[256];
-    static int prev_weight_len[256];
     const int prev_array_capacity = (int)(sizeof(prev_name_len) / sizeof(prev_name_len[0]));
 
     
@@ -14068,10 +14386,8 @@ void show_unified_sidebar(unified_look_state* state)
     if (name_width < 4) name_width = 4; /* minimum name width */
     
     /* Calculate exact positions */
-    int pictogram_col = sidebar_col + 1;
-    int name_col = sidebar_col + 3;  /* Keep name at original position */
-    int health_col = name_col + name_width + 1;
-    int morale_col = health_col + 8 + 1;
+    int pictogram_col = sidebar_col;
+    int name_col = sidebar_col + 2;  /* Name starts right after pictogram (at column 2) */
     
     /* Prepare clearing string */
     clear_width = Term->wid - (sidebar_col - 1);
@@ -14093,7 +14409,7 @@ void show_unified_sidebar(unified_look_state* state)
     if (state->show_monsters)
     {
         log_trace("show_unified_sidebar: displaying MONSTERS header at line %d", line);
-        prt("MONSTERS:", line++, sidebar_col);
+        c_put_str(TERM_WHITE, "MONSTERS:", line++, sidebar_col);
         
         /* Get monster list */
         get_sorted_target_list(TARGET_LIST_MONSTER, 0);
@@ -14116,9 +14432,8 @@ void show_unified_sidebar(unified_look_state* state)
             /* Generate monster name without articles using race name function */
             monster_desc_race(m_name, sizeof(m_name), m_ptr->r_idx);
             
-            /* Create HP bar with asterisks and health color (like health_redraw) */
+            /* Create HP bar with asterisks */
             int hp_len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
-            byte health_color = health_attr(m_ptr->hp, m_ptr->maxhp);
             char hp_bar[10];
             
             /* Build health bar with status indicators */
@@ -14172,50 +14487,50 @@ void show_unified_sidebar(unified_look_state* state)
             /* Use pictogram (tile) appropriate for graphics mode */
             entity_char[0] = monster_char(r_ptr);
             
-            /* Truncate monster name to fit available width */
+            /* Build the complete display string: name + health + morale */
+            char display_name[128];
+            char hp_display[12];
+            char morale_display[6];
+            
+            /* Format health and morale as compact strings */
+            strnfmt(hp_display, sizeof(hp_display), " %s", hp_bar);
+            strnfmt(morale_display, sizeof(morale_display), " %s", morale_text);
+            
+            /* Calculate available width for the whole line */
+            int available_width = term_wid - name_col - 2;
+            if (available_width < 10) available_width = 10;
+            
+            int hp_display_len = (int)strlen(hp_display);
+            int morale_display_len = (int)strlen(morale_display);
+            int max_name_len = available_width - hp_display_len - morale_display_len;
+            if (max_name_len < 4) max_name_len = 4;
+            if (max_name_len > (int)sizeof(display_name) - hp_display_len - morale_display_len - 1)
+                max_name_len = (int)sizeof(display_name) - hp_display_len - morale_display_len - 1;
+            
+            /* Truncate monster name if needed */
             char truncated_name[80];
-            memset(truncated_name, 0, sizeof(truncated_name)); /* Clear entire buffer first */
+            memset(truncated_name, 0, sizeof(truncated_name));
             my_strcpy(truncated_name, m_name, sizeof(truncated_name));
-            int original_name_len = strlen(truncated_name);
-            if (strlen(truncated_name) > name_width) {
-                truncated_name[name_width] = '\0';
-            }
-            int final_name_len = strlen(truncated_name);
-            
-            /* BIGTILE FIX: If using bigtile and name length is odd, add space to make it even */
-            if (use_bigtile && (final_name_len % 2 == 1) && (final_name_len + 1 <= name_width)) {
-                strcat(truncated_name, " ");
-                final_name_len = strlen(truncated_name);
-                log_debug("BIGTILE FIX: Added space to monster name '%s', new length=%d", truncated_name, final_name_len);
+            if (strlen(truncated_name) > (size_t)max_name_len) {
+                truncated_name[max_name_len] = '\0';
             }
             
-            /* Log all the layout details */
-            log_debug("SIDEBAR LAYOUT: term_wid=%d, sidebar_col=%d", term_wid, sidebar_col);
-            log_debug("SIDEBAR LAYOUT: available_width=%d, name_width=%d", available_width, name_width);
-            log_debug("SIDEBAR LAYOUT: monster='%s', original_len=%d, final_len=%d", truncated_name, original_name_len, final_name_len);
-            log_debug("SIDEBAR LAYOUT: pictogram_col=%d, name_col=%d, health_col=%d, morale_col=%d", pictogram_col, name_col, health_col, morale_col);
-            log_debug("SIDEBAR LAYOUT: use_bigtile=%d", use_bigtile);
+            /* Build complete display string: name + health (without morale) */
+            my_strcpy(display_name, truncated_name, sizeof(display_name));
+            my_strcat(display_name, hp_display, sizeof(display_name));
             
-            /* Create padded health bar (8 chars) */
-            char padded_hp_bar[10];
-            strnfmt(padded_hp_bar, sizeof(padded_hp_bar), "%-8s", hp_bar);
+            int name_hp_len = strlen(display_name);
+            int final_name_len = name_hp_len + morale_display_len;
             
-            /* Create padded morale text (3 chars) */
-            char padded_morale[5];
-            strnfmt(padded_morale, sizeof(padded_morale), "%-3s", morale_text);
+            /* BIGTILE FIX: If using bigtile and final length is odd, add space */
+            bool needs_bigtile_pad = false;
+            if (use_bigtile && (final_name_len % 2 == 1)) {
+                needs_bigtile_pad = true;
+                final_name_len++;
+            }
             
-            /* Add comprehensive logging for exact character analysis */
-            log_debug("CHAR ANALYSIS: monster='%s'", m_name);
-            log_debug("CHAR ANALYSIS: original_len=%d, name_width=%d", (int)strlen(m_name), name_width);
-            log_debug("CHAR ANALYSIS: truncated_name='%s', strlen=%d", truncated_name, (int)strlen(truncated_name));
-            log_debug("CHAR ANALYSIS: padded_hp_bar='%s', strlen=%d", padded_hp_bar, (int)strlen(padded_hp_bar));
-            log_debug("CHAR ANALYSIS: morale_text='%s', strlen=%d", morale_text, (int)strlen(morale_text));
-            log_debug("CHAR ANALYSIS: padded_morale='%s', strlen=%d", padded_morale, (int)strlen(padded_morale));
-            
-            /* Log exact column positions for each character */
-            log_debug("POSITION: name_col=%d, name_width=%d, name_end_col=%d", name_col, name_width, name_col + name_width - 1);
-            log_debug("POSITION: health_col=%d, health_width=8, health_end_col=%d", health_col, health_col + 8 - 1);
-            log_debug("POSITION: morale_col=%d, morale_width=3, morale_end_col=%d", morale_col, morale_col + 3 - 1);
+            /* Calculate column for morale display */
+            int morale_col = name_col + name_hp_len;
             
             /* Highlight if selected with cursor-style highlighting only */
             bool highlight_this_monster = (state->in_sidebar_mode && state->selected_entity == monster_count);
@@ -14224,42 +14539,26 @@ void show_unified_sidebar(unified_look_state* state)
             {
                 log_trace("Highlighting monster %d at (%d,%d)", monster_count, temp_y[i], temp_x[i]);
                 
-                /* Clear only the exact areas where text will be displayed */
+                /* Clear only the exact area where text will be displayed */
                 Term_erase(pictogram_col, line, 2);  /* Clear pictogram area (1-2 chars) */
-                Term_erase(name_col, line, final_name_len);  /* Clear only actual name length */
-                Term_erase(health_col, line, 8);  /* Clear health bar area */
-                Term_erase(morale_col, line, 3);  /* Clear morale area */
                 
                 /* Show pictogram in natural color */
-                log_debug("SIDEBAR DISPLAY: Placing pictogram '%c' at col %d", entity_char[0], pictogram_col);
                 c_put_str(monster_attr(r_ptr), entity_char, line, pictogram_col);
                 if (use_bigtile)
                 {
-                    log_debug("SIDEBAR DISPLAY: Placing bigtile at col %d", sidebar_col + 2);
-                    Term_putch(sidebar_col + 2, line, 255, -1);
+                    Term_putch(pictogram_col + 1, line, 255, -1);
                 }
                 
-                /* Log what we're about to display */
-                log_debug("DISPLAY (highlighted): name='%s' at col %d with width %d", truncated_name, name_col, name_width);
-                log_debug("DISPLAY (highlighted): health='%s' at col %d", padded_hp_bar, health_col);
-                log_debug("DISPLAY (highlighted): morale='%s' at col %d", padded_morale, morale_col);
+                /* Display name+health in highlighted color */
+                Term_putstr(name_col, line, name_hp_len, TERM_L_BLUE, display_name);
                 
-                /* Display name, health bar, and morale */
-                Term_putstr(name_col, line, final_name_len, TERM_L_BLUE, truncated_name);
-                Term_putstr(health_col, line, 8, health_color, padded_hp_bar);
-                Term_putstr(morale_col, line, 3, morale_color, padded_morale);
+                /* Display morale in highlighted color (overrides morale_color when highlighted) */
+                Term_putstr(morale_col, line, morale_display_len, TERM_L_BLUE, morale_display);
                 
-                /* Log what was actually displayed */
-                log_debug("DISPLAYED (highlighted): Term_putstr(%d, %d, %d, TERM_L_BLUE, '%s')", name_col, line, final_name_len, truncated_name);
-                log_debug("DISPLAYED (highlighted): Term_putstr(%d, %d, 8, health_color, '%s') - LIMITED LENGTH!", health_col, line, padded_hp_bar);
-                log_debug("DISPLAYED (highlighted): Term_putstr(%d, %d, 3, morale_color, '%s') - LIMITED LENGTH!", morale_col, line, padded_morale);
-                
-                /* Log the exact bytes of the truncated_name string */
-                log_debug("STRING BYTES (highlighted): truncated_name length=%d", (int)strlen(truncated_name));
-                for (int b = 0; b < name_width && b < 40; b++) {
-                    char c = truncated_name[b];  /* Read actual character at position b */
-                    log_debug("STRING BYTES (highlighted): [%d] = '%c' (0x%02x)", b, (c >= 32 && c < 127) ? c : '?', (unsigned char)c);
-                    if (c == '\0') break;  /* Stop at null terminator */
+                /* Add bigtile padding if needed */
+                if (needs_bigtile_pad)
+                {
+                    Term_putstr(morale_col + morale_display_len, line, 1, TERM_L_BLUE, " ");
                 }
                 
                 /* Update highlighted position and cursor */
@@ -14272,42 +14571,26 @@ void show_unified_sidebar(unified_look_state* state)
             }
             else
             {
-                /* Clear only the exact areas where text will be displayed */
+                /* Clear only the exact area where text will be displayed */
                 Term_erase(pictogram_col, line, 2);  /* Clear pictogram area (1-2 chars) */
-                Term_erase(name_col, line, final_name_len);  /* Clear only actual name length */
-                Term_erase(health_col, line, 8);  /* Clear health bar area */
-                Term_erase(morale_col, line, 3);  /* Clear morale area */
                 
-                /* Normal display - show pictogram, name, HP and morale with proper colors */
-                log_debug("SIDEBAR DISPLAY (normal): Placing pictogram '%c' at col %d", entity_char[0], pictogram_col);
+                /* Normal display - show pictogram and name with proper colors */
                 c_put_str(monster_attr(r_ptr), entity_char, line, pictogram_col);
                 if (use_bigtile)
                 {
-                    log_debug("SIDEBAR DISPLAY (normal): Placing bigtile at col %d", sidebar_col + 2);
-                    Term_putch(sidebar_col + 2, line, 255, -1);
+                    Term_putch(pictogram_col + 1, line, 255, -1);
                 }
                 
-                /* Log what we're about to display */
-                log_debug("DISPLAY (normal): name='%s' at col %d with width %d", truncated_name, name_col, name_width);
-                log_debug("DISPLAY (normal): health='%s' at col %d", padded_hp_bar, health_col);
-                log_debug("DISPLAY (normal): morale='%s' at col %d", padded_morale, morale_col);
+                /* Display name+health in white */
+                Term_putstr(name_col, line, name_hp_len, TERM_WHITE, display_name);
                 
-                /* Display name, health bar, and morale */
-                Term_putstr(name_col, line, final_name_len, TERM_WHITE, truncated_name);
-                Term_putstr(health_col, line, 8, health_color, padded_hp_bar);
-                Term_putstr(morale_col, line, 3, morale_color, padded_morale);
+                /* Display morale in its proper color */
+                Term_putstr(morale_col, line, morale_display_len, morale_color, morale_display);
                 
-                /* Log what was actually displayed */
-                log_debug("DISPLAYED (normal): Term_putstr(%d, %d, %d, TERM_WHITE, '%s')", name_col, line, final_name_len, truncated_name);
-                log_debug("DISPLAYED (normal): Term_putstr(%d, %d, 8, health_color, '%s') - LIMITED LENGTH!", health_col, line, padded_hp_bar);
-                log_debug("DISPLAYED (normal): Term_putstr(%d, %d, 3, morale_color, '%s') - LIMITED LENGTH!", morale_col, line, padded_morale);
-                
-                /* Log the exact bytes of the truncated_name string */
-                log_debug("STRING BYTES (normal): truncated_name length=%d", (int)strlen(truncated_name));
-                for (int b = 0; b < name_width && b < 40; b++) {
-                    char c = truncated_name[b];  /* Read actual character at position b */
-                    log_debug("STRING BYTES (normal): [%d] = '%c' (0x%02x)", b, (c >= 32 && c < 127) ? c : '?', (unsigned char)c);
-                    if (c == '\0') break;  /* Stop at null terminator */
+                /* Add bigtile padding if needed */
+                if (needs_bigtile_pad)
+                {
+                    Term_putstr(morale_col + morale_display_len, line, 1, TERM_WHITE, " ");
                 }
             }
             
@@ -14319,7 +14602,7 @@ void show_unified_sidebar(unified_look_state* state)
     /* Show objects section */
     if (state->show_objects)
     {
-        prt("OBJECTS:", line++, sidebar_col);
+        c_put_str(TERM_WHITE, "OBJECTS:    ", line++, sidebar_col);  /* 12 characters total */
         
         /* Get object list */
         get_sorted_target_list(TARGET_LIST_OBJECT, 0);
@@ -14348,6 +14631,10 @@ void show_unified_sidebar(unified_look_state* state)
                 continue;
 
             object_type* o_ptr = &o_list[o_idx];
+
+            /* Only show marked (memorized) objects that the player has actually seen */
+            if (!o_ptr->marked)
+                continue;
 
             if ((o_ptr->tval == TV_ARROW) && (o_ptr->number < 10))
                 continue;
@@ -14437,7 +14724,8 @@ void show_unified_sidebar(unified_look_state* state)
             object_desc(o_name, sizeof(o_name), o_ptr, false, 4);
 
             my_strcpy(name_source, o_name, sizeof(name_source));
-            if (entry->is_artifact)
+            /* Only show asterisk for artifacts that are identified */
+            if (entry->is_artifact && object_known_p(o_ptr))
             {
                 size_t len = strlen(name_source);
                 if (len + 1 < sizeof(name_source))
@@ -14453,34 +14741,31 @@ void show_unified_sidebar(unified_look_state* state)
 
             int weight_total = o_ptr->weight * o_ptr->number;
             char weight_buf[16];
-            strnfmt(weight_buf, sizeof(weight_buf), "%3d.%1d lb", weight_total / 10, weight_total % 10);
+            strnfmt(weight_buf, sizeof(weight_buf), " %d.%1d", weight_total / 10, weight_total % 10);
 
-            int max_weight_width = (morale_col + 3) - health_col;
-            if (max_weight_width < 1) max_weight_width = 1;
-            const char* weight_text = weight_buf;
+            /* Calculate available width for name + weight */
+            int available_name_width = term_wid - name_col - 2; /* Leave some margin */
+            if (available_name_width < 10) available_name_width = 10;
+            
             int weight_len = (int)strlen(weight_buf);
-            if (weight_len > max_weight_width)
-            {
-                weight_text += weight_len - max_weight_width;
-                weight_len = max_weight_width;
-            }
-            int weight_col = morale_col + 3 - weight_len;
-            if (weight_col < health_col) weight_col = health_col;
+            int max_name_len = available_name_width - weight_len - 1; /* Reserve space for weight */
+            if (max_name_len < 4) max_name_len = 4;
 
             char display_name[128];
-            int gap_to_weight = weight_col - name_col;
-            int max_name_len = (gap_to_weight > 1) ? gap_to_weight - 1 : 1;
-            if (max_name_len < 1) max_name_len = 1;
-            if (max_name_len > (int)sizeof(display_name) - 1) max_name_len = (int)sizeof(display_name) - 1;
+            if (max_name_len > (int)sizeof(display_name) - weight_len - 1) 
+                max_name_len = (int)sizeof(display_name) - weight_len - 1;
 
             sidebar_compact_name(name_source, max_name_len, display_name, sizeof(display_name));
+            
+            /* Append weight right after name */
+            my_strcat(display_name, weight_buf, sizeof(display_name));
             int final_name_len = (int)strlen(display_name);
             int original_name_len = (int)strlen(name_source);
             bool shortened = (original_name_len != final_name_len) || (original_name_len > max_name_len);
-            log_debug("sidebar object: idx=%d name='%s' compact='%s' color=%d orig_len=%d compact_len=%d max_len=%d gap=%d weight_col=%d name_col=%d weight_len=%d shortened=%d",
-                entry->o_idx, name_source, display_name, base_color, original_name_len, final_name_len, max_name_len, gap_to_weight, weight_col, name_col, weight_len, shortened ? 1 : 0);
+            log_debug("sidebar object: idx=%d name='%s' compact='%s' color=%d orig_len=%d compact_len=%d max_len=%d name_col=%d weight_len=%d shortened=%d",
+                entry->o_idx, name_source, display_name, base_color, original_name_len, final_name_len, max_name_len, name_col, weight_len, shortened ? 1 : 0);
 
-            if (use_bigtile && (final_name_len % 2 == 1) && (final_name_len < gap_to_weight) && (final_name_len + 1 < (int)sizeof(display_name)))
+            if (use_bigtile && (final_name_len % 2 == 1) && (final_name_len + 1 < (int)sizeof(display_name)))
             {
                 display_name[final_name_len++] = ' ';
                 display_name[final_name_len] = '\0';
@@ -14504,38 +14789,23 @@ void show_unified_sidebar(unified_look_state* state)
                 }
             }
 
-            int old_weight_len = prev_weight_len[row_index];
-            if (old_weight_len > weight_len)
-            {
-                int diff = old_weight_len - weight_len;
-                if (diff > 0)
-                {
-                    char blank[32];
-                    if (diff >= (int)sizeof(blank)) diff = (int)sizeof(blank) - 1;
-                    memset(blank, ' ', diff);
-                    blank[diff] = '\0';
-                    Term_putstr(weight_col + weight_len, line, diff, TERM_WHITE, blank);
-                }
-            }
-
             bool highlight_this_object = (state->in_sidebar_mode && state->selected_entity == (object_start + object_count));
 
             byte name_attr = highlight_this_object ? TERM_L_BLUE : base_color;
-            byte weight_attr = highlight_this_object ? TERM_L_BLUE : base_color;
 
             if (highlight_this_object)
             {
                 log_trace("Highlighting object %d at (%d,%d)", object_start + object_count, entry->y, entry->x);
 
                 Term_erase(pictogram_col, line, 2);
+                
+                c_put_str(object_attr(o_ptr), entity_char, line, pictogram_col);
                 if (use_bigtile)
                 {
-                    Term_putch(sidebar_col + 2, line, 255, -1);
+                    Term_putch(pictogram_col + 1, line, 255, -1);
                 }
-
-                c_put_str(object_attr(o_ptr), entity_char, line, sidebar_col + 1);
+                
                 Term_putstr(name_col, line, final_name_len, name_attr, display_name);
-                Term_putstr(weight_col, line, weight_len, weight_attr, weight_text);
 
                 state->highlighted_y = entry->y;
                 state->highlighted_x = entry->x;
@@ -14547,24 +14817,23 @@ void show_unified_sidebar(unified_look_state* state)
             else
             {
                 Term_erase(pictogram_col, line, 2);
+                
+                c_put_str(object_attr(o_ptr), entity_char, line, pictogram_col);
                 if (use_bigtile)
                 {
-                    Term_putch(sidebar_col + 2, line, 255, -1);
+                    Term_putch(pictogram_col + 1, line, 255, -1);
                 }
-                c_put_str(object_attr(o_ptr), entity_char, line, sidebar_col + 1);
+                
                 Term_putstr(name_col, line, final_name_len, name_attr, display_name);
-                Term_putstr(weight_col, line, weight_len, weight_attr, weight_text);
             }
 
             prev_name_len[row_index] = final_name_len;
-            prev_weight_len[row_index] = weight_len;
 
             line++;
             object_count++;
         for (int idx = line; idx < prev_array_capacity && idx <= previous_line_count; ++idx)
         {
             prev_name_len[idx] = 0;
-            prev_weight_len[idx] = 0;
         }
 
         }

@@ -6,8 +6,10 @@
 - Game data is text-first under `lib/edit/`; parser changes usually touch `init2.c` and `files.c`.
 
 ## Build & Run
-- Preferred toolchain: Cygwin + mingw32. Run builds from `src/` using `C:\\Soft\\Cygwin\\bin\\bash.exe -lc "cd /cygdrive/c/Users/efrem/Documents/GitHub/sil-qh/src && make -f Makefile.cyg -j8"` (VS Code's external terminal already launches this shell).
-- Launch the latest build with `make -f Makefile.cyg launch`; executables expect to start in the repo root so `lib/` lookups succeed.
+- **SDL3 builds (recommended)**: Use `build-cmake.bat` from the repo root. This builds to `build/sil-more.exe` and deploys to `sil-more-windows-sdl3/` with all dependencies.
+- **Legacy Win32 builds**: Run from `src/` using `C:\\Soft\\Cygwin\\bin\\bash.exe -lc "cd /cygdrive/c/Users/efrem/Documents/GitHub/sil-qh/src && make -f Makefile.cyg -j8"` (VS Code's external terminal already launches this shell).
+- Launch SDL3 build with `sil-more-windows-sdl3/run.bat`; Win32 build with `make -f Makefile.cyg launch` from `src/`.
+- Executables expect to start in the repo root so `lib/` lookups succeed.
 - Ensure the Cygwin login shell keeps `/usr/bin:/bin` ahead of `PATH` (VS Code terminal profile already exports this).
 
 ## Key Systems (2025-09)
@@ -22,7 +24,10 @@
 
 ## Data, Saves & Logs
 - Metarun save backup moves files into timestamped folders like `lib/save/saves_metarun_YYYYMMDD_HHMMSS/`; never revert to the tar-based system.
-- `log.txt` appears wherever you launched the executable (repo root vs `src/`); check the right folder when inspecting traces.
+- **Log file locations**:
+  - SDL3 builds: `sil-more-windows-sdl3/log.txt` (deployment directory)
+  - Win32 builds: `log.txt` in repo root or `src/` depending on launch location
+  - Always check the appropriate location when debugging.
 
 ## UX & Gameplay Guardrails
 - Do not hard-code offsets: reuse `show_inven()` and `show_equip()` calculations for columns and highlights.

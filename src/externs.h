@@ -316,6 +316,7 @@ extern bool cave_valid_bold(int y, int x);
 extern bool feat_supports_lighting(int feat);
 extern void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp);
 extern void map_info_default(int y, int x, byte* ap, char* cp);
+extern int player_tile_offset(void);
 extern void move_cursor_relative(int y, int x);
 extern void print_rel(char c, byte a, int y, int x);
 extern void note_spot(int y, int x);
@@ -564,6 +565,7 @@ extern void do_cmd_message_one(void);
 extern void do_cmd_messages(void);
 extern void do_cmd_options_aux(int page, cptr info);
 extern void do_cmd_options(void);
+extern void do_cmd_pane_settings(void);
 extern void do_cmd_pref(void);
 extern void do_cmd_macros(void);
 extern void do_cmd_visuals(void);
@@ -652,6 +654,7 @@ extern void signals_init(void);
 extern void mini_screenshot(void);
 extern void prt_mini_screenshot(int col, int row);
 extern int silmarils_possessed(void);
+extern int has_iron_crown(void);
 extern FILE* highscore_fd;
 extern int meta_write(const metarun*);
 extern errr meta_read(metarun*);
@@ -1226,6 +1229,7 @@ extern void free_quest_texts(cptr* texts);
 extern void tulkas_quest_interaction(void);
 extern void check_tulkas_quest_interaction(void);
 extern void check_tulkas_quest_completion(int r_idx);
+extern void validate_tulkas_quest_on_load(void);
 extern void remove_quest_giver(int quest_giver_r_idx);
 extern bool is_quest_giver_present(int quest_giver_r_idx);
 extern bool spawn_quest_giver_near_player(int quest_giver_r_idx);
@@ -1293,20 +1297,6 @@ extern void repeat_clear(void);
 extern void repeat_check(void);
 #endif /* ALLOW_REPEAT */
 
-#ifdef RISCOS
-/* main-ros.c */
-extern char* riscosify_name(cptr path);
-#endif /* RISCOS */
-
-#if defined(MACH_O_CARBON)
-/* main-mac.c, or its derivatives */
-extern u32b _fcreator;
-extern u32b _ftype;
-#if defined(MACH_O_CARBON)
-extern void fsetfileinfo(cptr path, u32b fcreator, u32b ftype);
-#endif
-#endif
-
 #ifdef ALLOW_DEBUG
 /* wizard2.c */
 void display_light_map(void);
@@ -1346,7 +1336,6 @@ extern bool      metarun_created;
 extern u32b curse_flag_mask(void);
 extern int  curse_flag_count_rhf(u32b rhf_flag);
 extern int  curse_flag_count_cur(u32b cur_flag);
-extern int  curse_flag_count(u32b flag);      /* legacy */
 extern int  any_curse_flag_active(u32b flag); /* CUR-only */
 
 // init1.c
@@ -1366,3 +1355,21 @@ extern int enhanced_equip_action;
 extern int enhanced_equipment_selected_item;
 extern char current_menu_command;
 extern int current_menu_state;
+
+/* SDL pane configuration functions (main-sdl.c) */
+#ifdef USE_SDL
+extern void get_sdl_config_info(char* buf, size_t size);
+extern bool save_pane_config_to_json(void);
+extern int get_sdl_main_view_scale(void);
+extern void set_sdl_main_view_scale(int value);
+extern int get_sdl_aux_view_font_size(void);
+extern void set_sdl_aux_view_font_size(int value);
+extern int get_sdl_margin(void);
+extern void set_sdl_margin(int value);
+extern bool get_sdl_fullscreen(void);
+extern void set_sdl_fullscreen(bool value);
+extern bool get_sdl_tiles(void);
+extern void set_sdl_tiles(bool value);
+extern int get_pane_config_count(void);
+#endif
+

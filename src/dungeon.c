@@ -9,9 +9,9 @@
  */
 
 #include "angband.h"
+#include "log/log.h"
 /* Countdown for forcing a redraw after showing the per-style banner */
 int g_banner_force_redraw_remaining = 0;
-#include "log.h"
 #include "metarun.h"
 #include "z-term.h"
 #include <time.h>
@@ -490,10 +490,10 @@ static void process_world(void)
 
     /* Check for Aule quest interaction every turn */
     check_aule_quest_interaction();
-    
+
     /* Check for Niena quest interaction every turn */
     check_niena_quest_interaction();
-    
+
     /* Check for Oromë quest interaction every turn */
     check_orome_quest_interaction();
 
@@ -790,7 +790,7 @@ static bool verify_debug_mode(void)
  */
 static void process_command(void)
 {
-    log_trace("process_command: character_icky=%d, command='%c' (%d)", 
+    log_trace("process_command: character_icky=%d, command='%c' (%d)",
               character_icky, p_ptr->command_cmd, (int)p_ptr->command_cmd);
 
     /* Debug: Log character_icky state but don't aggressively reset it during normal operation */
@@ -2291,11 +2291,9 @@ static void process_player(void)
     if (p_ptr->food >= PY_FOOD_MAX)
         i *= 50;
 
-    /* CUR_HUNGER doubles digestion per stack */
-    {
-        int h = curse_flag_count(CUR_HUNGER);
-        if (h) i <<= h;    /* i *= 2, 4, 8 … */
-    }
+    /* CUR_HUNGER increases p_ptr->hunger modifier (applied in calc_bonuses) */
+    /* This is now handled via p_ptr->hunger in calc_bonuses() */
+    /* Each stack adds +1 to hunger rate, giving 3x, 9x, 27x scaling */
 
     /* Digest some food */
     (void)set_food(p_ptr->food - i);
@@ -2571,14 +2569,16 @@ static void process_player(void)
     // Sil-y: note that these are now being set every single turn, somewhat
     // defeating their purpose
     p_ptr->window |= (PW_INVEN | PW_EQUIP);
-    p_ptr->window |= (PW_COMBAT_ROLLS);
+    
     /*
-     * Do NOT refresh the main-terminal combat rolls here.
+     * Do NOT set PW_COMBAT_ROLLS unconditionally here - it should only be
+     * set when combat data actually changes (via update_combat_rolls functions).
+     * Setting it every turn causes the combat roll subwindow to refresh with
+     * stale data before new combat happens, creating a one-turn delay.
+     * 
+     * Also, do NOT refresh the main-terminal combat rolls here.
      * We refresh them after monster processing in the main loop so that
      * both sides of the current round (player and monsters) are included.
-     * Calling display_main_combat_rolls() here caused the bottom log to
-     * show the player's current attack paired with the previous round's
-     * monster attack, creating a one-turn delay illusion for monsters.
      */
 }
 
@@ -2637,7 +2637,7 @@ static void dungeon(void)
                 int new_exp = i * 50;
                 gain_exp(new_exp);
                 p_ptr->descent_exp += new_exp;
-                
+
                 log_debug("Depth %d reached, gained %d descent experience", i, new_exp);
 
                 // Sil-x
@@ -2670,7 +2670,7 @@ static void dungeon(void)
 
             /* Mark the stairs as known */
             cave_info[p_ptr->py][p_ptr->px] |= (CAVE_MARK);
-            
+
             log_trace("Staircase created and marked at (%d, %d)", p_ptr->py, p_ptr->px);
         }
 
@@ -2726,7 +2726,7 @@ static void dungeon(void)
 
     /* Window stuff */
     p_ptr->window |= (PW_MONSTER | PW_MONLIST | PW_COMBAT_ROLLS);
-    
+
     /* Update main terminal combat rolls if enabled */
     if (op_ptr->main_combat_rolls > 0)
     {
@@ -2784,7 +2784,7 @@ static void dungeon(void)
 
     /* Log final state after setup */
     log_debug("Final setup state: character_generated=%s, character_icky=%d, update=0x%08X, redraw=0x%08X, window=0x%08X",
-              character_generated ? "true" : "false", character_icky, 
+              character_generated ? "true" : "false", character_icky,
               p_ptr->update, p_ptr->redraw, p_ptr->window);
 
     /* Handle delayed death */
@@ -2902,6 +2902,11 @@ static void dungeon(void)
                 log_trace("[LOOP] process_player start");
                 process_player();
                 log_trace("[LOOP] process_player end: combat_number=%d old=%d", combat_number, combat_number_old);
+                
+                /* Set combat rolls window flag after player actions complete */
+                if (combat_number > 0) {
+                    p_ptr->window |= (PW_COMBAT_ROLLS);
+                }
             }
         }
 
@@ -2945,6 +2950,11 @@ static void dungeon(void)
     log_trace("[LOOP] process_monsters post-player: threshold=100");
     process_monsters(100);
     log_trace("[LOOP] after process_monsters post-player: combat_number=%d old=%d", combat_number, combat_number_old);
+    
+        /* Set combat rolls window flag after all monster actions complete */
+        if (combat_number > 0) {
+            p_ptr->window |= (PW_COMBAT_ROLLS);
+        }
 
         /* Update main terminal combat rolls after monster processing */
         if (op_ptr->main_combat_rolls > 0)
@@ -3100,86 +3110,86 @@ static void death_knowledge(void)
  * Introductory narrative display, one paragraph per prompt.
  * Implemented as a static function to restrict linkage.
  */
-static void print_story_intro(void) 
-{ 
-    int wid, h; 
-    const int indent = 2; 
- 
-    /* Narrative paragraphs as valid C string literals with embedded \n */ 
-    cptr intro_texts[] = { 
-        "You awaken in darkness.\n" 
-        "No name. No memory.\n" 
-        "Only a quiet ache of courage deep inside you,\n" 
-        "like embers buried beneath ash.\n", 
- 
-        "Far below, Morgoth waits upon his throne-\n" 
-        "iron-dark and crowned in flame.\n" 
-        "Upon his brow shine three Silmarils, stolen stars.\n" 
-        "He senses your stirring. He knows you will come.\n", 
- 
-        "Far above, beyond the shadows of Angband,\n" 
-        "the Valar watch silently.\n" 
-        "They offer no guidance, yet their presence\n" 
-        "fills you with strength-and dread.\n", 
- 
-        "You will return many times, each death and rebirth\n" 
-        "etched into the endless stone halls of Mandos.\n" 
-        "Each fall will draw your spirit deeper into shadow,\n" 
-        "closer to a doom from which you cannot escape.\n", 
- 
-        "Yet each victory-each Silmaril wrested from Morgoth's crown-\n" 
-        "will brighten the Valar's hope,\n" 
-        "even as your soul grows thinner,\n" 
-        "your strength fading with every triumph.\n", 
- 
-        "You envy the Edain, whose Gift from Iluvatar\n" 
-        "frees them from the bonds of Mandos and the world.\n" 
-        "Yet you do not know if such release can ever be yours.\n" 
-        "You do not know who-or even what-you truly are.\n", 
- 
-        "For each time you awaken,\n" 
-        "you will carry the names of heroes beloved and feared-\n" 
-        "bright spirits, fiery hearts, proud kings and exiles,\n" 
-        "wanderers beneath sun and stars,\n" 
-        "whose courage you borrow, but whose fates are not your own.\n", 
- 
-        "This is the trial set by the Valar:\n" 
-        "to reclaim your forgotten name,\n" 
-        "to balance shadow and light,\n" 
-        "and to find within the borrowed glory of others\n" 
-        "your true self.\n", 
- 
-        "Now the path before you opens,\n" 
-        "and your trial begins.\n" 
-    }; 
- 
-    int total = sizeof(intro_texts) / sizeof(intro_texts[0]); 
-    Term_get_size(&wid, &h); 
-    int wrap_width = wid - indent; 
- 
-    /* Start on a blank screen */ 
-    Term_clear(); 
-    int row = 1, col = 0; 
- 
-    for (int idx = 0; idx < total; idx++) { 
-        const char *s = intro_texts[idx]; 
-        
-        /* Count lines needed for this paragraph */ 
-        int lines_needed = 0; 
-        int temp_col = col; 
-        for (size_t i = 0; s[i]; i++) { 
-            if (s[i] == '\n' || temp_col >= wrap_width) { 
-                lines_needed++; 
-                temp_col = 0; 
-                if (s[i] == '\n') continue; 
-            } 
-            temp_col++; 
-        } 
-        lines_needed++; /* Add one for the blank line after paragraph */ 
-        
-        /* Check if we have enough space for the whole paragraph */ 
-        if (row + lines_needed >= h - 1) { 
-            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)"); 
+static void print_story_intro(void)
+{
+    int wid, h;
+    const int indent = 2;
+
+    /* Narrative paragraphs as valid C string literals with embedded \n */
+    cptr intro_texts[] = {
+        "You awaken in darkness.\n"
+        "No name. No memory.\n"
+        "Only a quiet ache of courage deep inside you,\n"
+        "like embers buried beneath ash.\n",
+
+        "Far below, Morgoth waits upon his throne-\n"
+        "iron-dark and crowned in flame.\n"
+        "Upon his brow shine three Silmarils, stolen stars.\n"
+        "He senses your stirring. He knows you will come.\n",
+
+        "Far above, beyond the shadows of Angband,\n"
+        "the Valar watch silently.\n"
+        "They offer no guidance, yet their presence\n"
+        "fills you with strength-and dread.\n",
+
+        "You will return many times, each death and rebirth\n"
+        "etched into the endless stone halls of Mandos.\n"
+        "Each fall will draw your spirit deeper into shadow,\n"
+        "closer to a doom from which you cannot escape.\n",
+
+        "Yet each victory-each Silmaril wrested from Morgoth's crown-\n"
+        "will brighten the Valar's hope,\n"
+        "even as your soul grows thinner,\n"
+        "your strength fading with every triumph.\n",
+
+        "You envy the Edain, whose Gift from Iluvatar\n"
+        "frees them from the bonds of Mandos and the world.\n"
+        "Yet you do not know if such release can ever be yours.\n"
+        "You do not know who-or even what-you truly are.\n",
+
+        "For each time you awaken,\n"
+        "you will carry the names of heroes beloved and feared-\n"
+        "bright spirits, fiery hearts, proud kings and exiles,\n"
+        "wanderers beneath sun and stars,\n"
+        "whose courage you borrow, but whose fates are not your own.\n",
+
+        "This is the trial set by the Valar:\n"
+        "to reclaim your forgotten name,\n"
+        "to balance shadow and light,\n"
+        "and to find within the borrowed glory of others\n"
+        "your true self.\n",
+
+        "Now the path before you opens,\n"
+        "and your trial begins.\n"
+    };
+
+    int total = sizeof(intro_texts) / sizeof(intro_texts[0]);
+    Term_get_size(&wid, &h);
+    int wrap_width = wid - indent;
+
+    /* Start on a blank screen */
+    Term_clear();
+    int row = 1, col = 0;
+
+    for (int idx = 0; idx < total; idx++) {
+        const char *s = intro_texts[idx];
+
+        /* Count lines needed for this paragraph */
+        int lines_needed = 0;
+        int temp_col = col;
+        for (size_t i = 0; s[i]; i++) {
+            if (s[i] == '\n' || temp_col >= wrap_width) {
+                lines_needed++;
+                temp_col = 0;
+                if (s[i] == '\n') continue;
+            }
+            temp_col++;
+        }
+        lines_needed++; /* Add one for the blank line after paragraph */
+
+        /* Check if we have enough space for the whole paragraph */
+        if (row + lines_needed >= h - 1) {
+            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
             {
                 char k = inkey();
                 if (k == 'S') { /* Capital S skips the intro entirely */
@@ -3187,43 +3197,43 @@ static void print_story_intro(void)
                     return;
                 }
             }
-            Term_clear(); 
-            row = 1; 
-        } 
-        
-        col = 0; 
- 
-        /* Print this string, character by character */ 
-        for (size_t i = 0; s[i]; i++) { 
-            char ch = s[i]; 
- 
-            /* Newline or wrap? */ 
-            if (ch == '\n' || col >= wrap_width) { 
-                row++; 
-                col = 0; 
-                if (ch == '\n') continue; 
-            } 
- 
-            Term_putch(indent + col, row, TERM_WHITE, ch); 
-            Term_fresh(); 
-            col++; 
-            
-            /* Delay 25 ms after each character */ 
-            Term_xtra(TERM_XTRA_DELAY, 30); 
-        } 
- 
-        /* Leave one blank line after each paragraph */ 
-        row++; 
-        col = 0; 
+            Term_clear();
+            row = 1;
+        }
+
+        col = 0;
+
+        /* Print this string, character by character */
+        for (size_t i = 0; s[i]; i++) {
+            char ch = s[i];
+
+            /* Newline or wrap? */
+            if (ch == '\n' || col >= wrap_width) {
+                row++;
+                col = 0;
+                if (ch == '\n') continue;
+            }
+
+            Term_putch(indent + col, row, TERM_WHITE, ch);
+            Term_fresh();
+            col++;
+
+            /* Delay 25 ms after each character */
+            Term_xtra(TERM_XTRA_DELAY, 30);
+        }
+
+        /* Leave one blank line after each paragraph */
+        row++;
+        col = 0;
 
         /* 1 second pause after paragraph */
         Term_xtra(TERM_XTRA_DELAY, 1000);
-    } 
- 
-    /* Final "finish" prompt with difficulty option */ 
+    }
+
+    /* Final "finish" prompt with difficulty option */
     Term_putstr(8, h - 2, -1, TERM_L_WHITE, "[c] Change difficulty (experienced players)");
-    Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to finish)"); 
-    
+    Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to finish)");
+
     /* Handle input */
     char key = inkey();
     if (key == 'S') {
@@ -3235,8 +3245,8 @@ static void print_story_intro(void)
         Term_clear();
         choose_difficulty_level();
     }
-    
-    Term_clear(); 
+
+    Term_clear();
 }
 
 
@@ -3258,10 +3268,10 @@ static void print_story_intro(void)
  * If the savefile does not exist, cannot be loaded, or contains a dead
  * (non-wizard-mode) character, then a new game will be started.
  *
- * Several platforms (Windows, Macintosh) start brand new games
- * with "savefile" and "op_ptr->base_name" both empty, and initialize
- * them later based on the player name.  To prevent weirdness, we must
- * initialize "op_ptr->base_name" to "nameless" if it is empty.
+ * Some platforms (Windows) start brand new games with "savefile" and 
+ * "op_ptr->base_name" both empty, and initialize them later based on 
+ * the player name. To prevent weirdness, we must initialize 
+ * "op_ptr->base_name" to "nameless" if it is empty.
  *
  * Note that we load the RNG state from savefiles and
  * so we only initialize it if we were unable to load it.  The loading
@@ -3271,14 +3281,14 @@ static void print_story_intro(void)
 PlayResult play_game(void)
 {
     bool new_game = false;
-    
+
     /* Safety: Fix character_icky imbalance from previous game sessions */
     if (character_icky != 0)
     {
         log_info("play_game: Fixing character_icky imbalance - was %d, resetting to 0", character_icky);
         character_icky = 0;
     }
-    
+
     /* Hack -- Increase "icky" depth */
     character_icky++;
     log_debug("play_game: character_icky incremented to %d", character_icky);
@@ -3344,13 +3354,13 @@ PlayResult play_game(void)
 
     log_info("Choosing character");
         NavResult cr = character_creation();
-        if (cr == NAV_TO_MAIN) { 
-            log_info("Returning to main menu from character creation"); 
-            return PLAY_DONE; 
+        if (cr == NAV_TO_MAIN) {
+            log_info("Returning to main menu from character creation");
+            return PLAY_DONE;
         }
-        if (cr == NAV_QUIT) { 
-            log_info("Quitting from character creation"); 
-            return PLAY_QUIT; 
+        if (cr == NAV_QUIT) {
+            log_info("Quitting from character creation");
+            return PLAY_QUIT;
         }
 
     /* Attempt to load (manual path) */
@@ -3386,7 +3396,7 @@ PlayResult play_game(void)
 
             /* Seed the "complex" RNG */
             Rand_state_init(seed);
-            
+
             log_debug("RNG initialized with seed: %u", seed);
         }
 
@@ -3400,23 +3410,23 @@ PlayResult play_game(void)
 
         /* Hack -- seed for random artefacts */
         seed_randart = rand_int(0x10000000);
-        
+
         log_debug("Game seeds initialized - flavor: %u, randart: %u", seed_flavor, seed_randart);
 
         /* Roll up a new character */
         NavResult br = player_birth();
-        if (br == NAV_BACK) { 
-            log_debug("Returning to character selection from birth"); 
+        if (br == NAV_BACK) {
+            log_debug("Returning to character selection from birth");
             /* back to Character Selection */
             continue;
         }
-        if (br == NAV_TO_MAIN) { 
-            log_info("Returning to main menu from character birth"); 
-            return PLAY_DONE; 
+        if (br == NAV_TO_MAIN) {
+            log_info("Returning to main menu from character birth");
+            return PLAY_DONE;
         }
-        if (br == NAV_QUIT) { 
-            log_info("Quitting from character birth"); 
-            return PLAY_QUIT; 
+        if (br == NAV_QUIT) {
+            log_info("Quitting from character birth");
+            return PLAY_QUIT;
         }
         /* NAV_OK falls through */
 
@@ -3434,7 +3444,7 @@ PlayResult play_game(void)
 
         /* Start player on level 1 */
         p_ptr->depth = 1;
-        
+
         log_debug("New game state initialized - starting at depth 1, turn 1");
         }
         }
@@ -3458,12 +3468,15 @@ PlayResult play_game(void)
     print_story(15,1);
 
     log_debug("Game initialization complete, starting main game loop");
-    log_trace("QUEST DEBUG: Quest states loaded - Aule: %d, Mandos: %d, Tulkas: %d", 
+    log_trace("QUEST DEBUG: Quest states loaded - Aule: %d, Mandos: %d, Tulkas: %d",
              p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->tulkas_quest);
     log_trace("QUEST DEBUG: Special abilities - have_ability[S_SPC][SPC_MANDOS]=%d, have_ability[S_SPC][SPC_AULE]=%d",
              p_ptr->have_ability[S_SPC][SPC_MANDOS], p_ptr->have_ability[S_SPC][SPC_AULE]);
     log_trace("QUEST DEBUG: Special abilities - active_ability[S_SPC][SPC_MANDOS]=%d, active_ability[S_SPC][SPC_AULE]=%d",
              p_ptr->active_ability[S_SPC][SPC_MANDOS], p_ptr->active_ability[S_SPC][SPC_AULE]);
+
+    /* Validate quest states after load (auto-complete if targets are dead) */
+    validate_tulkas_quest_on_load();
 
     /* Flash a message */
     prt("Please wait...", 0, 0);
@@ -3518,13 +3531,46 @@ PlayResult play_game(void)
     character_generated = true;
     log_debug("play_game: character_generated set to true - character creation complete");
 
+    /* If Tulkas quest was auto-completed on load, spawn Tulkas and show messages */
+    if (p_ptr->tulkas_quest == TULKAS_QUEST_COMPLETE && p_ptr->tulkas_quest_complete == 1)
+    {
+        int y, x;
+        bool spawned = false;
+        
+        log_trace("Spawning Tulkas for auto-completed quest on load");
+        
+        /* Try to find a suitable spot near the player */
+        for (y = p_ptr->py - 3; y <= p_ptr->py + 3 && !spawned; y++)
+        {
+            for (x = p_ptr->px - 3; x <= p_ptr->px + 3 && !spawned; x++)
+            {
+                if (in_bounds(y, x) && cave_floor_bold(y, x) && 
+                    cave_m_idx[y][x] == 0 && distance(p_ptr->py, p_ptr->px, y, x) >= 2)
+                {
+                    if (place_monster_one(y, x, R_IDX_TULKAS, true, true, NULL))
+                    {
+                        msg_print("Upon loading, you recall that your quest target has already fallen!");
+                        msg_print("Tulkas Unclad materializes nearby with a booming laugh, ready to reward your valor!");
+                        spawned = true;
+                        log_trace("Tulkas spawned at (%d, %d) for auto-completed quest", y, x);
+                    }
+                }
+            }
+        }
+        
+        if (!spawned)
+        {
+            log_trace("Failed to spawn Tulkas near player, will retry on next level");
+        }
+    }
+
     /* Start with normal object generation mode */
     object_generation_mode = OB_GEN_MODE_NORMAL;
 
     /* Start playing */
     p_ptr->playing = true;
     metarun_created = false;
-    
+
     log_info("Game session started - entering play mode");
 
     /* Hack -- Enforce "delayed death" */
@@ -3681,11 +3727,11 @@ PlayResult play_game(void)
 
     /* Close stuff */
     log_info("Player '%s' has left the game.", op_ptr->base_name);
-    
+
     /* Hack -- Decrease "icky" depth */
     character_icky--;
     log_debug("play_game: character_icky decremented to %d (function exit)", character_icky);
-    
+
     close_game();
     if (!p_ptr->is_dead && !p_ptr->playing)
     {
@@ -3698,7 +3744,7 @@ PlayResult play_game(void)
         {
             return PLAY_QUIT;
         }
-    }
-    else 
+    } else {
         return PLAY_DONE;
+    }
 }
