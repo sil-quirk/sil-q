@@ -17,25 +17,6 @@ bool graphics_are_ascii()
     return use_graphics == GRAPHICS_NONE || use_graphics == GRAPHICS_PSEUDO;
 }
 
-#define QUEST_TYPES 2
-#define QUEST_HUMAN 0
-#define QUEST_ELF 1
-
-char* quest_text[] = {
-    "something to lighten the darkness",
-    "something to eat"
-};
-
-char* quest_requirement[] = {
-    "You have no spare light.",
-    "You have no food."
-};
-
-char* quest_outcome[] = {
-    "hides it among their rags",
-    "begins eating it"
-};
-
 /*
  * Puts an item in the player's inventory.
  * If the inventory would overflow, this is handled at the start of the next
@@ -68,107 +49,6 @@ void give_player_item(object_type * o_ptr)
     object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     msg_format("You have %s (%c).", o_name, index_to_label(slot));
-}
-
-/*
- * Rewards player depending on the quest.
- */
-void reward_player_for_quest(cptr m_name, unsigned int quest_index)
-{
-    int selection;
-    object_type herb;
-
-    if (quest_index >= QUEST_TYPES)
-    {
-        msg_print("Bug detected! Quest invalid!");
-        return;
-    }
-
-    /* Take a couple of turns */
-    p_ptr->energy_use = 100;
-    p_ptr->skip_next_turn = true;
-
-    if (quest_index == QUEST_ELF)
-    {
-        if (p_ptr->chp < p_ptr->mhp / 2)
-        {
-            msg_format("%^s murmurs the song of staunching.", m_name);
-            set_cut(0);
-            hp_player(50, true, true);
-            // Note: Old thrall quest removed
-            return;
-        }
-    }
-
-    selection = dieroll(3);
-
-    switch(selection)
-    {
-    case 1:
-        msg_format("%^s gives you a ragged herb.", m_name);
-        object_prep(&herb, O_IDX_HERB_RAGE);
-        give_player_item(&herb);
-        // Note: Old thrall quest removed
-        break;
-    case 2:
-        msg_format("%^s gives you a ragged herb.", m_name);
-        object_prep(&herb, O_IDX_HERB_TERROR);
-        give_player_item(&herb);
-        // Note: Old thrall quest removed
-        break;
-    default:
-        msg_format("%^s tells you about some passages a little way off.", m_name);
-        // Note: Old thrall quest map reward removed
-    }
-}
-
-/*
- * Handles quests given by peaceful monsters.
- */
-void do_quest(monster_type* m_ptr)
-{
-    char m_name[80];
-    int item;
-    unsigned int quest_index = m_ptr->r_idx - R_IDX_ALERT_HUMAN_THRALL;
-
-    if (quest_index >= QUEST_TYPES)
-    {
-        msg_print("Bug detected! Quest monster invalid!");
-        return;
-    }
-
-    cptr q = "Give thrall which item? ";
-    cptr s = quest_requirement[quest_index];
-
-    /* Get the monster name */
-    monster_desc(m_name, sizeof(m_name), m_ptr, 0);
-
-    // Note: Old thrall quest logic removed - Valar quest handles this differently
-
-    msg_format("Looking up at you, %s begs you for %s.", m_name,
-        quest_text[quest_index]);
-
-    switch (quest_index)
-    {
-    case QUEST_HUMAN:
-        item_tester_hook = item_tester_hook_light_with_fuel;
-        break;
-    case QUEST_ELF:
-        item_tester_hook = item_tester_hook_non_herb_food;
-        break;
-    };
-
-    if (get_item(&item, q, s, (USE_INVEN)))
-    {
-        inven_item_increase(item, -1);
-        inven_item_describe(item);
-        inven_item_optimize(item);
-
-        msg_format("%^s %s and thanks you.", m_name,
-            quest_outcome[quest_index]);
-
-        reward_player_for_quest(m_name, quest_index);
-    }
 }
 
 void new_wandering_flow(monster_type* m_ptr, int ty, int tx)
@@ -4778,15 +4658,8 @@ void py_attack_aux(int y, int x, int attack_type)
     {
         if (attack_type == ATT_MAIN)
         {
-            if (m_ptr->r_idx == R_IDX_ALERT_HUMAN_THRALL ||
-                m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
-            {
-                do_quest(m_ptr);
-            }
-            else
-            {
-                msg_format("You stop before you bump into %s.", m_name);
-            }
+            // Alert thralls are peaceful but no longer have quest interactions
+            msg_format("You stop before you bump into %s.", m_name);
         }
 
         abort_attack = true;
