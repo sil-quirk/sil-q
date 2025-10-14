@@ -1993,12 +1993,12 @@ void calc_torch(void)
     p_ptr->update |= (PU_UPDATE_VIEW);
     p_ptr->update |= (PU_MONSTERS);
 
-    /* Apply light-related meta-run curses */
+    /* Apply light radius curses/blessings */
     {
         int r = curse_flag_count_cur(CUR_LIGHTR);
 
-        /* radius penalty: −1 per stack, never below zero */
-        if (r)
+        /* radius penalty/bonus: +/-1 per stack, never below zero */
+        if (r != 0)
             p_ptr->cur_light = MAX(0, p_ptr->cur_light - r);
     }
 
@@ -2160,10 +2160,16 @@ int weight_limit(void)
         }
     }
 
-    int max = curse_flag_count_cur(CUR_WEAK);
-    for (i = 0; i < max; i++) limit*=0.8;
-
-    // if (any_curse_flag_active(CUR_WEAK)) return (limit*0.8);
+    /* CUR_WEAK curse reduces weight limit by 20% per stack */
+    /* Blessing increases weight limit by 20% per stack */
+    int weak_stacks = curse_flag_count_cur(CUR_WEAK);
+    if (weak_stacks > 0) {
+        /* Curse: reduce by 20% per stack */
+        for (i = 0; i < weak_stacks; i++) limit *= 0.8;
+    } else if (weak_stacks < 0) {
+        /* Blessing: increase by 20% per stack */
+        for (i = 0; i < -weak_stacks; i++) limit *= 1.2;
+    }
 
     /* Return the result */
     return (limit);
@@ -2805,10 +2811,10 @@ static void calc_bonuses(void)
         p_ptr->hunger -= 1;
     }
 
-    /* CUR_HUNGER curse: each stack adds +1 to hunger rate (3x, 9x, 27x scaling) */
+    /* CUR_HUNGER curse/blessing: curse increases hunger, blessing decreases it */
     {
         int h = curse_flag_count_cur(CUR_HUNGER);
-        if (h) p_ptr->hunger += h;
+        if (h != 0) p_ptr->hunger += h;
     }
 
     // Mandos' Doom special ability grants immunity to fear, hallucination,

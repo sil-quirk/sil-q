@@ -157,6 +157,9 @@ F:
 A:4/2
 D:A weary shadow follows you, pressing heavily upon your shoulders. Strength fades beneath the relentless weight of your own doom.
 P:Weight limit decreased by 20%.
+B:Blessing of the Unburdened
+E:Your burden lifts; you carry hope's weight with ease.
+H:Weight limit increased by 20%
 
 N:14:Echoes of Anguish
 S:0:0:0:0
@@ -164,7 +167,10 @@ U:MONSTERHP
 F:
 A:4/3
 D:Your foes rise, drawn from deeper shadows. Their vigor renewed by whispered malice, each battle longer, bloodier, and grimmer.
-P:Ordinary monsters’ HP increased by 20%.
+P:Ordinary monsters' HP increased by 20%.
+B:Blessing of Weakening Shadow
+E:Your foes falter; their strength wanes before your resolve.
+H:Ordinary monsters' HP decreased by 10%
 
 N:15:Doom of the Mighty
 S:0:0:0:0
@@ -172,7 +178,10 @@ U:MONSTERHP_U
 F:
 A:3/3
 D:Named terrors regain ancient potency, their dark legends burn brighter. Heroes must now reckon with foes whose names echo louder in the dark.
-P:Unique monsters’ HP increased by 20%.
+P:Unique monsters' HP increased by 20%.
+B:Blessing of Humbled Legends
+E:Great names fade; legends diminish before your growing might.
+H:Unique monsters' HP decreased by 10%
 
 N:16:Veil of Shadows
 S:0:0:0:0
@@ -181,6 +190,9 @@ F:
 A:4/3
 D:Enemies glide unseen, cloaked by unnatural shadows. Footfalls silent, menace concealed, until dread's blade is poised at your back.
 P:Monster Stealth increased by 2.
+B:Blessing of Revealing Light
+E:Shadows flee; all that lurks is laid bare before you.
+H:Monster Stealth decreased by 2
 
 N:17:Lidless Gaze
 S:0:0:0:0
@@ -189,6 +201,9 @@ F:
 A:4/3
 D:No subtlety escapes the watchful darkness. Eyes hidden in gloom pierce your every attempt at secrecy, stripping away your refuge.
 P:Monster Perception increased by 2.
+B:Blessing of Clouded Sight
+E:Your foes grow blind; their searching eyes find only mist.
+H:Monster Perception decreased by 2
 
 N:18:Iron Will of Morgoth
 S:0:0:0:0
@@ -197,6 +212,9 @@ F:
 A:4/3
 D:Darkness fortifies their resolve. Adversaries steel their minds, unyielding as stone, resisting your every subtlety and song.
 P:Monster Will increased by 2.
+B:Blessing of Shattered Resolve
+E:Their wills crumble; defiance turns to doubt and fear.
+H:Monster Will decreased by 2
 
 N:19:Scales of Anfauglith
 S:0:0:0:0
@@ -213,6 +231,9 @@ F:
 A:3/3
 D:A fell enchantment coats your foes in armors forged in shadowed halls. Weapons chip against barriers tougher than mortal craft can break.
 P:Monster armour dice sides increased by 1.
+B:Blessing of Sundered Steel
+E:Fell enchantments break; their armor turns to rust.
+H:Monster armour dice sides decreased by 1
 
 N:21:The Naked Path 
 S:0:0:0:0
@@ -238,12 +259,15 @@ A:2/1
 D:Spoiled are the gifts of Arda, for darkness leaves its lingering touch. What should nourish now poisons; what might save may now doom.
 P:Spawned items have chance to be cursed.
 
-N:24:Twilight’s Shroud
+N:24:Twilight's Shroud
 S:0:0:0:0
 U:LIGHTR
 A:1/2
 D:A shadow settles around you, dimming the circle of hope. The darkness looms closer, daring you to step into deeper gloom.
 P:Light radius −1
+B:Blessing of Radiant Dawn
+E:Brightness swells around you; shadows flee from your presence.
+H:Light radius +1
 
 N:25:Waning of the Lamps
 S:0:0:0:0
@@ -251,13 +275,9 @@ U:LIGHTP
 A:1/2
 D:Light falters and flickers, drained by an unseen malice. Flames grow pale, barely holding back the encroaching night.
 P:Light Power -1
-
-N:26:Mandos' Begrudging Mercy
-S:0:0:0:0
-U:DEATH
-A:1/2
-D:The doors of Mandos grow heavy and close swiftly behind you. The gift of the Eldar fades; your spirit bound closer to mortality, your return diminished as fate tightens its hold.
-P:Maximum deaths −3
+B:Blessing of Undying Flame
+E:Your light burns eternal; no darkness can diminish its glow.
+H:Light Power +1
 
 N:27:Maze of Malice
 S:0:0:0:0
@@ -278,7 +298,10 @@ S:0:0:0:0
 U:HUNGER
 A:2/2
 D:A hollow gnaws within you, insatiable and relentless. Hunger stalks your every step, the emptiness a ceaseless torment.
-P:Digestion rate ×2
+P:Digestion rate is increased
+B:Blessing of Sustenance
+E:Your hunger fades; sustenance lingers longer within you.
+H:Digestion rate is decreased
 
 N:30:Draught of Delirium
 S:0:0:0:0

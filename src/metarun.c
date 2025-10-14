@@ -242,6 +242,13 @@ static void clear_blessing_runtime_fields(metarun *m)
     m->blessing_points_spent = 0;
     m->major_blessings = 0;
     m->alive_characters = 0;
+    
+    /* Clear pending blessing choices */
+    m->pending_blessing_count = 0;
+    for (int i = 0; i < 3; i++) {
+        m->pending_blessing_choices[i] = 255;
+    }
+    
     memset(m->reserved_runtime, 0, sizeof(m->reserved_runtime));
 }
 
@@ -1077,6 +1084,16 @@ errr load_metaruns(bool create_if_missing)
                 for (s16b i = 0; i < metarun_max; i++) {
                     if (header.version_major == 0 && header.version_minor < 9) {
                         metaruns[i].blessing_points_spent = 0;
+                    }
+                    /* Initialize pending blessing choices for pre-0.9.0.1 saves
+                     * (fields were part of reserved_runtime and may contain garbage) */
+                    if (header.version_extra == 0) {
+                        /* Clear pending choices - will be regenerated on first menu open */
+                        metaruns[i].pending_blessing_count = 0;
+                        for (int j = 0; j < 3; j++) {
+                            metaruns[i].pending_blessing_choices[j] = 255;
+                        }
+                        log_debug("Cleared pending blessing choices for metarun %d (loaded from v0.9.0.0)", i);
                     }
                     update_blessing_ledger(&metaruns[i]);
                     sanitize_major_blessing_bits(&metaruns[i]);
@@ -3042,7 +3059,15 @@ static bool blessing_remove_curse(void)
         return false;
     }
 
+    int selected = 0;
     int choice = -1;
+    
+    /* Setup text wrapping */
+    text_out_hook = text_out_to_screen;
+    text_out_indent = 6;  /* Indent wrapped lines to match description column */
+    int wrap_width = Term->wid - 8;  /* Leave margin for indentation */
+    text_out_wrap = wrap_width;
+    
     while (choice < 0) {
         screen_save();
         Term_clear();
@@ -3050,27 +3075,74 @@ static bool blessing_remove_curse(void)
         Term_putstr(2, 1, -1, TERM_YELLOW, "Remove a Curse (cost 1 blessing point)");
         Term_putstr(2, 3, -1, TERM_L_WHITE, "Choose which curse to lift:");
 
+        int line = 5;
         for (int i = 0; i < count; i++) {
             int id = ids[i];
+            curse_type *c = &cu_info[id];
             int stacks = CURSE_CURSE_STACK(id);
             char label = 'a' + i;
+            
+            /* Display curse name and stacks */
             char buf[128];
             snprintf(buf, sizeof buf, "%c) %-28s stacks: %d",
                      label, curse_display_name(id), stacks);
-            Term_putstr(4, 5 + i, -1, TERM_L_RED, buf);
+            
+            if (i == selected) {
+                Term_putstr(2, line, -1, TERM_L_BLUE, ">");
+                Term_putstr(4, line++, -1, TERM_L_RED, buf);
+                
+                /* Always show description (D:) with wrapping */
+                if (c->text) {
+                    cptr desc = cu_text + c->text;
+                    Term_gotoxy(6, line);
+                    text_out_c(TERM_L_WHITE, desc);
+                    line += count_wrapped_lines(desc, wrap_width, 6);
+                }
+                
+                /* Show power (P:) if curse is identified, with wrapping */
+                if (CURSE_SEEN(id) && c->power) {
+                    cptr power = cu_text + c->power;
+                    Term_gotoxy(6, line);
+                    text_out_c(TERM_SLATE, power);
+                    line += count_wrapped_lines(power, wrap_width, 6);
+                }
+            } else {
+                Term_putstr(2, line, -1, TERM_L_DARK, " ");
+                Term_putstr(4, line++, -1, TERM_RED, buf);
+            }
         }
 
-        Term_putstr(2, 7 + count, -1, TERM_L_DARK, "Press letter to remove, or ESC to cancel.");
+        Term_putstr(2, line + 1, -1, TERM_L_DARK,
+                    "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel");
         char key = inkey();
         screen_load();
 
         if (key == ESCAPE) {
+            /* Reset text wrapping */
+            text_out_wrap = 0;
+            text_out_indent = 0;
             return false;
+        } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+            choice = selected;
+            break;
+        } else if (key == '8' || key == 'k' || key == '-') {
+            selected = (selected + count - 1) % count;
+            continue;
+        } else if (key == '2' || key == 'j' || key == '+') {
+            selected = (selected + 1) % count;
+            continue;
         }
 
         int idx = key - 'a';
         if (idx >= 0 && idx < count) {
             choice = idx;
+        } else if (key >= 'A' && key <= 'Z') {
+            idx = key - 'A';
+            if (idx >= 0 && idx < count) {
+                choice = idx;
+            } else {
+                bell("Invalid selection.");
+            }
         } else {
             bell("Invalid selection.");
         }
@@ -3080,7 +3152,19 @@ static bool blessing_remove_curse(void)
     CURSE_SET(curse_id, 0);
     CURSE_SEEN_SET(curse_id);
 
+    /* Reset text wrapping */
+    text_out_wrap = 0;
+    text_out_indent = 0;
+
     blessing_spend_points(1);
+    
+    /* Clear pending blessing choices when removing a curse */
+    /* (removing a curse might make new blessings available) */
+    metar.pending_blessing_count = 0;
+    for (int i = 0; i < 3; i++) {
+        metar.pending_blessing_choices[i] = 255;
+    }
+    
     blessing_commit_changes(true);
 
     msg_format("The curse of %s is lifted.", curse_display_name(curse_id));
@@ -3090,39 +3174,104 @@ static bool blessing_remove_curse(void)
 
 static bool blessing_gain_minor(void)
 {
-    int eligible[32];
-    int count = 0;
-
-    for (int id = 0; id < z_info->cu_max; id++) {
-        curse_type *c = &cu_info[id];
-        if (!c->blessing_name) continue;
-
-        int stacks = CURSE_GET(id);
-        if (stacks > 0) continue; /* currently cursed */
-
-        int blessing_stacks = (stacks < 0) ? -stacks : 0;
-        if (c->max_stacks > 0 && blessing_stacks >= c->max_stacks) continue;
-
-        eligible[count++] = id;
-    }
-
-    if (count == 0) {
-        msg_print("No blessings are presently available.");
-        message_flush();
-        return false;
-    }
-
-    int picks = MIN(3, count);
     int options[3];
-    int remaining = count;
+    int picks = 0;
+    
+    /* Check if we have pending choices that are still valid */
+    bool have_valid_pending = false;
+    if (metar.pending_blessing_count > 0) {
+        /* Validate pending choices - make sure they're still eligible */
+        for (int i = 0; i < metar.pending_blessing_count && i < 3; i++) {
+            int id = metar.pending_blessing_choices[i];
+            if (id == 255) continue; /* Empty slot */
+            
+            curse_type *c = &cu_info[id];
+            if (!c->blessing_name) continue; /* No longer has blessing */
+            
+            int stacks = CURSE_GET(id);
+            if (stacks > 0) continue; /* Currently cursed */
+            
+            int blessing_stacks = (stacks < 0) ? -stacks : 0;
+            if (c->max_stacks > 0 && blessing_stacks >= c->max_stacks) continue; /* At max */
+            
+            /* This pending choice is still valid */
+            options[picks++] = id;
+        }
+        
+        if (picks > 0) {
+            have_valid_pending = true;
+        }
+    }
+    
+    /* If we don't have valid pending choices, generate new ones */
+    if (!have_valid_pending) {
+        int eligible[32];
+        int weights[32];
+        int count = 0;
+        int total_weight = 0;
 
-    for (int i = 0; i < picks; i++) {
-        int pick = rand_int(remaining);
-        options[i] = eligible[pick];
-        eligible[pick] = eligible[remaining - 1];
-        remaining--;
+        /* Build list of eligible blessings with their weights */
+        for (int id = 0; id < z_info->cu_max; id++) {
+            curse_type *c = &cu_info[id];
+            if (!c->blessing_name) continue;
+
+            int stacks = CURSE_GET(id);
+            if (stacks > 0) continue; /* currently cursed */
+
+            int blessing_stacks = (stacks < 0) ? -stacks : 0;
+            if (c->max_stacks > 0 && blessing_stacks >= c->max_stacks) continue;
+
+            eligible[count] = id;
+            weights[count] = c->weight > 0 ? c->weight : 1;  /* Use curse weight, default 1 */
+            total_weight += weights[count];
+            count++;
+        }
+
+        if (count == 0) {
+            msg_print("No blessings are presently available.");
+            message_flush();
+            return false;
+        }
+
+        /* Select up to 3 blessings using weighted random selection */
+        picks = MIN(3, count);
+        
+        for (int i = 0; i < picks; i++) {
+            /* Weighted random selection from remaining eligible blessings */
+            int roll = rand_int(total_weight);
+            int sum = 0;
+            int selected = 0;
+            
+            for (int j = 0; j < count; j++) {
+                sum += weights[j];
+                if (roll < sum) {
+                    selected = j;
+                    break;
+                }
+            }
+            
+            options[i] = eligible[selected];
+            
+            /* Remove selected blessing from pool for next iteration */
+            total_weight -= weights[selected];
+            eligible[selected] = eligible[count - 1];
+            weights[selected] = weights[count - 1];
+            count--;
+        }
+        
+        /* Store these choices as pending */
+        metar.pending_blessing_count = picks;
+        for (int i = 0; i < 3; i++) {
+            if (i < picks) {
+                metar.pending_blessing_choices[i] = options[i];
+            } else {
+                metar.pending_blessing_choices[i] = 255; /* Empty */
+            }
+        }
+        save_metaruns();
     }
 
+    int selected = 0;
     int choice = -1;
     while (choice < 0) {
         screen_save();
@@ -3140,25 +3289,53 @@ static bool blessing_gain_minor(void)
             cptr name = blessing_display_name(id);
             char buf[160];
             snprintf(buf, sizeof buf, "%c) %-30s", label, name);
-            Term_putstr(4, line++, -1, TERM_L_GREEN, buf);
-
-            if (c->blessing_text) {
-                cptr desc = cu_text + c->blessing_text;
-                Term_putstr(6, line++, -1, TERM_L_WHITE, desc);
+            if (i == selected) {
+                Term_putstr(2, line, -1, TERM_L_BLUE, ">");
+                Term_putstr(4, line++, -1, TERM_L_GREEN, buf);
+                
+                /* Show both poetic description (E:) and mechanical effect (H:) for selected item */
+                if (c->blessing_text) {
+                    cptr desc = cu_text + c->blessing_text;
+                    Term_putstr(6, line++, -1, TERM_L_WHITE, desc);
+                }
+                if (c->blessing_power) {
+                    cptr power = cu_text + c->blessing_power;
+                    Term_putstr(6, line++, -1, TERM_L_GREEN, power);
+                }
+            } else {
+                Term_putstr(2, line, -1, TERM_L_DARK, " ");
+                Term_putstr(4, line++, -1, TERM_L_GREEN, buf);
             }
         }
 
-        Term_putstr(2, line + 1, -1, TERM_L_DARK, "Press letter to accept, or ESC to cancel.");
+        Term_putstr(2, line + 1, -1, TERM_L_DARK,
+                    "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel");
         char key = inkey();
         screen_load();
 
         if (key == ESCAPE) {
             return false;
+        } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+            choice = selected;
+            break;
+        } else if (key == '8' || key == 'k' || key == '-') {
+            selected = (selected + picks - 1) % picks;
+            continue;
+        } else if (key == '2' || key == 'j' || key == '+') {
+            selected = (selected + 1) % picks;
+            continue;
         }
 
         int idx = key - 'a';
         if (idx >= 0 && idx < picks) {
             choice = idx;
+        } else if (key >= 'A' && key <= 'Z') {
+            idx = key - 'A';
+            if (idx >= 0 && idx < picks) {
+                choice = idx;
+            } else {
+                bell("Invalid selection.");
+            }
         } else {
             bell("Invalid selection.");
         }
@@ -3179,6 +3356,13 @@ static bool blessing_gain_minor(void)
     CURSE_SEEN_SET(blessing_id);
 
     blessing_spend_points(1);
+    
+    /* Clear pending choices after selection */
+    metar.pending_blessing_count = 0;
+    for (int i = 0; i < 3; i++) {
+        metar.pending_blessing_choices[i] = 255;
+    }
+    
     blessing_commit_changes(true);
 
     msg_format("You receive the %s.", blessing_display_name(blessing_id));
@@ -3217,6 +3401,26 @@ static bool blessing_unlock_major(void)
         return false;
     }
 
+    int available = blessing_points_remaining();
+    
+    /* Find first affordable option as initial selection */
+    int selected = -1;
+    for (int i = 0; i < option_count; i++) {
+        int cost = major_blessing_cost(options[i].idx);
+        if (cost <= available) {
+            selected = i;
+            break;
+        }
+    }
+    
+    /* If no affordable options, show message and return */
+    if (selected < 0) {
+        msg_format("You need %d blessing points to unlock any major blessing.", 
+                   major_blessing_cost(options[0].idx));
+        message_flush();
+        return false;
+    }
+    
     while (true) {
         screen_save();
         Term_clear();
@@ -3224,6 +3428,9 @@ static bool blessing_unlock_major(void)
         Term_putstr(2, 1, -1, TERM_YELLOW, "Unlock a Major Blessing");
         Term_putstr(2, 3, -1, TERM_L_WHITE, "Select which covenant to forge:");
 
+        /* Recalculate in case something changed (shouldn't happen but safe) */
+        available = blessing_points_remaining();
+        
         int line = 5;
         for (int i = 0; i < option_count; i++) {
             int idx = options[i].idx;
@@ -3231,19 +3438,43 @@ static bool blessing_unlock_major(void)
             const char *name = major_blessing_name_str(idx);
             const char *detail = major_blessing_detail_desc(idx);
             int cost = major_blessing_cost(idx);
+            bool affordable = (cost <= available);
 
             char buf[160];
             snprintf(buf, sizeof buf, "%c) %s (cost %d)", key, name, cost);
-            Term_putstr(4, line++, -1, TERM_L_GREEN, buf);
-
-            if (detail && *detail) {
-                Term_putstr(6, line++, -1, TERM_L_WHITE, detail);
+            
+            if (i == selected) {
+                Term_putstr(2, line, -1, TERM_L_BLUE, ">");
+                if (affordable) {
+                    Term_putstr(4, line++, -1, TERM_L_GREEN, buf);
+                } else {
+                    Term_putstr(4, line++, -1, TERM_L_DARK, buf);
+                }
+                
+                /* Show description only for selected item */
+                if (detail && *detail) {
+                    byte desc_color = affordable ? TERM_L_WHITE : TERM_SLATE;
+                    Term_putstr(6, line++, -1, desc_color, detail);
+                }
+            } else {
+                Term_putstr(2, line, -1, TERM_L_DARK, " ");
+                if (affordable) {
+                    Term_putstr(4, line++, -1, TERM_L_GREEN, buf);
+                } else {
+                    Term_putstr(4, line++, -1, TERM_L_DARK, buf);
+                }
             }
 
             line++;
         }
 
-        Term_putstr(2, line + 1, -1, TERM_L_DARK, "Press letter to unlock, or ESC to cancel.");
+        /* Show available points */
+        char points_msg[80];
+        snprintf(points_msg, sizeof points_msg, "Available blessing points: %d", available);
+        Term_putstr(2, line++, -1, TERM_L_BLUE, points_msg);
+        
+        Term_putstr(2, line + 1, -1, TERM_L_DARK,
+                    "Arrows to navigate  Space/Enter accept  Letter select  Esc cancel");
 
         char key = inkey();
         screen_load();
@@ -3252,33 +3483,62 @@ static bool blessing_unlock_major(void)
             return false;
         }
 
-        key = tolower((unsigned char)key);
+        if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+            key = options[selected].key;
+        } else if (key == '8' || key == 'k' || key == '-') {
+            /* Navigate up, skipping unaffordable options */
+            int start = selected;
+            do {
+                selected = (selected + option_count - 1) % option_count;
+                int cost = major_blessing_cost(options[selected].idx);
+                if (cost <= available) break;
+            } while (selected != start);
+            continue;
+        } else if (key == '2' || key == 'j' || key == '+') {
+            /* Navigate down, skipping unaffordable options */
+            int start = selected;
+            do {
+                selected = (selected + 1) % option_count;
+                int cost = major_blessing_cost(options[selected].idx);
+                if (cost <= available) break;
+            } while (selected != start);
+            continue;
+        }
+
         int choice_idx = -1;
-        for (int i = 0; i < option_count; i++) {
-            if (key == options[i].key) {
-                choice_idx = options[i].idx;
-                break;
+        char lowered = tolower((unsigned char)key);
+        if (lowered >= 'a' && lowered <= 'z') {
+            for (int i = 0; i < option_count; i++) {
+                if (lowered == options[i].key) {
+                    int cost = major_blessing_cost(options[i].idx);
+                    if (cost > available) {
+                        bell("Not enough blessing points for that covenant.");
+                        choice_idx = -2; /* Special marker for unaffordable */
+                        break;
+                    }
+                    choice_idx = options[i].idx;
+                    selected = i;
+                    break;
+                }
             }
         }
 
+        if (choice_idx == -2) {
+            /* Was unaffordable, already showed bell */
+            continue;
+        }
+        
         if (choice_idx < 0) {
             bell("Invalid selection.");
             continue;
         }
 
+        /* At this point choice is valid and affordable */
         int cost = major_blessing_cost(choice_idx);
-        int available = blessing_points_remaining();
-        if (cost > available) {
-            msg_print("You need more blessing points to forge that covenant.");
-            message_flush();
-            continue;
-        }
-
+        
         metar.major_blessings |= (1U << choice_idx);
         blessing_spend_points(cost);
-        blessing_commit_changes(true);
-
-        const char *msg = major_blessing_unlock_msg(choice_idx);
+        blessing_commit_changes(true);        const char *msg = major_blessing_unlock_msg(choice_idx);
         if (msg && *msg) {
             msg_print(msg);
         } else {
@@ -3292,6 +3552,7 @@ static bool blessing_unlock_major(void)
 static void open_blessing_exchange(void)
 {
     bool done = false;
+    int selected = 0;  /* Track highlighted option: 0=remove curse, 1=minor blessing, 2=major blessing */
 
     while (!done) {
         compute_blessing_pool();
@@ -3313,6 +3574,13 @@ static void open_blessing_exchange(void)
         if (!major_available || min_major_cost == INT_MAX) {
             min_major_cost = 0;
         }
+        
+        /* Check if major blessing option is actually affordable */
+        bool major_affordable = major_available && (min_major_cost <= available);
+
+        int option_count = major_available ? 3 : 2;
+        if (selected < 0) selected = 0;
+        if (selected >= option_count) selected = option_count - 1;
 
         screen_save();
         Term_clear();
@@ -3330,21 +3598,68 @@ static void open_blessing_exchange(void)
         Term_putstr(2, 4, -1, TERM_L_WHITE, buf);
 
         Term_putstr(2, 6, -1, TERM_L_GREEN, "Options:");
-        Term_putstr(4, 8, -1, TERM_L_WHITE, "r) Remove a curse (cost 1)");
-        Term_putstr(4, 9, -1, TERM_L_WHITE, "m) Gain a minor blessing (cost 1)");
+        
+        /* Option 0: Remove curse */
+        cptr marker0 = (selected == 0) ? ">" : " ";
+        byte attr0 = (selected == 0) ? TERM_L_WHITE : TERM_WHITE;
+        Term_putstr(2, 8, -1, TERM_L_BLUE, marker0);
+        Term_putstr(4, 8, -1, attr0, "r) Remove a curse (cost 1)");
+        
+        /* Option 1: Minor blessing */
+        cptr marker1 = (selected == 1) ? ">" : " ";
+        byte attr1 = (selected == 1) ? TERM_L_WHITE : TERM_WHITE;
+        Term_putstr(2, 9, -1, TERM_L_BLUE, marker1);
+        Term_putstr(4, 9, -1, attr1, "m) Gain a minor blessing (cost 1)");
+        
+        /* Option 2: Major blessing */
         if (major_available) {
+            cptr marker2 = (selected == 2) ? ">" : " ";
+            byte attr2;
+            if (major_affordable) {
+                attr2 = (selected == 2) ? TERM_L_WHITE : TERM_WHITE;
+            } else {
+                attr2 = TERM_L_DARK; /* Grey out if unaffordable */
+            }
             snprintf(buf, sizeof buf, "u) Unlock a major blessing (cost %d)", min_major_cost);
-            Term_putstr(4,10, -1, TERM_L_WHITE, buf);
+            Term_putstr(2, 10, -1, TERM_L_BLUE, marker2);
+            Term_putstr(4, 10, -1, attr2, buf);
         } else {
             Term_putstr(4,10, -1, TERM_L_DARK, "u) Unlock a major blessing (none available)");
         }
-        Term_putstr(4,12, -1, TERM_L_DARK, "Press ESC to leave the exchange.");
+        Term_putstr(2, 12, -1, TERM_L_DARK, "Arrows to navigate  Space/Enter accept  Letter select  ESC leave");
 
         char key = inkey();
         screen_load();
 
+        /* Handle navigation */
+        if (key == '8' || key == 'k' || key == '-') {
+            /* Navigate up, skipping unaffordable major blessing */
+            int start = selected;
+            do {
+                selected = (selected + option_count - 1) % option_count;
+                if (selected == 2 && !major_affordable) continue; /* Skip unaffordable major */
+                break;
+            } while (selected != start);
+            continue;
+        } else if (key == '2' || key == 'j' || key == '+') {
+            /* Navigate down, skipping unaffordable major blessing */
+            int start = selected;
+            do {
+                selected = (selected + 1) % option_count;
+                if (selected == 2 && !major_affordable) continue; /* Skip unaffordable major */
+                break;
+            } while (selected != start);
+            continue;
+        } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+            /* Space/Enter activates highlighted option */
+            if (selected == 0) key = 'r';
+            else if (selected == 1) key = 'm';
+            else if (selected == 2) key = 'u';
+        }
+
         switch (key) {
         case ESCAPE:
+        case '4':
             done = true;
             break;
         case 'r':
@@ -3370,8 +3685,8 @@ static void open_blessing_exchange(void)
             if (!major_available) {
                 msg_print("All major blessings have already been sealed.");
                 message_flush();
-            } else if (available < min_major_cost) {
-                msg_print("You need more blessing points to forge a major covenant.");
+            } else if (!major_affordable) {
+                msg_format("You need %d blessing points to unlock a major blessing.", min_major_cost);
                 message_flush();
             } else if (blessing_unlock_major()) {
                 compute_blessing_pool();

@@ -5027,7 +5027,12 @@ void py_attack_aux(int y, int x, int attack_type)
             if (smite)
                 dam = total_dice * mds;
 
-            prt = damroll((r_ptr->pd + curse_flag_count_cur(CUR_MON_ARM_DICE)), (r_ptr->ps+curse_flag_count_cur(CUR_MON_ARM_SIDE)));
+            /* Apply armor dice/sides curses/blessings */
+            int armor_dice = r_ptr->pd + curse_flag_count_cur(CUR_MON_ARM_DICE);
+            int armor_sides = r_ptr->ps + curse_flag_count_cur(CUR_MON_ARM_SIDE);
+            if (armor_dice < 0) armor_dice = 0;
+            if (armor_sides < 1) armor_sides = 1;
+            prt = damroll(armor_dice, armor_sides);
             prt_percent = prt_after_sharpness(o_ptr, &noticed_flag);
 
             if (prt_percent < 0)

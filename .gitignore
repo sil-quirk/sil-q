@@ -19,3 +19,4 @@ src.code-workspace
 /src/Visuals
 compile_commands.json
 *.res
+/lib/apex

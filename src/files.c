@@ -4240,6 +4240,41 @@ static int parse_score_int(const char* field, size_t field_len, int fallback)
     return (int)value;
 }
 
+static void parse_score_string(const char *field, size_t field_len,
+                               char *out, size_t out_len)
+{
+    if (!out || out_len == 0) {
+        return;
+    }
+
+    if (!field) {
+        out[0] = '\0';
+        return;
+    }
+
+    size_t copy_len = field_len;
+    if (copy_len >= out_len)
+        copy_len = out_len - 1;
+
+    memcpy(out, field, copy_len);
+    out[copy_len] = '\0';
+
+    /* Trim trailing NULs/spaces */
+    while (copy_len > 0 &&
+           (out[copy_len - 1] == '\0' || out[copy_len - 1] == ' ')) {
+        out[--copy_len] = '\0';
+    }
+
+    /* Trim leading spaces */
+    size_t start = 0;
+    while (out[start] == ' ')
+        start++;
+
+    if (start > 0) {
+        memmove(out, out + start, copy_len - start + 1);
+    }
+}
+
 typedef struct score_breakdown
 {
     int base_score;
@@ -4498,9 +4533,30 @@ u32b score_sum_dead_points(void)
     if (highscore_seek(0) == 0) {
         high_score entry;
         while (highscore_read(&entry) == 0) {
-            if (strcmp(entry.how, "(alive and well)") == 0) continue;
-            if (entry.escaped[0] == 't') continue;
-            total += (u32b)score_points(&entry);
+            char how_buf[sizeof(entry.how) + 1];
+            char who_buf[sizeof(entry.who) + 1];
+            parse_score_string(entry.how, sizeof(entry.how), how_buf, sizeof(how_buf));
+            parse_score_string(entry.who, sizeof(entry.who), who_buf, sizeof(who_buf));
+
+            bool alive_marker = streq(how_buf, "(alive and well)");
+            bool escaped_marker = (entry.escaped[0] == 't');
+
+            /* Log every entry for debugging */
+            int points = score_points(&entry);
+            if (points < 0) points = 0;
+            
+            log_debug("score_sum_dead_points: entry '%s' pts=%d how=\"%s\" escaped=%c alive=%s -> %s",
+                      who_buf[0] ? who_buf : "<unknown>", points, how_buf,
+                      entry.escaped[0] ? entry.escaped[0] : 'f',
+                      alive_marker ? "yes" : "no",
+                      (alive_marker || escaped_marker) ? "SKIPPED" : "COUNTED");
+
+            /* Skip alive characters and escaped characters */
+            if (alive_marker || escaped_marker) {
+                continue;
+            }
+
+            total += (u32b)points;
         }
     }
 

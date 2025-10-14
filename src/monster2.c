@@ -1184,15 +1184,15 @@ int monster_skill(monster_type* m_ptr, int skill_type)
         break;
     case S_STL:
         skill = r_ptr->stl;
-        skill += 2 * curse_flag_count_cur(CUR_MON_STL);   /* +2 Stl per curse */
+        skill += 2 * curse_flag_count_cur(CUR_MON_STL);   /* +/-2 Stl per stack */
         break;
     case S_PER:
         skill = r_ptr->per;
-        skill += 2 * curse_flag_count_cur(CUR_MON_PER);   /* +2 Per per curse */
+        skill += 2 * curse_flag_count_cur(CUR_MON_PER);   /* +/-2 Per per stack */
         break;
     case S_WIL:
         skill = r_ptr->wil;
-        skill += 2 * curse_flag_count_cur(CUR_MON_WIL);   /* +2 Wil per curse */
+        skill += 2 * curse_flag_count_cur(CUR_MON_WIL);   /* +/-2 Wil per stack */
         break;
     case S_SMT:
         msg_debug("Can't determine the monster's Smithing score.");
@@ -2570,11 +2570,16 @@ bool place_monster_one(
     {
         n_ptr->maxhp = r_ptr->hdice * (1 + r_ptr->hside) / 2;
 
-        /* Apply unique‐HP curses: +25% per CUR_MONSTERHP_U flag */
+        /* Apply unique‐HP curses/blessings: +20% curse, -10% blessing per stack */
         {
-            int curses = curse_flag_count_cur(CUR_U_MON_HP);
-            if (curses > 0)
-                n_ptr->maxhp = (n_ptr->maxhp * (100 + 25 * curses)) / 100;
+            int stacks = curse_flag_count_cur(CUR_U_MON_HP);
+            if (stacks > 0) {
+                /* Curse: +20% per stack */
+                n_ptr->maxhp = (n_ptr->maxhp * (100 + 20 * stacks)) / 100;
+            } else if (stacks < 0) {
+                /* Blessing: -10% per stack */
+                n_ptr->maxhp = (n_ptr->maxhp * (100 + 10 * stacks)) / 100;
+            }
         }
     }
     /*assign hitpoints using dice rolls*/
@@ -2582,11 +2587,16 @@ bool place_monster_one(
     {
         n_ptr->maxhp = damroll(r_ptr->hdice, r_ptr->hside);
 
-        /* Apply normal‐HP curses: +25% per CUR_MONSTERHP flag */
+        /* Apply normal‐HP curses/blessings: +20% curse, -10% blessing per stack */
         {
-            int curses = curse_flag_count_cur(CUR_MON_HP);
-            if (curses > 0)
-                n_ptr->maxhp = (n_ptr->maxhp * (100 + 25 * curses)) / 100;
+            int stacks = curse_flag_count_cur(CUR_MON_HP);
+            if (stacks > 0) {
+                /* Curse: +20% per stack */
+                n_ptr->maxhp = (n_ptr->maxhp * (100 + 20 * stacks)) / 100;
+            } else if (stacks < 0) {
+                /* Blessing: -10% per stack */
+                n_ptr->maxhp = (n_ptr->maxhp * (100 + 10 * stacks)) / 100;
+            }
         }
     }
 

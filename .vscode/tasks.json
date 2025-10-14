@@ -74,7 +74,7 @@
         {
             "label": "Run Game",
             "type": "shell",
-            "command": ".\\run.bat",
+            "command": ".\\sil-more.exe",
             "options": {
                 "cwd": "${workspaceFolder}/sil-more-windows-sdl3"
             },
@@ -84,7 +84,7 @@
                 "focus": true,
                 "panel": "dedicated"
             },
-            "detail": "Run the SDL3 build"
+            "detail": "Run the SDL3 build (sil-more.exe)"
         },
         {
             "label": "Build and Run",

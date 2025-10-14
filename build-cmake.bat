@@ -12,14 +12,14 @@ REM Run CMake configuration and build
 cmake -G "MinGW Makefiles" -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/msys64/mingw64 -DUSE_SDL=ON -DUSE_GCU=OFF
 if errorlevel 1 (
     echo CMake configuration failed!
-    pause
+REM    pause
     exit /b 1
 )
 
 cmake --build build --parallel
 if errorlevel 1 (
     echo CMake build failed!
-    pause
+REM    pause
     exit /b 1
 )
 

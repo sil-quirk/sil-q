@@ -41,7 +41,7 @@
 #define METARUN_FILE_VERSION_MAJOR 0
 #define METARUN_FILE_VERSION_MINOR 9
 #define METARUN_FILE_VERSION_PATCH 0
-#define METARUN_FILE_VERSION_EXTRA 0
+#define METARUN_FILE_VERSION_EXTRA 1  /* +1 for persistent blessing choices */
 
 /* Blessing / reward economy */
 #define METARUN_BLESSING_POINT_THRESHOLD 300   /* Score required per blessing point */
@@ -115,7 +115,12 @@ typedef struct metarun
     u16b blessing_points_spent; /* Credits already spent on blessings              */
     u16b major_blessings;       /* Bitmask of unlocked major blessings             */
     byte alive_characters;      /* Cached count of living heroes in scorefile      */
-    byte reserved_runtime[5];   /* Future use / padding for alignment              */
+    
+    /* ----- persistent blessing choices (no re-rolling) ------------- */
+    byte pending_blessing_choices[3]; /* Currently offered blessing IDs (0-31, 255=empty) */
+    byte pending_blessing_count;      /* How many choices are currently pending (0-3)     */
+    
+    byte reserved_runtime[1];   /* Future use / padding for alignment              */
 
 } metarun;
 

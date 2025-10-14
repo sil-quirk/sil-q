@@ -4772,7 +4772,7 @@ errr parse_cu_info(char *buf, header *head)
 
         if (!(cu_ptr->name = add_name(head, s)))     
             return PARSE_ERROR_OUT_OF_MEMORY;
-        cu_ptr->blessing_name = cu_ptr->name;
+        cu_ptr->blessing_name = 0;  /* NULL unless B: directive sets it */
     }
 
     /* ------------------------------------------------------------ */
