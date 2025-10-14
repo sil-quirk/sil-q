@@ -20,7 +20,8 @@ static supply_menu_action g_pending_action = SUPPLY_MENU_ACTION_NONE;
 static int g_pending_group = SUPPLY_GROUP_MAX;
 static bool g_pending_hotkey = false;
 
-#define SUPPLIES_MAX_WEIGHT 250 /* 25 lbs expressed in tenths */
+
+static int g_supplies_max_weight = SUPPLIES_MAX_WEIGHT_DEFAULT;
 
 #define IS_GEM(o_ptr) ((o_ptr)->tval == TV_GEM)
 
@@ -98,7 +99,7 @@ static bool supplies_can_add_weight(int current_weight, int addition)
     if (g_supply_allow_overflow)
         return true;
 
-    if (current_weight + addition <= SUPPLIES_MAX_WEIGHT)
+    if (current_weight + addition <= g_supplies_max_weight)
         return true;
 
     if (!g_supply_limit_warned)
@@ -108,6 +109,23 @@ static bool supplies_can_add_weight(int current_weight, int addition)
     }
 
     return false;
+}
+
+void supplies_set_max_weight_cap(int weight_tenths)
+{
+    if (weight_tenths <= 0)
+        weight_tenths = SUPPLIES_MAX_WEIGHT_DEFAULT;
+
+    if (weight_tenths != g_supplies_max_weight) {
+        g_supplies_max_weight = weight_tenths;
+        g_supply_limit_warned = false;
+        log_info("Supplies weight limit set to %d tenths of a pound", weight_tenths);
+    }
+}
+
+int supplies_current_weight_cap(void)
+{
+    return g_supplies_max_weight;
 }
 
 
@@ -236,7 +254,7 @@ int supplies_max_absorbable_quantity(const object_type* o_ptr)
         return o_ptr->number;
 
     int current_weight = supplies_total_weight();
-    int available_weight = SUPPLIES_MAX_WEIGHT - current_weight;
+    int available_weight = g_supplies_max_weight - current_weight;
 
     if (available_weight <= 0)
         return 0;
@@ -249,7 +267,7 @@ int supplies_max_absorbable_quantity(const object_type* o_ptr)
         {
             supply_entry* existing = &g_supply_entries[idx];
             int existing_weight = existing->obj.weight * existing->stored_count;
-            available_weight = SUPPLIES_MAX_WEIGHT - (current_weight - existing_weight);
+            available_weight = g_supplies_max_weight - (current_weight - existing_weight);
         }
         
         int max_count = available_weight / o_ptr->weight;

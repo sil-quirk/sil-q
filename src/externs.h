@@ -208,6 +208,9 @@ extern char* st_name;
 extern curse_type* cu_info;
 extern char* cu_text;
 extern char* cu_name;
+extern major_blessing_type* mb_info;
+extern char* mb_text;
+extern char* mb_name;
 extern quest_type* quest_info;
 extern char* quest_name_text;
 extern char* quest_desc_text;
@@ -645,6 +648,8 @@ extern void close_game(void);
 extern void exit_game_panic(void);
 extern errr create_score(high_score* the_score);
 extern int score_points(const high_score* score);
+extern int score_count_alive_entries(void);
+extern u32b score_sum_dead_points(void);
 #ifdef HANDLE_SIGNALS
 extern void (*(*signal_aux)(int, void (*)(int)))(int);
 #endif

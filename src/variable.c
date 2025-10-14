@@ -585,6 +585,9 @@ char* st_name;
 curse_type* cu_info;
 char* cu_text;
 char* cu_name;
+major_blessing_type* mb_info;
+char* mb_text;
+char* mb_name;
 
 /*
  * The quest arrays

@@ -2,6 +2,8 @@
 #define SUPPLIES_H
 
 #include "h-basic.h"
+#define SUPPLIES_MAX_WEIGHT_DEFAULT 250 /* 25 lbs expressed in tenths */
+#define SUPPLIES_MAX_WEIGHT_BLESSING 500 /* 50 lbs expressed in tenths */
 
 struct object_type;
 
@@ -35,6 +37,8 @@ void supplies_dispose(void);
 void supplies_reset_store(void);
 
 void supplies_set_allow_overflow(bool allow);
+void supplies_set_max_weight_cap(int weight_tenths);
+int supplies_current_weight_cap(void);
 bool supplies_is_supply_object(const struct object_type* o_ptr);
 
 /* Returns true if object can be added without exceeding weight limit. */

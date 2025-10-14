@@ -11,7 +11,7 @@
 
 # Version stamp (required)
 
-V:0.8.9
+V:0.9.0
 
 
 N:0:Burden of Ancient Stone
@@ -20,6 +20,9 @@ F:
 A:2/3
 D:Every step feels older than the hills, your frame burdened by some unseen weight of ages past.
 P:Strength -1
+B:Blessing of Feathered Steps
+E:The unseen weight falls away; your stride lightens.
+H:Strength +1
 
 N:1:Curse of Shivering Leaves
 S:0:-1:0:0
@@ -27,6 +30,9 @@ F:
 A:2/3
 D:A faint quiver deep within; calm dissolves beneath hidden tremors.
 P:Dexterity -1
+B:Blessing of Steady Leaves
+E:A gentle hush steadies your hands; tremors fade into stillness.
+H:Dexterity +1
 
 N:2:Burden of Withering Blossoms
 S:0:0:-1:0
@@ -34,6 +40,9 @@ F:
 A:2/3
 D:Your heart feels as petals under frost, frail and fleeting, vulnerable to the gentlest winds.
 P:Constitution -1
+B:Blessing of Blooming Vigor
+E:Warmth floods your limbs; your endurance renews like spring.
+H:Constitution +1
 
 N:3:Curse of the Marred Dance
 S:0:0:0:-1
@@ -41,6 +50,9 @@ F:
 A:2/3
 D:No longer do you glide upon the earth, for a shadow has passed over your steps, harmony forever broken.
 P:Grace -1
+B:Blessing of the Unmarred Dance
+E:Harmony returns to your movements; every step finds its rhythm.
+H:Grace +1
 
 N:4:Curse of Blunted Steel
 S:0:0:0:0
@@ -48,6 +60,10 @@ F:MEL_PENALTY
 A:3/2
 D:The blade betrays your hand; the foe laughs softly as your blows fall like rain upon the stones.
 P:Melee Penalty
+B:Blessing of Quick Steel
+E:The blade sings in your grasp, swift and certain as starlight.
+H:Melee Affinity
+G:MEL_AFFINITY
 
 N:5:Curse of Shrouded Moon
 S:0:0:0:0
@@ -55,6 +71,10 @@ F:ARC_PENALTY
 A:3/2
 D:Moonlight dims and arrows stray; shadows deceive your sight, truths obscured in mist and twilight.
 P:Archery Penalty
+B:Blessing of the Silver Moon
+E:Moonlight bathes your aim; shadows flee before your arrows.
+H:Archery Affinity
+G:ARC_AFFINITY
 
 N:6:Curse of Stirring Shadows
 S:0:0:0:0
@@ -62,6 +82,10 @@ F:STL_PENALTY
 A:3/2
 D:Silence slips away gently, betraying secrets once carefully kept.
 P: Stealth Penalty
+B:Blessing of Hidden Footsteps
+E:Quiet veils your path; every step becomes a whisper.
+H:Stealth Affinity
+G:STL_AFFINITY
 
 N:7:Curse of the Hourglass’ Pause
 S:0:0:0:0
@@ -69,6 +93,10 @@ F:EVN_PENALTY
 A:3/2
 D:The present blurs, responses lingering too long at the edge of thought.
 P:Evasion Penalty
+B:Blessing of Fleet Time
+E:Moments quicken; you move before danger can arise.
+H:Evasion Affinity
+G:EVN_AFFINITY
 
 N:8:Curse of Clouded Mirrors
 S:0:0:0:0
@@ -76,6 +104,10 @@ F:PER_PENALTY
 A:3/2
 D:Subtle truths blur gently, forever dancing just beyond sight.
 P:Perception Penalty
+B:Blessing of Clear Mirrors
+E:Reflections sharpen; every detail returns bright and true.
+H:Perception Affinity
+G:PER_AFFINITY
 
 N:9:Curse of Nameless Dread
 S:0:0:0:0
@@ -83,6 +115,10 @@ F:WIL_PENALTY
 A:3/2
 D:A shadow creeps upon your mind, whispers of despair eroding bravery once unyielding.
 P:Will Penalty
+B:Blessing of the Steadfast Heart
+E:Resolve blazes anew; dread is banished from your thoughts.
+H:Will Affinity
+G:WIL_AFFINITY
 
 N:10:Sorrow of Crumbling Towers
 S:0:0:0:0
@@ -90,6 +126,10 @@ F:SMT_PENALTY
 A:3/2
 D:That which you craft falters like an ancient ruin, strength yielding slowly to decay.
 P:Smith Penalty
+B:Blessing of Unbroken Towers
+E:Forge heat steadies; every craft holds fast beneath your hands.
+H:Smith Affinity
+G:SMT_AFFINITY
 
 N:11:Curse of Fading Whispers
 S:0:0:0:0
@@ -97,6 +137,10 @@ F:SNG_PENALTY
 A:3/2
 D:Voice drifts silently away, words unraveling softly before heard.
 P:Song_Penalty
+B:Blessing of Echoed Song
+E:Your voice returns, weaving melodies anew through the dark.
+H:Song Affinity
+G:SNG_AFFINITY
 
 N:12:Fate’s Tyranny
 S:0:0:0:0

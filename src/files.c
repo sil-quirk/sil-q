@@ -3531,7 +3531,7 @@ void do_cmd_escape(int silmarils)
 
     /* Update metarun: escaped with N Silmarils */
     log_info("Player escaped with %d Silmarils", silmarils); 
-    metarun_update_on_exit(false,true,silmarils);
+    metarun_update_on_exit(false, true, silmarils, 0);
 
 }
 
@@ -3613,7 +3613,7 @@ void do_cmd_save_game(void)
     /* Make sure meta-run data (curses, flags, etc.) is up-to-date even
       when the player merely saves & quits. */
     log_info("Saving game and updating metarun data");    
-   metarun_update_on_exit(false, false, 0);
+   metarun_update_on_exit(false, false, 0, 0);
 
     if (save_player())
     {
@@ -4291,9 +4291,17 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
 
     int house_index = parse_score_int(score->p_h, sizeof(score->p_h), -1);
     int house_power = 3;
+    bool gift_of_eru = false;
+    int race_index = parse_score_int(score->p_r, sizeof(score->p_r), -1);
+
+    if (race_index >= 0 && z_info && p_info && race_index < z_info->p_max) {
+        if (p_info[race_index].flags & RHF_GIFTERU) gift_of_eru = true;
+    }
+
     if (house_index >= 0 && z_info && c_info && house_index < z_info->c_max)
     {
         house_power = c_info[house_index].power;
+        if (c_info[house_index].flags & RHF_GIFTERU) gift_of_eru = true;
         log_trace("calculate_score_breakdown: house_index=%d, house_power=%d (from c_info)", house_index, house_power);
     }
     else
@@ -4303,6 +4311,9 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     }
 
     house_power = clampi(house_power, -100, 100);
+    if (gift_of_eru && house_power > 0) {
+        house_power--;
+    }
 
     int mult_bp = 1000 + (3 - house_power) * 100 + curses * 25;
     if (mult_bp < 0)
@@ -4423,6 +4434,83 @@ static int compare_scores(const high_score* a, const high_score* b)
     return 0;
 }
 
+int score_count_alive_entries(void)
+{
+    char score_path[1024];
+    path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
+
+    FILE* saved_fd = highscore_fd;
+    bool saved_versioned = scores_file_is_versioned;
+    u32b saved_entry_count = scores_file_entry_count;
+
+    safe_setuid_grab();
+    FILE* scan_fd = open_scores_file_versioned(score_path, O_RDONLY);
+    safe_setuid_drop();
+    if (!scan_fd) {
+        highscore_fd = saved_fd;
+        scores_file_is_versioned = saved_versioned;
+        scores_file_entry_count = saved_entry_count;
+        return 0;
+    }
+
+    highscore_fd = scan_fd;
+
+    int alive = 0;
+    if (highscore_seek(0) == 0) {
+        high_score entry;
+        while (highscore_read(&entry) == 0) {
+            if (strcmp(entry.how, "(alive and well)") == 0) {
+                alive++;
+            }
+        }
+    }
+
+    fclose(highscore_fd);
+    highscore_fd = saved_fd;
+    scores_file_is_versioned = saved_versioned;
+    scores_file_entry_count = saved_entry_count;
+
+    return alive;
+}
+
+u32b score_sum_dead_points(void)
+{
+    char score_path[1024];
+    path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
+
+    FILE* saved_fd = highscore_fd;
+    bool saved_versioned = scores_file_is_versioned;
+    u32b saved_entry_count = scores_file_entry_count;
+
+    safe_setuid_grab();
+    FILE* scan_fd = open_scores_file_versioned(score_path, O_RDONLY);
+    safe_setuid_drop();
+    if (!scan_fd) {
+        highscore_fd = saved_fd;
+        scores_file_is_versioned = saved_versioned;
+        scores_file_entry_count = saved_entry_count;
+        return 0;
+    }
+
+    highscore_fd = scan_fd;
+
+    u32b total = 0;
+    if (highscore_seek(0) == 0) {
+        high_score entry;
+        while (highscore_read(&entry) == 0) {
+            if (strcmp(entry.how, "(alive and well)") == 0) continue;
+            if (entry.escaped[0] == 't') continue;
+            total += (u32b)score_points(&entry);
+        }
+    }
+
+    fclose(highscore_fd);
+    highscore_fd = saved_fd;
+    scores_file_is_versioned = saved_versioned;
+    scores_file_entry_count = saved_entry_count;
+
+    return total;
+}
 static int compare_scores_qsort(const void* va, const void* vb)
 {
     const high_score* a = (const high_score*)va;
@@ -7259,7 +7347,8 @@ static void close_game_aux(void)
 
      /* One more corpse recorded for this metarun */
     log_info("Player died - updating metarun data");
-    if (!p_ptr->escaped) metarun_update_on_exit(true, false, 0);
+    int death_score = score_points(&the_score);
+    if (!p_ptr->escaped) metarun_update_on_exit(true, false, 0, death_score);
 
      /* You are dead */
      print_tomb(&the_score);
@@ -8867,4 +8956,5 @@ void backup_and_clear_saves(void)
     
     log_trace("Folder-based backup process completed");
 }
+
 

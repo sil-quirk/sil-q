@@ -308,6 +308,7 @@ header c_head;
 header h_head;
 header st_head;
 header cu_head;
+header mb_head;
 header b_head;
 header g_head;
 header flavor_head;
@@ -1044,6 +1045,28 @@ static errr init_cu_info(void)
     cu_name = cu_head.name_ptr;
 
     return (err);
+}
+
+/*
+ * Initialize the blessing definitions array
+ */
+static errr init_mb_info(void)
+{
+    errr err;
+
+    init_header(&mb_head, z_info->mb_max, sizeof(major_blessing_type));
+
+#ifdef ALLOW_TEMPLATES
+    mb_head.parse_info_txt = parse_mb_info;
+#endif /* ALLOW_TEMPLATES */
+
+    err = init_info("blessing", &mb_head);
+
+    mb_info = mb_head.info_ptr;
+    mb_text = mb_head.text_ptr;
+    mb_name = mb_head.name_ptr;
+
+    return err;
 }
 
 /*
@@ -1950,6 +1973,11 @@ void init_angband(void)
     note("[Initializing arrays... (curses)]");
     if (init_cu_info())
         quit("Cannot initialize curses");
+
+    /* Initialize major blessing info */
+    note("[Initializing arrays... (blessings)]");
+    if (init_mb_info())
+        quit("Cannot initialize major blessings");
 
     /* Initialize race info */
     note("[Initializing arrays... (races)]");

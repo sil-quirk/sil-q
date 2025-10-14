@@ -79,6 +79,7 @@ typedef struct player_character player_house;
 typedef struct hist_type hist_type;
 typedef struct story_type story_type;
 typedef struct curse_type curse_type;
+typedef struct major_blessing_type major_blessing_type;
 typedef struct player_other player_other;
 typedef struct player_type player_type;
 typedef struct start_item start_item;
@@ -112,6 +113,7 @@ struct maxima
     u16b h_max; /* Max size for "h_info[]" */
     u16b st_max; /* Max size for "st_info[]" */
     u16b cu_max; /* Max size for "cu_info[]" */
+    u16b mb_max; /* Max size for "major blessing info[]" */
     u16b c_max; /* Max size for "c_info[]" */
     u16b quest_max; /* Max size for "quest_info[]" */
     u16b oath_max; /* Max size for "oath_info[]" */
@@ -771,16 +773,34 @@ struct story_type
 typedef struct curse_type              /* one entry in cu_info[]          */
 {
     s16b             name;             /* index in cu_name */ 
+    s16b             blessing_name;    /* blessing name index */ 
     u32b             text;             /* offset in the big text pool  */
+    u32b             blessing_text;    /* blessing description offset  */
     u32b             power;            /* NEW – offset of P:-effect text       */
+    u32b             blessing_power;   /* offset of blessing effect text       */
     s16b             cu_adj[A_MAX];    /* stat adjustments  */
-    u32b             flags;            /* ⇐ NEW – RHF flags */
-    u32b             flags_u;            /* ⇐ NEW – RHF flags */
+    u32b             flags;            /* RHF flags contributed by curse */
+    u32b             blessing_flags;   /* RHF flags contributed by blessing */
+    u32b             flags_u;          /* CUR flags contributed by curse */
+    u32b             blessing_flags_u; /* CUR flags contributed by blessing */
     byte  weight;              /* selection weight   (default 1)  */
     byte  max_stacks;          /* hard cap per meta-run (0 = ∞)   */    
 }
 curse_type;
 
+/*
+ * Major blessing definitions (data-driven metarun upgrades)
+ */
+struct major_blessing_type
+{
+    s16b name;         /* Display name offset (mb_name)                 */
+    u32b short_desc;   /* Short descriptor for stats listing             */
+    u32b detail_desc;  /* Menu description / tooltip                     */
+    u32b unlock_msg;   /* Message shown when the blessing is unlocked    */
+    byte effect;       /* Effect enum (metarun_major_effect)             */
+    byte cost;         /* Blessing point cost                            */
+    byte reserved[2];  /* Alignment / future expansion                   */
+};
 
 
 typedef struct runtype_type {

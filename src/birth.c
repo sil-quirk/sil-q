@@ -36,6 +36,8 @@ extern void wipe_screen_from(int col);
 #define TOTAL_AUX_COL 35
 #define INVALID_CHOICE 255
 
+static void grant_starting_artifact(void);
+
 /* House ability names */
 static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
 {
@@ -572,6 +574,43 @@ static void give_start_items(const start_item *list)
     }
 }
 
+static void grant_starting_artifact(void)
+{
+    int candidates[512];
+    int count = 0;
+
+    for (int i = 1; i < z_info->art_max && count < (int)N_ELEMENTS(candidates); i++) {
+        artefact_type *a_ptr = &a_info[i];
+        if (!a_ptr->name[0]) continue;
+        if (a_ptr->cur_num > 0) continue;
+        if (a_ptr->level > 10) continue;
+        if (valar_reserved_artifacts && valar_reserved_artifacts[i]) continue;
+        candidates[count++] = i;
+    }
+
+    if (count == 0) {
+        log_info("No early artefacts available for starting blessing.");
+        return;
+    }
+
+    int art_idx = candidates[rand_int(count)];
+    artefact_type *a_ptr = &a_info[art_idx];
+
+    object_type object_type_body;
+    object_type *o_ptr = &object_type_body;
+    object_prep(o_ptr, lookup_kind(a_ptr->tval, a_ptr->sval));
+    o_ptr->name1 = art_idx;
+    apply_magic(o_ptr, -1, true, true, true, true);
+    object_aware(o_ptr);
+    object_known(o_ptr);
+    (void)inven_carry(o_ptr, true);
+    a_ptr->cur_num = 1;
+    if (valar_reserved_artifacts) valar_reserved_artifacts[art_idx] = true;
+
+    msg_format("A hidden patron gifts you %s.", a_ptr->name);
+    log_info("Starting artefact granted: %s (idx=%d)", a_ptr->name, art_idx);
+}
+
 static void player_outfit(void)
 {
     /* ---------- locals ---------- */
@@ -595,6 +634,10 @@ static void player_outfit(void)
     give_start_items(rp_ptr->start_items);   /* race first  */
     log_debug("Giving starting items for house: %s", c_name + hp_ptr->name);
     give_start_items(hp_ptr->start_items);   /* house next  */
+
+    if (metarun_has_major_blessing_effect(METARUN_MAJOR_EFFECT_START_ARTIFACT)) {
+        grant_starting_artifact();
+    }
 
     /* ---------- Christmas present (unchanged) ---------- */
     c  = time((time_t*)0);
@@ -882,7 +925,7 @@ u32b curse_flag_mask(void)
 {
     u32b m = 0;
     for (int id = 0; id < z_info->cu_max; id++) {
-        if (CURSE_GET(id)) m |= cu_info[id].flags;
+        if (CURSE_CURSE_STACK(id) > 0) m |= cu_info[id].flags;
     }
     return m;
 }
@@ -895,11 +938,11 @@ int curse_flag_count_rhf(u32b rhf_flag)
     for (int i = 0; i < z_info->cu_max; i++)
     {
         /* Get the stack count for this curse */
-        int stacks = curse_count(i);
-        if (stacks > 0)
-        {
-            /* Add ALL stacks if this curse has the flag */
+        int stacks = CURSE_GET(i);
+        if (stacks > 0) {
             if (cu_info[i].flags & rhf_flag) count += stacks;
+        } else if (stacks < 0) {
+            if (cu_info[i].blessing_flags & rhf_flag) count += -stacks;
         }
     }
     return count;
@@ -914,11 +957,11 @@ int curse_flag_count_cur(u32b cur_flag)
     for (int i = 0; i < z_info->cu_max; i++)
     {
         /* Get the stack count for this curse */
-        int stacks = curse_count(i);
-        if (stacks > 0)
-        {
-            /* Add ALL stacks if this curse has the flag */
+        int stacks = CURSE_GET(i);
+        if (stacks > 0) {
             if (cu_info[i].flags_u & cur_flag) count += stacks;
+        } else if (stacks < 0) {
+            if (cu_info[i].blessing_flags_u & cur_flag) count += -stacks;
         }
     }
 

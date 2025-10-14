@@ -10,20 +10,120 @@
 #include "angband.h"
 #include "metarun.h"
 #include "h-define.h"
-#include "log/log.h"
+#include "log.h"
 #include "platform.h"    /* path_build(), fd_*, MKDIR         */
+#include "supplies.h"
 #include <time.h>
 #include <string.h>
 #include <stdlib.h>
+#include <limits.h>
+#include <ctype.h>
 
-#define METARUN_V5_SIZE (sizeof(metarun) - (2 * sizeof(u32b)))
+typedef struct metarun_v8 {
+    u32b id;
+    byte type;
+    byte deaths;
+    byte silmarils;
+    u32b last_played;
+    u32b score;
+    u32b best_run_score;
+    int8_t curse_stacks[32];
+    u32b curses_seen;
+    u32b persistent_options[8];
+    byte persistent_delay_factor;
+    byte persistent_hitpoint_warn;
+    u32b persistent_window_flags[ANGBAND_TERM_MAX];
+    byte persistent_options_initialized;
+    u32b completed_quests;
+    byte unlocked_oaths;
+    byte banned_oaths;
+    byte max_difficulty_reached;
+    byte quest_reserved[12];
+    u32b fallen_score_total;
+    u32b fallen_score_pool;
+    s16b blessing_points;
+    u16b major_blessings;
+    byte alive_characters;
+    byte reserved_runtime[5];
+} metarun_v8;
+
+typedef struct metarun_v7 {
+    u32b id;
+    byte type;
+    byte deaths;
+    byte silmarils;
+    u32b last_played;
+    u32b score;
+    u32b best_run_score;
+    int8_t curse_stacks[32];
+    u32b curses_seen;
+    u32b persistent_options[8];
+    byte persistent_delay_factor;
+    byte persistent_hitpoint_warn;
+    u32b persistent_window_flags[ANGBAND_TERM_MAX];
+    byte persistent_options_initialized;
+    u32b completed_quests;
+    byte unlocked_oaths;
+    byte banned_oaths;
+    byte max_difficulty_reached;
+    byte quest_reserved[12];
+} metarun_v7;
+
+typedef struct metarun_v6 {
+    u32b id;
+    byte type;
+    byte deaths;
+    byte silmarils;
+    u32b last_played;
+    u32b score;
+    u32b best_run_score;
+    u32b curses_lo;
+    u32b curses_hi;
+    u32b curses_seen;
+    u32b persistent_options[8];
+    byte persistent_delay_factor;
+    byte persistent_hitpoint_warn;
+    u32b persistent_window_flags[ANGBAND_TERM_MAX];
+    byte persistent_options_initialized;
+    u32b completed_quests;
+    byte unlocked_oaths;
+    byte banned_oaths;
+    byte max_difficulty_reached;
+    byte quest_reserved[12];
+} metarun_v6;
+
+typedef struct metarun_v5 {
+    u32b id;
+    byte type;
+    byte deaths;
+    byte silmarils;
+    u32b last_played;
+    u32b curses_lo;
+    u32b curses_hi;
+    u32b curses_seen;
+    u32b persistent_options[8];
+    byte persistent_delay_factor;
+    byte persistent_hitpoint_warn;
+    u32b persistent_window_flags[ANGBAND_TERM_MAX];
+    byte persistent_options_initialized;
+    u32b completed_quests;
+    byte unlocked_oaths;
+    byte banned_oaths;
+    byte max_difficulty_reached;
+    byte quest_reserved[12];
+} metarun_v5;
+
+#define METARUN_V8_SIZE (sizeof(metarun_v8))
+#define METARUN_V7_SIZE (sizeof(metarun_v7))
+#define METARUN_V6_SIZE (sizeof(metarun_v6))
+#define METARUN_V5_SIZE (sizeof(metarun_v5))
 
 #ifdef WINDOWS
 #include <windows.h>
 #else
 #include <dirent.h>
 #include <sys/types.h>
-#endif
+#endif  
 
 /* --------------------------------------------------------------- */
 /*  metarun.c : quick-and-dirty logger                             */
@@ -53,90 +153,453 @@ static int popcount32(u32b value)
     return count;
 }
 
-/* Get the actual best (maximum) individual run score for display */
-static u32b get_best_individual_score(void)
+static int parse_character_file(FILE *fp)
+{
+    int count = 0;
+    char line[1024];
+
+    while (fgets(line, sizeof(line), fp)) {
+        char *p = line;
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (!*p || *p == '#') continue;
+        if ((p[0] == 'N') && (p[1] == ':')) count++;
+    }
+
+    return count;
+}
+
+static int count_character_txt_entries(void)
+{
+    static int cached_total = -1;
+    if (cached_total >= 0) return cached_total;
+
+    const struct {
+        cptr dir;
+        cptr filename;
+    } candidates[] = {
+        { ANGBAND_DIR_SAVE, "character.txt" },
+        { ANGBAND_DIR_USER, "character.txt" },
+        { ANGBAND_DIR_APEX, "character.txt" },
+        { ANGBAND_DIR_DATA, "character.txt" },
+        { ANGBAND_DIR_EDIT, "character.txt" },
+        { NULL, NULL }
+    };
+
+    char path[1024];
+    FILE *fp = NULL;
+
+    for (size_t i = 0; candidates[i].dir; i++) {
+        if (!candidates[i].dir || !*candidates[i].dir) continue;
+        path_build(path, sizeof(path), candidates[i].dir, candidates[i].filename);
+        log_debug("count_character_txt_entries: trying %s", path);
+        fp = my_fopen(path, "r");
+        if (fp) {
+            cached_total = parse_character_file(fp);
+            my_fclose(fp);
+            log_debug("count_character_txt_entries: loaded %d entries from %s", cached_total, path);
+            break;
+        }
+    }
+
+    if (fp == NULL) {
+        log_debug("count_character_txt_entries: no character.txt found in known locations");
+        cached_total = 0;
+    }
+
+    return cached_total;
+}
+
+static void update_blessing_ledger(metarun *m)
+{
+    if (!m) return;
+
+    u32b threshold = METARUN_BLESSING_POINT_THRESHOLD;
+    if (threshold == 0) threshold = 1;
+
+    u32b total = m->fallen_score_total;
+    u32b earned = total / threshold;
+    u32b remainder = total % threshold;
+
+    if (earned > (u32b)SHRT_MAX) {
+        earned = (u32b)SHRT_MAX;
+    }
+
+    m->blessing_points = (s16b)earned;
+    m->fallen_score_pool = remainder;
+
+    if ((u32b)m->blessing_points_spent > earned) {
+        m->blessing_points_spent = (u16b)earned;
+    }
+}
+
+static void clear_blessing_runtime_fields(metarun *m)
+{
+    if (!m) return;
+
+    m->fallen_score_total = 0;
+    m->fallen_score_pool = 0;
+    m->blessing_points = 0;
+    m->blessing_points_spent = 0;
+    m->major_blessings = 0;
+    m->alive_characters = 0;
+    memset(m->reserved_runtime, 0, sizeof(m->reserved_runtime));
+}
+
+static int major_blessing_capacity(void)
+{
+    if (!z_info) return 0;
+    int cap = (int)z_info->mb_max;
+    if (cap < 0) cap = 0;
+    if (cap > 16) cap = 16; /* stored in u16 bitmask */
+    return cap;
+}
+
+static u16b major_blessing_mask(void)
+{
+    int cap = major_blessing_capacity();
+    if (cap <= 0) return 0;
+    if (cap >= 16) return 0xFFFFu;
+    return (u16b)((1u << cap) - 1u);
+}
+
+static void sanitize_major_blessing_bits(metarun *m)
+{
+    if (!m) return;
+    u16b mask = major_blessing_mask();
+    if (mask == 0) {
+        m->major_blessings = 0;
+    } else {
+        m->major_blessings &= mask;
+    }
+}
+
+static const major_blessing_type *major_blessing_def(int idx)
+{
+    if (!mb_info || !z_info) return NULL;
+    if (idx < 0 || idx >= (int)z_info->mb_max) return NULL;
+    return &mb_info[idx];
+}
+
+static cptr major_blessing_name_str(int idx)
+{
+    const major_blessing_type *def = major_blessing_def(idx);
+    if (!def || !mb_name || !def->name) return "(unknown)";
+    return mb_name + def->name;
+}
+
+static cptr major_blessing_short_desc(int idx)
+{
+    const major_blessing_type *def = major_blessing_def(idx);
+    if (!def || !mb_text || !def->short_desc) return NULL;
+    return mb_text + def->short_desc;
+}
+
+static cptr major_blessing_detail_desc(int idx)
+{
+    const major_blessing_type *def = major_blessing_def(idx);
+    if (!def || !mb_text || !def->detail_desc) return NULL;
+    return mb_text + def->detail_desc;
+}
+
+static cptr major_blessing_unlock_msg(int idx)
+{
+    const major_blessing_type *def = major_blessing_def(idx);
+    if (!def || !mb_text || !def->unlock_msg) return NULL;
+    return mb_text + def->unlock_msg;
+}
+
+static int major_blessing_cost(int idx)
+{
+    const major_blessing_type *def = major_blessing_def(idx);
+    if (!def) return 0;
+    if (def->cost == 0) return 3;
+    return def->cost;
+}
+
+static metarun_major_effect major_blessing_effect(int idx)
+{
+    const major_blessing_type *def = major_blessing_def(idx);
+    if (!def) return METARUN_MAJOR_EFFECT_NONE;
+    return (metarun_major_effect)def->effect;
+}
+
+static void build_symbol_bar(char *out, size_t out_len, int current, int maximum, char filled)
+{
+    if (!out || out_len == 0) return;
+    if (maximum <= 0) {
+        strnfmt(out, out_len, "[]");
+        return;
+    }
+
+    const int MAX_BAR_SLOTS = 20;
+    int slots = maximum;
+    if (slots > MAX_BAR_SLOTS) slots = MAX_BAR_SLOTS;
+    if (slots < 1) slots = 1;
+
+    char buffer[MAX_BAR_SLOTS + 1];
+    for (int i = 0; i < slots; i++) {
+        buffer[i] = (i < current) ? filled : '.';
+    }
+    buffer[slots] = '\0';
+
+    strnfmt(out, out_len, "[%s]", buffer);
+}
+
+static void build_death_marks(char *out, size_t out_len, int deaths)
+{
+    if (!out || out_len == 0) return;
+    if (deaths <= 0) {
+        strnfmt(out, out_len, "none");
+        return;
+    }
+
+    int max_marks = (int)out_len - 1;
+    if (max_marks <= 0) {
+        if (out_len > 0) out[0] = '\0';
+        return;
+    }
+
+    if (deaths <= max_marks) {
+        for (int i = 0; i < deaths; i++) out[i] = 'x';
+        out[deaths] = '\0';
+    } else {
+        int marks = max_marks - 1;
+        if (marks < 0) marks = 0;
+        for (int i = 0; i < marks; i++) out[i] = 'x';
+        out[marks] = '+';
+        out[marks + 1] = '\0';
+    }
+}
+
+static void refresh_alive_cache(void)
+{
+    int alive_scores = score_count_alive_entries();
+    if (alive_scores < 0) alive_scores = 0;
+
+    int roster_total = count_character_txt_entries();
+    int alive_from_roster = roster_total - (int)metar.deaths;
+    if (alive_from_roster < 0) {
+        log_warn("refresh_alive_cache: metar.deaths=%d exceeds roster_total=%d", metar.deaths, roster_total);
+        alive_from_roster = 0;
+    }
+
+    int alive = MAX(alive_scores, alive_from_roster);
+
+    if (character_generated && p_ptr && !p_ptr->is_dead) {
+        if (alive < 1) alive = 1;
+    }
+
+    if (alive > 255) alive = 255;
+    metar.alive_characters = (byte)alive;
+
+    log_debug("refresh_alive_cache: roster=%d deaths=%d scoreboard=%d final=%d",
+              roster_total, metar.deaths, alive_scores, alive);
+}
+
+static void decode_legacy_curse_words(u32b lo, u32b hi, int8_t stacks[32])
+{
+    if (!stacks) return;
+    for (int id = 0; id < 32; ++id) {
+        u32b cnt = (id < 16)
+                 ? ((lo >> (id * 2)) & 0x3U)
+                 : ((hi >> ((id - 16) * 2)) & 0x3U);
+        stacks[id] = (int8_t)cnt;
+    }
+}
+
+static void metarun_from_v8(metarun *dst, const metarun_v8 *src)
+{
+    if (!dst || !src) return;
+
+    memset(dst, 0, sizeof(*dst));
+    clear_blessing_runtime_fields(dst);
+
+    dst->id = src->id;
+    dst->type = src->type;
+    dst->deaths = src->deaths;
+    dst->silmarils = src->silmarils;
+    dst->last_played = src->last_played;
+    dst->score = src->score;
+    dst->best_run_score = src->best_run_score;
+
+    memcpy(dst->curse_stacks, src->curse_stacks, sizeof(dst->curse_stacks));
+    dst->curses_seen = src->curses_seen;
+
+    C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
+    dst->persistent_delay_factor = src->persistent_delay_factor;
+    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
+    C_COPY(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX, u32b);
+    dst->persistent_options_initialized = src->persistent_options_initialized;
+
+    dst->completed_quests = src->completed_quests;
+    dst->unlocked_oaths = src->unlocked_oaths;
+    dst->banned_oaths = src->banned_oaths;
+    dst->max_difficulty_reached = src->max_difficulty_reached;
+    C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
+
+    dst->fallen_score_total = src->fallen_score_total;
+    dst->blessing_points_spent = 0;
+    dst->major_blessings = src->major_blessings;
+    dst->alive_characters = src->alive_characters;
+
+    size_t copy = MIN(sizeof(dst->reserved_runtime), sizeof(src->reserved_runtime));
+    if (copy > 0) {
+        memcpy(dst->reserved_runtime, src->reserved_runtime, copy);
+    }
+
+    update_blessing_ledger(dst);
+}
+
+static void metarun_from_v7(metarun *dst, const metarun_v7 *src)
+{
+    if (!dst || !src) return;
+
+    memset(dst, 0, sizeof(*dst));
+    clear_blessing_runtime_fields(dst);
+
+    dst->id = src->id;
+    dst->type = src->type;
+    dst->deaths = src->deaths;
+    dst->silmarils = src->silmarils;
+    dst->last_played = src->last_played;
+    dst->score = src->score;
+    dst->best_run_score = src->best_run_score;
+
+    memcpy(dst->curse_stacks, src->curse_stacks, sizeof(src->curse_stacks));
+    dst->curses_seen = src->curses_seen;
+
+    C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
+    dst->persistent_delay_factor = src->persistent_delay_factor;
+    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
+    C_COPY(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX, u32b);
+    dst->persistent_options_initialized = src->persistent_options_initialized;
+
+    dst->completed_quests = src->completed_quests;
+    dst->unlocked_oaths = src->unlocked_oaths;
+    dst->banned_oaths = src->banned_oaths;
+    dst->max_difficulty_reached = src->max_difficulty_reached;
+    C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
+
+    update_blessing_ledger(dst);
+}
+
+static void metarun_from_v6(metarun *dst, const metarun_v6 *src)
+{
+    if (!dst || !src) return;
+
+    memset(dst, 0, sizeof(*dst));
+    clear_blessing_runtime_fields(dst);
+
+    dst->id = src->id;
+    dst->type = src->type;
+    dst->deaths = src->deaths;
+    dst->silmarils = src->silmarils;
+    dst->last_played = src->last_played;
+    dst->score = src->score;
+    dst->best_run_score = src->best_run_score;
+
+    decode_legacy_curse_words(src->curses_lo, src->curses_hi, dst->curse_stacks);
+    dst->curses_seen = src->curses_seen;
+
+    C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
+    dst->persistent_delay_factor = src->persistent_delay_factor;
+    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
+    C_COPY(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX, u32b);
+    dst->persistent_options_initialized = src->persistent_options_initialized;
+
+    dst->completed_quests = src->completed_quests;
+    dst->unlocked_oaths = src->unlocked_oaths;
+    dst->banned_oaths = src->banned_oaths;
+    dst->max_difficulty_reached = src->max_difficulty_reached;
+    C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
+
+    update_blessing_ledger(dst);
+}
+
+static void metarun_from_v5(metarun *dst, const metarun_v5 *src)
+{
+    if (!dst || !src) return;
+
+    memset(dst, 0, sizeof(*dst));
+    clear_blessing_runtime_fields(dst);
+
+    dst->id = src->id;
+    dst->type = src->type;
+    dst->deaths = src->deaths;
+    dst->silmarils = src->silmarils;
+    dst->last_played = src->last_played;
+
+    decode_legacy_curse_words(src->curses_lo, src->curses_hi, dst->curse_stacks);
+    dst->curses_seen = src->curses_seen;
+
+    C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
+    dst->persistent_delay_factor = src->persistent_delay_factor;
+    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
+    C_COPY(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX, u32b);
+    dst->persistent_options_initialized = src->persistent_options_initialized;
+
+    dst->completed_quests = src->completed_quests;
+    dst->unlocked_oaths = src->unlocked_oaths;
+    dst->banned_oaths = src->banned_oaths;
+    dst->max_difficulty_reached = src->max_difficulty_reached;
+    C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
+
+    update_blessing_ledger(dst);
+}
+
+static void metarun_from_legacy_old(metarun *dst, const metarun_old *src)
+{
+    if (!dst || !src) return;
+
+    memset(dst, 0, sizeof(*dst));
+    clear_blessing_runtime_fields(dst);
+
+    dst->id = src->id;
+    dst->type = src->type;
+    dst->deaths = src->deaths;
+    dst->silmarils = src->silmarils;
+    dst->last_played = src->last_played;
+
+    decode_legacy_curse_words(src->curses_lo, src->curses_hi, dst->curse_stacks);
+    dst->curses_seen = src->curses_seen;
+
+    /* Reasonable defaults for persistent settings */
+    dst->persistent_delay_factor = 5;
+    dst->persistent_hitpoint_warn = 3;
+    dst->persistent_options_initialized = 0;
+
+    update_blessing_ledger(dst);
+}
+
+/* Calculate best run score from the high score table
+ * All scores in the score file belong to the current metarun */
+static u32b get_best_run_score_from_highscores(void)
 {
     #define MAX_SCORES 100
     high_score scores[MAX_SCORES];
     int count = collect_high_scores(scores, MAX_SCORES, true);
     u32b best = 0;
-
+    
     for (int i = 0; i < count; i++) {
         int pts = score_points(&scores[i]);
         if (pts > 0 && (u32b)pts > best) {
             best = (u32b)pts;
         }
     }
-
+    
     #undef MAX_SCORES
     return best;
-}
-
-/* Calculate weighted run score from the high score table
- * All scores in the score file belong to the current metarun
- * Formula: best + second/2 + third/4 + fourth/8 + ...
- * This is used for metarun score calculation, not for display
- */
-static u32b get_weighted_run_score_from_highscores(void)
-{
-    #define MAX_SCORES 100
-    high_score scores[MAX_SCORES];
-    int count = collect_high_scores(scores, MAX_SCORES, true);
-    
-    if (count == 0) return 0;
-
-    /* Collect all valid scores into an array */
-    u32b valid_scores[MAX_SCORES];
-    int valid_count = 0;
-
-    for (int i = 0; i < count; i++) {
-        int pts = score_points(&scores[i]);
-        if (pts > 0) {
-            valid_scores[valid_count++] = (u32b)pts;
-        }
-    }
-
-    if (valid_count == 0) return 0;
-
-    /* Sort scores in descending order (simple bubble sort, count is small) */
-    for (int i = 0; i < valid_count - 1; i++) {
-        for (int j = 0; j < valid_count - i - 1; j++) {
-            if (valid_scores[j] < valid_scores[j + 1]) {
-                u32b temp = valid_scores[j];
-                valid_scores[j] = valid_scores[j + 1];
-                valid_scores[j + 1] = temp;
-            }
-        }
-    }
-
-    /* Calculate weighted sum: best + second/2 + third/4 + fourth/8 + ... */
-    u32b weighted_sum = 0;
-    u32b divisor = 1;
-
-    for (int i = 0; i < valid_count; i++) {
-        weighted_sum += valid_scores[i] / divisor;
-        divisor *= 2;
-        
-        /* Stop if divisor gets too large (score contribution becomes negligible) */
-        if (divisor > 1024) break;
-    }
-
-    log_debug("get_weighted_run_score_from_highscores: %d valid scores, weighted_sum=%u (best=%u)",
-              valid_count, weighted_sum, valid_count > 0 ? valid_scores[0] : 0);
-
-    #undef MAX_SCORES
-    return weighted_sum;
 }
 
 static u32b compute_metarun_score(const metarun *m)
 {
     if (!m) return 0;
 
-    /* Calculate weighted run score from high scores for metarun calculation */
-    u32b best_run = get_weighted_run_score_from_highscores();
-
+    /* Calculate best_run_score from high scores on-demand */
+    u32b best_run = get_best_run_score_from_highscores();
+    
     int quest_count = popcount32(m->completed_quests);
-
+    
     s32b total = (s32b)best_run;
     total += (s32b)m->silmarils * 120;
     total -= (s32b)m->deaths * 60;
@@ -144,7 +607,7 @@ static u32b compute_metarun_score(const metarun *m)
     total -= (s32b)100 * popcount32(m->banned_oaths);
 
     log_debug("compute_metarun_score: best_run=%u, sils=%d, deaths=%d, quest_count=%d (0x%08X), banned=%d => total=%d",
-              best_run, m->silmarils, m->deaths, quest_count, m->completed_quests,
+              best_run, m->silmarils, m->deaths, quest_count, m->completed_quests, 
               popcount32(m->banned_oaths), total);
 
     if (total < 0) total = 0;
@@ -195,14 +658,14 @@ static void reset_defaults(metarun *m)
 {
     log_info("Initializing new metarun with default values");
     memset(m, 0, sizeof(*m));
+    clear_blessing_runtime_fields(m);
     m->id          = 1;
     m->last_played = (u32b)time(NULL);
-    m->curses_lo   = 0;
-    m->curses_hi   = 0;
+    memset(m->curse_stacks, 0, sizeof(m->curse_stacks));
     m->curses_seen = 0;
     m->deaths      = 0;
     m->silmarils   = 0;
-
+    
     /* Initialize persistent settings with defaults */
     for (int i = 0; i < 8; i++) {
         m->persistent_options[i] = 0;
@@ -213,20 +676,21 @@ static void reset_defaults(metarun *m)
     m->persistent_delay_factor = 5;      /* Default delay factor */
     m->persistent_hitpoint_warn = 3;     /* Default hitpoint warning */
     m->persistent_options_initialized = 0; /* Mark as not initialized yet */
-
+    
     /* Initialize quest tracking */
     m->completed_quests = 0;             /* No quests completed initially */
-
+    
     /* Initialize oath system tracking */
     m->unlocked_oaths = 0;               /* No oaths unlocked initially */
     m->banned_oaths = 0;                 /* No oaths banned initially */
     m->max_difficulty_reached = 0;       /* Start with easiest difficulty */
-
+    
     for (int i = 0; i < 12; i++) {       /* Updated to 12 due to new field */
         m->quest_reserved[i] = 0;
     }
 
     m->score = compute_metarun_score(m);
+    update_blessing_ledger(m);
 
     log_debug("After init: curses_seen = 0x%08X", m->curses_seen);
 }
@@ -260,9 +724,9 @@ static void apply_difficulty_curses(metarun *m)
     if (m->type >= z_info->rt_max) return; /* invalid runtype */
 
     runtype_type *rt = &runtype_info[m->type];
-
+    
     log_info("Applying curses for runtype %d (%s)", m->type, rt->name);
-
+    
     /* Apply curses based on runtype configuration */
     if (rt->start_curses)
     {
@@ -310,49 +774,6 @@ static void start_new_metarun(void);
 static void choose_difficulty_menu(void);
 static void print_heading_fade(cptr title, byte final_attr);
 static bool print_paragraph_fade(cptr txt, byte final_attr, int row);
-
-/* ----------------------------------------------------------------
- * Flush the live 2-bit counters into the on-disk words
- * ---------------------------------------------------------------- */
-static void curses_pack_words(void)
-{
-    u32b lo = 0, hi = 0;
-
-    for (int id = 0; id < 32; id++) {
-        u32b cnt = CURSE_GET(id) & 0x3;        /* 0–3 stacks */
-        if (id < 16)
-            lo |= cnt << (id * 2);             /* bits 0,2,4 … 30 */
-        else
-            hi |= cnt << ((id - 16) * 2);
-    }
-
-    metar.curses_lo = lo;
-    metar.curses_hi = hi;
-}
-
-/* ----------------------------------------------------------------
- * Expand the on-disk words into the live 2-bit counters
- * (call straight after reading the struct)
- * ---------------------------------------------------------------- */
-static void curses_unpack_words(void)
-{
-    log_trace("curses_unpack_words: before - curses_seen=0x%08X", metar.curses_seen);
-
-    u32b lo = metar.curses_lo;
-    u32b hi = metar.curses_hi;
-
-    for (int id = 0; id < 32; id++) {
-        u32b cnt = (id < 16)
-                 ? (lo >> (id * 2)) & 0x3
-                 : (hi >> ((id - 16) * 2)) & 0x3;
-
-        CURSE_SET(id, (byte)cnt);
-    }
-
-    log_trace("curses_unpack_words: after - curses_seen=0x%08X", metar.curses_seen);
-}
-
-
 /* =======================  load / save  ========================= */
 
 /* Check if a file is in the new versioned format */
@@ -375,8 +796,26 @@ static bool is_versioned_meta_file(int fd, int file_size)
     } else {
         if ((payload % header.entry_count) != 0) return false;
         size_t entry_size = payload / header.entry_count;
-        if (entry_size != sizeof(metarun) && entry_size != METARUN_V5_SIZE)
+        const size_t accepted[] = {
+            sizeof(metarun),
+            METARUN_V8_SIZE,
+            METARUN_V7_SIZE,
+            METARUN_V6_SIZE,
+            METARUN_V5_SIZE,
+            sizeof(metarun_old)
+        };
+        bool supported = false;
+        for (size_t i = 0; i < N_ELEMENTS(accepted); i++) {
+            if (entry_size == accepted[i]) {
+                supported = true;
+                break;
+            }
+        }
+        if (!supported) {
+            log_debug("is_versioned_meta_file: unsupported entry size %zu (payload %zu, entries %u)",
+                      entry_size, payload, header.entry_count);
             return false;
+        }
     }
 
     log_info("Detected versioned meta file: v%d.%d.%d, %u entries",
@@ -390,39 +829,39 @@ static bool is_versioned_meta_file(int fd, int file_size)
 void cleanup_old_game_files(void)
 {
     log_info("*** FRESH STARTUP CLEANUP STARTING ***");
-
+    
     /* Use the correct save directory - ANGBAND_DIR_SAVE points to lib/save */
     char save_dir[1024];
     strnfmt(save_dir, sizeof(save_dir), "%s", ANGBAND_DIR_SAVE);
-
+    
     log_trace("Fresh startup: checking save directory: %s", save_dir);
-
+    
     /* Platform-agnostic approach: scan directory for ANY files (except .gitignore and archives) */
     bool has_save_files = false;
-
+    
     #ifdef WINDOWS
     /* Windows: Use FindFirstFile/FindNextFile for directory scanning */
     WIN32_FIND_DATA findData;
     char search_path[1024];
     path_build(search_path, sizeof(search_path), save_dir, "*");
-
+    
     HANDLE hFind = FindFirstFile(search_path, &findData);
     if (hFind != INVALID_HANDLE_VALUE) {
         do {
             /* Skip directories and special entries */
             if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
-
+            
             char* filename = findData.cFileName;
-
+            
             /* Skip .gitignore and archive files */
             if (strcmp(filename, ".gitignore") == 0) continue;
             if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
-
+            
             /* Found a save file! */
             has_save_files = true;
             log_trace("Fresh startup: found save file: %s", filename);
             break;
-
+            
         } while (FindNextFile(hFind, &findData));
         FindClose(hFind);
     }
@@ -431,18 +870,18 @@ void cleanup_old_game_files(void)
     DIR *dir = opendir(save_dir);
     if (dir) {
         struct dirent *entry;
-
+        
         while ((entry = readdir(dir)) != NULL) {
             /* Skip directories and special entries */
             if (entry->d_type == DT_DIR) continue;
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
-
+            
             char* filename = entry->d_name;
-
+            
             /* Skip .gitignore and archive files */
             if (strcmp(filename, ".gitignore") == 0) continue;
             if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
-
+            
             /* Found a save file! */
             has_save_files = true;
             log_trace("Fresh startup: found save file: %s", filename);
@@ -451,65 +890,65 @@ void cleanup_old_game_files(void)
         closedir(dir);
     }
     #endif
-
+    
     /* ULTRA FAST EXIT if no save files detected */
     if (!has_save_files) {
         log_info("*** NO SAVE FILES DETECTED - INSTANT FRESH START ***");
-
+        
         /* Quick score file check and removal */
         char score_file[1024];
         path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw");
-
+        
         int score_fd = fd_open(score_file, O_RDONLY);
         if (score_fd >= 0) {
             fd_close(score_fd);
             log_info("*** REMOVING SCORE FILE FOR FRESH START ***");
-
+            
             /* Platform-agnostic file removal using standard C */
             remove(score_file);
         } else {
             log_trace("Fresh startup: no score file found");
         }
-
+        
         log_info("*** INSTANT FRESH STARTUP COMPLETED ***");
         return;  /* INSTANT EXIT - no shell commands needed */
     }
-
+    
     /* Comprehensive cleanup: delete ALL files except .gitignore and archive files using ONLY standard C */
     log_info("*** FOUND SAVE FILES - DELETING ALL NON-ARCHIVE FILES ***");
-
+    
     /* Use ONLY standard C functions - no shell commands for better portability */
     int files_deleted = 0;
-
+    
     #ifdef WINDOWS
     /* Windows: Use FindFirstFile/FindNextFile to enumerate and delete */
     WIN32_FIND_DATA cleanupFindData;
     char cleanup_search_path[1024];
     path_build(cleanup_search_path, sizeof(cleanup_search_path), save_dir, "*");
-
+    
     HANDLE hCleanupFind = FindFirstFile(cleanup_search_path, &cleanupFindData);
     if (hCleanupFind != INVALID_HANDLE_VALUE) {
         do {
             /* Skip directories and special entries */
             if (cleanupFindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
-
+            
             char* filename = cleanupFindData.cFileName;
-
+            
             /* Skip .gitignore and archive files */
             if (strcmp(filename, ".gitignore") == 0) continue;
             if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
-
+            
             /* Delete this file using standard C */
             char file_path[1024];
             path_build(file_path, sizeof(file_path), save_dir, filename);
-
+            
             if (remove(file_path) == 0) {
                 files_deleted++;
                 log_trace("Fresh startup: deleted file: %s", filename);
             } else {
                 log_trace("Fresh startup: failed to delete: %s", filename);
             }
-
+            
         } while (FindNextFile(hCleanupFind, &cleanupFindData));
         FindClose(hCleanupFind);
     }
@@ -518,22 +957,22 @@ void cleanup_old_game_files(void)
     dir = opendir(save_dir);
     if (dir) {
         struct dirent *entry;
-
+        
         while ((entry = readdir(dir)) != NULL) {
             /* Skip directories and special entries */
             if (entry->d_type == DT_DIR) continue;
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
-
+            
             char* filename = entry->d_name;
-
+            
             /* Skip .gitignore and archive files */
             if (strcmp(filename, ".gitignore") == 0) continue;
             if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
-
+            
             /* Delete this file using standard C */
             char file_path[1024];
             path_build(file_path, sizeof(file_path), save_dir, filename);
-
+            
             if (remove(file_path) == 0) {
                 files_deleted++;
                 log_trace("Fresh startup: deleted file: %s", filename);
@@ -544,26 +983,26 @@ void cleanup_old_game_files(void)
         closedir(dir);
     }
     #endif
-
+    
     if (files_deleted > 0) {
         log_info("*** FRESH STARTUP DELETED %d FILES USING STANDARD C ***", files_deleted);
     } else {
         log_info("*** NO FILES FOUND TO DELETE ***");
     }
-
+    
     /* Score file cleanup */
     char score_file[1024];
     path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw");
-
+    
     int score_fd = fd_open(score_file, O_RDONLY);
     if (score_fd >= 0) {
         fd_close(score_fd);
         log_info("*** REMOVING SCORE FILE FOR FRESH START ***");
-
+        
         /* Platform-agnostic file removal using standard C */
         remove(score_file);
     }
-
+    
     log_info("*** FRESH STARTUP CLEANUP COMPLETED ***");
 }
 
@@ -605,17 +1044,21 @@ errr load_metaruns(bool create_if_missing)
     /* Check if this is a versioned file */
     int file_size = fd_file_size(fd);
     bool is_versioned = is_versioned_meta_file(fd, file_size);
-
+    
     const char *recovery_reason = NULL;
 
     if (is_versioned) {
-        /* Load versioned format */
         meta_file_header header;
         fd_seek(fd, 0);
-        fd_read(fd, (char*)&header, sizeof(header));
+        if (fd_read(fd, (char*)&header, sizeof(header)) != 0) {
+            log_error("Failed to read metarun header");
+            fd_close(fd);
+            return -1;
+        }
 
-        log_info("Loading versioned meta file v%d.%d.%d with %u entries",
-                 header.version_major, header.version_minor, header.version_patch, header.entry_count);
+        log_info("Loading versioned meta file v%d.%d.%d (%u entries)",
+                 header.version_major, header.version_minor,
+                 header.version_patch, header.entry_count);
 
         metarun_max = header.entry_count;
         size_t payload = (file_size >= (int)sizeof(meta_file_header))
@@ -625,161 +1068,162 @@ errr load_metaruns(bool create_if_missing)
                           ? (payload / (size_t)metarun_max)
                           : 0;
 
-        if (metarun_max > 0) {
+        if (metarun_max > 0 && entry_size > 0) {
             metaruns = C_ZNEW(metarun_max, metarun);
+            fd_seek(fd, sizeof(meta_file_header));
 
             if (entry_size == sizeof(metarun)) {
                 fd_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
+                for (s16b i = 0; i < metarun_max; i++) {
+                    if (header.version_major == 0 && header.version_minor < 9) {
+                        metaruns[i].blessing_points_spent = 0;
+                    }
+                    update_blessing_ledger(&metaruns[i]);
+                    sanitize_major_blessing_bits(&metaruns[i]);
+                }
+            } else if (entry_size == METARUN_V8_SIZE) {
+                metarun_v8 *legacy = C_ZNEW(metarun_max, metarun_v8);
+                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v8));
+                for (s16b i = 0; i < metarun_max; i++) {
+                    metarun_from_v8(&metaruns[i], &legacy[i]);
+                    sanitize_major_blessing_bits(&metaruns[i]);
+                }
+                FREE(legacy);
+            } else if (entry_size == METARUN_V7_SIZE) {
+                metarun_v7 *legacy = C_ZNEW(metarun_max, metarun_v7);
+                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v7));
+                for (s16b i = 0; i < metarun_max; i++) {
+                    metarun_from_v7(&metaruns[i], &legacy[i]);
+                    sanitize_major_blessing_bits(&metaruns[i]);
+                }
+                FREE(legacy);
+            } else if (entry_size == METARUN_V6_SIZE) {
+                metarun_v6 *legacy = C_ZNEW(metarun_max, metarun_v6);
+                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v6));
+                for (s16b i = 0; i < metarun_max; i++) {
+                    metarun_from_v6(&metaruns[i], &legacy[i]);
+                    sanitize_major_blessing_bits(&metaruns[i]);
+                }
+                FREE(legacy);
             } else if (entry_size == METARUN_V5_SIZE) {
-                typedef struct metarun_v5 {
-                    u32b id;
-                    byte type;
-                    byte deaths;
-                    byte silmarils;
-                    u32b last_played;
-                    u32b curses_lo;
-                    u32b curses_hi;
-                    u32b curses_seen;
-                    u32b persistent_options[8];
-                    byte persistent_delay_factor;
-                    byte persistent_hitpoint_warn;
-                    u32b persistent_window_flags[ANGBAND_TERM_MAX];
-                    byte persistent_options_initialized;
-                    u32b completed_quests;
-                    byte unlocked_oaths;
-                    byte banned_oaths;
-                    byte max_difficulty_reached;
-                    byte quest_reserved[12];
-                } metarun_v5;
-
                 metarun_v5 *legacy = C_ZNEW(metarun_max, metarun_v5);
                 fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v5));
-
                 for (s16b i = 0; i < metarun_max; i++) {
-                    metaruns[i].id = legacy[i].id;
-                    metaruns[i].type = legacy[i].type;
-                    metaruns[i].deaths = legacy[i].deaths;
-                    metaruns[i].silmarils = legacy[i].silmarils;
-                    metaruns[i].last_played = legacy[i].last_played;
-                    metaruns[i].curses_lo = legacy[i].curses_lo;
-                    metaruns[i].curses_hi = legacy[i].curses_hi;
-                    metaruns[i].curses_seen = legacy[i].curses_seen;
-                    C_COPY(metaruns[i].persistent_options, legacy[i].persistent_options, 8, u32b);
-                    metaruns[i].persistent_delay_factor = legacy[i].persistent_delay_factor;
-                    metaruns[i].persistent_hitpoint_warn = legacy[i].persistent_hitpoint_warn;
-                    C_COPY(metaruns[i].persistent_window_flags, legacy[i].persistent_window_flags, ANGBAND_TERM_MAX, u32b);
-                    metaruns[i].persistent_options_initialized = legacy[i].persistent_options_initialized;
-                    metaruns[i].completed_quests = legacy[i].completed_quests;
-                    metaruns[i].unlocked_oaths = legacy[i].unlocked_oaths;
-                    metaruns[i].banned_oaths = legacy[i].banned_oaths;
-                    metaruns[i].max_difficulty_reached = legacy[i].max_difficulty_reached;
-                    C_COPY(metaruns[i].quest_reserved, legacy[i].quest_reserved, 12, byte);
-                    metaruns[i].best_run_score = 0;
+                    metarun_from_v5(&metaruns[i], &legacy[i]);
+                    sanitize_major_blessing_bits(&metaruns[i]);
                 }
-
+                FREE(legacy);
+            } else if (entry_size == sizeof(metarun_old)) {
+                metarun_old *legacy = C_ZNEW(metarun_max, metarun_old);
+                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_old));
+                for (s16b i = 0; i < metarun_max; i++) {
+                    metarun_from_legacy_old(&metaruns[i], &legacy[i]);
+                    sanitize_major_blessing_bits(&metaruns[i]);
+                }
                 FREE(legacy);
             } else {
                 recovery_reason = "versioned meta.raw had unexpected entry size";
-                log_warn("Versioned meta file entry size %zu did not match known formats", entry_size);
+                log_warn("Unsupported metarun entry size %zu in versioned file", entry_size);
                 FREE(metaruns);
                 metaruns = NULL;
                 metarun_max = 0;
             }
-
-            if (metaruns) {
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metaruns[i].score = compute_metarun_score(&metaruns[i]);
-                }
-            }
-        } else {
+        } else if (metarun_max == 0) {
             recovery_reason = "versioned meta.raw reported zero entries";
-            log_warn("Versioned meta file had no entries; scheduling default metarun creation");
+            log_warn("Versioned meta file contains zero entries");
+        } else {
+            recovery_reason = "versioned meta.raw had invalid payload size";
+            log_warn("Versioned meta file payload %zu does not align with %d entries",
+                     payload, metarun_max);
+            FREE(metaruns);
+            metaruns = NULL;
+            metarun_max = 0;
+        }
+    } else {
+        size_t raw_size = (size_t)file_size;
+        size_t entry_size = 0;
+        s16b entry_count = 0;
+
+        const size_t candidates[] = {
+            sizeof(metarun),
+            METARUN_V8_SIZE,
+            METARUN_V7_SIZE,
+            METARUN_V6_SIZE,
+            METARUN_V5_SIZE,
+            sizeof(metarun_old)
+        };
+
+        for (size_t i = 0; i < N_ELEMENTS(candidates); i++) {
+            if (candidates[i] == 0) continue;
+            if ((raw_size % candidates[i]) == 0) {
+                entry_size = candidates[i];
+                entry_count = (s16b)(raw_size / candidates[i]);
+                break;
+            }
+        }
+
+        if (entry_size == 0 || entry_count <= 0) {
+            recovery_reason = "legacy meta.raw had unrecognised size";
+            log_warn("Legacy meta file size %zu does not match supported layouts", raw_size);
+        } else {
+            metarun_max = entry_count;
+            metaruns = C_ZNEW(metarun_max, metarun);
+            fd_seek(fd, 0);
+
+            if (entry_size == sizeof(metarun)) {
+                fd_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
+                for (s16b i = 0; i < metarun_max; i++) {
+                    metaruns[i].blessing_points_spent = 0;
+                    update_blessing_ledger(&metaruns[i]);
+                    sanitize_major_blessing_bits(&metaruns[i]);
+                }
+            } else if (entry_size == METARUN_V8_SIZE) {
+                metarun_v8 *legacy = C_ZNEW(metarun_max, metarun_v8);
+                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v8));
+                for (s16b i = 0; i < metarun_max; i++) {
+                    metarun_from_v8(&metaruns[i], &legacy[i]);
+                    sanitize_major_blessing_bits(&metaruns[i]);
+                }
+                FREE(legacy);
+            } else if (entry_size == METARUN_V7_SIZE) {
+                metarun_v7 *legacy = C_ZNEW(metarun_max, metarun_v7);
+                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v7));
+                for (s16b i = 0; i < metarun_max; i++) {
+                    metarun_from_v7(&metaruns[i], &legacy[i]);
+                    sanitize_major_blessing_bits(&metaruns[i]);
+                }
+                FREE(legacy);
+            } else if (entry_size == METARUN_V6_SIZE) {
+                metarun_v6 *legacy = C_ZNEW(metarun_max, metarun_v6);
+                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v6));
+                for (s16b i = 0; i < metarun_max; i++) {
+                    metarun_from_v6(&metaruns[i], &legacy[i]);
+                    sanitize_major_blessing_bits(&metaruns[i]);
+                }
+                FREE(legacy);
+            } else if (entry_size == METARUN_V5_SIZE) {
+                metarun_v5 *legacy = C_ZNEW(metarun_max, metarun_v5);
+                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v5));
+                for (s16b i = 0; i < metarun_max; i++) {
+                    metarun_from_v5(&metaruns[i], &legacy[i]);
+                    sanitize_major_blessing_bits(&metaruns[i]);
+                }
+                FREE(legacy);
+            } else if (entry_size == sizeof(metarun_old)) {
+                metarun_old *legacy = C_ZNEW(metarun_max, metarun_old);
+                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_old));
+                for (s16b i = 0; i < metarun_max; i++) {
+                    metarun_from_legacy_old(&metaruns[i], &legacy[i]);
+                    sanitize_major_blessing_bits(&metaruns[i]);
+                }
+                FREE(legacy);
+            }
         }
     }
-    else {
-        /* Legacy format detection and conversion */
-        s16b old_count = (s16b)(file_size / sizeof(metarun_old));
-        s16b new_count = (s16b)(file_size / sizeof(metarun));
 
-        bool is_old_format = false;
-
-        log_info("File size: %d bytes, old struct: %d bytes, new struct: %d bytes",
-                 file_size, (int)sizeof(metarun_old), (int)sizeof(metarun));
-        log_info("Old count would be: %d, new count would be: %d", old_count, new_count);
-
-        /* If the file is exactly divisible by new format size, it's new format */
-        if ((file_size % sizeof(metarun)) == 0) {
-            is_old_format = false;
-            metarun_max = new_count;
-            log_info("Loading legacy new format metarun file with %d entries", new_count);
-        } else if ((file_size % sizeof(metarun_old)) == 0) {
-            /* Only consider old format if new format doesn't fit exactly */
-            is_old_format = true;
-            metarun_max = old_count;
-            log_info("Detected legacy old format metarun file, converting %d entries", old_count);
-        } else {
-            /* File size doesn't match either format - default to new format with truncation */
-            is_old_format = false;
-            metarun_max = new_count;  /* This will truncate partial entries */
-            log_info("File size doesn't match known formats exactly, assuming new format with %d complete entries", new_count);
-        }
-
-        if (metarun_max > 0)
-            metaruns = C_ZNEW(metarun_max, metarun);
-
-        if (is_old_format && metarun_max > 0) {
-            /* Load old format and convert to new format */
-            metarun_old *old_data = C_ZNEW(metarun_max, metarun_old);
-            fd_seek(fd, 0);
-            fd_read(fd, (char*)old_data, metarun_max * sizeof(metarun_old));
-
-            /* Convert each old entry to new format */
-                for (s16b i = 0; i < metarun_max; i++) {
-                    /* Copy old fields */
-                    metaruns[i].id = old_data[i].id;
-                    metaruns[i].type = old_data[i].type;
-                    metaruns[i].deaths = old_data[i].deaths;
-                    metaruns[i].silmarils = old_data[i].silmarils;
-                    metaruns[i].last_played = old_data[i].last_played;
-                    metaruns[i].curses_lo = old_data[i].curses_lo;
-                    metaruns[i].curses_hi = old_data[i].curses_hi;
-                    metaruns[i].curses_seen = old_data[i].curses_seen;
-
-                /* Initialize new persistent settings fields with defaults */
-                for (int j = 0; j < 8; j++) {
-                    metaruns[i].persistent_options[j] = 0;
-                }
-                for (int j = 0; j < ANGBAND_TERM_MAX; j++) {
-                    metaruns[i].persistent_window_flags[j] = 0;
-                }
-                metaruns[i].persistent_delay_factor = 5;
-                metaruns[i].persistent_hitpoint_warn = 3;
-                metaruns[i].persistent_options_initialized = 0;
-
-                    /* Initialize quest tracking fields for old format */
-                    metaruns[i].completed_quests = 0;
-                    for (int j = 0; j < (int)N_ELEMENTS(metaruns[i].quest_reserved); j++) {
-                        metaruns[i].quest_reserved[j] = 0;
-                    }
-
-                    metaruns[i].best_run_score = 0;
-                    metaruns[i].score = compute_metarun_score(&metaruns[i]);
-                }
-
-                FREE(old_data);
-                log_info("Successfully converted legacy old format to new format");
-        } else if (!is_old_format && metarun_max > 0) {
-            /* Load new format directly */
-            fd_seek(fd, 0);
-            fd_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
-            log_info("Loaded legacy new format entries");
-
-            for (s16b i = 0; i < metarun_max; i++) {
-                metaruns[i].score = compute_metarun_score(&metaruns[i]);
-            }
-        } else {
-            recovery_reason = "legacy meta.raw truncated without any complete entries";
-            log_warn("Legacy meta file did not contain any complete entries; scheduling default metarun creation");
+    if (metaruns) {
+        for (s16b i = 0; i < metarun_max; i++) {
+            metaruns[i].score = compute_metarun_score(&metaruns[i]);
         }
     }
 
@@ -830,20 +1274,20 @@ errr load_metaruns(bool create_if_missing)
     metar = metaruns[current_run];
     metar.score = compute_metarun_score(&metar);
     metaruns[current_run].score = metar.score;
+    metarun_apply_runtime_effects();
     log_debug("Final current_run=%d, metar: id=%u, deaths=%u, silmarils=%u",
               current_run, metar.id, metar.deaths, metar.silmarils);
 
     /* ensure its per-run directory exists */
     ensure_run_dir(&metar);
-    curses_unpack_words();    /* NEW: expand words into live table */
-
+    
     /* Apply difficulty curses only if this is a newly created metarun */
     if (metarun_created)
     {
         apply_difficulty_curses(&metar);
         save_metaruns(); /* persist the changes */
     }
-
+    
     log_debug("Loaded metarun %d with %d silmarils, %d deaths", metar.id, metar.silmarils, metar.deaths);
     return 0;
 }
@@ -857,8 +1301,8 @@ static errr backup_file(const char *filepath)
     static u32b last_backup_time = 0;
     static char last_backed_up_file[1024] = "";
     u32b current_time = (u32b)time(NULL);
-
-    /* Throttle backups: only create backup if
+    
+    /* Throttle backups: only create backup if 
      * 1. This is a different file than last time, OR
      * 2. More than 300 seconds (5 minutes) have passed since last backup of this file
      */
@@ -870,11 +1314,11 @@ static errr backup_file(const char *filepath)
         log_info("backup_file: backing up %s after %u seconds", filepath, current_time - last_backup_time);
     } else {
         /* Same file, recent backup - skip */
-        log_trace("backup_file: skipping backup of %s (last backup %u seconds ago)",
+        log_trace("backup_file: skipping backup of %s (last backup %u seconds ago)", 
                   filepath, current_time - last_backup_time);
         return 0;
     }
-
+    
     /* Check if original file exists */
     int fd_src = fd_open(filepath, O_RDONLY);
     if (fd_src < 0) {
@@ -882,7 +1326,7 @@ static errr backup_file(const char *filepath)
         log_info("backup_file: original file %s doesn't exist, no backup needed", filepath);
         return 0;
     }
-
+    
     /* Get file size */
     int file_size = fd_file_size(fd_src);
     if (file_size <= 0) {
@@ -890,30 +1334,30 @@ static errr backup_file(const char *filepath)
         fd_close(fd_src);
         return 0;
     }
-
+    
     log_info("backup_file: creating backup for %s (size: %d bytes)", filepath, file_size);
-
+    
     /* Read original file */
     char *buffer = C_ZNEW(file_size, char);
     if (!buffer) {
         fd_close(fd_src);
         return -1;
     }
-
+    
     if (fd_read(fd_src, buffer, file_size) != 0) {
         FREE(buffer);
         fd_close(fd_src);
         return -1;
     }
     fd_close(fd_src);
-
+    
     /* Optimize backup rotation: Only do full rotation once per session/day
      * For frequent saves, just overwrite .bak1 */
     char backup_path1[1024], backup_path2[1024], backup_path3[1024];
     strnfmt(backup_path1, sizeof(backup_path1), "%s.bak1", filepath);
     strnfmt(backup_path2, sizeof(backup_path2), "%s.bak2", filepath);
     strnfmt(backup_path3, sizeof(backup_path3), "%s.bak3", filepath);
-
+    
     /* Check if this is the first backup of the day (roughly) */
     bool should_rotate = false;
     int fd_test1 = fd_open(backup_path1, O_RDONLY);
@@ -930,14 +1374,14 @@ static errr backup_file(const char *filepath)
         should_rotate = false;
         log_info("backup_file: no existing backup, creating fresh bak1");
     }
-
+    
     if (should_rotate) {
         log_info("backup_file: rotating backups for %s", filepath);
-
+        
         /* Rotate: bak2 -> bak3, bak1 -> bak2, current -> bak1 */
         fd_kill(backup_path3);                    /* Remove oldest */
         log_debug("backup_file: removed old bak3");
-
+        
         /* Move bak2 to bak3 (if bak2 exists) */
         int fd_test2 = fd_open(backup_path2, O_RDONLY);
         if (fd_test2 >= 0) {
@@ -947,7 +1391,7 @@ static errr backup_file(const char *filepath)
                 log_debug("backup_file: failed to move bak2 to bak3");
             }
         }
-
+        
         /* Move bak1 to bak2 (if bak1 exists) */
         fd_test1 = fd_open(backup_path1, O_RDONLY);
         if (fd_test1 >= 0) {
@@ -962,7 +1406,7 @@ static errr backup_file(const char *filepath)
         log_debug("backup_file: overwriting existing bak1 (frequent save)");
         fd_kill(backup_path1);
     }
-
+    
     /* Create new bak1 from current file */
     log_info("backup_file: creating new bak1 from current file (size: %d)", file_size);
     int fd_dst = fd_make(backup_path1, 0644);
@@ -970,11 +1414,11 @@ static errr backup_file(const char *filepath)
         FREE(buffer);
         return -1;
     }
-
+    
     errr result = fd_write(fd_dst, buffer, file_size);
     fd_close(fd_dst);
     FREE(buffer);
-
+    
     if (result == 0) {
         log_info("backup_file: successfully created backup for %s", filepath);
         /* Update throttling variables only on successful backup */
@@ -983,7 +1427,7 @@ static errr backup_file(const char *filepath)
     } else {
         log_error("backup_file: failed to write bak1 for %s", filepath);
     }
-
+    
     return result;
 }
 
@@ -991,7 +1435,7 @@ errr save_metaruns(void)
 {
     static u32b last_save_time = 0;
     u32b current_time = (u32b)time(NULL);
-
+    
     /* Log save frequency tracking */
     if (last_save_time > 0) {
         u32b time_since_last = current_time - last_save_time;
@@ -1001,7 +1445,6 @@ errr save_metaruns(void)
     }
     last_save_time = current_time;
 
-    curses_pack_words();      /* NEW: ensure words hold 2-bit data */
     refresh_current_metar_score();
 
     char fn[1024];
@@ -1010,19 +1453,19 @@ errr save_metaruns(void)
     /* Create backup before saving */
     backup_file(fn);
 
-    log_debug("Before save: current_run=%d, metar: id=%u, deaths=%u, silmarils=%u, score=%u",
+    log_debug("Before save: current_run=%d, metar: id=%u, deaths=%u, silmarils=%u, score=%u", 
               current_run, metar.id, metar.deaths, metar.silmarils, metar.score);
-
+              
     metar.last_played      = current_time;
     metaruns[current_run] = metar;            /* safe: array is valid */
-
-    log_debug("After updating array: metaruns[%d]: id=%u, deaths=%u, silmarils=%u, score=%u",
+    
+    log_debug("After updating array: metaruns[%d]: id=%u, deaths=%u, silmarils=%u, score=%u", 
               current_run, metaruns[current_run].id, metaruns[current_run].deaths, metaruns[current_run].silmarils,
               metaruns[current_run].score);
 
     /* After backup is created in backup_file(), remove the original so fd_make can succeed */
     fd_kill(fn);
-
+    
     /* Write using the new versioned format */
     int fd = fd_make(fn, 0644);
     if (fd < 0) {
@@ -1037,7 +1480,7 @@ errr save_metaruns(void)
     header.version_patch = METARUN_FILE_VERSION_PATCH;
     header.version_extra = METARUN_FILE_VERSION_EXTRA;
     header.entry_count = metarun_max;
-
+    
     errr result = fd_write(fd, (cptr)&header, sizeof(header));
     if (result != 0) {
         fd_close(fd);
@@ -1049,15 +1492,48 @@ errr save_metaruns(void)
     int bytes_to_write = metarun_max * sizeof(metarun);
     result = fd_write(fd, (cptr)metaruns, bytes_to_write);
     fd_close(fd);
-
+    
     if (result != 0) {
         log_info("Failed to write metarun data to file");
         return -1;
     }
-
+    
     log_info("Metarun data saved successfully (%d bytes, %d entries)", bytes_to_write, metarun_max);
 
     return 0;
+}
+
+u32b compute_blessing_pool(void)
+{
+    u32b total = score_sum_dead_points();
+    metar.fallen_score_total = total;
+    update_blessing_ledger(&metar);
+    sanitize_major_blessing_bits(&metar);
+    refresh_alive_cache();
+
+    if (!sync_current_metarun_slot(false)) {
+        log_warn("compute_blessing_pool: unable to sync current slot");
+    }
+    return total;
+}
+
+int blessing_points_available(void)
+{
+    u32b total = compute_blessing_pool();
+    (void)total; /* Up-to-date total already stored in metar */
+
+    int available = (int)metar.blessing_points - (int)metar.blessing_points_spent;
+    if (available < 0) available = 0;
+    return available;
+}
+
+int metarun_alive_count_cached(void)
+{
+    refresh_alive_cache();
+    if (!sync_current_metarun_slot(false)) {
+        log_warn("metarun_alive_count_cached: unable to sync current slot");
+    }
+    return metar.alive_characters;
 }
 
 int any_curse_flag_active(u32b flag)
@@ -1098,6 +1574,43 @@ void metarun_gain_silmarils(byte n)
     }
 }
 
+void metarun_apply_runtime_effects(void)
+{
+    sanitize_major_blessing_bits(&metar);
+
+    int weight_cap = SUPPLIES_MAX_WEIGHT_DEFAULT;
+    if (metarun_has_major_blessing_effect(METARUN_MAJOR_EFFECT_SUPPLY_LIMIT)) {
+        weight_cap = SUPPLIES_MAX_WEIGHT_BLESSING;
+    }
+    supplies_set_max_weight_cap(weight_cap);
+}
+
+int metarun_major_blessing_count(void)
+{
+    return major_blessing_capacity();
+}
+
+bool metarun_has_major_blessing_index(int idx)
+{
+    sanitize_major_blessing_bits(&metar);
+    if (idx < 0) return false;
+    int cap = major_blessing_capacity();
+    if (idx >= cap) return false;
+    return (metar.major_blessings & (1U << idx)) != 0;
+}
+
+bool metarun_has_major_blessing_effect(metarun_major_effect effect)
+{
+    if (effect == METARUN_MAJOR_EFFECT_NONE) return false;
+    sanitize_major_blessing_bits(&metar);
+    int cap = major_blessing_capacity();
+    for (int i = 0; i < cap; i++) {
+        if (!metarun_has_major_blessing_index(i)) continue;
+        if (major_blessing_effect(i) == effect) return true;
+    }
+    return false;
+}
+
 /* ---------------------------------------------------------------
  * Persistent Settings Management
  * ------------------------------------------------------------- */
@@ -1108,37 +1621,37 @@ void metarun_gain_silmarils(byte n)
 void metarun_save_persistent_settings(void)
 {
     log_info("Saving persistent settings to metarun");
-
+    
     /* Save options */
     for (int i = 0; i < 8; i++) {
         metar.persistent_options[i] = 0;
     }
-
+    
     /* Pack options into the persistent storage */
     for (int i = 0; i < OPT_MAX; i++) {
         int word_idx = i / 32;
         int bit_idx = i % 32;
-
+        
         if (word_idx < 8 && option_text[i] && op_ptr->opt[i]) {
             metar.persistent_options[word_idx] |= (1UL << bit_idx);
         }
     }
-
+    
     /* Save special settings */
     metar.persistent_delay_factor = op_ptr->delay_factor;
     metar.persistent_hitpoint_warn = op_ptr->hitpoint_warn;
-
+    
     /* Save window flags */
     for (int i = 0; i < ANGBAND_TERM_MAX; i++) {
         metar.persistent_window_flags[i] = op_ptr->window_flag[i];
     }
-
+    
     /* Mark as initialized */
     metar.persistent_options_initialized = 1;
-
+    
     /* Save the metarun data */
     save_metaruns();
-
+    
     log_info("Persistent settings saved successfully");
 }
 
@@ -1152,28 +1665,28 @@ void metarun_load_persistent_settings(void)
         log_info("No persistent settings found, using defaults");
         return;
     }
-
+    
     log_info("Loading persistent settings from metarun");
-
+    
     /* Load options */
     for (int i = 0; i < OPT_MAX; i++) {
         int word_idx = i / 32;
         int bit_idx = i % 32;
-
+        
         if (word_idx < 8 && option_text[i]) {
             op_ptr->opt[i] = (metar.persistent_options[word_idx] & (1UL << bit_idx)) != 0;
         }
     }
-
+    
     /* Load special settings */
     op_ptr->delay_factor = metar.persistent_delay_factor;
     op_ptr->hitpoint_warn = metar.persistent_hitpoint_warn;
-
+    
     /* Load window flags */
     for (int i = 0; i < ANGBAND_TERM_MAX; i++) {
         op_ptr->window_flag[i] = metar.persistent_window_flags[i];
     }
-
+    
     log_info("Persistent settings loaded successfully");
 }
 
@@ -1259,84 +1772,6 @@ void add_curse_stack(int idx)
     save_metaruns();
 }
 
-/* Show all currently active curses with identification info */
-static void show_active_curses_during_selection(void)
-{
-    int row = 2;
-    int id;
-    int active_count = 0;
-
-    /* Count active curses */
-    for (id = 0; id < (int)z_info->cu_max; id++)
-        if (CURSE_GET(id)) active_count++;
-
-    if (!active_count) {
-        msg_print("You have no active curses yet.");
-        return;
-    }
-
-    log_info("Displaying %d active curses", active_count);
-
-    screen_save();
-    Term_clear();
-    Term_putstr(1, 0, -1, TERM_L_WHITE + TERM_SHADE, "Currently Active Curses:");
-
-    row = 2;
-
-    /* Enable wrapped text helper */
-    text_out_hook = text_out_to_screen;
-    text_out_wrap = Term->wid - 4;   /* generous rhs margin */
-
-    for (id = 0; id < (int)z_info->cu_max; id++)
-    {
-        byte stacks = CURSE_GET(id);
-        if (!stacks) continue;
-
-        curse_type *c = &cu_info[id];
-        cptr cname  = cu_name + c->name;
-        cptr cdesc  = cu_text + c->text;
-        cptr cpower = cu_text + c->power;
-        bool identified = CURSE_SEEN(id);
-
-        char buf[128];
-
-        /* Name with stack count - always show the actual curse name */
-        strnfmt(buf, sizeof(buf), "%s (x%d)%s", cname, stacks, identified ? "" : " [unidentified]");
-        c_put_str(identified ? TERM_L_RED : TERM_L_DARK, buf, row, 1);
-        row++;
-
-        /* Description (always shown) */
-        Term_gotoxy(3, row);
-        text_out_c(TERM_WHITE, cdesc);
-        row += count_wrapped_lines(cdesc, text_out_wrap, 3);
-
-        /* Power line (only if identified and present) */
-        if (identified && *cpower)
-        {
-            Term_gotoxy(3, row);
-            text_out_c(TERM_L_RED, cpower);
-            row += count_wrapped_lines(cpower, text_out_wrap, 3);
-        }
-
-        /* Add spacing between curses */
-        row++;
-
-        /* Page wrap (match self_knowledge style) */
-        if (row >= 21)
-        {
-            Term_putstr(1, row, -1, TERM_L_WHITE, "(press any key for more)");
-            (void)inkey();
-            Term_clear();
-            Term_putstr(1, 0, -1, TERM_L_WHITE + TERM_SHADE, "Currently Active Curses:");
-            row = 2;
-        }
-    }
-
-    Term_putstr(1, row+1, -1, TERM_L_WHITE, "(press any key to return)");
-    (void)inkey();
-    screen_load();
-}
-
 int menu_choose_one_curse(int n)
 {
     /* if any active curse has the "no‐choice" flag, skip the menu */
@@ -1352,7 +1787,7 @@ int menu_choose_one_curse(int n)
             pick[i] = weighted_random_curse();
             for (int j = 0; j < i; j++)
                 if (pick[i] == pick[j]) { dup = true; break; }
-
+            
             byte cap = cu_info[pick[i]].max_stacks;
             if (cap && CURSE_GET(pick[i]) >= cap) { dup = true; continue; }
 
@@ -1360,7 +1795,7 @@ int menu_choose_one_curse(int n)
     }
 
     screen_save();  Term_clear();
-
+    
     /* Fade in the title */
     char str[60];
     const char* seq[] = { "a", "the second", "the third" };
@@ -1374,15 +1809,15 @@ int menu_choose_one_curse(int n)
 
     /* Show each curse one by one with fade-in effect */
     bool fast_forward = false;
-
+    
     for (int i = 0; i < CURSE_MENU_LINES; i++) {
         curse_type *cu = &cu_info[pick[i]];
         char name_buf[128];
         strnfmt(name_buf, sizeof name_buf, "%c) %s", 'a'+i, cu_name + cu->name);
-
+        
         const char *txt = cu_text + cu->text;
         int need_lines = count_wrapped_lines(txt, text_out_wrap, 4);
-
+        
 #ifdef DEBUG_CURSES
         const char *pow = cu_text + cu->power;
         int need_pow_lines = 0;
@@ -1407,7 +1842,7 @@ int menu_choose_one_curse(int n)
 
             /* Name line */
             c_put_str(s == steps - 1 ? TERM_L_RED : fade_cols[s], name_buf, row, 2);
-
+            
             /* Poem text */
             Term_gotoxy(4, row + 2);
             text_out_c(s == steps - 1 ? TERM_SLATE : fade_cols[s], txt);
@@ -1419,7 +1854,7 @@ int menu_choose_one_curse(int n)
                 text_out_c(s == steps - 1 ? TERM_L_RED : fade_cols[s], pow);
             }
 #endif
-
+            
             Term_fresh();
             Term_xtra(TERM_XTRA_DELAY, 200);
         }
@@ -1453,13 +1888,13 @@ int menu_choose_one_curse(int n)
     }
 
     /* Show the prompt immediately without fade */
-    c_put_str(TERM_L_DARK, "Arrows:nav  Space/Enter:Accept  a/b/c:Select  ?/x/h:Active", row + 1, 2);
-
+    c_put_str(TERM_L_DARK, "Arrows to navigate     Space/Enter Accept     a/b/c Select", row + 1, 2);
+    
     /* Menu navigation variables */
     int highlight = 0;  /* Currently highlighted option (0, 1, 2) */
     bool menu_done = false;
     int option_rows[CURSE_MENU_LINES];  /* Store the row for each option */
-
+    
     /* Calculate row positions for each option */
     int calc_row = 4;
     for (int i = 0; i < CURSE_MENU_LINES; i++) {
@@ -1469,21 +1904,21 @@ int menu_choose_one_curse(int n)
         int need_lines = count_wrapped_lines(txt, text_out_wrap, 4);
         calc_row += need_lines + 3;
     }
-
+    
     while (!menu_done) {
         /* Ensure text output settings are consistent */
         text_out_hook = text_out_to_screen;
         text_out_wrap = Term->wid - 2;
-
+        
         /* Update highlight display for each option */
         for (int i = 0; i < CURSE_MENU_LINES; i++) {
             curse_type *cu = &cu_info[pick[i]];
             char name_buf[128];
             strnfmt(name_buf, sizeof name_buf, "%c) %s", 'a'+i, cu_name + cu->name);
-
+            
             /* Clear the line first to remove any previous highlighting */
             Term_erase(2, option_rows[i], strlen(name_buf));
-
+            
             /* Display the option with highlighting */
             if (i == highlight) {
                 c_put_str(TERM_RED, name_buf, option_rows[i], 2);     /* Highlighted - red */
@@ -1491,7 +1926,7 @@ int menu_choose_one_curse(int n)
                 c_put_str(TERM_L_RED, name_buf, option_rows[i], 2);   /* Normal - light red */
             }
         }
-
+        
         /* Position cursor at the end of the highlighted option text */
         curse_type *highlighted_cu = &cu_info[pick[highlight]];
         char highlighted_name_buf[128];
@@ -1500,7 +1935,7 @@ int menu_choose_one_curse(int n)
         Term_gotoxy(cursor_col, option_rows[highlight]);
         Term_fresh();
         char key = inkey();
-
+        
         /* Handle input */
         if (key >= 'a' && key < 'a' + CURSE_MENU_LINES) {
             /* Letter shortcuts */
@@ -1525,37 +1960,6 @@ int menu_choose_one_curse(int n)
             /* Down navigation */
             highlight = (highlight + 1) % CURSE_MENU_LINES;
         }
-        else if (key == '?' || key == 'x' || key == 'X' || key == 'h' || key == 'H') {
-            /* Show currently active curses */
-            show_active_curses_during_selection();
-            /* After returning, need to redraw the curse selection screen */
-            Term_clear();
-            print_heading_fade(str, TERM_YELLOW);
-            
-            /* Redraw all curse options */
-            int redraw_row = 4;
-            text_out_hook = text_out_to_screen;
-            text_out_wrap = Term->wid - 2;
-            
-            for (int i = 0; i < CURSE_MENU_LINES; i++) {
-                curse_type *cu = &cu_info[pick[i]];
-                char name_buf[128];
-                strnfmt(name_buf, sizeof name_buf, "%c) %s", 'a'+i, cu_name + cu->name);
-                
-                c_put_str((i == highlight) ? TERM_RED : TERM_L_RED, name_buf, redraw_row, 2);
-                
-                const char *txt = cu_text + cu->text;
-                Term_gotoxy(4, redraw_row + 2);
-                text_out_c(TERM_SLATE, txt);
-                
-                int need_lines = count_wrapped_lines(txt, text_out_wrap, 4);
-                redraw_row += need_lines + 3;
-            }
-            
-            /* Redraw prompt */
-            c_put_str(TERM_L_DARK, "Arrows:nav  Space/Enter:Accept  a/b/c:Select  ?/x/h:Active", row + 1, 2);
-            Term_fresh();
-        }
         else if (key == ESCAPE) {
             /* Escape - default to first option */
             sel = 0;
@@ -1573,9 +1977,11 @@ int menu_choose_one_curse(int n)
 void metarun_clear_all_curses(void)
 {
     log_info("Clearing all curses for current metarun");
-    metar.curses_lo = 0;
-    metar.curses_hi = 0;
+    memset(metar.curse_stacks, 0, sizeof(metar.curse_stacks));
     metar.curses_seen = 0;
+    if (!sync_current_metarun_slot(false)) {
+        log_warn("metarun_clear_all_curses: unable to sync current slot");
+    }
     save_metaruns();
 }
 
@@ -1616,14 +2022,14 @@ static void print_heading_fade(cptr title, byte final_attr)
 {
     const byte fade_cols[] = { TERM_L_DARK, TERM_SLATE, final_attr };
     const int steps = (int)(sizeof(fade_cols) / sizeof(fade_cols[0]));
-    int w, h;
+    int w, h; 
     Term_get_size(&w, &h);
-
+    
     // Center the heading
     int title_len = strlen(title);
     int start_col = (w - title_len) / 2;
     if (start_col < 1) start_col = 1;
-
+    
     for (int s = 0; s < steps; s++)
     {
         c_prt(fade_cols[s], title, 2, start_col);
@@ -1637,7 +2043,7 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
 {
     const byte fade_cols[] = { TERM_L_DARK, TERM_SLATE, TERM_L_WHITE, final_attr };
     const int steps = (int)(sizeof(fade_cols) / sizeof(fade_cols[0]));
-
+    
     text_out_hook   = text_out_to_screen;
     text_out_indent = 2;
     text_out_wrap   = Term->wid - 4;
@@ -1655,14 +2061,14 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
             Term_fresh();
             return false;
         }
-
+        
         Term_gotoxy(2, row);
         text_out_c(fade_cols[s], txt);
         text_out("\n");
         Term_fresh();
         Term_xtra(TERM_XTRA_DELAY, 125);
     }
-
+    
     Term_xtra(TERM_XTRA_DELAY, 1000); // Pause after paragraph
     return true;
 }
@@ -1682,14 +2088,14 @@ static void wait_for_keypress_with_prompt(cptr prompt)
 {
     int w, h;
     Term_get_size(&w, &h);
-
+    
     // Clear bottom line and show prompt
     Term_erase(0, h - 1, w);
     c_prt(TERM_L_WHITE, prompt ? prompt : "[Press any key to continue]", h - 1, 2);
     Term_fresh();
-
+    
     (void)inkey();
-
+    
     // Clear the prompt line
     Term_erase(0, h - 1, w);
 }
@@ -1699,6 +2105,14 @@ static cptr curse_display_name(int idx)
     cptr raw = cu_name + cu_info[idx].name;
     if (strncmp(raw, "Curse of ", 8) == 0) raw += 8;
     return raw;
+}
+
+static cptr blessing_display_name(int idx)
+{
+    if (cu_info[idx].blessing_name) {
+        return cu_name + cu_info[idx].blessing_name;
+    }
+    return curse_display_name(idx);
 }
 
 /****************  Escape‑curse chooser (clean version) ************/
@@ -1717,9 +2131,9 @@ int choose_escape_curses_ui(int n, int out[3])
     /* Display intro with fade-in effect */
     screen_save();
     Term_clear();
-
+    
     print_heading_fade("The Valar's Judgment", TERM_L_BLUE);
-
+    
     char intro_text[512];
     strnfmt(intro_text, sizeof(intro_text),
             "The Valar watch silently as Morgoth's malice reaches out from shadow-"
@@ -1727,10 +2141,10 @@ int choose_escape_curses_ui(int n, int out[3])
             "forcing upon you the final choice-%s curse%s you must bear.",
             (n == 1) ? "a" : (n == 2) ? "two" : "three",
             (n == 1) ? "" : "s");
-
+    
     if (!print_paragraph_fade(intro_text, TERM_L_WHITE, 4))
         fast_forward = true;
-
+    
     wait_for_keypress_with_prompt("[Press any key to face your destiny]");
     Term_clear();
 
@@ -1744,13 +2158,13 @@ int choose_escape_curses_ui(int n, int out[3])
 
     /* Wipe the menu clutter so narrative starts clean */
     Term_clear();
-
+    
     /* Restore screen state to fix character_icky imbalance */
     screen_load();
-
+    
     /* Avoid unused variable warning */
     (void)fast_forward;
-
+    
     return taken;
 }
 
@@ -1764,20 +2178,20 @@ int choose_escape_curses_ui(int n, int out[3])
 int choose_oath_breaking_curse_ui(int oath_id)
 {
     bool fast_forward = false;
-
+    
     /* Display curse message with fade-in effect */
     screen_save();
     Term_clear();
-
+    
     /* Add Tolkien-style heading */
     print_heading_fade("The Sundering of Sacred Vows", TERM_L_RED);
-
+    
     /* Get oath-specific permanent message (E: field from oath.txt) */
     char* perm_msg = oath_permanent_message(oath_id);
-
+    
     /* Add empty line before E: text */
     Term_putstr(2, 4, -1, TERM_SLATE, "");
-
+    
     /* Show only the permanent message (E: field) with fade */
     if (perm_msg && perm_msg[0]) {
         if (!print_paragraph_fade(perm_msg, TERM_L_RED, 5))
@@ -1786,40 +2200,40 @@ int choose_oath_breaking_curse_ui(int oath_id)
         if (!print_paragraph_fade("Your oath is forever broken in this age.", TERM_L_RED, 5))
             fast_forward = true;
     }
-
+    
     /* Hold the message for 3 seconds if not fast-forwarded */
     if (!fast_forward) {
         Term_xtra(TERM_XTRA_DELAY, 3000);
     }
-
+    
     /* Add empty line before attention text */
     Term_putstr(2, 8, -1, TERM_SLATE, "");
-
+    
     /* Show Morgoth's attention text with fade in red */
     char intro_text[256];
     strnfmt(intro_text, sizeof(intro_text),
             "The breach of your sacred vow has drawn Morgoth's attention. "
             "His malice reaches out to compound your suffering with a curse you must bear.");
-
+    
     if (!print_paragraph_fade(intro_text, TERM_RED, 9))
         fast_forward = true;
-
+    
     wait_for_keypress_with_prompt("[Press any key to face your judgment]");
     Term_clear();
 
     /* Let the player choose 1 curse from 3 options */
     int idx = menu_choose_one_curse(0);
     log_debug("Player selected curse %d for oath breaking", idx);
-
+    
     /* Wipe the menu clutter so narrative starts clean */
     Term_clear();
-
+    
     /* Restore screen state */
     screen_load();
-
+    
     /* Avoid unused variable warning */
     (void)fast_forward;
-
+    
     return idx;
 }
 
@@ -1866,11 +2280,24 @@ static void wait_prompt(prompt_t id) {         /* tiny wrapper */
  *  All narrative helpers (print_heading(), print_paragraph(),
  *  choose_escape_curses_ui(), kinslayer_try_kill(), etc.) are reused.
  * ------------------------------------------------------------------ */
-void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
+static void announce_blessing_gain(int previous_points)
 {
-    log_info("Metarun update: died=%s, escaped=%s, sil_count=%d",
-             died ? "true" : "false", escaped ? "true" : "false", sil_count);
+    int current_points = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
+    if (current_points <= previous_points) return;
+    int delta = current_points - previous_points;
+    int available = current_points - metar.blessing_points_spent;
+    if (available < 0) available = 0;
+    msg_format("You gain %d blessing point%s. (%d available)",
+               delta, (delta == 1) ? "" : "s", available);
+    message_flush();
+}
 
+void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_score)
+{
+    log_info("Metarun update: died=%s, escaped=%s, sil_count=%d, final_score=%ld", 
+             died ? "true" : "false", escaped ? "true" : "false", sil_count, (long)final_score);
+    int blessing_points_before = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
+             
     /* -------- Lineage flags -------------------------------------- */
     u32b f_house = c_info[p_ptr->phouse].flags;
     u32b f_race  = p_info[p_ptr->prace].flags;
@@ -1906,9 +2333,18 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
         int pool_sz = 0;
         if (!pool) {
             screen_load();                 /* restore game view            */
+            u32b pool_before = metar.fallen_score_total;
+            refresh_current_metar_score();
+            compute_blessing_pool();
+            if (final_score > 0 && metar.fallen_score_total == pool_before) {
+                metar.fallen_score_total += (u32b)final_score;
+                update_blessing_ledger(&metar);
+                (void)sync_current_metarun_slot(false);
+            }
+            announce_blessing_gain(blessing_points_before);
+            blessing_points_before = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
             check_run_end();
             save_metaruns();
-            FREE(pool);
             return;
         }
         for (int i = 0; i < z_info->st_max && pool; i++) {
@@ -1956,7 +2392,16 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
 
         screen_load();                 /* restore game view            */
         FREE(pool);
+        u32b pool_before = metar.fallen_score_total;
         refresh_current_metar_score();
+        compute_blessing_pool();
+        if (final_score > 0 && metar.fallen_score_total == pool_before) {
+            metar.fallen_score_total += (u32b)final_score;
+            update_blessing_ledger(&metar);
+            (void)sync_current_metarun_slot(false);
+        }
+        announce_blessing_gain(blessing_points_before);
+        blessing_points_before = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
         check_run_end();
         save_metaruns();
         return;
@@ -1964,6 +2409,9 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     else if (!escaped_with_sils) {
         log_debug("Player escaped without Silmarils - no narrative needed");
         refresh_current_metar_score();
+        compute_blessing_pool();
+        announce_blessing_gain(blessing_points_before);
+        blessing_points_before = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
         save_metaruns();
         return;                        /* no further narrative needed  */
     }
@@ -1986,14 +2434,14 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     if (chosen_cnt > 0)
     {
         print_heading_fade("The Binding of Fate", TERM_L_RED);
-
+        
         for (int i = 0; i < chosen_cnt; ++i)
         {
             char buf[128];
             strnfmt(buf, sizeof buf,
                     "The curse of %s binds your fate.",
                     curse_display_name(chosen[i]));
-
+            
             if (!fast_forward && print_paragraph_fade(buf, TERM_RED, 4 + i * 2))
             {
                 // Continue with fade effects
@@ -2004,7 +2452,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
                 print_paragraph(buf, TERM_RED);
             }
         }
-
+        
         wait_prompt(PROMPT_CONTINUE_TALE);
         Term_clear();
     }
@@ -2013,7 +2461,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     /* SCENE 3: Victory Declaration                                  */
     /* ============================================================= */
     print_heading_fade("Victory Amid Shadow", TERM_YELLOW);
-
+    
     const char *victory_text;
     switch (sil_count)
     {
@@ -2030,12 +2478,12 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
             victory_text = "You have achieved the impossible, claiming more Silmarils than should exist. Reality itself bends before your triumph.";
             break;
     }
-
+    
     if (!fast_forward && !print_paragraph_fade(victory_text, TERM_WHITE, 4))
         fast_forward = true;
     else if (fast_forward)
         print_paragraph(victory_text, TERM_WHITE);
-
+    
     if (allow_treachery)
         wait_prompt(PROMPT_FACE_TEMPTATION);
     else
@@ -2049,36 +2497,36 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     if (allow_treachery)
     {
         static const int pct[3] = { 20, 50, 95 };
-
+        
         /* Enhanced escalating treachery messages */
         static const char *success_msgs[3] = {
             "The first jewel shines brightly, its pure light uncorrupted. You master desire, choosing honor.",
             "The second jewel blazes defiant, temptation growing strong-but once more, you cling to honor.",
             "The third Silmaril's holy flame burns fiercely. Yet against all odds, your will resists corruption."
         };
-
+        
         static const char *failure_msgs[3] = {
             "Greed whispers softly, and you listen. Secretly you withhold the jewel's light, betraying even yourself.",
             "Desire gnaws deeper; you falter, concealing its brilliance in shame, light darkened by your betrayal.",
             "Consumed by lust for its beauty, you claim it secretly, sealing its radiance from all others-a betrayal of all trust."
         };
-
+        
         print_heading_fade("Temptation of Treachery", TERM_L_UMBER);
-
+        
         int current_row = 4;
 
         for (int i = 0; i < sil_count; ++i)
         {
             bool fail = (rand_int(100) < pct[i]);
             if (fail) stolen++;
-
+            
             const char *tempt_text = fail ? failure_msgs[i] : success_msgs[i];
-
+            
             if (!fast_forward && !print_paragraph_fade(tempt_text, fail ? TERM_RED : TERM_WHITE, current_row))
                 fast_forward = true;
             else if (fast_forward)
                 print_paragraph(tempt_text, fail ? TERM_RED : TERM_WHITE);
-
+            
             current_row += 3; // Space for next paragraph
         }
 
@@ -2090,7 +2538,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
             else if (fast_forward)
                 print_paragraph(shadow_text, TERM_L_DARK);
         }
-
+        
         wait_prompt(PROMPT_CONTINUE_GENERIC);
         Term_clear();
     }
@@ -2102,7 +2550,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     /* SCENE 5: The Weight of Victory                               */
     /* ============================================================= */
     print_heading_fade("The Weight of Victory", TERM_L_BLUE);
-
+    
     const char *weight_text;
     if (!treachery_occurred)
     {
@@ -2122,12 +2570,12 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
         };
         weight_text = tainted_frag[sil_count-1];
     }
-
+    
     if (!fast_forward && !print_paragraph_fade(weight_text, treachery_occurred ? TERM_RED : TERM_L_WHITE, 4))
         fast_forward = true;
     else if (fast_forward)
         print_paragraph(weight_text, treachery_occurred ? TERM_RED : TERM_L_WHITE);
-
+    
     if (allow_kinslay)
         wait_prompt(PROMPT_FACE_ECHOES);
     else
@@ -2142,7 +2590,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     if (allow_kinslay)
     {
         print_heading_fade("Echoes of Kinslaying", TERM_L_RED);
-
+        
         static const int kin_pct[3] = { 20, 50, 95 };
         int current_row = 4;
 
@@ -2171,13 +2619,13 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
                     "You resist dark whispers recalling Sirion-your sword is stayed, mercy unbroken.";
                     break;
             }
-
+            
             if (!fast_forward && !print_paragraph_fade(echo_text, fail ? TERM_RED : TERM_L_WHITE, current_row))
                 fast_forward = true;
             else if (fast_forward)  print_paragraph(echo_text, fail ? TERM_RED : TERM_L_WHITE);
-
+            
             current_row += 4; // Space for next echo
-
+            
             /* Stop at first failure */
             if (fail) break;
         }
@@ -2190,7 +2638,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
             else if (fast_forward)
                 print_paragraph(doom_text, TERM_L_DARK);
         }
-
+        
         wait_prompt(PROMPT_CONCLUDE_TALE);
         Term_clear();
     }
@@ -2199,7 +2647,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     /* SCENE 7: Final Summary                                       */
     /* ============================================================= */
     print_heading_fade("The Tale Concludes", TERM_YELLOW);
-
+    
     char summary[256];
     strnfmt(summary, sizeof summary,
             "Your legend is written: %d Silmaril%s claimed, %s, %s.",
@@ -2207,7 +2655,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
             (final_sils == 1) ? "" : "s",
             treachery_occurred ? "tainted by treachery" : "pure of heart",
             (kinslaying_victims > 0) ? "stained by kinslaying" : "with honour intact");
-
+    
     if (!fast_forward && !print_paragraph_fade(summary, TERM_L_GREEN, 4))
         fast_forward = true;
     else if (fast_forward)
@@ -2223,17 +2671,17 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     {
         /* Show kinslaying notifications BEFORE screen_load() */
         print_heading_fade("The Price of Blood", TERM_RED);
-
+        
         char kill_msg[128];
         strnfmt(kill_msg, sizeof kill_msg,
                 "Your kinslaying echoes through time. %d innocent%s will fall by your hand...",
                 kinslaying_victims, (kinslaying_victims == 1) ? "" : "s");
-
+        
         if (!fast_forward && !print_paragraph_fade(kill_msg, TERM_RED, 4))
             fast_forward = true;
         else if (fast_forward)
             print_paragraph(kill_msg, TERM_RED);
-
+        
         wait_prompt(PROMPT_WITNESS_CONSEQUENCES);
     }
 
@@ -2281,12 +2729,32 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
     /* Restore the saved play-screen only after every narrative beat */
     screen_load();
 
+    compute_blessing_pool();
+    announce_blessing_gain(blessing_points_before);
+    blessing_points_before = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
     check_run_end();
     /* Save persistent settings when exiting */
     metarun_save_persistent_settings();
-
+    
     /* Save metarun data (deaths, silmarils, etc.) */
     save_metaruns();
+}
+
+
+static int required_survivor_target(int win_goal)
+{
+    int remaining_silmarils = win_goal - metar.silmarils;
+    if (remaining_silmarils < 0) remaining_silmarils = 0;
+
+    int required = 0;
+    if (remaining_silmarils > 0) {
+        required = (remaining_silmarils + 2) / 3;
+        required += CURSE_GET(CUR_DEATH);
+        if (required < 1) required = 1;
+    }
+
+    if (required < 0) required = 0;
+    return required;
 }
 
 
@@ -2298,32 +2766,38 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count)
  * ------------------------------------------------------------------ */
 void check_run_end(void)
 {
-    /* Get dynamic win/loss conditions from runtype */
     int win_goal = WINCON_SILMARILS;   /* fallback */
-    int death_base = LOSECON_DEATHS;   /* fallback */
 
     if (runtype_info && metar.type < z_info->rt_max)
     {
         win_goal = runtype_info[metar.type].win_con ? runtype_info[metar.type].win_con : WINCON_SILMARILS;
-        death_base = runtype_info[metar.type].lose_con ? runtype_info[metar.type].lose_con : LOSECON_DEATHS;
     }
 
-    int max_deaths = MAX(1, death_base - 3 * curse_flag_count_cur(CUR_DEATH));
+    /* Keep blessing and survivor data aligned with the score file */
+    compute_blessing_pool();
+    int alive = metar.alive_characters;
 
-    /* Check loss condition first - if both win and loss are satisfied, loss takes precedence */
-    if (metar.deaths >= max_deaths) {
-        log_info("Metarun DEFEAT: %d deaths reached (limit: %d)", metar.deaths, max_deaths);
+    int remaining_silmarils = win_goal - metar.silmarils;
+    if (remaining_silmarils < 0) remaining_silmarils = 0;
+
+    int required_survivors = required_survivor_target(win_goal);
+
+    /* Loss takes precedence over victory */
+    if (alive < required_survivors) {
+        log_info("Metarun DEFEAT: alive=%d required=%d (remaining silmarils=%d)",
+                 alive, required_survivors, remaining_silmarils);
+
         screen_save();
         Term_clear();
 
         print_heading_fade("The Trial's End", TERM_RED);
 
         char defeat_text[256];
-        strnfmt(defeat_text, sizeof(defeat_text),
-                "%d hero%s fallen; the halls of Mandos echo with grief. "
-                "This trial ends in shadow—the run is lost. "
-                "Begin anew to reclaim lost hope.",
-                max_deaths, (max_deaths == 1) ? " has" : "es have");
+        strnfmt(defeat_text, sizeof defeat_text,
+                "Only %d hero%s remain, yet %d must endure to reclaim the remaining Silmarils. "
+                "This tale falls into shadow; begin anew to kindle hope once more.",
+                alive, (alive == 1) ? "" : "es",
+                required_survivors);
 
         print_paragraph_fade(defeat_text, TERM_WHITE, 4);
 
@@ -2331,9 +2805,10 @@ void check_run_end(void)
         screen_load();
 
         start_new_metarun();
-        return; /* Important: return after handling defeat */
+        return;
+    }
 
-    } else if (metar.silmarils >= win_goal) {
+    if (metar.silmarils >= win_goal) {
         log_info("Metarun VICTORY: %d Silmarils collected (goal: %d)", metar.silmarils, win_goal);
         screen_save();
         Term_clear();
@@ -2341,10 +2816,10 @@ void check_run_end(void)
         print_heading_fade("The Trial's End", TERM_YELLOW);
 
         char victory_text[256];
-        strnfmt(victory_text, sizeof(victory_text),
+        strnfmt(victory_text, sizeof victory_text,
                 "%d Silmarils reclaimed from Morgoth's crown! "
                 "Hope kindles anew; your long trial approaches its end. "
-                "Yet one final ordeal awaits—your ultimate destiny, "
+                "Yet one final ordeal awaits: your ultimate destiny, "
                 "as your true self faces the Last Trial.",
                 win_goal);
 
@@ -2359,6 +2834,8 @@ void check_run_end(void)
         start_new_metarun();
     }
 }
+
+
 
 
 
@@ -2383,7 +2860,7 @@ static void start_new_metarun(void)
 
      /* Before wiping scores for the next run, backup and clear save files */
      backup_and_clear_saves();
-
+     
      /* Before wiping scores for the next run, finalize current ones:
          - mark all alive entries as dead by their own hand
          - save any corresponding savefiles as dead
@@ -2447,7 +2924,7 @@ static void start_new_metarun(void)
     apply_difficulty_curses(&metar);
 
     /* Persist and prepare */
-    save_metaruns();      /* safe now that metaruns≠NULL */
+    save_metaruns();      /* safe now that metaruns≠NULL */ 
     ensure_run_dir(&metar);
     log_info("New metarun %d created and initialized", metar.id);
 }
@@ -2458,37 +2935,37 @@ static void show_all_active_curses(void)
     int term_height, term_width;
     screen_save();
     Term_clear();
-
+    
     /* Get actual terminal dimensions */
     Term_get_size(&term_width, &term_height);
-
+    
     /* Title */
     Term_putstr(2, 1, -1, TERM_YELLOW, "=== All Active Curses ===");
-
+    
     int row = 3;
     char buf[128];
-
+    
     /* Count active curses */
     int active_count = 0;
     for (int id = 0; id < z_info->cu_max; id++) {
         if (CURSE_GET(id)) active_count++;
     }
-
+    
     if (active_count == 0) {
         Term_putstr(2, row, -1, TERM_L_DARK, "No active curses");
     } else {
-        snprintf(buf, sizeof buf, "%d active curse%s:",
+        snprintf(buf, sizeof buf, "%d active curse%s:", 
                  active_count, (active_count == 1) ? "" : "s");
         Term_putstr(2, row++, -1, TERM_WHITE, buf);
-
+        
 #ifdef DEBUG_CURSES
         Term_putstr(2, row++, -1, TERM_L_DARK, "(showing D:stacks and P:effect)");
 #endif
-
+        
         for (int id = 0; id < z_info->cu_max; id++) {
             byte cnt = CURSE_GET(id);
             if (!cnt) continue;
-
+            
             /* Build line: id, name, D:count, optional P:text */
             cptr name = cu_name + cu_info[id].name;
 #ifdef DEBUG_CURSES
@@ -2498,7 +2975,7 @@ static void show_all_active_curses(void)
             snprintf(buf, sizeof buf, " %2d: %-20s D:%d", id, name, cnt);
 #endif
             Term_putstr(4, row++, -1, TERM_WHITE, buf);
-
+            
             /* Handle page breaks for very long lists using actual terminal height */
             if (row >= term_height - 2) {
                 Term_putstr(2, row, -1, TERM_L_DARK, "[Press any key for more]");
@@ -2509,16 +2986,408 @@ static void show_all_active_curses(void)
             }
         }
     }
-
+    
     Term_putstr(2, row + 1, -1, TERM_L_DARK, "Press any key to return.");
     inkey();
     screen_load();
 }
 
+static int blessing_points_remaining(void)
+{
+    int earned = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
+    int spent = metar.blessing_points_spent;
+    if (spent > earned) spent = earned;
+    int available = earned - spent;
+    if (available < 0) available = 0;
+    return available;
+}
+
+static void blessing_spend_points(int cost)
+{
+    if (cost <= 0) return;
+    int earned = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
+    int spent = metar.blessing_points_spent + cost;
+    if (spent > earned) spent = earned;
+    if (spent < 0) spent = 0;
+    metar.blessing_points_spent = (u16b)spent;
+}
+
+static void blessing_commit_changes(bool apply_runtime)
+{
+    if (!sync_current_metarun_slot(false)) {
+        log_warn("blessing_commit_changes: unable to sync current slot (idx=%d, max=%d)",
+                 current_run, metarun_max);
+    }
+    refresh_current_metar_score();
+    if (apply_runtime) {
+        metarun_apply_runtime_effects();
+    }
+    save_metaruns();
+}
+
+static bool blessing_remove_curse(void)
+{
+    int ids[32];
+    int count = 0;
+
+    for (int id = 0; id < z_info->cu_max; id++) {
+        if (CURSE_CURSE_STACK(id) > 0) {
+            ids[count++] = id;
+        }
+    }
+
+    if (count == 0) {
+        msg_print("No curses cling to this saga.");
+        message_flush();
+        return false;
+    }
+
+    int choice = -1;
+    while (choice < 0) {
+        screen_save();
+        Term_clear();
+
+        Term_putstr(2, 1, -1, TERM_YELLOW, "Remove a Curse (cost 1 blessing point)");
+        Term_putstr(2, 3, -1, TERM_L_WHITE, "Choose which curse to lift:");
+
+        for (int i = 0; i < count; i++) {
+            int id = ids[i];
+            int stacks = CURSE_CURSE_STACK(id);
+            char label = 'a' + i;
+            char buf[128];
+            snprintf(buf, sizeof buf, "%c) %-28s stacks: %d",
+                     label, curse_display_name(id), stacks);
+            Term_putstr(4, 5 + i, -1, TERM_L_RED, buf);
+        }
+
+        Term_putstr(2, 7 + count, -1, TERM_L_DARK, "Press letter to remove, or ESC to cancel.");
+        char key = inkey();
+        screen_load();
+
+        if (key == ESCAPE) {
+            return false;
+        }
+
+        int idx = key - 'a';
+        if (idx >= 0 && idx < count) {
+            choice = idx;
+        } else {
+            bell("Invalid selection.");
+        }
+    }
+
+    int curse_id = ids[choice];
+    CURSE_SET(curse_id, 0);
+    CURSE_SEEN_SET(curse_id);
+
+    blessing_spend_points(1);
+    blessing_commit_changes(true);
+
+    msg_format("The curse of %s is lifted.", curse_display_name(curse_id));
+    message_flush();
+    return true;
+}
+
+static bool blessing_gain_minor(void)
+{
+    int eligible[32];
+    int count = 0;
+
+    for (int id = 0; id < z_info->cu_max; id++) {
+        curse_type *c = &cu_info[id];
+        if (!c->blessing_name) continue;
+
+        int stacks = CURSE_GET(id);
+        if (stacks > 0) continue; /* currently cursed */
+
+        int blessing_stacks = (stacks < 0) ? -stacks : 0;
+        if (c->max_stacks > 0 && blessing_stacks >= c->max_stacks) continue;
+
+        eligible[count++] = id;
+    }
+
+    if (count == 0) {
+        msg_print("No blessings are presently available.");
+        message_flush();
+        return false;
+    }
+
+    int picks = MIN(3, count);
+    int options[3];
+    int remaining = count;
+
+    for (int i = 0; i < picks; i++) {
+        int pick = rand_int(remaining);
+        options[i] = eligible[pick];
+        eligible[pick] = eligible[remaining - 1];
+        remaining--;
+    }
+
+    int choice = -1;
+    while (choice < 0) {
+        screen_save();
+        Term_clear();
+
+        Term_putstr(2, 1, -1, TERM_YELLOW, "Receive a Blessing (cost 1 blessing point)");
+        Term_putstr(2, 3, -1, TERM_L_WHITE, "Select a gift to accept:");
+
+        int line = 5;
+        for (int i = 0; i < picks; i++) {
+            int id = options[i];
+            curse_type *c = &cu_info[id];
+            char label = 'a' + i;
+
+            cptr name = blessing_display_name(id);
+            char buf[160];
+            snprintf(buf, sizeof buf, "%c) %-30s", label, name);
+            Term_putstr(4, line++, -1, TERM_L_GREEN, buf);
+
+            if (c->blessing_text) {
+                cptr desc = cu_text + c->blessing_text;
+                Term_putstr(6, line++, -1, TERM_L_WHITE, desc);
+            }
+        }
+
+        Term_putstr(2, line + 1, -1, TERM_L_DARK, "Press letter to accept, or ESC to cancel.");
+        char key = inkey();
+        screen_load();
+
+        if (key == ESCAPE) {
+            return false;
+        }
+
+        int idx = key - 'a';
+        if (idx >= 0 && idx < picks) {
+            choice = idx;
+        } else {
+            bell("Invalid selection.");
+        }
+    }
+
+    int blessing_id = options[choice];
+    int stacks = CURSE_GET(blessing_id);
+    curse_type *c = &cu_info[blessing_id];
+    int blessing_stacks = (stacks < 0) ? -stacks : 0;
+
+    if (c->max_stacks > 0 && blessing_stacks >= c->max_stacks) {
+        msg_print("That blessing cannot grow any stronger.");
+        message_flush();
+        return false;
+    }
+
+    CURSE_ADD(blessing_id, -1);
+    CURSE_SEEN_SET(blessing_id);
+
+    blessing_spend_points(1);
+    blessing_commit_changes(true);
+
+    msg_format("You receive the %s.", blessing_display_name(blessing_id));
+    message_flush();
+    return true;
+}
+
+static bool blessing_unlock_major(void)
+{
+    sanitize_major_blessing_bits(&metar);
+
+    int cap = major_blessing_capacity();
+    if (cap <= 0 || !mb_info) {
+        msg_print("No major blessings are currently defined.");
+        message_flush();
+        return false;
+    }
+
+    struct {
+        int idx;
+        char key;
+    } options[16];
+
+    int option_count = 0;
+    for (int i = 0; i < cap && option_count < 16; i++) {
+        if (metarun_has_major_blessing_index(i)) continue;
+        if (!major_blessing_def(i)) continue;
+        options[option_count].idx = i;
+        options[option_count].key = (char)('a' + option_count);
+        option_count++;
+    }
+
+    if (option_count == 0) {
+        msg_print("All major blessings are already sealed.");
+        message_flush();
+        return false;
+    }
+
+    while (true) {
+        screen_save();
+        Term_clear();
+
+        Term_putstr(2, 1, -1, TERM_YELLOW, "Unlock a Major Blessing");
+        Term_putstr(2, 3, -1, TERM_L_WHITE, "Select which covenant to forge:");
+
+        int line = 5;
+        for (int i = 0; i < option_count; i++) {
+            int idx = options[i].idx;
+            char key = options[i].key;
+            const char *name = major_blessing_name_str(idx);
+            const char *detail = major_blessing_detail_desc(idx);
+            int cost = major_blessing_cost(idx);
+
+            char buf[160];
+            snprintf(buf, sizeof buf, "%c) %s (cost %d)", key, name, cost);
+            Term_putstr(4, line++, -1, TERM_L_GREEN, buf);
+
+            if (detail && *detail) {
+                Term_putstr(6, line++, -1, TERM_L_WHITE, detail);
+            }
+
+            line++;
+        }
+
+        Term_putstr(2, line + 1, -1, TERM_L_DARK, "Press letter to unlock, or ESC to cancel.");
+
+        char key = inkey();
+        screen_load();
+
+        if (key == ESCAPE) {
+            return false;
+        }
+
+        key = tolower((unsigned char)key);
+        int choice_idx = -1;
+        for (int i = 0; i < option_count; i++) {
+            if (key == options[i].key) {
+                choice_idx = options[i].idx;
+                break;
+            }
+        }
+
+        if (choice_idx < 0) {
+            bell("Invalid selection.");
+            continue;
+        }
+
+        int cost = major_blessing_cost(choice_idx);
+        int available = blessing_points_remaining();
+        if (cost > available) {
+            msg_print("You need more blessing points to forge that covenant.");
+            message_flush();
+            continue;
+        }
+
+        metar.major_blessings |= (1U << choice_idx);
+        blessing_spend_points(cost);
+        blessing_commit_changes(true);
+
+        const char *msg = major_blessing_unlock_msg(choice_idx);
+        if (msg && *msg) {
+            msg_print(msg);
+        } else {
+            msg_format("You seal the %s.", major_blessing_name_str(choice_idx));
+        }
+        message_flush();
+        return true;
+    }
+}
+
+static void open_blessing_exchange(void)
+{
+    bool done = false;
+
+    while (!done) {
+        compute_blessing_pool();
+        int available = blessing_points_remaining();
+        int earned = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
+        int spent = metar.blessing_points_spent;
+
+        bool major_available = false;
+        int min_major_cost = INT_MAX;
+        int major_cap = major_blessing_capacity();
+        for (int i = 0; i < major_cap; i++) {
+            if (metarun_has_major_blessing_index(i)) continue;
+            if (!major_blessing_def(i)) continue;
+            major_available = true;
+            int cost = major_blessing_cost(i);
+            if (cost < 0) cost = 0;
+            if (cost < min_major_cost) min_major_cost = cost;
+        }
+        if (!major_available || min_major_cost == INT_MAX) {
+            min_major_cost = 0;
+        }
+
+        screen_save();
+        Term_clear();
+
+        Term_putstr(2, 1, -1, TERM_YELLOW, "Blessing Exchange");
+        char buf[160];
+        snprintf(buf, sizeof buf, "Blessing Points Available: %d (spent %d / earned %d)",
+                 available, spent, earned);
+        Term_putstr(2, 3, -1, TERM_L_WHITE, buf);
+
+        snprintf(buf, sizeof buf, "Fallen Score Pool: %lu (progress %lu / %lu)",
+                 (unsigned long)metar.fallen_score_total,
+                 (unsigned long)metar.fallen_score_pool,
+                 (unsigned long)METARUN_BLESSING_POINT_THRESHOLD);
+        Term_putstr(2, 4, -1, TERM_L_WHITE, buf);
+
+        Term_putstr(2, 6, -1, TERM_L_GREEN, "Options:");
+        Term_putstr(4, 8, -1, TERM_L_WHITE, "r) Remove a curse (cost 1)");
+        Term_putstr(4, 9, -1, TERM_L_WHITE, "m) Gain a minor blessing (cost 1)");
+        if (major_available) {
+            snprintf(buf, sizeof buf, "u) Unlock a major blessing (cost %d)", min_major_cost);
+            Term_putstr(4,10, -1, TERM_L_WHITE, buf);
+        } else {
+            Term_putstr(4,10, -1, TERM_L_DARK, "u) Unlock a major blessing (none available)");
+        }
+        Term_putstr(4,12, -1, TERM_L_DARK, "Press ESC to leave the exchange.");
+
+        char key = inkey();
+        screen_load();
+
+        switch (key) {
+        case ESCAPE:
+            done = true;
+            break;
+        case 'r':
+        case 'R':
+            if (available < 1) {
+                msg_print("You need at least one blessing point to lift a curse.");
+                message_flush();
+            } else if (blessing_remove_curse()) {
+                compute_blessing_pool();
+            }
+            break;
+        case 'm':
+        case 'M':
+            if (available < 1) {
+                msg_print("You need at least one blessing point to receive a gift.");
+                message_flush();
+            } else if (blessing_gain_minor()) {
+                compute_blessing_pool();
+            }
+            break;
+        case 'u':
+        case 'U':
+            if (!major_available) {
+                msg_print("All major blessings have already been sealed.");
+                message_flush();
+            } else if (available < min_major_cost) {
+                msg_print("You need more blessing points to forge a major covenant.");
+                message_flush();
+            } else if (blessing_unlock_major()) {
+                compute_blessing_pool();
+            }
+            break;
+        default:
+            bell("Unrecognised option.");
+            break;
+        }
+    }
+}
+
 /*
  * Enhanced print_metarun_stats():
- * - Draws bracketed progress bars for Silmarils & Deaths with colored stars
- * - Displays numeric counts next to each bar
+ * - Draws a bracketed progress bar for Silmarils using '*'
+ * - Renders deaths as a string of 'x' markers without a fixed limit
  * - Aligns labels & values for a cleaner layout
  * - Lists active curses with D: and (optionally) P: details
  */
@@ -2527,14 +3396,11 @@ void print_metarun_stats(void)
 {
     int row = 1;
     int col = 2;
-    char buf[128];
-    int x;
+    char buf[160];
     int term_height, term_width;
 
-    /* Refresh score with current c_info data before displaying */
     refresh_current_metar_score();
 
-    /* Safety check: ensure metarun system is initialized */
     if (current_run < 0 || current_run >= metarun_max) {
         screen_save();
         Term_clear();
@@ -2546,162 +3412,196 @@ void print_metarun_stats(void)
         return;
     }
 
-    /* Save & clear screen */
-    screen_save();
-    Term_clear();
+    compute_blessing_pool();
+    sanitize_major_blessing_bits(&metar);
 
-    /* Get actual terminal dimensions */
-    Term_get_size(&term_width, &term_height);
-
-    /* Title */
-    Term_putstr(col, row++, -1, TERM_YELLOW, "=== Current Story Statistics ===");
-
-    /* Run ID */
-    snprintf(buf, sizeof buf, "Run-ID     : %u", metar.id);
-    Term_putstr(col, row++, -1, TERM_WHITE, buf);
-
-    /* Difficulty Level - use dynamic name from runtype */
     const char *diff_name = "Unknown";
-    int win_goal = WINCON_SILMARILS;  /* fallback */
-    int death_limit = LOSECON_DEATHS; /* fallback */
+    int win_goal = WINCON_SILMARILS;
 
     if (runtype_info && metar.type < z_info->rt_max && runtype_info[metar.type].name[0])
     {
         diff_name = runtype_info[metar.type].name;
         win_goal = runtype_info[metar.type].win_con ? runtype_info[metar.type].win_con : WINCON_SILMARILS;
-        death_limit = runtype_info[metar.type].lose_con ? runtype_info[metar.type].lose_con : LOSECON_DEATHS;
     }
 
-    snprintf(buf, sizeof buf, "Difficulty : %s", diff_name);
+    if (win_goal <= 0) win_goal = WINCON_SILMARILS;
+
+    int remaining_silmarils = win_goal - metar.silmarils;
+    if (remaining_silmarils < 0) remaining_silmarils = 0;
+
+    char sil_bar[32];
+    build_symbol_bar(sil_bar, sizeof sil_bar, metar.silmarils, win_goal, '*');
+    char death_marks[32];
+    build_death_marks(death_marks, sizeof death_marks, metar.deaths);
+
+    int required_survivors = required_survivor_target(win_goal);
+    int alive = metar.alive_characters;
+
+    u32b best_run = get_best_run_score_from_highscores();
+    u32b total_pool = metar.fallen_score_total;
+    u32b remainder = metar.fallen_score_pool;
+    u32b threshold = METARUN_BLESSING_POINT_THRESHOLD;
+
+    int earned_points = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
+    int spent_points = metar.blessing_points_spent;
+    if (spent_points > earned_points) spent_points = earned_points;
+    int available_points = earned_points - spent_points;
+    if (available_points < 0) available_points = 0;
+
+    screen_save();
+    Term_clear();
+    Term_get_size(&term_width, &term_height);
+
+    Term_putstr(col, row++, -1, TERM_YELLOW, "=== Current Story Statistics ===");
+
+    snprintf(buf, sizeof buf, "Run-ID         : %u", metar.id);
+    Term_putstr(col, row++, -1, TERM_WHITE, buf);
+
+    snprintf(buf, sizeof buf, "Difficulty     : %s", diff_name);
     Term_putstr(col, row++, -1, TERM_L_BLUE, buf);
 
-    snprintf(buf, sizeof buf, "Meta Score : %lu", (unsigned long)metar.score);
+    snprintf(buf, sizeof buf, "Meta Score     : %lu", (unsigned long)metar.score);
     Term_putstr(col, row++, -1, TERM_WHITE, buf);
 
-    /* Display the actual best individual run score (not weighted) */
-    u32b best_run = get_best_individual_score();
-    snprintf(buf, sizeof buf, "Best Run   : %lu", (unsigned long)best_run);
+    snprintf(buf, sizeof buf, "Best Run Score : %lu", (unsigned long)best_run);
     Term_putstr(col, row++, -1, TERM_WHITE, buf);
 
-    /* Silmarils bar - use dynamic win goal */
-    snprintf(buf, sizeof buf, "Silmarils  : ");
-    Term_putstr(col, row, -1, TERM_WHITE, buf);
-    x = col + strlen(buf);
-    for (int i = 0; i < win_goal; i++) {
-        byte attr = (i < metar.silmarils) ? TERM_L_GREEN : TERM_L_WHITE;
-        Term_putch(x++, row, attr, '*');
-    }
-    snprintf(buf, sizeof buf, "  (%d/%d)", metar.silmarils, win_goal);
-    Term_putstr(x + 1, row++, -1, TERM_WHITE, buf);
+    snprintf(buf, sizeof buf, "Silmarils      : %-22s %2d / %d (remaining %d)",
+             sil_bar, metar.silmarils, win_goal, remaining_silmarils);
+    Term_putstr(col, row++, -1, TERM_WHITE, buf);
 
-    /* Deaths bar - calculate actual death limit based on difficulty and curses */
-    /* Safe access: Use metarun curse data directly instead of curse_flag_count which may access uninitialized player data */
-    int death_curse_stacks = 0;
-    if (z_info && z_info->cu_max > CUR_DEATH) {
-        death_curse_stacks = CURSE_GET(CUR_DEATH);
-    }
-    int max_deaths = MAX(1, death_limit - 3 * death_curse_stacks);
-    snprintf(buf, sizeof buf, "Deaths     : ");
-    Term_putstr(col, row, -1, TERM_WHITE, buf);
-    x = col + strlen(buf);
-    for (int i = 0; i < max_deaths; i++) {
-        byte attr = (i < metar.deaths) ? TERM_RED : TERM_L_WHITE;
-        Term_putch(x++, row, attr, 'x');
-    }
-    snprintf(buf, sizeof buf, "  (%d/%d)", metar.deaths, max_deaths);
-    Term_putstr(x + 1, row++, -1, TERM_WHITE, buf);
+    byte alive_attr = (alive < required_survivors) ? TERM_RED : TERM_L_GREEN;
+    snprintf(buf, sizeof buf, "Living Heroes  : %d (need >= %d)", alive, required_survivors);
+    Term_putstr(col, row++, -1, alive_attr, buf);
 
-    /* Active curses list - with pagination to fit screen */
-    int curse_start_row = row + 1; /* Add minimal spacing before curses */
-    int available_lines = term_height - curse_start_row - 2; /* Reserve 2 lines for prompt only */
-    bool curses_truncated = false; /* Track if we had to truncate the curse list */
+    snprintf(buf, sizeof buf, "Deaths         : %-22s (%d total)",
+             death_marks, metar.deaths);
+    Term_putstr(col, row++, -1, TERM_WHITE, buf);
 
-    /* Count active curses first */
-    int active_curse_count = 0;
+    byte blessing_attr = (available_points > 0) ? TERM_L_GREEN : TERM_WHITE;
+    snprintf(buf, sizeof buf, "Blessing Points: %d available (%d spent / %d earned)",
+             available_points, spent_points, earned_points);
+    Term_putstr(col, row++, -1, blessing_attr, buf);
+
+    u32b progress = remainder;
+    if (threshold == 0) threshold = 1;
+    snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (progress %lu / %lu)",
+             (unsigned long)total_pool, (unsigned long)progress, (unsigned long)threshold);
+    Term_putstr(col, row++, -1, TERM_WHITE, buf);
+
+    Term_putstr(col, row++, -1, TERM_YELLOW, "Major Blessings:");
+    int unlocked_major = 0;
+    int major_total = metarun_major_blessing_count();
+    for (int i = 0; i < major_total; i++) {
+        if (!metarun_has_major_blessing_index(i)) continue;
+        unlocked_major++;
+        const char *name = major_blessing_name_str(i);
+        const char *desc = major_blessing_short_desc(i);
+        char desc_buf[80];
+        if (desc && *desc) {
+            my_strcpy(desc_buf, desc, sizeof desc_buf);
+            char *nl = strchr(desc_buf, '\n');
+            if (nl) *nl = '\0';
+            snprintf(buf, sizeof buf, "  [X] %s (%s)", name, desc_buf);
+        } else {
+            snprintf(buf, sizeof buf, "  [X] %s", name);
+        }
+        Term_putstr(col, row++, -1, TERM_L_GREEN, buf);
+    }
+    if (unlocked_major == 0) {
+        Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None unlocked yet");
+    }
+
+    row++; /* spacing before lists */
+
+    Term_putstr(col, row++, -1, TERM_YELLOW, "Active Curses & Blessings:");
+
+    int available_lines = term_height - row - 2;
+    if (available_lines < 0) available_lines = 0;
+
+    int active_count = 0;
     for (int id = 0; id < z_info->cu_max; id++) {
-        if (CURSE_GET(id)) active_curse_count++;
+        if (CURSE_GET(id) != 0) active_count++;
     }
 
-    if (active_curse_count > 0) {
-        Term_putstr(col, curse_start_row++, -1, TERM_YELLOW, "Active Curses:");
-#ifdef DEBUG_CURSES
-        Term_putstr(col, curse_start_row++, -1, TERM_L_DARK, "(showing D:stacks and P:effect)");
-        available_lines--; /* Account for debug line */
-#endif
+    bool curses_truncated = false;
+    int curses_shown = 0;
 
-        /* Calculate how many curses we can show - be more aggressive with space usage */
-        int max_curses_to_show = available_lines;
-        if (active_curse_count > max_curses_to_show) {
-            max_curses_to_show--; /* Reserve 1 line for "more..." message */
+    if (active_count == 0) {
+        Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None active");
+    } else if (available_lines <= 0) {
+        curses_truncated = true;
+        Term_putstr(col + 2, row++, -1, TERM_L_DARK,
+                    "List truncated - press 's' to view all effects");
+    } else {
+        int max_rows = available_lines;
+        if (active_count > max_rows) {
+            curses_truncated = true;
+            if (max_rows > 0) max_rows--; /* reserve space for truncation message */
         }
 
-        int curses_shown = 0;
+        for (int id = 0; id < z_info->cu_max && curses_shown < max_rows; id++) {
+            int stacks = CURSE_GET(id);
+            if (!stacks) continue;
 
-        for (int id = 0; id < z_info->cu_max && curses_shown < max_curses_to_show; id++) {
-            byte cnt = CURSE_GET(id);
-            if (!cnt) continue;
+            bool is_blessing = (stacks < 0);
+            int magnitude = is_blessing ? -stacks : stacks;
+            cptr name = is_blessing ? blessing_display_name(id) : curse_display_name(id);
+            byte attr = is_blessing ? TERM_L_GREEN : TERM_RED;
 
-            /* Build line: id, name, D:count, optional P:text */
-            cptr name = cu_name + cu_info[id].name;
 #ifdef DEBUG_CURSES
-            cptr pow = cu_text + cu_info[id].power;
-            snprintf(buf, sizeof buf, " %2d: %-20s D:%d P:%s", id, name, cnt, pow);
+            cptr effect = is_blessing ? (cu_info[id].blessing_power ? cu_text + cu_info[id].blessing_power : "")
+                                      : (cu_info[id].power ? cu_text + cu_info[id].power : "");
+            snprintf(buf, sizeof buf, " %2d: %-24s %s %d %s", id, name,
+                     is_blessing ? "Blessing" : "Curse", magnitude, effect);
 #else
-            snprintf(buf, sizeof buf, " %2d: %-20s D:%d", id, name, cnt);
+            snprintf(buf, sizeof buf, " %2d: %-24s %s %d", id, name,
+                     is_blessing ? "Blessing" : "Curse", magnitude);
 #endif
-            Term_putstr(col + 2, curse_start_row++, -1, TERM_WHITE, buf);
+            Term_putstr(col + 2, row++, -1, attr, buf);
             curses_shown++;
         }
 
-        /* Check if there are more curses that couldn't be shown */
-        if (curses_shown < active_curse_count) {
-            curses_truncated = true;
-            int remaining = active_curse_count - curses_shown;
-            snprintf(buf, sizeof buf, "     ... and %d more curse%s (press 's' to see all)",
+        if (curses_truncated && curses_shown < active_count) {
+            int remaining = active_count - curses_shown;
+            snprintf(buf, sizeof buf, "     ... and %d more effect%s (press 's' to view all)",
                      remaining, (remaining == 1) ? "" : "s");
-            Term_putstr(col + 2, curse_start_row++, -1, TERM_L_DARK, buf);
+            Term_putstr(col + 2, row++, -1, TERM_L_DARK, buf);
         }
-
-        /* If curses were truncated, mention the 's' option more prominently */
-        if (curses_truncated) {
-            snprintf(buf, sizeof buf, "[c] Change difficulty  [s] Show history & full curse list  [any other key] Continue");
-        } else {
-            snprintf(buf, sizeof buf, "[c] Change difficulty  [s] Show history  [any other key] Continue");
-        }
-    } else {
-        Term_putstr(col, curse_start_row++, -1, TERM_L_DARK, "No active curses");
-        snprintf(buf, sizeof buf, "[c] Change difficulty  [s] Show history  [any other key] Continue");
     }
 
-    /* Enhanced prompt - position it at the bottom of screen */
-    Term_putstr(col, term_height - 1, -1, TERM_L_DARK, buf);
+    const char *prompt = NULL;
+    if (curses_truncated) {
+        prompt = "[b] Spend blessings  [c] Change difficulty  [s] Show history & full list  [any other key] Continue";
+    } else {
+        prompt = "[b] Spend blessings  [c] Change difficulty  [s] Show history  [any other key] Continue";
+    }
+
+    Term_putstr(col, term_height - 1, -1, TERM_L_DARK, prompt);
 
     char key = inkey();
-    if (key == 'c' || key == 'C')
-    {
+    if (key == 'b' || key == 'B') {
+        screen_load();
+        open_blessing_exchange();
+        print_metarun_stats();
+        return;
+    } else if (key == 'c' || key == 'C') {
         screen_load();
         choose_difficulty_menu();
         return;
-    }
-    else if (key == 's' || key == 'S')
-    {
+    } else if (key == 's' || key == 'S') {
         screen_load();
         list_metaruns();
-
-        /* Also show all curses if they were truncated in the main display */
         if (curses_truncated) {
             show_all_active_curses();
         }
-
-        print_metarun_stats(); /* Return to stats after showing history */
+        print_metarun_stats();
         return;
     }
 
     screen_load();
-
-    /* Check if metarun has ended after user chooses to continue */
-    check_run_end();
 }
+
 
 /* Generate curse description for a runtype */
 static void get_curse_description(int runtype_id, char *buf, size_t buf_size)
@@ -2712,20 +3612,20 @@ static void get_curse_description(int runtype_id, char *buf, size_t buf_size)
         buf[buf_size - 1] = '\0';
         return;
     }
-
+    
     runtype_type *rt = &runtype_info[runtype_id];
-
+    
     if (!rt->start_curses)
     {
         strncpy(buf, "No curses", buf_size - 1);
         buf[buf_size - 1] = '\0';
         return;
     }
-
+    
     /* Count curses and determine stack ranges */
     int curse_count = 0;
     int min_stacks = 255, max_stacks = 0;
-
+    
     for (int curse_id = 0; curse_id < 32; curse_id++)
     {
         if (rt->start_curses & (1UL << curse_id))
@@ -2736,14 +3636,14 @@ static void get_curse_description(int runtype_id, char *buf, size_t buf_size)
             if (stacks > max_stacks) max_stacks = stacks;
         }
     }
-
+    
     if (curse_count == 0)
     {
         strncpy(buf, "No curses", buf_size - 1);
         buf[buf_size - 1] = '\0';
         return;
     }
-
+    
     /* Format the description */
     if (min_stacks == max_stacks)
     {
@@ -2763,23 +3663,23 @@ static void choose_difficulty_menu(void)
 {
     int choice = metar.type;  /* Start with current difficulty */
     int max_difficulty = (runtype_info && z_info->rt_max > 0) ? z_info->rt_max - 1 : 0;
-
+    
     screen_save();
-
+    
     while (true)
     {
         Term_clear();
 
         /* Title */
         Term_putstr(2, 1, -1, TERM_YELLOW, "=== Select Difficulty Level ===");
-
+        
         int row = 3;
         for (int i = 0; i <= max_difficulty; i++)
         {
             byte name_color, desc_color;
             byte runtype_color = TERM_WHITE; /* default color */
             bool is_locked = (i < metar.max_difficulty_reached); /* Lock easier difficulties */
-
+            
             /* Get runtype color from U: field */
             if (runtype_info && i < z_info->rt_max && runtype_info[i].name[0])
             {
@@ -2789,7 +3689,7 @@ static void choose_difficulty_menu(void)
             {
                 runtype_color = TERM_WHITE; /* fallback if runtype not loaded */
             }
-
+            
             if (is_locked) {
                 /* Locked (easier) difficulties - greyed out */
                 name_color = TERM_L_DARK;
@@ -2812,53 +3712,53 @@ static void choose_difficulty_menu(void)
                 desc_color = TERM_L_DARK;
                 Term_putstr(2, row, -1, TERM_L_DARK, " ");
             }
-
+            
             /* Get dynamic name and stats from runtype */
             const char *rt_name = "Unknown";
             int win_goal = WINCON_SILMARILS;
             int death_limit = LOSECON_DEATHS;
-
+            
             if (runtype_info && i < z_info->rt_max && runtype_info[i].name[0])
             {
                 rt_name = runtype_info[i].name;
                 win_goal = runtype_info[i].win_con ? runtype_info[i].win_con : WINCON_SILMARILS;
                 death_limit = runtype_info[i].lose_con ? runtype_info[i].lose_con : LOSECON_DEATHS;
             }
-
+            
             char desc_buf[128];
             char curse_buf[64];
             get_curse_description(i, curse_buf, sizeof(curse_buf));
-
+            
             if (is_locked) {
-                snprintf(desc_buf, sizeof(desc_buf), "[LOCKED] Win: %d Silmarils, Lose: %d deaths, %s",
+                snprintf(desc_buf, sizeof(desc_buf), "[LOCKED] Win: %d Silmarils, Lose: %d deaths, %s", 
                          win_goal, death_limit, curse_buf);
             } else {
-                snprintf(desc_buf, sizeof(desc_buf), "Win: %d Silmarils, Lose: %d deaths, %s",
+                snprintf(desc_buf, sizeof(desc_buf), "Win: %d Silmarils, Lose: %d deaths, %s", 
                          win_goal, death_limit, curse_buf);
             }
-
+            
             char name_buf[128];
             if (is_locked) {
                 snprintf(name_buf, sizeof(name_buf), "%c) %s [LOCKED]", 'a'+i, rt_name);
             } else {
                 snprintf(name_buf, sizeof(name_buf), "%c) %s", 'a'+i, rt_name);
             }
-
+            
             Term_putstr(4, row++, -1, name_color, name_buf);
             Term_putstr(7, row++, -1, desc_color, desc_buf);
-
+            
             /* Add extra spacing between options */
             row++;
         }
-
+        
         /* Instructions */
         Term_putstr(2, row + 1, -1, TERM_L_WHITE, "Arrows to navigate     Space/Enter Accept     Esc Cancel");
-
+        
         /* Get input */
         char key = inkey();
-
+        
         /* Handle input */
-        if (key == ESCAPE)
+        if (key == ESCAPE) 
         {
             screen_load();
             return;
@@ -2918,7 +3818,7 @@ static void choose_difficulty_menu(void)
             }
         }
     }
-
+    
     /* Apply the new difficulty */
     if (choice != metar.type)
     {
@@ -2931,47 +3831,42 @@ static void choose_difficulty_menu(void)
             Term_putstr(2, 8, -1, TERM_WHITE, "go back to an easier level for the rest of this story run.");
             Term_putstr(2, 10, -1, TERM_L_RED, "This change is PERMANENT for this meta-run!");
             Term_putstr(2, 12, -1, TERM_L_WHITE, "Do you want to continue? (y/n)");
-
+            
             char confirm = inkey();
             screen_load();
-
+            
             if (confirm != 'y' && confirm != 'Y') {
                 return; /* Cancel the change */
             }
         }
-
+        
         log_info("Changing difficulty from %d to %d", metar.type, choice);
+        
+        /* Preserve existing stacks and discovery state */
+        int8_t preserved_stacks[32];
+        memcpy(preserved_stacks, metar.curse_stacks, sizeof(preserved_stacks));
+        u32b preserved_seen = metar.curses_seen;
 
-        /* Store current curses to preserve them */
-        u32b preserved_curses_lo = metar.curses_lo;
-        u32b preserved_curses_hi = metar.curses_hi;
-        u32b preserved_curses_seen = metar.curses_seen;
-
-        /* Temporarily clear curses to get base difficulty curses */
-        metarun_clear_all_curses();
+        /* Clear to baseline so we can reapply difficulty defaults */
+        memset(metar.curse_stacks, 0, sizeof(metar.curse_stacks));
+        metar.curses_seen = 0;
 
         /* Set new type and apply its base curses */
         metar.type = (byte)choice;
         apply_difficulty_curses(&metar);
 
-        /* Merge preserved curses with new difficulty curses (ADD stacks, don't just take max) */
+        /* Merge preserved stacks with new defaults (signed counts) */
         for (int curse_id = 0; curse_id < 32; curse_id++) {
-            byte preserved_stacks = (curse_id < 16) ?
-                ((preserved_curses_lo >> (curse_id * 2)) & 3) :
-                ((preserved_curses_hi >> ((curse_id - 16) * 2)) & 3);
+            int preserved = preserved_stacks[curse_id];
+            if (!preserved) continue;
 
-            byte current_stacks = CURSE_GET(curse_id);
-            byte total_stacks = preserved_stacks + current_stacks;
-
-            /* Respect per-curse maximum stacks */
-            byte max_allowed = cu_info[curse_id].max_stacks;
-            if (max_allowed > 0 && total_stacks > max_allowed) {
-                total_stacks = max_allowed;
+            int combined = preserved + CURSE_GET(curse_id);
+            int max_allowed = cu_info[curse_id].max_stacks;
+            if (max_allowed > 0) {
+                if (combined > max_allowed) combined = max_allowed;
+                if (combined < -max_allowed) combined = -max_allowed;
             }
-
-            if (total_stacks > 0) {
-                CURSE_SET(curse_id, total_stacks);
-            }
+            CURSE_SET(curse_id, combined);
         }
 
         /* Update maximum difficulty reached */
@@ -2980,20 +3875,24 @@ static void choose_difficulty_menu(void)
         }
 
         /* Restore seen flags */
-        metar.curses_seen |= preserved_curses_seen;
+        metar.curses_seen |= preserved_seen;
 
+        if (!sync_current_metarun_slot(false)) {
+            log_warn("Difficulty change failed to sync metarun slot");
+        }
+        
         /* Save changes */
         save_metaruns();
-
+        
         const char *new_name = "Unknown";
         if (runtype_info && choice < z_info->rt_max && runtype_info[choice].name[0])
             new_name = runtype_info[choice].name;
-
+        
         msg_print(format("Difficulty changed to: %s", new_name));
     }
-
+    
     screen_load();
-
+    
     /* Return to metarun stats to show updated information */
     print_metarun_stats();
 }
@@ -3159,14 +4058,14 @@ bool metarun_is_quest_completed(u32b quest_flag)
         log_trace("Metarun quest check: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
         return false;
     }
-
+    
     if (metaruns[current_run].completed_quests & quest_flag) {
-        log_trace("Metarun quest check: Found quest 0x%x completed in current metarun[%d] (id=%d)",
+        log_trace("Metarun quest check: Found quest 0x%x completed in current metarun[%d] (id=%d)", 
                   quest_flag, current_run, metaruns[current_run].id);
         return true;
     }
-
-    log_trace("Metarun quest check: Quest 0x%x not completed in current metarun[%d] (id=%d)",
+    
+    log_trace("Metarun quest check: Quest 0x%x not completed in current metarun[%d] (id=%d)", 
               quest_flag, current_run, metaruns[current_run].id);
     return false;
 }
@@ -3196,15 +4095,15 @@ void metarun_mark_quest_completed(u32b quest_flag)
 void metarun_check_and_update_quests(void)
 {
     log_trace("Metarun quest check: Entry - current_run=%d, metarun_max=%d", current_run, metarun_max);
-
+    
     if (current_run < 0 || current_run >= metarun_max) {
         log_trace("Metarun quest check: Early return - current_run=%d, metarun_max=%d", current_run, metarun_max);
         return;
     }
-
-    log_trace("Metarun quest check: current_run=%d, tulkas=%d, aule=%d, mandos=%d",
+    
+    log_trace("Metarun quest check: current_run=%d, tulkas=%d, aule=%d, mandos=%d", 
               current_run, p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest);
-
+    
     /* Check Tulkas quest completion - only mark as metarun-complete when REWARDED */
     if (p_ptr->tulkas_quest == TULKAS_QUEST_REWARDED) {
         if (!metarun_is_quest_completed(METARUN_QUEST_TULKAS)) {
@@ -3214,7 +4113,7 @@ void metarun_check_and_update_quests(void)
             log_trace("Metarun: Tulkas quest already marked as completed");
         }
     }
-
+    
     /* Check Aule quest completion - only mark as metarun-complete when REWARDED */
     if (p_ptr->aule_quest == AULE_QUEST_REWARDED) {
         if (!metarun_is_quest_completed(METARUN_QUEST_AULE)) {
@@ -3243,11 +4142,11 @@ void metarun_restore_quest_states(void)
         log_trace("Metarun restore: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
         return;
     }
-
+    
     u32b completed = metaruns[current_run].completed_quests;
-    log_trace("Metarun restore: Restoring quest states from metarun[%d], completed_quests=0x%08X",
+    log_trace("Metarun restore: Restoring quest states from metarun[%d], completed_quests=0x%08X", 
               current_run, completed);
-
+    
     /* Restore Tulkas quest state */
     if (completed & METARUN_QUEST_TULKAS) {
         if (p_ptr->tulkas_quest < TULKAS_QUEST_REWARDED) {
@@ -3255,7 +4154,7 @@ void metarun_restore_quest_states(void)
             log_trace("Metarun restore: Tulkas quest set to REWARDED (%d)", TULKAS_QUEST_REWARDED);
         }
     }
-
+    
     /* Restore Aule quest state */
     if (completed & METARUN_QUEST_AULE) {
         if (p_ptr->aule_quest < AULE_QUEST_REWARDED) {
@@ -3263,7 +4162,7 @@ void metarun_restore_quest_states(void)
             log_trace("Metarun restore: Aule quest set to REWARDED (%d)", AULE_QUEST_REWARDED);
         }
     }
-
+    
     /* Restore Mandos quest state */
     if (completed & METARUN_QUEST_MANDOS) {
         if (p_ptr->mandos_quest < MANDOS_QUEST_REWARDED) {
@@ -3271,7 +4170,7 @@ void metarun_restore_quest_states(void)
             log_trace("Metarun restore: Mandos quest set to REWARDED (%d)", MANDOS_QUEST_REWARDED);
         }
     }
-
+    
     /* Restore Niena quest state */
     if (completed & METARUN_QUEST_NIENA) {
         if (p_ptr->niena_quest < NIENA_QUEST_REWARDED) {
@@ -3280,7 +4179,7 @@ void metarun_restore_quest_states(void)
             log_trace("Metarun restore: Niena quest set to REWARDED (%d)", NIENA_QUEST_REWARDED);
         }
     }
-
+    
     /* Restore Orome quest state */
     if (completed & METARUN_QUEST_OROME) {
         if (p_ptr->orome_quest < OROME_QUEST_REWARDED) {
@@ -3288,7 +4187,7 @@ void metarun_restore_quest_states(void)
             log_trace("Metarun restore: Orome quest set to REWARDED (%d)", OROME_QUEST_REWARDED);
         }
     }
-
+    
     log_trace("Metarun restore: Final quest states - Tulkas: %d, Aule: %d, Mandos: %d, Niena: %d, Orome: %d",
               p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->niena_quest, p_ptr->orome_quest);
 }
@@ -3304,7 +4203,7 @@ bool oath_unlocked(int oath_id)
 {
     if (current_run < 0 || current_run >= metarun_max) return false;
     if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) return false;
-
+    
     byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-5 to bits 1,2,4,8,16 */
     return (metaruns[current_run].unlocked_oaths & oath_bit) != 0;
 }
@@ -3316,7 +4215,7 @@ bool oath_banned(int oath_id)
 {
     if (current_run < 0 || current_run >= metarun_max) return false;
     if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) return false;
-
+    
     byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-5 to bits 1,2,4,8,16 */
     return (metaruns[current_run].banned_oaths & oath_bit) != 0;
 }
@@ -3334,16 +4233,16 @@ void metarun_unlock_oath(int oath_id)
         log_trace("Oath unlock: Invalid oath_id=%d", oath_id);
         return;
     }
-
+    
     byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-4 to bits 1,2,4,8 */
-
+    
     /* Update both the global metar and the metaruns array */
     metar.unlocked_oaths |= oath_bit;
     metaruns[current_run].unlocked_oaths |= oath_bit;
-
-    log_trace("Oath unlock: Unlocked oath %d (bit %d) in metarun[%d], unlocked_oaths=0x%02X",
+    
+    log_trace("Oath unlock: Unlocked oath %d (bit %d) in metarun[%d], unlocked_oaths=0x%02X", 
               oath_id, oath_bit, current_run, metaruns[current_run].unlocked_oaths);
-
+    
     /* Save immediately to persist the change */
     save_metaruns();
 }
@@ -3361,9 +4260,9 @@ void metarun_ban_oath(int oath_id)
         log_trace("Oath ban: Invalid oath_id=%d", oath_id);
         return;
     }
-
+    
     byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-5 to bits 1,2,4,8,16 */
-
+    
     /* Update both the global metar and the metaruns array */
     metar.banned_oaths |= oath_bit;
     metaruns[current_run].banned_oaths |= oath_bit;
@@ -3382,13 +4281,13 @@ void metarun_ban_oath(int oath_id)
 int get_available_oaths_mask(void)
 {
     if (current_run < 0 || current_run >= metarun_max) return 0;
-
+    
     byte unlocked = metaruns[current_run].unlocked_oaths;
     byte banned = metaruns[current_run].banned_oaths;
     byte available = unlocked & ~banned;
-
-    log_trace("Oath availability: unlocked=0x%02X, banned=0x%02X, available=0x%02X",
+    
+    log_trace("Oath availability: unlocked=0x%02X, banned=0x%02X, available=0x%02X", 
               unlocked, banned, available);
-
+    
     return available;
 }

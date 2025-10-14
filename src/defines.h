@@ -52,16 +52,16 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning */
-/* Bumped to 0.8.9 for throwable/quiver integration */
-#define VERSION_STRING "0.8.9"
+/* Bumped to 0.9.0 for metarun blessing system update */
+#define VERSION_STRING "0.9.0"
 /*
  * Current version numbers
  */
-/* Version components (0.8.9) */
+/* Version components (0.9.0) */
 #define VERSION_MAJOR 0
-#define VERSION_MINOR 8
-#define VERSION_PATCH 9
-#define VERSION_EXTRA 3
+#define VERSION_MINOR 9
+#define VERSION_PATCH 0
+#define VERSION_EXTRA 0
 
 /*
  * Oldest version number that can still be imported
