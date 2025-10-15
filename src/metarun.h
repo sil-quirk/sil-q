@@ -61,21 +61,6 @@ typedef struct meta_file_header
     u32b entry_count;    /* Number of metarun entries in file */
 } meta_file_header;
 
-/* Legacy metarun structure for backwards compatibility (pre-v5 bit-packed curses) */
-typedef struct metarun_old
-{
-    /* ----- per-run counters --------------------------------------- */
-    u32b id;            /* monotonic 0-based index                    */
-    byte type;          /* reserved for future run-type support       */
-    byte deaths;        /* how many characters have died so far       */
-    byte silmarils;     /* Silmarils recovered so far                 */
-    u32b last_played;   /* time() of the most recent character        */
-
-    u32b curses_lo;     /* curse IDs  0–15  – 2 bits each (max 4) */
-    u32b curses_hi;     /* curse IDs 16–31  – 2 bits each (max 4) */
-    u32b curses_seen;   /* bit i == 1  → curse i is known/revealed    */
-} metarun_old;
-
 typedef struct metarun
 {
     /* ----- per-run counters --------------------------------------- */

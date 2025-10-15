@@ -3492,7 +3492,8 @@ bool melt_mithril_item(int item_num)
 
         object_flags(o_ptr, &f1, &f2, &f3);
 
-        if (f3 & (TR3_MITHRIL))
+        /* Skip mithril items that can't be melted (Gamil-forged) */
+        if ((f3 & TR3_MITHRIL) && !(o_ptr->ident & IDENT_CANT_MELT))
         {
             number += 1;
         }
@@ -3606,7 +3607,8 @@ int mithril_items_carried(void)
 
         object_flags(o_ptr, &f1, &f2, &f3);
 
-        if (f3 & (TR3_MITHRIL))
+        /* Only count mithril items that can be melted (exclude Gamil-forged) */
+        if ((f3 & TR3_MITHRIL) && !(o_ptr->ident & IDENT_CANT_MELT))
         {
             number += 1;
         }

@@ -128,34 +128,6 @@ static int artefact_count(void)
 }
 
 /*
- * This function determines if the version of the savefile
- * currently being read is older than version "x.y.z".
- */
-static bool older_than(int x, int y, int z)
-{
-    /* Much older, or much more recent */
-    if (sf_major < x)
-        return (true);
-    if (sf_major > x)
-        return (false);
-
-    /* Distinctly older, or distinctly more recent */
-    if (sf_minor < y)
-        return (true);
-    if (sf_minor > y)
-        return (false);
-
-    /* Barely older, or barely more recent */
-    if (sf_patch < z)
-        return (true);
-    if (sf_patch > z)
-        return (false);
-
-    /* Identical versions */
-    return (false);
-}
-
-/*
  * Hack -- determine if an item is "wearable" (or a missile)
  */
 static bool wearable_p(const object_type* o_ptr)
@@ -196,10 +168,21 @@ static bool wearable_p(const object_type* o_ptr)
 
 static byte sf_get(void)
 {
+    int c_int;
     byte c, v;
 
-    /* Get a character, decode the value */
-    c = getc(fff) & 0xFF;
+    /* Get a character */
+    c_int = getc(fff);
+    
+    /* Check for EOF */
+    if (c_int == EOF)
+    {
+        log_error("sf_get: Unexpected end of file at offset %ld", load_byte_offset);
+        return (0);
+    }
+    
+    /* Decode the value */
+    c = c_int & 0xFF;
     v = c ^ xor_byte;
     xor_byte = c;
 
@@ -213,19 +196,28 @@ static byte sf_get(void)
     return (v);
 }
 
-static void rd_byte(byte* ip) { *ip = sf_get(); }
+static void rd_byte(byte* ip) { 
+    *ip = sf_get();
+    /* load_byte_offset already incremented by sf_get() */
+}
 
 static void rd_bool(bool* bp) {
     *bp = sf_get() != 0;  // Any non-zero value becomes true
+    /* load_byte_offset already incremented by sf_get() */
 }
 
 static void rd_u16b(u16b* ip)
 {
     (*ip) = sf_get();
     (*ip) |= ((u16b)(sf_get()) << 8);
+    /* load_byte_offset already incremented by sf_get() calls */
+    log_trace("[load:%06u] rd_u16b: 0x%04X (%u)", (unsigned)(load_byte_offset - 2), (unsigned)*ip, (unsigned)*ip);
 }
 
-static void rd_s16b(s16b* ip) { rd_u16b((u16b*)ip); }
+static void rd_s16b(s16b* ip) { 
+    rd_u16b((u16b*)ip);
+    log_trace("[load:%06u] rd_s16b: %d", (unsigned)(load_byte_offset - 2), (int)*ip);
+}
 
 static void rd_u32b(u32b* ip)
 {
@@ -233,9 +225,14 @@ static void rd_u32b(u32b* ip)
     (*ip) |= ((u32b)(sf_get()) << 8);
     (*ip) |= ((u32b)(sf_get()) << 16);
     (*ip) |= ((u32b)(sf_get()) << 24);
+    /* load_byte_offset already incremented by sf_get() calls */
+    log_trace("[load:%06u] rd_u32b: 0x%08X (%u)", (unsigned)(load_byte_offset - 4), (unsigned)*ip, (unsigned)*ip);
 }
 
-static void rd_s32b(s32b* ip) { rd_u32b((u32b*)ip); }
+static void rd_s32b(s32b* ip) { 
+    rd_u32b((u32b*)ip);
+    log_trace("[load:%06u] rd_s32b: %d", (unsigned)(load_byte_offset - 4), (int)*ip);
+}
 
 /*
  * Hack -- read a string
@@ -374,16 +371,7 @@ static errr rd_item(object_type* o_ptr)
     rd_byte(&o_ptr->pd);
     rd_byte(&o_ptr->ps);
     rd_byte(&o_ptr->pickup);
-    if ((sf_major > 0) ||
-        (sf_major == 0 && sf_minor > 8) ||
-        (sf_major == 0 && sf_minor == 8 && sf_patch >= 9))
-    {
-        rd_s16b(&o_ptr->pickup_slot);
-    }
-    else
-    {
-        o_ptr->pickup_slot = -1;
-    }
+    rd_s16b(&o_ptr->pickup_slot);
 
     rd_u32b(&o_ptr->ident);
 
@@ -714,25 +702,14 @@ static void rd_options(void)
     rd_byte(&b);
     op_ptr->hitpoint_warn = b;
 
-    /* Read "main_combat_rolls" - with backward compatibility */
-    if (older_than(0, 8, 7))
-    {
-        /* Old saves don't have this field - use default */
+    /* Read "main_combat_rolls" */
+    rd_byte(&b);
+    op_ptr->main_combat_rolls = b;
+    /* Ensure it's in valid range */
+    if (op_ptr->main_combat_rolls < 0 || op_ptr->main_combat_rolls > 4)
         op_ptr->main_combat_rolls = 1;
-        /* Skip 8 spare bytes for old saves */
-        strip_bytes(8);
-    }
-    else
-    {
-        /* New saves have this field */
-        rd_byte(&b);
-        op_ptr->main_combat_rolls = b;
-        /* Ensure it's in valid range */
-        if (op_ptr->main_combat_rolls < 0 || op_ptr->main_combat_rolls > 4)
-            op_ptr->main_combat_rolls = 1;
-        /* Skip 7 remaining spare bytes */
-        strip_bytes(7);
-    }
+    /* Skip 7 remaining spare bytes */
+    strip_bytes(7);
 
     /*** Normal Options ***/
 
@@ -870,50 +847,23 @@ static errr rd_extra(void)
     for (i = 0; i < A_MAX; i++)
         rd_s16b(&p_ptr->stat_drain[i]);
 
-    /* Read the skill info
-     * Version note: Prior to 0.8.6 there were only 8 skills (S_MAX==8).
-     * 0.8.6 adds S_SPC (Special) as the 9th skill. Older savefiles lack
-     * data for this row, so we conditionally read only the legacy count.
-     */
-    int legacy_skill_max = 8; /* last pre-0.8.6 S_MAX value */
-    bool legacy_lineage = (sf_major >= 1); /* Original Sil 1.x */
-    bool pre_special_skills = legacy_lineage || older_than(0, 8, 6);
-    int skills_to_read = pre_special_skills ? legacy_skill_max : S_MAX;
-
-    for (i = 0; i < skills_to_read; i++)
+    /* Read the skill info - all skills including S_SPC (Special) present in 0.9.0 */
+    for (i = 0; i < S_MAX; i++)
         rd_s16b(&p_ptr->skill_base[i]);
-    /* Zero any new skills not present in older savefiles */
-    for (i = skills_to_read; i < S_MAX; i++)
-        p_ptr->skill_base[i] = 0;
 
     /* Read the abilities info (innate + active flags) */
-    for (i = 0; i < skills_to_read; i++)
+    for (i = 0; i < S_MAX; i++)
     {
         for (j = 0; j < ABILITIES_MAX; j++)
         {
             rd_byte(&p_ptr->innate_ability[i][j]);
             rd_byte(&p_ptr->active_ability[i][j]);
-            /* Only read have_ability for 0.8.6+ saves */
-            if (!pre_special_skills) {
-                rd_byte(&p_ptr->have_ability[i][j]);
-                
-                /* Debug special abilities load */
-                if (i == S_SPC && p_ptr->have_ability[i][j] != 0) {
-                    log_trace("Load: Special ability %d loaded with value %d", j, p_ptr->have_ability[i][j]);
-                }
-            } else {
-                p_ptr->have_ability[i][j] = 0;
+            rd_byte(&p_ptr->have_ability[i][j]);
+            
+            /* Debug special abilities load */
+            if (i == S_SPC && p_ptr->have_ability[i][j] != 0) {
+                log_trace("Load: Special ability %d loaded with value %d", j, p_ptr->have_ability[i][j]);
             }
-        }
-    }
-    /* Zero out abilities for any new skill rows */
-    for (i = skills_to_read; i < S_MAX; i++)
-    {
-        for (j = 0; j < ABILITIES_MAX; j++)
-        {
-            p_ptr->innate_ability[i][j] = 0;
-            p_ptr->active_ability[i][j] = 0;
-            p_ptr->have_ability[i][j] = 0;
         }
     }
 
@@ -1099,197 +1049,68 @@ static errr rd_extra(void)
     /* Current turn */
     rd_s32b(&turn);
 
-    /* Player turn / crown shatter flags changed layout across sf_extra revisions */
-    if (sf_extra >= 3)
-    {
-        /* New format: playerturn stored immediately after turn, then shatter flags */
-        rd_s32b(&playerturn);
-        rd_byte(&p_ptr->crown_shatter_sil2);
-        rd_byte(&p_ptr->crown_shatter_sil3);
-    }
-    else if (sf_extra == 2)
-    {
-        /* Legacy 0.8.9.x saves wrote shatter flags first and duplicated the turn */
-        rd_byte(&p_ptr->crown_shatter_sil2);
-        rd_byte(&p_ptr->crown_shatter_sil3);
+    /* For 0.9.0+ (sf_extra >= 1), format is: turn, playerturn, crown_shatter_sil2, crown_shatter_sil3 */
+    /* Legacy formats (< 0.8.9) are no longer supported */
+    rd_s32b(&playerturn);
+    rd_byte(&p_ptr->crown_shatter_sil2);
+    rd_byte(&p_ptr->crown_shatter_sil3);
 
-        s32b turn_repeat = 0;
-        rd_s32b(&turn_repeat);
-        if (turn_repeat == turn)
-        {
-            rd_s32b(&playerturn);
-        }
-        else
-        {
-            /* No duplicate present (unexpected but recoverable) */
-            playerturn = turn_repeat;
-
-            long rewind_pos = ftell(fff);
-            u32b saved_v_check = v_check, saved_x_check = x_check, saved_offset = load_byte_offset;
-            byte saved_xor = xor_byte;
-
-            s32b maybe_playerturn = 0;
-            rd_s32b(&maybe_playerturn);
-            if (maybe_playerturn != playerturn)
-            {
-                /* Not an echoed player turn, restore stream state */
-                fseek(fff, rewind_pos, SEEK_SET);
-                v_check = saved_v_check;
-                x_check = saved_x_check;
-                load_byte_offset = saved_offset;
-                xor_byte = saved_xor;
-            }
-        }
-    }
-    else
-    {
-        /* Very old saves: playerturn present but no shatter flags */
-        rd_s32b(&playerturn);
-        p_ptr->crown_shatter_sil2 = 0;
-        p_ptr->crown_shatter_sil3 = 0;
-    }
-
-    if (sf_extra < 2)
-    {
-        p_ptr->crown_shatter_sil2 = 0;
-        p_ptr->crown_shatter_sil3 = 0;
-    }
-
-    // rd_byte(&tmp8u);
-    // p_ptr->killed_enemy_with_arrow = tmp8u;
     rd_bool(&p_ptr->killed_enemy_with_arrow);
 
     rd_byte(&p_ptr->oath_type);
     rd_byte(&p_ptr->oaths_broken);
+    log_info("LOAD: Read oath_type=%d, oaths_broken=%d at byte_ofs=%u", 
+             p_ptr->oath_type, p_ptr->oaths_broken, (unsigned)load_byte_offset);
 
-    /* Quest fields compatibility ----------------------------------------------
-    New fork (0.8.5+) adds Tulkas (9 bytes) and Aule (24 bytes). 0.8.6 adds
-    Special skill (S_SPC) requiring backward-compatible skill/ability reads.
-       Legacy 1.5.x had a single "thrall quest" byte here. */
-    /* Log offset entering quest compatibility block */
-    log_debug("rd_extra: pre-quest block (byte_ofs=%u) version=%u.%u.%u", (unsigned)load_byte_offset, (unsigned)sf_major, (unsigned)sf_minor, (unsigned)sf_patch);
-    if (sf_major >= 1) /* treat any 1.x+ as legacy lineage (e.g., 1.5.0) */
-    {
-        log_info("QUEST: legacy branch (sf_major=%u)", (unsigned)sf_major);
-        /* Original layout: SINGLE thrall quest state byte here (Sil 1.x). */
-        byte legacy_thrall_state; rd_byte(&legacy_thrall_state);
-        LOAD_LOG("legacy thrall_state=0x%02X", legacy_thrall_state);
-        p_ptr->tulkas_quest = TULKAS_QUEST_NOT_STARTED;
-        p_ptr->tulkas_target_r_idx = 0;
-        p_ptr->tulkas_prize_a_idx = 0;
-        p_ptr->tulkas_quest_complete = 0;
-        p_ptr->aule_quest = AULE_QUEST_NOT_STARTED;
-        p_ptr->aule_forge_y = 0; p_ptr->aule_forge_x = 0; p_ptr->aule_reserved = 0;
-        p_ptr->aule_level = 0; p_ptr->aule_last_object_diff = 0;
-        p_ptr->mandos_quest = MANDOS_QUEST_NOT_STARTED;
-        p_ptr->mandos_vault_y = 0; p_ptr->mandos_vault_x = 0; p_ptr->mandos_monsters_remaining = 0; p_ptr->mandos_level = 0; p_ptr->mandos_reserved = 0;
-        p_ptr->quest_vault_used = 0;
-        memset(p_ptr->quest_reserved, 0, sizeof(p_ptr->quest_reserved));
+    /* Quest fields (0.8.6+ format with marker 0x51) */
+    /* Legacy versions < 0.8.9 are not supported */
+    log_debug("rd_extra: reading quest block (byte_ofs=%u) version=%u.%u.%u", 
+             (unsigned)load_byte_offset, (unsigned)sf_major, (unsigned)sf_minor, (unsigned)sf_patch);
+    
+    byte marker;
+    rd_byte(&marker);
+    if (marker != 0x51) {
+        note(format("Invalid quest marker 0x%02X (expected 0x51). Savefile too old (< 0.8.9).", marker));
+        return (-1);
     }
-    else if (sf_major == 0 && (sf_minor > 8 || (sf_minor == 8 && sf_patch >= 5)))
-    {
-        /* 0.8.5+ new fork: quest block only present from 0.8.6 onward and preceded by marker 0x51 */
-    long pos_before = ftell(fff);
-    /* Save stream decode/checksum state so we can rewind safely */
-    u32b saved_v_check = v_check, saved_x_check = x_check, saved_offset = load_byte_offset;
-    byte saved_xor = xor_byte;
-    byte marker; rd_byte(&marker);
-    log_debug("QUEST: probed marker byte=0x%02X at ofs=%u", marker, (unsigned)load_byte_offset);
-        if (marker == 0x51) {
-            int qi;
-            log_info("QUEST: marker 0x51 detected, reading quest block");
-            rd_byte(&p_ptr->tulkas_quest);
-            rd_s16b(&p_ptr->tulkas_target_r_idx);
-            rd_s16b(&p_ptr->tulkas_prize_a_idx);
-            rd_byte(&p_ptr->tulkas_quest_complete);
-            rd_byte(&p_ptr->aule_quest);
-            rd_byte(&p_ptr->aule_forge_y);
-            rd_byte(&p_ptr->aule_forge_x);
-            rd_byte(&p_ptr->aule_reserved);
-            rd_s16b(&p_ptr->aule_level);
-            rd_s16b(&p_ptr->aule_last_object_diff);
-            rd_byte(&p_ptr->mandos_quest);
-            rd_byte(&p_ptr->mandos_vault_y);
-            rd_byte(&p_ptr->mandos_vault_x);
-            rd_byte(&p_ptr->mandos_monsters_remaining);
-            rd_s16b(&p_ptr->mandos_level);
-            rd_s16b(&p_ptr->mandos_reserved);
-            /* Niena quest fields */
-            rd_byte(&p_ptr->niena_quest);
-            rd_byte(&p_ptr->niena_monsters_seen);
-            rd_byte(&p_ptr->niena_monsters_killed);
-            rd_byte(&p_ptr->niena_reserved);
-            rd_s16b(&p_ptr->niena_level);
-            rd_s16b(&p_ptr->niena_reserved2);
-            /* Orome quest fields */
-            rd_byte(&p_ptr->orome_quest);
-            rd_byte(&p_ptr->orome_target_type);
-            rd_s16b(&p_ptr->orome_target_count);
-            rd_s16b(&p_ptr->orome_killed_count);
-            rd_s16b(&p_ptr->orome_wolves_killed);
-            rd_s16b(&p_ptr->orome_spiders_killed);
-            rd_s16b(&p_ptr->orome_serpents_killed);
-            rd_s16b(&p_ptr->orome_vampires_killed);
-            rd_byte(&p_ptr->quest_vault_used);
-            for (qi = 0; qi < 15; qi++) rd_byte(&p_ptr->quest_reserved[qi]);
-        } else {
-            /* Legacy 0.8.5 save without quest data: rewind and zero */
-            log_info("QUEST: no marker (0x%02X) -> legacy 0.8.5 save, rewinding", marker);
-            fseek(fff, pos_before, SEEK_SET);
-            /* Restore decode/checksum state so subsequent bytes parse correctly */
-            v_check = saved_v_check; x_check = saved_x_check; load_byte_offset = saved_offset; xor_byte = saved_xor;
-            p_ptr->tulkas_quest = TULKAS_QUEST_NOT_STARTED;
-            p_ptr->tulkas_target_r_idx = 0;
-            p_ptr->tulkas_prize_a_idx = 0;
-            p_ptr->tulkas_quest_complete = 0;
-            p_ptr->aule_quest = AULE_QUEST_NOT_STARTED;
-            p_ptr->aule_forge_y = 0; p_ptr->aule_forge_x = 0; p_ptr->aule_reserved = 0;
-            p_ptr->aule_level = 0; p_ptr->aule_last_object_diff = 0;
-            p_ptr->mandos_quest = MANDOS_QUEST_NOT_STARTED;
-            p_ptr->mandos_vault_y = 0; p_ptr->mandos_vault_x = 0; p_ptr->mandos_monsters_remaining = 0;
-            p_ptr->mandos_level = 0; p_ptr->mandos_reserved = 0;
-            /* Initialize Niena quest fields for legacy saves */
-            p_ptr->niena_quest = NIENA_QUEST_NOT_STARTED;
-            p_ptr->niena_monsters_seen = 0; p_ptr->niena_monsters_killed = 0; p_ptr->niena_reserved = 0;
-            p_ptr->niena_level = 0; p_ptr->niena_reserved2 = 0;
-            /* Initialize Orome quest fields for legacy saves */
-            p_ptr->orome_quest = OROME_QUEST_NOT_STARTED;
-            p_ptr->orome_target_type = 0; p_ptr->orome_target_count = 0; p_ptr->orome_killed_count = 0;
-            p_ptr->orome_wolves_killed = 0; p_ptr->orome_spiders_killed = 0;
-            p_ptr->orome_serpents_killed = 0; p_ptr->orome_vampires_killed = 0;
-            p_ptr->quest_vault_used = 0;
-            memset(p_ptr->quest_reserved, 0, sizeof(p_ptr->quest_reserved));
-        }
-    }
-    else /* pre-0.8.5 new-fork dev snapshots (shouldn't really exist) */
-    {
-        log_info("QUEST: pre-new-fork snapshot branch (0.%u.%u)", (unsigned)sf_minor, (unsigned)sf_patch);
-        /* Defaults for legacy saves (fields absent) */
-        p_ptr->tulkas_quest = TULKAS_QUEST_NOT_STARTED;
-        p_ptr->tulkas_target_r_idx = 0;
-        p_ptr->tulkas_prize_a_idx = 0;
-        p_ptr->tulkas_quest_complete = 0;
-
-        p_ptr->aule_quest = AULE_QUEST_NOT_STARTED;
-        p_ptr->aule_forge_y = 0;
-        p_ptr->aule_forge_x = 0;
-        p_ptr->aule_reserved = 0;
-        p_ptr->aule_level = 0;
-        p_ptr->aule_last_object_diff = 0;
-        
-        p_ptr->mandos_quest = MANDOS_QUEST_NOT_STARTED;
-        p_ptr->mandos_vault_y = 0;
-        p_ptr->mandos_vault_x = 0;
-        p_ptr->mandos_monsters_remaining = 0;
-        p_ptr->mandos_level = 0;
-        p_ptr->mandos_reserved = 0;
-        
-    p_ptr->quest_vault_used = 0;
-    memset(p_ptr->quest_reserved, 0, sizeof(p_ptr->quest_reserved));
-    }
+    
+    log_debug("QUEST: marker 0x51 detected, reading quest block");
+    rd_byte(&p_ptr->tulkas_quest);
+    rd_s16b(&p_ptr->tulkas_target_r_idx);
+    rd_s16b(&p_ptr->tulkas_prize_a_idx);
+    rd_byte(&p_ptr->tulkas_quest_complete);
+    rd_byte(&p_ptr->aule_quest);
+    rd_byte(&p_ptr->aule_forge_y);
+    rd_byte(&p_ptr->aule_forge_x);
+    rd_byte(&p_ptr->aule_reserved);
+    rd_s16b(&p_ptr->aule_level);
+    rd_s16b(&p_ptr->aule_last_object_diff);
+    rd_byte(&p_ptr->mandos_quest);
+    rd_byte(&p_ptr->mandos_vault_y);
+    rd_byte(&p_ptr->mandos_vault_x);
+    rd_byte(&p_ptr->mandos_monsters_remaining);
+    rd_s16b(&p_ptr->mandos_level);
+    rd_s16b(&p_ptr->mandos_reserved);
+    rd_byte(&p_ptr->niena_quest);
+    rd_byte(&p_ptr->niena_monsters_seen);
+    rd_byte(&p_ptr->niena_monsters_killed);
+    rd_byte(&p_ptr->niena_reserved);
+    rd_s16b(&p_ptr->niena_level);
+    rd_s16b(&p_ptr->niena_reserved2);
+    rd_byte(&p_ptr->orome_quest);
+    rd_byte(&p_ptr->orome_target_type);
+    rd_s16b(&p_ptr->orome_target_count);
+    rd_s16b(&p_ptr->orome_killed_count);
+    rd_s16b(&p_ptr->orome_wolves_killed);
+    rd_s16b(&p_ptr->orome_spiders_killed);
+    rd_s16b(&p_ptr->orome_serpents_killed);
+    rd_s16b(&p_ptr->orome_vampires_killed);
+    rd_byte(&p_ptr->quest_vault_used);
+    for (int qi = 0; qi < 15; qi++) rd_byte(&p_ptr->quest_reserved[qi]);
 
     /* Min depth counter */
     rd_s32b(&min_depth_counter);
+    log_info("LOAD: min_depth_counter=%d, calculated min_depth()=%d", min_depth_counter, min_depth());
 
     /* Quest states loaded from save should remain as-is for this character */
     /* Metarun completion is checked separately via metarun_is_quest_completed() */
@@ -1312,9 +1133,6 @@ static errr rd_randarts(void)
 
     LOAD_LOG0("enter rd_randarts");
     /* Read the number of artefacts */
-    long hdr_pos = ftell(fff); /* underlying file position before header */
-    u32b saved_v_check = v_check, saved_x_check = x_check, saved_offset = load_byte_offset;
-    byte saved_xor = xor_byte;
     rd_u16b(&begin);
     rd_u16b(&artefact_count);
     rd_u16b(&art_norm_count);
@@ -1322,34 +1140,6 @@ static errr rd_randarts(void)
     bool header_valid = true;
     if ((artefact_count > z_info->art_max) || (art_norm_count > z_info->art_norm_max)) header_valid = false;
     if (!(begin == 0 || begin == z_info->art_norm_max)) header_valid = false;
-
-    if (!header_valid && sf_major >= 1) {
-        /* Attempt legacy alignment recovery by skipping 1..16 bytes and re-reading */
-        log_info("randarts header invalid (%u,%u,%u); attempting legacy alignment recovery", begin, artefact_count, art_norm_count);
-        int shift;
-        for (shift = 1; shift <= 16; ++shift) {
-            /* Restore file & state */
-            fseek(fff, hdr_pos, SEEK_SET);
-            v_check = saved_v_check; x_check = saved_x_check; load_byte_offset = saved_offset; xor_byte = saved_xor;
-            /* Discard 'shift' decoded bytes */
-            int s;
-            for (s = 0; s < shift; ++s) (void)sf_get();
-            u16b b2, ac2, an2;
-            rd_u16b(&b2); rd_u16b(&ac2); rd_u16b(&an2);
-            bool ok = true;
-            if ((ac2 > z_info->art_max) || (an2 > z_info->art_norm_max)) ok = false;
-            if (!(b2 == 0 || b2 == z_info->art_norm_max)) ok = false;
-            if (ok) {
-                begin = b2; artefact_count = ac2; art_norm_count = an2; header_valid = true;
-                log_info("randarts legacy alignment recovered: skipped %d bytes => begin=%u artefact_count=%u art_norm_count=%u", shift, begin, artefact_count, art_norm_count);
-                break;
-            }
-        }
-        if (!header_valid) {
-            /* Restore state after last attempt (original already consumed) so error path consistent */
-            log_error("randarts legacy alignment failed after trying 16-byte skip window");
-        }
-    }
 
     log_debug("randarts header: begin=%u artefact_count=%u art_norm_count=%u (limits: art_max=%d art_norm_max=%d) valid=%d", begin, artefact_count, art_norm_count,
               z_info->art_max, z_info->art_norm_max, header_valid ? 1 : 0);
@@ -1523,6 +1313,7 @@ static errr rd_inventory(void)
     object_type object_type_body;
 
     log_debug("Loading smithing object and player inventory");
+    log_trace("[load:%06u] === BEGIN SMITHING ITEM ===", (unsigned)load_byte_offset);
 
     /* Wipe the smithing object */
     object_wipe(smith_o_ptr);
@@ -1533,7 +1324,9 @@ static errr rd_inventory(void)
         note("Error reading smithing item");
         return (-1);
     }
+    log_trace("[load:%06u] === END SMITHING ITEM ===", (unsigned)load_byte_offset);
 
+    log_trace("[load:%06u] === BEGIN INVENTORY ===", (unsigned)load_byte_offset);
     /* Read until done */
     while (1)
     {
@@ -1544,7 +1337,12 @@ static errr rd_inventory(void)
 
         /* Nope, we reached the end */
         if (n == 0xFFFF)
+        {
+            log_trace("[load:%06u] Found inventory sentinel 0xFFFF", (unsigned)(load_byte_offset - 2));
             break;
+        }
+
+        log_trace("[load:%06u] Loading inventory slot %u", (unsigned)(load_byte_offset - 2), (unsigned)n);
 
         /* Get local object */
         i_ptr = &object_type_body;
@@ -1615,61 +1413,55 @@ static errr rd_inventory(void)
             p_ptr->inven_cnt++;
         }
     }
+    log_trace("[load:%06u] === END INVENTORY ===", (unsigned)load_byte_offset);
 
     log_debug("Inventory loaded: %d items carried, %d items equipped", p_ptr->inven_cnt, p_ptr->equip_cnt);
 
+    log_trace("[load:%06u] === BEGIN SUPPLIES ===", (unsigned)load_byte_offset);
     supplies_reset_store();
 
-    if (sf_extra >= 1)
+    u16b supply_count = 0;
+    rd_u16b(&supply_count);
+    log_debug("Loading %u supply entries", (unsigned)supply_count);
+    supplies_set_allow_overflow(true);
+    for (u16b si = 0; si < supply_count; si++)
     {
-        u16b supply_count = 0;
-        rd_u16b(&supply_count);
-        log_debug("Loading %u supply entries", (unsigned)supply_count);
-        supplies_set_allow_overflow(true);
-        for (u16b si = 0; si < supply_count; si++)
+        object_type supply;
+        object_wipe(&supply);
+        if (rd_item(&supply))
         {
-            object_type supply;
-            object_wipe(&supply);
-            if (rd_item(&supply))
-            {
-                log_warn("Error reading supply entry");
-                note("Error reading supplies");
-                supplies_set_allow_overflow(false);
-                return (-1);
-            }
-
-            s32b stored_units = 0;
-            if (sf_extra >= 2)
-                rd_s32b(&stored_units);
-            else if (supply.tval == TV_GEM)
-                stored_units = supply.number > 0 ? supply.number : supply.pval;
-
-            if (supply.tval == TV_GEM)
-            {
-                int count = (int)stored_units;
-                if (count <= 0)
-                    count = supply.number;
-                if (count < 0)
-                    count = 0;
-                if (count > 255)
-                    count = 255;
-                supply.number = (byte)count;
-                supply.pval = 0;
-                if (count <= 0)
-                    supply.ident |= IDENT_EMPTY;
-                else
-                    supply.ident &= ~(IDENT_EMPTY);
-            }
-
-            if (supply.k_idx)
-                supplies_absorb_object(&supply);
+            log_warn("Error reading supply entry");
+            note("Error reading supplies");
+            supplies_set_allow_overflow(false);
+            return (-1);
         }
-        supplies_set_allow_overflow(false);
+
+        s32b stored_units = 0;
+        rd_s32b(&stored_units);
+
+        if (supply.tval == TV_GEM)
+        {
+            int count = (int)stored_units;
+            if (count <= 0)
+                count = supply.number;
+            if (count < 0)
+                count = 0;
+            if (count > 255)
+                count = 255;
+            supply.number = (byte)count;
+            supply.pval = 0;
+            if (count <= 0)
+                supply.ident |= IDENT_EMPTY;
+            else
+                supply.ident &= ~(IDENT_EMPTY);
+        }
+
+        if (supply.k_idx)
+            supplies_absorb_object(&supply);
     }
-    else
-    {
-        log_debug("No supply block present in save (sf_extra=%u)", (unsigned)sf_extra);
-    }
+    supplies_set_allow_overflow(false);
+
+    log_trace("[load:%06u] === END SUPPLIES ===", (unsigned)load_byte_offset);
 
     supplies_ingest_pack();
 
@@ -1736,14 +1528,21 @@ static errr rd_dungeon(void)
 
     u16b limit;
 
+    log_debug("rd_dungeon: ENTRY");
+    log_trace("[load:%06u] === BEGIN DUNGEON ===", (unsigned)load_byte_offset);
+
     /*** Basic info ***/
 
+    log_trace("[load:%06u] Reading dungeon header", (unsigned)load_byte_offset);
     /* Header info */
     rd_s16b(&depth);
     rd_s16b(&py);
     rd_s16b(&px);
     rd_byte(&p_ptr->cur_map_hgt);
     rd_byte(&p_ptr->cur_map_wid);
+
+    log_debug("rd_dungeon: Read header - depth=%d, py=%d, px=%d, map=%dx%d", 
+             depth, py, px, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
 
     /* Ignore illegal dungeons */
     if ((depth < 0) || (depth > MORGOTH_DEPTH))
@@ -1766,12 +1565,17 @@ static errr rd_dungeon(void)
     if ((px < 0) || (px >= p_ptr->cur_map_wid) || (py < 0)
         || (py >= p_ptr->cur_map_hgt))
     {
+        log_error("rd_dungeon: Illegal player location py=%d px=%d (map=%dx%d)", 
+                 py, px, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
         note(format("Ignoring illegal player location (%d,%d).", py, px));
         return (1);
     }
+    
+    log_debug("rd_dungeon: Player position valid");
 
     /*** Run length decoding of cave_info ***/
 
+    log_trace("[load:%06u] === BEGIN CAVE_INFO RLE ===", (unsigned)load_byte_offset);
     /* Load the dungeon data */
     for (x = y = 0; y < p_ptr->cur_map_hgt;)
     {
@@ -1797,6 +1601,7 @@ static errr rd_dungeon(void)
             }
         }
     }
+    log_trace("[load:%06u] === END CAVE_INFO RLE ===", (unsigned)load_byte_offset);
 
     /* No probe after cave_info in current format. */
 
@@ -1804,6 +1609,7 @@ static errr rd_dungeon(void)
 
     /*** Run length decoding of cave_feat ***/
 
+    log_trace("[load:%06u] === BEGIN CAVE_FEAT RLE ===", (unsigned)load_byte_offset);
     /* Load the dungeon data */
     for (x = y = 0; y < p_ptr->cur_map_hgt;)
     {
@@ -1829,12 +1635,16 @@ static errr rd_dungeon(void)
             }
         }
     }
+    log_trace("[load:%06u] === END CAVE_FEAT RLE ===", (unsigned)load_byte_offset);
 
     /* Back-compat probe: some saves wrote door-choices here, before cave_color. */
+    log_trace("[load:%06u] === PROBE FOR DOOR_CHOICES (BEFORE CAVE_COLOR) ===", (unsigned)load_byte_offset);
     {
         const u16b DOOR_CHOICES_MAGIC = 0xD00D;
         u16b maybe_magic;
         rd_u16b(&maybe_magic);
+        log_trace("[load:%06u] Probe value: 0x%04X (expecting 0x%04X for magic)", 
+                 (unsigned)(load_byte_offset - 2), (unsigned)maybe_magic, (unsigned)DOOR_CHOICES_MAGIC);
         if (maybe_magic == DOOR_CHOICES_MAGIC) {
             byte n = 0;
             rd_byte(&n);
@@ -1854,12 +1664,15 @@ static errr rd_dungeon(void)
     }
 
     /*** Run length decoding of cave_color (style encoding) ***/
+    log_trace("[load:%06u] === BEGIN CAVE_COLOR RLE ===", (unsigned)load_byte_offset);
     for (x = y = 0; y < p_ptr->cur_map_hgt;) {
         /* Grab RLE info, using prefetched pair if available first */
         if (color_rle_pair_prefetched) {
             count = color_rle_count_prefetch;
             tmp8u = color_rle_value_prefetch;
             color_rle_pair_prefetched = false;
+            log_trace("[load:%06u] Using prefetched cave_color RLE pair: count=%u value=0x%02X", 
+                     (unsigned)load_byte_offset, (unsigned)count, (unsigned)tmp8u);
         } else {
             rd_byte(&count);
             rd_byte(&tmp8u);
@@ -1873,8 +1686,10 @@ static errr rd_dungeon(void)
             }
         }
     }
+    log_trace("[load:%06u] === END CAVE_COLOR RLE ===", (unsigned)load_byte_offset);
 
     /* Optional extension: persisted door style variant choices (new saves, after cave_color) */
+    log_trace("[load:%06u] === PROBE FOR DOOR_CHOICES (AFTER CAVE_COLOR) ===", (unsigned)load_byte_offset);
     {
         const u16b DOOR_CHOICES_MAGIC = 0xD00D;
         u16b maybe_magic;
@@ -1905,12 +1720,15 @@ static errr rd_dungeon(void)
     /* Place player in dungeon */
     if (!player_place(py, px))
     {
+        log_error("Failed to place player at (%d,%d) in dungeon (depth=%d, map=%dx%d)", py, px, depth, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
         note(format("Cannot place player (%d,%d)!", py, px));
         return (-1);
     }
+    log_debug("Player placed successfully at (%d,%d)", py, px);
 
     /*** Objects ***/
 
+    log_trace("[load:%06u] === BEGIN OBJECTS ===", (unsigned)load_byte_offset);
     /* Read the item count (possibly pre-fetched if no door choices block) */
     {
         u16b probe = 0;
@@ -1919,6 +1737,7 @@ static errr rd_dungeon(void)
             probe = objects_count_prefetch;
             objects_count_prefetch = 0xFFFF; /* reset */
             used_prefetch = true;
+            log_trace("[load:%06u] Using prefetched objects count: %u", (unsigned)load_byte_offset, (unsigned)probe);
         } else {
             rd_u16b(&probe);
         }
@@ -1934,11 +1753,12 @@ static errr rd_dungeon(void)
             limit = probe;
         }
     }
-    log_debug("Loading %d objects from dungeon", limit - 1);
+    log_debug("Loading %d objects from dungeon (limit=%u)", limit - 1, (unsigned)limit);
 
     /* Verify maximum */
     if (limit > z_info->o_max)
     {
+        log_error("Too many objects in savefile: limit=%d, z_info->o_max=%d", limit, z_info->o_max);
         note(format("Too many (%d) object entries!", limit));
         return (-1);
     }
@@ -1961,7 +1781,7 @@ static errr rd_dungeon(void)
         /* Read the item */
         if (rd_item(i_ptr))
         {
-            log_warn("Error reading dungeon item %d of %d", i, limit - 1);
+            log_error("Error reading dungeon item %d of %d", i, limit - 1);
             note("Error reading item");
             return (-1);
         }
@@ -1972,7 +1792,7 @@ static errr rd_dungeon(void)
         /* Paranoia */
         if (o_idx != i)
         {
-            log_warn("Cannot place object %d: o_pop() returned %d", i, o_idx);
+            log_error("Cannot place object %d: o_pop() returned %d (expected match)", i, o_idx);
             note(format("Cannot place object %d!", i));
             return (-1);
         }
@@ -2001,9 +1821,11 @@ static errr rd_dungeon(void)
             rearrange_stack(y, x);
         }
     }
+    log_trace("[load:%06u] === END OBJECTS ===", (unsigned)load_byte_offset);
 
     /*** Monsters ***/
 
+    log_trace("[load:%06u] === BEGIN MONSTERS ===", (unsigned)load_byte_offset);
     /* Read the monster count */
     rd_u16b(&limit);
     if (limit == 0) {
@@ -2014,7 +1836,7 @@ static errr rd_dungeon(void)
             limit = retry_m;
         }
     }
-    log_debug("Loading %d monsters from dungeon", limit - 1);
+    log_debug("Loading %d monsters from dungeon (limit=%u)", limit - 1, (unsigned)limit);
 
     /* Hack -- verify */
     if (limit > MAX_MONSTERS)
@@ -2046,9 +1868,11 @@ static errr rd_dungeon(void)
             return (-1);
         }
     }
+    log_trace("[load:%06u] === END MONSTERS ===", (unsigned)load_byte_offset);
 
     /*** Holding ***/
 
+    log_trace("[load:%06u] === BEGIN MONSTER OBJECT HOLDING ===", (unsigned)load_byte_offset);
     /* Reacquire objects */
     for (i = 1; i < o_max; ++i)
     {
@@ -2079,8 +1903,10 @@ static errr rd_dungeon(void)
         /* Link the monster to the object */
         m_ptr->hold_o_idx = i;
     }
+    log_trace("[load:%06u] === END MONSTER OBJECT HOLDING ===", (unsigned)load_byte_offset);
 
     // dump the wandering monster information
+    log_trace("[load:%06u] === BEGIN WANDERING MONSTERS ===", (unsigned)load_byte_offset);
     for (i = FLOW_WANDERING_HEAD; i <= FLOW_WANDERING_TAIL; i++)
     {
         rd_byte(&flow_center_y[i]);
@@ -2089,6 +1915,7 @@ static errr rd_dungeon(void)
 
         update_flow(flow_center_y[i], flow_center_x[i], i);
     }
+    log_trace("[load:%06u] === END WANDERING MONSTERS ===", (unsigned)load_byte_offset);
 
     /*** Success ***/
 
@@ -2116,6 +1943,9 @@ static errr rd_dungeon(void)
     /* The dungeon is ready */
     character_dungeon = true;
 
+    log_trace("[load:%06u] === END DUNGEON ===", (unsigned)load_byte_offset);
+    log_debug("rd_dungeon: SUCCESS - dungeon loaded completely");
+
     /* Success */
     return (0);
 }
@@ -2132,6 +1962,10 @@ static errr rd_savefile_new_aux(void)
 
     u32b n_x_check, n_v_check;
     u32b o_x_check, o_v_check;
+
+    /* Reset load byte offset counter */
+    load_byte_offset = 0;
+    log_trace("=== LOAD: Reset byte offset counter ===");
 
     /* Mention the savefile version */
     note(
@@ -2298,11 +2132,13 @@ static errr rd_savefile_new_aux(void)
     /* Read the old checksum */
     rd_u32b(&o_v_check);
 
+    log_debug("Checksum validation: expected=%u, file=%u", n_v_check, o_v_check);
+
     /* Verify */
     if (o_v_check != n_v_check)
     {
+        log_error("Invalid checksum: expected %u, got %u", n_v_check, o_v_check);
         note("Invalid checksum");
-        log_debug("Checksum mismatch: expected %u, got %u", n_v_check, o_v_check);
         return (-1);
     }
 
@@ -2312,11 +2148,13 @@ static errr rd_savefile_new_aux(void)
     /* Read the checksum */
     rd_u32b(&o_x_check);
 
+    log_debug("Encoded checksum validation: expected=%u, file=%u", n_x_check, o_x_check);
+
     /* Verify */
     if (o_x_check != n_x_check)
     {
+        log_error("Invalid encoded checksum: expected %u, got %u", n_x_check, o_x_check);
         note("Invalid encoded checksum");
-        log_debug("Encoded checksum mismatch: expected %u, got %u", n_x_check, o_x_check);
         return (-1);
     }
 
@@ -2351,11 +2189,12 @@ static errr rd_savefile(void)
 
     /* Call the sub-function */
     err = rd_savefile_new_aux();
+    log_debug("rd_savefile_new_aux returned: %d", err);
 
     /* Check for errors */
     if (ferror(fff))
     {
-        log_error("File read error detected");
+        log_error("File read error detected (ferror)");
         err = -1;
     }
 
@@ -2543,33 +2382,28 @@ bool load_player(void)
     /* Process file */
     if (!err)
     {
-    /* Extract version */
+        /* Extract version */
         sf_major = vvv[0];
         sf_minor = vvv[1];
         sf_patch = vvv[2];
         sf_extra = vvv[3];
-    log_debug("Version bytes read: %u.%u.%u extra=%u", (unsigned)sf_major, (unsigned)sf_minor, (unsigned)sf_patch, (unsigned)sf_extra);
-    load_byte_offset = 0; /* reset counter before decoding stream */
+        log_debug("Version bytes read: %u.%u.%u extra=%u", (unsigned)sf_major, (unsigned)sf_minor, (unsigned)sf_patch, (unsigned)sf_extra);
+        
+        /* Validate expected version: 0.9.0 extra=1 */
+        if (sf_major != 0 || sf_minor != 9 || sf_patch != 0 || sf_extra != 1)
+        {
+            err = -1;
+            what = "Incompatible savefile version (expected 0.9.0 extra=1)";
+            log_error("Savefile version %d.%d.%d extra=%d is not supported (only 0.9.0 extra=1)", 
+                     sf_major, sf_minor, sf_patch, sf_extra);
+        }
+        
+        load_byte_offset = 0; /* reset counter before decoding stream */
 
         /* Clear screen */
         Term_clear();
 
-        if (older_than(OLD_VERSION_MAJOR, OLD_VERSION_MINOR, OLD_VERSION_PATCH))
-        {
-            err = -1;
-            what = "Savefile is too old";
-            log_debug("Savefile version %d.%d.%d is too old", sf_major, sf_minor, sf_patch);
-        }
-
-        else if ((sf_major != 1) && /* treat legacy 1.5.x lineage as older, not future */
-                 !older_than(VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH + 1))
-        {
-            err = -1;
-            what = "Savefile is from the future";
-            log_debug("Savefile version %d.%d.%d is from the future (non-legacy)", sf_major, sf_minor, sf_patch);
-        }
-
-        else
+        if (!err)
         {
             /* Attempt to load */
             err = rd_savefile();
@@ -2621,16 +2455,6 @@ bool load_player(void)
     /* Okay */
     if (!err)
     {
-        /* Give a conversion warning */
-        if ((version_major != sf_major) || (version_minor != sf_minor)
-            || (version_patch != sf_patch))
-        {
-            /* Message */
-            msg_format(
-                "Converted a %d.%d.%d savefile.", sf_major, sf_minor, sf_patch);
-            message_flush();
-        }
-
         // if Morgoth has lost his crown...
         if ((&a_info[ART_MORGOTH_3])->cur_num == 1)
         {

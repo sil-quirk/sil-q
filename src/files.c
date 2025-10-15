@@ -6775,31 +6775,93 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     log_trace("hi-score file size=%lld, payload=%lld, records=%d (versioned=%d)",
               (long long)file_end, (long long)payload, n_recs, scores_file_is_versioned ? 1 : 0);
 
-    /* 5) Iterate races in priority order */
-    for (size_t i = 0; i < RACE_PRIORITIES; ++i) {
+    /* 5) Build list of races with eligible houses and apply weighted selection */
+    
+    /* 5.a) First pass: identify which races have eligible houses */
+    uint16_t eligible_races[RACE_PRIORITIES];
+    size_t eligible_count = 0;
+    
+    for (size_t i = 0; i < RACE_PRIORITIES && eligible_count < RACE_PRIORITIES; ++i) {
         uint16_t race = race_priority[i];
-        log_trace("race priority[%zu]=%u", i, race);
-
-        /* 5.a) Build pool of eligible houses */
-        uint16_t *pool = malloc(z_info->c_max * sizeof *pool);
-        if (!pool) {
-            fclose(highscore_fd);
-            quit("Out of memory in kinslayer_try_kill()");
-        }
-        size_t pool_n = 0;
+        
+        /* Check if this race has any eligible houses */
+        bool has_eligible = false;
         for (uint16_t h = 0; h < z_info->c_max; ++h) {
             if (!race_has_house(race, h)) continue;
             const char *hname = c_name + c_info[h].name;
             if (strcmp(hname, op_ptr->base_name) == 0) continue;
-            pool[pool_n++] = h;
+            has_eligible = true;
+            break;
         }
-        log_trace("race %u: %zu eligible houses", race, pool_n);
-        if (pool_n == 0) { free(pool); continue; }
+        
+        if (has_eligible) {
+            eligible_races[eligible_count++] = race;
+            log_trace("race priority[%zu]=%u added to eligible list (position %zu)", 
+                      i, race, eligible_count - 1);
+        } else {
+            log_trace("race priority[%zu]=%u has no eligible houses, skipping", i, race);
+        }
+    }
+    
+    if (eligible_count == 0) {
+        log_debug("No eligible races found - no kill performed");
+        safe_setuid_grab();
+        if (fclose(highscore_fd) != 0)
+            log_warn("fclose(highscore_fd) failed, errno=%d", errno);
+        safe_setuid_drop();
+        highscore_fd = NULL;
+        return NULL;
+    }
+    
+    /* 5.b) Apply weighted random selection to first 3 eligible races */
+    /* Weights: 50%, 30%, 20% (normalized to 100) */
+    static const int weights[3] = { 50, 30, 20 };
+    int total_weight = 0;
+    int applicable_races = (eligible_count < 3) ? (int)eligible_count : 3;
+    
+    for (int i = 0; i < applicable_races; ++i) {
+        total_weight += weights[i];
+    }
+    
+    /* Select race using weighted random */
+    int roll = rand_int(total_weight);
+    int cumulative = 0;
+    uint16_t selected_race = eligible_races[0]; /* fallback */
+    
+    for (int i = 0; i < applicable_races; ++i) {
+        cumulative += weights[i];
+        if (roll < cumulative) {
+            selected_race = eligible_races[i];
+            log_info("Weighted race selection: chose race %u (position %d, weight %d%%)", 
+                     selected_race, i, weights[i]);
+            break;
+        }
+    }
+    
+    /* 5.c) Now process the selected race */
+    uint16_t race = selected_race;
+    log_trace("Processing selected race=%u", race);
+    
+    /* Build pool of eligible houses for selected race */
+    uint16_t *pool = malloc(z_info->c_max * sizeof *pool);
+    if (!pool) {
+        fclose(highscore_fd);
+        quit("Out of memory in kinslayer_try_kill()");
+    }
+    size_t pool_n = 0;
+    for (uint16_t h = 0; h < z_info->c_max; ++h) {
+        if (!race_has_house(race, h)) continue;
+        const char *hname = c_name + c_info[h].name;
+        if (strcmp(hname, op_ptr->base_name) == 0) continue;
+        pool[pool_n++] = h;
+    }
+    log_trace("race %u: %zu eligible houses", race, pool_n);
 
         /* 5.b) Pick one house */
         uint16_t hsel  = pool[rand_int((int)pool_n)];
         const char *hname = c_name + c_info[hsel].name;
         free(pool);
+        pool = NULL;
         log_info("Kinslayer selected house %u (%s) for elimination", hsel, hname);
 
         /* 5.c) Scan for existing entry */
@@ -6821,8 +6883,15 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
         if (hit >= 0) {
             /* 5.d) Found - check alive (use 'who', not 'how') */
             if (highscore_dead(entry.who)) {
-                log_debug("hero already dead - skip");
-                continue;
+                log_debug("hero already dead - no kill performed");
+                if (pool) free(pool);
+                safe_setuid_grab();
+                if (fclose(highscore_fd) != 0) {
+                    log_warn("fclose(highscore_fd) failed, errno=%d", errno);
+                }
+                safe_setuid_drop();
+                highscore_fd = NULL;
+                return NULL;
             }
             /* kill existing */
             if (highscore_seek(hit) == 0 && highscore_read(&entry) == 0) {
@@ -6862,16 +6931,6 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
         safe_setuid_drop();
         highscore_fd = NULL;
         return killed_house;
-    }
-
-    /* 8) No kill performed - close and exit */
-    safe_setuid_grab();
-    if (fclose(highscore_fd) != 0)
-        log_warn("fclose(highscore_fd) failed, errno=%d", errno);
-    safe_setuid_drop();
-    highscore_fd = NULL;
-    log_debug("finished - no kill performed");
-    return NULL;
 }
 
 /*
@@ -8553,6 +8612,7 @@ extern void prt_mini_screenshot(int col, int row)
  */
 bool autoload_alive_from_scores(void)
 {
+    log_info("===== autoload_alive_from_scores: FUNCTION CALLED =====");
     char score_path[1024];
     path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
 
@@ -8609,6 +8669,7 @@ bool autoload_alive_from_scores(void)
         my_strcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
         process_player_name(true);
 
+        log_info("autoload: savefile path generated: '%s'", savefile);
         if (load_player()) {
             log_info("autoload: successfully loaded '%s' (normalized)", who_buf);
             fclose(highscore_fd);

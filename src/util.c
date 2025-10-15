@@ -511,6 +511,7 @@ errr fd_move(cptr file, cptr what)
 {
     char buf[1024];
     char aux[1024];
+    int result;
 
     /* Hack -- Try to parse the path */
     if (path_parse(buf, sizeof(buf), file))
@@ -521,9 +522,16 @@ errr fd_move(cptr file, cptr what)
         return (-1);
 
     /* Rename */
-    (void)rename(buf, aux);
-
-    /* Assume success XXX XXX XXX */
+    result = rename(buf, aux);
+    
+    /* Check for errors */
+    if (result != 0)
+    {
+        log_error("fd_move: rename('%s', '%s') failed: %s", buf, aux, strerror(errno));
+        return (-1);
+    }
+    
+    log_debug("fd_move: successfully renamed '%s' to '%s'", file, what);
     return (0);
 }
 

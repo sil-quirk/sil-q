@@ -462,8 +462,8 @@ void self_knowledge(void)
     }
     
     // Show either curse or flag information, not both
-    bool show_curse = (n_active > 0) && one_in_(10);
-    bool show_flag = (n > 0) && one_in_(10);
+    bool show_curse = (n_active > 0) && one_in_(6);
+    bool show_flag = (n > 0) && one_in_(6);
     
     if (show_curse) {
         int pick = active_ids[rand_int(n_active)];

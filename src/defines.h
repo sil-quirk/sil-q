@@ -61,15 +61,15 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 0
-#define VERSION_EXTRA 0
+#define VERSION_EXTRA 1  /* Supply block + current format; legacy pre-0.8.9 not supported */
 
 /*
  * Oldest version number that can still be imported
  */
-/* Oldest loadable version in new scheme */
+/* Oldest loadable version: 0.8.9 (pre-Morgoth crown versions not supported) */
 #define OLD_VERSION_MAJOR 0
 #define OLD_VERSION_MINOR 8
-#define OLD_VERSION_PATCH 0
+#define OLD_VERSION_PATCH 9
 
 /*
  * Version of random artefact code.

@@ -554,30 +554,6 @@ static void metarun_from_v5(metarun *dst, const metarun_v5 *src)
     update_blessing_ledger(dst);
 }
 
-static void metarun_from_legacy_old(metarun *dst, const metarun_old *src)
-{
-    if (!dst || !src) return;
-
-    memset(dst, 0, sizeof(*dst));
-    clear_blessing_runtime_fields(dst);
-
-    dst->id = src->id;
-    dst->type = src->type;
-    dst->deaths = src->deaths;
-    dst->silmarils = src->silmarils;
-    dst->last_played = src->last_played;
-
-    decode_legacy_curse_words(src->curses_lo, src->curses_hi, dst->curse_stacks);
-    dst->curses_seen = src->curses_seen;
-
-    /* Reasonable defaults for persistent settings */
-    dst->persistent_delay_factor = 5;
-    dst->persistent_hitpoint_warn = 3;
-    dst->persistent_options_initialized = 0;
-
-    update_blessing_ledger(dst);
-}
-
 /* Calculate best run score from the high score table
  * All scores in the score file belong to the current metarun */
 static u32b get_best_run_score_from_highscores(void)
@@ -808,8 +784,7 @@ static bool is_versioned_meta_file(int fd, int file_size)
             METARUN_V8_SIZE,
             METARUN_V7_SIZE,
             METARUN_V6_SIZE,
-            METARUN_V5_SIZE,
-            sizeof(metarun_old)
+            METARUN_V5_SIZE
         };
         bool supported = false;
         for (size_t i = 0; i < N_ELEMENTS(accepted); i++) {
@@ -1130,14 +1105,6 @@ errr load_metaruns(bool create_if_missing)
                     sanitize_major_blessing_bits(&metaruns[i]);
                 }
                 FREE(legacy);
-            } else if (entry_size == sizeof(metarun_old)) {
-                metarun_old *legacy = C_ZNEW(metarun_max, metarun_old);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_old));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metarun_from_legacy_old(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
-                }
-                FREE(legacy);
             } else {
                 recovery_reason = "versioned meta.raw had unexpected entry size";
                 log_warn("Unsupported metarun entry size %zu in versioned file", entry_size);
@@ -1157,85 +1124,9 @@ errr load_metaruns(bool create_if_missing)
             metarun_max = 0;
         }
     } else {
-        size_t raw_size = (size_t)file_size;
-        size_t entry_size = 0;
-        s16b entry_count = 0;
-
-        const size_t candidates[] = {
-            sizeof(metarun),
-            METARUN_V8_SIZE,
-            METARUN_V7_SIZE,
-            METARUN_V6_SIZE,
-            METARUN_V5_SIZE,
-            sizeof(metarun_old)
-        };
-
-        for (size_t i = 0; i < N_ELEMENTS(candidates); i++) {
-            if (candidates[i] == 0) continue;
-            if ((raw_size % candidates[i]) == 0) {
-                entry_size = candidates[i];
-                entry_count = (s16b)(raw_size / candidates[i]);
-                break;
-            }
-        }
-
-        if (entry_size == 0 || entry_count <= 0) {
-            recovery_reason = "legacy meta.raw had unrecognised size";
-            log_warn("Legacy meta file size %zu does not match supported layouts", raw_size);
-        } else {
-            metarun_max = entry_count;
-            metaruns = C_ZNEW(metarun_max, metarun);
-            fd_seek(fd, 0);
-
-            if (entry_size == sizeof(metarun)) {
-                fd_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metaruns[i].blessing_points_spent = 0;
-                    update_blessing_ledger(&metaruns[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
-                }
-            } else if (entry_size == METARUN_V8_SIZE) {
-                metarun_v8 *legacy = C_ZNEW(metarun_max, metarun_v8);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v8));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metarun_from_v8(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
-                }
-                FREE(legacy);
-            } else if (entry_size == METARUN_V7_SIZE) {
-                metarun_v7 *legacy = C_ZNEW(metarun_max, metarun_v7);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v7));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metarun_from_v7(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
-                }
-                FREE(legacy);
-            } else if (entry_size == METARUN_V6_SIZE) {
-                metarun_v6 *legacy = C_ZNEW(metarun_max, metarun_v6);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v6));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metarun_from_v6(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
-                }
-                FREE(legacy);
-            } else if (entry_size == METARUN_V5_SIZE) {
-                metarun_v5 *legacy = C_ZNEW(metarun_max, metarun_v5);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v5));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metarun_from_v5(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
-                }
-                FREE(legacy);
-            } else if (entry_size == sizeof(metarun_old)) {
-                metarun_old *legacy = C_ZNEW(metarun_max, metarun_old);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_old));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metarun_from_legacy_old(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
-                }
-                FREE(legacy);
-            }
-        }
+        /* Non-versioned meta.raw files are no longer supported */
+        recovery_reason = "non-versioned meta.raw is no longer supported (requires v0.9.0+)";
+        log_warn("Rejected non-versioned meta.raw file (size %d bytes) - please update from a versioned save", file_size);
     }
 
     if (metaruns) {
@@ -3042,7 +2933,7 @@ static void blessing_commit_changes(bool apply_runtime)
     save_metaruns();
 }
 
-static bool blessing_remove_curse(void)
+static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *result_attr)
 {
     int ids[32];
     int count = 0;
@@ -3054,8 +2945,10 @@ static bool blessing_remove_curse(void)
     }
 
     if (count == 0) {
-        msg_print("No curses cling to this saga.");
-        message_flush();
+        if (result_msg && msg_size > 0) {
+            my_strcpy(result_msg, "No curses cling to this saga.", msg_size);
+            if (result_attr) *result_attr = TERM_L_DARK;
+        }
         return false;
     }
 
@@ -3167,12 +3060,14 @@ static bool blessing_remove_curse(void)
     
     blessing_commit_changes(true);
 
-    msg_format("The curse of %s is lifted.", curse_display_name(curse_id));
-    message_flush();
+    if (result_msg && msg_size > 0) {
+        snprintf(result_msg, msg_size, "The curse of %s is lifted.", curse_display_name(curse_id));
+        if (result_attr) *result_attr = TERM_L_BLUE;
+    }
     return true;
 }
 
-static bool blessing_gain_minor(void)
+static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_attr)
 {
     int options[3];
     int picks = 0;
@@ -3228,8 +3123,10 @@ static bool blessing_gain_minor(void)
         }
 
         if (count == 0) {
-            msg_print("No blessings are presently available.");
-            message_flush();
+            if (result_msg && msg_size > 0) {
+                my_strcpy(result_msg, "No blessings are presently available.", msg_size);
+                if (result_attr) *result_attr = TERM_L_DARK;
+            }
             return false;
         }
 
@@ -3347,8 +3244,10 @@ static bool blessing_gain_minor(void)
     int blessing_stacks = (stacks < 0) ? -stacks : 0;
 
     if (c->max_stacks > 0 && blessing_stacks >= c->max_stacks) {
-        msg_print("That blessing cannot grow any stronger.");
-        message_flush();
+        if (result_msg && msg_size > 0) {
+            my_strcpy(result_msg, "That blessing cannot grow any stronger.", msg_size);
+            if (result_attr) *result_attr = TERM_L_DARK;
+        }
         return false;
     }
 
@@ -3365,19 +3264,23 @@ static bool blessing_gain_minor(void)
     
     blessing_commit_changes(true);
 
-    msg_format("You receive the %s.", blessing_display_name(blessing_id));
-    message_flush();
+    if (result_msg && msg_size > 0) {
+        snprintf(result_msg, msg_size, "You receive the %s.", blessing_display_name(blessing_id));
+        if (result_attr) *result_attr = TERM_L_GREEN;
+    }
     return true;
 }
 
-static bool blessing_unlock_major(void)
+static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *result_attr)
 {
     sanitize_major_blessing_bits(&metar);
 
     int cap = major_blessing_capacity();
     if (cap <= 0 || !mb_info) {
-        msg_print("No major blessings are currently defined.");
-        message_flush();
+        if (result_msg && msg_size > 0) {
+            my_strcpy(result_msg, "No major blessings are currently defined.", msg_size);
+            if (result_attr) *result_attr = TERM_L_DARK;
+        }
         return false;
     }
 
@@ -3396,8 +3299,10 @@ static bool blessing_unlock_major(void)
     }
 
     if (option_count == 0) {
-        msg_print("All major blessings are already sealed.");
-        message_flush();
+        if (result_msg && msg_size > 0) {
+            my_strcpy(result_msg, "All major blessings are already sealed.", msg_size);
+            if (result_attr) *result_attr = TERM_L_DARK;
+        }
         return false;
     }
 
@@ -3415,9 +3320,11 @@ static bool blessing_unlock_major(void)
     
     /* If no affordable options, show message and return */
     if (selected < 0) {
-        msg_format("You need %d blessing points to unlock any major blessing.", 
+        if (result_msg && msg_size > 0) {
+            snprintf(result_msg, msg_size, "You need %d blessing points to unlock any major blessing.", 
                    major_blessing_cost(options[0].idx));
-        message_flush();
+            if (result_attr) *result_attr = TERM_L_DARK;
+        }
         return false;
     }
     
@@ -3538,13 +3445,17 @@ static bool blessing_unlock_major(void)
         
         metar.major_blessings |= (1U << choice_idx);
         blessing_spend_points(cost);
-        blessing_commit_changes(true);        const char *msg = major_blessing_unlock_msg(choice_idx);
-        if (msg && *msg) {
-            msg_print(msg);
-        } else {
-            msg_format("You seal the %s.", major_blessing_name_str(choice_idx));
+        blessing_commit_changes(true);
+        
+        if (result_msg && msg_size > 0) {
+            const char *msg = major_blessing_unlock_msg(choice_idx);
+            if (msg && *msg) {
+                my_strcpy(result_msg, msg, msg_size);
+            } else {
+                snprintf(result_msg, msg_size, "You seal the %s.", major_blessing_name_str(choice_idx));
+            }
+            if (result_attr) *result_attr = TERM_YELLOW;
         }
-        message_flush();
         return true;
     }
 }
@@ -3553,6 +3464,9 @@ static void open_blessing_exchange(void)
 {
     bool done = false;
     int selected = 0;  /* Track highlighted option: 0=remove curse, 1=minor blessing, 2=major blessing */
+    char status_msg[256] = "";
+    byte status_attr = TERM_WHITE;
+    bool clear_status_on_next_key = false;
 
     while (!done) {
         compute_blessing_pool();
@@ -3627,9 +3541,21 @@ static void open_blessing_exchange(void)
             Term_putstr(4,10, -1, TERM_L_DARK, "u) Unlock a major blessing (none available)");
         }
         Term_putstr(2, 12, -1, TERM_L_DARK, "Arrows to navigate  Space/Enter accept  Letter select  ESC leave");
+        
+        /* Display status message if present */
+        if (status_msg[0] != '\0') {
+            Term_putstr(2, 14, -1, status_attr, status_msg);
+        }
 
         char key = inkey();
         screen_load();
+        
+        /* Clear status message on navigation or if flagged */
+        if (clear_status_on_next_key || key == '8' || key == 'k' || key == '-' || 
+            key == '2' || key == 'j' || key == '+') {
+            status_msg[0] = '\0';
+            clear_status_on_next_key = false;
+        }
 
         /* Handle navigation */
         if (key == '8' || key == 'k' || key == '-') {
@@ -3665,31 +3591,44 @@ static void open_blessing_exchange(void)
         case 'r':
         case 'R':
             if (available < 1) {
-                msg_print("You need at least one blessing point to lift a curse.");
-                message_flush();
-            } else if (blessing_remove_curse()) {
+                my_strcpy(status_msg, "You need at least one blessing point to lift a curse.", sizeof(status_msg));
+                status_attr = TERM_ORANGE;
+                clear_status_on_next_key = true;
+            } else if (blessing_remove_curse(status_msg, sizeof(status_msg), &status_attr)) {
                 compute_blessing_pool();
+                clear_status_on_next_key = true;
+            } else {
+                clear_status_on_next_key = true;
             }
             break;
         case 'm':
         case 'M':
             if (available < 1) {
-                msg_print("You need at least one blessing point to receive a gift.");
-                message_flush();
-            } else if (blessing_gain_minor()) {
+                my_strcpy(status_msg, "You need at least one blessing point to receive a gift.", sizeof(status_msg));
+                status_attr = TERM_ORANGE;
+                clear_status_on_next_key = true;
+            } else if (blessing_gain_minor(status_msg, sizeof(status_msg), &status_attr)) {
                 compute_blessing_pool();
+                clear_status_on_next_key = true;
+            } else {
+                clear_status_on_next_key = true;
             }
             break;
         case 'u':
         case 'U':
             if (!major_available) {
-                msg_print("All major blessings have already been sealed.");
-                message_flush();
+                my_strcpy(status_msg, "All major blessings have already been sealed.", sizeof(status_msg));
+                status_attr = TERM_L_DARK;
+                clear_status_on_next_key = true;
             } else if (!major_affordable) {
-                msg_format("You need %d blessing points to unlock a major blessing.", min_major_cost);
-                message_flush();
-            } else if (blessing_unlock_major()) {
+                snprintf(status_msg, sizeof(status_msg), "You need %d blessing points to unlock a major blessing.", min_major_cost);
+                status_attr = TERM_ORANGE;
+                clear_status_on_next_key = true;
+            } else if (blessing_unlock_major(status_msg, sizeof(status_msg), &status_attr)) {
                 compute_blessing_pool();
+                clear_status_on_next_key = true;
+            } else {
+                clear_status_on_next_key = true;
             }
             break;
         default:

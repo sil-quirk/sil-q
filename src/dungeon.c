@@ -3363,11 +3363,13 @@ PlayResult play_game(void)
             return PLAY_QUIT;
         }
 
+        /* Set player name from house BEFORE load_player() so savefile path is correct */
+        my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
+        process_player_name(true);  /* Update savefile path */
+        log_debug("Player name set to: %s (house %d), savefile: %s", op_ptr->full_name, p_ptr->phouse, savefile);
+
     /* Attempt to load (manual path) */
-    if (!load_player()) {
-            log_debug("Failed to load player");
-            if (character_loaded_dead) player_wipe();
-        }
+    (void)load_player();
         log_info(character_loaded ? "Character loaded" :
             (character_loaded_dead ? "Character loaded dead" : "Character creation started"));
 
