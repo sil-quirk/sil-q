@@ -363,9 +363,24 @@ static errr callback_sdl_xtra(int n, int v)
             g_state.need_present = false;
         }
         return 0;
-    case TERM_XTRA_DELAY:
-        SDL_Delay((Uint32)v);
+    case TERM_XTRA_DELAY: {
+        /* Break delay into chunks and process events to keep app responsive */
+        Uint32 total_delay = (Uint32)v;
+        Uint32 chunk = 20; /* Process events every 20ms */
+        
+        while (total_delay > 0) {
+            Uint32 this_delay = (total_delay < chunk) ? total_delay : chunk;
+            SDL_Delay(this_delay);
+            total_delay -= this_delay;
+            
+            /* Process pending events to prevent "Not Responding" status */
+            SDL_Event ev;
+            while (SDL_PollEvent(&ev)) {
+                sdl_handle_event(&g_state, &ev);
+            }
+        }
         return 0;
+    }
     case TERM_XTRA_REACT:
         /* React to global setting changes (graphics mode, colors, etc.) */
         log_debug("TERM_XTRA_REACT received (tiles_mode=%d use_graphics=%d arg_graphics=%d)",

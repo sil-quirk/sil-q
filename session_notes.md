@@ -1,5 +1,49 @@
 # Session Notes - October 15, 2025
 
+## Application "Not Responding" During Intro Text - FIXED
+
+### Problem
+- When `print_story_intro()` or other long intro windows display, Windows reports app as "Not Responding"
+- Character-by-character typing effect and paragraph delays were blocking the event loop
+- No SDL events being processed during `TERM_XTRA_DELAY` calls
+
+### Root Cause
+In `src/main-sdl.c`, the `TERM_XTRA_DELAY` handler simply called `SDL_Delay()`:
+```c
+case TERM_XTRA_DELAY:
+    SDL_Delay((Uint32)v);  // Blocks thread completely
+    return 0;
+```
+
+This meant during the story intro (with 30ms delays per character and 1000ms delays per paragraph), the app wasn't processing any window events, causing Windows to mark it as unresponsive.
+
+### Fix Implemented
+Modified `TERM_XTRA_DELAY` in `src/main-sdl.c` (lines 366-380) to process events during delays:
+```c
+case TERM_XTRA_DELAY: {
+    /* Break delay into chunks and process events to keep app responsive */
+    Uint32 total_delay = (Uint32)v;
+    Uint32 chunk = 20; /* Process events every 20ms */
+    
+    while (total_delay > 0) {
+        Uint32 this_delay = (total_delay < chunk) ? total_delay : chunk;
+        SDL_Delay(this_delay);
+        total_delay -= this_delay;
+        
+        /* Process pending events to prevent "Not Responding" status */
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev)) {
+            sdl_handle_event(&g_state, &ev);
+        }
+    }
+    return 0;
+}
+```
+
+Now the app processes SDL events every 20ms during delays, keeping it responsive to OS window messages while still honoring the requested delay duration.
+
+---
+
 ## Critical Save Corruption Bug - FIXED
 
 ### Problem
@@ -533,7 +577,10 @@ Modified save_player() in src/save.c to check if old savefile exists before tryi
 
 **Issue**: Load was reading from wrong file offsets - byte positions were exactly DOUBLE what they should be!
 
-**Root Cause**: When I added byte offset tracking to the load functions, I made d_byte(), d_u16b(), d_u32b(), etc. increment load_byte_offset. BUT sf_get() (the underlying function that reads bytes) ALREADY increments load_byte_offset! This caused DOUBLE counting.
+**Root Cause**: When I added byte offset tracking to the load functions, I made 
+d_byte(), 
+d_u16b(), 
+d_u32b(), etc. increment load_byte_offset. BUT sf_get() (the underlying function that reads bytes) ALREADY increments load_byte_offset! This caused DOUBLE counting.
 
 **Evidence from logs**:
 - SAVE wrote smithing item at offset 038966
@@ -560,10 +607,14 @@ static void rd_u16b(u16b* ip) {
 
 **Fix Applied**:
 Removed the manual load_byte_offset increments from:
-- d_byte() - removed load_byte_offset++
-- d_bool() - removed load_byte_offset++  
-- d_u16b() - removed load_byte_offset += 2
-- d_u32b() - removed load_byte_offset += 4
+- 
+d_byte() - removed load_byte_offset++
+- 
+d_bool() - removed load_byte_offset++  
+- 
+d_u16b() - removed load_byte_offset += 2
+- 
+d_u32b() - removed load_byte_offset += 4
 
 The sf_get() function already handles all byte counting correctly.
 

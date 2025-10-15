@@ -96,7 +96,7 @@ target_compile_options(sil-more PUBLIC -Wall -Wextra -std=c11)
 target_include_directories(sil-more PRIVATE src)
 
 if(MINGW)
-  target_link_options(sil-more PRIVATE -mconsole)
+  target_link_options(sil-more PRIVATE -mwindows)
 endif()
 
 if(USE_SDL)
