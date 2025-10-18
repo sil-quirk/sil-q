@@ -61,7 +61,7 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 0
-#define VERSION_EXTRA 1  /* Supply block + current format; legacy pre-0.8.9 not supported */
+#define VERSION_EXTRA 2  /* Progressive scoring + reserved_runtime[32] expansion */
 
 /*
  * Oldest version number that can still be imported
@@ -3631,6 +3631,21 @@ static const quest_mapping quest_id_map[] = {
 //Defines for number of heroes
 #define FLAG_COUNT 64
 #define FLAG_WORDS ((FLAG_COUNT + 31) / 32)
+
+/*
+ * Unified look sidebar object grouping
+ */
+enum unified_sidebar_object_group {
+    LOOK_GROUP_ARTIFACT = 0,
+    LOOK_GROUP_WEAPON,
+    LOOK_GROUP_ARMOUR,
+    LOOK_GROUP_HERBS,
+    LOOK_GROUP_POTIONS,
+    LOOK_GROUP_GEMS,
+    LOOK_GROUP_CONSUMABLE,
+    LOOK_GROUP_OTHER,
+    LOOK_GROUP_COUNT
+};
 
 /*
  * Unified look mode state structure

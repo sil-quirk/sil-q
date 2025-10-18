@@ -167,7 +167,7 @@ extern int hand_and_a_half_bonus(const object_type* o_ptr) //XXX Hand and a half
         /* Maedhros house gets double the hand-and-a-half bonus */
         if (c_info[p_ptr->phouse].flags_u & UNQ_MEL_MAEDHROS)
         {
-            return (4);
+            return (3);
         }
         return (2);
     }
@@ -1670,14 +1670,14 @@ static void calc_hitpoints(void)
     {
         for (i = 0; i < p_ptr->stat_use[A_CON]; i++)
         {
-            tmp = tmp * 12 / 10;
+            tmp = tmp * 116 / 100;
         }
     }
     else
     {
         for (i = 0; i < -(p_ptr->stat_use[A_CON]); i++)
         {
-            tmp = tmp * 10 / 12;
+            tmp = tmp * 100 / 116;
         }
     }
     mhp = tmp / 100;

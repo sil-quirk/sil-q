@@ -29,5 +29,13 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
 // Set default configuration values
 void sdl_config_set_defaults(struct sdl_config* config);
 
+// Set default configuration values based on screen resolution
+void sdl_config_set_defaults_for_resolution(struct sdl_config* config, 
+                                            struct pane_config* pane_configs,
+                                            int* pane_count,
+                                            int max_panes,
+                                            int screen_width,
+                                            int screen_height);
+
 // Apply command-line arguments to configuration
 void sdl_config_apply_cmdline(struct sdl_config* config, int argc, char** argv);

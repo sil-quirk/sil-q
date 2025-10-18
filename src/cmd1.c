@@ -5031,7 +5031,7 @@ void py_attack_aux(int y, int x, int attack_type)
                 p_ptr->vengeance = 0;
             }
 
-            update_combat_rolls2(total_dice, mds, dam, r_ptr->pd, r_ptr->ps,
+            update_combat_rolls2(total_dice, mds, dam, armor_dice, armor_sides,
                 prt, prt_percent, damage_type, true);
 
             // use different colours depending on whether knock back triggered

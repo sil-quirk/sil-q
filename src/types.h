@@ -810,7 +810,7 @@ typedef struct runtype_type {
     byte curse_stacks[32];         /* stack count for each curse (0 = disabled) */
     byte colour;                   /* display colour (TERM_*)               */
     byte win_con;                  /* target Silmarils to win (default 15)  */
-    byte lose_con;                 /* deaths to lose (min 1; default 15)    */
+    u16b blessing_threshold;       /* score pool needed per blessing point (default 300) */
     u32b heroes[FLAG_WORDS];       /* applicable heroes (max 64)            */
 } runtype_type;
 
@@ -1305,7 +1305,7 @@ typedef struct score_file_header
 struct high_score
 {
     char what[8];        /* Version info (string) */
-    char pts[5];         /* Total active curse stacks (right-aligned decimal) */
+    char pts[5];         /* Net curse/blessing value: curses(+) minus blessings(-) (right-aligned decimal) */
     char turns[10];      /* Turns Taken (number) */
     char day[10];        /* Time stamp (string) */
     char who[16];        /* Player Name (string) */
@@ -1313,7 +1313,7 @@ struct high_score
     char unused[2];      /* Was sex */
     char p_r[3];         /* Player Race (number) */
     char p_h[3];         /* Player House (number) */
-    char cur_lev[4];     /* Current Player Level (number) */
+    char cur_lev[4];     /* Unique monsters killed (number) */
     char cur_dun[4];     /* Current Dungeon Level (number) */
     char max_dun[4];     /* Max Dungeon Level (number) */
     char how[50];        /* Method of death (string) */

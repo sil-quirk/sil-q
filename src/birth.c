@@ -1907,7 +1907,7 @@ static NavResult select_oath(void)
         Term_putstr(2, 21, -1, TERM_SLATE, "Breaking an oath brings curse and shame.");
         
         /* Instructions at bottom with arrows */
-        Term_putstr(2, 23, -1, TERM_SLATE, "↑↓ Navigate     Enter Accept     Esc Back");
+        Term_putstr(2, 23, -1, TERM_SLATE, "Arrows to Navigate     Enter/Space Accept     Esc Back");
         
         /* Get input */
         char key = inkey();
@@ -2591,6 +2591,13 @@ NavResult player_birth()
     metarun_load_persistent_settings();
 
     log_info("Character creation completed: %s the %s", op_ptr->full_name, p_name + rp_ptr->name);
+
+    /* Show tutorial for first-time players (when scorefile is empty) */
+    if (highscore_count() == 0)
+    {
+        log_info("First character created - showing character tutorial");
+        display_character_tutorial();
+    }
 
     return NAV_OK;
 }

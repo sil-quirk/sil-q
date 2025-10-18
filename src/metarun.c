@@ -19,6 +19,14 @@
 #include <limits.h>
 #include <ctype.h>
 
+/* Version structures for backward compatibility
+ * v9 = 0.9.0.2 (current: progressive scoring, reserved_runtime[32])
+ * v8 = 0.9.0.1 (persistent blessing choices, reserved_runtime[1])
+ * v7 = 0.9.0.0 (initial versioned, no blessing persistence)
+ * v6 = pre-0.9.0 (curse_lo/hi instead of curse_stacks, score/best_run_score)
+ * v5 = older (curse_lo/hi, no score fields)
+ */
+
 typedef struct metarun_v8 {
     u32b id;
     byte type;
@@ -42,9 +50,12 @@ typedef struct metarun_v8 {
     u32b fallen_score_total;
     u32b fallen_score_pool;
     s16b blessing_points;
+    u16b blessing_points_spent;
     u16b major_blessings;
     byte alive_characters;
-    byte reserved_runtime[5];
+    byte pending_blessing_choices[3];
+    byte pending_blessing_count;
+    byte reserved_runtime[1];
 } metarun_v8;
 
 typedef struct metarun_v7 {
@@ -213,7 +224,11 @@ static void update_blessing_ledger(metarun *m)
 {
     if (!m) return;
 
-    u32b threshold = METARUN_BLESSING_POINT_THRESHOLD;
+    /* Get blessing point threshold from runtype data */
+    u32b threshold = METARUN_BLESSING_POINT_THRESHOLD; /* fallback */
+    if (runtype_info && m->type < z_info->rt_max && runtype_info[m->type].blessing_threshold > 0) {
+        threshold = runtype_info[m->type].blessing_threshold;
+    }
     if (threshold == 0) threshold = 1;
 
     u32b total = m->fallen_score_total;
@@ -226,10 +241,6 @@ static void update_blessing_ledger(metarun *m)
 
     m->blessing_points = (s16b)earned;
     m->fallen_score_pool = remainder;
-
-    if ((u32b)m->blessing_points_spent > earned) {
-        m->blessing_points_spent = (u16b)earned;
-    }
 }
 
 static void clear_blessing_runtime_fields(metarun *m)
@@ -442,16 +453,26 @@ static void metarun_from_v8(metarun *dst, const metarun_v8 *src)
     dst->unlocked_oaths = src->unlocked_oaths;
     dst->banned_oaths = src->banned_oaths;
     dst->max_difficulty_reached = src->max_difficulty_reached;
+    
+    /* Copy all quest_reserved bytes */
     C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
-
+    
     dst->fallen_score_total = src->fallen_score_total;
-    dst->blessing_points_spent = 0;
+    dst->blessing_points_spent = src->blessing_points_spent;
     dst->major_blessings = src->major_blessings;
     dst->alive_characters = src->alive_characters;
+    
+    /* Copy persistent blessing choices (new in v8/0.9.0.1) */
+    C_COPY(dst->pending_blessing_choices, src->pending_blessing_choices, 3, byte);
+    dst->pending_blessing_count = src->pending_blessing_count;
 
-    size_t copy = MIN(sizeof(dst->reserved_runtime), sizeof(src->reserved_runtime));
-    if (copy > 0) {
-        memcpy(dst->reserved_runtime, src->reserved_runtime, copy);
+    /* Copy reserved_runtime */
+    size_t runtime_copy = MIN(sizeof(dst->reserved_runtime), sizeof(src->reserved_runtime));
+    if (runtime_copy > 0) {
+        memcpy(dst->reserved_runtime, src->reserved_runtime, runtime_copy);
+    }
+    if (runtime_copy < sizeof(dst->reserved_runtime)) {
+        memset(dst->reserved_runtime + runtime_copy, 0, sizeof(dst->reserved_runtime) - runtime_copy);
     }
 
     update_blessing_ledger(dst);
@@ -485,6 +506,8 @@ static void metarun_from_v7(metarun *dst, const metarun_v7 *src)
     dst->unlocked_oaths = src->unlocked_oaths;
     dst->banned_oaths = src->banned_oaths;
     dst->max_difficulty_reached = src->max_difficulty_reached;
+    
+    /* Copy all quest_reserved bytes */
     C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
 
     update_blessing_ledger(dst);
@@ -518,6 +541,8 @@ static void metarun_from_v6(metarun *dst, const metarun_v6 *src)
     dst->unlocked_oaths = src->unlocked_oaths;
     dst->banned_oaths = src->banned_oaths;
     dst->max_difficulty_reached = src->max_difficulty_reached;
+    
+    /* Copy all quest_reserved bytes */
     C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
 
     update_blessing_ledger(dst);
@@ -549,13 +574,16 @@ static void metarun_from_v5(metarun *dst, const metarun_v5 *src)
     dst->unlocked_oaths = src->unlocked_oaths;
     dst->banned_oaths = src->banned_oaths;
     dst->max_difficulty_reached = src->max_difficulty_reached;
+    
+    /* Copy all quest_reserved bytes */
     C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
 
     update_blessing_ledger(dst);
 }
 
 /* Calculate best run score from the high score table
- * All scores in the score file belong to the current metarun */
+ * All scores in the score file belong to the current metarun
+ * This is kept for display purposes and historical tracking */
 static u32b get_best_run_score_from_highscores(void)
 {
     #define MAX_SCORES 100
@@ -574,23 +602,56 @@ static u32b get_best_run_score_from_highscores(void)
     return best;
 }
 
+/* Calculate progressive diminishing score across all character runs
+ * Formula: best/1 + second/2 + third/4 + fourth/8 + fifth/16 + ...
+ * Rewards consistency while still heavily weighting best performance.
+ * Caps at top 16 runs to prevent overflow and keep calculation fast.
+ * Returns aggregate score contribution from character performance. */
+static u32b compute_progressive_character_score(void)
+{
+    #define MAX_SCORES 100
+    high_score scores[MAX_SCORES];
+    int count = collect_high_scores(scores, MAX_SCORES, true); /* sorted by score descending */
+    
+    unsigned long long total = 0;
+    unsigned long long divisor = 1;
+    
+    /* Process top 16 runs with progressive halving */
+    for (int i = 0; i < count && i < 16; i++) {
+        int pts = score_points(&scores[i]);
+        if (pts > 0) {
+            total += (unsigned long long)pts / divisor;
+            divisor *= 2;  /* Each subsequent run worth half the previous */
+        }
+    }
+    
+    /* Clamp to u32b range */
+    if (total > UINT32_MAX) return UINT32_MAX;
+    
+    log_debug("compute_progressive_character_score: processed %d runs, total=%u", 
+              (count < 16 ? count : 16), (u32b)total);
+    
+    #undef MAX_SCORES
+    return (u32b)total;
+}
+
 static u32b compute_metarun_score(const metarun *m)
 {
     if (!m) return 0;
 
-    /* Calculate best_run_score from high scores on-demand */
-    u32b best_run = get_best_run_score_from_highscores();
+    /* Use progressive scoring across all character runs (v0.9.0.2+) */
+    u32b progressive_score = compute_progressive_character_score();
     
     int quest_count = popcount32(m->completed_quests);
     
-    s32b total = (s32b)best_run;
+    s32b total = (s32b)progressive_score;
     total += (s32b)m->silmarils * 120;
     total -= (s32b)m->deaths * 60;
     total += (s32b)60 * quest_count;
     total -= (s32b)100 * popcount32(m->banned_oaths);
 
-    log_debug("compute_metarun_score: best_run=%u, sils=%d, deaths=%d, quest_count=%d (0x%08X), banned=%d => total=%d",
-              best_run, m->silmarils, m->deaths, quest_count, m->completed_quests, 
+    log_debug("compute_metarun_score: progressive=%u, sils=%d, deaths=%d, quest_count=%d (0x%08X), banned=%d => total=%d",
+              progressive_score, m->silmarils, m->deaths, quest_count, m->completed_quests, 
               popcount32(m->banned_oaths), total);
 
     if (total < 0) total = 0;
@@ -668,7 +729,8 @@ static void reset_defaults(metarun *m)
     m->banned_oaths = 0;                 /* No oaths banned initially */
     m->max_difficulty_reached = 0;       /* Start with easiest difficulty */
     
-    for (int i = 0; i < 12; i++) {       /* Updated to 12 due to new field */
+    /* Clear quest_reserved array */
+    for (int i = 0; i < 12; i++) {
         m->quest_reserved[i] = 0;
     }
 
@@ -1004,10 +1066,10 @@ errr load_metaruns(bool create_if_missing)
 
         /* Write versioned header */
         meta_file_header header;
-        header.version_major = METARUN_FILE_VERSION_MAJOR;
-        header.version_minor = METARUN_FILE_VERSION_MINOR;
-        header.version_patch = METARUN_FILE_VERSION_PATCH;
-        header.version_extra = METARUN_FILE_VERSION_EXTRA;
+        header.version_major = VERSION_MAJOR;
+        header.version_minor = VERSION_MINOR;
+        header.version_patch = VERSION_PATCH;
+        header.version_extra = VERSION_EXTRA;
         header.entry_count = 1;
 
         fd_write(fd, (cptr)&header, sizeof(header));
@@ -1383,10 +1445,10 @@ errr save_metaruns(void)
 
     /* Write version header first */
     meta_file_header header;
-    header.version_major = METARUN_FILE_VERSION_MAJOR;
-    header.version_minor = METARUN_FILE_VERSION_MINOR;
-    header.version_patch = METARUN_FILE_VERSION_PATCH;
-    header.version_extra = METARUN_FILE_VERSION_EXTRA;
+    header.version_major = VERSION_MAJOR;
+    header.version_minor = VERSION_MINOR;
+    header.version_patch = VERSION_PATCH;
+    header.version_extra = VERSION_EXTRA;
     header.entry_count = metarun_max;
     
     errr result = fd_write(fd, (cptr)&header, sizeof(header));
@@ -3042,7 +3104,14 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
     }
 
     int curse_id = ids[choice];
-    CURSE_SET(curse_id, 0);
+    int current_stacks = CURSE_CURSE_STACK(curse_id);
+    
+    /* Remove only one stack instead of all stacks */
+    if (current_stacks > 1) {
+        CURSE_SET(curse_id, current_stacks - 1);
+    } else {
+        CURSE_SET(curse_id, 0);
+    }
     CURSE_SEEN_SET(curse_id);
 
     /* Reset text wrapping */
@@ -3061,7 +3130,14 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
     blessing_commit_changes(true);
 
     if (result_msg && msg_size > 0) {
-        snprintf(result_msg, msg_size, "The curse of %s is lifted.", curse_display_name(curse_id));
+        if (current_stacks > 1) {
+            snprintf(result_msg, msg_size, "One stack of %s is lifted. (%d remain%s)", 
+                     curse_display_name(curse_id), 
+                     current_stacks - 1,
+                     (current_stacks - 1 == 1) ? "s" : "");
+        } else {
+            snprintf(result_msg, msg_size, "The curse of %s is lifted.", curse_display_name(curse_id));
+        }
         if (result_attr) *result_attr = TERM_L_BLUE;
     }
     return true;
@@ -3505,10 +3581,16 @@ static void open_blessing_exchange(void)
                  available, spent, earned);
         Term_putstr(2, 3, -1, TERM_L_WHITE, buf);
 
+        /* Get blessing point threshold from runtype data */
+        u32b threshold = METARUN_BLESSING_POINT_THRESHOLD; /* fallback */
+        if (runtype_info && metar.type < z_info->rt_max && runtype_info[metar.type].blessing_threshold > 0) {
+            threshold = runtype_info[metar.type].blessing_threshold;
+        }
+        
         snprintf(buf, sizeof buf, "Fallen Score Pool: %lu (progress %lu / %lu)",
                  (unsigned long)metar.fallen_score_total,
                  (unsigned long)metar.fallen_score_pool,
-                 (unsigned long)METARUN_BLESSING_POINT_THRESHOLD);
+                 (unsigned long)threshold);
         Term_putstr(2, 4, -1, TERM_L_WHITE, buf);
 
         Term_putstr(2, 6, -1, TERM_L_GREEN, "Options:");
@@ -3694,13 +3776,16 @@ void print_metarun_stats(void)
     u32b best_run = get_best_run_score_from_highscores();
     u32b total_pool = metar.fallen_score_total;
     u32b remainder = metar.fallen_score_pool;
-    u32b threshold = METARUN_BLESSING_POINT_THRESHOLD;
+    
+    /* Get blessing point threshold from runtype data */
+    u32b threshold = METARUN_BLESSING_POINT_THRESHOLD; /* fallback */
+    if (runtype_info && metar.type < z_info->rt_max && runtype_info[metar.type].blessing_threshold > 0) {
+        threshold = runtype_info[metar.type].blessing_threshold;
+    }
 
-    int earned_points = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
+    int earned_points = metar.blessing_points;
     int spent_points = metar.blessing_points_spent;
-    if (spent_points > earned_points) spent_points = earned_points;
     int available_points = earned_points - spent_points;
-    if (available_points < 0) available_points = 0;
 
     screen_save();
     Term_clear();
@@ -3970,13 +4055,14 @@ static void choose_difficulty_menu(void)
             /* Get dynamic name and stats from runtype */
             const char *rt_name = "Unknown";
             int win_goal = WINCON_SILMARILS;
-            int death_limit = LOSECON_DEATHS;
+            int blessing_thresh = METARUN_BLESSING_POINT_THRESHOLD; /* fallback */
             
             if (runtype_info && i < z_info->rt_max && runtype_info[i].name[0])
             {
                 rt_name = runtype_info[i].name;
                 win_goal = runtype_info[i].win_con ? runtype_info[i].win_con : WINCON_SILMARILS;
-                death_limit = runtype_info[i].lose_con ? runtype_info[i].lose_con : LOSECON_DEATHS;
+                if (runtype_info[i].blessing_threshold > 0)
+                    blessing_thresh = runtype_info[i].blessing_threshold;
             }
             
             char desc_buf[128];
@@ -3984,11 +4070,11 @@ static void choose_difficulty_menu(void)
             get_curse_description(i, curse_buf, sizeof(curse_buf));
             
             if (is_locked) {
-                snprintf(desc_buf, sizeof(desc_buf), "[LOCKED] Win: %d Silmarils, Lose: %d deaths, %s", 
-                         win_goal, death_limit, curse_buf);
+                snprintf(desc_buf, sizeof(desc_buf), "[LOCKED] Win: %d Silmarils, Threshold: %d points, %s", 
+                         win_goal, blessing_thresh, curse_buf);
             } else {
-                snprintf(desc_buf, sizeof(desc_buf), "Win: %d Silmarils, Lose: %d deaths, %s", 
-                         win_goal, death_limit, curse_buf);
+                snprintf(desc_buf, sizeof(desc_buf), "Win: %d Silmarils, Threshold: %d points, %s", 
+                         win_goal, blessing_thresh, curse_buf);
             }
             
             char name_buf[128];
@@ -4182,12 +4268,11 @@ void list_metaruns(void)
 
         /* Get dynamic win/loss conditions for this metarun type */
         int win_goal = WINCON_SILMARILS;
-        int death_limit = LOSECON_DEATHS;
+        int death_limit = LOSECON_DEATHS; /* hardcoded death limit for all runtypes */
 
         if (runtype_info && m->type < z_info->rt_max)
         {
             win_goal = runtype_info[m->type].win_con ? runtype_info[m->type].win_con : WINCON_SILMARILS;
-            death_limit = runtype_info[m->type].lose_con ? runtype_info[m->type].lose_con : LOSECON_DEATHS;
         }
 
         char res = (m->silmarils >= win_goal) ? 'W' :

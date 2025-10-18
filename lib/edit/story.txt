@@ -251,8 +251,7 @@ O:12
 R:*  
 D: You rush to protect, but find neither footing nor strength. 
 D: Heroism unrewarded; your sacrifice hollow. 
-D: A heavy voice intones your failure: 
-D: "Twelve have been thy defeats."
+D: A heavy voice intones your failure, each fall a deeper wound.
 
 N:28:Broken Stone  
 T:1  
@@ -273,10 +272,9 @@ N:30:The Shut Gate
 T:1  
 O:15  
 R:*  
-D: Great iron doors clang shut with dreadful finality. 
-D: Three voices fall silent, turning away. 
-D: Fate has spoken clearly: your tale ends here, threads severed and unraveled. 
-D: "Fifteen. Thy doom is sealed."
+D: Great iron doors clang shut, a sound of dreadful judgment.
+D: Three voices fall silent, their disappointment a heavy weight.
+D: Your path grows darker still, the light of hope a distant memory.
 
 N:31:Gift of Iluvatar
 T:1
@@ -286,3 +284,143 @@ D:Warm darkness embraces you-not Morgoth's chains, but a gentle silence.
 D:This death is no defeat, but the Gift of Ilúvatar itself. 
 D:Your spirit passes briefly beyond the Circles of the World- 
 D:returning untouched by Mandos' count.
+
+N:32:Echo of Silence
+T:1
+O:16
+R:*
+D: You call out, but only silence answers. The Valar's gaze has turned away.
+D: Your deeds, once sung in praise, are now forgotten whispers in the void.
+
+N:33:Fading Embers
+T:1
+O:17
+R:*
+D: The fire of your spirit, once a mighty flame, now sputters and wanes.
+D: Each defeat is a gust of wind, threatening to extinguish it forever.
+
+N:34:The Weight of Chains
+T:1
+O:18
+R:*
+D: Invisible chains bind your soul, heavier with each fall.
+D: The memory of freedom is a cruel taunt in the oppressive darkness.
+
+N:35:Shattered Shield
+T:1
+O:19
+R:*
+D: Your shield, once a symbol of hope, lies shattered at your feet.
+D: There is nothing left to deflect the despair that closes in.
+
+N:36:The Longest Night
+T:1
+O:20
+R:*
+D: The darkness is no longer a veil, but a crushing presence.
+D: The dawn you fight for seems a lie, a child's fairy tale.
+
+N:37:Nameless Dread
+T:1
+O:21
+R:*
+D: A formless dread gnaws at your spirit, a fear worse than any blade.
+D: It whispers of oblivion, of a nothingness that awaits.
+
+N:38:The Barren Field
+T:1
+O:22
+R:*
+D: You stand in a field of ash, where nothing grows.
+D: The seeds of hope you carried have turned to dust in your hands.
+
+N:39:The Unheard Prayer
+T:1
+O:23
+R:*
+D: You pray for guidance, for a sign, but your words are lost in the wind.
+D: The heavens are deaf to your pleas, or perhaps they no longer care.
+
+N:40:The Shadow's Grasp
+T:1
+O:24
+R:*
+D: The shadow of Morgoth is no longer a distant threat, but a part of you.
+D: It coils around your heart, whispering of surrender.
+
+N:41:The Final Tear
+T:1
+O:25
+R:*
+D: A single tear falls, freezing before it hits the ground.
+D: It is the last remnant of a sorrow too deep for weeping.
+
+N:42:The Broken Oath
+T:1
+O:26
+R:*
+D: The oaths you swore now feel like a mockery.
+D: Each failure is a betrayal of the trust placed in you.
+
+N:43:The Empty Throne
+T:1
+O:27
+R:*
+D: You see a vision of an empty throne, a kingdom fallen to ruin.
+D: It is the future you are failing to prevent.
+
+N:44:The Coldest Steel
+T:1
+O:28
+R:*
+D: The chill of the enemy's blade is nothing compared to the cold in your soul.
+D: The warmth of life is a distant, fading memory.
+
+N:45:The Dying Star
+T:1
+O:29
+R:*
+D: You look to the sky for Varda's star, but it is dim and fading.
+D: Its light can no longer reach you in this profound darkness.
+
+N:46:The Lost Path
+T:1
+O:30
+R:*
+D: The path forward is gone, swallowed by the encroaching shadows.
+D: You are lost, with no memory of the way back.
+
+N:47:The Silent Bell
+T:1
+O:31
+R:*
+D: The bell of Mandos that once tolled your doom is now silent.
+D: Your fate is no longer worthy of notice.
+
+N:48:The Last Echo
+T:1
+O:32
+R:*
+D: Your last breath is a faint echo in a world that has forgotten you.
+D: Your story ends not with a bang, but with a whimper.
+
+N:49:The Unmaking
+T:1
+O:33
+R:*
+D: Your very being begins to unravel, your memories turning to dust.
+D: You are being unmade, erased from the tapestry of existence.
+
+N:50:The Void
+T:1
+O:34
+R:*
+D: There is nothing left. No light, no darkness, no hope, no despair.
+D: Only the void, endless and absolute.
+
+N:51:Morgoth's Triumph
+T:1
+O:35
+R:*
+D: A great laughter echoes in the nothingness, the triumphant roar of the Dark Lord.
+D: Your final failure has sealed the fate of the world.

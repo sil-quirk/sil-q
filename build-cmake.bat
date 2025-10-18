@@ -63,6 +63,10 @@ for %%f in (
 REM Copy game data
 if not exist sil-more-windows-sdl3\lib xcopy /E /I /Y lib sil-more-windows-sdl3\lib
 
+REM Always update lib/edit folder to ensure latest data files
+if exist sil-more-windows-sdl3\lib\edit rmdir /S /Q sil-more-windows-sdl3\lib\edit
+xcopy /E /I /Y lib\edit sil-more-windows-sdl3\lib\edit
+
 echo.
 echo ========================================
 echo Build complete!

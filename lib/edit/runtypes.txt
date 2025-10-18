@@ -16,34 +16,34 @@ N:0:Echoes (Normal)
 C:
 U:White
 W:15
-L:15
+L:350       # blessing point threshold: score pool needed per point
 H:*          # applies to all heroes
 
 N:1:Echoes (Hard)
 C:0|1|2|3|4|5|6|7|8|9|10|11
 U:LightGreen
 W:15
-L:15
+L:250       # blessing point threshold: easier to earn points with higher difficulty
 H:*          # applies to all heroes
 
 N:2:Echoes (Very Hard)
 C:0:2|1:2|2:2|3:2|4:2|5:2|6:2|7:2|8:2|9:2|10:2|11:2
 U:Orange
 W:15
-L:15
+L:200       # blessing point threshold: compensates for increased difficulty
 H:*          # applies to all heroes
 
 N:3:Echoes (Impossible)
 C:0:3|1:3|2:3|3:3|4:3|5:3|6:3|7:3|8:3|9:3|10:3|11:3
 U:Red
 W:15
-L:15
+L:150       # blessing point threshold: significant compensation for extreme difficulty
 H:*          # applies to all heroes
 
 N:4:Iron Gates (Impossible)
 C:0:2|1:2|2:2|3:2|4:2|5:2|6:2|7:2|8:2|9:2|10:2|11:2
 U:Red
 W:10         # quicker win variant
-L:3          # ironman style – 2 deaths ends the run
+L:200        # blessing point threshold: balanced for faster gameplay
 H:*
 #H:0|5|7|12   # only certain heroes

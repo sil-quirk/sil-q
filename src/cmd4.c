@@ -369,14 +369,15 @@ void do_cmd_character_sheet(void)
         display_player(mode);
 
         /* Prompt */
-        Term_putstr(1, 23, -1, TERM_SLATE, "notes  story stats  save to file  abilities  curses  increase skills  ESC");
+        Term_putstr(1, 23, -1, TERM_SLATE, "notes  story  file  abilities  curses  increase skills  ?help  ESC");
         Term_putstr(1, 23, -1, TERM_L_WHITE, "n");
         Term_putstr(8, 23, -1, TERM_L_WHITE, "s");
-        Term_putstr(29, 23, -1, TERM_L_WHITE, "f");
-        Term_putstr(35, 23, -1, TERM_L_WHITE, "a");
-        Term_putstr(46, 23, -1, TERM_L_WHITE, "c");
-        Term_putstr(54, 23, -1, TERM_L_WHITE, "i");
-        Term_putstr(71, 23, -1, TERM_L_WHITE, "ESC");
+        Term_putstr(15, 23, -1, TERM_L_WHITE, "f");
+        Term_putstr(21, 23, -1, TERM_L_WHITE, "a");
+        Term_putstr(32, 23, -1, TERM_L_WHITE, "c");
+        Term_putstr(40, 23, -1, TERM_L_WHITE, "i");
+        Term_putstr(57, 23, -1, TERM_L_WHITE, "?");
+        Term_putstr(64, 23, -1, TERM_L_WHITE, "ESC");
 
         /* Query */
         ch = inkey();
@@ -438,6 +439,12 @@ void do_cmd_character_sheet(void)
                     }
                 }
             }
+        }
+
+        /* Tutorial */
+        else if (ch == '?')
+        {
+            display_character_tutorial();
         }
 
         /* Oops */
@@ -624,7 +631,7 @@ void show_songs_with_highlight(int highlight)
         prt("", j + 2, col - 2);
 
         /* Prepare an index --(-- */
-        sprintf(tmp_val, "%c)", index_to_label(i));
+        sprintf(tmp_val, "%c)", (char)('a' + i));
 
         /* Clear the line with the (possibly indented) index */
         put_str(tmp_val, j + 2, col);
@@ -11930,8 +11937,17 @@ static void display_supply_list(int col, int row, int per_page,
 
         k_ptr = &k_info[entry->k_idx];
         aware = k_ptr->aware;
-        base_attr = aware ? TERM_WHITE : TERM_SLATE;
-        cursor_attr = aware ? TERM_L_BLUE : TERM_BLUE;
+        /* Items with 0 count should be grey */
+        if (entry->total == 0)
+        {
+            base_attr = TERM_L_DARK;
+            cursor_attr = TERM_SLATE;
+        }
+        else
+        {
+            base_attr = aware ? TERM_WHITE : TERM_SLATE;
+            cursor_attr = aware ? TERM_L_BLUE : TERM_BLUE;
+        }
         attr = (idx == entry_cur) ? cursor_attr : base_attr;
 
         if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
@@ -13249,13 +13265,19 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         display_supply_group_list(0, 6, max, BROWSER_ROWS, grp_idx, grp_cur, grp_top, group_totals);
         display_supply_list(max + 3, 6, BROWSER_ROWS, entries, entry_cnt, entry_cur, entry_top, count_col, sym_col);
 
-        Term_putstr(1, 23, -1, TERM_SLATE, "<dir>   recall   u/Space   d drop   ESC");
-        Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
-        Term_putstr(9, 23, -1, TERM_L_WHITE, "r");
-        Term_putstr(18, 23, -1, TERM_L_WHITE, "u/Space");
-        Term_putstr(30, 23, -1, TERM_L_WHITE, "d");
-        Term_putstr(30, 23, -1, TERM_L_WHITE, "drop");
-        Term_putstr(37, 23, -1, TERM_L_WHITE, "ESC");
+        /* Bottom bar: grey text with white first letters */
+        Term_erase(0, 23, 255);
+        c_put_str(TERM_L_WHITE, "<dir>", 23, 1);
+        c_put_str(TERM_L_DARK, "   ", 23, 6);
+        c_put_str(TERM_L_WHITE, "r", 23, 9);
+        c_put_str(TERM_L_DARK, "ecall   ", 23, 10);
+        c_put_str(TERM_L_WHITE, "u", 23, 18);
+        c_put_str(TERM_L_DARK, "/", 23, 19);
+        c_put_str(TERM_L_WHITE, "Space", 23, 20);
+        c_put_str(TERM_L_DARK, "   ", 23, 25);
+        c_put_str(TERM_L_WHITE, "d", 23, 28);
+        c_put_str(TERM_L_DARK, "rop   ", 23, 29);
+        c_put_str(TERM_L_WHITE, "ESC", 23, 37);
 
         if (!column)
             Term_gotoxy(0, 6 + (grp_cur - grp_top));
@@ -14107,15 +14129,6 @@ void do_cmd_view_objects()
     }
 }
 
-enum unified_sidebar_object_group {
-    LOOK_GROUP_ARTIFACT = 0,
-    LOOK_GROUP_WEAPON,
-    LOOK_GROUP_ARMOUR,
-    LOOK_GROUP_CONSUMABLE,
-    LOOK_GROUP_OTHER,
-    LOOK_GROUP_COUNT
-};
-
 static int unified_sidebar_object_group(const object_type* o_ptr)
 {
     if (!o_ptr)
@@ -14144,14 +14157,19 @@ static int unified_sidebar_object_group(const object_type* o_ptr)
     case TV_MAIL:
         return LOOK_GROUP_ARMOUR;
 
+    case TV_EASTER:
+        return LOOK_GROUP_HERBS;
+
+    case TV_POTION:
+        return LOOK_GROUP_POTIONS;
+
+    case TV_GEM:
+        return LOOK_GROUP_GEMS;
+
     case TV_FOOD:
         if (o_ptr->sval < SV_FOOD_MIN_FOOD)
             return LOOK_GROUP_CONSUMABLE;
         break;
-
-    case TV_POTION:
-    case TV_GEM:
-        return LOOK_GROUP_CONSUMABLE;
     }
 
     return LOOK_GROUP_OTHER;
@@ -14411,7 +14429,7 @@ void show_unified_sidebar(unified_look_state* state)
     if (state->show_monsters)
     {
         log_trace("show_unified_sidebar: displaying MONSTERS header at line %d", line);
-        c_put_str(TERM_WHITE, "MONSTERS:", line++, sidebar_col);
+        c_put_str(TERM_WHITE, "MONSTERS:    ", line++, sidebar_col);
         
         /* Get monster list */
         get_sorted_target_list(TARGET_LIST_MONSTER, 0);
@@ -14492,7 +14510,7 @@ void show_unified_sidebar(unified_look_state* state)
             /* Build the complete display string: name + health + morale */
             char display_name[128];
             char hp_display[12];
-            char morale_display[6];
+            char morale_display[12];
             
             /* Format health and morale as compact strings */
             strnfmt(hp_display, sizeof(hp_display), " %s", hp_bar);
@@ -14521,14 +14539,46 @@ void show_unified_sidebar(unified_look_state* state)
             my_strcpy(display_name, truncated_name, sizeof(display_name));
             my_strcat(display_name, hp_display, sizeof(display_name));
             
-            int name_hp_len = strlen(display_name);
-            int final_name_len = name_hp_len + morale_display_len;
-            
-            /* BIGTILE FIX: If using bigtile and final length is odd, add space */
-            bool needs_bigtile_pad = false;
-            if (use_bigtile && (final_name_len % 2 == 1)) {
-                needs_bigtile_pad = true;
-                final_name_len++;
+            int name_hp_len = (int)strlen(display_name);
+            int total_span = name_hp_len + morale_display_len;
+            if (use_bigtile)
+            {
+                const int min_sidebar_span = 13;
+                if (total_span < min_sidebar_span)
+                {
+                    int pad_needed = min_sidebar_span - total_span;
+
+                    while (pad_needed > 0 && name_hp_len + 1 < (int)sizeof(display_name))
+                    {
+                        display_name[name_hp_len++] = ' ';
+                        pad_needed--;
+                    }
+                    display_name[name_hp_len] = '\0';
+                    total_span = name_hp_len + morale_display_len;
+
+                    while (pad_needed > 0 && morale_display_len + 1 < (int)sizeof(morale_display))
+                    {
+                        morale_display[morale_display_len++] = ' ';
+                        pad_needed--;
+                    }
+                    morale_display[morale_display_len] = '\0';
+                    total_span = name_hp_len + morale_display_len;
+                }
+
+                if ((total_span % 2) == 0)
+                {
+                    if (morale_display_len + 1 < (int)sizeof(morale_display))
+                    {
+                        morale_display[morale_display_len++] = ' ';
+                        morale_display[morale_display_len] = '\0';
+                    }
+                    else if (name_hp_len + 1 < (int)sizeof(display_name))
+                    {
+                        display_name[name_hp_len++] = ' ';
+                        display_name[name_hp_len] = '\0';
+                    }
+                    total_span = name_hp_len + morale_display_len;
+                }
             }
             
             /* Calculate column for morale display */
@@ -14557,12 +14607,6 @@ void show_unified_sidebar(unified_look_state* state)
                 /* Display morale in highlighted color (overrides morale_color when highlighted) */
                 Term_putstr(morale_col, line, morale_display_len, TERM_L_BLUE, morale_display);
                 
-                /* Add bigtile padding if needed */
-                if (needs_bigtile_pad)
-                {
-                    Term_putstr(morale_col + morale_display_len, line, 1, TERM_L_BLUE, " ");
-                }
-                
                 /* Update highlighted position and cursor */
                 state->highlighted_y = temp_y[i];
                 state->highlighted_x = temp_x[i];
@@ -14588,12 +14632,6 @@ void show_unified_sidebar(unified_look_state* state)
                 
                 /* Display morale in its proper color */
                 Term_putstr(morale_col, line, morale_display_len, morale_color, morale_display);
-                
-                /* Add bigtile padding if needed */
-                if (needs_bigtile_pad)
-                {
-                    Term_putstr(morale_col + morale_display_len, line, 1, TERM_WHITE, " ");
-                }
             }
             
             line++;
@@ -14604,7 +14642,7 @@ void show_unified_sidebar(unified_look_state* state)
     /* Show objects section */
     if (state->show_objects)
     {
-        c_put_str(TERM_WHITE, "OBJECTS:    ", line++, sidebar_col);  /* 12 characters total */
+        c_put_str(TERM_WHITE, "OBJECTS:     ", line++, sidebar_col);  /* Odd length to keep sidebar width */
         
         /* Get object list */
         get_sorted_target_list(TARGET_LIST_OBJECT, 0);
@@ -14683,6 +14721,9 @@ void show_unified_sidebar(unified_look_state* state)
                             should_swap = true;
                         break;
 
+                    case LOOK_GROUP_HERBS:
+                    case LOOK_GROUP_POTIONS:
+                    case LOOK_GROUP_GEMS:
                     case LOOK_GROUP_CONSUMABLE:
                     case LOOK_GROUP_OTHER:
                         if (b->level > a->level)
@@ -14767,10 +14808,25 @@ void show_unified_sidebar(unified_look_state* state)
             log_debug("sidebar object: idx=%d name='%s' compact='%s' color=%d orig_len=%d compact_len=%d max_len=%d name_col=%d weight_len=%d shortened=%d",
                 entry->o_idx, name_source, display_name, base_color, original_name_len, final_name_len, max_name_len, name_col, weight_len, shortened ? 1 : 0);
 
-            if (use_bigtile && (final_name_len % 2 == 1) && (final_name_len + 1 < (int)sizeof(display_name)))
+            if (use_bigtile)
             {
-                display_name[final_name_len++] = ' ';
-                display_name[final_name_len] = '\0';
+                const int min_sidebar_span = 13;
+                if (final_name_len < min_sidebar_span)
+                {
+                    int pad_needed = min_sidebar_span - final_name_len;
+                    while (pad_needed > 0 && final_name_len + 1 < (int)sizeof(display_name))
+                    {
+                        display_name[final_name_len++] = ' ';
+                        pad_needed--;
+                    }
+                    display_name[final_name_len] = '\0';
+                }
+
+                if ((final_name_len % 2) == 0 && (final_name_len + 1 < (int)sizeof(display_name)))
+                {
+                    display_name[final_name_len++] = ' ';
+                    display_name[final_name_len] = '\0';
+                }
             }
 
             int row_index = line;

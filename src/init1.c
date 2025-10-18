@@ -1209,14 +1209,14 @@ errr parse_rt_info(char *buf, header *head)
         return 0;
     }
 
-    /* L:<num>  – lose condition (allowed deaths) ------------------ */
+    /* L:<num>  – blessing point threshold (score pool needed per point) */
     if (buf[0] == 'L')
     {
         if (!rt_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
         int v = atoi(buf + 2);
         if (v < 1) v = 1;
-        if (v > 127) v = 127;
-        rt_ptr->lose_con = (byte)v;
+        if (v > 65535) v = 65535;
+        rt_ptr->blessing_threshold = (u16b)v;
         return 0;
     }
 

@@ -1448,6 +1448,7 @@ void display_player_xtra_info(int mode)
 
     /* Uniques (all into one buffer; they'll print first) */
     HANDLE_UNIQUE_U("Master Artisan",     UNQ_SMT_FEANOR,   TERM_VIOLET);
+    HANDLE_UNIQUE_U("Creator of Galvorn", UNQ_SMT_EOL,      TERM_VIOLET);
     HANDLE_UNIQUE_U("Chosen of Ulmo",     UNQ_WIL_TUOR,     TERM_VIOLET);
     HANDLE_UNIQUE_U("Indomitable Will",   UNQ_EARENDIL,     TERM_VIOLET);
     HANDLE_UNIQUE_U("Orome Himself",      UNQ_WIL_FIN,      TERM_VIOLET);
@@ -1459,6 +1460,8 @@ void display_player_xtra_info(int mode)
     HANDLE_UNIQUE_U("Aure entuluva",      UNQ_SNG_HURIN,    TERM_VIOLET);
     HANDLE_UNIQUE_U("Voice of the Girdle",UNQ_SNG_THINGOL,  TERM_VIOLET);
     HANDLE_UNIQUE_U("Forgotten",          UNQ_MIM,          TERM_VIOLET);
+    HANDLE_UNIQUE_U("One Handed",         UNQ_MEL_MAEDHROS, TERM_VIOLET);
+    HANDLE_UNIQUE_U("Agarwaen",           UNQ_WIL_TURIN,    TERM_VIOLET);
     HANDLE_UNIQUE("Gift of Eru",          RHF_GIFTERU,      TERM_VIOLET);
     HANDLE_UNIQUE("Seafarer",             RHF_FREE,         TERM_VIOLET);
 
@@ -1671,6 +1674,613 @@ static void display_player_flag_info(void)
         /* Equippy */
         display_player_equippy(row++, col + 8);
     }
+}
+
+/*
+ * Display interactive character screen tutorial
+ * Shows 4 stages explaining different parts of the character screen
+ * with actual character data displayed
+ */
+void display_character_tutorial(void)
+{
+    int stage = 0;
+    char ch;
+    char buf[160];
+    char cur[32], rhs[32];
+    int row;
+    
+    /* Display each stage */
+    while (1)
+    {
+        /* Clear screen */
+        Term_clear();
+        
+        /* Stage header */
+        Term_putstr(20, 0, -1, TERM_L_BLUE, 
+            format("CHARACTER SCREEN TUTORIAL - STAGE %d/4", stage + 1));
+        
+        row = 2;
+        
+        /* Stage 1: Core Statistics (left column) */
+        if (stage == 0)
+        {
+            Term_putstr(2, row++, -1, TERM_WHITE, "CORE STATISTICS");
+            row++;
+            
+            /* Experience */
+            strnfmt(cur, sizeof(cur), "%ld", (long)p_ptr->new_exp);
+            strnfmt(rhs, sizeof(rhs), "%ld", (long)p_ptr->exp);
+            put_pair20_right(2, row, "Exp", 
+                cur, 6, TERM_L_GREEN, '/', rhs, 6, TERM_GREEN);
+            Term_putstr(24, row++, -1, TERM_SLATE, 
+                "-Experience: left/total, awarded for reaching depths,");
+            Term_putstr(24, row++, -1, TERM_SLATE, 
+                " identifying items and spotting and killing monsters");
+            
+            /* Burden */
+            {
+                long cur_wgt = p_ptr->total_weight / 10;
+                long max_wgt = weight_limit() / 10;
+                strnfmt(cur, sizeof(cur), "%ld", cur_wgt);
+                strnfmt(rhs, sizeof(rhs), "%ld", max_wgt);
+                put_pair20_right(2, row, "Burden",
+                    cur, 4, TERM_L_GREEN, '/', rhs, 4, TERM_GREEN);
+                Term_putstr(24, row++, -1, TERM_SLATE,
+                    "-Weight carried/max capacity (lbs)");
+            }
+            
+            /* Depth */
+            if (turn > 0)
+            {
+                long cur_d = p_ptr->depth * 50;
+                long min_d = min_depth() * 50;
+                strnfmt(cur, sizeof(cur), "%ld", cur_d);
+                strnfmt(rhs, sizeof(rhs), "%ld", min_d);
+                put_pair20_right(2, row, "Depth c/m",
+                    cur, 4, TERM_L_GREEN, '/', rhs, 4, TERM_GREEN);
+                Term_putstr(24, row++, -1, TERM_SLATE,
+                    "-Current level/minimum return depth, goes up with time");
+            }
+            
+            /* Turn */
+            comma_number(buf, playerturn);
+            put_single20_right(2, row, "Turn", buf, 12, TERM_L_GREEN);
+            Term_putstr(24, row++, -1, TERM_SLATE, "-Total current game turns");
+            
+            /* Light */
+            strnfmt(buf, sizeof(buf), "%d", p_ptr->cur_light);
+            put_single20_right(2, row, "Light", buf, 2, TERM_L_GREEN);
+            Term_putstr(24, row++, -1, TERM_SLATE, "-Your current light radius");
+            row++;
+            
+            /* Melee */
+            strnfmt(buf, sizeof(buf), "(%+d,%dd%d)",
+                p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
+            put_single20_right(2, row, "Melee", buf, 12, TERM_L_GREEN);
+            Term_putstr(24, row++, -1, TERM_SLATE, "-Main hand: (chance to hit, damage dice)");
+            
+            /* Bows */
+            strnfmt(buf, sizeof(buf), "(%+d,%dd%d)",
+                p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
+            put_single20_right(2, row, "Bows", buf, 12, TERM_L_GREEN);
+            Term_putstr(24, row++, -1, TERM_SLATE, "-Ranged:    (chance to hit, damage dice)");
+            
+            /* Armor */
+            strnfmt(buf, sizeof(buf), "[%+d,%d-%d]",
+                p_ptr->skill_use[S_EVN], p_min(GF_HURT, true), p_max(GF_HURT, true));
+            put_single20_right(2, row, "Armor", buf, 12, TERM_L_GREEN);
+            Term_putstr(24, row++, -1, TERM_SLATE, "-[evasion, protection]");
+            Term_putstr(24, row++, -1, TERM_SLATE, " [chance increase, damage absorption]");
+            
+            /* Health */
+            {
+                int cur_hp = MIN(p_ptr->chp, 999);
+                int max_hp = MIN(p_ptr->mhp, 999);
+                byte col = (p_ptr->chp >= p_ptr->mhp) ? TERM_L_GREEN : 
+                          (p_ptr->chp > p_ptr->mhp / 4) ? TERM_YELLOW : TERM_RED;
+                strnfmt(cur, sizeof(cur), "%d", cur_hp);
+                strnfmt(rhs, sizeof(rhs), "%d", max_hp);
+                put_pair20_right(2, row, "Health",
+                    cur, 3, col, '/', rhs, 3, TERM_GREEN);
+                Term_putstr(24, row++, -1, TERM_SLATE, "-Hit points:  current/maximum");
+            }
+            
+            /* Voice */
+            {
+                int cur_sp = MIN(p_ptr->csp, 999);
+                int max_sp = MIN(p_ptr->msp, 999);
+                byte col = (p_ptr->csp >= p_ptr->msp) ? TERM_L_GREEN :
+                          (p_ptr->csp > p_ptr->msp / 4) ? TERM_YELLOW : TERM_RED;
+                strnfmt(cur, sizeof(cur), "%d", cur_sp);
+                strnfmt(rhs, sizeof(rhs), "%d", max_sp);
+                put_pair20_right(2, row, "Voice",
+                    cur, 3, col, '/', rhs, 3, TERM_GREEN);
+                Term_putstr(24, row++, -1, TERM_SLATE, "-Song points: current/maximum");
+            }
+        }
+        
+        /* Stage 2: Attributes & Skills */
+        else if (stage == 1)
+        {
+            Term_putstr(2, row++, -1, TERM_WHITE, "ATTRIBUTES & SKILLS");
+            row++;
+            
+            Term_putstr(2, row++, -1, TERM_SLATE, "Attributes (Current = Base +equip +misc -drain):");
+            
+            /* Display stats with short names */
+            for (int stat = 0; stat < A_MAX; stat++)
+            {
+                int use = p_ptr->stat_use[stat];
+                int base = p_ptr->stat_base[stat];
+                int equip_mod = p_ptr->stat_equip_mod[stat];
+                int misc_mod = p_ptr->stat_misc_mod[stat];
+                int drain = p_ptr->stat_drain[stat];
+                
+                byte attr = (use == base) ? TERM_WHITE : 
+                           (use > base) ? TERM_L_GREEN : TERM_ORANGE;
+                
+                /* Use short names for display */
+                Term_putstr(4, row, -1, TERM_WHITE, stat_names[stat]);
+                
+                /* Show breakdown if there are any modifiers */
+                if (equip_mod != 0 || misc_mod != 0 || drain != 0)
+                {
+                    c_put_str(attr, format("%2d", use), row, 8);
+                    c_put_str(TERM_SLATE, "=", row, 11);
+                    c_put_str(TERM_WHITE, format("%2d", base), row, 13);
+                    
+                    int col_pos = 16;
+                    if (equip_mod != 0)
+                    {
+                        c_put_str(equip_mod > 0 ? TERM_L_GREEN : TERM_ORANGE,
+                            format("%+d", equip_mod), row, col_pos);
+                        col_pos += 3;
+                    }
+                    if (misc_mod != 0)
+                    {
+                        c_put_str(misc_mod > 0 ? TERM_L_GREEN : TERM_ORANGE,
+                            format("%+d", misc_mod), row, col_pos);
+                        col_pos += 3;
+                    }
+                    if (drain != 0)
+                    {
+                        c_put_str(TERM_YELLOW,
+                            format("%+d", drain), row, col_pos);
+                        col_pos += 3;
+                    }
+                }
+                else
+                {
+                    /* No modifiers, just show the value */
+                    c_put_str(attr, format("%2d", use), row, 8);
+                }
+                
+                /* Descriptions with full names - shortened to fit */
+                if (stat == A_STR)
+                    Term_putstr(28, row, -1, TERM_SLATE, "-Strength: melee dice & weight capacity");
+                else if (stat == A_DEX)
+                    Term_putstr(28, row, -1, TERM_SLATE, "-Dexterity: skill increase (mel, evn, arc, stl)");
+                else if (stat == A_CON)
+                    Term_putstr(28, row, -1, TERM_SLATE, "-Constitution: HP");
+                else if (stat == A_GRA)
+                    Term_putstr(28, row, -1, TERM_SLATE, "-Grace: skill increase (wil, per, sng, smt), voice");
+
+                row++;
+            }
+            row++;
+            
+            Term_putstr(2, row++, -1, TERM_SLATE, "Skills: Total = Base +stat +equip +misc");
+            Term_putstr(2, row++, -1, TERM_SLATE, "(Base determines ability purchase cost)");
+            row++;
+            
+            /* Display all 8 skills with descriptions */
+            const char* skill_desc[S_MAX] = {
+                "-Melee combat chance to hit",      /* S_MEL */
+                "-Ranged attack chance to hit",     /* S_ARC */
+                "-Evade attack chance",     /* S_EVN */
+                "-Avoid detection",   /* S_STL */
+                "-Notice hidden",     /* S_PER */
+                "-Mental resistance",     /* S_WIL */
+                "-Craft items",       /* S_SMT */
+                "-Song power",        /* S_SNG */
+                ""                     /* S_SPC - skip */
+            };
+            
+            for (int skill = 0; skill < S_MAX; skill++)
+            {
+                /* Skip Special abilities skill */
+                if (skill == S_SPC) continue;
+                
+                /* Use full names for display */
+                Term_putstr(4, row, -1, TERM_WHITE, skill_names_full[skill]);
+                c_put_str(TERM_L_GREEN, format("%2d", p_ptr->skill_use[skill]), row, 16);
+                c_put_str(TERM_SLATE, "=", row, 19);
+                c_put_str(TERM_GREEN, format("%2d", p_ptr->skill_base[skill]), row, 21);
+                
+                int col_pos = 24;
+                if (p_ptr->skill_stat_mod[skill] != 0)
+                {
+                    c_put_str(TERM_WHITE, format("%+d", p_ptr->skill_stat_mod[skill]), 
+                        row, col_pos);
+                    col_pos += 3;
+                }
+                if (p_ptr->skill_equip_mod[skill] != 0)
+                {
+                    c_put_str(TERM_WHITE, format("%+d", p_ptr->skill_equip_mod[skill]),
+                        row, col_pos);
+                    col_pos += 3;
+                }
+                if (p_ptr->skill_misc_mod[skill] != 0)
+                {
+                    c_put_str(TERM_WHITE, format("%+d", p_ptr->skill_misc_mod[skill]),
+                        row, col_pos);
+                    col_pos += 3;
+                }
+                
+                /* Add description */
+                Term_putstr(36, row, -1, TERM_SLATE, skill_desc[skill]);
+                row++;
+            }
+        }
+        
+        /* Stage 3: Character Traits */
+        else if (stage == 2)
+        {
+            Term_putstr(2, row++, -1, TERM_WHITE, "CHARACTER TRAITS");
+            row++;
+            
+            /* Character name */
+            char name[40];
+            if (p_ptr->oaths_broken)
+            {
+                strnfmt(name, sizeof(name), "%s the Oathbreaker", op_ptr->full_name);
+                c_put_str(TERM_RED, name, row++, 4);
+            }
+            else
+            {
+                strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name, 
+                    c_name + hp_ptr->alt_name);
+                c_put_str(TERM_L_BLUE, name, row++, 4);
+            }
+            row++;
+            
+            Term_putstr(2, row++, -1, TERM_SLATE, "Special Abilities & Modifiers:");
+            row++;
+            
+            /* Show color coding examples in compact format */
+            c_put_str(TERM_L_GREEN, "++", row, 4);
+            Term_putstr(8, row, -1, TERM_SLATE, "- Mastery  ");
+            c_put_str(TERM_GREEN, "+", row, 20);
+            Term_putstr(23, row++, -1, TERM_SLATE, "- Affinity");
+            
+            c_put_str(TERM_RED, "--", row, 4);
+            Term_putstr(8, row, -1, TERM_SLATE, "- Major penalty  ");
+            c_put_str(TERM_L_RED, "-", row, 26);
+            Term_putstr(29, row++, -1, TERM_SLATE, "- Minor penalty");
+            
+            c_put_str(TERM_VIOLET, "UNIQUE", row, 4);
+            Term_putstr(12, row++, -1, TERM_SLATE, "- Special abilities");
+            
+            c_put_str(TERM_UMBER, "CURSE", row, 4);
+            Term_putstr(12, row++, -1, TERM_SLATE, "- Character curses");
+            row++;
+            
+            /* Show ALL actual traits using the same logic as character sheet */
+            int race = p_ptr->prace;
+            int house = p_ptr->phouse;
+            
+            Term_putstr(2, row++, -1, TERM_SLATE, "Your current traits:");
+            
+            /* Use buffers to collect and organize traits */
+            typedef struct {
+                const char *txt;
+                byte col;
+            } trait_line_t;
+            
+            trait_line_t trait_uniq[32], trait_ma[16], trait_af[16], trait_pen[32];
+            int uniq_cnt = 0, ma_cnt = 0, af_cnt = 0, pen_cnt = 0;
+            
+            byte col_mastery = TERM_L_GREEN;
+            byte col_affinity = TERM_GREEN;
+            byte col_penalty = TERM_L_RED;
+            byte col_gr_penalty = TERM_RED;
+            
+#define PUSH_TRAIT(arr, n, text, color) do { (arr)[(n)].txt = (text); (arr)[(n)++].col = (color); } while (0)
+
+#define CHECK_SKILL(LABEL, AFF_FLAG, PEN_FLAG) \
+    do { \
+        int sc = 0; \
+        if (p_info[race].flags & (AFF_FLAG)) sc++; \
+        if (c_info[house].flags & (AFF_FLAG)) sc++; \
+        if (p_info[race].flags & (PEN_FLAG)) sc--; \
+        if (c_info[house].flags & (PEN_FLAG)) sc--; \
+        sc += curse_flag_count_rhf(AFF_FLAG); \
+        sc -= curse_flag_count_rhf(PEN_FLAG); \
+        if (sc > 2) sc = 2; \
+        if (sc < -2) sc = -2; \
+        if (sc == 2) PUSH_TRAIT(trait_ma, ma_cnt, LABEL "++", col_mastery); \
+        else if (sc == 1) PUSH_TRAIT(trait_af, af_cnt, LABEL "+", col_affinity); \
+        else if (sc == -1) PUSH_TRAIT(trait_pen, pen_cnt, LABEL "-", col_penalty); \
+        else if (sc == -2) PUSH_TRAIT(trait_pen, pen_cnt, LABEL "--", col_gr_penalty); \
+    } while (0)
+
+#define CHECK_UNIQUE(LABEL, FLAG, COLOR) \
+    do { \
+        if ((p_info[race].flags & (FLAG)) || (c_info[house].flags & (FLAG))) \
+            PUSH_TRAIT(trait_uniq, uniq_cnt, (LABEL), (COLOR)); \
+    } while (0)
+
+#define CHECK_UNIQUE_U(LABEL, FLAG, COLOR) \
+    do { \
+        if (c_info[house].flags_u & (FLAG)) \
+            PUSH_TRAIT(trait_uniq, uniq_cnt, (LABEL), (COLOR)); \
+    } while (0)
+
+            /* Check all skills */
+            CHECK_SKILL("melee", RHF_MEL_AFFINITY, RHF_MEL_PENALTY);
+            CHECK_SKILL("evasion", RHF_EVN_AFFINITY, RHF_EVN_PENALTY);
+            CHECK_SKILL("stealth", RHF_STL_AFFINITY, RHF_STL_PENALTY);
+            CHECK_SKILL("archery", RHF_ARC_AFFINITY, RHF_ARC_PENALTY);
+            CHECK_SKILL("will", RHF_WIL_AFFINITY, RHF_WIL_PENALTY);
+            CHECK_SKILL("perception", RHF_PER_AFFINITY, RHF_PER_PENALTY);
+            CHECK_SKILL("smithing", RHF_SMT_AFFINITY, RHF_SMT_PENALTY);
+            CHECK_SKILL("song", RHF_SNG_AFFINITY, RHF_SNG_PENALTY);
+            CHECK_SKILL("bow", RHF_BOW_PROFICIENCY, 0);
+            CHECK_SKILL("axe", RHF_AXE_PROFICIENCY, 0);
+            
+            /* Check unique abilities */
+            CHECK_UNIQUE_U("Master Artisan", UNQ_SMT_FEANOR, TERM_VIOLET);
+            CHECK_UNIQUE_U("Creator of Galvorn", UNQ_SMT_EOL, TERM_VIOLET);
+            CHECK_UNIQUE_U("Chosen of Ulmo", UNQ_WIL_TUOR, TERM_VIOLET);
+            CHECK_UNIQUE_U("Indomitable Will", UNQ_EARENDIL, TERM_VIOLET);
+            CHECK_UNIQUE_U("Orome Himself", UNQ_WIL_FIN, TERM_VIOLET);
+            CHECK_UNIQUE_U("Songs of Power", UNQ_SNG_FIN, TERM_VIOLET);
+            CHECK_UNIQUE_U("Elven Dance", UNQ_SNG_LUT, TERM_VIOLET);
+            CHECK_UNIQUE_U("Girdle of Melian", UNQ_SNG_MEL, TERM_VIOLET);
+            CHECK_UNIQUE_U("Creator of Angrist", UNQ_SMT_TELCHAR, TERM_VIOLET);
+            CHECK_UNIQUE_U("Old Master", UNQ_SMT_GAMIL, TERM_VIOLET);
+            CHECK_UNIQUE_U("Aure entuluva", UNQ_SNG_HURIN, TERM_VIOLET);
+            CHECK_UNIQUE_U("Voice of the Girdle", UNQ_SNG_THINGOL, TERM_VIOLET);
+            CHECK_UNIQUE_U("Forgotten", UNQ_MIM, TERM_VIOLET);
+            CHECK_UNIQUE_U("One Handed", UNQ_MEL_MAEDHROS, TERM_VIOLET);
+            CHECK_UNIQUE_U("Agarwaen", UNQ_WIL_TURIN, TERM_VIOLET);
+            CHECK_UNIQUE("Gift of Eru", RHF_GIFTERU, TERM_VIOLET);
+            CHECK_UNIQUE("Seafarer", RHF_FREE, TERM_VIOLET);
+            
+            /* Check curses */
+            CHECK_UNIQUE("Kinslayer", RHF_KINSLAYER, TERM_UMBER);
+            CHECK_UNIQUE("Treacherous", RHF_TREACHERY, TERM_UMBER);
+            CHECK_UNIQUE("Doom of Mandos", RHF_CURSE, TERM_UMBER);
+            CHECK_UNIQUE("Morgoth Curse", RHF_MOR_CURSE, TERM_UMBER);
+            
+            /* Display in two columns: uniques -> masteries -> affinities -> penalties */
+            int total_traits = uniq_cnt + ma_cnt + af_cnt + pen_cnt;
+            
+            if (total_traits == 0)
+            {
+                Term_putstr(4, row++, -1, TERM_SLATE, "(No special traits)");
+            }
+            else
+            {
+                /* Two-column layout: col1 at x=4, col2 at x=42 */
+                int display_row = row;
+                int col1_items = 0;
+                int col2_items = 0;
+                
+                /* Count items for each column (try to balance) */
+                int half = (total_traits + 1) / 2;
+                
+                /* Display uniques */
+                for (int i = 0; i < uniq_cnt; ++i)
+                {
+                    if (col1_items < half)
+                    {
+                        c_put_str(trait_uniq[i].col, trait_uniq[i].txt, display_row++, 4);
+                        col1_items++;
+                    }
+                    else
+                    {
+                        c_put_str(trait_uniq[i].col, trait_uniq[i].txt, row + col2_items, 42);
+                        col2_items++;
+                    }
+                }
+                
+                /* Display masteries */
+                for (int i = 0; i < ma_cnt; ++i)
+                {
+                    if (col1_items < half)
+                    {
+                        c_put_str(trait_ma[i].col, trait_ma[i].txt, display_row++, 4);
+                        col1_items++;
+                    }
+                    else
+                    {
+                        c_put_str(trait_ma[i].col, trait_ma[i].txt, row + col2_items, 42);
+                        col2_items++;
+                    }
+                }
+                
+                /* Display affinities */
+                for (int i = 0; i < af_cnt; ++i)
+                {
+                    if (col1_items < half)
+                    {
+                        c_put_str(trait_af[i].col, trait_af[i].txt, display_row++, 4);
+                        col1_items++;
+                    }
+                    else
+                    {
+                        c_put_str(trait_af[i].col, trait_af[i].txt, row + col2_items, 42);
+                        col2_items++;
+                    }
+                }
+                
+                /* Display penalties */
+                for (int i = 0; i < pen_cnt; ++i)
+                {
+                    if (col1_items < half)
+                    {
+                        c_put_str(trait_pen[i].col, trait_pen[i].txt, display_row++, 4);
+                        col1_items++;
+                    }
+                    else
+                    {
+                        c_put_str(trait_pen[i].col, trait_pen[i].txt, row + col2_items, 42);
+                        col2_items++;
+                    }
+                }
+                
+                /* Advance row past all displayed items */
+                row = display_row;
+            }
+            
+#undef PUSH_TRAIT
+#undef CHECK_SKILL
+#undef CHECK_UNIQUE
+#undef CHECK_UNIQUE_U
+        }
+        
+        /* Stage 4: History & Most Important Game Controls */
+        else if (stage == 3)
+        {
+            Term_putstr(2, row++, -1, TERM_WHITE, "HISTORY & GAME CONTROLS");
+            row++;
+            
+            /* Display abbreviated history (3 lines max) */
+            Term_putstr(2, row++, -1, TERM_SLATE, "Your story:");
+            
+            text_out_wrap = 76;
+            text_out_indent = 4;
+            Term_gotoxy(text_out_indent, row);
+            
+            /* Truncate history for tutorial to fit in 3 lines */
+            char hist_preview[150];
+            my_strcpy(hist_preview, p_ptr->history, sizeof(hist_preview));
+            if (strlen(p_ptr->history) > 140)
+            {
+                hist_preview[137] = '.';
+                hist_preview[138] = '.';
+                hist_preview[139] = '.';
+                hist_preview[140] = '\0';
+            }
+            text_out_to_screen(TERM_WHITE, hist_preview);
+            
+            text_out_wrap = 0;
+            text_out_indent = 0;
+            
+            row += 4;
+            
+            Term_putstr(2, row++, -1, TERM_SLATE, "Essential Controls:");
+            
+            /* Two-column layout for commands */
+            int cmd_row = row;
+            
+            /* Left column */
+            c_put_str(TERM_L_WHITE, "Numpad", cmd_row, 4);
+            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Move/attack");
+            
+            c_put_str(TERM_L_WHITE, "Space", cmd_row, 4);
+            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Pick up item");
+            
+            c_put_str(TERM_L_WHITE, "u", cmd_row, 4);
+            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Use item");
+            
+            c_put_str(TERM_L_WHITE, "x", cmd_row, 4);
+            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Examine item");
+
+            
+            c_put_str(TERM_L_WHITE, "i", cmd_row, 4);
+            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Inventory");
+            
+            c_put_str(TERM_L_WHITE, "e", cmd_row, 4);
+            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Equipment");
+            
+            c_put_str(TERM_L_WHITE, "l", cmd_row, 4);
+            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Look menu");
+            
+            c_put_str(TERM_L_WHITE, "Ctrl", cmd_row, 4);
+            Term_putstr(11, cmd_row++, -1, TERM_SLATE, "-Bash, disarm, tunnel");
+
+            
+            /* Right column */
+            cmd_row = row;
+            
+            c_put_str(TERM_L_WHITE, "f/F", cmd_row, 42);
+            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-fire (ranged attack)");
+            
+            c_put_str(TERM_L_WHITE, "s/S", cmd_row, 42);
+            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Sing/Stealth");
+            
+            c_put_str(TERM_L_WHITE, "a", cmd_row, 42);
+            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Activate stuff");
+
+            c_put_str(TERM_L_WHITE, "c", cmd_row, 42);
+            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Close door");
+            
+            c_put_str(TERM_L_WHITE, "h", cmd_row, 42);
+            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Character screen");
+            
+            c_put_str(TERM_L_WHITE, "m", cmd_row, 42);
+            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Main menu");
+            
+            c_put_str(TERM_L_WHITE, "Tab", cmd_row, 42);
+            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Abilities menu");
+            
+            c_put_str(TERM_L_WHITE, "?", cmd_row, 42);
+            Term_putstr(46, cmd_row++, -1, TERM_SLATE, "-Help");
+
+            Term_putstr(11, cmd_row+=2, -1, TERM_SLATE, "Keyboard shortcuts could be changed through user preference");
+
+            row = cmd_row;
+        }
+        
+        /* Footer */
+        if (stage < 3)
+            Term_putstr(18, 22, -1, TERM_YELLOW, "Use arrows or any key to navigate");
+        else
+            Term_putstr(26, 22, -1, TERM_L_GREEN, "Tutorial complete!");
+        
+        if (stage > 0)
+            Term_putstr(10, 23, -1, TERM_SLATE, "(4/<- Previous)");
+        if (stage < 3)
+            Term_putstr(53, 23, -1, TERM_SLATE, "(Next 6/->)");
+        Term_putstr(30, 23, -1, TERM_SLATE, "(ESC to exit)");
+        
+        /* Wait for any key press */
+        ch = inkey();
+        
+        /* Handle navigation */
+        if (ch == ESCAPE)
+        {
+            /* Exit tutorial */
+            break;
+        }
+        else if (ch == '4')
+        {
+            /* Go back one stage (left arrow/numpad 4) */
+            if (stage > 0)
+                stage--;
+        }
+        else if (ch == '6' || ch == ' ' || ch == '\r')
+        {
+            /* Go forward one stage (right arrow/numpad 6, space, enter) */
+            if (stage < 3)
+                stage++;
+            else
+                break;  /* Exit on last stage */
+        }
+        else
+        {
+            /* Any other key advances */
+            if (stage < 3)
+                stage++;
+            else
+                break;  /* Exit on last stage */
+        }
+    }
+    
+    /* Clear screen before returning */
+    Term_clear();
 }
 
 /*
@@ -2704,11 +3314,9 @@ void show_help_screen(int i)
         put_role(ROLE_BAD, "Permadeath", row, col + 2);
         put_role(ROLE_BODY, ": a fallen hero is gone for the saga.", row, col + 12);
         row++;
-        put_role(ROLE_BODY, "- Hit ", row, col);
-        put_role(ROLE_WARN, "15 total deaths", row, col + 6);
-        put_role(ROLE_BODY, " -> ", row, col + 21);
-        put_role(ROLE_BAD, "game over", row, col + 25);
-        put_role(ROLE_BODY, ".", row, col + 34);
+        put_role(ROLE_BODY, "- The saga ends when no heroes remain. Worthy deaths earn ", row, col);
+        put_role(ROLE_GOOD, "Valar blessings", row, col + 58);
+        put_role(ROLE_BODY, ".", row, col + 73);
         row += 2;
 
         put_role(ROLE_SECTION, "HEROES OF LEGEND", row, col); row++;
@@ -2865,9 +3473,9 @@ void show_help_screen(int i)
         put_role(ROLE_TERM, "Evasion", row, col + 2);
         put_role(ROLE_BODY, " avoids getting hit; ", row, col + 9);
         put_role(ROLE_TERM, "Armour", row, col + 30);
-        put_role(ROLE_BODY, " (", row, col + 36);
+        put_role(ROLE_BODY, " [", row, col + 36);
         put_role(ROLE_TERM, "Protection", row, col + 38);
-        put_role(ROLE_BODY, ") soaks what lands.", row, col + 48);
+        put_role(ROLE_BODY, "] soaks what lands.", row, col + 48);
         row++;
         put_role(ROLE_BODY, "- Being ", row, col);
         put_role(ROLE_BAD, "surrounded", row, col + 8);
@@ -2889,13 +3497,44 @@ void show_help_screen(int i)
         put_role(ROLE_TERM, "Armour", row, col + 33);
         put_role(ROLE_BODY, " shows [evasion, protection].", row, col + 39);
         row++;
-        put_role(ROLE_BODY, "- Light weapons tend to crit; heavy weapons grind with raw dice.", row, col);
+        put_role(ROLE_BODY, "- Ex: You (Str 3, Melee 16, Longsword 2d5, 2.0 lb) vs Orc [+4, 2d4]:", row, col);
+        row += 2;
+        put_role(ROLE_BODY, "  @ ", row, col);
+        put_role(ROLE_GOOD, "(+16) 34", row, col + 4);
+        put_role(ROLE_BAD, " 20", row, col + 12);
+        put_role(ROLE_BODY, "  14 [+4] o", row, col + 15);
+        put_role(ROLE_BODY, "  ->  ", row, col + 26);
+        put_role(ROLE_GOOD, "(4d7) 19", row, col + 32);
+        put_role(ROLE_BODY, " - ", row, col + 40);
+        put_role(ROLE_WARN, "3", row, col + 43);
+        put_role(ROLE_BODY, " = ", row, col + 44);
+        put_role(ROLE_BAD, "16", row, col + 47);
+        row ++;
+        put_role(ROLE_BODY, "  Attack:  ", row, col);
+        put_role(ROLE_GOOD, "1d20+16=34", row, col + 11);
+        put_role(ROLE_BODY, " vs ", row, col + 21);
+        put_role(ROLE_BODY, "1d20+4=14", row, col + 25);
+        put_role(ROLE_BODY, "  ->  margin ", row, col + 34);
+        put_role(ROLE_BAD, "20", row, col + 47);
+        put_role(ROLE_BODY, " = ", row, col + 49);
+        put_role(ROLE_BAD, "double crit", row, col + 52);
+        put_role(ROLE_BODY, "!", row, col + 63);
+        row++;
+        put_role(ROLE_BODY, "  Damage:  2d5 +2 (Str 3 capped by 2 lb = 2 more sides) = 2d7,", row, col);
+        row++;
+        put_role(ROLE_BODY, "           +2d7 (1d per 7+weight in margin) = ", row, col);
+        put_role(ROLE_GOOD, "4d7=19", row, col + 46);
+        put_role(ROLE_BODY, " - ", row, col + 52);
+        put_role(ROLE_WARN, "2d4=3", row, col + 55);
+        put_role(ROLE_BODY, " = ", row, col + 60);
+        put_role(ROLE_BAD, "16 dmg", row, col + 63);
+        put_role(ROLE_BODY, "!", row, col + 69);
         row += 2;
 
         put_role(ROLE_SECTION, "EVASION VS ARMOUR", row, col); row++;
         put_role(ROLE_BODY, "- ", row, col);
         put_role(ROLE_TERM, "Evasion", row, col + 2);
-        put_role(ROLE_BODY, " helps you not be hit at all; it scales with position and pressure.", row, col + 9);
+        put_role(ROLE_BODY, " helps you not be hit at all; it's reduced if surrounded.", row, col + 9);
         row++;
         put_role(ROLE_BODY, "- ", row, col);
         put_role(ROLE_TERM, "Armour", row, col + 2);
@@ -4285,6 +4924,7 @@ typedef struct score_breakdown
     int depth_up;
     int curses;
     int house_power;
+    int uniques_killed;
     bool escaped;
     bool morgoth_slain;
 } score_breakdown;
@@ -4297,15 +4937,21 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     int raw_cur_depth = parse_score_int(score->cur_dun, sizeof(score->cur_dun), 0);
     int silmarils = parse_score_int(score->silmarils, sizeof(score->silmarils), 0);
     int curses = parse_score_int(score->pts, sizeof(score->pts), 0);
+    int uniques_killed = parse_score_int(score->cur_lev, sizeof(score->cur_lev), 0);
 
     if (silmarils < 0)
         silmarils = 0;
     curses = clampi(curses, 0, 1000);
+    uniques_killed = clampi(uniques_killed, 0, 999);
 
     int depth_down = clampi(raw_max_depth, 0, MORGOTH_DEPTH);
-    int depth_up = clampi(40 - raw_cur_depth, 0, MORGOTH_DEPTH);
+    int depth_up = clampi(20 - raw_cur_depth, 0, MORGOTH_DEPTH);
 
     int base = 10 * depth_down;
+    
+    /* Add 3 points per unique monster killed */
+    base += 3 * uniques_killed;
+    
     if (silmarils > 0)
     {
         base += 5 * depth_up;
@@ -4362,6 +5008,7 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     result.depth_up = depth_up;
     result.curses = curses;
     result.house_power = house_power;
+    result.uniques_killed = uniques_killed;
     result.escaped = escaped;
     result.morgoth_slain = morgoth;
 
@@ -4421,10 +5068,10 @@ int score_points(const high_score* score)
 
     const char* who = (score->who[0] != '\0') ? score->who : "<unknown>";
     log_debug(
-        "score_points: '%s' base=%d mult=%d (power=%d curses=%d sil=%d depth_down=%d depth_up=%d escaped=%s morgoth=%s) => %d",
+        "score_points: '%s' base=%d mult=%d (power=%d curses=%d sil=%d depth_down=%d depth_up=%d uniques=%d escaped=%s morgoth=%s) => %d",
         who, breakdown.base_score, breakdown.mult_bp, breakdown.house_power,
         breakdown.curses, breakdown.silmarils, breakdown.max_depth,
-        breakdown.depth_up, breakdown.escaped ? "yes" : "no",
+        breakdown.depth_up, breakdown.uniques_killed, breakdown.escaped ? "yes" : "no",
         breakdown.morgoth_slain ? "yes" : "no", total);
 
     return total;
@@ -6394,6 +7041,11 @@ errr create_score(high_score* the_score)
         p_ptr->max_depth);
     the_score->max_dun[3] = '\0';
 
+    /* Save unique monsters killed count */
+    int uniques_killed = unique_bane_type_killed();
+    strnfmt(the_score->cur_lev, sizeof(the_score->cur_lev), "%3d", uniques_killed);
+    the_score->cur_lev[3] = '\0';
+
     /* Save the cause of death (49 chars) */
     strnfmt(the_score->how, sizeof(the_score->how), "%-.49s", p_ptr->died_from);
 
@@ -6881,9 +7533,21 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
         log_trace("scan: entry_offset=%d", hit);
 
         if (hit >= 0) {
-            /* 5.d) Found - check alive (use 'who', not 'how') */
+            /* 5.d) Found - check alive AND not escaped */
             if (highscore_dead(entry.who)) {
                 log_debug("hero already dead - no kill performed");
+                if (pool) free(pool);
+                safe_setuid_grab();
+                if (fclose(highscore_fd) != 0) {
+                    log_warn("fclose(highscore_fd) failed, errno=%d", errno);
+                }
+                safe_setuid_drop();
+                highscore_fd = NULL;
+                return NULL;
+            }
+            /* Also check if hero has escaped */
+            if (entry.escaped[0] == 't') {
+                log_debug("hero has escaped - no kill performed");
                 if (pool) free(pool);
                 safe_setuid_grab();
                 if (fclose(highscore_fd) != 0) {

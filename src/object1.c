@@ -2071,13 +2071,14 @@ bool item_tester_okay(const object_type* o_ptr)
             return (true);
     }
 
-    /* Hack -- allow listing empty slots */
-    if (item_tester_full)
-        return (true);
-
     /* Require an item */
     if (!o_ptr->k_idx)
+    {
+        /* Hack -- allow listing empty slots only for equipment */
+        if (item_tester_full && in_inventory && (o_ptr >= inventory + INVEN_WIELD))
+            return (true);
         return (false);
+    }
 
     /* Check the tval */
     if (item_tester_tval)

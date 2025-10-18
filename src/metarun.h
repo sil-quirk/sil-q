@@ -37,14 +37,14 @@
 /*  Meta-run save-record                                              */
 /* ------------------------------------------------------------------ */
 
-/* Version header for meta.raw file */
-#define METARUN_FILE_VERSION_MAJOR 0
-#define METARUN_FILE_VERSION_MINOR 9
-#define METARUN_FILE_VERSION_PATCH 0
-#define METARUN_FILE_VERSION_EXTRA 1  /* +1 for persistent blessing choices */
+/* Version history (tied to game VERSION_* from defines.h):
+ *   0.9.0.0 - Initial versioned format (quest support)
+ *   0.9.0.1 - Persistent blessing choices added
+ *   0.9.0.2 - Progressive scoring system, increased reserved_runtime[1→32]
+ */
 
 /* Blessing / reward economy */
-#define METARUN_BLESSING_POINT_THRESHOLD 300   /* Score required per blessing point */
+#define METARUN_BLESSING_POINT_THRESHOLD 300   /* Fallback threshold if runtype doesn't specify (data-driven via L: in runtypes.txt) */
 
 typedef enum {
     METARUN_MAJOR_EFFECT_NONE = 0,
@@ -91,7 +91,7 @@ typedef struct metarun
     byte banned_oaths;          /* Bitmask of oaths broken/banned this metarun (cannot select again) */
     byte max_difficulty_reached; /* Maximum difficulty level reached this metarun (cannot go back) */
     
-    byte quest_reserved[12];    /* Reserved for future expansion                    */
+    byte quest_reserved[12];    /* Reserved for future quest expansion */
 
     /* ----- blessing economy (runtime cached totals) ---------------- */
     u32b fallen_score_total;    /* Total score contributed by fallen heroes        */
@@ -105,7 +105,7 @@ typedef struct metarun
     byte pending_blessing_choices[3]; /* Currently offered blessing IDs (0-31, 255=empty) */
     byte pending_blessing_count;      /* How many choices are currently pending (0-3)     */
     
-    byte reserved_runtime[1];   /* Future use / padding for alignment              */
+    byte reserved_runtime[32];  /* Generous runtime expansion space (v0.9.0.2+) */
 
 } metarun;
 

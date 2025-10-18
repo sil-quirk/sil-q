@@ -20,3 +20,5 @@ src.code-workspace
 compile_commands.json
 *.res
 /lib/apex
+*.backup
+*.temp

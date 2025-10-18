@@ -862,7 +862,7 @@ static void process_command(void)
     /* Wear/wield equipment */
     case 'w':
     {
-        do_cmd_wield(NULL, 0);
+        do_cmd_wield_wrapper();
         break;
     }
 
@@ -1127,7 +1127,7 @@ static void process_command(void)
     /* Quaff a potion */
     case 'q':
     {
-        do_cmd_quaff_potion(NULL, 0);
+        open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_POTIONS, true, true);
         break;
     }
 

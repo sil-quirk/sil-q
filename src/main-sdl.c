@@ -830,33 +830,77 @@ errr init_sdl(int argc, char **argv)
 {
     log_debug("init_sdl starting");
     
-    // Set defaults first
-    sdl_config_set_defaults(&config);
-    log_debug("After defaults: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
-              config.main_view_scale, config.aux_view_font_size, config.margin,
-              config.fullscreen, config.tiles);
-    
-    // Copy default pane configuration
-    pane_config_count = default_pane_config_count;
-    for (int i = 0; i < default_pane_config_count && i < MAX_PANE_CONFIGS; i++) {
-        pane_config[i] = default_pane_config[i];
+    // Initialize SDL first to get display information
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
+        log_error("SDL_Init failed: %s", SDL_GetError());
+        quit("could not init SDL");
     }
-    log_debug("Default pane count: %d", pane_config_count);
+    if (!TTF_Init()) {
+        log_error("TTF_Init failed: %s", SDL_GetError());
+        quit("could not init TTF");
+    }
     
-    // Try to load from JSON file
-    const char* config_file = "sil_sdl.json";
-    log_debug("Attempting to load config from: %s", config_file);
+    // Get primary display information
+    SDL_DisplayID primary = SDL_GetPrimaryDisplay();
+    if (!primary) {
+        log_error("SDL_GetPrimaryDisplay failed: %s", SDL_GetError());
+        quit("could not get primary display ID");
+    }
+    SDL_Rect screen;
+    if (!SDL_GetDisplayBounds(primary, &screen)) {
+        log_error("SDL_GetDisplayBounds failed: %s", SDL_GetError());
+        quit("could not get primary display bounds");
+    }
+    
+    log_info("primary display: %d %d %d %d", screen.x, screen.y, screen.w, screen.h);
     
     // Save config file path for later use on exit
+    const char* config_file = "sil_sdl.json";
     my_strcpy(config_file_path, config_file, sizeof(config_file_path));
     
     // Register quit hook to save configuration on exit
     quit_aux = sdl_quit_hook;
     
-    sdl_config_load(config_file, &config, pane_config, &pane_config_count, MAX_PANE_CONFIGS);
-    log_debug("After loading JSON: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
-              config.main_view_scale, config.aux_view_font_size, config.margin,
-              config.fullscreen, config.tiles);
+    // Check if config file exists
+    FILE* test_file = fopen(config_file, "rb");
+    bool config_exists = (test_file != NULL);
+    if (test_file) {
+        fclose(test_file);
+    }
+    
+    if (config_exists) {
+        // Config file exists - use generic defaults first, then load from file
+        log_debug("Config file exists, loading from: %s", config_file);
+        sdl_config_set_defaults(&config);
+        
+        // Copy default pane configuration
+        pane_config_count = default_pane_config_count;
+        for (int i = 0; i < default_pane_config_count && i < MAX_PANE_CONFIGS; i++) {
+            pane_config[i] = default_pane_config[i];
+        }
+        
+        sdl_config_load(config_file, &config, pane_config, &pane_config_count, MAX_PANE_CONFIGS);
+        log_debug("After loading JSON: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
+                  config.main_view_scale, config.aux_view_font_size, config.margin,
+                  config.fullscreen, config.tiles);
+    } else {
+        // Config file doesn't exist - use resolution-based defaults
+        log_debug("Config file not found, using resolution-based defaults");
+        sdl_config_set_defaults_for_resolution(&config, pane_config, &pane_config_count,
+                                               MAX_PANE_CONFIGS, screen.w, screen.h);
+        
+        // If no resolution-specific config was found, use default pane config
+        if (pane_config_count == 0) {
+            pane_config_count = default_pane_config_count;
+            for (int i = 0; i < default_pane_config_count && i < MAX_PANE_CONFIGS; i++) {
+                pane_config[i] = default_pane_config[i];
+            }
+        }
+        
+        log_debug("After resolution defaults: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
+                  config.main_view_scale, config.aux_view_font_size, config.margin,
+                  config.fullscreen, config.tiles);
+    }
     
     // Apply command-line overrides
     sdl_config_apply_cmdline(&config, argc, argv);
@@ -885,27 +929,6 @@ errr init_sdl(int argc, char **argv)
     log_info("  Fullscreen: %s", config.fullscreen ? "true" : "false");
     log_info("  Tiles: %s", config.tiles ? "true" : "false");
     log_info("  Pane configurations: %d", pane_config_count);
-    
-    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
-        log_error("SDL_Init failed: %s", SDL_GetError());
-        quit("could not init SDL");
-    }
-    if (!TTF_Init()) {
-        log_error("TTF_Init failed: %s", SDL_GetError());
-        quit("could not init TTF");
-    }
-    SDL_DisplayID primary = SDL_GetPrimaryDisplay();
-    if (!primary) {
-        log_error("SDL_GetPrimaryDisplay failed: %s", SDL_GetError());
-        quit("could not get primary display ID");
-    }
-    SDL_Rect screen;
-    if (!SDL_GetDisplayBounds(primary, &screen)) {
-        log_error("SDL_GetDisplayBounds failed: %s", SDL_GetError());
-        quit("could not get primary display bounds");
-    }
-
-    log_info("primary display: %d %d %d %d", screen.x, screen.y, screen.w, screen.h);
 
     // Initialize palette from angband_color_table (supports .prf file customization)
     sdl_sync_palette();

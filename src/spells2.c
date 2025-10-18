@@ -2514,8 +2514,8 @@ void earthquake(int cy, int cx, int pit_y, int pit_x, int r, int who)
                     {
                         update_combat_rolls1b(
                             creator_m_ptr, m_ptr, creator_vis);
-                        update_combat_rolls2(dd, ds, damage, r_ptr->pd,
-                            r_ptr->ps, prt, 100, GF_HURT, false);
+                        update_combat_rolls2(dd, ds, damage, armor_dice,
+                            armor_sides, prt, 100, GF_HURT, false);
                     }
 
                     // do the damage and check for death

@@ -96,6 +96,15 @@
     "github.copilot.editor.enableAutoCompletions": true,
     "github.copilot.advanced": {},
     
+    // Python configuration - point to workspace venv
+    "[python]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "ms-python.python"
+    },
+    "python.defaultInterpreterPath": "${workspaceFolder}/src/.venv/Scripts/python.exe",
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": false,
+    
     // Chat and agent settings for optimal performance
     "chat.agent.maxRequests": 100,
     "chat.tools.autoApprove": true,

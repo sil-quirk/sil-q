@@ -2389,13 +2389,14 @@ bool load_player(void)
         sf_extra = vvv[3];
         log_debug("Version bytes read: %u.%u.%u extra=%u", (unsigned)sf_major, (unsigned)sf_minor, (unsigned)sf_patch, (unsigned)sf_extra);
         
-        /* Validate expected version: 0.9.0 extra=1 */
-        if (sf_major != 0 || sf_minor != 9 || sf_patch != 0 || sf_extra != 1)
+        /* Validate version: 0.9.0 with extra >= 1 (backward compatible) */
+        if (sf_major != VERSION_MAJOR || sf_minor != VERSION_MINOR || sf_patch != VERSION_PATCH || sf_extra < 1)
         {
             err = -1;
-            what = "Incompatible savefile version (expected 0.9.0 extra=1)";
-            log_error("Savefile version %d.%d.%d extra=%d is not supported (only 0.9.0 extra=1)", 
-                     sf_major, sf_minor, sf_patch, sf_extra);
+            what = "Incompatible savefile version (expected 0.9.0 extra>=1)";
+            log_error("Savefile version %d.%d.%d extra=%d is not supported (expected %d.%d.%d extra>=%d)", 
+                     sf_major, sf_minor, sf_patch, sf_extra,
+                     VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, 1);
         }
         
         load_byte_offset = 0; /* reset counter before decoding stream */

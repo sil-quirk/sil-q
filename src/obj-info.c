@@ -833,6 +833,134 @@ static bool describe_archery(const object_type* o_ptr)
 }
 
 /*
+ * Describe weapon damage with current strength modifiers
+ */
+static bool describe_weapon_damage(const object_type* o_ptr)
+{
+    byte base_dd, base_ds, actual_dd, actual_ds;
+    u32b f1, f2, f3;
+    bool is_melee = false;
+    bool is_bow = false;
+    bool is_hand_and_half = false;
+    
+    /* Check if this is a melee weapon */
+    if (o_ptr->tval == TV_SWORD || o_ptr->tval == TV_POLEARM 
+        || o_ptr->tval == TV_HAFTED || o_ptr->tval == TV_DIGGING)
+    {
+        is_melee = true;
+    }
+    /* Check if this is a bow */
+    else if (o_ptr->tval == TV_BOW)
+    {
+        is_bow = true;
+    }
+    else
+    {
+        return (false);
+    }
+
+    /* Get object flags to check for hand-and-a-half */
+    object_flags(o_ptr, &f1, &f2, &f3);
+    is_hand_and_half = (f3 & TR3_HAND_AND_A_HALF) ? true : false;
+
+    if (is_melee)
+    {
+        /* Calculate melee damage with current strength */
+        base_dd = o_ptr->dd;
+        base_ds = o_ptr->ds;
+        actual_dd = total_mdd(o_ptr);
+        actual_ds = total_mds(o_ptr, 0);
+
+        /* Special handling for hand-and-a-half weapons */
+        if (is_hand_and_half)
+        {
+            int hand_half_bonus_equipped = hand_and_a_half_bonus(o_ptr);
+            int hand_half_bonus_potential;
+            int one_handed_ds_int, two_handed_ds_int;
+            byte one_handed_ds, two_handed_ds;
+            bool is_currently_equipped = (&inventory[INVEN_WIELD] == o_ptr);
+            
+            /* Determine potential hand-and-a-half bonus (when wielded two-handed) */
+            if (c_info[p_ptr->phouse].flags_u & UNQ_MEL_MAEDHROS)
+            {
+                hand_half_bonus_potential = 3;
+            }
+            else
+            {
+                hand_half_bonus_potential = 2;
+            }
+            
+            if (is_currently_equipped)
+            {
+                /* For equipped weapons, use actual current damage */
+                one_handed_ds_int = (int)actual_ds - hand_half_bonus_equipped;
+                one_handed_ds = (one_handed_ds_int < 0) ? 0 : (byte)one_handed_ds_int;
+                two_handed_ds = actual_ds;
+            }
+            else
+            {
+                /* For unequipped weapons, calculate hypothetical damage */
+                /* One-handed: base + strength (capped by weight), no hand-and-half bonus */
+                one_handed_ds_int = (int)actual_ds;
+                one_handed_ds = (one_handed_ds_int < 0) ? 0 : (byte)one_handed_ds_int;
+                
+                /* Two-handed: base + strength (capped by weight) + hand-and-half bonus */
+                two_handed_ds_int = (int)actual_ds + hand_half_bonus_potential;
+                two_handed_ds = (two_handed_ds_int < 0) ? 0 : (byte)two_handed_ds_int;
+            }
+
+            /* Show distinction between one-handed and two-handed */
+            if (base_dd != actual_dd || base_ds != one_handed_ds || base_ds != two_handed_ds)
+            {
+                p_text_out(format(
+                    "It does %dd%d damage (%dd%d one-handed, %dd%d two-handed with your current strength and abilities).",
+                    base_dd, base_ds, actual_dd, one_handed_ds, actual_dd, two_handed_ds));
+            }
+            else
+            {
+                p_text_out(format("It does %dd%d damage.", base_dd, base_ds));
+            }
+        }
+        else
+        {
+            /* Regular melee weapons */
+            if (base_dd != actual_dd || base_ds != actual_ds)
+            {
+                p_text_out(format(
+                    "It does %dd%d damage (%dd%d with your current strength and abilities).",
+                    base_dd, base_ds, actual_dd, actual_ds));
+            }
+            else
+            {
+                p_text_out(format("It does %dd%d damage.", base_dd, base_ds));
+            }
+        }
+    }
+    else if (is_bow)
+    {
+        /* Calculate bow damage with current strength */
+        base_dd = o_ptr->dd;
+        base_ds = o_ptr->ds;
+        actual_dd = o_ptr->dd;  /* Bow dice don't change */
+        actual_ds = total_ads(o_ptr);
+
+        /* Show complete bow+arrow damage */
+        if (base_ds != actual_ds)
+        {
+            p_text_out(format(
+                "It shoots arrows for %dd%d damage (%dd%d with your current strength).",
+                base_dd, base_ds, actual_dd, actual_ds));
+        }
+        else
+        {
+            p_text_out(format("It shoots arrows for %dd%d damage.", base_dd, base_ds));
+        }
+    }
+
+    return (true);
+}
+
+/*
  * Output object information
  */
 bool object_info_out(const object_type* o_ptr)
@@ -881,6 +1009,8 @@ bool object_info_out(const object_type* o_ptr)
     if (describe_polearmness(ff3))
         something = true;
     if (describe_archery(o_ptr))
+        something = true;
+    if (describe_weapon_damage(o_ptr))
         something = true;
 
     /* We are done. */

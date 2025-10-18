@@ -4711,8 +4711,8 @@ void do_cmd_fire(int quiver)
                     if (net_dam < 0)
                         net_dam = 0;
 
-                    update_combat_rolls2(total_dd, total_ds, dam, r_ptr->pd,
-                        r_ptr->ps, prt, prt_percent, GF_HURT, false);
+                    update_combat_rolls2(total_dd, total_ds, dam, armor_dice,
+                        armor_sides, prt, prt_percent, GF_HURT, false);
 
                     // hit the monster, check for death
                     p_ptr->killed_enemy_with_arrow = mon_take_hit(
@@ -5657,7 +5657,7 @@ void do_cmd_throw(bool automatic)
                     net_dam = 0;
 
                 update_combat_rolls2(i_ptr->dd + total_bonus_dice, total_ds,
-                    dam, r_ptr->pd, r_ptr->ps, prt, prt_percent, GF_HURT,
+                    dam, armor_dice, armor_sides, prt, prt_percent, GF_HURT,
                     false);
 
                 /* Hit the monster, unless a potion effect has already been done
