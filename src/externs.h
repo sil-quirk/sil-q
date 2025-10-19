@@ -193,6 +193,7 @@ extern ego_item_type* e_info;
 extern char* e_name;
 extern char* e_text;
 extern monster_race* r_info;
+extern monster_race* r_base;
 extern char* r_name;
 extern char* r_text;
 extern player_race* p_info;

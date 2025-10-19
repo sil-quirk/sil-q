@@ -1840,6 +1840,7 @@ void init_angband(void)
     int mode = 0644;
 
     char buf[1024];
+    int i;
 
     /*** Display the introduction ***/
 
@@ -1946,6 +1947,16 @@ void init_angband(void)
     note("[Initializing arrays... (monsters)]");
     if (init_r_info())
         quit("Cannot initialize monsters");
+
+    /* Snapshot monster base stats for runtime overrides */
+    if (!r_base)
+    {
+        C_MAKE(r_base, z_info->r_max, monster_race);
+    }
+    for (i = 0; i < z_info->r_max; i++)
+    {
+        r_base[i] = r_info[i];
+    }
 
     /* Initialize feature info */
     note("[Initializing arrays... (vaults)]");

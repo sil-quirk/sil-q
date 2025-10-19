@@ -61,7 +61,7 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 0
-#define VERSION_EXTRA 2  /* Progressive scoring + reserved_runtime[32] expansion */
+#define VERSION_EXTRA 3  /* Monster runtime stat persistence + reserved_runtime[32] expansion */
 
 /*
  * Oldest version number that can still be imported

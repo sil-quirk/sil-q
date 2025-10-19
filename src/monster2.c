@@ -1210,6 +1210,38 @@ int monster_skill(monster_type* m_ptr, int skill_type)
     if (m_ptr->stunned)
         skill -= 2;
 
+    if (singing(SNG_CHALLENGE) && (skill_type == S_STL || skill_type == S_PER))
+    {
+        int penalty = ability_bonus(S_SNG, SNG_CHALLENGE) / 12;
+        if (penalty < 1)
+            penalty = 1;
+        if (penalty > 0)
+        {
+            int before = skill;
+            skill -= penalty;
+            log_debug(
+                "Song of Challenge penalty applied (r_idx=%d skill=%d -> %d, "
+                "delta=%d)",
+                (int)m_ptr->r_idx, before, skill, penalty);
+        }
+    }
+
+    if (singing(SNG_ELBERETH) && skill_type == S_WIL)
+    {
+        int penalty = ability_bonus(S_SNG, SNG_ELBERETH) / 12;
+        if (penalty < 1)
+            penalty = 1;
+        if (penalty > 0)
+        {
+            int before = skill;
+            skill -= penalty;
+            log_debug(
+                "Song of Elbereth penalty applied (r_idx=%d skill=%d -> %d, "
+                "delta=%d)",
+                (int)m_ptr->r_idx, before, skill, penalty);
+        }
+    }
+
     return (skill);
 }
 

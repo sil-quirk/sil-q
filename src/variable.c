@@ -549,6 +549,7 @@ char* e_text;
  * The monster race arrays
  */
 monster_race* r_info;
+monster_race* r_base;
 char* r_name;
 char* r_text;
 

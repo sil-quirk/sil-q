@@ -44,3 +44,12 @@ Score (highest first)                      Layout: Short
 - `V` = Morgoth slain
 
 **Build Status:** ✅ Successful
+
+### 2025-03-19 - Monster runtime stat persistence groundwork
+- Bumped VERSION_EXTRA to 3 so the new overrides block loads only on compatible saves.
+- Snapshot pristine monster race data into new r_base during init_angband() for baseline comparisons.
+- Save pipeline writes per-race runtime stat overrides (stats, blows, flags, visuals) when they diverge from base; loader reapplies them for sf_extra >= 3 else restores base defaults.
+
+- Songs updated: Song of Challenge now applies a small Perception/Stealth penalty and Song of Elbereth shaves Will via monster_skill for on-the-fly reactions.
+- Fixed Song debuff build issue by referencing the correct skill_type parameter before re-running CMake build (now clean).
+- Added log_debug traces in monster_skill to confirm Song of Challenge/Elbereth penalties at runtime.

@@ -646,6 +646,114 @@ static void rd_lore(int r_idx)
     l_ptr->flags4 &= r_ptr->flags4;
 }
 
+static void rd_monster_race_stats(monster_race* r_ptr)
+{
+    byte tmp8u;
+    s16b tmp16s;
+    u32b tmp32u;
+
+    rd_byte(&tmp8u);
+    r_ptr->hdice = tmp8u;
+    rd_byte(&tmp8u);
+    r_ptr->hside = tmp8u;
+    rd_s16b(&tmp16s);
+    r_ptr->evn = tmp16s;
+    rd_byte(&tmp8u);
+    r_ptr->pd = tmp8u;
+    rd_byte(&tmp8u);
+    r_ptr->ps = tmp8u;
+    rd_byte(&tmp8u);
+    r_ptr->speed = tmp8u;
+    rd_s16b(&tmp16s);
+    r_ptr->light = tmp16s;
+    rd_s16b(&tmp16s);
+    r_ptr->sleep = tmp16s;
+    rd_s16b(&tmp16s);
+    r_ptr->per = tmp16s;
+    rd_s16b(&tmp16s);
+    r_ptr->stl = tmp16s;
+    rd_s16b(&tmp16s);
+    r_ptr->wil = tmp16s;
+    rd_s16b(&tmp16s);
+    r_ptr->extra = tmp16s;
+    rd_byte(&tmp8u);
+    r_ptr->freq_ranged = tmp8u;
+    rd_byte(&tmp8u);
+    r_ptr->spell_power = tmp8u;
+    rd_u32b(&tmp32u);
+    r_ptr->mon_power = tmp32u;
+#ifdef ALLOW_DATA_DUMP
+    rd_u32b(&tmp32u);
+    r_ptr->mon_eval_hp = tmp32u;
+    rd_u32b(&tmp32u);
+    r_ptr->mon_eval_dam = tmp32u;
+#endif
+    rd_u32b(&tmp32u);
+    r_ptr->flags1 = tmp32u;
+    rd_u32b(&tmp32u);
+    r_ptr->flags2 = tmp32u;
+    rd_u32b(&tmp32u);
+    r_ptr->flags3 = tmp32u;
+    rd_u32b(&tmp32u);
+    r_ptr->flags4 = tmp32u;
+
+    for (int i = 0; i < MONSTER_BLOW_MAX; i++)
+    {
+        rd_byte(&tmp8u);
+        r_ptr->blow[i].method = tmp8u;
+        rd_byte(&tmp8u);
+        r_ptr->blow[i].effect = tmp8u;
+        rd_s16b(&tmp16s);
+        r_ptr->blow[i].att = tmp16s;
+        rd_byte(&tmp8u);
+        r_ptr->blow[i].dd = tmp8u;
+        rd_byte(&tmp8u);
+        r_ptr->blow[i].ds = tmp8u;
+    }
+
+    rd_byte(&tmp8u);
+    r_ptr->level = tmp8u;
+    rd_byte(&tmp8u);
+    r_ptr->rarity = tmp8u;
+    rd_byte(&tmp8u);
+    r_ptr->d_attr = tmp8u;
+    rd_byte(&tmp8u);
+    r_ptr->d_char = (char)tmp8u;
+    rd_byte(&tmp8u);
+    r_ptr->x_attr = tmp8u;
+    rd_byte(&tmp8u);
+    r_ptr->x_char = (char)tmp8u;
+}
+
+static void rd_monster_runtime_overrides(void)
+{
+    u16b count = 0;
+
+    rd_u16b(&count);
+
+    if (!count)
+        return;
+
+    log_debug("Loading %u monster race runtime overrides", (unsigned)count);
+
+    for (u16b n = 0; n < count; n++)
+    {
+        u16b r_idx = 0;
+        rd_u16b(&r_idx);
+
+        if (r_idx >= z_info->r_max)
+        {
+            log_error("Invalid monster race index %u in override block (max %u)", (unsigned)r_idx, (unsigned)z_info->r_max);
+            /* Continue but consume the data to keep stream aligned */
+            monster_race scratch;
+            memset(&scratch, 0, sizeof(scratch));
+            rd_monster_race_stats(&scratch);
+            continue;
+        }
+
+        rd_monster_race_stats(&r_info[r_idx]);
+    }
+}
 /*
  * Read RNG state
  */
@@ -2027,6 +2135,18 @@ static errr rd_savefile_new_aux(void)
     {
         /* Read the lore */
         rd_lore(i);
+    }
+    if (sf_extra >= 3)
+    {
+        rd_monster_runtime_overrides();
+    }
+    else if (r_base)
+    {
+        /* Ensure legacy saves revert any prior runtime overrides */
+        for (int r = 0; r < z_info->r_max; r++)
+        {
+            r_info[r] = r_base[r];
+        }
     }
     if (arg_fiddle)
         note("Loaded Monster Memory");
