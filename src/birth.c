@@ -2069,6 +2069,48 @@ static NavResult player_birth_aux_2(void)
     /* Determine experience and things */
     get_extra();
 
+    /* Show tutorial for first-time players (when scorefile is empty) */
+    /* Do this AFTER get_extra() so character has stats/abilities to display */
+    /* Check every time - show tutorial for every new character if scores file is empty */
+    log_debug("Checking if tutorial should be shown...");
+    bool is_empty = highscore_is_empty();
+    log_debug("highscore_is_empty() returned: %s", is_empty ? "true" : "false");
+    
+    if (is_empty)
+    {
+        log_info("First-time player detected - showing character screen tutorial");
+        
+        /* Initialize character stats for display - same as first iteration of stats loop */
+        for (i = 0; i < A_MAX; i++)
+        {
+            /* Obtain bonuses for race/house */
+            int bonus = rp_ptr->r_adj[i] + hp_ptr->h_adj[i] + curses_stat_adj(i);
+            
+            /* Set base stats (0 + racial/house bonuses) */
+            p_ptr->stat_base[i] = stats[i] + bonus;
+            p_ptr->stat_drain[i] = 0;
+        }
+        
+        /* Calculate bonuses and hitpoints */
+        p_ptr->update |= (PU_BONUS | PU_HP);
+        update_stuff();
+        
+        /* Fully healed */
+        p_ptr->chp = p_ptr->mhp;
+        
+        /* Fully rested */
+        calc_voice();
+        p_ptr->csp = p_ptr->msp;
+        
+        /* Now show the tutorial with a realistic character sheet */
+        display_character_tutorial();
+        log_info("Character screen tutorial completed");
+    }
+    else
+    {
+        log_info("Not showing tutorial - scores file has entries");
+    }
+
     log_trace("Starting stats allocation interface");
 
     /* Interact */
@@ -2483,7 +2525,7 @@ static NavResult player_birth_aux(void)
     p_ptr->ht = 0;
     p_ptr->age = 0;
 
-    /* Oath selection (after character creation, before stats) */
+    /* Oath selection (after character creation, before tutorial/stats) */
     log_debug("Entering oath selection");
     NavResult oath_result = select_oath();
     if (oath_result != NAV_OK) return oath_result;
@@ -2591,13 +2633,6 @@ NavResult player_birth()
     metarun_load_persistent_settings();
 
     log_info("Character creation completed: %s the %s", op_ptr->full_name, p_name + rp_ptr->name);
-
-    /* Show tutorial for first-time players (when scorefile is empty) */
-    if (highscore_count() == 0)
-    {
-        log_info("First character created - showing character tutorial");
-        display_character_tutorial();
-    }
 
     return NAV_OK;
 }

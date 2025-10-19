@@ -643,7 +643,7 @@ extern void atomonth(int number, char* output);
 extern void display_single_score(
     byte attr, int row, int col, int place, int fake, high_score* the_score);
 extern int highscore_dead(char* name);
-extern int highscore_count();
+extern bool highscore_is_empty();
 extern void display_scores(int from, int to);
 extern void display_scores_short(int from, int to);
 extern int collect_high_scores(high_score* out, int capacity, bool sort_by_score);

@@ -5605,120 +5605,141 @@ static void truncate_preserving_tail(const char* src, char* dst, size_t dst_size
 static void display_single_score_short(byte attr, int place, int row, const high_score* entry)
 {
     char depth_commas[16];
-    char verdict_buf[80];
+    char verdict_buf[96];
     const char* verdict;
+    int wid, hgt;
+
+    /* Get actual terminal width */
+    Term_get_size(&wid, &hgt);
+    const int line_width = MAX(80, wid);
 
     int depth_ft = atoi(entry->cur_dun) * 50;
     comma_number(depth_commas, depth_ft);
 
+    int pts = score_points(entry);
+    int silmarils = parse_score_int(entry->silmarils, sizeof(entry->silmarils), 0);
+    bool morgoth = (entry->morgoth_slain[0] == 't');
+
+    /* Build indicators string */
+    char indicators[8] = "";
+    int ind_pos = 0;
+    
+    /* Add Silmaril indicators */
+    for (int i = 0; i < silmarils && i < 3; i++) {
+        indicators[ind_pos++] = '*';
+    }
+    
+    /* Add Morgoth indicator */
+    if (morgoth) {
+        indicators[ind_pos++] = 'V';
+    }
+    indicators[ind_pos] = '\0';
+
+    /* Build verdict with appropriate formatting */
     if (entry->escaped[0] == 't') {
-        verdict = "Escaped Angband";
+        if (indicators[0]) {
+            strnfmt(verdict_buf, sizeof(verdict_buf), "Escaped with %s", indicators);
+        } else {
+            strnfmt(verdict_buf, sizeof(verdict_buf), "Escaped Angband");
+        }
+        verdict = verdict_buf;
     } else if (streq(entry->how, "(alive and well)")) {
         verdict = "Alive";
     } else {
-        strnfmt(verdict_buf, sizeof(verdict_buf), "Slain by %s", entry->how);
+        /* For deaths, include depth and indicators - keep ft visible */
+        if (indicators[0]) {
+            strnfmt(verdict_buf, sizeof(verdict_buf), "Slain by %s at %sft %s", 
+                    entry->how, depth_commas, indicators);
+        } else {
+            strnfmt(verdict_buf, sizeof(verdict_buf), "Slain by %s at %sft", 
+                    entry->how, depth_commas);
+        }
         verdict = verdict_buf;
     }
 
-    int pts = score_points(entry);
-
-    char prefix[32];
-    strnfmt(prefix, sizeof(prefix), "%2d. %5s ft ", place, depth_commas);
-
-    char points_buf[32];
-    strnfmt(points_buf, sizeof(points_buf), "[%d pts]", pts);
-
-    const int line_width = 80;
-    int prefix_len = (int)strlen(prefix);
-    int points_len = (int)strlen(points_buf);
-    if (prefix_len > line_width) prefix_len = line_width;
-    if (points_len > line_width) points_len = line_width;
-
     const char* name_src = entry->who[0] ? entry->who : "(unknown)";
-    int available = line_width - prefix_len - points_len - 2;
-    if (available < 0) available = 0;
 
-    int name_len = (int)strlen(name_src);
-    int verdict_len = (int)strlen(verdict);
+    /* Column layout with maximum verdict display:
+     * "1. Maedhros   777  Slain by a Young fire-drake at 800ft with indicators"
+     *  ^^^ ^^^^^^^^ ^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     *  Pl  Name(12) Scr  Verdict (uses all remaining terminal width)
+     */
+    const int place_width = 4;      /* "1. " */
+    const int name_width = 15;      /* Fixed minimum name column */
+    const int score_width = 5;      /* Right-aligned score */
+    const int gap = 2;              /* Spaces between score and verdict */
+    
+    /* Verdict gets all remaining space on the line, minus 1 for cleaner right margin */
+    int verdict_start = place_width + name_width + score_width + gap;
+    int verdict_width = line_width - verdict_start - 1;  /* -1 for right margin */
+    if (verdict_width < 1) verdict_width = 1;
 
-    int name_min = MIN(name_len, 8);
-    if (name_min < 4) name_min = MIN(name_len, 4);
-    int name_ideal = MIN(name_len, 18);
-
-    int verdict_min = MIN(verdict_len, 16);
-    if (verdict_min < 12) verdict_min = MIN(verdict_len, 12);
-
-    int name_width = MIN(name_ideal, available);
-    if (name_width < MIN(available, name_min))
-        name_width = MIN(available, name_min);
-    int verdict_width = available - name_width;
-    if (verdict_width < 0) verdict_width = 0;
-
-    int deficit = verdict_min - verdict_width;
-    if (deficit > 0)
-    {
-        int reducible = name_width - name_min;
-        if (reducible < 0) reducible = 0;
-        int transfer = MIN(deficit, reducible);
-        name_width -= transfer;
-        verdict_width += transfer;
-    }
-
-    if (name_width < 0) name_width = 0;
-    if (verdict_width < 0) verdict_width = 0;
-
-    char name_field[64];
-    char verdict_field[96];
-    truncate_preserving_words(name_src, name_field, sizeof(name_field), name_width);
-    truncate_preserving_tail(verdict, verdict_field, sizeof(verdict_field), verdict_width);
-
-    int name_render_len = (int)strlen(name_field);
-    if (name_width > 0 && name_render_len > name_width)
-        name_render_len = name_width;
-
-    int verdict_render_len = (int)strlen(verdict_field);
-    if (verdict_width > 0 && verdict_render_len > verdict_width)
-        verdict_render_len = verdict_width;
-
-    char line[line_width + 1];
-    for (int i = 0; i < line_width; i++) line[i] = ' ';
-    line[line_width] = '\0';
-
+    /* Build the line */
+    char line[256];
+    for (size_t i = 0; i < sizeof(line); i++) line[i] = ' ';
+    
     int pos = 0;
-    if (prefix_len > 0)
-    {
-        int copy = MIN(prefix_len, line_width - pos);
-        memcpy(line + pos, prefix, copy);
-        pos += copy;
+    
+    /* Place number: "1. " */
+    char place_buf[8];
+    strnfmt(place_buf, sizeof(place_buf), "%2d. ", place);
+    memcpy(line + pos, place_buf, strlen(place_buf));
+    pos = place_width;  /* Jump to fixed position */
+    
+    /* Name field: left-aligned in 20-char column */
+    char name_field[64];
+    truncate_preserving_words(name_src, name_field, sizeof(name_field), name_width);
+    int name_len = (int)strlen(name_field);
+    if (name_len > name_width) name_len = name_width;
+    memcpy(line + pos, name_field, name_len);
+    pos = place_width + name_width;  /* Jump to fixed position */
+    
+    /* Score field: right-aligned in 5-char column */
+    char score_buf[16];
+    strnfmt(score_buf, sizeof(score_buf), "%d", pts);
+    int score_len = (int)strlen(score_buf);
+    if (score_len > score_width) {
+        /* Truncate from left if too long */
+        memcpy(line + pos + score_width - score_len, score_buf + (score_len - score_width), score_width);
+    } else {
+        memcpy(line + pos + score_width - score_len, score_buf, score_len);
     }
-
-    if (name_render_len > 0 && pos < line_width)
-    {
-        int copy = MIN(name_render_len, line_width - pos);
-        memcpy(line + pos, name_field, copy);
-        pos += copy;
+    pos = place_width + name_width + score_width + gap;  /* Jump past score + gap */
+    
+    /* Verdict field: keep "at XXft" visible at end if truncating needed */
+    const char* verdict_str = verdict;
+    int verdict_len = (int)strlen(verdict_str);
+    
+    if (verdict_len > verdict_width) {
+        /* Find the " at " part which contains the depth info - keep it visible */
+        const char* at_pos = strstr(verdict_str, " at ");
+        if (at_pos) {
+            int at_offset = (int)(at_pos - verdict_str);
+            int tail_len = verdict_len - at_offset;  /* Length from " at " onward */
+            
+            if (tail_len < verdict_width) {
+                /* We can fit the tail, so truncate the beginning */
+                int prefix_len = verdict_width - tail_len;
+                memcpy(line + pos, verdict_str, prefix_len);
+                memcpy(line + pos + prefix_len, at_pos, tail_len);
+                pos += verdict_width;
+            } else {
+                /* Even the tail is too long, just show what fits starting from beginning */
+                memcpy(line + pos, verdict_str, verdict_width);
+                pos += verdict_width;
+            }
+        } else {
+            /* No " at " found, just show beginning of verdict */
+            memcpy(line + pos, verdict_str, verdict_width);
+            pos += verdict_width;
+        }
+    } else {
+        /* Verdict fits completely */
+        memcpy(line + pos, verdict_str, verdict_len);
+        pos += verdict_len;
     }
-
-    int pad_target = prefix_len + name_width;
-    if (pad_target > line_width) pad_target = line_width;
-    while (pos < pad_target) line[pos++] = ' ';
-    if (pos < line_width) line[pos++] = ' ';
-
-    if (points_len > 0 && pos < line_width)
-    {
-        int copy = MIN(points_len, line_width - pos);
-        memcpy(line + pos, points_buf, copy);
-        pos += copy;
-    }
-
-    if (pos < line_width) line[pos++] = ' ';
-
-    if (verdict_render_len > 0 && pos < line_width)
-    {
-        int copy = MIN(verdict_render_len, line_width - pos);
-        memcpy(line + pos, verdict_field, copy);
-        pos += copy;
-    }
+    
+    line[pos] = '\0';
 
     c_put_str(attr, line, 3 + row, 0);
 }
@@ -5759,7 +5780,7 @@ static char display_scores_pages(const high_score* entries, int count, int highl
         c_put_str(TERM_L_BLUE, "               Halls of Mandos", 1, 0);
 
         char order_buf[64];
-        strnfmt(order_buf, sizeof(order_buf), "Order: %s", score_view_order_label(order));
+        strnfmt(order_buf, sizeof(order_buf), "%s", score_view_order_label(order));
         c_put_str(TERM_L_WHITE, order_buf, 2, 0);
 
         char layout_buf[32];
@@ -5855,35 +5876,52 @@ extern int highscore_dead(char* name)
     return 0; /* not found => treat as alive */
 }
 
-// Count the number of silmarils delivered
 
-extern int highscore_count()
+/*
+ * Check if the scores file is empty (no entries)
+ * Used to determine if this is a first-time player
+ * Returns true if file is empty or doesn't exist, false otherwise
+ */
+extern bool highscore_is_empty()
 {
-    int count; 
-    int silm = 0; 
-    int morg = 0;
-    high_score the_score;
-
-    /* Paranoia -- it may not have opened */
-    if (!highscore_fd)
-        return 0;
-
-    /* Seek to the beginning */
-    if (highscore_seek(0)) 
-        return 0;
-
-    for (count = 0; count < MAX_HISCORES; count++)
-    {
-        if (highscore_read(&the_score))
-            break;
-        else {
-            if (the_score.escaped[0] == 't') {
-                silm+=atoi(the_score.silmarils);
-                if (the_score.morgoth_slain[0] == 't') morg++;
-            }
+    bool opened_here = false;
+    
+    /* Open the file on-demand (read-only) */
+    if (!highscore_fd) {
+        char buf[1024];
+        path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+        safe_setuid_grab();
+        highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
+        safe_setuid_drop();
+        if (!highscore_fd) {
+            log_debug("highscore_is_empty: cannot open scores file, treating as empty");
+            return true; /* File doesn't exist = empty = first time */
         }
+        opened_here = true;
     }
-    return (silm);
+    
+    /* Check versioned file entry count */
+    if (scores_file_is_versioned) {
+        bool is_empty = (scores_file_entry_count == 0);
+        if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
+        log_debug("highscore_is_empty: versioned file, entry_count=%u, returning %s", 
+                  scores_file_entry_count, is_empty ? "true" : "false");
+        return is_empty;
+    }
+    
+    /* For legacy files, try to read first entry */
+    if (highscore_seek(0)) {
+        if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
+        log_debug("highscore_is_empty: seek failed, treating as empty");
+        return true;
+    }
+    
+    high_score the_score;
+    bool is_empty = (highscore_read(&the_score) != 0); /* EOF on first read = empty */
+    
+    if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
+    log_debug("highscore_is_empty: legacy file, returning %s", is_empty ? "true" : "false");
+    return is_empty;
 }
 
 /*

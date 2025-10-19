@@ -81,7 +81,7 @@ M:L:310
 M:O:512
 
 # Number of Runtypes
-M:Y:5
+M:Y:4
 
 # Number of Styles (visual themes)
 M:Z:62
