@@ -61,7 +61,9 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 0
-#define VERSION_EXTRA 3  /* Monster runtime stat persistence + reserved_runtime[32] expansion */
+#define VERSION_EXTRA 4  /* Song of Shattering monster-side persistence */
+/* Update MIN_VERSION_EXTRA and load.c compatibility checks whenever the savefile format changes. */
+#define MIN_VERSION_EXTRA 1  /* Minimum extra value expected for CURRENT version */
 
 /*
  * Oldest version number that can still be imported
@@ -588,12 +590,13 @@
 #define SNG_STAUNCHING 5
 #define SNG_THRESHOLDS 6
 #define SNG_TREES 7
-#define SNG_SLAYING 8
-#define SNG_STAYING 9
-#define SNG_LORIEN 10
-#define SNG_MASTERY 11
-#define SNG_WOVEN_THEMES 12
-#define SNG_GRA 13
+#define SNG_WOVEN_THEMES 8
+#define SNG_SLAYING 9
+#define SNG_STAYING 10
+#define SNG_LORIEN 11
+#define SNG_SHATTERING 12
+#define SNG_MASTERY 13
+#define SNG_GRA 14
 
 #define SNG_BINDING 50 /* monster songs */
 #define SNG_PIERCING 51 /* monster songs */
@@ -1781,6 +1784,7 @@
 #define INSCRIP_EXCELLENT 100 + 8
 #define INSCRIP_SPECIAL 100 + 9
 #define INSCRIP_UNCURSED 100 + 10
+#define INSCRIP_INDESTRUCTIBLE 100 + 11
 
 /*
  * Number of special inscriptions, plus one.
@@ -2328,13 +2332,13 @@
 #define RF3_WOLF 0x00000080 /* Wolf */
 #define RF3_MAN 0x00000100 /* Man */
 #define RF3_ELF 0x00000200 /* Elf */
-#define RF3_RF3XXX3 0x00000400 /* Non-Vocal (?) */
+#define RF3_HAS_WEAPON 0x00000400 /* Fights with forged weapons */
 #define RF3_RF3XXX4 0x00000800 /* Non-Living (?) */
 #define RF3_HURT_LITE 0x00001000 /* Hurt by lite */
 #define RF3_STONE 0x00002000 /* Made of stone */
 #define RF3_HURT_FIRE 0x00004000 /* Hurt badly by fire */
 #define RF3_HURT_COLD 0x00008000 /* Hurt badly by cold */
-#define RF3_RF3XXX5 0x00010000 /* (?) */
+#define RF3_HAS_ARMOUR 0x00010000 /* Wears substantial armour */
 #define RF3_RES_ELEC 0x00020000 /* Resist elec */
 #define RF3_RES_FIRE 0x00040000 /* Resist fire */
 #define RF3_RES_COLD 0x00080000 /* Resist cold */

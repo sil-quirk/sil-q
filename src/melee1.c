@@ -597,6 +597,14 @@ bool make_attack_normal(monster_type* m_ptr)
         int att = r_ptr->blow[b].att;
         int dd = r_ptr->blow[b].dd;
         int ds = r_ptr->blow[b].ds;
+        int ds_reduction = m_ptr->blow_ds_reduction[b];
+        if (ds > 0 && ds_reduction > 0)
+        {
+            if (ds_reduction >= ds)
+                ds = 1;
+            else
+                ds = MAX(1, ds - ds_reduction);
+        }
 
         /* Hack -- no more attacks */
         // if (!method) break;  // Sil-y: not needed as this is no longer a loop

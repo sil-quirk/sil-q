@@ -1070,6 +1070,9 @@ void acid_dam(int dam, cptr kb_str)
 
     /* Inventory damage */
     inven_damage(set_acid_destroy, inv, 1);
+
+    /* Supply damage */
+    supplies_damage(set_acid_destroy, inv, 1);
 }
 
 /*
@@ -1088,6 +1091,9 @@ void elec_dam(int dam, cptr kb_str)
 
     /* Inventory damage */
     inven_damage(set_elec_destroy, inv, 1);
+
+    /* Supply damage */
+    supplies_damage(set_elec_destroy, inv, 1);
 }
 
 /*
@@ -1172,6 +1178,9 @@ void fire_dam_mixed(int dam, cptr kb_str)
     /* Inventory damage */
     inven_damage(set_fire_destroy, inv, resist_fire());
 
+    /* Supply damage */
+    supplies_damage(set_fire_destroy, inv, resist_fire());
+
     // possibly identify relevant items
     ident_resist(TR2_RES_FIRE);
 }
@@ -1211,6 +1220,9 @@ void fire_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
     /* Inventory damage */
     inven_damage(set_fire_destroy, inv, resistance);
 
+    /* Supply damage */
+    supplies_damage(set_fire_destroy, inv, resistance);
+
     // possibly identify relevant items
     ident_resist(TR2_RES_FIRE);
 }
@@ -1231,6 +1243,9 @@ void cold_dam_mixed(int dam, cptr kb_str)
 
     /* Inventory damage */
     inven_damage(set_cold_destroy, inv, resist_cold());
+
+    /* Supply damage */
+    supplies_damage(set_cold_destroy, inv, resist_cold());
 
     // possibly identify relevant items
     ident_resist(TR2_RES_COLD);
@@ -1270,6 +1285,9 @@ void cold_dam_pure(int dd, int ds, bool update_rolls, cptr kb_str)
 
     /* Inventory damage */
     inven_damage(set_cold_destroy, inv, resistance);
+
+    /* Supply damage */
+    supplies_damage(set_cold_destroy, inv, resistance);
 
     // possibly identify relevant items
     ident_resist(TR2_RES_COLD);
@@ -5609,6 +5627,184 @@ void sing_song_of_delvings(int score)
     FREE(delvings);
 }
 
+static bool object_is_monster_weapon(const object_type* o_ptr)
+{
+    switch (o_ptr->tval)
+    {
+    case TV_HAFTED:
+    case TV_POLEARM:
+    case TV_SWORD:
+    case TV_DIGGING:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool object_is_monster_armour(const object_type* o_ptr)
+{
+    switch (o_ptr->tval)
+    {
+    case TV_BOOTS:
+    case TV_GLOVES:
+    case TV_HELM:
+    case TV_CROWN:
+    case TV_SHIELD:
+    case TV_CLOAK:
+    case TV_SOFT_ARMOR:
+    case TV_MAIL:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static void find_monster_equipment(
+    monster_type* m_ptr, object_type** weapon, object_type** armour)
+{
+    s16b this_o_idx;
+
+    *weapon = NULL;
+    *armour = NULL;
+
+    for (this_o_idx = m_ptr->hold_o_idx; this_o_idx;
+         this_o_idx = o_list[this_o_idx].next_o_idx)
+    {
+        object_type* o_ptr = &o_list[this_o_idx];
+
+        if (!*weapon && object_is_monster_weapon(o_ptr))
+            *weapon = o_ptr;
+
+        if (!*armour && object_is_monster_armour(o_ptr))
+            *armour = o_ptr;
+
+        if (*weapon && *armour)
+            break;
+    }
+}
+
+static bool object_is_indestructible(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (artefact_p(o_ptr))
+        return true;
+
+    if (o_ptr->discount == INSCRIP_INDESTRUCTIBLE)
+        return true;
+
+    return false;
+}
+
+static bool object_is_weapon(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return false;
+    return object_is_monster_weapon(o_ptr);
+}
+
+static bool object_is_armour(const object_type* o_ptr)
+{
+    if (!o_ptr)
+        return false;
+    return object_is_monster_armour(o_ptr);
+}
+
+static bool object_can_be_shattered(const object_type* o_ptr)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (object_is_indestructible(o_ptr))
+        return false;
+
+    object_kind* k_ptr = &k_info[o_ptr->k_idx];
+
+    if (k_ptr->flags3 & TR3_IGNORE_ALL)
+        return false;
+
+    return true;
+}
+
+static int base_weapon_ds(const object_type* o_ptr)
+{
+    int base = k_info[o_ptr->k_idx].ds;
+
+    if (o_ptr->name1)
+    {
+        artefact_type* a_ptr = &a_info[o_ptr->name1];
+        if (a_ptr->ds > 0)
+            base = a_ptr->ds;
+    }
+
+    return base;
+}
+
+static int base_armour_ps(const object_type* o_ptr)
+{
+    int base = k_info[o_ptr->k_idx].ps;
+
+    if (o_ptr->name1)
+    {
+        artefact_type* a_ptr = &a_info[o_ptr->name1];
+        if (a_ptr->ps > 0)
+            base = a_ptr->ps;
+    }
+
+    return base;
+}
+
+static bool shatter_weapon_object(object_type* o_ptr, int amount)
+{
+    if (!object_is_weapon(o_ptr))
+        return false;
+
+    if (!object_can_be_shattered(o_ptr))
+        return false;
+
+    int base = base_weapon_ds(o_ptr);
+
+    if (o_ptr->ds <= base)
+        return false;
+
+    int new_ds = MAX(base, o_ptr->ds - amount);
+
+    if (new_ds < o_ptr->ds)
+    {
+        o_ptr->ds = (byte)new_ds;
+        return true;
+    }
+
+    return false;
+}
+
+static bool shatter_armour_object(object_type* o_ptr, int amount)
+{
+    if (!object_is_armour(o_ptr))
+        return false;
+
+    if (!object_can_be_shattered(o_ptr))
+        return false;
+
+    int base = base_armour_ps(o_ptr);
+
+    if (o_ptr->ps <= base)
+        return false;
+
+    int new_ps = MAX(base, o_ptr->ps - amount);
+
+    if (new_ps < o_ptr->ps)
+    {
+        o_ptr->ps = (byte)new_ps;
+        return true;
+    }
+
+    return false;
+}
+
+static void shatter_floor_items(int score);
+
 void sing_song_of_elbereth(int score)
 {
     int i;
@@ -5706,6 +5902,196 @@ void sing_song_of_lorien(int score)
     }
 }
 
+void sing_song_of_shattering(int score)
+{
+    int i;
+
+    /* Scan all other monsters */
+    for (i = mon_max - 1; i >= 1; i--)
+    {
+        monster_type* m_ptr = &mon_list[i];
+        monster_race* r_ptr = &r_info[m_ptr->r_idx];
+        object_type* weapon;
+        object_type* armour;
+        int resistance;
+        int result;
+        bool weapon_possible = false;
+        bool armour_possible = false;
+        int weapon_blow = -1;
+        int best_ds = 0;
+
+        /* Ignore dead monsters */
+        if (!m_ptr->r_idx)
+            continue;
+
+        bool has_weapon_flag = (r_ptr->flags3 & RF3_HAS_WEAPON) != 0;
+        bool has_armour_flag = (r_ptr->flags3 & RF3_HAS_ARMOUR) != 0;
+
+        if (!has_weapon_flag && !has_armour_flag)
+            continue;
+
+        /* Identify items carried by the monster (for secondary effects) */
+        find_monster_equipment(m_ptr, &weapon, &armour);
+
+        /* Determine resistance, scaling with distance */
+        resistance = monster_skill(m_ptr, S_WIL);
+        resistance += flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx);
+
+        result = skill_check(PLAYER, score, resistance, m_ptr);
+
+        if (result <= 0)
+            continue;
+
+        /* Check for weapon possibility */
+        if (has_weapon_flag)
+        {
+            for (int b = 0; b < MONSTER_BLOW_MAX; b++)
+            {
+                if (!r_ptr->blow[b].method)
+                    break;
+
+                int ds = r_ptr->blow[b].ds;
+                if (ds <= 1)
+                    continue;
+
+                int max_reduction = ds - 1;
+                int current = m_ptr->blow_ds_reduction[b];
+
+                if (current >= max_reduction)
+                    continue;
+
+                if (ds > best_ds)
+                {
+                    best_ds = ds;
+                    weapon_blow = b;
+                }
+            }
+
+            weapon_possible = (weapon_blow != -1);
+        }
+
+        /* Check for armour possibility */
+        if (has_armour_flag && r_ptr->ps > 0)
+        {
+            if (m_ptr->armor_ps_reduction < r_ptr->ps)
+                armour_possible = true;
+        }
+
+        if (!weapon_possible && !armour_possible)
+            continue;
+
+        /* 50/50 chance to target weapon or armour (no fallthrough) */
+        bool target_weapon = weapon_possible
+            && (!armour_possible || one_in_(2));
+
+        if (target_weapon && weapon_possible)
+        {
+            /* Small probability to weaken: score/5 percent */
+            int weaken_chance = score / 5;
+            
+            if (percent_chance(weaken_chance))
+            {
+                /* Reduce by exactly 1 */
+                m_ptr->blow_ds_reduction[weapon_blow] += 1;
+
+                if (weapon)
+                    shatter_weapon_object(weapon, 1);
+
+                if (m_ptr->ml)
+                {
+                    char m_name[80];
+                    monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+                    msg_format("Your song splinters %s's weapon.", m_name);
+                }
+            }
+        }
+        else if (!target_weapon && armour_possible)
+        {
+            /* Small probability to weaken: score/5 percent */
+            int weaken_chance = score / 5;
+            
+            if (percent_chance(weaken_chance))
+            {
+                /* Reduce by exactly 1 */
+                m_ptr->armor_ps_reduction += 1;
+
+                if (armour)
+                    shatter_armour_object(armour, 1);
+
+                if (m_ptr->ml)
+                {
+                    char m_name[80];
+                    monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+                    msg_format("Your song warps %s's armour.", m_name);
+                }
+            }
+        }
+    }
+
+    shatter_floor_items(score);
+}
+
+static void shatter_floor_items(int score)
+{
+    for (int y = 0; y < p_ptr->cur_map_hgt; y++)
+    {
+        for (int x = 0; x < p_ptr->cur_map_wid; x++)
+        {
+            if (!in_bounds_fully(y, x))
+                continue;
+
+            if (!cave_o_idx[y][x])
+                continue;
+
+            int dist = flow_dist(FLOW_PLAYER_NOISE, y, x);
+            if (dist >= FLOW_MAX_DIST)
+                continue;
+
+            int difficulty = 10 + dist;
+            int result = skill_check(PLAYER, score, difficulty, NULL);
+            if (result <= 0)
+                continue;
+
+            s16b this_o_idx = cave_o_idx[y][x];
+
+            while (this_o_idx)
+            {
+                object_type* o_ptr = &o_list[this_o_idx];
+                bool changed = false;
+
+                /* Small probability to weaken: score/5 percent */
+                int weaken_chance = score / 5;
+
+                if (percent_chance(weaken_chance))
+                {
+                    if (object_is_weapon(o_ptr))
+                    {
+                        changed = shatter_weapon_object(o_ptr, 1);
+                    }
+                    else if (object_is_armour(o_ptr))
+                    {
+                        changed = shatter_armour_object(o_ptr, 1);
+                    }
+
+                    if (changed)
+                    {
+                        if (panel_contains(y, x) && player_can_see_bold(y, x))
+                        {
+                            char o_name[80];
+                            object_desc(o_name, sizeof(o_name), o_ptr, false, 0);
+                            msg_format("%s cracks under the shattering song.", o_name);
+                        }
+
+                        lite_spot(y, x);
+                    }
+                }
+
+                this_o_idx = o_ptr->next_o_idx;
+            }
+        }
+    }
+}
+
 void sing(void)
 {
     int type;
@@ -5754,6 +6140,13 @@ void sing(void)
 
             sing_song_of_elbereth(score);
 
+            // Maintain the lingering effect counter while singing
+            // Duration scales with song skill: 15 turns at skill 20
+            // Formula: (skill * 3) / 4
+            int duration = (score * 3) / 4;
+            if (duration < 3) duration = 3; // Minimum 3 turns
+            p_ptr->song_elbereth_effect = duration;
+
             break;
         }
         case SNG_CHALLENGE:
@@ -5762,6 +6155,13 @@ void sing(void)
                 cost += 1;
 
             sing_song_of_challenge(score);
+
+            // Maintain the lingering effect counter while singing
+            // Duration scales with song skill: 15 turns at skill 20
+            // Formula: (skill * 3) / 4
+            int duration = (score * 3) / 4;
+            if (duration < 3) duration = 3; // Minimum 3 turns
+            p_ptr->song_challenge_effect = duration;
 
             break;
         }
@@ -5845,6 +6245,13 @@ void sing(void)
         case SNG_MASTERY:
         {
             cost += 2;
+            break;
+        }
+        case SNG_SHATTERING:
+        {
+            cost += 2;
+
+            sing_song_of_shattering(score);
             break;
         }
         }

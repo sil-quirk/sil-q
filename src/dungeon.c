@@ -2447,6 +2447,18 @@ static void process_player(void)
         (void)set_tmp_per(p_ptr->tmp_per - 1);
     }
 
+    /* Song of Challenge lingering effect */
+    if (p_ptr->song_challenge_effect)
+    {
+        p_ptr->song_challenge_effect -= 1;
+    }
+
+    /* Song of Elbereth lingering effect */
+    if (p_ptr->song_elbereth_effect)
+    {
+        p_ptr->song_elbereth_effect -= 1;
+    }
+
     /* Oppose Fire */
     if (p_ptr->oppose_fire)
     {

@@ -183,6 +183,23 @@ void delete_monster_idx(int i)
 }
 
 /*
+ * Return the monster's base protection sides after permanent reductions.
+ */
+int monster_base_armour_sides(const monster_type* m_ptr)
+{
+    const monster_race* r_ptr = &r_info[m_ptr->r_idx];
+    int base = r_ptr->ps;
+
+    if (base <= 0)
+        return 0;
+
+    if (m_ptr->armor_ps_reduction >= base)
+        return 0;
+
+    return base - m_ptr->armor_ps_reduction;
+}
+
+/*
  * Delete the monster, if any, at a given location
  */
 void delete_monster(int y, int x)
@@ -1210,35 +1227,60 @@ int monster_skill(monster_type* m_ptr, int skill_type)
     if (m_ptr->stunned)
         skill -= 2;
 
-    if (singing(SNG_CHALLENGE) && (skill_type == S_STL || skill_type == S_PER))
+    // Song of Challenge debuff - applies while singing or for some time after
+    // NOTE: Challenge now reduces monster Will (S_WIL) in addition to Stealth
+    if (p_ptr->song_challenge_effect > 0 && (skill_type == S_STL || skill_type == S_WIL))
     {
-        int penalty = ability_bonus(S_SNG, SNG_CHALLENGE) / 12;
-        if (penalty < 1)
-            penalty = 1;
+        // Calculate the full penalty and max duration based on current song skill
+        int song_skill = ability_bonus(S_SNG, SNG_CHALLENGE);
+    int full_penalty = song_skill / 5;
+    if (full_penalty < 1) full_penalty = 1;
+        
+        // Calculate max duration: 15 turns at skill 20, formula: (skill * 3) / 4
+        int max_duration = (song_skill * 3) / 4;
+        if (max_duration < 3) max_duration = 3;
+        
+        // Scale the penalty based on remaining duration
+        int penalty = (full_penalty * p_ptr->song_challenge_effect) / max_duration;
+        if (penalty < 1 && p_ptr->song_challenge_effect > 0) penalty = 1;
+        
         if (penalty > 0)
         {
             int before = skill;
             skill -= penalty;
             log_debug(
                 "Song of Challenge penalty applied (r_idx=%d skill=%d -> %d, "
-                "delta=%d)",
-                (int)m_ptr->r_idx, before, skill, penalty);
+                "delta=%d, effect=%d/%d)",
+                (int)m_ptr->r_idx, before, skill, penalty, 
+                p_ptr->song_challenge_effect, max_duration);
         }
     }
 
-    if (singing(SNG_ELBERETH) && skill_type == S_WIL)
+    // Song of Elbereth debuff - applies while singing or for some time after
+    if (p_ptr->song_elbereth_effect > 0 && skill_type == S_WIL)
     {
-        int penalty = ability_bonus(S_SNG, SNG_ELBERETH) / 12;
-        if (penalty < 1)
-            penalty = 1;
+        // Calculate the full penalty and max duration based on current song skill
+        int song_skill = ability_bonus(S_SNG, SNG_ELBERETH);
+    int full_penalty = song_skill / 5;
+    if (full_penalty < 1) full_penalty = 1;
+        
+        // Calculate max duration: 15 turns at skill 20, formula: (skill * 3) / 4
+        int max_duration = (song_skill * 3) / 4;
+        if (max_duration < 3) max_duration = 3;
+        
+        // Scale the penalty based on remaining duration
+        int penalty = (full_penalty * p_ptr->song_elbereth_effect) / max_duration;
+        if (penalty < 1 && p_ptr->song_elbereth_effect > 0) penalty = 1;
+        
         if (penalty > 0)
         {
             int before = skill;
             skill -= penalty;
             log_debug(
                 "Song of Elbereth penalty applied (r_idx=%d skill=%d -> %d, "
-                "delta=%d)",
-                (int)m_ptr->r_idx, before, skill, penalty);
+                "delta=%d, effect=%d/%d)",
+                (int)m_ptr->r_idx, before, skill, penalty,
+                p_ptr->song_elbereth_effect, max_duration);
         }
     }
 

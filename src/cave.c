@@ -4693,6 +4693,39 @@ void map_area(void)
 }
 
 /*
+ * Map the dungeon within a specific radius from the player
+ */
+void map_area_radius(int radius)
+{
+    int x, y;
+    int py = p_ptr->py;
+    int px = p_ptr->px;
+
+    /* Scan within radius */
+    for (y = 1; y < MAX_DUNGEON_HGT; y++)
+    {
+        for (x = 1; x < MAX_DUNGEON_WID; x++)
+        {
+            /* Check if within radius */
+            if (radius > 0)
+            {
+                int dist = distance(py, px, y, x);
+                if (dist > radius)
+                    continue;
+            }
+
+            map_feature(y, x);
+        }
+    }
+
+    /* Redraw map */
+    p_ptr->redraw |= (PR_MAP);
+
+    /* Window stuff */
+    p_ptr->window |= (PW_OVERHEAD);
+}
+
+/*
  * Light up the dungeon using "clairvoyance"
  *
  * This function "illuminates" every grid in the dungeon, memorizes all

@@ -82,4 +82,7 @@ supply_menu_action supplies_pending_action(void);
 int supplies_pending_group(void);
 bool supplies_pending_hotkey(void);
 
+/* Damage supply items (similar to inven_damage) */
+int supplies_damage(int (*typ)(const struct object_type*), int perc, int resistance);
+
 #endif /* SUPPLIES_H */

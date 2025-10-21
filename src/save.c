@@ -595,9 +595,15 @@ static void wr_monster(const monster_type* m_ptr)
         wr_byte(m_ptr->previous_action[i]);
     }
 
-    // 8 spare bytes
-    wr_u32b(0L);
-    wr_u32b(0L);
+    for (i = 0; i < MONSTER_BLOW_MAX; i++)
+    {
+        wr_byte(m_ptr->blow_ds_reduction[i]);
+    }
+
+    wr_byte(m_ptr->armor_ps_reduction);
+    wr_byte(m_ptr->shatter_padding[0]);
+    wr_byte(m_ptr->shatter_padding[1]);
+    wr_byte(m_ptr->shatter_padding[2]);
 }
 
 /*
@@ -1036,16 +1042,18 @@ static void wr_extra(void)
     wr_s16b(p_ptr->oppose_cold);
     wr_s16b(p_ptr->oppose_pois);
 
+    wr_s16b(p_ptr->song_challenge_effect);
+    wr_s16b(p_ptr->song_elbereth_effect);
+
     wr_byte(p_ptr->stealth_mode);
     wr_byte(p_ptr->self_made_arts);
 
     wr_byte(p_ptr->climbing);
 
-    // 19 spare bytes
+    // 15 spare bytes (was 19, used 4 for song debuff counters)
     wr_byte(0);
     wr_byte(0);
     wr_byte(0);
-    wr_u32b(0L);
     wr_u32b(0L);
     wr_u32b(0L);
     wr_u32b(0L);

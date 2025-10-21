@@ -588,8 +588,12 @@ void show_songs_with_highlight(int highlight)
     char out_desc[24][80];
 
     /* Display the songs */
-    for (k = 0, i = 0; i < SNG_WOVEN_THEMES; i++)
+    for (k = 0, i = 0; i < SNG_GRA; i++)
     {
+        /* Skip Woven Themes (not a singable song) */
+        if (i == SNG_WOVEN_THEMES)
+            continue;
+
         /* Is this song acceptable? */
         if (!p_ptr->active_ability[S_SNG][i])
             continue;
@@ -692,8 +696,12 @@ void do_cmd_change_song()
     log_debug("Player opening song selection menu");
 
     // count the abilities
-    for (i = 0; i < SNG_WOVEN_THEMES; i++)
+    for (i = 0; i < SNG_GRA; i++)
     {
+        /* Skip Woven Themes (not a singable song) */
+        if (i == SNG_WOVEN_THEMES)
+            continue;
+
         // keep track of the number of options and final song
         if (p_ptr->active_ability[S_SNG][i])
         {
@@ -738,8 +746,12 @@ void do_cmd_change_song()
         sprintf(out_val, "Songs: s");
 
         // count the abilities
-        for (i = 0; i < SNG_WOVEN_THEMES; i++)
+        for (i = 0; i < SNG_GRA; i++)
         {
+            /* Skip Woven Themes (not a singable song) */
+            if (i == SNG_WOVEN_THEMES)
+                continue;
+
             // keep track of the number of options
             if (p_ptr->active_ability[S_SNG][i])
             {
@@ -794,8 +806,12 @@ void do_cmd_change_song()
                 {
                     // Find the i-th available song
                     int song_count = 1;
-                    for (i = 0; i < SNG_WOVEN_THEMES; i++)
+                    for (i = 0; i < SNG_GRA; i++)
                     {
+                        /* Skip Woven Themes (not a singable song) */
+                        if (i == SNG_WOVEN_THEMES)
+                            continue;
+
                         if (p_ptr->active_ability[S_SNG][i])
                         {
                             if (song_count == highlight)
@@ -865,8 +881,12 @@ void do_cmd_change_song()
                 {
                     // Find the i-th available song
                     int song_count = 1;
-                    for (i = 0; i < SNG_WOVEN_THEMES; i++)
+                    for (i = 0; i < SNG_GRA; i++)
                     {
+                        /* Skip Woven Themes (not a singable song) */
+                        if (i == SNG_WOVEN_THEMES)
+                            continue;
+
                         if (p_ptr->active_ability[S_SNG][i])
                         {
                             if (song_count == highlight)
@@ -907,8 +927,12 @@ void do_cmd_change_song()
             {
                 // Get total available songs + stop singing + exchange themes
                 int total_options = 1; // "Stop Singing"
-                for (i = 0; i < SNG_WOVEN_THEMES; i++)
+                for (i = 0; i < SNG_GRA; i++)
                 {
+                    /* Skip Woven Themes (not a singable song) */
+                    if (i == SNG_WOVEN_THEMES)
+                        continue;
+
                     if (p_ptr->active_ability[S_SNG][i])
                         total_options++;
                 }
@@ -926,8 +950,12 @@ void do_cmd_change_song()
             {
                 // Get total available songs + stop singing + exchange themes
                 int total_options = 1; // "Stop Singing"
-                for (i = 0; i < SNG_WOVEN_THEMES; i++)
+                for (i = 0; i < SNG_GRA; i++)
                 {
+                    /* Skip Woven Themes (not a singable song) */
+                    if (i == SNG_WOVEN_THEMES)
+                        continue;
+
                     if (p_ptr->active_ability[S_SNG][i])
                         total_options++;
                 }
@@ -952,8 +980,12 @@ void do_cmd_change_song()
                 {
                     // Find the i-th available song
                     int song_count = 1;
-                    for (i = 0; i < SNG_WOVEN_THEMES; i++)
+                    for (i = 0; i < SNG_GRA; i++)
                     {
+                        /* Skip Woven Themes (not a singable song) */
+                        if (i == SNG_WOVEN_THEMES)
+                            continue;
+
                         if (p_ptr->active_ability[S_SNG][i])
                         {
                             if (song_count == highlight)
@@ -1006,10 +1038,16 @@ void do_cmd_change_song()
 
         default:
         {
-            if ((which >= 'a') && (which < 'a' + SNG_WOVEN_THEMES))
+            if ((which >= 'a') && (which < 'a' + SNG_GRA))
             {
                 song_choice = (int)which - 'a';
-                if (p_ptr->active_ability[S_SNG][song_choice])
+                
+                /* Skip Woven Themes (not a singable song) */
+                if (song_choice == SNG_WOVEN_THEMES)
+                {
+                    song_choice = -1;
+                }
+                else if (p_ptr->active_ability[S_SNG][song_choice])
                 {
                     log_debug("Player selected song %d", song_choice);
                     done = true;

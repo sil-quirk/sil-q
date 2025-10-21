@@ -622,6 +622,11 @@ struct monster_type
                                  row immediately prior to now */
     s16b turns_stationary; /* How many times it has stayed still in a row
                               immediately prior to now */
+
+    byte blow_ds_reduction[MONSTER_BLOW_MAX]; /* Reduction applied to blow damage sides */
+    byte armor_ps_reduction; /* Reduction applied to protection sides */
+    byte shatter_padding[3]; /* Reserved for future shattering data */
+
     byte previous_action[ACTION_MAX]; /* What the monster did on its previous
                                          turns */
 };
@@ -1015,6 +1020,9 @@ struct player_type
     s16b oppose_pois; /* Timed -- oppose poison */
 
     s16b tmp_per; /* Timed -- Perception */
+
+    s16b song_challenge_effect; /* Timed -- Song of Challenge lingering debuff */
+    s16b song_elbereth_effect; /* Timed -- Song of Elbereth lingering debuff */
 
     s16b energy; /* Current energy */
 

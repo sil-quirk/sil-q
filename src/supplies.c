@@ -768,3 +768,85 @@ bool supplies_pending_hotkey(void)
     return g_pending_hotkey;
 }
 
+/*
+ * Damage supply items based on a type check function
+ * Similar to inven_damage but for the supply system
+ * Returns number of items destroyed
+ */
+int supplies_damage(int (*typ)(const object_type*), int perc, int resistance)
+{
+    int i, j, k, amt;
+    object_type* o_ptr;
+    char o_name[80];
+
+    /* Count the casualties */
+    k = 0;
+
+    /* Scan through supply entries */
+    for (i = 0; i < g_supply_count; i++)
+    {
+        supply_entry* entry = &g_supply_entries[i];
+        o_ptr = &entry->obj;
+
+        /* Skip non-objects */
+        if (!o_ptr->k_idx)
+            continue;
+
+        /* Hack -- for now, skip artefacts */
+        if (artefact_p(o_ptr))
+            continue;
+
+        /* Give this item slot a shot at death */
+        if ((*typ)(o_ptr))
+        {
+            int total_count = entry->stored_count;
+
+            /* Count the casualties */
+            for (amt = j = 0; j < total_count; ++j)
+            {
+                if (percent_chance(perc)
+                    && ((resistance < 0) || one_in_(resistance)))
+                    amt++;
+            }
+
+            /* Some casualties */
+            if (amt)
+            {
+                /* Get a description */
+                object_desc(o_name, sizeof(o_name), o_ptr, false, 3);
+
+                /* Message */
+                msg_format("%sour %s in supply %s destroyed!",
+                    ((total_count > 1) ? ((amt == total_count)
+                             ? "All of y"
+                             : (amt > 1 ? "Some of y" : "One of y"))
+                                         : "Y"),
+                    o_name, ((amt > 1) ? "were" : "was"));
+
+                /* Reduce the count */
+                entry->stored_count -= amt;
+
+                /* If all destroyed, wipe the entry */
+                if (entry->stored_count <= 0)
+                {
+                    object_wipe(&entry->obj);
+                    entry->stored_count = 0;
+
+                    /* Compact the array by shifting remaining entries */
+                    for (int shift = i; shift < g_supply_count - 1; shift++)
+                    {
+                        g_supply_entries[shift] = g_supply_entries[shift + 1];
+                    }
+                    g_supply_count--;
+                    i--; /* Re-check this index since we shifted */
+                }
+
+                /* Count this destruction */
+                k += amt;
+            }
+        }
+    }
+
+    /* Return the count */
+    return (k);
+}

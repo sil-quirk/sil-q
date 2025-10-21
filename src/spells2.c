@@ -998,7 +998,7 @@ bool detect_stairs(void)
 /*
  * Detect all "normal" objects on the current panel
  */
-bool detect_objects_normal(void)
+bool detect_objects_normal(int radius)
 {
     int i, y, x;
 
@@ -1026,8 +1026,13 @@ bool detect_objects_normal(void)
         y = o_ptr->iy;
         x = o_ptr->ix;
 
-        /* Only detect nearby objects */
-        // if (!panel_contains(y, x)) continue;
+        /* Only detect nearby objects (within radius if specified) */
+        if (radius > 0)
+        {
+            int dist = distance(p_ptr->py, p_ptr->px, y, x);
+            if (dist > radius)
+                continue;
+        }
 
         /* Hack -- memorize it */
         o_ptr->marked = true;
@@ -1146,7 +1151,7 @@ bool detect_objects_magic(void)
 /*
  * Detect all "normal" monsters on the current panel
  */
-bool detect_monsters(void)
+bool detect_monsters(int radius)
 {
     int i;
 
@@ -1160,6 +1165,14 @@ bool detect_monsters(void)
         /* Skip dead monsters */
         if (!m_ptr->r_idx)
             continue;
+
+        /* Only detect monsters within radius if specified */
+        if (radius > 0)
+        {
+            int dist = distance(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx);
+            if (dist > radius)
+                continue;
+        }
 
         /* Optimize -- Repair flags */
         repair_mflag_mark = true;
@@ -1259,11 +1272,11 @@ bool detect_all(void)
         detect = true;
     if (detect_stairs())
         detect = true;
-    if (detect_objects_normal())
+    if (detect_objects_normal(0))
         detect = true;
     if (detect_monsters_invis())
         detect = true;
-    if (detect_monsters())
+    if (detect_monsters(0))
         detect = true;
 
     /* Result */
@@ -2492,7 +2505,7 @@ void earthquake(int cy, int cx, int pit_y, int pit_x, int r, int who)
 
                 /* Apply armor dice/sides curses/blessings */
                 int armor_dice = r_ptr->pd + curse_flag_count_cur(CUR_MON_ARM_DICE);
-                int armor_sides = r_ptr->ps + curse_flag_count_cur(CUR_MON_ARM_SIDE);
+                int armor_sides = monster_base_armour_sides(m_ptr) + curse_flag_count_cur(CUR_MON_ARM_SIDE);
                 if (armor_dice < 0) armor_dice = 0;
                 if (armor_sides < 1) armor_sides = 1;
                 prt = damroll(armor_dice, armor_sides);

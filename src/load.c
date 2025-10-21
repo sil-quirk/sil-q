@@ -72,6 +72,54 @@ static u32b load_byte_offset = 0;
 /* Helper macros for concise load logging (use DEBUG level so always visible in user logs) */
 #define LOAD_LOG(fmt, ...) log_trace("[load:%06u] " fmt, (unsigned)load_byte_offset, __VA_ARGS__)
 #define LOAD_LOG0(msg)      log_trace("[load:%06u] %s", (unsigned)load_byte_offset, msg)
+
+/* Track feature availability for the currently loaded savefile. */
+static bool savefile_has_runtime_overrides = false;
+static bool savefile_has_monster_shatter = false;
+
+/* Version comparison helpers: update these when bumping savefile semantics. */
+static int savefile_version_compare(byte major, byte minor, byte patch, byte extra)
+{
+    if (sf_major != major)
+        return (sf_major > major) ? 1 : -1;
+    if (sf_minor != minor)
+        return (sf_minor > minor) ? 1 : -1;
+    if (sf_patch != patch)
+        return (sf_patch > patch) ? 1 : -1;
+    if (sf_extra != extra)
+        return (sf_extra > extra) ? 1 : -1;
+    return 0;
+}
+
+static bool savefile_version_at_least(byte major, byte minor, byte patch, byte extra)
+{
+    return savefile_version_compare(major, minor, patch, extra) >= 0;
+}
+
+static bool savefile_version_at_most(byte major, byte minor, byte patch, byte extra)
+{
+    return savefile_version_compare(major, minor, patch, extra) <= 0;
+}
+
+static bool savefile_version_supported(void)
+{
+    /* Reject savefiles older than our documented floor. */
+    if (!savefile_version_at_least(OLD_VERSION_MAJOR, OLD_VERSION_MINOR, OLD_VERSION_PATCH, 0))
+        return false;
+
+    /* Reject savefiles from the future. */
+    if (!savefile_version_at_most(VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_EXTRA))
+        return false;
+
+    /* Enforce the minimum extra value for the current release series. */
+    if (sf_major == VERSION_MAJOR && sf_minor == VERSION_MINOR && sf_patch == VERSION_PATCH)
+    {
+        if (sf_extra < MIN_VERSION_EXTRA)
+            return false;
+    }
+
+    return true;
+}
 /* For backward-compatible reading: if the door-choices block is absent,
  * we prefetch the next u16 (objects count) here after probing. */
 static u16b objects_count_prefetch = 0xFFFF;
@@ -594,8 +642,29 @@ static void rd_monster(monster_type* m_ptr)
         rd_byte(&m_ptr->previous_action[i]);
     }
 
-    // 8 spare bytes
-    strip_bytes(8);
+    if (savefile_has_monster_shatter)
+    {
+        for (i = 0; i < MONSTER_BLOW_MAX; i++)
+        {
+            rd_byte(&m_ptr->blow_ds_reduction[i]);
+        }
+
+        rd_byte(&m_ptr->armor_ps_reduction);
+        rd_byte(&m_ptr->shatter_padding[0]);
+        rd_byte(&m_ptr->shatter_padding[1]);
+        rd_byte(&m_ptr->shatter_padding[2]);
+    }
+    else
+    {
+        for (i = 0; i < MONSTER_BLOW_MAX; i++)
+        {
+            m_ptr->blow_ds_reduction[i] = 0;
+        }
+
+        m_ptr->armor_ps_reduction = 0;
+        memset(m_ptr->shatter_padding, 0, sizeof(m_ptr->shatter_padding));
+        strip_bytes(8);
+    }
 }
 
 /*
@@ -1046,12 +1115,15 @@ static errr rd_extra(void)
     rd_s16b(&p_ptr->oppose_cold);
     rd_s16b(&p_ptr->oppose_pois);
 
+    rd_s16b(&p_ptr->song_challenge_effect);
+    rd_s16b(&p_ptr->song_elbereth_effect);
+
     rd_byte(&p_ptr->stealth_mode);
     rd_byte(&p_ptr->self_made_arts);
     rd_byte(&p_ptr->climbing);
 
-    // 19 spare bytes
-    strip_bytes(19);
+    // 15 spare bytes (was 19, used 4)
+    strip_bytes(15);
 
     /* Read item-quality squelch sub-menu */
     for (i = 0; i < SQUELCH_BYTES; i++)
@@ -2071,6 +2143,9 @@ static errr rd_savefile_new_aux(void)
     u32b n_x_check, n_v_check;
     u32b o_x_check, o_v_check;
 
+    savefile_has_runtime_overrides = savefile_version_at_least(0, 9, 0, 3);
+    savefile_has_monster_shatter = savefile_version_at_least(0, 9, 0, 4);
+
     /* Reset load byte offset counter */
     load_byte_offset = 0;
     log_trace("=== LOAD: Reset byte offset counter ===");
@@ -2136,7 +2211,7 @@ static errr rd_savefile_new_aux(void)
         /* Read the lore */
         rd_lore(i);
     }
-    if (sf_extra >= 3)
+    if (savefile_has_runtime_overrides)
     {
         rd_monster_runtime_overrides();
     }
@@ -2508,17 +2583,23 @@ bool load_player(void)
         sf_patch = vvv[2];
         sf_extra = vvv[3];
         log_debug("Version bytes read: %u.%u.%u extra=%u", (unsigned)sf_major, (unsigned)sf_minor, (unsigned)sf_patch, (unsigned)sf_extra);
-        
-        /* Validate version: 0.9.0 with extra >= 1 (backward compatible) */
-        if (sf_major != VERSION_MAJOR || sf_minor != VERSION_MINOR || sf_patch != VERSION_PATCH || sf_extra < 1)
+
+        if (!savefile_version_supported())
         {
             err = -1;
-            what = "Incompatible savefile version (expected 0.9.0 extra>=1)";
-            log_error("Savefile version %d.%d.%d extra=%d is not supported (expected %d.%d.%d extra>=%d)", 
-                     sf_major, sf_minor, sf_patch, sf_extra,
-                     VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, 1);
+            what = "Incompatible savefile version";
+            log_error("Savefile version %u.%u.%u extra=%u is outside supported range [%u.%u.%u extra>=0 .. %u.%u.%u extra<=%u] (current release requires extra >= %u)",
+                (unsigned)sf_major, (unsigned)sf_minor, (unsigned)sf_patch, (unsigned)sf_extra,
+                (unsigned)OLD_VERSION_MAJOR, (unsigned)OLD_VERSION_MINOR, (unsigned)OLD_VERSION_PATCH,
+                (unsigned)VERSION_MAJOR, (unsigned)VERSION_MINOR, (unsigned)VERSION_PATCH, (unsigned)VERSION_EXTRA,
+                (unsigned)MIN_VERSION_EXTRA);
         }
-        
+        else
+        {
+            savefile_has_runtime_overrides = savefile_version_at_least(0, 9, 0, 3);
+            savefile_has_monster_shatter = savefile_version_at_least(0, 9, 0, 4);
+        }
+
         load_byte_offset = 0; /* reset counter before decoding stream */
 
         /* Clear screen */
