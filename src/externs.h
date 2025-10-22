@@ -747,10 +747,11 @@ extern void monster_perception(
     bool player_centered, bool main_roll, int difficulty);
 
 /* monster1.c */
-extern void describe_monster(int r_idx, bool spoilers);
+extern void describe_monster(
+    int r_idx, bool spoilers, const monster_type* m_ptr);
 extern void roff_top(int r_idx);
-extern void screen_roff(int r_idx);
-extern void display_roff(int r_idx);
+extern void screen_roff(int r_idx, const monster_type* m_ptr);
+extern void display_roff(int r_idx, const monster_type* m_ptr);
 
 /* monster2.c */
 extern s16b poly_r_idx(const monster_type* m_ptr);
@@ -953,6 +954,8 @@ extern void song_disguise_new_player_turn(void);
 extern void song_disguise_handle_monster_removed(int m_idx);
 extern void song_disguise_note_monster_attack(int m_idx);
 extern bool song_disguise_monster_is_fooled(const monster_type* m_ptr);
+extern void song_duels_new_player_turn(void);
+extern void song_duels_handle_monster_removed(int m_idx);
 
 /* spells2.c */
 extern bool hp_player(int x, bool percent, bool message);

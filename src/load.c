@@ -76,6 +76,7 @@ static u32b load_byte_offset = 0;
 /* Track feature availability for the currently loaded savefile. */
 static bool savefile_has_runtime_overrides = false;
 static bool savefile_has_monster_shatter = false;
+static bool savefile_has_song_duels = false;
 
 /* Version comparison helpers: update these when bumping savefile semantics. */
 static int savefile_version_compare(byte major, byte minor, byte patch, byte extra)
@@ -630,8 +631,38 @@ static void rd_monster(monster_type* m_ptr)
     rd_byte(&m_ptr->song);
     rd_byte(&m_ptr->skip_this_turn);
 
-    // 1 spare bytes
-    strip_bytes(1);
+    if (savefile_has_song_duels)
+    {
+        rd_byte(&m_ptr->song_contest_stacks);
+        rd_byte(&m_ptr->song_lament_stacks);
+        rd_byte(&m_ptr->song_lockout_timer);
+        rd_byte(&m_ptr->song_duel_pad);
+        rd_s32b(&m_ptr->song_contest_last_turn);
+        rd_s32b(&m_ptr->song_lament_last_turn);
+        rd_s16b(&m_ptr->song_will_penalty);
+        rd_s16b(&m_ptr->song_stealth_penalty);
+        rd_s16b(&m_ptr->song_evasion_penalty);
+        rd_byte(&m_ptr->song_armor_dice_penalty);
+        rd_byte(&m_ptr->song_duel_pad2[0]);
+        rd_byte(&m_ptr->song_duel_pad2[1]);
+        rd_byte(&m_ptr->song_duel_pad2[2]);
+    }
+    else
+    {
+        // legacy spare byte
+        strip_bytes(1);
+        m_ptr->song_contest_stacks = 0;
+        m_ptr->song_lament_stacks = 0;
+        m_ptr->song_lockout_timer = 0;
+        m_ptr->song_duel_pad = 0;
+        m_ptr->song_contest_last_turn = 0;
+        m_ptr->song_lament_last_turn = 0;
+        m_ptr->song_will_penalty = 0;
+        m_ptr->song_stealth_penalty = 0;
+        m_ptr->song_evasion_penalty = 0;
+        m_ptr->song_armor_dice_penalty = 0;
+        memset(m_ptr->song_duel_pad2, 0, sizeof(m_ptr->song_duel_pad2));
+    }
 
     rd_s16b(&m_ptr->consecutive_attacks);
     rd_s16b(&m_ptr->turns_stationary);
@@ -640,6 +671,21 @@ static void rd_monster(monster_type* m_ptr)
     for (i = 0; i < ACTION_MAX; i++)
     {
         rd_byte(&m_ptr->previous_action[i]);
+    }
+
+    if (savefile_has_song_duels)
+    {
+        for (i = 0; i < MONSTER_BLOW_MAX; i++)
+        {
+            rd_byte(&m_ptr->blow_dd_reduction[i]);
+        }
+    }
+    else
+    {
+        for (i = 0; i < MONSTER_BLOW_MAX; i++)
+        {
+            m_ptr->blow_dd_reduction[i] = 0;
+        }
     }
 
     if (savefile_has_monster_shatter)
@@ -1087,6 +1133,24 @@ static errr rd_extra(void)
     rd_byte(&p_ptr->song1);
     rd_byte(&p_ptr->song2);
     rd_s16b(&p_ptr->song_duration);
+    if (savefile_has_song_duels)
+    {
+        rd_s16b(&p_ptr->song_target_idx);
+        rd_byte(&p_ptr->song_target_song);
+        rd_byte(&p_ptr->song_lockout_timer);
+        rd_byte(&p_ptr->song_contest_player_stacks);
+        rd_byte(&p_ptr->song_duel_pad);
+        rd_s32b(&p_ptr->song_contest_last_turn);
+    }
+    else
+    {
+        p_ptr->song_target_idx = 0;
+        p_ptr->song_target_song = SNG_NOTHING;
+        p_ptr->song_lockout_timer = 0;
+        p_ptr->song_contest_player_stacks = 0;
+        p_ptr->song_duel_pad = 0;
+        p_ptr->song_contest_last_turn = 0;
+    }
     rd_s16b(&p_ptr->vengeance);
     rd_s16b(&p_ptr->blind);
     rd_s16b(&p_ptr->entranced);
@@ -2145,6 +2209,7 @@ static errr rd_savefile_new_aux(void)
 
     savefile_has_runtime_overrides = savefile_version_at_least(0, 9, 0, 3);
     savefile_has_monster_shatter = savefile_version_at_least(0, 9, 0, 4);
+    savefile_has_song_duels = savefile_version_at_least(0, 9, 0, 5);
 
     /* Reset load byte offset counter */
     load_byte_offset = 0;
@@ -2598,6 +2663,7 @@ bool load_player(void)
         {
             savefile_has_runtime_overrides = savefile_version_at_least(0, 9, 0, 3);
             savefile_has_monster_shatter = savefile_version_at_least(0, 9, 0, 4);
+            savefile_has_song_duels = savefile_version_at_least(0, 9, 0, 5);
         }
 
         load_byte_offset = 0; /* reset counter before decoding stream */

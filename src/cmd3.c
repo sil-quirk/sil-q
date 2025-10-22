@@ -3363,7 +3363,7 @@ void do_cmd_unified_look(void)
                             screen_save();
                             
                             /* Show monster recall */
-                            screen_roff(m_ptr->r_idx);
+                            screen_roff(m_ptr->r_idx, m_ptr);
                             
                             /* Wait for input */
                             inkey();
@@ -3436,7 +3436,7 @@ void do_cmd_unified_look(void)
                             screen_save();
                             
                             /* Show monster recall */
-                            screen_roff(m_ptr->r_idx);
+                            screen_roff(m_ptr->r_idx, m_ptr);
                             
                             /* Wait for input */
                             inkey();
@@ -3516,7 +3516,7 @@ void do_cmd_unified_look(void)
                         log_trace("EXAMINATION: Examining visible monster at cursor position");
                         monster_type* m_ptr = &mon_list[cursor_m_idx];
                         screen_save();
-                        screen_roff(m_ptr->r_idx);
+                        screen_roff(m_ptr->r_idx, m_ptr);
                         inkey();
                         screen_load();
                     }
@@ -3834,7 +3834,7 @@ void do_cmd_unified_look(void)
                             screen_save();
                             
                             /* Show monster recall */
-                            screen_roff(m_ptr->r_idx);
+                            screen_roff(m_ptr->r_idx, m_ptr);
                             
                             /* Wait for input */
                             inkey();
@@ -3907,7 +3907,7 @@ void do_cmd_unified_look(void)
                             screen_save();
                             
                             /* Show monster recall */
-                            screen_roff(m_ptr->r_idx);
+                            screen_roff(m_ptr->r_idx, m_ptr);
                             
                             /* Wait for input */
                             inkey();
@@ -3987,7 +3987,7 @@ void do_cmd_unified_look(void)
                         log_trace("EXAMINATION: Examining visible monster at cursor position");
                         monster_type* m_ptr = &mon_list[cursor_m_idx];
                         screen_save();
-                        screen_roff(m_ptr->r_idx);
+                        screen_roff(m_ptr->r_idx, m_ptr);
                         inkey();
                         screen_load();
                     }
@@ -4715,7 +4715,7 @@ void do_cmd_query_symbol(void)
                 screen_save();
 
                 /* Recall on screen */
-                screen_roff(who[i]);
+                screen_roff(who[i], NULL);
 
                 /* Hack -- Complete the prompt (again) */
                 Term_addstr(-1, TERM_WHITE, " [(r)ecall, ESC]");

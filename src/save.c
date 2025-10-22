@@ -581,7 +581,19 @@ static void wr_monster(const monster_type* m_ptr)
     wr_byte(m_ptr->song);
     wr_byte(m_ptr->skip_this_turn);
 
-    wr_byte(0); // spare
+    wr_byte(m_ptr->song_contest_stacks);
+    wr_byte(m_ptr->song_lament_stacks);
+    wr_byte(m_ptr->song_lockout_timer);
+    wr_byte(m_ptr->song_duel_pad);
+    wr_s32b(m_ptr->song_contest_last_turn);
+    wr_s32b(m_ptr->song_lament_last_turn);
+    wr_s16b(m_ptr->song_will_penalty);
+    wr_s16b(m_ptr->song_stealth_penalty);
+    wr_s16b(m_ptr->song_evasion_penalty);
+    wr_byte(m_ptr->song_armor_dice_penalty);
+    wr_byte(m_ptr->song_duel_pad2[0]);
+    wr_byte(m_ptr->song_duel_pad2[1]);
+    wr_byte(m_ptr->song_duel_pad2[2]);
 
     wr_s16b(m_ptr->consecutive_attacks);
     wr_s16b(m_ptr->turns_stationary);
@@ -593,6 +605,11 @@ static void wr_monster(const monster_type* m_ptr)
     for (i = 0; i < ACTION_MAX; i++)
     {
         wr_byte(m_ptr->previous_action[i]);
+    }
+
+    for (i = 0; i < MONSTER_BLOW_MAX; i++)
+    {
+        wr_byte(m_ptr->blow_dd_reduction[i]);
     }
 
     for (i = 0; i < MONSTER_BLOW_MAX; i++)
@@ -1014,6 +1031,12 @@ static void wr_extra(void)
     wr_byte(p_ptr->song1);
     wr_byte(p_ptr->song2);
     wr_s16b(p_ptr->song_duration);
+    wr_s16b(p_ptr->song_target_idx);
+    wr_byte(p_ptr->song_target_song);
+    wr_byte(p_ptr->song_lockout_timer);
+    wr_byte(p_ptr->song_contest_player_stacks);
+    wr_byte(p_ptr->song_duel_pad);
+    wr_s32b(p_ptr->song_contest_last_turn);
     wr_s16b(p_ptr->vengeance);
     wr_s16b(p_ptr->blind);
     wr_s16b(p_ptr->entranced);

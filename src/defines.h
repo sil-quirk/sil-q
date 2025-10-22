@@ -61,7 +61,7 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 0
-#define VERSION_EXTRA 4  /* Song of Shattering monster-side persistence */
+#define VERSION_EXTRA 5  /* Song duel persistence data */
 /* Update MIN_VERSION_EXTRA and load.c compatibility checks whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 1  /* Minimum extra value expected for CURRENT version */
 
@@ -600,6 +600,9 @@
 #define SNG_SHATTERING 15
 #define SNG_MASTERY 16
 #define SNG_GRA 17
+#define SNG_CONTEST 18
+#define SNG_LAMENT 19
+#define SNG_MAX 20
 
 #define SNG_BINDING 50 /* monster songs */
 #define SNG_PIERCING 51 /* monster songs */

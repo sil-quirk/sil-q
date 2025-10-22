@@ -1575,7 +1575,7 @@ static void fix_monster(void)
 
         /* Display monster race info */
         if (p_ptr->monster_race_idx)
-            display_roff(p_ptr->monster_race_idx);
+            display_roff(p_ptr->monster_race_idx, NULL);
 
         /* Fresh */
         Term_fresh();
@@ -2051,6 +2051,57 @@ int affinity_level(int skilltype)
     return level;
 }
 
+static bool songs_are_synergy_pair(byte song_a, byte song_b)
+{
+    static const byte synergy_pairs[][2] = {
+        { SNG_ELBERETH,  SNG_TREES },
+        { SNG_CHALLENGE, SNG_SLAYING },
+        { SNG_DELVINGS,  SNG_REVEALING },
+        { SNG_FREEDOM,   SNG_ELVENESS },
+        { SNG_STAYING,   SNG_CONTEST },
+        { SNG_SILENCE,   SNG_DISGUISE },
+        { SNG_LORIEN,    SNG_LAMENT },
+        { SNG_SHATTERING, SNG_MASTERY },
+    };
+
+    if ((song_a == SNG_NOTHING) || (song_b == SNG_NOTHING))
+        return false;
+
+    for (size_t i = 0; i < N_ELEMENTS(synergy_pairs); i++)
+    {
+        if ((song_a == synergy_pairs[i][0] && song_b == synergy_pairs[i][1])
+            || (song_a == synergy_pairs[i][1] && song_b == synergy_pairs[i][0]))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static int song_synergy_bonus(byte abilitynum, int full_skill)
+{
+    int synergy = 0;
+    byte partner = SNG_NOTHING;
+
+    if (full_skill <= 0)
+        return 0;
+
+    if (p_ptr->song1 == abilitynum)
+        partner = p_ptr->song2;
+    else if (p_ptr->song2 == abilitynum)
+        partner = p_ptr->song1;
+    else
+        return 0;
+
+    if (!songs_are_synergy_pair(abilitynum, partner))
+        return 0;
+
+    synergy = (full_skill + 2) / 5;
+
+    return synergy;
+}
+
 int ability_bonus(int skilltype, int abilitynum)
 {
     int bonus = 0;
@@ -2058,9 +2109,14 @@ int ability_bonus(int skilltype, int abilitynum)
 
     if (skilltype == S_SNG)
     {
-        // penalize minor themes
-        if (p_ptr->song1 != abilitynum)
+        const int full_skill = skill;
+
+        // penalize minor themes - check if this ability is the minor theme
+        if ((p_ptr->song2 == abilitynum) && (p_ptr->song1 != abilitynum))
             skill /= 2;
+
+        // woven theme synergy pairs grant an extra 20% of base song skill
+        skill += song_synergy_bonus(abilitynum, full_skill);
 
         switch (abilitynum)
         {
@@ -2121,12 +2177,12 @@ int ability_bonus(int skilltype, int abilitynum)
         }
         case SNG_STAYING:
         {
-            bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_HURIN) ? 2 : 1) * skill; 
+            bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_FIN) ? 2 : 1) * skill; 
             break;
         }
         case SNG_SLAYING:
         {
-            bonus = skill * 2;
+            bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_HURIN) ? 2 : 1) * skill * 2;
             break;
         }
         case SNG_LORIEN:
@@ -2137,6 +2193,16 @@ int ability_bonus(int skilltype, int abilitynum)
         case SNG_MASTERY:
         {
             bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_THINGOL) ? 2 : 1) * skill;
+            break;
+        }
+        case SNG_CONTEST:
+        {
+            bonus = skill;
+            break;
+        }
+        case SNG_LAMENT:
+        {
+            bonus = skill;
             break;
         }
         }

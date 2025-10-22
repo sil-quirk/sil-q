@@ -143,6 +143,8 @@ static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
         [SNG_LORIEN]        = "Song of Lorien",
         [SNG_SHATTERING]    = "Song of Shattering",
         [SNG_MASTERY]       = "Song of Mastery",
+        [SNG_CONTEST]       = "Song of Contest",
+        [SNG_LAMENT]        = "Song of Lament",
         [SNG_GRA]           = NULL,
     },
     [S_SPC] = {
@@ -239,6 +241,12 @@ static void get_extra(void)
     /* Player is not singing */
     p_ptr->song1 = SNG_NOTHING;
     p_ptr->song2 = SNG_NOTHING;
+    p_ptr->song_target_idx = 0;
+    p_ptr->song_target_song = SNG_NOTHING;
+    p_ptr->song_lockout_timer = 0;
+    p_ptr->song_contest_player_stacks = 0;
+    p_ptr->song_duel_pad = 0;
+    p_ptr->song_contest_last_turn = 0;
     
     /* Clear the abilities and add house abilities - but preserve oath abilities */
     for (i = 0; i < S_MAX; i++)

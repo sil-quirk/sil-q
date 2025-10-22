@@ -600,7 +600,15 @@ bool make_attack_normal(monster_type* m_ptr)
         int att = r_ptr->blow[b].att;
         int dd = r_ptr->blow[b].dd;
         int ds = r_ptr->blow[b].ds;
+        int dd_reduction = m_ptr->blow_dd_reduction[b];
         int ds_reduction = m_ptr->blow_ds_reduction[b];
+        if (dd > 0 && dd_reduction > 0)
+        {
+            if (dd_reduction >= dd)
+                dd = 1;
+            else
+                dd = MAX(1, dd - dd_reduction);
+        }
         if (ds > 0 && ds_reduction > 0)
         {
             if (ds_reduction >= ds)

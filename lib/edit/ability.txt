@@ -740,6 +740,20 @@ N:157:Grace
 I:7:17:12
 D:You gain a point of grace.
 
+N:158:Song of Contest
+I:7:18:12
+P:7/12
+D:Focuses your will against a single foe, channeling your Song and Will into a battle of resolve. Each turn you challenge a chosen enemy, forcing a personal contest that builds stacks and inflicts lasting weakness when they falter.
+T:40:0:99  # Amulet
+T:35:0:99  # Cloak
+
+N:159:Song of Lament
+I:7:19:15
+P:7/14
+D:Pours sorrow into a chosen foe, sapping their spirit through repeated contests of Song and Will. When the foe can no longer endure, the lament brands them with permanent frailty.
+T:40:0:99  # Amulet
+T:35:0:99  # Cloak
+
 # Special (quest) abilities ---------------------------------------------
 
 N:160:Mandos' Doom

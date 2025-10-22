@@ -1614,6 +1614,7 @@ static void process_player(void)
     calc_torch();
 
     song_disguise_new_player_turn();
+    song_duels_new_player_turn();
 
     /*** Check certain things between player turns (don't need to do this when
      * restoring a game) ***/

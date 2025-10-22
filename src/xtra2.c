@@ -3831,7 +3831,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                         screen_save();
 
                         /* Recall on screen */
-                        screen_roff(m_ptr->r_idx);
+                        screen_roff(m_ptr->r_idx, m_ptr);
 
                         /* Hack -- Complete the prompt (again) */
                         Term_addstr(

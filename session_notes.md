@@ -1,3 +1,23 @@
+# Session Notes - Woven Theme Synergy
+
+## Date
+2025-10-25
+
+## Summary
+- Added woven theme synergy handling so specified song pairs each gain +20% of base song skill when sung together.
+- Included helper utilities in `src/xtra1.c` to detect synergy pairs and grant the shared bonus after applying minor theme penalties.
+
+# Session Notes - Song Duels Mechanics Update
+
+## Date
+2025-10-24 (Evening)
+
+## Summary
+- Added Song of Contest and Song of Lament abilities after Grace with new data entries, enumerations (SNG_CONTEST, SNG_LAMENT, SNG_MAX), and song selection UI updates.
+- Extended player/monster state for targeted songs: stored duel targets and stacks, stack timestamps, cooldown timers, permanent stat/armour/damage penalties, and saved them via VERSION_EXTRA 5 bump.
+- Implemented targeted duel resolution each turn (Song+Will/2 vs monster Will), 7 voice upkeep, stack accrual/decay, and the on-3-stack outcomes (stat drains, grace loss, monster debuffs, singing lockouts).
+- Introduced per-turn/cleanup hooks (song_duels_new_player_turn, song_duels_handle_monster_removed), enforced major-theme-only usage, and blocked monsters from starting songs while locked out.
+
 # Session Notes - Morgoth Victory Update
 
 ## Date
@@ -359,3 +379,13 @@ Score (highest first)                      Layout: Short
 - Wired `SNG_DISGUISE` behaviour in `src/spells1.c`: enforced start restrictions when observed, tracked pacified/seen-through monsters with per-turn skill contests against Will+Perception (distance, attack, and suspicion penalties), and applied the 2 voice per round upkeep.
 - Hooked monster attack tracking and cleanup (`src/melee1.c`, `src/dungeon.c`, `src/monster2.c`) plus AI suppression (`src/melee2.c`) so fooled foes skip their turns until they pierce the disguise; integrated song noise and ability bonus adjustments (`src/xtra1.c`).
 - Declared new song helpers in `src/externs.h` and ensured per-turn rotation/reset flows manage disguise state during level transitions and saves.
+
+# Session Notes - Monster Recall Instance Stats
+
+## Date
+2025-10-24
+
+- Threaded an optional `monster_type*` through `screen_roff`, `display_roff`, and `describe_monster`, updating all call sites (`cmd3.c`, `cmd4.c`, `xtra1.c`, `xtra2.c`, `wizard1.c`) so recall views can access live monster state when inspecting a visible target.
+- Reworked `describe_monster_movement`, `describe_monster_toughness`, `describe_monster_skills`, and `describe_monster_attack` to pull per-instance data: numeric speed output with hasted/slowed markers, current/max HP ranges with curse/song adjustments, protection ranges reflecting armour penalties/bonuses, skill readouts via `monster_skill`, and blow damage/attack values recalculated with song-induced reductions.
+- Swapped legacy `XdY` displays for `min-max` ranges when only race data is available, while defaulting to live `current-max` spans whenever the specific monster is known.
+

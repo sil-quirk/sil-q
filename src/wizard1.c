@@ -938,7 +938,7 @@ static void spoil_mon_info(cptr fname)
         text_out(buf);
 
         /* Describe */
-        describe_monster(r_idx, true);
+        describe_monster(r_idx, true, NULL);
 
         /* Terminate the entry */
         text_out("\n");

@@ -154,6 +154,7 @@ void delete_monster_idx(int i)
     /* Monster is gone */
     cave_m_idx[y][x] = 0;
     song_disguise_handle_monster_removed(i);
+    song_duels_handle_monster_removed(i);
 
     /* Delete objects */
     for (this_o_idx = m_ptr->hold_o_idx; this_o_idx; this_o_idx = next_o_idx)
@@ -1202,6 +1203,7 @@ int monster_skill(monster_type* m_ptr, int skill_type)
         break;
     case S_STL:
         skill = r_ptr->stl;
+        skill -= m_ptr->song_stealth_penalty;
         skill += 2 * curse_flag_count_cur(CUR_MON_STL);   /* +/-2 Stl per stack */
         break;
     case S_PER:
@@ -1210,6 +1212,7 @@ int monster_skill(monster_type* m_ptr, int skill_type)
         break;
     case S_WIL:
         skill = r_ptr->wil;
+        skill -= m_ptr->song_will_penalty;
         skill += 2 * curse_flag_count_cur(CUR_MON_WIL);   /* +/-2 Wil per stack */
         break;
     case S_SMT:

@@ -617,12 +617,24 @@ struct monster_type
 
     byte mana; /* Current mana level */
     byte song; /* Current song */
+    byte song_contest_stacks; /* Stacks accumulated from Song of Contest */
+    byte song_lament_stacks; /* Stacks accumulated from Song of Lament */
+    byte song_lockout_timer; /* Turns before monster can sing again */
+    byte song_duel_pad; /* Alignment padding */
+    s32b song_contest_last_turn; /* Last player turn Contest stack changed */
+    s32b song_lament_last_turn; /* Last player turn Lament stack changed */
+    s16b song_will_penalty; /* Permanent Will penalty from duels */
+    s16b song_stealth_penalty; /* Permanent Stealth penalty from duels */
+    s16b song_evasion_penalty; /* Permanent Evasion penalty from duels */
+    byte song_armor_dice_penalty; /* Permanent armour dice penalty */
+    byte song_duel_pad2[3]; /* Alignment padding */
 
     s16b consecutive_attacks; /* How many times it has attacked the player in a
                                  row immediately prior to now */
     s16b turns_stationary; /* How many times it has stayed still in a row
                               immediately prior to now */
 
+    byte blow_dd_reduction[MONSTER_BLOW_MAX]; /* Reduction applied to blow damage dice */
     byte blow_ds_reduction[MONSTER_BLOW_MAX]; /* Reduction applied to blow damage sides */
     byte armor_ps_reduction; /* Reduction applied to protection sides */
     byte shatter_padding[3]; /* Reserved for future shattering data */
@@ -1055,6 +1067,12 @@ struct player_type
     byte song1; /* Current song */
     byte song2; /* Current minor theme */
     s16b song_duration; /* The duration of the current song */
+    s16b song_target_idx; /* Current targeted monster for duel songs */
+    byte song_target_song; /* Which song the current target applies to */
+    byte song_lockout_timer; /* Turns before singing allowed again */
+    byte song_contest_player_stacks; /* Player stack count for Song of Contest */
+    byte song_duel_pad; /* Padding for alignment */
+    s32b song_contest_last_turn; /* Last turn player stack changed */
 
     s16b player_hp[PY_MAX_LEVEL]; /* HP Array */
 
