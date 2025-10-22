@@ -5326,6 +5326,22 @@ void change_song(int song)
         }
         break;
     }
+    case SNG_REVEALING:
+    {
+        if (song_to_change == 1)
+        {
+            msg_print("You weave a song to unveil hidden life and treasure.");
+        }
+        else if (old_song == SNG_NOTHING)
+        {
+            msg_print("You add a minor theme that seeks what lies concealed.");
+        }
+        else
+        {
+            msg_print("You shift your minor theme toward revealing secrets.");
+        }
+        break;
+    }
     case SNG_TREES:
     {
         if (song_to_change == 1)
@@ -6092,6 +6108,96 @@ static void shatter_floor_items(int score)
     }
 }
 
+static void song_reveal_items(int range)
+{
+    bool marked_anything = false;
+
+    for (int i = 1; i < o_max; i++)
+    {
+        object_type* o_ptr = &o_list[i];
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        if (o_ptr->held_m_idx)
+            continue;
+
+        int y = o_ptr->iy;
+        int x = o_ptr->ix;
+
+        if (distance(p_ptr->py, p_ptr->px, y, x) > range)
+            continue;
+
+        if (!o_ptr->marked)
+        {
+            o_ptr->marked = true;
+            marked_anything = true;
+        }
+
+        lite_spot(y, x);
+    }
+
+    for (int i = 1; i < mon_max; i++)
+    {
+        monster_type* m_ptr = &mon_list[i];
+
+        if (!m_ptr->r_idx)
+            continue;
+
+        monster_race* r_ptr = &r_info[m_ptr->r_idx];
+
+        if (!(strchr("|!?-_=~", r_ptr->d_char)))
+            continue;
+
+        if (distance(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx) > range)
+            continue;
+
+        m_ptr->mflag |= (MFLAG_MARK | MFLAG_SHOW);
+        marked_anything = true;
+
+        repair_mflag_mark = true;
+        repair_mflag_show = true;
+
+        update_mon(i, false);
+    }
+
+    if (marked_anything)
+        p_ptr->redraw |= (PR_MAP);
+}
+
+void sing_song_of_revealing(int score, bool primary_song)
+{
+    int effective_skill = p_ptr->skill_use[S_SNG];
+    if (!primary_song)
+        effective_skill /= 2;
+
+    if (effective_skill <= 0)
+        return;
+
+    int range = score + 10;
+    if (range < 0)
+        range = 0;
+
+    for (int i = 1; i < mon_max; i++)
+    {
+        monster_type* m_ptr = &mon_list[i];
+
+        if (!m_ptr->r_idx)
+            continue;
+
+        int dist = flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx);
+        if (dist >= FLOW_MAX_DIST)
+            continue;
+
+        if (dist > range)
+            continue;
+
+        detect_monster_noise(m_ptr, effective_skill);
+    }
+
+    song_reveal_items(range);
+}
+
 void sing(void)
 {
     int type;
@@ -6212,6 +6318,15 @@ void sing(void)
                 cost += 1;
 
             sing_song_of_delvings(score);
+
+            break;
+        }
+        case SNG_REVEALING:
+        {
+            if ((p_ptr->song_duration % 3) == type - 1)
+                cost += 1;
+
+            sing_song_of_revealing(score, song == p_ptr->song1);
 
             break;
         }

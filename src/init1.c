@@ -11,6 +11,7 @@
 #include "angband.h"
 #include "h-define.h"
 #include "z-form.h" 
+#include <ctype.h>
 /* Forward declaration for init2 and local placement */
 errr parse_style_levels(char* buf, header* head);
 
@@ -1209,14 +1210,83 @@ errr parse_rt_info(char *buf, header *head)
         return 0;
     }
 
-    /* L:<num>  – blessing point threshold (score pool needed per point) */
+    /* L:<values>  - blessing point thresholds (score pool needed per point) */
     if (buf[0] == 'L')
     {
         if (!rt_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
-        int v = atoi(buf + 2);
-        if (v < 1) v = 1;
-        if (v > 65535) v = 65535;
-        rt_ptr->blessing_threshold = (u16b)v;
+
+        char *arg = buf + 2;
+        char *comment = strchr(arg, '#');
+        if (comment) *comment = '\0';
+
+        int positional = 0;
+        static const int positional_order[] = {
+            RUNTYPE_BLESSING_MODE_NORMAL,
+            RUNTYPE_BLESSING_MODE_EASIER,
+            RUNTYPE_BLESSING_MODE_HARDER
+        };
+
+        for (char *tok = strtok(arg, "|"); tok; tok = strtok(NULL, "|"))
+        {
+            while (tok && isspace((unsigned char)*tok)) tok++;
+            if (!tok || !*tok) continue;
+
+            int mode = -1;
+            char *value = tok;
+            char *sep = strpbrk(tok, "=:");
+
+            if (sep)
+            {
+                *sep = '\0';
+                value = sep + 1;
+
+                char *key = tok;
+                while (key && isspace((unsigned char)*key)) key++;
+                if (key && *key)
+                {
+                    char *key_end = key + strlen(key);
+                    while (key_end > key && isspace((unsigned char)key_end[-1])) *--key_end = '\0';
+
+                    char lower_key[16];
+                    size_t key_len = strlen(key);
+                    if (key_len >= sizeof(lower_key)) key_len = sizeof(lower_key) - 1;
+                    for (size_t i = 0; i < key_len; i++)
+                        lower_key[i] = (char)tolower((unsigned char)key[i]);
+                    lower_key[key_len] = '\0';
+
+                    if (streq(lower_key, "easier") || streq(lower_key, "easy"))
+                        mode = RUNTYPE_BLESSING_MODE_EASIER;
+                    else if (streq(lower_key, "harder") || streq(lower_key, "hard"))
+                        mode = RUNTYPE_BLESSING_MODE_HARDER;
+                    else if (streq(lower_key, "normal") || streq(lower_key, "default"))
+                        mode = RUNTYPE_BLESSING_MODE_NORMAL;
+                }
+            }
+
+            if (mode < 0)
+            {
+                if (positional < (int)N_ELEMENTS(positional_order))
+                    mode = positional_order[positional];
+                else
+                    mode = RUNTYPE_BLESSING_MODE_NORMAL;
+                positional++;
+            }
+
+            while (value && isspace((unsigned char)*value)) value++;
+            if (!value || !*value) continue;
+
+            char *value_end = value + strlen(value);
+            while (value_end > value && isspace((unsigned char)value_end[-1])) *--value_end = '\0';
+            if (!*value) continue;
+
+            int val = atoi(value);
+            if (val < 1) val = 1;
+            if (val > 65535) val = 65535;
+
+            if (mode >= 0 && mode < RUNTYPE_BLESSING_MODE_COUNT)
+                rt_ptr->blessing_threshold_modes[mode] = (u16b)val;
+        }
+
         return 0;
     }
 

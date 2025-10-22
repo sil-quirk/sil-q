@@ -220,15 +220,16 @@ static int count_character_txt_entries(void)
     return cached_total;
 }
 
+static u32b runtype_threshold_for_mode(int runtype_id, metarun_blessing_threshold_mode mode);
+static u32b metarun_threshold_value(const metarun *m);
+static const char *threshold_mode_name(metarun_blessing_threshold_mode mode);
+
 static void update_blessing_ledger(metarun *m)
 {
     if (!m) return;
 
     /* Get blessing point threshold from runtype data */
-    u32b threshold = METARUN_BLESSING_POINT_THRESHOLD; /* fallback */
-    if (runtype_info && m->type < z_info->rt_max && runtype_info[m->type].blessing_threshold > 0) {
-        threshold = runtype_info[m->type].blessing_threshold;
-    }
+    u32b threshold = metarun_threshold_value(m);
     if (threshold == 0) threshold = 1;
 
     u32b total = m->fallen_score_total;
@@ -260,6 +261,7 @@ static void clear_blessing_runtime_fields(metarun *m)
         m->pending_blessing_choices[i] = 255;
     }
     
+    metarun_set_threshold_mode(m, METARUN_BLESSING_THRESHOLD_NORMAL);
     memset(m->reserved_runtime, 0, sizeof(m->reserved_runtime));
 }
 
@@ -412,6 +414,42 @@ static void refresh_alive_cache(void)
 
     log_debug("refresh_alive_cache: roster=%d deaths=%d scoreboard=%d final=%d",
               roster_total, metar.deaths, alive_scores, alive);
+}
+
+static u32b runtype_threshold_for_mode(int runtype_id, metarun_blessing_threshold_mode mode)
+{
+    u32b fallback = METARUN_BLESSING_POINT_THRESHOLD;
+
+    if (!runtype_info || !z_info) return fallback;
+    if (runtype_id < 0 || runtype_id >= z_info->rt_max) return fallback;
+
+    runtype_type *rt = &runtype_info[runtype_id];
+
+    int idx = (int)mode;
+    if (idx < 0 || idx >= RUNTYPE_BLESSING_MODE_COUNT) idx = RUNTYPE_BLESSING_MODE_NORMAL;
+
+    u16b val = rt->blessing_threshold_modes[idx];
+    if (!val && idx != RUNTYPE_BLESSING_MODE_NORMAL) {
+        val = rt->blessing_threshold_modes[RUNTYPE_BLESSING_MODE_NORMAL];
+    }
+    if (!val) val = METARUN_BLESSING_POINT_THRESHOLD;
+
+    return (u32b)val;
+}
+
+static u32b metarun_threshold_value(const metarun *m)
+{
+    if (!m) return METARUN_BLESSING_POINT_THRESHOLD;
+    return runtype_threshold_for_mode(m->type, metarun_get_threshold_mode(m));
+}
+
+static const char *threshold_mode_name(metarun_blessing_threshold_mode mode)
+{
+    switch (mode) {
+        case METARUN_BLESSING_THRESHOLD_EASIER: return "Easier";
+        case METARUN_BLESSING_THRESHOLD_HARDER: return "Harder";
+        default: return "Normal";
+    }
 }
 
 static void decode_legacy_curse_words(u32b lo, u32b hi, int8_t stacks[32])
@@ -819,6 +857,7 @@ static void start_new_metarun(void);
 static void choose_difficulty_menu(void);
 static void print_heading_fade(cptr title, byte final_attr);
 static bool print_paragraph_fade(cptr txt, byte final_attr, int row);
+static void adjust_blessing_threshold_menu(void);
 /* =======================  load / save  ========================= */
 
 /* Check if a file is in the new versioned format */
@@ -2073,14 +2112,21 @@ static void wait_for_keypress_with_prompt(cptr prompt)
 static cptr curse_display_name(int idx)
 {
     cptr raw = cu_name + cu_info[idx].name;
-    if (strncmp(raw, "Curse of ", 8) == 0) raw += 8;
+    /* Strip common prefixes for cleaner display */
+    if (strncmp(raw, "Curse of ", 9) == 0) raw += 9;
+    else if (strncmp(raw, "Burden of ", 10) == 0) raw += 10;
+    else if (strncmp(raw, "Sorrow of ", 10) == 0) raw += 10;
+    else if (strncmp(raw, "Doom of ", 8) == 0) raw += 8;
     return raw;
 }
 
 static cptr blessing_display_name(int idx)
 {
     if (cu_info[idx].blessing_name) {
-        return cu_name + cu_info[idx].blessing_name;
+        cptr raw = cu_name + cu_info[idx].blessing_name;
+        /* Strip "Blessing of " prefix for consistency */
+        if (strncmp(raw, "Blessing of ", 12) == 0) raw += 12;
+        return raw;
     }
     return curse_display_name(idx);
 }
@@ -2899,66 +2945,152 @@ static void start_new_metarun(void)
     log_info("New metarun %d created and initialized", metar.id);
 }
 
-/* Show all active curses in a dedicated screen */
+/* Show all active curses in a dedicated screen with pagination */
 static void show_all_active_curses(void)
 {
     int term_height, term_width;
     screen_save();
-    Term_clear();
     
     /* Get actual terminal dimensions */
     Term_get_size(&term_width, &term_height);
     
-    /* Title */
-    Term_putstr(2, 1, -1, TERM_YELLOW, "=== All Active Curses ===");
-    
-    int row = 3;
-    char buf[128];
-    
-    /* Count active curses */
+    /* Count active effects and build list */
     int active_count = 0;
-    for (int id = 0; id < z_info->cu_max; id++) {
-        if (CURSE_GET(id)) active_count++;
-    }
-    
-    if (active_count == 0) {
-        Term_putstr(2, row, -1, TERM_L_DARK, "No active curses");
-    } else {
-        snprintf(buf, sizeof buf, "%d active curse%s:", 
-                 active_count, (active_count == 1) ? "" : "s");
-        Term_putstr(2, row++, -1, TERM_WHITE, buf);
-        
-#ifdef DEBUG_CURSES
-        Term_putstr(2, row++, -1, TERM_L_DARK, "(showing D:stacks and P:effect)");
-#endif
-        
-        for (int id = 0; id < z_info->cu_max; id++) {
-            byte cnt = CURSE_GET(id);
-            if (!cnt) continue;
-            
-            /* Build line: id, name, D:count, optional P:text */
-            cptr name = cu_name + cu_info[id].name;
-#ifdef DEBUG_CURSES
-            cptr pow = cu_text + cu_info[id].power;
-            snprintf(buf, sizeof buf, " %2d: %-20s D:%d P:%s", id, name, cnt, pow);
-#else
-            snprintf(buf, sizeof buf, " %2d: %-20s D:%d", id, name, cnt);
-#endif
-            Term_putstr(4, row++, -1, TERM_WHITE, buf);
-            
-            /* Handle page breaks for very long lists using actual terminal height */
-            if (row >= term_height - 2) {
-                Term_putstr(2, row, -1, TERM_L_DARK, "[Press any key for more]");
-                inkey();
-                Term_clear();
-                Term_putstr(2, 1, -1, TERM_YELLOW, "=== All Active Curses (continued) ===");
-                row = 3;
-            }
+    int active_ids[64];
+    for (int id = 0; id < z_info->cu_max && active_count < 64; id++) {
+        if (CURSE_GET(id) != 0) {
+            active_ids[active_count++] = id;
         }
     }
     
-    Term_putstr(2, row + 1, -1, TERM_L_DARK, "Press any key to return.");
-    inkey();
+    if (active_count == 0) {
+        Term_clear();
+        Term_putstr(2, 1, -1, TERM_YELLOW, "=== All Active Effects ===");
+        Term_putstr(2, 3, -1, TERM_L_DARK, "No active curses or blessings");
+        Term_putstr(2, 5, -1, TERM_L_DARK, "Press any key to return.");
+        inkey();
+        screen_load();
+        return;
+    }
+    
+    /* Calculate how many effects fit per page */
+    int lines_per_effect = 4; /* name + description + power + blank */
+    int header_lines = 4;
+    int footer_lines = 2;
+    int available_lines = term_height - header_lines - footer_lines;
+    int effects_per_page = available_lines / lines_per_effect;
+    if (effects_per_page < 1) effects_per_page = 1;
+    
+    int total_pages = (active_count + effects_per_page - 1) / effects_per_page;
+    int current_page = 0;
+    
+    while (true) {
+        Term_clear();
+        
+        /* Title with page info */
+        char title_buf[80];
+        if (total_pages > 1) {
+            snprintf(title_buf, sizeof title_buf, "=== Active Effects (Page %d/%d) ===", 
+                     current_page + 1, total_pages);
+        } else {
+            my_strcpy(title_buf, "=== All Active Effects ===", sizeof title_buf);
+        }
+        Term_putstr(2, 1, -1, TERM_YELLOW, title_buf);
+        
+        int start_idx = current_page * effects_per_page;
+        int end_idx = start_idx + effects_per_page;
+        if (end_idx > active_count) end_idx = active_count;
+        
+        int row = 3;
+        for (int i = start_idx; i < end_idx; i++) {
+            int id = active_ids[i];
+            int stacks = CURSE_GET(id);
+            bool is_blessing = (stacks < 0);
+            int magnitude = is_blessing ? -stacks : stacks;
+            bool seen = CURSE_SEEN(id);
+            
+            const curse_type *cu = &cu_info[id];
+            cptr name = is_blessing ? blessing_display_name(id) : curse_display_name(id);
+            byte name_attr = is_blessing ? TERM_L_GREEN : TERM_L_RED;
+            
+            /* Display name and magnitude */
+            char buf[120];
+            snprintf(buf, sizeof buf, "%s x%d", name, magnitude);
+            Term_putstr(2, row++, -1, name_attr, buf);
+            
+            /* Always display description (D: or E:) */
+            cptr desc = is_blessing 
+                ? (cu->blessing_text ? cu_text + cu->blessing_text : NULL)
+                : (cu->text ? cu_text + cu->text : NULL);
+            if (desc && *desc) {
+                snprintf(buf, sizeof buf, "  %s", desc);
+                /* Truncate if too long for terminal */
+                if ((int)strlen(buf) > term_width - 2) {
+                    buf[term_width - 5] = '.';
+                    buf[term_width - 4] = '.';
+                    buf[term_width - 3] = '.';
+                    buf[term_width - 2] = '\0';
+                }
+                Term_putstr(2, row++, -1, TERM_SLATE, buf);
+            }
+            
+            /* Display power (P: or H:) only if identified */
+            if (seen) {
+                cptr power = is_blessing
+                    ? (cu->blessing_power ? cu_text + cu->blessing_power : NULL)
+                    : (cu->power ? cu_text + cu->power : NULL);
+                if (power && *power) {
+                    snprintf(buf, sizeof buf, "  Effect: %s", power);
+                    if ((int)strlen(buf) > term_width - 2) {
+                        buf[term_width - 5] = '.';
+                        buf[term_width - 4] = '.';
+                        buf[term_width - 3] = '.';
+                        buf[term_width - 2] = '\0';
+                    }
+                    Term_putstr(2, row++, -1, is_blessing ? TERM_L_GREEN : TERM_L_RED, buf);
+                }
+            } else {
+                Term_putstr(2, row++, -1, TERM_L_DARK, "  (Effect not yet identified)");
+            }
+            
+            row++; /* Blank line between effects */
+        }
+        
+        /* Footer with navigation instructions */
+        char footer_buf[100];
+        if (total_pages > 1) {
+            snprintf(footer_buf, sizeof footer_buf, 
+                     "Use arrows (left/right) to navigate. Any other key to return.");
+        } else {
+            my_strcpy(footer_buf, "Press any key to return.", sizeof footer_buf);
+        }
+        
+        /* Ensure minimum 80 width for footer */
+        size_t footer_len = strlen(footer_buf);
+        if (footer_len < 80 && footer_len + 2 < sizeof footer_buf) {
+            memset(footer_buf + footer_len, ' ', 80 - footer_len);
+            footer_buf[80] = '\0';
+        }
+        
+        Term_putstr(0, term_height - 1, -1, TERM_L_DARK, footer_buf);
+        Term_fresh();
+        
+        /* Get input */
+        char key = inkey();
+        
+        /* Arrow navigation: 6 = right, 4 = left (keypad directions) */
+        if (total_pages > 1 && key == '6') {
+            /* Next page */
+            current_page = (current_page + 1) % total_pages;
+        } else if (total_pages > 1 && key == '4') {
+            /* Previous page */
+            current_page = (current_page + total_pages - 1) % total_pages;
+        } else {
+            /* Exit on any other key */
+            break;
+        }
+    }
+    
     screen_load();
 }
 
@@ -3582,10 +3714,8 @@ static void open_blessing_exchange(void)
         Term_putstr(2, 3, -1, TERM_L_WHITE, buf);
 
         /* Get blessing point threshold from runtype data */
-        u32b threshold = METARUN_BLESSING_POINT_THRESHOLD; /* fallback */
-        if (runtype_info && metar.type < z_info->rt_max && runtype_info[metar.type].blessing_threshold > 0) {
-            threshold = runtype_info[metar.type].blessing_threshold;
-        }
+        u32b threshold = metarun_threshold_value(&metar);
+        if (threshold == 0) threshold = 1;
         
         snprintf(buf, sizeof buf, "Fallen Score Pool: %lu (progress %lu / %lu)",
                  (unsigned long)metar.fallen_score_total,
@@ -3721,12 +3851,192 @@ static void open_blessing_exchange(void)
 }
 
 /*
+ * Draw a simple blessing pool progress indicator.
+ * Displays on the right side of the screen in light blue.
+ */
+static void draw_blessing_meter(int col, int start_row, int height, u32b current, u32b threshold)
+{
+    if (height < 5 || threshold == 0) return;
+    
+    /* Calculate fill percentage */
+    int percent = (int)((current * 100) / threshold);
+    if (percent > 100) percent = 100;
+    
+    /* Draw title */
+    Term_putstr(col, start_row, -1, TERM_L_BLUE, "Blessing Pool");
+    
+    /* Draw top border */
+    Term_putstr(col, start_row + 1, -1, TERM_L_BLUE, "+----------+");
+    
+    /* Draw the meter from bottom to top using simple ASCII */
+    int meter_start = start_row + 2;
+    int meter_end = start_row + height - 1;
+    int meter_height = meter_end - meter_start;
+    int filled_height = (meter_height * percent) / 100;
+    
+    for (int row = meter_start; row < meter_end; row++) {
+        int rows_from_bottom = meter_end - row - 1;
+        if (rows_from_bottom < filled_height) {
+            /* Filled portion - use # for filled */
+            Term_putstr(col, row, -1, TERM_L_BLUE, "|##########|");
+        } else {
+            /* Empty portion */
+            Term_putstr(col, row, -1, TERM_L_BLUE, "|          |");
+        }
+    }
+    
+    /* Draw bottom border */
+    Term_putstr(col, meter_end, -1, TERM_L_BLUE, "+----------+");
+    
+    /* Draw progress text below the meter */
+    char progress_buf[20];
+    snprintf(progress_buf, sizeof progress_buf, "%lu/%lu", 
+             (unsigned long)current, (unsigned long)threshold);
+    int text_col = col + (12 - (int)strlen(progress_buf)) / 2;
+    if (text_col < col) text_col = col;
+    Term_putstr(text_col, meter_end + 1, -1, TERM_L_BLUE, progress_buf);
+}
+
+/*
  * Enhanced print_metarun_stats():
  * - Draws a bracketed progress bar for Silmarils using '*'
  * - Renders deaths as a string of 'x' markers without a fixed limit
  * - Aligns labels & values for a cleaner layout
  * - Lists active curses with D: and (optionally) P: details
+ * - Shows a blessing meter on the right side
  */
+static void adjust_blessing_threshold_menu(void)
+{
+    const metarun_blessing_threshold_mode order[] = {
+        METARUN_BLESSING_THRESHOLD_EASIER,
+        METARUN_BLESSING_THRESHOLD_NORMAL,
+        METARUN_BLESSING_THRESHOLD_HARDER
+    };
+    const char *labels[] = { "Easier", "Normal", "Harder" };
+    const char *descs[] = {
+        "If the game feels too hard, use this to earn blessings sooner.",
+        "Default level.",
+        "Pick this if you want fewer blessings by raising the threshold."
+    };
+    const int option_count = (int)N_ELEMENTS(order);
+
+    if (current_run < 0 || current_run >= metarun_max) return;
+
+    metarun_blessing_threshold_mode current_mode = metarun_get_threshold_mode(&metar);
+    int selection = 0;
+    for (int i = 0; i < option_count; i++) {
+        if (order[i] == current_mode) {
+            selection = i;
+            break;
+        }
+    }
+
+    bool accepted = false;
+    metarun_blessing_threshold_mode chosen_mode = current_mode;
+
+    screen_save();
+
+    while (true) {
+        Term_clear();
+        Term_putstr(2, 1, -1, TERM_YELLOW, "=== Blessing Threshold ===");
+
+        char buf[160];
+        u32b current_threshold = metarun_threshold_value(&metar);
+        snprintf(buf, sizeof buf, "Current: %s (%lu points per blessing)",
+                 threshold_mode_name(current_mode), (unsigned long)current_threshold);
+        Term_putstr(2, 3, -1, TERM_L_BLUE, buf);
+
+        int row = 5;
+        for (int i = 0; i < option_count; i++) {
+            metarun_blessing_threshold_mode mode = order[i];
+            u32b mode_threshold = runtype_threshold_for_mode(metar.type, mode);
+            bool is_highlighted = (i == selection);
+            bool is_current = (mode == current_mode);
+
+            /* Color scheme: Green for Easier, White for Normal, Orange for Harder */
+            byte base_color = (mode == METARUN_BLESSING_THRESHOLD_EASIER) ? TERM_L_GREEN :
+                             (mode == METARUN_BLESSING_THRESHOLD_HARDER) ? TERM_ORANGE :
+                             TERM_WHITE;
+
+            char option_buf[80];
+            snprintf(option_buf, sizeof option_buf, "%c%c) %s",
+                     is_highlighted ? '>' : ' ', 'a' + i, labels[i]);
+
+            byte name_attr = is_highlighted ? TERM_YELLOW : (is_current ? base_color : base_color);
+            Term_putstr(2, row++, -1, name_attr, option_buf);
+
+            snprintf(option_buf, sizeof option_buf, "    Requires %lu points per blessing",
+                     (unsigned long)mode_threshold);
+            byte threshold_attr = is_highlighted ? TERM_L_WHITE : TERM_L_DARK;
+            Term_putstr(2, row++, -1, threshold_attr, option_buf);
+
+            byte desc_attr = is_highlighted ? TERM_L_WHITE : TERM_SLATE;
+            Term_putstr(4, row++, -1, desc_attr, descs[i]);
+            row++;
+        }
+
+        Term_putstr(2, row + 1, -1, TERM_L_DARK,
+                    "Use arrows or a/b/c to choose. Enter accepts, Esc cancels.");
+
+        char key = inkey();
+
+        if (key == ESCAPE) {
+            break;
+        } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+            accepted = true;
+            chosen_mode = order[selection];
+            break;
+        } else if (key == '8' || key == 'k' || key == '-') {
+            selection = (selection + option_count - 1) % option_count;
+            continue;
+        } else if (key == '2' || key == 'j' || key == '+') {
+            selection = (selection + 1) % option_count;
+            continue;
+        } else if (key >= 'a' && key < 'a' + option_count) {
+            selection = key - 'a';
+            continue;
+        } else if (key >= 'A' && key < 'A' + option_count) {
+            selection = key - 'A';
+            continue;
+        }
+    }
+
+    bool changed = false;
+    u32b new_threshold = 0;
+
+    if (accepted && chosen_mode != current_mode) {
+        metarun_set_threshold_mode(&metar, chosen_mode);
+        update_blessing_ledger(&metar);
+        if (!sync_current_metarun_slot(false)) {
+            log_warn("Threshold change: unable to sync metarun slot (idx=%d, max=%d)", current_run, metarun_max);
+        }
+        save_metaruns();
+        changed = true;
+        new_threshold = metarun_threshold_value(&metar);
+    }
+
+    if (accepted) {
+        Term_clear();
+        if (changed) {
+            char msg[160];
+            snprintf(msg, sizeof msg, "Blessing threshold set to %s.",
+                     threshold_mode_name(chosen_mode));
+            Term_putstr(2, 2, -1, TERM_L_GREEN, msg);
+            snprintf(msg, sizeof msg, "New requirement: %lu points per blessing.",
+                     (unsigned long)new_threshold);
+            Term_putstr(2, 4, -1, TERM_WHITE, msg);
+        } else {
+            Term_putstr(2, 2, -1, TERM_L_DARK,
+                        "Blessing threshold remains unchanged.");
+        }
+        Term_putstr(2, 6, -1, TERM_L_DARK, "Press any key to continue.");
+        Term_fresh();
+        (void)inkey();
+    }
+
+    screen_load();
+}
+
 /* Updated print_metarun_stats(): prettier layout, star & death bars, curses list */
 void print_metarun_stats(void)
 {
@@ -3778,10 +4088,9 @@ void print_metarun_stats(void)
     u32b remainder = metar.fallen_score_pool;
     
     /* Get blessing point threshold from runtype data */
-    u32b threshold = METARUN_BLESSING_POINT_THRESHOLD; /* fallback */
-    if (runtype_info && metar.type < z_info->rt_max && runtype_info[metar.type].blessing_threshold > 0) {
-        threshold = runtype_info[metar.type].blessing_threshold;
-    }
+    u32b threshold = metarun_threshold_value(&metar);
+    if (threshold == 0) threshold = 1;
+    const char *threshold_mode = threshold_mode_name(metarun_get_threshold_mode(&metar));
 
     int earned_points = metar.blessing_points;
     int spent_points = metar.blessing_points_spent;
@@ -3790,6 +4099,20 @@ void print_metarun_stats(void)
     screen_save();
     Term_clear();
     Term_get_size(&term_width, &term_height);
+    
+    /* Ensure minimum 80 width for layout */
+    int effective_width = (term_width < 80) ? 80 : term_width;
+    
+    /* Calculate blessing meter position (right side) */
+    int meter_col = effective_width - 16;
+    if (meter_col < 60) meter_col = 60; /* Keep some space for main content */
+    int meter_height = (term_height > 20) ? 15 : (term_height - 5);
+    if (meter_height < 5) meter_height = 5;
+
+    /* Draw blessing meter on the right side */
+    u32b progress = remainder;
+    if (threshold == 0) threshold = 1;
+    draw_blessing_meter(meter_col, 2, meter_height, progress, threshold);
 
     Term_putstr(col, row++, -1, TERM_YELLOW, "=== Current Story Statistics ===");
 
@@ -3822,10 +4145,8 @@ void print_metarun_stats(void)
              available_points, spent_points, earned_points);
     Term_putstr(col, row++, -1, blessing_attr, buf);
 
-    u32b progress = remainder;
-    if (threshold == 0) threshold = 1;
-    snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (progress %lu / %lu)",
-             (unsigned long)total_pool, (unsigned long)progress, (unsigned long)threshold);
+    snprintf(buf, sizeof buf, "Blessing Pool  : %lu total (mode: %s, press 'f' to change)",
+             (unsigned long)total_pool, threshold_mode);
     Term_putstr(col, row++, -1, TERM_WHITE, buf);
 
     Term_putstr(col, row++, -1, TERM_YELLOW, "Major Blessings:");
@@ -3855,6 +4176,9 @@ void print_metarun_stats(void)
 
     Term_putstr(col, row++, -1, TERM_YELLOW, "Active Curses & Blessings:");
 
+    /* Calculate max width for effect display (left side only, meter is separate) */
+    int max_display_width = (meter_col > 60) ? meter_col - 4 : 56;
+    
     int available_lines = term_height - row - 2;
     if (available_lines < 0) available_lines = 0;
 
@@ -3864,59 +4188,99 @@ void print_metarun_stats(void)
     }
 
     bool curses_truncated = false;
-    int curses_shown = 0;
-
     if (active_count == 0) {
         Term_putstr(col + 2, row++, -1, TERM_L_DARK, "None active");
     } else if (available_lines <= 0) {
         curses_truncated = true;
         Term_putstr(col + 2, row++, -1, TERM_L_DARK,
-                    "List truncated - press 's' to view all effects");
+                    "List truncated - press 'u' to view all effects");
     } else {
-        int max_rows = available_lines;
-        if (active_count > max_rows) {
-            curses_truncated = true;
-            if (max_rows > 0) max_rows--; /* reserve space for truncation message */
-        }
+        int lines_remaining = available_lines;
+        int entries_remaining = active_count;
 
-        for (int id = 0; id < z_info->cu_max && curses_shown < max_rows; id++) {
+        for (int id = 0; id < z_info->cu_max; id++) {
             int stacks = CURSE_GET(id);
             if (!stacks) continue;
 
+            if (lines_remaining <= 0) {
+                curses_truncated = true;
+                break;
+            }
+
+            entries_remaining--;
             bool is_blessing = (stacks < 0);
             int magnitude = is_blessing ? -stacks : stacks;
             cptr name = is_blessing ? blessing_display_name(id) : curse_display_name(id);
             byte attr = is_blessing ? TERM_L_GREEN : TERM_RED;
+            bool seen = CURSE_SEEN(id);
 
-#ifdef DEBUG_CURSES
-            cptr effect = is_blessing ? (cu_info[id].blessing_power ? cu_text + cu_info[id].blessing_power : "")
-                                      : (cu_info[id].power ? cu_text + cu_info[id].power : "");
-            snprintf(buf, sizeof buf, " %2d: %-24s %s %d %s", id, name,
-                     is_blessing ? "Blessing" : "Curse", magnitude, effect);
-#else
-            snprintf(buf, sizeof buf, " %2d: %-24s %s %d", id, name,
-                     is_blessing ? "Blessing" : "Curse", magnitude);
-#endif
-            Term_putstr(col + 2, row++, -1, attr, buf);
-            curses_shown++;
+            const curse_type *cu = &cu_info[id];
+            cptr effect = NULL;
+            
+            /* Only show H:/P: effect if identified */
+            if (seen) {
+                effect = is_blessing
+                    ? (cu->blessing_power ? cu_text + cu->blessing_power : NULL)
+                    : (cu->power ? cu_text + cu->power : NULL);
+            }
+
+            /* Format with proper alignment - shorten type labels and move closer to left */
+            /* Use shortened labels: "Bless" and "Curse" instead of full words */
+            if (effect && *effect) {
+                snprintf(buf, sizeof buf, "  %-28s %-5s %d - %s", name,
+                         is_blessing ? "Bless" : "Curse", magnitude, effect);
+            } else {
+                snprintf(buf, sizeof buf, "  %-28s %-5s %d", name,
+                         is_blessing ? "Bless" : "Curse", magnitude);
+            }
+            
+            /* Truncate if too long */
+            if ((int)strlen(buf) > max_display_width) {
+                buf[max_display_width - 3] = '.';
+                buf[max_display_width - 2] = '.';
+                buf[max_display_width - 1] = '.';
+                buf[max_display_width] = '\0';
+            }
+
+            Term_putstr(col, row++, -1, attr, buf);
+            lines_remaining--;
+
+            if (lines_remaining <= 0 && entries_remaining > 0) {
+                curses_truncated = true;
+                break;
+            }
         }
 
-        if (curses_truncated && curses_shown < active_count) {
-            int remaining = active_count - curses_shown;
-            snprintf(buf, sizeof buf, "     ... and %d more effect%s (press 's' to view all)",
-                     remaining, (remaining == 1) ? "" : "s");
-            Term_putstr(col + 2, row++, -1, TERM_L_DARK, buf);
+        if (curses_truncated && lines_remaining > 0) {
+            if (entries_remaining > 0) {
+                snprintf(buf, sizeof buf, "... and %d more effect%s (press 'u' to view all)",
+                         entries_remaining, (entries_remaining == 1) ? "" : "s");
+            } else {
+                my_strcpy(buf, "List truncated - press 'u' to view all effects",
+                          sizeof buf);
+            }
+            Term_putstr(col, row++, -1, TERM_L_DARK, buf);
         }
     }
 
-    const char *prompt = NULL;
-    if (curses_truncated) {
-        prompt = "[b] Spend blessings  [c] Change difficulty  [s] Show history & full list  [any other key] Continue";
-    } else {
-        prompt = "[b] Spend blessings  [c] Change difficulty  [s] Show history  [any other key] Continue";
+    char prompt_buf[160];
+    const char *base_prompt = "[b] Spend blessings  [f] Threshold  [c] Difficulty  [u] Full list  [s] History";
+    
+    /* Pad to terminal width (minimum 80) */
+    int target_width = (term_width > 80) ? term_width : 80;
+    snprintf(prompt_buf, sizeof prompt_buf, "%s", base_prompt);
+    size_t plen = strlen(prompt_buf);
+    
+    if ((int)plen < target_width && plen + 2 < sizeof prompt_buf) {
+        int pad_amount = target_width - (int)plen;
+        if (pad_amount > (int)(sizeof prompt_buf - plen - 1)) {
+            pad_amount = sizeof prompt_buf - plen - 1;
+        }
+        memset(prompt_buf + plen, ' ', pad_amount);
+        prompt_buf[plen + pad_amount] = '\0';
     }
 
-    Term_putstr(col, term_height - 1, -1, TERM_L_DARK, prompt);
+    Term_putstr(0, term_height - 1, -1, TERM_L_DARK, prompt_buf);
 
     char key = inkey();
     if (key == 'b' || key == 'B') {
@@ -3928,12 +4292,21 @@ void print_metarun_stats(void)
         screen_load();
         choose_difficulty_menu();
         return;
+    } else if (key == 'f' || key == 'F') {
+        screen_load();
+        adjust_blessing_threshold_menu();
+        print_metarun_stats();
+        return;
+    } else if (key == 'u' || key == 'U') {
+        /* Show the full list of active curses/blessings separately */
+        screen_load();
+        show_all_active_curses();
+        print_metarun_stats();
+        return;
     } else if (key == 's' || key == 'S') {
+        /* Show history only */
         screen_load();
         list_metaruns();
-        if (curses_truncated) {
-            show_all_active_curses();
-        }
         print_metarun_stats();
         return;
     }
@@ -4055,14 +4428,12 @@ static void choose_difficulty_menu(void)
             /* Get dynamic name and stats from runtype */
             const char *rt_name = "Unknown";
             int win_goal = WINCON_SILMARILS;
-            int blessing_thresh = METARUN_BLESSING_POINT_THRESHOLD; /* fallback */
+            u32b blessing_thresh = runtype_threshold_for_mode(i, METARUN_BLESSING_THRESHOLD_NORMAL);
             
             if (runtype_info && i < z_info->rt_max && runtype_info[i].name[0])
             {
                 rt_name = runtype_info[i].name;
                 win_goal = runtype_info[i].win_con ? runtype_info[i].win_con : WINCON_SILMARILS;
-                if (runtype_info[i].blessing_threshold > 0)
-                    blessing_thresh = runtype_info[i].blessing_threshold;
             }
             
             char desc_buf[128];
@@ -4070,11 +4441,11 @@ static void choose_difficulty_menu(void)
             get_curse_description(i, curse_buf, sizeof(curse_buf));
             
             if (is_locked) {
-                snprintf(desc_buf, sizeof(desc_buf), "[LOCKED] Win: %d Silmarils, Threshold: %d points, %s", 
-                         win_goal, blessing_thresh, curse_buf);
+                snprintf(desc_buf, sizeof(desc_buf), "[LOCKED] Win: %d Silmarils, Threshold: %lu points, %s", 
+                         win_goal, (unsigned long)blessing_thresh, curse_buf);
             } else {
-                snprintf(desc_buf, sizeof(desc_buf), "Win: %d Silmarils, Threshold: %d points, %s", 
-                         win_goal, blessing_thresh, curse_buf);
+                snprintf(desc_buf, sizeof(desc_buf), "Win: %d Silmarils, Threshold: %lu points, %s", 
+                         win_goal, (unsigned long)blessing_thresh, curse_buf);
             }
             
             char name_buf[128];
@@ -4355,13 +4726,42 @@ void show_known_curses_menu(void)
         text_out_c(TERM_WHITE, cdesc);
         row += count_wrapped_lines(cdesc, text_out_wrap, 3);
 
-        /* Optional power line */
-        if (*cpower)
-        {
-            Term_gotoxy(3, row);
-            text_out_c(TERM_L_DARK, cpower);
-            row += count_wrapped_lines(cpower, text_out_wrap, 3);
+        /* Curse effect */
+        const char *curse_effect = (*cpower) ? cpower : "[no additional effect listed]";
+        char curse_effect_line[256];
+        strnfmt(curse_effect_line, sizeof curse_effect_line, "Effect: %s", curse_effect);
+        Term_gotoxy(3, row);
+        text_out_c(TERM_RED, "Effect: ");
+        text_out_c(TERM_L_DARK, curse_effect);
+        row += count_wrapped_lines(curse_effect_line, text_out_wrap, 3);
+
+        /* Blessing counterpart */
+        cptr bname = blessing_display_name(id);
+        cptr bdesc = (c->blessing_text) ? (cu_text + c->blessing_text) : "";
+        cptr bpower = (c->blessing_power) ? (cu_text + c->blessing_power) : "";
+        bool has_blessing_text = bdesc && *bdesc;
+        bool has_blessing_effect = bpower && *bpower;
+        bool has_blessing_info = has_blessing_text || has_blessing_effect || (c->blessing_name != 0);
+
+        if (has_blessing_info) {
+            Term_putstr(3, row++, -1, TERM_L_GREEN, format("Blessing: %s", bname));
+
+            if (has_blessing_text) {
+                Term_gotoxy(5, row);
+                text_out_c(TERM_WHITE, bdesc);
+                row += count_wrapped_lines(bdesc, text_out_wrap, 5);
+            }
+
+            const char *bless_effect = has_blessing_effect ? bpower : "[no additional effect listed]";
+            char bless_effect_line[256];
+            strnfmt(bless_effect_line, sizeof bless_effect_line, "Effect: %s", bless_effect);
+            Term_gotoxy(5, row);
+            text_out_c(TERM_L_GREEN, "Effect: ");
+            text_out_c(TERM_WHITE, bless_effect);
+            row += count_wrapped_lines(bless_effect_line, text_out_wrap, 5);
         }
+
+        row++;
 
         /* Page wrap (match self_knowledge style) */
         if (row >= 21)

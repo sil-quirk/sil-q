@@ -808,6 +808,15 @@ struct major_blessing_type
 };
 
 
+#define RUNTYPE_BLESSING_THRESHOLD_MODES 3
+
+enum runtype_blessing_mode {
+    RUNTYPE_BLESSING_MODE_NORMAL = 0,
+    RUNTYPE_BLESSING_MODE_EASIER = 1,
+    RUNTYPE_BLESSING_MODE_HARDER = 2,
+    RUNTYPE_BLESSING_MODE_COUNT = RUNTYPE_BLESSING_THRESHOLD_MODES
+};
+
 typedef struct runtype_type {
     u16b id;
     char name[32];
@@ -815,7 +824,7 @@ typedef struct runtype_type {
     byte curse_stacks[32];         /* stack count for each curse (0 = disabled) */
     byte colour;                   /* display colour (TERM_*)               */
     byte win_con;                  /* target Silmarils to win (default 15)  */
-    u16b blessing_threshold;       /* score pool needed per blessing point (default 300) */
+    u16b blessing_threshold_modes[RUNTYPE_BLESSING_THRESHOLD_MODES]; /* score pool per blessing tier */
     u32b heroes[FLAG_WORDS];       /* applicable heroes (max 64)            */
 } runtype_type;
 

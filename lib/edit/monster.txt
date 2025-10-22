@@ -2378,13 +2378,14 @@ D: eyes.
 ##### 25 #####
 
 # Morgoth is a very special monster (thus the QUESTOR flag).
-# Values when angered:
+# Values by state (Starting + 1-5; 6 total):
 # Level,      Evasion, Armour, Attack, Damage,  Will, Perception
-# Starting,   20,      5d4,    20,     6d10,    25,   10
-# Decrowned,  22,      5d4,    20,     6d10,    25,   15
-# Hurt,       25,      5d4,    30,     7d10,    30,   20
-# Badly Hurt, 25,      7d4,    30,     7d10,    35,   25
-# Desperate,  30,      7d4,    40,     8d10,    40,   30
+# Starting,               20,      5d4,    20,     6d10,    25,   10
+# 1 - Angry (Decrowned),  22,      5d4,    20,     6d10,    25,   15
+# 2 - Enraged,            25,      5d4,    30,     7d10,    30,   20
+# 3 - Furious,            25,      7d4,    30,     7d10,    35,   25
+# 4 - Apoplectic,         30,      7d4,    40,     8d10,    40,   30
+# 5 - Desperate,          35,      8d4,    50,     9d10,    45,   35
 
 N:251:Morgoth, Lord of Darkness
 W:25:1

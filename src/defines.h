@@ -590,13 +590,14 @@
 #define SNG_STAUNCHING 5
 #define SNG_THRESHOLDS 6
 #define SNG_TREES 7
-#define SNG_WOVEN_THEMES 8
-#define SNG_SLAYING 9
-#define SNG_STAYING 10
-#define SNG_LORIEN 11
-#define SNG_SHATTERING 12
-#define SNG_MASTERY 13
-#define SNG_GRA 14
+#define SNG_REVEALING 8
+#define SNG_WOVEN_THEMES 9
+#define SNG_SLAYING 10
+#define SNG_STAYING 11
+#define SNG_LORIEN 12
+#define SNG_SHATTERING 13
+#define SNG_MASTERY 14
+#define SNG_GRA 15
 
 #define SNG_BINDING 50 /* monster songs */
 #define SNG_PIERCING 51 /* monster songs */

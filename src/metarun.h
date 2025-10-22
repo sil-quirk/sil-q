@@ -47,6 +47,13 @@
 #define METARUN_BLESSING_POINT_THRESHOLD 300   /* Fallback threshold if runtype doesn't specify (data-driven via L: in runtypes.txt) */
 
 typedef enum {
+    METARUN_BLESSING_THRESHOLD_NORMAL = RUNTYPE_BLESSING_MODE_NORMAL,
+    METARUN_BLESSING_THRESHOLD_EASIER = RUNTYPE_BLESSING_MODE_EASIER,
+    METARUN_BLESSING_THRESHOLD_HARDER = RUNTYPE_BLESSING_MODE_HARDER,
+    METARUN_BLESSING_THRESHOLD_MODE_MAX = RUNTYPE_BLESSING_MODE_COUNT
+} metarun_blessing_threshold_mode;
+
+typedef enum {
     METARUN_MAJOR_EFFECT_NONE = 0,
     METARUN_MAJOR_EFFECT_SUPPLY_LIMIT,
     METARUN_MAJOR_EFFECT_START_ARTIFACT,
@@ -105,7 +112,8 @@ typedef struct metarun
     byte pending_blessing_choices[3]; /* Currently offered blessing IDs (0-31, 255=empty) */
     byte pending_blessing_count;      /* How many choices are currently pending (0-3)     */
     
-    byte reserved_runtime[32];  /* Generous runtime expansion space (v0.9.0.2+) */
+    byte blessing_threshold_mode;     /* 0=normal (default), 1=easier, 2=harder          */
+    byte reserved_runtime[31];        /* Remaining runtime expansion space               */
 
 } metarun;
 
@@ -165,6 +173,21 @@ int  metarun_major_blessing_count(void);
 int  metarun_alive_count_cached(void);
 u32b compute_blessing_pool(void);               /* Recalculate pool totals (returns total score) */
 int  blessing_points_available(void);           /* Unspent blessing credits */
+
+static inline metarun_blessing_threshold_mode metarun_get_threshold_mode(const metarun *m)
+{
+    if (!m) return METARUN_BLESSING_THRESHOLD_NORMAL;
+    byte mode = m->blessing_threshold_mode;
+    if (mode >= METARUN_BLESSING_THRESHOLD_MODE_MAX) return METARUN_BLESSING_THRESHOLD_NORMAL;
+    return (metarun_blessing_threshold_mode)mode;
+}
+
+static inline void metarun_set_threshold_mode(metarun *m, metarun_blessing_threshold_mode mode)
+{
+    if (!m) return;
+    if (mode >= METARUN_BLESSING_THRESHOLD_MODE_MAX) mode = METARUN_BLESSING_THRESHOLD_NORMAL;
+    m->blessing_threshold_mode = (byte)mode;
+}
 
 static inline int CURSE_GET(int id)
 {

@@ -1,3 +1,134 @@
+# Session Notes - Metarun UI Improvements
+
+## Date
+2025-10-22 (Evening)
+
+## Metarun Info Menu Enhancements - Round 3 (Final Alignment Fixes)
+
+Fixed remaining alignment issues and blessing power visibility.
+
+### Fixes Applied
+
+1. **Perfect Column Alignment**
+   - Changed from right-padding spaces to left-aligned format specifier: `%-8s`
+   - "Blessing" and "Curse" now properly align in 8-character column
+   - Fixed formatting: `%2d: %-28s %-8s %d - %s`
+
+2. **H:/P: Visibility Fix**
+   - H: (blessing power) and P: (curse power) now **only shown when identified** (`CURSE_SEEN()`)
+   - Added `bool seen = CURSE_SEEN(id);` check before displaying effect
+   - D: (description) still shown always as intended
+
+### Build Status
+✅ Compiled and deployed successfully
+
+---
+
+## Metarun Info Menu Enhancements - Round 2 (Bug Fixes)
+
+Fixed alignment, encoding, and width issues based on testing feedback.
+
+### Fixes Applied
+
+1. **Blessing Pool Meter Encoding Fix**
+   - Changed from Unicode box-drawing characters (╔═╗║) to simple ASCII (+|-|#)
+   - Now uses `+----------+` for borders and `|##########|` for filled sections
+   - Fixes garbled character display in terminal
+   - Progress text format changed to compact: "113/350" instead of "113 / 350"
+
+2. **Curse/Blessing List Alignment**
+   - Fixed column alignment: `%2d: %-28s %s %d - %s`
+   - "Blessing" and "Curse   " now properly aligned (8 chars each)
+   - ID field: 2 digits, Name field: 28 chars fixed width
+   - Removed extra indentation (was `col + 2`, now just `col`)
+   - Effect text truncation respects meter position
+
+3. **Terminal Width Handling**
+   - Footer prompt now uses actual terminal width (minimum 80)
+   - Calculates: `target_width = (term_width > 80) ? term_width : 80`
+   - Pads footer to full width with spaces for clean display
+   - Shortened prompt text to fit: "[b] Spend blessings  [f] Threshold  [c] Difficulty  [u] Full list  [s] History"
+   - Footer starts at column 0 for full-width coverage
+
+4. **Description Visibility (D: and E:)**
+   - D: (curse description) and E: (blessing description) now **always shown**, even when not identified
+   - P: (curse power) and H: (blessing power) still require identification (`CURSE_SEEN()`)
+   - Changed message: "(Effect not yet identified)" instead of "(Not yet identified)"
+
+5. **Width Calculations**
+   - Main display respects meter position: `max_display_width = meter_col - 4`
+   - Ensures 80-column minimum width compliance throughout
+   - Text truncation with "..." when exceeding display area
+
+### Build Status
+✅ Compiled successfully with only pre-existing warnings
+✅ Deployed to `sil-more-windows-sdl3/`
+
+---
+
+## Metarun Info Menu Enhancements - Round 1 (Initial Implementation)
+
+Improved the metarun statistics and curse/blessing display screens with better layout, visual meter, and navigation.
+
+### Changes Made
+
+1. **Blessing Pool Meter** (`src/metarun.c`)
+   - Added `draw_blessing_meter()` function that displays a vertical progress bar on the right side
+   - Shows current blessing pool progress toward next point threshold in light blue (`TERM_L_BLUE`)
+   - Uses box-drawing characters (╔═╗║╚╝) with filled blocks (████) for visual appeal
+   - Displays progress ratio below the meter (e.g., "2450 / 5000")
+   - Positioned at right edge (column = term_width - 16) to avoid overlap with main content
+
+2. **Enhanced 'u' Menu - Full Effects List** (`src/metarun.c`)
+   - Completely rewrote `show_all_active_curses()` to show both description and power for each effect
+   - Now displays **both D: (description/flavor text) and H:/P: (mechanical effect)** for identified effects
+   - Added pagination with left/right arrow navigation (keys 4/6) when effects don't fit on screen
+   - Page indicator in title: "=== Active Effects (Page 1/3) ==="
+   - Each effect shows: name, description, and mechanical effect on separate lines
+   - Handles long text truncation with "..." for terminal width
+   - 4 lines per effect (name + description + power + blank separator)
+
+3. **Threshold Selection Menu Colors** (`src/metarun.c`)
+   - Added color-coded difficulty modes in `adjust_blessing_threshold_menu()`
+   - "Easier" mode: Green (`TERM_L_GREEN`)
+   - "Normal" mode: White (`TERM_WHITE`)
+   - "Harder" mode: Orange (`TERM_ORANGE`)
+   - Highlighted selection shown in yellow (`TERM_YELLOW`)
+   - Improved visual hierarchy with consistent color scheme
+
+4. **Minimum 80-Column Width**
+   - Ensured all text displays properly on minimum 80-width terminals
+   - Footer prompt already padded to 80 characters
+   - Blessing pool text simplified to fit within left column space
+   - Layout calculations respect minimum width while adapting to larger terminals
+
+### Technical Details
+
+- Meter height: 15 rows on tall terminals, scales down to minimum 5 rows
+- Meter column: `term_width - 16` (provides 14-char wide meter + borders)
+- Navigation: Keys 4 (left) and 6 (right) for pagination, any other key exits
+- Data sources: Uses `curse_type` fields - `text`/`blessing_text` for D:/E:, `power`/`blessing_power` for P:/H:
+- Respects `CURSE_SEEN()` flag - only shows details for identified effects
+
+### Build Status
+- Compiled successfully with standard warnings (pre-existing type comparison issues)
+- Deployed to `sil-more-windows-sdl3/` directory
+
+---
+
+# Session Notes - Song of Revealing Implementation
+
+## Date
+2025-10-22 (Morning)
+
+## Song of Revealing
+
+- Added Song of Revealing entry to `lib/edit/ability.txt` after Song of the Trees (ability id 8, skill req 7, prerequisite Song of Delvings) and renumbered later song abilities/prerequisites to keep ordering consistent.
+- Introduced `SNG_REVEALING` enumeration between Trees and Woven Themes (`src/defines.h`), updated name table (`src/birth.c`), and granted it full skill scaling in `ability_bonus` (`src/xtra1.c`).
+- Broke out shared noise-detection logic as `detect_monster_noise()` so Listen and the new song reuse the same checks (`src/monster2.c`, declaration in `src/externs.h`).
+- Implemented `sing_song_of_revealing()` in `src/spells1.c` to run Song-skill-based monster reveals each turn and permanently mark nearby items via new `song_reveal_items()` helper; added start/maintenance messaging and voice cost handling.
+- Ran the VS Code Build and Deploy workflow manually (`cmake` configure/build followed by `.vscode/deploy.ps1`) to produce and copy the updated SDL3 executable.
+
 # Session Notes - Song Debuff Decay Implementation
 
 ## Date
@@ -91,6 +222,27 @@ Skill 30 → 22 turns
 
 ---
 
+## Session Notes - Character song index fixes
+
+- Date: 2025-10-22 (Evening)
+- Fixed mismatched song ability indices in `lib/edit/character.txt` after the addition/reordering of Song abilities in `lib/edit/ability.txt`:
+   - Updated Finrod's starting Song of Staying index to `11`.
+   - Updated Lúthien's Song of Lorien index to `12`.
+   - Corrected Daeron's Woven Themes index to `9`.
+   - Corrected Melian's Song of Mastery index to `14`.
+   - Adjusted a few other song references/comments to match `ability.txt` ordering.
+
+Verification: performed an edit-only consistency pass on `lib/edit/character.txt` and confirmed no syntax errors in the edited file.
+
+Additional quick pass:
+- Date: 2025-10-22 (Evening)
+- Performed a full scan of `lib/edit/character.txt` for all `C:` lines referencing skill 7 (Song) and corrected remaining mismatches so indices match `lib/edit/ability.txt`:
+   - Fixed Finarfin to start with Song of the Trees (7) and Woven Themes (9).
+   - Fixed Húrin to include Song of Slaying (10) and Song of Staying (11) in the `C:` list.
+   - Fixed Elu Thingol to include Song of Mastery (14) where intended.
+
+All edited files parsed with no errors after the changes.
+
 # Session Notes - Score Display Fix (Final)
 
 ## Date
@@ -156,3 +308,20 @@ Score (highest first)                      Layout: Short
 - Physical shattering now chips held gear and nearby floor weapons/armour when damageable, reducing dice toward base values while honouring artefact resistance and visibility messaging.
 - Recognise the `INSCRIP_INDESTRUCTIBLE` tag (plus artefact status) when evaluating shatter targets so indestructible gear remains immune.
 - Revamped savefile compatibility guard to compare full version tuples (major/minor/patch/extra) and drive feature gates, keeping older saves loadable after future version bumps.
+
+# Session Notes - Blessing Threshold Controls
+
+## Date
+2025-10-23
+
+## Blessing Threshold Adjustments
+
+- Expanded runtype data (lib/edit/runtypes.txt, src/types.h, src/init1.c) to support easier/normal/harder blessing thresholds via new `L:` directive values and `blessing_threshold_modes`.
+- Introduced per-metarun threshold mode persisted in the first runtime byte (src/metarun.h, src/metarun.c); recalculation logic now pulls the selected mode and falls back gracefully to normal thresholds.
+- Added `f` shortcut to the metarun statistics screen with a dedicated menu for selecting easier/normal/harder thresholds, including descriptive guidance and live recalculation/update plus persistence.
+- Updated blessing/curse info menu to label curse effects explicitly and surface blessing descriptions/effects for all identified curses (show_known_curses_menu).
+- Blessing pool summaries and the blessing exchange dialog now present the active threshold mode while reflecting the selected progression values.
+
+
+- Updated blessing threshold menu to support arrow-key navigation with in-menu confirmation prompts.
+- Active curse/blessing listings (stats and full view) now surface effect text when identified, drawing from P:/H: entries.

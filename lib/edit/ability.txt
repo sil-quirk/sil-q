@@ -661,24 +661,32 @@ T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:39:0:99  # Light Source
 
-N:148:Woven Themes
-I:7:8:6
+N:148:Song of Revealing
+I:7:8:7
+P:7/2
+D:Reveals nearby monsters while you sing, using your Song skill instead of Listen.
+D:Permanently senses nearby objects within the reach of your song.
+T:35:0:99  # Cloak
+T:20:0:99  # Shovels and Mattocks
+
+N:149:Woven Themes
+I:7:9:6
 P:7/0:7/3
 D:Allows you to add a 'minor theme' to your song. This means you
 D: can have the effect of a second song, but at half your normal Song score.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:149:Song of Slaying
-I:7:9:6
+N:150:Song of Slaying
+I:7:10:6
 P:7/1:7/3
 D:Critical hits in melee kill enemies outright instead of doing damage
 D: if the enemy has health less than or equal to twice your Song score.
 T:22:0:99  # Polearms and axes
 T:23:0:99  # Swords
 
-N:150:Song of Staying
-I:7:10:7
+N:151:Song of Staying
+I:7:11:7
 P:7/1:7/5
 D:Gives you a bonus to Will equal to half your Song score and
 D: [2d2] protection.
@@ -687,30 +695,30 @@ T:34:0:99  # Shields
 T:35:0:99  # Cloak
 T:45:0:99  # Ring
 
-N:151:Song of Lorien
-I:7:11:8
+N:152:Song of Lorien
+I:7:12:8
 P:7/4:7/2
 D:Gradually puts nearby opponents to sleep.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:152:Song of Shattering
-I:7:12:9
-P:7/9
+N:153:Song of Shattering
+I:7:13:9
+P:7/10
 D:Shatters the gear of nearby foes, weakening their blows or armour.
 D:Affects only enemies bearing weapons or armour, and resists with Will.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:153:Song of Mastery
-I:7:13:10
+N:154:Song of Mastery
+I:7:14:10
 P:7/3:7/4
 D:Occasionally prevents nearby opponents from moving or acting.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:154:Grace
-I:7:14:12
+N:155:Grace
+I:7:15:12
 D:You gain a point of grace.
 
 # Special (quest) abilities ---------------------------------------------

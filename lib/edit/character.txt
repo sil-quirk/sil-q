@@ -109,7 +109,7 @@ A: of Tirion
 B:You move in wisdom-voice of gentle counsel, longing for healing beyond bloodshed.
 F:PER_AFFINITY | SMT_PENALTY 
 S:1:1:0:3
-C:7:12:7:7   # Song of the Trees #Woven Themes
+C:7:7:9:9   # Song of the Trees #Woven Themes
 P:2
 D:Wise-hearted and gentle, fairest prince who turned back from doom, 
 D:ruling now in Valinor's quiet peace, sorrowful yet patient, waiting 
@@ -216,7 +216,7 @@ B:You venture loyally-faithful friend to mortals, whose song echoes beyond darkn
 F:PER_AFFINITY | SNG_AFFINITY | WIL_AFFINITY | CURSE
 U:SNG_FIN
 S:0:1:0:3
-C:7:9 #Staying
+C:7:11 #Staying
 P:2
 D:Noble-hearted builder of halls beneath Nargothrond’s fair stone towers, 
 D:friend steadfast and gentle, beloved of Men, faithful unto death itself. 
@@ -268,7 +268,7 @@ B:You command wisely-Lord of Doriath, ensnared by beauty and shadowed doom.
 F:WIL_AFFINITY | PER_AFFINITY | ARC_PENALTY | SMT_PENALTY
 U:SNG_THINGOL
 S:2:1:1:3
-C:5:9:7:11  # Song of Mastery Majesty
+C:5:14:7:11  # Song of Mastery Majesty
 P:3
 D:King of grey twilight, tallest among Elves, ruling hidden Doriath fair; 
 D:whose wisdom guarded realms beneath enchanted forests, untouched by time. 
@@ -316,7 +316,7 @@ B:You sing fearlessly-fairest daughter of twilight, whose love defied Morgoth.
 F:WIL_AFFINITY | SNG_AFFINITY | STL_AFFINITY | EVN_AFFINITY | ARC_PENALTY| SMT_PENALTY
 U:SNG_LUT
 S:-1:3:1:3
-C:7:10:5:0   # Curse Breaking #Lorien
+C:7:12:5:0   # Curse Breaking #Lorien
 P:3
 D:Fairest daughter of twilight, song and star blended beneath woodland leaves, 
 D:whose voice defied Morgoth himself, beauty challenging darkness eternal. 
@@ -549,7 +549,7 @@ B:You endure bravely-mightiest mortal warrior, spirit unbroken by darkness.
 F:EVN_AFFINITY | WIL_AFFINITY | PER_PENALTY | SNG_AFFINITY | MOR_CURSE
 U:SNG_HURIN
 S:2:1:2:0
-C:5:3:5:5:5:7:7:8  # Song of Slaying  # Poison Resistance  # Indomitable # Formidable
+C:5:3:5:5:5:10:11:8  # Song of Slaying  # Poison Resistance  # Indomitable # Formidable
 P:2
 D:Mightiest mortal warrior, defiant heart opposing Morgoth’s darkness, 
 D:whose valor on Anfauglith echoed courage beyond mortal despair. 
@@ -609,7 +609,7 @@ A: the Minstrel
 B:You sing sorrowfully-minstrel whose lament echoes through twilight.
 F:SNG_AFFINITY | WIL_PENALTY | PER_PENALTY| SMT_PENALTY
 S:0:1:-1:3
-C:7:5:7:12 # Song of Staunching and Woven Themes
+C:7:5:7:9 # Song of Staunching and Woven Themes
 P:1
 D:Greatest minstrel of twilight realm, singer whose melodies haunted woods, 
 D:heart bound secretly in sorrowful longing, songs shaped by love unseen. 
@@ -625,7 +625,7 @@ B:You weave enchantment-guardian queen, whose power shields from shadow.
 F:WIL_AFFINITY | SNG_AFFINITY | PER_AFFINITY | ARC_PENALTY| SMT_PENALTY
 U:SNG_MEL
 S:1:0:1:5
-C:7:11:7:6 # Song of Mastery Song of Thresholds
+C:7:14:7:6 # Song of Mastery Song of Thresholds
 P:3
 D:Maia of divine grace, veiled in mortal form, guardian of twilight woods, 
 D:whose enchantment shielded realms from Morgoth’s shadow and despair. 

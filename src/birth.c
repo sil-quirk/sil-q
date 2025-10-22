@@ -134,6 +134,7 @@ static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
         [SNG_STAUNCHING]    = "Song of Staunching",
         [SNG_THRESHOLDS]    = "Song of Thresholds",
         [SNG_TREES]         = "Song of the Trees",
+        [SNG_REVEALING]     = "Song of Revealing",
         [SNG_WOVEN_THEMES]  = "Woven Themes",
         [SNG_SLAYING]       = "Song of Slaying",
         [SNG_STAYING]       = "Song of Staying",

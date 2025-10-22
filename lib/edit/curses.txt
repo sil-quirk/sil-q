@@ -81,7 +81,7 @@ S:0:0:0:0
 F:STL_PENALTY
 A:3/2
 D:Silence slips away gently, betraying secrets once carefully kept.
-P: Stealth Penalty
+P:Stealth Penalty
 B:Blessing of Hidden Footsteps
 E:Quiet veils your path; every step becomes a whisper.
 H:Stealth Affinity
@@ -200,10 +200,10 @@ U:MON_PER
 F:
 A:4/3
 D:No subtlety escapes the watchful darkness. Eyes hidden in gloom pierce your every attempt at secrecy, stripping away your refuge.
-P:Monster Perception increased by 2.
+P:Monster Perception +2.
 B:Blessing of Clouded Sight
 E:Your foes grow blind; their searching eyes find only mist.
-H:Monster Perception decreased by 2
+H:Monster Perception -2
 
 N:18:Iron Will of Morgoth
 S:0:0:0:0
@@ -211,10 +211,10 @@ U:MON_WIL
 F:
 A:4/3
 D:Darkness fortifies their resolve. Adversaries steel their minds, unyielding as stone, resisting your every subtlety and song.
-P:Monster Will increased by 2.
+P:Monster Will -2.
 B:Blessing of Shattered Resolve
 E:Their wills crumble; defiance turns to doubt and fear.
-H:Monster Will decreased by 2
+H:Monster Will +2
 
 N:19:Scales of Anfauglith
 S:0:0:0:0
@@ -222,7 +222,7 @@ U:MON_ARM_DICE
 F:
 A:1/3
 D:Enemy hides harden, mirroring the harsh lands of Anfauglith. Blades ring uselessly against scales tempered by despair.
-P:Monster armour dice increased by 1.
+P:Monster armour dice +1.
 
 N:20:Halls of Adamant
 S:0:0:0:0
@@ -230,10 +230,10 @@ U:MON_ARM_SIDE
 F:
 A:3/3
 D:A fell enchantment coats your foes in armors forged in shadowed halls. Weapons chip against barriers tougher than mortal craft can break.
-P:Monster armour dice sides increased by 1.
+P:Monster armour dice sides +1.
 B:Blessing of Sundered Steel
 E:Fell enchantments break; their armor turns to rust.
-H:Monster armour dice sides decreased by 1
+H:Monster armour dice sides -1
 
 N:21:The Naked Path 
 S:0:0:0:0

@@ -2094,6 +2094,11 @@ int ability_bonus(int skilltype, int abilitynum)
             bonus = skill;
             break;
         }
+        case SNG_REVEALING:
+        {
+            bonus = skill;
+            break;
+        }
         case SNG_THRESHOLDS:
         {
             bonus = skill;

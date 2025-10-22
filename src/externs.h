@@ -771,6 +771,7 @@ extern int monster_skill(monster_type* m_ptr, int skill_type);
 extern int monster_stat(monster_type* m_ptr, int stat_type);
 extern void update_mon(int m_idx, bool full);
 extern void update_monsters(bool full);
+extern bool detect_monster_noise(monster_type* m_ptr, int skill);
 extern s16b monster_carry(int m_idx, object_type* j_ptr);
 extern int monster_base_armour_sides(const monster_type* m_ptr);
 extern void monster_swap(int y1, int x1, int y2, int x2);

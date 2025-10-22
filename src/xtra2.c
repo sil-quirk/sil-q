@@ -2400,6 +2400,18 @@ void anger_morgoth(int level)
         log_debug("anger_morgoth: applying state 4 changes - desperate");
     }
 
+    /* State 5: Final Desperate (new strongest level) */
+    if (level >= 5)
+    {
+        r_ptr->evn = 35;
+        r_ptr->blow[0].att = 50;
+        r_ptr->blow[0].dd = 9;
+        r_ptr->blow[0].ds = 10; /* 9d10 */
+        r_ptr->wil = 45;
+        r_ptr->per = 35;
+        log_debug("anger_morgoth: applying state 5 changes - final desperate");
+    }
+
     p_ptr->morgoth_state = level;
     
     log_debug("anger_morgoth: AFTER - att=%d dd=%dd%d evn=%d pd=%d wil=%d per=%d light=%d",

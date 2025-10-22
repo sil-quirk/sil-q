@@ -1340,7 +1340,10 @@ int monster_stat(monster_type* m_ptr, int stat_type)
     return (stat);
 }
 
-void listen(monster_type* m_ptr)
+/*
+ * Shared sound-based detection logic. Returns true when the check succeeds.
+ */
+bool detect_monster_noise(monster_type* m_ptr, int skill)
 {
     byte a;
     char c;
@@ -1358,17 +1361,13 @@ void listen(monster_type* m_ptr)
     // reset the monster noise
     m_ptr->noise = 0;
 
-    // must have the listen skill
-    if (!p_ptr->active_ability[S_PER][PER_LISTEN])
-        return;
-
     // must not be visible
     if (m_ptr->ml)
-        return;
+        return false;
 
     // monster must be able to move
     if (r_ptr->flags1 & (RF1_NEVER_MOVE))
-        return;
+        return false;
 
     // use monster stealth
     difficulty += monster_skill(m_ptr, S_STL);
@@ -1383,13 +1382,13 @@ void listen(monster_type* m_ptr)
         difficulty += ability_bonus(S_SNG, SNG_SILENCE);
 
     // make the check
-    result = skill_check(PLAYER, p_ptr->skill_use[S_PER], difficulty, m_ptr);
+    result = skill_check(PLAYER, skill, difficulty, m_ptr);
 
     // give up if it is a failure
     if (result <= 0)
     {
         lite_spot(y, x);
-        return;
+        return false;
     }
 
     // make the monster completely visible if a dramatic success
@@ -1397,7 +1396,7 @@ void listen(monster_type* m_ptr)
     {
         m_ptr->ml = true;
         lite_spot(y, x);
-        return;
+        return true;
     }
 
     if (graphics_are_ascii())
@@ -1422,6 +1421,17 @@ void listen(monster_type* m_ptr)
     print_rel(c, a, y, x);
     move_cursor_relative(y, x);
     Term_fresh();
+
+    return true;
+}
+
+void listen(monster_type* m_ptr)
+{
+    // must have the listen skill
+    if (!p_ptr->active_ability[S_PER][PER_LISTEN])
+        return;
+
+    detect_monster_noise(m_ptr, p_ptr->skill_use[S_PER]);
 }
 
 /*
