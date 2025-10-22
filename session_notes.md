@@ -349,3 +349,13 @@ Score (highest first)                      Layout: Short
 - Added Song of Elveness to `lib/edit/ability.txt` before Song of Staying with matching prerequisites (`Song of the Trees`), cost, and new description.
 - Shifted downstream song IDs (Staying onwards) and refreshed song enumerations (`src/defines.h`), name tables (`src/birth.c`), and song listings (`lib/edit/actual_abilities*.txt`, `lib/edit/character.txt`, `lib/edit/artefact.txt`).
 - Implemented gameplay effects: Grace +1 via `calc_bonuses`, Evasion bonus `1 + song/7`, and updated per-turn handling (`src/xtra1.c`, `src/spells1.c`) including noise contribution and UI messaging.
+
+# Session Notes - Song of Disguise
+
+## Date
+2025-10-22
+
+- Added Song of Disguise ahead of Song of Lorien in `lib/edit/ability.txt`, keyed to Song of Silence, and propagated the new ordering through song enums, name tables, hero ability maps, and artefact comments.
+- Wired `SNG_DISGUISE` behaviour in `src/spells1.c`: enforced start restrictions when observed, tracked pacified/seen-through monsters with per-turn skill contests against Will+Perception (distance, attack, and suspicion penalties), and applied the 2 voice per round upkeep.
+- Hooked monster attack tracking and cleanup (`src/melee1.c`, `src/dungeon.c`, `src/monster2.c`) plus AI suppression (`src/melee2.c`) so fooled foes skip their turns until they pierce the disguise; integrated song noise and ability bonus adjustments (`src/xtra1.c`).
+- Declared new song helpers in `src/externs.h` and ensured per-turn rotation/reset flows manage disguise state during level transitions and saves.

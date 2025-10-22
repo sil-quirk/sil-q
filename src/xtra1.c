@@ -2114,6 +2114,11 @@ int ability_bonus(int skilltype, int abilitynum)
             bonus = skill;
             break;
         }
+        case SNG_DISGUISE:
+        {
+            bonus = skill + 5;
+            break;
+        }
         case SNG_STAYING:
         {
             bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_HURIN) ? 2 : 1) * skill; 
@@ -2994,6 +2999,9 @@ static void calc_bonuses(void)
                 song_noise += 4;
                 break;
             case SNG_ELVENESS:
+                song_noise += 6;
+                break;
+            case SNG_DISGUISE:
                 song_noise += 6;
                 break;
             case SNG_THRESHOLDS:

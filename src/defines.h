@@ -595,10 +595,11 @@
 #define SNG_SLAYING 10
 #define SNG_ELVENESS 11
 #define SNG_STAYING 12
-#define SNG_LORIEN 13
-#define SNG_SHATTERING 14
-#define SNG_MASTERY 15
-#define SNG_GRA 16
+#define SNG_DISGUISE 13
+#define SNG_LORIEN 14
+#define SNG_SHATTERING 15
+#define SNG_MASTERY 16
+#define SNG_GRA 17
 
 #define SNG_BINDING 50 /* monster songs */
 #define SNG_PIERCING 51 /* monster songs */

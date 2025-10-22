@@ -542,6 +542,9 @@ bool make_attack_normal(monster_type* m_ptr)
     if (r_ptr->flags1 & (RF1_NEVER_BLOW))
         return (false);
 
+    if (m_idx > 0)
+        song_disguise_note_monster_attack(m_idx);
+
     /* Get the monster name (or "it") */
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 

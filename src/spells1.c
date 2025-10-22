@@ -15,6 +15,207 @@
  */
 static int death_count;
 
+static bool song_disguise_active = false;
+static byte* song_disguise_seen = NULL;
+static byte* song_disguise_pacified = NULL;
+static byte* song_disguise_attacked = NULL;
+static int song_disguise_seen_count = 0;
+static int song_disguise_attackers_current_turn = 0;
+static int song_disguise_attackers_last_turn = 0;
+
+static void ensure_song_disguise_buffers(void)
+{
+    if (!song_disguise_seen)
+    {
+        song_disguise_seen = C_ZNEW(MAX_MONSTERS, byte);
+        song_disguise_pacified = C_ZNEW(MAX_MONSTERS, byte);
+        song_disguise_attacked = C_ZNEW(MAX_MONSTERS, byte);
+    }
+}
+
+static void song_disguise_clear_pacified(void)
+{
+    if (!song_disguise_pacified)
+        return;
+
+    C_WIPE(song_disguise_pacified, MAX_MONSTERS, byte);
+}
+
+static void song_disguise_on_start(void)
+{
+    ensure_song_disguise_buffers();
+    song_disguise_clear_pacified();
+    song_disguise_active = true;
+}
+
+static void song_disguise_on_stop(void)
+{
+    song_disguise_active = false;
+    song_disguise_clear_pacified();
+    song_disguise_attackers_current_turn = 0;
+}
+
+static bool monster_currently_sees_player(const monster_type* m_ptr)
+{
+    if (m_ptr->alertness < ALERTNESS_ALERT)
+        return false;
+
+    if (!los(m_ptr->fy, m_ptr->fx, p_ptr->py, p_ptr->px))
+        return false;
+
+    const monster_race* r_ptr = &r_info[m_ptr->r_idx];
+    if (r_ptr->flags1 & RF1_PEACEFUL)
+        return false;
+
+    return true;
+}
+
+static bool any_monster_observes_player(void)
+{
+    for (int i = mon_max - 1; i >= 1; i--)
+    {
+        monster_type* m_ptr = &mon_list[i];
+
+        if (!m_ptr->r_idx)
+            continue;
+
+        if (monster_currently_sees_player(m_ptr))
+            return true;
+    }
+
+    return false;
+}
+
+void song_disguise_new_player_turn(void)
+{
+    ensure_song_disguise_buffers();
+
+    song_disguise_attackers_last_turn = song_disguise_attackers_current_turn;
+    song_disguise_attackers_current_turn = 0;
+
+    if (song_disguise_attacked)
+        C_WIPE(song_disguise_attacked, MAX_MONSTERS, byte);
+}
+
+void song_disguise_handle_monster_removed(int m_idx)
+{
+    if (!song_disguise_seen || m_idx <= 0 || m_idx >= MAX_MONSTERS)
+        return;
+
+    if (song_disguise_seen[m_idx])
+    {
+        song_disguise_seen[m_idx] = 0;
+        if (song_disguise_seen_count > 0)
+            song_disguise_seen_count--;
+    }
+
+    if (song_disguise_pacified)
+        song_disguise_pacified[m_idx] = 0;
+    if (song_disguise_attacked)
+        song_disguise_attacked[m_idx] = 0;
+}
+
+void song_disguise_note_monster_attack(int m_idx)
+{
+    if (m_idx <= 0)
+        return;
+
+    ensure_song_disguise_buffers();
+
+    if (!song_disguise_attacked[m_idx])
+    {
+        song_disguise_attacked[m_idx] = 1;
+        song_disguise_attackers_current_turn++;
+    }
+}
+
+bool song_disguise_monster_is_fooled(const monster_type* m_ptr)
+{
+    if (!song_disguise_active)
+        return false;
+
+    if (!song_disguise_pacified)
+        return false;
+
+    int m_idx = cave_m_idx[m_ptr->fy][m_ptr->fx];
+
+    if (m_idx <= 0 || m_idx >= MAX_MONSTERS)
+        return false;
+
+    if (!song_disguise_pacified[m_idx])
+        return false;
+
+    if (!monster_currently_sees_player(m_ptr))
+        return false;
+
+    return true;
+}
+
+static void sing_song_of_disguise(int score)
+{
+    ensure_song_disguise_buffers();
+
+    song_disguise_clear_pacified();
+
+    int player_skill = score + p_ptr->skill_use[S_WIL];
+
+    for (int i = mon_max - 1; i >= 1; i--)
+    {
+        monster_type* m_ptr = &mon_list[i];
+
+        if (!m_ptr->r_idx)
+            continue;
+
+        if (!monster_currently_sees_player(m_ptr))
+            continue;
+
+        int difficulty = monster_skill(m_ptr, S_WIL)
+            + monster_skill(m_ptr, S_PER);
+
+        if (m_ptr->cdis > 1)
+            difficulty -= (m_ptr->cdis - 1);
+
+        if (difficulty < 0)
+            difficulty = 0;
+
+        int m_idx = i;
+
+        int other_watchers = song_disguise_seen_count;
+        if (song_disguise_seen[m_idx])
+            other_watchers--;
+        if (other_watchers > 0)
+            difficulty += other_watchers * 5;
+
+        if (song_disguise_attackers_last_turn > 0)
+            difficulty += song_disguise_attackers_last_turn * 5;
+
+        if (song_disguise_seen[m_idx])
+            difficulty += 10;
+
+        int result = skill_check(
+            PLAYER, player_skill, difficulty, m_ptr);
+
+        if (result > 0)
+        {
+            song_disguise_pacified[m_idx] = 1;
+            if (song_disguise_seen[m_idx])
+            {
+                song_disguise_seen[m_idx] = 0;
+                if (song_disguise_seen_count > 0)
+                    song_disguise_seen_count--;
+            }
+        }
+        else
+        {
+            if (!song_disguise_seen[m_idx])
+            {
+                song_disguise_seen[m_idx] = 1;
+                song_disguise_seen_count++;
+            }
+        }
+    }
+}
+
 /*
  * Teleport a monster, normally up to "dis" grids away.
  *
@@ -5212,6 +5413,9 @@ void change_song(int song)
     {
     case SNG_NOTHING:
     {
+        if (song_disguise_active)
+            song_disguise_on_stop();
+
         if ((song_to_change == 1) && (p_ptr->song1 != SNG_NOTHING))
         {
             msg_print("You end your song.");
@@ -5377,6 +5581,31 @@ void change_song(int song)
         }
         break;
     }
+    case SNG_DISGUISE:
+    {
+        if (old_song != SNG_DISGUISE)
+        {
+            if (any_monster_observes_player())
+            {
+                msg_print("You cannot begin the Song of Disguise while observed.");
+                return;
+            }
+        }
+
+        if (song_to_change == 1)
+        {
+            msg_print("You begin a soft song of misdirection and guile.");
+        }
+        else if (old_song == SNG_NOTHING)
+        {
+            msg_print("You add a minor theme weaving subtle disguises.");
+        }
+        else
+        {
+            msg_print("You change your minor theme to one of misdirection and guile.");
+        }
+        break;
+    }
     case SNG_STAYING:
     {
         if (song_to_change == 1)
@@ -5475,6 +5704,9 @@ void change_song(int song)
     {
         p_ptr->song2 = song;
     }
+
+    if (!singing(SNG_DISGUISE) && song_disguise_active)
+        song_disguise_on_stop();
 
     // beginning/changing songs takes time
     if (song != SNG_NOTHING)
@@ -6222,7 +6454,11 @@ void sing(void)
     int cost = 0;
 
     if (p_ptr->song1 == SNG_NOTHING)
+    {
+        if (song_disguise_active)
+            song_disguise_on_stop();
         return;
+    }
 
     // abort song if out of voice, lost the ability to weave themes, or lost
     // either song ability
@@ -6234,6 +6470,8 @@ void sing(void)
             && !p_ptr->active_ability[S_SNG][p_ptr->song2]))
     {
         /* Stop singing */
+        if (song_disguise_active)
+            song_disguise_on_stop();
         change_song(SNG_NOTHING);
 
         /* Disturb */
@@ -6243,6 +6481,16 @@ void sing(void)
     else
     {
         p_ptr->song_duration++;
+    }
+
+    if (singing(SNG_DISGUISE))
+    {
+        if (!song_disguise_active)
+            song_disguise_on_start();
+    }
+    else if (song_disguise_active)
+    {
+        song_disguise_on_stop();
     }
 
     for (type = 1; type <= 2; type++)
@@ -6363,6 +6611,12 @@ void sing(void)
         case SNG_STAYING:
         {
             cost += 1;
+            break;
+        }
+        case SNG_DISGUISE:
+        {
+            cost += 2;
+            sing_song_of_disguise(score);
             break;
         }
         case SNG_SLAYING:

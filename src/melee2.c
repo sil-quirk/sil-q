@@ -4949,6 +4949,9 @@ static void process_monster(monster_type* m_ptr)
         return;
     }
 
+    if (song_disguise_monster_is_fooled(m_ptr))
+        return;
+
     // Update monster flow information
     update_flow(p_ptr->py, p_ptr->px, m_idx);
 

@@ -316,7 +316,7 @@ B:You sing fearlessly-fairest daughter of twilight, whose love defied Morgoth.
 F:WIL_AFFINITY | SNG_AFFINITY | STL_AFFINITY | EVN_AFFINITY | ARC_PENALTY| SMT_PENALTY
 U:SNG_LUT
 S:-1:3:1:3
-C:7:13:5:0   # Curse Breaking #Lorien
+C:7:14:5:0   # Curse Breaking #Lorien
 P:3
 D:Fairest daughter of twilight, song and star blended beneath woodland leaves, 
 D:whose voice defied Morgoth himself, beauty challenging darkness eternal. 
@@ -625,7 +625,7 @@ B:You weave enchantment-guardian queen, whose power shields from shadow.
 F:WIL_AFFINITY | SNG_AFFINITY | PER_AFFINITY | ARC_PENALTY| SMT_PENALTY
 U:SNG_MEL
 S:1:0:1:5
-C:7:15:7:6 # Song of Mastery Song of Thresholds
+C:7:16:7:6 # Song of Mastery Song of Thresholds
 P:3
 D:Maia of divine grace, veiled in mortal form, guardian of twilight woods, 
 D:whose enchantment shielded realms from Morgoth’s shadow and despair. 

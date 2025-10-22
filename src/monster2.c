@@ -153,6 +153,7 @@ void delete_monster_idx(int i)
 
     /* Monster is gone */
     cave_m_idx[y][x] = 0;
+    song_disguise_handle_monster_removed(i);
 
     /* Delete objects */
     for (this_o_idx = m_ptr->hold_o_idx; this_o_idx; this_o_idx = next_o_idx)

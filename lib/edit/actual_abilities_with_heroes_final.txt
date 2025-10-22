@@ -81,7 +81,8 @@ C:7:9   # Woven Themes             : Finarfin, Daeron
 C:7:10  # Song of Slaying          : Hurin
 C:7:11  # Song of Elveness         :
 C:7:12  # Song of Staying          : Finrod, Idril
-C:7:13  # Song of Lorien           : Luthien
-C:7:14  # Song of Shattering       :
-C:7:15  # Song of Mastery          : Elu Thingol, Celeborn, Melian Maia
-C:7:16  # Grace                    :
+C:7:13  # Song of Disguise         :
+C:7:14  # Song of Lorien           : Luthien
+C:7:15  # Song of Shattering       :
+C:7:16  # Song of Mastery          : Elu Thingol, Celeborn, Melian Maia
+C:7:17  # Grace                    :

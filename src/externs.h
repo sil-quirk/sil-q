@@ -949,6 +949,10 @@ extern void hatch_spider(monster_type* m_ptr);
 extern void change_song(int song);
 extern bool singing(int song);
 extern void sing(void);
+extern void song_disguise_new_player_turn(void);
+extern void song_disguise_handle_monster_removed(int m_idx);
+extern void song_disguise_note_monster_attack(int m_idx);
+extern bool song_disguise_monster_is_fooled(const monster_type* m_ptr);
 
 /* spells2.c */
 extern bool hp_player(int x, bool percent, bool message);

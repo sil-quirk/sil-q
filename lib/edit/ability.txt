@@ -705,30 +705,39 @@ T:34:0:99  # Shields
 T:35:0:99  # Cloak
 T:45:0:99  # Ring
 
-N:153:Song of Lorien
+N:153:Song of Disguise
 I:7:13:8
+P:7/4
+D:While sung, even watchful foes mistake you for an ally unless they pierce
+D: your glamour. Each round you oppose their Will and Perception with your
+D: Song and Will; failure lets them pursue you again.
+T:40:0:99  # Amulet
+T:35:0:99  # Cloak
+
+N:154:Song of Lorien
+I:7:14:8
 P:7/4:7/2
 D:Gradually puts nearby opponents to sleep.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:154:Song of Shattering
-I:7:14:9
+N:155:Song of Shattering
+I:7:15:9
 P:7/10
 D:Shatters the gear of nearby foes, weakening their blows or armour.
 D:Affects only enemies bearing weapons or armour, and resists with Will.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:155:Song of Mastery
-I:7:15:10
+N:156:Song of Mastery
+I:7:16:10
 P:7/3:7/4
 D:Occasionally prevents nearby opponents from moving or acting.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:156:Grace
-I:7:16:12
+N:157:Grace
+I:7:17:12
 D:You gain a point of grace.
 
 # Special (quest) abilities ---------------------------------------------

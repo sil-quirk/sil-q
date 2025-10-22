@@ -1284,7 +1284,7 @@ D: to the hoards of Angband, you cannot say.
 
 ## The Shadow Cloak of Luthien
 ## 1st age
-## (ability 7/10 is Song of Lorien)
+## (ability 7/14 is Song of Lorien)
 
 N:134:of Luthien
 I:35:6:4
