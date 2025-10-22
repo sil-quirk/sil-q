@@ -2109,6 +2109,11 @@ int ability_bonus(int skilltype, int abilitynum)
             bonus = skill / 5;
             break;
         }
+        case SNG_ELVENESS:
+        {
+            bonus = skill;
+            break;
+        }
         case SNG_STAYING:
         {
             bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_HURIN) ? 2 : 1) * skill; 
@@ -2649,6 +2654,9 @@ static void calc_bonuses(void)
     if (p_ptr->active_ability[S_SNG][SNG_GRA])
         p_ptr->stat_misc_mod[A_GRA]++;
 
+    if (singing(SNG_ELVENESS))
+        p_ptr->stat_misc_mod[A_GRA]++;
+
     if (p_ptr->active_ability[S_WIL][WIL_STRENGTH_IN_ADVERSITY])
     {
         // if <= 50% health, give a bonus to strength and grace
@@ -2985,6 +2993,9 @@ static void calc_bonuses(void)
             case SNG_TREES:
                 song_noise += 4;
                 break;
+            case SNG_ELVENESS:
+                song_noise += 6;
+                break;
             case SNG_THRESHOLDS:
                 song_noise += 4;
                 break;
@@ -3052,6 +3063,11 @@ static void calc_bonuses(void)
         + p_ptr->skill_misc_mod[S_SNG];
 
     // Apply song effects that modify skills
+    if (singing(SNG_ELVENESS))
+    {
+        int song_skill = ability_bonus(S_SNG, SNG_ELVENESS);
+        p_ptr->skill_misc_mod[S_EVN] += 1 + song_skill / 7;
+    }
     if (singing(SNG_STAYING))
     {
         if (c_info[p_ptr->phouse].flags_u & UNQ_SNG_FIN) p_ptr->skill_misc_mod[S_WIL] += ability_bonus(S_SNG, SNG_STAYING);

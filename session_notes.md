@@ -340,3 +340,12 @@ Score (highest first)                      Layout: Short
 
 - Updated blessing threshold menu to support arrow-key navigation with in-menu confirmation prompts.
 - Active curse/blessing listings (stats and full view) now surface effect text when identified, drawing from P:/H: entries.
+
+# Session Notes - Song of Elveness
+
+## Date
+2025-10-22
+
+- Added Song of Elveness to `lib/edit/ability.txt` before Song of Staying with matching prerequisites (`Song of the Trees`), cost, and new description.
+- Shifted downstream song IDs (Staying onwards) and refreshed song enumerations (`src/defines.h`), name tables (`src/birth.c`), and song listings (`lib/edit/actual_abilities*.txt`, `lib/edit/character.txt`, `lib/edit/artefact.txt`).
+- Implemented gameplay effects: Grace +1 via `calc_bonuses`, Evasion bonus `1 + song/7`, and updated per-turn handling (`src/xtra1.c`, `src/spells1.c`) including noise contribution and UI messaging.

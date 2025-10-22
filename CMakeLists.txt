@@ -83,6 +83,12 @@ add_executable(sil-more
     src/z-virt.c
 )
 
+# Include Windows resource (.rc) so the executable has an icon on Windows
+if(WIN32)
+  # Prefer the .rc in src/icons which references the Sil.ico file present there.
+  target_sources(sil-more PRIVATE ${CMAKE_SOURCE_DIR}/src/icons/sil.rc)
+endif()
+
 # add_library(log STATIC src/log/log.c)
 target_include_directories(log PUBLIC src/log)
 

@@ -76,9 +76,12 @@ C:7:4  # Song of Silence
 C:7:5  # Song of Staunching
 C:7:6  # Song of Thresholds
 C:7:7  # Song of the Trees
-C:7:8  # Song of Slaying
-C:7:9  # Song of Staying
-C:7:10  # Song of Lorien
-C:7:11  # Song of Mastery
-C:7:12  # Woven Themes
-C:7:13  # Grace
+C:7:8  # Song of Revealing
+C:7:9  # Woven Themes
+C:7:10  # Song of Slaying
+C:7:11  # Song of Elveness
+C:7:12  # Song of Staying
+C:7:13  # Song of Lorien
+C:7:14  # Song of Shattering
+C:7:15  # Song of Mastery
+C:7:16  # Grace

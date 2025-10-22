@@ -685,8 +685,18 @@ D: if the enemy has health less than or equal to twice your Song score.
 T:22:0:99  # Polearms and axes
 T:23:0:99  # Swords
 
-N:151:Song of Staying
+N:151:Song of Elveness
 I:7:11:7
+P:7/7
+D:Grants +1 Grace while sung and improves your Evasion by 1, plus 1 more
+D: for every 7 points of Song (rounded down).
+T:32:0:99  # Helm
+T:34:0:99  # Shields
+T:35:0:99  # Cloak
+T:45:0:99  # Ring
+
+N:152:Song of Staying
+I:7:12:7
 P:7/1:7/5
 D:Gives you a bonus to Will equal to half your Song score and
 D: [2d2] protection.
@@ -695,30 +705,30 @@ T:34:0:99  # Shields
 T:35:0:99  # Cloak
 T:45:0:99  # Ring
 
-N:152:Song of Lorien
-I:7:12:8
+N:153:Song of Lorien
+I:7:13:8
 P:7/4:7/2
 D:Gradually puts nearby opponents to sleep.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:153:Song of Shattering
-I:7:13:9
+N:154:Song of Shattering
+I:7:14:9
 P:7/10
 D:Shatters the gear of nearby foes, weakening their blows or armour.
 D:Affects only enemies bearing weapons or armour, and resists with Will.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:154:Song of Mastery
-I:7:14:10
+N:155:Song of Mastery
+I:7:15:10
 P:7/3:7/4
 D:Occasionally prevents nearby opponents from moving or acting.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
-N:155:Grace
-I:7:15:12
+N:156:Grace
+I:7:16:12
 D:You gain a point of grace.
 
 # Special (quest) abilities ---------------------------------------------

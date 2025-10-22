@@ -5361,6 +5361,22 @@ void change_song(int song)
         msg_print("A memory of their light wells up around you.");
         break;
     }
+    case SNG_ELVENESS:
+    {
+        if (song_to_change == 1)
+        {
+            msg_print("You begin a lilting song celebrating the grace of the Eldar.");
+        }
+        else if (old_song == SNG_NOTHING)
+        {
+            msg_print("You add a minor theme celebrating the grace of the Eldar.");
+        }
+        else
+        {
+            msg_print("You change your minor theme to honor the grace of the Eldar.");
+        }
+        break;
+    }
     case SNG_STAYING:
     {
         if (song_to_change == 1)
@@ -6337,6 +6353,11 @@ void sing(void)
             
             sing_song_of_trees(score);
             
+            break;
+        }
+        case SNG_ELVENESS:
+        {
+            cost += 1;
             break;
         }
         case SNG_STAYING:

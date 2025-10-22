@@ -1240,7 +1240,7 @@ D: to fight on, no matter the circumstances.
 ## Mithril Helm of Ecthelion
 ## 1st age
 ## added for Psi -- our first great smith
-## (ability 7/9 is Song of Staying)
+## (ability 7/12 is Song of Staying)
 
 N:123:of Ecthelion
 G:]:w
