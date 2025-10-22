@@ -2403,12 +2403,13 @@ void anger_morgoth(int level)
     /* State 5: Final Desperate (new strongest level) */
     if (level >= 5)
     {
-        r_ptr->evn = 35;
-        r_ptr->blow[0].att = 50;
-        r_ptr->blow[0].dd = 9;
-        r_ptr->blow[0].ds = 10; /* 9d10 */
-        r_ptr->wil = 45;
-        r_ptr->per = 35;
+        r_ptr->evn = 40;
+        r_ptr->pd = 9;
+        r_ptr->blow[0].att = 60;
+        r_ptr->blow[0].dd = 10;
+        r_ptr->blow[0].ds = 10; /* 10d10 */
+        r_ptr->wil = 50;
+        r_ptr->per = 40;
         log_debug("anger_morgoth: applying state 5 changes - final desperate");
     }
 
@@ -2496,17 +2497,11 @@ void monster_death(int m_idx)
     if (m_ptr->r_idx == R_IDX_MORGOTH)
     {
         p_ptr->morgoth_slain = true;
-        msg_print("BUG: Morgoth has been defeated in combat.");
-        msg_print(
-            "But this is not possible within the fates Iluvatar has decreed.");
-        msg_print("Please post an 'ultimate bug-report' on "
-                  "http://angband.oook.cz/forum/ "
-                  "explaining how this happened.");
-        msg_print("But for now, let's run with it, since it's undeniably "
-                  "impressive.");
-
-        // display the ultimate bug text
-        pause_with_text(ultimate_bug_text, 5, 15, NULL, 0);
+        log_info("Morgoth slain by player; initiating Morgoth victory sequence.");
+        msg_print("Morgoth's form shudders, radiant fissures racing across his iron crown!");
+        msg_print("From beyond the West, the Valar proclaim your impossible triumph.");
+        message_flush();
+        do_cmd_morgoth_victory();
     }
 
     /* If the player kills a Unique, write a note. */

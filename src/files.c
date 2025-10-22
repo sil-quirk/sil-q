@@ -4169,9 +4169,51 @@ void do_cmd_escape(int silmarils)
     my_strcpy(p_ptr->died_from, "ripe old age", sizeof(p_ptr->died_from));
 
     /* Update metarun: escaped with N Silmarils */
-    log_info("Player escaped with %d Silmarils", silmarils); 
+    log_info("Player escaped with %d Silmarils", silmarils);
     metarun_update_on_exit(false, true, silmarils, 0);
 
+}
+
+/*
+ * Hack -- victory by slaying Morgoth's illusion
+ */
+void do_cmd_morgoth_victory(void)
+{
+    time_t ct = time((time_t*)0);
+    char long_day[40];
+    char buf[160];
+
+    /* Ensure the victory flag is set */
+    p_ptr->morgoth_slain = true;
+
+    /* Flush input ahead of the scripted sequence */
+    flush();
+
+    /* Treat as a completed run */
+    p_ptr->is_dead = true;
+    p_ptr->playing = false;
+    p_ptr->leaving = true;
+    p_ptr->escaped = false;
+
+    /* Mark the calendar moment */
+    (void)strftime(long_day, sizeof(long_day), "%d %B %Y", localtime(&ct));
+
+    my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
+
+    strnfmt(buf, sizeof(buf),
+            "On %s you broke the illusion binding Morgoth to his throne.",
+            long_day);
+    do_cmd_note(buf, p_ptr->depth);
+
+    do_cmd_note(
+        "The Valar hail your impossible triumph and pour out their blessing.",
+        p_ptr->depth);
+
+    my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
+
+    /* Record cause for high scores */
+    my_strcpy(p_ptr->died_from, "Morgoth's illusory defeat",
+        sizeof(p_ptr->died_from));
 }
 
 /*
@@ -4302,6 +4344,11 @@ static void print_tomb(high_score* the_score)
                 15, 2, -1, TERM_L_BLUE, "You have escaped and kept your oath");
         else
             Term_putstr(15, 2, -1, TERM_L_BLUE, "You have escaped");
+    }
+    else if (p_ptr->morgoth_slain)
+    {
+        Term_putstr(15, 2, -1, TERM_YELLOW,
+            "You are acclaimed as the Slayer of Morgoth");
     }
     else
     {
@@ -4938,14 +4985,21 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     int silmarils = parse_score_int(score->silmarils, sizeof(score->silmarils), 0);
     int curses = parse_score_int(score->pts, sizeof(score->pts), 0);
     int uniques_killed = parse_score_int(score->cur_lev, sizeof(score->cur_lev), 0);
+    bool morgoth = (score->morgoth_slain[0] == 't');
+    bool escaped = (score->escaped[0] == 't');
 
     if (silmarils < 0)
         silmarils = 0;
     curses = clampi(curses, 0, 1000);
     uniques_killed = clampi(uniques_killed, 0, 999);
 
+    if (morgoth && silmarils < 3)
+        silmarils = 3;
+
     int depth_down = clampi(raw_max_depth, 0, MORGOTH_DEPTH);
     int depth_up = clampi(20 - raw_cur_depth, 0, MORGOTH_DEPTH);
+    if (morgoth)
+        depth_up = MORGOTH_DEPTH;
 
     int base = 10 * depth_down;
     
@@ -4962,11 +5016,9 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
             base += 50;
     }
 
-    bool morgoth = (score->morgoth_slain[0] == 't');
     if (morgoth)
         base += 300;
 
-    bool escaped = (score->escaped[0] == 't');
     if (escaped)
         base += 100;
 
@@ -5009,8 +5061,8 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     result.curses = curses;
     result.house_power = house_power;
     result.uniques_killed = uniques_killed;
-    result.escaped = escaped;
     result.morgoth_slain = morgoth;
+    result.escaped = escaped;
 
     return result;
 }
@@ -5203,7 +5255,19 @@ u32b score_sum_dead_points(void)
                 continue;
             }
 
-            total += (u32b)points;
+            u32b contribution = (u32b)points;
+            if (entry.morgoth_slain[0] == 't')
+            {
+                if (contribution > 0x7FFFFFFFU)
+                    contribution = 0xFFFFFFFFU;
+                else
+                    contribution *= 2;
+            }
+
+            if (contribution > 0xFFFFFFFFU - total)
+                total = 0xFFFFFFFFU;
+            else
+                total += contribution;
         }
     }
 
@@ -6314,7 +6378,7 @@ extern void display_single_score(
     /* Possibly ammend the first line */
     if (the_score->morgoth_slain[0] == 't')
     {
-        my_strcat(out_val, ", who defeated Morgoth in his dark halls",
+        my_strcat(out_val, ", hailed as the Slayer of Morgoth's shadow",
             sizeof(out_val));
     }
     else
@@ -6369,6 +6433,12 @@ extern void display_single_score(
     }
 
     /* Prepare the second line for those slain */
+    else if (the_score->morgoth_slain[0] == 't')
+    {
+        strnfmt(out_val, sizeof(out_val),
+            "               Victorious over Morgoth's illusion (%s)",
+            the_score->how);
+    }
     else
     {
         strnfmt(out_val, sizeof(out_val), "               Slain by %s",
@@ -7089,8 +7159,11 @@ errr create_score(high_score* the_score)
 
     /* Save the number of silmarils, whether morgoth is slain, whether the
      * player has escaped */
+    int recorded_silmarils = silmarils_possessed();
+    if (p_ptr->morgoth_slain && recorded_silmarils < 3)
+        recorded_silmarils = 3;
     strnfmt(the_score->silmarils, sizeof(the_score->silmarils), "%1d",
-        silmarils_possessed());
+        recorded_silmarils);
     the_score->silmarils[1] = '\0';
 
     if (p_ptr->morgoth_slain)
@@ -7985,23 +8058,39 @@ errr file_character(cptr name, bool full)
 static int final_menu(int* highlight)
 {
     char ch;
+    bool morgoth_victory = (p_ptr->morgoth_slain && !p_ptr->escaped);
+
+    const char* option_a = morgoth_victory ? "a) Review the Valar's record"
+                                           : "a) View scores";
+    const char* option_b = morgoth_victory ? "b) Inspect your hard-won relics"
+                                           : "b) View inventory and equipment";
+    const char* option_c = morgoth_victory ? "c) Survey Angband one last time"
+                                           : "c) View dungeon";
+    const char* option_d = morgoth_victory ? "d) Rehear the proclamations"
+                                           : "d) View final messages";
+    const char* option_e = morgoth_victory ? "e) Review your legend"
+                                           : "e) View character sheet";
+    const char* option_f = morgoth_victory ? "f) Append to the annals"
+                                           : "f) Add comment to notes";
+    const char* option_g = morgoth_victory ? "g) Archive your legend"
+                                           : "g) Save character sheet";
 
     Term_putstr(3, 10, -1, TERM_L_DARK,
         "____________________________________________________");
     Term_putstr(15, 12, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) View scores");
+        option_a);
     Term_putstr(15, 13, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) View inventory and equipment");
+        option_b);
     Term_putstr(15, 14, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) View dungeon");
+        option_c);
     Term_putstr(15, 15, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) View final messages");
+        option_d);
     Term_putstr(15, 16, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) View character sheet");
+        option_e);
     Term_putstr(15, 17, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Add comment to notes");
+        option_f);
     Term_putstr(15, 18, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Save character sheet");
+        option_g);
     Term_putstr(
         15, 19, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE, "h) Exit");
 
@@ -8162,13 +8251,22 @@ static void close_game_aux(void)
         message_flush();
     }
 
-     /* One more corpse recorded for this metarun */
-    log_info("Player died - updating metarun data");
-    int death_score = score_points(&the_score);
-    if (!p_ptr->escaped) metarun_update_on_exit(true, false, 0, death_score);
+    /* Record this run's outcome for the metarun ledger */
+    int final_score = score_points(&the_score);
+    if (p_ptr->morgoth_slain && !p_ptr->escaped)
+    {
+        log_info("Player achieved Morgoth victory - updating metarun data");
+        metarun_update_on_exit(false, false, 3, final_score);
+    }
+    else
+    {
+        log_info("Player died - updating metarun data");
+        if (!p_ptr->escaped)
+            metarun_update_on_exit(true, false, 0, final_score);
+    }
 
-     /* You are dead */
-     print_tomb(&the_score);
+    /* Present the appropriate epitaph */
+    print_tomb(&the_score);
 
     /* Flush all input keys */
     flush();

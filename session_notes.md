@@ -1,3 +1,18 @@
+# Session Notes - Morgoth Victory Update
+
+## Date
+2025-10-24 (Morning)
+
+## Summary
+- Added 10% health trigger for Morgoth's new desperate state with updated stats.
+- Introduced dedicated Morgoth victory flow: new messaging, notes, and high-score handling via `do_cmd_morgoth_victory()`.
+- Adjusted scoring, metarun, and blessing systems to reward Morgoth slayers (3 Silmarils awarded, doubled blessing pool contribution).
+
+### Key Changes
+1. Combat: `anger_morgoth()` state 5 stats now match design (60 attack, 10d10 damage, 40 evasion, 9d4 armour, increased Will/Per). `process_monster()` promotes Morgoth to state 5 precisely at 10% HP with new log/message hooks.
+2. Victory Flow: `monster_death()` now triggers the victory sequence instead of the legacy bug banner, adds `do_cmd_morgoth_victory()` with note logging, and retitles tomb/final menu text for Morgoth slayers.
+3. Meta & Scores: Morgoth victors are scored as if they ascended with all three Silmarils; blessing pool contributions are doubled; `metarun_update_on_exit()` has a new branch awarding +3 Silmarils and skipping kinslaying/treachery scenes.
+
 # Session Notes - Metarun UI Improvements
 
 ## Date

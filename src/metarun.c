@@ -2324,6 +2324,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
 
     bool escaped_with_sils = escaped && (sil_count > 0);
     bool fast_forward = false; // Track if user wants to skip fade effects
+    bool morgoth_victory = (p_ptr->morgoth_slain && !escaped && !died);
 
     /* Treat as a death unless Eru intervenes */
     if (died && !has_gift_eru)
@@ -2333,7 +2334,41 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
     /* 0. Branch: did we return with Silmarils?                      */
     /*    – any path that reaches here counts as a "run end" event  */
     /* ------------------------------------------------------------- */
-    if (died)
+    if (morgoth_victory)
+    {
+        log_info("Metarun: Morgoth victory branch (sil_count=%d)", sil_count);
+        screen_save();
+        Term_clear();
+
+        print_heading_fade("Beyond Fate", TERM_YELLOW);
+        print_paragraph_fade(
+            "The illusion of Morgoth lies shattered at your feet.",
+            TERM_WHITE, 4);
+        print_paragraph_fade(
+            "From Valinor, the Valar proclaim your impossible triumph and pour out their blessing.",
+            TERM_L_BLUE, 7);
+        print_paragraph_fade(
+            "Though the true Dark Enemy waits beyond this trial, three Silmarils are counted to your name.",
+            TERM_L_BLUE, 10);
+
+        wait_prompt(PROMPT_CONTINUE_TALE);
+
+        screen_load();
+
+        byte awarded = (sil_count < 3) ? 3 : sil_count;
+        metarun_gain_silmarils(awarded);
+        log_info("Metarun: Morgoth victory awarded %d Silmarils (total now %d)",
+                 awarded, (int)metar.silmarils);
+        refresh_current_metar_score();
+        compute_blessing_pool();
+        announce_blessing_gain(blessing_points_before);
+        blessing_points_before = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
+        check_run_end();
+        metarun_save_persistent_settings();
+        save_metaruns();
+        return;
+    }
+    else if (died)
     {
         log_info("Player died - displaying death narrative");
         /*****  NEW DEATH-NARRATIVE *****/

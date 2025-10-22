@@ -2385,7 +2385,7 @@ D: eyes.
 # 2 - Enraged,            25,      5d4,    30,     7d10,    30,   20
 # 3 - Furious,            25,      7d4,    30,     7d10,    35,   25
 # 4 - Apoplectic,         30,      7d4,    40,     8d10,    40,   30
-# 5 - Desperate,          35,      8d4,    50,     9d10,    45,   35
+# 5 - Desperate,          40,      9d4,    60,     10d10,    50,   40
 
 N:251:Morgoth, Lord of Darkness
 W:25:1
