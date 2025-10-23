@@ -8096,18 +8096,17 @@ static int final_menu(int* highlight)
 
     const char* option_a = morgoth_victory ? "a) Review the Valar's record"
                                            : "a) View scores";
-    const char* option_b = morgoth_victory ? "b) Inspect your hard-won relics"
-                                           : "b) View inventory and equipment";
-    const char* option_c = morgoth_victory ? "c) Survey Angband one last time"
-                                           : "c) View dungeon";
-    const char* option_d = morgoth_victory ? "d) Rehear the proclamations"
-                                           : "d) View final messages";
-    const char* option_e = morgoth_victory ? "e) Review your legend"
-                                           : "e) View character sheet";
-    const char* option_f = morgoth_victory ? "f) Append to the annals"
-                                           : "f) Add comment to notes";
-    const char* option_g = morgoth_victory ? "g) Archive your legend"
-                                           : "g) Save character sheet";
+    const char* option_b = morgoth_victory ? "b) Survey Angband one last time"
+                                           : "b) Final look";
+    const char* option_c = morgoth_victory ? "c) Rehear the proclamations"
+                                           : "c) View final messages";
+    const char* option_d = morgoth_victory ? "d) Review your legend"
+                                           : "d) View character sheet";
+    const char* option_e = morgoth_victory ? "e) Append to the annals"
+                                           : "e) Add comment to notes";
+    const char* option_f = morgoth_victory ? "f) Archive your legend"
+                                           : "f) Save character sheet";
+    const char* option_exit = "g) Exit";
 
     Term_putstr(3, 10, -1, TERM_L_DARK,
         "____________________________________________________");
@@ -8123,10 +8122,8 @@ static int final_menu(int* highlight)
         option_e);
     Term_putstr(15, 17, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
         option_f);
-    Term_putstr(15, 18, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        option_g);
     Term_putstr(
-        15, 19, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE, "h) Exit");
+        15, 19, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE, option_exit);
 
     /* Flush the prompt */
     Term_fresh();
@@ -8175,16 +8172,10 @@ static int final_menu(int* highlight)
         return (6);
     }
 
-    if (ch == 'g')
+    if ((ch == 'g') || (ch == 'q') || (ch == 'Q'))
     {
         *highlight = 7;
         return (7);
-    }
-
-    if ((ch == 'h') || (ch == 'q') || (ch == 'Q'))
-    {
-        *highlight = 8;
-        return (8);
     }
 
     /* Choose current  */
@@ -8199,15 +8190,15 @@ static int final_menu(int* highlight)
         if (*highlight > 1)
             (*highlight)--;
         else if (*highlight == 1)
-            *highlight = 8;
+            *highlight = 7;
     }
 
     /* Next item */
     if (ch == '2')
     {
-        if (*highlight < 8)
+        if (*highlight < 7)
             (*highlight)++;
-        else if (*highlight == 8)
+        else if (*highlight == 7)
             *highlight = 1;
     }
 
@@ -8299,6 +8290,12 @@ static void close_game_aux(void)
             metarun_update_on_exit(true, false, 0, final_score);
     }
 
+    /* Let the player inspect the final dungeon state before the tomb menu. */
+    death_spectator_view();
+
+    /* Restore a clean screen for the tombstone display. */
+    Term_clear();
+
     /* Present the appropriate epitaph */
     print_tomb(&the_score);
 
@@ -8322,53 +8319,13 @@ static void close_game_aux(void)
             break;
         }
 
-        // view inventory and equipment
+        // final look
         case 2:
         {
             /* Save screen */
             screen_save();
 
-            /* Clear the screen */
-            Term_clear();
-
-            /* Examine items */
-            death_examine();
-
-            /* Load screen */
-            screen_load();
-            break;
-        }
-
-        // view dungeon
-        case 3:
-        {
-            int i;
-
-            /* Save screen */
-            screen_save();
-
-            // Identify all objects on the level
-            for (i = 1; i < o_max; i++)
-            {
-                object_type* o_ptr = &o_list[i];
-
-                /* Skip dead objects */
-                if (!o_ptr->k_idx)
-                    continue;
-
-                object_aware(o_ptr);
-                object_known(o_ptr);
-            }
-
-            /* Light the level, show all monsters and redraw */
-            Term_clear();
-            wiz_light();
-            do_cmd_wiz_unhide(255);
-            p_ptr->redraw |= 0x0FFFFFFFL;
-            handle_stuff();
-
-            /* Allow the player to look around */
-            do_cmd_look();
+            death_spectator_view();
 
             /* Load screen */
             screen_load();
@@ -8377,7 +8334,7 @@ static void close_game_aux(void)
         }
 
         // view final messages
-        case 4:
+        case 3:
         {
             /* Save screen */
             screen_save();
@@ -8391,7 +8348,7 @@ static void close_game_aux(void)
         }
 
         // view character sheet
-        case 5:
+        case 4:
         {
             /* Save screen */
             screen_save();
@@ -8405,14 +8362,14 @@ static void close_game_aux(void)
         }
 
         // add comment to notes
-        case 6:
+        case 5:
         {
             do_cmd_note("", p_ptr->depth);
             break;
         }
 
         // save character sheet
-        case 7:
+        case 6:
         {
             char ftmp[80];
 
@@ -8451,7 +8408,7 @@ static void close_game_aux(void)
         }
 
         // exit
-        case 8:
+        case 7:
         {
             wants_to_quit = true;
             break;

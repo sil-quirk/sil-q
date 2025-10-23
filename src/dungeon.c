@@ -19,6 +19,13 @@ int g_banner_force_redraw_remaining = 0;
 #include <stddef.h>
 #include <stdlib.h>
 
+/* True while the post-mortem spectator viewport is active. */
+static bool death_spectator_mode = false;
+
+/* Forward declarations for spectator helpers. */
+static bool death_spectator_command_allowed(int command);
+static void death_spectator_prepare_display(void);
+bool death_spectator_active(void);
 /*
  * Return a "feeling" (or NULL) about an item.  Method 1 (Weak).
  * Sil - this method can't distinguish artefacts from ego items
@@ -805,6 +812,18 @@ static void process_command(void)
 
 #endif /* ALLOW_REPEAT */
 
+    /* Disallow actions that would advance time while viewing the final map. */
+    if (death_spectator_mode
+        && !death_spectator_command_allowed(p_ptr->command_cmd))
+    {
+        if (p_ptr->command_cmd)
+        {
+            msg_print("You can no longer take that action.");
+        }
+        p_ptr->command_cmd = 0;
+        return;
+    }
+
     /* Parse the command */
     switch (p_ptr->command_cmd)
     {
@@ -1371,6 +1390,148 @@ static void process_command(void)
  * inscription or has the pickup flag set to true (e.g. for thrown and fired
  * items)
  */
+static bool death_spectator_command_allowed(int command)
+{
+    if (command == 0)
+        return true;
+
+    switch (command)
+    {
+    case ' ':
+    case '\n':
+    case '\r':
+    case '\a':
+    case '?':
+    case '@':
+    case 'h':
+    case 'H':
+    case 'i':
+    case 'e':
+    case 'x':
+    case 'M':
+    case 'L':
+    case 'l':
+    case 'm':
+    case 'O':
+    case '!':
+    case '$':
+    case '&':
+    case ':':
+    case 'V':
+    case 'j':
+    case '~':
+    case '[':
+    case ']':
+    case ')':
+    case KTRL('E'):
+    case KTRL('O'):
+    case KTRL('P'):
+    case KTRL('R'):
+    case ESCAPE:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static void death_spectator_prepare_display(void)
+{
+    int i;
+
+    /* Reveal player knowledge of objects on the final level. */
+    for (i = 1; i < o_max; i++)
+    {
+        object_type* o_ptr = &o_list[i];
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        object_aware(o_ptr);
+        object_known(o_ptr);
+    }
+
+    /* Fully light the level and reveal monsters. */
+    Term_clear();
+    wiz_light();
+    do_cmd_wiz_unhide(255);
+
+    /* Force a comprehensive redraw across all panes. */
+    p_ptr->redraw |= 0x0FFFFFFFL;
+    p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0 | PW_MONSTER
+        | PW_MONLIST | PW_COMBAT_ROLLS | PW_OVERHEAD);
+
+    handle_stuff();
+
+    if (op_ptr->main_combat_rolls > 0)
+    {
+        display_main_combat_rolls();
+    }
+
+    msg_print("You linger for a final look. Press Esc to continue to the tomb.");
+}
+
+void death_spectator_view(void)
+{
+    death_spectator_mode = true;
+
+    /* Clear any queued commands from the main loop. */
+    p_ptr->command_cmd = 0;
+    p_ptr->command_new = 0;
+    p_ptr->command_rep = 0;
+    p_ptr->command_arg = 0;
+    p_ptr->command_dir = 0;
+
+    /* Prevent lingering keypresses from auto-triggering commands. */
+    flush();
+
+    death_spectator_prepare_display();
+
+    while (true)
+    {
+        request_command();
+
+        if (p_ptr->command_cmd == ESCAPE)
+        {
+            break;
+        }
+
+        if (!death_spectator_command_allowed(p_ptr->command_cmd))
+        {
+            if (p_ptr->command_cmd)
+            {
+                msg_print("You can no longer take that action.");
+            }
+            p_ptr->command_cmd = 0;
+            continue;
+        }
+
+        process_command();
+        handle_stuff();
+
+        /* Reset command state for the next iteration. */
+        p_ptr->command_cmd = 0;
+        p_ptr->command_new = 0;
+        p_ptr->command_rep = 0;
+        p_ptr->command_arg = 0;
+        p_ptr->command_dir = 0;
+    }
+
+    death_spectator_mode = false;
+
+    /* Ensure no residual actions are pending. */
+    p_ptr->energy_use = 0;
+    p_ptr->command_cmd = 0;
+    p_ptr->command_new = 0;
+    p_ptr->command_rep = 0;
+    p_ptr->command_arg = 0;
+    p_ptr->command_dir = 0;
+}
+
+bool death_spectator_active(void)
+{
+    return death_spectator_mode;
+}
+
 static bool auto_pickup_okay(const object_type* o_ptr)
 {
     // cptr s;

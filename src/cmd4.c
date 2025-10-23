@@ -7463,6 +7463,10 @@ int main_menu_aux(int* highlight)
 {
     char ch;
     int i;
+    bool death_view = death_spectator_active();
+
+    if (death_view && (*highlight >= 13) && (*highlight <= 15))
+        *highlight = 16;
 
     for (i = 0; i < MAIN_MENU_MAX + 3; i++)
     {
@@ -7494,11 +7498,17 @@ int main_menu_aux(int* highlight)
         "Options and misc     (o)");
     Term_putstr(COL_MAIN, 13, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
         "Help                 (h)");
-    Term_putstr(COL_MAIN, 14, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
+    byte suicide_color = death_view ? TERM_L_DARK
+        : ((*highlight == 13) ? TERM_L_BLUE : TERM_WHITE);
+    Term_putstr(COL_MAIN, 14, -1, suicide_color,
         "Suicide              (k)");
-    Term_putstr(COL_MAIN, 15, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
+    byte save_color = death_view ? TERM_L_DARK
+        : ((*highlight == 14) ? TERM_L_BLUE : TERM_WHITE);
+    Term_putstr(COL_MAIN, 15, -1, save_color,
         "Save                 (s)");
-    Term_putstr(COL_MAIN, 16, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
+    byte quit_color = death_view ? TERM_L_DARK
+        : ((*highlight == 15) ? TERM_L_BLUE : TERM_WHITE);
+    Term_putstr(COL_MAIN, 16, -1, quit_color,
         "Quit with save       (q)");
     Term_putstr(COL_MAIN, 17, -1, (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
         "Return to game       (r)");
@@ -7554,12 +7564,24 @@ int main_menu_aux(int* highlight)
         *highlight = 12;
         return (*highlight); // Help
     case 'k':
+        if (death_view) {
+            msg_print("You can no longer take that action.");
+            break;
+        }
         *highlight = 13;
         return (*highlight); // Suicide
     case 's':
+        if (death_view) {
+            msg_print("You can no longer take that action.");
+            break;
+        }
         *highlight = 14;
         return (*highlight); // Save
     case 'q':
+        if (death_view) {
+            msg_print("You can no longer take that action.");
+            break;
+        }
         *highlight = 15;
         return (*highlight); // Quit with save
     case 'r':
@@ -7580,6 +7602,13 @@ int main_menu_aux(int* highlight)
             (*highlight)--;
         else if (*highlight == 1)
             *highlight = MAIN_MENU_MAX;
+        while (death_view && (*highlight >= 13) && (*highlight <= 15))
+        {
+            if (*highlight > 1)
+                (*highlight)--;
+            else
+                *highlight = MAIN_MENU_MAX;
+        }
     }
 
     /* Next item */
@@ -7589,6 +7618,13 @@ int main_menu_aux(int* highlight)
             (*highlight)++;
         else if (*highlight == MAIN_MENU_MAX)
             *highlight = 1;
+        while (death_view && (*highlight >= 13) && (*highlight <= 15))
+        {
+            if (*highlight < MAIN_MENU_MAX)
+                (*highlight)++;
+            else
+                *highlight = 1;
+        }
     }
 
     /* Leave menu */
@@ -7617,6 +7653,12 @@ void do_cmd_main_menu(void)
     while (!leave_menu)
     {
         actiontype = main_menu_aux(&highlight);
+
+        if (death_spectator_active() && (actiontype >= 13) && (actiontype <= 15))
+        {
+            msg_print("You can no longer take that action.");
+            continue;
+        }
 
         // if an action has been selected...
         switch (actiontype)
@@ -13415,6 +13457,12 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 supply_list_entry* entry = &entries[entry_cur];
                 bool handled = false;
 
+                if (death_spectator_active())
+                {
+                    msg_print("You can no longer take that action.");
+                    break;
+                }
+
                 if (entry->item_idx == SUPPLIES_INDEX && entry->supply_idx >= 0)
                 {
                     handled = supplies_menu_use_entry(entry);
@@ -13471,6 +13519,12 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             {
                 supply_list_entry* entry = &entries[entry_cur];
                 bool dropped = false;
+
+                if (death_spectator_active())
+                {
+                    msg_print("You can no longer take that action.");
+                    break;
+                }
 
                 if (entry->item_idx == SUPPLIES_INDEX && entry->supply_idx >= 0)
                 {

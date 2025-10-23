@@ -608,6 +608,7 @@ void do_cmd_inven(void)
 
     int action = enhanced_menu_action;
     int selected_index = enhanced_inventory_selected_item;
+    bool death_view = death_spectator_active();
 
     switch (action)
     {
@@ -622,17 +623,31 @@ void do_cmd_inven(void)
     }
 
     case ENHANCED_ACTION_USE:
-        log_trace("do_cmd_inven: Using item %d", selected_index);
-        if (selected_index != -1)
-            do_cmd_use_item_by_index(selected_index);
+        if (death_view)
+        {
+            msg_print("You can no longer take that action.");
+        }
+        else
+        {
+            log_trace("do_cmd_inven: Using item %d", selected_index);
+            if (selected_index != -1)
+                do_cmd_use_item_by_index(selected_index);
+        }
         break;
 
     case ENHANCED_ACTION_DROP:
-        log_trace("do_cmd_inven: Dropping item %d", selected_index);
-        if (selected_index >= 0)
-            do_cmd_drop_item_by_index(selected_index);
+        if (death_view)
+        {
+            msg_print("You can no longer take that action.");
+        }
         else
-            bell("Cannot drop floor items from this menu!");
+        {
+            log_trace("do_cmd_inven: Dropping item %d", selected_index);
+            if (selected_index >= 0)
+                do_cmd_drop_item_by_index(selected_index);
+            else
+                bell("Cannot drop floor items from this menu!");
+        }
         break;
 
     case ENHANCED_ACTION_SUPPLIES:
@@ -720,6 +735,7 @@ void do_cmd_equip(void)
 
     int action = enhanced_equip_action;
     int selected_index = enhanced_equipment_selected_item;
+    bool death_view = death_spectator_active();
 
     switch (action)
     {
@@ -730,15 +746,29 @@ void do_cmd_equip(void)
         break;
 
     case ENHANCED_ACTION_USE:
-        log_trace("do_cmd_equip: Using item %d", selected_index);
-        if (selected_index != -1)
-            do_cmd_use_item_by_index(selected_index);
+        if (death_view)
+        {
+            msg_print("You can no longer take that action.");
+        }
+        else
+        {
+            log_trace("do_cmd_equip: Using item %d", selected_index);
+            if (selected_index != -1)
+                do_cmd_use_item_by_index(selected_index);
+        }
         break;
 
     case ENHANCED_ACTION_DROP:
-        log_trace("do_cmd_equip: Dropping item %d", selected_index);
-        if (selected_index >= INVEN_WIELD)
-            do_cmd_drop_item_by_index(selected_index);
+        if (death_view)
+        {
+            msg_print("You can no longer take that action.");
+        }
+        else
+        {
+            log_trace("do_cmd_equip: Dropping item %d", selected_index);
+            if (selected_index >= INVEN_WIELD)
+                do_cmd_drop_item_by_index(selected_index);
+        }
         break;
 
     default:

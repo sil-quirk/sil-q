@@ -580,3 +580,21 @@ Score (highest first)                      Layout: Short
 - Restored XdY formatting for monster attacks and protection in `src/monster1.c`, keeping adjusted dice from any active debuffs while reverting away from min/max spans.
 - Reverted monster HP recall to the base `hdice`/`hside` expression and appended a `-<amount>` suffix when Song of Lament reductions apply, via a new per-monster accumulator backed by `monster_song_hp_loss()`.
 - Repurposed the song duel padding bytes (`song_hp_loss_lo/hi`) with save/load support (`src/save.c`, `src/load.c`) and helper accessors (`src/monster2.c`, `src/externs.h`) so song-induced HP penalties persist across turns and savefiles.
+
+# Session Notes - Post-Death Spectator View
+
+## Date
+2025-10-25
+
+- Added `death_spectator_view()` (declared in `src/externs.h`, implemented in `src/dungeon.c`) to drive a post-mortem spectator loop that reveals the full dungeon, blocks any command that would spend energy, and allows UI/navigation menus until the player presses `Esc`.
+- Guarded `process_command()` with a `death_spectator_mode` whitelist so movement, inventory interaction, and other time-advancing actions are rejected gracefully while the spectator is active.
+- Updated `close_game_aux()` (`src/files.c`) to launch the spectator view immediately after scoring and before displaying the tombstone, and wired the tomb menu's "View dungeon" entry to reuse the new spectator loop instead of the old `do_cmd_look()` snapshot.
+
+# Session Notes - Final View Read-Only Polish
+
+## Date
+2025-10-25
+
+- Exposed `death_spectator_active()` from `src/dungeon.c` so UI layers can detect the death-view state; inventories, equipment menus, and the supplies browser now call this helper to suppress `use`, `drop`, and other energy-spending actions while still allowing examination flows (`src/object1.c`, `src/cmd3.c`, `src/cmd4.c`).
+- Tomb menu no longer offers the inventory/equipment branch, labels the dungeon revisit as “Final look,” and renumbers downstream options accordingly (`src/files.c`).
+- Main menu entries for suicide, save, and quit-with-save render disabled and emit a warning if triggered while the corpse view is active, with navigation skipping those slots (`src/cmd4.c`).

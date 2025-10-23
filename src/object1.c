@@ -15,6 +15,15 @@
 #include <stddef.h>
 static bool inventory_menu_include_equip = false;
 
+static bool death_spectator_allow_menu_action(void)
+{
+    if (!death_spectator_active())
+        return true;
+
+    msg_print("You can no longer take that action.");
+    return false;
+}
+
 /*
  * Apply tilemode overrides for special artefacts.
  * Currently used to distinguish Morgoth's crown variants
@@ -4889,16 +4898,18 @@ void show_inven_enhanced(void)
         case '\r':       /* Enter - use item or examine based on context */
         case '\n':       /* Enter (alternative) - use item or examine based on context */
             if (highlight_active && highlight_row >= 0 && highlight_row < k) {
-                done = true;
-
-                /* Handle based on menu context */
                 extern char current_menu_command;
                 if (current_menu_command == 'x') {
                     /* Examine mode - mark for examination */
+                    done = true;
                     enhanced_menu_action = ENHANCED_ACTION_EXAMINE;
                     enhanced_inventory_selected_item = out_index[highlight_row];
                 } else {
+                    if (!death_spectator_allow_menu_action())
+                        break;
+
                     /* Use mode - defer use until after menu restore */
+                    done = true;
                     enhanced_menu_action = ENHANCED_ACTION_USE;
                     enhanced_inventory_selected_item = out_index[highlight_row];
                 }
@@ -4917,6 +4928,9 @@ void show_inven_enhanced(void)
         case '4':        /* Arrow left - drop item */
             if (highlight_active && highlight_row >= 0 && highlight_row < k) {
                 if (!out_is_floor[highlight_row]) {
+                    if (!death_spectator_allow_menu_action())
+                        break;
+
                     /* Can only drop inventory items, not floor items */
                     done = true;
                     enhanced_menu_action = ENHANCED_ACTION_DROP;
@@ -4953,6 +4967,10 @@ void show_inven_enhanced(void)
                     bell("Use arrow keys and Space to select items in this mode");
                     break;
                 }
+                if (death_spectator_active()) {
+                    death_spectator_allow_menu_action();
+                    break;
+                }
                 bool item_found = false;
                 
                 /* Check for dash (-) which selects floor item */
@@ -4968,6 +4986,11 @@ void show_inven_enhanced(void)
                             if (current_menu_command != 0) {
                                 /* Command mode - defer action */
                                 if (current_menu_command == 'u') {
+                                    if (!death_spectator_allow_menu_action()) {
+                                        item_found = true;
+                                        done = false;
+                                        break;
+                                    }
                                     enhanced_menu_action = ENHANCED_ACTION_USE;
                                     enhanced_inventory_selected_item = out_index[i];
                                 } else if (current_menu_command == 'x') {
@@ -4977,8 +5000,13 @@ void show_inven_enhanced(void)
                                 }
                             } else {
                                 /* Direct access mode - use the floor item directly */
-                                enhanced_menu_action = ENHANCED_ACTION_USE;
-                                enhanced_inventory_selected_item = out_index[i];
+                                if (!death_spectator_allow_menu_action()) {
+                                    item_found = true;
+                                    done = false;
+                                } else {
+                                    enhanced_menu_action = ENHANCED_ACTION_USE;
+                                    enhanced_inventory_selected_item = out_index[i];
+                                }
                             }
                             break;
                         }
@@ -5000,6 +5028,11 @@ void show_inven_enhanced(void)
                                 if (current_menu_command != 0) {
                                     /* Command mode - defer action */
                                     if (current_menu_command == 'u') {
+                                        if (!death_spectator_allow_menu_action()) {
+                                            item_found = true;
+                                            done = false;
+                                            break;
+                                        }
                                         enhanced_menu_action = ENHANCED_ACTION_USE;
                                         enhanced_inventory_selected_item = item;
                                     } else if (current_menu_command == 'x') {
@@ -5009,8 +5042,13 @@ void show_inven_enhanced(void)
                                     }
                                 } else {
                                     /* Direct access mode - use the traditional method */
-                                    p_ptr->command_new = which;
-                                    p_ptr->command_see = true;
+                                    if (!death_spectator_allow_menu_action()) {
+                                        item_found = true;
+                                        done = false;
+                                    } else {
+                                        p_ptr->command_new = which;
+                                        p_ptr->command_see = true;
+                                    }
                                 }
                                 break;
                             }
@@ -5307,16 +5345,18 @@ void show_equip_enhanced(void)
         case '\r':       /* Enter - use item or examine based on context */
         case '\n':       /* Enter (alternative) - use item or examine based on context */
             if (highlight_active && highlight_index >= 0 && highlight_index < k) {
-                done = true;
-
-                /* Handle based on menu context */
                 extern char current_menu_command;
                 if (current_menu_command == 'x') {
                     /* Examine mode - mark for examination */
+                    done = true;
                     enhanced_equip_action = ENHANCED_ACTION_EXAMINE;
                     enhanced_equipment_selected_item = out_index[highlight_index];
                 } else {
+                    if (!death_spectator_allow_menu_action())
+                        break;
+
                     /* Use mode - defer action */
+                    done = true;
                     enhanced_equip_action = ENHANCED_ACTION_USE;
                     enhanced_equipment_selected_item = out_index[highlight_index];
                 }
@@ -5334,6 +5374,9 @@ void show_equip_enhanced(void)
 
         case '4':        /* Arrow left - drop item */
             if (highlight_active && highlight_index >= 0 && highlight_index < k) {
+                if (!death_spectator_allow_menu_action())
+                    break;
+
                 done = true;
                 enhanced_equip_action = ENHANCED_ACTION_DROP;
                 enhanced_equipment_selected_item = out_index[highlight_index];
@@ -5366,6 +5409,10 @@ void show_equip_enhanced(void)
                     bell("Use arrow keys and Space to select items in this mode");
                     break;
                 }
+                if (death_spectator_active()) {
+                    death_spectator_allow_menu_action();
+                    break;
+                }
                 int item = label_to_equip(which);
                 if (item >= INVEN_WIELD && item < INVEN_TOTAL && (inventory[item].k_idx || (throw_slot_menu_active && throw_slot_enabled[item]))) {
                     done = true;
@@ -5375,6 +5422,10 @@ void show_equip_enhanced(void)
                     if (current_menu_command != 0) {
                         /* Command mode - defer action */
                         if (current_menu_command == 'u') {
+                            if (!death_spectator_allow_menu_action()) {
+                                done = false;
+                                break;
+                            }
                             enhanced_equip_action = ENHANCED_ACTION_USE;
                             enhanced_equipment_selected_item = item;
                         } else if (current_menu_command == 'x') {
@@ -5384,8 +5435,12 @@ void show_equip_enhanced(void)
                         }
                     } else {
                         /* Direct access mode - use the traditional method */
-                        p_ptr->command_new = which;
-                        p_ptr->command_see = true;
+                        if (!death_spectator_allow_menu_action()) {
+                            done = false;
+                        } else {
+                            p_ptr->command_new = which;
+                            p_ptr->command_see = true;
+                        }
                     }
                 }
                 else {

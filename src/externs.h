@@ -614,6 +614,8 @@ extern void pseudo_id_everything(void);
 extern void id_known_specials(void);
 extern void id_everything(void);
 extern PlayResult play_game(void);
+extern void death_spectator_view(void);
+extern bool death_spectator_active(void);
 
 /* files.c */
 extern void html_screenshot(cptr name);
