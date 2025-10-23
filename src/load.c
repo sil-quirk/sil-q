@@ -636,16 +636,16 @@ static void rd_monster(monster_type* m_ptr)
         rd_byte(&m_ptr->song_contest_stacks);
         rd_byte(&m_ptr->song_lament_stacks);
         rd_byte(&m_ptr->song_lockout_timer);
-        rd_byte(&m_ptr->song_duel_pad);
+        rd_byte(&m_ptr->song_hp_loss_lo);
         rd_s32b(&m_ptr->song_contest_last_turn);
         rd_s32b(&m_ptr->song_lament_last_turn);
         rd_s16b(&m_ptr->song_will_penalty);
         rd_s16b(&m_ptr->song_stealth_penalty);
         rd_s16b(&m_ptr->song_evasion_penalty);
         rd_byte(&m_ptr->song_armor_dice_penalty);
-        rd_byte(&m_ptr->song_duel_pad2[0]);
-        rd_byte(&m_ptr->song_duel_pad2[1]);
-        rd_byte(&m_ptr->song_duel_pad2[2]);
+        rd_byte(&m_ptr->song_hp_loss_hi);
+        rd_byte(&m_ptr->song_contest_completed);
+        rd_byte(&m_ptr->song_lament_completed);
     }
     else
     {
@@ -654,14 +654,16 @@ static void rd_monster(monster_type* m_ptr)
         m_ptr->song_contest_stacks = 0;
         m_ptr->song_lament_stacks = 0;
         m_ptr->song_lockout_timer = 0;
-        m_ptr->song_duel_pad = 0;
+        m_ptr->song_hp_loss_lo = 0;
         m_ptr->song_contest_last_turn = 0;
         m_ptr->song_lament_last_turn = 0;
         m_ptr->song_will_penalty = 0;
         m_ptr->song_stealth_penalty = 0;
         m_ptr->song_evasion_penalty = 0;
         m_ptr->song_armor_dice_penalty = 0;
-        memset(m_ptr->song_duel_pad2, 0, sizeof(m_ptr->song_duel_pad2));
+        m_ptr->song_hp_loss_hi = 0;
+        m_ptr->song_contest_completed = 0;
+        m_ptr->song_lament_completed = 0;
     }
 
     rd_s16b(&m_ptr->consecutive_attacks);

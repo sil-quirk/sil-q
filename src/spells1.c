@@ -23,6 +23,12 @@ static int song_disguise_seen_count = 0;
 static int song_disguise_attackers_current_turn = 0;
 static int song_disguise_attackers_last_turn = 0;
 
+static byte song_revealing_hint[MAX_MONSTERS];  // Stores detection result quality
+static bool song_revealing_has_data = false;
+
+#define SONG_REVEALING_HINT_TTL 3
+#define SONG_REVEALING_FULL_VISIBILITY 10  // Threshold for full visibility
+
 static void ensure_song_disguise_buffers(void)
 {
     if (!song_disguise_seen)
@@ -113,6 +119,27 @@ void song_disguise_handle_monster_removed(int m_idx)
         song_disguise_pacified[m_idx] = 0;
     if (song_disguise_attacked)
         song_disguise_attacked[m_idx] = 0;
+
+    if (m_idx > 0 && m_idx < MAX_MONSTERS)
+    {
+        song_revealing_hint[m_idx] = 0;
+
+        if (song_revealing_has_data)
+        {
+            bool any_hint = false;
+            for (int i = 1; i < MAX_MONSTERS; i++)
+            {
+                if (song_revealing_hint[i])
+                {
+                    any_hint = true;
+                    break;
+                }
+            }
+
+            if (!any_hint)
+                song_revealing_has_data = false;
+        }
+    }
 }
 
 void song_disguise_note_monster_attack(int m_idx)
@@ -129,12 +156,120 @@ void song_disguise_note_monster_attack(int m_idx)
     }
 }
 
+static void song_revealing_decay(void)
+{
+    bool any = false;
+
+    for (int i = 1; i < MAX_MONSTERS; i++)
+    {
+        if (song_revealing_hint[i] > 0)
+        {
+            // Decay the detection quality each turn (reduce by ~3-4 points per turn)
+            if (song_revealing_hint[i] > 3)
+                song_revealing_hint[i] -= 3;
+            else
+                song_revealing_hint[i] = 0;
+        }
+
+        if (song_revealing_hint[i] > 0)
+            any = true;
+    }
+
+    song_revealing_has_data = any;
+}
+
+bool song_revealing_overlay(int m_idx, byte* a, char* c)
+{
+    if (!song_revealing_has_data)
+        return false;
+
+    if (m_idx <= 0 || m_idx >= MAX_MONSTERS)
+        return false;
+
+    if (!song_revealing_hint[m_idx])
+        return false;
+
+    monster_type* m_ptr = &mon_list[m_idx];
+
+    if (!m_ptr->r_idx || m_ptr->ml)
+        return false;
+
+    // If detection quality is high enough, make the monster fully visible
+    if (song_revealing_hint[m_idx] > SONG_REVEALING_FULL_VISIBILITY)
+    {
+        m_ptr->ml = true;
+        return false;  // Let normal rendering handle it
+    }
+
+    // Otherwise show as a hint marker
+    if (graphics_are_ascii())
+    {
+        int base = 0x30;
+        int k = TERM_SLATE;
+        byte idx = (byte)(base + k);
+        *a = misc_to_attr[idx];
+        *c = misc_to_char[idx];
+    }
+    else
+    {
+        *a = misc_to_attr[ICON_UNKNOWN_ENEMY];
+        *c = misc_to_char[ICON_UNKNOWN_ENEMY];
+    }
+
+    return true;
+}
+
 #define SONG_DUEL_STACK_LIMIT 3
 #define SONG_DUEL_LOCKOUT_TURNS 10
 
 static bool song_is_duel(int song)
 {
     return (song == SNG_CONTEST || song == SNG_LAMENT);
+}
+
+static void display_synergy_message(int song1, int song2)
+{
+    // Check if we have a valid synergy pair
+    if (song1 == SNG_NOTHING || song2 == SNG_NOTHING)
+        return;
+
+    // Define synergy pairs and their messages
+    struct {
+        int song_a;
+        int song_b;
+        const char* message;
+    } synergies[] = {
+        { SNG_ELBERETH, SNG_TREES,
+          "The starlight and the Two Trees harmonize in glorious unity!" },
+        { SNG_ELBERETH, SNG_STAUNCHING,
+          "Starlight and healing blend into a restorative radiance!" },
+        { SNG_CHALLENGE, SNG_SLAYING,
+          "Your fury and mockery blend into a devastating war-song!" },
+        { SNG_DELVINGS, SNG_REVEALING,
+          "Stone and secrets resonate together, unveiling all that is hidden!" },
+        { SNG_FREEDOM, SNG_ELVENESS,
+          "Grace and liberty intertwine in an uplifting melody!" },
+        { SNG_STAYING, SNG_CONTEST,
+          "Your courage strengthens your voice in the duel of songs!" },
+        { SNG_STAYING, SNG_LAMENT,
+          "Courage and sorrow unite in a song of enduring strength!" },
+        { SNG_SILENCE, SNG_DISGUISE,
+          "Quietness and guile weave a cloak of perfect concealment!" },
+        { SNG_SILENCE, SNG_LORIEN,
+          "Silence and rest deepen into profound tranquility!" },
+        { SNG_SHATTERING, SNG_MASTERY,
+          "Destruction and dominion unite in overwhelming force!" }
+    };
+
+    for (size_t i = 0; i < sizeof(synergies) / sizeof(synergies[0]); i++)
+    {
+        if ((song1 == synergies[i].song_a && song2 == synergies[i].song_b)
+            || (song1 == synergies[i].song_b && song2 == synergies[i].song_a))
+        {
+            msg_print(synergies[i].message);
+            return;
+        }
+    }
 }
 
 static void song_duel_clear_player_target(void)
@@ -209,6 +344,18 @@ static bool song_duel_select_target(int song)
         return false;
     }
 
+    // Check if this monster has already completed a duel of this type
+    if (song == SNG_CONTEST && m_ptr->song_contest_completed)
+    {
+        msg_print("You have already completed a contest with this foe.");
+        return false;
+    }
+    else if (song == SNG_LAMENT && m_ptr->song_lament_completed)
+    {
+        msg_print("You have already sung your lament against this foe.");
+        return false;
+    }
+
     song_duel_clear_player_target();
     song_duel_reset_player_stack();
 
@@ -225,6 +372,10 @@ static bool song_duel_select_target(int song)
         m_ptr->song_lament_stacks = 0;
         m_ptr->song_lament_last_turn = playerturn;
     }
+
+    // Wake up and alert the monster - it notices the song directed at it
+    set_alertness(m_ptr, ALERTNESS_VERY_ALERT);
+    update_mon(p_ptr->target_who, false);
 
     return true;
 }
@@ -261,6 +412,10 @@ static void song_duel_reduce_monster_hp(monster_type* m_ptr, int steps)
             m_ptr->hp = 1;
         if (m_ptr->hp > new_maxhp)
             m_ptr->hp = new_maxhp;
+
+        int hp_loss = m_ptr->maxhp - new_maxhp;
+        if (hp_loss > 0)
+            monster_add_song_hp_loss(m_ptr, hp_loss);
 
         m_ptr->maxhp = new_maxhp;
     }
@@ -338,12 +493,19 @@ static void song_duel_finish_monster_loss(monster_type* m_ptr, int song, int son
     else
     {
         song_duel_apply_lament_penalties(m_ptr, song_skill);
-        if (!do_dec_stat(A_GRA, NULL))
-            msg_print("You feel your grace wane.");
+        // Song of Lament always drains Grace - no resistance
+        if (dec_stat(A_GRA, 1, false))
+            msg_print("You feel drained.");
     }
 
     m_ptr->song = SNG_NOTHING;
     m_ptr->song_lockout_timer = SONG_DUEL_LOCKOUT_TURNS;
+
+    // Mark this duel as completed so it can't be re-targeted
+    if (song == SNG_CONTEST)
+        m_ptr->song_contest_completed = 1;
+    else
+        m_ptr->song_lament_completed = 1;
 
     song_duel_reset_monster_stack(m_ptr, SNG_CONTEST);
     song_duel_reset_monster_stack(m_ptr, SNG_LAMENT);
@@ -356,9 +518,18 @@ static void song_duel_finish_monster_loss(monster_type* m_ptr, int song, int son
     change_song(SNG_NOTHING);
 }
 
-static void song_duel_finish_player_loss(int song)
+static void song_duel_finish_player_loss(int song, monster_type* m_ptr)
 {
     msg_print("You can no longer sustain the song.");
+
+    // Mark this duel as completed so it can't be re-targeted
+    if (m_ptr)
+    {
+        if (song == SNG_CONTEST)
+            m_ptr->song_contest_completed = 1;
+        else if (song == SNG_LAMENT)
+            m_ptr->song_lament_completed = 1;
+    }
 
     song_duel_clear_player_target();
     song_duel_reset_player_stack();
@@ -367,8 +538,11 @@ static void song_duel_finish_player_loss(int song)
 
     if (song == SNG_CONTEST)
     {
+        // Song of Contest always drains a random stat - no resistance
         int stat = rand_int(A_MAX);
-        do_dec_stat(stat, NULL);
+        static cptr desc_stat_neg[] = { "weak", "awkward", "sickly", "drained" };
+        if (dec_stat(stat, 1, false))
+            msg_format("You feel %s.", desc_stat_neg[stat]);
     }
 
     change_song(SNG_NOTHING);
@@ -426,7 +600,7 @@ static bool song_duel_process_contest(int song_skill)
 
         if (p_ptr->song_contest_player_stacks >= SONG_DUEL_STACK_LIMIT)
         {
-            song_duel_finish_player_loss(SNG_CONTEST);
+            song_duel_finish_player_loss(SNG_CONTEST, m_ptr);
             return false;
         }
     }
@@ -3310,17 +3484,13 @@ static bool project_m(
                         resistance + distance(p_ptr->py, p_ptr->px, y, x),
                         m_ptr);
                     
-                    /* If successful, deal damage and stun based on light level */
+                    /* Stun is applied when monster FAILS Will save (result > 0 means player wins) */
+                    /* Stun amount scales with light level */
                     if (result > 0)
                     {
-                        /* Calculate stun amount based on song skill (or Will for items) */
-                        /* Stun scales with skill: 1-5 at skill 5, up to 5-25 at skill 25 */
-                        stun_amount = damroll(dd, skill_to_use / 5);
+                        stun_amount = damroll(dd, light_level);
                         
-                        /* Reduce stun based on Will resistance (same formula as damage) */
-                        stun_amount = (stun_amount * result) / (result + 5);
-                        
-                        /* Apply stun if any */
+                        /* Apply stun */
                         if (stun_amount > 0)
                         {
                             stun_monster(m_ptr, stun_amount);
@@ -3329,12 +3499,30 @@ static bool project_m(
                             if (p_ptr->health_who == cave_m_idx[m_ptr->fy][m_ptr->fx])
                                 p_ptr->redraw |= (PR_HEALTHBAR);
                         }
-                        
+                    }
+                    else
+                    {
+                        /* Monster resisted - no stun */
+                        stun_amount = 0;
+                    }
+                    
+                    /* Damage only happens on STRONG Will failure (result >= 5) */
+                    /* This represents intense light overwhelming the monster */
+                    if (result >= 5)
+                    {
                         /* Use light level as dice sides, dd from the attack */
                         actual_dam = damroll(dd, light_level);
                         
-                        /* Reduce damage based on how much the monster resisted */
+                        /* Reduce damage based on how much the monster failed */
+                        int raw_dam = actual_dam;
                         actual_dam = (actual_dam * result) / (result + 5);
+                        
+                        /* Debug logging */
+                        if (seen)
+                        {
+                            log_debug("GF_LIGHT: dd=%d light=%d raw=%d result=%d final=%d stun=%d", 
+                                dd, light_level, raw_dam, result, actual_dam, stun_amount);
+                        }
                         
                         if (actual_dam > 0)
                         {
@@ -3358,12 +3546,19 @@ static bool project_m(
                                 note = " cringes from the light!";
                         }
                     }
-                    else
+                    else if (result > 0)
                     {
-                        /* Failed Will save - no damage or stun */
+                        /* Stunned but not enough to damage */
                         dam = 0;
                         
-                        /* Message for resisted light */
+                        if (seen)
+                            note = " cringes from the light!";
+                    }
+                    else
+                    {
+                        /* Monster resisted - no stun, no damage */
+                        dam = 0;
+                        
                         if (seen)
                             note = " resists the light!";
                     }
@@ -6137,6 +6332,38 @@ void change_song(int song)
         }
         break;
     }
+    case SNG_SHATTERING:
+    {
+        if (song_to_change == 1)
+        {
+            msg_print("You begin a forceful song of breaking and ruin.");
+        }
+        else if (old_song == SNG_NOTHING)
+        {
+            msg_print("You add a minor theme of breaking and ruin.");
+        }
+        else
+        {
+            msg_print("You change your minor theme to one of breaking and ruin.");
+        }
+        break;
+    }
+    case SNG_CONTEST:
+    {
+        if (song_to_change == 1)
+        {
+            msg_print("You begin a piercing song of contest and rivalry.");
+        }
+        break;
+    }
+    case SNG_LAMENT:
+    {
+        if (song_to_change == 1)
+        {
+            msg_print("You begin a sorrowful song of loss and lament.");
+        }
+        break;
+    }
     }
 
     // Actually set the song
@@ -6147,6 +6374,12 @@ void change_song(int song)
     if ((song_to_change == 2) || (song == SNG_NOTHING))
     {
         p_ptr->song2 = song;
+    }
+
+    // Display synergy message if a woven theme pair is detected
+    if (song != SNG_NOTHING && song_to_change == 2)
+    {
+        display_synergy_message(p_ptr->song1, p_ptr->song2);
     }
 
     if (!singing(SNG_DISGUISE) && song_disguise_active)
@@ -6557,12 +6790,23 @@ void sing_song_of_elbereth(int score)
 
 void sing_song_of_trees(int score)
 {
+    int py = p_ptr->py;
+    int px = p_ptr->px;
     int rad = 1 + (score / 5); // Radius increases with song skill
     int dd = 1 + (score / 10); // Number of dice based on song skill
-    int ds = score;            // Dice sides based on song skill
+    int ds = score;            // Dice sides based on song skill (used to identify Song vs Gem in GF_LIGHT handler)
     
-    /* Call light around the player using GF_LIGHT */
-    light_area(dd, ds, rad);
+    log_debug("sing_song_of_trees: score=%d rad=%d dd=%d ds=%d", score, rad, dd, ds);
+    
+    /* Song of Trees damages/stuns light-sensitive monsters without visual flash */
+    /* Uses PROJECT_KILL to affect monsters, but NOT PROJECT_GRID (no visual light squares effect) */
+    /* PROJECT_HIDE prevents the projectile animation */
+    /* Light radius increase is handled separately in xtra1.c calc_light() */
+    /* Shows damage messages to provide feedback when monsters are affected */
+    /* IMPORTANT: Use uniform=true so dd doesn't decay with distance (damage is based on light_level at monster's position) */
+    u32b flg = PROJECT_BOOM | PROJECT_KILL | PROJECT_PASS | PROJECT_HIDE;
+    
+    (void)project(-1, rad, py, px, py, px, dd, ds, -1, GF_LIGHT, flg, 0, true);
 }
 
 void sing_song_of_lorien(int score)
@@ -6613,6 +6857,11 @@ void sing_song_of_lorien(int score)
 void sing_song_of_shattering(int score)
 {
     int i;
+    int monsters_checked = 0;
+    int monsters_with_flags = 0;
+    int skill_check_passed = 0;
+
+    log_debug("Song of Shattering: starting with score=%d", score);
 
     /* Scan all other monsters */
     for (i = mon_max - 1; i >= 1; i--)
@@ -6632,11 +6881,17 @@ void sing_song_of_shattering(int score)
         if (!m_ptr->r_idx)
             continue;
 
+        monsters_checked++;
+
         bool has_weapon_flag = (r_ptr->flags3 & RF3_HAS_WEAPON) != 0;
         bool has_armour_flag = (r_ptr->flags3 & RF3_HAS_ARMOUR) != 0;
 
         if (!has_weapon_flag && !has_armour_flag)
             continue;
+
+        monsters_with_flags++;
+        log_debug("Song of Shattering: Monster %s has flags (weapon=%d, armour=%d)", 
+                  r_name + r_ptr->name, has_weapon_flag, has_armour_flag);
 
         /* Identify items carried by the monster (for secondary effects) */
         find_monster_equipment(m_ptr, &weapon, &armour);
@@ -6647,8 +6902,13 @@ void sing_song_of_shattering(int score)
 
         result = skill_check(PLAYER, score, resistance, m_ptr);
 
+        log_debug("Song of Shattering: skill_check result=%d (score=%d, resistance=%d)", 
+                  result, score, resistance);
+
         if (result <= 0)
             continue;
+
+        skill_check_passed++;
 
         /* Check for weapon possibility */
         if (has_weapon_flag)
@@ -6686,16 +6946,24 @@ void sing_song_of_shattering(int score)
         }
 
         if (!weapon_possible && !armour_possible)
+        {
+            log_debug("Song of Shattering: No valid targets for this monster");
             continue;
+        }
 
         /* 50/50 chance to target weapon or armour (no fallthrough) */
         bool target_weapon = weapon_possible
             && (!armour_possible || one_in_(2));
 
+        log_debug("Song of Shattering: target_weapon=%d, weapon_possible=%d, armour_possible=%d", 
+                  target_weapon, weapon_possible, armour_possible);
+
         if (target_weapon && weapon_possible)
         {
             /* Probability to weaken: score/3 percent (6.7% at score 20) */
             int weaken_chance = score / 3;
+            
+            log_debug("Song of Shattering: Attempting weapon damage, weaken_chance=%d%%", weaken_chance);
             
             if (percent_chance(weaken_chance))
             {
@@ -6711,12 +6979,20 @@ void sing_song_of_shattering(int score)
                     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
                     msg_format("Your song splinters %s's weapon.", m_name);
                 }
+                
+                log_debug("Song of Shattering: Weapon damage SUCCESS");
+            }
+            else
+            {
+                log_debug("Song of Shattering: Weapon damage FAILED probability check");
             }
         }
         else if (!target_weapon && armour_possible)
         {
             /* Probability to weaken: score/3 percent (6.7% at score 20) */
             int weaken_chance = score / 3;
+            
+            log_debug("Song of Shattering: Attempting armour damage, weaken_chance=%d%%", weaken_chance);
             
             if (percent_chance(weaken_chance))
             {
@@ -6732,9 +7008,18 @@ void sing_song_of_shattering(int score)
                     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
                     msg_format("Your song warps %s's armour.", m_name);
                 }
+                
+                log_debug("Song of Shattering: Armour damage SUCCESS");
+            }
+            else
+            {
+                log_debug("Song of Shattering: Armour damage FAILED probability check");
             }
         }
     }
+
+    log_debug("Song of Shattering: Summary - checked=%d, with_flags=%d, passed_skill_check=%d", 
+              monsters_checked, monsters_with_flags, skill_check_passed);
 
     shatter_floor_items(score);
 }
@@ -6877,6 +7162,16 @@ void sing_song_of_revealing(int score, bool primary_song)
         if (!m_ptr->r_idx)
             continue;
 
+        // Skip already visible monsters
+        if (m_ptr->ml)
+            continue;
+
+        monster_race* r_ptr = &r_info[m_ptr->r_idx];
+
+        // Monster must be able to move
+        if (r_ptr->flags1 & (RF1_NEVER_MOVE))
+            continue;
+
         int dist = flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx);
         if (dist >= FLOW_MAX_DIST)
             continue;
@@ -6884,7 +7179,40 @@ void sing_song_of_revealing(int score, bool primary_song)
         if (dist > range)
             continue;
 
-        detect_monster_noise(m_ptr, effective_skill);
+        // Calculate detection difficulty (similar to detect_monster_noise)
+        int difficulty = dist - m_ptr->noise;
+        
+        // Use monster stealth
+        difficulty += monster_skill(m_ptr, S_STL);
+
+        // Bonus for awake but unwary monsters
+        if ((m_ptr->alertness >= ALERTNESS_UNWARY)
+            && (m_ptr->alertness < ALERTNESS_ALERT))
+            difficulty -= 3;
+
+        // Penalty for song of silence
+        if (singing(SNG_SILENCE))
+            difficulty += ability_bonus(S_SNG, SNG_SILENCE);
+
+        // Make the skill check
+        int result = skill_check(PLAYER, effective_skill, difficulty, m_ptr);
+
+        // If detection succeeds, store the detection quality
+        // This will determine visualization (full visibility vs hint marker)
+        if (result > 0)
+        {
+            // Store the detection result (capped at reasonable maximum)
+            song_revealing_hint[i] = (byte)MIN(result, 30);
+            song_revealing_has_data = true;
+            
+            // If detection is strong enough, make fully visible immediately
+            if (result > SONG_REVEALING_FULL_VISIBILITY)
+            {
+                m_ptr->ml = true;
+            }
+            
+            lite_spot(m_ptr->fy, m_ptr->fx);
+        }
     }
 
     song_reveal_items(range);
@@ -6898,8 +7226,16 @@ void sing(void)
     int cost = 0;
     bool abort_song = false;
 
+    song_revealing_decay();
+
     if (p_ptr->song1 == SNG_NOTHING)
     {
+        if (song_revealing_has_data)
+        {
+            C_WIPE(song_revealing_hint, MAX_MONSTERS, byte);
+            song_revealing_has_data = false;
+        }
+
         if (song_disguise_active)
             song_disguise_on_stop();
         return;

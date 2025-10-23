@@ -1,3 +1,176 @@
+# Session Notes
+
+## 2025-10-23 - Song of Shattering Debug Investigation
+
+### Issue
+Song of Shattering not applying debuffs - no messages in log and no visible effects in monster screen.
+
+### Root Cause
+**Song of Shattering was missing from the `ability_bonus()` function in `xtra1.c`!**
+
+The song was properly integrated into the song processing loop, but when calculating the score with `ability_bonus(S_SNG, SNG_SHATTERING)`, it wasn't in the switch statement, so it returned a default bonus of 0.
+
+From the log:
+```
+Song of Shattering: starting with score=0
+Song of Shattering: skill_check result=-16 (score=0, resistance=13)
+Song of Shattering: Attempting weapon damage, weaken_chance=0%
+```
+
+With score=0:
+- All skill checks fail (0 vs monster Will + distance)
+- Probability is 0/3 = 0% (should be score/3 percent)
+- Song is completely ineffective
+
+### Fix
+Added `SNG_SHATTERING` case to the `ability_bonus()` function in `src/xtra1.c`:
+```c
+case SNG_SHATTERING:
+{
+    bonus = skill;
+    break;
+}
+```
+
+Placed after `SNG_MASTERY` and before `SNG_CONTEST` to maintain the logical ordering.
+
+### Expected Behavior After Fix
+With proper score calculation (e.g., skill 20 = score 20):
+- Skill checks: 20 vs (monster Will + distance) - should pass for nearby orcs
+- Probability: 20/3 = 6.7% chance per eligible monster per turn
+- Messages should appear when equipment is damaged
+- Monster screen should show reduced damage/armor values
+
+### Testing
+Close and restart the game to load the new executable, then:
+1. Sing Song of Shattering near orcs with equipment
+2. Check log.txt - should now show score > 0
+3. Should see successful skill checks and occasional equipment damage
+
+---
+
+## 2025-10-23 - Song of Trees Fix
+
+## Date
+2025-10-23 (earlier)
+
+## Summary
+Fixed Song of Trees to damage/stun light-sensitive monsters silently without showing visual light effects like Gem of Light does.
+
+### Issue
+- Song of Trees was showing the same visual effect as Gem of Light ("You are surrounded by a white light.")
+- Should increase light radius AND damage light-sensitive monsters, but WITHOUT the visual flash/message
+
+### Root Cause (Updated after testing)
+- Original implementation called `light_area()` which uses `PROJECT_GRID` flag
+- `PROJECT_GRID` causes the visible light-up effect on dungeon squares
+- `light_area()` also prints the "surrounded by white light" message
+- Song of Trees should work silently in the background
+- **Critical bug found:** `project()` reduces damage dice by 2 per square of distance by default
+  - With `dd = 1 + (score/10)`, at score 10: dd=2
+  - At distance 1: dd reduced to 0, no damage possible!
+  - Fixed by using `uniform=true` parameter so dd doesn't decay
+
+### Fix
+- Modified `sing_song_of_trees()` to call `project()` directly instead of `light_area()`
+- Uses flags: `PROJECT_BOOM | PROJECT_KILL | PROJECT_PASS | PROJECT_HIDE`
+- Removed `PROJECT_GRID` to prevent visual lighting effect
+- Added `PROJECT_HIDE` to suppress graphics
+- **Set `uniform=true`** so damage dice don't decay with distance
+- Damage/stun calculations use light level at monster's position, not distance from player
+- Maintains damage/stun mechanics via GF_LIGHT handler (which checks `ds > 10` to identify Song vs Gem)
+
+### Behavior After Fix
+Song of Trees now:
+1. ✅ Increases light radius passively (handled in xtra1.c:1989)
+2. ✅ **Stuns HURT_LITE monsters reliably** based on light level (more consistent than damage)
+3. ✅ Damages monsters only when Will check succeeds (requires bright light)
+4. ✅ Works silently without visual effects or messages
+5. ✅ Uses song score for damage skill checks (via `ds = score` parameter)
+
+### Stun vs Damage Mechanics
+**Stun (Primary Effect):**
+- Calculated: `damroll(dd, light_level)` - scales with light level
+- Applied when monster **fails Will save** (result > 0, player wins)
+- Duration: Stun value in turns (decreases by 1 per turn)
+- With light level 14, dd=2: **2-28 turns of stun**
+- Represents the blinding/disorienting effect of light
+- Orcs (Will 1-2) will almost always fail against high song skill
+
+**Damage (Secondary Effect):**
+- Only applied on **strong Will failure** (result ≥ 5)
+- Calculated: `damroll(dd, light_level)` then reduced by resistance
+- Reduction formula: `(damage × result) / (result + 5)`
+- Represents actual burning/searing damage from intense light
+- Bypasses armor (applied via `mon_take_hit`)
+
+**Resistance Outcomes:**
+- result ≥ 5: Stun + Damage ("is seared by radiant light!")
+- result 1-4: Stun only ("cringes from the light!")
+- result ≤ 0: Monster resists ("resists the light!")
+
+This creates the intended progression:
+1. Weak song / high monster Will: Monster resists
+2. Moderate success: Monster stunned but not damaged (cringes)
+3. Strong success: Monster stunned AND damaged (seared)
+
+Gem/Staff of Light:
+1. Shows "surrounded by white light" message
+2. Creates visible light flash effect
+3. Uses player's Will skill for damage checks
+
+### Files Modified
+- `src/spells1.c`: Lines 6652-6668 - replaced `light_area()` call with direct `project()` call using appropriate flags
+- `src/spells1.c`: Lines 3418-3430 - added debug logging for damage calculation to diagnose issues
+
+### Debug Logging
+Added temporary debug logging to GF_LIGHT handler showing:
+- Number of damage dice (dd)
+- Light level at monster position
+- Raw damage before Will reduction
+- Will check result
+- Final damage after Will reduction
+- Stun amount applied
+
+Check `sil-more-windows-sdl3/log.txt` for output.
+
+### Technical Details
+- Damage formula: `dd = 1 + (score/10)` dice of light level
+- Radius: `rad = 1 + (score/5)`
+- Skill parameter: `ds = score` (GF_LIGHT handler uses this to distinguish Song from Gem)
+- Only affects monsters with HURT_LITE flag
+- Damage reduced by monster Will resistance and distance
+- **Critical requirement:** Damage only triggers when `cave_light[monster_pos] >= 3`
+- Light sources provide different damage ranges:
+  - Torch (radius 1): Never damages (max light = 2)
+  - Lantern (radius 2): Damages same square only (light = 3)
+  - Mallorn (radius 3): Damages up to 1 square away
+  - Fëanorian (radius 4): Damages up to 2 squares away
+  - Silmaril (radius 7): Damages up to 5 squares away
+
+### Messages
+When Song of Trees affects a HURT_LITE monster, you'll see:
+- "[Monster] is seared by radiant light!" - when damage is dealt
+- "[Monster] cringes from the light!" - when stunned but no damage
+- "[Monster] resists the light!" - when Will save succeeds
+
+These messages now display (removed PROJECT_SILENT flag) to provide feedback.
+
+# Session Notes - Morgoth Crown Tiles
+
+
+## Date
+2025-10-27
+
+## Summary
+- Studied MicroChasm tile encoding (`attr & 0x3F` → row, `char & 0x3F` → column) via `graf-new.prf` and `callback_sdl_pict`.
+- Added `object_attr_graphics_override()` / `object_char_graphics_override()` in `src/object1.c` to remap Morgoth crown artefacts once Silmarils are removed.
+- Wired overrides into the `object_attr` / `object_char` macros (`src/defines.h`) and declared them in `src/externs.h` so all item renders honour the new tiles.
+- Introduced shared tile helpers (`TILE_*`) and taught the pref parser/dumper about `R#/C#` row/column tokens so artists can work numerically instead of hex.
+
+## Notes
+- Crown with three Silmarils keeps existing tile (`0x85/0x9C`, row 5 col 28); variants now use row 12 with columns 23–25 while preserving glow/alert overlay bits.
+
 # Session Notes - Woven Theme Synergy
 
 ## Date
@@ -380,6 +553,16 @@ Score (highest first)                      Layout: Short
 - Hooked monster attack tracking and cleanup (`src/melee1.c`, `src/dungeon.c`, `src/monster2.c`) plus AI suppression (`src/melee2.c`) so fooled foes skip their turns until they pierce the disguise; integrated song noise and ability bonus adjustments (`src/xtra1.c`).
 - Declared new song helpers in `src/externs.h` and ensured per-turn rotation/reset flows manage disguise state during level transitions and saves.
 
+# Session Notes - Song of Revealing
+
+## Date
+2025-10-22
+
+- Added persistent Song of Revealing hints so partially detected monsters render with the listening-style `?` marker by tracking per-monster reveals (`src/spells1.c`) and exposing `song_revealing_overlay`.
+- Updated the map renderer (`src/cave.c`) to query the overlay helper so redraws no longer wipe the hint immediately; hints clear automatically when the song stops or monsters are removed.
+- Re-ordered Song of Revealing processing to reset hint state each turn while keeping item reveal behaviour intact; linked overlay declaration through `src/externs.h`.
+- Introduced a short-lived decay timer for Song of Revealing hints so partial detections persist for several beats even if a later roll fails, avoiding the instant flicker that previously occurred.
+
 # Session Notes - Monster Recall Instance Stats
 
 ## Date
@@ -389,3 +572,11 @@ Score (highest first)                      Layout: Short
 - Reworked `describe_monster_movement`, `describe_monster_toughness`, `describe_monster_skills`, and `describe_monster_attack` to pull per-instance data: numeric speed output with hasted/slowed markers, current/max HP ranges with curse/song adjustments, protection ranges reflecting armour penalties/bonuses, skill readouts via `monster_skill`, and blow damage/attack values recalculated with song-induced reductions.
 - Swapped legacy `XdY` displays for `min-max` ranges when only race data is available, while defaulting to live `current-max` spans whenever the specific monster is known.
 
+# Session Notes - Recall Dice Formatting
+
+## Date
+2025-10-24
+
+- Restored XdY formatting for monster attacks and protection in `src/monster1.c`, keeping adjusted dice from any active debuffs while reverting away from min/max spans.
+- Reverted monster HP recall to the base `hdice`/`hside` expression and appended a `-<amount>` suffix when Song of Lament reductions apply, via a new per-monster accumulator backed by `monster_song_hp_loss()`.
+- Repurposed the song duel padding bytes (`song_hp_loss_lo/hi`) with save/load support (`src/save.c`, `src/load.c`) and helper accessors (`src/monster2.c`, `src/externs.h`) so song-induced HP penalties persist across turns and savefiles.

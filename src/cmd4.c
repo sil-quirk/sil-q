@@ -62,6 +62,28 @@ struct supply_list_entry
     int supply_idx; /* Index inside the supply cache (-1 if not present) */
 };
 
+static void dump_visual_pair(
+    FILE* fff, const char* tag, int index, byte attr, byte chr)
+{
+    bool attr_tile = (attr & TILE_FLAG) != 0;
+    bool char_tile = (chr & TILE_FLAG) != 0;
+
+    fprintf(fff, "%s:%d:", tag, index);
+    if (attr_tile)
+        fprintf(fff, "R%d", TILE_GET_INDEX(attr));
+    else
+        fprintf(fff, "0x%02X", attr);
+
+    fputc(':', fff);
+
+    if (char_tile)
+        fprintf(fff, "C%d", TILE_GET_INDEX(chr));
+    else
+        fprintf(fff, "0x%02X", (byte)chr);
+
+    fputc('\n', fff);
+    fputc('\n', fff);
+}
 
 
 static bool supplies_menu_use_entry(supply_list_entry* entry)
@@ -694,6 +716,15 @@ void do_cmd_change_song()
     char which;
 
     log_debug("Player opening song selection menu");
+
+    // Check for song lockout timer first
+    if (p_ptr->song_lockout_timer > 0)
+    {
+        msg_format("You cannot sing for %d more turn%s.", 
+            p_ptr->song_lockout_timer,
+            (p_ptr->song_lockout_timer == 1) ? "" : "s");
+        return;
+    }
 
     // count the abilities
     for (i = 0; i < SNG_MAX; i++)
@@ -9886,8 +9917,7 @@ void do_cmd_visuals(void)
                 fprintf(fff, "# %s\n", (r_name + r_ptr->name));
 
                 /* Dump the monster attr/char info */
-                fprintf(fff, "R:%d:0x%02X:0x%02X\n\n", i, (byte)(r_ptr->x_attr),
-                    (byte)(r_ptr->x_char));
+                dump_visual_pair(fff, "R", i, r_ptr->x_attr, (byte)r_ptr->x_char);
             }
 
             /* All done */
@@ -9957,8 +9987,8 @@ void do_cmd_visuals(void)
                 fprintf(fff, "# %s\n", (k_name + k_ptr->name));
 
                 /* Dump the object attr/char info */
-                fprintf(fff, "K:%d:0x%02X:0x%02X\n\n", i, (byte)(k_ptr->x_attr),
-                    (byte)(k_ptr->x_char));
+                dump_visual_pair(
+                    fff, "K", i, k_ptr->x_attr, (byte)k_ptr->x_char);
             }
 
             /* All done */
@@ -10028,8 +10058,8 @@ void do_cmd_visuals(void)
                 fprintf(fff, "# %s\n", (f_name + f_ptr->name));
 
                 /* Dump the feature attr/char info */
-                fprintf(fff, "F:%d:0x%02X:0x%02X\n\n", i, (byte)(f_ptr->x_attr),
-                    (byte)(f_ptr->x_char));
+                dump_visual_pair(
+                    fff, "F", i, f_ptr->x_attr, (byte)f_ptr->x_char);
             }
 
             /* All done */
@@ -10095,8 +10125,8 @@ void do_cmd_visuals(void)
                 fprintf(fff, "# %s\n", (flavor_text + flavor_ptr->text));
 
                 /* Dump the flavor attr/char info */
-                fprintf(fff, "L:%d:0x%02X:0x%02X\n\n", i,
-                    (byte)(flavor_ptr->x_attr), (byte)(flavor_ptr->x_char));
+                dump_visual_pair(
+                    fff, "L", i, flavor_ptr->x_attr, (byte)flavor_ptr->x_char);
             }
 
             /* All done */

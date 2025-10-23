@@ -1723,6 +1723,18 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
         monster_type* m_ptr = &mon_list[m_idx];
         monster_race* r_ptr = &r_info[m_ptr->r_idx];
 
+        if (!m_ptr->ml)
+        {
+            byte ha;
+            char hc;
+
+            if (song_revealing_overlay(m_idx, &ha, &hc))
+            {
+                a = ha;
+                c = hc;
+            }
+        }
+
         /* Visible monster*/
         if (m_ptr->ml)
         {

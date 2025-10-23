@@ -36,6 +36,44 @@
 /* Forward declaration for score update function */
 static void upsert_live_score_on_save(void);
 
+static bool parse_visual_component(const char* token, bool expect_row, byte* value)
+{
+    if (!token || !*token || !value)
+        return false;
+
+    char prefix = token[0];
+    if (expect_row && (prefix == 'R' || prefix == 'r'))
+    {
+        char* end = NULL;
+        long row = strtol(token + 1, &end, 0);
+        if (end && (*end == '\0') && (row >= 0) && (row <= TILE_INDEX_MASK))
+        {
+            *value = TILE_SET_INDEX(TILE_FLAG, (byte)row);
+            return true;
+        }
+    }
+    else if (!expect_row && (prefix == 'C' || prefix == 'c'))
+    {
+        char* end = NULL;
+        long col = strtol(token + 1, &end, 0);
+        if (end && (*end == '\0') && (col >= 0) && (col <= TILE_INDEX_MASK))
+        {
+            *value = TILE_SET_INDEX(TILE_FLAG, (byte)col);
+            return true;
+        }
+    }
+
+    char* end = NULL;
+    long parsed = strtol(token, &end, 0);
+    if (end && (*end == '\0') && (parsed >= 0) && (parsed <= UCHAR_MAX))
+    {
+        *value = (byte)parsed;
+        return true;
+    }
+
+    return false;
+}
+
 /*
  * Hack -- drop permissions
  */
@@ -309,16 +347,15 @@ errr process_pref_file_command(char* buf)
         if (tokenize(buf + 2, 3, zz) == 3)
         {
             monster_race* r_ptr;
+            byte parsed_attr, parsed_char;
             i = strtol(zz[0], NULL, 0);
-            n1 = strtol(zz[1], NULL, 0);
-            n2 = strtol(zz[2], NULL, 0);
             if ((i < 0) || (i >= (long)z_info->r_max))
                 return (1);
             r_ptr = &r_info[i];
-            if (n1)
-                r_ptr->x_attr = (byte)n1;
-            if (n2)
-                r_ptr->x_char = (char)n2;
+            if (parse_visual_component(zz[1], true, &parsed_attr) && parsed_attr)
+                r_ptr->x_attr = parsed_attr;
+            if (parse_visual_component(zz[2], false, &parsed_char) && parsed_char)
+                r_ptr->x_char = (char)parsed_char;
             return (0);
         }
     }
@@ -377,16 +414,15 @@ errr process_pref_file_command(char* buf)
         if (tokenize(buf + 2, 3, zz) == 3)
         {
             object_kind* k_ptr;
+            byte parsed_attr, parsed_char;
             i = strtol(zz[0], NULL, 0);
-            n1 = strtol(zz[1], NULL, 0);
-            n2 = strtol(zz[2], NULL, 0);
             if ((i < 0) || (i >= (long)z_info->k_max))
                 return (1);
             k_ptr = &k_info[i];
-            if (n1)
-                k_ptr->x_attr = (byte)n1;
-            if (n2)
-                k_ptr->x_char = (char)n2;
+            if (parse_visual_component(zz[1], true, &parsed_attr) && parsed_attr)
+                k_ptr->x_attr = parsed_attr;
+            if (parse_visual_component(zz[2], false, &parsed_char) && parsed_char)
+                k_ptr->x_char = (char)parsed_char;
             return (0);
         }
     }
@@ -397,16 +433,15 @@ errr process_pref_file_command(char* buf)
         if (tokenize(buf + 2, 3, zz) == 3)
         {
             feature_type* f_ptr;
+            byte parsed_attr, parsed_char;
             i = strtol(zz[0], NULL, 0);
-            n1 = strtol(zz[1], NULL, 0);
-            n2 = strtol(zz[2], NULL, 0);
             if ((i < 0) || (i >= (long)z_info->f_max))
                 return (1);
             f_ptr = &f_info[i];
-            if (n1)
-                f_ptr->x_attr = (byte)n1;
-            if (n2)
-                f_ptr->x_char = (char)n2;
+            if (parse_visual_component(zz[1], true, &parsed_attr) && parsed_attr)
+                f_ptr->x_attr = parsed_attr;
+            if (parse_visual_component(zz[2], false, &parsed_char) && parsed_char)
+                f_ptr->x_char = (char)parsed_char;
             return (0);
         }
     }
@@ -417,16 +452,15 @@ errr process_pref_file_command(char* buf)
         if (tokenize(buf + 2, 3, zz) == 3)
         {
             flavor_type* flavor_ptr;
+            byte parsed_attr, parsed_char;
             i = strtol(zz[0], NULL, 0);
-            n1 = strtol(zz[1], NULL, 0);
-            n2 = strtol(zz[2], NULL, 0);
             if ((i < 0) || (i >= (long)z_info->flavor_max))
                 return (1);
             flavor_ptr = &flavor_info[i];
-            if (n1)
-                flavor_ptr->x_attr = (byte)n1;
-            if (n2)
-                flavor_ptr->x_char = (char)n2;
+            if (parse_visual_component(zz[1], true, &parsed_attr) && parsed_attr)
+                flavor_ptr->x_attr = parsed_attr;
+            if (parse_visual_component(zz[2], false, &parsed_char) && parsed_char)
+                flavor_ptr->x_char = (char)parsed_char;
             return (0);
         }
     }

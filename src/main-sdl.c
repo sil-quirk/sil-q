@@ -210,24 +210,36 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         }
 
         if (SDL_isprint(ev->key.key)) {
-            if (ev->key.mod & SDL_KMOD_SHIFT) {
-                if (SDL_isalpha(key)) {
-                    key = SDL_toupper(key);
-                } else {
-                    const char shifted[256] = {
-                        ['1'] = '!', ['2'] = '@', ['3'] = '#', ['4'] = '$', ['5'] = '%',
-                        ['6'] = '^', ['7'] = '&', ['8'] = '*', ['9'] = '(', ['0'] = ')',
-                        ['-'] = '_', ['='] = '+',
-                        [','] = '<', ['.'] = '>', ['/'] = '?',
-                        ['['] = '{', [']'] = '}',
-                        [';'] = ':', ['\''] = '"', ['\\'] = '|',
-                        ['`'] = '~',
-                    };
-                    if (shifted[key])
-                        key = shifted[key];
+            /* If Ctrl+letter (no Alt/GUI), send the corresponding control char
+             * (so Ctrl-A -> ASCII 1) to preserve traditional control bindings
+             * like Ctrl-A for the debug menu. For other modifier combinations
+             * or non-alpha printables, keep existing behavior. */
+            bool ctrl = ev->key.mod & SDL_KMOD_CTRL;
+            bool alt = ev->key.mod & SDL_KMOD_ALT;
+            bool gui = ev->key.mod & SDL_KMOD_GUI;
+            if (ctrl && !alt && !gui && SDL_isalpha(key)) {
+                /* Map to control character */
+                Term_keypress(KTRL(key));
+            } else {
+                if (ev->key.mod & SDL_KMOD_SHIFT) {
+                    if (SDL_isalpha(key)) {
+                        key = SDL_toupper(key);
+                    } else {
+                        const char shifted[256] = {
+                            ['1'] = '!', ['2'] = '@', ['3'] = '#', ['4'] = '$', ['5'] = '%',
+                            ['6'] = '^', ['7'] = '&', ['8'] = '*', ['9'] = '(', ['0'] = ')',
+                            ['-'] = '_', ['='] = '+',
+                            [','] = '<', ['.'] = '>', ['/'] = '?',
+                            ['['] = '{', [']'] = '}',
+                            [';'] = ':', ['\''] = '"', ['\\'] = '|',
+                            ['`'] = '~',
+                        };
+                        if (shifted[key])
+                            key = shifted[key];
+                    }
                 }
+                Term_keypress(key);
             }
-            Term_keypress(key);
         } else {
             bool shift = ev->key.mod & SDL_KMOD_SHIFT;
             bool alt = ev->key.mod & SDL_KMOD_ALT;

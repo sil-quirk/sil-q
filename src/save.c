@@ -584,16 +584,16 @@ static void wr_monster(const monster_type* m_ptr)
     wr_byte(m_ptr->song_contest_stacks);
     wr_byte(m_ptr->song_lament_stacks);
     wr_byte(m_ptr->song_lockout_timer);
-    wr_byte(m_ptr->song_duel_pad);
+    wr_byte(m_ptr->song_hp_loss_lo);
     wr_s32b(m_ptr->song_contest_last_turn);
     wr_s32b(m_ptr->song_lament_last_turn);
     wr_s16b(m_ptr->song_will_penalty);
     wr_s16b(m_ptr->song_stealth_penalty);
     wr_s16b(m_ptr->song_evasion_penalty);
     wr_byte(m_ptr->song_armor_dice_penalty);
-    wr_byte(m_ptr->song_duel_pad2[0]);
-    wr_byte(m_ptr->song_duel_pad2[1]);
-    wr_byte(m_ptr->song_duel_pad2[2]);
+    wr_byte(m_ptr->song_hp_loss_hi);
+    wr_byte(m_ptr->song_contest_completed);
+    wr_byte(m_ptr->song_lament_completed);
 
     wr_s16b(m_ptr->consecutive_attacks);
     wr_s16b(m_ptr->turns_stationary);

@@ -15,6 +15,62 @@
 #include <stddef.h>
 static bool inventory_menu_include_equip = false;
 
+/*
+ * Apply tilemode overrides for special artefacts.
+ * Currently used to distinguish Morgoth's crown variants
+ * once Silmarils have been removed.
+ */
+byte object_attr_graphics_override(const object_type* o_ptr, byte base_attr)
+{
+    if (!o_ptr)
+        return base_attr;
+
+    /* Only adjust if this is already a tile (high bit set). */
+    if (!(base_attr & 0x80))
+        return base_attr;
+
+    byte preserved = base_attr & (GRAPHICS_GLOW_MASK | TILE_FLAG);
+
+    if ((o_ptr->name1 >= ART_MORGOTH_0) && (o_ptr->name1 <= ART_MORGOTH_2))
+    {
+        byte base = preserved | TILE_FLAG;
+        return TILE_SET_INDEX(base, 12);
+    }
+
+    return base_attr;
+}
+
+char object_char_graphics_override(const object_type* o_ptr, char base_char)
+{
+    if (!o_ptr)
+        return base_char;
+
+    /* Only adjust if this is already a tile (high bit set). */
+    if (!(base_char & 0x80))
+        return base_char;
+
+    byte preserved = base_char & (GRAPHICS_ALERT_MASK | TILE_FLAG);
+    byte column = 0;
+
+    switch (o_ptr->name1)
+    {
+    case ART_MORGOTH_2:
+        column = 23;
+        break;
+    case ART_MORGOTH_1:
+        column = 24;
+        break;
+    case ART_MORGOTH_0:
+        column = 25;
+        break;
+    default:
+        return base_char;
+    }
+
+    byte base = preserved | TILE_FLAG;
+    return (char)TILE_SET_INDEX(base, column);
+}
+
 void inventory_menu_set_include_equip(bool include)
 {
     inventory_menu_include_equip = include;

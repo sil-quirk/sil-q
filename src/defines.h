@@ -2903,9 +2903,11 @@
                             : (((T)->name1 && a_info[(T)->name1].d_attr)       \
                                     ? (a_info[(T)->name1].d_attr)              \
                                     : (k_info[(T)->k_idx].x_attr))             \
-                        : weapon_glows(T) ? ((k_info[(T)->k_idx].x_attr)       \
-                              | GRAPHICS_GLOW_MASK)                            \
-                                          : (k_info[(T)->k_idx].x_attr)))
+                        : object_attr_graphics_override(                       \
+                              (T), weapon_glows(T)                             \
+                                       ? ((k_info[(T)->k_idx].x_attr)          \
+                                             | GRAPHICS_GLOW_MASK)             \
+                                       : (k_info[(T)->k_idx].x_attr))))
 /*
  * Return the "attr" for a k_idx.
  * Use "flavor" if available.
@@ -2929,7 +2931,8 @@
                             : (((T)->name1 && a_info[(T)->name1].d_char        \
                                    && graphics_are_ascii())                    \
                                     ? (a_info[(T)->name1].d_char)              \
-                                    : (k_info[(T)->k_idx].x_char))))
+                                    : object_char_graphics_override(           \
+                                          (T), (k_info[(T)->k_idx].x_char)))))
 
 /*
  * Return the "attr" for a given item.
@@ -3380,6 +3383,11 @@
 
 /* mask on char */
 #define GRAPHICS_ALERT_MASK 0x40
+#define TILE_FLAG 0x80
+#define TILE_INDEX_MASK 0x3F
+#define TILE_SET_INDEX(base, idx)                                             \
+    (byte)(((base) & ~TILE_INDEX_MASK) | ((idx) & TILE_INDEX_MASK))
+#define TILE_GET_INDEX(val) (byte)((val) & TILE_INDEX_MASK)
 
 /* mask on attr */
 #define GRAPHICS_GLOW_MASK 0x40

@@ -776,6 +776,8 @@ extern void update_monsters(bool full);
 extern bool detect_monster_noise(monster_type* m_ptr, int skill);
 extern s16b monster_carry(int m_idx, object_type* j_ptr);
 extern int monster_base_armour_sides(const monster_type* m_ptr);
+extern int monster_song_hp_loss(const monster_type* m_ptr);
+extern void monster_add_song_hp_loss(monster_type* m_ptr, int amount);
 extern void monster_swap(int y1, int x1, int y2, int x2);
 extern s16b player_place(int y, int x);
 extern s16b monster_place(int y, int x, monster_type* n_ptr);
@@ -814,6 +816,10 @@ extern void object_desc(
 extern void object_desc_spoil(
     char* buf, size_t max, const object_type* o_ptr, int pref, int mode);
 extern void identify_random_gen(const object_type* o_ptr);
+extern byte object_attr_graphics_override(
+    const object_type* o_ptr, byte base_attr);
+extern char object_char_graphics_override(
+    const object_type* o_ptr, char base_char);
 extern char index_to_label(int i);
 extern s16b label_to_inven(int c);
 extern s16b label_to_equip(int c);
@@ -954,6 +960,7 @@ extern void song_disguise_new_player_turn(void);
 extern void song_disguise_handle_monster_removed(int m_idx);
 extern void song_disguise_note_monster_attack(int m_idx);
 extern bool song_disguise_monster_is_fooled(const monster_type* m_ptr);
+extern bool song_revealing_overlay(int m_idx, byte* a, char* c);
 extern void song_duels_new_player_turn(void);
 extern void song_duels_handle_monster_removed(int m_idx);
 

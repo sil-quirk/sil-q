@@ -2055,12 +2055,14 @@ static bool songs_are_synergy_pair(byte song_a, byte song_b)
 {
     static const byte synergy_pairs[][2] = {
         { SNG_ELBERETH,  SNG_TREES },
+        { SNG_ELBERETH,  SNG_STAUNCHING },
         { SNG_CHALLENGE, SNG_SLAYING },
         { SNG_DELVINGS,  SNG_REVEALING },
         { SNG_FREEDOM,   SNG_ELVENESS },
         { SNG_STAYING,   SNG_CONTEST },
+        { SNG_STAYING,   SNG_LAMENT },
         { SNG_SILENCE,   SNG_DISGUISE },
-        { SNG_LORIEN,    SNG_LAMENT },
+        { SNG_SILENCE,   SNG_LORIEN },
         { SNG_SHATTERING, SNG_MASTERY },
     };
 
@@ -2114,6 +2116,19 @@ int ability_bonus(int skilltype, int abilitynum)
         // penalize minor themes - check if this ability is the minor theme
         if ((p_ptr->song2 == abilitynum) && (p_ptr->song1 != abilitynum))
             skill /= 2;
+
+        // Song of Silence dampens other songs when woven together
+        // EXCEPT for Disguise and Lorien (its synergy pairs)
+        // This dampening is applied BEFORE synergy bonus
+        if (singing(SNG_SILENCE) && (abilitynum != SNG_SILENCE)
+            && (abilitynum != SNG_DISGUISE) && (abilitynum != SNG_LORIEN))
+        {
+            // Calculate Silence bonus directly to avoid recursion
+            int silence_skill = p_ptr->skill_use[S_SNG] / 2;
+            int silence_penalty = silence_skill / 2;
+            skill -= silence_penalty;
+            if (skill < 0) skill = 0;
+        }
 
         // woven theme synergy pairs grant an extra 20% of base song skill
         skill += song_synergy_bonus(abilitynum, full_skill);
@@ -2193,6 +2208,11 @@ int ability_bonus(int skilltype, int abilitynum)
         case SNG_MASTERY:
         {
             bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_THINGOL) ? 2 : 1) * skill;
+            break;
+        }
+        case SNG_SHATTERING:
+        {
+            bonus = skill;
             break;
         }
         case SNG_CONTEST:

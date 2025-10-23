@@ -4484,6 +4484,8 @@ bool target_set_interactive(int mode, int range)
             case 't':
             case '5':
             case 'z':
+            case '\n':
+            case '\r':
             {
                 int m_idx = cave_m_idx[y][x];
 
@@ -4670,6 +4672,8 @@ bool target_set_interactive(int mode, int range)
             case 't':
             case '5':
             case 'z':
+            case '\n':
+            case '\r':
             {
                 if ((p_ptr->py == y) && (p_ptr->px == x))
                 {

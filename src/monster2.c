@@ -201,6 +201,25 @@ int monster_base_armour_sides(const monster_type* m_ptr)
     return base - m_ptr->armor_ps_reduction;
 }
 
+int monster_song_hp_loss(const monster_type* m_ptr)
+{
+    return (int)m_ptr->song_hp_loss_lo
+        | ((int)m_ptr->song_hp_loss_hi << 8);
+}
+
+void monster_add_song_hp_loss(monster_type* m_ptr, int amount)
+{
+    if (amount <= 0)
+        return;
+
+    int total = monster_song_hp_loss(m_ptr) + amount;
+    if (total > 0xFFFF)
+        total = 0xFFFF;
+
+    m_ptr->song_hp_loss_lo = (byte)(total & 0xFF);
+    m_ptr->song_hp_loss_hi = (byte)((total >> 8) & 0xFF);
+}
+
 /*
  * Delete the monster, if any, at a given location
  */

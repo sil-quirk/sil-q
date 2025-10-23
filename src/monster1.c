@@ -623,22 +623,10 @@ static void describe_monster_attack(
             if ((know_damage(l_ptr, m)) || (l_ptr->tsights == MAX_SHORT)
                 || (l_ptr->ranged == MAX_UCHAR))
             {
-                if (d2)
+                if (d1 > 0 && d2 > 0)
                 {
-                    int dmg_min = (d1 > 0 && d2 > 0) ? d1 : 0;
-                    int dmg_max = (d1 > 0 && d2 > 0) ? d1 * d2 : 0;
-
-                    if (dmg_min == dmg_max)
-                    {
-                        text_out_c(
-                            TERM_L_WHITE,
-                            format(" (%+d, %d)", att, dmg_max));
-                    }
-                    else
-                    {
-                        text_out_c(TERM_L_WHITE,
-                            format(" (%+d, %d-%d)", att, dmg_min, dmg_max));
-                    }
+                    text_out_c(
+                        TERM_L_WHITE, format(" (%+d, %dd%d)", att, d1, d2));
                 }
                 else
                 {
@@ -1221,45 +1209,23 @@ static void describe_monster_toughness(
         int prot_sides = r_ptr->ps;
 
         /* Health */
+        char hp_text[32];
+        if (r_ptr->hdice > 0 && r_ptr->hside > 0)
+            strnfmt(hp_text, sizeof(hp_text), "%dd%d", r_ptr->hdice, r_ptr->hside);
+        else if (r_ptr->hdice > 0)
+            strnfmt(hp_text, sizeof(hp_text), "%d", r_ptr->hdice);
+        else
+            strnfmt(hp_text, sizeof(hp_text), "%d", r_ptr->hside);
+
         text_out(format("%^s has ", wd_he[msex]));
+        text_out_c(TERM_GREEN, hp_text);
         if (m_ptr)
         {
-            int hp_cur = MAX(0, m_ptr->hp);
-            int hp_max = m_ptr->maxhp;
-
-            if (hp_max <= 0)
-                hp_max = hp_cur;
-            if (hp_cur > hp_max)
-                hp_cur = hp_max;
-
-            if (hp_max > 0)
-            {
-                if (hp_cur == hp_max)
-                    text_out_c(TERM_GREEN, format("%d ", hp_max));
-                else
-                    text_out_c(TERM_GREEN, format("%d-%d ", hp_cur, hp_max));
-            }
-            else
-            {
-                text_out_c(TERM_GREEN, "unknown ");
-            }
+            int hp_loss = monster_song_hp_loss(m_ptr);
+            if (hp_loss > 0)
+                text_out_c(TERM_L_RED, format("-%d", hp_loss));
         }
-        else if (r_ptr->flags1 & (RF1_UNIQUE))
-        {
-            int hp_avg = r_ptr->hdice * (1 + r_ptr->hside) / 2;
-            text_out_c(TERM_GREEN, format("%d ", hp_avg));
-        }
-        else
-        {
-            int hp_min = (r_ptr->hdice > 0) ? r_ptr->hdice : 0;
-            int hp_max = r_ptr->hdice * r_ptr->hside;
-
-            if (hp_min == hp_max)
-                text_out_c(TERM_GREEN, format("%d ", hp_max));
-            else
-                text_out_c(TERM_GREEN, format("%d-%d ", hp_min, hp_max));
-        }
-        text_out("health ");
+        text_out(" hp ");
 
         /* Defence */
         if (m_ptr)
@@ -1287,19 +1253,8 @@ static void describe_monster_toughness(
         text_out("and a defence of ");
         if ((prot_dice > 0) && (prot_sides > 0))
         {
-            int prot_min = prot_dice;
-            int prot_max = prot_dice * prot_sides;
-
-            if (prot_min == prot_max)
-            {
-                text_out_c(
-                    TERM_SLATE, format("[%+d, %d].  ", evn, prot_max));
-            }
-            else
-            {
-                text_out_c(TERM_SLATE,
-                    format("[%+d, %d-%d].  ", evn, prot_min, prot_max));
-            }
+            text_out_c(
+                TERM_SLATE, format("[%+d, %dd%d].  ", evn, prot_dice, prot_sides));
         }
         else
         {

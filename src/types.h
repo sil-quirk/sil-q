@@ -620,14 +620,16 @@ struct monster_type
     byte song_contest_stacks; /* Stacks accumulated from Song of Contest */
     byte song_lament_stacks; /* Stacks accumulated from Song of Lament */
     byte song_lockout_timer; /* Turns before monster can sing again */
-    byte song_duel_pad; /* Alignment padding */
+    byte song_hp_loss_lo; /* Low byte of cumulative Song HP penalty */
     s32b song_contest_last_turn; /* Last player turn Contest stack changed */
     s32b song_lament_last_turn; /* Last player turn Lament stack changed */
     s16b song_will_penalty; /* Permanent Will penalty from duels */
     s16b song_stealth_penalty; /* Permanent Stealth penalty from duels */
     s16b song_evasion_penalty; /* Permanent Evasion penalty from duels */
     byte song_armor_dice_penalty; /* Permanent armour dice penalty */
-    byte song_duel_pad2[3]; /* Alignment padding */
+    byte song_hp_loss_hi; /* High byte of cumulative Song HP penalty */
+    byte song_contest_completed; /* 1 if Contest duel completed (won or lost), 0 otherwise */
+    byte song_lament_completed; /* 1 if Lament duel completed (won or lost), 0 otherwise */
 
     s16b consecutive_attacks; /* How many times it has attacked the player in a
                                  row immediately prior to now */
