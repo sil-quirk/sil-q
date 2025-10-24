@@ -415,7 +415,8 @@ extern int total_monster_evasion(monster_type* m_ptr, bool archery);
 extern int stealth_melee_bonus(const monster_type* m_ptr, bool allow_unseen);
 extern int overwhelming_att_mod(monster_type* m_ptr);
 extern int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
-    int skill_type, bool thrown, monster_type* attacker);
+    int skill_type, bool thrown, monster_type* attacker,
+    const object_type* o_ptr);
 extern void ident(object_type* o_ptr);
 extern void ident_on_wield(object_type* o_ptr);
 extern void ident_resist(u32b flag);
@@ -841,6 +842,8 @@ extern void show_equip_enhanced(void);
 extern void show_floor(const int* floor_list, int floor_num);
 extern void toggle_inven_equip(void);
 extern bool get_item(int* cp, cptr pmt, cptr str, int mode);
+extern bool player_can_treat_as_throwing(const object_type* o_ptr);
+extern bool player_can_treat_as_throwing_flags(const object_type* o_ptr, u32b f3);
 
 /* object2.c */
 extern void excise_object_idx(int o_idx);

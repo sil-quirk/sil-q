@@ -970,7 +970,7 @@ int overwhelming_att_mod(monster_type* m_ptr)
  *            Great Sword (7lb):     14, 23, 32, 41...
  */
 int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
-    int skill_type, bool thrown, monster_type* attacker)
+    int skill_type, bool thrown, monster_type* attacker, const object_type* o_ptr)
 {
     monster_type* m_ptr = attacker;
     int crit_bonus_dice;
@@ -982,6 +982,13 @@ int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
         // Can have improved criticals for melee
         if ((skill_type == S_MEL) && p_ptr->active_ability[S_MEL][MEL_FINESSE])
             crit_seperation -= 20;
+
+        if ((skill_type == S_MEL) && thrown && o_ptr
+            && p_ptr->active_ability[S_MEL][MEL_THROWING]
+            && player_can_treat_as_throwing(o_ptr))
+        {
+            crit_seperation -= 20;
+        }
 
         // Can have improved criticals for melee with one handed weapons
         // Special case: Maedhros house can use Subtlety with hand-and-a-half weapons
@@ -4887,7 +4894,7 @@ void py_attack_aux(int y, int x, int attack_type)
 
             /* Calculate the damage */
             crit_bonus_dice = crit_bonus(
-                hit_result, weapon_weight, r_ptr, S_MEL, false, NULL);
+                hit_result, weapon_weight, r_ptr, S_MEL, false, NULL, o_ptr);
             slay_bonus_dice = slay_bonus(o_ptr, m_ptr, &noticed_flag);
 
             if (f3 & TR3_CUMBERSOME)

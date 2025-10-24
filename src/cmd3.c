@@ -898,7 +898,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     }
 
     object_flags(o_ptr, &f1, &f2, &f3);
-    is_throwing = (f3 & (TR3_THROWING)) != 0;
+    is_throwing = player_can_treat_as_throwing_flags(o_ptr, f3);
 
     log_debug("do_cmd_wield: item=%d, is_throwing=%d, slot=%d", item, is_throwing, slot);
 
@@ -1921,7 +1921,7 @@ void prise_silmaril(void)
     if (hit_result > 0)
     {
         crit_bonus_dice = crit_bonus(hit_result, w_ptr->weight,
-            &r_info[R_IDX_MORGOTH], S_MEL, false, NULL);
+            &r_info[R_IDX_MORGOTH], S_MEL, false, NULL, w_ptr);
 
         dam = damroll(p_ptr->mdd + crit_bonus_dice, mds);
         prt = damroll(pd, 4);

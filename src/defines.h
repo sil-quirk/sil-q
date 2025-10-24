@@ -487,17 +487,18 @@
 #define MEL_POWER 0
 #define MEL_FINESSE 1
 #define MEL_KNOCK_BACK 2
-#define MEL_POLEARMS 3
-#define MEL_CHARGE 4
-#define MEL_FOLLOW_THROUGH 5
-#define MEL_IMPALE 6
-#define MEL_CONTROL 7
-#define MEL_WHIRLWIND_ATTACK 8
-#define MEL_ZONE_OF_CONTROL 9
-#define MEL_SMITE 10
-#define MEL_TWO_WEAPON 11
-#define MEL_RAPID_ATTACK 12
-#define MEL_STR 13
+#define MEL_THROWING 3
+#define MEL_POLEARMS 4
+#define MEL_CHARGE 5
+#define MEL_FOLLOW_THROUGH 6
+#define MEL_IMPALE 7
+#define MEL_CONTROL 8
+#define MEL_WHIRLWIND_ATTACK 9
+#define MEL_ZONE_OF_CONTROL 10
+#define MEL_SMITE 11
+#define MEL_TWO_WEAPON 12
+#define MEL_RAPID_ATTACK 13
+#define MEL_STR 14
 
 /*
  * Archery abilities

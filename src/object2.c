@@ -5256,7 +5256,7 @@ bool inven_carry_okay(const object_type* o_ptr)
             return (true);
     }
 
-    if (k_info[o_ptr->k_idx].flags3 & (TR3_THROWING))
+    if (player_can_treat_as_throwing(o_ptr))
     {
         for (j = INVEN_QUIVER1; j <= INVEN_QUIVER2; j++)
         {
@@ -5361,7 +5361,7 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
     if (wants_throw_slot)
     {
         object_type* d_ptr = &inventory[desired_slot];
-        bool is_throwing = (k_info[o_ptr->k_idx].flags3 & (TR3_THROWING)) != 0;
+        bool is_throwing = player_can_treat_as_throwing(o_ptr);
 
         if (is_throwing)
         {

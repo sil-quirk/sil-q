@@ -45,6 +45,7 @@ static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
         [MEL_POWER]            = "Power",
         [MEL_FINESSE]          = "Finesse",
         [MEL_KNOCK_BACK]       = "Knock Back",
+        [MEL_THROWING]         = "Throwing",
         [MEL_POLEARMS]         = "Polearm Mastery",
         [MEL_CHARGE]           = "Charge",
         [MEL_FOLLOW_THROUGH]   = "Follow-Through",

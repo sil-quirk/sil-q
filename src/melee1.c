@@ -799,7 +799,7 @@ bool make_attack_normal(monster_type* m_ptr)
             /* Determine critical-hit bonus dice (if any) */
             // treats attack a weapon weighing 2 pounds per damage die
             crit_bonus_dice = crit_bonus(
-                hit_result, 20 * dd, &r_info[0], S_MEL, false, m_ptr);
+                hit_result, 20 * dd, &r_info[0], S_MEL, false, m_ptr, NULL);
 
             /* Determine elemental attack bonus dice (if any)  */
             elem_bonus_dice = elem_bonus(effect);
@@ -3310,7 +3310,7 @@ static void draw_combat_roll_line(int row, int base_col_offset,
         roll->attacker_attr, roll->attacker_char, 0, 0);
     if (use_bigtile && !graphics_are_ascii())
     {
-        if (roll->attacker_attr & 0x80)
+        if ((roll->attacker_attr & 0x80) && ((byte)roll->attacker_char & 0x80))
             Term_queue_char(base_col_offset + 2, row, 255, -1, 0, 0);
         else
             Term_queue_char(base_col_offset + 2, row, TERM_WHITE, ' ', 0, 0);
@@ -3372,7 +3372,7 @@ static void draw_combat_roll_line(int row, int base_col_offset,
             roll->defender_attr, roll->defender_char, 0, 0);
         if (use_bigtile && !graphics_are_ascii())
         {
-            if (roll->defender_attr & 0x80)
+            if ((roll->defender_attr & 0x80) && ((byte)roll->defender_char & 0x80))
                 Term_queue_char(col + 1, row, 255, -1, 0, 0);
             else
                 Term_queue_char(col + 1, row, TERM_WHITE, ' ', 0, 0);
@@ -3474,7 +3474,7 @@ static void draw_combat_roll_line(int row, int base_col_offset,
             roll->defender_attr, roll->defender_char, 0, 0);
         if (use_bigtile && !graphics_are_ascii())
         {
-            if (roll->defender_attr & 0x80)
+            if ((roll->defender_attr & 0x80) && ((byte)roll->defender_char & 0x80))
                 Term_queue_char(col + 1, row, 255, -1, 0, 0);
             else
                 Term_queue_char(col + 1, row, TERM_WHITE, ' ', 0, 0);

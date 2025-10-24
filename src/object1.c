@@ -5798,6 +5798,32 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
     return true;
 }
 
+bool player_can_treat_as_throwing_flags(const object_type* o_ptr, u32b f3)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (f3 & TR3_THROWING)
+        return true;
+
+    if (!p_ptr->active_ability[S_MEL][MEL_POLEARMS])
+        return false;
+
+    return (o_ptr->tval == TV_POLEARM) && (o_ptr->sval == SV_GREAT_SPEAR);
+}
+
+bool player_can_treat_as_throwing(const object_type* o_ptr)
+{
+    u32b f1 = 0, f2 = 0, f3 = 0;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    object_flags(o_ptr, &f1, &f2, &f3);
+
+    return player_can_treat_as_throwing_flags(o_ptr, f3);
+}
+
 #undef MAX_COMPARE_LINES
 #undef MAX_IDENT_ENTRIES
 

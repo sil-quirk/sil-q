@@ -640,7 +640,7 @@ A: the Hunter
 B:You hunt relentlessly-fiery prince whose pride leads to treachery.
 F:ARC_AFFINITY | EVN_AFFINITY | WIL_PENALTY | SMT_PENALTY | TREACHERY | BOW_PROFICIENCY
 S:1:1:2:0
-C:4:8:0:3  # Polearm Mastery # Master Hunter
+C:4:8:0:4  # Polearm Mastery # Master Hunter
 P:1
 D:Fierce-hearted third son of Fëanor, fiery hunter beneath wild woods, 
 D:prideful prince whose noble beauty hid ambition and cunning deeds. 

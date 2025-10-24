@@ -598,3 +598,11 @@ Score (highest first)                      Layout: Short
 - Exposed `death_spectator_active()` from `src/dungeon.c` so UI layers can detect the death-view state; inventories, equipment menus, and the supplies browser now call this helper to suppress `use`, `drop`, and other energy-spending actions while still allowing examination flows (`src/object1.c`, `src/cmd3.c`, `src/cmd4.c`).
 - Tomb menu no longer offers the inventory/equipment branch, labels the dungeon revisit as “Final look,” and renumbers downstream options accordingly (`src/files.c`).
 - Main menu entries for suicide, save, and quit-with-save render disabled and emit a warning if triggered while the corpse view is active, with navigation skipping those slots (`src/cmd4.c`).
+## 2025-10-27 - Throwing Mastery & Polearm Updates
+
+- Inserted a new melee ability (Throwing) ahead of Polearm Mastery, bumped downstream IDs/prerequisites, and updated ability tables/hero maps (lib/edit/ability.txt, lib/edit/actual_abilities_*.txt, lib/edit/character.txt, src/defines.h, src/birth.c).
+- Added player_can_treat_as_throwing[_flags]() to centralize dynamic throwing checks and declared the helpers in src/externs.h.
+- Hooked the new ability into thrown combat: +1 attack, half distance penalty, and Finesse-grade crit separation when hurling items flagged via the helper (src/cmd2.c, src/cmd1.c).
+- Extended quiver UI/load paths to honor Polearm Mastery for great spears (slot selection, inventory carry, bonus application) and made thrown breakage/penalties respect the helper (src/cmd3.c, src/object2.c, src/xtra1.c, src/cmd2.c).
+- Widened crit_bonus() with an object parameter so throwing mastery can apply selectively, updating all call sites (src/cmd1.c, src/cmd2.c, src/cmd3.c, src/melee1.c, src/spells1.c).
+
