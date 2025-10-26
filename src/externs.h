@@ -1134,7 +1134,13 @@ extern void c_prt(byte attr, cptr str, int row, int col);
 extern void prt(cptr str, int row, int col);
 extern void text_out_to_file(byte attr, cptr str);
 extern int count_wrapped_lines(cptr str, int wrap_width, int indent);
+#ifdef USE_SDL
+extern int count_wrapped_lines_story(cptr str, int wrap_cols, int indent);
+#endif
 extern void text_out_to_screen(byte a, cptr str);
+#ifdef USE_SDL
+extern void text_out_to_screen_story(byte a, cptr str);
+#endif
 extern void text_out(cptr str);
 extern void text_out_c(byte a, cptr str);
 extern void clear_from(int row);
@@ -1201,6 +1207,7 @@ extern void handle_stuff(void);
 extern int weight_limit(void);
 extern void calc_voice(void);
 extern bool weapon_glows(object_type* o_ptr);
+extern byte object_display_color(const object_type* o_ptr, byte base_color);
 extern void calc_torch(void);
 extern int ability_bonus(int skilltype, int abilitynum);
 extern int affinity_level(int skilltype);
@@ -1403,5 +1410,13 @@ extern void set_sdl_fullscreen(bool value);
 extern bool get_sdl_tiles(void);
 extern void set_sdl_tiles(bool value);
 extern int get_pane_config_count(void);
+
+/* SDL story font control (main-sdl.c) */
+extern void sdl_story_font_enable(void);
+extern void sdl_story_font_disable(void);
+extern void sdl_story_font_reset(void);
+extern bool sdl_is_story_font_enabled(void);
+extern int sdl_story_font_text_width(cptr text, int len);
+extern int sdl_get_cell_width(void);
 #endif
 

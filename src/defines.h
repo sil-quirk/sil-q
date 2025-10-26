@@ -2606,10 +2606,11 @@
 #define OPT_auto_more 71
 #define OPT_know_monster_info 72
 #define OPT_auto_display_lists 73
-#define OPT_easy_main_menu 74
+#define OPT_artifact_unique_color 74
+#define OPT_easy_main_menu 75
 // xxx verify_leave_quest
-#define OPT_mark_squelch_items 76
-#define OPT_display_hits 77
+#define OPT_mark_squelch_items 77
+#define OPT_display_hits 78
 // xxx
 // xxx
 // xxx
@@ -2744,6 +2745,7 @@
 #define auto_more op_ptr->opt[OPT_auto_more]
 #define know_monster_info op_ptr->opt[OPT_know_monster_info]
 #define auto_display_lists op_ptr->opt[OPT_auto_display_lists]
+#define artifact_unique_color op_ptr->opt[OPT_artifact_unique_color]
 #define easy_main_menu op_ptr->opt[OPT_easy_main_menu]
 #define display_hits op_ptr->opt[OPT_display_hits]
 // xxx

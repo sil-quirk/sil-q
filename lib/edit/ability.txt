@@ -34,8 +34,7 @@ V:0.9.0
 
 N:0:Power
 I:0:0:1
-D:Gives a bonus of +1 damage sides to your melee attacks, but makes it
-D: harder to score critical hits (increasing the base required by 1).
+D:In the manner of the mighty warriors of the Noldor, whose blows felled orcs and trolls alike in the great battles of Beleriand, this ability grants a bonus of +1 damage sides to your melee attacks, though it renders critical hits more arduous to achieve, increasing the base required by 1.
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
 T:23:0:99  # Swords
@@ -299,7 +298,7 @@ T:36:0:99  # Soft Armour
 N:47:Heavy Armour Use
 I:2:7:9
 P:2/1:2/3
-D:Gives you [1dX] protection, where X is your total armour weight
+D:Gives you [Xd1] protection, where X is your total armour weight
 D: divided by 15 lbs.
 T:37:0:99  # Mail
 T:34:0:99  # Shields
@@ -432,6 +431,7 @@ N:84:Alchemy
 I:4:4:5
 D:Lets you determine the purpose of all herbs and potions you encounter,
 D: as well as staves and horns.
+D: Also increases the range of Gems of Revelation, Foes, and Treasures by 50%.
 T:32:0:99  # Helm
 T:45:0:99  # Ring
 
@@ -609,16 +609,18 @@ D:You gain a point of grace.
 
 N:140:Song of Elbereth
 I:7:0:1
-D:Causes fear in nearby servants of Morgoth.
+D:You sing a hymn to Varda, the Star-queen, whose name is a terror to the servants of the Enemy.
+D:Your song of reverence strikes fear into their hearts, causing them to flee. The power of the hymn
+D:also unnerves lesser foes, shaking their resolve and reducing their Will by your Song score divided by 5.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:39:0:99  # Light Source
 
 N:141:Song of Challenge
 I:7:1:1
-D:Causes weak-willed foes to attack aggressively without regard to
-D:strategy by weakening their Will. Also imposes a small Stealth
-D:penalty so that overconfident enemies close with less caution.
+D:You sing a defiant lay, echoing Fingolfin's challenge to Morgoth at the gates of Angband. It enrages
+D:lesser foes, compelling them to attack you recklessly. Their Will is diminished by your Song score
+D:divided by 4, and their caution fades, reducing their Stealth by the same amount.
 T:32:0:99  # Helm
 T:21:0:99  # Hafted
 T:22:0:99  # Polearms
@@ -626,30 +628,34 @@ T:23:0:99  # Swords
 
 N:142:Song of Delvings
 I:7:2:2
-D:Slowly reveals the terrain around you, working out from
-D: already known areas.
+D:A low chant that echoes the deep places of the earth. The stone itself whispers its secrets to you,
+D:slowly revealing the surrounding passages and chambers as the song expands from areas you have
+D:already explored.
 T:35:0:99  # Cloak
 T:20:0:99  # Shovels and Mattocks
 
 N:143:Song of Freedom
 I:7:3:2
-D:Discovers and overcomes nearby doors, traps, and rubble.
-D: Grants you freedom of movement.
+D:You sing a song of freedom and escape, of snares eluded and broken traps. The melody seeks out and
+D:undoes the bonds of stone and mechanism, revealing hidden doors, disarming cunning traps, and clearing
+D:pathways of rubble. While you sing it, you are granted freedom from effects that would slow your movement.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:21:3:3   # Quarterstaves
 
 N:144:Song of Silence
 I:7:4:3
-D:Dampens all nearby sounds, making it harder for
-D: opponents to hear you and each other.
+D:A hushed air that weaves a blanket of quiet around you. All sounds are muffled within its reach,
+D:confounding the hearing of your foes and making it more difficult for them to detect you or call to
+D:their allies.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:30:0:99  # Boots
 
 N:145:Song of Staunching
 I:7:5:3
-D:Stops all bleeding and speeds healing of your wounds.
+D:A gentle tune of renewal and resilience. The song's power closes your wounds, immediately staunching
+D:any bleeding and greatly hastening your natural healing.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:45:0:99  # Ring
@@ -657,16 +663,17 @@ T:45:0:99  # Ring
 N:146:Song of Thresholds
 I:7:6:4
 P:7/0:7/2
-D:Doors you close while singing this song are warded against
-D: your enemies.
+D:A song of warding, laid upon the passages of your choosing. Doors that you close while this melody is
+D:woven become a formidable barrier to your enemies, sealed by your power.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
 N:147:Song of the Trees
 I:7:7:5
 P:7/0:7/5
-D:Increases your light radius by 1 point per 5 points
-D: of Song.
+D:You sing of the light of Telperion and Laurelin, the Two Trees of Valinor. The song's radiance increases
+D:your light radius by 1 for every 5 points of Song. Creatures of darkness that shun the light may be
+D:stunned or even wounded by its brilliance, their resistance failing against your Will.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 T:39:0:99  # Light Source
@@ -674,32 +681,34 @@ T:39:0:99  # Light Source
 N:148:Song of Revealing
 I:7:8:7
 P:7/2
-D:Reveals nearby monsters while you sing, using your Song skill instead of Listen.
-D:Permanently senses nearby objects within the reach of your song.
+D:A piercing note that cuts through shadow and deceit. It reveals the location of nearby monsters based
+D:on your Song skill, and permanently senses the presence of all nearby items.
 T:35:0:99  # Cloak
 T:20:0:99  # Shovels and Mattocks
 
 N:149:Woven Themes
 I:7:9:6
 P:7/0:7/3
-D:Allows you to add a 'minor theme' to your song. This means you
-D: can have the effect of a second song, but at half your normal Song score.
+D:You learn to weave a minor theme into your major song, creating a harmony of two melodies at once.
+D:The second song has its power calculated at half your normal Song score. Certain harmonies may unlock
+D:unexpected resonances.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
 N:150:Song of Slaying
 I:7:10:6
 P:7/1:7/3
-D:Critical hits in melee kill enemies outright instead of doing damage
-D: if the enemy has health less than or equal to twice your Song score.
+D:A grim and potent battle-hymn. When you score a critical hit in melee, this song can turn a deep
+D:wound into a mortal one, slaying the foe outright if their health is no more than twice your Song score.
 T:22:0:99  # Polearms and axes
 T:23:0:99  # Swords
 
 N:151:Song of Elveness
 I:7:11:7
 P:7/7
-D:Grants +1 Grace while sung and improves your Evasion by 1, plus 1 more
-D: for every 7 points of Song (rounded down).
+D:You bring all the magic and might of Elvenesse into your words, singing of the light of Valinor and the
+D:sighing of the sea in Elvenland. The song grants you +1 Grace and improves your Evasion by 1, plus an
+D:additional 1 for every 7 points of your Song skill.
 T:32:0:99  # Helm
 T:34:0:99  # Shields
 T:35:0:99  # Cloak
@@ -708,8 +717,8 @@ T:45:0:99  # Ring
 N:152:Song of Staying
 I:7:12:7
 P:7/1:7/5
-D:Gives you a bonus to Will equal to half your Song score and
-D: [2d2] protection.
+D:You sing a song of staying, of resisting and battling against power. It bolsters your Will by half your
+D:Song score and wraps you in a mantle of resolve, granting [2d2] protection against the forces of darkness.
 T:32:0:99  # Helm
 T:34:0:99  # Shields
 T:35:0:99  # Cloak
@@ -718,31 +727,35 @@ T:45:0:99  # Ring
 N:153:Song of Disguise
 I:7:13:8
 P:7/4
-D:While sung, even watchful foes mistake you for an ally unless they pierce
-D: your glamour. Each round you oppose their Will and Perception with your
-D: Song and Will; failure lets them pursue you again.
+D:You weave a song of glamour and subtle change, as Lúthien did to pass unseen. This melody causes
+D:watchful foes to mistake you for one of their own, clouding their senses. Each round, your Song and
+D:Will contest their Perception and Will. Should your glamour fail, they will see you for who you are.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
 N:154:Song of Lorien
 I:7:14:8
 P:7/4:7/2
-D:Gradually puts nearby opponents to sleep.
+D:You sing a song of slumber, echoing the melody Lúthien used to cast Morgoth into a deep sleep. The
+D:lulling air, reminiscent of the gardens of Lórien in Valinor, gradually puts nearby opponents into a
+D:deep slumber.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
 N:155:Song of Shattering
 I:7:15:9
 P:7/10
-D:Shatters the gear of nearby foes, weakening their blows or armour.
-D:Affects only enemies bearing weapons or armour, and resists with Will.
+D:You sing a song of breaking and ruin, like that which Lúthien sang to bring down the fortress of Tol-in-Gaurhoth.
+D:The discordant blast of sound sunders steel and iron, shattering the weapons and armour of your foes and
+D:weakening their attacks and defenses. The effect is resisted by Will.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
 N:156:Song of Mastery
 I:7:16:10
 P:7/3:7/4
-D:Occasionally prevents nearby opponents from moving or acting.
+D:A commanding air that asserts your dominion. The sheer power of the song can overwhelm the minds of
+D:your enemies, sometimes preventing them from moving or acting.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
@@ -753,14 +766,18 @@ D:You gain a point of grace.
 N:158:Song of Contest
 I:7:18:12
 P:7/12
-D:Focuses your will against a single foe, channeling your Song and Will into a battle of resolve. Each turn you challenge a chosen enemy, forcing a personal contest that builds stacks and inflicts lasting weakness when they falter.
+D:You challenge a foe to a duel of voices, echoing the contest between Finrod and Sauron. Your song of
+D:power and memory clashes with their will. If their resolve falters, they are afflicted with lasting
+D:penalties to their Will, Stealth, Evasion, and Armour.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 
 N:159:Song of Lament
 I:7:19:15
 P:7/14
-D:Pours sorrow into a chosen foe, sapping their spirit through repeated contests of Song and Will. When the foe can no longer endure, the lament brands them with permanent frailty.
+D:You sing a lament of deep sorrow and loss, a theme of despair that burdens a chosen foe. As your
+D:song overwhelms their will, their spirit withers, permanently reducing their health, the damage of
+D:their blows, and their resolve.
 T:40:0:99  # Amulet
 T:35:0:99  # Cloak
 

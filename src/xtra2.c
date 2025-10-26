@@ -5595,24 +5595,23 @@ void pause_with_text(const char desc[][100], int row, int col,
     screen_save();
     Term_clear();
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+    log_debug("Banner: story font enabled");
+#endif
+
     /* 1. optional banner */
     if (extra) {
         /* Line 1: name+alt */
-        c_put_str(extra_attr,
-                  extra[0],
-                  row,
-                  col - 5);
-        Term_xtra(TERM_XTRA_DELAY, msec);
+        c_put_str(extra_attr, extra[0], row, col - 5);
         Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, msec);
         banner_lines = 1;
 
         /* Line 2: blank line */
-        c_put_str(extra_attr,
-                  "",
-                  row + banner_lines,
-                  col - 5);
-        Term_xtra(TERM_XTRA_DELAY, msec);
+        c_put_str(extra_attr, "", row + banner_lines, col - 5);
         Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, msec);
         banner_lines++;
 
         /* Determine how many extra entries */
@@ -5623,12 +5622,9 @@ void pause_with_text(const char desc[][100], int row, int col,
         for (int i = 1; i < n_extra; ++i) {
             int shift = col - 5;
             if (i == n_extra - 1) shift += 4;
-            c_put_str(extra_attr,
-                      extra[i],
-                      row + banner_lines,
-                      shift);
-            Term_xtra(TERM_XTRA_DELAY, msec);
+            c_put_str(extra_attr, extra[i], row + banner_lines, shift);
             Term_fresh();
+            Term_xtra(TERM_XTRA_DELAY, msec);
             banner_lines++;
         }
 
@@ -5638,14 +5634,16 @@ void pause_with_text(const char desc[][100], int row, int col,
 
     /* 2. main stanza */
     while (desc && desc[i_main][0]) {
-        c_put_str(TERM_WHITE,
-                  desc[i_main],
-                  row + banner_lines + i_main,
-                  col);
-        Term_xtra(TERM_XTRA_DELAY, msec);
+        c_put_str(TERM_WHITE, desc[i_main], row + banner_lines + i_main, col);
         Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, msec);
         ++i_main;
     }
+
+#ifdef USE_SDL
+    log_debug("Banner: story font disabled");
+    sdl_story_font_disable();
+#endif
 
     /* 3. wait for key */
     hide_cursor = true;

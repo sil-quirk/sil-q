@@ -1219,7 +1219,18 @@ errr check_time_init(void)
 
 static void display_skill(int skill, int row, int col)
 {
+    /* Enable story font for skill name */
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+    
     put_str(skill_names_full[skill], row, col);
+    
+    /* Use monospace for numbers */
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
+    
     c_put_str(
         TERM_L_GREEN, format("%3d", p_ptr->skill_use[skill]), row, col + 11);
     c_put_str(TERM_SLATE, "=", row, col + 15);
@@ -1248,6 +1259,8 @@ static void put_label_fit(int x, int y, const char *label, int start)
     if (maxw <= 0) return;
     char buf[64];
     strnfmt(buf, sizeof(buf), "%-*.*s", maxw, maxw, label);
+    
+    /* Labels use story font */
     Term_putstr(x, y, -1, TERM_WHITE, buf);
 }
 
@@ -1262,7 +1275,18 @@ static void put_pair20_right(int x, int y,
     int blk_w = cur_w + 1 + rhs_w;
     int start = end - blk_w;
 
+    /* Labels in story font */
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     put_label_fit(x, y, label, start);
+    
+    /* Numbers in monospace */
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
+    
     Term_putstr(start, y, -1, col_cur, format("%*s", cur_w, cur));
     { char s[2] = { sep, '\0' }; Term_putstr(start + cur_w, y, -1, TERM_WHITE, s); }
     Term_putstr(start + cur_w + 1, y, -1, col_rhs, format("%*s", rhs_w, rhs));
@@ -1275,7 +1299,19 @@ static void put_single20_right(int x, int y,
 {
     int end   = x + LINEW20;
     int start = end - val_w;
+    
+    /* Labels in story font */
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+    
     put_label_fit(x, y, label, start);
+    
+    /* Numbers in monospace */
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
+    
     Term_putstr(start, y, -1, col_val, format("%*s", val_w, val));
 }
 /* ======================================================================= */
@@ -1504,7 +1540,11 @@ void display_player_xtra_info(int mode)
     HANDLE_UNIQUE("Doom of Mandos",       RHF_CURSE,        TERM_UMBER);
     HANDLE_UNIQUE("Morgoth Curse",        RHF_MOR_CURSE,    TERM_UMBER);
 
-    /* Render: uniques -> MA -> AF -> penalties */
+    /* Render: uniques -> MA -> AF -> penalties (use story font) */
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+    
     for (int i = 0; i < uniq_n; ++i)
         Term_putstr(col_flags, row_flags++, -1, uniq_buf[i].col, uniq_buf[i].txt);
     for (int i = 0; i < ma_n; ++i)
@@ -1515,6 +1555,7 @@ void display_player_xtra_info(int mode)
         Term_putstr(col_flags, row_flags++, -1, pen_buf[i].col, pen_buf[i].txt);
 
     /* -------------------- SKILLS (unchanged position) ------------------- */
+    /* Skills will manage their own font switching */
     for (skill = 0; skill < S_MAX; skill++) {
         /* Skip Special abilities skill - not meant for display */
         if (skill == S_SPC) continue;
@@ -1522,12 +1563,26 @@ void display_player_xtra_info(int mode)
     }
 
     /* -------------------- History (unchanged) --------------------------- */
-    text_out_wrap   = 79;
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+    
+    /* Use full terminal width for history wrapping */
+    int wid, h;
+    Term_get_size(&wid, &h);
+    log_debug("Character history: terminal width=%d, using wrap=%d", wid, wid - 1);
+    text_out_wrap   = wid - 1;  /* Leave 1 column margin */
     text_out_indent = 1;
     Term_gotoxy(text_out_indent, 15);
     text_out_to_screen(history_attr, p_ptr->history);
     text_out_wrap   = 0;
     text_out_indent = 0;
+    
+    Term_fresh();  /* Render history */
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 
 #undef HANDLE_SKILL_EX
 #undef HANDLE_UNIQUE
@@ -1621,6 +1676,10 @@ static void display_player_flag_info(void)
 
     u32b f[4];
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     /* Four columns */
     for (x = 0; x < 4; x++)
     {
@@ -1708,6 +1767,10 @@ static void display_player_flag_info(void)
         /* Equippy */
         display_player_equippy(row++, col + 8);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -2324,6 +2387,11 @@ static void display_player_misc_info(void)
 {
     /* Name */
     char name[40];
+    
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+    
     if (p_ptr->oaths_broken) {
         /* Show "the Oathbreaker" in red if any oath is broken */
         strnfmt(name, sizeof(name), "%s the Oathbreaker", op_ptr->full_name);
@@ -2333,6 +2401,10 @@ static void display_player_misc_info(void)
         strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name, c_name + hp_ptr->alt_name);
         c_put_str(TERM_L_BLUE, name, 0, 20);
     }
+    
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 
 }
 
@@ -2345,23 +2417,44 @@ void display_player_stat_info(int row, int col)
 
     char buf[80];
 
-    /* Display the stats */
+    /* First: Display all stat names with story font */
     for (i = 0; i < A_MAX; i++)
     {
-        /* Reduced */
+        const char* stat_label;
+        char trimmed_label[32];
+        
+        /* Get the stat name */
         if (p_ptr->stat_drain[i] < 0)
         {
-            /* Use lowercase stat name */
-            put_str(stat_names_reduced[i], row + i, col);
+            stat_label = stat_names_reduced[i];
         }
-
-        /* Normal */
         else
         {
-            /* Assume uppercase stat name */
-            put_str(stat_names[i], row + i, col);
+            stat_label = stat_names[i];
         }
-
+        
+        /* Trim trailing spaces for story font rendering */
+        my_strcpy(trimmed_label, stat_label, sizeof(trimmed_label));
+        int len = strlen(trimmed_label);
+        while (len > 0 && trimmed_label[len-1] == ' ') {
+            trimmed_label[--len] = '\0';
+        }
+        
+#ifdef USE_SDL
+        sdl_story_font_enable();
+#endif
+        
+        /* Display trimmed stat name with story font */
+        put_str(trimmed_label, row + i, col);
+        
+#ifdef USE_SDL
+        sdl_story_font_disable();
+#endif
+    }
+    
+    /* Second: Display all numbers with monospace font */
+    for (i = 0; i < A_MAX; i++)
+    {
         /* Resulting "modified" maximum value */
         cnv_stat(p_ptr->stat_use[i], buf);
 
@@ -2412,6 +2505,11 @@ void display_player_stat_info(int row, int col)
             c_put_str(TERM_SLATE, buf, row + i, col + 21);
         }
     }
+
+    /* Leave with story font disabled */
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -2435,6 +2533,10 @@ static void display_player_sust_info(void)
 
     byte a;
     char c;
+
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
 
     /* Row */
     row = 2;
@@ -2585,6 +2687,10 @@ static void display_player_sust_info(void)
 
     /* Equippy */
     display_player_equippy(row + 5, col);
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -2626,6 +2732,10 @@ void display_player(int mode)
             display_player_xtra_info(0);
         }
     }
+
+#ifdef USE_SDL
+    sdl_story_font_reset();
+#endif
 }
 
 /*
@@ -3887,6 +3997,13 @@ void do_cmd_help(void)
 {
     int i = 1;
     char ch;
+
+    /* Clear any active banner before opening help */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
 
     /* Save screen */
     screen_save();
@@ -6791,6 +6908,11 @@ void print_fade_centered_at_row(cptr text, int row_start)
     if (row_start < 1) row_start = 1;
     if (row_start >= h) return; /* off-screen */
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+    log_debug("Depth banner: story font enabled");
+#endif
+
     /* Dynamic per-line wrapping and printing */
     enum { MAX_LINES2 = 32, MAX_LEN2 = 255 };
     const char *p = text;
@@ -6874,6 +6996,11 @@ void print_fade_centered_at_row(cptr text, int row_start)
             Term_xtra(TERM_XTRA_DELAY, 800);
     }
 
+#ifdef USE_SDL
+    log_debug("Depth banner: story font disabled");
+    sdl_story_font_disable();
+#endif
+
     /* Do not explicitly erase: allow natural redraws to overwrite the text */
 }
 
@@ -6948,6 +7075,10 @@ void print_story(int last_parts, bool fade_in)
     screen_save();
     Term_clear();
 
+#ifdef USE_SDL
+    sdl_story_font_enable();  // Enable for entire story display
+#endif
+
     Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
     int row = 2;
     REDRAW_HINT();
@@ -6957,9 +7088,22 @@ void print_story(int last_parts, bool fade_in)
     {
         story_type *st = &st_info[sel_idx[idx]];
 
+        /* Calculate wrap width and get text */
+        int wrap_width = wid - indent - 1;
+        if (wrap_width < 20) wrap_width = 20;
+        cptr text = st_text + st->text;
+        
         /* Check if we need to paginate BEFORE rendering this story */
-        /* Estimate space needed: 1 for heading + ~4 for text + 1 for blank line */
-        int estimated_space_needed = 6;
+        /* Calculate actual space needed based on text content */
+#ifdef USE_SDL
+        int text_lines = count_wrapped_lines_story(text, wrap_width, indent);
+#else
+        int text_lines = count_wrapped_lines(text, wrap_width, indent);
+#endif
+        
+        /* Space needed: 1 for heading + text_lines + 1 for blank line */
+        int estimated_space_needed = 1 + text_lines + 1;
+        
         if (row + estimated_space_needed >= h - 2)
         {
             if (!fast_forward)
@@ -6991,12 +7135,10 @@ void print_story(int last_parts, bool fade_in)
         }
 
         /* Heading */
-        Term_putstr(indent, row++, -1, TERM_L_BLUE, st_name + st->name);
-
+        Term_putstr(indent, row, -1, TERM_L_BLUE, st_name + st->name);
+        row++;
+        
         /* Body */
-        int wrap_width = wid - indent - 1;
-        if (wrap_width < 20) wrap_width = 20;
-        cptr text      = st_text + st->text;
 
         if (fade_in && !fast_forward && !show_page_instantly)
         {
@@ -7055,7 +7197,13 @@ void print_story(int last_parts, bool fade_in)
                 {
                     row = 2;
                     Term_clear();
+#ifdef USE_SDL
+                    sdl_story_font_enable();
+#endif
                     Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
+#ifdef USE_SDL
+                    sdl_story_font_disable();
+#endif
                     REDRAW_HINT();
                     continue;
                 }
@@ -7082,6 +7230,11 @@ void print_story(int last_parts, bool fade_in)
     Term_putstr(indent, h - 1, -1, TERM_L_WHITE,
                 "[Press any key to continue]");
     (void)inkey();
+    
+#ifdef USE_SDL
+    sdl_story_font_disable();  // Disable after story display
+#endif
+    
     screen_load();
     
     log_debug("Story display completed");

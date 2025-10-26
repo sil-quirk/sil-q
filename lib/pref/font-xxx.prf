@@ -301,9 +301,19 @@ S:0xFF:0x0F/0x2C
 
 
 ##### Default inventory object colors #####
+#
+# Color scheme optimized for maximum visual distinction in menu grouping order:
+# Display order: Food→Potions→Rings→Amulets→Staves→Horns→Swords→Polearms→
+#                Hafted→Diggers→Bows→Lights→Soft Armor→Mail→Shields→Cloaks→
+#                Gloves→Helms→Crowns→Boots→Chests
+#
+# Color legend:
+# 0x01=White 0x02=Slate 0x03=Orange 0x04=Red 0x05=Green 0x06=Blue
+# 0x07=Umber 0x08=L_Dark 0x09=L_White 0x0A=Violet 0x0B=Yellow
+# 0x0C=L_Red 0x0D=L_Green 0x0E=L_Blue 0x0F=L_Umber
 
 
-# SKELETON
+# SKELETON (rare junk)
 E:1:0x01
 
 # BOTTLE
@@ -315,89 +325,92 @@ E:3:0x01
 # SPIKE
 E:5:0x02
 
-# CHEST
+# CHEST (wooden containers)
 E:7:0x02
 
 # SHOT
 E:16:0x0F
 
-# ARROW
+# ARROW (ammunition - earthy brown)
 E:17:0x0F
 
 # BOLT
 E:18:0x0F
 
-# BOW
-E:19:0x07
+# BOW (ranged weapon - bright yellow)
+E:19:0x0B
 
-# DIGGING
-E:20:0x02
+# DIGGING (tool - earthy brown)
+E:20:0x07
 
-# HAFTED
-E:21:0x01
+# HAFTED (blunt weapon - orange)
+E:21:0x03
 
-# POLEARM
-E:22:0x01
+# POLEARM (weapon - light red for distinction from sword)
+E:22:0x0C
 
-# SWORD
-E:23:0x01
+# SWORD (primary weapon - classic red)
+E:23:0x04
 
-# BOOTS
-E:30:0x0F
+# BOOTS (leather - earthy brown, shares with DIGGING far apart in menu)
+E:30:0x07
 
-# GLOVES
-E:31:0x0F
+# GLOVES (leather - light gray)
+E:31:0x08
 
-# HELM
-E:32:0x0F
+# HELM (metal headgear - slate gray)
+E:32:0x02
 
-# CROWN
-E:33:0x0F
+# CROWN (royal headgear - bright light white)
+E:33:0x09
 
-# SHIELD
-E:34:0x0F
+# SHIELD (defense - white)
+E:34:0x01
 
-# CLOAK
-E:35:0x0F
+# CLOAK (fabric - violet/purple)
+E:35:0x0A
 
-# SOFT_ARMOR
-E:36:0x02
+# SOFT_ARMOR (light armor - light blue)
+E:36:0x0E
 
-# HARD_ARMOR
-E:37:0x02
+# HARD_ARMOR / MAIL (heavy armor - blue)
+E:37:0x06
 
 # DRAG_ARMOR
 E:38:0x02
 
-# LITE
-E:39:0x0B
+# LITE (light source - bright light white, shares with CROWN)
+E:39:0x09
 
-# AMULET
+# AMULET (jewelry - orange, shares with HAFTED/FLASK far apart)
 E:40:0x03
 
-# RING
-E:45:0x04
+# RING (jewelry - yellow/gold, shares with BOW far apart)
+E:45:0x0B
 
-# STAFF
-E:55:0x0F
+# STAFF (magical item - violet)
+E:55:0x0A
+
+# GEM (precious stones/supplies - light blue, shares with SOFT_ARMOR)
+E:56:0x0E
 
 # WAND
 E:65:0x05
 
-# TRUMPET
-E:66:0x08
+# TRUMPET / HORN (sound - earthy brown, shares with DIGGING/BOOTS)
+E:66:0x07
 
 # SCROLL
 E:70:0x01
 
-# POTION
-E:75:0x0A
+# POTION (consumable liquid - green)
+E:75:0x05
 
-# FLASK
-E:77:0x0B
+# FLASK (oil - orange, shares with HAFTED/AMULET)
+E:77:0x03
 
-# FOOD
-E:80:0x0F
+# FOOD (herbs/consumables - light green)
+E:80:0x0D
 
 # MAGIC_BOOK
 E:90:0x0C

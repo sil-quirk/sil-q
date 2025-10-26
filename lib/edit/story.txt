@@ -19,148 +19,97 @@ N:0:Nienna's Mercy
 T:0
 O:0
 R:*
-D: A cold, empty darkness surrounds you. Your memories scatter like
-D: ashes on the wind, leaving only faint sparks of courage within. You
-D: sense deep sorrow, gentle and unseen-Nienna's quiet weeping steadies
-D: your uncertain heart.
+D:A cold, empty darkness surrounds you. Your memories scatter like ashes on the wind, leaving only faint sparks of courage within. You sense deep sorrow, gentle and unseen-Nienna's quiet weeping steadies your uncertain heart.
 
 N:1:Chapter 1. Whisper of Manwe
 T:0
 O:1
 R:*
-D: A faint, distant echo stirs a forgotten defiance within you. You
-D: feel you once stood against darkness, but details slip away. A cool
-D: breeze brushes your spirit, the breath of Manwe, offering comfort
-D: and guiding you forward.
+D:A faint, distant echo stirs a forgotten defiance within you. You feel you once stood against darkness, but details slip away. A cool breeze brushes your spirit, the breath of Manwe, offering comfort and guiding you forward.
 
 N:2:Chapter 2. Stars of Varda
 T:0
 O:2
 R:*
-D: Dim images drift through your mind: stone halls, green forests,
-D: lands bathed in starlight. You feel deeply drawn to them, yet
-D: cannot grasp why. Above, the brief glimmer of distant stars-Varda's
-D: silent eyes-remind you of forgotten hope.
+D:Dim images drift through your mind: stone halls, green forests, lands bathed in starlight. You feel deeply drawn to them, yet cannot grasp why. Above, the brief glimmer of distant stars-Varda's silent eyes-remind you of forgotten hope.
 
 N:3:Chapter 3. Courage of Tulkas
 T:0
 O:3
 R:*
-D: You feel weight upon your shoulders, like armor worn proudly. A
-D: fragment of bravery stirs within you, an echo of battles faced with
-D: courage. A joyful strength fills your limbs-the unseen presence of
-D: laughing Tulkas urging you onward.
+D:You feel weight upon your shoulders, like armor worn proudly. A fragment of bravery stirs within you, an echo of battles faced with courage. A joyful strength fills your limbs-the unseen presence of laughing Tulkas urging you onward.
 
 N:4:Chapter 4. Breath of Yavanna
 T:0
 O:4
 R:*
-D: Vague shapes of companions appear briefly, allies of various
-D: races-faces blurred, names lost. Yet loyalty and friendship
-D: resonate deep within. The gentle scent of new leaves fills your
-D: senses, a subtle gift from Yavanna, encouraging remembrance.
+D:Vague shapes of companions appear briefly, allies of various races-faces blurred, names lost. Yet loyalty and friendship resonate deep within. The gentle scent of new leaves fills your senses, a subtle gift from Yavanna, encouraging remembrance.
 
 N:5:Chapter 5. Call of Ulmo
 T:0
 O:5
 R:*
-D: A haunting song, older and deeper than you can comprehend, drifts
-D: past. You sense an ancient melancholy, stirring hidden memories of
-D: endless seas. Far away, waves whisper-Ulmo calling softly, pulling
-D: your heart toward truth.
+D:A haunting song, older and deeper than you can comprehend, drifts past. You sense an ancient melancholy, stirring hidden memories of endless seas. Far away, waves whisper-Ulmo calling softly, pulling your heart toward truth.
 
 N:6:Chapter 6. Weaving of Vaire
 T:0
 O:6
 R:*
-D: Your fingers trace flowing runes carved gently into stone walls.
-D: The symbols resonate with warmth, though you cannot yet read them
-D: clearly. Delicate threads of silver glimmer faintly-Vaire, the
-D: Weaver, slowly restoring your fractured memories.
+D:Your fingers trace flowing runes carved gently into stone walls. The symbols resonate with warmth, though you cannot yet read them clearly. Delicate threads of silver glimmer faintly-Vaire, the Weaver, slowly restoring your fractured memories.
 
 N:7:Chapter 7. Doom of Mandos
 T:0
 O:7
 R:*
-D: Time stretches behind you endlessly. A sense of duty fills your
-D: spirit-ageless, unwavering, and grave. A distant bell echoes
-D: faintly-Mandos, keeper of fate, reminding you of unfinished tasks
-D: awaiting your return.
+D:Time stretches behind you endlessly. A sense of duty fills your spirit-ageless, unwavering, and grave. A distant bell echoes faintly-Mandos, keeper of fate, reminding you of unfinished tasks awaiting your return.
 
 N:8:Chapter 8. Bloom of Vana
 T:0
 O:8
 R:*
-D: You glimpse yourself wielding a sword with graceful mastery-swift,
-D: precise, radiant. Your spirit swells with pride and confidence, yet
-D: the moment is fleeting. Petals dance unseen around you, a subtle
-D: touch from ever-young Vana, honoring your grace.
+D:You glimpse yourself wielding a sword with graceful mastery-swift, precise, radiant. Your spirit swells with pride and confidence, yet the moment is fleeting. Petals dance unseen around you, a subtle touch from ever-young Vana, honoring your grace.
 
 N:9:Chapter 9. Rest of Este
 T:0
 O:9
 R:*
-D: Soft words rise clearly within your mind: “Estel brillies teni
-D: mornie canta.” Hope shines brightest when darkness gathers. Calm
-D: spreads gently through you, easing pain and doubt-a comforting gift
-D: from gentle Este.
+D:Soft words rise clearly within your mind: “Estel brillies teni mornie canta.” Hope shines brightest when darkness gathers. Calm spreads gently through you, easing pain and doubt-a comforting gift from gentle Este.
 
 N:10:Chapter 10. Horn of Orome
 T:0
 O:10
 R:*
-D: You sense a hidden city-gleaming towers, secret valleys, beautiful
-D: yet fragile. Your heart fills with a fierce protective instinct.
-D: Far off, a hunting horn sounds urgently, boldly-Orome, calling your
-D: spirit to reclaim its path.
+D:You sense a hidden city-gleaming towers, secret valleys, beautiful yet fragile. Your heart fills with a fierce protective instinct. Far off, a hunting horn sounds urgently, boldly-Orome, calling your spirit to reclaim its path.
 
 N:11:Chapter 11. Steps of Nessa
 T:0
 O:11
 R:*
-D: A sudden pulse of self-sacrifice fills your heart-a moment when you
-D: willingly traded your life for others. Your spirit trembles at the
-D: strength of that choice. Quick, joyful steps echo beside you,
-D: invisible yet clear-Nessa's fleet encouragement.
+D:A sudden pulse of self-sacrifice fills your heart-a moment when you willingly traded your life for others. Your spirit trembles at the strength of that choice. Quick, joyful steps echo beside you, invisible yet clear-Nessa's fleet encouragement.
 
 N:12:Chapter 12. Strength of Aule
 T:0
 O:12
 R:*
-D: A towering shadow engulfed in flame looms in memory-fearsome,
-D: roaring, yet you faced it bravely, unyielding. Solid ground firms
-D: beneath your feet, rock and stone reinforced by the mighty hand of
-D: Aule, grounding your courage.
+D:A towering shadow engulfed in flame looms in memory-fearsome, roaring, yet you faced it bravely, unyielding. Solid ground firms beneath your feet, rock and stone reinforced by the mighty hand of Aule, grounding your courage.
 
 N:13:Chapter 13. Light of Varda and Manwe
 T:0
 O:13
 R:*
-D: Your spirit recalls death, sacrifice-but also purpose beyond
-D: defeat. Gentle yet majestic voices whisper in harmony: "Even death
-D: cannot silence your courage. Rise once more." Radiance pierces
-D: darkness-starlight and sky, blessings of Varda and Manwe.
+D:Your spirit recalls death, sacrifice-but also purpose beyond defeat. Gentle yet majestic voices whisper in harmony: "Even death cannot silence your courage. Rise once more." Radiance pierces darkness-starlight and sky, blessings of Varda and Manwe.
 
 N:14:Chapter 14. Dreams of Irmo
 T:0
 O:14
 R:*
-D: Fragments of golden radiance flash clearly in your memory-hair like
-D: sunlit gold, a fall amidst flames, cheers of saved souls. Your
-D: identity nearly emerges, bright yet elusive. Calmness washes over
-D: you like deep sleep, the healing dreams of Irmo gently restoring
-D: your mind.
+D:Fragments of golden radiance flash clearly in your memory-hair like sunlit gold, a fall amidst flames, cheers of saved souls. Your identity nearly emerges, bright yet elusive. Calmness washes over you like deep sleep, the healing dreams of Irmo gently restoring your mind.
 
 N:15:Chapter 15. Mandate of the Valar
 T:0
 O:15
 R:*
-D: You stand now amid the ruined stones of a hidden city-Gondolin.
-D: Memory rushes fully clear: you fell here, defeating a Balrog, your
-D: life sacrificed to protect your people. Three powerful voices-
-D: Varda, Manwe, and Mandos-call to you clearly: "Rise again,
-D: Glorfindel, hero reborn. Morgoth's shadow stirs once more-your
-D: light must stand against it."
+D:You stand now amid the ruined stones of a hidden city-Gondolin. Memory rushes fully clear: you fell here, defeating a Balrog, your life sacrificed to protect your people. Three powerful voices- Varda, Manwe, and Mandos-call to you clearly: "Rise again, Glorfindel, hero reborn. Morgoth's shadow stirs once more-your light must stand against it."
 
 N:16:Ash and Iron  
 T:1  

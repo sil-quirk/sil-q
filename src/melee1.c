@@ -169,7 +169,8 @@ extern int protection_roll(int typ, bool melee)
     // heavy armour bonus
     if (p_ptr->active_ability[S_EVN][EVN_HEAVY_ARMOUR] && (typ == GF_HURT))
     {
-        prt += damroll(1, armour_weight / 150);
+        /* Use Xd1 (fixed X) instead of 1dX (random 1..X) */
+        prt += damroll(armour_weight / 150, 1);
     }
 
     return prt;
@@ -237,8 +238,8 @@ extern int p_min(int typ, bool melee)
     // heavy armour bonus
     if (p_ptr->active_ability[S_EVN][EVN_HEAVY_ARMOUR] && (typ == GF_HURT))
     {
-        if (armour_weight / 150 > 0)
-            prt += 1;
+        /* With Xd1 the minimum equals X, so add the full value */
+        prt += armour_weight / 150;
     }
 
     return prt;

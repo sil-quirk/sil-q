@@ -2188,6 +2188,20 @@ static NavResult player_birth_aux_2(void)
             if (i == stat)
             {
                 byte attr = TERM_L_BLUE;
+                
+#ifdef USE_SDL
+                /* Enable story font for highlighted stat name */
+                sdl_story_font_enable();
+#endif
+                
+                /* Highlight the stat name as well (at col-1 to match display_player position) */
+                c_put_str(attr, stat_names_full[i], row + i, col - 1);
+                
+#ifdef USE_SDL
+                /* Disable story font for numbers */
+                sdl_story_font_disable();
+#endif
+                
 #ifndef MONOCHROME_MODE
                 strnfmt(
                     buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
@@ -2206,11 +2220,6 @@ static NavResult player_birth_aux_2(void)
                     buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
                 c_put_str(attr, buf, row + i, col + 32);
             }
-            byte attr = (i == stat) ? TERM_L_BLUE : TERM_L_WHITE;
-
-            /* Display cost */
-            strnfmt(buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
-            c_put_str(attr, buf, row + i, col + 32);
         }
 
         Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
@@ -2396,6 +2405,20 @@ extern NavResult gain_skills(void)
             if (i == skill)
             {
                 byte attr = TERM_L_BLUE;
+                
+#ifdef USE_SDL
+                /* Enable story font for highlighted skill name */
+                sdl_story_font_enable();
+#endif
+                
+                /* Highlight the skill name as well (at col-1 to match display_player position) */
+                c_put_str(attr, skill_names_full[i], row + i, col - 1);
+                
+#ifdef USE_SDL
+                /* Disable story font for numbers */
+                sdl_story_font_disable();
+#endif
+                
 #ifndef MONOCHROME_MODE
                 strnfmt(buf, sizeof(buf), "%6d",
                     skill_cost(old_base[i], skill_gain[i]));

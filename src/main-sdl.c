@@ -48,6 +48,10 @@ typedef struct sdl_state {
     int tileset_cols;
     bool need_present;
     bool use_tiles;
+    
+    // Custom fonts
+    TTF_Font* story_font;      // Non-monospace font for story/narrative text
+    int story_font_depth;      // Nesting counter for story font enable/disable
 } sdl_state;
 
 typedef struct sdl_view {
@@ -74,6 +78,8 @@ static void resize(const SDL_Rect* screen);
 static void sdl_handle_event(sdl_state* st, const SDL_Event* ev);
 static void sdl_quit_hook(cptr str);
 static errr callback_sdl_xtra(int n, int v);
+static void sdl_apply_story_font_state(bool active);
+static void sdl_story_font_reset_state(void);
 static void draw_cursor(int x, int y, bool big);
 static errr callback_sdl_curs(int x, int y);
 static errr callback_sdl_bigcurs(int x, int y);
@@ -88,6 +94,8 @@ static SDL_Texture* sdl_load_ttf_font(const char* font_path, int font_size, int*
 static void sdl_window_create(int window_width, int window_height, bool fullscreen, bool use_tiles);
 static void sdl_window_set_position(int x, int y);
 static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font_size, int scale, int margin);
+static void sdl_load_story_fonts(void);
+static TTF_Font* sdl_load_font_with_fallback(const char* font_path, int font_size, const char* fallback_path);
 
 static sdl_view* sdl_view_from_term(term* t)
 {
@@ -468,31 +476,93 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
     SDL_RenderFillRect(g_state.renderer, &bg);
 
-    SDL_Color col = g_state.palette[a % 16];
-    SDL_SetTextureColorMod(d->font_atlas, col.r, col.g, col.b);
-    SDL_SetTextureAlphaMod(d->font_atlas, 255);
+    /* Use extended color table to support shaded colors (indices 0-255) */
+    SDL_Color col;
+    col.r = angband_color_table[a][1];
+    col.g = angband_color_table[a][2];
+    col.b = angband_color_table[a][3];
+    col.a = 255;
+    
+    bool chunk_story_font = (Term && Term->story_chunk_active && g_state.story_font);
+    log_trace("callback_sdl_text: chunk_story_font=%s term=%p chunk_flag=%s depth=%d font=%p",
+              chunk_story_font ? "true" : "false",
+              (void*)Term,
+              (Term && Term->story_chunk_active) ? "true" : "false",
+              g_state.story_font_depth,
+              (void*)g_state.story_font);
 
-    for (int i = 0; i < n; i++) {
-        unsigned char ch = (unsigned char)s[i];
-        int glyph_width = d->cell_w;
-        int glyph_height = d->cell_h;
-        SDL_FRect src = {
-            (ch & 15) * glyph_width,
-            (ch >> 4) * glyph_height,
-            glyph_width,
-            glyph_height,
-        };
-        SDL_FRect dst = {
-            (x + i) * d->cell_w,
-            y * d->cell_h,
-            d->cell_w,
-            d->cell_h
-        };
-        if (use_graphics == GRAPHICS_PSEUDO && (ch == '#' || ch == '%')) {
-            SDL_SetRenderDrawColor(g_state.renderer, col.r, col.g, col.b, SDL_ALPHA_OPAQUE);
-            SDL_RenderFillRect(g_state.renderer, &dst);
+    // Check if we should use story font
+    if (chunk_story_font) {
+        // Render using custom TTF font
+        log_trace("Using story font to render: '%.20s...'", s);
+        
+        // Need to create a null-terminated string from the n characters
+        char text_buf[256];
+        int len = (n < 255) ? n : 255;
+        memcpy(text_buf, s, len);
+        text_buf[len] = '\0';
+        
+        SDL_Surface* text_surface = TTF_RenderText_Blended(g_state.story_font, text_buf, 0, col);
+        if (text_surface) {
+            SDL_Texture* text_texture = SDL_CreateTextureFromSurface(g_state.renderer, text_surface);
+            if (text_texture) {
+                /* Scale the story text so its height matches the view cell height
+                 * (preserving aspect ratio). This makes narrative text visually
+                 * comparable with the monospace cells which occupy the full
+                 * cell height. */
+                float cell_h_f = (float)d->cell_h;
+                float surf_h_f = (float)text_surface->h;
+                float scale = (surf_h_f > 0.0f) ? (cell_h_f / surf_h_f) : 1.0f;
+
+                SDL_FRect dst = {
+                    .x = (float)(x * d->cell_w),
+                    .y = (float)(y * d->cell_h),
+                    .w = (float)(text_surface->w) * scale,
+                    .h = cell_h_f
+                };
+
+                /* If the scaled width exceeds available cell-span width, clamp it
+                 * to avoid overflowing neighboring cells. */
+                float max_w = (float)(n * d->cell_w);
+                if (dst.w > max_w) dst.w = max_w;
+
+                SDL_SetTextureBlendMode(text_texture, SDL_BLENDMODE_BLEND);
+                SDL_RenderTexture(g_state.renderer, text_texture, NULL, &dst);
+                SDL_DestroyTexture(text_texture);
+            }
+            SDL_DestroySurface(text_surface);
         }
-        SDL_RenderTexture(g_state.renderer, d->font_atlas, &src, &dst);
+    } else {
+        log_trace("Rendering with monospace atlas; story_chunk_active=%s depth=%d font=%p",
+                  (Term && Term->story_chunk_active) ? "true" : "false",
+                  g_state.story_font_depth,
+                  (void*)g_state.story_font);
+        // Use regular monospace font atlas
+        SDL_SetTextureColorMod(d->font_atlas, col.r, col.g, col.b);
+        SDL_SetTextureAlphaMod(d->font_atlas, 255);
+
+        for (int i = 0; i < n; i++) {
+            unsigned char ch = (unsigned char)s[i];
+            int glyph_width = d->cell_w;
+            int glyph_height = d->cell_h;
+            SDL_FRect src = {
+                (ch & 15) * glyph_width,
+                (ch >> 4) * glyph_height,
+                glyph_width,
+                glyph_height,
+            };
+            SDL_FRect dst = {
+                (x + i) * d->cell_w,
+                y * d->cell_h,
+                d->cell_w,
+                d->cell_h
+            };
+            if (use_graphics == GRAPHICS_PSEUDO && (ch == '#' || ch == '%')) {
+                SDL_SetRenderDrawColor(g_state.renderer, col.r, col.g, col.b, SDL_ALPHA_OPAQUE);
+                SDL_RenderFillRect(g_state.renderer, &dst);
+            }
+            SDL_RenderTexture(g_state.renderer, d->font_atlas, &src, &dst);
+        }
     }
 
     g_state.need_present = true;
@@ -817,10 +887,158 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
     }
 }
 
+/*
+ * Load a TTF font with fallback to default if not found
+ */
+static TTF_Font* sdl_load_font_with_fallback(const char* font_path, int font_size, const char* fallback_path)
+{
+    TTF_Font* font = NULL;
+    
+    // Try to load the specified font if provided
+    if (font_path && font_path[0] != '\0') {
+        font = TTF_OpenFont(font_path, font_size);
+        if (font) {
+            log_debug("Loaded custom font: %s at size %d", font_path, font_size);
+            return font;
+        } else {
+            log_warn("Failed to load custom font '%s': %s", font_path, SDL_GetError());
+        }
+    }
+    
+    // Fall back to default font
+    font = TTF_OpenFont(fallback_path, font_size);
+    if (font) {
+        log_debug("Using fallback font: %s at size %d", fallback_path, font_size);
+    } else {
+        log_error("Failed to load fallback font '%s': %s", fallback_path, SDL_GetError());
+    }
+    
+    return font;
+}
+
+/*
+ * Load story font from configuration
+ * If no story font is set in the SDL settings (or the SDL JSON is missing),
+ * fall back to MarcellusSC-Regular.ttf located in lib/xtra/font.
+ */
+static void sdl_load_story_fonts(void)
+{
+    const char* default_font = "lib/xtra/font/MarcellusSC-Regular.ttf";
+    /* Use the auxiliary view font size scaled by the system scale so the
+     * story font matches the monospace/aux view appearance. Fall back to
+     * 32 if aux_view_font_size is invalid. */
+    int story_font_size = (config.aux_view_font_size > 0)
+                           ? g_state.system_scale * config.aux_view_font_size
+                           : 32;
+    
+    log_info("Loading story font...");
+    log_debug("Story font config: '%s'", config.story_font[0] != '\0' ? config.story_font : "(not set)");
+    
+    // Load story font (or fallback to default)
+    g_state.story_font = sdl_load_font_with_fallback(
+        config.story_font[0] != '\0' ? config.story_font : NULL,
+        story_font_size,
+        default_font
+    );
+    
+    // Initialize flag to false
+    g_state.story_font_depth = 0;
+    if (Term) Term->story_font_active = false;
+    
+    log_info("Story font loaded successfully");
+}
+
+/*
+ * Enable story font mode - subsequent text will use custom font
+ */
+void sdl_story_font_enable(void)
+{
+    g_state.story_font_depth++;
+    if (g_state.story_font_depth == 1)
+        sdl_apply_story_font_state(true);
+    log_debug("Story font ENABLED (depth=%d)", g_state.story_font_depth);
+}
+
+/*
+ * Disable story font mode - subsequent text will use monospace font
+ */
+void sdl_story_font_disable(void)
+{
+    if (g_state.story_font_depth > 0)
+        g_state.story_font_depth--;
+    bool active = (g_state.story_font_depth > 0);
+    sdl_apply_story_font_state(active);
+    log_debug("Story font DISABLED (depth=%d)", g_state.story_font_depth);
+}
+
+/*
+ * Check if story font is currently enabled
+ */
+bool sdl_is_story_font_enabled(void)
+{
+    return (Term && Term->story_font_active);
+}
+
+void sdl_story_font_reset(void)
+{
+    sdl_story_font_reset_state();
+}
+
+/*
+ * Get the pixel width of text when rendered with the story font.
+ * Returns 0 if story font is not available.
+ * IMPORTANT: This returns the width AFTER scaling to match cell height.
+ */
+int sdl_story_font_text_width(cptr text, int len)
+{
+    if (!g_state.story_font || !text) {
+        return 0;
+    }
+    
+    /* Measure the text width using SDL_ttf (unscaled) */
+    int w = 0;
+    TTF_MeasureString(g_state.story_font, text, len, 0, &w, NULL);
+    
+    /* Apply the same scaling that's used when rendering */
+    if (g_views[0].term_ready && g_state.story_font) {
+        /* Get font metrics to determine rendered height */
+        int font_h = TTF_GetFontHeight(g_state.story_font);
+        if (font_h > 0) {
+            /* Calculate scaling factor (same as in callback_sdl_text) */
+            float cell_h_f = (float)g_views[0].cell_h;
+            float surf_h_f = (float)font_h;
+            float scale = cell_h_f / surf_h_f;
+            
+            /* Apply scaling to width */
+            w = (int)((float)w * scale);
+        }
+    }
+    
+    return w;
+}
+
+/*
+ * Get the cell width in pixels for the main terminal view.
+ * This is used to convert terminal columns to pixel width.
+ */
+int sdl_get_cell_width(void)
+{
+    if (g_views[0].term_ready) {
+        return g_views[0].cell_w;
+    }
+    return 8; /* fallback */
+}
+
 // Quit hook to save window configuration on exit
 static void sdl_quit_hook(cptr str)
 {
     (void)str; // Unused parameter
+    
+    // Clean up story font
+    if (g_state.story_font) {
+        TTF_CloseFont(g_state.story_font);
+        g_state.story_font = NULL;
+    }
     
     // Only save if we have a valid window and config file path
     if (g_state.window && config_file_path[0] != '\0') {
@@ -969,6 +1187,9 @@ errr init_sdl(int argc, char **argv)
     if (!config.fullscreen && config.window_x >= 0 && config.window_y >= 0) {
         sdl_window_set_position(config.window_x, config.window_y);
     }
+    
+    // Load story and banner fonts
+    sdl_load_story_fonts();
 
     ANGBAND_SYS = "sdl";
     if (config.tiles) {
@@ -1118,3 +1339,26 @@ int get_pane_config_count(void)
 }
 
 
+static void sdl_apply_story_font_state(bool active)
+{
+    log_trace("Story font state apply: active=%s depth=%d term=%p",
+              active ? "true" : "false", g_state.story_font_depth, (void*)Term);
+    for (int i = 0; i < MAX_TERM_DATA; i++)
+    {
+        if (g_views[i].term_ready)
+        {
+            g_views[i].t.story_font_active = active;
+        }
+    }
+    if (Term)
+        Term->story_font_active = active;
+}
+
+static void sdl_story_font_reset_state(void)
+{
+    g_state.story_font_depth = 0;
+    sdl_apply_story_font_state(false);
+    if (Term)
+        Term->story_chunk_active = false;
+    log_trace("Story font state hard reset");
+}

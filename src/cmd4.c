@@ -381,6 +381,13 @@ void do_cmd_character_sheet(void)
 
     int mode = 0;
 
+    /* Clear any active banner before opening character sheet */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+
     /* Save screen */
     screen_save();
 
@@ -390,16 +397,24 @@ void do_cmd_character_sheet(void)
         /* Display the player */
         display_player(mode);
 
-        /* Prompt */
-        Term_putstr(1, 23, -1, TERM_SLATE, "notes  story  file  abilities  curses  increase skills  ?help  ESC");
-        Term_putstr(1, 23, -1, TERM_L_WHITE, "n");
-        Term_putstr(8, 23, -1, TERM_L_WHITE, "s");
-        Term_putstr(15, 23, -1, TERM_L_WHITE, "f");
-        Term_putstr(21, 23, -1, TERM_L_WHITE, "a");
-        Term_putstr(32, 23, -1, TERM_L_WHITE, "c");
-        Term_putstr(40, 23, -1, TERM_L_WHITE, "i");
-        Term_putstr(57, 23, -1, TERM_L_WHITE, "?");
-        Term_putstr(64, 23, -1, TERM_L_WHITE, "ESC");
+        /* Prompt - use monospace to ensure correct column alignment */
+        /* With story font, proportional widths make column positions unreliable */
+        
+        /* Print the full command menu in base color */
+        /* Prompt - render in story font as key-word pairs (n-notes, s-story, etc.) */
+    #ifdef USE_SDL
+        sdl_story_font_enable();
+    #endif
+
+        /* Print the full command menu in story font (key-word pairs) */
+        Term_putstr(1, 23, -1, TERM_L_WHITE,
+            "n-notes     s-story     f-file     a-abilities     c-curses     i-increase     ?-help     ESC");
+
+        Term_fresh();  /* Render commands */
+
+    #ifdef USE_SDL
+        sdl_story_font_disable();
+    #endif
 
         /* Query */
         ch = inkey();
@@ -1796,6 +1811,7 @@ int abilities_menu1(int* highlight)
     {
         strnfmt(buf, 80, "%c) %s", (char)'a' + i, skill_names_full[i]);
 
+        // Highlight the entire line if selected
         Term_putstr(COL_SKILL, i + 4, -1,
             (*highlight == i + 1) ? TERM_L_BLUE : TERM_WHITE, buf);
     }
@@ -1889,8 +1905,8 @@ int abilities_menu2(int skilltype, int* highlight)
     // clear the abilities and description area
     wipe_screen_from(COL_ABILITY);
 
-    // abilities title
-    Term_putstr(COL_ABILITY, 2, -1, TERM_WHITE, "Abilities");
+    // abilities title with color
+    Term_putstr(COL_ABILITY, 1, -1, TERM_L_BLUE, "Abilities");
 
     // Add display counter for compact menu layout (avoids gaps from filtered abilities)
     int display_counter = 0;
@@ -2038,17 +2054,16 @@ int abilities_menu2(int skilltype, int* highlight)
                 (b_name + b_ptr->name));
         }
         
-        /* Calculate display row using sequential counter (avoids gaps from filtered abilities) */
-        int display_row = display_counter + 4;
+        /* Single column layout - starts at row 3 to maximize space */
+        int display_row = display_counter + 3;
         
         Term_putstr(COL_ABILITY, display_row, -1, attr, buf);
 
         if (*highlight == b_ptr->abilitynum + 1)
         {
-            // highlight the label
+            // highlight the label with bright blue
             strnfmt(buf, 80, "%c)", (char)'a' + visible_count);
-            Term_putstr(
-                COL_ABILITY, display_row, -1, TERM_L_BLUE, buf);
+            Term_putstr(COL_ABILITY, display_row, -1, TERM_L_BLUE, buf);
 
             // print the description of the highlighted ability
             if (b_ptr->text >= 0)
@@ -2079,12 +2094,18 @@ int abilities_menu2(int skilltype, int* highlight)
                     }
                 }
                 
-                /* Indent output by 2 character, and wrap at column 70 */
+                /* Clear description area first */
+                wipe_screen_from(COL_DESCRIPTION);
+                
+                /* Display ability name in description area with appropriate color */
+                Term_putstr(COL_DESCRIPTION, 1, -1, TERM_YELLOW, b_name + b_ptr->name);
+                
+                /* Indent output by 2 character, and wrap at column 79 */
                 text_out_wrap = 79;
                 text_out_indent = COL_DESCRIPTION;
 
-                /* History */
-                Term_gotoxy(text_out_indent, 4);
+                /* Description starts at row 3 for more space */
+                Term_gotoxy(text_out_indent, 3);
                 
                 if (use_death_message && description_text && description_text[0])
                 {
@@ -2093,7 +2114,7 @@ int abilities_menu2(int skilltype, int* highlight)
                 }
                 else
                 {
-                    /* Normal ability description */
+                    /* Normal ability description in light white */
                     text_out_to_screen(TERM_L_WHITE, b_text + b_ptr->text);
                 }
 
@@ -2105,16 +2126,22 @@ int abilities_menu2(int skilltype, int* highlight)
             // print more info if you don't have the skill
             if (!p_ptr->have_ability[skilltype][b_ptr->abilitynum])
             {
-                // print the prerequisites
-                Term_putstr(COL_DESCRIPTION, 10, -1, attr, "Prerequisites:");
+                int desc_row = 10;  /* Start prerequisites lower to give description more room */
+                
+                // print the prerequisites with color
+                Term_putstr(COL_DESCRIPTION, desc_row, -1, TERM_YELLOW, "Prerequisites:");
 
                 strnfmt(buf, 80, "%d skill points (you have %d)", b_ptr->level,
                     p_ptr->skill_base[skilltype]);
-                Term_putstr(COL_DESCRIPTION + 2, 12, -1, TERM_L_DARK, buf);
+                    
+                /* Color based on whether requirement is met */
                 if (b_ptr->level <= p_ptr->skill_base[skilltype])
                 {
-                    strnfmt(buf, 80, "%d skill points", b_ptr->level);
-                    Term_putstr(COL_DESCRIPTION + 2, 12, -1, TERM_SLATE, buf);
+                    Term_putstr(COL_DESCRIPTION + 2, desc_row + 2, -1, TERM_L_GREEN, buf);
+                }
+                else
+                {
+                    Term_putstr(COL_DESCRIPTION + 2, desc_row + 2, -1, TERM_L_DARK, buf);
                 }
 
                 if (!p_ptr->active_ability[S_PER][PER_QUICK_STUDY])
@@ -2139,34 +2166,31 @@ int abilities_menu2(int skilltype, int* highlight)
                                            b_ptr->prereq_abilitynum[j])])
                                           ->name);
                         }
-                        Term_putstr(
-                            COL_DESCRIPTION + 2, 13 + j, -1, TERM_L_DARK, buf);
+                        
+                        /* Color based on whether you have the prerequisite */
+                        byte prereq_attr = TERM_L_DARK;
                         if (p_ptr->innate_ability[b_ptr->prereq_skilltype[j]]
                                                  [b_ptr->prereq_abilitynum[j]])
                         {
-                            strnfmt(buf, 80, "%s",
-                                b_name
-                                    + (&b_info[ability_index(
-                                           b_ptr->prereq_skilltype[j],
-                                           b_ptr->prereq_abilitynum[j])])
-                                          ->name);
-                            if (j == 0)
-                            {
-                                Term_putstr(COL_DESCRIPTION + 2, 13 + j, -1,
-                                    TERM_SLATE, buf);
-                            }
-                            else
-                            {
-                                Term_putstr(COL_DESCRIPTION + 5, 13 + j, -1,
-                                    TERM_SLATE, buf);
-                            }
+                            prereq_attr = TERM_L_GREEN;
+                        }
+                        
+                        if (j == 0)
+                        {
+                            Term_putstr(COL_DESCRIPTION + 2, desc_row + 3 + j, -1,
+                                prereq_attr, buf);
+                        }
+                        else
+                        {
+                            Term_putstr(COL_DESCRIPTION + 5, desc_row + 3 + j, -1,
+                                prereq_attr, buf);
                         }
                     }
                 }
                 else if (b_ptr->prereqs > 0)
                 {
                     strnfmt(buf, 80, "Quick Study");
-                    Term_putstr(COL_DESCRIPTION + 2, 13, -1, TERM_GREEN, buf);
+                    Term_putstr(COL_DESCRIPTION + 2, desc_row + 3, -1, TERM_GREEN, buf);
                 }
 
                 if (skilltype == S_SPC)
@@ -2189,21 +2213,21 @@ int abilities_menu2(int skilltype, int* highlight)
                     if (exp_cost < 0)
                         exp_cost = 0;
 
-                    // print the cost
-                    Term_putstr(
-                        COL_DESCRIPTION, 16, -1, TERM_L_DARK, "Current price:");
+                    // print the cost with color coding
+                    desc_row += 6;  /* Move down from prerequisites */
+                    Term_putstr(COL_DESCRIPTION, desc_row, -1, TERM_YELLOW, "Current price:");
+                    
                     strnfmt(buf, 80, "%d experience (you have %d)", exp_cost,
                         p_ptr->new_exp);
-                    Term_putstr(COL_DESCRIPTION + 2, 18, -1, TERM_L_DARK, buf);
-
+                    
+                    /* Color based on whether you can afford it */
                     if (exp_cost <= p_ptr->new_exp)
                     {
-                        Term_putstr(COL_DESCRIPTION, 16, -1, TERM_SLATE,
-                            "Current price:");
-                        strnfmt(
-                            buf, 80, "%d experience", exp_cost, p_ptr->new_exp);
-                        Term_putstr(
-                            COL_DESCRIPTION + 2, 18, -1, TERM_SLATE, buf);
+                        Term_putstr(COL_DESCRIPTION + 2, desc_row + 2, -1, TERM_L_GREEN, buf);
+                    }
+                    else
+                    {
+                        Term_putstr(COL_DESCRIPTION + 2, desc_row + 2, -1, TERM_L_DARK, buf);
                     }
                 }
             }
@@ -2299,8 +2323,25 @@ int abilities_menu2(int skilltype, int* highlight)
     /* Flush the prompt */
     Term_fresh();
 
-    /* Place cursor at current choice */
-    Term_gotoxy(COL_ABILITY, 3 + *highlight);
+    /* Place cursor at current choice - single column layout */
+    int cursor_row = -1;
+    int highlight_display_index = -1;
+    
+    /* Find the display index for the highlighted ability */
+    for (i = 0; i < visible_count; i++)
+    {
+        if (visible_abilities[i] == *highlight - 1)
+        {
+            highlight_display_index = i;
+            break;
+        }
+    }
+    
+    if (highlight_display_index >= 0)
+    {
+        cursor_row = 3 + highlight_display_index;
+        Term_gotoxy(COL_ABILITY, cursor_row);
+    }
 
     /* Get key (while allowing menu commands) */
     hide_cursor = true;
@@ -7646,6 +7687,13 @@ void do_cmd_main_menu(void)
     bool leave_menu = false;
     bool take_screen_shot = false;
 
+    /* Clear any active banner before opening main menu */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+
     /* Save screen */
     screen_save();
 
@@ -7823,6 +7871,13 @@ void do_cmd_messages(void)
 
     char shower[80];
     char finder[80];
+
+    /* Clear any active banner before opening message history */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
 
     /* Wipe finder */
     my_strcpy(finder, "", sizeof(finder));
@@ -8940,6 +8995,13 @@ void do_cmd_options(void)
 
     bool return_to_game = false;
 
+    /* Clear any active banner before opening options */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+
     /* Save screen */
     screen_save();
 
@@ -9361,6 +9423,13 @@ void do_cmd_macros(void)
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
+
+    /* Clear any active banner before opening macros menu */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
 
     /* Save screen */
     screen_save();
@@ -11034,6 +11103,13 @@ void do_cmd_colors(void)
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
+
+    /* Clear any active banner before opening colors menu */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
 
     /* Save screen */
     screen_save();
@@ -13831,6 +13907,13 @@ void do_cmd_knowledge(void)
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
 
+    /* Clear any active banner before opening knowledge menu */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+
     /* Save screen */
     screen_save();
 
@@ -14900,7 +14983,9 @@ void show_unified_sidebar(unified_look_state* state)
                 }
             }
 
-            base_color = weapon_glows(o_ptr) ? TERM_L_BLUE : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+            base_color = weapon_glows(o_ptr) 
+                ? object_display_color(o_ptr, TERM_L_BLUE) 
+                : object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
             entity_char[0] = object_char(o_ptr);
 

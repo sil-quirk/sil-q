@@ -47,6 +47,10 @@ struct term_win
 
     byte* vta;
     char* vtc;
+
+    /* Story font flag per cell (0 = mono, 1 = story) */
+    byte** story;
+    byte* vstory;
 };
 
 /*
@@ -173,6 +177,8 @@ struct term
     bool unused_flag;
     bool never_bored;
     bool never_frosh;
+    bool story_font_active;   /* Current queueing mode */
+    bool story_chunk_active;  /* Mode for the chunk being flushed */
 
     byte attr_blank;
     char char_blank;

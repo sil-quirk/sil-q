@@ -2039,6 +2039,10 @@ static void print_heading_fade(cptr title, byte final_attr)
     int start_col = (w - title_len) / 2;
     if (start_col < 1) start_col = 1;
     
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+    
     for (int s = 0; s < steps; s++)
     {
         c_prt(fade_cols[s], title, 2, start_col);
@@ -2046,6 +2050,10 @@ static void print_heading_fade(cptr title, byte final_attr)
         Term_xtra(TERM_XTRA_DELAY, 150);
     }
     Term_xtra(TERM_XTRA_DELAY, 500); // Extra pause after heading
+    
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
@@ -2056,6 +2064,10 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
     text_out_hook   = text_out_to_screen;
     text_out_indent = 2;
     text_out_wrap   = Term->wid - 4;
+
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
 
     for (int s = 0; s < steps; s++)
     {
@@ -2068,6 +2080,9 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
             text_out_c(final_attr, txt);
             text_out("\n");
             Term_fresh();
+#ifdef USE_SDL
+            sdl_story_font_disable();
+#endif
             return false;
         }
         
@@ -2079,6 +2094,10 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
     }
     
     Term_xtra(TERM_XTRA_DELAY, 1000); // Pause after paragraph
+    
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
     return true;
 }
 
@@ -2088,9 +2107,17 @@ static void print_paragraph(cptr txt, byte attr)
     text_out_indent = 1;
     text_out_wrap   = Term->wid - 2;
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     Term_addstr(0, attr, "");
     text_out_c(attr, txt);
     text_out("\n");
+    
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 static void wait_for_keypress_with_prompt(cptr prompt)

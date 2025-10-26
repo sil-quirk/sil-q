@@ -251,6 +251,37 @@ void flavor_init(void)
 }
 
 /*
+ * Get the display color for an object text, applying artifact shade if identified
+ * This is used for TEXT color in inventory/equipment displays
+ * Uses MAKE_EXTENDED_COLOR to create proper shaded colors
+ */
+byte object_display_color(const object_type* o_ptr, byte base_color)
+{
+    byte color_to_use = base_color;
+    
+    /* Check for artifact-specific color (works in both modes) */
+    if (o_ptr->name1 && a_info[o_ptr->name1].d_attr)
+    {
+        color_to_use = a_info[o_ptr->name1].d_attr;
+    }
+    
+    /* Apply special handling for identified artifacts */
+    if (artefact_p(o_ptr) && object_known_p(o_ptr))
+    {
+        /* If unique artifact color option is enabled, use bright green */
+        if (artifact_unique_color)
+        {
+            return TERM_L_GREEN + TERM_SHADE;  /* TERM_L_GREEN1 - bright green shade */
+        }
+        
+        /* Otherwise use shade level 1 (darker version of base color) */
+        return MAKE_EXTENDED_COLOR(color_to_use, 1);
+    }
+    
+    return color_to_use;
+}
+
+/*
  * Reset the "visual" lists
  *
  * This involves resetting various things to their "default" state.
@@ -2498,8 +2529,12 @@ static int draw_item_tile(int x, int y, object_type* o_ptr)
     /* Only draw tiles in graphics mode (not ASCII or pseudo-graphics) */
     if (use_graphics != GRAPHICS_NONE && use_graphics != GRAPHICS_PSEUDO && o_ptr && o_ptr->k_idx)
     {
+        /* Get the attribute from object_attr - in graphics mode this is a tile index, not a color code
+         * We do NOT shade tile indices as they refer to specific graphics in the tileset */
+        byte attr = object_attr(o_ptr);
+        
         /* Draw the tile using the standard object display functions */
-        Term_putch(x, y, object_attr(o_ptr), object_char(o_ptr));
+        Term_putch(x, y, attr, object_char(o_ptr));
         
         /* Handle bigtile mode (tiles that occupy 2 cells) */
         if (use_bigtile)
@@ -2610,9 +2645,9 @@ void show_inven(void)
 
         /* Get inventory color */
         if (weapon_glows(o_ptr))
-            out_color[k] = TERM_L_BLUE;
+            out_color[k] = object_display_color(o_ptr, TERM_L_BLUE);
         else
-            out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+            out_color[k] = object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
         /* Save the object description */
         my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
@@ -2744,7 +2779,7 @@ void show_equip(void)
         {
             /* Description */
             object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
-            out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+            out_color[k] = object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
         }
 
         /* Truncate the description */
@@ -2899,7 +2934,7 @@ void show_floor(const int* floor_list, int floor_num)
         out_index[k] = i;
 
         /* Get inventory color */
-        out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+        out_color[k] = object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
         /* Save the object description */
         my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
@@ -4504,8 +4539,9 @@ void show_inven_enhanced(void)
             out_index[k] = 0 - floor_list[i];
             out_is_floor[k] = true;
             out_is_supply[k] = false;
-            out_color[k] = weapon_glows(o_ptr) ? TERM_L_BLUE
-                : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+            out_color[k] = weapon_glows(o_ptr) 
+                ? object_display_color(o_ptr, TERM_L_BLUE)
+                : object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
             my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
 
             int l = (int)strlen(out_desc[k]) + 5;
@@ -4550,8 +4586,9 @@ void show_inven_enhanced(void)
         out_index[k] = i;
         out_is_floor[k] = false;
         out_is_supply[k] = false;
-        out_color[k] = weapon_glows(o_ptr) ? TERM_L_BLUE
-            : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+        out_color[k] = weapon_glows(o_ptr) 
+            ? object_display_color(o_ptr, TERM_L_BLUE)
+            : object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
         my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
 
         int l = (int)strlen(out_desc[k]) + 5;
@@ -4664,8 +4701,9 @@ void show_inven_enhanced(void)
                         compare_obj[idx] = equipped_obj; /* Store for tile display */
                         object_desc(compare_desc[idx], sizeof(compare_desc[idx]), equipped_obj, true, 3);
                         compare_desc[idx][compare_lim] = '\0';
-                        compare_attr[idx] = weapon_glows(equipped_obj) ? TERM_L_BLUE
-                            : tval_to_attr[equipped_obj->tval % N_ELEMENTS(tval_to_attr)];
+                        compare_attr[idx] = weapon_glows(equipped_obj) 
+                            ? object_display_color(equipped_obj, TERM_L_BLUE)
+                            : object_display_color(equipped_obj, tval_to_attr[equipped_obj->tval % N_ELEMENTS(tval_to_attr)]);
                         if (show_weights && equipped_obj->weight)
                         {
                             compare_has_weight[idx] = true;
@@ -5132,7 +5170,7 @@ void show_equip_enhanced(void)
         {
             /* Description (exactly like show_equip) */
             object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
-            out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+            out_color[k] = object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
         }
         
         /* Truncate the description (exactly like show_equip) */
@@ -5561,8 +5599,9 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
             if (lim_no_weight >= 0)
                 entry->desc[lim_no_weight] = '\0';
 
-            entry->color = weapon_glows(o_ptr) ? TERM_L_BLUE
-                : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+            entry->color = weapon_glows(o_ptr) 
+                ? object_display_color(o_ptr, TERM_L_BLUE)
+                : object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
             int row_len = (int)strlen(entry->desc) + 5;
             if (show_weights)
@@ -5606,8 +5645,9 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         object_desc(entry->desc, sizeof(entry->desc), o_ptr, true, 3);
         entry->desc[desc_lim] = '\0';
 
-        entry->color = weapon_glows(o_ptr) ? TERM_L_BLUE
-            : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+        entry->color = weapon_glows(o_ptr) 
+            ? object_display_color(o_ptr, TERM_L_BLUE)
+            : object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
         int row_len = prefix_len + (int)strlen(entry->desc) + 5;
         if (show_weights && o_ptr->weight)

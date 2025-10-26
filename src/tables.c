@@ -481,6 +481,7 @@ cptr option_desc[OPT_MAX] = {
     "Automatically dismiss '-more-' messages", /* OPT_auto_more */
     "Know all monster info", /* OPT_know_monster_info */
     "Automatically display drop-down lists", /* OPT_auto_display_lists */
+    "Display artifacts in unique bright green color", /* OPT_artifact_unique_color */
     "Use the Escape key to access the main menu", /* OPT_easy_main_menu */
     NULL, /* xxx verify_leave_quest */
     NULL, /* xxx mark_squelch_items */
@@ -742,6 +743,7 @@ const bool option_norm[OPT_MAX] = {
     false, /* OPT_auto_more */
     false, /* OPT_know_monster_info */
     true, /* OPT_auto_display_lists */
+    true, /* OPT_artifact_unique_color */
     true, /* OPT_easy_main_menu */
     false, /* xxx verify_quest_leave */
     false, /* xxx mark_squelch_items */
@@ -958,11 +960,11 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     /*** Display ***/
 
-    { OPT_display_hits, OPT_auto_display_lists, OPT_instant_run,
+    { OPT_display_hits, OPT_auto_display_lists, OPT_artifact_unique_color, OPT_instant_run,
         OPT_center_player, OPT_run_avoid_center, OPT_hilite_player,
         OPT_hilite_target, OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
         OPT_delay_factor, OPT_main_combat_rolls, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Birth ***/
 

@@ -289,8 +289,15 @@ static void prt_field(cptr info, int row, int col)
     /* Dump 13 spaces to clear */
     c_put_str(TERM_WHITE, "             ", row, col);
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
     /* Dump the info itself */
     c_put_str(TERM_L_BLUE, info, row, col);
+    
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -299,20 +306,45 @@ static void prt_field(cptr info, int row, int col)
 static void prt_stat(int stat)
 {
     char tmp[32];
+    char trimmed_label[32];
+    const char* stat_label;
 
-    /* Display "injured" stat */
+    /* Get the stat name */
     if (p_ptr->stat_drain[stat] < 0)
     {
-        put_str(stat_names_reduced[stat], ROW_STAT + stat, 0);
-        cnv_stat(p_ptr->stat_use[stat], tmp);
-        c_put_str(TERM_YELLOW, tmp, ROW_STAT + stat, COL_STAT + 10);
+        stat_label = stat_names_reduced[stat];
     }
-
-    /* Display "healthy" stat */
     else
     {
-        put_str(stat_names[stat], ROW_STAT + stat, 0);
-        cnv_stat(p_ptr->stat_use[stat], tmp);
+        stat_label = stat_names[stat];
+    }
+    
+    /* Trim trailing spaces for story font rendering */
+    my_strcpy(trimmed_label, stat_label, sizeof(trimmed_label));
+    int len = strlen(trimmed_label);
+    while (len > 0 && trimmed_label[len-1] == ' ') {
+        trimmed_label[--len] = '\0';
+    }
+
+    /* Display stat name with story font */
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
+    put_str(trimmed_label, ROW_STAT + stat, 0);
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
+
+    /* Display stat value with monospace font */
+    cnv_stat(p_ptr->stat_use[stat], tmp);
+    if (p_ptr->stat_drain[stat] < 0)
+    {
+        c_put_str(TERM_YELLOW, tmp, ROW_STAT + stat, COL_STAT + 10);
+    }
+    else
+    {
         c_put_str(TERM_L_GREEN, tmp, ROW_STAT + stat, COL_STAT + 10);
     }
 
@@ -337,8 +369,16 @@ static void prt_exp(void)
 
     attr = TERM_L_GREEN;
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     /*Print experience label*/
     put_str("Exp ", ROW_EXP, 0);
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 
     comma_number(out_val, p_ptr->new_exp);
 
@@ -449,6 +489,10 @@ static void prt_hp(void)
     int len;
     byte color;
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     if (p_ptr->mhp >= 100)
     {
         put_str("Hth        ", ROW_HP, COL_HP);
@@ -457,6 +501,10 @@ static void prt_hp(void)
     {
         put_str("Health      ", ROW_HP, COL_HP);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 
     len = sprintf(tmp, "%d:%d", p_ptr->chp, p_ptr->mhp);
 
@@ -568,10 +616,18 @@ static void prt_sp(void)
     byte color;
     int len;
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     if (p_ptr->msp >= 100)
         put_str("Vce         ", ROW_SP, COL_SP);
     else
         put_str("Voice       ", ROW_SP, COL_SP);
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 
     len = sprintf(tmp, "%d:%d", p_ptr->csp, p_ptr->msp);
 
@@ -610,6 +666,10 @@ static void prt_song(void)
     put_str("             ", ROW_SONG, COL_SONG);
     put_str("             ", ROW_SONG + 1, COL_SONG);
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     // show the first song
     if (p_ptr->song1 != SNG_NOTHING)
     {
@@ -621,6 +681,10 @@ static void prt_song(void)
     {
         c_put_str(TERM_BLUE, song2_name + 8, ROW_SONG + 1, COL_SONG);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -667,8 +731,16 @@ static void prt_depth(void)
             attr = TERM_BLUE;
     }
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     /* Right-Adjust the "depth", and clear old values */
     c_prt(attr, format("%7s", depths), ROW_DEPTH, COL_DEPTH);
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -676,6 +748,10 @@ static void prt_depth(void)
  */
 static void prt_hunger(void)
 {
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     /* Fainting / Starving */
     if (p_ptr->food < PY_FOOD_STARVE)
     {
@@ -710,6 +786,10 @@ static void prt_hunger(void)
     {
         c_put_str(TERM_GREEN, "Full    ", ROW_HUNGRY, COL_HUNGRY);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -717,6 +797,10 @@ static void prt_hunger(void)
  */
 static void prt_blind(void)
 {
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     if (p_ptr->blind)
     {
         c_put_str(TERM_ORANGE, "Blind", ROW_BLIND, COL_BLIND);
@@ -725,6 +809,10 @@ static void prt_blind(void)
     {
         put_str("     ", ROW_BLIND, COL_BLIND);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -732,6 +820,10 @@ static void prt_blind(void)
  */
 static void prt_confused(void)
 {
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     if (p_ptr->confused)
     {
         c_put_str(TERM_ORANGE, "Confused", ROW_CONFUSED, COL_CONFUSED);
@@ -740,6 +832,10 @@ static void prt_confused(void)
     {
         put_str("        ", ROW_CONFUSED, COL_CONFUSED);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -747,6 +843,10 @@ static void prt_confused(void)
  */
 static void prt_afraid(void)
 {
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     if (p_ptr->afraid)
     {
         c_put_str(TERM_ORANGE, "Afraid", ROW_AFRAID, COL_AFRAID);
@@ -755,6 +855,10 @@ static void prt_afraid(void)
     {
         put_str("      ", ROW_AFRAID, COL_AFRAID);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -775,6 +879,10 @@ static void prt_cut(void)
 
     put_str("            ", ROW_CUT - 1, COL_CUT);
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     if (c > 100)
     {
         c_put_str(TERM_RED, "Mortal wound", r, COL_CUT);
@@ -793,6 +901,10 @@ static void prt_cut(void)
     {
         put_str("            ", r, COL_CUT);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -802,6 +914,10 @@ static void prt_poisoned(void)
 {
     int p = p_ptr->poisoned;
     char buf[20];
+
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
 
     if (p > 20)
     {
@@ -817,6 +933,10 @@ static void prt_poisoned(void)
     {
         put_str("            ", ROW_POISONED, COL_POISONED);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -946,8 +1066,16 @@ static void prt_state(void)
         my_strcpy(text, "          ", sizeof(text));
     }
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     /* Display the info (or blanks) */
     c_put_str(attr, text, ROW_STATE, COL_STATE);
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -974,8 +1102,16 @@ static void prt_speed(void)
         sprintf(buf, "Slow");
     }
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     /* Display the speed */
     c_put_str(attr, format("%-4s", buf), ROW_SPEED, COL_SPEED);
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -983,6 +1119,10 @@ static void prt_speed(void)
  */
 static void prt_terrain(void)
 {
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     if (cave_pit_bold(p_ptr->py, p_ptr->px))
     {
         c_put_str(TERM_ORANGE, "Pit", ROW_TERRAIN, COL_TERRAIN);
@@ -999,11 +1139,19 @@ static void prt_terrain(void)
     {
         put_str("        ", ROW_TERRAIN, COL_TERRAIN);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 static void prt_stun(void)
 {
     int s = p_ptr->stun;
+
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
 
     if (s > 100)
     {
@@ -1021,6 +1169,10 @@ static void prt_stun(void)
     {
         put_str("            ", ROW_STUN, COL_STUN);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*

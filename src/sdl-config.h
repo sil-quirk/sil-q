@@ -16,6 +16,10 @@ struct sdl_config {
     int window_y;
     int window_width;
     int window_height;
+    
+    // Custom fonts
+    char story_font[256];      // Font for story/narrative text (non-monospace, e.g., "lib/xtra/font/Story.ttf")
+    char monospace_font[256];  // Font for regular game text (monospace, default: InputMono-Bold.ttf)
 };
 
 // Load SDL configuration from JSON file

@@ -3110,8 +3110,96 @@ int count_wrapped_lines(cptr str, int wrap_width, int indent)
     return lines;
 }
 
+#ifdef USE_SDL
+/*
+ * Count how many lines text will occupy when using story font with pixel-based wrapping.
+ * Similar to count_wrapped_lines but accounts for proportional font width.
+ */
+int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
+{
+    if (!str || wrap_cols <= 0) return 1;
+    
+    /* Convert column-based wrap to pixel width */
+    int cell_width = sdl_get_cell_width();
+    int wrap_pixels = wrap_cols * cell_width;
+    
+    int lines = 1;
+    int x = indent;
+    cptr s = str;
+    
+    while (*s)
+    {
+        /* Handle newlines */
+        if (*s == '\n')
+        {
+            x = indent;
+            lines++;
+            s++;
+            continue;
+        }
+        
+        /* Skip leading spaces */
+        while (*s == ' ')
+        {
+            x++;
+            if (x >= wrap_cols)
+            {
+                x = indent;
+                lines++;
+            }
+            s++;
+        }
+        
+        if (!*s) break;
+        
+        /* Find the end of the current word */
+        cptr word_start = s;
+        int word_chars = 0;
+        while (s[word_chars] && s[word_chars] != ' ' && s[word_chars] != '\n')
+            word_chars++;
+        
+        if (word_chars == 0)
+            continue;
+        
+        /* Measure the word in pixels */
+        int word_pixels = sdl_story_font_text_width(word_start, word_chars);
+        int current_pixels = x * cell_width;
+        
+        /* Check if word fits on current line */
+        if (x > indent && (current_pixels + word_pixels) > wrap_pixels)
+        {
+            x = indent;
+            lines++;
+        }
+        
+        /* Account for the word's width in columns (approximate) */
+        x += word_chars;
+        if (x >= wrap_cols)
+        {
+            x = indent;
+            lines++;
+        }
+        
+        /* Move past the word */
+        s += word_chars;
+    }
+    
+    return lines;
+}
+#endif /* USE_SDL */
+
 void text_out_to_screen(byte a, cptr str)
 {
+#ifdef USE_SDL
+    /* If story font is enabled, use pixel-based wrapping */
+    extern bool sdl_is_story_font_enabled(void);
+    if (sdl_is_story_font_enabled())
+    {
+        text_out_to_screen_story(a, str);
+        return;
+    }
+#endif
+
     int x, y;
 
     int wid, h;
@@ -3216,6 +3304,116 @@ void text_out_to_screen(byte a, cptr str)
             x = wrap;
     }
 }
+
+#ifdef USE_SDL
+/*
+ * Write text to the screen with story font wrapping based on pixel width.
+ * This version wraps proportional fonts to fill the available terminal width
+ * instead of wrapping based on monospace character count.
+ */
+void text_out_to_screen_story(byte a, cptr str)
+{
+    int x, y;
+    int wid, h;
+    int wrap_cols;
+    cptr s;
+
+    /* Obtain the size */
+    (void)Term_get_size(&wid, &h);
+
+    /* Obtain the cursor */
+    (void)Term_locate(&x, &y);
+
+    /* Use special wrapping boundary? */
+    if ((text_out_wrap > 0) && (text_out_wrap < wid))
+        wrap_cols = text_out_wrap;
+    else
+        wrap_cols = wid;
+
+    /* Convert column-based wrap to pixel width */
+    int cell_width = sdl_get_cell_width();
+    int wrap_pixels = wrap_cols * cell_width;
+    
+    log_trace("Story wrapping: wid=%d, wrap_cols=%d, cell_width=%d, wrap_pixels=%d", 
+              wid, wrap_cols, cell_width, wrap_pixels);
+
+    /* Track position in pixels, not columns */
+    int current_x_pixels = text_out_indent * cell_width;
+
+    /* Process the string word by word */
+    s = str;
+    while (*s)
+    {
+        /* Force wrap on newline */
+        if (*s == '\n')
+        {
+            x = text_out_indent;
+            current_x_pixels = text_out_indent * cell_width;
+            y++;
+            Term_erase(x, y, 255);
+            s++;
+            continue;
+        }
+
+        /* Skip leading spaces */
+        while (*s == ' ')
+        {
+            Term_addch(a, ' ');
+            x++;
+            current_x_pixels += cell_width;  /* Each space is one cell */
+            s++;
+        }
+
+        /* Find the end of the current word */
+        cptr word_start = s;
+        int word_chars = 0;
+        while (s[word_chars] && s[word_chars] != ' ' && s[word_chars] != '\n')
+            word_chars++;
+
+        if (word_chars == 0)
+            continue;
+
+        /* Measure the word in pixels */
+        int word_pixels = sdl_story_font_text_width(word_start, word_chars);
+        
+        /* Check BOTH constraints: pixel width AND terminal columns */
+        bool exceeds_pixels = (x > text_out_indent && (current_x_pixels + word_pixels) > wrap_pixels);
+        bool exceeds_columns = (x + word_chars >= wid);
+        
+        log_trace("Word: '%.*s' (%d chars), pixels=%d, current_x_pixels=%d, x=%d, exceeds_pixels=%s, exceeds_columns=%s", 
+                  word_chars, word_start, word_chars, word_pixels, current_x_pixels, x,
+                  exceeds_pixels ? "YES" : "NO",
+                  exceeds_columns ? "YES" : "NO");
+        
+        /* Wrap if we exceed EITHER constraint */
+        if (exceeds_pixels || exceeds_columns)
+        {
+            /* Wrap to next line */
+            x = text_out_indent;
+            current_x_pixels = text_out_indent * cell_width;
+            y++;
+            Term_erase(x, y, 255);
+            log_trace("Wrapped to next line, x=%d, current_x_pixels=%d", x, current_x_pixels);
+        }
+
+        /* Output the word character by character */
+        for (int i = 0; i < word_chars; i++)
+        {
+            char ch = (isprint((unsigned char)word_start[i]) ? word_start[i] : ' ');
+            Term_addch(a, ch);
+            x++;
+        }
+        
+        log_trace("After word output: x=%d, current_x_pixels=%d", x, current_x_pixels);
+        
+        /* Update pixel position by the actual rendered width */
+        current_x_pixels += word_pixels;
+
+        /* Move past the word */
+        s += word_chars;
+    }
+}
+#endif /* USE_SDL */
 
 /*
  * Write text to the given file and apply line-wrapping.

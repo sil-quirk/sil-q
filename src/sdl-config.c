@@ -420,6 +420,19 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             config->window_height = item->valueint;
             log_debug("Loaded windowHeight: %d", config->window_height);
         }
+        
+        // Custom fonts
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyFont");
+        if (cJSON_IsString(item)) {
+            my_strcpy(config->story_font, item->valuestring, sizeof(config->story_font));
+            log_debug("Loaded storyFont: %s", config->story_font);
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monospaceFont");
+        if (cJSON_IsString(item)) {
+            my_strcpy(config->monospace_font, item->valuestring, sizeof(config->monospace_font));
+            log_debug("Loaded monospaceFont: %s", config->monospace_font);
+        }
     } else {
         log_warn("'sdl' object not found in JSON");
     }
@@ -512,6 +525,14 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddNumberToObject(sdl, "windowWidth", config->window_width);
     cJSON_AddNumberToObject(sdl, "windowHeight", config->window_height);
     
+    // Save custom fonts if set
+    if (config->story_font[0] != '\0') {
+        cJSON_AddStringToObject(sdl, "storyFont", config->story_font);
+    }
+    if (config->monospace_font[0] != '\0') {
+        cJSON_AddStringToObject(sdl, "monospaceFont", config->monospace_font);
+    }
+    
     cJSON_AddItemToObject(root, "sdl", sdl);
     
     // Create panes array
@@ -587,6 +608,10 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->window_y = -1;  // -1 means centered
     config->window_width = 0;  // 0 means use default calculation
     config->window_height = 0; // 0 means use default calculation
+    
+    // Default fonts (empty = use fallback)
+    config->story_font[0] = '\0';
+    config->monospace_font[0] = '\0';
 }
 
 void sdl_config_set_defaults_for_resolution(struct sdl_config* config, 

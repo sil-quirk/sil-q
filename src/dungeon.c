@@ -1198,9 +1198,22 @@ static void process_command(void)
 
     /* Character sheet (alternative key) */
     case 'h':
-    case 'H':
     {
         do_cmd_character_sheet();
+        break;
+    }
+    
+    /* Direct access to skill distribution */
+    case 'H':
+    {
+        /* Save screen */
+        screen_save();
+        
+        /* Open skill distribution directly */
+        gain_skills();
+        
+        /* Load screen */
+        screen_load();
         break;
     }
 
