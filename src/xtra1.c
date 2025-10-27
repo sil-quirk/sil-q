@@ -4111,8 +4111,10 @@ void window_stuff(void)
     /* Display equipment */
     if (p_ptr->window & (PW_EQUIP))
     {
+        log_debug("window_stuff: PW_EQUIP flag set, calling fix_equip()");
         p_ptr->window &= ~(PW_EQUIP);
         fix_equip();
+        log_debug("window_stuff: fix_equip() completed");
     }
 
     /* Display player (mode 0) */

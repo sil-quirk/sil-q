@@ -3188,6 +3188,33 @@ int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
 }
 #endif /* USE_SDL */
 
+bool story_inventory_enabled(void)
+{
+#ifdef USE_SDL
+    return story_inventory_lists;
+#else
+    return false;
+#endif
+}
+
+bool story_equipment_enabled(void)
+{
+#ifdef USE_SDL
+    return story_equipment_lists;
+#else
+    return false;
+#endif
+}
+
+bool story_look_enabled(void)
+{
+#ifdef USE_SDL
+    return story_display_lists;
+#else
+    return false;
+#endif
+}
+
 void text_out_to_screen(byte a, cptr str)
 {
 #ifdef USE_SDL
@@ -3414,6 +3441,100 @@ void text_out_to_screen_story(byte a, cptr str)
     }
 }
 #endif /* USE_SDL */
+
+void story_print_text(int row, int col, int max_cols, byte attr, cptr text)
+{
+    if (!text)
+        text = "";
+
+    if (max_cols > 0)
+        Term_erase(col, row, max_cols);
+
+#ifdef USE_SDL
+    if (sdl_is_story_font_enabled())
+    {
+        int old_indent = text_out_indent;
+        int old_wrap = text_out_wrap;
+        void (*old_hook)(byte, cptr) = text_out_hook;
+
+        if (max_cols > 0)
+            text_out_wrap = col + max_cols;
+        else
+            text_out_wrap = 0;
+
+        text_out_indent = col;
+        text_out_hook = text_out_to_screen;
+
+        Term_gotoxy(col, row);
+        text_out_c(attr, text);
+
+        text_out_indent = old_indent;
+        text_out_wrap = old_wrap;
+        text_out_hook = old_hook;
+        return;
+    }
+#endif
+
+    c_put_str(attr, text, row, col);
+}
+
+void story_print_mono(int row, int col, byte attr, cptr text)
+{
+    if (!text)
+        text = "";
+
+#ifdef USE_SDL
+    bool reenable_story = false;
+    if (sdl_is_story_font_enabled())
+    {
+        sdl_story_font_disable();
+        reenable_story = true;
+    }
+#endif
+
+    c_put_str(attr, text, row, col);
+
+#ifdef USE_SDL
+    if (reenable_story)
+        sdl_story_font_enable();
+#endif
+}
+
+void story_fill_rect(int row, int col, int width_cols, byte attr)
+{
+    if (width_cols <= 0)
+        return;
+
+    // Instead of using c_put_str which erases story font flags,
+    // directly modify the screen buffer to preserve the flags
+    if (row < 0 || row >= Term->hgt)
+        return;
+
+    int start_col = MAX(0, col);
+    int end_col = MIN(Term->wid, col + width_cols);
+
+    byte* scr_aa = Term->scr->a[row];
+    char* scr_cc = Term->scr->c[row];
+    byte* scr_story = Term->scr->story[row];
+
+    for (int x = start_col; x < end_col; x++)
+    {
+        byte old_story = scr_story[x];  // Preserve the story font flag!
+        
+        scr_aa[x] = attr;
+        scr_cc[x] = ' ';
+        scr_story[x] = old_story;  // Restore it!
+    }
+
+    // Mark this row as changed
+    if (start_col < end_col)
+    {
+        if (row < Term->y1) Term->y1 = row;
+        if (row > Term->y2) Term->y2 = row;
+        if (start_col < Term->x1[row]) Term->x1[row] = start_col;
+        if (end_col - 1 > Term->x2[row]) Term->x2[row] = end_col - 1;
+    }
+}
 
 /*
  * Write text to the given file and apply line-wrapping.

@@ -7013,6 +7013,8 @@ void print_story(int last_parts, bool fade_in)
     const int indent = 2;
     bool fast_forward = false;
     bool show_page_instantly = false;
+    bool _saved_cursor_state = false;
+    bool _saved_hide_cursor = false;
 
     log_debug("=== Starting story display (parts=%d, fade_in=%s) ===", last_parts, fade_in ? "true" : "false");
     log_debug("last_parts=%d, fade_in=%s", last_parts, fade_in ? "true" : "false");
@@ -7074,6 +7076,12 @@ void print_story(int last_parts, bool fade_in)
     Term_get_size(&wid, &h);
     screen_save();
     Term_clear();
+    /* Hide the cursor during story display and restore it at the end */
+    (void)Term_get_cursor(&_saved_cursor_state);
+    /* Prevent inkey() from showing the cursor while story is active */
+    _saved_hide_cursor = hide_cursor;
+    hide_cursor = true;
+    (void)Term_set_cursor(false);
 
 #ifdef USE_SDL
     sdl_story_font_enable();  // Enable for entire story display
@@ -7236,7 +7244,10 @@ void print_story(int last_parts, bool fade_in)
 #endif
     
     screen_load();
-    
+    /* Restore previous cursor visibility and hide_cursor flag */
+    (void)Term_set_cursor(_saved_cursor_state);
+    hide_cursor = _saved_hide_cursor;
+
     log_debug("Story display completed");
 
 #undef REDRAW_HINT

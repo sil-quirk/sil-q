@@ -1143,6 +1143,9 @@ extern void text_out_to_screen_story(byte a, cptr str);
 #endif
 extern void text_out(cptr str);
 extern void text_out_c(byte a, cptr str);
+extern bool story_inventory_enabled(void);
+extern bool story_equipment_enabled(void);
+extern bool story_look_enabled(void);
 extern void clear_from(int row);
 extern bool askfor_aux(char* buf, size_t len);
 extern bool askfor_name(char* buf, size_t len);
@@ -1419,4 +1422,8 @@ extern bool sdl_is_story_font_enabled(void);
 extern int sdl_story_font_text_width(cptr text, int len);
 extern int sdl_get_cell_width(void);
 #endif
+
+extern void story_print_text(int row, int col, int max_cols, byte attr, cptr text);
+extern void story_print_mono(int row, int col, byte attr, cptr text);
+extern void story_fill_rect(int row, int col, int width_cols, byte attr);
 

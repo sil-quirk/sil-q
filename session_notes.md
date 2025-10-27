@@ -1,5 +1,35 @@
 # Session Notes
 
+## 2025-11-02 - Story Font List Polish & Intro Scope
+
+- Added reusable story-font helpers (`story_print_text`, `story_print_mono`, `story_fill_rect`) in `src/util.c` with declarations in `src/externs.h` so UI layers can print proportional spans, keep mono-aligned columns, and pre-clear highlight rows without duplicating SDL plumbing.
+- Converted `display_introduction()` and the initial menu (`initial_menu` in `src/init2.c`) to share one story-font scope so the introductory poem, frame, and action prompts all render with the proportional typeface; `print_story_intro()` already handled the narrative section but now the surrounding prompts inherit the same font.
+- Reworked the enhanced inventory renderer (`show_inven_enhanced`) to clear each row before painting, split description/weight/label segments, and render the highlight bar by filling the row prior to drawing. Descriptions now use `story_print_text` while weights/labels stay monospace via `story_print_mono`, eliminating the drifting `(A)` / `(B)` tags when the story font is enabled.
+- Implemented a dedicated story-font path for equipment lists: when the "Story UI Lists" option is on, `show_equip_enhanced` bypasses `show_equip()` and uses the new `draw_equipment_story_rows()` helper to paint mention-use prefixes, tiles, descriptions (with quiver note support), weights, and slot labels with the same proportional logic used for inventory.
+- Updated the unified look/target UI (`target_set_interactive_aux` in `src/xtra2.c`) to accept a `use_story_font` flag, route its prompts through `look_prt()`, and rely on the shared helpers so the `l`-view text no longer leaves stray characters when switching between mono and story fonts.
+- Moved the `story_lists` option from the Interface page to the Visual Options page (where the rest of the rendering toggles live) to eliminate the empty line the user reported and make the setting easier to discover.
+- Full SDL build verified with `build-cmake.bat`; only existing warnings remain.
+
+## 2025-11-03 - Story Font Follow-up
+
+ - Added per-menu Visual Options toggles (`story_lists_inven`, `story_lists_equip`) so inventory and equipment screens can switch independently between story and mono rendering (`src/defines.h`, `src/tables.c`, `src/util.c`).
+ - Painted the inventory weight column and `(a)` style slot letters with `story_print_text()` whenever the story font is enabled so the entire row, including highlights, uses the proportional font; left mono behavior unchanged for the default view (`src/object1.c`).
+ - Extended `draw_equipment_story_rows()` to render slot prefixes, weights, and label glyphs with the story font so both sides of the equipment overlay match the item descriptions and their letter columns stay aligned (`src/object1.c`).
+ - Rebuilt with `build-cmake.bat` to confirm the SDL target still succeeds.
+
+## 2025-11-04 - Story Menu Alignment
+
+ - Added `story_render_inventory_entry()` / `story_render_equipment_entry()` helpers so both the base list renderers (`show_inven`, `show_equip`) and the `get_item()` highlight overlay use a single code path for proportional layout. The helpers clear the full row, reuse the tile column returned by `draw_item_tile()`, and split description/weight/label spans with `story_print_text()` while keeping the mono path unchanged.
+ - Updated `show_inven()`/`show_equip()` to call the helpers whenever the "Story UI Lists" toggles are active, including the final shadow rows and the armour weight summary so highlighted rows no longer shift the `(A)` / `(B)` columns.
+   - Switched the highlight macro in `get_item()` to detect the current story mode and rerender the selected inventory/equipment/floor row with the same helper logic, keeping `(no bow)` and similar empty-slot strings aligned with their non-highlighted versions.
+   - Fixed the comparison overlay typo in `show_inven_enhanced()` (`" (%s"` → `" (%s)"`) so the `(G)` label renders correctly when pressing `u`/`x`.
+
+## 2025-11-05 - Story Highlight Build Fix
+
+   - Hoisted the story-font row helpers ahead of `show_inven()` and replaced the inline `#if` sections inside `DRAW_HIGHLIGHT` with helper macros (`DRAW_HIGHLIGHT_STORY_VARS/UPDATE`, `DRAW_HIGHLIGHT_IF_STORY`), which eliminates the implicit declaration errors and keeps the SDL-only logic out of macro definitions.
+   - Restored `draw_equipment_story_rows()` next to the new helpers and recompiled the SDL3 target to verify the proportional highlight path builds cleanly.
+   - Added `story_inventory_list_active` / `story_equipment_list_active` state flags so `get_item()` detects whether the visible list is currently using story font, ensuring the highlight overlay always reuses the same renderer instead of guessing from static option bits.
+
 ## 2025-10-26: Left Sidebar Story Font - Implementation Complete
 
 ### Summary
@@ -352,6 +382,19 @@ dst.w = (float)(text_surface->w) * scale;
 View story text with `SIL_LOG_LEVEL=trace` to see wrapping calculations in the log file.
 
 ---
+
+## 2025-10-26: Hide cursor on intro and story screens
+
+Summary
+- Hide the hardware/text cursor while the intro (first screen) and the story display are visible. This prevents a blinking cursor from appearing on top of the intro poem or the paged "The Tale So Far" output.
+
+Files changed
+- `src/init2.c` - `display_introduction()` now saves the current cursor visibility, sets the cursor hidden during the intro, then restores the previous state after flushing.
+- `src/files.c` - `print_story()` now saves the cursor visibility at start, forces the cursor hidden for the entire story display (including fades/paging), and restores it after the story finishes and the screen is restored.
+
+Notes
+- Performed a full SDL/CMake build to verify changes; build completed successfully.
+
 
 ## 2025-10-26: Story Font Wrapping - Terminal Width Fix
 
@@ -1856,3 +1899,4 @@ Score (highest first)                      Layout: Short
 - Added trace logging around story-font activation and the SDL text callback to diagnose why proportional text isn't chosen at runtime; rebuilt via build-cmake.bat.
 - Patched z-term chunking so the first glyph in a story-font stripe captures both attr and the font flag, ensuring SDL sees chunk_story_font=true after logs showed the bit was being lost.\n
 - Reset story_chunk_active after each text stripe so SDL doesn\'t keep rendering later glyphs in story mode once the character sheet closes; rebuilt via build-cmake.bat.\n
+- Added a 'Story UI Lists' option that renders inventory/equipment/look panels with story font when desired, converted the intro screens to use story text, and ensured the new rendering path resets SDL story state cleanly.\n

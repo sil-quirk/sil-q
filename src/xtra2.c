@@ -11,6 +11,22 @@
 #include "angband.h"
 #include "metarun.h"
 
+#ifdef USE_SDL
+static void look_prt(bool use_story_font, cptr text, int row, int col)
+{
+    if (use_story_font)
+        story_print_text(row, col, 0, TERM_WHITE, text);
+    else
+        prt(text, row, col);
+}
+#else
+static void look_prt(bool use_story_font, cptr text, int row, int col)
+{
+    (void)use_story_font;
+    prt(text, row, col);
+}
+#endif
+
 /*
  * The saving throw is a will skill check.
  *
@@ -3721,7 +3737,7 @@ void get_sorted_target_list(int mode, int range)
  *
  * This function must handle blindness/hallucination.
  */
-static int target_set_interactive_aux(int y, int x, int mode, cptr info)
+static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool use_story_font)
 {
     s16b this_o_idx, next_o_idx = 0;
 
@@ -3772,7 +3788,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
             strnfmt(out_val, sizeof(out_val),
                 "What you see is not to be believed.  [%s]", info);
 
-            prt(out_val, 0, 0);
+            look_prt(use_story_font, out_val, 0, 0);
             move_cursor_relative(y, x);
             query = inkey();
 
@@ -3896,7 +3912,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                                 m_name, buf, more, info);
                         }
 
-                        prt(out_val, 0, 0);
+                        look_prt(use_story_font, out_val, 0, 0);
 
                         /* Place cursor */
                         move_cursor_relative(y, x);
@@ -3973,7 +3989,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                             s1, s2, s3, o_name, more, info);
                     }
 
-                    prt(out_val, 0, 0);
+                    look_prt(use_story_font, out_val, 0, 0);
                     move_cursor_relative(y, x);
                     query = inkey();
 
@@ -4052,7 +4068,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                             s1, s2, s3, o_name, more, info);
                     }
 
-                    prt(out_val, 0, 0);
+                    look_prt(use_story_font, out_val, 0, 0);
                     move_cursor_relative(y, x);
                     query = inkey();
 
@@ -4131,7 +4147,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                     s3, name, more, info);
             }
 
-            prt(out_val, 0, 0);
+            look_prt(use_story_font, out_val, 0, 0);
             move_cursor_relative(y, x);
             query = inkey();
 
@@ -4350,6 +4366,12 @@ bool target_set_interactive(int mode, int range)
 
     char info[80];
 
+#ifdef USE_SDL
+    bool use_story_look = story_look_enabled() && (mode & TARGET_LOOK);
+#else
+    bool use_story_look = false;
+#endif
+
     /* These are used for displaying the path to the target */
     u16b path[MAX_RANGE];
     char path_char[MAX_RANGE];
@@ -4424,7 +4446,15 @@ bool target_set_interactive(int mode, int range)
             }
 
             /* Describe and Prompt */
-            query = target_set_interactive_aux(y, x, mode, info);
+#ifdef USE_SDL
+            if (use_story_look)
+                sdl_story_font_enable();
+#endif
+            query = target_set_interactive_aux(y, x, mode, info, use_story_look);
+#ifdef USE_SDL
+            if (use_story_look)
+                sdl_story_font_disable();
+#endif
 
             /* Remove the path */
             if (mode & (TARGET_KILL))
@@ -4611,7 +4641,15 @@ bool target_set_interactive(int mode, int range)
             }
 
             /* Describe and Prompt (enable "TARGET_LOOK") */
-            query = target_set_interactive_aux(y, x, mode | TARGET_LOOK, info);
+#ifdef USE_SDL
+            if (use_story_look)
+                sdl_story_font_enable();
+#endif
+            query = target_set_interactive_aux(y, x, mode | TARGET_LOOK, info, use_story_look);
+#ifdef USE_SDL
+            if (use_story_look)
+                sdl_story_font_disable();
+#endif
 
             /* Remove the path */
             if (mode & (TARGET_KILL))
@@ -4754,7 +4792,7 @@ bool target_set_interactive(int mode, int range)
             my_strcpy(info, "<space>, <tab>, <dir>", sizeof(info));
 
             /* Describe and Prompt (enable "TARGET_LOOK") */
-            query = target_set_interactive_aux(y, x, mode | TARGET_LOOK, info);
+            query = target_set_interactive_aux(y, x, mode | TARGET_LOOK, info, use_story_look);
 
             /* Remove the path */
             if (mode & (TARGET_KILL))

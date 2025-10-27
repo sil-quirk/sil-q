@@ -2608,9 +2608,10 @@
 #define OPT_auto_display_lists 73
 #define OPT_artifact_unique_color 74
 #define OPT_easy_main_menu 75
-// xxx verify_leave_quest
-#define OPT_mark_squelch_items 77
-#define OPT_display_hits 78
+#define OPT_story_lists 76
+#define OPT_story_lists_inven 77
+#define OPT_story_lists_equip 78
+#define OPT_display_hits 79
 // xxx
 // xxx
 // xxx
@@ -2747,6 +2748,9 @@
 #define auto_display_lists op_ptr->opt[OPT_auto_display_lists]
 #define artifact_unique_color op_ptr->opt[OPT_artifact_unique_color]
 #define easy_main_menu op_ptr->opt[OPT_easy_main_menu]
+#define story_display_lists op_ptr->opt[OPT_story_lists]
+#define story_inventory_lists op_ptr->opt[OPT_story_lists_inven]
+#define story_equipment_lists op_ptr->opt[OPT_story_lists_equip]
 #define display_hits op_ptr->opt[OPT_display_hits]
 // xxx
 // xxx

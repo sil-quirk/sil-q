@@ -1241,7 +1241,19 @@ extern void re_init_some_things(void)
     autoinscribe_init();
 
     // display the introduction message again
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
     display_introduction();
+#ifdef USE_SDL
+    sdl_story_font_reset();
+#endif
+#ifdef USE_SDL
+    sdl_story_font_reset();
+#endif
 
     /* Array of grids */
     FREE(view_g);
@@ -1754,6 +1766,13 @@ extern void display_introduction(void)
     /* Clear screen */
     Term_clear();
 
+     /* Hide the cursor for the intro screen while rendering. Do NOT
+         toggle the global hide_cursor here — callers (menus) should set
+         hide_cursor around any following input waits. */
+     bool _saved_cursor_state = false;
+     (void)Term_get_cursor(&_saved_cursor_state);
+     (void)Term_set_cursor(false);
+
     Term_putstr(12, 1, -1, TERM_L_BLUE,
         "    The world was young, the mountains green,            ");
     Term_putstr(12, 2, -1, TERM_L_BLUE,
@@ -1784,6 +1803,9 @@ extern void display_introduction(void)
 
     /* Flush it */
     Term_fresh();
+
+    /* Restore cursor visibility */
+    (void)Term_set_cursor(_saved_cursor_state);
 }
 
 /*
@@ -2057,6 +2079,11 @@ void init_angband(void)
 extern NavResult initial_menu(bool *start_new)
 {
     int ch;
+    NavResult result = NAV_BACK;
+#ifdef USE_SDL
+    bool intro_story_font = true;
+    sdl_story_font_enable();
+#endif
 
     display_introduction();
 
@@ -2085,24 +2112,36 @@ extern NavResult initial_menu(bool *start_new)
 
     Term_fresh();
 
+    /* Prevent inkey() from showing the cursor while waiting on the menu */
+    bool _saved_hide_cursor = hide_cursor;
+    hide_cursor = true;
     ch = inkey();
+    hide_cursor = _saved_hide_cursor;
 
     /* direct key choices ------------------------------------------------*/
 
     /* enter : CONTINUE  */
     if (ch == '\n' || ch == '\r' || ch == ' ')
     {
-        *start_new = true; return NAV_OK;   /* start new game */
+        *start_new = true;
+        result = NAV_OK;   /* start new game */
+        goto menu_done;
     }
 
 
     /* q : EXIT      */
     if (ch == 'q' || ch == ESCAPE)
     {
-        return NAV_QUIT;                /* handled as quit in main-win.c */
+        result = NAV_QUIT;                /* handled as quit in main-win.c */
+        goto menu_done;
     }
 
-    return NAV_BACK;                /* stay in the menu */                       /* fall through → refresh & loop */
+menu_done:
+#ifdef USE_SDL
+    if (intro_story_font)
+        sdl_story_font_reset();
+#endif
+    return result;
 }
 /* ---------------------------------------------------------------------- */
 

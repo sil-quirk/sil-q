@@ -219,10 +219,12 @@ cptr option_text[OPT_MAX] = {
     NULL, /* xxx scroll_target */
     "auto_more", /* OPT_auto_more */
     "know_monster_info", /* OPT_know_monster_info */
-    "always_show_list", /* OPT_always_show_list */
+    "always_show_list", /* OPT_auto_display_lists */
+    "artifact_unique_color", /* OPT_artifact_unique_color */
     "easy_main_menu", /* OPT_easy_main_menu */
-    NULL, /* xxx verify_leave_quests*/
-    NULL, /* xxx mark_squelch_items */
+    "story_lists", /* OPT_story_lists */
+    "story_lists_inven", /* OPT_story_lists_inven */
+    "story_lists_equip", /* OPT_story_lists_equip */
     "display_hits", /* OPT_display_hits */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -398,8 +400,6 @@ cptr option_text[OPT_MAX] = {
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
-    NULL, /* xxx */
-    NULL, /* xxx */
     NULL /* xxx */
 };
 
@@ -483,6 +483,9 @@ cptr option_desc[OPT_MAX] = {
     "Automatically display drop-down lists", /* OPT_auto_display_lists */
     "Display artifacts in unique bright green color", /* OPT_artifact_unique_color */
     "Use the Escape key to access the main menu", /* OPT_easy_main_menu */
+    "Render look/target lists with the story font", /* OPT_story_lists */
+    "Render the inventory menu with the story font", /* OPT_story_lists_inven */
+    "Render the equipment menu with the story font", /* OPT_story_lists_equip */
     NULL, /* xxx verify_leave_quest */
     NULL, /* xxx mark_squelch_items */
     "Display a mark when something gets hit", /* OPT_display_hits */
@@ -661,7 +664,6 @@ cptr option_desc[OPT_MAX] = {
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx */
-    NULL, /* xxx */
     NULL /* xxx */
 };
 
@@ -745,9 +747,12 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_auto_display_lists */
     true, /* OPT_artifact_unique_color */
     true, /* OPT_easy_main_menu */
-    false, /* xxx verify_quest_leave */
-    false, /* xxx mark_squelch_items */
+    true, /* OPT_story_lists */
+    true, /* OPT_story_lists_inven */
+    true, /* OPT_story_lists_equip */
     true, /* OPT_display_hits */
+    false, /* xxx */
+    false, /* xxx */
     false, /* OPT_display_wakings */
     false, /* xxx */
     false, /* xxx */
@@ -923,8 +928,6 @@ const bool option_norm[OPT_MAX] = {
     false, /* xxx */
     false, /* xxx */
     false, /* xxx */
-    false, /* xxx */
-    false, /* xxx */
     false /* xxx */
 };
 
@@ -937,8 +940,8 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
     { OPT_forgo_attacking_unwary, OPT_stop_singing_on_rest, OPT_system_beep,
         OPT_quick_messages, OPT_auto_more, OPT_easy_main_menu,
         OPT_hjkl_movement, OPT_angband_keyset, OPT_hitpoint_warning,
-        OPT_know_monster_info, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_know_monster_info, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
 
     /*** Disturbance ***/
 
@@ -960,11 +963,12 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
 
     /*** Display ***/
 
-    { OPT_display_hits, OPT_auto_display_lists, OPT_artifact_unique_color, OPT_instant_run,
+    { OPT_auto_display_lists, OPT_story_lists, OPT_story_lists_inven, OPT_story_lists_equip,
+        OPT_artifact_unique_color, OPT_instant_run,
         OPT_center_player, OPT_run_avoid_center, OPT_hilite_player,
         OPT_hilite_target, OPT_hilite_unwary, OPT_solid_walls, OPT_hybrid_walls,
         OPT_delay_factor, OPT_main_combat_rolls, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE },
+        OPT_NONE, OPT_NONE },
 
     /*** Birth ***/
 

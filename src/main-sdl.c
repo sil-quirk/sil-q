@@ -483,7 +483,49 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
     col.b = angband_color_table[a][3];
     col.a = 255;
     
+    // Check if any character in this chunk should use story font
+    // First check the global chunk flag (for whole-line story rendering)
     bool chunk_story_font = (Term && Term->story_chunk_active && g_state.story_font);
+    
+    // Also check per-character story font flags
+    if (!chunk_story_font && Term && Term->scr && g_state.story_font) {
+        // Check if ANY character in this chunk (from x to x+n) has the story font flag
+        // story is a byte** (2D array), so we need story[y] which gives us byte* for that row
+        if (y >= 0 && y < Term->hgt && Term->scr->story && Term->scr->story[y]) {
+            // Check all characters in the chunk, not just the first one
+            for (int i = 0; i < n && (x + i) < Term->wid; i++) {
+                if (Term->scr->story[y][x + i]) {
+                    chunk_story_font = true;
+                    log_debug("callback_sdl_text: Using story font based on per-char flag at y=%d x=%d (chunk starts at x=%d)", 
+                              y, x + i, x);
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Special logging for the shooting row (y=1 when 0-indexed, or the second row)
+    if (y == 1 || y == 2) {
+        log_debug("callback_sdl_text ROW %d: chunk_story=%d chunk_active=%d scr=%p story=%p font=%p",
+                  y, chunk_story_font,
+                  (Term && Term->story_chunk_active) ? 1 : 0,
+                  (void*)Term->scr,
+                  Term->scr ? (void*)Term->scr->story : NULL,
+                  (void*)g_state.story_font);
+        if (Term->scr && Term->scr->story && y < Term->hgt && Term->scr->story[y]) {
+            log_debug("  Per-char flags at y=%d: x=0..5: [%d,%d,%d,%d,%d,%d] x=%d: [%d]",
+                      y,
+                      Term->scr->story[y][0],
+                      (1 < Term->wid) ? Term->scr->story[y][1] : 0,
+                      (2 < Term->wid) ? Term->scr->story[y][2] : 0,
+                      (3 < Term->wid) ? Term->scr->story[y][3] : 0,
+                      (4 < Term->wid) ? Term->scr->story[y][4] : 0,
+                      (5 < Term->wid) ? Term->scr->story[y][5] : 0,
+                      x, (x < Term->wid) ? Term->scr->story[y][x] : 0);
+        }
+        log_debug("  Text: '%.30s'", s);
+    }
+    
     log_trace("callback_sdl_text: chunk_story_font=%s term=%p chunk_flag=%s depth=%d font=%p",
               chunk_story_font ? "true" : "false",
               (void*)Term,
@@ -493,8 +535,53 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
 
     // Check if we should use story font
     if (chunk_story_font) {
-        // Render using custom TTF font
-        log_trace("Using story font to render: '%.20s...'", s);
+        // When rendering with story font, we need to handle mixed chunks carefully:
+        // Some characters at the start might be mono (spaces/margin) while others are story font
+        
+        // Find where the story font characters actually start
+        int story_start = 0;
+        if (Term && Term->scr && Term->scr->story && y >= 0 && y < Term->hgt && Term->scr->story[y]) {
+            for (int i = 0; i < n && (x + i) < Term->wid; i++) {
+                if (Term->scr->story[y][x + i]) {
+                    story_start = i;
+                    break;
+                }
+            }
+        }
+        
+        // If there are mono cells before the story font text, render them separately
+        if (story_start > 0) {
+            log_debug("callback_sdl_text: Mixed chunk - rendering %d mono cells then story font", story_start);
+            
+            // Render the leading mono cells with regular font
+            SDL_SetTextureColorMod(d->font_atlas, col.r, col.g, col.b);
+            SDL_SetTextureAlphaMod(d->font_atlas, 255);
+            
+            for (int i = 0; i < story_start; i++) {
+                unsigned char ch = (unsigned char)s[i];
+                SDL_FRect src = {
+                    (ch & 15) * d->cell_w,
+                    (ch >> 4) * d->cell_h,
+                    d->cell_w,
+                    d->cell_h,
+                };
+                SDL_FRect dst = {
+                    (x + i) * d->cell_w,
+                    y * d->cell_h,
+                    d->cell_w,
+                    d->cell_h
+                };
+                SDL_RenderTexture(g_state.renderer, d->font_atlas, &src, &dst);
+            }
+            
+            // Now adjust to render only the story font portion
+            s += story_start;
+            n -= story_start;
+            x += story_start;
+        }
+        
+        // Render using custom TTF font for the remaining characters
+        log_debug("callback_sdl_text: USING STORY FONT for row %d at x=%d: '%.30s'", y, x, s);
         
         // Need to create a null-terminated string from the n characters
         char text_buf[256];
@@ -533,6 +620,9 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
             SDL_DestroySurface(text_surface);
         }
     } else {
+        if (y == 1 || y == 2) {
+            log_debug("callback_sdl_text: USING MONO FONT for row %d: '%.30s'", y, s);
+        }
         log_trace("Rendering with monospace atlas; story_chunk_active=%s depth=%d font=%p",
                   (Term && Term->story_chunk_active) ? "true" : "false",
                   g_state.story_font_depth,

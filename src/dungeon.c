@@ -3301,6 +3301,10 @@ static void death_knowledge(void)
  */
 static void print_story_intro(void)
 {
+#ifdef USE_SDL
+    bool story_intro_story_font = true;
+    sdl_story_font_enable();
+#endif
     int wid, h;
     const int indent = 2;
 
@@ -3377,18 +3381,22 @@ static void print_story_intro(void)
         lines_needed++; /* Add one for the blank line after paragraph */
 
         /* Check if we have enough space for the whole paragraph */
-        if (row + lines_needed >= h - 1) {
-            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
-            {
-                char k = inkey();
-                if (k == 'S') { /* Capital S skips the intro entirely */
-                    Term_clear();
-                    return;
+            if (row + lines_needed >= h - 1) {
+                Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
+                {
+                    char k = inkey();
+                    if (k == 'S') { /* Capital S skips the intro entirely */
+                        Term_clear();
+#ifdef USE_SDL
+                        goto cleanup_intro;
+#else
+                        return;
+#endif
+                    }
                 }
+                Term_clear();
+                row = 1;
             }
-            Term_clear();
-            row = 1;
-        }
 
         col = 0;
 
@@ -3425,17 +3433,42 @@ static void print_story_intro(void)
 
     /* Handle input */
     char key = inkey();
+#ifdef USE_SDL
     if (key == 'S') {
         Term_clear();
-        return; /* Skip without changing difficulty */
+        goto cleanup_intro;
     }
+#else
+    if (key == 'S') {
+        Term_clear();
+        return;
+    }
+#endif
     if (key == 'c' || key == 'C')
     {
         Term_clear();
         choose_difficulty_level();
+#ifdef USE_SDL
+        goto cleanup_intro;
+#else
+        return;
+#endif
     }
 
     Term_clear();
+
+#ifdef USE_SDL
+    goto cleanup_intro;
+#else
+    return;
+#endif
+
+#ifdef USE_SDL
+cleanup_intro:
+    if (story_intro_story_font)
+        sdl_story_font_reset();
+    return;
+#endif
 }
 
 
