@@ -20,6 +20,24 @@ struct sdl_config {
     // Custom fonts
     char story_font[256];      // Font for story/narrative text (non-monospace, e.g., "lib/xtra/font/Story.ttf")
     char monospace_font[256];  // Font for regular game text (monospace, default: InputMono-Bold.ttf)
+    
+    // Monospace font rendering options
+    bool mono_bold;            // Apply bold style to monospace font
+    bool mono_italic;          // Apply italic style to monospace font
+    bool mono_underline;       // Apply underline style to monospace font
+    bool mono_strikethrough;   // Apply strikethrough style to monospace font
+    int mono_hinting;          // TTF hinting mode: 0=normal, 1=light, 2=mono, 3=none, 4=light_subpixel
+    bool mono_kerning;         // Enable kerning (default: true)
+    int mono_outline;          // Outline width in pixels (0=none)
+    
+    // Story font rendering options
+    bool story_bold;           // Apply bold style to story font
+    bool story_italic;         // Apply italic style to story font
+    bool story_underline;      // Apply underline style to story font
+    bool story_strikethrough;  // Apply strikethrough style to story font
+    int story_hinting;         // TTF hinting mode: 0=normal, 1=light, 2=mono, 3=none, 4=light_subpixel
+    bool story_kerning;        // Enable kerning (default: true)
+    int story_outline;         // Outline width in pixels (0=none)
 };
 
 // Load SDL configuration from JSON file

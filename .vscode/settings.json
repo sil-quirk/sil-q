@@ -112,6 +112,12 @@
         "powershell.exe": true,
         "C:\\msys64\\mingw64\\bin\\bash.exe": true
     },
+    // Allow PowerShell commands for file exploration without approval
+    "copilot.advanced": {
+        "command": {
+            "autoApprove": true
+        }
+    },
     
     // File watching optimization
     "files.watcherExclude": {

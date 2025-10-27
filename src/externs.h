@@ -1373,11 +1373,12 @@ extern void write_mon_power(void);
 
 // Metarun.c
 
-extern errr  load_metaruns(bool create_if_missing);
-extern bool      metarun_created; 
+extern errr load_metaruns(bool create_if_missing);
+extern bool metarun_created; 
 extern u32b curse_flag_mask(void);
-extern int  curse_flag_count_rhf(u32b rhf_flag);
-extern int  curse_flag_count_cur(u32b cur_flag);
+extern int curse_flag_count_rhf(u32b rhf_flag);
+extern int curse_flag_count_cur(u32b cur_flag);
+extern int curse_flag_delta_cur(u32b cur_flag);
 extern int  any_curse_flag_active(u32b flag); /* CUR-only */
 
 // init1.c

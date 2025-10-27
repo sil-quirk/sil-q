@@ -3453,6 +3453,7 @@ void story_print_text(int row, int col, int max_cols, byte attr, cptr text)
 #ifdef USE_SDL
     if (sdl_is_story_font_enabled())
     {
+        log_debug("story_print_text: Using story font at row=%d col=%d: '%.50s'", row, col, text);
         int old_indent = text_out_indent;
         int old_wrap = text_out_wrap;
         void (*old_hook)(byte, cptr) = text_out_hook;
@@ -3472,6 +3473,10 @@ void story_print_text(int row, int col, int max_cols, byte attr, cptr text)
         text_out_wrap = old_wrap;
         text_out_hook = old_hook;
         return;
+    }
+    else
+    {
+        log_debug("story_print_text: Story font NOT enabled, using c_put_str at row=%d col=%d: '%.50s'", row, col, text);
     }
 #endif
 

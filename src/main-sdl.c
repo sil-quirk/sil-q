@@ -180,7 +180,10 @@ static void resize(const SDL_Rect* screen)
         }
     }
 
-    const char font_path[] = "lib/xtra/font/InputMono-Bold.ttf";
+    // Use configured monospace font or fall back to default
+    const char* font_path = config.monospace_font[0] != '\0' 
+        ? config.monospace_font 
+        : "lib/xtra/font/InputMono-Bold.ttf";
 
     for (int i = 1; i < MAX_TERM_DATA; i++) {
         // Always destroy the old pane to prevent its display in cases when we
@@ -791,6 +794,44 @@ static errr sdl_view_link_term(sdl_view* d, int term_index)
     return 0;
 }
 
+// Helper to apply font rendering settings to a TTF_Font
+static void sdl_apply_font_settings(TTF_Font* font, bool is_story_font)
+{
+    // Select settings based on font type
+    bool bold = is_story_font ? config.story_bold : config.mono_bold;
+    bool italic = is_story_font ? config.story_italic : config.mono_italic;
+    bool underline = is_story_font ? config.story_underline : config.mono_underline;
+    bool strikethrough = is_story_font ? config.story_strikethrough : config.mono_strikethrough;
+    int hinting = is_story_font ? config.story_hinting : config.mono_hinting;
+    bool kerning = is_story_font ? config.story_kerning : config.mono_kerning;
+    int outline = is_story_font ? config.story_outline : config.mono_outline;
+    
+    // Apply font style settings
+    int style = TTF_STYLE_NORMAL;
+    if (bold) style |= TTF_STYLE_BOLD;
+    if (italic) style |= TTF_STYLE_ITALIC;
+    if (underline) style |= TTF_STYLE_UNDERLINE;
+    if (strikethrough) style |= TTF_STYLE_STRIKETHROUGH;
+    if (style != TTF_STYLE_NORMAL) {
+        TTF_SetFontStyle(font, style);
+        log_debug("Applied %s font style: %d (bold=%d, italic=%d, underline=%d, strikethrough=%d)",
+                 is_story_font ? "story" : "mono", style, bold, italic, underline, strikethrough);
+    }
+    
+    // Apply hinting
+    TTF_SetFontHinting(font, hinting);
+    log_debug("Applied %s font hinting: %d", is_story_font ? "story" : "mono", hinting);
+    
+    // Apply kerning
+    TTF_SetFontKerning(font, kerning);
+    
+    // Apply outline
+    if (outline > 0) {
+        TTF_SetFontOutline(font, outline);
+        log_debug("Applied %s font outline: %d", is_story_font ? "story" : "mono", outline);
+    }
+}
+
 // Loads TTF font with given size. Attempts to fit the font into a cell assming
 // 1:2 aspect ratio. The font size is expected to take into account any scaling,
 // either HiDPI or user. So on a HiDPI screen to use font size 12, this function
@@ -809,6 +850,9 @@ static SDL_Texture* sdl_load_ttf_font(const char* font_path, int font_size, int*
                 log_error("TTF_OpenFont failed: %s", SDL_GetError());
                 quit("could not load TTF font");
             }
+            
+            // Apply monospace font settings
+            sdl_apply_font_settings(font, false);
         }
         int measured_w = 0;
         TTF_MeasureString(font, "M", 1, 0, &measured_w, NULL);
@@ -989,6 +1033,8 @@ static TTF_Font* sdl_load_font_with_fallback(const char* font_path, int font_siz
         font = TTF_OpenFont(font_path, font_size);
         if (font) {
             log_debug("Loaded custom font: %s at size %d", font_path, font_size);
+            // Apply story font settings
+            sdl_apply_font_settings(font, true);
             return font;
         } else {
             log_warn("Failed to load custom font '%s': %s", font_path, SDL_GetError());
@@ -999,6 +1045,8 @@ static TTF_Font* sdl_load_font_with_fallback(const char* font_path, int font_siz
     font = TTF_OpenFont(fallback_path, font_size);
     if (font) {
         log_debug("Using fallback font: %s at size %d", fallback_path, font_size);
+        // Apply story font settings to fallback too
+        sdl_apply_font_settings(font, true);
     } else {
         log_error("Failed to load fallback font '%s': %s", fallback_path, SDL_GetError());
     }

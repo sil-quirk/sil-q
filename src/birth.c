@@ -981,6 +981,24 @@ int curse_flag_count_cur(u32b cur_flag)
     return count;
 }
 
+/* Signed delta for CUR flags: positive for curses, negative for blessings */
+int curse_flag_delta_cur(u32b cur_flag)
+{
+    int delta = 0;
+
+    for (int i = 0; i < z_info->cu_max; i++)
+    {
+        int stacks = CURSE_GET(i);
+        if (stacks > 0) {
+            if (cu_info[i].flags_u & cur_flag) delta += stacks;
+        } else if (stacks < 0) {
+            if (cu_info[i].blessing_flags_u & cur_flag) delta -= (-stacks);
+        }
+    }
+
+    return delta;
+}
+
 
 /*
  * Show race/house flags in priority order.

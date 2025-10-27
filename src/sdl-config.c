@@ -433,6 +433,99 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             my_strcpy(config->monospace_font, item->valuestring, sizeof(config->monospace_font));
             log_debug("Loaded monospaceFont: %s", config->monospace_font);
         }
+        
+        // Monospace font rendering options (with backward compatibility)
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monoBold");
+        if (!cJSON_IsBool(item)) item = cJSON_GetObjectItemCaseSensitive(sdl, "fontBold");
+        if (cJSON_IsBool(item)) {
+            config->mono_bold = cJSON_IsTrue(item);
+            log_debug("Loaded monoBold: %s", config->mono_bold ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monoItalic");
+        if (!cJSON_IsBool(item)) item = cJSON_GetObjectItemCaseSensitive(sdl, "fontItalic");
+        if (cJSON_IsBool(item)) {
+            config->mono_italic = cJSON_IsTrue(item);
+            log_debug("Loaded monoItalic: %s", config->mono_italic ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monoUnderline");
+        if (!cJSON_IsBool(item)) item = cJSON_GetObjectItemCaseSensitive(sdl, "fontUnderline");
+        if (cJSON_IsBool(item)) {
+            config->mono_underline = cJSON_IsTrue(item);
+            log_debug("Loaded monoUnderline: %s", config->mono_underline ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monoStrikethrough");
+        if (!cJSON_IsBool(item)) item = cJSON_GetObjectItemCaseSensitive(sdl, "fontStrikethrough");
+        if (cJSON_IsBool(item)) {
+            config->mono_strikethrough = cJSON_IsTrue(item);
+            log_debug("Loaded monoStrikethrough: %s", config->mono_strikethrough ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monoHinting");
+        if (!cJSON_IsNumber(item)) item = cJSON_GetObjectItemCaseSensitive(sdl, "fontHinting");
+        if (cJSON_IsNumber(item)) {
+            config->mono_hinting = item->valueint;
+            log_debug("Loaded monoHinting: %d", config->mono_hinting);
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monoKerning");
+        if (!cJSON_IsBool(item)) item = cJSON_GetObjectItemCaseSensitive(sdl, "fontKerning");
+        if (cJSON_IsBool(item)) {
+            config->mono_kerning = cJSON_IsTrue(item);
+            log_debug("Loaded monoKerning: %s", config->mono_kerning ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monoOutline");
+        if (!cJSON_IsNumber(item)) item = cJSON_GetObjectItemCaseSensitive(sdl, "fontOutline");
+        if (cJSON_IsNumber(item)) {
+            config->mono_outline = item->valueint;
+            log_debug("Loaded monoOutline: %d", config->mono_outline);
+        }
+        
+        // Story font rendering options
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyBold");
+        if (cJSON_IsBool(item)) {
+            config->story_bold = cJSON_IsTrue(item);
+            log_debug("Loaded storyBold: %s", config->story_bold ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyItalic");
+        if (cJSON_IsBool(item)) {
+            config->story_italic = cJSON_IsTrue(item);
+            log_debug("Loaded storyItalic: %s", config->story_italic ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyUnderline");
+        if (cJSON_IsBool(item)) {
+            config->story_underline = cJSON_IsTrue(item);
+            log_debug("Loaded storyUnderline: %s", config->story_underline ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyStrikethrough");
+        if (cJSON_IsBool(item)) {
+            config->story_strikethrough = cJSON_IsTrue(item);
+            log_debug("Loaded storyStrikethrough: %s", config->story_strikethrough ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyHinting");
+        if (cJSON_IsNumber(item)) {
+            config->story_hinting = item->valueint;
+            log_debug("Loaded storyHinting: %d", config->story_hinting);
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyKerning");
+        if (cJSON_IsBool(item)) {
+            config->story_kerning = cJSON_IsTrue(item);
+            log_debug("Loaded storyKerning: %s", config->story_kerning ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyOutline");
+        if (cJSON_IsNumber(item)) {
+            config->story_outline = item->valueint;
+            log_debug("Loaded storyOutline: %d", config->story_outline);
+        }
     } else {
         log_warn("'sdl' object not found in JSON");
     }
@@ -533,6 +626,24 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
         cJSON_AddStringToObject(sdl, "monospaceFont", config->monospace_font);
     }
     
+    // Save monospace font rendering options
+    cJSON_AddBoolToObject(sdl, "monoBold", config->mono_bold);
+    cJSON_AddBoolToObject(sdl, "monoItalic", config->mono_italic);
+    cJSON_AddBoolToObject(sdl, "monoUnderline", config->mono_underline);
+    cJSON_AddBoolToObject(sdl, "monoStrikethrough", config->mono_strikethrough);
+    cJSON_AddNumberToObject(sdl, "monoHinting", config->mono_hinting);
+    cJSON_AddBoolToObject(sdl, "monoKerning", config->mono_kerning);
+    cJSON_AddNumberToObject(sdl, "monoOutline", config->mono_outline);
+    
+    // Save story font rendering options
+    cJSON_AddBoolToObject(sdl, "storyBold", config->story_bold);
+    cJSON_AddBoolToObject(sdl, "storyItalic", config->story_italic);
+    cJSON_AddBoolToObject(sdl, "storyUnderline", config->story_underline);
+    cJSON_AddBoolToObject(sdl, "storyStrikethrough", config->story_strikethrough);
+    cJSON_AddNumberToObject(sdl, "storyHinting", config->story_hinting);
+    cJSON_AddBoolToObject(sdl, "storyKerning", config->story_kerning);
+    cJSON_AddNumberToObject(sdl, "storyOutline", config->story_outline);
+    
     cJSON_AddItemToObject(root, "sdl", sdl);
     
     // Create panes array
@@ -612,6 +723,24 @@ void sdl_config_set_defaults(struct sdl_config* config)
     // Default fonts (empty = use fallback)
     config->story_font[0] = '\0';
     config->monospace_font[0] = '\0';
+    
+    // Default monospace font rendering options
+    config->mono_bold = false;
+    config->mono_italic = false;
+    config->mono_underline = false;
+    config->mono_strikethrough = false;
+    config->mono_hinting = 0;  // TTF_HINTING_NORMAL
+    config->mono_kerning = true;
+    config->mono_outline = 0;
+    
+    // Default story font rendering options
+    config->story_bold = false;
+    config->story_italic = false;
+    config->story_underline = false;
+    config->story_strikethrough = false;
+    config->story_hinting = 0;  // TTF_HINTING_NORMAL
+    config->story_kerning = true;
+    config->story_outline = 0;
 }
 
 void sdl_config_set_defaults_for_resolution(struct sdl_config* config, 

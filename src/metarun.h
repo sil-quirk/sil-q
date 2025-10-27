@@ -80,8 +80,8 @@ typedef struct metarun
     u32b score;         /* aggregate campaign score                   */
     u32b best_run_score;/* best individual run score                  */
 
-    int8_t curse_stacks[32]; /* signed stacks: >0 curses, <0 blessings */
-    u32b curses_seen;      /* bit i == 1  → curse i is known/revealed */
+    int8_t curse_stacks[METAR_CURSE_SLOTS]; /* signed stacks: >0 curses, <0 blessings */
+    u64b curses_seen;      /* bit i == 1  → curse i is known/revealed */
 
     /* ----- persistent settings ----------------------------------- */
     u32b persistent_options[8];  /* Persistent options across the metarun */
@@ -191,13 +191,13 @@ static inline void metarun_set_threshold_mode(metarun *m, metarun_blessing_thres
 
 static inline int CURSE_GET(int id)
 {
-    if (id < 0 || id >= 32) return 0;  /* bounds check */
+    if (id < 0 || id >= METAR_CURSE_SLOTS) return 0;  /* bounds check */
     return metar.curse_stacks[id];
 }
 
 static inline void CURSE_SET(int id, int val)
 {
-    if (id < 0 || id >= 32) return;    /* bounds check */
+    if (id < 0 || id >= METAR_CURSE_SLOTS) return;    /* bounds check */
     if (val > 127) val = 127;
     if (val < -127) val = -127;
     metar.curse_stacks[id] = (int8_t)val;
@@ -205,14 +205,14 @@ static inline void CURSE_SET(int id, int val)
 
 static inline bool CURSE_SEEN(int id)
 {
-    if (id < 0 || id >= 32) return false;  // Add bounds check
-    return (metar.curses_seen & (1UL << (id & 31))) != 0;
+    if (id < 0 || id >= METAR_CURSE_SLOTS) return false;  // Add bounds check
+    return (metar.curses_seen & (1ULL << id)) != 0;
 }
 
 static inline void CURSE_SEEN_SET(int id)
 {
-    if (id < 0 || id >= 32) return;        // Add bounds check
-    metar.curses_seen |= (1UL << (id & 31));
+    if (id < 0 || id >= METAR_CURSE_SLOTS) return;        // Add bounds check
+    metar.curses_seen |= (1ULL << id);
 }
 
 #define CURSE_ADD(id, d)  CURSE_SET((id), CURSE_GET(id) + (d))

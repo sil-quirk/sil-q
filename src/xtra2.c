@@ -14,10 +14,14 @@
 #ifdef USE_SDL
 static void look_prt(bool use_story_font, cptr text, int row, int col)
 {
-    if (use_story_font)
+    /* When story font is enabled, use story_print_text which handles proportional rendering */
+    if (use_story_font) {
+        log_debug("look_prt: Using story_print_text for: '%.50s'", text);
         story_print_text(row, col, 0, TERM_WHITE, text);
-    else
+    } else {
+        log_debug("look_prt: Using prt (mono) for: '%.50s'", text);
         prt(text, row, col);
+    }
 }
 #else
 static void look_prt(bool use_story_font, cptr text, int row, int col)

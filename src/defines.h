@@ -65,6 +65,8 @@
 /* Update MIN_VERSION_EXTRA and load.c compatibility checks whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 1  /* Minimum extra value expected for CURRENT version */
 
+#define METAR_CURSE_SLOTS 64  /* Maximum number of distinct metarun curses supported */
+
 /*
  * Oldest version number that can still be imported
  */
@@ -2038,16 +2040,16 @@
 #define CUR_MON_NUM    0x00010000L  /* more monsters during gen      */
 #define CUR_HUNGER     0x00020000L  /* doubles digestion rate        */
 #define CUR_HALLU      0x00040000L  /* potion‐induced hallucination  */
-#define CUR_CURXXX20 0x00080000L
-#define CUR_CURXXX21 0x00100000L
-#define CUR_CURXXX22 0x00200000L
-#define CUR_CURXXX23 0x00400000L
-#define CUR_CURXXX24 0x00800000L
-#define CUR_CURXXX25 0x01000000L
-#define CUR_CURXXX26 0x02000000L
-#define CUR_CURXXX27 0x04000000L
-#define CUR_CURXXX28 0x08000000L
-#define CUR_CURXXX29 0x10000000L
+#define CUR_RES_FEAR_SHIFT     0x00080000L
+#define CUR_RES_STUN_SHIFT     0x00100000L
+#define CUR_RES_CONFU_SHIFT    0x00200000L
+#define CUR_RES_HALLU_SHIFT    0x00400000L
+#define CUR_RES_POIS_SHIFT     0x00800000L
+#define CUR_RES_FIRE_SHIFT     0x01000000L
+#define CUR_RES_COLD_SHIFT     0x02000000L
+#define CUR_MDS_SHIFT          0x04000000L
+#define CUR_CRIT_THRESH_SHIFT  0x08000000L
+#define CUR_ARMOR_SIDE_SHIFT   0x10000000L
 #define CUR_CURXXX30 0x20000000L
 #define CUR_CURXXX31 0x40000000L
 #define CUR_CURXXX32 0x80000000L

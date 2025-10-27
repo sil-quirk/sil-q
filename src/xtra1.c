@@ -3066,6 +3066,32 @@ static void calc_bonuses(void)
         p_ptr->hunger -= 1;
     }
 
+    /* Meta-run curses/blessings adjusting resistances */
+    {
+        int shift;
+
+        shift = curse_flag_delta_cur(CUR_RES_FEAR_SHIFT);
+        if (shift) p_ptr->resist_fear -= shift;
+
+        shift = curse_flag_delta_cur(CUR_RES_STUN_SHIFT);
+        if (shift) p_ptr->resist_stun -= shift;
+
+        shift = curse_flag_delta_cur(CUR_RES_CONFU_SHIFT);
+        if (shift) p_ptr->resist_confu -= shift;
+
+        shift = curse_flag_delta_cur(CUR_RES_HALLU_SHIFT);
+        if (shift) p_ptr->resist_hallu -= shift;
+
+        shift = curse_flag_delta_cur(CUR_RES_POIS_SHIFT);
+        if (shift) p_ptr->resist_pois -= shift;
+
+        shift = curse_flag_delta_cur(CUR_RES_FIRE_SHIFT);
+        if (shift) p_ptr->resist_fire -= shift;
+
+        shift = curse_flag_delta_cur(CUR_RES_COLD_SHIFT);
+        if (shift) p_ptr->resist_cold -= shift;
+    }
+
     /* CUR_HUNGER curse/blessing: curse increases hunger, blessing decreases it */
     {
         int h = curse_flag_count_cur(CUR_HUNGER);
@@ -3412,6 +3438,23 @@ static void calc_bonuses(void)
 
         p_ptr->mdd2 = total_mdd(o_ptr);
         p_ptr->mds2 = total_mds(o_ptr, -3);
+    }
+
+    /* Meta-run curse adjusting melee damage sides */
+    {
+        int shift = curse_flag_delta_cur(CUR_MDS_SHIFT);
+        if (shift != 0) {
+            if (p_ptr->mds > 0) {
+                int adjusted = p_ptr->mds - shift;
+                if (adjusted < 1) adjusted = 1;
+                p_ptr->mds = adjusted;
+            }
+            if (p_ptr->mds2 > 0) {
+                int adjusted2 = p_ptr->mds2 - shift;
+                if (adjusted2 < 1) adjusted2 = 1;
+                p_ptr->mds2 = adjusted2;
+            }
+        }
     }
 
     /* Entrancement or being knocked out sets total evasion score to -5 */

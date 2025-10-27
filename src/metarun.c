@@ -20,12 +20,45 @@
 #include <ctype.h>
 
 /* Version structures for backward compatibility
- * v9 = 0.9.0.2 (current: progressive scoring, reserved_runtime[32])
+ * v10 = 0.9.0.3 (current: expanded curse capacity, 64-bit known mask)
+ * v9 = 0.9.0.2 (progressive scoring, reserved_runtime[32])
  * v8 = 0.9.0.1 (persistent blessing choices, reserved_runtime[1])
  * v7 = 0.9.0.0 (initial versioned, no blessing persistence)
  * v6 = pre-0.9.0 (curse_lo/hi instead of curse_stacks, score/best_run_score)
  * v5 = older (curse_lo/hi, no score fields)
  */
+
+typedef struct metarun_v9 {
+    u32b id;
+    byte type;
+    byte deaths;
+    byte silmarils;
+    u32b last_played;
+    u32b score;
+    u32b best_run_score;
+    int8_t curse_stacks[32];
+    u32b curses_seen;
+    u32b persistent_options[8];
+    byte persistent_delay_factor;
+    byte persistent_hitpoint_warn;
+    u32b persistent_window_flags[ANGBAND_TERM_MAX];
+    byte persistent_options_initialized;
+    u32b completed_quests;
+    byte unlocked_oaths;
+    byte banned_oaths;
+    byte max_difficulty_reached;
+    byte quest_reserved[12];
+    u32b fallen_score_total;
+    u32b fallen_score_pool;
+    s16b blessing_points;
+    u16b blessing_points_spent;
+    u16b major_blessings;
+    byte alive_characters;
+    byte pending_blessing_choices[3];
+    byte pending_blessing_count;
+    byte blessing_threshold_mode;
+    byte reserved_runtime[31];
+} metarun_v9;
 
 typedef struct metarun_v8 {
     u32b id;
@@ -124,6 +157,7 @@ typedef struct metarun_v5 {
     byte quest_reserved[12];
 } metarun_v5;
 
+#define METARUN_V9_SIZE (sizeof(metarun_v9))
 #define METARUN_V8_SIZE (sizeof(metarun_v8))
 #define METARUN_V7_SIZE (sizeof(metarun_v7))
 #define METARUN_V6_SIZE (sizeof(metarun_v6))
@@ -452,15 +486,73 @@ static const char *threshold_mode_name(metarun_blessing_threshold_mode mode)
     }
 }
 
-static void decode_legacy_curse_words(u32b lo, u32b hi, int8_t stacks[32])
+static void decode_legacy_curse_words(u32b lo, u32b hi, int8_t stacks[METAR_CURSE_SLOTS])
 {
     if (!stacks) return;
+    for (int id = 0; id < METAR_CURSE_SLOTS; ++id) stacks[id] = 0;
     for (int id = 0; id < 32; ++id) {
         u32b cnt = (id < 16)
                  ? ((lo >> (id * 2)) & 0x3U)
                  : ((hi >> ((id - 16) * 2)) & 0x3U);
         stacks[id] = (int8_t)cnt;
     }
+}
+
+static void metarun_from_v9(metarun *dst, const metarun_v9 *src)
+{
+    if (!dst || !src) return;
+
+    memset(dst, 0, sizeof(*dst));
+    clear_blessing_runtime_fields(dst);
+
+    dst->id = src->id;
+    dst->type = src->type;
+    dst->deaths = src->deaths;
+    dst->silmarils = src->silmarils;
+    dst->last_played = src->last_played;
+    dst->score = src->score;
+    dst->best_run_score = src->best_run_score;
+
+    size_t stack_copy = MIN(sizeof(dst->curse_stacks), sizeof(src->curse_stacks));
+    memcpy(dst->curse_stacks, src->curse_stacks, stack_copy);
+    if (stack_copy < sizeof(dst->curse_stacks)) {
+        memset(dst->curse_stacks + stack_copy, 0, sizeof(dst->curse_stacks) - stack_copy);
+    }
+    dst->curses_seen = (u64b)src->curses_seen;
+
+    C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
+    dst->persistent_delay_factor = src->persistent_delay_factor;
+    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
+    C_COPY(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX, u32b);
+    dst->persistent_options_initialized = src->persistent_options_initialized;
+
+    dst->completed_quests = src->completed_quests;
+    dst->unlocked_oaths = src->unlocked_oaths;
+    dst->banned_oaths = src->banned_oaths;
+    dst->max_difficulty_reached = src->max_difficulty_reached;
+
+    C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
+
+    dst->fallen_score_total = src->fallen_score_total;
+    dst->fallen_score_pool = src->fallen_score_pool;
+    dst->blessing_points = src->blessing_points;
+    dst->blessing_points_spent = src->blessing_points_spent;
+    dst->major_blessings = src->major_blessings;
+    dst->alive_characters = src->alive_characters;
+
+    C_COPY(dst->pending_blessing_choices, src->pending_blessing_choices, 3, byte);
+    dst->pending_blessing_count = src->pending_blessing_count;
+    dst->blessing_threshold_mode = src->blessing_threshold_mode;
+
+    size_t runtime_copy = MIN(sizeof(dst->reserved_runtime), sizeof(src->reserved_runtime));
+    if (runtime_copy > 0) {
+        memcpy(dst->reserved_runtime, src->reserved_runtime, runtime_copy);
+    }
+    if (runtime_copy < sizeof(dst->reserved_runtime)) {
+        memset(dst->reserved_runtime + runtime_copy, 0, sizeof(dst->reserved_runtime) - runtime_copy);
+    }
+
+    update_blessing_ledger(dst);
 }
 
 static void metarun_from_v8(metarun *dst, const metarun_v8 *src)
@@ -478,8 +570,12 @@ static void metarun_from_v8(metarun *dst, const metarun_v8 *src)
     dst->score = src->score;
     dst->best_run_score = src->best_run_score;
 
-    memcpy(dst->curse_stacks, src->curse_stacks, sizeof(dst->curse_stacks));
-    dst->curses_seen = src->curses_seen;
+    size_t stack_copy = MIN(sizeof(dst->curse_stacks), sizeof(src->curse_stacks));
+    memcpy(dst->curse_stacks, src->curse_stacks, stack_copy);
+    if (stack_copy < sizeof(dst->curse_stacks)) {
+        memset(dst->curse_stacks + stack_copy, 0, sizeof(dst->curse_stacks) - stack_copy);
+    }
+    dst->curses_seen = (u64b)src->curses_seen;
 
     C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
     dst->persistent_delay_factor = src->persistent_delay_factor;
@@ -531,8 +627,12 @@ static void metarun_from_v7(metarun *dst, const metarun_v7 *src)
     dst->score = src->score;
     dst->best_run_score = src->best_run_score;
 
-    memcpy(dst->curse_stacks, src->curse_stacks, sizeof(src->curse_stacks));
-    dst->curses_seen = src->curses_seen;
+    size_t stack_copy = MIN(sizeof(dst->curse_stacks), sizeof(src->curse_stacks));
+    memcpy(dst->curse_stacks, src->curse_stacks, stack_copy);
+    if (stack_copy < sizeof(dst->curse_stacks)) {
+        memset(dst->curse_stacks + stack_copy, 0, sizeof(dst->curse_stacks) - stack_copy);
+    }
+    dst->curses_seen = (u64b)src->curses_seen;
 
     C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
     dst->persistent_delay_factor = src->persistent_delay_factor;
@@ -567,7 +667,7 @@ static void metarun_from_v6(metarun *dst, const metarun_v6 *src)
     dst->best_run_score = src->best_run_score;
 
     decode_legacy_curse_words(src->curses_lo, src->curses_hi, dst->curse_stacks);
-    dst->curses_seen = src->curses_seen;
+    dst->curses_seen = (u64b)src->curses_seen;
 
     C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
     dst->persistent_delay_factor = src->persistent_delay_factor;
@@ -600,7 +700,7 @@ static void metarun_from_v5(metarun *dst, const metarun_v5 *src)
     dst->last_played = src->last_played;
 
     decode_legacy_curse_words(src->curses_lo, src->curses_hi, dst->curse_stacks);
-    dst->curses_seen = src->curses_seen;
+    dst->curses_seen = (u64b)src->curses_seen;
 
     C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
     dst->persistent_delay_factor = src->persistent_delay_factor;
@@ -775,7 +875,7 @@ static void reset_defaults(metarun *m)
     m->score = compute_metarun_score(m);
     update_blessing_ledger(m);
 
-    log_debug("After init: curses_seen = 0x%08X", m->curses_seen);
+    log_debug("After init: curses_seen = 0x%016llX", (unsigned long long)m->curses_seen);
 }
 
 static bool ensure_default_metarun_slot(const char *reason)
@@ -813,9 +913,10 @@ static void apply_difficulty_curses(metarun *m)
     /* Apply curses based on runtype configuration */
     if (rt->start_curses)
     {
-        for (int curse_id = 0; curse_id < 32; curse_id++)
+        int limit = MIN(METAR_CURSE_SLOTS, z_info->cu_max);
+        for (int curse_id = 0; curse_id < limit; curse_id++)
         {
-            if (rt->start_curses & (1UL << curse_id))
+            if (rt->start_curses & (1ULL << curse_id))
             {
                 byte stacks = rt->curse_stacks[curse_id];
                 if (stacks > 0)
@@ -882,6 +983,7 @@ static bool is_versioned_meta_file(int fd, int file_size)
         size_t entry_size = payload / header.entry_count;
         const size_t accepted[] = {
             sizeof(metarun),
+            METARUN_V9_SIZE,
             METARUN_V8_SIZE,
             METARUN_V7_SIZE,
             METARUN_V6_SIZE,
@@ -1174,6 +1276,14 @@ errr load_metaruns(bool create_if_missing)
                     update_blessing_ledger(&metaruns[i]);
                     sanitize_major_blessing_bits(&metaruns[i]);
                 }
+            } else if (entry_size == METARUN_V9_SIZE) {
+                metarun_v9 *legacy = C_ZNEW(metarun_max, metarun_v9);
+                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v9));
+                for (s16b i = 0; i < metarun_max; i++) {
+                    metarun_from_v9(&metaruns[i], &legacy[i]);
+                    sanitize_major_blessing_bits(&metaruns[i]);
+                }
+                FREE(legacy);
             } else if (entry_size == METARUN_V8_SIZE) {
                 metarun_v8 *legacy = C_ZNEW(metarun_max, metarun_v8);
                 fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v8));
@@ -3191,12 +3301,14 @@ static void blessing_commit_changes(bool apply_runtime)
 
 static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *result_attr)
 {
-    int ids[32];
+    int ids[METAR_CURSE_SLOTS];
     int count = 0;
 
     for (int id = 0; id < z_info->cu_max; id++) {
         if (CURSE_CURSE_STACK(id) > 0) {
-            ids[count++] = id;
+            if (count < METAR_CURSE_SLOTS) {
+                ids[count++] = id;
+            }
         }
     }
 
@@ -3370,8 +3482,8 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
     
     /* If we don't have valid pending choices, generate new ones */
     if (!have_valid_pending) {
-        int eligible[32];
-        int weights[32];
+        int eligible[METAR_CURSE_SLOTS];
+        int weights[METAR_CURSE_SLOTS];
         int count = 0;
         int total_weight = 0;
 
@@ -3386,10 +3498,12 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
             int blessing_stacks = (stacks < 0) ? -stacks : 0;
             if (c->max_stacks > 0 && blessing_stacks >= c->max_stacks) continue;
 
-            eligible[count] = id;
-            weights[count] = c->weight > 0 ? c->weight : 1;  /* Use curse weight, default 1 */
-            total_weight += weights[count];
-            count++;
+            if (count < METAR_CURSE_SLOTS) {
+                eligible[count] = id;
+                weights[count] = c->weight > 0 ? c->weight : 1;  /* Use curse weight, default 1 */
+                total_weight += weights[count];
+                count++;
+            }
         }
 
         if (count == 0) {
@@ -4400,9 +4514,10 @@ static void get_curse_description(int runtype_id, char *buf, size_t buf_size)
     int curse_count = 0;
     int min_stacks = 255, max_stacks = 0;
     
-    for (int curse_id = 0; curse_id < 32; curse_id++)
+    int limit = MIN(METAR_CURSE_SLOTS, z_info->cu_max);
+    for (int curse_id = 0; curse_id < limit; curse_id++)
     {
-        if (rt->start_curses & (1UL << curse_id))
+        if (rt->start_curses & (1ULL << curse_id))
         {
             curse_count++;
             int stacks = rt->curse_stacks[curse_id];
@@ -4616,9 +4731,9 @@ static void choose_difficulty_menu(void)
         log_info("Changing difficulty from %d to %d", metar.type, choice);
         
         /* Preserve existing stacks and discovery state */
-        int8_t preserved_stacks[32];
+        int8_t preserved_stacks[METAR_CURSE_SLOTS];
         memcpy(preserved_stacks, metar.curse_stacks, sizeof(preserved_stacks));
-        u32b preserved_seen = metar.curses_seen;
+        u64b preserved_seen = metar.curses_seen;
 
         /* Clear to baseline so we can reapply difficulty defaults */
         memset(metar.curse_stacks, 0, sizeof(metar.curse_stacks));
@@ -4629,7 +4744,8 @@ static void choose_difficulty_menu(void)
         apply_difficulty_curses(&metar);
 
         /* Merge preserved stacks with new defaults (signed counts) */
-        for (int curse_id = 0; curse_id < 32; curse_id++) {
+        int limit = MIN(METAR_CURSE_SLOTS, z_info->cu_max);
+        for (int curse_id = 0; curse_id < limit; curse_id++) {
             int preserved = preserved_stacks[curse_id];
             if (!preserved) continue;
 

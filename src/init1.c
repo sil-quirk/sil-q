@@ -343,6 +343,16 @@ static flag_name info_flags[] = {
     {"DEATH", CUR, CUR_DEATH},{"TRAPS", CUR, CUR_TRAPS},
     {"MON_NUM", CUR, CUR_MON_NUM},{"HUNGER", CUR, CUR_HUNGER},
     { "HALLU", CUR, CUR_HALLU},
+    { "RES_FEAR_SHIFT", CUR, CUR_RES_FEAR_SHIFT },
+    { "RES_STUN_SHIFT", CUR, CUR_RES_STUN_SHIFT },
+    { "RES_CONFU_SHIFT", CUR, CUR_RES_CONFU_SHIFT },
+    { "RES_HALLU_SHIFT", CUR, CUR_RES_HALLU_SHIFT },
+    { "RES_POIS_SHIFT", CUR, CUR_RES_POIS_SHIFT },
+    { "RES_FIRE_SHIFT", CUR, CUR_RES_FIRE_SHIFT },
+    { "RES_COLD_SHIFT", CUR, CUR_RES_COLD_SHIFT },
+    { "MDS_SHIFT", CUR, CUR_MDS_SHIFT },
+    { "CRIT_THRESH_SHIFT", CUR, CUR_CRIT_THRESH_SHIFT },
+    { "ARMOR_SIDE_SHIFT", CUR, CUR_ARMOR_SIDE_SHIFT },
     
     // Unique flags
     {"EARENDIL", UNQ, UNQ_EARENDIL}, { "SMT_FEANOR", UNQ, UNQ_SMT_FEANOR },
@@ -1171,9 +1181,9 @@ errr parse_rt_info(char *buf, header *head)
                 int curse_id = atoi(tok);
                 int stack_count = atoi(colon + 1);
                 
-                if (curse_id >= 0 && curse_id < 32 && stack_count > 0 && stack_count <= 255)
+                if (curse_id >= 0 && curse_id < METAR_CURSE_SLOTS && stack_count > 0 && stack_count <= 255)
                 {
-                    rt_ptr->start_curses |= (1UL << curse_id);
+                    rt_ptr->start_curses |= (1ULL << curse_id);
                     rt_ptr->curse_stacks[curse_id] = (byte)stack_count;
                 }
             }
@@ -1181,9 +1191,9 @@ errr parse_rt_info(char *buf, header *head)
             {
                 /* Legacy format: just curse_id (default to 1 stack) */
                 int curse_id = atoi(tok);
-                if (curse_id >= 0 && curse_id < 32)
+                if (curse_id >= 0 && curse_id < METAR_CURSE_SLOTS)
                 {
-                    rt_ptr->start_curses |= (1UL << curse_id);
+                    rt_ptr->start_curses |= (1ULL << curse_id);
                     rt_ptr->curse_stacks[curse_id] = 1;
                 }
             }

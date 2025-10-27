@@ -1,1204 +1,1911 @@
-# Session Notes - October 19, 2025
+# Session Notes
 
-## Copilot Instructions Updated (October 19, 2025)
+## 2025-11-06 - Metarun Curse Expansion & New Debuffs
 
-### Task
-Updated `.github/instructions/copilot-instructions.md` to align with current `AGENTS.md` and incorporate Python environment setup documentation.
+- Raised the metarun curse capacity from 32 to 64 slots by enlarging `curse_stacks`, switching the known-bitmask to 64-bit, and adding a v9 compatibility shim so legacy meta.raw entries upgrade cleanly (`src/metarun.h`, `src/metarun.c`).
+- Promoted runtype data to 64-bit curse masks and widened parsers so start curses/blessings can target the new slots (`src/types.h`, `src/init1.c`).
+- Introduced `curse_flag_delta_cur()` to track net curse/blessing stacks and used it to drive resistance, melee damage side, armor protection, and critical-threshold penalties (`src/birth.c`, `src/xtra1.c`, `src/melee1.c`, `src/cmd1.c`).
+- Defined new CUR flags for fear/stun/confusion/hallucination/poison/fire/cold resistance shifts plus melee/armor side and crit-threshold modifiers (`src/defines.h`).
+- Added ten new curse/blessing entries covering the requested debuffs with full flavour text and weight/stack limits (`lib/edit/curses.txt`).
+- Updated metarun UI helpers that enumerate curse IDs to honor the expanded slot count and rebuilt with `build-cmake.bat` (SDL3 target) to verify the changes.
 
-### Changes Made
-1. **Synchronized structure with AGENTS.md**:
-   - Updated "Quick Orientation" to use fork-specific language ("fork" terminology)
-   - Changed "Build & Run" section to highlight SDL3 builds as recommended
-   - Replaced old "Build & run workflow" with modern CMake approach
+## 2025-11-02 - Story Font List Polish & Intro Scope
 
-2. **Added comprehensive Key Systems section**:
-   - Combat history menu (100-round buffer, color formatting, search)
-   - Enhanced inventory/equipment overlays with scrolling
-   - Unified look command with Tab cycling
-   - Combat roll overlay specifications
+- Added reusable story-font helpers (`story_print_text`, `story_print_mono`, `story_fill_rect`) in `src/util.c` with declarations in `src/externs.h` so UI layers can print proportional spans, keep mono-aligned columns, and pre-clear highlight rows without duplicating SDL plumbing.
+- Converted `display_introduction()` and the initial menu (`initial_menu` in `src/init2.c`) to share one story-font scope so the introductory poem, frame, and action prompts all render with the proportional typeface; `print_story_intro()` already handled the narrative section but now the surrounding prompts inherit the same font.
+- Reworked the enhanced inventory renderer (`show_inven_enhanced`) to clear each row before painting, split description/weight/label segments, and render the highlight bar by filling the row prior to drawing. Descriptions now use `story_print_text` while weights/labels stay monospace via `story_print_mono`, eliminating the drifting `(A)` / `(B)` tags when the story font is enabled.
+- Implemented a dedicated story-font path for equipment lists: when the "Story UI Lists" option is on, `show_equip_enhanced` bypasses `show_equip()` and uses the new `draw_equipment_story_rows()` helper to paint mention-use prefixes, tiles, descriptions (with quiver note support), weights, and slot labels with the same proportional logic used for inventory.
+- Updated the unified look/target UI (`target_set_interactive_aux` in `src/xtra2.c`) to accept a `use_story_font` flag, route its prompts through `look_prt()`, and rely on the shared helpers so the `l`-view text no longer leaves stray characters when switching between mono and story fonts.
+- Moved the `story_lists` option from the Interface page to the Visual Options page (where the rest of the rendering toggles live) to eliminate the empty line the user reported and make the setting easier to discover.
+- Full SDL build verified with `build-cmake.bat`; only existing warnings remain.
 
-3. **Added Data, Saves & Logs section**:
-   - Metarun save backup procedure
-   - Log file locations for SDL3 builds
+## 2025-11-03 - Story Font Follow-up
 
-4. **Consolidated UX & Gameplay Guardrails**:
-   - Hard-coded offset prevention
-   - Floor item prefix handling
-   - Steam Deck support considerations
+ - Added per-menu Visual Options toggles (`story_lists_inven`, `story_lists_equip`) so inventory and equipment screens can switch independently between story and mono rendering (`src/defines.h`, `src/tables.c`, `src/util.c`).
+ - Painted the inventory weight column and `(a)` style slot letters with `story_print_text()` whenever the story font is enabled so the entire row, including highlights, uses the proportional font; left mono behavior unchanged for the default view (`src/object1.c`).
+ - Extended `draw_equipment_story_rows()` to render slot prefixes, weights, and label glyphs with the story font so both sides of the equipment overlay match the item descriptions and their letter columns stay aligned (`src/object1.c`).
+ - Rebuilt with `build-cmake.bat` to confirm the SDL target still succeeds.
 
-5. **Reorganized sections**:
-   - Moved Python to dedicated section (before Watchpoints)
-   - Removed outdated UI & menu architecture details
-   - Cleaned up Input/selection/prompts and Game data sections
+## 2025-11-04 - Story Menu Alignment
 
-6. **Python Environment & Scripts section** (condensed):
-   - Python 3.13.2 venv location: `src/.venv/`
-   - PowerShell syntax guidance: `& "./src/.venv/Scripts/python.exe" script.py`
-   - Utility scripts listed
-   - Reference to `PYTHON_SETUP.md` for detailed guidance
+ - Added `story_render_inventory_entry()` / `story_render_equipment_entry()` helpers so both the base list renderers (`show_inven`, `show_equip`) and the `get_item()` highlight overlay use a single code path for proportional layout. The helpers clear the full row, reuse the tile column returned by `draw_item_tile()`, and split description/weight/label spans with `story_print_text()` while keeping the mono path unchanged.
+ - Updated `show_inven()`/`show_equip()` to call the helpers whenever the "Story UI Lists" toggles are active, including the final shadow rows and the armour weight summary so highlighted rows no longer shift the `(A)` / `(B)` columns.
+   - Switched the highlight macro in `get_item()` to detect the current story mode and rerender the selected inventory/equipment/floor row with the same helper logic, keeping `(no bow)` and similar empty-slot strings aligned with their non-highlighted versions.
+   - Fixed the comparison overlay typo in `show_inven_enhanced()` (`" (%s"` → `" (%s)"`) so the `(G)` label renders correctly when pressing `u`/`x`.
 
-7. **Updated Documentation Protocol section**:
-   - Reinforced one-file-per-session approach
-   - Emphasized concise, technical notes
+## 2025-11-05 - Story Highlight Build Fix
 
-8. **Updated References**:
-   - Added `PYTHON_SETUP.md` reference
-   - Maintained links to `AGENTS_MEMORY.md` and legacy docs
+   - Hoisted the story-font row helpers ahead of `show_inven()` and replaced the inline `#if` sections inside `DRAW_HIGHLIGHT` with helper macros (`DRAW_HIGHLIGHT_STORY_VARS/UPDATE`, `DRAW_HIGHLIGHT_IF_STORY`), which eliminates the implicit declaration errors and keeps the SDL-only logic out of macro definitions.
+   - Restored `draw_equipment_story_rows()` next to the new helpers and recompiled the SDL3 target to verify the proportional highlight path builds cleanly.
+   - Added `story_inventory_list_active` / `story_equipment_list_active` state flags so `get_item()` detects whether the visible list is currently using story font, ensuring the highlight overlay always reuses the same renderer instead of guessing from static option bits.
 
-### File Status
-- **Location**: `.github/instructions/copilot-instructions.md`
-- **Lines**: 60 (down from 76 due to consolidation)
-- **Status**: ✅ Synchronized with AGENTS.md and modernized
+## 2025-10-26: Left Sidebar Story Font - Implementation Complete
 
-### Key Improvements
-- File is now aligned with current project structure (SDL3, CMake builds)
-- Python guidance is concise but complete
-- Documentation is cleaner and less redundant
-- References guide users to more detailed docs (AGENTS_MEMORY.md, PYTHON_SETUP.md) for deep dives
-
----
-
-## Look Menu Enhancements (Previous Work)
-
-### Feature 1: 'x' Key Shows Description
-The 'x' key now works as an examination/description key in the unified look menu (`l` mode), matching expected roguelike behavior.
-
-### Implementation
-- **File**: `src/cmd3.c`, function `do_cmd_unified_look()`
-- **Change**: Moved 'x' key from grouped "capital letters ignored" case to its own handler
-- **Behavior**: When 'x' is pressed, it examines the currently selected entity (monster or object)
-  - If in sidebar mode with a selected entity, shows full description/recall for that entity
-  - If in manual cursor mode, shows description of entity at cursor position
-  - For monsters: displays full monster recall screen
-  - For objects: displays detailed object info screen with comparison if applicable
-- **Code Pattern**: Uses identical logic to Space/Enter key examination (copied handler code)
-
-### Feature 2: Object Grouping Separation
-Herbs, potions, and gems are now displayed as separate groups in the look menu sidebar, providing better visual organization and player clarity.
-
-### Implementation
-- **Files**: `src/cmd3.c` (grouping logic), `src/cmd4.c` (display & sorting), `src/defines.h` (enum definition)
-
-#### Changes in `src/defines.h`:
-- Moved enum `unified_sidebar_object_group` from `cmd3.c` to global `defines.h` for access by both files
-- Added three new group enums:
-  - `LOOK_GROUP_HERBS` (for `TV_EASTER` items)
-  - `LOOK_GROUP_POTIONS` (for `TV_POTION` items)
-  - `LOOK_GROUP_GEMS` (for `TV_GEM` items)
-- Reordered enum to place new groups after LOOK_GROUP_ARMOUR and before existing LOOK_GROUP_CONSUMABLE
-
-#### Changes in `src/cmd3.c`:
-- Updated `unified_sidebar_object_group()` function to assign:
-  - `TV_EASTER` → `LOOK_GROUP_HERBS`
-  - `TV_POTION` → `LOOK_GROUP_POTIONS`
-  - `TV_GEM` → `LOOK_GROUP_GEMS`
-  - (kept `TV_FOOD` logic in `LOOK_GROUP_CONSUMABLE`)
-
-#### Changes in `src/cmd4.c`:
-- Removed duplicate enum and function definitions
-- Updated sorting logic in `show_unified_sidebar()` to handle new groups
-- New groups use same sorting rules as consumables: **sort by level (highest first), then difficulty, then distance**
-- Updated sort switch statement to include all three new groups with CONSUMABLE/OTHER case
-
-### Display Behavior
-- Each group appears separately in the sidebar with its own items
-- Top-five limit (`T` key) applies **per group**, so you can see up to 5 herbs, 5 potions, and 5 gems simultaneously
-- Sorting within each group follows the same rules:
-  - **Artifacts/Weapons/Armour**: Sort by difficulty (highest first), then level, then distance
-  - **Herbs/Potions/Gems/Consumable/Other**: Sort by level (highest first), then difficulty, then distance
-
-### Build Status
-✅ Compiled successfully with no errors  
-✅ Deployed to `sil-more-windows-sdl3/`  
-✅ Game runs with changes integrated  
-
-### Technical Notes
-- Enum placement in `defines.h` allows both `cmd3.c` and `cmd4.c` to access it (they both include `angband.h`)
-- No save file compatibility issues (purely display/UI logic)
-- Sorting algorithm naturally handles new groups without modification to comparison logic
-- New groups follow standard `tval` pattern consistent with existing code
-
----
-
-# Session Notes - October 17, 2025
-
-## Character Tutorial Integration into Birth Menu
-
-### Feature
-Integrated the character screen tutorial into the character creation (birth) process. The tutorial is now automatically shown to **first-time players only** (when the scorefile is empty, meaning no previous games have been played).
-
-### Implementation
-- Modified `player_birth()` in `src/birth.c` to check if this is the player's first character
-- Uses `highscore_count()` which returns 0 when no games have been played (scorefile empty)
-- Calls `display_character_tutorial()` after character creation completes but before returning
-- Tutorial shows 4 interactive stages explaining the character screen
-- After tutorial completion, gameplay continues normally
-
-### User Experience Flow
-1. Player creates their first character through normal birth process
-2. Character creation completes (stats, skills, equipment assigned)
-3. **NEW**: Tutorial automatically displays if scorefile is empty
-4. Player can press ESC to skip tutorial at any time, or proceed through all 4 stages
-5. Game continues to dungeon entrance as normal
-
-### Code Changes
-- **File**: `src/birth.c`, function `player_birth()`
-- **Location**: After `metarun_load_persistent_settings()`, before final return
-- **Check**: `if (highscore_count() == 0)` - only triggers for first game
-- **Action**: Calls `display_character_tutorial()` with logging
-
-### Technical Notes
-- `highscore_count()` returns count of Silmarils recovered across all games (0 = no games played)
-- Tutorial function already existed and was accessible via '?' key in character screen
-- No changes needed to tutorial itself - it works perfectly in this context
-- Tutorial uses `screen_save()`/`screen_load()` so screen state is preserved
-- Logging added: "First character created - showing character tutorial"
-
-### Testing Notes
-- Build successful with no errors
-- Ready for testing: create fresh game with empty scorefile to verify tutorial appears
-- Verify tutorial can be skipped with ESC
-- Verify normal gameplay after tutorial completion
-- Verify tutorial does NOT appear on subsequent characters
-
----
-
-# Session Notes - October 16, 2025
-
-## SDL Configuration Resolution Profiles Update
-
-### Feature
-Updated `src/sdl-config.c` with **41 comprehensive resolution profiles** covering all common display sizes from 800×600 to 8K. When no `sil_sdl.json` exists, the game automatically selects optimal settings based on detected screen resolution.
-
-### Design Priority
-**MAXIMUM SCALE (up to 3)** is prioritized for best graphics quality, then auxiliary panes are added if space permits.
-
-### Layout Calculation Logic
-
-1. **Main Terminal Minimum**: 40×24 tiles (16×16 base tile size)
-   - Scale 1: 640×384px, Scale 2: 1280×768px, Scale 3: 1920×1152px
-2. **Scale Selection**: **MAXIMUM** scale (up to 3) that fits the minimum terminal
-3. **Aux Font Size**: Half of scaled tile size (scale 3→18px, 2→16px, 1→9px)
-4. **Right Pane**: Added if ≥40 columns fit after main terminal (~0.6×font char width)
-   - Inventory (22 rows), Worn (17 rows), Info (auto-remaining)
-   - Width: 40 or 50 columns
-5. **Bottom Pane**: Added if ≥1 row fits (max 4 rows)
-   - Rolls and Log split 50/50
-6. **Main Terminal**: Expands to use all remaining space
-
-### Resolution Categories
-
-**Scale 1 (4 resolutions)**: Low-res displays, large viewport
-- 800×600, 1024×768, 1152×864, 1280×720
-
-**Scale 2 (14 resolutions)**: Mid-range HD displays
-- 1280×768 through 3840×1080
-
-**Scale 3 (23 resolutions)**: High-DPI displays, crisp graphics
-- 1920×1200 through 7680×4320 (8K)
-
-### Notable Configurations
-
-| Resolution | Scale | Panes | Notes |
-|------------|-------|-------|-------|
-| 1280×768 | 2 | None | Exact fit, no auxiliary panes |
-| 1280×800 | 2 | Bottom(2) | Steam Deck - 32px height for bottom |
-| 1366×768 | 2 | None | Common laptop, tight fit |
-| 1680×1050 | 2 | Full | First scale-2 with right pane (40 cols) |
-| 1920×1080 | 2 | Full | Full HD with 50-col right pane |
-| 1920×1200 | 3 | Bottom(2) | First scale-3, limited height |
-| 2048×1152 | 3 | None | Exact fit, no panes |
-| 3440×1440 | 3 | Full | Ultrawide QHD |
-| 7680×4320 | 3 | Full | 8K UHD |
-
-### Files Modified
-- `src/sdl-config.c`: Updated with 41 resolution profiles (was 9)
-- Comprehensive header comment explaining layout logic
-- Compact array initialization format for maintainability
-
-### Build Status
-✅ Compiled successfully with no errors
-✅ All 41 profiles included in binary
-
----
-
-## Blessing Point Threshold Now Data-Driven via Runtypes
-
-### Feature
-Moved the hardcoded blessing point threshold (previously 300 in `METARUN_BLESSING_POINT_THRESHOLD`) to be data-driven through the `L:` directive in `runtypes.txt`. This allows each difficulty to have a different threshold for earning blessing points from fallen character scores.
-
-### Implementation
-1. **Renamed Field**: Changed `runtype_type.lose_con` to `blessing_threshold` (u16b)
-   - The old "lose condition" (death limit) feature was deprecated
-   - Death limit is now hardcoded as `LOSECON_DEATHS` (15) for all runtypes
-   
-2. **Parser Update**: Modified `init1.c` to parse `L:` as blessing threshold
-   - Changed from `byte` (max 127) to `u16b` (max 65535) to support larger values
-   - Updated comment to reflect new purpose
-   
-3. **Code Updates**: Modified `metarun.c` to use `runtype_info[type].blessing_threshold`
-   - `update_blessing_ledger()`: Uses runtype threshold with fallback to constant
-   - Blessing exchange UI: Shows correct threshold for current difficulty
-   - `print_metarun_stats()`: Displays appropriate threshold
-   - Removed all `lose_con` references, replaced with `LOSECON_DEATHS` constant
-
-4. **Data Configuration**: Updated `lib/edit/runtypes.txt` with balanced thresholds:
-   - Echoes (Normal): L:300 (baseline)
-   - Echoes (Hard): L:250 (20% easier to earn points)
-   - Echoes (Very Hard): L:200 (33% easier compensation)
-   - Echoes (Impossible): L:150 (50% easier for extreme difficulty)
-   - Iron Gates (Impossible): L:200 (balanced for faster gameplay)
-
-### Files Modified
-- `src/types.h`: Renamed `lose_con` → `blessing_threshold`
-- `src/init1.c`: Updated L: parser for blessing threshold
-- `src/metarun.c`: Three locations updated to use data-driven threshold
-- `src/metarun.h`: Updated constant documentation (now fallback only)
-- `lib/edit/runtypes.txt`: Set difficulty-specific thresholds
-
-### Benefits
-- Harder difficulties earn blessing points faster (compensation mechanism)
-- No hardcoded magic numbers in code
-- Easy to tune per-difficulty through data files
-- Maintains backward compatibility via fallback constant
-
----
-
-## Inventory Examine Shows Equipment Comparison
-
-### Issue
-When pressing `x` (arrow right) to examine items in the inventory menu accessed via `i` (direct access), equipment comparisons were not being shown. The comparison only worked when accessing the inventory via the `x` command menu.
-
-### Root Cause
-In `do_cmd_inven()` at line 517-518, the code checked:
-```c
-bool include_comparisons = (current_menu_command == 'u' || current_menu_command == 'x');
-```
-
-However, when accessing inventory directly via `i`, `current_menu_command` is set to `0`, so comparisons were disabled even when examining via arrow right.
-
-### Fix
-Updated the comparison check to include direct access mode:
-```c
-bool include_comparisons = (current_menu_command == 'u' || current_menu_command == 'x' || current_menu_command == 0);
-```
-
-Now when you press arrow right (or `x`) to examine an item from the inventory menu (regardless of access method), it will show the equipment comparison for equivalent slots.
-
-**File**: `src/cmd3.c`, lines 511-520
-
----
-
-# Session Notes - October 15, 2025
-
-## Curse Removal Fix - Only Remove One Stack
-
-### Issue
-When using blessing points to remove a curse, the `blessing_remove_curse()` function was removing ALL stacks of the selected curse instead of just one stack.
-
-### Fix
-Modified `blessing_remove_curse()` in `metarun.c` to:
-1. Check current stack count before removal
-2. Decrement by 1 if multiple stacks exist
-3. Set to 0 only if it's the last stack
-4. Update success message to indicate remaining stacks when applicable
-
-### Changes
-**File**: `src/metarun.c`
-- Changed `CURSE_SET(curse_id, 0)` to conditional logic that removes only one stack
-- Updated result message to show "One stack of [curse] is lifted. (X remains)" when stacks > 1
-- Shows "The curse of [curse] is lifted." only when removing the final stack
-
-## Resolution-Based Default Settings - REFACTORED TO DATA-DRIVEN
-
-### Feature
-Created a system where the game automatically applies optimized default settings based on screen resolution when `sil_sdl.json` is missing. Now uses a **data-driven approach** for easy maintenance.
-
-### Architecture
-**Data-Driven Design**: All resolution profiles stored in a single static array at the top of `sdl-config.c`
-- `struct resolution_profile` contains all settings for a resolution
-- `resolution_profiles[]` array holds all known profiles
-- Function simply looks up and applies the matching profile
-
-### Adding New Resolutions
-Just add a new entry to the `resolution_profiles[]` array in `sdl-config.c`:
-
-```c
-// Example: Adding 1920x1080 support
-{
-    .width = 1920,
-    .height = 1080,
-    .name = "1920x1080 (Full HD)",
-    .main_view_scale = 2,
-    .aux_view_font_size = 16,
-    .margin = 4,
-    .fullscreen = false,
-    .tiles = true,
-    .window_x = 100,
-    .window_y = 100,
-    .window_width = 1820,
-    .window_height = 980,
-    .pane_count = 5,
-    .panes = {
-        { PANE_INVENTORY, PLACE_RIGHT, 18, 40 },
-        { PANE_WORN,      PLACE_RIGHT, 14, 0  },
-        { PANE_INFO,      PLACE_RIGHT, 6,  0  },
-        { PANE_ROLLS,     PLACE_BOTTOM, 3, 0  },
-        { PANE_LOG,       PLACE_BOTTOM, 0, 0  }
-    }
-}
-```
-
-**That's it!** No function changes needed. The lookup function automatically finds and applies it.
-
-### Current Resolution Profiles
-- **2880x1800**: Scale 3, windowed 2779x1466, 5 panes (INVENTORY, WORN, INFO, ROLLS, LOG)
-- **2560x1600**: Scale 3, windowed 2459x1266, same pane layout
+### Summary
+Successfully implemented story font rendering for the left sidebar with proper `Term_fresh()` placement. All text labels render in story font while numbers remain in monospace, following the exact pattern used in `files.c`.
 
 ### Implementation Details
-1. **New Structure**: `struct resolution_profile` in `sdl-config.c`
-   - Contains width, height, name, all SDL settings, and pane configurations
-   - Supports up to 8 panes per profile
 
-2. **Profile Database**: `resolution_profiles[]` static array
-   - Each entry is a complete configuration for one resolution
-   - `NUM_RESOLUTION_PROFILES` auto-calculated from array size
+All 16 sidebar functions now follow this pattern:
+```c
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+    // ... render text labels with put_str() or c_put_str() ...
+    Term_fresh();  /* CRITICAL: Flush text with story font BEFORE disable */
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
+    // ... render any numbers in monospace ...
+```
 
-3. **Lookup Function**: `sdl_config_set_defaults_for_resolution()`
-   - Searches profiles for matching width/height
-   - Applies all settings if found
-   - Falls back to generic defaults if not found
+**Key Points:**
+- `#ifdef USE_SDL` guards are REQUIRED (functions only exist in main-sdl.c)
+- `Term_fresh()` must be called AFTER text rendering but BEFORE `sdl_story_font_disable()`
+- This ensures buffered text is rendered with story font before switching to monospace
+- Pattern matches working examples in `display_player_stat_info()` and `put_single20_right()` from `files.c`
 
-### Files Modified
-- `src/sdl-config.c`: Added `resolution_profile` struct, profiles array, refactored function to data-driven lookup
-- `src/sdl-config.h`: Declaration unchanged (same API)
-- `src/main-sdl.c`: No changes (uses same function signature)
+### Functions Modified in src/xtra1.c
 
-### Benefits
-✅ **Single source of truth** - all resolution data in one array  
-✅ **No function edits** - just add/remove array entries  
-✅ **Type-safe** - compiler checks struct fields  
-✅ **Self-documenting** - each profile clearly labeled  
-✅ **Easy maintenance** - adding 1920x1080 takes ~15 lines  
+**Core Stats & Display:**
+1. `prt_field()` - Character name  
+2. `prt_stat()` - Stat names (Str/Dex/Con/Gra) in story, values in monospace
+3. `prt_exp()` - "Exp" label in story, number in monospace
+4. `prt_hp()` - "Health"/"Hth" in story, HP values in monospace
+5. `prt_sp()` - "Voice"/"Vce" in story, SP values in monospace
+6. `prt_song()` - Song names in story font
+7. `prt_depth()` - Depth text in story ("Surface", "500 ft")
+
+**Status Effects:**
+8. `prt_hunger()` - "Starving", "Weak", "Hungry", "Full"
+9. `prt_blind()` - "Blind"
+10. `prt_confused()` - "Confused"
+11. `prt_afraid()` - "Afraid"
+12. `prt_cut()` - "Mortal wound", "Bleeding XX"
+13. `prt_poisoned()` - "Poisoned XXX"
+14. `prt_state()` - "Entranced!", "Smithing", "Rest", "Stealth"
+15. `prt_speed()` - "Fast", "Slow"
+16. `prt_terrain()` - "Pit", "Web", "Sunlight"
+17. `prt_stun()` - "Knocked out", "Heavy stun", "Stun"
+
+### How Font Persistence Works
+
+The sidebar redraw system ensures story font persists across redraws:
+
+1. **Redraw Trigger**: Game sets `p_ptr->redraw` flags when stats/state changes
+2. **Redraw Handler**: `handle_stuff()` calls `redraw_stuff()` 
+3. **Individual Updates**: Each `prt_*()` function called individually:
+   - Enables story font
+   - Renders text  
+   - Flushes with `Term_fresh()`
+   - Disables story font
+   - Renders numbers (if any) in monospace
+4. **Per-Call Management**: Each function manages its own font state independently
+
+This design ensures:
+- Text always renders in story font when sidebar redraws
+- Numbers always render in monospace for clarity
+- Font state doesn't leak between functions
+- Works correctly after menus close and screen restores
+
+### Testing Status
+- ✅ Built successfully with CMake
+- ✅ Pattern matches working code in `files.c`
+- ✅ `#ifdef USE_SDL` guards prevent non-SDL build errors
+- ⏳ In-game testing needed to verify visual appearance
+- ⏳ Need to verify persistence after menu open/close
+
+### Remaining Issues
+
+#### Character Screen Redraw Blinking
+The birth screens (stat/skill allocation) still have optimization issues unrelated to story font:
+
+**Problem:** Both `player_birth_aux_2()` (stats) and `gain_skills()` (skills) call `display_player(0)` every time cursor moves, causing full screen redraws.
+
+**Historical Note:** Checked git history - even old versions (before SDL) had `display_player(0)` in the main loops. So "blinking" is NOT a regression from story font changes.
+
+**Root Cause:** The character screen was always redrawing fully on every cursor movement. Story font changes didn't introduce this behavior.
+
+**Potential Fix** (not implemented): Remove `display_player(0)` from cursor movement loops and implement targeted updates for just the cost highlights, similar to the main game sidebar pattern.
+
+**Status:** Documented but not fixed - separate optimization task outside story font scope.
 
 ---
 
-## Metarun Scoring System Redesign - v0.9.0.2
+## 2025-10-26: Death Screen Story Font Rendering
 
-### Changes Implemented
-1. **Progressive Diminishing Score**: Replaced single best-run scoring with `best/1 + second/2 + third/4 + ...` (caps at 16 runs)
-2. **Fully Automatic Versioning**: Metarun uses `VERSION_*` defines directly from `defines.h` (no intermediate defines)
-3. **Generous Reserved Space**: Increased `reserved_runtime[1→32]` for easier future expansions
-4. **Backward Compatible Saves**: Savefile loader accepts `VERSION_EXTRA >= 1` (loads old 0.9.0.1 saves)
+### Summary
+Applied story font rendering to all death screen narrative text, including headings and paragraphs. The death narrative now uses the same elegant proportional font as other story elements.
 
-### Files Modified
-- `src/defines.h`: Bumped `VERSION_EXTRA` from 1 to 2 (progressive scoring update)
-- `src/metarun.h`: Removed `METARUN_FILE_VERSION_*` defines, uses `VERSION_*` directly, added `reserved_runtime[32]`
-- `src/metarun.c`: Progressive scoring function, direct `VERSION_*` usage, migration code for v8→v9
-- `src/load.c`: Changed version check from `extra == 1` to `extra >= 1` for backward compatibility
+### Changes Made
+Modified three functions in `src/metarun.c`:
+1. **`print_heading_fade()`** - Wraps heading rendering with story font enable/disable
+2. **`print_paragraph_fade()`** - Wraps paragraph fade-in with story font enable/disable
+3. **`print_paragraph()`** - Wraps fast-forward paragraph rendering with story font enable/disable
 
-### Technical Details
-- New `compute_progressive_character_score()` aggregates top 16 runs with halving divisor
-- **Metarun version uses `VERSION_MAJOR/MINOR/PATCH/EXTRA` directly** - cleaner code, no duplication
-  - When you change `VERSION_*` in `defines.h`, metarun version updates automatically
-  - Current: Game 0.9.0.2 → Metarun 0.9.0.2 (identical)
-- `quest_reserved[12]` kept unchanged (user requirement)
-- `reserved_runtime[32]` provides 32 bytes for future features (generous expansion space)
-- Migration from v8 (0.9.0.1) to v9 (0.9.0.2) handles reserved space expansion
-- **Savefile backward compatibility**: Old saves with extra=1 load in new version (extra=2)
-- Build successful with only minor type-limit warnings
-
-### Benefits
-- Rewards consistency across multiple characters (not just single best run)
-- Example: 5 runs [1000,800,600,500,400] → old: 1000, new: 1637 (+64%)
-- **100% automatic version tracking** - no intermediate defines to maintain
-- Generous expansion space makes future additions easier
-- **Full backward compatibility** - old saves continue to work
-
----
-
-## Application "Not Responding" During Intro Text - FIXED
-
-### Problem
-- When `print_story_intro()` or other long intro windows display, Windows reports app as "Not Responding"
-- Character-by-character typing effect and paragraph delays were blocking the event loop
-- No SDL events being processed during `TERM_XTRA_DELAY` calls
-
-### Root Cause
-In `src/main-sdl.c`, the `TERM_XTRA_DELAY` handler simply called `SDL_Delay()`:
+Each function now follows the established pattern:
 ```c
-case TERM_XTRA_DELAY:
-    SDL_Delay((Uint32)v);  // Blocks thread completely
-    return 0;
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+    // ... render text using text_out_hook ...
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 ```
 
-This meant during the story intro (with 30ms delays per character and 1000ms delays per paragraph), the app wasn't processing any window events, causing Windows to mark it as unresponsive.
+### How Story Font Works
+The story font system operates through a layered approach:
 
-### Fix Implemented
-Modified `TERM_XTRA_DELAY` in `src/main-sdl.c` (lines 366-380) to process events during delays:
-```c
-case TERM_XTRA_DELAY: {
-    /* Break delay into chunks and process events to keep app responsive */
-    Uint32 total_delay = (Uint32)v;
-    Uint32 chunk = 20; /* Process events every 20ms */
-    
-    while (total_delay > 0) {
-        Uint32 this_delay = (total_delay < chunk) ? total_delay : chunk;
-        SDL_Delay(this_delay);
-        total_delay -= this_delay;
-        
-        /* Process pending events to prevent "Not Responding" status */
-        SDL_Event ev;
-        while (SDL_PollEvent(&ev)) {
-            sdl_handle_event(&g_state, &ev);
-        }
-    }
-    return 0;
-}
-```
+1. **Font Loading**: `sdl_story_font_load()` in `main-sdl.c` loads the proportional font at startup
+2. **Mode Toggle**: `sdl_story_font_enable()` sets `g_state.use_story_font = true`
+3. **Automatic Detection**: `text_out_to_screen()` checks `sdl_is_story_font_enabled()`
+4. **Pixel-Based Wrapping**: Routes to `text_out_to_screen_story()` which uses actual pixel measurements
+5. **Mode Restore**: `sdl_story_font_disable()` returns to monospace rendering
 
-Now the app processes SDL events every 20ms during delays, keeping it responsive to OS window messages while still honoring the requested delay duration.
-
----
-
-## Critical Save Corruption Bug - FIXED
-
-### Problem
-- Alive character "Gamil Zirak" failed to autoload from savefile
-- Savefile was corrupted: only 39KB instead of expected 58KB (~19KB missing)
-- Dungeon data section was all zeros (depth=0, position=0,0, map size=0x0)
-- Character was saved just minutes before, indicating active corruption bug
-- **New saves appeared successful in logs but still resulted in corrupted files**
-
-### Root Cause - THE REAL BUG
-**Critical bug in `src/util.c` - `fd_move()` function ignores `rename()` errors:**
-
-```c
-// OLD CODE - BUGGY:
-errr fd_move(cptr file, cptr what)
-{
-    // ... path parsing ...
-    
-    /* Rename */
-    (void)rename(buf, aux);  // ERROR: Ignores return value!
-    
-    /* Assume success XXX XXX XXX */
-    return (0);  // Always returns success even if rename failed!
-}
-```
-
-### How the Bug Manifests
-The save flow in `save_player()`:
-1. Successfully write new save to `Gamil_Zirak.new` (58KB, complete with dungeon data)
-2. Try to move old `Gamil_Zirak` → `Gamil_Zirak.old` 
-   - **rename() FAILS** (file locked, permissions, or other error)
-   - **BUT fd_move() returns 0 (success)**
-3. Try to move `Gamil_Zirak.new` → `Gamil_Zirak`
-   - **rename() FAILS** because old file still exists
-   - **BUT fd_move() still returns 0**
-4. Result: Old corrupt `Gamil_Zirak` (39KB) stays in place
-5. Good `.new` file gets deleted
-6. Game thinks save succeeded!
-
-### Why Old File Was Corrupt
-The original 39KB file was likely from an earlier interrupted save or a save during an invalid state. Once it got corrupted, it could never be replaced because the rename operations kept failing silently.
-
-### Fix Implemented
-1. **Modified `fd_move()` in `src/util.c`** (lines 510-535):
-   - Check `rename()` return value
-   - Log errors with `strerror(errno)`
-   - Return -1 on failure
-   - Log successful renames
-
-2. **Modified `save_player()` in `src/save.c`** (lines 1726-1744):
-   - Check fd_move() return values
-   - Abort save activation if rename fails
-   - Attempt to restore old file if new activation fails
-   - Proper error reporting
-
-3. **Added diagnostic logging**:
-   - Invalid dungeon dimension detection in wr_savefile()
-   - EOF detection in load.c sf_get()
-   - Detailed rd_dungeon() header parsing
-   - Write error tracking in sf_put()
-
-**Changed files:**
-- `src/util.c`: Lines 510-535 (fd_move error checking)
-- `src/save.c`: Lines 1726-1744 (save activation error handling)
-- `src/save.c`: Lines 378-398, 1359-1362, 1528-1548 (write error detection)
-- `src/load.c`: Multiple locations (enhanced diagnostics)
+The pixel-based wrapper (`text_out_to_screen_story()`) measures each word's actual rendered width and wraps based on pixel position rather than character count, allowing proportional fonts to fill the available terminal width efficiently.
 
 ### Testing
-- Build successful
-- Proper error detection now happens immediately when file operations fail
-- Corrupt files will be detected and reported rather than silently keeping old bad data
-- Save will fail cleanly rather than appearing to succeed while keeping corrupt data
+- Built successfully with CMake
+- Death narrative functions now automatically use story font when rendering
+- All existing story font locations continue to work (intro screens, help text, etc.)
 
-### Status
-✅ **CRITICAL BUG FIXED** - File rename errors are now properly detected
-✅ **Save corruption prevented** - Failed renames will abort save activation
-✅ **Enhanced diagnostics** - Better logging for future debugging
-⚠️ **User Action Required** - Delete corrupt `Gamil_Zirak` file and load from backup if available
- - Deaths Redesign Bug Fixes
+---
+
+## 2025-10-26: Story Font Wrapping - Pixel Position Tracking Fix
+
+### Summary
+Fixed the final issue with story font wrapping: the code was tracking **column position** (character count) instead of **pixel position**, causing premature wrapping despite having sufficient pixel width.
+
+### The Problem
+The wrapping code was using `current_pixels = x * cell_width` where `x` was the column number. This assumed every character occupied one full cell width, which is not true for proportional fonts!
+
+**Example from logs:**
+```
+wrap_pixels=2784 (87 columns * 32 pixels/column)
+At column 86: "...wind," 
+  current_pixels = 86 * 32 = 2752 ✓
+  
+Next word "leaving" (7 chars, 164 pixels):
+  Would place us at column 93 (86 + 7)
+  But actual pixels: 2752 + 164 = 2916 pixels
+  Decision: 2916 > 2784, so WRAP ✓
+  
+BUT: The proportional chars in "wind," only used ~122 pixels,
+     not 5 * 32 = 160 pixels!
+```
+
+The code thought we were further along the line (in pixels) than we actually were, because it multiplied character count by cell width.
+
+### The Root Cause
+```c
+// WRONG: Assumes each character = one cell width
+int current_pixels = x * cell_width;  
+
+if (current_pixels + word_pixels > wrap_pixels)
+    wrap();
+```
+
+For proportional fonts, characters can be **narrower** than the cell width, so tracking by character count wastes space.
+
+### The Solution
+Track pixel position directly, updating it by the **actual rendered width** of each word:
+
+**Before:**
+```c
+int current_pixels = x * cell_width;  // ❌ Based on character count
+```
+
+**After:**
+```c
+int current_x_pixels = text_out_indent * cell_width;  // ✓ Track actual pixels
+
+// For spaces:
+current_x_pixels += cell_width;
+
+// For words:
+current_x_pixels += word_pixels;  // Actual rendered width
+```
+
+### Implementation Details
+
+**Position Tracking:**
+```c
+/* Start at indent */
+int current_x_pixels = text_out_indent * cell_width;
+
+/* Each space adds one cell */
+while (*s == ' ') {
+    current_x_pixels += cell_width;
+}
+
+/* Each word adds its actual rendered width */
+int word_pixels = sdl_story_font_text_width(word_start, word_chars);
+current_x_pixels += word_pixels;
+
+/* Wrap decision based on pixel position */
+if (current_x_pixels + next_word_pixels > wrap_pixels)
+    wrap();
+```
+
+**Column tracking (`x`):** Still maintained for cursor positioning, but not used for wrapping decisions.
+
+### Files Modified
+- **src/util.c**:
+  - Added `current_x_pixels` variable to `text_out_to_screen_story()`
+  - Removed calculation `current_pixels = x * cell_width`
+  - Update `current_x_pixels` after each word by `word_pixels`
+  - Update `current_x_pixels` after each space by `cell_width`
+  - Reset `current_x_pixels` on newlines and wraps
+  - Updated debug logging to show `current_x_pixels`
+
+### Why This Matters
+**Proportional font efficiency:**
+- Character 'i' might be 8 pixels wide
+- Character 'W' might be 24 pixels wide
+- Cell width might be 32 pixels
+
+If we track by character count:
+- "iii" = 3 chars = 96 pixel budget used
+- Actual: 24 pixels, wasting 72 pixels
+
+If we track by pixels:
+- "iii" = 24 pixels used
+- Can fit more content!
+
+### Result
+✅ **Text fills the full pixel width of the terminal**
+✅ **Wrapping based on actual rendered dimensions**  
+✅ **Proportional fonts use available space efficiently**
+✅ **No premature wrapping**
+✅ Build successful
+
+The text should now flow all the way to the right edge, using every available pixel before wrapping!
+
+---
+
+## 2025-10-26: Story Font Wrapping - Scale Factor Fix
+
+### Summary
+Fixed story font pixel-based wrapping to account for the **scaling factor** applied when rendering text. The text width measurements were using unscaled font metrics, but the rendered text is scaled to match cell height.
+
+### The Problem
+The story font rendering applies a scaling transform to fit the cell height:
+```c
+float scale = cell_h / font_h;
+rendered_width = text_surface->w * scale;
+```
+
+But `sdl_story_font_text_width()` was returning the **unscaled** width from `TTF_MeasureString()`. This meant:
+- Measured width: 80 pixels (unscaled)
+- Actual rendered width: 80 * scale = 120 pixels (scaled)
+- Wrapping logic thought text was narrower than it actually appeared
+- Result: Text wrapped too early
+
+### Example
+```
+Font height: 32 pixels (loaded at scaled size)
+Cell height: 24 pixels (main view cell)
+Scale factor: 24 / 32 = 0.75
+
+Word "companions" measured: 80 pixels (unscaled)
+Actual rendered width: 80 * 0.75 = 60 pixels
+```
+
+Without accounting for scale, wrapping would allow too much text, causing overflow.
+
+### The Solution
+Modified `sdl_story_font_text_width()` to apply the same scaling factor used during rendering:
+
+**Before:**
+```c
+int sdl_story_font_text_width(cptr text, int len)
+{
+    int w = 0;
+    TTF_MeasureString(g_state.story_font, text, len, 0, &w, NULL);
+    return w;  // ❌ Unscaled!
+}
+```
+
+**After:**
+```c
+int sdl_story_font_text_width(cptr text, int len)
+{
+    int w = 0;
+    TTF_MeasureString(g_state.story_font, text, len, 0, &w, NULL);
+    
+    // Apply scaling factor to match rendering
+    int font_h = TTF_GetFontHeight(g_state.story_font);
+    float scale = (float)cell_h / (float)font_h;
+    w = (int)((float)w * scale);
+    
+    return w;  // ✓ Scaled to match actual rendering!
+}
+```
+
+### Files Modified
+- **src/main-sdl.c**:
+  - Modified `sdl_story_font_text_width()` to apply scaling
+  - Uses `TTF_GetFontHeight()` to get font metrics
+  - Calculates same scale factor as `callback_sdl_text()`
+  - Applies scale to measured width before returning
+
+- **src/util.c**:
+  - Added trace logging to `text_out_to_screen_story()` for debugging
+  - Logs: wid, wrap_cols, cell_width, wrap_pixels
+
+### Technical Details
+
+**Scaling Calculation:**
+```c
+/* Get the font's natural height */
+int font_h = TTF_GetFontHeight(g_state.story_font);
+
+/* Calculate how much we scale to fit cell height */
+float scale = (float)g_views[0].cell_h / (float)font_h;
+
+/* Apply to measured width */
+int scaled_width = (int)((float)unscaled_width * scale);
+```
+
+This matches exactly what `callback_sdl_text()` does when rendering:
+```c
+float scale = cell_h_f / surf_h_f;
+dst.w = (float)(text_surface->w) * scale;
+```
+
+### Why This Matters
+1. **Story font is loaded at scaled size** based on `aux_view_font_size`
+2. **But rendering scales it again** to fit the main view's `cell_h`
+3. **Width measurements must match** the final rendered dimensions
+4. **Different scale factors** between aux and main views required this correction
+
+### Result
+✅ Text width measurements now match actual rendered width
+✅ Wrapping decisions are accurate
+✅ Text fills terminal width properly
+✅ No premature wrapping or overflow
+✅ Build successful
+
+### Testing
+View story text with `SIL_LOG_LEVEL=trace` to see wrapping calculations in the log file.
+
+---
+
+## 2025-10-26: Hide cursor on intro and story screens
+
+Summary
+- Hide the hardware/text cursor while the intro (first screen) and the story display are visible. This prevents a blinking cursor from appearing on top of the intro poem or the paged "The Tale So Far" output.
+
+Files changed
+- `src/init2.c` - `display_introduction()` now saves the current cursor visibility, sets the cursor hidden during the intro, then restores the previous state after flushing.
+- `src/files.c` - `print_story()` now saves the cursor visibility at start, forces the cursor hidden for the entire story display (including fades/paging), and restores it after the story finishes and the screen is restored.
+
+Notes
+- Performed a full SDL/CMake build to verify changes; build completed successfully.
+
+
+## 2025-10-26: Story Font Wrapping - Terminal Width Fix
+
+### Summary
+Fixed story font pixel-based wrapping to actually use the full terminal width instead of wrapping prematurely at character boundaries.
+
+### The Problem
+The pixel-based wrapping was calculating wrap points correctly based on actual text width in pixels, BUT it was still enforcing a hard wrap at `wrap_cols` character positions. This meant:
+- Text would check if it fit in pixel width
+- But then immediately wrap if it exceeded column count
+- Result: Proportional text didn't fill the available terminal width
+
+Example with 160-column terminal:
+```
+wrap_cols = 157 (160 - 3 for indent)
+wrap_pixels = 157 * 12 = 1884 pixels
+
+Word "companions" measured at 80 pixels
+Current position: column 50 (600 pixels)
+Check: 600 + 80 = 680 < 1884 ✓ fits in pixels
+BUT: After rendering, x = 61... then check `if (x >= 157)` would wrap!
+```
+
+The proportional font characters are narrower, so we could fit more columns worth of text, but the character-based check was preventing this.
+
+### The Solution
+Removed the hard character-based wrap checks from `text_out_to_screen_story()`:
+
+**Before:**
+```c
+Term_addch(a, ' ');
+if (++x >= wrap_cols) {  // ❌ Wraps too early!
+    x = text_out_indent;
+    y++;
+}
+```
+
+**After:**
+```c
+Term_addch(a, ' ');
+x++;  // ✓ Just track position, let pixel check handle wrapping
+```
+
+The pixel-based check (`current_pixels + word_pixels > wrap_pixels`) is what determines when to wrap, not the column count.
+
+### Files Modified
+- **src/util.c**: 
+  - Modified `text_out_to_screen_story()` function
+  - Removed `if (++x >= wrap_cols)` checks in two places:
+    1. Space handling loop
+    2. Character output loop in word rendering
+  - Now only the pixel-width check controls wrapping
+
+### Technical Details
+
+**Wrapping Decision:**
+```c
+int word_pixels = sdl_story_font_text_width(word_start, word_chars);
+int current_pixels = x * cell_width;
+
+if (x > text_out_indent && (current_pixels + word_pixels) > wrap_pixels) {
+    /* Wrap to next line - based purely on pixel width */
+    x = text_out_indent;
+    y++;
+}
+```
+
+**Column tracking:** The `x` variable still tracks approximate column position for cursor management, but it no longer enforces wrapping.
+
+### Result
+✅ Story font text now fills the full terminal width
+✅ Proportional text can use more "columns" when characters are narrower
+✅ Wrapping happens only when pixel width is exhausted
+✅ Build successful
+
+### Testing
+Test by viewing story text (`print_story()`) in different terminal widths. Text should now flow all the way to the right edge before wrapping.
+
+---
+
+## 2025-10-25: Story Font Page Wrapping Fix
+
+### Summary
+Fixed page wrapping in `print_story()` that was leaving wasted space at the bottom of pages. The issue was using a hardcoded estimate instead of calculating actual line count based on text content.
+
+### The Problem
+- Page break logic used a hardcoded estimate of 6 lines per story entry
+- This didn't account for actual text length or wrapping behavior
+- With pixel-based wrapping for story font, text could fit more content per line
+- Result: Pages would break too early, leaving significant whitespace at the bottom
+
+### The Solution
+**Created `count_wrapped_lines_story()` function** (util.c):
+- Mirrors the pixel-based wrapping logic from `text_out_to_screen_story()`
+- Measures actual words using `sdl_story_font_text_width()`
+- Calculates exact number of lines text will occupy
+- Accounts for word boundaries and wrapping behavior
+
+**Updated `print_story()` function** (files.c):
+- Calculate wrap width and text once at the top of the loop
+- Call appropriate line counter based on SDL vs non-SDL build:
+  ```c
+  #ifdef USE_SDL
+      int text_lines = count_wrapped_lines_story(text, wrap_width, indent);
+  #else
+      int text_lines = count_wrapped_lines(text, wrap_width, indent);
+  #endif
+  ```
+- Use actual line count: `estimated_space_needed = 1 + text_lines + 1`
+  - 1 for heading
+  - text_lines for body content
+  - 1 for blank line separator
+- Eliminated duplicate variable declarations
+
+### Files Modified
+- **src/util.c**:
+  - Added `count_wrapped_lines_story()` function under `#ifdef USE_SDL`
+  - Pixel-based line counting matching the wrapping algorithm
+  
+- **src/externs.h**:
+  - Declared `count_wrapped_lines_story()` under `#ifdef USE_SDL`
+  
+- **src/files.c**:
+  - Modified `print_story()` to use actual line counting
+  - Hoisted `wrap_width` and `text` variable declarations
+  - Removed hardcoded `estimated_space_needed = 6`
+
+### Technical Details
+
+**Line Counting Algorithm:**
+```c
+int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
+{
+    int wrap_pixels = wrap_cols * sdl_get_cell_width();
+    int lines = 1;
+    
+    for each word in str:
+        measure word_pixels = sdl_story_font_text_width(word)
+        if (current_pixels + word_pixels > wrap_pixels)
+            wrap to next line
+        
+    return lines;
+}
+```
+
+**Space Calculation:**
+```c
+int text_lines = count_wrapped_lines_story(text, wrap_width, indent);
+int estimated_space_needed = 1 + text_lines + 1;  // heading + text + blank
+```
+
+### Benefits
+1. **Accurate pagination**: Pages break exactly when space runs out
+2. **Better space utilization**: Maximum content per page
+3. **Consistent behavior**: SDL and non-SDL builds both calculate accurately
+4. **No wasted space**: Bottom margins are minimized
+
+### Testing
+- ✅ Build successful
+- Story pages should now fill completely before breaking
+- Proportional font wrapping is properly accounted for
+- Works for both SDL (pixel-based) and non-SDL (character-based) builds
+
+---
+
+## 2025-10-25: Story Font Pixel-Based Wrapping
+
+### Summary
+Implemented intelligent wrapping for story font (proportional text) that fills the available terminal width based on actual pixel measurements instead of character count. This eliminates wasted space when using proportional fonts.
+
+### The Problem
+- Story font uses proportional spacing (characters have different widths)
+- Text wrapping was based on monospace character count
+- This caused premature line breaks, leaving significant whitespace at line ends
+- Example: A line allowed 80 characters in monospace, but proportional text only filled ~60% of the width
+
+### The Solution
+Implemented pixel-based wrapping that:
+1. Measures actual text width using TTF font metrics
+2. Calculates available width: `num_columns * cell_width_pixels`
+3. Wraps when pixel width would exceed available space
+4. Handles word boundaries properly for clean breaks
+
+### Implementation
+
+#### New Functions (main-sdl.c)
+```c
+/* Check if story font mode is active */
+bool sdl_is_story_font_enabled(void);
+
+/* Measure pixel width of text in story font */
+int sdl_story_font_text_width(cptr text, int len);
+
+/* Get cell width in pixels for the main terminal */
+int sdl_get_cell_width(void);
+```
+
+#### New Wrapping Function (util.c)
+```c
+#ifdef USE_SDL
+void text_out_to_screen_story(byte a, cptr str);
+#endif
+```
+
+Features:
+- Measures words using `TTF_MeasureString()`
+- Converts terminal columns to pixel width
+- Wraps based on actual rendered width
+- Handles word boundaries and spaces properly
+- Falls back to character-based wrapping if needed
+
+#### Automatic Dispatch
+Modified `text_out_to_screen()` to automatically use pixel-based wrapping when story font is enabled:
+```c
+void text_out_to_screen(byte a, cptr str)
+{
+#ifdef USE_SDL
+    if (sdl_is_story_font_enabled())
+    {
+        text_out_to_screen_story(a, str);
+        return;
+    }
+#endif
+    /* ... regular monospace wrapping ... */
+}
+```
+
+### Files Modified
+- **src/main-sdl.c**:
+  - Added `sdl_is_story_font_enabled()` - query current font mode
+  - Added `sdl_story_font_text_width()` - measure text in pixels using `TTF_MeasureString()`
+  - Added `sdl_get_cell_width()` - get terminal cell width in pixels
+  
+- **src/util.c**:
+  - Added `text_out_to_screen_story()` - pixel-based wrapping implementation
+  - Modified `text_out_to_screen()` to dispatch to story version when appropriate
+  
+- **src/externs.h**:
+  - Exposed new SDL helper functions
+  - Declared `text_out_to_screen_story()` under `#ifdef USE_SDL`
+
+### Technical Details
+
+**Pixel Width Calculation:**
+```c
+int wrap_cols = 80;  /* Terminal columns */
+int cell_width = sdl_get_cell_width();  /* e.g., 8 pixels */
+int wrap_pixels = wrap_cols * cell_width;  /* 640 pixels */
+```
+
+**Word Measurement:**
+```c
+int word_pixels = sdl_story_font_text_width(word_start, word_chars);
+int current_pixels = x * cell_width;
+
+if (current_pixels + word_pixels > wrap_pixels) {
+    /* Wrap to next line */
+}
+```
+
+**SDL_ttf Function Used:**
+- `TTF_MeasureString(font, text, len, 0, &width, NULL)` - measures exact pixel width of text
+
+### Benefits
+1. **Better space utilization**: Lines fill the full terminal width
+2. **More readable text**: Fewer artificial line breaks
+3. **Automatic**: Works transparently when story font is enabled
+4. **No code changes needed**: Existing `text_out_hook` calls work automatically
+
+### Testing
+- ✅ Build successful (no compile errors)
+- Story font wrapping automatically activates when `sdl_story_font_enable()` is called
+- All existing story text locations benefit automatically:
+  - Story sequences (`print_story()`)
+  - Depth banners (`pause_with_text()`)
+  - Any text output using `text_out_hook`
+
+### Future Considerations
+- Could cache font metrics for performance optimization
+- Consider adding line height adjustments for better readability
+- Might extend to other UI elements that use story font
+
+---
+
+## 2025-10-25: Custom Story Font System (CORRECT IMPLEMENTATION)
+
+### Summary
+Implemented a **proper** custom font system that integrates with the terminal rendering system. Instead of rendering on top, the system uses a flag to switch between story font and monospace font within the existing `callback_sdl_text` hook.
+
+### Key Architecture
+
+The previous approach was fundamentally flawed - it tried to render SDL text on top of terminal text, which got cleared/overwritten. The correct approach is to modify the terminal text rendering hook itself.
+
+#### How It Works
+1. **Font Mode Flag**: `g_state.use_story_font` (bool)
+2. **Text Rendering Hook**: `callback_sdl_text()` checks the flag
+   - If `true`: uses `TTF_RenderText_Blended()` with story_font
+   - If `false`: uses regular monospace font_atlas
+3. **Enable/Disable API**: Wrap story sections with `sdl_story_font_enable()` / `sdl_story_font_disable()`
+
+### Configuration
+
+```json
+{
+  "sdl": {
+    "storyFont": "lib/xtra/font/YourStoryFont.ttf",
+    "monospaceFont": "lib/xtra/font/YourMonoFont.ttf"
+  }
+}
+```
+
+- `storyFont`: Non-monospace font for narrative (32px, fallback: InputMono-Bold.ttf)
+- `monospaceFont`: Reserved for future custom monospace font support
+
+### Implementation Details
+
+#### Modified `callback_sdl_text` (main-sdl.c)
+```c
+static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
+{
+    // ... setup code ...
+    
+    if (g_state.use_story_font && g_state.story_font) {
+        // Render using custom TTF font (proportional)
+        SDL_Surface* text_surface = TTF_RenderText_Blended(...);
+        // ... render to texture ...
+    } else {
+        // Use regular monospace font atlas
+        // ... existing glyph rendering code ...
+    }
+}
+```
+
+#### API Functions (main-sdl.c)
+```c
+void sdl_story_font_enable(void)  // Sets g_state.use_story_font = true
+void sdl_story_font_disable(void) // Sets g_state.use_story_font = false
+```
+
+#### Usage Pattern
+```c
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+    Term_putstr(...);  // This will use story font
+    c_put_str(...);    // This will use story font
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
+```
+
+### Where Story Font Is Used
+
+1. **Story sequences** (`print_story()` in files.c)
+   - Title: "=== The Tale So Far ==="
+   - Chapter headings: "Chapter 1. Whisper of Manwe", etc.
+   - Wrapped in enable/disable calls around each heading
+
+2. **Depth change banners** (`pause_with_text()` in xtra2.c)
+   - Enable at start of function
+   - All banner text and story stanzas use story font
+   - Disable at end before cleanup
+
+3. **Character sheet** (`display_player_misc_info()` in files.c)
+   - Player name (both parts: Name and House title)
+   - "the Oathbreaker" variant
+
+### Files Modified
+
+- **src/sdl-config.h**: Added `monospace_font[256]` field
+- **src/sdl-config.c**: Added JSON loading/saving for both fonts
+- **src/main-sdl.c**:
+  - Added `use_story_font` flag to `sdl_state`
+  - Modified `callback_sdl_text()` to check flag and use custom font
+  - Added `sdl_story_font_enable()` and `sdl_story_font_disable()` functions
+  - Removed old broken `sdl_render_story_text()` function
+- **src/externs.h**: Exposed enable/disable API
+- **src/files.c**: 
+  - `print_story()`: Wrapped all text rendering with enable/disable
+  - `display_player_misc_info()`: Enabled for character name
+- **src/xtra2.c**: 
+  - `pause_with_text()`: Enabled at start, disabled at end
+
+### Technical Notes
+
+**Why This Works:**
+- Terminal operations (`Term_putstr`, `c_put_str`) eventually call `callback_sdl_text()`
+- By modifying the hook itself, we intercept ALL text rendering
+- The flag lets us selectively use custom font vs monospace
+- No conflicts with `Term_clear()` or other terminal operations
+
+**Rendering Details:**
+- Story font size: 32px
+- Uses `TTF_RenderText_Blended()` for anti-aliasing
+- Text can overflow cell boundaries (proportional spacing)
+- Regular monospace uses existing font_atlas system
+
+### Testing Results
+- ✅ Build successful (no new errors)
+- ✅ Story font loads at 32px
+- ✅ All story text should use custom font
+- ✅ Character name uses custom font
+- ✅ Banners use custom font
+- ✅ Regular game text still uses monospace
+
+### Future Enhancements
+- Support custom monospace font via `monospaceFont` config
+- Add font size configuration options
+- Consider caching rendered glyphs for performance
+
+---
+
+## 2025-10-25: Skill Distribution UI Improvements
+
+### Changes Made
+1. **Full skill name highlighting in skill distribution screen**
+   - Modified `gain_skills()` in `src/birth.c` to highlight the entire skill name (not just the cost digits) when a skill is selected
+   - Previously only the cost column was highlighted in blue; now the skill name in the left column is also highlighted
+   - Uses `TERM_L_BLUE` for consistency with other UI highlighting
+   - **Fixed**: Highlight position adjusted from `col` to `col - 1` to match the actual display position (col 41 vs 42)
+
+2. **Direct keyboard shortcut to skill distribution**
+   - Modified `process_command()` in `src/dungeon.c` to make capital 'H' directly open the skill distribution screen
+   - Lowercase 'h' continues to open the character sheet (requires pressing 'i' to access skills)
+   - Capital 'H' now calls `gain_skills()` directly with proper screen save/load wrapping
+   - **Fixed**: Added `screen_save()` and `screen_load()` around the `gain_skills()` call to prevent character_icky imbalance issues
+
+### Files Modified
+- `src/birth.c`: 
+  - Added skill name highlighting in the cost display loop (line ~2400)
+  - Changed highlight column from `col` to `col - 1` to align with skill name position
+- `src/dungeon.c`: 
+  - Split 'h' and 'H' key handling to provide direct skill access (line ~1200)
+  - Added screen_save/load around gain_skills() call to maintain proper screen state
+
+### Technical Notes
+- The `screen_save()` and `screen_load()` calls are critical for maintaining the `character_icky` counter balance
+- Without them, the screen state becomes corrupted and the menu can't be properly exited
+- The skill names in `display_player()` are rendered at column 41, while the cost display used column 42
+
+### Testing
+- Build successful with CMake
+- Warnings are pre-existing and unrelated to these changes
+
+---
+
+## 2025-10-25 - Color-Coded Object Descriptions
+
+### New Feature
+Object description text is now **color-coded** like monster descriptions, making different types of information easier to read at a glance.
+
+### Color Scheme
+
+**Positive Effects:**
+- **Green**: "increases", "improves" (stat/skill bonuses)
+- **Light Blue**: "grants", "resistance" (abilities, resistances)
+
+**Negative Effects:**
+- **Light Red**: "decreases", "worsens", bad effects (penalties, negative traits)
+- **Red**: "vulnerable" keyword
+- **Violet** (purple): "cursed", "permanently cursed", "heavily cursed"
+
+**Combat/Damage:**
+- **Light Red**: "slays" keyword
+- **Orange**: Enemy types in slay lists (orcs, trolls, dragons, etc.), "branded" keyword
+
+**Elemental Brands:**
+- **Light Red**: "flame" (fire brand)
+- **Light Blue**: "frost" (cold brand)
+- **Yellow**: "lightning" (electric brand)
+- **Green**: "venom" (poison brand)
+
+**Elemental Resistances/Vulnerabilities:**
+- **Light Blue**: "cold", "frost"
+- **Light Red**: "fire", "flame"
+- **Yellow**: "lightning"
+- **Green**: "poison", "venom"
+- **Red**: "bleeding"
+- **Violet**: "fear", "confusion", "hallucination", "panic"
+- **Light Dark**: "blindness", "darkness"
+- **Orange**: "stunning"
+
+**Numbers/Values:**
+- **Umber** (brown): All numeric values (+3, -2, damage dice, etc.)
+
+**Special Abilities:**
+- **Violet** (purple): Ability names in ability lists
+
+**Normal Text:**
+- **White**: Regular descriptive text
+
+### Examples
+
+**Before (all white):**
+```
+It increases your strength and dexterity by 3.
+It improves your melee by 2.
+It slays orcs and trolls.
+It grants you the abilities: Power, Crowd Fighting.
+It provides resistance to cold and fire.
+It is branded with flame and frost.
+It creates an unnatural darkness.
+It is heavily cursed.
+```
+
+**After (color-coded):**
+```
+It [GREEN]increases[WHITE] your strength and dexterity by [UMBER]3[WHITE].
+It [GREEN]improves[WHITE] your melee by [UMBER]2[WHITE].
+It [L_RED]slays[WHITE] [ORANGE]orcs[WHITE] and [ORANGE]trolls[WHITE].
+It [L_BLUE]grants[WHITE] you the [L_BLUE]abilities[WHITE]: [VIOLET]Power[WHITE], [VIOLET]Crowd Fighting[WHITE].
+It provides [L_BLUE]resistance[WHITE] to [L_BLUE]cold[WHITE] and [L_RED]fire[WHITE].
+It is [ORANGE]branded[WHITE] with [L_RED]flame[WHITE] and [L_BLUE]frost[WHITE].
+It creates an unnatural [L_DARK]darkness[WHITE].
+It is [VIOLET]heavily cursed[WHITE].
+```
+
+### Implementation
+
+Added colored output functions in `obj-info.c`:
+- `p_text_out_c(byte attr, cptr str)` - Color-coded paragraph text
+- `output_list_c(cptr list[], int n, byte attr)` - Color-coded lists
+
+Updated description functions:
+- `describe_stats()` - Stat bonuses/penalties
+- `describe_skills()` - Skill improvements
+- `describe_slay()` - Slaying abilities
+- `describe_brand()` - Elemental brands (flame, frost, lightning, venom)
+- `describe_abilities()` - Special abilities
+- `describe_resist()` - Elemental and status resistances
+- `describe_vulnerability()` - Elemental vulnerabilities
+- `describe_misc_magic()` - Curses, darkness, and miscellaneous effects
+
+### Files Modified
+- `src/obj-info.c`: Added color functions and updated all major description outputs
+
+### Visual Impact
+- **Easier scanning**: Positive effects stand out in green
+- **Quick identification**: Numbers in brown are easy to spot
+- **Consistent with monsters**: Matches the color-coding style of monster descriptions
+- **Better readability**: Different information types are visually distinct
+
+---
+
+## 2025-10-25 - Artifact Unique Color Option
+
+### New Feature
+Added optional **bright green coloring** for all identified artifacts as an alternative to the shade system.
+
+**New Game Option:**
+- **Name**: "Display artifacts in unique bright green color"
+- **Location**: Options → Display menu
+- **Default**: Enabled (ON)
+- **Effect**: When enabled, all identified artifacts display in TERM_L_GREEN1 (bright green shade) instead of shaded versions of their base colors
+
+### Implementation
+
+**Option definition:**
+- `OPT_artifact_unique_color` (index 74)
+- Macro: `artifact_unique_color`
+
+**Applied in two locations:**
+
+**1. Inventory/Equipment Lists (`object_display_color()` in object1.c):**
+```c
+if (artefact_p(o_ptr) && object_known_p(o_ptr))
+{
+    if (artifact_unique_color)  /* Option enabled */
+    {
+        return TERM_L_GREEN + TERM_SHADE;  /* Bright green */
+    }
+    
+    /* Option disabled: use shade of base color */
+    return MAKE_EXTENDED_COLOR(color_to_use, 1);
+}
+```
+
+**2. Object Description/Inspection (`screen_out_head()` in obj-info.c):**
+```c
+/* Use same color logic as inventory/equipment displays */
+byte base_color;
+
+/* Determine base color from item type */
+if (weapon_glows(o_ptr))
+{
+    base_color = TERM_L_BLUE;
+}
+else
+{
+    base_color = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+}
+
+/* Apply artifact/shade coloring using the same function as inventory */
+byte name_color = object_display_color(o_ptr, base_color);
+```
+
+This ensures **all items** use their proper type colors in the description screen, matching the inventory display exactly.
+
+### Visual Results
+
+**With option ENABLED (default):**
+- Inventory/Equipment lists: ALL identified artifacts in **Bright Green**
+- Inspection screen: 
+  - Identified artifacts in **Bright Green**
+  - Regular items in **their type color** (swords=red, armor=blue, boots=brown, etc.)
+- Easy to spot artifacts everywhere!
+
+**With option DISABLED:**
+- Inventory lists: Each artifact in shaded version of its item type color
+- Inspection screen:
+  - Identified artifacts in **shaded version of their type color**
+  - Regular items in **normal type color**
+
+**Example colors in inspection:**
+- Sword (regular): Red name
+- Artifact Sword (option ON): Bright Green name
+- Artifact Sword (option OFF): Dark Red name
+- Boots (regular): Brown name
+- Boots of Finrod (option ON): Bright Green name
+- Boots of Finrod (option OFF): Dark Brown name
+- Potion: Green name
+- Armor: Blue name
+
+### Files Modified
+- `src/defines.h`: Added OPT_artifact_unique_color constant and macro
+- `src/tables.c`: Added option description, default value (true), and menu placement
+- `src/object1.c`: Updated `object_display_color()` for inventory/equipment
+- `src/obj-info.c`: Updated `screen_out_head()` for description/inspection screen
+
+### Color Reference
+- **TERM_L_GREEN1** (index 29): RGB(0, 220, 100) - Bright vibrant green for artifacts
+- **Item type colors match inventory**: Swords (red), Armor (blue), Boots (brown), Potions (green), etc.
+- All items now have **consistent coloring** between inventory and inspection screens
+
+---
+
+## 2025-10-25 - Artifact Color Shading (FINAL - SDL Renderer Fix)
+
+### Feature
+Identified artifacts now display with **shaded text color** (darker version of base color) to make them visually distinct from regular items.
+
+### The REAL Issue - SDL Renderer Only Used 16 Colors
+
+After extensive debugging with log output, discovered the **SDL renderer was ignoring extended colors**!
+
+**Root Cause:**
+```c
+// main-sdl.c line 471 - BEFORE (BROKEN)
+SDL_Color col = g_state.palette[a % 16];  // ❌ Strips shade info!
+```
+
+The `% 16` operation was discarding all extended color information, mapping:
+- Color 23 (TERM_UMBER shade 1) → Color 7 (TERM_UMBER base)
+- Color 17 (TERM_WHITE shade 1) → Color 1 (TERM_WHITE base)
+
+The `angband_color_table[256][4]` array DOES contain all extended colors:
+- Indices 0-15: Base colors (TERM_DARK through TERM_L_UMBER)
+- Indices 16-31: Shade 1 of colors 0-15 (darker versions)
+- Indices 32-47: Shade 2 of colors 0-15 (even darker)
+- ...up to 128 shades total
+
+But the SDL renderer was only using the first 16!
+
+### The Complete Fix
+
+**1. Use MAKE_EXTENDED_COLOR macro (object1.c):**
+```c
+byte object_display_color(const object_type* o_ptr, byte base_color)
+{
+    byte color_to_use = base_color;
+    
+    if (o_ptr->name1 && a_info[o_ptr->name1].d_attr) {
+        color_to_use = a_info[o_ptr->name1].d_attr;
+    }
+    
+    if (artefact_p(o_ptr) && object_known_p(o_ptr)) {
+        return MAKE_EXTENDED_COLOR(color_to_use, 1);  // Shade level 1
+    }
+    
+    return color_to_use;
+}
+```
+
+**2. Fix SDL renderer to use extended colors (main-sdl.c):**
+```c
+// AFTER (FIXED)
+/* Use extended color table to support shaded colors (indices 0-255) */
+SDL_Color col;
+col.r = angband_color_table[a][1];  // Direct lookup, no modulo!
+col.g = angband_color_table[a][2];
+col.b = angband_color_table[a][3];
+col.a = 255;
+
+SDL_SetTextureColorMod(d->font_atlas, col.r, col.g, col.b);
+```
+
+### Debug Evidence
+
+**Log showed color was being set correctly:**
+```
+sidebar object: ... name='*Pair of Boots of Finrod' ... color=23
+sidebar object: ... name='Pair Greaves' ... color=7
+```
+
+But they displayed the same because `23 % 16 = 7`!
+
+### Visual Result
+
+**Now working properly:**
+- **Regular Boots** (color 7): `0x80, 0x40, 0x00` = Normal brown
+- **Boots of Finrod** (color 23): `0xC8, 0x64, 0x00` = Darker richer brown ✓
+- **Regular items**: Base colors
+- **Identified artifacts**: Shade 1 (noticeably darker) ✓
+
+### Files Modified
+- `src/object1.c`: Uses `MAKE_EXTENDED_COLOR(color, 1)` for artifacts
+- `src/main-sdl.c`: Fixed to use full `angband_color_table[a]` instead of `palette[a % 16]`
+- `src/cmd4.c`: Updated smithing display
+- `src/externs.h`: Function declaration
+
+### Technical Notes
+- **Extended color encoding**: `((shade << 4) | base_color) & 0x7F`
+- **angband_color_table**: 256 entries, indices 16-31 are shade 1
+- **Shade levels**: 0 (base) through 7 (very dark)
+- **We use shade 1**: Subtle but clear distinction
+- **Works in**: SDL3, Windows, GCU (terminals with 256 color support)
+
+This feature is now fully functional! 🎨
+
+---
+
+## 2025-10-24 - Item Color Scheme Overhaul
+
+### Problem Analysis
+The original color scheme had several issues:
+1. **Poor color distribution**: Many items shared the same colors
+   - 3 weapon types all White
+   - 6 armor pieces + staff + food all Light Umber
+   - Multiple armors all Slate
+2. **Unused colors**: Not utilizing all 16 available terminal colors
+3. **Missing GEM color**: TV_GEM (56) had no defined color
+4. **Poor visual grouping**: No logical color theme for item categories
+
+### Solution - Menu-Order-Aware Color Mapping
+Analyzed the actual menu display order from `object_group_tval` in cmd4.c:
+```
+Food → Potions → Rings → Amulets → Staves → Horns → Swords → Polearms →
+Hafted → Diggers → Bows → Lights → Soft Armor → Mail → Shields → Cloaks →
+Gloves → Helms → Crowns → Boots → Chests
+```
+
+**Key Strategy**: Maximize visual distinction for **adjacent** items in menus, allow strategic color sharing for items far apart in display order.
+
+### New Color Scheme
+
+**Consumables** (Green family - natural):
+- FOOD: Light Green (0x0D) - herbs
+- POTION: Green (0x05) - liquid
+
+**Jewelry** (Precious metals):
+- RING: Yellow (0x0B) - gold
+- AMULET: Orange (0x03) - amber/gems
+
+**Magic Items** (Mystical colors):
+- STAFF: Violet (0x0A)
+- HORN: Umber (0x07) - earthy/natural horn
+
+**Weapons** (Warm/aggressive colors):
+- SWORD: Red (0x04) - classic weapon color
+- POLEARM: Light Red (0x0C) - distinct from sword
+- HAFTED: Orange (0x03) - shares with AMULET (far apart)
+- DIGGING: Umber (0x07) - tool, shares with HORN/BOOTS
+- BOW: Yellow (0x0B) - shares with RING (far apart)
+- ARROW: Light Umber (0x0F) - ammunition
+
+**Armor - Body** (Cool/defensive blue tones):
+- SOFT_ARMOR: Light Blue (0x0E)
+- MAIL: Blue (0x06)
+
+**Armor - Accessories** (Varied neutrals):
+- SHIELD: White (0x01) - bright defense
+- CLOAK: Violet (0x0A) - shares with STAFF (far apart)
+- GLOVES: Light Dark (0x08) - gray leather
+- HELM: Slate (0x02) - darker metal
+- CROWN: Light White (0x09) - royal/bright
+- BOOTS: Umber (0x07) - shares with DIGGING/HORN
+
+**Utility**:
+- LIGHT: Light White (0x09) - bright, shares with CROWN
+- FLASK: Orange (0x03) - shares with AMULET/HAFTED
+- GEM: Light Blue (0x0E) - **NEW!** crystal, shares with SOFT_ARMOR
+
+**Miscellaneous**:
+- CHEST: Slate (0x02) - wooden
+- SKELETON: White (0x01) - bone
+
+### Benefits
+1. **All 16 colors utilized** across the item spectrum
+2. **Adjacent items always have distinct colors** in menu order
+3. **Thematic grouping**: Related items use color families (weapons=warm, armor=cool, consumables=green)
+4. **Strategic sharing**: Colors only repeat for items separated by 5+ positions in menus
+5. **GEM now has a color** (was defaulting to L_DARK)
+
+### Files Modified
+- `lib/pref/font-xxx.prf` - Updated E: entries with new color mappings and detailed comments
+
+### Color Reference
+```
+0x01=White  0x02=Slate   0x03=Orange  0x04=Red     0x05=Green   0x06=Blue
+0x07=Umber  0x08=L_Dark  0x09=L_White 0x0A=Violet  0x0B=Yellow
+0x0C=L_Red  0x0D=L_Green 0x0E=L_Blue  0x0F=L_Umber
+```
+
+---
+
+## 2025-10-24 - Ability Menu Redesign
+
+### Changes Made
+
+**Layout Improvements** (Single-Column):
+1. **Compact single-column layout** - abilities start at row 3 (was row 4)
+   - Fits 20 songs in rows 3-22 (20 rows) within 24-line minimum terminal
+   - Clean, simple navigation
+
+2. **Description area expanded**:
+   - COL_DESCRIPTION moved from 41 to 35 (6 columns wider, wraps at col 79)
+   - Description starts at row 3 with ability name in TERM_YELLOW
+   - More vertical space before prerequisites (start at row 10)
+
+3. **Prerequisites/Cost with color coding**:
+   - Prerequisites at row 10: **green** if met, **dark gray** if not met
+   - Cost at row 16+: **green** if affordable, **dark gray** if not
+
+**Color Scheme Added**:
+- **Title & highlights**: TERM_L_BLUE
+- **Headers & ability names**: TERM_YELLOW  
+- **Active innate**: TERM_WHITE
+- **Active learned**: TERM_L_GREEN
+- **Inactive**: TERM_RED
+- **Available**: TERM_SLATE
+- **Locked**: TERM_L_DARK
+
+**Color legend** at row 23 explains the scheme to players.
+
+**Files Modified**: `src/cmd4.c` (abilities_menu2 function, COL_DESCRIPTION constant)
+
+**Capacity**: Single column handles 20 abilities (rows 3-22) comfortably in 24-line terminal.
+
+---
+
+## 2025-10-24 - Alchemy Ability Enhancement for Gems
+
+### Feature Request
+Add Alchemy ability bonus to increase range of Gems of Revelation, Foes, and Treasures by 1.5x coefficient.
+
+### Implementation
+Modified `src/use-obj.c` in the `use_staff()` function to apply a 1.5x multiplier to the detection radius when:
+1. The item being used is a gem (`o_ptr->tval == TV_GEM`)
+2. The player has the Alchemy ability (`p_ptr->active_ability[S_PER][PER_ALCHEMY]`)
+
+#### Code Changes
+Added radius boost to three cases:
+- `SV_STAFF_REVELATIONS` (Gem of Revelation)
+- `SV_STAFF_TREASURES` (Gem of Treasures)
+- `SV_STAFF_FOES` (Gem of Foes)
+
+Formula: `radius = (radius * 3) / 2` (integer math for 1.5x)
+
+Base radius: `10 + p_ptr->skill_use[S_WIL]`
+
+Example: With Will 10, base radius = 20
+- Without Alchemy: 20 tiles
+- With Alchemy: (20 * 3) / 2 = 30 tiles
+
+#### Files Modified
+1. `src/use-obj.c` - Added Alchemy checks to gem detection cases
+2. `lib/edit/ability.txt` - Updated Alchemy description to include gem range bonus
+
+### Testing
+Build successful. Deploy complete. Ready for in-game testing.
+
+---
+
+## 2025-10-23 - Song of Shattering Debug Investigation
+
+### Issue
+Song of Shattering not applying debuffs - no messages in log and no visible effects in monster screen.
+
+### Root Cause
+**Song of Shattering was missing from the `ability_bonus()` function in `xtra1.c`!**
+
+The song was properly integrated into the song processing loop, but when calculating the score with `ability_bonus(S_SNG, SNG_SHATTERING)`, it wasn't in the switch statement, so it returned a default bonus of 0.
+
+From the log:
+```
+Song of Shattering: starting with score=0
+Song of Shattering: skill_check result=-16 (score=0, resistance=13)
+Song of Shattering: Attempting weapon damage, weaken_chance=0%
+```
+
+With score=0:
+- All skill checks fail (0 vs monster Will + distance)
+- Probability is 0/3 = 0% (should be score/3 percent)
+- Song is completely ineffective
+
+### Fix
+Added `SNG_SHATTERING` case to the `ability_bonus()` function in `src/xtra1.c`:
+```c
+case SNG_SHATTERING:
+{
+    bonus = skill;
+    break;
+}
+```
+
+Placed after `SNG_MASTERY` and before `SNG_CONTEST` to maintain the logical ordering.
+
+### Expected Behavior After Fix
+With proper score calculation (e.g., skill 20 = score 20):
+- Skill checks: 20 vs (monster Will + distance) - should pass for nearby orcs
+- Probability: 20/3 = 6.7% chance per eligible monster per turn
+- Messages should appear when equipment is damaged
+- Monster screen should show reduced damage/armor values
+
+### Testing
+Close and restart the game to load the new executable, then:
+1. Sing Song of Shattering near orcs with equipment
+2. Check log.txt - should now show score > 0
+3. Should see successful skill checks and occasional equipment damage
+
+---
+
+## 2025-10-23 - Song of Trees Fix
 
 ## Date
-October 14-15, 2025
+2025-10-23 (earlier)
 
-## Metarun Backwards Compatibility Removal (Oct 15)
+## Summary
+Fixed Song of Trees to damage/stun light-sensitive monsters silently without showing visual light effects like Gem of Light does.
 
-### Current Version
-**Metarun file version: 0.9.0.1**
-- Major: 0
-- Minor: 9
-- Patch: 0
-- Extra: 1 (for persistent blessing choices)
+### Issue
+- Song of Trees was showing the same visual effect as Gem of Light ("You are surrounded by a white light.")
+- Should increase light radius AND damage light-sensitive monsters, but WITHOUT the visual flash/message
 
-### Changes Made - Phase 1: Non-Versioned File Support Removal
-Removed backwards compatibility for non-versioned meta.raw files. The system now ONLY accepts versioned meta.raw files (v0.9.0+).
-
-**What was removed:**
-- Legacy file format detection based on file size modulo operations
-- Support for reading non-versioned metarun entries
-- Conversion code for legacy formats within non-versioned files
-
-**What remains:**
-- Versioned file support (with proper header)
-- Conversion from older versioned formats (v5, v6, v7, v8) within versioned files
-- Automatic default metarun creation if file is rejected
-
-**Behavior:**
-- Non-versioned meta.raw files are now rejected with warning: "non-versioned meta.raw is no longer supported (requires v0.9.0+)"
-- System will create a fresh default metarun slot when encountering unsupported files
-- Existing versioned saves continue to work normally
-
-### Changes Made - Phase 2: Pre-v5 (metarun_old) Support Removal
-Removed support for the oldest metarun format that used bit-packed curses.
-
-**What was removed:**
-- `metarun_old` struct definition from `metarun.h`
-- `metarun_from_legacy_old()` conversion function
-- Pre-v5 entry size check in `is_versioned_meta_file()`
-- Pre-v5 loading code in `load_metaruns()`
-
-**What remains:**
-- Support for v5, v6, v7, v8 formats within versioned files
-- v5 is now the oldest supported format (uses bit-packed curses but has quest/oath tracking)
-
-**Impact:**
-- Files with pre-v5 format entries will be rejected even within versioned files
-- Minimum supported format is now v5 (quest system era)
-- Cleaner codebase with one less legacy conversion path
-
-### Files Modified
-- `src/metarun.h` - Removed `metarun_old` typedef
-- `src/metarun.c` - Removed non-versioned loading code (Phase 1) and pre-v5 support (Phase 2)
-
-### Testing Needed
-- Confirm versioned saves (v5+) load correctly
-- Verify non-versioned files trigger proper warning and create default metarun
-- Verify pre-v5 entries in versioned files are rejected gracefully
-
----
-
-## Critical Bug Fix: New Character Savefile Path Using Wrong House Name (Oct 15) - SECOND FIX
-
-### Problem
-After the first fix, new characters were still being saved with the wrong house name. The savefile was created as "Houseless" instead of the selected house name (e.g., "Gamil_Zirak").
-
-### Root Cause (Deeper Analysis)
-The first fix removed the `player_wipe()` call after `load_player()`, which preserved the `p_ptr->phouse` value. However, there was a SECOND bug in the order of operations:
-
-**Incorrect Order:**
-1. `character_creation()` - user selects house, stores in `p_ptr->phouse`
-2. `load_player()` - tries to load savefile using `op_ptr->full_name`
-   - **BUG**: At this point, `op_ptr->full_name` is still "Houseless" (default value)
-   - Generates savefile path: `./lib/save/Houseless`
-3. `player_birth_aux()` - sets `op_ptr->full_name` from house name
-   - Line 2475: `my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, ...)`
-   - Line 2476: `process_player_name(true)` updates savefile path
-   - **TOO LATE!** `load_player()` already used wrong path
-
-**Evidence from Log:**
-```
-3614: Character creation step completed: Naugrim Gamil Zirak
-3615: Loading savefile './lib/\save\Houseless'  <-- WRONG!
-3625: Generated savefile path: './lib/\save\Gamil_Zirak'  <-- Correct, but too late
-```
+### Root Cause (Updated after testing)
+- Original implementation called `light_area()` which uses `PROJECT_GRID` flag
+- `PROJECT_GRID` causes the visible light-up effect on dungeon squares
+- `light_area()` also prints the "surrounded by white light" message
+- Song of Trees should work silently in the background
+- **Critical bug found:** `project()` reduces damage dice by 2 per square of distance by default
+  - With `dd = 1 + (score/10)`, at score 10: dd=2
+  - At distance 1: dd reduced to 0, no damage possible!
+  - Fixed by using `uniform=true` parameter so dd doesn't decay
 
 ### Fix
-Set `op_ptr->full_name` immediately after `character_creation()` and BEFORE `load_player()`:
+- Modified `sing_song_of_trees()` to call `project()` directly instead of `light_area()`
+- Uses flags: `PROJECT_BOOM | PROJECT_KILL | PROJECT_PASS | PROJECT_HIDE`
+- Removed `PROJECT_GRID` to prevent visual lighting effect
+- Added `PROJECT_HIDE` to suppress graphics
+- **Set `uniform=true`** so damage dice don't decay with distance
+- Damage/stun calculations use light level at monster's position, not distance from player
+- Maintains damage/stun mechanics via GF_LIGHT handler (which checks `ds > 10` to identify Song vs Gem)
 
-```c
-/* Set player name from house BEFORE load_player() so savefile path is correct */
-my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
-process_player_name(true);  /* Update savefile path */
-log_debug("Player name set to: %s (house %d), savefile: %s", op_ptr->full_name, p_ptr->phouse, savefile);
-```
+### Behavior After Fix
+Song of Trees now:
+1. ✅ Increases light radius passively (handled in xtra1.c:1989)
+2. ✅ **Stuns HURT_LITE monsters reliably** based on light level (more consistent than damage)
+3. ✅ Damages monsters only when Will check succeeds (requires bright light)
+4. ✅ Works silently without visual effects or messages
+5. ✅ Uses song score for damage skill checks (via `ds = score` parameter)
 
-This ensures that when `load_player()` is called, it uses the correct savefile path based on the selected house.
+### Stun vs Damage Mechanics
+**Stun (Primary Effect):**
+- Calculated: `damroll(dd, light_level)` - scales with light level
+- Applied when monster **fails Will save** (result > 0, player wins)
+- Duration: Stun value in turns (decreases by 1 per turn)
+- With light level 14, dd=2: **2-28 turns of stun**
+- Represents the blinding/disorienting effect of light
+- Orcs (Will 1-2) will almost always fail against high song skill
 
-### Files Modified
-- `src/dungeon.c` - Added house name initialization before `load_player()` call
-- `session_notes.md` - Updated with second bug analysis
+**Damage (Secondary Effect):**
+- Only applied on **strong Will failure** (result ≥ 5)
+- Calculated: `damroll(dd, light_level)` then reduced by resistance
+- Reduction formula: `(damage × result) / (result + 5)`
+- Represents actual burning/searing damage from intense light
+- Bypasses armor (applied via `mon_take_hit`)
 
-### Testing
-- Build successful
-- Ready for testing: create new character, select house, verify savefile is created with correct name
+**Resistance Outcomes:**
+- result ≥ 5: Stun + Damage ("is seared by radiant light!")
+- result 1-4: Stun only ("cringes from the light!")
+- result ≤ 0: Monster resists ("resists the light!")
 
----
+This creates the intended progression:
+1. Weak song / high monster Will: Monster resists
+2. Moderate success: Monster stunned but not damaged (cringes)
+3. Strong success: Monster stunned AND damaged (seared)
 
-## Critical Bug Fix: New Character House Reset (Oct 15) - FIRST FIX
-
-### Problem
-New characters always start with the name "Houseless" (house 0 from character.txt)
-This happens even when the player selects a different house during character creation
-The selected house is not being preserved
-
-### Root Cause
-In `src/dungeon.c`, the character creation flow had a critical flaw:
-
-1. Line 3353: `player_wipe()` - resets everything including house to 0
-2. Line 3356: `character_creation()` - user selects race and house (stored in `p_ptr->prace` and `p_ptr->phouse`)
-3. Line 3365: `load_player()` - attempts to load savefile
-   - For NEW characters, savefile doesn't exist, returns `false`
-4. Line 3367: `player_wipe()` - **WRONGLY wipes player data again!**
-   - This resets `p_ptr->phouse` back to 0
-5. Later in `player_birth_aux()` at birth.c:2475:
-   ```c
-   my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, ...);
-   ```
-   Uses `p_ptr->phouse` which is now 0 (Houseless)
-
-The bug was that `player_wipe()` was unconditionally called after `load_player()` returned false, even for new characters where the house had just been selected.
-
-### Fix
-Removed the conditional `player_wipe()` call after `load_player()` fails. The player data is already wiped at the start of the loop (line 3353), and:
-- For new characters: data is clean from `character_creation()`
-- For dead characters: `character_loaded_dead` is set, and `player_wipe()` preserves choices
-- For corrupted files: very rare, and will be cleaned by the next loop iteration
-
-Changed from:
-```c
-if (!load_player()) {
-    log_debug("Failed to load player - wiping corrupted data");
-    player_wipe();
-}
-```
-
-To:
-```c
-(void)load_player();
-```
+Gem/Staff of Light:
+1. Shows "surrounded by white light" message
+2. Creates visible light flash effect
+3. Uses player's Will skill for damage checks
 
 ### Files Modified
-- `src/dungeon.c` - Removed redundant `player_wipe()` call after `load_player()`
+- `src/spells1.c`: Lines 6652-6668 - replaced `light_area()` call with direct `project()` call using appropriate flags
+- `src/spells1.c`: Lines 3418-3430 - added debug logging for damage calculation to diagnose issues
 
----
+### Debug Logging
+Added temporary debug logging to GF_LIGHT handler showing:
+- Number of damage dice (dd)
+- Light level at monster position
+- Raw damage before Will reduction
+- Will check result
+- Final damage after Will reduction
+- Stun amount applied
 
-## Critical Bug Fix: Save/Load Format Mismatch (Oct 15)
-
-### Problem
-- Savefiles created with latest code failed to load correctly
-- `min_depth_counter` was corrupted: saved as 85, loaded as 5308418 (calculated to depth 20!)
-- Characters teleported to level 20 when going down stairs from level 1
-- Quest marker read as 0x02 instead of 0x51
-- Character name corrupted: "Houseless" instead of actual name
-
-### Root Cause Analysis
-**TWO separate bugs in the save/load format:**
-
-1. **Crown Shatter Fields Mismatch:**
-   - **Save code** (save.c lines 977-978): ALWAYS writes `crown_shatter_sil2` and `crown_shatter_sil3` 
-   - **Load code** (load.c lines 1103-1157): Only reads these fields if `sf_extra >= 3`, or `sf_extra == 2`, or sets defaults if `sf_extra < 2`
-   - With `VERSION_EXTRA=1`, these 2 bytes are written but NEVER read
-   - Result: All subsequent data offset by 2 bytes!
-
-2. **Playerturn Field Mismatch:**
-   - **Save code**: Writes turn, then playerturn, then crown_shatter fields
-   - **Load code** with `sf_extra < 2`: Only reads turn, skips playerturn and crown_shatter
-   - Result: Additional 4-byte offset (s32b)
-
-**Combined Effect:**
-- 6 bytes of offset (4 for playerturn + 2 for crown_shatter)
-- `oath_type` saved as 2, loaded as 0 (reading from wrong position)
-- Quest marker 0x51 offset by 6 bytes, read as 0x02
-- Load code thinks it's a legacy 0.8.5 save, rewinds file position
-- `min_depth_counter` read from completely wrong position → garbage value
-
-### Fix
-**Cleaned up save/load logic by removing ALL legacy compatibility:**
-
-1. **Dropped support for savefiles < 0.8.9** (changed `OLD_VERSION_PATCH` from 0 to 9)
-2. **Simplified load logic** to match current save format:
-   - Always read: turn → playerturn → crown_shatter_sil2 → crown_shatter_sil3
-   - Removed all conditional sf_extra checks for these fields
-3. **Simplified quest block loading:**
-   - Removed all legacy quest compatibility code (1.5.x, 0.8.5, etc.)
-   - Now expects marker 0x51, returns error if not found
-4. **Set VERSION_EXTRA = 1** with clear documentation
-
-### Files Modified
-- `src/defines.h` - Set OLD_VERSION_PATCH to 9, VERSION_EXTRA to 1
-- `src/load.c` - Removed legacy compatibility, simplified turn/crown_shatter/quest loading
-- `src/dungeon.c` - Always wipe player data on failed load
-
-### Testing Required
-- Delete ALL old savefiles (they are incompatible)
-- Create new character and save
-- Load and verify depth is correct
-- Go down stairs and verify no teleportation to level 20
-
----
-
-## Critical Bug Fix: Corrupted Depth After Failed Load (Oct 15)
-
-### Problem
-- Characters would teleport to level 20 (Morgoth's level) when going down stairs from level 1
-- This happened after a failed savefile load attempt
-- The corruption persisted even after "starting a new character"
-
-### Root Cause
-When `load_player()` fails (e.g., due to checksum mismatch), it:
-1. Reads partial data into `p_ptr` (including a corrupted `depth` value)
-2. Encounters error (checksum mismatch) and returns `false`
-3. **BUT the corrupted data remains in `p_ptr`!**
-
-The bug was in `src/dungeon.c` lines 3367-3370:
-```c
-if (!load_player()) {
-    log_debug("Failed to load player");
-    if (character_loaded_dead) player_wipe();  // Only wipes if character_loaded_dead!
-}
-```
-
-When a checksum error occurs, `character_loaded_dead` is false, so `player_wipe()` is never called, leaving corrupted data (like `p_ptr->depth = 20`) in memory!
-
-### Fix
-Always wipe player data when load fails, regardless of `character_loaded_dead` flag:
-```c
-if (!load_player()) {
-    log_debug("Failed to load player - wiping corrupted data");
-    player_wipe();  /* Always wipe on load failure */
-}
-```
-
-### Files Modified
-- `src/dungeon.c` - Always call `player_wipe()` on failed load
-
----
-
-## Bug Fix: SMT_GAMIL Mithril Melting (Oct 14)
-
-### Problem
-- Items created with SMT_GAMIL flag (Gamil house bonus) should not be meltable
-- These items are created without mithril using 3 forge charges and marked with `IDENT_CANT_MELT`
-- Melt menu was appearing when these items were in inventory
-- Empty strings were shown in the menu but selection was still possible and allowed melting
-
-### Root Cause
-Inconsistent filtering logic between display and selection:
-1. **Display code** (`melt_menu_aux` line 6678): Correctly filtered out `IDENT_CANT_MELT` items
-2. **Selection code** (`melt_mithril_item` line 3495): Counted ALL mithril items without checking the flag
-3. **Menu availability** (`mithril_items_carried` line 3609): Counted ALL mithril items without checking the flag
-
-This caused:
-- Menu would show as available (count included Gamil-forged items)
-- Display would show empty slots (filtering worked)
-- Selection would access wrong items (numbering mismatch)
-
-### Fix
-Added `IDENT_CANT_MELT` flag check to both counting functions:
-
-**melt_mithril_item** (cmd4.c ~line 3495):
-```c
-/* Skip mithril items that can't be melted (Gamil-forged) */
-if ((f3 & TR3_MITHRIL) && !(o_ptr->ident & IDENT_CANT_MELT))
-```
-
-**mithril_items_carried** (cmd4.c ~line 3609):
-```c
-/* Only count mithril items that can be melted (exclude Gamil-forged) */
-if ((f3 & TR3_MITHRIL) && !(o_ptr->ident & IDENT_CANT_MELT))
-```
-
-### Files Modified
-- `src/cmd4.c` - Added flag checks to both functions
-
-### Testing Required
-- Create character with Gamil house (SMT_GAMIL flag)
-- Craft a mithril item without mithril (uses 3 forge charges)
-- Verify the item has `IDENT_CANT_MELT` flag set
-- Visit a forge - melt menu should not appear if only Gamil-forged items exist
-- Acquire normal mithril items - verify they can still be melted
-- Verify Gamil-forged items never appear in melt menu
-
----
-
-## Bug Fix: Savefile Checksum Mismatch
-
-### Problem
-- Characters marked as "(alive and well)" in scores.raw were not loading at startup
-- `autoload_alive_from_scores()` was finding alive characters but `load_player()` was failing
-- Error: "Checksum mismatch: expected 380738, got 16737057"
-- Savefile existed and was created with latest code, but loading failed
-
-### Root Cause
-The supply block feature was added to savefiles but VERSION_EXTRA was never incremented:
-1. **Save code** (save.c lines 1487-1506): Always writes the supply block to savefiles
-2. **Load code** (load.c line 1634): Only reads supply block if `sf_extra >= 1`
-3. **Version** (defines.h line 64): `VERSION_EXTRA` was defined as 0
-4. **Result**: Savefiles written with sf_extra=0 include supply data, but loader skips it, causing checksum calculation on different byte sequences
-
-### Fix
-Changed `VERSION_EXTRA` from 0 to 1 in `src/defines.h` line 64.
-
-This ensures:
-- New savefiles will be written with `sf_extra=1`
-- The load code will properly read the supply block
-- Checksum will be calculated on the same data during both save and load
-- Old savefiles with `sf_extra=0` will be incompatible (by design - they had the bug)
-
-### Files Modified
-- `src/defines.h` - Incremented VERSION_EXTRA from 0 to 1
-
-### Testing Required
-- Create a new character and save
-- Quit and restart the game
-- Verify the character auto-loads successfully from scores.raw
-- Verify no checksum mismatch errors
-
----
-
-## Previous Session: Metarun Blessing Exchange UI Enhancement
-
-### Changes Made
-Redesigned the blessing exchange feedback system to display messages inline within the menu itself instead of using intrusive `msg_print()` calls.
-
-### Files Modified
-- `src/metarun.c`
-
-1. **Modified blessing functions** to accept result message parameters:
-   - `blessing_remove_curse()` - now accepts `char *result_msg, size_t msg_size, byte *result_attr`
-   - `blessing_gain_minor()` - same parameters added
-   - `blessing_unlock_major()` - same parameters added
-
-2. **Replaced `msg_print()`/`msg_format()` calls** with inline status messages:
-   - Success messages use color coding: 
-     - Blue (`TERM_L_BLUE`) for curses lifted
-     - Green (`TERM_L_GREEN`) for minor blessings received
-     - Yellow (`TERM_YELLOW`) for major blessings sealed
-   - Error/info messages use orange (`TERM_ORANGE`) or dark (`TERM_L_DARK`)
-
-3. **Enhanced `open_blessing_exchange()`** menu:
-   - Added `status_msg[256]` buffer to track feedback
-   - Added `status_attr` to control message color
-   - Added `clear_status_on_next_key` flag to auto-clear after display
-   - Status message displays at row 14 within the menu interface
-   - Messages clear automatically on navigation (arrow keys) or after next action
-
-### Files Modified
-- `src/metarun.c`
+Check `sil-more-windows-sdl3/log.txt` for output.
 
 ### Technical Details
-- Status messages are displayed directly in the menu at `Term_putstr(2, 14, -1, status_attr, status_msg)`
-- Messages persist for one keypress then clear on navigation or next action
-- All error conditions now show inline feedback instead of modal message boxes
-- The change maintains all existing functionality while improving UX
+- Damage formula: `dd = 1 + (score/10)` dice of light level
+- Radius: `rad = 1 + (score/5)`
+- Skill parameter: `ds = score` (GF_LIGHT handler uses this to distinguish Song from Gem)
+- Only affects monsters with HURT_LITE flag
+- Damage reduced by monster Will resistance and distance
+- **Critical requirement:** Damage only triggers when `cave_light[monster_pos] >= 3`
+- Light sources provide different damage ranges:
+  - Torch (radius 1): Never damages (max light = 2)
+  - Lantern (radius 2): Damages same square only (light = 3)
+  - Mallorn (radius 3): Damages up to 1 square away
+  - Fëanorian (radius 4): Damages up to 2 squares away
+  - Silmaril (radius 7): Damages up to 5 squares away
 
----
+### Messages
+When Song of Trees affects a HURT_LITE monster, you'll see:
+- "[Monster] is seared by radiant light!" - when damage is dealt
+- "[Monster] cringes from the light!" - when stunned but no damage
+- "[Monster] resists the light!" - when Will save succeeds
 
-## Python Environment Setup & Agent Configuration (October 19, 2025)
+These messages now display (removed PROJECT_SILENT flag) to provide feedback.
 
-### Issue Identified
-Agents were unable to use Python or encountered incorrect path errors when attempting to run Python scripts in the workspace.
+# Session Notes - Morgoth Crown Tiles
 
-### Root Causes
-1. **PowerShell syntax issue**: The `&` call operator is required for executables; without it, PowerShell interprets `--` and `-` as operators
-2. **Lack of documentation**: Agents had no clear guidance on venv location or correct usage patterns
-3. **VS Code Python settings missing**: Workspace didn't explicitly configure the Python interpreter path
 
-### Changes Implemented
+## Date
+2025-10-27
 
-#### 1. Updated `.github/instructions/copilot-instructions.md`
-- Added "Python Environment & Scripts" section with:
-  - Correct venv path: `src/.venv/`
-  - Correct executable path: `C:/Users/efrem/Documents/GitHub/sil-qh/src/.venv/Scripts/python.exe`
-  - Python version: 3.13.2
-  - PowerShell syntax guidance: `& "path/to/python.exe" script.py`
-  - List of available utility scripts
+## Summary
+- Studied MicroChasm tile encoding (`attr & 0x3F` → row, `char & 0x3F` → column) via `graf-new.prf` and `callback_sdl_pict`.
+- Added `object_attr_graphics_override()` / `object_char_graphics_override()` in `src/object1.c` to remap Morgoth crown artefacts once Silmarils are removed.
+- Wired overrides into the `object_attr` / `object_char` macros (`src/defines.h`) and declared them in `src/externs.h` so all item renders honour the new tiles.
+- Introduced shared tile helpers (`TILE_*`) and taught the pref parser/dumper about `R#/C#` row/column tokens so artists can work numerically instead of hex.
 
-#### 2. Updated `.vscode/settings.json`
-- Added Python extension configuration:
-  ```json
-  "python.defaultInterpreterPath": "${workspaceFolder}/src/.venv/Scripts/python.exe"
-  "[python]": { "editor.formatOnSave": true }
-  ```
-- Enables auto-discovery of workspace venv
+## Notes
+- Crown with three Silmarils keeps existing tile (`0x85/0x9C`, row 5 col 28); variants now use row 12 with columns 23–25 while preserving glow/alert overlay bits.
 
-#### 3. Created `PYTHON_SETUP.md`
-- Comprehensive guide covering:
-  - Quick summary of venv location and packages
-  - Correct usage for PowerShell, Bash, and cmd.exe
-  - Virtual environment activation instructions
-  - Available Python utilities documentation
-  - Troubleshooting guide for common issues
-  - Key reminders for AI agents
+# Session Notes - Woven Theme Synergy
 
-### Verified Working
-- Python 3.13.2 venv is fully functional
-- Pre-installed packages: numpy (2.3.3), pandas (2.3.3), pillow (11.3.0), python-dateutil, pytz
-- All packages are accessible
-- Tested with: `& "./src/.venv/Scripts/python.exe" -c "import numpy; import pandas; print('working')"`
+## Date
+2025-10-25
 
-### Key Points for Agents
+## Summary
+- Added woven theme synergy handling so specified song pairs each gain +20% of base song skill when sung together.
+- Included helper utilities in `src/xtra1.c` to detect synergy pairs and grant the shared bonus after applying minor theme penalties.
 
-**Correct PowerShell Usage**:
-```powershell
-& "C:/Users/efrem/Documents/GitHub/sil-qh/src/.venv/Scripts/python.exe" script.py
-& "./src/.venv/Scripts/python.exe" calc_all_resolutions.py  # from workspace root
-```
+# Session Notes - Song Duels Mechanics Update
 
-**Why the `&` operator is needed**: PowerShell treats executable invocation differently from cmd.exe and bash. The `&` call operator ensures the path is treated as a command, not a string literal.
+## Date
+2025-10-24 (Evening)
 
-**Available Utility Scripts**:
-- `calc_all_resolutions.py` - Resolution calculator
-- `lib/edit/Power_Ratings.py` - Object power analysis
-- `lib/edit/parse_and_align_abilities.py` - Ability definitions
-- `lib/xtra/graf/osx_bmp2png.py` - Graphics conversion
+## Summary
+- Added Song of Contest and Song of Lament abilities after Grace with new data entries, enumerations (SNG_CONTEST, SNG_LAMENT, SNG_MAX), and song selection UI updates.
+- Extended player/monster state for targeted songs: stored duel targets and stacks, stack timestamps, cooldown timers, permanent stat/armour/damage penalties, and saved them via VERSION_EXTRA 5 bump.
+- Implemented targeted duel resolution each turn (Song+Will/2 vs monster Will), 7 voice upkeep, stack accrual/decay, and the on-3-stack outcomes (stat drains, grace loss, monster debuffs, singing lockouts).
+- Introduced per-turn/cleanup hooks (song_duels_new_player_turn, song_duels_handle_monster_removed), enforced major-theme-only usage, and blocked monsters from starting songs while locked out.
 
-### Files Modified/Created
-- `.github/instructions/copilot-instructions.md` (updated)
-- `.vscode/settings.json` (updated with Python config)
-- `PYTHON_SETUP.md` (new comprehensive guide)
+# Session Notes - Morgoth Victory Update
 
----
+## Date
+2025-10-24 (Morning)
+
+## Summary
+- Added 10% health trigger for Morgoth's new desperate state with updated stats.
+- Introduced dedicated Morgoth victory flow: new messaging, notes, and high-score handling via `do_cmd_morgoth_victory()`.
+- Adjusted scoring, metarun, and blessing systems to reward Morgoth slayers (3 Silmarils awarded, doubled blessing pool contribution).
+
+### Key Changes
+1. Combat: `anger_morgoth()` state 5 stats now match design (60 attack, 10d10 damage, 40 evasion, 9d4 armour, increased Will/Per). `process_monster()` promotes Morgoth to state 5 precisely at 10% HP with new log/message hooks.
+2. Victory Flow: `monster_death()` now triggers the victory sequence instead of the legacy bug banner, adds `do_cmd_morgoth_victory()` with note logging, and retitles tomb/final menu text for Morgoth slayers.
+3. Meta & Scores: Morgoth victors are scored as if they ascended with all three Silmarils; blessing pool contributions are doubled; `metarun_update_on_exit()` has a new branch awarding +3 Silmarils and skipping kinslaying/treachery scenes.
+
+# Session Notes - Metarun UI Improvements
+
+## Date
+2025-10-22 (Evening)
+
+## Metarun Info Menu Enhancements - Round 3 (Final Alignment Fixes)
+
+Fixed remaining alignment issues and blessing power visibility.
+
+### Fixes Applied
+
+1. **Perfect Column Alignment**
+   - Changed from right-padding spaces to left-aligned format specifier: `%-8s`
+   - "Blessing" and "Curse" now properly align in 8-character column
+   - Fixed formatting: `%2d: %-28s %-8s %d - %s`
+
+2. **H:/P: Visibility Fix**
+   - H: (blessing power) and P: (curse power) now **only shown when identified** (`CURSE_SEEN()`)
+   - Added `bool seen = CURSE_SEEN(id);` check before displaying effect
+   - D: (description) still shown always as intended
+
 ### Build Status
-✅ Compiled successfully
+✅ Compiled and deployed successfully
+
+---
+
+## Metarun Info Menu Enhancements - Round 2 (Bug Fixes)
+
+Fixed alignment, encoding, and width issues based on testing feedback.
+
+### Fixes Applied
+
+1. **Blessing Pool Meter Encoding Fix**
+   - Changed from Unicode box-drawing characters (╔═╗║) to simple ASCII (+|-|#)
+   - Now uses `+----------+` for borders and `|##########|` for filled sections
+   - Fixes garbled character display in terminal
+   - Progress text format changed to compact: "113/350" instead of "113 / 350"
+
+2. **Curse/Blessing List Alignment**
+   - Fixed column alignment: `%2d: %-28s %s %d - %s`
+   - "Blessing" and "Curse   " now properly aligned (8 chars each)
+   - ID field: 2 digits, Name field: 28 chars fixed width
+   - Removed extra indentation (was `col + 2`, now just `col`)
+   - Effect text truncation respects meter position
+
+3. **Terminal Width Handling**
+   - Footer prompt now uses actual terminal width (minimum 80)
+   - Calculates: `target_width = (term_width > 80) ? term_width : 80`
+   - Pads footer to full width with spaces for clean display
+   - Shortened prompt text to fit: "[b] Spend blessings  [f] Threshold  [c] Difficulty  [u] Full list  [s] History"
+   - Footer starts at column 0 for full-width coverage
+
+4. **Description Visibility (D: and E:)**
+   - D: (curse description) and E: (blessing description) now **always shown**, even when not identified
+   - P: (curse power) and H: (blessing power) still require identification (`CURSE_SEEN()`)
+   - Changed message: "(Effect not yet identified)" instead of "(Not yet identified)"
+
+5. **Width Calculations**
+   - Main display respects meter position: `max_display_width = meter_col - 4`
+   - Ensures 80-column minimum width compliance throughout
+   - Text truncation with "..." when exceeding display area
+
+### Build Status
+✅ Compiled successfully with only pre-existing warnings
 ✅ Deployed to `sil-more-windows-sdl3/`
 
-### Testing Needed
-- Verify blessing point spending shows proper feedback in the menu
-- Test curse removal feedback displays correctly
-- Test minor blessing feedback displays correctly  
-- Test major blessing feedback displays correctly
-- Verify error messages (insufficient points, etc.) display inline
-- Confirm navigation clears status messages appropriately
-
 ---
 
-## Current Session: Save/Load Debugging Infrastructure (2025-10-15)
+## Metarun Info Menu Enhancements - Round 1 (Initial Implementation)
 
-### Problem
-Save file corruption - saves cannot load. Need detailed logging to identify synchronization issues.
-
-### Solution Applied
-Added comprehensive byte-level logging to all save/load primitive operations.
+Improved the metarun statistics and curse/blessing display screens with better layout, visual meter, and navigation.
 
 ### Changes Made
 
-1. **Byte Offset Tracking**
-   - save.c: Added save_byte_offset counter
-   - load.c: Enhanced load_byte_offset counter
-   - Both reset at start, incremented by all I/O functions
+1. **Blessing Pool Meter** (`src/metarun.c`)
+   - Added `draw_blessing_meter()` function that displays a vertical progress bar on the right side
+   - Shows current blessing pool progress toward next point threshold in light blue (`TERM_L_BLUE`)
+   - Uses box-drawing characters (╔═╗║╚╝) with filled blocks (████) for visual appeal
+   - Displays progress ratio below the meter (e.g., "2450 / 5000")
+   - Positioned at right edge (column = term_width - 16) to avoid overlap with main content
 
-2. **Primitive I/O Logging**
-   - wr_u16b/rd_u16b: Log values in hex and decimal
-   - wr_u32b/rd_u32b: Log values in hex and decimal
-   - wr_s16b/rd_s16b: Log signed values
-   - wr_s32b/rd_s32b: Log signed values
-   - Format: [save:XXXXXX] or [load:XXXXXX] with 6-digit offset
+2. **Enhanced 'u' Menu - Full Effects List** (`src/metarun.c`)
+   - Completely rewrote `show_all_active_curses()` to show both description and power for each effect
+   - Now displays **both D: (description/flavor text) and H:/P: (mechanical effect)** for identified effects
+   - Added pagination with left/right arrow navigation (keys 4/6) when effects don't fit on screen
+   - Page indicator in title: "=== Active Effects (Page 1/3) ==="
+   - Each effect shows: name, description, and mechanical effect on separate lines
+   - Handles long text truncation with "..." for terminal width
+   - 4 lines per effect (name + description + power + blank separator)
 
-3. **Section Markers**
-   - All major sections bracketed with === BEGIN/END === markers
-   - Inventory, supplies, dungeon, cave RLE, objects, monsters
-   - Door-choices probes clearly logged
+3. **Threshold Selection Menu Colors** (`src/metarun.c`)
+   - Added color-coded difficulty modes in `adjust_blessing_threshold_menu()`
+   - "Easier" mode: Green (`TERM_L_GREEN`)
+   - "Normal" mode: White (`TERM_WHITE`)
+   - "Harder" mode: Orange (`TERM_ORANGE`)
+   - Highlighted selection shown in yellow (`TERM_YELLOW`)
+   - Improved visual hierarchy with consistent color scheme
 
-### Files Modified
-- src/save.c (primitive I/O, wr_savefile, wr_dungeon, inventory/supplies sections)
-- src/load.c (primitive I/O, rd_savefile_new_aux, rd_dungeon, rd_inventory)
+4. **Minimum 80-Column Width**
+   - Ensured all text displays properly on minimum 80-width terminals
+   - Footer prompt already padded to 80 characters
+   - Blessing pool text simplified to fit within left column space
+   - Layout calculations respect minimum width while adapting to larger terminals
 
-### Log Analysis
-1. Check sil-more-windows-sdl3/log.txt
-2. Search for [save: and [load: to trace operations
-3. Compare offsets where save and load diverge
-4. Look for probe mismatches (door-choices 0xD00D magic)
+### Technical Details
+
+- Meter height: 15 rows on tall terminals, scales down to minimum 5 rows
+- Meter column: `term_width - 16` (provides 14-char wide meter + borders)
+- Navigation: Keys 4 (left) and 6 (right) for pagination, any other key exits
+- Data sources: Uses `curse_type` fields - `text`/`blessing_text` for D:/E:, `power`/`blessing_power` for P:/H:
+- Respects `CURSE_SEEN()` flag - only shows details for identified effects
 
 ### Build Status
- Compiled successfully
- Ready for testing
-
-
-### CRITICAL BUG FOUND AND FIXED
-
-**Issue**: First-time saves were failing silently!
-
-**Root Cause**: In save_player() (src/save.c), the code was trying to preserve the old savefile by renaming it to .old BEFORE checking if it exists. For first-time saves, this rename failed because there was no old file, causing the entire save process to abort.
-
-**Log Evidence**:
-```
-ERROR fd_move: rename('./lib/\save\Gamil_Zirak', './lib/\save\Gamil_Zirak.old') failed: No such file or directory
-ERROR Failed to preserve old savefile - aborting activation
-```
-
-The .new file was written successfully, but never activated because the old file preservation step failed.
-
-**Fix Applied**:
-Modified save_player() in src/save.c to check if old savefile exists before trying to preserve it:
-1. Use fd_open(savefile, O_RDONLY) to check if old file exists
-2. If it exists (fd >= 0), close it and preserve it as .old
-3. If it doesn't exist (first-time save), skip the preserve step with a log message
-4. Continue with activation of .new file
-
-**Files Modified**:
-- src/save.c (lines 1770-1805)
-
-**Build Status**:
- Compiled successfully
- Ready for testing - first-time saves should now work!
-
-
-### CRITICAL BUG #2 FOUND AND FIXED - Double Byte Counting
-
-**Issue**: Load was reading from wrong file offsets - byte positions were exactly DOUBLE what they should be!
-
-**Root Cause**: When I added byte offset tracking to the load functions, I made 
-d_byte(), 
-d_u16b(), 
-d_u32b(), etc. increment load_byte_offset. BUT sf_get() (the underlying function that reads bytes) ALREADY increments load_byte_offset! This caused DOUBLE counting.
-
-**Evidence from logs**:
-- SAVE wrote smithing item at offset 038966
-- LOAD read smithing item at offset 077932 (almost exactly 2x!)
-- This caused ALL subsequent data to be read from wrong positions
-- Dungeon header was read from wrong position, resulting in illegal map dimensions (20x0)
-
-**How double-counting happened**:
-`c
-// sf_get() increments load_byte_offset
-static byte sf_get(void) {
-    ...
-    load_byte_offset++;  // <-- INCREMENTS HERE
-    return (v);
-}
-
-// rd_u16b() was ALSO incrementing
-static void rd_u16b(u16b* ip) {
-    (*ip) = sf_get();              // +1 from sf_get
-    (*ip) |= ((u16b)(sf_get()) << 8);  // +1 from sf_get  
-    load_byte_offset += 2;         // +2 MORE! Total: +4 instead of +2
-}
-`
-
-**Fix Applied**:
-Removed the manual load_byte_offset increments from:
-- 
-d_byte() - removed load_byte_offset++
-- 
-d_bool() - removed load_byte_offset++  
-- 
-d_u16b() - removed load_byte_offset += 2
-- 
-d_u32b() - removed load_byte_offset += 4
-
-The sf_get() function already handles all byte counting correctly.
-
-**Files Modified**:
-- src/load.c (lines 227-262)
-
-**Build Status**:
- Compiled successfully
- Ready for testing - saves should now load correctly!
-
-
-### CRITICAL BUG #3 FOUND AND FIXED - Supply Data Version Mismatch
-
-**Issue**: After picking up a potion for supplies, saves would fail to load with "Illegal player location" error.
-
-**Root Cause**: Version mismatch in supplies read/write logic caused 4-byte misalignment!
-
-**The Problem**:
-- VERSION_EXTRA = 1 (defined in defines.h)
-- **Save logic** (save.c line 1575): ALWAYS writes stored_units (s32b, 4 bytes) after each supply item
-- **Load logic** (load.c line 1547): Only reads stored_units if sf_extra >= 2
-- When loading a file saved with extra=1, the load skipped the 4-byte stored_units field
-- This caused 4-byte misalignment for all subsequent data
-- Dungeon header was read from wrong position  invalid map dimensions  load failed
-
-**Evidence from logs**:
-`
-SAVE (extra=1):
-  - Supply item: 79 bytes
-  - stored_units (s32b): 4 bytes
-  - Total: 83 bytes (038158  038241)
-
-LOAD (extra=1, but checking >= 2):
-  - Supply item: 79 bytes
-  - SKIPPED stored_units!
-  - Total: 79 bytes (038158  038237)
-  - 4-byte SHORT!
-`
-
-**Fix Applied**:
-Changed load.c line 1547 from:
-`c
-if (sf_extra >= 2)
-    rd_s32b(&stored_units);
-`
-To:
-`c
-if (sf_extra >= 1)  // Fixed: was >= 2, but VERSION_EXTRA=1 writes this field
-    rd_s32b(&stored_units);
-`
-
-**Files Modified**:
-- src/load.c (line 1547)
-
-**Build Status**:
- Compiled successfully
- Ready for testing - saves with supplies should now load correctly!
-
+- Compiled successfully with standard warnings (pre-existing type comparison issues)
+- Deployed to `sil-more-windows-sdl3/` directory
 
 ---
 
-## Version Check Cleanup (2025-10-15)
+# Session Notes - Song of Revealing Implementation
 
-### Removed All Backward Compatibility Code
+## Date
+2025-10-22 (Morning)
 
-**Goal**: Simplify codebase by removing all legacy save format support. Only 0.9.0 extra=1 is now supported.
+## Song of Revealing
 
-**Changes Made**:
+- Added Song of Revealing entry to `lib/edit/ability.txt` after Song of the Trees (ability id 8, skill req 7, prerequisite Song of Delvings) and renumbered later song abilities/prerequisites to keep ordering consistent.
+- Introduced `SNG_REVEALING` enumeration between Trees and Woven Themes (`src/defines.h`), updated name table (`src/birth.c`), and granted it full skill scaling in `ability_bonus` (`src/xtra1.c`).
+- Broke out shared noise-detection logic as `detect_monster_noise()` so Listen and the new song reuse the same checks (`src/monster2.c`, declaration in `src/externs.h`).
+- Implemented `sing_song_of_revealing()` in `src/spells1.c` to run Song-skill-based monster reveals each turn and permanently mark nearby items via new `song_reveal_items()` helper; added start/maintenance messaging and voice cost handling.
+- Ran the VS Code Build and Deploy workflow manually (`cmake` configure/build followed by `.vscode/deploy.ps1`) to produce and copy the updated SDL3 executable.
 
-1. **Removed older_than() function** - No longer needed
-2. **Simplified version validation** - Now strictly checks for 0.9.0 extra=1, rejects all other versions
-3. **Removed pickup_slot version check** - Always reads pickup_slot (required in 0.9.0)
-4. **Removed main_combat_rolls version check** - Always reads the field with 7 spare bytes
-5. **Removed legacy randarts alignment recovery** - No longer attempts to recover misaligned old savefiles
-6. **Removed skills backward compatibility** - Always reads all S_MAX skills including S_SPC (Special)
-7. **Removed abilities version check** - Always reads have_ability for all skills
-8. **Removed supplies version check** - Always reads stored_units field
-9. **Removed version conversion warning** - No version conversion happens
+# Session Notes - Song Debuff Decay Implementation
 
-**Files Modified**:
-- src/load.c (multiple functions simplified)
+## Date
+2025-10-21
 
-**Benefits**:
-- Cleaner, more maintainable code
-- No confusing version checks scattered throughout
-- Faster load times (no legacy compatibility checks)
-- Clear error message when loading incompatible savefiles: "Incompatible savefile version (expected 0.9.0 extra=1)"
-- Removed ~80 lines of legacy compatibility code
+## Song of Challenge & Song of Elbereth - Gradual Debuff Decay
 
-**Warning**: 
-Old savefiles from versions prior to 0.9.0 extra=1 will NO LONGER load. This is intentional.
+**Problem:** Song debuffs (Perception/Stealth penalty for Challenge, Will penalty for Elbereth) disappeared immediately when stopping the song, making tactical song-switching less viable.
 
-**Build Status**:
- Compiled successfully with only one harmless warning (main_combat_rolls comparison)
- Ready for testing
+**Solution:** Implemented gradual decay system using timed effect counters with skill-scaled duration.
 
-# Session Notes - October 20, 2025
+### Files Modified
 
-## Unified Look Sidebar Bigtile Alignment
-- **File**: `src/cmd4.c` (`show_unified_sidebar()`)
-- Verified the sidebar spans exactly 13 columns before the map pane, so bigtile pairs on the map start on an odd column.
-- Updated monster rows to keep the combined name/HP/morale span at least 13 characters and always odd-length when `use_bigtile`, padding with spaces as needed while respecting buffer limits.
-- Adjusted the monster/object section headers to 13 characters and reworked object row padding to guarantee odd spans ≥13 characters under bigtile rendering.
+1. **src/types.h**
+   - Added `s16b song_challenge_effect` - lingering debuff counter for Song of Challenge
+   - Added `s16b song_elbereth_effect` - lingering debuff counter for Song of Elbereth
+   - Placed after `tmp_per` to group with other timed effects
+
+2. **src/spells1.c** (sing function)
+   - `SNG_CHALLENGE`: Sets counter based on song skill: `duration = (skill × 3) / 4`
+   - `SNG_ELBERETH`: Sets counter based on song skill: `duration = (skill × 3) / 4`
+   - Minimum duration of 3 turns at low skill
+   - At skill 20: 15 turns duration
+   - At skill 10: 7 turns duration
+   - At skill 30: 22 turns duration
+   - Counter maintains while song is active, then decays naturally
+
+3. **src/dungeon.c** (timed effect decay)
+   - Added decay logic after temporary perception block
+   - Each turn reduces counters by 1 until they reach 0
+   - Duration varies based on song skill when effect was applied
+
+4. **src/monster2.c** (monster_skill function)
+   - Changed from checking `singing()` to checking effect counter `> 0`
+   - Calculates max duration dynamically: `max_duration = (song_skill × 3) / 4`
+   - Penalty scales linearly: `penalty = (full_penalty × current_effect) / max_duration`
+   - Ensures minimum penalty of 1 while any effect remains
+   - Enhanced debug logging shows `effect/max_duration` (e.g., "effect=8/15")
+
+5. **src/save.c & src/load.c**
+   - Added serialization for both new counters after `oppose_pois`
+   - Reduced spare bytes from 19 to 15 (used 4 bytes: 2 × s16b)
+   - Ensures save compatibility
+
+### Mechanics
+
+**Duration Scaling (skill-based):**
+```
+Skill  5 →  3 turns (minimum)
+Skill 10 →  7 turns
+Skill 15 → 11 turns
+Skill 20 → 15 turns (baseline)
+Skill 25 → 18 turns
+Skill 30 → 22 turns
+```
+
+**Debuff Strength (example at skill 20):**
+- Full strength (counter = 15/15): 100% penalty
+- Half strength (counter = 8/15): ~53% penalty
+- Quarter strength (counter = 4/15): ~27% penalty
+- Final turn (counter = 1/15): Minimum penalty of 1
+
+**Affected Skills:**
+- Song of Challenge: Monster Will & Stealth (-1 to -2 typically)
+- Song of Elbereth: Monster Will (-1 to -2 typically)
+
+**Tactical Benefits:**
+- Higher song skill = longer lingering protection
+- Can switch songs without instant penalty loss
+- Gradual fade prevents sudden difficulty spikes
+- Scales naturally with character progression
+
+### Build Status
+✅ CMake build successful
+✅ Deployment successful
+✅ Save/load compatibility maintained
+✅ Skill-based duration scaling implemented
+
+### Critical Fix (2025-10-21)
+**Issue:** Save files created after debuff decay update were failing to load with "Read savefile failed" error.
+
+**Root Cause:** Save/load byte count mismatch
+- `save.c` was writing 19 spare bytes (3 wr_byte + 4 wr_u32b = 3 + 16 = 19)
+- `load.c` was reading 15 spare bytes with `strip_bytes(15)`
+- This created a 4-byte misalignment causing subsequent reads to fail
+
+**Fix:** 
+- Removed one `wr_u32b(0L)` call in `save.c` to write only 15 spare bytes (3 + 12 = 15)
+- Now matches the `strip_bytes(15)` in `load.c`
+- Spare byte count correctly reflects: originally 19 bytes, used 4 for song debuff counters (2 × s16b), leaving 15
+
+---
+
+## Session Notes - Character song index fixes
+
+- Date: 2025-10-22 (Evening)
+- Fixed mismatched song ability indices in `lib/edit/character.txt` after the addition/reordering of Song abilities in `lib/edit/ability.txt`:
+   - Updated Finrod's starting Song of Staying index to `11`.
+   - Updated Lúthien's Song of Lorien index to `12`.
+   - Corrected Daeron's Woven Themes index to `9`.
+   - Corrected Melian's Song of Mastery index to `14`.
+   - Adjusted a few other song references/comments to match `ability.txt` ordering.
+
+Verification: performed an edit-only consistency pass on `lib/edit/character.txt` and confirmed no syntax errors in the edited file.
+
+Additional quick pass:
+- Date: 2025-10-22 (Evening)
+- Performed a full scan of `lib/edit/character.txt` for all `C:` lines referencing skill 7 (Song) and corrected remaining mismatches so indices match `lib/edit/ability.txt`:
+   - Fixed Finarfin to start with Song of the Trees (7) and Woven Themes (9).
+   - Fixed Húrin to include Song of Slaying (10) and Song of Staying (11) in the `C:` list.
+   - Fixed Elu Thingol to include Song of Mastery (14) where intended.
+
+All edited files parsed with no errors after the changes.
+
+# Session Notes - Score Display Fix (Final)
+
+## Date
+2025-10-19
+
+## Final Implementation
+
+### Short Score List Display - Clean, Polished Layout
+
+**File Modified:** `src/files.c`
+
+**Changes Made:**
+1. ✅ Added 1-column right margin for cleaner visual appearance (verdict_width = line_width - 1)
+2. ✅ Removed "Order:" prefix from caption (just shows "Score (highest first)" instead)
+3. ✅ Smart truncation keeping "at XXft" depth visible
+4. ✅ Dynamic terminal width detection
+
+**Layout:**
+```
+                    Halls of Mandos
+Score (highest first)                      Layout: Short
+
+1. Maedhros             777  Escaped with **
+2. King Azaghal         673  Escaped with **
+3. Fingon               660  Escaped with ***
+4. Hador                192  Slain by a Young fire-drake at 800ft
+```
+
+**Column Structure:**
+- **Place:** 4 chars (`"1. "`)
+- **Name:** 15 chars (left-aligned)
+- **Score:** 5 chars (right-aligned)
+- **Gap:** 2 spaces
+- **Verdict:** terminal_width - 26 - 1 (one empty column on right for clarity)
+
+**Smart Truncation:**
+- Full verdict always kept if space allows
+- If truncating needed, finds " at " (depth marker)
+- Truncates monster name but keeps "at XXft" visible
+- Example: `"Slain by an... at 100ft"` (depth always shown)
+
+**Indicators:**
+- `*` = Silmaril (1-3)
+- `V` = Morgoth slain
+
+**Build Status:** ✅ Successful
+
+### 2025-03-19 - Monster runtime stat persistence groundwork
+- Bumped VERSION_EXTRA to 3 so the new overrides block loads only on compatible saves.
+- Snapshot pristine monster race data into new r_base during init_angband() for baseline comparisons.
+- Save pipeline writes per-race runtime stat overrides (stats, blows, flags, visuals) when they diverge from base; loader reapplies them for sf_extra >= 3 else restores base defaults.
+
+- Songs updated: Song of Challenge now applies a small Perception/Stealth penalty and Song of Elbereth shaves Will via monster_skill for on-the-fly reactions.
+- Fixed Song debuff build issue by referencing the correct skill_type parameter before re-running CMake build (now clean).
+- Added log_debug traces in monster_skill to confirm Song of Challenge/Elbereth penalties at runtime.
+
+## 2025-10-20 - Song of Shattering implementation
+- Added new Song of Shattering ability (`SNG_SHATTERING`) with data entry in `lib/edit/ability.txt`, prerequisites, and updated song enumeration/order.
+- Extended `monster_type` with persistent shattering fields; save/load path bumped to `VERSION_EXTRA 4` and now serialises damage-side/protection reductions.
+- Implemented runtime helpers to honour reduced protection/damage (`monster_base_armour_sides`, melee side clamps) and wired new song logic with distance-scaled Will checks against equipped foes.
+- Updated song loop/UI listings so the new song appears in selection and deducts extra voice cost when active.
+- Added explicit `HAS_WEAPON/HAS_ARMOUR` monster flags plus data tagging for orcs, trolls, giants, and balrogs so Song of Shattering keys off equipment-bearing foes.
+- Physical shattering now chips held gear and nearby floor weapons/armour when damageable, reducing dice toward base values while honouring artefact resistance and visibility messaging.
+- Recognise the `INSCRIP_INDESTRUCTIBLE` tag (plus artefact status) when evaluating shatter targets so indestructible gear remains immune.
+- Revamped savefile compatibility guard to compare full version tuples (major/minor/patch/extra) and drive feature gates, keeping older saves loadable after future version bumps.
+
+# Session Notes - Blessing Threshold Controls
+
+## Date
+2025-10-23
+
+## Blessing Threshold Adjustments
+
+- Expanded runtype data (lib/edit/runtypes.txt, src/types.h, src/init1.c) to support easier/normal/harder blessing thresholds via new `L:` directive values and `blessing_threshold_modes`.
+- Introduced per-metarun threshold mode persisted in the first runtime byte (src/metarun.h, src/metarun.c); recalculation logic now pulls the selected mode and falls back gracefully to normal thresholds.
+- Added `f` shortcut to the metarun statistics screen with a dedicated menu for selecting easier/normal/harder thresholds, including descriptive guidance and live recalculation/update plus persistence.
+- Updated blessing/curse info menu to label curse effects explicitly and surface blessing descriptions/effects for all identified curses (show_known_curses_menu).
+- Blessing pool summaries and the blessing exchange dialog now present the active threshold mode while reflecting the selected progression values.
+
+
+- Updated blessing threshold menu to support arrow-key navigation with in-menu confirmation prompts.
+- Active curse/blessing listings (stats and full view) now surface effect text when identified, drawing from P:/H: entries.
+
+# Session Notes - Song of Elveness
+
+## Date
+2025-10-22
+
+- Added Song of Elveness to `lib/edit/ability.txt` before Song of Staying with matching prerequisites (`Song of the Trees`), cost, and new description.
+- Shifted downstream song IDs (Staying onwards) and refreshed song enumerations (`src/defines.h`), name tables (`src/birth.c`), and song listings (`lib/edit/actual_abilities*.txt`, `lib/edit/character.txt`, `lib/edit/artefact.txt`).
+- Implemented gameplay effects: Grace +1 via `calc_bonuses`, Evasion bonus `1 + song/7`, and updated per-turn handling (`src/xtra1.c`, `src/spells1.c`) including noise contribution and UI messaging.
+
+# Session Notes - Song of Disguise
+
+## Date
+2025-10-22
+
+- Added Song of Disguise ahead of Song of Lorien in `lib/edit/ability.txt`, keyed to Song of Silence, and propagated the new ordering through song enums, name tables, hero ability maps, and artefact comments.
+- Wired `SNG_DISGUISE` behaviour in `src/spells1.c`: enforced start restrictions when observed, tracked pacified/seen-through monsters with per-turn skill contests against Will+Perception (distance, attack, and suspicion penalties), and applied the 2 voice per round upkeep.
+- Hooked monster attack tracking and cleanup (`src/melee1.c`, `src/dungeon.c`, `src/monster2.c`) plus AI suppression (`src/melee2.c`) so fooled foes skip their turns until they pierce the disguise; integrated song noise and ability bonus adjustments (`src/xtra1.c`).
+- Declared new song helpers in `src/externs.h` and ensured per-turn rotation/reset flows manage disguise state during level transitions and saves.
+
+# Session Notes - Song of Revealing
+
+## Date
+2025-10-22
+
+- Added persistent Song of Revealing hints so partially detected monsters render with the listening-style `?` marker by tracking per-monster reveals (`src/spells1.c`) and exposing `song_revealing_overlay`.
+- Updated the map renderer (`src/cave.c`) to query the overlay helper so redraws no longer wipe the hint immediately; hints clear automatically when the song stops or monsters are removed.
+- Re-ordered Song of Revealing processing to reset hint state each turn while keeping item reveal behaviour intact; linked overlay declaration through `src/externs.h`.
+- Introduced a short-lived decay timer for Song of Revealing hints so partial detections persist for several beats even if a later roll fails, avoiding the instant flicker that previously occurred.
+
+# Session Notes - Monster Recall Instance Stats
+
+## Date
+2025-10-24
+
+- Threaded an optional `monster_type*` through `screen_roff`, `display_roff`, and `describe_monster`, updating all call sites (`cmd3.c`, `cmd4.c`, `xtra1.c`, `xtra2.c`, `wizard1.c`) so recall views can access live monster state when inspecting a visible target.
+- Reworked `describe_monster_movement`, `describe_monster_toughness`, `describe_monster_skills`, and `describe_monster_attack` to pull per-instance data: numeric speed output with hasted/slowed markers, current/max HP ranges with curse/song adjustments, protection ranges reflecting armour penalties/bonuses, skill readouts via `monster_skill`, and blow damage/attack values recalculated with song-induced reductions.
+- Swapped legacy `XdY` displays for `min-max` ranges when only race data is available, while defaulting to live `current-max` spans whenever the specific monster is known.
+
+# Session Notes - Recall Dice Formatting
+
+## Date
+2025-10-24
+
+- Restored XdY formatting for monster attacks and protection in `src/monster1.c`, keeping adjusted dice from any active debuffs while reverting away from min/max spans.
+- Reverted monster HP recall to the base `hdice`/`hside` expression and appended a `-<amount>` suffix when Song of Lament reductions apply, via a new per-monster accumulator backed by `monster_song_hp_loss()`.
+- Repurposed the song duel padding bytes (`song_hp_loss_lo/hi`) with save/load support (`src/save.c`, `src/load.c`) and helper accessors (`src/monster2.c`, `src/externs.h`) so song-induced HP penalties persist across turns and savefiles.
+
+# Session Notes - Post-Death Spectator View
+
+## Date
+2025-10-25
+
+- Added `death_spectator_view()` (declared in `src/externs.h`, implemented in `src/dungeon.c`) to drive a post-mortem spectator loop that reveals the full dungeon, blocks any command that would spend energy, and allows UI/navigation menus until the player presses `Esc`.
+- Guarded `process_command()` with a `death_spectator_mode` whitelist so movement, inventory interaction, and other time-advancing actions are rejected gracefully while the spectator is active.
+- Updated `close_game_aux()` (`src/files.c`) to launch the spectator view immediately after scoring and before displaying the tombstone, and wired the tomb menu's "View dungeon" entry to reuse the new spectator loop instead of the old `do_cmd_look()` snapshot.
+
+# Session Notes - Final View Read-Only Polish
+
+## Date
+2025-10-25
+
+- Exposed `death_spectator_active()` from `src/dungeon.c` so UI layers can detect the death-view state; inventories, equipment menus, and the supplies browser now call this helper to suppress `use`, `drop`, and other energy-spending actions while still allowing examination flows (`src/object1.c`, `src/cmd3.c`, `src/cmd4.c`).
+- Tomb menu no longer offers the inventory/equipment branch, labels the dungeon revisit as “Final look,” and renumbers downstream options accordingly (`src/files.c`).
+- Main menu entries for suicide, save, and quit-with-save render disabled and emit a warning if triggered while the corpse view is active, with navigation skipping those slots (`src/cmd4.c`).
+## 2025-10-27 - Throwing Mastery & Polearm Updates
+
+- Inserted a new melee ability (Throwing) ahead of Polearm Mastery, bumped downstream IDs/prerequisites, and updated ability tables/hero maps (lib/edit/ability.txt, lib/edit/actual_abilities_*.txt, lib/edit/character.txt, src/defines.h, src/birth.c).
+- Added player_can_treat_as_throwing[_flags]() to centralize dynamic throwing checks and declared the helpers in src/externs.h.
+- Hooked the new ability into thrown combat: +1 attack, half distance penalty, and Finesse-grade crit separation when hurling items flagged via the helper (src/cmd2.c, src/cmd1.c).
+- Extended quiver UI/load paths to honor Polearm Mastery for great spears (slot selection, inventory carry, bonus application) and made thrown breakage/penalties respect the helper (src/cmd3.c, src/object2.c, src/xtra1.c, src/cmd2.c).
+- Widened crit_bonus() with an object parameter so throwing mastery can apply selectively, updating all call sites (src/cmd1.c, src/cmd2.c, src/cmd3.c, src/melee1.c, src/spells1.c).
+
+## 2025-10-28 - Story Font Rendering Stabilization
+
+- Added a per-cell story-font flag to `term_win` (`src/z-term.h/.c`) and taught `Term_queue_{char,chars}` plus the flush paths (`Term_fresh_row_*`) to copy those bits so queued text remembers whether it requested story or mono rendering. SDL now tags each text batch through `Term->story_chunk_active`.
+- Updated the SDL front-end to respect the new metadata: `callback_sdl_text()` inspects the chunk flag, `sdl_story_font_enable/disable()` maintain a depth counter and flip `Term->story_font_active`, and `sdl_is_story_font_enabled()` proxies to the term state (`src/main-sdl.c`). This removed the need for ad-hoc `Term_fresh()` calls just to lock in a font.
+- Cleaned up UI callers that were only flushing to keep fonts sticky. Labels and status blocks in `src/xtra1.c` and `src/files.c` no longer call `Term_fresh()` after every line, which eliminates the cursor blink on character/stat adjustment screens.
+- Character sheet highlights and HUD numbers inherit the correct font mode automatically now that `display_player_*` and `prt_*` no longer rely on synchronous flushes (`src/files.c`, `src/xtra1.c`).
+
+
+## 2025-10-28 - Story Font Flag Propagation Fix
+
+- Added sdl_apply_story_font_state() so every SDL term shares the same story_font_active bit whenever sdl_story_font_enable()/disable() adjust the nesting depth. This ensures queued glyphs record the correct font mode even if the active term changes between calls.
+- Rebuilt successfully via build-cmake.bat to verify the SDL front-end compiles with the new helper.
+- Added trace logging around story-font activation and the SDL text callback to diagnose why proportional text isn't chosen at runtime; rebuilt via build-cmake.bat.
+- Patched z-term chunking so the first glyph in a story-font stripe captures both attr and the font flag, ensuring SDL sees chunk_story_font=true after logs showed the bit was being lost.\n
+- Reset story_chunk_active after each text stripe so SDL doesn\'t keep rendering later glyphs in story mode once the character sheet closes; rebuilt via build-cmake.bat.\n
+- Added a 'Story UI Lists' option that renders inventory/equipment/look panels with story font when desired, converted the intro screens to use story text, and ensured the new rendering path resets SDL story state cleanly.\n

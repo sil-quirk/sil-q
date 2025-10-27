@@ -3076,6 +3076,16 @@ void do_cmd_unified_look(void)
         do_cmd_redraw();
     }
     
+#ifdef USE_SDL
+    /* Enable story font for unified look if the setting is on */
+    bool use_story_font = story_look_enabled();
+    if (use_story_font)
+    {
+        log_debug("do_cmd_unified_look: Enabling story font");
+        sdl_story_font_enable();
+    }
+#endif
+    
     log_trace("=== UNIFIED LOOK STARTED ===");
     
     /* Store original viewport */
@@ -4220,6 +4230,15 @@ void do_cmd_unified_look(void)
     
     /* Clear health tracking before exiting look command */
     health_track(0);
+    
+#ifdef USE_SDL
+    /* Disable story font if it was enabled */
+    if (use_story_font)
+    {
+        log_debug("do_cmd_unified_look: Disabling story font");
+        sdl_story_font_disable();
+    }
+#endif
     
     /* Restore original viewport */
     if (p_ptr->wy != original_wy || p_ptr->wx != original_wx)

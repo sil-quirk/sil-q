@@ -116,6 +116,7 @@ extern int protection_roll(int typ, bool melee)
     int prt = 0;
     int mult = 1;
     int armour_weight = 0;
+    int side_shift = curse_flag_delta_cur(CUR_ARMOR_SIDE_SHIFT);
 
     // things that always count:
 
@@ -149,7 +150,12 @@ extern int protection_roll(int typ, bool melee)
                 }
                 if (o_ptr->pd > 0)
                 {
-                    prt += damroll(o_ptr->pd * mult, o_ptr->ps);
+                    int sides = o_ptr->ps;
+                    if (side_shift && sides > 0) {
+                        sides -= side_shift;
+                        if (sides < 1) sides = 1;
+                    }
+                    prt += damroll(o_ptr->pd * mult, sides);
                 }
             }
         }
@@ -161,7 +167,12 @@ extern int protection_roll(int typ, bool melee)
         {
             if (o_ptr->ps > 0)
             {
-                prt += damroll(o_ptr->pd, o_ptr->ps);
+                int sides = o_ptr->ps;
+                if (side_shift && sides > 0) {
+                    sides -= side_shift;
+                    if (sides < 1) sides = 1;
+                }
+                prt += damroll(o_ptr->pd, sides);
             }
         }
     }
@@ -255,6 +266,7 @@ extern int p_max(int typ, bool melee)
     int prt = 0;
     int armour_weight = 0;
     int mult = 1;
+    int side_shift = curse_flag_delta_cur(CUR_ARMOR_SIDE_SHIFT);
 
     // things that always count:
 
@@ -288,7 +300,12 @@ extern int p_max(int typ, bool melee)
                 }
                 if (o_ptr->pd > 0)
                 {
-                    prt += o_ptr->pd * mult * o_ptr->ps;
+                    int sides = o_ptr->ps;
+                    if (side_shift && sides > 0) {
+                        sides -= side_shift;
+                        if (sides < 1) sides = 1;
+                    }
+                    prt += o_ptr->pd * mult * sides;
                 }
             }
         }
@@ -299,7 +316,12 @@ extern int p_max(int typ, bool melee)
         {
             if (o_ptr->ps > 0)
             {
-                prt += o_ptr->pd * o_ptr->ps;
+                int sides = o_ptr->ps;
+                if (side_shift && sides > 0) {
+                    sides -= side_shift;
+                    if (sides < 1) sides = 1;
+                }
+                prt += o_ptr->pd * sides;
             }
         }
     }

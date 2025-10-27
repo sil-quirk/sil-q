@@ -834,8 +834,8 @@ enum runtype_blessing_mode {
 typedef struct runtype_type {
     u16b id;
     char name[32];
-    u32b start_curses;             /* default curses mask (bits 0..31)      */
-    byte curse_stacks[32];         /* stack count for each curse (0 = disabled) */
+    u64b start_curses;             /* default curses mask (bits 0..63)      */
+    byte curse_stacks[METAR_CURSE_SLOTS];         /* stack count for each curse (0 = disabled) */
     byte colour;                   /* display colour (TERM_*)               */
     byte win_con;                  /* target Silmarils to win (default 15)  */
     u16b blessing_threshold_modes[RUNTYPE_BLESSING_THRESHOLD_MODES]; /* score pool per blessing tier */

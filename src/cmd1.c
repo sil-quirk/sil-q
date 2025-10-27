@@ -976,6 +976,12 @@ int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
     int crit_bonus_dice;
     int crit_seperation = 70;
 
+    if (attacker != NULL && attacker != PLAYER)
+    {
+        int shift = curse_flag_delta_cur(CUR_CRIT_THRESH_SHIFT);
+        if (shift) hit_result += shift;
+    }
+
     // When attacking a monster...
     if (r_ptr->level != 0)
     {

@@ -2974,8 +2974,7 @@ void show_inven(void)
     }
 
 #ifdef USE_SDL
-    if (use_story_font)
-        sdl_story_font_reset();
+    /* Do NOT disable story font here - let get_item() handle it after screen_load() */
 #endif
 }
 
@@ -3005,17 +3004,19 @@ void show_equip(void)
     bool use_story_font = story_equipment_enabled();
     int story_term_w = 0;
     story_equipment_list_active = use_story_font;
-    log_trace("show_equip: story_equipment_enabled() = %d", use_story_font);
+    log_debug("show_equip: story_equipment_enabled() = %d, setting story_equipment_list_active = %d", 
+        use_story_font, use_story_font);
     if (use_story_font)
     {
-        log_trace("show_equip: Story font enabled, activating sdl_story_font_enable()");
+        log_debug("show_equip: Story font enabled, calling sdl_story_font_enable()");
         sdl_story_font_enable();
         int story_term_h = 0;
         Term_get_size(&story_term_w, &story_term_h);
+        log_debug("show_equip: story_term_w = %d", story_term_w);
     }
     else
     {
-        log_trace("show_equip: Story font DISABLED, using mono font");
+        log_debug("show_equip: Story font DISABLED, using mono font");
     }
 #endif
 
@@ -3222,11 +3223,7 @@ void show_equip(void)
     }
 
 #ifdef USE_SDL
-    if (use_story_font)
-    {
-        log_trace("show_equip: Calling sdl_story_font_reset()");
-        sdl_story_font_reset();
-    }
+    /* Do NOT disable story font here - let get_item() handle it after screen_load() */
 #endif
     
     log_trace("show_equip: EXITING");
@@ -4193,6 +4190,22 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         strnfmt(tmp_val, sizeof(tmp_val), "(%s) %s", out_val, pmt);
 
         /* Show the prompt */
+#ifdef USE_SDL
+        /* Use story font for prompt if the current list has story font enabled */
+        if ((p_ptr->command_wrk == (USE_INVEN) || p_ptr->command_wrk == (USE_FLOOR)) && story_inventory_list_active)
+        {
+            sdl_story_font_enable();
+            prt(tmp_val, 0, 0);
+            sdl_story_font_disable();
+        }
+        else if (p_ptr->command_wrk == (USE_EQUIP) && story_equipment_list_active)
+        {
+            sdl_story_font_enable();
+            prt(tmp_val, 0, 0);
+            sdl_story_font_disable();
+        }
+        else
+#endif
         prt(tmp_val, 0, 0);
 
     /* Draw current highlight overlay if any */
@@ -4727,6 +4740,22 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         /* Hack -- Cancel "display" */
         p_ptr->command_see = false;
     }
+
+#ifdef USE_SDL
+    /* Disable story font if it was enabled by show_inven or show_equip */
+    if (story_inventory_list_active)
+    {
+        log_debug("get_item: Disabling inventory story font");
+        sdl_story_font_disable();
+        story_inventory_list_active = false;
+    }
+    if (story_equipment_list_active)
+    {
+        log_debug("get_item: Disabling equipment story font");
+        sdl_story_font_disable();
+        story_equipment_list_active = false;
+    }
+#endif
 
     // Forget whether inventory or equipment was being examined
     p_ptr->command_wrk = 0;
