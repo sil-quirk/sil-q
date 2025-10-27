@@ -13,6 +13,10 @@
 
 #include "h-basic.h"
 
+/* Story font bit-flags stored per cell in term_win::story */
+#define STORY_FLAG_USE        0x01  /* Render this cell with the story font */
+#define STORY_FLAG_CELL_ALIGN 0x02  /* Snap story glyphs to cell boundaries */
+
 /*
  * A term_win is a "window" for a Term
  *
@@ -48,7 +52,7 @@ struct term_win
     byte* vta;
     char* vtc;
 
-    /* Story font flag per cell (0 = mono, 1 = story) */
+    /* Story font flags per cell (see STORY_FLAG_* definitions) */
     byte** story;
     byte* vstory;
 };
@@ -178,6 +182,7 @@ struct term
     bool never_bored;
     bool never_frosh;
     bool story_font_active;   /* Current queueing mode */
+    bool story_font_grid;     /* Whether queued story text should snap to cell columns */
     bool story_chunk_active;  /* Mode for the chunk being flushed */
 
     byte attr_blank;

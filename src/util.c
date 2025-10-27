@@ -3448,7 +3448,7 @@ void text_out_to_screen_story(byte a, cptr str)
 }
 #endif /* USE_SDL */
 
-void story_print_text(int row, int col, int max_cols, byte attr, cptr text)
+static void story_print_text_internal(int row, int col, int max_cols, byte attr, cptr text, bool force_grid)
 {
     if (!text)
         text = "";
@@ -3461,7 +3461,15 @@ void story_print_text(int row, int col, int max_cols, byte attr, cptr text)
     {
         log_debug("story_print_text: STORY FONT at row=%d col=%d max_cols=%d text='%.50s'", row, col, max_cols, text);
         log_trace("story_print_text: text_out_indent (BEFORE)=%d, text_out_wrap (BEFORE)=%d", text_out_indent, text_out_wrap);
-        
+
+        bool previous_grid = sdl_is_story_font_grid();
+        bool restore_grid = false;
+        if (force_grid != previous_grid)
+        {
+            sdl_story_font_set_grid(force_grid);
+            restore_grid = true;
+        }
+
         int old_indent = text_out_indent;
         int old_wrap = text_out_wrap;
         void (*old_hook)(byte, cptr) = text_out_hook;
@@ -3491,6 +3499,9 @@ void story_print_text(int row, int col, int max_cols, byte attr, cptr text)
         text_out_indent = old_indent;
         text_out_wrap = old_wrap;
         text_out_hook = old_hook;
+
+        if (restore_grid)
+            sdl_story_font_set_grid(previous_grid);
         return;
     }
     else
@@ -3500,6 +3511,16 @@ void story_print_text(int row, int col, int max_cols, byte attr, cptr text)
 #endif
 
     c_put_str(attr, text, row, col);
+}
+
+void story_print_text(int row, int col, int max_cols, byte attr, cptr text)
+{
+    story_print_text_internal(row, col, max_cols, attr, text, false);
+}
+
+void story_print_text_grid(int row, int col, int max_cols, byte attr, cptr text)
+{
+    story_print_text_internal(row, col, max_cols, attr, text, true);
 }
 
 void story_print_mono(int row, int col, byte attr, cptr text)

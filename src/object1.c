@@ -2623,11 +2623,11 @@ static void story_render_inventory_entry(int row, int base_col, int label_col,
         int weight_width = label_col - 70;
         if (weight_width < 1)
             weight_width = 1;
-        story_print_text(row, 70, weight_width, weight_attr, weight_text);
+        story_print_text_grid(row, 70, weight_width, weight_attr, weight_text);
     }
 
     if (label_text && label_text[0])
-        story_print_text(row, label_col, label_width, label_attr, label_text);
+        story_print_text_grid(row, label_col, label_width, label_attr, label_text);
 }
 
 static void story_render_equipment_entry(int row, int col, cptr prefix,
@@ -2643,7 +2643,7 @@ static void story_render_equipment_entry(int row, int col, cptr prefix,
     if (highlight)
         story_fill_rect(row, 0, highlight_cols, TERM_L_BLUE);
 
-    story_print_text(row, col, 14, prefix_attr, prefix);
+    story_print_text_grid(row, col, 14, prefix_attr, prefix);
 
     int text_col = col + 12 + 2;
     if (o_ptr && o_ptr->k_idx)
@@ -2659,11 +2659,11 @@ static void story_render_equipment_entry(int row, int col, cptr prefix,
         int weight_width = label_col - 70;
         if (weight_width < 1)
             weight_width = 1;
-        story_print_text(row, 70, weight_width, weight_attr, weight_text);
+        story_print_text_grid(row, 70, weight_width, weight_attr, weight_text);
     }
 
     if (label_text && label_text[0])
-        story_print_text(row, label_col, label_width, label_attr, label_text);
+        story_print_text_grid(row, label_col, label_width, label_attr, label_text);
 }
 
 static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
@@ -2704,7 +2704,7 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
         byte prefix_attr = is_highlight ? TERM_L_BLUE : TERM_WHITE;
         int prefix_width = 14;
         log_trace("draw_equipment_story_rows: Row %d - printing prefix '%s' at col=%d width=%d", row, prefix, col, prefix_width);
-        story_print_text(row, col, prefix_width, prefix_attr, prefix);
+        story_print_text_grid(row, col, prefix_width, prefix_attr, prefix);
 
         int text_col = col + 12 + 2;
         log_trace("draw_equipment_story_rows: Row %d - text_col calculated as %d (col=%d + 12 + 2)", row, text_col, col);
@@ -2737,14 +2737,14 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
             if (weight_width < 1)
                 weight_width = 1;
             log_trace("draw_equipment_story_rows: Row %d - printing weight '%s' at col=%d width=%d", row, weight_buf, 70, weight_width);
-            story_print_text(row, 70, weight_width, line_attr, weight_buf);
+        story_print_text_grid(row, 70, weight_width, line_attr, weight_buf);
         }
 
         char label_buf[8];
         strnfmt(label_buf, sizeof(label_buf), " (%c)", index_to_label(slot));
         byte label_attr = is_highlight ? TERM_L_BLUE : TERM_WHITE;
         log_trace("draw_equipment_story_rows: Row %d - printing label '%s' at col=%d width=%d (label_col_base=%d)", row, label_buf, label_col, label_width, label_col_base);
-        story_print_text(row, label_col, label_width, label_attr, label_buf);
+        story_print_text_grid(row, label_col, label_width, label_attr, label_buf);
     }
 
     log_trace("draw_equipment_story_rows: Finished drawing all rows");
@@ -3206,10 +3206,10 @@ void show_equip(void)
         {
             Term_erase(0, text_row, 255);
             Term_erase(0, total_row, 255);
-            story_print_text(total_row, 70, 8, TERM_L_DARK, "--------");
+            story_print_text_grid(total_row, 70, 8, TERM_L_DARK, "--------");
             strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
                 armour_weight / 10, armour_weight % 10);
-            story_print_text(text_row, 62, 16, TERM_SLATE, tmp_val);
+            story_print_text_grid(text_row, 62, 16, TERM_SLATE, tmp_val);
             if (j && (j + 3 < 23))
                 Term_erase(0, j + 3, 255);
         }
@@ -5262,7 +5262,7 @@ void show_inven_enhanced(void)
                     int weight_width = label_col - 70;
                     if (weight_width < 1)
                         weight_width = 1;
-                    story_print_text(row, 70, weight_width, line_attr, tmp_val);
+                    story_print_text_grid(row, 70, weight_width, line_attr, tmp_val);
                 }
                 else
 #endif
@@ -5290,7 +5290,7 @@ void show_inven_enhanced(void)
 #ifdef USE_SDL
             if (use_story_font)
             {
-                story_print_text(row, label_col, label_width, label_attr, tmp_val);
+                story_print_text_grid(row, label_col, label_width, label_attr, tmp_val);
             }
             else
 #endif
@@ -5318,7 +5318,7 @@ void show_inven_enhanced(void)
 
 #ifdef USE_SDL
                     if (use_story_font)
-                        story_print_text(compare_row, col, 14, TERM_WHITE, compare_prefix[idx]);
+                        story_print_text_grid(compare_row, col, 14, TERM_WHITE, compare_prefix[idx]);
                     else
 #endif
                         c_put_str(TERM_WHITE, compare_prefix[idx], compare_row, col);
@@ -5355,7 +5355,7 @@ void show_inven_enhanced(void)
                                 int compare_weight_width = label_col - 70;
                                 if (compare_weight_width < 1)
                                     compare_weight_width = 1;
-                                story_print_text(compare_row, 70, compare_weight_width, compare_attr[idx], tmp_val);
+                                story_print_text_grid(compare_row, 70, compare_weight_width, compare_attr[idx], tmp_val);
                             }
                             else
 #endif
@@ -5379,7 +5379,7 @@ void show_inven_enhanced(void)
                         strnfmt(label_str, sizeof(label_str), " (%s)", compare_label[idx]);
 #ifdef USE_SDL
                         if (use_story_font)
-                            story_print_text(compare_row, label_col, label_width, compare_attr[idx], label_str);
+                            story_print_text_grid(compare_row, label_col, label_width, compare_attr[idx], label_str);
                         else
 #endif
                             c_put_str(compare_attr[idx], label_str, compare_row, label_col);
