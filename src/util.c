@@ -3215,6 +3215,15 @@ bool story_look_enabled(void)
 #endif
 }
 
+bool story_character_enabled(void)
+{
+#ifdef USE_SDL
+    return story_character_sheet;
+#else
+    return false;
+#endif
+}
+
 void text_out_to_screen(byte a, cptr str)
 {
 #ifdef USE_SDL

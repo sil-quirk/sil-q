@@ -1235,18 +1235,21 @@ errr check_time_init(void)
 
 static void display_skill(int skill, int row, int col)
 {
-    /* Enable story font for skill name */
+    /* Enable story font for skill name (if enabled) */
 #ifdef USE_SDL
-    sdl_story_font_enable();
+    if (story_character_enabled()) {
+        sdl_story_font_enable();
+    }
 #endif
     
     put_str(skill_names_full[skill], row, col);
     
-    /* Use monospace for numbers */
+    /* Disable story font - all numbers must use monospace */
 #ifdef USE_SDL
     sdl_story_font_disable();
 #endif
     
+    /* All numbers in monospace font */
     c_put_str(
         TERM_L_GREEN, format("%3d", p_ptr->skill_use[skill]), row, col + 11);
     c_put_str(TERM_SLATE, "=", row, col + 15);
@@ -1291,16 +1294,20 @@ static void put_pair20_right(int x, int y,
     int blk_w = cur_w + 1 + rhs_w;
     int start = end - blk_w;
 
-    /* Labels in story font */
+    /* Labels in story font (if enabled) */
 #ifdef USE_SDL
-    sdl_story_font_enable();
+    if (story_character_enabled()) {
+        sdl_story_font_enable();
+    }
 #endif
 
     put_label_fit(x, y, label, start);
     
-    /* Numbers in monospace */
+    /* Numbers in monospace (always) */
 #ifdef USE_SDL
-    sdl_story_font_disable();
+    if (story_character_enabled()) {
+        sdl_story_font_disable();
+    }
 #endif
     
     Term_putstr(start, y, -1, col_cur, format("%*s", cur_w, cur));
@@ -1316,16 +1323,20 @@ static void put_single20_right(int x, int y,
     int end   = x + LINEW20;
     int start = end - val_w;
     
-    /* Labels in story font */
+    /* Labels in story font (if enabled) */
 #ifdef USE_SDL
-    sdl_story_font_enable();
+    if (story_character_enabled()) {
+        sdl_story_font_enable();
+    }
 #endif
     
     put_label_fit(x, y, label, start);
     
-    /* Numbers in monospace */
+    /* Numbers in monospace (always) */
 #ifdef USE_SDL
-    sdl_story_font_disable();
+    if (story_character_enabled()) {
+        sdl_story_font_disable();
+    }
 #endif
     
     Term_putstr(start, y, -1, col_val, format("%*s", val_w, val));
@@ -1556,9 +1567,11 @@ void display_player_xtra_info(int mode)
     HANDLE_UNIQUE("Doom of Mandos",       RHF_CURSE,        TERM_UMBER);
     HANDLE_UNIQUE("Morgoth Curse",        RHF_MOR_CURSE,    TERM_UMBER);
 
-    /* Render: uniques -> MA -> AF -> penalties (use story font) */
+    /* Render: uniques -> MA -> AF -> penalties (use story font if enabled) */
 #ifdef USE_SDL
-    sdl_story_font_enable();
+    if (story_character_enabled()) {
+        sdl_story_font_enable();
+    }
 #endif
     
     for (int i = 0; i < uniq_n; ++i)
@@ -1570,6 +1583,13 @@ void display_player_xtra_info(int mode)
     for (int i = 0; i < pen_n; ++i)
         Term_putstr(col_flags, row_flags++, -1, pen_buf[i].col, pen_buf[i].txt);
 
+#ifdef USE_SDL
+    /* Disable story font after rendering flags/abilities */
+    if (story_character_enabled()) {
+        sdl_story_font_disable();
+    }
+#endif
+
     /* -------------------- SKILLS (unchanged position) ------------------- */
     /* Skills will manage their own font switching */
     for (skill = 0; skill < S_MAX; skill++) {
@@ -1580,7 +1600,9 @@ void display_player_xtra_info(int mode)
 
     /* -------------------- History (unchanged) --------------------------- */
 #ifdef USE_SDL
-    sdl_story_font_enable();
+    if (story_character_enabled()) {
+        sdl_story_font_enable();
+    }
 #endif
     
     /* Use full terminal width for history wrapping */
@@ -1597,7 +1619,9 @@ void display_player_xtra_info(int mode)
     Term_fresh();  /* Render history */
 
 #ifdef USE_SDL
-    sdl_story_font_disable();
+    if (story_character_enabled()) {
+        sdl_story_font_disable();
+    }
 #endif
 
 #undef HANDLE_SKILL_EX
@@ -2426,7 +2450,9 @@ static void display_player_misc_info(void)
     char name[40];
     
 #ifdef USE_SDL
-    sdl_story_font_enable();
+    if (story_character_enabled()) {
+        sdl_story_font_enable();
+    }
 #endif
     
     if (p_ptr->oaths_broken) {
@@ -2440,7 +2466,9 @@ static void display_player_misc_info(void)
     }
     
 #ifdef USE_SDL
-    sdl_story_font_disable();
+    if (story_character_enabled()) {
+        sdl_story_font_disable();
+    }
 #endif
 
 }
@@ -2454,7 +2482,7 @@ void display_player_stat_info(int row, int col)
 
     char buf[80];
 
-    /* First: Display all stat names with story font */
+    /* First: Display all stat names with story font (if enabled) */
     for (i = 0; i < A_MAX; i++)
     {
         const char* stat_label;
@@ -2478,18 +2506,22 @@ void display_player_stat_info(int row, int col)
         }
         
 #ifdef USE_SDL
-        sdl_story_font_enable();
+        if (story_character_enabled()) {
+            sdl_story_font_enable();
+        }
 #endif
         
-        /* Display trimmed stat name with story font */
+        /* Display trimmed stat name with story font (if enabled) */
         put_str(trimmed_label, row + i, col);
         
 #ifdef USE_SDL
-        sdl_story_font_disable();
+        if (story_character_enabled()) {
+            sdl_story_font_disable();
+        }
 #endif
     }
     
-    /* Second: Display all numbers with monospace font */
+    /* Second: Display all numbers with monospace font (always) */
     for (i = 0; i < A_MAX; i++)
     {
         /* Resulting "modified" maximum value */

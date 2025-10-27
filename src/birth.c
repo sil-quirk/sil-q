@@ -2208,8 +2208,10 @@ static NavResult player_birth_aux_2(void)
                 byte attr = TERM_L_BLUE;
                 
 #ifdef USE_SDL
-                /* Enable story font for highlighted stat name */
-                sdl_story_font_enable();
+                /* Enable story font for highlighted stat name (if enabled) */
+                if (story_character_enabled()) {
+                    sdl_story_font_enable();
+                }
 #endif
                 
                 /* Highlight the stat name as well (at col-1 to match display_player position) */
@@ -2240,8 +2242,21 @@ static NavResult player_birth_aux_2(void)
             }
         }
 
+#ifdef USE_SDL
+        /* Bottom bar follows character sheet font setting */
+        if (story_character_enabled()) {
+            sdl_story_font_enable();
+        }
+#endif
+
         Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
             "Arrows -allocate    ESC -back   ENTER -confirm   q -quit");
+
+#ifdef USE_SDL
+        if (story_character_enabled()) {
+            sdl_story_font_disable();
+        }
+#endif
 
         /* Get key */
         hide_cursor = true;
@@ -2425,8 +2440,10 @@ extern NavResult gain_skills(void)
                 byte attr = TERM_L_BLUE;
                 
 #ifdef USE_SDL
-                /* Enable story font for highlighted skill name */
-                sdl_story_font_enable();
+                /* Enable story font for highlighted skill name (if enabled) */
+                if (story_character_enabled()) {
+                    sdl_story_font_enable();
+                }
 #endif
                 
                 /* Highlight the skill name as well (at col-1 to match display_player position) */
@@ -2468,8 +2485,21 @@ extern NavResult gain_skills(void)
         //         TERM_L_WHITE, "ESC");
         // }
 
+#ifdef USE_SDL
+        /* Bottom bar follows character sheet font setting */
+        if (story_character_enabled()) {
+            sdl_story_font_enable();
+        }
+#endif
+
         Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
             "Arrows -allocate      ESC -back     ENTER -confirm     q -quit");
+
+#ifdef USE_SDL
+        if (story_character_enabled()) {
+            sdl_story_font_disable();
+        }
+#endif
 
         /* Get key */
         hide_cursor = true;

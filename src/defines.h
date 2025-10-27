@@ -2614,7 +2614,7 @@
 #define OPT_story_lists_inven 77
 #define OPT_story_lists_equip 78
 #define OPT_display_hits 79
-// xxx
+#define OPT_story_character_sheet 80
 // xxx
 // xxx
 // xxx
@@ -2754,7 +2754,7 @@
 #define story_inventory_lists op_ptr->opt[OPT_story_lists_inven]
 #define story_equipment_lists op_ptr->opt[OPT_story_lists_equip]
 #define display_hits op_ptr->opt[OPT_display_hits]
-// xxx
+#define story_character_sheet op_ptr->opt[OPT_story_character_sheet]
 // xxx
 // xxx
 // xxx

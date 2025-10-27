@@ -401,19 +401,30 @@ void do_cmd_character_sheet(void)
         /* With story font, proportional widths make column positions unreliable */
         
         /* Print the full command menu in base color */
-        /* Prompt - render in story font as key-word pairs (n-notes, s-story, etc.) */
+        /* Prompt - render based on character sheet font setting */
     #ifdef USE_SDL
-        sdl_story_font_enable();
-    #endif
-
-        /* Print the full command menu in story font (key-word pairs) */
+        if (story_character_enabled()) {
+            sdl_story_font_enable();
+            /* Story font - use more spacing for readability */
+            Term_putstr(1, 23, -1, TERM_L_WHITE,
+                "n-notes     s-story     f-file     a-abilities     c-curses     i-increase     ?-help     ESC");
+        } else {
+            /* Mono font - use less spacing for compact display */
+            Term_putstr(1, 23, -1, TERM_L_WHITE,
+                "n-notes  s-story  f-file  a-abilities  c-curses  i-increase  ?-help  ESC");
+        }
+    #else
+        /* Non-SDL builds use mono spacing */
         Term_putstr(1, 23, -1, TERM_L_WHITE,
-            "n-notes     s-story     f-file     a-abilities     c-curses     i-increase     ?-help     ESC");
+            "n-notes  s-story  f-file  a-abilities  c-curses  i-increase  ?-help  ESC");
+    #endif
 
         Term_fresh();  /* Render commands */
 
     #ifdef USE_SDL
-        sdl_story_font_disable();
+        if (story_character_enabled()) {
+            sdl_story_font_disable();
+        }
     #endif
 
         /* Query */

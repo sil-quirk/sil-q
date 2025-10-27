@@ -1146,6 +1146,7 @@ extern void text_out_c(byte a, cptr str);
 extern bool story_inventory_enabled(void);
 extern bool story_equipment_enabled(void);
 extern bool story_look_enabled(void);
+extern bool story_character_enabled(void);
 extern void clear_from(int row);
 extern bool askfor_aux(char* buf, size_t len);
 extern bool askfor_name(char* buf, size_t len);
