@@ -326,19 +326,28 @@ static void prt_stat(int stat)
         trimmed_label[--len] = '\0';
     }
 
+    log_trace("prt_stat: Rendering stat %d ('%s' trimmed to '%s')", stat, stat_label, trimmed_label);
+
     /* Display stat name with story font */
 #ifdef USE_SDL
+    log_trace("prt_stat: Enabling story font for stat label");
     sdl_story_font_enable();
 #endif
 
+    log_trace("prt_stat: Calling put_str('%s', %d, %d)", trimmed_label, ROW_STAT + stat, 0);
     put_str(trimmed_label, ROW_STAT + stat, 0);
 
 #ifdef USE_SDL
+    int cursor_x, cursor_y;
+    Term_locate(&cursor_x, &cursor_y);
+    log_trace("prt_stat: After put_str, cursor at (%d, %d)", cursor_x, cursor_y);
+    log_trace("prt_stat: Disabling story font");
     sdl_story_font_disable();
 #endif
 
     /* Display stat value with monospace font */
     cnv_stat(p_ptr->stat_use[stat], tmp);
+    log_trace("prt_stat: Calling c_put_str('%s', %d, %d) for stat value", tmp, ROW_STAT + stat, COL_STAT + 10);
     if (p_ptr->stat_drain[stat] < 0)
     {
         c_put_str(TERM_YELLOW, tmp, ROW_STAT + stat, COL_STAT + 10);

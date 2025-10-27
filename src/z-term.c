@@ -508,9 +508,10 @@ void Term_queue_char(int x, int y, byte a, char c, byte ta, char tc)
 
     /* Hack -- Ignore non-changes */
     byte nsf = Term->story_font_active ? 1 : 0;
-    if (nsf)
-        log_trace("queue_char story-font active: term=%p y=%d x=%d depth_flag=%d",
-                  (void*)Term, y, x, nsf);
+    if (nsf) {
+        log_trace("Term_queue_char: story-font ACTIVE y=%d x=%d char='%c' attr=%d story_flag=%d",
+                  y, x, c, a, nsf);
+    }
     if ((oa == a) && (oc == c) && (ota == ta) && (otc == tc) && (osf == nsf))
         return;
 
@@ -556,6 +557,12 @@ void Term_queue_chars(int x, int y, int n, byte a, cptr s)
 
     byte* scr_story = Term->scr->story[y];
 
+    byte nsf = Term->story_font_active ? 1 : 0;
+    if (nsf && n > 0) {
+        log_trace("Term_queue_chars: story-font ACTIVE y=%d x=%d n=%d text='%.*s' story_flag=%d",
+                  y, x, n, n, s, nsf);
+    }
+
     /* Queue the attr/chars */
     for (; n; x++, s++, n--)
     {
@@ -568,10 +575,6 @@ void Term_queue_chars(int x, int y, int n, byte a, cptr s)
         byte osf = scr_story[x];
 
         /* Hack -- Ignore non-changes */
-        byte nsf = Term->story_font_active ? 1 : 0;
-        if (nsf)
-            log_trace("queue_chars story-font active: term=%p y=%d x=%d depth_flag=%d",
-                      (void*)Term, y, x, nsf);
         if ((oa == a) && (oc == *s) && (ota == 0) && (otc == 0) && (osf == nsf))
             continue;
 

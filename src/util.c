@@ -3361,8 +3361,11 @@ void text_out_to_screen_story(byte a, cptr str)
     int cell_width = sdl_get_cell_width();
     int wrap_pixels = wrap_cols * cell_width;
     
+    log_trace("=== text_out_to_screen_story START ===");
     log_trace("Story wrapping: wid=%d, wrap_cols=%d, cell_width=%d, wrap_pixels=%d", 
               wid, wrap_cols, cell_width, wrap_pixels);
+    log_trace("Initial cursor: x=%d, y=%d, text_out_indent=%d, text='%.50s'", 
+              x, y, text_out_indent, str);
 
     /* Track position in pixels, not columns */
     int current_x_pixels = text_out_indent * cell_width;
@@ -3407,7 +3410,7 @@ void text_out_to_screen_story(byte a, cptr str)
         bool exceeds_pixels = (x > text_out_indent && (current_x_pixels + word_pixels) > wrap_pixels);
         bool exceeds_columns = (x + word_chars >= wid);
         
-        log_trace("Word: '%.*s' (%d chars), pixels=%d, current_x_pixels=%d, x=%d, exceeds_pixels=%s, exceeds_columns=%s", 
+        log_trace("Word: '%.*s' (%d chars), pixels=%d, current_x_pixels=%d, current_term_col=%d, exceeds_pixels=%s, exceeds_columns=%s", 
                   word_chars, word_start, word_chars, word_pixels, current_x_pixels, x,
                   exceeds_pixels ? "YES" : "NO",
                   exceeds_columns ? "YES" : "NO");
@@ -3431,7 +3434,8 @@ void text_out_to_screen_story(byte a, cptr str)
             x++;
         }
         
-        log_trace("After word output: x=%d, current_x_pixels=%d", x, current_x_pixels);
+        log_trace("After word output: term_col=%d, pixel_pos=%d, word_pixels=%d, new_pixel_pos=%d", 
+                  x, current_x_pixels, word_pixels, current_x_pixels + word_pixels);
         
         /* Update pixel position by the actual rendered width */
         current_x_pixels += word_pixels;
@@ -3439,6 +3443,8 @@ void text_out_to_screen_story(byte a, cptr str)
         /* Move past the word */
         s += word_chars;
     }
+    
+    log_trace("=== text_out_to_screen_story END === Final term_col=%d, final_pixel_pos=%d", x, current_x_pixels);
 }
 #endif /* USE_SDL */
 
@@ -3453,7 +3459,9 @@ void story_print_text(int row, int col, int max_cols, byte attr, cptr text)
 #ifdef USE_SDL
     if (sdl_is_story_font_enabled())
     {
-        log_debug("story_print_text: Using story font at row=%d col=%d: '%.50s'", row, col, text);
+        log_debug("story_print_text: STORY FONT at row=%d col=%d max_cols=%d text='%.50s'", row, col, max_cols, text);
+        log_trace("story_print_text: text_out_indent (BEFORE)=%d, text_out_wrap (BEFORE)=%d", text_out_indent, text_out_wrap);
+        
         int old_indent = text_out_indent;
         int old_wrap = text_out_wrap;
         void (*old_hook)(byte, cptr) = text_out_hook;
@@ -3466,8 +3474,19 @@ void story_print_text(int row, int col, int max_cols, byte attr, cptr text)
         text_out_indent = col;
         text_out_hook = text_out_to_screen;
 
+        log_trace("story_print_text: Setting text_out_indent=%d, text_out_wrap=%d", text_out_indent, text_out_wrap);
+        log_trace("story_print_text: About to call Term_gotoxy(%d, %d)", col, row);
+        
         Term_gotoxy(col, row);
+        
+        int cursor_x, cursor_y;
+        Term_locate(&cursor_x, &cursor_y);
+        log_trace("story_print_text: After Term_gotoxy, cursor at (%d, %d)", cursor_x, cursor_y);
+        
         text_out_c(attr, text);
+        
+        Term_locate(&cursor_x, &cursor_y);
+        log_trace("story_print_text: After text_out_c, cursor at (%d, %d)", cursor_x, cursor_y);
 
         text_out_indent = old_indent;
         text_out_wrap = old_wrap;
@@ -3476,7 +3495,7 @@ void story_print_text(int row, int col, int max_cols, byte attr, cptr text)
     }
     else
     {
-        log_debug("story_print_text: Story font NOT enabled, using c_put_str at row=%d col=%d: '%.50s'", row, col, text);
+        log_debug("story_print_text: MONO FONT at row=%d col=%d: '%.50s'", row, col, text);
     }
 #endif
 

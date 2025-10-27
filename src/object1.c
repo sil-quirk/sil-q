@@ -2703,12 +2703,17 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
         strnfmt(prefix, sizeof(prefix), "%-12s: ", mention_use(slot));
         byte prefix_attr = is_highlight ? TERM_L_BLUE : TERM_WHITE;
         int prefix_width = 14;
-        log_trace("draw_equipment_story_rows: Row %d - printing prefix '%s' with story_print_text", row, prefix);
+        log_trace("draw_equipment_story_rows: Row %d - printing prefix '%s' at col=%d width=%d", row, prefix, col, prefix_width);
         story_print_text(row, col, prefix_width, prefix_attr, prefix);
 
         int text_col = col + 12 + 2;
+        log_trace("draw_equipment_story_rows: Row %d - text_col calculated as %d (col=%d + 12 + 2)", row, text_col, col);
         if (has_object)
-            text_col = draw_item_tile(text_col, row, o_ptr);
+        {
+            int tile_end_col = draw_item_tile(text_col, row, o_ptr);
+            log_trace("draw_equipment_story_rows: Row %d - drew tile, text_col updated from %d to %d", row, text_col, tile_end_col);
+            text_col = tile_end_col;
+        }
 
         char combined_desc[160];
         if (is_highlight && slot == INVEN_QUIVER2)
@@ -2720,7 +2725,7 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
         int desc_limit = (display_weights ? 70 : label_col) - text_col;
         if (desc_limit < 1)
             desc_limit = 1;
-        log_trace("draw_equipment_story_rows: Row %d - printing desc '%s' with story_print_text", row, combined_desc);
+        log_trace("draw_equipment_story_rows: Row %d - printing desc '%s' at col=%d limit=%d", row, combined_desc, text_col, desc_limit);
         story_print_text(row, text_col, desc_limit, line_attr, combined_desc);
 
         if (display_weights && has_object && o_ptr->weight)
@@ -2731,13 +2736,14 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
             int weight_width = label_col - 70;
             if (weight_width < 1)
                 weight_width = 1;
+            log_trace("draw_equipment_story_rows: Row %d - printing weight '%s' at col=%d width=%d", row, weight_buf, 70, weight_width);
             story_print_text(row, 70, weight_width, line_attr, weight_buf);
         }
 
         char label_buf[8];
         strnfmt(label_buf, sizeof(label_buf), " (%c)", index_to_label(slot));
         byte label_attr = is_highlight ? TERM_L_BLUE : TERM_WHITE;
-        log_trace("draw_equipment_story_rows: Row %d - printing label '%s' with story_print_text", row, label_buf);
+        log_trace("draw_equipment_story_rows: Row %d - printing label '%s' at col=%d width=%d (label_col_base=%d)", row, label_buf, label_col, label_width, label_col_base);
         story_print_text(row, label_col, label_width, label_attr, label_buf);
     }
 

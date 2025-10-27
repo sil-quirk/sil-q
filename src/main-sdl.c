@@ -507,6 +507,9 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
         }
     }
     
+    log_trace("callback_sdl_text: y=%d x=%d n=%d text='%.*s' chunk_story=%d",
+              y, x, n, n, s, chunk_story_font);
+    
     // Special logging for the shooting row (y=1 when 0-indexed, or the second row)
     if (y == 1 || y == 2) {
         log_debug("callback_sdl_text ROW %d: chunk_story=%d chunk_active=%d scr=%p story=%p font=%p",
@@ -584,16 +587,19 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
         }
         
         // Render using custom TTF font for the remaining characters
-        log_debug("callback_sdl_text: USING STORY FONT for row %d at x=%d: '%.30s'", y, x, s);
+        log_debug("callback_sdl_text: USING STORY FONT for row %d at x=%d n=%d: '%.30s'", y, x, n, s);
         
         // Need to create a null-terminated string from the n characters
         char text_buf[256];
         int len = (n < 255) ? n : 255;
         memcpy(text_buf, s, len);
         text_buf[len] = '\0';
+
+        log_trace("callback_sdl_text: Creating TTF surface for text='%s' len=%d", text_buf, len);
         
         SDL_Surface* text_surface = TTF_RenderText_Blended(g_state.story_font, text_buf, 0, col);
         if (text_surface) {
+            log_trace("callback_sdl_text: TTF surface created: w=%d h=%d", text_surface->w, text_surface->h);
             SDL_Texture* text_texture = SDL_CreateTextureFromSurface(g_state.renderer, text_surface);
             if (text_texture) {
                 /* Scale the story text so its height matches the view cell height
@@ -615,6 +621,9 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
                  * to avoid overflowing neighboring cells. */
                 float max_w = (float)(n * d->cell_w);
                 if (dst.w > max_w) dst.w = max_w;
+
+                log_trace("callback_sdl_text: Rendering story text at pixel pos (%.1f, %.1f) size (%.1f x %.1f), scale=%.3f, max_w=%.1f",
+                          dst.x, dst.y, dst.w, dst.h, scale, max_w);
 
                 SDL_SetTextureBlendMode(text_texture, SDL_BLENDMODE_BLEND);
                 SDL_RenderTexture(g_state.renderer, text_texture, NULL, &dst);
