@@ -18,6 +18,64 @@ static bool inventory_menu_include_equip = false;
 #ifdef USE_SDL
 static bool story_inventory_list_active = false;
 static bool story_equipment_list_active = false;
+
+static void story_print_equipment_prefix(int row, int col, byte attr, cptr prefix)
+{
+    const int prefix_core_width = 12;
+    char label_buf[32];
+
+    if (!prefix) prefix = "";
+
+    const char* colon = strchr(prefix, ':');
+    size_t len = colon ? (size_t)(colon - prefix) : strlen(prefix);
+    if (len >= sizeof(label_buf))
+        len = sizeof(label_buf) - 1;
+
+    memcpy(label_buf, prefix, len);
+    label_buf[len] = '\0';
+
+    while (len > 0 && isspace((unsigned char)label_buf[len - 1]))
+        label_buf[--len] = '\0';
+
+    story_print_text(row, col, prefix_core_width, attr, label_buf);
+    story_print_text_grid(row, col + prefix_core_width, 2, attr, ": ");
+}
+
+static void story_prepare_equipment_desc(char* dest, size_t dest_size, cptr src,
+    int slot, bool has_object, int max_cols)
+{
+    if (!dest || dest_size == 0)
+        return;
+
+    if (!src)
+        src = "";
+
+    my_strcpy(dest, src, dest_size);
+
+    if (slot == INVEN_QUIVER2 && !has_object)
+    {
+        char base[160];
+        my_strcpy(base, dest, sizeof(base));
+        if (base[0])
+            strnfmt(dest, dest_size, "%s (keeps passive bonuses)", base);
+        else
+            my_strcpy(dest, "(keeps passive bonuses)", dest_size);
+    }
+
+    if (max_cols > 0 && sdl_is_story_font_enabled())
+    {
+        int cell_width = sdl_get_cell_width();
+        int max_pixels = max_cols * cell_width;
+        size_t len = strlen(dest);
+
+        while (len > 0 && sdl_story_font_text_width(dest, (int)len) > max_pixels)
+        {
+            dest[--len] = '\0';
+            while (len > 0 && isspace((unsigned char)dest[len - 1]))
+            dest[--len] = '\0';
+        }
+    }
+}
 #endif
 
 static bool death_spectator_allow_menu_action(void)
@@ -2630,7 +2688,7 @@ static void story_render_inventory_entry(int row, int base_col, int label_col,
         story_print_text_grid(row, label_col, label_width, label_attr, label_text);
 }
 
-static void story_render_equipment_entry(int row, int col, cptr prefix,
+static void story_render_equipment_entry(int row, int col, int slot, cptr prefix,
     byte prefix_attr, cptr desc, byte desc_attr, bool display_weights,
     cptr weight_text, byte weight_attr, cptr label_text, byte label_attr,
     const object_type* o_ptr, bool highlight, int story_term_w)
@@ -2638,21 +2696,26 @@ static void story_render_equipment_entry(int row, int col, cptr prefix,
     int highlight_cols = story_term_w ? story_term_w : 80;
     const int label_width = 6;
     int label_col = display_weights ? 78 : 71;
+    bool has_object = (o_ptr && o_ptr->k_idx);
 
     Term_erase(0, row, 255);
     if (highlight)
         story_fill_rect(row, 0, highlight_cols, TERM_L_BLUE);
 
-    story_print_text_grid(row, col, 14, prefix_attr, prefix);
+    story_print_equipment_prefix(row, col, prefix_attr, prefix);
 
     int text_col = col + 12 + 2;
-    if (o_ptr && o_ptr->k_idx)
+    if (has_object)
         text_col = draw_item_tile(col + 12 + 2, row, (object_type*)o_ptr);
 
     int desc_limit = (display_weights ? 70 : label_col) - text_col;
     if (desc_limit < 1)
         desc_limit = 1;
-    story_print_text(row, text_col, desc_limit, desc_attr, desc);
+
+    char combined_desc[160];
+    story_prepare_equipment_desc(combined_desc, sizeof(combined_desc), desc,
+        slot, has_object, desc_limit);
+    story_print_text(row, text_col, desc_limit, desc_attr, combined_desc);
 
     if (display_weights && weight_text && weight_text[0])
     {
@@ -2702,9 +2765,8 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
         char prefix[32];
         strnfmt(prefix, sizeof(prefix), "%-12s: ", mention_use(slot));
         byte prefix_attr = is_highlight ? TERM_L_BLUE : TERM_WHITE;
-        int prefix_width = 14;
-        log_trace("draw_equipment_story_rows: Row %d - printing prefix '%s' at col=%d width=%d", row, prefix, col, prefix_width);
-        story_print_text_grid(row, col, prefix_width, prefix_attr, prefix);
+        log_trace("draw_equipment_story_rows: Row %d - printing prefix '%s' at col=%d", row, prefix, col);
+        story_print_equipment_prefix(row, col, prefix_attr, prefix);
 
         int text_col = col + 12 + 2;
         log_trace("draw_equipment_story_rows: Row %d - text_col calculated as %d (col=%d + 12 + 2)", row, text_col, col);
@@ -2715,17 +2777,17 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
             text_col = tile_end_col;
         }
 
-        char combined_desc[160];
-        if (is_highlight && slot == INVEN_QUIVER2)
-            strnfmt(combined_desc, sizeof(combined_desc), "%s (keeps passive bonuses)", out_desc[idx]);
-        else
-            my_strcpy(combined_desc, out_desc[idx], sizeof(combined_desc));
-
         int label_col = label_col_base;
         int desc_limit = (display_weights ? 70 : label_col) - text_col;
         if (desc_limit < 1)
             desc_limit = 1;
-        log_trace("draw_equipment_story_rows: Row %d - printing desc '%s' at col=%d limit=%d", row, combined_desc, text_col, desc_limit);
+
+        char combined_desc[160];
+        story_prepare_equipment_desc(combined_desc, sizeof(combined_desc),
+            out_desc[idx], slot, has_object, desc_limit);
+
+        log_trace("draw_equipment_story_rows: Row %d - printing desc '%s' at col=%d limit=%d",
+            row, combined_desc, text_col, desc_limit);
         story_print_text(row, text_col, desc_limit, line_attr, combined_desc);
 
         if (display_weights && has_object && o_ptr->weight)
@@ -3106,13 +3168,7 @@ void show_equip(void)
         char prefix_buf[32];
         strnfmt(prefix_buf, sizeof(prefix_buf), "%-12s: ", mention_use(i));
 
-        char desc_buf[160];
         const char* desc_ptr = out_desc[j];
-        if (i == INVEN_QUIVER2)
-        {
-            strnfmt(desc_buf, sizeof(desc_buf), "%s (keeps passive bonuses)", out_desc[j]);
-            desc_ptr = desc_buf;
-        }
 
         char label_buf[8];
         strnfmt(label_buf, sizeof(label_buf), " (%c)", index_to_label(i));
@@ -3137,7 +3193,7 @@ void show_equip(void)
 #ifdef USE_SDL
         if (use_story_font)
         {
-            story_render_equipment_entry(j + 1, col, prefix_buf, TERM_WHITE,
+            story_render_equipment_entry(j + 1, col, i, prefix_buf, TERM_WHITE,
                 desc_ptr, out_color[j], show_weights, weight_ptr, weight_attr,
                 label_buf, TERM_WHITE, o_ptr->k_idx ? o_ptr : NULL, false, story_term_w);
             continue;
@@ -4010,7 +4066,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                       sprintf(wbuf,"%3d.%1d lb",wgt/10,wgt%10);                     \
                       wptr = wbuf;                                                  \
                   }                                                                 \
-                  story_render_equipment_entry(row + 1, col, usebuf, attr, tmp, attr, \
+                  story_render_equipment_entry(row + 1, col, item_index, usebuf, attr, tmp, attr, \
                       show_weights, wptr, attr, lab, attr, o_ptr, true, highlight_story_w); \
               })                                                                    \
               {                                                                     \

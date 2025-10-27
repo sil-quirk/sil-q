@@ -36,6 +36,22 @@
 /* Forward declaration for score update function */
 static void upsert_live_score_on_save(void);
 
+#ifdef USE_SDL
+static void story_c_put_str_grid(byte attr, cptr text, int row, int col, int width)
+{
+    if (sdl_is_story_font_enabled())
+        story_print_text_grid(row, col, width, attr, text);
+    else
+        c_put_str(attr, text, row, col);
+}
+#else
+static void story_c_put_str_grid(byte attr, cptr text, int row, int col, int width)
+{
+    (void)width;
+    c_put_str(attr, text, row, col);
+}
+#endif
+
 static bool parse_visual_component(const char* token, bool expect_row, byte* value)
 {
     if (!token || !*token || !value)
@@ -1920,36 +1936,49 @@ void display_character_tutorial(void)
                 Term_putstr(4, row, -1, TERM_WHITE, stat_names[stat]);
                 
                 /* Show breakdown if there are any modifiers */
+                char value_buf[8];
+                strnfmt(value_buf, sizeof(value_buf), "%2d", use);
+
                 if (equip_mod != 0 || misc_mod != 0 || drain != 0)
                 {
-                    c_put_str(attr, format("%2d", use), row, 8);
-                    c_put_str(TERM_SLATE, "=", row, 11);
-                    c_put_str(TERM_WHITE, format("%2d", base), row, 13);
-                    
+                    story_c_put_str_grid(attr, value_buf, row, 8, 2);
+                    story_c_put_str_grid(TERM_SLATE, "=", row, 11, 1);
+
+                    char base_buf[8];
+                    strnfmt(base_buf, sizeof(base_buf), "%2d", base);
+                    story_c_put_str_grid(TERM_WHITE, base_buf, row, 13, 2);
+
                     int col_pos = 16;
                     if (equip_mod != 0)
                     {
-                        c_put_str(equip_mod > 0 ? TERM_L_GREEN : TERM_ORANGE,
-                            format("%+d", equip_mod), row, col_pos);
+                        char mod_buf[8];
+                        strnfmt(mod_buf, sizeof(mod_buf), "%+d", equip_mod);
+                        story_c_put_str_grid(
+                            equip_mod > 0 ? TERM_L_GREEN : TERM_ORANGE,
+                            mod_buf, row, col_pos, 3);
                         col_pos += 3;
                     }
                     if (misc_mod != 0)
                     {
-                        c_put_str(misc_mod > 0 ? TERM_L_GREEN : TERM_ORANGE,
-                            format("%+d", misc_mod), row, col_pos);
+                        char mod_buf[8];
+                        strnfmt(mod_buf, sizeof(mod_buf), "%+d", misc_mod);
+                        story_c_put_str_grid(
+                            misc_mod > 0 ? TERM_L_GREEN : TERM_ORANGE,
+                            mod_buf, row, col_pos, 3);
                         col_pos += 3;
                     }
                     if (drain != 0)
                     {
-                        c_put_str(TERM_YELLOW,
-                            format("%+d", drain), row, col_pos);
+                        char mod_buf[8];
+                        strnfmt(mod_buf, sizeof(mod_buf), "%+d", drain);
+                        story_c_put_str_grid(TERM_YELLOW, mod_buf, row, col_pos, 3);
                         col_pos += 3;
                     }
                 }
                 else
                 {
                     /* No modifiers, just show the value */
-                    c_put_str(attr, format("%2d", use), row, 8);
+                    story_c_put_str_grid(attr, value_buf, row, 8, 2);
                 }
                 
                 /* Descriptions with full names - shortened to fit */
@@ -1990,27 +2019,35 @@ void display_character_tutorial(void)
                 
                 /* Use full names for display */
                 Term_putstr(4, row, -1, TERM_WHITE, skill_names_full[skill]);
-                c_put_str(TERM_L_GREEN, format("%2d", p_ptr->skill_use[skill]), row, 16);
-                c_put_str(TERM_SLATE, "=", row, 19);
-                c_put_str(TERM_GREEN, format("%2d", p_ptr->skill_base[skill]), row, 21);
+                char total_buf[8];
+                strnfmt(total_buf, sizeof(total_buf), "%2d", p_ptr->skill_use[skill]);
+                story_c_put_str_grid(TERM_L_GREEN, total_buf, row, 16, 2);
+                story_c_put_str_grid(TERM_SLATE, "=", row, 19, 1);
+
+                char base_buf[8];
+                strnfmt(base_buf, sizeof(base_buf), "%2d", p_ptr->skill_base[skill]);
+                story_c_put_str_grid(TERM_GREEN, base_buf, row, 21, 2);
                 
                 int col_pos = 24;
                 if (p_ptr->skill_stat_mod[skill] != 0)
                 {
-                    c_put_str(TERM_WHITE, format("%+d", p_ptr->skill_stat_mod[skill]), 
-                        row, col_pos);
+                    char mod_buf[8];
+                    strnfmt(mod_buf, sizeof(mod_buf), "%+d", p_ptr->skill_stat_mod[skill]);
+                    story_c_put_str_grid(TERM_WHITE, mod_buf, row, col_pos, 3);
                     col_pos += 3;
                 }
                 if (p_ptr->skill_equip_mod[skill] != 0)
                 {
-                    c_put_str(TERM_WHITE, format("%+d", p_ptr->skill_equip_mod[skill]),
-                        row, col_pos);
+                    char mod_buf[8];
+                    strnfmt(mod_buf, sizeof(mod_buf), "%+d", p_ptr->skill_equip_mod[skill]);
+                    story_c_put_str_grid(TERM_WHITE, mod_buf, row, col_pos, 3);
                     col_pos += 3;
                 }
                 if (p_ptr->skill_misc_mod[skill] != 0)
                 {
-                    c_put_str(TERM_WHITE, format("%+d", p_ptr->skill_misc_mod[skill]),
-                        row, col_pos);
+                    char mod_buf[8];
+                    strnfmt(mod_buf, sizeof(mod_buf), "%+d", p_ptr->skill_misc_mod[skill]);
+                    story_c_put_str_grid(TERM_WHITE, mod_buf, row, col_pos, 3);
                     col_pos += 3;
                 }
                 
