@@ -3000,6 +3000,25 @@ void screen_save(void)
     /* Hack -- Flush messages */
     message_flush();
 
+    /* Log line 0 state before save */
+    if (Term && Term->scr)
+    {
+        char buffer_content[256];
+        byte* scr_story = Term->scr->story[0];
+        int i;
+        int len = (Term->wid > 255) ? 255 : Term->wid;
+        for (i = 0; i < len && i < 80; i++)
+        {
+            char c = Term->scr->c[0][i];
+            buffer_content[i] = (c >= 32 && c <= 126) ? c : '.';
+        }
+        buffer_content[i] = '\0';
+        log_debug("screen_save: BEFORE save row=0 buffer='%s' story_flags[0-10]=%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+                  buffer_content,
+                  scr_story[0], scr_story[1], scr_story[2], scr_story[3], scr_story[4],
+                  scr_story[5], scr_story[6], scr_story[7], scr_story[8], scr_story[9], scr_story[10]);
+    }
+    
     /* Save the screen (if legal) */
     if (screen_depth++ == 0)
         Term_save();
@@ -3026,6 +3045,25 @@ void screen_load(void)
     /* Decrease "icky" depth */
     character_icky--;
     log_debug("screen_load: character_icky decremented to %d, screen_depth=%d", character_icky, screen_depth);
+    
+    /* Log line 0 state after load */
+    if (Term && Term->scr)
+    {
+        char buffer_content[256];
+        byte* scr_story = Term->scr->story[0];
+        int i;
+        int len = (Term->wid > 255) ? 255 : Term->wid;
+        for (i = 0; i < len && i < 80; i++)
+        {
+            char c = Term->scr->c[0][i];
+            buffer_content[i] = (c >= 32 && c <= 126) ? c : '.';
+        }
+        buffer_content[i] = '\0';
+        log_debug("screen_load: AFTER load row=0 buffer='%s' story_flags[0-10]=%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+                  buffer_content,
+                  scr_story[0], scr_story[1], scr_story[2], scr_story[3], scr_story[4],
+                  scr_story[5], scr_story[6], scr_story[7], scr_story[8], scr_story[9], scr_story[10]);
+    }
 }
 
 /*
@@ -3055,11 +3093,65 @@ void put_str(cptr str, int row, int col)
  */
 void c_prt(byte attr, cptr str, int row, int col)
 {
+    /* Log what we're about to print, especially for line 0 */
+    if (row == 0)
+    {
+        log_debug("c_prt: row=0 col=%d attr=%d str='%s' story_font_active=%d", 
+                  col, attr, str, Term && Term->story_font_active ? 1 : 0);
+        
+        /* Log current buffer state before erase */
+        if (Term && Term->scr)
+        {
+            char buffer_content[256];
+            byte* scr_story = Term->scr->story[0];
+            int i;
+            int len = (Term->wid > 255) ? 255 : Term->wid;
+            for (i = 0; i < len && i < 80; i++)
+            {
+                char c = Term->scr->c[0][i];
+                buffer_content[i] = (c >= 32 && c <= 126) ? c : '.';
+            }
+            buffer_content[i] = '\0';
+            log_debug("c_prt: BEFORE erase row=0 buffer='%s' story_flags[0-10]=%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+                      buffer_content,
+                      scr_story[0], scr_story[1], scr_story[2], scr_story[3], scr_story[4],
+                      scr_story[5], scr_story[6], scr_story[7], scr_story[8], scr_story[9], scr_story[10]);
+        }
+    }
+    
     /* Clear line, position cursor */
     Term_erase(col, row, 255);
+    
+    /* Log buffer state after erase, before adding text */
+    if (row == 0 && Term && Term->scr)
+    {
+        byte* scr_story = Term->scr->story[0];
+        log_debug("c_prt: AFTER erase row=0 story_flags[0-10]=%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+                  scr_story[0], scr_story[1], scr_story[2], scr_story[3], scr_story[4],
+                  scr_story[5], scr_story[6], scr_story[7], scr_story[8], scr_story[9], scr_story[10]);
+    }
 
     /* Dump the attr/text */
     Term_addstr(-1, attr, str);
+    
+    /* Log buffer state after adding text */
+    if (row == 0 && Term && Term->scr)
+    {
+        char buffer_content[256];
+        byte* scr_story = Term->scr->story[0];
+        int i;
+        int len = (Term->wid > 255) ? 255 : Term->wid;
+        for (i = 0; i < len && i < 80; i++)
+        {
+            char c = Term->scr->c[0][i];
+            buffer_content[i] = (c >= 32 && c <= 126) ? c : '.';
+        }
+        buffer_content[i] = '\0';
+        log_debug("c_prt: AFTER addstr row=0 buffer='%s' story_flags[0-10]=%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+                  buffer_content,
+                  scr_story[0], scr_story[1], scr_story[2], scr_story[3], scr_story[4],
+                  scr_story[5], scr_story[6], scr_story[7], scr_story[8], scr_story[9], scr_story[10]);
+    }
 }
 
 /*

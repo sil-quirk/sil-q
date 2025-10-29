@@ -2137,22 +2137,23 @@ int abilities_menu2(int skilltype, int* highlight)
             // print more info if you don't have the skill
             if (!p_ptr->have_ability[skilltype][b_ptr->abilitynum])
             {
-                int desc_row = 10;  /* Start prerequisites lower to give description more room */
+                int desc_row = 16;  /* Start prerequisites lower to give description more room (moved down 2 rows) */
                 
                 // print the prerequisites with color
                 Term_putstr(COL_DESCRIPTION, desc_row, -1, TERM_YELLOW, "Prerequisites:");
 
                 strnfmt(buf, 80, "%d skill points (you have %d)", b_ptr->level,
                     p_ptr->skill_base[skilltype]);
-                    
+
                 /* Color based on whether requirement is met */
                 if (b_ptr->level <= p_ptr->skill_base[skilltype])
                 {
-                    Term_putstr(COL_DESCRIPTION + 2, desc_row + 2, -1, TERM_L_GREEN, buf);
+                    /* Print immediately below the 'Prerequisites:' line */
+                    Term_putstr(COL_DESCRIPTION + 2, desc_row + 1, -1, TERM_L_GREEN, buf);
                 }
                 else
                 {
-                    Term_putstr(COL_DESCRIPTION + 2, desc_row + 2, -1, TERM_L_DARK, buf);
+                    Term_putstr(COL_DESCRIPTION + 2, desc_row + 1, -1, TERM_L_DARK, buf);
                 }
 
                 if (!p_ptr->active_ability[S_PER][PER_QUICK_STUDY])
@@ -2188,12 +2189,13 @@ int abilities_menu2(int skilltype, int* highlight)
                         
                         if (j == 0)
                         {
-                            Term_putstr(COL_DESCRIPTION + 2, desc_row + 3 + j, -1,
+                            /* Print prerequisites immediately after the skill-points line */
+                            Term_putstr(COL_DESCRIPTION + 2, desc_row + 2 + j, -1,
                                 prereq_attr, buf);
                         }
                         else
                         {
-                            Term_putstr(COL_DESCRIPTION + 5, desc_row + 3 + j, -1,
+                            Term_putstr(COL_DESCRIPTION + 5, desc_row + 2 + j, -1,
                                 prereq_attr, buf);
                         }
                     }
@@ -2201,7 +2203,8 @@ int abilities_menu2(int skilltype, int* highlight)
                 else if (b_ptr->prereqs > 0)
                 {
                     strnfmt(buf, 80, "Quick Study");
-                    Term_putstr(COL_DESCRIPTION + 2, desc_row + 3, -1, TERM_GREEN, buf);
+                    /* Quick Study prints a single line immediately after skill points */
+                    Term_putstr(COL_DESCRIPTION + 2, desc_row + 2, -1, TERM_GREEN, buf);
                 }
 
                 if (skilltype == S_SPC)
@@ -2225,20 +2228,37 @@ int abilities_menu2(int skilltype, int* highlight)
                         exp_cost = 0;
 
                     // print the cost with color coding
-                    desc_row += 6;  /* Move down from prerequisites */
+                    /* Compute the row immediately after the last prerequisite/Quick Study line
+                     * 'Prerequisites:' is at desc_row
+                     * skill points are at desc_row + 1
+                     * prerequisites (if any) start at desc_row + 2 and occupy b_ptr->prereqs lines
+                     * Quick Study (if active) occupies one line at desc_row + 2
+                     */
+                    int extra_lines = 0;
+                    if (!p_ptr->active_ability[S_PER][PER_QUICK_STUDY])
+                    {
+                        extra_lines = b_ptr->prereqs; /* may be 0 */
+                    }
+                    else if (b_ptr->prereqs > 0)
+                    {
+                        extra_lines = 1; /* Quick Study printed a single line */
+                    }
+
+                    desc_row = desc_row + 2 + extra_lines; /* next free row */
                     Term_putstr(COL_DESCRIPTION, desc_row, -1, TERM_YELLOW, "Current price:");
-                    
+
                     strnfmt(buf, 80, "%d experience (you have %d)", exp_cost,
                         p_ptr->new_exp);
-                    
+
                     /* Color based on whether you can afford it */
                     if (exp_cost <= p_ptr->new_exp)
                     {
-                        Term_putstr(COL_DESCRIPTION + 2, desc_row + 2, -1, TERM_L_GREEN, buf);
+                        /* Print immediately under 'Current price:' */
+                        Term_putstr(COL_DESCRIPTION + 2, desc_row + 1, -1, TERM_L_GREEN, buf);
                     }
                     else
                     {
-                        Term_putstr(COL_DESCRIPTION + 2, desc_row + 2, -1, TERM_L_DARK, buf);
+                        Term_putstr(COL_DESCRIPTION + 2, desc_row + 1, -1, TERM_L_DARK, buf);
                     }
                 }
             }

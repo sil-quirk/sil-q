@@ -74,7 +74,7 @@ U:SMT_FEANOR
 C:6:5:6:2  # Jeweller Artifice
 S:2:2:1:2
 P:3
-D: Mighty spirit aflame, brightest and proudest among Eldar craftsmen, yet fallen under shadow, whose hand wrought Silmarils kindled grief and war. His fierce oath forever binds sons to ruin, and echoes still unbroken beyond death, through fire and wrath, to the world's unmaking or renewal. Restless in Mandos, his spirit burns fierce, awaiting doomed fulfillment when the Jewels return or fade, and Arda's wounded beauty is restored; yet ever marred, his legacy wrought in flame and boundless sorrow.
+D:Mighty spirit aflame, brightest and proudest among Eldar craftsmen, yet fallen under shadow, whose hand wrought Silmarils kindled grief and war. His fierce oath forever binds sons to ruin, and echoes still unbroken beyond death, through fire and wrath, to the world's unmaking or renewal. Restless in Mandos, his spirit burns fierce, awaiting doomed fulfillment when the Jewels return or fade, and Arda's wounded beauty is restored; yet ever marred, his legacy wrought in flame and boundless sorrow.
 
 #Very powerful in melee and evasion, wounded Morgoth
 #Stats +5 +8 =13, Skills +5 +1 =6, Ability 1;
@@ -120,7 +120,7 @@ D: Eldest son of fire-hearted Feanor, whose flame-red hair now shadows grief; on
 
 N:5:Curufin
 A: the Wily
-B:You begin your hunt-crafty son of Fëanor, whose subtlety sows ruin unseen.
+B:You begin your hunt-crafty son of Feanor, whose subtlety sows ruin unseen.
 F:SMT_AFFINITY | STL_AFFINITY | PER_PENALTY | ARC_AFFINITY | MEL_PENALTY | WIL_PENALTY | TREACHERY
 S:0:3:0:-1
 C:3:4 #Opportunist
@@ -227,7 +227,7 @@ P:1
 D: Brave huntsman, faithful captain of Thingol’s guard beneath starlit woods, whose spear guarded borders of Doriath, steadfast amid darkness growing. Witness of grief and ruin, whose noble heart wept silent tears unshed, burdened by tragedies foreseen yet helplessly endured in shadowed hours. Doomed yet unwavering companion to mortal heroes, bonds forged in sorrow, foresight dimmed by loss yet eyes reflecting courage amid despair, destined to fall loyal, remembered in lament beneath darkening trees.
 
 N:15:Luthien
-A: Tinúviel
+A: Tinuviel
 B:You sing fearlessly-fairest daughter of twilight, whose love defied Morgoth.
 F:WIL_AFFINITY | SNG_AFFINITY | STL_AFFINITY | EVN_AFFINITY | ARC_PENALTY| SMT_PENALTY
 U:SNG_LUT
@@ -310,7 +310,7 @@ F:EVN_AFFINITY | STL_AFFINITY | WIL_AFFINITY
 S:1:2:1:1
 C:0:7:3:1  # Assassination # Subtlety
 P:1
-D: Mortal hero, brave-hearted wanderer beneath stars, defying darkness, whose love challenged fate itself, winning Silmaril with courage unmatched. Destined to tread perilous paths, hand of shadow bound in silver fire, deeds woven in tragedy and triumph, uniting mortal and immortal blood. Foreshadowing line of hidden kings whose fate shall shape Arda’s end, heart bound fiercely to Lúthien’s grace, death conquered by timeless love, legacy ever shining, his story echoed eternally in stars and song.
+D: Mortal hero, brave-hearted wanderer beneath stars, defying darkness, whose love challenged fate itself, winning Silmaril with courage unmatched. Destined to tread perilous paths, hand of shadow bound in silver fire, deeds woven in tragedy and triumph, uniting mortal and immortal blood. Foreshadowing line of hidden kings whose fate shall shape Arda’s end, heart bound fiercely to Luthien’s grace, death conquered by timeless love, legacy ever shining, his story echoed eternally in stars and song.
 
 N:24:Barahir
 A:, Lord of Ladros
@@ -377,7 +377,7 @@ U:SNG_HURIN
 S:2:1:2:0
 C:5:3:5:5:5:10:11:8  # Song of Slaying  # Poison Resistance  # Indomitable # Formidable
 P:2
-D: Mightiest mortal warrior, defiant heart opposing Morgoth’s darkness, whose valor on Anfauglith echoed courage beyond mortal despair. Bound cruelly to doom, witnessing ruin wrought upon kin and realm alike, sorrow unmatched, yet spirit unbroken amid relentless torment. Foreshadowing tragic deeds borne of bitterness and wrathful grief, memory enduring in pride and tragedy, hero forever defiant; Húrin, steadfast flame, challenging darkness even unto bitterest end.
+D: Mightiest mortal warrior, defiant heart opposing Morgoth’s darkness, whose valor on Anfauglith echoed courage beyond mortal despair. Bound cruelly to doom, witnessing ruin wrought upon kin and realm alike, sorrow unmatched, yet spirit unbroken amid relentless torment. Foreshadowing tragic deeds borne of bitterness and wrathful grief, memory enduring in pride and tragedy, hero forever defiant; Hurin, steadfast flame, challenging darkness even unto bitterest end.
 
 N:31:Idril
 A: Celebrindal of Gondolin
@@ -432,7 +432,7 @@ F:ARC_AFFINITY | EVN_AFFINITY | WIL_PENALTY | SMT_PENALTY | TREACHERY | BOW_PROF
 S:1:1:2:0
 C:4:8:0:4  # Polearm Mastery # Master Hunter
 P:1
-D: Fierce-hearted third son of Fëanor, fiery hunter beneath wild woods, prideful prince whose noble beauty hid ambition and cunning deeds. Hunter whose hound’s loyalty outshone his own heart’s shadowed honor, foreshadowing betrayal born of lust for jewels and glory. Destiny stained by pursuit ruthless, turning kin against kin, marred forever by treachery against love and friendship sacred; Celegorm, proud hunter fallen, memory darkened by tragic desire.
+D: Fierce-hearted third son of Feanor, fiery hunter beneath wild woods, prideful prince whose noble beauty hid ambition and cunning deeds. Hunter whose hound’s loyalty outshone his own heart’s shadowed honor, foreshadowing betrayal born of lust for jewels and glory. Destiny stained by pursuit ruthless, turning kin against kin, marred forever by treachery against love and friendship sacred; Celegorm, proud hunter fallen, memory darkened by tragic desire.
 
 N:37:Eol
 A: the Dark Elf

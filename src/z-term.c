@@ -1700,6 +1700,12 @@ errr Term_erase(int x, int y, int n)
         n++;
     }
 
+    /* Log for line 0 */
+    if (y == 0)
+    {
+        log_debug("Term_erase: row=0 x=%d n=%d story_font_active=%d", x, n, Term->story_font_active ? 1 : 0);
+    }
+
     /* Scan every column */
     for (i = 0; i < n; i++, x++)
     {
@@ -2095,7 +2101,7 @@ errr Term_save(void)
  */
 errr Term_load(void)
 {
-    int y;
+    int y, x;
 
     int w = Term->wid;
     int h = Term->hgt;
@@ -2112,6 +2118,29 @@ errr Term_load(void)
 
     /* Load */
     term_win_copy(Term->scr, Term->mem, w, h);
+
+    /* CRITICAL FIX: Invalidate the old buffer to force redraw
+     * Without this, Term_fresh_row_pict may skip cells that appear unchanged
+     * between old and scr, causing garbled text in story font mode.
+     * We set old to impossible values to guarantee mismatch with scr. */
+    for (y = 0; y < h; y++)
+    {
+        byte* old_aa = Term->old->a[y];
+        char* old_cc = Term->old->c[y];
+        byte* old_taa = Term->old->ta[y];
+        char* old_tcc = Term->old->tc[y];
+        byte* old_story = Term->old->story[y];
+        
+        for (x = 0; x < w; x++)
+        {
+            /* Set to impossible values to force redraw */
+            old_aa[x] = 255;
+            old_cc[x] = 0;
+            old_taa[x] = 255;
+            old_tcc[x] = 0;
+            old_story[x] = 255;
+        }
+    }
 
     /* Assume change */
     for (y = 0; y < h; y++)

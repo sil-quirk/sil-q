@@ -515,6 +515,26 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
     log_trace("callback_sdl_text: y=%d x=%d n=%d text='%.*s' chunk_story=%d",
               y, x, n, n, s, chunk_story_font);
     
+    // Special logging for line 0 (top description line in unified look)
+    if (y == 0) {
+        log_debug("callback_sdl_text ROW 0: x=%d n=%d chunk_story=%d text='%.*s'", 
+                  x, n, chunk_story_font, n, s);
+        if (Term->scr && Term->scr->story && Term->scr->story[0]) {
+            log_debug("  Per-char flags at y=0: x=%d..%d: [%d,%d,%d,%d,%d,%d,%d,%d,%d,%d]",
+                      x, x+9,
+                      (x+0 < Term->wid) ? Term->scr->story[0][x+0] : -1,
+                      (x+1 < Term->wid) ? Term->scr->story[0][x+1] : -1,
+                      (x+2 < Term->wid) ? Term->scr->story[0][x+2] : -1,
+                      (x+3 < Term->wid) ? Term->scr->story[0][x+3] : -1,
+                      (x+4 < Term->wid) ? Term->scr->story[0][x+4] : -1,
+                      (x+5 < Term->wid) ? Term->scr->story[0][x+5] : -1,
+                      (x+6 < Term->wid) ? Term->scr->story[0][x+6] : -1,
+                      (x+7 < Term->wid) ? Term->scr->story[0][x+7] : -1,
+                      (x+8 < Term->wid) ? Term->scr->story[0][x+8] : -1,
+                      (x+9 < Term->wid) ? Term->scr->story[0][x+9] : -1);
+        }
+    }
+    
     // Special logging for the shooting row (y=1 when 0-indexed, or the second row)
     if (y == 1 || y == 2) {
         log_debug("callback_sdl_text ROW %d: chunk_story=%d chunk_active=%d scr=%p story=%p font=%p",
@@ -1494,7 +1514,7 @@ static void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s
             d->cell_w,
             d->cell_h
         };
-        if (use_graphics == GRAPHICS_PSEUDO && (ch == '#' || ch == '%')) {
+        if (use_graphics == GRAPHICS_PSEUDO && solid_walls && (ch == '#' || ch == '%')) {
             SDL_SetRenderDrawColor(g_state.renderer, col.r, col.g, col.b, SDL_ALPHA_OPAQUE);
             SDL_RenderFillRect(g_state.renderer, &dst);
         }
