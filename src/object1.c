@@ -2614,9 +2614,9 @@ void display_equip(void)
 #ifdef USE_SDL
     if (use_story_font)
     {
-        log_debug("display_equip: Calling sdl_story_font_reset()");
-        sdl_story_font_reset();
-        log_debug("display_equip: Story font reset complete");
+        log_debug("display_equip: Calling sdl_story_font_disable()");
+        sdl_story_font_disable();
+        log_debug("display_equip: Story font disabled");
     }
 #endif
     
@@ -3042,7 +3042,13 @@ void show_inven(void)
     }
 
 #ifdef USE_SDL
-    /* Do NOT disable story font here - let get_item() handle it after screen_load() */
+    /* Disable story font after rendering to prevent it from leaking into other UI elements.
+     * get_item() will re-enable it on subsequent iterations if needed. */
+    if (use_story_font)
+    {
+        log_debug("show_inven: Disabling story font after rendering");
+        sdl_story_font_disable();
+    }
 #endif
 }
 
@@ -3285,7 +3291,13 @@ void show_equip(void)
     }
 
 #ifdef USE_SDL
-    /* Do NOT disable story font here - let get_item() handle it after screen_load() */
+    /* Disable story font after rendering to prevent it from leaking into other UI elements.
+     * get_item() will re-enable it on subsequent iterations if needed. */
+    if (use_story_font)
+    {
+        log_debug("show_equip: Disabling story font after rendering");
+        sdl_story_font_disable();
+    }
 #endif
     
     log_trace("show_equip: EXITING");
@@ -3894,7 +3906,12 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             int story_term_h = 0;                                                   \
             Term_get_size(&highlight_story_w, &story_term_h);                       \
         }
-#define DRAW_HIGHLIGHT_IF_STORY(code) if (highlight_story_font) { code } else
+#define DRAW_HIGHLIGHT_IF_STORY(code)                                               \
+    if (highlight_story_font) {                                                     \
+        sdl_story_font_enable();                                                    \
+        code;                                                                       \
+        sdl_story_font_disable();                                                   \
+    } else
 #else
 #define DRAW_HIGHLIGHT_STORY_VARS()
 #define DRAW_HIGHLIGHT_STORY_UPDATE()
@@ -5374,7 +5391,7 @@ void show_inven_enhanced(void)
 
 #ifdef USE_SDL
                     if (use_story_font)
-                        story_print_text_grid(compare_row, col, 14, TERM_WHITE, compare_prefix[idx]);
+                        story_print_equipment_prefix(compare_row, col, TERM_WHITE, compare_prefix[idx]);
                     else
 #endif
                         c_put_str(TERM_WHITE, compare_prefix[idx], compare_row, col);

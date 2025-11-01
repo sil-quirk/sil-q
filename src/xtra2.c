@@ -5732,12 +5732,14 @@ static int select_tulkas_quest_target(void)
         }
         
         /* Must be unique, alive (max_num > 0), not yet generated, and at appropriate depth */
+        /* Exclude Tulkas himself and Morgoth from being targets */
         if ((r_ptr->flags1 & RF1_UNIQUE) &&
             (r_ptr->max_num > 0) &&  /* Unique is still alive (not killed yet) */
             (r_ptr->cur_num == 0) &&  /* Unique hasn't been generated yet */
             (r_ptr->level >= p_ptr->depth) &&
             (r_ptr->level <= MORGOTH_DEPTH) &&
-            (i != R_IDX_TULKAS))
+            (i != R_IDX_TULKAS) &&
+            (i != R_IDX_MORGOTH))  /* Never make Morgoth a Tulkas quest target */
         {
             valid_targets[count] = i;
             count++;

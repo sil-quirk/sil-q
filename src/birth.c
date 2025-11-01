@@ -2214,8 +2214,11 @@ static NavResult player_birth_aux_2(void)
                 }
 #endif
                 
-                /* Highlight the stat name as well (at col-1 to match display_player position) */
-                c_put_str(attr, stat_names_full[i], row + i, col - 1);
+                /* Highlight the stat name as well (at col-1 to match display_player position)
+                 * Use the abbreviated stat names (e.g. "Str") instead of the full names
+                 * ("strength") so the highlight matches the character-sheet layout.
+                 */
+                c_put_str(attr, stat_names[i], row + i, col - 1);
                 
 #ifdef USE_SDL
                 /* Disable story font for numbers */

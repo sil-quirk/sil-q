@@ -61,7 +61,7 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 0
-#define VERSION_EXTRA 5  /* Song duel persistence data */
+#define VERSION_EXTRA 6  /* Net curse count in scores.raw (curses - blessings) */
 /* Update MIN_VERSION_EXTRA and load.c compatibility checks whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 1  /* Minimum extra value expected for CURRENT version */
 
@@ -790,7 +790,10 @@
 #define ROW_ARC 14
 #define COL_ARC 0 /* "(+x, xx)" */
 
-#define ROW_EVN 15
+#define ROW_QUIVER 15
+#define COL_QUIVER 0 /* "current/max" quiver status */
+
+#define ROW_EVN 16
 #define COL_EVN 0 /* "[+x, x-x]" */
 
 #define ROW_RESIST 17
@@ -1671,8 +1674,9 @@
 #define PR_SPEED 0x00200000L /* Display Extra (Speed) */
 #define PR_TERRAIN 0x00400000L /* Display Extra (Terrain) */
 #define PR_RESIST 0X00800000L /* Display Resistances */
-#define PR_EXTRA 0x01000000L /* Display Extra Info */
-#define PR_BASIC 0x02000000L /* Display Basic Info */
+#define PR_QUIVER 0x01000000L /* Display Quiver status */
+#define PR_EXTRA 0x02000000L /* Display Extra Info */
+#define PR_BASIC 0x04000000L /* Display Basic Info */
 /* xxx */
 #define PR_MAP 0x08000000L /* Display Map */
 /* xxx (many) */

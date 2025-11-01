@@ -439,6 +439,14 @@ static void run_quest_lottery(void) {
         init_roulette_quest_registry();
     }
     
+    /* CRITICAL: Do not run lottery if player is actively escaping (on the run) */
+    if (p_ptr->on_the_run) {
+        log_trace("Quest lottery: SKIPPED - player is on the run (no quests spawn during escape)");
+        quest_lottery_winner = 0;
+        quest_lottery_resolved = true;
+        return;
+    }
+    
     /* CRITICAL: Do not run lottery if any quest is already started on this character */
     log_trace("Quest lottery: Checking current quest states before lottery");
     log_trace("Quest lottery: tulkas=%d, niena=%d, orome=%d, aule=%d, mandos=%d", 

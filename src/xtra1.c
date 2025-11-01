@@ -472,6 +472,153 @@ static void prt_arc(void)
 }
 
 /*
+ * Prints current quiver status (current/max for both quivers)
+ * Right-aligned to 12 character width, like other stats
+ * Same type: icon in middle between counts
+ * Different: icon before each count
+ */
+static void prt_quiver(void)
+{
+    char buf1[16];
+    char buf2[16];
+    object_type* q1_ptr = &inventory[INVEN_QUIVER1];
+    object_type* q2_ptr = &inventory[INVEN_QUIVER2];
+    int q1_current = 0;
+    int q1_max = 0;
+    int q2_current = 0;
+    int q2_max = 0;
+    bool same_type = false;
+    int total_width;
+    int start_col;
+
+    /* Clear the entire line (12 characters) */
+    Term_erase(COL_QUIVER, ROW_QUIVER, 12);
+
+    /* Get quiver 1 info */
+    if (q1_ptr->k_idx)
+    {
+        q1_current = q1_ptr->number;
+        q1_max = object_stack_limit(q1_ptr);
+    }
+
+    /* Get quiver 2 info */
+    if (q2_ptr->k_idx)
+    {
+        q2_current = q2_ptr->number;
+        q2_max = object_stack_limit(q2_ptr);
+    }
+
+    /* Check if both quivers have the same item type */
+    if (q1_ptr->k_idx && q2_ptr->k_idx)
+    {
+        if (q1_ptr->tval == q2_ptr->tval && q1_ptr->sval == q2_ptr->sval)
+        {
+            same_type = true;
+        }
+    }
+
+    /* Format the count strings */
+    strnfmt(buf1, sizeof(buf1), "%d/%d", q1_current, q1_max);
+    strnfmt(buf2, sizeof(buf2), "%d/%d", q2_current, q2_max);
+    
+    /* Calculate total width */
+    if (same_type)
+    {
+        /* Layout: "11/48[→][→]7/7" */
+        total_width = strlen(buf1) + (use_bigtile ? 2 : 2) + strlen(buf2);
+    }
+    else
+    {
+        /* Layout: "[|][|]11/48[/][/]7/7" */
+        total_width = 0;
+        if (q1_ptr->k_idx)
+            total_width += (use_bigtile ? 2 : 2) + strlen(buf1);
+        if (q2_ptr->k_idx)
+            total_width += (use_bigtile ? 2 : 2) + strlen(buf2);
+    }
+    
+    /* Right-align: start at column that makes it end at column 11 */
+    start_col = COL_QUIVER + 12 - total_width;
+    if (start_col < COL_QUIVER) start_col = COL_QUIVER;
+    
+    int col = start_col;
+
+    if (same_type)
+    {
+        /* Same type: counts with icon in middle */
+        byte attr = object_attr(q1_ptr);
+        char icon = object_char(q1_ptr);
+        
+        /* Q1 count */
+        Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf1);
+        col += strlen(buf1);
+        
+        /* Icon in middle */
+        Term_putch(col, ROW_QUIVER, attr, icon);
+        col++;
+        if (use_bigtile)
+        {
+            Term_putch(col, ROW_QUIVER, 255, -1);
+            col++;
+        }
+        else
+        {
+            Term_putch(col, ROW_QUIVER, attr, icon);
+            col++;
+        }
+        
+        /* Q2 count */
+        Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf2);
+    }
+    else
+    {
+        /* Different types: icon before each count */
+        if (q1_ptr->k_idx)
+        {
+            /* Q1: "[icon][icon]cur/max" */
+            byte attr = object_attr(q1_ptr);
+            char icon = object_char(q1_ptr);
+            Term_putch(col, ROW_QUIVER, attr, icon);
+            col++;
+            if (use_bigtile)
+            {
+                Term_putch(col, ROW_QUIVER, 255, -1);
+                col++;
+            }
+            else
+            {
+                Term_putch(col, ROW_QUIVER, attr, icon);
+                col++;
+            }
+            
+            Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf1);
+            col += strlen(buf1);
+        }
+        
+        if (q2_ptr->k_idx)
+        {
+            /* Q2: "[icon][icon]cur/max" */
+            byte attr = object_attr(q2_ptr);
+            char icon = object_char(q2_ptr);
+            Term_putch(col, ROW_QUIVER, attr, icon);
+            col++;
+            if (use_bigtile)
+            {
+                Term_putch(col, ROW_QUIVER, 255, -1);
+                col++;
+            }
+            else
+            {
+                Term_putch(col, ROW_QUIVER, attr, icon);
+                col++;
+            }
+            
+            Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf2);
+        }
+    }
+}
+
+/*
  * Prints current evn
  */
 static void prt_evn(void)
@@ -536,6 +683,46 @@ static void prt_hp(void)
     sprintf(tmp, "%d", p_ptr->chp);
 
     c_put_str(color, tmp, ROW_HP, COL_HP + 12 - len);
+}
+
+/*
+ * Prints a small, monospace graphical health bar under the name.
+ * Uses 'x' characters up to 12 symbols to represent current HP proportionally.
+ * Colour matches health_attr() (green/yellow/red, etc).
+ */
+static void prt_char_health_graphic(void)
+{
+    char bar[13]; /* 12 symbols + NUL */
+    int max_symbols = 12;
+    int filled = 0;
+    byte color;
+
+    /* Clear the line first (12 chars) */
+    c_put_str(TERM_WHITE, "            ", ROW_NAME + 1, COL_NAME);
+
+    /* Defensive: avoid division by zero */
+    if (p_ptr->mhp <= 0)
+        return;
+
+    /* Scale current HP to number of symbols (ceiling) */
+    filled = (max_symbols * p_ptr->chp + p_ptr->mhp - 1) / p_ptr->mhp;
+    if (filled < 0)
+        filled = 0;
+    if (filled > max_symbols)
+        filled = max_symbols;
+
+    /* Build the bar using 'x' for filled and spaces for remainder */
+    for (int i = 0; i < filled; i++)
+        bar[i] = 'x';
+    for (int i = filled; i < max_symbols; i++)
+        bar[i] = ' ';
+    bar[max_symbols] = '\0';
+
+    /* Colour according to health */
+    color = health_attr(p_ptr->chp, p_ptr->mhp);
+
+    /* Print using a monospace field (no story font) */
+    c_put_str(color, format("%12s", bar), ROW_NAME + 1, COL_NAME);
 }
 
 static void prt_light(void)
@@ -879,7 +1066,7 @@ static void prt_afraid(void)
 static void prt_cut(void)
 {
     int c = p_ptr->cut;
-    char buf[20];
+    char num_buf[8];
 
     int r = ROW_CUT;
 
@@ -898,13 +1085,27 @@ static void prt_cut(void)
     }
     else if (c > 20)
     {
-        sprintf(buf, "Bleeding %-2d", c);
-        c_put_str(TERM_RED, buf, r, COL_CUT);
+        c_put_str(TERM_RED, "Bleeding ", r, COL_CUT);
+#ifdef USE_SDL
+        sdl_story_font_disable();
+#endif
+        sprintf(num_buf, "%-2d", c);
+        c_put_str(TERM_RED, num_buf, r, COL_CUT + 9);
+#ifdef USE_SDL
+        sdl_story_font_enable();
+#endif
     }
     else if (c > 0)
     {
-        sprintf(buf, "Bleeding %-2d", c);
-        c_put_str(TERM_L_RED, buf, r, COL_CUT);
+        c_put_str(TERM_L_RED, "Bleeding ", r, COL_CUT);
+#ifdef USE_SDL
+        sdl_story_font_disable();
+#endif
+        sprintf(num_buf, "%-2d", c);
+        c_put_str(TERM_L_RED, num_buf, r, COL_CUT + 9);
+#ifdef USE_SDL
+        sdl_story_font_enable();
+#endif
     }
     else
     {
@@ -922,7 +1123,7 @@ static void prt_cut(void)
 static void prt_poisoned(void)
 {
     int p = p_ptr->poisoned;
-    char buf[20];
+    char num_buf[8];
 
 #ifdef USE_SDL
     sdl_story_font_enable();
@@ -930,13 +1131,27 @@ static void prt_poisoned(void)
 
     if (p > 20)
     {
-        sprintf(buf, "Poisoned %-3d", p);
-        c_put_str(TERM_L_GREEN, buf, ROW_POISONED, COL_POISONED);
+        c_put_str(TERM_L_GREEN, "Poisoned ", ROW_POISONED, COL_POISONED);
+#ifdef USE_SDL
+        sdl_story_font_disable();
+#endif
+        sprintf(num_buf, "%-3d", p);
+        c_put_str(TERM_L_GREEN, num_buf, ROW_POISONED, COL_POISONED + 9);
+#ifdef USE_SDL
+        sdl_story_font_enable();
+#endif
     }
     else if (p > 0)
     {
-        sprintf(buf, "Poisoned %-3d", p);
-        c_put_str(TERM_GREEN, buf, ROW_POISONED, COL_POISONED);
+        c_put_str(TERM_GREEN, "Poisoned ", ROW_POISONED, COL_POISONED);
+#ifdef USE_SDL
+        sdl_story_font_disable();
+#endif
+        sprintf(num_buf, "%-3d", p);
+        c_put_str(TERM_GREEN, num_buf, ROW_POISONED, COL_POISONED + 9);
+#ifdef USE_SDL
+        sdl_story_font_enable();
+#endif
     }
     else
     {
@@ -1427,6 +1642,9 @@ static void prt_frame_basic(void)
         prt_field(op_ptr->full_name, ROW_NAME, COL_NAME);
     }
 
+    /* Small monospace health graphic under the name */
+    prt_char_health_graphic();
+
     /* Level/Experience */
     prt_exp();
 
@@ -1448,6 +1666,9 @@ static void prt_frame_basic(void)
 
     /* Archery */
     prt_arc();
+
+    /* Quiver */
+    prt_quiver();
 
     /* Evasion */
     prt_evn();
@@ -3938,7 +4159,7 @@ void redraw_stuff(void)
     {
         p_ptr->redraw &= ~(PR_BASIC);
         p_ptr->redraw &= ~(PR_STATS);
-        p_ptr->redraw &= ~(PR_MEL | PR_EXP | PR_ARC);
+        p_ptr->redraw &= ~(PR_MEL | PR_EXP | PR_ARC | PR_QUIVER);
         p_ptr->redraw &= ~(PR_ARMOR | PR_HP | PR_VOICE | PR_SONG | PR_LIGHT);
         p_ptr->redraw &= ~(PR_DEPTH | PR_HEALTHBAR);
         p_ptr->redraw &= ~(PR_RESIST);
@@ -3984,6 +4205,12 @@ void redraw_stuff(void)
         prt_arc();
     }
 
+    if (p_ptr->redraw & (PR_QUIVER))
+    {
+        p_ptr->redraw &= ~(PR_QUIVER);
+        prt_quiver();
+    }
+
     if (p_ptr->redraw & (PR_ARMOR))
     {
         p_ptr->redraw &= ~(PR_ARMOR);
@@ -4003,6 +4230,9 @@ void redraw_stuff(void)
         {
             lite_spot(p_ptr->py, p_ptr->px);
         }
+
+        /* Also update the monospace character health graphic */
+        prt_char_health_graphic();
     }
 
     if (p_ptr->redraw & (PR_VOICE))
@@ -4167,6 +4397,9 @@ void window_stuff(void)
         p_ptr->window &= ~(PW_EQUIP);
         fix_equip();
         log_debug("window_stuff: fix_equip() completed");
+        
+        /* Also trigger quiver redraw since quiver is part of equipment */
+        p_ptr->redraw |= (PR_QUIVER);
     }
 
     /* Display player (mode 0) */

@@ -1,4 +1,258 @@
-# Story Font Alignment Issue - Diagnostic Session# Story Font Alignment Issue - Analysis Session# Session Notes
+# Session Notes
+
+## 2025-11-01: Score System Overhaul - Curse Tracking & New Multiplier Formula
+
+### Part 1: Fixed Version Checking Logic
+
+**Problem**: Version checking only looked at `version_extra`, which would break if `VERSION_MAJOR` increases and `VERSION_EXTRA` resets to 0.
+
+**Solution**: 
+- Added full version tracking: `scores_file_version_major`, `scores_file_version_minor`, `scores_file_version_patch`, `scores_file_version_extra`
+- Created `scores_version_has_curses()` function that properly compares full version tuple (0.9.0.6 or later)
+- Removed `scores_file_is_versioned` boolean flag
+
+### Part 2: Removed Legacy Score File Support
+
+**Changes**:
+- Deleted `convert_scores_to_versioned()` function and all legacy conversion code
+- All score files must now have version headers
+- Simplified `open_scores_file_versioned()` and related functions
+- Updated all functions that save/restore score file state to use full version info
+
+### Part 3: New Additive Multiplier Formula with Conditional Logic
+
+**Old Formula**:
+```c
+int mult_bp = 1000 + (3 - house_power) * 100 + curses * 25;
+```
+
+**New Formula** (additive with conditional rates):
+```c
+int mult_bp = 1000;
+
+int house_diff = 3 - house_power;
+if (house_diff >= 0) {
+    mult_bp += house_diff * 22;  // +22 bp per point when positive
+} else {
+    mult_bp += house_diff * 10;  // -10 bp per point when negative
+}
+
+if (curses >= 0) {
+    mult_bp += (curses * 11 + 1) / 2;  // +5.5 bp per curse (rounded)
+} else {
+    mult_bp += curses * 2;  // -2 bp per blessing
+}
+```
+
+**Benefits**:
+- House power bonus: +22 bp per point (was +100 bp)
+- House power penalty: -10 bp per point (was -100 bp)
+- Curse bonus: +5.5 bp per curse (was +25 bp)
+- Blessing penalty: -2 bp per blessing (was -25 bp)
+- Simpler additive logic, easier to understand
+- Different rates for positive vs negative values create asymmetry
+
+### Technical Details
+
+**Version Comparison**:
+```c
+static bool scores_version_has_curses(void)
+{
+    if (scores_file_version_major > 0) return true;
+    if (scores_file_version_major < 0) return false;
+    
+    if (scores_file_version_minor > 9) return true;
+    if (scores_file_version_minor < 9) return false;
+    
+    if (scores_file_version_patch > 0) return true;
+    if (scores_file_version_patch < 0) return false;
+    
+    return (scores_file_version_extra >= 6);
+}
+```
+
+**Curse Data Storage**:
+- `pts` field contains net curse count (curses - blessings)
+- Stored in scores.raw only if version >= 0.9.0.6
+- Legacy scores from version < 0.9.0.6 get `curses = 0` in calculations
+- Range: [-1000, 1000] to support net blessings
+
+### Files Modified
+- `src/defines.h`: Incremented VERSION_EXTRA to 6
+- `src/files.c`: 
+  - Removed all legacy score file support
+  - Fixed version checking logic
+  - Implemented new percentage-based multiplier formula
+  - Added proper version state management
+- `src/types.h`: Updated pts field documentation
+
+---
+
+## 2025-10-31: Curse Tracking in Scores
+
+### Changes Made
+
+#### 1. Version Bump (defines.h)
+- Incremented `VERSION_EXTRA` from 5 to 6
+- Updated comment to indicate "Net curse count in scores.raw (curses - blessings)"
+
+#### 2. Score File Versioning (files.c)
+- Added `scores_file_version_extra` global variable to track score file version
+- Updated `detect_versioned_scores_file()` to cache `version_extra` value
+- Modified `convert_scores_to_versioned()` to:
+  - Clear `pts` field in legacy scores (set to 0)
+  - Mark converted files with `version_extra = 5` (pre-curse tracking)
+  - Log conversion with version marker
+- Updated new file creation to set `scores_file_version_extra = VERSION_EXTRA`
+
+#### 3. Backwards Compatibility (files.c)
+- Modified `calculate_score_breakdown()` to check version before reading curse data:
+  - Only reads `pts` field if `scores_file_is_versioned && scores_file_version_extra >= 6`
+  - Legacy scores (version < 6) get `curses = 0` for multiplier calculation
+- Changed curse clamping from `[0, 1000]` to `[-1000, 1000]` to support net blessings
+
+#### 4. Curse Calculation Fix (files.c)
+- Fixed `create_score()` to loop through all `METAR_CURSE_SLOTS` (64) instead of just 32
+- Added clarifying comment that `curse_stacks[i]` is positive for curses, negative for blessings
+- The sum correctly calculates net curses (total curses - total blessings)
+
+#### 5. Documentation (types.h)
+- Updated `pts` field comment in `high_score` struct to clarify it stores:
+  "Net curse count: total(curses) minus total(blessings) (right-aligned decimal, version_extra >= 6)"
+
+### Technical Details
+
+**Score File Format**:
+- New files: Created with `version_extra = 6`, `pts` field contains net curse count
+- Legacy files: Converted to versioned format with `version_extra = 5`, `pts` field zeroed
+- Old versioned files: If `version_extra < 6`, `pts` field ignored (treated as 0)
+
+**Multiplier Calculation**:
+```c
+int mult_bp = 1000 + (3 - house_power) * 100 + curses * 25;
+```
+- Positive curses increase multiplier (+25 bp per curse)
+- Negative values (net blessings) decrease multiplier (-25 bp per blessing)
+- Multiplier is clamped to minimum 0 if calculation goes negative
+
+**Curse Counting**:
+```c
+for (int id = 0; id < METAR_CURSE_SLOTS; ++id) {
+    curse_total += CURSE_GET(id);  // Returns curse_stacks[id] (int8_t)
+}
+```
+- `curse_stacks[id] > 0`: Active curse
+- `curse_stacks[id] < 0`: Active blessing
+- Sum gives net value (curses - blessings)
+
+---
+
+## 2025-10-30: Story Font State Management Bug Fix
+
+### Problem: Story Font Not Disabled After Equipping Items to Quiver
+When equipping spears or other throwing weapons into the quiver, the story font would remain active after the operation completed, causing all subsequent text (including the main game view) to render in the proportional story font instead of mono font.
+
+**Root Cause**: The `display_equip()` function (used by the window redraw system) was calling `sdl_story_font_reset()` instead of `sdl_story_font_disable()`. 
+
+- `sdl_story_font_reset()` forcibly sets the story font depth counter to 0, breaking the enable/disable nesting mechanism
+- `sdl_story_font_disable()` properly decrements the depth counter, respecting the nesting structure
+- When `display_equip()` was called from a window refresh during item equipping (which already had story font enabled), the reset would leave the font state inconsistent
+
+**Solution**: Changed `display_equip()` to use `sdl_story_font_disable()` instead of `sdl_story_font_reset()`, ensuring proper nesting behavior.
+
+**Files Modified**: `src/object1.c`
+- `display_equip()`: Changed from `sdl_story_font_reset()` to `sdl_story_font_disable()` (line ~2617)
+
+**Technical Details**:
+- The story font system uses a depth counter to handle nested enable/disable calls
+- `enable()` increments the counter, `disable()` decrements it
+- `reset()` forces the counter to 0, which breaks nesting when called from within an already-active story font context
+- This is especially problematic during `get_item()` flows where equipment display is triggered while story font is already enabled
+
+---
+
+## 2025-10-30: Status Effect Counter Display Fix
+
+### Problem: Bleeding and Poison Counters Display in Story Font
+Status effects with counters (poison, bleeding) needed to display their text labels in story font (for consistency with other status effects like "Blind", "Confused") but their numeric counters in mono font (for proper alignment when values change).
+
+**Root Cause**: Initially, the entire status text including numbers was being rendered in either all story font or all mono font, rather than splitting the text and numbers appropriately.
+
+**Solution**: Modified `prt_cut()` and `prt_poisoned()` to:
+1. Enable story font for the text label ("Bleeding", "Poisoned")
+2. Disable story font and switch to mono for the numeric counter
+3. Re-enable story font if there are more segments
+4. Properly disable story font at the end of the function
+
+**Files Modified**: `src/xtra1.c`
+- `prt_cut()`: Split "Bleeding XX" into "Bleeding " (story font) + "XX" (mono font)
+- `prt_poisoned()`: Split "Poisoned XXX" into "Poisoned " (story font) + "XXX" (mono font)
+
+**Technical Details**:
+- Text labels render at COL_CUT (or COL_POISONED)
+- Numeric counters render at COL_CUT + 9 (or COL_POISONED + 9) in mono font
+- Other status effects (Blind, Confused, Afraid, Hunger) correctly use story font because they display fixed text without changing numbers
+- The fix ensures visual consistency: text labels use the aesthetic story font, while counters use fixed-width mono font for proper alignment
+- Story font enable/disable calls are properly nested and balanced
+
+---
+
+## 2025-10-30: Quest Spawning During Escape Prevention & Tulkas Quest Target Fix
+
+### Problem 1: Quest Spawning During Active Escape
+Quests were still spawning when the player was actively escaping from Angband (going up with a Silmaril), which is incorrect gameplay behavior.
+
+**Root Cause**: Initially misunderstood `p_ptr->escaped` flag
+- `p_ptr->escaped` = Player has ALREADY escaped (game ending flag)
+- `p_ptr->on_the_run` = Player is ACTIVELY escaping (set when leaving Morgoth's level with Silmaril)
+
+**Solution**: Added check in `run_quest_lottery()` to prevent any quests from spawning when `p_ptr->on_the_run` is `true`.
+
+**File Modified**: `src/generate.c`
+- Added escape check immediately after quest registry initialization
+- Positioned before the existing quest state checks
+- Logs: "Quest lottery: SKIPPED - player is on the run (no quests spawn during escape)"
+
+**Code Change** (lines 443-450):
+```c
+/* CRITICAL: Do not run lottery if player is actively escaping (on the run) */
+if (p_ptr->on_the_run) {
+    log_trace("Quest lottery: SKIPPED - player is on the run (no quests spawn during escape)");
+    quest_lottery_winner = 0;
+    quest_lottery_resolved = true;
+    return;
+}
+```
+
+### Problem 2: Tulkas Quest Could Target Morgoth
+The Tulkas quest target selection allowed Morgoth to be selected as a hunt target, which is inappropriate as Morgoth is the final boss.
+
+**Solution**: Added exclusion for Morgoth in `select_tulkas_quest_target()` function.
+
+**File Modified**: `src/xtra2.c`
+- Added `(i != R_IDX_MORGOTH)` check to the target validation conditions
+- Comment added: "Never make Morgoth a Tulkas quest target"
+
+**Code Change** (lines 5734-5745):
+```c
+/* Must be unique, alive (max_num > 0), not yet generated, and at appropriate depth */
+/* Exclude Tulkas himself and Morgoth from being targets */
+if ((r_ptr->flags1 & RF1_UNIQUE) &&
+    (r_ptr->max_num > 0) &&  /* Unique is still alive (not killed yet) */
+    (r_ptr->cur_num == 0) &&  /* Unique hasn't been generated yet */
+    (r_ptr->level >= p_ptr->depth) &&
+    (r_ptr->level <= MORGOTH_DEPTH) &&
+    (i != R_IDX_TULKAS) &&
+    (i != R_IDX_MORGOTH))  /* Never make Morgoth a Tulkas quest target */
+```
+
+**Build Status**: ✅ Successfully compiled with no errors
+
+**Result**: 
+1. Quest spawning is now completely disabled during active escape sequences
+2. Morgoth can never be selected as a Tulkas quest target
+
+---
 
 ## 2025-10-29: Debugging L-View Story Font Garbling
 

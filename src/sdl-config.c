@@ -618,13 +618,9 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddNumberToObject(sdl, "windowWidth", config->window_width);
     cJSON_AddNumberToObject(sdl, "windowHeight", config->window_height);
     
-    // Save custom fonts if set
-    if (config->story_font[0] != '\0') {
-        cJSON_AddStringToObject(sdl, "storyFont", config->story_font);
-    }
-    if (config->monospace_font[0] != '\0') {
-        cJSON_AddStringToObject(sdl, "monospaceFont", config->monospace_font);
-    }
+    // Save custom fonts
+    cJSON_AddStringToObject(sdl, "storyFont", config->story_font);
+    cJSON_AddStringToObject(sdl, "monospaceFont", config->monospace_font);
     
     // Save monospace font rendering options
     cJSON_AddBoolToObject(sdl, "monoBold", config->mono_bold);
@@ -720,9 +716,9 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->window_width = 0;  // 0 means use default calculation
     config->window_height = 0; // 0 means use default calculation
     
-    // Default fonts (empty = use fallback)
-    config->story_font[0] = '\0';
-    config->monospace_font[0] = '\0';
+    // Default fonts
+    my_strcpy(config->story_font, "lib/xtra/font/Cinzel-Medium.ttf", sizeof(config->story_font));
+    my_strcpy(config->monospace_font, "lib/xtra/font/VictorMono-Medium.ttf", sizeof(config->monospace_font));
     
     // Default monospace font rendering options
     config->mono_bold = false;

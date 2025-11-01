@@ -4660,10 +4660,13 @@ static void death_examine(void)
 }
 
 /* 
- * Global flag to track if scores.raw is in versioned format
+ * Score file version tracking (all scores files must be versioned)
  */
-static bool scores_file_is_versioned = false;   /* true if scores.raw has a header */
 static u32b scores_file_entry_count = 0;        /* cached header entry count (may lag until update) */
+static byte scores_file_version_major = 0;      /* version from score file header */
+static byte scores_file_version_minor = 0;
+static byte scores_file_version_patch = 0;
+static byte scores_file_version_extra = 0;
 
 /* Forward declarations for functions used in versioned score handling */
 static errr highscore_read(high_score* score);
@@ -4676,16 +4679,10 @@ static int highscore_seek_versioned(int i)
 {
     log_debug("Seeking to score position %d in highscore file", i);
     
-    long offset;
-    if (scores_file_is_versioned) {
-        offset = sizeof(score_file_header) + i * sizeof(high_score);
-    } else {
-        offset = i * sizeof(high_score);
-    }
+    long offset = sizeof(score_file_header) + i * sizeof(high_score);
     
-    log_debug("Calculated offset: %ld (header_size=%d, entry_size=%d, versioned=%s)", 
-              offset, (int)sizeof(score_file_header), (int)sizeof(high_score), 
-              scores_file_is_versioned ? "yes" : "no");
+    log_debug("Calculated offset: %ld (header_size=%d, entry_size=%d)", 
+              offset, (int)sizeof(score_file_header), (int)sizeof(high_score));
     
     int result = fseek(highscore_fd, offset, SEEK_SET);
     if (result != 0) {
@@ -4695,9 +4692,10 @@ static int highscore_seek_versioned(int i)
 }
 
 /*
- * Check if scores.raw is in versioned format
+ * Load score file header and cache version information
+ * Returns true on success, false if file doesn't exist or is invalid
  */
-static bool detect_versioned_scores_file(const char *filepath)
+static bool load_scores_file_header(const char *filepath)
 {
     FILE* file = fopen(filepath, "rb");
     if (!file) return false;
@@ -4709,115 +4707,165 @@ static bool detect_versioned_scores_file(const char *filepath)
     
     if (file_size < (long)sizeof(score_file_header)) {
         fclose(file);
+        log_error("Score file too small to contain header");
         return false;
     }
     
     score_file_header header;
     if (fread(&header, sizeof(header), 1, file) != 1) {
         fclose(file);
+        log_error("Failed to read score file header");
         return false;
     }
+    fclose(file);
     
     /* Basic sanity on version bytes */
     if (header.version_major > 127 || header.version_minor > 127 ||
         header.version_patch > 127) {
-        fclose(file);
+        log_error("Invalid version in score file header");
         return false;
     }
 
     /* Compute actual entry count from file size */
     long payload = file_size - (long)sizeof(score_file_header);
     if (payload < 0 || (payload % (long)sizeof(high_score)) != 0) {
-        fclose(file);
-        return false; /* not aligned */
+        log_error("Score file size not aligned with high_score entries");
+        return false;
     }
     u32b actual_entries = (u32b)(payload / (long)sizeof(high_score));
 
-    scores_file_entry_count = header.entry_count; /* cache what header says */
+    /* Cache version and entry count */
+    scores_file_version_major = header.version_major;
+    scores_file_version_minor = header.version_minor;
+    scores_file_version_patch = header.version_patch;
+    scores_file_version_extra = header.version_extra;
+    scores_file_entry_count = header.entry_count;
+    
+    log_trace("load_scores_file_header: Cached version set to %d.%d.%d.%d",
+              scores_file_version_major, scores_file_version_minor,
+              scores_file_version_patch, scores_file_version_extra);
+    
     bool mismatch = (header.entry_count != actual_entries);
-    static bool logged_once = false;
-    if (!logged_once) {
-        if (mismatch) {
-            log_debug("scores.raw header entry_count=%u but file has %u entries (will reconcile if opened writable)",
-                      header.entry_count, actual_entries);
-        } else {
-            log_trace("Detected versioned scores file: v%d.%d.%d (%u entries)",
-                      header.version_major, header.version_minor, header.version_patch, header.entry_count);
-        }
-        logged_once = true;
+    if (mismatch) {
+        log_debug("scores.raw header entry_count=%u but file has %u entries (will reconcile if opened writable)",
+                  header.entry_count, actual_entries);
+    } else {
+        log_trace("Loaded scores file: v%d.%d.%d.%d (%u entries)",
+                  header.version_major, header.version_minor, header.version_patch, 
+                  header.version_extra, header.entry_count);
     }
-    fclose(file);
+    
     return true;
 }
 
 /*
- * Convert legacy scores.raw to versioned format
+ * Check if the cached score file version supports curse tracking
+ * Returns true if version >= 0.9.0.6
  */
-static errr convert_scores_to_versioned(const char *filepath)
+static bool scores_version_has_curses(void)
 {
-    /* Read existing scores */
-    FILE* file_old = fopen(filepath, "rb");
-    if (!file_old) return -1;
+    bool has_curses = false;
     
-    /* Get file size */
-    fseek(file_old, 0, SEEK_END);
-    long file_size = ftell(file_old);
-    fseek(file_old, 0, SEEK_SET);
+    /* Compare version tuple: major.minor.patch.extra */
+    if (scores_file_version_major > 0) has_curses = true;
+    else if (scores_file_version_major < 0) has_curses = false;
+    else if (scores_file_version_minor > 9) has_curses = true;
+    else if (scores_file_version_minor < 9) has_curses = false;
+    else if (scores_file_version_patch > 0) has_curses = true;
+    else if (scores_file_version_patch < 0) has_curses = false;
+    else has_curses = (scores_file_version_extra >= 6);
     
-    u32b entry_count = file_size / sizeof(high_score);
+    log_trace("scores_version_has_curses: version=%d.%d.%d.%d => %s",
+              scores_file_version_major, scores_file_version_minor,
+              scores_file_version_patch, scores_file_version_extra,
+              has_curses ? "TRUE" : "FALSE");
     
-    high_score *scores = C_ZNEW(entry_count, high_score);
-    if (fread(scores, sizeof(high_score), entry_count, file_old) != entry_count) {
-        FREE(scores);
-        fclose(file_old);
-        return -1;
-    }
-    fclose(file_old);
-    
-    /* Backup original file */
-    char backup_path[1024];
-    strnfmt(backup_path, sizeof(backup_path), "%s.legacy", filepath);
-    
-    /* Use system move/rename since we don't have fd_move equivalent with FILE* */
-    rename(filepath, backup_path);
-    
-    /* Create new versioned file */
-    FILE* file_new = fopen(filepath, "wb");
-    if (!file_new) {
-        FREE(scores);
-        return -1;
+    return has_curses;
+}
+
+/*
+ * Upgrade old score file to version 0.9.0.6 to enable curse support
+ * This writes the updated header to the file
+ */
+static bool upgrade_scores_file_to_curses(const char *filepath)
+{
+    /* Check if upgrade needed */
+    if (scores_version_has_curses()) {
+        return true;  /* Already at correct version */
     }
     
-    /* Write version header */
-    score_file_header header;
-    header.version_major = VERSION_MAJOR;
-    header.version_minor = VERSION_MINOR;
-    header.version_patch = VERSION_PATCH;
-    header.version_extra = VERSION_EXTRA;
-    header.entry_count = entry_count;
-    header.reserved[0] = 0;
-    header.reserved[1] = 0;
+    log_info("Upgrading scores file from v%d.%d.%d.%d to v0.9.0.6 (enabling curse support)",
+             scores_file_version_major, scores_file_version_minor,
+             scores_file_version_patch, scores_file_version_extra);
     
-    if (fwrite(&header, sizeof(header), 1, file_new) != 1) {
-        fclose(file_new);
-        FREE(scores);
-        return -1;
+    /* Open file for read/write */
+    FILE* file = fopen(filepath, "r+b");
+    if (!file) {
+        log_error("Cannot open scores file for upgrade: %s", filepath);
+        return false;
     }
     
-    /* Write scores */
-    if (fwrite(scores, sizeof(high_score), entry_count, file_new) != entry_count) {
-        fclose(file_new);
-        FREE(scores);
-        return -1;
+    /* Read entire file */
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    char* buffer = malloc(file_size);
+    if (!buffer) {
+        fclose(file);
+        log_error("Cannot allocate memory for upgrade");
+        return false;
     }
     
-    fclose(file_new);
-    FREE(scores);
+    if (fread(buffer, 1, file_size, file) != (size_t)file_size) {
+        free(buffer);
+        fclose(file);
+        log_error("Failed to read file during upgrade");
+        return false;
+    }
     
-    log_info("Converted legacy scores.raw to versioned format (%u entries)", entry_count);
-    scores_file_is_versioned = true;
-    scores_file_entry_count = entry_count;
-    return 0;
+    /* Update header */
+    score_file_header* header = (score_file_header*)buffer;
+    header->version_major = 0;
+    header->version_minor = 9;
+    header->version_patch = 0;
+    header->version_extra = 6;
+    
+    /* Clear pts field (old score field, now curse count) in all entries */
+    /* pts field is at offset 8 in high_score struct, size 5 bytes */
+    long entry_count = (file_size - sizeof(score_file_header)) / sizeof(high_score);
+    for (long i = 0; i < entry_count; i++) {
+        long entry_offset = sizeof(score_file_header) + i * sizeof(high_score);
+        long pts_offset = entry_offset + 8;  /* pts is at offset 8 */
+        
+        /* Clear the 5-byte pts field to "    \0" (spaces + null) */
+        memset(buffer + pts_offset, ' ', 4);
+        buffer[pts_offset + 4] = '\0';
+    }
+    
+    log_info("Cleared pts field (old score) in %ld entries", entry_count);
+    
+    /* Write back updated file */
+    fseek(file, 0, SEEK_SET);
+    if (fwrite(buffer, 1, file_size, file) != (size_t)file_size) {
+        free(buffer);
+        fclose(file);
+        log_error("Failed to write upgraded file");
+        return false;
+    }
+    
+    free(buffer);
+    fflush(file);
+    fclose(file);
+    
+    /* Update cached version */
+    scores_file_version_major = 0;
+    scores_file_version_minor = 9;
+    scores_file_version_patch = 0;
+    scores_file_version_extra = 6;
+    
+    log_info("Successfully upgraded scores file to v0.9.0.6");
+    return true;
 }
 
 /*
@@ -4837,28 +4885,18 @@ static const char* file_mode_from_flags(int mode)
 }
 
 /*
- * Open scores file, detecting and handling version format
+ * Open scores file (all scores files must have version headers)
  */
 static FILE* open_scores_file_versioned(const char *filepath, int mode)
 {
-    /* First check if file exists and detect format */
-    scores_file_is_versioned = detect_versioned_scores_file(filepath);
+    /* Try to load header from existing file */
+    bool exists = load_scores_file_header(filepath);
     
-    if (!scores_file_is_versioned) {
-        /* Check if it's a legacy file that can be converted */
-        FILE* test_file = fopen(filepath, "rb");
-        if (test_file) {
-            fseek(test_file, 0, SEEK_END);
-            long file_size = ftell(test_file);
-            fclose(test_file);
-            
-            /* If file exists and size is reasonable, convert it */
-            if (file_size > 0 && (file_size % sizeof(high_score)) == 0) {
-                if (mode != O_RDONLY) {  /* Only convert if we're opening for write */
-                    convert_scores_to_versioned(filepath);
-                }
-            }
-        }
+    /* If file exists and we have write access, upgrade to curse support if needed */
+    if (exists && (mode & (O_RDWR | O_WRONLY))) {
+        upgrade_scores_file_to_curses(filepath);
+        /* Reload header after upgrade */
+        load_scores_file_header(filepath);
     }
     
     FILE* file = NULL;
@@ -4875,8 +4913,8 @@ static FILE* open_scores_file_versioned(const char *filepath, int mode)
         file = fopen(filepath, mode_str);
     }
 
-    /* If versioned and writable, reconcile header entry count with actual bytes */
-    if (file && scores_file_is_versioned && mode != O_RDONLY) {
+    /* If writable and file exists, reconcile header entry count with actual bytes */
+    if (file && exists && mode != O_RDONLY) {
         fseek(file, 0, SEEK_END);
         long file_size = ftell(file);
         fseek(file, 0, SEEK_SET);
@@ -4906,8 +4944,6 @@ static FILE* open_scores_file_versioned(const char *filepath, int mode)
  */
 static void update_scores_file_header_count(void)
 {
-    if (!scores_file_is_versioned) return;
-    
     /* Count the actual entries in the file */
     u32b count = 0;
     high_score temp_score;
@@ -5019,10 +5055,9 @@ static int highscore_write(const high_score* score)
     /* Flush the file to ensure it's written */
     fflush(highscore_fd);
     
-    if (scores_file_is_versioned) {
-        /* Ensure header reflects any new entries */
-        update_scores_file_header_count();
-    }
+    /* Ensure header reflects any new entries */
+    update_scores_file_header_count();
+    
     return 0;
 }   
 
@@ -5203,14 +5238,29 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     int raw_max_depth = parse_score_int(score->max_dun, sizeof(score->max_dun), 0);
     int raw_cur_depth = parse_score_int(score->cur_dun, sizeof(score->cur_dun), 0);
     int silmarils = parse_score_int(score->silmarils, sizeof(score->silmarils), 0);
-    int curses = parse_score_int(score->pts, sizeof(score->pts), 0);
+    int curses = 0;
+    
+    /* Backwards compatibility: only use pts field for curse count if version >= 0.9.0.6 */
+    if (scores_version_has_curses()) {
+        curses = parse_score_int(score->pts, sizeof(score->pts), 0);
+        log_debug("calculate_score_breakdown: '%s' pts field='%.*s' parsed as curses=%d (version %d.%d.%d.%d)",
+                  score->who, (int)sizeof(score->pts), score->pts, curses,
+                  scores_file_version_major, scores_file_version_minor,
+                  scores_file_version_patch, scores_file_version_extra);
+    } else {
+        log_debug("calculate_score_breakdown: '%s' pts field ignored (old version %d.%d.%d.%d)",
+                  score->who,
+                  scores_file_version_major, scores_file_version_minor,
+                  scores_file_version_patch, scores_file_version_extra);
+    }
+    
     int uniques_killed = parse_score_int(score->cur_lev, sizeof(score->cur_lev), 0);
     bool morgoth = (score->morgoth_slain[0] == 't');
     bool escaped = (score->escaped[0] == 't');
 
     if (silmarils < 0)
         silmarils = 0;
-    curses = clampi(curses, 0, 1000);
+    curses = clampi(curses, -1000, 1000);  /* Allow negative values (net blessings) */
     uniques_killed = clampi(uniques_killed, 0, 999);
 
     if (morgoth && silmarils < 3)
@@ -5268,7 +5318,33 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
         house_power--;
     }
 
-    int mult_bp = 1000 + (3 - house_power) * 100 + curses * 25;
+    /* Calculate multiplier using additive basis points:
+     * - Base multiplier: 1000 basis points (= 100% = 1.0x)
+     * - For each point of (3 - house_power):
+     *   * If (3-P) >= 0: +220 basis points per point (= 22% each)
+     *   * If (3-P) < 0: -100 basis points per point (= 10% each)
+     * - For each net curse (curses - blessings):
+     *   * If >= 0: +55 basis points per curse (= 5.5% each)
+     *   * If < 0: -20 basis points per blessing (= 2% each)
+     */
+    int mult_bp = 1000;
+    
+    int house_diff = 3 - house_power;
+    if (house_diff >= 0) {
+        mult_bp += house_diff * 220;  /* Each point of easier house = +22% */
+    } else {
+        mult_bp += house_diff * 100;  /* Each point of harder house = -10% (house_diff is negative) */
+    }
+    
+    if (curses >= 0) {
+        /* 5.5% per curse = 55 basis points */
+        mult_bp += curses * 55;
+    } else {
+        /* 2% per blessing = 20 basis points, but curses is negative */
+        mult_bp += curses * 20;
+    }
+    
+    /* Ensure non-negative */
     if (mult_bp < 0)
         mult_bp = 0;
 
@@ -5325,10 +5401,14 @@ static int score_points_from_breakdown(const score_breakdown* breakdown)
  *   - Flat bonuses: +100 for the first Silmaril, +50 for the second and
  *     third, +300 for slaying Morgoth, +100 for escaping.
  *
- * Multipliers:
- *   - 1000 basis points baseline.
- *   - (3 - house_power) * 100 basis points.
- *   - +25 basis points per stored curse stack (capped generously).
+ * Multipliers (additive basis points):
+ *   - Base: 1000 basis points
+ *   - For each point of (3 - house_power):
+ *     * If (3-P) >= 0: +22 basis points per point
+ *     * If (3-P) < 0: -10 basis points per point
+ *   - For each net curse (curses - blessings):
+ *     * If >= 0: +5.5 basis points per curse
+ *     * If < 0: -2 basis points per blessing
  */
 int score_points(const high_score* score)
 {
@@ -5394,7 +5474,10 @@ int score_count_alive_entries(void)
     path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
 
     FILE* saved_fd = highscore_fd;
-    bool saved_versioned = scores_file_is_versioned;
+    byte saved_major = scores_file_version_major;
+    byte saved_minor = scores_file_version_minor;
+    byte saved_patch = scores_file_version_patch;
+    byte saved_extra = scores_file_version_extra;
     u32b saved_entry_count = scores_file_entry_count;
 
     safe_setuid_grab();
@@ -5402,7 +5485,10 @@ int score_count_alive_entries(void)
     safe_setuid_drop();
     if (!scan_fd) {
         highscore_fd = saved_fd;
-        scores_file_is_versioned = saved_versioned;
+        scores_file_version_major = saved_major;
+        scores_file_version_minor = saved_minor;
+        scores_file_version_patch = saved_patch;
+        scores_file_version_extra = saved_extra;
         scores_file_entry_count = saved_entry_count;
         return 0;
     }
@@ -5421,7 +5507,10 @@ int score_count_alive_entries(void)
 
     fclose(highscore_fd);
     highscore_fd = saved_fd;
-    scores_file_is_versioned = saved_versioned;
+    scores_file_version_major = saved_major;
+    scores_file_version_minor = saved_minor;
+    scores_file_version_patch = saved_patch;
+    scores_file_version_extra = saved_extra;
     scores_file_entry_count = saved_entry_count;
 
     return alive;
@@ -5433,7 +5522,10 @@ u32b score_sum_dead_points(void)
     path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
 
     FILE* saved_fd = highscore_fd;
-    bool saved_versioned = scores_file_is_versioned;
+    byte saved_major = scores_file_version_major;
+    byte saved_minor = scores_file_version_minor;
+    byte saved_patch = scores_file_version_patch;
+    byte saved_extra = scores_file_version_extra;
     u32b saved_entry_count = scores_file_entry_count;
 
     safe_setuid_grab();
@@ -5441,7 +5533,10 @@ u32b score_sum_dead_points(void)
     safe_setuid_drop();
     if (!scan_fd) {
         highscore_fd = saved_fd;
-        scores_file_is_versioned = saved_versioned;
+        scores_file_version_major = saved_major;
+        scores_file_version_minor = saved_minor;
+        scores_file_version_patch = saved_patch;
+        scores_file_version_extra = saved_extra;
         scores_file_entry_count = saved_entry_count;
         return 0;
     }
@@ -5493,7 +5588,10 @@ u32b score_sum_dead_points(void)
 
     fclose(highscore_fd);
     highscore_fd = saved_fd;
-    scores_file_is_versioned = saved_versioned;
+    scores_file_version_major = saved_major;
+    scores_file_version_minor = saved_minor;
+    scores_file_version_patch = saved_patch;
+    scores_file_version_extra = saved_extra;
     scores_file_entry_count = saved_entry_count;
 
     return total;
@@ -5629,7 +5727,10 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
     path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw");
 
     FILE* saved_fd = highscore_fd;
-    bool saved_versioned = scores_file_is_versioned;
+    byte saved_major = scores_file_version_major;
+    byte saved_minor = scores_file_version_minor;
+    byte saved_patch = scores_file_version_patch;
+    byte saved_extra = scores_file_version_extra;
     u32b saved_count = scores_file_entry_count;
 
     safe_setuid_grab();
@@ -5638,7 +5739,10 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
     if (!highscore_fd)
     {
         highscore_fd = saved_fd;
-        scores_file_is_versioned = saved_versioned;
+        scores_file_version_major = saved_major;
+        scores_file_version_minor = saved_minor;
+        scores_file_version_patch = saved_patch;
+        scores_file_version_extra = saved_extra;
         scores_file_entry_count = saved_count;
         return 0;
     }
@@ -5662,7 +5766,12 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
 
     fclose(highscore_fd);
     highscore_fd = saved_fd;
-    scores_file_is_versioned = saved_versioned;
+    /* Don't restore version - keep the version from the scores file we just read */
+    /* The cached version should reflect the actual scores.raw file version */
+    /* scores_file_version_major = saved_major; */
+    /* scores_file_version_minor = saved_minor; */
+    /* scores_file_version_patch = saved_patch; */
+    /* scores_file_version_extra = saved_extra; */
     scores_file_entry_count = saved_count;
 
     return count;
@@ -6142,7 +6251,7 @@ extern int highscore_dead(char* name)
     }
 
     /* Early exit: header says zero entries */
-    if (scores_file_is_versioned && scores_file_entry_count == 0) {
+    if (scores_file_entry_count == 0) {
         if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
         return 0;
     }
@@ -6184,27 +6293,11 @@ extern bool highscore_is_empty()
         opened_here = true;
     }
     
-    /* Check versioned file entry count */
-    if (scores_file_is_versioned) {
-        bool is_empty = (scores_file_entry_count == 0);
-        if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
-        log_debug("highscore_is_empty: versioned file, entry_count=%u, returning %s", 
-                  scores_file_entry_count, is_empty ? "true" : "false");
-        return is_empty;
-    }
-    
-    /* For legacy files, try to read first entry */
-    if (highscore_seek(0)) {
-        if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
-        log_debug("highscore_is_empty: seek failed, treating as empty");
-        return true;
-    }
-    
-    high_score the_score;
-    bool is_empty = (highscore_read(&the_score) != 0); /* EOF on first read = empty */
-    
+    /* Check entry count from header */
+    bool is_empty = (scores_file_entry_count == 0);
     if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
-    log_debug("highscore_is_empty: legacy file, returning %s", is_empty ? "true" : "false");
+    log_debug("highscore_is_empty: entry_count=%u, returning %s", 
+              scores_file_entry_count, is_empty ? "true" : "false");
     return is_empty;
 }
 
@@ -6289,29 +6382,23 @@ static int highscore_add(high_score* score)
 
     fflush(highscore_fd);
 
-    if (scores_file_is_versioned)
+    /* Update header entry count */
+    score_file_header header;
+    if (fseek(highscore_fd, 0, SEEK_SET) == 0
+        && fread(&header, sizeof(header), 1, highscore_fd) == 1)
     {
-        score_file_header header;
-        if (fseek(highscore_fd, 0, SEEK_SET) == 0
-            && fread(&header, sizeof(header), 1, highscore_fd) == 1)
-        {
-            header.entry_count = count;
-            fseek(highscore_fd, 0, SEEK_SET);
-            fwrite(&header, sizeof(header), 1, highscore_fd);
-            fflush(highscore_fd);
-            scores_file_entry_count = count;
-        }
-        else
-        {
-            log_warn("Unable to refresh high score header after rewrite");
-        }
-
-        highscore_seek(0);
+        header.entry_count = count;
+        fseek(highscore_fd, 0, SEEK_SET);
+        fwrite(&header, sizeof(header), 1, highscore_fd);
+        fflush(highscore_fd);
+        scores_file_entry_count = count;
     }
     else
     {
-        highscore_seek(0);
+        log_warn("Unable to refresh high score header after rewrite");
     }
+
+    highscore_seek(0);
 
     log_debug(
         "Sorted high score table written (%d entries). Player '%s' slot=%d replaced=%s",
@@ -6348,12 +6435,15 @@ static void upsert_live_score_on_save(void)
 
     /* Preserve global highscore state while we reuse helpers */
     FILE* prev_fd = highscore_fd;
-    bool prev_versioned = scores_file_is_versioned;
+    byte prev_major = scores_file_version_major;
+    byte prev_minor = scores_file_version_minor;
+    byte prev_patch = scores_file_version_patch;
+    byte prev_extra = scores_file_version_extra;
     u32b prev_count = scores_file_entry_count;
     highscore_fd = live_fd;
 
     /* If newly created ensure a header exists */
-    if (!prev_versioned && !detect_versioned_scores_file(score_path)) {
+    if (!load_scores_file_header(score_path)) {
         /* Create brand new versioned file header */
         score_file_header header;
         header.version_major = VERSION_MAJOR;
@@ -6366,7 +6456,10 @@ static void upsert_live_score_on_save(void)
         fseek(highscore_fd, 0, SEEK_SET);
         fwrite(&header, sizeof(header), 1, highscore_fd);
         fflush(highscore_fd);
-        scores_file_is_versioned = true;
+        scores_file_version_major = VERSION_MAJOR;
+        scores_file_version_minor = VERSION_MINOR;
+        scores_file_version_patch = VERSION_PATCH;
+        scores_file_version_extra = VERSION_EXTRA;
         scores_file_entry_count = 0;
     }
 
@@ -6403,22 +6496,21 @@ static void upsert_live_score_on_save(void)
     fseek(highscore_fd, 0, SEEK_END);
     long phys_size = ftell(highscore_fd);
     fseek(highscore_fd, 0, SEEK_SET);
-    if (scores_file_is_versioned) {
-        score_file_header hdrchk;
-        fseek(highscore_fd, 0, SEEK_SET);
-        if (fread(&hdrchk, sizeof(hdrchk), 1, highscore_fd) == 1) {
-            long payload = phys_size - (long)sizeof(score_file_header);
-            long logical = (payload >= 0) ? (payload / (long)sizeof(high_score)) : -1;
-            log_debug("scores.raw post-save header.entry_count=%u physical_entries=%ld file_size=%ld", hdrchk.entry_count, logical, phys_size);
-        }
-    } else {
-        long logical = phys_size / (long)sizeof(high_score);
-        log_debug("scores.raw legacy post-save physical_entries=%ld file_size=%ld", logical, phys_size);
+    
+    score_file_header hdrchk;
+    fseek(highscore_fd, 0, SEEK_SET);
+    if (fread(&hdrchk, sizeof(hdrchk), 1, highscore_fd) == 1) {
+        long payload = phys_size - (long)sizeof(score_file_header);
+        long logical = (payload >= 0) ? (payload / (long)sizeof(high_score)) : -1;
+        log_debug("scores.raw post-save header.entry_count=%u physical_entries=%ld file_size=%ld", hdrchk.entry_count, logical, phys_size);
     }
 
     fclose(highscore_fd);
     highscore_fd = prev_fd;
-    scores_file_is_versioned = prev_versioned;
+    scores_file_version_major = prev_major;
+    scores_file_version_minor = prev_minor;
+    scores_file_version_patch = prev_patch;
+    scores_file_version_extra = prev_extra;
     scores_file_entry_count = prev_count;
 }
 
@@ -6584,7 +6676,42 @@ extern void display_single_score(
     /* if not displayed in a place, then don't write the place number */
     /* show the score as human-readable commas, e.g. "123 456"            */
     char score_commas[16];
-    comma_number(score_commas, score_points(the_score));
+    int calculated_score = score_points(the_score);
+    
+    log_debug("display_single_score: '%s' calculated_score=%d", the_score->who, calculated_score);
+    log_debug("  pts field raw: '%.*s'", (int)sizeof(the_score->pts), the_score->pts);
+    log_debug("  version: %d.%d.%d.%d (has_curses=%s)",
+              scores_file_version_major, scores_file_version_minor,
+              scores_file_version_patch, scores_file_version_extra,
+              scores_version_has_curses() ? "yes" : "no");
+    
+    comma_number(score_commas, calculated_score);
+
+    /* Build curse/blessing text if applicable */
+    char curse_text[32] = "";
+    byte curse_color = TERM_WHITE;
+    if (scores_version_has_curses())
+    {
+        int curses = parse_score_int(the_score->pts, sizeof(the_score->pts), 0);
+        log_debug("display_single_score: Building curse display for '%s', curses=%d", the_score->who, curses);
+        
+        if (curses > 0)
+        {
+            strnfmt(curse_text, sizeof(curse_text), " (%d curse%s)", curses, (curses == 1) ? "" : "s");
+            curse_color = TERM_L_RED;
+            log_debug("  curse_text='%s', color=%d", curse_text, curse_color);
+        }
+        else if (curses < 0)
+        {
+            strnfmt(curse_text, sizeof(curse_text), " (%d blessing%s)", -curses, (curses == -1) ? "" : "s");
+            curse_color = TERM_L_GREEN;
+            log_debug("  curse_text='%s', color=%d", curse_text, curse_color);
+        }
+        else
+        {
+            log_debug("  curses=0, not displaying");
+        }
+    }
 
     if (place == 0)
         strnfmt(out_val, sizeof(out_val), "     %5s ft  %s%s  [%s pts]",
@@ -6594,6 +6721,13 @@ extern void display_single_score(
         strnfmt(out_val, sizeof(out_val), "%3d. %5s ft  %s%s  [%s pts]",
                 place, depth_commas, the_score->who,
                 c_name + c_info[ph].alt_name, score_commas);
+
+    /* Add curse text to string (we'll display it in color later by finding it) */
+    size_t pre_curse_len = strlen(out_val);
+    if (curse_text[0] != '\0')
+    {
+        my_strcat(out_val, curse_text, sizeof(out_val));
+    }
 
     /* Possibly ammend the first line */
     if (the_score->morgoth_slain[0] == 't')
@@ -6625,6 +6759,19 @@ extern void display_single_score(
 
     /* Dump the first line */
     c_put_str(attr, out_val, row + 3, col);
+
+    /* Overlay curse/blessing count in color at the position we added it */
+    if (curse_text[0] != '\0')
+    {
+        int curse_col = col + pre_curse_len;
+        log_debug("  Displaying curse_text='%s' at row=%d, col=%d", 
+                  curse_text, row + 3, curse_col);
+        c_put_str(curse_color, curse_text, row + 3, curse_col);
+    }
+    else
+    {
+        log_debug("  curse_text is empty, not displaying");
+    }
 
     /* Prepare the second line for escapees */
     if (the_score->escaped[0] == 't')
@@ -7382,9 +7529,10 @@ errr create_score(high_score* the_score)
     /* Save the version */
     strnfmt(the_score->what, sizeof(the_score->what), "%s", VERSION_STRING);
 
-    /* Store the total number of active curse stacks */
+    /* Store the net curse count (curses - blessings)
+     * curse_stacks[i] > 0 means curses, < 0 means blessings, so sum gives net value */
     int curse_total = 0;
-    for (int id = 0; id < 32; ++id)
+    for (int id = 0; id < METAR_CURSE_SLOTS; ++id)
     {
         curse_total += CURSE_GET(id);
     }
@@ -7792,18 +7940,16 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
             quit(format("Cannot open %s (%d)", score_path, errno));
             return NULL; /* NOTREACHED */
         }
-        log_trace("opened highscore_fd=%d (versioned=%d)", highscore_fd, scores_file_is_versioned ? 1 : 0);
+        log_trace("opened highscore_fd (score file loaded)");
     }
 
-    /* 4) Determine number of records (exclude header if present) */
+    /* 4) Determine number of records (exclude header) */
     fseek(highscore_fd, 0, SEEK_END);
     off_t file_end = ftell(highscore_fd);
-    off_t payload  = file_end;
-    if (scores_file_is_versioned && payload >= (off_t)sizeof(score_file_header))
-        payload -= (off_t)sizeof(score_file_header);
+    off_t payload  = file_end - (off_t)sizeof(score_file_header);
     int n_recs = (int)(payload / (off_t)sizeof(high_score));
-    log_trace("hi-score file size=%lld, payload=%lld, records=%d (versioned=%d)",
-              (long long)file_end, (long long)payload, n_recs, scores_file_is_versioned ? 1 : 0);
+    log_trace("hi-score file size=%lld, payload=%lld, records=%d",
+              (long long)file_end, (long long)payload, n_recs);
 
     /* 5) Build list of races with eligible houses and apply weighted selection */
     
@@ -9642,7 +9788,10 @@ bool autoload_alive_from_scores(void)
 
     /* Preserve global scorefile state */
     FILE*  saved_fd = highscore_fd;
-    bool saved_versioned = scores_file_is_versioned;
+    byte saved_major = scores_file_version_major;
+    byte saved_minor = scores_file_version_minor;
+    byte saved_patch = scores_file_version_patch;
+    byte saved_extra = scores_file_version_extra;
     u32b saved_entry_count = scores_file_entry_count;
 
     /* Open with version detection (read/write so we can patch entries) */
@@ -9650,7 +9799,12 @@ bool autoload_alive_from_scores(void)
     if (!highscore_fd) {
         log_warn("autoload: could not open scorefile: %s", score_path);
         /* restore */
-        highscore_fd = saved_fd; scores_file_is_versioned = saved_versioned; scores_file_entry_count = saved_entry_count;
+        highscore_fd = saved_fd;
+        scores_file_version_major = saved_major;
+        scores_file_version_minor = saved_minor;
+        scores_file_version_patch = saved_patch;
+        scores_file_version_extra = saved_extra;
+        scores_file_entry_count = saved_entry_count;
         return false;
     }
 
@@ -9660,21 +9814,22 @@ bool autoload_alive_from_scores(void)
     long file_size = ftell(highscore_fd);
     fseek(highscore_fd, 0, SEEK_SET);
     
-    if (scores_file_is_versioned) {
-        long payload = file_size - (long)sizeof(score_file_header);
-        if (payload < 0) payload = 0;
-        n_recs = payload / (long)sizeof(high_score);
-        /* Prefer header entry count if sane */
-        if (scores_file_entry_count > 0 && (int)scores_file_entry_count <= n_recs)
-            n_recs = (int)scores_file_entry_count;
-        log_trace("autoload: versioned scorefile n_recs=%d header_count=%u", n_recs, scores_file_entry_count);
-    } else {
-        n_recs = file_size / (long)sizeof(high_score);
-        log_trace("autoload: legacy scorefile n_recs=%d", n_recs);
-    }
+    long payload = file_size - (long)sizeof(score_file_header);
+    if (payload < 0) payload = 0;
+    n_recs = payload / (long)sizeof(high_score);
+    /* Prefer header entry count if sane */
+    if (scores_file_entry_count > 0 && (int)scores_file_entry_count <= n_recs)
+        n_recs = (int)scores_file_entry_count;
+    log_trace("autoload: scorefile n_recs=%d header_count=%u", n_recs, scores_file_entry_count);
+    
     if (n_recs <= 0) {
         fclose(highscore_fd);
-        highscore_fd = saved_fd; scores_file_is_versioned = saved_versioned; scores_file_entry_count = saved_entry_count;
+        highscore_fd = saved_fd;
+        scores_file_version_major = saved_major;
+        scores_file_version_minor = saved_minor;
+        scores_file_version_patch = saved_patch;
+        scores_file_version_extra = saved_extra;
+        scores_file_entry_count = saved_entry_count;
         return false;
     }
 
@@ -9697,7 +9852,12 @@ bool autoload_alive_from_scores(void)
         if (load_player()) {
             log_info("autoload: successfully loaded '%s' (normalized)", who_buf);
             fclose(highscore_fd);
-            highscore_fd = saved_fd; scores_file_is_versioned = saved_versioned; scores_file_entry_count = saved_entry_count;
+            highscore_fd = saved_fd;
+            scores_file_version_major = saved_major;
+            scores_file_version_minor = saved_minor;
+            scores_file_version_patch = saved_patch;
+            scores_file_version_extra = saved_extra;
+            scores_file_entry_count = saved_entry_count;
             return true;
         }
 
@@ -9716,7 +9876,12 @@ bool autoload_alive_from_scores(void)
             my_strcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
             process_player_name(true);
             fclose(highscore_fd);
-            highscore_fd = saved_fd; scores_file_is_versioned = saved_versioned; scores_file_entry_count = saved_entry_count;
+            highscore_fd = saved_fd;
+            scores_file_version_major = saved_major;
+            scores_file_version_minor = saved_minor;
+            scores_file_version_patch = saved_patch;
+            scores_file_version_extra = saved_extra;
+            scores_file_entry_count = saved_entry_count;
             my_strcpy(savefile, savefile_backup, sizeof(savefile));
             return true;
         }
@@ -9741,7 +9906,12 @@ bool autoload_alive_from_scores(void)
     }
 
     fclose(highscore_fd);
-    highscore_fd = saved_fd; scores_file_is_versioned = saved_versioned; scores_file_entry_count = saved_entry_count;
+    highscore_fd = saved_fd;
+    scores_file_version_major = saved_major;
+    scores_file_version_minor = saved_minor;
+    scores_file_version_patch = saved_patch;
+    scores_file_version_extra = saved_extra;
+    scores_file_entry_count = saved_entry_count;
     return false;
 }
 
@@ -9846,9 +10016,7 @@ void metarun_finalize_scores_and_saves(void)
     }
 
     off_t file_end = lseek(fd_local, 0, SEEK_END);
-    off_t payload2 = file_end;
-    if (scores_file_is_versioned && payload2 >= (off_t)sizeof(score_file_header))
-        payload2 -= (off_t)sizeof(score_file_header);
+    off_t payload2 = file_end - (off_t)sizeof(score_file_header);  /* All scores files are versioned */
     int n_recs = (int)(payload2 / (off_t)sizeof(high_score));
     if (n_recs <= 0) {
         safe_setuid_grab();

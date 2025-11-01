@@ -1342,7 +1342,7 @@ typedef struct score_file_header
 struct high_score
 {
     char what[8];        /* Version info (string) */
-    char pts[5];         /* Net curse/blessing value: curses(+) minus blessings(-) (right-aligned decimal) */
+    char pts[5];         /* Net curse count: total(curses) minus total(blessings) (right-aligned decimal, version_extra >= 6) */
     char turns[10];      /* Turns Taken (number) */
     char day[10];        /* Time stamp (string) */
     char who[16];        /* Player Name (string) */

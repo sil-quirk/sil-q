@@ -5,25 +5,59 @@ import pandas as pd
 # Unique trait scoring - each unique trait gets its own score (default 2)
 # To customize scoring for individual uniques, change the values below
 UNIQUE_SCORES = {
-    'SMT_FEANOR': 3,      # Uses only 1 forge cast for custom artifacts
-    'WIL_FIN': 3,         # Majesty ability gets twice more base will
-    'MEL_MAEDHROS': 1,    # One handed
-    'SNG_FIN': 2,         # Song of Staying is twice as effective
-    'SNG_THINGOL': 3,     # Song of Mastery is twice as effective
-    'SNG_LUT': 3,         # Song of Lorien is twice more effective
-    'SMT_TELCHAR': 3,     # Available to craft SHARPNESS2 weapons
-    'SMT_GAMIL': 2,       # Able to craft without mithril
+    'SMT_FEANOR': 2,      # Uses only 1 forge cast for custom artifacts
+    'WIL_FIN': 2,         # Majesty ability gets twice more base will
+    'MEL_MAEDHROS': 1.5,    # One handed
+    'SNG_FIN': 1.5,         # Song of Staying is twice as effective
+    'SNG_THINGOL': 2,     # Song of Mastery is twice as effective
+    'SNG_LUT': 2,         # Song of Lorien is twice more effective
+    'SMT_TELCHAR': 2,     # Available to craft SHARPNESS2 weapons
+    'SMT_GAMIL': 1,       # Able to craft without mithril
     'MIM': 1,             # Has all stealth abilities
-    'EARENDIL': 2,        # Will affinity is always at MASTER+
-    'WIL_TURIN': 2,       # Debuf->rage->hallucination
+    'EARENDIL': 1,        # Will affinity is always at MASTER+
+    'WIL_TURIN': 1,       # Debuf->rage->hallucination
     'WIL_TUOR': 1,        # Horns are 2 times more effective
-    'SNG_HURIN': 3,       # Song of Slaying is twice more effective
-    'SNG_MEL': 2,         # Song of Thresholds difficulty decreased
-    'SMT_EOL': 2,         # Galvane armor
+    'SNG_HURIN': 2,       # Song of Slaying is twice more effective
+    'SNG_MEL': 1,         # Song of Thresholds difficulty decreased
+    'SMT_EOL': 1,         # Galvane armor
 }
 
 # Ability scoring configuration
 ABILITY_MULTIPLIER = 0.2  # Multiplier for ability level requirements
+
+# P: thresholds (change here to adjust rating cutoffs)
+# Characters with Total >= P4_THRESHOLD get P:4, Characters with Total >= P3_THRESHOLD get P:3, >= P2_THRESHOLD get P:2, >= P1_THRESHOLD get P:1
+P4_THRESHOLD = 19
+P3_THRESHOLD = 15
+P2_THRESHOLD = 11.5
+P1_THRESHOLD = 9
+
+# Stat and skill weighting (change here to tune scoring)
+# Per-stat multipliers (applied to each stat value before summing)
+STAT_WEIGHTS = {
+    'Str': 1.0,   # Strength (keep previous overall stat multiplier for Str)
+    'Dex': 1.0,   # Dexterity (user requested 1)
+    'Con': 1.0,   # Constitution
+    'Gra': 1.0    # Grace / perception-adj stat (keep at 1.5 by default)
+}
+
+# Skill/affinity weights (used when flags like PER_AFFINITY appear)
+SKILL_WEIGHTS = {
+    'PER': 0.7,   # Perception
+    'WIL': 0.8,   # Will
+    'STL': 0.8,   # Stealth
+    'SMT': 0.9,   # Smithing
+    'SNG': 0.9,   # Song
+    'EVN': 1.0,   # Evasion
+    'ARC': 1.0,   # Archery
+    'MEL': 1.0,   # Melee (default 1)
+}
+
+# Proficiency flags (BOW_PROFICIENCY / AXE_PROFICIENCY) get a small fixed bonus
+PROFICIENCY_WEIGHTS = {
+    'BOW_PROFICIENCY': 0.2,
+    'AXE_PROFICIENCY': 0.2,
+}
 
 def parse_abilities(path):
     """Parse ability.txt to get ability level requirements"""
@@ -82,9 +116,18 @@ def calculate_ability_score(abilities_data, character_abilities):
             if ability_key in abilities_data:
                 ability_info = abilities_data[ability_key]
                 level_req = ability_info['level_req']
-                ability_score = level_req * ABILITY_MULTIPLIER
+                # New rule: abilities contribute 0 if level_req < 6,
+                # otherwise contribute 0.1 * level_req (exact formula).
+                try:
+                    lr = float(level_req)
+                except Exception:
+                    lr = 0.0
+                if lr >= 6.0:
+                    ability_score = 0.1 * lr
+                else:
+                    ability_score = 0.0
                 total_score += ability_score
-                
+
                 ability_details.append({
                     'name': ability_info['name'],
                     'skill': skill_num,
@@ -93,8 +136,8 @@ def calculate_ability_score(abilities_data, character_abilities):
                     'score': ability_score
                 })
             else:
-                # Unknown ability, use default score
-                default_score = 1.0
+                # Unknown ability - treat as zero contribution under new rule
+                default_score = 0.0
                 total_score += default_score
                 ability_details.append({
                     'name': f'Unknown({skill_num},{ability_num})',
@@ -104,8 +147,8 @@ def calculate_ability_score(abilities_data, character_abilities):
                     'score': default_score
                 })
         except ValueError:
-            # Invalid skill/ability format, use default score
-            default_score = 1.0
+            # Invalid skill/ability format - treat as zero contribution
+            default_score = 0.0
             total_score += default_score
             ability_details.append({
                 'name': f'Invalid({skill_str},{ability_str})',
@@ -117,13 +160,18 @@ def calculate_ability_score(abilities_data, character_abilities):
     
     return total_score, ability_details
 
-def calculate_p_value(total_with_dots):
-    """Calculate P: value based on Total with dots score"""
-    if total_with_dots >= 18:
+def calculate_p_value(total_value):
+    """Calculate P: value based on numeric Total.
+
+    Uses the thresholds defined at the top of the file (P4_THRESHOLD, P3_THRESHOLD, P2_THRESHOLD, P1_THRESHOLD).
+    """
+    if total_value >= P4_THRESHOLD:
+        return 4
+    elif total_value >= P3_THRESHOLD:
         return 3
-    elif total_with_dots >= 14:
+    elif total_value >= P2_THRESHOLD:
         return 2
-    elif total_with_dots >= 10:
+    elif total_value >= P1_THRESHOLD:
         return 1
     else:
         return 0
@@ -131,13 +179,14 @@ def calculate_p_value(total_with_dots):
 def analyze_p_updates(scores):
     """Analyze what P: values would be updated and show preview"""
     print("\n" + "="*60)
-    print("P: VALUE ANALYSIS (Based on Total_Dots)")
+    print("P: VALUE ANALYSIS (Based on Total)")
     print("="*60)
     print("Rules:")
-    print("  Total_Dots >= 18: P:3")
-    print("  Total_Dots >= 14: P:2") 
-    print("  Total_Dots >= 10: P:1")
-    print("  Total_Dots <  10: P:0")
+    print(f"  Total >= {P4_THRESHOLD}: P:4")
+    print(f"  Total >= {P3_THRESHOLD}: P:3")
+    print(f"  Total >= {P2_THRESHOLD}: P:2")
+    print(f"  Total >= {P1_THRESHOLD}: P:1")
+    print(f"  Total <  {P1_THRESHOLD}: P:0")
     print("-"*60)
     
     current_p_values = {}
@@ -157,8 +206,8 @@ def analyze_p_updates(scores):
     changes_needed = []
     for score in scores:
         hero_name = score['Hero']
-        total_dots = score['Total_Dots']
-        new_p = calculate_p_value(total_dots)
+        total_val = score['Total']
+        new_p = calculate_p_value(total_val)
         current_p = current_p_values.get(hero_name, 0)
         new_p_values[hero_name] = new_p
         
@@ -167,15 +216,15 @@ def analyze_p_updates(scores):
                 'hero': hero_name,
                 'current_p': current_p,
                 'new_p': new_p,
-                'total_dots': total_dots
+                'total': total_val
             })
     
-    print(f"{'Hero':<20} {'Total_Dots':<12} {'Current P:':<10} {'New P:':<8} {'Change'}")
+    print(f"{'Hero':<20} {'Total':>12} {'Current P:':<10} {'New P:':<8} {'Change'}")
     print("-"*60)
     
     for change in changes_needed:
         change_indicator = "→" if change['current_p'] != change['new_p'] else "="
-        print(f"{change['hero']:<20} {change['total_dots']:<12.2f} {change['current_p']:<10} {change['new_p']:<8} {change_indicator}")
+        print(f"{change['hero']:<20} {(change['total_dots'] if 'total_dots' in change else change.get('total', 0)):>12.2f} {change['current_p']:<10} {change['new_p']:<8} {change_indicator}")
     
     if not changes_needed:
         print("No changes needed - all P: values already match the rules!")
@@ -237,7 +286,8 @@ def parse_houses(path):
                     'S': [],         # [Str, Dex, Con, Gra]
                     'F': [],         # affinities / penalties
                     'U': [],         # uniques
-                    'C_pairs': []    # abilities
+                    'C_pairs': [],   # abilities
+                    'P': 0           # current P: value from file (default 0)
                 }
 
             elif line.startswith('S:'):
@@ -256,6 +306,12 @@ def parse_houses(path):
                 parts = content.split(':')
                 for i in range(0, len(parts)-1, 2):
                     current['C_pairs'].append((parts[i].strip(), parts[i+1].strip()))
+            elif line.startswith('P:') and current:
+                # P:value
+                try:
+                    current['P'] = int(line.split(':',1)[1].strip())
+                except Exception:
+                    current['P'] = 0
 
         if current and current['num'] != 0:
             houses.append(current)
@@ -315,12 +371,32 @@ def compute_scores(houses, races, abilities_data):
         Dex = hs[1] + rs[1]
         Con = hs[2] + rs[2]
         Gra = hs[3] + rs[3]
-        stats_total = Str + Dex + Con + Gra
+        # Apply per-stat weights and compute weighted stat total
+        stats_total = (
+            STAT_WEIGHTS.get('Str', 1.0) * Str +
+            STAT_WEIGHTS.get('Dex', 1.0) * Dex +
+            STAT_WEIGHTS.get('Con', 1.0) * Con +
+            STAT_WEIGHTS.get('Gra', 1.0) * Gra
+        )
 
-        # 2) Net affinities / penalties
+        # 2) Net affinities / penalties (weighted)
         def net_aff(flags):
-            return sum(1 for f in flags if f.endswith('_AFFINITY')) \
-                 - sum(1 for f in flags if f.endswith('_PENALTY'))
+            total = 0.0
+            for f in flags:
+                if f.endswith('_AFFINITY'):
+                    key = f.rsplit('_', 1)[0]  # e.g. 'PER' from 'PER_AFFINITY'
+                    weight = SKILL_WEIGHTS.get(key, 1.0)
+                    total += weight
+                elif f.endswith('_PENALTY'):
+                    key = f.rsplit('_', 1)[0]
+                    weight = SKILL_WEIGHTS.get(key, 1.0)
+                    total -= weight
+                else:
+                    # handle standalone proficiencies (BOW_PROFICIENCY, AXE_PROFICIENCY)
+                    prof_weight = PROFICIENCY_WEIGHTS.get(f, 0.0)
+                    total += prof_weight
+            return total
+
         aff_total = net_aff(h['F']) + (net_aff(r['F']) if r else 0)
 
         # 3) Unique traits - each unique scored individually
@@ -334,9 +410,10 @@ def compute_scores(houses, races, abilities_data):
             
         #    + FREE flags → +2 each
         free_count = h['F'].count('FREE') + (r['F'].count('FREE') if r else 0)
-        uniq_total += free_count * 2
+        uniq_total += free_count * 1.5
 
-        # 4) Abilities - scored individually based on level requirements
+        # 4) Abilities - scored individually based on the exact rule:
+        #    contribution = 0 if level_req < 6, else 0.1 * level_req
         abil_total, ability_details = calculate_ability_score(abilities_data, h['C_pairs'])
         # Debug: uncomment the line below to see ability scoring details
         # if ability_details:
@@ -345,21 +422,32 @@ def compute_scores(houses, races, abilities_data):
         #         print(f"    {detail['name']} (level {detail['level_req']}): {detail['score']:.2f}")
         #     print(f"    Total: {abil_total:.2f}")
 
-        # 5) Grand total
+        # 5) Grand total (abilities already use the exact formula in abil_total)
         total = stats_total + aff_total + uniq_total + abil_total
 
         # 6) Dot counts
         special = set(h['F'] + (r['F'] if r else []))
+
+        # MOR_CURSE: move this to affect the numeric total (penalty)
+        # but exclude it from the dot-based tie-breaker. We apply a
+        # small numeric penalty when MOR_CURSE is present and then
+        # do not count it in red_count/net_dots below.
+        mor_curse_penalty = -1 if 'MOR_CURSE' in special else 0
+
         red_count = (
             (2 if 'KINSLAYER' in special else 0) +
             (1 if 'TREACHERY' in special else 0) +
-            (1 if 'CURSE' in special else 0) +
-            (1 if 'MOR_CURSE' in special else 0)
+            (1 if 'CURSE' in special else 0)
+            # 'MOR_CURSE' intentionally excluded from dot calculation
         )
         green_count = (1 if 'GIFTERU' in special else 0)
         dots = '🔴'*red_count + '🟢'*green_count
 
-        # net_dots for tie-breaker
+        # Apply MOR_CURSE penalty to the numeric total so it affects
+        # rankings by 'Total' but not the dot tie-breaker.
+        total += mor_curse_penalty
+
+        # net_dots for tie-breaker (MOR_CURSE excluded)
         net_dots = green_count - red_count
 
         total_with_dots = total + (1 * net_dots)
@@ -374,14 +462,18 @@ def compute_scores(houses, races, abilities_data):
             'Affinities':  aff_total,
             'Unique':      uniq_total,
             'Abilities':   abil_total,
-            'Total':       total,
+            'Current_P':   h.get('P', 0),
             'Total_Dots':  total_with_dots,
+            # Place numeric Total before the emoji Dots so the numbers
+            # are not visually shifted by variable-width emoji when
+            # printing to a terminal.
+            'Total':       total,
             'Dots':        dots,
         })
 
-    # sort by Total descending, then by Total_Dots descending
+    # sort by Total (primary) descending, then Total_Dots (secondary)
     return sorted(results,
-                  key=lambda x: (x['Total_Dots'], x['Total']),
+                  key=lambda x: (x['Total'], x['Total_Dots']),
                   reverse=True)
 
 def main():
@@ -393,7 +485,10 @@ def main():
     df = pd.DataFrame(scores)
     # drop the internal '_net' column before printing
     # df = df.drop(columns=['_net'])
-    print(df.to_string(index=False))
+    # Use a fixed float format so numeric columns (Total, Total_Dots, Abilities)
+    # line up nicely in monospaced console output. Width 6 with 1 decimal
+    # gives more room for negative signs and two-digit numbers.
+    print(df.to_string(index=False, float_format='{:6.1f}'.format))
     
     print("\n" + "="*50)
     print_unique_scores()
