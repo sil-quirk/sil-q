@@ -4863,7 +4863,7 @@ void do_cmd_fire(int quiver)
     /* Monsters might notice */
     player_attacked = true;
 
-    p_ptr->redraw |= (PR_ARC);
+    p_ptr->redraw |= (PR_ARC | PR_QUIVER);
 
     // provoke attacks of opportunity
     if (p_ptr->active_ability[S_ARC][ARC_POINT_BLANK])
@@ -5238,6 +5238,13 @@ void do_cmd_throw(bool automatic)
             o_ptr = &inventory[item];
         else
             o_ptr = &o_list[0 - item];
+    }
+
+    /* If we're throwing from equipment (including quivers), set redraw flag */
+    bool throwing_from_equipment = (original_slot >= INVEN_WIELD);
+    if (throwing_from_equipment && (original_slot == INVEN_QUIVER1 || original_slot == INVEN_QUIVER2))
+    {
+        p_ptr->redraw |= (PR_QUIVER);
     }
 
     /* Start at the player */

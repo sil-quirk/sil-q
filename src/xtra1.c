@@ -642,7 +642,6 @@ static void prt_evn(void)
 static void prt_hp(void)
 {
     char tmp[32];
-    int len;
     byte color;
 
 #ifdef USE_SDL
@@ -662,27 +661,24 @@ static void prt_hp(void)
     sdl_story_font_disable();
 #endif
 
-    len = sprintf(tmp, "%d:%d", p_ptr->chp, p_ptr->mhp);
+    /* Get color for current HP */
+    color = health_attr(p_ptr->chp, p_ptr->mhp);
 
-    c_put_str(TERM_L_GREEN, tmp, ROW_HP, COL_HP + 12 - len);
+    /* Calculate lengths for left (current) and right (max) parts */
+    int chp_len = sprintf(tmp, "%d", p_ptr->chp);
+    int mhp_len = sprintf(tmp, "%d", p_ptr->mhp);
+    int total_len = chp_len + 1 + mhp_len; /* +1 for the slash */
 
-    /* Done? */
-    if (p_ptr->chp >= p_ptr->mhp)
-        return;
-
-    if (p_ptr->chp > (p_ptr->mhp * op_ptr->hitpoint_warn) / 10)
-    {
-        color = TERM_YELLOW;
-    }
-    else
-    {
-        color = TERM_RED;
-    }
-
-    /* Show current hitpoints using another color */
+    /* Print current HP in color */
     sprintf(tmp, "%d", p_ptr->chp);
+    c_put_str(color, tmp, ROW_HP, COL_HP + 12 - total_len);
 
-    c_put_str(color, tmp, ROW_HP, COL_HP + 12 - len);
+    /* Print slash in green */
+    c_put_str(TERM_L_GREEN, "/", ROW_HP, COL_HP + 12 - total_len + chp_len);
+
+    /* Print max HP in green */
+    sprintf(tmp, "%d", p_ptr->mhp);
+    c_put_str(TERM_L_GREEN, tmp, ROW_HP, COL_HP + 12 - total_len + chp_len + 1);
 }
 
 /*

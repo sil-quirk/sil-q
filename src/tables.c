@@ -747,7 +747,7 @@ const bool option_norm[OPT_MAX] = {
     true, /* OPT_auto_display_lists */
     true, /* OPT_artifact_unique_color */
     true, /* OPT_easy_main_menu */
-    true, /* OPT_story_lists */
+    false, /* OPT_story_lists */
     true, /* OPT_story_lists_inven */
     true, /* OPT_story_lists_equip */
     true, /* OPT_display_hits */

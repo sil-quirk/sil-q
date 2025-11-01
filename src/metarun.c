@@ -3360,8 +3360,11 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
                     line += count_wrapped_lines(desc, wrap_width, 6);
                 }
                 
-                /* Show power (P:) if curse is identified, with wrapping */
-                if (CURSE_SEEN(id) && c->power) {
+                /* Show power (P:) ONLY if curse is identified, with wrapping */
+                bool is_seen = CURSE_SEEN(id);
+                log_debug("blessing_remove_curse: curse %d (%s) seen=%d power=%d", 
+                          id, curse_display_name(id), is_seen, (c->power != 0));
+                if (is_seen && c->power) {
                     cptr power = cu_text + c->power;
                     Term_gotoxy(6, line);
                     text_out_c(TERM_SLATE, power);
@@ -3500,7 +3503,10 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
 
             if (count < METAR_CURSE_SLOTS) {
                 eligible[count] = id;
-                weights[count] = c->weight > 0 ? c->weight : 1;  /* Use curse weight, default 1 */
+                /* Apply weight with diminishing returns for existing stacks (same as curse system) */
+                int base_weight = c->weight > 0 ? c->weight : 1;
+                int effective_weight = base_weight / (blessing_stacks + 1);
+                weights[count] = (effective_weight > 0) ? effective_weight : 1;  /* Minimum weight of 1 */
                 total_weight += weights[count];
                 count++;
             }

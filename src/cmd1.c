@@ -49,6 +49,13 @@ void give_player_item(object_type * o_ptr)
     object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     msg_format("You have %s (%c).", o_name, index_to_label(slot));
+
+    /* Update quiver display if this was a throwing weapon or arrow */
+    if ((slot == INVEN_QUIVER1 || slot == INVEN_QUIVER2) ||
+        (copy.tval == TV_ARROW))
+    {
+        p_ptr->redraw |= (PR_QUIVER);
+    }
 }
 
 void new_wandering_flow(monster_type* m_ptr, int ty, int tx)
@@ -3027,6 +3034,9 @@ void do_cmd_pickup_from_pile(void)
 
     /* Combine / Reorder the pack */
     p_ptr->notice |= (PN_COMBINE | PN_REORDER);
+
+    /* Update quiver display if needed */
+    p_ptr->redraw |= (PR_QUIVER);
 
     /* Just be sure all inventory management is done. */
     notice_stuff();

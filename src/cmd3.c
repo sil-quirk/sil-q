@@ -1504,7 +1504,7 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Window stuff */
     p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
 
-    p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST | PR_MAP);
+    p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST | PR_MAP | PR_QUIVER);
 }
 
 /*
@@ -1591,7 +1591,7 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
         msg_format("You can now wield your %s more effectively.", o_name);
     }
 
-    p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST | PR_MAP);
+    p_ptr->redraw |= (PR_EQUIPPY | PR_RESIST | PR_MAP | PR_QUIVER);
 }
 
 /*
@@ -1652,6 +1652,9 @@ void do_cmd_drop_item_by_index(int item)
 
     /* Drop (some of) the item */
     inven_drop(item, amt);
+
+    /* Update quiver display if needed */
+    p_ptr->redraw |= (PR_QUIVER);
 
     enhanced_drop_refresh_pending = true;
 }
@@ -1727,6 +1730,9 @@ void do_cmd_drop(void)
 
     /* Drop (some of) the item */
     inven_drop(item, amt);
+
+    /* Update quiver display if needed */
+    p_ptr->redraw |= (PR_QUIVER);
 }
 
 /*

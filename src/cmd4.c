@@ -8861,7 +8861,7 @@ void do_cmd_pane_settings(void)
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 12;
+    int options = 10; /* one fewer after removing Challenge Options and the version entry */
     #ifdef DEBUG_CURSES
     options = 13;
     #endif
@@ -8877,28 +8877,31 @@ int options_menu(int* highlight)
     Term_putstr(2, 5, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
         "c) Visual Options");
     Term_putstr(2, 6, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) Challenge Options");
+        "d) Load a 'Pref' File");
     Term_putstr(2, 7, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Load a 'Pref' File");
+        "e) Append Options to a 'Pref' File");
     Term_putstr(2, 8, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Append Options to a 'Pref' File");
+        "f) Set Macros");
     Term_putstr(2, 9, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Set Macros");
+        "g) Set Colours");
     Term_putstr(2, 10, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Set Colours");
+        "h) Write a note");
     Term_putstr(2, 11, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Write a note");
+        "i) Take HTML screenshot");
     Term_putstr(2, 12, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "j) Take HTML screenshot");
-    Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "k) Sil version info");
-    Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-        "l) Return to Game");
+        "j) Return to Game");
 
     if (p_ptr->noscore)
     {
-        Term_putstr(2, 15, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
-            "m) Debugging Options");
+        Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
+            "k) Debugging Options");
+    }
+
+    /* Show product name and version on the bottom of the menu */
+    {
+        char verbuf[128];
+        strnfmt(verbuf, sizeof(verbuf), "%s %s", VERSION_NAME, VERSION_STRING);
+        Term_putstr(2, 16, -1, TERM_SLATE, verbuf);
     }
 
     /* Flush the prompt */
@@ -8966,28 +8969,18 @@ int options_menu(int* highlight)
         return (9);
     }
 
-    if ((ch == 'j') || (ch == 'J'))
+    if ((ch == 'j') || (ch == 'J') || (ch == ESCAPE) || (ch == 'q'))
     {
+        /* Return to game (now letter 'j') */
         *highlight = 10;
         return (10);
     }
 
     if ((ch == 'k') || (ch == 'K'))
     {
+        /* Debugging options (now letter 'k' if shown) */
         *highlight = 11;
         return (11);
-    }
-
-    if ((ch == 'l') || (ch == 'L') || (ch == ESCAPE) || (ch == 'q'))
-    {
-        *highlight = 12;
-        return (12);
-    }
-
-    if ((ch == 'm') || (ch == 'M'))
-    {
-        *highlight = 13;
-        return (13);
     }
 
     /* Choose current  */
@@ -9066,18 +9059,12 @@ void do_cmd_options(void)
         }
         case 4:
         {
-            do_cmd_options_aux(CHALLENGE_PAGE, "Challenge Options");
-            Term_clear();
-            break;
-        }
-        case 5:
-        {
             /* Ask for and load a user pref file */
             do_cmd_pref_file_hack(12);
             Term_clear();
             break;
         }
-        case 6:
+        case 5:
         {
             /* Prompt */
             Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
@@ -9110,53 +9097,49 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 7:
+        case 6:
         {
             do_cmd_macros();
             Term_clear();
             break;
         }
-        case 8:
+        case 7:
         {
             do_cmd_colors();
             Term_clear();
             break;
         }
-        case 9:
+        case 8:
         {
             do_cmd_note("", p_ptr->depth);
             Term_clear();
             break;
         }
-        case 10:
+        case 9:
         {
             char tmp_val[80];
             /* Prompt */
             Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
-            
+
             /* Create default filename */
             sprintf(tmp_val, "%s.html", op_ptr->base_name);
-            
+
             /* Take HTML screenshot */
             html_screenshot(tmp_val);
             msg_print("HTML screenshot saved.");
             Term_clear();
             break;
         }
-        case 11:
+        case 10:
         {
-            do_cmd_version();
-            Term_clear();
-            break;
-        }
-        case 12:
-        {
+            /* Return to Game */
             return_to_game = true;
             Term_clear();
             break;
         }
-        case 13:
+        case 11:
         {
+            /* Debugging Options (only reachable when p_ptr->noscore) */
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");
             Term_clear();
             break;
@@ -11434,9 +11417,11 @@ void do_cmd_note(char* note, int what_depth)
  */
 void do_cmd_version(void)
 {
-    /* Silly message */
-    msg_format("You are playing %s %s.  Type '?' for more info.", VERSION_NAME,
-        VERSION_STRING);
+    /* Silly message - use msg_print so message is shown immediately */
+    char verbuf[128];
+    strnfmt(verbuf, sizeof(verbuf), "You are playing %s %s.  Type '?' for more info.",
+        VERSION_NAME, VERSION_STRING);
+    msg_print(verbuf);
 }
 
 /*

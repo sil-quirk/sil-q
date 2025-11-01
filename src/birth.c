@@ -1413,9 +1413,10 @@ static void house_aux_hook(birth_menu c_str)
             strnfmt(power_stars, sizeof(power_stars), " ***"); 
             break;         /* Powerful - 3 green stars */
         case 3: 
+        case 4:
             star_attr = TERM_L_GREEN; 
             strnfmt(power_stars, sizeof(power_stars), " ***"); 
-            break;        /* Very Powerful - 4 bright green stars */
+            break;        /* Very Powerful - 3 bright green stars (P:3 or P:4) */
         default: 
             star_attr = TERM_WHITE; 
             strnfmt(power_stars, sizeof(power_stars), " **"); 
@@ -1433,15 +1434,20 @@ static void house_aux_hook(birth_menu c_str)
     int legend_row = 10; /* Row 10 as requested (moved up one row) */
     
     /* Count alive heroes by power level across ALL races */
-    int power_counts[4] = {0, 0, 0, 0};  /* weak, average, powerful, very powerful */
+    int power_counts[5] = {0, 0, 0, 0, 0};  /* weak, average, powerful, very powerful, mighty */
     for (int i = 0; i < z_info->c_max; i++)
     {
         /* Count only characters that are NOT dead (alive) */
         if (highscore_dead(c_name + c_info[i].name) == 0)  /* If NOT dead (alive) */
         {
             byte power = c_info[i].power;
-            if (power >= 0 && power <= 3)
-                power_counts[power]++;
+            if (power >= 0 && power <= 4)
+            {
+                if (power == 4)
+                    power_counts[3]++;  /* P:4 counts toward "Mighty" (same group as P:3) */
+                else
+                    power_counts[power]++;
+            }
         }
     }
     
@@ -1900,33 +1906,29 @@ static NavResult select_oath(void)
                         int row = 5;
                         row += display_wrapped_text(description, COL_DESCRIPTION, row, 0, TERM_SLATE);
                         
-                        /* Add space before additional info */
-                        row++;
-                        
                         /* Display Pledge (P:) */
                         char* pledge = oath_pledge(highlight);
                         if (pledge && pledge[0]) {
-                            Term_putstr(COL_DESCRIPTION, row, -1, TERM_L_BLUE, "Pledge:");
-                            row++;
-                            row += display_wrapped_text(pledge, COL_DESCRIPTION, row, 0, TERM_L_BLUE);
+                            char pledge_full[512];
+                            strnfmt(pledge_full, sizeof(pledge_full), "Pledge: %s", pledge);
+                            row += display_wrapped_text(pledge_full, COL_DESCRIPTION, row, 0, TERM_L_BLUE);
                         }
                         
                         /* Display Reward (R:) - MOVED TO TOP FOR VISIBILITY */
                         char* reward = oath_reward_text(highlight);
                         log_debug("Oath %d reward text: '%s'", highlight, reward ? reward : "NULL");
                         if (reward && reward[0]) {
-                            Term_putstr(COL_DESCRIPTION, row, -1, TERM_L_GREEN, "Reward:");
-                            row++;
-                            row += display_wrapped_text(reward, COL_DESCRIPTION, row, 0, TERM_L_GREEN);
-                            row++; /* Add spacing after reward */
+                            char reward_full[512];
+                            strnfmt(reward_full, sizeof(reward_full), "Reward: %s", reward);
+                            row += display_wrapped_text(reward_full, COL_DESCRIPTION, row, 0, TERM_L_GREEN);
                         }
                         
                         /* Display Forbidden (F:) */
                         char* forbidden = oath_forbidden(highlight);
                         if (forbidden && forbidden[0]) {
-                            Term_putstr(COL_DESCRIPTION, row, -1, TERM_L_RED, "Forbidden:");
-                            row++;
-                            row += display_wrapped_text(forbidden, COL_DESCRIPTION, row, 0, TERM_L_RED);
+                            char forbidden_full[512];
+                            strnfmt(forbidden_full, sizeof(forbidden_full), "Forbidden: %s", forbidden);
+                            row += display_wrapped_text(forbidden_full, COL_DESCRIPTION, row, 0, TERM_L_RED);
                         }
                     }
                 }
