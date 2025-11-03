@@ -968,6 +968,8 @@ extern bool song_disguise_monster_is_fooled(const monster_type* m_ptr);
 extern bool song_revealing_overlay(int m_idx, byte* a, char* c);
 extern void song_duels_new_player_turn(void);
 extern void song_duels_handle_monster_removed(int m_idx);
+extern void sing_song_of_shattering(int score);
+extern void shatter_in_arc(int dir, int score);
 
 /* spells2.c */
 extern bool hp_player(int x, bool percent, bool message);

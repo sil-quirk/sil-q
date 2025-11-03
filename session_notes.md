@@ -1,5 +1,80 @@
 # Session Notes
 
+## 2025-11-02: Stat Display Asterisk Bug Fix
+
+### Bug: Asterisk Not Clearing When Potion Effect Ends ✅
+
+**Problem**: When a stat-boosting potion is consumed (Str/Dex/Con/Gra), an asterisk '*' appears next to the stat name on the left panel. When the potion effect expires, the asterisk remains visible until a full screen redraw occurs.
+
+**Root Cause**: The `prt_stat()` function in `src/xtra1.c` only wrote the asterisk when a temporary stat boost was active, but never cleared the position when the boost wore off.
+
+**Solution**: Modified `prt_stat()` to always clear the asterisk position before conditionally displaying it.
+
+**Files Changed**:
+- `src/xtra1.c` (lines 360-370 in `prt_stat()`):
+  - Added `put_str(" ", ROW_STAT + stat, 3);` to clear the asterisk position
+  - Changed from independent `if` statements to `if/else if` chain to avoid redundant writes
+  - Now properly clears asterisk when `tmp_str/tmp_dex/tmp_con/tmp_gra` becomes 0
+
+**Before**:
+```c
+if ((stat == A_STR) && p_ptr->tmp_str)
+    put_str("*", ROW_STAT + stat, 3);
+if ((stat == A_DEX) && p_ptr->tmp_dex)
+    put_str("*", ROW_STAT + stat, 3);
+// etc...
+```
+
+**After**:
+```c
+put_str(" ", ROW_STAT + stat, 3);  /* Clear the position */
+if ((stat == A_STR) && p_ptr->tmp_str)
+    put_str("*", ROW_STAT + stat, 3);
+else if ((stat == A_DEX) && p_ptr->tmp_dex)
+    put_str("*", ROW_STAT + stat, 3);
+// etc...
+```
+
+**Result**: The asterisk now properly appears and disappears in sync with temporary stat boost effects, without requiring a full screen redraw.
+
+**Build Status**: ✅ Successful
+
+---
+
+## 2025-11-02: Horn of Blasting + Song of Shattering Integration
+
+### Feature: Horn of Blasting Now Shatters Equipment ✅
+
+**Request**: Add Song of Shattering effect to Horn of Blasting, using Will instead of Song for skill checks, limited to the horn's area of effect.
+
+**Implementation**:
+- Created new `shatter_in_arc()` function in `spells1.c` that applies shattering only to monsters in a 90-degree arc (radius 3)
+- Function uses the same directional pattern as Horn of Force (iterates through 3x3 arc grid)
+- Effect only applies when blowing horizontally; no shattering when blowing up/down
+- Uses Will score for skill checks instead of Song score
+- Messages changed from "Your song..." to "The blast..." for thematic consistency
+
+**Files Changed**:
+- `src/spells1.c`: Added `shatter_in_arc(int dir, int score)` function
+  - Scans 90-degree arc in front of player (3 directions × 3 range)
+  - Checks monsters for HAS_WEAPON/HAS_ARMOUR flags
+  - Skill check: Will vs monster Will (no distance penalty)
+  - Same damage/probability as song: score/3% chance to reduce ds/ps by 1
+  - Custom messages: "The blast splinters/warps..."
+- `src/externs.h`: Added `extern void shatter_in_arc(int dir, int score);` declaration
+- `src/use-obj.c` (SV_HORN_BLASTING case): Calls `shatter_in_arc(dir, will_score)` after wall destruction
+
+**Mechanics**:
+- Affects only monsters within the horn's 90-degree cone (like the visual arc)
+- Success based on Will score vs monster Will (simpler than song's distance scaling)
+- Same equipment damage as Song: reduces weapon dice sides or armor protection by 1
+- 50/50 split between weapon and armor targeting (if both available)
+- Only triggers on horizontal blasts (not up/down ceiling/floor effects)
+
+**Build Status**: ✅ Successful
+
+---
+
 ## 2025-11-01: Oath Menu Spacing Optimization
 
 ### Issue 1: Too Much Whitespace Between Sections ✅

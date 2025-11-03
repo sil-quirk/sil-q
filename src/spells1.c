@@ -6854,6 +6854,160 @@ void sing_song_of_lorien(int score)
     }
 }
 
+/*
+ * Apply shattering effect to monsters in an arc (like Horn of Blasting)
+ * This affects monsters within a 90-degree arc, radius 3
+ */
+void shatter_in_arc(int dir, int score)
+{
+    int i, j;
+    int direction;
+    extern const byte cycle[];
+    extern const byte chome[];
+
+    /* Handle special directions */
+    if (dir == DIRECTION_UP || dir == DIRECTION_DOWN || dir == 5)
+        return;
+
+    direction = chome[dir];
+
+    /* Scan arc: 3 forward, in 3 directions (left, center, right) */
+    for (i = -1; i < 2; ++i)
+    {
+        for (j = 1; j <= 3; ++j)
+        {
+            int arc_dir = cycle[direction + i];
+            int y = p_ptr->py + j * ddy[arc_dir];
+            int x = p_ptr->px + j * ddx[arc_dir];
+
+            /* Check bounds */
+            if (!in_bounds_fully(y, x))
+                continue;
+
+            /* Check for monster */
+            if (cave_m_idx[y][x] <= 0)
+                continue;
+
+            monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
+            monster_race* r_ptr = &r_info[m_ptr->r_idx];
+            object_type* weapon;
+            object_type* armour;
+            int resistance;
+            int result;
+            bool weapon_possible = false;
+            bool armour_possible = false;
+            int weapon_blow = -1;
+            int best_ds = 0;
+
+            /* Ignore dead monsters */
+            if (!m_ptr->r_idx)
+                continue;
+
+            bool has_weapon_flag = (r_ptr->flags3 & RF3_HAS_WEAPON) != 0;
+            bool has_armour_flag = (r_ptr->flags3 & RF3_HAS_ARMOUR) != 0;
+
+            if (!has_weapon_flag && !has_armour_flag)
+                continue;
+
+            /* Identify items carried by the monster */
+            find_monster_equipment(m_ptr, &weapon, &armour);
+
+            /* Determine resistance (no distance scaling for arc effect) */
+            resistance = monster_skill(m_ptr, S_WIL);
+
+            result = skill_check(PLAYER, score, resistance, m_ptr);
+
+            if (result <= 0)
+                continue;
+
+            /* Check for weapon possibility */
+            if (has_weapon_flag)
+            {
+                for (int b = 0; b < MONSTER_BLOW_MAX; b++)
+                {
+                    if (!r_ptr->blow[b].method)
+                        break;
+
+                    int ds = r_ptr->blow[b].ds;
+                    if (ds <= 1)
+                        continue;
+
+                    int max_reduction = ds - 1;
+                    int current = m_ptr->blow_ds_reduction[b];
+
+                    if (current >= max_reduction)
+                        continue;
+
+                    if (ds > best_ds)
+                    {
+                        best_ds = ds;
+                        weapon_blow = b;
+                    }
+                }
+
+                weapon_possible = (weapon_blow != -1);
+            }
+
+            /* Check for armour possibility */
+            if (has_armour_flag && r_ptr->ps > 0)
+            {
+                if (m_ptr->armor_ps_reduction < r_ptr->ps)
+                    armour_possible = true;
+            }
+
+            if (!weapon_possible && !armour_possible)
+                continue;
+
+            /* 50/50 chance to target weapon or armour */
+            bool target_weapon = weapon_possible
+                && (!armour_possible || one_in_(2));
+
+            if (target_weapon && weapon_possible)
+            {
+                /* Probability to weaken: score/3 percent */
+                int weaken_chance = score / 3;
+                
+                if (percent_chance(weaken_chance))
+                {
+                    /* Reduce by exactly 1 */
+                    m_ptr->blow_ds_reduction[weapon_blow] += 1;
+
+                    if (weapon)
+                        shatter_weapon_object(weapon, 1);
+
+                    if (m_ptr->ml)
+                    {
+                        char m_name[80];
+                        monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+                        msg_format("The blast splinters %s's weapon.", m_name);
+                    }
+                }
+            }
+            else if (!target_weapon && armour_possible)
+            {
+                /* Probability to weaken: score/3 percent */
+                int weaken_chance = score / 3;
+                
+                if (percent_chance(weaken_chance))
+                {
+                    /* Reduce by exactly 1 */
+                    m_ptr->armor_ps_reduction += 1;
+
+                    if (armour)
+                        shatter_armour_object(armour, 1);
+
+                    if (m_ptr->ml)
+                    {
+                        char m_name[80];
+                        monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+                        msg_format("The blast warps %s's armour.", m_name);
+                    }
+                }
+            }
+        }
+    }
+}
+
 void sing_song_of_shattering(int score)
 {
     int i;

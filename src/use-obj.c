@@ -934,6 +934,9 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
         {
             if (fire_arc(GF_KILL_WALL, dir, 8, 4, will_score, 3, 90))
                 *ident = true;
+            
+            /* Apply shattering effect in the same arc (uses Will instead of Song) */
+            shatter_in_arc(dir, will_score);
         }
 
         /* Make a lot of noise */

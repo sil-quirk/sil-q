@@ -357,14 +357,15 @@ static void prt_stat(int stat)
         c_put_str(TERM_L_GREEN, tmp, ROW_STAT + stat, COL_STAT + 10);
     }
 
-    /* Indicate temporary modifiers */
+    /* Indicate temporary modifiers - clear first, then conditionally display */
+    put_str(" ", ROW_STAT + stat, 3);  /* Clear the position */
     if ((stat == A_STR) && p_ptr->tmp_str)
         put_str("*", ROW_STAT + stat, 3);
-    if ((stat == A_DEX) && p_ptr->tmp_dex)
+    else if ((stat == A_DEX) && p_ptr->tmp_dex)
         put_str("*", ROW_STAT + stat, 3);
-    if ((stat == A_CON) && p_ptr->tmp_con)
+    else if ((stat == A_CON) && p_ptr->tmp_con)
         put_str("*", ROW_STAT + stat, 3);
-    if ((stat == A_GRA) && p_ptr->tmp_gra)
+    else if ((stat == A_GRA) && p_ptr->tmp_gra)
         put_str("*", ROW_STAT + stat, 3);
 }
 
@@ -1447,7 +1448,7 @@ byte health_attr(int current, int max)
     switch (health_level(current, max))
     {
     case HEALTH_UNHURT:
-        a = TERM_WHITE;
+        a = TERM_L_GREEN;
         break; // 100%
     case HEALTH_SOMEWHAT_WOUNDED:
         a = TERM_YELLOW;

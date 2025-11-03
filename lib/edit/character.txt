@@ -442,3 +442,42 @@ S:1:2:2:0
 C:0:12  # Two Weapon Fighting
 P:3
 D: Dark-hearted smith dwelling deep beneath gloomy forest halls unseen, crafting meteoric iron into blades of peril and subtle enchantment. Secretive and proud, bound by jealousy, shadow hiding heart’s desire, fate entwined tragically with Aredhel, foreshadowing ruin and loss. Father to son who shares dark destiny, weaving doom in hidden halls, remembered bitterly in dark tales whispered beneath forest twilight; Eol, elf whose pride forged tragedy beneath shadowed leaves of Nan Elmoth.
+
+# Twin hunters bound by the Oath, agile archers with shared fate.
+N:38:Amrod
+A:, Twin Hunter of the South
+B:You move lightly-red-tressed hunter, oath-bound, fleet beneath forest boughs.
+F:ARC_AFFINITY | EVN_AFFINITY | BOW_PROFICIENCY | KINSLAYER | CURSE
+S:0:2:1:0
+C:1:7  # Deadly Hail
+P:2
+D:Twin sons youngest of fiery-hearted Fëanor, hunters beneath forest shade, sharing heart and fate alike, following brothers down paths of doom. Bound by father's Oath relentless, sorrowful deeds marked by grief, bearing flame-red hair symbolic of fire that consumes their house. Foreshadowing tragic end amid flames ignited by cursed desire, destined to perish in futile pursuit, kinship severed by treachery; memory fading like embers, names whispered sadly beneath starlit skies. 
+
+N:39:Amras
+A:, Twin Hunter of the East
+B:You slip through green-shadowed trails, hunter-twin bound to oath and loss.
+F:ARC_AFFINITY | STL_AFFINITY | BOW_PROFICIENCY | KINSLAYER | CURSE
+S:0:2:0:1
+C:1:7  # Deadly Hail
+P:2
+D:The twin of Amrod, keen-eyed tracker and hunter, sharing one heart and one fate with his brother; his loyalty bound not only to his twin but to the inescapable Oath sworn in pride and shadow. Foreshadowing a destiny mirrored in loss, his path tracks sorrow through the wilderness; his hunt ends not in glory, but in the tragic fulfillment of the curse, a life extinguished by the doom of the Noldor.
+
+# Maglor—singer of laments, still bound by Oath.
+N:40:Maglor
+A:, the Minstrel
+B:You tune the harp—king’s son whose songs mourn blood and burning shores.
+F:SNG_AFFINITY | WIL_AFFINITY | KINSLAYER | CURSE
+S:0:1:0:2
+C:7:11  # Song of Mastery / Lament
+P:2
+D:Melodious second son of Fëanor, whose voice wove sorrow into song, bard-prince bound by oath, yet heart gentler than brothers proud. His harp whispered grief amid ruins, lamenting kin-slaying’s shadow, foreshadowing lone wandering by restless shores beneath starlit waves. Hands destined to grasp Silmaril, burning guilt into weary heart, songs turning ever mournful, haunting waves until world’s end; Maglor, tragic minstrel, forever bound to memory and bitter regret. 
+
+# Caranthir—hard authority, commerce and wrath; melee leaning.
+N:41:Caranthir
+A:, the Dark
+B:You command harshly—stern prince whose temper sparks feuds and fear.
+F:WIL_AFFINITY | MEL_AFFINITY | PER_AFFINITY | KINSLAYER | CURSE
+S:2:0:2:0
+C:0:9  # Smite / Zone of Control
+P:3
+D:Dark-tempered fourth son of Fëanor, lord fierce of wide eastern lands, stern-hearted prince whose proud eyes burned beneath shadowed brows. Ruled wealth and trade, yet pride bred division with allies and kin, foreshadowing bitter conflict and wrathful deeds amid ruinous war. Destined to perish fiercely, falling bravely yet tragically, his spirit bound restlessly to father’s oath, ever unfulfilled; Caranthir, proud lord whose wrath echoes beneath flame-shadowed skies. 

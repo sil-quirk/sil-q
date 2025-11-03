@@ -590,7 +590,7 @@ T:45:0:99  # Ring
 
 N:146:Song of Thresholds
 I:7:6:4
-P:7/0:7/2
+#P:7/0:7/2
 D:Inspired by the warding spells in the Lay of Leithian, where doors barred the way in Tol-in-Gaurhoth, you sing of thresholds sealed against the foe.
 D:Doors closed under this melody become formidable barriers, sealed by your power, resisting the dark as Menegroth's gates held against invasion.
 T:40:0:99  # Amulet
@@ -598,7 +598,7 @@ T:35:0:99  # Cloak
 
 N:147:Song of the Trees
 I:7:7:5
-P:7/0:7/5
+#P:7/0:7/5
 D:Evoking the radiant verses of the Two Trees in the songs of Valinor, as lamented in the Noldolante, you sing of Telperion and Laurelin's light.
 D:The song's brilliance increases your light radius by 1 for every 5 points of Song; creatures of darkness may be stunned or wounded, their resistance failing against your Will, as shadows recoiled from the Trees' bloom.
 T:40:0:99  # Amulet
@@ -607,7 +607,7 @@ T:39:0:99  # Light Source
 
 N:148:Song of Revealing
 I:7:8:7
-P:7/2
+P:7/2:7/7
 D:In piercing notes like those in Finrod's song of revealing and uncovering during his duel with Sauron, you chant to cut through shadow and deceit.
 D:Revealing nearby monsters based on your Song skill, and permanently sensing all nearby items, as hidden truths emerge from the gloom.
 T:35:0:99  # Cloak
@@ -615,7 +615,7 @@ T:20:0:99  # Shovels and Mattocks
 
 N:149:Woven Themes
 I:7:9:6
-P:7/0:7/3
+#P:7/0:7/3
 D:Weaving themes as in the harmonious lays of Daeron the minstrel in Doriath, blending melodies into one, you learn to interlace a minor theme with your major song.
 D:The second song wields power at half your Song score; certain harmonies may unlock unexpected resonances, like echoes in the halls of Menegroth.
 T:40:0:99  # Amulet
@@ -623,7 +623,7 @@ T:35:0:99  # Cloak
 
 N:150:Song of Slaying
 I:7:10:6
-P:7/1:7/3
+P:7/1:7/5
 D:In grim battle-hymns akin to the chants of the Edain warriors in the Nirnaeth Arnoediad, you sing of slaying, turning deep wounds mortal.
 D:When scoring a critical hit in melee, it slays the foe if their health is no more than twice your Song score, as fate seals the doom of the fallen.
 T:22:0:99  # Polearms and axes
@@ -631,7 +631,7 @@ T:23:0:99  # Swords
 
 N:151:Song of Elveness
 I:7:11:7
-P:7/7
+P:7/3:7/0
 D:Bringing forth the magic of Elvenesse, as in the sighs of the sea in the laments for the Kinslaying, you sing of Valinor's light and Elvenland's shores.
 D:Granting +1 Grace and improving Evasion by 1, plus 1 for every 7 points of Song, as the elder days' glory cloaks you.
 T:32:0:99  # Helm
@@ -641,7 +641,7 @@ T:45:0:99  # Ring
 
 N:152:Song of Staying
 I:7:12:7
-P:7/1:7/5
+P:7/1:7/6
 D:Echoing Felagund's song of staying and resisting in his contest with Sauron, of strength like a tower and trust unbroken, you intone verses of resolve.
 D:Bolstering your Will by half your Song score and granting [2d2] protection against darkness, as unyielding as the walls of Gondolin.
 T:32:0:99  # Helm
@@ -651,7 +651,7 @@ T:45:0:99  # Ring
 
 N:153:Song of Disguise
 I:7:13:8
-P:7/4
+P:7/4:7/3
 D:Weaving glamour as Luthien did in the Lay, passing unseen in forms of bat and wolf, you sing of subtle change and deception.
 D:Causing watchful foes to mistake you for their own, contesting their Perception and Will each round; should the glamour fail, they see truly, as illusions shatter like mist.
 T:40:0:99  # Amulet
@@ -659,7 +659,7 @@ T:35:0:99  # Cloak
 
 N:154:Song of Lorien
 I:7:14:8
-P:7/4:7/2
+P:7/4:7/7
 D:In lulling airs reminiscent of Luthien's enchantment that cast Morgoth into slumber upon his throne, echoing the gardens of Lórien in Valinor, you sing of deep sleep.
 D:Gradually putting nearby opponents into slumber, as dreams enfold the weary world.
 T:40:0:99  # Amulet
@@ -667,7 +667,7 @@ T:35:0:99  # Cloak
 
 N:155:Song of Shattering
 I:7:15:9
-P:7/10
+P:7/10:7/12
 D:With discordant blasts like Luthien's song that brought down Tol-in-Gaurhoth's towers in ruin, you chant of breaking and sundering.
 D:Shattering weapons and armour of foes, weakening attacks and defenses, resisted by Will, as iron yields to fate's hammer.
 T:40:0:99  # Amulet
@@ -675,7 +675,7 @@ T:35:0:99  # Cloak
 
 N:156:Song of Mastery
 I:7:16:10
-P:7/3:7/4
+P:7/6:7/10
 D:Asserting dominion in commanding strains, as Sauron sought mastery in his duel with Finrod, yet turned to elven purpose, you weave a song of overwhelming power.
 D:Overwhelming enemies' minds, sometimes preventing movement or action, as wills bend before the melody's might.
 T:40:0:99  # Amulet
@@ -683,11 +683,12 @@ T:35:0:99  # Cloak
 
 N:157:Grace
 I:7:17:12
+P:7/0:7/11:7/12
 D:You gain a point of grace, uplifted as by the songs of the Ainur in the Music before the World.
 
 N:158:Song of Contest
 I:7:18:12
-P:7/12
+P:7/12:7/13:7/16
 D:In verses clashing as in the Duel between Finrod and Sauron, where songs swayed backwards and forwards—of wizardry and staying, of Elvenesse and darkness growing—you challenge a foe to a duel of voices.
 D:If their resolve falters, they suffer lasting penalties to Will, Stealth, Evasion, and Armour, as thunder rumbles and fires burn.
 T:40:0:99  # Amulet
@@ -695,7 +696,7 @@ T:35:0:99  # Cloak
 
 N:159:Song of Lament
 I:7:19:15
-P:7/14
+P:7/14:7/17
 D:Weaving a lament deep as Nienna's tears for the marring of Arda, or the sorrowful strains sung to Mandos for the slain, you burden a chosen foe with despair.
 D:Overwhelming their spirit, permanently reducing health, blow damage, and resolve, as captives mourn in Angband's depths.
 T:40:0:99  # Amulet
