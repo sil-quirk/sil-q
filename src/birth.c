@@ -1117,6 +1117,7 @@ static void print_rh_flags(int race, int house, int col, int row)
     HANDLE_UNIQUE_U("Creator of Galvorn",   UNQ_SMT_EOL,     TERM_VIOLET,     1);
     HANDLE_UNIQUE_U("One Handed",   UNQ_MEL_MAEDHROS,     TERM_VIOLET,     1);
     HANDLE_UNIQUE_U("Agarwaen",   UNQ_WIL_TURIN,     TERM_VIOLET,     1);
+    HANDLE_UNIQUE_U("Hidden city",   UNQ_SNG_TURGON,     TERM_VIOLET,     1);
     HANDLE_UNIQUE_U("Chosen of Ulmo",   UNQ_WIL_TUOR, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Indominable Will",   UNQ_EARENDIL, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Orome Himself",   UNQ_WIL_FIN, TERM_VIOLET,   1);
@@ -1125,9 +1126,12 @@ static void print_rh_flags(int race, int house, int col, int row)
     HANDLE_UNIQUE_U("Girdle of Melian",   UNQ_SNG_MEL, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Creator of Angrist",   UNQ_SMT_TELCHAR, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Old Master",   UNQ_SMT_GAMIL, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Ring Master",   UNQ_SMT_CELEBRIMBOR, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Aure entuluva",   UNQ_SNG_HURIN, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Voice of Girdle",   UNQ_SNG_THINGOL, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Forgotten",   UNQ_MIM, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Minstrel",   UNQ_MINSTREL, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Woven Master",   UNQ_WOVEN_MASTER, TERM_VIOLET,   1);
 
     HANDLE_UNIQUE("Gift of Eru",   RHF_GIFTERU,     TERM_VIOLET,     1);
     HANDLE_UNIQUE("Seafarer",   RHF_FREE, TERM_VIOLET,   1);

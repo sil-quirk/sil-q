@@ -69,7 +69,7 @@ P:1
 N:1:Feanor
 A:, Spirit of Fire
 B:You rise aflame-spirit of fire, maker of Silmarils, whose oath kindled wrath undying. 
-F:SMT_AFFINITY | WIL_AFFINITY | STL_PENALTY | TREACHERY
+F:KINSLAYER | SMT_AFFINITY | WIL_AFFINITY | STL_PENALTY | SNG_PENALTY | TREACHERY
 U:SMT_FEANOR 
 C:6:5:6:2  # Jeweller Artifice
 S:2:2:1:2
@@ -95,9 +95,9 @@ D: High King courageous, whose defiance shook Morgoth upon his dark throne; ridi
 N:3:Finarfin
 A: of Tirion
 B:You move in wisdom-voice of gentle counsel, longing for healing beyond bloodshed.
-F:PER_AFFINITY | SMT_PENALTY 
+F:PER_AFFINITY | WIL_AFFINITY |SMT_PENALTY 
 S:1:1:0:3
-C:7:7:9:9   # Song of the Trees #Woven Themes
+C:7:7:7:11   # Song of the Trees #Woven Themes
 P:2
 D: Wise-hearted and gentle, fairest prince who turned back from doom, ruling now in Valinor's quiet peace, sorrowful yet patient, waiting for the day when the bitter wounds dividing Noldor and Valar heal. His children’s deeds across sea and time will bring honor and sorrow; yet in foresight he sees a distant hope, beyond ruin, grief, and loss, that blood shed by kin will one day lead to healing, renewal, reunion - and his heart longs for the far-off hour of redemption and forgiveness.
 
@@ -107,7 +107,7 @@ D: Wise-hearted and gentle, fairest prince who turned back from doom, ruling now
 N:4:Maedhros
 A: the Red
 B:You stride toward shadow-eldest son of flame, bound by oath and tragic resolve.
-F:WIL_AFFINITY | STL_PENALTY
+F:KINSLAYER | WIL_AFFINITY | SNG_PENALTY | STL_PENALTY
 U:MEL_MAEDHROS
 S:1:1:3:0
 C:5:8 #Vengeance
@@ -120,7 +120,7 @@ D: Eldest son of fire-hearted Feanor, whose flame-red hair now shadows grief; on
 N:5:Curufin
 A: the Wily
 B:You begin your hunt-crafty son of Feanor, whose subtlety sows ruin unseen.
-F:SMT_AFFINITY | STL_AFFINITY | PER_PENALTY | ARC_AFFINITY | MEL_PENALTY | WIL_PENALTY | TREACHERY
+F:KINSLAYER | SMT_AFFINITY | STL_AFFINITY | PER_PENALTY | ARC_AFFINITY | MEL_PENALTY | WIL_PENALTY | SNG_PENALTY | TREACHERY
 S:0:3:0:-1
 C:3:4 #Opportunist
 P:1
@@ -143,9 +143,10 @@ N:7:Turgon
 A:, Lord of Gondolin
 B:You set forth secretly-Lord of Gondolin, guardian of hidden splendor doomed by pride.
 F:WIL_AFFINITY | STL_AFFINITY | PER_AFFINITY | MEL_PENALTY | ARC_PENALTY | KINSLAYER
+U:SNG_TURGON
 S:0:0:2:2
-C:3:5 #Vanish
-P:2
+C:3:5:7:13 #Vanish #Song of Disguise
+P:3
 D: Lord of hidden Gondolin, builder of white walls beneath encircling peaks; proud and secretive, whose city once stood fair against Morgoth’s malice. Yet pride sealed doom, ignoring warnings whispered by Ulmo’s waves, as fire consumed towers and hope alike beneath betrayal’s cruel hand. Though fallen, his bloodline endures in Eärendil, whose distant star foreshadows redemption far beyond sorrowful ruin of his city’s dreams, awaiting a brighter hour when shadows break and stars shine anew.
 
 #Stats +5 +4 =9
@@ -167,7 +168,7 @@ B:You venture loyally-faithful friend to mortals, whose song echoes beyond darkn
 F:PER_AFFINITY | SNG_AFFINITY | WIL_AFFINITY | CURSE
 U:SNG_FIN
 S:0:1:0:3
-C:7:12 #Staying
+C:7:12:7:13:7:11 #Staying #Disguise #Elveness
 P:3
 D: Noble-hearted builder of halls beneath Nargothrond’s fair stone towers, friend steadfast and gentle, beloved of Men, faithful unto death itself. Sacrificed life to fulfill oaths made in love, honor, and courage, wrestling darkness for sake of mortal friend, forever remembered. Though fallen, his song yet echoes in lands where his kin wander, spirit bright in halls of Mandos, witnessing doom and destiny unfold - his deeds foretelling bonds of friendship bridging mortal and immortal.
 
@@ -177,20 +178,22 @@ N:10:Glorfindel
 A: of the Golden Flower
 B:You rise in valor-golden defender of Gondolin, whose courage felled a Balrog.
 F:MEL_AFFINITY | ARC_PENALTY
+U:GIFTERU
 S:2:2:1:1
 C:2:9:0:13  # Rapid Attack Control retreat
 P:3
-D: Golden-haired lord, valiant defender of Gondolin’s doomed white towers; fierce guardian whose final battle cast Balrog down to fiery ruin. Fallen hero, whose sacrifice on mountain heights foreshadows rebirth, awaiting summons from Mandos, granted life anew by Valar’s grace. Destined yet to return, bearing hope amid shadows of future darkness, protector whose bright spirit shall guide hidden paths of peril, until at last he rises again, ever watchful, a beacon of immortal valor.
+E:40:0:1:1   # Amulet of Last Chances (1)
+D: Golden-haired lord, valiant defender of Gondolin's doomed white towers; fierce guardian whose final battle cast Balrog down to fiery ruin. Fallen hero, whose sacrifice on mountain heights foreshadows rebirth, awaiting summons from Mandos, granted life anew by Valar's grace. Destined yet to return, bearing hope amid shadows of future darkness, protector whose bright spirit shall guide hidden paths of peril, until at last he rises again, ever watchful, a beacon of immortal valor.
 
 #Stats +5 +5 =10
 
 N:11:Etchelion
 A: of the Fountain
 B:You march proudly-captain of Gondolin, whose blade sang bravely against fire.
-F:MEL_AFFINITY | KINSLAYER | ARC_PENALTY | EVN_PENALTY
+F:MEL_AFFINITY | KINSLAYER | ARC_PENALTY | SNG_AFFINITY
 S:2:1:1:1
 C:0:7 #Impale
-P:2
+P:3
 D: Valiant Lord of Gondolin, whose silver sword sang beneath city's towers; captain beloved, noble guardian at the gates of secret splendor. His voice echoed brightly in fountain-filled squares, stern yet gentle, eyes keen with foresight of doom hidden beneath white walls of pride. Foreshadows heroism unmatched, battling shadow in ruinous hour; fate bound to duel dread lord of Balrogs, both falling in glorious flame, a legacy ever remembered in song beneath stars and shattered stone.
 
 #Stats +2 +7 =9
@@ -201,7 +204,7 @@ B:You command wisely-Lord of Doriath, ensnared by beauty and shadowed doom.
 F:WIL_AFFINITY | PER_AFFINITY | ARC_PENALTY | SMT_PENALTY
 U:SNG_THINGOL
 S:2:1:1:3
-C:5:14:7:12  # Song of Mastery Majesty
+C:5:9:7:16  # Song of Mastery Majesty
 P:3
 D: King of grey twilight, tallest among Elves, ruling hidden Doriath fair; whose wisdom guarded realms beneath enchanted forests, untouched by time. Pride stirred by Silmaril's light, destiny darkened through treasure's lure, fate woven tight with mortal hearts and grief, binding Eldar to Edain. His realm doomed by jewel-craft and dwarven greed; shadows gather swift, yet memory of greatness endures, haunting woods once bright with song, foreshadowing ruin wrought by desire, grief deeper than twilight itself.
 
@@ -306,7 +309,7 @@ N:23:Beren
 A: Erchamion
 B:You brave darkness-mortal hero whose courage stole Silmaril from Morgoth.
 F:EVN_AFFINITY | STL_AFFINITY | WIL_AFFINITY
-S:1:2:1:1
+S:1:2:1:2
 C:0:8:3:1  # Assassination # Subtlety
 P:1
 D: Mortal hero, brave-hearted wanderer beneath stars, defying darkness, whose love challenged fate itself, winning Silmaril with courage unmatched. Destined to tread perilous paths, hand of shadow bound in silver fire, deeds woven in tragedy and triumph, uniting mortal and immortal blood. Foreshadowing line of hidden kings whose fate shall shape Arda’s end, heart bound fiercely to Luthien’s grace, death conquered by timeless love, legacy ever shining, his story echoed eternally in stars and song.
@@ -333,7 +336,7 @@ D: Mariner foretold by prophecy, born of Eldar and mortal blood entwined, destin
 N:26:Haleth
 A:, Lady of the Haladin
 B:You lead fiercely-shieldmaiden of the Haladin, spirit unbowed by shadow.
-F:STL_AFFINITY
+F:STL_AFFINITY | PER_AFFINITY
 S:0:1:2:0
 C:2:6  # Blocking :2:1 # Flanking
 P:0
@@ -351,11 +354,11 @@ D: Noble lord, golden-haired leader beloved among Edain’s bravest houses, whos
 N:28:Turin Turambar
 A:, Master of Fate
 B:You struggle grimly-tragic hero whose black blade cleaves fate and sorrow.
-F:EVN_AFFINITY | MEL_AFFINITY | PER_PENALTY | MOR_CURSE | STL_AFFINITY
+F:EVN_AFFINITY | MEL_AFFINITY | PER_PENALTY | MOR_CURSE | STL_AFFINITY |WIL_AFFINITY
 U:WIL_TURIN
-S:2:2:2:-1
+S:2:3:2:-1
 C:5:2:0:11:0:6  # Follow-Through  # Smite # Strength in Adversity
-P:1
+P:2
 D: Dark-haired warrior, tragic son of doom, shadow-haunted mortal hero, whose blade, black and shining, cleaves fate amid relentless sorrow. Driven by pride and grief, defying Morgoth’s curse yet bound within it, friend and foe entwined in tragic deeds, shadows deepening ever. Foreshadowing final despair, heroism tarnished by doom inevitable, yet courage undaunted, destined to slay dragon and darkness alike; memory forever mingled with glory and grief, Turambar-master of fate.
 
 N:29:Tuor
@@ -363,7 +366,7 @@ A:, Messenger of Ulmo
 B:You carry tidings-messenger of Ulmo, bearer of destiny to Gondolin.
 F:EVN_AFFINITY | MEL_AFFINITY
 U:WIL_TUOR
-S:1:1:2:1
+S:1:1:2:2
 C:5:1  # Channeling # Focused Attack 4:1:
 P:1
 D: Mortal messenger chosen by Ulmo, guided by wave and whispered dream, bearer of hidden hope to Gondolin, destined to kindle fading valor. Heart bound in love with Eldar princess, bloodline uniting two worlds, foreshadowing renewal beyond ruin, fate entwined with Eldar’s end. Bold protector in Gondolin’s final flame, escaping shadow’s grasp, father to mariner whose star heralds doom and deliverance alike; Tuor, mortal whose legacy shapes fate beyond sorrowful days.
@@ -373,9 +376,9 @@ A: the Steadfast
 B:You endure bravely-mightiest mortal warrior, spirit unbroken by darkness.
 F:EVN_AFFINITY | WIL_AFFINITY | PER_PENALTY | SNG_AFFINITY | MOR_CURSE
 U:SNG_HURIN
-S:2:1:2:0
-C:5:3:5:5:5:10:11:8  # Song of Slaying  # Poison Resistance  # Indomitable # Formidable
-P:1
+S:2:2:2:0
+C:5:3:5:5:5:7:7:10  # Song of Slaying  # Poison Resistance  # Indomitable # Formidable
+P:2
 D: Mightiest mortal warrior, defiant heart opposing Morgoth’s darkness, whose valor on Anfauglith echoed courage beyond mortal despair. Bound cruelly to doom, witnessing ruin wrought upon kin and realm alike, sorrow unmatched, yet spirit unbroken amid relentless torment. Foreshadowing tragic deeds borne of bitterness and wrathful grief, memory enduring in pride and tragedy, hero forever defiant; Hurin, steadfast flame, challenging darkness even unto bitterest end.
 
 N:31:Idril
@@ -383,7 +386,6 @@ A: Celebrindal of Gondolin
 B:You watch carefully-princess whose foresight preserves hope amid ruin.
 F:STL_AFFINITY | MEL_PENALTY | SMT_PENALTY | PER_AFFINITY | ARC_PENALTY
 S:-1:2:0:2
-C:7:9
 P:2
 C:4:7 # Listen
 D: Silver-footed princess of Gondolin, whose beauty shone brightly amid ruin, wise-hearted, foresight guiding hidden paths through doom and shadow. Love binding mortal and immortal hearts, shaping fate unforeseen, foreshadowing survival beyond flames, bearing hope anew amid despair. Mother of mariner destined to sail skies bearing hidden fire, her courage endures through darkness, quietly preparing future’s light; Idril, bright star guiding destiny toward renewal beyond sorrow.
@@ -400,24 +402,25 @@ N:33:Celeborn
 A:, Prince of Doriath
 B:You guard quietly-wise prince, whose strength endures beyond sorrow.
 S:1:1:0:1
-F:ARC_PENALTY | FREE | BOW_PROFICIENCY| SMT_PENALTY
-C:7:12
+F:ARC_PENALTY | FREE | BOW_PROFICIENCY| SMT_PENALTY | EVN_AFFINITY
+C:2:2
 P:1
 D: Noble prince of twilight woods, wise lord whose heart bears hidden grief, destined guardian of fading realms beneath shadows yet unseen. Bound by love to Lady whose wisdom shapes fate of realms unknown, foreshadowing exile and sorrow mingled with enduring strength. Quietly guiding kin through darkness, steward of fading splendor, his fate woven subtly, surviving ruin and watching stars diminish; Celeborn, silent watcher, whose heart endures beyond sorrowful loss.
 
 N:34:Daeron
 A: the Minstrel
 B:You sing sorrowfully-minstrel whose lament echoes through twilight.
-F:SNG_AFFINITY | WIL_PENALTY | PER_PENALTY| SMT_PENALTY
+F:SNG_AFFINITY | WIL_PENALTY | PER_AFFINITY | SMT_PENALTY | ARC_AFFINITY
+U:MINSTREL | WOVEN_MASTER
 S:0:1:-1:3
-C:7:5:7:9 # Song of Staunching and Woven Themes
-P:0
+C:7:9 # Song of Staunching and Woven Themes
+P:2
 D: Greatest minstrel of twilight realm, singer whose melodies haunted woods, heart bound secretly in sorrowful longing, songs shaped by love unseen. His lament echoes through ages, voice weaving melancholy fate, driven to wander in grief, yet remembered by heartbroken Eldar. Foreshadowing exile and solitude, artistry born from sorrow unending, melodies forever entwined with shadow, beauty enduring amidst loss; Daeron, mournful voice whose music outlasts realms and time itself.
 
 N:35:Melian Maia
 A:, Queen of Doriath
 B:You weave enchantment-guardian queen, whose power shields from shadow.
-F:WIL_AFFINITY | SNG_AFFINITY | PER_AFFINITY | ARC_PENALTY| SMT_PENALTY
+F:WIL_AFFINITY | SNG_AFFINITY | PER_AFFINITY | ARC_PENALTY | SMT_PENALTY | EVN_AFFINITY
 U:SNG_MEL
 S:1:0:1:5
 C:7:16:7:6 # Song of Mastery Song of Thresholds
@@ -427,9 +430,9 @@ D: Maia of divine grace, veiled in mortal form, guardian of twilight woods, whos
 N:36:Celegorm
 A: the Hunter
 B:You hunt relentlessly-fiery prince whose pride leads to treachery.
-F:ARC_AFFINITY | EVN_AFFINITY | WIL_PENALTY | SMT_PENALTY | TREACHERY | BOW_PROFICIENCY
+F:KINSLAYER | ARC_AFFINITY | EVN_AFFINITY | WIL_PENALTY | SMT_PENALTY | TREACHERY | SNG_PENALTY | BOW_PROFICIENCY
 S:1:1:2:0
-C:4:8:0:5  # Polearm Mastery # Master Hunter
+C:4:8:0:3  # Polearm Mastery # Master Hunter
 P:2
 D: Fierce-hearted third son of Feanor, fiery hunter beneath wild woods, prideful prince whose noble beauty hid ambition and cunning deeds. Hunter whose hound’s loyalty outshone his own heart’s shadowed honor, foreshadowing betrayal born of lust for jewels and glory. Destiny stained by pursuit ruthless, turning kin against kin, marred forever by treachery against love and friendship sacred; Celegorm, proud hunter fallen, memory darkened by tragic desire.
 
@@ -447,37 +450,118 @@ D: Dark-hearted smith dwelling deep beneath gloomy forest halls unseen, crafting
 N:38:Amrod
 A:, Twin Hunter of the South
 B:You move lightly-red-tressed hunter, oath-bound, fleet beneath forest boughs.
-F:ARC_AFFINITY | EVN_AFFINITY | BOW_PROFICIENCY | KINSLAYER | CURSE
+F:ARC_AFFINITY | EVN_AFFINITY | BOW_PROFICIENCY | KINSLAYER | SNG_PENALTY | WIL_PENALTY | CURSE
 S:0:2:1:0
-C:1:7  # Deadly Hail
+C:0:3:0:4  # Throwing Polearm
 P:2
-D:Twin sons youngest of fiery-hearted Fëanor, hunters beneath forest shade, sharing heart and fate alike, following brothers down paths of doom. Bound by father's Oath relentless, sorrowful deeds marked by grief, bearing flame-red hair symbolic of fire that consumes their house. Foreshadowing tragic end amid flames ignited by cursed desire, destined to perish in futile pursuit, kinship severed by treachery; memory fading like embers, names whispered sadly beneath starlit skies. 
+D:Twin sons youngest of fiery-hearted Feanor, hunters beneath forest shade, sharing heart and fate alike, following brothers down paths of doom. Bound by father's Oath relentless, sorrowful deeds marked by grief, bearing flame-red hair symbolic of fire that consumes their house. Foreshadowing tragic end amid flames ignited by cursed desire, destined to perish in futile pursuit, kinship severed by treachery; memory fading like embers, names whispered sadly beneath starlit skies. 
 
 N:39:Amras
 A:, Twin Hunter of the East
 B:You slip through green-shadowed trails, hunter-twin bound to oath and loss.
-F:ARC_AFFINITY | STL_AFFINITY | BOW_PROFICIENCY | KINSLAYER | CURSE
+F:ARC_AFFINITY | STL_AFFINITY | BOW_PROFICIENCY | SNG_PENALTY | WIL_PENALTY | KINSLAYER | CURSE
 S:0:2:0:1
-C:1:7  # Deadly Hail
+C:1:4  # Ambush
 P:2
 D:The twin of Amrod, keen-eyed tracker and hunter, sharing one heart and one fate with his brother; his loyalty bound not only to his twin but to the inescapable Oath sworn in pride and shadow. Foreshadowing a destiny mirrored in loss, his path tracks sorrow through the wilderness; his hunt ends not in glory, but in the tragic fulfillment of the curse, a life extinguished by the doom of the Noldor.
 
 # Maglor—singer of laments, still bound by Oath.
 N:40:Maglor
 A:, the Minstrel
-B:You tune the harp—king’s son whose songs mourn blood and burning shores.
-F:SNG_AFFINITY | WIL_AFFINITY | KINSLAYER | CURSE
-S:0:1:0:2
-C:7:11  # Song of Mastery / Lament
+B:You tune the harp—king's son whose songs mourn blood and burning shores.
+F:SNG_AFFINITY | MEL_PENALTY | SMT_PENALTY | KINSLAYER | CURSE
+U:MINSTREL
+S:0:0:0:3
+C:7:19  # Song of Lament
 P:2
-D:Melodious second son of Fëanor, whose voice wove sorrow into song, bard-prince bound by oath, yet heart gentler than brothers proud. His harp whispered grief amid ruins, lamenting kin-slaying’s shadow, foreshadowing lone wandering by restless shores beneath starlit waves. Hands destined to grasp Silmaril, burning guilt into weary heart, songs turning ever mournful, haunting waves until world’s end; Maglor, tragic minstrel, forever bound to memory and bitter regret. 
+D:Melodious second son of Feanor, whose voice wove sorrow into song, bard-prince bound by oath, yet heart gentler than brothers proud. His harp whispered grief amid ruins, lamenting kin-slaying's shadow, foreshadowing lone wandering by restless shores beneath starlit waves. Hands destined to grasp Silmaril, burning guilt into weary heart, songs turning ever mournful, haunting waves until world's end; Maglor, tragic minstrel, forever bound to memory and bitter regret.
 
 # Caranthir—hard authority, commerce and wrath; melee leaning.
 N:41:Caranthir
 A:, the Dark
 B:You command harshly—stern prince whose temper sparks feuds and fear.
-F:WIL_AFFINITY | MEL_AFFINITY | PER_AFFINITY | KINSLAYER | CURSE
+F:SNG_PENALTY | KINSLAYER | CURSE | PER_PENALTY
 S:2:0:2:0
-C:0:9  # Smite / Zone of Control
-P:3
-D:Dark-tempered fourth son of Fëanor, lord fierce of wide eastern lands, stern-hearted prince whose proud eyes burned beneath shadowed brows. Ruled wealth and trade, yet pride bred division with allies and kin, foreshadowing bitter conflict and wrathful deeds amid ruinous war. Destined to perish fiercely, falling bravely yet tragically, his spirit bound restlessly to father’s oath, ever unfulfilled; Caranthir, proud lord whose wrath echoes beneath flame-shadowed skies. 
+C:5:3  # Zone of Control
+P:2
+D:Dark-tempered fourth son of Feanor, lord fierce of wide eastern lands, stern-hearted prince whose proud eyes burned beneath shadowed brows. Ruled wealth and trade, yet pride bred division with allies and kin, foreshadowing bitter conflict and wrathful deeds amid ruinous war. Destined to perish fiercely, falling bravely yet tragically, his spirit bound restlessly to father’s oath, ever unfulfilled; Caranthir, proud lord whose wrath echoes beneath flame-shadowed skies. 
+
+# Nargothrond warrior—melee-forward, resilience tempered by captivity.
+N:42:Gwindor
+A: of Nargothrond
+B:You return scarred—brave prince dimmed by Angband’s shadow yet unbroken.
+F:MEL_AFFINITY | CURSE
+S:1:0:1:0
+C:0:5 # Charge
+P:1
+D:Noble prince of Nargothrond, brave warrior shadowed by captivity and grief, whose courage shone brightly yet dimmed beneath darkness of Angband’s halls. Bound by sorrow and loss, returning marred to city of hidden caves, foreshadowing tragic ruin, love overshadowed by quiet despair. Companion doomed yet steadfast, guiding Turin’s fate unknowingly toward doom, remembered in lament, bravery bright amid shadows of defeat; Gwindor, noble spirit enduring darkness, remembered beyond ruinous fall. 
+
+# The White Lady—mobile, alert, stealth-capable elven noble.
+N:43:Aredhel
+A:, the White Lady of Gondolin
+B:You ride out restlessly-white-clad wanderer seeking paths beyond walls.
+F:STL_AFFINITY | WIL_AFFINITY | MEL_PENALTY | CURSE
+S:1:1:0:2
+C:2:5  # Sprinting
+P:2
+D:Proud white lady, sister of Turgon, restless beneath Gondolin’s towers, adventurous heart seeking freedom, riding paths through peril and shadow. Her fate entwined tragically, choosing paths leading into darkness unseen, foreshadowing doom bound with dark Elf-lord beneath twilight forest. Yet mother to hero fated to defy evil, destiny woven in sorrow, remembered with mourning in hidden city, warning of perilous pride; Aredhel, whose restless courage led toward grief and hidden heroism. 
+
+# Wise-woman of the Edain—lore, will, dialogue with Eldar.
+N:44:Andreth
+A:, the Wise
+B:You ponder deeply—mortal lorekeeper whose questions pierce the dark.
+F:PER_AFFINITY | WIL_AFFINITY | MEL_PENALTY
+S:0:0:0:2
+C:4:7  # Listen / Counsel
+P:0
+D:Wise woman of Edain, keeper of lore and quiet wisdom deep and hidden, whose heart held love secret, bridging sorrow between Elf and mortal. Bearing hope dimmed by mortal fate, questioning destiny beyond grief, foreshadowing deeper mysteries of Men, mortality woven with hope. Her wisdom shapes quiet counsel, speaking truths gently to immortal ears, remembered softly in Eldar memory, her questions echoing unanswered; Andreth, mortal voice of sorrow and hope bound in tales unending. 
+
+# Morwen—unyielding pride; high will, cold perception.
+N:45:Morwen
+A: Eledhwen
+B:You endure like granite—proud lady whose gaze does not bend to night.
+F:WIL_AFFINITY | MOR_CURSE
+S:0:0:2:2
+C:5:2  # Strength in Adversity
+P:0
+D:Proud lady of Dor-lómin, heart unbowed beneath shadows of despair, mother fierce yet silent, watching doom unfold upon kin and homeland. Strength hidden beneath grief, heart steadfast amid cruel darkness, foreshadowing tragic bravery, her line destined for shadow and flame. Her pride and sorrow shaping quietly fate of hero doomed by curse, remembered ever in tales of valor and grief entwined beyond mortal bounds; Morwen, proud heart enduring loss, courage veiled by sorrow unspoken. 
+
+# Feanor’s grandson—craft genius but less tainted; smith/enchanter lean.
+N:46:Celebrimbor
+A:, Heir of the Hammer
+B:You take up the tools—bright smith, deft of hand, wary of pride's shadow.
+F:SMT_AFFINITY | PER_AFFINITY | SNG_PENALTY | MEL_PENALTY | CURSE
+U:SMT_CELEBRIMBOR
+S:0:0:0:1
+C:6:2  # Jewelry
+P:2
+D:Grandson of Feanor, gifted smith with heart less marred by pride, whose hands shall shape hidden destinies forged in silver and gold. Dwelling now in youth’s innocence, yet fate shadows every hammer-fall, foreshadowing glory and peril entwined in future rings of power. His deeds shall echo bitter legacy of kin, yet nobler in heart, shaping destinies far beyond mortal span, beauty marred by betrayal; remembered as greatest smith after Feanor, tragic heir of craft. 
+
+#Aegnor - Fierce warrior of Finarfin's house, flame-eyed, lover of Andreth; melee/will focused.
+N:47:Aegnor
+A:, the Flame-eyed
+B:You burn with fire—fierce prince whose gaze pierces northern shadow.
+F:MEL_AFFINITY | EVN_AFFINITY | SNG_PENALTY | CURSE
+S:2:1:1:1
+C:0:13  # Rapid Attack
+P:2
+D:Flame-bright son of golden house, unyielding sentinel upon Dorthonion's heights; heart torn by mortal love unclaimed, his wrath felled foes in Bragollach's flame, yet doom claimed him ere Andreth's days waned, memory enduring as embers aglow.
+
+#Angrod - Scout and counselor, brother to kings; perceptive/stealthy diplomat.
+N:48:Angrod
+A:, Messenger of the North
+B:You scout the wilds—steadfast prince whose words bridged flame and stone.
+F:PER_AFFINITY | STL_AFFINITY | SNG_PENALTY | CURSE | MEL_AFFINITY
+S:1:1:1:1
+C:0:10  # Zone of Control
+P:2
+D:Eldest of border-watchers, bearer of tidings to hidden halls; counsel wise amid encroaching gloom, falling with brother in sudden firestorm, his vigilance guarded Eldar realms till shadows overwhelmed the northern watch.
+
+N:49:Orodreth
+A:, King of Nargothrond
+B:You rule cautiously—prince whose wisdom tempers valor in hidden halls.
+F:CURSE
+S:0:1:1:1
+C:3:3  # Exchange places
+P:1
+D:Cautious son of Finarfin, reluctant king of Nargothrond's hidden caverns, whose prudence guarded realms against shadow yet faltered before doom. Heart bound by wisdom and sorrow, guiding kin through peril unseen, foreshadowing tragic fall amid dragon's flame and mortal hero's curse. His legacy whispers of quiet strength yielding to fate's inexorable tide, remembered in lament as guardian fallen, halls crumbling beneath weight of prophecy; Orodreth, wi se lord whose caution could not avert sorrowful end.

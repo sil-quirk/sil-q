@@ -1,5 +1,145 @@
 # Session Notes
 
+## 2025-11-05: Daeron Woven Master Unique Flag ✅
+
+### New Unique Flag: UNQ_WOVEN_MASTER ✅
+
+**Feature**: Added unique flag for Daeron that eliminates the penalty for the second song (minor theme) when using Woven Themes ability.
+
+**Implementation**:
+- `src/defines.h`: Added `#define UNQ_WOVEN_MASTER 0x00040000L` (replacing UNQ_UNQXXX19)
+- `src/init1.c`: Added `{ "WOVEN_MASTER", UNQ, UNQ_WOVEN_MASTER }` to parser table
+- `lib/edit/character.txt`: Added `U:WOVEN_MASTER` to Daeron's character entry (now has both MINSTREL and WOVEN_MASTER flags)
+- `src/xtra1.c`: Modified `ability_bonus()` function to check for UNQ_WOVEN_MASTER flag:
+  - Minor theme penalty (skill/2) is skipped when character has UNQ_WOVEN_MASTER flag
+  - Only affects minor theme songs (song2), not major theme (song1)
+  - Comment: "UNLESS the character has the WOVEN_MASTER flag (Daeron)"
+- `src/birth.c`: Added `HANDLE_UNIQUE_U("Woven Master", UNQ_WOVEN_MASTER, TERM_VIOLET, 1)` to birth screen display
+- `src/files.c`: Added `CHECK_UNIQUE_U("Woven Master", UNQ_WOVEN_MASTER, TERM_VIOLET)` to self-knowledge display
+- `src/spells2.c`: Added self-knowledge description: "Song skill is not reduced for woven minor themes"
+
+**Display**:
+- Birth screen now shows "Woven Master" flag when selecting Daeron
+- Self-knowledge screen displays the flag with description explaining the mechanic
+
+**Effect**: 
+- Normally, minor themes use Song skill / 2
+- With UNQ_WOVEN_MASTER (Daeron only), minor themes use full Song skill
+- This makes Daeron the master of woven themes as described in the lore
+- Stacks with his existing MINSTREL flag for cheaper song ability costs
+
+**Rationale**: 
+- Daeron is described as "weaving themes as in the harmonious lays of Daeron the minstrel in Doriath" in the Woven Themes ability description
+- This flag makes him uniquely powerful at using multiple songs simultaneously
+- Reflects his lore as the greatest minstrel who could blend melodies perfectly
+
+**Testing**: Successfully compiled and deployed with CMake build system.
+
+---
+
+## 2025-11-04: Minstrel Unique Flag for Maglor and Daeron ✅
+
+### New Unique Flag: UNQ_MINSTREL ✅
+
+**Feature**: Added unique flag "Minstrel" for Maglor and Daeron that reduces song ability costs without capping and without providing skill increases.
+
+**Implementation**:
+- `src/defines.h`: Added `#define UNQ_MINSTREL 0x00020000L` (replacing UNQ_UNQXXX18)
+- `src/init1.c`: Added `{ "MINSTREL", UNQ, UNQ_MINSTREL }` to parser table
+- `lib/edit/character.txt`: Added `U:MINSTREL` flag to both:
+  - Daeron (N:34, the Minstrel)
+  - Maglor (N:40, the Minstrel)
+- `src/xtra1.c`: Created `minstrel_level()` function that:
+  - Returns uncapped bonus (unlike `affinity_level()` which caps at ±2)
+  - Adds +1 for MINSTREL flag
+  - Includes curse flag bonuses/penalties for song affinity/penalty
+  - Only affects ability costs, NOT skill levels
+- `src/cmd4.c`: Modified ability cost calculation in two locations:
+  - Display mode (line ~2228): Adds minstrel bonus for S_SNG skill
+  - Purchase mode (line ~2551): Adds minstrel bonus for S_SNG skill
+- `src/externs.h`: Added declaration `extern int minstrel_level(void);`
+- `src/birth.c`: Added display in character selection: `HANDLE_UNIQUE_U("Minstrel", UNQ_MINSTREL, TERM_VIOLET, 1)`
+- `src/files.c`: Added display in self-knowledge: `CHECK_UNIQUE_U("Minstrel", UNQ_MINSTREL, TERM_VIOLET)`
+
+**Effect**: 
+- Maglor and Daeron get cheaper song abilities (each song ability costs 500 less XP with the flag)
+- Stacks with song affinity (which also reduces cost by 500 and adds +1 to skill)
+- Does NOT cap at 2 like affinity does - can stack unlimited bonuses from curses
+- Does NOT provide skill increases (only affects ability purchase costs)
+
+**Testing**: Successfully compiled and deployed with CMake build system.
+
+---
+
+## 2025-11-04: Turgon Song of Disguise Unique Flag ✅
+
+### New Unique Flag: UNQ_SNG_TURGON (Shadow Walker) ✅
+
+**Feature**: Added unique flag for Turgon that adds Perception skill to Song of Disguise checks.
+
+**Implementation**: 
+- Renamed from `UNQ_SNG_TURIN` to `UNQ_SNG_TURGON` for clarity
+- `src/defines.h`: `#define UNQ_SNG_TURGON 0x00010000L`
+- `src/init1.c`: Added `{ "SNG_TURGON", UNQ, UNQ_SNG_TURGON }` to parser table
+- `lib/edit/character.txt`: Added `U:SNG_TURGON` to Turgon character definition
+- `src/spells2.c`: Self-knowledge description: "Song of Disguise checks add your Perception skill"
+- `src/birth.c`: Birth screen display: `HANDLE_UNIQUE_U("Shadow Walker", UNQ_SNG_TURGON, TERM_VIOLET, 1)`
+- `src/files.c`: Character screen displays with `HANDLE_UNIQUE_U` and `CHECK_UNIQUE_U` macros
+- `src/spells1.c`: Modified `sing_song_of_disguise()` to add perception bonus when Turgon has the flag
+
+**Effect**: When Turgon sings Song of Disguise, he adds his Perception skill to the Will-based check against monsters, making it significantly easier to fool enemies.
+
+**Testing**: Successfully compiled and deployed with CMake build system.
+
+---
+
+## 2025-11-04: Turin Song of Disguise Unique Flag (RENAMED)
+
+**Feature**: Added unique flag for Turin that adds Perception skill to Song of Disguise checks.
+
+**Implementation**:
+- `src/defines.h` (line 2078): Added `#define UNQ_SNG_TURIN 0x00010000L`
+- `src/init1.c` (line 365): Added `{ "SNG_TURIN", UNQ, UNQ_SNG_TURIN }` to parser table
+- `lib/edit/character.txt` (line 356): Added `U:SNG_TURIN` to Turin Turambar character definition
+- `src/spells2.c` (line 51): Added self-knowledge description: "Song of Disguise checks add your Perception skill"
+- `src/birth.c` (line 1123): Added birth screen display: `HANDLE_UNIQUE_U("Shadow Walker", UNQ_SNG_TURIN, TERM_VIOLET, 1)`
+- `src/files.c` (lines 1565, 2209): Added character screen displays with `HANDLE_UNIQUE_U` and `CHECK_UNIQUE_U` macros
+- `src/spells1.c` (lines 739-743): Modified `sing_song_of_disguise()` to add `p_ptr->skill_use[S_PER]` to player_skill when Turin has the flag
+
+**Effect**: When singing Song of Disguise, Turin adds his Perception skill to the Will-based check against monsters, making it significantly easier to fool enemies.
+
+**Testing**: Successfully compiled with CMake build system.
+
+---
+
+## 2025-11-04: Smithing System Analysis & Celebrimbor Feature
+
+### Smithing Cost Documentation ✅
+
+Created comprehensive analysis documents:
+- **SMITHING_COSTS_ANALYSIS.md**: Full breakdown of all difficulty modifiers (base costs, slays/brands, stat bonuses, abilities, resistances, penalties)
+- **ENCHANTABLE_AND_RINGS_VS_AMULETS.md**: Why Ring +1 Str = 19 but Amulet +1 Con = 16 (equip slot surcharge, protection costs)
+- **MINOR_SLOTS.md**: All 8 minor slots (+20% penalty), all 5 major slots (no penalty)
+- **ENCHANTABLE_PLUS_MINOR_SLOT.md**: Combined effects cancel: -30% - +20% = -10% net
+- **DEX_PLUS3_COST_ANALYSIS.md**: Example calculation using dif_mod formula
+- **QUICK_REFERENCE_SMITHING.md**: One-page lookup guide
+
+### Celebrimbor Ring-Crafting Bonus ✅ (COMPLETE)
+
+**Implementation**: Added `UNQ_SMT_CELEBRIMBOR` flag treating rings as enchantable items with no minor slot penalty.
+
+**Changes**:
+- `src/defines.h`: Added `#define UNQ_SMT_CELEBRIMBOR 0x00008000L`
+- `lib/edit/character.txt`: Added `U:SMT_CELEBRIMBOR` to Celebrimbor's entry
+- `src/init1.c` (line 363): Added `{ "SMT_CELEBRIMBOR", UNQ, UNQ_SMT_CELEBRIMBOR }` to flag table
+- `src/files.c` (line 1556): Added `HANDLE_UNIQUE_U("Ring Master", UNQ_SMT_CELEBRIMBOR, TERM_VIOLET)`
+- `src/files.c` (line 2199): Added `CHECK_UNIQUE_U("Ring Master", UNQ_SMT_CELEBRIMBOR, TERM_VIOLET)`
+- `src/cmd4.c` (lines 4390-4424): Modified ring slot handling to skip +20% penalty if Celebrimbor, added -30% enchantable discount for Celebrimbor rings
+
+**Effect**: Ring crafting costs -30% for Celebrimbor (vs normal +20% minor slot penalty). Example: Ring +1 Str costs 19 for normal character, 11 for Celebrimbor (42% cheaper).
+
+---
+
 ## 2025-11-02: Stat Display Asterisk Bug Fix
 
 ### Bug: Asterisk Not Clearing When Potion Effect Ends ✅

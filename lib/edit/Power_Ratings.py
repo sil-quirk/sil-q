@@ -1,25 +1,38 @@
 #!/usr/bin/env python3
 import re
 import pandas as pd
+# ANSI color codes for terminal coloring
+ANSI_RESET = '\033[0m'
+ANSI_GREEN = '\033[32m'
+ANSI_BRIGHT_GREEN = '\033[92m'
+ANSI_RED = '\033[31m'
+ANSI_BRIGHT_RED = '\033[91m'
+ANSI_CYAN = '\033[36m'
+ANSI_BRIGHT_YELLOW = '\033[93m'
 
 # Unique trait scoring - each unique trait gets its own score (default 2)
 # To customize scoring for individual uniques, change the values below
+# FREE ability is now integrated as a unique trait score (1.5 points)
 UNIQUE_SCORES = {
-    'SMT_FEANOR': 2,      # Uses only 1 forge cast for custom artifacts
-    'WIL_FIN': 2,         # Majesty ability gets twice more base will
+    'SMT_FEANOR': 2,        # Uses only 1 forge cast for custom artifacts
+    'WIL_FIN': 2,           # Majesty ability gets twice more base will
     'MEL_MAEDHROS': 1.5,    # One handed
     'SNG_FIN': 1.5,         # Song of Staying is twice as effective
-    'SNG_THINGOL': 2,     # Song of Mastery is twice as effective
-    'SNG_LUT': 2,         # Song of Lorien is twice more effective
-    'SMT_TELCHAR': 2,     # Available to craft SHARPNESS2 weapons
-    'SMT_GAMIL': 1,       # Able to craft without mithril
-    'MIM': 1,             # Has all stealth abilities
-    'EARENDIL': 1,        # Will affinity is always at MASTER+
-    'WIL_TURIN': 1,       # Debuf->rage->hallucination
-    'WIL_TUOR': 1,        # Horns are 2 times more effective
-    'SNG_HURIN': 2,       # Song of Slaying is twice more effective
-    'SNG_MEL': 1,         # Song of Thresholds difficulty decreased
-    'SMT_EOL': 1,         # Galvane armor
+    'SNG_THINGOL': 2,       # Song of Mastery is twice as effective
+    'SNG_LUT': 2,           # Song of Lorien is twice more effective
+    'SMT_TELCHAR': 2,       # Available to craft SHARPNESS2 weapons
+    'SMT_GAMIL': 1,         # Able to craft without mithril
+    'MIM': 1,               # Has all stealth abilities
+    'EARENDIL': 1,          # Will affinity is always at MASTER+
+    'WIL_TURIN': 1,         # Debuf->rage->hallucination
+    'WIL_TUOR': 1,          # Horns are 2 times more effective
+    'SNG_HURIN': 2,         # Song of Slaying is twice more effective
+    'SNG_MEL': 1,           # Song of Thresholds difficulty decreased
+    'SMT_EOL': 1,           # Galvane armor
+    'SMT_CELEBRIMBOR': 2.0, # Celebrimbor unique ability
+    'SNG_TURGON': 1,      # Turgon unique ability (Song)
+    'FREE': 1.5,            # Free ability (seafarer) - cheaper abilities
+    'MINSTREL': 1,          # Minstrel unique
 }
 
 # Ability scoring configuration
@@ -381,36 +394,121 @@ def compute_scores(houses, races, abilities_data):
 
         # 2) Net affinities / penalties (weighted)
         def net_aff(flags):
-            total = 0.0
+            """Return (total, details_list) for given flags.
+
+            This aggregates affinities and penalties per skill. The numeric total
+            is computed using SKILL_WEIGHTS × (aff_count - pen_count) plus any
+            standalone proficiencies. The returned details_list contains tags
+            without numbers, e.g. 'WIL_aff', 'WIL_master', 'WIL_pen',
+            'WIL_grand_penalty'. Affinities and penalties cancel each other via
+            net = aff_count - pen_count.
+            """
+            # counts per skill key
+            aff_counts = {}
+            pen_counts = {}
+            profs = []
             for f in flags:
                 if f.endswith('_AFFINITY'):
-                    key = f.rsplit('_', 1)[0]  # e.g. 'PER' from 'PER_AFFINITY'
-                    weight = SKILL_WEIGHTS.get(key, 1.0)
-                    total += weight
+                    key = f.rsplit('_', 1)[0]
+                    aff_counts[key] = aff_counts.get(key, 0) + 1
                 elif f.endswith('_PENALTY'):
                     key = f.rsplit('_', 1)[0]
-                    weight = SKILL_WEIGHTS.get(key, 1.0)
-                    total -= weight
+                    pen_counts[key] = pen_counts.get(key, 0) + 1
                 else:
-                    # handle standalone proficiencies (BOW_PROFICIENCY, AXE_PROFICIENCY)
-                    prof_weight = PROFICIENCY_WEIGHTS.get(f, 0.0)
-                    total += prof_weight
-            return total
+                    # standalone proficiencies
+                    if f in PROFICIENCY_WEIGHTS:
+                        profs.append(f)
 
-        aff_total = net_aff(h['F']) + (net_aff(r['F']) if r else 0)
+            total = 0.0
+            # build a per-skill short-code map for aligned columns
+            # use the order defined in SKILL_WEIGHTS (insertion order)
+            # explicit order required by user: Mel, Arc, Evn, Stl, Per, Wil, Smt, Sng
+            short_keys = ['mel','arc','evn','stl','per','wil','smt','sng']
+            details_map = {k: '' for k in short_keys}
+
+            # combine keys seen in either dict
+            # preserve ordering by iterating keys in the order they first appear
+            seen = []
+            for f in flags:
+                if f.endswith('_AFFINITY') or f.endswith('_PENALTY'):
+                    key = f.rsplit('_', 1)[0]
+                    if key not in seen:
+                        seen.append(key)
+            # also include any keys seen in counts but not in flags order
+            for k in list(aff_counts.keys()) + list(pen_counts.keys()):
+                if k not in seen:
+                    seen.append(k)
+
+            for key in seen:
+                a = aff_counts.get(key, 0)
+                p = pen_counts.get(key, 0)
+                net = a - p
+                weight = SKILL_WEIGHTS.get(key, 1.0)
+                # numeric contribution: weight × net
+                total += weight * net
+                sk = key.lower()
+                short = sk[:3]
+                if short in details_map:
+                    if net >= 2:
+                        details_map[short] = 'ma'
+                    elif net == 1:
+                        details_map[short] = 'af'
+                    elif net == -1:
+                        details_map[short] = 'pe'
+                    elif net <= -2:
+                        details_map[short] = 'gp'
+
+            # include proficiencies as simple tags (bow/axe)
+            if 'BOW_PROFICIENCY' in flags:
+                details_map['arc'] = details_map.get('arc', '') or ''
+                # represent bow proficiency in a separate 'bow' column later
+            if 'AXE_PROFICIENCY' in flags:
+                details_map['mel'] = details_map.get('mel', '') or ''
+
+            # return numeric total and the short map + raw profs list
+            return total, details_map, profs
+
+        # Combine house and race flags so affinities/penalties cancel correctly
+        combined_flags = h['F'] + (r['F'] if r else [])
+        aff_total, aff_map, aff_profs = net_aff(combined_flags)
+        # show affinities with one decimal place
+        try:
+            aff_total = round(float(aff_total), 1)
+        except Exception:
+            aff_total = aff_total
+
+        # Helper to color a short label for a skill column
+        def color_cell(short, label):
+            if not label:
+                return ''
+            # Mastery should be green, affinity should be bright yellow
+            if label == 'ma':
+                return f"{ANSI_GREEN}{short}_ma{ANSI_RESET}"
+            if label == 'af':
+                return f"{ANSI_BRIGHT_YELLOW}{short}_af{ANSI_RESET}"
+            if label == 'pe':
+                return f"{ANSI_RED}{short}_pe{ANSI_RESET}"
+            if label == 'gp':
+                return f"{ANSI_BRIGHT_RED}{short}_gp{ANSI_RESET}"
+            # fallback
+            return f"{ANSI_CYAN}{label}{ANSI_RESET}"
 
         # 3) Unique traits - each unique scored individually
+        # This now includes unique flags from U: field, and FREE flag is treated as a unique trait
         uniq_total = 0
+        
+        # Score unique flags from U: field
         for unique in h['U']:
             # Get individual score for this unique, default to 2 if not in mapping
             unique_score = UNIQUE_SCORES.get(unique, 2)
             uniq_total += unique_score
             # Debug: uncomment the line below to see which uniques are being scored
             # print(f"  {h['name']}: {unique} = {unique_score} points")
-            
-        #    + FREE flags → +2 each
+        
+        # Score FREE flags as unique traits (seafarer ability = cheaper abilities)
         free_count = h['F'].count('FREE') + (r['F'].count('FREE') if r else 0)
-        uniq_total += free_count * 1.5
+        free_score = UNIQUE_SCORES.get('FREE', 1.5)
+        uniq_total += free_count * free_score
 
         # 4) Abilities - scored individually based on the exact rule:
         #    contribution = 0 if level_req < 6, else 0.1 * level_req
@@ -452,24 +550,39 @@ def compute_scores(houses, races, abilities_data):
 
         total_with_dots = total + (1 * net_dots)
 
-        results.append({
+        entry = {
             'Hero':        h['name'],
             'Str':         Str,
             'Dex':         Dex,
             'Con':         Con,
             'Gra':         Gra,
             'Stats':       stats_total,
-            'Affinities':  aff_total,
+            'Affin':       aff_total,
+        }
+
+        # add per-skill columns in the SKILL_WEIGHTS defined order
+        # explicit order required by user: Mel, Arc, Evn, Stl, Per, Wil, Smt, Sng
+        skill_short_list = ['mel','arc','evn','stl','per','wil','smt','sng']
+        for short in skill_short_list:
+            entry[short] = color_cell(short, aff_map.get(short, ''))
+
+        # combined proficiency column (bow or axe)
+        entry['b/a'] = (f"{ANSI_CYAN}bow{ANSI_RESET}" if 'BOW_PROFICIENCY' in aff_profs else (f"{ANSI_CYAN}axe{ANSI_RESET}" if 'AXE_PROFICIENCY' in aff_profs else ''))
+
+        entry.update({
             'Unique':      uniq_total,
-            'Abilities':   abil_total,
-            'Current_P':   h.get('P', 0),
+            'Abil':        abil_total,
             'Total_Dots':  total_with_dots,
             # Place numeric Total before the emoji Dots so the numbers
             # are not visually shifted by variable-width emoji when
             # printing to a terminal.
             'Total':       total,
+            # New_P: the P: value that would be assigned from the numeric total
+            'New_P':       calculate_p_value(total),
             'Dots':        dots,
         })
+
+        results.append(entry)
 
     # sort by Total (primary) descending, then Total_Dots (secondary)
     return sorted(results,
@@ -482,13 +595,154 @@ def main():
     abilities_data = parse_abilities('ability.txt')
     scores = compute_scores(houses, races, abilities_data)
 
-    df = pd.DataFrame(scores)
-    # drop the internal '_net' column before printing
-    # df = df.drop(columns=['_net'])
-    # Use a fixed float format so numeric columns (Total, Total_Dots, Abilities)
-    # line up nicely in monospaced console output. Width 6 with 1 decimal
-    # gives more room for negative signs and two-digit numbers.
-    print(df.to_string(index=False, float_format='{:6.1f}'.format))
+    # Build a display list that inserts visible P: boundary rows into the
+    # printed table itself. We append a separator row after the last hero
+    # of each New_P group so the border is visible inline.
+    thresholds = {4: P4_THRESHOLD, 3: P3_THRESHOLD, 2: P2_THRESHOLD, 1: P1_THRESHOLD}
+    display_scores = []
+    for i, row in enumerate(scores):
+        display_scores.append(row.copy())
+        # determine next row's New_P (None if last)
+        next_new_p = scores[i+1]['New_P'] if i+1 < len(scores) else None
+        # if the next row belongs to a different P group, insert a separator
+        if next_new_p != row['New_P']:
+            sep = {
+                'Hero': f'---- P:{row["New_P"]} BORDER ----',
+                'Str': '',
+                'Dex': '',
+                'Con': '',
+                'Gra': '',
+                'Stats': '',
+                'Affin': '',
+                'Unique': '',
+                'Abil': '',
+                'Total_Dots': '',
+                # show the numeric threshold value in the Total column
+                'Total': thresholds.get(row['New_P'], ''),
+                'New_P': row['New_P'],
+                'Dots': ''
+            }
+            display_scores.append(sep)
+
+    df = pd.DataFrame(display_scores)
+    # Hide columns the user asked to 'comment' out in the printed table
+    hide_cols = ['Dots', 'Total_Dots', 'New_P']
+    display_df = df.drop(columns=hide_cols, errors='ignore')
+
+    # Custom print to preserve alignment while allowing ANSI color codes
+    # (ANSI sequences don't change visible width, so we compute widths
+    # using strings with ANSI removed, then print original strings.)
+    import math
+    ansi_re = re.compile(r"\x1b\[[0-9;]*m")
+
+    def visible(s):
+        if s is None:
+            return ''
+        st = str(s)
+        return ansi_re.sub('', st)
+
+    # Choose columns order for display_df (keep natural order)
+    cols = list(display_df.columns)
+
+    # Determine alignment: right for numeric-like columns
+    numeric_cols = set(['Str','Dex','Con','Gra','Stats','Affin','Unique','Abil','Total'])
+    # Skill column short names for visible borders (use single b/a column for proficiencies)
+    skill_col_set = set(['wil','per','stl','smt','sng','evn','arc','mel','b/a'])
+
+    # Gather string representations and compute visible widths.
+    # For non-numeric columns we must account for multi-line cells (Aff_Details)
+    rows = []
+    col_widths = {c: len(visible(c)) for c in cols}
+    for _, r in display_df.iterrows():
+        row = {}
+        for c in cols:
+            val = r[c]
+            if pd.isna(val):
+                # treat as empty
+                if c in numeric_cols:
+                    s = ''
+                else:
+                    s = ''
+                lines = ['']
+            else:
+                if c in numeric_cols:
+                    # format numbers compactly
+                    if isinstance(val, float) and not math.isinf(val):
+                        s = f"{val:6.1f}".strip()
+                    else:
+                        s = str(val)
+                    lines = [s]
+                else:
+                    # preserve multi-line content (may contain ANSI)
+                    raw = str(val)
+                    lines = raw.splitlines() if raw else ['']
+                    s = lines[0] if lines else ''
+
+            row[c] = s
+            # update width considering all visible lines for this cell
+            for L in (lines if 'lines' in locals() else [s]):
+                w = len(visible(L))
+                if w > col_widths[c]:
+                    col_widths[c] = w
+        rows.append(row)
+
+    # Print header
+    header_parts = []
+    for c in cols:
+        h = c
+        w = col_widths[c]
+        if c in numeric_cols:
+            header_parts.append(h.rjust(w))
+        else:
+            header_parts.append(h.ljust(w))
+    # Helper to join parts with visible '|' between skill columns
+    def join_with_bars(parts_list, cols_list):
+        out = []
+        for i, part in enumerate(parts_list):
+            out.append(part)
+            if i < len(parts_list) - 1:
+                # show a vertical bar if either current or next column is a skill column
+                if cols_list[i] in skill_col_set or cols_list[i+1] in skill_col_set:
+                    out.append('|')
+                else:
+                    out.append(' ')
+        return ''.join(out)
+
+    print(join_with_bars(header_parts, cols))
+
+    # Print rows with support for multi-line non-numeric cells
+    for ridx, row in enumerate(rows):
+        # build per-column line lists
+        cell_lines = {}
+        row_height = 1
+        for c in cols:
+            if c in numeric_cols:
+                cell_lines[c] = [row[c]]
+            else:
+                raw = display_df.at[display_df.index[ridx], c] if c in display_df.columns else row[c]
+                if pd.isna(raw):
+                    lines = ['']
+                else:
+                    lines = str(raw).splitlines() if str(raw) else ['']
+                cell_lines[c] = lines
+                if len(lines) > row_height:
+                    row_height = len(lines)
+
+        for line_i in range(row_height):
+            parts = []
+            for c in cols:
+                w = col_widths[c]
+                if c in numeric_cols:
+                    s = cell_lines[c][0] if line_i == 0 else ''
+                    vis = visible(s)
+                    pad = w - len(vis)
+                    parts.append(' ' * pad + s)
+                else:
+                    part = cell_lines[c][line_i] if line_i < len(cell_lines[c]) else ''
+                    vis = visible(part)
+                    pad = w - len(vis)
+                    parts.append(part + ' ' * pad)
+            print(join_with_bars(parts, cols))
     
     print("\n" + "="*50)
     print_unique_scores()
@@ -496,31 +750,28 @@ def main():
     print(f"\nAbility Scoring: Level requirement × {ABILITY_MULTIPLIER}")
     print(f"Found {len(abilities_data)} abilities in ability.txt")
     
-    # Optional: Show detailed ability breakdown for a specific character
-    show_details = input("\nShow detailed ability breakdown for a character? (y/n): ").strip().lower()
-    if show_details in ['y', 'yes']:
-        print("\nAvailable characters:")
-        for i, score in enumerate(scores[:10]):  # Show first 10
-            print(f"{i+1:2d}. {score['Hero']}")
-        try:
-            choice = int(input("Enter number (1-10): ")) - 1
-            if 0 <= choice < min(10, len(scores)):
-                hero_name = scores[choice]['Hero']
-                # Find the character in houses
-                for h in houses:
-                    if h['name'] == hero_name:
-                        _, ability_details = calculate_ability_score(abilities_data, h['C_pairs'])
-                        print(f"\n{hero_name} Ability Breakdown:")
-                        print("-" * 40)
-                        total_abil = 0
-                        for detail in ability_details:
-                            print(f"{detail['name']:<25} Level {detail['level_req']:>2}: {detail['score']:>4.1f}")
-                            total_abil += detail['score']
-                        print("-" * 40)
-                        print(f"{'Total':<25} {'':>8}: {total_abil:>4.1f}")
-                        break
-        except (ValueError, IndexError):
-            print("Invalid choice.")
+    # Show starting abilities and uniques for each character
+    print("\n" + "="*70)
+    print("CHARACTER STARTING ABILITIES & UNIQUES")
+    print("="*70)
+    for score in scores:
+        hero_name = score['Hero']
+        # Find the character in houses
+        for h in houses:
+            if h['name'] == hero_name:
+                _, ability_details = calculate_ability_score(abilities_data, h['C_pairs'])
+                
+                # Build abilities list
+                abilities_list = [detail['name'] for detail in ability_details] if ability_details else []
+                abilities_str = ", ".join(abilities_list) if abilities_list else "None"
+                
+                # Build uniques list - skip if empty
+                if h['U']:
+                    uniques_str = ", ".join(h['U'])
+                    print(f"{hero_name:<20} Abilities: {abilities_str:<40} Uniques: {uniques_str}")
+                else:
+                    print(f"{hero_name:<20} Abilities: {abilities_str}")
+                break
     
     # Analyze P: value updates
     changes_needed, new_p_values = analyze_p_updates(scores)

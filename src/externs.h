@@ -1217,6 +1217,7 @@ extern byte object_display_color(const object_type* o_ptr, byte base_color);
 extern void calc_torch(void);
 extern int ability_bonus(int skilltype, int abilitynum);
 extern int affinity_level(int skilltype);
+extern int minstrel_level(void);
 
 /* xtra2.c */
 extern bool saving_throw(monster_type* m_ptr, int resistance);

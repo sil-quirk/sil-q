@@ -2430,6 +2430,26 @@ int affinity_level(int skilltype)
     return level;
 }
 
+/*
+ * Calculate the minstrel bonus for song abilities.
+ * Unlike affinity_level, this is uncapped and only affects ability costs.
+ * It does not provide skill increases.
+ */
+int minstrel_level(void)
+{
+    int level = 0;
+
+    /* Check for MINSTREL unique flag */
+    if (hp_ptr->flags_u & UNQ_MINSTREL) level++;
+
+    /* Include curse flags (similar to affinity) */
+    level += curse_flag_count_rhf(RHF_SNG_AFFINITY);
+    level -= curse_flag_count_rhf(RHF_SNG_PENALTY);
+
+    /* No cap - can go beyond 2 */
+    return level;
+}
+
 static bool songs_are_synergy_pair(byte song_a, byte song_b)
 {
     static const byte synergy_pairs[][2] = {
@@ -2493,8 +2513,12 @@ int ability_bonus(int skilltype, int abilitynum)
         const int full_skill = skill;
 
         // penalize minor themes - check if this ability is the minor theme
+        // UNLESS the character has the WOVEN_MASTER flag (Daeron)
         if ((p_ptr->song2 == abilitynum) && (p_ptr->song1 != abilitynum))
-            skill /= 2;
+        {
+            if (!(c_info[p_ptr->phouse].flags_u & UNQ_WOVEN_MASTER))
+                skill /= 2;
+        }
 
         // Song of Silence dampens other songs when woven together
         // EXCEPT for Disguise and Lorien (its synergy pairs)

@@ -2223,6 +2223,10 @@ int abilities_menu2(int skilltype, int* highlight)
                     // Subtract free abilities granted by affinity
                     exp_cost -= unit_cost * affinity_level(skilltype);
 
+                    // For song abilities, also subtract minstrel bonus (uncapped)
+                    if (skilltype == S_SNG)
+                        exp_cost -= unit_cost * minstrel_level();
+
                     // Clamp to zero
                     if (exp_cost < 0)
                         exp_cost = 0;
@@ -2543,6 +2547,10 @@ void do_cmd_ability_screen(void)
 
                             // Subtract free abilities granted by affinity
                             exp_cost -= unit_cost * affinity_level(skilltype);
+
+                            // For song abilities, also subtract minstrel bonus (uncapped)
+                            if (skilltype == S_SNG)
+                                exp_cost -= unit_cost * minstrel_level();
 
                             // Clamp to zero
                             if (exp_cost < 0)
@@ -4390,6 +4398,14 @@ int object_difficulty(object_type* o_ptr)
     // case INVEN_WIELD:
     case INVEN_LEFT:
     case INVEN_RIGHT:
+    {
+        // Celebrimbor: rings are not minor slots (no penalty)
+        if (!(c_info[p_ptr->phouse].flags_u & UNQ_SMT_CELEBRIMBOR))
+        {
+            dif_mult += 20;
+        }
+        break;
+    }
     // case INVEN_NECK:
     case INVEN_LITE:
     // case INVEN_BODY:
@@ -4408,6 +4424,13 @@ int object_difficulty(object_type* o_ptr)
 
     // Decreased difficulties for easily enchatable items
     if (k_ptr->flags3 & (TR3_ENCHANTABLE))
+    {
+        dif_mult -= 30;
+    }
+
+    // Celebrimbor: treat rings as enchantable
+    if ((c_info[p_ptr->phouse].flags_u & UNQ_SMT_CELEBRIMBOR)
+        && (o_ptr->tval == TV_RING))
     {
         dif_mult -= 30;
     }

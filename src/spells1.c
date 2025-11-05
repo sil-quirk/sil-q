@@ -740,6 +740,12 @@ static void sing_song_of_disguise(int score)
 
     int player_skill = score + p_ptr->skill_use[S_WIL];
 
+    // Turgon's unique: Shadow Walker - add Perception to the check
+    if (c_info[p_ptr->phouse].flags_u & UNQ_SNG_TURGON)
+    {
+        player_skill += p_ptr->skill_use[S_PER];
+    }
+
     for (int i = mon_max - 1; i >= 1; i--)
     {
         monster_type* m_ptr = &mon_list[i];
