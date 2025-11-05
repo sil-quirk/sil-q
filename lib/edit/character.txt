@@ -177,8 +177,7 @@ D: Noble-hearted builder of halls beneath Nargothrond’s fair stone towers, fri
 N:10:Glorfindel
 A: of the Golden Flower
 B:You rise in valor-golden defender of Gondolin, whose courage felled a Balrog.
-F:MEL_AFFINITY | ARC_PENALTY
-U:GIFTERU
+F:MEL_AFFINITY | ARC_PENALTY | GIFTERU
 S:2:2:1:1
 C:2:9:0:13  # Rapid Attack Control retreat
 P:3
