@@ -2779,6 +2779,14 @@ static bool prompt_replace_pack_item(const object_type* incoming)
     char incoming_name[80];
     char prompt[160];
 
+#ifdef USE_SDL
+    /* Ensure story font is disabled before showing messages */
+    extern bool sdl_is_story_font_enabled(void);
+    extern void sdl_story_font_disable(void);
+    if (sdl_is_story_font_enabled())
+        sdl_story_font_disable();
+#endif
+
     object_desc(incoming_name, sizeof(incoming_name), incoming, true, 3);
     msg_format("No room for %s.", incoming_name);
     msg_print("Choose an item to replace.");
@@ -3132,6 +3140,14 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
     byte old_item_tester_tval = item_tester_tval;
     bool (*old_item_tester_hook)(const object_type*) = item_tester_hook;
     const object_type* old_filter = replacement_filter_incoming;
+
+#ifdef USE_SDL
+    /* Ensure story font is disabled before showing messages */
+    extern bool sdl_is_story_font_enabled(void);
+    extern void sdl_story_font_disable(void);
+    if (sdl_is_story_font_enabled())
+        sdl_story_font_disable();
+#endif
 
     if (label)
         msg_format("You already carry %s (limit %d).", label, limit);

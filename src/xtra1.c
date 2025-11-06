@@ -2042,7 +2042,7 @@ static void calc_hitpoints(void)
     int tmp;
 
     /* Get hitpoint value */
-    // 20 + a compounding 20% bonus per point of con
+    // 20 + a compounding 16% bonus per point of con, plus 5 HP flat bonus
 
     tmp = 20 * 100;
     if (p_ptr->stat_use[A_CON] >= 0)
@@ -2059,7 +2059,7 @@ static void calc_hitpoints(void)
             tmp = tmp * 100 / 116;
         }
     }
-    mhp = tmp / 100;
+    mhp = tmp / 100 + 5;
 
     /* New maximum hitpoints */
     if (p_ptr->mhp != mhp)

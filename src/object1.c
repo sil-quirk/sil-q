@@ -2597,19 +2597,43 @@ void display_equip(void)
         // Term_erase(w - 12 + strlen(mention_use(i)), i - INVEN_WIELD, 255);
     }
 
-    /* Erase the rest of the window */
-    for (i = INVEN_TOTAL - INVEN_WIELD; i < Term->hgt; i++)
+    /* Put in the total weight (if any armour equipped) */
+    if (armour_weight)
+    {
+        int total_row = INVEN_TOTAL - INVEN_WIELD;
+        int text_row = total_row + 1;
+        
+#ifdef USE_SDL
+        if (use_story_font)
+        {
+            /* Clear the rows where we'll draw the weight total (from col, not from 0) */
+            Term_erase(col, total_row, 255);
+            Term_erase(col, text_row, 255);
+            
+            /* Render armour weight with story font using grid-aligned positioning */
+            log_debug("display_equip: Rendering armour weight with story font at rows %d/%d", total_row, text_row);
+            story_print_text_grid(total_row, 70, 8, TERM_L_DARK, "--------");
+            strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
+                armour_weight / 10, armour_weight % 10);
+            story_print_text_grid(text_row, 62, 16, TERM_SLATE, tmp_val);
+        }
+        else
+#endif
+        {
+            /* Mono font path */
+            Term_putstr(col, total_row, -1, TERM_L_DARK, "--------");
+            sprintf(tmp_val, "armour: %3d.%1d lb", armour_weight / 10, armour_weight % 10);
+            Term_putstr(col - 8, text_row, -1, TERM_SLATE, tmp_val);
+        }
+    }
+
+    /* Erase the rest of the window (after the armour weight display) */
+    int erase_start = armour_weight ? (INVEN_TOTAL - INVEN_WIELD + 2) : (INVEN_TOTAL - INVEN_WIELD);
+    for (i = erase_start; i < Term->hgt; i++)
     {
         /* Clear that line */
         Term_erase(0, i, 255);
     }
-
-    /* Put in the total weight */
-    Term_putstr(col, INVEN_TOTAL - INVEN_WIELD, -1, TERM_L_DARK, "--------");
-    sprintf(
-        tmp_val, "armour: %3d.%1d lb", armour_weight / 10, armour_weight % 10);
-    Term_putstr(
-        col - 8, INVEN_TOTAL - INVEN_WIELD + 1, -1, TERM_SLATE, tmp_val);
 
 #ifdef USE_SDL
     if (use_story_font)
@@ -2663,9 +2687,9 @@ static void story_render_inventory_entry(int row, int base_col, int label_col,
     int highlight_cols = story_term_w ? story_term_w : 80;
     const int label_width = 6;
 
-    Term_erase(0, row, 255);
+    Term_erase(base_col, row, 255);
     if (highlight)
-        story_fill_rect(row, 0, highlight_cols, TERM_L_BLUE);
+        story_fill_rect(row, base_col, highlight_cols - base_col, TERM_L_BLUE);
 
     int text_col = base_col;
     if (o_ptr && o_ptr->k_idx)
@@ -2685,7 +2709,7 @@ static void story_render_inventory_entry(int row, int base_col, int label_col,
     }
 
     if (label_text && label_text[0])
-        story_print_text_grid(row, label_col, label_width, label_attr, label_text);
+        story_print_text(row, label_col, label_width, label_attr, label_text);
 }
 
 static void story_render_equipment_entry(int row, int col, int slot, cptr prefix,
@@ -2698,9 +2722,9 @@ static void story_render_equipment_entry(int row, int col, int slot, cptr prefix
     int label_col = display_weights ? 78 : 71;
     bool has_object = (o_ptr && o_ptr->k_idx);
 
-    Term_erase(0, row, 255);
+    Term_erase(col, row, 255);
     if (highlight)
-        story_fill_rect(row, 0, highlight_cols, TERM_L_BLUE);
+        story_fill_rect(row, col, highlight_cols - col, TERM_L_BLUE);
 
     story_print_equipment_prefix(row, col, prefix_attr, prefix);
 
@@ -2726,7 +2750,7 @@ static void story_render_equipment_entry(int row, int col, int slot, cptr prefix
     }
 
     if (label_text && label_text[0])
-        story_print_text_grid(row, label_col, label_width, label_attr, label_text);
+        story_print_text(row, label_col, label_width, label_attr, label_text);
 }
 
 static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
@@ -2755,11 +2779,11 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
                 row, slot, has_object, out_desc[idx]);
         }
 
-        Term_erase(0, row, 255);
+        Term_erase(col, row, 255);
         if (is_highlight)
         {
             log_trace("draw_equipment_story_rows: Filling highlight rect at row %d", row);
-            story_fill_rect(row, 0, highlight_cols, TERM_L_BLUE);
+            story_fill_rect(row, col, highlight_cols - col, TERM_L_BLUE);
         }
 
         char prefix[32];
@@ -2794,19 +2818,19 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
         {
             int wgt = o_ptr->weight * o_ptr->number;
             char weight_buf[16];
-            strnfmt(weight_buf, sizeof(weight_buf), "%3d.%1d lb", wgt / 10, wgt % 10);
+            strnfmt(weight_buf, sizeof(weight_buf), "%2d.%1d lb", wgt / 10, wgt % 10);
             int weight_width = label_col - 70;
             if (weight_width < 1)
                 weight_width = 1;
             log_trace("draw_equipment_story_rows: Row %d - printing weight '%s' at col=%d width=%d", row, weight_buf, 70, weight_width);
-        story_print_text_grid(row, 70, weight_width, line_attr, weight_buf);
+            story_print_text_grid(row, 70, weight_width, line_attr, weight_buf);
         }
 
         char label_buf[8];
-        strnfmt(label_buf, sizeof(label_buf), " (%c)", index_to_label(slot));
+        strnfmt(label_buf, sizeof(label_buf), "(%c)", index_to_label(slot));
         byte label_attr = is_highlight ? TERM_L_BLUE : TERM_WHITE;
         log_trace("draw_equipment_story_rows: Row %d - printing label '%s' at col=%d width=%d (label_col_base=%d)", row, label_buf, label_col, label_width, label_col_base);
-        story_print_text_grid(row, label_col, label_width, label_attr, label_buf);
+        story_print_text(row, label_col, label_width, label_attr, label_buf);
     }
 
     log_trace("draw_equipment_story_rows: Finished drawing all rows");
@@ -2962,7 +2986,7 @@ void show_inven(void)
             {
                 int wgt = is_supply ? supplies_total_weight()
                     : (cur_obj->weight * cur_obj->number);
-                strnfmt(weight_buf, sizeof(weight_buf), "%3d.%1d lb", wgt / 10, wgt % 10);
+                strnfmt(weight_buf, sizeof(weight_buf), "%2d.%1d lb", wgt / 10, wgt % 10);
                 weight_ptr = weight_buf;
             }
 
@@ -2975,11 +2999,11 @@ void show_inven(void)
                     label = index_to_label(slot);
                 if (!label)
                     label = 'a';
-                strnfmt(label_buf, sizeof(label_buf), " (%c)", label);
+                strnfmt(label_buf, sizeof(label_buf), "(%c)", label);
             }
             else
             {
-                strnfmt(label_buf, sizeof(label_buf), " (%c)", index_to_label(idx));
+                strnfmt(label_buf, sizeof(label_buf), "(%c)", index_to_label(idx));
             }
 
             story_render_inventory_entry(j + 1, col, label_col, out_desc[j], out_color[j],
@@ -3035,7 +3059,7 @@ void show_inven(void)
     {
 #ifdef USE_SDL
         if (use_story_font)
-            Term_erase(0, j + 1, 255);
+            Term_erase(col, j + 1, 255);
         else
 #endif
             prt("", j + 1, col);
@@ -3186,7 +3210,7 @@ void show_equip(void)
         if (show_weights && o_ptr->weight)
         {
             int wgt = o_ptr->weight * o_ptr->number;
-            sprintf(weight_buf, "%3d.%1d lb", wgt / 10, wgt % 10);
+            sprintf(weight_buf, "%2d.%1d lb", wgt / 10, wgt % 10);
             weight_ptr = weight_buf;
 
             if ((i >= INVEN_BODY) && (i <= INVEN_FEET))
@@ -3251,7 +3275,7 @@ void show_equip(void)
     {
 #ifdef USE_SDL
         if (use_story_font)
-            Term_erase(0, j + 1, 255);
+            Term_erase(col, j + 1, 255);
         else
 #endif
             prt("", j + 1, col);
@@ -3266,14 +3290,14 @@ void show_equip(void)
 #ifdef USE_SDL
         if (use_story_font)
         {
-            Term_erase(0, text_row, 255);
-            Term_erase(0, total_row, 255);
+            Term_erase(col, text_row, 255);
+            Term_erase(col, total_row, 255);
             story_print_text_grid(total_row, 70, 8, TERM_L_DARK, "--------");
             strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
                 armour_weight / 10, armour_weight % 10);
             story_print_text_grid(text_row, 62, 16, TERM_SLATE, tmp_val);
             if (j && (j + 3 < 23))
-                Term_erase(0, j + 3, 255);
+                Term_erase(col, j + 3, 255);
         }
         else
 #endif
@@ -4037,11 +4061,11 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 format_supply_summary(tmp, sizeof(tmp));                            \
                 tmp[lim]='\0';                                                     \
                 DRAW_HIGHLIGHT_IF_STORY({                                           \
-                    char lab[8]; sprintf(lab, " (%c)", label);                      \
+                    char lab[8]; sprintf(lab, "(%c)", label);                       \
                     char wbuf[16]; cptr wptr = NULL;                                \
                     if (show_weights) {                                             \
                         int wgt = supplies_total_weight();                          \
-                        strnfmt(wbuf, sizeof(wbuf), "%3d.%1d lb", wgt / 10, wgt % 10); \
+                        strnfmt(wbuf, sizeof(wbuf), "%2d.%1d lb", wgt / 10, wgt % 10); \
                         wptr = wbuf;                                                \
                     }                                                               \
                     story_render_inventory_entry(row + 1, col, label_col, tmp, attr, \
@@ -4049,23 +4073,23 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 })                                                                  \
                 {                                                                   \
                     c_put_str(attr,tmp,row+1,col);                                  \
-                    if (show_weights){ int wgt = supplies_total_weight(); char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
+                    if (show_weights){ int wgt = supplies_total_weight(); char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
                     { char lab[8]; sprintf(lab, " (%c)", label); c_put_str(attr,lab,row+1,label_col); }\
                 }                                                                   \
             } else {                                                                \
                 object_type* o_ptr=&inventory[item_index];                          \
                 object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';           \
                 DRAW_HIGHLIGHT_IF_STORY({                                           \
-                    char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index)); \
+                    char lab[8]; sprintf(lab, "(%c)", index_to_label(item_index));  \
                     char wbuf[16]; cptr wptr = NULL;                                \
-                    if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; strnfmt(wbuf, sizeof(wbuf), "%3d.%1d lb", wgt / 10, wgt % 10); wptr = wbuf; } \
+                    if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; strnfmt(wbuf, sizeof(wbuf), "%2d.%1d lb", wgt / 10, wgt % 10); wptr = wbuf; } \
                     story_render_inventory_entry(row + 1, col, label_col, tmp, attr, \
                         show_weights, wptr, attr, lab, attr, o_ptr, true, highlight_story_w); \
                 })                                                                  \
                 {                                                                   \
                     int text_col = draw_item_tile(col, row+1, o_ptr);               \
                     c_put_str(attr,tmp,row+1,text_col);                             \
-                    if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
+                    if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
                     { char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index)); c_put_str(attr,lab,row+1,label_col); }\
                 }                                                                   \
             }                                                                       \
@@ -4076,11 +4100,11 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             prt("", row+1, col);                                         \
             { char usebuf[32]; strnfmt(usebuf,sizeof(usebuf),"%-12s: ", mention_use(item_index)); \
               DRAW_HIGHLIGHT_IF_STORY({                                             \
-                  char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index));   \
+                  char lab[8]; sprintf(lab, "(%c)", index_to_label(item_index));    \
                   char wbuf[16]; cptr wptr = NULL;                                  \
                   if (show_weights && o_ptr->weight) {                              \
                       int wgt=o_ptr->weight*o_ptr->number;                          \
-                      sprintf(wbuf,"%3d.%1d lb",wgt/10,wgt%10);                     \
+                      sprintf(wbuf,"%2d.%1d lb",wgt/10,wgt%10);                     \
                       wptr = wbuf;                                                  \
                   }                                                                 \
                   story_render_equipment_entry(row + 1, col, item_index, usebuf, attr, tmp, attr, \
@@ -4090,7 +4114,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                   c_put_str(attr,usebuf,row+1,col);                                 \
                   int text_col = draw_item_tile(col+12+2, row+1, o_ptr);            \
                   c_put_str(attr,tmp,row+1,text_col);                               \
-                  if (show_weights && o_ptr->weight){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%3d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,70);} \
+                  if (show_weights && o_ptr->weight){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%2d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,70);} \
                   { char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index)); int label_col = show_weights ? 78 : 71; c_put_str(attr,lab,row+1,label_col); }\
               }                                                                     \
             }                                                                       \
@@ -4102,16 +4126,16 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             prt("", row+1, col);                                         \
             int label_col = show_weights ? 78 : 71;                                  \
             DRAW_HIGHLIGHT_IF_STORY({                                               \
-                char lab[8]; sprintf(lab, " (%c)", index_to_label(floor_slot));     \
+                char lab[8]; sprintf(lab, "(%c)", index_to_label(floor_slot));      \
                 char wbuf[16]; cptr wptr = NULL;                                    \
-                if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; strnfmt(wbuf, sizeof(wbuf), "%3d.%1d lb", wgt / 10, wgt % 10); wptr = wbuf; } \
+                if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; strnfmt(wbuf, sizeof(wbuf), "%2d.%1d lb", wgt / 10, wgt % 10); wptr = wbuf; } \
                 story_render_inventory_entry(row + 1, col, label_col, tmp, attr,    \
                     show_weights, wptr, attr, lab, attr, o_ptr, true, highlight_story_w); \
             })                                                                      \
             {                                                                       \
                 int text_col = draw_item_tile(col, row+1, o_ptr);                   \
                 c_put_str(attr,tmp,row+1,text_col);                                 \
-                if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
+                if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
                 { char lab[8]; sprintf(lab, " (%c)", index_to_label(floor_slot)); c_put_str(attr,lab,row+1,label_col); }\
             }                                                                       \
         }                                                                           \
@@ -5007,6 +5031,8 @@ void show_inven_enhanced(void)
     int highlight_row = -1;
     bool highlight_active = false;
     int previous_total_rows = 0;
+    int previous_compare_count = 0;
+    bool first_render = true;
     
     /* Floor items variables */
     int floor_list[MAX_FLOOR_STACK];
@@ -5190,6 +5216,30 @@ void show_inven_enhanced(void)
             compare_obj[c] = NULL;
         }
 
+        /* Pre-clear ALL affected rows in story font mode BEFORE rendering */
+#ifdef USE_SDL
+        if (use_story_font && allow_compare && !first_render)
+        {
+            /* Calculate maximum possible rows to clear all scenarios:
+             * - k items (base count)
+             * - MAX_COMPARE_LINES (max 2) can appear after ANY highlighted item
+             * - previous_total_rows (what was displayed last frame)
+             * - Add safety margin for row position changes
+             * This ensures we clear comparison lines no matter where they appeared */
+            int max_possible_rows = k + MAX_COMPARE_LINES + 2; /* +2 safety margin for shifts */
+            if (previous_total_rows > max_possible_rows)
+                max_possible_rows = previous_total_rows;
+            
+            /* Clear from row 1 to the maximum possible */
+            for (int clear_row = 1; clear_row <= max_possible_rows; clear_row++)
+            {
+                Term_erase(col, clear_row, 255);
+                if (show_weights)
+                    Term_erase(70, clear_row, 9);
+            }
+        }
+#endif
+
         if (allow_compare && highlight_active && highlight_row >= 0 && highlight_row < k)
         {
             bool highlighted_is_supply = out_is_supply[highlight_row];
@@ -5287,11 +5337,16 @@ void show_inven_enhanced(void)
 #ifdef USE_SDL
             if (use_story_font)
             {
-                Term_erase(0, row, 255);
+                /* Pre-clear handles row erasing, just do highlighting */
+                if (!allow_compare)
+                {
+                    /* Only erase if comparison is disabled (no pre-clear) */
+                    Term_erase(col, row, 255);
+                }
                 if (is_highlight)
                 {
                     int highlight_cols = story_term_w ? story_term_w : 80;
-                    story_fill_rect(row, 0, highlight_cols, TERM_L_BLUE);
+                    story_fill_rect(row, col, highlight_cols - col, TERM_L_BLUE);
                 }
             }
             else
@@ -5328,7 +5383,7 @@ void show_inven_enhanced(void)
                     wgt = supplies_total_weight();
                 else if (line_obj)
                     wgt = line_obj->weight * line_obj->number;
-                strnfmt(tmp_val, sizeof(tmp_val), "%3d.%1d lb", wgt / 10, wgt % 10);
+                strnfmt(tmp_val, sizeof(tmp_val), "%2d.%1d lb", wgt / 10, wgt % 10);
 #ifdef USE_SDL
                 if (use_story_font)
                 {
@@ -5353,17 +5408,17 @@ void show_inven_enhanced(void)
                     label = index_to_label(slot);
                 if (!label)
                     label = 'a';
-                strnfmt(tmp_val, sizeof(tmp_val), " (%c)", label);
+                strnfmt(tmp_val, sizeof(tmp_val), "(%c)", label);
             }
             else
-                strnfmt(tmp_val, sizeof(tmp_val), " (%c)", index_to_label(out_index[j]));
+                strnfmt(tmp_val, sizeof(tmp_val), "(%c)", index_to_label(out_index[j]));
 
             const int label_width = 6;
             byte label_attr = is_highlight ? TERM_L_BLUE : TERM_WHITE;
 #ifdef USE_SDL
             if (use_story_font)
             {
-                story_print_text_grid(row, label_col, label_width, label_attr, tmp_val);
+                story_print_text(row, label_col, label_width, label_attr, tmp_val);
             }
             else
 #endif
@@ -5383,9 +5438,10 @@ void show_inven_enhanced(void)
                     int compare_row = next_row;
 
 #ifdef USE_SDL
-                    if (use_story_font)
-                        Term_erase(0, compare_row, 255);
-                    else
+                    /* Pre-clear handles row erasing for comparison mode */
+                    if (use_story_font && !allow_compare)
+                        Term_erase(col, compare_row, 255);
+                    else if (!use_story_font)
 #endif
                         prt("", compare_row, col);
 
@@ -5421,7 +5477,7 @@ void show_inven_enhanced(void)
                     {
                         if (compare_has_weight[idx])
                         {
-                            strnfmt(tmp_val, sizeof(tmp_val), "%3d.%1d lb", compare_weight[idx] / 10, compare_weight[idx] % 10);
+                            strnfmt(tmp_val, sizeof(tmp_val), "%2d.%1d lb", compare_weight[idx] / 10, compare_weight[idx] % 10);
 #ifdef USE_SDL
                             if (use_story_font)
                             {
@@ -5449,10 +5505,10 @@ void show_inven_enhanced(void)
                     if (compare_label[idx][0])
                     {
                         char label_str[8];
-                        strnfmt(label_str, sizeof(label_str), " (%s)", compare_label[idx]);
+                        strnfmt(label_str, sizeof(label_str), "(%s)", compare_label[idx]);
 #ifdef USE_SDL
                         if (use_story_font)
-                            story_print_text_grid(compare_row, label_col, label_width, compare_attr[idx], label_str);
+                            story_print_text(compare_row, label_col, label_width, compare_attr[idx], label_str);
                         else
 #endif
                             c_put_str(compare_attr[idx], label_str, compare_row, label_col);
@@ -5465,11 +5521,32 @@ void show_inven_enhanced(void)
 
         int total_rows = next_row - 1;
 
+#ifdef USE_SDL
+        /* In story font mode with comparison enabled, ALWAYS force redraw after pre-clear
+         * Pre-clear removes ALL text, Term_redraw_section forces proper re-rendering
+         * Must happen every frame when allow_compare is active, not just when counts change
+         * because the POSITION of comparison lines changes even if the count stays the same */
+        if (use_story_font && allow_compare && !first_render)
+        {
+            /* Calculate bounds to match pre-clear: k items + MAX_COMPARE_LINES + safety margin */
+            int max_possible_rows = k + MAX_COMPARE_LINES + 2; /* +2 safety margin */
+            if (previous_total_rows > max_possible_rows)
+                max_possible_rows = previous_total_rows;
+            
+            if (max_possible_rows > 0 && max_possible_rows < Term->hgt)
+            {
+                /* Force redraw only the inventory area (from col to right edge), not entire screen
+                 * This preserves the left sidebar with character stats */
+                Term_redraw_section(col, 1, Term->wid - 1, max_possible_rows);
+            }
+        }
+#endif
+
         if (total_rows && total_rows < 23)
         {
 #ifdef USE_SDL
             if (use_story_font)
-                Term_erase(0, total_rows + 1, 255);
+                Term_erase(col, total_rows + 1, 255);
             else
 #endif
                 prt("", total_rows + 1, col);
@@ -5483,7 +5560,7 @@ void show_inven_enhanced(void)
 #ifdef USE_SDL
                 if (use_story_font)
                 {
-                    Term_erase(0, clear_row, 255);
+                    Term_erase(col, clear_row, 255);
                     if (show_weights)
                         Term_erase(70, clear_row, 9);
                 }
@@ -5498,6 +5575,8 @@ void show_inven_enhanced(void)
         }
 
         previous_total_rows = total_rows;
+        previous_compare_count = compare_count;
+        first_render = false;  /* After first iteration, subsequent renders can use Term_redraw_section */
 
         if (highlight_active && highlight_row >= 0 && highlight_row < k)
         {
@@ -5776,6 +5855,8 @@ void show_equip_enhanced(void)
     char out_val[160];
     
     log_debug("show_equip_enhanced: Starting equipment enhanced menu");
+    log_debug("show_equip_enhanced: INVEN_BODY=%d, INVEN_FEET=%d, show_weights=%d", 
+        INVEN_BODY, INVEN_FEET, show_weights);
     
 #ifdef USE_SDL
     bool use_story_font = story_equipment_enabled();
@@ -5810,6 +5891,7 @@ void show_equip_enhanced(void)
     int out_index[24];        /* Slot numbers of equipped items */
     byte out_color[24];
     char out_desc[24][80];
+    int armour_weight = 0;    /* Total armour weight */
     
     /* Default length (exactly like show_equip) */
     len = 79 - 50;
@@ -5824,6 +5906,7 @@ void show_equip_enhanced(void)
     if (show_weights) lim -= 9;
     
     /* Scan the equipment list - ONLY INCLUDE EQUIPPED ITEMS */
+    log_debug("show_equip_enhanced: Starting equipment scan, show_weights=%d", show_weights);
     for (k = 0, i = INVEN_WIELD; i < INVEN_TOTAL; i++)
     {
         o_ptr = &inventory[i];
@@ -5853,6 +5936,20 @@ void show_equip_enhanced(void)
         /* Save the description (exactly like show_equip) */
         my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
         
+        /* Calculate armour weight (for body armour, cloak, shield, helmet, gloves, boots) */
+        if (show_weights && o_ptr->weight && (i >= INVEN_BODY) && (i <= INVEN_FEET))
+        {
+            int item_weight = o_ptr->weight * o_ptr->number;
+            armour_weight += item_weight;
+            log_debug("show_equip_enhanced: Slot %d (%s) weight=%d, total armour_weight now=%d", 
+                i, describe_empty_slot(i), item_weight, armour_weight);
+        }
+        else if (i >= INVEN_BODY && i <= INVEN_FEET)
+        {
+            log_trace("show_equip_enhanced: Slot %d (%s) skipped: show_weights=%d, o_ptr->weight=%d, is_empty=%d",
+                i, describe_empty_slot(i), show_weights, o_ptr->weight, is_empty);
+        }
+        
         /* Extract the maximal length (exactly like show_equip) */
         l = strlen(out_desc[k]) + (2 + 3);
         
@@ -5868,6 +5965,8 @@ void show_equip_enhanced(void)
         /* Advance the entry (exactly like show_equip) */
         k++;
     }
+    
+    log_debug("show_equip_enhanced: Equipment scan complete, k=%d items, total armour_weight=%d", k, armour_weight);
     
     /* Find the column to start in (exactly like show_equip) */
     col = (len > 76) ? 0 : (79 - len);
@@ -5891,6 +5990,38 @@ void show_equip_enhanced(void)
             draw_equipment_story_rows(col, k, out_index, out_color, out_desc,
                 highlight_active, highlight_index, show_weights, story_term_w);
             log_trace("show_equip_enhanced: draw_equipment_story_rows FINISHED");
+            
+            /* Display armour weight total if any armour equipped */
+            log_debug("show_equip_enhanced: Checking armour weight display: armour_weight=%d", armour_weight);
+            if (armour_weight)
+            {
+                int total_row = INVEN_TOTAL - INVEN_WIELD + 1;
+                int text_row = total_row + 1;
+                
+                log_debug("show_equip_enhanced: Displaying armour weight at rows %d/%d (INVEN_TOTAL=%d, INVEN_WIELD=%d)", 
+                    total_row, text_row, INVEN_TOTAL, INVEN_WIELD);
+                
+                Term_erase(col, total_row, 255);
+                Term_erase(col, text_row, 255);
+                
+                log_trace("show_equip_enhanced: Rendering armour weight total at rows %d/%d", total_row, text_row);
+                story_print_text_grid(total_row, 70, 8, TERM_L_DARK, "--------");
+                strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
+                    armour_weight / 10, armour_weight % 10);
+                log_debug("show_equip_enhanced: Armour weight text: '%s'", tmp_val);
+                story_print_text_grid(text_row, 62, 16, TERM_SLATE, tmp_val);
+                
+                /* Erase the shadow line below */
+                if (k && (k + 3 < 23))
+                {
+                    log_trace("show_equip_enhanced: Erasing shadow at row %d", k + 3);
+                    Term_erase(0, k + 3, 255);
+                }
+            }
+            else
+            {
+                log_debug("show_equip_enhanced: NOT displaying armour weight (armour_weight=%d)", armour_weight);
+            }
         }
         else
 #endif
@@ -6259,7 +6390,7 @@ static void draw_ident_line(const ident_entry* entry, int row, int col, bool hig
         int wgt = entry->o_ptr->weight * entry->o_ptr->number;
         if (entry->o_ptr->weight || entry->type != IDENT_ENTRY_EQUIP)
         {
-            strnfmt(weight_buf, sizeof(weight_buf), "%3d.%1d lb", wgt / 10, wgt % 10);
+            strnfmt(weight_buf, sizeof(weight_buf), "%2d.%1d lb", wgt / 10, wgt % 10);
             c_put_str(attr, weight_buf, row, 70);
         }
     }

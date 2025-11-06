@@ -1244,13 +1244,7 @@ extern void re_init_some_things(void)
 #ifdef USE_SDL
     sdl_story_font_enable();
 #endif
-#ifdef USE_SDL
-    sdl_story_font_enable();
-#endif
     display_introduction();
-#ifdef USE_SDL
-    sdl_story_font_reset();
-#endif
 #ifdef USE_SDL
     sdl_story_font_reset();
 #endif
@@ -1866,7 +1860,13 @@ void init_angband(void)
 
     /*** Display the introduction ***/
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
     display_introduction();
+#ifdef USE_SDL
+    sdl_story_font_reset();
+#endif
 
     /*** Verify (or create) the "high score" file ***/
 

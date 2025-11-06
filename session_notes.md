@@ -1,5 +1,364 @@
 # Session Notes
 
+## 2025-11-06: Fixed Intro Screen Drawing in Mono Font First ✅
+
+### Problem
+When entering the first screen (intro/welcome screen), it was first drawn in mono font, then immediately redrawn in story font, causing a visible flicker.
+
+### Root Cause
+The `display_introduction()` function was being called twice during startup:
+1. **First call** in `init_angband()` (line 1869) - **without** story font wrapping, rendering in mono
+2. **Second call** in `initial_menu()` (line 2088) - **with** story font wrapping, causing redraw
+
+### Solution
+Wrapped the first `display_introduction()` call in `init_angband()` with story font enable/reset guards:
+
+**`src/init2.c`** - Two fixes:
+
+1. **`init_angband()`** (around line 1869):
+   ```c
+   #ifdef USE_SDL
+       sdl_story_font_enable();
+   #endif
+   display_introduction();
+   #ifdef USE_SDL
+       sdl_story_font_reset();
+   #endif
+   ```
+
+2. **`re_init_some_things()`** (around line 1245):
+   - Removed duplicate `sdl_story_font_enable()` and `sdl_story_font_reset()` calls
+   - Now has single enable/reset pair around `display_introduction()`
+
+### Result
+The intro screen now renders directly in story font on first display with no visible redraw or font switching.
+
+---
+
+## 2025-11-06: Fixed Term_erase Clearing Character Stats Sidebar ✅
+
+### Fixed All Menus Clearing from Column 0 Instead of Inventory Column
+
+**Problem**: 
+Multiple menu functions were using `Term_erase(0, row, 255)` which cleared from column 0, wiping out the character stats sidebar on the left. This affected:
+- Equipment menu (all variants)
+- Inventory menu shadow lines
+- Armour weight displays
+
+**Root Cause**:
+Many functions were using `Term_erase(0, row, 255)` to clear rows, but they should have been using `Term_erase(col, row, 255)` to start clearing from the inventory/equipment column instead of column 0.
+
+**Solution**:
+Changed ALL `Term_erase(0, row, 255)` calls to `Term_erase(col, row, 255)` (or appropriate column variable) to preserve the character stats sidebar.
+
+**Files Changed**:
+
+**`src/object1.c`** - Multiple functions fixed:
+
+1. **`story_render_inventory_entry`** (line ~2690):
+   - Changed: `Term_erase(0, row, 255)` → `Term_erase(base_col, row, 255)`
+   - Changed: `story_fill_rect(row, 0, highlight_cols, ...)` → `story_fill_rect(row, base_col, highlight_cols - base_col, ...)`
+
+2. **`story_render_equipment_entry`** (line ~2725):
+   - Changed: `Term_erase(0, row, 255)` → `Term_erase(col, row, 255)`
+   - Changed: `story_fill_rect(row, 0, highlight_cols, ...)` → `story_fill_rect(row, col, highlight_cols - col, ...)`
+
+3. **`draw_equipment_story_rows`** (line ~2782):
+   - Changed: `Term_erase(0, row, 255)` → `Term_erase(col, row, 255)`
+   - Changed: `story_fill_rect(row, 0, highlight_cols, ...)` → `story_fill_rect(row, col, highlight_cols - col, ...)`
+
+4. **`display_equip`** (lines 2610-2611):
+   - Changed: `Term_erase(0, total_row, 255)` → `Term_erase(col, total_row, 255)`
+   - Changed: `Term_erase(0, text_row, 255)` → `Term_erase(col, text_row, 255)`
+
+5. **`show_inven`** (line 3062):
+   - Changed: `Term_erase(0, j + 1, 255)` → `Term_erase(col, j + 1, 255)`
+
+6. **`show_equip`** (lines 3278, 3293-3294, 3300):
+   - Changed: `Term_erase(0, j + 1, 255)` → `Term_erase(col, j + 1, 255)`
+   - Changed: `Term_erase(0, text_row, 255)` → `Term_erase(col, text_row, 255)`
+   - Changed: `Term_erase(0, total_row, 255)` → `Term_erase(col, total_row, 255)`
+   - Changed: `Term_erase(0, j + 3, 255)` → `Term_erase(col, j + 3, 255)`
+
+7. **`show_equip_enhanced`** (lines 6004-6005):
+   - Changed: `Term_erase(0, total_row, 255)` → `Term_erase(col, total_row, 255)`
+   - Changed: `Term_erase(0, text_row, 255)` → `Term_erase(col, text_row, 255)`
+
+**Also Fixed Highlight Rectangles**:
+- All `story_fill_rect(row, 0, highlight_cols, ...)` changed to `story_fill_rect(row, col, highlight_cols - col, ...)`
+- Ensures highlights don't extend over character stats sidebar
+
+**Technical Details**:
+- **`col`** or **`base_col`** represents the starting column for inventory/equipment display
+- Character stats sidebar occupies columns 0 to ~col-1
+- All clearing and highlighting must respect this boundary
+- `Term_erase(0, row, 255)` is only appropriate for rows AFTER the list (cleanup/erase remaining rows)
+
+**All Fixed Menus**:
+1. ✅ Equipment menu (direct 'e' access)
+2. ✅ Equipment menu (via 'u'/'x' cycling)
+3. ✅ Inventory menu (direct 'i' access)
+4. ✅ Inventory menu (via 'u'/'x' cycling)
+5. ✅ Display functions (window subpanels)
+6. ✅ Armour weight displays
+7. ✅ Shadow/separator lines
+
+**Testing**:
+- Press 'i', 'e', 'u', or 'x' in story font mode
+- Character stats sidebar should remain visible at all times
+- No clearing of left side stats (name, level, HP, etc.)
+- Equipment and inventory should display correctly in their designated columns
+
+**Build Status**: ✅ Successful build with CMake (warnings about unused variables)
+
+---
+
+## 2025-11-06: Fixed Inventory Two-Row Shift with Safety Margin ✅
+
+### Fixed Remaining Garbling When Going Up from 2 to 1 Comparison Lines
+
+**Problem**: 
+Even with pre-clear + redraw logic, there was still garbling when moving UP in the list from an item with 2 comparison lines to an item with 1 comparison line.
+
+**Root Cause**:
+When items shift DOWN in the display (highlight moves UP in the list), rows can move beyond the simple `k + MAX_COMPARE_LINES` calculation:
+- Frame 1: Item at row 5 has 2 comparison lines (rows 6-7), next item at row 8
+- Frame 2: Highlight moves up, all items shift DOWN in display
+- Row 7 (old comparison line) might not be covered by `k + 2` if k is small
+
+**Solution**: 
+Added +2 safety margin to both pre-clear and redraw calculations to handle row position shifts:
+- Old: `MAX(k + MAX_COMPARE_LINES, previous_total_rows)`
+- New: `MAX(k + MAX_COMPARE_LINES + 2, previous_total_rows)`
+
+**Changes**:
+
+**File: `src/object1.c` in `show_inven_enhanced()`**:
+- Pre-clear calculation now uses: `k + MAX_COMPARE_LINES + 2` (added +2 safety margin)
+- Redraw calculation now uses: `k + MAX_COMPARE_LINES + 2` (same safety margin)
+- Both calculations still compare against `previous_total_rows` and use the maximum
+- Comment updated to explain safety margin is for row position changes
+
+**Why +2 Safety Margin**:
+- MAX_COMPARE_LINES = 2 (max comparison lines for rings/arrows)
+- When highlight moves up, items shift down in display by 1+ rows
+- Safety margin ensures we clear old comparison lines even when they move beyond simple calculation
+- Conservative approach: Better to clear/redraw slightly more than miss stale text
+
+**Equipment Menu**: 
+- NO changes made to equipment menu (not needed, works correctly as-is)
+- Equipment menu doesn't have inline comparison lines
+- Individual Term_erase calls in draw_equipment_story_rows remain unchanged
+
+**Technical Details**:
+- Pre-clear + redraw bounds MUST match exactly
+- Safety margin applied to both to maintain synchronization
+- Covers all edge cases: up/down movement, 0/1/2 comparison lines, any item count
+- Pattern: Clear (k + MAX_COMPARE_LINES + 2) rows → Render → Redraw same area
+
+**All Fixed Scenarios**:
+1. ✅ Moving UP from 2 comparison lines to 1 comparison line
+2. ✅ Moving DOWN from 1 comparison line to 2 comparison lines
+3. ✅ All other comparison count transitions (0↔1, 0↔2, 1↔2)
+4. ✅ Any highlight position changes in any direction
+5. ✅ Rings, arrows, equipment, non-equipment items
+
+**Testing**: 
+- Press 'u' or 'x' in story font mode
+- Scroll UP and DOWN through inventory
+- Test with items that have different comparison counts (0/1/2 lines)
+- Especially test moving UP from rings (2 lines) to regular equipment (1 line)
+- All transitions should be clean without garbling
+
+**Build Status**: ✅ Successful build with CMake (warnings about unused variables)
+
+---
+
+## 2025-11-06: Complete Pre-Clear Fix for All Comparison Line Shift Scenarios ✅
+
+### Fixed Display Corruption for All Comparison Line Movements in Inventory Menu
+
+**Problem**: When using story font mode and pressing 'u' or 'x' to open the inventory menu, scrolling through items with comparison features showed garbling. Even after implementing pre-clearing, the issue persisted because `Term_redraw_section()` wasn't being called in all necessary cases.
+
+**Root Cause - Two Related Issues**:
+
+1. **Complex Row Shifting**: Comparison lines appear WITHIN the inventory list (after highlighted item), creating scenarios where:
+   - Highlight moves but comparison count stays the same (e.g., both items have 1 comparison line)
+   - Position changes even when total_rows and compare_count don't change
+   - Old comparison text at previous position remains visible
+
+2. **Incomplete Redraw Logic**: `Term_redraw_section()` was only called when `total_rows != previous_total_rows || compare_count != previous_compare_count`
+   - Moving from Staff (1 comparison) to Ring (1 comparison) → counts SAME, no redraw!
+   - Pre-clear removed text, but without redraw, area stayed blank/garbled
+   - Comparison lines shifted position but redraw didn't trigger
+
+**Solution - Always Redraw in Comparison Mode**:
+1. **Pre-clear maximum possible rows**: `MAX(k + MAX_COMPARE_LINES, previous_total_rows)`
+2. **ALWAYS call Term_redraw_section()** when `allow_compare && !first_render` (not just when counts change)
+3. **Skip individual erases** in comparison mode (pre-clear handles it)
+
+**Why ALWAYS Redraw is Essential**:
+- Pre-clear removes ALL text from the area (clears to blank)
+- Text rendering writes to internal buffers but doesn't force display update
+- `Term_redraw_section()` forces terminal to re-render the cleared area
+- Without it: Blank area or garbled partial text (buffers not synchronized with display)
+- With it: Clean display every frame
+
+**Critical Insight**: 
+Even when `total_rows` and `compare_count` stay the same, the POSITION of comparison lines changes as the highlight moves. Pre-clear + Redraw must happen EVERY frame in comparison mode, not just when counts change.
+
+**Changes**:
+- `src/object1.c` in `show_inven_enhanced()`:
+  - Pre-clear calculation: `max_possible_rows = MAX(k + MAX_COMPARE_LINES, previous_total_rows)`
+  - Pre-clear loop clears all rows from 1 to `max_possible_rows`
+  - Individual item/comparison erases skipped when `allow_compare` (pre-clear handles it)
+  - **Term_redraw_section() now called EVERY frame** when `use_story_font && allow_compare && !first_render`
+  - Removed condition `&& (total_rows != previous_total_rows || compare_count != previous_compare_count)`
+
+**All Scenarios Now Fixed**:
+1. ✅ Same comparison count, different positions (Staff→Ring both have 1 line)
+2. ✅ Different comparison counts (0→1, 1→2, 2→0, etc.)
+3. ✅ Highlight moving up/down/jumping across list
+4. ✅ Rings (2 lines) ↔ Arrows (2 lines) ↔ Equipment (1 line) ↔ Non-equipment (0 lines)
+5. ✅ Floor items, supply items, any position changes
+
+**Technical Details**:
+- Pre-clear: Removes ALL text when `use_story_font && allow_compare && !first_render`
+- Redraw: Forces re-render EVERY frame when `use_story_font && allow_compare && !first_render`
+- Story font proportional rendering requires synchronized clear→render→redraw cycle
+- Pattern: Clear max possible rows → Render all text to buffers → Force redraw to display
+- Conservative: Redraws every frame in comparison mode to guarantee clean display
+
+**Performance**: Redrawing every frame in comparison mode has minimal impact since:
+- Only affects inventory area (not full screen)
+- Only when comparison mode active (u/x keys)
+- Ensures 100% correct display in all scenarios
+
+**Testing**: Press 'u' or 'x' in story font mode. Scroll through entire inventory:
+- Move between items with same comparison count (should be clean)
+- Move between items with different comparison counts (should be clean)
+- Jump around the list randomly (should always be clean)
+- Test with rings, arrows, equipment, non-equipment items
+
+**Build Status**: ✅ Successful build with CMake (warnings about unused variables)
+
+---
+
+## 2025-11-06: Story Font Inventory Comparison Garbling Fix ✅
+
+### Fixed Display Corruption in Story Font Mode During Inventory Scrolling (Final Solution)
+
+**Problem**: When using story font mode and pressing 'u' or 'x' to open the inventory menu, scrolling through items with the comparison feature active caused display garbling. Text would overlap and appear corrupted.
+
+**Root Cause Analysis**:
+The issue had TWO fundamental problems:
+
+1. **Row Shifting**: When comparison lines appear/disappear, ALL subsequent inventory rows shift up or down
+   - Frame 1: Item at row 5 shows 2 comparison lines (rows 6-7), next item at row 8
+   - Frame 2: Highlight moves, comparison lines gone, previous row 8 now at row 6
+   - **Old comparison text at rows 6-7 wasn't cleared before the shift!**
+
+2. **Proportional Font Clearing**: Story font uses pixel-based rendering, not fixed-width cells
+   - `Term_erase(col, row, max_cols)` erases by column count, not pixel width
+   - Double-erasing (full row, then partial) created inconsistent story font state
+
+**Solution**: 
+1. **Pre-calculate the maximum rows needed**: Count items + estimated comparison lines for highlighted item
+2. **Clear ALL affected rows BEFORE rendering**: Clear from row 1 to `MAX(current_total, previous_total)`
+3. **Skip individual erases in story font mode**: Let the pre-clear handle everything
+4. **Remove partial erases from story_print_text**: Caller does full-row clears, renderer just renders
+
+**Changes**:
+- `src/object1.c` in `show_inven_enhanced()`:
+  - Added pre-calculation loop that estimates `estimated_total_rows` by counting items and comparison lines
+  - Added pre-clear loop that erases `MAX(estimated_total_rows, previous_total_rows)` rows in story font mode
+  - Removed individual `Term_erase(0, row, 255)` calls from main item rendering (pre-clear handles it)
+  - Removed individual `Term_erase(0, compare_row, 255)` calls from comparison rendering (pre-clear handles it)
+
+- `src/util.c` in `story_print_text_internal()`:
+  - Removed `Term_erase(col, row, max_cols)` when story font is active
+  - Caller is responsible for clearing the full row before calling this function
+  - Mono font mode still performs erase as before
+
+- `src/util.c` in `story_fill_rect()`:
+  - Simplified to only modify attributes and characters for highlighting
+  - Does not touch story font flags (managed by erase/render cycle)
+
+**Technical Details**:
+- Comparison lines for rings: 2 (left + right)
+- Comparison lines for arrows: 2 (quiver1 + quiver2)  
+- Comparison lines for other equipment: 1 (primary slot)
+- Pre-clearing ensures no stale comparison text remains when rows shift positions
+- Story font proportional rendering requires full-row clears, not partial column-based erases
+- Pattern: Clear all rows → Highlight backgrounds → Render all text cleanly
+
+**Testing**: Press 'u' or 'x' in story font mode. Scroll up/down through inventory including rings (which show 2 comparison lines). Comparison text should appear/disappear cleanly without garbling as rows shift.
+
+**Build Status**: ✅ Successful build with CMake (no new errors)
+
+---
+
+## 2025-11-05: Story Font Equipment Armour Weight Display ✅
+
+### Fixed Armour Weight Total Not Visible in Story Font Mode
+
+**Problem**: When viewing equipped items with story font mode enabled (pressing 'e' in-game), the total weight of armour was not visible at the bottom of the equipment list.
+
+**Root Cause**: The armour weight total display was only implemented in `show_equip()` (mono font path) and `display_equip()` (window system). When `show_equip_enhanced()` used story font mode, it called `draw_equipment_story_rows()` which only rendered individual equipment rows without the armour weight total.
+
+**Solution**: 
+- Added armour weight calculation to `show_equip_enhanced()` scan loop
+- Added armour weight total display after `draw_equipment_story_rows()` in story font mode
+- Uses `story_print_text_grid()` for grid-aligned rendering with story font
+- Also fixed `display_equip()` to use the same approach
+
+**Changes**:
+- `src/object1.c` in `show_equip_enhanced()`:
+  - Added `armour_weight` variable initialization
+  - Calculate armour weight during equipment scan loop (for slots INVEN_BODY through INVEN_FEET)
+  - Display armour weight total after `draw_equipment_story_rows()` when story font is active
+  - Only displays if `armour_weight > 0` (requires actual armour equipped)
+  
+- `src/object1.c` in `display_equip()`:
+  - Fixed erase order: now erases rows AFTER drawing armour weight display
+  - Added conditional check `if (armour_weight)` to only display when armour is equipped
+  - Story font mode uses `story_print_text_grid()` for "--------" separator and "armour: X.X lb" text
+  - Explicit Term_erase calls for the weight rows before rendering
+
+**Technical Details**:
+- Armour weight total appears at row `INVEN_TOTAL - INVEN_WIELD + 1` (separator) and row `+2` (text)
+- Format: "--------" on first line, "armour: X.X lb" on second line  
+- Rendered at columns 70 (separator, 8 chars) and 62 (text, 16 chars) with `story_print_text_grid()`
+- Only counts equipment slots INVEN_BODY (body armour) through INVEN_FEET (boots)
+
+**Testing**: To see the armour weight total, you need to equip actual armour (body armour, helmet, gloves, boots, etc.). With no armour equipped, the total will not display.
+
+**Build Status**: ✅ Successful build with CMake (no new errors)
+
+---
+
+## 2025-11-05: Hand Axes Stack Limit & Arrow Pack Limit ✅
+
+### Fixed Hand Axes and Arrows Display/Limits
+
+**Changes**:
+- Modified `src/object2.c` in `object_stack_limit()` function
+- Added hand axe stack limit: 3 (matching `TV_POLEARM` with `SV_HAND_AXE`)
+- Arrows already set to maximum: 48 in pack
+
+**Impact**:
+1. **Quiver Display**: Hand axes in the left panel quiver indicator now show as "x/3" instead of "x/99"
+2. **Pack Limits**: Arrows remain capped at 48 (both spawned and lying on ground)
+
+**Implementation Details**:
+- Added check in `object_stack_limit()`: `if (o_ptr->tval == TV_POLEARM && o_ptr->sval == SV_HAND_AXE) return 3;`
+- This function is used throughout codebase for both display limits and carrying capacity
+- Hand axes now follow the same precedent as daggers (7) and spears (5)
+
+**Build Status**: ✅ Successful build with CMake (no new errors)
+
+---
+
 ## 2025-11-05: Daeron Woven Master Unique Flag ✅
 
 ### New Unique Flag: UNQ_WOVEN_MASTER ✅
@@ -2986,3 +3345,11 @@ Score (highest first)                      Layout: Short
 5. `prt_quiver()` will be called on the next redraw, showing updated counts
 
 **Build Status**: ✅ Successful (no errors or warnings)
+## 2025-11-06 Update: Optimized Story Font Garbling Fix
+
+Final solution:
+1. Term_erase always clears story font flags (moved before optimization check)
+2. Term_redraw_section only called when total_rows != previous_total_rows (row shifting)
+3. Precise bounds: MAX(total_rows, previous_total_rows) to avoid full screen redraw
+
+This prevents black screen and only redraws when actually needed.

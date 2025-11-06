@@ -822,6 +822,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
     u32b f1, f2, f3;
 
+    log_debug("do_cmd_wield: Called with default_o_ptr=%p, default_item=%d", (void*)default_o_ptr, default_item);
+
     /* Ensure throw_slot_menu_active is false at start */
     throw_slot_menu_active = false;
     for (i = 0; i < INVEN_TOTAL; i++)
@@ -832,6 +834,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     {
         o_ptr = default_o_ptr;
         item = default_item;
+        log_debug("do_cmd_wield: Using default item, tval=%d, sval=%d, k_idx=%d", 
+            o_ptr->tval, o_ptr->sval, o_ptr->k_idx);
     }
     /* Get an item */
     else
@@ -866,12 +870,19 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         /* Describe it */
         object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
+        log_debug("do_cmd_wield: Floor item too heavy - total=%d + item=%d > limit=%d", 
+            p_ptr->total_weight, o_ptr->weight, weight_limit() * 3 / 2);
+
         if (o_ptr->k_idx)
             msg_format("You cannot lift %s.", o_name);
+        else
+            log_debug("do_cmd_wield: WARNING - o_ptr->k_idx is 0, no message shown to user!");
 
         /* Abort */
         return;
     }
+    
+    log_debug("do_cmd_wield: Weight check passed or inventory item (item=%d)", item);
 
     /* Check the slot */
     slot = wield_slot(o_ptr);
@@ -3377,6 +3388,12 @@ void do_cmd_unified_look(void)
             {
                 log_trace("EXAMINATION: 'x' key pressed for description");
                 
+#ifdef USE_SDL
+                /* Disable story font for info screens */
+                if (use_story_font)
+                    sdl_story_font_disable();
+#endif
+                
                 /* Same logic as Space/Enter for examination */
                 log_trace("EXAMINATION: state.in_sidebar_mode=%d, state.selected_entity=%d", 
                          state.in_sidebar_mode, state.selected_entity);
@@ -3848,6 +3865,12 @@ void do_cmd_unified_look(void)
             {
                 log_trace("EXAMINATION: Enter/Space key pressed for examination");
                 
+#ifdef USE_SDL
+                /* Disable story font for info screens */
+                if (use_story_font)
+                    sdl_story_font_disable();
+#endif
+                
                 /* Examine current target */
                 log_trace("EXAMINATION: state.in_sidebar_mode=%d, state.selected_entity=%d", 
                          state.in_sidebar_mode, state.selected_entity);
@@ -4042,6 +4065,13 @@ void do_cmd_unified_look(void)
                         log_trace("EXAMINATION: No visible entities at cursor position");
                     }
                 }
+                
+#ifdef USE_SDL
+                /* Re-enable story font */
+                if (use_story_font)
+                    sdl_story_font_enable();
+#endif
+                
                 need_redraw = true;
                 break;
             }

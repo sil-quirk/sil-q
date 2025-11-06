@@ -1709,22 +1709,18 @@ errr Term_erase(int x, int y, int n)
     /* Scan every column */
     for (i = 0; i < n; i++, x++)
     {
-        byte oa = scr_aa[x];
-        char oc = scr_cc[x];
-
-        /* Hack -- Ignore "non-changes" */
-        if ((oa == na) && (oc == nc))
-            continue;
-
-        /* Save the "literal" information */
-        scr_aa[x] = na;
-        scr_cc[x] = nc;
-
+        /* Always clear story font flags and tile data to prevent garbling */
         scr_taa[x] = 0;
         scr_tcc[x] = 0;
         scr_story[x] = 0;
 
-        /* Track minumum changed column */
+        /* Always set to blank - we're erasing */
+        scr_aa[x] = na;
+        scr_cc[x] = nc;
+
+        /* Always mark erased cells as changed so Term_fresh will update them
+         * This is critical for story font mode where we need to refresh cells
+         * to properly update the old buffer with cleared story font flags */
         if (x1 < 0)
             x1 = x;
 

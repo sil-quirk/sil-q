@@ -3554,6 +3554,7 @@ static void story_print_text_internal(int row, int col, int max_cols, byte attr,
     if (!text)
         text = "";
 
+    /* Always erase before rendering to ensure clean slate */
     if (max_cols > 0)
         Term_erase(col, row, max_cols);
 
@@ -3651,8 +3652,7 @@ void story_fill_rect(int row, int col, int width_cols, byte attr)
     if (width_cols <= 0)
         return;
 
-    // Instead of using c_put_str which erases story font flags,
-    // directly modify the screen buffer to preserve the flags
+    // Fill background for highlighting without affecting existing story font rendering
     if (row < 0 || row >= Term->hgt)
         return;
 
@@ -3661,15 +3661,12 @@ void story_fill_rect(int row, int col, int width_cols, byte attr)
 
     byte* scr_aa = Term->scr->a[row];
     char* scr_cc = Term->scr->c[row];
-    byte* scr_story = Term->scr->story[row];
 
     for (int x = start_col; x < end_col; x++)
     {
-        byte old_story = scr_story[x];  // Preserve the story font flag!
-        
+        // Only change attribute and character, don't touch story font flags
         scr_aa[x] = attr;
         scr_cc[x] = ' ';
-        scr_story[x] = old_story;  // Restore it!
     }
 
     // Mark this row as changed

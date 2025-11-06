@@ -1688,13 +1688,13 @@ NavResult character_creation(void)
     {
         op_ptr->hitpoint_warn = 3;
         op_ptr->delay_factor = 5;
-        op_ptr->main_combat_rolls = 1;  /* Default to 1 line */
+        op_ptr->main_combat_rolls = 0;  /* Default to 0 lines */
     }
     
     /* Ensure main_combat_rolls has a valid value for existing saves */
     if (op_ptr->main_combat_rolls < 0 || op_ptr->main_combat_rolls > 3)
     {
-        op_ptr->main_combat_rolls = 1;  /* Default to 1 line */
+        op_ptr->main_combat_rolls = 0;  /* Default to 0 lines */
     }
 
     /* reset squelch bits */
