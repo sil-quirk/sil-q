@@ -328,17 +328,34 @@ byte object_display_color(const object_type* o_ptr, byte base_color)
         color_to_use = a_info[o_ptr->name1].d_attr;
     }
     
-    /* Apply special handling for identified artifacts */
-    if (artefact_p(o_ptr) && object_known_p(o_ptr))
+    /* Bows are always light umber */
+    if (o_ptr->tval == TV_BOW)
     {
-        /* If unique artifact color option is enabled, use bright green */
-        if (artifact_unique_color)
+        return TERM_L_UMBER;
+    }
+    
+    /* Apply special handling when artifact_unique_color option is enabled */
+    if (artifact_unique_color)
+    {
+        /* Identified artifacts are yellow (including artifact rings) */
+        if (artefact_p(o_ptr) && object_known_p(o_ptr))
         {
-            return TERM_L_GREEN + TERM_SHADE;  /* TERM_L_GREEN1 - bright green shade */
+            return TERM_YELLOW;
         }
         
-        /* Otherwise use shade level 1 (darker version of base color) */
-        return MAKE_EXTENDED_COLOR(color_to_use, 1);
+        /* Non-artifact rings are orange when option is enabled */
+        if (o_ptr->tval == TV_RING)
+        {
+            return TERM_ORANGE;
+        }
+    }
+    else
+    {
+        /* Default mode: use shade 3 for identified artifacts */
+        if (artefact_p(o_ptr) && object_known_p(o_ptr))
+        {
+            return MAKE_EXTENDED_COLOR(color_to_use, 3);
+        }
     }
     
     return color_to_use;
@@ -2684,7 +2701,8 @@ static void story_render_inventory_entry(int row, int base_col, int label_col,
     byte weight_attr, cptr label_text, byte label_attr, const object_type* o_ptr,
     bool highlight, int story_term_w)
 {
-    int highlight_cols = story_term_w ? story_term_w : 80;
+    /* Always use 80 columns to match standard terminal layout */
+    int highlight_cols = 80;
     const int label_width = 6;
 
     Term_erase(base_col, row, 255);
@@ -2717,7 +2735,8 @@ static void story_render_equipment_entry(int row, int col, int slot, cptr prefix
     cptr weight_text, byte weight_attr, cptr label_text, byte label_attr,
     const object_type* o_ptr, bool highlight, int story_term_w)
 {
-    int highlight_cols = story_term_w ? story_term_w : 80;
+    /* Always use 80 columns to match standard terminal layout */
+    int highlight_cols = 80;
     const int label_width = 6;
     int label_col = display_weights ? 78 : 71;
     bool has_object = (o_ptr && o_ptr->k_idx);
@@ -2758,7 +2777,8 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
     int highlight_index, bool display_weights, int story_term_w)
 {
     int label_col_base = display_weights ? 78 : 71;
-    int highlight_cols = story_term_w ? story_term_w : 80;
+    /* Always use 80 columns to match standard terminal layout */
+    int highlight_cols = 80;
     const int label_width = 6;
 
     log_trace("draw_equipment_story_rows: entry_count=%d, highlight_active=%d, highlight_index=%d",
@@ -5032,6 +5052,7 @@ void show_inven_enhanced(void)
     bool highlight_active = false;
     int previous_total_rows = 0;
     int previous_compare_count = 0;
+    int previous_highlight_row = -1; /* track last frame highlight for surgical clears */
     bool first_render = true;
     
     /* Floor items variables */
@@ -5170,7 +5191,7 @@ void show_inven_enhanced(void)
     /* Find the column to start in (exactly like show_inven) */
     col = (len > 76) ? 0 : (79 - len);
     
-    log_debug("show_inven_enhanced: k=%d items, len=%d, col=%d", k, len, col);
+    log_debug("show_inven_enhanced: k=%d items, len=%d, col=%d, story_term_w=%d", k, len, col, story_term_w);
     
     /* Enable highlight if we have items */
     if (k > 0) {
@@ -5195,6 +5216,9 @@ void show_inven_enhanced(void)
         prt(out_val, 0, 0);
 
         bool allow_compare = (current_menu_command == 'u' || current_menu_command == 'x');
+        
+        log_debug("show_inven_enhanced: current_menu_command='%c' (%d), allow_compare=%d", 
+            current_menu_command, (int)current_menu_command, allow_compare);
 
         int compare_count = 0;
         char compare_label[MAX_COMPARE_LINES][4];
@@ -5216,26 +5240,43 @@ void show_inven_enhanced(void)
             compare_obj[c] = NULL;
         }
 
-        /* Pre-clear ALL affected rows in story font mode BEFORE rendering */
+        /* Surgical pre-clear: only rows that changed (old highlight + its compare lines, new highlight region, trailing cleared rows).
+           This avoids full-frame flicker and keeps ordering erase -> print -> redraw. */
 #ifdef USE_SDL
+        int redraw_y1 = -1, redraw_y2 = -1; /* aggregate redraw bounds */
         if (use_story_font && allow_compare && !first_render)
         {
-            /* Calculate maximum possible rows to clear all scenarios:
-             * - k items (base count)
-             * - MAX_COMPARE_LINES (max 2) can appear after ANY highlighted item
-             * - previous_total_rows (what was displayed last frame)
-             * - Add safety margin for row position changes
-             * This ensures we clear comparison lines no matter where they appeared */
-            int max_possible_rows = k + MAX_COMPARE_LINES + 2; /* +2 safety margin for shifts */
-            if (previous_total_rows > max_possible_rows)
-                max_possible_rows = previous_total_rows;
-            
-            /* Clear from row 1 to the maximum possible */
-            for (int clear_row = 1; clear_row <= max_possible_rows; clear_row++)
+            int label_col_tmp = show_weights ? 78 : 71;
+            const int label_width_tmp = 6;
+            int max_print_col = label_col_tmp + label_width_tmp;
+            int erase_w = (max_print_col > col) ? (max_print_col - col + 1) : 0;
+            if (story_term_w > 80) erase_w = (erase_w * story_term_w) / 80;
+
+            /* Clear previous highlight block */
+            if (previous_highlight_row >= 0 && previous_highlight_row < k)
             {
-                Term_erase(col, clear_row, 255);
-                if (show_weights)
-                    Term_erase(70, clear_row, 9);
+                int base = 1 + previous_highlight_row;
+                for (int r = 0; r <= previous_compare_count; ++r)
+                {
+                    int rr = base + r;
+                    if (erase_w > 0) Term_erase(col, rr, erase_w);
+                    if (show_weights) Term_erase(70, rr, 9);
+                    if (redraw_y1 < 0 || rr < redraw_y1) redraw_y1 = rr;
+                    if (redraw_y2 < 0 || rr > redraw_y2) redraw_y2 = rr;
+                }
+            }
+            /* Clear current highlight prospective block */
+            if (highlight_active && highlight_row >= 0 && highlight_row < k)
+            {
+                int base = 1 + highlight_row;
+                for (int r = 0; r <= MAX_COMPARE_LINES; ++r)
+                {
+                    int rr = base + r;
+                    if (erase_w > 0) Term_erase(col, rr, erase_w);
+                    if (show_weights) Term_erase(70, rr, 9);
+                    if (redraw_y1 < 0 || rr < redraw_y1) redraw_y1 = rr;
+                    if (redraw_y2 < 0 || rr > redraw_y2) redraw_y2 = rr;
+                }
             }
         }
 #endif
@@ -5245,11 +5286,17 @@ void show_inven_enhanced(void)
             bool highlighted_is_supply = out_is_supply[highlight_row];
             object_type* highlighted_obj = NULL;
 
+            log_debug("COMPARE SETUP CHECK: highlight_row=%d, is_supply=%d, is_floor=%d", 
+                highlight_row, highlighted_is_supply, out_is_floor[highlight_row]);
+
             if (!highlighted_is_supply)
             {
                 highlighted_obj = out_is_floor[highlight_row]
                     ? &o_list[0 - out_index[highlight_row]]
                     : &inventory[out_index[highlight_row]];
+                    
+                log_debug("COMPARE SETUP: highlighted_obj=%p, k_idx=%d", 
+                    highlighted_obj, highlighted_obj ? highlighted_obj->k_idx : 0);
             }
 
             if (highlighted_obj)
@@ -5278,9 +5325,18 @@ void show_inven_enhanced(void)
                     strnfmt(compare_label[idx], sizeof(compare_label[idx]), "%c", index_to_label(slot));
                     strnfmt(compare_prefix[idx], sizeof(compare_prefix[idx]), "%-12s: ", mention_use(slot));
 
-                    int compare_lim = 79 - 3 - (12 + 2);
-                    if (show_weights)
-                        compare_lim -= 9;
+                    /* Calculate limit based on actual column positions
+                     * Text starts at col + 12 + 2 (after prefix "%-12s: ")
+                     * Plus 2-3 more if tile is drawn (assume worst case: +3)
+                     * Text ends at column 70 (weight) or 71 (no weight)
+                     * Use conservative limit to prevent overflow
+                     * For story font, reduce by 20% to account for proportional spacing */
+                    int text_start_col = col + 12 + 2 + 3;  /* +3 for tile worst case */
+                    int text_end_col = show_weights ? 70 : 71;
+                    int compare_lim = text_end_col - text_start_col;
+                    /* We'll enforce the exact visual width at render time; 
+                       keep character truncation only as a hard ceiling */
+                    
                     if (compare_lim < 0)
                         compare_lim = 0;
                     if (compare_lim >= (int)sizeof(compare_desc[idx]))
@@ -5292,6 +5348,8 @@ void show_inven_enhanced(void)
                         compare_obj[idx] = equipped_obj; /* Store for tile display */
                         object_desc(compare_desc[idx], sizeof(compare_desc[idx]), equipped_obj, true, 3);
                         compare_desc[idx][compare_lim] = '\0';
+                        log_debug("COMPARE SETUP slot=%d: orig_len=%d, compare_lim=%d, truncated='%s'",
+                            slot, (int)strlen(compare_desc[idx]), compare_lim, compare_desc[idx]);
                         compare_attr[idx] = weapon_glows(equipped_obj) 
                             ? object_display_color(equipped_obj, TERM_L_BLUE)
                             : object_display_color(equipped_obj, tval_to_attr[equipped_obj->tval % N_ELEMENTS(tval_to_attr)]);
@@ -5313,6 +5371,11 @@ void show_inven_enhanced(void)
                 }
 
                 compare_count = slot_count;
+                log_debug("COMPARE SETUP COMPLETE: compare_count=%d", compare_count);
+            }
+            else
+            {
+                log_debug("COMPARE SETUP SKIPPED: highlighted_obj is NULL");
             }
         }
 
@@ -5341,11 +5404,14 @@ void show_inven_enhanced(void)
                 if (!allow_compare)
                 {
                     /* Only erase if comparison is disabled (no pre-clear) */
-                    Term_erase(col, row, 255);
+                    int erase_w = 255;
+                    if (story_term_w > 80) erase_w = (erase_w * story_term_w) / 80;
+                    Term_erase(col, row, erase_w);
                 }
                 if (is_highlight)
                 {
-                    int highlight_cols = story_term_w ? story_term_w : 80;
+                    /* Always limit to 80 columns to match standard terminal layout */
+                    int highlight_cols = 80;
                     story_fill_rect(row, col, highlight_cols - col, TERM_L_BLUE);
                 }
             }
@@ -5361,6 +5427,9 @@ void show_inven_enhanced(void)
             {
                 text_col = draw_item_tile(col, row, line_obj);
             }
+            
+            log_trace("ITEM ROW %d: col=%d, text_col=%d, is_highlight=%d, desc='%.30s'",
+                row, col, text_col, is_highlight, out_desc[j]);
 
 #ifdef USE_SDL
             if (use_story_font)
@@ -5368,6 +5437,14 @@ void show_inven_enhanced(void)
                 int desc_limit = (show_weights ? 70 : label_col) - text_col;
                 if (desc_limit < 1)
                     desc_limit = 1;
+                
+                /* Convert limit from mono columns to story font cells */
+                if (story_term_w > 80) {
+                    desc_limit = (desc_limit * story_term_w) / 80;
+                }
+                
+                log_trace("ITEM ROW %d STORY: desc_limit=%d (scaled), text_len=%d",
+                    row, desc_limit, (int)strlen(out_desc[j]));
                 story_print_text(row, text_col, desc_limit, line_attr, out_desc[j]);
             }
             else
@@ -5415,6 +5492,8 @@ void show_inven_enhanced(void)
 
             const int label_width = 6;
             byte label_attr = is_highlight ? TERM_L_BLUE : TERM_WHITE;
+            log_trace("ITEM RENDER row=%d: label_col=%d, show_weights=%d, label='%s'", 
+                row, label_col, show_weights, tmp_val);
 #ifdef USE_SDL
             if (use_story_font)
             {
@@ -5430,17 +5509,33 @@ void show_inven_enhanced(void)
             }
 
             next_row++;
+            
+            if (j == 3) {
+                log_debug("AT ITEM j=3: compare_count=%d, highlight_row=%d, j==highlight_row=%d", 
+                    compare_count, highlight_row, (j == highlight_row));
+            }
+            
+            log_trace("CHECKING COMPARE RENDER: j=%d, compare_count=%d, highlight_row=%d, condition=%d",
+                j, compare_count, highlight_row, (compare_count > 0 && j == highlight_row));
 
             if (compare_count > 0 && j == highlight_row)
             {
+                log_trace(">>> INSIDE IF BLOCK: About to render %d comparison lines at next_row=%d", 
+                    compare_count, next_row);
+                    
                 for (int idx = 0; idx < compare_count; idx++)
                 {
                     int compare_row = next_row;
+                    
+                    log_trace("COMPARE LINE idx=%d will render at row=%d", idx, compare_row);
 
 #ifdef USE_SDL
                     /* Pre-clear handles row erasing for comparison mode */
-                    if (use_story_font && !allow_compare)
-                        Term_erase(col, compare_row, 255);
+                    if (use_story_font && !allow_compare) {
+                        int erase_w = 255;
+                        if (story_term_w > 80) erase_w = (erase_w * story_term_w) / 80;
+                        Term_erase(col, compare_row, erase_w);
+                    }
                     else if (!use_story_font)
 #endif
                         prt("", compare_row, col);
@@ -5458,14 +5553,22 @@ void show_inven_enhanced(void)
                     {
                         compare_text_col = draw_item_tile(col + 12 + 2, compare_row, compare_obj[idx]);
                     }
+                    
+                    log_debug("COMPARE RENDER idx=%d row=%d: col=%d, text_col=%d, desc='%s'",
+                        idx, compare_row, col, compare_text_col, compare_desc[idx]);
 
 #ifdef USE_SDL
                     if (use_story_font)
                     {
-                        int compare_desc_limit = (show_weights ? 70 : label_col) - compare_text_col;
-                        if (compare_desc_limit < 1)
-                            compare_desc_limit = 1;
-                        story_print_text(compare_row, compare_text_col, compare_desc_limit, compare_attr[idx], compare_desc[idx]);
+                        /* Bound the story-font rendering to the available grid width,
+                           scaled to story cells, so we can safely show more text. */
+                        int text_end_col = show_weights ? 70 : label_col;
+                        int desc_limit = text_end_col - compare_text_col;
+                        if (desc_limit < 1) desc_limit = 1;
+                        if (story_term_w > 80) desc_limit = (desc_limit * story_term_w) / 80;
+                        log_debug("COMPARE RENDER STORY: text_col=%d, desc_limit=%d, text_len=%d",
+                            compare_text_col, desc_limit, (int)strlen(compare_desc[idx]));
+                        story_print_text(compare_row, compare_text_col, desc_limit, compare_attr[idx], compare_desc[idx]);
                     }
                     else
 #endif
@@ -5522,22 +5625,30 @@ void show_inven_enhanced(void)
         int total_rows = next_row - 1;
 
 #ifdef USE_SDL
-        /* In story font mode with comparison enabled, ALWAYS force redraw after pre-clear
-         * Pre-clear removes ALL text, Term_redraw_section forces proper re-rendering
-         * Must happen every frame when allow_compare is active, not just when counts change
-         * because the POSITION of comparison lines changes even if the count stays the same */
-        if (use_story_font && allow_compare && !first_render)
+        /* End-of-frame redraw of just changed rows */
+        if (use_story_font && allow_compare)
         {
-            /* Calculate bounds to match pre-clear: k items + MAX_COMPARE_LINES + safety margin */
-            int max_possible_rows = k + MAX_COMPARE_LINES + 2; /* +2 safety margin */
-            if (previous_total_rows > max_possible_rows)
-                max_possible_rows = previous_total_rows;
-            
-            if (max_possible_rows > 0 && max_possible_rows < Term->hgt)
+            if (compare_count > 0 && highlight_row >= 0 && highlight_row < k)
             {
-                /* Force redraw only the inventory area (from col to right edge), not entire screen
-                 * This preserves the left sidebar with character stats */
-                Term_redraw_section(col, 1, Term->wid - 1, max_possible_rows);
+                int base = 1 + highlight_row;
+                /* Redraw all items from highlighted row to end, since comparison lines shift everything down */
+                int last = total_rows;
+                if (redraw_y1 < 0 || base < redraw_y1) redraw_y1 = base;
+                if (redraw_y2 < 0 || last > redraw_y2) redraw_y2 = last;
+            }
+            /* Include trailing cleared rows if list shrank */
+            if (total_rows < previous_total_rows)
+            {
+                int shrink_start = total_rows + 1;
+                int shrink_end = previous_total_rows;
+                if (redraw_y1 < 0 || shrink_start < redraw_y1) redraw_y1 = shrink_start;
+                if (redraw_y2 < 0 || shrink_end > redraw_y2) redraw_y2 = shrink_end;
+            }
+            if (redraw_y1 > 0 && redraw_y2 >= redraw_y1)
+            {
+                int max_col = (show_weights ? 78 + 6 : 71 + 6);
+                if (max_col > Term->wid - 1) max_col = Term->wid - 1;
+                Term_redraw_section(col, redraw_y1, max_col, redraw_y2);
             }
         }
 #endif
@@ -5545,8 +5656,11 @@ void show_inven_enhanced(void)
         if (total_rows && total_rows < 23)
         {
 #ifdef USE_SDL
-            if (use_story_font)
-                Term_erase(col, total_rows + 1, 255);
+            if (use_story_font) {
+                int erase_w = 255;
+                if (story_term_w > 80) erase_w = (erase_w * story_term_w) / 80;
+                Term_erase(col, total_rows + 1, erase_w);
+            }
             else
 #endif
                 prt("", total_rows + 1, col);
@@ -5560,9 +5674,15 @@ void show_inven_enhanced(void)
 #ifdef USE_SDL
                 if (use_story_font)
                 {
-                    Term_erase(col, clear_row, 255);
+                    int erase_w = 255;
+                    int weight_erase_w = 9;
+                    if (story_term_w > 80) {
+                        erase_w = (erase_w * story_term_w) / 80;
+                        weight_erase_w = (weight_erase_w * story_term_w) / 80;
+                    }
+                    Term_erase(col, clear_row, erase_w);
                     if (show_weights)
-                        Term_erase(70, clear_row, 9);
+                        Term_erase(70, clear_row, weight_erase_w);
                 }
                 else
 #endif
@@ -5574,9 +5694,10 @@ void show_inven_enhanced(void)
             }
         }
 
-        previous_total_rows = total_rows;
-        previous_compare_count = compare_count;
-        first_render = false;  /* After first iteration, subsequent renders can use Term_redraw_section */
+    previous_total_rows = total_rows;
+    previous_compare_count = compare_count;
+    previous_highlight_row = highlight_row;
+    first_render = false;  /* subsequent frames use surgical region */
 
         if (highlight_active && highlight_row >= 0 && highlight_row < k)
         {

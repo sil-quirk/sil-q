@@ -3689,7 +3689,11 @@ PlayResult play_game(void)
         process_player_name(true);
     }
 
-    print_story(15,1);
+    /* Only show story when no alive character exists (fresh start or all characters dead) */
+    if (score_count_alive_entries() == 0)
+    {
+        print_story(15,1);
+    }
 
     log_debug("Game initialization complete, starting main game loop");
     log_trace("QUEST DEBUG: Quest states loaded - Aule: %d, Mandos: %d, Tulkas: %d",

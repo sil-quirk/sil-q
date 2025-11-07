@@ -1,5 +1,195 @@
 # Session Notes
 
+## 2025-11-07: Fixed Inventory Comparison Redraw ✅
+
+### Issue
+When opening inventory through 'u' or 'x' commands and examining an item with comparison display active, only the next line after the comparison was being redrawn instead of all items that were shifted down by the comparison lines.
+
+### Root Cause
+In `show_inven_enhanced()` (object1.c ~line 5618), the surgical redraw logic calculated `redraw_y2` as `base + compare_count`, which only redraws up to the last comparison line. However, when comparison lines are inserted, ALL items below the highlighted item are shifted down by `compare_count` rows and need to be redrawn after returning from `object_info_screen_multi()`.
+
+### Fix Applied
+**File:** `src/object1.c` line ~5618
+
+Changed the redraw range calculation:
+```c
+// Old: Only redraw comparison lines
+int last = base + compare_count;
+
+// New: Redraw all items to end of list
+int last = total_rows;
+```
+
+This ensures that when comparisons are active and the user examines an item:
+1. User sees item with comparison lines (items below are shifted down)
+2. Examination screen is shown (`object_info_screen_multi` does `screen_save()`/`screen_load()`)
+3. Upon return, ALL affected rows (from highlighted item to end) are redrawn via `Term_redraw_section()`
+4. No visual artifacts from items that were previously shifted
+
+### Technical Notes
+- Only changed the number of lines to redraw, no logic changes per user requirement
+- Equipment view (`show_equip_enhanced`) doesn't show comparisons and doesn't need this fix
+- The surgical redraw optimization is SDL-specific and only active with `use_story_font && allow_compare`
+- `Term_redraw_section()` invalidates the old buffer and calls `Term_fresh()` to perform the actual redraw
+
+---
+
+## 2025-11-07: Fixed Combat History Monster Symbol Display ✅
+
+### Issue
+Great cold drake and other monsters were displaying as red squares (missing character glyphs) in the combat history menu instead of their correct pictograms when using tile graphics mode.
+
+### Root Cause
+The `do_cmd_combat_history()` function was using `Term_addch()` to display monster symbols, which doesn't properly handle tile graphics. The live combat roll overlay (`draw_combat_roll_line()`) correctly uses `Term_queue_char()` with proper bigtile handling.
+
+### Fix Applied
+**File:** `src/melee1.c`
+
+Replaced three instances of `Term_addch()` with `Term_queue_char()` in the combat history display:
+1. Attacker symbol display (line ~3800)
+2. Defender symbol in COMBAT_ROLL_ROLL section (line ~3854)
+3. Defender symbol in COMBAT_ROLL_AUTO section (line ~3912)
+
+Each replacement includes proper bigtile handling:
+```c
+Term_queue_char(col, line_y, roll->attacker_attr, roll->attacker_char, 0, 0);
+if (use_bigtile && !graphics_are_ascii())
+{
+    if ((roll->attacker_attr & 0x80) && ((byte)roll->attacker_char & 0x80))
+        Term_queue_char(col + 1, line_y, 255, -1, 0, 0);
+    else
+        Term_queue_char(col + 1, line_y, TERM_WHITE, ' ', 0, 0);
+}
+col += 1;
+if (use_bigtile && !graphics_are_ascii()) col += 1;
+```
+
+### Testing
+✅ Build successful
+✅ No compilation errors
+✅ Pattern matches `draw_combat_roll_line()` implementation
+
+### Technical Notes
+- `Term_queue_char()` properly handles tile graphics by using the tile index system
+- Bigtile mode requires an extra padding character for 2-tile-wide monsters
+- The attr & 0x80 check ensures proper tile graphics rendering
+- Column offset needs adjustment for bigtile width
+
+---
+
+## 2025-11-06: Logging Cleanup - 99% Reduction for Beta Release ✅
+
+### Summary
+Analyzed and cleaned up repetitive DEBUG/TRACE logging to reduce log spam during beta gameplay. The game ships with DEBUG logging enabled, so DEBUG-level messages appear in players' logs by default.
+
+### Changes Made
+1. **Removed `scores_version_has_curses()` trace log** (`files.c:4784`)
+   - Eliminated 1,905 per-session entries
+   - Called once per score record during high score file load
+   - Diagnostic-only, not needed for beta feedback
+
+2. **Removed per-frame rendering TRACE logs** (`main-sdl.c:612`)
+   - Deleted "Rendering with monospace atlas" trace
+   - Removed per-frame `callback_sdl_text` general TRACE
+   - Saved 299+ entries that accumulated every frame
+
+3. **Reclassified score calculation logs to TRACE** (`files.c:5252, 5257, 5318`)
+   - Changed `calculate_score_breakdown` character name logs from DEBUG → TRACE
+   - Changed house_power lookup logs from DEBUG → TRACE
+   - These now only appear in TRACE mode, hidden during DEBUG-level gameplay
+
+4. **Removed row-specific DEBUG spam** (`main-sdl.c:520-554`)
+   - Deleted per-character flag inspection logs for rows 0-2
+   - Simplified row 1-2 logging to single-line debug message
+   - Removed pointer/memory address dumps that added no diagnostic value
+
+### Results
+**Before cleanup:** 131,046 DEBUG/TRACE entries per session
+- `scores_version_has_curses` TRACE: 1,905
+- `Reading score from highscore file`: 434
+- Rendering logs: ~600+
+- `calculate_score_breakdown` character names: 190+ each
+
+**After cleanup:** 1,177 DEBUG/TRACE entries per session
+- **99.1% reduction** in log volume
+- 277 DEBUG entries remain (user actions, important events)
+- 900 TRACE entries (diagnostic only, hidden in DEBUG mode)
+
+### Testing
+✅ Game runs successfully with cleaned logs
+✅ High score menu loads without issues
+✅ Character creation flow works
+✅ UI/inventory menus function normally
+✅ No regressions in gameplay features
+
+---
+
+## 2025-11-06: Fixed Inventory Menu Garbling with Story Font ✅
+
+### Problem
+When using inventory menu through `u` and `x` commands, text became garbled when navigating between items. The issue was more pronounced with `mainviewscale 4` but could occur with any setting.
+
+### Root Cause
+When story font is enabled, `Term_get_size()` returns the terminal width in story font "cells" rather than standard terminal columns. With mainviewscale 4, this returned **90 columns** instead of the expected **80 columns**.
+
+The code was using this inflated `story_term_w` value to calculate highlight rectangle widths:
+```c
+int highlight_cols = story_term_w ? story_term_w : 80;  // Would be 90!
+story_fill_rect(row, col, highlight_cols - col, TERM_L_BLUE);
+```
+
+When highlight rectangles extended beyond column 80, text would wrap to the next line, and the pre-clear logic couldn't properly erase the wrapped portions, causing garbled display.
+
+**Debug output confirmed the issue:**
+```
+show_inven_enhanced: k=21 items, len=52, col=27, story_term_w=90
+```
+
+### Solution
+Always use **80 columns** for all layout calculations, regardless of `story_term_w` value. The terminal layout must remain fixed at 80x24 standard dimensions.
+
+**File: `src/object1.c`** - Fixed 4 functions:
+
+1. **`story_render_inventory_entry()`** (line ~2687):
+   ```c
+   /* Always use 80 columns to match standard terminal layout */
+   int highlight_cols = 80;
+   ```
+
+2. **`story_render_equipment_entry()`** (line ~2721):
+   ```c
+   /* Always use 80 columns to match standard terminal layout */
+   int highlight_cols = 80;
+   ```
+
+3. **`draw_equipment_story_rows()`** (line ~2763):
+   ```c
+   /* Always use 80 columns to match standard terminal layout */
+   int highlight_cols = 80;
+   ```
+
+4. **`show_inven_enhanced()` main rendering** (line ~5351):
+   ```c
+   /* Always limit to 80 columns to match standard terminal layout */
+   int highlight_cols = 80;
+   ```
+
+### Technical Details
+- `story_term_w` from `Term_get_size()` represents how many story font cells fit in the terminal
+- With different `mainviewscale` values, story font cells have different widths
+- Mainviewscale 4 → narrower cells → more cells fit → `story_term_w=90`
+- But the actual terminal is always 80x24 in standard layout
+- Using `story_term_w` for column calculations caused highlights/text to extend beyond column 80
+- This caused text wrapping and incomplete clearing
+
+### Result
+- Inventory and equipment menus now work correctly with all `mainviewscale` values
+- Highlight rectangles never extend beyond column 80
+- No text wrapping or garbled display when navigating items
+- Pre-clear logic properly erases all text within the 80-column boundary
+
+---
+
 ## 2025-11-06: Fixed Intro Screen Drawing in Mono Font First ✅
 
 ### Problem

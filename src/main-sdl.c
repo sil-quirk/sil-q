@@ -512,49 +512,17 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
         }
     }
     
-    log_trace("callback_sdl_text: y=%d x=%d n=%d text='%.*s' chunk_story=%d",
-              y, x, n, n, s, chunk_story_font);
-    
     // Special logging for line 0 (top description line in unified look)
     if (y == 0) {
         log_debug("callback_sdl_text ROW 0: x=%d n=%d chunk_story=%d text='%.*s'", 
                   x, n, chunk_story_font, n, s);
-        if (Term->scr && Term->scr->story && Term->scr->story[0]) {
-            log_debug("  Per-char flags at y=0: x=%d..%d: [%d,%d,%d,%d,%d,%d,%d,%d,%d,%d]",
-                      x, x+9,
-                      (x+0 < Term->wid) ? Term->scr->story[0][x+0] : -1,
-                      (x+1 < Term->wid) ? Term->scr->story[0][x+1] : -1,
-                      (x+2 < Term->wid) ? Term->scr->story[0][x+2] : -1,
-                      (x+3 < Term->wid) ? Term->scr->story[0][x+3] : -1,
-                      (x+4 < Term->wid) ? Term->scr->story[0][x+4] : -1,
-                      (x+5 < Term->wid) ? Term->scr->story[0][x+5] : -1,
-                      (x+6 < Term->wid) ? Term->scr->story[0][x+6] : -1,
-                      (x+7 < Term->wid) ? Term->scr->story[0][x+7] : -1,
-                      (x+8 < Term->wid) ? Term->scr->story[0][x+8] : -1,
-                      (x+9 < Term->wid) ? Term->scr->story[0][x+9] : -1);
-        }
     }
     
     // Special logging for the shooting row (y=1 when 0-indexed, or the second row)
     if (y == 1 || y == 2) {
-        log_debug("callback_sdl_text ROW %d: chunk_story=%d chunk_active=%d scr=%p story=%p font=%p",
+        log_debug("callback_sdl_text ROW %d: chunk_story=%d chunk_active=%d",
                   y, chunk_story_font,
-                  (Term && Term->story_chunk_active) ? 1 : 0,
-                  (void*)Term->scr,
-                  Term->scr ? (void*)Term->scr->story : NULL,
-                  (void*)g_state.story_font);
-        if (Term->scr && Term->scr->story && y < Term->hgt && Term->scr->story[y]) {
-            log_debug("  Per-char flags at y=%d: x=0..5: [%d,%d,%d,%d,%d,%d] x=%d: [%d]",
-                      y,
-                      Term->scr->story[y][0],
-                      (1 < Term->wid) ? Term->scr->story[y][1] : 0,
-                      (2 < Term->wid) ? Term->scr->story[y][2] : 0,
-                      (3 < Term->wid) ? Term->scr->story[y][3] : 0,
-                      (4 < Term->wid) ? Term->scr->story[y][4] : 0,
-                      (5 < Term->wid) ? Term->scr->story[y][5] : 0,
-                      x, (x < Term->wid) ? Term->scr->story[y][x] : 0);
-        }
-        log_debug("  Text: '%.30s'", s);
+                  (Term && Term->story_chunk_active) ? 1 : 0);
     }
     
     log_trace("callback_sdl_text: chunk_story_font=%s term=%p chunk_flag=%s depth=%d font=%p",
@@ -609,10 +577,6 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
         if (y == 1 || y == 2) {
             log_debug("callback_sdl_text: USING MONO FONT for row %d: '%.30s'", y, s);
         }
-        log_trace("Rendering with monospace atlas; story_chunk_active=%s depth=%d font=%p",
-                  (Term && Term->story_chunk_active) ? "true" : "false",
-                  g_state.story_font_depth,
-                  (void*)g_state.story_font);
         sdl_render_mono_text(d, x, y, n, s, col);
     }
 

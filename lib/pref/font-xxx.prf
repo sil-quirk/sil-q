@@ -337,8 +337,8 @@ E:17:0x0F
 # BOLT
 E:18:0x0F
 
-# BOW (ranged weapon - bright yellow)
-E:19:0x0B
+# BOW (ranged weapon - always light umber)
+E:19:0x0F
 
 # DIGGING (tool - earthy brown)
 E:20:0x07
@@ -385,7 +385,7 @@ E:39:0x09
 # AMULET (jewelry - orange, shares with HAFTED/FLASK far apart)
 E:40:0x03
 
-# RING (jewelry - yellow/gold, shares with BOW far apart)
+# RING (jewelry - yellow by default, orange when artifact_unique_color enabled)
 E:45:0x0B
 
 # STAFF (magical item - violet)

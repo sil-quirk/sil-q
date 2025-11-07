@@ -7546,8 +7546,9 @@ void create_smithing_item(void)
 #define MAIN_MENU_SAVE_QUIT 18
 #define MAIN_MENU_QUEST_STATUS 19
 #define MAIN_MENU_HELP 20
+#define MAIN_MENU_STORY 21
 
-#define MAIN_MENU_MAX 16
+#define MAIN_MENU_MAX 17
 
 #define COL_MAIN 29
 
@@ -7560,8 +7561,8 @@ int main_menu_aux(int* highlight)
     int i;
     bool death_view = death_spectator_active();
 
-    if (death_view && (*highlight >= 13) && (*highlight <= 15))
-        *highlight = 16;
+    if (death_view && (*highlight >= 14) && (*highlight <= 16))
+        *highlight = 17;
 
     for (i = 0; i < MAIN_MENU_MAX + 3; i++)
     {
@@ -7590,22 +7591,24 @@ int main_menu_aux(int* highlight)
     Term_putstr(COL_MAIN, 11, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
         "Combat history       (x)");
     Term_putstr(COL_MAIN, 12, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "Options and misc     (o)");
+        "The story so far     (y)");
     Term_putstr(COL_MAIN, 13, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
+        "Options and misc     (o)");
+    Term_putstr(COL_MAIN, 14, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
         "Help                 (h)");
     byte suicide_color = death_view ? TERM_L_DARK
-        : ((*highlight == 13) ? TERM_L_BLUE : TERM_WHITE);
-    Term_putstr(COL_MAIN, 14, -1, suicide_color,
+        : ((*highlight == 14) ? TERM_L_BLUE : TERM_WHITE);
+    Term_putstr(COL_MAIN, 15, -1, suicide_color,
         "Suicide              (k)");
     byte save_color = death_view ? TERM_L_DARK
-        : ((*highlight == 14) ? TERM_L_BLUE : TERM_WHITE);
-    Term_putstr(COL_MAIN, 15, -1, save_color,
+        : ((*highlight == 15) ? TERM_L_BLUE : TERM_WHITE);
+    Term_putstr(COL_MAIN, 16, -1, save_color,
         "Save                 (s)");
     byte quit_color = death_view ? TERM_L_DARK
-        : ((*highlight == 15) ? TERM_L_BLUE : TERM_WHITE);
-    Term_putstr(COL_MAIN, 16, -1, quit_color,
+        : ((*highlight == 16) ? TERM_L_BLUE : TERM_WHITE);
+    Term_putstr(COL_MAIN, 17, -1, quit_color,
         "Quit with save       (q)");
-    Term_putstr(COL_MAIN, 17, -1, (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(COL_MAIN, 18, -1, (*highlight == 17) ? TERM_L_BLUE : TERM_WHITE,
         "Return to game       (r)");
 
     /* Flush the prompt */
@@ -7652,35 +7655,38 @@ int main_menu_aux(int* highlight)
     case 'x':
         *highlight = 10;
         return (*highlight); // Combat history
-    case 'o':
+    case 'y':
         *highlight = 11;
+        return (*highlight); // The story so far
+    case 'o':
+        *highlight = 12;
         return (*highlight); // Options and misc
     case 'h':
-        *highlight = 12;
+        *highlight = 13;
         return (*highlight); // Help
     case 'k':
         if (death_view) {
             msg_print("You can no longer take that action.");
             break;
         }
-        *highlight = 13;
+        *highlight = 14;
         return (*highlight); // Suicide
     case 's':
         if (death_view) {
             msg_print("You can no longer take that action.");
             break;
         }
-        *highlight = 14;
+        *highlight = 15;
         return (*highlight); // Save
     case 'q':
         if (death_view) {
             msg_print("You can no longer take that action.");
             break;
         }
-        *highlight = 15;
+        *highlight = 16;
         return (*highlight); // Quit with save
     case 'r':
-        *highlight = 16;
+        *highlight = 17;
         return (*highlight); // Return to game
     }
 
@@ -7697,7 +7703,7 @@ int main_menu_aux(int* highlight)
             (*highlight)--;
         else if (*highlight == 1)
             *highlight = MAIN_MENU_MAX;
-        while (death_view && (*highlight >= 13) && (*highlight <= 15))
+        while (death_view && (*highlight >= 14) && (*highlight <= 16))
         {
             if (*highlight > 1)
                 (*highlight)--;
@@ -7713,7 +7719,7 @@ int main_menu_aux(int* highlight)
             (*highlight)++;
         else if (*highlight == MAIN_MENU_MAX)
             *highlight = 1;
-        while (death_view && (*highlight >= 13) && (*highlight <= 15))
+        while (death_view && (*highlight >= 14) && (*highlight <= 16))
         {
             if (*highlight < MAIN_MENU_MAX)
                 (*highlight)++;
@@ -7756,7 +7762,7 @@ void do_cmd_main_menu(void)
     {
         actiontype = main_menu_aux(&highlight);
 
-        if (death_spectator_active() && (actiontype >= 13) && (actiontype <= 15))
+        if (death_spectator_active() && (actiontype >= 14) && (actiontype <= 16))
         {
             msg_print("You can no longer take that action.");
             continue;
@@ -7826,31 +7832,41 @@ void do_cmd_main_menu(void)
             leave_menu = true;
             break;
         }
-        case 11: // Options and misc (o)
+        case 11: // The story so far (y)
+        {
+            /* Save screen before showing story */
+            screen_save();
+            print_story(15, 1);
+            /* Load screen after story */
+            screen_load();
+            leave_menu = true;
+            break;
+        }
+        case 12: // Options and misc (o)
         {
             do_cmd_options();
             leave_menu = true;
             break;
         }
-        case 12: // Help (h)
+        case 13: // Help (h)
         {
             do_cmd_help();
             leave_menu = true;
             break;
         }
-        case 13: // Suicide (k)
+        case 14: // Suicide (k)
         {
             do_cmd_suicide();
             leave_menu = true;
             break;
         }
-        case 14: // Save (s)
+        case 15: // Save (s)
         {
             do_cmd_save_game();
             leave_menu = true;
             break;
         }
-        case 15: // Quit with save (q)
+        case 16: // Quit with save (q)
         {
             do_cmd_save_game();
 
@@ -7865,7 +7881,7 @@ void do_cmd_main_menu(void)
             leave_menu = true;
             break;
         }
-        case 16: // Return to game (r)
+        case 17: // Return to game (r)
         {
             leave_menu = true;
             break;

@@ -4781,11 +4781,6 @@ static bool scores_version_has_curses(void)
     else if (scores_file_version_patch < 0) has_curses = false;
     else has_curses = (scores_file_version_extra >= 6);
     
-    log_trace("scores_version_has_curses: version=%d.%d.%d.%d => %s",
-              scores_file_version_major, scores_file_version_minor,
-              scores_file_version_patch, scores_file_version_extra,
-              has_curses ? "TRUE" : "FALSE");
-    
     return has_curses;
 }
 
@@ -5249,12 +5244,12 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     /* Backwards compatibility: only use pts field for curse count if version >= 0.9.0.6 */
     if (scores_version_has_curses()) {
         curses = parse_score_int(score->pts, sizeof(score->pts), 0);
-        log_debug("calculate_score_breakdown: '%s' pts field='%.*s' parsed as curses=%d (version %d.%d.%d.%d)",
+        log_trace("calculate_score_breakdown: '%s' pts field='%.*s' parsed as curses=%d (version %d.%d.%d.%d)",
                   score->who, (int)sizeof(score->pts), score->pts, curses,
                   scores_file_version_major, scores_file_version_minor,
                   scores_file_version_patch, scores_file_version_extra);
     } else {
-        log_debug("calculate_score_breakdown: '%s' pts field ignored (old version %d.%d.%d.%d)",
+        log_trace("calculate_score_breakdown: '%s' pts field ignored (old version %d.%d.%d.%d)",
                   score->who,
                   scores_file_version_major, scores_file_version_minor,
                   scores_file_version_patch, scores_file_version_extra);
@@ -5315,7 +5310,7 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     }
     else
     {
-        log_debug("calculate_score_breakdown: Using default house_power=3 (house_index=%d, z_info=%p, c_info=%p, z_info->c_max=%d)",
+        log_trace("calculate_score_breakdown: Using default house_power=3 (house_index=%d, z_info=%p, c_info=%p, z_info->c_max=%d)",
                  house_index, (void*)z_info, (void*)c_info, z_info ? z_info->c_max : -1);
     }
 

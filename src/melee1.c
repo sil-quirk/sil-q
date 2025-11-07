@@ -3798,10 +3798,17 @@ void do_cmd_combat_history(void)
             if (col >= 0) Term_putstr(col, line_y, 1, TERM_WHITE, " ");
             col += 1;
             if (col >= 0) {
-                Term_putstr(col, line_y, 1, roll->attacker_attr, "");
-                Term_addch(roll->attacker_attr, roll->attacker_char);
+                Term_queue_char(col, line_y, roll->attacker_attr, roll->attacker_char, 0, 0);
+                if (use_bigtile && !graphics_are_ascii())
+                {
+                    if ((roll->attacker_attr & 0x80) && ((byte)roll->attacker_char & 0x80))
+                        Term_queue_char(col + 1, line_y, 255, -1, 0, 0);
+                    else
+                        Term_queue_char(col + 1, line_y, TERM_WHITE, ' ', 0, 0);
+                }
             }
             col += 1;
+            if (use_bigtile && !graphics_are_ascii()) col += 1;
             
             /* Attack roll section */
             if (roll->att_type == COMBAT_ROLL_ROLL) {
@@ -3847,10 +3854,17 @@ void do_cmd_combat_history(void)
                 if (col >= 0) Term_putstr(col, line_y, 1, TERM_WHITE, " ");
                 col += 1;
                 if (col >= 0) {
-                    Term_putstr(col, line_y, 1, roll->defender_attr, "");
-                    Term_addch(roll->defender_attr, roll->defender_char);
+                    Term_queue_char(col, line_y, roll->defender_attr, roll->defender_char, 0, 0);
+                    if (use_bigtile && !graphics_are_ascii())
+                    {
+                        if ((roll->defender_attr & 0x80) && ((byte)roll->defender_char & 0x80))
+                            Term_queue_char(col + 1, line_y, 255, -1, 0, 0);
+                        else
+                            Term_queue_char(col + 1, line_y, TERM_WHITE, ' ', 0, 0);
+                    }
                 }
                 col += 1;
+                if (use_bigtile && !graphics_are_ascii()) col += 1;
                 
                 /* Damage section (only if hit) */
                 if (net_att > 0) {
@@ -3898,10 +3912,17 @@ void do_cmd_combat_history(void)
                 if (col >= 0) Term_putstr(col, line_y, 1, TERM_WHITE, " ");
                 col += 1;
                 if (col >= 0) {
-                    Term_putstr(col, line_y, 1, roll->defender_attr, "");
-                    Term_addch(roll->defender_attr, roll->defender_char);
+                    Term_queue_char(col, line_y, roll->defender_attr, roll->defender_char, 0, 0);
+                    if (use_bigtile && !graphics_are_ascii())
+                    {
+                        if ((roll->defender_attr & 0x80) && ((byte)roll->defender_char & 0x80))
+                            Term_queue_char(col + 1, line_y, 255, -1, 0, 0);
+                        else
+                            Term_queue_char(col + 1, line_y, TERM_WHITE, ' ', 0, 0);
+                    }
                 }
                 col += 1;
+                if (use_bigtile && !graphics_are_ascii()) col += 1;
                 
                 /* Damage section */
                 if (col >= 0) Term_putstr(col, line_y, -1, TERM_L_DARK, "  ->");

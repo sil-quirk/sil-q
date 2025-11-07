@@ -24,6 +24,13 @@ if (-not (Test-Path sil-more-windows-sdl3/lib)) {
         Remove-Item -Recurse -Force sil-more-windows-sdl3/lib/edit
     }
     Copy-Item -Recurse lib/edit sil-more-windows-sdl3/lib/edit -Force
+    
+    # Always update lib/pref folder to ensure latest preference files
+    Write-Host "Updating lib/pref folder..." -ForegroundColor Yellow
+    if (Test-Path sil-more-windows-sdl3/lib/pref) {
+        Remove-Item -Recurse -Force sil-more-windows-sdl3/lib/pref
+    }
+    Copy-Item -Recurse lib/pref sil-more-windows-sdl3/lib/pref -Force
 }
 
 # Copy JSON config file if it doesn't exist

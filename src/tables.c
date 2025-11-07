@@ -481,7 +481,7 @@ cptr option_desc[OPT_MAX] = {
     "Automatically dismiss '-more-' messages", /* OPT_auto_more */
     "Know all monster info", /* OPT_know_monster_info */
     "Automatically display drop-down lists", /* OPT_auto_display_lists */
-    "Display artifacts in unique bright green color", /* OPT_artifact_unique_color */
+    "Display artifacts in unique yellow color", /* OPT_artifact_unique_color */
     "Use the Escape key to access the main menu", /* OPT_easy_main_menu */
     "Render look/target lists with the story font", /* OPT_story_lists */
     "Render the inventory menu with the story font", /* OPT_story_lists_inven */
