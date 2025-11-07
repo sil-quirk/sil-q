@@ -160,7 +160,7 @@
 
 # Version stamp (required)
 
-V:0.8.9
+V:0.9.0
 
 #################################################################
 # Here is the list of 'Special' artefacts. 
@@ -208,7 +208,7 @@ D: Above all else, she is famed for her insight.
 
 ## The Amulet of Tinfang Gelion
 ## 1st age namesake
-## (ability 7/12 is Woven Themes)
+## (ability 7/9 is Woven Themes)
 
 N:3:of Tinfang Gelion
 I:40:10:2
@@ -216,7 +216,7 @@ W:12:20:1:5000
 P:0:0d0:0:0d0
 F:SONG
 F:INSTA_ART
-B:7/12
+B:7/9
 D:A delicate necklace traced with intricate designs.
 D: Clasping it around your neck fills you memories of
 D: great heroes and a desire to sing of their deeds.
@@ -1074,13 +1074,13 @@ D: did rive the rocks of Rodrim's hall.'
 ## The Glaive of the Sirion
 ## 1st age namesake
 ## (ability 3/4 is Opportunist)
-## (ability 0/9 is Zone of Control)
+## (ability 0/10 is Zone of Control)
 
 N:100:of the Sirion
 I:22:4:3
 W:10:20:70:50000
 P:0:2d10:1:0d0
-B:0/9:3/4
+B:0/10:3/4
 D:Like the waters of its namesake river, this fine blade
 D: is ever in motion. In combat, it seems to flow into
 D: every opening, no matter how brief.
@@ -1240,7 +1240,7 @@ D: to fight on, no matter the circumstances.
 ## Mithril Helm of Ecthelion
 ## 1st age
 ## added for Psi -- our first great smith
-## (ability 7/9 is Song of Staying)
+## (ability 7/12 is Song of Staying)
 
 N:123:of Ecthelion
 G:]:w
@@ -1248,7 +1248,7 @@ I:32:8:2
 W:16:12:40:25000
 P:1:0d0:-1:1d3
 F:SONG | RES_FIRE | RES_FEAR
-B:7/9
+B:7/12
 D:A beautiful helm, wrought of mithril and inlaid with white stones.
 D: It rises gracefully to a tall point as sharp as any spear. 
 
@@ -1284,14 +1284,14 @@ D: to the hoards of Angband, you cannot say.
 
 ## The Shadow Cloak of Luthien
 ## 1st age
-## (ability 7/10 is Song of Lorien)
+## (ability 7/14 is Song of Lorien)
 
 N:134:of Luthien
 I:35:6:4
 W:13:10:10:45000
 P:0:0d0:4:0d0
 F:STEALTH | DARKNESS | SUST_GRA
-B:7/10
+B:7/14
 D:A shadowy cloak, woven from soft elven-hair.
 D: It was made by Luthien Tinuviel, the most
 D: beautiful being who ever knew death.
@@ -1508,14 +1508,14 @@ D: who would one day forge the rings of power.
 
 
 ## The Set of Gloves of Rumil
-## (ability 0/7 is Subtlety)
+## (ability 0/8 is Subtlety)
 
 N:163:of Rumil
 I:31:1:1
 W:8:25:5:36000
 P:0:0d0:0:1d0
 F:GRA
-B:0/7
+B:0/8
 D:A supple pair of leather gloves.
 D: They lend you subtlety of hand and mind.
 

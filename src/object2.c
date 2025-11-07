@@ -358,6 +358,9 @@ int object_stack_limit(const object_type* o_ptr)
     if (o_ptr->tval == TV_POLEARM && o_ptr->sval == SV_SPEAR)
         return 5;
 
+    if (o_ptr->tval == TV_POLEARM && o_ptr->sval == SV_HAND_AXE)
+        return 3;
+
     if (o_ptr->tval == TV_ARROW)
         return 48;
 
@@ -3965,6 +3968,10 @@ bool make_object(object_type* j_ptr, bool good, bool great, int objecttype)
             j_ptr->number *= 2;
         }
 
+        /* Cap arrows to the quiver limit of 48 */
+        if (j_ptr->number > 48)
+            j_ptr->number = 48;
+
         break;
     }
 
@@ -5256,7 +5263,7 @@ bool inven_carry_okay(const object_type* o_ptr)
             return (true);
     }
 
-    if (k_info[o_ptr->k_idx].flags3 & (TR3_THROWING))
+    if (player_can_treat_as_throwing(o_ptr))
     {
         for (j = INVEN_QUIVER1; j <= INVEN_QUIVER2; j++)
         {
@@ -5361,7 +5368,7 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
     if (wants_throw_slot)
     {
         object_type* d_ptr = &inventory[desired_slot];
-        bool is_throwing = (k_info[o_ptr->k_idx].flags3 & (TR3_THROWING)) != 0;
+        bool is_throwing = player_can_treat_as_throwing(o_ptr);
 
         if (is_throwing)
         {
@@ -5516,7 +5523,10 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
     if (!inventory_type_slot_available(o_ptr, true))
         return (-1);
 
-    if (p_ptr->inven_cnt > INVEN_PACK)
+    /* Check if we have room, accounting for supplies */
+    bool supplies_present = (supplies_entry_count() > 0);
+    int logical_items = p_ptr->inven_cnt + (supplies_present ? 1 : 0);
+    if (logical_items >= INVEN_PACK)
         return (-1);
 
     /* Find an empty slot */

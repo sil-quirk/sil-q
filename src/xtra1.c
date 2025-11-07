@@ -167,7 +167,7 @@ extern int hand_and_a_half_bonus(const object_type* o_ptr) //XXX Hand and a half
         /* Maedhros house gets double the hand-and-a-half bonus */
         if (c_info[p_ptr->phouse].flags_u & UNQ_MEL_MAEDHROS)
         {
-            return (4);
+            return (3);
         }
         return (2);
     }
@@ -289,8 +289,15 @@ static void prt_field(cptr info, int row, int col)
     /* Dump 13 spaces to clear */
     c_put_str(TERM_WHITE, "             ", row, col);
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
     /* Dump the info itself */
     c_put_str(TERM_L_BLUE, info, row, col);
+    
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -299,31 +306,66 @@ static void prt_field(cptr info, int row, int col)
 static void prt_stat(int stat)
 {
     char tmp[32];
+    char trimmed_label[32];
+    const char* stat_label;
 
-    /* Display "injured" stat */
+    /* Get the stat name */
     if (p_ptr->stat_drain[stat] < 0)
     {
-        put_str(stat_names_reduced[stat], ROW_STAT + stat, 0);
-        cnv_stat(p_ptr->stat_use[stat], tmp);
-        c_put_str(TERM_YELLOW, tmp, ROW_STAT + stat, COL_STAT + 10);
+        stat_label = stat_names_reduced[stat];
     }
-
-    /* Display "healthy" stat */
     else
     {
-        put_str(stat_names[stat], ROW_STAT + stat, 0);
-        cnv_stat(p_ptr->stat_use[stat], tmp);
+        stat_label = stat_names[stat];
+    }
+    
+    /* Trim trailing spaces for story font rendering */
+    my_strcpy(trimmed_label, stat_label, sizeof(trimmed_label));
+    int len = strlen(trimmed_label);
+    while (len > 0 && trimmed_label[len-1] == ' ') {
+        trimmed_label[--len] = '\0';
+    }
+
+    log_trace("prt_stat: Rendering stat %d ('%s' trimmed to '%s')", stat, stat_label, trimmed_label);
+
+    /* Display stat name with story font */
+#ifdef USE_SDL
+    log_trace("prt_stat: Enabling story font for stat label");
+    sdl_story_font_enable();
+#endif
+
+    log_trace("prt_stat: Calling put_str('%s', %d, %d)", trimmed_label, ROW_STAT + stat, 0);
+    put_str(trimmed_label, ROW_STAT + stat, 0);
+
+#ifdef USE_SDL
+    int cursor_x, cursor_y;
+    Term_locate(&cursor_x, &cursor_y);
+    log_trace("prt_stat: After put_str, cursor at (%d, %d)", cursor_x, cursor_y);
+    log_trace("prt_stat: Disabling story font");
+    sdl_story_font_disable();
+#endif
+
+    /* Display stat value with monospace font */
+    cnv_stat(p_ptr->stat_use[stat], tmp);
+    log_trace("prt_stat: Calling c_put_str('%s', %d, %d) for stat value", tmp, ROW_STAT + stat, COL_STAT + 10);
+    if (p_ptr->stat_drain[stat] < 0)
+    {
+        c_put_str(TERM_YELLOW, tmp, ROW_STAT + stat, COL_STAT + 10);
+    }
+    else
+    {
         c_put_str(TERM_L_GREEN, tmp, ROW_STAT + stat, COL_STAT + 10);
     }
 
-    /* Indicate temporary modifiers */
+    /* Indicate temporary modifiers - clear first, then conditionally display */
+    put_str(" ", ROW_STAT + stat, 3);  /* Clear the position */
     if ((stat == A_STR) && p_ptr->tmp_str)
         put_str("*", ROW_STAT + stat, 3);
-    if ((stat == A_DEX) && p_ptr->tmp_dex)
+    else if ((stat == A_DEX) && p_ptr->tmp_dex)
         put_str("*", ROW_STAT + stat, 3);
-    if ((stat == A_CON) && p_ptr->tmp_con)
+    else if ((stat == A_CON) && p_ptr->tmp_con)
         put_str("*", ROW_STAT + stat, 3);
-    if ((stat == A_GRA) && p_ptr->tmp_gra)
+    else if ((stat == A_GRA) && p_ptr->tmp_gra)
         put_str("*", ROW_STAT + stat, 3);
 }
 
@@ -337,8 +379,16 @@ static void prt_exp(void)
 
     attr = TERM_L_GREEN;
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     /*Print experience label*/
     put_str("Exp ", ROW_EXP, 0);
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 
     comma_number(out_val, p_ptr->new_exp);
 
@@ -423,6 +473,153 @@ static void prt_arc(void)
 }
 
 /*
+ * Prints current quiver status (current/max for both quivers)
+ * Right-aligned to 12 character width, like other stats
+ * Same type: icon in middle between counts
+ * Different: icon before each count
+ */
+static void prt_quiver(void)
+{
+    char buf1[16];
+    char buf2[16];
+    object_type* q1_ptr = &inventory[INVEN_QUIVER1];
+    object_type* q2_ptr = &inventory[INVEN_QUIVER2];
+    int q1_current = 0;
+    int q1_max = 0;
+    int q2_current = 0;
+    int q2_max = 0;
+    bool same_type = false;
+    int total_width;
+    int start_col;
+
+    /* Clear the entire line (12 characters) */
+    Term_erase(COL_QUIVER, ROW_QUIVER, 12);
+
+    /* Get quiver 1 info */
+    if (q1_ptr->k_idx)
+    {
+        q1_current = q1_ptr->number;
+        q1_max = object_stack_limit(q1_ptr);
+    }
+
+    /* Get quiver 2 info */
+    if (q2_ptr->k_idx)
+    {
+        q2_current = q2_ptr->number;
+        q2_max = object_stack_limit(q2_ptr);
+    }
+
+    /* Check if both quivers have the same item type */
+    if (q1_ptr->k_idx && q2_ptr->k_idx)
+    {
+        if (q1_ptr->tval == q2_ptr->tval && q1_ptr->sval == q2_ptr->sval)
+        {
+            same_type = true;
+        }
+    }
+
+    /* Format the count strings */
+    strnfmt(buf1, sizeof(buf1), "%d/%d", q1_current, q1_max);
+    strnfmt(buf2, sizeof(buf2), "%d/%d", q2_current, q2_max);
+    
+    /* Calculate total width */
+    if (same_type)
+    {
+        /* Layout: "11/48[→][→]7/7" */
+        total_width = strlen(buf1) + (use_bigtile ? 2 : 2) + strlen(buf2);
+    }
+    else
+    {
+        /* Layout: "[|][|]11/48[/][/]7/7" */
+        total_width = 0;
+        if (q1_ptr->k_idx)
+            total_width += (use_bigtile ? 2 : 2) + strlen(buf1);
+        if (q2_ptr->k_idx)
+            total_width += (use_bigtile ? 2 : 2) + strlen(buf2);
+    }
+    
+    /* Right-align: start at column that makes it end at column 11 */
+    start_col = COL_QUIVER + 12 - total_width;
+    if (start_col < COL_QUIVER) start_col = COL_QUIVER;
+    
+    int col = start_col;
+
+    if (same_type)
+    {
+        /* Same type: counts with icon in middle */
+        byte attr = object_attr(q1_ptr);
+        char icon = object_char(q1_ptr);
+        
+        /* Q1 count */
+        Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf1);
+        col += strlen(buf1);
+        
+        /* Icon in middle */
+        Term_putch(col, ROW_QUIVER, attr, icon);
+        col++;
+        if (use_bigtile)
+        {
+            Term_putch(col, ROW_QUIVER, 255, -1);
+            col++;
+        }
+        else
+        {
+            Term_putch(col, ROW_QUIVER, attr, icon);
+            col++;
+        }
+        
+        /* Q2 count */
+        Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf2);
+    }
+    else
+    {
+        /* Different types: icon before each count */
+        if (q1_ptr->k_idx)
+        {
+            /* Q1: "[icon][icon]cur/max" */
+            byte attr = object_attr(q1_ptr);
+            char icon = object_char(q1_ptr);
+            Term_putch(col, ROW_QUIVER, attr, icon);
+            col++;
+            if (use_bigtile)
+            {
+                Term_putch(col, ROW_QUIVER, 255, -1);
+                col++;
+            }
+            else
+            {
+                Term_putch(col, ROW_QUIVER, attr, icon);
+                col++;
+            }
+            
+            Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf1);
+            col += strlen(buf1);
+        }
+        
+        if (q2_ptr->k_idx)
+        {
+            /* Q2: "[icon][icon]cur/max" */
+            byte attr = object_attr(q2_ptr);
+            char icon = object_char(q2_ptr);
+            Term_putch(col, ROW_QUIVER, attr, icon);
+            col++;
+            if (use_bigtile)
+            {
+                Term_putch(col, ROW_QUIVER, 255, -1);
+                col++;
+            }
+            else
+            {
+                Term_putch(col, ROW_QUIVER, attr, icon);
+                col++;
+            }
+            
+            Term_putstr(col, ROW_QUIVER, -1, TERM_L_WHITE, buf2);
+        }
+    }
+}
+
+/*
  * Prints current evn
  */
 static void prt_evn(void)
@@ -446,8 +643,11 @@ static void prt_evn(void)
 static void prt_hp(void)
 {
     char tmp[32];
-    int len;
     byte color;
+
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
 
     if (p_ptr->mhp >= 100)
     {
@@ -458,27 +658,68 @@ static void prt_hp(void)
         put_str("Health      ", ROW_HP, COL_HP);
     }
 
-    len = sprintf(tmp, "%d:%d", p_ptr->chp, p_ptr->mhp);
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 
-    c_put_str(TERM_L_GREEN, tmp, ROW_HP, COL_HP + 12 - len);
+    /* Get color for current HP */
+    color = health_attr(p_ptr->chp, p_ptr->mhp);
 
-    /* Done? */
-    if (p_ptr->chp >= p_ptr->mhp)
+    /* Calculate lengths for left (current) and right (max) parts */
+    int chp_len = sprintf(tmp, "%d", p_ptr->chp);
+    int mhp_len = sprintf(tmp, "%d", p_ptr->mhp);
+    int total_len = chp_len + 1 + mhp_len; /* +1 for the slash */
+
+    /* Print current HP in color */
+    sprintf(tmp, "%d", p_ptr->chp);
+    c_put_str(color, tmp, ROW_HP, COL_HP + 12 - total_len);
+
+    /* Print slash in green */
+    c_put_str(TERM_L_GREEN, "/", ROW_HP, COL_HP + 12 - total_len + chp_len);
+
+    /* Print max HP in green */
+    sprintf(tmp, "%d", p_ptr->mhp);
+    c_put_str(TERM_L_GREEN, tmp, ROW_HP, COL_HP + 12 - total_len + chp_len + 1);
+}
+
+/*
+ * Prints a small, monospace graphical health bar under the name.
+ * Uses 'x' characters up to 12 symbols to represent current HP proportionally.
+ * Colour matches health_attr() (green/yellow/red, etc).
+ */
+static void prt_char_health_graphic(void)
+{
+    char bar[13]; /* 12 symbols + NUL */
+    int max_symbols = 12;
+    int filled = 0;
+    byte color;
+
+    /* Clear the line first (12 chars) */
+    c_put_str(TERM_WHITE, "            ", ROW_NAME + 1, COL_NAME);
+
+    /* Defensive: avoid division by zero */
+    if (p_ptr->mhp <= 0)
         return;
 
-    if (p_ptr->chp > (p_ptr->mhp * op_ptr->hitpoint_warn) / 10)
-    {
-        color = TERM_YELLOW;
-    }
-    else
-    {
-        color = TERM_RED;
-    }
+    /* Scale current HP to number of symbols (ceiling) */
+    filled = (max_symbols * p_ptr->chp + p_ptr->mhp - 1) / p_ptr->mhp;
+    if (filled < 0)
+        filled = 0;
+    if (filled > max_symbols)
+        filled = max_symbols;
 
-    /* Show current hitpoints using another color */
-    sprintf(tmp, "%d", p_ptr->chp);
+    /* Build the bar using 'x' for filled and spaces for remainder */
+    for (int i = 0; i < filled; i++)
+        bar[i] = 'x';
+    for (int i = filled; i < max_symbols; i++)
+        bar[i] = ' ';
+    bar[max_symbols] = '\0';
 
-    c_put_str(color, tmp, ROW_HP, COL_HP + 12 - len);
+    /* Colour according to health */
+    color = health_attr(p_ptr->chp, p_ptr->mhp);
+
+    /* Print using a monospace field (no story font) */
+    c_put_str(color, format("%12s", bar), ROW_NAME + 1, COL_NAME);
 }
 
 static void prt_light(void)
@@ -568,10 +809,18 @@ static void prt_sp(void)
     byte color;
     int len;
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     if (p_ptr->msp >= 100)
         put_str("Vce         ", ROW_SP, COL_SP);
     else
         put_str("Voice       ", ROW_SP, COL_SP);
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 
     len = sprintf(tmp, "%d:%d", p_ptr->csp, p_ptr->msp);
 
@@ -610,6 +859,10 @@ static void prt_song(void)
     put_str("             ", ROW_SONG, COL_SONG);
     put_str("             ", ROW_SONG + 1, COL_SONG);
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     // show the first song
     if (p_ptr->song1 != SNG_NOTHING)
     {
@@ -621,6 +874,10 @@ static void prt_song(void)
     {
         c_put_str(TERM_BLUE, song2_name + 8, ROW_SONG + 1, COL_SONG);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -667,8 +924,16 @@ static void prt_depth(void)
             attr = TERM_BLUE;
     }
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     /* Right-Adjust the "depth", and clear old values */
     c_prt(attr, format("%7s", depths), ROW_DEPTH, COL_DEPTH);
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -676,6 +941,10 @@ static void prt_depth(void)
  */
 static void prt_hunger(void)
 {
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     /* Fainting / Starving */
     if (p_ptr->food < PY_FOOD_STARVE)
     {
@@ -710,6 +979,10 @@ static void prt_hunger(void)
     {
         c_put_str(TERM_GREEN, "Full    ", ROW_HUNGRY, COL_HUNGRY);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -717,6 +990,10 @@ static void prt_hunger(void)
  */
 static void prt_blind(void)
 {
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     if (p_ptr->blind)
     {
         c_put_str(TERM_ORANGE, "Blind", ROW_BLIND, COL_BLIND);
@@ -725,6 +1002,10 @@ static void prt_blind(void)
     {
         put_str("     ", ROW_BLIND, COL_BLIND);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -732,6 +1013,10 @@ static void prt_blind(void)
  */
 static void prt_confused(void)
 {
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     if (p_ptr->confused)
     {
         c_put_str(TERM_ORANGE, "Confused", ROW_CONFUSED, COL_CONFUSED);
@@ -740,6 +1025,10 @@ static void prt_confused(void)
     {
         put_str("        ", ROW_CONFUSED, COL_CONFUSED);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -747,6 +1036,10 @@ static void prt_confused(void)
  */
 static void prt_afraid(void)
 {
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     if (p_ptr->afraid)
     {
         c_put_str(TERM_ORANGE, "Afraid", ROW_AFRAID, COL_AFRAID);
@@ -755,6 +1048,10 @@ static void prt_afraid(void)
     {
         put_str("      ", ROW_AFRAID, COL_AFRAID);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -766,7 +1063,7 @@ static void prt_afraid(void)
 static void prt_cut(void)
 {
     int c = p_ptr->cut;
-    char buf[20];
+    char num_buf[8];
 
     int r = ROW_CUT;
 
@@ -775,24 +1072,46 @@ static void prt_cut(void)
 
     put_str("            ", ROW_CUT - 1, COL_CUT);
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     if (c > 100)
     {
         c_put_str(TERM_RED, "Mortal wound", r, COL_CUT);
     }
     else if (c > 20)
     {
-        sprintf(buf, "Bleeding %-2d", c);
-        c_put_str(TERM_RED, buf, r, COL_CUT);
+        c_put_str(TERM_RED, "Bleeding ", r, COL_CUT);
+#ifdef USE_SDL
+        sdl_story_font_disable();
+#endif
+        sprintf(num_buf, "%-2d", c);
+        c_put_str(TERM_RED, num_buf, r, COL_CUT + 9);
+#ifdef USE_SDL
+        sdl_story_font_enable();
+#endif
     }
     else if (c > 0)
     {
-        sprintf(buf, "Bleeding %-2d", c);
-        c_put_str(TERM_L_RED, buf, r, COL_CUT);
+        c_put_str(TERM_L_RED, "Bleeding ", r, COL_CUT);
+#ifdef USE_SDL
+        sdl_story_font_disable();
+#endif
+        sprintf(num_buf, "%-2d", c);
+        c_put_str(TERM_L_RED, num_buf, r, COL_CUT + 9);
+#ifdef USE_SDL
+        sdl_story_font_enable();
+#endif
     }
     else
     {
         put_str("            ", r, COL_CUT);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -801,22 +1120,44 @@ static void prt_cut(void)
 static void prt_poisoned(void)
 {
     int p = p_ptr->poisoned;
-    char buf[20];
+    char num_buf[8];
+
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
 
     if (p > 20)
     {
-        sprintf(buf, "Poisoned %-3d", p);
-        c_put_str(TERM_L_GREEN, buf, ROW_POISONED, COL_POISONED);
+        c_put_str(TERM_L_GREEN, "Poisoned ", ROW_POISONED, COL_POISONED);
+#ifdef USE_SDL
+        sdl_story_font_disable();
+#endif
+        sprintf(num_buf, "%-3d", p);
+        c_put_str(TERM_L_GREEN, num_buf, ROW_POISONED, COL_POISONED + 9);
+#ifdef USE_SDL
+        sdl_story_font_enable();
+#endif
     }
     else if (p > 0)
     {
-        sprintf(buf, "Poisoned %-3d", p);
-        c_put_str(TERM_GREEN, buf, ROW_POISONED, COL_POISONED);
+        c_put_str(TERM_GREEN, "Poisoned ", ROW_POISONED, COL_POISONED);
+#ifdef USE_SDL
+        sdl_story_font_disable();
+#endif
+        sprintf(num_buf, "%-3d", p);
+        c_put_str(TERM_GREEN, num_buf, ROW_POISONED, COL_POISONED + 9);
+#ifdef USE_SDL
+        sdl_story_font_enable();
+#endif
     }
     else
     {
         put_str("            ", ROW_POISONED, COL_POISONED);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -946,8 +1287,16 @@ static void prt_state(void)
         my_strcpy(text, "          ", sizeof(text));
     }
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     /* Display the info (or blanks) */
     c_put_str(attr, text, ROW_STATE, COL_STATE);
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -974,8 +1323,16 @@ static void prt_speed(void)
         sprintf(buf, "Slow");
     }
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     /* Display the speed */
     c_put_str(attr, format("%-4s", buf), ROW_SPEED, COL_SPEED);
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -983,6 +1340,10 @@ static void prt_speed(void)
  */
 static void prt_terrain(void)
 {
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
+
     if (cave_pit_bold(p_ptr->py, p_ptr->px))
     {
         c_put_str(TERM_ORANGE, "Pit", ROW_TERRAIN, COL_TERRAIN);
@@ -999,11 +1360,19 @@ static void prt_terrain(void)
     {
         put_str("        ", ROW_TERRAIN, COL_TERRAIN);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 static void prt_stun(void)
 {
     int s = p_ptr->stun;
+
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
 
     if (s > 100)
     {
@@ -1021,6 +1390,10 @@ static void prt_stun(void)
     {
         put_str("            ", ROW_STUN, COL_STUN);
     }
+
+#ifdef USE_SDL
+    sdl_story_font_disable();
+#endif
 }
 
 /*
@@ -1075,7 +1448,7 @@ byte health_attr(int current, int max)
     switch (health_level(current, max))
     {
     case HEALTH_UNHURT:
-        a = TERM_WHITE;
+        a = TERM_L_GREEN;
         break; // 100%
     case HEALTH_SOMEWHAT_WOUNDED:
         a = TERM_YELLOW;
@@ -1266,6 +1639,9 @@ static void prt_frame_basic(void)
         prt_field(op_ptr->full_name, ROW_NAME, COL_NAME);
     }
 
+    /* Small monospace health graphic under the name */
+    prt_char_health_graphic();
+
     /* Level/Experience */
     prt_exp();
 
@@ -1287,6 +1663,9 @@ static void prt_frame_basic(void)
 
     /* Archery */
     prt_arc();
+
+    /* Quiver */
+    prt_quiver();
 
     /* Evasion */
     prt_evn();
@@ -1575,7 +1954,7 @@ static void fix_monster(void)
 
         /* Display monster race info */
         if (p_ptr->monster_race_idx)
-            display_roff(p_ptr->monster_race_idx);
+            display_roff(p_ptr->monster_race_idx, NULL);
 
         /* Fresh */
         Term_fresh();
@@ -1663,24 +2042,24 @@ static void calc_hitpoints(void)
     int tmp;
 
     /* Get hitpoint value */
-    // 20 + a compounding 20% bonus per point of con
+    // 20 + a compounding 16% bonus per point of con, plus 5 HP flat bonus
 
     tmp = 20 * 100;
     if (p_ptr->stat_use[A_CON] >= 0)
     {
         for (i = 0; i < p_ptr->stat_use[A_CON]; i++)
         {
-            tmp = tmp * 12 / 10;
+            tmp = tmp * 116 / 100;
         }
     }
     else
     {
         for (i = 0; i < -(p_ptr->stat_use[A_CON]); i++)
         {
-            tmp = tmp * 10 / 12;
+            tmp = tmp * 100 / 116;
         }
     }
-    mhp = tmp / 100;
+    mhp = tmp / 100 + 5;
 
     /* New maximum hitpoints */
     if (p_ptr->mhp != mhp)
@@ -1993,12 +2372,12 @@ void calc_torch(void)
     p_ptr->update |= (PU_UPDATE_VIEW);
     p_ptr->update |= (PU_MONSTERS);
 
-    /* Apply light-related meta-run curses */
+    /* Apply light radius curses/blessings */
     {
         int r = curse_flag_count_cur(CUR_LIGHTR);
 
-        /* radius penalty: −1 per stack, never below zero */
-        if (r)
+        /* radius penalty/bonus: +/-1 per stack, never below zero */
+        if (r != 0)
             p_ptr->cur_light = MAX(0, p_ptr->cur_light - r);
     }
 
@@ -2051,6 +2430,79 @@ int affinity_level(int skilltype)
     return level;
 }
 
+/*
+ * Calculate the minstrel bonus for song abilities.
+ * Unlike affinity_level, this is uncapped and only affects ability costs.
+ * It does not provide skill increases.
+ */
+int minstrel_level(void)
+{
+    int level = 0;
+
+    /* Check for MINSTREL unique flag */
+    if (hp_ptr->flags_u & UNQ_MINSTREL) level++;
+
+    /* Include curse flags (similar to affinity) */
+    level += curse_flag_count_rhf(RHF_SNG_AFFINITY);
+    level -= curse_flag_count_rhf(RHF_SNG_PENALTY);
+
+    /* No cap - can go beyond 2 */
+    return level;
+}
+
+static bool songs_are_synergy_pair(byte song_a, byte song_b)
+{
+    static const byte synergy_pairs[][2] = {
+        { SNG_ELBERETH,  SNG_TREES },
+        { SNG_ELBERETH,  SNG_STAUNCHING },
+        { SNG_CHALLENGE, SNG_SLAYING },
+        { SNG_DELVINGS,  SNG_REVEALING },
+        { SNG_FREEDOM,   SNG_ELVENESS },
+        { SNG_STAYING,   SNG_CONTEST },
+        { SNG_STAYING,   SNG_LAMENT },
+        { SNG_SILENCE,   SNG_DISGUISE },
+        { SNG_SILENCE,   SNG_LORIEN },
+        { SNG_SHATTERING, SNG_MASTERY },
+    };
+
+    if ((song_a == SNG_NOTHING) || (song_b == SNG_NOTHING))
+        return false;
+
+    for (size_t i = 0; i < N_ELEMENTS(synergy_pairs); i++)
+    {
+        if ((song_a == synergy_pairs[i][0] && song_b == synergy_pairs[i][1])
+            || (song_a == synergy_pairs[i][1] && song_b == synergy_pairs[i][0]))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static int song_synergy_bonus(byte abilitynum, int full_skill)
+{
+    int synergy = 0;
+    byte partner = SNG_NOTHING;
+
+    if (full_skill <= 0)
+        return 0;
+
+    if (p_ptr->song1 == abilitynum)
+        partner = p_ptr->song2;
+    else if (p_ptr->song2 == abilitynum)
+        partner = p_ptr->song1;
+    else
+        return 0;
+
+    if (!songs_are_synergy_pair(abilitynum, partner))
+        return 0;
+
+    synergy = (full_skill + 2) / 5;
+
+    return synergy;
+}
+
 int ability_bonus(int skilltype, int abilitynum)
 {
     int bonus = 0;
@@ -2058,9 +2510,31 @@ int ability_bonus(int skilltype, int abilitynum)
 
     if (skilltype == S_SNG)
     {
-        // penalize minor themes
-        if (p_ptr->song1 != abilitynum)
-            skill /= 2;
+        const int full_skill = skill;
+
+        // penalize minor themes - check if this ability is the minor theme
+        // UNLESS the character has the WOVEN_MASTER flag (Daeron)
+        if ((p_ptr->song2 == abilitynum) && (p_ptr->song1 != abilitynum))
+        {
+            if (!(c_info[p_ptr->phouse].flags_u & UNQ_WOVEN_MASTER))
+                skill /= 2;
+        }
+
+        // Song of Silence dampens other songs when woven together
+        // EXCEPT for Disguise and Lorien (its synergy pairs)
+        // This dampening is applied BEFORE synergy bonus
+        if (singing(SNG_SILENCE) && (abilitynum != SNG_SILENCE)
+            && (abilitynum != SNG_DISGUISE) && (abilitynum != SNG_LORIEN))
+        {
+            // Calculate Silence bonus directly to avoid recursion
+            int silence_skill = p_ptr->skill_use[S_SNG] / 2;
+            int silence_penalty = silence_skill / 2;
+            skill -= silence_penalty;
+            if (skill < 0) skill = 0;
+        }
+
+        // woven theme synergy pairs grant an extra 20% of base song skill
+        skill += song_synergy_bonus(abilitynum, full_skill);
 
         switch (abilitynum)
         {
@@ -2094,6 +2568,11 @@ int ability_bonus(int skilltype, int abilitynum)
             bonus = skill;
             break;
         }
+        case SNG_REVEALING:
+        {
+            bonus = skill;
+            break;
+        }
         case SNG_THRESHOLDS:
         {
             bonus = skill;
@@ -2104,14 +2583,24 @@ int ability_bonus(int skilltype, int abilitynum)
             bonus = skill / 5;
             break;
         }
+        case SNG_ELVENESS:
+        {
+            bonus = skill;
+            break;
+        }
+        case SNG_DISGUISE:
+        {
+            bonus = skill + 5;
+            break;
+        }
         case SNG_STAYING:
         {
-            bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_HURIN) ? 2 : 1) * skill; 
+            bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_FIN) ? 2 : 1) * skill; 
             break;
         }
         case SNG_SLAYING:
         {
-            bonus = skill * 2;
+            bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_HURIN) ? 2 : 1) * skill * 2;
             break;
         }
         case SNG_LORIEN:
@@ -2122,6 +2611,21 @@ int ability_bonus(int skilltype, int abilitynum)
         case SNG_MASTERY:
         {
             bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_THINGOL) ? 2 : 1) * skill;
+            break;
+        }
+        case SNG_SHATTERING:
+        {
+            bonus = skill;
+            break;
+        }
+        case SNG_CONTEST:
+        {
+            bonus = skill;
+            break;
+        }
+        case SNG_LAMENT:
+        {
+            bonus = skill;
             break;
         }
         }
@@ -2160,10 +2664,16 @@ int weight_limit(void)
         }
     }
 
-    int max = curse_flag_count_cur(CUR_WEAK);
-    for (i = 0; i < max; i++) limit*=0.8;
-
-    // if (any_curse_flag_active(CUR_WEAK)) return (limit*0.8);
+    /* CUR_WEAK curse reduces weight limit by 20% per stack */
+    /* Blessing increases weight limit by 20% per stack */
+    int weak_stacks = curse_flag_count_cur(CUR_WEAK);
+    if (weak_stacks > 0) {
+        /* Curse: reduce by 20% per stack */
+        for (i = 0; i < weak_stacks; i++) limit *= 0.8;
+    } else if (weak_stacks < 0) {
+        /* Blessing: increase by 20% per stack */
+        for (i = 0; i < -weak_stacks; i++) limit *= 1.2;
+    }
 
     /* Return the result */
     return (limit);
@@ -2430,8 +2940,7 @@ static void calc_bonuses(void)
 
         bool is_quiver1 = (i == INVEN_QUIVER1);
         bool is_quiver2 = (i == INVEN_QUIVER2);
-        bool is_throwing_item
-            = (k_info[o_ptr->k_idx].flags3 & (TR3_THROWING)) != 0;
+        bool is_throwing_item = player_can_treat_as_throwing_flags(o_ptr, f3);
 
         bool throwing_quiver = is_quiver2 && is_throwing_item;
 
@@ -2638,6 +3147,9 @@ static void calc_bonuses(void)
     if (p_ptr->active_ability[S_SNG][SNG_GRA])
         p_ptr->stat_misc_mod[A_GRA]++;
 
+    if (singing(SNG_ELVENESS))
+        p_ptr->stat_misc_mod[A_GRA]++;
+
     if (p_ptr->active_ability[S_WIL][WIL_STRENGTH_IN_ADVERSITY])
     {
         // if <= 50% health, give a bonus to strength and grace
@@ -2805,10 +3317,36 @@ static void calc_bonuses(void)
         p_ptr->hunger -= 1;
     }
 
-    /* CUR_HUNGER curse: each stack adds +1 to hunger rate (3x, 9x, 27x scaling) */
+    /* Meta-run curses/blessings adjusting resistances */
+    {
+        int shift;
+
+        shift = curse_flag_delta_cur(CUR_RES_FEAR_SHIFT);
+        if (shift) p_ptr->resist_fear -= shift;
+
+        shift = curse_flag_delta_cur(CUR_RES_STUN_SHIFT);
+        if (shift) p_ptr->resist_stun -= shift;
+
+        shift = curse_flag_delta_cur(CUR_RES_CONFU_SHIFT);
+        if (shift) p_ptr->resist_confu -= shift;
+
+        shift = curse_flag_delta_cur(CUR_RES_HALLU_SHIFT);
+        if (shift) p_ptr->resist_hallu -= shift;
+
+        shift = curse_flag_delta_cur(CUR_RES_POIS_SHIFT);
+        if (shift) p_ptr->resist_pois -= shift;
+
+        shift = curse_flag_delta_cur(CUR_RES_FIRE_SHIFT);
+        if (shift) p_ptr->resist_fire -= shift;
+
+        shift = curse_flag_delta_cur(CUR_RES_COLD_SHIFT);
+        if (shift) p_ptr->resist_cold -= shift;
+    }
+
+    /* CUR_HUNGER curse/blessing: curse increases hunger, blessing decreases it */
     {
         int h = curse_flag_count_cur(CUR_HUNGER);
-        if (h) p_ptr->hunger += h;
+        if (h != 0) p_ptr->hunger += h;
     }
 
     // Mandos' Doom special ability grants immunity to fear, hallucination,
@@ -2974,6 +3512,12 @@ static void calc_bonuses(void)
             case SNG_TREES:
                 song_noise += 4;
                 break;
+            case SNG_ELVENESS:
+                song_noise += 6;
+                break;
+            case SNG_DISGUISE:
+                song_noise += 6;
+                break;
             case SNG_THRESHOLDS:
                 song_noise += 4;
                 break;
@@ -3041,6 +3585,11 @@ static void calc_bonuses(void)
         + p_ptr->skill_misc_mod[S_SNG];
 
     // Apply song effects that modify skills
+    if (singing(SNG_ELVENESS))
+    {
+        int song_skill = ability_bonus(S_SNG, SNG_ELVENESS);
+        p_ptr->skill_misc_mod[S_EVN] += 1 + song_skill / 7;
+    }
     if (singing(SNG_STAYING))
     {
         if (c_info[p_ptr->phouse].flags_u & UNQ_SNG_FIN) p_ptr->skill_misc_mod[S_WIL] += ability_bonus(S_SNG, SNG_STAYING);
@@ -3140,6 +3689,23 @@ static void calc_bonuses(void)
 
         p_ptr->mdd2 = total_mdd(o_ptr);
         p_ptr->mds2 = total_mds(o_ptr, -3);
+    }
+
+    /* Meta-run curse adjusting melee damage sides */
+    {
+        int shift = curse_flag_delta_cur(CUR_MDS_SHIFT);
+        if (shift != 0) {
+            if (p_ptr->mds > 0) {
+                int adjusted = p_ptr->mds - shift;
+                if (adjusted < 1) adjusted = 1;
+                p_ptr->mds = adjusted;
+            }
+            if (p_ptr->mds2 > 0) {
+                int adjusted2 = p_ptr->mds2 - shift;
+                if (adjusted2 < 1) adjusted2 = 1;
+                p_ptr->mds2 = adjusted2;
+            }
+        }
     }
 
     /* Entrancement or being knocked out sets total evasion score to -5 */
@@ -3614,7 +4180,7 @@ void redraw_stuff(void)
     {
         p_ptr->redraw &= ~(PR_BASIC);
         p_ptr->redraw &= ~(PR_STATS);
-        p_ptr->redraw &= ~(PR_MEL | PR_EXP | PR_ARC);
+        p_ptr->redraw &= ~(PR_MEL | PR_EXP | PR_ARC | PR_QUIVER);
         p_ptr->redraw &= ~(PR_ARMOR | PR_HP | PR_VOICE | PR_SONG | PR_LIGHT);
         p_ptr->redraw &= ~(PR_DEPTH | PR_HEALTHBAR);
         p_ptr->redraw &= ~(PR_RESIST);
@@ -3660,6 +4226,12 @@ void redraw_stuff(void)
         prt_arc();
     }
 
+    if (p_ptr->redraw & (PR_QUIVER))
+    {
+        p_ptr->redraw &= ~(PR_QUIVER);
+        prt_quiver();
+    }
+
     if (p_ptr->redraw & (PR_ARMOR))
     {
         p_ptr->redraw &= ~(PR_ARMOR);
@@ -3679,6 +4251,9 @@ void redraw_stuff(void)
         {
             lite_spot(p_ptr->py, p_ptr->px);
         }
+
+        /* Also update the monospace character health graphic */
+        prt_char_health_graphic();
     }
 
     if (p_ptr->redraw & (PR_VOICE))
@@ -3839,8 +4414,13 @@ void window_stuff(void)
     /* Display equipment */
     if (p_ptr->window & (PW_EQUIP))
     {
+        log_debug("window_stuff: PW_EQUIP flag set, calling fix_equip()");
         p_ptr->window &= ~(PW_EQUIP);
         fix_equip();
+        log_debug("window_stuff: fix_equip() completed");
+        
+        /* Also trigger quiver redraw since quiver is part of equipment */
+        p_ptr->redraw |= (PR_QUIVER);
     }
 
     /* Display player (mode 0) */

@@ -24,6 +24,18 @@ static void p_text_out(cptr str)
     text_out(str);
 }
 
+/* Color-coded text output for object descriptions */
+static void p_text_out_c(byte attr, cptr str)
+{
+    if (new_paragraph)
+    {
+        text_out("\n\n   ");
+        new_paragraph = false;
+    }
+
+    text_out_c(attr, str);
+}
+
 static void output_list(cptr list[], int n)
 {
     int i;
@@ -45,6 +57,30 @@ static void output_list(cptr list[], int n)
                 p_text_out(conjunction);
         }
         p_text_out(list[i]);
+    }
+}
+
+/* Colored version of output_list */
+static void output_list_c(cptr list[], int n, byte attr)
+{
+    int i;
+
+    char* conjunction = "and ";
+    if (n < 0)
+    {
+        n = -n;
+        conjunction = "or ";
+    }
+
+    for (i = 0; i < n; i++)
+    {
+        if (i != 0)
+        {
+            p_text_out((i == 1 && i == n - 1) ? " " : ", ");
+            if (i == n - 1)
+                p_text_out(conjunction);
+        }
+        p_text_out_c(attr, list[i]);
     }
 }
 
@@ -92,20 +128,26 @@ static bool describe_stats(const object_type* o_ptr, u32b f1)
     /* Shorten to "all stats", if appropriate. */
     if (cnt == A_MAX)
     {
-        p_text_out(format("It %s all your stats",
-            (o_ptr->pval >= 0 ? "increases" : "decreases")));
+        p_text_out("It ");
+        p_text_out_c(o_ptr->pval >= 0 ? TERM_GREEN : TERM_L_RED,
+            (o_ptr->pval >= 0 ? "increases" : "decreases"));
+        p_text_out(" all your stats");
     }
     else
     {
-        p_text_out(format(
-            "It %s your ", (o_ptr->pval >= 0 ? "increases" : "decreases")));
+        p_text_out("It ");
+        p_text_out_c(o_ptr->pval >= 0 ? TERM_GREEN : TERM_L_RED,
+            (o_ptr->pval >= 0 ? "increases" : "decreases"));
+        p_text_out(" your ");
 
         /* Output list */
         output_list(descs, cnt);
     }
 
     /* Output end */
-    p_text_out(format(" by %i.  ", pval));
+    p_text_out(" by ");
+    p_text_out_c(TERM_UMBER, format("%i", pval));
+    p_text_out(".  ");
 
     /* We found something */
     return (true);
@@ -193,14 +235,18 @@ static bool describe_secondary(const object_type* o_ptr, u32b f1)
         return (false);
 
     /* Start */
-    p_text_out(
-        format("It %s your ", (o_ptr->pval >= 0 ? "improves" : "worsens")));
+    p_text_out("It ");
+    p_text_out_c(o_ptr->pval >= 0 ? TERM_GREEN : TERM_L_RED,
+        (o_ptr->pval >= 0 ? "improves" : "worsens"));
+    p_text_out(" your ");
 
     /* Output list */
     output_list(descs, cnt);
 
     /* Output end */
-    p_text_out(format(" by %i.  ", pval));
+    p_text_out(" by ");
+    p_text_out_c(TERM_UMBER, format("%i", pval));
+    p_text_out(".  ");
 
     /* We found something */
     return (true);
@@ -244,16 +290,20 @@ static bool describe_slay(const object_type* o_ptr, u32b f1)
         if (o_ptr->number == 1)
         {
             /* Output intro */
-            p_text_out("It slays ");
+            p_text_out("It ");
+            p_text_out_c(TERM_L_RED, "slays");
+            p_text_out(" ");
         }
         else
         {
             /* Output intro */
-            p_text_out("They slay ");
+            p_text_out("They ");
+            p_text_out_c(TERM_L_RED, "slay");
+            p_text_out(" ");
         }
 
-        /* Output list */
-        output_list(slays, slcnt);
+        /* Output list in red */
+        output_list_c(slays, slcnt, TERM_ORANGE);
 
         /* Output end */
         p_text_out(".  ");
@@ -269,30 +319,67 @@ static bool describe_slay(const object_type* o_ptr, u32b f1)
 static bool describe_brand(const object_type* o_ptr, u32b f1)
 {
     cptr descs[5];
+    byte colors[5];  /* Corresponding colors for each brand */
     int cnt = 0;
 
     /* Unused parameter */
     (void)o_ptr;
 
-    /* Collect brands */
+    /* Collect brands with element-specific colors */
     if (f1 & (TR1_BRAND_ELEC))
-        descs[cnt++] = "lightning";
-    if (f1 & (TR1_BRAND_FIRE))
-        descs[cnt++] = "flame";
-    if (f1 & (TR1_BRAND_COLD))
-        descs[cnt++] = "frost";
-    if (f1 & (TR1_BRAND_POIS))
-        descs[cnt++] = "venom";
-
-    if (o_ptr->number == 1)
     {
-        /* Describe brands */
-        output_desc_list("It is branded with ", descs, cnt);
+        descs[cnt] = "lightning";
+        colors[cnt] = TERM_YELLOW;  /* Yellow for lightning */
+        cnt++;
     }
-    else
+    if (f1 & (TR1_BRAND_FIRE))
     {
-        /* Describe brands */
-        output_desc_list("They are branded with ", descs, cnt);
+        descs[cnt] = "flame";
+        colors[cnt] = TERM_L_RED;  /* Light red for fire */
+        cnt++;
+    }
+    if (f1 & (TR1_BRAND_COLD))
+    {
+        descs[cnt] = "frost";
+        colors[cnt] = TERM_L_BLUE;  /* Light blue for cold */
+        cnt++;
+    }
+    if (f1 & (TR1_BRAND_POIS))
+    {
+        descs[cnt] = "venom";
+        colors[cnt] = TERM_GREEN;  /* Green for poison */
+        cnt++;
+    }
+
+    /* Describe brands with colors */
+    if (cnt)
+    {
+        int i;
+        
+        if (o_ptr->number == 1)
+        {
+            p_text_out("It is ");
+            p_text_out_c(TERM_ORANGE, "branded");
+            p_text_out(" with ");
+        }
+        else
+        {
+            p_text_out("They are ");
+            p_text_out_c(TERM_ORANGE, "branded");
+            p_text_out(" with ");
+        }
+        
+        for (i = 0; i < cnt; i++)
+        {
+            if (i != 0)
+            {
+                p_text_out((i == 1 && i == cnt - 1) ? " " : ", ");
+                if (i == cnt - 1)
+                    p_text_out("and ");
+            }
+            p_text_out_c(colors[i], descs[i]);
+        }
+        p_text_out(".  ");
     }
 
     /* We are done here */
@@ -355,36 +442,95 @@ static bool describe_misc_weapon_attributes(
 static bool describe_resist(const object_type* o_ptr, u32b f2)
 {
     cptr vp[17];
+    byte colors[17];  /* Corresponding colors for each resistance */
     int vn = 0;
 
     /* Unused parameter */
     (void)o_ptr;
 
-    /* Collect resistances */
+    /* Collect resistances with element-specific colors */
     if (f2 & (TR2_RES_COLD))
-        vp[vn++] = "cold";
+    {
+        vp[vn] = "cold";
+        colors[vn] = TERM_L_BLUE;  /* Light blue for cold */
+        vn++;
+    }
     if (f2 & (TR2_RES_FIRE))
-        vp[vn++] = "fire";
+    {
+        vp[vn] = "fire";
+        colors[vn] = TERM_L_RED;  /* Light red for fire */
+        vn++;
+    }
     if (f2 & (TR2_RES_ELEC))
-        vp[vn++] = "lightning";
+    {
+        vp[vn] = "lightning";
+        colors[vn] = TERM_YELLOW;  /* Yellow for lightning */
+        vn++;
+    }
     if (f2 & (TR2_RES_POIS))
-        vp[vn++] = "poison";
+    {
+        vp[vn] = "poison";
+        colors[vn] = TERM_GREEN;  /* Green for poison */
+        vn++;
+    }
     if (f2 & (TR2_RES_BLEED))
-        vp[vn++] = "bleeding";
+    {
+        vp[vn] = "bleeding";
+        colors[vn] = TERM_RED;  /* Red for bleeding */
+        vn++;
+    }
 
     if (f2 & (TR2_RES_FEAR))
-        vp[vn++] = "fear";
+    {
+        vp[vn] = "fear";
+        colors[vn] = TERM_VIOLET;  /* Violet for fear */
+        vn++;
+    }
     if (f2 & (TR2_RES_BLIND))
-        vp[vn++] = "blindness";
+    {
+        vp[vn] = "blindness";
+        colors[vn] = TERM_L_DARK;  /* Dark for blindness */
+        vn++;
+    }
     if (f2 & (TR2_RES_CONFU))
-        vp[vn++] = "confusion";
+    {
+        vp[vn] = "confusion";
+        colors[vn] = TERM_VIOLET;  /* Violet for confusion */
+        vn++;
+    }
     if (f2 & (TR2_RES_STUN))
-        vp[vn++] = "stunning";
+    {
+        vp[vn] = "stunning";
+        colors[vn] = TERM_ORANGE;  /* Orange for stunning */
+        vn++;
+    }
     if (f2 & (TR2_RES_HALLU))
-        vp[vn++] = "hallucination";
+    {
+        vp[vn] = "hallucination";
+        colors[vn] = TERM_VIOLET;  /* Violet for hallucination */
+        vn++;
+    }
 
-    /* Describe resistances */
-    output_desc_list("It provides resistance to ", vp, vn);
+    /* Describe resistances with colors */
+    if (vn)
+    {
+        int i;
+        p_text_out("It provides ");
+        p_text_out_c(TERM_L_BLUE, "resistance");
+        p_text_out(" to ");
+        
+        for (i = 0; i < vn; i++)
+        {
+            if (i != 0)
+            {
+                p_text_out((i == 1 && i == vn - 1) ? " " : ", ");
+                if (i == vn - 1)
+                    p_text_out("and ");
+            }
+            p_text_out_c(colors[i], vp[i]);
+        }
+        p_text_out(".  ");
+    }
 
     /* We are done here */
     return (vn ? true : false);
@@ -396,21 +542,52 @@ static bool describe_resist(const object_type* o_ptr, u32b f2)
 static bool describe_vulnerability(const object_type* o_ptr, u32b f2)
 {
     cptr vp[17];
+    byte colors[17];  /* Corresponding colors for each vulnerability */
     int vn = 0;
 
     /* Unused parameter */
     (void)o_ptr;
 
-    /* Collect vaulnerabilities */
+    /* Collect vulnerabilities with element-specific colors */
     if (f2 & (TR2_VUL_COLD))
-        vp[vn++] = "cold";
+    {
+        vp[vn] = "cold";
+        colors[vn] = TERM_L_BLUE;  /* Light blue for cold */
+        vn++;
+    }
     if (f2 & (TR2_VUL_FIRE))
-        vp[vn++] = "fire";
+    {
+        vp[vn] = "fire";
+        colors[vn] = TERM_L_RED;  /* Light red for fire */
+        vn++;
+    }
     if (f2 & (TR2_VUL_POIS))
-        vp[vn++] = "poison";
+    {
+        vp[vn] = "poison";
+        colors[vn] = TERM_GREEN;  /* Green for poison */
+        vn++;
+    }
 
-    /* Describe resistances */
-    output_desc_list("It makes you more vulnerable to ", vp, vn);
+    /* Describe vulnerabilities with colors */
+    if (vn)
+    {
+        int i;
+        p_text_out("It makes you more ");
+        p_text_out_c(TERM_RED, "vulnerable");
+        p_text_out(" to ");
+        
+        for (i = 0; i < vn; i++)
+        {
+            if (i != 0)
+            {
+                p_text_out((i == 1 && i == vn - 1) ? " " : ", ");
+                if (i == vn - 1)
+                    p_text_out("and ");
+            }
+            p_text_out_c(colors[i], vp[i]);
+        }
+        p_text_out(".  ");
+    }
 
     /* We are done here */
     return (vn ? true : false);
@@ -597,21 +774,23 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
     if (cursed_p(o_ptr))
     {
         if (f3 & (TR3_PERMA_CURSE))
-            bad[bc++] = "is permanently cursed";
+            bad[bc++] = "permanently cursed";
         else if (f3 & (TR3_HEAVY_CURSE))
-            bad[bc++] = "is heavily cursed";
+            bad[bc++] = "heavily cursed";
         else if (object_known_p(o_ptr))
-            bad[bc++] = "is cursed";
+            bad[bc++] = "cursed";
     }
 
     /* Describe */
     if (gc)
     {
         /* Output intro */
-        p_text_out("It grants you ");
+        p_text_out("It ");
+        p_text_out_c(TERM_L_BLUE, "grants");
+        p_text_out(" you ");
 
-        /* Output list */
-        output_list(good, gc);
+        /* Output list in light blue */
+        output_list_c(good, gc, TERM_L_BLUE);
 
         /* Output end (if needed) */
         if (!bc)
@@ -625,9 +804,107 @@ static bool describe_misc_magic(const object_type* o_ptr, u32b f2, u32b f3)
             p_text_out(", but it also ");
         else
             p_text_out("It ");
+        
+        /* Check if any curse-related items */
+        bool has_curse = false;
+        int i;
+        for (i = 0; i < bc; i++)
+        {
+            if (strstr(bad[i], "cursed"))
+            {
+                has_curse = true;
+                break;
+            }
+        }
 
-        /* Output list */
-        output_list(bad, bc);
+        /* Output list in red for bad effects, violet for curses */
+        if (has_curse)
+        {
+            /* Special handling for curse descriptions */
+            for (i = 0; i < bc; i++)
+            {
+                if (i != 0)
+                {
+                    p_text_out((i == 1 && i == bc - 1) ? " " : ", ");
+                    if (i == bc - 1)
+                        p_text_out("and ");
+                }
+                
+                /* Color curse-related text in violet */
+                if (strstr(bad[i], "cursed"))
+                {
+                    if (strstr(bad[i], "permanently"))
+                    {
+                        p_text_out("is ");
+                        p_text_out_c(TERM_VIOLET, "permanently cursed");
+                    }
+                    else if (strstr(bad[i], "heavily"))
+                    {
+                        p_text_out("is ");
+                        p_text_out_c(TERM_VIOLET, "heavily cursed");
+                    }
+                    else
+                    {
+                        p_text_out("is ");
+                        p_text_out_c(TERM_VIOLET, "cursed");
+                    }
+                }
+                else
+                {
+                    /* Color darkness in dark gray/violet */
+                    if (strstr(bad[i], "darkness"))
+                    {
+                        p_text_out("creates an unnatural ");
+                        p_text_out_c(TERM_L_DARK, "darkness");
+                    }
+                    /* Color fear/panic in violet */
+                    else if (strstr(bad[i], "panic"))
+                    {
+                        p_text_out("causes you to ");
+                        p_text_out_c(TERM_VIOLET, "panic");
+                        p_text_out(" in combat");
+                    }
+                    /* Default red for other bad effects */
+                    else
+                    {
+                        p_text_out_c(TERM_L_RED, bad[i]);
+                    }
+                }
+            }
+        }
+        else
+        {
+            /* No curses, handle special coloring for bad effects */
+            int i;
+            for (i = 0; i < bc; i++)
+            {
+                if (i != 0)
+                {
+                    p_text_out((i == 1 && i == bc - 1) ? " " : ", ");
+                    if (i == bc - 1)
+                        p_text_out("and ");
+                }
+                
+                /* Color darkness in dark gray */
+                if (strstr(bad[i], "darkness"))
+                {
+                    p_text_out("creates an unnatural ");
+                    p_text_out_c(TERM_L_DARK, "darkness");
+                }
+                /* Color fear/panic in violet */
+                else if (strstr(bad[i], "panic"))
+                {
+                    p_text_out("causes you to ");
+                    p_text_out_c(TERM_VIOLET, "panic");
+                    p_text_out(" in combat");
+                }
+                /* Default red for other bad effects */
+                else
+                {
+                    p_text_out_c(TERM_L_RED, bad[i]);
+                }
+            }
+        }
 
         /* Output end */
         p_text_out(".  ");
@@ -767,12 +1044,17 @@ static bool describe_abilities(const object_type* o_ptr)
     {
         /* Output intro */
         if (ac == 1)
-            p_text_out("It grants you the ability: ");
+            p_text_out("It ");
         else
-            p_text_out("It grants you the abilities: ");
+            p_text_out("It ");
+        
+        p_text_out_c(TERM_L_BLUE, "grants");
+        p_text_out(" you the ");
+        p_text_out_c(TERM_L_BLUE, (ac == 1 ? "ability" : "abilities"));
+        p_text_out(": ");
 
-        /* Output list */
-        output_list(ability, ac);
+        /* Output list in light blue */
+        output_list_c(ability, ac, TERM_VIOLET);
 
         /* Output end (if needed) */
         p_text_out(".  ");
@@ -833,6 +1115,134 @@ static bool describe_archery(const object_type* o_ptr)
 }
 
 /*
+ * Describe weapon damage with current strength modifiers
+ */
+static bool describe_weapon_damage(const object_type* o_ptr)
+{
+    byte base_dd, base_ds, actual_dd, actual_ds;
+    u32b f1, f2, f3;
+    bool is_melee = false;
+    bool is_bow = false;
+    bool is_hand_and_half = false;
+    
+    /* Check if this is a melee weapon */
+    if (o_ptr->tval == TV_SWORD || o_ptr->tval == TV_POLEARM 
+        || o_ptr->tval == TV_HAFTED || o_ptr->tval == TV_DIGGING)
+    {
+        is_melee = true;
+    }
+    /* Check if this is a bow */
+    else if (o_ptr->tval == TV_BOW)
+    {
+        is_bow = true;
+    }
+    else
+    {
+        return (false);
+    }
+
+    /* Get object flags to check for hand-and-a-half */
+    object_flags(o_ptr, &f1, &f2, &f3);
+    is_hand_and_half = (f3 & TR3_HAND_AND_A_HALF) ? true : false;
+
+    if (is_melee)
+    {
+        /* Calculate melee damage with current strength */
+        base_dd = o_ptr->dd;
+        base_ds = o_ptr->ds;
+        actual_dd = total_mdd(o_ptr);
+        actual_ds = total_mds(o_ptr, 0);
+
+        /* Special handling for hand-and-a-half weapons */
+        if (is_hand_and_half)
+        {
+            int hand_half_bonus_equipped = hand_and_a_half_bonus(o_ptr);
+            int hand_half_bonus_potential;
+            int one_handed_ds_int, two_handed_ds_int;
+            byte one_handed_ds, two_handed_ds;
+            bool is_currently_equipped = (&inventory[INVEN_WIELD] == o_ptr);
+            
+            /* Determine potential hand-and-a-half bonus (when wielded two-handed) */
+            if (c_info[p_ptr->phouse].flags_u & UNQ_MEL_MAEDHROS)
+            {
+                hand_half_bonus_potential = 3;
+            }
+            else
+            {
+                hand_half_bonus_potential = 2;
+            }
+            
+            if (is_currently_equipped)
+            {
+                /* For equipped weapons, use actual current damage */
+                one_handed_ds_int = (int)actual_ds - hand_half_bonus_equipped;
+                one_handed_ds = (one_handed_ds_int < 0) ? 0 : (byte)one_handed_ds_int;
+                two_handed_ds = actual_ds;
+            }
+            else
+            {
+                /* For unequipped weapons, calculate hypothetical damage */
+                /* One-handed: base + strength (capped by weight), no hand-and-half bonus */
+                one_handed_ds_int = (int)actual_ds;
+                one_handed_ds = (one_handed_ds_int < 0) ? 0 : (byte)one_handed_ds_int;
+                
+                /* Two-handed: base + strength (capped by weight) + hand-and-half bonus */
+                two_handed_ds_int = (int)actual_ds + hand_half_bonus_potential;
+                two_handed_ds = (two_handed_ds_int < 0) ? 0 : (byte)two_handed_ds_int;
+            }
+
+            /* Show distinction between one-handed and two-handed */
+            if (base_dd != actual_dd || base_ds != one_handed_ds || base_ds != two_handed_ds)
+            {
+                p_text_out(format(
+                    "It does %dd%d damage (%dd%d one-handed, %dd%d two-handed with your current strength and abilities).",
+                    base_dd, base_ds, actual_dd, one_handed_ds, actual_dd, two_handed_ds));
+            }
+            else
+            {
+                p_text_out(format("It does %dd%d damage.", base_dd, base_ds));
+            }
+        }
+        else
+        {
+            /* Regular melee weapons */
+            if (base_dd != actual_dd || base_ds != actual_ds)
+            {
+                p_text_out(format(
+                    "It does %dd%d damage (%dd%d with your current strength and abilities).",
+                    base_dd, base_ds, actual_dd, actual_ds));
+            }
+            else
+            {
+                p_text_out(format("It does %dd%d damage.", base_dd, base_ds));
+            }
+        }
+    }
+    else if (is_bow)
+    {
+        /* Calculate bow damage with current strength */
+        base_dd = o_ptr->dd;
+        base_ds = o_ptr->ds;
+        actual_dd = o_ptr->dd;  /* Bow dice don't change */
+        actual_ds = total_ads(o_ptr);
+
+        /* Show complete bow+arrow damage */
+        if (base_ds != actual_ds)
+        {
+            p_text_out(format(
+                "It shoots arrows for %dd%d damage (%dd%d with your current strength).",
+                base_dd, base_ds, actual_dd, actual_ds));
+        }
+        else
+        {
+            p_text_out(format("It shoots arrows for %dd%d damage.", base_dd, base_ds));
+        }
+    }
+
+    return (true);
+}
+
+/*
  * Output object information
  */
 bool object_info_out(const object_type* o_ptr)
@@ -882,6 +1292,8 @@ bool object_info_out(const object_type* o_ptr)
         something = true;
     if (describe_archery(o_ptr))
         something = true;
+    if (describe_weapon_damage(o_ptr))
+        something = true;
 
     /* We are done. */
     return something;
@@ -910,8 +1322,24 @@ static bool screen_out_head(const object_type* o_ptr)
 
     log_trace("screen_out_head: About to print object name at current position");
     
+    /* Use same color logic as inventory/equipment displays */
+    byte base_color;
+    
+    /* Determine base color from item type */
+    if (weapon_glows(o_ptr))
+    {
+        base_color = TERM_L_BLUE;
+    }
+    else
+    {
+        base_color = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+    }
+    
+    /* Apply artifact/shade coloring using the same function as inventory */
+    byte name_color = object_display_color(o_ptr, base_color);
+    
     /* Print, in colour */
-    text_out_c(TERM_YELLOW, format("%^s", o_name));
+    text_out_c(name_color, format("%^s", o_name));
 
     /* Show weight information */
     {

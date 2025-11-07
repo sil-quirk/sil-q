@@ -1,6 +1,6 @@
 # File: style.txt
 # Versioned like other edit files
-V:0.8.9
+V:0.9.0
 
 # Sections
 # - Styles: N:/G:/W:/Y:/F:/D: define tile coordinates per style.
@@ -208,6 +208,7 @@ N:22:FireRust3 #Rivets1
 W:16:20
 #Y:18:6
 F:23:0 23:12
+D:0:10 20:6 20:9 20:12 20:15 20:18 20:21
 M:The heat lessens, and the plates have cooled to a dark, tempered crimson. It is the colour of iron quenched in the blood of the children of Gondolin.
 M:A sense of grim satisfaction hangs in the air, the quiet after a great and terrible work is done. A weapon has been forged, and its sleeping malice poisons the chamber.
 M:Though cooler, the walls radiate a deep and abiding menace. This is the tempered steel of ruin, waiting for the day it will be carried into the light to lay a kingdom low.

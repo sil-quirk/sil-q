@@ -57,5 +57,7 @@ typedef uint16_t u16b;
 
 typedef int32_t s32b;
 typedef uint32_t u32b;
+typedef int64_t s64b;
+typedef uint64_t u64b;
 
 #endif /* INCLUDED_H_TYPE_H */

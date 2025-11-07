@@ -286,7 +286,7 @@
 
 # Version stamp (required)
 
-V:0.8.9
+V:0.9.0
 
 
 ##### Non-race (contains the player picture) #####
@@ -392,6 +392,7 @@ B:HIT:HURT:(+12,1d6)
 B:WHIP:DISARM:(+8,1d4)
 F:MALE | OPEN_DOOR | BASH_DOOR | SPECIAL_GEN
 F:ORC | HURT_LITE | SMART | UNLOCK_DOOR | TERRITORIAL
+F:HAS_WEAPON | HAS_ARMOUR
 D:He is one of Morgoth's grim mockeries of the firstborn.
 D: Clad in tattered leather, he wields a cudgel and a whip.
 
@@ -464,6 +465,7 @@ P:[+3,1d4]
 B:HIT:HURT:(+2,2d6)
 F:MALE | DROP_33 | OPEN_DOOR
 F:ORC | HURT_LITE | SMART | FRIEND
+F:HAS_WEAPON | HAS_ARMOUR
 D:He is one of Morgoth's grim mockeries of the firstborn.
 D: He has little armour but carries a cruel blade.
 
@@ -505,6 +507,7 @@ P:[+4,1d4]
 B:HIT:HURT:(+3,1d10)
 F:MALE | DROP_33 | OPEN_DOOR | UNLOCK_DOOR
 F:ORC | HURT_LITE | SMART
+F:HAS_WEAPON | HAS_ARMOUR
 S:SPELL_PCT_20
 S:SHRIEK
 D:He is one of Morgoth's grim mockeries of the firstborn.
@@ -552,6 +555,7 @@ P:[+3,2d4]
 B:HIT:HURT:(+3,2d7)
 F:MALE | FRIENDS | DROP_33 | OPEN_DOOR | BASH_DOOR
 F:ORC | HURT_LITE | SMART
+F:HAS_WEAPON | HAS_ARMOUR
 D:He is one of Morgoth's grim mockeries of the firstborn.
 D: He is arrayed in black leathers with a crude sword and
 D: shield: a soldier in the dark hosts of Bauglir.
@@ -609,6 +613,7 @@ P:[+4,1d4]
 B:HIT:HURT:(+5,2d5)
 F:MALE | FRIENDS | DROP_33 | OPEN_DOOR | BASH_DOOR
 F:ORC | HURT_LITE | SMART
+F:HAS_WEAPON | HAS_ARMOUR
 S:SPELL_PCT_75 | POW_6
 S:ARROW1
 D:He is one of Morgoth's grim mockeries of the firstborn.
@@ -668,6 +673,7 @@ P:[+5,2d4]
 B:HIT:HURT:(+3,3d6)
 F:MALE | DROP_33 | OPEN_DOOR | BASH_DOOR
 F:ORC | HURT_LITE | FRIEND | SMART
+F:HAS_WEAPON | HAS_ARMOUR
 F:CHARGE
 D:He is one of Morgoth's grim mockeries of the firstborn.
 D: He wears hardened leathers and runs towards you with axe in hand.
@@ -818,6 +824,7 @@ P:[+5,3d4]
 B:HIT:HURT:(+6,3d8)
 F:MALE | DROP_100 | OPEN_DOOR | BASH_DOOR
 F:ORC | HURT_LITE | SMART
+F:HAS_WEAPON | HAS_ARMOUR
 D:A champion of the orc hordes. He wears well-fitting armour and
 D: wields a battle axe.
 
@@ -892,6 +899,7 @@ P:[+7,3d4]
 B:HIT:HURT:(+10,2d8)
 F:MALE | ESCORT | DROP_1D2 | OPEN_DOOR | BASH_DOOR
 F:ORC | HURT_LITE | SMART | UNLOCK_DOOR |
+F:HAS_WEAPON | HAS_ARMOUR
 S:SPELL_PCT_5 | POW_10 | RALLY
 D:An armoured orc that walks with confidence. His curved blade
 D: has many notches along its edge.
@@ -949,6 +957,7 @@ B:HIT:HURT:(+12,3d10)
 F:UNIQUE | MALE | ESCORT
 F:DROP_1D2 | DROP_GOOD | OPEN_DOOR | BASH_DOOR | ORC
 F:HURT_LITE | SMART
+F:HAS_WEAPON | HAS_ARMOUR
 S:SPELL_PCT_5 | POW_14 | RALLY
 D:The chief champion of the orcs of Morgoth.
 
@@ -1024,6 +1033,7 @@ B:WHIP:DISARM:(+12,2d4)
 F:UNIQUE | MALE | ESCORTS | SMART
 F:DROP_1D2 | DROP_GREAT | OPEN_DOOR | BASH_DOOR | ORC
 F:HURT_LITE | UNLOCK_DOOR
+F:HAS_WEAPON | HAS_ARMOUR
 S:SPELL_PCT_5 | POW_16 | RALLY
 D:The cruelty in the eyes of this massive orc belies
 D: the intelligence that has kept him a favourite
@@ -1091,6 +1101,7 @@ A:15:1:0:7
 P:[+5,1d4]
 B:HIT:HURT:(+6,4d9)
 F:DROP_100 | OPEN_DOOR | BASH_DOOR | SMART
+F:HAS_WEAPON | HAS_ARMOUR
 S:SPELL_PCT_15 | POW_6
 S:BOULDER
 D:As tall as three men, this hulking opponent is crudely
@@ -1228,6 +1239,7 @@ B:HIT:FIRE:(+20,2d12)
 B:WHIP:DISARM:(+14,3d6)
 F:UNIQUE | MALE | SMART | GLOW
 F:DROP_1D2 | DROP_100 | DROP_GREAT
+F:HAS_WEAPON | HAS_ARMOUR
 F:NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
 D:The Valaraukar, demons of power, are among the mightiest
@@ -1304,6 +1316,7 @@ A:15:5:0:10
 P:[+9,1d4]
 B:HIT:COLD:(+10,4d11)
 F:DROP_1D2 | DROP_GOOD | OPEN_DOOR | BASH_DOOR
+F:HAS_WEAPON | HAS_ARMOUR
 F:RES_COLD
 F:UNIQUE | MALE | SMART
 S:SPELL_PCT_20 | POW_10
@@ -1371,6 +1384,7 @@ B:HIT:FIRE:(+20,3d10)
 B:WHIP:DISARM:(+16,3d8)
 F:UNIQUE | MALE | SMART | GLOW
 F:DROP_1D2 | DROP_100 | DROP_GREAT
+F:HAS_WEAPON | HAS_ARMOUR
 F:NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
 S:SPELL_PCT_20
@@ -1388,6 +1402,7 @@ A:15:5:0:11
 P:[+11,1d4]
 B:HIT:HURT:(+15,3d15)
 F:DROP_1D2 | DROP_GOOD | DROP_CHOSEN | OPEN_DOOR | BASH_DOOR
+F:HAS_WEAPON | HAS_ARMOUR
 F:UNIQUE | MALE | SMART
 S:SPELL_PCT_10 | POW_12
 S:BOULDER
@@ -1564,6 +1579,7 @@ B:HIT:FIRE:(+22,2d14)
 B:WHIP:DISARM:(+18,3d8)
 F:UNIQUE | MALE | SMART | GLOW
 F:DROP_1D2 | DROP_100 | DROP_GREAT
+F:HAS_WEAPON | HAS_ARMOUR
 F:NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
 D:A fell fiery figure, great wings of shadow unfolding around
@@ -1803,6 +1819,7 @@ B:HIT:FIRE:(+24,2d16)
 B:WHIP:DISARM:(+20,3d8)
 F:UNIQUE | MALE | SMART | GLOW
 F:DROP_1D2 | DROP_100 | DROP_GREAT
+F:HAS_WEAPON | HAS_ARMOUR
 F:ESCORTS | NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
 D:All of the Balrogs are held among the mighty of Angband and
@@ -1843,6 +1860,7 @@ B:HIT:BATTER:(+18,4d8)
 F:FRIENDS | DROP_33 | REGENERATE | NO_FEAR
 F:OPEN_DOOR | BASH_DOOR | TROLL | HURT_LITE | SMART
 F:KNOCK_BACK
+F:HAS_WEAPON | HAS_ARMOUR
 D:The very largest and toughest of the trolls are
 D: taken into the train of Gothmog. They are trained
 D: for war and given dark armour and great vicious weapons.
@@ -2015,6 +2033,7 @@ B:HIT:FIRE:(+28,3d14)
 B:WHIP:DISARM:(+22,3d8)
 F:UNIQUE | MALE | SMART | GLOW
 F:DROP_1D2 | DROP_100 | DROP_GREAT
+F:HAS_WEAPON | HAS_ARMOUR
 F:NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
 D:A huge man-like shape, cloaked in flame and darkness both. He swings
@@ -2179,6 +2198,7 @@ B:HIT:FIRE:(+28,2d18)
 B:WHIP:DISARM:(+24,3d10)
 F:UNIQUE | MALE | SMART | GLOW
 F:DROP_1D2 | DROP_100 | DROP_GREAT
+F:HAS_WEAPON | HAS_ARMOUR
 F:NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
 S:SPELL_PCT_10 | POW_14
@@ -2276,6 +2296,7 @@ B:HIT:FIRE:(+32,3d14)
 B:WHIP:DISARM:(+26,3d10)
 F:UNIQUE | MALE | SMART | GLOW
 F:DROP_1D2 | DROP_100 | DROP_GREAT
+F:HAS_WEAPON | HAS_ARMOUR
 F:NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
 D:Gothmog is the High Captain of Angband and Morgoth's personal guard.  He is
@@ -2357,13 +2378,14 @@ D: eyes.
 ##### 25 #####
 
 # Morgoth is a very special monster (thus the QUESTOR flag).
-# Values when angered:
-# Level,      Evasion, Armour, Attack, Damage,  Will, Perception
-# Starting,   20,      5d4,    20,     6d10,    25,   10
-# Decrowned,  22,      5d4,    20,     6d10,    25,   15
-# Hurt,       25,      5d4,    30,     7d10,    30,   20
-# Badly Hurt, 25,      7d4,    30,     7d10,    35,   25
-# Desperate,  30,      7d4,    40,     8d10,    40,   30
+# Values by state (Starting + 1-5; 6 total):
+# Level,                  Evasion, Armour, Attack, Damage,  Will, Perception
+# Starting,               20,      5d4,    20,     6d10,    25,   10
+# 1 - Angry (Decrowned),  22,      5d4,    20,     6d10,    25,   15
+# 2 - Enraged,            25,      5d4,    30,     7d10,    30,   20
+# 3 - Furious,            25,      7d4,    30,     7d10,    35,   25
+# 4 - Apoplectic,         30,      7d4,    40,     8d10,    40,   30
+# 5 - Desperate,          40,      9d4,    60,     10d10,   50,   40
 
 N:251:Morgoth, Lord of Darkness
 W:25:1

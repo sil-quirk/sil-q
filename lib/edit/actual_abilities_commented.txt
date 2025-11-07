@@ -1,17 +1,18 @@
 C:0:0  # Power
 C:0:1  # Finesse
 C:0:2  # Knock Back
-C:0:3  # Polearm Mastery
-C:0:4  # Charge
-C:0:5  # Follow-Through
-C:0:6  # Impale
-C:0:7  # Subtlety
-C:0:8  # Whirlwind Attack
-C:0:9  # Zone of Control
-C:0:10  # Smite
-C:0:11  # Two Weapon Fighting
-C:0:12  # Rapid Attack
-C:0:13  # Strength
+C:0:3  # Throwing
+C:0:4  # Polearm Mastery
+C:0:5  # Charge
+C:0:6  # Follow-Through
+C:0:7  # Impale
+C:0:8  # Subtlety
+C:0:9  # Whirlwind Attack
+C:0:10  # Zone of Control
+C:0:11  # Smite
+C:0:12  # Two Weapon Fighting
+C:0:13  # Rapid Attack
+C:0:14  # Strength
 C:1:0  # Rout
 C:1:1  # Fletchery
 C:1:2  # Point Blank Archery
@@ -76,9 +77,13 @@ C:7:4  # Song of Silence
 C:7:5  # Song of Staunching
 C:7:6  # Song of Thresholds
 C:7:7  # Song of the Trees
-C:7:8  # Song of Slaying
-C:7:9  # Song of Staying
-C:7:10  # Song of Lorien
-C:7:11  # Song of Mastery
-C:7:12  # Woven Themes
-C:7:13  # Grace
+C:7:8  # Song of Revealing
+C:7:9  # Woven Themes
+C:7:10  # Song of Slaying
+C:7:11  # Song of Elveness
+C:7:12  # Song of Staying
+C:7:13  # Song of Disguise
+C:7:14  # Song of Lorien
+C:7:15  # Song of Shattering
+C:7:16  # Song of Mastery
+C:7:17  # Grace

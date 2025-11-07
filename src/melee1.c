@@ -116,6 +116,7 @@ extern int protection_roll(int typ, bool melee)
     int prt = 0;
     int mult = 1;
     int armour_weight = 0;
+    int side_shift = curse_flag_delta_cur(CUR_ARMOR_SIDE_SHIFT);
 
     // things that always count:
 
@@ -149,7 +150,12 @@ extern int protection_roll(int typ, bool melee)
                 }
                 if (o_ptr->pd > 0)
                 {
-                    prt += damroll(o_ptr->pd * mult, o_ptr->ps);
+                    int sides = o_ptr->ps;
+                    if (side_shift && sides > 0) {
+                        sides -= side_shift;
+                        if (sides < 1) sides = 1;
+                    }
+                    prt += damroll(o_ptr->pd * mult, sides);
                 }
             }
         }
@@ -161,7 +167,12 @@ extern int protection_roll(int typ, bool melee)
         {
             if (o_ptr->ps > 0)
             {
-                prt += damroll(o_ptr->pd, o_ptr->ps);
+                int sides = o_ptr->ps;
+                if (side_shift && sides > 0) {
+                    sides -= side_shift;
+                    if (sides < 1) sides = 1;
+                }
+                prt += damroll(o_ptr->pd, sides);
             }
         }
     }
@@ -169,7 +180,8 @@ extern int protection_roll(int typ, bool melee)
     // heavy armour bonus
     if (p_ptr->active_ability[S_EVN][EVN_HEAVY_ARMOUR] && (typ == GF_HURT))
     {
-        prt += damroll(1, armour_weight / 150);
+        /* Use Xd1 (fixed X) instead of 1dX (random 1..X) */
+        prt += damroll(armour_weight / 150, 1);
     }
 
     return prt;
@@ -237,8 +249,8 @@ extern int p_min(int typ, bool melee)
     // heavy armour bonus
     if (p_ptr->active_ability[S_EVN][EVN_HEAVY_ARMOUR] && (typ == GF_HURT))
     {
-        if (armour_weight / 150 > 0)
-            prt += 1;
+        /* With Xd1 the minimum equals X, so add the full value */
+        prt += armour_weight / 150;
     }
 
     return prt;
@@ -254,6 +266,7 @@ extern int p_max(int typ, bool melee)
     int prt = 0;
     int armour_weight = 0;
     int mult = 1;
+    int side_shift = curse_flag_delta_cur(CUR_ARMOR_SIDE_SHIFT);
 
     // things that always count:
 
@@ -287,7 +300,12 @@ extern int p_max(int typ, bool melee)
                 }
                 if (o_ptr->pd > 0)
                 {
-                    prt += o_ptr->pd * mult * o_ptr->ps;
+                    int sides = o_ptr->ps;
+                    if (side_shift && sides > 0) {
+                        sides -= side_shift;
+                        if (sides < 1) sides = 1;
+                    }
+                    prt += o_ptr->pd * mult * sides;
                 }
             }
         }
@@ -298,7 +316,12 @@ extern int p_max(int typ, bool melee)
         {
             if (o_ptr->ps > 0)
             {
-                prt += o_ptr->pd * o_ptr->ps;
+                int sides = o_ptr->ps;
+                if (side_shift && sides > 0) {
+                    sides -= side_shift;
+                    if (sides < 1) sides = 1;
+                }
+                prt += o_ptr->pd * sides;
             }
         }
     }
@@ -542,6 +565,9 @@ bool make_attack_normal(monster_type* m_ptr)
     if (r_ptr->flags1 & (RF1_NEVER_BLOW))
         return (false);
 
+    if (m_idx > 0)
+        song_disguise_note_monster_attack(m_idx);
+
     /* Get the monster name (or "it") */
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 
@@ -597,6 +623,22 @@ bool make_attack_normal(monster_type* m_ptr)
         int att = r_ptr->blow[b].att;
         int dd = r_ptr->blow[b].dd;
         int ds = r_ptr->blow[b].ds;
+        int dd_reduction = m_ptr->blow_dd_reduction[b];
+        int ds_reduction = m_ptr->blow_ds_reduction[b];
+        if (dd > 0 && dd_reduction > 0)
+        {
+            if (dd_reduction >= dd)
+                dd = 1;
+            else
+                dd = MAX(1, dd - dd_reduction);
+        }
+        if (ds > 0 && ds_reduction > 0)
+        {
+            if (ds_reduction >= ds)
+                ds = 1;
+            else
+                ds = MAX(1, ds - ds_reduction);
+        }
 
         /* Hack -- no more attacks */
         // if (!method) break;  // Sil-y: not needed as this is no longer a loop
@@ -780,7 +822,7 @@ bool make_attack_normal(monster_type* m_ptr)
             /* Determine critical-hit bonus dice (if any) */
             // treats attack a weapon weighing 2 pounds per damage die
             crit_bonus_dice = crit_bonus(
-                hit_result, 20 * dd, &r_info[0], S_MEL, false, m_ptr);
+                hit_result, 20 * dd, &r_info[0], S_MEL, false, m_ptr, NULL);
 
             /* Determine elemental attack bonus dice (if any)  */
             elem_bonus_dice = elem_bonus(effect);
@@ -3291,7 +3333,7 @@ static void draw_combat_roll_line(int row, int base_col_offset,
         roll->attacker_attr, roll->attacker_char, 0, 0);
     if (use_bigtile && !graphics_are_ascii())
     {
-        if (roll->attacker_attr & 0x80)
+        if ((roll->attacker_attr & 0x80) && ((byte)roll->attacker_char & 0x80))
             Term_queue_char(base_col_offset + 2, row, 255, -1, 0, 0);
         else
             Term_queue_char(base_col_offset + 2, row, TERM_WHITE, ' ', 0, 0);
@@ -3353,7 +3395,7 @@ static void draw_combat_roll_line(int row, int base_col_offset,
             roll->defender_attr, roll->defender_char, 0, 0);
         if (use_bigtile && !graphics_are_ascii())
         {
-            if (roll->defender_attr & 0x80)
+            if ((roll->defender_attr & 0x80) && ((byte)roll->defender_char & 0x80))
                 Term_queue_char(col + 1, row, 255, -1, 0, 0);
             else
                 Term_queue_char(col + 1, row, TERM_WHITE, ' ', 0, 0);
@@ -3455,7 +3497,7 @@ static void draw_combat_roll_line(int row, int base_col_offset,
             roll->defender_attr, roll->defender_char, 0, 0);
         if (use_bigtile && !graphics_are_ascii())
         {
-            if (roll->defender_attr & 0x80)
+            if ((roll->defender_attr & 0x80) && ((byte)roll->defender_char & 0x80))
                 Term_queue_char(col + 1, row, 255, -1, 0, 0);
             else
                 Term_queue_char(col + 1, row, TERM_WHITE, ' ', 0, 0);
@@ -3756,10 +3798,17 @@ void do_cmd_combat_history(void)
             if (col >= 0) Term_putstr(col, line_y, 1, TERM_WHITE, " ");
             col += 1;
             if (col >= 0) {
-                Term_putstr(col, line_y, 1, roll->attacker_attr, "");
-                Term_addch(roll->attacker_attr, roll->attacker_char);
+                Term_queue_char(col, line_y, roll->attacker_attr, roll->attacker_char, 0, 0);
+                if (use_bigtile && !graphics_are_ascii())
+                {
+                    if ((roll->attacker_attr & 0x80) && ((byte)roll->attacker_char & 0x80))
+                        Term_queue_char(col + 1, line_y, 255, -1, 0, 0);
+                    else
+                        Term_queue_char(col + 1, line_y, TERM_WHITE, ' ', 0, 0);
+                }
             }
             col += 1;
+            if (use_bigtile && !graphics_are_ascii()) col += 1;
             
             /* Attack roll section */
             if (roll->att_type == COMBAT_ROLL_ROLL) {
@@ -3805,10 +3854,17 @@ void do_cmd_combat_history(void)
                 if (col >= 0) Term_putstr(col, line_y, 1, TERM_WHITE, " ");
                 col += 1;
                 if (col >= 0) {
-                    Term_putstr(col, line_y, 1, roll->defender_attr, "");
-                    Term_addch(roll->defender_attr, roll->defender_char);
+                    Term_queue_char(col, line_y, roll->defender_attr, roll->defender_char, 0, 0);
+                    if (use_bigtile && !graphics_are_ascii())
+                    {
+                        if ((roll->defender_attr & 0x80) && ((byte)roll->defender_char & 0x80))
+                            Term_queue_char(col + 1, line_y, 255, -1, 0, 0);
+                        else
+                            Term_queue_char(col + 1, line_y, TERM_WHITE, ' ', 0, 0);
+                    }
                 }
                 col += 1;
+                if (use_bigtile && !graphics_are_ascii()) col += 1;
                 
                 /* Damage section (only if hit) */
                 if (net_att > 0) {
@@ -3856,10 +3912,17 @@ void do_cmd_combat_history(void)
                 if (col >= 0) Term_putstr(col, line_y, 1, TERM_WHITE, " ");
                 col += 1;
                 if (col >= 0) {
-                    Term_putstr(col, line_y, 1, roll->defender_attr, "");
-                    Term_addch(roll->defender_attr, roll->defender_char);
+                    Term_queue_char(col, line_y, roll->defender_attr, roll->defender_char, 0, 0);
+                    if (use_bigtile && !graphics_are_ascii())
+                    {
+                        if ((roll->defender_attr & 0x80) && ((byte)roll->defender_char & 0x80))
+                            Term_queue_char(col + 1, line_y, 255, -1, 0, 0);
+                        else
+                            Term_queue_char(col + 1, line_y, TERM_WHITE, ' ', 0, 0);
+                    }
                 }
                 col += 1;
+                if (use_bigtile && !graphics_are_ascii()) col += 1;
                 
                 /* Damage section */
                 if (col >= 0) Term_putstr(col, line_y, -1, TERM_L_DARK, "  ->");

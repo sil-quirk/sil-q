@@ -3990,7 +3990,7 @@ static int breakage_chance(const object_type* o_ptr, bool hit_wall)
             p = 100;
     }
     // Unless they hit a wall, items designed for throwing won't break
-    else if (k_info[o_ptr->k_idx].flags3 & (TR3_THROWING))
+    else if (player_can_treat_as_throwing(o_ptr))
     {
         p = 0;
     }
@@ -4228,7 +4228,7 @@ void do_cmd_fire(int quiver)
 
     /* Determine whether the item should be thrown directly */
     object_flags(o_ptr, &f1, &f2, &f3);
-    if (f3 & (TR3_THROWING))
+    if (player_can_treat_as_throwing_flags(o_ptr, f3))
     {
         do_cmd_throw_from_slot(item);
         return;
@@ -4597,7 +4597,7 @@ void do_cmd_fire(int quiver)
 
                     /* Add 'critical hit' dice based on bow weight */
                     crit_bonus_dice = crit_bonus(
-                        hit_result, j_ptr->weight, r_ptr, S_ARC, false, NULL);
+                        hit_result, j_ptr->weight, r_ptr, S_ARC, false, NULL, NULL);
 
                     if (f3 & TR3_CUMBERSOME)
                     {
@@ -4639,7 +4639,16 @@ void do_cmd_fire(int quiver)
                         total_ds = 0;
 
                     dam = damroll(total_dd, total_ds);
-                    prt = damroll(r_ptr->pd, r_ptr->ps);
+                    
+                    /* Apply armor dice/sides curses/blessings */
+                    int armor_dice_base = r_ptr->pd - m_ptr->song_armor_dice_penalty;
+                    if (armor_dice_base < 0)
+                        armor_dice_base = 0;
+                    int armor_dice = armor_dice_base + curse_flag_count_cur(CUR_MON_ARM_DICE);
+                    int armor_sides = monster_base_armour_sides(m_ptr) + curse_flag_count_cur(CUR_MON_ARM_SIDE);
+                    if (armor_dice < 0) armor_dice = 0;
+                    if (armor_sides < 1) armor_sides = 1;
+                    prt = damroll(armor_dice, armor_sides);
 
                     prt = (prt * prt_percent) / 100;
 
@@ -4705,8 +4714,8 @@ void do_cmd_fire(int quiver)
                     if (net_dam < 0)
                         net_dam = 0;
 
-                    update_combat_rolls2(total_dd, total_ds, dam, r_ptr->pd,
-                        r_ptr->ps, prt, prt_percent, GF_HURT, false);
+                    update_combat_rolls2(total_dd, total_ds, dam, armor_dice,
+                        armor_sides, prt, prt_percent, GF_HURT, false);
 
                     // hit the monster, check for death
                     p_ptr->killed_enemy_with_arrow = mon_take_hit(
@@ -4854,7 +4863,7 @@ void do_cmd_fire(int quiver)
     /* Monsters might notice */
     player_attacked = true;
 
-    p_ptr->redraw |= (PR_ARC);
+    p_ptr->redraw |= (PR_ARC | PR_QUIVER);
 
     // provoke attacks of opportunity
     if (p_ptr->active_ability[S_ARC][ARC_POINT_BLANK])
@@ -5063,6 +5072,7 @@ void do_cmd_throw(bool automatic)
 
     bool hit_body = false;
     bool hit_wall = false;
+    bool treat_as_throwing = false;
 
     int missed_monsters = 0;
 
@@ -5111,7 +5121,7 @@ void do_cmd_throw(bool automatic)
             /* Extract the item flags */
             object_flags(o_ptr, &f1, &f2, &f3);
 
-            if (f3 & (TR3_THROWING))
+            if (player_can_treat_as_throwing_flags(o_ptr, f3))
             {
                 item = i;
                 found = true;
@@ -5230,6 +5240,13 @@ void do_cmd_throw(bool automatic)
             o_ptr = &o_list[0 - item];
     }
 
+    /* If we're throwing from equipment (including quivers), set redraw flag */
+    bool throwing_from_equipment = (original_slot >= INVEN_WIELD);
+    if (throwing_from_equipment && (original_slot == INVEN_QUIVER1 || original_slot == INVEN_QUIVER2))
+    {
+        p_ptr->redraw |= (PR_QUIVER);
+    }
+
     /* Start at the player */
     y = p_ptr->py;
     x = p_ptr->px;
@@ -5336,6 +5353,7 @@ void do_cmd_throw(bool automatic)
     /* Find the color and symbol for the object for throwing */
     missile_attr = object_attr(i_ptr);
     missile_char = object_char(i_ptr);
+    treat_as_throwing = player_can_treat_as_throwing_flags(i_ptr, f3);
 
     attack_mod = p_ptr->skill_use[S_MEL] + i_ptr->att;
 
@@ -5346,7 +5364,7 @@ void do_cmd_throw(bool automatic)
     attack_mod -= polearm_bonus(&inventory[INVEN_WIELD]);
 
     /* Weapons that are not good for throwing are much less accurate */
-    if (!(f3 & (TR3_THROWING)))
+    if (!treat_as_throwing)
     {
         attack_mod -= 5;
     }
@@ -5354,6 +5372,9 @@ void do_cmd_throw(bool automatic)
     // give people their weapon affinity bonuses if the weapon is thrown
     attack_mod += axe_bonus(i_ptr);
     attack_mod += polearm_bonus(i_ptr);
+
+    if (p_ptr->active_ability[S_MEL][MEL_THROWING] && treat_as_throwing)
+        attack_mod += 1;
 
     /* Take a turn */
     p_ptr->energy_use = 100;
@@ -5451,6 +5472,11 @@ void do_cmd_throw(bool automatic)
             // Determine the player's attack score after all modifiers
             int stealth_bonus = stealth_melee_bonus(m_ptr, true);
             total_attack_mod = total_player_attack(m_ptr, attack_mod + stealth_bonus);
+            if (p_ptr->active_ability[S_MEL][MEL_THROWING] && treat_as_throwing)
+            {
+                int dist = distance(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx);
+                total_attack_mod += dist / 10;
+            }
 
             /* Monsters might notice */
             player_attacked = true;
@@ -5524,7 +5550,7 @@ void do_cmd_throw(bool automatic)
 
                 /* Apply special damage XXX XXX XXX */
                 crit_bonus_dice = crit_bonus(
-                    hit_result, i_ptr->weight, r_ptr, S_MEL, true, NULL);
+                    hit_result, i_ptr->weight, r_ptr, S_MEL, true, NULL, i_ptr);
 
                 if (f3 & TR3_CUMBERSOME)
                 {
@@ -5538,7 +5564,7 @@ void do_cmd_throw(bool automatic)
                 total_ds = strength_modified_ds(i_ptr, 0);
 
                 /* Penalise items that aren't made to be thrown */
-                if (!(f3 & (TR3_THROWING)))
+                if (!treat_as_throwing)
                     total_ds /= 2;
 
                 /* Can't have a negative number of sides */
@@ -5546,7 +5572,16 @@ void do_cmd_throw(bool automatic)
                     total_ds = 0;
 
                 dam = damroll(i_ptr->dd + total_bonus_dice, total_ds);
-                prt = damroll(r_ptr->pd, r_ptr->ps);
+                
+                /* Apply armor dice/sides curses/blessings */
+                int armor_dice_base = r_ptr->pd - m_ptr->song_armor_dice_penalty;
+                if (armor_dice_base < 0)
+                    armor_dice_base = 0;
+                int armor_dice = armor_dice_base + curse_flag_count_cur(CUR_MON_ARM_DICE);
+                int armor_sides = monster_base_armour_sides(m_ptr) + curse_flag_count_cur(CUR_MON_ARM_SIDE);
+                if (armor_dice < 0) armor_dice = 0;
+                if (armor_sides < 1) armor_sides = 1;
+                prt = damroll(armor_dice, armor_sides);
 
                 prt_percent = prt_after_sharpness(i_ptr, &noticed_flag);
                 prt = (prt * prt_percent) / 100;
@@ -5645,7 +5680,7 @@ void do_cmd_throw(bool automatic)
                     net_dam = 0;
 
                 update_combat_rolls2(i_ptr->dd + total_bonus_dice, total_ds,
-                    dam, r_ptr->pd, r_ptr->ps, prt, prt_percent, GF_HURT,
+                    dam, armor_dice, armor_sides, prt, prt_percent, GF_HURT,
                     false);
 
                 /* Hit the monster, unless a potion effect has already been done
@@ -5722,7 +5757,7 @@ void do_cmd_throw(bool automatic)
     j = breakage_chance(i_ptr, hit_wall);
 
     /* throwing weapons have a lesser chance */
-    if (f3 & (TR3_THROWING))
+    if (treat_as_throwing)
         j /= 4;
 
     /* Drop (or break) near that location */

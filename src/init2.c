@@ -308,6 +308,7 @@ header c_head;
 header h_head;
 header st_head;
 header cu_head;
+header mb_head;
 header b_head;
 header g_head;
 header flavor_head;
@@ -1047,6 +1048,28 @@ static errr init_cu_info(void)
 }
 
 /*
+ * Initialize the blessing definitions array
+ */
+static errr init_mb_info(void)
+{
+    errr err;
+
+    init_header(&mb_head, z_info->mb_max, sizeof(major_blessing_type));
+
+#ifdef ALLOW_TEMPLATES
+    mb_head.parse_info_txt = parse_mb_info;
+#endif /* ALLOW_TEMPLATES */
+
+    err = init_info("blessing", &mb_head);
+
+    mb_info = mb_head.info_ptr;
+    mb_text = mb_head.text_ptr;
+    mb_name = mb_head.name_ptr;
+
+    return err;
+}
+
+/*
  * Initialize the "n_info" structure
  */
 static errr init_n_info(void)
@@ -1218,7 +1241,13 @@ extern void re_init_some_things(void)
     autoinscribe_init();
 
     // display the introduction message again
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
     display_introduction();
+#ifdef USE_SDL
+    sdl_story_font_reset();
+#endif
 
     /* Array of grids */
     FREE(view_g);
@@ -1731,6 +1760,13 @@ extern void display_introduction(void)
     /* Clear screen */
     Term_clear();
 
+     /* Hide the cursor for the intro screen while rendering. Do NOT
+         toggle the global hide_cursor here — callers (menus) should set
+         hide_cursor around any following input waits. */
+     bool _saved_cursor_state = false;
+     (void)Term_get_cursor(&_saved_cursor_state);
+     (void)Term_set_cursor(false);
+
     Term_putstr(12, 1, -1, TERM_L_BLUE,
         "    The world was young, the mountains green,            ");
     Term_putstr(12, 2, -1, TERM_L_BLUE,
@@ -1761,6 +1797,9 @@ extern void display_introduction(void)
 
     /* Flush it */
     Term_fresh();
+
+    /* Restore cursor visibility */
+    (void)Term_set_cursor(_saved_cursor_state);
 }
 
 /*
@@ -1817,10 +1856,17 @@ void init_angband(void)
     int mode = 0644;
 
     char buf[1024];
+    int i;
 
     /*** Display the introduction ***/
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+#endif
     display_introduction();
+#ifdef USE_SDL
+    sdl_story_font_reset();
+#endif
 
     /*** Verify (or create) the "high score" file ***/
 
@@ -1924,6 +1970,16 @@ void init_angband(void)
     if (init_r_info())
         quit("Cannot initialize monsters");
 
+    /* Snapshot monster base stats for runtime overrides */
+    if (!r_base)
+    {
+        C_MAKE(r_base, z_info->r_max, monster_race);
+    }
+    for (i = 0; i < z_info->r_max; i++)
+    {
+        r_base[i] = r_info[i];
+    }
+
     /* Initialize feature info */
     note("[Initializing arrays... (vaults)]");
     if (init_v_info())
@@ -1950,6 +2006,11 @@ void init_angband(void)
     note("[Initializing arrays... (curses)]");
     if (init_cu_info())
         quit("Cannot initialize curses");
+
+    /* Initialize major blessing info */
+    note("[Initializing arrays... (blessings)]");
+    if (init_mb_info())
+        quit("Cannot initialize major blessings");
 
     /* Initialize race info */
     note("[Initializing arrays... (races)]");
@@ -2018,6 +2079,11 @@ void init_angband(void)
 extern NavResult initial_menu(bool *start_new)
 {
     int ch;
+    NavResult result = NAV_BACK;
+#ifdef USE_SDL
+    bool intro_story_font = true;
+    sdl_story_font_enable();
+#endif
 
     display_introduction();
 
@@ -2046,24 +2112,36 @@ extern NavResult initial_menu(bool *start_new)
 
     Term_fresh();
 
+    /* Prevent inkey() from showing the cursor while waiting on the menu */
+    bool _saved_hide_cursor = hide_cursor;
+    hide_cursor = true;
     ch = inkey();
+    hide_cursor = _saved_hide_cursor;
 
     /* direct key choices ------------------------------------------------*/
 
     /* enter : CONTINUE  */
     if (ch == '\n' || ch == '\r' || ch == ' ')
     {
-        *start_new = true; return NAV_OK;   /* start new game */
+        *start_new = true;
+        result = NAV_OK;   /* start new game */
+        goto menu_done;
     }
 
 
     /* q : EXIT      */
     if (ch == 'q' || ch == ESCAPE)
     {
-        return NAV_QUIT;                /* handled as quit in main-win.c */
+        result = NAV_QUIT;                /* handled as quit in main-win.c */
+        goto menu_done;
     }
 
-    return NAV_BACK;                /* stay in the menu */                       /* fall through → refresh & loop */
+menu_done:
+#ifdef USE_SDL
+    if (intro_story_font)
+        sdl_story_font_reset();
+#endif
+    return result;
 }
 /* ---------------------------------------------------------------------- */
 

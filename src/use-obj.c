@@ -530,21 +530,33 @@ static bool use_staff(object_type* o_ptr, bool* ident)
 
     case SV_STAFF_REVELATIONS:
     {
-        map_area();
+        int radius = 10 + p_ptr->skill_use[S_WIL];
+        /* Alchemy grants 1.5x range for gems */
+        if ((o_ptr->tval == TV_GEM) && p_ptr->active_ability[S_PER][PER_ALCHEMY])
+            radius = (radius * 3) / 2;
+        map_area_radius(radius);
         *ident = true;
         break;
     }
 
     case SV_STAFF_TREASURES:
     {
-        if (detect_objects_normal())
+        int radius = 10 + p_ptr->skill_use[S_WIL];
+        /* Alchemy grants 1.5x range for gems */
+        if ((o_ptr->tval == TV_GEM) && p_ptr->active_ability[S_PER][PER_ALCHEMY])
+            radius = (radius * 3) / 2;
+        if (detect_objects_normal(radius))
             *ident = true;
         break;
     }
 
     case SV_STAFF_FOES:
     {
-        if (detect_monsters())
+        int radius = 10 + p_ptr->skill_use[S_WIL];
+        /* Alchemy grants 1.5x range for gems */
+        if ((o_ptr->tval == TV_GEM) && p_ptr->active_ability[S_PER][PER_ALCHEMY])
+            radius = (radius * 3) / 2;
+        if (detect_monsters(radius))
             *ident = true;
         break;
     }
@@ -922,6 +934,9 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
         {
             if (fire_arc(GF_KILL_WALL, dir, 8, 4, will_score, 3, 90))
                 *ident = true;
+            
+            /* Apply shattering effect in the same arc (uses Will instead of Song) */
+            shatter_in_arc(dir, will_score);
         }
 
         /* Make a lot of noise */

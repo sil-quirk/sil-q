@@ -193,6 +193,7 @@ extern ego_item_type* e_info;
 extern char* e_name;
 extern char* e_text;
 extern monster_race* r_info;
+extern monster_race* r_base;
 extern char* r_name;
 extern char* r_text;
 extern player_race* p_info;
@@ -208,6 +209,9 @@ extern char* st_name;
 extern curse_type* cu_info;
 extern char* cu_text;
 extern char* cu_name;
+extern major_blessing_type* mb_info;
+extern char* mb_text;
+extern char* mb_name;
 extern quest_type* quest_info;
 extern char* quest_name_text;
 extern char* quest_desc_text;
@@ -332,6 +336,7 @@ extern void update_flow(int cy, int cx, int which_flow);
 extern void update_smell(void);
 extern void map_feature(int y, int x);
 extern void map_area(void);
+extern void map_area_radius(int radius);
 extern void wiz_light(void);
 extern void wiz_dark(void);
 extern void gates_illuminate(bool daytime);
@@ -410,7 +415,8 @@ extern int total_monster_evasion(monster_type* m_ptr, bool archery);
 extern int stealth_melee_bonus(const monster_type* m_ptr, bool allow_unseen);
 extern int overwhelming_att_mod(monster_type* m_ptr);
 extern int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
-    int skill_type, bool thrown, monster_type* attacker);
+    int skill_type, bool thrown, monster_type* attacker,
+    const object_type* o_ptr);
 extern void ident(object_type* o_ptr);
 extern void ident_on_wield(object_type* o_ptr);
 extern void ident_resist(u32b flag);
@@ -501,6 +507,8 @@ extern void do_cmd_inven_direct(void);
 extern void do_cmd_equip(void);
 extern void do_cmd_equip_direct(void);
 extern void do_cmd_wield(object_type* default_o_ptr, int default_item);
+extern void do_cmd_wield_wrapper(void);
+extern void do_cmd_wield_enhanced(void);
 extern void do_cmd_takeoff(object_type* default_o_ptr, int default_item);
 extern void do_cmd_drop_item_by_index(int item);
 extern void do_cmd_drop(void);
@@ -607,6 +615,8 @@ extern void pseudo_id_everything(void);
 extern void id_known_specials(void);
 extern void id_everything(void);
 extern PlayResult play_game(void);
+extern void death_spectator_view(void);
+extern bool death_spectator_active(void);
 
 /* files.c */
 extern void html_screenshot(cptr name);
@@ -620,6 +630,7 @@ extern errr check_time_init(void);
 extern void display_player_stat_info(int row, int col);
 extern void display_player_xtra_info(int mode);
 extern void display_player(int mode);
+extern void display_character_tutorial(void);
 extern errr file_character(cptr name, bool full);
 extern bool show_buffer(cptr name, cptr what, int line);
 extern bool show_file(cptr name, cptr what, int line);
@@ -627,6 +638,7 @@ extern void do_cmd_help(void);
 extern void process_player_name(bool sf);
 extern bool get_name(void);
 extern void do_cmd_escape(int);
+extern void do_cmd_morgoth_victory(void);
 extern void do_cmd_suicide(void);
 extern void do_cmd_save_game(void);
 extern void show_scores(bool);
@@ -637,7 +649,7 @@ extern void atomonth(int number, char* output);
 extern void display_single_score(
     byte attr, int row, int col, int place, int fake, high_score* the_score);
 extern int highscore_dead(char* name);
-extern int highscore_count();
+extern bool highscore_is_empty();
 extern void display_scores(int from, int to);
 extern void display_scores_short(int from, int to);
 extern int collect_high_scores(high_score* out, int capacity, bool sort_by_score);
@@ -645,6 +657,8 @@ extern void close_game(void);
 extern void exit_game_panic(void);
 extern errr create_score(high_score* the_score);
 extern int score_points(const high_score* score);
+extern int score_count_alive_entries(void);
+extern u32b score_sum_dead_points(void);
 #ifdef HANDLE_SIGNALS
 extern void (*(*signal_aux)(int, void (*)(int)))(int);
 #endif
@@ -736,10 +750,11 @@ extern void monster_perception(
     bool player_centered, bool main_roll, int difficulty);
 
 /* monster1.c */
-extern void describe_monster(int r_idx, bool spoilers);
+extern void describe_monster(
+    int r_idx, bool spoilers, const monster_type* m_ptr);
 extern void roff_top(int r_idx);
-extern void screen_roff(int r_idx);
-extern void display_roff(int r_idx);
+extern void screen_roff(int r_idx, const monster_type* m_ptr);
+extern void display_roff(int r_idx, const monster_type* m_ptr);
 
 /* monster2.c */
 extern s16b poly_r_idx(const monster_type* m_ptr);
@@ -761,7 +776,11 @@ extern int monster_skill(monster_type* m_ptr, int skill_type);
 extern int monster_stat(monster_type* m_ptr, int stat_type);
 extern void update_mon(int m_idx, bool full);
 extern void update_monsters(bool full);
+extern bool detect_monster_noise(monster_type* m_ptr, int skill);
 extern s16b monster_carry(int m_idx, object_type* j_ptr);
+extern int monster_base_armour_sides(const monster_type* m_ptr);
+extern int monster_song_hp_loss(const monster_type* m_ptr);
+extern void monster_add_song_hp_loss(monster_type* m_ptr, int amount);
 extern void monster_swap(int y1, int x1, int y2, int x2);
 extern s16b player_place(int y, int x);
 extern s16b monster_place(int y, int x, monster_type* n_ptr);
@@ -800,6 +819,10 @@ extern void object_desc(
 extern void object_desc_spoil(
     char* buf, size_t max, const object_type* o_ptr, int pref, int mode);
 extern void identify_random_gen(const object_type* o_ptr);
+extern byte object_attr_graphics_override(
+    const object_type* o_ptr, byte base_attr);
+extern char object_char_graphics_override(
+    const object_type* o_ptr, char base_char);
 extern char index_to_label(int i);
 extern s16b label_to_inven(int c);
 extern s16b label_to_equip(int c);
@@ -819,6 +842,8 @@ extern void show_equip_enhanced(void);
 extern void show_floor(const int* floor_list, int floor_num);
 extern void toggle_inven_equip(void);
 extern bool get_item(int* cp, cptr pmt, cptr str, int mode);
+extern bool player_can_treat_as_throwing(const object_type* o_ptr);
+extern bool player_can_treat_as_throwing_flags(const object_type* o_ptr, u32b f3);
 
 /* object2.c */
 extern void excise_object_idx(int o_idx);
@@ -936,6 +961,15 @@ extern void hatch_spider(monster_type* m_ptr);
 extern void change_song(int song);
 extern bool singing(int song);
 extern void sing(void);
+extern void song_disguise_new_player_turn(void);
+extern void song_disguise_handle_monster_removed(int m_idx);
+extern void song_disguise_note_monster_attack(int m_idx);
+extern bool song_disguise_monster_is_fooled(const monster_type* m_ptr);
+extern bool song_revealing_overlay(int m_idx, byte* a, char* c);
+extern void song_duels_new_player_turn(void);
+extern void song_duels_handle_monster_removed(int m_idx);
+extern void sing_song_of_shattering(int score);
+extern void shatter_in_arc(int dir, int score);
 
 /* spells2.c */
 extern bool hp_player(int x, bool percent, bool message);
@@ -951,9 +985,9 @@ extern void detect_all_doors_traps(void);
 extern bool detect_traps(void);
 extern bool detect_doors(void);
 extern bool detect_stairs(void);
-extern bool detect_objects_normal(void);
+extern bool detect_objects_normal(int radius);
 extern bool detect_objects_magic(void);
-extern bool detect_monsters(void);
+extern bool detect_monsters(int radius);
 extern bool detect_monsters_invis(void);
 extern bool detect_all(void);
 extern void stair_creation(void);
@@ -1102,9 +1136,19 @@ extern void c_prt(byte attr, cptr str, int row, int col);
 extern void prt(cptr str, int row, int col);
 extern void text_out_to_file(byte attr, cptr str);
 extern int count_wrapped_lines(cptr str, int wrap_width, int indent);
+#ifdef USE_SDL
+extern int count_wrapped_lines_story(cptr str, int wrap_cols, int indent);
+#endif
 extern void text_out_to_screen(byte a, cptr str);
+#ifdef USE_SDL
+extern void text_out_to_screen_story(byte a, cptr str);
+#endif
 extern void text_out(cptr str);
 extern void text_out_c(byte a, cptr str);
+extern bool story_inventory_enabled(void);
+extern bool story_equipment_enabled(void);
+extern bool story_look_enabled(void);
+extern bool story_character_enabled(void);
 extern void clear_from(int row);
 extern bool askfor_aux(char* buf, size_t len);
 extern bool askfor_name(char* buf, size_t len);
@@ -1169,9 +1213,11 @@ extern void handle_stuff(void);
 extern int weight_limit(void);
 extern void calc_voice(void);
 extern bool weapon_glows(object_type* o_ptr);
+extern byte object_display_color(const object_type* o_ptr, byte base_color);
 extern void calc_torch(void);
 extern int ability_bonus(int skilltype, int abilitynum);
 extern int affinity_level(int skilltype);
+extern int minstrel_level(void);
 
 /* xtra2.c */
 extern bool saving_throw(monster_type* m_ptr, int resistance);
@@ -1331,11 +1377,12 @@ extern void write_mon_power(void);
 
 // Metarun.c
 
-extern errr  load_metaruns(bool create_if_missing);
-extern bool      metarun_created; 
+extern errr load_metaruns(bool create_if_missing);
+extern bool metarun_created; 
 extern u32b curse_flag_mask(void);
-extern int  curse_flag_count_rhf(u32b rhf_flag);
-extern int  curse_flag_count_cur(u32b cur_flag);
+extern int curse_flag_count_rhf(u32b rhf_flag);
+extern int curse_flag_count_cur(u32b cur_flag);
+extern int curse_flag_delta_cur(u32b cur_flag);
 extern int  any_curse_flag_active(u32b flag); /* CUR-only */
 
 // init1.c
@@ -1371,5 +1418,20 @@ extern void set_sdl_fullscreen(bool value);
 extern bool get_sdl_tiles(void);
 extern void set_sdl_tiles(bool value);
 extern int get_pane_config_count(void);
+
+/* SDL story font control (main-sdl.c) */
+extern void sdl_story_font_enable(void);
+extern void sdl_story_font_disable(void);
+extern void sdl_story_font_reset(void);
+extern bool sdl_is_story_font_enabled(void);
+extern void sdl_story_font_set_grid(bool grid);
+extern bool sdl_is_story_font_grid(void);
+extern int sdl_story_font_text_width(cptr text, int len);
+extern int sdl_get_cell_width(void);
 #endif
+
+extern void story_print_text(int row, int col, int max_cols, byte attr, cptr text);
+extern void story_print_text_grid(int row, int col, int max_cols, byte attr, cptr text);
+extern void story_print_mono(int row, int col, byte attr, cptr text);
+extern void story_fill_rect(int row, int col, int width_cols, byte attr);
 

@@ -17,25 +17,6 @@ bool graphics_are_ascii()
     return use_graphics == GRAPHICS_NONE || use_graphics == GRAPHICS_PSEUDO;
 }
 
-#define QUEST_TYPES 2
-#define QUEST_HUMAN 0
-#define QUEST_ELF 1
-
-char* quest_text[] = {
-    "something to lighten the darkness",
-    "something to eat"
-};
-
-char* quest_requirement[] = {
-    "You have no spare light.",
-    "You have no food."
-};
-
-char* quest_outcome[] = {
-    "hides it among their rags",
-    "begins eating it"
-};
-
 /*
  * Puts an item in the player's inventory.
  * If the inventory would overflow, this is handled at the start of the next
@@ -68,106 +49,12 @@ void give_player_item(object_type * o_ptr)
     object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
 
     msg_format("You have %s (%c).", o_name, index_to_label(slot));
-}
 
-/*
- * Rewards player depending on the quest.
- */
-void reward_player_for_quest(cptr m_name, unsigned int quest_index)
-{
-    int selection;
-    object_type herb;
-
-    if (quest_index >= QUEST_TYPES)
+    /* Update quiver display if this was a throwing weapon or arrow */
+    if ((slot == INVEN_QUIVER1 || slot == INVEN_QUIVER2) ||
+        (copy.tval == TV_ARROW))
     {
-        msg_print("Bug detected! Quest invalid!");
-        return;
-    }
-
-    /* Take a couple of turns */
-    p_ptr->energy_use = 100;
-    p_ptr->skip_next_turn = true;
-
-    if (quest_index == QUEST_ELF)
-    {
-        if (p_ptr->chp < p_ptr->mhp / 2)
-        {
-            msg_format("%^s murmurs the song of staunching.", m_name);
-            set_cut(0);
-            hp_player(50, true, true);
-            // Note: Old thrall quest removed
-            return;
-        }
-    }
-
-    selection = dieroll(3);
-
-    switch(selection)
-    {
-    case 1:
-        msg_format("%^s gives you a ragged herb.", m_name);
-        object_prep(&herb, O_IDX_HERB_RAGE);
-        give_player_item(&herb);
-        // Note: Old thrall quest removed
-        break;
-    case 2:
-        msg_format("%^s gives you a ragged herb.", m_name);
-        object_prep(&herb, O_IDX_HERB_TERROR);
-        give_player_item(&herb);
-        // Note: Old thrall quest removed
-        break;
-    default:
-        msg_format("%^s tells you about some passages a little way off.", m_name);
-        // Note: Old thrall quest map reward removed
-    }
-}
-
-/*
- * Handles quests given by peaceful monsters.
- */
-void do_quest(monster_type* m_ptr)
-{
-    char m_name[80];
-    int item;
-    unsigned int quest_index = m_ptr->r_idx - R_IDX_ALERT_HUMAN_THRALL;
-
-    if (quest_index >= QUEST_TYPES)
-    {
-        msg_print("Bug detected! Quest monster invalid!");
-        return;
-    }
-
-    cptr q = "Give thrall which item? ";
-    cptr s = quest_requirement[quest_index];
-
-    /* Get the monster name */
-    monster_desc(m_name, sizeof(m_name), m_ptr, 0);
-
-    // Note: Old thrall quest logic removed - Valar quest handles this differently
-
-    msg_format("Looking up at you, %s begs you for %s.", m_name,
-        quest_text[quest_index]);
-
-    switch (quest_index)
-    {
-    case QUEST_HUMAN:
-        item_tester_hook = item_tester_hook_light_with_fuel;
-        break;
-    case QUEST_ELF:
-        item_tester_hook = item_tester_hook_non_herb_food;
-        break;
-    };
-
-    if (get_item(&item, q, s, (USE_INVEN)))
-    {
-        inven_item_increase(item, -1);
-        inven_item_describe(item);
-        inven_item_optimize(item);
-
-        msg_format("%^s %s and thanks you.", m_name,
-            quest_outcome[quest_index]);
-
-        reward_player_for_quest(m_name, quest_index);
+        p_ptr->redraw |= (PR_QUIVER);
     }
 }
 
@@ -884,6 +771,7 @@ int total_monster_evasion(monster_type* m_ptr, bool archery)
 {
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
     int evn = r_ptr->evn;
+    evn -= m_ptr->song_evasion_penalty;
     bool unseen = false;
 
     // penalise stunning
@@ -1089,11 +977,17 @@ int overwhelming_att_mod(monster_type* m_ptr)
  *            Great Sword (7lb):     14, 23, 32, 41...
  */
 int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
-    int skill_type, bool thrown, monster_type* attacker)
+    int skill_type, bool thrown, monster_type* attacker, const object_type* o_ptr)
 {
     monster_type* m_ptr = attacker;
     int crit_bonus_dice;
     int crit_seperation = 70;
+
+    if (attacker != NULL && attacker != PLAYER)
+    {
+        int shift = curse_flag_delta_cur(CUR_CRIT_THRESH_SHIFT);
+        if (shift) hit_result += shift;
+    }
 
     // When attacking a monster...
     if (r_ptr->level != 0)
@@ -1101,6 +995,13 @@ int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
         // Can have improved criticals for melee
         if ((skill_type == S_MEL) && p_ptr->active_ability[S_MEL][MEL_FINESSE])
             crit_seperation -= 20;
+
+        if ((skill_type == S_MEL) && thrown && o_ptr
+            && p_ptr->active_ability[S_MEL][MEL_THROWING]
+            && player_can_treat_as_throwing(o_ptr))
+        {
+            crit_seperation -= 20;
+        }
 
         // Can have improved criticals for melee with one handed weapons
         // Special case: Maedhros house can use Subtlety with hand-and-a-half weapons
@@ -2878,6 +2779,14 @@ static bool prompt_replace_pack_item(const object_type* incoming)
     char incoming_name[80];
     char prompt[160];
 
+#ifdef USE_SDL
+    /* Ensure story font is disabled before showing messages */
+    extern bool sdl_is_story_font_enabled(void);
+    extern void sdl_story_font_disable(void);
+    if (sdl_is_story_font_enabled())
+        sdl_story_font_disable();
+#endif
+
     object_desc(incoming_name, sizeof(incoming_name), incoming, true, 3);
     msg_format("No room for %s.", incoming_name);
     msg_print("Choose an item to replace.");
@@ -3134,6 +3043,9 @@ void do_cmd_pickup_from_pile(void)
     /* Combine / Reorder the pack */
     p_ptr->notice |= (PN_COMBINE | PN_REORDER);
 
+    /* Update quiver display if needed */
+    p_ptr->redraw |= (PR_QUIVER);
+
     /* Just be sure all inventory management is done. */
     notice_stuff();
 }
@@ -3228,6 +3140,14 @@ static bool prompt_replace_pack_item_limit(const object_type* incoming,
     byte old_item_tester_tval = item_tester_tval;
     bool (*old_item_tester_hook)(const object_type*) = item_tester_hook;
     const object_type* old_filter = replacement_filter_incoming;
+
+#ifdef USE_SDL
+    /* Ensure story font is disabled before showing messages */
+    extern bool sdl_is_story_font_enabled(void);
+    extern void sdl_story_font_disable(void);
+    if (sdl_is_story_font_enabled())
+        sdl_story_font_disable();
+#endif
 
     if (label)
         msg_format("You already carry %s (limit %d).", label, limit);
@@ -4778,15 +4698,8 @@ void py_attack_aux(int y, int x, int attack_type)
     {
         if (attack_type == ATT_MAIN)
         {
-            if (m_ptr->r_idx == R_IDX_ALERT_HUMAN_THRALL ||
-                m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
-            {
-                do_quest(m_ptr);
-            }
-            else
-            {
-                msg_format("You stop before you bump into %s.", m_name);
-            }
+            // Alert thralls are peaceful but no longer have quest interactions
+            msg_format("You stop before you bump into %s.", m_name);
         }
 
         abort_attack = true;
@@ -5013,7 +4926,7 @@ void py_attack_aux(int y, int x, int attack_type)
 
             /* Calculate the damage */
             crit_bonus_dice = crit_bonus(
-                hit_result, weapon_weight, r_ptr, S_MEL, false, NULL);
+                hit_result, weapon_weight, r_ptr, S_MEL, false, NULL, o_ptr);
             slay_bonus_dice = slay_bonus(o_ptr, m_ptr, &noticed_flag);
 
             if (f3 & TR3_CUMBERSOME)
@@ -5027,7 +4940,15 @@ void py_attack_aux(int y, int x, int attack_type)
             if (smite)
                 dam = total_dice * mds;
 
-            prt = damroll((r_ptr->pd + curse_flag_count_cur(CUR_MON_ARM_DICE)), (r_ptr->ps+curse_flag_count_cur(CUR_MON_ARM_SIDE)));
+            /* Apply armor dice/sides curses/blessings */
+            int armor_dice_base = r_ptr->pd - m_ptr->song_armor_dice_penalty;
+            if (armor_dice_base < 0)
+                armor_dice_base = 0;
+            int armor_dice = armor_dice_base + curse_flag_count_cur(CUR_MON_ARM_DICE);
+            int armor_sides = monster_base_armour_sides(m_ptr) + curse_flag_count_cur(CUR_MON_ARM_SIDE);
+            if (armor_dice < 0) armor_dice = 0;
+            if (armor_sides < 1) armor_sides = 1;
+            prt = damroll(armor_dice, armor_sides);
             prt_percent = prt_after_sharpness(o_ptr, &noticed_flag);
 
             if (prt_percent < 0)
@@ -5153,7 +5074,7 @@ void py_attack_aux(int y, int x, int attack_type)
                 p_ptr->vengeance = 0;
             }
 
-            update_combat_rolls2(total_dice, mds, dam, r_ptr->pd, r_ptr->ps,
+            update_combat_rolls2(total_dice, mds, dam, armor_dice, armor_sides,
                 prt, prt_percent, damage_type, true);
 
             // use different colours depending on whether knock back triggered

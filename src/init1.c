@@ -11,6 +11,7 @@
 #include "angband.h"
 #include "h-define.h"
 #include "z-form.h" 
+#include <ctype.h>
 /* Forward declaration for init2 and local placement */
 errr parse_style_levels(char* buf, header* head);
 
@@ -157,10 +158,10 @@ static flag_name info_flags[] = {
     { "RAUKO", RF3, RF3_RAUKO }, { "UNDEAD", RF3, RF3_UNDEAD },
     { "SPIDER", RF3, RF3_SPIDER }, { "WOLF", RF3, RF3_WOLF },
     { "MAN", RF3, RF3_MAN }, { "ELF", RF3, RF3_ELF },
-    { "RF3XXX3", RF3, RF3_RF3XXX3 }, { "RF3XXX4", RF3, RF3_RF3XXX4 },
+    { "HAS_WEAPON", RF3, RF3_HAS_WEAPON }, { "RF3XXX4", RF3, RF3_RF3XXX4 },
     { "HURT_LITE", RF3, RF3_HURT_LITE }, { "STONE", RF3, RF3_STONE },
     { "HURT_FIRE", RF3, RF3_HURT_FIRE }, { "HURT_COLD", RF3, RF3_HURT_COLD },
-    { "RF3XXX5", RF3, RF3_RF3XXX5 }, { "RES_ELEC", RF3, RF3_RES_ELEC },
+    { "HAS_ARMOUR", RF3, RF3_HAS_ARMOUR }, { "RES_ELEC", RF3, RF3_RES_ELEC },
     { "RES_FIRE", RF3, RF3_RES_FIRE }, { "RES_COLD", RF3, RF3_RES_COLD },
     { "RES_POIS", RF3, RF3_RES_POIS }, { "RF3XXX6", RF3, RF3_RF3XXX6 },
     { "RES_NETHR", RF3, RF3_RES_NETHR }, { "RES_WATER", RF3, RF3_RES_WATER },
@@ -342,6 +343,16 @@ static flag_name info_flags[] = {
     {"DEATH", CUR, CUR_DEATH},{"TRAPS", CUR, CUR_TRAPS},
     {"MON_NUM", CUR, CUR_MON_NUM},{"HUNGER", CUR, CUR_HUNGER},
     { "HALLU", CUR, CUR_HALLU},
+    { "RES_FEAR_SHIFT", CUR, CUR_RES_FEAR_SHIFT },
+    { "RES_STUN_SHIFT", CUR, CUR_RES_STUN_SHIFT },
+    { "RES_CONFU_SHIFT", CUR, CUR_RES_CONFU_SHIFT },
+    { "RES_HALLU_SHIFT", CUR, CUR_RES_HALLU_SHIFT },
+    { "RES_POIS_SHIFT", CUR, CUR_RES_POIS_SHIFT },
+    { "RES_FIRE_SHIFT", CUR, CUR_RES_FIRE_SHIFT },
+    { "RES_COLD_SHIFT", CUR, CUR_RES_COLD_SHIFT },
+    { "MDS_SHIFT", CUR, CUR_MDS_SHIFT },
+    { "CRIT_THRESH_SHIFT", CUR, CUR_CRIT_THRESH_SHIFT },
+    { "ARMOR_SIDE_SHIFT", CUR, CUR_ARMOR_SIDE_SHIFT },
     
     // Unique flags
     {"EARENDIL", UNQ, UNQ_EARENDIL}, { "SMT_FEANOR", UNQ, UNQ_SMT_FEANOR },
@@ -350,7 +361,9 @@ static flag_name info_flags[] = {
     { "SNG_MEL", UNQ, UNQ_SNG_MEL }, { "SMT_TELCHAR", UNQ, UNQ_SMT_TELCHAR },
     { "SMT_GAMIL", UNQ, UNQ_SMT_GAMIL }, { "SNG_HURIN", UNQ, UNQ_SNG_HURIN },
     { "SNG_THINGOL", UNQ, UNQ_SNG_THINGOL }, { "MIM", UNQ, UNQ_MIM },
-    { "SMT_EOL", UNQ, UNQ_SMT_EOL }, { "MEL_MAEDHROS", UNQ, UNQ_MEL_MAEDHROS }, { "WIL_TURIN", UNQ, UNQ_WIL_TURIN }
+    { "SMT_EOL", UNQ, UNQ_SMT_EOL }, { "MEL_MAEDHROS", UNQ, UNQ_MEL_MAEDHROS }, { "WIL_TURIN", UNQ, UNQ_WIL_TURIN },
+    { "SMT_CELEBRIMBOR", UNQ, UNQ_SMT_CELEBRIMBOR }, { "SNG_TURGON", UNQ, UNQ_SNG_TURGON },
+    { "MINSTREL", UNQ, UNQ_MINSTREL }, { "WOVEN_MASTER", UNQ, UNQ_WOVEN_MASTER }
 
 };
 
@@ -652,31 +665,33 @@ void dbg_show_active_flags(void)
 /* =====================  active curses  =========================== */
 {
     Term_putstr(0, row++, -1, TERM_L_RED,
-                "Active curses (id : name [stacks])");
+                "Active curses & blessings (id : name [stacks])");
 
     for (int id = 0; id < z_info->cu_max; id++)
     {
-        byte cnt = CURSE_GET(id);
+        int cnt = CURSE_GET(id);
         if (!cnt) continue;                       /* skip empty slots */
-
+        bool is_curse = (cnt > 0);
+        int magnitude = is_curse ? cnt : -cnt;
+        cptr display_name = cu_name + (is_curse ? cu_info[id].name
+                                                : (cu_info[id].blessing_name ? cu_info[id].blessing_name
+                                                                             : cu_info[id].name));
 #ifdef DEBUG_CURSES
-        /* Show the P: effect text and use a slightly shorter name field
-           so the whole line fits on an 80-col screen.                 */
-        const char *pow = cu_text + cu_info[id].power;   /* effect blurb */
-        c_put_str(TERM_WHITE,
+        const char *pow = is_curse ? (cu_text + cu_info[id].power)
+                                   : (cu_info[id].blessing_power ? (cu_text + cu_info[id].blessing_power) : NULL);
+        c_put_str(is_curse ? TERM_WHITE : TERM_L_GREEN,
                   format("  %2d : %-26s [%d]  – %s",
                          id,
-                         cu_name + cu_info[id].name,
-                         cnt,
-                         pow),
+                         display_name,
+                         magnitude,
+                         pow ? pow : ""),
                   row++, 2);
 #else
-        /* Release build: classic 3 columns, no effect text */
-        c_put_str(TERM_WHITE,
+        c_put_str(is_curse ? TERM_WHITE : TERM_L_GREEN,
                   format("  %2d : %-30s [%d]",
                          id,
-                         cu_name + cu_info[id].name,
-                         cnt),
+                         display_name,
+                         magnitude),
                   row++, 2);
 #endif
     }
@@ -718,7 +733,7 @@ void dbg_show_active_flags(void)
         }
         else if (ch == 'e')       /* +1 death shortcut */
         {
-            metarun_update_on_exit(true,false, 0);
+            metarun_update_on_exit(true, false, 0, 0);
             dbg_show_active_flags();
             break;
         }
@@ -1012,6 +1027,17 @@ errr parse_z_info(char* buf, header* head)
         z_info->cu_max = max;
     }
 
+    /* Process 'J' for "Maximum blessing info index" */
+    else if (buf[2] == 'J')
+    {
+        int max;
+
+        if (1 != sscanf(buf + 4, "%d", &max))
+            return (PARSE_ERROR_GENERIC);
+
+        z_info->mb_max = max;
+    }
+
     /* Process 'Q' for "Maximum q_info[] index" */
     else if (buf[2] == 'Q')
     {
@@ -1157,9 +1183,9 @@ errr parse_rt_info(char *buf, header *head)
                 int curse_id = atoi(tok);
                 int stack_count = atoi(colon + 1);
                 
-                if (curse_id >= 0 && curse_id < 32 && stack_count > 0 && stack_count <= 255)
+                if (curse_id >= 0 && curse_id < METAR_CURSE_SLOTS && stack_count > 0 && stack_count <= 255)
                 {
-                    rt_ptr->start_curses |= (1UL << curse_id);
+                    rt_ptr->start_curses |= (1ULL << curse_id);
                     rt_ptr->curse_stacks[curse_id] = (byte)stack_count;
                 }
             }
@@ -1167,9 +1193,9 @@ errr parse_rt_info(char *buf, header *head)
             {
                 /* Legacy format: just curse_id (default to 1 stack) */
                 int curse_id = atoi(tok);
-                if (curse_id >= 0 && curse_id < 32)
+                if (curse_id >= 0 && curse_id < METAR_CURSE_SLOTS)
                 {
-                    rt_ptr->start_curses |= (1UL << curse_id);
+                    rt_ptr->start_curses |= (1ULL << curse_id);
                     rt_ptr->curse_stacks[curse_id] = 1;
                 }
             }
@@ -1196,14 +1222,83 @@ errr parse_rt_info(char *buf, header *head)
         return 0;
     }
 
-    /* L:<num>  – lose condition (allowed deaths) ------------------ */
+    /* L:<values>  - blessing point thresholds (score pool needed per point) */
     if (buf[0] == 'L')
     {
         if (!rt_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
-        int v = atoi(buf + 2);
-        if (v < 1) v = 1;
-        if (v > 127) v = 127;
-        rt_ptr->lose_con = (byte)v;
+
+        char *arg = buf + 2;
+        char *comment = strchr(arg, '#');
+        if (comment) *comment = '\0';
+
+        int positional = 0;
+        static const int positional_order[] = {
+            RUNTYPE_BLESSING_MODE_NORMAL,
+            RUNTYPE_BLESSING_MODE_EASIER,
+            RUNTYPE_BLESSING_MODE_HARDER
+        };
+
+        for (char *tok = strtok(arg, "|"); tok; tok = strtok(NULL, "|"))
+        {
+            while (tok && isspace((unsigned char)*tok)) tok++;
+            if (!tok || !*tok) continue;
+
+            int mode = -1;
+            char *value = tok;
+            char *sep = strpbrk(tok, "=:");
+
+            if (sep)
+            {
+                *sep = '\0';
+                value = sep + 1;
+
+                char *key = tok;
+                while (key && isspace((unsigned char)*key)) key++;
+                if (key && *key)
+                {
+                    char *key_end = key + strlen(key);
+                    while (key_end > key && isspace((unsigned char)key_end[-1])) *--key_end = '\0';
+
+                    char lower_key[16];
+                    size_t key_len = strlen(key);
+                    if (key_len >= sizeof(lower_key)) key_len = sizeof(lower_key) - 1;
+                    for (size_t i = 0; i < key_len; i++)
+                        lower_key[i] = (char)tolower((unsigned char)key[i]);
+                    lower_key[key_len] = '\0';
+
+                    if (streq(lower_key, "easier") || streq(lower_key, "easy"))
+                        mode = RUNTYPE_BLESSING_MODE_EASIER;
+                    else if (streq(lower_key, "harder") || streq(lower_key, "hard"))
+                        mode = RUNTYPE_BLESSING_MODE_HARDER;
+                    else if (streq(lower_key, "normal") || streq(lower_key, "default"))
+                        mode = RUNTYPE_BLESSING_MODE_NORMAL;
+                }
+            }
+
+            if (mode < 0)
+            {
+                if (positional < (int)N_ELEMENTS(positional_order))
+                    mode = positional_order[positional];
+                else
+                    mode = RUNTYPE_BLESSING_MODE_NORMAL;
+                positional++;
+            }
+
+            while (value && isspace((unsigned char)*value)) value++;
+            if (!value || !*value) continue;
+
+            char *value_end = value + strlen(value);
+            while (value_end > value && isspace((unsigned char)value_end[-1])) *--value_end = '\0';
+            if (!*value) continue;
+
+            int val = atoi(value);
+            if (val < 1) val = 1;
+            if (val > 65535) val = 65535;
+
+            if (mode >= 0 && mode < RUNTYPE_BLESSING_MODE_COUNT)
+                rt_ptr->blessing_threshold_modes[mode] = (u16b)val;
+        }
+
         return 0;
     }
 
@@ -1807,6 +1902,22 @@ static errr grab_one_curse_unique_flag(curse_type *cu_ptr, cptr what)
     C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
     f[CUR] = &(cu_ptr->flags_u);   /* write into the new word we added */
     return grab_one_flag(f, "curse unique", what);
+}
+
+static errr grab_one_blessing_flag(curse_type *cu_ptr, cptr what)
+{
+    u32b *f[MAX_FLAG_SETS];
+    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    f[RHF] = &(cu_ptr->blessing_flags);
+    return grab_one_flag(f, "blessing", what);
+}
+
+static errr grab_one_blessing_unique_flag(curse_type *cu_ptr, cptr what)
+{
+    u32b *f[MAX_FLAG_SETS];
+    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    f[CUR] = &(cu_ptr->blessing_flags_u);
+    return grab_one_flag(f, "blessing unique", what);
 }
 
 /*
@@ -4743,6 +4854,18 @@ errr parse_cu_info(char *buf, header *head)
 
         if (!(cu_ptr->name = add_name(head, s)))     
             return PARSE_ERROR_OUT_OF_MEMORY;
+        cu_ptr->blessing_name = 0;  /* NULL unless B: directive sets it */
+    }
+
+    /* ------------------------------------------------------------ */
+    /* B: blessing name                                             */
+    /* ------------------------------------------------------------ */
+    else if (buf[0] == 'B')
+    {
+        if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+
+        if (!(cu_ptr->blessing_name = add_name(head, buf + 2)))
+            return PARSE_ERROR_OUT_OF_MEMORY;
     }
 
     /* ------------------------------------------------------------ */
@@ -4786,6 +4909,28 @@ errr parse_cu_info(char *buf, header *head)
         }
     }
     /* ------------------------------------------------------------ */
+    /* G: list of blessing RHF flags                                */
+    /* ------------------------------------------------------------ */
+    else if (buf[0] == 'G')
+    {
+        if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+
+        for (s = buf + 2; *s; )
+        {
+            for (t = s; *t && (*t != ' ') && (*t != '|'); ++t) ;
+            if (*t)
+            {
+                *t++ = '\0';
+                while ((*t == ' ') || (*t == '|')) t++;
+            }
+
+            if (grab_one_blessing_flag(cu_ptr, s))
+                return PARSE_ERROR_INVALID_FLAG;
+
+            s = t;
+        }
+    }
+    /* ------------------------------------------------------------ */
     /* U: list of CUR flags        */
     /* ------------------------------------------------------------ */
     else if (buf[0] == 'U')
@@ -4803,6 +4948,28 @@ errr parse_cu_info(char *buf, header *head)
             }
 
             if (grab_one_curse_unique_flag(cu_ptr, s))
+                return PARSE_ERROR_INVALID_FLAG;
+
+            s = t;
+        }
+    }
+    /* ------------------------------------------------------------ */
+    /* V: list of blessing CUR flags                                */
+    /* ------------------------------------------------------------ */
+    else if (buf[0] == 'V')
+    {
+        if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+
+        for (s = buf + 2; *s; )
+        {
+            for (t = s; *t && (*t != ' ') && (*t != '|'); ++t) ;
+            if (*t)
+            {
+                *t++ = '\0';
+                while ((*t == ' ') || (*t == '|')) t++;
+            }
+
+            if (grab_one_blessing_unique_flag(cu_ptr, s))
                 return PARSE_ERROR_INVALID_FLAG;
 
             s = t;
@@ -4842,6 +5009,17 @@ errr parse_cu_info(char *buf, header *head)
     }
 
     /* ------------------------------------------------------------ */
+    /* E: blessing description line(s)                              */
+    /* ------------------------------------------------------------ */
+    else if (buf[0] == 'E')
+    {
+        if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+
+        if (!add_text(&(cu_ptr->blessing_text), head, buf + 2))
+            return PARSE_ERROR_OUT_OF_MEMORY;
+    }
+
+    /* ------------------------------------------------------------ */
     /* P: power/effect description                                   */
     /* ------------------------------------------------------------ */
     else if (buf[0] == 'P')
@@ -4853,10 +5031,95 @@ errr parse_cu_info(char *buf, header *head)
     }
 
     /* ------------------------------------------------------------ */
+    /* H: blessing power/effect description                         */
+    /* ------------------------------------------------------------ */
+    else if (buf[0] == 'H')
+    {
+        if (!cu_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+
+        if (!add_text(&(cu_ptr->blessing_power), head, buf + 2))
+            return PARSE_ERROR_OUT_OF_MEMORY;
+    }
+
+    /* ------------------------------------------------------------ */
     /* anything else is an error                                    */
     /* ------------------------------------------------------------ */
     else
         return PARSE_ERROR_UNDEFINED_DIRECTIVE;
+
+    return 0;
+}
+
+static int parse_major_blessing_effect_code(cptr code)
+{
+    if (!code || !*code) return METARUN_MAJOR_EFFECT_NONE;
+    if (streq(code, "NONE")) return METARUN_MAJOR_EFFECT_NONE;
+    if (streq(code, "SUPPLY_CAP") || streq(code, "SUPPLY_LIMIT") || streq(code, "SUPPLY_COVENANT"))
+        return METARUN_MAJOR_EFFECT_SUPPLY_LIMIT;
+    if (streq(code, "START_ARTIFACT") || streq(code, "ARTEFACT_PATRONAGE") || streq(code, "ARTEFACT_START"))
+        return METARUN_MAJOR_EFFECT_START_ARTIFACT;
+    return -1;
+}
+
+errr parse_mb_info(char *buf, header *head)
+{
+    static major_blessing_type *mb_ptr = NULL;
+
+    if (buf[0] == 'N')
+    {
+        char *s = strchr(buf + 2, ':');
+        if (!s) return PARSE_ERROR_GENERIC;
+        *s++ = '\0';
+        if (!*s) return PARSE_ERROR_GENERIC;
+
+        int idx = atoi(buf + 2);
+        if (idx <= error_idx)          return PARSE_ERROR_NON_SEQUENTIAL_RECORDS;
+        if (idx >= head->info_num)     return PARSE_ERROR_TOO_MANY_ENTRIES;
+        error_idx = idx;
+
+        mb_ptr = ((major_blessing_type *)head->info_ptr) + idx;
+        WIPE(mb_ptr, major_blessing_type);
+        mb_ptr->cost = 3; /* default cost */
+
+        if (!(mb_ptr->name = add_name(head, s)))
+            return PARSE_ERROR_OUT_OF_MEMORY;
+    }
+    else if (buf[0] == 'S')
+    {
+        if (!mb_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+        if (!add_text(&(mb_ptr->short_desc), head, buf + 2))
+            return PARSE_ERROR_OUT_OF_MEMORY;
+    }
+    else if (buf[0] == 'D')
+    {
+        if (!mb_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+        if (!add_text(&(mb_ptr->detail_desc), head, buf + 2))
+            return PARSE_ERROR_OUT_OF_MEMORY;
+    }
+    else if (buf[0] == 'M')
+    {
+        if (!mb_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+        if (!add_text(&(mb_ptr->unlock_msg), head, buf + 2))
+            return PARSE_ERROR_OUT_OF_MEMORY;
+    }
+    else if (buf[0] == 'E')
+    {
+        if (!mb_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+        int effect = parse_major_blessing_effect_code(buf + 2);
+        if (effect < 0) return PARSE_ERROR_INVALID_FLAG;
+        mb_ptr->effect = (byte)effect;
+    }
+    else if (buf[0] == 'C')
+    {
+        if (!mb_ptr) return PARSE_ERROR_MISSING_RECORD_HEADER;
+        long cost = atol(buf + 2);
+        if (cost < 0 || cost > 255) return PARSE_ERROR_OUT_OF_BOUNDS;
+        mb_ptr->cost = (byte)cost;
+    }
+    else
+    {
+        return PARSE_ERROR_UNDEFINED_DIRECTIVE;
+    }
 
     return 0;
 }

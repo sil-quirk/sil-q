@@ -15,6 +15,134 @@
 #include <stddef.h>
 static bool inventory_menu_include_equip = false;
 
+#ifdef USE_SDL
+static bool story_inventory_list_active = false;
+static bool story_equipment_list_active = false;
+
+static void story_print_equipment_prefix(int row, int col, byte attr, cptr prefix)
+{
+    const int prefix_core_width = 12;
+    char label_buf[32];
+
+    if (!prefix) prefix = "";
+
+    const char* colon = strchr(prefix, ':');
+    size_t len = colon ? (size_t)(colon - prefix) : strlen(prefix);
+    if (len >= sizeof(label_buf))
+        len = sizeof(label_buf) - 1;
+
+    memcpy(label_buf, prefix, len);
+    label_buf[len] = '\0';
+
+    while (len > 0 && isspace((unsigned char)label_buf[len - 1]))
+        label_buf[--len] = '\0';
+
+    story_print_text(row, col, prefix_core_width, attr, label_buf);
+    story_print_text_grid(row, col + prefix_core_width, 2, attr, ": ");
+}
+
+static void story_prepare_equipment_desc(char* dest, size_t dest_size, cptr src,
+    int slot, bool has_object, int max_cols)
+{
+    if (!dest || dest_size == 0)
+        return;
+
+    if (!src)
+        src = "";
+
+    my_strcpy(dest, src, dest_size);
+
+    if (slot == INVEN_QUIVER2 && !has_object)
+    {
+        char base[160];
+        my_strcpy(base, dest, sizeof(base));
+        if (base[0])
+            strnfmt(dest, dest_size, "%s (keeps passive bonuses)", base);
+        else
+            my_strcpy(dest, "(keeps passive bonuses)", dest_size);
+    }
+
+    if (max_cols > 0 && sdl_is_story_font_enabled())
+    {
+        int cell_width = sdl_get_cell_width();
+        int max_pixels = max_cols * cell_width;
+        size_t len = strlen(dest);
+
+        while (len > 0 && sdl_story_font_text_width(dest, (int)len) > max_pixels)
+        {
+            dest[--len] = '\0';
+            while (len > 0 && isspace((unsigned char)dest[len - 1]))
+            dest[--len] = '\0';
+        }
+    }
+}
+#endif
+
+static bool death_spectator_allow_menu_action(void)
+{
+    if (!death_spectator_active())
+        return true;
+
+    msg_print("You can no longer take that action.");
+    return false;
+}
+
+/*
+ * Apply tilemode overrides for special artefacts.
+ * Currently used to distinguish Morgoth's crown variants
+ * once Silmarils have been removed.
+ */
+byte object_attr_graphics_override(const object_type* o_ptr, byte base_attr)
+{
+    if (!o_ptr)
+        return base_attr;
+
+    /* Only adjust if this is already a tile (high bit set). */
+    if (!(base_attr & 0x80))
+        return base_attr;
+
+    byte preserved = base_attr & (GRAPHICS_GLOW_MASK | TILE_FLAG);
+
+    if ((o_ptr->name1 >= ART_MORGOTH_0) && (o_ptr->name1 <= ART_MORGOTH_2))
+    {
+        byte base = preserved | TILE_FLAG;
+        return TILE_SET_INDEX(base, 12);
+    }
+
+    return base_attr;
+}
+
+char object_char_graphics_override(const object_type* o_ptr, char base_char)
+{
+    if (!o_ptr)
+        return base_char;
+
+    /* Only adjust if this is already a tile (high bit set). */
+    if (!(base_char & 0x80))
+        return base_char;
+
+    byte preserved = base_char & (GRAPHICS_ALERT_MASK | TILE_FLAG);
+    byte column = 0;
+
+    switch (o_ptr->name1)
+    {
+    case ART_MORGOTH_2:
+        column = 23;
+        break;
+    case ART_MORGOTH_1:
+        column = 24;
+        break;
+    case ART_MORGOTH_0:
+        column = 25;
+        break;
+    default:
+        return base_char;
+    }
+
+    byte base = preserved | TILE_FLAG;
+    return (char)TILE_SET_INDEX(base, column);
+}
+
 void inventory_menu_set_include_equip(bool include)
 {
     inventory_menu_include_equip = include;
@@ -183,6 +311,54 @@ void flavor_init(void)
             k_ptr->flavor += 20;
         }
     }
+}
+
+/*
+ * Get the display color for an object text, applying artifact shade if identified
+ * This is used for TEXT color in inventory/equipment displays
+ * Uses MAKE_EXTENDED_COLOR to create proper shaded colors
+ */
+byte object_display_color(const object_type* o_ptr, byte base_color)
+{
+    byte color_to_use = base_color;
+    
+    /* Check for artifact-specific color (works in both modes) */
+    if (o_ptr->name1 && a_info[o_ptr->name1].d_attr)
+    {
+        color_to_use = a_info[o_ptr->name1].d_attr;
+    }
+    
+    /* Bows are always light umber */
+    if (o_ptr->tval == TV_BOW)
+    {
+        return TERM_L_UMBER;
+    }
+    
+    /* Apply special handling when artifact_unique_color option is enabled */
+    if (artifact_unique_color)
+    {
+        /* Identified artifacts are yellow (including artifact rings) */
+        if (artefact_p(o_ptr) && object_known_p(o_ptr))
+        {
+            return TERM_YELLOW;
+        }
+        
+        /* Non-artifact rings are orange when option is enabled */
+        if (o_ptr->tval == TV_RING)
+        {
+            return TERM_ORANGE;
+        }
+    }
+    else
+    {
+        /* Default mode: use shade 3 for identified artifacts */
+        if (artefact_p(o_ptr) && object_known_p(o_ptr))
+        {
+            return MAKE_EXTENDED_COLOR(color_to_use, 3);
+        }
+    }
+    
+    return color_to_use;
 }
 
 /*
@@ -2071,13 +2247,14 @@ bool item_tester_okay(const object_type* o_ptr)
             return (true);
     }
 
-    /* Hack -- allow listing empty slots */
-    if (item_tester_full)
-        return (true);
-
     /* Require an item */
     if (!o_ptr->k_idx)
+    {
+        /* Hack -- allow listing empty slots only for equipment */
+        if (item_tester_full && in_inventory && (o_ptr >= inventory + INVEN_WIELD))
+            return (true);
         return (false);
+    }
 
     /* Check the tval */
     if (item_tester_tval)
@@ -2311,11 +2488,33 @@ void display_equip(void)
     int col = w - 11;
     int offset = use_bigtile ? 6 : 5;
 
+    log_debug("display_equip: CALLED - THIS IS THE WINDOW SYSTEM REDRAW");
+
+#ifdef USE_SDL
+    bool use_story_font = story_equipment_enabled();
+    log_debug("display_equip: story_equipment_enabled() = %d", use_story_font);
+    if (use_story_font)
+    {
+        log_debug("display_equip: Calling sdl_story_font_enable()");
+        sdl_story_font_enable();
+        log_debug("display_equip: Story font activated");
+    }
+    else
+    {
+        log_debug("display_equip: Story font DISABLED, will use mono");
+    }
+#endif
+
     /* Display the equipment */
     for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
     {
         /* Examine the item */
         o_ptr = &inventory[i];
+        
+        if (i == INVEN_WIELD || i == INVEN_BOW)
+        {
+            log_trace("display_equip: Row %d (slot %d), tval=%d", i - INVEN_WIELD, i, o_ptr->tval);
+        }
 
         /* Start with an empty "index" */
         tmp_val[0] = tmp_val[1] = tmp_val[2] = ' ';
@@ -2343,6 +2542,10 @@ void display_equip(void)
             attr = TERM_SLATE;
 
         /* Display the index (or blank space) */
+        if (i == INVEN_BOW)
+        {
+            log_trace("display_equip: Term_putstr at row %d: '%s'", i - INVEN_WIELD, tmp_val);
+        }
         Term_putstr(0, i - INVEN_WIELD, 3, attr, tmp_val);
 
         /* Display the symbol */
@@ -2382,6 +2585,10 @@ void display_equip(void)
         attr = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
 
         /* Display the entry itself */
+        if (i == INVEN_BOW)
+        {
+            log_trace("display_equip: Term_putstr item at row %d, col %d: '%s'", i - INVEN_WIELD, offset, o_name);
+        }
         Term_putch(offset - 1, i - INVEN_WIELD, attr, ' ');
         Term_putstr(offset, i - INVEN_WIELD, n, attr, o_name);
 
@@ -2407,19 +2614,54 @@ void display_equip(void)
         // Term_erase(w - 12 + strlen(mention_use(i)), i - INVEN_WIELD, 255);
     }
 
-    /* Erase the rest of the window */
-    for (i = INVEN_TOTAL - INVEN_WIELD; i < Term->hgt; i++)
+    /* Put in the total weight (if any armour equipped) */
+    if (armour_weight)
+    {
+        int total_row = INVEN_TOTAL - INVEN_WIELD;
+        int text_row = total_row + 1;
+        
+#ifdef USE_SDL
+        if (use_story_font)
+        {
+            /* Clear the rows where we'll draw the weight total (from col, not from 0) */
+            Term_erase(col, total_row, 255);
+            Term_erase(col, text_row, 255);
+            
+            /* Render armour weight with story font using grid-aligned positioning */
+            log_debug("display_equip: Rendering armour weight with story font at rows %d/%d", total_row, text_row);
+            story_print_text_grid(total_row, 70, 8, TERM_L_DARK, "--------");
+            strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
+                armour_weight / 10, armour_weight % 10);
+            story_print_text_grid(text_row, 62, 16, TERM_SLATE, tmp_val);
+        }
+        else
+#endif
+        {
+            /* Mono font path */
+            Term_putstr(col, total_row, -1, TERM_L_DARK, "--------");
+            sprintf(tmp_val, "armour: %3d.%1d lb", armour_weight / 10, armour_weight % 10);
+            Term_putstr(col - 8, text_row, -1, TERM_SLATE, tmp_val);
+        }
+    }
+
+    /* Erase the rest of the window (after the armour weight display) */
+    int erase_start = armour_weight ? (INVEN_TOTAL - INVEN_WIELD + 2) : (INVEN_TOTAL - INVEN_WIELD);
+    for (i = erase_start; i < Term->hgt; i++)
     {
         /* Clear that line */
         Term_erase(0, i, 255);
     }
 
-    /* Put in the total weight */
-    Term_putstr(col, INVEN_TOTAL - INVEN_WIELD, -1, TERM_L_DARK, "--------");
-    sprintf(
-        tmp_val, "armour: %3d.%1d lb", armour_weight / 10, armour_weight % 10);
-    Term_putstr(
-        col - 8, INVEN_TOTAL - INVEN_WIELD + 1, -1, TERM_SLATE, tmp_val);
+#ifdef USE_SDL
+    if (use_story_font)
+    {
+        log_debug("display_equip: Calling sdl_story_font_disable()");
+        sdl_story_font_disable();
+        log_debug("display_equip: Story font disabled");
+    }
+#endif
+    
+    log_debug("display_equip: EXITING");
 }
 
 /*
@@ -2432,8 +2674,12 @@ static int draw_item_tile(int x, int y, object_type* o_ptr)
     /* Only draw tiles in graphics mode (not ASCII or pseudo-graphics) */
     if (use_graphics != GRAPHICS_NONE && use_graphics != GRAPHICS_PSEUDO && o_ptr && o_ptr->k_idx)
     {
+        /* Get the attribute from object_attr - in graphics mode this is a tile index, not a color code
+         * We do NOT shade tile indices as they refer to specific graphics in the tileset */
+        byte attr = object_attr(o_ptr);
+        
         /* Draw the tile using the standard object display functions */
-        Term_putch(x, y, object_attr(o_ptr), object_char(o_ptr));
+        Term_putch(x, y, attr, object_char(o_ptr));
         
         /* Handle bigtile mode (tiles that occupy 2 cells) */
         if (use_bigtile)
@@ -2448,6 +2694,168 @@ static int draw_item_tile(int x, int y, object_type* o_ptr)
     /* No tile drawn, text starts at the same position */
     return x;
 }
+
+#ifdef USE_SDL
+static void story_render_inventory_entry(int row, int base_col, int label_col,
+    cptr desc, byte desc_attr, bool display_weights, cptr weight_text,
+    byte weight_attr, cptr label_text, byte label_attr, const object_type* o_ptr,
+    bool highlight, int story_term_w)
+{
+    /* Always use 80 columns to match standard terminal layout */
+    int highlight_cols = 80;
+    const int label_width = 6;
+
+    Term_erase(base_col, row, 255);
+    if (highlight)
+        story_fill_rect(row, base_col, highlight_cols - base_col, TERM_L_BLUE);
+
+    int text_col = base_col;
+    if (o_ptr && o_ptr->k_idx)
+        text_col = draw_item_tile(base_col, row, (object_type*)o_ptr);
+
+    int desc_limit = (display_weights ? 70 : label_col) - text_col;
+    if (desc_limit < 1)
+        desc_limit = 1;
+    story_print_text(row, text_col, desc_limit, desc_attr, desc);
+
+    if (display_weights && weight_text && weight_text[0])
+    {
+        int weight_width = label_col - 70;
+        if (weight_width < 1)
+            weight_width = 1;
+        story_print_text_grid(row, 70, weight_width, weight_attr, weight_text);
+    }
+
+    if (label_text && label_text[0])
+        story_print_text(row, label_col, label_width, label_attr, label_text);
+}
+
+static void story_render_equipment_entry(int row, int col, int slot, cptr prefix,
+    byte prefix_attr, cptr desc, byte desc_attr, bool display_weights,
+    cptr weight_text, byte weight_attr, cptr label_text, byte label_attr,
+    const object_type* o_ptr, bool highlight, int story_term_w)
+{
+    /* Always use 80 columns to match standard terminal layout */
+    int highlight_cols = 80;
+    const int label_width = 6;
+    int label_col = display_weights ? 78 : 71;
+    bool has_object = (o_ptr && o_ptr->k_idx);
+
+    Term_erase(col, row, 255);
+    if (highlight)
+        story_fill_rect(row, col, highlight_cols - col, TERM_L_BLUE);
+
+    story_print_equipment_prefix(row, col, prefix_attr, prefix);
+
+    int text_col = col + 12 + 2;
+    if (has_object)
+        text_col = draw_item_tile(col + 12 + 2, row, (object_type*)o_ptr);
+
+    int desc_limit = (display_weights ? 70 : label_col) - text_col;
+    if (desc_limit < 1)
+        desc_limit = 1;
+
+    char combined_desc[160];
+    story_prepare_equipment_desc(combined_desc, sizeof(combined_desc), desc,
+        slot, has_object, desc_limit);
+    story_print_text(row, text_col, desc_limit, desc_attr, combined_desc);
+
+    if (display_weights && weight_text && weight_text[0])
+    {
+        int weight_width = label_col - 70;
+        if (weight_width < 1)
+            weight_width = 1;
+        story_print_text_grid(row, 70, weight_width, weight_attr, weight_text);
+    }
+
+    if (label_text && label_text[0])
+        story_print_text(row, label_col, label_width, label_attr, label_text);
+}
+
+static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
+    byte* out_color, char out_desc[][80], bool highlight_active,
+    int highlight_index, bool display_weights, int story_term_w)
+{
+    int label_col_base = display_weights ? 78 : 71;
+    /* Always use 80 columns to match standard terminal layout */
+    int highlight_cols = 80;
+    const int label_width = 6;
+
+    log_trace("draw_equipment_story_rows: entry_count=%d, highlight_active=%d, highlight_index=%d",
+        entry_count, highlight_active, highlight_index);
+
+    for (int idx = 0; idx < entry_count; idx++)
+    {
+        int row = idx + 1;
+        bool is_highlight = highlight_active && idx == highlight_index;
+        byte line_attr = is_highlight ? TERM_L_BLUE : out_color[idx];
+        int slot = out_index[idx];
+        object_type* o_ptr = &inventory[slot];
+        bool has_object = o_ptr->k_idx != 0;
+
+        if (is_highlight)
+        {
+            log_trace("draw_equipment_story_rows: Drawing HIGHLIGHTED row %d, slot=%d, has_object=%d, desc='%s'",
+                row, slot, has_object, out_desc[idx]);
+        }
+
+        Term_erase(col, row, 255);
+        if (is_highlight)
+        {
+            log_trace("draw_equipment_story_rows: Filling highlight rect at row %d", row);
+            story_fill_rect(row, col, highlight_cols - col, TERM_L_BLUE);
+        }
+
+        char prefix[32];
+        strnfmt(prefix, sizeof(prefix), "%-12s: ", mention_use(slot));
+        byte prefix_attr = is_highlight ? TERM_L_BLUE : TERM_WHITE;
+        log_trace("draw_equipment_story_rows: Row %d - printing prefix '%s' at col=%d", row, prefix, col);
+        story_print_equipment_prefix(row, col, prefix_attr, prefix);
+
+        int text_col = col + 12 + 2;
+        log_trace("draw_equipment_story_rows: Row %d - text_col calculated as %d (col=%d + 12 + 2)", row, text_col, col);
+        if (has_object)
+        {
+            int tile_end_col = draw_item_tile(text_col, row, o_ptr);
+            log_trace("draw_equipment_story_rows: Row %d - drew tile, text_col updated from %d to %d", row, text_col, tile_end_col);
+            text_col = tile_end_col;
+        }
+
+        int label_col = label_col_base;
+        int desc_limit = (display_weights ? 70 : label_col) - text_col;
+        if (desc_limit < 1)
+            desc_limit = 1;
+
+        char combined_desc[160];
+        story_prepare_equipment_desc(combined_desc, sizeof(combined_desc),
+            out_desc[idx], slot, has_object, desc_limit);
+
+        log_trace("draw_equipment_story_rows: Row %d - printing desc '%s' at col=%d limit=%d",
+            row, combined_desc, text_col, desc_limit);
+        story_print_text(row, text_col, desc_limit, line_attr, combined_desc);
+
+        if (display_weights && has_object && o_ptr->weight)
+        {
+            int wgt = o_ptr->weight * o_ptr->number;
+            char weight_buf[16];
+            strnfmt(weight_buf, sizeof(weight_buf), "%2d.%1d lb", wgt / 10, wgt % 10);
+            int weight_width = label_col - 70;
+            if (weight_width < 1)
+                weight_width = 1;
+            log_trace("draw_equipment_story_rows: Row %d - printing weight '%s' at col=%d width=%d", row, weight_buf, 70, weight_width);
+            story_print_text_grid(row, 70, weight_width, line_attr, weight_buf);
+        }
+
+        char label_buf[8];
+        strnfmt(label_buf, sizeof(label_buf), "(%c)", index_to_label(slot));
+        byte label_attr = is_highlight ? TERM_L_BLUE : TERM_WHITE;
+        log_trace("draw_equipment_story_rows: Row %d - printing label '%s' at col=%d width=%d (label_col_base=%d)", row, label_buf, label_col, label_width, label_col_base);
+        story_print_text(row, label_col, label_width, label_attr, label_buf);
+    }
+
+    log_trace("draw_equipment_story_rows: Finished drawing all rows");
+}
+#endif
 
 /*
  * Display the inventory.
@@ -2468,6 +2876,18 @@ void show_inven(void)
     int out_index[24];
     byte out_color[24];
     char out_desc[24][80];
+
+#ifdef USE_SDL
+    bool use_story_font = story_inventory_enabled();
+    int story_term_w = 0;
+    story_inventory_list_active = use_story_font;
+    if (use_story_font)
+    {
+        sdl_story_font_enable();
+        int story_term_h = 0;
+        Term_get_size(&story_term_w, &story_term_h);
+    }
+#endif
 
     /* Default length */
     len = 79 - 50;
@@ -2544,9 +2964,9 @@ void show_inven(void)
 
         /* Get inventory color */
         if (weapon_glows(o_ptr))
-            out_color[k] = TERM_L_BLUE;
+            out_color[k] = object_display_color(o_ptr, TERM_L_BLUE);
         else
-            out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+            out_color[k] = object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
         /* Save the object description */
         my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
@@ -2574,17 +2994,52 @@ void show_inven(void)
     {
         int idx = out_index[j];
         bool is_supply = (idx == SUPPLIES_INDEX);
+        object_type* cur_obj = is_supply ? NULL : &inventory[idx];
+        int label_col = show_weights ? 78 : 71;
 
-        if (!is_supply)
-            o_ptr = &inventory[idx];
+#ifdef USE_SDL
+        if (use_story_font)
+        {
+            char weight_buf[16];
+            cptr weight_ptr = NULL;
+            if (show_weights)
+            {
+                int wgt = is_supply ? supplies_total_weight()
+                    : (cur_obj->weight * cur_obj->number);
+                strnfmt(weight_buf, sizeof(weight_buf), "%2d.%1d lb", wgt / 10, wgt % 10);
+                weight_ptr = weight_buf;
+            }
+
+            char label_buf[8];
+            if (is_supply)
+            {
+                char label = supplies_label_char();
+                int slot = supplies_virtual_slot();
+                if (!label && slot >= 0)
+                    label = index_to_label(slot);
+                if (!label)
+                    label = 'a';
+                strnfmt(label_buf, sizeof(label_buf), "(%c)", label);
+            }
+            else
+            {
+                strnfmt(label_buf, sizeof(label_buf), "(%c)", index_to_label(idx));
+            }
+
+            story_render_inventory_entry(j + 1, col, label_col, out_desc[j], out_color[j],
+                show_weights, weight_ptr, out_color[j], label_buf, TERM_WHITE,
+                cur_obj, false, story_term_w);
+            continue;
+        }
+#endif
 
         prt("", j + 1, col);
 
         /* Draw tile if in graphics mode and not a supply entry */
         int text_col = col;
-        if (!is_supply && o_ptr->k_idx)
+        if (cur_obj && cur_obj->k_idx)
         {
-            text_col = draw_item_tile(col, j + 1, o_ptr);
+            text_col = draw_item_tile(col, j + 1, cur_obj);
         }
 
         c_put_str(out_color[j], out_desc[j], j + 1, text_col);
@@ -2595,7 +3050,7 @@ void show_inven(void)
             if (is_supply)
                 wgt = supplies_total_weight();
             else
-                wgt = o_ptr->weight * o_ptr->number;
+                wgt = cur_obj->weight * cur_obj->number;
             sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
             c_put_str(out_color[j], tmp_val, j + 1, 70);
         }
@@ -2616,13 +3071,29 @@ void show_inven(void)
             sprintf(tmp_val, " (%c)", index_to_label(idx));
         }
 
-        int label_col = show_weights ? 78 : 71;
         put_str(tmp_val, j + 1, label_col);
     }
 
     /* Make a "shadow" below the list (only if needed) */
     if (j && (j < 23))
-        prt("", j + 1, col);
+    {
+#ifdef USE_SDL
+        if (use_story_font)
+            Term_erase(col, j + 1, 255);
+        else
+#endif
+            prt("", j + 1, col);
+    }
+
+#ifdef USE_SDL
+    /* Disable story font after rendering to prevent it from leaking into other UI elements.
+     * get_item() will re-enable it on subsequent iterations if needed. */
+    if (use_story_font)
+    {
+        log_debug("show_inven: Disabling story font after rendering");
+        sdl_story_font_disable();
+    }
+#endif
 }
 
 /*
@@ -2644,6 +3115,28 @@ void show_equip(void)
     char out_desc[24][80];
 
     int armour_weight = 0;
+
+    log_trace("show_equip: CALLED from somewhere");
+
+#ifdef USE_SDL
+    bool use_story_font = story_equipment_enabled();
+    int story_term_w = 0;
+    story_equipment_list_active = use_story_font;
+    log_debug("show_equip: story_equipment_enabled() = %d, setting story_equipment_list_active = %d", 
+        use_story_font, use_story_font);
+    if (use_story_font)
+    {
+        log_debug("show_equip: Story font enabled, calling sdl_story_font_enable()");
+        sdl_story_font_enable();
+        int story_term_h = 0;
+        Term_get_size(&story_term_w, &story_term_h);
+        log_debug("show_equip: story_term_w = %d", story_term_w);
+    }
+    else
+    {
+        log_debug("show_equip: Story font DISABLED, using mono font");
+    }
+#endif
 
     /* Default length */
     len = 79 - 50;
@@ -2678,7 +3171,7 @@ void show_equip(void)
         {
             /* Description */
             object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
-            out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+            out_color[k] = object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
         }
 
         /* Truncate the description */
@@ -2720,12 +3213,49 @@ void show_equip(void)
         /* Get the item */
         o_ptr = &inventory[i];
 
+        log_trace("show_equip: Rendering row %d, slot %d, desc='%s'", j + 1, i, out_desc[j]);
+
+        char prefix_buf[32];
+        strnfmt(prefix_buf, sizeof(prefix_buf), "%-12s: ", mention_use(i));
+
+        const char* desc_ptr = out_desc[j];
+
+        char label_buf[8];
+        strnfmt(label_buf, sizeof(label_buf), " (%c)", index_to_label(i));
+        int label_col = show_weights ? 78 : 71;
+
+        char weight_buf[16];
+        cptr weight_ptr = NULL;
+        byte weight_attr = out_color[j];
+        if (show_weights && o_ptr->weight)
+        {
+            int wgt = o_ptr->weight * o_ptr->number;
+            sprintf(weight_buf, "%2d.%1d lb", wgt / 10, wgt % 10);
+            weight_ptr = weight_buf;
+
+            if ((i >= INVEN_BODY) && (i <= INVEN_FEET))
+            {
+                weight_attr = TERM_SLATE;
+                armour_weight += wgt;
+            }
+        }
+
+#ifdef USE_SDL
+        if (use_story_font)
+        {
+            story_render_equipment_entry(j + 1, col, i, prefix_buf, TERM_WHITE,
+                desc_ptr, out_color[j], show_weights, weight_ptr, weight_attr,
+                label_buf, TERM_WHITE, o_ptr->k_idx ? o_ptr : NULL, false, story_term_w);
+            continue;
+        }
+#endif
+
         /* Clear the line */
         prt("", j + 1, col);
 
         /* Mention the use */
-        strnfmt(tmp_val, sizeof(tmp_val), "%-12s: ", mention_use(i));
-        put_str(tmp_val, j + 1, col);
+        log_trace("show_equip: Row %d - put_str prefix '%s'", j + 1, prefix_buf);
+        put_str(prefix_buf, j + 1, col);
 
         /* Draw tile if in graphics mode and item exists */
         int text_col = col + 12 + 2;
@@ -2735,23 +3265,16 @@ void show_equip(void)
         }
 
         /* Display the entry itself */
+        log_trace("show_equip: Row %d - c_put_str desc '%s' at col %d", j + 1, out_desc[j], text_col);
         c_put_str(out_color[j], out_desc[j], j + 1, text_col);
 
         /* Display the weight if needed */
         if (show_weights && o_ptr->weight)
         {
-            int wgt = o_ptr->weight * o_ptr->number;
-            sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
-
-            if ((i >= INVEN_BODY) && (i <= INVEN_FEET))
-            {
-                c_put_str(TERM_SLATE, tmp_val, j + 1, 70);
-                armour_weight += wgt;
-            }
+            if (weight_attr == TERM_SLATE)
+                c_put_str(TERM_SLATE, weight_buf, j + 1, 70);
             else
-            {
-                c_put_str(out_color[j], tmp_val, j + 1, 70);
-            }
+                c_put_str(out_color[j], weight_buf, j + 1, 70);
         }
 
         if (i == INVEN_QUIVER2)
@@ -2761,29 +3284,67 @@ void show_equip(void)
         }
 
         /* Print the item letter at the end */
-        sprintf(tmp_val, " (%c)", index_to_label(i));
-        int label_col = show_weights ? 78 : 71;
-        put_str(tmp_val, j + 1, label_col);
+        log_trace("show_equip: Row %d - put_str label '%s' at col %d", j + 1, label_buf, label_col);
+        put_str(label_buf, j + 1, label_col);
     }
+    
+    log_trace("show_equip: Finished rendering all %d entries", k);
 
     /* Make a "shadow" below the list (only if needed) */
     if (j && (j < 23))
-        prt("", j + 1, col);
+    {
+#ifdef USE_SDL
+        if (use_story_font)
+            Term_erase(col, j + 1, 255);
+        else
+#endif
+            prt("", j + 1, col);
+    }
 
     /* Put in the total weight */
     if (armour_weight)
     {
-        int col = 52;
-        /* Blank the line for the total */
-        prt("", j + 2, col);
-        c_put_str(TERM_L_DARK, "--------", INVEN_TOTAL - INVEN_WIELD + 1, 70);
-        sprintf(tmp_val, "armour: %3d.%1d lb", armour_weight / 10,
-            armour_weight % 10);
-        c_put_str(TERM_SLATE, tmp_val, INVEN_TOTAL - INVEN_WIELD + 2, 70 - 8);
-        /* Make a new "shadow" below the list (only if needed) */
-        if (j && (j + 3 < 23))
-            prt("", j + 3, col);
+        int total_row = INVEN_TOTAL - INVEN_WIELD + 1;
+        int text_row = total_row + 1;
+        int col_total = 52;
+#ifdef USE_SDL
+        if (use_story_font)
+        {
+            Term_erase(col, text_row, 255);
+            Term_erase(col, total_row, 255);
+            story_print_text_grid(total_row, 70, 8, TERM_L_DARK, "--------");
+            strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
+                armour_weight / 10, armour_weight % 10);
+            story_print_text_grid(text_row, 62, 16, TERM_SLATE, tmp_val);
+            if (j && (j + 3 < 23))
+                Term_erase(col, j + 3, 255);
+        }
+        else
+#endif
+        {
+            /* Blank the line for the total */
+            prt("", j + 2, col_total);
+            c_put_str(TERM_L_DARK, "--------", total_row, 70);
+            sprintf(tmp_val, "armour: %3d.%1d lb", armour_weight / 10,
+                armour_weight % 10);
+            c_put_str(TERM_SLATE, tmp_val, text_row, 70 - 8);
+            /* Make a new "shadow" below the list (only if needed) */
+            if (j && (j + 3 < 23))
+                prt("", j + 3, col_total);
+        }
     }
+
+#ifdef USE_SDL
+    /* Disable story font after rendering to prevent it from leaking into other UI elements.
+     * get_item() will re-enable it on subsequent iterations if needed. */
+    if (use_story_font)
+    {
+        log_debug("show_equip: Disabling story font after rendering");
+        sdl_story_font_disable();
+    }
+#endif
+    
+    log_trace("show_equip: EXITING");
 }
 
 /*
@@ -2833,7 +3394,7 @@ void show_floor(const int* floor_list, int floor_num)
         out_index[k] = i;
 
         /* Get inventory color */
-        out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+        out_color[k] = object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
         /* Save the object description */
         my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
@@ -3375,6 +3936,31 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     bool highlight_active = false;
 
     /* Helper lambdas (C89 substitute: static inline style) defined as macros */
+#ifdef USE_SDL
+#define DRAW_HIGHLIGHT_STORY_VARS()                                                 \
+        bool highlight_story_font = false;                                          \
+        int highlight_story_w = 0;
+#define DRAW_HIGHLIGHT_STORY_UPDATE()                                               \
+        if (p_ptr->command_wrk == (USE_INVEN) || p_ptr->command_wrk == (USE_FLOOR)) \
+            highlight_story_font = story_inventory_list_active;                     \
+        else if (p_ptr->command_wrk == (USE_EQUIP))                                 \
+            highlight_story_font = story_equipment_list_active;                     \
+        if (highlight_story_font)                                                   \
+        {                                                                           \
+            int story_term_h = 0;                                                   \
+            Term_get_size(&highlight_story_w, &story_term_h);                       \
+        }
+#define DRAW_HIGHLIGHT_IF_STORY(code)                                               \
+    if (highlight_story_font) {                                                     \
+        sdl_story_font_enable();                                                    \
+        code;                                                                       \
+        sdl_story_font_disable();                                                   \
+    } else
+#else
+#define DRAW_HIGHLIGHT_STORY_VARS()
+#define DRAW_HIGHLIGHT_STORY_UPDATE()
+#define DRAW_HIGHLIGHT_IF_STORY(code)
+#endif
 /* Build mapping arrays for currently selected list when visible */                 \
 #define BUILD_VISIBLE_LIST()                                                         \
     do {                                                                            \
@@ -3445,6 +4031,8 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         int len = 79 - 50;                                                          \
         int lim = 79 - 3;                                                           \
         char tmp[80];                                                               \
+        DRAW_HIGHLIGHT_STORY_VARS()                                                 \
+        DRAW_HIGHLIGHT_STORY_UPDATE()                                               \
         if (show_weights) lim -= 9;                                                 \
         if (p_ptr->command_wrk == (USE_EQUIP)) { lim -= (14 + 2); }                 \
         /* Recompute layout length by scanning visible list */                     \
@@ -3484,6 +4072,7 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         if (p_ptr->command_wrk == (USE_INVEN) && highlight_row < vis_inven_cnt) {   \
             row = highlight_row; item_index = vis_inven[highlight_row];             \
             prt("", row+1, col);                                         \
+            int label_col = show_weights ? 78 : 71;                                  \
             if (item_index == SUPPLIES_INDEX) {                                     \
                 char label = supplies_label_char();                                 \
                 int slot = supplies_virtual_slot();                                 \
@@ -3491,37 +4080,84 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 if (!label) label = 'a';                                            \
                 format_supply_summary(tmp, sizeof(tmp));                            \
                 tmp[lim]='\0';                                                     \
-                c_put_str(attr,tmp,row+1,col);                                    \
-                if (show_weights){ int wgt = supplies_total_weight(); char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
-                { char lab[8]; sprintf(lab, " (%c)", label); int label_col = show_weights ? 78 : 71; c_put_str(attr,lab,row+1,label_col); }\
+                DRAW_HIGHLIGHT_IF_STORY({                                           \
+                    char lab[8]; sprintf(lab, "(%c)", label);                       \
+                    char wbuf[16]; cptr wptr = NULL;                                \
+                    if (show_weights) {                                             \
+                        int wgt = supplies_total_weight();                          \
+                        strnfmt(wbuf, sizeof(wbuf), "%2d.%1d lb", wgt / 10, wgt % 10); \
+                        wptr = wbuf;                                                \
+                    }                                                               \
+                    story_render_inventory_entry(row + 1, col, label_col, tmp, attr, \
+                        show_weights, wptr, attr, lab, attr, NULL, true, highlight_story_w); \
+                })                                                                  \
+                {                                                                   \
+                    c_put_str(attr,tmp,row+1,col);                                  \
+                    if (show_weights){ int wgt = supplies_total_weight(); char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
+                    { char lab[8]; sprintf(lab, " (%c)", label); c_put_str(attr,lab,row+1,label_col); }\
+                }                                                                   \
             } else {                                                                \
                 object_type* o_ptr=&inventory[item_index];                          \
                 object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';           \
-                int text_col = draw_item_tile(col, row+1, o_ptr);                   \
-                c_put_str(attr,tmp,row+1,text_col);                                    \
-                if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
-                { char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index)); int label_col = show_weights ? 78 : 71; c_put_str(attr,lab,row+1,label_col); }\
+                DRAW_HIGHLIGHT_IF_STORY({                                           \
+                    char lab[8]; sprintf(lab, "(%c)", index_to_label(item_index));  \
+                    char wbuf[16]; cptr wptr = NULL;                                \
+                    if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; strnfmt(wbuf, sizeof(wbuf), "%2d.%1d lb", wgt / 10, wgt % 10); wptr = wbuf; } \
+                    story_render_inventory_entry(row + 1, col, label_col, tmp, attr, \
+                        show_weights, wptr, attr, lab, attr, o_ptr, true, highlight_story_w); \
+                })                                                                  \
+                {                                                                   \
+                    int text_col = draw_item_tile(col, row+1, o_ptr);               \
+                    c_put_str(attr,tmp,row+1,text_col);                             \
+                    if (show_weights){ int wgt= o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
+                    { char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index)); c_put_str(attr,lab,row+1,label_col); }\
+                }                                                                   \
             }                                                                       \
         } else if (p_ptr->command_wrk == (USE_EQUIP) && highlight_row < vis_equip_cnt){\
             row = highlight_row; item_index = vis_equip[highlight_row];             \
             object_type* o_ptr=&inventory[item_index];                              \
             object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';               \
             prt("", row+1, col);                                         \
-            { char usebuf[32]; strnfmt(usebuf,sizeof(usebuf),"%-12s: ", mention_use(item_index)); c_put_str(attr,usebuf,row+1,col);} \
-            int text_col = draw_item_tile(col+12+2, row+1, o_ptr);                  \
-            c_put_str(attr,tmp,row+1,text_col);                                   \
-            if (show_weights && o_ptr->weight){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%3d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,70);} \
-            { char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index)); int label_col = show_weights ? 78 : 71; c_put_str(attr,lab,row+1,label_col); }\
+            { char usebuf[32]; strnfmt(usebuf,sizeof(usebuf),"%-12s: ", mention_use(item_index)); \
+              DRAW_HIGHLIGHT_IF_STORY({                                             \
+                  char lab[8]; sprintf(lab, "(%c)", index_to_label(item_index));    \
+                  char wbuf[16]; cptr wptr = NULL;                                  \
+                  if (show_weights && o_ptr->weight) {                              \
+                      int wgt=o_ptr->weight*o_ptr->number;                          \
+                      sprintf(wbuf,"%2d.%1d lb",wgt/10,wgt%10);                     \
+                      wptr = wbuf;                                                  \
+                  }                                                                 \
+                  story_render_equipment_entry(row + 1, col, item_index, usebuf, attr, tmp, attr, \
+                      show_weights, wptr, attr, lab, attr, o_ptr, true, highlight_story_w); \
+              })                                                                    \
+              {                                                                     \
+                  c_put_str(attr,usebuf,row+1,col);                                 \
+                  int text_col = draw_item_tile(col+12+2, row+1, o_ptr);            \
+                  c_put_str(attr,tmp,row+1,text_col);                               \
+                  if (show_weights && o_ptr->weight){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; sprintf(w,"%2d.%1d lb",wgt/10,wgt%10); c_put_str(attr,w,row+1,70);} \
+                  { char lab[8]; sprintf(lab, " (%c)", index_to_label(item_index)); int label_col = show_weights ? 78 : 71; c_put_str(attr,lab,row+1,label_col); }\
+              }                                                                     \
+            }                                                                       \
         } else if (p_ptr->command_wrk == (USE_FLOOR) && highlight_row < vis_floor_cnt){\
             row = highlight_row; floor_slot = vis_floor[highlight_row];             \
             int obj_idx = floor_list[floor_slot];                                   \
             object_type* o_ptr=&o_list[obj_idx];                                    \
             object_desc(tmp,sizeof(tmp),o_ptr,true,3); tmp[lim]='\0';               \
             prt("", row+1, col);                                         \
-            int text_col = draw_item_tile(col, row+1, o_ptr);                       \
-            c_put_str(attr,tmp,row+1,text_col);                                        \
-            if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%3d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
-            { char lab[8]; sprintf(lab, " (%c)", index_to_label(floor_slot)); int label_col = show_weights ? 78 : 71; c_put_str(attr,lab,row+1,label_col); }\
+            int label_col = show_weights ? 78 : 71;                                  \
+            DRAW_HIGHLIGHT_IF_STORY({                                               \
+                char lab[8]; sprintf(lab, "(%c)", index_to_label(floor_slot));      \
+                char wbuf[16]; cptr wptr = NULL;                                    \
+                if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; strnfmt(wbuf, sizeof(wbuf), "%2d.%1d lb", wgt / 10, wgt % 10); wptr = wbuf; } \
+                story_render_inventory_entry(row + 1, col, label_col, tmp, attr,    \
+                    show_weights, wptr, attr, lab, attr, o_ptr, true, highlight_story_w); \
+            })                                                                      \
+            {                                                                       \
+                int text_col = draw_item_tile(col, row+1, o_ptr);                   \
+                c_put_str(attr,tmp,row+1,text_col);                                 \
+                if (show_weights){ int wgt=o_ptr->weight*o_ptr->number; char w[16]; strnfmt(w, sizeof(w), "%2d.%1d lb", wgt / 10, wgt % 10); c_put_str(attr,w,row+1,70);} \
+                { char lab[8]; sprintf(lab, " (%c)", index_to_label(floor_slot)); c_put_str(attr,lab,row+1,label_col); }\
+            }                                                                       \
         }                                                                           \
     } while (0)
 
@@ -3605,7 +4241,10 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         {
             /* Redraw if needed */
             if (p_ptr->command_see)
+            {
+                log_trace("get_item: command_see is true, calling show_equip()");
                 show_equip();
+            }
 
             /* Begin the prompt */
             sprintf(out_val, "Equip:");
@@ -3674,6 +4313,22 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         strnfmt(tmp_val, sizeof(tmp_val), "(%s) %s", out_val, pmt);
 
         /* Show the prompt */
+#ifdef USE_SDL
+        /* Use story font for prompt if the current list has story font enabled */
+        if ((p_ptr->command_wrk == (USE_INVEN) || p_ptr->command_wrk == (USE_FLOOR)) && story_inventory_list_active)
+        {
+            sdl_story_font_enable();
+            prt(tmp_val, 0, 0);
+            sdl_story_font_disable();
+        }
+        else if (p_ptr->command_wrk == (USE_EQUIP) && story_equipment_list_active)
+        {
+            sdl_story_font_enable();
+            prt(tmp_val, 0, 0);
+            sdl_story_font_disable();
+        }
+        else
+#endif
         prt(tmp_val, 0, 0);
 
     /* Draw current highlight overlay if any */
@@ -4195,6 +4850,9 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 #undef BUILD_VISIBLE_LIST
 #undef MOVE_HIGHLIGHT
 #undef DRAW_HIGHLIGHT
+#undef DRAW_HIGHLIGHT_STORY_VARS
+#undef DRAW_HIGHLIGHT_STORY_UPDATE
+#undef DRAW_HIGHLIGHT_IF_STORY
 
     /* Fix the screen if necessary */
     if (p_ptr->command_see)
@@ -4205,6 +4863,22 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         /* Hack -- Cancel "display" */
         p_ptr->command_see = false;
     }
+
+#ifdef USE_SDL
+    /* Disable story font if it was enabled by show_inven or show_equip */
+    if (story_inventory_list_active)
+    {
+        log_debug("get_item: Disabling inventory story font");
+        sdl_story_font_disable();
+        story_inventory_list_active = false;
+    }
+    if (story_equipment_list_active)
+    {
+        log_debug("get_item: Disabling equipment story font");
+        sdl_story_font_disable();
+        story_equipment_list_active = false;
+    }
+#endif
 
     // Forget whether inventory or equipment was being examined
     p_ptr->command_wrk = 0;
@@ -4356,15 +5030,30 @@ void show_inven_enhanced(void)
     int which;
     bool done = false;
     char out_val[160];
-    
+
     log_debug("show_inven_enhanced: Starting enhanced inventory display");
-    
+
+#ifdef USE_SDL
+    bool use_story_font = story_inventory_enabled();
+    int story_term_w = 0;
+    story_inventory_list_active = use_story_font;
+    if (use_story_font)
+    {
+        sdl_story_font_enable();
+        int story_term_h = 0;
+        Term_get_size(&story_term_w, &story_term_h);
+    }
+#endif
+
     /* Variables exactly matching show_inven() */
     int i, k, z;
     int col, len, lim;
     int highlight_row = -1;
     bool highlight_active = false;
     int previous_total_rows = 0;
+    int previous_compare_count = 0;
+    int previous_highlight_row = -1; /* track last frame highlight for surgical clears */
+    bool first_render = true;
     
     /* Floor items variables */
     int floor_list[MAX_FLOOR_STACK];
@@ -4438,8 +5127,9 @@ void show_inven_enhanced(void)
             out_index[k] = 0 - floor_list[i];
             out_is_floor[k] = true;
             out_is_supply[k] = false;
-            out_color[k] = weapon_glows(o_ptr) ? TERM_L_BLUE
-                : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+            out_color[k] = weapon_glows(o_ptr) 
+                ? object_display_color(o_ptr, TERM_L_BLUE)
+                : object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
             my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
 
             int l = (int)strlen(out_desc[k]) + 5;
@@ -4484,8 +5174,9 @@ void show_inven_enhanced(void)
         out_index[k] = i;
         out_is_floor[k] = false;
         out_is_supply[k] = false;
-        out_color[k] = weapon_glows(o_ptr) ? TERM_L_BLUE
-            : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+        out_color[k] = weapon_glows(o_ptr) 
+            ? object_display_color(o_ptr, TERM_L_BLUE)
+            : object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
         my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
 
         int l = (int)strlen(out_desc[k]) + 5;
@@ -4500,7 +5191,7 @@ void show_inven_enhanced(void)
     /* Find the column to start in (exactly like show_inven) */
     col = (len > 76) ? 0 : (79 - len);
     
-    log_debug("show_inven_enhanced: k=%d items, len=%d, col=%d", k, len, col);
+    log_debug("show_inven_enhanced: k=%d items, len=%d, col=%d, story_term_w=%d", k, len, col, story_term_w);
     
     /* Enable highlight if we have items */
     if (k > 0) {
@@ -4525,6 +5216,9 @@ void show_inven_enhanced(void)
         prt(out_val, 0, 0);
 
         bool allow_compare = (current_menu_command == 'u' || current_menu_command == 'x');
+        
+        log_debug("show_inven_enhanced: current_menu_command='%c' (%d), allow_compare=%d", 
+            current_menu_command, (int)current_menu_command, allow_compare);
 
         int compare_count = 0;
         char compare_label[MAX_COMPARE_LINES][4];
@@ -4546,16 +5240,63 @@ void show_inven_enhanced(void)
             compare_obj[c] = NULL;
         }
 
+        /* Surgical pre-clear: only rows that changed (old highlight + its compare lines, new highlight region, trailing cleared rows).
+           This avoids full-frame flicker and keeps ordering erase -> print -> redraw. */
+#ifdef USE_SDL
+        int redraw_y1 = -1, redraw_y2 = -1; /* aggregate redraw bounds */
+        if (use_story_font && allow_compare && !first_render)
+        {
+            int label_col_tmp = show_weights ? 78 : 71;
+            const int label_width_tmp = 6;
+            int max_print_col = label_col_tmp + label_width_tmp;
+            int erase_w = (max_print_col > col) ? (max_print_col - col + 1) : 0;
+            if (story_term_w > 80) erase_w = (erase_w * story_term_w) / 80;
+
+            /* Clear previous highlight block */
+            if (previous_highlight_row >= 0 && previous_highlight_row < k)
+            {
+                int base = 1 + previous_highlight_row;
+                for (int r = 0; r <= previous_compare_count; ++r)
+                {
+                    int rr = base + r;
+                    if (erase_w > 0) Term_erase(col, rr, erase_w);
+                    if (show_weights) Term_erase(70, rr, 9);
+                    if (redraw_y1 < 0 || rr < redraw_y1) redraw_y1 = rr;
+                    if (redraw_y2 < 0 || rr > redraw_y2) redraw_y2 = rr;
+                }
+            }
+            /* Clear current highlight prospective block */
+            if (highlight_active && highlight_row >= 0 && highlight_row < k)
+            {
+                int base = 1 + highlight_row;
+                for (int r = 0; r <= MAX_COMPARE_LINES; ++r)
+                {
+                    int rr = base + r;
+                    if (erase_w > 0) Term_erase(col, rr, erase_w);
+                    if (show_weights) Term_erase(70, rr, 9);
+                    if (redraw_y1 < 0 || rr < redraw_y1) redraw_y1 = rr;
+                    if (redraw_y2 < 0 || rr > redraw_y2) redraw_y2 = rr;
+                }
+            }
+        }
+#endif
+
         if (allow_compare && highlight_active && highlight_row >= 0 && highlight_row < k)
         {
             bool highlighted_is_supply = out_is_supply[highlight_row];
             object_type* highlighted_obj = NULL;
+
+            log_debug("COMPARE SETUP CHECK: highlight_row=%d, is_supply=%d, is_floor=%d", 
+                highlight_row, highlighted_is_supply, out_is_floor[highlight_row]);
 
             if (!highlighted_is_supply)
             {
                 highlighted_obj = out_is_floor[highlight_row]
                     ? &o_list[0 - out_index[highlight_row]]
                     : &inventory[out_index[highlight_row]];
+                    
+                log_debug("COMPARE SETUP: highlighted_obj=%p, k_idx=%d", 
+                    highlighted_obj, highlighted_obj ? highlighted_obj->k_idx : 0);
             }
 
             if (highlighted_obj)
@@ -4584,9 +5325,18 @@ void show_inven_enhanced(void)
                     strnfmt(compare_label[idx], sizeof(compare_label[idx]), "%c", index_to_label(slot));
                     strnfmt(compare_prefix[idx], sizeof(compare_prefix[idx]), "%-12s: ", mention_use(slot));
 
-                    int compare_lim = 79 - 3 - (12 + 2);
-                    if (show_weights)
-                        compare_lim -= 9;
+                    /* Calculate limit based on actual column positions
+                     * Text starts at col + 12 + 2 (after prefix "%-12s: ")
+                     * Plus 2-3 more if tile is drawn (assume worst case: +3)
+                     * Text ends at column 70 (weight) or 71 (no weight)
+                     * Use conservative limit to prevent overflow
+                     * For story font, reduce by 20% to account for proportional spacing */
+                    int text_start_col = col + 12 + 2 + 3;  /* +3 for tile worst case */
+                    int text_end_col = show_weights ? 70 : 71;
+                    int compare_lim = text_end_col - text_start_col;
+                    /* We'll enforce the exact visual width at render time; 
+                       keep character truncation only as a hard ceiling */
+                    
                     if (compare_lim < 0)
                         compare_lim = 0;
                     if (compare_lim >= (int)sizeof(compare_desc[idx]))
@@ -4598,8 +5348,11 @@ void show_inven_enhanced(void)
                         compare_obj[idx] = equipped_obj; /* Store for tile display */
                         object_desc(compare_desc[idx], sizeof(compare_desc[idx]), equipped_obj, true, 3);
                         compare_desc[idx][compare_lim] = '\0';
-                        compare_attr[idx] = weapon_glows(equipped_obj) ? TERM_L_BLUE
-                            : tval_to_attr[equipped_obj->tval % N_ELEMENTS(tval_to_attr)];
+                        log_debug("COMPARE SETUP slot=%d: orig_len=%d, compare_lim=%d, truncated='%s'",
+                            slot, (int)strlen(compare_desc[idx]), compare_lim, compare_desc[idx]);
+                        compare_attr[idx] = weapon_glows(equipped_obj) 
+                            ? object_display_color(equipped_obj, TERM_L_BLUE)
+                            : object_display_color(equipped_obj, tval_to_attr[equipped_obj->tval % N_ELEMENTS(tval_to_attr)]);
                         if (show_weights && equipped_obj->weight)
                         {
                             compare_has_weight[idx] = true;
@@ -4618,6 +5371,11 @@ void show_inven_enhanced(void)
                 }
 
                 compare_count = slot_count;
+                log_debug("COMPARE SETUP COMPLETE: compare_count=%d", compare_count);
+            }
+            else
+            {
+                log_debug("COMPARE SETUP SKIPPED: highlighted_obj is NULL");
             }
         }
 
@@ -4637,7 +5395,31 @@ void show_inven_enhanced(void)
             else if (!is_supply_item)
                 line_obj = &inventory[out_index[j]];
 
-            prt("", row, col);
+            int label_col = show_weights ? 78 : 71;
+
+#ifdef USE_SDL
+            if (use_story_font)
+            {
+                /* Pre-clear handles row erasing, just do highlighting */
+                if (!allow_compare)
+                {
+                    /* Only erase if comparison is disabled (no pre-clear) */
+                    int erase_w = 255;
+                    if (story_term_w > 80) erase_w = (erase_w * story_term_w) / 80;
+                    Term_erase(col, row, erase_w);
+                }
+                if (is_highlight)
+                {
+                    /* Always limit to 80 columns to match standard terminal layout */
+                    int highlight_cols = 80;
+                    story_fill_rect(row, col, highlight_cols - col, TERM_L_BLUE);
+                }
+            }
+            else
+#endif
+            {
+                prt("", row, col);
+            }
 
             /* Draw tile if in graphics mode and not a supply entry */
             int text_col = col;
@@ -4645,8 +5427,31 @@ void show_inven_enhanced(void)
             {
                 text_col = draw_item_tile(col, row, line_obj);
             }
+            
+            log_trace("ITEM ROW %d: col=%d, text_col=%d, is_highlight=%d, desc='%.30s'",
+                row, col, text_col, is_highlight, out_desc[j]);
 
-            c_put_str(line_attr, out_desc[j], row, text_col);
+#ifdef USE_SDL
+            if (use_story_font)
+            {
+                int desc_limit = (show_weights ? 70 : label_col) - text_col;
+                if (desc_limit < 1)
+                    desc_limit = 1;
+                
+                /* Convert limit from mono columns to story font cells */
+                if (story_term_w > 80) {
+                    desc_limit = (desc_limit * story_term_w) / 80;
+                }
+                
+                log_trace("ITEM ROW %d STORY: desc_limit=%d (scaled), text_len=%d",
+                    row, desc_limit, (int)strlen(out_desc[j]));
+                story_print_text(row, text_col, desc_limit, line_attr, out_desc[j]);
+            }
+            else
+#endif
+            {
+                c_put_str(line_attr, out_desc[j], row, text_col);
+            }
 
             if (show_weights)
             {
@@ -4655,8 +5460,18 @@ void show_inven_enhanced(void)
                     wgt = supplies_total_weight();
                 else if (line_obj)
                     wgt = line_obj->weight * line_obj->number;
-                strnfmt(tmp_val, sizeof(tmp_val), "%3d.%1d lb", wgt / 10, wgt % 10);
-                c_put_str(line_attr, tmp_val, row, 70);
+                strnfmt(tmp_val, sizeof(tmp_val), "%2d.%1d lb", wgt / 10, wgt % 10);
+#ifdef USE_SDL
+                if (use_story_font)
+                {
+                    int weight_width = label_col - 70;
+                    if (weight_width < 1)
+                        weight_width = 1;
+                    story_print_text_grid(row, 70, weight_width, line_attr, tmp_val);
+                }
+                else
+#endif
+                    c_put_str(line_attr, tmp_val, row, 70);
             }
 
             /* Print the item letter at the end */
@@ -4670,28 +5485,67 @@ void show_inven_enhanced(void)
                     label = index_to_label(slot);
                 if (!label)
                     label = 'a';
-                strnfmt(tmp_val, sizeof(tmp_val), " (%c)", label);
+                strnfmt(tmp_val, sizeof(tmp_val), "(%c)", label);
             }
             else
-                strnfmt(tmp_val, sizeof(tmp_val), " (%c)", index_to_label(out_index[j]));
+                strnfmt(tmp_val, sizeof(tmp_val), "(%c)", index_to_label(out_index[j]));
 
-            int label_col = show_weights ? 78 : 71;
-            if (is_highlight)
-                c_put_str(TERM_L_BLUE, tmp_val, row, label_col);
+            const int label_width = 6;
+            byte label_attr = is_highlight ? TERM_L_BLUE : TERM_WHITE;
+            log_trace("ITEM RENDER row=%d: label_col=%d, show_weights=%d, label='%s'", 
+                row, label_col, show_weights, tmp_val);
+#ifdef USE_SDL
+            if (use_story_font)
+            {
+                story_print_text(row, label_col, label_width, label_attr, tmp_val);
+            }
             else
-                put_str(tmp_val, row, label_col);
+#endif
+            {
+                if (is_highlight)
+                    c_put_str(label_attr, tmp_val, row, label_col);
+                else
+                    put_str(tmp_val, row, label_col);
+            }
 
             next_row++;
+            
+            if (j == 3) {
+                log_debug("AT ITEM j=3: compare_count=%d, highlight_row=%d, j==highlight_row=%d", 
+                    compare_count, highlight_row, (j == highlight_row));
+            }
+            
+            log_trace("CHECKING COMPARE RENDER: j=%d, compare_count=%d, highlight_row=%d, condition=%d",
+                j, compare_count, highlight_row, (compare_count > 0 && j == highlight_row));
 
             if (compare_count > 0 && j == highlight_row)
             {
+                log_trace(">>> INSIDE IF BLOCK: About to render %d comparison lines at next_row=%d", 
+                    compare_count, next_row);
+                    
                 for (int idx = 0; idx < compare_count; idx++)
                 {
                     int compare_row = next_row;
+                    
+                    log_trace("COMPARE LINE idx=%d will render at row=%d", idx, compare_row);
 
-                    prt("", compare_row, col);
+#ifdef USE_SDL
+                    /* Pre-clear handles row erasing for comparison mode */
+                    if (use_story_font && !allow_compare) {
+                        int erase_w = 255;
+                        if (story_term_w > 80) erase_w = (erase_w * story_term_w) / 80;
+                        Term_erase(col, compare_row, erase_w);
+                    }
+                    else if (!use_story_font)
+#endif
+                        prt("", compare_row, col);
 
-                    c_put_str(TERM_WHITE, compare_prefix[idx], compare_row, col);
+#ifdef USE_SDL
+                    if (use_story_font)
+                        story_print_equipment_prefix(compare_row, col, TERM_WHITE, compare_prefix[idx]);
+                    else
+#endif
+                        c_put_str(TERM_WHITE, compare_prefix[idx], compare_row, col);
 
                     /* Draw tile if in graphics mode for equipped items */
                     int compare_text_col = col + 12 + 2;
@@ -4699,19 +5553,54 @@ void show_inven_enhanced(void)
                     {
                         compare_text_col = draw_item_tile(col + 12 + 2, compare_row, compare_obj[idx]);
                     }
+                    
+                    log_debug("COMPARE RENDER idx=%d row=%d: col=%d, text_col=%d, desc='%s'",
+                        idx, compare_row, col, compare_text_col, compare_desc[idx]);
 
-                    c_put_str(compare_attr[idx], compare_desc[idx], compare_row, compare_text_col);
+#ifdef USE_SDL
+                    if (use_story_font)
+                    {
+                        /* Bound the story-font rendering to the available grid width,
+                           scaled to story cells, so we can safely show more text. */
+                        int text_end_col = show_weights ? 70 : label_col;
+                        int desc_limit = text_end_col - compare_text_col;
+                        if (desc_limit < 1) desc_limit = 1;
+                        if (story_term_w > 80) desc_limit = (desc_limit * story_term_w) / 80;
+                        log_debug("COMPARE RENDER STORY: text_col=%d, desc_limit=%d, text_len=%d",
+                            compare_text_col, desc_limit, (int)strlen(compare_desc[idx]));
+                        story_print_text(compare_row, compare_text_col, desc_limit, compare_attr[idx], compare_desc[idx]);
+                    }
+                    else
+#endif
+                    {
+                        c_put_str(compare_attr[idx], compare_desc[idx], compare_row, compare_text_col);
+                    }
 
                     if (show_weights)
                     {
                         if (compare_has_weight[idx])
                         {
-                            strnfmt(tmp_val, sizeof(tmp_val), "%3d.%1d lb", compare_weight[idx] / 10, compare_weight[idx] % 10);
-                            c_put_str(compare_attr[idx], tmp_val, compare_row, 70);
+                            strnfmt(tmp_val, sizeof(tmp_val), "%2d.%1d lb", compare_weight[idx] / 10, compare_weight[idx] % 10);
+#ifdef USE_SDL
+                            if (use_story_font)
+                            {
+                                int compare_weight_width = label_col - 70;
+                                if (compare_weight_width < 1)
+                                    compare_weight_width = 1;
+                                story_print_text_grid(compare_row, 70, compare_weight_width, compare_attr[idx], tmp_val);
+                            }
+                            else
+#endif
+                                c_put_str(compare_attr[idx], tmp_val, compare_row, 70);
                         }
                         else
                         {
-                            prt("", compare_row, 70);
+#ifdef USE_SDL
+                            if (use_story_font)
+                                Term_erase(70, compare_row, 9);
+                            else
+#endif
+                                prt("", compare_row, 70);
                         }
                     }
 
@@ -4719,9 +5608,13 @@ void show_inven_enhanced(void)
                     if (compare_label[idx][0])
                     {
                         char label_str[8];
-                        strnfmt(label_str, sizeof(label_str), " (%s", compare_label[idx]);
-                        int label_col = show_weights ? 78 : 71;
-                        c_put_str(compare_attr[idx], label_str, compare_row, label_col);
+                        strnfmt(label_str, sizeof(label_str), "(%s)", compare_label[idx]);
+#ifdef USE_SDL
+                        if (use_story_font)
+                            story_print_text(compare_row, label_col, label_width, compare_attr[idx], label_str);
+                        else
+#endif
+                            c_put_str(compare_attr[idx], label_str, compare_row, label_col);
                     }
 
                     next_row++;
@@ -4731,21 +5624,80 @@ void show_inven_enhanced(void)
 
         int total_rows = next_row - 1;
 
+#ifdef USE_SDL
+        /* End-of-frame redraw of just changed rows */
+        if (use_story_font && allow_compare)
+        {
+            if (compare_count > 0 && highlight_row >= 0 && highlight_row < k)
+            {
+                int base = 1 + highlight_row;
+                /* Redraw all items from highlighted row to end, since comparison lines shift everything down */
+                int last = total_rows;
+                if (redraw_y1 < 0 || base < redraw_y1) redraw_y1 = base;
+                if (redraw_y2 < 0 || last > redraw_y2) redraw_y2 = last;
+            }
+            /* Include trailing cleared rows if list shrank */
+            if (total_rows < previous_total_rows)
+            {
+                int shrink_start = total_rows + 1;
+                int shrink_end = previous_total_rows;
+                if (redraw_y1 < 0 || shrink_start < redraw_y1) redraw_y1 = shrink_start;
+                if (redraw_y2 < 0 || shrink_end > redraw_y2) redraw_y2 = shrink_end;
+            }
+            if (redraw_y1 > 0 && redraw_y2 >= redraw_y1)
+            {
+                int max_col = (show_weights ? 78 + 6 : 71 + 6);
+                if (max_col > Term->wid - 1) max_col = Term->wid - 1;
+                Term_redraw_section(col, redraw_y1, max_col, redraw_y2);
+            }
+        }
+#endif
+
         if (total_rows && total_rows < 23)
-            prt("", total_rows + 1, col);
+        {
+#ifdef USE_SDL
+            if (use_story_font) {
+                int erase_w = 255;
+                if (story_term_w > 80) erase_w = (erase_w * story_term_w) / 80;
+                Term_erase(col, total_rows + 1, erase_w);
+            }
+            else
+#endif
+                prt("", total_rows + 1, col);
+        }
 
         if (total_rows < previous_total_rows)
         {
             int clear_col = col;
             for (int clear_row = total_rows + 1; clear_row <= previous_total_rows; clear_row++)
             {
-                prt("", clear_row, clear_col);
-                if (show_weights)
-                    prt("", clear_row, 70);
+#ifdef USE_SDL
+                if (use_story_font)
+                {
+                    int erase_w = 255;
+                    int weight_erase_w = 9;
+                    if (story_term_w > 80) {
+                        erase_w = (erase_w * story_term_w) / 80;
+                        weight_erase_w = (weight_erase_w * story_term_w) / 80;
+                    }
+                    Term_erase(col, clear_row, erase_w);
+                    if (show_weights)
+                        Term_erase(70, clear_row, weight_erase_w);
+                }
+                else
+#endif
+                {
+                    prt("", clear_row, clear_col);
+                    if (show_weights)
+                        prt("", clear_row, 70);
+                }
             }
         }
 
-        previous_total_rows = total_rows;
+    previous_total_rows = total_rows;
+    previous_compare_count = compare_count;
+    previous_highlight_row = highlight_row;
+    first_render = false;  /* subsequent frames use surgical region */
 
         if (highlight_active && highlight_row >= 0 && highlight_row < k)
         {
@@ -4832,16 +5784,18 @@ void show_inven_enhanced(void)
         case '\r':       /* Enter - use item or examine based on context */
         case '\n':       /* Enter (alternative) - use item or examine based on context */
             if (highlight_active && highlight_row >= 0 && highlight_row < k) {
-                done = true;
-
-                /* Handle based on menu context */
                 extern char current_menu_command;
                 if (current_menu_command == 'x') {
                     /* Examine mode - mark for examination */
+                    done = true;
                     enhanced_menu_action = ENHANCED_ACTION_EXAMINE;
                     enhanced_inventory_selected_item = out_index[highlight_row];
                 } else {
+                    if (!death_spectator_allow_menu_action())
+                        break;
+
                     /* Use mode - defer use until after menu restore */
+                    done = true;
                     enhanced_menu_action = ENHANCED_ACTION_USE;
                     enhanced_inventory_selected_item = out_index[highlight_row];
                 }
@@ -4860,6 +5814,9 @@ void show_inven_enhanced(void)
         case '4':        /* Arrow left - drop item */
             if (highlight_active && highlight_row >= 0 && highlight_row < k) {
                 if (!out_is_floor[highlight_row]) {
+                    if (!death_spectator_allow_menu_action())
+                        break;
+
                     /* Can only drop inventory items, not floor items */
                     done = true;
                     enhanced_menu_action = ENHANCED_ACTION_DROP;
@@ -4896,6 +5853,10 @@ void show_inven_enhanced(void)
                     bell("Use arrow keys and Space to select items in this mode");
                     break;
                 }
+                if (death_spectator_active()) {
+                    death_spectator_allow_menu_action();
+                    break;
+                }
                 bool item_found = false;
                 
                 /* Check for dash (-) which selects floor item */
@@ -4911,6 +5872,11 @@ void show_inven_enhanced(void)
                             if (current_menu_command != 0) {
                                 /* Command mode - defer action */
                                 if (current_menu_command == 'u') {
+                                    if (!death_spectator_allow_menu_action()) {
+                                        item_found = true;
+                                        done = false;
+                                        break;
+                                    }
                                     enhanced_menu_action = ENHANCED_ACTION_USE;
                                     enhanced_inventory_selected_item = out_index[i];
                                 } else if (current_menu_command == 'x') {
@@ -4920,8 +5886,13 @@ void show_inven_enhanced(void)
                                 }
                             } else {
                                 /* Direct access mode - use the floor item directly */
-                                enhanced_menu_action = ENHANCED_ACTION_USE;
-                                enhanced_inventory_selected_item = out_index[i];
+                                if (!death_spectator_allow_menu_action()) {
+                                    item_found = true;
+                                    done = false;
+                                } else {
+                                    enhanced_menu_action = ENHANCED_ACTION_USE;
+                                    enhanced_inventory_selected_item = out_index[i];
+                                }
                             }
                             break;
                         }
@@ -4943,6 +5914,11 @@ void show_inven_enhanced(void)
                                 if (current_menu_command != 0) {
                                     /* Command mode - defer action */
                                     if (current_menu_command == 'u') {
+                                        if (!death_spectator_allow_menu_action()) {
+                                            item_found = true;
+                                            done = false;
+                                            break;
+                                        }
                                         enhanced_menu_action = ENHANCED_ACTION_USE;
                                         enhanced_inventory_selected_item = item;
                                     } else if (current_menu_command == 'x') {
@@ -4952,8 +5928,13 @@ void show_inven_enhanced(void)
                                     }
                                 } else {
                                     /* Direct access mode - use the traditional method */
-                                    p_ptr->command_new = which;
-                                    p_ptr->command_see = true;
+                                    if (!death_spectator_allow_menu_action()) {
+                                        item_found = true;
+                                        done = false;
+                                    } else {
+                                        p_ptr->command_new = which;
+                                        p_ptr->command_see = true;
+                                    }
                                 }
                                 break;
                             }
@@ -4972,6 +5953,10 @@ void show_inven_enhanced(void)
         }
     }
     
+#ifdef USE_SDL
+    if (use_story_font)
+        sdl_story_font_reset();
+#endif
     log_trace("show_inven_enhanced: Exiting, action=%d", enhanced_menu_action);
 }
 
@@ -4991,7 +5976,28 @@ void show_equip_enhanced(void)
     char out_val[160];
     
     log_debug("show_equip_enhanced: Starting equipment enhanced menu");
+    log_debug("show_equip_enhanced: INVEN_BODY=%d, INVEN_FEET=%d, show_weights=%d", 
+        INVEN_BODY, INVEN_FEET, show_weights);
     
+#ifdef USE_SDL
+    bool use_story_font = story_equipment_enabled();
+    log_trace("show_equip_enhanced: story_equipment_enabled() = %d", use_story_font);
+    int story_term_w = 0;
+    story_equipment_list_active = use_story_font;
+    if (use_story_font)
+    {
+        log_trace("show_equip_enhanced: Enabling story font");
+        sdl_story_font_enable();
+        int story_term_h = 0;
+        Term_get_size(&story_term_w, &story_term_h);
+        log_trace("show_equip_enhanced: story_term_w = %d", story_term_w);
+    }
+    else
+    {
+        log_trace("show_equip_enhanced: Story font NOT enabled, using mono");
+    }
+#endif
+
     /* Variables exactly matching show_equip() */
     int i, k, l;
     int col, len, lim;
@@ -5006,6 +6012,7 @@ void show_equip_enhanced(void)
     int out_index[24];        /* Slot numbers of equipped items */
     byte out_color[24];
     char out_desc[24][80];
+    int armour_weight = 0;    /* Total armour weight */
     
     /* Default length (exactly like show_equip) */
     len = 79 - 50;
@@ -5020,6 +6027,7 @@ void show_equip_enhanced(void)
     if (show_weights) lim -= 9;
     
     /* Scan the equipment list - ONLY INCLUDE EQUIPPED ITEMS */
+    log_debug("show_equip_enhanced: Starting equipment scan, show_weights=%d", show_weights);
     for (k = 0, i = INVEN_WIELD; i < INVEN_TOTAL; i++)
     {
         o_ptr = &inventory[i];
@@ -5037,7 +6045,7 @@ void show_equip_enhanced(void)
         {
             /* Description (exactly like show_equip) */
             object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
-            out_color[k] = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+            out_color[k] = object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
         }
         
         /* Truncate the description (exactly like show_equip) */
@@ -5048,6 +6056,20 @@ void show_equip_enhanced(void)
         
         /* Save the description (exactly like show_equip) */
         my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
+        
+        /* Calculate armour weight (for body armour, cloak, shield, helmet, gloves, boots) */
+        if (show_weights && o_ptr->weight && (i >= INVEN_BODY) && (i <= INVEN_FEET))
+        {
+            int item_weight = o_ptr->weight * o_ptr->number;
+            armour_weight += item_weight;
+            log_debug("show_equip_enhanced: Slot %d (%s) weight=%d, total armour_weight now=%d", 
+                i, describe_empty_slot(i), item_weight, armour_weight);
+        }
+        else if (i >= INVEN_BODY && i <= INVEN_FEET)
+        {
+            log_trace("show_equip_enhanced: Slot %d (%s) skipped: show_weights=%d, o_ptr->weight=%d, is_empty=%d",
+                i, describe_empty_slot(i), show_weights, o_ptr->weight, is_empty);
+        }
         
         /* Extract the maximal length (exactly like show_equip) */
         l = strlen(out_desc[k]) + (2 + 3);
@@ -5065,6 +6087,8 @@ void show_equip_enhanced(void)
         k++;
     }
     
+    log_debug("show_equip_enhanced: Equipment scan complete, k=%d items, total armour_weight=%d", k, armour_weight);
+    
     /* Find the column to start in (exactly like show_equip) */
     col = (len > 76) ? 0 : (79 - len);
     
@@ -5079,8 +6103,54 @@ void show_equip_enhanced(void)
     /* Main interaction loop */
     while (!done)
     {
-        /* Display equipment first (call the original) */
-        show_equip();
+        /* Display equipment list */
+#ifdef USE_SDL
+        if (use_story_font)
+        {
+            log_trace("show_equip_enhanced: Calling draw_equipment_story_rows with highlight_index=%d", highlight_index);
+            draw_equipment_story_rows(col, k, out_index, out_color, out_desc,
+                highlight_active, highlight_index, show_weights, story_term_w);
+            log_trace("show_equip_enhanced: draw_equipment_story_rows FINISHED");
+            
+            /* Display armour weight total if any armour equipped */
+            log_debug("show_equip_enhanced: Checking armour weight display: armour_weight=%d", armour_weight);
+            if (armour_weight)
+            {
+                int total_row = INVEN_TOTAL - INVEN_WIELD + 1;
+                int text_row = total_row + 1;
+                
+                log_debug("show_equip_enhanced: Displaying armour weight at rows %d/%d (INVEN_TOTAL=%d, INVEN_WIELD=%d)", 
+                    total_row, text_row, INVEN_TOTAL, INVEN_WIELD);
+                
+                Term_erase(col, total_row, 255);
+                Term_erase(col, text_row, 255);
+                
+                log_trace("show_equip_enhanced: Rendering armour weight total at rows %d/%d", total_row, text_row);
+                story_print_text_grid(total_row, 70, 8, TERM_L_DARK, "--------");
+                strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb",
+                    armour_weight / 10, armour_weight % 10);
+                log_debug("show_equip_enhanced: Armour weight text: '%s'", tmp_val);
+                story_print_text_grid(text_row, 62, 16, TERM_SLATE, tmp_val);
+                
+                /* Erase the shadow line below */
+                if (k && (k + 3 < 23))
+                {
+                    log_trace("show_equip_enhanced: Erasing shadow at row %d", k + 3);
+                    Term_erase(0, k + 3, 255);
+                }
+            }
+            else
+            {
+                log_debug("show_equip_enhanced: NOT displaying armour weight (armour_weight=%d)", armour_weight);
+            }
+        }
+        else
+#endif
+        {
+            log_trace("show_equip_enhanced: Calling show_equip() [mono path]");
+            show_equip();
+            log_trace("show_equip_enhanced: show_equip() FINISHED");
+        }
         
         /* Show the prompt - different text based on how menu was opened */
         extern char current_menu_command;
@@ -5093,14 +6163,24 @@ void show_equip_enhanced(void)
         else {
             sprintf(out_val, "Space-Remove, -> description, <- drop  (Equipment)");
         }
-        prt(out_val, 0, 0);
+#ifdef USE_SDL
+        if (use_story_font)
+            story_print_text(0, 0, 0, TERM_WHITE, out_val);
+        else
+#endif
+            prt(out_val, 0, 0);
         
         /* Highlight current selection - find the display row for this equipped item */
+#ifdef USE_SDL
+        if (!use_story_font && highlight_active && highlight_index >= 0 && highlight_index < k)
+#else
         if (highlight_active && highlight_index >= 0 && highlight_index < k)
+#endif
         {
             /* Get the actual slot index of the highlighted equipped item */
             int highlighted_slot = out_index[highlight_index];
             
+            log_trace("show_equip_enhanced: MONO highlight overlay - item %d (slot %d)", highlight_index, highlighted_slot);
             log_debug("show_equip_enhanced: Highlighting equipped item %d (slot %d)", highlight_index, highlighted_slot);
             
             /* Find which row this slot appears in the original show_equip() display */
@@ -5250,16 +6330,18 @@ void show_equip_enhanced(void)
         case '\r':       /* Enter - use item or examine based on context */
         case '\n':       /* Enter (alternative) - use item or examine based on context */
             if (highlight_active && highlight_index >= 0 && highlight_index < k) {
-                done = true;
-
-                /* Handle based on menu context */
                 extern char current_menu_command;
                 if (current_menu_command == 'x') {
                     /* Examine mode - mark for examination */
+                    done = true;
                     enhanced_equip_action = ENHANCED_ACTION_EXAMINE;
                     enhanced_equipment_selected_item = out_index[highlight_index];
                 } else {
+                    if (!death_spectator_allow_menu_action())
+                        break;
+
                     /* Use mode - defer action */
+                    done = true;
                     enhanced_equip_action = ENHANCED_ACTION_USE;
                     enhanced_equipment_selected_item = out_index[highlight_index];
                 }
@@ -5277,6 +6359,9 @@ void show_equip_enhanced(void)
 
         case '4':        /* Arrow left - drop item */
             if (highlight_active && highlight_index >= 0 && highlight_index < k) {
+                if (!death_spectator_allow_menu_action())
+                    break;
+
                 done = true;
                 enhanced_equip_action = ENHANCED_ACTION_DROP;
                 enhanced_equipment_selected_item = out_index[highlight_index];
@@ -5309,6 +6394,10 @@ void show_equip_enhanced(void)
                     bell("Use arrow keys and Space to select items in this mode");
                     break;
                 }
+                if (death_spectator_active()) {
+                    death_spectator_allow_menu_action();
+                    break;
+                }
                 int item = label_to_equip(which);
                 if (item >= INVEN_WIELD && item < INVEN_TOTAL && (inventory[item].k_idx || (throw_slot_menu_active && throw_slot_enabled[item]))) {
                     done = true;
@@ -5318,6 +6407,10 @@ void show_equip_enhanced(void)
                     if (current_menu_command != 0) {
                         /* Command mode - defer action */
                         if (current_menu_command == 'u') {
+                            if (!death_spectator_allow_menu_action()) {
+                                done = false;
+                                break;
+                            }
                             enhanced_equip_action = ENHANCED_ACTION_USE;
                             enhanced_equipment_selected_item = item;
                         } else if (current_menu_command == 'x') {
@@ -5327,8 +6420,12 @@ void show_equip_enhanced(void)
                         }
                     } else {
                         /* Direct access mode - use the traditional method */
-                        p_ptr->command_new = which;
-                        p_ptr->command_see = true;
+                        if (!death_spectator_allow_menu_action()) {
+                            done = false;
+                        } else {
+                            p_ptr->command_new = which;
+                            p_ptr->command_see = true;
+                        }
                     }
                 }
                 else {
@@ -5342,6 +6439,13 @@ void show_equip_enhanced(void)
         }
     }
     
+#ifdef USE_SDL
+    if (use_story_font)
+    {
+        log_trace("show_equip_enhanced: Resetting story font");
+        sdl_story_font_reset();
+    }
+#endif
     log_trace("show_equip_enhanced: Exiting equipment enhanced menu, action=%d", enhanced_equip_action);
 }
 
@@ -5407,7 +6511,7 @@ static void draw_ident_line(const ident_entry* entry, int row, int col, bool hig
         int wgt = entry->o_ptr->weight * entry->o_ptr->number;
         if (entry->o_ptr->weight || entry->type != IDENT_ENTRY_EQUIP)
         {
-            strnfmt(weight_buf, sizeof(weight_buf), "%3d.%1d lb", wgt / 10, wgt % 10);
+            strnfmt(weight_buf, sizeof(weight_buf), "%2d.%1d lb", wgt / 10, wgt % 10);
             c_put_str(attr, weight_buf, row, 70);
         }
     }
@@ -5449,8 +6553,9 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
             if (lim_no_weight >= 0)
                 entry->desc[lim_no_weight] = '\0';
 
-            entry->color = weapon_glows(o_ptr) ? TERM_L_BLUE
-                : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+            entry->color = weapon_glows(o_ptr) 
+                ? object_display_color(o_ptr, TERM_L_BLUE)
+                : object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
             int row_len = (int)strlen(entry->desc) + 5;
             if (show_weights)
@@ -5494,8 +6599,9 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
         object_desc(entry->desc, sizeof(entry->desc), o_ptr, true, 3);
         entry->desc[desc_lim] = '\0';
 
-        entry->color = weapon_glows(o_ptr) ? TERM_L_BLUE
-            : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+        entry->color = weapon_glows(o_ptr) 
+            ? object_display_color(o_ptr, TERM_L_BLUE)
+            : object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
         int row_len = prefix_len + (int)strlen(entry->desc) + 5;
         if (show_weights && o_ptr->weight)
@@ -5684,6 +6790,32 @@ bool display_unified_identify_menu(bool include_floor, int* out_item, object_typ
     }
 
     return true;
+}
+
+bool player_can_treat_as_throwing_flags(const object_type* o_ptr, u32b f3)
+{
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    if (f3 & TR3_THROWING)
+        return true;
+
+    if (!p_ptr->active_ability[S_MEL][MEL_POLEARMS])
+        return false;
+
+    return (o_ptr->tval == TV_POLEARM) && (o_ptr->sval == SV_GREAT_SPEAR);
+}
+
+bool player_can_treat_as_throwing(const object_type* o_ptr)
+{
+    u32b f1 = 0, f2 = 0, f3 = 0;
+
+    if (!o_ptr || !o_ptr->k_idx)
+        return false;
+
+    object_flags(o_ptr, &f1, &f2, &f3);
+
+    return player_can_treat_as_throwing_flags(o_ptr, f3);
 }
 
 #undef MAX_COMPARE_LINES

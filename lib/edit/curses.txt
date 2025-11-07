@@ -11,7 +11,7 @@
 
 # Version stamp (required)
 
-V:0.8.9
+V:0.9.0
 
 
 N:0:Burden of Ancient Stone
@@ -20,6 +20,9 @@ F:
 A:2/3
 D:Every step feels older than the hills, your frame burdened by some unseen weight of ages past.
 P:Strength -1
+B:Blessing of Feathered Steps
+E:The unseen weight falls away; your stride lightens.
+H:Strength +1
 
 N:1:Curse of Shivering Leaves
 S:0:-1:0:0
@@ -27,6 +30,9 @@ F:
 A:2/3
 D:A faint quiver deep within; calm dissolves beneath hidden tremors.
 P:Dexterity -1
+B:Blessing of Steady Leaves
+E:A gentle hush steadies your hands; tremors fade into stillness.
+H:Dexterity +1
 
 N:2:Burden of Withering Blossoms
 S:0:0:-1:0
@@ -34,6 +40,9 @@ F:
 A:2/3
 D:Your heart feels as petals under frost, frail and fleeting, vulnerable to the gentlest winds.
 P:Constitution -1
+B:Blessing of Blooming Vigor
+E:Warmth floods your limbs; your endurance renews like spring.
+H:Constitution +1
 
 N:3:Curse of the Marred Dance
 S:0:0:0:-1
@@ -41,6 +50,9 @@ F:
 A:2/3
 D:No longer do you glide upon the earth, for a shadow has passed over your steps, harmony forever broken.
 P:Grace -1
+B:Blessing of the Unmarred Dance
+E:Harmony returns to your movements; every step finds its rhythm.
+H:Grace +1
 
 N:4:Curse of Blunted Steel
 S:0:0:0:0
@@ -48,6 +60,10 @@ F:MEL_PENALTY
 A:3/2
 D:The blade betrays your hand; the foe laughs softly as your blows fall like rain upon the stones.
 P:Melee Penalty
+B:Blessing of Quick Steel
+E:The blade sings in your grasp, swift and certain as starlight.
+H:Melee Affinity
+G:MEL_AFFINITY
 
 N:5:Curse of Shrouded Moon
 S:0:0:0:0
@@ -55,13 +71,21 @@ F:ARC_PENALTY
 A:3/2
 D:Moonlight dims and arrows stray; shadows deceive your sight, truths obscured in mist and twilight.
 P:Archery Penalty
+B:Blessing of the Silver Moon
+E:Moonlight bathes your aim; shadows flee before your arrows.
+H:Archery Affinity
+G:ARC_AFFINITY
 
 N:6:Curse of Stirring Shadows
 S:0:0:0:0
 F:STL_PENALTY
 A:3/2
 D:Silence slips away gently, betraying secrets once carefully kept.
-P: Stealth Penalty
+P:Stealth Penalty
+B:Blessing of Hidden Footsteps
+E:Quiet veils your path; every step becomes a whisper.
+H:Stealth Affinity
+G:STL_AFFINITY
 
 N:7:Curse of the Hourglass’ Pause
 S:0:0:0:0
@@ -69,6 +93,10 @@ F:EVN_PENALTY
 A:3/2
 D:The present blurs, responses lingering too long at the edge of thought.
 P:Evasion Penalty
+B:Blessing of Fleet Time
+E:Moments quicken; you move before danger can arise.
+H:Evasion Affinity
+G:EVN_AFFINITY
 
 N:8:Curse of Clouded Mirrors
 S:0:0:0:0
@@ -76,6 +104,10 @@ F:PER_PENALTY
 A:3/2
 D:Subtle truths blur gently, forever dancing just beyond sight.
 P:Perception Penalty
+B:Blessing of Clear Mirrors
+E:Reflections sharpen; every detail returns bright and true.
+H:Perception Affinity
+G:PER_AFFINITY
 
 N:9:Curse of Nameless Dread
 S:0:0:0:0
@@ -83,6 +115,10 @@ F:WIL_PENALTY
 A:3/2
 D:A shadow creeps upon your mind, whispers of despair eroding bravery once unyielding.
 P:Will Penalty
+B:Blessing of the Steadfast Heart
+E:Resolve blazes anew; dread is banished from your thoughts.
+H:Will Affinity
+G:WIL_AFFINITY
 
 N:10:Sorrow of Crumbling Towers
 S:0:0:0:0
@@ -90,6 +126,10 @@ F:SMT_PENALTY
 A:3/2
 D:That which you craft falters like an ancient ruin, strength yielding slowly to decay.
 P:Smith Penalty
+B:Blessing of Unbroken Towers
+E:Forge heat steadies; every craft holds fast beneath your hands.
+H:Smith Affinity
+G:SMT_AFFINITY
 
 N:11:Curse of Fading Whispers
 S:0:0:0:0
@@ -97,6 +137,10 @@ F:SNG_PENALTY
 A:3/2
 D:Voice drifts silently away, words unraveling softly before heard.
 P:Song_Penalty
+B:Blessing of Echoed Song
+E:Your voice returns, weaving melodies anew through the dark.
+H:Song Affinity
+G:SNG_AFFINITY
 
 N:12:Fate’s Tyranny
 S:0:0:0:0
@@ -113,6 +157,9 @@ F:
 A:4/2
 D:A weary shadow follows you, pressing heavily upon your shoulders. Strength fades beneath the relentless weight of your own doom.
 P:Weight limit decreased by 20%.
+B:Blessing of the Unburdened
+E:Your burden lifts; you carry hope's weight with ease.
+H:Weight limit increased by 20%
 
 N:14:Echoes of Anguish
 S:0:0:0:0
@@ -120,7 +167,10 @@ U:MONSTERHP
 F:
 A:4/3
 D:Your foes rise, drawn from deeper shadows. Their vigor renewed by whispered malice, each battle longer, bloodier, and grimmer.
-P:Ordinary monsters’ HP increased by 20%.
+P:Ordinary monsters' HP increased by 20%.
+B:Blessing of Weakening Shadow
+E:Your foes falter; their strength wanes before your resolve.
+H:Ordinary monsters' HP decreased by 10%
 
 N:15:Doom of the Mighty
 S:0:0:0:0
@@ -128,7 +178,10 @@ U:MONSTERHP_U
 F:
 A:3/3
 D:Named terrors regain ancient potency, their dark legends burn brighter. Heroes must now reckon with foes whose names echo louder in the dark.
-P:Unique monsters’ HP increased by 20%.
+P:Unique monsters' HP increased by 20%.
+B:Blessing of Humbled Legends
+E:Great names fade; legends diminish before your growing might.
+H:Unique monsters' HP decreased by 10%
 
 N:16:Veil of Shadows
 S:0:0:0:0
@@ -137,6 +190,9 @@ F:
 A:4/3
 D:Enemies glide unseen, cloaked by unnatural shadows. Footfalls silent, menace concealed, until dread's blade is poised at your back.
 P:Monster Stealth increased by 2.
+B:Blessing of Revealing Light
+E:Shadows flee; all that lurks is laid bare before you.
+H:Monster Stealth decreased by 2
 
 N:17:Lidless Gaze
 S:0:0:0:0
@@ -144,7 +200,10 @@ U:MON_PER
 F:
 A:4/3
 D:No subtlety escapes the watchful darkness. Eyes hidden in gloom pierce your every attempt at secrecy, stripping away your refuge.
-P:Monster Perception increased by 2.
+P:Monster Perception +2.
+B:Blessing of Clouded Sight
+E:Your foes grow blind; their searching eyes find only mist.
+H:Monster Perception -2
 
 N:18:Iron Will of Morgoth
 S:0:0:0:0
@@ -152,7 +211,10 @@ U:MON_WIL
 F:
 A:4/3
 D:Darkness fortifies their resolve. Adversaries steel their minds, unyielding as stone, resisting your every subtlety and song.
-P:Monster Will increased by 2.
+P:Monster Will -2.
+B:Blessing of Shattered Resolve
+E:Their wills crumble; defiance turns to doubt and fear.
+H:Monster Will +2
 
 N:19:Scales of Anfauglith
 S:0:0:0:0
@@ -160,7 +222,7 @@ U:MON_ARM_DICE
 F:
 A:1/3
 D:Enemy hides harden, mirroring the harsh lands of Anfauglith. Blades ring uselessly against scales tempered by despair.
-P:Monster armour dice increased by 1.
+P:Monster armour dice +1.
 
 N:20:Halls of Adamant
 S:0:0:0:0
@@ -168,7 +230,10 @@ U:MON_ARM_SIDE
 F:
 A:3/3
 D:A fell enchantment coats your foes in armors forged in shadowed halls. Weapons chip against barriers tougher than mortal craft can break.
-P:Monster armour dice sides increased by 1.
+P:Monster armour dice sides +1.
+B:Blessing of Sundered Steel
+E:Fell enchantments break; their armor turns to rust.
+H:Monster armour dice sides -1
 
 N:21:The Naked Path 
 S:0:0:0:0
@@ -194,12 +259,15 @@ A:2/1
 D:Spoiled are the gifts of Arda, for darkness leaves its lingering touch. What should nourish now poisons; what might save may now doom.
 P:Spawned items have chance to be cursed.
 
-N:24:Twilight’s Shroud
+N:24:Twilight's Shroud
 S:0:0:0:0
 U:LIGHTR
 A:1/2
 D:A shadow settles around you, dimming the circle of hope. The darkness looms closer, daring you to step into deeper gloom.
 P:Light radius −1
+B:Blessing of Radiant Dawn
+E:Brightness swells around you; shadows flee from your presence.
+H:Light radius +1
 
 N:25:Waning of the Lamps
 S:0:0:0:0
@@ -207,13 +275,9 @@ U:LIGHTP
 A:1/2
 D:Light falters and flickers, drained by an unseen malice. Flames grow pale, barely holding back the encroaching night.
 P:Light Power -1
-
-N:26:Mandos' Begrudging Mercy
-S:0:0:0:0
-U:DEATH
-A:1/2
-D:The doors of Mandos grow heavy and close swiftly behind you. The gift of the Eldar fades; your spirit bound closer to mortality, your return diminished as fate tightens its hold.
-P:Maximum deaths −3
+B:Blessing of Undying Flame
+E:Your light burns eternal; no darkness can diminish its glow.
+H:Light Power +1
 
 N:27:Maze of Malice
 S:0:0:0:0
@@ -234,7 +298,10 @@ S:0:0:0:0
 U:HUNGER
 A:2/2
 D:A hollow gnaws within you, insatiable and relentless. Hunger stalks your every step, the emptiness a ceaseless torment.
-P:Digestion rate ×2
+P:Digestion rate is increased
+B:Blessing of Sustenance
+E:Your hunger fades; sustenance lingers longer within you.
+H:Digestion rate is decreased
 
 N:30:Draught of Delirium
 S:0:0:0:0
@@ -242,3 +309,110 @@ U:HALLU
 A:1/2
 D:The essence of Arda twists cruelly upon your tongue. Visions distort reality, weaving madness from nourishment, blurring friend and foe.
 P:20% chance per potion to go mad
+
+N:31:Curse of Craven Hearts
+S:0:0:0:0
+F:
+U:RES_FEAR_SHIFT
+A:3/1
+D:An unseen whisper seeps through your heart, unraveling valor into trembling dread.
+P:Fear resistance -1
+B:Blessing of the Unfaltering Heart
+E:Courage floods your chest; dread shatters against your will.
+H:Fear resistance +1
+
+N:32:Curse of Shattered Poise
+S:0:0:0:0
+F:
+U:RES_STUN_SHIFT
+A:3/1
+D:Invisible tremors rattle your sinews; every impact lingers, stealing your balance.
+P:Stun resistance -1
+B:Blessing of Unbroken Poise
+E:Impact disperses in gentle waves; your stance remains unshaken.
+H:Stun resistance +1
+
+N:33:Curse of Tangled Thoughts
+S:0:0:0:0
+F:
+U:RES_CONFU_SHIFT
+A:3/1
+D:Your thoughts fray into knotted echoes; commands dissolve before they reach your hands.
+P:Confusion resistance -1
+B:Blessing of Guiding Clarity
+E:A single lucid thread guides your mind; bewilderment cannot cling.
+H:Confusion resistance +1
+
+N:34:Curse of Fraying Visions
+S:0:0:0:0
+F:
+U:RES_HALLU_SHIFT
+A:3/1
+D:Phantasms bloom along the edge of sight; reality blurs into mocking lights.
+P:Hallucination resistance -1
+B:Blessing of Grounded Sight
+E:Illusions peel away; only the sure outline of truth remains.
+H:Hallucination resistance +1
+
+N:35:Curse of Withered Veins
+S:0:0:0:0
+F:
+U:RES_POIS_SHIFT
+A:3/1
+D:Your blood chills with stagnant venom; toxins linger eager for the kill.
+P:Poison resistance -1
+B:Blessing of Vital Pulse
+E:Your pulse quickens, burning poison to harmless ash.
+H:Poison resistance +1
+
+N:36:Curse of Ashen Wards
+S:0:0:0:0
+F:
+U:RES_FIRE_SHIFT
+A:2/1
+D:Scorching doubts thin your wards; every ember threatens to consume you.
+P:Fire resistance -1
+B:Blessing of the Ember Ward
+E:A gentle glow wraps you; flame gutters at its edge.
+H:Fire resistance +1
+
+N:37:Curse of Winter's Claim
+S:0:0:0:0
+F:
+U:RES_COLD_SHIFT
+A:2/1
+D:A creeping frost seeps into your bones; winter tides slip past your guard.
+P:Cold resistance -1
+B:Blessing of Hearthweave
+E:Warmth settles upon your shoulders; winter's bite slides away.
+H:Cold resistance +1
+
+N:38:Curse of Blunted Fortune
+S:0:0:0:0
+F:
+U:MDS_SHIFT
+A:1/1
+D:Your strikes hesitate at the final instant; keen edges dull against fate.
+P:Melee damage dice sides -1
+B:Blessing of Keen Fortune
+E:Timing and edge align; every blow lands with sharpened purpose.
+H:Melee damage dice sides +1
+
+N:39:Curse of Exposed Flaws
+S:0:0:0:0
+F:
+U:CRIT_THRESH_SHIFT
+A:1/1
+D:Your guard reveals fatal seams; foes find grievous openings with ease.
+P:Critical threshold reduced by 1
+
+N:40:Curse of Breached Bulwarks
+S:0:0:0:0
+F:
+U:ARMOR_SIDE_SHIFT
+A:1/1
+D:The plates of your armour gap and groan; protection thins where strikes fall.
+P:Protection dice sides -1
+B:Blessing of Tempered Bulwarks
+E:Mail knits tight and resilient; armour drinks the force of blows.
+H:Protection dice sides +1

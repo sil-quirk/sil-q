@@ -79,6 +79,7 @@ typedef struct player_character player_house;
 typedef struct hist_type hist_type;
 typedef struct story_type story_type;
 typedef struct curse_type curse_type;
+typedef struct major_blessing_type major_blessing_type;
 typedef struct player_other player_other;
 typedef struct player_type player_type;
 typedef struct start_item start_item;
@@ -112,6 +113,7 @@ struct maxima
     u16b h_max; /* Max size for "h_info[]" */
     u16b st_max; /* Max size for "st_info[]" */
     u16b cu_max; /* Max size for "cu_info[]" */
+    u16b mb_max; /* Max size for "major blessing info[]" */
     u16b c_max; /* Max size for "c_info[]" */
     u16b quest_max; /* Max size for "quest_info[]" */
     u16b oath_max; /* Max size for "oath_info[]" */
@@ -615,11 +617,30 @@ struct monster_type
 
     byte mana; /* Current mana level */
     byte song; /* Current song */
+    byte song_contest_stacks; /* Stacks accumulated from Song of Contest */
+    byte song_lament_stacks; /* Stacks accumulated from Song of Lament */
+    byte song_lockout_timer; /* Turns before monster can sing again */
+    byte song_hp_loss_lo; /* Low byte of cumulative Song HP penalty */
+    s32b song_contest_last_turn; /* Last player turn Contest stack changed */
+    s32b song_lament_last_turn; /* Last player turn Lament stack changed */
+    s16b song_will_penalty; /* Permanent Will penalty from duels */
+    s16b song_stealth_penalty; /* Permanent Stealth penalty from duels */
+    s16b song_evasion_penalty; /* Permanent Evasion penalty from duels */
+    byte song_armor_dice_penalty; /* Permanent armour dice penalty */
+    byte song_hp_loss_hi; /* High byte of cumulative Song HP penalty */
+    byte song_contest_completed; /* 1 if Contest duel completed (won or lost), 0 otherwise */
+    byte song_lament_completed; /* 1 if Lament duel completed (won or lost), 0 otherwise */
 
     s16b consecutive_attacks; /* How many times it has attacked the player in a
                                  row immediately prior to now */
     s16b turns_stationary; /* How many times it has stayed still in a row
                               immediately prior to now */
+
+    byte blow_dd_reduction[MONSTER_BLOW_MAX]; /* Reduction applied to blow damage dice */
+    byte blow_ds_reduction[MONSTER_BLOW_MAX]; /* Reduction applied to blow damage sides */
+    byte armor_ps_reduction; /* Reduction applied to protection sides */
+    byte shatter_padding[3]; /* Reserved for future shattering data */
+
     byte previous_action[ACTION_MAX]; /* What the monster did on its previous
                                          turns */
 };
@@ -771,26 +792,53 @@ struct story_type
 typedef struct curse_type              /* one entry in cu_info[]          */
 {
     s16b             name;             /* index in cu_name */ 
+    s16b             blessing_name;    /* blessing name index */ 
     u32b             text;             /* offset in the big text pool  */
+    u32b             blessing_text;    /* blessing description offset  */
     u32b             power;            /* NEW – offset of P:-effect text       */
+    u32b             blessing_power;   /* offset of blessing effect text       */
     s16b             cu_adj[A_MAX];    /* stat adjustments  */
-    u32b             flags;            /* ⇐ NEW – RHF flags */
-    u32b             flags_u;            /* ⇐ NEW – RHF flags */
+    u32b             flags;            /* RHF flags contributed by curse */
+    u32b             blessing_flags;   /* RHF flags contributed by blessing */
+    u32b             flags_u;          /* CUR flags contributed by curse */
+    u32b             blessing_flags_u; /* CUR flags contributed by blessing */
     byte  weight;              /* selection weight   (default 1)  */
     byte  max_stacks;          /* hard cap per meta-run (0 = ∞)   */    
 }
 curse_type;
 
+/*
+ * Major blessing definitions (data-driven metarun upgrades)
+ */
+struct major_blessing_type
+{
+    s16b name;         /* Display name offset (mb_name)                 */
+    u32b short_desc;   /* Short descriptor for stats listing             */
+    u32b detail_desc;  /* Menu description / tooltip                     */
+    u32b unlock_msg;   /* Message shown when the blessing is unlocked    */
+    byte effect;       /* Effect enum (metarun_major_effect)             */
+    byte cost;         /* Blessing point cost                            */
+    byte reserved[2];  /* Alignment / future expansion                   */
+};
 
+
+#define RUNTYPE_BLESSING_THRESHOLD_MODES 3
+
+enum runtype_blessing_mode {
+    RUNTYPE_BLESSING_MODE_NORMAL = 0,
+    RUNTYPE_BLESSING_MODE_EASIER = 1,
+    RUNTYPE_BLESSING_MODE_HARDER = 2,
+    RUNTYPE_BLESSING_MODE_COUNT = RUNTYPE_BLESSING_THRESHOLD_MODES
+};
 
 typedef struct runtype_type {
     u16b id;
     char name[32];
-    u32b start_curses;             /* default curses mask (bits 0..31)      */
-    byte curse_stacks[32];         /* stack count for each curse (0 = disabled) */
+    u64b start_curses;             /* default curses mask (bits 0..63)      */
+    byte curse_stacks[METAR_CURSE_SLOTS];         /* stack count for each curse (0 = disabled) */
     byte colour;                   /* display colour (TERM_*)               */
     byte win_con;                  /* target Silmarils to win (default 15)  */
-    byte lose_con;                 /* deaths to lose (min 1; default 15)    */
+    u16b blessing_threshold_modes[RUNTYPE_BLESSING_THRESHOLD_MODES]; /* score pool per blessing tier */
     u32b heroes[FLAG_WORDS];       /* applicable heroes (max 64)            */
 } runtype_type;
 
@@ -996,6 +1044,9 @@ struct player_type
 
     s16b tmp_per; /* Timed -- Perception */
 
+    s16b song_challenge_effect; /* Timed -- Song of Challenge lingering debuff */
+    s16b song_elbereth_effect; /* Timed -- Song of Elbereth lingering debuff */
+
     s16b energy; /* Current energy */
 
     s16b food; /* Current nutrition */
@@ -1018,6 +1069,12 @@ struct player_type
     byte song1; /* Current song */
     byte song2; /* Current minor theme */
     s16b song_duration; /* The duration of the current song */
+    s16b song_target_idx; /* Current targeted monster for duel songs */
+    byte song_target_song; /* Which song the current target applies to */
+    byte song_lockout_timer; /* Turns before singing allowed again */
+    byte song_contest_player_stacks; /* Player stack count for Song of Contest */
+    byte song_duel_pad; /* Padding for alignment */
+    s32b song_contest_last_turn; /* Last turn player stack changed */
 
     s16b player_hp[PY_MAX_LEVEL]; /* HP Array */
 
@@ -1285,7 +1342,7 @@ typedef struct score_file_header
 struct high_score
 {
     char what[8];        /* Version info (string) */
-    char pts[5];         /* Total active curse stacks (right-aligned decimal) */
+    char pts[5];         /* Net curse count: total(curses) minus total(blessings) (right-aligned decimal, version_extra >= 6) */
     char turns[10];      /* Turns Taken (number) */
     char day[10];        /* Time stamp (string) */
     char who[16];        /* Player Name (string) */
@@ -1293,7 +1350,7 @@ struct high_score
     char unused[2];      /* Was sex */
     char p_r[3];         /* Player Race (number) */
     char p_h[3];         /* Player House (number) */
-    char cur_lev[4];     /* Current Player Level (number) */
+    char cur_lev[4];     /* Unique monsters killed (number) */
     char cur_dun[4];     /* Current Dungeon Level (number) */
     char max_dun[4];     /* Max Dungeon Level (number) */
     char how[50];        /* Method of death (string) */

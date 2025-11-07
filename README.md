@@ -4,37 +4,96 @@ Sil-Morë — Shining Darkness is a version of SIL-Q which incorporates two main
 First, it has real life characters from Tolkien FA and storyline.
 Secondly, it uses a system of metaruns, where consequtive runs are connected into one storyline idea more like modern Rougue-light games.
 
+# Compiling (SDL Version)
 
-# Road Map
+## Windows
 
-- Fullscreen mode for windows (done) 
-- Combat rolls logs (done) 
-- Help screen update (done) 
-- Combat rolls logs (done) 
-- Steamdeck keybinds, art, etc (done)
-- Bug fixes (ongoing) 
-  * OathBreaking (done)
-## Release of beta 0.88 (Steam Deck update)
+### Prerequisites
+- MSYS2 with MinGW64 (install from https://www.msys2.org/)
+- CMake
+- SDL3 libraries
 
-- SDL
-## Release of beta 0.9 
-- More Vaults
-- More monsters
-- Change Score to Character database
-- Multiple runs support 
-- New Quests
-  * Manwe
-  * Este
+### Building
+1. Install MSYS2 and open the MINGW64 terminal.
+2. Install required packages:
+   ```bash
+   pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-SDL3 make
+   ```
+3. Navigate to the Sil-More source directory.
+4. Run the build script:
+   ```bash
+   ./build-cmake.bat
+   ```
+   Or manually configure and build:
+   ```bash
+   cmake -G "MinGW Makefiles" -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/msys64/mingw64 -DUSE_SDL=ON -DUSE_GCU=OFF
+   cmake --build build --parallel
+   ```
+5. The executable will be in `build/sil-more.exe` and deployed to `sil-more-windows-sdl3/`.
+6. Run from the deployment directory: `cd sil-more-windows-sdl3 && ./sil-more.exe`
 
-### Ideas
+## Linux
 
-- New heroes
-- More frequent forges for dwarves
-- Calculate the forge probability
-- Pride
-- Greed
- 
-## Done (moved to the end of the file)
+### Prerequisites
+- GCC or Clang compiler
+- CMake
+- SDL3 development libraries
+
+### Building
+1. Install dependencies:
+   - **Debian/Ubuntu:**
+     ```bash
+     sudo apt install build-essential cmake libsdl3-dev
+     ```
+   - **Fedora:**
+     ```bash
+     sudo dnf install gcc cmake SDL3-devel
+     ```
+   - **Arch:**
+     ```bash
+     sudo pacman -S base-devel cmake sdl3
+     ```
+
+2. Navigate to the Sil-More source directory.
+3. Configure and build:
+   ```bash
+   cmake -B build -DCMAKE_BUILD_TYPE=Release -DUSE_SDL=ON -DUSE_GCU=OFF
+   cmake --build build --parallel
+   ```
+4. The executable will be in `build/sil-more`.
+5. Run the game:
+   ```bash
+   ./build/sil-more
+   ```
+
+## macOS
+
+### Prerequisites
+- Xcode Command Line Tools
+- Homebrew (recommended for SDL3)
+- CMake
+
+### Building
+1. Install Xcode Command Line Tools:
+   ```bash
+   xcode-select --install
+   ```
+2. Install Homebrew if not already installed (see https://brew.sh/).
+3. Install dependencies:
+   ```bash
+   brew install cmake sdl3
+   ```
+4. Navigate to the Sil-More source directory.
+5. Configure and build:
+   ```bash
+   cmake -B build -DCMAKE_BUILD_TYPE=Release -DUSE_SDL=ON -DUSE_GCU=OFF
+   cmake --build build --parallel
+   ```
+6. The executable will be in `build/sil-more`.
+7. Run the game:
+   ```bash
+   ./build/sil-more
+   ```
 
 # Steam Deck installation
 
@@ -49,6 +108,7 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 - Open controller setup. You should see the layout on Community layouts or in search. If not, open the link Steam-Deck-layout-Sil-More in game folder, current link is steam://controllerconfig/4068119597/3573052583.
 - Return back to Game mode and enjoy Sil-More!  
 
+# Old systems support
 # Compiling Instructions 
 
 Compiling Sil-More is not very difficult, and has been tested on Windows, Linux, and OS X.
@@ -267,7 +327,7 @@ and restart.
    your Documents folder since it wants to place saved games, the high
    score file, and some other data in Documents/Sil.
 
-
+# Road Map
 ## Done
 - Implement main curses (done)
 - Implement common RHF flags (done)
@@ -344,3 +404,30 @@ and restart.
   * rubble (done)
   * speacial monster (done)
 ## Release of beta 0.87 (Quests and Oaths update) (done) 
+
+- Fullscreen mode for windows (done) 
+- Combat rolls logs (done) 
+- Help screen update (done) 
+- Combat rolls logs (done) 
+- Steamdeck keybinds, art, etc (done)
+- Bug fixes (ongoing) 
+  * OathBreaking (done)
+## Release of beta 0.88 (Steam Deck update)
+
+- SDL
+## Release of beta 0.9 
+
+
+### Ideas
+
+- More frequent forges for dwarves
+- Calculate the forge probability
+- Pride
+- Greed
+- More Vaults
+- More monsters
+- Change Score to Character database
+- Multiple runs support 
+- New Quests
+  * Manwe
+  * Este

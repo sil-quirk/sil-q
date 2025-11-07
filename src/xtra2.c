@@ -11,6 +11,26 @@
 #include "angband.h"
 #include "metarun.h"
 
+#ifdef USE_SDL
+static void look_prt(bool use_story_font, cptr text, int row, int col)
+{
+    /* When story font is enabled, use story_print_text which handles proportional rendering */
+    if (use_story_font) {
+        log_debug("look_prt: Using story_print_text for: '%.50s'", text);
+        story_print_text(row, col, 0, TERM_WHITE, text);
+    } else {
+        log_debug("look_prt: Using prt (mono) for: '%.50s'", text);
+        prt(text, row, col);
+    }
+}
+#else
+static void look_prt(bool use_story_font, cptr text, int row, int col)
+{
+    (void)use_story_font;
+    prt(text, row, col);
+}
+#endif
+
 /*
  * The saving throw is a will skill check.
  *
@@ -2400,6 +2420,19 @@ void anger_morgoth(int level)
         log_debug("anger_morgoth: applying state 4 changes - desperate");
     }
 
+    /* State 5: Final Desperate (new strongest level) */
+    if (level >= 5)
+    {
+        r_ptr->evn = 40;
+        r_ptr->pd = 9;
+        r_ptr->blow[0].att = 60;
+        r_ptr->blow[0].dd = 10;
+        r_ptr->blow[0].ds = 10; /* 10d10 */
+        r_ptr->wil = 50;
+        r_ptr->per = 40;
+        log_debug("anger_morgoth: applying state 5 changes - final desperate");
+    }
+
     p_ptr->morgoth_state = level;
     
     log_debug("anger_morgoth: AFTER - att=%d dd=%dd%d evn=%d pd=%d wil=%d per=%d light=%d",
@@ -2484,17 +2517,11 @@ void monster_death(int m_idx)
     if (m_ptr->r_idx == R_IDX_MORGOTH)
     {
         p_ptr->morgoth_slain = true;
-        msg_print("BUG: Morgoth has been defeated in combat.");
-        msg_print(
-            "But this is not possible within the fates Iluvatar has decreed.");
-        msg_print("Please post an 'ultimate bug-report' on "
-                  "http://angband.oook.cz/forum/ "
-                  "explaining how this happened.");
-        msg_print("But for now, let's run with it, since it's undeniably "
-                  "impressive.");
-
-        // display the ultimate bug text
-        pause_with_text(ultimate_bug_text, 5, 15, NULL, 0);
+        log_info("Morgoth slain by player; initiating Morgoth victory sequence.");
+        msg_print("Morgoth's form shudders, radiant fissures racing across his iron crown!");
+        msg_print("From beyond the West, the Valar proclaim your impossible triumph.");
+        message_flush();
+        do_cmd_morgoth_victory();
     }
 
     /* If the player kills a Unique, write a note. */
@@ -3714,7 +3741,7 @@ void get_sorted_target_list(int mode, int range)
  *
  * This function must handle blindness/hallucination.
  */
-static int target_set_interactive_aux(int y, int x, int mode, cptr info)
+static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool use_story_font)
 {
     s16b this_o_idx, next_o_idx = 0;
 
@@ -3765,7 +3792,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
             strnfmt(out_val, sizeof(out_val),
                 "What you see is not to be believed.  [%s]", info);
 
-            prt(out_val, 0, 0);
+            look_prt(use_story_font, out_val, 0, 0);
             move_cursor_relative(y, x);
             query = inkey();
 
@@ -3824,7 +3851,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                         screen_save();
 
                         /* Recall on screen */
-                        screen_roff(m_ptr->r_idx);
+                        screen_roff(m_ptr->r_idx, m_ptr);
 
                         /* Hack -- Complete the prompt (again) */
                         Term_addstr(
@@ -3889,7 +3916,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                                 m_name, buf, more, info);
                         }
 
-                        prt(out_val, 0, 0);
+                        look_prt(use_story_font, out_val, 0, 0);
 
                         /* Place cursor */
                         move_cursor_relative(y, x);
@@ -3966,7 +3993,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                             s1, s2, s3, o_name, more, info);
                     }
 
-                    prt(out_val, 0, 0);
+                    look_prt(use_story_font, out_val, 0, 0);
                     move_cursor_relative(y, x);
                     query = inkey();
 
@@ -4045,7 +4072,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                             s1, s2, s3, o_name, more, info);
                     }
 
-                    prt(out_val, 0, 0);
+                    look_prt(use_story_font, out_val, 0, 0);
                     move_cursor_relative(y, x);
                     query = inkey();
 
@@ -4124,7 +4151,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                     s3, name, more, info);
             }
 
-            prt(out_val, 0, 0);
+            look_prt(use_story_font, out_val, 0, 0);
             move_cursor_relative(y, x);
             query = inkey();
 
@@ -4343,6 +4370,12 @@ bool target_set_interactive(int mode, int range)
 
     char info[80];
 
+#ifdef USE_SDL
+    bool use_story_look = story_look_enabled() && (mode & TARGET_LOOK);
+#else
+    bool use_story_look = false;
+#endif
+
     /* These are used for displaying the path to the target */
     u16b path[MAX_RANGE];
     char path_char[MAX_RANGE];
@@ -4417,7 +4450,15 @@ bool target_set_interactive(int mode, int range)
             }
 
             /* Describe and Prompt */
-            query = target_set_interactive_aux(y, x, mode, info);
+#ifdef USE_SDL
+            if (use_story_look)
+                sdl_story_font_enable();
+#endif
+            query = target_set_interactive_aux(y, x, mode, info, use_story_look);
+#ifdef USE_SDL
+            if (use_story_look)
+                sdl_story_font_disable();
+#endif
 
             /* Remove the path */
             if (mode & (TARGET_KILL))
@@ -4477,6 +4518,8 @@ bool target_set_interactive(int mode, int range)
             case 't':
             case '5':
             case 'z':
+            case '\n':
+            case '\r':
             {
                 int m_idx = cave_m_idx[y][x];
 
@@ -4602,7 +4645,15 @@ bool target_set_interactive(int mode, int range)
             }
 
             /* Describe and Prompt (enable "TARGET_LOOK") */
-            query = target_set_interactive_aux(y, x, mode | TARGET_LOOK, info);
+#ifdef USE_SDL
+            if (use_story_look)
+                sdl_story_font_enable();
+#endif
+            query = target_set_interactive_aux(y, x, mode | TARGET_LOOK, info, use_story_look);
+#ifdef USE_SDL
+            if (use_story_look)
+                sdl_story_font_disable();
+#endif
 
             /* Remove the path */
             if (mode & (TARGET_KILL))
@@ -4663,6 +4714,8 @@ bool target_set_interactive(int mode, int range)
             case 't':
             case '5':
             case 'z':
+            case '\n':
+            case '\r':
             {
                 if ((p_ptr->py == y) && (p_ptr->px == x))
                 {
@@ -4743,7 +4796,7 @@ bool target_set_interactive(int mode, int range)
             my_strcpy(info, "<space>, <tab>, <dir>", sizeof(info));
 
             /* Describe and Prompt (enable "TARGET_LOOK") */
-            query = target_set_interactive_aux(y, x, mode | TARGET_LOOK, info);
+            query = target_set_interactive_aux(y, x, mode | TARGET_LOOK, info, use_story_look);
 
             /* Remove the path */
             if (mode & (TARGET_KILL))
@@ -5584,24 +5637,23 @@ void pause_with_text(const char desc[][100], int row, int col,
     screen_save();
     Term_clear();
 
+#ifdef USE_SDL
+    sdl_story_font_enable();
+    log_debug("Banner: story font enabled");
+#endif
+
     /* 1. optional banner */
     if (extra) {
         /* Line 1: name+alt */
-        c_put_str(extra_attr,
-                  extra[0],
-                  row,
-                  col - 5);
-        Term_xtra(TERM_XTRA_DELAY, msec);
+        c_put_str(extra_attr, extra[0], row, col - 5);
         Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, msec);
         banner_lines = 1;
 
         /* Line 2: blank line */
-        c_put_str(extra_attr,
-                  "",
-                  row + banner_lines,
-                  col - 5);
-        Term_xtra(TERM_XTRA_DELAY, msec);
+        c_put_str(extra_attr, "", row + banner_lines, col - 5);
         Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, msec);
         banner_lines++;
 
         /* Determine how many extra entries */
@@ -5612,12 +5664,9 @@ void pause_with_text(const char desc[][100], int row, int col,
         for (int i = 1; i < n_extra; ++i) {
             int shift = col - 5;
             if (i == n_extra - 1) shift += 4;
-            c_put_str(extra_attr,
-                      extra[i],
-                      row + banner_lines,
-                      shift);
-            Term_xtra(TERM_XTRA_DELAY, msec);
+            c_put_str(extra_attr, extra[i], row + banner_lines, shift);
             Term_fresh();
+            Term_xtra(TERM_XTRA_DELAY, msec);
             banner_lines++;
         }
 
@@ -5627,14 +5676,16 @@ void pause_with_text(const char desc[][100], int row, int col,
 
     /* 2. main stanza */
     while (desc && desc[i_main][0]) {
-        c_put_str(TERM_WHITE,
-                  desc[i_main],
-                  row + banner_lines + i_main,
-                  col);
-        Term_xtra(TERM_XTRA_DELAY, msec);
+        c_put_str(TERM_WHITE, desc[i_main], row + banner_lines + i_main, col);
         Term_fresh();
+        Term_xtra(TERM_XTRA_DELAY, msec);
         ++i_main;
     }
+
+#ifdef USE_SDL
+    log_debug("Banner: story font disabled");
+    sdl_story_font_disable();
+#endif
 
     /* 3. wait for key */
     hide_cursor = true;
@@ -5681,12 +5732,14 @@ static int select_tulkas_quest_target(void)
         }
         
         /* Must be unique, alive (max_num > 0), not yet generated, and at appropriate depth */
+        /* Exclude Tulkas himself and Morgoth from being targets */
         if ((r_ptr->flags1 & RF1_UNIQUE) &&
             (r_ptr->max_num > 0) &&  /* Unique is still alive (not killed yet) */
             (r_ptr->cur_num == 0) &&  /* Unique hasn't been generated yet */
             (r_ptr->level >= p_ptr->depth) &&
             (r_ptr->level <= MORGOTH_DEPTH) &&
-            (i != R_IDX_TULKAS))
+            (i != R_IDX_TULKAS) &&
+            (i != R_IDX_MORGOTH))  /* Never make Morgoth a Tulkas quest target */
         {
             valid_targets[count] = i;
             count++;

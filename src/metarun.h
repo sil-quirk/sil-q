@@ -37,35 +37,36 @@
 /*  Meta-run save-record                                              */
 /* ------------------------------------------------------------------ */
 
-/* Version header for meta.raw file */
-#define METARUN_FILE_VERSION_MAJOR 0
-#define METARUN_FILE_VERSION_MINOR 8
-#define METARUN_FILE_VERSION_PATCH 6
-#define METARUN_FILE_VERSION_EXTRA 0
+/* Version history (tied to game VERSION_* from defines.h):
+ *   0.9.0.0 - Initial versioned format (quest support)
+ *   0.9.0.1 - Persistent blessing choices added
+ *   0.9.0.2 - Progressive scoring system, increased reserved_runtime[1→32]
+ */
+
+/* Blessing / reward economy */
+#define METARUN_BLESSING_POINT_THRESHOLD 300   /* Fallback threshold if runtype doesn't specify (data-driven via L: in runtypes.txt) */
+
+typedef enum {
+    METARUN_BLESSING_THRESHOLD_NORMAL = RUNTYPE_BLESSING_MODE_NORMAL,
+    METARUN_BLESSING_THRESHOLD_EASIER = RUNTYPE_BLESSING_MODE_EASIER,
+    METARUN_BLESSING_THRESHOLD_HARDER = RUNTYPE_BLESSING_MODE_HARDER,
+    METARUN_BLESSING_THRESHOLD_MODE_MAX = RUNTYPE_BLESSING_MODE_COUNT
+} metarun_blessing_threshold_mode;
+
+typedef enum {
+    METARUN_MAJOR_EFFECT_NONE = 0,
+    METARUN_MAJOR_EFFECT_SUPPLY_LIMIT,
+    METARUN_MAJOR_EFFECT_START_ARTIFACT,
+} metarun_major_effect;
 
 typedef struct meta_file_header
 {
     byte version_major;  /* Major version (0) */
-    byte version_minor;  /* Minor version (8) */
-    byte version_patch;  /* Patch version (6) */
+    byte version_minor;  /* Minor version (9) */
+    byte version_patch;  /* Patch version (0) */
     byte version_extra;  /* Extra version (0) */
     u32b entry_count;    /* Number of metarun entries in file */
 } meta_file_header;
-
-/* Old metarun structure for backwards compatibility */
-typedef struct metarun_old
-{
-    /* ----- per-run counters --------------------------------------- */
-    u32b id;            /* monotonic 0-based index                    */
-    byte type;          /* reserved for future run-type support       */
-    byte deaths;        /* how many characters have died so far       */
-    byte silmarils;     /* Silmarils recovered so far                 */
-    u32b last_played;   /* time() of the most recent character        */
-
-    u32b curses_lo;     /* curse IDs  0–15  – 2 bits each (max 4) */
-    u32b curses_hi;     /* curse IDs 16–31  – 2 bits each (max 4) */
-    u32b curses_seen;   /* bit i == 1  → curse i is known/revealed    */
-} metarun_old;
 
 typedef struct metarun
 {
@@ -76,12 +77,11 @@ typedef struct metarun
     byte silmarils;     /* Silmarils recovered so far                 */
     u32b last_played;   /* time() of the most recent character        */
 
-    u32b score;         /* aggregate campaign score                    */
-    u32b best_run_score;/* best individual run score                   */
+    u32b score;         /* aggregate campaign score                   */
+    u32b best_run_score;/* best individual run score                  */
 
-    u32b curses_lo;     /* curse IDs  0–15  – 2 bits each (max 4) */
-    u32b curses_hi;     /* curse IDs 16–31  – 2 bits each (max 4) */
-    u32b curses_seen;   /* bit i == 1  → curse i is known/revealed    */
+    int8_t curse_stacks[METAR_CURSE_SLOTS]; /* signed stacks: >0 curses, <0 blessings */
+    u64b curses_seen;      /* bit i == 1  → curse i is known/revealed */
 
     /* ----- persistent settings ----------------------------------- */
     u32b persistent_options[8];  /* Persistent options across the metarun */
@@ -98,7 +98,22 @@ typedef struct metarun
     byte banned_oaths;          /* Bitmask of oaths broken/banned this metarun (cannot select again) */
     byte max_difficulty_reached; /* Maximum difficulty level reached this metarun (cannot go back) */
     
-    byte quest_reserved[12];    /* Reserved for future quest expansion (reduced from 15 to accommodate oath and max_difficulty fields) */
+    byte quest_reserved[12];    /* Reserved for future quest expansion */
+
+    /* ----- blessing economy (runtime cached totals) ---------------- */
+    u32b fallen_score_total;    /* Total score contributed by fallen heroes        */
+    u32b fallen_score_pool;     /* Remainder toward next blessing threshold        */
+    s16b blessing_points;       /* Total blessing credits earned (floor division)  */
+    u16b blessing_points_spent; /* Credits already spent on blessings              */
+    u16b major_blessings;       /* Bitmask of unlocked major blessings             */
+    byte alive_characters;      /* Cached count of living heroes in scorefile      */
+    
+    /* ----- persistent blessing choices (no re-rolling) ------------- */
+    byte pending_blessing_choices[3]; /* Currently offered blessing IDs (0-31, 255=empty) */
+    byte pending_blessing_count;      /* How many choices are currently pending (0-3)     */
+    
+    byte blessing_threshold_mode;     /* 0=normal (default), 1=easier, 2=harder          */
+    byte reserved_runtime[31];        /* Remaining runtime expansion space               */
 
 } metarun;
 
@@ -116,7 +131,8 @@ errr save_metaruns(void);                        /* write meta.raw */
 /* ------------------------------------------------------------------ */
 void metarun_update_on_exit(bool died,
                             bool escaped,
-                            byte new_silmarils);
+                            byte new_silmarils,
+                            s32b final_score);
 /* Call exactly once when a character leaves the dungeon.  Decides if
  * the run ends and persists everything.                              */
 
@@ -150,36 +166,68 @@ int get_available_oaths_mask(void);                 /* Get bitmask of oaths avai
 void metarun_save_persistent_settings(void);     /* Save current options to metarun */
 void metarun_load_persistent_settings(void);     /* Load metarun options to current */
 
-static inline byte CURSE_GET(int id)
+void metarun_apply_runtime_effects(void);        /* Sync blessing effects into runtime systems */
+bool metarun_has_major_blessing_effect(metarun_major_effect effect);
+bool metarun_has_major_blessing_index(int idx);
+int  metarun_major_blessing_count(void);
+int  metarun_alive_count_cached(void);
+u32b compute_blessing_pool(void);               /* Recalculate pool totals (returns total score) */
+int  blessing_points_available(void);           /* Unspent blessing credits */
+
+static inline metarun_blessing_threshold_mode metarun_get_threshold_mode(const metarun *m)
 {
-    if (id < 0 || id >= 32) return 0;  // Add bounds check
-    u32b word = (id < 16) ? metar.curses_lo : metar.curses_hi;
-    int  sh   = (id & 15) * 2;          
-    return (word >> sh) & 0x3;          
+    if (!m) return METARUN_BLESSING_THRESHOLD_NORMAL;
+    byte mode = m->blessing_threshold_mode;
+    if (mode >= METARUN_BLESSING_THRESHOLD_MODE_MAX) return METARUN_BLESSING_THRESHOLD_NORMAL;
+    return (metarun_blessing_threshold_mode)mode;
 }
 
-static inline void CURSE_SET(int id, byte val)
+static inline void metarun_set_threshold_mode(metarun *m, metarun_blessing_threshold_mode mode)
 {
-    if (id < 0 || id >= 32) return;    // Add bounds check
-    u32b *p   = (id < 16) ? &metar.curses_lo : &metar.curses_hi;
-    int   sh  = (id & 15) * 2;
-    *p = (*p & ~(0x3UL << sh))          
-       | ((u32b)(val & 0x3) << sh);     
+    if (!m) return;
+    if (mode >= METARUN_BLESSING_THRESHOLD_MODE_MAX) mode = METARUN_BLESSING_THRESHOLD_NORMAL;
+    m->blessing_threshold_mode = (byte)mode;
+}
+
+static inline int CURSE_GET(int id)
+{
+    if (id < 0 || id >= METAR_CURSE_SLOTS) return 0;  /* bounds check */
+    return metar.curse_stacks[id];
+}
+
+static inline void CURSE_SET(int id, int val)
+{
+    if (id < 0 || id >= METAR_CURSE_SLOTS) return;    /* bounds check */
+    if (val > 127) val = 127;
+    if (val < -127) val = -127;
+    metar.curse_stacks[id] = (int8_t)val;
 }
 
 static inline bool CURSE_SEEN(int id)
 {
-    if (id < 0 || id >= 32) return false;  // Add bounds check
-    return (metar.curses_seen & (1UL << (id & 31))) != 0;
+    if (id < 0 || id >= METAR_CURSE_SLOTS) return false;  // Add bounds check
+    return (metar.curses_seen & (1ULL << id)) != 0;
 }
 
 static inline void CURSE_SEEN_SET(int id)
 {
-    if (id < 0 || id >= 32) return;        // Add bounds check
-    metar.curses_seen |= (1UL << (id & 31));
+    if (id < 0 || id >= METAR_CURSE_SLOTS) return;        // Add bounds check
+    metar.curses_seen |= (1ULL << id);
 }
 
-#define CURSE_ADD(id, d)  CURSE_SET((id), (byte)(CURSE_GET(id) + (d)))
+#define CURSE_ADD(id, d)  CURSE_SET((id), CURSE_GET(id) + (d))
+
+static inline int CURSE_CURSE_STACK(int id)
+{
+    int v = CURSE_GET(id);
+    return (v > 0) ? v : 0;
+}
+
+static inline int CURSE_BLESSING_STACK(int id)
+{
+    int v = CURSE_GET(id);
+    return (v < 0) ? -v : 0;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Public helpers implemented in metarun.c                           */
@@ -202,3 +250,4 @@ int  curse_flag_count_cur(u32b cur_flag);  /* #curses with CUR bit  */
 int  any_curse_flag_active(u32b flag);     /* CUR-only helper      */
 
 #endif /* METARUN_H */
+

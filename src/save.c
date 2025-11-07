@@ -382,40 +382,72 @@ static byte xor_byte; /* Simple encryption */
 static u32b v_stamp = 0L; /* A simple "checksum" on the actual values */
 static u32b x_stamp = 0L; /* A simple "checksum" on the encoded bytes */
 
+/* Track if a write error has occurred */
+static bool write_error = false;
+
 /*
  * These functions place information into a savefile a byte at a time
  */
 
 static void sf_put(byte v)
 {
+    int result;
+    
     /* Encode the value, write a character */
     xor_byte ^= v;
-    (void)putc((int)xor_byte, fff);
+    result = putc((int)xor_byte, fff);
+    
+    /* Check for write error */
+    if (result == EOF)
+    {
+        if (!write_error)
+        {
+            log_error("sf_put: Write error detected (putc returned EOF)");
+            write_error = true;
+        }
+        return;
+    }
 
     /* Maintain the checksum info */
     v_stamp += v;
     x_stamp += xor_byte;
 }
 
-static void wr_byte(byte v) { sf_put(v); }
+/* Track save byte offset for detailed logging */
+static u32b save_byte_offset = 0;
+
+static void wr_byte(byte v) { 
+    sf_put(v);
+    save_byte_offset++;
+}
 
 static void wr_u16b(u16b v)
 {
+    log_trace("[save:%06u] wr_u16b: 0x%04X (%u)", (unsigned)save_byte_offset, (unsigned)v, (unsigned)v);
     sf_put((byte)(v & 0xFF));
     sf_put((byte)((v >> 8) & 0xFF));
+    save_byte_offset += 2;
 }
 
-static void wr_s16b(s16b v) { wr_u16b((u16b)v); }
+static void wr_s16b(s16b v) { 
+    log_trace("[save:%06u] wr_s16b: %d", (unsigned)save_byte_offset, (int)v);
+    wr_u16b((u16b)v); 
+}
 
 static void wr_u32b(u32b v)
 {
+    log_trace("[save:%06u] wr_u32b: 0x%08X (%u)", (unsigned)save_byte_offset, (unsigned)v, (unsigned)v);
     sf_put((byte)(v & 0xFF));
     sf_put((byte)((v >> 8) & 0xFF));
     sf_put((byte)((v >> 16) & 0xFF));
     sf_put((byte)((v >> 24) & 0xFF));
+    save_byte_offset += 4;
 }
 
-static void wr_s32b(s32b v) { wr_u32b((u32b)v); }
+static void wr_s32b(s32b v) { 
+    log_trace("[save:%06u] wr_s32b: %d", (unsigned)save_byte_offset, (int)v);
+    wr_u32b((u32b)v); 
+}
 
 static void wr_string(cptr str)
 {
@@ -549,7 +581,19 @@ static void wr_monster(const monster_type* m_ptr)
     wr_byte(m_ptr->song);
     wr_byte(m_ptr->skip_this_turn);
 
-    wr_byte(0); // spare
+    wr_byte(m_ptr->song_contest_stacks);
+    wr_byte(m_ptr->song_lament_stacks);
+    wr_byte(m_ptr->song_lockout_timer);
+    wr_byte(m_ptr->song_hp_loss_lo);
+    wr_s32b(m_ptr->song_contest_last_turn);
+    wr_s32b(m_ptr->song_lament_last_turn);
+    wr_s16b(m_ptr->song_will_penalty);
+    wr_s16b(m_ptr->song_stealth_penalty);
+    wr_s16b(m_ptr->song_evasion_penalty);
+    wr_byte(m_ptr->song_armor_dice_penalty);
+    wr_byte(m_ptr->song_hp_loss_hi);
+    wr_byte(m_ptr->song_contest_completed);
+    wr_byte(m_ptr->song_lament_completed);
 
     wr_s16b(m_ptr->consecutive_attacks);
     wr_s16b(m_ptr->turns_stationary);
@@ -563,9 +607,20 @@ static void wr_monster(const monster_type* m_ptr)
         wr_byte(m_ptr->previous_action[i]);
     }
 
-    // 8 spare bytes
-    wr_u32b(0L);
-    wr_u32b(0L);
+    for (i = 0; i < MONSTER_BLOW_MAX; i++)
+    {
+        wr_byte(m_ptr->blow_dd_reduction[i]);
+    }
+
+    for (i = 0; i < MONSTER_BLOW_MAX; i++)
+    {
+        wr_byte(m_ptr->blow_ds_reduction[i]);
+    }
+
+    wr_byte(m_ptr->armor_ps_reduction);
+    wr_byte(m_ptr->shatter_padding[0]);
+    wr_byte(m_ptr->shatter_padding[1]);
+    wr_byte(m_ptr->shatter_padding[2]);
 }
 
 /*
@@ -611,6 +666,135 @@ static void wr_lore(int r_idx)
     // 8 spare bytes
     wr_u32b(0L);
     wr_u32b(0L);
+}
+
+static bool monster_race_stats_changed(int r_idx)
+{
+    if (!r_base)
+        return false;
+
+    const monster_race* base = &r_base[r_idx];
+    const monster_race* cur = &r_info[r_idx];
+
+    if (base->hdice != cur->hdice) return true;
+    if (base->hside != cur->hside) return true;
+    if (base->evn != cur->evn) return true;
+    if (base->pd != cur->pd) return true;
+    if (base->ps != cur->ps) return true;
+    if (base->speed != cur->speed) return true;
+    if (base->light != cur->light) return true;
+    if (base->sleep != cur->sleep) return true;
+    if (base->per != cur->per) return true;
+    if (base->stl != cur->stl) return true;
+    if (base->wil != cur->wil) return true;
+    if (base->extra != cur->extra) return true;
+    if (base->freq_ranged != cur->freq_ranged) return true;
+    if (base->spell_power != cur->spell_power) return true;
+    if (base->mon_power != cur->mon_power) return true;
+#ifdef ALLOW_DATA_DUMP
+    if (base->mon_eval_hp != cur->mon_eval_hp) return true;
+    if (base->mon_eval_dam != cur->mon_eval_dam) return true;
+#endif
+    if (base->flags1 != cur->flags1) return true;
+    if (base->flags2 != cur->flags2) return true;
+    if (base->flags3 != cur->flags3) return true;
+    if (base->flags4 != cur->flags4) return true;
+
+    for (int i = 0; i < MONSTER_BLOW_MAX; i++)
+    {
+        const monster_blow* b_base = &base->blow[i];
+        const monster_blow* b_cur = &cur->blow[i];
+        if (b_base->method != b_cur->method) return true;
+        if (b_base->effect != b_cur->effect) return true;
+        if (b_base->att != b_cur->att) return true;
+        if (b_base->dd != b_cur->dd) return true;
+        if (b_base->ds != b_cur->ds) return true;
+    }
+
+    if (base->level != cur->level) return true;
+    if (base->rarity != cur->rarity) return true;
+    if (base->d_attr != cur->d_attr) return true;
+    if (base->d_char != cur->d_char) return true;
+    if (base->x_attr != cur->x_attr) return true;
+    if (base->x_char != cur->x_char) return true;
+
+    return false;
+}
+
+static void wr_monster_race_stats(const monster_race* r_ptr)
+{
+    wr_byte(r_ptr->hdice);
+    wr_byte(r_ptr->hside);
+    wr_s16b(r_ptr->evn);
+    wr_byte(r_ptr->pd);
+    wr_byte(r_ptr->ps);
+    wr_byte(r_ptr->speed);
+    wr_s16b(r_ptr->light);
+    wr_s16b(r_ptr->sleep);
+    wr_s16b(r_ptr->per);
+    wr_s16b(r_ptr->stl);
+    wr_s16b(r_ptr->wil);
+    wr_s16b(r_ptr->extra);
+    wr_byte(r_ptr->freq_ranged);
+    wr_byte(r_ptr->spell_power);
+    wr_u32b(r_ptr->mon_power);
+#ifdef ALLOW_DATA_DUMP
+    wr_u32b(r_ptr->mon_eval_hp);
+    wr_u32b(r_ptr->mon_eval_dam);
+#endif
+    wr_u32b(r_ptr->flags1);
+    wr_u32b(r_ptr->flags2);
+    wr_u32b(r_ptr->flags3);
+    wr_u32b(r_ptr->flags4);
+
+    for (int i = 0; i < MONSTER_BLOW_MAX; i++)
+    {
+        wr_byte(r_ptr->blow[i].method);
+        wr_byte(r_ptr->blow[i].effect);
+        wr_s16b(r_ptr->blow[i].att);
+        wr_byte(r_ptr->blow[i].dd);
+        wr_byte(r_ptr->blow[i].ds);
+    }
+
+    wr_byte(r_ptr->level);
+    wr_byte(r_ptr->rarity);
+    wr_byte(r_ptr->d_attr);
+    wr_byte((byte)r_ptr->d_char);
+    wr_byte(r_ptr->x_attr);
+    wr_byte((byte)r_ptr->x_char);
+}
+
+static void wr_monster_runtime_overrides(void)
+{
+    if (!r_base)
+    {
+        wr_u16b(0);
+        return;
+    }
+
+    u16b count = 0;
+
+    for (int i = 0; i < z_info->r_max; i++)
+    {
+        if (monster_race_stats_changed(i))
+            count++;
+    }
+
+    wr_u16b(count);
+
+    if (!count)
+        return;
+
+    log_debug("Writing %u monster race runtime overrides", (unsigned)count);
+
+    for (int i = 0; i < z_info->r_max; i++)
+    {
+        if (!monster_race_stats_changed(i))
+            continue;
+
+        wr_u16b((u16b)i);
+        wr_monster_race_stats(&r_info[i]);
+    }
 }
 
 /*
@@ -847,6 +1031,12 @@ static void wr_extra(void)
     wr_byte(p_ptr->song1);
     wr_byte(p_ptr->song2);
     wr_s16b(p_ptr->song_duration);
+    wr_s16b(p_ptr->song_target_idx);
+    wr_byte(p_ptr->song_target_song);
+    wr_byte(p_ptr->song_lockout_timer);
+    wr_byte(p_ptr->song_contest_player_stacks);
+    wr_byte(p_ptr->song_duel_pad);
+    wr_s32b(p_ptr->song_contest_last_turn);
     wr_s16b(p_ptr->vengeance);
     wr_s16b(p_ptr->blind);
     wr_s16b(p_ptr->entranced);
@@ -875,16 +1065,18 @@ static void wr_extra(void)
     wr_s16b(p_ptr->oppose_cold);
     wr_s16b(p_ptr->oppose_pois);
 
+    wr_s16b(p_ptr->song_challenge_effect);
+    wr_s16b(p_ptr->song_elbereth_effect);
+
     wr_byte(p_ptr->stealth_mode);
     wr_byte(p_ptr->self_made_arts);
 
     wr_byte(p_ptr->climbing);
 
-    // 19 spare bytes
+    // 15 spare bytes (was 19, used 4 for song debuff counters)
     wr_byte(0);
     wr_byte(0);
     wr_byte(0);
-    wr_u32b(0L);
     wr_u32b(0L);
     wr_u32b(0L);
     wr_u32b(0L);
@@ -981,6 +1173,8 @@ static void wr_extra(void)
 
     wr_byte(p_ptr->oath_type);
     wr_byte(p_ptr->oaths_broken);
+    log_info("SAVE: About to write quest marker 0x51, oath_type=%d, oaths_broken=%d", 
+             p_ptr->oath_type, p_ptr->oaths_broken);
 
     /* From 0.8.6 onward, write quest block preceded by marker 0x51 */
 #if (VERSION_MAJOR > 0) || (VERSION_MAJOR == 0 && (VERSION_MINOR > 8 || (VERSION_MINOR == 8 && VERSION_PATCH >= 6)))
@@ -1027,7 +1221,8 @@ static void wr_extra(void)
 #endif
 
     wr_s32b(min_depth_counter);
-    log_trace("Min depth counter: %d", min_depth_counter);
+    log_info("SAVE: min_depth_counter=%d, current depth=%d, calculated min_depth()=%d", 
+             min_depth_counter, p_ptr->depth, min_depth());
 
     log_debug("Updating character info output file");
     updatecharinfoS();
@@ -1152,18 +1347,24 @@ static void wr_dungeon(void)
     byte prev_char;
 
     log_debug("Writing dungeon level %d (%dx%d)", p_ptr->depth, p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
+    log_trace("[save:%06u] === BEGIN DUNGEON ===", (unsigned)save_byte_offset);
 
     /*** Basic info ***/
 
+    log_trace("[save:%06u] Writing dungeon header", (unsigned)save_byte_offset);
     /* Dungeon specific info follows */
     wr_s16b(p_ptr->depth);
     wr_s16b(p_ptr->py);
     wr_s16b(p_ptr->px);
     wr_byte(p_ptr->cur_map_hgt);
     wr_byte(p_ptr->cur_map_wid);
+    log_trace("[save:%06u] Dungeon header written: depth=%d, py=%d, px=%d, hgt=%d, wid=%d", 
+             (unsigned)save_byte_offset, p_ptr->depth, p_ptr->py, p_ptr->px, 
+             p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
 
     /*** Simple "Run-Length-Encoding" of cave_info ***/
 
+    log_trace("[save:%06u] === BEGIN CAVE_INFO RLE ===", (unsigned)save_byte_offset);
     /* Note that this will induce two wasted bytes */
     count = 0;
     prev_char = 0;
@@ -1199,9 +1400,11 @@ static void wr_dungeon(void)
         wr_byte((byte)count);
         wr_byte((byte)prev_char);
     }
+    log_trace("[save:%06u] === END CAVE_INFO RLE ===", (unsigned)save_byte_offset);
 
     /*** Simple "Run-Length-Encoding" of cave_feat ***/
 
+    log_trace("[save:%06u] === BEGIN CAVE_FEAT RLE ===", (unsigned)save_byte_offset);
     /* Note that this will induce two wasted bytes */
     count = 0;
     prev_char = 0;
@@ -1237,9 +1440,11 @@ static void wr_dungeon(void)
         wr_byte((byte)count);
         wr_byte((byte)prev_char);
     }
+    log_trace("[save:%06u] === END CAVE_FEAT RLE ===", (unsigned)save_byte_offset);
 
     /*** Simple "Run-Length-Encoding" of cave_color (style encoding) ***/
 
+    log_trace("[save:%06u] === BEGIN CAVE_COLOR RLE ===", (unsigned)save_byte_offset);
     /* Note that this will induce two wasted bytes */
     count = 0;
     prev_char = 0;
@@ -1272,9 +1477,11 @@ static void wr_dungeon(void)
         wr_byte((byte)count);
         wr_byte((byte)prev_char);
     }
+    log_trace("[save:%06u] === END CAVE_COLOR RLE ===", (unsigned)save_byte_offset);
 
     /* Persist door style variant choices so door visuals survive save/load.
      * Note: This must come AFTER cave_color so load.c can read it there. */
+    log_trace("[save:%06u] === BEGIN DOOR_CHOICES ===", (unsigned)save_byte_offset);
     {
         /* Magic identifier for the door-choices block (0xD00D) */
         const u16b DOOR_CHOICES_MAGIC = 0xD00D;
@@ -1287,9 +1494,11 @@ static void wr_dungeon(void)
         wr_byte((byte)cap);
         for (int i = 0; i < cap; ++i) wr_byte(buf[i]);
     }
+    log_trace("[save:%06u] === END DOOR_CHOICES ===", (unsigned)save_byte_offset);
 
     /*** Compact ***/
 
+    log_trace("[save:%06u] Compacting objects and monsters", (unsigned)save_byte_offset);
     /* Compact the objects */
     compact_objects(0);
 
@@ -1298,6 +1507,7 @@ static void wr_dungeon(void)
 
     /*** Dump objects ***/
 
+    log_trace("[save:%06u] === BEGIN OBJECTS ===", (unsigned)save_byte_offset);
     /* Total objects */
     if (o_max == 0) {
         log_warn("o_max was 0; clamping to 1 to avoid invalid object count");
@@ -1315,9 +1525,11 @@ static void wr_dungeon(void)
         /* Dump it */
         wr_item(o_ptr);
     }
+    log_trace("[save:%06u] === END OBJECTS ===", (unsigned)save_byte_offset);
 
     /*** Dump the monsters ***/
 
+    log_trace("[save:%06u] === BEGIN MONSTERS ===", (unsigned)save_byte_offset);
     /* Total monsters */
     wr_u16b(mon_max);
     log_debug("Writing %d monsters to savefile", mon_max - 1);
@@ -1330,16 +1542,20 @@ static void wr_dungeon(void)
         /* Dump it */
         wr_monster(m_ptr);
     }
+    log_trace("[save:%06u] === END MONSTERS ===", (unsigned)save_byte_offset);
 
     // dump the wandering monster information
+    log_trace("[save:%06u] === BEGIN WANDERING MONSTERS ===", (unsigned)save_byte_offset);
     for (i = FLOW_WANDERING_HEAD; i <= FLOW_WANDERING_TAIL; i++)
     {
         wr_byte(flow_center_y[i]);
         wr_byte(flow_center_x[i]);
         wr_s16b(wandering_pause[i]);
     }
+    log_trace("[save:%06u] === END WANDERING MONSTERS ===", (unsigned)save_byte_offset);
 
     log_debug("Dungeon data write completed - %d objects, %d monsters", o_max - 1, mon_max - 1);
+    log_trace("[save:%06u] === END DUNGEON ===", (unsigned)save_byte_offset);
 }
 
 /*
@@ -1354,6 +1570,13 @@ static bool wr_savefile(void)
     u16b tmp16u;
 
     log_trace("Starting wr_savefile");
+    
+    /* Reset write error flag */
+    write_error = false;
+
+    /* Reset byte offset counter */
+    save_byte_offset = 0;
+    log_trace("=== SAVE: Reset byte offset counter ===");
 
     /* Guess at the current time */
     now = time((time_t*)0);
@@ -1427,6 +1650,9 @@ static bool wr_savefile(void)
     for (i = 0; i < tmp16u; i++)
         wr_lore(i);
 
+    /* Dump runtime monster stat overrides (supports dynamic buffs/debuffs) */
+    wr_monster_runtime_overrides();
+
     /* Dump the object memory */
     tmp16u = z_info->k_max;
     wr_u16b(tmp16u);
@@ -1462,10 +1688,13 @@ static bool wr_savefile(void)
 
     // Write the smithing item
     log_debug("Writing smithing item");
+    log_trace("[save:%06u] === BEGIN SMITHING ITEM ===", (unsigned)save_byte_offset);
     wr_item(smith_o_ptr);
+    log_trace("[save:%06u] === END SMITHING ITEM ===", (unsigned)save_byte_offset);
 
     /* Write the inventory */
     log_debug("Writing player inventory");
+    log_trace("[save:%06u] === BEGIN INVENTORY ===", (unsigned)save_byte_offset);
     for (i = 0; i < INVEN_TOTAL; i++)
     {
         object_type* o_ptr = &inventory[i];
@@ -1475,6 +1704,7 @@ static bool wr_savefile(void)
             continue;
 
         /* Dump index */
+        log_trace("[save:%06u] Writing inventory slot %d", (unsigned)save_byte_offset, i);
         wr_u16b((u16b)i);
 
         /* Dump object */
@@ -1483,9 +1713,12 @@ static bool wr_savefile(void)
     }
 
     /* Add a sentinel */
+    log_trace("[save:%06u] Writing inventory sentinel 0xFFFF", (unsigned)save_byte_offset);
     wr_u16b(0xFFFF);
+    log_trace("[save:%06u] === END INVENTORY ===", (unsigned)save_byte_offset);
 
     /* Write supplies cache */
+    log_trace("[save:%06u] === BEGIN SUPPLIES ===", (unsigned)save_byte_offset);
     {
         u16b supply_count = (u16b)supplies_entry_count();
         wr_u16b(supply_count);
@@ -1494,23 +1727,43 @@ static bool wr_savefile(void)
             object_type* supply_obj = supplies_entry_at(si);
             s32b stored_units = 0;
             if (supply_obj && supply_obj->k_idx) {
+                log_trace("[save:%06u] Writing supply entry %u", (unsigned)save_byte_offset, (unsigned)si);
                 wr_item(supply_obj);
                 stored_units = supplies_entry_units(si);
             } else {
                 object_type blank;
                 object_wipe(&blank);
+                log_trace("[save:%06u] Writing blank supply entry %u", (unsigned)save_byte_offset, (unsigned)si);
                 wr_item(&blank);
             }
             wr_s32b(stored_units);
         }
     }
+    log_trace("[save:%06u] === END SUPPLIES ===", (unsigned)save_byte_offset);
 
     /* Player is not dead, write the dungeon */
+    log_debug("save: p_ptr->is_dead = %d, will %s dungeon", 
+             p_ptr->is_dead, p_ptr->is_dead ? "SKIP" : "write");
+    
     if (!p_ptr->is_dead)
     {
+        /* Check for invalid dungeon state */
+        if (p_ptr->cur_map_wid == 0 || p_ptr->cur_map_hgt == 0)
+        {
+            log_error("CRITICAL: Attempting to save with invalid dungeon dimensions: %dx%d at depth %d",
+                     p_ptr->cur_map_hgt, p_ptr->cur_map_wid, p_ptr->depth);
+            log_error("  Player position: (%d, %d)", p_ptr->py, p_ptr->px);
+            log_error("  character_generated: %d", character_generated);
+            /* This is a critical error - dungeon should always be valid for alive characters */
+        }
+        
         /* Dump the dungeon */
         log_trace("Writing dungeon...");
         wr_dungeon();
+    }
+    else
+    {
+        log_warn("SKIPPING dungeon write because p_ptr->is_dead = TRUE");
     }
 
     /* Write the "value check-sum" */
@@ -1519,10 +1772,17 @@ static bool wr_savefile(void)
     /* Write the "encoded checksum" */
     wr_u32b(x_stamp);
 
+    /* Check for write errors */
+    if (write_error)
+    {
+        log_error("Save aborted: write_error flag was set during save");
+        return false;
+    }
+
     /* Error in save */
     if (ferror(fff) || (fflush(fff) == EOF))
     {
-        log_error("Save file write error detected");
+        log_error("Save file write error detected (ferror or fflush failed)");
         return false;
     }
 
@@ -1682,11 +1942,40 @@ bool save_player(void)
         /* Remove it */
         fd_kill(temp);
 
-        /* Preserve old savefile */
-        fd_move(savefile, temp);
+        /* Preserve old savefile if it exists */
+        /* Check if old savefile exists first (important for first-time saves) */
+        int old_fd = fd_open(savefile, O_RDONLY);
+        if (old_fd >= 0)
+        {
+            /* Old file exists, close it and preserve it */
+            fd_close(old_fd);
+            log_debug("Old savefile exists, preserving it as .old");
+            
+            if (fd_move(savefile, temp) != 0)
+            {
+                log_error("Failed to preserve old savefile - aborting activation");
+                safe_setuid_drop();
+                return (false);
+            }
+        }
+        else
+        {
+            /* No old savefile - this is a first-time save, which is fine */
+            log_debug("No old savefile found (first-time save) - skipping preserve step");
+        }
 
         /* Activate new savefile */
-        fd_move(safe, savefile);
+        if (fd_move(safe, savefile) != 0)
+        {
+            log_error("Failed to activate new savefile - attempting to restore old");
+            /* Try to restore the old file if it existed */
+            if (old_fd >= 0)
+            {
+                fd_move(temp, savefile);
+            }
+            safe_setuid_drop();
+            return (false);
+        }
 
         /* Remove preserved savefile */
         fd_kill(temp);

@@ -48,6 +48,11 @@ typedef struct sdl_state {
     int tileset_cols;
     bool need_present;
     bool use_tiles;
+    
+    // Custom fonts
+    TTF_Font* story_font;      // Non-monospace font for story/narrative text
+    int story_font_depth;      // Nesting counter for story font enable/disable
+    bool story_font_grid;      // Whether queued story text should snap to cell grid
 } sdl_state;
 
 typedef struct sdl_view {
@@ -74,6 +79,12 @@ static void resize(const SDL_Rect* screen);
 static void sdl_handle_event(sdl_state* st, const SDL_Event* ev);
 static void sdl_quit_hook(cptr str);
 static errr callback_sdl_xtra(int n, int v);
+static void sdl_apply_story_font_state(bool active);
+static void sdl_apply_story_grid_state(bool grid);
+static void sdl_story_font_reset_state(void);
+static void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
+static void sdl_render_story_text_free(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
+static void sdl_render_story_text_grid(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col);
 static void draw_cursor(int x, int y, bool big);
 static errr callback_sdl_curs(int x, int y);
 static errr callback_sdl_bigcurs(int x, int y);
@@ -88,6 +99,8 @@ static SDL_Texture* sdl_load_ttf_font(const char* font_path, int font_size, int*
 static void sdl_window_create(int window_width, int window_height, bool fullscreen, bool use_tiles);
 static void sdl_window_set_position(int x, int y);
 static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font_size, int scale, int margin);
+static void sdl_load_story_fonts(void);
+static TTF_Font* sdl_load_font_with_fallback(const char* font_path, int font_size, const char* fallback_path);
 
 static sdl_view* sdl_view_from_term(term* t)
 {
@@ -172,7 +185,10 @@ static void resize(const SDL_Rect* screen)
         }
     }
 
-    const char font_path[] = "lib/xtra/font/InputMono-Bold.ttf";
+    // Use configured monospace font or fall back to default
+    const char* font_path = config.monospace_font[0] != '\0' 
+        ? config.monospace_font 
+        : "lib/xtra/font/InputMono-Bold.ttf";
 
     for (int i = 1; i < MAX_TERM_DATA; i++) {
         // Always destroy the old pane to prevent its display in cases when we
@@ -210,24 +226,36 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
         }
 
         if (SDL_isprint(ev->key.key)) {
-            if (ev->key.mod & SDL_KMOD_SHIFT) {
-                if (SDL_isalpha(key)) {
-                    key = SDL_toupper(key);
-                } else {
-                    const char shifted[256] = {
-                        ['1'] = '!', ['2'] = '@', ['3'] = '#', ['4'] = '$', ['5'] = '%',
-                        ['6'] = '^', ['7'] = '&', ['8'] = '*', ['9'] = '(', ['0'] = ')',
-                        ['-'] = '_', ['='] = '+',
-                        [','] = '<', ['.'] = '>', ['/'] = '?',
-                        ['['] = '{', [']'] = '}',
-                        [';'] = ':', ['\''] = '"', ['\\'] = '|',
-                        ['`'] = '~',
-                    };
-                    if (shifted[key])
-                        key = shifted[key];
+            /* If Ctrl+letter (no Alt/GUI), send the corresponding control char
+             * (so Ctrl-A -> ASCII 1) to preserve traditional control bindings
+             * like Ctrl-A for the debug menu. For other modifier combinations
+             * or non-alpha printables, keep existing behavior. */
+            bool ctrl = ev->key.mod & SDL_KMOD_CTRL;
+            bool alt = ev->key.mod & SDL_KMOD_ALT;
+            bool gui = ev->key.mod & SDL_KMOD_GUI;
+            if (ctrl && !alt && !gui && SDL_isalpha(key)) {
+                /* Map to control character */
+                Term_keypress(KTRL(key));
+            } else {
+                if (ev->key.mod & SDL_KMOD_SHIFT) {
+                    if (SDL_isalpha(key)) {
+                        key = SDL_toupper(key);
+                    } else {
+                        const char shifted[256] = {
+                            ['1'] = '!', ['2'] = '@', ['3'] = '#', ['4'] = '$', ['5'] = '%',
+                            ['6'] = '^', ['7'] = '&', ['8'] = '*', ['9'] = '(', ['0'] = ')',
+                            ['-'] = '_', ['='] = '+',
+                            [','] = '<', ['.'] = '>', ['/'] = '?',
+                            ['['] = '{', [']'] = '}',
+                            [';'] = ':', ['\''] = '"', ['\\'] = '|',
+                            ['`'] = '~',
+                        };
+                        if (shifted[key])
+                            key = shifted[key];
+                    }
                 }
+                Term_keypress(key);
             }
-            Term_keypress(key);
         } else {
             bool shift = ev->key.mod & SDL_KMOD_SHIFT;
             bool alt = ev->key.mod & SDL_KMOD_ALT;
@@ -363,9 +391,24 @@ static errr callback_sdl_xtra(int n, int v)
             g_state.need_present = false;
         }
         return 0;
-    case TERM_XTRA_DELAY:
-        SDL_Delay((Uint32)v);
+    case TERM_XTRA_DELAY: {
+        /* Break delay into chunks and process events to keep app responsive */
+        Uint32 total_delay = (Uint32)v;
+        Uint32 chunk = 20; /* Process events every 20ms */
+        
+        while (total_delay > 0) {
+            Uint32 this_delay = (total_delay < chunk) ? total_delay : chunk;
+            SDL_Delay(this_delay);
+            total_delay -= this_delay;
+            
+            /* Process pending events to prevent "Not Responding" status */
+            SDL_Event ev;
+            while (SDL_PollEvent(&ev)) {
+                sdl_handle_event(&g_state, &ev);
+            }
+        }
         return 0;
+    }
     case TERM_XTRA_REACT:
         /* React to global setting changes (graphics mode, colors, etc.) */
         log_debug("TERM_XTRA_REACT received (tiles_mode=%d use_graphics=%d arg_graphics=%d)",
@@ -441,31 +484,100 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
     SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
     SDL_RenderFillRect(g_state.renderer, &bg);
 
-    SDL_Color col = g_state.palette[a % 16];
-    SDL_SetTextureColorMod(d->font_atlas, col.r, col.g, col.b);
-    SDL_SetTextureAlphaMod(d->font_atlas, 255);
-
-    for (int i = 0; i < n; i++) {
-        unsigned char ch = (unsigned char)s[i];
-        int glyph_width = d->cell_w;
-        int glyph_height = d->cell_h;
-        SDL_FRect src = {
-            (ch & 15) * glyph_width,
-            (ch >> 4) * glyph_height,
-            glyph_width,
-            glyph_height,
-        };
-        SDL_FRect dst = {
-            (x + i) * d->cell_w,
-            y * d->cell_h,
-            d->cell_w,
-            d->cell_h
-        };
-        if (use_graphics == GRAPHICS_PSEUDO && (ch == '#' || ch == '%')) {
-            SDL_SetRenderDrawColor(g_state.renderer, col.r, col.g, col.b, SDL_ALPHA_OPAQUE);
-            SDL_RenderFillRect(g_state.renderer, &dst);
+    /* Use extended color table to support shaded colors (indices 0-255) */
+    SDL_Color col;
+    col.r = angband_color_table[a][1];
+    col.g = angband_color_table[a][2];
+    col.b = angband_color_table[a][3];
+    col.a = 255;
+    
+    // Check if any character in this chunk should use story font
+    // First check the global chunk flag (for whole-line story rendering)
+    bool chunk_story_font = (Term && Term->story_chunk_active && g_state.story_font);
+    
+    // Also check per-character story font flags
+    if (!chunk_story_font && Term && Term->scr && g_state.story_font) {
+        // Check if ANY character in this chunk (from x to x+n) has the story font flag
+        // story is a byte** (2D array), so we need story[y] which gives us byte* for that row
+        if (y >= 0 && y < Term->hgt && Term->scr->story && Term->scr->story[y]) {
+            // Check all characters in the chunk, not just the first one
+            for (int i = 0; i < n && (x + i) < Term->wid; i++) {
+                if (Term->scr->story[y][x + i]) {
+                    chunk_story_font = true;
+                    log_debug("callback_sdl_text: Using story font based on per-char flag at y=%d x=%d (chunk starts at x=%d)", 
+                              y, x + i, x);
+                    break;
+                }
+            }
         }
-        SDL_RenderTexture(g_state.renderer, d->font_atlas, &src, &dst);
+    }
+    
+    // Special logging for line 0 (top description line in unified look)
+    if (y == 0) {
+        log_debug("callback_sdl_text ROW 0: x=%d n=%d chunk_story=%d text='%.*s'", 
+                  x, n, chunk_story_font, n, s);
+    }
+    
+    // Special logging for the shooting row (y=1 when 0-indexed, or the second row)
+    if (y == 1 || y == 2) {
+        log_debug("callback_sdl_text ROW %d: chunk_story=%d chunk_active=%d",
+                  y, chunk_story_font,
+                  (Term && Term->story_chunk_active) ? 1 : 0);
+    }
+    
+    log_trace("callback_sdl_text: chunk_story_font=%s term=%p chunk_flag=%s depth=%d font=%p",
+              chunk_story_font ? "true" : "false",
+              (void*)Term,
+              (Term && Term->story_chunk_active) ? "true" : "false",
+              g_state.story_font_depth,
+              (void*)g_state.story_font);
+
+    byte* story_row = NULL;
+    if (Term && Term->scr && Term->scr->story && y >= 0 && y < Term->hgt) {
+        story_row = Term->scr->story[y];
+    }
+
+    if (chunk_story_font && g_state.story_font) {
+        if (story_row) {
+            int offset = 0;
+            while (offset < n && (x + offset) < Term->wid) {
+                int term_col = x + offset;
+                byte flags = story_row[term_col];
+                bool use_story = (flags & STORY_FLAG_USE) != 0;
+                bool grid_align = (flags & STORY_FLAG_CELL_ALIGN) != 0;
+
+                int run = 1;
+                while ((offset + run) < n && (term_col + run) < Term->wid) {
+                    byte next_flags = story_row[term_col + run];
+                    bool next_story = (next_flags & STORY_FLAG_USE) != 0;
+                    bool next_grid = (next_flags & STORY_FLAG_CELL_ALIGN) != 0;
+                    if (next_story != use_story)
+                        break;
+                    if (use_story && next_grid != grid_align)
+                        break;
+                    run++;
+                }
+
+                const char* run_text = s + offset;
+                if (use_story) {
+                    if (grid_align)
+                        sdl_render_story_text_grid(d, term_col, y, run, run_text, col);
+                    else
+                        sdl_render_story_text_free(d, term_col, y, run, run_text, col);
+                } else {
+                    sdl_render_mono_text(d, term_col, y, run, run_text, col);
+                }
+
+                offset += run;
+            }
+        } else {
+            sdl_render_story_text_free(d, x, y, n, s, col);
+        }
+    } else {
+        if (y == 1 || y == 2) {
+            log_debug("callback_sdl_text: USING MONO FONT for row %d: '%.30s'", y, s);
+        }
+        sdl_render_mono_text(d, x, y, n, s, col);
     }
 
     g_state.need_present = true;
@@ -604,6 +716,44 @@ static errr sdl_view_link_term(sdl_view* d, int term_index)
     return 0;
 }
 
+// Helper to apply font rendering settings to a TTF_Font
+static void sdl_apply_font_settings(TTF_Font* font, bool is_story_font)
+{
+    // Select settings based on font type
+    bool bold = is_story_font ? config.story_bold : config.mono_bold;
+    bool italic = is_story_font ? config.story_italic : config.mono_italic;
+    bool underline = is_story_font ? config.story_underline : config.mono_underline;
+    bool strikethrough = is_story_font ? config.story_strikethrough : config.mono_strikethrough;
+    int hinting = is_story_font ? config.story_hinting : config.mono_hinting;
+    bool kerning = is_story_font ? config.story_kerning : config.mono_kerning;
+    int outline = is_story_font ? config.story_outline : config.mono_outline;
+    
+    // Apply font style settings
+    int style = TTF_STYLE_NORMAL;
+    if (bold) style |= TTF_STYLE_BOLD;
+    if (italic) style |= TTF_STYLE_ITALIC;
+    if (underline) style |= TTF_STYLE_UNDERLINE;
+    if (strikethrough) style |= TTF_STYLE_STRIKETHROUGH;
+    if (style != TTF_STYLE_NORMAL) {
+        TTF_SetFontStyle(font, style);
+        log_debug("Applied %s font style: %d (bold=%d, italic=%d, underline=%d, strikethrough=%d)",
+                 is_story_font ? "story" : "mono", style, bold, italic, underline, strikethrough);
+    }
+    
+    // Apply hinting
+    TTF_SetFontHinting(font, hinting);
+    log_debug("Applied %s font hinting: %d", is_story_font ? "story" : "mono", hinting);
+    
+    // Apply kerning
+    TTF_SetFontKerning(font, kerning);
+    
+    // Apply outline
+    if (outline > 0) {
+        TTF_SetFontOutline(font, outline);
+        log_debug("Applied %s font outline: %d", is_story_font ? "story" : "mono", outline);
+    }
+}
+
 // Loads TTF font with given size. Attempts to fit the font into a cell assming
 // 1:2 aspect ratio. The font size is expected to take into account any scaling,
 // either HiDPI or user. So on a HiDPI screen to use font size 12, this function
@@ -622,6 +772,9 @@ static SDL_Texture* sdl_load_ttf_font(const char* font_path, int font_size, int*
                 log_error("TTF_OpenFont failed: %s", SDL_GetError());
                 quit("could not load TTF font");
             }
+            
+            // Apply monospace font settings
+            sdl_apply_font_settings(font, false);
         }
         int measured_w = 0;
         TTF_MeasureString(font, "M", 1, 0, &measured_w, NULL);
@@ -790,10 +943,178 @@ static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, i
     }
 }
 
+/*
+ * Load a TTF font with fallback to default if not found
+ */
+static TTF_Font* sdl_load_font_with_fallback(const char* font_path, int font_size, const char* fallback_path)
+{
+    TTF_Font* font = NULL;
+    
+    // Try to load the specified font if provided
+    if (font_path && font_path[0] != '\0') {
+        font = TTF_OpenFont(font_path, font_size);
+        if (font) {
+            log_debug("Loaded custom font: %s at size %d", font_path, font_size);
+            // Apply story font settings
+            sdl_apply_font_settings(font, true);
+            return font;
+        } else {
+            log_warn("Failed to load custom font '%s': %s", font_path, SDL_GetError());
+        }
+    }
+    
+    // Fall back to default font
+    font = TTF_OpenFont(fallback_path, font_size);
+    if (font) {
+        log_debug("Using fallback font: %s at size %d", fallback_path, font_size);
+        // Apply story font settings to fallback too
+        sdl_apply_font_settings(font, true);
+    } else {
+        log_error("Failed to load fallback font '%s': %s", fallback_path, SDL_GetError());
+    }
+    
+    return font;
+}
+
+/*
+ * Load story font from configuration
+ * If no story font is set in the SDL settings (or the SDL JSON is missing),
+ * fall back to MarcellusSC-Regular.ttf located in lib/xtra/font.
+ */
+static void sdl_load_story_fonts(void)
+{
+    const char* default_font = "lib/xtra/font/MarcellusSC-Regular.ttf";
+    /* Use the auxiliary view font size scaled by the system scale so the
+     * story font matches the monospace/aux view appearance. Fall back to
+     * 32 if aux_view_font_size is invalid. */
+    int story_font_size = (config.aux_view_font_size > 0)
+                           ? g_state.system_scale * config.aux_view_font_size
+                           : 32;
+    
+    log_info("Loading story font...");
+    log_debug("Story font config: '%s'", config.story_font[0] != '\0' ? config.story_font : "(not set)");
+    
+    // Load story font (or fallback to default)
+    g_state.story_font = sdl_load_font_with_fallback(
+        config.story_font[0] != '\0' ? config.story_font : NULL,
+        story_font_size,
+        default_font
+    );
+    
+    // Initialize flag to false
+    g_state.story_font_depth = 0;
+    if (Term) Term->story_font_active = false;
+    
+    log_info("Story font loaded successfully");
+}
+
+/*
+ * Enable story font mode - subsequent text will use custom font
+ */
+void sdl_story_font_enable(void)
+{
+    g_state.story_font_depth++;
+    if (g_state.story_font_depth == 1)
+        sdl_apply_story_font_state(true);
+    log_debug("Story font ENABLED (depth=%d)", g_state.story_font_depth);
+}
+
+/*
+ * Disable story font mode - subsequent text will use monospace font
+ */
+void sdl_story_font_disable(void)
+{
+    if (g_state.story_font_depth > 0)
+        g_state.story_font_depth--;
+    bool active = (g_state.story_font_depth > 0);
+    sdl_apply_story_font_state(active);
+    if (!active)
+        sdl_story_font_set_grid(false);
+    log_debug("Story font DISABLED (depth=%d)", g_state.story_font_depth);
+}
+
+/*
+ * Check if story font is currently enabled
+ */
+bool sdl_is_story_font_enabled(void)
+{
+    return (Term && Term->story_font_active);
+}
+
+void sdl_story_font_set_grid(bool grid)
+{
+    if (g_state.story_font_grid == grid)
+        return;
+    g_state.story_font_grid = grid;
+    log_trace("Story font grid %s", grid ? "ENABLED" : "DISABLED");
+    sdl_apply_story_grid_state(grid);
+}
+
+bool sdl_is_story_font_grid(void)
+{
+    return (Term && Term->story_font_grid);
+}
+
+void sdl_story_font_reset(void)
+{
+    sdl_story_font_reset_state();
+}
+
+/*
+ * Get the pixel width of text when rendered with the story font.
+ * Returns 0 if story font is not available.
+ * IMPORTANT: This returns the width AFTER scaling to match cell height.
+ */
+int sdl_story_font_text_width(cptr text, int len)
+{
+    if (!g_state.story_font || !text) {
+        return 0;
+    }
+    
+    /* Measure the text width using SDL_ttf (unscaled) */
+    int w = 0;
+    TTF_MeasureString(g_state.story_font, text, len, 0, &w, NULL);
+    
+    /* Apply the same scaling that's used when rendering */
+    if (g_views[0].term_ready && g_state.story_font) {
+        /* Get font metrics to determine rendered height */
+        int font_h = TTF_GetFontHeight(g_state.story_font);
+        if (font_h > 0) {
+            /* Calculate scaling factor (same as in callback_sdl_text) */
+            float cell_h_f = (float)g_views[0].cell_h;
+            float surf_h_f = (float)font_h;
+            float scale = cell_h_f / surf_h_f;
+            
+            /* Apply scaling to width */
+            w = (int)((float)w * scale);
+        }
+    }
+    
+    return w;
+}
+
+/*
+ * Get the cell width in pixels for the main terminal view.
+ * This is used to convert terminal columns to pixel width.
+ */
+int sdl_get_cell_width(void)
+{
+    if (g_views[0].term_ready) {
+        return g_views[0].cell_w;
+    }
+    return 8; /* fallback */
+}
+
 // Quit hook to save window configuration on exit
 static void sdl_quit_hook(cptr str)
 {
     (void)str; // Unused parameter
+    
+    // Clean up story font
+    if (g_state.story_font) {
+        TTF_CloseFont(g_state.story_font);
+        g_state.story_font = NULL;
+    }
     
     // Only save if we have a valid window and config file path
     if (g_state.window && config_file_path[0] != '\0') {
@@ -815,33 +1136,77 @@ errr init_sdl(int argc, char **argv)
 {
     log_debug("init_sdl starting");
     
-    // Set defaults first
-    sdl_config_set_defaults(&config);
-    log_debug("After defaults: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
-              config.main_view_scale, config.aux_view_font_size, config.margin,
-              config.fullscreen, config.tiles);
-    
-    // Copy default pane configuration
-    pane_config_count = default_pane_config_count;
-    for (int i = 0; i < default_pane_config_count && i < MAX_PANE_CONFIGS; i++) {
-        pane_config[i] = default_pane_config[i];
+    // Initialize SDL first to get display information
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
+        log_error("SDL_Init failed: %s", SDL_GetError());
+        quit("could not init SDL");
     }
-    log_debug("Default pane count: %d", pane_config_count);
+    if (!TTF_Init()) {
+        log_error("TTF_Init failed: %s", SDL_GetError());
+        quit("could not init TTF");
+    }
     
-    // Try to load from JSON file
-    const char* config_file = "sil_sdl.json";
-    log_debug("Attempting to load config from: %s", config_file);
+    // Get primary display information
+    SDL_DisplayID primary = SDL_GetPrimaryDisplay();
+    if (!primary) {
+        log_error("SDL_GetPrimaryDisplay failed: %s", SDL_GetError());
+        quit("could not get primary display ID");
+    }
+    SDL_Rect screen;
+    if (!SDL_GetDisplayBounds(primary, &screen)) {
+        log_error("SDL_GetDisplayBounds failed: %s", SDL_GetError());
+        quit("could not get primary display bounds");
+    }
+    
+    log_info("primary display: %d %d %d %d", screen.x, screen.y, screen.w, screen.h);
     
     // Save config file path for later use on exit
+    const char* config_file = "sil_sdl.json";
     my_strcpy(config_file_path, config_file, sizeof(config_file_path));
     
     // Register quit hook to save configuration on exit
     quit_aux = sdl_quit_hook;
     
-    sdl_config_load(config_file, &config, pane_config, &pane_config_count, MAX_PANE_CONFIGS);
-    log_debug("After loading JSON: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
-              config.main_view_scale, config.aux_view_font_size, config.margin,
-              config.fullscreen, config.tiles);
+    // Check if config file exists
+    FILE* test_file = fopen(config_file, "rb");
+    bool config_exists = (test_file != NULL);
+    if (test_file) {
+        fclose(test_file);
+    }
+    
+    if (config_exists) {
+        // Config file exists - use generic defaults first, then load from file
+        log_debug("Config file exists, loading from: %s", config_file);
+        sdl_config_set_defaults(&config);
+        
+        // Copy default pane configuration
+        pane_config_count = default_pane_config_count;
+        for (int i = 0; i < default_pane_config_count && i < MAX_PANE_CONFIGS; i++) {
+            pane_config[i] = default_pane_config[i];
+        }
+        
+        sdl_config_load(config_file, &config, pane_config, &pane_config_count, MAX_PANE_CONFIGS);
+        log_debug("After loading JSON: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
+                  config.main_view_scale, config.aux_view_font_size, config.margin,
+                  config.fullscreen, config.tiles);
+    } else {
+        // Config file doesn't exist - use resolution-based defaults
+        log_debug("Config file not found, using resolution-based defaults");
+        sdl_config_set_defaults_for_resolution(&config, pane_config, &pane_config_count,
+                                               MAX_PANE_CONFIGS, screen.w, screen.h);
+        
+        // If no resolution-specific config was found, use default pane config
+        if (pane_config_count == 0) {
+            pane_config_count = default_pane_config_count;
+            for (int i = 0; i < default_pane_config_count && i < MAX_PANE_CONFIGS; i++) {
+                pane_config[i] = default_pane_config[i];
+            }
+        }
+        
+        log_debug("After resolution defaults: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
+                  config.main_view_scale, config.aux_view_font_size, config.margin,
+                  config.fullscreen, config.tiles);
+    }
     
     // Apply command-line overrides
     sdl_config_apply_cmdline(&config, argc, argv);
@@ -870,27 +1235,6 @@ errr init_sdl(int argc, char **argv)
     log_info("  Fullscreen: %s", config.fullscreen ? "true" : "false");
     log_info("  Tiles: %s", config.tiles ? "true" : "false");
     log_info("  Pane configurations: %d", pane_config_count);
-    
-    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
-        log_error("SDL_Init failed: %s", SDL_GetError());
-        quit("could not init SDL");
-    }
-    if (!TTF_Init()) {
-        log_error("TTF_Init failed: %s", SDL_GetError());
-        quit("could not init TTF");
-    }
-    SDL_DisplayID primary = SDL_GetPrimaryDisplay();
-    if (!primary) {
-        log_error("SDL_GetPrimaryDisplay failed: %s", SDL_GetError());
-        quit("could not get primary display ID");
-    }
-    SDL_Rect screen;
-    if (!SDL_GetDisplayBounds(primary, &screen)) {
-        log_error("SDL_GetDisplayBounds failed: %s", SDL_GetError());
-        quit("could not get primary display bounds");
-    }
-
-    log_info("primary display: %d %d %d %d", screen.x, screen.y, screen.w, screen.h);
 
     // Initialize palette from angband_color_table (supports .prf file customization)
     sdl_sync_palette();
@@ -919,6 +1263,9 @@ errr init_sdl(int argc, char **argv)
     if (!config.fullscreen && config.window_x >= 0 && config.window_y >= 0) {
         sdl_window_set_position(config.window_x, config.window_y);
     }
+    
+    // Load story and banner fonts
+    sdl_load_story_fonts();
 
     ANGBAND_SYS = "sdl";
     if (config.tiles) {
@@ -1068,3 +1415,161 @@ int get_pane_config_count(void)
 }
 
 
+static void sdl_apply_story_font_state(bool active)
+{
+    log_trace("Story font state apply: active=%s depth=%d term=%p",
+              active ? "true" : "false", g_state.story_font_depth, (void*)Term);
+    for (int i = 0; i < MAX_TERM_DATA; i++)
+    {
+        if (g_views[i].term_ready)
+        {
+            g_views[i].t.story_font_active = active;
+        }
+    }
+    if (Term)
+        Term->story_font_active = active;
+}
+
+static void sdl_apply_story_grid_state(bool grid)
+{
+    log_trace("Story grid state apply: grid=%s term=%p",
+              grid ? "true" : "false", (void*)Term);
+    for (int i = 0; i < MAX_TERM_DATA; i++)
+    {
+        if (g_views[i].term_ready)
+        {
+            g_views[i].t.story_font_grid = grid;
+        }
+    }
+    if (Term)
+        Term->story_font_grid = grid;
+}
+
+static void sdl_story_font_reset_state(void)
+{
+    g_state.story_font_depth = 0;
+    sdl_apply_story_font_state(false);
+    g_state.story_font_grid = false;
+    sdl_apply_story_grid_state(false);
+    if (Term)
+        Term->story_chunk_active = false;
+    log_trace("Story font state hard reset");
+}
+
+static void sdl_render_mono_text(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col)
+{
+    if (!d || !d->font_atlas || n <= 0)
+        return;
+
+    SDL_SetTextureColorMod(d->font_atlas, col.r, col.g, col.b);
+    SDL_SetTextureAlphaMod(d->font_atlas, 255);
+
+    for (int i = 0; i < n; i++) {
+        unsigned char ch = (unsigned char)s[i];
+        SDL_FRect src = {
+            (ch & 15) * d->cell_w,
+            (ch >> 4) * d->cell_h,
+            d->cell_w,
+            d->cell_h,
+        };
+        SDL_FRect dst = {
+            (x + i) * d->cell_w,
+            y * d->cell_h,
+            d->cell_w,
+            d->cell_h
+        };
+        if (use_graphics == GRAPHICS_PSEUDO && solid_walls && (ch == '#' || ch == '%')) {
+            SDL_SetRenderDrawColor(g_state.renderer, col.r, col.g, col.b, SDL_ALPHA_OPAQUE);
+            SDL_RenderFillRect(g_state.renderer, &dst);
+        }
+        SDL_RenderTexture(g_state.renderer, d->font_atlas, &src, &dst);
+    }
+}
+
+static void sdl_render_story_text_free(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col)
+{
+    if (!d || !g_state.story_font || n <= 0)
+        return;
+
+    char text_buf[256];
+    int len = (n < 255) ? n : 255;
+    memcpy(text_buf, s, len);
+    text_buf[len] = '\0';
+
+    SDL_Surface* text_surface = TTF_RenderText_Blended(g_state.story_font, text_buf, 0, col);
+    if (!text_surface)
+        return;
+
+    SDL_Texture* text_texture = SDL_CreateTextureFromSurface(g_state.renderer, text_surface);
+    if (text_texture) {
+        float cell_h_f = (float)d->cell_h;
+        float surf_h_f = (float)text_surface->h;
+        float scale = (surf_h_f > 0.0f) ? (cell_h_f / surf_h_f) : 1.0f;
+
+        SDL_FRect dst = {
+            (float)(x * d->cell_w),
+            (float)(y * d->cell_h),
+            (float)(text_surface->w) * scale,
+            cell_h_f
+        };
+
+        float max_w = (float)(n * d->cell_w);
+        if (dst.w > max_w) dst.w = max_w;
+
+        SDL_SetTextureBlendMode(text_texture, SDL_BLENDMODE_BLEND);
+        SDL_RenderTexture(g_state.renderer, text_texture, NULL, &dst);
+        SDL_DestroyTexture(text_texture);
+    }
+
+    SDL_DestroySurface(text_surface);
+}
+
+static void sdl_render_story_text_grid(sdl_view* d, int x, int y, int n, const char* s, SDL_Color col)
+{
+    if (!d || !g_state.story_font || n <= 0)
+        return;
+
+    float cell_w_f = (float)d->cell_w;
+    float cell_h_f = (float)d->cell_h;
+
+    for (int i = 0; i < n; i++) {
+        unsigned char ch = (unsigned char)s[i];
+        if (!ch || ch == ' ')
+            continue;
+
+        char glyph_text[2] = { (char)ch, '\0' };
+        SDL_Surface* glyph_surface = TTF_RenderText_Blended(g_state.story_font, glyph_text, 0, col);
+        if (!glyph_surface)
+            continue;
+
+        SDL_Texture* glyph_texture = SDL_CreateTextureFromSurface(g_state.renderer, glyph_surface);
+        if (glyph_texture) {
+            float surf_w = (float)glyph_surface->w;
+            float surf_h = (float)glyph_surface->h;
+            float scale = (surf_h > 0.0f) ? (cell_h_f / surf_h) : 1.0f;
+            float scaled_w = surf_w * scale;
+            float dst_w = scaled_w;
+            float offset_x = 0.0f;
+
+            if (scaled_w > cell_w_f) {
+                dst_w = cell_w_f;
+                scale = (surf_w > 0.0f) ? (dst_w / surf_w) : 1.0f;
+            } else {
+                offset_x = (cell_w_f - scaled_w) * 0.5f;
+            }
+
+            SDL_FRect dst = {
+                (float)((x + i) * d->cell_w) + offset_x,
+                (float)(y * d->cell_h),
+                dst_w,
+                cell_h_f
+            };
+
+            SDL_SetTextureBlendMode(glyph_texture, SDL_BLENDMODE_BLEND);
+            SDL_RenderTexture(g_state.renderer, glyph_texture, NULL, &dst);
+            SDL_DestroyTexture(glyph_texture);
+        }
+
+        SDL_DestroySurface(glyph_surface);
+    }
+}

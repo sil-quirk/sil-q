@@ -19,6 +19,13 @@ int g_banner_force_redraw_remaining = 0;
 #include <stddef.h>
 #include <stdlib.h>
 
+/* True while the post-mortem spectator viewport is active. */
+static bool death_spectator_mode = false;
+
+/* Forward declarations for spectator helpers. */
+static bool death_spectator_command_allowed(int command);
+static void death_spectator_prepare_display(void);
+bool death_spectator_active(void);
 /*
  * Return a "feeling" (or NULL) about an item.  Method 1 (Weak).
  * Sil - this method can't distinguish artefacts from ego items
@@ -805,6 +812,18 @@ static void process_command(void)
 
 #endif /* ALLOW_REPEAT */
 
+    /* Disallow actions that would advance time while viewing the final map. */
+    if (death_spectator_mode
+        && !death_spectator_command_allowed(p_ptr->command_cmd))
+    {
+        if (p_ptr->command_cmd)
+        {
+            msg_print("You can no longer take that action.");
+        }
+        p_ptr->command_cmd = 0;
+        return;
+    }
+
     /* Parse the command */
     switch (p_ptr->command_cmd)
     {
@@ -862,7 +881,7 @@ static void process_command(void)
     /* Wear/wield equipment */
     case 'w':
     {
-        do_cmd_wield(NULL, 0);
+        do_cmd_wield_wrapper();
         break;
     }
 
@@ -1127,7 +1146,7 @@ static void process_command(void)
     /* Quaff a potion */
     case 'q':
     {
-        do_cmd_quaff_potion(NULL, 0);
+        open_supplies_menu_with_context(SUPPLY_MENU_ACTION_USE, SUPPLY_GROUP_POTIONS, true, true);
         break;
     }
 
@@ -1179,9 +1198,22 @@ static void process_command(void)
 
     /* Character sheet (alternative key) */
     case 'h':
-    case 'H':
     {
         do_cmd_character_sheet();
+        break;
+    }
+    
+    /* Direct access to skill distribution */
+    case 'H':
+    {
+        /* Save screen */
+        screen_save();
+        
+        /* Open skill distribution directly */
+        gain_skills();
+        
+        /* Load screen */
+        screen_load();
         break;
     }
 
@@ -1371,6 +1403,148 @@ static void process_command(void)
  * inscription or has the pickup flag set to true (e.g. for thrown and fired
  * items)
  */
+static bool death_spectator_command_allowed(int command)
+{
+    if (command == 0)
+        return true;
+
+    switch (command)
+    {
+    case ' ':
+    case '\n':
+    case '\r':
+    case '\a':
+    case '?':
+    case '@':
+    case 'h':
+    case 'H':
+    case 'i':
+    case 'e':
+    case 'x':
+    case 'M':
+    case 'L':
+    case 'l':
+    case 'm':
+    case 'O':
+    case '!':
+    case '$':
+    case '&':
+    case ':':
+    case 'V':
+    case 'j':
+    case '~':
+    case '[':
+    case ']':
+    case ')':
+    case KTRL('E'):
+    case KTRL('O'):
+    case KTRL('P'):
+    case KTRL('R'):
+    case ESCAPE:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static void death_spectator_prepare_display(void)
+{
+    int i;
+
+    /* Reveal player knowledge of objects on the final level. */
+    for (i = 1; i < o_max; i++)
+    {
+        object_type* o_ptr = &o_list[i];
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        object_aware(o_ptr);
+        object_known(o_ptr);
+    }
+
+    /* Fully light the level and reveal monsters. */
+    Term_clear();
+    wiz_light();
+    do_cmd_wiz_unhide(255);
+
+    /* Force a comprehensive redraw across all panes. */
+    p_ptr->redraw |= 0x0FFFFFFFL;
+    p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0 | PW_MONSTER
+        | PW_MONLIST | PW_COMBAT_ROLLS | PW_OVERHEAD);
+
+    handle_stuff();
+
+    if (op_ptr->main_combat_rolls > 0)
+    {
+        display_main_combat_rolls();
+    }
+
+    msg_print("You linger for a final look. Press Esc to continue to the tomb.");
+}
+
+void death_spectator_view(void)
+{
+    death_spectator_mode = true;
+
+    /* Clear any queued commands from the main loop. */
+    p_ptr->command_cmd = 0;
+    p_ptr->command_new = 0;
+    p_ptr->command_rep = 0;
+    p_ptr->command_arg = 0;
+    p_ptr->command_dir = 0;
+
+    /* Prevent lingering keypresses from auto-triggering commands. */
+    flush();
+
+    death_spectator_prepare_display();
+
+    while (true)
+    {
+        request_command();
+
+        if (p_ptr->command_cmd == ESCAPE)
+        {
+            break;
+        }
+
+        if (!death_spectator_command_allowed(p_ptr->command_cmd))
+        {
+            if (p_ptr->command_cmd)
+            {
+                msg_print("You can no longer take that action.");
+            }
+            p_ptr->command_cmd = 0;
+            continue;
+        }
+
+        process_command();
+        handle_stuff();
+
+        /* Reset command state for the next iteration. */
+        p_ptr->command_cmd = 0;
+        p_ptr->command_new = 0;
+        p_ptr->command_rep = 0;
+        p_ptr->command_arg = 0;
+        p_ptr->command_dir = 0;
+    }
+
+    death_spectator_mode = false;
+
+    /* Ensure no residual actions are pending. */
+    p_ptr->energy_use = 0;
+    p_ptr->command_cmd = 0;
+    p_ptr->command_new = 0;
+    p_ptr->command_rep = 0;
+    p_ptr->command_arg = 0;
+    p_ptr->command_dir = 0;
+}
+
+bool death_spectator_active(void)
+{
+    return death_spectator_mode;
+}
+
 static bool auto_pickup_okay(const object_type* o_ptr)
 {
     // cptr s;
@@ -1612,6 +1786,9 @@ static void process_player(void)
 
     // update the player's torch radius
     calc_torch();
+
+    song_disguise_new_player_turn();
+    song_duels_new_player_turn();
 
     /*** Check certain things between player turns (don't need to do this when
      * restoring a game) ***/
@@ -2447,6 +2624,18 @@ static void process_player(void)
         (void)set_tmp_per(p_ptr->tmp_per - 1);
     }
 
+    /* Song of Challenge lingering effect */
+    if (p_ptr->song_challenge_effect)
+    {
+        p_ptr->song_challenge_effect -= 1;
+    }
+
+    /* Song of Elbereth lingering effect */
+    if (p_ptr->song_elbereth_effect)
+    {
+        p_ptr->song_elbereth_effect -= 1;
+    }
+
     /* Oppose Fire */
     if (p_ptr->oppose_fire)
     {
@@ -3112,6 +3301,10 @@ static void death_knowledge(void)
  */
 static void print_story_intro(void)
 {
+#ifdef USE_SDL
+    bool story_intro_story_font = true;
+    sdl_story_font_enable();
+#endif
     int wid, h;
     const int indent = 2;
 
@@ -3188,18 +3381,22 @@ static void print_story_intro(void)
         lines_needed++; /* Add one for the blank line after paragraph */
 
         /* Check if we have enough space for the whole paragraph */
-        if (row + lines_needed >= h - 1) {
-            Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
-            {
-                char k = inkey();
-                if (k == 'S') { /* Capital S skips the intro entirely */
-                    Term_clear();
-                    return;
+            if (row + lines_needed >= h - 1) {
+                Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
+                {
+                    char k = inkey();
+                    if (k == 'S') { /* Capital S skips the intro entirely */
+                        Term_clear();
+#ifdef USE_SDL
+                        goto cleanup_intro;
+#else
+                        return;
+#endif
+                    }
                 }
+                Term_clear();
+                row = 1;
             }
-            Term_clear();
-            row = 1;
-        }
 
         col = 0;
 
@@ -3236,17 +3433,42 @@ static void print_story_intro(void)
 
     /* Handle input */
     char key = inkey();
+#ifdef USE_SDL
     if (key == 'S') {
         Term_clear();
-        return; /* Skip without changing difficulty */
+        goto cleanup_intro;
     }
+#else
+    if (key == 'S') {
+        Term_clear();
+        return;
+    }
+#endif
     if (key == 'c' || key == 'C')
     {
         Term_clear();
         choose_difficulty_level();
+#ifdef USE_SDL
+        goto cleanup_intro;
+#else
+        return;
+#endif
     }
 
     Term_clear();
+
+#ifdef USE_SDL
+    goto cleanup_intro;
+#else
+    return;
+#endif
+
+#ifdef USE_SDL
+cleanup_intro:
+    if (story_intro_story_font)
+        sdl_story_font_reset();
+    return;
+#endif
 }
 
 
@@ -3363,11 +3585,13 @@ PlayResult play_game(void)
             return PLAY_QUIT;
         }
 
+        /* Set player name from house BEFORE load_player() so savefile path is correct */
+        my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
+        process_player_name(true);  /* Update savefile path */
+        log_debug("Player name set to: %s (house %d), savefile: %s", op_ptr->full_name, p_ptr->phouse, savefile);
+
     /* Attempt to load (manual path) */
-    if (!load_player()) {
-            log_debug("Failed to load player");
-            if (character_loaded_dead) player_wipe();
-        }
+    (void)load_player();
         log_info(character_loaded ? "Character loaded" :
             (character_loaded_dead ? "Character loaded dead" : "Character creation started"));
 
@@ -3465,7 +3689,11 @@ PlayResult play_game(void)
         process_player_name(true);
     }
 
-    print_story(15,1);
+    /* Only show story when no alive character exists (fresh start or all characters dead) */
+    if (score_count_alive_entries() == 0)
+    {
+        print_story(15,1);
+    }
 
     log_debug("Game initialization complete, starting main game loop");
     log_trace("QUEST DEBUG: Quest states loaded - Aule: %d, Mandos: %d, Tulkas: %d",

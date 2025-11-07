@@ -13,6 +13,7 @@
 #include "z-term.h"
 
 #include "z-virt.h"
+#include "log/log.h"
 
 /*
  * This file provides a generic, efficient, terminal window package,
@@ -294,6 +295,10 @@ static errr term_win_nuke(term_win* s)
     KILL(s->vta);
     KILL(s->vtc);
 
+    /* Free story font arrays */
+    KILL(s->story);
+    KILL(s->vstory);
+
     /* Success */
     return (0);
 }
@@ -321,6 +326,10 @@ static errr term_win_init(term_win* s, int w, int h)
     C_MAKE(s->vta, h * w, byte);
     C_MAKE(s->vtc, h * w, char);
 
+    /* Make the story font arrays */
+    C_MAKE(s->story, h, byte*);
+    C_MAKE(s->vstory, h * w, byte);
+
     /* Prepare the window access arrays */
     for (y = 0; y < h; y++)
     {
@@ -329,6 +338,8 @@ static errr term_win_init(term_win* s, int w, int h)
 
         s->ta[y] = s->vta + w * y;
         s->tc[y] = s->vtc + w * y;
+
+        s->story[y] = s->vstory + w * y;
     }
 
     /* Success */
@@ -357,6 +368,9 @@ static errr term_win_copy(term_win* s, term_win* f, int w, int h)
         byte* s_taa = s->ta[y];
         char* s_tcc = s->tc[y];
 
+        byte* f_story = f->story[y];
+        byte* s_story = s->story[y];
+
         for (x = 0; x < w; x++)
         {
             *s_aa++ = *f_aa++;
@@ -364,6 +378,8 @@ static errr term_win_copy(term_win* s, term_win* f, int w, int h)
 
             *s_taa++ = *f_taa++;
             *s_tcc++ = *f_tcc++;
+
+            *s_story++ = *f_story++;
         }
     }
 
@@ -481,6 +497,9 @@ void Term_queue_char(int x, int y, byte a, char c, byte ta, char tc)
     byte ota = scr_taa[x];
     char otc = scr_tcc[x];
 
+    byte* scr_story = Term->scr->story[y];
+    byte osf = scr_story[x];
+
     /* Don't change is the terrain value is 0 */
     if (!ta)
         ta = ota;
@@ -488,7 +507,18 @@ void Term_queue_char(int x, int y, byte a, char c, byte ta, char tc)
         tc = otc;
 
     /* Hack -- Ignore non-changes */
-    if ((oa == a) && (oc == c) && (ota == ta) && (otc == tc))
+    byte nsf = 0;
+    if (Term->story_font_active)
+    {
+        nsf = STORY_FLAG_USE;
+        if (Term->story_font_grid)
+            nsf |= STORY_FLAG_CELL_ALIGN;
+    }
+    if (nsf) {
+        log_trace("Term_queue_char: story-font ACTIVE y=%d x=%d char='%c' attr=%d story_flag=0x%02x",
+                  y, x, c, a, nsf);
+    }
+    if ((oa == a) && (oc == c) && (ota == ta) && (otc == tc) && (osf == nsf))
         return;
 
     /* Save the "literal" information */
@@ -497,6 +527,8 @@ void Term_queue_char(int x, int y, byte a, char c, byte ta, char tc)
 
     scr_taa[x] = ta;
     scr_tcc[x] = tc;
+
+    scr_story[x] = nsf;
 
     /* Check for new min/max row info */
     if (y < Term->y1)
@@ -529,6 +561,20 @@ void Term_queue_chars(int x, int y, int n, byte a, cptr s)
     byte* scr_taa = Term->scr->ta[y];
     char* scr_tcc = Term->scr->tc[y];
 
+    byte* scr_story = Term->scr->story[y];
+
+    byte nsf = 0;
+    if (Term->story_font_active)
+    {
+        nsf = STORY_FLAG_USE;
+        if (Term->story_font_grid)
+            nsf |= STORY_FLAG_CELL_ALIGN;
+    }
+    if (nsf && n > 0) {
+        log_trace("Term_queue_chars: story-font ACTIVE y=%d x=%d n=%d text='%.*s' story_flag=0x%02x",
+                  y, x, n, n, s, nsf);
+    }
+
     /* Queue the attr/chars */
     for (; n; x++, s++, n--)
     {
@@ -538,8 +584,10 @@ void Term_queue_chars(int x, int y, int n, byte a, cptr s)
         byte ota = scr_taa[x];
         char otc = scr_tcc[x];
 
+        byte osf = scr_story[x];
+
         /* Hack -- Ignore non-changes */
-        if ((oa == a) && (oc == *s) && (ota == 0) && (otc == 0))
+        if ((oa == a) && (oc == *s) && (ota == 0) && (otc == 0) && (osf == nsf))
             continue;
 
         /* Save the "literal" information */
@@ -548,6 +596,8 @@ void Term_queue_chars(int x, int y, int n, byte a, cptr s)
 
         scr_taa[x] = 0;
         scr_tcc[x] = 0;
+
+        scr_story[x] = nsf;
 
         /* Note the "range" of window updates */
         if (x1 < 0)
@@ -595,6 +645,9 @@ static void Term_fresh_row_pict(int y, int x1, int x2)
     byte* scr_taa = Term->scr->ta[y];
     char* scr_tcc = Term->scr->tc[y];
 
+    byte* old_story = Term->old->story[y];
+    byte* scr_story = Term->scr->story[y];
+
     byte ota;
     char otc;
 
@@ -630,8 +683,11 @@ static void Term_fresh_row_pict(int y, int x1, int x2)
         nta = scr_taa[x];
         ntc = scr_tcc[x];
 
+        byte osf = old_story[x];
+        byte nsf = scr_story[x];
+
         /* Handle unchanged grids */
-        if ((na == oa) && (nc == oc) && (nta == ota) && (ntc == otc))
+        if ((na == oa) && (nc == oc) && (nta == ota) && (ntc == otc) && (nsf == osf))
         {
             /* Flush */
             if (fn)
@@ -654,6 +710,7 @@ static void Term_fresh_row_pict(int y, int x1, int x2)
 
         old_taa[x] = nta;
         old_tcc[x] = ntc;
+        old_story[x] = nsf;
 
         /* Restart and Advance */
         if (fn++ == 0)
@@ -689,6 +746,9 @@ static void Term_fresh_row_both(int y, int x1, int x2)
     byte* scr_taa = Term->scr->ta[y];
     char* scr_tcc = Term->scr->tc[y];
 
+    byte* old_story = Term->old->story[y];
+    byte* scr_story = Term->scr->story[y];
+
     byte ota;
     char otc;
     byte nta;
@@ -703,8 +763,9 @@ static void Term_fresh_row_both(int y, int x1, int x2)
     /* Pending start */
     int fx = 0;
 
-    /* Pending attr */
+    /* Pending attr/font */
     byte fa = Term->attr_blank;
+    byte fs = 0;
 
     byte oa;
     char oc;
@@ -729,8 +790,11 @@ static void Term_fresh_row_both(int y, int x1, int x2)
         nta = scr_taa[x];
         ntc = scr_tcc[x];
 
+        byte osf = old_story[x];
+        byte nsf = scr_story[x];
+
         /* Handle unchanged grids */
-        if ((na == oa) && (nc == oc) && (nta == ota) && (ntc == otc))
+        if ((na == oa) && (nc == oc) && (nta == ota) && (ntc == otc) && (nsf == osf))
         {
             /* Flush */
             if (fn)
@@ -738,12 +802,15 @@ static void Term_fresh_row_both(int y, int x1, int x2)
                 /* Draw pending chars (normal) */
                 if (fa || always_text)
                 {
+                    Term->story_chunk_active = fs;
                     (void)((*Term->text_hook)(fx, y, fn, fa, &scr_cc[fx]));
+                    Term->story_chunk_active = false;
                 }
 
                 /* Draw pending chars (black) */
                 else
                 {
+                    Term->story_chunk_active = false;
                     (void)((*Term->wipe_hook)(fx, y, fn));
                 }
 
@@ -760,6 +827,7 @@ static void Term_fresh_row_both(int y, int x1, int x2)
         old_cc[x] = nc;
         old_taa[x] = nta;
         old_tcc[x] = ntc;
+        old_story[x] = nsf;
 
         /* Handle high-bit attr/chars */
         if ((na & 0x80) && (nc & 0x80))
@@ -774,12 +842,15 @@ static void Term_fresh_row_both(int y, int x1, int x2)
                 /* Draw pending chars (normal) */
                 if (fa || always_text)
                 {
+                    Term->story_chunk_active = fs;
                     (void)((*Term->text_hook)(fx, y, fn, fa, &scr_cc[fx]));
+                    Term->story_chunk_active = false;
                 }
 
                 /* Draw pending chars (black) */
                 else
                 {
+                    Term->story_chunk_active = false;
                     (void)((*Term->wipe_hook)(fx, y, fn));
                 }
 
@@ -803,12 +874,15 @@ static void Term_fresh_row_both(int y, int x1, int x2)
                 /* Draw the pending chars */
                 if (fa || always_text)
                 {
+                    Term->story_chunk_active = fs;
                     (void)((*Term->text_hook)(fx, y, fn, fa, &scr_cc[fx]));
+                    Term->story_chunk_active = false;
                 }
 
                 /* Hack -- Erase "leading" spaces */
                 else
                 {
+                    Term->story_chunk_active = false;
                     (void)((*Term->wipe_hook)(fx, y, fn));
                 }
 
@@ -822,7 +896,11 @@ static void Term_fresh_row_both(int y, int x1, int x2)
 
         /* Restart and Advance */
         if (fn++ == 0)
+        {
             fx = x;
+            fa = na;
+            fs = nsf;
+        }
     }
 
     /* Flush */
@@ -831,12 +909,15 @@ static void Term_fresh_row_both(int y, int x1, int x2)
         /* Draw pending chars (normal) */
         if (fa || always_text)
         {
+            Term->story_chunk_active = fs;
             (void)((*Term->text_hook)(fx, y, fn, fa, &scr_cc[fx]));
+            Term->story_chunk_active = false;
         }
 
         /* Draw pending chars (black) */
         else
         {
+            Term->story_chunk_active = false;
             (void)((*Term->wipe_hook)(fx, y, fn));
         }
     }
@@ -857,6 +938,9 @@ static void Term_fresh_row_text(int y, int x1, int x2)
     byte* scr_aa = Term->scr->a[y];
     char* scr_cc = Term->scr->c[y];
 
+    byte* old_story = Term->old->story[y];
+    byte* scr_story = Term->scr->story[y];
+
     /* The "always_text" flag */
     int always_text = Term->always_text;
 
@@ -866,8 +950,9 @@ static void Term_fresh_row_text(int y, int x1, int x2)
     /* Pending start */
     int fx = 0;
 
-    /* Pending attr */
+    /* Pending attr/font */
     byte fa = Term->attr_blank;
+    byte fs = 0;
 
     byte oa;
     char oc;
@@ -886,8 +971,11 @@ static void Term_fresh_row_text(int y, int x1, int x2)
         na = scr_aa[x];
         nc = scr_cc[x];
 
+        byte osf = old_story[x];
+        byte nsf = scr_story[x];
+
         /* Handle unchanged grids */
-        if ((na == oa) && (nc == oc))
+        if ((na == oa) && (nc == oc) && (nsf == osf))
         {
             /* Flush */
             if (fn)
@@ -915,9 +1003,10 @@ static void Term_fresh_row_text(int y, int x1, int x2)
         /* Save new contents */
         old_aa[x] = na;
         old_cc[x] = nc;
+        old_story[x] = nsf;
 
         /* Notice new color */
-        if (fa != na)
+        if ((fa != na) || (fs != nsf))
         {
             /* Flush */
             if (fn)
@@ -925,12 +1014,15 @@ static void Term_fresh_row_text(int y, int x1, int x2)
                 /* Draw the pending chars */
                 if (fa || always_text)
                 {
+                    Term->story_chunk_active = fs;
                     (void)((*Term->text_hook)(fx, y, fn, fa, &scr_cc[fx]));
+                    Term->story_chunk_active = false;
                 }
 
                 /* Hack -- Erase "leading" spaces */
                 else
                 {
+                    Term->story_chunk_active = false;
                     (void)((*Term->wipe_hook)(fx, y, fn));
                 }
 
@@ -938,8 +1030,9 @@ static void Term_fresh_row_text(int y, int x1, int x2)
                 fn = 0;
             }
 
-            /* Save the new color */
+            /* Save the new color and font flag */
             fa = na;
+            fs = nsf;
         }
 
         /* Restart and Advance */
@@ -953,12 +1046,15 @@ static void Term_fresh_row_text(int y, int x1, int x2)
         /* Draw pending chars (normal) */
         if (fa || always_text)
         {
+            Term->story_chunk_active = fs;
             (void)((*Term->text_hook)(fx, y, fn, fa, &scr_cc[fx]));
+            Term->story_chunk_active = false;
         }
 
         /* Draw pending chars (black) */
         else
         {
+            Term->story_chunk_active = false;
             (void)((*Term->wipe_hook)(fx, y, fn));
         }
     }
@@ -1580,6 +1676,7 @@ errr Term_erase(int x, int y, int n)
 
     byte* scr_taa;
     char* scr_tcc;
+    byte* scr_story;
 
     /* Place cursor */
     if (Term_gotoxy(x, y))
@@ -1595,6 +1692,7 @@ errr Term_erase(int x, int y, int n)
 
     scr_taa = Term->scr->ta[y];
     scr_tcc = Term->scr->tc[y];
+    scr_story = Term->scr->story[y];
 
     if ((n > 0) && (scr_cc[x] == -1) && (scr_aa[x] == 255))
     {
@@ -1602,24 +1700,27 @@ errr Term_erase(int x, int y, int n)
         n++;
     }
 
+    /* Log for line 0 */
+    if (y == 0)
+    {
+        log_debug("Term_erase: row=0 x=%d n=%d story_font_active=%d", x, n, Term->story_font_active ? 1 : 0);
+    }
+
     /* Scan every column */
     for (i = 0; i < n; i++, x++)
     {
-        byte oa = scr_aa[x];
-        char oc = scr_cc[x];
+        /* Always clear story font flags and tile data to prevent garbling */
+        scr_taa[x] = 0;
+        scr_tcc[x] = 0;
+        scr_story[x] = 0;
 
-        /* Hack -- Ignore "non-changes" */
-        if ((oa == na) && (oc == nc))
-            continue;
-
-        /* Save the "literal" information */
+        /* Always set to blank - we're erasing */
         scr_aa[x] = na;
         scr_cc[x] = nc;
 
-        scr_taa[x] = 0;
-        scr_tcc[x] = 0;
-
-        /* Track minumum changed column */
+        /* Always mark erased cells as changed so Term_fresh will update them
+         * This is critical for story font mode where we need to refresh cells
+         * to properly update the old buffer with cleared story font flags */
         if (x1 < 0)
             x1 = x;
 
@@ -1675,6 +1776,7 @@ errr Term_clear(void)
         char* scr_cc = Term->scr->c[y];
         byte* scr_taa = Term->scr->ta[y];
         char* scr_tcc = Term->scr->tc[y];
+        byte* scr_story = Term->scr->story[y];
 
         /* Wipe each column */
         for (x = 0; x < w; x++)
@@ -1684,6 +1786,7 @@ errr Term_clear(void)
 
             scr_taa[x] = 0;
             scr_tcc[x] = 0;
+            scr_story[x] = 0;
         }
 
         /* This row has changed */
@@ -1994,7 +2097,7 @@ errr Term_save(void)
  */
 errr Term_load(void)
 {
-    int y;
+    int y, x;
 
     int w = Term->wid;
     int h = Term->hgt;
@@ -2011,6 +2114,29 @@ errr Term_load(void)
 
     /* Load */
     term_win_copy(Term->scr, Term->mem, w, h);
+
+    /* CRITICAL FIX: Invalidate the old buffer to force redraw
+     * Without this, Term_fresh_row_pict may skip cells that appear unchanged
+     * between old and scr, causing garbled text in story font mode.
+     * We set old to impossible values to guarantee mismatch with scr. */
+    for (y = 0; y < h; y++)
+    {
+        byte* old_aa = Term->old->a[y];
+        char* old_cc = Term->old->c[y];
+        byte* old_taa = Term->old->ta[y];
+        char* old_tcc = Term->old->tc[y];
+        byte* old_story = Term->old->story[y];
+        
+        for (x = 0; x < w; x++)
+        {
+            /* Set to impossible values to force redraw */
+            old_aa[x] = 255;
+            old_cc[x] = 0;
+            old_taa[x] = 255;
+            old_tcc[x] = 0;
+            old_story[x] = 255;
+        }
+    }
 
     /* Assume change */
     for (y = 0; y < h; y++)

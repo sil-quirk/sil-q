@@ -39,15 +39,15 @@
 
 # Version stamp (required)
 
-V:0.8.9
+V:0.9.0
 
 N:0:Feanorians
 S:0:1:2:2
 I:1:20:4865
 H:78:3
 W:150:8
-C:1|4|5|36
-F:KINSLAYER | SMT_AFFINITY | MEL_AFFINITY | WIL_AFFINITY | PER_AFFINITY | CURSE
+C:1|4|5|36|38|39|40|41|46
+F:SMT_AFFINITY | MEL_AFFINITY | WIL_AFFINITY | PER_AFFINITY | SNG_AFFINITY | CURSE
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
 E:23:7:1:1     # | Curved sword (1)
@@ -64,7 +64,7 @@ S:0:1:2:2
 I:1:20:4865
 H:78:3
 W:150:8
-C:2|6|7|10|11|31
+C:2|6|7|10|11|31|43
 F:WIL_AFFINITY | MEL_AFFINITY | PER_AFFINITY | EVN_AFFINITY | ARC_AFFINITY | CURSE
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
@@ -82,7 +82,7 @@ S:0:1:2:2
 I:1:20:4865
 H:78:3
 W:150:8
-C:3|8|9|32
+C:3|8|9|32|42|47|48|49
 F:SNG_AFFINITY | PER_AFFINITY | WIL_AFFINITY
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:37:3:3    # , Fragment of Lembas (3)
@@ -136,7 +136,7 @@ S:0:0:0:0
 I:21:15:45
 H:70:4
 W:150:12
-C:23|24|25|26|27|28|29|30
+C:23|24|25|26|27|28|29|30|44|45
 F:MEL_AFFINITY | WIL_AFFINITY | GIFTERU
 E:39:0:3:3     # ~ Wooden Torches (3)
 E:80:35:5:5    # , Pieces of Dark Bread (5)

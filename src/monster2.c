@@ -153,6 +153,8 @@ void delete_monster_idx(int i)
 
     /* Monster is gone */
     cave_m_idx[y][x] = 0;
+    song_disguise_handle_monster_removed(i);
+    song_duels_handle_monster_removed(i);
 
     /* Delete objects */
     for (this_o_idx = m_ptr->hold_o_idx; this_o_idx; this_o_idx = next_o_idx)
@@ -180,6 +182,42 @@ void delete_monster_idx(int i)
 
     /* Visual update */
     lite_spot(y, x);
+}
+
+/*
+ * Return the monster's base protection sides after permanent reductions.
+ */
+int monster_base_armour_sides(const monster_type* m_ptr)
+{
+    const monster_race* r_ptr = &r_info[m_ptr->r_idx];
+    int base = r_ptr->ps;
+
+    if (base <= 0)
+        return 0;
+
+    if (m_ptr->armor_ps_reduction >= base)
+        return 0;
+
+    return base - m_ptr->armor_ps_reduction;
+}
+
+int monster_song_hp_loss(const monster_type* m_ptr)
+{
+    return (int)m_ptr->song_hp_loss_lo
+        | ((int)m_ptr->song_hp_loss_hi << 8);
+}
+
+void monster_add_song_hp_loss(monster_type* m_ptr, int amount)
+{
+    if (amount <= 0)
+        return;
+
+    int total = monster_song_hp_loss(m_ptr) + amount;
+    if (total > 0xFFFF)
+        total = 0xFFFF;
+
+    m_ptr->song_hp_loss_lo = (byte)(total & 0xFF);
+    m_ptr->song_hp_loss_hi = (byte)((total >> 8) & 0xFF);
 }
 
 /*
@@ -1184,15 +1222,17 @@ int monster_skill(monster_type* m_ptr, int skill_type)
         break;
     case S_STL:
         skill = r_ptr->stl;
-        skill += 2 * curse_flag_count_cur(CUR_MON_STL);   /* +2 Stl per curse */
+        skill -= m_ptr->song_stealth_penalty;
+        skill += 2 * curse_flag_count_cur(CUR_MON_STL);   /* +/-2 Stl per stack */
         break;
     case S_PER:
         skill = r_ptr->per;
-        skill += 2 * curse_flag_count_cur(CUR_MON_PER);   /* +2 Per per curse */
+        skill += 2 * curse_flag_count_cur(CUR_MON_PER);   /* +/-2 Per per stack */
         break;
     case S_WIL:
         skill = r_ptr->wil;
-        skill += 2 * curse_flag_count_cur(CUR_MON_WIL);   /* +2 Wil per curse */
+        skill -= m_ptr->song_will_penalty;
+        skill += 2 * curse_flag_count_cur(CUR_MON_WIL);   /* +/-2 Wil per stack */
         break;
     case S_SMT:
         msg_debug("Can't determine the monster's Smithing score.");
@@ -1209,6 +1249,63 @@ int monster_skill(monster_type* m_ptr, int skill_type)
     // penalise stunning
     if (m_ptr->stunned)
         skill -= 2;
+
+    // Song of Challenge debuff - applies while singing or for some time after
+    // NOTE: Challenge now reduces monster Will (S_WIL) in addition to Stealth
+    if (p_ptr->song_challenge_effect > 0 && (skill_type == S_STL || skill_type == S_WIL))
+    {
+        // Calculate the full penalty and max duration based on current song skill
+        int song_skill = ability_bonus(S_SNG, SNG_CHALLENGE);
+    int full_penalty = song_skill / 5;
+    if (full_penalty < 1) full_penalty = 1;
+        
+        // Calculate max duration: 15 turns at skill 20, formula: (skill * 3) / 4
+        int max_duration = (song_skill * 3) / 4;
+        if (max_duration < 3) max_duration = 3;
+        
+        // Scale the penalty based on remaining duration
+        int penalty = (full_penalty * p_ptr->song_challenge_effect) / max_duration;
+        if (penalty < 1 && p_ptr->song_challenge_effect > 0) penalty = 1;
+        
+        if (penalty > 0)
+        {
+            int before = skill;
+            skill -= penalty;
+            log_debug(
+                "Song of Challenge penalty applied (r_idx=%d skill=%d -> %d, "
+                "delta=%d, effect=%d/%d)",
+                (int)m_ptr->r_idx, before, skill, penalty, 
+                p_ptr->song_challenge_effect, max_duration);
+        }
+    }
+
+    // Song of Elbereth debuff - applies while singing or for some time after
+    if (p_ptr->song_elbereth_effect > 0 && skill_type == S_WIL)
+    {
+        // Calculate the full penalty and max duration based on current song skill
+        int song_skill = ability_bonus(S_SNG, SNG_ELBERETH);
+    int full_penalty = song_skill / 5;
+    if (full_penalty < 1) full_penalty = 1;
+        
+        // Calculate max duration: 15 turns at skill 20, formula: (skill * 3) / 4
+        int max_duration = (song_skill * 3) / 4;
+        if (max_duration < 3) max_duration = 3;
+        
+        // Scale the penalty based on remaining duration
+        int penalty = (full_penalty * p_ptr->song_elbereth_effect) / max_duration;
+        if (penalty < 1 && p_ptr->song_elbereth_effect > 0) penalty = 1;
+        
+        if (penalty > 0)
+        {
+            int before = skill;
+            skill -= penalty;
+            log_debug(
+                "Song of Elbereth penalty applied (r_idx=%d skill=%d -> %d, "
+                "delta=%d, effect=%d/%d)",
+                (int)m_ptr->r_idx, before, skill, penalty,
+                p_ptr->song_elbereth_effect, max_duration);
+        }
+    }
 
     return (skill);
 }
@@ -1266,7 +1363,10 @@ int monster_stat(monster_type* m_ptr, int stat_type)
     return (stat);
 }
 
-void listen(monster_type* m_ptr)
+/*
+ * Shared sound-based detection logic. Returns true when the check succeeds.
+ */
+bool detect_monster_noise(monster_type* m_ptr, int skill)
 {
     byte a;
     char c;
@@ -1284,17 +1384,13 @@ void listen(monster_type* m_ptr)
     // reset the monster noise
     m_ptr->noise = 0;
 
-    // must have the listen skill
-    if (!p_ptr->active_ability[S_PER][PER_LISTEN])
-        return;
-
     // must not be visible
     if (m_ptr->ml)
-        return;
+        return false;
 
     // monster must be able to move
     if (r_ptr->flags1 & (RF1_NEVER_MOVE))
-        return;
+        return false;
 
     // use monster stealth
     difficulty += monster_skill(m_ptr, S_STL);
@@ -1309,13 +1405,13 @@ void listen(monster_type* m_ptr)
         difficulty += ability_bonus(S_SNG, SNG_SILENCE);
 
     // make the check
-    result = skill_check(PLAYER, p_ptr->skill_use[S_PER], difficulty, m_ptr);
+    result = skill_check(PLAYER, skill, difficulty, m_ptr);
 
     // give up if it is a failure
     if (result <= 0)
     {
         lite_spot(y, x);
-        return;
+        return false;
     }
 
     // make the monster completely visible if a dramatic success
@@ -1323,7 +1419,7 @@ void listen(monster_type* m_ptr)
     {
         m_ptr->ml = true;
         lite_spot(y, x);
-        return;
+        return true;
     }
 
     if (graphics_are_ascii())
@@ -1348,6 +1444,17 @@ void listen(monster_type* m_ptr)
     print_rel(c, a, y, x);
     move_cursor_relative(y, x);
     Term_fresh();
+
+    return true;
+}
+
+void listen(monster_type* m_ptr)
+{
+    // must have the listen skill
+    if (!p_ptr->active_ability[S_PER][PER_LISTEN])
+        return;
+
+    detect_monster_noise(m_ptr, p_ptr->skill_use[S_PER]);
 }
 
 /*
@@ -2570,11 +2677,16 @@ bool place_monster_one(
     {
         n_ptr->maxhp = r_ptr->hdice * (1 + r_ptr->hside) / 2;
 
-        /* Apply unique‐HP curses: +25% per CUR_MONSTERHP_U flag */
+        /* Apply unique‐HP curses/blessings: +20% curse, -10% blessing per stack */
         {
-            int curses = curse_flag_count_cur(CUR_U_MON_HP);
-            if (curses > 0)
-                n_ptr->maxhp = (n_ptr->maxhp * (100 + 25 * curses)) / 100;
+            int stacks = curse_flag_count_cur(CUR_U_MON_HP);
+            if (stacks > 0) {
+                /* Curse: +20% per stack */
+                n_ptr->maxhp = (n_ptr->maxhp * (100 + 20 * stacks)) / 100;
+            } else if (stacks < 0) {
+                /* Blessing: -10% per stack */
+                n_ptr->maxhp = (n_ptr->maxhp * (100 + 10 * stacks)) / 100;
+            }
         }
     }
     /*assign hitpoints using dice rolls*/
@@ -2582,11 +2694,16 @@ bool place_monster_one(
     {
         n_ptr->maxhp = damroll(r_ptr->hdice, r_ptr->hside);
 
-        /* Apply normal‐HP curses: +25% per CUR_MONSTERHP flag */
+        /* Apply normal‐HP curses/blessings: +20% curse, -10% blessing per stack */
         {
-            int curses = curse_flag_count_cur(CUR_MON_HP);
-            if (curses > 0)
-                n_ptr->maxhp = (n_ptr->maxhp * (100 + 25 * curses)) / 100;
+            int stacks = curse_flag_count_cur(CUR_MON_HP);
+            if (stacks > 0) {
+                /* Curse: +20% per stack */
+                n_ptr->maxhp = (n_ptr->maxhp * (100 + 20 * stacks)) / 100;
+            } else if (stacks < 0) {
+                /* Blessing: -10% per stack */
+                n_ptr->maxhp = (n_ptr->maxhp * (100 + 10 * stacks)) / 100;
+            }
         }
     }
 

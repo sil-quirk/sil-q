@@ -52,24 +52,28 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning */
-/* Bumped to 0.8.9 for throwable/quiver integration */
-#define VERSION_STRING "0.8.9"
+/* Bumped to 0.9.0 for metarun blessing system update */
+#define VERSION_STRING "0.9.0"
 /*
  * Current version numbers
  */
-/* Version components (0.8.9) */
+/* Version components (0.9.0) */
 #define VERSION_MAJOR 0
-#define VERSION_MINOR 8
-#define VERSION_PATCH 9
-#define VERSION_EXTRA 3
+#define VERSION_MINOR 9
+#define VERSION_PATCH 0
+#define VERSION_EXTRA 6  /* Net curse count in scores.raw (curses - blessings) */
+/* Update MIN_VERSION_EXTRA and load.c compatibility checks whenever the savefile format changes. */
+#define MIN_VERSION_EXTRA 1  /* Minimum extra value expected for CURRENT version */
+
+#define METAR_CURSE_SLOTS 64  /* Maximum number of distinct metarun curses supported */
 
 /*
  * Oldest version number that can still be imported
  */
-/* Oldest loadable version in new scheme */
+/* Oldest loadable version: 0.8.9 (pre-Morgoth crown versions not supported) */
 #define OLD_VERSION_MAJOR 0
 #define OLD_VERSION_MINOR 8
-#define OLD_VERSION_PATCH 0
+#define OLD_VERSION_PATCH 9
 
 /*
  * Version of random artefact code.
@@ -485,17 +489,18 @@
 #define MEL_POWER 0
 #define MEL_FINESSE 1
 #define MEL_KNOCK_BACK 2
-#define MEL_POLEARMS 3
-#define MEL_CHARGE 4
-#define MEL_FOLLOW_THROUGH 5
-#define MEL_IMPALE 6
-#define MEL_CONTROL 7
-#define MEL_WHIRLWIND_ATTACK 8
-#define MEL_ZONE_OF_CONTROL 9
-#define MEL_SMITE 10
-#define MEL_TWO_WEAPON 11
-#define MEL_RAPID_ATTACK 12
-#define MEL_STR 13
+#define MEL_THROWING 3
+#define MEL_POLEARMS 4
+#define MEL_CHARGE 5
+#define MEL_FOLLOW_THROUGH 6
+#define MEL_IMPALE 7
+#define MEL_CONTROL 8
+#define MEL_WHIRLWIND_ATTACK 9
+#define MEL_ZONE_OF_CONTROL 10
+#define MEL_SMITE 11
+#define MEL_TWO_WEAPON 12
+#define MEL_RAPID_ATTACK 13
+#define MEL_STR 14
 
 /*
  * Archery abilities
@@ -588,12 +593,19 @@
 #define SNG_STAUNCHING 5
 #define SNG_THRESHOLDS 6
 #define SNG_TREES 7
-#define SNG_SLAYING 8
-#define SNG_STAYING 9
-#define SNG_LORIEN 10
-#define SNG_MASTERY 11
-#define SNG_WOVEN_THEMES 12
-#define SNG_GRA 13
+#define SNG_REVEALING 8
+#define SNG_WOVEN_THEMES 9
+#define SNG_SLAYING 10
+#define SNG_ELVENESS 11
+#define SNG_STAYING 12
+#define SNG_DISGUISE 13
+#define SNG_LORIEN 14
+#define SNG_SHATTERING 15
+#define SNG_MASTERY 16
+#define SNG_GRA 17
+#define SNG_CONTEST 18
+#define SNG_LAMENT 19
+#define SNG_MAX 20
 
 #define SNG_BINDING 50 /* monster songs */
 #define SNG_PIERCING 51 /* monster songs */
@@ -778,7 +790,10 @@
 #define ROW_ARC 14
 #define COL_ARC 0 /* "(+x, xx)" */
 
-#define ROW_EVN 15
+#define ROW_QUIVER 15
+#define COL_QUIVER 0 /* "current/max" quiver status */
+
+#define ROW_EVN 16
 #define COL_EVN 0 /* "[+x, x-x]" */
 
 #define ROW_RESIST 17
@@ -1659,8 +1674,9 @@
 #define PR_SPEED 0x00200000L /* Display Extra (Speed) */
 #define PR_TERRAIN 0x00400000L /* Display Extra (Terrain) */
 #define PR_RESIST 0X00800000L /* Display Resistances */
-#define PR_EXTRA 0x01000000L /* Display Extra Info */
-#define PR_BASIC 0x02000000L /* Display Basic Info */
+#define PR_QUIVER 0x01000000L /* Display Quiver status */
+#define PR_EXTRA 0x02000000L /* Display Extra Info */
+#define PR_BASIC 0x04000000L /* Display Basic Info */
 /* xxx */
 #define PR_MAP 0x08000000L /* Display Map */
 /* xxx (many) */
@@ -1781,6 +1797,7 @@
 #define INSCRIP_EXCELLENT 100 + 8
 #define INSCRIP_SPECIAL 100 + 9
 #define INSCRIP_UNCURSED 100 + 10
+#define INSCRIP_INDESTRUCTIBLE 100 + 11
 
 /*
  * Number of special inscriptions, plus one.
@@ -2027,16 +2044,16 @@
 #define CUR_MON_NUM    0x00010000L  /* more monsters during gen      */
 #define CUR_HUNGER     0x00020000L  /* doubles digestion rate        */
 #define CUR_HALLU      0x00040000L  /* potion‐induced hallucination  */
-#define CUR_CURXXX20 0x00080000L
-#define CUR_CURXXX21 0x00100000L
-#define CUR_CURXXX22 0x00200000L
-#define CUR_CURXXX23 0x00400000L
-#define CUR_CURXXX24 0x00800000L
-#define CUR_CURXXX25 0x01000000L
-#define CUR_CURXXX26 0x02000000L
-#define CUR_CURXXX27 0x04000000L
-#define CUR_CURXXX28 0x08000000L
-#define CUR_CURXXX29 0x10000000L
+#define CUR_RES_FEAR_SHIFT     0x00080000L
+#define CUR_RES_STUN_SHIFT     0x00100000L
+#define CUR_RES_CONFU_SHIFT    0x00200000L
+#define CUR_RES_HALLU_SHIFT    0x00400000L
+#define CUR_RES_POIS_SHIFT     0x00800000L
+#define CUR_RES_FIRE_SHIFT     0x01000000L
+#define CUR_RES_COLD_SHIFT     0x02000000L
+#define CUR_MDS_SHIFT          0x04000000L
+#define CUR_CRIT_THRESH_SHIFT  0x08000000L
+#define CUR_ARMOR_SIDE_SHIFT   0x10000000L
 #define CUR_CURXXX30 0x20000000L
 #define CUR_CURXXX31 0x40000000L
 #define CUR_CURXXX32 0x80000000L
@@ -2058,10 +2075,10 @@
 #define UNQ_SMT_EOL 0x00001000L
 #define UNQ_MEL_MAEDHROS 0x00002000L
 #define UNQ_WIL_TURIN 0x00004000L
-#define UNQ_UNQXXX16 0x00008000L
-#define UNQ_UNQXXX17 0x00010000L
-#define UNQ_UNQXXX18 0x00020000L
-#define UNQ_UNQXXX19 0x00040000L
+#define UNQ_SMT_CELEBRIMBOR 0x00008000L
+#define UNQ_SNG_TURGON 0x00010000L
+#define UNQ_MINSTREL 0x00020000L
+#define UNQ_WOVEN_MASTER 0x00040000L
 #define UNQ_UNQXXX20 0x00080000L
 #define UNQ_UNQXXX21 0x00100000L
 #define UNQ_UNQXXX22 0x00200000L
@@ -2328,13 +2345,13 @@
 #define RF3_WOLF 0x00000080 /* Wolf */
 #define RF3_MAN 0x00000100 /* Man */
 #define RF3_ELF 0x00000200 /* Elf */
-#define RF3_RF3XXX3 0x00000400 /* Non-Vocal (?) */
+#define RF3_HAS_WEAPON 0x00000400 /* Fights with forged weapons */
 #define RF3_RF3XXX4 0x00000800 /* Non-Living (?) */
 #define RF3_HURT_LITE 0x00001000 /* Hurt by lite */
 #define RF3_STONE 0x00002000 /* Made of stone */
 #define RF3_HURT_FIRE 0x00004000 /* Hurt badly by fire */
 #define RF3_HURT_COLD 0x00008000 /* Hurt badly by cold */
-#define RF3_RF3XXX5 0x00010000 /* (?) */
+#define RF3_HAS_ARMOUR 0x00010000 /* Wears substantial armour */
 #define RF3_RES_ELEC 0x00020000 /* Resist elec */
 #define RF3_RES_FIRE 0x00040000 /* Resist fire */
 #define RF3_RES_COLD 0x00080000 /* Resist cold */
@@ -2595,11 +2612,13 @@
 #define OPT_auto_more 71
 #define OPT_know_monster_info 72
 #define OPT_auto_display_lists 73
-#define OPT_easy_main_menu 74
-// xxx verify_leave_quest
-#define OPT_mark_squelch_items 76
-#define OPT_display_hits 77
-// xxx
+#define OPT_artifact_unique_color 74
+#define OPT_easy_main_menu 75
+#define OPT_story_lists 76
+#define OPT_story_lists_inven 77
+#define OPT_story_lists_equip 78
+#define OPT_display_hits 79
+#define OPT_story_character_sheet 80
 // xxx
 // xxx
 // xxx
@@ -2733,9 +2752,13 @@
 #define auto_more op_ptr->opt[OPT_auto_more]
 #define know_monster_info op_ptr->opt[OPT_know_monster_info]
 #define auto_display_lists op_ptr->opt[OPT_auto_display_lists]
+#define artifact_unique_color op_ptr->opt[OPT_artifact_unique_color]
 #define easy_main_menu op_ptr->opt[OPT_easy_main_menu]
+#define story_display_lists op_ptr->opt[OPT_story_lists]
+#define story_inventory_lists op_ptr->opt[OPT_story_lists_inven]
+#define story_equipment_lists op_ptr->opt[OPT_story_lists_equip]
 #define display_hits op_ptr->opt[OPT_display_hits]
-// xxx
+#define story_character_sheet op_ptr->opt[OPT_story_character_sheet]
 // xxx
 // xxx
 // xxx
@@ -2893,9 +2916,11 @@
                             : (((T)->name1 && a_info[(T)->name1].d_attr)       \
                                     ? (a_info[(T)->name1].d_attr)              \
                                     : (k_info[(T)->k_idx].x_attr))             \
-                        : weapon_glows(T) ? ((k_info[(T)->k_idx].x_attr)       \
-                              | GRAPHICS_GLOW_MASK)                            \
-                                          : (k_info[(T)->k_idx].x_attr)))
+                        : object_attr_graphics_override(                       \
+                              (T), weapon_glows(T)                             \
+                                       ? ((k_info[(T)->k_idx].x_attr)          \
+                                             | GRAPHICS_GLOW_MASK)             \
+                                       : (k_info[(T)->k_idx].x_attr))))
 /*
  * Return the "attr" for a k_idx.
  * Use "flavor" if available.
@@ -2919,7 +2944,8 @@
                             : (((T)->name1 && a_info[(T)->name1].d_char        \
                                    && graphics_are_ascii())                    \
                                     ? (a_info[(T)->name1].d_char)              \
-                                    : (k_info[(T)->k_idx].x_char))))
+                                    : object_char_graphics_override(           \
+                                          (T), (k_info[(T)->k_idx].x_char)))))
 
 /*
  * Return the "attr" for a given item.
@@ -3370,6 +3396,11 @@
 
 /* mask on char */
 #define GRAPHICS_ALERT_MASK 0x40
+#define TILE_FLAG 0x80
+#define TILE_INDEX_MASK 0x3F
+#define TILE_SET_INDEX(base, idx)                                             \
+    (byte)(((base) & ~TILE_INDEX_MASK) | ((idx) & TILE_INDEX_MASK))
+#define TILE_GET_INDEX(val) (byte)((val) & TILE_INDEX_MASK)
 
 /* mask on attr */
 #define GRAPHICS_GLOW_MASK 0x40
@@ -3631,6 +3662,21 @@ static const quest_mapping quest_id_map[] = {
 //Defines for number of heroes
 #define FLAG_COUNT 64
 #define FLAG_WORDS ((FLAG_COUNT + 31) / 32)
+
+/*
+ * Unified look sidebar object grouping
+ */
+enum unified_sidebar_object_group {
+    LOOK_GROUP_ARTIFACT = 0,
+    LOOK_GROUP_WEAPON,
+    LOOK_GROUP_ARMOUR,
+    LOOK_GROUP_HERBS,
+    LOOK_GROUP_POTIONS,
+    LOOK_GROUP_GEMS,
+    LOOK_GROUP_CONSUMABLE,
+    LOOK_GROUP_OTHER,
+    LOOK_GROUP_COUNT
+};
 
 /*
  * Unified look mode state structure

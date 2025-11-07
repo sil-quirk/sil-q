@@ -4855,6 +4855,19 @@ static void process_monster(monster_type* m_ptr)
         anger_morgoth(4);
     }
 
+    if (m_ptr->r_idx == R_IDX_MORGOTH
+        && p_ptr->morgoth_state < 5
+        && m_ptr->maxhp > 0
+        && m_ptr->hp > 0
+        && ((long)m_ptr->hp * 10L) <= (long)m_ptr->maxhp)
+    {
+        log_debug("process_monster: Morgoth at 10%% health (hp=%d/%d), calling anger_morgoth(5)",
+                 m_ptr->hp, m_ptr->maxhp);
+        msg_print("Morgoth unleashes his final fury!");
+        message_flush();
+        anger_morgoth(5);
+    }
+
     // assume we are not under the influence of the Song of Mastery
     m_ptr->skip_this_turn = false;
 
@@ -4935,6 +4948,9 @@ static void process_monster(monster_type* m_ptr)
         wander(m_ptr);
         return;
     }
+
+    if (song_disguise_monster_is_fooled(m_ptr))
+        return;
 
     // Update monster flow information
     update_flow(p_ptr->py, p_ptr->px, m_idx);

@@ -9,6 +9,245 @@
 
 // JSON-based configuration system using cJSON library
 
+// Resolution-specific default configuration profile
+// Only includes values that differ per resolution
+struct resolution_profile {
+    int width;
+    int height;
+    const char* name;
+    
+    // Resolution-specific SDL settings
+    int main_view_scale;
+    int aux_view_font_size;
+    
+    // Pane configurations (up to 8 panes)
+    int pane_count;
+    struct {
+        enum pane_type type;
+        enum pane_placement where;
+        int rows;
+        int cols;
+    } panes[8];
+};
+
+// Resolution profiles database - add new resolutions here!
+// 
+// Only resolution-specific values are stored here.
+// Common defaults (margin=4, fullscreen=true, tiles=true) are set in sdl_config_set_defaults()
+// 
+// LAYOUT CALCULATION LOGIC:
+// 1. Minimum main terminal: 40x24 tiles (in tile mode with 16x16 base tile size)
+// 2. Try maximum scale (up to 3) that fits: scale 3 = 1920x1152, scale 2 = 1280x768, scale 1 = 640x384
+// 3. Aux view font size: approximately half of scaled tile size (scale 3 = 18px, scale 2 = 16px, scale 1 = 9px)
+// 4. Right pane: if we can fit ≥40 columns (using ~0.6*font_size char width), add right pane
+//    - Right pane contains: Inventory (22 rows), Worn (17 rows), Info (remaining, rows=0 means auto)
+//    - Right pane width: 40-50 columns depending on available space
+// 5. Bottom pane: if we can fit ≥1 row below main terminal, add bottom pane
+//    - Bottom pane contains: Rolls (half) and Log (half), rows=0 on second pane means auto-split
+//    - Maximum 4 rows for bottom pane
+// 6. Main terminal expands to use all remaining space
+//
+// To add a new resolution:
+// 1. Copy an existing profile block
+// 2. Update width, height, name
+// 3. Adjust main_view_scale, aux_view_font_size, and pane layout following the logic above
+// 4. That's it! The function will automatically pick it up.
+//
+static const struct resolution_profile resolution_profiles[] = {
+    // 800x600 (SVGA)
+    { .width = 800, .height = 600, .name = "800x600 (SVGA)", .main_view_scale = 1, .aux_view_font_size = 9,
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 1024x768 (XGA)
+    { .width = 1024, .height = 768, .name = "1024x768 (XGA)", .main_view_scale = 1, .aux_view_font_size = 9,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 40 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 1152x864
+    { .width = 1152, .height = 864, .name = "1152x864", .main_view_scale = 1, .aux_view_font_size = 9,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 1280x720 (HD 720p)
+    { .width = 1280, .height = 720, .name = "1280x720 (HD 720p)", .main_view_scale = 1, .aux_view_font_size = 9,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 1280x768
+    { .width = 1280, .height = 768, .name = "1280x768", .main_view_scale = 2, .aux_view_font_size = 16,
+      .pane_count = 0, .panes = {} },
+    
+    // 1280x800 (WXGA)
+    { .width = 1280, .height = 800, .name = "1280x800 (WXGA)", .main_view_scale = 2, .aux_view_font_size = 16,
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 2, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 1280x1024 (SXGA)
+    { .width = 1280, .height = 1024, .name = "1280x1024 (SXGA)", .main_view_scale = 2, .aux_view_font_size = 16,
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 1360x768
+    { .width = 1360, .height = 768, .name = "1360x768", .main_view_scale = 2, .aux_view_font_size = 16,
+      .pane_count = 0, .panes = {} },
+    
+    // 1366x768 (HD)
+    { .width = 1366, .height = 768, .name = "1366x768 (HD)", .main_view_scale = 2, .aux_view_font_size = 16,
+      .pane_count = 0, .panes = {} },
+    
+    // 1400x1050
+    { .width = 1400, .height = 1050, .name = "1400x1050", .main_view_scale = 2, .aux_view_font_size = 16,
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 1440x900
+    { .width = 1440, .height = 900, .name = "1440x900", .main_view_scale = 2, .aux_view_font_size = 16,
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 1536x864
+    { .width = 1536, .height = 864, .name = "1536x864", .main_view_scale = 2, .aux_view_font_size = 16,
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 1600x900 (HD+)
+    { .width = 1600, .height = 900, .name = "1600x900 (HD+)", .main_view_scale = 2, .aux_view_font_size = 16,
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 1600x1200 (UXGA)
+    { .width = 1600, .height = 1200, .name = "1600x1200 (UXGA)", .main_view_scale = 2, .aux_view_font_size = 16,
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 1680x1050
+    { .width = 1680, .height = 1050, .name = "1680x1050", .main_view_scale = 2, .aux_view_font_size = 16,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 40 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 1920x1080 (Full HD)
+    { .width = 1920, .height = 1080, .name = "1920x1080 (Full HD)", .main_view_scale = 2, .aux_view_font_size = 16,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 1920x1200 (WUXGA)
+    { .width = 1920, .height = 1200, .name = "1920x1200 (WUXGA)", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 2, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 2048x1152
+    { .width = 2048, .height = 1152, .name = "2048x1152", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 0, .panes = {} },
+    
+    // 2160x1440
+    { .width = 2160, .height = 1440, .name = "2160x1440", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 2, .panes = { { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 2560x1080 (Ultrawide)
+    { .width = 2560, .height = 1080, .name = "2560x1080 (Ultrawide)", .main_view_scale = 2, .aux_view_font_size = 16,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 2560x1440 (QHD)
+    { .width = 2560, .height = 1440, .name = "2560x1440 (QHD)", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 2560x1600 (MacBook 13")
+    { .width = 2560, .height = 1600, .name = "2560x1600 (MacBook 13\")", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 2736x1824 (Surface Book)
+    { .width = 2736, .height = 1824, .name = "2736x1824 (Surface Book)", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 2880x1620
+    { .width = 2880, .height = 1620, .name = "2880x1620", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 2880x1800 (MacBook 15")
+    { .width = 2880, .height = 1800, .name = "2880x1800 (MacBook 15\")", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 3000x2000 (Surface Laptop)
+    { .width = 3000, .height = 2000, .name = "3000x2000 (Surface Laptop)", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 3200x1800
+    { .width = 3200, .height = 1800, .name = "3200x1800", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 3240x2160
+    { .width = 3240, .height = 2160, .name = "3240x2160", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 3440x1440 (Ultrawide QHD)
+    { .width = 3440, .height = 1440, .name = "3440x1440 (Ultrawide QHD)", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 3840x1080 (Super Ultrawide)
+    { .width = 3840, .height = 1080, .name = "3840x1080 (Super Ultrawide)", .main_view_scale = 2, .aux_view_font_size = 16,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 3840x1200
+    { .width = 3840, .height = 1200, .name = "3840x1200", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 3840x1440
+    { .width = 3840, .height = 1440, .name = "3840x1440", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 3840x1600
+    { .width = 3840, .height = 1600, .name = "3840x1600", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 3840x2160 (4K UHD)
+    { .width = 3840, .height = 2160, .name = "3840x2160 (4K UHD)", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 4096x2160 (DCI 4K)
+    { .width = 4096, .height = 2160, .name = "4096x2160 (DCI 4K)", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 4480x1440
+    { .width = 4480, .height = 1440, .name = "4480x1440", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 5120x1440 (Super Ultrawide)
+    { .width = 5120, .height = 1440, .name = "5120x1440 (Super Ultrawide)", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 5120x2160 (5K Ultrawide)
+    { .width = 5120, .height = 2160, .name = "5120x2160 (5K Ultrawide)", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 5120x2880 (5K)
+    { .width = 5120, .height = 2880, .name = "5120x2880 (5K)", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 6016x3384 (6K)
+    { .width = 6016, .height = 3384, .name = "6016x3384 (6K)", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } },
+    
+    // 7680x4320 (8K UHD)
+    { .width = 7680, .height = 4320, .name = "7680x4320 (8K UHD)", .main_view_scale = 3, .aux_view_font_size = 18,
+      .pane_count = 5, .panes = { { PANE_INVENTORY, PLACE_RIGHT, 22, 50 }, { PANE_WORN, PLACE_RIGHT, 17, 0 },
+                                  { PANE_INFO, PLACE_RIGHT, 0, 0 }, { PANE_ROLLS, PLACE_BOTTOM, 4, 0 }, { PANE_LOG, PLACE_BOTTOM, 0, 0 } } }
+};
+
+#define NUM_RESOLUTION_PROFILES (sizeof(resolution_profiles) / sizeof(resolution_profiles[0]))
+
 static const char* pane_type_to_string(enum pane_type type)
 {
     switch (type) {
@@ -181,6 +420,112 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             config->window_height = item->valueint;
             log_debug("Loaded windowHeight: %d", config->window_height);
         }
+        
+        // Custom fonts
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyFont");
+        if (cJSON_IsString(item)) {
+            my_strcpy(config->story_font, item->valuestring, sizeof(config->story_font));
+            log_debug("Loaded storyFont: %s", config->story_font);
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monospaceFont");
+        if (cJSON_IsString(item)) {
+            my_strcpy(config->monospace_font, item->valuestring, sizeof(config->monospace_font));
+            log_debug("Loaded monospaceFont: %s", config->monospace_font);
+        }
+        
+        // Monospace font rendering options (with backward compatibility)
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monoBold");
+        if (!cJSON_IsBool(item)) item = cJSON_GetObjectItemCaseSensitive(sdl, "fontBold");
+        if (cJSON_IsBool(item)) {
+            config->mono_bold = cJSON_IsTrue(item);
+            log_debug("Loaded monoBold: %s", config->mono_bold ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monoItalic");
+        if (!cJSON_IsBool(item)) item = cJSON_GetObjectItemCaseSensitive(sdl, "fontItalic");
+        if (cJSON_IsBool(item)) {
+            config->mono_italic = cJSON_IsTrue(item);
+            log_debug("Loaded monoItalic: %s", config->mono_italic ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monoUnderline");
+        if (!cJSON_IsBool(item)) item = cJSON_GetObjectItemCaseSensitive(sdl, "fontUnderline");
+        if (cJSON_IsBool(item)) {
+            config->mono_underline = cJSON_IsTrue(item);
+            log_debug("Loaded monoUnderline: %s", config->mono_underline ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monoStrikethrough");
+        if (!cJSON_IsBool(item)) item = cJSON_GetObjectItemCaseSensitive(sdl, "fontStrikethrough");
+        if (cJSON_IsBool(item)) {
+            config->mono_strikethrough = cJSON_IsTrue(item);
+            log_debug("Loaded monoStrikethrough: %s", config->mono_strikethrough ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monoHinting");
+        if (!cJSON_IsNumber(item)) item = cJSON_GetObjectItemCaseSensitive(sdl, "fontHinting");
+        if (cJSON_IsNumber(item)) {
+            config->mono_hinting = item->valueint;
+            log_debug("Loaded monoHinting: %d", config->mono_hinting);
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monoKerning");
+        if (!cJSON_IsBool(item)) item = cJSON_GetObjectItemCaseSensitive(sdl, "fontKerning");
+        if (cJSON_IsBool(item)) {
+            config->mono_kerning = cJSON_IsTrue(item);
+            log_debug("Loaded monoKerning: %s", config->mono_kerning ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "monoOutline");
+        if (!cJSON_IsNumber(item)) item = cJSON_GetObjectItemCaseSensitive(sdl, "fontOutline");
+        if (cJSON_IsNumber(item)) {
+            config->mono_outline = item->valueint;
+            log_debug("Loaded monoOutline: %d", config->mono_outline);
+        }
+        
+        // Story font rendering options
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyBold");
+        if (cJSON_IsBool(item)) {
+            config->story_bold = cJSON_IsTrue(item);
+            log_debug("Loaded storyBold: %s", config->story_bold ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyItalic");
+        if (cJSON_IsBool(item)) {
+            config->story_italic = cJSON_IsTrue(item);
+            log_debug("Loaded storyItalic: %s", config->story_italic ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyUnderline");
+        if (cJSON_IsBool(item)) {
+            config->story_underline = cJSON_IsTrue(item);
+            log_debug("Loaded storyUnderline: %s", config->story_underline ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyStrikethrough");
+        if (cJSON_IsBool(item)) {
+            config->story_strikethrough = cJSON_IsTrue(item);
+            log_debug("Loaded storyStrikethrough: %s", config->story_strikethrough ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyHinting");
+        if (cJSON_IsNumber(item)) {
+            config->story_hinting = item->valueint;
+            log_debug("Loaded storyHinting: %d", config->story_hinting);
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyKerning");
+        if (cJSON_IsBool(item)) {
+            config->story_kerning = cJSON_IsTrue(item);
+            log_debug("Loaded storyKerning: %s", config->story_kerning ? "true" : "false");
+        }
+        
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "storyOutline");
+        if (cJSON_IsNumber(item)) {
+            config->story_outline = item->valueint;
+            log_debug("Loaded storyOutline: %d", config->story_outline);
+        }
     } else {
         log_warn("'sdl' object not found in JSON");
     }
@@ -273,6 +618,28 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddNumberToObject(sdl, "windowWidth", config->window_width);
     cJSON_AddNumberToObject(sdl, "windowHeight", config->window_height);
     
+    // Save custom fonts
+    cJSON_AddStringToObject(sdl, "storyFont", config->story_font);
+    cJSON_AddStringToObject(sdl, "monospaceFont", config->monospace_font);
+    
+    // Save monospace font rendering options
+    cJSON_AddBoolToObject(sdl, "monoBold", config->mono_bold);
+    cJSON_AddBoolToObject(sdl, "monoItalic", config->mono_italic);
+    cJSON_AddBoolToObject(sdl, "monoUnderline", config->mono_underline);
+    cJSON_AddBoolToObject(sdl, "monoStrikethrough", config->mono_strikethrough);
+    cJSON_AddNumberToObject(sdl, "monoHinting", config->mono_hinting);
+    cJSON_AddBoolToObject(sdl, "monoKerning", config->mono_kerning);
+    cJSON_AddNumberToObject(sdl, "monoOutline", config->mono_outline);
+    
+    // Save story font rendering options
+    cJSON_AddBoolToObject(sdl, "storyBold", config->story_bold);
+    cJSON_AddBoolToObject(sdl, "storyItalic", config->story_italic);
+    cJSON_AddBoolToObject(sdl, "storyUnderline", config->story_underline);
+    cJSON_AddBoolToObject(sdl, "storyStrikethrough", config->story_strikethrough);
+    cJSON_AddNumberToObject(sdl, "storyHinting", config->story_hinting);
+    cJSON_AddBoolToObject(sdl, "storyKerning", config->story_kerning);
+    cJSON_AddNumberToObject(sdl, "storyOutline", config->story_outline);
+    
     cJSON_AddItemToObject(root, "sdl", sdl);
     
     // Create panes array
@@ -348,6 +715,82 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->window_y = -1;  // -1 means centered
     config->window_width = 0;  // 0 means use default calculation
     config->window_height = 0; // 0 means use default calculation
+    
+    // Default fonts
+    my_strcpy(config->story_font, "lib/xtra/font/Cinzel-Medium.ttf", sizeof(config->story_font));
+    my_strcpy(config->monospace_font, "lib/xtra/font/VictorMono-Medium.ttf", sizeof(config->monospace_font));
+    
+    // Default monospace font rendering options
+    config->mono_bold = false;
+    config->mono_italic = false;
+    config->mono_underline = false;
+    config->mono_strikethrough = false;
+    config->mono_hinting = 0;  // TTF_HINTING_NORMAL
+    config->mono_kerning = true;
+    config->mono_outline = 0;
+    
+    // Default story font rendering options
+    config->story_bold = false;
+    config->story_italic = false;
+    config->story_underline = false;
+    config->story_strikethrough = false;
+    config->story_hinting = 0;  // TTF_HINTING_NORMAL
+    config->story_kerning = true;
+    config->story_outline = 0;
+}
+
+void sdl_config_set_defaults_for_resolution(struct sdl_config* config, 
+                                            struct pane_config* pane_configs,
+                                            int* pane_count,
+                                            int max_panes,
+                                            int screen_width,
+                                            int screen_height)
+{
+    // Start with base defaults
+    sdl_config_set_defaults(config);
+    *pane_count = 0;
+    
+    log_info("Setting resolution-specific defaults for %dx%d", screen_width, screen_height);
+    
+    // Search for matching resolution profile
+    const struct resolution_profile* profile = NULL;
+    for (size_t i = 0; i < NUM_RESOLUTION_PROFILES; i++) {
+        if (resolution_profiles[i].width == screen_width && 
+            resolution_profiles[i].height == screen_height) {
+            profile = &resolution_profiles[i];
+            break;
+        }
+    }
+    
+    if (profile) {
+        // Apply resolution-specific settings
+        log_info("Detected %s resolution - applying optimized defaults", profile->name);
+        
+        config->main_view_scale = profile->main_view_scale;
+        config->aux_view_font_size = profile->aux_view_font_size;
+        // Note: margin, fullscreen, tiles, and window position/size use base defaults
+        
+        // Apply pane configuration
+        *pane_count = profile->pane_count;
+        if (*pane_count > max_panes) {
+            log_warn("Profile has %d panes but max_panes is %d, truncating", 
+                     *pane_count, max_panes);
+            *pane_count = max_panes;
+        }
+        
+        for (int i = 0; i < *pane_count; i++) {
+            pane_configs[i].pane = profile->panes[i].type;
+            pane_configs[i].where = profile->panes[i].where;
+            pane_configs[i].rect.rows = profile->panes[i].rows;
+            pane_configs[i].rect.cols = profile->panes[i].cols;
+            pane_configs[i].ratio = 0.0f;
+        }
+    } else {
+        // Unknown resolution - use generic defaults
+        log_info("Using generic defaults for %dx%d resolution", screen_width, screen_height);
+        // The config already has base defaults from sdl_config_set_defaults()
+        // pane_count is 0, so default_pane_config will be used by caller
+    }
 }
 
 void sdl_config_apply_cmdline(struct sdl_config* config, int argc, char** argv)

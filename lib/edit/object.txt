@@ -65,7 +65,7 @@
 
 # Version stamp (required)
 
-V:0.8.9
+V:0.9.0
 
 
 ##### Non-kind (contains the 'pile' picture) #####
@@ -461,7 +461,7 @@ I:22:11:0
 W:2:0:10:150
 P:-1:4d2:0:0d0
 A:2/4
-F:AXE
+F:AXE | THROWING
 
 
 N:77:& Battle Axe~

@@ -62,6 +62,28 @@ struct supply_list_entry
     int supply_idx; /* Index inside the supply cache (-1 if not present) */
 };
 
+static void dump_visual_pair(
+    FILE* fff, const char* tag, int index, byte attr, byte chr)
+{
+    bool attr_tile = (attr & TILE_FLAG) != 0;
+    bool char_tile = (chr & TILE_FLAG) != 0;
+
+    fprintf(fff, "%s:%d:", tag, index);
+    if (attr_tile)
+        fprintf(fff, "R%d", TILE_GET_INDEX(attr));
+    else
+        fprintf(fff, "0x%02X", attr);
+
+    fputc(':', fff);
+
+    if (char_tile)
+        fprintf(fff, "C%d", TILE_GET_INDEX(chr));
+    else
+        fprintf(fff, "0x%02X", (byte)chr);
+
+    fputc('\n', fff);
+    fputc('\n', fff);
+}
 
 
 static bool supplies_menu_use_entry(supply_list_entry* entry)
@@ -359,6 +381,13 @@ void do_cmd_character_sheet(void)
 
     int mode = 0;
 
+    /* Clear any active banner before opening character sheet */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+
     /* Save screen */
     screen_save();
 
@@ -368,15 +397,35 @@ void do_cmd_character_sheet(void)
         /* Display the player */
         display_player(mode);
 
-        /* Prompt */
-        Term_putstr(1, 23, -1, TERM_SLATE, "notes  story stats  save to file  abilities  curses  increase skills  ESC");
-        Term_putstr(1, 23, -1, TERM_L_WHITE, "n");
-        Term_putstr(8, 23, -1, TERM_L_WHITE, "s");
-        Term_putstr(29, 23, -1, TERM_L_WHITE, "f");
-        Term_putstr(35, 23, -1, TERM_L_WHITE, "a");
-        Term_putstr(46, 23, -1, TERM_L_WHITE, "c");
-        Term_putstr(54, 23, -1, TERM_L_WHITE, "i");
-        Term_putstr(71, 23, -1, TERM_L_WHITE, "ESC");
+        /* Prompt - use monospace to ensure correct column alignment */
+        /* With story font, proportional widths make column positions unreliable */
+        
+        /* Print the full command menu in base color */
+        /* Prompt - render based on character sheet font setting */
+    #ifdef USE_SDL
+        if (story_character_enabled()) {
+            sdl_story_font_enable();
+            /* Story font - use more spacing for readability */
+            Term_putstr(1, 23, -1, TERM_L_WHITE,
+                "n-notes     s-story     f-file     a-abilities     c-curses     i-increase     ?-help     ESC");
+        } else {
+            /* Mono font - use less spacing for compact display */
+            Term_putstr(1, 23, -1, TERM_L_WHITE,
+                "n-notes  s-story  f-file  a-abilities  c-curses  i-increase  ?-help  ESC");
+        }
+    #else
+        /* Non-SDL builds use mono spacing */
+        Term_putstr(1, 23, -1, TERM_L_WHITE,
+            "n-notes  s-story  f-file  a-abilities  c-curses  i-increase  ?-help  ESC");
+    #endif
+
+        Term_fresh();  /* Render commands */
+
+    #ifdef USE_SDL
+        if (story_character_enabled()) {
+            sdl_story_font_disable();
+        }
+    #endif
 
         /* Query */
         ch = inkey();
@@ -438,6 +487,12 @@ void do_cmd_character_sheet(void)
                     }
                 }
             }
+        }
+
+        /* Tutorial */
+        else if (ch == '?')
+        {
+            display_character_tutorial();
         }
 
         /* Oops */
@@ -581,8 +636,12 @@ void show_songs_with_highlight(int highlight)
     char out_desc[24][80];
 
     /* Display the songs */
-    for (k = 0, i = 0; i < SNG_WOVEN_THEMES; i++)
+    for (k = 0, i = 0; i < SNG_MAX; i++)
     {
+        /* Skip Woven Themes (not a singable song) */
+        if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
+            continue;
+
         /* Is this song acceptable? */
         if (!p_ptr->active_ability[S_SNG][i])
             continue;
@@ -624,7 +683,7 @@ void show_songs_with_highlight(int highlight)
         prt("", j + 2, col - 2);
 
         /* Prepare an index --(-- */
-        sprintf(tmp_val, "%c)", index_to_label(i));
+        sprintf(tmp_val, "%c)", (char)('a' + i));
 
         /* Clear the line with the (possibly indented) index */
         put_str(tmp_val, j + 2, col);
@@ -684,9 +743,22 @@ void do_cmd_change_song()
 
     log_debug("Player opening song selection menu");
 
-    // count the abilities
-    for (i = 0; i < SNG_WOVEN_THEMES; i++)
+    // Check for song lockout timer first
+    if (p_ptr->song_lockout_timer > 0)
     {
+        msg_format("You cannot sing for %d more turn%s.", 
+            p_ptr->song_lockout_timer,
+            (p_ptr->song_lockout_timer == 1) ? "" : "s");
+        return;
+    }
+
+    // count the abilities
+    for (i = 0; i < SNG_MAX; i++)
+    {
+        /* Skip Woven Themes (not a singable song) */
+        if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
+            continue;
+
         // keep track of the number of options and final song
         if (p_ptr->active_ability[S_SNG][i])
         {
@@ -731,8 +803,12 @@ void do_cmd_change_song()
         sprintf(out_val, "Songs: s");
 
         // count the abilities
-        for (i = 0; i < SNG_WOVEN_THEMES; i++)
+        for (i = 0; i < SNG_MAX; i++)
         {
+            /* Skip Woven Themes (not a singable song) */
+            if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
+                continue;
+
             // keep track of the number of options
             if (p_ptr->active_ability[S_SNG][i])
             {
@@ -787,8 +863,12 @@ void do_cmd_change_song()
                 {
                     // Find the i-th available song
                     int song_count = 1;
-                    for (i = 0; i < SNG_WOVEN_THEMES; i++)
+                    for (i = 0; i < SNG_MAX; i++)
                     {
+                        /* Skip Woven Themes (not a singable song) */
+                        if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
+                            continue;
+
                         if (p_ptr->active_ability[S_SNG][i])
                         {
                             if (song_count == highlight)
@@ -858,8 +938,12 @@ void do_cmd_change_song()
                 {
                     // Find the i-th available song
                     int song_count = 1;
-                    for (i = 0; i < SNG_WOVEN_THEMES; i++)
+                    for (i = 0; i < SNG_MAX; i++)
                     {
+                        /* Skip Woven Themes (not a singable song) */
+                        if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
+                            continue;
+
                         if (p_ptr->active_ability[S_SNG][i])
                         {
                             if (song_count == highlight)
@@ -900,8 +984,12 @@ void do_cmd_change_song()
             {
                 // Get total available songs + stop singing + exchange themes
                 int total_options = 1; // "Stop Singing"
-                for (i = 0; i < SNG_WOVEN_THEMES; i++)
+                for (i = 0; i < SNG_MAX; i++)
                 {
+                    /* Skip Woven Themes (not a singable song) */
+                    if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
+                        continue;
+
                     if (p_ptr->active_ability[S_SNG][i])
                         total_options++;
                 }
@@ -919,8 +1007,12 @@ void do_cmd_change_song()
             {
                 // Get total available songs + stop singing + exchange themes
                 int total_options = 1; // "Stop Singing"
-                for (i = 0; i < SNG_WOVEN_THEMES; i++)
+                for (i = 0; i < SNG_MAX; i++)
                 {
+                    /* Skip Woven Themes (not a singable song) */
+                    if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
+                        continue;
+
                     if (p_ptr->active_ability[S_SNG][i])
                         total_options++;
                 }
@@ -945,8 +1037,12 @@ void do_cmd_change_song()
                 {
                     // Find the i-th available song
                     int song_count = 1;
-                    for (i = 0; i < SNG_WOVEN_THEMES; i++)
+                    for (i = 0; i < SNG_MAX; i++)
                     {
+                        /* Skip Woven Themes (not a singable song) */
+                        if (i == SNG_WOVEN_THEMES || i == SNG_GRA)
+                            continue;
+
                         if (p_ptr->active_ability[S_SNG][i])
                         {
                             if (song_count == highlight)
@@ -999,10 +1095,16 @@ void do_cmd_change_song()
 
         default:
         {
-            if ((which >= 'a') && (which < 'a' + SNG_WOVEN_THEMES))
+            if ((which >= 'a') && (which < 'a' + SNG_MAX))
             {
                 song_choice = (int)which - 'a';
-                if (p_ptr->active_ability[S_SNG][song_choice])
+                
+                /* Skip Woven Themes (not a singable song) */
+                if (song_choice == SNG_WOVEN_THEMES || song_choice == SNG_GRA)
+                {
+                    song_choice = -1;
+                }
+                else if (p_ptr->active_ability[S_SNG][song_choice])
                 {
                     log_debug("Player selected song %d", song_choice);
                     done = true;
@@ -1720,6 +1822,7 @@ int abilities_menu1(int* highlight)
     {
         strnfmt(buf, 80, "%c) %s", (char)'a' + i, skill_names_full[i]);
 
+        // Highlight the entire line if selected
         Term_putstr(COL_SKILL, i + 4, -1,
             (*highlight == i + 1) ? TERM_L_BLUE : TERM_WHITE, buf);
     }
@@ -1813,8 +1916,8 @@ int abilities_menu2(int skilltype, int* highlight)
     // clear the abilities and description area
     wipe_screen_from(COL_ABILITY);
 
-    // abilities title
-    Term_putstr(COL_ABILITY, 2, -1, TERM_WHITE, "Abilities");
+    // abilities title with color
+    Term_putstr(COL_ABILITY, 1, -1, TERM_L_BLUE, "Abilities");
 
     // Add display counter for compact menu layout (avoids gaps from filtered abilities)
     int display_counter = 0;
@@ -1962,17 +2065,16 @@ int abilities_menu2(int skilltype, int* highlight)
                 (b_name + b_ptr->name));
         }
         
-        /* Calculate display row using sequential counter (avoids gaps from filtered abilities) */
-        int display_row = display_counter + 4;
+        /* Single column layout - starts at row 3 to maximize space */
+        int display_row = display_counter + 3;
         
         Term_putstr(COL_ABILITY, display_row, -1, attr, buf);
 
         if (*highlight == b_ptr->abilitynum + 1)
         {
-            // highlight the label
+            // highlight the label with bright blue
             strnfmt(buf, 80, "%c)", (char)'a' + visible_count);
-            Term_putstr(
-                COL_ABILITY, display_row, -1, TERM_L_BLUE, buf);
+            Term_putstr(COL_ABILITY, display_row, -1, TERM_L_BLUE, buf);
 
             // print the description of the highlighted ability
             if (b_ptr->text >= 0)
@@ -2003,12 +2105,18 @@ int abilities_menu2(int skilltype, int* highlight)
                     }
                 }
                 
-                /* Indent output by 2 character, and wrap at column 70 */
+                /* Clear description area first */
+                wipe_screen_from(COL_DESCRIPTION);
+                
+                /* Display ability name in description area with appropriate color */
+                Term_putstr(COL_DESCRIPTION, 1, -1, TERM_YELLOW, b_name + b_ptr->name);
+                
+                /* Indent output by 2 character, and wrap at column 79 */
                 text_out_wrap = 79;
                 text_out_indent = COL_DESCRIPTION;
 
-                /* History */
-                Term_gotoxy(text_out_indent, 4);
+                /* Description starts at row 3 for more space */
+                Term_gotoxy(text_out_indent, 3);
                 
                 if (use_death_message && description_text && description_text[0])
                 {
@@ -2017,8 +2125,47 @@ int abilities_menu2(int skilltype, int* highlight)
                 }
                 else
                 {
-                    /* Normal ability description */
+                    /* Normal ability description in light white */
                     text_out_to_screen(TERM_L_WHITE, b_text + b_ptr->text);
+                    
+                    /* For Nienna's Gift of Mercy, show current bonus */
+                    if (skilltype == S_SPC && b_ptr->abilitynum == SPC_NIENA_MERCY && 
+                        p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY])
+                    {
+                        /* Calculate current stealth bonus (same logic as in xtra1.c) */
+                        int total_monsters_seen = 0;
+                        int total_monsters_killed = 0;
+                        
+                        /* Sum up global monster tracking (excluding uniques) */
+                        for (int i = 1; i < z_info->r_max; i++)
+                        {
+                            monster_lore *l_ptr = &l_list[i];
+                            monster_race *r_ptr = &r_info[i];
+                            
+                            if (r_ptr->flags1 & RF1_UNIQUE) continue;
+                            
+                            total_monsters_seen += l_ptr->psights;
+                            total_monsters_killed += l_ptr->pkills;
+                        }
+                        
+                        if (total_monsters_seen > 0)
+                        {
+                            /* Calculate stealth bonus: 10*(seen-killed)/seen, rounded up */
+                            int mercy_ratio_times_10 = (10 * (total_monsters_seen - total_monsters_killed));
+                            int stealth_bonus = (mercy_ratio_times_10 + total_monsters_seen - 1) / total_monsters_seen;
+                            
+                            char bonus_text[100];
+                            strnfmt(bonus_text, sizeof(bonus_text), 
+                                   "\n\nCurrent bonus: +%d stealth (%d seen, %d spared)",
+                                   stealth_bonus, total_monsters_seen, 
+                                   total_monsters_seen - total_monsters_killed);
+                            text_out_to_screen(TERM_L_GREEN, bonus_text);
+                        }
+                        else
+                        {
+                            text_out_to_screen(TERM_SLATE, "\n\nCurrent bonus: +0 stealth (no monsters encountered yet)");
+                        }
+                    }
                 }
 
                 /* Reset text_out() vars */
@@ -2029,16 +2176,23 @@ int abilities_menu2(int skilltype, int* highlight)
             // print more info if you don't have the skill
             if (!p_ptr->have_ability[skilltype][b_ptr->abilitynum])
             {
-                // print the prerequisites
-                Term_putstr(COL_DESCRIPTION, 10, -1, attr, "Prerequisites:");
+                int desc_row = 16;  /* Start prerequisites lower to give description more room (moved down 2 rows) */
+                
+                // print the prerequisites with color
+                Term_putstr(COL_DESCRIPTION, desc_row, -1, TERM_YELLOW, "Prerequisites:");
 
                 strnfmt(buf, 80, "%d skill points (you have %d)", b_ptr->level,
                     p_ptr->skill_base[skilltype]);
-                Term_putstr(COL_DESCRIPTION + 2, 12, -1, TERM_L_DARK, buf);
+
+                /* Color based on whether requirement is met */
                 if (b_ptr->level <= p_ptr->skill_base[skilltype])
                 {
-                    strnfmt(buf, 80, "%d skill points", b_ptr->level);
-                    Term_putstr(COL_DESCRIPTION + 2, 12, -1, TERM_SLATE, buf);
+                    /* Print immediately below the 'Prerequisites:' line */
+                    Term_putstr(COL_DESCRIPTION + 2, desc_row + 1, -1, TERM_L_GREEN, buf);
+                }
+                else
+                {
+                    Term_putstr(COL_DESCRIPTION + 2, desc_row + 1, -1, TERM_L_DARK, buf);
                 }
 
                 if (!p_ptr->active_ability[S_PER][PER_QUICK_STUDY])
@@ -2063,34 +2217,33 @@ int abilities_menu2(int skilltype, int* highlight)
                                            b_ptr->prereq_abilitynum[j])])
                                           ->name);
                         }
-                        Term_putstr(
-                            COL_DESCRIPTION + 2, 13 + j, -1, TERM_L_DARK, buf);
+                        
+                        /* Color based on whether you have the prerequisite */
+                        byte prereq_attr = TERM_L_DARK;
                         if (p_ptr->innate_ability[b_ptr->prereq_skilltype[j]]
                                                  [b_ptr->prereq_abilitynum[j]])
                         {
-                            strnfmt(buf, 80, "%s",
-                                b_name
-                                    + (&b_info[ability_index(
-                                           b_ptr->prereq_skilltype[j],
-                                           b_ptr->prereq_abilitynum[j])])
-                                          ->name);
-                            if (j == 0)
-                            {
-                                Term_putstr(COL_DESCRIPTION + 2, 13 + j, -1,
-                                    TERM_SLATE, buf);
-                            }
-                            else
-                            {
-                                Term_putstr(COL_DESCRIPTION + 5, 13 + j, -1,
-                                    TERM_SLATE, buf);
-                            }
+                            prereq_attr = TERM_L_GREEN;
+                        }
+                        
+                        if (j == 0)
+                        {
+                            /* Print prerequisites immediately after the skill-points line */
+                            Term_putstr(COL_DESCRIPTION + 2, desc_row + 2 + j, -1,
+                                prereq_attr, buf);
+                        }
+                        else
+                        {
+                            Term_putstr(COL_DESCRIPTION + 5, desc_row + 2 + j, -1,
+                                prereq_attr, buf);
                         }
                     }
                 }
                 else if (b_ptr->prereqs > 0)
                 {
                     strnfmt(buf, 80, "Quick Study");
-                    Term_putstr(COL_DESCRIPTION + 2, 13, -1, TERM_GREEN, buf);
+                    /* Quick Study prints a single line immediately after skill points */
+                    Term_putstr(COL_DESCRIPTION + 2, desc_row + 2, -1, TERM_GREEN, buf);
                 }
 
                 if (skilltype == S_SPC)
@@ -2109,25 +2262,46 @@ int abilities_menu2(int skilltype, int* highlight)
                     // Subtract free abilities granted by affinity
                     exp_cost -= unit_cost * affinity_level(skilltype);
 
+                    // For song abilities, also subtract minstrel bonus (uncapped)
+                    if (skilltype == S_SNG)
+                        exp_cost -= unit_cost * minstrel_level();
+
                     // Clamp to zero
                     if (exp_cost < 0)
                         exp_cost = 0;
 
-                    // print the cost
-                    Term_putstr(
-                        COL_DESCRIPTION, 16, -1, TERM_L_DARK, "Current price:");
+                    // print the cost with color coding
+                    /* Compute the row immediately after the last prerequisite/Quick Study line
+                     * 'Prerequisites:' is at desc_row
+                     * skill points are at desc_row + 1
+                     * prerequisites (if any) start at desc_row + 2 and occupy b_ptr->prereqs lines
+                     * Quick Study (if active) occupies one line at desc_row + 2
+                     */
+                    int extra_lines = 0;
+                    if (!p_ptr->active_ability[S_PER][PER_QUICK_STUDY])
+                    {
+                        extra_lines = b_ptr->prereqs; /* may be 0 */
+                    }
+                    else if (b_ptr->prereqs > 0)
+                    {
+                        extra_lines = 1; /* Quick Study printed a single line */
+                    }
+
+                    desc_row = desc_row + 2 + extra_lines; /* next free row */
+                    Term_putstr(COL_DESCRIPTION, desc_row, -1, TERM_YELLOW, "Current price:");
+
                     strnfmt(buf, 80, "%d experience (you have %d)", exp_cost,
                         p_ptr->new_exp);
-                    Term_putstr(COL_DESCRIPTION + 2, 18, -1, TERM_L_DARK, buf);
 
+                    /* Color based on whether you can afford it */
                     if (exp_cost <= p_ptr->new_exp)
                     {
-                        Term_putstr(COL_DESCRIPTION, 16, -1, TERM_SLATE,
-                            "Current price:");
-                        strnfmt(
-                            buf, 80, "%d experience", exp_cost, p_ptr->new_exp);
-                        Term_putstr(
-                            COL_DESCRIPTION + 2, 18, -1, TERM_SLATE, buf);
+                        /* Print immediately under 'Current price:' */
+                        Term_putstr(COL_DESCRIPTION + 2, desc_row + 1, -1, TERM_L_GREEN, buf);
+                    }
+                    else
+                    {
+                        Term_putstr(COL_DESCRIPTION + 2, desc_row + 1, -1, TERM_L_DARK, buf);
                     }
                 }
             }
@@ -2136,11 +2310,30 @@ int abilities_menu2(int skilltype, int* highlight)
             else if ((skilltype == S_PER) && (b_ptr->abilitynum == PER_BANE)
                 && (p_ptr->bane_type > 0))
             {
+                int killed = bane_type_killed(p_ptr->bane_type);
+                int current_bonus = bane_bonus_aux();
+                int next_threshold = 2;
+                
+                // Calculate next threshold using same formula as bane
+                int threshold = 2;
+                while (threshold <= killed)
+                {
+                    threshold *= 2;
+                }
+                next_threshold = threshold;  // This is the next power of 2
+                
                 Term_putstr(COL_DESCRIPTION, 10, -1, TERM_WHITE,
                     format("%s-Bane:", bane_name[p_ptr->bane_type]));
                 Term_putstr(COL_DESCRIPTION, 12, -1, TERM_WHITE,
-                    format("  %d slain, giving a %+d bonus",
-                        bane_type_killed(p_ptr->bane_type), bane_bonus_aux()));
+                    format("  %d slain, giving a %+d bonus", killed, current_bonus));
+                    
+                if (current_bonus == 0 && killed < 2) {
+                    Term_putstr(COL_DESCRIPTION, 13, -1, TERM_SLATE,
+                        format("  (next bonus at %d slain)", next_threshold));
+                } else if (next_threshold <= 64) {  // Don't show if threshold is too high
+                    Term_putstr(COL_DESCRIPTION, 13, -1, TERM_SLATE,
+                        format("  (next bonus at %d slain)", next_threshold));
+                }
             }
             else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH)
                 && (p_ptr->oath_type > 0))
@@ -2223,8 +2416,25 @@ int abilities_menu2(int skilltype, int* highlight)
     /* Flush the prompt */
     Term_fresh();
 
-    /* Place cursor at current choice */
-    Term_gotoxy(COL_ABILITY, 3 + *highlight);
+    /* Place cursor at current choice - single column layout */
+    int cursor_row = -1;
+    int highlight_display_index = -1;
+    
+    /* Find the display index for the highlighted ability */
+    for (i = 0; i < visible_count; i++)
+    {
+        if (visible_abilities[i] == *highlight - 1)
+        {
+            highlight_display_index = i;
+            break;
+        }
+    }
+    
+    if (highlight_display_index >= 0)
+    {
+        cursor_row = 3 + highlight_display_index;
+        Term_gotoxy(COL_ABILITY, cursor_row);
+    }
 
     /* Get key (while allowing menu commands) */
     hide_cursor = true;
@@ -2395,6 +2605,10 @@ void do_cmd_ability_screen(void)
 
                             // Subtract free abilities granted by affinity
                             exp_cost -= unit_cost * affinity_level(skilltype);
+
+                            // For song abilities, also subtract minstrel bonus (uncapped)
+                            if (skilltype == S_SNG)
+                                exp_cost -= unit_cost * minstrel_level();
 
                             // Clamp to zero
                             if (exp_cost < 0)
@@ -3492,7 +3706,8 @@ bool melt_mithril_item(int item_num)
 
         object_flags(o_ptr, &f1, &f2, &f3);
 
-        if (f3 & (TR3_MITHRIL))
+        /* Skip mithril items that can't be melted (Gamil-forged) */
+        if ((f3 & TR3_MITHRIL) && !(o_ptr->ident & IDENT_CANT_MELT))
         {
             number += 1;
         }
@@ -3606,7 +3821,8 @@ int mithril_items_carried(void)
 
         object_flags(o_ptr, &f1, &f2, &f3);
 
-        if (f3 & (TR3_MITHRIL))
+        /* Only count mithril items that can be melted (exclude Gamil-forged) */
+        if ((f3 & TR3_MITHRIL) && !(o_ptr->ident & IDENT_CANT_MELT))
         {
             number += 1;
         }
@@ -4240,6 +4456,14 @@ int object_difficulty(object_type* o_ptr)
     // case INVEN_WIELD:
     case INVEN_LEFT:
     case INVEN_RIGHT:
+    {
+        // Celebrimbor: rings are not minor slots (no penalty)
+        if (!(c_info[p_ptr->phouse].flags_u & UNQ_SMT_CELEBRIMBOR))
+        {
+            dif_mult += 20;
+        }
+        break;
+    }
     // case INVEN_NECK:
     case INVEN_LITE:
     // case INVEN_BODY:
@@ -4258,6 +4482,13 @@ int object_difficulty(object_type* o_ptr)
 
     // Decreased difficulties for easily enchatable items
     if (k_ptr->flags3 & (TR3_ENCHANTABLE))
+    {
+        dif_mult -= 30;
+    }
+
+    // Celebrimbor: treat rings as enchantable
+    if ((c_info[p_ptr->phouse].flags_u & UNQ_SMT_CELEBRIMBOR)
+        && (o_ptr->tval == TV_RING))
     {
         dif_mult -= 30;
     }
@@ -7373,8 +7604,9 @@ void create_smithing_item(void)
 #define MAIN_MENU_SAVE_QUIT 18
 #define MAIN_MENU_QUEST_STATUS 19
 #define MAIN_MENU_HELP 20
+#define MAIN_MENU_STORY 21
 
-#define MAIN_MENU_MAX 16
+#define MAIN_MENU_MAX 17
 
 #define COL_MAIN 29
 
@@ -7385,6 +7617,10 @@ int main_menu_aux(int* highlight)
 {
     char ch;
     int i;
+    bool death_view = death_spectator_active();
+
+    if (death_view && (*highlight >= 14) && (*highlight <= 16))
+        *highlight = 17;
 
     for (i = 0; i < MAIN_MENU_MAX + 3; i++)
     {
@@ -7413,16 +7649,24 @@ int main_menu_aux(int* highlight)
     Term_putstr(COL_MAIN, 11, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
         "Combat history       (x)");
     Term_putstr(COL_MAIN, 12, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "Options and misc     (o)");
+        "The story so far     (y)");
     Term_putstr(COL_MAIN, 13, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-        "Help                 (h)");
+        "Options and misc     (o)");
     Term_putstr(COL_MAIN, 14, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
+        "Help                 (h)");
+    byte suicide_color = death_view ? TERM_L_DARK
+        : ((*highlight == 14) ? TERM_L_BLUE : TERM_WHITE);
+    Term_putstr(COL_MAIN, 15, -1, suicide_color,
         "Suicide              (k)");
-    Term_putstr(COL_MAIN, 15, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
+    byte save_color = death_view ? TERM_L_DARK
+        : ((*highlight == 15) ? TERM_L_BLUE : TERM_WHITE);
+    Term_putstr(COL_MAIN, 16, -1, save_color,
         "Save                 (s)");
-    Term_putstr(COL_MAIN, 16, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
+    byte quit_color = death_view ? TERM_L_DARK
+        : ((*highlight == 16) ? TERM_L_BLUE : TERM_WHITE);
+    Term_putstr(COL_MAIN, 17, -1, quit_color,
         "Quit with save       (q)");
-    Term_putstr(COL_MAIN, 17, -1, (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
+    Term_putstr(COL_MAIN, 18, -1, (*highlight == 17) ? TERM_L_BLUE : TERM_WHITE,
         "Return to game       (r)");
 
     /* Flush the prompt */
@@ -7469,23 +7713,38 @@ int main_menu_aux(int* highlight)
     case 'x':
         *highlight = 10;
         return (*highlight); // Combat history
-    case 'o':
+    case 'y':
         *highlight = 11;
+        return (*highlight); // The story so far
+    case 'o':
+        *highlight = 12;
         return (*highlight); // Options and misc
     case 'h':
-        *highlight = 12;
+        *highlight = 13;
         return (*highlight); // Help
     case 'k':
-        *highlight = 13;
+        if (death_view) {
+            msg_print("You can no longer take that action.");
+            break;
+        }
+        *highlight = 14;
         return (*highlight); // Suicide
     case 's':
-        *highlight = 14;
+        if (death_view) {
+            msg_print("You can no longer take that action.");
+            break;
+        }
+        *highlight = 15;
         return (*highlight); // Save
     case 'q':
-        *highlight = 15;
+        if (death_view) {
+            msg_print("You can no longer take that action.");
+            break;
+        }
+        *highlight = 16;
         return (*highlight); // Quit with save
     case 'r':
-        *highlight = 16;
+        *highlight = 17;
         return (*highlight); // Return to game
     }
 
@@ -7502,6 +7761,13 @@ int main_menu_aux(int* highlight)
             (*highlight)--;
         else if (*highlight == 1)
             *highlight = MAIN_MENU_MAX;
+        while (death_view && (*highlight >= 14) && (*highlight <= 16))
+        {
+            if (*highlight > 1)
+                (*highlight)--;
+            else
+                *highlight = MAIN_MENU_MAX;
+        }
     }
 
     /* Next item */
@@ -7511,6 +7777,13 @@ int main_menu_aux(int* highlight)
             (*highlight)++;
         else if (*highlight == MAIN_MENU_MAX)
             *highlight = 1;
+        while (death_view && (*highlight >= 14) && (*highlight <= 16))
+        {
+            if (*highlight < MAIN_MENU_MAX)
+                (*highlight)++;
+            else
+                *highlight = 1;
+        }
     }
 
     /* Leave menu */
@@ -7532,6 +7805,13 @@ void do_cmd_main_menu(void)
     bool leave_menu = false;
     bool take_screen_shot = false;
 
+    /* Clear any active banner before opening main menu */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+
     /* Save screen */
     screen_save();
 
@@ -7539,6 +7819,12 @@ void do_cmd_main_menu(void)
     while (!leave_menu)
     {
         actiontype = main_menu_aux(&highlight);
+
+        if (death_spectator_active() && (actiontype >= 14) && (actiontype <= 16))
+        {
+            msg_print("You can no longer take that action.");
+            continue;
+        }
 
         // if an action has been selected...
         switch (actiontype)
@@ -7604,31 +7890,41 @@ void do_cmd_main_menu(void)
             leave_menu = true;
             break;
         }
-        case 11: // Options and misc (o)
+        case 11: // The story so far (y)
+        {
+            /* Save screen before showing story */
+            screen_save();
+            print_story(15, 1);
+            /* Load screen after story */
+            screen_load();
+            leave_menu = true;
+            break;
+        }
+        case 12: // Options and misc (o)
         {
             do_cmd_options();
             leave_menu = true;
             break;
         }
-        case 12: // Help (h)
+        case 13: // Help (h)
         {
             do_cmd_help();
             leave_menu = true;
             break;
         }
-        case 13: // Suicide (k)
+        case 14: // Suicide (k)
         {
             do_cmd_suicide();
             leave_menu = true;
             break;
         }
-        case 14: // Save (s)
+        case 15: // Save (s)
         {
             do_cmd_save_game();
             leave_menu = true;
             break;
         }
-        case 15: // Quit with save (q)
+        case 16: // Quit with save (q)
         {
             do_cmd_save_game();
 
@@ -7643,7 +7939,7 @@ void do_cmd_main_menu(void)
             leave_menu = true;
             break;
         }
-        case 16: // Return to game (r)
+        case 17: // Return to game (r)
         {
             leave_menu = true;
             break;
@@ -7703,6 +7999,13 @@ void do_cmd_messages(void)
 
     char shower[80];
     char finder[80];
+
+    /* Clear any active banner before opening message history */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
 
     /* Wipe finder */
     my_strcpy(finder, "", sizeof(finder));
@@ -8655,7 +8958,7 @@ void do_cmd_pane_settings(void)
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 12;
+    int options = 10; /* one fewer after removing Challenge Options and the version entry */
     #ifdef DEBUG_CURSES
     options = 13;
     #endif
@@ -8671,28 +8974,31 @@ int options_menu(int* highlight)
     Term_putstr(2, 5, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
         "c) Visual Options");
     Term_putstr(2, 6, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) Challenge Options");
+        "d) Load a 'Pref' File");
     Term_putstr(2, 7, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Load a 'Pref' File");
+        "e) Append Options to a 'Pref' File");
     Term_putstr(2, 8, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Append Options to a 'Pref' File");
+        "f) Set Macros");
     Term_putstr(2, 9, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Set Macros");
+        "g) Set Colours");
     Term_putstr(2, 10, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Set Colours");
+        "h) Write a note");
     Term_putstr(2, 11, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Write a note");
+        "i) Take HTML screenshot");
     Term_putstr(2, 12, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "j) Take HTML screenshot");
-    Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "k) Sil version info");
-    Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-        "l) Return to Game");
+        "j) Return to Game");
 
     if (p_ptr->noscore)
     {
-        Term_putstr(2, 15, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
-            "m) Debugging Options");
+        Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
+            "k) Debugging Options");
+    }
+
+    /* Show product name and version on the bottom of the menu */
+    {
+        char verbuf[128];
+        strnfmt(verbuf, sizeof(verbuf), "%s %s", VERSION_NAME, VERSION_STRING);
+        Term_putstr(2, 16, -1, TERM_SLATE, verbuf);
     }
 
     /* Flush the prompt */
@@ -8760,28 +9066,18 @@ int options_menu(int* highlight)
         return (9);
     }
 
-    if ((ch == 'j') || (ch == 'J'))
+    if ((ch == 'j') || (ch == 'J') || (ch == ESCAPE) || (ch == 'q'))
     {
+        /* Return to game (now letter 'j') */
         *highlight = 10;
         return (10);
     }
 
     if ((ch == 'k') || (ch == 'K'))
     {
+        /* Debugging options (now letter 'k' if shown) */
         *highlight = 11;
         return (11);
-    }
-
-    if ((ch == 'l') || (ch == 'L') || (ch == ESCAPE) || (ch == 'q'))
-    {
-        *highlight = 12;
-        return (12);
-    }
-
-    if ((ch == 'm') || (ch == 'M'))
-    {
-        *highlight = 13;
-        return (13);
     }
 
     /* Choose current  */
@@ -8820,6 +9116,13 @@ void do_cmd_options(void)
 
     bool return_to_game = false;
 
+    /* Clear any active banner before opening options */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+
     /* Save screen */
     screen_save();
 
@@ -8853,18 +9156,12 @@ void do_cmd_options(void)
         }
         case 4:
         {
-            do_cmd_options_aux(CHALLENGE_PAGE, "Challenge Options");
-            Term_clear();
-            break;
-        }
-        case 5:
-        {
             /* Ask for and load a user pref file */
             do_cmd_pref_file_hack(12);
             Term_clear();
             break;
         }
-        case 6:
+        case 5:
         {
             /* Prompt */
             Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
@@ -8897,53 +9194,49 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 7:
+        case 6:
         {
             do_cmd_macros();
             Term_clear();
             break;
         }
-        case 8:
+        case 7:
         {
             do_cmd_colors();
             Term_clear();
             break;
         }
-        case 9:
+        case 8:
         {
             do_cmd_note("", p_ptr->depth);
             Term_clear();
             break;
         }
-        case 10:
+        case 9:
         {
             char tmp_val[80];
             /* Prompt */
             Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
-            
+
             /* Create default filename */
             sprintf(tmp_val, "%s.html", op_ptr->base_name);
-            
+
             /* Take HTML screenshot */
             html_screenshot(tmp_val);
             msg_print("HTML screenshot saved.");
             Term_clear();
             break;
         }
-        case 11:
+        case 10:
         {
-            do_cmd_version();
-            Term_clear();
-            break;
-        }
-        case 12:
-        {
+            /* Return to Game */
             return_to_game = true;
             Term_clear();
             break;
         }
-        case 13:
+        case 11:
         {
+            /* Debugging Options (only reachable when p_ptr->noscore) */
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");
             Term_clear();
             break;
@@ -9241,6 +9534,13 @@ void do_cmd_macros(void)
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
+
+    /* Clear any active banner before opening macros menu */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
 
     /* Save screen */
     screen_save();
@@ -9839,8 +10139,7 @@ void do_cmd_visuals(void)
                 fprintf(fff, "# %s\n", (r_name + r_ptr->name));
 
                 /* Dump the monster attr/char info */
-                fprintf(fff, "R:%d:0x%02X:0x%02X\n\n", i, (byte)(r_ptr->x_attr),
-                    (byte)(r_ptr->x_char));
+                dump_visual_pair(fff, "R", i, r_ptr->x_attr, (byte)r_ptr->x_char);
             }
 
             /* All done */
@@ -9910,8 +10209,8 @@ void do_cmd_visuals(void)
                 fprintf(fff, "# %s\n", (k_name + k_ptr->name));
 
                 /* Dump the object attr/char info */
-                fprintf(fff, "K:%d:0x%02X:0x%02X\n\n", i, (byte)(k_ptr->x_attr),
-                    (byte)(k_ptr->x_char));
+                dump_visual_pair(
+                    fff, "K", i, k_ptr->x_attr, (byte)k_ptr->x_char);
             }
 
             /* All done */
@@ -9981,8 +10280,8 @@ void do_cmd_visuals(void)
                 fprintf(fff, "# %s\n", (f_name + f_ptr->name));
 
                 /* Dump the feature attr/char info */
-                fprintf(fff, "F:%d:0x%02X:0x%02X\n\n", i, (byte)(f_ptr->x_attr),
-                    (byte)(f_ptr->x_char));
+                dump_visual_pair(
+                    fff, "F", i, f_ptr->x_attr, (byte)f_ptr->x_char);
             }
 
             /* All done */
@@ -10048,8 +10347,8 @@ void do_cmd_visuals(void)
                 fprintf(fff, "# %s\n", (flavor_text + flavor_ptr->text));
 
                 /* Dump the flavor attr/char info */
-                fprintf(fff, "L:%d:0x%02X:0x%02X\n\n", i,
-                    (byte)(flavor_ptr->x_attr), (byte)(flavor_ptr->x_char));
+                dump_visual_pair(
+                    fff, "L", i, flavor_ptr->x_attr, (byte)flavor_ptr->x_char);
             }
 
             /* All done */
@@ -10916,6 +11215,13 @@ void do_cmd_colors(void)
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
 
+    /* Clear any active banner before opening colors menu */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
+
     /* Save screen */
     screen_save();
 
@@ -11208,9 +11514,11 @@ void do_cmd_note(char* note, int what_depth)
  */
 void do_cmd_version(void)
 {
-    /* Silly message */
-    msg_format("You are playing %s %s.  Type '?' for more info.", VERSION_NAME,
-        VERSION_STRING);
+    /* Silly message - use msg_print so message is shown immediately */
+    char verbuf[128];
+    strnfmt(verbuf, sizeof(verbuf), "You are playing %s %s.  Type '?' for more info.",
+        VERSION_NAME, VERSION_STRING);
+    msg_print(verbuf);
 }
 
 /*
@@ -11875,6 +12183,86 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
     return count;
 }
 
+static byte get_supply_item_color(int k_idx, bool aware)
+{
+    object_kind* k_ptr;
+
+    if (k_idx < 0 || k_idx >= z_info->k_max)
+        return TERM_WHITE;
+
+    k_ptr = &k_info[k_idx];
+
+    /* Unidentified items all use slate color */
+    if (!aware)
+        return TERM_SLATE;
+
+    /* Color by specific item type */
+    switch (k_ptr->tval)
+    {
+        case TV_FOOD: /* Herbs */
+            switch (k_ptr->sval)
+            {
+                case SV_FOOD_RAGE:         return TERM_RED;    /* Red for rage */
+                case SV_FOOD_SUSTENANCE:   return TERM_GREEN;    /* Green for sustenance */
+                case SV_FOOD_TERROR:       return TERM_VIOLET;   /* Violet for fear */
+                case SV_FOOD_HEALING:      return TERM_L_GREEN;  /* Light green for healing */
+                case SV_FOOD_RESTORATION:  return TERM_BLUE;     /* Blue for restoration */
+                case SV_FOOD_HUNGER:       return TERM_UMBER;    /* Brown for hunger */
+                case SV_FOOD_VISIONS:      return TERM_L_UMBER;  /* Light brown for visions */
+                case SV_FOOD_ENTRANCEMENT: return TERM_VIOLET;   /* Violet for entrancement */
+                case SV_FOOD_WEAKNESS:     return TERM_SLATE;    /* Grey for weakness */
+                case SV_FOOD_SICKNESS:     return TERM_L_DARK;   /* Dark grey for sickness */
+                default:                   return TERM_WHITE;
+            }
+
+        case TV_POTION:
+            switch (k_ptr->sval)
+            {
+                case SV_POTION_MIRUVOR:          return TERM_WHITE;  /* White for Miruvor */
+                case SV_POTION_ORCISH_LIQUOR:    return TERM_UMBER;    /* Brown for liquor */
+                case SV_POTION_ESGALDUIN:        return TERM_VIOLET;   /* Violet for Esgalduin */
+                case SV_POTION_CLARITY:          return TERM_L_UMBER;  /* Light brown for clarity */
+                case SV_POTION_HEALING:          return TERM_L_GREEN;  /* Light green for healing */
+                case SV_POTION_VOICE:            return TERM_L_BLUE;  /* White for voice */
+                case SV_POTION_true_SIGHT:       return TERM_BLUE;     /* Blue for true sight */
+                case SV_POTION_ANTIDOTE:         return TERM_GREEN;    /* Green for antidote */
+                case SV_POTION_QUICKNESS:        return TERM_ORANGE;  /* Light brown for speed */
+                case SV_POTION_ELEM_RESISTANCE:  return TERM_L_BLUE;   /* Orange for resistance */
+                case SV_POTION_STR:              return TERM_RED;      /* Red for strength */
+                case SV_POTION_DEX:              return TERM_GREEN;    /* Green for dexterity */
+                case SV_POTION_CON:              return TERM_L_RED;     /* Blue for constitution */
+                case SV_POTION_GRA:              return TERM_BLUE;   /* Violet for grace */
+                case SV_POTION_SLOWNESS:         return TERM_SLATE;    /* Grey for slowness */
+                case SV_POTION_POISON:           return TERM_L_DARK;   /* Dark for poison */
+                case SV_POTION_BLINDNESS:        return TERM_L_DARK;   /* Dark for blindness */
+                case SV_POTION_CONFUSION:        return TERM_SLATE;    /* Grey for confusion */
+                case SV_POTION_DEC_DEX:          return TERM_SLATE;    /* Grey for decrease dex */
+                case SV_POTION_DEC_GRA:          return TERM_SLATE;    /* Grey for decrease grace */
+                default:                         return TERM_WHITE;
+            }
+
+        case TV_GEM:
+            switch (k_ptr->sval)
+            {
+                case SV_GEM_FREEDOM:         return TERM_WHITE;  /* White for freedom */
+                case SV_GEM_LIGHT:           return TERM_ORANGE;   /* Orange for light */
+                case SV_GEM_SANCTITY:        return TERM_L_UMBER;  /* Light brown for sanctity */
+                case SV_GEM_UNDERSTANDING:   return TERM_BLUE;     /* Blue for understanding */
+                case SV_GEM_REVELATIONS:     return TERM_L_BLUE;   /* Violet for revelations */
+                case SV_GEM_TREASURES:       return TERM_ORANGE;   /* Orange for treasures */
+                case SV_GEM_FOES:            return TERM_RED;      /* Red for foes */
+                case SV_GEM_SELF_KNOWLEDGE:  return TERM_GREEN;  /* Light green for self-knowledge */
+                case SV_GEM_WARDING:         return TERM_VIOLET;  /* Light brown for warding */
+                case SV_GEM_RECHARGING:      return TERM_BLUE;     /* Blue for recharging */
+                case SV_GEM_SHADOWS:         return TERM_L_DARK;   /* Dark for shadows */
+                default:                     return TERM_WHITE;
+            }
+
+        default:
+            return TERM_WHITE;
+    }
+}
+
 static void display_supply_group_list(int col, int row, int wid, int per_page,
     int grp_idx[], int grp_cur, int grp_top, int group_totals[])
 {
@@ -11884,9 +12272,26 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
     for (i = 0; i < per_page && (grp_idx[i] >= 0); i++)
     {
         int grp = grp_idx[grp_top + i];
-        byte attr = (grp_top + i == grp_cur) ? TERM_L_BLUE
-            : (group_totals[grp] ? TERM_WHITE : TERM_L_DARK);
+        byte base_color;
+        byte attr;
         char buf[8];
+
+        /* Assign color based on group type */
+        switch (grp)
+        {
+            case SUPPLY_GROUP_HERBS:   base_color = TERM_GREEN; break;
+            case SUPPLY_GROUP_POTIONS: base_color = TERM_VIOLET;  break;
+            case SUPPLY_GROUP_GEMS:    base_color = TERM_BLUE;    break;
+            default:                   base_color = TERM_WHITE;   break;
+        }
+
+        /* Highlight cursor with white, dim if empty */
+        if (grp_top + i == grp_cur)
+            attr = TERM_L_WHITE;
+        else if (group_totals[grp] == 0)
+            attr = TERM_L_DARK;
+        else
+            attr = base_color;
 
         Term_erase(col, row + i, wid);
         c_put_str(attr, supply_group_text[grp], row + i, col);
@@ -11898,9 +12303,11 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
 
 static void display_supply_list(int col, int row, int per_page,
     supply_list_entry entries[], int entry_cnt, int entry_cur, int entry_top,
-    int count_col, int sym_col)
+    int count_col, int sym_col, int current_group, int column)
 {
     int i;
+
+    (void)current_group; /* Not used since we color by specific item type now */
 
     for (i = 0; i < per_page; i++)
     {
@@ -11928,9 +12335,20 @@ static void display_supply_list(int col, int row, int per_page,
 
         k_ptr = &k_info[entry->k_idx];
         aware = k_ptr->aware;
-        base_attr = aware ? TERM_WHITE : TERM_SLATE;
-        cursor_attr = aware ? TERM_L_BLUE : TERM_BLUE;
-        attr = (idx == entry_cur) ? cursor_attr : base_attr;
+        /* Items with 0 count should be grey */
+        if (entry->total == 0)
+        {
+            base_attr = TERM_L_DARK;
+            cursor_attr = TERM_SLATE;
+        }
+        else
+        {
+            /* Get color based on specific item type */
+            base_attr = get_supply_item_color(entry->k_idx, aware);
+            cursor_attr = aware ? TERM_L_WHITE : TERM_WHITE;
+        }
+        /* Only highlight when right panel is active (column == 1) */
+        attr = (column == 1 && idx == entry_cur) ? cursor_attr : base_attr;
 
         if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
         {
@@ -12809,7 +13227,7 @@ void do_cmd_knowledge_monsters(void)
             /* Recall on screen */
             if (mon_idx[mon_cur].r_idx)
             {
-                screen_roff(mon_idx[mon_cur].r_idx);
+                screen_roff(mon_idx[mon_cur].r_idx, NULL);
 
                 (void)inkey();
 
@@ -13245,15 +13663,21 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         }
 
         display_supply_group_list(0, 6, max, BROWSER_ROWS, grp_idx, grp_cur, grp_top, group_totals);
-        display_supply_list(max + 3, 6, BROWSER_ROWS, entries, entry_cnt, entry_cur, entry_top, count_col, sym_col);
+        display_supply_list(max + 3, 6, BROWSER_ROWS, entries, entry_cnt, entry_cur, entry_top, count_col, sym_col, grp_idx[grp_cur], column);
 
-        Term_putstr(1, 23, -1, TERM_SLATE, "<dir>   recall   u/Space   d drop   ESC");
-        Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
-        Term_putstr(9, 23, -1, TERM_L_WHITE, "r");
-        Term_putstr(18, 23, -1, TERM_L_WHITE, "u/Space");
-        Term_putstr(30, 23, -1, TERM_L_WHITE, "d");
-        Term_putstr(30, 23, -1, TERM_L_WHITE, "drop");
-        Term_putstr(37, 23, -1, TERM_L_WHITE, "ESC");
+        /* Bottom bar: grey text with white first letters */
+        Term_erase(0, 23, 255);
+        c_put_str(TERM_L_WHITE, "<dir>", 23, 1);
+        c_put_str(TERM_L_DARK, "   ", 23, 6);
+        c_put_str(TERM_L_WHITE, "r", 23, 9);
+        c_put_str(TERM_L_DARK, "ecall   ", 23, 10);
+        c_put_str(TERM_L_WHITE, "u", 23, 18);
+        c_put_str(TERM_L_DARK, "/", 23, 19);
+        c_put_str(TERM_L_WHITE, "Space", 23, 20);
+        c_put_str(TERM_L_DARK, "   ", 23, 25);
+        c_put_str(TERM_L_WHITE, "d", 23, 28);
+        c_put_str(TERM_L_DARK, "rop   ", 23, 29);
+        c_put_str(TERM_L_WHITE, "ESC", 23, 37);
 
         if (!column)
             Term_gotoxy(0, 6 + (grp_cur - grp_top));
@@ -13323,6 +13747,12 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
                 supply_list_entry* entry = &entries[entry_cur];
                 bool handled = false;
 
+                if (death_spectator_active())
+                {
+                    msg_print("You can no longer take that action.");
+                    break;
+                }
+
                 if (entry->item_idx == SUPPLIES_INDEX && entry->supply_idx >= 0)
                 {
                     handled = supplies_menu_use_entry(entry);
@@ -13379,6 +13809,12 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
             {
                 supply_list_entry* entry = &entries[entry_cur];
                 bool dropped = false;
+
+                if (death_spectator_active())
+                {
+                    msg_print("You can no longer take that action.");
+                    break;
+                }
 
                 if (entry->item_idx == SUPPLIES_INDEX && entry->supply_idx >= 0)
                 {
@@ -13684,6 +14120,13 @@ void do_cmd_knowledge(void)
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
+
+    /* Clear any active banner before opening knowledge menu */
+    extern int g_banner_force_redraw_remaining;
+    if (g_banner_force_redraw_remaining > 0) {
+        g_banner_force_redraw_remaining = 0;
+        do_cmd_redraw();
+    }
 
     /* Save screen */
     screen_save();
@@ -14105,15 +14548,6 @@ void do_cmd_view_objects()
     }
 }
 
-enum unified_sidebar_object_group {
-    LOOK_GROUP_ARTIFACT = 0,
-    LOOK_GROUP_WEAPON,
-    LOOK_GROUP_ARMOUR,
-    LOOK_GROUP_CONSUMABLE,
-    LOOK_GROUP_OTHER,
-    LOOK_GROUP_COUNT
-};
-
 static int unified_sidebar_object_group(const object_type* o_ptr)
 {
     if (!o_ptr)
@@ -14142,14 +14576,19 @@ static int unified_sidebar_object_group(const object_type* o_ptr)
     case TV_MAIL:
         return LOOK_GROUP_ARMOUR;
 
+    case TV_EASTER:
+        return LOOK_GROUP_HERBS;
+
+    case TV_POTION:
+        return LOOK_GROUP_POTIONS;
+
+    case TV_GEM:
+        return LOOK_GROUP_GEMS;
+
     case TV_FOOD:
         if (o_ptr->sval < SV_FOOD_MIN_FOOD)
             return LOOK_GROUP_CONSUMABLE;
         break;
-
-    case TV_POTION:
-    case TV_GEM:
-        return LOOK_GROUP_CONSUMABLE;
     }
 
     return LOOK_GROUP_OTHER;
@@ -14409,7 +14848,7 @@ void show_unified_sidebar(unified_look_state* state)
     if (state->show_monsters)
     {
         log_trace("show_unified_sidebar: displaying MONSTERS header at line %d", line);
-        c_put_str(TERM_WHITE, "MONSTERS:", line++, sidebar_col);
+        c_put_str(TERM_WHITE, "MONSTERS:    ", line++, sidebar_col);
         
         /* Get monster list */
         get_sorted_target_list(TARGET_LIST_MONSTER, 0);
@@ -14490,7 +14929,7 @@ void show_unified_sidebar(unified_look_state* state)
             /* Build the complete display string: name + health + morale */
             char display_name[128];
             char hp_display[12];
-            char morale_display[6];
+            char morale_display[12];
             
             /* Format health and morale as compact strings */
             strnfmt(hp_display, sizeof(hp_display), " %s", hp_bar);
@@ -14519,14 +14958,46 @@ void show_unified_sidebar(unified_look_state* state)
             my_strcpy(display_name, truncated_name, sizeof(display_name));
             my_strcat(display_name, hp_display, sizeof(display_name));
             
-            int name_hp_len = strlen(display_name);
-            int final_name_len = name_hp_len + morale_display_len;
-            
-            /* BIGTILE FIX: If using bigtile and final length is odd, add space */
-            bool needs_bigtile_pad = false;
-            if (use_bigtile && (final_name_len % 2 == 1)) {
-                needs_bigtile_pad = true;
-                final_name_len++;
+            int name_hp_len = (int)strlen(display_name);
+            int total_span = name_hp_len + morale_display_len;
+            if (use_bigtile)
+            {
+                const int min_sidebar_span = 13;
+                if (total_span < min_sidebar_span)
+                {
+                    int pad_needed = min_sidebar_span - total_span;
+
+                    while (pad_needed > 0 && name_hp_len + 1 < (int)sizeof(display_name))
+                    {
+                        display_name[name_hp_len++] = ' ';
+                        pad_needed--;
+                    }
+                    display_name[name_hp_len] = '\0';
+                    total_span = name_hp_len + morale_display_len;
+
+                    while (pad_needed > 0 && morale_display_len + 1 < (int)sizeof(morale_display))
+                    {
+                        morale_display[morale_display_len++] = ' ';
+                        pad_needed--;
+                    }
+                    morale_display[morale_display_len] = '\0';
+                    total_span = name_hp_len + morale_display_len;
+                }
+
+                if ((total_span % 2) == 0)
+                {
+                    if (morale_display_len + 1 < (int)sizeof(morale_display))
+                    {
+                        morale_display[morale_display_len++] = ' ';
+                        morale_display[morale_display_len] = '\0';
+                    }
+                    else if (name_hp_len + 1 < (int)sizeof(display_name))
+                    {
+                        display_name[name_hp_len++] = ' ';
+                        display_name[name_hp_len] = '\0';
+                    }
+                    total_span = name_hp_len + morale_display_len;
+                }
             }
             
             /* Calculate column for morale display */
@@ -14555,12 +15026,6 @@ void show_unified_sidebar(unified_look_state* state)
                 /* Display morale in highlighted color (overrides morale_color when highlighted) */
                 Term_putstr(morale_col, line, morale_display_len, TERM_L_BLUE, morale_display);
                 
-                /* Add bigtile padding if needed */
-                if (needs_bigtile_pad)
-                {
-                    Term_putstr(morale_col + morale_display_len, line, 1, TERM_L_BLUE, " ");
-                }
-                
                 /* Update highlighted position and cursor */
                 state->highlighted_y = temp_y[i];
                 state->highlighted_x = temp_x[i];
@@ -14586,12 +15051,6 @@ void show_unified_sidebar(unified_look_state* state)
                 
                 /* Display morale in its proper color */
                 Term_putstr(morale_col, line, morale_display_len, morale_color, morale_display);
-                
-                /* Add bigtile padding if needed */
-                if (needs_bigtile_pad)
-                {
-                    Term_putstr(morale_col + morale_display_len, line, 1, TERM_WHITE, " ");
-                }
             }
             
             line++;
@@ -14602,7 +15061,7 @@ void show_unified_sidebar(unified_look_state* state)
     /* Show objects section */
     if (state->show_objects)
     {
-        c_put_str(TERM_WHITE, "OBJECTS:    ", line++, sidebar_col);  /* 12 characters total */
+        c_put_str(TERM_WHITE, "OBJECTS:     ", line++, sidebar_col);  /* Odd length to keep sidebar width */
         
         /* Get object list */
         get_sorted_target_list(TARGET_LIST_OBJECT, 0);
@@ -14681,6 +15140,9 @@ void show_unified_sidebar(unified_look_state* state)
                             should_swap = true;
                         break;
 
+                    case LOOK_GROUP_HERBS:
+                    case LOOK_GROUP_POTIONS:
+                    case LOOK_GROUP_GEMS:
                     case LOOK_GROUP_CONSUMABLE:
                     case LOOK_GROUP_OTHER:
                         if (b->level > a->level)
@@ -14735,7 +15197,9 @@ void show_unified_sidebar(unified_look_state* state)
                 }
             }
 
-            base_color = weapon_glows(o_ptr) ? TERM_L_BLUE : tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+            base_color = weapon_glows(o_ptr) 
+                ? object_display_color(o_ptr, TERM_L_BLUE) 
+                : object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
             entity_char[0] = object_char(o_ptr);
 
@@ -14765,10 +15229,25 @@ void show_unified_sidebar(unified_look_state* state)
             log_debug("sidebar object: idx=%d name='%s' compact='%s' color=%d orig_len=%d compact_len=%d max_len=%d name_col=%d weight_len=%d shortened=%d",
                 entry->o_idx, name_source, display_name, base_color, original_name_len, final_name_len, max_name_len, name_col, weight_len, shortened ? 1 : 0);
 
-            if (use_bigtile && (final_name_len % 2 == 1) && (final_name_len + 1 < (int)sizeof(display_name)))
+            if (use_bigtile)
             {
-                display_name[final_name_len++] = ' ';
-                display_name[final_name_len] = '\0';
+                const int min_sidebar_span = 13;
+                if (final_name_len < min_sidebar_span)
+                {
+                    int pad_needed = min_sidebar_span - final_name_len;
+                    while (pad_needed > 0 && final_name_len + 1 < (int)sizeof(display_name))
+                    {
+                        display_name[final_name_len++] = ' ';
+                        pad_needed--;
+                    }
+                    display_name[final_name_len] = '\0';
+                }
+
+                if ((final_name_len % 2) == 0 && (final_name_len + 1 < (int)sizeof(display_name)))
+                {
+                    display_name[final_name_len++] = ' ';
+                    display_name[final_name_len] = '\0';
+                }
             }
 
             int row_index = line;

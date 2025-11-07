@@ -372,7 +372,8 @@ static void describe_monster_drop(int r_idx, const monster_lore* l_ptr)
     }
 }
 
-static void describe_monster_attack(int r_idx, const monster_lore* l_ptr)
+static void describe_monster_attack(
+    int r_idx, const monster_lore* l_ptr, const monster_type* m_ptr)
 {
     const monster_race* r_ptr = &r_info[r_idx];
     int m, r, n;
@@ -418,6 +419,30 @@ static void describe_monster_attack(int r_idx, const monster_lore* l_ptr)
         att = r_ptr->blow[m].att;
         d1 = r_ptr->blow[m].dd;
         d2 = r_ptr->blow[m].ds;
+
+        if (m_ptr)
+        {
+            monster_type* live = (monster_type*)m_ptr;
+            int dd_reduction = live->blow_dd_reduction[m];
+            int ds_reduction = live->blow_ds_reduction[m];
+
+            if (d1 > 0 && dd_reduction > 0)
+            {
+                if (dd_reduction >= d1)
+                    d1 = 1;
+                else
+                    d1 = MAX(1, d1 - dd_reduction);
+            }
+            if (d2 > 0 && ds_reduction > 0)
+            {
+                if (ds_reduction >= d2)
+                    d2 = 1;
+                else
+                    d2 = MAX(1, d2 - ds_reduction);
+            }
+
+            att = total_monster_attack(live, att);
+        }
 
         /* No method yet */
         p = NULL;
@@ -598,9 +623,8 @@ static void describe_monster_attack(int r_idx, const monster_lore* l_ptr)
             if ((know_damage(l_ptr, m)) || (l_ptr->tsights == MAX_SHORT)
                 || (l_ptr->ranged == MAX_UCHAR))
             {
-                if (d2)
+                if (d1 > 0 && d2 > 0)
                 {
-                    /* Display the damage */
                     text_out_c(
                         TERM_L_WHITE, format(" (%+d, %dd%d)", att, d1, d2));
                 }
@@ -1163,7 +1187,8 @@ static void describe_monster_kills(int r_idx, const monster_lore* l_ptr)
         text_out("\n");
 }
 
-static void describe_monster_toughness(int r_idx, const monster_lore* l_ptr)
+static void describe_monster_toughness(
+    int r_idx, const monster_lore* l_ptr, const monster_type* m_ptr)
 {
     const monster_race* r_ptr = &r_info[r_idx];
 
@@ -1179,36 +1204,67 @@ static void describe_monster_toughness(int r_idx, const monster_lore* l_ptr)
     if ((know_armour(l_ptr->tkills)) || (l_ptr->tsights == MAX_SHORT)
         || (l_ptr->ranged == MAX_UCHAR))
     {
-        // Health
-        text_out(format("%^s has ", wd_he[msex]));
-        if (r_ptr->flags1 & (RF1_UNIQUE))
-        {
-            text_out_c(TERM_GREEN,
-                format("%d ", r_ptr->hdice * (1 + r_ptr->hside) / 2));
-        }
+        int evn = r_ptr->evn;
+        int prot_dice = r_ptr->pd;
+        int prot_sides = r_ptr->ps;
+
+        /* Health */
+        char hp_text[32];
+        if (r_ptr->hdice > 0 && r_ptr->hside > 0)
+            strnfmt(hp_text, sizeof(hp_text), "%dd%d", r_ptr->hdice, r_ptr->hside);
+        else if (r_ptr->hdice > 0)
+            strnfmt(hp_text, sizeof(hp_text), "%d", r_ptr->hdice);
         else
+            strnfmt(hp_text, sizeof(hp_text), "%d", r_ptr->hside);
+
+        text_out(format("%^s has ", wd_he[msex]));
+        text_out_c(TERM_GREEN, hp_text);
+        if (m_ptr)
+        {
+            int hp_loss = monster_song_hp_loss(m_ptr);
+            if (hp_loss > 0)
+                text_out_c(TERM_L_RED, format("-%d", hp_loss));
+        }
+        text_out(" hp ");
+
+        /* Defence */
+        if (m_ptr)
+        {
+            monster_type* live = (monster_type*)m_ptr;
+            evn = total_monster_evasion(live, false);
+
+            int base_dice = r_ptr->pd - m_ptr->song_armor_dice_penalty;
+            if (base_dice < 0)
+                base_dice = 0;
+            prot_dice = base_dice + curse_flag_count_cur(CUR_MON_ARM_DICE);
+            if (prot_dice < 0)
+                prot_dice = 0;
+
+            int base_sides = monster_base_armour_sides(live);
+            base_sides += curse_flag_count_cur(CUR_MON_ARM_SIDE);
+            if (base_sides < 0)
+                base_sides = 0;
+            prot_sides = base_sides;
+
+            if (prot_dice > 0 && prot_sides < 1)
+                prot_sides = 1;
+        }
+
+        text_out("and a defence of ");
+        if ((prot_dice > 0) && (prot_sides > 0))
         {
             text_out_c(
-                TERM_GREEN, format("%dd%d ", r_ptr->hdice, r_ptr->hside));
-        }
-        text_out("health ");
-
-        // Evasion and Armour
-        if ((r_ptr->pd > 0) && (r_ptr->ps > 0))
-        {
-            text_out("and a defence of ");
-            text_out_c(TERM_SLATE,
-                format("[%+d, %dd%d].  ", r_ptr->evn, r_ptr->pd, r_ptr->ps));
+                TERM_SLATE, format("[%+d, %dd%d].  ", evn, prot_dice, prot_sides));
         }
         else
         {
-            text_out("and a defence of ");
-            text_out_c(TERM_SLATE, format("[%+d].  ", r_ptr->evn));
+            text_out_c(TERM_SLATE, format("[%+d].  ", evn));
         }
     }
 }
 
-static void describe_monster_skills(int r_idx, const monster_lore* l_ptr)
+static void describe_monster_skills(
+    int r_idx, const monster_lore* l_ptr, const monster_type* m_ptr)
 {
     const monster_race* r_ptr = &r_info[r_idx];
 
@@ -1226,10 +1282,30 @@ static void describe_monster_skills(int r_idx, const monster_lore* l_ptr)
         || ((l_ptr->tsights > 1)
             && (10 - l_ptr->tsights < p_ptr->skill_use[S_PER])))
     {
-        text_out(format("%^s has %d Will,", wd_he[msex], r_ptr->wil));
+        int will = r_ptr->wil;
+        int stealth = r_ptr->stl;
+        int perception = r_ptr->per;
+
+        if (m_ptr)
+        {
+            monster_type* live = (monster_type*)m_ptr;
+            will = monster_skill(live, S_WIL);
+            stealth = monster_skill(live, S_STL);
+            perception = monster_skill(live, S_PER);
+        }
+
+        text_out(format("%^s has ", wd_he[msex]));
+        text_out_c(TERM_L_GREEN, format("%d", will));
+        text_out(" Will,");
         if (p_ptr->active_ability[S_PER][PER_LISTEN])
-            text_out(format(" %d Stealth,", r_ptr->stl));
-        text_out(format(" %d Perception", r_ptr->per));
+        {
+            text_out(" ");
+            text_out_c(TERM_L_GREEN, format("%d", stealth));
+            text_out(" Stealth,");
+        }
+        text_out(" ");
+        text_out_c(TERM_L_GREEN, format("%d", perception));
+        text_out(" Perception");
 
         if (r_ptr->sleep > 20) // 21 +
         {
@@ -1340,11 +1416,24 @@ static void describe_monster_exp(int r_idx, const monster_lore* l_ptr)
     }
 }
 
-static void describe_monster_movement(int r_idx, const monster_lore* l_ptr)
+static void describe_monster_movement(
+    int r_idx, const monster_lore* l_ptr, const monster_type* m_ptr)
 {
     const monster_race* r_ptr = &r_info[r_idx];
 
     bool old = false;
+
+    int display_speed = r_ptr->speed;
+    bool is_hasted = false;
+    bool is_slowed = false;
+
+    if (m_ptr)
+    {
+        if (m_ptr->mspeed)
+            display_speed = m_ptr->mspeed;
+        is_hasted = (m_ptr->hasted > 0);
+        is_slowed = (m_ptr->slowed > 0);
+    }
 
     text_out("This");
 
@@ -1419,7 +1508,7 @@ static void describe_monster_movement(int r_idx, const monster_lore* l_ptr)
     }
 
     /* most other creatures display their speed */
-    else if ((r_ptr->speed != 2) || (l_ptr->flags1 & RF1_RAND_50)
+    else if ((display_speed != 2) || (l_ptr->flags1 & RF1_RAND_50)
         || (l_ptr->flags1 & RF1_RAND_25))
     {
         if (old)
@@ -1447,24 +1536,36 @@ static void describe_monster_movement(int r_idx, const monster_lore* l_ptr)
             text_out(" erratically");
 
             /* Hack -- Occasional conjunction */
-            if (r_ptr->speed != 2)
+            if (display_speed != 2)
                 text_out(", and");
         }
 
         /* Speed */
-        if (r_ptr->speed > 2)
+        if (display_speed > 2)
         {
-            if (r_ptr->speed > 5)
+            if (display_speed > 5)
                 text_out_c(TERM_L_GREEN, " incredibly");
-            else if (r_ptr->speed > 4)
+            else if (display_speed > 4)
                 text_out_c(TERM_L_GREEN, " extremely");
-            else if (r_ptr->speed > 3)
+            else if (display_speed > 3)
                 text_out_c(TERM_L_GREEN, " very");
             text_out_c(TERM_L_GREEN, " quickly");
         }
-        else if (r_ptr->speed < 2)
+        else if (display_speed < 2)
         {
             text_out_c(TERM_L_UMBER, " slowly");
+        }
+
+        if (m_ptr)
+        {
+            text_out_c(
+                TERM_L_GREEN, format(" (speed %d)", display_speed));
+            if (is_hasted && is_slowed)
+                text_out(" while hasted and slowed");
+            else if (is_hasted)
+                text_out(" while hasted");
+            else if (is_slowed)
+                text_out(" while slowed");
         }
     }
 
@@ -1543,7 +1644,7 @@ static void cheat_monster_lore(int r_idx, monster_lore* l_ptr)
  * left edge of the screen, on a cleared line, in which the recall is
  * to take place.  One extra blank line is left after the recall.
  */
-void describe_monster(int r_idx, bool spoilers)
+void describe_monster(int r_idx, bool spoilers, const monster_type* m_ptr)
 {
     monster_lore lore;
 
@@ -1592,7 +1693,7 @@ void describe_monster(int r_idx, bool spoilers)
     describe_monster_desc(r_idx);
 
     /* Describe the movement and level of the monster */
-    describe_monster_movement(r_idx, &lore);
+    describe_monster_movement(r_idx, &lore, m_ptr);
 
     /* Describe spells and innate attacks */
     describe_monster_spells(r_idx, &lore);
@@ -1601,13 +1702,13 @@ void describe_monster(int r_idx, bool spoilers)
     describe_monster_abilities(r_idx, &lore);
 
     /* Describe the known attacks */
-    describe_monster_attack(r_idx, &lore);
+    describe_monster_attack(r_idx, &lore, m_ptr);
 
     /* Describe monster "toughness" */
-    describe_monster_toughness(r_idx, &lore);
+    describe_monster_toughness(r_idx, &lore, m_ptr);
 
     /* Describe the known skills */
-    describe_monster_skills(r_idx, &lore);
+    describe_monster_skills(r_idx, &lore, m_ptr);
 
     /* Describe experience */
     if (!spoilers)
@@ -1669,7 +1770,7 @@ void roff_top(int r_idx)
 /*
  * Hack -- describe the given monster race at the top of the screen
  */
-void screen_roff(int r_idx)
+void screen_roff(int r_idx, const monster_type* m_ptr)
 {
     /* Flush messages */
     message_flush();
@@ -1681,7 +1782,7 @@ void screen_roff(int r_idx)
     text_out_hook = text_out_to_screen;
 
     /* Recall monster */
-    describe_monster(r_idx, false);
+    describe_monster(r_idx, false, m_ptr);
 
     /* Describe monster */
     roff_top(r_idx);
@@ -1690,7 +1791,7 @@ void screen_roff(int r_idx)
 /*
  * Hack -- describe the given monster race in the current "term" window
  */
-void display_roff(int r_idx)
+void display_roff(int r_idx, const monster_type* m_ptr)
 {
     int y;
 
@@ -1708,7 +1809,7 @@ void display_roff(int r_idx)
     text_out_hook = text_out_to_screen;
 
     /* Recall monster */
-    describe_monster(r_idx, false);
+    describe_monster(r_idx, false, m_ptr);
 
     /* Describe monster */
     roff_top(r_idx);

@@ -12,7 +12,7 @@
 
 # Version stamp (required)
 
-V:0.8.9
+V:0.9.0
 
 
 # Maximum number of feature types
@@ -60,16 +60,19 @@ M:V:500
 M:P:6
 
 # Maximum number of player houses
-M:C:38
+M:C:50
 
 # Maximum number of player history lines
 M:H:165
 
 # Maximum number of player story lines
-M:S:32
+M:S:52
 
 # Maximum number of curses
-M:U:31
+M:U:41
+
+# Maximum number of major blessings
+M:J:16
 
 # Maximum number of flavors
 M:L:310
@@ -78,7 +81,7 @@ M:L:310
 M:O:512
 
 # Number of Runtypes
-M:Y:5
+M:Y:4
 
 # Number of Styles (visual themes)
 M:Z:62

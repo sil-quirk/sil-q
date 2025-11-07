@@ -182,8 +182,7 @@ L:86:0x85/0x81
 
 #Gems
 
-# Diamond gem
-L:87:0x81/0x95
+# Diamond gem (removed from flavor ranges)
 
 # Ruby gem
 L:88:0x81/0x96

@@ -140,7 +140,7 @@
 
 # Version stamp (required)
 
-V:0.8.9
+V:0.9.0
 
 ### The Gates of Angband (type 10) -- maximum size 66x44 ??? ###
 ### This must be the first vault record
@@ -2589,11 +2589,11 @@ D:######$######
 N:398:Torture Chambers  
 X:7:10:4  
 D:#########  
-D:#..^W...#  
-D:#...+...#  
-D:$...v...#  
-D:#...+...#  
-D:#...S*..#  
+D:#.W^s^W.#  
+D:#..^s^..#  
+D:$.&^s^&.#  
+D:#..^s^..#  
+D:#.W^s^W.#  
 D:#########  
 
 

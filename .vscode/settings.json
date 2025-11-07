@@ -84,5 +84,60 @@
     // Enable CMake build task integration
     "cmake.buildTask": true,
     // Launch configuration
-    "cmake.launchBehavior": "reuseTerminal"
+    "cmake.launchBehavior": "reuseTerminal",
+    
+    // GitHub Copilot & AI Agent configuration
+    "github.copilot.enable": {
+        "*": true,
+        "plaintext": true,
+        "markdown": true,
+        "c": true
+    },
+    "github.copilot.editor.enableAutoCompletions": true,
+    "github.copilot.advanced": {},
+    
+    // Python configuration - point to workspace venv
+    "[python]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "ms-python.python"
+    },
+    "python.defaultInterpreterPath": "${workspaceFolder}/src/.venv/Scripts/python.exe",
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": false,
+    
+    // Chat and agent settings for optimal performance
+    "chat.agent.maxRequests": 100,
+    "chat.tools.autoApprove": true,
+    "chat.tools.terminal.autoApprove": {
+        "powershell.exe": true,
+        "C:\\msys64\\mingw64\\bin\\bash.exe": true
+    },
+    // Allow PowerShell commands for file exploration without approval
+    "copilot.advanced": {
+        "command": {
+            "autoApprove": true
+        }
+    },
+    
+    // File watching optimization
+    "files.watcherExclude": {
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/node_modules/**": true,
+        "**/build/**": true,
+        "**/lib/apex/**": true,
+        "**/lib/save/**": true,
+        "**/*.o": true,
+        "**/*.obj": true
+    },
+    
+    // Search optimization
+    "search.exclude": {
+        "**/build": true,
+        "**/lib/apex": true,
+        "**/lib/save": true,
+        "**/.git": true,
+        "**/*.o": true,
+        "**/*.obj": true
+    }
 }

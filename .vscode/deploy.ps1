@@ -17,6 +17,20 @@ Copy-Item build/sil-more.exe sil-more-windows-sdl3/ -Force
 if (-not (Test-Path sil-more-windows-sdl3/lib)) {
     Write-Host "Copying game data (lib folder)..." -ForegroundColor Yellow
     Copy-Item -Recurse lib sil-more-windows-sdl3/lib -Force
+} else {
+    # Always update lib/edit folder to ensure latest data files
+    Write-Host "Updating lib/edit folder..." -ForegroundColor Yellow
+    if (Test-Path sil-more-windows-sdl3/lib/edit) {
+        Remove-Item -Recurse -Force sil-more-windows-sdl3/lib/edit
+    }
+    Copy-Item -Recurse lib/edit sil-more-windows-sdl3/lib/edit -Force
+    
+    # Always update lib/pref folder to ensure latest preference files
+    Write-Host "Updating lib/pref folder..." -ForegroundColor Yellow
+    if (Test-Path sil-more-windows-sdl3/lib/pref) {
+        Remove-Item -Recurse -Force sil-more-windows-sdl3/lib/pref
+    }
+    Copy-Item -Recurse lib/pref sil-more-windows-sdl3/lib/pref -Force
 }
 
 # Copy JSON config file if it doesn't exist

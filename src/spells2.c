@@ -42,9 +42,14 @@ flag_name info_flags_desc[] = {
 { "Song of Threshold and Staff of Warding are twice effective", UNQ, UNQ_SNG_MEL }, 
 { "Can create very sharp items, easier to create sharp and accurate items", UNQ, UNQ_SMT_TELCHAR },
 { "Using 3 forge charges can create mithril items without mithril", UNQ, UNQ_SMT_GAMIL }, 
+{ "All rings cost 30% less to create and ring slots are treated as major slots", UNQ, UNQ_SMT_CELEBRIMBOR },
 { "Song of Slaying is twice effective", UNQ, UNQ_SNG_HURIN },
 { "Song of Mastery is twice effective", UNQ, UNQ_SNG_THINGOL }, 
 { "Starts with all stealth skills", UNQ, UNQ_MIM },
+{ "Melee abilities are twice effective, better at one-handed combat", UNQ, UNQ_MEL_MAEDHROS },
+{ "Will abilities are twice effective, can break fate-cursed items", UNQ, UNQ_WIL_TURIN },
+{ "Song of Disguise checks add your Perception skill", UNQ, UNQ_SNG_TURGON },
+{ "Song skill is not reduced for woven minor themes", UNQ, UNQ_WOVEN_MASTER },
 { "If you die story death counter is not increased", RHF, RHF_GIFTERU }, 
 { "Deppending on the number of Silmarils retrieved there is a chance to murder your kin", RHF, RHF_KINSLAYER },
 { "You get more complex curses", RHF, RHF_CURSE }, 
@@ -462,8 +467,8 @@ void self_knowledge(void)
     }
     
     // Show either curse or flag information, not both
-    bool show_curse = (n_active > 0) && one_in_(10);
-    bool show_flag = (n > 0) && one_in_(10);
+    bool show_curse = (n_active > 0) && one_in_(6);
+    bool show_flag = (n > 0) && one_in_(6);
     
     if (show_curse) {
         int pick = active_ids[rand_int(n_active)];
@@ -998,7 +1003,7 @@ bool detect_stairs(void)
 /*
  * Detect all "normal" objects on the current panel
  */
-bool detect_objects_normal(void)
+bool detect_objects_normal(int radius)
 {
     int i, y, x;
 
@@ -1026,8 +1031,13 @@ bool detect_objects_normal(void)
         y = o_ptr->iy;
         x = o_ptr->ix;
 
-        /* Only detect nearby objects */
-        // if (!panel_contains(y, x)) continue;
+        /* Only detect nearby objects (within radius if specified) */
+        if (radius > 0)
+        {
+            int dist = distance(p_ptr->py, p_ptr->px, y, x);
+            if (dist > radius)
+                continue;
+        }
 
         /* Hack -- memorize it */
         o_ptr->marked = true;
@@ -1146,7 +1156,7 @@ bool detect_objects_magic(void)
 /*
  * Detect all "normal" monsters on the current panel
  */
-bool detect_monsters(void)
+bool detect_monsters(int radius)
 {
     int i;
 
@@ -1160,6 +1170,14 @@ bool detect_monsters(void)
         /* Skip dead monsters */
         if (!m_ptr->r_idx)
             continue;
+
+        /* Only detect monsters within radius if specified */
+        if (radius > 0)
+        {
+            int dist = distance(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx);
+            if (dist > radius)
+                continue;
+        }
 
         /* Optimize -- Repair flags */
         repair_mflag_mark = true;
@@ -1259,11 +1277,11 @@ bool detect_all(void)
         detect = true;
     if (detect_stairs())
         detect = true;
-    if (detect_objects_normal())
+    if (detect_objects_normal(0))
         detect = true;
     if (detect_monsters_invis())
         detect = true;
-    if (detect_monsters())
+    if (detect_monsters(0))
         detect = true;
 
     /* Result */
@@ -2490,8 +2508,15 @@ void earthquake(int cy, int cx, int pit_y, int pit_x, int r, int who)
                 /* Describe the monster */
                 monster_desc(m_name, sizeof(m_name), m_ptr, 0);
 
-                // Apply monster protection
-                prt = damroll(r_ptr->pd, r_ptr->ps);
+                /* Apply armor dice/sides curses/blessings */
+                int armor_dice_base = r_ptr->pd - m_ptr->song_armor_dice_penalty;
+                if (armor_dice_base < 0)
+                    armor_dice_base = 0;
+                int armor_dice = armor_dice_base + curse_flag_count_cur(CUR_MON_ARM_DICE);
+                int armor_sides = monster_base_armour_sides(m_ptr) + curse_flag_count_cur(CUR_MON_ARM_SIDE);
+                if (armor_dice < 0) armor_dice = 0;
+                if (armor_sides < 1) armor_sides = 1;
+                prt = damroll(armor_dice, armor_sides);
                 net_dam = damage - prt;
 
                 // apply damage after protection
@@ -2510,8 +2535,8 @@ void earthquake(int cy, int cx, int pit_y, int pit_x, int r, int who)
                     {
                         update_combat_rolls1b(
                             creator_m_ptr, m_ptr, creator_vis);
-                        update_combat_rolls2(dd, ds, damage, r_ptr->pd,
-                            r_ptr->ps, prt, 100, GF_HURT, false);
+                        update_combat_rolls2(dd, ds, damage, armor_dice,
+                            armor_sides, prt, 100, GF_HURT, false);
                     }
 
                     // do the damage and check for death

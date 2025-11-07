@@ -36,6 +36,8 @@ extern void wipe_screen_from(int col);
 #define TOTAL_AUX_COL 35
 #define INVALID_CHOICE 255
 
+static void grant_starting_artifact(void);
+
 /* House ability names */
 static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
 {
@@ -43,6 +45,7 @@ static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
         [MEL_POWER]            = "Power",
         [MEL_FINESSE]          = "Finesse",
         [MEL_KNOCK_BACK]       = "Knock Back",
+        [MEL_THROWING]         = "Throwing",
         [MEL_POLEARMS]         = "Polearm Mastery",
         [MEL_CHARGE]           = "Charge",
         [MEL_FOLLOW_THROUGH]   = "Follow-Through",
@@ -132,11 +135,17 @@ static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
         [SNG_STAUNCHING]    = "Song of Staunching",
         [SNG_THRESHOLDS]    = "Song of Thresholds",
         [SNG_TREES]         = "Song of the Trees",
-        [SNG_SLAYING]       = "Song of Slaying",
-        [SNG_STAYING]       = "Song of Staying",
-        [SNG_LORIEN]        = "Song of Lorien",
-        [SNG_MASTERY]       = "Song of Mastery",
+        [SNG_REVEALING]     = "Song of Revealing",
         [SNG_WOVEN_THEMES]  = "Woven Themes",
+        [SNG_SLAYING]       = "Song of Slaying",
+        [SNG_ELVENESS]      = "Song of Elveness",
+        [SNG_STAYING]       = "Song of Staying",
+        [SNG_DISGUISE]      = "Song of Disguise",
+        [SNG_LORIEN]        = "Song of Lorien",
+        [SNG_SHATTERING]    = "Song of Shattering",
+        [SNG_MASTERY]       = "Song of Mastery",
+        [SNG_CONTEST]       = "Song of Contest",
+        [SNG_LAMENT]        = "Song of Lament",
         [SNG_GRA]           = NULL,
     },
     [S_SPC] = {
@@ -233,6 +242,12 @@ static void get_extra(void)
     /* Player is not singing */
     p_ptr->song1 = SNG_NOTHING;
     p_ptr->song2 = SNG_NOTHING;
+    p_ptr->song_target_idx = 0;
+    p_ptr->song_target_song = SNG_NOTHING;
+    p_ptr->song_lockout_timer = 0;
+    p_ptr->song_contest_player_stacks = 0;
+    p_ptr->song_duel_pad = 0;
+    p_ptr->song_contest_last_turn = 0;
     
     /* Clear the abilities and add house abilities - but preserve oath abilities */
     for (i = 0; i < S_MAX; i++)
@@ -572,6 +587,43 @@ static void give_start_items(const start_item *list)
     }
 }
 
+static void grant_starting_artifact(void)
+{
+    int candidates[512];
+    int count = 0;
+
+    for (int i = 1; i < z_info->art_max && count < (int)N_ELEMENTS(candidates); i++) {
+        artefact_type *a_ptr = &a_info[i];
+        if (!a_ptr->name[0]) continue;
+        if (a_ptr->cur_num > 0) continue;
+        if (a_ptr->level > 10) continue;
+        if (valar_reserved_artifacts && valar_reserved_artifacts[i]) continue;
+        candidates[count++] = i;
+    }
+
+    if (count == 0) {
+        log_info("No early artefacts available for starting blessing.");
+        return;
+    }
+
+    int art_idx = candidates[rand_int(count)];
+    artefact_type *a_ptr = &a_info[art_idx];
+
+    object_type object_type_body;
+    object_type *o_ptr = &object_type_body;
+    object_prep(o_ptr, lookup_kind(a_ptr->tval, a_ptr->sval));
+    o_ptr->name1 = art_idx;
+    apply_magic(o_ptr, -1, true, true, true, true);
+    object_aware(o_ptr);
+    object_known(o_ptr);
+    (void)inven_carry(o_ptr, true);
+    a_ptr->cur_num = 1;
+    if (valar_reserved_artifacts) valar_reserved_artifacts[art_idx] = true;
+
+    msg_format("A hidden patron gifts you %s.", a_ptr->name);
+    log_info("Starting artefact granted: %s (idx=%d)", a_ptr->name, art_idx);
+}
+
 static void player_outfit(void)
 {
     /* ---------- locals ---------- */
@@ -595,6 +647,10 @@ static void player_outfit(void)
     give_start_items(rp_ptr->start_items);   /* race first  */
     log_debug("Giving starting items for house: %s", c_name + hp_ptr->name);
     give_start_items(hp_ptr->start_items);   /* house next  */
+
+    if (metarun_has_major_blessing_effect(METARUN_MAJOR_EFFECT_START_ARTIFACT)) {
+        grant_starting_artifact();
+    }
 
     /* ---------- Christmas present (unchanged) ---------- */
     c  = time((time_t*)0);
@@ -882,7 +938,7 @@ u32b curse_flag_mask(void)
 {
     u32b m = 0;
     for (int id = 0; id < z_info->cu_max; id++) {
-        if (CURSE_GET(id)) m |= cu_info[id].flags;
+        if (CURSE_CURSE_STACK(id) > 0) m |= cu_info[id].flags;
     }
     return m;
 }
@@ -895,11 +951,11 @@ int curse_flag_count_rhf(u32b rhf_flag)
     for (int i = 0; i < z_info->cu_max; i++)
     {
         /* Get the stack count for this curse */
-        int stacks = curse_count(i);
-        if (stacks > 0)
-        {
-            /* Add ALL stacks if this curse has the flag */
+        int stacks = CURSE_GET(i);
+        if (stacks > 0) {
             if (cu_info[i].flags & rhf_flag) count += stacks;
+        } else if (stacks < 0) {
+            if (cu_info[i].blessing_flags & rhf_flag) count += -stacks;
         }
     }
     return count;
@@ -914,15 +970,33 @@ int curse_flag_count_cur(u32b cur_flag)
     for (int i = 0; i < z_info->cu_max; i++)
     {
         /* Get the stack count for this curse */
-        int stacks = curse_count(i);
-        if (stacks > 0)
-        {
-            /* Add ALL stacks if this curse has the flag */
+        int stacks = CURSE_GET(i);
+        if (stacks > 0) {
             if (cu_info[i].flags_u & cur_flag) count += stacks;
+        } else if (stacks < 0) {
+            if (cu_info[i].blessing_flags_u & cur_flag) count += -stacks;
         }
     }
 
     return count;
+}
+
+/* Signed delta for CUR flags: positive for curses, negative for blessings */
+int curse_flag_delta_cur(u32b cur_flag)
+{
+    int delta = 0;
+
+    for (int i = 0; i < z_info->cu_max; i++)
+    {
+        int stacks = CURSE_GET(i);
+        if (stacks > 0) {
+            if (cu_info[i].flags_u & cur_flag) delta += stacks;
+        } else if (stacks < 0) {
+            if (cu_info[i].blessing_flags_u & cur_flag) delta -= (-stacks);
+        }
+    }
+
+    return delta;
 }
 
 
@@ -1043,6 +1117,7 @@ static void print_rh_flags(int race, int house, int col, int row)
     HANDLE_UNIQUE_U("Creator of Galvorn",   UNQ_SMT_EOL,     TERM_VIOLET,     1);
     HANDLE_UNIQUE_U("One Handed",   UNQ_MEL_MAEDHROS,     TERM_VIOLET,     1);
     HANDLE_UNIQUE_U("Agarwaen",   UNQ_WIL_TURIN,     TERM_VIOLET,     1);
+    HANDLE_UNIQUE_U("Hidden city",   UNQ_SNG_TURGON,     TERM_VIOLET,     1);
     HANDLE_UNIQUE_U("Chosen of Ulmo",   UNQ_WIL_TUOR, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Indominable Will",   UNQ_EARENDIL, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Orome Himself",   UNQ_WIL_FIN, TERM_VIOLET,   1);
@@ -1051,9 +1126,12 @@ static void print_rh_flags(int race, int house, int col, int row)
     HANDLE_UNIQUE_U("Girdle of Melian",   UNQ_SNG_MEL, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Creator of Angrist",   UNQ_SMT_TELCHAR, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Old Master",   UNQ_SMT_GAMIL, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Ring Master",   UNQ_SMT_CELEBRIMBOR, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Aure entuluva",   UNQ_SNG_HURIN, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Voice of Girdle",   UNQ_SNG_THINGOL, TERM_VIOLET,   1);
     HANDLE_UNIQUE_U("Forgotten",   UNQ_MIM, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Minstrel",   UNQ_MINSTREL, TERM_VIOLET,   1);
+    HANDLE_UNIQUE_U("Woven Master",   UNQ_WOVEN_MASTER, TERM_VIOLET,   1);
 
     HANDLE_UNIQUE("Gift of Eru",   RHF_GIFTERU,     TERM_VIOLET,     1);
     HANDLE_UNIQUE("Seafarer",   RHF_FREE, TERM_VIOLET,   1);
@@ -1339,9 +1417,10 @@ static void house_aux_hook(birth_menu c_str)
             strnfmt(power_stars, sizeof(power_stars), " ***"); 
             break;         /* Powerful - 3 green stars */
         case 3: 
+        case 4:
             star_attr = TERM_L_GREEN; 
             strnfmt(power_stars, sizeof(power_stars), " ***"); 
-            break;        /* Very Powerful - 4 bright green stars */
+            break;        /* Very Powerful - 3 bright green stars (P:3 or P:4) */
         default: 
             star_attr = TERM_WHITE; 
             strnfmt(power_stars, sizeof(power_stars), " **"); 
@@ -1359,15 +1438,20 @@ static void house_aux_hook(birth_menu c_str)
     int legend_row = 10; /* Row 10 as requested (moved up one row) */
     
     /* Count alive heroes by power level across ALL races */
-    int power_counts[4] = {0, 0, 0, 0};  /* weak, average, powerful, very powerful */
+    int power_counts[5] = {0, 0, 0, 0, 0};  /* weak, average, powerful, very powerful, mighty */
     for (int i = 0; i < z_info->c_max; i++)
     {
         /* Count only characters that are NOT dead (alive) */
         if (highscore_dead(c_name + c_info[i].name) == 0)  /* If NOT dead (alive) */
         {
             byte power = c_info[i].power;
-            if (power >= 0 && power <= 3)
-                power_counts[power]++;
+            if (power >= 0 && power <= 4)
+            {
+                if (power == 4)
+                    power_counts[3]++;  /* P:4 counts toward "Mighty" (same group as P:3) */
+                else
+                    power_counts[power]++;
+            }
         }
     }
     
@@ -1604,13 +1688,13 @@ NavResult character_creation(void)
     {
         op_ptr->hitpoint_warn = 3;
         op_ptr->delay_factor = 5;
-        op_ptr->main_combat_rolls = 1;  /* Default to 1 line */
+        op_ptr->main_combat_rolls = 0;  /* Default to 0 lines */
     }
     
     /* Ensure main_combat_rolls has a valid value for existing saves */
     if (op_ptr->main_combat_rolls < 0 || op_ptr->main_combat_rolls > 3)
     {
-        op_ptr->main_combat_rolls = 1;  /* Default to 1 line */
+        op_ptr->main_combat_rolls = 0;  /* Default to 0 lines */
     }
 
     /* reset squelch bits */
@@ -1826,33 +1910,29 @@ static NavResult select_oath(void)
                         int row = 5;
                         row += display_wrapped_text(description, COL_DESCRIPTION, row, 0, TERM_SLATE);
                         
-                        /* Add space before additional info */
-                        row++;
-                        
                         /* Display Pledge (P:) */
                         char* pledge = oath_pledge(highlight);
                         if (pledge && pledge[0]) {
-                            Term_putstr(COL_DESCRIPTION, row, -1, TERM_L_BLUE, "Pledge:");
-                            row++;
-                            row += display_wrapped_text(pledge, COL_DESCRIPTION, row, 0, TERM_L_BLUE);
+                            char pledge_full[512];
+                            strnfmt(pledge_full, sizeof(pledge_full), "Pledge: %s", pledge);
+                            row += display_wrapped_text(pledge_full, COL_DESCRIPTION, row, 0, TERM_L_BLUE);
                         }
                         
                         /* Display Reward (R:) - MOVED TO TOP FOR VISIBILITY */
                         char* reward = oath_reward_text(highlight);
                         log_debug("Oath %d reward text: '%s'", highlight, reward ? reward : "NULL");
                         if (reward && reward[0]) {
-                            Term_putstr(COL_DESCRIPTION, row, -1, TERM_L_GREEN, "Reward:");
-                            row++;
-                            row += display_wrapped_text(reward, COL_DESCRIPTION, row, 0, TERM_L_GREEN);
-                            row++; /* Add spacing after reward */
+                            char reward_full[512];
+                            strnfmt(reward_full, sizeof(reward_full), "Reward: %s", reward);
+                            row += display_wrapped_text(reward_full, COL_DESCRIPTION, row, 0, TERM_L_GREEN);
                         }
                         
                         /* Display Forbidden (F:) */
                         char* forbidden = oath_forbidden(highlight);
                         if (forbidden && forbidden[0]) {
-                            Term_putstr(COL_DESCRIPTION, row, -1, TERM_L_RED, "Forbidden:");
-                            row++;
-                            row += display_wrapped_text(forbidden, COL_DESCRIPTION, row, 0, TERM_L_RED);
+                            char forbidden_full[512];
+                            strnfmt(forbidden_full, sizeof(forbidden_full), "Forbidden: %s", forbidden);
+                            row += display_wrapped_text(forbidden_full, COL_DESCRIPTION, row, 0, TERM_L_RED);
                         }
                     }
                 }
@@ -1864,7 +1944,7 @@ static NavResult select_oath(void)
         Term_putstr(2, 21, -1, TERM_SLATE, "Breaking an oath brings curse and shame.");
         
         /* Instructions at bottom with arrows */
-        Term_putstr(2, 23, -1, TERM_SLATE, "↑↓ Navigate     Enter Accept     Esc Back");
+        Term_putstr(2, 23, -1, TERM_SLATE, "Arrows to Navigate     Enter/Space Accept     Esc Back");
         
         /* Get input */
         char key = inkey();
@@ -2026,6 +2106,48 @@ static NavResult player_birth_aux_2(void)
     /* Determine experience and things */
     get_extra();
 
+    /* Show tutorial for first-time players (when scorefile is empty) */
+    /* Do this AFTER get_extra() so character has stats/abilities to display */
+    /* Check every time - show tutorial for every new character if scores file is empty */
+    log_debug("Checking if tutorial should be shown...");
+    bool is_empty = highscore_is_empty();
+    log_debug("highscore_is_empty() returned: %s", is_empty ? "true" : "false");
+    
+    if (is_empty)
+    {
+        log_info("First-time player detected - showing character screen tutorial");
+        
+        /* Initialize character stats for display - same as first iteration of stats loop */
+        for (i = 0; i < A_MAX; i++)
+        {
+            /* Obtain bonuses for race/house */
+            int bonus = rp_ptr->r_adj[i] + hp_ptr->h_adj[i] + curses_stat_adj(i);
+            
+            /* Set base stats (0 + racial/house bonuses) */
+            p_ptr->stat_base[i] = stats[i] + bonus;
+            p_ptr->stat_drain[i] = 0;
+        }
+        
+        /* Calculate bonuses and hitpoints */
+        p_ptr->update |= (PU_BONUS | PU_HP);
+        update_stuff();
+        
+        /* Fully healed */
+        p_ptr->chp = p_ptr->mhp;
+        
+        /* Fully rested */
+        calc_voice();
+        p_ptr->csp = p_ptr->msp;
+        
+        /* Now show the tutorial with a realistic character sheet */
+        display_character_tutorial();
+        log_info("Character screen tutorial completed");
+    }
+    else
+    {
+        log_info("Not showing tutorial - scores file has entries");
+    }
+
     log_trace("Starting stats allocation interface");
 
     /* Interact */
@@ -2090,6 +2212,25 @@ static NavResult player_birth_aux_2(void)
             if (i == stat)
             {
                 byte attr = TERM_L_BLUE;
+                
+#ifdef USE_SDL
+                /* Enable story font for highlighted stat name (if enabled) */
+                if (story_character_enabled()) {
+                    sdl_story_font_enable();
+                }
+#endif
+                
+                /* Highlight the stat name as well (at col-1 to match display_player position)
+                 * Use the abbreviated stat names (e.g. "Str") instead of the full names
+                 * ("strength") so the highlight matches the character-sheet layout.
+                 */
+                c_put_str(attr, stat_names[i], row + i, col - 1);
+                
+#ifdef USE_SDL
+                /* Disable story font for numbers */
+                sdl_story_font_disable();
+#endif
+                
 #ifndef MONOCHROME_MODE
                 strnfmt(
                     buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
@@ -2108,15 +2249,23 @@ static NavResult player_birth_aux_2(void)
                     buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
                 c_put_str(attr, buf, row + i, col + 32);
             }
-            byte attr = (i == stat) ? TERM_L_BLUE : TERM_L_WHITE;
-
-            /* Display cost */
-            strnfmt(buf, sizeof(buf), "%4d", birth_stat_costs[stats[i] + 4]);
-            c_put_str(attr, buf, row + i, col + 32);
         }
+
+#ifdef USE_SDL
+        /* Bottom bar follows character sheet font setting */
+        if (story_character_enabled()) {
+            sdl_story_font_enable();
+        }
+#endif
 
         Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
             "Arrows -allocate    ESC -back   ENTER -confirm   q -quit");
+
+#ifdef USE_SDL
+        if (story_character_enabled()) {
+            sdl_story_font_disable();
+        }
+#endif
 
         /* Get key */
         hide_cursor = true;
@@ -2298,6 +2447,22 @@ extern NavResult gain_skills(void)
             if (i == skill)
             {
                 byte attr = TERM_L_BLUE;
+                
+#ifdef USE_SDL
+                /* Enable story font for highlighted skill name (if enabled) */
+                if (story_character_enabled()) {
+                    sdl_story_font_enable();
+                }
+#endif
+                
+                /* Highlight the skill name as well (at col-1 to match display_player position) */
+                c_put_str(attr, skill_names_full[i], row + i, col - 1);
+                
+#ifdef USE_SDL
+                /* Disable story font for numbers */
+                sdl_story_font_disable();
+#endif
+                
 #ifndef MONOCHROME_MODE
                 strnfmt(buf, sizeof(buf), "%6d",
                     skill_cost(old_base[i], skill_gain[i]));
@@ -2329,8 +2494,21 @@ extern NavResult gain_skills(void)
         //         TERM_L_WHITE, "ESC");
         // }
 
+#ifdef USE_SDL
+        /* Bottom bar follows character sheet font setting */
+        if (story_character_enabled()) {
+            sdl_story_font_enable();
+        }
+#endif
+
         Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
             "Arrows -allocate      ESC -back     ENTER -confirm     q -quit");
+
+#ifdef USE_SDL
+        if (story_character_enabled()) {
+            sdl_story_font_disable();
+        }
+#endif
 
         /* Get key */
         hide_cursor = true;
@@ -2440,7 +2618,7 @@ static NavResult player_birth_aux(void)
     p_ptr->ht = 0;
     p_ptr->age = 0;
 
-    /* Oath selection (after character creation, before stats) */
+    /* Oath selection (after character creation, before tutorial/stats) */
     log_debug("Entering oath selection");
     NavResult oath_result = select_oath();
     if (oath_result != NAV_OK) return oath_result;

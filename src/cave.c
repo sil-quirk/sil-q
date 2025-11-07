@@ -1723,6 +1723,18 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
         monster_type* m_ptr = &mon_list[m_idx];
         monster_race* r_ptr = &r_info[m_ptr->r_idx];
 
+        if (!m_ptr->ml)
+        {
+            byte ha;
+            char hc;
+
+            if (song_revealing_overlay(m_idx, &ha, &hc))
+            {
+                a = ha;
+                c = hc;
+            }
+        }
+
         /* Visible monster*/
         if (m_ptr->ml)
         {
@@ -4681,6 +4693,39 @@ void map_area(void)
     {
         for (x = 1; x < MAX_DUNGEON_WID; x++)
         {
+            map_feature(y, x);
+        }
+    }
+
+    /* Redraw map */
+    p_ptr->redraw |= (PR_MAP);
+
+    /* Window stuff */
+    p_ptr->window |= (PW_OVERHEAD);
+}
+
+/*
+ * Map the dungeon within a specific radius from the player
+ */
+void map_area_radius(int radius)
+{
+    int x, y;
+    int py = p_ptr->py;
+    int px = p_ptr->px;
+
+    /* Scan within radius */
+    for (y = 1; y < MAX_DUNGEON_HGT; y++)
+    {
+        for (x = 1; x < MAX_DUNGEON_WID; x++)
+        {
+            /* Check if within radius */
+            if (radius > 0)
+            {
+                int dist = distance(py, px, y, x);
+                if (dist > radius)
+                    continue;
+            }
+
             map_feature(y, x);
         }
     }
