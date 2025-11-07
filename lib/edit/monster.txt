@@ -2379,7 +2379,7 @@ D: eyes.
 
 # Morgoth is a very special monster (thus the QUESTOR flag).
 # Values by state (Starting + 1-5; 6 total):
-# Level,      Evasion, Armour, Attack, Damage,  Will, Perception
+# Level,                  Evasion, Armour, Attack, Damage,  Will, Perception
 # Starting,               20,      5d4,    20,     6d10,    25,   10
 # 1 - Angry (Decrowned),  22,      5d4,    20,     6d10,    25,   15
 # 2 - Enraged,            25,      5d4,    30,     7d10,    30,   20

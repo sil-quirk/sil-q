@@ -982,6 +982,55 @@ static int choose_down_stairs(void)
 }
 
 /*
+ * Calculate the minimum distance between any up stairs and any down stairs on the level.
+ * Returns -1 if either type of stairs is not found.
+ */
+static int calculate_min_stair_distance(void)
+{
+    int min_distance = 9999;
+    bool found_up = false;
+    bool found_down = false;
+    
+    /* Find all up and down stairs and calculate minimum distance */
+    for (int y1 = 0; y1 < p_ptr->cur_map_hgt; y1++)
+    {
+        for (int x1 = 0; x1 < p_ptr->cur_map_wid; x1++)
+        {
+            /* Check if this is an up stair */
+            if (cave_feat[y1][x1] == FEAT_LESS || cave_feat[y1][x1] == FEAT_LESS_SHAFT)
+            {
+                found_up = true;
+                
+                /* Check distance to all down stairs */
+                for (int y2 = 0; y2 < p_ptr->cur_map_hgt; y2++)
+                {
+                    for (int x2 = 0; x2 < p_ptr->cur_map_wid; x2++)
+                    {
+                        if (cave_feat[y2][x2] == FEAT_MORE || cave_feat[y2][x2] == FEAT_MORE_SHAFT)
+                        {
+                            found_down = true;
+                            int dist = distance(y1, x1, y2, x2);
+                            if (dist < min_distance)
+                            {
+                                min_distance = dist;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    /* Return -1 if we didn't find both types of stairs */
+    if (!found_up || !found_down)
+    {
+        return -1;
+    }
+    
+    return min_distance;
+}
+
+/*
  * Place an up/down staircase at given location
  */
 void place_random_stairs(int y, int x)
@@ -5319,11 +5368,23 @@ static bool cave_gen(void)
             return false; /* Force regeneration until we get a big enough level */
         }
         
+        /* Check stair distance requirement: must be at least 87 grid distance */
+        int min_stair_dist = calculate_min_stair_distance();
+        log_trace("Niena spawn: Calculated minimum stair distance = %d", min_stair_dist);
+        
+        if (min_stair_dist < 87) {
+            log_trace("Niena spawn: FAILED - stairs too close (distance=%d, need >=87)", min_stair_dist);
+            return false; /* Force regeneration until stairs are far enough apart */
+        }
+        
+        log_trace("Niena spawn: Stair distance check PASSED (distance=%d >= 87)", min_stair_dist);
+        
         /* Try to find a room to spawn Niena in near the up stairs */
         int attempts;
         bool niena_spawned = false;
         
-        log_trace("Niena spawn: Lottery winner attempting placement at depth %d, level_size=%d", p_ptr->depth, l);
+        log_trace("Niena spawn: Lottery winner attempting placement at depth %d, level_size=%d, stair_distance=%d", 
+                  p_ptr->depth, l, min_stair_dist);
         
         /* Check if Niena already exists on this level */
         bool niena_exists = false;

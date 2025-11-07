@@ -2101,6 +2101,79 @@ void prise_silmaril(void)
                 /* Message */
                 msg_format("You have %s (%c).", o_name, index_to_label(slot));
             }
+            else
+            {
+                /* Inventory full - find best adjacent square for Silmaril */
+                int dy, dx;
+                int best_y = p_ptr->py;
+                int best_x = p_ptr->px;
+                int backup_y = -1;
+                int backup_x = -1;
+                bool found_ideal = false;
+                bool found_backup = false;
+                
+                /* First pass: try to find square with no items AND no monsters */
+                for (dy = -1; dy <= 1; dy++)
+                {
+                    for (dx = -1; dx <= 1; dx++)
+                    {
+                        int ty = p_ptr->py + dy;
+                        int tx = p_ptr->px + dx;
+                        
+                        /* Skip center */
+                        if (dy == 0 && dx == 0) continue;
+                        
+                        /* Check if square is valid, empty floor, no objects, no monsters */
+                        if (in_bounds_fully(ty, tx) && 
+                            cave_clean_bold(ty, tx) && 
+                            cave_m_idx[ty][tx] == 0)
+                        {
+                            best_y = ty;
+                            best_x = tx;
+                            found_ideal = true;
+                            break;
+                        }
+                        /* Backup: empty floor with no objects (but monster might be there) */
+                        else if (!found_backup && in_bounds_fully(ty, tx) && cave_clean_bold(ty, tx))
+                        {
+                            backup_y = ty;
+                            backup_x = tx;
+                            found_backup = true;
+                        }
+                    }
+                    if (found_ideal) break;
+                }
+                
+                /* Use backup square if no ideal square found */
+                if (!found_ideal && found_backup)
+                {
+                    best_y = backup_y;
+                    best_x = backup_x;
+                    log_debug("prise_silmaril: no monster-free square, using backup at (%d,%d)", best_y, best_x);
+                }
+                
+                /* Drop the Silmaril */
+                if (found_ideal)
+                {
+                    log_debug("prise_silmaril: inventory full, dropping Silmaril at (%d,%d) (no items, no monsters)", 
+                             best_y, best_x);
+                }
+                else if (found_backup)
+                {
+                    log_debug("prise_silmaril: inventory full, dropping Silmaril at (%d,%d) (WARNING: monster may be present)", 
+                             best_y, best_x);
+                }
+                else
+                {
+                    log_debug("prise_silmaril: inventory full, no adjacent empty square, using drop_near fallback");
+                }
+                
+                drop_near(o_ptr, 0, best_y, best_x);
+                
+                /* Describe what we dropped */
+                object_desc(o_name, sizeof(o_name), o_ptr, true, 3);
+                msg_format("You have no room, so %s drops to the floor.", o_name);
+            }
 
             // Break the truce (always)
             break_truce(true);

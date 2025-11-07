@@ -1,5 +1,297 @@
 # Session Notes
 
+## 2025-11-07: Fixed Silmaril Loss on Full Inventory ✅
+
+### Bug Fix
+Fixed critical bug where prising a Silmaril from Morgoth's crown would cause it to disappear if the player's inventory was full.
+
+### Root Cause
+The `prise_silmaril()` function in `src/cmd3.c` only handled two cases after calling `inven_carry()`:
+1. `SUPPLIES_INDEX` - item went to supplies
+2. `slot >= 0` - item went to inventory
+
+When inventory was full, `inven_carry()` returns `-1`, but there was no `else` clause to handle this case, causing the Silmaril to simply vanish.
+
+### Secondary Issue: Dropping Under Monsters
+Even after adding the drop logic, Silmarils could end up under Morgoth (or other monsters) because `drop_near()` only avoids peaceful monsters - it will place items under attacking monsters. This made the Silmaril difficult or impossible to retrieve.
+
+### Fix (v3 - Two-Tier Search)
+Implemented intelligent Silmaril placement with fallback tiers:
+
+**Tier 1 (Ideal)**: Find adjacent square with no items AND no monsters
+- Checks all 8 adjacent squares
+- Requires `cave_clean_bold()` (floor + no objects) AND `cave_m_idx[y][x] == 0` (no monster)
+- Preferred placement for easy retrieval
+
+**Tier 2 (Backup)**: Find adjacent square with no items (monster may be present)
+- Only used if Tier 1 fails
+- Ensures Silmaril doesn't stack with crown
+- Logs warning that monster may be present
+
+**Tier 3 (Fallback)**: Use `drop_near()` default behavior
+- Only if no adjacent empty squares at all
+- Handles edge cases like being completely surrounded
+
+### Code Logic
+```c
+/* First pass: ideal square (no items, no monsters) */
+if (cave_clean_bold(ty, tx) && cave_m_idx[ty][tx] == 0)
+    use this square (TIER 1)
+
+/* Second pass: backup square (no items, monster OK) */
+else if (cave_clean_bold(ty, tx))
+    save as backup (TIER 2)
+
+/* If no ideal square, use backup; if no backup, use drop_near fallback */
+drop_near(o_ptr, 0, best_y, best_x);
+```
+
+### Behavior
+When inventory is full during Silmaril prising:
+- **Best case**: Drops on adjacent empty square away from monsters
+- **Fallback**: Drops on adjacent square (may be under monster if no other option)
+- **Edge case**: Uses `drop_near()` complex logic if surrounded
+- Never stacks with crown or other items
+- 0% breakage chance - Silmarils never break
+- Debug log shows which tier was used
+
+### Why This Matters
+When fighting Morgoth with a full inventory, you don't want the hard-won Silmaril to drop right under him, forcing you to step into melee range or deal with the monster before retrieving it. This fix ensures the Silmaril drops in the safest available adjacent square.
+
+---
+
+## 2025-11-07: Bane Ability - Show Next Threshold ✅
+
+### Enhancement
+Added next threshold display to the Bane ability description, matching the format already used for Unique Bane.
+
+### Implementation
+- **File**: `src/cmd4.c` in `abilities_menu2()`
+- **Location**: Bane ability display section (S_PER, PER_BANE)
+- **Calculation**: Uses same doubling threshold logic as the bonus itself
+  - Thresholds: 2, 4, 8, 16, 32, 64, etc.
+  - Each threshold grants +1 bonus
+  
+### Display Format
+Now shows three lines:
+```
+Orc-Bane:
+  X slain, giving a +Y bonus
+  (next bonus at Z slain)
+```
+
+The threshold line appears in slate color and shows:
+- For 0 bonus with <2 kills: "(next bonus at 2 slain)"
+- For any bonus: "(next bonus at [next power of 2] slain)"
+- Hides if next threshold > 64 (already at maximum practical bonus)
+
+### Examples
+- **0 orcs slain**: Shows "next bonus at 2 slain"
+- **3 orcs slain (+1 bonus)**: Shows "next bonus at 4 slain"
+- **10 orcs slain (+2 bonus)**: Shows "next bonus at 16 slain"
+- **65 orcs slain (+5 bonus)**: Hides threshold (already > 64)
+
+### Consistency
+Both Bane and Unique Bane now use identical threshold display logic:
+- Same threshold calculation method
+- Same slate color for threshold text
+- Same cutoff at 64 threshold
+- Same conditional display based on current progress
+
+---
+
+## 2025-11-07: Nienna's Gift of Mercy - Show Current Bonus ✅
+
+### Enhancement
+Added real-time bonus display to Nienna's Gift of Mercy ability description in the abilities menu. Players can now see their current stealth bonus directly when viewing the ability.
+
+### Implementation
+- **File**: `src/cmd4.c` in `abilities_menu2()`
+- **Special Case**: When displaying `SPC_NIENA_MERCY` ability and player has it
+- **Calculation**: Mirrors the bonus calculation from `xtra1.c`:
+  - Sums all non-unique monsters seen vs killed across entire lore
+  - Applies formula: `10 * (seen - killed) / seen` **rounded up**
+  - Uses ceiling division: `(10*diff + seen - 1) / seen`
+  
+### Display Format
+After the static ability description, adds dynamic text in green:
+```
+Current bonus: +X stealth (Y seen, Z spared)
+```
+
+Or if no monsters encountered yet:
+```
+Current bonus: +0 stealth (no monsters encountered yet)
+```
+
+### Rounding Verification
+Confirmed bonus is **already rounded up** in all locations:
+- `xtra1.c` line 3411: Uses ceiling division for actual bonus
+- `xtra2.c` line 8302: Quest completion also uses ceiling division
+- `cmd4.c` line 2147: New display code uses same ceiling division
+
+All three locations use: `(mercy_ratio_times_10 + total_monsters_seen - 1) / total_monsters_seen`
+
+### User Experience
+- Players can track their mercy performance in real-time
+- Incentivizes sparing monsters to maximize the +10 stealth cap
+- Shows exact count of spared creatures (seen - killed)
+
+---
+
+## 2025-11-07: Nienna Quest Stair Distance Fix ✅
+
+### Problem
+The Nienna quest was spawning on maximum-size levels (l >= 5) without checking if the distance between up and down stairs was sufficient. The quest requires a meaningful journey across the level without killing monsters, but stairs could be very close together, making the quest trivial or nonsensical.
+
+According to documentation, the quest should require "≥87 grid distance" between stairs.
+
+### Solution
+Added `calculate_min_stair_distance()` function to measure the minimum distance between any up stairs (FEAT_LESS/FEAT_LESS_SHAFT) and any down stairs (FEAT_MORE/FEAT_MORE_SHAFT).
+
+Modified Nienna spawn check to:
+1. First check level size (l >= 5) - existing check
+2. **NEW**: Calculate minimum stair distance
+3. **NEW**: Reject and force regeneration if distance < 87 grids
+4. Only spawn Nienna if both checks pass
+
+### Implementation Details
+- **File**: `src/generate.c`
+- **New Function**: `calculate_min_stair_distance()` at line ~987
+  - Iterates through all map coordinates
+  - Finds all up and down stairs
+  - Calculates Euclidean distance between each pair
+  - Returns minimum distance found (or -1 if either type missing)
+  
+- **Modified**: Nienna spawn check at line ~5363
+  - Added distance calculation after level size check
+  - Returns `false` (forces regeneration) if distance < 87
+  - Logs distance value for debugging
+
+### Log Output Examples
+```
+Niena spawn: Niena WON the lottery - attempting spawn
+Niena spawn: Calculated minimum stair distance = 45
+Niena spawn: FAILED - stairs too close (distance=45, need >=87)
+```
+
+or on success:
+```
+Niena spawn: Calculated minimum stair distance = 102
+Niena spawn: Stair distance check PASSED (distance=102 >= 87)
+```
+
+### Testing Notes
+- Quest will now force level regeneration until stairs are adequately separated
+- Maximum-size levels with clustered stairs will be rejected
+- This ensures the pacifist challenge has meaningful scope
+
+---
+
+## 2025-11-07: Supply Menu Item-Specific Colorization ✅
+
+### Overview
+Implemented unique color coding for each specific item type in the supply menu. Every herb, potion, and gem has its own distinct color when identified, while all unidentified items share a uniform slate color.
+
+### Color Scheme (Excluding Yellow)
+
+### Color Display States
+
+**Unidentified Items:** `TERM_SLATE` (medium gray)
+**Zero Quantity Items:** `TERM_DARK` (very dark/black) - distinct from unidentified
+**Identified Items:** Specific color based on item type
+**Cursor (identified):** `TERM_L_WHITE` (bright white)
+**Cursor (unidentified):** `TERM_WHITE` (white)
+
+**Herbs (TV_FOOD):**
+- Rage: `TERM_L_RED` (bright red)
+- Sustenance: `TERM_GREEN` 
+- Terror: `TERM_VIOLET` (purple)
+- Healing: `TERM_L_GREEN` (bright green)
+- Restoration: `TERM_BLUE`
+- Hunger: `TERM_UMBER` (brown)
+- Visions: `TERM_L_UMBER` (light brown)
+- Entrancement: `TERM_VIOLET` (purple)
+- Weakness: `TERM_SLATE` (gray)
+- Sickness: `TERM_L_DARK` (dark gray)
+
+**Potions (TV_POTION):**
+- Miruvor: `TERM_L_WHITE` (bright white)
+- Orcish Liquor: `TERM_UMBER` (brown)
+- Esgalduin: `TERM_VIOLET` (purple)
+- Clarity: `TERM_L_UMBER` (light brown)
+- Healing: `TERM_L_GREEN` (bright green)
+- Voice: `TERM_L_WHITE` (bright white)
+- True Sight: `TERM_BLUE`
+- Antidote: `TERM_GREEN`
+- Quickness: `TERM_L_UMBER` (light brown)
+- Elemental Resistance: `TERM_ORANGE`
+- Strength (STR): `TERM_RED` ⭐
+- Dexterity (DEX): `TERM_GREEN` ⭐
+- Constitution (CON): `TERM_BLUE` ⭐
+- Grace (GRA): `TERM_VIOLET` ⭐
+- Slowness: `TERM_SLATE` (gray)
+- Poison: `TERM_L_DARK` (dark gray)
+- Blindness: `TERM_L_DARK` (dark gray)
+- Confusion: `TERM_SLATE` (gray)
+- Decrease Dexterity: `TERM_SLATE` (gray)
+- Decrease Grace: `TERM_SLATE` (gray)
+
+**Gems (TV_GEM):**
+- Freedom: `TERM_L_WHITE` (bright white)
+- Light: `TERM_ORANGE`
+- Sanctity: `TERM_L_UMBER` (light brown)
+- Understanding: `TERM_BLUE`
+- Revelations: `TERM_VIOLET` (purple)
+- Treasures: `TERM_ORANGE`
+- Foes: `TERM_RED`
+- Self-Knowledge: `TERM_L_GREEN` (bright green)
+- Warding: `TERM_L_UMBER` (light brown)
+- Recharging: `TERM_BLUE`
+- Shadows: `TERM_L_DARK` (dark gray)
+
+### Group Header Colors
+- **Herbs**: `TERM_GREEN` (green - not light green)
+- **Potions**: `TERM_VIOLET` (violet/purple)
+- **Gems**: `TERM_BLUE` (blue)
+- **Cursor (left panel active)**: `TERM_L_WHITE` (bright white)
+
+### Right Panel Highlight Behavior
+- Right panel items only show highlight cursor when `column == 1` (right panel is active)
+- When focus is on left panel (`column == 0`), right panel shows items in their base color without highlight
+- This prevents confusing dual-highlighting when entering the supply menu
+
+### Implementation Details
+
+**1. New Function: `get_supply_item_color()`**
+- Maps each specific item (by k_idx) to its unique color
+- Returns `TERM_SLATE` for all unidentified items (uniform appearance)
+- Uses a large switch statement on tval/sval for precise color assignment
+- Covers all herbs (SV_FOOD_*), potions (SV_POTION_*), and gems (SV_GEM_*)
+
+**2. Updated `display_supply_list()`**
+- Replaced group-based color palettes with specific item coloring
+- Calls `get_supply_item_color()` for each identified item
+- Cursor highlight uses `TERM_L_WHITE` (identified) or `TERM_WHITE` (unidentified)
+- Zero-count items remain `TERM_L_DARK` (dark gray)
+
+**3. Color Philosophy**
+- Stat potions use traditional RPG colors (STR=red, DEX=green, CON=blue, GRA=violet)
+- Healing items use green shades
+- Harmful items (poison, sickness) use dark grays
+- Magical/mystical items use violet/purple
+- Utility items vary by theme (orange for light/resistance, white for powerful effects)
+
+### Files Modified
+- `src/cmd4.c`:
+  - Lines 12128-12206: New `get_supply_item_color()` function with complete item mapping
+  - Lines 12233-12324: Updated `display_supply_list()` to use specific item colors
+
+### Build Status
+✅ Successful build with no new errors (pre-existing warning in abilities_menu2 unrelated)
+
+---
+
 ## 2025-11-07: Fixed Inventory Comparison Redraw ✅
 
 ### Issue

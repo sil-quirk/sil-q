@@ -2127,6 +2127,45 @@ int abilities_menu2(int skilltype, int* highlight)
                 {
                     /* Normal ability description in light white */
                     text_out_to_screen(TERM_L_WHITE, b_text + b_ptr->text);
+                    
+                    /* For Nienna's Gift of Mercy, show current bonus */
+                    if (skilltype == S_SPC && b_ptr->abilitynum == SPC_NIENA_MERCY && 
+                        p_ptr->have_ability[S_SPC][SPC_NIENA_MERCY])
+                    {
+                        /* Calculate current stealth bonus (same logic as in xtra1.c) */
+                        int total_monsters_seen = 0;
+                        int total_monsters_killed = 0;
+                        
+                        /* Sum up global monster tracking (excluding uniques) */
+                        for (int i = 1; i < z_info->r_max; i++)
+                        {
+                            monster_lore *l_ptr = &l_list[i];
+                            monster_race *r_ptr = &r_info[i];
+                            
+                            if (r_ptr->flags1 & RF1_UNIQUE) continue;
+                            
+                            total_monsters_seen += l_ptr->psights;
+                            total_monsters_killed += l_ptr->pkills;
+                        }
+                        
+                        if (total_monsters_seen > 0)
+                        {
+                            /* Calculate stealth bonus: 10*(seen-killed)/seen, rounded up */
+                            int mercy_ratio_times_10 = (10 * (total_monsters_seen - total_monsters_killed));
+                            int stealth_bonus = (mercy_ratio_times_10 + total_monsters_seen - 1) / total_monsters_seen;
+                            
+                            char bonus_text[100];
+                            strnfmt(bonus_text, sizeof(bonus_text), 
+                                   "\n\nCurrent bonus: +%d stealth (%d seen, %d spared)",
+                                   stealth_bonus, total_monsters_seen, 
+                                   total_monsters_seen - total_monsters_killed);
+                            text_out_to_screen(TERM_L_GREEN, bonus_text);
+                        }
+                        else
+                        {
+                            text_out_to_screen(TERM_SLATE, "\n\nCurrent bonus: +0 stealth (no monsters encountered yet)");
+                        }
+                    }
                 }
 
                 /* Reset text_out() vars */
@@ -2271,11 +2310,30 @@ int abilities_menu2(int skilltype, int* highlight)
             else if ((skilltype == S_PER) && (b_ptr->abilitynum == PER_BANE)
                 && (p_ptr->bane_type > 0))
             {
+                int killed = bane_type_killed(p_ptr->bane_type);
+                int current_bonus = bane_bonus_aux();
+                int next_threshold = 2;
+                
+                // Calculate next threshold using same formula as bane
+                int threshold = 2;
+                while (threshold <= killed)
+                {
+                    threshold *= 2;
+                }
+                next_threshold = threshold;  // This is the next power of 2
+                
                 Term_putstr(COL_DESCRIPTION, 10, -1, TERM_WHITE,
                     format("%s-Bane:", bane_name[p_ptr->bane_type]));
                 Term_putstr(COL_DESCRIPTION, 12, -1, TERM_WHITE,
-                    format("  %d slain, giving a %+d bonus",
-                        bane_type_killed(p_ptr->bane_type), bane_bonus_aux()));
+                    format("  %d slain, giving a %+d bonus", killed, current_bonus));
+                    
+                if (current_bonus == 0 && killed < 2) {
+                    Term_putstr(COL_DESCRIPTION, 13, -1, TERM_SLATE,
+                        format("  (next bonus at %d slain)", next_threshold));
+                } else if (next_threshold <= 64) {  // Don't show if threshold is too high
+                    Term_putstr(COL_DESCRIPTION, 13, -1, TERM_SLATE,
+                        format("  (next bonus at %d slain)", next_threshold));
+                }
             }
             else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH)
                 && (p_ptr->oath_type > 0))
@@ -12125,6 +12183,86 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
     return count;
 }
 
+static byte get_supply_item_color(int k_idx, bool aware)
+{
+    object_kind* k_ptr;
+
+    if (k_idx < 0 || k_idx >= z_info->k_max)
+        return TERM_WHITE;
+
+    k_ptr = &k_info[k_idx];
+
+    /* Unidentified items all use slate color */
+    if (!aware)
+        return TERM_SLATE;
+
+    /* Color by specific item type */
+    switch (k_ptr->tval)
+    {
+        case TV_FOOD: /* Herbs */
+            switch (k_ptr->sval)
+            {
+                case SV_FOOD_RAGE:         return TERM_RED;    /* Red for rage */
+                case SV_FOOD_SUSTENANCE:   return TERM_GREEN;    /* Green for sustenance */
+                case SV_FOOD_TERROR:       return TERM_VIOLET;   /* Violet for fear */
+                case SV_FOOD_HEALING:      return TERM_L_GREEN;  /* Light green for healing */
+                case SV_FOOD_RESTORATION:  return TERM_BLUE;     /* Blue for restoration */
+                case SV_FOOD_HUNGER:       return TERM_UMBER;    /* Brown for hunger */
+                case SV_FOOD_VISIONS:      return TERM_L_UMBER;  /* Light brown for visions */
+                case SV_FOOD_ENTRANCEMENT: return TERM_VIOLET;   /* Violet for entrancement */
+                case SV_FOOD_WEAKNESS:     return TERM_SLATE;    /* Grey for weakness */
+                case SV_FOOD_SICKNESS:     return TERM_L_DARK;   /* Dark grey for sickness */
+                default:                   return TERM_WHITE;
+            }
+
+        case TV_POTION:
+            switch (k_ptr->sval)
+            {
+                case SV_POTION_MIRUVOR:          return TERM_WHITE;  /* White for Miruvor */
+                case SV_POTION_ORCISH_LIQUOR:    return TERM_UMBER;    /* Brown for liquor */
+                case SV_POTION_ESGALDUIN:        return TERM_VIOLET;   /* Violet for Esgalduin */
+                case SV_POTION_CLARITY:          return TERM_L_UMBER;  /* Light brown for clarity */
+                case SV_POTION_HEALING:          return TERM_L_GREEN;  /* Light green for healing */
+                case SV_POTION_VOICE:            return TERM_L_BLUE;  /* White for voice */
+                case SV_POTION_true_SIGHT:       return TERM_BLUE;     /* Blue for true sight */
+                case SV_POTION_ANTIDOTE:         return TERM_GREEN;    /* Green for antidote */
+                case SV_POTION_QUICKNESS:        return TERM_ORANGE;  /* Light brown for speed */
+                case SV_POTION_ELEM_RESISTANCE:  return TERM_L_BLUE;   /* Orange for resistance */
+                case SV_POTION_STR:              return TERM_RED;      /* Red for strength */
+                case SV_POTION_DEX:              return TERM_GREEN;    /* Green for dexterity */
+                case SV_POTION_CON:              return TERM_L_RED;     /* Blue for constitution */
+                case SV_POTION_GRA:              return TERM_BLUE;   /* Violet for grace */
+                case SV_POTION_SLOWNESS:         return TERM_SLATE;    /* Grey for slowness */
+                case SV_POTION_POISON:           return TERM_L_DARK;   /* Dark for poison */
+                case SV_POTION_BLINDNESS:        return TERM_L_DARK;   /* Dark for blindness */
+                case SV_POTION_CONFUSION:        return TERM_SLATE;    /* Grey for confusion */
+                case SV_POTION_DEC_DEX:          return TERM_SLATE;    /* Grey for decrease dex */
+                case SV_POTION_DEC_GRA:          return TERM_SLATE;    /* Grey for decrease grace */
+                default:                         return TERM_WHITE;
+            }
+
+        case TV_GEM:
+            switch (k_ptr->sval)
+            {
+                case SV_GEM_FREEDOM:         return TERM_WHITE;  /* White for freedom */
+                case SV_GEM_LIGHT:           return TERM_ORANGE;   /* Orange for light */
+                case SV_GEM_SANCTITY:        return TERM_L_UMBER;  /* Light brown for sanctity */
+                case SV_GEM_UNDERSTANDING:   return TERM_BLUE;     /* Blue for understanding */
+                case SV_GEM_REVELATIONS:     return TERM_L_BLUE;   /* Violet for revelations */
+                case SV_GEM_TREASURES:       return TERM_ORANGE;   /* Orange for treasures */
+                case SV_GEM_FOES:            return TERM_RED;      /* Red for foes */
+                case SV_GEM_SELF_KNOWLEDGE:  return TERM_GREEN;  /* Light green for self-knowledge */
+                case SV_GEM_WARDING:         return TERM_VIOLET;  /* Light brown for warding */
+                case SV_GEM_RECHARGING:      return TERM_BLUE;     /* Blue for recharging */
+                case SV_GEM_SHADOWS:         return TERM_L_DARK;   /* Dark for shadows */
+                default:                     return TERM_WHITE;
+            }
+
+        default:
+            return TERM_WHITE;
+    }
+}
+
 static void display_supply_group_list(int col, int row, int wid, int per_page,
     int grp_idx[], int grp_cur, int grp_top, int group_totals[])
 {
@@ -12134,9 +12272,26 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
     for (i = 0; i < per_page && (grp_idx[i] >= 0); i++)
     {
         int grp = grp_idx[grp_top + i];
-        byte attr = (grp_top + i == grp_cur) ? TERM_L_BLUE
-            : (group_totals[grp] ? TERM_WHITE : TERM_L_DARK);
+        byte base_color;
+        byte attr;
         char buf[8];
+
+        /* Assign color based on group type */
+        switch (grp)
+        {
+            case SUPPLY_GROUP_HERBS:   base_color = TERM_GREEN; break;
+            case SUPPLY_GROUP_POTIONS: base_color = TERM_VIOLET;  break;
+            case SUPPLY_GROUP_GEMS:    base_color = TERM_BLUE;    break;
+            default:                   base_color = TERM_WHITE;   break;
+        }
+
+        /* Highlight cursor with white, dim if empty */
+        if (grp_top + i == grp_cur)
+            attr = TERM_L_WHITE;
+        else if (group_totals[grp] == 0)
+            attr = TERM_L_DARK;
+        else
+            attr = base_color;
 
         Term_erase(col, row + i, wid);
         c_put_str(attr, supply_group_text[grp], row + i, col);
@@ -12148,9 +12303,11 @@ static void display_supply_group_list(int col, int row, int wid, int per_page,
 
 static void display_supply_list(int col, int row, int per_page,
     supply_list_entry entries[], int entry_cnt, int entry_cur, int entry_top,
-    int count_col, int sym_col)
+    int count_col, int sym_col, int current_group, int column)
 {
     int i;
+
+    (void)current_group; /* Not used since we color by specific item type now */
 
     for (i = 0; i < per_page; i++)
     {
@@ -12186,10 +12343,12 @@ static void display_supply_list(int col, int row, int per_page,
         }
         else
         {
-            base_attr = aware ? TERM_WHITE : TERM_SLATE;
-            cursor_attr = aware ? TERM_L_BLUE : TERM_BLUE;
+            /* Get color based on specific item type */
+            base_attr = get_supply_item_color(entry->k_idx, aware);
+            cursor_attr = aware ? TERM_L_WHITE : TERM_WHITE;
         }
-        attr = (idx == entry_cur) ? cursor_attr : base_attr;
+        /* Only highlight when right panel is active (column == 1) */
+        attr = (column == 1 && idx == entry_cur) ? cursor_attr : base_attr;
 
         if (entry->item_idx >= 0 && entry->item_idx < INVEN_PACK)
         {
@@ -13504,7 +13663,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         }
 
         display_supply_group_list(0, 6, max, BROWSER_ROWS, grp_idx, grp_cur, grp_top, group_totals);
-        display_supply_list(max + 3, 6, BROWSER_ROWS, entries, entry_cnt, entry_cur, entry_top, count_col, sym_col);
+        display_supply_list(max + 3, 6, BROWSER_ROWS, entries, entry_cnt, entry_cur, entry_top, count_col, sym_col, grp_idx[grp_cur], column);
 
         /* Bottom bar: grey text with white first letters */
         Term_erase(0, 23, 255);
