@@ -1,5 +1,20 @@
 # Session Notes
 
+## 2025-11-08: Story Intro Typewriter Rendering
+
+### Issue
+Story intro paragraphs rendered garbled when the typewriter effect ran under the SDL3 story font. Each partial `Term_flush()` clipped to the dirty chunk, so previously rendered glyphs were repeatedly cropped away.
+
+### Fix
+Updated `src/main-sdl.c` so story-font runs redraw entire contiguous segments:
+- Skip the per-chunk clip rectangle when the story font is active, preventing proportional glyphs from being clipped to the dirty width.
+- When flushing a dirty story run, look up the full row in the terminal buffers (`story`, `c`, `a`), expand to the entire contiguous segment, clear that region, and call the appropriate story renderer (grid-aligned or free).
+- Fallback path clears/redraws even if per-cell story metadata is unavailable, ensuring the SDL canvas is always fully repainted.
+
+Result: the intro's typewriter animation now renders cleanly while retaining the story font.
+
+### Verification
+`build-cmake.bat` -- SDL3 target rebuilt successfully and redeployed to `sil-more-windows-sdl3\`.
 ## 2025-11-07: Fixed Silmaril Loss on Full Inventory ✅
 
 ### Bug Fix

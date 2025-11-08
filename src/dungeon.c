@@ -3383,6 +3383,7 @@ static void print_story_intro(void)
         /* Check if we have enough space for the whole paragraph */
             if (row + lines_needed >= h - 1) {
                 Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key)");
+                hide_cursor = true;
                 {
                     char k = inkey();
                     if (k == 'S') { /* Capital S skips the intro entirely */
@@ -3432,6 +3433,7 @@ static void print_story_intro(void)
     Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to finish)");
 
     /* Handle input */
+    hide_cursor = true;
     char key = inkey();
 #ifdef USE_SDL
     if (key == 'S') {

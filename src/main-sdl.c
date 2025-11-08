@@ -472,25 +472,6 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
         return 0;
     SDL_SetRenderTarget(g_state.renderer, d->canvas);
 
-    // Clear destination cell span so shorter/narrower glyphs don't leave leftovers
-    SDL_Rect clip = { x * d->cell_w, y * d->cell_h, n * d->cell_w, d->cell_h };
-    SDL_SetRenderClipRect(g_state.renderer, &clip);
-    SDL_FRect bg = {
-        (float)(x * d->cell_w),
-        (float)(y * d->cell_h),
-        (float)(n * d->cell_w),
-        (float)(d->cell_h)
-    };
-    SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
-    SDL_RenderFillRect(g_state.renderer, &bg);
-
-    /* Use extended color table to support shaded colors (indices 0-255) */
-    SDL_Color col;
-    col.r = angband_color_table[a][1];
-    col.g = angband_color_table[a][2];
-    col.b = angband_color_table[a][3];
-    col.a = 255;
-    
     // Check if any character in this chunk should use story font
     // First check the global chunk flag (for whole-line story rendering)
     bool chunk_story_font = (Term && Term->story_chunk_active && g_state.story_font);
@@ -511,6 +492,32 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
             }
         }
     }
+    
+    bool story_mode = (chunk_story_font && g_state.story_font);
+
+    if (!story_mode) {
+        // Clear destination cell span so shorter/narrower glyphs don't leave leftovers
+        SDL_Rect clip = { x * d->cell_w, y * d->cell_h, n * d->cell_w, d->cell_h };
+        SDL_SetRenderClipRect(g_state.renderer, &clip);
+        SDL_FRect bg = {
+            (float)(x * d->cell_w),
+            (float)(y * d->cell_h),
+            (float)(n * d->cell_w),
+            (float)(d->cell_h)
+        };
+        SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+        SDL_RenderFillRect(g_state.renderer, &bg);
+        SDL_SetRenderClipRect(g_state.renderer, NULL);
+    } else {
+        SDL_SetRenderClipRect(g_state.renderer, NULL);
+    }
+
+    /* Use extended color table to support shaded colors (indices 0-255) */
+    SDL_Color col;
+    col.r = angband_color_table[a][1];
+    col.g = angband_color_table[a][2];
+    col.b = angband_color_table[a][3];
+    col.a = 255;
     
     // Special logging for line 0 (top description line in unified look)
     if (y == 0) {
@@ -533,11 +540,18 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
               (void*)g_state.story_font);
 
     byte* story_row = NULL;
-    if (Term && Term->scr && Term->scr->story && y >= 0 && y < Term->hgt) {
-        story_row = Term->scr->story[y];
+    char* row_chars = NULL;
+    byte* row_attr = NULL;
+    if (Term && Term->scr && y >= 0 && y < Term->hgt) {
+        if (Term->scr->story)
+            story_row = Term->scr->story[y];
+        if (Term->scr->c)
+            row_chars = Term->scr->c[y];
+        if (Term->scr->a)
+            row_attr = Term->scr->a[y];
     }
 
-    if (chunk_story_font && g_state.story_font) {
+    if (story_mode) {
         if (story_row) {
             int offset = 0;
             while (offset < n && (x + offset) < Term->wid) {
@@ -546,31 +560,80 @@ static errr callback_sdl_text(int x, int y, int n, byte a, cptr s)
                 bool use_story = (flags & STORY_FLAG_USE) != 0;
                 bool grid_align = (flags & STORY_FLAG_CELL_ALIGN) != 0;
 
-                int run = 1;
-                while ((offset + run) < n && (term_col + run) < Term->wid) {
-                    byte next_flags = story_row[term_col + run];
+                int chunk_remaining = n - offset;
+                int chunk_run = 1;
+                while ((chunk_run < chunk_remaining) && (term_col + chunk_run) < Term->wid) {
+                    byte next_flags = story_row[term_col + chunk_run];
                     bool next_story = (next_flags & STORY_FLAG_USE) != 0;
                     bool next_grid = (next_flags & STORY_FLAG_CELL_ALIGN) != 0;
                     if (next_story != use_story)
                         break;
-                    if (use_story && next_grid != grid_align)
+                    if (next_grid != grid_align)
                         break;
-                    run++;
+                    if (row_attr && row_attr[term_col + chunk_run] != a)
+                        break;
+                    chunk_run++;
                 }
 
-                const char* run_text = s + offset;
+                bool can_extend_story = use_story && row_chars;
+                int render_col = term_col;
+                int render_end = term_col + chunk_run;
+
+                if (can_extend_story) {
+                    while (render_col > 0) {
+                        byte prev_flags = story_row[render_col - 1];
+                        bool prev_story = (prev_flags & STORY_FLAG_USE) != 0;
+                        bool prev_grid = (prev_flags & STORY_FLAG_CELL_ALIGN) != 0;
+                        if (!prev_story || prev_grid != grid_align)
+                            break;
+                        if (row_attr && row_attr[render_col - 1] != a)
+                            break;
+                        render_col--;
+                    }
+                    while (render_end < Term->wid) {
+                        byte next_flags = story_row[render_end];
+                        bool next_story = (next_flags & STORY_FLAG_USE) != 0;
+                        bool next_grid = (next_flags & STORY_FLAG_CELL_ALIGN) != 0;
+                        if (!next_story || next_grid != grid_align)
+                            break;
+                        if (row_attr && row_attr[render_end] != a)
+                            break;
+                        render_end++;
+                    }
+                }
+
+                int render_run = render_end - render_col;
+                const char* render_text = (can_extend_story && row_chars) ? (row_chars + render_col) : (s + offset);
+
+                SDL_FRect clear_rect = {
+                    (float)(render_col * d->cell_w),
+                    (float)(y * d->cell_h),
+                    (float)(render_run * d->cell_w),
+                    (float)d->cell_h
+                };
+                SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+                SDL_RenderFillRect(g_state.renderer, &clear_rect);
+
                 if (use_story) {
                     if (grid_align)
-                        sdl_render_story_text_grid(d, term_col, y, run, run_text, col);
+                        sdl_render_story_text_grid(d, render_col, y, render_run, render_text, col);
                     else
-                        sdl_render_story_text_free(d, term_col, y, run, run_text, col);
+                        sdl_render_story_text_free(d, render_col, y, render_run, render_text, col);
                 } else {
-                    sdl_render_mono_text(d, term_col, y, run, run_text, col);
+                    sdl_render_mono_text(d, render_col, y, render_run, render_text, col);
                 }
 
-                offset += run;
+                offset += chunk_run;
             }
         } else {
+            SDL_FRect clear_rect = {
+                (float)(x * d->cell_w),
+                (float)(y * d->cell_h),
+                (float)(n * d->cell_w),
+                (float)d->cell_h
+            };
+            SDL_SetRenderDrawColor(g_state.renderer, 0, 0, 0, 255);
+            SDL_RenderFillRect(g_state.renderer, &clear_rect);
             sdl_render_story_text_free(d, x, y, n, s, col);
         }
     } else {
