@@ -3850,3 +3850,15 @@ Final solution:
 3. Precise bounds: MAX(total_rows, previous_total_rows) to avoid full screen redraw
 
 This prevents black screen and only redraws when actually needed.
+
+## 2025-11-09: SDL3 Resolution Defaults Use Physical Pixels
+
+### Issue
+Creating a fresh `sil_sdl.json` on macOS detected 1440x900 instead of the panel's 2560x1600. `SDL_GetDisplayBounds()` reports logical bounds that follow OS scaling, so our resolution profiles never matched on Retina (and some Wayland) displays.
+
+### Fix
+- `src/main-sdl.c:init_sdl()` now queries both the logical bounds and the desktop display mode. The code picks the largest positive width/height pair (usually the desktop mode's physical pixels) for resolution defaults while keeping the logical bounds for window sizing.
+- Added logging so the bootstrap log shows logical bounds, the desktop mode, and the pixel dimensions fed into `sdl_config_set_defaults_for_resolution()`. This makes future DPI-related regressions easier to diagnose.
+
+### Verification
+- `build-cmake.bat` (SDL3 target) — rebuild + deployment succeeded.

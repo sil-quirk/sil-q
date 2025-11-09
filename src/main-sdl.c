@@ -1221,7 +1221,26 @@ errr init_sdl(int argc, char **argv)
         quit("could not get primary display bounds");
     }
     
-    log_info("primary display: %d %d %d %d", screen.x, screen.y, screen.w, screen.h);
+    log_info("primary display bounds (logical): %d %d %d %d",
+             screen.x, screen.y, screen.w, screen.h);
+
+    int screen_pixels_w = screen.w;
+    int screen_pixels_h = screen.h;
+    const SDL_DisplayMode* desktop_mode = SDL_GetDesktopDisplayMode(primary);
+    if (desktop_mode) {
+        log_info("primary desktop mode: %dx%d @%.2fHz",
+                 desktop_mode->w, desktop_mode->h, desktop_mode->refresh_rate);
+        if (desktop_mode->w > 0 && desktop_mode->w > screen_pixels_w) {
+            screen_pixels_w = desktop_mode->w;
+        }
+        if (desktop_mode->h > 0 && desktop_mode->h > screen_pixels_h) {
+            screen_pixels_h = desktop_mode->h;
+        }
+    } else {
+        log_warn("SDL_GetDesktopDisplayMode failed: %s", SDL_GetError());
+    }
+    log_info("primary display pixels for defaults: %dx%d",
+             screen_pixels_w, screen_pixels_h);
     
     // Save config file path for later use on exit
     const char* config_file = "sil_sdl.json";
@@ -1256,7 +1275,7 @@ errr init_sdl(int argc, char **argv)
         // Config file doesn't exist - use resolution-based defaults
         log_debug("Config file not found, using resolution-based defaults");
         sdl_config_set_defaults_for_resolution(&config, pane_config, &pane_config_count,
-                                               MAX_PANE_CONFIGS, screen.w, screen.h);
+                                               MAX_PANE_CONFIGS, screen_pixels_w, screen_pixels_h);
         
         // If no resolution-specific config was found, use default pane config
         if (pane_config_count == 0) {
