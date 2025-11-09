@@ -1529,7 +1529,14 @@ static bool get_player_house(void)
     }
 
     /* highscore_dead opens/closes internally now; ensure descriptor not leaked */
-    if (highscore_fd) { fclose(highscore_fd); highscore_fd = NULL; }
+    if (highscore_fd) {
+#ifdef USE_SDL
+        SDL_CloseIO(highscore_fd);
+#else
+        fclose(highscore_fd);
+#endif
+        highscore_fd = NULL;
+    }
 
     house_choice = get_player_choice(
         houses, house, old_house_choice, CLASS_COL, 22, house_aux_hook);

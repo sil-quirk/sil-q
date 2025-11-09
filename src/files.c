@@ -33,6 +33,15 @@
 #define INSTRUCT_ROW 21
 #define QUESTION_COL 2
 
+/* Helper macros for SDL vs FILE* compatibility */
+#ifdef USE_SDL
+#define SCORE_FILE_TYPE SDL_IOStream*
+#define SCORE_FILE_CLOSE(f) SDL_CloseIO(f)
+#else
+#define SCORE_FILE_TYPE FILE*
+#define SCORE_FILE_CLOSE(f) fclose(f)
+#endif
+
 /* Forward declaration for score update function */
 static void upsert_live_score_on_save(void);
 
@@ -4690,11 +4699,20 @@ static int highscore_seek_versioned(int i)
     log_debug("Calculated offset: %ld (header_size=%d, entry_size=%d)", 
               offset, (int)sizeof(score_file_header), (int)sizeof(high_score));
     
+#ifdef USE_SDL
+    Sint64 result = SDL_SeekIO(highscore_fd, offset, SDL_IO_SEEK_SET);
+    if (result < 0 || result != offset) {
+        log_warn("Failed to seek to offset %ld (result=%lld)", offset, (long long)result);
+        return -1;
+    }
+    return 0;
+#else
     int result = fseek(highscore_fd, offset, SEEK_SET);
     if (result != 0) {
         log_warn("Failed to seek to offset %ld (error=%d)", offset, result);
     }
     return result;
+#endif
 }
 
 /*
@@ -4888,7 +4906,11 @@ static const char* file_mode_from_flags(int mode)
 /*
  * Open scores file (all scores files must have version headers)
  */
+#ifdef USE_SDL
+static SDL_IOStream* open_scores_file_versioned(const char *filepath, int mode)
+#else
 static FILE* open_scores_file_versioned(const char *filepath, int mode)
+#endif
 {
     /* Try to load header from existing file */
     bool exists = load_scores_file_header(filepath);
@@ -4900,6 +4922,45 @@ static FILE* open_scores_file_versioned(const char *filepath, int mode)
         load_scores_file_header(filepath);
     }
     
+#ifdef USE_SDL
+    SDL_IOStream* file = NULL;
+    const char* mode_str = file_mode_from_flags(mode);
+    
+    if (mode_str == NULL) {
+        /* Special case: O_RDWR | O_CREAT - try to open existing first, then create */
+        file = SDL_IOFromFile(filepath, "r+b");
+        if (!file) {
+            /* File doesn't exist, create it */
+            file = SDL_IOFromFile(filepath, "w+b");
+        }
+    } else {
+        file = SDL_IOFromFile(filepath, mode_str);
+    }
+
+    /* If writable and file exists, reconcile header entry count with actual bytes */
+    if (file && exists && mode != O_RDONLY) {
+        Sint64 file_size = SDL_GetIOSize(file);
+        
+        if (file_size >= (Sint64)sizeof(score_file_header)) {
+            SDL_SeekIO(file, 0, SDL_IO_SEEK_SET);
+            score_file_header header;
+            if (SDL_ReadIO(file, &header, sizeof(header)) == sizeof(header)) {
+                Sint64 payload = file_size - (Sint64)sizeof(score_file_header);
+                if (payload >= 0 && (payload % (Sint64)sizeof(high_score)) == 0) {
+                    u32b actual_entries = (u32b)(payload / (Sint64)sizeof(high_score));
+                    if (header.entry_count != actual_entries) {
+                        log_info("Reconciling scores header: entry_count %u -> %u", header.entry_count, actual_entries);
+                        header.entry_count = actual_entries;
+                        SDL_SeekIO(file, 0, SDL_IO_SEEK_SET);
+                        SDL_WriteIO(file, &header, sizeof(header));
+                        scores_file_entry_count = actual_entries;
+                    }
+                }
+            }
+        }
+    }
+    return file;
+#else
     FILE* file = NULL;
     const char* mode_str = file_mode_from_flags(mode);
     
@@ -4938,6 +4999,7 @@ static FILE* open_scores_file_versioned(const char *filepath, int mode)
         }
     }
     return file;
+#endif
 }
 
 /*
@@ -4963,6 +5025,21 @@ static void update_scores_file_header_count(void)
     /* Update the header if count changed */
     if (scores_file_entry_count != count) {
         score_file_header header;
+#ifdef USE_SDL
+        if (SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET) < 0)
+            return;
+        size_t read_items = SDL_ReadIO(highscore_fd, &header, sizeof(header));
+        if (read_items != sizeof(header))
+            return;
+
+        header.entry_count = count;
+        if (SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET) < 0)
+            return;
+        size_t written_items = SDL_WriteIO(highscore_fd, &header, sizeof(header));
+        if (written_items != sizeof(header))
+            return;
+        /* SDL flushes automatically */
+#else
         if (fseek(highscore_fd, 0, SEEK_SET) != 0)
             return;
         size_t read_items = fread(&header, sizeof(header), 1, highscore_fd);
@@ -4976,6 +5053,7 @@ static void update_scores_file_header_count(void)
         if (written_items != 1)
             return;
         fflush(highscore_fd);
+#endif
         scores_file_entry_count = count;
         log_debug("Updated scores file header count to %u", count);
     }
@@ -4997,30 +5075,26 @@ static errr highscore_read(high_score* score)
     log_trace("Reading score from highscore file");
     
     /* Check current file position before reading */
-    long current_pos = ftell(highscore_fd);
-    fseek(highscore_fd, 0, SEEK_END);
-    long file_size = ftell(highscore_fd);
-    fseek(highscore_fd, current_pos, SEEK_SET);
+    Sint64 current_pos = SDL_TellIO(highscore_fd);
+    Sint64 file_size = SDL_GetIOSize(highscore_fd);
     
-    log_debug("Before read: position=%ld, file_size=%ld, bytes_to_read=%d", 
-              current_pos, file_size, (int)sizeof(high_score));
+    log_debug("Before read: position=%lld, file_size=%lld, bytes_to_read=%d", 
+              (long long)current_pos, (long long)file_size, (int)sizeof(high_score));
     
     /* Check if we have enough bytes left in the file */
-    if (current_pos + (long)sizeof(high_score) > file_size) {
-        log_debug("Not enough data: need %d bytes but only %ld available", 
-                  (int)sizeof(high_score), file_size - current_pos);
+    if (current_pos + (Sint64)sizeof(high_score) > file_size) {
+        log_debug("Not enough data: need %d bytes but only %lld available", 
+                  (int)sizeof(high_score), (long long)(file_size - current_pos));
         return (1); /* EOF */
     }
     
-    /* Use fread for reliable reading */
-    size_t items_read = fread(score, sizeof(high_score), 1, highscore_fd);
-    if (items_read != 1) {
-        if (feof(highscore_fd)) {
+    /* Use SDL_ReadIO for reliable reading */
+    size_t bytes_read = SDL_ReadIO(highscore_fd, score, sizeof(high_score));
+    if (bytes_read != sizeof(high_score)) {
+        if (bytes_read == 0) {
             log_trace("EOF reached while reading score");
-        } else if (ferror(highscore_fd)) {
-            log_trace("File error while reading score");
         } else {
-            log_trace("Partial read: got %d items, expected 1", (int)items_read);
+            log_trace("Partial read: got %zu bytes, expected %zu", bytes_read, sizeof(high_score));
         }
         return (1);
     }
@@ -5047,21 +5121,21 @@ static int highscore_write(const high_score* score)
     }
     log_debug("Writing score for player '%s' to highscore file", score->who[0] ? score->who : "<noname>");
     
-    size_t items_written = fwrite(score, sizeof(high_score), 1, highscore_fd);
-    if (items_written != 1) {
-        log_error("Failed to write score to highscore file");
+    size_t bytes_written = SDL_WriteIO(highscore_fd, score, sizeof(high_score));
+    if (bytes_written != sizeof(high_score)) {
+        log_error("Failed to write score to highscore file (wrote %zu bytes, expected %zu)", 
+                  bytes_written, sizeof(high_score));
         return 1;
     }
     
-    /* Flush the file to ensure it's written */
-    fflush(highscore_fd);
+    /* Force flush to ensure data is written */
+    SDL_FlushIO(highscore_fd);
     
     /* Ensure header reflects any new entries */
     update_scores_file_header_count();
     
     return 0;
 }   
-
 /*
  * Create backup of scores file with 3-backup rotation
  */
@@ -5474,7 +5548,7 @@ int score_count_alive_entries(void)
     char score_path[1024];
     path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
 
-    FILE* saved_fd = highscore_fd;
+    SCORE_FILE_TYPE saved_fd = highscore_fd;
     byte saved_major = scores_file_version_major;
     byte saved_minor = scores_file_version_minor;
     byte saved_patch = scores_file_version_patch;
@@ -5482,7 +5556,7 @@ int score_count_alive_entries(void)
     u32b saved_entry_count = scores_file_entry_count;
 
     safe_setuid_grab();
-    FILE* scan_fd = open_scores_file_versioned(score_path, O_RDONLY);
+    SCORE_FILE_TYPE scan_fd = open_scores_file_versioned(score_path, O_RDONLY);
     safe_setuid_drop();
     if (!scan_fd) {
         highscore_fd = saved_fd;
@@ -5506,7 +5580,7 @@ int score_count_alive_entries(void)
         }
     }
 
-    fclose(highscore_fd);
+    SCORE_FILE_CLOSE(highscore_fd);
     highscore_fd = saved_fd;
     scores_file_version_major = saved_major;
     scores_file_version_minor = saved_minor;
@@ -5522,7 +5596,7 @@ u32b score_sum_dead_points(void)
     char score_path[1024];
     path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
 
-    FILE* saved_fd = highscore_fd;
+    SCORE_FILE_TYPE saved_fd = highscore_fd;
     byte saved_major = scores_file_version_major;
     byte saved_minor = scores_file_version_minor;
     byte saved_patch = scores_file_version_patch;
@@ -5530,7 +5604,7 @@ u32b score_sum_dead_points(void)
     u32b saved_entry_count = scores_file_entry_count;
 
     safe_setuid_grab();
-    FILE* scan_fd = open_scores_file_versioned(score_path, O_RDONLY);
+    SCORE_FILE_TYPE scan_fd = open_scores_file_versioned(score_path, O_RDONLY);
     safe_setuid_drop();
     if (!scan_fd) {
         highscore_fd = saved_fd;
@@ -5587,7 +5661,7 @@ u32b score_sum_dead_points(void)
         }
     }
 
-    fclose(highscore_fd);
+    SCORE_FILE_CLOSE(highscore_fd);
     highscore_fd = saved_fd;
     scores_file_version_major = saved_major;
     scores_file_version_minor = saved_minor;
@@ -5727,7 +5801,7 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
     char score_path[1024];
     path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw");
 
-    FILE* saved_fd = highscore_fd;
+    SCORE_FILE_TYPE saved_fd = highscore_fd;
     byte saved_major = scores_file_version_major;
     byte saved_minor = scores_file_version_minor;
     byte saved_patch = scores_file_version_patch;
@@ -5765,7 +5839,7 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
 
     count = deduplicate_scores_by_name(out, count);
 
-    fclose(highscore_fd);
+    SCORE_FILE_CLOSE(highscore_fd);
     highscore_fd = saved_fd;
     /* Don't restore version - keep the version from the scores file we just read */
     /* The cached version should reflect the actual scores.raw file version */
@@ -6247,13 +6321,13 @@ extern int highscore_dead(char* name)
 
     /* Go to the start of the highscore file */
     if (highscore_seek(0)) {
-        if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
+        if (opened_here) { SCORE_FILE_CLOSE(highscore_fd); highscore_fd = NULL; }
         return 0;
     }
 
     /* Early exit: header says zero entries */
     if (scores_file_entry_count == 0) {
-        if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
+        if (opened_here) { SCORE_FILE_CLOSE(highscore_fd); highscore_fd = NULL; }
         return 0;
     }
 
@@ -6261,12 +6335,12 @@ extern int highscore_dead(char* name)
         if (highscore_read(&the_score)) break; /* EOF */
         if (strcmp(name, the_score.who) == 0) {
             int dead = (strcmp(the_score.how, "(alive and well)") != 0);
-            if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
+            if (opened_here) { SCORE_FILE_CLOSE(highscore_fd); highscore_fd = NULL; }
             return dead;
         }
     }
 
-    if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
+    if (opened_here) { SCORE_FILE_CLOSE(highscore_fd); highscore_fd = NULL; }
     return 0; /* not found => treat as alive */
 }
 
@@ -6296,7 +6370,7 @@ extern bool highscore_is_empty()
     
     /* Check entry count from header */
     bool is_empty = (scores_file_entry_count == 0);
-    if (opened_here) { fclose(highscore_fd); highscore_fd = NULL; }
+    if (opened_here) { SCORE_FILE_CLOSE(highscore_fd); highscore_fd = NULL; }
     log_debug("highscore_is_empty: entry_count=%u, returning %s", 
               scores_file_entry_count, is_empty ? "true" : "false");
     return is_empty;
@@ -6374,24 +6448,28 @@ static int highscore_add(high_score* score)
 
     for (int i = 0; i < count; i++)
     {
-        if (fwrite(&entries[i], sizeof(high_score), 1, highscore_fd) != 1)
+        if (SDL_WriteIO(highscore_fd, &entries[i], sizeof(high_score)) != sizeof(high_score))
         {
             log_error("Failed to rewrite high score table entry %d", i);
             return -1;
         }
     }
 
-    fflush(highscore_fd);
+    /* Force flush to disk - SDL doesn't auto-flush */
+    if (SDL_FlushIO(highscore_fd) != 0)
+    {
+        log_error("Failed to flush high score file: %s", SDL_GetError());
+    }
 
     /* Update header entry count */
     score_file_header header;
-    if (fseek(highscore_fd, 0, SEEK_SET) == 0
-        && fread(&header, sizeof(header), 1, highscore_fd) == 1)
+    if (SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET) >= 0
+        && SDL_ReadIO(highscore_fd, &header, sizeof(header)) == sizeof(header))
     {
         header.entry_count = count;
-        fseek(highscore_fd, 0, SEEK_SET);
-        fwrite(&header, sizeof(header), 1, highscore_fd);
-        fflush(highscore_fd);
+        SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET);
+        SDL_WriteIO(highscore_fd, &header, sizeof(header));
+        SDL_FlushIO(highscore_fd); /* Flush header too */
         scores_file_entry_count = count;
     }
     else
@@ -6427,7 +6505,7 @@ static void upsert_live_score_on_save(void)
     log_debug("upsert_live_score_on_save: Score path: %s", score_path);
 
     safe_setuid_grab();
-    FILE* live_fd = open_scores_file_versioned(score_path, O_RDWR | O_CREAT);
+    SCORE_FILE_TYPE live_fd = open_scores_file_versioned(score_path, O_RDWR | O_CREAT);
     safe_setuid_drop();
     if (!live_fd) {
         log_warn("Could not open scores.raw to upsert live save entry");
@@ -6435,7 +6513,7 @@ static void upsert_live_score_on_save(void)
     }
 
     /* Preserve global highscore state while we reuse helpers */
-    FILE* prev_fd = highscore_fd;
+    SCORE_FILE_TYPE prev_fd = highscore_fd;
     byte prev_major = scores_file_version_major;
     byte prev_minor = scores_file_version_minor;
     byte prev_patch = scores_file_version_patch;
@@ -6454,9 +6532,19 @@ static void upsert_live_score_on_save(void)
         header.entry_count = 0;
         header.reserved[0] = 0;
         header.reserved[1] = 0;
-        fseek(highscore_fd, 0, SEEK_SET);
+#ifdef USE_SDL
+        SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET);
+        SDL_WriteIO(highscore_fd, &header, sizeof(header));
+        /* SDL flushes automatically */
+#else
+        #ifdef USE_SDL
+    SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET);
+#else
+    fseek(highscore_fd, 0, SEEK_SET);
+#endif
         fwrite(&header, sizeof(header), 1, highscore_fd);
         fflush(highscore_fd);
+#endif
         scores_file_version_major = VERSION_MAJOR;
         scores_file_version_minor = VERSION_MINOR;
         scores_file_version_patch = VERSION_PATCH;
@@ -6494,19 +6582,40 @@ static void upsert_live_score_on_save(void)
     }
 
     /* Instrumentation: log header entry count vs physical file */
+    #ifdef USE_SDL
+    SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_END);
+#else
     fseek(highscore_fd, 0, SEEK_END);
+#endif
+    long phys_size = SDL_TellIO(highscore_fd);
+#ifndef USE_SDL
     long phys_size = ftell(highscore_fd);
+#endif
+    #ifdef USE_SDL
+    SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET);
+#else
     fseek(highscore_fd, 0, SEEK_SET);
+#endif
     
     score_file_header hdrchk;
+    #ifdef USE_SDL
+    SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET);
+#else
     fseek(highscore_fd, 0, SEEK_SET);
-    if (fread(&hdrchk, sizeof(hdrchk), 1, highscore_fd) == 1) {
+#endif
+
+#ifdef USE_SDL
+    if (SDL_ReadIO(highscore_fd, &hdrchk, sizeof(hdrchk)) == sizeof(hdrchk))
+#else
+    if (fread(&hdrchk, sizeof(hdrchk), 1, highscore_fd) == 1)
+#endif
+    {
         long payload = phys_size - (long)sizeof(score_file_header);
         long logical = (payload >= 0) ? (payload / (long)sizeof(high_score)) : -1;
         log_debug("scores.raw post-save header.entry_count=%u physical_entries=%ld file_size=%ld", hdrchk.entry_count, logical, phys_size);
     }
 
-    fclose(highscore_fd);
+    SCORE_FILE_CLOSE(highscore_fd);
     highscore_fd = prev_fd;
     scores_file_version_major = prev_major;
     scores_file_version_minor = prev_minor;
@@ -7945,8 +8054,15 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     }
 
     /* 4) Determine number of records (exclude header) */
+    #ifdef USE_SDL
+    SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_END);
+#else
     fseek(highscore_fd, 0, SEEK_END);
+#endif
+    off_t file_end = SDL_TellIO(highscore_fd);
+#ifndef USE_SDL
     off_t file_end = ftell(highscore_fd);
+#endif
     off_t payload  = file_end - (off_t)sizeof(score_file_header);
     int n_recs = (int)(payload / (off_t)sizeof(high_score));
     log_trace("hi-score file size=%lld, payload=%lld, records=%d",
@@ -7983,7 +8099,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     if (eligible_count == 0) {
         log_debug("No eligible races found - no kill performed");
         safe_setuid_grab();
-        if (fclose(highscore_fd) != 0)
+        if (SCORE_FILE_CLOSE(highscore_fd) != 0)
             log_warn("fclose(highscore_fd) failed, errno=%d", errno);
         safe_setuid_drop();
         highscore_fd = NULL;
@@ -8022,7 +8138,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     /* Build pool of eligible houses for selected race */
     uint16_t *pool = malloc(z_info->c_max * sizeof *pool);
     if (!pool) {
-        fclose(highscore_fd);
+        SCORE_FILE_CLOSE(highscore_fd);
         quit("Out of memory in kinslayer_try_kill()");
     }
     size_t pool_n = 0;
@@ -8063,7 +8179,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
                 log_debug("hero already dead - no kill performed");
                 if (pool) free(pool);
                 safe_setuid_grab();
-                if (fclose(highscore_fd) != 0) {
+                if (SCORE_FILE_CLOSE(highscore_fd) != 0) {
                     log_warn("fclose(highscore_fd) failed, errno=%d", errno);
                 }
                 safe_setuid_drop();
@@ -8075,7 +8191,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
                 log_debug("hero has escaped - no kill performed");
                 if (pool) free(pool);
                 safe_setuid_grab();
-                if (fclose(highscore_fd) != 0) {
+                if (SCORE_FILE_CLOSE(highscore_fd) != 0) {
                     log_warn("fclose(highscore_fd) failed, errno=%d", errno);
                 }
                 safe_setuid_drop();
@@ -8114,7 +8230,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
 
         /* 7) Close the descriptor and reset before returning */
         safe_setuid_grab();
-        if (fclose(highscore_fd) != 0) {
+        if (SCORE_FILE_CLOSE(highscore_fd) != 0) {
             log_warn("fclose(highscore_fd) failed, errno=%d", errno);
         }
         safe_setuid_drop();
@@ -8133,11 +8249,22 @@ errr file_character(cptr name, bool full)
     int i, x, y;
 
     byte a;
+
+/* Helper macro for fprintf/SDL_IOprintf compatibility */
+#ifdef USE_SDL
+#define CHAR_FILE_PRINTF SDL_IOprintf
+#else
+#define CHAR_FILE_PRINTF fprintf
+#endif
     char c;
 
     int fd;
 
+#ifdef USE_SDL
+    SDL_IOStream* fff = NULL;
+#else
     FILE* fff = NULL;
+#endif
 
     char o_name[80];
 
@@ -8181,7 +8308,11 @@ errr file_character(cptr name, bool full)
 
     /* Open the non-existing file */
     if (fd < 0)
+#ifdef USE_SDL
+        fff = sdl_fopen(buf, "w");
+#else
         fff = my_fopen(buf, "w");
+#endif
 
     /* Invalid file */
     if (!fff)
@@ -8191,7 +8322,11 @@ errr file_character(cptr name, bool full)
     text_out_file = fff;
 
     /* Begin dump */
-    fprintf(fff, "  [%s %s Character Dump]\n\n", VERSION_NAME, VERSION_STRING);
+#ifdef USE_SDL
+    SDL_IOprintf(fff, "  [%s %s Character Dump]\n\n", VERSION_NAME, VERSION_STRING);
+#else
+    CHAR_FILE_PRINTF(fff, "  [%s %s Character Dump]\n\n", VERSION_NAME, VERSION_STRING);
+#endif
 
     /* Display player */
     display_player(0);
@@ -8217,7 +8352,7 @@ errr file_character(cptr name, bool full)
         buf[x] = '\0';
 
         /* End the row */
-        fprintf(fff, "%s\n", buf);
+        CHAR_FILE_PRINTF(fff, "%s\n", buf);
     }
 
     /* If dead, dump last messages and a mini screenshot */
@@ -8228,26 +8363,26 @@ errr file_character(cptr name, bool full)
         i = message_num();
         if (i > 15)
             i = 15;
-        fprintf(fff, "\n  [Last Messages]\n\n");
+        CHAR_FILE_PRINTF(fff, "\n  [Last Messages]\n\n");
         while (i-- > 0)
         {
-            fprintf(fff, "> %s\n", message_str((s16b)i));
+            CHAR_FILE_PRINTF(fff, "> %s\n", message_str((s16b)i));
         }
-        fprintf(fff, "\n");
+        CHAR_FILE_PRINTF(fff, "\n");
 
-        fprintf(fff, "\n  [Screenshot]\n\n");
+        CHAR_FILE_PRINTF(fff, "\n  [Screenshot]\n\n");
 
         // simple screenshot for those who died in Angband
         if (!p_ptr->escaped)
         {
             for (y = 0; y <= 6; y++)
             {
-                fprintf(fff, "  ");
+                CHAR_FILE_PRINTF(fff, "  ");
                 for (x = 0; x <= 6; x++)
                 {
-                    fprintf(fff, "%c", mini_screenshot_char[y][x]);
+                    CHAR_FILE_PRINTF(fff, "%c", mini_screenshot_char[y][x]);
                 }
-                fprintf(fff, "\n");
+                CHAR_FILE_PRINTF(fff, "\n");
             }
         }
 
@@ -8255,21 +8390,21 @@ errr file_character(cptr name, bool full)
         else
         {
             // grass
-            fprintf(fff, "  .......\n");
-            fprintf(fff, "  ~...#..\n");
-            fprintf(fff, "  ~~.....\n");
-            fprintf(fff, "  .~.@...\n");
-            fprintf(fff, "  .~~...#\n");
-            fprintf(fff, "  ..~~...\n");
-            fprintf(fff, "  ...~...\n");
+            CHAR_FILE_PRINTF(fff, "  .......\n");
+            CHAR_FILE_PRINTF(fff, "  ~...#..\n");
+            CHAR_FILE_PRINTF(fff, "  ~~.....\n");
+            CHAR_FILE_PRINTF(fff, "  .~.@...\n");
+            CHAR_FILE_PRINTF(fff, "  .~~...#\n");
+            CHAR_FILE_PRINTF(fff, "  ..~~...\n");
+            CHAR_FILE_PRINTF(fff, "  ...~...\n");
         }
-        fprintf(fff, "\n");
+        CHAR_FILE_PRINTF(fff, "\n");
     }
 
     /* Dump the equipment */
     if (p_ptr->equip_cnt)
     {
-        fprintf(fff, "\n  [Equipment]\n\n");
+        CHAR_FILE_PRINTF(fff, "\n  [Equipment]\n\n");
         for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
         {
             object_type* o_ptr = &inventory[i];
@@ -8288,16 +8423,16 @@ errr file_character(cptr name, bool full)
                 my_strcat(o_name, wgt_buf, sizeof(o_name));
             }
 
-            fprintf(fff, "%c) %s\n", index_to_label(i), o_name);
+            CHAR_FILE_PRINTF(fff, "%c) %s\n", index_to_label(i), o_name);
 
             /* Describe random object attributes */
             identify_random_gen(o_ptr);
         }
-        fprintf(fff, "\n\n");
+        CHAR_FILE_PRINTF(fff, "\n\n");
     }
 
     /* Dump the inventory */
-    fprintf(fff, "  [Inventory]\n\n");
+    CHAR_FILE_PRINTF(fff, "  [Inventory]\n\n");
     for (i = 0; i < INVEN_PACK; i++)
     {
         object_type* o_ptr = &inventory[i];
@@ -8319,14 +8454,14 @@ errr file_character(cptr name, bool full)
             my_strcat(o_name, wgt_buf, sizeof(o_name));
         }
 
-        fprintf(fff, "%c) %s\n", index_to_label(i), o_name);
+        CHAR_FILE_PRINTF(fff, "%c) %s\n", index_to_label(i), o_name);
 
         /* Describe random object attributes */
         identify_random_gen(o_ptr);
     }
 
     // Dump abilities.
-    fprintf(fff, "\n\n  [Abilities]\n\n");
+    CHAR_FILE_PRINTF(fff, "\n\n  [Abilities]\n\n");
     for (i = 0; i < z_info->b_max; i++)
     {
         b_ptr = &b_info[i];
@@ -8339,25 +8474,25 @@ errr file_character(cptr name, bool full)
             if (b_ptr->skilltype == S_PER && b_ptr->abilitynum == PER_BANE
                 && p_ptr->bane_type > 0)
             {
-                fprintf(fff, "%s-%s\n", bane_name[p_ptr->bane_type],
+                CHAR_FILE_PRINTF(fff, "%s-%s\n", bane_name[p_ptr->bane_type],
                     (b_name + b_ptr->name));
             }
             else if (b_ptr->skilltype == S_WIL && b_ptr->abilitynum == WIL_OATH
                 && p_ptr->oath_type > 0)
             {
                 if (oath_invalid(p_ptr->oath_type))
-                    fprintf(fff, "%s: %s (Broken)\n", (b_name + b_ptr->name),
+                    CHAR_FILE_PRINTF(fff, "%s: %s (Broken)\n", (b_name + b_ptr->name),
                         oath_name[p_ptr->oath_type]);
                 else
-                    fprintf(fff, "%s: %s\n", (b_name + b_ptr->name),
+                    CHAR_FILE_PRINTF(fff, "%s: %s\n", (b_name + b_ptr->name),
                         oath_name[p_ptr->oath_type]);
             }
             else
-                fprintf(fff, "%s\n", (b_name + b_ptr->name));
+                CHAR_FILE_PRINTF(fff, "%s\n", (b_name + b_ptr->name));
         }
     }
 
-    fprintf(fff, "\n\n  [Enemies]\n\n");
+    CHAR_FILE_PRINTF(fff, "\n\n  [Enemies]\n\n");
 
     for (i = 1; i < z_info->r_max - 1; i++)
     {
@@ -8372,13 +8507,13 @@ errr file_character(cptr name, bool full)
         if (r_ptr->flags1 & (RF1_UNIQUE))
         {
             /* Print a message */
-            fprintf(fff, "  %-7s %s \n", l_ptr->pkills ? "(slain)" : "(seen)",
+            CHAR_FILE_PRINTF(fff, "  %-7s %s \n", l_ptr->pkills ? "(slain)" : "(seen)",
                 (r_name + r_ptr->name));
         }
         else
         {
             /* Print a message */
-            fprintf(fff, "%3d /%3d  %-40s\n", l_ptr->pkills, l_ptr->psights,
+            CHAR_FILE_PRINTF(fff, "%3d /%3d  %-40s\n", l_ptr->pkills, l_ptr->psights,
                 (r_name + r_ptr->name));
         }
     }
@@ -8386,7 +8521,7 @@ errr file_character(cptr name, bool full)
     // Dump found artefacts if dead.
     if (p_ptr->is_dead)
     {
-        fprintf(fff, "\n\n  [Artefacts]\n\n");
+        CHAR_FILE_PRINTF(fff, "\n\n  [Artefacts]\n\n");
 
         // Just go to the end of the normal artefacts list, don't also grab
         // forged artefacts.
@@ -8405,12 +8540,12 @@ errr file_character(cptr name, bool full)
             make_fake_artefact(o_ptr, i);
             object_desc_spoil(o_name, sizeof(o_name), o_ptr, true, 0);
 
-            fprintf(
+            CHAR_FILE_PRINTF(
                 fff, "%s %s\n", o_name, a_ptr->found_num > 0 ? "(found)" : "");
         }
     }
 
-    fprintf(fff, "\n\n  [Notes]\n\n");
+    CHAR_FILE_PRINTF(fff, "\n\n  [Notes]\n\n");
 
     /*dump notes to character file*/
     i = 0;
@@ -8423,13 +8558,13 @@ errr file_character(cptr name, bool full)
 
         /*output it to the character dump*/
         if (holder != '\0')
-            fprintf(fff, "%c", holder);
+            CHAR_FILE_PRINTF(fff, "%c", holder);
 
         // increment location in notes buffer
         i++;
     }
 
-    fprintf(fff, "\n");
+    CHAR_FILE_PRINTF(fff, "\n");
 
     /* Count options */
     for (i = OPT_BIRTH; i < OPT_CHEAT; i++)
@@ -8443,27 +8578,33 @@ errr file_character(cptr name, bool full)
     if (challenges)
     {
         /* Dump options */
-        fprintf(fff, "  [Challenges]\n\n");
+        CHAR_FILE_PRINTF(fff, "  [Challenges]\n\n");
 
         /* Dump options */
         for (i = OPT_BIRTH; i < OPT_CHEAT; i++)
         {
             if (option_desc[i] && op_ptr->opt[i])
             {
-                fprintf(fff, "%-45s\n", option_desc[i]);
+                CHAR_FILE_PRINTF(fff, "%-45s\n", option_desc[i]);
             }
         }
     }
 
     /* Skip some lines */
-    fprintf(fff, "\n\n");
+    CHAR_FILE_PRINTF(fff, "\n\n");
 
     // display a "score"
     create_score(&the_score);
-    fprintf(fff, "  ['Score' %.9d]\n\n", score_points(&the_score));
+    CHAR_FILE_PRINTF(fff, "  ['Score' %.9d]\n\n", score_points(&the_score));
 
     /* Close it */
+#ifdef USE_SDL
+    sdl_fclose(fff);
+#else
     my_fclose(fff);
+#endif
+
+#undef CHAR_FILE_PRINTF
 
     /* Success */
     return (0);
@@ -8966,7 +9107,7 @@ void close_game(void)
 
     /* Shut the high score file */
     log_debug("Closing highscore file");
-    fclose(highscore_fd);
+    SCORE_FILE_CLOSE(highscore_fd);
 
     /* Forget the high score fd */
     highscore_fd = NULL;
@@ -9788,7 +9929,7 @@ bool autoload_alive_from_scores(void)
     path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
 
     /* Preserve global scorefile state */
-    FILE*  saved_fd = highscore_fd;
+    SCORE_FILE_TYPE saved_fd = highscore_fd;
     byte saved_major = scores_file_version_major;
     byte saved_minor = scores_file_version_minor;
     byte saved_patch = scores_file_version_patch;
@@ -9811,9 +9952,20 @@ bool autoload_alive_from_scores(void)
 
     /* Determine number of records */
     int n_recs;
+    #ifdef USE_SDL
+    SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_END);
+#else
     fseek(highscore_fd, 0, SEEK_END);
+#endif
+    long file_size = SDL_TellIO(highscore_fd);
+#ifndef USE_SDL
     long file_size = ftell(highscore_fd);
+#endif
+    #ifdef USE_SDL
+    SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET);
+#else
     fseek(highscore_fd, 0, SEEK_SET);
+#endif
     
     long payload = file_size - (long)sizeof(score_file_header);
     if (payload < 0) payload = 0;
@@ -9824,7 +9976,7 @@ bool autoload_alive_from_scores(void)
     log_trace("autoload: scorefile n_recs=%d header_count=%u", n_recs, scores_file_entry_count);
     
     if (n_recs <= 0) {
-        fclose(highscore_fd);
+        SCORE_FILE_CLOSE(highscore_fd);
         highscore_fd = saved_fd;
         scores_file_version_major = saved_major;
         scores_file_version_minor = saved_minor;
@@ -9852,7 +10004,7 @@ bool autoload_alive_from_scores(void)
         log_info("autoload: savefile path generated: '%s'", savefile);
         if (load_player()) {
             log_info("autoload: successfully loaded '%s' (normalized)", who_buf);
-            fclose(highscore_fd);
+            SCORE_FILE_CLOSE(highscore_fd);
             highscore_fd = saved_fd;
             scores_file_version_major = saved_major;
             scores_file_version_minor = saved_minor;
@@ -9876,7 +10028,7 @@ bool autoload_alive_from_scores(void)
             /* Restore canonical name */
             my_strcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
             process_player_name(true);
-            fclose(highscore_fd);
+            SCORE_FILE_CLOSE(highscore_fd);
             highscore_fd = saved_fd;
             scores_file_version_major = saved_major;
             scores_file_version_minor = saved_minor;
@@ -9906,7 +10058,7 @@ bool autoload_alive_from_scores(void)
 #endif
     }
 
-    fclose(highscore_fd);
+    SCORE_FILE_CLOSE(highscore_fd);
     highscore_fd = saved_fd;
     scores_file_version_major = saved_major;
     scores_file_version_minor = saved_minor;
@@ -9930,7 +10082,7 @@ void clear_scorefile(void)
 
     /* Close existing descriptor if open */
     if (was_open) {
-        fclose(highscore_fd);
+        SCORE_FILE_CLOSE(highscore_fd);
         highscore_fd = NULL;
     }
 
@@ -10266,5 +10418,8 @@ void backup_and_clear_saves(void)
     
     log_trace("Folder-based backup process completed");
 }
+
+
+
 
 

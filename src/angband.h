@@ -33,6 +33,11 @@
 #include "defines.h"
 #include "types.h"
 #include "supplies.h"
+
+#ifdef USE_SDL
+#include <SDL3/SDL.h>
+#endif
+
 #include "externs.h"
 
 /***** Some older copyright messages follow below *****/

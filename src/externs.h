@@ -272,7 +272,11 @@ extern bool (*get_mon_num_hook)(int r_idx);
 extern bool (*get_obj_num_hook)(int k_idx);
 extern void (*object_info_out_flags)(
     const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3);
+#ifdef USE_SDL
+extern SDL_IOStream* text_out_file;
+#else
 extern FILE* text_out_file;
+#endif
 extern void (*text_out_hook)(byte a, cptr str);
 extern int text_out_wrap;
 extern int text_out_indent;
@@ -669,7 +673,11 @@ extern void mini_screenshot(void);
 extern void prt_mini_screenshot(int col, int row);
 extern int silmarils_possessed(void);
 extern int has_iron_crown(void);
+#ifdef USE_SDL
+extern SDL_IOStream* highscore_fd;
+#else
 extern FILE* highscore_fd;
+#endif
 extern int meta_write(const metarun*);
 extern errr meta_read(metarun*);
 extern int meta_seek(int i);
@@ -1081,14 +1089,34 @@ extern void init_logger(bool quiet, const char* exe_path);
 extern errr path_parse(char* buf, size_t max, cptr file);
 extern errr path_build(char* buf, size_t max, cptr path, cptr file);
 extern errr path_temp(char* buf, size_t max);
+
+#ifdef USE_SDL
+/* SDL3-based file I/O operations */
+extern SDL_IOStream* sdl_fopen(cptr file, cptr mode);
+extern SDL_IOStream* sdl_fopen_temp(char* buf, size_t max);
+extern errr sdl_fclose(SDL_IOStream* stream);
+extern errr sdl_fgets(SDL_IOStream* stream, char* buf, size_t n);
+extern errr sdl_fputs(SDL_IOStream* stream, cptr buf, size_t n);
+extern errr sdl_read(SDL_IOStream* stream, char* buf, size_t n);
+extern errr sdl_write(SDL_IOStream* stream, cptr buf, size_t n);
+extern errr sdl_seek(SDL_IOStream* stream, Sint64 offset);
+extern Sint64 sdl_tell(SDL_IOStream* stream);
+extern Sint64 sdl_size(SDL_IOStream* stream);
+#endif
+
+/* DEPRECATED - Old FILE*-based operations - DO NOT USE */
 extern FILE* my_fopen(cptr file, cptr mode);
 extern FILE* my_fopen_temp(char* buf, size_t max);
 extern errr my_fclose(FILE* fff);
 extern errr my_fgets(FILE* fff, char* buf, size_t n);
 extern errr my_fputs(FILE* fff, cptr buf, size_t n);
+
+/* File management operations (using standard C, SDL doesn't provide these) */
 extern errr fd_kill(cptr file);
 extern errr fd_move(cptr file, cptr what);
 extern errr fd_copy(cptr file, cptr what);
+
+/* DEPRECATED - Old file descriptor operations - DO NOT USE */
 extern int fd_make(cptr file, int mode);
 extern int fd_open(cptr file, int flags);
 extern errr fd_lock(int fd, int what);
