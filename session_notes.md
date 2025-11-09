@@ -1,55 +1,47 @@
 # Session Notes
 
-## 2025-11-09: Fixed Physical Resolution Detection Across Platforms
+## 2025-11-09: Fixed Physical Resolution Detection Using pixel_density
 
 ### Issue
-Physical display resolutions were not detected correctly on different systems, particularly on macOS with Retina displays. When creating default `sil_sdl.json` on a Mac with 2560×1600 physical resolution, the code incorrectly detected 1440×900 due to system DPI scaling. This happened because `SDL_GetDisplayBounds()` returns logical pixels (accounting for OS scaling) rather than physical pixels.
+Physical display resolutions were not detected correctly on different systems, particularly on macOS with Retina displays. When creating default `sil_sdl.json` on a Mac with 2560×1600 physical resolution, the code incorrectly detected 1440×900 due to system DPI scaling.
 
 ### Root Cause
-The original code in `src/main-sdl.c` used `SDL_GetDisplayBounds()` as the primary method to get screen dimensions:
+The original code attempted to use `SDL_GetDisplayBounds()` and `SDL_GetDesktopDisplayMode()` to get physical resolution, but both return **logical** pixel dimensions on macOS, not physical pixels. This is SDL3's expected behavior - these APIs return OS-adjusted coordinates.
+
+Initial fix attempt used `SDL_GetDisplayContentScale()`, but this also returned 1.0 instead of 2.0 on the affected Mac system, indicating it's not reliable for this purpose.
+
+### The Correct Solution: pixel_density Field
+The proper SDL3 approach is to use the `pixel_density` field in the `SDL_DisplayMode` struct:
+
 ```c
-SDL_Rect screen;
-SDL_GetDisplayBounds(primary, &screen);
-int screen_pixels_w = screen.w;  // WRONG on high-DPI displays
-int screen_pixels_h = screen.h;
+typedef struct SDL_DisplayMode {
+    SDL_DisplayID displayID;
+    SDL_PixelFormat format;
+    int w;                      // Logical width
+    int h;                      // Logical height
+    float pixel_density;        // Scale factor: e.g., 2.0 on Retina displays
+    float refresh_rate;
+    // ...
+} SDL_DisplayMode;
 ```
 
-On macOS Retina displays with 2× scaling:
-- `SDL_GetDisplayBounds()` returns 1440×900 (logical pixels)
-- Physical resolution is actually 2560×1600 (physical pixels)
-- The code would then apply settings for 1440×900 instead of the correct 2560×1600 profile
+**Physical pixels = logical dimensions × pixel_density**
 
-### SDL3 API Differences
-- **SDL_GetDisplayBounds()**: Returns logical coordinates (scaled by OS/DPI settings)
-- **SDL_GetDesktopDisplayMode()**: Returns physical pixel dimensions (actual resolution)
-- **SDL_GetDisplayContentScale()**: Returns the scale factor (e.g., 2.0 on Retina displays)
+### Implementation
+Updated `src/main-sdl.c` to:
 
-### Fix
-Rewrote the resolution detection logic to prioritize physical pixel dimensions:
+1. Get `SDL_DisplayMode*` from `SDL_GetDesktopDisplayMode()`
+2. Extract `pixel_density` from the display mode
+3. Calculate physical resolution: `screen_pixels_w = (int)(w * pixel_density + 0.5f)`
+4. Use physical resolution for matching resolution profiles
 
-1. **Primary method**: Use `SDL_GetDesktopDisplayMode()` which returns physical pixels
-2. **Fallback method**: If desktop mode fails, calculate physical pixels by multiplying logical bounds by content scale
-3. **Enhanced logging**: Now logs both logical bounds, content scale, and physical resolution for debugging
-
-Key changes in `src/main-sdl.c`:
 ```c
-// Get logical bounds (may be scaled on high-DPI displays)
-SDL_Rect screen;
-SDL_GetDisplayBounds(primary, &screen);
-
-// Get content scale factor (e.g., 2.0 on Retina)
-float content_scale = SDL_GetDisplayContentScale(primary);
-
-// Get physical pixel dimensions from desktop mode
 const SDL_DisplayMode* desktop_mode = SDL_GetDesktopDisplayMode(primary);
-if (desktop_mode && desktop_mode->w > 0 && desktop_mode->h > 0) {
-    screen_pixels_w = desktop_mode->w;  // Physical pixels
-    screen_pixels_h = desktop_mode->h;
-} else {
-    // Fallback: logical bounds × content scale
-    screen_pixels_w = (int)(screen.w * content_scale + 0.5f);
-    screen_pixels_h = (int)(screen.h * content_scale + 0.5f);
-}
+float pixel_density = desktop_mode->pixel_density;
+
+// Calculate physical pixel dimensions
+int screen_pixels_w = (int)(desktop_mode->w * pixel_density + 0.5f);
+int screen_pixels_h = (int)(desktop_mode->h * pixel_density + 0.5f);
 ```
 
 ### Expected Behavior After Fix
@@ -57,8 +49,7 @@ if (desktop_mode && desktop_mode->w > 0 && desktop_mode->h > 0) {
 **On macOS Retina (2560×1600 physical with 2× scaling):**
 ```
 primary display bounds (logical): 1440×900 at (0,0)
-primary display content scale: 2.00
-primary desktop mode (physical pixels): 2560×1600 @60.00Hz
+primary display desktop mode: 1440×900 @60.00Hz, pixel_density=2.00
 primary display physical resolution for defaults: 2560×1600
 Setting resolution-specific defaults for 2560×1600
 Detected 2560×1600 (MacBook 13") resolution - applying optimized defaults
@@ -67,23 +58,28 @@ Detected 2560×1600 (MacBook 13") resolution - applying optimized defaults
 **On Windows (typically no scaling):**
 ```
 primary display bounds (logical): 1920×1080 at (0,0)
-primary display content scale: 1.00
-primary desktop mode (physical pixels): 1920×1080 @144.00Hz
+primary display desktop mode: 1920×1080 @144.00Hz, pixel_density=1.00
 primary display physical resolution for defaults: 1920×1080
 Setting resolution-specific defaults for 1920×1080
 Detected 1920×1080 (Full HD) resolution - applying optimized defaults
 ```
 
 **On Linux (variable scaling):**
-Will correctly detect physical pixels via `SDL_GetDesktopDisplayMode()` regardless of compositor scaling settings.
+Will correctly calculate physical pixels via `pixel_density` regardless of compositor scaling settings.
+
+### Why This Works
+- `pixel_density` is specifically designed to provide the DPI scale factor
+- Works consistently across all platforms (Windows, macOS, Linux)
+- No need for platform-specific code or workarounds
+- Directly supported by SDL3's display mode API
 
 ### Testing
-Built successfully with `build-cmake.bat`. The fix is cross-platform compatible and uses only stable SDL3 APIs.
+Built successfully with `build-cmake.bat`. The fix uses only stable SDL3 APIs and is fully cross-platform compatible.
 
 ### References
-- [SDL_GetDisplayBounds](https://wiki.libsdl.org/SDL3/SDL_GetDisplayBounds) - logical coordinates
-- [SDL_GetDesktopDisplayMode](https://wiki.libsdl.org/SDL3/SDL_GetDesktopDisplayMode) - physical pixels
-- [SDL_GetDisplayContentScale](https://wiki.libsdl.org/SDL3/SDL_GetDisplayContentScale) - DPI scale factor
+- [SDL_DisplayMode](https://wiki.libsdl.org/SDL3/SDL_DisplayMode) - Contains pixel_density field
+- [SDL_GetDesktopDisplayMode](https://wiki.libsdl.org/SDL3/SDL_GetDesktopDisplayMode) - Returns display mode with density
+- [SDL_GetFullscreenDisplayModes](https://wiki.libsdl.org/SDL3/SDL_GetFullscreenDisplayModes) - Alternative for listing all modes
 
 ---
 

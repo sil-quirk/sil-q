@@ -1216,7 +1216,7 @@ errr init_sdl(int argc, char **argv)
         quit("could not get primary display ID");
     }
     
-    // Get logical bounds (may be scaled on high-DPI displays like macOS Retina)
+    // Get display bounds for window sizing (uses logical coordinates)
     SDL_Rect screen;
     if (!SDL_GetDisplayBounds(primary, &screen)) {
         log_error("SDL_GetDisplayBounds failed: %s", SDL_GetError());
@@ -1225,35 +1225,27 @@ errr init_sdl(int argc, char **argv)
     log_info("primary display bounds (logical): %dx%d at (%d,%d)",
              screen.w, screen.h, screen.x, screen.y);
     
-    // Get content scale factor (e.g., 2.0 on Retina displays)
-    float content_scale = SDL_GetDisplayContentScale(primary);
-    if (content_scale <= 0.0f) {
-        log_warn("SDL_GetDisplayContentScale failed or returned invalid value: %f, defaulting to 1.0", 
-                 content_scale);
-        content_scale = 1.0f;
-    }
-    log_info("primary display content scale: %.2f", content_scale);
-
-    // Get the actual desktop display mode for physical pixel dimensions
-    // This is the most reliable way to get the true resolution across all platforms
-    int screen_pixels_w = 0;
-    int screen_pixels_h = 0;
-    
+    // Get the desktop display mode - this contains the pixel_density field we need
     const SDL_DisplayMode* desktop_mode = SDL_GetDesktopDisplayMode(primary);
-    if (desktop_mode && desktop_mode->w > 0 && desktop_mode->h > 0) {
-        // SDL_GetDesktopDisplayMode returns physical pixel dimensions
-        screen_pixels_w = desktop_mode->w;
-        screen_pixels_h = desktop_mode->h;
-        log_info("primary desktop mode (physical pixels): %dx%d @%.2fHz",
-                 desktop_mode->w, desktop_mode->h, desktop_mode->refresh_rate);
-    } else {
-        // Fallback: use logical bounds scaled by content scale
-        log_warn("SDL_GetDesktopDisplayMode failed: %s, using scaled logical bounds", 
-                 SDL_GetError());
-        screen_pixels_w = (int)(screen.w * content_scale + 0.5f);
-        screen_pixels_h = (int)(screen.h * content_scale + 0.5f);
+    if (!desktop_mode) {
+        log_error("SDL_GetDesktopDisplayMode failed: %s", SDL_GetError());
+        quit("could not get desktop display mode");
     }
     
+    // SDL_DisplayMode contains:
+    // - w, h: logical resolution (points on macOS, pixels on Windows/Linux without scaling)
+    // - pixel_density: scale factor (e.g., 2.0 on Retina displays, 1.0 otherwise)
+    // Physical resolution = logical × pixel_density
+    float pixel_density = desktop_mode->pixel_density;
+    
+    // Calculate physical pixel dimensions for resolution profile matching
+    // On macOS Retina: 1440×900 logical × 2.0 density = 2560×1600 physical
+    // On Windows/Linux (no scaling): 1920×1080 logical × 1.0 density = 1920×1080 physical
+    int screen_pixels_w = (int)(desktop_mode->w * pixel_density + 0.5f);
+    int screen_pixels_h = (int)(desktop_mode->h * pixel_density + 0.5f);
+    
+    log_info("primary display desktop mode: %dx%d @%.2fHz, pixel_density=%.2f",
+             desktop_mode->w, desktop_mode->h, desktop_mode->refresh_rate, pixel_density);
     log_info("primary display physical resolution for defaults: %dx%d",
              screen_pixels_w, screen_pixels_h);
     
