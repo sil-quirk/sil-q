@@ -86,7 +86,7 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 4. Navigate to the Sil-More source directory.
 5. Configure and build:
    ```bash
-   cmake -B build -DCMAKE_BUILD_TYPE=Release -DUSE_SDL=ON -DUSE_GCU=OFF
+   cmake -B build
    cmake --build build --parallel
    ```
 6. The executable will be in `build/sil-more`.
