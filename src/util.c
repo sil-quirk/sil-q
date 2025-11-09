@@ -5933,7 +5933,7 @@ cptr attr_to_text(byte a)
 void init_logger(bool quiet, const char* exe_path)
 {
     const char* log_level_str = getenv("SIL_LOG_LEVEL");
-    int level = LOG_TRACE; /* Default to TRACE level */
+    int level = LOG_DEBUG; /* Default to DEBUG level */
     char log_path[1024];
     
     if (log_level_str && strlen(log_level_str) > 0)

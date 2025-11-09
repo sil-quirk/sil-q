@@ -1,5 +1,92 @@
 # Session Notes
 
+## 2025-11-09: Fixed Physical Resolution Detection Across Platforms
+
+### Issue
+Physical display resolutions were not detected correctly on different systems, particularly on macOS with Retina displays. When creating default `sil_sdl.json` on a Mac with 2560×1600 physical resolution, the code incorrectly detected 1440×900 due to system DPI scaling. This happened because `SDL_GetDisplayBounds()` returns logical pixels (accounting for OS scaling) rather than physical pixels.
+
+### Root Cause
+The original code in `src/main-sdl.c` used `SDL_GetDisplayBounds()` as the primary method to get screen dimensions:
+```c
+SDL_Rect screen;
+SDL_GetDisplayBounds(primary, &screen);
+int screen_pixels_w = screen.w;  // WRONG on high-DPI displays
+int screen_pixels_h = screen.h;
+```
+
+On macOS Retina displays with 2× scaling:
+- `SDL_GetDisplayBounds()` returns 1440×900 (logical pixels)
+- Physical resolution is actually 2560×1600 (physical pixels)
+- The code would then apply settings for 1440×900 instead of the correct 2560×1600 profile
+
+### SDL3 API Differences
+- **SDL_GetDisplayBounds()**: Returns logical coordinates (scaled by OS/DPI settings)
+- **SDL_GetDesktopDisplayMode()**: Returns physical pixel dimensions (actual resolution)
+- **SDL_GetDisplayContentScale()**: Returns the scale factor (e.g., 2.0 on Retina displays)
+
+### Fix
+Rewrote the resolution detection logic to prioritize physical pixel dimensions:
+
+1. **Primary method**: Use `SDL_GetDesktopDisplayMode()` which returns physical pixels
+2. **Fallback method**: If desktop mode fails, calculate physical pixels by multiplying logical bounds by content scale
+3. **Enhanced logging**: Now logs both logical bounds, content scale, and physical resolution for debugging
+
+Key changes in `src/main-sdl.c`:
+```c
+// Get logical bounds (may be scaled on high-DPI displays)
+SDL_Rect screen;
+SDL_GetDisplayBounds(primary, &screen);
+
+// Get content scale factor (e.g., 2.0 on Retina)
+float content_scale = SDL_GetDisplayContentScale(primary);
+
+// Get physical pixel dimensions from desktop mode
+const SDL_DisplayMode* desktop_mode = SDL_GetDesktopDisplayMode(primary);
+if (desktop_mode && desktop_mode->w > 0 && desktop_mode->h > 0) {
+    screen_pixels_w = desktop_mode->w;  // Physical pixels
+    screen_pixels_h = desktop_mode->h;
+} else {
+    // Fallback: logical bounds × content scale
+    screen_pixels_w = (int)(screen.w * content_scale + 0.5f);
+    screen_pixels_h = (int)(screen.h * content_scale + 0.5f);
+}
+```
+
+### Expected Behavior After Fix
+
+**On macOS Retina (2560×1600 physical with 2× scaling):**
+```
+primary display bounds (logical): 1440×900 at (0,0)
+primary display content scale: 2.00
+primary desktop mode (physical pixels): 2560×1600 @60.00Hz
+primary display physical resolution for defaults: 2560×1600
+Setting resolution-specific defaults for 2560×1600
+Detected 2560×1600 (MacBook 13") resolution - applying optimized defaults
+```
+
+**On Windows (typically no scaling):**
+```
+primary display bounds (logical): 1920×1080 at (0,0)
+primary display content scale: 1.00
+primary desktop mode (physical pixels): 1920×1080 @144.00Hz
+primary display physical resolution for defaults: 1920×1080
+Setting resolution-specific defaults for 1920×1080
+Detected 1920×1080 (Full HD) resolution - applying optimized defaults
+```
+
+**On Linux (variable scaling):**
+Will correctly detect physical pixels via `SDL_GetDesktopDisplayMode()` regardless of compositor scaling settings.
+
+### Testing
+Built successfully with `build-cmake.bat`. The fix is cross-platform compatible and uses only stable SDL3 APIs.
+
+### References
+- [SDL_GetDisplayBounds](https://wiki.libsdl.org/SDL3/SDL_GetDisplayBounds) - logical coordinates
+- [SDL_GetDesktopDisplayMode](https://wiki.libsdl.org/SDL3/SDL_GetDesktopDisplayMode) - physical pixels
+- [SDL_GetDisplayContentScale](https://wiki.libsdl.org/SDL3/SDL_GetDisplayContentScale) - DPI scale factor
+
+---
+
 ## 2025-11-08: Story Intro Typewriter Rendering
 
 ### Issue
@@ -3862,3 +3949,27 @@ Creating a fresh `sil_sdl.json` on macOS detected 1440x900 instead of the panel'
 
 ### Verification
 - `build-cmake.bat` (SDL3 target) — rebuild + deployment succeeded.
+
+### Follow-Up (2025-11-09 PM)
+- `src/main-sdl.c` now also considers `SDL_DisplayMode.pixel_density` and `SDL_GetDisplayContentScale()` to convert logical bounds into estimated physical pixels before selecting defaults. This keeps Windows/Linux behavior intact while finally surfacing Retina/HiDPI native resolutions (logs include the density hint and final pixel estimate).
+- Rebuilt via `build-cmake.bat` to confirm the changes compile and deploy cleanly.
+
+### Windows Regression + Final Fix (2025-11-09 Evening)
+- Using the content-scale hint alone caused Windows to treat its already-physical desktop size as logical, multiplying by DPI again and landing on resolutions that had no matching profile (falling back to scale 1). Adjusted the heuristic so density multipliers apply only to the logical bounds while still merging in the desktop mode's absolute pixels.
+- Added a final fallback that scans `SDL_GetFullscreenDisplayModes()` when the prior hints still match the logical bounds (e.g., macOS returning 1440×900 for both desktop/bounds). The scan picks the largest available mode (respecting per-mode pixel_density) and uses that as the physical resolution for defaults.
+- Rebuilt with `build-cmake.bat` (SDL3) after the fix; deployment succeeded.
+
+### Follow-Up: SDL_GetCurrentDisplayMode (2025-11-10)
+- Removed the fullscreen-mode scan (it confused multi-monitor Windows setups) and instead query both `SDL_GetDesktopDisplayMode()` and `SDL_GetCurrentDisplayMode()`, merging whichever reports the larger pixel dimensions. This keeps macOS happy (current mode reports the scaled panel) without over-inflating Windows resolutions.
+- Density multipliers now strictly apply to the logical bounds reported by `SDL_GetDisplayBounds()`, so Windows' already-physical pixels stay untouched while Retina displays still expand.
+- Rebuilt with `build-cmake.bat` to verify the updated probing compiles and deploys.
+
+### Resolution Candidate Fallback (2025-11-10)
+- Added a small candidate list helper in `src/main-sdl.c` so we can try multiple width/height pairs when picking defaults. We now attempt (1) the pixel estimate, (2) raw logical bounds, (3) desktop mode, and (4) current mode, stopping as soon as `sdl_config_set_defaults_for_resolution()` finds a profile.
+- `sdl_config_set_defaults_for_resolution()` now returns `bool`, letting the caller detect whether a matching profile existed instead of blindly trusting the last attempt.
+- Result: if the scaled DPI guess over-shoots (the Windows 5760×3600 case), we instantly fall back to the unscaled 2880×1800 candidate and recover the correct scale. Rebuilt with `build-cmake.bat` after the change.
+
+### Physical Pixel Probe (2025-11-10 Late)
+- Implemented a hidden SDL window probe (`detect_display_pixel_scale()` in `src/main-sdl.c`) that queries `SDL_GetWindowPixelDensity`, `SDL_GetWindowDisplayScale`, and the logical-vs-pixel size ratio to measure the actual scale factor of the primary display. This replaces the previous heuristic so we're no longer "guesstimating" per-platform behavior.
+- `init_sdl()` now prefers the measured scale when expanding logical bounds to physical pixels; only if the probe reports 1.0 do we fall back to explicit `SDL_DisplayMode.pixel_density` data. `SDL_GetDisplayContentScale()` is still logged for diagnostics but no longer forces scaling on Windows.
+- Rebuilt with `build-cmake.bat` to verify the new detection path compiles and deploys.

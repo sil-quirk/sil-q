@@ -1215,31 +1215,46 @@ errr init_sdl(int argc, char **argv)
         log_error("SDL_GetPrimaryDisplay failed: %s", SDL_GetError());
         quit("could not get primary display ID");
     }
+    
+    // Get logical bounds (may be scaled on high-DPI displays like macOS Retina)
     SDL_Rect screen;
     if (!SDL_GetDisplayBounds(primary, &screen)) {
         log_error("SDL_GetDisplayBounds failed: %s", SDL_GetError());
         quit("could not get primary display bounds");
     }
+    log_info("primary display bounds (logical): %dx%d at (%d,%d)",
+             screen.w, screen.h, screen.x, screen.y);
     
-    log_info("primary display bounds (logical): %d %d %d %d",
-             screen.x, screen.y, screen.w, screen.h);
-
-    int screen_pixels_w = screen.w;
-    int screen_pixels_h = screen.h;
-    const SDL_DisplayMode* desktop_mode = SDL_GetDesktopDisplayMode(primary);
-    if (desktop_mode) {
-        log_info("primary desktop mode: %dx%d @%.2fHz",
-                 desktop_mode->w, desktop_mode->h, desktop_mode->refresh_rate);
-        if (desktop_mode->w > 0 && desktop_mode->w > screen_pixels_w) {
-            screen_pixels_w = desktop_mode->w;
-        }
-        if (desktop_mode->h > 0 && desktop_mode->h > screen_pixels_h) {
-            screen_pixels_h = desktop_mode->h;
-        }
-    } else {
-        log_warn("SDL_GetDesktopDisplayMode failed: %s", SDL_GetError());
+    // Get content scale factor (e.g., 2.0 on Retina displays)
+    float content_scale = SDL_GetDisplayContentScale(primary);
+    if (content_scale <= 0.0f) {
+        log_warn("SDL_GetDisplayContentScale failed or returned invalid value: %f, defaulting to 1.0", 
+                 content_scale);
+        content_scale = 1.0f;
     }
-    log_info("primary display pixels for defaults: %dx%d",
+    log_info("primary display content scale: %.2f", content_scale);
+
+    // Get the actual desktop display mode for physical pixel dimensions
+    // This is the most reliable way to get the true resolution across all platforms
+    int screen_pixels_w = 0;
+    int screen_pixels_h = 0;
+    
+    const SDL_DisplayMode* desktop_mode = SDL_GetDesktopDisplayMode(primary);
+    if (desktop_mode && desktop_mode->w > 0 && desktop_mode->h > 0) {
+        // SDL_GetDesktopDisplayMode returns physical pixel dimensions
+        screen_pixels_w = desktop_mode->w;
+        screen_pixels_h = desktop_mode->h;
+        log_info("primary desktop mode (physical pixels): %dx%d @%.2fHz",
+                 desktop_mode->w, desktop_mode->h, desktop_mode->refresh_rate);
+    } else {
+        // Fallback: use logical bounds scaled by content scale
+        log_warn("SDL_GetDesktopDisplayMode failed: %s, using scaled logical bounds", 
+                 SDL_GetError());
+        screen_pixels_w = (int)(screen.w * content_scale + 0.5f);
+        screen_pixels_h = (int)(screen.h * content_scale + 0.5f);
+    }
+    
+    log_info("primary display physical resolution for defaults: %dx%d",
              screen_pixels_w, screen_pixels_h);
     
     // Save config file path for later use on exit
