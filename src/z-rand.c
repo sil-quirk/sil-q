@@ -586,3 +586,4 @@ s32b div_round(s32b n, s32b d)
     /* Return */
     return (tmp);
 }
+

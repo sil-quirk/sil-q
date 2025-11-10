@@ -2666,7 +2666,7 @@ static bool do_cmd_tunnel_aux(int y, int x)
     if (cave_feat[y][x] >= FEAT_WALL_EXTRA)
     {
         difficulty = 3;
-        my_strcpy(success_message, "You break through the granite.",
+        SDL_strlcpy(success_message, "You break through the granite.",
             sizeof(success_message));
 
         if (difficulty > digging_score)
@@ -2684,7 +2684,7 @@ static bool do_cmd_tunnel_aux(int y, int x)
     else if (cave_feat[y][x] >= FEAT_QUARTZ)
     {
         difficulty = 2;
-        my_strcpy(success_message, "You shatter the quartz.",
+        SDL_strlcpy(success_message, "You shatter the quartz.",
             sizeof(success_message));
 
         if (difficulty > digging_score)
@@ -2702,7 +2702,7 @@ static bool do_cmd_tunnel_aux(int y, int x)
     else if (cave_feat[y][x] == FEAT_RUBBLE)
     {
         difficulty = 1;
-        my_strcpy(
+        SDL_strlcpy(
             success_message, "You clear the rubble.", sizeof(success_message));
 
         if (difficulty > digging_score)
@@ -2720,7 +2720,7 @@ static bool do_cmd_tunnel_aux(int y, int x)
     else
     {
         difficulty = 3;
-        my_strcpy(success_message, "You uncover a secret door.",
+        SDL_strlcpy(success_message, "You uncover a secret door.",
             sizeof(success_message));
 
         if (difficulty > digging_score)
@@ -5775,4 +5775,5 @@ void do_cmd_throw_from_slot(int slot)
     throw_pending_slot = slot;
     do_cmd_throw(false);
 }
+
 

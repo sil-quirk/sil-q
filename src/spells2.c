@@ -3404,3 +3404,4 @@ int do_ident_item(int item, object_type* o_ptr)
 
     return (squelch);
 }
+

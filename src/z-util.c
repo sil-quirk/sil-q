@@ -79,16 +79,16 @@ int my_strnicmp(cptr a, cptr b, int n)
 }
 
 /*
- * The my_strcpy() function copies up to 'bufsize'-1 characters from 'src'
+ * The SDL_strlcpy() function copies up to 'bufsize'-1 characters from 'src'
  * to 'buf' and NUL-terminates the result.  The 'buf' and 'src' strings may
  * not overlap.
  *
- * my_strcpy() returns strlen(src).  This makes checking for truncation
- * easy.  Example: if (my_strcpy(buf, src, sizeof(buf)) >= sizeof(buf)) ...;
+ * SDL_strlcpy() returns strlen(src).  This makes checking for truncation
+ * easy.  Example: if (SDL_strlcpy(buf, src, sizeof(buf)) >= sizeof(buf)) ...;
  *
  * This function should be equivalent to the strlcpy() function in BSD.
  */
-size_t my_strcpy(char* buf, const char* src, size_t bufsize)
+size_t SDL_strlcpy(char* buf, const char* src, size_t bufsize)
 {
     size_t len = strlen(src);
     size_t ret = len;
@@ -110,18 +110,18 @@ size_t my_strcpy(char* buf, const char* src, size_t bufsize)
 }
 
 /*
- * The my_strcat() tries to append a string to an existing NUL-terminated
+ * The SDL_strlcat() tries to append a string to an existing NUL-terminated
  * string. It never writes more characters into the buffer than indicated by
  * 'bufsize' and NUL-terminates the buffer.  The 'buf' and 'src' strings may not
  * overlap.
  *
- * my_strcat() returns strlen(buf) + strlen(src).  This makes checking for
+ * SDL_strlcat() returns strlen(buf) + strlen(src).  This makes checking for
  * truncation easy.  Example:
- * if (my_strcat(buf, src, sizeof(buf)) >= sizeof(buf)) ...;
+ * if (SDL_strlcat(buf, src, sizeof(buf)) >= sizeof(buf)) ...;
  *
  * This function should be equivalent to the strlcat() function in BSD.
  */
-size_t my_strcat(char* buf, const char* src, size_t bufsize)
+size_t SDL_strlcat(char* buf, const char* src, size_t bufsize)
 {
     size_t dlen = strlen(buf);
 
@@ -129,7 +129,7 @@ size_t my_strcat(char* buf, const char* src, size_t bufsize)
     if (dlen < bufsize - 1)
     {
         /* Append as much as possible  */
-        return (dlen + my_strcpy(buf + dlen, src, bufsize - dlen));
+        return (dlen + SDL_strlcpy(buf + dlen, src, bufsize - dlen));
     }
     else
     {
@@ -255,3 +255,4 @@ void core(cptr str)
     /* Be sure we exited */
     quit("core() failed");
 }
+

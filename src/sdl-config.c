@@ -424,13 +424,13 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
         // Custom fonts
         item = cJSON_GetObjectItemCaseSensitive(sdl, "storyFont");
         if (cJSON_IsString(item)) {
-            my_strcpy(config->story_font, item->valuestring, sizeof(config->story_font));
+            SDL_strlcpy(config->story_font, item->valuestring, sizeof(config->story_font));
             log_debug("Loaded storyFont: %s", config->story_font);
         }
         
         item = cJSON_GetObjectItemCaseSensitive(sdl, "monospaceFont");
         if (cJSON_IsString(item)) {
-            my_strcpy(config->monospace_font, item->valuestring, sizeof(config->monospace_font));
+            SDL_strlcpy(config->monospace_font, item->valuestring, sizeof(config->monospace_font));
             log_debug("Loaded monospaceFont: %s", config->monospace_font);
         }
         
@@ -717,8 +717,8 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->window_height = 0; // 0 means use default calculation
     
     // Default fonts
-    my_strcpy(config->story_font, "lib/xtra/font/Cinzel-Medium.ttf", sizeof(config->story_font));
-    my_strcpy(config->monospace_font, "lib/xtra/font/VictorMono-Medium.ttf", sizeof(config->monospace_font));
+    SDL_strlcpy(config->story_font, "lib/xtra/font/Cinzel-Medium.ttf", sizeof(config->story_font));
+    SDL_strlcpy(config->monospace_font, "lib/xtra/font/VictorMono-Medium.ttf", sizeof(config->monospace_font));
     
     // Default monospace font rendering options
     config->mono_bold = false;
@@ -838,3 +838,4 @@ void sdl_config_apply_cmdline(struct sdl_config* config, int argc, char** argv)
         }
     }
 }
+

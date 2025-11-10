@@ -413,7 +413,7 @@ static void spoil_artefact(cptr fname)
             /* Grab artefact name */
             object_desc_spoil(buf, sizeof(buf), i_ptr, true, 1);
 
-            my_strcat(buf,
+            SDL_strlcat(buf,
                 format("     %d.%d lb", (a_ptr->weight / 10),
                     (a_ptr->weight % 10)),
                 sizeof(buf));
@@ -1045,6 +1045,7 @@ void do_cmd_spoilers(void)
 #else
 
 #endif
+
 
 
 

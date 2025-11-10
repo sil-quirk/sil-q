@@ -140,14 +140,14 @@ static void init_stuff(void)
 #endif /* FIXED_PATHS */
 
     /* Use the angband_path, or a default */
-    my_strcpy(path, tail ? tail : DEFAULT_PATH, sizeof(path));
+    SDL_strlcpy(path, tail ? tail : DEFAULT_PATH, sizeof(path));
 
     /* Make sure it's terminated */
     path[511] = '\0';
 
     /* Hack -- Add a path separator (only if needed) */
     if (!suffix(path, PATH_SEP))
-        my_strcat(path, PATH_SEP, sizeof(path));
+        SDL_strlcat(path, PATH_SEP, sizeof(path));
 
     /* Initialize */
     init_file_paths(path);
@@ -434,7 +434,7 @@ int main(int argc, char* argv[])
                 goto usage;
 
             /* Get the savefile name */
-            my_strcpy(op_ptr->full_name, arg, sizeof(op_ptr->full_name));
+            SDL_strlcpy(op_ptr->full_name, arg, sizeof(op_ptr->full_name));
 
             // Sil-y:
             game_in_progress = true;
@@ -597,3 +597,4 @@ int main(int argc, char* argv[])
 }
 
 #endif /* !defined(WINDOWS) || defined(USE_SDL) */
+

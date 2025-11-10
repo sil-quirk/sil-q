@@ -14,6 +14,7 @@
 
 #include "z-util.h"
 #include "z-virt.h"
+#include <SDL3/SDL.h>
 
 /*
  * Here is some information about the routines in this file.
@@ -514,7 +515,7 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
                 arg = "";
 
             /* Prevent buffer overflows */
-            (void)my_strcpy(arg2, arg, sizeof(arg2));
+            (void)SDL_strlcpy(arg2, arg, sizeof(arg2));
 
             /* Format the argument */
             sprintf(tmp, aux, arg2);
@@ -748,3 +749,4 @@ void core_fmt(cptr fmt, ...)
     /* Call core() */
     core(res);
 }
+

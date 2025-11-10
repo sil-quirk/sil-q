@@ -11,6 +11,7 @@
 #include "angband.h"
 #include "h-define.h"
 #include "z-form.h" 
+#include <SDL3/SDL.h>
 #include <ctype.h>
 /* Forward declaration for init2 and local placement */
 errr parse_style_levels(char* buf, header* head);
@@ -2698,7 +2699,7 @@ errr parse_a_info(char* buf, header* head)
         a_ptr = (artefact_type*)head->info_ptr + i;
 
         /* Store the name */
-        my_strcpy(a_ptr->name, s, MAX_LEN_ART_NAME);
+        SDL_strlcpy(a_ptr->name, s, MAX_LEN_ART_NAME);
 
         /* Ignore everything */
         a_ptr->flags3 |= (TR3_IGNORE_MASK);
@@ -5351,25 +5352,25 @@ errr parse_quest_info(char* buf, header* head)
                 rest++; /* Skip the ':' */
                 
                 /* Determine formula type */
-                if (my_stricmp(formula_name, "LINEAR_DECAY") == 0) {
+                if (SDL_strcasecmp(formula_name, "LINEAR_DECAY") == 0) {
                     quest_ptr->formula_type = FORMULA_LINEAR_DECAY;
                     /* Parse: base:unused:unused:unused (depth from E: field) */
                     sscanf(rest, "%f:%f:%f:%f", 
                            &quest_ptr->formula_params[0], &quest_ptr->formula_params[1], 
                            &quest_ptr->formula_params[2], &quest_ptr->formula_params[3]);
-                } else if (my_stricmp(formula_name, "SCALED_RANGE") == 0) {
+                } else if (SDL_strcasecmp(formula_name, "SCALED_RANGE") == 0) {
                     quest_ptr->formula_type = FORMULA_SCALED_RANGE;
                     /* Parse: max_prob:start_depth:range:unused (depth from E: field) */
                     sscanf(rest, "%f:%f:%f:%f", 
                            &quest_ptr->formula_params[0], &quest_ptr->formula_params[1], 
                            &quest_ptr->formula_params[2], &quest_ptr->formula_params[3]);
-                } else if (my_stricmp(formula_name, "LINEAR_INTERPOLATE") == 0) {
+                } else if (SDL_strcasecmp(formula_name, "LINEAR_INTERPOLATE") == 0) {
                     quest_ptr->formula_type = FORMULA_LINEAR_INTERPOLATE;
                     /* Parse: min_prob:max_prob:unused:unused (depth from E: field) */
                     sscanf(rest, "%f:%f:%f:%f", 
                            &quest_ptr->formula_params[0], &quest_ptr->formula_params[1], 
                            &quest_ptr->formula_params[2], &quest_ptr->formula_params[3]);
-                } else if (my_stricmp(formula_name, "FIXED_PERCENT") == 0) {
+                } else if (SDL_strcasecmp(formula_name, "FIXED_PERCENT") == 0) {
                     quest_ptr->formula_type = FORMULA_FIXED_PERCENT;
                     /* Parse: percentage:unused:unused:unused (depth from E: field) */
                     sscanf(rest, "%f:%f:%f:%f", 
@@ -5439,21 +5440,21 @@ errr parse_quest_info(char* buf, header* head)
             log_trace("QUEST PARSE: Successfully parsed SKILL_MIN: skill='%s', value=%d", skill_name, value1);
             
             /* Map skill names to skill types */
-            if (my_stricmp(skill_name, "MEL") == 0) {
+            if (SDL_strcasecmp(skill_name, "MEL") == 0) {
                 quest_ptr->eligibility_skill = S_MEL;
-            } else if (my_stricmp(skill_name, "ARC") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "ARC") == 0) {
                 quest_ptr->eligibility_skill = S_ARC;
-            } else if (my_stricmp(skill_name, "EVN") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "EVN") == 0) {
                 quest_ptr->eligibility_skill = S_EVN;
-            } else if (my_stricmp(skill_name, "STL") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "STL") == 0) {
                 quest_ptr->eligibility_skill = S_STL;
-            } else if (my_stricmp(skill_name, "PER") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "PER") == 0) {
                 quest_ptr->eligibility_skill = S_PER;
-            } else if (my_stricmp(skill_name, "WIL") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "WIL") == 0) {
                 quest_ptr->eligibility_skill = S_WIL;
-            } else if (my_stricmp(skill_name, "SMT") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "SMT") == 0) {
                 quest_ptr->eligibility_skill = S_SMT;
-            } else if (my_stricmp(skill_name, "SNG") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "SNG") == 0) {
                 quest_ptr->eligibility_skill = S_SNG;
             } else {
                 quest_ptr->eligibility_skill = S_MEL; /* Default to Melee */
@@ -5579,21 +5580,21 @@ errr parse_quest_info(char* buf, header* head)
         if (2 == sscanf(buf + 2, "%31[^:]:%d", skill_name, &skill_bonus))
         {
             /* Map skill names to skill types using proper constants */
-            if (my_stricmp(skill_name, "MEL") == 0) {
+            if (SDL_strcasecmp(skill_name, "MEL") == 0) {
                 quest_ptr->skill_type = S_MEL; /* Melee (0) */
-            } else if (my_stricmp(skill_name, "ARC") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "ARC") == 0) {
                 quest_ptr->skill_type = S_ARC; /* Archery (1) */
-            } else if (my_stricmp(skill_name, "EVN") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "EVN") == 0) {
                 quest_ptr->skill_type = S_EVN; /* Evasion (2) */
-            } else if (my_stricmp(skill_name, "STL") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "STL") == 0) {
                 quest_ptr->skill_type = S_STL; /* Stealth (3) */
-            } else if (my_stricmp(skill_name, "PER") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "PER") == 0) {
                 quest_ptr->skill_type = S_PER; /* Perception (4) */
-            } else if (my_stricmp(skill_name, "WIL") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "WIL") == 0) {
                 quest_ptr->skill_type = S_WIL; /* Will (5) */
-            } else if (my_stricmp(skill_name, "SMT") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "SMT") == 0) {
                 quest_ptr->skill_type = S_SMT; /* Smithing (6) */
-            } else if (my_stricmp(skill_name, "SNG") == 0) {
+            } else if (SDL_strcasecmp(skill_name, "SNG") == 0) {
                 quest_ptr->skill_type = S_SNG; /* Song (7) */
             } else {
                 quest_ptr->skill_type = 0; /* Default to Melee if unknown */
@@ -5934,5 +5935,6 @@ errr parse_oath_info(char* buf, header* head)
 #else /* ALLOW_TEMPLATES */
 
 #endif /* ALLOW_TEMPLATES */
+
 
 

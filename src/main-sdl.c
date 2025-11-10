@@ -1251,7 +1251,7 @@ errr init_sdl(int argc, char **argv)
     
     // Save config file path for later use on exit
     const char* config_file = "sil_sdl.json";
-    my_strcpy(config_file_path, config_file, sizeof(config_file_path));
+    SDL_strlcpy(config_file_path, config_file, sizeof(config_file_path));
     
     // Register quit hook to save configuration on exit
     quit_aux = sdl_quit_hook;
@@ -1662,3 +1662,4 @@ static void sdl_render_story_text_grid(sdl_view* d, int x, int y, int n, const c
         SDL_DestroySurface(glyph_surface);
     }
 }
+

@@ -1391,7 +1391,7 @@ void take_hit(int dam, cptr kb_str)
         /* Note cause of death */
         if (p_ptr->image == 0)
         {
-            my_strcpy(p_ptr->died_from, kb_str, sizeof(p_ptr->died_from));
+            SDL_strlcpy(p_ptr->died_from, kb_str, sizeof(p_ptr->died_from));
         }
         else
         {
@@ -1411,7 +1411,7 @@ void take_hit(int dam, cptr kb_str)
         (void)strftime(long_day, 40, "%d %B %Y", localtime(&ct));
 
         /* Add note */
-        my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
+        SDL_strlcat(notes_buffer, "\n", sizeof(notes_buffer));
 
         /*killed by */
         sprintf(buf, "Slain by %s.", p_ptr->died_from);
@@ -1425,7 +1425,7 @@ void take_hit(int dam, cptr kb_str)
         /* Write message */
         do_cmd_note(buf, p_ptr->depth);
 
-        my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
+        SDL_strlcat(notes_buffer, "\n", sizeof(notes_buffer));
 
         /* Dead */
         return;
@@ -7620,3 +7620,4 @@ void sing(void)
     p_ptr->redraw |= (PR_VOICE);
     p_ptr->redraw |= (PR_HP);
 }
+

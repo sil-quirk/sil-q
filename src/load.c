@@ -1520,7 +1520,7 @@ static bool rd_notes(void)
             /* Found the end? */
             if (strstr(tmpstr, NOTES_MARK))
                 break;
-            my_strcat(
+            SDL_strlcat(
                 notes_buffer, format("%s\n", tmpstr), sizeof(notes_buffer));
         }
     }
@@ -2539,8 +2539,8 @@ bool load_player(void)
         char temp[1024];
 
         /* Extract name of lock file */
-        my_strcpy(temp, savefile, sizeof(temp));
-        my_strcat(temp, ".lok", sizeof(temp));
+        SDL_strlcpy(temp, savefile, sizeof(temp));
+        SDL_strlcat(temp, ".lok", sizeof(temp));
 
         /* Grab permissions */
         safe_setuid_grab();
@@ -2773,7 +2773,7 @@ bool load_player(void)
         if (p_ptr->chp >= 0)
         {
             /* Reset cause of death */
-            my_strcpy(
+            SDL_strlcpy(
                 p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
         }
 
@@ -2809,8 +2809,8 @@ bool load_player(void)
         char temp[1024];
 
         /* Extract name of lock file */
-        my_strcpy(temp, savefile, sizeof(temp));
-        my_strcat(temp, ".lok", sizeof(temp));
+        SDL_strlcpy(temp, savefile, sizeof(temp));
+        SDL_strlcat(temp, ".lok", sizeof(temp));
 
         /* Grab permissions */
         safe_setuid_grab();
@@ -2832,6 +2832,7 @@ bool load_player(void)
     /* Oops */
     return (false);
 }
+
 
 
 

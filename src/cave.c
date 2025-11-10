@@ -5837,3 +5837,4 @@ void disturb(int stop_stealth, int unused_flag)
     /* Flush the input */
     flush();
 }
+

@@ -84,4 +84,31 @@
  *	 of the author Robert Alan Koeneke.
  */
 
+/*
+ * Inline string helper functions (replacing z-util.c implementations)
+ * These provide simple wrappers for common string operations.
+ */
+#include <string.h>
+
+/* String equality check */
+static inline bool streq(const char* a, const char* b) {
+    return (strcmp(a, b) == 0);
+}
+
+/* Check if string t is a prefix of string s */
+static inline bool prefix(const char* s, const char* t) {
+    while (*t) {
+        if (*t++ != *s++) return false;
+    }
+    return true;
+}
+
+/* Check if string t is a suffix of string s */
+static inline bool suffix(const char* s, const char* t) {
+    size_t slen = strlen(s);
+    size_t tlen = strlen(t);
+    if (tlen > slen) return false;
+    return (strcmp(s + slen - tlen, t) == 0);
+}
+
 #endif

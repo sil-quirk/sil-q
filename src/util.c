@@ -72,7 +72,7 @@ void user_name(char* buf, size_t len, int id)
     if ((pw = getpwuid(id)))
     {
         /* Get the first 15 characters of the user name */
-        my_strcpy(buf, pw->pw_name, len);
+        SDL_strlcpy(buf, pw->pw_name, len);
 
 #ifdef CAPITALIZE_USER_NAME
         /* Hack -- capitalize the user name */
@@ -84,7 +84,7 @@ void user_name(char* buf, size_t len, int id)
     }
 
     /* Oops.  Hack -- default to "nameless" */
-    my_strcpy(buf, "nameless", len);
+    SDL_strlcpy(buf, "nameless", len);
 }
 
 #endif /* SET_UID */
@@ -142,7 +142,7 @@ errr path_parse(char* buf, size_t max, cptr file)
     /* File needs no parsing */
     if (file[0] != '~')
     {
-        my_strcpy(buf, file, max);
+        SDL_strlcpy(buf, file, max);
         return (0);
     }
 
@@ -181,11 +181,11 @@ errr path_parse(char* buf, size_t max, cptr file)
         return (1);
 
     /* Make use of the info */
-    my_strcpy(buf, pw->pw_dir, max);
+    SDL_strlcpy(buf, pw->pw_dir, max);
 
     /* Append the rest of the filename, if any */
     if (s)
-        my_strcat(buf, s, max);
+        SDL_strlcat(buf, s, max);
 
     /* Success */
     return (0);
@@ -202,7 +202,7 @@ errr path_parse(char* buf, size_t max, cptr file)
 errr path_parse(char* buf, size_t max, cptr file)
 {
     /*accept the filename*/
-    my_strcpy(buf, file, max);
+    SDL_strlcpy(buf, file, max);
 
     /* Success */
     return (0);
@@ -229,7 +229,7 @@ errr path_temp(char* buf, size_t max)
         return (-1);
 
     /* Copy to buffer */
-    my_strcpy(buf, s, max);
+    SDL_strlcpy(buf, s, max);
 
     /* Success */
     return (0);
@@ -256,21 +256,21 @@ errr path_build(char* buf, size_t max, cptr path, cptr file)
     if (file[0] == '~')
     {
         /* Use the file itself */
-        my_strcpy(buf, file, max);
+        SDL_strlcpy(buf, file, max);
     }
 
     /* Absolute file, on "normal" systems */
     else if (prefix(file, PATH_SEP) && !streq(PATH_SEP, ""))
     {
         /* Use the file itself */
-        my_strcpy(buf, file, max);
+        SDL_strlcpy(buf, file, max);
     }
 
     /* No path given */
     else if (!path[0])
     {
         /* Use the file itself */
-        my_strcpy(buf, file, max);
+        SDL_strlcpy(buf, file, max);
     }
 
     /* Path and File */
@@ -837,7 +837,7 @@ static size_t trigger_text_to_ascii(char* buf, size_t max, cptr* strptr)
         {
             len = strlen(macro_modifier_name[i]);
 
-            if (!my_strnicmp(str, macro_modifier_name[i], len))
+            if (!SDL_strncasecmp(str, macro_modifier_name[i], len))
                 break;
         }
 
@@ -862,7 +862,7 @@ static size_t trigger_text_to_ascii(char* buf, size_t max, cptr* strptr)
         len = strlen(macro_trigger_name[i]);
 
         /* Found it and it is ending with ']' */
-        if (!my_strnicmp(str, macro_trigger_name[i], len) && (']' == str[len]))
+        if (!SDL_strncasecmp(str, macro_trigger_name[i], len) && (']' == str[len]))
             break;
     }
 
@@ -1134,8 +1134,8 @@ static size_t trigger_ascii_to_text(char* buf, size_t max, cptr* strptr)
     /* Look for trigger name with given keycode (normal or shifted keycode) */
     for (i = 0; i < max_macrotrigger; i++)
     {
-        if (!my_stricmp(key_code, macro_trigger_keycode[0][i])
-            || !my_stricmp(key_code, macro_trigger_keycode[1][i]))
+        if (!SDL_strcasecmp(key_code, macro_trigger_keycode[0][i])
+            || !SDL_strcasecmp(key_code, macro_trigger_keycode[1][i]))
             break;
     }
 
@@ -2763,7 +2763,7 @@ static void msg_print_aux(u16b type, cptr msg)
     p_ptr->window |= (PW_MESSAGE);
 
     /* Copy it */
-    my_strcpy(buf, msg, sizeof(buf));
+    SDL_strlcpy(buf, msg, sizeof(buf));
 
     /* Analyze the buffer */
     t = buf;
@@ -4773,7 +4773,7 @@ void request_command(void)
         if (act && !inkey_next)
         {
             /* Install the keymap */
-            my_strcpy(
+            SDL_strlcpy(
                 request_command_buffer, act, sizeof(request_command_buffer));
 
             /* Start using the buffer */
@@ -5514,7 +5514,7 @@ void editing_buffer_init(
 
     /* Copy the initial string, if any */
     if (len > 0)
-        my_strcpy(eb_ptr->buf, buf, sizeof(eb_ptr->buf));
+        SDL_strlcpy(eb_ptr->buf, buf, sizeof(eb_ptr->buf));
 
     /* Initialize the remaining fields */
     eb_ptr->pos = len;
@@ -5816,7 +5816,7 @@ int color_text_to_attr(cptr name)
             continue;
 
         /* Compare only the found name */
-        if (my_strnicmp(name, color_names[base & 0x0F], len) == 0)
+        if (SDL_strncasecmp(name, color_names[base & 0x0F], len) == 0)
         {
             /* Build the extended color */
             return (MAKE_EXTENDED_COLOR(base, shade));
@@ -5958,3 +5958,4 @@ void init_logger(bool quiet, const char* exe_path)
     log_info("logger initialised with level %d", level);
     atexit(log_close_files);
 }
+

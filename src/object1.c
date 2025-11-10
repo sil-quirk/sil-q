@@ -49,16 +49,16 @@ static void story_prepare_equipment_desc(char* dest, size_t dest_size, cptr src,
     if (!src)
         src = "";
 
-    my_strcpy(dest, src, dest_size);
+    SDL_strlcpy(dest, src, dest_size);
 
     if (slot == INVEN_QUIVER2 && !has_object)
     {
         char base[160];
-        my_strcpy(base, dest, sizeof(base));
+        SDL_strlcpy(base, dest, sizeof(base));
         if (base[0])
             strnfmt(dest, dest_size, "%s (keeps passive bonuses)", base);
         else
-            my_strcpy(dest, "(keeps passive bonuses)", dest_size);
+            SDL_strlcpy(dest, "(keeps passive bonuses)", dest_size);
     }
 
     if (max_cols > 0 && sdl_is_story_font_enabled())
@@ -759,7 +759,7 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
     }
     source[src_idx] = '\0';
 
-    my_strcpy(buf, source, max);
+    SDL_strlcpy(buf, source, max);
 
     size_t len = strlen(source);
     if (!len)
@@ -784,11 +784,11 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
     if (stats_idx < len)
     {
         strnfmt(base, sizeof(base), "%.*s", (int)stats_idx, source);
-        my_strcpy(stats, source + stats_idx, sizeof(stats));
+        SDL_strlcpy(stats, source + stats_idx, sizeof(stats));
     }
     else
     {
-        my_strcpy(base, source, sizeof(base));
+        SDL_strlcpy(base, source, sizeof(base));
     }
 
     object_desc_trim_spaces(base);
@@ -796,7 +796,7 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
 
     if (!base[0])
     {
-        my_strcpy(buf, stats, max);
+        SDL_strlcpy(buf, stats, max);
         return;
     }
 
@@ -831,15 +831,15 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
     {
         char rebuilt_basic[256];
         rebuilt_basic[0] = '\0';
-        my_strcpy(rebuilt_basic, base, sizeof(rebuilt_basic));
+        SDL_strlcpy(rebuilt_basic, base, sizeof(rebuilt_basic));
         if (stats[0])
         {
             if (rebuilt_basic[0])
-                my_strcat(rebuilt_basic, " ", sizeof(rebuilt_basic));
-            my_strcat(rebuilt_basic, stats, sizeof(rebuilt_basic));
+                SDL_strlcat(rebuilt_basic, " ", sizeof(rebuilt_basic));
+            SDL_strlcat(rebuilt_basic, stats, sizeof(rebuilt_basic));
         }
         object_desc_trim_spaces(rebuilt_basic);
-        my_strcpy(buf, rebuilt_basic, max);
+        SDL_strlcpy(buf, rebuilt_basic, max);
         return;
     }
 
@@ -862,11 +862,11 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
     {
         size_t index = (size_t)(last - lower);
         strnfmt(first_part, sizeof(first_part), "%.*s", (int)index, base);
-        my_strcpy(second_part, base + index + 4, sizeof(second_part));
+        SDL_strlcpy(second_part, base + index + 4, sizeof(second_part));
     }
     else
     {
-        my_strcpy(first_part, base, sizeof(first_part));
+        SDL_strlcpy(first_part, base, sizeof(first_part));
     }
 
     object_desc_trim_spaces(first_part);
@@ -939,46 +939,46 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
             continue;
 
         if (cleaned_second[0])
-            my_strcat(cleaned_second, " ", sizeof(cleaned_second));
-        my_strcat(cleaned_second, token, sizeof(cleaned_second));
+            SDL_strlcat(cleaned_second, " ", sizeof(cleaned_second));
+        SDL_strlcat(cleaned_second, token, sizeof(cleaned_second));
     }
 
     char name_part[256];
     name_part[0] = '\0';
     if (short_first[0])
-        my_strcpy(name_part, short_first, sizeof(name_part));
+        SDL_strlcpy(name_part, short_first, sizeof(name_part));
 
     if (cleaned_second[0])
     {
         if (name_part[0])
-            my_strcat(name_part, " ", sizeof(name_part));
-        my_strcat(name_part, cleaned_second, sizeof(name_part));
+            SDL_strlcat(name_part, " ", sizeof(name_part));
+        SDL_strlcat(name_part, cleaned_second, sizeof(name_part));
     }
 
     if (!name_part[0])
-        my_strcpy(name_part, base, sizeof(name_part));
+        SDL_strlcpy(name_part, base, sizeof(name_part));
 
     if (trailing_suffix[0])
     {
         if (name_part[0])
-            my_strcat(name_part, " ", sizeof(name_part));
-        my_strcat(name_part, trailing_suffix, sizeof(name_part));
+            SDL_strlcat(name_part, " ", sizeof(name_part));
+        SDL_strlcat(name_part, trailing_suffix, sizeof(name_part));
     }
 
     object_desc_trim_spaces(name_part);
 
     char rebuilt[256];
     rebuilt[0] = '\0';
-    my_strcpy(rebuilt, name_part, sizeof(rebuilt));
+    SDL_strlcpy(rebuilt, name_part, sizeof(rebuilt));
     if (stats[0])
     {
         if (rebuilt[0])
-            my_strcat(rebuilt, " ", sizeof(rebuilt));
-        my_strcat(rebuilt, stats, sizeof(rebuilt));
+            SDL_strlcat(rebuilt, " ", sizeof(rebuilt));
+        SDL_strlcat(rebuilt, stats, sizeof(rebuilt));
     }
 
     object_desc_trim_spaces(rebuilt);
-    my_strcpy(buf, rebuilt, max);
+    SDL_strlcpy(buf, rebuilt, max);
 }
 void object_desc(
     char* buf, size_t max, const object_type* o_ptr, int pref, int mode)
@@ -1206,7 +1206,7 @@ void object_desc(
     /* Hack -- Default -- Used in the "inventory" routine */
     default:
     {
-        my_strcpy(buf, "(nothing)", max);
+        SDL_strlcpy(buf, "(nothing)", max);
         return;
     }
     }
@@ -1752,7 +1752,7 @@ object_desc_done:
     }
 
     /* Copy the string over */
-    my_strcpy(buf, tmp_buf, max);
+    SDL_strlcpy(buf, tmp_buf, max);
 }
 
 /*
@@ -1898,41 +1898,41 @@ static void format_supply_summary(char* buf, size_t len)
 
     supplies_count_totals(&potions, &herbs, &gems);
 
-    my_strcpy(buf, "Supplies", len);
+    SDL_strlcpy(buf, "Supplies", len);
 
     if (potions <= 0 && herbs <= 0 && gems <= 0)
         return;
 
-    my_strcat(buf, " (", len);
+    SDL_strlcat(buf, " (", len);
 
     if (potions > 0)
     {
         strnfmt(segment, sizeof(segment), "%d potion%s", potions,
             (potions == 1) ? "" : "s");
-        my_strcat(buf, segment, len);
+        SDL_strlcat(buf, segment, len);
         first = false;
     }
 
     if (herbs > 0)
     {
         if (!first)
-            my_strcat(buf, ", ", len);
+            SDL_strlcat(buf, ", ", len);
         strnfmt(segment, sizeof(segment), "%d herb%s", herbs,
             (herbs == 1) ? "" : "s");
-        my_strcat(buf, segment, len);
+        SDL_strlcat(buf, segment, len);
         first = false;
     }
 
     if (gems > 0)
     {
         if (!first)
-            my_strcat(buf, ", ", len);
+            SDL_strlcat(buf, ", ", len);
         strnfmt(segment, sizeof(segment), "%d gem%s", gems,
             (gems == 1) ? "" : "s");
-        my_strcat(buf, segment, len);
+        SDL_strlcat(buf, segment, len);
     }
 
-    my_strcat(buf, ")", len);
+    SDL_strlcat(buf, ")", len);
 }
 
 
@@ -2922,7 +2922,7 @@ void show_inven(void)
         format_supply_summary(supply_desc, sizeof(supply_desc));
         out_index[k] = SUPPLIES_INDEX;
         out_color[k] = TERM_L_WHITE;
-        my_strcpy(out_desc[k], supply_desc, sizeof(out_desc[0]));
+        SDL_strlcpy(out_desc[k], supply_desc, sizeof(out_desc[0]));
 
         l = (int)strlen(out_desc[k]) + 5;
         if (show_weights)
@@ -2957,7 +2957,7 @@ void show_inven(void)
             out_color[k] = object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
         /* Save the object description */
-        my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
+        SDL_strlcpy(out_desc[k], o_name, sizeof(out_desc[0]));
 
         /* Find the predicted "line length" */
         l = strlen(out_desc[k]) + 5;
@@ -3144,7 +3144,7 @@ void show_equip(void)
 
         if (is_empty)
         {
-            my_strcpy(o_name, describe_empty_slot(i), sizeof(o_name));
+            SDL_strlcpy(o_name, describe_empty_slot(i), sizeof(o_name));
             out_color[k] = TERM_L_DARK;
         }
         else
@@ -3161,7 +3161,7 @@ void show_equip(void)
         out_index[k] = i;
 
         /* Save the description */
-        my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
+        SDL_strlcpy(out_desc[k], o_name, sizeof(out_desc[0]));
 
         /* Extract the maximal length (see below) */
         l = strlen(out_desc[k]) + (2 + 3);
@@ -3369,7 +3369,7 @@ void show_floor(const int* floor_list, int floor_num)
         out_color[k] = object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
 
         /* Save the object description */
-        my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
+        SDL_strlcpy(out_desc[k], o_name, sizeof(out_desc[0]));
 
         /* Find the predicted "line length" */
         l = strlen(out_desc[k]) + 5;
@@ -4186,20 +4186,20 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                     tmp_val, " %c-%c,", index_to_label(i1), index_to_label(i2));
 
                 /* Append */
-                my_strcat(out_val, tmp_val, sizeof(out_val));
+                SDL_strlcat(out_val, tmp_val, sizeof(out_val));
             }
 
             /* Indicate ability to "view" */
             if (!p_ptr->command_see)
-                my_strcat(out_val, " * to see,", sizeof(out_val));
+                SDL_strlcat(out_val, " * to see,", sizeof(out_val));
 
             /* Indicate legality of "toggle" */
             if (use_equip)
-                my_strcat(out_val, " / for Equip,", sizeof(out_val));
+                SDL_strlcat(out_val, " / for Equip,", sizeof(out_val));
 
             /* Indicate legality of the "floor" */
             if (allow_floor)
-                my_strcat(out_val, " - for floor,", sizeof(out_val));
+                SDL_strlcat(out_val, " - for floor,", sizeof(out_val));
         }
 
         /* Viewing equipment */
@@ -4223,20 +4223,20 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                     tmp_val, " %c-%c,", index_to_label(e1), index_to_label(e2));
 
                 /* Append */
-                my_strcat(out_val, tmp_val, sizeof(out_val));
+                SDL_strlcat(out_val, tmp_val, sizeof(out_val));
             }
 
             /* Indicate ability to "view" */
             if (!p_ptr->command_see)
-                my_strcat(out_val, " * to see,", sizeof(out_val));
+                SDL_strlcat(out_val, " * to see,", sizeof(out_val));
 
             /* Indicate legality of "toggle" */
             if (use_inven)
-                my_strcat(out_val, " / for Inven,", sizeof(out_val));
+                SDL_strlcat(out_val, " / for Inven,", sizeof(out_val));
 
             /* Indicate legality of the "floor" */
             if (allow_floor)
-                my_strcat(out_val, " - for floor,", sizeof(out_val));
+                SDL_strlcat(out_val, " - for floor,", sizeof(out_val));
         }
 
         /* Viewing floor */
@@ -4256,24 +4256,24 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 sprintf(tmp_val, " %c-%c,", I2A(f1), I2A(f2));
 
                 /* Append */
-                my_strcat(out_val, tmp_val, sizeof(out_val));
+                SDL_strlcat(out_val, tmp_val, sizeof(out_val));
             }
 
             /* Indicate ability to "view" */
             if (!p_ptr->command_see)
-                my_strcat(out_val, " * to see,", sizeof(out_val));
+                SDL_strlcat(out_val, " * to see,", sizeof(out_val));
 
             /* Append */
             if (use_inven)
-                my_strcat(out_val, " / for Inven,", sizeof(out_val));
+                SDL_strlcat(out_val, " / for Inven,", sizeof(out_val));
 
             /* Append */
             else if (use_equip)
-                my_strcat(out_val, " / for Equip,", sizeof(out_val));
+                SDL_strlcat(out_val, " / for Equip,", sizeof(out_val));
         }
 
         /* Finish the prompt */
-        my_strcat(out_val, " ESC", sizeof(out_val));
+        SDL_strlcat(out_val, " ESC", sizeof(out_val));
 
         /* Build the prompt */
         strnfmt(tmp_val, sizeof(tmp_val), "(%s) %s", out_val, pmt);
@@ -5090,7 +5090,7 @@ void show_inven_enhanced(void)
             out_color[k] = weapon_glows(o_ptr) 
                 ? object_display_color(o_ptr, TERM_L_BLUE)
                 : object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
-            my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
+            SDL_strlcpy(out_desc[k], o_name, sizeof(out_desc[0]));
 
             int l = (int)strlen(out_desc[k]) + 5;
             if (show_weights)
@@ -5110,7 +5110,7 @@ void show_inven_enhanced(void)
         out_is_floor[k] = false;
         out_is_supply[k] = true;
         out_color[k] = TERM_L_WHITE;
-        my_strcpy(out_desc[k], supply_desc, sizeof(out_desc[0]));
+        SDL_strlcpy(out_desc[k], supply_desc, sizeof(out_desc[0]));
 
         int l = (int)strlen(out_desc[k]) + 5;
         if (show_weights)
@@ -5137,7 +5137,7 @@ void show_inven_enhanced(void)
         out_color[k] = weapon_glows(o_ptr) 
             ? object_display_color(o_ptr, TERM_L_BLUE)
             : object_display_color(o_ptr, tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)]);
-        my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
+        SDL_strlcpy(out_desc[k], o_name, sizeof(out_desc[0]));
 
         int l = (int)strlen(out_desc[k]) + 5;
         if (show_weights)
@@ -5321,7 +5321,7 @@ void show_inven_enhanced(void)
                     {
                         compare_obj[idx] = NULL; /* No object for empty slots */
                         cptr empty_text = describe_empty_slot(slot);
-                        my_strcpy(compare_desc[idx], empty_text, sizeof(compare_desc[idx]));
+                        SDL_strlcpy(compare_desc[idx], empty_text, sizeof(compare_desc[idx]));
                         if (compare_lim < (int)sizeof(compare_desc[idx]))
                             compare_desc[idx][compare_lim] = '\0';
                         compare_attr[idx] = TERM_SLATE;
@@ -5966,7 +5966,7 @@ void show_equip_enhanced(void)
         
         if (is_empty)
         {
-            my_strcpy(o_name, describe_empty_slot(i), sizeof(o_name));
+            SDL_strlcpy(o_name, describe_empty_slot(i), sizeof(o_name));
             out_color[k] = TERM_L_DARK;
         }
         else
@@ -5983,7 +5983,7 @@ void show_equip_enhanced(void)
         out_index[k] = i;
         
         /* Save the description (exactly like show_equip) */
-        my_strcpy(out_desc[k], o_name, sizeof(out_desc[0]));
+        SDL_strlcpy(out_desc[k], o_name, sizeof(out_desc[0]));
         
         /* Calculate armour weight (for body armour, cloak, shield, helmet, gloves, boots) */
         if (show_weights && o_ptr->weight && (i >= INVEN_BODY) && (i <= INVEN_FEET))
@@ -6738,6 +6738,7 @@ bool player_can_treat_as_throwing(const object_type* o_ptr)
 
 #undef MAX_COMPARE_LINES
 #undef MAX_IDENT_ENTRIES
+
 
 
 

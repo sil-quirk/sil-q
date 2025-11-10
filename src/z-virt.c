@@ -13,6 +13,7 @@
 #include "z-virt.h"
 
 #include "z-util.h"
+#include <SDL3/SDL.h>
 
 /*
  * Optional auxiliary "rpanic" function
@@ -58,9 +59,9 @@ void* ralloc(size_t len)
     if (ralloc_aux)
         mem = (*ralloc_aux)(len);
 
-    /* Use malloc() to allocate some memory */
+    /* Use SDL_calloc() to allocate and zero memory */
     else
-        mem = malloc(len);
+        mem = SDL_calloc(1, len);
 
     /* We were able to acquire memory */
     if (!mem)
@@ -88,8 +89,8 @@ void* rnfree(void* p)
     if (rnfree_aux)
         return ((*rnfree_aux)(p));
 
-    /* Use "free" */
-    free(p);
+    /* Use SDL_free */
+    SDL_free(p);
 
     /* Done */
     return (NULL);
@@ -131,3 +132,4 @@ errr string_free(cptr str)
     /* Success */
     return (0);
 }
+

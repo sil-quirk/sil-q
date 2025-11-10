@@ -964,17 +964,17 @@ static void describe_item_activation(
         }
 
         /* Some artefacts can be activated */
-        my_strcat(random_name, act_description[a_ptr->activation], max);
+        SDL_strlcat(random_name, act_description[a_ptr->activation], max);
 
         /* Output the number of turns */
         if (a_ptr->time && a_ptr->randtime)
-            my_strcat(random_name,
+            SDL_strlcat(random_name,
                 format(" every %d+d%d turns", a_ptr->time, a_ptr->randtime),
                 max);
         else if (a_ptr->time)
-            my_strcat(random_name, format(" every %d turns", a_ptr->time), max);
+            SDL_strlcat(random_name, format(" every %d turns", a_ptr->time), max);
         else if (a_ptr->randtime)
-            my_strcat(
+            SDL_strlcat(
                 random_name, format(" every d%d turns", a_ptr->randtime), max);
 
         return;
@@ -993,7 +993,7 @@ static bool describe_activation(const object_type* o_ptr, u32b f3)
 
         u16b size;
 
-        my_strcpy(act_desc, "It activates for ", sizeof(act_desc));
+        SDL_strlcpy(act_desc, "It activates for ", sizeof(act_desc));
 
         /*get the size of the file*/
         size = strlen(act_desc);
@@ -1004,7 +1004,7 @@ static bool describe_activation(const object_type* o_ptr, u32b f3)
          * it out*/
         if (strlen(act_desc) > size)
         {
-            my_strcat(act_desc, format(".  "), sizeof(act_desc));
+            SDL_strlcat(act_desc, format(".  "), sizeof(act_desc));
 
             /*print it out*/
             p_text_out(act_desc);
@@ -1557,4 +1557,5 @@ void object_info_screen_multi(const object_type** objects, const char** headings
     text_out_wrap = 0;
     text_out_indent = 0;
 }
+
 

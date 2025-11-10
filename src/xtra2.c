@@ -2527,9 +2527,9 @@ void monster_death(int m_idx)
 
         /* Write note */
         if (monster_nonliving(r_ptr))
-            my_strcpy(note2, format("Destroyed %s", real_name), sizeof(note2));
+            SDL_strlcpy(note2, format("Destroyed %s", real_name), sizeof(note2));
         else
-            my_strcpy(note2, format("Slew %s", real_name), sizeof(note2));
+            SDL_strlcpy(note2, format("Slew %s", real_name), sizeof(note2));
 
         do_cmd_note(note2, p_ptr->depth);
     }
@@ -2947,26 +2947,26 @@ static void look_mon_desc(char* buf, size_t max, int m_idx)
     monster_type* m_ptr = &mon_list[m_idx];
 
     // start the string empty
-    my_strcpy(buf, "(", max);
+    SDL_strlcpy(buf, "(", max);
 
     if (p_ptr->wizard)
     {
         if (m_ptr->alertness < ALERTNESS_UNWARY)
-            my_strcat(buf, format("asleep (%d), ", m_ptr->alertness), max);
+            SDL_strlcat(buf, format("asleep (%d), ", m_ptr->alertness), max);
         else if (m_ptr->alertness < ALERTNESS_ALERT)
-            my_strcat(buf, format("unwary (%d), ", m_ptr->alertness), max);
+            SDL_strlcat(buf, format("unwary (%d), ", m_ptr->alertness), max);
         else
-            my_strcat(buf, format("alert (%d), ", m_ptr->alertness), max);
+            SDL_strlcat(buf, format("alert (%d), ", m_ptr->alertness), max);
     }
 
     if (m_ptr->confused)
-        my_strcat(buf, "confused, ", max);
+        SDL_strlcat(buf, "confused, ", max);
     if (m_ptr->stunned)
-        my_strcat(buf, "stunned, ", max);
+        SDL_strlcat(buf, "stunned, ", max);
     if ((m_ptr->slowed) && (!m_ptr->hasted))
-        my_strcat(buf, "slowed, ", max);
+        SDL_strlcat(buf, "slowed, ", max);
     if ((!m_ptr->slowed) && (m_ptr->hasted))
-        my_strcat(buf, "hasted, ", max);
+        SDL_strlcat(buf, "hasted, ", max);
 
     // If nothing is going to be written, wipe the string
     if (strlen(buf) == 1)
@@ -2978,7 +2978,7 @@ static void look_mon_desc(char* buf, size_t max, int m_idx)
     {
         // trim the final ", " first
         buf[strlen(buf) - 2] = '\0';
-        my_strcat(buf, ") ", max);
+        SDL_strlcat(buf, ") ", max);
     }
 }
 
@@ -3816,7 +3816,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info, bool us
 
                 if (p_ptr->rage)
                 {
-                    my_strcpy(m_name, "an enemy", sizeof(m_name));
+                    SDL_strlcpy(m_name, "an enemy", sizeof(m_name));
                 }
                 else
                 {
@@ -4430,11 +4430,11 @@ bool target_set_interactive(int mode, int range)
             // prepare the relevant prompt
             if (valid_target)
             {
-                my_strcpy(info, "(t)arget, (m)anual, <dir>", sizeof(info));
+                SDL_strlcpy(info, "(t)arget, (m)anual, <dir>", sizeof(info));
             }
             else
             {
-                my_strcpy(info, "(m)anual, <dir>", sizeof(info));
+                SDL_strlcpy(info, "(m)anual, <dir>", sizeof(info));
             }
 
             /* Describe and Prompt */
@@ -4621,11 +4621,11 @@ bool target_set_interactive(int mode, int range)
             // prepare the relevant prompt
             if (valid_target || p_ptr->wizard)
             {
-                my_strcpy(info, "(t)arget, (a)uto, <dir>", sizeof(info));
+                SDL_strlcpy(info, "(t)arget, (a)uto, <dir>", sizeof(info));
             }
             else
             {
-                my_strcpy(info, "(a)uto, <dir>", sizeof(info));
+                SDL_strlcpy(info, "(a)uto, <dir>", sizeof(info));
             }
 
             /* Describe and Prompt (enable "TARGET_LOOK") */
@@ -4773,7 +4773,7 @@ bool target_set_interactive(int mode, int range)
             x2 = x;
 
             // prepare the relevant prompt
-            my_strcpy(info, "<space>, <tab>, <dir>", sizeof(info));
+            SDL_strlcpy(info, "<space>, <tab>, <dir>", sizeof(info));
 
             /* Describe and Prompt (enable "TARGET_LOOK") */
             query = target_set_interactive_aux(y, x, mode | TARGET_LOOK, info, use_story_look);
@@ -6145,7 +6145,7 @@ cptr* extract_quest_init_texts(int quest_idx, int* count)
         FREE(texts);
         return NULL;
     }
-    my_strcpy(text_copy, full_text, len + 1);
+    SDL_strlcpy(text_copy, full_text, len + 1);
     
     /* Split text by single newlines (each I: line becomes an entry) */
     line_start = text_copy;
@@ -6216,7 +6216,7 @@ cptr* extract_quest_completion_texts(int quest_idx, int* count)
         FREE(texts);
         return NULL;
     }
-    my_strcpy(text_copy, full_text, len + 1);
+    SDL_strlcpy(text_copy, full_text, len + 1);
     
     /* Split text by single newlines (each W: line becomes an entry) */
     line_start = text_copy;
@@ -6425,18 +6425,18 @@ static void display_wrapped_text(int col, int *row, cptr text, byte color, int m
                         line_pos = 0;
                     } else {
                         /* Word fits on a new line */
-                        my_strcpy(line_buf, word, sizeof(line_buf));
+                        SDL_strlcpy(line_buf, word, sizeof(line_buf));
                         line_pos = copy_len;
                     }
                     log_trace("WRAP: Started new line with word='%s', line_pos=%d", word, line_pos);
                 } else {
                     /* Add word to current line */
                     if (line_pos > 0) {
-                        my_strcat(line_buf, " ", sizeof(line_buf));
+                        SDL_strlcat(line_buf, " ", sizeof(line_buf));
                         line_pos++;
                         log_trace("WRAP: Added space, line_pos now=%d", line_pos);
                     }
-                    my_strcat(line_buf, word, sizeof(line_buf));
+                    SDL_strlcat(line_buf, word, sizeof(line_buf));
                     line_pos += copy_len;
                     log_trace("WRAP: Added word to line, line_buf='%s', line_pos=%d", line_buf, line_pos);
                 }
@@ -6501,7 +6501,7 @@ static cptr process_quest_placeholders(cptr text, int quest_idx)
     }
     
     log_trace("PLACEHOLDER: Copying text to buffer");
-    my_strcpy(processed_buf, text, sizeof(processed_buf));
+    SDL_strlcpy(processed_buf, text, sizeof(processed_buf));
     log_trace("PLACEHOLDER: Buffer copied: '%s'", processed_buf);
     
     if (quest_idx == QUEST_ID_TULKAS) {
@@ -6515,9 +6515,9 @@ static cptr process_quest_placeholders(cptr text, int quest_idx)
             monster_race* r_ptr = &r_info[p_ptr->tulkas_target_r_idx];
             char before[128], after[128];
             int before_len = monster_pos - processed_buf;
-            my_strcpy(before, processed_buf, before_len + 1);
+            SDL_strlcpy(before, processed_buf, before_len + 1);
             before[before_len] = '\0';
-            my_strcpy(after, monster_pos + 14, sizeof(after)); /* 14 = strlen("[monster name]") */
+            SDL_strlcpy(after, monster_pos + 14, sizeof(after)); /* 14 = strlen("[monster name]") */
             strnfmt(processed_buf, sizeof(processed_buf), "%s%s%s", before, r_name + r_ptr->name, after);
         }
         
@@ -6527,9 +6527,9 @@ static cptr process_quest_placeholders(cptr text, int quest_idx)
             artefact_type* a_ptr = &a_info[p_ptr->tulkas_prize_a_idx];
             char before[128], after[128];
             int before_len = artifact_pos - processed_buf;
-            my_strcpy(before, processed_buf, before_len + 1);
+            SDL_strlcpy(before, processed_buf, before_len + 1);
             before[before_len] = '\0';
-            my_strcpy(after, artifact_pos + 15, sizeof(after)); /* 15 = strlen("[artifact name]") */
+            SDL_strlcpy(after, artifact_pos + 15, sizeof(after)); /* 15 = strlen("[artifact name]") */
             
             /* Get proper artifact name using object_desc */
             char artifact_name[120];
@@ -6548,10 +6548,10 @@ static cptr process_quest_placeholders(cptr text, int quest_idx)
                     /* Get the full artifact description */
                     object_desc(artifact_name, sizeof(artifact_name), &temp_obj, true, 0);
                 } else {
-                    my_strcpy(artifact_name, a_ptr->name, sizeof(artifact_name));
+                    SDL_strlcpy(artifact_name, a_ptr->name, sizeof(artifact_name));
                 }
             } else {
-                my_strcpy(artifact_name, "a legendary weapon", sizeof(artifact_name));
+                SDL_strlcpy(artifact_name, "a legendary weapon", sizeof(artifact_name));
             }
             
             strnfmt(processed_buf, sizeof(processed_buf), "%s%s%s", before, artifact_name, after);
@@ -6593,7 +6593,7 @@ static cptr get_quest_reward_text(int quest_idx)
                 object_desc(reward_buf, sizeof(reward_buf), &temp_obj, true, 0);
                 return reward_buf;
             } else {
-                my_strcpy(reward_buf, a_ptr->name, sizeof(reward_buf));
+                SDL_strlcpy(reward_buf, a_ptr->name, sizeof(reward_buf));
                 return reward_buf;
             }
         }
@@ -6605,29 +6605,29 @@ static cptr get_quest_reward_text(int quest_idx)
     /* Check stat bonuses */
     if (q_ptr->stat_bonuses[0] || q_ptr->stat_bonuses[1] || q_ptr->stat_bonuses[2] || q_ptr->stat_bonuses[3]) {
         has_rewards = true;
-        my_strcat(reward_buf, "Stats: ", sizeof(reward_buf));
+        SDL_strlcat(reward_buf, "Stats: ", sizeof(reward_buf));
         
         if (q_ptr->stat_bonuses[0]) {
             strnfmt(temp_buf, sizeof(temp_buf), "+%d Str ", q_ptr->stat_bonuses[0]);
-            my_strcat(reward_buf, temp_buf, sizeof(reward_buf));
+            SDL_strlcat(reward_buf, temp_buf, sizeof(reward_buf));
         }
         if (q_ptr->stat_bonuses[1]) {
             strnfmt(temp_buf, sizeof(temp_buf), "+%d Dex ", q_ptr->stat_bonuses[1]);
-            my_strcat(reward_buf, temp_buf, sizeof(reward_buf));
+            SDL_strlcat(reward_buf, temp_buf, sizeof(reward_buf));
         }
         if (q_ptr->stat_bonuses[2]) {
             strnfmt(temp_buf, sizeof(temp_buf), "+%d Con ", q_ptr->stat_bonuses[2]);
-            my_strcat(reward_buf, temp_buf, sizeof(reward_buf));
+            SDL_strlcat(reward_buf, temp_buf, sizeof(reward_buf));
         }
         if (q_ptr->stat_bonuses[3]) {
             strnfmt(temp_buf, sizeof(temp_buf), "+%d Gra ", q_ptr->stat_bonuses[3]);
-            my_strcat(reward_buf, temp_buf, sizeof(reward_buf));
+            SDL_strlcat(reward_buf, temp_buf, sizeof(reward_buf));
         }
     }
     
     /* Check skill bonuses */
     if (q_ptr->skill_type && q_ptr->skill_bonus) {
-        if (has_rewards) my_strcat(reward_buf, "| ", sizeof(reward_buf));
+        if (has_rewards) SDL_strlcat(reward_buf, "| ", sizeof(reward_buf));
         has_rewards = true;
         
         /* Convert skill type to name */
@@ -6643,12 +6643,12 @@ static cptr get_quest_reward_text(int quest_idx)
             case 7: skill_name = "Song"; break;
         }
         strnfmt(temp_buf, sizeof(temp_buf), "+%d %s ", q_ptr->skill_bonus, skill_name);
-        my_strcat(reward_buf, temp_buf, sizeof(reward_buf));
+        SDL_strlcat(reward_buf, temp_buf, sizeof(reward_buf));
     }
     
     /* Check special abilities */
     if (q_ptr->ability_type && q_ptr->ability_id >= 0) {
-        if (has_rewards) my_strcat(reward_buf, "| ", sizeof(reward_buf));
+        if (has_rewards) SDL_strlcat(reward_buf, "| ", sizeof(reward_buf));
         has_rewards = true;
         
         /* Get ability name from ability database */
@@ -6664,18 +6664,18 @@ static cptr get_quest_reward_text(int quest_idx)
             }
         }
         
-        my_strcat(reward_buf, ability_name, sizeof(reward_buf));
+        SDL_strlcat(reward_buf, ability_name, sizeof(reward_buf));
     }
     
     /* Check oath association */
     if (q_ptr->oath_id) {
-        if (has_rewards) my_strcat(reward_buf, " | ", sizeof(reward_buf));
+        if (has_rewards) SDL_strlcat(reward_buf, " | ", sizeof(reward_buf));
         has_rewards = true;
-        my_strcat(reward_buf, get_oath_name_from_id(q_ptr->oath_id), sizeof(reward_buf));
+        SDL_strlcat(reward_buf, get_oath_name_from_id(q_ptr->oath_id), sizeof(reward_buf));
     }
     
     if (!has_rewards) {
-        my_strcpy(reward_buf, "Unknown reward", sizeof(reward_buf));
+        SDL_strlcpy(reward_buf, "Unknown reward", sizeof(reward_buf));
     }
     
     return reward_buf;
@@ -7455,16 +7455,16 @@ void tulkas_quest_interaction(void)
             cptr* processed_texts = C_ZNEW(text_count, cptr);
             for (int i = 0; i < text_count; i++) {
                 char temp_text[1024];
-                my_strcpy(temp_text, init_texts[i], sizeof(temp_text));
+                SDL_strlcpy(temp_text, init_texts[i], sizeof(temp_text));
                 
                 /* Replace [monster name] with actual monster name */
                 char* monster_pos = my_strstr(temp_text, "[monster name]");
                 if (monster_pos) {
                     char before[512], after[512];
                     int before_len = monster_pos - temp_text;
-                    my_strcpy(before, temp_text, before_len + 1);
+                    SDL_strlcpy(before, temp_text, before_len + 1);
                     before[before_len] = '\0';
-                    my_strcpy(after, monster_pos + 14, sizeof(after)); /* 14 = strlen("[monster name]") */
+                    SDL_strlcpy(after, monster_pos + 14, sizeof(after)); /* 14 = strlen("[monster name]") */
                     strnfmt(temp_text, sizeof(temp_text), "%s%s%s", before, r_name + r_ptr->name, after);
                 }
                 
@@ -7473,9 +7473,9 @@ void tulkas_quest_interaction(void)
                 if (artifact_pos) {
                     char before[512], after[512];
                     int before_len = artifact_pos - temp_text;
-                    my_strcpy(before, temp_text, before_len + 1);
+                    SDL_strlcpy(before, temp_text, before_len + 1);
                     before[before_len] = '\0';
-                    my_strcpy(after, artifact_pos + 15, sizeof(after)); /* 15 = strlen("[artifact name]") */
+                    SDL_strlcpy(after, artifact_pos + 15, sizeof(after)); /* 15 = strlen("[artifact name]") */
                     
                     /* Get proper artifact name using object_desc */
                     char artifact_name[120];
@@ -7493,7 +7493,7 @@ void tulkas_quest_interaction(void)
                         /* Get the full artifact description */
                         object_desc(artifact_name, sizeof(artifact_name), &temp_obj, true, 0);
                     } else {
-                        my_strcpy(artifact_name, "a legendary weapon", sizeof(artifact_name));
+                        SDL_strlcpy(artifact_name, "a legendary weapon", sizeof(artifact_name));
                     }
                     
                     strnfmt(temp_text, sizeof(temp_text), "%s%s%s", before, artifact_name, after);
@@ -8677,6 +8677,7 @@ void grant_unique_bane_ability(void)
     p_ptr->update |= (PU_BONUS);
     handle_stuff();
 }
+
 
 
 

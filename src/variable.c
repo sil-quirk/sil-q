@@ -896,3 +896,4 @@ int meta_fd = -1;
 metarun metar;
 
 runtype_type *runtype_info = NULL;   /* filled by init_rt_info() */
+

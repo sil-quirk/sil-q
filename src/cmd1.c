@@ -1745,7 +1745,7 @@ extern void ident_passive(void)
             if ((f2 & (TR2_REGEN)) && (p_ptr->chp < p_ptr->mhp))
             {
                 notice = true;
-                my_strcpy(effect_string,
+                SDL_strlcpy(effect_string,
                     "You notice that you are recovering much faster than "
                     "usual.",
                     sizeof(effect_string));
@@ -1753,14 +1753,14 @@ extern void ident_passive(void)
             else if ((f2 & (TR2_AGGRAVATE)))
             {
                 notice = true;
-                my_strcpy(effect_string,
+                SDL_strlcpy(effect_string,
                     "You notice that you are enraging your enemies.",
                     sizeof(effect_string));
             }
             else if ((f2 & (TR2_DANGER)))
             {
                 notice = true;
-                my_strcpy(effect_string,
+                SDL_strlcpy(effect_string,
                     "You notice that you are attracting more powerful enemies.",
                     sizeof(effect_string));
             }
@@ -3009,7 +3009,7 @@ void do_cmd_pickup_from_pile(void)
         /* Display */
         show_floor(floor_list, floor_num);
 
-        my_strcpy(
+        SDL_strlcpy(
             prompt, "Pick up which object? (ESC to cancel):", sizeof(prompt));
 
         /*clear the restriction*/
@@ -4255,11 +4255,11 @@ void attack_punctuation(char* punctuation, int net_dam, int crit_bonus_dice)
 
     if (net_dam == 0)
     {
-        my_strcpy(punctuation, "...", sizeof(punctuation));
+        SDL_strlcpy(punctuation, "...", sizeof(punctuation));
     }
     else if (crit_bonus_dice == 0)
     {
-        my_strcpy(punctuation, ".", sizeof(punctuation));
+        SDL_strlcpy(punctuation, ".", sizeof(punctuation));
     }
     else
     {
@@ -6659,6 +6659,7 @@ void run_step(int dir)
     /* Move the player */
     move_player(p_ptr->run_cur_dir);
 }
+
 
 
 

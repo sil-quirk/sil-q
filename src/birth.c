@@ -2594,11 +2594,11 @@ static NavResult player_birth_aux(void)
 
     log_debug("Initializing character data and history");
 
-    my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
+    SDL_strlcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
     process_player_name(true);  /* CRITICAL: Must pass true to update savefile path! */
     /* Clear the previous history strings */
     p_ptr->history[0] = '\0';
-    my_strcat(
+    SDL_strlcat(
                 p_ptr->history, (c_text + c_info[p_ptr->phouse].text), sizeof(p_ptr->history));
 
     p_ptr->wt = 0;
@@ -2691,12 +2691,12 @@ NavResult player_birth()
             clean_date, "%.2s %.3s %.4s", raw_date + 7, month, raw_date + 1);
 
     /* Add in "character start" information */
-    my_strcat(notes_buffer,
+    SDL_strlcat(notes_buffer,
         format("%s of the %s\n", op_ptr->full_name, p_name + rp_ptr->name),
         sizeof(notes_buffer));
-    my_strcat(notes_buffer, format("Entered Angband on %s\n", clean_date),
+    SDL_strlcat(notes_buffer, format("Entered Angband on %s\n", clean_date),
         sizeof(notes_buffer));
-    my_strcat(
+    SDL_strlcat(
         notes_buffer, "\n   Turn     Depth   Note\n\n", sizeof(notes_buffer));
 
     /* Note player birth in the message recall */
@@ -2716,3 +2716,4 @@ NavResult player_birth()
 
     return NAV_OK;
 }
+

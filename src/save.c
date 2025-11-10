@@ -1324,7 +1324,7 @@ static void wr_notes(void)
     }
 
     // copy the special notes marker into a string
-    my_strcpy(end_note, NOTES_MARK, sizeof(end_note));
+    SDL_strlcpy(end_note, NOTES_MARK, sizeof(end_note));
 
     /* Always write NOTES_MARK */
     wr_string(end_note);
@@ -1902,13 +1902,13 @@ bool save_player(void)
     }
 
     /* New savefile */
-    my_strcpy(safe, savefile, sizeof(safe));
-    my_strcat(safe, ".new", sizeof(safe));
+    SDL_strlcpy(safe, savefile, sizeof(safe));
+    SDL_strlcat(safe, ".new", sizeof(safe));
 
 #ifdef VM
     /* Hack -- support "flat directory" usage on VM/ESA */
-    my_strcpy(safe, savefile, sizeof(safe));
-    my_strcat(safe, "n", sizeof(safe));
+    SDL_strlcpy(safe, savefile, sizeof(safe));
+    SDL_strlcat(safe, "n", sizeof(safe));
 #endif /* VM */
 
     /* Grab permissions */
@@ -1929,13 +1929,13 @@ bool save_player(void)
         log_info("Save successful - activating new savefile");
 
         /* Old savefile */
-        my_strcpy(temp, savefile, sizeof(temp));
-        my_strcat(temp, ".old", sizeof(temp));
+        SDL_strlcpy(temp, savefile, sizeof(temp));
+        SDL_strlcat(temp, ".old", sizeof(temp));
 
 #ifdef VM
         /* Hack -- support "flat directory" usage on VM/ESA */
-        my_strcpy(temp, savefile, sizeof(temp));
-        my_strcat(temp, "o", sizeof(temp));
+        SDL_strlcpy(temp, savefile, sizeof(temp));
+        SDL_strlcat(temp, "o", sizeof(temp));
 #endif /* VM */
 
         /* Grab permissions */
@@ -1991,8 +1991,8 @@ bool save_player(void)
 #ifdef VERIFY_SAVEFILE
 
         /* Lock on savefile */
-        my_strcpy(temp, savefile, sizeof(temp));
-        my_strcat(temp, ".lok", sizeof(temp));
+        SDL_strlcpy(temp, savefile, sizeof(temp));
+        SDL_strlcat(temp, ".lok", sizeof(temp));
 
         /* Grab permissions */
         safe_setuid_grab();
@@ -2033,6 +2033,7 @@ bool save_player(void)
     }
     return (result);
 }
+
 
 
 

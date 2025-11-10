@@ -1023,7 +1023,7 @@ static errr process_pref_file_aux(cptr name)
             continue;
 
         /* Save a copy */
-        my_strcpy(old, buf, sizeof(old));
+        SDL_strlcpy(old, buf, sizeof(old));
 
         /* Process "?:<expr>" */
         if ((buf[0] == '?') && (buf[1] == ':'))
@@ -1201,19 +1201,19 @@ errr check_time_init(void)
 
         /* Extract the info */
         if (prefix(buf, "SUN:"))
-            my_strcpy(days[0], buf, sizeof(days[0]));
+            SDL_strlcpy(days[0], buf, sizeof(days[0]));
         if (prefix(buf, "MON:"))
-            my_strcpy(days[1], buf, sizeof(days[1]));
+            SDL_strlcpy(days[1], buf, sizeof(days[1]));
         if (prefix(buf, "TUE:"))
-            my_strcpy(days[2], buf, sizeof(days[2]));
+            SDL_strlcpy(days[2], buf, sizeof(days[2]));
         if (prefix(buf, "WED:"))
-            my_strcpy(days[3], buf, sizeof(days[3]));
+            SDL_strlcpy(days[3], buf, sizeof(days[3]));
         if (prefix(buf, "THU:"))
-            my_strcpy(days[4], buf, sizeof(days[4]));
+            SDL_strlcpy(days[4], buf, sizeof(days[4]));
         if (prefix(buf, "FRI:"))
-            my_strcpy(days[5], buf, sizeof(days[5]));
+            SDL_strlcpy(days[5], buf, sizeof(days[5]));
         if (prefix(buf, "SAT:"))
-            my_strcpy(days[6], buf, sizeof(days[6]));
+            SDL_strlcpy(days[6], buf, sizeof(days[6]));
     }
 
     /* Close it */
@@ -2287,7 +2287,7 @@ void display_character_tutorial(void)
             
             /* Truncate history for tutorial to fit in 3 lines */
             char hist_preview[150];
-            my_strcpy(hist_preview, p_ptr->history, sizeof(hist_preview));
+            SDL_strlcpy(hist_preview, p_ptr->history, sizeof(hist_preview));
             if (strlen(p_ptr->history) > 140)
             {
                 hist_preview[137] = '.';
@@ -2469,7 +2469,7 @@ void display_player_stat_info(int row, int col)
         }
         
         /* Trim trailing spaces for story font rendering */
-        my_strcpy(trimmed_label, stat_label, sizeof(trimmed_label));
+        SDL_strlcpy(trimmed_label, stat_label, sizeof(trimmed_label));
         int len = strlen(trimmed_label);
         while (len > 0 && trimmed_label[len-1] == ' ') {
             trimmed_label[--len] = '\0';
@@ -2997,13 +2997,13 @@ bool show_file(cptr name, cptr what, int line)
     int wid, hgt;
 
     /* Wipe finder */
-    my_strcpy(finder, "", sizeof(finder));
+    SDL_strlcpy(finder, "", sizeof(finder));
 
     /* Wipe shower */
-    my_strcpy(shower, "", sizeof(shower));
+    SDL_strlcpy(shower, "", sizeof(shower));
 
     /* Wipe caption */
-    my_strcpy(caption, "", sizeof(caption));
+    SDL_strlcpy(caption, "", sizeof(caption));
 
     /* Wipe the hooks */
     for (i = 0; i < 26; i++)
@@ -3013,7 +3013,7 @@ bool show_file(cptr name, cptr what, int line)
     Term_get_size(&wid, &hgt);
 
     /* Copy the filename */
-    my_strcpy(filename, name, sizeof(filename));
+    SDL_strlcpy(filename, name, sizeof(filename));
 
     n = strlen(filename);
 
@@ -3035,10 +3035,10 @@ bool show_file(cptr name, cptr what, int line)
     if (what)
     {
         /* Caption */
-        my_strcpy(caption, what, sizeof(caption));
+        SDL_strlcpy(caption, what, sizeof(caption));
 
         /* Get the filename */
-        my_strcpy(path, name, sizeof(path));
+        SDL_strlcpy(path, name, sizeof(path));
         
         log_debug("Opening help file: %s", path);
 
@@ -3084,7 +3084,7 @@ bool show_file(cptr name, cptr what, int line)
 
                 /* Store the menu item (if valid) */
                 if ((k >= 0) && (k < 26))
-                    my_strcpy(hook[k], buf + 10, sizeof(hook[0]));
+                    SDL_strlcpy(hook[k], buf + 10, sizeof(hook[0]));
             }
             /* Notice "tag" requests */
             else if (buf[6] == '<')
@@ -3177,7 +3177,7 @@ bool show_file(cptr name, cptr what, int line)
             next++;
 
             /* Make a copy of the current line for searching */
-            my_strcpy(lc_buf, buf, sizeof(lc_buf));
+            SDL_strlcpy(lc_buf, buf, sizeof(lc_buf));
 
             /* Make the line lower case */
             if (!case_sensitive)
@@ -3302,7 +3302,7 @@ bool show_file(cptr name, cptr what, int line)
                     string_lower(finder);
 
                 /* Show it */
-                my_strcpy(shower, finder, sizeof(shower));
+                SDL_strlcpy(shower, finder, sizeof(shower));
             }
         }
 
@@ -3311,7 +3311,7 @@ bool show_file(cptr name, cptr what, int line)
         {
             char tmp[80];
             prt("Goto Line: ", hgt - 1, 0);
-            my_strcpy(tmp, "0", sizeof(tmp));
+            SDL_strlcpy(tmp, "0", sizeof(tmp));
             if (askfor_aux(tmp, sizeof(tmp)))
             {
                 line = atoi(tmp);
@@ -4162,7 +4162,7 @@ void process_player_name(bool sf)
     if (!op_ptr->base_name[0])
     {
         log_debug("No base name provided, using 'nameless'");
-        my_strcpy(op_ptr->base_name, "nameless", sizeof(op_ptr->base_name));
+        SDL_strlcpy(op_ptr->base_name, "nameless", sizeof(op_ptr->base_name));
     }
 
     /* Pick savefile name if needed */
@@ -4219,11 +4219,11 @@ bool get_name(void)
     }
 
     // use old name as a default
-   // my_strcpy(tmp, op_ptr->full_name, sizeof(tmp));
-    my_strcpy(tmp, c_name + c_info[p_ptr->phouse].name, sizeof(tmp));
+   // SDL_strlcpy(tmp, op_ptr->full_name, sizeof(tmp));
+    SDL_strlcpy(tmp, c_name + c_info[p_ptr->phouse].name, sizeof(tmp));
 
     // save a copy too
-    my_strcpy(old_name, c_name + c_info[p_ptr->phouse].name, sizeof(old_name));
+    SDL_strlcpy(old_name, c_name + c_info[p_ptr->phouse].name, sizeof(old_name));
 
     /* Prompt for a new name */
     Term_gotoxy(8, 2);
@@ -4232,12 +4232,12 @@ bool get_name(void)
     {
         if (askfor_name(tmp, sizeof(tmp)))
         {
-            my_strcpy(op_ptr->full_name, tmp, sizeof(op_ptr->full_name));
+            SDL_strlcpy(op_ptr->full_name, tmp, sizeof(op_ptr->full_name));
             p_ptr->redraw |= (PR_MISC);
         }
         else
         {
-            my_strcpy(op_ptr->full_name, old_name, sizeof(op_ptr->full_name));
+            SDL_strlcpy(op_ptr->full_name, old_name, sizeof(op_ptr->full_name));
             return (false);
         }
 
@@ -4248,7 +4248,7 @@ bool get_name(void)
     }*/
 
     /* Process the player name */
-    my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
+    SDL_strlcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
     process_player_name(true);
     
     log_info("Character name confirmed: '%s'", op_ptr->full_name);
@@ -4284,7 +4284,7 @@ void do_cmd_escape(int silmarils)
     (void)strftime(long_day, 40, "%d %B %Y", localtime(&ct));
 
     /* Add note */
-    my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
+    SDL_strlcat(notes_buffer, "\n", sizeof(notes_buffer));
 
     /*killed by */
     sprintf(buf, "You escaped the Iron Hells on %s.", long_day);
@@ -4341,10 +4341,10 @@ void do_cmd_escape(int silmarils)
 
     // (void)inkey();
 
-    my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
+    SDL_strlcat(notes_buffer, "\n", sizeof(notes_buffer));
 
     /* Cause of death */
-    my_strcpy(p_ptr->died_from, "ripe old age", sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, "ripe old age", sizeof(p_ptr->died_from));
 
     /* Update metarun: escaped with N Silmarils */
     log_info("Player escaped with %d Silmarils", silmarils);
@@ -4376,7 +4376,7 @@ void do_cmd_morgoth_victory(void)
     /* Mark the calendar moment */
     (void)strftime(long_day, sizeof(long_day), "%d %B %Y", localtime(&ct));
 
-    my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
+    SDL_strlcat(notes_buffer, "\n", sizeof(notes_buffer));
 
     strnfmt(buf, sizeof(buf),
             "On %s you broke the illusion binding Morgoth to his throne.",
@@ -4387,10 +4387,10 @@ void do_cmd_morgoth_victory(void)
         "The Valar hail your impossible triumph and pour out their blessing.",
         p_ptr->depth);
 
-    my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
+    SDL_strlcat(notes_buffer, "\n", sizeof(notes_buffer));
 
     /* Record cause for high scores */
-    my_strcpy(p_ptr->died_from, "Morgoth's illusory defeat",
+    SDL_strlcpy(p_ptr->died_from, "Morgoth's illusory defeat",
         sizeof(p_ptr->died_from));
 }
 
@@ -4425,7 +4425,7 @@ void do_cmd_suicide(void)
     /* Leaving */
     p_ptr->leaving = true;
 
-    my_strcpy(p_ptr->died_from, "their own hand", sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, "their own hand", sizeof(p_ptr->died_from));
 }
 
 /*
@@ -4463,7 +4463,7 @@ void do_cmd_save_game(void)
     Term_fresh();
 
     /* The player is not dead */
-    my_strcpy(p_ptr->died_from, "(saved)", sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, "(saved)", sizeof(p_ptr->died_from));
 
     /* Forbid suspend */
     signals_ignore_tstp();
@@ -4499,7 +4499,7 @@ void do_cmd_save_game(void)
     Term_fresh();
 
     /* Note that the player is not dead */
-    my_strcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
 
     /* Reset the quietly flag */
     save_game_quietly = false;
@@ -5565,7 +5565,7 @@ static long score_day_key(const high_score* entry)
         return LONG_MIN + 1;
 
     char buf[32];
-    my_strcpy(buf, entry->day + 1, sizeof(buf));
+    SDL_strlcpy(buf, entry->day + 1, sizeof(buf));
     char* end = NULL;
     long value = strtol(buf, &end, 10);
     if (value <= 0 || !end || *end != '\0')
@@ -6419,15 +6419,15 @@ static void upsert_live_score_on_save(void)
 
     /* Build live score snapshot */
     char saved_how[sizeof(p_ptr->died_from)];
-    my_strcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
-    my_strcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
+    SDL_strlcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
+    SDL_strlcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
     high_score live_score;
     log_debug("upsert_live_score_on_save: Creating score for player '%s' house=%d", 
               op_ptr->full_name, p_ptr->phouse);
     create_score(&live_score);
     log_debug("upsert_live_score_on_save: Created score - who='%s' house='%s' how='%s'", 
               live_score.who, live_score.p_h, live_score.how);
-    my_strcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
 
     /* Scan for existing live entry for this character */
     if (highscore_seek(0) == 0) {
@@ -6682,33 +6682,33 @@ extern void display_single_score(
     size_t pre_curse_len = strlen(out_val);
     if (curse_text[0] != '\0')
     {
-        my_strcat(out_val, curse_text, sizeof(out_val));
+        SDL_strlcat(out_val, curse_text, sizeof(out_val));
     }
 
     /* Possibly ammend the first line */
     if (the_score->morgoth_slain[0] == 't')
     {
-        my_strcat(out_val, ", hailed as the Slayer of Morgoth's shadow",
+        SDL_strlcat(out_val, ", hailed as the Slayer of Morgoth's shadow",
             sizeof(out_val));
     }
     else
     {
         if (the_score->silmarils[0] == '1')
         {
-            my_strcat(out_val, ", who freed a Silmaril", sizeof(out_val));
+            SDL_strlcat(out_val, ", who freed a Silmaril", sizeof(out_val));
         }
         if (the_score->silmarils[0] == '2')
         {
-            my_strcat(out_val, ", who freed two Silmarils", sizeof(out_val));
+            SDL_strlcat(out_val, ", who freed two Silmarils", sizeof(out_val));
         }
         if (the_score->silmarils[0] == '3')
         {
-            my_strcat(
+            SDL_strlcat(
                 out_val, ", who freed all three Silmarils", sizeof(out_val));
         }
         if (the_score->silmarils[0] > '3')
         {
-            my_strcat(out_val, ", who freed suspiciously many Silmarils",
+            SDL_strlcat(out_val, ", who freed suspiciously many Silmarils",
                 sizeof(out_val));
         }
     }
@@ -6738,12 +6738,12 @@ extern void display_single_score(
         if ((the_score->morgoth_slain[0] == 't')
             || (the_score->silmarils[0] > '0'))
         {
-            my_strcat(out_val, " and brought back the light of Valinor",
+            SDL_strlcat(out_val, " and brought back the light of Valinor",
                 sizeof(out_val));
         }
         else
         {
-            my_strcat(out_val, " empty-handed", sizeof(out_val));
+            SDL_strlcat(out_val, " empty-handed", sizeof(out_val));
         }
     }
 
@@ -6770,7 +6770,7 @@ extern void display_single_score(
         /* Mark those with a silmaril */
         if (the_score->silmarils[0] > '0')
         {
-            my_strcat(out_val, " during a daring escape", sizeof(out_val));
+            SDL_strlcat(out_val, " during a daring escape", sizeof(out_val));
         }
     }
 
@@ -7673,18 +7673,18 @@ static bool build_live_preview_score(high_score* out)
         return false;
 
     char saved_how[sizeof(p_ptr->died_from)];
-    my_strcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
+    SDL_strlcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
 
     time_t previous_time = death_time;
     time_t now = time(NULL);
     if (now != (time_t)-1)
         death_time = now;
 
-    my_strcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
 
     bool ok = (create_score(out) == 0);
 
-    my_strcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
     death_time = previous_time;
 
     return ok;
@@ -8071,7 +8071,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
 
         /* 6) UI is now handled by metarun_update_on_exit() */
         static char killed_house[32];
-        my_strcpy(killed_house, hname, sizeof killed_house);
+        SDL_strlcpy(killed_house, hname, sizeof killed_house);
 
         /* 7) Close the descriptor and reset before returning */
         safe_setuid_grab();
@@ -8248,7 +8248,7 @@ errr file_character(cptr name, bool full)
                 char wgt_buf[80];
 
                 sprintf(wgt_buf, " %d.%1d lb", wgt / 10, wgt % 10);
-                my_strcat(o_name, wgt_buf, sizeof(o_name));
+                SDL_strlcat(o_name, wgt_buf, sizeof(o_name));
             }
 
             SDL_IOprintf(fff, "%c) %s\n", index_to_label(i), o_name);
@@ -8279,7 +8279,7 @@ errr file_character(cptr name, bool full)
             char wgt_buf[80];
 
             sprintf(wgt_buf, " %d.%1d lb", wgt / 10, wgt % 10);
-            my_strcat(o_name, wgt_buf, sizeof(o_name));
+            SDL_strlcat(o_name, wgt_buf, sizeof(o_name));
         }
 
         SDL_IOprintf(fff, "%c) %s\n", index_to_label(i), o_name);
@@ -8872,13 +8872,13 @@ void close_game(void)
            We record an entry with how == "(alive and well)". */
         if (highscore_fd >= 0) {
             char saved_how[sizeof(p_ptr->died_from)];
-            my_strcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
-            my_strcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
+            SDL_strlcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
+            SDL_strlcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
             high_score live_score;
             create_score(&live_score);
 
             /* Restore original (probably redundant during quit) */
-            my_strcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
+            SDL_strlcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
 
             /* Acquire write lock while we upsert */
             safe_setuid_grab();
@@ -8981,7 +8981,7 @@ void exit_game_panic(void)
     signals_ignore_tstp();
 
     /* Indicate panic save */
-    my_strcpy(p_ptr->died_from, "(panic save)", sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, "(panic save)", sizeof(p_ptr->died_from));
 
     /* Panic save, or get worried */
     if (!save_player())
@@ -9084,7 +9084,7 @@ static void handle_signal_simple(int sig)
     if (p_ptr->is_dead)
     {
         /* Mark the savefile */
-        my_strcpy(p_ptr->died_from, "Aborting", sizeof(p_ptr->died_from));
+        SDL_strlcpy(p_ptr->died_from, "Aborting", sizeof(p_ptr->died_from));
 
         /* HACK - Skip the tombscreen if it is already displayed */
         if (score_idx == -1)
@@ -9101,7 +9101,7 @@ static void handle_signal_simple(int sig)
     else if (signal_count >= 5)
     {
         /* Cause of "death" */
-        my_strcpy(p_ptr->died_from, "Interrupting", sizeof(p_ptr->died_from));
+        SDL_strlcpy(p_ptr->died_from, "Interrupting", sizeof(p_ptr->died_from));
 
         /* Commit suicide */
         p_ptr->is_dead = true;
@@ -9178,7 +9178,7 @@ static void handle_signal_abort(int sig)
     p_ptr->panic_save = 1;
 
     /* Panic save */
-    my_strcpy(p_ptr->died_from, "(panic save)", sizeof(p_ptr->died_from));
+    SDL_strlcpy(p_ptr->died_from, "(panic save)", sizeof(p_ptr->died_from));
 
     /* Forbid suspend */
     signals_ignore_tstp();
@@ -9808,10 +9808,10 @@ bool autoload_alive_from_scores(void)
 
         char who_buf[sizeof entry.who + 1];
         memset(who_buf, 0, sizeof who_buf);
-        my_strcpy(who_buf, entry.who, sizeof(who_buf));
+        SDL_strlcpy(who_buf, entry.who, sizeof(who_buf));
         log_info("autoload: found alive entry '%s' (index %d) - attempting load", who_buf, i);
 
-        my_strcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
+        SDL_strlcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
         process_player_name(true);
 
         log_info("autoload: savefile path generated: '%s'", savefile);
@@ -9831,15 +9831,15 @@ bool autoload_alive_from_scores(void)
         char savefile_backup[1024];
         char alt_temp[128];
         char alt_path[1024];
-        my_strcpy(savefile_backup, savefile, sizeof(savefile_backup));
+        SDL_strlcpy(savefile_backup, savefile, sizeof(savefile_backup));
         strnfmt(alt_temp, sizeof(alt_temp), "%s", who_buf);
         path_build(alt_path, sizeof(alt_path), ANGBAND_DIR_SAVE, alt_temp);
-        my_strcpy(savefile, alt_path, sizeof(savefile));
+        SDL_strlcpy(savefile, alt_path, sizeof(savefile));
         log_info("autoload: retrying with legacy spaced filename '%s'", savefile);
         if (load_player()) {
             log_info("autoload: successfully loaded '%s' (legacy spaced)", who_buf);
             /* Restore canonical name */
-            my_strcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
+            SDL_strlcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
             process_player_name(true);
             SDL_CloseIO(highscore_fd);
             highscore_fd = saved_fd;
@@ -9848,10 +9848,10 @@ bool autoload_alive_from_scores(void)
             scores_file_version_patch = saved_patch;
             scores_file_version_extra = saved_extra;
             scores_file_entry_count = saved_entry_count;
-            my_strcpy(savefile, savefile_backup, sizeof(savefile));
+            SDL_strlcpy(savefile, savefile_backup, sizeof(savefile));
             return true;
         }
-        my_strcpy(savefile, savefile_backup, sizeof(savefile));
+        SDL_strlcpy(savefile, savefile_backup, sizeof(savefile));
 
         /* Mark as dead and continue */
 #if ANTICHEAT
@@ -9917,7 +9917,7 @@ void clear_scorefile(void)
             struct tm *lt = localtime(&now);
             char stamp[32];
             if (lt) strftime(stamp, sizeof stamp, "%Y%m%d-%H%M%S", lt);
-            else my_strcpy(stamp, "unknown", sizeof stamp);
+            else SDL_strlcpy(stamp, "unknown", sizeof stamp);
 
             /* Include run id if available (metar declared in metarun.h) */
             extern metarun metar; /* declared in metarun.h */
@@ -10231,6 +10231,7 @@ void backup_and_clear_saves(void)
     
     log_trace("Folder-based backup process completed");
 }
+
 
 
 

@@ -1079,7 +1079,7 @@ void monster_desc(char* desc, size_t max, const monster_type* m_ptr, int mode)
         }
 
         /* Copy the result */
-        my_strcpy(desc, res, max);
+        SDL_strlcpy(desc, res, max);
     }
 
     /* Handle visible monsters, "reflexive" request */
@@ -1087,11 +1087,11 @@ void monster_desc(char* desc, size_t max, const monster_type* m_ptr, int mode)
     {
         /* The monster is visible, so use its gender */
         if (r_ptr->flags1 & (RF1_FEMALE))
-            my_strcpy(desc, "herself", max);
+            SDL_strlcpy(desc, "herself", max);
         else if (r_ptr->flags1 & (RF1_MALE))
-            my_strcpy(desc, "himself", max);
+            SDL_strlcpy(desc, "himself", max);
         else
-            my_strcpy(desc, "itself", max);
+            SDL_strlcpy(desc, "itself", max);
     }
 
     /* Handle all other visible monster requests */
@@ -1101,7 +1101,7 @@ void monster_desc(char* desc, size_t max, const monster_type* m_ptr, int mode)
         if (r_ptr->flags1 & (RF1_UNIQUE))
         {
             /* Start with the name (thus nominative and objective) */
-            my_strcpy(desc, name, max);
+            SDL_strlcpy(desc, name, max);
         }
 
         /* It could be an indefinite monster */
@@ -1110,16 +1110,16 @@ void monster_desc(char* desc, size_t max, const monster_type* m_ptr, int mode)
             /* XXX Check plurality for "some" */
 
             /* Indefinite monsters need an indefinite article */
-            my_strcpy(desc, is_a_vowel(name[0]) ? "an " : "a ", max);
-            my_strcat(desc, name, max);
+            SDL_strlcpy(desc, is_a_vowel(name[0]) ? "an " : "a ", max);
+            SDL_strlcat(desc, name, max);
         }
 
         /* It could be a normal, definite, monster */
         else
         {
             /* Definite monsters need a definite article */
-            my_strcpy(desc, "the ", max);
-            my_strcat(desc, name, max);
+            SDL_strlcpy(desc, "the ", max);
+            SDL_strlcat(desc, name, max);
         }
 
         /* Handle the Possessive as a special afterthought */
@@ -1128,14 +1128,14 @@ void monster_desc(char* desc, size_t max, const monster_type* m_ptr, int mode)
             /* XXX Check for trailing "s" */
 
             /* Simply append "apostrophe" and "s" */
-            my_strcat(desc, "'s", max);
+            SDL_strlcat(desc, "'s", max);
         }
 
         /* Mention "offscreen" monsters XXX XXX */
         if (!panel_contains(m_ptr->fy, m_ptr->fx))
         {
             /* Append special notation */
-            my_strcat(desc, " (offscreen)", max);
+            SDL_strlcat(desc, " (offscreen)", max);
         }
     }
 }
@@ -1159,7 +1159,7 @@ void monster_desc_race(char* desc, size_t max, int r_idx)
     cptr name = (r_name + r_ptr->name);
 
     /* Write the name */
-    my_strcpy(desc, name, max);
+    SDL_strlcpy(desc, name, max);
 }
 
 /*
@@ -1816,7 +1816,7 @@ void update_mon(int m_idx, bool full)
             monster_desc_race(real_name, sizeof(real_name), m_ptr->r_idx);
 
             /* Write note */
-            my_strcpy(
+            SDL_strlcpy(
                 note2, format("Encountered %s", real_name), sizeof(note2));
 
             do_cmd_note(note2, p_ptr->depth);
@@ -3360,13 +3360,13 @@ bool alloc_monster(bool on_stairs, bool force_undead)
                 if (r_ptr->flags1
                     & (RF1_FRIEND | RF1_FRIENDS | RF1_ESCORT | RF1_ESCORTS))
                 {
-                    my_strcpy(message,
+                    SDL_strlcpy(message,
                         format("A group of enemies come %s the stair", dir),
                         240);
                 }
                 else
                 {
-                    my_strcpy(message,
+                    SDL_strlcpy(message,
                         format("%^s comes %s the stair", m_name, dir), 240);
                 }
 
@@ -3374,7 +3374,7 @@ bool alloc_monster(bool on_stairs, bool force_undead)
                 {
                     if ((p_ptr->py == y) && (p_ptr->px == x))
                     {
-                        my_strcpy(who, "you", 80);
+                        SDL_strlcpy(who, "you", 80);
                     }
                     else
                     {
@@ -3835,3 +3835,4 @@ void message_pain(int m_idx, int dam)
 
     // m, w are silent
 }
+

@@ -1132,7 +1132,7 @@ bool make_attack_normal(monster_type* m_ptr)
                 int drain;
 
                 char msg_tmp[80];
-                my_strcpy(msg_tmp, msg, sizeof(msg_tmp));
+                SDL_strlcpy(msg_tmp, msg, sizeof(msg_tmp));
 
                 /* Obvious */
                 obvious = true;
@@ -1142,7 +1142,7 @@ bool make_attack_normal(monster_type* m_ptr)
                 {
                     if (saving_throw(m_ptr, 0))
                     {
-                        my_strcat(msg_tmp, "  You resist the effects.",
+                        SDL_strlcat(msg_tmp, "  You resist the effects.",
                             sizeof(msg_tmp));
                     }
                     else
@@ -1158,13 +1158,13 @@ bool make_attack_normal(monster_type* m_ptr)
                                 p_ptr->csp = 0;
                                 p_ptr->csp_frac = 0;
 
-                                my_strcat(msg_tmp, "  Your voice fails you!",
+                                SDL_strlcat(msg_tmp, "  Your voice fails you!",
                                     sizeof(msg_tmp));
                             }
                             else
                             {
                                 p_ptr->csp -= drain;
-                                my_strcat(msg_tmp, "  Your voice wavers.",
+                                SDL_strlcat(msg_tmp, "  Your voice wavers.",
                                     sizeof(msg_tmp));
                             }
 
@@ -3462,7 +3462,7 @@ static void draw_combat_roll_line(int row, int base_col_offset,
             {
                 if ((roll->ps < 1) || (roll->pd < 1))
                 {
-                    my_strcpy(buf, "        ", sizeof(buf));
+                    SDL_strlcpy(buf, "        ", sizeof(buf));
                     Term_addstr(-1, a_prot_roll, buf);
                 }
                 else if (roll->ps < 10)
@@ -3579,7 +3579,7 @@ static void draw_combat_roll_line(int row, int base_col_offset,
         {
             if ((roll->ps < 1) || (roll->pd < 1))
             {
-                my_strcpy(buf, "        ", sizeof(buf));
+                SDL_strlcpy(buf, "        ", sizeof(buf));
                 Term_addstr(-1, a_prot_roll, buf);
             }
             else if (roll->ps < 10)
@@ -3685,10 +3685,10 @@ void do_cmd_combat_history(void)
     char buf[120];
     
     /* Wipe finder */
-    my_strcpy(finder, "", sizeof(finder));
+    SDL_strlcpy(finder, "", sizeof(finder));
     
     /* Wipe shower */
-    my_strcpy(shower, "", sizeof(shower));
+    SDL_strlcpy(shower, "", sizeof(shower));
     
     /* Count total combat rolls across all history */
     n = 0;
@@ -3997,7 +3997,7 @@ void do_cmd_combat_history(void)
             s16b z;
             prt("Find: ", hgt - 1, 0);
             if (!askfor_aux(finder, sizeof(finder))) continue;
-            my_strcpy(shower, finder, sizeof(shower));
+            SDL_strlcpy(shower, finder, sizeof(shower));
             
             /* Search through combat rolls */
             for (z = i + 1; z < n; z++) {
@@ -4122,7 +4122,7 @@ void display_combat_round_details(combat_history_round* round)
         
         /* Attacker symbol */
         strnfmt(buf, sizeof(buf), " %c", roll->attacker_char);
-        my_strcat(roll_line, buf, sizeof(roll_line));
+        SDL_strlcat(roll_line, buf, sizeof(roll_line));
         
         /* Attack roll info */
         if (roll->att_type == COMBAT_ROLL_ROLL) {
@@ -4131,7 +4131,7 @@ void display_combat_round_details(combat_history_round* round)
                     (roll->att_roll + roll->att - roll->evn_roll - roll->evn > 0) ?
                         roll->att_roll + roll->att - roll->evn_roll - roll->evn : 0,
                     roll->evn + roll->evn_roll, roll->evn, roll->defender_char);
-            my_strcat(roll_line, buf, sizeof(roll_line));
+            SDL_strlcat(roll_line, buf, sizeof(roll_line));
             
             /* Damage info */
             if (roll->att_roll + roll->att - roll->evn_roll - roll->evn > 0) {
@@ -4139,17 +4139,17 @@ void display_combat_round_details(combat_history_round* round)
                 if (net_dam < 0) net_dam = 0;
                 strnfmt(buf, sizeof(buf), " -> (%dd%d) %4d %4d %4d",
                         roll->dd, roll->ds, roll->dam, net_dam, roll->prot);
-                my_strcat(roll_line, buf, sizeof(roll_line));
+                SDL_strlcat(roll_line, buf, sizeof(roll_line));
             }
         } else if (roll->att_type == COMBAT_ROLL_AUTO) {
             strnfmt(buf, sizeof(buf), "                         %c -> (%dd%d) %4d",
                     roll->defender_char, roll->dd, roll->ds, roll->dam);
-            my_strcat(roll_line, buf, sizeof(roll_line));
+            SDL_strlcat(roll_line, buf, sizeof(roll_line));
             
             int net_dam = roll->dam - roll->prot;
             if (net_dam < 0) net_dam = 0;
             strnfmt(buf, sizeof(buf), " %4d %4d", net_dam, roll->prot);
-            my_strcat(roll_line, buf, sizeof(roll_line));
+            SDL_strlcat(roll_line, buf, sizeof(roll_line));
         }
         
         /* Display the line */
@@ -4217,4 +4217,5 @@ void display_main_combat_rolls(void)
         draw_combat_roll_line(row, col_offset, &combat_rolls[round][idx]);
     }
 }
+
 

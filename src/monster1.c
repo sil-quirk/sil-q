@@ -60,7 +60,7 @@ static void describe_monster_desc(int r_idx)
     char buf[2048];
 
     /* Simple method */
-    my_strcpy(buf, r_text + r_ptr->text, sizeof(buf));
+    SDL_strlcpy(buf, r_text + r_ptr->text, sizeof(buf));
 
     /* Dump it */
     text_out(buf);
@@ -1814,3 +1814,4 @@ void display_roff(int r_idx, const monster_type* m_ptr)
     /* Describe monster */
     roff_top(r_idx);
 }
+

@@ -32,19 +32,23 @@ extern void (*core_aux)(cptr);
 /**** Available Functions ****/
 
 /* Case insensitive comparison between two strings */
-extern int my_stricmp(const char* s1, const char* s2);
-extern int my_strnicmp(cptr a, cptr b, int n);
+/* DEPRECATED: Use SDL_strcasecmp() and SDL_strncasecmp() directly */
+/* extern int my_stricmp(const char* s1, const char* s2); */
+/* extern int my_strnicmp(cptr a, cptr b, int n); */
 
 /* Copy a string */
-extern size_t my_strcpy(char* buf, const char* src, size_t bufsize);
+/* DEPRECATED: Use SDL_strlcpy() and SDL_strlcat() directly */
+/* extern size_t my_strcpy(char* buf, const char* src, size_t bufsize); */
 
 /* Concatenate two strings */
-extern size_t my_strcat(char* buf, const char* src, size_t bufsize);
+/* DEPRECATED: Use SDL_strlcat() directly */
+/* extern size_t my_strcat(char* buf, const char* src, size_t bufsize); */
 
 /* Test equality, prefix, suffix */
-extern bool streq(cptr s, cptr t);
-extern bool prefix(cptr s, cptr t);
-extern bool suffix(cptr s, cptr t);
+/* DEPRECATED: Now inline functions in angband.h */
+/* extern bool streq(cptr s, cptr t); */
+/* extern bool prefix(cptr s, cptr t); */
+/* extern bool suffix(cptr s, cptr t); */
 
 /* Print an error message */
 extern void plog(cptr str);

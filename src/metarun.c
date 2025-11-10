@@ -13,6 +13,7 @@
 #include "log.h"
 #include "platform.h"    /* path_build(), fd_*, MKDIR         */
 #include "supplies.h"
+#include <SDL3/SDL.h>
 #include <time.h>
 #include <string.h>
 #include <stdlib.h>
@@ -1426,7 +1427,7 @@ static errr backup_file(const char *filepath)
      * 1. This is a different file than last time, OR
      * 2. More than 300 seconds (5 minutes) have passed since last backup of this file
      */
-    if (my_stricmp(last_backed_up_file, filepath) != 0) {
+    if (SDL_strcasecmp(last_backed_up_file, filepath) != 0) {
         /* Different file - always backup */
         log_info("backup_file: backing up different file: %s", filepath);
     } else if (current_time - last_backup_time >= 300) {
@@ -1544,7 +1545,7 @@ static errr backup_file(const char *filepath)
         log_info("backup_file: successfully created backup for %s", filepath);
         /* Update throttling variables only on successful backup */
         last_backup_time = current_time;
-        my_strcpy(last_backed_up_file, filepath, sizeof(last_backed_up_file));
+        SDL_strlcpy(last_backed_up_file, filepath, sizeof(last_backed_up_file));
     } else {
         log_error("backup_file: failed to write bak1 for %s", filepath);
     }
@@ -3153,7 +3154,7 @@ static void show_all_active_curses(void)
             snprintf(title_buf, sizeof title_buf, "=== Active Effects (Page %d/%d) ===", 
                      current_page + 1, total_pages);
         } else {
-            my_strcpy(title_buf, "=== All Active Effects ===", sizeof title_buf);
+            SDL_strlcpy(title_buf, "=== All Active Effects ===", sizeof title_buf);
         }
         Term_putstr(2, 1, -1, TERM_YELLOW, title_buf);
         
@@ -3222,7 +3223,7 @@ static void show_all_active_curses(void)
             snprintf(footer_buf, sizeof footer_buf, 
                      "Use arrows (left/right) to navigate. Any other key to return.");
         } else {
-            my_strcpy(footer_buf, "Press any key to return.", sizeof footer_buf);
+            SDL_strlcpy(footer_buf, "Press any key to return.", sizeof footer_buf);
         }
         
         /* Ensure minimum 80 width for footer */
@@ -3302,7 +3303,7 @@ static bool blessing_remove_curse(char *result_msg, size_t msg_size, byte *resul
 
     if (count == 0) {
         if (result_msg && msg_size > 0) {
-            my_strcpy(result_msg, "No curses cling to this saga.", msg_size);
+            SDL_strlcpy(result_msg, "No curses cling to this saga.", msg_size);
             if (result_attr) *result_attr = TERM_L_DARK;
         }
         return false;
@@ -3502,7 +3503,7 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
 
         if (count == 0) {
             if (result_msg && msg_size > 0) {
-                my_strcpy(result_msg, "No blessings are presently available.", msg_size);
+                SDL_strlcpy(result_msg, "No blessings are presently available.", msg_size);
                 if (result_attr) *result_attr = TERM_L_DARK;
             }
             return false;
@@ -3623,7 +3624,7 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
 
     if (c->max_stacks > 0 && blessing_stacks >= c->max_stacks) {
         if (result_msg && msg_size > 0) {
-            my_strcpy(result_msg, "That blessing cannot grow any stronger.", msg_size);
+            SDL_strlcpy(result_msg, "That blessing cannot grow any stronger.", msg_size);
             if (result_attr) *result_attr = TERM_L_DARK;
         }
         return false;
@@ -3656,7 +3657,7 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
     int cap = major_blessing_capacity();
     if (cap <= 0 || !mb_info) {
         if (result_msg && msg_size > 0) {
-            my_strcpy(result_msg, "No major blessings are currently defined.", msg_size);
+            SDL_strlcpy(result_msg, "No major blessings are currently defined.", msg_size);
             if (result_attr) *result_attr = TERM_L_DARK;
         }
         return false;
@@ -3678,7 +3679,7 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
 
     if (option_count == 0) {
         if (result_msg && msg_size > 0) {
-            my_strcpy(result_msg, "All major blessings are already sealed.", msg_size);
+            SDL_strlcpy(result_msg, "All major blessings are already sealed.", msg_size);
             if (result_attr) *result_attr = TERM_L_DARK;
         }
         return false;
@@ -3828,7 +3829,7 @@ static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *resul
         if (result_msg && msg_size > 0) {
             const char *msg = major_blessing_unlock_msg(choice_idx);
             if (msg && *msg) {
-                my_strcpy(result_msg, msg, msg_size);
+                SDL_strlcpy(result_msg, msg, msg_size);
             } else {
                 snprintf(result_msg, msg_size, "You seal the %s.", major_blessing_name_str(choice_idx));
             }
@@ -3973,7 +3974,7 @@ static void open_blessing_exchange(void)
         case 'r':
         case 'R':
             if (available < 1) {
-                my_strcpy(status_msg, "You need at least one blessing point to lift a curse.", sizeof(status_msg));
+                SDL_strlcpy(status_msg, "You need at least one blessing point to lift a curse.", sizeof(status_msg));
                 status_attr = TERM_ORANGE;
                 clear_status_on_next_key = true;
             } else if (blessing_remove_curse(status_msg, sizeof(status_msg), &status_attr)) {
@@ -3986,7 +3987,7 @@ static void open_blessing_exchange(void)
         case 'm':
         case 'M':
             if (available < 1) {
-                my_strcpy(status_msg, "You need at least one blessing point to receive a gift.", sizeof(status_msg));
+                SDL_strlcpy(status_msg, "You need at least one blessing point to receive a gift.", sizeof(status_msg));
                 status_attr = TERM_ORANGE;
                 clear_status_on_next_key = true;
             } else if (blessing_gain_minor(status_msg, sizeof(status_msg), &status_attr)) {
@@ -3999,7 +4000,7 @@ static void open_blessing_exchange(void)
         case 'u':
         case 'U':
             if (!major_available) {
-                my_strcpy(status_msg, "All major blessings have already been sealed.", sizeof(status_msg));
+                SDL_strlcpy(status_msg, "All major blessings have already been sealed.", sizeof(status_msg));
                 status_attr = TERM_L_DARK;
                 clear_status_on_next_key = true;
             } else if (!major_affordable) {
@@ -4329,7 +4330,7 @@ void print_metarun_stats(void)
         const char *desc = major_blessing_short_desc(i);
         char desc_buf[80];
         if (desc && *desc) {
-            my_strcpy(desc_buf, desc, sizeof desc_buf);
+            SDL_strlcpy(desc_buf, desc, sizeof desc_buf);
             char *nl = strchr(desc_buf, '\n');
             if (nl) *nl = '\0';
             snprintf(buf, sizeof buf, "  [X] %s (%s)", name, desc_buf);
@@ -4426,7 +4427,7 @@ void print_metarun_stats(void)
                 snprintf(buf, sizeof buf, "... and %d more effect%s (press 'u' to view all)",
                          entries_remaining, (entries_remaining == 1) ? "" : "s");
             } else {
-                my_strcpy(buf, "List truncated - press 'u' to view all effects",
+                SDL_strlcpy(buf, "List truncated - press 'u' to view all effects",
                           sizeof buf);
             }
             Term_putstr(col, row++, -1, TERM_L_DARK, buf);
@@ -5202,5 +5203,6 @@ int get_available_oaths_mask(void)
     
     return available;
 }
+
 
 

@@ -3515,7 +3515,7 @@ PlayResult play_game(void)
     /* Hack -- Default base_name */
     if (!op_ptr->base_name[0])
     {
-        my_strcpy(op_ptr->base_name, "nameless", sizeof(op_ptr->base_name));
+        SDL_strlcpy(op_ptr->base_name, "nameless", sizeof(op_ptr->base_name));
     }
 
     if (metarun_created)        /* show only the first time ever */
@@ -3565,7 +3565,7 @@ PlayResult play_game(void)
         }
 
         /* Set player name from house BEFORE load_player() so savefile path is correct */
-        my_strcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
+        SDL_strlcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
         process_player_name(true);  /* Update savefile path */
         log_debug("Player name set to: %s (house %d), savefile: %s", op_ptr->full_name, p_ptr->phouse, savefile);
 
@@ -3899,7 +3899,7 @@ PlayResult play_game(void)
                 (void)set_food(PY_FOOD_FULL - 1);
 
                 /* Note cause of death XXX XXX XXX */
-                my_strcpy(p_ptr->died_from, "Cheating death",
+                SDL_strlcpy(p_ptr->died_from, "Cheating death",
                     sizeof(p_ptr->died_from));
 
                 /* Need to generate a new level */
@@ -3955,3 +3955,4 @@ PlayResult play_game(void)
         return PLAY_DONE;
     }
 }
+

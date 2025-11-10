@@ -104,3 +104,4 @@ void place_panes(const struct pane_config* config, int count, SDL_Rect* panes,
         top, cell, margin);
     panes[PANE_MAIN] = (SDL_Rect){.w = main.cols, .h = main.rows};
 }
+

@@ -401,7 +401,7 @@ startover:
 void make_random_name(char* random_name, size_t max)
 {
     /*get the randomly generated word*/
-    my_strcpy(random_name, make_word(), max);
+    SDL_strlcpy(random_name, make_word(), max);
 
     return;
 }
@@ -2675,11 +2675,11 @@ static void scramble_artefact(int a_idx)
 
     if (!one_in_(3))
     {
-        my_strcpy(a_ptr->name, format("'%^s'", buf), MAX_LEN_ART_NAME);
+        SDL_strlcpy(a_ptr->name, format("'%^s'", buf), MAX_LEN_ART_NAME);
     }
     else
     {
-        my_strcpy(a_ptr->name, format("of %^s", buf), MAX_LEN_ART_NAME);
+        SDL_strlcpy(a_ptr->name, format("of %^s", buf), MAX_LEN_ART_NAME);
     }
 
     /* Evaluate the original artefact to determine the power level. */
@@ -3151,7 +3151,7 @@ bool make_one_randart(object_type* o_ptr, int art_power, bool tailored)
                 /*The additional check is because players sometimes hit return
                  * accidentally*/
                 if (strlen(buf) > 0)
-                    my_strcpy(tmp, format("'%^s'", buf), MAX_LEN_ART_NAME);
+                    SDL_strlcpy(tmp, format("'%^s'", buf), MAX_LEN_ART_NAME);
             }
         }
     }
@@ -3168,16 +3168,16 @@ bool make_one_randart(object_type* o_ptr, int art_power, bool tailored)
 
         if (!one_in_(3))
         {
-            my_strcpy(tmp, format("'%^s'", buf), MAX_LEN_ART_NAME);
+            SDL_strlcpy(tmp, format("'%^s'", buf), MAX_LEN_ART_NAME);
         }
         else
         {
-            my_strcpy(tmp, format("of %^s", buf), MAX_LEN_ART_NAME);
+            SDL_strlcpy(tmp, format("of %^s", buf), MAX_LEN_ART_NAME);
         }
     }
 
     /*copy the name*/
-    my_strcpy(a_ptr->name, format("%s", tmp), MAX_LEN_ART_NAME);
+    SDL_strlcpy(a_ptr->name, format("%s", tmp), MAX_LEN_ART_NAME);
 
     /* Generate the cumulative frequency table for this item type */
     build_freq_table(a_ptr);
@@ -3309,3 +3309,4 @@ bool can_be_randart(const object_type* o_ptr)
         return (false);
     }
 }
+

@@ -316,7 +316,7 @@ static void prt_stat(int stat)
     }
     
     /* Trim trailing spaces for story font rendering */
-    my_strcpy(trimmed_label, stat_label, sizeof(trimmed_label));
+    SDL_strlcpy(trimmed_label, stat_label, sizeof(trimmed_label));
     int len = strlen(trimmed_label);
     while (len > 0 && trimmed_label[len-1] == ' ') {
         trimmed_label[--len] = '\0';
@@ -763,7 +763,7 @@ static void prt_light(void)
 
     if (infinite)
     {
-        my_strcpy(buf, "inf", sizeof(buf));
+        SDL_strlcpy(buf, "inf", sizeof(buf));
         fuel_attr = TERM_L_GREEN;
     }
     else
@@ -866,7 +866,7 @@ static void prt_depth(void)
 
     if (!p_ptr->depth)
     {
-        my_strcpy(depths, "Surface", sizeof(depths));
+        SDL_strlcpy(depths, "Surface", sizeof(depths));
     }
     else
     {
@@ -1110,23 +1110,23 @@ static void prt_state(void)
     {
         attr = TERM_RED;
 
-        my_strcpy(text, "Entranced!", sizeof(text));
+        SDL_strlcpy(text, "Entranced!", sizeof(text));
     }
 
     /* Smithing */
     if (p_ptr->smithing)
     {
-        my_strcpy(text, "Smithing  ", sizeof(text));
+        SDL_strlcpy(text, "Smithing  ", sizeof(text));
     }
 
     if (p_ptr->fletching)
     {
-        my_strcpy(text, "Fletching ", sizeof(text));
+        SDL_strlcpy(text, "Fletching ", sizeof(text));
     }
     else if (p_ptr->rage)
     {
         attr = TERM_RED;
-        my_strcpy(text, "Rage      ", sizeof(text));
+        SDL_strlcpy(text, "Rage      ", sizeof(text));
     }
 
     /* Resting */
@@ -1136,7 +1136,7 @@ static void prt_state(void)
         int n = p_ptr->resting;
 
         /* Start with "Rest" */
-        my_strcpy(text, "Rest      ", sizeof(text));
+        SDL_strlcpy(text, "Rest      ", sizeof(text));
 
         /* Extensive (timed) rest */
         if (n >= 1000)
@@ -1210,13 +1210,13 @@ static void prt_state(void)
     /* Stealth mode */
     else if (p_ptr->stealth_mode)
     {
-        my_strcpy(text, "Stealth   ", sizeof(text));
+        SDL_strlcpy(text, "Stealth   ", sizeof(text));
     }
 
     /* Nothing interesting */
     else
     {
-        my_strcpy(text, "          ", sizeof(text));
+        SDL_strlcpy(text, "          ", sizeof(text));
     }
 
     sdl_story_font_enable();
@@ -1397,19 +1397,19 @@ bool get_alertness_text(
 
     if (m_ptr->alertness < ALERTNESS_UNWARY)
     {
-        my_strcpy(text, "Sleeping", text_size);
+        SDL_strlcpy(text, "Sleeping", text_size);
         *color = TERM_BLUE;
     }
     else if (m_ptr->alertness < ALERTNESS_ALERT)
     {
-        my_strcpy(text, "Unwary", text_size);
+        SDL_strlcpy(text, "Unwary", text_size);
         *color = TERM_L_BLUE;
     }
     else
     {
         if (r_ptr->flags2 & (RF2_MINDLESS))
         {
-            my_strcpy(text, "Mindless", text_size);
+            SDL_strlcpy(text, "Mindless", text_size);
             *color = TERM_L_DARK;
         }
         else
@@ -1418,17 +1418,17 @@ bool get_alertness_text(
 
             if (m_ptr->stance == STANCE_FLEEING)
             {
-                my_strcpy(text, "Fleeing", text_size);
+                SDL_strlcpy(text, "Fleeing", text_size);
                 *color = TERM_VIOLET;
             }
             else if (m_ptr->stance == STANCE_CONFIDENT)
             {
-                my_strcpy(text, "Confident", text_size);
+                SDL_strlcpy(text, "Confident", text_size);
                 *color = TERM_L_WHITE;
             }
             else if (m_ptr->stance == STANCE_AGGRESSIVE)
             {
-                my_strcpy(text, "Aggress", text_size);
+                SDL_strlcpy(text, "Aggress", text_size);
                 *color = TERM_L_WHITE;
             }
 
@@ -4392,3 +4392,4 @@ void handle_stuff(void)
 
     log_trace("handle_stuff: completed");
 }
+

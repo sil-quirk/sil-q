@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "metarun.h"
+#include <SDL3/SDL.h>
 /* Ensure C library prototypes are visible for tools */
 #include <stdio.h>
 #include <string.h>
@@ -262,15 +263,15 @@ static byte* get_quest_state_ptr(u32b var_name_offset) {
     /* Get the actual variable name string */
     cptr actual_name = quest_name_text + var_name_offset;
     
-    if (my_stricmp(actual_name, "tulkas_quest") == 0) {
+    if (SDL_strcasecmp(actual_name, "tulkas_quest") == 0) {
         return &p_ptr->tulkas_quest;
-    } else if (my_stricmp(actual_name, "aule_quest") == 0) {
+    } else if (SDL_strcasecmp(actual_name, "aule_quest") == 0) {
         return &p_ptr->aule_quest;
-    } else if (my_stricmp(actual_name, "mandos_quest") == 0) {
+    } else if (SDL_strcasecmp(actual_name, "mandos_quest") == 0) {
         return &p_ptr->mandos_quest;
-    } else if (my_stricmp(actual_name, "niena_quest") == 0) {
+    } else if (SDL_strcasecmp(actual_name, "niena_quest") == 0) {
         return &p_ptr->niena_quest;
-    } else if (my_stricmp(actual_name, "orome_quest") == 0) {
+    } else if (SDL_strcasecmp(actual_name, "orome_quest") == 0) {
         return &p_ptr->orome_quest;
     }
     
@@ -284,15 +285,15 @@ static int get_metarun_quest_id(u32b id_name_offset) {
     /* Get the actual ID string */
     cptr actual_id = quest_name_text + id_name_offset;
     
-    if (my_stricmp(actual_id, "METARUN_QUEST_TULKAS") == 0) {
+    if (SDL_strcasecmp(actual_id, "METARUN_QUEST_TULKAS") == 0) {
         return METARUN_QUEST_TULKAS;
-    } else if (my_stricmp(actual_id, "METARUN_QUEST_AULE") == 0) {
+    } else if (SDL_strcasecmp(actual_id, "METARUN_QUEST_AULE") == 0) {
         return METARUN_QUEST_AULE;
-    } else if (my_stricmp(actual_id, "METARUN_QUEST_MANDOS") == 0) {
+    } else if (SDL_strcasecmp(actual_id, "METARUN_QUEST_MANDOS") == 0) {
         return METARUN_QUEST_MANDOS;
-    } else if (my_stricmp(actual_id, "METARUN_QUEST_NIENA") == 0) {
+    } else if (SDL_strcasecmp(actual_id, "METARUN_QUEST_NIENA") == 0) {
         return METARUN_QUEST_NIENA;
-    } else if (my_stricmp(actual_id, "METARUN_QUEST_OROME") == 0) {
+    } else if (SDL_strcasecmp(actual_id, "METARUN_QUEST_OROME") == 0) {
         return METARUN_QUEST_OROME;
     }
     
@@ -4435,7 +4436,7 @@ static bool build_type8(int y0, int x0)
     /* Hack -- Mark vault grids with the CAVE_G_VAULT flag */
     if (mark_g_vault(y0, x0, v_ptr->hgt, v_ptr->wid))
     {
-        my_strcpy(g_vault_name, v_name + v_ptr->name, sizeof(g_vault_name));
+        SDL_strlcpy(g_vault_name, v_name + v_ptr->name, sizeof(g_vault_name));
     }
     return (true);
 }
@@ -4479,7 +4480,7 @@ static bool build_type9(int y0, int x0)
     /* Hack -- Mark vault grids with the CAVE_G_VAULT flag */
     if (mark_g_vault(y0, x0, v_ptr->hgt, v_ptr->wid))
     {
-        my_strcpy(g_vault_name, v_name + v_ptr->name, sizeof(g_vault_name));
+        SDL_strlcpy(g_vault_name, v_name + v_ptr->name, sizeof(g_vault_name));
     }
 
     return (true);
@@ -4507,7 +4508,7 @@ static bool build_type10(int y0, int x0)
     /* Hack -- Mark vault grids with the CAVE_G_VAULT flag */
     if (mark_g_vault(y0, x0, v_ptr->hgt, v_ptr->wid))
     {
-        my_strcpy(g_vault_name, v_name + v_ptr->name, sizeof(g_vault_name));
+        SDL_strlcpy(g_vault_name, v_name + v_ptr->name, sizeof(g_vault_name));
     }
 
     return (true);
@@ -6180,3 +6181,4 @@ if (playerturn == 0) {
 
     // Valar quest doesn't provide map rewards like the old thrall quest
 }
+

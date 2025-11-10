@@ -1483,3 +1483,4 @@ bool use_object(object_type* o_ptr, bool* ident)
 
     return (used);
 }
+

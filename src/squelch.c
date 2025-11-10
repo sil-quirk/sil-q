@@ -130,7 +130,7 @@ extern int do_cmd_autoinscribe_item(s16b k_idx)
 
     if (curInscription)
     {
-        my_strcpy(tmp, curInscription, sizeof(tmp));
+        SDL_strlcpy(tmp, curInscription, sizeof(tmp));
         tmp[sizeof(tmp) - 1] = 0;
     }
 
@@ -321,7 +321,7 @@ static int do_cmd_squelch_aux(void)
         prt("File: ", 17, 30);
 
         /* Default filename */
-        my_strcpy(ftmp, op_ptr->base_name, sizeof(ftmp));
+        SDL_strlcpy(ftmp, op_ptr->base_name, sizeof(ftmp));
 
         /* Get a filename */
         if (askfor_aux(ftmp, 80))
@@ -375,7 +375,7 @@ static int do_cmd_squelch_aux(void)
         prt("File: ", 17, 30);
 
         /* Default filename */
-        my_strcpy(ftmp, op_ptr->base_name, sizeof(ftmp));
+        SDL_strlcpy(ftmp, op_ptr->base_name, sizeof(ftmp));
 
         /* Ask for a file (or cancel) */
         if (askfor_aux(ftmp, 80))
@@ -1980,5 +1980,6 @@ char* squelch_to_label(int squelch)
 
     return ("");
 }
+
 
 

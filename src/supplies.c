@@ -850,3 +850,4 @@ int supplies_damage(int (*typ)(const object_type*), int perc, int resistance)
     /* Return the count */
     return (k);
 }
+

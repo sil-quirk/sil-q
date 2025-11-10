@@ -2622,7 +2622,7 @@ void do_cmd_inscribe(void)
     message_flush();
 
     /* Start with nothing */
-    my_strcpy(tmp, "", sizeof(tmp));
+    SDL_strlcpy(tmp, "", sizeof(tmp));
 
     /* Use old inscription */
     if (o_ptr->obj_note)
@@ -4726,17 +4726,17 @@ void do_cmd_query_symbol(void)
     if (sym == KTRL('A'))
     {
         all = true;
-        my_strcpy(buf, "Full monster list.", sizeof(buf));
+        SDL_strlcpy(buf, "Full monster list.", sizeof(buf));
     }
     else if (sym == KTRL('U'))
     {
         all = uniq = true;
-        my_strcpy(buf, "Unique monster list.", sizeof(buf));
+        SDL_strlcpy(buf, "Unique monster list.", sizeof(buf));
     }
     else if (sym == KTRL('N'))
     {
         all = norm = true;
-        my_strcpy(buf, "Non-unique monster list.", sizeof(buf));
+        SDL_strlcpy(buf, "Non-unique monster list.", sizeof(buf));
     }
     else if (ident_info[i])
     {
@@ -4916,4 +4916,5 @@ void do_cmd_query_symbol(void)
     /* Free the "who" array */
     FREE(who);
 }
+
 

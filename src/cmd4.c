@@ -642,7 +642,7 @@ void show_songs_with_highlight(int highlight)
         out_index[k] = i;
 
         /* Save the song name */
-        my_strcpy(out_desc[k],
+        SDL_strlcpy(out_desc[k],
             b_name + (&b_info[ability_index(S_SNG, i)])->name,
             sizeof(out_desc[0]));
 
@@ -804,11 +804,11 @@ void do_cmd_change_song()
             // keep track of the number of options
             if (p_ptr->active_ability[S_SNG][i])
             {
-                my_strcat(out_val, ",", sizeof(out_val));
+                SDL_strlcat(out_val, ",", sizeof(out_val));
                 sprintf(tmp_val, "%c", (char)'a' + i);
 
                 /* Append */
-                my_strcat(out_val, tmp_val, sizeof(out_val));
+                SDL_strlcat(out_val, tmp_val, sizeof(out_val));
             }
         }
 
@@ -816,12 +816,12 @@ void do_cmd_change_song()
         if (p_ptr->song2 != SNG_NOTHING)
         {
             /* Append */
-            my_strcat(out_val, ",x", sizeof(out_val));
+            SDL_strlcat(out_val, ",x", sizeof(out_val));
         }
 
         /* Indicate ability to "view" */
         if (!p_ptr->command_see)
-            my_strcat(out_val, ", * to see", sizeof(out_val));
+            SDL_strlcat(out_val, ", * to see", sizeof(out_val));
 
         /* Build the prompt */
         strnfmt(tmp_val, sizeof(tmp_val), "(%s) Sing which song: ", out_val);
@@ -4626,7 +4626,7 @@ void prt_object_description(void)
 
     object_desc(o_desc, sizeof(o_desc), smith_o_ptr, display_flag, 2);
 
-    my_strcat(o_desc,
+    SDL_strlcat(o_desc,
         format("   %d.%d lb", smith_o_ptr->weight * smith_o_ptr->number / 10,
             (smith_o_ptr->weight * smith_o_ptr->number) % 10),
         sizeof(o_desc));
@@ -6657,10 +6657,10 @@ void rename_artefact(void)
     Term_putstr(COL_SMT2, MAX_SMITHING_TVALS + 3, -1, TERM_L_WHITE, o_desc);
 
     // use old name as a default
-    my_strcpy(tmp, smith2_a_ptr->name, sizeof(tmp));
+    SDL_strlcpy(tmp, smith2_a_ptr->name, sizeof(tmp));
 
     // save a copy too
-    my_strcpy(old_name, op_ptr->full_name, sizeof(old_name));
+    SDL_strlcpy(old_name, op_ptr->full_name, sizeof(old_name));
 
     /* Prompt for a new name */
     Term_gotoxy(COL_SMT2 + strlen(o_desc) + 1, MAX_SMITHING_TVALS + 3);
@@ -6669,19 +6669,19 @@ void rename_artefact(void)
     {
         if (askfor_name(tmp, sizeof(tmp)))
         {
-            my_strcpy(smith2_a_ptr->name, tmp, MAX_LEN_ART_NAME);
+            SDL_strlcpy(smith2_a_ptr->name, tmp, MAX_LEN_ART_NAME);
             p_ptr->redraw |= (PR_MISC);
         }
         else
         {
-            my_strcpy(smith2_a_ptr->name, old_name, MAX_LEN_ART_NAME);
+            SDL_strlcpy(smith2_a_ptr->name, old_name, MAX_LEN_ART_NAME);
             return;
         }
 
         if (tmp[0] != '\0')
             name_selected = true;
         else
-            my_strcpy(smith2_a_ptr->name, old_name, MAX_LEN_ART_NAME);
+            SDL_strlcpy(smith2_a_ptr->name, old_name, MAX_LEN_ART_NAME);
     }
 
     // retrieve a backup of the artefact (all the modifications were done to
@@ -6837,7 +6837,7 @@ void artefact_menu(void)
     if (strlen(smith2_a_ptr->name) == 0)
     {
         sprintf(buf, "of %s", op_ptr->full_name);
-        my_strcpy(smith2_a_ptr->name, buf, MAX_LEN_ART_NAME);
+        SDL_strlcpy(smith2_a_ptr->name, buf, MAX_LEN_ART_NAME);
     }
 
     // prepare the artefact and object for modification
@@ -8000,10 +8000,10 @@ void do_cmd_messages(void)
     }
 
     /* Wipe finder */
-    my_strcpy(finder, "", sizeof(finder));
+    SDL_strlcpy(finder, "", sizeof(finder));
 
     /* Wipe shower */
-    my_strcpy(shower, "", sizeof(shower));
+    SDL_strlcpy(shower, "", sizeof(shower));
 
     /* Total messages */
     n = message_num();
@@ -8123,7 +8123,7 @@ void do_cmd_messages(void)
                 continue;
 
             /* Show it */
-            my_strcpy(shower, finder, sizeof(shower));
+            SDL_strlcpy(shower, finder, sizeof(shower));
 
             /* Scan messages */
             for (z = i + 1; z < n; z++)
@@ -8204,7 +8204,7 @@ void do_cmd_pref(void)
     char tmp[80];
 
     /* Default */
-    my_strcpy(tmp, "", sizeof(tmp));
+    SDL_strlcpy(tmp, "", sizeof(tmp));
 
     /* Ask for a "user pref command" */
     if (!term_get_string("Pref: ", tmp, sizeof(tmp)))
@@ -9630,7 +9630,7 @@ void do_cmd_macros(void)
             else
             {
                 /* Obtain the action */
-                my_strcpy(macro_buffer, macro__act[k], sizeof(macro_buffer));
+                SDL_strlcpy(macro_buffer, macro__act[k], sizeof(macro_buffer));
 
                 /* Analyze the current action */
                 ascii_to_text(tmp, sizeof(tmp), macro_buffer);
@@ -9750,7 +9750,7 @@ void do_cmd_macros(void)
             else
             {
                 /* Obtain the action */
-                my_strcpy(macro_buffer, act, sizeof(macro_buffer));
+                SDL_strlcpy(macro_buffer, act, sizeof(macro_buffer));
 
                 /* Analyze the current action */
                 ascii_to_text(tmp, sizeof(tmp), macro_buffer);
@@ -10888,7 +10888,7 @@ static void modify_colors(void)
             c_put_str(TERM_WHITE, "<", y, x + 4);
 
             /* Format the name of the color */
-            my_strcpy(msg,
+            SDL_strlcpy(msg,
                 format("Color = %d (0x%02X), Name = %s", idx, idx,
                     get_ext_color_name(idx)),
                 sizeof(msg));
@@ -10926,7 +10926,7 @@ static void modify_colors(void)
         if (do_move || do_update)
         {
             /* Format the view of the color values */
-            my_strcpy(msg,
+            SDL_strlcpy(msg,
                 format("K = %d / R,G,B = %d, %d, %d",
                     angband_color_table[idx][0], angband_color_table[idx][1],
                     angband_color_table[idx][2], angband_color_table[idx][3]),
@@ -11366,7 +11366,7 @@ void do_cmd_note(char* note, int what_depth)
     char depths[10];
 
     /* Default */
-    my_strcpy(buf, "", sizeof(buf));
+    SDL_strlcpy(buf, "", sizeof(buf));
 
     /* If a note is passed, use that, otherwise accept user input. */
     if (streq(note, ""))
@@ -11376,7 +11376,7 @@ void do_cmd_note(char* note, int what_depth)
     }
     else
     {
-        my_strcpy(buf, note, sizeof(buf));
+        SDL_strlcpy(buf, note, sizeof(buf));
     }
 
     /* Ignore empty notes */
@@ -11391,15 +11391,15 @@ void do_cmd_note(char* note, int what_depth)
      */
     if (what_depth == 0)
     {
-        my_strcpy(depths, "   Gates", sizeof(depths));
+        SDL_strlcpy(depths, "   Gates", sizeof(depths));
     }
     else if (what_depth == CHEST_LEVEL)
     {
-        my_strcpy(depths, "   Chest", sizeof(depths));
+        SDL_strlcpy(depths, "   Chest", sizeof(depths));
     }
     else if (what_depth == SKELETON_LEVEL)
     {
-        my_strcpy(depths, "   Skeleton", sizeof(depths));
+        SDL_strlcpy(depths, "   Skeleton", sizeof(depths));
     }
     else
     {
@@ -11413,7 +11413,7 @@ void do_cmd_note(char* note, int what_depth)
     strnfmt(info_note, sizeof(info_note), "%7s  %s   ", turn_string, depths);
 
     /*write the info note*/
-    my_strcat(notes_buffer, info_note, sizeof(notes_buffer));
+    SDL_strlcat(notes_buffer, info_note, sizeof(notes_buffer));
 
     /*get the length of the notes*/
     length_info = strlen(info_note);
@@ -11460,7 +11460,7 @@ void do_cmd_note(char* note, int what_depth)
 
             /*make a continued note if applicable*/
             if (startpoint)
-                my_strcat(
+                SDL_strlcat(
                     notes_buffer, "                    ", sizeof(notes_buffer));
 
             /* Write that line to file */
@@ -11472,11 +11472,11 @@ void do_cmd_note(char* note, int what_depth)
                 ch = (isprint(buf[n]) ? buf[n] : ' ');
 
                 /* Write out the character */
-                my_strcat(notes_buffer, format("%c", ch), sizeof(notes_buffer));
+                SDL_strlcat(notes_buffer, format("%c", ch), sizeof(notes_buffer));
             }
 
             /*break the line*/
-            my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
+            SDL_strlcat(notes_buffer, "\n", sizeof(notes_buffer));
 
             /*prepare for the next line*/
             startpoint = endpoint + 1;
@@ -11486,7 +11486,7 @@ void do_cmd_note(char* note, int what_depth)
     /* Add note to buffer */
     else
     {
-        my_strcat(notes_buffer, format("%s\n", buf), sizeof(notes_buffer));
+        SDL_strlcat(notes_buffer, format("%s\n", buf), sizeof(notes_buffer));
     }
 }
 
@@ -14664,7 +14664,7 @@ static void sidebar_compact_name(const char* src, int max_len, char* dest, size_
         int base_full_len = (int)strlen(base_full);
         if (base_full_len <= base_space)
         {
-            my_strcpy(base_compact, base_full, sizeof(base_compact));
+            SDL_strlcpy(base_compact, base_full, sizeof(base_compact));
         }
         else
         {
@@ -14700,7 +14700,7 @@ static void sidebar_compact_name(const char* src, int max_len, char* dest, size_
 
                 if (!first_word)
                 {
-                    my_strcat(base_compact, " ", sizeof(base_compact));
+                    SDL_strlcat(base_compact, " ", sizeof(base_compact));
                     --remaining;
                 }
 
@@ -14714,7 +14714,7 @@ static void sidebar_compact_name(const char* src, int max_len, char* dest, size_
                         {
                             char temp[64];
                             strnfmt(temp, sizeof(temp), "%.*s", take, word_start[i]);
-                            my_strcat(base_compact, temp, sizeof(base_compact));
+                            SDL_strlcat(base_compact, temp, sizeof(base_compact));
                             remaining -= take;
                         }
                     }
@@ -14723,7 +14723,7 @@ static void sidebar_compact_name(const char* src, int max_len, char* dest, size_
                         char temp[64];
                         int partial = remaining;
                         strnfmt(temp, sizeof(temp), "%.*s", partial, word_start[i]);
-                        my_strcat(base_compact, temp, sizeof(base_compact));
+                        SDL_strlcat(base_compact, temp, sizeof(base_compact));
                         remaining = 0;
                     }
                     else
@@ -14738,7 +14738,7 @@ static void sidebar_compact_name(const char* src, int max_len, char* dest, size_
                 {
                     char temp[64];
                     strnfmt(temp, sizeof(temp), "%.*s", take, word_start[i]);
-                    my_strcat(base_compact, temp, sizeof(base_compact));
+                    SDL_strlcat(base_compact, temp, sizeof(base_compact));
                     remaining -= take;
                 }
 
@@ -14759,13 +14759,13 @@ static void sidebar_compact_name(const char* src, int max_len, char* dest, size_
     dest[0] = 0;
     if (base_compact[0])
     {
-        my_strcpy(dest, base_compact, dest_sz);
+        SDL_strlcpy(dest, base_compact, dest_sz);
         size_t len = strlen(dest);
         if (len && dest[len - 1] != ' ')
-            my_strcat(dest, " ", dest_sz);
+            SDL_strlcat(dest, " ", dest_sz);
     }
 
-    my_strcat(dest, src + stats_pos, dest_sz);
+    SDL_strlcat(dest, src + stats_pos, dest_sz);
     sidebar_trim_spaces(dest);
     log_debug("sidebar_compact_name: combined result='%s'", dest);
 }
@@ -14930,14 +14930,14 @@ void show_unified_sidebar(unified_look_state* state)
             /* Truncate monster name if needed */
             char truncated_name[80];
             memset(truncated_name, 0, sizeof(truncated_name));
-            my_strcpy(truncated_name, m_name, sizeof(truncated_name));
+            SDL_strlcpy(truncated_name, m_name, sizeof(truncated_name));
             if (strlen(truncated_name) > (size_t)max_name_len) {
                 truncated_name[max_name_len] = '\0';
             }
             
             /* Build complete display string: name + health (without morale) */
-            my_strcpy(display_name, truncated_name, sizeof(display_name));
-            my_strcat(display_name, hp_display, sizeof(display_name));
+            SDL_strlcpy(display_name, truncated_name, sizeof(display_name));
+            SDL_strlcat(display_name, hp_display, sizeof(display_name));
             
             int name_hp_len = (int)strlen(display_name);
             int total_span = name_hp_len + morale_display_len;
@@ -15166,7 +15166,7 @@ void show_unified_sidebar(unified_look_state* state)
             /* Generate object name with stats but without articles (mode 4) */
             object_desc(o_name, sizeof(o_name), o_ptr, false, 4);
 
-            my_strcpy(name_source, o_name, sizeof(name_source));
+            SDL_strlcpy(name_source, o_name, sizeof(name_source));
             /* Only show asterisk for artifacts that are identified */
             if (entry->is_artifact && object_known_p(o_ptr))
             {
@@ -15203,7 +15203,7 @@ void show_unified_sidebar(unified_look_state* state)
             sidebar_compact_name(name_source, max_name_len, display_name, sizeof(display_name));
             
             /* Append weight right after name */
-            my_strcat(display_name, weight_buf, sizeof(display_name));
+            SDL_strlcat(display_name, weight_buf, sizeof(display_name));
             int final_name_len = (int)strlen(display_name);
             int original_name_len = (int)strlen(name_source);
             bool shortened = (original_name_len != final_name_len) || (original_name_len > max_name_len);
@@ -15315,6 +15315,7 @@ void show_unified_sidebar(unified_look_state* state)
     previous_line_count = current_line_count;
     log_trace("show_unified_sidebar: function complete, set previous_line_count=%d", previous_line_count);
 }
+
 
 
 

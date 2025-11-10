@@ -218,68 +218,68 @@ static void fill_inventory_limit_label(enum inventory_limit_group group,
     switch (group)
     {
         case INV_LIMIT_ARROW:
-            my_strcpy(carry_limit_last_label, "arrow stacks",
+            SDL_strlcpy(carry_limit_last_label, "arrow stacks",
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_BOW:
-            my_strcpy(carry_limit_last_label, "bows",
+            SDL_strlcpy(carry_limit_last_label, "bows",
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_STAFF:
-            my_strcpy(carry_limit_last_label, "walking staves",
+            SDL_strlcpy(carry_limit_last_label, "walking staves",
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_DIGGING:
-            my_strcpy(carry_limit_last_label, "digging tools",
+            SDL_strlcpy(carry_limit_last_label, "digging tools",
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_BOOTS:
-            my_strcpy(carry_limit_last_label, "pairs of boots",
+            SDL_strlcpy(carry_limit_last_label, "pairs of boots",
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_GLOVES:
-            my_strcpy(carry_limit_last_label, "pairs of gloves",
+            SDL_strlcpy(carry_limit_last_label, "pairs of gloves",
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_HELM_CROWN:
-            my_strcpy(carry_limit_last_label, "helms or crowns",
+            SDL_strlcpy(carry_limit_last_label, "helms or crowns",
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_ROUND_SHIELD:
-            my_strcpy(carry_limit_last_label, "round shields",
+            SDL_strlcpy(carry_limit_last_label, "round shields",
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_OTHER_SHIELD:
-            my_strcpy(carry_limit_last_label, "non-round shields",
+            SDL_strlcpy(carry_limit_last_label, "non-round shields",
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_CLOAK:
-            my_strcpy(carry_limit_last_label, "cloaks",
+            SDL_strlcpy(carry_limit_last_label, "cloaks",
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_SOFT_ARMOUR:
-            my_strcpy(carry_limit_last_label, "soft armour",
+            SDL_strlcpy(carry_limit_last_label, "soft armour",
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_MAIL:
-            my_strcpy(carry_limit_last_label, "mail armour",
+            SDL_strlcpy(carry_limit_last_label, "mail armour",
                       sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_MELEE_WEAPON:
             if (object_is_truly_two_handed(o_ptr))
-                my_strcpy(carry_limit_last_label,
+                SDL_strlcpy(carry_limit_last_label,
                           "two-handed melee weapons",
                           sizeof(carry_limit_last_label));
             else
-                my_strcpy(carry_limit_last_label, "melee weapons",
+                SDL_strlcpy(carry_limit_last_label, "melee weapons",
                           sizeof(carry_limit_last_label));
             break;
         case INV_LIMIT_SUPPLY_WEIGHT:
-            my_strcpy(carry_limit_last_label, "supply weight",
+            SDL_strlcpy(carry_limit_last_label, "supply weight",
                       sizeof(carry_limit_last_label));
             break;
         default:
-            my_strcpy(carry_limit_last_label, "items of this type",
+            SDL_strlcpy(carry_limit_last_label, "items of this type",
                       sizeof(carry_limit_last_label));
             break;
     }
@@ -6190,3 +6190,4 @@ void reorder_pack(bool display_message)
     if (flag && display_message)
         msg_print("You reorder some items in your pack.");
 }
+

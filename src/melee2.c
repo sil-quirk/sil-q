@@ -6219,3 +6219,4 @@ void monster_perception(bool player_centered, bool main_roll, int difficulty)
         }
     }
 }
+

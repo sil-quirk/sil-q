@@ -467,7 +467,7 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
         }
         else
         {
-            my_strcpy(equipped_name, "no staff", sizeof(equipped_name));
+            SDL_strlcpy(equipped_name, "no staff", sizeof(equipped_name));
             strnfmt(prompt, sizeof(prompt),
                 "You cannot use a staff from %s. Equip %.*s now?",
                 source, max_name_len, staff_name);
@@ -671,3 +671,4 @@ void do_cmd_activate(void)
     /* Activate the object */
     (void)use_object(o_ptr, &ident);
 }
+
