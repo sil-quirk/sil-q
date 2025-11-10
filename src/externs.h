@@ -1085,6 +1085,7 @@ extern errr path_temp(char* buf, size_t max);
 /* SDL3-based file I/O operations */
 extern SDL_IOStream* sdl_fopen(cptr file, cptr mode);
 extern SDL_IOStream* sdl_fopen_temp(char* buf, size_t max);
+extern SDL_IOStream* sdl_fmake(cptr file, int mode);
 extern errr sdl_fclose(SDL_IOStream* stream);
 extern errr sdl_fgets(SDL_IOStream* stream, char* buf, size_t n);
 extern errr sdl_fputs(SDL_IOStream* stream, cptr buf, size_t n);

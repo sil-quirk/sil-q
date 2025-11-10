@@ -962,13 +962,13 @@ static void adjust_blessing_threshold_menu(void);
 /* =======================  load / save  ========================= */
 
 /* Check if a file is in the new versioned format */
-static bool is_versioned_meta_file(int fd, int file_size)
+static bool is_versioned_meta_file(SDL_IOStream* fd, int file_size)
 {
     if (file_size < sizeof(meta_file_header)) return false;
 
     meta_file_header header;
-    fd_seek(fd, 0);
-    if (fd_read(fd, (char*)&header, sizeof(header)) != 0) return false;
+    sdl_seek(fd, 0);
+    if (sdl_read(fd, (char*)&header, sizeof(header)) != 0) return false;
 
     /* Check for reasonable version numbers (0-255) and entry count */
     if (header.version_major > 255 || header.version_minor > 255 ||
@@ -1084,9 +1084,9 @@ void cleanup_old_game_files(void)
         char score_file[1024];
         path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw");
         
-        int score_fd = fd_open(score_file, O_RDONLY);
-        if (score_fd >= 0) {
-            fd_close(score_fd);
+        SDL_IOStream* score_fd = sdl_fopen(score_file, "rb");
+        if (score_fd) {
+            sdl_fclose(score_fd);
             log_info("*** REMOVING SCORE FILE FOR FRESH START ***");
             
             /* Platform-agnostic file removal using standard C */
@@ -1179,9 +1179,9 @@ void cleanup_old_game_files(void)
     char score_file[1024];
     path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw");
     
-    int score_fd = fd_open(score_file, O_RDONLY);
-    if (score_fd >= 0) {
-        fd_close(score_fd);
+    SDL_IOStream* score_fd = sdl_fopen(score_file, "rb");
+    if (score_fd) {
+        sdl_fclose(score_fd);
         log_info("*** REMOVING SCORE FILE FOR FRESH START ***");
         
         /* Platform-agnostic file removal using standard C */
@@ -1194,16 +1194,16 @@ void cleanup_old_game_files(void)
 errr load_metaruns(bool create_if_missing)
 {
     char fn[1024];
-    int  fd;
+    SDL_IOStream* fd;
 
     build_meta_path(fn, sizeof fn, NULL, META_RAW);
-    fd = fd_open(fn, O_RDONLY);
+    fd = sdl_fopen(fn, "rb");
 
-    if (fd < 0 && create_if_missing) {
+    if (!fd && create_if_missing) {
         log_info("Creating new versioned metarun file: %s", fn);
         FILE_TYPE(FILE_TYPE_DATA);
-        fd = fd_make(fn, 0644);
-        if (fd < 0) return -1;
+        fd = sdl_fmake(fn, 0644);
+        if (!fd) return -1;
 
         /* Write versioned header */
         meta_file_header header;
@@ -1213,31 +1213,32 @@ errr load_metaruns(bool create_if_missing)
         header.version_extra = VERSION_EXTRA;
         header.entry_count = 1;
 
-        fd_write(fd, (cptr)&header, sizeof(header));
+        sdl_write(fd, (cptr)&header, sizeof(header));
 
         metarun seed;
         reset_defaults(&seed);
         seed.score = compute_metarun_score(&seed);
-        fd_write(fd, (cptr)&seed, sizeof seed);
-        fd_close(fd);
-        fd = fd_open(fn, O_RDONLY);
+        sdl_write(fd, (cptr)&seed, sizeof seed);
+        sdl_fclose(fd);
+        fd = sdl_fopen(fn, "rb");
         metarun_created = true;
     }
     else log_info("Loading existing metarun file: %s", fn);
-    if (fd < 0) return -1;
+    if (!fd) return -1;
 
     /* Check if this is a versioned file */
-    int file_size = fd_file_size(fd);
+    Sint64 file_size_64 = sdl_size(fd);
+    int file_size = (file_size_64 > 0) ? (int)file_size_64 : 0;
     bool is_versioned = is_versioned_meta_file(fd, file_size);
     
     const char *recovery_reason = NULL;
 
     if (is_versioned) {
         meta_file_header header;
-        fd_seek(fd, 0);
-        if (fd_read(fd, (char*)&header, sizeof(header)) != 0) {
+        sdl_seek(fd, 0);
+        if (sdl_read(fd, (char*)&header, sizeof(header)) != 0) {
             log_error("Failed to read metarun header");
-            fd_close(fd);
+            sdl_fclose(fd);
             return -1;
         }
 
@@ -1255,10 +1256,10 @@ errr load_metaruns(bool create_if_missing)
 
         if (metarun_max > 0 && entry_size > 0) {
             metaruns = C_ZNEW(metarun_max, metarun);
-            fd_seek(fd, sizeof(meta_file_header));
+            sdl_seek(fd, sizeof(meta_file_header));
 
             if (entry_size == sizeof(metarun)) {
-                fd_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
+                sdl_read(fd, (char*)metaruns, metarun_max * sizeof(metarun));
                 for (s16b i = 0; i < metarun_max; i++) {
                     if (header.version_major == 0 && header.version_minor < 9) {
                         metaruns[i].blessing_points_spent = 0;
@@ -1278,7 +1279,7 @@ errr load_metaruns(bool create_if_missing)
                 }
             } else if (entry_size == METARUN_V9_SIZE) {
                 metarun_v9 *legacy = C_ZNEW(metarun_max, metarun_v9);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v9));
+                sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v9));
                 for (s16b i = 0; i < metarun_max; i++) {
                     metarun_from_v9(&metaruns[i], &legacy[i]);
                     sanitize_major_blessing_bits(&metaruns[i]);
@@ -1286,7 +1287,7 @@ errr load_metaruns(bool create_if_missing)
                 FREE(legacy);
             } else if (entry_size == METARUN_V8_SIZE) {
                 metarun_v8 *legacy = C_ZNEW(metarun_max, metarun_v8);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v8));
+                sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v8));
                 for (s16b i = 0; i < metarun_max; i++) {
                     metarun_from_v8(&metaruns[i], &legacy[i]);
                     sanitize_major_blessing_bits(&metaruns[i]);
@@ -1294,7 +1295,7 @@ errr load_metaruns(bool create_if_missing)
                 FREE(legacy);
             } else if (entry_size == METARUN_V7_SIZE) {
                 metarun_v7 *legacy = C_ZNEW(metarun_max, metarun_v7);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v7));
+                sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v7));
                 for (s16b i = 0; i < metarun_max; i++) {
                     metarun_from_v7(&metaruns[i], &legacy[i]);
                     sanitize_major_blessing_bits(&metaruns[i]);
@@ -1302,7 +1303,7 @@ errr load_metaruns(bool create_if_missing)
                 FREE(legacy);
             } else if (entry_size == METARUN_V6_SIZE) {
                 metarun_v6 *legacy = C_ZNEW(metarun_max, metarun_v6);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v6));
+                sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v6));
                 for (s16b i = 0; i < metarun_max; i++) {
                     metarun_from_v6(&metaruns[i], &legacy[i]);
                     sanitize_major_blessing_bits(&metaruns[i]);
@@ -1310,7 +1311,7 @@ errr load_metaruns(bool create_if_missing)
                 FREE(legacy);
             } else if (entry_size == METARUN_V5_SIZE) {
                 metarun_v5 *legacy = C_ZNEW(metarun_max, metarun_v5);
-                fd_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v5));
+                sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v5));
                 for (s16b i = 0; i < metarun_max; i++) {
                     metarun_from_v5(&metaruns[i], &legacy[i]);
                     sanitize_major_blessing_bits(&metaruns[i]);
@@ -1346,7 +1347,7 @@ errr load_metaruns(bool create_if_missing)
         }
     }
 
-    fd_close(fd);
+    sdl_fclose(fd);
 
     bool seeded_default = false;
     if (metarun_max <= 0 || !metaruns) {
@@ -1439,18 +1440,19 @@ static errr backup_file(const char *filepath)
     }
     
     /* Check if original file exists */
-    int fd_src = fd_open(filepath, O_RDONLY);
-    if (fd_src < 0) {
+    SDL_IOStream* fd_src = sdl_fopen(filepath, "rb");
+    if (!fd_src) {
         /* Original file doesn't exist, no backup needed */
         log_info("backup_file: original file %s doesn't exist, no backup needed", filepath);
         return 0;
     }
     
     /* Get file size */
-    int file_size = fd_file_size(fd_src);
+    Sint64 file_size_64 = sdl_size(fd_src);
+    int file_size = (file_size_64 > 0) ? (int)file_size_64 : 0;
     if (file_size <= 0) {
         log_info("backup_file: original file %s is empty, no backup needed", filepath);
-        fd_close(fd_src);
+        sdl_fclose(fd_src);
         return 0;
     }
     
@@ -1459,16 +1461,16 @@ static errr backup_file(const char *filepath)
     /* Read original file */
     char *buffer = C_ZNEW(file_size, char);
     if (!buffer) {
-        fd_close(fd_src);
+        sdl_fclose(fd_src);
         return -1;
     }
     
-    if (fd_read(fd_src, buffer, file_size) != 0) {
+    if (sdl_read(fd_src, buffer, file_size) != 0) {
         FREE(buffer);
-        fd_close(fd_src);
+        sdl_fclose(fd_src);
         return -1;
     }
-    fd_close(fd_src);
+    sdl_fclose(fd_src);
     
     /* Optimize backup rotation: Only do full rotation once per session/day
      * For frequent saves, just overwrite .bak1 */
@@ -1479,15 +1481,15 @@ static errr backup_file(const char *filepath)
     
     /* Check if this is the first backup of the day (roughly) */
     bool should_rotate = false;
-    int fd_test1 = fd_open(backup_path1, O_RDONLY);
-    if (fd_test1 >= 0) {
+    SDL_IOStream* fd_test1 = sdl_fopen(backup_path1, "rb");
+    if (fd_test1) {
         /* Check if bak1 is old enough to warrant rotation (use simple time check) */
         /* If we created a backup within the last hour, don't rotate */
         if (current_time - last_backup_time >= 3600) {  /* 1 hour */
             should_rotate = true;
             log_info("backup_file: enough time passed since last backup, will rotate backups");
         }
-        fd_close(fd_test1);
+        sdl_fclose(fd_test1);
     } else {
         /* No bak1 exists, create fresh backup */
         should_rotate = false;
@@ -1502,9 +1504,9 @@ static errr backup_file(const char *filepath)
         log_debug("backup_file: removed old bak3");
         
         /* Move bak2 to bak3 (if bak2 exists) */
-        int fd_test2 = fd_open(backup_path2, O_RDONLY);
-        if (fd_test2 >= 0) {
-            fd_close(fd_test2);
+        SDL_IOStream* fd_test2 = sdl_fopen(backup_path2, "rb");
+        if (fd_test2) {
+            sdl_fclose(fd_test2);
             log_debug("backup_file: moving bak2 to bak3");
             if (fd_move(backup_path2, backup_path3) != 0) {
                 log_debug("backup_file: failed to move bak2 to bak3");
@@ -1512,9 +1514,9 @@ static errr backup_file(const char *filepath)
         }
         
         /* Move bak1 to bak2 (if bak1 exists) */
-        fd_test1 = fd_open(backup_path1, O_RDONLY);
-        if (fd_test1 >= 0) {
-            fd_close(fd_test1);
+        fd_test1 = sdl_fopen(backup_path1, "rb");
+        if (fd_test1) {
+            sdl_fclose(fd_test1);
             log_debug("backup_file: moving bak1 to bak2");
             if (fd_move(backup_path1, backup_path2) != 0) {
                 log_debug("backup_file: failed to move bak1 to bak2");
@@ -1528,14 +1530,14 @@ static errr backup_file(const char *filepath)
     
     /* Create new bak1 from current file */
     log_info("backup_file: creating new bak1 from current file (size: %d)", file_size);
-    int fd_dst = fd_make(backup_path1, 0644);
-    if (fd_dst < 0) {
+    SDL_IOStream* fd_dst = sdl_fmake(backup_path1, 0644);
+    if (!fd_dst) {
         FREE(buffer);
         return -1;
     }
     
-    errr result = fd_write(fd_dst, buffer, file_size);
-    fd_close(fd_dst);
+    errr result = sdl_write(fd_dst, buffer, file_size);
+    sdl_fclose(fd_dst);
     FREE(buffer);
     
     if (result == 0) {
@@ -1582,12 +1584,12 @@ errr save_metaruns(void)
               current_run, metaruns[current_run].id, metaruns[current_run].deaths, metaruns[current_run].silmarils,
               metaruns[current_run].score);
 
-    /* After backup is created in backup_file(), remove the original so fd_make can succeed */
+    /* After backup is created in backup_file(), remove the original so sdl_fmake can succeed */
     fd_kill(fn);
     
     /* Write using the new versioned format */
-    int fd = fd_make(fn, 0644);
-    if (fd < 0) {
+    SDL_IOStream* fd = sdl_fmake(fn, 0644);
+    if (!fd) {
         log_info("Failed to create metarun file for writing");
         return -1;
     }
@@ -1600,17 +1602,17 @@ errr save_metaruns(void)
     header.version_extra = VERSION_EXTRA;
     header.entry_count = metarun_max;
     
-    errr result = fd_write(fd, (cptr)&header, sizeof(header));
+    errr result = sdl_write(fd, (cptr)&header, sizeof(header));
     if (result != 0) {
-        fd_close(fd);
+        sdl_fclose(fd);
         log_info("Failed to write metarun header to file");
         return -1;
     }
 
     /* Write metarun data */
     int bytes_to_write = metarun_max * sizeof(metarun);
-    result = fd_write(fd, (cptr)metaruns, bytes_to_write);
-    fd_close(fd);
+    result = sdl_write(fd, (cptr)metaruns, bytes_to_write);
+    sdl_fclose(fd);
     
     if (result != 0) {
         log_info("Failed to write metarun data to file");
@@ -5200,4 +5202,5 @@ int get_available_oaths_mask(void)
     
     return available;
 }
+
 

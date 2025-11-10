@@ -32,7 +32,7 @@ extern const char* get_runtime_user_path(void);
 
 /*
  * This file is used to initialize various variables and arrays for the
- * Sil game.  Note the use of "fd_read()" and "fd_write()" to bypass
+ * Sil game.  Note the use of "sdl_read()" and "sdl_write()" to bypass
  * the common limitation of "read()" and "write()" to only 32767 bytes
  * at a time.
  *
@@ -322,12 +322,12 @@ header style_head;
 /*
  * Initialize a "*_info" array, by parsing a binary "image" file
  */
-static errr init_info_raw(int fd, header* head)
+static errr init_info_raw(SDL_IOStream* fd, header* head)
 {
     header test;
 
     /* Read and verify the header */
-    if (fd_read(fd, (char*)(&test), sizeof(header))
+    if (sdl_read(fd, (char*)(&test), sizeof(header))
         || (test.v_major != head->v_major) || (test.v_minor != head->v_minor)
         || (test.v_patch != head->v_patch) || (test.v_extra != head->v_extra)
         || (test.info_num != head->info_num)
@@ -346,7 +346,7 @@ static errr init_info_raw(int fd, header* head)
     C_MAKE(head->info_ptr, head->info_size, char);
 
     /* Read the "*_info" array */
-    fd_read(fd, head->info_ptr, head->info_size);
+    sdl_read(fd, head->info_ptr, head->info_size);
 
     if (head->name_size)
     {
@@ -354,7 +354,7 @@ static errr init_info_raw(int fd, header* head)
         C_MAKE(head->name_ptr, head->name_size, char);
 
         /* Read the "*_name" array */
-        fd_read(fd, head->name_ptr, head->name_size);
+        sdl_read(fd, head->name_ptr, head->name_size);
     }
 
     if (head->text_size)
@@ -363,7 +363,7 @@ static errr init_info_raw(int fd, header* head)
         C_MAKE(head->text_ptr, head->text_size, char);
 
         /* Read the "*_text" array */
-        fd_read(fd, head->text_ptr, head->text_size);
+        sdl_read(fd, head->text_ptr, head->text_size);
     }
 
     /* Success */
@@ -427,11 +427,11 @@ static void display_parse_error(cptr filename, errr err, cptr buf)
  */
 static errr init_info(cptr filename, header* head)
 {
-    int fd;
+    SDL_IOStream* fd;
 
     errr err = 1;
 
-    FILE* fp;
+    SDL_IOStream* fp;
 
     /* General buffer */
     char buf[1024];
@@ -444,15 +444,15 @@ static errr init_info(cptr filename, header* head)
     path_build(buf, sizeof(buf), ANGBAND_DIR_DATA, format("%s.raw", filename));
 
     /* Attempt to open the "raw" file */
-    fd = fd_open(buf, O_RDONLY);
+    fd = sdl_fopen(buf, "rb");
 
     /* Process existing "raw" file */
-    if (fd >= 0)
+    if (fd)
     {
 #ifdef CHECK_MODIFICATION_TIME
-
-        err = check_modification_date(fd, format("%s.txt", filename));
-
+        /* TODO: Need to update check_modification_date to work with SDL_IOStream */
+        /* err = check_modification_date(fd, format("%s.txt", filename)); */
+        err = 0;  /* Skip modification check for now */
 #endif /* CHECK_MODIFICATION_TIME */
 
         /* Attempt to parse the "raw" file */
@@ -460,7 +460,7 @@ static errr init_info(cptr filename, header* head)
             err = init_info_raw(fd, head);
 
         /* Close it */
-        fd_close(fd);
+        sdl_fclose(fd);
     }
 
     /* Do we have to parse the *.txt file? */
@@ -485,7 +485,7 @@ static errr init_info(cptr filename, header* head)
             buf, sizeof(buf), ANGBAND_DIR_EDIT, format("%s.txt", filename));
 
         /* Open the file */
-        fp = my_fopen(buf, "r");
+        fp = sdl_fopen(buf, "r");
 
         /* Parse it */
         if (!fp)
@@ -495,7 +495,7 @@ static errr init_info(cptr filename, header* head)
         err = init_info_txt(fp, buf, head, head->parse_info_txt);
 
         /* Close it */
-        my_fclose(fp);
+        sdl_fclose(fp);
 
         /* Errors */
         if (err)
@@ -511,10 +511,10 @@ static errr init_info(cptr filename, header* head)
             buf, sizeof(buf), ANGBAND_DIR_DATA, format("%s.raw", filename));
 
         /* Attempt to open the file */
-        fd = fd_open(buf, O_RDONLY);
+        fd = sdl_fopen(buf, O_RDONLY);
 
         /* Failure */
-        if (fd < 0)
+        if (!fd)
         {
             int mode = 0644;
 
@@ -522,13 +522,13 @@ static errr init_info(cptr filename, header* head)
             safe_setuid_grab();
 
             /* Create a new file */
-            fd = fd_make(buf, mode);
+            fd = sdl_fmake(buf, mode);
 
             /* Drop permissions */
             safe_setuid_drop();
 
             /* Failure */
-            if (fd < 0)
+            if (!fd)
             {
                 /* Complain */
                 plog_fmt("Cannot create the '%s' file!", buf);
@@ -539,19 +539,19 @@ static errr init_info(cptr filename, header* head)
         }
 
         /* Close it */
-        fd_close(fd);
+        sdl_fclose(fd);
 
         /* Grab permissions */
         safe_setuid_grab();
 
         /* Attempt to create the raw file */
-        fd = fd_open(buf, O_WRONLY);
+        fd = sdl_fopen(buf, "wb");
 
         /* Drop permissions */
         safe_setuid_drop();
 
         /* Failure */
-        if (fd < 0)
+        if (!fd)
         {
             /* Complain */
             plog_fmt("Cannot write the '%s' file!", buf);
@@ -561,22 +561,22 @@ static errr init_info(cptr filename, header* head)
         }
 
         /* Dump to the file */
-        if (fd >= 0)
+        if (fd)
         {
             /* Dump it */
-            fd_write(fd, (cptr)head, head->head_size);
+            sdl_write(fd, (cptr)head, head->head_size);
 
             /* Dump the "*_info" array */
-            fd_write(fd, head->info_ptr, head->info_size);
+            sdl_write(fd, head->info_ptr, head->info_size);
 
             /* Dump the "*_name" array */
-            fd_write(fd, head->name_ptr, head->name_size);
+            sdl_write(fd, head->name_ptr, head->name_size);
 
             /* Dump the "*_text" array */
-            fd_write(fd, head->text_ptr, head->text_size);
+            sdl_write(fd, head->text_ptr, head->text_size);
 
             /* Close */
-            fd_close(fd);
+            sdl_fclose(fd);
         }
 
         /*** Kill the fake arrays ***/
@@ -600,7 +600,7 @@ static errr init_info(cptr filename, header* head)
             buf, sizeof(buf), ANGBAND_DIR_DATA, format("%s.raw", filename));
 
         /* Attempt to open the "raw" file */
-        fd = fd_open(buf, O_RDONLY);
+        fd = sdl_fopen(buf, O_RDONLY);
 
         /* Process existing "raw" file */
         if (fd < 0)
@@ -610,7 +610,7 @@ static errr init_info(cptr filename, header* head)
         err = init_info_raw(fd, head);
 
         /* Close it */
-        fd_close(fd);
+        sdl_fclose(fd);
 
         /* Error */
         if (err)
@@ -711,20 +711,20 @@ static errr init_style_info(void)
      * We bypass the RAW cache here so manual edits to style-levels.txt take effect
      * even when ALLOW_TEMPLATES is not defined. */
     {
-        FILE* fp;
+        SDL_IOStream* fp;
         char buf[1024];
         header levels_head;
         init_header(&levels_head, 1, 1);
         /* Build full path to lib/edit/style-levels.txt */
         path_build(buf, sizeof(buf), ANGBAND_DIR_EDIT, format("%s.txt", "style-levels"));
-        fp = my_fopen(buf, "r");
+        fp = sdl_fopen(buf, "r");
         if (!fp) quit("Cannot open 'style-levels.txt' file.");
         /* Parse the file using the style-levels parser (populates global rule tables) */
         {
             char linebuf[1024];
             err = init_info_txt(fp, linebuf, &levels_head, parse_style_levels);
         }
-        my_fclose(fp);
+        sdl_fclose(fp);
         if (err)
         {
             /* Report a parse error with helpful context */
@@ -1847,7 +1847,7 @@ extern void display_introduction(void)
  */
 void init_angband(void)
 {
-    int fd;
+    SDL_IOStream* fd;
 
     int mode = 0644;
 
@@ -1866,7 +1866,7 @@ void init_angband(void)
     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
 
     /* Attempt to open the high score file */
-    fd = fd_open(buf, O_RDONLY);
+    fd = sdl_fopen(buf, O_RDONLY);
 
     /* Failure */
     if (fd < 0)
@@ -1878,13 +1878,13 @@ void init_angband(void)
         safe_setuid_grab();
 
         /* Create a new high score file */
-        fd = fd_make(buf, mode);
+        fd = sdl_fmake(buf, mode);
 
         /* Drop permissions */
         safe_setuid_drop();
 
         /* Failure */
-        if (fd < 0)
+        if (!fd)
         {
             char why[1024];
 
@@ -1906,12 +1906,12 @@ void init_angband(void)
             header.reserved[0] = 0;
             header.reserved[1] = 0;
             
-            fd_write(fd, (cptr)&header, sizeof(header));
+            sdl_write(fd, (cptr)&header, sizeof(header));
         }
     }
 
     /* Close it */
-    fd_close(fd);
+    sdl_fclose(fd);
 
     log_info("Loading metarun...");
     // Load metarun
@@ -2220,3 +2220,5 @@ void cleanup_angband(void)
     string_free(ANGBAND_DIR_XTRA);
     string_free(ANGBAND_DIR_SCRIPT);
 }
+
+

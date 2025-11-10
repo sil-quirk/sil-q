@@ -147,10 +147,10 @@ static errr wr_block(void)
     fake[3] = (byte)(data_size >> 8);
 
     /* Dump the head */
-    err = fd_write(data_fd, (cptr)&fake, sizeof(fake));
+    err = sdl_write(data_fd, (cptr)&fake, sizeof(fake));
 
     /* Dump the actual data */
-    err = fd_write(data_fd, (cptr)data_head, data_size);
+    err = sdl_write(data_fd, (cptr)data_head, data_size);
 
     /* XXX XXX XXX */
     fake[0] = 0;
@@ -159,7 +159,7 @@ static errr wr_block(void)
     fake[3] = 0;
 
     /* Dump the tail */
-    err = fd_write(data_fd, (cptr)&fake, sizeof(fake));
+    err = sdl_write(data_fd, (cptr)&fake, sizeof(fake));
 
     /* Hack -- reset */
     data_next = data_head;
@@ -230,7 +230,7 @@ static errr rd_block(void)
     byte fake[4];
 
     /* Read the head data */
-    err = fd_read(data_fd, (char*)&fake, sizeof(fake));
+    err = sdl_read(data_fd, (char*)&fake, sizeof(fake));
 
     /* Extract the type and size */
     data_type = (fake[0] | ((u16b)fake[1] << 8));
@@ -240,10 +240,10 @@ static errr rd_block(void)
     C_WIPE(data_head, 65535, byte);
 
     /* Read the actual data */
-    err = fd_read(data_fd, (char*)data_head, data_size);
+    err = sdl_read(data_fd, (char*)data_head, data_size);
 
     /* Read the tail data */
-    err = fd_read(data_fd, (char*)&fake, sizeof(fake));
+    err = sdl_read(data_fd, (char*)&fake, sizeof(fake));
 
     /* XXX XXX XXX Verify */
 
@@ -313,14 +313,14 @@ static errr rd_savefile(void)
     byte fake[4];
 
     /* Open the savefile */
-    data_fd = fd_open(savefile, O_RDONLY);
+    data_fd = sdl_fopen(savefile, O_RDONLY);
 
     /* No file */
     if (data_fd < 0)
         return (1);
 
     /* Strip the first four bytes (see below) */
-    if (fd_read(data_fd, (char*)(fake), sizeof(fake)))
+    if (sdl_read(data_fd, (char*)(fake), sizeof(fake)))
         return (1);
 
     /* Make array XXX XXX XXX */
@@ -375,7 +375,7 @@ static errr rd_savefile(void)
  * Some "local" parameters, used to help write savefiles
  */
 
-static FILE* fff; /* Current save "file" */
+static SDL_IOStream* fff; /* Current save "file" */
 
 static byte xor_byte; /* Simple encryption */
 
@@ -391,18 +391,20 @@ static bool write_error = false;
 
 static void sf_put(byte v)
 {
-    int result;
+    size_t result;
     
-    /* Encode the value, write a character */
+    /* Encode the value */
     xor_byte ^= v;
-    result = putc((int)xor_byte, fff);
+    
+    /* Write the byte directly */
+    result = SDL_WriteIO(fff, &xor_byte, 1);
     
     /* Check for write error */
-    if (result == EOF)
+    if (result != 1)
     {
         if (!write_error)
         {
-            log_error("sf_put: Write error detected (putc returned EOF)");
+            log_error("sf_put: Write error detected (SDL_WriteIO failed)");
             write_error = true;
         }
         return;
@@ -1779,10 +1781,10 @@ static bool wr_savefile(void)
         return false;
     }
 
-    /* Error in save */
-    if (ferror(fff) || (fflush(fff) == EOF))
+    /* Flush the stream to ensure all data is written */
+    if (SDL_FlushIO(fff) != 0)
     {
-        log_error("Save file write error detected (ferror or fflush failed)");
+        log_error("Save file flush error: %s", SDL_GetError());
         return false;
     }
 
@@ -1800,7 +1802,7 @@ static bool save_player_aux(cptr name)
 {
     bool ok = false;
 
-    int fd;
+    SDL_IOStream* fd;
 
     int mode = 0644;
 
@@ -1814,22 +1816,22 @@ static bool save_player_aux(cptr name)
     safe_setuid_grab();
 
     /* Create the savefile */
-    fd = fd_make(name, mode);
+    fd = sdl_fmake(name, mode);
 
     /* Drop permissions */
     safe_setuid_drop();
 
     /* File is okay */
-    if (fd >= 0)
+    if (fd)
     {
         /* Close the "fd" */
-        fd_close(fd);
+        sdl_fclose(fd);
 
         /* Grab permissions */
         safe_setuid_grab();
 
         /* Open the savefile */
-        fff = my_fopen(name, "wb");
+        fff = sdl_fopen(name, "wb");
 
         /* Drop permissions */
         safe_setuid_drop();
@@ -1843,7 +1845,7 @@ static bool save_player_aux(cptr name)
                 ok = true;
 
             /* Attempt to close it */
-            if (my_fclose(fff))
+            if (sdl_fclose(fff))
                 ok = false;
         }
         else
@@ -1944,11 +1946,11 @@ bool save_player(void)
 
         /* Preserve old savefile if it exists */
         /* Check if old savefile exists first (important for first-time saves) */
-        int old_fd = fd_open(savefile, O_RDONLY);
-        if (old_fd >= 0)
+        SDL_IOStream* old_fd = sdl_fopen(savefile, "rb");
+        if (old_fd)
         {
             /* Old file exists, close it and preserve it */
-            fd_close(old_fd);
+            sdl_fclose(old_fd);
             log_debug("Old savefile exists, preserving it as .old");
             
             if (fd_move(savefile, temp) != 0)
@@ -2016,14 +2018,14 @@ bool save_player(void)
     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "meta.raw");
 
     // /* Attempt to open the meta file */
-    // meta_fd = fd_open(buf, O_RDWR);
+    // meta_fd = sdl_fopen(buf, O_RDWR);
 
     // // Save Metarun
     // strcpy(meta.name,"F");
     // if (!meta_seek(atoi(meta.id))) meta_write(&meta);
 
     // /* Close it */
-    // fd_close(meta_fd);
+    // sdl_fclose(meta_fd);
 
     /* Return the result */
     if (result) {
@@ -2031,4 +2033,6 @@ bool save_player(void)
     }
     return (result);
 }
+
+
 

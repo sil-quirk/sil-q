@@ -17,7 +17,7 @@ errr parse_style_levels(char* buf, header* head);
 
 /*
  * This file is used to initialize various variables and arrays for the
- * Angband game.  Note the use of "fd_read()" and "fd_write()" to bypass
+ * Angband game.  Note the use of "sdl_read()" and "sdl_write()" to bypass
  * the common limitation of "read()" and "write()" to only 32767 bytes
  * at a time.
  *
@@ -389,7 +389,7 @@ static cptr a_info_act[ACT_MAX] = { "ILLUMINATION", "MAGIC_MAP", "CLAIRVOYANCE",
  * Initialize an "*_info" array, by parsing an ascii "template" file
  */
 errr init_info_txt(
-    FILE* fp, char* buf, header* head, parse_info_txt_func parse_info_txt_line)
+    SDL_IOStream* fp, char* buf, header* head, parse_info_txt_func parse_info_txt_line)
 {
     errr err;
 
@@ -407,7 +407,7 @@ errr init_info_txt(
     head->text_size = 0;
 
     /* Parse */
-    while (0 == my_fgets(fp, buf, 1024))
+    while (0 == sdl_fgets(fp, buf, 1024))
     {
         /* Advance the line number */
         error_line++;
@@ -1670,14 +1670,14 @@ void styles_clear_display_messages(void)
 void styles_reload_messages_from_text(void)
 {
     char path[1024];
-    FILE* fp;
+    SDL_IOStream* fp;
     char buf[1024];
     /* Start clean to avoid stale/duplicate entries */
     styles_clear_display_messages();
 
     /* Build full path to lib/edit/style.txt */
     path_build(path, sizeof(path), ANGBAND_DIR_EDIT, format("%s.txt", "style"));
-    fp = my_fopen(path, "r");
+    fp = sdl_fopen(path, "r");
     if (!fp)
     {
         log_warn("styles_reload_messages_from_text: couldn't open %s", path);
@@ -1688,7 +1688,7 @@ void styles_reload_messages_from_text(void)
     /* error_idx is the conventional global parser index in this translation unit */
     error_idx = -1;
 
-    while (my_fgets(fp, buf, sizeof(buf)) == 0)
+    while (sdl_fgets(fp, buf, sizeof(buf)) == 0)
     {
         /* Trim leading spaces */
         char* s = buf;
@@ -1712,7 +1712,7 @@ void styles_reload_messages_from_text(void)
         }
         /* Ignore other lines */
     }
-    my_fclose(fp);
+    sdl_fclose(fp);
     log_info("styles_reload_messages_from_text: loaded per-style messages from text");
 }
 
@@ -5934,3 +5934,5 @@ errr parse_oath_info(char* buf, header* head)
 #else /* ALLOW_TEMPLATES */
 
 #endif /* ALLOW_TEMPLATES */
+
+

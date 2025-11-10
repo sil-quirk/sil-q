@@ -33,10 +33,6 @@
 #define INSTRUCT_ROW 21
 #define QUESTION_COL 2
 
-/* Helper macros for SDL vs FILE* compatibility */
-#define SCORE_FILE_TYPE SDL_IOStream*
-#define SCORE_FILE_CLOSE(f) SDL_CloseIO(f)
-
 /* Forward declaration for score update function */
 static void upsert_live_score_on_save(void);
 
@@ -985,7 +981,7 @@ static cptr process_pref_file_expr(char** sp, char* fp)
  */
 static errr process_pref_file_aux(cptr name)
 {
-    FILE* fp;
+    SDL_IOStream* fp;
 
     char buf[1024];
 
@@ -1000,7 +996,7 @@ static errr process_pref_file_aux(cptr name)
     log_debug("Processing preference file: %s", name);
 
     /* Open the file */
-    fp = my_fopen(name, "r");
+    fp = sdl_fopen(name, "r");
 
     /* No such file */
     if (!fp) {
@@ -1009,7 +1005,7 @@ static errr process_pref_file_aux(cptr name)
     }
 
     /* Process the file */
-    while (0 == my_fgets(fp, buf, sizeof(buf)))
+    while (0 == sdl_fgets(fp, buf, sizeof(buf)))
     {
         /* Count lines */
         line++;
@@ -1084,7 +1080,7 @@ static errr process_pref_file_aux(cptr name)
     log_debug("Successfully processed preference file '%s' (%d lines)", name, line + 1);
 
     /* Close the file */
-    my_fclose(fp);
+    sdl_fclose(fp);
 
     /* Result */
     return (err);
@@ -1176,7 +1172,7 @@ errr check_time_init(void)
 {
 #ifdef CHECK_TIME
 
-    FILE* fp;
+    SDL_IOStream* fp;
 
     char buf[1024];
 
@@ -1184,7 +1180,7 @@ errr check_time_init(void)
     path_build(buf, sizeof(buf), ANGBAND_DIR_FILE, "time.txt");
 
     /* Open the file */
-    fp = my_fopen(buf, "r");
+    fp = sdl_fopen(buf, "r");
 
     /* No file, no restrictions */
     if (!fp)
@@ -1194,7 +1190,7 @@ errr check_time_init(void)
     check_time_flag = true;
 
     /* Parse the file */
-    while (0 == my_fgets(fp, buf, sizeof(buf)))
+    while (0 == sdl_fgets(fp, buf, sizeof(buf)))
     {
         /* Skip comments and blank lines */
         if (!buf[0] || (buf[0] == '#'))
@@ -1221,7 +1217,7 @@ errr check_time_init(void)
     }
 
     /* Close it */
-    my_fclose(fp);
+    sdl_fclose(fp);
 
 #endif /* CHECK_TIME */
 
@@ -2966,7 +2962,7 @@ bool show_file(cptr name, cptr what, int line)
     bool case_sensitive = false;
 
     /* Current help file */
-    FILE* fff = NULL;
+    SDL_IOStream* fff = NULL;
 
     /* Find this string (if any) */
     char* find = NULL;
@@ -3047,7 +3043,7 @@ bool show_file(cptr name, cptr what, int line)
         log_debug("Opening help file: %s", path);
 
         /* Open */
-        fff = my_fopen(path, "r");
+        fff = sdl_fopen(path, "r");
     }
 
     /* Oops */
@@ -3068,7 +3064,7 @@ bool show_file(cptr name, cptr what, int line)
     while (true)
     {
         /* Read a line or stop */
-        if (my_fgets(fff, buf, sizeof(buf)))
+        if (sdl_fgets(fff, buf, sizeof(buf)))
             break;
 
         /* XXX Parse "menu" items */
@@ -3134,10 +3130,10 @@ bool show_file(cptr name, cptr what, int line)
         if (next > line)
         {
             /* Close it */
-            my_fclose(fff);
+            sdl_fclose(fff);
 
             /* Hack -- Re-Open the file */
-            fff = my_fopen(path, "r");
+            fff = sdl_fopen(path, "r");
 
             /* Oops */
             if (!fff)
@@ -3151,7 +3147,7 @@ bool show_file(cptr name, cptr what, int line)
         while (next < line)
         {
             /* Get a line */
-            if (my_fgets(fff, buf, sizeof(buf)))
+            if (sdl_fgets(fff, buf, sizeof(buf)))
                 break;
 
             /* Skip tags/links */
@@ -3170,7 +3166,7 @@ bool show_file(cptr name, cptr what, int line)
                 line = next;
 
             /* Get a line of the file or stop */
-            if (my_fgets(fff, buf, sizeof(buf)))
+            if (sdl_fgets(fff, buf, sizeof(buf)))
                 break;
 
             /* Hack -- skip "special" lines */
@@ -3378,7 +3374,7 @@ bool show_file(cptr name, cptr what, int line)
     }
 
     /* Close the file */
-    my_fclose(fff);
+    sdl_fclose(fff);
 
     /* Done */
     return (ch != '?');
@@ -5020,32 +5016,33 @@ static int highscore_write(const high_score* score)
 static errr backup_scores_file(const char *filepath)
 {
     /* Check if original file exists */
-    int fd_src = fd_open(filepath, O_RDONLY);
-    if (fd_src < 0) {
+    SDL_IOStream* fd_src = sdl_fopen(filepath, "rb");
+    if (!fd_src) {
         /* Original file doesn't exist, no backup needed */
         return 0;
     }
     
     /* Get file size */
-    int file_size = fd_file_size(fd_src);
+    Sint64 file_size_64 = sdl_size(fd_src);
+    int file_size = (file_size_64 > 0) ? (int)file_size_64 : 0;
     if (file_size <= 0) {
-        fd_close(fd_src);
+        sdl_fclose(fd_src);
         return 0;
     }
     
     /* Read original file */
     char *buffer = C_ZNEW(file_size, char);
     if (!buffer) {
-        fd_close(fd_src);
+        sdl_fclose(fd_src);
         return -1;
     }
     
-    if (fd_read(fd_src, buffer, file_size) != 0) {
+    if (sdl_read(fd_src, buffer, file_size) != 0) {
         FREE(buffer);
-        fd_close(fd_src);
+        sdl_fclose(fd_src);
         return -1;
     }
-    fd_close(fd_src);
+    sdl_fclose(fd_src);
     
     /* Simple backup rotation: bak1 (newest) -> bak2 -> bak3 (oldest) */
     char backup_path1[1024], backup_path2[1024], backup_path3[1024];
@@ -5057,32 +5054,32 @@ static errr backup_scores_file(const char *filepath)
     fd_kill(backup_path3);                    /* Remove oldest */
     
     /* Move bak2 to bak3 (if bak2 exists) - preserves timestamp */
-    int fd_test2 = fd_open(backup_path2, O_RDONLY);
-    if (fd_test2 >= 0) {
-        fd_close(fd_test2);
+    SDL_IOStream* fd_test2 = sdl_fopen(backup_path2, "rb");
+    if (fd_test2) {
+        sdl_fclose(fd_test2);
         if (fd_move(backup_path2, backup_path3) != 0) {
             log_error("backup_scores_file: failed to move bak2 to bak3");
         }
     }
     
     /* Move bak1 to bak2 (if bak1 exists) - preserves timestamp */
-    int fd_test1 = fd_open(backup_path1, O_RDONLY);
-    if (fd_test1 >= 0) {
-        fd_close(fd_test1);
+    SDL_IOStream* fd_test1 = sdl_fopen(backup_path1, "rb");
+    if (fd_test1) {
+        sdl_fclose(fd_test1);
         if (fd_move(backup_path1, backup_path2) != 0) {
             log_error("backup_scores_file: failed to move bak1 to bak2");
         }
     }
     
     /* Create new bak1 from current file */
-    int fd_dst = fd_make(backup_path1, 0644);
-    if (fd_dst < 0) {
+    SDL_IOStream* fd_dst = sdl_fmake(backup_path1, 0644);
+    if (!fd_dst) {
         FREE(buffer);
         return -1;
     }
     
-    errr result = fd_write(fd_dst, buffer, file_size);
-    fd_close(fd_dst);
+    errr result = sdl_write(fd_dst, buffer, file_size);
+    sdl_fclose(fd_dst);
     FREE(buffer);
     
     if (result == 0) {
@@ -5426,7 +5423,7 @@ int score_count_alive_entries(void)
     char score_path[1024];
     path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
 
-    SCORE_FILE_TYPE saved_fd = highscore_fd;
+    SDL_IOStream* saved_fd = highscore_fd;
     byte saved_major = scores_file_version_major;
     byte saved_minor = scores_file_version_minor;
     byte saved_patch = scores_file_version_patch;
@@ -5434,7 +5431,7 @@ int score_count_alive_entries(void)
     u32b saved_entry_count = scores_file_entry_count;
 
     safe_setuid_grab();
-    SCORE_FILE_TYPE scan_fd = open_scores_file_versioned(score_path, O_RDONLY);
+    SDL_IOStream* scan_fd = open_scores_file_versioned(score_path, O_RDONLY);
     safe_setuid_drop();
     if (!scan_fd) {
         highscore_fd = saved_fd;
@@ -5458,7 +5455,7 @@ int score_count_alive_entries(void)
         }
     }
 
-    SCORE_FILE_CLOSE(highscore_fd);
+    SDL_CloseIO(highscore_fd);
     highscore_fd = saved_fd;
     scores_file_version_major = saved_major;
     scores_file_version_minor = saved_minor;
@@ -5474,7 +5471,7 @@ u32b score_sum_dead_points(void)
     char score_path[1024];
     path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
 
-    SCORE_FILE_TYPE saved_fd = highscore_fd;
+    SDL_IOStream* saved_fd = highscore_fd;
     byte saved_major = scores_file_version_major;
     byte saved_minor = scores_file_version_minor;
     byte saved_patch = scores_file_version_patch;
@@ -5482,7 +5479,7 @@ u32b score_sum_dead_points(void)
     u32b saved_entry_count = scores_file_entry_count;
 
     safe_setuid_grab();
-    SCORE_FILE_TYPE scan_fd = open_scores_file_versioned(score_path, O_RDONLY);
+    SDL_IOStream* scan_fd = open_scores_file_versioned(score_path, O_RDONLY);
     safe_setuid_drop();
     if (!scan_fd) {
         highscore_fd = saved_fd;
@@ -5539,7 +5536,7 @@ u32b score_sum_dead_points(void)
         }
     }
 
-    SCORE_FILE_CLOSE(highscore_fd);
+    SDL_CloseIO(highscore_fd);
     highscore_fd = saved_fd;
     scores_file_version_major = saved_major;
     scores_file_version_minor = saved_minor;
@@ -5679,7 +5676,7 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
     char score_path[1024];
     path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw");
 
-    SCORE_FILE_TYPE saved_fd = highscore_fd;
+    SDL_IOStream* saved_fd = highscore_fd;
     byte saved_major = scores_file_version_major;
     byte saved_minor = scores_file_version_minor;
     byte saved_patch = scores_file_version_patch;
@@ -5717,7 +5714,7 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
 
     count = deduplicate_scores_by_name(out, count);
 
-    SCORE_FILE_CLOSE(highscore_fd);
+    SDL_CloseIO(highscore_fd);
     highscore_fd = saved_fd;
     /* Don't restore version - keep the version from the scores file we just read */
     /* The cached version should reflect the actual scores.raw file version */
@@ -6199,13 +6196,13 @@ extern int highscore_dead(char* name)
 
     /* Go to the start of the highscore file */
     if (highscore_seek(0)) {
-        if (opened_here) { SCORE_FILE_CLOSE(highscore_fd); highscore_fd = NULL; }
+        if (opened_here) { SDL_CloseIO(highscore_fd); highscore_fd = NULL; }
         return 0;
     }
 
     /* Early exit: header says zero entries */
     if (scores_file_entry_count == 0) {
-        if (opened_here) { SCORE_FILE_CLOSE(highscore_fd); highscore_fd = NULL; }
+        if (opened_here) { SDL_CloseIO(highscore_fd); highscore_fd = NULL; }
         return 0;
     }
 
@@ -6213,12 +6210,12 @@ extern int highscore_dead(char* name)
         if (highscore_read(&the_score)) break; /* EOF */
         if (strcmp(name, the_score.who) == 0) {
             int dead = (strcmp(the_score.how, "(alive and well)") != 0);
-            if (opened_here) { SCORE_FILE_CLOSE(highscore_fd); highscore_fd = NULL; }
+            if (opened_here) { SDL_CloseIO(highscore_fd); highscore_fd = NULL; }
             return dead;
         }
     }
 
-    if (opened_here) { SCORE_FILE_CLOSE(highscore_fd); highscore_fd = NULL; }
+    if (opened_here) { SDL_CloseIO(highscore_fd); highscore_fd = NULL; }
     return 0; /* not found => treat as alive */
 }
 
@@ -6248,7 +6245,7 @@ extern bool highscore_is_empty()
     
     /* Check entry count from header */
     bool is_empty = (scores_file_entry_count == 0);
-    if (opened_here) { SCORE_FILE_CLOSE(highscore_fd); highscore_fd = NULL; }
+    if (opened_here) { SDL_CloseIO(highscore_fd); highscore_fd = NULL; }
     log_debug("highscore_is_empty: entry_count=%u, returning %s", 
               scores_file_entry_count, is_empty ? "true" : "false");
     return is_empty;
@@ -6383,7 +6380,7 @@ static void upsert_live_score_on_save(void)
     log_debug("upsert_live_score_on_save: Score path: %s", score_path);
 
     safe_setuid_grab();
-    SCORE_FILE_TYPE live_fd = open_scores_file_versioned(score_path, O_RDWR | O_CREAT);
+    SDL_IOStream* live_fd = open_scores_file_versioned(score_path, O_RDWR | O_CREAT);
     safe_setuid_drop();
     if (!live_fd) {
         log_warn("Could not open scores.raw to upsert live save entry");
@@ -6391,7 +6388,7 @@ static void upsert_live_score_on_save(void)
     }
 
     /* Preserve global highscore state while we reuse helpers */
-    SCORE_FILE_TYPE prev_fd = highscore_fd;
+    SDL_IOStream* prev_fd = highscore_fd;
     byte prev_major = scores_file_version_major;
     byte prev_minor = scores_file_version_minor;
     byte prev_patch = scores_file_version_patch;
@@ -6464,7 +6461,7 @@ static void upsert_live_score_on_save(void)
         log_debug("scores.raw post-save header.entry_count=%u physical_entries=%ld file_size=%ld", hdrchk.entry_count, logical, phys_size);
     }
 
-    SCORE_FILE_CLOSE(highscore_fd);
+    SDL_CloseIO(highscore_fd);
     highscore_fd = prev_fd;
     scores_file_version_major = prev_major;
     scores_file_version_minor = prev_minor;
@@ -7632,7 +7629,7 @@ static errr enter_score(high_score* the_score)
         /* Grab permissions */
         safe_setuid_grab();
         
-        SCORE_FILE_CLOSE(highscore_fd);
+        SDL_CloseIO(highscore_fd);
         highscore_fd = open_scores_file_versioned(score_path, O_RDONLY);
         
         /* Drop permissions */
@@ -7947,7 +7944,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     if (eligible_count == 0) {
         log_debug("No eligible races found - no kill performed");
         safe_setuid_grab();
-        if (SCORE_FILE_CLOSE(highscore_fd) != 0)
+        if (SDL_CloseIO(highscore_fd) != 0)
             log_warn("fclose(highscore_fd) failed, errno=%d", errno);
         safe_setuid_drop();
         highscore_fd = NULL;
@@ -7986,7 +7983,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     /* Build pool of eligible houses for selected race */
     uint16_t *pool = malloc(z_info->c_max * sizeof *pool);
     if (!pool) {
-        SCORE_FILE_CLOSE(highscore_fd);
+        SDL_CloseIO(highscore_fd);
         quit("Out of memory in kinslayer_try_kill()");
     }
     size_t pool_n = 0;
@@ -8027,7 +8024,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
                 log_debug("hero already dead - no kill performed");
                 if (pool) free(pool);
                 safe_setuid_grab();
-                if (SCORE_FILE_CLOSE(highscore_fd) != 0) {
+                if (SDL_CloseIO(highscore_fd) != 0) {
                     log_warn("fclose(highscore_fd) failed, errno=%d", errno);
                 }
                 safe_setuid_drop();
@@ -8039,7 +8036,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
                 log_debug("hero has escaped - no kill performed");
                 if (pool) free(pool);
                 safe_setuid_grab();
-                if (SCORE_FILE_CLOSE(highscore_fd) != 0) {
+                if (SDL_CloseIO(highscore_fd) != 0) {
                     log_warn("fclose(highscore_fd) failed, errno=%d", errno);
                 }
                 safe_setuid_drop();
@@ -8078,7 +8075,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
 
         /* 7) Close the descriptor and reset before returning */
         safe_setuid_grab();
-        if (SCORE_FILE_CLOSE(highscore_fd) != 0) {
+        if (SDL_CloseIO(highscore_fd) != 0) {
             log_warn("fclose(highscore_fd) failed, errno=%d", errno);
         }
         safe_setuid_drop();
@@ -8098,11 +8095,10 @@ errr file_character(cptr name, bool full)
 
     byte a;
 
-/* Helper macro for fprintf/SDL_IOprintf compatibility */
-#define CHAR_FILE_PRINTF SDL_IOprintf
+#define SDL_IOprintf SDL_IOprintf
     char c;
 
-    int fd;
+    SDL_IOStream* fd;
 
     SDL_IOStream* fff = NULL;
 
@@ -8128,22 +8124,22 @@ errr file_character(cptr name, bool full)
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Check for existing file */
-    fd = fd_open(buf, O_RDONLY);
+    fd = sdl_fopen(buf, "rb");
 
     /* Existing file */
-    if (fd >= 0)
+    if (fd)
     {
         char out_val[160];
 
         /* Close the file */
-        fd_close(fd);
+        sdl_fclose(fd);
 
         /* Build query */
         strnfmt(out_val, sizeof(out_val), "Replace existing file %s? ", buf);
 
         /* Ask */
         if (get_check(out_val))
-            fd = -1;
+            fd = NULL;
     }
 
     /* Open the non-existing file */
@@ -8184,7 +8180,7 @@ errr file_character(cptr name, bool full)
         buf[x] = '\0';
 
         /* End the row */
-        CHAR_FILE_PRINTF(fff, "%s\n", buf);
+        SDL_IOprintf(fff, "%s\n", buf);
     }
 
     /* If dead, dump last messages and a mini screenshot */
@@ -8195,26 +8191,26 @@ errr file_character(cptr name, bool full)
         i = message_num();
         if (i > 15)
             i = 15;
-        CHAR_FILE_PRINTF(fff, "\n  [Last Messages]\n\n");
+        SDL_IOprintf(fff, "\n  [Last Messages]\n\n");
         while (i-- > 0)
         {
-            CHAR_FILE_PRINTF(fff, "> %s\n", message_str((s16b)i));
+            SDL_IOprintf(fff, "> %s\n", message_str((s16b)i));
         }
-        CHAR_FILE_PRINTF(fff, "\n");
+        SDL_IOprintf(fff, "\n");
 
-        CHAR_FILE_PRINTF(fff, "\n  [Screenshot]\n\n");
+        SDL_IOprintf(fff, "\n  [Screenshot]\n\n");
 
         // simple screenshot for those who died in Angband
         if (!p_ptr->escaped)
         {
             for (y = 0; y <= 6; y++)
             {
-                CHAR_FILE_PRINTF(fff, "  ");
+                SDL_IOprintf(fff, "  ");
                 for (x = 0; x <= 6; x++)
                 {
-                    CHAR_FILE_PRINTF(fff, "%c", mini_screenshot_char[y][x]);
+                    SDL_IOprintf(fff, "%c", mini_screenshot_char[y][x]);
                 }
-                CHAR_FILE_PRINTF(fff, "\n");
+                SDL_IOprintf(fff, "\n");
             }
         }
 
@@ -8222,21 +8218,21 @@ errr file_character(cptr name, bool full)
         else
         {
             // grass
-            CHAR_FILE_PRINTF(fff, "  .......\n");
-            CHAR_FILE_PRINTF(fff, "  ~...#..\n");
-            CHAR_FILE_PRINTF(fff, "  ~~.....\n");
-            CHAR_FILE_PRINTF(fff, "  .~.@...\n");
-            CHAR_FILE_PRINTF(fff, "  .~~...#\n");
-            CHAR_FILE_PRINTF(fff, "  ..~~...\n");
-            CHAR_FILE_PRINTF(fff, "  ...~...\n");
+            SDL_IOprintf(fff, "  .......\n");
+            SDL_IOprintf(fff, "  ~...#..\n");
+            SDL_IOprintf(fff, "  ~~.....\n");
+            SDL_IOprintf(fff, "  .~.@...\n");
+            SDL_IOprintf(fff, "  .~~...#\n");
+            SDL_IOprintf(fff, "  ..~~...\n");
+            SDL_IOprintf(fff, "  ...~...\n");
         }
-        CHAR_FILE_PRINTF(fff, "\n");
+        SDL_IOprintf(fff, "\n");
     }
 
     /* Dump the equipment */
     if (p_ptr->equip_cnt)
     {
-        CHAR_FILE_PRINTF(fff, "\n  [Equipment]\n\n");
+        SDL_IOprintf(fff, "\n  [Equipment]\n\n");
         for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
         {
             object_type* o_ptr = &inventory[i];
@@ -8255,16 +8251,16 @@ errr file_character(cptr name, bool full)
                 my_strcat(o_name, wgt_buf, sizeof(o_name));
             }
 
-            CHAR_FILE_PRINTF(fff, "%c) %s\n", index_to_label(i), o_name);
+            SDL_IOprintf(fff, "%c) %s\n", index_to_label(i), o_name);
 
             /* Describe random object attributes */
             identify_random_gen(o_ptr);
         }
-        CHAR_FILE_PRINTF(fff, "\n\n");
+        SDL_IOprintf(fff, "\n\n");
     }
 
     /* Dump the inventory */
-    CHAR_FILE_PRINTF(fff, "  [Inventory]\n\n");
+    SDL_IOprintf(fff, "  [Inventory]\n\n");
     for (i = 0; i < INVEN_PACK; i++)
     {
         object_type* o_ptr = &inventory[i];
@@ -8286,14 +8282,14 @@ errr file_character(cptr name, bool full)
             my_strcat(o_name, wgt_buf, sizeof(o_name));
         }
 
-        CHAR_FILE_PRINTF(fff, "%c) %s\n", index_to_label(i), o_name);
+        SDL_IOprintf(fff, "%c) %s\n", index_to_label(i), o_name);
 
         /* Describe random object attributes */
         identify_random_gen(o_ptr);
     }
 
     // Dump abilities.
-    CHAR_FILE_PRINTF(fff, "\n\n  [Abilities]\n\n");
+    SDL_IOprintf(fff, "\n\n  [Abilities]\n\n");
     for (i = 0; i < z_info->b_max; i++)
     {
         b_ptr = &b_info[i];
@@ -8306,25 +8302,25 @@ errr file_character(cptr name, bool full)
             if (b_ptr->skilltype == S_PER && b_ptr->abilitynum == PER_BANE
                 && p_ptr->bane_type > 0)
             {
-                CHAR_FILE_PRINTF(fff, "%s-%s\n", bane_name[p_ptr->bane_type],
+                SDL_IOprintf(fff, "%s-%s\n", bane_name[p_ptr->bane_type],
                     (b_name + b_ptr->name));
             }
             else if (b_ptr->skilltype == S_WIL && b_ptr->abilitynum == WIL_OATH
                 && p_ptr->oath_type > 0)
             {
                 if (oath_invalid(p_ptr->oath_type))
-                    CHAR_FILE_PRINTF(fff, "%s: %s (Broken)\n", (b_name + b_ptr->name),
+                    SDL_IOprintf(fff, "%s: %s (Broken)\n", (b_name + b_ptr->name),
                         oath_name[p_ptr->oath_type]);
                 else
-                    CHAR_FILE_PRINTF(fff, "%s: %s\n", (b_name + b_ptr->name),
+                    SDL_IOprintf(fff, "%s: %s\n", (b_name + b_ptr->name),
                         oath_name[p_ptr->oath_type]);
             }
             else
-                CHAR_FILE_PRINTF(fff, "%s\n", (b_name + b_ptr->name));
+                SDL_IOprintf(fff, "%s\n", (b_name + b_ptr->name));
         }
     }
 
-    CHAR_FILE_PRINTF(fff, "\n\n  [Enemies]\n\n");
+    SDL_IOprintf(fff, "\n\n  [Enemies]\n\n");
 
     for (i = 1; i < z_info->r_max - 1; i++)
     {
@@ -8339,13 +8335,13 @@ errr file_character(cptr name, bool full)
         if (r_ptr->flags1 & (RF1_UNIQUE))
         {
             /* Print a message */
-            CHAR_FILE_PRINTF(fff, "  %-7s %s \n", l_ptr->pkills ? "(slain)" : "(seen)",
+            SDL_IOprintf(fff, "  %-7s %s \n", l_ptr->pkills ? "(slain)" : "(seen)",
                 (r_name + r_ptr->name));
         }
         else
         {
             /* Print a message */
-            CHAR_FILE_PRINTF(fff, "%3d /%3d  %-40s\n", l_ptr->pkills, l_ptr->psights,
+            SDL_IOprintf(fff, "%3d /%3d  %-40s\n", l_ptr->pkills, l_ptr->psights,
                 (r_name + r_ptr->name));
         }
     }
@@ -8353,7 +8349,7 @@ errr file_character(cptr name, bool full)
     // Dump found artefacts if dead.
     if (p_ptr->is_dead)
     {
-        CHAR_FILE_PRINTF(fff, "\n\n  [Artefacts]\n\n");
+        SDL_IOprintf(fff, "\n\n  [Artefacts]\n\n");
 
         // Just go to the end of the normal artefacts list, don't also grab
         // forged artefacts.
@@ -8372,12 +8368,12 @@ errr file_character(cptr name, bool full)
             make_fake_artefact(o_ptr, i);
             object_desc_spoil(o_name, sizeof(o_name), o_ptr, true, 0);
 
-            CHAR_FILE_PRINTF(
+            SDL_IOprintf(
                 fff, "%s %s\n", o_name, a_ptr->found_num > 0 ? "(found)" : "");
         }
     }
 
-    CHAR_FILE_PRINTF(fff, "\n\n  [Notes]\n\n");
+    SDL_IOprintf(fff, "\n\n  [Notes]\n\n");
 
     /*dump notes to character file*/
     i = 0;
@@ -8390,13 +8386,13 @@ errr file_character(cptr name, bool full)
 
         /*output it to the character dump*/
         if (holder != '\0')
-            CHAR_FILE_PRINTF(fff, "%c", holder);
+            SDL_IOprintf(fff, "%c", holder);
 
         // increment location in notes buffer
         i++;
     }
 
-    CHAR_FILE_PRINTF(fff, "\n");
+    SDL_IOprintf(fff, "\n");
 
     /* Count options */
     for (i = OPT_BIRTH; i < OPT_CHEAT; i++)
@@ -8410,29 +8406,29 @@ errr file_character(cptr name, bool full)
     if (challenges)
     {
         /* Dump options */
-        CHAR_FILE_PRINTF(fff, "  [Challenges]\n\n");
+        SDL_IOprintf(fff, "  [Challenges]\n\n");
 
         /* Dump options */
         for (i = OPT_BIRTH; i < OPT_CHEAT; i++)
         {
             if (option_desc[i] && op_ptr->opt[i])
             {
-                CHAR_FILE_PRINTF(fff, "%-45s\n", option_desc[i]);
+                SDL_IOprintf(fff, "%-45s\n", option_desc[i]);
             }
         }
     }
 
     /* Skip some lines */
-    CHAR_FILE_PRINTF(fff, "\n\n");
+    SDL_IOprintf(fff, "\n\n");
 
     // display a "score"
     create_score(&the_score);
-    CHAR_FILE_PRINTF(fff, "  ['Score' %.9d]\n\n", score_points(&the_score));
+    SDL_IOprintf(fff, "  ['Score' %.9d]\n\n", score_points(&the_score));
 
     /* Close it */
     sdl_fclose(fff);
 
-#undef CHAR_FILE_PRINTF
+#undef SDL_IOprintf
 
     /* Success */
     return (0);
@@ -8935,7 +8931,7 @@ void close_game(void)
 
     /* Shut the high score file */
     log_debug("Closing highscore file");
-    SCORE_FILE_CLOSE(highscore_fd);
+    SDL_CloseIO(highscore_fd);
 
     /* Forget the high score fd */
     highscore_fd = NULL;
@@ -9328,21 +9324,21 @@ void signals_init(void) { }
 
 #endif /* HANDLE_SIGNALS */
 
-static void write_html_escape_char(FILE* htm, char c)
+static void write_html_escape_char(SDL_IOStream* htm, char c)
 {
     switch (c)
     {
     case '<':
-        fprintf(htm, "&lt;");
+        SDL_IOprintf(htm, "&lt;");
         break;
     case '>':
-        fprintf(htm, "&gt;");
+        SDL_IOprintf(htm, "&gt;");
         break;
     case '&':
-        fprintf(htm, "&amp;");
+        SDL_IOprintf(htm, "&amp;");
         break;
     default:
-        fprintf(htm, "%c", c);
+        SDL_IOprintf(htm, "%c", c);
         break;
     }
 }
@@ -9451,7 +9447,7 @@ void html_screenshot(cptr name)
     int mode = 0;
     char c = ' ';
 
-    FILE* htm;
+    SDL_IOStream* htm;
 
     char buf[1024];
 
@@ -9462,7 +9458,7 @@ void html_screenshot(cptr name)
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Append to the file */
-    htm = my_fopen(buf, "w");
+    htm = sdl_fopen(buf, "w");
 
     /* Oops */
     if (!htm)
@@ -9474,15 +9470,15 @@ void html_screenshot(cptr name)
     /* Retrieve current screen size */
     Term_get_size(&wid, &hgt);
 
-    fprintf(htm, "<HTML>\n");
-    fprintf(htm, "<HEAD>\n");
-    fprintf(
+    SDL_IOprintf(htm, "<HTML>\n");
+    SDL_IOprintf(htm, "<HEAD>\n");
+    SDL_IOprintf(
         htm, "<META NAME=\"GENERATOR\" Content=\"Sil %s\">\n", VERSION_STRING);
-    fprintf(htm, "<TITLE>%s</TITLE>\n", name);
-    fprintf(htm, "</HEAD>\n");
-    fprintf(htm, "<BODY TEXT=\"#FFFFFF\" BGCOLOR=\"#000000\">");
+    SDL_IOprintf(htm, "<TITLE>%s</TITLE>\n", name);
+    SDL_IOprintf(htm, "</HEAD>\n");
+    SDL_IOprintf(htm, "<BODY TEXT=\"#FFFFFF\" BGCOLOR=\"#000000\">");
 
-    fprintf(htm, "<FONT COLOR=\"#%02X%02X%02X\">\n<PRE><TT>",
+    SDL_IOprintf(htm, "<FONT COLOR=\"#%02X%02X%02X\">\n<PRE><TT>",
         angband_color_table[TERM_WHITE][1], angband_color_table[TERM_WHITE][2],
         angband_color_table[TERM_WHITE][3]);
 
@@ -9515,14 +9511,14 @@ void html_screenshot(cptr name)
                 {
                     if (mode == BG_BLACK)
                     {
-                        fprintf(htm, "<FONT COLOR=\"#%02X%02X%02X\">",
+                        SDL_IOprintf(htm, "<FONT COLOR=\"#%02X%02X%02X\">",
                             angband_color_table[fg_colour][1],
                             angband_color_table[fg_colour][2],
                             angband_color_table[fg_colour][3]);
                     }
                     else if (mode == BG_SAME)
                     {
-                        fprintf(htm,
+                        SDL_IOprintf(htm,
                             "<FONT COLOR=\"#%02X%02X%02X\" "
                             "style=\"BACKGROUND-COLOR: "
                             "#%02X%02X%02X\">",
@@ -9535,7 +9531,7 @@ void html_screenshot(cptr name)
                     }
                     else
                     {
-                        fprintf(htm,
+                        SDL_IOprintf(htm,
                             "<FONT COLOR=\"#%02X%02X%02X\" "
                             "style=\"BACKGROUND-COLOR: "
                             "#%02X%02X%02X\">",
@@ -9550,21 +9546,21 @@ void html_screenshot(cptr name)
                 /* From another color to the default white */
                 else if (a == TERM_WHITE)
                 {
-                    fprintf(htm, "</FONT>");
+                    SDL_IOprintf(htm, "</FONT>");
                 }
                 /* Change colors */
                 else
                 {
                     if (mode == BG_BLACK)
                     {
-                        fprintf(htm, "</FONT><FONT COLOR=\"#%02X%02X%02X\">",
+                        SDL_IOprintf(htm, "</FONT><FONT COLOR=\"#%02X%02X%02X\">",
                             angband_color_table[fg_colour][1],
                             angband_color_table[fg_colour][2],
                             angband_color_table[fg_colour][3]);
                     }
                     else if (mode == BG_SAME)
                     {
-                        fprintf(htm,
+                        SDL_IOprintf(htm,
                             "</FONT><FONT COLOR=\"#%02X%02X%02X\" "
                             "style=\"BACKGROUND-COLOR: #%02X%02X%02X\">",
                             angband_color_table[fg_colour][1],
@@ -9576,7 +9572,7 @@ void html_screenshot(cptr name)
                     }
                     else
                     {
-                        fprintf(htm,
+                        SDL_IOprintf(htm,
                             "</FONT><FONT COLOR=\"#%02X%02X%02X\" "
                             "style=\"BACKGROUND-COLOR: #%02X%02X%02X\">",
                             angband_color_table[fg_colour][1],
@@ -9597,20 +9593,20 @@ void html_screenshot(cptr name)
         }
 
         /* End the row */
-        fprintf(htm, "\n");
+        SDL_IOprintf(htm, "\n");
     }
 
     /* Close the last <font> tag if necessary */
     if (a != TERM_WHITE)
-        fprintf(htm, "</FONT>");
+        SDL_IOprintf(htm, "</FONT>");
 
-    fprintf(htm, "</TT></PRE>\n");
+    SDL_IOprintf(htm, "</TT></PRE>\n");
 
-    fprintf(htm, "</BODY>\n");
-    fprintf(htm, "</HTML>\n");
+    SDL_IOprintf(htm, "</BODY>\n");
+    SDL_IOprintf(htm, "</HTML>\n");
 
     /* Close it */
-    my_fclose(htm);
+    sdl_fclose(htm);
 }
 
 extern void mini_screenshot(void)
@@ -9757,7 +9753,7 @@ bool autoload_alive_from_scores(void)
     path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
 
     /* Preserve global scorefile state */
-    SCORE_FILE_TYPE saved_fd = highscore_fd;
+    SDL_IOStream* saved_fd = highscore_fd;
     byte saved_major = scores_file_version_major;
     byte saved_minor = scores_file_version_minor;
     byte saved_patch = scores_file_version_patch;
@@ -9793,7 +9789,7 @@ bool autoload_alive_from_scores(void)
     log_trace("autoload: scorefile n_recs=%d header_count=%u", n_recs, scores_file_entry_count);
     
     if (n_recs <= 0) {
-        SCORE_FILE_CLOSE(highscore_fd);
+        SDL_CloseIO(highscore_fd);
         highscore_fd = saved_fd;
         scores_file_version_major = saved_major;
         scores_file_version_minor = saved_minor;
@@ -9821,7 +9817,7 @@ bool autoload_alive_from_scores(void)
         log_info("autoload: savefile path generated: '%s'", savefile);
         if (load_player()) {
             log_info("autoload: successfully loaded '%s' (normalized)", who_buf);
-            SCORE_FILE_CLOSE(highscore_fd);
+            SDL_CloseIO(highscore_fd);
             highscore_fd = saved_fd;
             scores_file_version_major = saved_major;
             scores_file_version_minor = saved_minor;
@@ -9845,7 +9841,7 @@ bool autoload_alive_from_scores(void)
             /* Restore canonical name */
             my_strcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
             process_player_name(true);
-            SCORE_FILE_CLOSE(highscore_fd);
+            SDL_CloseIO(highscore_fd);
             highscore_fd = saved_fd;
             scores_file_version_major = saved_major;
             scores_file_version_minor = saved_minor;
@@ -9875,7 +9871,7 @@ bool autoload_alive_from_scores(void)
 #endif
     }
 
-    SCORE_FILE_CLOSE(highscore_fd);
+    SDL_CloseIO(highscore_fd);
     highscore_fd = saved_fd;
     scores_file_version_major = saved_major;
     scores_file_version_minor = saved_minor;
@@ -9887,7 +9883,7 @@ bool autoload_alive_from_scores(void)
 
 /*
  * Delete the current high-score file and immediately recreate an empty
- * placeholder so subsequent fd_open() calls succeed without special cases.
+ * placeholder so subsequent sdl_fopen() calls succeed without special cases.
  */
 void clear_scorefile(void)
 {
@@ -9899,7 +9895,7 @@ void clear_scorefile(void)
 
     /* Close existing descriptor if open */
     if (was_open) {
-        SCORE_FILE_CLOSE(highscore_fd);
+        SDL_CloseIO(highscore_fd);
         highscore_fd = NULL;
     }
 
@@ -9948,8 +9944,8 @@ void clear_scorefile(void)
 
     /* Re-create a zero-length file properly */
     safe_setuid_grab();
-    int fd_new = fd_make(cur_path, 0644);
-    if (fd_new >= 0) fd_close(fd_new);
+    SDL_IOStream* fd_new = sdl_fmake(cur_path, 0644);
+    if (fd_new) sdl_fclose(fd_new);
     safe_setuid_drop();
 
     /* If the file was previously open, reopen it for read/write */
@@ -10068,10 +10064,10 @@ void backup_and_clear_saves(void)
         
         log_trace("Checking for save file pattern: %s", test_path);
         
-        /* Quick test using fd_open - much faster than popen */
-        int test_fd = fd_open(test_path, O_RDONLY);
-        if (test_fd >= 0) {
-            fd_close(test_fd);
+        /* Quick test using sdl_fopen - much faster than popen */
+        SDL_IOStream* test_fd = sdl_fopen(test_path, "rb");
+        if (test_fd) {
+            sdl_fclose(test_fd);
             has_files = true;
             log_trace("Found save file: %s", test_path);
             break;
@@ -10093,9 +10089,9 @@ void backup_and_clear_saves(void)
             
             log_trace("Checking directory pattern: %s", test_path);
             
-            int test_fd = fd_open(test_path, O_RDONLY);
-            if (test_fd >= 0) {
-                fd_close(test_fd);
+            SDL_IOStream* test_fd = sdl_fopen(test_path, "rb");
+            if (test_fd) {
+                sdl_fclose(test_fd);
                 has_files = true;
                 log_trace("Found file with pattern: %s", test_path);
                 break;
@@ -10235,6 +10231,10 @@ void backup_and_clear_saves(void)
     
     log_trace("Folder-based backup process completed");
 }
+
+
+
+
 
 
 

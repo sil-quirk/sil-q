@@ -12,6 +12,7 @@
 #define INCLUDED_INIT_H
 
 #include "h-basic.h"
+#include <SDL3/SDL.h>
 
 
 /*
@@ -90,7 +91,7 @@ struct header
 };
 
 extern errr init_info_txt(
-    FILE* fp, char* buf, header* head, parse_info_txt_func parse_info_txt_line);
+    SDL_IOStream* fp, char* buf, header* head, parse_info_txt_func parse_info_txt_line);
 
 #ifdef ALLOW_TEMPLATES
 extern errr parse_z_info(char* buf, header* head);

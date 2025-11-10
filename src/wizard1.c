@@ -12,12 +12,6 @@
 
 #ifdef ALLOW_SPOILERS
 
-/* Wrapper macros for SDL/FILE* compatibility in spoiler generation */
-#define SPOIL_FPRINTF SDL_IOprintf
-#define SPOIL_FPUTC(c, stream) do { unsigned char _ch = (c); SDL_WriteIO(stream, &_ch, 1); } while(0)
-#define SPOIL_FERROR(stream) 0  /* SDL doesn't have ferror equivalent - check return values instead */
-#define SPOIL_FCLOSE(stream) sdl_fclose(stream)
-
 /*
  * The spoiler file being created
  */
@@ -29,7 +23,10 @@ static SDL_IOStream* fff = NULL;
 static void spoiler_out_n_chars(int n, char c)
 {
     while (--n >= 0)
-        SPOIL_FPUTC(c, fff);
+    {
+        unsigned char _ch = c;
+        SDL_WriteIO(fff, &_ch, 1);
+    }
 }
 
 /*
@@ -169,11 +166,11 @@ static void spoil_obj_desc(cptr fname)
     }
 
     /* Header */
-    SPOIL_FPRINTF(fff, "Spoiler File -- Basic Items (%s)\n\n\n", VERSION_STRING);
+    SDL_IOprintf(fff, "Spoiler File -- Basic Items (%s)\n\n\n", VERSION_STRING);
 
     /* More Header */
-    SPOIL_FPRINTF(fff, format, "Description", "Weight", "Level", "/ Rarity");
-    SPOIL_FPRINTF(fff, format, "----------------------------------------", "-------",
+    SDL_IOprintf(fff, format, "Description", "Weight", "Level", "/ Rarity");
+    SDL_IOprintf(fff, format, "----------------------------------------", "-------",
         "-----", "---------");
 
     /* List the groups */
@@ -220,7 +217,7 @@ static void spoil_obj_desc(cptr fname)
                 kind_info(&d_char, buf, wgt, &e, &r, who[s]);
 
                 /* Dump it */
-                SPOIL_FPRINTF(fff, "%c %-42s%7s%8d / %2d\n", d_char, buf, wgt, e, r);
+                SDL_IOprintf(fff, "%c %-42s%7s%8d / %2d\n", d_char, buf, wgt, e, r);
             }
 
             /* Start a new set */
@@ -231,7 +228,7 @@ static void spoil_obj_desc(cptr fname)
                 break;
 
             /* Start a new set */
-            SPOIL_FPRINTF(fff, "\n\n%s\n\n", group_item[i].name);
+            SDL_IOprintf(fff, "\n\n%s\n\n", group_item[i].name);
         }
 
         /* Get legal item types */
@@ -253,7 +250,7 @@ static void spoil_obj_desc(cptr fname)
     }
 
     /* Check for errors */
-    if (SPOIL_FERROR(fff) || SPOIL_FCLOSE(fff))
+    if (0 || sdl_fclose(fff))
     {
         msg_print("Cannot close spoiler file.");
         return;
@@ -444,7 +441,7 @@ static void spoil_artefact(cptr fname)
     }
 
     /* Check for errors */
-    if (SPOIL_FERROR(fff) || SPOIL_FCLOSE(fff))
+    if (0 || sdl_fclose(fff))
     {
         msg_print("Cannot close spoiler file.");
         return;
@@ -493,14 +490,14 @@ static void spoil_mon_desc(cptr fname)
     }
 
     /* Dump the header */
-    SPOIL_FPRINTF(fff, "Monster Spoilers for %s Version %s\n", VERSION_NAME,
+    SDL_IOprintf(fff, "Monster Spoilers for %s Version %s\n", VERSION_NAME,
         VERSION_STRING);
-    SPOIL_FPRINTF(fff, "------------------------------------------\n\n");
+    SDL_IOprintf(fff, "------------------------------------------\n\n");
 
     /* Dump the header */
-    SPOIL_FPRINTF(fff, "%-42.42s%10s%6s%8s%13s%30s\n", "Name", "Lev / Rar", "Spd",
+    SDL_IOprintf(fff, "%-42.42s%10s%6s%8s%13s%30s\n", "Name", "Lev / Rar", "Spd",
         "Health", "Defence", "Attacks        ");
-    SPOIL_FPRINTF(fff, "%-42.42s%10s%6s%8s%13s%30s\n",
+    SDL_IOprintf(fff, "%-42.42s%10s%6s%8s%13s%30s\n",
         "-----------------------------------------", "---------", "---",
         "------", "----------", "--------------------------");
 
@@ -626,18 +623,18 @@ static void spoil_mon_desc(cptr fname)
         // r_ptr->d_char);
 
         /* Dump the info */
-        SPOIL_FPRINTF(fff, "%-42.42s%4s /%3s%7s%8s%7s%-6s%16s%14s\n", nam, lev, rar,
+        SDL_IOprintf(fff, "%-42.42s%4s /%3s%7s%8s%7s%-6s%16s%14s\n", nam, lev, rar,
             spd, hp, def1, def2, att1, att2);
     }
 
     /* End it */
-    SPOIL_FPRINTF(fff, "\n");
+    SDL_IOprintf(fff, "\n");
 
     /* Free the "who" array */
     FREE(who);
 
     /* Check for errors */
-    if (SPOIL_FERROR(fff) || SPOIL_FCLOSE(fff))
+    if (0 || sdl_fclose(fff))
     {
         msg_print("Cannot close spoiler file.");
         return;
@@ -800,18 +797,18 @@ static void spoil_mon_ss(cptr fname)
         // r_ptr->d_char);
 
         /* Dump the info */
-        SPOIL_FPRINTF(fff, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", nam, lev, rar, spd,
+        SDL_IOprintf(fff, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", nam, lev, rar, spd,
             hp, def1, def2, att1, att2);
     }
 
     /* End it */
-    SPOIL_FPRINTF(fff, "\n");
+    SDL_IOprintf(fff, "\n");
 
     /* Free the "who" array */
     FREE(who);
 
     /* Check for errors */
-    if (SPOIL_FERROR(fff) || SPOIL_FCLOSE(fff))
+    if (0 || sdl_fclose(fff))
     {
         msg_print("Cannot close spoiler file.");
         return;
@@ -954,7 +951,7 @@ static void spoil_mon_info(cptr fname)
     FREE(who);
 
     /* Check for errors */
-    if (SPOIL_FERROR(fff) || SPOIL_FCLOSE(fff))
+    if (0 || sdl_fclose(fff))
     {
         msg_print("Cannot close spoiler file.");
         return;
@@ -1048,6 +1045,9 @@ void do_cmd_spoilers(void)
 #else
 
 #endif
+
+
+
 
 
 

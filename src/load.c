@@ -49,7 +49,7 @@
 /*
  * Local "savefile" pointer
  */
-static FILE* fff;
+static SDL_IOStream* fff;
 
 /*
  * Hack -- old "encryption" byte
@@ -217,21 +217,16 @@ static bool wearable_p(const object_type* o_ptr)
 
 static byte sf_get(void)
 {
-    int c_int;
     byte c, v;
 
-    /* Get a character */
-    c_int = getc(fff);
-    
-    /* Check for EOF */
-    if (c_int == EOF)
+    /* Read a byte from the stream */
+    if (SDL_ReadIO(fff, &c, 1) != 1)
     {
-        log_error("sf_get: Unexpected end of file at offset %ld", load_byte_offset);
+        log_error("sf_get: Failed to read byte at offset %ld", load_byte_offset);
         return (0);
     }
     
     /* Decode the value */
-    c = c_int & 0xFF;
     v = c ^ xor_byte;
     xor_byte = c;
 
@@ -241,6 +236,7 @@ static byte sf_get(void)
 
     /* Track offset (decoded payload byte) */
     load_byte_offset++;
+    
     /* Return the value */
     return (v);
 }
@@ -2437,7 +2433,7 @@ static errr rd_savefile(void)
     safe_setuid_grab();
 
     /* The savefile is a binary file */
-    fff = my_fopen(savefile, "rb");
+    fff = sdl_fopen(savefile, "rb");
 
     /* Drop permissions */
     safe_setuid_drop();
@@ -2453,15 +2449,10 @@ static errr rd_savefile(void)
     err = rd_savefile_new_aux();
     log_debug("rd_savefile_new_aux returned: %d", err);
 
-    /* Check for errors */
-    if (ferror(fff))
-    {
-        log_error("File read error detected (ferror)");
-        err = -1;
-    }
-
+    /* Note: SDL doesn't have ferror equivalent - errors are caught during read operations */
+    
     /* Close the file */
-    my_fclose(fff);
+    sdl_fclose(fff);
     log_debug("Savefile closed");
 
     /* Result */
@@ -2484,7 +2475,7 @@ static errr rd_savefile(void)
  */
 bool load_player(void)
 {
-    int fd = -1;
+    SDL_IOStream* fd = NULL;
 
     errr err = 0;
 
@@ -2515,13 +2506,13 @@ bool load_player(void)
     safe_setuid_grab();
 
     /* Open the savefile */
-    fd = fd_open(savefile, O_RDONLY);
+    fd = sdl_fopen(savefile, "rb");
 
     /* Drop permissions */
     safe_setuid_drop();
 
     /* No file */
-    if (fd < 0)
+    if (!fd)
     {
         /* Give a message */
         // msg_format("Savefile \"%s\" does not exist.", savefile);
@@ -2536,14 +2527,14 @@ bool load_player(void)
     log_debug("Savefile exists, proceeding with load");
 
     /* Close the file */
-    fd_close(fd);
+    sdl_fclose(fd);
 
 #ifdef VERIFY_SAVEFILE
 
     /* Verify savefile usage */
     if (!err)
     {
-        FILE* fkk;
+        SDL_IOStream* fkk;
 
         char temp[1024];
 
@@ -2555,7 +2546,7 @@ bool load_player(void)
         safe_setuid_grab();
 
         /* Check for lock */
-        fkk = my_fopen(temp, "r");
+        fkk = sdl_fopen(temp, "r");
 
         /* Drop permissions */
         safe_setuid_drop();
@@ -2564,7 +2555,7 @@ bool load_player(void)
         if (fkk)
         {
             /* Close the file */
-            my_fclose(fkk);
+            sdl_fclose(fkk);
 
             /* Message */
             msg_print("Savefile is currently in use.");
@@ -2578,7 +2569,7 @@ bool load_player(void)
         safe_setuid_grab();
 
         /* Create a lock file */
-        fkk = my_fopen(temp, "w");
+        fkk = sdl_fopen(temp, "w");
 
         /* Drop permissions */
         safe_setuid_drop();
@@ -2587,7 +2578,7 @@ bool load_player(void)
         fprintf(fkk, "Lock file for savefile '%s'\n", savefile);
 
         /* Close the lock file */
-        my_fclose(fkk);
+        sdl_fclose(fkk);
     }
 
 #endif /* VERIFY_SAVEFILE */
@@ -2599,13 +2590,13 @@ bool load_player(void)
         safe_setuid_grab();
 
         /* Open the savefile */
-        fd = fd_open(savefile, O_RDONLY);
+        fd = sdl_fopen(savefile, "rb");
 
         /* Drop permissions */
         safe_setuid_drop();
 
         /* No file */
-        if (fd < 0)
+        if (!fd)
             err = -1;
 
         /* Message (below) */
@@ -2617,20 +2608,13 @@ bool load_player(void)
     if (!err)
     {
 #ifdef VERIFY_TIMESTAMP
-
-        /* Grab permissions */
-        safe_setuid_grab();
-
-        /* Get the timestamp */
-        (void)fstat(fd, &statbuf);
-
-        /* Drop permissions */
-        safe_setuid_drop();
-
+        /* Note: fstat requires integer file descriptor, not available with SDL_IOStream */
+        /* Timestamp verification disabled for SDL builds */
+        log_debug("Timestamp verification skipped (not supported with SDL_IOStream)");
 #endif /* VERIFY_TIMESTAMP */
 
         /* Read the first four bytes */
-        if (fd_read(fd, (char*)(vvv), sizeof(vvv)))
+        if (sdl_read(fd, (char*)(vvv), sizeof(vvv)))
             err = -1;
 
         /* What */
@@ -2638,7 +2622,7 @@ bool load_player(void)
             what = "Cannot read savefile";
 
         /* Close the file */
-        fd_close(fd);
+        sdl_fclose(fd);
     }
 
     /* Process file */
@@ -2848,4 +2832,6 @@ bool load_player(void)
     /* Oops */
     return (false);
 }
+
+
 

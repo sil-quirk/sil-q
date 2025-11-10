@@ -351,6 +351,33 @@ SDL_IOStream* sdl_fopen_temp(char* buf, size_t max)
 }
 
 /*
+ * SDL-based file creation (fails if file exists)
+ * Similar to fd_make but returns SDL_IOStream*
+ */
+SDL_IOStream* sdl_fmake(cptr file, int mode)
+{
+    char buf[1024];
+    
+    /* Unused parameter for now - SDL doesn't support mode in IOFromFile */
+    (void)mode;
+    
+    /* Hack -- Try to parse the path */
+    if (path_parse(buf, sizeof(buf), file))
+        return NULL;
+    
+    /* Check if file already exists */
+    SDL_IOStream* test = SDL_IOFromFile(buf, "rb");
+    if (test)
+    {
+        SDL_CloseIO(test);
+        return NULL;  /* File exists, fail */
+    }
+    
+    /* Create the file for writing in binary mode */
+    return SDL_IOFromFile(buf, "wb");
+}
+
+/*
  * SDL-based replacement for "fgets()"
  * 
  * Read a string, without a newline, from a stream
