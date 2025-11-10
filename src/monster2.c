@@ -1535,9 +1535,6 @@ void update_mon(int m_idx, bool full)
     /* Known because immobile */
     bool immobile_seen = false;
 
-    u16b tmp_rand_place;
-    u32b tmp_rand_state[RAND_DEG];
-
     // unmoving mindless monsters (i.e. molds) can be seen once encountered
     if ((r_ptr->flags1 & (RF1_NEVER_MOVE)) && (r_ptr->flags2 & (RF2_MINDLESS))
         && m_ptr->encountered)
@@ -1769,24 +1766,14 @@ void update_mon(int m_idx, bool full)
         }
     }
 
-    // Because invoking this repeatedly without the turn updating will
-    // re-randomise, we temporarily set the randseed to be based on the
-    // current turn and then restore it.
-    tmp_rand_place = Rand_place;
-
-    for (int i = 0; i < RAND_DEG; i++)
+    // Ensure repeated calls within the same turn remain deterministic by seeding
+    // the RNG from the current turn, then restoring the saved state afterwards.
     {
-        tmp_rand_state[i] = Rand_state[i];
-        Rand_state[i] = playerturn * i * 15485863; // large prime
-    }
-
-    listen(m_ptr);
-
-    Rand_place = tmp_rand_place;
-
-    for (int i = 0; i < RAND_DEG; i++)
-    {
-        Rand_state[i] = tmp_rand_state[i];
+        u64b saved_state = Rand_state_export();
+        u64b temp_seed = ((u64b)playerturn + 1) * 15485863ULL;
+        Rand_state_import(temp_seed);
+        listen(m_ptr);
+        Rand_state_import(saved_state);
     }
 
     // Check ecounters with monsters (must be visible and in line of sight)

@@ -3475,9 +3475,7 @@ cleanup_intro:
  * "op_ptr->base_name" to "nameless" if it is empty.
  *
  * Note that we load the RNG state from savefiles and
- * so we only initialize it if we were unable to load it.  The loading
- * code marks successful loading of the RNG state using the "Rand_quick"
- * flag, which is a hack, but which optimizes loading of savefiles.
+ * only initialize it when starting a brand new character.
  */
 PlayResult play_game(void)
 {
@@ -3580,27 +3578,15 @@ PlayResult play_game(void)
         {
             log_info("Starting new game - initializing character");
         /* Init RNG */
-        if (Rand_quick)
         {
-            u32b seed;
+            u64b seed = (u64b)time(NULL);
 
-            /* Basic seed */
-            seed = (time(NULL));
+#ifdef SET_UID
+            seed ^= ((seed >> 3) * (getpid() << 1));
+#endif
 
-    #ifdef SET_UID
-
-            /* Mutate the seed on Unix machines */
-            seed = ((seed >> 3) * (getpid() << 1));
-
-    #endif
-
-            /* Use the complex RNG */
-            Rand_quick = false;
-
-            /* Seed the "complex" RNG */
             Rand_state_init(seed);
-
-            log_debug("RNG initialized with seed: %u", seed);
+            log_debug("RNG initialized with seed: %llu", (unsigned long long)seed);
         }
 
         log_info("Rolling up a new character");

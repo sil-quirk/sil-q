@@ -17,19 +17,17 @@
 
 1. **Created `src/rng.h`:**
    - Modern header with clear documentation
-   - Exports all RNG state variables: `Rand_quick`, `Rand_value`, `Rand_place`, `Rand_state[]`
-   - Declares core functions: `Rand_state_init()`, `Rand_div()`, `Rand_normal()`, `Rand_simple()`, `div_round()`
+   - Exposes a single RNG state via `Rand_state_init()`, `Rand_state_export()`, and `Rand_state_import()`
+   - Declares core functions: `Rand_div()`, `Rand_normal()`, `div_round()`
    - Preserves all convenience macros: `rand_int()`, `dieroll()`, `rand_die()`, `rand_range()`, `rand_spread()`, `one_in_()`, `percent_chance()`
    - Uses `bool` from `<stdbool.h>` instead of custom typedef
-   - Includes `<SDL3/SDL.h>` for future SDL RNG integration
+   - Includes `<SDL3/SDL.h>` hooks for SDL-backed random helpers
 
 2. **Created `src/rng.c`:**
-   - **Exact algorithm preservation:** Copied RNG implementations byte-for-byte from `z-rand.c` to ensure identical behavior
-   - `LCRNG()` macro preserved for simple RNG
+   - Provides SDL-powered random helpers while keeping deterministic behavior for gameplay
    - `Rand_state_init()`: Deterministic seed initialization - critical for save/load
    - `Rand_div()`: Unbiased division-based RNG - maintains exact distribution
    - `Rand_normal()`: Normal distribution using lookup table - preserves gameplay balance
-   - `Rand_simple()`: Separate UI RNG that doesn't affect gameplay - used for external operations
    - `div_round()`: Rounding helper with exact same logic
    - All 256-entry `Rand_normal_table[]` preserved exactly
 
@@ -4201,6 +4199,20 @@ Creating a fresh `sil_sdl.json` on macOS detected 1440x900 instead of the panel'
 - Confirmed Phase 2 landed: SDL IO helpers (`sdl_fopen`, `sdl_fclose`, `sdl_fgets`, etc.) live in `src/util.c:299-629` and are used throughout loaders/dumps (`src/cmd4.c:170-260`, `src/dump_items.c:80-949`, `src/save.c:316-2021`), so the tree no longer relies on `FILE*` wrappers.
 - Refreshed `proprietary_utility_retirement_plan.md` with status table + new restructuring roadmap (filesystem breakout, logging bootstrap, color helpers) and a C17 modernization checklist (unused `my_str*` in `z-util.c:24-119`, static buffer in `z-form.c:600-642`, macro-heavy allocators in `z-virt.h:32-86`, remaining `Term_*` hooks in `z-term.c`).
 - Documented the monolithic `util.c` areas that still need attention (`path_parse` at `src/util.c:129-378`, logger bootstrap near `src/util.c:5944-6390`) so later phases can split them into targeted modules on the way to deleting `z-*`.
+
+## 2025-11-10: Phase 3/4 Verification + SDL RNG Planning
+- Reviewed the new formatting layer: src/format.c/src/format.h now front the public helpers (see session_notes.md:4235-4277), and remaining strnfmt logic is isolated in z-form.c for follow-up cleanup.
+- Confirmed Phase 4 replaced z-rand.* with src/rng.c/src/rng.h, keeping deterministic behavior while positioning us to use SDL random contexts; details recorded in session_notes.md:3-84.
+- Updated proprietary_utility_retirement_plan.md to mark Phases 3/4 complete, add a dedicated Phase 4b focused on SDL's RNG helpers, and refresh the restructuring tasks (filesystem breakout, logging bootstrap, color helpers, UI term retirement).
+- Next focus: validate the SDL-backed RNG path (deterministic seeding, regression scripts) before deleting the remaining legacy scaffolding.
+
+## 2025-11-10: Single-State SDL RNG
+- Replaced the dual RNG system (Rand_quick, Rand_value, Rand_state[], Rand_simple()) with a single SDL-backed 64-bit state exposed through Rand_state_export()/Rand_state_import().
+- Updated save/load (wr_randomizer, 
+d_randomizer) to serialize the 64-bit state while keeping the legacy block layout (new saves store the low/high words; old saves hash down to the new state via those slots).
+- Gameplay subsystems that previously toggled Rand_quick now snapshot/restore the RNG state instead (lavor_init, 
+andart.c, monster2.c), keeping deterministic helper flows without touching the main RNG stream.
+- New game seeding always calls Rand_state_init() with a 64-bit seed derived from 	ime(NULL)/SDL_GetPerformanceCounter(), and all random draws now use SDL_rand_bits_r() internally.
 
 ## 2025-11-10: Legacy Platform Code Retirement
 

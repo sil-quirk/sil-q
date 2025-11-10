@@ -2960,8 +2960,8 @@ errr do_randart(u32b randart_seed, bool full)
     errr err;
 
     /* Prepare to use the Angband "simple" RNG. */
-    Rand_value = randart_seed;
-    Rand_quick = true;
+    u64b saved_state = Rand_state_export();
+    Rand_state_import(randart_seed);
 
     /* Only do all the following if full randomization requested */
     if (full)
@@ -2993,7 +2993,7 @@ errr do_randart(u32b randart_seed, bool full)
     }
 
     /* When done, resume use of the Angband "complex" RNG. */
-    Rand_quick = false;
+    Rand_state_import(saved_state);
 
     return (err);
 }

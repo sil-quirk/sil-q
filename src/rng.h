@@ -1,36 +1,10 @@
 /* File: rng.h */
 
-/*
- * Modern RNG module backed by SDL3
- * 
- * This replaces the legacy z-rand.c/z-rand.h with SDL3-backed random
- * number generation while maintaining API compatibility for gameplay.
- * 
- * Uses SDL_RandomContext for proper cross-platform random generation
- * with deterministic seeding for save/load compatibility.
- */
-
 #ifndef INCLUDED_RNG_H
 #define INCLUDED_RNG_H
 
 #include "h-basic.h"
-#include <SDL3/SDL.h>
 #include <stdbool.h>
-
-/**** RNG State ****/
-
-/* Use the "simple" LCRNG for quick operations */
-extern bool Rand_quick;
-
-/* Current "value" of the "simple" RNG */
-extern u32b Rand_value;
-
-/* Current "index" for the "complex" RNG */
-extern u16b Rand_place;
-
-/* Current "state" table for the "complex" RNG (63 entries) */
-#define RAND_DEG 63
-extern u32b Rand_state[RAND_DEG];
 
 /**** Core RNG Functions ****/
 
@@ -40,11 +14,17 @@ extern u32b Rand_state[RAND_DEG];
  * 
  * @param seed The seed value for deterministic generation
  */
-extern void Rand_state_init(u32b seed);
+extern void Rand_state_init(u64b seed);
+
+/**
+ * Export/import helpers so callers (savefiles, deterministic helpers) can
+ * capture and restore the exact RNG state.
+ */
+extern u64b Rand_state_export(void);
+extern void Rand_state_import(u64b state);
 
 /**
  * Generate a random number from 0 to m-1.
- * Uses either the simple or complex RNG depending on Rand_quick flag.
  * 
  * @param m Upper bound (exclusive), must be > 0
  * @return Random value in range [0, m-1]
@@ -66,15 +46,6 @@ extern s16b Rand_normal(int mean, int stand);
  * 
  * @param m Upper bound (exclusive)
  * @return Random value in range [0, m-1]
- */
-extern u32b Rand_simple(u32b m);
-
-/**
- * Divide with rounding (up for positive, down for negative).
- * 
- * @param n Numerator
- * @param d Denominator (must not be 0)
- * @return Rounded division result
  */
 extern s32b div_round(s32b n, s32b d);
 

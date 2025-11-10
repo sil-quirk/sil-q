@@ -873,21 +873,24 @@ static void rd_monster_runtime_overrides(void)
 static void rd_randomizer(void)
 {
     int i;
+    u16b dummy;
+    u32b tmp32;
+    u32b lo = 0;
+    u32b hi = 0;
 
-    // 8 spare bytes
     strip_bytes(8);
+    rd_u16b(&dummy);
 
-    /* Place */
-    rd_u16b(&Rand_place);
-
-    /* State */
-    for (i = 0; i < RAND_DEG; i++)
+    for (i = 0; i < 63; i++)
     {
-        rd_u32b(&Rand_state[i]);
+        rd_u32b(&tmp32);
+        if (i == 0)
+            lo = tmp32;
+        else if (i == 1)
+            hi = tmp32;
     }
 
-    /* Accept */
-    Rand_quick = false;
+    Rand_state_import(((u64b)hi << 32) | lo);
 }
 
 /*

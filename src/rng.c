@@ -1,152 +1,43 @@
 /* File: rng.c */
 
-/*
- * Modern RNG module backed by SDL3
- * 
- * This replaces the legacy z-rand.c with SDL3-backed random number
- * generation while maintaining exact gameplay behavior for compatibility.
- * 
- * The implementation preserves the dual-RNG system (quick/complex) used
- * by the original code to ensure deterministic gameplay and save/load
- * compatibility.
- */
-
 #include "rng.h"
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_stdinc.h>
 #include <time.h>
 
-/*
- * Linear Congruent RNG macro (preserved from original)
- * This is used for the "quick" RNG mode
- */
-#define LCRNG(X) ((X)*1103515245 + 12345)
+static Uint64 rng_state = 0;
 
-/*
- * Use the "simple" LCRNG for quick operations
- */
-bool Rand_quick = true;
-
-/*
- * Current "value" of the "simple" RNG
- */
-u32b Rand_value;
-
-/*
- * Current "index" for the "complex" RNG
- */
-u16b Rand_place;
-
-/*
- * Current "state" table for the "complex" RNG
- */
-u32b Rand_state[RAND_DEG];
-
-/*
- * Initialize the "complex" RNG using a new seed
- * 
- * This preserves the exact algorithm from z-rand.c to ensure
- * deterministic behavior for save/load compatibility.
- */
-void Rand_state_init(u32b seed)
+static Uint64 sanitize_seed(Uint64 seed)
 {
-    int i, j;
-
-    /* Seed the table */
-    Rand_state[0] = seed;
-
-    /* Propagate the seed */
-    for (i = 1; i < RAND_DEG; i++)
-        Rand_state[i] = LCRNG(Rand_state[i - 1]);
-
-    /* Cycle the table ten times per degree */
-    for (i = 0; i < RAND_DEG * 10; i++)
+    if (seed == 0)
     {
-        /* Acquire the next index */
-        j = Rand_place + 1;
-        if (j == RAND_DEG)
-            j = 0;
-
-        /* Update the table, extract an entry */
-        Rand_state[j] += Rand_state[Rand_place];
-
-        /* Advance the index */
-        Rand_place = j;
+        seed = ((Uint64)time(NULL) << 32) ^ SDL_GetPerformanceCounter() ^ 0x9E3779B97F4A7C15ULL;
     }
+    return seed;
 }
 
-/*
- * Extract a "random" number from 0 to m-1, via "division"
- *
- * This method selects "random" 28-bit numbers, and then uses
- * division to drop those numbers into "m" different partitions,
- * plus a small non-partition to reduce bias, taking as the final
- * value the first "good" partition that a number falls into.
- *
- * This method has no bias, and is much less affected by patterns
- * in the "low" bits of the underlying RNG's.
- *
- * Note that "m" must not be greater than 0x1000000, or division
- * by zero will result.
- */
+void Rand_state_init(u64b seed) { rng_state = sanitize_seed(seed); }
+
+u64b Rand_state_export(void) { return rng_state; }
+
+void Rand_state_import(u64b state) { rng_state = sanitize_seed(state); }
+
+static Uint32 rng_random_bits(void) { return SDL_rand_bits_r(&rng_state); }
+
 u32b Rand_div(u32b m)
 {
-    u32b r, n;
-
-    /* Hack -- simple case */
     if (m <= 1)
-        return (0);
+        return 0;
 
-    /* Partition size */
-    n = (0x10000000 / m);
+    Uint32 threshold = UINT32_MAX - (UINT32_MAX % m);
+    Uint32 value;
 
-    /* Use a simple RNG */
-    if (Rand_quick)
+    do
     {
-        /* Wait for it */
-        while (1)
-        {
-            /* Cycle the generator */
-            r = (Rand_value = LCRNG(Rand_value));
+        value = rng_random_bits();
+    } while (value >= threshold);
 
-            /* Mutate a 28-bit "random" number */
-            r = ((r >> 4) & 0x0FFFFFFF) / n;
-
-            /* Done */
-            if (r < m)
-                break;
-        }
-    }
-
-    /* Use a complex RNG */
-    else
-    {
-        /* Wait for it */
-        while (1)
-        {
-            int j;
-
-            /* Acquire the next index */
-            j = Rand_place + 1;
-            if (j == RAND_DEG)
-                j = 0;
-
-            /* Update the table, extract an entry */
-            r = (Rand_state[j] += Rand_state[Rand_place]);
-
-            /* Hack -- extract a 28-bit "random" number */
-            r = ((r >> 4) & 0x0FFFFFFF) / n;
-
-            /* Advance the index */
-            Rand_place = j;
-
-            /* Done */
-            if (r < m)
-                break;
-        }
-    }
-
-    /* Use the value */
-    return (r);
+    return value % m;
 }
 
 /*
@@ -191,25 +82,6 @@ static s16b Rand_normal_table[RANDNOR_NUM] = {
     32765, 32766, 32766, 32766, 32766, 32767,
 };
 
-/*
- * Generate a random integer number of NORMAL distribution
- *
- * The table above is used to generate a psuedo-normal distribution,
- * in a manner which is much faster than calling a transcendental
- * function to calculate a true normal distribution.
- *
- * Basically, entry 64*N in the table above represents the number of
- * times out of 32767 that a random variable with normal distribution
- * will fall within N standard deviations of the mean.  That is, about
- * 68 percent of the time for N=1 and 95 percent of the time for N=2.
- *
- * The table above contains a "faked" final entry which allows us to
- * pretend that all values in a normal distribution are strictly less
- * than four standard deviations away from the mean.  This results in
- * "conservative" distribution of approximately 1/32768 values.
- *
- * Note that the binary search takes up to 16 quick iterations.
- */
 s16b Rand_normal(int mean, int stand)
 {
     s16b tmp;
@@ -220,7 +92,7 @@ s16b Rand_normal(int mean, int stand)
 
     /* Paranoia */
     if (stand < 1)
-        return (mean);
+        return mean;
 
     /* Roll for probability */
     tmp = (s16b)rand_int(32768);
@@ -230,102 +102,40 @@ s16b Rand_normal(int mean, int stand)
     {
         int mid = (low + high) >> 1;
 
-        /* Move right if forced */
         if (Rand_normal_table[mid] < tmp)
         {
             low = mid + 1;
         }
-
-        /* Move left otherwise */
         else
         {
             high = mid;
         }
     }
 
-    /* Convert the index into an offset */
     offset = (long)stand * (long)low / RANDNOR_STD;
 
-    /* One half should be negative */
     if (one_in_(2))
         return (mean - offset);
 
-    /* One half should be positive */
     return (mean + offset);
 }
 
-/*
- * Extract a "random" number from 0 to m-1, using the "simple" RNG.
- *
- * This function should be used when generating random numbers in
- * "external" program parts like the main-*.c files.  It preserves
- * the current RNG state to prevent influences on game-play.
- */
-u32b Rand_simple(u32b m)
-{
-    static bool initialized = false;
-    static u32b simple_rand_value;
-    bool old_rand_quick;
-    u32b old_rand_value;
-    u32b result;
-
-    /* Save RNG state */
-    old_rand_quick = Rand_quick;
-    old_rand_value = Rand_value;
-
-    /* Use "simple" RNG */
-    Rand_quick = true;
-
-    if (initialized)
-    {
-        /* Use stored seed */
-        Rand_value = simple_rand_value;
-    }
-    else
-    {
-        /* Initialize with new seed */
-        Rand_value = (u32b)time(NULL);
-        initialized = true;
-    }
-
-    /* Get a random number */
-    result = rand_int(m);
-
-    /* Store the new seed */
-    simple_rand_value = Rand_value;
-
-    /* Restore RNG state */
-    Rand_quick = old_rand_quick;
-    Rand_value = old_rand_value;
-
-    /* Use the value */
-    return (result);
-}
-
-/*
- * Given a numerator and a denominator, supply a rounded (up) result
- */
 s32b div_round(s32b n, s32b d)
 {
     s32b tmp;
 
-    /* Refuse to divide by zero */
     if (!d)
-        return (n);
+        return n;
 
-    /* Division */
     tmp = n / d;
 
-    /* Rounding */
     if ((ABS(n) % ABS(d)) * 2 >= d)
     {
-        /* Increase the absolute value */
         if (n * d > 0L)
             tmp += 1L;
         else
             tmp -= 1L;
     }
 
-    /* Return */
-    return (tmp);
+    return tmp;
 }

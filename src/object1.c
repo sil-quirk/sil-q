@@ -271,11 +271,8 @@ void flavor_init(void)
 {
     int i;
 
-    /* Hack -- Use the "simple" RNG */
-    Rand_quick = true;
-
-    /* Hack -- Induce consistant flavors */
-    Rand_value = seed_flavor;
+    u64b saved_state = Rand_state_export();
+    Rand_state_import(seed_flavor);
 
     flavor_assign_fixed();
 
@@ -287,8 +284,7 @@ void flavor_init(void)
     flavor_assign_random(TV_FOOD);
     flavor_assign_random(TV_POTION);
 
-    /* Hack -- Use the "complex" RNG */
-    Rand_quick = false;
+    Rand_state_import(saved_state);
 
     /* Analyze every object */
     for (i = 1; i < z_info->k_max; i++)

@@ -829,21 +829,25 @@ static void wr_xtra(int k_idx)
 static errr wr_randomizer(void)
 {
     int i;
+    u64b state = Rand_state_export();
 
-    // 8 spare bytes
+    /* Preserve legacy padding */
     wr_u32b(0L);
     wr_u32b(0L);
 
-    /* Place */
-    wr_u16b(Rand_place);
+    /* Legacy "place" slot (unused now) */
+    wr_u16b(0);
 
-    /* State */
-    for (i = 0; i < RAND_DEG; i++)
+    for (i = 0; i < 63; i++)
     {
-        wr_u32b(Rand_state[i]);
+        u32b word = 0;
+        if (i == 0)
+            word = (u32b)(state & 0xFFFFFFFFu);
+        else if (i == 1)
+            word = (u32b)(state >> 32);
+        wr_u32b(word);
     }
 
-    /* Success */
     return (0);
 }
 

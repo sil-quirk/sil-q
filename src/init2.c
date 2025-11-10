@@ -1203,8 +1203,6 @@ extern void re_init_some_things(void)
 {
     int i;
 
-    Rand_quick = false;
-
     // wipe the whole player structure
     (void)WIPE(p_ptr, player_type);
 
