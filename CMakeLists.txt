@@ -54,6 +54,7 @@ add_executable(sil-more
     src/object2.c
     src/pane.c
     src/randart.c
+    src/rng.c
     src/save.c
     src/sdl-config.c
     src/spells1.c
@@ -69,7 +70,6 @@ add_executable(sil-more
     src/xtra1.c
     src/xtra2.c
     src/z-form.c
-    src/z-rand.c
     src/z-term.c
     src/z-util.c
     src/z-virt.c

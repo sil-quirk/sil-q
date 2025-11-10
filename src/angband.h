@@ -22,7 +22,7 @@
 #include "z-util.h"
 #include "z-virt.h"
 #include "format.h"
-#include "z-rand.h"
+#include "rng.h"
 #include "z-term.h"
 #include "log/log.h"
 
