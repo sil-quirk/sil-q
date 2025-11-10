@@ -22,6 +22,7 @@
 #include "z-util.h"
 #include "z-virt.h"
 #include "format.h"
+#include "fs/io_sdl.h"
 #include "rng.h"
 #include "z-term.h"
 #include "log/log.h"

@@ -4648,8 +4648,8 @@ Creating a fresh `sil_sdl.json` on macOS detected 1440x900 instead of the panel'
 
 * Ported `vstrnfmt/strnfmt/strnfcat` from `z-form.c` into `src/format.c`, added the necessary SDL/ctype includes, and kept the Angband-specific extensions (`%^`, `*`, etc.) unchanged.
 * Removed `src/z-form.c`/`src/z-form.h` from the tree, updated `CMakeLists.txt`, and swapped the remaining `#include "z-form.h"` sites (`src/init1.c`, `src/format.c`) over to the modern header.
-* Rebuilt (`build-cmake.bat`) to regenerate `compile_commands.json`; will rerun once the filesystem/logger split lands.
-* Ran `build-cmake.bat` to regenerate `compile_commands.json` and ensure the project still builds cleanly; next Phase 5 steps are carving the SDL IO helpers out of `util.c`, replacing `path_parse/path_temp` with SDL-aware routines, and moving `init_logger` into a dedicated bootstrap module before tackling the color/UI table relocation.
+* Added the SDL file I/O module (`src/fs/io_sdl.c`, `fs/io_sdl.h`) and pointed every caller at the shared header so `util.c` no longer owns the file helpers; next up is replacing `path_parse/path_temp` with SDL-aware routines and carving out the logger/color helpers.
+* Ran `build-cmake.bat` again to regenerate `compile_commands.json` and ensure the tree still builds cleanly; remaining Phase 5 work focuses on the new filesystem helpers plus the logger/bootstrap and color-table relocations.
 
 ## 2025-11-10: Legacy Platform Code Retirement
 

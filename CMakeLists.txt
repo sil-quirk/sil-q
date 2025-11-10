@@ -57,6 +57,7 @@ add_executable(sil-more
     src/rng.c
     src/save.c
     src/sdl-config.c
+    src/fs/io_sdl.c
     src/spells1.c
     src/spells2.c
     src/squelch.c

@@ -64,7 +64,7 @@ Each phase should end with a clean SDL3 build and a smoke run (new game -> spend
 ### Phase 5 - Filesystem, Logging & Color Cleanup
 **Status:** Planned  
 **Scope:** Break util.c into focused modules so the last `z-*` dependencies disappear.
-- Extract SDL IO helpers (`sdl_fopen`, path builders) into `src/fs/io_sdl.c` + header and replace `path_parse/path_temp` with SDL-aware helpers.
+- SDL IO helpers (`sdl_fopen`, path builders) now live in `src/fs/io_sdl.c`/`fs/io_sdl.h`; follow-up work will replace `path_parse/path_temp` with SDL-aware helpers.
 - Move logger bootstrap (`init_logger`, log path discovery, atexit handlers) into `src/logging/bootstrap.c`, leaving only prototypes for the rest of the tree.
 - Relocate color/text helper tables (e.g., `short_color_names`, `attr_to_text`, UI string helpers) into `src/ui/colors.c` so UI code owns palette/presentation data.
 - Result: `util.c` shrinks toward birth/helpers only, clearing the runway for final `z-*` removal.
