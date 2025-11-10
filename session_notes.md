@@ -3969,3 +3969,8 @@ Creating a fresh `sil_sdl.json` on macOS detected 1440x900 instead of the panel'
 - Implemented a hidden SDL window probe (`detect_display_pixel_scale()` in `src/main-sdl.c`) that queries `SDL_GetWindowPixelDensity`, `SDL_GetWindowDisplayScale`, and the logical-vs-pixel size ratio to measure the actual scale factor of the primary display. This replaces the previous heuristic so we're no longer "guesstimating" per-platform behavior.
 - `init_sdl()` now prefers the measured scale when expanding logical bounds to physical pixels; only if the probe reports 1.0 do we fall back to explicit `SDL_DisplayMode.pixel_density` data. `SDL_GetDisplayContentScale()` is still logged for diagnostics but no longer forces scaling on Windows.
 - Rebuilt with `build-cmake.bat` to verify the new detection path compiles and deploys.
+
+## 2025-11-10: Proprietary Utility Retirement Plan
+- Read through the legacy utility layer (`src/z-util.c`, `src/z-form.c`, `src/z-rand.c`, `src/z-virt.c`, `src/z-term.c`, and the relevant sections of `src/util.c`) to catalog which responsibilities still rely on bespoke wrappers.
+- Captured the modernization goals and module inventory in `proprietary_utility_retirement_plan.md`, including a six-phase migration path that starts with simple string/memory helper removal and ramps up to retiring `z-term` entirely.
+- Each phase in the new plan calls out scope, key tasks, and verification steps so we can keep SDL builds running between changes; doc lives at the repo root for easy reference alongside the SDL migration notes.

@@ -1095,27 +1095,14 @@ extern errr sdl_seek(SDL_IOStream* stream, Sint64 offset);
 extern Sint64 sdl_tell(SDL_IOStream* stream);
 extern Sint64 sdl_size(SDL_IOStream* stream);
 
-/* DEPRECATED - Old FILE*-based operations - DO NOT USE */
-extern FILE* my_fopen(cptr file, cptr mode);
-extern FILE* my_fopen_temp(char* buf, size_t max);
-extern errr my_fclose(FILE* fff);
-extern errr my_fgets(FILE* fff, char* buf, size_t n);
-extern errr my_fputs(FILE* fff, cptr buf, size_t n);
-
 /* File management operations (using standard C, SDL doesn't provide these) */
 extern errr fd_kill(cptr file);
 extern errr fd_move(cptr file, cptr what);
 extern errr fd_copy(cptr file, cptr what);
 
-/* DEPRECATED - Old file descriptor operations - DO NOT USE */
-extern int fd_make(cptr file, int mode);
-extern int fd_open(cptr file, int flags);
-extern errr fd_lock(int fd, int what);
-extern errr fd_seek(int fd, long n);
-extern errr fd_read(int fd, char* buf, size_t n);
-extern errr fd_write(int fd, cptr buf, size_t n);
-extern errr fd_close(int fd);
+/* Legacy - still used by some systems */
 extern errr check_modification_date(int fd, cptr template_file);
+
 extern void text_to_ascii(char* buf, size_t len, cptr str);
 extern void ascii_to_text(char* buf, size_t len, cptr str);
 extern int macro_find_exact(cptr pat);

@@ -511,7 +511,7 @@ static errr init_info(cptr filename, header* head)
             buf, sizeof(buf), ANGBAND_DIR_DATA, format("%s.raw", filename));
 
         /* Attempt to open the file */
-        fd = sdl_fopen(buf, O_RDONLY);
+        fd = sdl_fopen(buf, "rb");
 
         /* Failure */
         if (!fd)
@@ -600,7 +600,7 @@ static errr init_info(cptr filename, header* head)
             buf, sizeof(buf), ANGBAND_DIR_DATA, format("%s.raw", filename));
 
         /* Attempt to open the "raw" file */
-        fd = sdl_fopen(buf, O_RDONLY);
+        fd = sdl_fopen(buf, "rb");
 
         /* Process existing "raw" file */
         if (fd < 0)
@@ -1866,7 +1866,7 @@ void init_angband(void)
     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
 
     /* Attempt to open the high score file */
-    fd = sdl_fopen(buf, O_RDONLY);
+    fd = sdl_fopen(buf, "rb");
 
     /* Failure */
     if (fd < 0)
@@ -2220,5 +2220,6 @@ void cleanup_angband(void)
     string_free(ANGBAND_DIR_XTRA);
     string_free(ANGBAND_DIR_SCRIPT);
 }
+
 
 

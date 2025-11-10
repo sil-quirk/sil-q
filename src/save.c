@@ -313,7 +313,7 @@ static errr rd_savefile(void)
     byte fake[4];
 
     /* Open the savefile */
-    data_fd = sdl_fopen(savefile, O_RDONLY);
+    data_fd = sdl_fopen(savefile, "rb");
 
     /* No file */
     if (data_fd < 0)
@@ -2033,6 +2033,7 @@ bool save_player(void)
     }
     return (result);
 }
+
 
 
 

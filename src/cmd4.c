@@ -63,26 +63,26 @@ struct supply_list_entry
 };
 
 static void dump_visual_pair(
-    FILE* fff, const char* tag, int index, byte attr, byte chr)
+    SDL_IOStream* fff, const char* tag, int index, byte attr, byte chr)
 {
     bool attr_tile = (attr & TILE_FLAG) != 0;
     bool char_tile = (chr & TILE_FLAG) != 0;
 
-    fprintf(fff, "%s:%d:", tag, index);
+    SDL_IOprintf(fff, "%s:%d:", tag, index);
     if (attr_tile)
-        fprintf(fff, "R%d", TILE_GET_INDEX(attr));
+        SDL_IOprintf(fff, "R%d", TILE_GET_INDEX(attr));
     else
-        fprintf(fff, "0x%02X", attr);
+        SDL_IOprintf(fff, "0x%02X", attr);
 
-    fputc(':', fff);
+    SDL_WriteU8(fff, ':');
 
     if (char_tile)
-        fprintf(fff, "C%d", TILE_GET_INDEX(chr));
+        SDL_IOprintf(fff, "C%d", TILE_GET_INDEX(chr));
     else
-        fprintf(fff, "0x%02X", (byte)chr);
+        SDL_IOprintf(fff, "0x%02X", (byte)chr);
 
-    fputc('\n', fff);
-    fputc('\n', fff);
+    SDL_WriteU8(fff, '\n');
+    SDL_WriteU8(fff, '\n');
 }
 
 
@@ -158,7 +158,7 @@ static cptr supply_group_text[SUPPLY_GROUP_MAX + 1] = {
  */
 static void remove_old_dump(cptr orig_file, cptr mark)
 {
-    FILE *tmp_fff, *orig_fff;
+    SDL_IOStream* tmp_fff, *orig_fff;
 
     char tmp_file[1024];
     char buf[1024];
@@ -167,14 +167,14 @@ static void remove_old_dump(cptr orig_file, cptr mark)
     char expected_line[1024];
 
     /* Open an old dump file in read-only mode */
-    orig_fff = my_fopen(orig_file, "r");
+    orig_fff = sdl_fopen(orig_file, "r");
 
     /* If original file does not exist, nothing to do */
     if (!orig_fff)
         return;
 
     /* Open a new temporary file */
-    tmp_fff = my_fopen_temp(tmp_file, sizeof(tmp_file));
+    tmp_fff = sdl_fopen_temp(tmp_file, sizeof(tmp_file));
 
     if (!tmp_fff)
     {
@@ -190,7 +190,7 @@ static void remove_old_dump(cptr orig_file, cptr mark)
     while (true)
     {
         /* Read a line */
-        if (my_fgets(orig_fff, buf, sizeof(buf)))
+        if (sdl_fgets(orig_fff, buf, sizeof(buf)))
         {
             /* End of file but no end marker */
             if (between_marks)
@@ -244,28 +244,28 @@ static void remove_old_dump(cptr orig_file, cptr mark)
         if (!between_marks)
         {
             /* Copy orginal line */
-            fprintf(tmp_fff, "%s\n", buf);
+            SDL_IOprintf(tmp_fff, "%s\n", buf);
         }
     }
 
     /* Close files */
-    my_fclose(orig_fff);
-    my_fclose(tmp_fff);
+    sdl_fclose(orig_fff);
+    sdl_fclose(tmp_fff);
 
     /* If there are changes, overwrite the original file with the new one */
     if (changed)
     {
         /* Copy contents of temporary file */
-        tmp_fff = my_fopen(tmp_file, "r");
-        orig_fff = my_fopen(orig_file, "w");
+        tmp_fff = sdl_fopen(tmp_file, "r");
+        orig_fff = sdl_fopen(orig_file, "w");
 
-        while (!my_fgets(tmp_fff, buf, sizeof(buf)))
+        while (!sdl_fgets(tmp_fff, buf, sizeof(buf)))
         {
-            fprintf(orig_fff, "%s\n", buf);
+            SDL_IOprintf(orig_fff, "%s\n", buf);
         }
 
-        my_fclose(orig_fff);
-        my_fclose(tmp_fff);
+        sdl_fclose(orig_fff);
+        sdl_fclose(tmp_fff);
     }
 
     /* Kill the temporary file */
@@ -275,13 +275,13 @@ static void remove_old_dump(cptr orig_file, cptr mark)
 /*
  * Output the header of a pref-file dump
  */
-static void pref_header(FILE* fff, cptr mark)
+static void pref_header(SDL_IOStream* fff, cptr mark)
 {
     /* Start of dump */
-    fprintf(fff, "%s begin %s\n", dump_seperator, mark);
+    SDL_IOprintf(fff, "%s begin %s\n", dump_seperator, mark);
 
-    fprintf(fff, "# *Warning!*  The lines below are an automatic dump.\n");
-    fprintf(fff,
+    SDL_IOprintf(fff, "# *Warning!*  The lines below are an automatic dump.\n");
+    SDL_IOprintf(fff,
         "# Don't edit them; changes will be deleted and replaced "
         "automatically.\n");
 }
@@ -289,15 +289,15 @@ static void pref_header(FILE* fff, cptr mark)
 /*
  * Output the footer of a pref-file dump
  */
-static void pref_footer(FILE* fff, cptr mark)
+static void pref_footer(SDL_IOStream* fff, cptr mark)
 {
-    fprintf(fff, "# *Warning!*  The lines above are an automatic dump.\n");
-    fprintf(fff,
+    SDL_IOprintf(fff, "# *Warning!*  The lines above are an automatic dump.\n");
+    SDL_IOprintf(fff,
         "# Don't edit them; changes will be deleted and replaced "
         "automatically.\n");
 
     /* End of dump */
-    fprintf(fff, "%s end %s\n", dump_seperator, mark);
+    SDL_IOprintf(fff, "%s end %s\n", dump_seperator, mark);
 }
 
 /*
@@ -8546,7 +8546,7 @@ static errr option_dump(cptr fname)
 
     int i, j;
 
-    FILE* fff;
+    SDL_IOStream* fff;
 
     char buf[1024];
 
@@ -8560,7 +8560,7 @@ static errr option_dump(cptr fname)
     remove_old_dump(buf, mark);
 
     /* Append to the file */
-    fff = my_fopen(buf, "a");
+    fff = sdl_fopen(buf, "a");
 
     /* Failure */
     if (!fff)
@@ -8570,10 +8570,10 @@ static errr option_dump(cptr fname)
     pref_header(fff, mark);
 
     /* Skip some lines */
-    fprintf(fff, "\n\n");
+    SDL_IOprintf(fff, "\n\n");
 
     /* Start dumping */
-    fprintf(fff, "# Automatic option dump\n\n");
+    SDL_IOprintf(fff, "# Automatic option dump\n\n");
 
     /* Dump options (skip cheat, adult, score) */
     for (i = 0; i < OPT_CHEAT; i++)
@@ -8583,20 +8583,20 @@ static errr option_dump(cptr fname)
             continue;
 
         /* Comment */
-        fprintf(fff, "# Option '%s'\n", option_desc[i]);
+        SDL_IOprintf(fff, "# Option '%s'\n", option_desc[i]);
 
         /* Dump the option */
         if (op_ptr->opt[i])
         {
-            fprintf(fff, "Y:%s\n", option_text[i]);
+            SDL_IOprintf(fff, "Y:%s\n", option_text[i]);
         }
         else
         {
-            fprintf(fff, "X:%s\n", option_text[i]);
+            SDL_IOprintf(fff, "X:%s\n", option_text[i]);
         }
 
         /* Skip a line */
-        fprintf(fff, "\n");
+        SDL_IOprintf(fff, "\n");
     }
 
     /* Dump window flags */
@@ -8614,21 +8614,21 @@ static errr option_dump(cptr fname)
                 continue;
 
             /* Comment */
-            fprintf(fff, "# Window '%s', Flag '%s'\n", angband_term_name[i],
+            SDL_IOprintf(fff, "# Window '%s', Flag '%s'\n", angband_term_name[i],
                 window_flag_desc[j]);
 
             /* Dump the flag */
             if (op_ptr->window_flag[i] & (1L << j))
             {
-                fprintf(fff, "W:%d:%d:1\n", i, j);
+                SDL_IOprintf(fff, "W:%d:%d:1\n", i, j);
             }
             else
             {
-                fprintf(fff, "W:%d:%d:0\n", i, j);
+                SDL_IOprintf(fff, "W:%d:%d:0\n", i, j);
             }
 
             /* Skip a line */
-            fprintf(fff, "\n");
+            SDL_IOprintf(fff, "\n");
         }
     }
 
@@ -8636,7 +8636,7 @@ static errr option_dump(cptr fname)
     pref_footer(fff, mark);
 
     /* Close */
-    my_fclose(fff);
+    sdl_fclose(fff);
 
     /* Success */
     return (0);
@@ -9243,7 +9243,7 @@ static errr macro_dump(cptr fname)
 
     int i;
 
-    FILE* fff;
+    SDL_IOStream* fff;
 
     char buf[1024];
 
@@ -9257,7 +9257,7 @@ static errr macro_dump(cptr fname)
     remove_old_dump(buf, mark);
 
     /* Append to the file */
-    fff = my_fopen(buf, "a");
+    fff = sdl_fopen(buf, "a");
 
     /* Failure */
     if (!fff)
@@ -9267,41 +9267,41 @@ static errr macro_dump(cptr fname)
     pref_header(fff, mark);
 
     /* Skip some lines */
-    fprintf(fff, "\n\n");
+    SDL_IOprintf(fff, "\n\n");
 
     /* Start dumping */
-    fprintf(fff, "# Automatic macro dump\n\n");
+    SDL_IOprintf(fff, "# Automatic macro dump\n\n");
 
     /* Dump them */
     for (i = 0; i < macro__num; i++)
     {
         /* Start the macro */
-        fprintf(fff, "# Macro '%d'\n\n", i);
+        SDL_IOprintf(fff, "# Macro '%d'\n\n", i);
 
         /* Extract the macro action */
         ascii_to_text(buf, sizeof(buf), macro__act[i]);
 
         /* Dump the macro action */
-        fprintf(fff, "A:%s\n", buf);
+        SDL_IOprintf(fff, "A:%s\n", buf);
 
         /* Extract the macro pattern */
         ascii_to_text(buf, sizeof(buf), macro__pat[i]);
 
         /* Dump the macro pattern */
-        fprintf(fff, "P:%s\n", buf);
+        SDL_IOprintf(fff, "P:%s\n", buf);
 
         /* End the macro */
-        fprintf(fff, "\n\n");
+        SDL_IOprintf(fff, "\n\n");
     }
 
     /* Start dumping */
-    fprintf(fff, "\n\n\n\n");
+    SDL_IOprintf(fff, "\n\n\n\n");
 
     /* Output footer */
     pref_footer(fff, mark);
 
     /* Close */
-    my_fclose(fff);
+    sdl_fclose(fff);
 
     /* Success */
     return (0);
@@ -9399,7 +9399,7 @@ static errr keymap_dump(cptr fname)
 
     int i;
 
-    FILE* fff;
+    SDL_IOStream* fff;
 
     char buf[1024];
 
@@ -9425,7 +9425,7 @@ static errr keymap_dump(cptr fname)
     remove_old_dump(buf, mark);
 
     /* Append to the file */
-    fff = my_fopen(buf, "a");
+    fff = sdl_fopen(buf, "a");
 
     /* Failure */
     if (!fff)
@@ -9435,10 +9435,10 @@ static errr keymap_dump(cptr fname)
     pref_header(fff, mark);
 
     /* Skip some lines */
-    fprintf(fff, "\n\n");
+    SDL_IOprintf(fff, "\n\n");
 
     /* Start dumping */
-    fprintf(fff, "# Automatic keymap dump\n\n");
+    SDL_IOprintf(fff, "# Automatic keymap dump\n\n");
 
     /* Dump them */
     for (i = 0; i < (int)N_ELEMENTS(keymap_act[mode]); i++)
@@ -9458,7 +9458,7 @@ static errr keymap_dump(cptr fname)
         ascii_to_text(buf, sizeof(buf), act);
 
         /* Dump the keymap action */
-        fprintf(fff, "A:%s\n", buf);
+        SDL_IOprintf(fff, "A:%s\n", buf);
 
         /* Convert the key into a string */
         key[0] = i;
@@ -9467,20 +9467,20 @@ static errr keymap_dump(cptr fname)
         ascii_to_text(buf, sizeof(buf), key);
 
         /* Dump the keymap pattern */
-        fprintf(fff, "C:%d:%s\n", mode, buf);
+        SDL_IOprintf(fff, "C:%d:%s\n", mode, buf);
 
         /* Skip a line */
-        fprintf(fff, "\n");
+        SDL_IOprintf(fff, "\n");
     }
 
     /* Skip some lines */
-    fprintf(fff, "\n\n\n");
+    SDL_IOprintf(fff, "\n\n\n");
 
     /* Output footer */
     pref_footer(fff, mark);
 
     /* Close */
-    my_fclose(fff);
+    sdl_fclose(fff);
 
     /* Success */
     return (0);
@@ -10014,7 +10014,7 @@ void do_cmd_visuals(void)
 
     int i;
 
-    FILE* fff;
+    SDL_IOStream* fff;
 
     char buf[1024];
 
@@ -10092,7 +10092,7 @@ void do_cmd_visuals(void)
             remove_old_dump(buf, mark);
 
             /* Append to the file */
-            fff = my_fopen(buf, "a");
+            fff = sdl_fopen(buf, "a");
 
             /* Failure */
             if (!fff)
@@ -10102,10 +10102,10 @@ void do_cmd_visuals(void)
             pref_header(fff, mark);
 
             /* Skip some lines */
-            fprintf(fff, "\n\n");
+            SDL_IOprintf(fff, "\n\n");
 
             /* Start dumping */
-            fprintf(fff, "# Monster attr/char definitions\n\n");
+            SDL_IOprintf(fff, "# Monster attr/char definitions\n\n");
 
             /* Dump monsters */
             for (i = 0; i < z_info->r_max; i++)
@@ -10117,20 +10117,20 @@ void do_cmd_visuals(void)
                     continue;
 
                 /* Dump a comment */
-                fprintf(fff, "# %s\n", (r_name + r_ptr->name));
+                SDL_IOprintf(fff, "# %s\n", (r_name + r_ptr->name));
 
                 /* Dump the monster attr/char info */
                 dump_visual_pair(fff, "R", i, r_ptr->x_attr, (byte)r_ptr->x_char);
             }
 
             /* All done */
-            fprintf(fff, "\n\n\n\n");
+            SDL_IOprintf(fff, "\n\n\n\n");
 
             /* Output footer */
             pref_footer(fff, mark);
 
             /* Close */
-            my_fclose(fff);
+            sdl_fclose(fff);
 
             /* Message */
             msg_print("Dumped monster attr/chars.");
@@ -10162,7 +10162,7 @@ void do_cmd_visuals(void)
             remove_old_dump(buf, mark);
 
             /* Append to the file */
-            fff = my_fopen(buf, "a");
+            fff = sdl_fopen(buf, "a");
 
             /* Failure */
             if (!fff)
@@ -10172,10 +10172,10 @@ void do_cmd_visuals(void)
             pref_header(fff, mark);
 
             /* Skip some lines */
-            fprintf(fff, "\n\n");
+            SDL_IOprintf(fff, "\n\n");
 
             /* Start dumping */
-            fprintf(fff, "# Object attr/char definitions\n\n");
+            SDL_IOprintf(fff, "# Object attr/char definitions\n\n");
 
             /* Dump objects */
             for (i = 0; i < z_info->k_max; i++)
@@ -10187,7 +10187,7 @@ void do_cmd_visuals(void)
                     continue;
 
                 /* Dump a comment */
-                fprintf(fff, "# %s\n", (k_name + k_ptr->name));
+                SDL_IOprintf(fff, "# %s\n", (k_name + k_ptr->name));
 
                 /* Dump the object attr/char info */
                 dump_visual_pair(
@@ -10195,13 +10195,13 @@ void do_cmd_visuals(void)
             }
 
             /* All done */
-            fprintf(fff, "\n\n\n\n");
+            SDL_IOprintf(fff, "\n\n\n\n");
 
             /* Output footer */
             pref_footer(fff, mark);
 
             /* Close */
-            my_fclose(fff);
+            sdl_fclose(fff);
 
             /* Message */
             msg_print("Dumped object attr/chars.");
@@ -10233,7 +10233,7 @@ void do_cmd_visuals(void)
             remove_old_dump(buf, mark);
 
             /* Append to the file */
-            fff = my_fopen(buf, "a");
+            fff = sdl_fopen(buf, "a");
 
             /* Failure */
             if (!fff)
@@ -10243,10 +10243,10 @@ void do_cmd_visuals(void)
             pref_header(fff, mark);
 
             /* Skip some lines */
-            fprintf(fff, "\n\n");
+            SDL_IOprintf(fff, "\n\n");
 
             /* Start dumping */
-            fprintf(fff, "# Feature attr/char definitions\n\n");
+            SDL_IOprintf(fff, "# Feature attr/char definitions\n\n");
 
             /* Dump features */
             for (i = 0; i < z_info->f_max; i++)
@@ -10258,7 +10258,7 @@ void do_cmd_visuals(void)
                     continue;
 
                 /* Dump a comment */
-                fprintf(fff, "# %s\n", (f_name + f_ptr->name));
+                SDL_IOprintf(fff, "# %s\n", (f_name + f_ptr->name));
 
                 /* Dump the feature attr/char info */
                 dump_visual_pair(
@@ -10266,13 +10266,13 @@ void do_cmd_visuals(void)
             }
 
             /* All done */
-            fprintf(fff, "\n\n\n\n");
+            SDL_IOprintf(fff, "\n\n\n\n");
 
             /* Output footer */
             pref_footer(fff, mark);
 
             /* Close */
-            my_fclose(fff);
+            sdl_fclose(fff);
 
             /* Message */
             msg_print("Dumped feature attr/chars.");
@@ -10304,7 +10304,7 @@ void do_cmd_visuals(void)
             remove_old_dump(buf, mark);
 
             /* Append to the file */
-            fff = my_fopen(buf, "a");
+            fff = sdl_fopen(buf, "a");
 
             /* Failure */
             if (!fff)
@@ -10314,10 +10314,10 @@ void do_cmd_visuals(void)
             pref_header(fff, mark);
 
             /* Skip some lines */
-            fprintf(fff, "\n\n");
+            SDL_IOprintf(fff, "\n\n");
 
             /* Start dumping */
-            fprintf(fff, "# Flavor attr/char definitions\n\n");
+            SDL_IOprintf(fff, "# Flavor attr/char definitions\n\n");
 
             /* Dump flavors */
             for (i = 0; i < z_info->flavor_max; i++)
@@ -10325,7 +10325,7 @@ void do_cmd_visuals(void)
                 flavor_type* flavor_ptr = &flavor_info[i];
 
                 /* Dump a comment */
-                fprintf(fff, "# %s\n", (flavor_text + flavor_ptr->text));
+                SDL_IOprintf(fff, "# %s\n", (flavor_text + flavor_ptr->text));
 
                 /* Dump the flavor attr/char info */
                 dump_visual_pair(
@@ -10333,13 +10333,13 @@ void do_cmd_visuals(void)
             }
 
             /* All done */
-            fprintf(fff, "\n\n\n\n");
+            SDL_IOprintf(fff, "\n\n\n\n");
 
             /* Output footer */
             pref_footer(fff, mark);
 
             /* Close */
-            my_fclose(fff);
+            sdl_fclose(fff);
 
             /* Message */
             msg_print("Dumped flavor attr/chars.");
@@ -11189,7 +11189,7 @@ void do_cmd_colors(void)
 
     int i;
 
-    FILE* fff;
+    SDL_IOStream* fff;
 
     char buf[1024];
 
@@ -11275,7 +11275,7 @@ void do_cmd_colors(void)
             remove_old_dump(buf, mark);
 
             /* Append to the file */
-            fff = my_fopen(buf, "a");
+            fff = sdl_fopen(buf, "a");
 
             /* Failure */
             if (!fff)
@@ -11285,10 +11285,10 @@ void do_cmd_colors(void)
             pref_header(fff, mark);
 
             /* Skip some lines */
-            fprintf(fff, "\n\n");
+            SDL_IOprintf(fff, "\n\n");
 
             /* Start dumping */
-            fprintf(fff, "# Color redefinitions\n\n");
+            SDL_IOprintf(fff, "# Color redefinitions\n\n");
 
             /* Dump colors */
             for (i = 0; i < 256; i++)
@@ -11309,21 +11309,21 @@ void do_cmd_colors(void)
                     name = color_names[i];
 
                 /* Dump a comment */
-                fprintf(fff, "# Color '%s'\n", name);
+                SDL_IOprintf(fff, "# Color '%s'\n", name);
 
                 /* Dump the monster attr/char info */
-                fprintf(fff, "V:%d:0x%02X:0x%02X:0x%02X:0x%02X\n\n", i, kv, rv,
+                SDL_IOprintf(fff, "V:%d:0x%02X:0x%02X:0x%02X:0x%02X\n\n", i, kv, rv,
                     gv, bv);
             }
 
             /* All done */
-            fprintf(fff, "\n\n\n\n");
+            SDL_IOprintf(fff, "\n\n\n\n");
 
             /* Output footer */
             pref_footer(fff, mark);
 
             /* Close */
-            my_fclose(fff);
+            sdl_fclose(fff);
 
             /* Message */
             msg_print("Dumped color redefinitions.");
@@ -11588,7 +11588,7 @@ void do_cmd_knowledge_notes(void) { show_buffer(notes_buffer, "Notes", 0); }
  */
 void do_cmd_knowledge_oaths(void)
 {
-    FILE* fff;
+    SDL_IOStream* fff;
     char file_name[1024];
     
     /* Temporary file */
@@ -11596,113 +11596,113 @@ void do_cmd_knowledge_oaths(void)
         return;
 
     /* Open a new file */
-    fff = my_fopen(file_name, "w");
+    fff = sdl_fopen(file_name, "w");
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Scan the oaths */
-    fprintf(fff, "Oath Status\n\n");
+    SDL_IOprintf(fff, "Oath Status\n\n");
     
     /* Check current character oath */
     if (p_ptr->have_ability[S_SPC][SPC_OATH_MERCY])
     {
         if (p_ptr->active_ability[S_SPC][SPC_OATH_MERCY])
-            fprintf(fff, "Current Oath: Oath of Mercy (Active)\n\n");
+            SDL_IOprintf(fff, "Current Oath: Oath of Mercy (Active)\n\n");
         else
-            fprintf(fff, "Current Oath: Oath of Mercy (Broken)\n\n");
+            SDL_IOprintf(fff, "Current Oath: Oath of Mercy (Broken)\n\n");
     }
     else if (p_ptr->have_ability[S_SPC][SPC_OATH_SILENCE])
     {
         if (p_ptr->active_ability[S_SPC][SPC_OATH_SILENCE])
-            fprintf(fff, "Current Oath: Oath of Silence (Active)\n\n");
+            SDL_IOprintf(fff, "Current Oath: Oath of Silence (Active)\n\n");
         else
-            fprintf(fff, "Current Oath: Oath of Silence (Broken)\n\n");
+            SDL_IOprintf(fff, "Current Oath: Oath of Silence (Broken)\n\n");
     }
     else if (p_ptr->have_ability[S_SPC][SPC_OATH_IRON])
     {
         if (p_ptr->active_ability[S_SPC][SPC_OATH_IRON])
-            fprintf(fff, "Current Oath: Oath of Iron (Active)\n\n");
+            SDL_IOprintf(fff, "Current Oath: Oath of Iron (Active)\n\n");
         else
-            fprintf(fff, "Current Oath: Oath of Iron (Broken)\n\n");
+            SDL_IOprintf(fff, "Current Oath: Oath of Iron (Broken)\n\n");
     }
     else if (p_ptr->have_ability[S_SPC][SPC_OATH_SMITH])
     {
         if (p_ptr->active_ability[S_SPC][SPC_OATH_SMITH])
-            fprintf(fff, "Current Oath: Oath of the Smith (Active)\n\n");
+            SDL_IOprintf(fff, "Current Oath: Oath of the Smith (Active)\n\n");
         else
-            fprintf(fff, "Current Oath: Oath of the Smith (Broken)\n\n");
+            SDL_IOprintf(fff, "Current Oath: Oath of the Smith (Broken)\n\n");
     }
     else if (p_ptr->have_ability[S_SPC][SPC_OATH_VALOROUS])
     {
         if (p_ptr->active_ability[S_SPC][SPC_OATH_VALOROUS])
-            fprintf(fff, "Current Oath: Oath of Valorous Heart (Active)\n\n");
+            SDL_IOprintf(fff, "Current Oath: Oath of Valorous Heart (Active)\n\n");
         else
-            fprintf(fff, "Current Oath: Oath of Valorous Heart (Broken)\n\n");
+            SDL_IOprintf(fff, "Current Oath: Oath of Valorous Heart (Broken)\n\n");
     }
     else
     {
-        fprintf(fff, "Current Oath: None\n\n");
+        SDL_IOprintf(fff, "Current Oath: None\n\n");
     }
     
     /* Display metarun oath status */
-    fprintf(fff, "Metarun Oath Status:\n");
+    SDL_IOprintf(fff, "Metarun Oath Status:\n");
     
     /* Check unlocked oaths */
     bool has_unlocked = false;
     if (oath_unlocked(OATH_MERCY)) 
     {
-        fprintf(fff, "  Oath of Mercy: Unlocked");
+        SDL_IOprintf(fff, "  Oath of Mercy: Unlocked");
         if (oath_banned(OATH_MERCY))
-            fprintf(fff, " (Banned this run)");
-        fprintf(fff, "\n");
+            SDL_IOprintf(fff, " (Banned this run)");
+        SDL_IOprintf(fff, "\n");
         has_unlocked = true;
     }
     
     if (oath_unlocked(OATH_SILENCE)) 
     {
-        fprintf(fff, "  Oath of Silence: Unlocked");
+        SDL_IOprintf(fff, "  Oath of Silence: Unlocked");
         if (oath_banned(OATH_SILENCE))
-            fprintf(fff, " (Banned this run)");
-        fprintf(fff, "\n");
+            SDL_IOprintf(fff, " (Banned this run)");
+        SDL_IOprintf(fff, "\n");
         has_unlocked = true;
     }
     
     if (oath_unlocked(OATH_IRON)) 
     {
-        fprintf(fff, "  Oath of Iron: Unlocked");
+        SDL_IOprintf(fff, "  Oath of Iron: Unlocked");
         if (oath_banned(OATH_IRON))
-            fprintf(fff, " (Banned this run)");
-        fprintf(fff, "\n");
+            SDL_IOprintf(fff, " (Banned this run)");
+        SDL_IOprintf(fff, "\n");
         has_unlocked = true;
     }
     
     if (oath_unlocked(OATH_SMITH)) 
     {
-        fprintf(fff, "  Oath of the Smith: Unlocked");
+        SDL_IOprintf(fff, "  Oath of the Smith: Unlocked");
         if (oath_banned(OATH_SMITH))
-            fprintf(fff, " (Banned this run)");
-        fprintf(fff, "\n");
+            SDL_IOprintf(fff, " (Banned this run)");
+        SDL_IOprintf(fff, "\n");
         has_unlocked = true;
     }
     
     if (oath_unlocked(OATH_VALOROUS)) 
     {
-        fprintf(fff, "  Oath of Valorous Heart: Unlocked");
+        SDL_IOprintf(fff, "  Oath of Valorous Heart: Unlocked");
         if (oath_banned(OATH_VALOROUS))
-            fprintf(fff, " (Banned this run)");
-        fprintf(fff, "\n");
+            SDL_IOprintf(fff, " (Banned this run)");
+        SDL_IOprintf(fff, "\n");
         has_unlocked = true;
     }
     
     if (!has_unlocked)
     {
-        fprintf(fff, "  No oaths unlocked yet.\n");
-        fprintf(fff, "  Complete Valar quests to unlock new oaths.\n");
+        SDL_IOprintf(fff, "  No oaths unlocked yet.\n");
+        SDL_IOprintf(fff, "  Complete Valar quests to unlock new oaths.\n");
     }
     
     /* Close the file */
-    my_fclose(fff);
+    sdl_fclose(fff);
 
     /* Display the file contents */
     show_file(file_name, "Oath Status", 0);
@@ -14022,7 +14022,7 @@ void do_cmd_knowledge_kills(void)
 {
     int n, i;
 
-    FILE* fff;
+    SDL_IOStream* fff;
 
     char file_name[1024];
 
@@ -14030,7 +14030,7 @@ void do_cmd_knowledge_kills(void)
     //	u16b why = 4;
 
     /* Temporary file */
-    fff = my_fopen_temp(file_name, sizeof(file_name));
+    fff = sdl_fopen_temp(file_name, sizeof(file_name));
 
     /* Failure */
     if (!fff)
@@ -14069,12 +14069,12 @@ void do_cmd_knowledge_kills(void)
         if (r_ptr->flags1 & (RF1_UNIQUE))
         {
             /* Print a message */
-            fprintf(fff, "         %-40s\n", (r_name + r_ptr->name));
+            SDL_IOprintf(fff, "         %-40s\n", (r_name + r_ptr->name));
         }
         else
         {
             /* Print a message */
-            fprintf(
+            SDL_IOprintf(
                 fff, "  %5d  %-40s\n", l_ptr->pkills, (r_name + r_ptr->name));
         }
     }
@@ -14083,7 +14083,7 @@ void do_cmd_knowledge_kills(void)
     FREE(who);
 
     /* Close the file */
-    my_fclose(fff);
+    sdl_fclose(fff);
 
     /* Display the file contents */
     show_file(file_name, "Kill counts", 0);
@@ -15315,5 +15315,9 @@ void show_unified_sidebar(unified_look_state* state)
     previous_line_count = current_line_count;
     log_trace("show_unified_sidebar: function complete, set previous_line_count=%d", previous_line_count);
 }
+
+
+
+
 
 
