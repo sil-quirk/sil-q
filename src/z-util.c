@@ -18,67 +18,6 @@
 cptr argv0 = NULL;
 
 /*
- * Case insensitive comparison between two strings
-
- */
-int my_stricmp(const char* s1, const char* s2)
-{
-    char ch1 = 0;
-    char ch2 = 0;
-
-    /* Just loop */
-    while (true)
-    {
-        /* We've reached the end of both strings simultaneously */
-        if ((*s1 == 0) && (*s2 == 0))
-        {
-            /* We're still here, so s1 and s2 are equal */
-            return (0);
-        }
-
-        ch1 = toupper(*s1);
-        ch2 = toupper(*s2);
-
-        /* If the characters don't match */
-        if (ch1 != ch2)
-        {
-            /* return the difference between them */
-            return ((int)(ch1 - ch2));
-        }
-
-        /* Step on through both strings */
-        s1++;
-        s2++;
-    }
-
-    return (0);
-}
-
-/*
- * Case insensitive comparison between the first n characters of two strings
- */
-int my_strnicmp(cptr a, cptr b, int n)
-{
-    cptr s1, s2;
-    char z1, z2;
-
-    /* Scan the strings */
-    for (s1 = a, s2 = b; n > 0; s1++, s2++, n--)
-    {
-        z1 = toupper((unsigned char)*s1);
-        z2 = toupper((unsigned char)*s2);
-        if (z1 < z2)
-            return (-1);
-        if (z1 > z2)
-            return (1);
-        if (!z1)
-            return (0);
-    }
-
-    return 0;
-}
-
-/*
  * The SDL_strlcpy() function copies up to 'bufsize'-1 characters from 'src'
  * to 'buf' and NUL-terminates the result.  The 'buf' and 'src' strings may
  * not overlap.

@@ -4134,7 +4134,7 @@ void process_player_name(bool sf)
         if (iscntrl((unsigned char)c))
         {
             /* Illegal characters */
-            quit_fmt("Illegal control char (0x%02X) in player name", c);
+            quit(format("Illegal control char (0x%02X) in player name", c));
         }
 
         /* Convert illegal file system characters but preserve some readability */
@@ -9463,7 +9463,7 @@ void html_screenshot(cptr name)
     /* Oops */
     if (!htm)
     {
-        plog_fmt("Cannot write the '%s' file!", buf);
+        plog(format("Cannot write the '%s' file!", buf));
         return;
     }
 

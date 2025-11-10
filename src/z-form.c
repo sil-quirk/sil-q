@@ -597,63 +597,18 @@ void strnfcat(char* str, size_t max, size_t* end, cptr fmt, ...)
     *end += len;
 }
 
-static char* format_buf = NULL;
-static size_t format_len = 0;
-
 /*
- * Do a vstrnfmt (see above) into a (growable) static buffer.
- * This buffer is usable for very short term formatting of results.
- */
-char* vformat(cptr fmt, va_list vp)
-{
-    /* Initial allocation */
-    if (!format_buf)
-    {
-        format_len = 1024;
-        C_MAKE(format_buf, format_len, char);
-    }
-
-    /* Null format yields last result */
-    if (!fmt)
-        return (format_buf);
-
-    /* Keep going until successful */
-    while (1)
-    {
-        size_t len;
-
-        /* Build the string */
-        len = vstrnfmt(format_buf, format_len, fmt, vp);
-
-        /* Success */
-        if (len < format_len - 1)
-            break;
-
-        /* Grow the buffer */
-        KILL(format_buf);
-        format_len = format_len * 2;
-        C_MAKE(format_buf, format_len, char);
-    }
-
-    /* Return the new buffer */
-    return (format_buf);
-}
-
-void vformat_kill(void) { KILL(format_buf); }
-
-/*
- * Do a vstrnfmt (see above) into a buffer of a given size.
+ * Simple interface to vstrnfmt()
  */
 size_t strnfmt(char* buf, size_t max, cptr fmt, ...)
 {
     size_t len;
-
     va_list vp;
 
     /* Begin the Varargs Stuff */
     va_start(vp, fmt);
 
-    /* Do a virtual fprintf to stderr */
+    /* Format the string */
     len = vstrnfmt(buf, max, fmt, vp);
 
     /* End the Varargs Stuff */
@@ -661,92 +616,5 @@ size_t strnfmt(char* buf, size_t max, cptr fmt, ...)
 
     /* Return the number of bytes written */
     return (len);
-}
-
-/*
- * Do a vstrnfmt() into (see above) into a (growable) static buffer.
- * This buffer is usable for very short term formatting of results.
- * Note that the buffer is (technically) writable, but only up to
- * the length of the string contained inside it.
- */
-char* format(cptr fmt, ...)
-{
-    char* res;
-    va_list vp;
-
-    /* Begin the Varargs Stuff */
-    va_start(vp, fmt);
-
-    /* Format the args */
-    res = vformat(fmt, vp);
-
-    /* End the Varargs Stuff */
-    va_end(vp);
-
-    /* Return the result */
-    return (res);
-}
-
-/*
- * Vararg interface to plog()
- */
-void plog_fmt(cptr fmt, ...)
-{
-    char* res;
-    va_list vp;
-
-    /* Begin the Varargs Stuff */
-    va_start(vp, fmt);
-
-    /* Format the args */
-    res = vformat(fmt, vp);
-
-    /* End the Varargs Stuff */
-    va_end(vp);
-
-    /* Call plog */
-    plog(res);
-}
-
-/*
- * Vararg interface to quit()
- */
-void quit_fmt(cptr fmt, ...)
-{
-    char* res;
-    va_list vp;
-
-    /* Begin the Varargs Stuff */
-    va_start(vp, fmt);
-
-    /* Format */
-    res = vformat(fmt, vp);
-
-    /* End the Varargs Stuff */
-    va_end(vp);
-
-    /* Call quit() */
-    quit(res);
-}
-
-/*
- * Vararg interface to core()
- */
-void core_fmt(cptr fmt, ...)
-{
-    char* res;
-    va_list vp;
-
-    /* Begin the Varargs Stuff */
-    va_start(vp, fmt);
-
-    /* If requested, Do a virtual fprintf to stderr */
-    res = vformat(fmt, vp);
-
-    /* End the Varargs Stuff */
-    va_end(vp);
-
-    /* Call core() */
-    core(res);
 }
 

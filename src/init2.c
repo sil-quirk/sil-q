@@ -414,7 +414,7 @@ static void display_parse_error(cptr filename, errr err, cptr buf)
     message_flush();
 
     /* Quit */
-    quit_fmt("Error in '%s.txt' file.", filename);
+    quit(format("Error in '%s.txt' file.", filename));
 }
 
 #endif /* ALLOW_TEMPLATES */
@@ -531,7 +531,7 @@ static errr init_info(cptr filename, header* head)
             if (!fd)
             {
                 /* Complain */
-                plog_fmt("Cannot create the '%s' file!", buf);
+                plog(format("Cannot create the '%s' file!", buf));
 
                 /* Continue */
                 return (0);
@@ -554,7 +554,7 @@ static errr init_info(cptr filename, header* head)
         if (!fd)
         {
             /* Complain */
-            plog_fmt("Cannot write the '%s' file!", buf);
+            plog(format("Cannot write the '%s' file!", buf));
 
             /* Continue */
             return (0);
@@ -1745,10 +1745,10 @@ static void note(cptr str)
  */
 static void init_angband_aux(cptr why)
 {
-    quit_fmt("%s\n\n%s", why,
+    quit(format("%s\n\n%s", why,
         "The 'lib' directory is probably missing or broken.\n"
         "Perhaps the archive was not extracted correctly.\n"
-        "See the manual for more information.");
+        "See the manual for more information."));
 }
 
 extern void display_introduction(void)
@@ -2201,8 +2201,7 @@ void cleanup_angband(void)
     free_info(&n_head);
     free_info(&style_head);
 
-    /* Free the format() buffer */
-    vformat_kill();
+    /* Note: format() now uses a static buffer, no cleanup needed */
 
     /* Free the directories */
     string_free(ANGBAND_DIR);

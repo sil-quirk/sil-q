@@ -4110,6 +4110,11 @@ Creating a fresh `sil_sdl.json` on macOS detected 1440x900 instead of the panel'
 - Captured the modernization goals and module inventory in `proprietary_utility_retirement_plan.md`, including a six-phase migration path that starts with simple string/memory helper removal and ramps up to retiring `z-term` entirely.
 - Each phase in the new plan calls out scope, key tasks, and verification steps so we can keep SDL builds running between changes; doc lives at the repo root for easy reference alongside the SDL migration notes.
 
+## 2025-11-10: Phase 0-2 Review + z-* Retirement Planning
+- Verified that all `my_str*` call sites were replaced with SDL/standard helpers and that we now expose inline wrappers in `src/angband.h:94-110`; `z-virt.c:16-96` backs the historical macros with `SDL_calloc`/`SDL_free`.
+- Confirmed Phase 2 landed: SDL IO helpers (`sdl_fopen`, `sdl_fclose`, `sdl_fgets`, etc.) live in `src/util.c:299-629` and are used throughout loaders/dumps (`src/cmd4.c:170-260`, `src/dump_items.c:80-949`, `src/save.c:316-2021`), so the tree no longer relies on `FILE*` wrappers.
+- Refreshed `proprietary_utility_retirement_plan.md` with status table + new restructuring roadmap (filesystem breakout, logging bootstrap, color helpers) and a C17 modernization checklist (unused `my_str*` in `z-util.c:24-119`, static buffer in `z-form.c:600-642`, macro-heavy allocators in `z-virt.h:32-86`, remaining `Term_*` hooks in `z-term.c`).
+- Documented the monolithic `util.c` areas that still need attention (`path_parse` at `src/util.c:129-378`, logger bootstrap near `src/util.c:5944-6390`) so later phases can split them into targeted modules on the way to deleting `z-*`.
 
 ## 2025-11-10: Legacy Platform Code Retirement
 
@@ -4140,3 +4145,50 @@ Successfully retired all non-SDL platform code:
 - `WINDOWS` define remains in codebase - it's for platform detection (MinGW vs others), not the old WinAPI frontend
 - Some files still use standard `FILE*` (sdl-config.c, some utilities) - acceptable as they're SDL-specific or special cases
 - Config.h retains historical documentation comments about GCU for reference
+
+## 2025-11-10 (continued): Phase 3 - Formatting Layer Modernization
+
+### Completed Work
+
+**Phase 3: Replace Formatting + Logging Glue**
+- Created new `src/format.h` and `src/format.c` modules providing a cleaner API
+- Moved `format()` function from z-form.c to format.c with static buffer (compatibility)
+- Deleted obsolete functions from z-form.c:
+  - `vformat()` and `vformat_kill()` (growable buffer system)
+  - `plog_fmt()`, `quit_fmt()`, `core_fmt()` (vararg wrappers)
+- Replaced all uses of `plog_fmt()` and `quit_fmt()` with `plog(format(...))` and `quit(format(...))` patterns
+- Removed unused `my_stricmp()` and `my_strnicmp()` from z-util.c (C17 modernization)
+- Updated z-form.h to reflect reduced API (vstrnfmt, strnfmt, strnfcat only)
+- Updated angband.h to include format.h instead of z-form.h
+- Added format.c to CMakeLists.txt
+
+### Technical Details
+
+**Format Layer Architecture:**
+- z-form.c retains `vstrnfmt()` implementation with custom "%^" capitalization support
+- format.h provides the main API: `vstrnfmt()`, `strnfmt()`, `strnfcat()`, `format()`
+- format.c implements `format()` using a 2048-byte static buffer (thread-unsafe but compatible)
+- Custom format sequences (like "%^") still work via z-form's vstrnfmt
+
+**Migration Pattern:**
+Old (removed): quit_fmt("Error: %s", message);
+New (current): quit(format("Error: %s", message));
+
+**Why Keep z-form's vstrnfmt:**
+The custom vstrnfmt in z-form.c supports "%^" which capitalizes the first non-space character. This is used extensively in lore and description generation.
+
+### Build Status
+- **Build:** SUCCESS (Phase 3 changes compile cleanly)
+- **Warnings:** Pre-existing warnings remain (type limits, sign compare, unused parameters)
+- No new errors or warnings introduced by Phase 3
+
+### Files Modified (Phase 3)
+- src/format.h (new), src/format.c (new)
+- src/angband.h, src/z-form.h, src/z-form.c, src/z-util.c
+- src/files.c (2 calls), src/init2.c (5 calls), src/main.c (3 calls), src/cave.c (4 calls), src/object1.c (1 call)
+- CMakeLists.txt
+
+### Phase 3 Status: COMPLETE
+
+---
+

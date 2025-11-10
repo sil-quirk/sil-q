@@ -207,7 +207,7 @@ static void flavor_assign_random(byte tval)
             continue;
 
         if (!flavor_count)
-            quit_fmt("Not enough flavors for tval %d.", tval);
+            quit(format("Not enough flavors for tval %d.", tval));
 
         /* Select a flavor */
         choice = rand_int(flavor_count);

@@ -3000,7 +3000,7 @@ static void vinfo_init_aux(vinfo_hack* hack, int y, int x, long m)
             /* Paranoia */
             if (hack->num_slopes >= VINFO_MAX_SLOPES)
             {
-                quit_fmt("Too many LOS slopes (%d)!", VINFO_MAX_SLOPES);
+                quit(format("Too many LOS slopes (%d)!", VINFO_MAX_SLOPES));
             }
 
             /* Save the slope, increment count */
@@ -3063,8 +3063,8 @@ errr vinfo_init(void)
             /* Paranoia */
             if (num_grids >= VINFO_MAX_GRIDS)
             {
-                quit_fmt(
-                    "Too many grids (%d >= %d)!", num_grids, VINFO_MAX_GRIDS);
+                quit(format(
+                    "Too many grids (%d >= %d)!", num_grids, VINFO_MAX_GRIDS));
             }
 
             /* Count grids */
@@ -3099,14 +3099,14 @@ errr vinfo_init(void)
     /* Enforce maximal efficiency (grids) */
     if (num_grids < VINFO_MAX_GRIDS)
     {
-        quit_fmt("Too few grids (%d < %d)!", num_grids, VINFO_MAX_GRIDS);
+        quit(format("Too few grids (%d < %d)!", num_grids, VINFO_MAX_GRIDS));
     }
 
     /* Enforce maximal efficiency (line of sight slopes) */
     if (hack->num_slopes < VINFO_MAX_SLOPES)
     {
-        quit_fmt("Too few LOS slopes (%d < %d)!", hack->num_slopes,
-            VINFO_MAX_SLOPES);
+        quit(format("Too few LOS slopes (%d < %d)!", hack->num_slopes,
+            VINFO_MAX_SLOPES));
     }
 
     /* Sort slopes numerically */

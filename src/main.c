@@ -171,7 +171,7 @@ static void change_path(cptr info)
 
     /* Verify equal sign */
     if (!s)
-        quit_fmt("Try '-d<what>=<path>' not '-d%s'", info);
+        quit(format("Try '-d<what>=<path>' not '-d%s'", info));
 
     /* Analyze */
     switch (tolower((unsigned char)info[0]))
@@ -219,7 +219,7 @@ static void change_path(cptr info)
     case 'e':
     case 's':
     {
-        quit_fmt("Restricted option '-d%s'", info);
+        quit(format("Restricted option '-d%s'", info));
     }
 
 #else /* VERIFY_SAVEFILE */
@@ -265,7 +265,7 @@ static void change_path(cptr info)
 
     default:
     {
-        quit_fmt("Bad semantics in '-d%s'", info);
+        quit(format("Bad semantics in '-d%s'", info));
     }
     }
 }

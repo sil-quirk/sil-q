@@ -21,7 +21,7 @@
  */
 #include "z-util.h"
 #include "z-virt.h"
-#include "z-form.h"
+#include "format.h"
 #include "z-rand.h"
 #include "z-term.h"
 #include "log/log.h"

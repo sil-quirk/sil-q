@@ -37,6 +37,7 @@ add_executable(sil-more
     src/dump_items.c
     src/dungeon.c
     src/files.c
+    src/format.c
     src/generate.c
     src/init1.c
     src/init2.c
