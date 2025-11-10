@@ -3,8 +3,6 @@ project(sil-more C)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-option(USE_SDL "Build with SDL support" ON)
-option(USE_GCU "Build with GCU (ncurses) support" OFF)
 option(LOG_MODE_TIMESTAMP "Create new log with timestamp each time" OFF)
 option(STEAMDECK_SUPPORT "Build for Steam Deck" OFF)
 
@@ -23,16 +21,6 @@ endif()
 find_package(SDL3 REQUIRED)
 find_package(SDL3_ttf REQUIRED)
 find_package(SDL3_image REQUIRED)
-find_package(Curses)
-if(Curses_FOUND AND NOT TARGET Curses::Curses)
-  add_library(Curses::Curses INTERFACE IMPORTED)
-  set_target_properties(
-    Curses::Curses
-    PROPERTIES
-      INTERFACE_LINK_LIBRARIES "${CURSES_LIBRARIES}"
-      INTERFACE_INCLUDE_DIRECTORIES "${CURSES_INCLUDE_DIRS}"
-  )
-endif()
 
 add_subdirectory(src/log)
 
@@ -95,29 +83,14 @@ endif()
 # add_library(log STATIC src/log/log.c)
 target_include_directories(log PUBLIC src/log)
 
-if(USE_SDL)
-  list(APPEND SIL_MORE_SOURCES src/main-sdl.c)
-endif()
-
 # add_executable(sil-more ${SIL_MORE_SOURCES})
 
 target_compile_options(sil-more PUBLIC -Wall -Wextra -std=c11)
 target_include_directories(sil-more PRIVATE src)
+target_compile_definitions(sil-more PRIVATE USE_SDL)
 
 if(MINGW)
   target_link_options(sil-more PRIVATE -mwindows)
 endif()
 
-if(USE_SDL)
-  find_package(SDL3 REQUIRED CONFIG)
-  find_package(SDL3_ttf REQUIRED CONFIG)
-  find_package(SDL3_image REQUIRED CONFIG)
-  target_compile_definitions(sil-more PRIVATE USE_SDL)
-  target_link_libraries(sil-more PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image log)
-endif()
-
-if(USE_GCU)
-  find_package(Curses REQUIRED)
-  target_compile_definitions(sil-more PRIVATE USE_GCU)
-  target_link_libraries(sil-more PRIVATE Curses::Curses log)
-endif()
+target_link_libraries(sil-more PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image log)

@@ -13,10 +13,8 @@
 
 #include "angband.h"
 
-extern errr init_gcu(int argc, char** argv);
 extern errr init_sdl(int argc, char** argv);
 
-extern const char help_gcu[];
 extern const char help_sdl[];
 
 struct module

@@ -3974,3 +3974,34 @@ Creating a fresh `sil_sdl.json` on macOS detected 1440x900 instead of the panel'
 - Read through the legacy utility layer (`src/z-util.c`, `src/z-form.c`, `src/z-rand.c`, `src/z-virt.c`, `src/z-term.c`, and the relevant sections of `src/util.c`) to catalog which responsibilities still rely on bespoke wrappers.
 - Captured the modernization goals and module inventory in `proprietary_utility_retirement_plan.md`, including a six-phase migration path that starts with simple string/memory helper removal and ramps up to retiring `z-term` entirely.
 - Each phase in the new plan calls out scope, key tasks, and verification steps so we can keep SDL builds running between changes; doc lives at the repo root for easy reference alongside the SDL migration notes.
+
+
+## 2025-11-10: Legacy Platform Code Retirement
+
+### Completed
+Successfully retired all non-SDL platform code:
+
+**Files Deleted:**
+- `src/main-gcu.c` - Legacy curses/ncurses terminal interface
+- `src/main-win.c` - Legacy Windows GDI/WinAPI interface
+- `src/readdib.c` / `src/readdib.h` - Windows DIB bitmap support
+
+**Code Simplified:**
+- `src/main.c` - Removed `USE_GCU` conditional compilation and old Windows check
+- `src/main.h` - Removed `init_gcu()` and `help_gcu[]` declarations
+- `CMakeLists.txt` - Removed `USE_GCU` and `USE_SDL` options (SDL is now always enabled), removed Curses dependency checks
+
+**Build Configuration:**
+- SDL3 is now the only supported frontend
+- `USE_SDL` is always defined for all builds
+- No conditional compilation needed for platform selection
+
+**Verification:**
+- Build succeeded with no errors
+- All warnings are pre-existing (unrelated to platform retirement)
+- File I/O already uses SDL functions (`sdl_fopen`, `sdl_fclose`)
+
+### Notes
+- `WINDOWS` define remains in codebase - it's for platform detection (MinGW vs others), not the old WinAPI frontend
+- Some files still use standard `FILE*` (sdl-config.c, some utilities) - acceptable as they're SDL-specific or special cases
+- Config.h retains historical documentation comments about GCU for reference
