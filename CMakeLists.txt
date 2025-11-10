@@ -69,7 +69,6 @@ add_executable(sil-more
     src/wizard2.c
     src/xtra1.c
     src/xtra2.c
-    src/z-form.c
     src/z-term.c
     src/z-util.c
     src/z-virt.c

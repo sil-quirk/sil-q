@@ -3,9 +3,8 @@
 /*
  * Modern string formatting layer
  * 
- * This header provides the main formatting API. The actual vstrnfmt 
- * implementation remains in z-form.c for now because it supports custom
- * format sequences (like "%^" for capitalization) used throughout the codebase.
+ * Provides the custom vstrnfmt()/strnfmt()/strnfcat() helpers used
+ * throughout the codebase (supports extensions like "%^" for capitalization).
  */
 
 #ifndef INCLUDED_FORMAT_H
@@ -17,10 +16,6 @@
 /*
  * Format arguments into given bounded-length buffer
  * Returns: number of characters written (excluding null terminator)
- * 
- * Implemented in z-form.c - supports custom format sequences:
- * - "%^" prefix capitalizes the first non-space character
- * - All standard printf format sequences
  */
 extern size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp);
 

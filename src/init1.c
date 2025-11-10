@@ -10,7 +10,6 @@
 
 #include "angband.h"
 #include "h-define.h"
-#include "z-form.h" 
 #include <SDL3/SDL.h>
 #include <ctype.h>
 /* Forward declaration for init2 and local placement */

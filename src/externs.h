@@ -10,7 +10,7 @@
 
 /*
  * Note that some files have their own header files
- * (z-virt.h, z-util.h, z-form.h, z-term.h, rng.h)
+ * (z-virt.h, z-util.h, z-term.h, rng.h)
  */
 
 /*
