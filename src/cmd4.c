@@ -402,7 +402,6 @@ void do_cmd_character_sheet(void)
         
         /* Print the full command menu in base color */
         /* Prompt - render based on character sheet font setting */
-    #ifdef USE_SDL
         if (story_character_enabled()) {
             sdl_story_font_enable();
             /* Story font - use more spacing for readability */
@@ -413,19 +412,12 @@ void do_cmd_character_sheet(void)
             Term_putstr(1, 23, -1, TERM_L_WHITE,
                 "n-notes  s-story  f-file  a-abilities  c-curses  i-increase  ?-help  ESC");
         }
-    #else
-        /* Non-SDL builds use mono spacing */
-        Term_putstr(1, 23, -1, TERM_L_WHITE,
-            "n-notes  s-story  f-file  a-abilities  c-curses  i-increase  ?-help  ESC");
-    #endif
 
         Term_fresh();  /* Render commands */
 
-    #ifdef USE_SDL
         if (story_character_enabled()) {
             sdl_story_font_disable();
         }
-    #endif
 
         /* Query */
         ch = inkey();
@@ -8656,7 +8648,6 @@ static errr option_dump(cptr fname)
  */
 void do_cmd_pane_settings(void)
 {
-#ifdef USE_SDL
     int k = 0;
     int n = 7; /* Total number of options (not including save/quit) */
     bool done = false;
@@ -8942,16 +8933,6 @@ void do_cmd_pane_settings(void)
     
     /* Restore screen */
     screen_load();
-#else
-    /* Not using SDL */
-    screen_save();
-    Term_clear();
-    Term_putstr(2, 1, -1, TERM_L_BLUE, "SDL Pane Settings");
-    Term_putstr(2, 3, -1, TERM_WHITE, "This feature is only available in SDL builds.");
-    Term_putstr(2, 5, -1, TERM_L_BLUE, "Press any key to return...");
-    (void)inkey();
-    screen_load();
-#endif
 }
 
 

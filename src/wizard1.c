@@ -13,26 +13,15 @@
 #ifdef ALLOW_SPOILERS
 
 /* Wrapper macros for SDL/FILE* compatibility in spoiler generation */
-#ifdef USE_SDL
 #define SPOIL_FPRINTF SDL_IOprintf
 #define SPOIL_FPUTC(c, stream) do { unsigned char _ch = (c); SDL_WriteIO(stream, &_ch, 1); } while(0)
 #define SPOIL_FERROR(stream) 0  /* SDL doesn't have ferror equivalent - check return values instead */
 #define SPOIL_FCLOSE(stream) sdl_fclose(stream)
-#else
-#define SPOIL_FPRINTF fprintf
-#define SPOIL_FPUTC fputc
-#define SPOIL_FERROR ferror
-#define SPOIL_FCLOSE my_fclose
-#endif
 
 /*
  * The spoiler file being created
  */
-#ifdef USE_SDL
 static SDL_IOStream* fff = NULL;
-#else
-static FILE* fff = NULL;
-#endif
 
 /*
  * Write out `n' of the character `c' to the spoiler file
@@ -170,11 +159,7 @@ static void spoil_obj_desc(cptr fname)
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Open the file */
-    #ifdef USE_SDL
     fff = sdl_fopen(buf, "w");
-#else
-    fff = my_fopen(buf, "w");
-#endif
 
     /* Oops */
     if (!fff)
@@ -373,11 +358,7 @@ static void spoil_artefact(cptr fname)
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Open the file */
-    #ifdef USE_SDL
     fff = sdl_fopen(buf, "w");
-#else
-    fff = my_fopen(buf, "w");
-#endif
 
     /* Oops */
     if (!fff)
@@ -502,11 +483,7 @@ static void spoil_mon_desc(cptr fname)
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Open the file */
-    #ifdef USE_SDL
     fff = sdl_fopen(buf, "w");
-#else
-    fff = my_fopen(buf, "w");
-#endif
 
     /* Oops */
     if (!fff)
@@ -699,11 +676,7 @@ static void spoil_mon_ss(cptr fname)
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Open the file */
-    #ifdef USE_SDL
     fff = sdl_fopen(buf, "w");
-#else
-    fff = my_fopen(buf, "w");
-#endif
 
     /* Oops */
     if (!fff)
@@ -870,11 +843,7 @@ static void spoil_mon_info(cptr fname)
     FILE_TYPE(FILE_TYPE_TEXT);
 
     /* Open the file */
-    #ifdef USE_SDL
     fff = sdl_fopen(buf, "w");
-#else
-    fff = my_fopen(buf, "w");
-#endif
 
     /* Oops */
     if (!fff)

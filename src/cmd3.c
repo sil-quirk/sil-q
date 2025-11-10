@@ -3166,7 +3166,6 @@ void do_cmd_unified_look(void)
         do_cmd_redraw();
     }
     
-#ifdef USE_SDL
     /* Enable story font for unified look if the setting is on */
     bool use_story_font = story_look_enabled();
     if (use_story_font)
@@ -3174,7 +3173,6 @@ void do_cmd_unified_look(void)
         log_debug("do_cmd_unified_look: Enabling story font");
         sdl_story_font_enable();
     }
-#endif
     
     log_trace("=== UNIFIED LOOK STARTED ===");
     
@@ -3461,11 +3459,9 @@ void do_cmd_unified_look(void)
             {
                 log_trace("EXAMINATION: 'x' key pressed for description");
                 
-#ifdef USE_SDL
                 /* Disable story font for info screens */
                 if (use_story_font)
                     sdl_story_font_disable();
-#endif
                 
                 /* Same logic as Space/Enter for examination */
                 log_trace("EXAMINATION: state.in_sidebar_mode=%d, state.selected_entity=%d", 
@@ -3938,11 +3934,9 @@ void do_cmd_unified_look(void)
             {
                 log_trace("EXAMINATION: Enter/Space key pressed for examination");
                 
-#ifdef USE_SDL
                 /* Disable story font for info screens */
                 if (use_story_font)
                     sdl_story_font_disable();
-#endif
                 
                 /* Examine current target */
                 log_trace("EXAMINATION: state.in_sidebar_mode=%d, state.selected_entity=%d", 
@@ -4139,11 +4133,9 @@ void do_cmd_unified_look(void)
                     }
                 }
                 
-#ifdef USE_SDL
                 /* Re-enable story font */
                 if (use_story_font)
                     sdl_story_font_enable();
-#endif
                 
                 need_redraw = true;
                 break;
@@ -4340,14 +4332,12 @@ void do_cmd_unified_look(void)
     /* Clear health tracking before exiting look command */
     health_track(0);
     
-#ifdef USE_SDL
     /* Disable story font if it was enabled */
     if (use_story_font)
     {
         log_debug("do_cmd_unified_look: Disabling story font");
         sdl_story_font_disable();
     }
-#endif
     
     /* Restore original viewport */
     if (p_ptr->wy != original_wy || p_ptr->wx != original_wx)

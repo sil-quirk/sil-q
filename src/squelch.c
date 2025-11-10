@@ -166,7 +166,7 @@ static int do_cmd_squelch_aux(void)
     int choice[60];
 
     char ftmp[80];
-    FILE* fff;
+    SDL_IOStream* fff;
     char buf[80];
 
     /* Clear screen */
@@ -239,7 +239,7 @@ static int do_cmd_squelch_aux(void)
             safe_setuid_drop();
 
             /* Append to the file */
-            fff = my_fopen(buf, "a");
+            fff = sdl_fopen(buf, "a");
 
             /* Grab priv's */
             safe_setuid_grab();
@@ -248,10 +248,10 @@ static int do_cmd_squelch_aux(void)
             if (fff)
             {
                 /* Skip some lines */
-                fprintf(fff, "\n\n");
+                SDL_IOprintf(fff, "\n\n");
 
                 /* Start dumping */
-                fprintf(fff, "# Squelch bits\n\n");
+                SDL_IOprintf(fff, "# Squelch bits\n\n");
 
                 /* Dump squelch bits */
                 for (i = 1; i < z_info->k_max; i++)
@@ -262,19 +262,19 @@ static int do_cmd_squelch_aux(void)
 
                     /* Dump the squelch info */
                     if (tval || sval)
-                        fprintf(fff, "Q:%d:%d:%d:%d\n", i, tval, sval, squelch);
+                        SDL_IOprintf(fff, "Q:%d:%d:%d:%d\n", i, tval, sval, squelch);
                 }
 
-                fprintf(fff, "\n\n# squelch_level array\n\n");
+                SDL_IOprintf(fff, "\n\n# squelch_level array\n\n");
 
                 for (i = 0; i < SQUELCH_BYTES; i++)
-                    fprintf(fff, "Q:%d:%d\n", i, squelch_level[i]);
+                    SDL_IOprintf(fff, "Q:%d:%d\n", i, squelch_level[i]);
 
                 /* All done */
-                fprintf(fff, "\n\n\n\n");
+                SDL_IOprintf(fff, "\n\n\n\n");
 
                 /* Close */
-                my_fclose(fff);
+                sdl_fclose(fff);
 
                 /* Ending message */
                 prt("Squelch file saved successfully.  (Hit a key.)", 17, 30);
@@ -333,7 +333,7 @@ static int do_cmd_squelch_aux(void)
             safe_setuid_drop();
 
             /* Overwrite the file */
-            fff = my_fopen(buf, "w");
+            fff = sdl_fopen(buf, "w");
 
             /* Grab priv's */
             safe_setuid_grab();
@@ -342,22 +342,22 @@ static int do_cmd_squelch_aux(void)
             if (fff && inscriptions)
             {
                 /* Start dumping */
-                fprintf(fff, "# Format: B:[Item Kind]:[Inscription]\n\n");
+                SDL_IOprintf(fff, "# Format: B:[Item Kind]:[Inscription]\n\n");
 
                 for (i = 0; i < inscriptionsCount; i++)
                 {
                     object_kind* k_ptr = &k_info[inscriptions[i].kindIdx];
 
                     /* Write a comment for the autoinscription*/
-                    fprintf(fff, "# Autoinscription for %s\n",
+                    SDL_IOprintf(fff, "# Autoinscription for %s\n",
                         k_name + k_ptr->name);
                     /* Dump the autoinscribe info */
-                    fprintf(fff, "B:%d:%s\n\n", inscriptions[i].kindIdx,
+                    SDL_IOprintf(fff, "B:%d:%s\n\n", inscriptions[i].kindIdx,
                         quark_str(inscriptions[i].inscriptionIdx));
                 }
 
                 /* Close */
-                my_fclose(fff);
+                sdl_fclose(fff);
 
                 /* Ending message */
                 prt("Autoinscribe file saved successfully.  (Hit a key.)", 16,
@@ -1980,3 +1980,5 @@ char* squelch_to_label(int squelch)
 
     return ("");
 }
+
+

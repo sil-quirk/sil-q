@@ -272,11 +272,7 @@ extern bool (*get_mon_num_hook)(int r_idx);
 extern bool (*get_obj_num_hook)(int k_idx);
 extern void (*object_info_out_flags)(
     const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3);
-#ifdef USE_SDL
 extern SDL_IOStream* text_out_file;
-#else
-extern FILE* text_out_file;
-#endif
 extern void (*text_out_hook)(byte a, cptr str);
 extern int text_out_wrap;
 extern int text_out_indent;
@@ -673,11 +669,7 @@ extern void mini_screenshot(void);
 extern void prt_mini_screenshot(int col, int row);
 extern int silmarils_possessed(void);
 extern int has_iron_crown(void);
-#ifdef USE_SDL
 extern SDL_IOStream* highscore_fd;
-#else
-extern FILE* highscore_fd;
-#endif
 extern int meta_write(const metarun*);
 extern errr meta_read(metarun*);
 extern int meta_seek(int i);
@@ -1090,7 +1082,6 @@ extern errr path_parse(char* buf, size_t max, cptr file);
 extern errr path_build(char* buf, size_t max, cptr path, cptr file);
 extern errr path_temp(char* buf, size_t max);
 
-#ifdef USE_SDL
 /* SDL3-based file I/O operations */
 extern SDL_IOStream* sdl_fopen(cptr file, cptr mode);
 extern SDL_IOStream* sdl_fopen_temp(char* buf, size_t max);
@@ -1102,7 +1093,6 @@ extern errr sdl_write(SDL_IOStream* stream, cptr buf, size_t n);
 extern errr sdl_seek(SDL_IOStream* stream, Sint64 offset);
 extern Sint64 sdl_tell(SDL_IOStream* stream);
 extern Sint64 sdl_size(SDL_IOStream* stream);
-#endif
 
 /* DEPRECATED - Old FILE*-based operations - DO NOT USE */
 extern FILE* my_fopen(cptr file, cptr mode);
@@ -1164,13 +1154,9 @@ extern void c_prt(byte attr, cptr str, int row, int col);
 extern void prt(cptr str, int row, int col);
 extern void text_out_to_file(byte attr, cptr str);
 extern int count_wrapped_lines(cptr str, int wrap_width, int indent);
-#ifdef USE_SDL
 extern int count_wrapped_lines_story(cptr str, int wrap_cols, int indent);
-#endif
 extern void text_out_to_screen(byte a, cptr str);
-#ifdef USE_SDL
 extern void text_out_to_screen_story(byte a, cptr str);
-#endif
 extern void text_out(cptr str);
 extern void text_out_c(byte a, cptr str);
 extern bool story_inventory_enabled(void);
@@ -1432,7 +1418,6 @@ extern char current_menu_command;
 extern int current_menu_state;
 
 /* SDL pane configuration functions (main-sdl.c) */
-#ifdef USE_SDL
 extern void get_sdl_config_info(char* buf, size_t size);
 extern bool save_pane_config_to_json(void);
 extern int get_sdl_main_view_scale(void);
@@ -1456,7 +1441,6 @@ extern void sdl_story_font_set_grid(bool grid);
 extern bool sdl_is_story_font_grid(void);
 extern int sdl_story_font_text_width(cptr text, int len);
 extern int sdl_get_cell_width(void);
-#endif
 
 extern void story_print_text(int row, int col, int max_cols, byte attr, cptr text);
 extern void story_print_text_grid(int row, int col, int max_cols, byte attr, cptr text);

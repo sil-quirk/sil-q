@@ -198,12 +198,12 @@ static int popcount32(u32b value)
     return count;
 }
 
-static int parse_character_file(FILE *fp)
+static int parse_character_file(SDL_IOStream *fp)
 {
     int count = 0;
     char line[1024];
 
-    while (fgets(line, sizeof(line), fp)) {
+    while (sdl_fgets(fp, line, sizeof(line)) == 0) {
         char *p = line;
         while (*p && isspace((unsigned char)*p)) p++;
         if (!*p || *p == '#') continue;
@@ -231,16 +231,16 @@ static int count_character_txt_entries(void)
     };
 
     char path[1024];
-    FILE *fp = NULL;
+    SDL_IOStream *fp = NULL;
 
     for (size_t i = 0; candidates[i].dir; i++) {
         if (!candidates[i].dir || !*candidates[i].dir) continue;
         path_build(path, sizeof(path), candidates[i].dir, candidates[i].filename);
         log_debug("count_character_txt_entries: trying %s", path);
-        fp = my_fopen(path, "r");
+        fp = sdl_fopen(path, "r");
         if (fp) {
             cached_total = parse_character_file(fp);
-            my_fclose(fp);
+            sdl_fclose(fp);
             log_debug("count_character_txt_entries: loaded %d entries from %s", cached_total, path);
             break;
         }
@@ -2149,9 +2149,7 @@ static void print_heading_fade(cptr title, byte final_attr)
     int start_col = (w - title_len) / 2;
     if (start_col < 1) start_col = 1;
     
-#ifdef USE_SDL
     sdl_story_font_enable();
-#endif
     
     for (int s = 0; s < steps; s++)
     {
@@ -2161,9 +2159,7 @@ static void print_heading_fade(cptr title, byte final_attr)
     }
     Term_xtra(TERM_XTRA_DELAY, 500); // Extra pause after heading
     
-#ifdef USE_SDL
     sdl_story_font_disable();
-#endif
 }
 
 static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
@@ -2175,9 +2171,7 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
     text_out_indent = 2;
     text_out_wrap   = Term->wid - 4;
 
-#ifdef USE_SDL
     sdl_story_font_enable();
-#endif
 
     for (int s = 0; s < steps; s++)
     {
@@ -2190,9 +2184,7 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
             text_out_c(final_attr, txt);
             text_out("\n");
             Term_fresh();
-#ifdef USE_SDL
             sdl_story_font_disable();
-#endif
             return false;
         }
         
@@ -2205,9 +2197,7 @@ static bool print_paragraph_fade(cptr txt, byte final_attr, int row)
     
     Term_xtra(TERM_XTRA_DELAY, 1000); // Pause after paragraph
     
-#ifdef USE_SDL
     sdl_story_font_disable();
-#endif
     return true;
 }
 
@@ -2217,17 +2207,13 @@ static void print_paragraph(cptr txt, byte attr)
     text_out_indent = 1;
     text_out_wrap   = Term->wid - 2;
 
-#ifdef USE_SDL
     sdl_story_font_enable();
-#endif
 
     Term_addstr(0, attr, "");
     text_out_c(attr, txt);
     text_out("\n");
     
-#ifdef USE_SDL
     sdl_story_font_disable();
-#endif
 }
 
 static void wait_for_keypress_with_prompt(cptr prompt)
@@ -5214,3 +5200,4 @@ int get_available_oaths_mask(void)
     
     return available;
 }
+

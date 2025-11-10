@@ -1241,13 +1241,9 @@ extern void re_init_some_things(void)
     autoinscribe_init();
 
     // display the introduction message again
-#ifdef USE_SDL
     sdl_story_font_enable();
-#endif
     display_introduction();
-#ifdef USE_SDL
     sdl_story_font_reset();
-#endif
 
     /* Array of grids */
     FREE(view_g);
@@ -1860,13 +1856,9 @@ void init_angband(void)
 
     /*** Display the introduction ***/
 
-#ifdef USE_SDL
     sdl_story_font_enable();
-#endif
     display_introduction();
-#ifdef USE_SDL
     sdl_story_font_reset();
-#endif
 
     /*** Verify (or create) the "high score" file ***/
 
@@ -2080,10 +2072,8 @@ extern NavResult initial_menu(bool *start_new)
 {
     int ch;
     NavResult result = NAV_BACK;
-#ifdef USE_SDL
     bool intro_story_font = true;
     sdl_story_font_enable();
-#endif
 
     display_introduction();
 
@@ -2137,10 +2127,8 @@ extern NavResult initial_menu(bool *start_new)
     }
 
 menu_done:
-#ifdef USE_SDL
     if (intro_story_font)
         sdl_story_font_reset();
-#endif
     return result;
 }
 /* ---------------------------------------------------------------------- */

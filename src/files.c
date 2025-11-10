@@ -34,18 +34,12 @@
 #define QUESTION_COL 2
 
 /* Helper macros for SDL vs FILE* compatibility */
-#ifdef USE_SDL
 #define SCORE_FILE_TYPE SDL_IOStream*
 #define SCORE_FILE_CLOSE(f) SDL_CloseIO(f)
-#else
-#define SCORE_FILE_TYPE FILE*
-#define SCORE_FILE_CLOSE(f) fclose(f)
-#endif
 
 /* Forward declaration for score update function */
 static void upsert_live_score_on_save(void);
 
-#ifdef USE_SDL
 static void story_c_put_str_grid(byte attr, cptr text, int row, int col, int width)
 {
     if (sdl_is_story_font_enabled())
@@ -53,13 +47,6 @@ static void story_c_put_str_grid(byte attr, cptr text, int row, int col, int wid
     else
         c_put_str(attr, text, row, col);
 }
-#else
-static void story_c_put_str_grid(byte attr, cptr text, int row, int col, int width)
-{
-    (void)width;
-    c_put_str(attr, text, row, col);
-}
-#endif
 
 static bool parse_visual_component(const char* token, bool expect_row, byte* value)
 {
@@ -1245,18 +1232,14 @@ errr check_time_init(void)
 static void display_skill(int skill, int row, int col)
 {
     /* Enable story font for skill name (if enabled) */
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_enable();
     }
-#endif
     
     put_str(skill_names_full[skill], row, col);
     
     /* Disable story font - all numbers must use monospace */
-#ifdef USE_SDL
     sdl_story_font_disable();
-#endif
     
     /* All numbers in monospace font */
     c_put_str(
@@ -1304,20 +1287,16 @@ static void put_pair20_right(int x, int y,
     int start = end - blk_w;
 
     /* Labels in story font (if enabled) */
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_enable();
     }
-#endif
 
     put_label_fit(x, y, label, start);
     
     /* Numbers in monospace (always) */
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_disable();
     }
-#endif
     
     Term_putstr(start, y, -1, col_cur, format("%*s", cur_w, cur));
     { char s[2] = { sep, '\0' }; Term_putstr(start + cur_w, y, -1, TERM_WHITE, s); }
@@ -1333,20 +1312,16 @@ static void put_single20_right(int x, int y,
     int start = end - val_w;
     
     /* Labels in story font (if enabled) */
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_enable();
     }
-#endif
     
     put_label_fit(x, y, label, start);
     
     /* Numbers in monospace (always) */
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_disable();
     }
-#endif
     
     Term_putstr(start, y, -1, col_val, format("%*s", val_w, val));
 }
@@ -1579,11 +1554,9 @@ void display_player_xtra_info(int mode)
     HANDLE_UNIQUE("Morgoth Curse",        RHF_MOR_CURSE,    TERM_UMBER);
 
     /* Render: uniques -> MA -> AF -> penalties (use story font if enabled) */
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_enable();
     }
-#endif
     
     for (int i = 0; i < uniq_n; ++i)
         Term_putstr(col_flags, row_flags++, -1, uniq_buf[i].col, uniq_buf[i].txt);
@@ -1594,12 +1567,10 @@ void display_player_xtra_info(int mode)
     for (int i = 0; i < pen_n; ++i)
         Term_putstr(col_flags, row_flags++, -1, pen_buf[i].col, pen_buf[i].txt);
 
-#ifdef USE_SDL
     /* Disable story font after rendering flags/abilities */
     if (story_character_enabled()) {
         sdl_story_font_disable();
     }
-#endif
 
     /* -------------------- SKILLS (unchanged position) ------------------- */
     /* Skills will manage their own font switching */
@@ -1610,11 +1581,9 @@ void display_player_xtra_info(int mode)
     }
 
     /* -------------------- History (unchanged) --------------------------- */
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_enable();
     }
-#endif
     
     /* Use full terminal width for history wrapping */
     int wid, h;
@@ -1629,11 +1598,9 @@ void display_player_xtra_info(int mode)
     
     Term_fresh();  /* Render history */
 
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_disable();
     }
-#endif
 
 #undef HANDLE_SKILL_EX
 #undef HANDLE_UNIQUE
@@ -1727,9 +1694,7 @@ static void display_player_flag_info(void)
 
     u32b f[4];
 
-#ifdef USE_SDL
     sdl_story_font_enable();
-#endif
 
     /* Four columns */
     for (x = 0; x < 4; x++)
@@ -1819,9 +1784,7 @@ static void display_player_flag_info(void)
         display_player_equippy(row++, col + 8);
     }
 
-#ifdef USE_SDL
     sdl_story_font_disable();
-#endif
 }
 
 /*
@@ -2464,11 +2427,9 @@ static void display_player_misc_info(void)
     /* Name */
     char name[40];
     
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_enable();
     }
-#endif
     
     if (p_ptr->oaths_broken) {
         /* Show "the Oathbreaker" in red if any oath is broken */
@@ -2480,11 +2441,9 @@ static void display_player_misc_info(void)
         c_put_str(TERM_L_BLUE, name, 0, 20);
     }
     
-#ifdef USE_SDL
     if (story_character_enabled()) {
         sdl_story_font_disable();
     }
-#endif
 
 }
 
@@ -2520,20 +2479,16 @@ void display_player_stat_info(int row, int col)
             trimmed_label[--len] = '\0';
         }
         
-#ifdef USE_SDL
         if (story_character_enabled()) {
             sdl_story_font_enable();
         }
-#endif
         
         /* Display trimmed stat name with story font (if enabled) */
         put_str(trimmed_label, row + i, col);
         
-#ifdef USE_SDL
         if (story_character_enabled()) {
             sdl_story_font_disable();
         }
-#endif
     }
     
     /* Second: Display all numbers with monospace font (always) */
@@ -2591,9 +2546,7 @@ void display_player_stat_info(int row, int col)
     }
 
     /* Leave with story font disabled */
-#ifdef USE_SDL
     sdl_story_font_disable();
-#endif
 }
 
 /*
@@ -2618,9 +2571,7 @@ static void display_player_sust_info(void)
     byte a;
     char c;
 
-#ifdef USE_SDL
     sdl_story_font_enable();
-#endif
 
     /* Row */
     row = 2;
@@ -2772,9 +2723,7 @@ static void display_player_sust_info(void)
     /* Equippy */
     display_player_equippy(row + 5, col);
 
-#ifdef USE_SDL
     sdl_story_font_disable();
-#endif
 }
 
 /*
@@ -2817,9 +2766,7 @@ void display_player(int mode)
         }
     }
 
-#ifdef USE_SDL
     sdl_story_font_reset();
-#endif
 }
 
 /*
@@ -4699,20 +4646,12 @@ static int highscore_seek_versioned(int i)
     log_debug("Calculated offset: %ld (header_size=%d, entry_size=%d)", 
               offset, (int)sizeof(score_file_header), (int)sizeof(high_score));
     
-#ifdef USE_SDL
     Sint64 result = SDL_SeekIO(highscore_fd, offset, SDL_IO_SEEK_SET);
     if (result < 0 || result != offset) {
         log_warn("Failed to seek to offset %ld (result=%lld)", offset, (long long)result);
         return -1;
     }
     return 0;
-#else
-    int result = fseek(highscore_fd, offset, SEEK_SET);
-    if (result != 0) {
-        log_warn("Failed to seek to offset %ld (error=%d)", offset, result);
-    }
-    return result;
-#endif
 }
 
 /*
@@ -4906,11 +4845,7 @@ static const char* file_mode_from_flags(int mode)
 /*
  * Open scores file (all scores files must have version headers)
  */
-#ifdef USE_SDL
 static SDL_IOStream* open_scores_file_versioned(const char *filepath, int mode)
-#else
-static FILE* open_scores_file_versioned(const char *filepath, int mode)
-#endif
 {
     /* Try to load header from existing file */
     bool exists = load_scores_file_header(filepath);
@@ -4922,7 +4857,6 @@ static FILE* open_scores_file_versioned(const char *filepath, int mode)
         load_scores_file_header(filepath);
     }
     
-#ifdef USE_SDL
     SDL_IOStream* file = NULL;
     const char* mode_str = file_mode_from_flags(mode);
     
@@ -4960,46 +4894,6 @@ static FILE* open_scores_file_versioned(const char *filepath, int mode)
         }
     }
     return file;
-#else
-    FILE* file = NULL;
-    const char* mode_str = file_mode_from_flags(mode);
-    
-    if (mode_str == NULL) {
-        /* Special case: O_RDWR | O_CREAT - try to open existing first, then create */
-        file = fopen(filepath, "r+b");
-        if (!file) {
-            /* File doesn't exist, create it */
-            file = fopen(filepath, "w+b");
-        }
-    } else {
-        file = fopen(filepath, mode_str);
-    }
-
-    /* If writable and file exists, reconcile header entry count with actual bytes */
-    if (file && exists && mode != O_RDONLY) {
-        fseek(file, 0, SEEK_END);
-        long file_size = ftell(file);
-        fseek(file, 0, SEEK_SET);
-        
-        if (file_size >= (long)sizeof(score_file_header)) {
-            score_file_header header;
-            if (fread(&header, sizeof(header), 1, file) == 1) {
-                long payload = file_size - (long)sizeof(score_file_header);
-                if (payload >= 0 && (payload % (long)sizeof(high_score)) == 0) {
-                    u32b actual_entries = (u32b)(payload / (long)sizeof(high_score));
-                    if (header.entry_count != actual_entries) {
-                        log_info("Reconciling scores header: entry_count %u -> %u", header.entry_count, actual_entries);
-                        header.entry_count = actual_entries;
-                        fseek(file, 0, SEEK_SET);
-                        fwrite(&header, sizeof(header), 1, file);
-                        scores_file_entry_count = actual_entries;
-                    }
-                }
-            }
-        }
-    }
-    return file;
-#endif
 }
 
 /*
@@ -5025,7 +4919,6 @@ static void update_scores_file_header_count(void)
     /* Update the header if count changed */
     if (scores_file_entry_count != count) {
         score_file_header header;
-#ifdef USE_SDL
         if (SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET) < 0)
             return;
         size_t read_items = SDL_ReadIO(highscore_fd, &header, sizeof(header));
@@ -5039,21 +4932,6 @@ static void update_scores_file_header_count(void)
         if (written_items != sizeof(header))
             return;
         /* SDL flushes automatically */
-#else
-        if (fseek(highscore_fd, 0, SEEK_SET) != 0)
-            return;
-        size_t read_items = fread(&header, sizeof(header), 1, highscore_fd);
-        if (read_items != 1)
-            return;
-
-        header.entry_count = count;
-        if (fseek(highscore_fd, 0, SEEK_SET) != 0)
-            return;
-        size_t written_items = fwrite(&header, sizeof(header), 1, highscore_fd);
-        if (written_items != 1)
-            return;
-        fflush(highscore_fd);
-#endif
         scores_file_entry_count = count;
         log_debug("Updated scores file header count to %u", count);
     }
@@ -6532,19 +6410,9 @@ static void upsert_live_score_on_save(void)
         header.entry_count = 0;
         header.reserved[0] = 0;
         header.reserved[1] = 0;
-#ifdef USE_SDL
         SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET);
         SDL_WriteIO(highscore_fd, &header, sizeof(header));
         /* SDL flushes automatically */
-#else
-        #ifdef USE_SDL
-    SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET);
-#else
-    fseek(highscore_fd, 0, SEEK_SET);
-#endif
-        fwrite(&header, sizeof(header), 1, highscore_fd);
-        fflush(highscore_fd);
-#endif
         scores_file_version_major = VERSION_MAJOR;
         scores_file_version_minor = VERSION_MINOR;
         scores_file_version_patch = VERSION_PATCH;
@@ -6582,33 +6450,14 @@ static void upsert_live_score_on_save(void)
     }
 
     /* Instrumentation: log header entry count vs physical file */
-    #ifdef USE_SDL
     SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_END);
-#else
-    fseek(highscore_fd, 0, SEEK_END);
-#endif
     long phys_size = SDL_TellIO(highscore_fd);
-#ifndef USE_SDL
-    long phys_size = ftell(highscore_fd);
-#endif
-    #ifdef USE_SDL
     SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET);
-#else
-    fseek(highscore_fd, 0, SEEK_SET);
-#endif
     
     score_file_header hdrchk;
-    #ifdef USE_SDL
     SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET);
-#else
-    fseek(highscore_fd, 0, SEEK_SET);
-#endif
 
-#ifdef USE_SDL
     if (SDL_ReadIO(highscore_fd, &hdrchk, sizeof(hdrchk)) == sizeof(hdrchk))
-#else
-    if (fread(&hdrchk, sizeof(hdrchk), 1, highscore_fd) == 1)
-#endif
     {
         long payload = phys_size - (long)sizeof(score_file_header);
         long logical = (payload >= 0) ? (payload / (long)sizeof(high_score)) : -1;
@@ -7234,10 +7083,8 @@ void print_fade_centered_at_row(cptr text, int row_start)
     if (row_start < 1) row_start = 1;
     if (row_start >= h) return; /* off-screen */
 
-#ifdef USE_SDL
     sdl_story_font_enable();
     log_debug("Depth banner: story font enabled");
-#endif
 
     /* Dynamic per-line wrapping and printing */
     enum { MAX_LINES2 = 32, MAX_LEN2 = 255 };
@@ -7322,10 +7169,8 @@ void print_fade_centered_at_row(cptr text, int row_start)
             Term_xtra(TERM_XTRA_DELAY, 800);
     }
 
-#ifdef USE_SDL
     log_debug("Depth banner: story font disabled");
     sdl_story_font_disable();
-#endif
 
     /* Do not explicitly erase: allow natural redraws to overwrite the text */
 }
@@ -7409,9 +7254,7 @@ void print_story(int last_parts, bool fade_in)
     hide_cursor = true;
     (void)Term_set_cursor(false);
 
-#ifdef USE_SDL
     sdl_story_font_enable();  // Enable for entire story display
-#endif
 
     Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
     int row = 2;
@@ -7429,11 +7272,7 @@ void print_story(int last_parts, bool fade_in)
         
         /* Check if we need to paginate BEFORE rendering this story */
         /* Calculate actual space needed based on text content */
-#ifdef USE_SDL
         int text_lines = count_wrapped_lines_story(text, wrap_width, indent);
-#else
-        int text_lines = count_wrapped_lines(text, wrap_width, indent);
-#endif
         
         /* Space needed: 1 for heading + text_lines + 1 for blank line */
         int estimated_space_needed = 1 + text_lines + 1;
@@ -7531,13 +7370,9 @@ void print_story(int last_parts, bool fade_in)
                 {
                     row = 2;
                     Term_clear();
-#ifdef USE_SDL
                     sdl_story_font_enable();
-#endif
                     Term_putstr(indent, 0, -1, TERM_YELLOW, "=== The Tale So Far ===");
-#ifdef USE_SDL
                     sdl_story_font_disable();
-#endif
                     REDRAW_HINT();
                     continue;
                 }
@@ -7565,9 +7400,7 @@ void print_story(int last_parts, bool fade_in)
                 "[Press any key to continue]");
     (void)inkey();
     
-#ifdef USE_SDL
     sdl_story_font_disable();  // Disable after story display
-#endif
     
     screen_load();
     /* Restore previous cursor visibility and hide_cursor flag */
@@ -7788,6 +7621,28 @@ static errr enter_score(high_score* the_score)
 
     /* Add a new entry to the score list, see where it went */
     score_idx = highscore_add(the_score);
+
+    /* Close and reopen the file to ensure all writes are visible for subsequent reads.
+     * SDL_IOStream may buffer writes even after flush, so reopening ensures consistency. */
+    if (highscore_fd)
+    {
+        char score_path[1024];
+        path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw");
+        
+        /* Grab permissions */
+        safe_setuid_grab();
+        
+        SCORE_FILE_CLOSE(highscore_fd);
+        highscore_fd = open_scores_file_versioned(score_path, O_RDONLY);
+        
+        /* Drop permissions */
+        safe_setuid_drop();
+        
+        if (!highscore_fd)
+        {
+            log_error("Failed to reopen highscore file after write");
+        }
+    }
 
     /* Grab permissions */
     safe_setuid_grab();
@@ -8054,15 +7909,8 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     }
 
     /* 4) Determine number of records (exclude header) */
-    #ifdef USE_SDL
     SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_END);
-#else
-    fseek(highscore_fd, 0, SEEK_END);
-#endif
     off_t file_end = SDL_TellIO(highscore_fd);
-#ifndef USE_SDL
-    off_t file_end = ftell(highscore_fd);
-#endif
     off_t payload  = file_end - (off_t)sizeof(score_file_header);
     int n_recs = (int)(payload / (off_t)sizeof(high_score));
     log_trace("hi-score file size=%lld, payload=%lld, records=%d",
@@ -8251,20 +8099,12 @@ errr file_character(cptr name, bool full)
     byte a;
 
 /* Helper macro for fprintf/SDL_IOprintf compatibility */
-#ifdef USE_SDL
 #define CHAR_FILE_PRINTF SDL_IOprintf
-#else
-#define CHAR_FILE_PRINTF fprintf
-#endif
     char c;
 
     int fd;
 
-#ifdef USE_SDL
     SDL_IOStream* fff = NULL;
-#else
-    FILE* fff = NULL;
-#endif
 
     char o_name[80];
 
@@ -8308,11 +8148,7 @@ errr file_character(cptr name, bool full)
 
     /* Open the non-existing file */
     if (fd < 0)
-#ifdef USE_SDL
         fff = sdl_fopen(buf, "w");
-#else
-        fff = my_fopen(buf, "w");
-#endif
 
     /* Invalid file */
     if (!fff)
@@ -8322,11 +8158,7 @@ errr file_character(cptr name, bool full)
     text_out_file = fff;
 
     /* Begin dump */
-#ifdef USE_SDL
     SDL_IOprintf(fff, "  [%s %s Character Dump]\n\n", VERSION_NAME, VERSION_STRING);
-#else
-    CHAR_FILE_PRINTF(fff, "  [%s %s Character Dump]\n\n", VERSION_NAME, VERSION_STRING);
-#endif
 
     /* Display player */
     display_player(0);
@@ -8598,11 +8430,7 @@ errr file_character(cptr name, bool full)
     CHAR_FILE_PRINTF(fff, "  ['Score' %.9d]\n\n", score_points(&the_score));
 
     /* Close it */
-#ifdef USE_SDL
     sdl_fclose(fff);
-#else
-    my_fclose(fff);
-#endif
 
 #undef CHAR_FILE_PRINTF
 
@@ -9952,20 +9780,9 @@ bool autoload_alive_from_scores(void)
 
     /* Determine number of records */
     int n_recs;
-    #ifdef USE_SDL
     SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_END);
-#else
-    fseek(highscore_fd, 0, SEEK_END);
-#endif
     long file_size = SDL_TellIO(highscore_fd);
-#ifndef USE_SDL
-    long file_size = ftell(highscore_fd);
-#endif
-    #ifdef USE_SDL
     SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET);
-#else
-    fseek(highscore_fd, 0, SEEK_SET);
-#endif
     
     long payload = file_size - (long)sizeof(score_file_header);
     if (payload < 0) payload = 0;

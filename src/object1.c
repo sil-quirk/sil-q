@@ -15,7 +15,6 @@
 #include <stddef.h>
 static bool inventory_menu_include_equip = false;
 
-#ifdef USE_SDL
 static bool story_inventory_list_active = false;
 static bool story_equipment_list_active = false;
 
@@ -76,7 +75,6 @@ static void story_prepare_equipment_desc(char* dest, size_t dest_size, cptr src,
         }
     }
 }
-#endif
 
 static bool death_spectator_allow_menu_action(void)
 {
@@ -2490,7 +2488,6 @@ void display_equip(void)
 
     log_debug("display_equip: CALLED - THIS IS THE WINDOW SYSTEM REDRAW");
 
-#ifdef USE_SDL
     bool use_story_font = story_equipment_enabled();
     log_debug("display_equip: story_equipment_enabled() = %d", use_story_font);
     if (use_story_font)
@@ -2503,7 +2500,6 @@ void display_equip(void)
     {
         log_debug("display_equip: Story font DISABLED, will use mono");
     }
-#endif
 
     /* Display the equipment */
     for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
@@ -2620,7 +2616,6 @@ void display_equip(void)
         int total_row = INVEN_TOTAL - INVEN_WIELD;
         int text_row = total_row + 1;
         
-#ifdef USE_SDL
         if (use_story_font)
         {
             /* Clear the rows where we'll draw the weight total (from col, not from 0) */
@@ -2635,7 +2630,6 @@ void display_equip(void)
             story_print_text_grid(text_row, 62, 16, TERM_SLATE, tmp_val);
         }
         else
-#endif
         {
             /* Mono font path */
             Term_putstr(col, total_row, -1, TERM_L_DARK, "--------");
@@ -2652,14 +2646,12 @@ void display_equip(void)
         Term_erase(0, i, 255);
     }
 
-#ifdef USE_SDL
     if (use_story_font)
     {
         log_debug("display_equip: Calling sdl_story_font_disable()");
         sdl_story_font_disable();
         log_debug("display_equip: Story font disabled");
     }
-#endif
     
     log_debug("display_equip: EXITING");
 }
@@ -2695,7 +2687,6 @@ static int draw_item_tile(int x, int y, object_type* o_ptr)
     return x;
 }
 
-#ifdef USE_SDL
 static void story_render_inventory_entry(int row, int base_col, int label_col,
     cptr desc, byte desc_attr, bool display_weights, cptr weight_text,
     byte weight_attr, cptr label_text, byte label_attr, const object_type* o_ptr,
@@ -2855,7 +2846,6 @@ static void draw_equipment_story_rows(int col, int entry_count, int* out_index,
 
     log_trace("draw_equipment_story_rows: Finished drawing all rows");
 }
-#endif
 
 /*
  * Display the inventory.
@@ -2877,7 +2867,6 @@ void show_inven(void)
     byte out_color[24];
     char out_desc[24][80];
 
-#ifdef USE_SDL
     bool use_story_font = story_inventory_enabled();
     int story_term_w = 0;
     story_inventory_list_active = use_story_font;
@@ -2887,7 +2876,6 @@ void show_inven(void)
         int story_term_h = 0;
         Term_get_size(&story_term_w, &story_term_h);
     }
-#endif
 
     /* Default length */
     len = 79 - 50;
@@ -2997,7 +2985,6 @@ void show_inven(void)
         object_type* cur_obj = is_supply ? NULL : &inventory[idx];
         int label_col = show_weights ? 78 : 71;
 
-#ifdef USE_SDL
         if (use_story_font)
         {
             char weight_buf[16];
@@ -3031,7 +3018,6 @@ void show_inven(void)
                 cur_obj, false, story_term_w);
             continue;
         }
-#endif
 
         prt("", j + 1, col);
 
@@ -3077,15 +3063,12 @@ void show_inven(void)
     /* Make a "shadow" below the list (only if needed) */
     if (j && (j < 23))
     {
-#ifdef USE_SDL
         if (use_story_font)
             Term_erase(col, j + 1, 255);
         else
-#endif
             prt("", j + 1, col);
     }
 
-#ifdef USE_SDL
     /* Disable story font after rendering to prevent it from leaking into other UI elements.
      * get_item() will re-enable it on subsequent iterations if needed. */
     if (use_story_font)
@@ -3093,7 +3076,6 @@ void show_inven(void)
         log_debug("show_inven: Disabling story font after rendering");
         sdl_story_font_disable();
     }
-#endif
 }
 
 /*
@@ -3118,7 +3100,6 @@ void show_equip(void)
 
     log_trace("show_equip: CALLED from somewhere");
 
-#ifdef USE_SDL
     bool use_story_font = story_equipment_enabled();
     int story_term_w = 0;
     story_equipment_list_active = use_story_font;
@@ -3136,7 +3117,6 @@ void show_equip(void)
     {
         log_debug("show_equip: Story font DISABLED, using mono font");
     }
-#endif
 
     /* Default length */
     len = 79 - 50;
@@ -3240,7 +3220,6 @@ void show_equip(void)
             }
         }
 
-#ifdef USE_SDL
         if (use_story_font)
         {
             story_render_equipment_entry(j + 1, col, i, prefix_buf, TERM_WHITE,
@@ -3248,7 +3227,6 @@ void show_equip(void)
                 label_buf, TERM_WHITE, o_ptr->k_idx ? o_ptr : NULL, false, story_term_w);
             continue;
         }
-#endif
 
         /* Clear the line */
         prt("", j + 1, col);
@@ -3293,11 +3271,9 @@ void show_equip(void)
     /* Make a "shadow" below the list (only if needed) */
     if (j && (j < 23))
     {
-#ifdef USE_SDL
         if (use_story_font)
             Term_erase(col, j + 1, 255);
         else
-#endif
             prt("", j + 1, col);
     }
 
@@ -3307,7 +3283,6 @@ void show_equip(void)
         int total_row = INVEN_TOTAL - INVEN_WIELD + 1;
         int text_row = total_row + 1;
         int col_total = 52;
-#ifdef USE_SDL
         if (use_story_font)
         {
             Term_erase(col, text_row, 255);
@@ -3320,7 +3295,6 @@ void show_equip(void)
                 Term_erase(col, j + 3, 255);
         }
         else
-#endif
         {
             /* Blank the line for the total */
             prt("", j + 2, col_total);
@@ -3334,7 +3308,6 @@ void show_equip(void)
         }
     }
 
-#ifdef USE_SDL
     /* Disable story font after rendering to prevent it from leaking into other UI elements.
      * get_item() will re-enable it on subsequent iterations if needed. */
     if (use_story_font)
@@ -3342,7 +3315,6 @@ void show_equip(void)
         log_debug("show_equip: Disabling story font after rendering");
         sdl_story_font_disable();
     }
-#endif
     
     log_trace("show_equip: EXITING");
 }
@@ -3936,7 +3908,6 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
     bool highlight_active = false;
 
     /* Helper lambdas (C89 substitute: static inline style) defined as macros */
-#ifdef USE_SDL
 #define DRAW_HIGHLIGHT_STORY_VARS()                                                 \
         bool highlight_story_font = false;                                          \
         int highlight_story_w = 0;
@@ -3956,11 +3927,6 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         code;                                                                       \
         sdl_story_font_disable();                                                   \
     } else
-#else
-#define DRAW_HIGHLIGHT_STORY_VARS()
-#define DRAW_HIGHLIGHT_STORY_UPDATE()
-#define DRAW_HIGHLIGHT_IF_STORY(code)
-#endif
 /* Build mapping arrays for currently selected list when visible */                 \
 #define BUILD_VISIBLE_LIST()                                                         \
     do {                                                                            \
@@ -4313,7 +4279,6 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         strnfmt(tmp_val, sizeof(tmp_val), "(%s) %s", out_val, pmt);
 
         /* Show the prompt */
-#ifdef USE_SDL
         /* Use story font for prompt if the current list has story font enabled */
         if ((p_ptr->command_wrk == (USE_INVEN) || p_ptr->command_wrk == (USE_FLOOR)) && story_inventory_list_active)
         {
@@ -4328,7 +4293,6 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
             sdl_story_font_disable();
         }
         else
-#endif
         prt(tmp_val, 0, 0);
 
     /* Draw current highlight overlay if any */
@@ -4864,7 +4828,6 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         p_ptr->command_see = false;
     }
 
-#ifdef USE_SDL
     /* Disable story font if it was enabled by show_inven or show_equip */
     if (story_inventory_list_active)
     {
@@ -4878,7 +4841,6 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
         sdl_story_font_disable();
         story_equipment_list_active = false;
     }
-#endif
 
     // Forget whether inventory or equipment was being examined
     p_ptr->command_wrk = 0;
@@ -5033,7 +4995,6 @@ void show_inven_enhanced(void)
 
     log_debug("show_inven_enhanced: Starting enhanced inventory display");
 
-#ifdef USE_SDL
     bool use_story_font = story_inventory_enabled();
     int story_term_w = 0;
     story_inventory_list_active = use_story_font;
@@ -5043,7 +5004,6 @@ void show_inven_enhanced(void)
         int story_term_h = 0;
         Term_get_size(&story_term_w, &story_term_h);
     }
-#endif
 
     /* Variables exactly matching show_inven() */
     int i, k, z;
@@ -5242,7 +5202,6 @@ void show_inven_enhanced(void)
 
         /* Surgical pre-clear: only rows that changed (old highlight + its compare lines, new highlight region, trailing cleared rows).
            This avoids full-frame flicker and keeps ordering erase -> print -> redraw. */
-#ifdef USE_SDL
         int redraw_y1 = -1, redraw_y2 = -1; /* aggregate redraw bounds */
         if (use_story_font && allow_compare && !first_render)
         {
@@ -5279,7 +5238,6 @@ void show_inven_enhanced(void)
                 }
             }
         }
-#endif
 
         if (allow_compare && highlight_active && highlight_row >= 0 && highlight_row < k)
         {
@@ -5397,7 +5355,6 @@ void show_inven_enhanced(void)
 
             int label_col = show_weights ? 78 : 71;
 
-#ifdef USE_SDL
             if (use_story_font)
             {
                 /* Pre-clear handles row erasing, just do highlighting */
@@ -5416,7 +5373,6 @@ void show_inven_enhanced(void)
                 }
             }
             else
-#endif
             {
                 prt("", row, col);
             }
@@ -5431,7 +5387,6 @@ void show_inven_enhanced(void)
             log_trace("ITEM ROW %d: col=%d, text_col=%d, is_highlight=%d, desc='%.30s'",
                 row, col, text_col, is_highlight, out_desc[j]);
 
-#ifdef USE_SDL
             if (use_story_font)
             {
                 int desc_limit = (show_weights ? 70 : label_col) - text_col;
@@ -5448,7 +5403,6 @@ void show_inven_enhanced(void)
                 story_print_text(row, text_col, desc_limit, line_attr, out_desc[j]);
             }
             else
-#endif
             {
                 c_put_str(line_attr, out_desc[j], row, text_col);
             }
@@ -5461,7 +5415,6 @@ void show_inven_enhanced(void)
                 else if (line_obj)
                     wgt = line_obj->weight * line_obj->number;
                 strnfmt(tmp_val, sizeof(tmp_val), "%2d.%1d lb", wgt / 10, wgt % 10);
-#ifdef USE_SDL
                 if (use_story_font)
                 {
                     int weight_width = label_col - 70;
@@ -5470,7 +5423,6 @@ void show_inven_enhanced(void)
                     story_print_text_grid(row, 70, weight_width, line_attr, tmp_val);
                 }
                 else
-#endif
                     c_put_str(line_attr, tmp_val, row, 70);
             }
 
@@ -5494,13 +5446,11 @@ void show_inven_enhanced(void)
             byte label_attr = is_highlight ? TERM_L_BLUE : TERM_WHITE;
             log_trace("ITEM RENDER row=%d: label_col=%d, show_weights=%d, label='%s'", 
                 row, label_col, show_weights, tmp_val);
-#ifdef USE_SDL
             if (use_story_font)
             {
                 story_print_text(row, label_col, label_width, label_attr, tmp_val);
             }
             else
-#endif
             {
                 if (is_highlight)
                     c_put_str(label_attr, tmp_val, row, label_col);
@@ -5529,7 +5479,6 @@ void show_inven_enhanced(void)
                     
                     log_trace("COMPARE LINE idx=%d will render at row=%d", idx, compare_row);
 
-#ifdef USE_SDL
                     /* Pre-clear handles row erasing for comparison mode */
                     if (use_story_font && !allow_compare) {
                         int erase_w = 255;
@@ -5537,14 +5486,11 @@ void show_inven_enhanced(void)
                         Term_erase(col, compare_row, erase_w);
                     }
                     else if (!use_story_font)
-#endif
                         prt("", compare_row, col);
 
-#ifdef USE_SDL
                     if (use_story_font)
                         story_print_equipment_prefix(compare_row, col, TERM_WHITE, compare_prefix[idx]);
                     else
-#endif
                         c_put_str(TERM_WHITE, compare_prefix[idx], compare_row, col);
 
                     /* Draw tile if in graphics mode for equipped items */
@@ -5557,7 +5503,6 @@ void show_inven_enhanced(void)
                     log_debug("COMPARE RENDER idx=%d row=%d: col=%d, text_col=%d, desc='%s'",
                         idx, compare_row, col, compare_text_col, compare_desc[idx]);
 
-#ifdef USE_SDL
                     if (use_story_font)
                     {
                         /* Bound the story-font rendering to the available grid width,
@@ -5571,7 +5516,6 @@ void show_inven_enhanced(void)
                         story_print_text(compare_row, compare_text_col, desc_limit, compare_attr[idx], compare_desc[idx]);
                     }
                     else
-#endif
                     {
                         c_put_str(compare_attr[idx], compare_desc[idx], compare_row, compare_text_col);
                     }
@@ -5581,7 +5525,6 @@ void show_inven_enhanced(void)
                         if (compare_has_weight[idx])
                         {
                             strnfmt(tmp_val, sizeof(tmp_val), "%2d.%1d lb", compare_weight[idx] / 10, compare_weight[idx] % 10);
-#ifdef USE_SDL
                             if (use_story_font)
                             {
                                 int compare_weight_width = label_col - 70;
@@ -5590,16 +5533,13 @@ void show_inven_enhanced(void)
                                 story_print_text_grid(compare_row, 70, compare_weight_width, compare_attr[idx], tmp_val);
                             }
                             else
-#endif
                                 c_put_str(compare_attr[idx], tmp_val, compare_row, 70);
                         }
                         else
                         {
-#ifdef USE_SDL
                             if (use_story_font)
                                 Term_erase(70, compare_row, 9);
                             else
-#endif
                                 prt("", compare_row, 70);
                         }
                     }
@@ -5609,11 +5549,9 @@ void show_inven_enhanced(void)
                     {
                         char label_str[8];
                         strnfmt(label_str, sizeof(label_str), "(%s)", compare_label[idx]);
-#ifdef USE_SDL
                         if (use_story_font)
                             story_print_text(compare_row, label_col, label_width, compare_attr[idx], label_str);
                         else
-#endif
                             c_put_str(compare_attr[idx], label_str, compare_row, label_col);
                     }
 
@@ -5624,7 +5562,6 @@ void show_inven_enhanced(void)
 
         int total_rows = next_row - 1;
 
-#ifdef USE_SDL
         /* End-of-frame redraw of just changed rows */
         if (use_story_font && allow_compare)
         {
@@ -5651,18 +5588,15 @@ void show_inven_enhanced(void)
                 Term_redraw_section(col, redraw_y1, max_col, redraw_y2);
             }
         }
-#endif
 
         if (total_rows && total_rows < 23)
         {
-#ifdef USE_SDL
             if (use_story_font) {
                 int erase_w = 255;
                 if (story_term_w > 80) erase_w = (erase_w * story_term_w) / 80;
                 Term_erase(col, total_rows + 1, erase_w);
             }
             else
-#endif
                 prt("", total_rows + 1, col);
         }
 
@@ -5671,7 +5605,6 @@ void show_inven_enhanced(void)
             int clear_col = col;
             for (int clear_row = total_rows + 1; clear_row <= previous_total_rows; clear_row++)
             {
-#ifdef USE_SDL
                 if (use_story_font)
                 {
                     int erase_w = 255;
@@ -5685,7 +5618,6 @@ void show_inven_enhanced(void)
                         Term_erase(70, clear_row, weight_erase_w);
                 }
                 else
-#endif
                 {
                     prt("", clear_row, clear_col);
                     if (show_weights)
@@ -5953,10 +5885,8 @@ void show_inven_enhanced(void)
         }
     }
     
-#ifdef USE_SDL
     if (use_story_font)
         sdl_story_font_reset();
-#endif
     log_trace("show_inven_enhanced: Exiting, action=%d", enhanced_menu_action);
 }
 
@@ -5979,7 +5909,6 @@ void show_equip_enhanced(void)
     log_debug("show_equip_enhanced: INVEN_BODY=%d, INVEN_FEET=%d, show_weights=%d", 
         INVEN_BODY, INVEN_FEET, show_weights);
     
-#ifdef USE_SDL
     bool use_story_font = story_equipment_enabled();
     log_trace("show_equip_enhanced: story_equipment_enabled() = %d", use_story_font);
     int story_term_w = 0;
@@ -5996,7 +5925,6 @@ void show_equip_enhanced(void)
     {
         log_trace("show_equip_enhanced: Story font NOT enabled, using mono");
     }
-#endif
 
     /* Variables exactly matching show_equip() */
     int i, k, l;
@@ -6104,7 +6032,6 @@ void show_equip_enhanced(void)
     while (!done)
     {
         /* Display equipment list */
-#ifdef USE_SDL
         if (use_story_font)
         {
             log_trace("show_equip_enhanced: Calling draw_equipment_story_rows with highlight_index=%d", highlight_index);
@@ -6145,7 +6072,6 @@ void show_equip_enhanced(void)
             }
         }
         else
-#endif
         {
             log_trace("show_equip_enhanced: Calling show_equip() [mono path]");
             show_equip();
@@ -6163,19 +6089,13 @@ void show_equip_enhanced(void)
         else {
             sprintf(out_val, "Space-Remove, -> description, <- drop  (Equipment)");
         }
-#ifdef USE_SDL
         if (use_story_font)
             story_print_text(0, 0, 0, TERM_WHITE, out_val);
         else
-#endif
             prt(out_val, 0, 0);
         
         /* Highlight current selection - find the display row for this equipped item */
-#ifdef USE_SDL
         if (!use_story_font && highlight_active && highlight_index >= 0 && highlight_index < k)
-#else
-        if (highlight_active && highlight_index >= 0 && highlight_index < k)
-#endif
         {
             /* Get the actual slot index of the highlighted equipped item */
             int highlighted_slot = out_index[highlight_index];
@@ -6439,13 +6359,11 @@ void show_equip_enhanced(void)
         }
     }
     
-#ifdef USE_SDL
     if (use_story_font)
     {
         log_trace("show_equip_enhanced: Resetting story font");
         sdl_story_font_reset();
     }
-#endif
     log_trace("show_equip_enhanced: Exiting equipment enhanced menu, action=%d", enhanced_equip_action);
 }
 

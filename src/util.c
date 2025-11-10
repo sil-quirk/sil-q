@@ -10,9 +10,7 @@
 
 #include "angband.h"
 #include "log/log.h"
-#ifdef USE_SDL
 #include <SDL3/SDL.h>
-#endif
 
 /* Fallback no_light() implementation if missing elsewhere */
 bool no_light(void)
@@ -293,7 +291,6 @@ errr path_build(char* buf, size_t max, cptr path, cptr file)
  *=============================================================================
  */
 
-#ifdef USE_SDL
 
 /*
  * SDL-based replacement for "fopen()"
@@ -646,7 +643,6 @@ Sint64 sdl_size(SDL_IOStream* stream)
     return result;
 }
 
-#endif /* USE_SDL */
 
 /*
  * Hack -- replacement for "fopen()"
@@ -3568,7 +3564,6 @@ int count_wrapped_lines(cptr str, int wrap_width, int indent)
     return lines;
 }
 
-#ifdef USE_SDL
 /*
  * Count how many lines text will occupy when using story font with pixel-based wrapping.
  * Similar to count_wrapped_lines but accounts for proportional font width.
@@ -3644,47 +3639,29 @@ int count_wrapped_lines_story(cptr str, int wrap_cols, int indent)
     
     return lines;
 }
-#endif /* USE_SDL */
 
 bool story_inventory_enabled(void)
 {
-#ifdef USE_SDL
     return story_inventory_lists;
-#else
-    return false;
-#endif
 }
 
 bool story_equipment_enabled(void)
 {
-#ifdef USE_SDL
     return story_equipment_lists;
-#else
-    return false;
-#endif
 }
 
 bool story_look_enabled(void)
 {
-#ifdef USE_SDL
     return story_display_lists;
-#else
-    return false;
-#endif
 }
 
 bool story_character_enabled(void)
 {
-#ifdef USE_SDL
     return story_character_sheet;
-#else
-    return false;
-#endif
 }
 
 void text_out_to_screen(byte a, cptr str)
 {
-#ifdef USE_SDL
     /* If story font is enabled, use pixel-based wrapping */
     extern bool sdl_is_story_font_enabled(void);
     if (sdl_is_story_font_enabled())
@@ -3692,7 +3669,6 @@ void text_out_to_screen(byte a, cptr str)
         text_out_to_screen_story(a, str);
         return;
     }
-#endif
 
     int x, y;
 
@@ -3799,7 +3775,6 @@ void text_out_to_screen(byte a, cptr str)
     }
 }
 
-#ifdef USE_SDL
 /*
  * Write text to the screen with story font wrapping based on pixel width.
  * This version wraps proportional fonts to fill the available terminal width
@@ -3913,7 +3888,6 @@ void text_out_to_screen_story(byte a, cptr str)
     
     log_trace("=== text_out_to_screen_story END === Final term_col=%d, final_pixel_pos=%d", x, current_x_pixels);
 }
-#endif /* USE_SDL */
 
 static void story_print_text_internal(int row, int col, int max_cols, byte attr, cptr text, bool force_grid)
 {
@@ -3924,7 +3898,6 @@ static void story_print_text_internal(int row, int col, int max_cols, byte attr,
     if (max_cols > 0)
         Term_erase(col, row, max_cols);
 
-#ifdef USE_SDL
     if (sdl_is_story_font_enabled())
     {
         log_debug("story_print_text: STORY FONT at row=%d col=%d max_cols=%d text='%.50s'", row, col, max_cols, text);
@@ -3976,7 +3949,6 @@ static void story_print_text_internal(int row, int col, int max_cols, byte attr,
     {
         log_debug("story_print_text: MONO FONT at row=%d col=%d: '%.50s'", row, col, text);
     }
-#endif
 
     c_put_str(attr, text, row, col);
 }
@@ -3996,21 +3968,17 @@ void story_print_mono(int row, int col, byte attr, cptr text)
     if (!text)
         text = "";
 
-#ifdef USE_SDL
     bool reenable_story = false;
     if (sdl_is_story_font_enabled())
     {
         sdl_story_font_disable();
         reenable_story = true;
     }
-#endif
 
     c_put_str(attr, text, row, col);
 
-#ifdef USE_SDL
     if (reenable_story)
         sdl_story_font_enable();
-#endif
 }
 
 void story_fill_rect(int row, int col, int width_cols, byte attr)
@@ -4088,12 +4056,8 @@ void text_out_to_file(byte a, cptr str)
             /* Output the indent */
             for (i = 0; i < text_out_indent; i++)
             {
-#ifdef USE_SDL
                 unsigned char space = ' ';
                 SDL_WriteIO(text_out_file, &space, 1);
-#else
-                fputc(' ', text_out_file);
-#endif
                 pos++;
             }
         }
@@ -4125,12 +4089,8 @@ void text_out_to_file(byte a, cptr str)
             else
             {
                 /* Begin a new line */
-#ifdef USE_SDL
                 unsigned char newline = '\n';
                 SDL_WriteIO(text_out_file, &newline, 1);
-#else
-                fputc('\n', text_out_file);
-#endif
 
                 /* Reset */
                 pos = 0;
@@ -4156,12 +4116,8 @@ void text_out_to_file(byte a, cptr str)
             ch = (isprint(s[n]) ? s[n] : ' ');
 
             /* Write out the character */
-#ifdef USE_SDL
             unsigned char byte = ch;
             SDL_WriteIO(text_out_file, &byte, 1);
-#else
-            fputc(ch, text_out_file);
-#endif
 
             /* Increment */
             pos++;
@@ -4179,12 +4135,8 @@ void text_out_to_file(byte a, cptr str)
             s++;
 
         /* Begin a new line */
-#ifdef USE_SDL
         unsigned char newline = '\n';
         SDL_WriteIO(text_out_file, &newline, 1);
-#else
-        fputc('\n', text_out_file);
-#endif
 
         /* Reset */
         pos = 0;

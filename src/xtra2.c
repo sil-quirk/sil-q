@@ -11,7 +11,6 @@
 #include "angband.h"
 #include "metarun.h"
 
-#ifdef USE_SDL
 static void look_prt(bool use_story_font, cptr text, int row, int col)
 {
     /* When story font is enabled, use story_print_text which handles proportional rendering */
@@ -23,13 +22,6 @@ static void look_prt(bool use_story_font, cptr text, int row, int col)
         prt(text, row, col);
     }
 }
-#else
-static void look_prt(bool use_story_font, cptr text, int row, int col)
-{
-    (void)use_story_font;
-    prt(text, row, col);
-}
-#endif
 
 /*
  * The saving throw is a will skill check.
@@ -4370,11 +4362,7 @@ bool target_set_interactive(int mode, int range)
 
     char info[80];
 
-#ifdef USE_SDL
     bool use_story_look = story_look_enabled() && (mode & TARGET_LOOK);
-#else
-    bool use_story_look = false;
-#endif
 
     /* These are used for displaying the path to the target */
     u16b path[MAX_RANGE];
@@ -4450,15 +4438,11 @@ bool target_set_interactive(int mode, int range)
             }
 
             /* Describe and Prompt */
-#ifdef USE_SDL
             if (use_story_look)
                 sdl_story_font_enable();
-#endif
             query = target_set_interactive_aux(y, x, mode, info, use_story_look);
-#ifdef USE_SDL
             if (use_story_look)
                 sdl_story_font_disable();
-#endif
 
             /* Remove the path */
             if (mode & (TARGET_KILL))
@@ -4645,15 +4629,11 @@ bool target_set_interactive(int mode, int range)
             }
 
             /* Describe and Prompt (enable "TARGET_LOOK") */
-#ifdef USE_SDL
             if (use_story_look)
                 sdl_story_font_enable();
-#endif
             query = target_set_interactive_aux(y, x, mode | TARGET_LOOK, info, use_story_look);
-#ifdef USE_SDL
             if (use_story_look)
                 sdl_story_font_disable();
-#endif
 
             /* Remove the path */
             if (mode & (TARGET_KILL))
@@ -5637,10 +5617,8 @@ void pause_with_text(const char desc[][100], int row, int col,
     screen_save();
     Term_clear();
 
-#ifdef USE_SDL
     sdl_story_font_enable();
     log_debug("Banner: story font enabled");
-#endif
 
     /* 1. optional banner */
     if (extra) {
@@ -5682,10 +5660,8 @@ void pause_with_text(const char desc[][100], int row, int col,
         ++i_main;
     }
 
-#ifdef USE_SDL
     log_debug("Banner: story font disabled");
     sdl_story_font_disable();
-#endif
 
     /* 3. wait for key */
     hide_cursor = true;

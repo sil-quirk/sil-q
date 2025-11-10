@@ -812,11 +812,7 @@ void (*object_info_out_flags)(
 /*
  * Hack - the destination file for text_out_to_file.
  */
-#ifdef USE_SDL
 SDL_IOStream* text_out_file = NULL;
-#else
-FILE* text_out_file = NULL;
-#endif
 
 /*
  * Hack -- function hook to output (colored) text to the
@@ -889,11 +885,7 @@ char g_vault_name[80];
 /*
  * The "highscore" file descriptor, if available.
  */
-#ifdef USE_SDL
 SDL_IOStream* highscore_fd;
-#else
-FILE* highscore_fd;
-#endif
 
 /*
  * The metarun file descriptor, if available.

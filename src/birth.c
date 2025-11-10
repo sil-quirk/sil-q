@@ -1530,11 +1530,7 @@ static bool get_player_house(void)
 
     /* highscore_dead opens/closes internally now; ensure descriptor not leaked */
     if (highscore_fd) {
-#ifdef USE_SDL
         SDL_CloseIO(highscore_fd);
-#else
-        fclose(highscore_fd);
-#endif
         highscore_fd = NULL;
     }
 
@@ -2220,12 +2216,10 @@ static NavResult player_birth_aux_2(void)
             {
                 byte attr = TERM_L_BLUE;
                 
-#ifdef USE_SDL
                 /* Enable story font for highlighted stat name (if enabled) */
                 if (story_character_enabled()) {
                     sdl_story_font_enable();
                 }
-#endif
                 
                 /* Highlight the stat name as well (at col-1 to match display_player position)
                  * Use the abbreviated stat names (e.g. "Str") instead of the full names
@@ -2233,10 +2227,8 @@ static NavResult player_birth_aux_2(void)
                  */
                 c_put_str(attr, stat_names[i], row + i, col - 1);
                 
-#ifdef USE_SDL
                 /* Disable story font for numbers */
                 sdl_story_font_disable();
-#endif
                 
 #ifndef MONOCHROME_MODE
                 strnfmt(
@@ -2258,21 +2250,17 @@ static NavResult player_birth_aux_2(void)
             }
         }
 
-#ifdef USE_SDL
         /* Bottom bar follows character sheet font setting */
         if (story_character_enabled()) {
             sdl_story_font_enable();
         }
-#endif
 
         Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
             "Arrows -allocate    ESC -back   ENTER -confirm   q -quit");
 
-#ifdef USE_SDL
         if (story_character_enabled()) {
             sdl_story_font_disable();
         }
-#endif
 
         /* Get key */
         hide_cursor = true;
@@ -2455,20 +2443,16 @@ extern NavResult gain_skills(void)
             {
                 byte attr = TERM_L_BLUE;
                 
-#ifdef USE_SDL
                 /* Enable story font for highlighted skill name (if enabled) */
                 if (story_character_enabled()) {
                     sdl_story_font_enable();
                 }
-#endif
                 
                 /* Highlight the skill name as well (at col-1 to match display_player position) */
                 c_put_str(attr, skill_names_full[i], row + i, col - 1);
                 
-#ifdef USE_SDL
                 /* Disable story font for numbers */
                 sdl_story_font_disable();
-#endif
                 
 #ifndef MONOCHROME_MODE
                 strnfmt(buf, sizeof(buf), "%6d",
@@ -2501,21 +2485,17 @@ extern NavResult gain_skills(void)
         //         TERM_L_WHITE, "ESC");
         // }
 
-#ifdef USE_SDL
         /* Bottom bar follows character sheet font setting */
         if (story_character_enabled()) {
             sdl_story_font_enable();
         }
-#endif
 
         Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE,
             "Arrows -allocate      ESC -back     ENTER -confirm     q -quit");
 
-#ifdef USE_SDL
         if (story_character_enabled()) {
             sdl_story_font_disable();
         }
-#endif
 
         /* Get key */
         hide_cursor = true;
