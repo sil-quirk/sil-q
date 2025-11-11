@@ -11901,7 +11901,7 @@ static int collect_artefacts(int grp_cur, int object_idx[])
 
     /*make a list of artefacts not found*/
     /* Allocate the "object_idx" array */
-    C_MAKE(okay, z_info->art_max, bool);
+    okay = mem_alloc_array(z_info->art_max, bool);
 
     /* Default first,  */
     for (i = 0; i < z_info->art_max; i++)
@@ -11963,7 +11963,7 @@ static int collect_artefacts(int grp_cur, int object_idx[])
     object_idx[object_cnt] = 0;
 
     /*clear the array*/
-    KILL(okay);
+    mem_free_null(okay);
 
     /* Return the number of races */
     return object_cnt;
@@ -12663,7 +12663,7 @@ void do_cmd_knowledge_artefacts(void)
     log_debug("Player opened artifacts knowledge screen");
 
     /* Allocate the "artefact_idx" array */
-    C_MAKE(artefact_idx, z_info->art_max, int);
+    artefact_idx = mem_alloc_array(z_info->art_max, int);
 
     max = 0;
     grp_cnt = 0;
@@ -12807,7 +12807,7 @@ void do_cmd_knowledge_artefacts(void)
     }
 
     /* XXX XXX Free the "object_idx" array */
-    KILL(artefact_idx);
+    mem_free_null(artefact_idx);
 }
 
 /*
@@ -13121,7 +13121,7 @@ void do_cmd_knowledge_monsters(void)
     bool redraw;
 
     /* Allocate the "mon_idx" array */
-    C_MAKE(mon_idx, z_info->r_max, monster_list_entry);
+    mon_idx = mem_alloc_array(z_info->r_max, monster_list_entry);
 
     max = 0;
     grp_cnt = 0;
@@ -13266,7 +13266,7 @@ void do_cmd_knowledge_monsters(void)
     }
 
     /* XXX XXX Free the "mon_idx" array */
-    KILL(mon_idx);
+    mem_free_null(mon_idx);
 }
 
 /*
@@ -13612,7 +13612,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
     grp_idx[grp_cnt] = -1;
     max += 2;
 
-    C_MAKE(entries, z_info->k_max, supply_list_entry);
+    entries = mem_alloc_array(z_info->k_max, supply_list_entry);
 
     screen_save();
 
@@ -13864,7 +13864,7 @@ bool do_cmd_knowledge_supplies(const supply_menu_request* request)
         }
     }
 
-    KILL(entries);
+    mem_free_null(entries);
     screen_load();
     Term_erase(0, 23, 255);
 
@@ -13922,7 +13922,7 @@ void do_cmd_knowledge_objects(void)
     grp_idx[grp_cnt] = -1;
 
     /* Allocate the "object_idx" array */
-    C_MAKE(object_idx, 1 + grp_max, object_list_entry);
+    object_idx = mem_alloc_array(1 + grp_max, object_list_entry);
 
     grp_cur = grp_top = 0;
     object_cur = object_top = 0;
@@ -14046,7 +14046,7 @@ void do_cmd_knowledge_objects(void)
     }
 
     /* XXX XXX Free the "object_idx" array */
-    KILL(object_idx);
+    mem_free_null(object_idx);
 }
 
 /*
@@ -14071,7 +14071,7 @@ void do_cmd_knowledge_kills(void)
         return;
 
     /* Allocate the "who" array */
-    C_MAKE(who, z_info->r_max, u16b);
+    who = mem_alloc_array(z_info->r_max, u16b);
 
     /* Collect matching monsters */
     for (n = 0, i = 1; i < z_info->r_max - 1; i++)
@@ -14114,7 +14114,7 @@ void do_cmd_knowledge_kills(void)
     }
 
     /* Free the "who" array */
-    FREE(who);
+    mem_free_null(who);
 
     /* Close the file */
     sdl_fclose(fff);
@@ -15349,6 +15349,7 @@ void show_unified_sidebar(unified_look_state* state)
     previous_line_count = current_line_count;
     log_trace("show_unified_sidebar: function complete, set previous_line_count=%d", previous_line_count);
 }
+
 
 
 

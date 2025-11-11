@@ -333,7 +333,7 @@ static errr rd_savefile(void)
         return (1);
 
     /* Make array XXX XXX XXX */
-    C_MAKE(data_head, 65535, byte);
+    data_head = mem_alloc_array(65535, byte);
 
     /* Hack -- reset */
     data_next = data_head;
@@ -372,7 +372,7 @@ static errr rd_savefile(void)
     /* XXX XXX XXX Check for errors */
 
     /* Kill array XXX XXX XXX */
-    KILL(data_head);
+    mem_free_null(data_head);
 
     /* Success */
     return (0);
@@ -2077,6 +2077,7 @@ bool save_player(void)
     }
     return (result);
 }
+
 
 
 

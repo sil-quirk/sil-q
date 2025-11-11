@@ -2094,7 +2094,7 @@ static errr rd_dungeon(void)
         n_ptr = &monster_type_body;
 
         /* Clear the monster */
-        (void)WIPE(n_ptr, monster_type);
+        memset(n_ptr, 0, sizeof(monster_type));
 
     /* Read the monster */
     rd_monster(n_ptr);
@@ -2829,6 +2829,7 @@ bool load_player(void)
     /* Oops */
     return (false);
 }
+
 
 
 

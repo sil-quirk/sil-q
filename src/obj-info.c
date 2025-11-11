@@ -1358,7 +1358,7 @@ static bool screen_out_head(const object_type* o_ptr)
     log_trace("screen_out_head: After printing object name, cursor position: x=%d, y=%d", Term->scr->cx, Term->scr->cy);
 
     /* Free up the memory */
-    FREE(o_name);
+    mem_free_null(o_name);
 
     /* Display the known artefact description */
     if (!adult_rand_artefacts && o_ptr->name1 && object_known_p(o_ptr)
@@ -1557,5 +1557,7 @@ void object_info_screen_multi(const object_type** objects, const char** headings
     text_out_wrap = 0;
     text_out_indent = 0;
 }
+
+
 
 

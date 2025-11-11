@@ -799,7 +799,7 @@ static errr init_info_raw(SDL_IOStream* fd, header* head)
     COPY(head, &test, header);
 
     /* Allocate the "*_info" array */
-    C_MAKE(head->info_ptr, head->info_size, char);
+    head->info_ptr = mem_alloc_array(head->info_size, char);
 
     /* Read the "*_info" array */
     sdl_read(fd, head->info_ptr, head->info_size);
@@ -807,7 +807,7 @@ static errr init_info_raw(SDL_IOStream* fd, header* head)
     if (head->name_size)
     {
         /* Allocate the "*_name" array */
-        C_MAKE(head->name_ptr, head->name_size, char);
+        head->name_ptr = mem_alloc_array(head->name_size, char);
 
         /* Read the "*_name" array */
         sdl_read(fd, head->name_ptr, head->name_size);
@@ -816,7 +816,7 @@ static errr init_info_raw(SDL_IOStream* fd, header* head)
     if (head->text_size)
     {
         /* Allocate the "*_text" array */
-        C_MAKE(head->text_ptr, head->text_size, char);
+        head->text_ptr = mem_alloc_array(head->text_size, char);
 
         /* Read the "*_text" array */
         sdl_read(fd, head->text_ptr, head->text_size);
@@ -925,13 +925,13 @@ static errr init_info(cptr filename, header* head)
         /*** Make the fake arrays ***/
 
         /* Allocate the "*_info" array */
-        C_MAKE(head->info_ptr, head->info_size, char);
+        head->info_ptr = mem_alloc_array(head->info_size, char);
 
         /* MegaHack -- make "fake" arrays */
         if (z_info)
         {
-            C_MAKE(head->name_ptr, z_info->fake_name_size, char);
-            C_MAKE(head->text_ptr, z_info->fake_text_size, char);
+            head->name_ptr = mem_alloc_array(z_info->fake_name_size, char);
+            head->text_ptr = mem_alloc_array(z_info->fake_text_size, char);
         }
 
         /*** Load the ascii template file ***/
@@ -1038,13 +1038,13 @@ static errr init_info(cptr filename, header* head)
         /*** Kill the fake arrays ***/
 
         /* Free the "*_info" array */
-        KILL(head->info_ptr);
+        mem_free_null(head->info_ptr);
 
         /* MegaHack -- Free the "fake" arrays */
         if (z_info)
         {
-            KILL(head->name_ptr);
-            KILL(head->text_ptr);
+            mem_free_null(head->name_ptr);
+            mem_free_null(head->text_ptr);
         }
 
 #endif /* ALLOW_TEMPLATES */
@@ -1086,13 +1086,13 @@ static errr init_info(cptr filename, header* head)
 static errr free_info(header* head)
 {
     if (head->info_size)
-        FREE(head->info_ptr);
+        mem_free_null(head->info_ptr);
 
     if (head->name_size)
-        FREE(head->name_ptr);
+        mem_free_null(head->name_ptr);
 
     if (head->text_size)
-        FREE(head->text_ptr);
+        mem_free_null(head->text_ptr);
 
     /* Success */
     return (0);
@@ -1635,7 +1635,7 @@ extern void autoinscribe_clean(void)
 {
     if (inscriptions)
     {
-        FREE(inscriptions);
+        mem_free_null(inscriptions);
     }
 
     inscriptions = 0;
@@ -1647,7 +1647,7 @@ extern void autoinscribe_init(void)
     /* Paranoia */
     autoinscribe_clean();
 
-    C_MAKE(inscriptions, AUTOINSCRIPTIONS_MAX, autoinscription);
+    inscriptions = mem_alloc_array(AUTOINSCRIPTIONS_MAX, autoinscription);
 }
 
 /*
@@ -1700,47 +1700,47 @@ extern void re_init_some_things(void)
     sdl_story_font_reset();
 
     /* Array of grids */
-    FREE(view_g);
-    C_MAKE(view_g, VIEW_MAX, u16b);
+    mem_free_null(view_g);
+    view_g = mem_alloc_array(VIEW_MAX, u16b);
 
     /* Array of grids */
-    FREE(temp_g);
-    C_MAKE(temp_g, TEMP_MAX, u16b);
+    mem_free_null(temp_g);
+    temp_g = mem_alloc_array(TEMP_MAX, u16b);
 
     /* has_lite patch causes both temp_g and temp_x/y to be used
     in targetting mode: can't use the same memory any more. */
-    FREE(temp_y);
-    FREE(temp_x);
-    C_MAKE(temp_y, TEMP_MAX, byte);
-    C_MAKE(temp_x, TEMP_MAX, byte);
+    mem_free_null(temp_y);
+    mem_free_null(temp_x);
+    temp_y = mem_alloc_array(TEMP_MAX, byte);
+    temp_x = mem_alloc_array(TEMP_MAX, byte);
 
     /*** Prepare dungeon arrays ***/
 
     /* Padded into array */
-    FREE(cave_info);
-    C_MAKE(cave_info, MAX_DUNGEON_HGT, u16b_256);
+    mem_free_null(cave_info);
+    cave_info = mem_alloc_array(MAX_DUNGEON_HGT, u16b_256);
 
     /* Feature array */
-    FREE(cave_feat);
-    C_MAKE(cave_feat, MAX_DUNGEON_HGT, byte_wid);
+    mem_free_null(cave_feat);
+    cave_feat = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
 
     /* Color array */
-    FREE(cave_color);
-    C_MAKE(cave_color, MAX_DUNGEON_HGT, byte_wid);
+    mem_free_null(cave_color);
+    cave_color = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
 
     /* Light array */
-    FREE(cave_light);
-    C_MAKE(cave_light, MAX_DUNGEON_HGT, s16b_wid);
+    mem_free_null(cave_light);
+    cave_light = mem_alloc_array(MAX_DUNGEON_HGT, s16b_wid);
 
     /* Entity arrays */
-    FREE(cave_o_idx);
-    FREE(cave_m_idx);
-    C_MAKE(cave_o_idx, MAX_DUNGEON_HGT, s16b_wid);
-    C_MAKE(cave_m_idx, MAX_DUNGEON_HGT, s16b_wid);
+    mem_free_null(cave_o_idx);
+    mem_free_null(cave_m_idx);
+    cave_o_idx = mem_alloc_array(MAX_DUNGEON_HGT, s16b_wid);
+    cave_m_idx = mem_alloc_array(MAX_DUNGEON_HGT, s16b_wid);
 
     /* Flow arrays */
-    FREE(cave_when);
-    C_MAKE(cave_when, MAX_DUNGEON_HGT, byte_wid);
+    mem_free_null(cave_when);
+    cave_when = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
 
     /*** Prepare "vinfo" array ***/
 
@@ -1750,24 +1750,24 @@ extern void re_init_some_things(void)
     /*** Prepare entity arrays ***/
 
     /* Objects */
-    FREE(o_list);
-    C_MAKE(o_list, z_info->o_max, object_type);
+    mem_free_null(o_list);
+    o_list = mem_alloc_array(z_info->o_max, object_type);
 
     /* Monsters */
-    FREE(mon_list);
-    C_MAKE(mon_list, MAX_MONSTERS, monster_type);
+    mem_free_null(mon_list);
+    mon_list = mem_alloc_array(MAX_MONSTERS, monster_type);
 
     /*** Prepare lore array ***/
 
     /* Lore */
-    FREE(l_list);
-    C_MAKE(l_list, z_info->r_max, monster_lore);
+    mem_free_null(l_list);
+    l_list = mem_alloc_array(z_info->r_max, monster_lore);
 
     /*** Prepare the inventory ***/
 
     /* Allocate it */
-    FREE(inventory);
-    C_MAKE(inventory, INVEN_TOTAL, object_type);
+    mem_free_null(inventory);
+    inventory = mem_alloc_array(INVEN_TOTAL, object_type);
 
     /*** Prepare the options ***/
 
@@ -1827,36 +1827,36 @@ static errr init_other(void)
     /*** Prepare grid arrays ***/
 
     /* Array of grids */
-    C_MAKE(view_g, VIEW_MAX, u16b);
+    view_g = mem_alloc_array(VIEW_MAX, u16b);
 
     /* Array of grids */
-    C_MAKE(temp_g, TEMP_MAX, u16b);
+    temp_g = mem_alloc_array(TEMP_MAX, u16b);
 
     /* has_lite patch causes both temp_g and temp_x/y to be used
     in targetting mode: can't use the same memory any more. */
-    C_MAKE(temp_y, TEMP_MAX, byte);
-    C_MAKE(temp_x, TEMP_MAX, byte);
+    temp_y = mem_alloc_array(TEMP_MAX, byte);
+    temp_x = mem_alloc_array(TEMP_MAX, byte);
 
     /*** Prepare dungeon arrays ***/
 
     /* Padded into array */
-    C_MAKE(cave_info, MAX_DUNGEON_HGT, u16b_256);
+    cave_info = mem_alloc_array(MAX_DUNGEON_HGT, u16b_256);
 
     /* Feature array */
-    C_MAKE(cave_feat, MAX_DUNGEON_HGT, byte_wid);
+    cave_feat = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
 
     /* Color array */
-    C_MAKE(cave_color, MAX_DUNGEON_HGT, byte_wid);
+    cave_color = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
 
     /* Light array */
-    C_MAKE(cave_light, MAX_DUNGEON_HGT, s16b_wid);
+    cave_light = mem_alloc_array(MAX_DUNGEON_HGT, s16b_wid);
 
     /* Entity arrays */
-    C_MAKE(cave_o_idx, MAX_DUNGEON_HGT, s16b_wid);
-    C_MAKE(cave_m_idx, MAX_DUNGEON_HGT, s16b_wid);
+    cave_o_idx = mem_alloc_array(MAX_DUNGEON_HGT, s16b_wid);
+    cave_m_idx = mem_alloc_array(MAX_DUNGEON_HGT, s16b_wid);
 
     /* Flow arrays */
-    C_MAKE(cave_when, MAX_DUNGEON_HGT, byte_wid);
+    cave_when = mem_alloc_array(MAX_DUNGEON_HGT, byte_wid);
 
     /*** Prepare "vinfo" array ***/
 
@@ -1866,20 +1866,20 @@ static errr init_other(void)
     /*** Prepare entity arrays ***/
 
     /* Objects */
-    C_MAKE(o_list, z_info->o_max, object_type);
+    o_list = mem_alloc_array(z_info->o_max, object_type);
 
     /* Monsters */
-    C_MAKE(mon_list, MAX_MONSTERS, monster_type);
+    mon_list = mem_alloc_array(MAX_MONSTERS, monster_type);
 
     /*** Prepare lore array ***/
 
     /* Lore */
-    C_MAKE(l_list, z_info->r_max, monster_lore);
+    l_list = mem_alloc_array(z_info->r_max, monster_lore);
 
     /*** Prepare the inventory ***/
 
     /* Allocate it */
-    C_MAKE(inventory, INVEN_TOTAL, object_type);
+    inventory = mem_alloc_array(INVEN_TOTAL, object_type);
 
     /*** Prepare the options ***/
 
@@ -1978,7 +1978,7 @@ static errr init_alloc(void)
     /*** Initialize object allocation info ***/
 
     /* Allocate the alloc_kind_table */
-    C_MAKE(alloc_kind_table, alloc_kind_size, alloc_entry);
+    alloc_kind_table = mem_alloc_array(alloc_kind_size, alloc_entry);
 
     /* Get the table entry */
     table = alloc_kind_table;
@@ -2062,7 +2062,7 @@ static errr init_alloc(void)
     /*** Initialize monster allocation info ***/
 
     /* Allocate the alloc_race_table */
-    C_MAKE(alloc_race_table, alloc_race_size, alloc_entry);
+    alloc_race_table = mem_alloc_array(alloc_race_size, alloc_entry);
 
     /* Get the table entry */
     table = alloc_race_table;
@@ -2140,7 +2140,7 @@ static errr init_alloc(void)
     /*** Initialize special item allocation info ***/
 
     /* Allocate the alloc_ego_table */
-    C_MAKE(alloc_ego_table, alloc_ego_size, alloc_entry);
+    alloc_ego_table = mem_alloc_array(alloc_ego_size, alloc_entry);
 
     /* Get the table entry */
     table = alloc_ego_table;
@@ -2419,7 +2419,7 @@ void init_angband(void)
     /* Snapshot monster base stats for runtime overrides */
     if (!r_base)
     {
-        C_MAKE(r_base, z_info->r_max, monster_race);
+        r_base = mem_alloc_array(z_info->r_max, monster_race);
     }
     for (i = 0; i < z_info->r_max; i++)
     {
@@ -2597,37 +2597,39 @@ void cleanup_angband(void)
     macro_trigger_free();
 
     /* Free the allocation tables */
-    FREE(alloc_ego_table);
-    FREE(alloc_race_table);
-    FREE(alloc_kind_table);
+    mem_free_null(alloc_ego_table);
+    mem_free_null(alloc_race_table);
+    mem_free_null(alloc_kind_table);
 
     /* Free the player inventory */
-    FREE(inventory);
+    mem_free_null(inventory);
 
     /*Clean the Autoinscribe*/
     autoinscribe_clean();
 
     /* Free the lore, monster, and object lists */
-    FREE(l_list);
-    FREE(mon_list);
-    FREE(o_list);
+    mem_free_null(l_list);
+    mem_free_null(mon_list);
+    mem_free_null(o_list);
 
     /* Flow arrays */
-    FREE(cave_when);
+    mem_free_null(cave_when);
 
     /* Free the cave */
-    FREE(cave_o_idx);
-    FREE(cave_m_idx);
-    FREE(cave_feat);
-    FREE(cave_color);
-    FREE(cave_info);
-    FREE(cave_light);
+    mem_free_null(cave_o_idx);
+    mem_free_null(cave_m_idx);
+    mem_free_null(cave_feat);
+    mem_free_null(cave_color);
+    mem_free_null(cave_info);
+    mem_free_null(cave_light);
 
     /* Free the "update_view()" array */
-    FREE(view_g);
+    mem_free_null(view_g);
 
-    /* Free the temp array */
-    FREE(temp_g);
+    /* Free the temp arrays */
+    mem_free_null(temp_g);
+    mem_free_null(temp_y);
+    mem_free_null(temp_x);
 
     /* Free the messages */
     messages_free();
@@ -2673,6 +2675,12 @@ void cleanup_angband(void)
     string_free(ANGBAND_DIR_XTRA);
     string_free(ANGBAND_DIR_SCRIPT);
 }
+
+
+
+
+
+
 
 
 

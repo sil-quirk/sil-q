@@ -795,10 +795,10 @@ errr macro_add(cptr pat, cptr act)
 errr macro_init(void)
 {
     /* Macro patterns */
-    C_MAKE(macro__pat, MACRO_MAX, cptr);
+    macro__pat = mem_alloc_array(MACRO_MAX, cptr);
 
     /* Macro actions */
-    C_MAKE(macro__act, MACRO_MAX, cptr);
+    macro__act = mem_alloc_array(MACRO_MAX, cptr);
 
     /* Success */
     return (0);
@@ -818,8 +818,8 @@ errr macro_free(void)
         string_free(macro__act[i]);
     }
 
-    FREE((void*)macro__pat);
-    FREE((void*)macro__act);
+    mem_free_null(macro__pat);
+    mem_free_null(macro__act);
 
     /* Free the keymaps */
     for (i = 0; i < KEYMAP_MODES; ++i)
@@ -1463,7 +1463,7 @@ cptr quark_str(s16b i)
 errr quarks_init(void)
 {
     /* Quark variables */
-    C_MAKE(quark__str, QUARK_MAX, cptr);
+    quark__str = mem_alloc_array(QUARK_MAX, cptr);
 
     /* Success */
     return (0);
@@ -1483,7 +1483,7 @@ errr quarks_free(void)
     }
 
     /* Free the list of "quarks" */
-    FREE((void*)quark__str);
+    mem_free_null(quark__str);
 
     /* Success */
     return (0);
@@ -1915,10 +1915,10 @@ void message_add(cptr str, u16b type)
 errr messages_init(void)
 {
     /* Message variables */
-    C_MAKE(message__ptr, MESSAGE_MAX, u16b);
-    C_MAKE(message__buf, MESSAGE_BUF, char);
-    C_MAKE(message__type, MESSAGE_MAX, u16b);
-    C_MAKE(message__count, MESSAGE_MAX, u16b);
+    message__ptr = mem_alloc_array(MESSAGE_MAX, u16b);
+    message__buf = mem_alloc_array(MESSAGE_BUF, char);
+    message__type = mem_alloc_array(MESSAGE_MAX, u16b);
+    message__count = mem_alloc_array(MESSAGE_MAX, u16b);
 
     /* Init the message colors to white */
     (void)C_BSET(message__color, TERM_WHITE, MSG_MAX, byte);
@@ -1936,10 +1936,10 @@ errr messages_init(void)
 void messages_free(void)
 {
     /* Free the messages */
-    FREE(message__ptr);
-    FREE(message__buf);
-    FREE(message__type);
-    FREE(message__count);
+    mem_free_null(message__ptr);
+    mem_free_null(message__buf);
+    mem_free_null(message__type);
+    mem_free_null(message__count);
 }
 
 /*
@@ -4850,7 +4850,7 @@ void editing_buffer_init(
         len = strlen(buf);
 
     /* Alloc a clean buffer */
-    C_MAKE(eb_ptr->buf, max_size, char);
+    eb_ptr->buf = mem_alloc_array(max_size, char);
 
     /* Copy the initial string, if any */
     if (len > 0)
@@ -4873,7 +4873,7 @@ void editing_buffer_destroy(editing_buffer* eb_ptr)
     /* Destroy the buffer */
     if (eb_ptr && eb_ptr->buf)
     {
-        FREE(eb_ptr->buf);
+        mem_free_null(eb_ptr->buf);
         eb_ptr->buf = NULL;
     }
 }
@@ -5166,3 +5166,5 @@ int color_text_to_attr(cptr name)
     /* We can not find it */
     return (-1);
 }
+
+

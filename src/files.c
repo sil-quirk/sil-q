@@ -617,7 +617,7 @@ errr process_pref_file_command(char* buf)
             }
 
             /* Buffer for the trigger name */
-            C_MAKE(buf, strlen(zz[0]) + 1, char);
+            buf = mem_alloc_array(strlen(zz[0]) + 1, char);
 
             /* Simulate strcpy() and skip the '\' escape character */
             s = zz[0];
@@ -637,7 +637,7 @@ errr process_pref_file_command(char* buf)
             macro_trigger_name[max_macrotrigger] = string_make(buf);
 
             /* Free the buffer */
-            FREE(buf);
+            mem_free_null(buf);
 
             /* Normal keycode */
             macro_trigger_keycode[0][max_macrotrigger] = string_make(zz[1]);
@@ -4772,7 +4772,7 @@ static bool upgrade_scores_file_to_curses(const char *filepath)
     }
     
     if (fread(buffer, 1, file_size, file) != (size_t)file_size) {
-        free(buffer);
+        mem_free_null(buffer);
         fclose(file);
         log_error("Failed to read file during upgrade");
         return false;
@@ -4802,13 +4802,13 @@ static bool upgrade_scores_file_to_curses(const char *filepath)
     /* Write back updated file */
     fseek(file, 0, SEEK_SET);
     if (fwrite(buffer, 1, file_size, file) != (size_t)file_size) {
-        free(buffer);
+        mem_free_null(buffer);
         fclose(file);
         log_error("Failed to write upgraded file");
         return false;
     }
     
-    free(buffer);
+    mem_free_null(buffer);
     fflush(file);
     fclose(file);
     
@@ -5031,14 +5031,14 @@ static errr backup_scores_file(const char *filepath)
     }
     
     /* Read original file */
-    char *buffer = C_ZNEW(file_size, char);
+    char *buffer = mem_alloc_array(file_size, char);
     if (!buffer) {
         sdl_fclose(fd_src);
         return -1;
     }
     
     if (sdl_read(fd_src, buffer, file_size) != 0) {
-        FREE(buffer);
+        mem_free_null(buffer);
         sdl_fclose(fd_src);
         return -1;
     }
@@ -5074,13 +5074,13 @@ static errr backup_scores_file(const char *filepath)
     /* Create new bak1 from current file */
     SDL_IOStream* fd_dst = sdl_fmake(backup_path1, 0644);
     if (!fd_dst) {
-        FREE(buffer);
+        mem_free_null(buffer);
         return -1;
     }
     
     errr result = sdl_write(fd_dst, buffer, file_size);
     sdl_fclose(fd_dst);
-    FREE(buffer);
+    mem_free_null(buffer);
     
     if (result == 0) {
         log_info("Created scores backup: %s (rotated 3 backups)", backup_path1);
@@ -7476,7 +7476,7 @@ extern int has_iron_crown(void)
 errr create_score(high_score* the_score)
 {
     /* Clear the record */
-    (void)WIPE(the_score, high_score);
+    memset(the_score, 0, sizeof(high_score));
 
     /* Save the version */
     strnfmt(the_score->what, sizeof(the_score->what), "%s", VERSION_STRING);
@@ -10235,6 +10235,7 @@ void backup_and_clear_saves(void)
     
     log_trace("Folder-based backup process completed");
 }
+
 
 
 

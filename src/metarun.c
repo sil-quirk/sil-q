@@ -525,10 +525,10 @@ static void metarun_from_v9(metarun *dst, const metarun_v9 *src)
     }
     dst->curses_seen = (u64b)src->curses_seen;
 
-    C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
+    memcpy(dst->persistent_options, src->persistent_options, 8 * sizeof(u32b));
     dst->persistent_delay_factor = src->persistent_delay_factor;
     dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    C_COPY(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX, u32b);
+    memcpy(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX * sizeof(u32b));
     dst->persistent_options_initialized = src->persistent_options_initialized;
 
     dst->completed_quests = src->completed_quests;
@@ -536,7 +536,7 @@ static void metarun_from_v9(metarun *dst, const metarun_v9 *src)
     dst->banned_oaths = src->banned_oaths;
     dst->max_difficulty_reached = src->max_difficulty_reached;
 
-    C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
+    memcpy(dst->quest_reserved, src->quest_reserved, 12 * sizeof(byte));
 
     dst->fallen_score_total = src->fallen_score_total;
     dst->fallen_score_pool = src->fallen_score_pool;
@@ -545,7 +545,7 @@ static void metarun_from_v9(metarun *dst, const metarun_v9 *src)
     dst->major_blessings = src->major_blessings;
     dst->alive_characters = src->alive_characters;
 
-    C_COPY(dst->pending_blessing_choices, src->pending_blessing_choices, 3, byte);
+    memcpy(dst->pending_blessing_choices, src->pending_blessing_choices, 3 * sizeof(byte));
     dst->pending_blessing_count = src->pending_blessing_count;
     dst->blessing_threshold_mode = src->blessing_threshold_mode;
 
@@ -582,10 +582,10 @@ static void metarun_from_v8(metarun *dst, const metarun_v8 *src)
     }
     dst->curses_seen = (u64b)src->curses_seen;
 
-    C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
+    memcpy(dst->persistent_options, src->persistent_options, 8 * sizeof(u32b));
     dst->persistent_delay_factor = src->persistent_delay_factor;
     dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    C_COPY(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX, u32b);
+    memcpy(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX * sizeof(u32b));
     dst->persistent_options_initialized = src->persistent_options_initialized;
 
     dst->completed_quests = src->completed_quests;
@@ -594,7 +594,7 @@ static void metarun_from_v8(metarun *dst, const metarun_v8 *src)
     dst->max_difficulty_reached = src->max_difficulty_reached;
     
     /* Copy all quest_reserved bytes */
-    C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
+    memcpy(dst->quest_reserved, src->quest_reserved, 12 * sizeof(byte));
     
     dst->fallen_score_total = src->fallen_score_total;
     dst->blessing_points_spent = src->blessing_points_spent;
@@ -602,7 +602,7 @@ static void metarun_from_v8(metarun *dst, const metarun_v8 *src)
     dst->alive_characters = src->alive_characters;
     
     /* Copy persistent blessing choices (new in v8/0.9.0.1) */
-    C_COPY(dst->pending_blessing_choices, src->pending_blessing_choices, 3, byte);
+    memcpy(dst->pending_blessing_choices, src->pending_blessing_choices, 3 * sizeof(byte));
     dst->pending_blessing_count = src->pending_blessing_count;
 
     /* Copy reserved_runtime */
@@ -639,10 +639,10 @@ static void metarun_from_v7(metarun *dst, const metarun_v7 *src)
     }
     dst->curses_seen = (u64b)src->curses_seen;
 
-    C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
+    memcpy(dst->persistent_options, src->persistent_options, 8 * sizeof(u32b));
     dst->persistent_delay_factor = src->persistent_delay_factor;
     dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    C_COPY(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX, u32b);
+    memcpy(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX * sizeof(u32b));
     dst->persistent_options_initialized = src->persistent_options_initialized;
 
     dst->completed_quests = src->completed_quests;
@@ -651,7 +651,7 @@ static void metarun_from_v7(metarun *dst, const metarun_v7 *src)
     dst->max_difficulty_reached = src->max_difficulty_reached;
     
     /* Copy all quest_reserved bytes */
-    C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
+    memcpy(dst->quest_reserved, src->quest_reserved, 12 * sizeof(byte));
 
     update_blessing_ledger(dst);
 }
@@ -674,10 +674,10 @@ static void metarun_from_v6(metarun *dst, const metarun_v6 *src)
     decode_legacy_curse_words(src->curses_lo, src->curses_hi, dst->curse_stacks);
     dst->curses_seen = (u64b)src->curses_seen;
 
-    C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
+    memcpy(dst->persistent_options, src->persistent_options, 8 * sizeof(u32b));
     dst->persistent_delay_factor = src->persistent_delay_factor;
     dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    C_COPY(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX, u32b);
+    memcpy(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX * sizeof(u32b));
     dst->persistent_options_initialized = src->persistent_options_initialized;
 
     dst->completed_quests = src->completed_quests;
@@ -686,7 +686,7 @@ static void metarun_from_v6(metarun *dst, const metarun_v6 *src)
     dst->max_difficulty_reached = src->max_difficulty_reached;
     
     /* Copy all quest_reserved bytes */
-    C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
+    memcpy(dst->quest_reserved, src->quest_reserved, 12 * sizeof(byte));
 
     update_blessing_ledger(dst);
 }
@@ -707,10 +707,10 @@ static void metarun_from_v5(metarun *dst, const metarun_v5 *src)
     decode_legacy_curse_words(src->curses_lo, src->curses_hi, dst->curse_stacks);
     dst->curses_seen = (u64b)src->curses_seen;
 
-    C_COPY(dst->persistent_options, src->persistent_options, 8, u32b);
+    memcpy(dst->persistent_options, src->persistent_options, 8 * sizeof(u32b));
     dst->persistent_delay_factor = src->persistent_delay_factor;
     dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    C_COPY(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX, u32b);
+    memcpy(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX * sizeof(u32b));
     dst->persistent_options_initialized = src->persistent_options_initialized;
 
     dst->completed_quests = src->completed_quests;
@@ -719,7 +719,7 @@ static void metarun_from_v5(metarun *dst, const metarun_v5 *src)
     dst->max_difficulty_reached = src->max_difficulty_reached;
     
     /* Copy all quest_reserved bytes */
-    C_COPY(dst->quest_reserved, src->quest_reserved, 12, byte);
+    memcpy(dst->quest_reserved, src->quest_reserved, 12 * sizeof(byte));
 
     update_blessing_ledger(dst);
 }
@@ -906,7 +906,7 @@ static bool ensure_default_metarun_slot(const char *reason)
     if (metarun_max > 0 && metaruns) return false;
 
     if (metaruns) {
-        FREE(metaruns);
+        mem_free_null(metaruns);
         metaruns = NULL;
     }
 
@@ -916,7 +916,7 @@ static bool ensure_default_metarun_slot(const char *reason)
         log_warn("Metarun recovery triggered; creating default entry");
 
     metarun_max = 1;
-    metaruns = C_ZNEW(metarun_max, metarun);
+    metaruns = mem_alloc_array(metarun_max, metarun);
     reset_defaults(&metaruns[0]);
     metarun_created = true;
 
@@ -1342,7 +1342,7 @@ errr load_metaruns(bool create_if_missing)
                           : 0;
 
         if (metarun_max > 0 && entry_size > 0) {
-            metaruns = C_ZNEW(metarun_max, metarun);
+            metaruns = mem_alloc_array(metarun_max, metarun);
             sdl_seek(fd, sizeof(meta_file_header));
 
             if (entry_size == sizeof(metarun)) {
@@ -1365,7 +1365,7 @@ errr load_metaruns(bool create_if_missing)
                     sanitize_major_blessing_bits(&metaruns[i]);
                 }
             } else if (entry_size == METARUN_V9_SIZE) {
-                metarun_v9 *legacy = C_ZNEW(metarun_max, metarun_v9);
+                metarun_v9 *legacy = mem_alloc_array(metarun_max, metarun_v9);
                 sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v9));
                 for (s16b i = 0; i < metarun_max; i++) {
                     metarun_from_v9(&metaruns[i], &legacy[i]);
@@ -1407,7 +1407,7 @@ errr load_metaruns(bool create_if_missing)
             } else {
                 recovery_reason = "versioned meta.raw had unexpected entry size";
                 log_warn("Unsupported metarun entry size %zu in versioned file", entry_size);
-                FREE(metaruns);
+                mem_free_null(metaruns);
                 metaruns = NULL;
                 metarun_max = 0;
             }
@@ -1418,7 +1418,7 @@ errr load_metaruns(bool create_if_missing)
             recovery_reason = "versioned meta.raw had invalid payload size";
             log_warn("Versioned meta file payload %zu does not align with %d entries",
                      payload, metarun_max);
-            FREE(metaruns);
+            mem_free_null(metaruns);
             metaruns = NULL;
             metarun_max = 0;
         }
@@ -5290,6 +5290,16 @@ int get_available_oaths_mask(void)
     
     return available;
 }
+
+
+
+
+
+
+
+
+
+
 
 
 

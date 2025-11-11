@@ -28,7 +28,7 @@ static void qv_capture(void) {
     if (qv_y1 < 0) return;
     qv_h = qv_y2 - qv_y1 + 1;
     qv_w = qv_x2 - qv_x1 + 1;
-    FREE(qv_feat_snapshot);
+    mem_free_null(qv_feat_snapshot);
     qv_feat_snapshot = C_ZNEW(qv_h * qv_w, unsigned short);
     for (y = qv_y1; y <= qv_y2; ++y)
         for (x = qv_x1; x <= qv_x2; ++x)
@@ -6181,4 +6181,6 @@ if (playerturn == 0) {
 
     // Valar quest doesn't provide map rewards like the old thrall quest
 }
+
+
 

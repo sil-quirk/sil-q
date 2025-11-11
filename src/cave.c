@@ -3045,7 +3045,7 @@ errr vinfo_init(void)
     vinfo_type* queue[VINFO_MAX_GRIDS * 2];
 
     /* Make hack */
-    MAKE(hack, vinfo_hack);
+    hack = mem_alloc(vinfo_hack);
 
     /* Analyze grids */
     for (y = 0; y <= MAX_SIGHT; ++y)
@@ -3279,7 +3279,7 @@ errr vinfo_init(void)
     }
 
     /* Kill hack */
-    KILL(hack);
+    mem_free_null(hack);
 
     /* Success */
     return (0);
@@ -5837,4 +5837,6 @@ void disturb(int stop_stealth, int unused_flag)
     /* Flush the input */
     flush();
 }
+
+
 

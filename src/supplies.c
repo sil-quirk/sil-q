@@ -74,11 +74,11 @@ static void supplies_reserve(int minimum)
     while (new_capacity < minimum)
         new_capacity *= 2;
 
-    supply_entry* new_entries = C_RNEW(new_capacity, supply_entry);
+    supply_entry* new_entries = mem_alloc_array(new_capacity, supply_entry);
     if (g_supply_entries && g_supply_count > 0)
     {
-        C_COPY(new_entries, g_supply_entries, g_supply_count, supply_entry);
-        FREE(g_supply_entries);
+        memcpy(new_entries, g_supply_entries, g_supply_count * sizeof(supply_entry));
+        mem_free_null(g_supply_entries);
     }
 
     for (int i = g_supply_count; i < new_capacity; i++)
@@ -152,7 +152,7 @@ void supplies_dispose(void)
         return;
 
     if (g_supply_entries)
-        FREE(g_supply_entries);
+        mem_free_null(g_supply_entries);
 
     g_supply_entries = NULL;
     g_supply_capacity = 0;
@@ -850,4 +850,5 @@ int supplies_damage(int (*typ)(const object_type*), int perc, int resistance)
     /* Return the count */
     return (k);
 }
+
 

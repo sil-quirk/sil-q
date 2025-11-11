@@ -1490,7 +1490,7 @@ static void do_cmd_wiz_forget(void)
     {
         monster_lore* l_ptr = &l_list[i];
 
-        WIPE(l_ptr, monster_lore);
+        memset(l_ptr, 0, sizeof(monster_lore));
     }
 
     /* Mega-Hack -- Forget the map */
@@ -2326,4 +2326,5 @@ void do_cmd_debug(void)
 #else
 
 #endif
+
 

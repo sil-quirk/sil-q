@@ -44,7 +44,7 @@ static void song_disguise_clear_pacified(void)
     if (!song_disguise_pacified)
         return;
 
-    C_WIPE(song_disguise_pacified, MAX_MONSTERS, byte);
+    memset(song_disguise_pacified, 0, MAX_MONSTERS * sizeof(byte));
 }
 
 static void song_disguise_on_start(void)
@@ -100,7 +100,7 @@ void song_disguise_new_player_turn(void)
     song_disguise_attackers_current_turn = 0;
 
     if (song_disguise_attacked)
-        C_WIPE(song_disguise_attacked, MAX_MONSTERS, byte);
+        memset(song_disguise_attacked, 0, MAX_MONSTERS * sizeof(byte));
 }
 
 void song_disguise_handle_monster_removed(int m_idx)
@@ -6484,7 +6484,7 @@ void sing_song_of_delvings(int score)
     x_range = max_x - min_x;
 
     char* delvings;
-    C_MAKE(delvings, y_range * x_range * 4, char);
+    delvings = mem_alloc_array(y_range * x_range * 4, char);
 
     for (y = min_y; y < max_y; ++y)
     {
@@ -6571,7 +6571,7 @@ void sing_song_of_delvings(int score)
     /* Window stuff */
     p_ptr->window |= (PW_OVERHEAD);
 
-    FREE(delvings);
+    mem_free_null(delvings);
 }
 
 static bool object_is_monster_weapon(const object_type* o_ptr)
@@ -7392,7 +7392,7 @@ void sing(void)
     {
         if (song_revealing_has_data)
         {
-            C_WIPE(song_revealing_hint, MAX_MONSTERS, byte);
+            memset(song_revealing_hint, 0, MAX_MONSTERS * sizeof(byte));
             song_revealing_has_data = false;
         }
 
@@ -7620,4 +7620,5 @@ void sing(void)
     p_ptr->redraw |= (PR_VOICE);
     p_ptr->redraw |= (PR_HP);
 }
+
 

@@ -22,6 +22,18 @@ u64b Rand_state_export(void) { return rng_state; }
 
 void Rand_state_import(u64b state) { rng_state = sanitize_seed(state); }
 
+u64b Rand_state_push(u64b new_state)
+{
+    u64b saved = rng_state;
+    rng_state = sanitize_seed(new_state);
+    return saved;
+}
+
+void Rand_state_pop(u64b saved_state)
+{
+    rng_state = saved_state;
+}
+
 static Uint32 rng_random_bits(void) { return SDL_rand_bits_r(&rng_state); }
 
 u32b Rand_div(u32b m)

@@ -515,7 +515,7 @@ static void spoil_mon_desc(cptr fname)
         "------", "----------", "--------------------------");
 
     /* Allocate the "who" array */
-    C_MAKE(who, z_info->r_max, u16b);
+    who = mem_alloc_array(z_info->r_max, u16b);
 
     /* Scan the monsters */
     for (i = 1; i < z_info->r_max; i++)
@@ -644,7 +644,7 @@ static void spoil_mon_desc(cptr fname)
     SDL_IOprintf(fff, "\n");
 
     /* Free the "who" array */
-    FREE(who);
+    mem_free_null(who);
 
     /* Check for errors */
     if (0 || sdl_fclose(fff))
@@ -700,7 +700,7 @@ static void spoil_mon_ss(cptr fname)
     }
 
     /* Allocate the "who" array */
-    C_MAKE(who, z_info->r_max, u16b);
+    who = mem_alloc_array(z_info->r_max, u16b);
 
     /* Scan the monsters */
     for (i = 1; i < z_info->r_max; i++)
@@ -822,7 +822,7 @@ static void spoil_mon_ss(cptr fname)
     SDL_IOprintf(fff, "\n");
 
     /* Free the "who" array */
-    FREE(who);
+    mem_free_null(who);
 
     /* Check for errors */
     if (0 || sdl_fclose(fff))
@@ -881,7 +881,7 @@ static void spoil_mon_info(cptr fname)
     text_out("------------------------------------------\n\n");
 
     /* Allocate the "who" array */
-    C_MAKE(who, z_info->r_max, u16b);
+    who = mem_alloc_array(z_info->r_max, u16b);
 
     /* Scan the monsters */
     for (i = 1; i < z_info->r_max; i++)
@@ -969,7 +969,7 @@ static void spoil_mon_info(cptr fname)
     }
 
     /* Free the "who" array */
-    FREE(who);
+    mem_free_null(who);
 
     /* Check for errors */
     if (0 || sdl_fclose(fff))
@@ -1066,6 +1066,8 @@ void do_cmd_spoilers(void)
 #else
 
 #endif
+
+
 
 
 

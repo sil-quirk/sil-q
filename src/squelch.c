@@ -1240,7 +1240,7 @@ static int do_ego_item_squelch(void)
     }
 
     /* Alloc the array of ego indices */
-    C_MAKE(choice, alloc_ego_size, s16b);
+    choice = mem_alloc_array(alloc_ego_size, s16b);
 
     /* Get the valid special items */
     for (i = 0; i < alloc_ego_size; i++)
@@ -1465,7 +1465,7 @@ static int do_ego_item_squelch(void)
         }
     }
     /* Free resources */
-    FREE(choice);
+    mem_free_null(choice);
     return 0;
 }
 
@@ -2000,6 +2000,8 @@ char* squelch_to_label(int squelch)
 
     return ("");
 }
+
+
 
 
 

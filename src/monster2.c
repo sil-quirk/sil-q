@@ -320,8 +320,8 @@ void compact_monsters(int size)
         s16b* mon_index;
 
         /* Allocate the "mon_lev and mon_index" arrays */
-        C_MAKE(mon_lev, mon_max, s16b);
-        C_MAKE(mon_index, mon_max, s16b);
+        mon_lev = mem_alloc_array(mon_max, s16b);
+        mon_index = mem_alloc_array(mon_max, s16b);
 
         /* Message */
         msg_print("Compacting monsters...");
@@ -409,8 +409,8 @@ void compact_monsters(int size)
         }
 
         /* Free the "mon_lev and mon_index" arrays */
-        FREE(mon_lev);
-        FREE(mon_index);
+        mem_free_null(mon_lev);
+        mem_free_null(mon_index);
     }
 
     /* Excise dead monsters (backwards!) */
@@ -811,7 +811,7 @@ void display_monlist(void)
     }
 
     /* Allocate the array */
-    C_MAKE(race_counts, z_info->r_max, u16b);
+    race_counts = mem_alloc_array(z_info->r_max, u16b);
 
     /* Iterate over mon_list */
     for (idx = 1; idx < mon_max; idx++)
@@ -896,7 +896,7 @@ void display_monlist(void)
     }
 
     /* Free the race counters */
-    FREE(race_counts);
+    mem_free_null(race_counts);
 
     /* Erase the rest of the window */
     for (idx = line; idx < Term->hgt; idx++)
@@ -3822,4 +3822,5 @@ void message_pain(int m_idx, int dam)
 
     // m, w are silent
 }
+
 

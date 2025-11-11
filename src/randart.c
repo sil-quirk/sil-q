@@ -2923,7 +2923,7 @@ static errr do_randart_aux(bool full)
 void build_randart_tables(void)
 {
     /* Allocate the "kinds" array */
-    C_MAKE(kinds, z_info->art_norm_max, s16b);
+    kinds = mem_alloc_array(z_info->art_norm_max, s16b);
 
     /* Initialize the monster power ratings */
     (void)init_mon_power();
@@ -2933,7 +2933,7 @@ void build_randart_tables(void)
 }
 
 /*free the randart tables at the end of the game*/
-void free_randart_tables(void) { FREE(kinds); }
+void free_randart_tables(void) { mem_free_null(kinds); }
 
 /*
  * Randomize the artefacts
@@ -2953,10 +2953,10 @@ errr do_randart(u32b randart_seed, bool full)
     if (full)
     {
         /* Allocate the various "original powers" arrays */
-        C_MAKE(base_power, z_info->art_norm_max, s32b);
-        C_MAKE(base_item_level, z_info->art_norm_max, byte);
-        C_MAKE(base_item_rarity, z_info->art_norm_max, byte);
-        C_MAKE(base_art_rarity, z_info->art_norm_max, byte);
+        base_power = mem_alloc_array(z_info->art_norm_max, s32b);
+        base_item_level = mem_alloc_array(z_info->art_norm_max, byte);
+        base_item_rarity = mem_alloc_array(z_info->art_norm_max, byte);
+        base_art_rarity = mem_alloc_array(z_info->art_norm_max, byte);
 
         /* Store the original power ratings */
         store_base_power();
@@ -2972,10 +2972,10 @@ errr do_randart(u32b randart_seed, bool full)
     if (full)
     {
         /* Free the "original powers" arrays */
-        FREE(base_power);
-        FREE(base_item_level);
-        FREE(base_item_rarity);
-        FREE(base_art_rarity);
+        mem_free_null(base_power);
+        mem_free_null(base_item_level);
+        mem_free_null(base_item_rarity);
+        mem_free_null(base_art_rarity);
     }
 
     /* When done, resume use of the Angband "complex" RNG. */
@@ -3024,7 +3024,7 @@ bool make_one_randart(object_type* o_ptr, int art_power, bool tailored)
     a_ptr = &a_info[a_idx];
 
     /* Clear the artefact record */
-    (void)WIPE(a_ptr, artefact_type);
+    memset(a_ptr, 0, sizeof(artefact_type));
 
     /*point to the object type*/
     k_ptr = &k_info[o_ptr->k_idx];
@@ -3084,7 +3084,7 @@ bool make_one_randart(object_type* o_ptr, int art_power, bool tailored)
         get_obj_num_prep();
 
         /* Clear the artefact record */
-        (void)WIPE(a_ptr, artefact_type);
+        memset(a_ptr, 0, sizeof(artefact_type));
 
         /*prepare a basic, non-magic artefact template based on the object
          * kind*/
@@ -3256,7 +3256,7 @@ void artefact_wipe(int a_idx)
         return;
 
     /* Wipe the structure */
-    (void)WIPE(a_ptr, artefact_type);
+    memset(a_ptr, 0, sizeof(artefact_type));
 
     /*terminate the string*/
     a_ptr->name[0] = '\0';
@@ -3295,4 +3295,7 @@ bool can_be_randart(const object_type* o_ptr)
         return (false);
     }
 }
+
+
+
 

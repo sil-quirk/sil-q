@@ -2797,7 +2797,7 @@ void new_combat_round(void)
         log_trace("[ROUND] copy current->old: combat_number_old(before)=%d", combat_number_old);
         for (i = 0; i < MAX_COMBAT_ROLLS; i++)
         {
-            COPY(&combat_rolls[1][i], &combat_rolls[0][i], combat_roll);
+            memcpy(&combat_rolls[1][i], &combat_rolls[0][i], sizeof(combat_roll));
             log_trace("[ROUND]   copied i=%d att_type=%d att=%d evn=%d dam=%d prot=%d atk=%c def=%c", i,
                       combat_rolls[1][i].att_type,
                       combat_rolls[1][i].att,
@@ -3668,7 +3668,7 @@ void add_combat_round_to_history(void)
     
     /* Copy the combat rolls from the previous round */
     for (i = 0; i < combat_number_old && i < MAX_COMBAT_ROLLS; i++) {
-        COPY(&combat_history[combat_history_head].rolls[i], &combat_rolls[1][i], combat_roll);
+        memcpy(&combat_history[combat_history_head].rolls[i], &combat_rolls[1][i], sizeof(combat_roll));
     }
 }
 
@@ -4217,5 +4217,6 @@ void display_main_combat_rolls(void)
         draw_combat_roll_line(row, col_offset, &combat_rolls[round][idx]);
     }
 }
+
 
 

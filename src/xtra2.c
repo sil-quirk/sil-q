@@ -5757,7 +5757,7 @@ static int select_tulkas_quest_prize(int target_level)
         
         /* Initialize the array if it doesn't exist */
         if (z_info && z_info->art_max > 0) {
-            C_MAKE(valar_reserved_artifacts, z_info->art_max, bool);
+            valar_reserved_artifacts = mem_alloc_array(z_info->art_max, bool);
             for (int j = 0; j < z_info->art_max; j++) {
                 valar_reserved_artifacts[j] = false;
             }
@@ -6135,14 +6135,14 @@ cptr* extract_quest_init_texts(int quest_idx, int* count)
     if (!full_text || strlen(full_text) == 0) return NULL;
     
     /* Allocate text array */
-    texts = C_ZNEW(max_texts, cptr);
+    texts = mem_alloc_array(max_texts, cptr);
     if (!texts) return NULL;
     
     /* Create a working copy of the text */
     len = strlen(full_text);
-    text_copy = C_ZNEW(len + 1, char);
+    text_copy = mem_alloc_array(len + 1, char);
     if (!text_copy) {
-        FREE(texts);
+        mem_free_null(texts);
         return NULL;
     }
     SDL_strlcpy(text_copy, full_text, len + 1);
@@ -6170,7 +6170,7 @@ cptr* extract_quest_init_texts(int quest_idx, int* count)
     }
     
     /* Clean up */
-    FREE(text_copy);
+    mem_free_null(text_copy);
     
     *count = text_count;
     return texts;
@@ -6206,14 +6206,14 @@ cptr* extract_quest_completion_texts(int quest_idx, int* count)
     if (!full_text || strlen(full_text) == 0) return NULL;
     
     /* Allocate text array */
-    texts = C_ZNEW(max_texts, cptr);
+    texts = mem_alloc_array(max_texts, cptr);
     if (!texts) return NULL;
     
     /* Create a working copy of the text */
     len = strlen(full_text);
-    text_copy = C_ZNEW(len + 1, char);
+    text_copy = mem_alloc_array(len + 1, char);
     if (!text_copy) {
-        FREE(texts);
+        mem_free_null(texts);
         return NULL;
     }
     SDL_strlcpy(text_copy, full_text, len + 1);
@@ -6241,7 +6241,7 @@ cptr* extract_quest_completion_texts(int quest_idx, int* count)
     }
     
     /* Clean up */
-    FREE(text_copy);
+    mem_free_null(text_copy);
     
     *count = text_count;
     return texts;
@@ -6698,7 +6698,7 @@ void free_quest_texts(cptr* texts)
     }
     
     /* Free the array */
-    FREE(texts);
+    mem_free_null(texts);
 }
 
 /*
@@ -7452,7 +7452,7 @@ void tulkas_quest_interaction(void)
         
         if (init_texts && text_count > 0) {
             /* Substitute [monster name] and [artifact name] in the texts */
-            cptr* processed_texts = C_ZNEW(text_count, cptr);
+            cptr* processed_texts = mem_alloc_array(text_count, cptr);
             for (int i = 0; i < text_count; i++) {
                 char temp_text[1024];
                 SDL_strlcpy(temp_text, init_texts[i], sizeof(temp_text));
@@ -7509,7 +7509,7 @@ void tulkas_quest_interaction(void)
             for (int i = 0; i < text_count; i++) {
                 if (processed_texts[i]) string_free((char*)processed_texts[i]);
             }
-            FREE(processed_texts);
+            mem_free_null(processed_texts);
             free_quest_texts(init_texts);
         } else {
             /* Fallback to simple message if text extraction fails */
@@ -8677,6 +8677,9 @@ void grant_unique_bane_ability(void)
     p_ptr->update |= (PU_BONUS);
     handle_stuff();
 }
+
+
+
 
 
 

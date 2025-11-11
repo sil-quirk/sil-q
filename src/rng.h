@@ -19,9 +19,29 @@ extern void Rand_state_init(u64b seed);
 /**
  * Export/import helpers so callers (savefiles, deterministic helpers) can
  * capture and restore the exact RNG state.
+ * 
+ * State Format:
+ * - 64-bit unsigned integer representing the internal PRNG state
+ * - Zero values are automatically sanitized to prevent degenerate sequences
+ * - Export/import are symmetrical: import(export()) preserves state
  */
 extern u64b Rand_state_export(void);
 extern void Rand_state_import(u64b state);
+
+/**
+ * Push/pop helpers for temporary RNG state changes.
+ * Useful for deterministic preview calculations without affecting gameplay RNG.
+ * 
+ * Example:
+ *   u64b saved = Rand_state_push(fixed_seed);  // Switch to deterministic mode
+ *   ... perform calculations ...
+ *   Rand_state_pop(saved);                      // Restore original state
+ * 
+ * @param new_state Seed value to switch to (push), or saved state to restore (pop)
+ * @return Previous state value (push only)
+ */
+extern u64b Rand_state_push(u64b new_state);
+extern void Rand_state_pop(u64b saved_state);
 
 /**
  * Generate a random number from 0 to m-1.
