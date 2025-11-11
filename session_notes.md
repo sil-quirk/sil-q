@@ -5615,3 +5615,48 @@ Phase 3 should be tackled carefully:
 3. Leave init2.c and z-term.c for last (most critical)
 4. Consider breaking init2.c into sub-sections
 
+## 2025-11-13 - Proprietary Utility Plan Audit
+
+- **S7.1 filesystem contract:** `path_build()` callers in `src/cmd4.c:8554-11304`, `src/wizard1.c:154-856`, and `src/metarun.c:839-1266` now bail out with `log_error`, but `src/squelch.c:236-341` still only prints to the screen and never logs or returns on path failures.
+- **S7.2 header split:** None of the dumping/metarun files include `fs/path.h` or `fs/io_sdl.h` directly—their only access path is through `src/angband.h:24-38`, so they still transitively pull in `z-util.h` and friends.
+- **S7.3 util.c responsibilities:** `short_color_names`/`attr_to_text` live in `src/ui/colors.c:7-29` and `init_logger()` lives in `src/log/bootstrap.c:15-104`, but the full story-font stack (e.g., `story_print_text_internal()` at `src/util.c:2826-2897`) is still embedded in util-land.
+- **S7.4 string helpers:** The duplicate `streq/prefix/suffix` functions are gone from `src/z-util.c`; the only implementations now live inline in `src/angband.h:90-122`.
+- **S7.5 fatal path:** `src/z-util.c:83-151` still defines `plog`, `quit`, `core`, and their mutable aux hooks instead of routing fatal errors through `log/log.h`.
+- **S7.6 score singleton:** `SDL_IOStream* highscore_fd` remains a global defined in `src/variable.c:888` and mutated across `src/files.c:4645-9958`, so there is no injectable context yet.
+- **S9.1 allocator modernization:** Legacy macros such as `C_MAKE`/`FREE` are still used (see `src/birth.c:389-1503`, `src/cmd3.c:4754`), even though `mem/alloc.h` exposes the newer helpers.
+- **S9.2 RNG polish:** `src/rng.c:21-40` now exposes push/pop helpers and sanitizes imports, but `src/load.c:869-890` still trusts whatever 64-bit state is present in the savefile and no callers use `Rand_state_push()`.
+- **S9.4 header hygiene:** `src/angband.h:24-38` keeps re-exporting `z-util.h`, `mem/alloc.h`, `z-term.h`, and `externs.h`, so every translation unit still inherits the legacy globals.
+- **S9.5 z-* retirement:** The legacy utility/terminal modules (`src/z-util.c`, `src/z-term.c:273`) remain in the tree, and `Term` continues to be a global singleton.
+
+
+
+# Session Notes - Pref File Cleanup (2025-11-12)
+
+## Objective
+Remove support for obsolete system pref files, keeping only SDL support for modern Windows, Mac, and Linux.
+
+## Changes Made
+
+### 1. Updated lib/pref/pref.prf
+- Removed conditional loading for: x11, gcu, ami, mac, dos, win, emx, acn systems
+- Now only loads pref-sdl.prf when $SYS == sdl
+- Simplified from 9 system-specific conditionals to 1
+
+### 2. Updated lib/pref/font.prf
+- Removed all system-specific font file references
+- All font configuration now handled through font-xxx.prf (universal)
+
+### 3. Updated lib/pref/graf.prf
+- Removed conditionals for obsolete systems
+- Kept graf-win.prf loading for SDL (compatible with SDL)
+
+### 4. Deleted 15+ obsolete pref files
+- Removed pref-dos/emx/gcu/mac/win/x11.prf
+- Removed font-dos/gcu/mac/win/x11.prf
+- Removed graf-gcu/mac/x11.prf
+
+## Testing
+- Build successful
+- Game launches correctly
+- All pref files load without errors
+- Log confirms pref-sdl.prf and graf-win.prf load successfully

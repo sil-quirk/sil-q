@@ -16,32 +16,9 @@
 
 ##### System Specific Subfiles #####
 
-?:[IOR [EQU $SYS xaw] [EQU $SYS x11] [EQU $SYS xpj]]
-%:graf-x11.prf
-
-?:[EQU $SYS lsl]
-%:graf-lsl.prf
-
-?:[EQU $SYS gcu]
-%:graf-gcu.prf
-
-?:[EQU $SYS ami]
-%:graf-ami.prf
-
-?:[EQU $SYS mac]
-%:graf-mac.prf
-
-?:[IOR [EQU $SYS win] [EQU $SYS dos] [EQU $SYS sdl] [EQU $SYS ray]]
+# SDL is the only supported system - load graf-win.prf (which handles new tiles)
+?:[EQU $SYS sdl]
 %:graf-win.prf
-
-?:[EQU $SYS ibm]
-%:graf-ibm.prf
-
-?:[EQU $SYS emx]
-%:graf-emx.prf
-
-?:[EQU $SYS acn]
-%:graf-acn.prf
 
 ?:1
 
