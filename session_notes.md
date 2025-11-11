@@ -4962,3 +4962,15 @@ The custom vstrnfmt in z-form.c supports "%^" which capitalizes the first non-sp
 ---
 
 
+## 2025-11-11: SDL Cleanup Plan Sync + USE_SDL Retirement
+
+### Summary
+
+* Dropped the last USE_SDL guard in src/main.c so the module table always contains the SDL frontend and main() is compiled on every platform; also tightened the no-display error to mention SDL explicitly.
+* Removed the unused USE_SDL compile definition from CMakeLists.txt and simplified the build entry points (uild-cmake.bat, README.md) so we no longer pass stale -DUSE_SDL/-DUSE_GCU cache options.
+* Rewrote SDL_CLEANUP_PLAN.md with a status snapshot, upcoming tasks, and an explicit note that the z-term refactor lives in its own plan.
+
+### Next Steps
+
+* Convert s/path.* (path_parse, path_build, d_*) to return ool/SDL error codes instead of errr, then update the remaining call sites (save.c, util.c, s/io_sdl.c).
+* Finish migrating the bespoke loaders in init1.c, init2.c, and squelch.c onto the new filesystem helpers, then re-run the dump/spoiler smoke tests.

@@ -9,7 +9,7 @@ REM Set up MinGW64 environment
 set PATH=C:\msys64\mingw64\bin;C:\msys64\usr\bin;%PATH%
 
 REM Run CMake configuration and build
-cmake -G "MinGW Makefiles" -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/msys64/mingw64 -DUSE_SDL=ON -DUSE_GCU=OFF
+cmake -G "MinGW Makefiles" -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/msys64/mingw64
 if errorlevel 1 (
     echo CMake configuration failed!
 REM    pause

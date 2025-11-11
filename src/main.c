@@ -15,8 +15,6 @@
  * all the others use this file for their "main()" function.
  */
 
-#if !(defined(WINDOWS) && !defined(USE_SDL))
-
 #include "main.h"
 #include "log/log.h"
 
@@ -29,9 +27,6 @@ bool game_in_progress = false;
  * List of the available modules in the order they are tried.
  */
 static const struct module modules[] = {
-#ifdef USE_GCU
-    { "gcu", help_gcu, init_gcu },
-#endif /* USE_GCU */
     { "sdl", help_sdl, init_sdl },
 };
 
@@ -472,8 +467,7 @@ int main(int argc, char* argv[])
 
     /* Make sure we have a display! */
     if (!done)
-        quit(
-            "Unable to prepare any 'display module' (such as 'x11' or 'gcu')!");
+        quit("Unable to prepare the SDL display module!");
 
     /* Catch nasty signals */
     signals_init();
@@ -540,6 +534,4 @@ int main(int argc, char* argv[])
     /* Exit */
     return (0);
 }
-
-#endif /* !defined(WINDOWS) || defined(USE_SDL) */
 

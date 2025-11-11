@@ -26,7 +26,7 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
    ```
    Or manually configure and build:
    ```bash
-   cmake -G "MinGW Makefiles" -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/msys64/mingw64 -DUSE_SDL=ON -DUSE_GCU=OFF
+   cmake -G "MinGW Makefiles" -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/msys64/mingw64
    cmake --build build --parallel
    ```
 5. The executable will be in `build/sil-more.exe` and deployed to `sil-more-windows-sdl3/`.
@@ -57,7 +57,7 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 2. Navigate to the Sil-More source directory.
 3. Configure and build:
    ```bash
-   cmake -B build -DCMAKE_BUILD_TYPE=Release -DUSE_SDL=ON -DUSE_GCU=OFF
+   cmake -B build -DCMAKE_BUILD_TYPE=Release
    cmake --build build --parallel
    ```
 4. The executable will be in `build/sil-more`.

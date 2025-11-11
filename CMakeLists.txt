@@ -94,8 +94,6 @@ target_include_directories(log PUBLIC src/log)
 
 target_compile_options(sil-more PUBLIC -Wall -Wextra -std=c11)
 target_include_directories(sil-more PRIVATE src)
-target_compile_definitions(sil-more PRIVATE USE_SDL)
-
 if(MINGW)
   target_link_options(sil-more PRIVATE -mwindows)
 endif()
