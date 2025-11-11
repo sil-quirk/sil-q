@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "fs/path.h"
 #include "log/log.h"
 #include "z-term.h"
 #include "metarun.h"
@@ -331,7 +332,7 @@ void player_wipe(void)
     }
 
     /* Wipe the player */
-    (void)WIPE(p_ptr, player_type);
+    memset(p_ptr, 0, sizeof(player_type));
 
     supplies_reset_store();
 
@@ -386,7 +387,7 @@ void player_wipe(void)
     /* Initialize Valar artifact reservation array */
     if (!valar_reserved_artifacts)
     {
-        C_MAKE(valar_reserved_artifacts, z_info->art_max, bool);
+        valar_reserved_artifacts = mem_alloc_array(z_info->art_max, bool);
     }
     for (i = 0; i < z_info->art_max; i++)
     {
@@ -1279,7 +1280,7 @@ static bool get_player_race(void)
     birth_menu* races;
     int race;
 
-    C_MAKE(races, z_info->p_max, birth_menu);
+    races = mem_alloc_array(z_info->p_max, birth_menu);
 
     /* Tabulate races */
     for (i = 0; i < z_info->p_max; i++)
@@ -1316,7 +1317,7 @@ static bool get_player_race(void)
     /* Save the race pointer */
     rp_ptr = &p_info[p_ptr->prace];
 
-    FREE(races);
+    races = mem_free(races);
 
     /* Success */
     return (true);
@@ -1500,7 +1501,7 @@ static bool get_player_house(void)
         return (true);
     }
 
-    C_MAKE(houses, z_info->c_max, birth_menu);
+    houses = mem_alloc_array(z_info->c_max, birth_menu);
 
     /* Build the filename */
     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
@@ -1575,7 +1576,7 @@ static bool get_player_house(void)
     /* Set house */
     hp_ptr = &c_info[p_ptr->phouse];
 
-    FREE(houses);
+    houses = mem_free(houses);
 
     return (true);
 }

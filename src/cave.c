@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "log/log.h"
 /* Standard headers for utility functions used in this file */
 #include <string.h>
 #include <stdlib.h>

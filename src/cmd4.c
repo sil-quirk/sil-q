@@ -5842,7 +5842,7 @@ bool enchant_menu(void)
 void artefact_copy(artefact_type* a1_ptr, artefact_type* a2_ptr)
 {
     /* Copy the structure */
-    COPY(a1_ptr, a2_ptr, artefact_type);
+    memcpy(a1_ptr, a2_ptr, sizeof(artefact_type));
 }
 
 /*
@@ -12077,7 +12077,7 @@ static int collect_supply_entries(int group_idx, supply_list_entry entries[])
     if (!entries)
         return 0;
 
-    C_WIPE(entries, capacity, supply_list_entry);
+    memset(entries, 0, sizeof(supply_list_entry) * capacity);
 
     /* Aggregate carried items first */
     for (i = 0; i < INVEN_PACK; i++)

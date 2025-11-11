@@ -1922,7 +1922,7 @@ errr messages_init(void)
     message__count = mem_alloc_array(MESSAGE_MAX, u16b);
 
     /* Init the message colors to white */
-    (void)C_BSET(message__color, TERM_WHITE, MSG_MAX, byte);
+    memset(message__color, TERM_WHITE, sizeof(byte) * MSG_MAX);
 
     /* Hack -- No messages yet */
     message__tail = MESSAGE_BUF;
@@ -5007,7 +5007,7 @@ void editing_buffer_clear(editing_buffer* eb_ptr)
         return;
 
     /* Clear the buffer */
-    C_WIPE(eb_ptr->buf, eb_ptr->max_size, char);
+    memset(eb_ptr->buf, 0, sizeof(char) * eb_ptr->max_size);
 
     /* Reinitialize the remaining fields but "max_size" */
     eb_ptr->pos = 0;

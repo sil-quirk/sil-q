@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "fs/io_sdl.h"
 #include "log/log.h"
 #include <string.h> /* memset, strstr */
 #include <stdio.h>  /* FILE, getc, ftell, fseek, ferror */

@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "log/log.h"
 
 /*
  * Mega-Hack -- count number of monsters killed out of sight
@@ -33,9 +34,9 @@ static void ensure_song_disguise_buffers(void)
 {
     if (!song_disguise_seen)
     {
-        song_disguise_seen = C_ZNEW(MAX_MONSTERS, byte);
-        song_disguise_pacified = C_ZNEW(MAX_MONSTERS, byte);
-        song_disguise_attacked = C_ZNEW(MAX_MONSTERS, byte);
+        song_disguise_seen = mem_alloc_array(MAX_MONSTERS, byte);
+        song_disguise_pacified = mem_alloc_array(MAX_MONSTERS, byte);
+        song_disguise_attacked = mem_alloc_array(MAX_MONSTERS, byte);
     }
 }
 

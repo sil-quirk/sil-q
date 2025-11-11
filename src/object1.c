@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "log/log.h"
 #include "supplies.h"
 #include <ctype.h>
 #define ENHANCED_MAX_LIST 80

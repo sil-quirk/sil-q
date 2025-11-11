@@ -11,6 +11,7 @@
  */
 
 #include "angband.h"
+#include "log/log.h"
 
 /*
  * Terrified monsters will turn to fight if they are slower than the

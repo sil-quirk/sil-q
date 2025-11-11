@@ -798,7 +798,7 @@ static errr init_info_raw(SDL_IOStream* fd, header* head)
     }
 
     /* Accept the header */
-    COPY(head, &test, header);
+    memcpy(head, &test, sizeof(header));
 
     /* Allocate the "*_info" array */
     head->info_ptr = mem_alloc_array(head->info_size, char);
@@ -1662,7 +1662,7 @@ extern void re_init_some_things(void)
     int i;
 
     // wipe the whole player structure
-    (void)WIPE(p_ptr, player_type);
+    memset(p_ptr, 0, sizeof(player_type));
 
     // clear some additional things
     savefile[0] = '\0';
@@ -1939,10 +1939,10 @@ static errr init_alloc(void)
     /*** Analyze object allocation info ***/
 
     /* Clear the "aux" array */
-    (void)C_WIPE(aux, MAX_DEPTH, s16b);
+    memset(aux, 0, sizeof(s16b) * MAX_DEPTH);
 
     /* Clear the "num" array */
-    (void)C_WIPE(num, MAX_DEPTH, s16b);
+    memset(num, 0, sizeof(s16b) * MAX_DEPTH);
 
     /* Size of "alloc_kind_table" */
     alloc_kind_size = 0;
@@ -2026,10 +2026,10 @@ static errr init_alloc(void)
     /*** Analyze monster allocation info ***/
 
     /* Clear the "aux" array */
-    (void)C_WIPE(aux, MAX_DEPTH, s16b);
+    memset(aux, 0, sizeof(s16b) * MAX_DEPTH);
 
     /* Clear the "num" array */
-    (void)C_WIPE(num, MAX_DEPTH, s16b);
+    memset(num, 0, sizeof(s16b) * MAX_DEPTH);
 
     /* Size of "alloc_race_table" */
     alloc_race_size = 0;
@@ -2107,10 +2107,10 @@ static errr init_alloc(void)
     /*** Analyze ego_item allocation info ***/
 
     /* Clear the "aux" array */
-    (void)C_WIPE(aux, MAX_DEPTH, s16b);
+    memset(aux, 0, sizeof(s16b) * MAX_DEPTH);
 
     /* Clear the "num" array */
-    (void)C_WIPE(num, MAX_DEPTH, s16b);
+    memset(num, 0, sizeof(s16b) * MAX_DEPTH);
 
     /* Size of "alloc_ego_table" */
     alloc_ego_size = 0;

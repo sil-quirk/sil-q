@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "log/log.h"
 #include "metarun.h"
 
 #define THROW_PENDING_NONE -9999

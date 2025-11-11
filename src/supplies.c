@@ -1,4 +1,5 @@
 #include "angband.h"
+#include "log/log.h"
 #include "supplies.h"
 
 #include <string.h>

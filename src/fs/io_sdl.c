@@ -1,5 +1,7 @@
 #include "angband.h"
 #include "fs/io_sdl.h"
+#include "fs/path.h"
+#include "log/log.h"
 
 #define TAB_COLUMNS 8
 

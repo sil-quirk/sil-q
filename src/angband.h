@@ -19,14 +19,11 @@
 /*
  * Include the mid-level includes.
  */
-#include "z-util.h"
+#include "log/fatal.h"
 #include "mem/alloc.h"
 #include "format.h"
-#include "fs/io_sdl.h"
-#include "fs/path.h"
 #include "rng.h"
 #include "z-term.h"
-#include "log/log.h"
 
 /*
  * Include the high-level includes.

@@ -9,6 +9,9 @@
  */
 
 #include "angband.h"
+#include "fs/io_sdl.h"
+#include "fs/path.h"
+#include "log/log.h"
 #include "h-define.h"
 #include <SDL3/SDL.h>
 #include <ctype.h>
@@ -1156,7 +1159,7 @@ errr parse_rt_info(char *buf, header *head)
         error_idx = idx;
 
         rt_ptr = ((runtype_type*)head->info_ptr) + idx;
-        WIPE(rt_ptr, runtype_type);
+        memset(rt_ptr, 0, sizeof(runtype_type));
         rt_ptr->id = idx;
         strncpy(rt_ptr->name, s, sizeof(rt_ptr->name)-1);
         return 0;
@@ -1395,7 +1398,7 @@ errr parse_style_info(char* buf, header* head)
         error_idx = idx;
 
     stl_ptr = ((style_type*)head->info_ptr) + idx;
-    WIPE(stl_ptr, style_type);
+    memset(stl_ptr, 0, sizeof(style_type));
     /* Initialize counts */
     stl_ptr->floor_count = 0;
     stl_ptr->door_count = 0;
@@ -1882,7 +1885,7 @@ static errr grab_one_flag(u32b** flag, cptr errstr, cptr what)
 static errr grab_one_kind_flag(object_kind* ptr, cptr what)
 {
     u32b* f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[TR1] = &(ptr->flags1);
     f[TR2] = &(ptr->flags2);
     f[TR3] = &(ptr->flags3);
@@ -1895,7 +1898,7 @@ static errr grab_one_kind_flag(object_kind* ptr, cptr what)
 static errr grab_one_curse_flag(curse_type *cu_ptr, cptr what)
 {
     u32b *f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[RHF] = &(cu_ptr->flags);   /* write into the new word we added */
     return grab_one_flag(f, "curse", what);
 }
@@ -1903,7 +1906,7 @@ static errr grab_one_curse_flag(curse_type *cu_ptr, cptr what)
 static errr grab_one_curse_unique_flag(curse_type *cu_ptr, cptr what)
 {
     u32b *f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[CUR] = &(cu_ptr->flags_u);   /* write into the new word we added */
     return grab_one_flag(f, "curse unique", what);
 }
@@ -1911,7 +1914,7 @@ static errr grab_one_curse_unique_flag(curse_type *cu_ptr, cptr what)
 static errr grab_one_blessing_flag(curse_type *cu_ptr, cptr what)
 {
     u32b *f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[RHF] = &(cu_ptr->blessing_flags);
     return grab_one_flag(f, "blessing", what);
 }
@@ -1919,7 +1922,7 @@ static errr grab_one_blessing_flag(curse_type *cu_ptr, cptr what)
 static errr grab_one_blessing_unique_flag(curse_type *cu_ptr, cptr what)
 {
     u32b *f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[CUR] = &(cu_ptr->blessing_flags_u);
     return grab_one_flag(f, "blessing unique", what);
 }
@@ -2225,7 +2228,7 @@ errr parse_k_info(char* buf, header* head)
 static errr grab_one_vault_flag(vault_type* ptr, cptr what)
 {
     u32b* f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[VLT] = &(ptr->flags);
     return grab_one_flag(f, "vault", what);
 }
@@ -2624,7 +2627,7 @@ errr parse_b_info(char* buf, header* head)
 static errr grab_one_artefact_flag(artefact_type* ptr, cptr what)
 {
     u32b* f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[TR1] = &(ptr->flags1);
     f[TR2] = &(ptr->flags2);
     f[TR3] = &(ptr->flags3);
@@ -3043,7 +3046,7 @@ errr parse_n_info(char* buf, header* head)
 static bool grab_one_ego_item_flag(ego_item_type* ptr, cptr what)
 {
     u32b* f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[TR1] = &(ptr->flags1);
     f[TR2] = &(ptr->flags2);
     f[TR3] = &(ptr->flags3);
@@ -3282,7 +3285,7 @@ errr parse_e_info(char* buf, header* head)
 static errr grab_one_basic_flag(monster_race* ptr, cptr what)
 {
     u32b* f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[RF1] = &(ptr->flags1);
     f[RF2] = &(ptr->flags2);
     f[RF3] = &(ptr->flags3);
@@ -3295,7 +3298,7 @@ static errr grab_one_basic_flag(monster_race* ptr, cptr what)
 static errr grab_one_spell_flag(monster_race* ptr, cptr what)
 {
     u32b* f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[RF4] = &(ptr->flags4);
     return grab_one_flag(f, "monster", what);
 }
@@ -3698,7 +3701,7 @@ errr parse_r_info(char* buf, header* head)
 static errr grab_one_race_flag(player_race* ptr, cptr what)
 {
     u32b* f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
     f[RHF] = &(ptr->flags);
     return grab_one_flag(f, "player", what);
 }
@@ -3712,7 +3715,7 @@ static errr grab_one_race_flag(player_race* ptr, cptr what)
 static errr grab_one_house_flag(player_house *ptr, cptr what)
 {
     u32b *f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
 
     f[RHF] = &(ptr->flags);
 
@@ -3722,7 +3725,7 @@ static errr grab_one_house_flag(player_house *ptr, cptr what)
 static errr grab_one_house_uflag(player_house *ptr, cptr what)
 {
     u32b *f[MAX_FLAG_SETS];
-    C_WIPE(f, MAX_FLAG_SETS, sizeof(u32b*));
+    memset(f, 0, sizeof(f));
 
     f[UNQ] = &(ptr->flags_u);      /* NEW: accept unique-flag word */
 
@@ -4734,7 +4737,7 @@ errr parse_st_info(char* buf, header* head)
 
         /* Point at the "info" */
         st_ptr = (story_type*)head->info_ptr + i;
-        WIPE(st_ptr, story_type);
+        memset(st_ptr, 0, sizeof(story_type));
 
         /* Store the name */
         if (!(st_ptr->name = add_name(head, s)))
@@ -4851,7 +4854,7 @@ errr parse_cu_info(char *buf, header *head)
         cu_ptr = ((curse_type *)head->info_ptr) + i;
 
         /* Reset fresh record */
-        WIPE(cu_ptr, curse_type);       /* clears the record  */
+        memset(cu_ptr, 0, sizeof(curse_type));       /* clears the record  */
                                                      /* flags included     */
         cu_ptr->weight = 1;      /* sensible defaults           */
         cu_ptr->max_stacks = 0;  /* 0 = unlimited               */
@@ -5082,7 +5085,7 @@ errr parse_mb_info(char *buf, header *head)
         error_idx = idx;
 
         mb_ptr = ((major_blessing_type *)head->info_ptr) + idx;
-        WIPE(mb_ptr, major_blessing_type);
+        memset(mb_ptr, 0, sizeof(major_blessing_type));
         mb_ptr->cost = 3; /* default cost */
 
         if (!(mb_ptr->name = add_name(head, s)))

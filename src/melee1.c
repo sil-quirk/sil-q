@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "log/log.h"
 
 /*
  * Main combat rolls startup deferral state

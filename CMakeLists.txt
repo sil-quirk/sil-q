@@ -65,6 +65,7 @@ add_executable(sil-more
     src/fs/path.c
     src/ui/colors.c
     src/log/bootstrap.c
+    src/log/fatal.c
     src/spells1.c
     src/spells2.c
     src/squelch.c
@@ -78,7 +79,7 @@ add_executable(sil-more
     src/xtra1.c
     src/xtra2.c
     src/z-term.c
-    src/z-util.c
+    src/support/strl.c
 )
 
 # Include Windows resource (.rc) so the executable has an icon on Windows

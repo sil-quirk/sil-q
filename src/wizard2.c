@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "log/log.h"
 #include "metarun.h"
 
 #ifdef ALLOW_DEBUG

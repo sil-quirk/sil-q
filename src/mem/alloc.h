@@ -68,33 +68,4 @@ static inline void* mem_free(void* ptr)
  */
 #define mem_free_null(ptr) ((ptr) = mem_free(ptr))
 
-/*
- * Legacy z-virt compatibility macros.
- * These provide backward compatibility while using SDL3 functions internally.
- * New code should use mem_alloc/mem_free or SDL functions directly.
- */
-
-/* Size calculations */
-#define C_SIZE(N, T) ((N) * (sizeof(T)))
-#define SIZE(T) (sizeof(T))
-
-/* Memory operations using standard C functions */
-#define C_WIPE(P, N, T) (memset((P), 0, C_SIZE(N, T)))
-#define WIPE(P, T) (memset((P), 0, SIZE(T)))
-#define C_COPY(P1, P2, N, T) (memcpy((P1), (P2), C_SIZE(N, T)))
-#define COPY(P1, P2, T) (memcpy((P1), (P2), SIZE(T)))
-#define C_BSET(P, V, N, T) (memset((P), (V), C_SIZE(N, T)))
-
-/* Allocation using SDL3 */
-#define C_RNEW(N, T) ((T*)SDL_calloc((N), sizeof(T)))
-#define RNEW(T) ((T*)SDL_calloc(1, sizeof(T)))
-#define C_ZNEW(N, T) ((T*)SDL_calloc((N), sizeof(T)))
-#define ZNEW(T) ((T*)SDL_calloc(1, sizeof(T)))
-#define C_MAKE(P, N, T) ((P) = C_ZNEW(N, T))
-#define MAKE(P, T) ((P) = ZNEW(T))
-
-/* Deallocation using SDL3 */
-#define FREE(P) (SDL_free(P), NULL)
-#define KILL(P) ((P) = FREE(P))
-
 #endif /* INCLUDED_MEM_ALLOC_H */

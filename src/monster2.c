@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "log/log.h"
 #include "metarun.h"
 
 /*
@@ -175,7 +176,7 @@ void delete_monster_idx(int i)
     }
 
     /* Wipe the Monster */
-    (void)WIPE(m_ptr, monster_type);
+    memset(m_ptr, 0, sizeof(monster_type));
 
     /* Count monsters */
     mon_cnt--;
@@ -283,10 +284,10 @@ static void compact_monsters_aux(int i1, int i2)
         p_ptr->health_who = i2;
 
     /* Hack -- move monster */
-    COPY(&mon_list[i2], &mon_list[i1], monster_type);
+    memcpy(&mon_list[i2], &mon_list[i1], sizeof(monster_type));
 
     /* Hack -- wipe hole */
-    (void)WIPE(&mon_list[i1], monster_type);
+    memset(&mon_list[i1], 0, sizeof(monster_type));
 }
 
 /*
@@ -458,7 +459,7 @@ void wipe_mon_list(void)
         cave_m_idx[m_ptr->fy][m_ptr->fx] = 0;
 
         /* Wipe the Monster */
-        (void)WIPE(m_ptr, monster_type);
+        memset(m_ptr, 0, sizeof(monster_type));
     }
 
     /* Reset "mon_max" */
@@ -2339,7 +2340,7 @@ s16b monster_place(int y, int x, monster_type* n_ptr)
         m_ptr = &mon_list[m_idx];
 
         /* Copy the monster XXX */
-        COPY(m_ptr, n_ptr, monster_type);
+        memcpy(m_ptr, n_ptr, sizeof(monster_type));
 
         /* Location */
         m_ptr->fy = y;
@@ -2597,7 +2598,7 @@ bool place_monster_one(
     n_ptr = &monster_type_body;
 
     /* Clean out the monster */
-    (void)WIPE(n_ptr, monster_type);
+    memset(n_ptr, 0, sizeof(monster_type));
 
     /* Save the race */
     n_ptr->r_idx = r_idx;

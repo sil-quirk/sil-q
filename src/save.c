@@ -9,6 +9,8 @@
  */
 
 #include "angband.h"
+#include "fs/io_sdl.h"
+#include "fs/path.h"
 #include "log/log.h"
 #include <stdio.h>
 
@@ -174,7 +176,7 @@ static errr wr_block(void)
     data_next = data_head;
 
     /* Wipe the data block */
-    C_WIPE(data_head, 65535, byte);
+    memset(data_head, 0, sizeof(byte) * 65535);
 
     /* Success */
     return (0);
@@ -246,7 +248,7 @@ static errr rd_block(void)
     data_size = (fake[2] | ((u16b)fake[3] << 8));
 
     /* Wipe the data block */
-    C_WIPE(data_head, 65535, byte);
+    memset(data_head, 0, sizeof(byte) * 65535);
 
     /* Read the actual data */
     err = sdl_read(data_fd, (char*)data_head, data_size);

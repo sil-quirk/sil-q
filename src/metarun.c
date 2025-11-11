@@ -1373,39 +1373,39 @@ errr load_metaruns(bool create_if_missing)
                     metarun_from_v9(&metaruns[i], &legacy[i]);
                     sanitize_major_blessing_bits(&metaruns[i]);
                 }
-                FREE(legacy);
+                legacy = mem_free(legacy);
             } else if (entry_size == METARUN_V8_SIZE) {
-                metarun_v8 *legacy = C_ZNEW(metarun_max, metarun_v8);
+                metarun_v8 *legacy = mem_alloc_array(metarun_max, metarun_v8);
                 sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v8));
                 for (s16b i = 0; i < metarun_max; i++) {
                     metarun_from_v8(&metaruns[i], &legacy[i]);
                     sanitize_major_blessing_bits(&metaruns[i]);
                 }
-                FREE(legacy);
+                legacy = mem_free(legacy);
             } else if (entry_size == METARUN_V7_SIZE) {
-                metarun_v7 *legacy = C_ZNEW(metarun_max, metarun_v7);
+                metarun_v7 *legacy = mem_alloc_array(metarun_max, metarun_v7);
                 sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v7));
                 for (s16b i = 0; i < metarun_max; i++) {
                     metarun_from_v7(&metaruns[i], &legacy[i]);
                     sanitize_major_blessing_bits(&metaruns[i]);
                 }
-                FREE(legacy);
+                legacy = mem_free(legacy);
             } else if (entry_size == METARUN_V6_SIZE) {
-                metarun_v6 *legacy = C_ZNEW(metarun_max, metarun_v6);
+                metarun_v6 *legacy = mem_alloc_array(metarun_max, metarun_v6);
                 sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v6));
                 for (s16b i = 0; i < metarun_max; i++) {
                     metarun_from_v6(&metaruns[i], &legacy[i]);
                     sanitize_major_blessing_bits(&metaruns[i]);
                 }
-                FREE(legacy);
+                legacy = mem_free(legacy);
             } else if (entry_size == METARUN_V5_SIZE) {
-                metarun_v5 *legacy = C_ZNEW(metarun_max, metarun_v5);
+                metarun_v5 *legacy = mem_alloc_array(metarun_max, metarun_v5);
                 sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v5));
                 for (s16b i = 0; i < metarun_max; i++) {
                     metarun_from_v5(&metaruns[i], &legacy[i]);
                     sanitize_major_blessing_bits(&metaruns[i]);
                 }
-                FREE(legacy);
+                legacy = mem_free(legacy);
             } else {
                 recovery_reason = "versioned meta.raw had unexpected entry size";
                 log_warn("Unsupported metarun entry size %zu in versioned file", entry_size);
@@ -1548,14 +1548,14 @@ static errr backup_file(const char *filepath)
     log_info("backup_file: creating backup for %s (size: %d bytes)", filepath, file_size);
     
     /* Read original file */
-    char *buffer = C_ZNEW(file_size, char);
+    char *buffer = mem_alloc_array(file_size, char);
     if (!buffer) {
         sdl_fclose(fd_src);
         return -1;
     }
     
     if (sdl_read(fd_src, buffer, file_size) != 0) {
-        FREE(buffer);
+        buffer = mem_free(buffer);
         sdl_fclose(fd_src);
         return -1;
     }
@@ -1621,13 +1621,13 @@ static errr backup_file(const char *filepath)
     log_info("backup_file: creating new bak1 from current file (size: %d)", file_size);
     SDL_IOStream* fd_dst = sdl_fmake(backup_path1, 0644);
     if (!fd_dst) {
-        FREE(buffer);
+        buffer = mem_free(buffer);
         return -1;
     }
     
     errr result = sdl_write(fd_dst, buffer, file_size);
     sdl_fclose(fd_dst);
-    FREE(buffer);
+    buffer = mem_free(buffer);
     
     if (result == 0) {
         log_info("backup_file: successfully created backup for %s", filepath);
@@ -2595,7 +2595,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
         byte target_order = has_gift_eru ? 0 : metar.deaths;
 
         /* Build a pool of candidate story entries.                    */
-        int *pool = C_ZNEW(z_info->st_max, int);
+        int *pool = mem_alloc_array(z_info->st_max, int);
         int pool_sz = 0;
         if (!pool) {
             screen_load();                 /* restore game view            */
@@ -2657,7 +2657,7 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
         }
 
         screen_load();                 /* restore game view            */
-        FREE(pool);
+        pool = mem_free(pool);
         u32b pool_before = metar.fallen_score_total;
         refresh_current_metar_score();
         compute_blessing_pool();
@@ -3158,7 +3158,7 @@ static void start_new_metarun(void)
     metarun *old   = metaruns;
 
     /* Try to allocate a new array for one more run */
-    metarun *tmp = C_RNEW(old_max + 1, metarun);
+    metarun *tmp = mem_alloc_array(old_max + 1, metarun);
     if (!tmp) {
         /* Allocation failed - keep everything as is */
         return;
@@ -3166,11 +3166,11 @@ static void start_new_metarun(void)
 
     /* Copy over the previous runs (if any) */
     if (old) {
-        C_COPY(tmp, old, old_max, metarun);
+        memcpy(tmp, old, sizeof(metarun) * old_max);
     }
 
     /* Free the old array just once */
-    FREE(old);
+    old = mem_free(old);
 
     /* Commit the new array and size */
     metaruns    = tmp;
@@ -4889,7 +4889,7 @@ void list_metaruns(void)
 
     s16b *order = NULL;
     if (metarun_max > 0 && metaruns) {
-        order = C_ZNEW(metarun_max, s16b);
+        order = mem_alloc_array(metarun_max, s16b);
         for (s16b i = 0; i < metarun_max; i++) order[i] = i;
         qsort(order, metarun_max, sizeof(s16b), compare_metarun_indices);
     }
@@ -4935,7 +4935,7 @@ void list_metaruns(void)
         }
     }
 
-    FREE(order);
+    order = mem_free(order);
     c_put_str(TERM_L_DARK, "Press any key to return.", row+1, 2);
     inkey();
     screen_load();

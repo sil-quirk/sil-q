@@ -245,9 +245,6 @@ int main(int argc, char* argv[])
     character_icky = 0;
     log_debug("main: character_icky initialized to %d", character_icky);
 
-    /* Save the "program name" XXX XXX XXX */
-    argv0 = argv[0];
-
 #ifdef SET_UID
 
     /* Default permissions on files */
@@ -449,7 +446,7 @@ int main(int argc, char* argv[])
     process_player_name(true);
 
     /* Install "quit" hook */
-    quit_aux = quit_hook;
+    log_register_quit_hook(quit_hook);
 
     /* Try the modules in the order specified by modules[] */
     for (i = 0; i < (int)N_ELEMENTS(modules); i++)

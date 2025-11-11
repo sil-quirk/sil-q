@@ -1660,11 +1660,11 @@ void describe_monster(int r_idx, bool spoilers, const monster_type* m_ptr)
         /* XXX XXX XXX */
 
         /* Hack -- save memory */
-        COPY(&save_mem, l_ptr, monster_lore);
+        memcpy(&save_mem, l_ptr, sizeof(monster_lore));
     }
 
     /* Hack -- create a copy of the monster-memory */
-    COPY(&lore, l_ptr, monster_lore);
+    memcpy(&lore, l_ptr, sizeof(monster_lore));
 
     /* Assume some "obvious" flags */
     lore.flags1 |= (r_ptr->flags1 & RF1_OBVIOUS_MASK);
@@ -1724,7 +1724,7 @@ void describe_monster(int r_idx, bool spoilers, const monster_type* m_ptr)
     if ((cheat_know) || know_monster_info)
     {
         /* Hack -- restore memory */
-        COPY(l_ptr, &save_mem, monster_lore);
+        memcpy(l_ptr, &save_mem, sizeof(monster_lore));
     }
 }
 

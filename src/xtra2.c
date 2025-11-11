@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "log/log.h"
 #include "metarun.h"
 
 static void look_prt(bool use_story_font, cptr text, int row, int col)

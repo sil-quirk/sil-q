@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "log/log.h"
 
 /* true if a paragraph break should be output before next p_text_out() */
 static bool new_paragraph = false;
@@ -1315,7 +1316,7 @@ static bool screen_out_head(const object_type* o_ptr)
     log_trace("screen_out_head: Current cursor position: x=%d, y=%d", Term->scr->cx, Term->scr->cy);
 
     /* Allocate memory to the size of the screen */
-    o_name = C_RNEW(name_size, char);
+    o_name = mem_alloc_array(name_size, char);
 
     /* Description */
     object_desc(o_name, name_size, o_ptr, true, 3);

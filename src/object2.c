@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "log/log.h"
 #include "supplies.h"
 
 enum inventory_limit_group
@@ -650,7 +651,7 @@ static void compact_objects_aux(int i1, int i2)
     }
 
     /* Hack -- move object */
-    COPY(&o_list[i2], &o_list[i1], object_type);
+    memcpy(&o_list[i2], &o_list[i1], sizeof(object_type));
 
     /* Hack -- wipe hole */
     object_wipe(o_ptr);
@@ -848,7 +849,7 @@ void wipe_o_list(void)
             artefact_wipe(o_ptr->name1);
 
         /* Wipe the object */
-        (void)WIPE(o_ptr, object_type);
+        memset(o_ptr, 0, sizeof(object_type));
     }
 
     /* Reset "o_max" */
@@ -1869,7 +1870,7 @@ s16b lookup_kind(int tval, int sval)
 void object_wipe(object_type* o_ptr)
 {
     /* Wipe the structure */
-    (void)WIPE(o_ptr, object_type);
+    memset(o_ptr, 0, sizeof(object_type));
 
     /* Reset preferred pickup slot */
     o_ptr->pickup_slot = -1;
@@ -1881,7 +1882,7 @@ void object_wipe(object_type* o_ptr)
 void object_copy(object_type* o_ptr, const object_type* j_ptr)
 {
     /* Copy the structure */
-    COPY(o_ptr, j_ptr, object_type);
+    memcpy(o_ptr, j_ptr, sizeof(object_type));
 }
 
 /*
@@ -1911,7 +1912,7 @@ void object_prep(object_type* o_ptr, int k_idx)
     object_kind* k_ptr = &k_info[k_idx];
 
     /* Clear the record */
-    (void)WIPE(o_ptr, object_type);
+    memset(o_ptr, 0, sizeof(object_type));
 
     /* Save the kind index */
     o_ptr->k_idx = k_idx;
@@ -5038,11 +5039,11 @@ void inven_item_optimize(int item)
         for (i = item; i < INVEN_PACK; i++)
         {
             /* Hack -- slide object */
-            COPY(&inventory[i], &inventory[i + 1], object_type);
+            memcpy(&inventory[i], &inventory[i + 1], sizeof(object_type));
         }
 
         /* Hack -- wipe hole */
-        (void)WIPE(&inventory[i], object_type);
+        memset(&inventory[i], 0, sizeof(object_type));
 
         /* Window stuff */
         p_ptr->window |= (PW_INVEN);
@@ -6014,7 +6015,7 @@ void combine_pack(void)
                     for (k = i; k < INVEN_PACK; k++)
                     {
                         /* Hack -- slide object */
-                        COPY(&inventory[k], &inventory[k + 1], object_type);
+                        memcpy(&inventory[k], &inventory[k + 1], sizeof(object_type));
                     }
 
                     /* Hack -- wipe hole */

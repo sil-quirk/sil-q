@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "log/log.h"
 #include "metarun.h"
 #include <SDL3/SDL.h>
 /* Ensure C library prototypes are visible for tools */
@@ -29,7 +30,7 @@ static void qv_capture(void) {
     qv_h = qv_y2 - qv_y1 + 1;
     qv_w = qv_x2 - qv_x1 + 1;
     mem_free_null(qv_feat_snapshot);
-    qv_feat_snapshot = C_ZNEW(qv_h * qv_w, unsigned short);
+    qv_feat_snapshot = mem_alloc_array(qv_h * qv_w, unsigned short);
     for (y = qv_y1; y <= qv_y2; ++y)
         for (x = qv_x1; x <= qv_x2; ++x)
             qv_feat_snapshot[(y - qv_y1) * qv_w + (x - qv_x1)] = cave_feat[y][x];

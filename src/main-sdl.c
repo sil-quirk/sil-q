@@ -1,7 +1,8 @@
 #include "angband.h"
+#include "fs/path.h"
+#include "log/log.h"
 #include "main.h"
 #include "z-term.h"
-#include "log/log.h"
 #include "pane.h"
 #include "sdl-config.h"
 #include <string.h>
@@ -1259,7 +1260,7 @@ errr init_sdl(int argc, char **argv)
     SDL_strlcpy(config_file_path, config_file, sizeof(config_file_path));
     
     // Register quit hook to save configuration on exit
-    quit_aux = sdl_quit_hook;
+    log_register_quit_hook(sdl_quit_hook);
     
     // Check if config file exists
     bool config_exists = SDL_GetPathInfo(config_file_path, NULL);

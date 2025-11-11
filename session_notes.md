@@ -5637,6 +5637,17 @@ Phase 3 should be tackled carefully:
 - Rebuilt with `build-cmake.bat` (current warnings unchanged: unsigned comparison in `cmd4.c`, legacy `FREE()` macro usage in `metarun.c`); deployment succeeded.
 - Extended the explicit include sweep to `src/files.c`, `src/init2.c`, and `src/util.c` so all high-volume filesystem helpers rely on `fs/io_sdl.h`, `fs/path.h`, and `log/log.h` directly, clearing the way to stop re-exporting those headers from `angband.h`.
 - Rebuilt again via `build-cmake.bat`; SDL3 target still succeeds, with only the existing warnings in `files.c`, `init2.c`, and `util.c` noted previously.
+- Included the remaining `path_*`/`sdl_f*` consumers—`src/birth.c`, `src/init1.c`, `src/main-sdl.c`, `src/save.c`, and `src/load.c`—so every TU that hits the filesystem pulls in `fs/path.h`, `fs/io_sdl.h`, and/or `log/log.h` directly. One more rebuild (pending) will confirm the tree still compiles before we start removing the transitive includes from `angband.h`.
+- Ran `build-cmake.bat` after the include pass; build succeeded with the same pre-existing warnings in birth/load/save (unused parameters, pointer comparisons) but no new issues.
+- Dropped `fs/io_sdl.h`, `fs/path.h`, and `log/log.h` from `src/angband.h` and added explicit `log/log.h` (plus any missing `fs/path.h`) includes to every TU that uses those helpers (`cave.c`, `cmd1-3.c`, `cmd2.c`, `generate.c`, `fs/io_sdl.c`, `melee1-2.c`, `object1-2.c`, `monster2.c`, `obj-info.c`, `supplies.c`, `spells1.c`, `wizard2.c`, `xtra1-2.c`, etc.), then rebuilt successfully via `build-cmake.bat`.
+- Moved `plog()`, `quit()`, and `core()` out of `src/z-util.c` into a new `log/fatal.c` module (with `log/fatal.h`) that registers multiple quit hooks and routes all shutdown paths through `log/log.h`. Removed the legacy `argv0`/`plog_aux`/`quit_aux`/`core_aux` globals, updated `main.c`/`main-sdl.c` to call `log_register_quit_hook()`, and rebuilt (`build-cmake.bat`) to verify the refactor.
+- Deleted the last `z-util` sources entirely: moved the SDL `strlcpy/strlcat` helpers into `src/support/strl.c`, removed `z-util.c/.h` from the build, updated `angband.h`/`externs.h` accordingly, and documented the new module in CMake. `build-cmake.bat` continues to succeed with only the known warnings.
+
+## 2025-11-13 - Stage S9: z-virt macro retirement
+
+- Replaced every remaining `C_MAKE/C_ZNEW/C_RNEW/C_WIPE/WIPE/COPY/C_BSET/FREE` usage across the tree (`birth.c`, `cmd3.c`, `cmd4.c`, `generate.c`, `init1.c`, `init2.c`, `metarun.c`, `monster1.c`, `monster2.c`, `object2.c`, `obj-info.c`, `save.c`, `spells1.c`, `util.c`, etc.) with the modern `mem_alloc_*` helpers plus direct `memset`/`memcpy` calls.
+- Removed the legacy compatibility macros from `src/mem/alloc.h`; all callers now rely on the typed allocation helpers or standard library calls.
+- Verified no `C_*` macros remain via `rg`, then rebuilt with `build-cmake.bat` (SDL3 target) to confirm the cleanup compiles cleanly.
 
 
 
