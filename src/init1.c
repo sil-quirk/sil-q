@@ -1676,7 +1676,11 @@ void styles_reload_messages_from_text(void)
     styles_clear_display_messages();
 
     /* Build full path to lib/edit/style.txt */
-    path_build(path, sizeof(path), ANGBAND_DIR_EDIT, format("%s.txt", "style"));
+    if (!path_build(path, sizeof(path), ANGBAND_DIR_EDIT, format("%s.txt", "style")))
+    {
+        log_warn("styles_reload_messages_from_text: failed to build style.txt path");
+        return;
+    }
     fp = sdl_fopen(path, "r");
     if (!fp)
     {

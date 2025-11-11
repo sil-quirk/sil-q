@@ -233,52 +233,63 @@ static int do_cmd_squelch_aux(void)
         if (askfor_aux(ftmp, 80))
         {
             /* Build the filename */
-            path_build(buf, 1024, ANGBAND_DIR_USER, ftmp);
-
-            /* Drop priv's */
-            safe_setuid_drop();
-
-            /* Append to the file */
-            fff = sdl_fopen(buf, "a");
-
-            /* Grab priv's */
-            safe_setuid_grab();
-
-            /* Test for success */
-            if (fff)
+            if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp))
             {
-                /* Skip some lines */
-                SDL_IOprintf(fff, "\n\n");
-
-                /* Start dumping */
-                SDL_IOprintf(fff, "# Squelch bits\n\n");
-
-                /* Dump squelch bits */
-                for (i = 1; i < z_info->k_max; i++)
-                {
-                    tval = k_info[i].tval;
-                    sval = k_info[i].sval;
-                    squelch = (k_info[i].squelch);
-
-                    /* Dump the squelch info */
-                    if (tval || sval)
-                        SDL_IOprintf(fff, "Q:%d:%d:%d:%d\n", i, tval, sval, squelch);
-                }
-
-                SDL_IOprintf(fff, "\n\n# squelch_level array\n\n");
-
-                for (i = 0; i < SQUELCH_BYTES; i++)
-                    SDL_IOprintf(fff, "Q:%d:%d\n", i, squelch_level[i]);
-
-                /* All done */
-                SDL_IOprintf(fff, "\n\n\n\n");
-
-                /* Close */
-                sdl_fclose(fff);
-
-                /* Ending message */
-                prt("Squelch file saved successfully.  (Hit a key.)", 17, 30);
+                prt("Failed to resolve squelch file path.  (Hit a key.)", 17, 30);
                 get_com("", &sq);
+            }
+            else
+            {
+                /* Drop priv's */
+                safe_setuid_drop();
+
+                /* Append to the file */
+                fff = sdl_fopen(buf, "a");
+
+                /* Grab priv's */
+                safe_setuid_grab();
+
+                /* Test for success */
+                if (fff)
+                {
+                    /* Skip some lines */
+                    SDL_IOprintf(fff, "\n\n");
+
+                    /* Start dumping */
+                    SDL_IOprintf(fff, "# Squelch bits\n\n");
+
+                    /* Dump squelch bits */
+                    for (i = 1; i < z_info->k_max; i++)
+                    {
+                        tval = k_info[i].tval;
+                        sval = k_info[i].sval;
+                        squelch = (k_info[i].squelch);
+
+                        /* Dump the squelch info */
+                        if (tval || sval)
+                            SDL_IOprintf(fff, "Q:%d:%d:%d:%d\n", i, tval, sval, squelch);
+                    }
+
+                    SDL_IOprintf(fff, "\n\n# squelch_level array\n\n");
+
+                    for (i = 0; i < SQUELCH_BYTES; i++)
+                        SDL_IOprintf(fff, "Q:%d:%d\n", i, squelch_level[i]);
+
+                    /* All done */
+                    SDL_IOprintf(fff, "\n\n\n\n");
+
+                    /* Close */
+                    sdl_fclose(fff);
+
+                    /* Ending message */
+                    prt("Squelch file saved successfully.  (Hit a key.)", 17, 30);
+                    get_com("", &sq);
+                }
+                else
+                {
+                    prt("Failed to open squelch file.  (Hit a key.)", 17, 30);
+                    get_com("", &sq);
+                }
             }
         }
     }
@@ -327,42 +338,51 @@ static int do_cmd_squelch_aux(void)
         if (askfor_aux(ftmp, 80))
         {
             /* Build the filename */
-            path_build(buf, 1024, ANGBAND_DIR_USER, ftmp);
-
-            /* Drop priv's */
-            safe_setuid_drop();
-
-            /* Overwrite the file */
-            fff = sdl_fopen(buf, "w");
-
-            /* Grab priv's */
-            safe_setuid_grab();
-
-            /* Test for success */
-            if (fff && inscriptions)
+            if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp))
             {
-                /* Start dumping */
-                SDL_IOprintf(fff, "# Format: B:[Item Kind]:[Inscription]\n\n");
-
-                for (i = 0; i < inscriptionsCount; i++)
-                {
-                    object_kind* k_ptr = &k_info[inscriptions[i].kindIdx];
-
-                    /* Write a comment for the autoinscription*/
-                    SDL_IOprintf(fff, "# Autoinscription for %s\n",
-                        k_name + k_ptr->name);
-                    /* Dump the autoinscribe info */
-                    SDL_IOprintf(fff, "B:%d:%s\n\n", inscriptions[i].kindIdx,
-                        quark_str(inscriptions[i].inscriptionIdx));
-                }
-
-                /* Close */
-                sdl_fclose(fff);
-
-                /* Ending message */
-                prt("Autoinscribe file saved successfully.  (Hit a key.)", 16,
-                    30);
+                prt("Failed to resolve autoinscription file path.  (Hit a key.)", 16, 30);
                 get_com("", &sq);
+            }
+            else
+            {
+                /* Drop priv's */
+                safe_setuid_drop();
+
+                /* Overwrite the file */
+                fff = sdl_fopen(buf, "w");
+
+                /* Grab priv's */
+                safe_setuid_grab();
+
+                /* Test for success */
+                if (fff && inscriptions)
+                {
+                    /* Start dumping */
+                    SDL_IOprintf(fff, "# Format: B:[Item Kind]:[Inscription]\n\n");
+
+                    for (i = 0; i < inscriptionsCount; i++)
+                    {
+                        object_kind* k_ptr = &k_info[inscriptions[i].kindIdx];
+
+                        /* Write a comment for the autoinscription*/
+                        SDL_IOprintf(fff, "# Autoinscription for %s\n",
+                            k_name + k_ptr->name);
+                        /* Dump the autoinscribe info */
+                        SDL_IOprintf(fff, "B:%d:%s\n\n", inscriptions[i].kindIdx,
+                            quark_str(inscriptions[i].inscriptionIdx));
+                    }
+
+                    /* Close */
+                    sdl_fclose(fff);
+
+                    prt("Autoinscribe file saved successfully.  (Hit a key.)", 16, 30);
+                    get_com("", &sq);
+                }
+                else
+                {
+                    prt("Failed to save autoinscriptions.  (Hit a key.)", 16, 30);
+                    get_com("", &sq);
+                }
             }
         }
     }

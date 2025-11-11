@@ -11,7 +11,7 @@
 #include "metarun.h"
 #include "h-define.h"
 #include "log.h"
-#include "platform.h"    /* path_build(), fd_*, MKDIR         */
+#include "platform.h"    /* MKDIR helper                      */
 #include "supplies.h"
 #include <SDL3/SDL.h>
 #include <time.h>
@@ -234,7 +234,13 @@ static int count_character_txt_entries(void)
 
     for (size_t i = 0; candidates[i].dir; i++) {
         if (!candidates[i].dir || !*candidates[i].dir) continue;
-        path_build(path, sizeof(path), candidates[i].dir, candidates[i].filename);
+        if (!path_build(path, sizeof(path), candidates[i].dir, candidates[i].filename))
+        {
+            log_error("count_character_txt_entries: failed to build path for %s/%s",
+                candidates[i].dir ? candidates[i].dir : "(null)",
+                candidates[i].filename ? candidates[i].filename : "(null)");
+            continue;
+        }
         log_debug("count_character_txt_entries: trying %s", path);
         fp = sdl_fopen(path, "r");
         if (fp) {
@@ -823,15 +829,19 @@ static int compare_metarun_indices(const void *a, const void *b)
     return 0;
 }
 
-static void build_meta_path(char *buf, size_t len,
-                            const metarun *m, const char *leaf)
+static bool build_meta_path(char *buf, size_t len,
+    const metarun *m, const char *leaf)
 {
     const char* name = leaf ? leaf : "";
 
     if (!m)
     {
-        path_build(buf, len, ANGBAND_DIR_APEX, name);
-        return;
+        if (!path_build(buf, len, ANGBAND_DIR_APEX, name))
+        {
+            log_error("build_meta_path: failed for apex/%s", name);
+            return false;
+        }
+        return true;
     }
 
     char sub[128];
@@ -841,7 +851,12 @@ static void build_meta_path(char *buf, size_t len,
     else
         strnfmt(sub, sizeof sub, "%s/%08u",
             META_SUBDIR, (unsigned)m->id);
-    path_build(buf, len, ANGBAND_DIR_APEX, sub);
+    if (!path_build(buf, len, ANGBAND_DIR_APEX, sub))
+    {
+        log_error("build_meta_path: failed for %s", sub);
+        return false;
+    }
+    return true;
 }
 
 static void reset_defaults(metarun *m)
@@ -942,9 +957,20 @@ static void apply_difficulty_curses(metarun *m)
 static void ensure_run_dir(const metarun *m)
 {
     char dir[1024];
-    path_build(dir, sizeof dir, ANGBAND_DIR_APEX, META_SUBDIR); MKDIR(dir);
+    if (!path_build(dir, sizeof dir, ANGBAND_DIR_APEX, META_SUBDIR))
+    {
+        log_error("ensure_run_dir: failed to build base metarun directory");
+        return;
+    }
+    MKDIR(dir);
     strnfmt(dir, sizeof dir, "%s/%08u", META_SUBDIR, (unsigned)m->id);
-    path_build(dir, sizeof dir, ANGBAND_DIR_APEX, dir);         MKDIR(dir);
+    if (!path_build(dir, sizeof dir, ANGBAND_DIR_APEX, dir))
+    {
+        log_error("ensure_run_dir: failed to build run directory for id=%u",
+            (unsigned)m->id);
+        return;
+    }
+    MKDIR(dir);
 }
 
 static bool sync_current_metarun_slot(bool stamp_time)
@@ -1036,7 +1062,11 @@ void cleanup_old_game_files(void)
     /* Windows: Use FindFirstFile/FindNextFile for directory scanning */
     WIN32_FIND_DATA findData;
     char search_path[1024];
-    path_build(search_path, sizeof(search_path), save_dir, "*");
+    if (!path_build(search_path, sizeof(search_path), save_dir, "*"))
+    {
+        log_error("cleanup_old_game_files: failed to build save directory search path");
+        return;
+    }
     
     HANDLE hFind = FindFirstFile(search_path, &findData);
     if (hFind != INVALID_HANDLE_VALUE) {
@@ -1090,17 +1120,22 @@ void cleanup_old_game_files(void)
         
         /* Quick score file check and removal */
         char score_file[1024];
-        path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw");
-        
-        SDL_IOStream* score_fd = sdl_fopen(score_file, "rb");
-        if (score_fd) {
-            sdl_fclose(score_fd);
-            log_info("*** REMOVING SCORE FILE FOR FRESH START ***");
-            
-            /* Platform-agnostic file removal using standard C */
-            remove(score_file);
-        } else {
-            log_trace("Fresh startup: no score file found");
+        if (path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw"))
+        {
+            SDL_IOStream* score_fd = sdl_fopen(score_file, "rb");
+            if (score_fd) {
+                sdl_fclose(score_fd);
+                log_info("*** REMOVING SCORE FILE FOR FRESH START ***");
+
+                /* Platform-agnostic file removal using standard C */
+                remove(score_file);
+            } else {
+                log_trace("Fresh startup: no score file found");
+            }
+        }
+        else
+        {
+            log_error("cleanup_old_game_files: failed to build score file path");
         }
         
         log_info("*** INSTANT FRESH STARTUP COMPLETED ***");
@@ -1113,39 +1148,48 @@ void cleanup_old_game_files(void)
     /* Use ONLY standard C functions - no shell commands for better portability */
     int files_deleted = 0;
     
-    #ifdef WINDOWS
+#ifdef WINDOWS
     /* Windows: Use FindFirstFile/FindNextFile to enumerate and delete */
     WIN32_FIND_DATA cleanupFindData;
     char cleanup_search_path[1024];
-    path_build(cleanup_search_path, sizeof(cleanup_search_path), save_dir, "*");
-    
-    HANDLE hCleanupFind = FindFirstFile(cleanup_search_path, &cleanupFindData);
-    if (hCleanupFind != INVALID_HANDLE_VALUE) {
-        do {
-            /* Skip directories and special entries */
-            if (cleanupFindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
-            
-            char* filename = cleanupFindData.cFileName;
-            
-            /* Skip .gitignore and archive files */
-            if (strcmp(filename, ".gitignore") == 0) continue;
-            if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
-            
-            /* Delete this file using standard C */
-            char file_path[1024];
-            path_build(file_path, sizeof(file_path), save_dir, filename);
-            
-            if (remove(file_path) == 0) {
-                files_deleted++;
-                log_trace("Fresh startup: deleted file: %s", filename);
-            } else {
-                log_trace("Fresh startup: failed to delete: %s", filename);
-            }
-            
-        } while (FindNextFile(hCleanupFind, &cleanupFindData));
-        FindClose(hCleanupFind);
+    if (path_build(cleanup_search_path, sizeof(cleanup_search_path), save_dir, "*"))
+    {
+        HANDLE hCleanupFind = FindFirstFile(cleanup_search_path, &cleanupFindData);
+        if (hCleanupFind != INVALID_HANDLE_VALUE) {
+            do {
+                /* Skip directories and special entries */
+                if (cleanupFindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+
+                char* filename = cleanupFindData.cFileName;
+
+                /* Skip .gitignore and archive files */
+                if (strcmp(filename, ".gitignore") == 0) continue;
+                if (strstr(filename, ".tar") || strstr(filename, ".zip") || strstr(filename, ".gz")) continue;
+
+                /* Delete this file using standard C */
+                char file_path[1024];
+                if (!path_build(file_path, sizeof(file_path), save_dir, filename))
+                {
+                    log_error("cleanup_old_game_files: failed to build deletion path for '%s'", filename);
+                    continue;
+                }
+
+                if (remove(file_path) == 0) {
+                    files_deleted++;
+                    log_trace("Fresh startup: deleted file: %s", filename);
+                } else {
+                    log_trace("Fresh startup: failed to delete: %s", filename);
+                }
+
+            } while (FindNextFile(hCleanupFind, &cleanupFindData));
+            FindClose(hCleanupFind);
+        }
     }
-    #else
+    else
+    {
+        log_error("cleanup_old_game_files: failed to build cleanup search path");
+    }
+#else
     /* Unix/Linux/macOS: Use opendir/readdir to enumerate and delete */
     dir = opendir(save_dir);
     if (dir) {
@@ -1164,7 +1208,11 @@ void cleanup_old_game_files(void)
             
             /* Delete this file using standard C */
             char file_path[1024];
-            path_build(file_path, sizeof(file_path), save_dir, filename);
+            if (!path_build(file_path, sizeof(file_path), save_dir, filename))
+            {
+                log_error("cleanup_old_game_files: failed to build deletion path for '%s'", filename);
+                continue;
+            }
             
             if (remove(file_path) == 0) {
                 files_deleted++;
@@ -1185,7 +1233,11 @@ void cleanup_old_game_files(void)
     
     /* Score file cleanup */
     char score_file[1024];
-    path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw");
+    if (!path_build(score_file, sizeof(score_file), ANGBAND_DIR_APEX, "scores.raw"))
+    {
+        log_error("cleanup_old_game_files: failed to build score file path during cleanup");
+        return;
+    }
     
     SDL_IOStream* score_fd = sdl_fopen(score_file, "rb");
     if (score_fd) {
@@ -1205,7 +1257,8 @@ errr load_metaruns(bool create_if_missing)
     SDL_IOStream* fd;
     bool found_existing_data = false;
 
-    build_meta_path(fn, sizeof fn, NULL, META_RAW);
+    if (!build_meta_path(fn, sizeof fn, NULL, META_RAW))
+        return -1;
     fd = sdl_fopen(fn, "rb");
 
     if (!fd && ANGBAND_DIR_METARUN && ANGBAND_DIR_METARUN[0]) {
@@ -1599,7 +1652,8 @@ errr save_metaruns(void)
     refresh_current_metar_score();
 
     char fn[1024];
-    build_meta_path(fn, sizeof fn, NULL, META_RAW);
+    if (!build_meta_path(fn, sizeof fn, NULL, META_RAW))
+        return -1;
 
     /* Create backup before saving */
     backup_file(fn);

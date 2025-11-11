@@ -4992,3 +4992,9 @@ The custom vstrnfmt in z-form.c supports "%^" which capitalizes the first non-sp
 * Removed the obsolete SDL data-dump implementation and its build wiring (part of the file restructuring + z-* retirement track).
 * Cleared the ALLOW_DATA_DUMP prototypes from externs.h, pruned the SDL build targets, and captured the change in the modernization docs so the roadmap reflects the slimmer codebase.
 * Next: keep migrating remaining ALLOW_DATA_DUMP consumers toward modern diagnostics so the macro itself can disappear during the C17 cleanup stage.
+## 2025-11-11: Filesystem Callers Hardened
+
+* init1.c now validates the style.txt path before attempting to reload message banners so we get a clear log when the edit tree is missing.
+* squelch.c uses the ool-returning path_build() and surfaces failures to the player for both squelch dumps and autoinscription exports; failures to open the file now prompt immediately.
+* metarun.c gained full path-build error handling (including the metarun folder creation, character.txt discovery, and the fresh-start cleanup paths). uild_meta_path() returns ool, so loaders can fail fast and log precise errors, moving Stage S7 forward.
+* Updated the plan doc so Stage S7 reflects the tightened callers and the remaining focus on init2/pref loaders.
