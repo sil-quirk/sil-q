@@ -8551,7 +8551,11 @@ static errr option_dump(cptr fname)
     char buf[1024];
 
     /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname);
+    if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname))
+    {
+        log_error("option_dump: failed to build path for '%s'", fname);
+        return (-1);
+    }
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
@@ -9250,7 +9254,11 @@ static errr macro_dump(cptr fname)
     char buf[1024];
 
     /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname);
+    if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname))
+    {
+        log_error("macro_dump: failed to build path for '%s'", fname);
+        return (-1);
+    }
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
@@ -9418,7 +9426,11 @@ static errr keymap_dump(cptr fname)
         mode = KEYMAP_MODE_ANGBAND_HJKL;
 
     /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname);
+    if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname))
+    {
+        log_error("keymap_dump: failed to build path for '%s'", fname);
+        return (-1);
+    }
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
@@ -10088,7 +10100,11 @@ void do_cmd_visuals(void)
                 continue;
 
             /* Build the filename */
-            path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp);
+            if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp))
+            {
+                log_error("dump_monsters: failed to build path for '%s'", ftmp);
+                continue;
+            }
 
             /* Remove old attr/chars */
             remove_old_dump(buf, mark);
@@ -10158,7 +10174,11 @@ void do_cmd_visuals(void)
                 continue;
 
             /* Build the filename */
-            path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp);
+            if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp))
+            {
+                log_error("dump_objects: failed to build path for '%s'", ftmp);
+                continue;
+            }
 
             /* Remove old attr/chars */
             remove_old_dump(buf, mark);
@@ -10229,7 +10249,11 @@ void do_cmd_visuals(void)
                 continue;
 
             /* Build the filename */
-            path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp);
+            if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp))
+            {
+                log_error("dump_features: failed to build path for '%s'", ftmp);
+                continue;
+            }
 
             /* Remove old attr/chars */
             remove_old_dump(buf, mark);
@@ -10300,7 +10324,11 @@ void do_cmd_visuals(void)
                 continue;
 
             /* Build the filename */
-            path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp);
+            if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp))
+            {
+                log_error("dump_flavors: failed to build path for '%s'", ftmp);
+                continue;
+            }
 
             /* Remove old attr/chars */
             remove_old_dump(buf, mark);
@@ -11271,7 +11299,11 @@ void do_cmd_colors(void)
                 continue;
 
             /* Build the filename */
-            path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp);
+            if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp))
+            {
+                log_error("dump_colors: failed to build path for '%s'", ftmp);
+                continue;
+            }
 
             /* Remove old colors */
             remove_old_dump(buf, mark);

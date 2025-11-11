@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "log/bootstrap.h"
 
 /*
  * Some machines have a "main()" function in their "main-xxx.c" file,

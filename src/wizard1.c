@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "ui/colors.h"
 
 #ifdef ALLOW_SPOILERS
 
@@ -150,7 +151,11 @@ static void spoil_obj_desc(cptr fname)
     cptr format = " %-42s  %7s%8s%9s\n";
 
     /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname);
+    if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname))
+    {
+        log_error("spoil_obj_desc: failed to build path for '%s'", fname);
+        return;
+    }
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
@@ -349,7 +354,11 @@ static void spoil_artefact(cptr fname)
     char buf[1024];
 
     /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname);
+    if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname))
+    {
+        log_error("spoil_artifact: failed to build path for '%s'", fname);
+        return;
+    }
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
@@ -474,7 +483,11 @@ static void spoil_mon_desc(cptr fname)
     u16b why = 2;
 
     /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname);
+    if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname))
+    {
+        log_error("spoil_mon_desc: failed to build path for '%s'", fname);
+        return;
+    }
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
@@ -667,7 +680,11 @@ static void spoil_mon_ss(cptr fname)
     u16b why = 2;
 
     /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname);
+    if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname))
+    {
+        log_error("spoil_mon_ss: failed to build path for '%s'", fname);
+        return;
+    }
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
@@ -834,7 +851,11 @@ static void spoil_mon_info(cptr fname)
     int count = 0;
 
     /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname);
+    if (!path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname))
+    {
+        log_error("spoil_mon_info: failed to build path for '%s'", fname);
+        return;
+    }
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);

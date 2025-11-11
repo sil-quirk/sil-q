@@ -1270,6 +1270,10 @@ errr load_metaruns(bool create_if_missing)
                 found_existing_data = true;
             }
         }
+        else
+        {
+            log_error("load_metarun_data: failed to build legacy path");
+        }
     }
 
     if (fd) {

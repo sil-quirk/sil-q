@@ -1077,7 +1077,6 @@ extern char* squelch_to_label(int squelch);
 extern bool use_object(object_type* o_ptr, bool* ident);
 
 /* util.c */
-extern void init_logger(bool quiet, const char* exe_path);
 
 /* SDL3-based file I/O operations */
 extern errr sdl_fclose(SDL_IOStream* stream);
@@ -1157,7 +1156,6 @@ extern int damroll(int num, int sides);
 extern bool is_a_vowel(int ch);
 extern int color_char_to_attr(char c);
 extern int color_text_to_attr(cptr name);
-extern cptr attr_to_text(byte a);
 
 #ifdef SUPPORT_GAMMA
 extern void build_gamma_table(int gamma);

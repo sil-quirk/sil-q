@@ -78,44 +78,6 @@ size_t SDL_strlcat(char* buf, const char* src, size_t bufsize)
 }
 
 /*
- * Determine if string "a" is equal to string "b"
- */
-bool streq(cptr a, cptr b) { return (!strcmp(a, b)); }
-
-/*
- * Determine if string "t" is a suffix of string "s"
- */
-bool suffix(cptr s, cptr t)
-{
-    size_t tlen = strlen(t);
-    size_t slen = strlen(s);
-
-    /* Check for incompatible lengths */
-    if (tlen > slen)
-        return (false);
-
-    /* Compare "t" to the end of "s" */
-    return (!strcmp(s + slen - tlen, t));
-}
-
-/*
- * Determine if string "t" is a prefix of string "s"
- */
-bool prefix(cptr s, cptr t)
-{
-    /* Scan "t" */
-    while (*t)
-    {
-        /* Compare content and length */
-        if (*t++ != *s++)
-            return (false);
-    }
-
-    /* Matched, we have a prefix */
-    return (true);
-}
-
-/*
  * Redefinable "plog" action
  */
 void (*plog_aux)(cptr) = NULL;

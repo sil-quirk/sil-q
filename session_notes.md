@@ -4977,7 +4977,7 @@ The custom vstrnfmt in z-form.c supports "%^" which capitalizes the first non-sp
 ## 2025-11-11: Unified Plan + SDL Filesystem Contract
 
 ### Planning
-* proprietary_utility_retirement_plan.md now leads with a unified SDL+utility roadmap (Stages S0�S9) and refreshed Phase 4c status; SDL_CLEANUP_PLAN.md points to that table and its next-step bullets reference the shared stage numbers.
+* proprietary_utility_retirement_plan.md now leads with a unified SDL+utility roadmap (Stages S0�S9) and refreshed Phase 4c status; SDL_CLEANUP_PLAN.md points to that table and its next-step bullets reference the shared stage numbers.
 * Immediate-actions list now focuses on auditing the bool-returning helpers across init1.c/squelch.c/metarun work and finishing the filesystem breakout before the z-term plan resumes.
 
 ### Implementation
@@ -4998,3 +4998,138 @@ The custom vstrnfmt in z-form.c supports "%^" which capitalizes the first non-sp
 * squelch.c uses the ool-returning path_build() and surfaces failures to the player for both squelch dumps and autoinscription exports; failures to open the file now prompt immediately.
 * metarun.c gained full path-build error handling (including the metarun folder creation, character.txt discovery, and the fresh-start cleanup paths). uild_meta_path() returns ool, so loaders can fail fast and log precise errors, moving Stage S7 forward.
 * Updated the plan doc so Stage S7 reflects the tightened callers and the remaining focus on init2/pref loaders.
+## 2025-11-12: Proprietary Utility Plan Audit
+
+### Summary
+
+* Re-reviewed `files.c:6270-6415`, `src/fs/io_sdl.c`, and `src/rng.c` to verify Stages S1-S6 of the utility retirement roadmap are still complete under the SDL3 build.
+* Audited the bool-returning filesystem helpers and found lingering unchecked sites in `cmd4.c:8554`, `wizard1.c:153`, `metarun.c:839`, and `squelch.c:236`; also confirmed `util.c:5170-5298` still hosts color tables plus `init_logger()`.
+* Rewrote proprietary_utility_retirement_plan.md so it only tracks Stages S7-S9, integrates the File Restructuring & z-* Retirement list, and adds the C17 modernization checklist with updated statuses.
+
+### Next Steps
+
+* Harden the remaining `path_build`/`path_temp` callers, split `util.c` into logging/UI modules, and remove the duplicate `streq/prefix/suffix` implementations from `z-util.c` per the refreshed plan.
+### Addendum
+* Stage S8 (terminal panes) is now tracked in SDL_CLEANUP_PLAN.md so the utility retirement plan can focus on S7 + S9.
+* Captured the outstanding global-state issues in the refreshed plan: z-util logging globals (`src/z-util.c:18-205`), score-file singletons (`src/files.c:4623-4793`, `src/files.c:6270-6478`), header-wide exports via `src/angband.h:18-43`, util-owned palette tables (`src/util.c:5170-5205`), and the `term* Term` singleton (`src/z-term.c:273`).
+
+## 2025-11-12: Stage S7 Implementation - Filesystem Error Handling & Utility Split
+
+### Summary
+
+Implemented the core items from Stage S7 of the proprietary utility retirement plan, focusing on filesystem error handling and extracting subsystems from util.c.
+
+### Changes Made
+
+1. **Filesystem Error Handling (S7.1 & S7.2)**
+   - Updated `cmd4.c` (lines 8554, 9253, 9421, 10091, 10161, 10232, 10303, 11274): Added error checks for `path_build()` failures in pref/dump/visual writers, returning early with user-facing messages
+   - Updated `wizard1.c` (lines 153, 352, 477, 670, 837): Added error handling in all 5 spoiler generators, returning with error messages instead of proceeding with invalid paths
+   - Updated `metarun.c` (line 1266): Added error logging for legacy path build failures
+   - Verified `squelch.c` already had proper error handling (lines 236, 341)
+
+2. **Util.c Split - Color Module (S7.3)**
+   - Created `src/ui/colors.h` and `src/ui/colors.c`
+   - Moved `short_color_names` array and `attr_to_text()` function from `util.c:5170-5205` into the new module
+   - Updated `wizard1.c` to include `ui/colors.h`
+   - Removed `attr_to_text` declaration from `externs.h`
+   - Added `src/ui/colors.c` to `CMakeLists.txt`
+
+3. **Util.c Split - Logging Bootstrap (S7.6)**
+   - Created `src/logging/bootstrap.h` and `src/logging/bootstrap.c`
+   - Moved `init_logger()` function from `util.c:5205-5298` into the new module
+   - Updated `main.c` to include `logging/bootstrap.h`
+   - Removed `init_logger` declaration from `externs.h`
+   - Added `src/logging/bootstrap.c` to `CMakeLists.txt`
+
+4. **Duplicate String Helper Removal (S7.4)**
+   - Removed duplicate `streq()`, `prefix()`, and `suffix()` implementations from `z-util.c:83-115`
+   - Inline versions in `angband.h:90-118` are now the single source of truth
+   - All callers (files.c, util.c, squelch.c, xtra2.c, main.c, init2.c) already include `angband.h`, so no changes needed
+
+### Build & Test Status
+
+- ✅ All changes compile cleanly with no errors
+- ✅ Game launches successfully
+- ✅ No regressions in basic functionality
+
+### Remaining S7 Work
+
+- Unify error/quit paths (`plog/quit/core` in `z-util.c:126-205`)
+- Retire the score-file singleton (`highscore_fd` and `scores_file_*` globals in `files.c`)
+- Document + test path-dependent flows (dump/spoiler/metarun regression matrix)
+- Address remaining unchecked `path_build()` calls in `files.c` (50+ instances found)
+
+### Files Modified
+
+- `src/cmd4.c`: Added 8 error handling blocks
+- `src/wizard1.c`: Added 5 error handling blocks, included ui/colors.h
+- `src/metarun.c`: Added 1 error handling block
+- `src/util.c`: Removed color helpers and init_logger (~140 lines)
+- `src/z-util.c`: Removed duplicate string helpers (~40 lines)
+- `src/externs.h`: Removed 2 function declarations
+- `src/main.c`: Added logging/bootstrap.h include
+- `CMakeLists.txt`: Added ui/colors.c and logging/bootstrap.c
+
+### Files Created
+
+- `src/ui/colors.h`
+- `src/ui/colors.c`
+- `src/logging/bootstrap.h`
+- `src/logging/bootstrap.c`
+
+## 2025-11-12: Corrections - log_error Usage & Module Location
+
+### Summary
+
+Fixed two issues identified in the previous Stage S7 implementation:
+1. Replaced inappropriate `msg_print()` calls with `log_error()` from the log library
+2. Moved bootstrap module from `src/logging/` to existing `src/log/` folder
+
+### Changes Made
+
+1. **Error Handling Correction (cmd4.c, wizard1.c)**
+   - Replaced 8 `msg_print()` calls in cmd4.c with `log_error()`, adding function context and filename
+   - Replaced 5 `msg_print()` calls in wizard1.c with `log_error()`, adding function context and filename
+   - Error messages now go to log file instead of player-facing messages
+   - Examples:
+     - `msg_print("Failed to build options file path.")` → `log_error("option_dump: failed to build path for '%s'", fname)`
+     - `msg_print("Failed to build spoiler file path.")` → `log_error("spoil_obj_desc: failed to build path for '%s'", fname)`
+
+2. **Module Relocation (bootstrap.c/h)**
+   - Moved `src/logging/bootstrap.c` to `src/log/bootstrap.c`
+   - Moved `src/logging/bootstrap.h` to `src/log/bootstrap.h`
+   - Removed empty `src/logging/` directory
+   - Updated include path in `main.c`: `logging/bootstrap.h` → `log/bootstrap.h`
+   - Updated CMakeLists.txt: `src/logging/bootstrap.c` → `src/log/bootstrap.c`
+   - Updated header guards: `INCLUDED_LOGGING_BOOTSTRAP_H` → `INCLUDED_LOG_BOOTSTRAP_H`
+   - Fixed include path in bootstrap.c: `../log/log.h` → `log.h` (already in log/ folder)
+
+### Build & Test Status
+
+- ✅ Clean compilation with no errors
+- ✅ Game launches successfully
+- ✅ No regressions
+
+### Rationale
+
+- **log_error vs msg_print**: Path build failures are internal errors that should be logged for debugging, not shown to players as game messages
+- **log/ vs logging/**: The project already has a `src/log/` folder for logging infrastructure; creating a separate `src/logging/` was redundant
+
+### Files Modified
+
+- `src/cmd4.c`: Changed 8 error messages
+- `src/wizard1.c`: Changed 5 error messages
+- `src/main.c`: Updated include path
+- `src/log/bootstrap.c`: Updated comment and include paths
+- `src/log/bootstrap.h`: Updated comment and header guards
+- `CMakeLists.txt`: Updated source file path
+
+### Files Moved
+
+- `src/logging/bootstrap.c` → `src/log/bootstrap.c`
+- `src/logging/bootstrap.h` → `src/log/bootstrap.h`
+
+### Files Deleted
+
+- `src/logging/` (empty directory)
+

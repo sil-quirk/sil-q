@@ -63,6 +63,8 @@ add_executable(sil-more
     src/sdl-config.c
     src/fs/io_sdl.c
     src/fs/path.c
+    src/ui/colors.c
+    src/log/bootstrap.c
     src/spells1.c
     src/spells2.c
     src/squelch.c

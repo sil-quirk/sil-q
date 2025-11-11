@@ -1,123 +1,76 @@
-# Proprietary Utility Retirement Plan
+# Proprietary Utility Retirement Plan (SDL3 + C17 Track)
 
-This document inventories the legacy helper layers (primarily `z-*.c` and `util.c`) and lays out a stepwise refactor path that replaces them with modern C17 or SDL3 facilities. Each phase is scoped so the tree keeps building and running (`build-cmake.bat` on Windows / `cmake --build build` elsewhere) before moving on.
+This document now focuses solely on the remaining modernization work (Stages S7-S9) while recording the evidence that Stages S0-S6 are complete. The plan integrates the original File Restructuring & z-* Retirement list plus the C17 Modernization checklist so a single roadmap can guide the rewrite toward SDL-native, C17-compliant code.
 
-## Unified Modernization Roadmap (SDL + Utilities)
-| Stage | Origin | Focus | Status | Notes |
-| --- | --- | --- | --- | --- |
-| S0 | Prop Phase 0 | Baseline build + warning log | ✅ Done | Guardrails recorded in `session_notes.md:37-124`. |
-| S1 | SDL Phase 1 | Highscore I/O rewrite + flush safety | ✅ Done | SDL-only `highscore_add()`/`open_scores_file_versioned()` (see `session_notes.md:374-512`). |
-| S2 | SDL Phase 2 | Remove `USE_SDL` conditionals + legacy modules | ✅ Done | `main.c`, CMake, and build scripts now assume SDL exclusively (`session_notes.md:4870-4890`). |
-| S3 | Prop Phase 1 | String/memory helper cleanup | ✅ Done | Inline `streq/prefix/suffix`; `z-virt` migrated to SDL allocators. |
-| S4 | Prop Phase 2 | SDL-backed file/path wrappers adoption | ✅ Done | `sdl_fopen` + friends landed in `src/fs/io_sdl.c`; dump/load callers switched. |
-| S5 | Prop Phase 3 | Formatting/logging glue overhaul | ✅ Done | `format.c/.h` own the API; `z-form.*` removed. |
-| S6 | Prop Phase 4/4b | RNG + math helper migration | ✅ Done | `rng.c/.h` + SDL random context integration. |
-| S7 | Prop Phase 4c + SDL Phase 3/4 | Filesystem breakout + modern error contracts | ⚙️ In progress | SDL path helpers return `bool`; `init1.c`, `squelch.c`, and the metarun maintenance now honor their errors. Next up: finish migrating the remaining loaders (`init2.c`, `cmd4.c` pref walkers) to the new helpers. |
-| S8 | Prop Phase 5 | Terminal abstraction retirement | 📝 Planned | `z-term` refactor tracked in its own plan; keep stable until SDL panes cover all flows. |
-| S9 | Prop Phase 6 + SDL Phase 5 | Final utility deletion + regression matrix | 📝 Planned | Requires spoiler/dump verification, metarun backups, and removal of unused `z-*` files. |
+## Verified Stages (S0-S6)
+- **S0 - Baseline guardrails (Done):** Build + warning logs captured in `session_notes.md:37-124`; every follow-on change has honored that baseline.
+- **S1 - Highscore I/O rewrite (Done):** `files.c:6270-6415` drives `highscore_add()` entirely through `SDL_IOStream` (`SDL_WriteIO`, `SDL_FlushIO`) with explicit header rewrites, satisfying the flush-safety requirement.
+- **S2 - SDL-only builds (Done):** No `USE_SDL` guards remain (`rg USE_SDL` returns empty); `angband.h` only wires the SDL frontend, and the legacy platform stubs have been removed from `src/`.
+- **S3 - String/memory helper cleanup (Done):** Inline helpers live in `src/angband.h:90-118`, and `z-virt.c:33-107` now allocates via `SDL_calloc/SDL_free`. The duplicated `streq/prefix/suffix` definitions in `z-util.c:83-115` are tracked as part of the remaining utility split.
+- **S4 - SDL-backed filesystem wrappers (Done):** `src/fs/io_sdl.c` and `src/fs/path.c` own `sdl_fopen/sdl_fmake` plus the bool-returning `path_parse/build/temp` helpers; callers such as `cmd4.c`, `save.c`, `metarun.c`, and `files.c` now include `fs/io_sdl.h`.
+- **S5 - Formatting/logging glue (Done):** `src/format.c` / `src/format.h` house the formatting API, and `z-form.*` no longer exists in the tree (`rg --files -g 'z-form.*'` returns nothing).
+- **S6 - RNG + math helper migration (Done):** `src/rng.c:1-120` centralizes the SDL-backed RNG state plus deterministic exports, and `rng.h` provides the wrappers used across gameplay. Additional push/pop helpers remain open work under Stage S9.
 
-**Immediate next actions**
-1. Leverage the new `bool`-returning filesystem helpers to tighten error handling in the remaining loaders (`init2.c` follow-ups, `cmd4.c` dumps, other pref walkers).
-2. Port the remaining loaders to focused `fs/*` helpers as part of the filesystem breakout.
-3. Re-run the dump/spoiler/metarun regression matrix once the filesystem helpers stabilize, then proceed to the `z-term` plan.
+## Active Roadmap (S7-S9)
 
-## Status Snapshot (2025-11-11)
-| Phase | Focus | Status | Evidence |
+| Stage | Focus | Status | Key Risks |
 | --- | --- | --- | --- |
-| 0 | Baseline + guardrails | Done | Baseline build + warning count recorded in `session_notes.md:37-124`. |
-| 1 | String and memory helpers | Done | `streq/prefix/suffix` now inline in `src/angband.h:94-110`; `z-virt.c` uses SDL allocators; logged in `session_notes.md:39-134`. |
-| 2 | SDL-backed file/path utilities | Done | `sdl_fopen` and friends live in `src/fs/io_sdl.c` and are used throughout loaders/dumps (`src/cmd4.c:170-260`, `src/save.c:316-2021`). |
-| 3 | Formatting + logging glue | Done | `src/format.c`/`src/format.h` own the public helpers (`session_notes.md:4235-4277`); `z-form.*` has been deleted. |
-| 4 | RNG + math helpers | Done (compatibility baseline) | `src/rng.c`/`src/rng.h` replace `z-rand.*` (`session_notes.md:3-84`) while preserving deterministic behavior. |
-| 4b | SDL random state integration | Done | Single SDL-backed RNG state (`Rand_state_export/import`) now drives all random draws (`session_notes.md:4203-4216`). |
-| 4c | Filesystem breakout | In progress | SDL path helpers live in `src/fs/path.c`; `path_parse/path_build/path_temp/fd_*` now return `bool` (2025-11-11). Next up: migrate `init1/2`, `squelch`, and metarun maintenance to the helpers (session_notes.md, 2025-11-11). |
-| 5 | Terminal abstraction | Planned | Collapse `z-term` once SDL panes cover all rendering/input needs. |
-| 6 | Final deletion | Planned | Remove the remaining `z-*` files and normalize headers/docs. |
+| **S7** | Filesystem breakout + utility split | In progress | `path_*` callers still ignore bool failures; `util.c` retains logging/color tables; `z-util` duplicates string/logging helpers. |
+| **S9** | Final utility deletion + C17 polish | Planned | `z-virt` macro layer, RNG push/pop APIs, and global logging/quit hooks must be modernized before the remaining `z-*` files can be removed. |
 
-## Goals
-- Retire bespoke portability shims (string/memory helpers, RNG, term package, path/file wrappers) that date back to pre-SDL ports.
-- Lean on SDL3 (windowing, input, timing, RNG, file I/O helpers) or the C17 standard library to simplify maintenance.
-- Delete dead platform code; SDL3 is now the only supported frontend (`session_notes.md:4115-4138`), so we can excise residual guards instead of keeping compatibility abstractions.
-- Adopt modern C17 practices (explicit sizing, `bool`, `size_t`, `const`, error propagation) as we touch each subsystem.
-- Restructure files so functionality lives in focused modules rather than monolithic legacy buckets.
+_Stage S8 (terminal abstraction + SDL panes) now lives in `SDL_CLEANUP_PLAN.md` so we can finish S7 and S9 before touching the rendering stack again._
 
-## Codebase Snapshot (2025-11)
-- `src/` — gameplay core (`cmd*.c`, `object*.c`, `dungeon.c`, etc.), SDL-only frontend (`main-sdl.c`), and the legacy utility layer (`z-*.c`, `util.c`, `files.c`). The old `main-gcu.c` / `main-win.c` stubs have been deleted.
-- `lib/` — text data (`lib/edit/*.txt`), prefs (`lib/pref/*.prf`), and fonts/palettes (`lib/pref/font-*.prf`).
-- `sil-more-windows-sdl3/` — deployment payload (game assets + `log.txt` runtime output).
-- Docs/scripts — migration notes (`SDL_CLEANUP_PLAN.md`, `SDL_MIGRATION.md`), current-session log (`session_notes.md`), and helper scripts under `tools/` or repo root.
+### Stage S7 - Filesystem breakout & utility split (In progress)
+1. **Honor the bool-returning filesystem contract everywhere.** Many loaders/dumps still ignore the return value. Examples: `cmd4.c:8554, 9253, 9421` (pref/dump writers), `wizard1.c:153-843` (spoiler generators), `metarun.c:839-1266`, and `squelch.c:236-352`. These sites must short-circuit on failure, surface the error via `msg_print`/`log_error`, and avoid partially written files.
+2. **Consolidate filesystem helpers under `src/fs/`.** Callers still include `util.h` just to reach legacy prototypes. Introduce `fs/io_sdl.h` / `fs/path.h` headers where missing and drop the redundant `#include "z-util.h"` in those files once the helpers are wired directly (e.g., `wizard1.c:150-860`, `cmd4.c` top-level includes).
+3. **Split `util.c` by responsibility.** The file still holds unrelated subsystems: `short_color_names`/`attr_to_text` (lines `5170-5205`), `init_logger()` + global log routing (lines `5205-5298`), story-font helpers, and misc gameplay glue. Move these into purpose-built modules (`src/ui/colors.c`, `src/logging/bootstrap.c`, `src/ui/story_font.c`) so `util.c` only contains gameplay helpers.
+4. **Remove duplicate string helpers from `z-util`.** With inline versions already available in `angband.h:90-118`, delete the legacy `streq/prefix/suffix` definitions at `z-util.c:83-115` and shrink `z-util.h` accordingly. This also eliminates conflicting symbol visibility when we tighten `-Wmissing-prototypes`.
+5. **Unify error/quit paths.** `plog/quit/core` still live in `z-util.c:126-205`, bypassing the structured logging pipeline. Introduce a single `log_fatal()` flow (wrapping `log/log.h`) that ensures `SDL_Quit` is called exactly once, then drop the bespoke hooks.
+6. **Retire the score-file singleton.** The `highscore_fd` and `scores_file_*` globals in `files.c:4623-4705` turn score handling into hidden state. Build a scoped `score_file_ctx` that callers pass around so tests can inject in-memory streams and Stage S9 can delete the globals entirely.
+7. **Document + test path-dependent flows.** Once callers stop ignoring failures, rerun the dump/spoiler/metarun regression matrix so Stage S7 closes with evidence that the bool contract is respected end-to-end.
 
-Despite the SDL-only pivot, the gameplay loop still routes through the Angband-era `term` abstraction, bespoke random/formatting helpers, and a monolithic `util.c`. Those are the remaining seams we are collapsing.
+### Stage S9 - Final utility deletion + C17 polish (Planned)
+1. **Modernize `z-virt`.** Replace macros such as `C_MAKE/KILL` in `z-virt.h:32-110` with typed static inline helpers that return `bool`/`size_t`, emit diagnostics, and eliminate hidden side effects. Update all callers to honor the new signatures.
+2. **Extend the RNG API.** Implement documented push/pop helpers around the SDL RNG state plus serialization comments inside `rng.c:19-40`, and teach the save/load tooling how to validate the 64-bit blobs before accepting them.
+3. **Collapse global logging/quit hooks.** After Stage S7 creates `log_fatal()`, remove the legacy `argv0`, `plog_aux`, and `quit_aux` globals from `z-util.c`, and ensure shutdown flows go through `log/log.h` + SDL cleanup.
+4. **Header hygiene.** Stop including `z-util.h`, `z-virt.h`, and `z-term.h` from `angband.h:18-37`. Instead, expose only the modern modules through `externs.h` or dedicated headers so files can include what they use. This is the last blocker before deleting `z-*`.
+5. **Final deletion + regression matrix.** Remove the unused `z-*` files, shrink `util.c` out of existence, and rerun the spoiler/dump/metarun matrix plus the SDL panes QA list to ensure no regressions.
 
-## Legacy Utility Inventory
-| Module | Responsibilities today | Replacement direction |
-| --- | --- | --- |
-| `z-util.c/h` | Residual case-insensitive compare helpers (`z-util.c:24-119`) plus historical logging hooks. | Delete the unused functions and move any needed declarations into modern headers; rely on SDL/standard logging plus `log/log.h`. |
-| `z-virt.c/h` | Allocation macros (`C_MAKE`, `KILL`, etc.) and wrappers around SDL memory calls. | Replace macros with explicit helpers or typed inline functions; migrate remaining call sites to SDL allocators so the file can be deleted. |
-| `z-form.c/h` | **RETIRED** — functionality merged into `src/format.c`. | n/a |
-| `z-rand.c/h` | Replaced by `src/rng.c/rng.h`; still uses bespoke LCRNG arrays internally. | Finish Phase 4b by backing RNG state with `SDL_RandomContext` instances while keeping deterministic seeds. |
-| `z-term.c/h` | Terminal/window abstraction predating SDL panes. | Route rendering/input through SDL view helpers and delete the terminal layer. |
-| `util.c` | Path parsing (`path_parse` at `src/util.c:129-378`), filesystem helpers, logging init, color utilities, and miscellaneous shims. | Split into focused modules (filesystem, logging bootstrap, color helpers, birth helpers) so the last legacy pieces can be deleted alongside `z-*`. |
+## Bad Practice Remediation Targets
+- **Global logging/exit state (`src/z-util.c:18-205`)** – `argv0`, `plog_aux`, `quit_aux`, and `core_aux` store mutable global pointers and write directly to `stderr`. Stage S7 should fold these paths into a single `log_fatal()` helper in `log/log.h`, remove the globals, and pass process context explicitly when initializing the logger.
+- **Implicit score-file singletons (`src/files.c:4623-4793`, `src/files.c:6270-6478`)** – `highscore_fd`, `scores_file_version_*`, and `scores_file_entry_count` are module-level globals that every caller mutates. Stage S7 should wrap them in a `score_file_ctx` struct that is handed to `highscore_*` helpers, enabling deterministic tests and removing hidden state.
+- **Header-level global exposure (`src/angband.h:18-43`)** – Including `externs.h` from `angband.h` injects every global symbol into all translation units, making dependency tracking and linting impossible. Stage S9 should stop re-exporting `externs.h`, require modules to include the headers they actually use, and rely on forward declarations or context structs where needed.
+- **UI palette/text globals (`src/util.c:5170-5205`)** – `short_color_names` and `attr_to_text` live in util-land even though only UI panes read them. Stage S7 needs to move these tables into `src/ui/colors.c` (with a dedicated header) and keep the data `static` so other subsystems cannot mutate it.
+- **Terminal singleton (`src/z-term.c:273`)** – the global `term* Term` leaks the active window pointer across the entire game. The follow-on terminal plan (tracked in `SDL_CLEANUP_PLAN.md`) will replace this singleton with SDL pane context passed through UI layers once Stages S7 and S9 land.
 
-## Active Migration Roadmap
-Each phase should end with a clean SDL3 build and a smoke run (new game -> spend a few turns -> quit). Later phases also require targeted playtest scenarios (combat history, story font overlays, etc.).
-
-### Phase 3 - Replace Formatting + Logging Glue (`z-form`, `plog/quit/core`)
-**Status:** Done (cleanup pending)  
-**Scope:** Consolidate on SDL/C17 formatting while centralizing logging/quit hooks.
-- Added `src/format.c`/`src/format.h` with `format()`, append helpers, and logging-safe wrappers so callers stop depending on `z-form.h`.
-- Remaining work (now part of Phase 5) is to move `strnfmt/vstrnfmt/strnfcat` into `format.c`, delete the static format buffer in `z-form.c:600-642`, and remove the last `plog_fmt/quit_fmt/core_fmt` wrappers once everything uses `log/log.h`.
-
-### Phase 4 - RNG + Math Modernization (`rng.c`, probability helpers)
-**Status:** Done (compatibility baseline)  
-**Scope:** Provide a modern home for RNG APIs without altering gameplay outcomes.
-- Created `src/rng.c`/`src/rng.h` and updated all includes to use the new module; `z-rand.*` has been deleted.
-- Gameplay continues to use the same deterministic algorithms, so saves remain compatible while we prepare to adopt SDL’s RNG internals in Phase 4b.
-
-### Phase 4b - SDL Random State Integration
-**Status:** Done  
-**Scope:** Collapse legacy RNG globals into a single SDL-backed state.
-- Introduced `Rand_state_export()`/`Rand_state_import()` so callers and savefiles can snapshot/restore the 64-bit state deterministically.
-- `Rand_div()`/`Rand_normal()` now draw from `SDL_rand_bits_r()`; save/load writes the 64-bit state into the legacy block layout so existing files continue to deserialize correctly.
-- Deterministic helpers (`flavor_init`, `randart.c`, `monster2.c`) now save/restore the state instead of toggling `Rand_quick`/`Rand_value`, and new-game seeding always calls `Rand_state_init()` with a 64-bit seed derived from `time()`/`SDL_GetPerformanceCounter()`.
-
-### Phase 5 - Filesystem, Logging & Color Cleanup
-**Status:** Planned  
-**Scope:** Break util.c into focused modules so the last `z-*` dependencies disappear.
-- SDL IO helpers (`sdl_fopen`, path builders) now live in `src/fs/io_sdl.c`/`fs/io_sdl.h`; follow-up work will replace `path_parse/path_temp` with SDL-aware helpers.
-- Move logger bootstrap (`init_logger`, log path discovery, atexit handlers) into `src/logging/bootstrap.c`, leaving only prototypes for the rest of the tree.
-- Relocate color/text helper tables (e.g., `short_color_names`, `attr_to_text`, UI string helpers) into `src/ui/colors.c` so UI code owns palette/presentation data.
-- Result: `util.c` shrinks toward birth/helpers only, clearing the runway for final `z-*` removal.
-
-### Phase 6 - Final Cleanup & z-* Deletion
-**Status:** Planned  
-**Scope:** Remove the retired modules and normalize the tree (SDL terminal work tracked separately).
-- Delete remaining `z-*.c/.h` once their responsibilities are absorbed; stop including them from `angband.h` and `externs.h`.
-- Update docs (`README.md`, `SDL_MIGRATION*.md`, `session_notes.md`) and build files to reflect the final module layout; ensure no stale references remain.
-- Finish with a clean build/test sweep and (ideally) a reduced warning count thanks to the slimmer abstraction layer.
-
-## File Restructuring & z-* Retirement
-1. **Strings and memory (cleanup pending):** Inline helpers live in `src/angband.h:94-110`, but `z-util.c` still contains dead `my_str*` definitions. Remove them once all callers include `format.h`/`angband.h` instead of `z-util.h`.
-2. **Filesystem breakout:** Move the SDL IO helpers from `src/util.c:299-629` into `src/fs/io_sdl.c` + `fs/io_sdl.h` so consumers (`cmd4.c`, `save.c`, etc.) no longer need the entire `util.c` surface. SDL path helpers now live in `src/fs/path.c`, providing `SDL_GetUserFolder`-backed `path_parse/path_temp` plus `fd_*` wrappers; next step is to migrate callers off `util.c` entirely.
-3. **Logging/bootstrap module:** Extract `init_logger()` and related helpers from the bottom of `util.c` into `src/logging/bootstrap.c`, leaving only prototypes in `externs.h` and making teardown flows (`atexit`, `SDL_Quit`) consistent.
-4. **Color and text helpers:** Relocate `short_color_names`, `attr_to_text`, and related UI tables into `src/ui/colors.c`. This isolates UI data from `util.c` and primes us to delete `z-term` once panes own the palette logic.
-5. **Filesystem/logging split:** Break SDL IO and logger bootstrap helpers out of `util.c` into dedicated modules so the remaining util code focuses on gameplay/birth helpers.
-6. **Color/text helpers:** Move palette lookup tables and UI string helpers into `src/ui/colors.c` (and related files) so UI components own their data.
-7. **RNG cleanup:** With the single-state SDL RNG in place, add convenience push/pop helpers for deterministic subsequences and finish documenting the 64-bit serialization format.
-8. **Terminal abstraction:** Create `src/ui/term_sdl.c` to house any remaining terminal-like behaviors, then remove `z-term.c/h` once SDL panes cover the rendering/input lifecycle (tracked as a separate effort).
-9. **Header hygiene:** Stop including `z-*.h` from `angband.h` once functionality migrates. Replace macros (`C_MAKE`, `KILL`, etc.) with typed inline helpers or enums to leverage C17 diagnostics.
+## File Restructuring & z-* Retirement Tracker
+1. **Strings/memory helpers (TODO):** Remove the redundant `streq/prefix/suffix` implementations from `z-util.c:83-115` now that `angband.h` provides inline versions.
+2. **Filesystem breakout (Done):** SDL IO helpers live in `src/fs/io_sdl.c` and are widely used (`cmd4.c`, `init2.c`, `save.c`, `metarun.c`).
+3. **Logging/bootstrap module (TODO):** `init_logger()` remains in `util.c:5205-5298`; move it into `src/logging/bootstrap.c` with declarations in `log/log.h`.
+4. **Color/text helpers (TODO):** `short_color_names` and `attr_to_text` still live in `util.c:5170-5195`; relocate them into `src/ui/colors.c`.
+5. **Filesystem/logging split (In progress):** File helpers already reside in `fs/`, but `util.c` is still included for logging/bootstrap; resolve item #3 to finish the split.
+6. **Palette/text duplication (TODO):** Same as item #4; once moved, drop the stale prototypes from `externs.h`.
+7. **RNG cleanup (TODO):** Add RNG push/pop helpers and state documentation inside `src/rng.c`.
+8. **Terminal abstraction (Planned):** `z-term.c` remains the active backend; create `ui/term_sdl.c` and retire the legacy abstraction per Stage S8.
+9. **Header hygiene (TODO):** Remove the blanket `#include "z-*.h"` usage from `src/angband.h:18-40` once dependent modules include their own headers.
 
 ## C17 Modernization Checklist
-- **`z-util.c:24-119`** — Delete the unused `my_stricmp/my_strnicmp` implementations and strip their prototypes from `z-util.h`.
-- **`z-virt.h:32-86`** — Replace macro-heavy allocation helpers with typed inline wrappers that return `bool` or `size_t` for clearer error handling.
-- **`src/rng.c`** — Document the new `Rand_state_export()/import()` helpers, add push/pop APIs for deterministic subsequences, and ensure save tools understand the 64-bit state format.
-- **`z-term.c`** — Continue carving UI helpers into SDL-aware modules so the Angband terminal abstraction can be deleted.
-- **`src/util.c:129-742`** — Replace `path_parse/path_temp` with SDL path helpers; drop historical tilde and drive parsing logic.
-- **Global logging/quit hooks** — Collapse duplicate `plog/quit/core` implementations into a single `log_fatal()` path that flushes via `log/log.h` and calls `SDL_Quit`.
+- [x] **`z-util.c:24-119` - Remove unused `my_str*` helpers.** (Confirmed absent as of 2025-11-12.)
+- [ ] **`z-virt.h:32-110` - Replace macro-heavy allocators with typed inline wrappers** that return explicit success/failure codes.
+- [ ] **`src/rng.c` - Document `Rand_state_export/import`, add push/pop helpers, and validate the 64-bit serialization format.**
+- [ ] **`z-term.c` - Continue carving UI helpers into SDL-aware modules until the abstraction can be deleted.**
+- [x] **`src/util.c:129-742` - Move `path_parse/path_temp` into SDL path helpers** (now lives in `src/fs/path.c`).
+- [ ] **Global logging/quit hooks - Collapse `plog/quit/core` into a single `log_fatal()` path that flushes via `log/log.h` and calls `SDL_Quit`.**
+
+## Immediate Next Actions
+1. Update `cmd4.c`, `wizard1.c`, `metarun.c`, and `squelch.c` to bail out (and log) when `path_build` or `path_temp` fail, then rerun the dump/spoiler/metarun regression scripts.
+2. Extract `init_logger()` plus the color/palette helpers into dedicated `logging/` and `ui/` modules so `util.c` stops exporting unrelated globals.
+3. Replace `highscore_fd`/`scores_file_*` with a scoped context object so score operations become re-entrant and testable.
+4. Remove the duplicate `streq/prefix/suffix` definitions from `z-util.c`, ensuring all translation units include `angband.h` (or a dedicated inline header) for those helpers.
 
 ## Coordination Notes
 - Keep `session_notes.md` updated with phase status, blockers, and verification evidence (per AGENTS guide).
 - Stage work so gameplay-critical files (`dungeon.c`, `cmd*.c`) only see mechanical changes in early phases; defer functional simplifications until after the utility surface is gone.
 - Reuse the existing logging infrastructure (`log/log.h`) for diagnostics instead of ad-hoc `printf`s while refactoring.
+- Re-test inventory/equipment/unified-look flows after each UI/term change; highlight alignment bugs immediately.
 
-Following this plan moves us from decades-old portability shims to a lean SDL3/C17 codebase without destabilizing core gameplay between steps.
