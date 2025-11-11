@@ -5,6 +5,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(LOG_MODE_TIMESTAMP "Create new log with timestamp each time" OFF)
 option(STEAMDECK_SUPPORT "Build for Steam Deck" OFF)
+option(SIL_USE_LOCAL_DATA "Store generated data inside the game directory (debug builds)" OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE "Release")
@@ -16,6 +17,10 @@ endif()
 
 if (STEAMDECK_SUPPORT)
     target_compile_definitions(sil-more PUBLIC STEAMDECK_SUPPORT)
+endif()
+
+if (SIL_USE_LOCAL_DATA)
+    target_compile_definitions(sil-more PUBLIC SIL_USE_LOCAL_DATA)
 endif()
 
 find_package(SDL3 REQUIRED)
@@ -58,6 +63,7 @@ add_executable(sil-more
     src/save.c
     src/sdl-config.c
     src/fs/io_sdl.c
+    src/fs/path.c
     src/spells1.c
     src/spells2.c
     src/squelch.c

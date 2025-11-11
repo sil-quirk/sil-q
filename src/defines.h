@@ -51,19 +51,18 @@
 /* Steam Deck support toggle */
 // #define STEAMDECK_SUPPORT
 
-/* Formalized new fork versioning */
-/* Bumped to 0.9.0 for metarun blessing system update */
-#define VERSION_STRING "0.9.0"
+/* Formalized new fork versioning (canonical source for all modules) */
+#define VERSION_STRING "0.9.1"
 /*
- * Current version numbers
+ * Version components (0.9.1.0).  All on-disk formats (saves, scores, metaruns)
+ * MUST match these values; never bump individual subsystems independently.
  */
-/* Version components (0.9.0) */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
-#define VERSION_PATCH 0
-#define VERSION_EXTRA 6  /* Net curse count in scores.raw (curses - blessings) */
-/* Update MIN_VERSION_EXTRA and load.c compatibility checks whenever the savefile format changes. */
-#define MIN_VERSION_EXTRA 1  /* Minimum extra value expected for CURRENT version */
+#define VERSION_PATCH 1
+#define VERSION_EXTRA 0   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+/* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
+#define MIN_VERSION_EXTRA VERSION_EXTRA
 
 #define METAR_CURSE_SLOTS 64  /* Maximum number of distinct metarun curses supported */
 

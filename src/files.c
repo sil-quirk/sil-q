@@ -6400,20 +6400,20 @@ static void upsert_live_score_on_save(void)
     if (!load_scores_file_header(score_path)) {
         /* Create brand new versioned file header */
         score_file_header header;
-        header.version_major = VERSION_MAJOR;
-        header.version_minor = VERSION_MINOR;
-        header.version_patch = VERSION_PATCH;
-        header.version_extra = VERSION_EXTRA;
+        header.version_major = SCORE_FILE_VERSION_MAJOR;
+        header.version_minor = SCORE_FILE_VERSION_MINOR;
+        header.version_patch = SCORE_FILE_VERSION_PATCH;
+        header.version_extra = SCORE_FILE_VERSION_EXTRA;
         header.entry_count = 0;
         header.reserved[0] = 0;
         header.reserved[1] = 0;
         SDL_SeekIO(highscore_fd, 0, SDL_IO_SEEK_SET);
         SDL_WriteIO(highscore_fd, &header, sizeof(header));
         /* SDL flushes automatically */
-        scores_file_version_major = VERSION_MAJOR;
-        scores_file_version_minor = VERSION_MINOR;
-        scores_file_version_patch = VERSION_PATCH;
-        scores_file_version_extra = VERSION_EXTRA;
+        scores_file_version_major = SCORE_FILE_VERSION_MAJOR;
+        scores_file_version_minor = SCORE_FILE_VERSION_MINOR;
+        scores_file_version_patch = SCORE_FILE_VERSION_PATCH;
+        scores_file_version_extra = SCORE_FILE_VERSION_EXTRA;
         scores_file_entry_count = 0;
     }
 

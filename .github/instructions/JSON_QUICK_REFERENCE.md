@@ -2,7 +2,7 @@
 
 ## File Location
 - **File**: `sil_sdl.json`
-- **Location**: Same directory as `sil-more.exe`
+- **Location**: Sil-More user folder (`%USERPROFILE%\sil-more` on Windows, `~/sil-more` on macOS/Linux)
 
 ## Minimal Configuration
 ```json

@@ -23,6 +23,7 @@
 #include "z-virt.h"
 #include "format.h"
 #include "fs/io_sdl.h"
+#include "fs/path.h"
 #include "rng.h"
 #include "z-term.h"
 #include "log/log.h"

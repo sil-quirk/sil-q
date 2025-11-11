@@ -5,7 +5,7 @@ Sil-More SDL3 now supports custom fonts for story messages and banners. This all
 
 ## Configuration
 
-Add the following fields to your `sil_sdl.json` file:
+Add the following fields to your `sil_sdl.json` file (located in `%USERPROFILE%\sil-more` on Windows or `~/sil-more` on macOS/Linux):
 
 ```json
 {

@@ -8653,6 +8653,8 @@ void do_cmd_pane_settings(void)
     bool done = false;
     bool settings_changed = false;
     int dir;
+    const char* config_path = get_sdl_config_path();
+    const char* config_label = (config_path && config_path[0]) ? config_path : "sil_sdl.json";
     
     /* Save screen */
     screen_save();
@@ -8719,7 +8721,7 @@ void do_cmd_pane_settings(void)
         y = Term->hgt - 3;
         if (settings_changed)
         {
-            Term_putstr(2, y++, -1, TERM_YELLOW, "Settings changed - they will be saved to sil_sdl.json.");
+            Term_putstr(2, y++, -1, TERM_YELLOW, "Settings changed - they will be saved to your SDL config file.");
             Term_putstr(2, y++, -1, TERM_YELLOW, "Restart the game for changes to take effect.");
         }
         Term_putstr(2, y++, -1, TERM_SLATE, "(direction keys to set, Return/Escape to accept)");
@@ -8749,7 +8751,7 @@ void do_cmd_pane_settings(void)
             {
                 if (save_pane_config_to_json())
                 {
-                    msg_print("Settings saved to sil_sdl.json");
+                    msg_format("Settings saved to %s", config_label);
                     msg_print("Restart the game for changes to take effect.");
                 }
             }
@@ -8811,7 +8813,7 @@ void do_cmd_pane_settings(void)
                     pline = strtok(NULL, "\n");
                 }
                 
-                Term_putstr(2, Term->hgt - 2, -1, TERM_SLATE, "Edit sil_sdl.json manually to change pane layout.");
+                Term_putstr(2, Term->hgt - 2, -1, TERM_SLATE, "Edit your SDL config file to change pane layout.");
                 Term_putstr(2, Term->hgt - 1, -1, TERM_L_BLUE, "Press any key to return...");
                 (void)inkey();
                 screen_load();
@@ -8822,7 +8824,7 @@ void do_cmd_pane_settings(void)
                 {
                     if (save_pane_config_to_json())
                     {
-                        msg_print("Settings saved to sil_sdl.json");
+                        msg_format("Settings saved to %s", config_label);
                         msg_print("Restart the game for changes to take effect.");
                     }
                 }

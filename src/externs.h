@@ -1078,9 +1078,6 @@ extern bool use_object(object_type* o_ptr, bool* ident);
 
 /* util.c */
 extern void init_logger(bool quiet, const char* exe_path);
-extern errr path_parse(char* buf, size_t max, cptr file);
-extern errr path_build(char* buf, size_t max, cptr path, cptr file);
-extern errr path_temp(char* buf, size_t max);
 
 /* SDL3-based file I/O operations */
 extern errr sdl_fclose(SDL_IOStream* stream);
@@ -1091,11 +1088,6 @@ extern errr sdl_write(SDL_IOStream* stream, cptr buf, size_t n);
 extern errr sdl_seek(SDL_IOStream* stream, Sint64 offset);
 extern Sint64 sdl_tell(SDL_IOStream* stream);
 extern Sint64 sdl_size(SDL_IOStream* stream);
-
-/* File management operations (using standard C, SDL doesn't provide these) */
-extern errr fd_kill(cptr file);
-extern errr fd_move(cptr file, cptr what);
-extern errr fd_copy(cptr file, cptr what);
 
 /* Legacy - still used by some systems */
 extern errr check_modification_date(int fd, cptr template_file);
@@ -1405,6 +1397,7 @@ extern int current_menu_state;
 /* SDL pane configuration functions (main-sdl.c) */
 extern void get_sdl_config_info(char* buf, size_t size);
 extern bool save_pane_config_to_json(void);
+extern cptr get_sdl_config_path(void);
 extern int get_sdl_main_view_scale(void);
 extern void set_sdl_main_view_scale(int value);
 extern int get_sdl_aux_view_font_size(void);

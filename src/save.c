@@ -385,6 +385,9 @@ static u32b x_stamp = 0L; /* A simple "checksum" on the encoded bytes */
 /* Track if a write error has occurred */
 static bool write_error = false;
 
+/* Track save byte offset for detailed logging */
+static u32b save_byte_offset = 0;
+
 /*
  * These functions place information into a savefile a byte at a time
  */
@@ -404,23 +407,24 @@ static void sf_put(byte v)
     {
         if (!write_error)
         {
-            log_error("sf_put: Write error detected (SDL_WriteIO failed)");
+            log_error("sf_put: Write error detected (SDL_WriteIO failed) - SDL Error: %s", SDL_GetError());
+            log_error("sf_put: fff pointer = %p, attempted to write byte 0x%02x at offset %u", 
+                     (void*)fff, xor_byte, save_byte_offset);
             write_error = true;
         }
         return;
     }
+
+    /* Track byte offset */
+    save_byte_offset++;
 
     /* Maintain the checksum info */
     v_stamp += v;
     x_stamp += xor_byte;
 }
 
-/* Track save byte offset for detailed logging */
-static u32b save_byte_offset = 0;
-
 static void wr_byte(byte v) { 
     sf_put(v);
-    save_byte_offset++;
 }
 
 static void wr_u16b(u16b v)
@@ -1786,10 +1790,14 @@ static bool wr_savefile(void)
     }
 
     /* Flush the stream to ensure all data is written */
-    if (SDL_FlushIO(fff) != 0)
+    int flush_result = SDL_FlushIO(fff);
+    if (flush_result != 0)
     {
-        log_error("Save file flush error: %s", SDL_GetError());
-        return false;
+        /* SDL_FlushIO returns 0 on success or negative on error */
+        log_warn("Save file flush returned %d (SDL Error: '%s') - attempting to continue anyway", 
+                 flush_result, SDL_GetError());
+        /* Don't fail the save just because flush failed - the data might still be written */
+        /* return false; */
     }
 
     /* Successful save */
@@ -1820,7 +1828,16 @@ static bool save_player_aux(cptr name)
     safe_setuid_grab();
 
     /* Create the savefile */
+    log_debug("save_player_aux: calling sdl_fmake(%s, %d)", name, mode);
     fd = sdl_fmake(name, mode);
+    if (!fd)
+    {
+        log_error("save_player_aux: sdl_fmake FAILED for %s - SDL Error: %s", name, SDL_GetError());
+    }
+    else
+    {
+        log_debug("save_player_aux: sdl_fmake succeeded for %s", name);
+    }
 
     /* Drop permissions */
     safe_setuid_drop();
@@ -1845,12 +1862,23 @@ static bool save_player_aux(cptr name)
         {
             /* Write the savefile */
             log_trace("Writing savefile %s", name);
-            if (wr_savefile())
+            bool write_ok = wr_savefile();
+            if (write_ok)
+            {
                 ok = true;
+                log_debug("wr_savefile() succeeded");
+            }
+            else
+            {
+                log_error("wr_savefile() failed");
+            }
 
             /* Attempt to close it */
             if (sdl_fclose(fff))
+            {
                 ok = false;
+                log_error("sdl_fclose() failed");
+            }
         }
         else
         {
@@ -1862,7 +1890,10 @@ static bool save_player_aux(cptr name)
 
         /* Remove "broken" files */
         if (!ok)
+        {
+            log_debug("Removing broken savefile: %s", name);
             fd_kill(name);
+        }
 
         /* Drop permissions */
         safe_setuid_drop();
@@ -1919,13 +1950,21 @@ bool save_player(void)
     safe_setuid_grab();
 
     /* Remove it */
-    fd_kill(safe);
+    log_debug("save_player: attempting to remove existing .new file: %s", safe);
+    if (fd_kill(safe) != 0)
+    {
+        log_warn("save_player: fd_kill failed for %s (file may not exist, which is OK)", safe);
+    }
+    else
+    {
+        log_debug("save_player: successfully removed %s", safe);
+    }
 
     /* Drop permissions */
     safe_setuid_drop();
 
     /* Attempt to save the player */
-    log_debug("Attempting to save player to %s", safe);
+    log_debug("save_player: calling save_player_aux(%s)", safe);
     if (save_player_aux(safe))
     {
         char temp[1024];

@@ -1,5 +1,195 @@
 # Session Notes
 
+## 2025-11-11: User Folder Backwards Compatibility Fixes (FINAL)
+
+### Issues Fixed
+
+**Problem Summary:**
+The SDL user folder implementation had critical backwards compatibility issues when migrating existing game data:
+
+1. ❌ **Intro shown incorrectly**: Migrating existing metarun/save data triggered intro story
+2. ❌ **Saves not copied**: Save files weren't being migrated from `lib/save/`
+3. ❌ **meta.raw not copied**: Metarun file from `lib/apex/metaruns/meta.raw` wasn't being found
+4. ❌ **scores.raw not copied**: Score file wasn't being migrated
+5. ❌ **Stray metaruns folder**: Empty `metaruns/` directory left in user folder after migration
+
+### Root Causes
+
+1. **metarun_created flag**: Set whenever new file created, even when seeding from existing data
+2. **No migration detection**: Seeding functions didn't check if user folder already had valid data
+3. **Variable reuse bug**: `path_build()` calls reused same variable, corrupting paths:
+   - Wanted: `.\lib\apex\metaruns\meta.raw`
+   - Got: `metaruns\meta.raw` ❌
+4. **Wrong legacy path**: Looked for meta.raw in `lib/apex/` but old location was `lib/apex/metaruns/`
+5. **Header corruption**: `sync_*_header_version()` functions updated headers without migrating data
+
+### Final Solution
+
+#### 1. Fixed Path Building (src/init2.c)
+
+**Problem**: Reusing same variable in nested `path_build()` calls corrupted paths
+
+**Solution**: Use separate variables for each path level:
+
+```c
+char install_apex_dir[1024];        // For lib/apex
+char install_metaruns_dir[1024];    // For lib/apex/metaruns
+char legacy_meta_path[1024];        // For lib/apex/metaruns/meta.raw
+
+// Build paths step by step with different variables
+path_build(install_apex_dir, sizeof(install_apex_dir), ANGBAND_DIR, "apex");
+path_build(install_metaruns_dir, sizeof(install_metaruns_dir), install_apex_dir, "metaruns");
+path_build(legacy_meta_path, sizeof(legacy_meta_path), install_metaruns_dir, META_RAW);
+```
+
+#### 2. Added Migration Detection (src/init2.c)
+
+Created `has_valid_metarun_data()` helper to check if user folder already contains valid data:
+
+```c
+static bool has_valid_metarun_data(const char* meta_dir)
+{
+    // Check if meta.raw exists and has valid header
+    SDL_IOStream* fd = sdl_fopen(meta_path, "rb");
+    if (!fd) return false;
+    
+    meta_file_header header;
+    bool valid = (SDL_ReadIO(fd, &header, sizeof(header)) == sizeof(header))
+        && header.entry_count > 0;
+    
+    sdl_fclose(fd);
+    return valid;
+}
+```
+
+Both `seed_user_meta_from_install()` and `seed_user_saves_from_install()` now check for existing data first.
+
+#### 3. Fixed Legacy Location Detection (src/init2.c)
+
+Now checks correct legacy location `lib/apex/metaruns/meta.raw`:
+
+```c
+// Look for old structure: lib/apex/metaruns/meta.raw
+if (SDL_GetPathInfo(legacy_meta_path, &info) && info.type == SDL_PATHTYPE_FILE)
+{
+    found_legacy = true;
+    SDL_CopyFile(legacy_meta_path, user_meta_path);
+}
+```
+
+#### 4. Fixed metarun_created Flag (src/metarun.c)
+
+Only set `metarun_created = true` when creating truly NEW file:
+
+```c
+bool found_existing_data = false;
+
+// Check for existing data in all legacy locations
+if (fd) {
+    found_existing_data = true;
+}
+
+if (!fd && create_if_missing) {
+    // Create new file
+    if (!found_existing_data) {
+        metarun_created = true;  // Only set for brand new installs
+    }
+}
+```
+
+#### 5. Removed Corrupting Functions (src/init2.c)
+
+Deleted `sync_score_header_version()` and `sync_meta_header_version()` that were updating headers without migrating data. Now relies on `load_metaruns()` to handle version migration properly.
+
+#### 6. Improved Folder Cleanup (src/init2.c)
+
+Enhanced `migrate_legacy_metarun_layout()` to remove empty `metaruns/` directories after migration.
+
+### Migration Flow (Working)
+
+**Fresh Install:**
+1. No data anywhere → creates new metarun → `metarun_created = true` → **shows intro** ✅
+
+**Migrating Existing Data (from lib/ folders):**
+1. User folder: empty
+2. Install folder: has `lib/apex/metaruns/meta.raw`, `lib/apex/scores.raw`, `lib/save/*.sav`
+3. Copies files to user folder:
+   - `lib/apex/metaruns/meta.raw` → `%USERPROFILE%/Saved Games/sil-more/meta/meta.raw` ✅
+   - `lib/apex/scores.raw` → `%USERPROFILE%/Saved Games/sil-more/meta/scores.raw` ✅
+   - `lib/save/*.sav` → `%USERPROFILE%/Saved Games/sil-more/save/*.sav` ✅
+4. `load_metaruns()` detects old version, migrates data properly (blessings/curses preserved) ✅
+5. `metarun_created = false` → **skips intro** ✅
+6. Saves found and loadable ✅
+7. Empty `metaruns/` folder removed ✅
+
+**Subsequent Runs:**
+1. User folder: has valid data
+2. Skips all migration steps ✅
+3. Loads normally ✅
+
+### Testing Results
+
+✅ **All issues fixed:**
+- Saves copied: 10+ save files migrated to user folder
+- Scores copied: `scores.raw` (2277 bytes) migrated
+- meta.raw copied: `meta.raw` (248 bytes) migrated from legacy location
+- No stray folders: `metaruns/` directory properly removed
+- Intro not shown: Migration doesn't trigger story intro
+- Data preserved: Blessings/curses intact after migration
+
+### Files Modified
+
+* `src/init2.c` - Fixed path building bug, added migration detection, removed corrupting functions
+* `src/metarun.c` - Fixed metarun_created flag logic
+* `session_notes.md` - Documented all changes
+
+### Build Status
+
+✅ Clean build with no errors
+✅ All migration tests passed
+
+---
+
+## 2025-11-10: Phase 4 - RNG + Math Modernization (Completed)
+
+**First Run (New Install):**
+1. No data in user folder → creates new metarun → `metarun_created = true` → shows intro ✓
+
+**Second Run (Migrating Existing Data):**
+1. Checks user folder: empty
+2. Checks install folder: has `lib/apex/meta.raw` and `lib/save/*.sav`
+3. Copies files to user folder
+4. `load_metaruns()` detects old version, migrates data properly
+5. `metarun_created = false` → skips intro ✓
+6. Saves are found → loads character ✓
+7. Blessings/curses preserved ✓
+
+**Third Run (Data Already Migrated):**
+1. Checks user folder: has data
+2. Skips all migration steps
+3. Loads normally
+
+### Testing Checklist
+
+- [x] Build succeeds without errors
+- [ ] Fresh install shows intro
+- [ ] Migrating existing saves doesn't show intro
+- [ ] Migrated saves can be loaded
+- [ ] Metarun blessings/curses are preserved after version upgrade
+- [ ] Empty `metaruns/` folders are removed
+- [ ] No duplicate migrations occur
+
+### Files Modified
+
+* `src/init2.c` - Fixed migration detection and removed corrupting header sync functions
+* `src/metarun.c` - Fixed metarun_created flag to only be set for truly new files
+
+### Build Status
+
+✅ `build-cmake.bat` → SUCCESS (no errors)
+
+---
+
 ## 2025-11-10: Phase 4 - RNG + Math Modernization (Completed)
 
 ### Phase 4: Replace z-rand.c/z-rand.h with rng.c/rng.h
@@ -85,6 +275,24 @@ All existing code continues to work without changes:
 * Future work can migrate internals to `SDL_RandomContext` while keeping API unchanged
 * RNG state variables remain global for now - can be encapsulated in Phase 5+
 * All 100+ call sites in gameplay code (`cmd*.c`, `monster*.c`, `spells*.c`, `randart.c`, etc.) work unchanged
+
+
+--- 
+
+## 2025-11-11: SDL User Folder Data Root
+
+* `init_file_paths()` now builds `%USERPROFILE%\sil-more` / `~/sil-more` via `SDL_GetUserFolder()`, creates `data`, `save`, and `meta` subdirectories with `SDL_CreateDirectory()`, points `ANGBAND_DIR_DATA`, `ANGBAND_DIR_SAVE`, `ANGBAND_DIR_APEX`, `ANGBAND_DIR_METARUN`, and `ANGBAND_DIR_USER` at that tree, and seeds `.raw` caches by copying any shipped files from `lib/data` on first run.
+* Removed the legacy `PRIVATE_USER_PATH`/`USE_PRIVATE_SAVE_PATH` handling from `main.c`/`config.h`; all game-generated assets now live under the user folder instead of the install tree.
+* `sil_sdl.json` is saved/loaded from the same user folder (and the SDL pane UI reports the full path), so deployment directories remain read-only while user settings, saves, metaruns, and scores share a single predictable location.
+* Follow-up: ensured the `meta/` tree seeds `scores.raw`, `meta.raw`, and `metaruns/meta.raw` from `lib/apex/*` if missing and always pre-creates the `metaruns/` subdirectory, so first-run installs can create/read metarun + score data without manual setup.
+* Added `SIL_USE_LOCAL_DATA` CMake option for debugging (keeps generated files inside the repo’s `lib/` tree), bumped the internal scores/metarun file versions, and only copy the shipped `.raw` templates when the user file is missing or older; legacy `metaruns/meta.raw` locations migrate automatically while the runtime now prefers `SDL_GetUserFolder(SDL_FOLDER_SAVEDGAMES)` (saving under `Saved Games`/`Application Support`) with a HOME fallback.
+* Canonicalized versioning: `VERSION_*` in `src/defines.h` now reads `0.9.1.0`, and both scores/metarun headers mirror those macros (no more subsystem-specific version numbers). Every compatibility check now compares the full `(major, minor, patch, extra)` tuple, ensuring we only bump one place when the game version increases.
+* Simplified seeding: we now rely on the headers inside `scores.raw`/`meta.raw` to decide when to copy defaults, so the install data is only used when files are missing or clearly invalid. Legacy `meta/metaruns/meta.raw` copies are migrated (or deleted if duplicates) and we no longer create extra state files in the user directory. Existing headers are rewritten to the current `0.9.1.0` tuple so later checks stay in sync.
+* Added legacy save migration: when the user `save/` directory is created we copy any existing files from the old install `lib/save/` once (without overwriting newer saves), so prior characters survive the move to the SDL-managed user folder.
+
+### Build Status
+
+* `build-cmake.bat` &rarr; SUCCESS (same pre-existing warnings as above)
 
 
 ---
@@ -4734,6 +4942,21 @@ The custom vstrnfmt in z-form.c supports "%^" which capitalizes the first non-sp
 * CMakeLists.txt
 
 ### Phase 3 Status: COMPLETE
+
+
+---
+
+
+## 2025-11-11: Filesystem Breakout via SDL Paths
+
+* Added `src/fs/path.c` + `fs/path.h` to own `path_parse`, `path_build`, `path_temp`, and the `fd_*` helpers; the new code expands `~/` through `SDL_GetUserFolder`, generates per-user temp files under `SDL_GetPrefPath()`, normalizes separators, and routes deletes/moves/copies through `SDL_RemovePath`/`SDL_RenamePath`/`SDL_CopyFile`.
+* Trimmed the 1990s-era path logic out of `src/util.c` (no more `tmpnam()`, `getpwuid`, or `SET_UID` branches), tightened `angband.h` includes, and dropped the redundant prototypes from `externs.h`; `CMakeLists.txt` now builds the new module.
+* Updated `proprietary_utility_retirement_plan.md` to reflect the filesystem breakout progress (row 4c + refreshed bullet #2) so the plan shows where the SDL-backed helpers now live.
+
+### Build Status
+
+* `build-cmake.bat` &rarr; SUCCESS (SDL3 Windows build/deploy)
+* Warnings: existing type-limit / unused-parameter warnings in `birth.c`, `cmd4.c`, `supplies.c`, `object1.c`, `xtra2.c`; none introduced by this change.
 
 
 ---

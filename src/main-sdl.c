@@ -6,6 +6,7 @@
 #include "sdl-config.h"
 #include <string.h>
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_filesystem.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
 
@@ -1250,22 +1251,22 @@ errr init_sdl(int argc, char **argv)
              screen_pixels_w, screen_pixels_h);
     
     // Save config file path for later use on exit
-    const char* config_file = "sil_sdl.json";
+    char config_file[1024];
+    if (ANGBAND_DIR_USER && ANGBAND_DIR_USER[0])
+        path_build(config_file, sizeof(config_file), ANGBAND_DIR_USER, "sil_sdl.json");
+    else
+        SDL_strlcpy(config_file, "sil_sdl.json", sizeof(config_file));
     SDL_strlcpy(config_file_path, config_file, sizeof(config_file_path));
     
     // Register quit hook to save configuration on exit
     quit_aux = sdl_quit_hook;
     
     // Check if config file exists
-    FILE* test_file = fopen(config_file, "rb");
-    bool config_exists = (test_file != NULL);
-    if (test_file) {
-        fclose(test_file);
-    }
-    
+    bool config_exists = SDL_GetPathInfo(config_file_path, NULL);
+
     if (config_exists) {
         // Config file exists - use generic defaults first, then load from file
-        log_debug("Config file exists, loading from: %s", config_file);
+        log_debug("Config file exists, loading from: %s", config_file_path);
         sdl_config_set_defaults(&config);
         
         // Copy default pane configuration
@@ -1274,7 +1275,7 @@ errr init_sdl(int argc, char **argv)
             pane_config[i] = default_pane_config[i];
         }
         
-        sdl_config_load(config_file, &config, pane_config, &pane_config_count, MAX_PANE_CONFIGS);
+        sdl_config_load(config_file_path, &config, pane_config, &pane_config_count, MAX_PANE_CONFIGS);
         log_debug("After loading JSON: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
                   config.main_view_scale, config.aux_view_font_size, config.margin,
                   config.fullscreen, config.tiles);
@@ -1439,6 +1440,11 @@ bool save_pane_config_to_json(void)
     sdl_config_save(config_file_path, &config, pane_config, pane_config_count);
     log_info("Pane configuration saved to: %s", config_file_path);
     return true;
+}
+
+cptr get_sdl_config_path(void)
+{
+    return config_file_path;
 }
 
 /*

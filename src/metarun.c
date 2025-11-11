@@ -176,8 +176,6 @@ typedef struct metarun_v5 {
 /* --------------------------------------------------------------- */
 
 /* =========================  constants  ========================= */
-#define META_RAW          "meta.raw"
-#define META_SUBDIR       "metaruns"
 #define CURSE_MENU_LINES  3
 
 /* =========================  globals  =========================== */
@@ -828,12 +826,21 @@ static int compare_metarun_indices(const void *a, const void *b)
 static void build_meta_path(char *buf, size_t len,
                             const metarun *m, const char *leaf)
 {
+    const char* name = leaf ? leaf : "";
+
+    if (!m)
+    {
+        path_build(buf, len, ANGBAND_DIR_APEX, name);
+        return;
+    }
+
     char sub[128];
-    if (m)
+    if (name[0])
         strnfmt(sub, sizeof sub, "%s/%08u/%s",
-                META_SUBDIR, (unsigned)m->id, leaf);
+            META_SUBDIR, (unsigned)m->id, name);
     else
-        strnfmt(sub, sizeof sub, "%s/%s", META_SUBDIR, leaf);
+        strnfmt(sub, sizeof sub, "%s/%08u",
+            META_SUBDIR, (unsigned)m->id);
     path_build(buf, len, ANGBAND_DIR_APEX, sub);
 }
 
@@ -1196,9 +1203,25 @@ errr load_metaruns(bool create_if_missing)
 {
     char fn[1024];
     SDL_IOStream* fd;
+    bool found_existing_data = false;
 
     build_meta_path(fn, sizeof fn, NULL, META_RAW);
     fd = sdl_fopen(fn, "rb");
+
+    if (!fd && ANGBAND_DIR_METARUN && ANGBAND_DIR_METARUN[0]) {
+        char legacy[1024];
+        if (path_build(legacy, sizeof legacy, ANGBAND_DIR_METARUN, META_RAW) == 0) {
+            fd = sdl_fopen(legacy, "rb");
+            if (fd) {
+                log_info("Loading legacy metarun file: %s", legacy);
+                found_existing_data = true;
+            }
+        }
+    }
+
+    if (fd) {
+        found_existing_data = true;
+    }
 
     if (!fd && create_if_missing) {
         log_info("Creating new versioned metarun file: %s", fn);
@@ -1208,10 +1231,10 @@ errr load_metaruns(bool create_if_missing)
 
         /* Write versioned header */
         meta_file_header header;
-        header.version_major = VERSION_MAJOR;
-        header.version_minor = VERSION_MINOR;
-        header.version_patch = VERSION_PATCH;
-        header.version_extra = VERSION_EXTRA;
+        header.version_major = METARUN_FILE_VERSION_MAJOR;
+        header.version_minor = METARUN_FILE_VERSION_MINOR;
+        header.version_patch = METARUN_FILE_VERSION_PATCH;
+        header.version_extra = METARUN_FILE_VERSION_EXTRA;
         header.entry_count = 1;
 
         sdl_write(fd, (cptr)&header, sizeof(header));
@@ -1222,7 +1245,13 @@ errr load_metaruns(bool create_if_missing)
         sdl_write(fd, (cptr)&seed, sizeof seed);
         sdl_fclose(fd);
         fd = sdl_fopen(fn, "rb");
-        metarun_created = true;
+        /* Only set metarun_created if we truly created a NEW file, not migrating existing data */
+        if (!found_existing_data) {
+            metarun_created = true;
+            log_info("Created brand new metarun - will show story intro");
+        } else {
+            log_info("Seeded new metarun file from existing data - skipping intro");
+        }
     }
     else log_info("Loading existing metarun file: %s", fn);
     if (!fd) return -1;
@@ -1597,10 +1626,10 @@ errr save_metaruns(void)
 
     /* Write version header first */
     meta_file_header header;
-    header.version_major = VERSION_MAJOR;
-    header.version_minor = VERSION_MINOR;
-    header.version_patch = VERSION_PATCH;
-    header.version_extra = VERSION_EXTRA;
+    header.version_major = METARUN_FILE_VERSION_MAJOR;
+    header.version_minor = METARUN_FILE_VERSION_MINOR;
+    header.version_patch = METARUN_FILE_VERSION_PATCH;
+    header.version_extra = METARUN_FILE_VERSION_EXTRA;
     header.entry_count = metarun_max;
     
     errr result = sdl_write(fd, (cptr)&header, sizeof(header));

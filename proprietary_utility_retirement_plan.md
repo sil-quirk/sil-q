@@ -7,10 +7,11 @@ This document inventories the legacy helper layers (primarily `z-*.c` and `util.
 | --- | --- | --- | --- |
 | 0 | Baseline + guardrails | Done | Baseline build + warning count recorded in `session_notes.md:37-124`. |
 | 1 | String and memory helpers | Done | `streq/prefix/suffix` now inline in `src/angband.h:94-110`; `z-virt.c` uses SDL allocators; logged in `session_notes.md:39-134`. |
-| 2 | SDL-backed file/path utilities | Done | `sdl_fopen` and friends live in `src/util.c:299-629` and are used throughout loaders/dumps (`src/cmd4.c:170-260`, `src/dump_items.c:80-949`). |
+| 2 | SDL-backed file/path utilities | Done | `sdl_fopen` and friends live in `src/fs/io_sdl.c` and are used throughout loaders/dumps (`src/cmd4.c:170-260`, `src/dump_items.c:80-949`). |
 | 3 | Formatting + logging glue | Done | `src/format.c`/`src/format.h` own the public helpers (`session_notes.md:4235-4277`); `z-form.*` has been deleted. |
 | 4 | RNG + math helpers | Done (compatibility baseline) | `src/rng.c`/`src/rng.h` replace `z-rand.*` (`session_notes.md:3-84`) while preserving deterministic behavior. |
 | 4b | SDL random state integration | Done | Single SDL-backed RNG state (`Rand_state_export/import`) now drives all random draws (`session_notes.md:4203-4216`). |
+| 4c | Filesystem breakout | In progress | SDL path helpers now live in `src/fs/path.c`, `sdl_fopen` + `fd_*` consume SDL Filesystem APIs, and `util.c` dropped the tmpnam()/SET_UID path code (session_notes.md, 2025-11-11). |
 | 5 | Terminal abstraction | Planned | Collapse `z-term` once SDL panes cover all rendering/input needs. |
 | 6 | Final deletion | Planned | Remove the remaining `z-*` files and normalize headers/docs. |
 
@@ -78,7 +79,7 @@ Each phase should end with a clean SDL3 build and a smoke run (new game -> spend
 
 ## File Restructuring & z-* Retirement
 1. **Strings and memory (cleanup pending):** Inline helpers live in `src/angband.h:94-110`, but `z-util.c` still contains dead `my_str*` definitions. Remove them once all callers include `format.h`/`angband.h` instead of `z-util.h`.
-2. **Filesystem breakout:** Move the SDL IO helpers from `src/util.c:299-629` into `src/fs/io_sdl.c` + `fs/io_sdl.h` so consumers (`cmd4.c`, `dump_items.c`, `save.c`, etc.) no longer need the entire `util.c` surface. Replace `path_parse/path_temp` with SDL path helpers to drop 1990s-era tilde/drive parsing rules.
+2. **Filesystem breakout:** Move the SDL IO helpers from `src/util.c:299-629` into `src/fs/io_sdl.c` + `fs/io_sdl.h` so consumers (`cmd4.c`, `dump_items.c`, `save.c`, etc.) no longer need the entire `util.c` surface. SDL path helpers now live in `src/fs/path.c`, providing `SDL_GetUserFolder`-backed `path_parse/path_temp` plus `fd_*` wrappers; next step is to migrate callers off `util.c` entirely.
 3. **Logging/bootstrap module:** Extract `init_logger()` and related helpers from the bottom of `util.c` into `src/logging/bootstrap.c`, leaving only prototypes in `externs.h` and making teardown flows (`atexit`, `SDL_Quit`) consistent.
 4. **Color and text helpers:** Relocate `short_color_names`, `attr_to_text`, and related UI tables into `src/ui/colors.c`. This isolates UI data from `util.c` and primes us to delete `z-term` once panes own the palette logic.
 5. **Filesystem/logging split:** Break SDL IO and logger bootstrap helpers out of `util.c` into dedicated modules so the remaining util code focuses on gameplay/birth helpers.

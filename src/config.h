@@ -257,14 +257,6 @@
 #endif /* DEFAULT_PATH */
 
 /*
- * OPTION: Create and use a hidden directory in the users home directory
- * for storing pref-files and character-dumps.
- */
-#if defined(USE_PRIVATE_SAVE_PATH) && !defined(PRIVATE_USER_PATH)
-#define PRIVATE_USER_PATH "~/.sil"
-#endif
-
-/*
  * OPTION: Check the "time" against "lib/file/hours.txt"
  */
 /* #define CHECK_TIME */

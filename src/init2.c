@@ -15,20 +15,453 @@
 
 #include "h-define.h"
 #include "init.h"
+#include <SDL3/SDL_filesystem.h>
 
-#ifdef RUNTIME_PRIVATE_USER_PATH
-/*
- * This is a hook so the main program can set a runtime value for the private
- * user path rather than the compile-time one in PRIVATE_USER_PATH.  It is
- * used by the OS X front end.  An alternative would be to have init_paths()
- * take at least two arguments, one specifying the read-only paths and another
- * for the ones where stuff is written.  See version 4 of Angband for one
- * implementation (with three arguments) of that.  To use this hook, also
- * set PRIVATE_USER_PATH (the contents don't matter), and, if desired,
- * USE_PRIVATE_SAVE_PATH.
- */
-extern const char* get_runtime_user_path(void);
+#define SIL_USER_ROOT "sil-more"
+#define SIL_USER_DATA_DIR "data"
+#define SIL_USER_SAVE_DIR "save"
+#define SIL_USER_META_DIR "meta"
+#define SIL_USER_META_RUNS "metaruns"
+
+static bool is_path_separator(char ch)
+{
+#ifdef WINDOWS
+    return (ch == '\\') || (ch == '/');
+#else
+    return (ch == '/');
 #endif
+}
+
+static void strip_trailing_separators(char* path)
+{
+    size_t len = strlen(path);
+    while (len > 0 && is_path_separator(path[len - 1]))
+    {
+        path[--len] = '\0';
+    }
+}
+
+static bool build_user_root_path(char* buf, size_t len)
+{
+    const char* base = SDL_GetUserFolder(SDL_FOLDER_SAVEDGAMES);
+    char temp[1024];
+
+    if ((!base || !*base))
+        base = SDL_GetUserFolder(SDL_FOLDER_HOME);
+
+    if (base && *base)
+    {
+        if (SDL_strlcpy(temp, base, sizeof(temp)) >= sizeof(temp))
+            return false;
+        strip_trailing_separators(temp);
+        return (path_build(buf, len, temp, SIL_USER_ROOT) == 0);
+    }
+
+    char* pref = SDL_GetPrefPath("Sil-QH", SIL_USER_ROOT);
+    if (!pref)
+        return false;
+
+    bool ok = false;
+    if (SDL_strlcpy(buf, pref, len) < len)
+    {
+        strip_trailing_separators(buf);
+        ok = true;
+    }
+    SDL_free(pref);
+    return ok;
+}
+
+static void ensure_directory_exists(const char* path, const char* label)
+{
+    if (!path || !*path)
+        return;
+
+    if (!SDL_CreateDirectory(path))
+    {
+        log_warn("init_file_paths: unable to create %s directory '%s': %s",
+            label ? label : "user", path, SDL_GetError());
+    }
+}
+
+static void seed_user_data_from_install(const char* user_data_dir)
+{
+    if (!user_data_dir || !*user_data_dir || !ANGBAND_DIR || !*ANGBAND_DIR)
+        return;
+
+    char install_data_dir[1024];
+    if (path_build(install_data_dir, sizeof(install_data_dir), ANGBAND_DIR, "data") != 0)
+        return;
+
+    SDL_PathInfo install_info;
+    if (!SDL_GetPathInfo(install_data_dir, &install_info)
+        || install_info.type != SDL_PATHTYPE_DIRECTORY)
+        return;
+
+    int entry_count = 0;
+    char** entries = SDL_GlobDirectory(install_data_dir, "*.raw", 0, &entry_count);
+    if (!entries)
+        return;
+
+    for (int i = 0; entries[i]; ++i)
+    {
+        char source[1024];
+        char destination[1024];
+
+        if (path_build(source, sizeof(source), install_data_dir, entries[i]) != 0)
+            continue;
+        if (path_build(destination, sizeof(destination), user_data_dir, entries[i]) != 0)
+            continue;
+
+        if (SDL_GetPathInfo(destination, NULL))
+            continue;
+
+        if (!SDL_CopyFile(source, destination))
+        {
+            log_warn("init_file_paths: unable to copy '%s' to '%s': %s",
+                source, destination, SDL_GetError());
+        }
+    }
+
+    SDL_free(entries);
+}
+
+typedef bool (*version_check_fn)(const char* path);
+
+static void migrate_legacy_metarun_layout(const char* meta_root, const char* metarun_dir);
+
+static bool copy_leaf_if_needed(const char* src_dir, const char* dst_dir, const char* leaf,
+    const char* label, version_check_fn needs_refresh)
+{
+    char src[1024];
+    char dst[1024];
+    SDL_PathInfo info;
+
+    if (!src_dir || !dst_dir || !leaf)
+        return false;
+
+    if (path_build(src, sizeof(src), src_dir, leaf) != 0)
+        return false;
+    if (!SDL_GetPathInfo(src, &info) || info.type != SDL_PATHTYPE_FILE)
+        return false;
+
+    if (path_build(dst, sizeof(dst), dst_dir, leaf) != 0)
+        return false;
+
+    bool dest_exists = SDL_GetPathInfo(dst, NULL);
+    bool should_copy = !dest_exists;
+    if (!should_copy && needs_refresh)
+        should_copy = needs_refresh(dst);
+
+    if (!should_copy)
+        return false;
+
+    if (!SDL_CopyFile(src, dst))
+    {
+        log_warn("init_file_paths: unable to seed %s file '%s' from '%s': %s",
+            label ? label : "user", dst, src, SDL_GetError());
+        return false;
+    }
+    else
+    {
+        log_info("init_file_paths: seeded %s file at '%s'", label ? label : leaf, dst);
+    }
+    return true;
+}
+
+static bool has_valid_metarun_data(const char* meta_dir)
+{
+    if (!meta_dir || !*meta_dir)
+        return false;
+
+    char meta_path[1024];
+    if (path_build(meta_path, sizeof(meta_path), meta_dir, META_RAW) != 0)
+        return false;
+
+    SDL_PathInfo info;
+    if (!SDL_GetPathInfo(meta_path, &info) || info.type != SDL_PATHTYPE_FILE)
+        return false;
+
+    /* File exists and is readable */
+    SDL_IOStream* fd = sdl_fopen(meta_path, "rb");
+    if (!fd)
+        return false;
+
+    /* Check if it has valid header */
+    meta_file_header header;
+    bool valid = (SDL_ReadIO(fd, &header, sizeof(header)) == sizeof(header))
+        && header.entry_count > 0;
+
+    sdl_fclose(fd);
+    return valid;
+}
+
+static void seed_user_meta_from_install(const char* user_meta_dir, const char* user_metarun_dir)
+{
+    if (!user_meta_dir || !*user_meta_dir || !ANGBAND_DIR || !*ANGBAND_DIR)
+        return;
+
+    /* Check if user directory already has valid metarun data (from previous migration) */
+    bool has_existing_data = has_valid_metarun_data(user_meta_dir);
+    if (has_existing_data)
+    {
+        log_info("init_file_paths: user meta directory already contains valid data, skipping migration");
+        return;
+    }
+
+    log_debug("init_file_paths: ANGBAND_DIR = '%s'", ANGBAND_DIR);
+
+    /* First, check for legacy location: lib/apex/metaruns/meta.raw (old structure) */
+    char install_apex_dir[1024];
+    char install_metaruns_dir[1024];
+    char legacy_meta_path[1024];
+    bool found_legacy = false;
+
+    if (path_build(install_apex_dir, sizeof(install_apex_dir), ANGBAND_DIR, "apex") == 0)
+    {
+        log_debug("init_file_paths: apex dir = '%s'", install_apex_dir);
+        if (path_build(install_metaruns_dir, sizeof(install_metaruns_dir), install_apex_dir, "metaruns") == 0)
+        {
+            log_debug("init_file_paths: metaruns dir = '%s'", install_metaruns_dir);
+            if (path_build(legacy_meta_path, sizeof(legacy_meta_path), install_metaruns_dir, META_RAW) == 0)
+            {
+                log_debug("init_file_paths: checking for legacy meta.raw at '%s'", legacy_meta_path);
+                SDL_PathInfo info;
+                if (SDL_GetPathInfo(legacy_meta_path, &info) && info.type == SDL_PATHTYPE_FILE)
+                {
+                    found_legacy = true;
+                    log_info("init_file_paths: found legacy meta.raw in lib/apex/metaruns/");
+                }
+                else
+                {
+                    log_debug("init_file_paths: legacy meta.raw not found or not a file");
+                }
+            }
+        }
+    }
+
+    /* Determine source directory for scores.raw and possibly meta.raw */
+    char install_meta_dir[1024];
+    if (path_build(install_meta_dir, sizeof(install_meta_dir), ANGBAND_DIR, "apex") != 0)
+        return;
+
+    log_info("init_file_paths: migrating metarun data from install directory");
+
+    /* Copy scores.raw from lib/apex/ if present */
+    char score_path[1024];
+    if (path_build(score_path, sizeof(score_path), user_meta_dir, "scores.raw") == 0)
+    {
+        SDL_PathInfo info;
+        if (!SDL_GetPathInfo(score_path, &info) || info.type != SDL_PATHTYPE_FILE)
+        {
+            if (copy_leaf_if_needed(install_meta_dir, user_meta_dir, "scores.raw", "scores", NULL))
+            {
+                log_info("init_file_paths: migrated scores.raw from lib/apex/");
+            }
+        }
+    }
+
+    /* Copy meta.raw from the appropriate source */
+    char user_meta_path[1024];
+    if (path_build(user_meta_path, sizeof(user_meta_path), user_meta_dir, META_RAW) == 0)
+    {
+        SDL_PathInfo info;
+        if (!SDL_GetPathInfo(user_meta_path, &info) || info.type != SDL_PATHTYPE_FILE)
+        {
+            if (found_legacy)
+            {
+                /* Copy from lib/apex/metaruns/meta.raw (old location) */
+                log_info("init_file_paths: attempting to copy legacy meta.raw from '%s' to '%s'",
+                    legacy_meta_path, user_meta_path);
+                if (SDL_CopyFile(legacy_meta_path, user_meta_path))
+                {
+                    log_info("init_file_paths: migrated meta.raw from lib/apex/metaruns/ (legacy location)");
+                }
+                else
+                {
+                    log_warn("init_file_paths: failed to copy legacy meta.raw: %s", SDL_GetError());
+                }
+            }
+            else
+            {
+                log_debug("init_file_paths: no legacy meta.raw found, trying lib/apex/meta.raw");
+                /* Try lib/apex/meta.raw (if it exists) */
+                if (copy_leaf_if_needed(install_meta_dir, user_meta_dir, META_RAW, "meta", NULL))
+                {
+                    log_info("init_file_paths: migrated meta.raw from lib/apex/");
+                }
+                else
+                {
+                    log_debug("init_file_paths: no meta.raw found in lib/apex/");
+                }
+            }
+        }
+    }
+}
+
+static void seed_user_saves_from_install(const char* user_save_dir)
+{
+    if (!user_save_dir || !*user_save_dir || !ANGBAND_DIR || !*ANGBAND_DIR)
+        return;
+
+    char install_save_dir[1024];
+    if (path_build(install_save_dir, sizeof(install_save_dir), ANGBAND_DIR, "save") != 0)
+        return;
+
+    SDL_PathInfo info;
+    if (!SDL_GetPathInfo(install_save_dir, &info) || info.type != SDL_PATHTYPE_DIRECTORY)
+        return;
+
+    /* Check if user directory already has save files */
+    int user_entry_count = 0;
+    char** user_entries = SDL_GlobDirectory(user_save_dir, NULL, 0, &user_entry_count);
+    bool has_existing_saves = false;
+
+    if (user_entries)
+    {
+        for (int i = 0; user_entries[i]; ++i)
+        {
+            if (!streq(user_entries[i], ".") && !streq(user_entries[i], ".."))
+            {
+                has_existing_saves = true;
+                break;
+            }
+        }
+        SDL_free(user_entries);
+    }
+
+    if (has_existing_saves)
+    {
+        log_info("init_file_paths: user save directory already contains files, skipping migration");
+        return;
+    }
+
+    /* Only migrate if user directory is empty */
+    log_info("init_file_paths: migrating save files from install directory");
+
+    int entry_count = 0;
+    char** entries = SDL_GlobDirectory(install_save_dir, NULL, 0, &entry_count);
+    if (!entries)
+        return;
+
+    for (int i = 0; entries[i]; ++i)
+    {
+        if (streq(entries[i], ".") || streq(entries[i], ".."))
+            continue;
+
+        /* Skip git files and backup folders */
+        if (streq(entries[i], ".gitignore") || strstr(entries[i], "saves_metarun_"))
+            continue;
+
+        char src_path[1024];
+        char dst_path[1024];
+        if (path_build(src_path, sizeof(src_path), install_save_dir, entries[i]) != 0)
+            continue;
+        if (path_build(dst_path, sizeof(dst_path), user_save_dir, entries[i]) != 0)
+            continue;
+
+        if (!SDL_GetPathInfo(src_path, &info) || info.type != SDL_PATHTYPE_FILE)
+            continue;
+        if (SDL_GetPathInfo(dst_path, NULL))
+            continue;
+
+        if (!SDL_CopyFile(src_path, dst_path))
+        {
+            log_warn("init_file_paths: unable to seed save '%s' -> '%s': %s",
+                src_path, dst_path, SDL_GetError());
+        }
+        else
+        {
+            log_info("init_file_paths: copied legacy save '%s' -> '%s'", src_path, dst_path);
+        }
+    }
+
+    SDL_free(entries);
+}
+
+static void migrate_legacy_metarun_layout(const char* meta_root, const char* metarun_dir)
+{
+    if (!meta_root || !*meta_root || !metarun_dir || !*metarun_dir)
+        return;
+
+    char legacy[1024];
+    if (path_build(legacy, sizeof(legacy), metarun_dir, META_RAW) != 0)
+        return;
+
+    SDL_PathInfo info;
+    if (!SDL_GetPathInfo(legacy, &info) || info.type != SDL_PATHTYPE_FILE)
+    {
+        /* No legacy file to migrate - check if the metaruns/ folder is empty and remove it */
+        int entry_count = 0;
+        char** entries = SDL_GlobDirectory(metarun_dir, NULL, 0, &entry_count);
+        bool is_empty = true;
+
+        if (entries)
+        {
+            for (int i = 0; entries[i]; ++i)
+            {
+                if (!streq(entries[i], ".") && !streq(entries[i], ".."))
+                {
+                    is_empty = false;
+                    break;
+                }
+            }
+            SDL_free(entries);
+        }
+
+        if (is_empty)
+        {
+            if (SDL_RemovePath(metarun_dir))
+            {
+                log_info("init_file_paths: removed empty legacy metaruns directory '%s'", metarun_dir);
+            }
+        }
+        return;
+    }
+
+    char target[1024];
+    if (path_build(target, sizeof(target), meta_root, META_RAW) != 0)
+        return;
+
+    SDL_PathInfo target_info;
+    bool target_exists = SDL_GetPathInfo(target, &target_info)
+        && target_info.type == SDL_PATHTYPE_FILE;
+
+    if (target_exists)
+    {
+        if (!SDL_RemovePath(legacy))
+        {
+            log_warn("init_file_paths: failed to remove legacy metarun file '%s': %s",
+                legacy, SDL_GetError());
+        }
+        else
+        {
+            log_info("init_file_paths: removed duplicate legacy metarun file '%s'", legacy);
+
+            /* Try to remove the now-empty metaruns directory */
+            if (SDL_RemovePath(metarun_dir))
+            {
+                log_info("init_file_paths: removed empty legacy metaruns directory '%s'", metarun_dir);
+            }
+        }
+        return;
+    }
+
+    if (!SDL_RenamePath(legacy, target))
+    {
+        log_warn("init_file_paths: failed to migrate legacy metarun file '%s' -> '%s': %s",
+            legacy, target, SDL_GetError());
+    }
+    else
+    {
+        log_info("init_file_paths: migrated legacy metarun file to '%s'", target);
+
+        /* Try to remove the now-empty metaruns directory */
+        if (SDL_RemovePath(metarun_dir))
+        {
+            log_info("init_file_paths: removed empty legacy metaruns directory '%s'", metarun_dir);
+        }
+    }
+}
 
 /*
  * This file is used to initialize various variables and arrays for the
@@ -89,10 +522,7 @@ extern const char* get_runtime_user_path(void);
 void init_file_paths(char* path)
 {
     char* tail;
-
-#ifdef PRIVATE_USER_PATH
     char buf[1024];
-#endif /* PRIVATE_USER_PATH */
 
     /*** Free everything ***/
 
@@ -101,6 +531,7 @@ void init_file_paths(char* path)
 
     /* Free the sub-paths */
     string_free(ANGBAND_DIR_APEX);
+    string_free(ANGBAND_DIR_METARUN);
     string_free(ANGBAND_DIR_BONE);
     string_free(ANGBAND_DIR_DATA);
     string_free(ANGBAND_DIR_EDIT);
@@ -143,78 +574,103 @@ void init_file_paths(char* path)
 
     /*** Build the sub-directory names ***/
 
-    /* Build a path name */
     strcpy(tail, "edit");
     ANGBAND_DIR_EDIT = string_make(path);
-
-    /* Build a path name */
     strcpy(tail, "pref");
     ANGBAND_DIR_PREF = string_make(path);
 
-#ifdef PRIVATE_USER_PATH
+    strcpy(tail, "pref");
+    ANGBAND_DIR_PREF = string_make(path);
 
-    /* Build the path to the user specific directory */
-#ifdef RUNTIME_PRIVATE_USER_PATH
-    path_build(buf, sizeof(buf), get_runtime_user_path(), VERSION_NAME);
+#ifdef SIL_USE_LOCAL_DATA
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "user") == 0)
+        ANGBAND_DIR_USER = string_make(buf);
+    else
+        ANGBAND_DIR_USER = string_make(ANGBAND_DIR);
+
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "data") == 0)
+        ANGBAND_DIR_DATA = string_make(buf);
+    else
+        ANGBAND_DIR_DATA = string_make(ANGBAND_DIR);
+
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "save") == 0)
+        ANGBAND_DIR_SAVE = string_make(buf);
+    else
+        ANGBAND_DIR_SAVE = string_make(ANGBAND_DIR);
+
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "apex") == 0)
+        ANGBAND_DIR_APEX = string_make(buf);
+    else
+        ANGBAND_DIR_APEX = string_make(ANGBAND_DIR);
+
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, SIL_USER_META_RUNS) == 0)
+        ANGBAND_DIR_METARUN = string_make(buf);
+    else
+        ANGBAND_DIR_METARUN = string_make(ANGBAND_DIR_APEX);
 #else
-    path_build(buf, sizeof(buf), PRIVATE_USER_PATH, VERSION_NAME);
-#endif
+    char user_root[1024];
+    if (!build_user_root_path(user_root, sizeof(user_root)))
+    {
+        SDL_strlcpy(user_root, SIL_USER_ROOT, sizeof(user_root));
+        log_warn("init_file_paths: defaulting user path to '%s' relative to the working directory",
+            user_root);
+    }
 
-    /* Build a relative path name */
-    ANGBAND_DIR_USER = string_make(buf);
+    ensure_directory_exists(user_root, "user root");
+    ANGBAND_DIR_USER = string_make(user_root);
 
-#else /* PRIVATE_USER_PATH */
+    if (path_build(buf, sizeof(buf), user_root, SIL_USER_DATA_DIR) == 0)
+    {
+        ensure_directory_exists(buf, "data");
+        ANGBAND_DIR_DATA = string_make(buf);
+    }
+    else
+    {
+        ANGBAND_DIR_DATA = string_make(user_root);
+    }
 
-    /* Build a path name */
-    strcpy(tail, "user");
-    ANGBAND_DIR_USER = string_make(path);
+    if (path_build(buf, sizeof(buf), user_root, SIL_USER_SAVE_DIR) == 0)
+    {
+        ensure_directory_exists(buf, "save");
+        ANGBAND_DIR_SAVE = string_make(buf);
+    }
+    else
+    {
+        ANGBAND_DIR_SAVE = string_make(user_root);
+    }
 
-#endif /* PRIVATE_USER_PATH */
+    char meta_root[1024];
+    if (path_build(meta_root, sizeof(meta_root), user_root, SIL_USER_META_DIR) == 0)
+    {
+        ensure_directory_exists(meta_root, "meta");
+        ANGBAND_DIR_APEX = string_make(meta_root);
 
-#ifdef USE_PRIVATE_SAVE_PATH
-    /* Build the path to the user specific sub-directory */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, "data");
+        char metarun_dir[1024];
+        if (path_build(metarun_dir, sizeof(metarun_dir), meta_root, SIL_USER_META_RUNS) == 0)
+        {
+            ensure_directory_exists(metarun_dir, "metarun");
+            ANGBAND_DIR_METARUN = string_make(metarun_dir);
+        }
+        else
+        {
+            ANGBAND_DIR_METARUN = string_make(meta_root);
+        }
+    }
+    else
+    {
+        ANGBAND_DIR_APEX = string_make(user_root);
+        ANGBAND_DIR_METARUN = string_make(user_root);
+    }
 
-    /* Build a relative path name */
-    ANGBAND_DIR_DATA = string_make(buf);
+    migrate_legacy_metarun_layout(ANGBAND_DIR_APEX, ANGBAND_DIR_METARUN);
+    seed_user_data_from_install(ANGBAND_DIR_DATA);
+    seed_user_meta_from_install(ANGBAND_DIR_APEX, ANGBAND_DIR_METARUN);
+    seed_user_saves_from_install(ANGBAND_DIR_SAVE);
+#endif /* SIL_USE_LOCAL_DATA */
 
-    /* Build the path to the user specific sub-directory */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, "scores");
-
-    /* Build a relative path name */
-    ANGBAND_DIR_APEX = string_make(buf);
-
-    /* Build the path to the user specific sub-directory */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, "save");
-
-    /* Build a relative path name */
-    ANGBAND_DIR_SAVE = string_make(buf);
-
-#else /* USE_PRIVATE_SAVE_PATH */
-
-    /* Build a path name */
-    strcpy(tail, "data");
-    ANGBAND_DIR_DATA = string_make(path);
-
-    /* Build a path name */
-    strcpy(tail, "apex");
-    ANGBAND_DIR_APEX = string_make(path);
-
-    /* Build a path name */
-    strcpy(tail, "apex\\metaruns");
-    ANGBAND_DIR_METARUN = string_make(path);
-
-    /* Build a path name */
-    strcpy(tail, "save");
-    ANGBAND_DIR_SAVE = string_make(path);
-
-#endif /* USE_PRIVATE_SAVE_PATH */
-
-    /* Build a path name */
     strcpy(tail, "xtra");
     ANGBAND_DIR_XTRA = string_make(path);
 
-    /* Build a path name */
     strcpy(tail, "script");
     ANGBAND_DIR_SCRIPT = string_make(path);
 
@@ -1895,11 +2351,11 @@ void init_angband(void)
         else
         {
             /* Write version header to new scores file */
-            score_file_header header;
-            header.version_major = VERSION_MAJOR;
-            header.version_minor = VERSION_MINOR;
-            header.version_patch = VERSION_PATCH;
-            header.version_extra = VERSION_EXTRA;
+        score_file_header header;
+        header.version_major = SCORE_FILE_VERSION_MAJOR;
+        header.version_minor = SCORE_FILE_VERSION_MINOR;
+        header.version_patch = SCORE_FILE_VERSION_PATCH;
+        header.version_extra = SCORE_FILE_VERSION_EXTRA;
             header.entry_count = 0;
             header.reserved[0] = 0;
             header.reserved[1] = 0;

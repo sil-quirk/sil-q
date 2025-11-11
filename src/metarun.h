@@ -43,6 +43,21 @@
  *   0.9.0.2 - Progressive scoring system, increased reserved_runtime[1→32]
  */
 
+/* Metarun file format always tracks the core game version. Update the release
+ * numbers below when compatibility changes.
+ *   0.9.0.0 - Initial versioned format (quest support)
+ *   0.9.0.1 - Persistent blessing choices added
+ *   0.9.0.2 - Progressive scoring system, increased reserved_runtime[1..32]
+ *   0.9.0.3 - User-folder migration (meta.raw relocated out of metaruns/)
+ */
+#define METARUN_FILE_VERSION_MAJOR VERSION_MAJOR
+#define METARUN_FILE_VERSION_MINOR VERSION_MINOR
+#define METARUN_FILE_VERSION_PATCH VERSION_PATCH
+#define METARUN_FILE_VERSION_EXTRA VERSION_EXTRA
+
+#define META_SUBDIR "metaruns"
+#define META_RAW "meta.raw"
+
 /* Blessing / reward economy */
 #define METARUN_BLESSING_POINT_THRESHOLD 300   /* Fallback threshold if runtype doesn't specify (data-driven via L: in runtypes.txt) */
 
@@ -64,7 +79,7 @@ typedef struct meta_file_header
     byte version_major;  /* Major version (0) */
     byte version_minor;  /* Minor version (9) */
     byte version_patch;  /* Patch version (0) */
-    byte version_extra;  /* Extra version (0) */
+    byte version_extra;  /* Extra version (3) */
     u32b entry_count;    /* Number of metarun entries in file */
 } meta_file_header;
 

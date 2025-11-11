@@ -1306,15 +1306,21 @@ struct player_type
     byte quest_reserved[15];   /* quest_reserved[0] = any quest spawned flag (run-wide); rest reserved */
 };
 
+/* scores.raw header version == core game version (no independent bumping) */
+#define SCORE_FILE_VERSION_MAJOR VERSION_MAJOR
+#define SCORE_FILE_VERSION_MINOR VERSION_MINOR
+#define SCORE_FILE_VERSION_PATCH VERSION_PATCH
+#define SCORE_FILE_VERSION_EXTRA VERSION_EXTRA
+
 /*
  * Version header for scores.raw file (16 bytes)
  */
 typedef struct score_file_header
 {
-    byte version_major;  /* Major version (0) */
-    byte version_minor;  /* Minor version (8) */
-    byte version_patch;  /* Patch version (5) */
-    byte version_extra;  /* Extra version (0) */
+    byte version_major;  /* Mirrors VERSION_MAJOR */
+    byte version_minor;  /* Mirrors VERSION_MINOR */
+    byte version_patch;  /* Mirrors VERSION_PATCH */
+    byte version_extra;  /* Mirrors VERSION_EXTRA */
     u32b entry_count;    /* Number of score entries in file */
     u32b reserved[2];    /* Reserved for future use */
 } score_file_header;
