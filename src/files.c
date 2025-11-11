@@ -5676,6 +5676,8 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
     char score_path[1024];
     path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw");
 
+    /* If a file handle already exists, save it and try to reuse it.
+     * Opening the same file twice can fail on Windows. */
     SDL_IOStream* saved_fd = highscore_fd;
     byte saved_major = scores_file_version_major;
     byte saved_minor = scores_file_version_minor;
@@ -5683,17 +5685,25 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
     byte saved_extra = scores_file_version_extra;
     u32b saved_count = scores_file_entry_count;
 
-    safe_setuid_grab();
-    highscore_fd = open_scores_file_versioned(score_path, O_RDONLY);
-    safe_setuid_drop();
+    bool opened_new = false;
+    
+    /* If no file handle exists, open one */
     if (!highscore_fd)
     {
-        highscore_fd = saved_fd;
-        scores_file_version_major = saved_major;
-        scores_file_version_minor = saved_minor;
-        scores_file_version_patch = saved_patch;
-        scores_file_version_extra = saved_extra;
-        scores_file_entry_count = saved_count;
+        safe_setuid_grab();
+        highscore_fd = open_scores_file_versioned(score_path, O_RDONLY);
+        safe_setuid_drop();
+        opened_new = true;
+        
+        log_debug("collect_high_scores: opened new fd=%p capacity=%d", (void*)highscore_fd, capacity);
+    }
+    else
+    {
+        log_debug("collect_high_scores: reusing existing fd=%p capacity=%d", (void*)highscore_fd, capacity);
+    }
+    
+    if (!highscore_fd)
+    {
         return 0;
     }
 
@@ -5702,6 +5712,8 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
         limit = MAX_HISCORES;
 
     int count = load_scores_into_array(out, limit);
+    
+    log_debug("collect_high_scores: loaded %d entries", count);
 
     if (sort_by_score)
     {
@@ -5713,16 +5725,16 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
     }
 
     count = deduplicate_scores_by_name(out, count);
+    
+    log_debug("collect_high_scores: after dedup %d entries, opened_new=%d", count, opened_new);
 
-    SDL_CloseIO(highscore_fd);
-    highscore_fd = saved_fd;
-    /* Don't restore version - keep the version from the scores file we just read */
-    /* The cached version should reflect the actual scores.raw file version */
-    /* scores_file_version_major = saved_major; */
-    /* scores_file_version_minor = saved_minor; */
-    /* scores_file_version_patch = saved_patch; */
-    /* scores_file_version_extra = saved_extra; */
-    scores_file_entry_count = saved_count;
+    /* If we opened a new handle, close it. Otherwise leave the existing one open. */
+    if (opened_new)
+    {
+        SDL_CloseIO(highscore_fd);
+        highscore_fd = NULL;
+    }
+    /* Don't restore saved_fd - if we reused it, it stays open; if we opened new, we close it above */
 
     return count;
 }
@@ -7619,26 +7631,18 @@ static errr enter_score(high_score* the_score)
     /* Add a new entry to the score list, see where it went */
     score_idx = highscore_add(the_score);
 
-    /* Close and reopen the file to ensure all writes are visible for subsequent reads.
-     * SDL_IOStream may buffer writes even after flush, so reopening ensures consistency. */
+    /* Close the file after writing.
+     * Functions that need to read scores will open the file fresh. */
     if (highscore_fd)
     {
-        char score_path[1024];
-        path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw");
-        
         /* Grab permissions */
         safe_setuid_grab();
         
         SDL_CloseIO(highscore_fd);
-        highscore_fd = open_scores_file_versioned(score_path, O_RDONLY);
+        highscore_fd = NULL;
         
         /* Drop permissions */
         safe_setuid_drop();
-        
-        if (!highscore_fd)
-        {
-            log_error("Failed to reopen highscore file after write");
-        }
     }
 
     /* Grab permissions */
