@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "fs/path.h"
 #include "log/log.h"
 #include <SDL3/SDL.h>
 

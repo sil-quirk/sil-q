@@ -5628,6 +5628,16 @@ Phase 3 should be tackled carefully:
 - **S9.4 header hygiene:** `src/angband.h:24-38` keeps re-exporting `z-util.h`, `mem/alloc.h`, `z-term.h`, and `externs.h`, so every translation unit still inherits the legacy globals.
 - **S9.5 z-* retirement:** The legacy utility/terminal modules (`src/z-util.c`, `src/z-term.c:273`) remain in the tree, and `Term` continues to be a global singleton.
 
+### Squelch filesystem hardening
+- `src/squelch.c`: Added explicit `fs/io_sdl.h`, `fs/path.h`, and `log/log.h` includes and converted the squelch/autoinscribe dump paths to log + abort when `path_build()` fails (lines 236, 341). Logged and bailed on `sdl_fopen()` failures, and emit a `log_warn` when there's nothing to export so we no longer truncate files silently.
+- `build-cmake.bat`: ran after the changes (success, see console log); confirms the new error-handling compiles cleanly with the SDL3 toolchain.
+
+### Stage S7 header hygiene prep
+- `src/cmd4.c`, `src/wizard1.c`, `src/metarun.c`: Added direct includes for `fs/io_sdl.h`, `fs/path.h`, and `log/log.h` so these modules explicitly declare their filesystem/log dependencies instead of inheriting them from `angband.h`. `metarun.c` also dropped the stale `#include "log.h"` alias.
+- Rebuilt with `build-cmake.bat` (current warnings unchanged: unsigned comparison in `cmd4.c`, legacy `FREE()` macro usage in `metarun.c`); deployment succeeded.
+- Extended the explicit include sweep to `src/files.c`, `src/init2.c`, and `src/util.c` so all high-volume filesystem helpers rely on `fs/io_sdl.h`, `fs/path.h`, and `log/log.h` directly, clearing the way to stop re-exporting those headers from `angband.h`.
+- Rebuilt again via `build-cmake.bat`; SDL3 target still succeeds, with only the existing warnings in `files.c`, `init2.c`, and `util.c` noted previously.
+
 
 
 # Session Notes - Pref File Cleanup (2025-11-12)

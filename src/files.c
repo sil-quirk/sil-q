@@ -9,7 +9,10 @@
  */
 
 #include "angband.h"
+#include "fs/io_sdl.h"
+#include "fs/path.h"
 #include "h-basic.h"
+#include "log/log.h"
 #include "metarun.h"
 #include "platform.h"
 #include "z-term.h"

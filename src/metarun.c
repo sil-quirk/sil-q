@@ -8,9 +8,11 @@
  *     • print_metarun_stats() – details for current run
  * -------------------------------------------------------------------- */
 #include "angband.h"
+#include "fs/io_sdl.h"
+#include "fs/path.h"
+#include "log/log.h"
 #include "metarun.h"
 #include "h-define.h"
-#include "log.h"
 #include "platform.h"    /* MKDIR helper                      */
 #include "supplies.h"
 #include <SDL3/SDL.h>

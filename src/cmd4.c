@@ -9,6 +9,9 @@
  */
 
 #include "angband.h"
+#include "fs/io_sdl.h"
+#include "fs/path.h"
+#include "log/log.h"
 #include <ctype.h>
 #include "h-define.h"
 #include "metarun.h"
