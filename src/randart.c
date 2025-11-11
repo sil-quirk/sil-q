@@ -845,14 +845,6 @@ static bool init_mon_power(void)
         /* Define the power rating */
         r_ptr->mon_power = hp * dam;
 
-#ifdef ALLOW_DATA_DUMP
-
-        /*record the hp and damage score*/
-        r_ptr->mon_eval_hp = hp;
-        r_ptr->mon_eval_dam = dam;
-
-#endif /*ALLOW_DATA_DUMP*/
-
         /*
          * Slight adjustment for group monsters.
          * Escorts are not evaluated because they tend to
@@ -905,12 +897,6 @@ static bool init_mon_power(void)
             }
         }
     }
-
-#ifdef ALLOW_DATA_DUMP
-
-    write_mon_power();
-
-#endif /*ALLOW_DATA_DUMP*/
 
     /* Now we have all the ratings */
     return (true);

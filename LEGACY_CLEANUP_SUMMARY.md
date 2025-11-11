@@ -44,8 +44,8 @@ The remaining SET_UID code is:
 - **Keep:** ✅ Useful debug feature
 
 ### ALLOW_DATA_DUMP
-- **Keep:** ✅ Useful for modders (entire dump_items.c file)
-- **Recommendation:** Leave as-is, it's already conditionally compiled
+- **Status:** Legacy dump tooling was removed (2025-11-11); the macro now only guards the extra monster stat bookkeeping.
+- **Recommendation:** Keep the macro for now so serialization stays stable, then prune it once replacement diagnostics land.
 
 ## Summary
 

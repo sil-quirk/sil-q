@@ -1351,21 +1351,6 @@ extern void do_cmd_spoilers(void);
 #endif /* ALLOW_SPOILERS */
 extern bool make_fake_artefact(object_type* o_ptr, byte name1);
 
-#ifdef ALLOW_DATA_DUMP
-/*
- *dump_items.c
- */
-
-extern void write_r_info_txt(void);
-extern void write_o_info_txt(void);
-extern void write_e_info_txt(void);
-extern void write_a_info_txt(void);
-extern void dump_artefact_power(void);
-extern void write_mon_power(void);
-
-#endif /*ALLOW_DATA_DUMP*/
-
-
 // Metarun.c
 
 extern errr load_metaruns(bool create_if_missing);

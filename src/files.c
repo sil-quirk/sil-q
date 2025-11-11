@@ -5057,7 +5057,7 @@ static errr backup_scores_file(const char *filepath)
     SDL_IOStream* fd_test2 = sdl_fopen(backup_path2, "rb");
     if (fd_test2) {
         sdl_fclose(fd_test2);
-        if (!fd_move(backup_path2, backup_path3)) {
+        if (fd_move(backup_path2, backup_path3) != 0) {
             log_error("backup_scores_file: failed to move bak2 to bak3");
         }
     }
@@ -5066,7 +5066,7 @@ static errr backup_scores_file(const char *filepath)
     SDL_IOStream* fd_test1 = sdl_fopen(backup_path1, "rb");
     if (fd_test1) {
         sdl_fclose(fd_test1);
-        if (!fd_move(backup_path1, backup_path2)) {
+        if (fd_move(backup_path1, backup_path2) != 0) {
             log_error("backup_scores_file: failed to move bak1 to bak2");
         }
     }
@@ -10028,11 +10028,11 @@ void metarun_finalize_scores_and_saves(void)
      */
     if (p_ptr && (p_ptr->wizard || (p_ptr->noscore & 0x0008)) && (p_ptr->noscore & 0x000F)) {
         if (savefile[0]) {
-            bool deleted;
+            int rc;
             safe_setuid_grab();
-            deleted = fd_kill(savefile);
+            rc = fd_kill(savefile);
             safe_setuid_drop();
-            if (deleted) {
+            if (rc == 0) {
                 log_info("finalize: deleted noscore wizard/debug savefile '%s'", savefile);
             } else {
                 log_warn("finalize: failed to delete noscore wizard/debug savefile '%s'", savefile);

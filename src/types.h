@@ -378,13 +378,6 @@ struct monster_race
     byte spell_power; /* Power of (damage-dealing) spells */
     u32b mon_power; /* Monster Power Rating */
 
-#ifdef ALLOW_DATA_DUMP
-
-    u32b mon_eval_hp; /*evaluated hitpoint power of monster*/
-    u32b mon_eval_dam; /*evaluated damage power of monster*/
-
-#endif /*ALLOW_DATA_DUMP*/
-
     u32b flags1; /* Flags 1 (general) */
     u32b flags2; /* Flags 2 (abilities) */
     u32b flags3; /* Flags 3 (race/resist) */

@@ -795,12 +795,6 @@ static void rd_monster_race_stats(monster_race* r_ptr)
     r_ptr->spell_power = tmp8u;
     rd_u32b(&tmp32u);
     r_ptr->mon_power = tmp32u;
-#ifdef ALLOW_DATA_DUMP
-    rd_u32b(&tmp32u);
-    r_ptr->mon_eval_hp = tmp32u;
-    rd_u32b(&tmp32u);
-    r_ptr->mon_eval_dam = tmp32u;
-#endif
     rd_u32b(&tmp32u);
     r_ptr->flags1 = tmp32u;
     rd_u32b(&tmp32u);

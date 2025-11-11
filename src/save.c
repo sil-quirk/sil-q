@@ -706,10 +706,6 @@ static bool monster_race_stats_changed(int r_idx)
     if (base->freq_ranged != cur->freq_ranged) return true;
     if (base->spell_power != cur->spell_power) return true;
     if (base->mon_power != cur->mon_power) return true;
-#ifdef ALLOW_DATA_DUMP
-    if (base->mon_eval_hp != cur->mon_eval_hp) return true;
-    if (base->mon_eval_dam != cur->mon_eval_dam) return true;
-#endif
     if (base->flags1 != cur->flags1) return true;
     if (base->flags2 != cur->flags2) return true;
     if (base->flags3 != cur->flags3) return true;
@@ -753,10 +749,6 @@ static void wr_monster_race_stats(const monster_race* r_ptr)
     wr_byte(r_ptr->freq_ranged);
     wr_byte(r_ptr->spell_power);
     wr_u32b(r_ptr->mon_power);
-#ifdef ALLOW_DATA_DUMP
-    wr_u32b(r_ptr->mon_eval_hp);
-    wr_u32b(r_ptr->mon_eval_dam);
-#endif
     wr_u32b(r_ptr->flags1);
     wr_u32b(r_ptr->flags2);
     wr_u32b(r_ptr->flags3);

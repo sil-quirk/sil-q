@@ -4829,7 +4829,7 @@ Creating a fresh `sil_sdl.json` on macOS detected 1440x900 instead of the panel'
 ## 2025-11-10: Phase 0-2 Review + z-\* Retirement Planning
 
 * Verified that all `my_str*` call sites were replaced with SDL/standard helpers and that we now expose inline wrappers in `src/angband.h:94-110`; `z-virt.c:16-96` backs the historical macros with `SDL_calloc`/`SDL_free`.
-* Confirmed Phase 2 landed: SDL IO helpers (`sdl_fopen`, `sdl_fclose`, `sdl_fgets`, etc.) live in `src/util.c:299-629` and are used throughout loaders/dumps (`src/cmd4.c:170-260`, `src/dump_items.c:80-949`, `src/save.c:316-2021`), so the tree no longer relies on `FILE*` wrappers.
+* Confirmed Phase 2 landed: SDL IO helpers (`sdl_fopen`, `sdl_fclose`, `sdl_fgets`, etc.) live in `src/util.c:299-629` and are used throughout loaders/dumps (`src/cmd4.c:170-260`, `src/save.c:316-2021`) so the tree no longer relies on `FILE*` wrappers (the old `legacy dump tooling` tooling has since been removed).
 * Refreshed `proprietary_utility_retirement_plan.md` with status table + new restructuring roadmap (filesystem breakout, logging bootstrap, color helpers) and a C17 modernization checklist (unused `my_str*` in `z-util.c:24-119`, static buffer in `z-form.c:600-642`, macro-heavy allocators in `z-virt.h:32-86`, remaining `Term_*` hooks in `z-term.c`).
 * Documented the monolithic `util.c` areas that still need attention (`path_parse` at `src/util.c:129-378`, logger bootstrap near `src/util.c:5944-6390`) so later phases can split them into targeted modules on the way to deleting `z-*`.
 
@@ -4987,3 +4987,8 @@ The custom vstrnfmt in z-form.c supports "%^" which capitalizes the first non-sp
 
 ### Verification
 * uild-cmake.bat ? SUCCESS (same pre-existing warnings in irth.c, cmd2.c, cmd4.c, main-sdl.c, init2.c).
+## 2025-11-11: Legacy Data-Dump Retirement
+
+* Removed the obsolete SDL data-dump implementation and its build wiring (part of the file restructuring + z-* retirement track).
+* Cleared the ALLOW_DATA_DUMP prototypes from externs.h, pruned the SDL build targets, and captured the change in the modernization docs so the roadmap reflects the slimmer codebase.
+* Next: keep migrating remaining ALLOW_DATA_DUMP consumers toward modern diagnostics so the macro itself can disappear during the C17 cleanup stage.

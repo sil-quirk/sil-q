@@ -39,7 +39,6 @@ add_executable(sil-more
     src/cmd4.c
     src/cmd5.c
     src/cmd6.c
-    src/dump_items.c
     src/dungeon.c
     src/files.c
     src/format.c
