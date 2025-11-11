@@ -9805,10 +9805,10 @@ void do_cmd_macros(void)
                 text_to_ascii(macro_buffer, sizeof(macro_buffer), tmp);
 
                 /* Free old keymap */
-                string_free(keymap_act[mode][(byte)(pat[0])]);
+                str_free(keymap_act[mode][(byte)(pat[0])]);
 
                 /* Make new keymap */
-                keymap_act[mode][(byte)(pat[0])] = string_make(macro_buffer);
+                keymap_act[mode][(byte)(pat[0])] = str_dup(macro_buffer);
 
                 /* Prompt */
                 msg_print("Added a keymap.");
@@ -9828,7 +9828,7 @@ void do_cmd_macros(void)
             do_cmd_macro_aux_keymap(pat);
 
             /* Free old keymap */
-            string_free(keymap_act[mode][(byte)(pat[0])]);
+            str_free(keymap_act[mode][(byte)(pat[0])]);
 
             /* Make new keymap */
             keymap_act[mode][(byte)(pat[0])] = NULL;
@@ -15349,6 +15349,8 @@ void show_unified_sidebar(unified_look_state* state)
     previous_line_count = current_line_count;
     log_trace("show_unified_sidebar: function complete, set previous_line_count=%d", previous_line_count);
 }
+
+
 
 
 

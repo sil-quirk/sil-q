@@ -539,9 +539,9 @@ errr process_pref_file_command(char* buf)
             return (1);
         i = (long)tmp[0];
 
-        string_free(keymap_act[mode][i]);
+        str_free(keymap_act[mode][i]);
 
-        keymap_act[mode][i] = string_make(macro_buffer);
+        keymap_act[mode][i] = str_dup(macro_buffer);
 
         return (0);
     }
@@ -592,15 +592,15 @@ errr process_pref_file_command(char* buf)
                 return 1;
 
             /* Macro template */
-            macro_template = string_make(zz[0]);
+            macro_template = str_dup(zz[0]);
 
             /* Modifier chars */
-            macro_modifier_chr = string_make(zz[1]);
+            macro_modifier_chr = str_dup(zz[1]);
 
             /* Modifier names */
             for (i = 0; i < num; i++)
             {
-                macro_modifier_name[i] = string_make(zz[2 + i]);
+                macro_modifier_name[i] = str_dup(zz[2 + i]);
             }
         }
         /* Macro trigger */
@@ -634,23 +634,23 @@ errr process_pref_file_command(char* buf)
             *t = '\0';
 
             /* Store the trigger name */
-            macro_trigger_name[max_macrotrigger] = string_make(buf);
+            macro_trigger_name[max_macrotrigger] = str_dup(buf);
 
             /* Free the buffer */
             mem_free_null(buf);
 
             /* Normal keycode */
-            macro_trigger_keycode[0][max_macrotrigger] = string_make(zz[1]);
+            macro_trigger_keycode[0][max_macrotrigger] = str_dup(zz[1]);
 
             /* Special shifted keycode */
             if (tok == 3)
             {
-                macro_trigger_keycode[1][max_macrotrigger] = string_make(zz[2]);
+                macro_trigger_keycode[1][max_macrotrigger] = str_dup(zz[2]);
             }
             /* Shifted keycode is the same as the normal keycode */
             else
             {
-                macro_trigger_keycode[1][max_macrotrigger] = string_make(zz[1]);
+                macro_trigger_keycode[1][max_macrotrigger] = str_dup(zz[1]);
             }
 
             /* Count triggers */
@@ -10235,6 +10235,8 @@ void backup_and_clear_saves(void)
     
     log_trace("Folder-based backup process completed");
 }
+
+
 
 
 

@@ -12,7 +12,7 @@
 
 #include "z-term.h"
 
-#include "z-virt.h"
+#include "mem/alloc.h"
 #include "log/log.h"
 
 /*
@@ -2494,7 +2494,7 @@ errr term_init(term* t, int w, int h, int k)
     int y;
 
     /* Wipe it */
-    (void)WIPE(t, term);
+    memset(t, 0, sizeof(term));
 
     /* Prepare the input queue */
     t->key_head = t->key_tail = 0;

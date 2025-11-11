@@ -1645,7 +1645,7 @@ static errr parse_style_message_line(char* buf)
         return 0;
     }
     /* Append */
-    g_style_display_text[idx][g_style_display_count[idx]] = string_make(s);
+    g_style_display_text[idx][g_style_display_count[idx]] = str_dup(s);
     g_style_display_count[idx]++;
     /* Removed excessive TRACE log that was generating 90+ messages per startup */
     return 0;
@@ -1658,7 +1658,7 @@ void styles_clear_display_messages(void)
     {
         for (int j = 0; j < MAX_STYLE_MSG; ++j) {
             if (g_style_display_text[i][j]) {
-                string_free(g_style_display_text[i][j]);
+                str_free(g_style_display_text[i][j]);
                 g_style_display_text[i][j] = NULL;
             }
         }
@@ -5938,6 +5938,8 @@ errr parse_oath_info(char* buf, header* head)
 #else /* ALLOW_TEMPLATES */
 
 #endif /* ALLOW_TEMPLATES */
+
+
 
 
 

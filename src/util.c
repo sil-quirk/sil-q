@@ -762,7 +762,7 @@ errr macro_add(cptr pat, cptr act)
     if (n >= 0)
     {
         /* Free the old macro action */
-        string_free(macro__act[n]);
+        str_free(macro__act[n]);
     }
 
     /* Create a new macro */
@@ -776,11 +776,11 @@ errr macro_add(cptr pat, cptr act)
             quit("Too many macros!");
 
         /* Save the pattern */
-        macro__pat[n] = string_make(pat);
+        macro__pat[n] = str_dup(pat);
     }
 
     /* Save the action */
-    macro__act[n] = string_make(act);
+    macro__act[n] = str_dup(act);
 
     /* Efficiency */
     macro__use[(byte)(pat[0])] = true;
@@ -814,8 +814,8 @@ errr macro_free(void)
     /* Free the macros */
     for (i = 0; i < macro__num; ++i)
     {
-        string_free(macro__pat[i]);
-        string_free(macro__act[i]);
+        str_free(macro__pat[i]);
+        str_free(macro__act[i]);
     }
 
     mem_free_null(macro__pat);
@@ -826,7 +826,7 @@ errr macro_free(void)
     {
         for (j = 0; j < (int)N_ELEMENTS(keymap_act[i]); ++j)
         {
-            string_free(keymap_act[i][j]);
+            str_free(keymap_act[i][j]);
             keymap_act[i][j] = NULL;
         }
     }
@@ -846,16 +846,16 @@ errr macro_trigger_free(void)
     if (macro_template != NULL)
     {
         /* Free the template */
-        string_free(macro_template);
+        str_free(macro_template);
         macro_template = NULL;
 
         /* Free the trigger names and keycodes */
         for (i = 0; i < max_macrotrigger; i++)
         {
-            string_free(macro_trigger_name[i]);
+            str_free(macro_trigger_name[i]);
 
-            string_free(macro_trigger_keycode[0][i]);
-            string_free(macro_trigger_keycode[1][i]);
+            str_free(macro_trigger_keycode[0][i]);
+            str_free(macro_trigger_keycode[1][i]);
         }
 
         /* No more macro triggers */
@@ -867,11 +867,11 @@ errr macro_trigger_free(void)
         /* Free modifier names */
         for (i = 0; i < num; i++)
         {
-            string_free(macro_modifier_name[i]);
+            str_free(macro_modifier_name[i]);
         }
 
         /* Free modifier chars */
-        string_free(macro_modifier_chr);
+        str_free(macro_modifier_chr);
         macro_modifier_chr = NULL;
     }
 
@@ -1433,7 +1433,7 @@ s16b quark_add(cptr str)
     i = quark__num++;
 
     /* Add a new quark */
-    quark__str[i] = string_make(str);
+    quark__str[i] = str_dup(str);
 
     /* Return the index */
     return (i);
@@ -1479,7 +1479,7 @@ errr quarks_free(void)
     /* Free the "quarks" */
     for (i = 1; i < quark__num; i++)
     {
-        string_free(quark__str[i]);
+        str_free(quark__str[i]);
     }
 
     /* Free the list of "quarks" */
@@ -5166,5 +5166,7 @@ int color_text_to_attr(cptr name)
     /* We can not find it */
     return (-1);
 }
+
+
 
 

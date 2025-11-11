@@ -79,7 +79,6 @@ add_executable(sil-more
     src/xtra2.c
     src/z-term.c
     src/z-util.c
-    src/z-virt.c
 )
 
 # Include Windows resource (.rc) so the executable has an icon on Windows

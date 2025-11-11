@@ -6157,7 +6157,7 @@ cptr* extract_quest_init_texts(int quest_idx, int* count)
         }
         
         /* Store the line (even if empty - empty lines become paragraph breaks) */
-        texts[text_count] = string_make(line_start);
+        texts[text_count] = str_dup(line_start);
         if (texts[text_count]) text_count++;
         
         /* Move to next line */
@@ -6228,7 +6228,7 @@ cptr* extract_quest_completion_texts(int quest_idx, int* count)
         }
         
         /* Store the line (even if empty - empty lines become paragraph breaks) */
-        texts[text_count] = string_make(line_start);
+        texts[text_count] = str_dup(line_start);
         if (texts[text_count]) text_count++;
         
         /* Move to next line */
@@ -6693,7 +6693,7 @@ void free_quest_texts(cptr* texts)
     /* Free individual strings */
     for (i = 0; i < 20; i++) { /* Same max as in extract functions */
         if (texts[i]) {
-            string_free((char*)texts[i]);
+            str_free((char*)texts[i]);
         }
     }
     
@@ -7499,7 +7499,7 @@ void tulkas_quest_interaction(void)
                     strnfmt(temp_text, sizeof(temp_text), "%s%s%s", before, artifact_name, after);
                 }
                 
-                processed_texts[i] = string_make(temp_text);
+                processed_texts[i] = str_dup(temp_text);
             }
             
             /* Display typewriter quest dialog */
@@ -7507,7 +7507,7 @@ void tulkas_quest_interaction(void)
             
             /* Clean up */
             for (int i = 0; i < text_count; i++) {
-                if (processed_texts[i]) string_free((char*)processed_texts[i]);
+                if (processed_texts[i]) str_free((char*)processed_texts[i]);
             }
             mem_free_null(processed_texts);
             free_quest_texts(init_texts);
@@ -8677,6 +8677,8 @@ void grant_unique_bane_ability(void)
     p_ptr->update |= (PU_BONUS);
     handle_stuff();
 }
+
+
 
 
 

@@ -527,27 +527,27 @@ void init_file_paths(char* path)
     /*** Free everything ***/
 
     /* Free the main path */
-    string_free(ANGBAND_DIR);
+    str_free(ANGBAND_DIR);
 
     /* Free the sub-paths */
-    string_free(ANGBAND_DIR_APEX);
-    string_free(ANGBAND_DIR_METARUN);
-    string_free(ANGBAND_DIR_BONE);
-    string_free(ANGBAND_DIR_DATA);
-    string_free(ANGBAND_DIR_EDIT);
-    string_free(ANGBAND_DIR_FILE);
-    string_free(ANGBAND_DIR_HELP);
-    string_free(ANGBAND_DIR_INFO);
-    string_free(ANGBAND_DIR_SAVE);
-    string_free(ANGBAND_DIR_PREF);
-    string_free(ANGBAND_DIR_USER);
-    string_free(ANGBAND_DIR_XTRA);
-    string_free(ANGBAND_DIR_SCRIPT);
+    str_free(ANGBAND_DIR_APEX);
+    str_free(ANGBAND_DIR_METARUN);
+    str_free(ANGBAND_DIR_BONE);
+    str_free(ANGBAND_DIR_DATA);
+    str_free(ANGBAND_DIR_EDIT);
+    str_free(ANGBAND_DIR_FILE);
+    str_free(ANGBAND_DIR_HELP);
+    str_free(ANGBAND_DIR_INFO);
+    str_free(ANGBAND_DIR_SAVE);
+    str_free(ANGBAND_DIR_PREF);
+    str_free(ANGBAND_DIR_USER);
+    str_free(ANGBAND_DIR_XTRA);
+    str_free(ANGBAND_DIR_SCRIPT);
 
     /*** Prepare the "path" ***/
 
     /* Hack -- save the main directory */
-    ANGBAND_DIR = string_make(path);
+    ANGBAND_DIR = str_dup(path);
 
     /* Prepare to append to the Base Path */
     tail = path + strlen(path);
@@ -557,56 +557,56 @@ void init_file_paths(char* path)
     /*** Use "flat" paths with VM/ESA ***/
 
     /* Use "blank" path names */
-    ANGBAND_DIR_APEX = string_make("");
-    ANGBAND_DIR_BONE = string_make("");
-    ANGBAND_DIR_DATA = string_make("");
-    ANGBAND_DIR_EDIT = string_make("");
-    ANGBAND_DIR_FILE = string_make("");
-    ANGBAND_DIR_HELP = string_make("");
-    ANGBAND_DIR_INFO = string_make("");
-    ANGBAND_DIR_SAVE = string_make("");
-    ANGBAND_DIR_PREF = string_make("");
-    ANGBAND_DIR_USER = string_make("");
-    ANGBAND_DIR_XTRA = string_make("");
-    ANGBAND_DIR_SCRIPT = string_make("");
+    ANGBAND_DIR_APEX = str_dup("");
+    ANGBAND_DIR_BONE = str_dup("");
+    ANGBAND_DIR_DATA = str_dup("");
+    ANGBAND_DIR_EDIT = str_dup("");
+    ANGBAND_DIR_FILE = str_dup("");
+    ANGBAND_DIR_HELP = str_dup("");
+    ANGBAND_DIR_INFO = str_dup("");
+    ANGBAND_DIR_SAVE = str_dup("");
+    ANGBAND_DIR_PREF = str_dup("");
+    ANGBAND_DIR_USER = str_dup("");
+    ANGBAND_DIR_XTRA = str_dup("");
+    ANGBAND_DIR_SCRIPT = str_dup("");
 
 #else /* VM */
 
     /*** Build the sub-directory names ***/
 
     strcpy(tail, "edit");
-    ANGBAND_DIR_EDIT = string_make(path);
+    ANGBAND_DIR_EDIT = str_dup(path);
     strcpy(tail, "pref");
-    ANGBAND_DIR_PREF = string_make(path);
+    ANGBAND_DIR_PREF = str_dup(path);
 
     strcpy(tail, "pref");
-    ANGBAND_DIR_PREF = string_make(path);
+    ANGBAND_DIR_PREF = str_dup(path);
 
 #ifdef SIL_USE_LOCAL_DATA
     if (path_build(buf, sizeof(buf), ANGBAND_DIR, "user"))
-        ANGBAND_DIR_USER = string_make(buf);
+        ANGBAND_DIR_USER = str_dup(buf);
     else
-        ANGBAND_DIR_USER = string_make(ANGBAND_DIR);
+        ANGBAND_DIR_USER = str_dup(ANGBAND_DIR);
 
     if (path_build(buf, sizeof(buf), ANGBAND_DIR, "data"))
-        ANGBAND_DIR_DATA = string_make(buf);
+        ANGBAND_DIR_DATA = str_dup(buf);
     else
-        ANGBAND_DIR_DATA = string_make(ANGBAND_DIR);
+        ANGBAND_DIR_DATA = str_dup(ANGBAND_DIR);
 
     if (path_build(buf, sizeof(buf), ANGBAND_DIR, "save"))
-        ANGBAND_DIR_SAVE = string_make(buf);
+        ANGBAND_DIR_SAVE = str_dup(buf);
     else
-        ANGBAND_DIR_SAVE = string_make(ANGBAND_DIR);
+        ANGBAND_DIR_SAVE = str_dup(ANGBAND_DIR);
 
     if (path_build(buf, sizeof(buf), ANGBAND_DIR, "apex"))
-        ANGBAND_DIR_APEX = string_make(buf);
+        ANGBAND_DIR_APEX = str_dup(buf);
     else
-        ANGBAND_DIR_APEX = string_make(ANGBAND_DIR);
+        ANGBAND_DIR_APEX = str_dup(ANGBAND_DIR);
 
     if (path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, SIL_USER_META_RUNS))
-        ANGBAND_DIR_METARUN = string_make(buf);
+        ANGBAND_DIR_METARUN = str_dup(buf);
     else
-        ANGBAND_DIR_METARUN = string_make(ANGBAND_DIR_APEX);
+        ANGBAND_DIR_METARUN = str_dup(ANGBAND_DIR_APEX);
 #else
     char user_root[1024];
     if (!build_user_root_path(user_root, sizeof(user_root)))
@@ -617,49 +617,49 @@ void init_file_paths(char* path)
     }
 
     ensure_directory_exists(user_root, "user root");
-    ANGBAND_DIR_USER = string_make(user_root);
+    ANGBAND_DIR_USER = str_dup(user_root);
 
     if (path_build(buf, sizeof(buf), user_root, SIL_USER_DATA_DIR))
     {
         ensure_directory_exists(buf, "data");
-        ANGBAND_DIR_DATA = string_make(buf);
+        ANGBAND_DIR_DATA = str_dup(buf);
     }
     else
     {
-        ANGBAND_DIR_DATA = string_make(user_root);
+        ANGBAND_DIR_DATA = str_dup(user_root);
     }
 
     if (path_build(buf, sizeof(buf), user_root, SIL_USER_SAVE_DIR))
     {
         ensure_directory_exists(buf, "save");
-        ANGBAND_DIR_SAVE = string_make(buf);
+        ANGBAND_DIR_SAVE = str_dup(buf);
     }
     else
     {
-        ANGBAND_DIR_SAVE = string_make(user_root);
+        ANGBAND_DIR_SAVE = str_dup(user_root);
     }
 
     char meta_root[1024];
     if (path_build(meta_root, sizeof(meta_root), user_root, SIL_USER_META_DIR))
     {
         ensure_directory_exists(meta_root, "meta");
-        ANGBAND_DIR_APEX = string_make(meta_root);
+        ANGBAND_DIR_APEX = str_dup(meta_root);
 
         char metarun_dir[1024];
         if (path_build(metarun_dir, sizeof(metarun_dir), meta_root, SIL_USER_META_RUNS))
         {
             ensure_directory_exists(metarun_dir, "metarun");
-            ANGBAND_DIR_METARUN = string_make(metarun_dir);
+            ANGBAND_DIR_METARUN = str_dup(metarun_dir);
         }
         else
         {
-            ANGBAND_DIR_METARUN = string_make(meta_root);
+            ANGBAND_DIR_METARUN = str_dup(meta_root);
         }
     }
     else
     {
-        ANGBAND_DIR_APEX = string_make(user_root);
-        ANGBAND_DIR_METARUN = string_make(user_root);
+        ANGBAND_DIR_APEX = str_dup(user_root);
+        ANGBAND_DIR_METARUN = str_dup(user_root);
     }
 
     migrate_legacy_metarun_layout(ANGBAND_DIR_APEX, ANGBAND_DIR_METARUN);
@@ -669,10 +669,10 @@ void init_file_paths(char* path)
 #endif /* SIL_USE_LOCAL_DATA */
 
     strcpy(tail, "xtra");
-    ANGBAND_DIR_XTRA = string_make(path);
+    ANGBAND_DIR_XTRA = str_dup(path);
 
     strcpy(tail, "script");
-    ANGBAND_DIR_SCRIPT = string_make(path);
+    ANGBAND_DIR_SCRIPT = str_dup(path);
 
 #endif /* VM */
 
@@ -703,11 +703,11 @@ void init_file_paths(char* path)
         if (next)
         {
             /* Forget the old path name */
-            string_free(ANGBAND_DIR_DATA);
+            str_free(ANGBAND_DIR_DATA);
 
             /* Build a new path name */
             sprintf(tail, "data-%s", next);
-            ANGBAND_DIR_DATA = string_make(path);
+            ANGBAND_DIR_DATA = str_dup(path);
         }
     }
 
@@ -2660,21 +2660,23 @@ void cleanup_angband(void)
     /* Note: format() now uses a static buffer, no cleanup needed */
 
     /* Free the directories */
-    string_free(ANGBAND_DIR);
-    string_free(ANGBAND_DIR_APEX);
-    string_free(ANGBAND_DIR_METARUN);
-    string_free(ANGBAND_DIR_BONE);
-    string_free(ANGBAND_DIR_DATA);
-    string_free(ANGBAND_DIR_EDIT);
-    string_free(ANGBAND_DIR_FILE);
-    string_free(ANGBAND_DIR_HELP);
-    string_free(ANGBAND_DIR_INFO);
-    string_free(ANGBAND_DIR_SAVE);
-    string_free(ANGBAND_DIR_PREF);
-    string_free(ANGBAND_DIR_USER);
-    string_free(ANGBAND_DIR_XTRA);
-    string_free(ANGBAND_DIR_SCRIPT);
+    str_free(ANGBAND_DIR);
+    str_free(ANGBAND_DIR_APEX);
+    str_free(ANGBAND_DIR_METARUN);
+    str_free(ANGBAND_DIR_BONE);
+    str_free(ANGBAND_DIR_DATA);
+    str_free(ANGBAND_DIR_EDIT);
+    str_free(ANGBAND_DIR_FILE);
+    str_free(ANGBAND_DIR_HELP);
+    str_free(ANGBAND_DIR_INFO);
+    str_free(ANGBAND_DIR_SAVE);
+    str_free(ANGBAND_DIR_PREF);
+    str_free(ANGBAND_DIR_USER);
+    str_free(ANGBAND_DIR_XTRA);
+    str_free(ANGBAND_DIR_SCRIPT);
 }
+
+
 
 
 

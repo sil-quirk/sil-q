@@ -20,7 +20,7 @@
  * Include the mid-level includes.
  */
 #include "z-util.h"
-#include "z-virt.h"
+#include "mem/alloc.h"
 #include "format.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
@@ -111,6 +111,23 @@ static inline bool suffix(const char* s, const char* t) {
     size_t tlen = strlen(t);
     if (tlen > slen) return false;
     return (strcmp(s + slen - tlen, t) == 0);
+}
+
+/*
+ * String duplication and free helpers (SDL3-based)
+ * These replace the legacy string_make/string_free from z-virt.c
+ */
+
+/* Duplicate a string using SDL memory allocation */
+static inline char* str_dup(const char* str) {
+    if (!str) return NULL;
+    return SDL_strdup(str);
+}
+
+/* Free a string allocated with str_dup and return NULL */
+static inline void* str_free(const char* str) {
+    if (str) SDL_free((void*)str);
+    return NULL;
 }
 
 #endif
