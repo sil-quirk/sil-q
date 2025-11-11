@@ -1,5 +1,7 @@
 # SDL-Only Code Cleanup Plan
 
+> See the "Unified Modernization Roadmap (SDL + Utilities)" table inside `proprietary_utility_retirement_plan.md` for the cross-project ordering (Stages S0–S9). This document drills into the SDL-specific slices of those stages.
+
 ## Status Snapshot (2025-11-11)
 | Phase | Focus | Status | Notes |
 | --- | --- | --- | --- |
@@ -10,9 +12,9 @@
 | 5 | Regression testing | ⚙️ Rolling | SDL3 build + smoke runs executed after each phase; need focused dumps/spoiler verification once file helpers settle. |
 
 ### Next Implementation Targets
-1. Convert `path_parse()`, `path_build()`, and the `fd_*` helpers to return `bool` (or propagate SDL errors) and update call sites (`save.c`, `util.c`, `fs/io_sdl.c`).  
-2. Finish the Phase 4 sweep by moving the remaining bespoke file walkers out of `init1.c`, `init2.c`, and `squelch.c` onto `fs/*`.  
-3. Re-test character dumps, spoilers, and metarun backups after the filesystem changes; capture evidence in `session_notes.md`.  
+1. **Stage S7 (in progress):** With `path_parse()`, `path_build()`, `path_temp()`, and the `fd_*` helpers now returning `bool`, audit the remaining loaders (`init1.c`, `init2.c` follow-ups, `squelch.c`, metarun maintenance) to use the new error contract.  
+2. **Stage S7:** Finish the Phase 4 sweep by moving the remaining bespoke file walkers out of `init1.c`, `init2.c`, and `squelch.c` onto `fs/*`.  
+3. **Stage S9 prep:** Re-test character dumps, spoilers, and metarun backups after the filesystem changes; capture evidence in `session_notes.md`.  
 4. Track the terminal (`z-term`) refactor separately—keep that file stable until the dedicated plan lands.
 
 ---
@@ -57,4 +59,3 @@
 
 ## Out-of-Scope
 - `src/z-term.c` refactor: moved to a dedicated plan. Keep the current terminal abstraction untouched while SDL panes remain the rendering path.
-

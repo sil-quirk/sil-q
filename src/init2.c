@@ -54,7 +54,7 @@ static bool build_user_root_path(char* buf, size_t len)
         if (SDL_strlcpy(temp, base, sizeof(temp)) >= sizeof(temp))
             return false;
         strip_trailing_separators(temp);
-        return (path_build(buf, len, temp, SIL_USER_ROOT) == 0);
+        return path_build(buf, len, temp, SIL_USER_ROOT);
     }
 
     char* pref = SDL_GetPrefPath("Sil-QH", SIL_USER_ROOT);
@@ -89,7 +89,7 @@ static void seed_user_data_from_install(const char* user_data_dir)
         return;
 
     char install_data_dir[1024];
-    if (path_build(install_data_dir, sizeof(install_data_dir), ANGBAND_DIR, "data") != 0)
+    if (!path_build(install_data_dir, sizeof(install_data_dir), ANGBAND_DIR, "data"))
         return;
 
     SDL_PathInfo install_info;
@@ -107,9 +107,9 @@ static void seed_user_data_from_install(const char* user_data_dir)
         char source[1024];
         char destination[1024];
 
-        if (path_build(source, sizeof(source), install_data_dir, entries[i]) != 0)
+        if (!path_build(source, sizeof(source), install_data_dir, entries[i]))
             continue;
-        if (path_build(destination, sizeof(destination), user_data_dir, entries[i]) != 0)
+        if (!path_build(destination, sizeof(destination), user_data_dir, entries[i]))
             continue;
 
         if (SDL_GetPathInfo(destination, NULL))
@@ -139,12 +139,12 @@ static bool copy_leaf_if_needed(const char* src_dir, const char* dst_dir, const 
     if (!src_dir || !dst_dir || !leaf)
         return false;
 
-    if (path_build(src, sizeof(src), src_dir, leaf) != 0)
+    if (!path_build(src, sizeof(src), src_dir, leaf))
         return false;
     if (!SDL_GetPathInfo(src, &info) || info.type != SDL_PATHTYPE_FILE)
         return false;
 
-    if (path_build(dst, sizeof(dst), dst_dir, leaf) != 0)
+    if (!path_build(dst, sizeof(dst), dst_dir, leaf))
         return false;
 
     bool dest_exists = SDL_GetPathInfo(dst, NULL);
@@ -174,7 +174,7 @@ static bool has_valid_metarun_data(const char* meta_dir)
         return false;
 
     char meta_path[1024];
-    if (path_build(meta_path, sizeof(meta_path), meta_dir, META_RAW) != 0)
+    if (!path_build(meta_path, sizeof(meta_path), meta_dir, META_RAW))
         return false;
 
     SDL_PathInfo info;
@@ -216,14 +216,14 @@ static void seed_user_meta_from_install(const char* user_meta_dir, const char* u
     char legacy_meta_path[1024];
     bool found_legacy = false;
 
-    if (path_build(install_apex_dir, sizeof(install_apex_dir), ANGBAND_DIR, "apex") == 0)
+    if (path_build(install_apex_dir, sizeof(install_apex_dir), ANGBAND_DIR, "apex"))
     {
         log_debug("init_file_paths: apex dir = '%s'", install_apex_dir);
-        if (path_build(install_metaruns_dir, sizeof(install_metaruns_dir), install_apex_dir, "metaruns") == 0)
+        if (path_build(install_metaruns_dir, sizeof(install_metaruns_dir), install_apex_dir, "metaruns"))
         {
             log_debug("init_file_paths: metaruns dir = '%s'", install_metaruns_dir);
-            if (path_build(legacy_meta_path, sizeof(legacy_meta_path), install_metaruns_dir, META_RAW) == 0)
-            {
+                if (path_build(legacy_meta_path, sizeof(legacy_meta_path), install_metaruns_dir, META_RAW))
+                {
                 log_debug("init_file_paths: checking for legacy meta.raw at '%s'", legacy_meta_path);
                 SDL_PathInfo info;
                 if (SDL_GetPathInfo(legacy_meta_path, &info) && info.type == SDL_PATHTYPE_FILE)
@@ -241,14 +241,14 @@ static void seed_user_meta_from_install(const char* user_meta_dir, const char* u
 
     /* Determine source directory for scores.raw and possibly meta.raw */
     char install_meta_dir[1024];
-    if (path_build(install_meta_dir, sizeof(install_meta_dir), ANGBAND_DIR, "apex") != 0)
+    if (!path_build(install_meta_dir, sizeof(install_meta_dir), ANGBAND_DIR, "apex"))
         return;
 
     log_info("init_file_paths: migrating metarun data from install directory");
 
     /* Copy scores.raw from lib/apex/ if present */
     char score_path[1024];
-    if (path_build(score_path, sizeof(score_path), user_meta_dir, "scores.raw") == 0)
+    if (path_build(score_path, sizeof(score_path), user_meta_dir, "scores.raw"))
     {
         SDL_PathInfo info;
         if (!SDL_GetPathInfo(score_path, &info) || info.type != SDL_PATHTYPE_FILE)
@@ -262,7 +262,7 @@ static void seed_user_meta_from_install(const char* user_meta_dir, const char* u
 
     /* Copy meta.raw from the appropriate source */
     char user_meta_path[1024];
-    if (path_build(user_meta_path, sizeof(user_meta_path), user_meta_dir, META_RAW) == 0)
+    if (path_build(user_meta_path, sizeof(user_meta_path), user_meta_dir, META_RAW))
     {
         SDL_PathInfo info;
         if (!SDL_GetPathInfo(user_meta_path, &info) || info.type != SDL_PATHTYPE_FILE)
@@ -304,7 +304,7 @@ static void seed_user_saves_from_install(const char* user_save_dir)
         return;
 
     char install_save_dir[1024];
-    if (path_build(install_save_dir, sizeof(install_save_dir), ANGBAND_DIR, "save") != 0)
+    if (!path_build(install_save_dir, sizeof(install_save_dir), ANGBAND_DIR, "save"))
         return;
 
     SDL_PathInfo info;
@@ -354,9 +354,9 @@ static void seed_user_saves_from_install(const char* user_save_dir)
 
         char src_path[1024];
         char dst_path[1024];
-        if (path_build(src_path, sizeof(src_path), install_save_dir, entries[i]) != 0)
+        if (!path_build(src_path, sizeof(src_path), install_save_dir, entries[i]))
             continue;
-        if (path_build(dst_path, sizeof(dst_path), user_save_dir, entries[i]) != 0)
+        if (!path_build(dst_path, sizeof(dst_path), user_save_dir, entries[i]))
             continue;
 
         if (!SDL_GetPathInfo(src_path, &info) || info.type != SDL_PATHTYPE_FILE)
@@ -384,7 +384,7 @@ static void migrate_legacy_metarun_layout(const char* meta_root, const char* met
         return;
 
     char legacy[1024];
-    if (path_build(legacy, sizeof(legacy), metarun_dir, META_RAW) != 0)
+    if (!path_build(legacy, sizeof(legacy), metarun_dir, META_RAW))
         return;
 
     SDL_PathInfo info;
@@ -419,7 +419,7 @@ static void migrate_legacy_metarun_layout(const char* meta_root, const char* met
     }
 
     char target[1024];
-    if (path_build(target, sizeof(target), meta_root, META_RAW) != 0)
+    if (!path_build(target, sizeof(target), meta_root, META_RAW))
         return;
 
     SDL_PathInfo target_info;
@@ -583,27 +583,27 @@ void init_file_paths(char* path)
     ANGBAND_DIR_PREF = string_make(path);
 
 #ifdef SIL_USE_LOCAL_DATA
-    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "user") == 0)
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "user"))
         ANGBAND_DIR_USER = string_make(buf);
     else
         ANGBAND_DIR_USER = string_make(ANGBAND_DIR);
 
-    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "data") == 0)
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "data"))
         ANGBAND_DIR_DATA = string_make(buf);
     else
         ANGBAND_DIR_DATA = string_make(ANGBAND_DIR);
 
-    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "save") == 0)
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "save"))
         ANGBAND_DIR_SAVE = string_make(buf);
     else
         ANGBAND_DIR_SAVE = string_make(ANGBAND_DIR);
 
-    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "apex") == 0)
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "apex"))
         ANGBAND_DIR_APEX = string_make(buf);
     else
         ANGBAND_DIR_APEX = string_make(ANGBAND_DIR);
 
-    if (path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, SIL_USER_META_RUNS) == 0)
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, SIL_USER_META_RUNS))
         ANGBAND_DIR_METARUN = string_make(buf);
     else
         ANGBAND_DIR_METARUN = string_make(ANGBAND_DIR_APEX);
@@ -619,7 +619,7 @@ void init_file_paths(char* path)
     ensure_directory_exists(user_root, "user root");
     ANGBAND_DIR_USER = string_make(user_root);
 
-    if (path_build(buf, sizeof(buf), user_root, SIL_USER_DATA_DIR) == 0)
+    if (path_build(buf, sizeof(buf), user_root, SIL_USER_DATA_DIR))
     {
         ensure_directory_exists(buf, "data");
         ANGBAND_DIR_DATA = string_make(buf);
@@ -629,7 +629,7 @@ void init_file_paths(char* path)
         ANGBAND_DIR_DATA = string_make(user_root);
     }
 
-    if (path_build(buf, sizeof(buf), user_root, SIL_USER_SAVE_DIR) == 0)
+    if (path_build(buf, sizeof(buf), user_root, SIL_USER_SAVE_DIR))
     {
         ensure_directory_exists(buf, "save");
         ANGBAND_DIR_SAVE = string_make(buf);
@@ -640,13 +640,13 @@ void init_file_paths(char* path)
     }
 
     char meta_root[1024];
-    if (path_build(meta_root, sizeof(meta_root), user_root, SIL_USER_META_DIR) == 0)
+    if (path_build(meta_root, sizeof(meta_root), user_root, SIL_USER_META_DIR))
     {
         ensure_directory_exists(meta_root, "meta");
         ANGBAND_DIR_APEX = string_make(meta_root);
 
         char metarun_dir[1024];
-        if (path_build(metarun_dir, sizeof(metarun_dir), meta_root, SIL_USER_META_RUNS) == 0)
+        if (path_build(metarun_dir, sizeof(metarun_dir), meta_root, SIL_USER_META_RUNS))
         {
             ensure_directory_exists(metarun_dir, "metarun");
             ANGBAND_DIR_METARUN = string_make(metarun_dir);

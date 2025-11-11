@@ -5281,7 +5281,7 @@ void init_logger(bool quiet, const char* exe_path)
 
     /* Note: The log library uses standard FILE* for logging */
     char parsed_path[1024];
-    if (path_parse(parsed_path, sizeof(parsed_path), log_path))
+    if (!path_parse(parsed_path, sizeof(parsed_path), log_path))
         quit("could not parse log path");
     
     FILE* log_file = fopen(parsed_path, "w");

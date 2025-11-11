@@ -4974,3 +4974,16 @@ The custom vstrnfmt in z-form.c supports "%^" which capitalizes the first non-sp
 
 * Convert s/path.* (path_parse, path_build, d_*) to return ool/SDL error codes instead of errr, then update the remaining call sites (save.c, util.c, s/io_sdl.c).
 * Finish migrating the bespoke loaders in init1.c, init2.c, and squelch.c onto the new filesystem helpers, then re-run the dump/spoiler smoke tests.
+## 2025-11-11: Unified Plan + SDL Filesystem Contract
+
+### Planning
+* proprietary_utility_retirement_plan.md now leads with a unified SDL+utility roadmap (Stages S0–S9) and refreshed Phase 4c status; SDL_CLEANUP_PLAN.md points to that table and its next-step bullets reference the shared stage numbers.
+* Immediate-actions list now focuses on auditing the bool-returning helpers across init1.c/squelch.c/metarun work and finishing the filesystem breakout before the z-term plan resumes.
+
+### Implementation
+* src/fs/path.c + s/path.h: converted path_parse, path_build, path_temp, and the d_* helpers to return ool, keeping SDL error logging but eliminating the legacy errr contract.
+* Updated all callers (s/io_sdl.c, save.c, util.c, cmd4.c, iles.c, metarun.c, init2.c) to use the bool API, add early-exit logging in updatecharinfoS(), and keep the rotation/backups logic intact.
+* Cleaned up save.c/iles.c/metarun.c ownership of delete/move operations now that d_kill/d_move return ool.
+
+### Verification
+* uild-cmake.bat ? SUCCESS (same pre-existing warnings in irth.c, cmd2.c, cmd4.c, main-sdl.c, init2.c).

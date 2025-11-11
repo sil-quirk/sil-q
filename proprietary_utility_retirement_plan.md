@@ -2,7 +2,26 @@
 
 This document inventories the legacy helper layers (primarily `z-*.c` and `util.c`) and lays out a stepwise refactor path that replaces them with modern C17 or SDL3 facilities. Each phase is scoped so the tree keeps building and running (`build-cmake.bat` on Windows / `cmake --build build` elsewhere) before moving on.
 
-## Status Snapshot (2025-11-10)
+## Unified Modernization Roadmap (SDL + Utilities)
+| Stage | Origin | Focus | Status | Notes |
+| --- | --- | --- | --- | --- |
+| S0 | Prop Phase 0 | Baseline build + warning log | ✅ Done | Guardrails recorded in `session_notes.md:37-124`. |
+| S1 | SDL Phase 1 | Highscore I/O rewrite + flush safety | ✅ Done | SDL-only `highscore_add()`/`open_scores_file_versioned()` (see `session_notes.md:374-512`). |
+| S2 | SDL Phase 2 | Remove `USE_SDL` conditionals + legacy modules | ✅ Done | `main.c`, CMake, and build scripts now assume SDL exclusively (`session_notes.md:4870-4890`). |
+| S3 | Prop Phase 1 | String/memory helper cleanup | ✅ Done | Inline `streq/prefix/suffix`; `z-virt` migrated to SDL allocators. |
+| S4 | Prop Phase 2 | SDL-backed file/path wrappers adoption | ✅ Done | `sdl_fopen` + friends landed in `src/fs/io_sdl.c`; dump/load callers switched. |
+| S5 | Prop Phase 3 | Formatting/logging glue overhaul | ✅ Done | `format.c/.h` own the API; `z-form.*` removed. |
+| S6 | Prop Phase 4/4b | RNG + math helper migration | ✅ Done | `rng.c/.h` + SDL random context integration. |
+| S7 | Prop Phase 4c + SDL Phase 3/4 | Filesystem breakout + modern error contracts | ⚙️ In progress | SDL path helpers exist; next up is converting `path_parse/path_build/fd_*` to `bool` + migrating `init1/2` & `squelch` callers. |
+| S8 | Prop Phase 5 | Terminal abstraction retirement | 📝 Planned | `z-term` refactor tracked in its own plan; keep stable until SDL panes cover all flows. |
+| S9 | Prop Phase 6 + SDL Phase 5 | Final utility deletion + regression matrix | 📝 Planned | Requires spoiler/dump verification, metarun backups, and removal of unused `z-*` files. |
+
+**Immediate next actions**
+1. Leverage the new `bool`-returning filesystem helpers to tighten error handling in the remaining loaders (`init1.c`, `init2.c` follow-ups, `squelch.c`, metarun maintenance).
+2. Port the remaining loaders to focused `fs/*` helpers as part of the filesystem breakout.
+3. Re-run the dump/spoiler/metarun regression matrix once the filesystem helpers stabilize, then proceed to the `z-term` plan.
+
+## Status Snapshot (2025-11-11)
 | Phase | Focus | Status | Evidence |
 | --- | --- | --- | --- |
 | 0 | Baseline + guardrails | Done | Baseline build + warning count recorded in `session_notes.md:37-124`. |
@@ -11,7 +30,7 @@ This document inventories the legacy helper layers (primarily `z-*.c` and `util.
 | 3 | Formatting + logging glue | Done | `src/format.c`/`src/format.h` own the public helpers (`session_notes.md:4235-4277`); `z-form.*` has been deleted. |
 | 4 | RNG + math helpers | Done (compatibility baseline) | `src/rng.c`/`src/rng.h` replace `z-rand.*` (`session_notes.md:3-84`) while preserving deterministic behavior. |
 | 4b | SDL random state integration | Done | Single SDL-backed RNG state (`Rand_state_export/import`) now drives all random draws (`session_notes.md:4203-4216`). |
-| 4c | Filesystem breakout | In progress | SDL path helpers now live in `src/fs/path.c`, `sdl_fopen` + `fd_*` consume SDL Filesystem APIs, and `util.c` dropped the tmpnam()/SET_UID path code (session_notes.md, 2025-11-11). |
+| 4c | Filesystem breakout | In progress | SDL path helpers live in `src/fs/path.c`; `path_parse/path_build/path_temp/fd_*` now return `bool` (2025-11-11). Next up: migrate `init1/2`, `squelch`, and metarun maintenance to the helpers (session_notes.md, 2025-11-11). |
 | 5 | Terminal abstraction | Planned | Collapse `z-term` once SDL panes cover all rendering/input needs. |
 | 6 | Final deletion | Planned | Remove the remaining `z-*` files and normalize headers/docs. |
 

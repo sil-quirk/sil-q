@@ -1210,7 +1210,7 @@ errr load_metaruns(bool create_if_missing)
 
     if (!fd && ANGBAND_DIR_METARUN && ANGBAND_DIR_METARUN[0]) {
         char legacy[1024];
-        if (path_build(legacy, sizeof legacy, ANGBAND_DIR_METARUN, META_RAW) == 0) {
+        if (path_build(legacy, sizeof legacy, ANGBAND_DIR_METARUN, META_RAW)) {
             fd = sdl_fopen(legacy, "rb");
             if (fd) {
                 log_info("Loading legacy metarun file: %s", legacy);
@@ -1538,7 +1538,7 @@ static errr backup_file(const char *filepath)
         if (fd_test2) {
             sdl_fclose(fd_test2);
             log_debug("backup_file: moving bak2 to bak3");
-            if (fd_move(backup_path2, backup_path3) != 0) {
+            if (!fd_move(backup_path2, backup_path3)) {
                 log_debug("backup_file: failed to move bak2 to bak3");
             }
         }
@@ -1548,7 +1548,7 @@ static errr backup_file(const char *filepath)
         if (fd_test1) {
             sdl_fclose(fd_test1);
             log_debug("backup_file: moving bak1 to bak2");
-            if (fd_move(backup_path1, backup_path2) != 0) {
+            if (!fd_move(backup_path1, backup_path2)) {
                 log_debug("backup_file: failed to move bak1 to bak2");
             }
         }
@@ -3077,11 +3077,11 @@ static void start_new_metarun(void)
     /* Hard purge the current savefile if this was a noscore wizard/debug run */
     if (p_ptr && (p_ptr->wizard || (p_ptr->noscore & 0x0008)) && (p_ptr->noscore & 0x000F)) {
         if (savefile[0]) {
-            int rc;
+            bool deleted;
             safe_setuid_grab();
-            rc = fd_kill(savefile);
+            deleted = fd_kill(savefile);
             safe_setuid_drop();
-            if (rc == 0) {
+            if (deleted) {
                 log_info("metarun: deleted noscore savefile '%s'", savefile);
             } else {
                 log_warn("metarun: failed to delete noscore savefile '%s'", savefile);

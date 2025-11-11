@@ -5,7 +5,7 @@
 
 static bool sanitize_path(char* out, size_t out_len, cptr file)
 {
-    if (path_parse(out, out_len, file))
+    if (!path_parse(out, out_len, file))
     {
         log_debug("sdl_fopen: unable to parse path '%s'", file);
         return false;
@@ -44,7 +44,7 @@ errr sdl_fclose(SDL_IOStream* stream)
 
 SDL_IOStream* sdl_fopen_temp(char* buf, size_t max)
 {
-    if (path_temp(buf, max))
+    if (!path_temp(buf, max))
         return NULL;
 
     return sdl_fopen(buf, "w");

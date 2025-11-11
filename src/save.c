@@ -21,8 +21,17 @@ void updatecharinfoS(void)
 
     log_debug("Creating character output file");
 
-    path_parse(parsed_dir_user, sizeof(parsed_dir_user), ANGBAND_DIR_USER);
-    path_build(tmp_Path, sizeof(tmp_Path), parsed_dir_user, "CharOutput.txt");
+    if (!path_parse(parsed_dir_user, sizeof(parsed_dir_user), ANGBAND_DIR_USER))
+    {
+        log_warn("updatecharinfoS: unable to resolve user directory");
+        return;
+    }
+
+    if (!path_build(tmp_Path, sizeof(tmp_Path), parsed_dir_user, "CharOutput.txt"))
+    {
+        log_warn("updatecharinfoS: unable to build character output path");
+        return;
+    }
 
     FILE* oFile = fopen(tmp_Path, "w");
     if (!oFile) {
@@ -1951,7 +1960,7 @@ bool save_player(void)
 
     /* Remove it */
     log_debug("save_player: attempting to remove existing .new file: %s", safe);
-    if (fd_kill(safe) != 0)
+    if (!fd_kill(safe))
     {
         log_warn("save_player: fd_kill failed for %s (file may not exist, which is OK)", safe);
     }
@@ -1996,7 +2005,7 @@ bool save_player(void)
             sdl_fclose(old_fd);
             log_debug("Old savefile exists, preserving it as .old");
             
-            if (fd_move(savefile, temp) != 0)
+            if (!fd_move(savefile, temp))
             {
                 log_error("Failed to preserve old savefile - aborting activation");
                 safe_setuid_drop();
@@ -2010,7 +2019,7 @@ bool save_player(void)
         }
 
         /* Activate new savefile */
-        if (fd_move(safe, savefile) != 0)
+        if (!fd_move(safe, savefile))
         {
             log_error("Failed to activate new savefile - attempting to restore old");
             /* Try to restore the old file if it existed */

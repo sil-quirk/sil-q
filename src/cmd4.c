@@ -11594,7 +11594,7 @@ void do_cmd_knowledge_oaths(void)
     char file_name[1024];
     
     /* Temporary file */
-    if (path_temp(file_name, sizeof(file_name)))
+    if (!path_temp(file_name, sizeof(file_name)))
         return;
 
     /* Open a new file */

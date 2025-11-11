@@ -144,57 +144,47 @@ static bool expand_home_path(char* buf, size_t max, cptr file)
     return true;
 }
 
-errr path_parse(char* buf, size_t max, cptr file)
+bool path_parse(char* buf, size_t max, cptr file)
 {
     if (!buf || max == 0 || !file || *file == '\0')
-        return -1;
+        return false;
 
     buf[0] = '\0';
 
     if (file[0] == '~')
-    {
-        if (!expand_home_path(buf, max, file))
-            return -1;
-        return 0;
-    }
+        return expand_home_path(buf, max, file);
 
     if (!safe_copy(buf, max, file))
-        return -1;
+        return false;
 
     normalize_separators(buf);
-    return 0;
+    return true;
 }
 
-errr path_build(char* buf, size_t max, cptr path, cptr file)
+bool path_build(char* buf, size_t max, cptr path, cptr file)
 {
     if (!buf || max == 0 || !file)
-        return -1;
+        return false;
 
     buf[0] = '\0';
 
     if (file[0] == '~')
-    {
         return path_parse(buf, max, file);
-    }
 
     if (prefix(file, PATH_SEP) && !streq(PATH_SEP, ""))
-    {
-        return safe_copy(buf, max, file) ? 0 : -1;
-    }
+        return safe_copy(buf, max, file);
 
     if (!path || path[0] == '\0')
-    {
-        return safe_copy(buf, max, file) ? 0 : -1;
-    }
+        return safe_copy(buf, max, file);
 
     if (!safe_copy(buf, max, path))
-        return -1;
+        return false;
 
     if (!append_component(buf, max, file))
-        return -1;
+        return false;
 
     normalize_separators(buf);
-    return 0;
+    return true;
 }
 
 static bool generate_temp_filename(char* out, size_t max)
@@ -211,20 +201,20 @@ static bool generate_temp_filename(char* out, size_t max)
     return safe_append(out, max, random_component);
 }
 
-errr path_temp(char* buf, size_t max)
+bool path_temp(char* buf, size_t max)
 {
     if (!buf || max == 0)
-        return -1;
+        return false;
 
     char* pref_path = SDL_GetPrefPath(FS_PREF_ORG, VERSION_NAME);
     if (!pref_path)
     {
         log_error("path_temp: SDL_GetPrefPath() failed: %s", SDL_GetError());
-        return -1;
+        return false;
     }
 
-    errr result = -1;
-    for (int attempt = 0; attempt < 32; ++attempt)
+    bool success = false;
+    for (int attempt = 0; attempt < 32 && !success; ++attempt)
     {
         buf[0] = '\0';
 
@@ -243,73 +233,72 @@ errr path_temp(char* buf, size_t max)
         if (!SDL_GetPathInfo(buf, NULL))
         {
             SDL_ClearError();
-            result = 0;
-            break;
+            success = true;
         }
     }
 
     SDL_free(pref_path);
 
-    if (result != 0)
+    if (!success)
         log_error("path_temp: unable to allocate unique path after retries");
 
-    return result;
+    return success;
 }
 
-errr fd_kill(cptr file)
+bool fd_kill(cptr file)
 {
     char parsed[1024];
 
-    if (path_parse(parsed, sizeof(parsed), file))
-        return -1;
+    if (!path_parse(parsed, sizeof(parsed), file))
+        return false;
 
     if (!SDL_RemovePath(parsed))
     {
         log_error("fd_kill: remove '%s' failed: %s", parsed, SDL_GetError());
-        return -1;
+        return false;
     }
 
-    return 0;
+    return true;
 }
 
-errr fd_move(cptr file, cptr what)
+bool fd_move(cptr file, cptr what)
 {
     char parsed_src[1024];
     char parsed_dst[1024];
 
-    if (path_parse(parsed_src, sizeof(parsed_src), file))
-        return -1;
+    if (!path_parse(parsed_src, sizeof(parsed_src), file))
+        return false;
 
-    if (path_parse(parsed_dst, sizeof(parsed_dst), what))
-        return -1;
+    if (!path_parse(parsed_dst, sizeof(parsed_dst), what))
+        return false;
 
     if (!SDL_RenamePath(parsed_src, parsed_dst))
     {
         log_error("fd_move: '%s' -> '%s' failed: %s", parsed_src,
             parsed_dst, SDL_GetError());
-        return -1;
+        return false;
     }
 
-    return 0;
+    return true;
 }
 
-errr fd_copy(cptr file, cptr what)
+bool fd_copy(cptr file, cptr what)
 {
     char parsed_src[1024];
     char parsed_dst[1024];
 
-    if (path_parse(parsed_src, sizeof(parsed_src), file))
-        return -1;
+    if (!path_parse(parsed_src, sizeof(parsed_src), file))
+        return false;
 
-    if (path_parse(parsed_dst, sizeof(parsed_dst), what))
-        return -1;
+    if (!path_parse(parsed_dst, sizeof(parsed_dst), what))
+        return false;
 
     if (!SDL_CopyFile(parsed_src, parsed_dst))
     {
         log_error("fd_copy: '%s' -> '%s' failed: %s", parsed_src,
             parsed_dst, SDL_GetError());
-        return -1;
+        return false;
     }
 
-    return 0;
+    return true;
 }
