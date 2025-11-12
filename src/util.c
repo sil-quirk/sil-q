@@ -20,6 +20,55 @@ bool no_light(void)
     /* Consider no special light blocking by default */
     return false;
 }
+
+/*
+ * Parse a hexadecimal string (optional separators) into an unsigned 64-bit value.
+ * Accepts optional "0x" prefix and ignores '-', '_' or whitespace separators.
+ */
+bool parse_u64b_hex(const char* text, u64b* out)
+{
+    if (!text || !out)
+        return false;
+
+    u64b value = 0;
+    int digits = 0;
+
+    while (*text)
+    {
+        char c = *text++;
+
+        if (c == '-' || c == '_' || c == ' ')
+            continue;
+
+        if (digits == 0 && c == '0' && (*text == 'x' || *text == 'X'))
+        {
+            text++;
+            continue;
+        }
+
+        int nibble;
+        if (c >= '0' && c <= '9')
+            nibble = c - '0';
+        else if (c >= 'a' && c <= 'f')
+            nibble = 10 + (c - 'a');
+        else if (c >= 'A' && c <= 'F')
+            nibble = 10 + (c - 'A');
+        else
+            return false;
+
+        if (digits >= 16)
+            return false;
+
+        value = (value << 4) | (u64b)nibble;
+        digits++;
+    }
+
+    if (digits == 0)
+        return false;
+
+    *out = value;
+    return true;
+}
 #ifdef SET_UID
 
 #ifndef HAVE_USLEEP

@@ -79,6 +79,76 @@ done_diffs:
 }
 #endif
 
+typedef struct vault_monster_spec {
+    char symbol;
+    const char* guid_text;
+    u64b guid;
+    bool guid_cached;
+    bool start_sleeping;
+    bool ignore_depth;
+} vault_monster_spec;
+
+static vault_monster_spec vault_monster_table[] = {
+    {'C', "9cbdbb88fd4f59dc", 0, false, true, true},
+    {'H', "c790972955718680", 0, false, true, false},
+    {'@', "4acd2c9fcc5cd6e5", 0, false, true, false},
+    {'o', "88ef7547642967b2", 0, false, true, false},
+    {'O', "2c739cdb1be99f2c", 0, false, true, false},
+    {'Z', "05f49e29acf49a93", 0, false, true, true},
+    {'f', "3c10b33361f6f136", 0, false, true, false},
+    {'F', "9a6fbc6e7b46f502", 0, false, true, false},
+    {'T', "b39a82dfdc1c5ef9", 0, false, true, false},
+    {'W', "c92f7e02e189e1bd", 0, false, true, true},
+    {'y', "2f6ec4ab45007365", 0, false, true, false},
+    {'Y', "0af151dfe09fe455", 0, false, true, false},
+    {'A', "ed37fc4fce32643f", 0, false, true, true},
+    {'L', "d27e36edf5c2f432", 0, false, true, true},
+    {'N', "f134bcd795c27d4f", 0, false, true, true},
+    {'D', "3ab7e216cb871fec", 0, false, true, true},
+    {'R', "0e0f11695f8a443d", 0, false, true, true},
+    {'U', "c2485b83ba33934d", 0, false, true, true},
+    {'G', "7b038638b2981d20", 0, false, true, true},
+    {'V', "58d8cf770bfcbe6f", 0, false, true, true},
+};
+
+static bool place_vault_monster_token(char symbol, int y, int x)
+{
+    for (size_t i = 0; i < N_ELEMENTS(vault_monster_table); i++)
+    {
+        vault_monster_spec* spec = &vault_monster_table[i];
+        if (spec->symbol != symbol)
+            continue;
+
+        if (!spec->guid_cached)
+        {
+            spec->guid_cached = true;
+            if (!parse_u64b_hex(spec->guid_text, &spec->guid))
+            {
+                spec->guid = 0;
+                log_error("Vault: invalid GUID '%s' for token '%c'",
+                    spec->guid_text, symbol);
+            }
+        }
+
+        if (!spec->guid)
+        {
+            log_warn("Vault: GUID missing for monster token '%c'", symbol);
+            return false;
+        }
+
+        if (!place_monster_by_guid(
+                y, x, spec->guid, spec->start_sleeping, spec->ignore_depth, NULL))
+        {
+            log_warn("Vault: failed to place monster for token '%c'", symbol);
+            return false;
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
 /* Structure to hold pending quest state changes that should only be applied
  * when level generation is completely successful */
 typedef struct {
@@ -3547,37 +3617,35 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             /* Carcharoth */
             case 'C':
             {
-                place_monster_one(y, x, R_IDX_CARCHAROTH, true, true, NULL);
+                place_vault_monster_token('C', y, x);
                 break;
             }
 
             /* silent watcher */
             case 'H':
             {
-                place_monster_one(
-                    y, x, R_IDX_SILENT_WATCHER, true, false, NULL);
+                place_vault_monster_token('H', y, x);
                 break;
             }
 
             /* easterling spy */
             case '@':
             {
-                place_monster_one(
-                    y, x, R_IDX_EASTERLING_SPY, true, false, NULL);
+                place_vault_monster_token('@', y, x);
                 break;
             }
 
             /* orc champion */
             case 'o':
             {
-                place_monster_one(y, x, R_IDX_ORC_CHAMPION, true, false, NULL);
+                place_vault_monster_token('o', y, x);
                 break;
             }
 
             /* orc captain */
             case 'O':
             {
-                place_monster_one(y, x, R_IDX_ORC_CAPTAIN, true, false, NULL);
+                place_vault_monster_token('O', y, x);
                 break;
             }
 
@@ -3599,36 +3667,35 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
 
             case 'Z':
             {
-                place_monster_one(
-                    y, x, R_IDX_ORC_THRALLMASTER, true, true, NULL);
+                place_vault_monster_token('Z', y, x);
                 break;
             }
 
             /* cat warrior */
             case 'f':
             {
-                place_monster_one(y, x, R_IDX_CAT_WARRIOR, true, false, NULL);
+                place_vault_monster_token('f', y, x);
                 break;
             }
 
             /* cat assassin */
             case 'F':
             {
-                place_monster_one(y, x, R_IDX_CAT_ASSASSIN, true, false, NULL);
+                place_vault_monster_token('F', y, x);
                 break;
             }
 
             /* troll guard */
             case 'T':
             {
-                place_monster_one(y, x, R_IDX_TROLL_GUARD, true, false, NULL);
+                place_vault_monster_token('T', y, x);
                 break;
             }
 
             /* barrow wight */
             case 'W':
             {
-                place_monster_one(y, x, R_IDX_BARROW_WIGHT, true, true, NULL);
+                place_vault_monster_token('W', y, x);
                 break;
             }
 
@@ -3643,16 +3710,14 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             /* young cold drake */
             case 'y':
             {
-                place_monster_one(
-                    y, x, R_IDX_YOUNG_COLD_DRAKE, true, false, NULL);
+                place_vault_monster_token('y', y, x);
                 break;
             }
 
             /* young fire drake */
             case 'Y':
             {
-                place_monster_one(
-                    y, x, R_IDX_YOUNG_FIRE_DRAKE, true, false, NULL);
+                place_vault_monster_token('Y', y, x);
                 break;
             }
 
@@ -3707,54 +3772,54 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 /* Aldor */
             case 'A':
             {
-                place_monster_one(y, x, R_IDX_ALDOR, true, true, NULL);
+                place_vault_monster_token('A', y, x);
                 break;
             }
             /* Aule (quest giver) */
             case 'L':
             {
-                place_monster_one(y, x, R_IDX_AULE, true, true, NULL);
+                place_vault_monster_token('L', y, x);
                 break;
             }
             /* Mandos (quest giver) */
             case 'N':
             {
-                place_monster_one(y, x, R_IDX_MANDOS, true, true, NULL);
+                place_vault_monster_token('N', y, x);
                 break;
             }
 
             /* Glaurung */
             case 'D':
             {
-                place_monster_one(y, x, R_IDX_GLAURUNG, true, true, NULL);
+                place_vault_monster_token('D', y, x);
                 break;
             }
 
             /* Gothmog */
             case 'R':
             {
-                place_monster_one(y, x, R_IDX_GOTHMOG, true, true, NULL);
+                place_vault_monster_token('R', y, x);
                 break;
             }
 
             /* Ungoliant */
             case 'U':
             {
-                place_monster_one(y, x, R_IDX_UNGOLIANT, true, true, NULL);
+                place_vault_monster_token('U', y, x);
                 break;
             }
 
             /* Gorthaur */
             case 'G':
             {
-                place_monster_one(y, x, R_IDX_GORTHAUR, true, true, NULL);
+                place_vault_monster_token('G', y, x);
                 break;
             }
 
             /* Morgoth */
             case 'V':
             {
-                place_monster_one(y, x, R_IDX_MORGOTH, true, true, NULL);
+                place_vault_monster_token('V', y, x);
                 break;
             }
             }

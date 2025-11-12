@@ -5717,3 +5717,10 @@ Remove support for obsolete system pref files, keeping only SDL support for mode
 - Moved the score-file header loader, on-disk upgrader, and SDL stream opener into `src/score/score_io.c`, exposing them via `score_file_load_header()` / `score_file_open()` in `score/score_io.h`. `src/files.c` now calls the public API instead of hosting duplicate low-level I/O.
 - The shared `score_file_ctx` remains the single source of truth for descriptor + version metadata; the new helpers update `ctx->entry_count` directly so the existing `scores_file_*` macros continue to work without touching static globals.
 - Verified the refactor with `build-cmake.bat`; only the pre-existing warnings remain.
+
+## 2025-11-13 - Monster GUIDs & Vault Tokens
+
+- Introduced explicit monster GUIDs: monster_race now carries a u64b guid, monster.txt accepts Q: records (documented at the top of the file), and the uniques referenced by vault scripts all have deterministic hex IDs.
+- Added GUID helpers in util.c (parse_u64b_hex) and monster2.c (monster_lookup_guid, monster_lookup_guid_text, place_monster_by_guid) so runtime systems can request a monster by ID rather than by fragile R_IDX_* constants.
+- Refactored the vault placement switch in src/generate.c: tokens like C, H, @, o, O, Z, , F, T, W, y, Y, A, L, N, D, R, U, G, and V now consult a small GUID-backed table, making the mapping entirely data-driven. Failures log warnings and the underlying monsters are placed via the new GUID helper.
+

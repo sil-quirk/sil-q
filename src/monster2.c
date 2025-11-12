@@ -2516,6 +2516,33 @@ int random_r_idx(void)
     }
 }
 
+s16b monster_lookup_guid(u64b guid)
+{
+    if (!guid)
+        return 0;
+
+    for (s16b i = 1; i < z_info->r_max; i++)
+    {
+        monster_race* r_ptr = &r_info[i];
+        if (r_ptr->guid == guid)
+            return i;
+    }
+
+    return 0;
+}
+
+s16b monster_lookup_guid_text(const char* text)
+{
+    if (!text)
+        return 0;
+
+    u64b guid = 0;
+    if (!parse_u64b_hex(text, &guid))
+        return 0;
+
+    return monster_lookup_guid(guid);
+}
+
 /*
  * Attempt to place a monster of the given race at the given location.
  *
@@ -2760,6 +2787,20 @@ bool place_monster_one(
 
     /* Success */
     return (true);
+}
+
+bool place_monster_by_guid(
+    int y, int x, u64b guid, bool slp, bool ignore_depth, monster_type* summoner)
+{
+    s16b r_idx = monster_lookup_guid(guid);
+    if (!r_idx)
+    {
+        log_warn("place_monster_by_guid: no monster with GUID 0x%08lx%08lx",
+            (unsigned long)(guid >> 32), (unsigned long)(guid & 0xFFFFFFFFUL));
+        return false;
+    }
+
+    return place_monster_one(y, x, r_idx, slp, ignore_depth, summoner);
 }
 
 /*

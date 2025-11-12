@@ -19,6 +19,7 @@
 # S: spell frequency | spell power
 # S: spell type | spell type | etc
 # F: flag | flag | etc
+# Q: 16-digit (or longer) hexadecimal GUID identifying the monster (optional)
 # D: Description
 #
 # 'N' indicates the beginning of an entry. The serial number must
@@ -317,6 +318,7 @@ G:@:w
 
 # Niena quest giver - Mercy quest on maximum-size levels
 N:6:Niena, Lady of Pity
+Q:75d9fddef3d141f6
 W:6:1
 G:V:v
 I:2:26d4:0:0
@@ -361,6 +363,7 @@ D: thorns, some hooked barbs that rent like knives.'
 
 # Can't move from idx 13 for dungeon generation reasons
 N:13:Dejected human thrall
+Q:cbb819a9cb63bbba
 W:1:0
 G:@:g
 I:2:8d4:0
@@ -372,6 +375,7 @@ D: is about his neck, and a long chain leads from it to the wall.
 
 # Can't move from idx 14 for dungeon generation reasons
 N:14:Dejected elven thrall
+Q:9829bd03cfda98e7
 W:1:0
 G:@:g
 I:2:10d4:0
@@ -383,6 +387,7 @@ D: and eyes vacant. His back and arms bear the marks of a whip.
 
 # Can't move from idx 15 for dungeon generation reasons
 N:15:Orc thrallmaster
+Q:05f49e29acf49a93
 W:1:0
 G:o:g
 I:2:6d4:0
@@ -420,6 +425,7 @@ D: Dried blood encrusts a noble face. His eyes are fixed on you.
 
 # Can't move from idx 18 for dungeon generation reasons
 N:18:Tulkas Unclad
+Q:69835ccc69aa243a
 W:30:200
 G:V:v
 I:2:20d4:0
@@ -432,6 +438,7 @@ D: courage and valor, and he seems eager to speak with you.
 
 # Can't move from idx 19 for quest logic (Aulë forge quest giver)
 N:19:Aule the Smith
+Q:d27e36edf5c2f432
 W:30:200
 G:V:u
 I:2:24d4:0
@@ -444,6 +451,7 @@ D: whose fires await a work worthy of his approval.
 
 # Can't move from idx 20 for quest logic (Mandos clearing quest giver)
 N:20:Mandos the Doomsman
+Q:f134bcd795c27d4f
 W:30:200
 G:V:D
 I:2:28d4:0
@@ -816,6 +824,7 @@ D: lands of the elves.
 # need to leave Orc champion at location 81
 
 N:81:Orc champion
+Q:88ef7547642967b2
 W:8:2
 G:o:b
 I:2:11d4:0
@@ -891,6 +900,7 @@ D: one hand to the other with unsettling dexterity.
 # need to leave Orc captain at location 91
 
 N:91:Orc captain
+Q:2c739cdb1be99f2c
 W:9:3
 G:o:r
 I:2:10d4:0
@@ -1063,6 +1073,7 @@ D:He is a white troll with powerfully clawed hands.
 # need to leave Barrow wight at location 112
 
 N:112:Barrow wight
+Q:c92f7e02e189e1bd
 W:11:100
 G:W:W
 I:2:4d4:0
@@ -1127,6 +1138,7 @@ D: the elves in the Battle of Unnumbered Tears.
 # need to leave Brodda at location 117
 
 N:117:Brodda, the Easterling Lord
+Q:ed37fc4fce32643f
 W:11:100
 G:W:R
 I:2:8d4:0
@@ -1152,6 +1164,7 @@ D: has been altered. The dark power binds his spirit here still.
 # need to leave Easterling spy at location 121
 
 N:121:Easterling spy
+Q:4acd2c9fcc5cd6e5
 W:12:3
 G:@:D
 I:2:8d4:1
@@ -1465,6 +1478,7 @@ D: in shadow.  It reaches out at you.
 # need to leave Cat warrior at location 154
 
 N:154:Cat warrior
+Q:3c10b33361f6f136
 W:15:1
 G:f:U
 I:3:8d4:0
@@ -1535,6 +1549,7 @@ D: in fitful glares that leaped and died.'
 # need to leave Young cold-drake at location 164
 
 N:164:Young cold-drake
+Q:2f6ec4ab45007365
 W:16:6
 G:d:w
 I:2:30d4:0
@@ -1668,6 +1683,7 @@ D: behind its eyes.
 # need to leave Cat assassin at location 175
 
 N:175:Cat assassin
+Q:9a6fbc6e7b46f502
 W:17:3
 G:f:D
 I:3:8d4:0
@@ -1721,6 +1737,7 @@ D: and ever at his side.
 # need to leave Young fire-drake at location 181
 
 N:181:Young fire-drake
+Q:0af151dfe09fe455
 W:18:6
 G:d:r
 I:2:30d4:0
@@ -1851,6 +1868,7 @@ D: Frost covers it from head to tail.
 # need to leave Troll guard at location 192
 
 N:192:Troll guard
+Q:b39a82dfdc1c5ef9
 W:19:1
 G:T:s
 I:2:20d4:0
@@ -1971,6 +1989,7 @@ D: the understanding of mortals.
 # need to leave Silent watcher at location 203
 
 N:203:Silent watcher
+Q:c790972955718680
 W:20:10
 G:H:s
 I:2:10d4:0
@@ -2287,6 +2306,7 @@ D: her wings and eyes give away her true form.
 # need to leave Gothmog at location 241
 
 N:241:Gothmog, High Captain of Balrogs
+Q:0e0f11695f8a443d
 W:24:3
 G:R:r
 I:2:56d4:-3
@@ -2309,6 +2329,7 @@ D: Ungoliant's rage.
 # need to leave Ungoliant at location 242
 
 N:242:Ungoliant, the Gloomweaver
+Q:c2485b83ba33934d
 W:24:3
 G:M:D
 I:2:40d4:-7
@@ -2330,6 +2351,7 @@ D: eat herself to avoid starvation.
 # need to leave Glaurung at location 243
 
 N:243:Glaurung, the Deceiver
+Q:3ab7e216cb871fec
 W:24:3
 G:D:y1
 I:2:60d4:0
@@ -2353,6 +2375,7 @@ D: hoard he has gathered around him.
 # Also known as Sauron and Thu
 
 N:244:Gorthaur, Servant of Morgoth
+Q:7b038638b2981d20
 W:24:3
 G:C:u
 I:3:30d4:0
@@ -2388,6 +2411,7 @@ D: eyes.
 # 5 - Desperate,          40,      9d4,    60,     10d10,   50,   40
 
 N:251:Morgoth, Lord of Darkness
+Q:58d8cf770bfcbe6f
 W:25:1
 G:V:D
 I:2:160d4:7
@@ -2420,6 +2444,7 @@ D: burning him. You need to get to that crown.
 # need to leave Carcharoth at location 253
 
 N:253:Carcharoth, the Jaws of Thirst
+Q:9cbdbb88fd4f59dc
 W:25:1
 G:C:r
 I:4:35d4:0
@@ -2591,6 +2616,7 @@ F:UNIQUE | FEMALE
 
 
 N:332:Orome, Lord of Forests
+Q:149cdbdfb191a42f
 W:30:40
 G:V:v1
 F:UNIQUE | MALE

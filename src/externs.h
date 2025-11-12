@@ -787,6 +787,10 @@ extern void calc_monster_speed(int y, int x);
 extern void set_monster_haste(s16b m_idx, s16b counter, bool message);
 extern void set_monster_slow(s16b m_idx, s16b counter, bool message);
 extern void produce_cloud(monster_type* m_ptr);
+extern s16b monster_lookup_guid(u64b guid);
+extern s16b monster_lookup_guid_text(const char* text);
+extern bool place_monster_by_guid(
+    int y, int x, u64b guid, bool slp, bool ignore_depth, monster_type* summoner);
 extern bool place_monster_one(
     int y, int x, int r_idx, bool slp, bool ingnore_depth, monster_type* m_ptr);
 extern bool place_monster_aux(int y, int x, int r_idx, bool slp, bool grp);
@@ -1104,6 +1108,7 @@ extern void bell(cptr reason);
 extern void sound(int val);
 extern s16b quark_add(cptr str);
 extern cptr quark_str(s16b i);
+extern bool parse_u64b_hex(const char* text, u64b* out);
 extern errr quarks_init(void);
 extern errr quarks_free(void);
 extern s16b message_num(void);

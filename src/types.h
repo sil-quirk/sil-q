@@ -356,6 +356,7 @@ struct monster_race
 {
     u32b name; /* Name (offset) */
     u32b text; /* Text (offset) */
+    u64b guid; /* Stable identifier for cross-file references */
 
     byte hdice; /* Creatures hit dice count */
     byte hside; /* Creatures hit dice sides */

@@ -3370,6 +3370,19 @@ errr parse_r_info(char* buf, header* head)
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
+    /* Process 'Q' for GUID */
+    else if (buf[0] == 'Q')
+    {
+        if (!r_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        u64b guid = 0;
+        if (!parse_u64b_hex(buf + 2, &guid))
+            return (PARSE_ERROR_GENERIC);
+
+        r_ptr->guid = guid;
+    }
+
     /* Process 'G' for "Graphics" (one line only) */
     else if (buf[0] == 'G')
     {
