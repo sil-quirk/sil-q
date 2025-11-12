@@ -1483,8 +1483,6 @@ static bool get_player_house(void)
     int house = 0;
     int house_choice;
     int old_house_choice = 0;
-    char buf[1024];
-
     birth_menu* houses;
 
     int housless=1;
@@ -1504,13 +1502,6 @@ static bool get_player_house(void)
 
     houses = mem_alloc_array(z_info->c_max, birth_menu);
 
-    /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
-
-     /* Open via highscore_dead on demand; no manual open needed here.
-         (Legacy direct fd_open removed – versioned score files have a header.) */
-     highscore_fd = NULL; /* ensure closed */
-
     /* Tabulate houses */
 
     for (i = 0; i < z_info->c_max; i++)
@@ -1528,12 +1519,6 @@ static bool get_player_house(void)
                 old_house_choice = house;
             house++;
         }
-    }
-
-    /* highscore_dead opens/closes internally now; ensure descriptor not leaked */
-    if (highscore_fd) {
-        SDL_CloseIO(highscore_fd);
-        highscore_fd = NULL;
     }
 
     house_choice = get_player_choice(

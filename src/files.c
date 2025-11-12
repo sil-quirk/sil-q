@@ -4621,14 +4621,30 @@ static void death_examine(void)
     }
 }
 
-/* 
- * Score file version tracking (all scores files must be versioned)
- */
-static u32b scores_file_entry_count = 0;        /* cached header entry count (may lag until update) */
-static byte scores_file_version_major = 0;      /* version from score file header */
-static byte scores_file_version_minor = 0;
-static byte scores_file_version_patch = 0;
-static byte scores_file_version_extra = 0;
+typedef struct score_file_ctx {
+    SDL_IOStream* fd;
+    byte version_major;
+    byte version_minor;
+    byte version_patch;
+    byte version_extra;
+    u32b entry_count;
+} score_file_ctx;
+
+static score_file_ctx global_score_ctx;
+
+#define highscore_fd (global_score_ctx.fd)
+#define scores_file_entry_count (global_score_ctx.entry_count)
+#define scores_file_version_major (global_score_ctx.version_major)
+#define scores_file_version_minor (global_score_ctx.version_minor)
+#define scores_file_version_patch (global_score_ctx.version_patch)
+#define scores_file_version_extra (global_score_ctx.version_extra)
+
+#define highscore_fd (global_score_ctx.fd)
+#define scores_file_entry_count (global_score_ctx.entry_count)
+#define scores_file_version_major (global_score_ctx.version_major)
+#define scores_file_version_minor (global_score_ctx.version_minor)
+#define scores_file_version_patch (global_score_ctx.version_patch)
+#define scores_file_version_extra (global_score_ctx.version_extra)
 
 /* Forward declarations for functions used in versioned score handling */
 static errr highscore_read(high_score* score);
@@ -4658,7 +4674,7 @@ static int highscore_seek_versioned(int i)
  * Load score file header and cache version information
  * Returns true on success, false if file doesn't exist or is invalid
  */
-static bool load_scores_file_header(const char *filepath)
+static bool load_scores_file_header(score_file_ctx* ctx, const char *filepath)
 {
     FILE* file = fopen(filepath, "rb");
     if (!file) return false;
@@ -4698,15 +4714,15 @@ static bool load_scores_file_header(const char *filepath)
     u32b actual_entries = (u32b)(payload / (long)sizeof(high_score));
 
     /* Cache version and entry count */
-    scores_file_version_major = header.version_major;
-    scores_file_version_minor = header.version_minor;
-    scores_file_version_patch = header.version_patch;
-    scores_file_version_extra = header.version_extra;
-    scores_file_entry_count = header.entry_count;
+    ctx->version_major = header.version_major;
+    ctx->version_minor = header.version_minor;
+    ctx->version_patch = header.version_patch;
+    ctx->version_extra = header.version_extra;
+    ctx->entry_count = header.entry_count;
     
     log_trace("load_scores_file_header: Cached version set to %d.%d.%d.%d",
-              scores_file_version_major, scores_file_version_minor,
-              scores_file_version_patch, scores_file_version_extra);
+              ctx->version_major, ctx->version_minor,
+              ctx->version_patch, ctx->version_extra);
     
     bool mismatch = (header.entry_count != actual_entries);
     if (mismatch) {
@@ -4725,18 +4741,18 @@ static bool load_scores_file_header(const char *filepath)
  * Check if the cached score file version supports curse tracking
  * Returns true if version >= 0.9.0.6
  */
-static bool scores_version_has_curses(void)
+static bool scores_version_has_curses(const score_file_ctx* ctx)
 {
     bool has_curses = false;
     
     /* Compare version tuple: major.minor.patch.extra */
-    if (scores_file_version_major > 0) has_curses = true;
-    else if (scores_file_version_major < 0) has_curses = false;
-    else if (scores_file_version_minor > 9) has_curses = true;
-    else if (scores_file_version_minor < 9) has_curses = false;
-    else if (scores_file_version_patch > 0) has_curses = true;
-    else if (scores_file_version_patch < 0) has_curses = false;
-    else has_curses = (scores_file_version_extra >= 6);
+    if (ctx->version_major > 0) has_curses = true;
+    else if (ctx->version_major < 0) has_curses = false;
+    else if (ctx->version_minor > 9) has_curses = true;
+    else if (ctx->version_minor < 9) has_curses = false;
+    else if (ctx->version_patch > 0) has_curses = true;
+    else if (ctx->version_patch < 0) has_curses = false;
+    else has_curses = (ctx->version_extra >= 6);
     
     return has_curses;
 }
@@ -4745,16 +4761,16 @@ static bool scores_version_has_curses(void)
  * Upgrade old score file to version 0.9.0.6 to enable curse support
  * This writes the updated header to the file
  */
-static bool upgrade_scores_file_to_curses(const char *filepath)
+static bool upgrade_scores_file_to_curses(score_file_ctx* ctx, const char *filepath)
 {
     /* Check if upgrade needed */
-    if (scores_version_has_curses()) {
+    if (scores_version_has_curses(ctx)) {
         return true;  /* Already at correct version */
     }
     
     log_info("Upgrading scores file from v%d.%d.%d.%d to v0.9.0.6 (enabling curse support)",
-             scores_file_version_major, scores_file_version_minor,
-             scores_file_version_patch, scores_file_version_extra);
+             ctx->version_major, ctx->version_minor,
+             ctx->version_patch, ctx->version_extra);
     
     /* Open file for read/write */
     FILE* file = fopen(filepath, "r+b");
@@ -4817,10 +4833,10 @@ static bool upgrade_scores_file_to_curses(const char *filepath)
     fclose(file);
     
     /* Update cached version */
-    scores_file_version_major = 0;
-    scores_file_version_minor = 9;
-    scores_file_version_patch = 0;
-    scores_file_version_extra = 6;
+    ctx->version_major = 0;
+    ctx->version_minor = 9;
+    ctx->version_patch = 0;
+    ctx->version_extra = 6;
     
     log_info("Successfully upgraded scores file to v0.9.0.6");
     return true;
@@ -4847,14 +4863,16 @@ static const char* file_mode_from_flags(int mode)
  */
 static SDL_IOStream* open_scores_file_versioned(const char *filepath, int mode)
 {
+    score_file_ctx* ctx = &global_score_ctx;
+
     /* Try to load header from existing file */
-    bool exists = load_scores_file_header(filepath);
+    bool exists = load_scores_file_header(ctx, filepath);
     
     /* If file exists and we have write access, upgrade to curse support if needed */
     if (exists && (mode & (O_RDWR | O_WRONLY))) {
-        upgrade_scores_file_to_curses(filepath);
+        upgrade_scores_file_to_curses(ctx, filepath);
         /* Reload header after upgrade */
-        load_scores_file_header(filepath);
+        load_scores_file_header(ctx, filepath);
     }
     
     SDL_IOStream* file = NULL;
@@ -5195,7 +5213,7 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     int curses = 0;
     
     /* Backwards compatibility: only use pts field for curse count if version >= 0.9.0.6 */
-    if (scores_version_has_curses()) {
+    if (scores_version_has_curses(&global_score_ctx)) {
         curses = parse_score_int(score->pts, sizeof(score->pts), 0);
         log_trace("calculate_score_breakdown: '%s' pts field='%.*s' parsed as curses=%d (version %d.%d.%d.%d)",
                   score->who, (int)sizeof(score->pts), score->pts, curses,
@@ -6413,7 +6431,7 @@ static void upsert_live_score_on_save(void)
     highscore_fd = live_fd;
 
     /* If newly created ensure a header exists */
-    if (!load_scores_file_header(score_path)) {
+    if (!load_scores_file_header(&global_score_ctx, score_path)) {
         /* Create brand new versioned file header */
         score_file_header header;
         header.version_major = SCORE_FILE_VERSION_MAJOR;
@@ -6655,14 +6673,14 @@ extern void display_single_score(
     log_debug("  version: %d.%d.%d.%d (has_curses=%s)",
               scores_file_version_major, scores_file_version_minor,
               scores_file_version_patch, scores_file_version_extra,
-              scores_version_has_curses() ? "yes" : "no");
+              scores_version_has_curses(&global_score_ctx) ? "yes" : "no");
     
     comma_number(score_commas, calculated_score);
 
     /* Build curse/blessing text if applicable */
     char curse_text[32] = "";
     byte curse_color = TERM_WHITE;
-    if (scores_version_has_curses())
+    if (scores_version_has_curses(&global_score_ctx))
     {
         int curses = parse_score_int(the_score->pts, sizeof(the_score->pts), 0);
         log_debug("display_single_score: Building curse display for '%s', curses=%d", the_score->who, curses);

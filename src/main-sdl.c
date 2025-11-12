@@ -267,16 +267,35 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             bool mod = shift || alt || ctrl || gui;
             switch (key) {
                 case SDLK_UP:
+                case SDLK_KP_8:
                     key = '8';
                     break;
                 case SDLK_DOWN:
+                case SDLK_KP_2:
                     key = '2';
                     break;
                 case SDLK_LEFT:
+                case SDLK_KP_4:
                     key = '4';
                     break;
                 case SDLK_RIGHT:
+                case SDLK_KP_6:
                     key = '6';
+                    break;
+                case SDLK_KP_1:
+                    key = '1';
+                    break;
+                case SDLK_KP_3:
+                    key = '3';
+                    break;
+                case SDLK_KP_7:
+                    key = '7';
+                    break;
+                case SDLK_KP_9:
+                    key = '9';
+                    break;
+                case SDLK_KP_5:
+                    key = '5';
                     break;
             }
             if (mod) {

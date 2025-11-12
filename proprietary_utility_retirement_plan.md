@@ -63,8 +63,8 @@ _Stage S8 (terminal abstraction + SDL panes) now lives in `SDL_CLEANUP_PLAN.md` 
 - [x] **Global logging/quit hooks - Collapse `plog/quit/core` into a single `log_fatal()` path that flushes via `log/log.h` and calls `SDL_Quit`.**
 
 ## Immediate Next Actions
-1. Finish the score-file context refactor so `highscore_fd` and header caches stop living as globals.
-2. Complete the header hygiene push by removing the `externs.h` re-export from `angband.h` and fixing any remaining stragglers.
+1. Wire the new `score_file_ctx` through the highscore helpers so tests (and metarun tools) can open isolated contexts without touching the default instance.
+2. Shrink `externs.h` into targeted headers (monster/object/player/etc.) now that no TU includes it implicitly.
 3. Begin carving `z-term.c` into SDL-native panes per Stage S8 once the above cleanup lands.
 
 ## Coordination Notes

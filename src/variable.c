@@ -884,11 +884,6 @@ char ghost_string[80];
 char g_vault_name[80];
 
 /*
- * The "highscore" file descriptor, if available.
- */
-SDL_IOStream* highscore_fd;
-
-/*
  * The metarun file descriptor, if available.
  */
 int meta_fd = -1;

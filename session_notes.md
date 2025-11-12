@@ -5649,6 +5649,12 @@ Phase 3 should be tackled carefully:
 - Removed the legacy compatibility macros from `src/mem/alloc.h`; all callers now rely on the typed allocation helpers or standard library calls.
 - Verified no `C_*` macros remain via `rg`, then rebuilt with `build-cmake.bat` (SDL3 target) to confirm the cleanup compiles cleanly.
 
+## 2025-11-13 - Score context & extern hygiene
+
+- Added `score_file_ctx` in `src/files.c` to encapsulate the SDL stream plus header metadata; the exported `highscore_fd` global and its extern are gone, and birth.c no longer touches the descriptor directly.
+- `angband.h` stopped re-exporting `externs.h`; every TU now includes it explicitly (scripted one-time update), so the dependency graph is explicit and ready for further pruning when we split the headers.
+- Rebuilt with `build-cmake.bat` to confirm the scoreboard refactor and include sweep keep the SDL3 target compiling.
+
 
 
 # Session Notes - Pref File Cleanup (2025-11-12)
