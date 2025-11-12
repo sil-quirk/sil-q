@@ -8,6 +8,7 @@
  *     • print_metarun_stats() – details for current run
  * -------------------------------------------------------------------- */
 #include "angband.h"
+#include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
 #include "log/log.h"
@@ -5292,6 +5293,7 @@ int get_available_oaths_mask(void)
     
     return available;
 }
+
 
 
 

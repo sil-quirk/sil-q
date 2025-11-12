@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 #include "metarun.h"
 #include <math.h>
@@ -6660,6 +6661,7 @@ void run_step(int dir)
     /* Move the player */
     move_player(p_ptr->run_cur_dir);
 }
+
 
 
 

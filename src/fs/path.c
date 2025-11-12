@@ -1,4 +1,5 @@
 #include "angband.h"
+#include "externs.h"
 #include "fs/path.h"
 #include "log/log.h"
 
@@ -302,3 +303,4 @@ bool fd_copy(cptr file, cptr what)
 
     return true;
 }
+

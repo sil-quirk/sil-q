@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 #include "metarun.h"
 #include "supplies.h"
@@ -4393,4 +4394,5 @@ void handle_stuff(void)
 
     log_trace("handle_stuff: completed");
 }
+
 

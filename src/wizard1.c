@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
 #include "log/log.h"
@@ -1069,6 +1070,7 @@ void do_cmd_spoilers(void)
 #else
 
 #endif
+
 
 
 

@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "fs/path.h"
 #include "log/log.h"
 #include <SDL3/SDL.h>
@@ -5167,6 +5168,7 @@ int color_text_to_attr(cptr name)
     /* We can not find it */
     return (-1);
 }
+
 
 
 

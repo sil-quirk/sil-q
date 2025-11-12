@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 #include "metarun.h"
 
@@ -8678,6 +8679,7 @@ void grant_unique_bane_ability(void)
     p_ptr->update |= (PU_BONUS);
     handle_stuff();
 }
+
 
 
 

@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 #include "metarun.h"
 
@@ -5776,5 +5777,6 @@ void do_cmd_throw_from_slot(int slot)
     throw_pending_slot = slot;
     do_cmd_throw(false);
 }
+
 
 

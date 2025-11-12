@@ -35,8 +35,6 @@
 
 #include <SDL3/SDL.h>
 
-#include "externs.h"
-
 /***** Some older copyright messages follow below *****/
 
 /*

@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 /* Standard headers for utility functions used in this file */
 #include <string.h>
@@ -5838,6 +5839,7 @@ void disturb(int stop_stealth, int unused_flag)
     /* Flush the input */
     flush();
 }
+
 
 
 

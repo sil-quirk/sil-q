@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 #include "metarun.h"
 
@@ -3823,5 +3824,6 @@ void message_pain(int m_idx, int dam)
 
     // m, w are silent
 }
+
 
 

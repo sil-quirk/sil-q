@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
 #include "h-basic.h"
@@ -6897,6 +6898,7 @@ void display_scores_short(int from, int to)
  * ===========================================================*/
 
 #include "angband.h"
+#include "externs.h"
 #include <stdbool.h>
 
 /* -------------------------------------------------------------
@@ -10238,6 +10240,7 @@ void backup_and_clear_saves(void)
     
     log_trace("Folder-based backup process completed");
 }
+
 
 
 

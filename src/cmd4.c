@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
 #include "log/log.h"
@@ -15352,6 +15353,7 @@ void show_unified_sidebar(unified_look_state* state)
     previous_line_count = current_line_count;
     log_trace("show_unified_sidebar: function complete, set previous_line_count=%d", previous_line_count);
 }
+
 
 
 

@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 #include "metarun.h"
 
@@ -2327,5 +2328,6 @@ void do_cmd_debug(void)
 #else
 
 #endif
+
 
 

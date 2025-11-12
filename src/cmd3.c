@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 
 /*
@@ -4917,5 +4918,6 @@ void do_cmd_query_symbol(void)
     /* Free the "who" array */
     who = mem_free(who);
 }
+
 
 

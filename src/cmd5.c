@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 
 /*
  * Hack -- display an object kind in the current window
@@ -50,4 +51,5 @@ void display_koff(int k_idx)
     /* Mention the object name */
     Term_putstr(0, 0, -1, TERM_WHITE, o_name);
 }
+
 

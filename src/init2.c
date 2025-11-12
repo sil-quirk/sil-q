@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
 #include "log/log.h"
@@ -2677,6 +2678,7 @@ void cleanup_angband(void)
     str_free(ANGBAND_DIR_XTRA);
     str_free(ANGBAND_DIR_SCRIPT);
 }
+
 
 
 

@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 /* Countdown for forcing a redraw after showing the per-style banner */
 int g_banner_force_redraw_remaining = 0;
@@ -3941,4 +3942,5 @@ PlayResult play_game(void)
         return PLAY_DONE;
     }
 }
+
 

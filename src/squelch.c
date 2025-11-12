@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
 #include "log/log.h"
@@ -2016,6 +2017,7 @@ char* squelch_to_label(int squelch)
 
     return ("");
 }
+
 
 
 

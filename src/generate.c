@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 #include "metarun.h"
 #include <SDL3/SDL.h>
@@ -6182,6 +6183,7 @@ if (playerturn == 0) {
 
     // Valar quest doesn't provide map rewards like the old thrall quest
 }
+
 
 
 

@@ -1,4 +1,5 @@
 #include "angband.h"
+#include "externs.h"
 #include "sdl-config.h"
 #include "log/log.h"
 #include "pane.h"
@@ -838,4 +839,5 @@ void sdl_config_apply_cmdline(struct sdl_config* config, int argc, char** argv)
         }
     }
 }
+
 

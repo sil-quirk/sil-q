@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 
 /*
@@ -7621,5 +7622,6 @@ void sing(void)
     p_ptr->redraw |= (PR_VOICE);
     p_ptr->redraw |= (PR_HP);
 }
+
 
 

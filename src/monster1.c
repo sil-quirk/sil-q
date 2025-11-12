@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 
 /*
  * Pronoun arrays, by gender.
@@ -1814,4 +1815,5 @@ void display_roff(int r_idx, const monster_type* m_ptr)
     /* Describe monster */
     roff_top(r_idx);
 }
+
 

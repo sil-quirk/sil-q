@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 
 /*
  * This file includes code for eating food, drinking potions,
@@ -671,4 +672,5 @@ void do_cmd_activate(void)
     /* Activate the object */
     (void)use_object(o_ptr, &ident);
 }
+
 

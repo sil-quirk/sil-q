@@ -11,6 +11,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 
 /*
@@ -6220,4 +6221,5 @@ void monster_perception(bool player_centered, bool main_roll, int difficulty)
         }
     }
 }
+
 

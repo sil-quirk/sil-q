@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "fs/path.h"
 #include "log/log.h"
 #include "z-term.h"
@@ -2717,4 +2718,5 @@ NavResult player_birth()
 
     return NAV_OK;
 }
+
 

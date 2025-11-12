@@ -1,4 +1,5 @@
 #include "angband.h"
+#include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
 #include "log/log.h"
@@ -202,3 +203,4 @@ Sint64 sdl_size(SDL_IOStream* stream)
     }
     return size;
 }
+

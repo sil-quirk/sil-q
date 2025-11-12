@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "fs/io_sdl.h"
 #include "log/log.h"
 #include <string.h> /* memset, strstr */
@@ -2830,6 +2831,7 @@ bool load_player(void)
     /* Oops */
     return (false);
 }
+
 
 
 

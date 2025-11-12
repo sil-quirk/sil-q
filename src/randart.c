@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 
 #include "init.h"
 
@@ -3295,6 +3296,7 @@ bool can_be_randart(const object_type* o_ptr)
         return (false);
     }
 }
+
 
 
 

@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 
 int medicine_bonus(int original)
 {
@@ -1483,4 +1484,5 @@ bool use_object(object_type* o_ptr, bool* ident)
 
     return (used);
 }
+
 

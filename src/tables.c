@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 
 /*
  * Global array for looping through the "keypad directions".
@@ -1085,4 +1086,5 @@ byte spell_desire_RF4[32][2] = {
     { 0, 100 }, /* RF4_XXX31 */
     { 0, 100 } /* RF4_XXX32 */
 };
+
 

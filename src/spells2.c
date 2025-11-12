@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "metarun.h"
 #include "supplies.h"
 
@@ -3404,4 +3405,5 @@ int do_ident_item(int item, object_type* o_ptr)
 
     return (squelch);
 }
+
 

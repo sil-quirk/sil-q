@@ -1,4 +1,5 @@
 #include "angband.h"
+#include "externs.h"
 #include "fs/path.h"
 #include "log/log.h"
 #include "main.h"
@@ -1669,4 +1670,5 @@ static void sdl_render_story_text_grid(sdl_view* d, int x, int y, int n, const c
         SDL_DestroySurface(glyph_surface);
     }
 }
+
 

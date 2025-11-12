@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
 #include "log/log.h"
@@ -5941,6 +5942,7 @@ errr parse_oath_info(char* buf, header* head)
 #else /* ALLOW_TEMPLATES */
 
 #endif /* ALLOW_TEMPLATES */
+
 
 
 

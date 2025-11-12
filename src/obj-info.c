@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 
 /* true if a paragraph break should be output before next p_text_out() */
@@ -1558,6 +1559,7 @@ void object_info_screen_multi(const object_type** objects, const char** headings
     text_out_wrap = 0;
     text_out_indent = 0;
 }
+
 
 
 

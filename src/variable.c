@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "h-basic.h"
 #include "metarun.h" 
 #include "init.h"
@@ -896,4 +897,5 @@ int meta_fd = -1;
 metarun metar;
 
 runtype_type *runtype_info = NULL;   /* filled by init_rt_info() */
+
 

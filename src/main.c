@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/bootstrap.h"
 
 /*
@@ -532,6 +533,7 @@ int main(int argc, char* argv[])
     /* Exit */
     return (0);
 }
+
 
 
 

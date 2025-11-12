@@ -2,6 +2,7 @@
  * This is intentionally lightweight and can be refined later.
  */
 #include "angband.h"
+#include "externs.h"
 
 int object_difficulty(object_type* o_ptr)
 {
@@ -26,4 +27,5 @@ int object_difficulty(object_type* o_ptr)
     if (diff > 255) diff = 255;
     return diff;
 }
+
 

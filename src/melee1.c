@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 
 /*
@@ -4218,6 +4219,7 @@ void display_main_combat_rolls(void)
         draw_combat_roll_line(row, col_offset, &combat_rolls[round][idx]);
     }
 }
+
 
 
 

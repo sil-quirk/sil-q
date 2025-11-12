@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 #include "supplies.h"
 #include <ctype.h>
@@ -6735,6 +6736,7 @@ bool player_can_treat_as_throwing(const object_type* o_ptr)
 
 #undef MAX_COMPARE_LINES
 #undef MAX_IDENT_ENTRIES
+
 
 
 

@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "externs.h"
 #include "log/log.h"
 #include "supplies.h"
 
@@ -6191,4 +6192,5 @@ void reorder_pack(bool display_message)
     if (flag && display_message)
         msg_print("You reorder some items in your pack.");
 }
+
 
