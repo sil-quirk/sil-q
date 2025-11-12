@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "scorefile.h"
 #include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
@@ -4621,30 +4622,34 @@ static void death_examine(void)
     }
 }
 
-typedef struct score_file_ctx {
-    SDL_IOStream* fd;
-    byte version_major;
-    byte version_minor;
-    byte version_patch;
-    byte version_extra;
-    u32b entry_count;
-} score_file_ctx;
 
 static score_file_ctx global_score_ctx;
+static score_file_ctx* active_score_ctx = &global_score_ctx;
 
-#define highscore_fd (global_score_ctx.fd)
-#define scores_file_entry_count (global_score_ctx.entry_count)
-#define scores_file_version_major (global_score_ctx.version_major)
-#define scores_file_version_minor (global_score_ctx.version_minor)
-#define scores_file_version_patch (global_score_ctx.version_patch)
-#define scores_file_version_extra (global_score_ctx.version_extra)
+score_file_ctx* score_file_set_active_ctx(score_file_ctx* ctx)
+{
+    score_file_ctx* prev = active_score_ctx;
+    active_score_ctx = ctx ? ctx : &global_score_ctx;
+    return prev;
+}
 
-#define highscore_fd (global_score_ctx.fd)
-#define scores_file_entry_count (global_score_ctx.entry_count)
-#define scores_file_version_major (global_score_ctx.version_major)
-#define scores_file_version_minor (global_score_ctx.version_minor)
-#define scores_file_version_patch (global_score_ctx.version_patch)
-#define scores_file_version_extra (global_score_ctx.version_extra)
+score_file_ctx* score_file_active_ctx(void)
+{
+    return active_score_ctx;
+}
+
+void score_file_reset_ctx(score_file_ctx* ctx)
+{
+    if (ctx)
+        memset(ctx, 0, sizeof(*ctx));
+}
+
+#define highscore_fd (active_score_ctx->fd)
+#define scores_file_entry_count (active_score_ctx->entry_count)
+#define scores_file_version_major (active_score_ctx->version_major)
+#define scores_file_version_minor (active_score_ctx->version_minor)
+#define scores_file_version_patch (active_score_ctx->version_patch)
+#define scores_file_version_extra (active_score_ctx->version_extra)
 
 /* Forward declarations for functions used in versioned score handling */
 static errr highscore_read(high_score* score);
@@ -10258,6 +10263,7 @@ void backup_and_clear_saves(void)
     
     log_trace("Folder-based backup process completed");
 }
+
 
 
 
