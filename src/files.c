@@ -4656,234 +4656,6 @@ static int highscore_seek_versioned(int i)
 }
 
 /*
- * Load score file header and cache version information
- * Returns true on success, false if file doesn't exist or is invalid
- */
-static bool load_scores_file_header(score_file_ctx* ctx, const char *filepath)
-{
-    FILE* file = fopen(filepath, "rb");
-    if (!file) return false;
-    
-    /* Get file size */
-    fseek(file, 0, SEEK_END);
-    long file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    
-    if (file_size < (long)sizeof(score_file_header)) {
-        fclose(file);
-        log_error("Score file too small to contain header");
-        return false;
-    }
-    
-    score_file_header header;
-    if (fread(&header, sizeof(header), 1, file) != 1) {
-        fclose(file);
-        log_error("Failed to read score file header");
-        return false;
-    }
-    fclose(file);
-    
-    /* Basic sanity on version bytes */
-    if (header.version_major > 127 || header.version_minor > 127 ||
-        header.version_patch > 127) {
-        log_error("Invalid version in score file header");
-        return false;
-    }
-
-    /* Compute actual entry count from file size */
-    long payload = file_size - (long)sizeof(score_file_header);
-    if (payload < 0 || (payload % (long)sizeof(high_score)) != 0) {
-        log_error("Score file size not aligned with high_score entries");
-        return false;
-    }
-    u32b actual_entries = (u32b)(payload / (long)sizeof(high_score));
-
-    /* Cache version and entry count */
-    ctx->version_major = header.version_major;
-    ctx->version_minor = header.version_minor;
-    ctx->version_patch = header.version_patch;
-    ctx->version_extra = header.version_extra;
-    ctx->entry_count = header.entry_count;
-    
-    log_trace("load_scores_file_header: Cached version set to %d.%d.%d.%d",
-              ctx->version_major, ctx->version_minor,
-              ctx->version_patch, ctx->version_extra);
-    
-    bool mismatch = (header.entry_count != actual_entries);
-    if (mismatch) {
-        log_debug("scores.raw header entry_count=%u but file has %u entries (will reconcile if opened writable)",
-                  header.entry_count, actual_entries);
-    } else {
-        log_trace("Loaded scores file: v%d.%d.%d.%d (%u entries)",
-                  header.version_major, header.version_minor, header.version_patch, 
-                  header.version_extra, header.entry_count);
-    }
-    
-    return true;
-}
-
-/*
- * Check if the cached score file version supports curse tracking
- * Returns true if version >= 0.9.0.6
- */
-/*
- * Upgrade old score file to version 0.9.0.6 to enable curse support
- * This writes the updated header to the file
- */
-static bool upgrade_scores_file_to_curses(score_file_ctx* ctx, const char *filepath)
-{
-    /* Check if upgrade needed */
-    if (scores_version_has_curses(ctx)) {
-        return true;  /* Already at correct version */
-    }
-    
-    log_info("Upgrading scores file from v%d.%d.%d.%d to v0.9.0.6 (enabling curse support)",
-             ctx->version_major, ctx->version_minor,
-             ctx->version_patch, ctx->version_extra);
-    
-    /* Open file for read/write */
-    FILE* file = fopen(filepath, "r+b");
-    if (!file) {
-        log_error("Cannot open scores file for upgrade: %s", filepath);
-        return false;
-    }
-    
-    /* Read entire file */
-    fseek(file, 0, SEEK_END);
-    long file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    
-    char* buffer = malloc(file_size);
-    if (!buffer) {
-        fclose(file);
-        log_error("Cannot allocate memory for upgrade");
-        return false;
-    }
-    
-    if (fread(buffer, 1, file_size, file) != (size_t)file_size) {
-        mem_free_null(buffer);
-        fclose(file);
-        log_error("Failed to read file during upgrade");
-        return false;
-    }
-    
-    /* Update header */
-    score_file_header* header = (score_file_header*)buffer;
-    header->version_major = 0;
-    header->version_minor = 9;
-    header->version_patch = 0;
-    header->version_extra = 6;
-    
-    /* Clear pts field (old score field, now curse count) in all entries */
-    /* pts field is at offset 8 in high_score struct, size 5 bytes */
-    long entry_count = (file_size - sizeof(score_file_header)) / sizeof(high_score);
-    for (long i = 0; i < entry_count; i++) {
-        long entry_offset = sizeof(score_file_header) + i * sizeof(high_score);
-        long pts_offset = entry_offset + 8;  /* pts is at offset 8 */
-        
-        /* Clear the 5-byte pts field to "    \0" (spaces + null) */
-        memset(buffer + pts_offset, ' ', 4);
-        buffer[pts_offset + 4] = '\0';
-    }
-    
-    log_info("Cleared pts field (old score) in %ld entries", entry_count);
-    
-    /* Write back updated file */
-    fseek(file, 0, SEEK_SET);
-    if (fwrite(buffer, 1, file_size, file) != (size_t)file_size) {
-        mem_free_null(buffer);
-        fclose(file);
-        log_error("Failed to write upgraded file");
-        return false;
-    }
-    
-    mem_free_null(buffer);
-    fflush(file);
-    fclose(file);
-    
-    /* Update cached version */
-    ctx->version_major = 0;
-    ctx->version_minor = 9;
-    ctx->version_patch = 0;
-    ctx->version_extra = 6;
-    
-    log_info("Successfully upgraded scores file to v0.9.0.6");
-    return true;
-}
-
-/*
- * Convert POSIX file flags to FILE* mode string
- */
-static const char* file_mode_from_flags(int mode)
-{
-    if (mode & O_CREAT) {
-        if (mode & O_RDWR) {
-            /* For read/write with create, we need special handling to avoid truncating existing files */
-            return NULL;  /* Special case - handled by caller */
-        }
-        else return "wb";  /* Create/truncate for write only */
-    }
-    else if (mode & O_RDWR) return "r+b"; /* Open existing for read/write */
-    else return "rb";                      /* Open existing for read only */
-}
-
-/*
- * Open scores file (all scores files must have version headers)
- */
-static SDL_IOStream* open_scores_file_versioned(const char *filepath, int mode)
-{
-    score_file_ctx* ctx = score_file_global_ctx();
-
-    /* Try to load header from existing file */
-    bool exists = load_scores_file_header(ctx, filepath);
-    
-    /* If file exists and we have write access, upgrade to curse support if needed */
-    if (exists && (mode & (O_RDWR | O_WRONLY))) {
-        upgrade_scores_file_to_curses(ctx, filepath);
-        /* Reload header after upgrade */
-        load_scores_file_header(ctx, filepath);
-    }
-    
-    SDL_IOStream* file = NULL;
-    const char* mode_str = file_mode_from_flags(mode);
-    
-    if (mode_str == NULL) {
-        /* Special case: O_RDWR | O_CREAT - try to open existing first, then create */
-        file = SDL_IOFromFile(filepath, "r+b");
-        if (!file) {
-            /* File doesn't exist, create it */
-            file = SDL_IOFromFile(filepath, "w+b");
-        }
-    } else {
-        file = SDL_IOFromFile(filepath, mode_str);
-    }
-
-    /* If writable and file exists, reconcile header entry count with actual bytes */
-    if (file && exists && mode != O_RDONLY) {
-        Sint64 file_size = SDL_GetIOSize(file);
-        
-        if (file_size >= (Sint64)sizeof(score_file_header)) {
-            SDL_SeekIO(file, 0, SDL_IO_SEEK_SET);
-            score_file_header header;
-            if (SDL_ReadIO(file, &header, sizeof(header)) == sizeof(header)) {
-                Sint64 payload = file_size - (Sint64)sizeof(score_file_header);
-                if (payload >= 0 && (payload % (Sint64)sizeof(high_score)) == 0) {
-                    u32b actual_entries = (u32b)(payload / (Sint64)sizeof(high_score));
-                    if (header.entry_count != actual_entries) {
-                        log_info("Reconciling scores header: entry_count %u -> %u", header.entry_count, actual_entries);
-                        header.entry_count = actual_entries;
-                        SDL_SeekIO(file, 0, SDL_IO_SEEK_SET);
-                        SDL_WriteIO(file, &header, sizeof(header));
-                        scores_file_entry_count = actual_entries;
-                    }
-                }
-            }
-        }
-    }
-    return file;
-}
-
-/*
  * Update the entry count in a versioned scores file header
  */
 static void update_scores_file_header_count(void)
@@ -5093,7 +4865,7 @@ int score_count_alive_entries(void)
     u32b saved_entry_count = scores_file_entry_count;
 
     safe_setuid_grab();
-    SDL_IOStream* scan_fd = open_scores_file_versioned(score_path, O_RDONLY);
+    SDL_IOStream* scan_fd = score_file_open(score_path, O_RDONLY);
     safe_setuid_drop();
     if (!scan_fd) {
         highscore_fd = saved_fd;
@@ -5141,7 +4913,7 @@ u32b score_sum_dead_points(void)
     u32b saved_entry_count = scores_file_entry_count;
 
     safe_setuid_grab();
-    SDL_IOStream* scan_fd = open_scores_file_versioned(score_path, O_RDONLY);
+    SDL_IOStream* scan_fd = score_file_open(score_path, O_RDONLY);
     safe_setuid_drop();
     if (!scan_fd) {
         highscore_fd = saved_fd;
@@ -5353,7 +5125,7 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
     if (!highscore_fd)
     {
         safe_setuid_grab();
-        highscore_fd = open_scores_file_versioned(score_path, O_RDONLY);
+        highscore_fd = score_file_open(score_path, O_RDONLY);
         safe_setuid_drop();
         opened_new = true;
         
@@ -5868,7 +5640,7 @@ extern int highscore_dead(char* name)
     if (!highscore_fd) {
         char buf[1024];
         path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
-        highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
+        highscore_fd = score_file_open(buf, O_RDONLY);
         if (!highscore_fd) return 0; /* cannot determine */
         opened_here = true;
     }
@@ -5913,7 +5685,7 @@ extern bool highscore_is_empty()
         char buf[1024];
         path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
         safe_setuid_grab();
-        highscore_fd = open_scores_file_versioned(buf, O_RDONLY);
+        highscore_fd = score_file_open(buf, O_RDONLY);
         safe_setuid_drop();
         if (!highscore_fd) {
             log_debug("highscore_is_empty: cannot open scores file, treating as empty");
@@ -6059,7 +5831,7 @@ static void upsert_live_score_on_save(void)
     log_debug("upsert_live_score_on_save: Score path: %s", score_path);
 
     safe_setuid_grab();
-    SDL_IOStream* live_fd = open_scores_file_versioned(score_path, O_RDWR | O_CREAT);
+    SDL_IOStream* live_fd = score_file_open(score_path, O_RDWR | O_CREAT);
     safe_setuid_drop();
     if (!live_fd) {
         log_warn("Could not open scores.raw to upsert live save entry");
@@ -6076,7 +5848,7 @@ static void upsert_live_score_on_save(void)
     highscore_fd = live_fd;
 
     /* If newly created ensure a header exists */
-    if (!load_scores_file_header(score_file_global_ctx(), score_path)) {
+    if (!score_file_load_header(score_file_global_ctx(), score_path)) {
         /* Create brand new versioned file header */
         score_file_header header;
         header.version_major = SCORE_FILE_VERSION_MAJOR;
@@ -7568,7 +7340,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     if (!highscore_fd) {
         log_trace("highscore_fd < 0, opening %s (version-aware)", score_path);
         safe_setuid_grab();
-        highscore_fd = open_scores_file_versioned(score_path, O_RDWR);
+        highscore_fd = score_file_open(score_path, O_RDWR);
         safe_setuid_drop();
         if (!highscore_fd) {
             quit(format("Cannot open %s (%d)", score_path, errno));
@@ -8479,7 +8251,7 @@ void close_game(void)
     safe_setuid_grab();
 
     /* Open the high score file, for reading/writing */
-    highscore_fd = open_scores_file_versioned(buf, O_RDWR);
+    highscore_fd = score_file_open(buf, O_RDWR);
 
     /* Drop permissions */
     safe_setuid_drop();
@@ -9433,7 +9205,7 @@ bool autoload_alive_from_scores(void)
     u32b saved_entry_count = scores_file_entry_count;
 
     /* Open with version detection (read/write so we can patch entries) */
-    highscore_fd = open_scores_file_versioned(score_path, O_RDWR | O_CREAT);
+    highscore_fd = score_file_open(score_path, O_RDWR | O_CREAT);
     if (!highscore_fd) {
         log_warn("autoload: could not open scorefile: %s", score_path);
         /* restore */
@@ -9623,7 +9395,7 @@ void clear_scorefile(void)
     /* If the file was previously open, reopen it for read/write */
     if (was_open) {
         safe_setuid_grab();
-        highscore_fd = open_scores_file_versioned(cur_path, O_RDWR);
+        highscore_fd = score_file_open(cur_path, O_RDWR);
         safe_setuid_drop();
     }
 }
@@ -9903,6 +9675,7 @@ void backup_and_clear_saves(void)
     
     log_trace("Folder-based backup process completed");
 }
+
 
 
 

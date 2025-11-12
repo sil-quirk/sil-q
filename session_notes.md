@@ -5711,3 +5711,9 @@ Remove support for obsolete system pref files, keeping only SDL support for mode
 - `scores_version_has_curses()` now lives in `src/score/score_io.c` so other modules can query format capabilities without poking at `files.c` internals. Updated all call sites (score logic + UI traces) to use the exported helper.
 - Reintroduced the score UI state (`force_interactive_scores`, `forced_highlight_entry`, `score_last_layout_short`) as explicit statics since the earlier code removal trimmed their definitions alongside the logic block.
 - CMake builds include the added module, and `build-cmake.bat` succeeds (warnings unchanged from prior runs).
+
+## 2025-11-13 - Score I/O Module Split (Phase 2 cont.)
+
+- Moved the score-file header loader, on-disk upgrader, and SDL stream opener into `src/score/score_io.c`, exposing them via `score_file_load_header()` / `score_file_open()` in `score/score_io.h`. `src/files.c` now calls the public API instead of hosting duplicate low-level I/O.
+- The shared `score_file_ctx` remains the single source of truth for descriptor + version metadata; the new helpers update `ctx->entry_count` directly so the existing `scores_file_*` macros continue to work without touching static globals.
+- Verified the refactor with `build-cmake.bat`; only the pre-existing warnings remain.
