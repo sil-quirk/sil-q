@@ -23,3 +23,4 @@ compile_commands.json
 *.backup
 *.temp
 /sil-more_beta 0.9
+/sil-more-release
