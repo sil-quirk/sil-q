@@ -60,6 +60,8 @@ add_executable(sil-more
     src/randart.c
     src/rng.c
     src/save.c
+    src/score/score_io.c
+    src/score/score_logic.c
     src/sdl-config.c
     src/fs/io_sdl.c
     src/fs/path.c

@@ -5687,3 +5687,27 @@ Remove support for obsolete system pref files, keeping only SDL support for mode
 - Game launches correctly
 - All pref files load without errors
 - Log confirms pref-sdl.prf and graf-win.prf load successfully
+
+## 2025-11-13 - Score/Metarun Binary Redesign Prep
+
+- Audited the existing score pipeline in `src/files.c:4626-10120`, `src/types.h:1302-1346`, and `src/metarun.c:31-3148` to catalog every data dependency on `scores.raw` (alive entry tracking, metarun scoring math, auto-loader, backups, etc.) and how it currently interacts with `meta.raw`.
+- Confirmed the shipping layout: `score_file_header` (16 bytes) + an array of 133-byte ASCII records, and noted the partial `score_file_ctx` abstraction in `scorefile.h` that still lives in `files.c`.
+- Captured open questions for the upcoming binary rewrite (per-metarun score blocks vs. shared DB, how to store killer identity, and upgrade/migration hooks) so the detailed implementation plan can sequence format work, module splits, and regression tests without regressing metarun bookkeeping.
+
+## 2025-11-13 - Statistics DB Scaffolding
+
+- Authored `docs/score_system_overhaul.md`, outlining the holistic statistics database: metarun linkage, run-statistics records, character rollups, monster analytics, and a five-phase rollout/migration/testing plan.
+- Added `src/score/score_format.h` with typed schema definitions (`score_db_header`, `score_record_v1`, `score_character_record_v1`, `score_monster_stats_v1`, GUID helpers, enums for run/killer status) to anchor Phase 1.
+- Split the score file context helpers out of `src/files.c` into the new module `src/score/score_io.c` + `score/score_io.h`; `scorefile.h` now acts as a compatibility shim, and `CMakeLists.txt` builds the new unit (Phase 2 start).
+
+## 2025-11-13 - Build Fix & UID Planning
+
+- Restored build success after the score-context split by exposing `score_file_global_ctx()` (`src/score/score_io.{h,c}`) and updating `src/files.c` to obtain the default context through the new API instead of referencing the static `global_score_ctx` symbol directly. `build-cmake.bat` now completes again.
+- Expanded the plan to emphasize character-name identity and GUID expectations for monsters/races/houses so future contributors know how to mint IDs when editing `lib/edit` data.
+
+## 2025-11-13 - Score Logic Module (Phase 2)
+
+- Created `src/score/score_logic.{h,c}` and moved the field parsers, breakdown math, `score_points`, and qsort comparators out of `src/files.c`, leaving the UI + I/O plumbing cleanly separated from the scoring rules. The new module owns the helper struct/logic and reuses the shared score-file context (`score_file_global_ctx()`).
+- `scores_version_has_curses()` now lives in `src/score/score_io.c` so other modules can query format capabilities without poking at `files.c` internals. Updated all call sites (score logic + UI traces) to use the exported helper.
+- Reintroduced the score UI state (`force_interactive_scores`, `forced_highlight_entry`, `score_last_layout_short`) as explicit statics since the earlier code removal trimmed their definitions alongside the logic block.
+- CMake builds include the added module, and `build-cmake.bat` succeeds (warnings unchanged from prior runs).
