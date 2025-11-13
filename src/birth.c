@@ -564,7 +564,7 @@ static void give_start_items(const start_item *list)
             char label = supplies_label_char();
             if (!label)
                 label = 'a';
-            msg_format("You start with %s (%c) in your supplies.", name, label);
+            log_info("Starting item went to supplies: %s (%c)", name, label);
             continue;
         }
 
@@ -623,7 +623,6 @@ static void grant_starting_artifact(void)
     a_ptr->cur_num = 1;
     if (valar_reserved_artifacts) valar_reserved_artifacts[art_idx] = true;
 
-    msg_format("A hidden patron gifts you %s.", a_ptr->name);
     log_info("Starting artefact granted: %s (idx=%d)", a_ptr->name, art_idx);
 }
 
