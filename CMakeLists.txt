@@ -11,18 +11,6 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE "Release")
 endif()
 
-if (LOG_MODE_TIMESTAMP)
-  target_compile_definitions(sil-more PUBLIC LOG_MODE_TIMESTAMP)
-endif()
-
-if (STEAMDECK_SUPPORT)
-    target_compile_definitions(sil-more PUBLIC STEAMDECK_SUPPORT)
-endif()
-
-if (SIL_USE_LOCAL_DATA)
-    target_compile_definitions(sil-more PUBLIC SIL_USE_LOCAL_DATA)
-endif()
-
 find_package(SDL3 REQUIRED)
 find_package(SDL3_ttf REQUIRED)
 find_package(SDL3_image REQUIRED)
@@ -106,3 +94,16 @@ if(MINGW)
 endif()
 
 target_link_libraries(sil-more PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image log)
+
+# Add compile definitions after target is created
+if (LOG_MODE_TIMESTAMP)
+  target_compile_definitions(sil-more PUBLIC LOG_MODE_TIMESTAMP)
+endif()
+
+if (STEAMDECK_SUPPORT)
+    target_compile_definitions(sil-more PUBLIC STEAMDECK_SUPPORT)
+endif()
+
+if (SIL_USE_LOCAL_DATA)
+    target_compile_definitions(sil-more PUBLIC SIL_USE_LOCAL_DATA)
+endif()
