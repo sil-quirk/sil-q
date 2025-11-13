@@ -5739,6 +5739,8 @@ Remove support for obsolete system pref files, keeping only SDL support for mode
   3. Quest deltas: we currently count completed quests via the live state on `p_ptr`. If we want “quests done this run” instead of “quests unlocked this metarun,” we’ll need per-run flags (perhaps parallel to `metar.completed_quests`).
   4. `notes_buffer` / death-spectator data: `death_spectator_view()` reuses the live dungeon state but nothing snapshots it on disk. A future enhancement could stash the last map dump or character sheet hash inside the reserved bytes of `score_record_v1` for richer post-run UIs.
 
+- Added a Run History viewer accessible from the main menu (`v`). The new `show_run_history()` helper reads the latest 256 entries from `runs.db`, formats them with date, status, depth, Silmaril count, player name, and cause of death, and provides paged navigation. `score_record_v1` repurposed its reserved bytes to store the canonical player name so the UI can present meaningful labels even for in-progress saves.
+
 ## 2025-11-14 - Live Snapshots, Killer GUIDs & Artefact Registry
 
 - `runs.db` now updates every time the player saves. `do_cmd_save_game()` builds the “(alive and well)” preview (`build_live_preview_score`) and calls `score_runs_record_current_run(..., SCORE_RECORD_ALIVE)`, so UI and tooling can surface in-progress runs. When the run ends we reuse the same record (matching `metarun_id` + `character_id` while the entry is `SCORE_RECORD_ALIVE`) and simply flip the status to DEAD or ESCAPED.

@@ -430,6 +430,7 @@ static void score_runs_build_record(score_record_v1* rec,
     }
 
     score_runs_savefile_hint(rec->savefile_hint, sizeof(rec->savefile_hint));
+    SDL_strlcpy(rec->player_name, op_ptr->full_name, sizeof(rec->player_name));
 
     char normalized[64];
     score_runs_normalize_name(op_ptr->full_name, normalized, sizeof(normalized));

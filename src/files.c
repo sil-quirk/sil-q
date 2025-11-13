@@ -7330,6 +7330,203 @@ void show_scores_interactive_highlight(bool longscore, const high_score* entry)
     }
 }
 
+#define RUN_HISTORY_MAX       256
+#define RUN_HISTORY_ROWS       15
+
+static const char* score_run_status_label(score_record_status status)
+{
+    switch (status) {
+    case SCORE_RECORD_ALIVE: return "Alive";
+    case SCORE_RECORD_DEAD: return "Dead";
+    case SCORE_RECORD_ESCAPED: return "Escaped";
+    default: return "Unknown";
+    }
+}
+
+static int compare_run_records_desc(const void* a, const void* b)
+{
+    const score_record_v1* ra = (const score_record_v1*)a;
+    const score_record_v1* rb = (const score_record_v1*)b;
+    if (ra->record_id > rb->record_id)
+        return -1;
+    if (ra->record_id < rb->record_id)
+        return 1;
+    if (ra->completed_utc > rb->completed_utc)
+        return -1;
+    if (ra->completed_utc < rb->completed_utc)
+        return 1;
+    return 0;
+}
+
+static int collect_run_history(score_record_v1* out, int capacity)
+{
+    if (capacity <= 0 || !out)
+        return 0;
+
+    char path[1024];
+    if (!path_build(path, sizeof(path), ANGBAND_DIR_APEX, SCORE_RUNS_DB_FILENAME))
+        return 0;
+
+    safe_setuid_grab();
+    SDL_IOStream* file = SDL_IOFromFile(path, "rb");
+    safe_setuid_drop();
+
+    if (!file)
+        return 0;
+
+    score_db_header header;
+    if (SDL_ReadIO(file, &header, sizeof(header)) != sizeof(header) ||
+        memcmp(header.magic, SCORE_DB_MAGIC, sizeof(header.magic)) != 0) {
+        SDL_CloseIO(file);
+        return 0;
+    }
+
+    score_record_v1* ring = mem_alloc_array(capacity, score_record_v1);
+    if (!ring) {
+        SDL_CloseIO(file);
+        return 0;
+    }
+
+    int stored = 0;
+    score_record_v1 temp;
+    while (SDL_ReadIO(file, &temp, sizeof(temp)) == sizeof(temp)) {
+        ring[stored % capacity] = temp;
+        stored++;
+    }
+
+    SDL_CloseIO(file);
+
+    int count = (stored < capacity) ? stored : capacity;
+    if (count <= 0) {
+        mem_free(ring);
+        return 0;
+    }
+
+    int start = (stored > capacity) ? (stored % capacity) : 0;
+    for (int i = 0; i < count; i++) {
+        int idx = (start + i) % capacity;
+        out[i] = ring[idx];
+    }
+
+    mem_free(ring);
+
+    qsort(out, count, sizeof(score_record_v1), compare_run_records_desc);
+    return count;
+}
+
+void do_cmd_run_history(void)
+{
+    score_record_v1 entries[RUN_HISTORY_MAX];
+    int count = collect_run_history(entries, RUN_HISTORY_MAX);
+    if (count <= 0) {
+        msg_print("No run history is available.");
+        return;
+    }
+
+    int rows = RUN_HISTORY_ROWS;
+    int total_pages = (count + rows - 1) / rows;
+    int page = 0;
+    bool done = false;
+
+    while (!done) {
+        screen_save();
+        Term_clear();
+
+        c_prt(TERM_L_BLUE,
+              format("Run history (%d entries)  page %d/%d", count, page + 1, total_pages),
+              0, 0);
+        c_prt(TERM_L_UMBER,
+              "ID    Date       Status    Dpth Sil Player            Cause of death",
+              2, 0);
+
+        for (int i = 0; i < rows; i++) {
+            int idx = page * rows + i;
+            if (idx >= count)
+                break;
+
+            const score_record_v1* rec = &entries[idx];
+
+            char date[16];
+            if (rec->completed_utc == 0) {
+                SDL_strlcpy(date, "----", sizeof(date));
+            } else {
+                time_t ts = (time_t)rec->completed_utc;
+                struct tm* tm_info = localtime(&ts);
+                if (tm_info) {
+                    strftime(date, sizeof(date), "%Y-%m-%d", tm_info);
+                } else {
+                    SDL_strlcpy(date, "----", sizeof(date));
+                }
+            }
+
+            char cause[64];
+            truncate_preserving_tail(rec->cause_of_death, cause, sizeof(cause), 60);
+
+            char player[33];
+            if (rec->player_name[0]) {
+                SDL_strlcpy(player, rec->player_name, sizeof(player));
+            } else if (rec->savefile_hint[0]) {
+                SDL_strlcpy(player, rec->savefile_hint, sizeof(player));
+            } else {
+                SDL_strlcpy(player, "<unknown>", sizeof(player));
+            }
+
+            char line[160];
+            strnfmt(line, sizeof(line), "%-4u %-10s %-8s %4u %3u %-16.16s %-60s",
+                    rec->record_id,
+                    date,
+                    score_run_status_label(rec->status),
+                    (unsigned)rec->exit_depth,
+                    (unsigned)rec->silmarils,
+                    player,
+                    cause);
+            c_prt(TERM_WHITE, line, 3 + i, 0);
+        }
+
+        c_prt(TERM_L_DARK,
+              "[Esc] exit  [Space/Enter/Right] next page  [Left/-] previous page",
+              4 + rows, 0);
+
+        Term_fresh();
+        int ch = inkey();
+        screen_load();
+
+        switch (ch) {
+        case ESCAPE:
+        case 'q':
+            done = true;
+            break;
+
+        case ' ':
+        case '\r':
+        case '\n':
+        case '6':
+        case '3':
+        case 'n':
+        case 'N':
+            if (page + 1 < total_pages)
+                page++;
+            else
+                bell("Already at last page.");
+            break;
+
+        case '4':
+        case '7':
+        case '-':
+        case 'p':
+        case 'P':
+            if (page > 0)
+                page--;
+            else
+                bell("Already at first page.");
+            break;
+
+        default:
+            break;
+        }
+    }
+}
+
 /*  Returns NULL when nothing was slain, or a static string with the
  *  house name of the slain hero.  If @do_roll is false, the caller has
  *  already performed the RNG check and we kill un-conditionally.       */

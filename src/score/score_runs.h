@@ -8,6 +8,8 @@
 
 struct high_score;
 
+#define SCORE_RUNS_DB_FILENAME "runs.db"
+
 bool score_runs_record_current_run(const struct high_score* legacy_score,
                                    time_t timestamp,
                                    score_record_status status);

@@ -571,6 +571,7 @@ extern void create_smithing_item(void);
 extern void do_cmd_main_menu(void);
 extern void do_cmd_message_one(void);
 extern void do_cmd_messages(void);
+extern void do_cmd_run_history(void);
 extern void do_cmd_options_aux(int page, cptr info);
 extern void do_cmd_options(void);
 extern void do_cmd_pane_settings(void);

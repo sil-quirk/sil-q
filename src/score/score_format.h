@@ -85,7 +85,7 @@ typedef struct score_record_v1 {
     char killer_name[48];       /* final rendered killer string */
     char cause_of_death[64];    /* narrative summary */
     char savefile_hint[32];     /* savefile stem for recovery */
-    char reserved[32];          /* padding for future fields */
+    char player_name[32];       /* canonical player name (repurposed from reserved) */
 } score_record_v1;
 
 /*
