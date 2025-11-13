@@ -1263,6 +1263,8 @@ static void wr_randarts(void)
         artefact_type* a_ptr = &a_info[i];
 
         wr_string(a_ptr->name);
+        wr_u32b(a_ptr->guid.hi);
+        wr_u32b(a_ptr->guid.lo);
 
         wr_byte(a_ptr->tval);
         wr_byte(a_ptr->sval);

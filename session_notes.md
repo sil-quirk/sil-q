@@ -5724,3 +5724,25 @@ Remove support for obsolete system pref files, keeping only SDL support for mode
 - Added GUID helpers in util.c (parse_u64b_hex) and monster2.c (monster_lookup_guid, monster_lookup_guid_text, place_monster_by_guid) so runtime systems can request a monster by ID rather than by fragile R_IDX_* constants.
 - Refactored the vault placement switch in src/generate.c: tokens like C, H, @, o, O, Z, , F, T, W, y, Y, A, L, N, D, R, U, G, and V now consult a small GUID-backed table, making the mapping entirely data-driven. Failures log warnings and the underlying monsters are placed via the new GUID helper.
 
+## 2025-11-14 - Runs DB Writer & Snapshot Audit
+
+- Added `src/score/score_runs.{h,c}` plus a `runs.db` writer wired into `close_game_aux()` (`src/files.c:8015-8115`). Every end-of-run now builds a `score_record_v1` snapshot (metarun/character IDs, quest count, skills/abilities totals, artefacts found, kill/seen sums, killer text, savefile hint) and appends it to `lib/apex/runs.db` before the legacy `scores.raw` write. Header management lives in the new module and keeps a monotonically increasing `record_id` plus per-metarun chronological index by scanning the existing file.
+- Extended `score_record_v1` (and the master plan in `docs/score_system_overhaul.md`) with an `artefacts_found` field so the new writer can persist how many unique artefacts the hero recovered/forged during the run.
+- Snapshot inputs leveraged for this first pass:
+  - `create_score()` (`src/files.c:6933-7014`) already captured silmarils, depth, Morgoth/escape state, and `p_ptr->died_from` strings.
+  - Quest state machines are stored directly on `p_ptr` (see `src/types.h:1268-1293`) so the writer can infer completions by checking for `*_QUEST_SUCCESS/REWARDED`.
+  - Skill/ability investments live entirely in `p_ptr->skill_base[]` and `p_ptr->innate_ability[][]`; summing those arrays provides run-wide purchase counts without touching race/house tables.
+  - Monster recall (`l_list`) exposes per-life `pkills`/`psights`, so summing those fields yields kill/seen totals without reading saves.
+- Follow-up instrumentation ideas (not yet implemented, tracked for Phase 2):
+  1. Killer GUIDs: `take_hit()` only receives a text string, so recording monster/trap metadata will require tagging damage sources before the call (probable home: wrappers in `melee1.c`, `spells1.c`, and trap resolvers). Adds coverage for `score_record_v1.killer_guid`/`killer_race_index`.
+  2. Run start timestamps: today `created_utc` mirrors the completion time. Persisting a `run_start_utc` on `player_type` (save/load) would preserve the actual birth moment across saves.
+  3. Quest deltas: we currently count completed quests via the live state on `p_ptr`. If we want “quests done this run” instead of “quests unlocked this metarun,” we’ll need per-run flags (perhaps parallel to `metar.completed_quests`).
+  4. `notes_buffer` / death-spectator data: `death_spectator_view()` reuses the live dungeon state but nothing snapshots it on disk. A future enhancement could stash the last map dump or character sheet hash inside the reserved bytes of `score_record_v1` for richer post-run UIs.
+
+## 2025-11-14 - Live Snapshots, Killer GUIDs & Artefact Registry
+
+- `runs.db` now updates every time the player saves. `do_cmd_save_game()` builds the “(alive and well)” preview (`build_live_preview_score`) and calls `score_runs_record_current_run(..., SCORE_RECORD_ALIVE)`, so UI and tooling can surface in-progress runs. When the run ends we reuse the same record (matching `metarun_id` + `character_id` while the entry is `SCORE_RECORD_ALIVE`) and simply flip the status to DEAD or ESCAPED.
+- Introduced a reusable killer context (`src/player/killer.{h,c}`) that records the last entity to damage the player. Melee attacks, monster spells (`project_p`), traps, hazards, poison/starvation, suicides, and scripted victories now mark their source before `take_hit()` fires. On death `take_hit()` calls `killer_commit()`, so `score_record_v1.killer_guid/killer_race_index/killer_kind` reference the actual attacker GUID instead of heuristics.
+- Artefacts gained GUID storage: `artefact_type` has a `guid64`, the ASCII loader accepts `Q:` records, and any entries lacking explicit IDs are assigned a deterministic hash during `init_a_info()`. Smithing-generated artefacts receive a random GUID plus an entry in the new `lib/apex/artefacts.db` (managed by `score/score_artefact.c`) so we can rehydrate their stats independent of savefiles.
+- Added `score/score_guid.{h,c}` with hashing/random helpers, threaded GUID writes through the random artefact save/load paths (`wr_randarts`/`rd_randarts`), and bumped `RANDART_VERSION` to preserve compatibility.
+

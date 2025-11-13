@@ -12,6 +12,8 @@
 #include "externs.h"
 #include "fs/io_sdl.h"
 #include "log/log.h"
+#include "player/killer.h"
+#include "score/score_guid.h"
 #include <string.h> /* memset, strstr */
 #include <stdio.h>  /* FILE, getc, ftell, fseek, ferror */
 #include <sys/types.h>
@@ -1433,6 +1435,16 @@ static errr rd_randarts(void)
                 continue;
 
             rd_string(a_ptr->name, MAX_LEN_ART_NAME);
+            if (randart_version >= 63)
+            {
+                rd_u32b(&a_ptr->guid.hi);
+                rd_u32b(&a_ptr->guid.lo);
+            }
+            else
+            {
+                a_ptr->guid = score_guid_from_string(
+                    a_ptr->name[0] ? a_ptr->name : "randart", (u32b)i);
+            }
 
             rd_byte(&a_ptr->tval);
             rd_byte(&a_ptr->sval);
@@ -1465,6 +1477,11 @@ static errr rd_randarts(void)
         {
             char tmpstr[MAX_LEN_ART_NAME];
             rd_string(tmpstr, sizeof(tmpstr)); /*a_ptr->name*/
+            if (randart_version >= 63)
+            {
+                rd_u32b(&tmp32u);
+                rd_u32b(&tmp32u);
+            }
             rd_byte(&tmp8u); /* a_ptr->tval */
             rd_byte(&tmp8u); /* a_ptr->sval */
             rd_s16b(&tmp16s); /* a_ptr->pval */
@@ -2493,6 +2510,7 @@ bool load_player(void)
 
     /* Paranoia */
     p_ptr->is_dead = false;
+    killer_reset();
 
     // Set a flag to show that we are restoring a game
     p_ptr->restoring = true;

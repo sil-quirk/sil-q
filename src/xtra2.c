@@ -11,6 +11,7 @@
 #include "angband.h"
 #include "externs.h"
 #include "log/log.h"
+#include "player/killer.h"
 #include "metarun.h"
 
 static void look_prt(bool use_story_font, cptr text, int row, int col)
@@ -1742,6 +1743,7 @@ void falling_damage(bool stun)
         update_combat_rolls2(dice, 4, dam, -1, -1, 0, 0, GF_HURT, false);
 
         /* Take the damage */
+        killer_mark_other(SCORE_KILLER_FALL);
         take_hit(dam, message);
     }
 

@@ -14,6 +14,7 @@
 #include "fs/path.h"
 #include "log/log.h"
 #include "h-define.h"
+#include "score/score_guid.h"
 #include <SDL3/SDL.h>
 #include <ctype.h>
 /* Forward declaration for init2 and local placement */
@@ -2761,6 +2762,18 @@ errr parse_a_info(char* buf, header* head)
         /* Save the values */
         a_ptr->d_attr = d_attr;
         a_ptr->d_char = d_char;
+    }
+    /* Process 'Q' for GUID */
+    else if (buf[0] == 'Q')
+    {
+        if (!a_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        u64b guid;
+        if (!parse_u64b_hex(buf + 2, &guid))
+            return (PARSE_ERROR_GENERIC);
+
+        a_ptr->guid = score_guid_from_u64(guid);
     }
 
     /* Process 'I' for "Info" (one line only) */

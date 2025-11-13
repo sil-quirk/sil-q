@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "externs.h"
+#include "player/killer.h"
 
 int medicine_bonus(int original)
 {
@@ -857,6 +858,7 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
                 update_combat_rolls2(
                     4, 8, dam, -1, -1, prt, 100, GF_HURT, false);
 
+                killer_mark_other(SCORE_KILLER_TRAP);
                 take_hit(net_dam, "a collapsing ceiling");
 
                 if (allow_player_stun(NULL))

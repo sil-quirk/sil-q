@@ -239,6 +239,7 @@ struct artefact_type
 {
     char name[MAX_LEN_ART_NAME]; /* Name */
     u32b text; /* Description (offset) */
+    guid64 guid; /* Stable identifier */
 
     byte tval; /* Artefact type */
     byte sval; /* Artefact sub type */

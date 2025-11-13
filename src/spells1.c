@@ -11,6 +11,7 @@
 #include "angband.h"
 #include "externs.h"
 #include "log/log.h"
+#include "player/killer.h"
 
 /*
  * Mega-Hack -- count number of monsters killed out of sight
@@ -1400,6 +1401,8 @@ void take_hit(int dam, cptr kb_str)
             strnfmt(p_ptr->died_from, sizeof(p_ptr->died_from),
                 "%s (while hallucinating)", kb_str);
         }
+
+        killer_commit(kb_str);
 
         /* Note death */
         p_ptr->is_dead = true;
@@ -4109,6 +4112,12 @@ static bool project_p(int who, int y, int x, int dd, int ds, int dif, int typ)
 
     /* Get the monster race. */
     r_ptr = &r_info[m_ptr->r_idx];
+
+    if (who > 0 && who < mon_max) {
+        killer_mark_monster(m_ptr);
+    } else {
+        killer_mark_other(SCORE_KILLER_OTHER);
+    }
 
     /* Get the monster name */
     monster_desc(m_name, sizeof(m_name), m_ptr, 0);

@@ -11,6 +11,7 @@
 #include "angband.h"
 #include "externs.h"
 #include "log/log.h"
+#include "player/killer.h"
 #include "metarun.h"
 #include <math.h>
 
@@ -3616,6 +3617,7 @@ void hit_trap(int y, int x)
         update_combat_rolls2(2, 4, dam, -1, -1, 0, 0, GF_HURT, false);
 
         /* Take the damage */
+        killer_mark_other(SCORE_KILLER_FALL);
         take_hit(dam, name);
 
         /* Make some noise */
@@ -3635,6 +3637,7 @@ void hit_trap(int y, int x)
         update_combat_rolls2(2, 4, dam, -1, -1, 0, 0, GF_HURT, false);
 
         /* Take the damage */
+        killer_mark_other(SCORE_KILLER_FALL);
         take_hit(dam, name);
 
         /* Extra spike damage */
@@ -3653,6 +3656,7 @@ void hit_trap(int y, int x)
             msg_print("You are impaled!");
 
             /* Take the damage */
+            killer_mark_other(SCORE_KILLER_TRAP);
             take_hit(net_dam, name);
 
             (void)set_cut(p_ptr->cut + (net_dam + 1) / 2);
@@ -3680,6 +3684,7 @@ void hit_trap(int y, int x)
                 msg_print("A small dart hits you!");
 
                 // do a tiny amount of damage
+                killer_mark_other(SCORE_KILLER_TRAP);
                 take_hit(1, name);
 
                 update_combat_rolls2(
@@ -3825,6 +3830,7 @@ void hit_trap(int y, int x)
             update_combat_rolls1b(NULL, PLAYER, true);
             update_combat_rolls2(1, 4, dam, -1, -1, 0, 0, GF_HURT, true);
 
+            killer_mark_other(SCORE_KILLER_TRAP);
             take_hit(dam, name);
 
             if (allow_player_slow(NULL))
@@ -3975,6 +3981,7 @@ void hit_trap(int y, int x)
         }
 
         /* Take the damage */
+        killer_mark_other(SCORE_KILLER_TRAP);
         take_hit(net_dam, name);
 
         /* Forget the trap */

@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "externs.h"
+#include "player/killer.h"
 #include "metarun.h"
 #include "supplies.h"
 
@@ -2147,6 +2148,7 @@ bool banishment(void)
         delete_monster_idx(i);
 
         /* Take some damage */
+        killer_mark_other(SCORE_KILLER_SELF);
         take_hit(dieroll(4), "the strain of casting Banishment");
     }
 
@@ -2185,6 +2187,7 @@ bool mass_banishment(void)
         delete_monster_idx(i);
 
         /* Take some damage */
+        killer_mark_other(SCORE_KILLER_SELF);
         take_hit(dieroll(3), "the strain of casting Mass Banishment");
 
         /* Note effect */
@@ -2483,8 +2486,10 @@ void earthquake(int cy, int cx, int pit_y, int pit_x, int r, int who)
                 net_dam = damage - prt;
 
                 // take the damage
-                if (net_dam > 0)
+                if (net_dam > 0) {
+                    killer_mark_other(SCORE_KILLER_OTHER);
                     take_hit(net_dam, "an earthquake");
+                }
 
                 // do stunning
                 if (allow_player_stun(NULL))
@@ -2692,6 +2697,7 @@ void earthquake(int cy, int cx, int pit_y, int pit_x, int r, int who)
         update_combat_rolls2(2, 4, damage, -1, -1, 0, 0, GF_HURT, false);
 
         /* Take the damage */
+        killer_mark_other(SCORE_KILLER_FALL);
         take_hit(damage, "falling into a pit");
     }
 

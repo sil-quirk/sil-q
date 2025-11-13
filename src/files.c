@@ -11,6 +11,8 @@
 #include "angband.h"
 #include "scorefile.h"
 #include "score/score_logic.h"
+#include "score/score_runs.h"
+#include "player/killer.h"
 #include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
@@ -41,6 +43,7 @@
 
 /* Forward declaration for score update function */
 static void upsert_live_score_on_save(void);
+static bool build_live_preview_score(high_score* out);
 
 static void story_c_put_str_grid(byte attr, cptr text, int row, int col, int width)
 {
@@ -4398,6 +4401,9 @@ void do_cmd_morgoth_victory(void)
     /* Record cause for high scores */
     SDL_strlcpy(p_ptr->died_from, "Morgoth's illusory defeat",
         sizeof(p_ptr->died_from));
+
+    killer_mark_other(SCORE_KILLER_OTHER);
+    killer_commit(p_ptr->died_from);
 }
 
 /*
@@ -4432,6 +4438,9 @@ void do_cmd_suicide(void)
     p_ptr->leaving = true;
 
     SDL_strlcpy(p_ptr->died_from, "their own hand", sizeof(p_ptr->died_from));
+
+    killer_mark_other(SCORE_KILLER_SELF);
+    killer_commit(p_ptr->died_from);
 }
 
 /*
@@ -4489,6 +4498,14 @@ void do_cmd_save_game(void)
         }
 
     upsert_live_score_on_save();
+
+        high_score live_score;
+        if (build_live_preview_score(&live_score)) {
+            time_t now = time(NULL);
+            if (!score_runs_record_current_run(&live_score, now, SCORE_RECORD_ALIVE)) {
+                log_warn("Failed to persist live run snapshot for '%s'", op_ptr->full_name);
+            }
+        }
     }
 
     /* Save failed (oops) */
@@ -8036,6 +8053,10 @@ static void close_game_aux(void)
     /* Enter player in high score list */
     log_info("entering score");
     create_score(&the_score);
+    score_record_status final_status = p_ptr->escaped ? SCORE_RECORD_ESCAPED : SCORE_RECORD_DEAD;
+    if (!score_runs_record_current_run(&the_score, death_time, final_status)) {
+        log_warn("Failed to persist run statistics for '%s'", op_ptr->full_name);
+    }
     enter_score(&the_score);
 
     // cure hallucination and rage

@@ -15,6 +15,7 @@
 #include "log/log.h"
 #include <stdio.h>
 #include "metarun.h"
+#include "score/score_guid.h"
 
 #include "h-define.h"
 #include "init.h"
@@ -1277,6 +1278,25 @@ static errr init_a_info(void)
     return (err);
 }
 
+static void ensure_artifact_guids(void)
+{
+    if (!a_info || !z_info)
+        return;
+
+    for (int i = 0; i < z_info->art_max; i++)
+    {
+        artefact_type* a_ptr = &a_info[i];
+        if (!a_ptr)
+            continue;
+
+        if (!score_guid_is_zero(&a_ptr->guid))
+            continue;
+
+        const char* name = a_ptr->name[0] ? a_ptr->name : "unknown-artifact";
+        a_ptr->guid = score_guid_from_string(name, (u32b)i);
+    }
+}
+
 /*
  * Initialize the "e_info" array
  */
@@ -2408,6 +2428,7 @@ void init_angband(void)
     note("[Initializing arrays... (artefacts)]");
     if (init_a_info())
         quit("Cannot initialize artefacts");
+    ensure_artifact_guids();
 
     /* Initialize special item info */
     note("[Initializing arrays... (special items)]");

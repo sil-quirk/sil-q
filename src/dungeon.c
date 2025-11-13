@@ -11,6 +11,7 @@
 #include "angband.h"
 #include "externs.h"
 #include "log/log.h"
+#include "player/killer.h"
 /* Countdown for forcing a redraw after showing the per-style banner */
 int g_banner_force_redraw_remaining = 0;
 #include "metarun.h"
@@ -2432,6 +2433,7 @@ static void process_player(void)
         // amount is one fifth of the poison, rounding up
         amount = (p_ptr->poisoned + 4) / 5;
 
+        killer_mark_other(SCORE_KILLER_OTHER);
         take_hit(amount, "poison");
     }
 
@@ -2441,6 +2443,7 @@ static void process_player(void)
         amount = (p_ptr->cut + 4) / 5;
 
         /* Take damage */
+        killer_mark_other(SCORE_KILLER_OTHER);
         take_hit(amount, "a fatal wound");
     }
 
@@ -2483,6 +2486,7 @@ static void process_player(void)
         i = 1; // old: (PY_FOOD_STARVE - p_ptr->food) / 10;
 
         /* Take damage */
+        killer_mark_other(SCORE_KILLER_OTHER);
         take_hit(i, "starvation");
     }
 

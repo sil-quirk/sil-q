@@ -11,6 +11,7 @@
 #include "angband.h"
 #include "externs.h"
 #include "log/log.h"
+#include "player/killer.h"
 #include "metarun.h"
 
 #define THROW_PENDING_NONE -9999
@@ -1039,6 +1040,7 @@ static void chest_trap(int y, int x, s16b o_idx)
             update_combat_rolls1b(NULL, PLAYER, true);
             update_combat_rolls2(3, 4, dam, -1, -1, 0, 0, GF_HURT, false);
 
+            killer_mark_other(SCORE_KILLER_TRAP);
             take_hit(dam, "a trapped chest");
 
             set_stun(p_ptr->stun + damroll(30, 4));

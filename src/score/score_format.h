@@ -20,10 +20,7 @@ typedef struct score_db_header {
     u32b reserved[3];      /* room for checksum/flags/future offsets */
 } score_db_header;
 
-typedef struct score_guid64 {
-    u32b hi;
-    u32b lo;
-} score_guid64;
+typedef guid64 score_guid64;
 
 typedef enum score_record_status {
     SCORE_RECORD_ALIVE = 0,
@@ -71,6 +68,7 @@ typedef struct score_record_v1 {
     u16b quests_completed;   /* quest counter for the run */
     u16b skills_learned;     /* total skills purchased */
     u16b abilities_learned;  /* total abilities purchased */
+    u16b artefacts_found;    /* artefacts recovered or forged */
     s16b net_curses;         /* curses minus blessings */
     s16b house_power;        /* power rating at time of death */
 

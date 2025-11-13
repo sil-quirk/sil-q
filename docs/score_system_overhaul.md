@@ -38,7 +38,7 @@ Stored as `score_record_v1` entries featuring:
 - IDs for metarun (`metarun_id`), character (`character_id`), and record order.
 - Timeline data (start/end timestamps, turns spent).
 - Gameplay snapshot: silmarils, depth reached/left, unique kills, quests,
-  skills/abilities purchased, curses, XP, kill/seen totals.
+  skills/abilities purchased, curses, XP, kill/seen totals, artifacts obtained.
 - Outcome markers: alive/dead/escaped, run flags (Morgoth slain, noscore, cheat).
 - Killer metadata: kind (monster, trap, fall, self, other), stable GUID, race
   fallback, textual display strings, and cause codes.
@@ -72,6 +72,14 @@ Stored as `score_record_v1` entries featuring:
    characters; the record structs already provide slots for these IDs.
 4. **Migration plan:** Design a converter that reads `scores.raw`, produces
    typed run records, and writes `runs.db` atomically while archiving the source.
+5. **Run snapshots:** `runs.db` writer is live (`score/score_runs.c`) and every
+   end-of-run now appends a `score_record_v1` populated from the death snapshot
+   (`close_game_aux`). Fields currently include metarun + character IDs, quest
+   counts, skill/ability totals, artifact count, kill/seen stats, and killer text.
+   Mid-run saves re-use the same record with `status = ALIVE`, so the UI can show
+   the current character at any save point. Killer metadata now captures the
+   attacking monster/trap GUID via the player killer context, and custom smithing
+   artefacts receive GUIDs plus entries in `lib/apex/artefacts.db` for future reuse.
 
 ### Phase 2 – Module Split (in progress)
 1. **Score I/O module:** Move the score-file context and low-level helpers out

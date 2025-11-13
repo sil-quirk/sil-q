@@ -16,6 +16,8 @@
 #include <ctype.h>
 #include "h-define.h"
 #include "metarun.h"
+#include "score/score_artefact.h"
+#include "score/score_guid.h"
 
 /* String used to show a color sample */
 #define COLOR_SAMPLE "###"
@@ -7494,6 +7496,11 @@ void create_smithing_item(void)
         smith_o_ptr->name1 = z_info->art_rand_max + p_ptr->self_made_arts;
 
         artefact_copy(&a_info[smith_o_ptr->name1], smith_a_ptr);
+        artefact_type* created = &a_info[smith_o_ptr->name1];
+        if (score_guid_is_zero(&created->guid)) {
+            created->guid = score_guid_random();
+        }
+        (void)score_artefact_register(created);
         p_ptr->self_made_arts++;
 
         // make sure to display it as cursed if it is so

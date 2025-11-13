@@ -12,6 +12,7 @@
 #include "externs.h"
 #include "fs/path.h"
 #include "log/log.h"
+#include "player/killer.h"
 #include "z-term.h"
 #include "metarun.h"
 
@@ -2647,6 +2648,7 @@ NavResult player_birth()
     time_t ct = time((time_t*)0);
 
     log_info("Starting character creation process");
+    killer_reset();
 
     /* Create a new character */
     while (1)

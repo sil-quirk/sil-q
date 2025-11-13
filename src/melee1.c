@@ -11,6 +11,7 @@
 #include "angband.h"
 #include "externs.h"
 #include "log/log.h"
+#include "player/killer.h"
 
 /*
  * Main combat rolls startup deferral state
@@ -562,6 +563,8 @@ bool make_attack_normal(monster_type* m_ptr)
     int prt_percent = 100; // a default value to soothe compilation warnings
 
     int dam_type;
+
+    killer_mark_monster(m_ptr);
 
     /* Not allowed to attack */
     if (r_ptr->flags1 & (RF1_NEVER_BLOW))

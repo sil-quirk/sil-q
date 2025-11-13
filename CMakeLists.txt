@@ -56,12 +56,16 @@ add_executable(sil-more
     src/obj-info.c
     src/object1.c
     src/object2.c
+    src/player/killer.c
     src/pane.c
     src/randart.c
     src/rng.c
     src/save.c
     src/score/score_io.c
     src/score/score_logic.c
+    src/score/score_guid.c
+    src/score/score_artefact.c
+    src/score/score_runs.c
     src/sdl-config.c
     src/fs/io_sdl.c
     src/fs/path.c
