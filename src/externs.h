@@ -576,6 +576,7 @@ extern void do_cmd_options(void);
 extern void do_cmd_pane_settings(void);
 extern void do_cmd_pref(void);
 extern void do_cmd_macros(void);
+extern void do_cmd_keybinds(void);
 extern void do_cmd_visuals(void);
 extern void do_cmd_colors(void);
 extern void do_cmd_note(char* note, int what_depth);

@@ -1,5 +1,14 @@
 # Session Notes
 
+## 2025-11-16: Key Handling Audit
+
+- Reviewed the macro/keymap infrastructure in `src/util.c` (macro tables, `inkey_aux()`, `request_command()`), plus loading/editing paths in `src/files.c` and `src/cmd4.c` to understand how prefixes, repeat counts, and mode switching work.
+- Captured findings and modernization ideas in `docs/key_handling_report.md`, covering the Term queue, macro detector timing, keymap modes, pref tokens, and SDL limitations.
+- Highlighted specific technical debt (ASCII-only queue, 500 ms busy wait, control-code sentinels, context-free keymaps) and outlined actionable modernization steps (structured key events, declarative bindings, context layers, better UX).
+- Rebuilt the movement keybinding menu in `src/cmd4.c:9300` by adding helpers that list every key currently mapped to each `;`+direction action, binding arbitrary keys directly to those sequences, and restoring default numpad behavior without clearing the macro; verified via `build-cmake.bat`.
+- Promoted the keybind menu to the top of `options_menu`/`do_cmd_options`, added exclusive rebind + reset logic (`unbind_action`) so resets actually revert to the default key, and tracked keymap edits so unsaved changes trigger a prompt to write `user.prf` (also the default filename for manual saves).
+- Updated the rebind flow so it no longer clears existing bindings for that direction, allowing multiple keys (e.g., WASD + arrows) to trigger the same movement while still using reset to return to the pure numpad default.
+
 ## 2025-11-14: Fixed Button Queue Issue During Story Intro Sequences
 
 ### Issue

@@ -8958,9 +8958,9 @@ void do_cmd_pane_settings(void)
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 10; /* one fewer after removing Challenge Options and the version entry */
+    int options = 11; /* added keybinds option */
     #ifdef DEBUG_CURSES
-    options = 13;
+    options = 14;
     #endif
     if (p_ptr->noscore)    
         options++;
@@ -8968,37 +8968,39 @@ int options_menu(int* highlight)
     Term_putstr(2, 1, -1, TERM_WHITE, "Options and misc");
 
     Term_putstr(2, 3, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) Pane Settings");
+        "a) Set Keybinds");
     Term_putstr(2, 4, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) Interface Options");
+        "b) Pane Settings");
     Term_putstr(2, 5, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Visual Options");
+        "c) Interface Options");
     Term_putstr(2, 6, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) Load a 'Pref' File");
+        "d) Visual Options");
     Term_putstr(2, 7, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Append Options to a 'Pref' File");
+        "e) Load a 'Pref' File");
     Term_putstr(2, 8, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Set Macros");
+        "f) Append Options to a 'Pref' File");
     Term_putstr(2, 9, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Set Colours");
+        "g) Set Macros");
     Term_putstr(2, 10, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Write a note");
+        "h) Set Colours");
     Term_putstr(2, 11, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Take HTML screenshot");
+        "i) Write a note");
     Term_putstr(2, 12, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "j) Return to Game");
+        "j) Take HTML screenshot");
+    Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
+        "k) Return to Game");
 
     if (p_ptr->noscore)
     {
-        Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-            "k) Debugging Options");
+        Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
+            "l) Debugging Options");
     }
 
     /* Show product name and version on the bottom of the menu */
     {
         char verbuf[128];
         strnfmt(verbuf, sizeof(verbuf), "%s %s", VERSION_NAME, VERSION_STRING);
-        Term_putstr(2, 16, -1, TERM_SLATE, verbuf);
+        Term_putstr(2, 17, -1, TERM_SLATE, verbuf);
     }
 
     /* Flush the prompt */
@@ -9066,18 +9068,24 @@ int options_menu(int* highlight)
         return (9);
     }
 
-    if ((ch == 'j') || (ch == 'J') || (ch == ESCAPE) || (ch == 'q'))
+    if ((ch == 'j') || (ch == 'J'))
     {
-        /* Return to game (now letter 'j') */
         *highlight = 10;
         return (10);
     }
 
-    if ((ch == 'k') || (ch == 'K'))
+    if ((ch == 'k') || (ch == 'K') || (ch == ESCAPE) || (ch == 'q'))
     {
-        /* Debugging options (now letter 'k' if shown) */
+        /* Return to game (now letter 'k') */
         *highlight = 11;
         return (11);
+    }
+
+    if ((ch == 'l') || (ch == 'L'))
+    {
+        /* Debugging options (now letter 'l' if shown) */
+        *highlight = 12;
+        return (12);
     }
 
     /* Choose current  */
@@ -9138,30 +9146,36 @@ void do_cmd_options(void)
         {
         case 1:
         {
-            do_cmd_pane_settings();
+            do_cmd_keybinds();
             Term_clear();
             break;
         }
         case 2:
         {
-            do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
+            do_cmd_pane_settings();
             Term_clear();
             break;
         }
         case 3:
         {
-            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
+            do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
             Term_clear();
             break;
         }
         case 4:
+        {
+            do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
+            Term_clear();
+            break;
+        }
+        case 5:
         {
             /* Ask for and load a user pref file */
             do_cmd_pref_file_hack(12);
             Term_clear();
             break;
         }
-        case 5:
+        case 6:
         {
             /* Prompt */
             Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
@@ -9194,25 +9208,25 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 6:
+        case 7:
         {
             do_cmd_macros();
             Term_clear();
             break;
         }
-        case 7:
+        case 8:
         {
             do_cmd_colors();
             Term_clear();
             break;
         }
-        case 8:
+        case 9:
         {
             do_cmd_note("", p_ptr->depth);
             Term_clear();
             break;
         }
-        case 9:
+        case 10:
         {
             char tmp_val[80];
             /* Prompt */
@@ -9227,14 +9241,14 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 10:
+        case 11:
         {
             /* Return to Game */
             return_to_game = true;
             Term_clear();
             break;
         }
-        case 11:
+        case 12:
         {
             /* Debugging Options (only reachable when p_ptr->noscore) */
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");
@@ -9249,6 +9263,317 @@ void do_cmd_options(void)
 
     /* Load screen */
     screen_load();
+}
+
+#ifdef ALLOW_MACROS
+/* Forward declaration */
+static errr keymap_dump(cptr fname);
+#endif
+
+/*
+ * Helper to turn a single keycode into printable text for the keybind UI.
+ */
+static void describe_keycode(byte keycode, char* buf, size_t buflen)
+{
+    char raw[2];
+
+    if (!buf || !buflen)
+        return;
+
+    raw[0] = (char)keycode;
+    raw[1] = '\0';
+
+    ascii_to_text(buf, buflen, raw);
+}
+
+/*
+ * Build a comma-separated list of keys that trigger the supplied action.
+ */
+static void describe_action_bindings(int mode, cptr action, char* buf, size_t buflen)
+{
+    int key;
+    bool found = false;
+    size_t current_len = 0;
+
+    if (!buf || !buflen)
+        return;
+
+    buf[0] = '\0';
+    current_len = 0;
+
+    if (!action)
+    {
+        my_strcpy(buf, "(none)", buflen);
+        return;
+    }
+
+    for (key = 0; key < 256; key++)
+    {
+        cptr current = keymap_act[mode][key];
+
+        if (!current || !streq(current, action))
+            continue;
+
+        char key_label[16];
+
+        describe_keycode((byte)key, key_label, sizeof(key_label));
+
+        if (found)
+        {
+            strnfcat(buf, buflen, &current_len, ", %s", key_label);
+        }
+        else
+        {
+            my_strcpy(buf, key_label, buflen);
+            current_len = strlen(buf);
+            found = true;
+        }
+    }
+
+    if (!found)
+        my_strcpy(buf, "(none)", buflen);
+}
+
+/*
+ * Remove all key bindings that trigger the specified action.
+ */
+static void unbind_action(int mode, cptr action)
+{
+    int key;
+
+    if (!action)
+        return;
+
+    for (key = 0; key < 256; key++)
+    {
+        if (keymap_act[mode][key] && streq(keymap_act[mode][key], action))
+        {
+            string_free(keymap_act[mode][key]);
+            keymap_act[mode][key] = NULL;
+        }
+    }
+}
+
+/*
+ * Keybind configuration menu
+ * Allows rebinding of movement commands for players without a numpad
+ */
+void do_cmd_keybinds(void)
+{
+    int mode;
+    int highlight = 0;
+    bool done = false;
+    bool dirty = false;
+    char ch;
+    const char* default_file = "user.prf";
+    
+    /* Define the keybinds we're managing - starting with numpad movement */
+    struct keybind_entry {
+        byte key_code;      /* Default numpad key (e.g., '1' for numpad 1) */
+        cptr key_name;      /* Display name */
+        cptr default_action; /* Default action string, e.g., ";1" */
+    };
+    
+    struct keybind_entry keybinds[] = {
+        {'1', "Numpad 1 (SW)", ";1"},
+        {'2', "Numpad 2 (S)", ";2"},
+        {'3', "Numpad 3 (SE)", ";3"},
+        {'4', "Numpad 4 (W)", ";4"},
+        {'5', "Numpad 5 (Stay)", ";5"},
+        {'6', "Numpad 6 (E)", ";6"},
+        {'7', "Numpad 7 (NW)", ";7"},
+        {'8', "Numpad 8 (N)", ";8"},
+        {'9', "Numpad 9 (NE)", ";9"},
+    };
+    
+    int num_keybinds = (int)N_ELEMENTS(keybinds);
+    
+    /* Determine the keyset mode */
+    if (!hjkl_movement && !angband_keyset)
+        mode = KEYMAP_MODE_SIL;
+    else if (hjkl_movement && !angband_keyset)
+        mode = KEYMAP_MODE_SIL_HJKL;
+    else if (!hjkl_movement && angband_keyset)
+        mode = KEYMAP_MODE_ANGBAND;
+    else
+        mode = KEYMAP_MODE_ANGBAND_HJKL;
+    
+    /* Save screen */
+    screen_save();
+    
+    while (!done)
+    {
+        int i;
+        char binding_buf[80];
+        
+        /* Clear screen */
+        Term_clear();
+        
+        /* Title */
+        prt("Keybind Configuration", 2, 0);
+        prt("Use 8/2 or arrow keys to navigate, Enter to bind, Escape to return", 4, 0);
+        
+        /* List all keybinds */
+        for (i = 0; i < num_keybinds; i++)
+        {
+            describe_action_bindings(mode, keybinds[i].default_action, binding_buf,
+                sizeof(binding_buf));
+
+            /* Display the keybind */
+            if (i == highlight)
+            {
+                /* Highlighted */
+                c_prt(TERM_L_BLUE, format("%-20s -> %s", keybinds[i].key_name, binding_buf), 
+                      6 + i, 2);
+            }
+            else
+            {
+                /* Normal */
+                prt(format("%-20s -> %s", keybinds[i].key_name, binding_buf), 
+                    6 + i, 2);
+            }
+        }
+        
+        /* Instructions at bottom */
+        {
+            char save_hint[80];
+            strnfmt(save_hint, sizeof(save_hint), "Press 's' to save keybinds to %s", default_file);
+            prt(save_hint, 18, 2);
+        }
+        prt("Press 'r' to reset selected keybind to default", 19, 2);
+        if (dirty)
+            c_prt(TERM_YELLOW, "Unsaved changes", 20, 2);
+        else
+            prt("                    ", 20, 2);
+        
+        /* Get input */
+        ch = inkey();
+        
+        /* Handle input */
+        if (ch == ESCAPE || ch == 'q' || ch == 'Q')
+        {
+            done = true;
+        }
+        else if (ch == '8')
+        {
+            /* Move up */
+            highlight = (highlight + num_keybinds - 1) % num_keybinds;
+        }
+        else if (ch == '2')
+        {
+            /* Move down */
+            highlight = (highlight + 1) % num_keybinds;
+        }
+        else if (ch == '\r' || ch == '\n' || ch == ' ')
+        {
+            /* Rebind the selected key */
+            cptr action = keybinds[highlight].default_action;
+            char key_label[32];
+            char prompt[80];
+            
+            /* Clear the action area */
+            prt("                                                              ", 
+                6 + highlight, 2);
+            
+            /* Prompt for new binding */
+            strnfmt(prompt, sizeof(prompt), "Press key to use for %s (Escape to cancel):",
+                keybinds[highlight].key_name);
+            c_prt(TERM_YELLOW, prompt, 6 + highlight, 2);
+            Term_fresh();
+            
+            /* Get the key to bind */
+            flush();
+            char bind_key = inkey();
+            
+            if (bind_key != ESCAPE && bind_key != 0)
+            {
+                byte new_key = (byte)bind_key;
+
+                /* Clear any existing action on the chosen key */
+                string_free(keymap_act[mode][new_key]);
+                keymap_act[mode][new_key] = string_make(action);
+                dirty = true;
+
+                describe_keycode(new_key, key_label, sizeof(key_label));
+                msg_format("Key %s now performs %s", key_label, keybinds[highlight].key_name);
+                message_flush();
+            }
+        }
+        else if (ch == 'r' || ch == 'R')
+        {
+            /* Reset to default */
+            byte target_key = keybinds[highlight].key_code;
+            char key_label[32];
+            cptr action = keybinds[highlight].default_action;
+
+            /* Remove the action from any custom keys */
+            unbind_action(mode, action);
+
+            /* Restore default action */
+            string_free(keymap_act[mode][target_key]);
+            keymap_act[mode][target_key] = string_make(action);
+            dirty = true;
+
+            describe_keycode(target_key, key_label, sizeof(key_label));
+            msg_format("Reset %s to default key %s", keybinds[highlight].key_name, key_label);
+            message_flush();
+        }
+        else if (ch == 's' || ch == 'S')
+        {
+#ifdef ALLOW_MACROS
+            /* Save keybinds to file */
+            char ftmp[80];
+            
+            /* Default filename */
+            strnfmt(ftmp, sizeof(ftmp), "%s", default_file);
+            
+            /* Clear prompt area */
+            prt("                                                              ", 18, 2);
+            prt("File: ", 18, 2);
+            
+            /* Ask for a file */
+            if (askfor_aux(ftmp, sizeof(ftmp)))
+            {
+                /* Dump the keymaps */
+                if (keymap_dump(ftmp) == 0)
+                {
+                    msg_format("Keybinds saved to %s.", ftmp);
+                    dirty = false;
+                }
+                else
+                {
+                    msg_print("Failed to save keybinds.");
+                }
+                message_flush();
+            }
+#else
+            msg_print("Saving keybinds is not available in this build.");
+            message_flush();
+#endif
+        }
+    }
+    
+    /* Load screen */
+    screen_load();
+
+    if (dirty)
+    {
+        char prompt[80];
+        strnfmt(prompt, sizeof(prompt), "Save keybinds to %s? ", default_file);
+        if (get_check(prompt))
+        {
+            if (keymap_dump(default_file) == 0)
+            {
+                msg_format("Keybinds saved to %s.", default_file);
+                message_flush();
+            }
+            else
+            {
+                msg_print("Failed to save keybinds.");
+                message_flush();
+            }
+        }
+    }
 }
 
 #ifdef ALLOW_MACROS
