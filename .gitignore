@@ -24,3 +24,4 @@ compile_commands.json
 *.temp
 /sil-more_beta 0.9
 /sil-more-release
+/sil-more-windows-sdl3-portable

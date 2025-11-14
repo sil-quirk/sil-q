@@ -3402,7 +3402,29 @@ static void print_story_intro(void)
         col = 0;
 
         /* Print this string, character by character */
+        bool skipped = false;
         for (size_t i = 0; s[i]; i++) {
+            /* Check for any key press to skip typewriter effect */
+            char check_key;
+            if (Term_inkey(&check_key, false, false) == 0) {
+                /* Consume the key - any key press skips the typewriter */
+                Term_inkey(&check_key, false, true);
+                skipped = true;
+                /* Print remaining text instantly */
+                for (size_t j = i; s[j]; j++) {
+                    char ch = s[j];
+                    if (ch == '\n' || col >= wrap_width) {
+                        row++;
+                        col = 0;
+                        if (ch == '\n') continue;
+                    }
+                    Term_putch(indent + col, row, TERM_WHITE, ch);
+                    col++;
+                }
+                Term_fresh();
+                break;
+            }
+            
             char ch = s[i];
 
             /* Newline or wrap? */
@@ -3424,8 +3446,10 @@ static void print_story_intro(void)
         row++;
         col = 0;
 
-        /* 1 second pause after paragraph */
-        Term_xtra(TERM_XTRA_DELAY, 1000);
+        /* 1 second pause after paragraph (skip if we already skipped typewriter) */
+        if (!skipped) {
+            Term_xtra(TERM_XTRA_DELAY, 1000);
+        }
     }
 
     /* Final "finish" prompt with difficulty option */
@@ -3458,6 +3482,9 @@ static void print_story_intro(void)
     }
 
     Term_clear();
+
+    /* Flush any queued keypresses that accumulated during the intro */
+    Term_flush();
 
 #ifdef USE_SDL
     goto cleanup_intro;

@@ -1,5 +1,59 @@
 # Session Notes
 
+## 2025-11-14: Fixed Button Queue Issue During Story Intro Sequences
+
+### Issue
+When showing intro sequences with typewriter effects (`print_story_intro` and `print_story`), button presses were being queued during the animation. After the intro finished, all queued keypresses would execute at once, causing unintended menu navigation or game actions.
+
+### Root Cause
+During `TERM_XTRA_DELAY` (used for typewriter animation delays), the SDL event loop processes all pending events to keep the application responsive. These events include keypresses, which get added to the terminal's key queue via `Term_keypress()`. When the intro finishes, these queued keys are processed by the game, causing rapid-fire unintended actions.
+
+### Solution
+Implemented a comprehensive fix that prevents key queuing during animations:
+
+1. **Immediate Key Consumption**: Any keypress during typewriter/fade effects is immediately consumed and skips the animation
+2. **No Key Queuing**: Keys pressed during animations are never added to the queue for later processing
+3. **Key Queue Flushing**: Added `Term_flush()` calls after sequences complete as additional safety
+
+### Implementation Details
+
+**Modified `src/dungeon.c` - `print_story_intro()`:**
+- Added non-blocking key check during character-by-character rendering
+- **Any keypress** (not just ESC) immediately consumes the key and skips to end of text
+- Remaining text prints instantly without delays
+- Added `Term_flush()` after intro completes for additional safety
+
+**Modified `src/files.c` - `print_paragraph_fade()`:**
+- Changed return type from `bool` to `int` (0=normal, 1=other key, 2=ESC)
+- Checks for keypresses during fade-in animation steps
+- **ESC key**: Returns 2, consumed and signals fast-forward mode
+- **Other keys**: Returns 1, consumed and completes current paragraph fade instantly
+- Also checks during final delay period
+
+**Modified `src/files.c` - `print_story()`:**
+- Handles return value from `print_paragraph_fade`:
+  - Return 0: Normal completion, continue with fade animations
+  - Return 1: Other key pressed, paragraph shown instantly, continue normally to next
+  - Return 2: ESC pressed, enables fast-forward mode (no more fades/delays)
+- ESC at pagination prompts also enables fast-forward mode (intentional)
+
+**Modified `src/xtra2.c` - `quest_typewriter_menu()`:**
+- Added keypress detection during quest dialog typewriter effect
+- Any key press consumed immediately and jumps to end via `skip_typewriter` label
+- Added `Term_flush()` after completion
+
+### Technical Notes
+- Key checking uses non-blocking `Term_inkey(&ch, false, false)` to avoid interrupting animation flow
+- When **any** key detected: immediately consumed with `Term_inkey(&ch, false, true)` before skipping
+- This prevents Enter, Space, or any other key from queuing during animation
+- `Term_flush()` provides additional safety by clearing queue after sequences complete
+- No keys are ever queued for later processing - they all trigger immediate skip behavior
+
+### Testing
+Build completed successfully with only pre-existing warnings. Changes completely eliminate key queue accumulation during intro sequences.
+
+---
+
 ## 2025-11-09: Fixed Physical Resolution Detection Using pixel_density
 
 ### Issue

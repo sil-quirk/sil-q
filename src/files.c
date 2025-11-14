@@ -6933,7 +6933,8 @@ void display_scores_short(int from, int to)
  * Helper: colour fade-in paragraph printer
  * Returns true if completed normally, false if interrupted by Esc
  * ----------------------------------------------------------- */
-static bool print_paragraph_fade(cptr text, int row, int indent,
+/* Return values: 0=completed normally, 1=other key pressed (skip paragraph), 2=ESC pressed (fast-forward) */
+static int print_paragraph_fade(cptr text, int row, int indent,
                                  int wrap_width)
 {
     const byte fade_cols[] = {
@@ -6947,19 +6948,18 @@ static bool print_paragraph_fade(cptr text, int row, int indent,
         char ch;
         if (Term_inkey(&ch, false, false) == 0) /* Non-blocking check */
         {
-            if (ch == ESCAPE)
-            {
-                /* Consume the key and show final state immediately */
-                Term_inkey(&ch, false, true); /* Remove the key from queue */
-                text_out_indent = indent;
-                text_out_wrap   = wrap_width;
-                Term_gotoxy(indent, row);
-                text_out_to_screen(TERM_WHITE, text);
-                text_out_wrap   = 0;
-                text_out_indent = 0;
-                Term_fresh();
-                return false; /* Interrupted */
-            }
+            /* Consume the key */
+            Term_inkey(&ch, false, true); /* Remove the key from queue */
+            /* Show final text state immediately */
+            text_out_indent = indent;
+            text_out_wrap   = wrap_width;
+            Term_gotoxy(indent, row);
+            text_out_to_screen(TERM_WHITE, text);
+            text_out_wrap   = 0;
+            text_out_indent = 0;
+            Term_fresh();
+            /* Return different codes for ESC vs other keys */
+            return (ch == ESCAPE) ? 2 : 1;
         }
 
         text_out_indent = indent;
@@ -6976,15 +6976,14 @@ static bool print_paragraph_fade(cptr text, int row, int indent,
     char ch;
     if (Term_inkey(&ch, false, false) == 0) /* Non-blocking check */
     {
-        if (ch == ESCAPE)
-        {
-            Term_inkey(&ch, false, true); /* Remove the key from queue */
-            return false; /* Interrupted */
-        }
+        /* Consume the key */
+        Term_inkey(&ch, false, true); /* Remove the key from queue */
+        /* Return different codes for ESC vs other keys */
+        return (ch == ESCAPE) ? 2 : 1;
     }
 
     Term_xtra(TERM_XTRA_DELAY, 1000);
-    return true; /* Completed normally */
+    return 0; /* Completed normally */
 }
 
 /* -------------------------------------------------------------
@@ -6996,7 +6995,7 @@ void print_fade_line(cptr text, int row, int indent)
     Term_get_size(&wid, &h);
     int wrap_width = wid - indent - 1;
     if (wrap_width < 10) wrap_width = 10;
-    /* Reuse the paragraph fade; ignore Esc return here (non-interactive hint) */
+    /* Reuse the paragraph fade; ignore return value here (non-interactive hint) */
     (void)print_paragraph_fade(text, row, indent, wrap_width);
 }
 
@@ -7367,14 +7366,18 @@ void print_story(int last_parts, bool fade_in)
 
         if (fade_in && !fast_forward && !show_page_instantly)
         {
-            if (!print_paragraph_fade(text, row, indent, wrap_width))
-            {
-                /* Esc was pressed during fade - enable fast-forward for all remaining content */
-                show_page_instantly = true;
+            /* print_paragraph_fade returns:
+             *   0 = completed normally
+             *   1 = other key pressed (skip this paragraph)
+             *   2 = ESC pressed (enable fast-forward) */
+            int fade_result = print_paragraph_fade(text, row, indent, wrap_width);
+            if (fade_result == 2) {
+                /* ESC pressed - enable fast-forward mode */
                 fast_forward = true;
                 fade_in = false;
-                log_debug("User pressed ESC during fade - enabling fast forward mode");
+                log_debug("ESC pressed during fade - enabling fast forward mode");
             }
+            /* If fade_result == 1, just continue to next paragraph normally */
         }
         else
         {
@@ -7455,6 +7458,9 @@ void print_story(int last_parts, bool fade_in)
     Term_putstr(indent, h - 1, -1, TERM_L_WHITE,
                 "[Press any key to continue]");
     (void)inkey();
+    
+    /* Flush any queued keypresses that accumulated during the story */
+    Term_flush();
     
 #ifdef USE_SDL
     sdl_story_font_disable();  // Disable after story display
