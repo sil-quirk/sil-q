@@ -8,6 +8,11 @@
  * are included in all such copies.  Other copyrights may also apply.
  */
 
+#ifndef WINDOWS
+#define _DEFAULT_SOURCE  /* For DT_DIR and other POSIX extensions */
+#define _BSD_SOURCE      /* For setregid on older systems */
+#endif
+
 #include "angband.h"
 #include "h-basic.h"
 #include "metarun.h"
@@ -25,8 +30,6 @@
 #include <windows.h>
 #include <direct.h>  /* For _mkdir */
 #else
-#define _DEFAULT_SOURCE  /* For DT_DIR and other POSIX extensions */
-#define _BSD_SOURCE      /* For setregid on older systems */
 #include <sys/stat.h>  /* For mkdir */
 #include <dirent.h>    /* For directory operations */
 #include <unistd.h>    /* For setregid, getgid, etc. */

@@ -51,7 +51,8 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
      ```
    - **Arch:**
      ```bash
-     sudo pacman -S base-devel cmake sdl3 sdl3-image sdl3-ttf
+     sudo pacman -S base-devel cmake sdl3
+     paru -S sdl3_ttf sdl3_image # or use any other AUR helper
      ```
 
 2. Navigate to the Sil-More source directory.
