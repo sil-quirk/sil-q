@@ -113,7 +113,7 @@ if(USE_SDL)
   find_package(SDL3_ttf REQUIRED CONFIG)
   find_package(SDL3_image REQUIRED CONFIG)
   target_compile_definitions(sil-more PRIVATE USE_SDL)
-  target_link_libraries(sil-more PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image log)
+  target_link_libraries(sil-more PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image log m)
 endif()
 
 if(USE_GCU)
