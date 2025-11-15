@@ -708,7 +708,7 @@
 #define A_MAX 4
 
 // Maximum number of starting abilities
-#define HOUSE_ABILITY_MAX 8
+#define CHARACTER_ABILITY_MAX 8
 
 /*
  * Total number stories.
@@ -1985,7 +1985,7 @@
 /*Chance of adding additional flags after the first one*/
 #define EXTRA_FLAG_CHANCE 20
 
-/*** Race/House flags ***/
+/*** Race/Character flags ***/
 
 #define RHF_BOW_PROFICIENCY 0x00000001L /* +1 bonus with bows */
 #define RHF_AXE_PROFICIENCY 0x00000002L /* +1 bonus with axes */
@@ -3703,3 +3703,5 @@ extern metarun metar;      /* current run, defined in metarun.c */
 extern int     meta_fd;   /* open descriptor to meta.raw */
 
 #define STORY_PARTS   3
+
+

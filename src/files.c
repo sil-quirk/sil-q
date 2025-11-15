@@ -1474,7 +1474,7 @@ void display_player_xtra_info(int mode)
     /* -------------------- FLAGS (single column at col 22) ---------------- */
 
     int race  = p_ptr->prace;
-    int house = p_ptr->phouse;
+    int character = p_ptr->pcharacter;
 
     byte attr_affinity   = TERM_GREEN;   /* AF */
     byte attr_mastery    = TERM_L_GREEN; /* MA */
@@ -1494,10 +1494,10 @@ void display_player_xtra_info(int mode)
 #define HANDLE_SKILL_EX(LABEL, AFF_FLAG, PEN_FLAG)                                      \
     do {                                                                                \
         int score = 0;                                                                  \
-        if (p_info[race].flags  & (AFF_FLAG)) score++;                                  \
-        if (c_info[house].flags & (AFF_FLAG)) score++;                                  \
-        if (p_info[race].flags  & (PEN_FLAG)) score--;                                  \
-        if (c_info[house].flags & (PEN_FLAG)) score--;                                  \
+        if (p_info[race].flags      & (AFF_FLAG)) score++;                              \
+        if (c_info[character].flags & (AFF_FLAG)) score++;                              \
+        if (p_info[race].flags      & (PEN_FLAG)) score--;                              \
+        if (c_info[character].flags & (PEN_FLAG)) score--;                              \
         score += curse_flag_count_rhf(AFF_FLAG);                                        \
         score -= curse_flag_count_rhf(PEN_FLAG);                                        \
         if (score >  2) score =  2;                                                     \
@@ -1510,13 +1510,13 @@ void display_player_xtra_info(int mode)
 
 #define HANDLE_UNIQUE(LABEL, FLAG, COLOR)                                               \
     do {                                                                                \
-        if ((p_info[race].flags & (FLAG)) || (c_info[house].flags & (FLAG)))            \
+        if ((p_info[race].flags & (FLAG)) || (c_info[character].flags & (FLAG)))        \
             PUSH(uniq_buf, uniq_n, (LABEL), (COLOR));                                   \
     } while (0)
 
 #define HANDLE_UNIQUE_U(LABEL, FLAG, COLOR)                                             \
     do {                                                                                \
-        if (c_info[house].flags_u & (FLAG))                                             \
+        if (c_info[character].flags_u & (FLAG))                                         \
             PUSH(uniq_buf, uniq_n, (LABEL), (COLOR));                                   \
     } while (0)
 
@@ -2076,7 +2076,7 @@ void display_character_tutorial(void)
             else
             {
                 strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name, 
-                    c_name + hp_ptr->alt_name);
+                    c_name + current_character_profile->alt_name);
                 c_put_str(TERM_L_BLUE, name, row++, 4);
             }
             row++;
@@ -2104,7 +2104,7 @@ void display_character_tutorial(void)
             
             /* Show ALL actual traits using the same logic as character sheet */
             int race = p_ptr->prace;
-            int house = p_ptr->phouse;
+            int character = p_ptr->pcharacter;
             
             Term_putstr(2, row++, -1, TERM_SLATE, "Your current traits:");
             
@@ -2128,9 +2128,9 @@ void display_character_tutorial(void)
     do { \
         int sc = 0; \
         if (p_info[race].flags & (AFF_FLAG)) sc++; \
-        if (c_info[house].flags & (AFF_FLAG)) sc++; \
+        if (c_info[character].flags & (AFF_FLAG)) sc++; \
         if (p_info[race].flags & (PEN_FLAG)) sc--; \
-        if (c_info[house].flags & (PEN_FLAG)) sc--; \
+        if (c_info[character].flags & (PEN_FLAG)) sc--; \
         sc += curse_flag_count_rhf(AFF_FLAG); \
         sc -= curse_flag_count_rhf(PEN_FLAG); \
         if (sc > 2) sc = 2; \
@@ -2143,13 +2143,13 @@ void display_character_tutorial(void)
 
 #define CHECK_UNIQUE(LABEL, FLAG, COLOR) \
     do { \
-        if ((p_info[race].flags & (FLAG)) || (c_info[house].flags & (FLAG))) \
+        if ((p_info[race].flags & (FLAG)) || (c_info[character].flags & (FLAG))) \
             PUSH_TRAIT(trait_uniq, uniq_cnt, (LABEL), (COLOR)); \
     } while (0)
 
 #define CHECK_UNIQUE_U(LABEL, FLAG, COLOR) \
     do { \
-        if (c_info[house].flags_u & (FLAG)) \
+        if (c_info[character].flags_u & (FLAG)) \
             PUSH_TRAIT(trait_uniq, uniq_cnt, (LABEL), (COLOR)); \
     } while (0)
 
@@ -2441,8 +2441,8 @@ static void display_player_misc_info(void)
         strnfmt(name, sizeof(name), "%s the Oathbreaker", op_ptr->full_name);
         c_put_str(TERM_RED, name, 0, 20);
     } else {
-        /* Normal display with house title */
-        strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name, c_name + hp_ptr->alt_name);
+        /* Normal display with character title */
+        strnfmt(name, sizeof(name), "%s%s", op_ptr->full_name, c_name + current_character_profile->alt_name);
         c_put_str(TERM_L_BLUE, name, 0, 20);
     }
     
@@ -4229,10 +4229,10 @@ bool get_name(void)
 
     // use old name as a default
    // SDL_strlcpy(tmp, op_ptr->full_name, sizeof(tmp));
-    SDL_strlcpy(tmp, c_name + c_info[p_ptr->phouse].name, sizeof(tmp));
+    SDL_strlcpy(tmp, c_name + c_info[p_ptr->pcharacter].name, sizeof(tmp));
 
     // save a copy too
-    SDL_strlcpy(old_name, c_name + c_info[p_ptr->phouse].name, sizeof(old_name));
+    SDL_strlcpy(old_name, c_name + c_info[p_ptr->pcharacter].name, sizeof(old_name));
 
     /* Prompt for a new name */
     Term_gotoxy(8, 2);
@@ -4257,7 +4257,7 @@ bool get_name(void)
     }*/
 
     /* Process the player name */
-    SDL_strlcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
+    SDL_strlcpy(op_ptr->full_name, c_name + c_info[p_ptr->pcharacter].name, sizeof(op_ptr->full_name));
     process_player_name(true);
     
     log_info("Character name confirmed: '%s'", op_ptr->full_name);
@@ -5852,10 +5852,10 @@ static void upsert_live_score_on_save(void)
     SDL_strlcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
     SDL_strlcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));
     high_score live_score;
-    log_debug("upsert_live_score_on_save: Creating score for player '%s' house=%d", 
-              op_ptr->full_name, p_ptr->phouse);
+    log_debug("upsert_live_score_on_save: Creating score for player '%s' character=%d", 
+              op_ptr->full_name, p_ptr->pcharacter);
     create_score(&live_score);
-    log_debug("upsert_live_score_on_save: Created score - who='%s' house='%s' how='%s'", 
+    log_debug("upsert_live_score_on_save: Created score - who='%s' character='%s' how='%s'", 
               live_score.who, live_score.p_h, live_score.how);
     SDL_strlcpy(p_ptr->died_from, saved_how, sizeof(p_ptr->died_from));
 
@@ -5905,18 +5905,18 @@ static void upsert_live_score_on_save(void)
 #define RACE_PRIORITIES (sizeof(race_priority) / sizeof(race_priority[0]))
 
 /* ------------------------------------------------------------------ */
-/* bit-test whether RACE can belong to HOUSE                          */
-static int race_has_house(uint16_t race, uint16_t house)
+/* bit-test whether RACE can belong to CHARACTER                      */
+static int race_has_character(uint16_t race, uint16_t character)
 {
-    if (house >= z_info->c_max) return 0;
-    const uint16_t word  = house / 32U;
-    const uint16_t shift = house % 32U;
+    if (character >= z_info->c_max) return 0;
+    const uint16_t word  = character / 32U;
+    const uint16_t shift = character % 32U;
     return (p_info[race].choice[word] & (1U << shift)) != 0U;
 }
 
 /* ------------------------------------------------------------------ */
 /* helper - build a dummy hi-score entry so we can immediately kill it */
-static void build_dummy_entry(high_score *e, uint16_t race, uint16_t house)
+static void build_dummy_entry(high_score *e, uint16_t race, uint16_t character)
 {
     memset(e, 0, sizeof(*e));
 
@@ -5924,13 +5924,13 @@ static void build_dummy_entry(high_score *e, uint16_t race, uint16_t house)
     strnfmt(e->what, sizeof e->what, "%s",
             "Hero of the First Age");
 
-    /* 15-char player name - house name fits nicely */
-    const char *hname = c_name + c_info[house].name;
+    /* 15-char player name - character name fits nicely */
+    const char *hname = c_name + c_info[character].name;
     strnfmt(e->who,  sizeof e->who,  "%-.15s", hname);
 
-    /* race & house: two digits each, zero-padded                       */
+    /* race & character: two digits each, zero-padded                       */
     strnfmt(e->p_r,  sizeof e->p_r,  "%02u", race);
-    strnfmt(e->p_h,  sizeof e->p_h,  "%02u", house);
+    strnfmt(e->p_h,  sizeof e->p_h,  "%02u", character);
 
     /* Save the date in standard encoded form */
     time_t now = time(NULL);
@@ -6026,7 +6026,7 @@ extern void display_single_score(
     char aged_commas[15];
     char depth_commas[15];
 
-    /* Extract the race/house */
+    /* Extract the race/character */
     ph = atoi(the_score->p_h);
 
     /* Hack -- extract the turns and such */
@@ -6930,7 +6930,7 @@ errr create_score(high_score* the_score)
     /* Save the player info XXX XXX XXX */
     strnfmt(the_score->uid, sizeof(the_score->uid), "%7u", player_uid);
     strnfmt(the_score->p_r, sizeof(the_score->p_r), "%2d", p_ptr->prace);
-    strnfmt(the_score->p_h, sizeof(the_score->p_h), "%2d", p_ptr->phouse);
+    strnfmt(the_score->p_h, sizeof(the_score->p_h), "%2d", p_ptr->pcharacter);
 
     /* Save the level and such */
     strnfmt(
@@ -7310,6 +7310,216 @@ static const char* score_run_status_label(score_record_status status)
     }
 }
 
+static const char* score_run_killer_kind_label(score_killer_kind kind)
+{
+    switch (kind) {
+    case SCORE_KILLER_MONSTER: return "Monster";
+    case SCORE_KILLER_TRAP: return "Trap";
+    case SCORE_KILLER_FALL: return "Fall";
+    case SCORE_KILLER_SELF: return "Self";
+    case SCORE_KILLER_OTHER: return "Other";
+    default: return "Unknown";
+    }
+}
+
+static const char* run_history_race_name(byte idx)
+{
+    if (!p_info || !p_name || !z_info || idx >= z_info->p_max)
+        return "<unknown>";
+    return p_name + p_info[idx].name;
+}
+
+static const char* run_history_character_name(byte idx)
+{
+    if (!c_info || !c_name || !z_info || idx >= z_info->c_max)
+        return "<unknown>";
+    return c_name + c_info[idx].name;
+}
+
+static const char* run_history_monster_name(u16b r_idx)
+{
+    if (!r_info || !r_name || !z_info || r_idx == 0 || r_idx >= z_info->r_max)
+        return "<unknown>";
+    return r_name + r_info[r_idx].name;
+}
+
+static void run_history_format_timestamp(u32b utc, bool include_time,
+                                         char* out, size_t out_len)
+{
+    if (!out || out_len == 0)
+        return;
+
+    if (!utc) {
+        SDL_strlcpy(out, "----", out_len);
+        return;
+    }
+
+    time_t ts = (time_t)utc;
+    struct tm* tm_info = localtime(&ts);
+    if (!tm_info) {
+        SDL_strlcpy(out, "----", out_len);
+        return;
+    }
+
+    const char* fmt = include_time ? "%Y-%m-%d %H:%M" : "%Y-%m-%d";
+    if (strftime(out, out_len, fmt, tm_info) == 0) {
+        SDL_strlcpy(out, "----", out_len);
+    }
+}
+
+static void run_history_format_flags(byte run_flags, char* out, size_t out_len)
+{
+    if (!out || out_len == 0)
+        return;
+
+    out[0] = '\0';
+    bool first = true;
+
+    #define APPEND_FLAG(label) \
+        do { \
+            if (!first) SDL_strlcat(out, ", ", out_len); \
+            SDL_strlcat(out, (label), out_len); \
+            first = false; \
+        } while (0)
+
+    if (run_flags & SCORE_RUN_FLAG_MORGOTH_SLAIN)
+        APPEND_FLAG("Morgoth slain");
+    if (run_flags & SCORE_RUN_FLAG_ANGBAND_ESCAPED)
+        APPEND_FLAG("Escaped");
+    if (run_flags & SCORE_RUN_FLAG_NOSCORE)
+        APPEND_FLAG("No score");
+    if (run_flags & SCORE_RUN_FLAG_CHEAT)
+        APPEND_FLAG("Cheat");
+
+    #undef APPEND_FLAG
+
+    if (first)
+        SDL_strlcpy(out, "(none)", out_len);
+}
+
+static void run_history_format_guid(const score_guid64* guid,
+                                    char* out, size_t out_len)
+{
+    if (!out || out_len == 0) return;
+    if (!guid || (guid->hi == 0 && guid->lo == 0)) {
+        SDL_strlcpy(out, "00000000-00000000", out_len);
+        return;
+    }
+    strnfmt(out, out_len, "%08X-%08X",
+            (unsigned int)guid->hi, (unsigned int)guid->lo);
+}
+
+static void run_history_show_detail(const score_record_v1* rec)
+{
+    if (!rec)
+        return;
+
+    screen_save();
+    Term_clear();
+
+    char player[33];
+    if (rec->player_name[0]) {
+        SDL_strlcpy(player, rec->player_name, sizeof(player));
+    } else if (rec->savefile_hint[0]) {
+        SDL_strlcpy(player, rec->savefile_hint, sizeof(player));
+    } else {
+        SDL_strlcpy(player, "<unknown>", sizeof(player));
+    }
+
+    char created[32], completed[32];
+    run_history_format_timestamp(rec->created_utc, true, created, sizeof(created));
+    run_history_format_timestamp(rec->completed_utc, true, completed, sizeof(completed));
+
+    char flags[80];
+    run_history_format_flags(rec->run_flags, flags, sizeof(flags));
+
+    char killer_guid[32];
+    run_history_format_guid(&rec->killer_guid, killer_guid, sizeof(killer_guid));
+
+    const char* status = score_run_status_label(rec->status);
+    const char* race_name = run_history_race_name(rec->race_id);
+    const char* char_name = run_history_character_name(rec->character_id);
+    const char* killer_kind = score_run_killer_kind_label(rec->killer_kind);
+    const char* killer_race = run_history_monster_name(rec->killer_race_index);
+
+    int row = 0;
+    char line[160];
+
+    strnfmt(line, sizeof(line), "Run #%u detail", rec->record_id);
+    c_prt(TERM_L_BLUE, line, row++, 0);
+    row++;
+
+    strnfmt(line, sizeof(line),
+            "Metarun %u  Chronological #%u  Character ID 0x%08X",
+            rec->metarun_id, rec->chronological_idx, rec->character_id);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Status: %s  Flags: %s", status, flags);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Player: %s  Save hint: %s",
+            player,
+            rec->savefile_hint[0] ? rec->savefile_hint : "<none>");
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Race: %s (%u)  Character: %s (%u)  Power: %d",
+            race_name, rec->race_id, char_name, rec->character_id, rec->character_power);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Started: %s  Completed: %s", created, completed);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line),
+            "Depth reached: %u'  Exit depth: %u'  Silmarils: %u",
+            (unsigned)rec->max_depth, (unsigned)rec->exit_depth,
+            (unsigned)rec->silmarils);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line),
+            "Quests: %u  Uniques defeated: %u  Artefacts: %u",
+            (unsigned)rec->quests_completed,
+            (unsigned)rec->uniques_killed,
+            (unsigned)rec->artefacts_found);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line),
+            "Skills learned: %u  Abilities learned: %u  Net curses: %d",
+            (unsigned)rec->skills_learned,
+            (unsigned)rec->abilities_learned,
+            rec->net_curses);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line),
+            "Turns: %lu  XP: %lu  Kills: %lu  Seen: %lu",
+            (unsigned long)rec->turns_spent,
+            (unsigned long)rec->xp_earned,
+            (unsigned long)rec->kills_total,
+            (unsigned long)rec->kills_seen);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    row++;
+
+    strnfmt(line, sizeof(line), "Killer: %s (%s)", rec->killer_name, killer_kind);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Killer race: %s (%u)", killer_race, rec->killer_race_index);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Cause: %s",
+            rec->cause_of_death[0] ? rec->cause_of_death : "(unknown)");
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Killer GUID: %s", killer_guid);
+    c_prt(TERM_L_DARK, line, row++, 0);
+
+    row++;
+    c_prt(TERM_L_WHITE, "Press any key to return", row++, 0);
+    Term_fresh();
+    (void)inkey();
+
+    screen_load();
+}
+
 static int compare_run_records_desc(const void* a, const void* b)
 {
     const score_record_v1* ra = (const score_record_v1*)a;
@@ -7392,12 +7602,23 @@ void do_cmd_run_history(void)
 
     int rows = RUN_HISTORY_ROWS;
     int total_pages = (count + rows - 1) / rows;
-    int page = 0;
+    int last_page_offset = ((count - 1) / rows) * rows;
+    if (last_page_offset < 0)
+        last_page_offset = 0;
+    int page_offset = 0;
+    int highlight = 0;
     bool done = false;
 
     while (!done) {
         screen_save();
         Term_clear();
+
+        if (page_offset < 0)
+            page_offset = 0;
+        if (page_offset > last_page_offset)
+            page_offset = last_page_offset;
+
+        int page = (rows > 0) ? (page_offset / rows) : 0;
 
         c_prt(TERM_L_BLUE,
               format("Run history (%d entries)  page %d/%d", count, page + 1, total_pages),
@@ -7407,24 +7628,14 @@ void do_cmd_run_history(void)
               2, 0);
 
         for (int i = 0; i < rows; i++) {
-            int idx = page * rows + i;
+            int idx = page_offset + i;
             if (idx >= count)
                 break;
 
             const score_record_v1* rec = &entries[idx];
 
             char date[16];
-            if (rec->completed_utc == 0) {
-                SDL_strlcpy(date, "----", sizeof(date));
-            } else {
-                time_t ts = (time_t)rec->completed_utc;
-                struct tm* tm_info = localtime(&ts);
-                if (tm_info) {
-                    strftime(date, sizeof(date), "%Y-%m-%d", tm_info);
-                } else {
-                    SDL_strlcpy(date, "----", sizeof(date));
-                }
-            }
+            run_history_format_timestamp(rec->completed_utc, false, date, sizeof(date));
 
             char cause[64];
             truncate_preserving_tail(rec->cause_of_death, cause, sizeof(cause), 60);
@@ -7439,7 +7650,9 @@ void do_cmd_run_history(void)
             }
 
             char line[160];
-            strnfmt(line, sizeof(line), "%-4u %-10s %-8s %4u %3u %-16.16s %-60s",
+            bool selected = (idx == highlight);
+            strnfmt(line, sizeof(line), "%c%-4u %-10s %-8s %4u %3u %-16.16s %-60s",
+                    selected ? '>' : ' ',
                     rec->record_id,
                     date,
                     score_run_status_label(rec->status),
@@ -7447,11 +7660,11 @@ void do_cmd_run_history(void)
                     (unsigned)rec->silmarils,
                     player,
                     cause);
-            c_prt(TERM_WHITE, line, 3 + i, 0);
+            c_prt(selected ? TERM_YELLOW : TERM_WHITE, line, 3 + i, 0);
         }
 
         c_prt(TERM_L_DARK,
-              "[Esc] exit  [Space/Enter/Right] next page  [Left/-] previous page",
+              "[Esc] exit  [Up/Down] move  [Space/Right] next  [Left/-] prev  [Y/Enter] show details",
               4 + rows, 0);
 
         Term_fresh();
@@ -7464,17 +7677,28 @@ void do_cmd_run_history(void)
             done = true;
             break;
 
-        case ' ':
+        case 'y':
+        case 'Y':
         case '\r':
         case '\n':
+            run_history_show_detail(&entries[highlight]);
+            break;
+
+        case ' ':
         case '6':
         case '3':
         case 'n':
         case 'N':
-            if (page + 1 < total_pages)
-                page++;
-            else
+            if (page_offset + rows < count) {
+                page_offset += rows;
+                if (page_offset > last_page_offset)
+                    page_offset = last_page_offset;
+                highlight += rows;
+                if (highlight >= count)
+                    highlight = count - 1;
+            } else {
                 bell("Already at last page.");
+            }
             break;
 
         case '4':
@@ -7482,10 +7706,39 @@ void do_cmd_run_history(void)
         case '-':
         case 'p':
         case 'P':
-            if (page > 0)
-                page--;
-            else
+            if (page_offset > 0) {
+                page_offset -= rows;
+                if (page_offset < 0)
+                    page_offset = 0;
+                if (highlight < page_offset)
+                    highlight = page_offset;
+            } else {
                 bell("Already at first page.");
+            }
+            break;
+
+        case '8':
+        case 'k':
+        case 'K':
+            if (highlight > 0) {
+                highlight--;
+                if (highlight < page_offset)
+                    page_offset = (highlight / rows) * rows;
+            } else {
+                bell("Already at top entry.");
+            }
+            break;
+
+        case '2':
+        case 'j':
+        case 'J':
+            if (highlight + 1 < count) {
+                highlight++;
+                if (highlight >= page_offset + rows)
+                    page_offset = (highlight / rows) * rows;
+            } else {
+                bell("Already at last entry.");
+            }
             break;
 
         default:
@@ -7495,7 +7748,7 @@ void do_cmd_run_history(void)
 }
 
 /*  Returns NULL when nothing was slain, or a static string with the
- *  house name of the slain hero.  If @do_roll is false, the caller has
+ *  character name of the slain hero.  If @do_roll is false, the caller has
  *  already performed the RNG check and we kill un-conditionally.       */
 const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
 {
@@ -7538,19 +7791,19 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     log_trace("hi-score file size=%lld, payload=%lld, records=%d",
               (long long)file_end, (long long)payload, n_recs);
 
-    /* 5) Build list of races with eligible houses and apply weighted selection */
+    /* 5) Build list of races with eligible characters and apply weighted selection */
     
-    /* 5.a) First pass: identify which races have eligible houses */
+    /* 5.a) First pass: identify which races have eligible characters */
     uint16_t eligible_races[RACE_PRIORITIES];
     size_t eligible_count = 0;
     
     for (size_t i = 0; i < RACE_PRIORITIES && eligible_count < RACE_PRIORITIES; ++i) {
         uint16_t race = race_priority[i];
         
-        /* Check if this race has any eligible houses */
+        /* Check if this race has any eligible characters */
         bool has_eligible = false;
         for (uint16_t h = 0; h < z_info->c_max; ++h) {
-            if (!race_has_house(race, h)) continue;
+            if (!race_has_character(race, h)) continue;
             const char *hname = c_name + c_info[h].name;
             if (strcmp(hname, op_ptr->base_name) == 0) continue;
             has_eligible = true;
@@ -7562,7 +7815,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
             log_trace("race priority[%zu]=%u added to eligible list (position %zu)", 
                       i, race, eligible_count - 1);
         } else {
-            log_trace("race priority[%zu]=%u has no eligible houses, skipping", i, race);
+            log_trace("race priority[%zu]=%u has no eligible characters, skipping", i, race);
         }
     }
     
@@ -7605,7 +7858,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     uint16_t race = selected_race;
     log_trace("Processing selected race=%u", race);
     
-    /* Build pool of eligible houses for selected race */
+    /* Build pool of eligible characters for selected race */
     uint16_t *pool = malloc(z_info->c_max * sizeof *pool);
     if (!pool) {
         SDL_CloseIO(highscore_fd);
@@ -7613,38 +7866,38 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
     }
     size_t pool_n = 0;
     for (uint16_t h = 0; h < z_info->c_max; ++h) {
-        if (!race_has_house(race, h)) continue;
+        if (!race_has_character(race, h)) continue;
         const char *hname = c_name + c_info[h].name;
         if (strcmp(hname, op_ptr->base_name) == 0) continue;
         pool[pool_n++] = h;
     }
-    log_trace("race %u: %zu eligible houses", race, pool_n);
+    log_trace("race %u: %zu eligible characters", race, pool_n);
 
-        /* 5.b) Pick one house */
-        uint16_t hsel  = pool[rand_int((int)pool_n)];
-        const char *hname = c_name + c_info[hsel].name;
-        free(pool);
-        pool = NULL;
-        log_info("Kinslayer selected house %u (%s) for elimination", hsel, hname);
+    /* 5.d) Pick one character */
+    uint16_t character_sel = pool[rand_int((int)pool_n)];
+    const char *hname = c_name + c_info[character_sel].name;
+    free(pool);
+    pool = NULL;
+    log_info("Kinslayer selected character %u (%s) for elimination", character_sel, hname);
 
-        /* 5.c) Scan for existing entry */
-        int hit = -1;
-        high_score entry;
-        for (int r = 0; r < n_recs; ++r) {
-            if (highscore_seek(r)) break;
-            if (highscore_read(&entry)) break;
-            if (entry.p_r[0] == '0' + (race/10) &&
-                entry.p_r[1] == '0' + (race%10) &&
-                entry.p_h[0] == '0' + (hsel/10) &&
-                entry.p_h[1] == '0' + (hsel%10)) {
-                hit = r;
-                break;
-            }
+    /* 5.e) Scan for existing entry */
+    int hit = -1;
+    high_score entry;
+    for (int r = 0; r < n_recs; ++r) {
+        if (highscore_seek(r)) break;
+        if (highscore_read(&entry)) break;
+        if (entry.p_r[0] == '0' + (race/10) &&
+            entry.p_r[1] == '0' + (race%10) &&
+            entry.p_h[0] == '0' + (character_sel/10) &&
+            entry.p_h[1] == '0' + (character_sel%10)) {
+            hit = r;
+            break;
         }
-        log_trace("scan: entry_offset=%d", hit);
+    }
+    log_trace("scan: entry_offset=%d", hit);
 
-        if (hit >= 0) {
-            /* 5.d) Found - check alive AND not escaped */
+    if (hit >= 0) {
+        /* 5.f) Found - check alive AND not escaped */
             if (highscore_dead(entry.who)) {
                 log_debug("hero already dead - no kill performed");
                 if (pool) free(pool);
@@ -7681,7 +7934,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
         else {
             /* 5.e) No record - insert dummy */
             high_score dummy;
-            build_dummy_entry(&dummy, race, hsel);
+            build_dummy_entry(&dummy, race, character_sel);
             log_trace("no existing record - inserting dummy \"%s\"", dummy.who);
 
             /* position for add */
@@ -7695,8 +7948,8 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
         }
 
         /* 6) UI is now handled by metarun_update_on_exit() */
-        static char killed_house[32];
-        SDL_strlcpy(killed_house, hname, sizeof killed_house);
+        static char killed_character[32];
+        SDL_strlcpy(killed_character, hname, sizeof killed_character);
 
         /* 7) Close the descriptor and reset before returning */
         safe_setuid_grab();
@@ -7705,7 +7958,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
         }
         safe_setuid_drop();
         highscore_fd = NULL;
-        return killed_house;
+        return killed_character;
 }
 
 /*
@@ -9860,6 +10113,13 @@ void backup_and_clear_saves(void)
     
     log_trace("Folder-based backup process completed");
 }
+
+
+
+
+
+
+
 
 
 

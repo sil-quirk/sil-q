@@ -1427,7 +1427,7 @@ static errr init_c_info(void)
     errr err;
 
     /* Init the header */
-    init_header(&c_head, z_info->c_max, sizeof(player_house));
+    init_header(&c_head, z_info->c_max, sizeof(character_profile));
 
 #ifdef ALLOW_TEMPLATES
 
@@ -2487,10 +2487,10 @@ void init_angband(void)
     if (init_p_info())
         quit("Cannot initialize races");
 
-    /* Initialize house info */
-    note("[Initializing arrays... (houses)]");
+    /* Initialize character info */
+    note("[Initializing arrays... (characters)]");
     if (init_c_info())
-        quit("Cannot initialize houses");
+        quit("Cannot initialize characters");
 
     /* Initialize flavor info */
     note("[Initializing arrays... (flavors)]");
@@ -2699,6 +2699,9 @@ void cleanup_angband(void)
     str_free(ANGBAND_DIR_XTRA);
     str_free(ANGBAND_DIR_SCRIPT);
 }
+
+
+
 
 
 

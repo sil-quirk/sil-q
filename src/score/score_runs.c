@@ -86,7 +86,7 @@ static SDL_IOStream* score_runs_open_db(const char* path, score_db_header* heade
 }
 
 static bool score_runs_find_existing(SDL_IOStream* file, u32b metarun_id,
-                                     u32b character_id,
+                                     u32b persona_id,
                                      score_record_v1* existing,
                                      Sint64* offset)
 {
@@ -100,7 +100,7 @@ static bool score_runs_find_existing(SDL_IOStream* file, u32b metarun_id,
     Sint64 pos = SDL_TellIO(file);
     while (SDL_ReadIO(file, &temp, sizeof(temp)) == sizeof(temp)) {
         if (temp.metarun_id == metarun_id &&
-            temp.character_id == character_id &&
+            temp.persona_id == persona_id &&
             temp.status == SCORE_RECORD_ALIVE) {
             if (existing)
                 *existing = temp;
@@ -170,7 +170,7 @@ static void score_runs_normalize_name(const char* name, char* out, size_t out_le
     out[out_pos] = '\0';
 }
 
-static u32b score_runs_hash_character(const char* normalized)
+static u32b score_runs_hash_persona(const char* normalized)
 {
     const u32b fnv_offset = 2166136261u;
     const u32b fnv_prime = 16777619u;
@@ -287,14 +287,14 @@ store:
         *kills_seen = seen;
 }
 
-static s16b score_runs_house_power(void)
+static s16b score_runs_character_power(void)
 {
     int power = 3;
     bool gift = false;
 
-    if (z_info && p_ptr->phouse < z_info->c_max) {
-        power = c_info[p_ptr->phouse].power;
-        gift = (c_info[p_ptr->phouse].flags & RHF_GIFTERU) != 0;
+    if (z_info && p_ptr->pcharacter < z_info->c_max) {
+        power = c_info[p_ptr->pcharacter].power;
+        gift = (c_info[p_ptr->pcharacter].flags & RHF_GIFTERU) != 0;
     }
     if (z_info && p_ptr->prace < z_info->p_max) {
         if (p_info[p_ptr->prace].flags & RHF_GIFTERU)
@@ -388,13 +388,13 @@ static void score_runs_build_record(score_record_v1* rec,
 {
     memset(rec, 0, sizeof(*rec));
     rec->metarun_id = metar.id;
-    rec->character_id = 0;
+    rec->persona_id = 0;
     rec->created_utc = (u32b)snapshot_time;
     rec->completed_utc = (u32b)snapshot_time;
     rec->status = status;
     rec->run_flags = score_runs_run_flags();
     rec->race_id = (byte)(p_ptr->prace & 0xFF);
-    rec->house_id = (byte)(p_ptr->phouse & 0xFF);
+    rec->character_id = (byte)(p_ptr->pcharacter & 0xFF);
     rec->max_depth = (u16b)MAX(p_ptr->max_depth, 0);
     rec->exit_depth = (u16b)MAX(p_ptr->depth, 0);
     rec->silmarils = score_runs_silmarils();
@@ -404,7 +404,7 @@ static void score_runs_build_record(score_record_v1* rec,
     rec->abilities_learned = score_runs_abilities_learned();
     rec->artefacts_found = score_runs_artefacts_found();
     rec->net_curses = score_runs_net_curses();
-    rec->house_power = score_runs_house_power();
+    rec->character_power = score_runs_character_power();
     rec->turns_spent = (playerturn >= 0) ? (u32b)playerturn : 0;
     rec->xp_earned = (p_ptr->exp >= 0) ? (u32b)p_ptr->exp : 0;
     score_runs_collect_kill_totals(&rec->kills_total, &rec->kills_seen);
@@ -434,7 +434,7 @@ static void score_runs_build_record(score_record_v1* rec,
 
     char normalized[64];
     score_runs_normalize_name(op_ptr->full_name, normalized, sizeof(normalized));
-    rec->character_id = score_runs_hash_character(normalized);
+    rec->persona_id = score_runs_hash_persona(normalized);
 
     (void)legacy;
 }
@@ -471,7 +471,7 @@ bool score_runs_record_current_run(const struct high_score* legacy_score,
     score_record_v1 existing;
     Sint64 offset = -1;
     bool found = score_runs_find_existing(db, record.metarun_id,
-                                          record.character_id, &existing, &offset);
+                                          record.persona_id, &existing, &offset);
 
     bool success = false;
     if (found) {
@@ -510,3 +510,6 @@ bool score_runs_record_current_run(const struct high_score* legacy_score,
 
     return success;
 }
+
+
+

@@ -1042,13 +1042,13 @@ static errr rd_extra(void)
         return (-1);
     }
 
-    /* Player house */
-    rd_byte(&p_ptr->phouse);
+    /* Player character */
+    rd_byte(&p_ptr->pcharacter);
 
-    /* Verify player house */
-    if (p_ptr->phouse >= z_info->c_max)
+    /* Verify player character */
+    if (p_ptr->pcharacter >= z_info->c_max)
     {
-        note(format("Invalid player house (%d).", p_ptr->phouse));
+        note(format("Invalid player character (%d).", p_ptr->pcharacter));
         return (-1);
     }
 
@@ -2375,9 +2375,9 @@ static errr rd_savefile_new_aux(void)
     if (arg_fiddle)
         note("Loaded Notes");
 
-    /* Important -- Initialize the race/house */
+    /* Important -- Initialize the race/character */
     rp_ptr = &p_info[p_ptr->prace];
-    hp_ptr = &c_info[p_ptr->phouse];
+    current_character_profile = &c_info[p_ptr->pcharacter];
 
     /* Read the inventory */
     log_debug("Loading player inventory");
@@ -2849,6 +2849,9 @@ bool load_player(void)
     /* Oops */
     return (false);
 }
+
+
+
 
 
 

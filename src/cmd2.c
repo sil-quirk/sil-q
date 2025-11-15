@@ -1786,7 +1786,7 @@ static bool do_cmd_close_aux(int y, int x)
     /* Ward the open door */
     else if (singing(SNG_THRESHOLDS))
     {
-        int difficulty = (c_info[p_ptr->phouse].flags & UNQ_SNG_MEL) ? 15 : 0;
+        int difficulty = (c_info[p_ptr->pcharacter].flags & UNQ_SNG_MEL) ? 15 : 0;
         int result = skill_check(
             PLAYER, ability_bonus(S_SNG, SNG_THRESHOLDS), difficulty, NULL);
         if (result > 9)
@@ -5779,6 +5779,7 @@ void do_cmd_throw_from_slot(int slot)
     throw_pending_slot = slot;
     do_cmd_throw(false);
 }
+
 
 
 

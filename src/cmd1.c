@@ -1007,8 +1007,8 @@ int crit_bonus(int hit_result, int weight, const monster_race* r_ptr,
         }
 
         // Can have improved criticals for melee with one handed weapons
-        // Special case: Maedhros house can use Subtlety with hand-and-a-half weapons
-        bool maedhros_hand_and_half = (c_info[p_ptr->phouse].flags_u & UNQ_MEL_MAEDHROS)
+        // Special case: Maedhros character can use Subtlety with hand-and-a-half weapons
+        bool maedhros_hand_and_half = (c_info[p_ptr->pcharacter].flags_u & UNQ_MEL_MAEDHROS)
             && (k_info[(&inventory[INVEN_WIELD])->k_idx].flags3 & (TR3_HAND_AND_A_HALF))
             && (!inventory[INVEN_ARM].k_idx);
         
@@ -6668,6 +6668,8 @@ void run_step(int dir)
     /* Move the player */
     move_player(p_ptr->run_cur_dir);
 }
+
+
 
 
 

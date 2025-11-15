@@ -499,10 +499,10 @@ cptr keymap_act[KEYMAP_MODES][256];
 /*** Player information ***/
 
 /*
- * Pointer to the player tables (race, house, magic)
+ * Pointer to the player tables (race, character, magic)
  */
 const player_race* rp_ptr;
-player_house* hp_ptr;
+character_profile* current_character_profile;
 
 /*
  * The player other record (static)
@@ -598,9 +598,9 @@ char* p_name;
 char* p_text;
 
 /*
- * The player house arrays
+ * The player character arrays
  */
-player_house* c_info;
+character_profile* c_info;
 char* c_name;
 char* c_text;
 
@@ -892,5 +892,8 @@ int meta_fd = -1;
 metarun metar;
 
 runtype_type *runtype_info = NULL;   /* filled by init_rt_info() */
+
+
+
 
 

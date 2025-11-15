@@ -2251,7 +2251,7 @@ int abilities_menu2(int skilltype, int* highlight)
                 else if (prereqs(skilltype, b_ptr->abilitynum))
                 {
                     // Normalize flag check to 0 or 1
-                    int is_free = (c_info[p_ptr->phouse].flags & RHF_FREE) ? 1 : 0;
+                    int is_free = (c_info[p_ptr->pcharacter].flags & RHF_FREE) ? 1 : 0;
                     int unit_cost = 500 - 200 * is_free;
 
                     // Calculate base cost
@@ -2595,7 +2595,7 @@ void do_cmd_ability_screen(void)
                         if (prereqs(skilltype, abilitynum))
                         {
                             // Normalize flag check to 0 or 1
-                            int is_free = (c_info[p_ptr->phouse].flags & RHF_FREE) ? 1 : 0;
+                            int is_free = (c_info[p_ptr->pcharacter].flags & RHF_FREE) ? 1 : 0;
                             int unit_cost = 500 - 200 * is_free;
 
                             // Calculate base cost
@@ -3947,8 +3947,8 @@ int object_difficulty(object_type* o_ptr)
     int dif_mult = 100;
     int cat = 0; // default to soothe compilation warnings
 
-    bool telchar_bonus = (c_info[p_ptr->phouse].flags_u & UNQ_SMT_TELCHAR);
-    bool feanor_bonus  = (c_info[p_ptr->phouse].flags_u & UNQ_SMT_FEANOR);
+    bool telchar_bonus = (c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_TELCHAR);
+    bool feanor_bonus  = (c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_FEANOR);
 
     // reset smithing costs
     smithing_cost.str = 0;
@@ -3969,7 +3969,7 @@ int object_difficulty(object_type* o_ptr)
     object_flags(o_ptr, &f1, &f2, &f3);
 
     /* ------------------------------------------------------------------
-     *  GAMIL house bonus
+     *  GAMIL character bonus
      *  � Craft mithril items without mithril material
      *  � Costs 3 forge uses instead of 1
      *  � Mark item with TR3_CANT_MELT so the melt-menu ignores it
@@ -3980,7 +3980,7 @@ int object_difficulty(object_type* o_ptr)
     if (telchar_bonus && (f1 & (TR1_SHARPNESS | TR1_SHARPNESS2) || (f3 & TR3_ACCURATE)))
         dif_mult -= 25;
 
-    /*  FEANOR house bonus
+    /*  FEANOR character bonus
      *  � 40% off on all lamps
      *  � 25% off on any fire- or light-branded object */
     if (feanor_bonus)
@@ -4441,7 +4441,7 @@ int object_difficulty(object_type* o_ptr)
     // Penalty for being an artefact
     if (o_ptr->name1)
     {
-        if (!(c_info[p_ptr->phouse].flags_u & UNQ_SMT_FEANOR)) smithing_cost.uses +=2;
+        if (!(c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_FEANOR)) smithing_cost.uses +=2;
         // else smithing_cost.uses += 2;
     }
 
@@ -4456,7 +4456,7 @@ int object_difficulty(object_type* o_ptr)
     case INVEN_RIGHT:
     {
         // Celebrimbor: rings are not minor slots (no penalty)
-        if (!(c_info[p_ptr->phouse].flags_u & UNQ_SMT_CELEBRIMBOR))
+        if (!(c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_CELEBRIMBOR))
         {
             dif_mult += 20;
         }
@@ -4485,7 +4485,7 @@ int object_difficulty(object_type* o_ptr)
     }
 
     // Celebrimbor: treat rings as enchantable
-    if ((c_info[p_ptr->phouse].flags_u & UNQ_SMT_CELEBRIMBOR)
+    if ((c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_CELEBRIMBOR)
         && (o_ptr->tval == TV_RING))
     {
         dif_mult -= 30;
@@ -4497,8 +4497,8 @@ int object_difficulty(object_type* o_ptr)
         smithing_cost.mithril += o_ptr->weight;
     }
 
-   /* Gamil house bonus � override normal mithril cost */
-  if ((c_info[p_ptr->phouse].flags_u & UNQ_SMT_GAMIL)      /* you�re Gamil */
+   /* Gamil character bonus � override normal mithril cost */
+  if ((c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_GAMIL)      /* you�re Gamil */
       && (k_ptr->flags3 & TR3_MITHRIL)                     /* item is mithril */
       && (mithril_carried() < smithing_cost.mithril))      /* no mithril on hand */
   {
@@ -5090,8 +5090,8 @@ int create_sval_menu_aux(int tval, int* highlight)
             {
                 bool allow_override = false;
                 
-                /* Check for specific house unique flag and sval overrides */
-                if ((c_info[p_ptr->phouse].flags_u & UNQ_SMT_EOL) && 
+                /* Check for specific character unique flag and sval overrides */
+                if ((c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_EOL) && 
                     (k_ptr->tval == TV_SOFT_ARMOR) && (k_ptr->sval == SV_ARMOUR_OF_GALVORN))
                 {
                     allow_override = true;
@@ -5917,7 +5917,7 @@ bool applicable_flag(u32b f, int flagset, object_type* o_ptr)
 
     /* Telchar may always put SHARPNESS II on a melee weapon               */
     if ((f == TR1_SHARPNESS2) &&
-        (c_info[p_ptr->phouse].flags_u & UNQ_SMT_TELCHAR))
+        (c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_TELCHAR))
     {
         switch (smith_o_ptr->tval)                   /* any melee weapon   */
         {
@@ -6028,9 +6028,9 @@ int artefact_flag_menu_aux(int category, int* highlight)
     {
         if (category == smithing_flag_types[i].category)
         {
-            /* Telchar-only: skip Sharpness2 if not in house Telchar */
+            /* Telchar-only: skip Sharpness2 if not in character Telchar */
             if (smithing_flag_types[i].flag == TR1_SHARPNESS2 &&
-                !(c_info[p_ptr->phouse].flags_u & UNQ_SMT_TELCHAR))
+                !(c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_TELCHAR))
             {
                 /* don�t even consider it */
                 continue;
@@ -6067,7 +6067,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
 
         // /* Lock Sharpness II behind Telchar forge */
         // if (flag[num] == TR1_SHARPNESS2 &&
-        //     !(c_info[p_ptr->phouse].flags_u & UNQ_SMT_TELCHAR))
+        //     !(c_info[p_ptr->pcharacter].flags_u & UNQ_SMT_TELCHAR))
         //     flag_valid[num] = false;
 
             attr = flag_present[num]
@@ -15953,6 +15953,8 @@ void show_unified_sidebar(unified_look_state* state)
     previous_line_count = current_line_count;
     log_trace("show_unified_sidebar: function complete, set previous_line_count=%d", previous_line_count);
 }
+
+
 
 
 

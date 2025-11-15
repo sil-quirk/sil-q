@@ -85,11 +85,11 @@ bool allow_player_aux(monster_type* m_ptr, int player_flag, u32b ident_flag)
     return (true);
 }
 
-/* Turin house resistance function - 70% chance to resist bad effects but becomes raged */
+/* Turin character resistance function - 70% chance to resist bad effects but becomes raged */
 bool turin_resist_bad_effect(void)
 {
-    /* Check if player has Turin house flag */
-    if (!(c_info[p_ptr->phouse].flags_u & UNQ_WIL_TURIN))
+    /* Check if player has Turin character flag */
+    if (!(c_info[p_ptr->pcharacter].flags_u & UNQ_WIL_TURIN))
         return (false);
     
     /* 70% chance to resist */
@@ -114,7 +114,7 @@ bool turin_resist_bad_effect(void)
  * blinded */
 bool allow_player_blind(monster_type* m_ptr)
 {
-    /* Turin house resistance check first */
+    /* Turin character resistance check first */
     if (turin_resist_bad_effect())
         return (false);
     
@@ -190,10 +190,10 @@ bool set_blind(int v)
  * confused */
 bool allow_player_confusion(monster_type* m_ptr)
 {
-    /* Turin house resistance check first */
+    /* Turin character resistance check first */
     if (turin_resist_bad_effect())
     {
-        log_trace("CONFUSION DEBUG: Turin house resisted confusion");
+        log_trace("CONFUSION DEBUG: Turin character resisted confusion");
         return (false);
     }
     
@@ -356,7 +356,7 @@ bool allow_player_fear(monster_type* m_ptr)
     if (p_ptr->rage)
         return (false);
     
-    /* Turin house resistance check first */
+    /* Turin character resistance check first */
     if (turin_resist_bad_effect())
         return (false);
     
@@ -422,7 +422,7 @@ bool set_afraid(int v)
  */
 bool allow_player_entrancement(monster_type* m_ptr)
 {
-    /* Turin house resistance check first */
+    /* Turin character resistance check first */
     if (turin_resist_bad_effect())
         return (false);
     
@@ -599,7 +599,7 @@ bool set_fast(int v)
 /* Players with free action or who make their saving throw don't get slowed */
 bool allow_player_slow(monster_type* m_ptr)
 {
-    /* Turin house resistance check first */
+    /* Turin character resistance check first */
     if (turin_resist_bad_effect())
         return (false);
     
@@ -691,8 +691,8 @@ bool set_rage(int v)
             p_ptr->redraw |= (PR_SPEED);
         }
 
-        /* Turin house has 50% chance to become hallucinated when raged */
-        if ((c_info[p_ptr->phouse].flags_u & UNQ_WIL_TURIN) && one_in_(2))
+        /* Turin character has 50% chance to become hallucinated when raged */
+        if ((c_info[p_ptr->pcharacter].flags_u & UNQ_WIL_TURIN) && one_in_(2))
         {
             msg_print("The rage clouds your vision!");
             (void)set_image(p_ptr->image + damroll(3, 4));
@@ -5489,7 +5489,7 @@ const char tutorial_leave_text[][100] = {
     { "You have finished the first half of the tutorial and are ready" },
     { "to create a new character." }, { " " },
     { "Don't let the choices overwhelm you the first time." },
-    { "Just start with the default Race and House, then invest most" },
+    { "Just start with the default Race and Character, then invest most" },
     { "of your starting experience in Melee and Evasion." },
     { "Once the game begins, finding some weapons and armour should" },
     { "be your top priority." }, { " " },
@@ -5508,7 +5508,7 @@ const char tutorial_win_text[][100] = {
     { "at 900 ft!), and have finished the tutorial in fine form." },
     { "You are more than ready to create a new character." }, { " " },
     { "Don't let the choices overwhelm you the first time." },
-    { "Just start with the default Race and House, then invest most" },
+    { "Just start with the default Race and Character, then invest most" },
     { "of your starting experience in Melee and Evasion." },
     { "Once the game begins, finding some weapons and armour should" },
     { "be your top priority." }, { " " },
@@ -5549,7 +5549,7 @@ const char tutorial_late_death_text[][100] = {
     { " " },
     { "You are now more than ready to create a character and start playing." },
     { " " }, { "Don't let the choices overwhelm you the first time." },
-    { "Just start with the default Race and House, then invest most" },
+    { "Just start with the default Race and Character, then invest most" },
     { "of your starting experience in Melee and Evasion." },
     { "Once the game begins, finding some weapons and armour should" },
     { "be your top priority." },
@@ -8699,6 +8699,8 @@ void grant_unique_bane_ability(void)
     p_ptr->update |= (PU_BONUS);
     handle_stuff();
 }
+
+
 
 
 

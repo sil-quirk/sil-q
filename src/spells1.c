@@ -744,7 +744,7 @@ static void sing_song_of_disguise(int score)
     int player_skill = score + p_ptr->skill_use[S_WIL];
 
     // Turgon's unique: Shadow Walker - add Perception to the check
-    if (c_info[p_ptr->phouse].flags_u & UNQ_SNG_TURGON)
+    if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_TURGON)
     {
         player_skill += p_ptr->skill_use[S_PER];
     }
@@ -6856,7 +6856,7 @@ void sing_song_of_lorien(int score)
         }
 
         // adjust difficulty by the distance to the monster
-        if (c_info[p_ptr->phouse].flags_u & UNQ_SNG_LUT) result = skill_check(PLAYER, 2*score,
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_LUT) result = skill_check(PLAYER, 2*score,
             resistance + 5 + flow_dist(FLOW_PLAYER_NOISE, m_ptr->fy, m_ptr->fx),
             m_ptr);
         else result = skill_check(PLAYER, score,
@@ -7631,6 +7631,7 @@ void sing(void)
     p_ptr->redraw |= (PR_VOICE);
     p_ptr->redraw |= (PR_HP);
 }
+
 
 
 

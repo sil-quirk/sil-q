@@ -3546,10 +3546,10 @@ PlayResult play_game(void)
             return PLAY_QUIT;
         }
 
-        /* Set player name from house BEFORE load_player() so savefile path is correct */
-        SDL_strlcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
+        /* Set player name from character BEFORE load_player() so savefile path is correct */
+        SDL_strlcpy(op_ptr->full_name, c_name + c_info[p_ptr->pcharacter].name, sizeof(op_ptr->full_name));
         process_player_name(true);  /* Update savefile path */
-        log_debug("Player name set to: %s (house %d), savefile: %s", op_ptr->full_name, p_ptr->phouse, savefile);
+        log_debug("Player name set to: %s (character %d), savefile: %s", op_ptr->full_name, p_ptr->pcharacter, savefile);
 
     /* Attempt to load (manual path) */
     (void)load_player();
@@ -3925,5 +3925,7 @@ PlayResult play_game(void)
         return PLAY_DONE;
     }
 }
+
+
 
 

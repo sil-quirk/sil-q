@@ -21,7 +21,7 @@ typedef struct score_breakdown {
     int cur_depth;
     int depth_up;
     int curses;
-    int house_power;
+    int character_power;
     int uniques_killed;
     bool escaped;
     bool morgoth_slain;
@@ -97,8 +97,8 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     if (escaped)
         base += 100;
 
-    int house_index = parse_score_int(score->p_h, sizeof(score->p_h), -1);
-    int house_power = 3;
+    int character_index = parse_score_int(score->p_h, sizeof(score->p_h), -1);
+    int character_power = 3;
     bool gift_of_eru = false;
     int race_index = parse_score_int(score->p_r, sizeof(score->p_r), -1);
 
@@ -107,28 +107,28 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
             gift_of_eru = true;
     }
 
-    if (house_index >= 0 && z_info && c_info && house_index < z_info->c_max) {
-        house_power = c_info[house_index].power;
-        if (c_info[house_index].flags & RHF_GIFTERU)
+    if (character_index >= 0 && z_info && c_info && character_index < z_info->c_max) {
+        character_power = c_info[character_index].power;
+        if (c_info[character_index].flags & RHF_GIFTERU)
             gift_of_eru = true;
-        log_trace("calculate_score_breakdown: house_index=%d, house_power=%d (from c_info)",
-                  house_index, house_power);
+        log_trace("calculate_score_breakdown: character_index=%d, character_power=%d (from c_info)",
+                  character_index, character_power);
     } else {
-        log_trace("calculate_score_breakdown: Using default house_power=3 (house_index=%d, z_info=%p, c_info=%p, z_info->c_max=%d)",
-                  house_index, (void*)z_info, (void*)c_info, z_info ? z_info->c_max : -1);
+        log_trace("calculate_score_breakdown: Using default character_power=3 (character_index=%d, z_info=%p, c_info=%p, z_info->c_max=%d)",
+                  character_index, (void*)z_info, (void*)c_info, z_info ? z_info->c_max : -1);
     }
 
-    house_power = clampi(house_power, -100, 100);
-    if (gift_of_eru && house_power > 0) {
-        house_power--;
+    character_power = clampi(character_power, -100, 100);
+    if (gift_of_eru && character_power > 0) {
+        character_power--;
     }
 
     int mult_bp = 1000;
-    int house_diff = 3 - house_power;
-    if (house_diff >= 0)
-        mult_bp += house_diff * 220;
+    int character_diff = 3 - character_power;
+    if (character_diff >= 0)
+        mult_bp += character_diff * 220;
     else
-        mult_bp += house_diff * 100;
+        mult_bp += character_diff * 100;
 
     if (curses >= 0)
         mult_bp += curses * 55;
@@ -145,7 +145,7 @@ static score_breakdown calculate_score_breakdown(const high_score* score)
     result.cur_depth = clampi(raw_cur_depth, 0, MORGOTH_DEPTH);
     result.depth_up = depth_up;
     result.curses = curses;
-    result.house_power = house_power;
+    result.character_power = character_power;
     result.uniques_killed = uniques_killed;
     result.escaped = escaped;
     result.morgoth_slain = morgoth;
@@ -250,7 +250,7 @@ int score_points(const high_score* score)
     const char* who = (score->who[0] != '\0') ? score->who : "<unknown>";
     log_debug(
         "score_points: '%s' base=%d mult=%d (power=%d curses=%d sil=%d depth_down=%d depth_up=%d uniques=%d escaped=%s morgoth=%s) => %d",
-        who, breakdown.base_score, breakdown.mult_bp, breakdown.house_power,
+        who, breakdown.base_score, breakdown.mult_bp, breakdown.character_power,
         breakdown.curses, breakdown.silmarils, breakdown.max_depth,
         breakdown.depth_up, breakdown.uniques_killed, breakdown.escaped ? "yes" : "no",
         breakdown.morgoth_slain ? "yes" : "no", total);
@@ -296,3 +296,5 @@ int score_compare(const high_score* a, const high_score* b)
 
     return 0;
 }
+
+

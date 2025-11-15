@@ -691,7 +691,7 @@ static bool play_instrument(object_type* o_ptr, bool* ident)
     }
 
     /* Base chance of success */
-    will_score = p_ptr->skill_use[S_WIL] * ((c_info[p_ptr->phouse].flags_u & UNQ_WIL_TUOR) ? 2 : 1);
+    will_score = p_ptr->skill_use[S_WIL] * ((c_info[p_ptr->pcharacter].flags_u & UNQ_WIL_TUOR) ? 2 : 1);
 
     p_ptr->csp -= voice_cost;
 
@@ -1486,5 +1486,6 @@ bool use_object(object_type* o_ptr, bool* ident)
 
     return (used);
 }
+
 
 

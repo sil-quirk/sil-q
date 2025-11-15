@@ -5935,11 +5935,11 @@ if (playerturn == 0) {
     int idx = 0;
 
     /* Prepare pointers */
-    const char *name = c_name + hp_ptr->name;
-    const char *alt = c_name + hp_ptr->alt_name;
-    const char *start = c_name + hp_ptr->start_string;
+    const char *name = c_name + current_character_profile->name;
+    const char *alt = c_name + current_character_profile->alt_name;
+    const char *start = c_name + current_character_profile->start_string;
 
-    /* Line 1: HouseName AltName! */
+    /* Line 1: CharacterName AltName! */
     strnfmt(extra[idx], 100, "%s%s!", name, alt);
     idx++;
 
@@ -6248,6 +6248,7 @@ if (playerturn == 0) {
 
     // Valar quest doesn't provide map rewards like the old thrall quest
 }
+
 
 
 

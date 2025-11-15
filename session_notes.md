@@ -5814,3 +5814,12 @@ Remove support for obsolete system pref files, keeping only SDL support for mode
 - Artefacts gained GUID storage: `artefact_type` has a `guid64`, the ASCII loader accepts `Q:` records, and any entries lacking explicit IDs are assigned a deterministic hash during `init_a_info()`. Smithing-generated artefacts receive a random GUID plus an entry in the new `lib/apex/artefacts.db` (managed by `score/score_artefact.c`) so we can rehydrate their stats independent of savefiles.
 - Added `score/score_guid.{h,c}` with hashing/random helpers, threaded GUID writes through the random artefact save/load paths (`wr_randarts`/`rd_randarts`), and bumped `RANDART_VERSION` to preserve compatibility.
 
+# 2025-11-15 - Score history UI + character terminology
+
+## Run history inspection upgrades
+- `src/files.c`: rewrote `do_cmd_run_history()` to add row selection, highlight state, and a `[Y]/Enter` detail overlay that dumps every field recorded in `runs.db`. Added timestamp/flag formatting helpers plus a dedicated detail renderer so players can inspect kills, quests, skills, artefacts, GUIDs, etc. while the menu stays interactive.
+- `src/files.c`: added utilities (`run_history_*` helpers) to format names, timestamps, GUIDs, run flags, and killer metadata for the new overlay.
+
+## Rename houses → characters
+- Retired the legacy “house” naming in favour of “character template” across the codebase: `p_ptr->phouse` → `pcharacter`, `player_house` → `character_profile`, and associated helpers/macros/comments updated. Score structs now store `persona_id` (hashed hero) plus `character_id`/`character_power`.
+- Updated every module that referenced house data (`birth.c`, `cmd*`, `files.c`, `init*`, `metarun.c`, `spells*`, `score_*`, `xtra*`, etc.) so UI strings, logs, and logic describe characters/templates consistently. Documentation (`docs/score_system_overhaul.md`) now matches the new vocabulary.

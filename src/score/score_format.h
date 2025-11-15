@@ -51,7 +51,7 @@ typedef enum score_run_flag {
 typedef struct score_record_v1 {
     u32b record_id;           /* monotonically increasing ID */
     u32b metarun_id;          /* owning metarun (matches meta.raw entry) */
-    u32b character_id;        /* foreign key into character database */
+    u32b persona_id;          /* hashed hero (player-entered name) */
     u32b chronological_idx;   /* order of creation within metarun */
     u32b created_utc;         /* when the run started */
     u32b completed_utc;       /* when the run ended */
@@ -59,7 +59,7 @@ typedef struct score_record_v1 {
     score_record_status status;  /* alive/dead/escaped */
     byte run_flags;              /* SCORE_RUN_FLAG_* bits */
     byte race_id;                /* race index at run end */
-    byte house_id;               /* house index at run end */
+    byte character_id;           /* character template index at run end */
 
     u16b max_depth;          /* deepest dungeon level reached */
     u16b exit_depth;         /* depth where the run ended */
@@ -70,7 +70,7 @@ typedef struct score_record_v1 {
     u16b abilities_learned;  /* total abilities purchased */
     u16b artefacts_found;    /* artefacts recovered or forged */
     s16b net_curses;         /* curses minus blessings */
-    s16b house_power;        /* power rating at time of death */
+    s16b character_power;    /* template power rating at time of death */
 
     u32b turns_spent;        /* game turns */
     u32b xp_earned;          /* total XP gained */
@@ -89,13 +89,13 @@ typedef struct score_record_v1 {
 } score_record_v1;
 
 /*
- * Character database entry: cumulative data for a hero across all runs.
+ * Persona database entry: cumulative data for a hero across all runs.
  */
-typedef struct score_character_record_v1 {
-    u32b character_id;       /* primary key */
+typedef struct score_persona_record_v1 {
+    u32b persona_id;         /* primary key */
     score_guid64 guid;       /* persistent GUID (hash of name + seed) */
     char canonical_name[32]; /* latest spelling of the player name */
-    char ancestry[32];       /* race/house string for UI */
+    char ancestry[32];       /* race/character string for UI */
     u32b runs_started;
     u32b runs_completed;
     u32b total_score;
@@ -106,9 +106,9 @@ typedef struct score_character_record_v1 {
     u16b deaths;
     u16b escapes;
     byte last_race;
-    byte last_house;
+    byte last_character;
     byte reserved[46];
-} score_character_record_v1;
+} score_persona_record_v1;
 
 /*
  * Monster statistics rollup: tracks relationships between the player base and

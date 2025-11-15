@@ -1913,7 +1913,7 @@ static int weighted_random_curse(void)
 
     /* Does the hero's lineage carry the flag? */
     bool tilt = (p_info[p_ptr->prace].flags  & RHF_CURSE) ||
-                (c_info[p_ptr->phouse].flags & RHF_CURSE);
+                (c_info[p_ptr->pcharacter].flags & RHF_CURSE);
 
     /* Pass 1 – find the largest weight and (later) build the total */
     for (int i = 0; i < z_info->cu_max; i++)
@@ -2531,12 +2531,12 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
     int blessing_points_before = (metar.blessing_points < 0) ? 0 : metar.blessing_points;
              
     /* -------- Lineage flags -------------------------------------- */
-    u32b f_house = c_info[p_ptr->phouse].flags;
+    u32b character_flags = c_info[p_ptr->pcharacter].flags;
     u32b f_race  = p_info[p_ptr->prace].flags;
 
-    bool has_gift_eru   = (f_house | f_race) & RHF_GIFTERU;
-    bool allow_treachery = (f_house | f_race) & RHF_TREACHERY;
-    bool allow_kinslay   = (f_house | f_race) & RHF_KINSLAYER;
+    bool has_gift_eru   = (character_flags | f_race) & RHF_GIFTERU;
+    bool allow_treachery = (character_flags | f_race) & RHF_TREACHERY;
+    bool allow_kinslay   = (character_flags | f_race) & RHF_KINSLAYER;
 
     bool escaped_with_sils = escaped && (sil_count > 0);
     bool fast_forward = false; // Track if user wants to skip fade effects
@@ -2963,16 +2963,16 @@ void metarun_update_on_exit(bool died, bool escaped, byte sil_count, s32b final_
         for (int k = 0; k < 3; k++) {
             if (!deferred_kill[k]) continue;
 
-            const char *house =
+            const char *character =
                 kinslayer_try_kill(k + 1, /*do_roll=*/false);
-            if (!house) continue;               /* should not happen */
+            if (!character) continue;               /* should not happen */
 
             metarun_increment_deaths();
             log_info("Metarun: kinslaying victim counted as death (%u total)", (unsigned)metar.deaths);
 
             char buf[96];
             strnfmt(buf, sizeof buf,
-                    "A hero %s has fallen beneath your blade.", house);
+                    "A hero %s has fallen beneath your blade.", character);
 
             if (!fast_forward && !print_paragraph_fade(buf, TERM_RED, row))
                 fast_forward = true;
@@ -5293,6 +5293,8 @@ int get_available_oaths_mask(void)
     
     return available;
 }
+
+
 
 
 

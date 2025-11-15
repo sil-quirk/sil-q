@@ -1165,7 +1165,7 @@ static bool describe_weapon_damage(const object_type* o_ptr)
             bool is_currently_equipped = (&inventory[INVEN_WIELD] == o_ptr);
             
             /* Determine potential hand-and-a-half bonus (when wielded two-handed) */
-            if (c_info[p_ptr->phouse].flags_u & UNQ_MEL_MAEDHROS)
+            if (c_info[p_ptr->pcharacter].flags_u & UNQ_MEL_MAEDHROS)
             {
                 hand_half_bonus_potential = 3;
             }
@@ -1559,6 +1559,7 @@ void object_info_screen_multi(const object_type** objects, const char** headings
     text_out_wrap = 0;
     text_out_indent = 0;
 }
+
 
 
 

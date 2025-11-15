@@ -285,7 +285,7 @@ static flag_name info_flags[] = {
     { "IGNORE_ALL", TR3, TR3_IGNORE_ALL },
 
     /*
-     * Race/House flags
+     * Race/Character flags
      */
     { "BOW_PROFICIENCY", RHF, RHF_BOW_PROFICIENCY },
     { "AXE_PROFICIENCY", RHF, RHF_AXE_PROFICIENCY },
@@ -484,7 +484,7 @@ static const char *rank_name(int lvl)            /* -2…+2 → text */
 /* ------------------------------------------------------------------ *
  *  combined_level() – return the net Affinity/Mastery/Penalty value
  *  (-2 … +2) for one skill, summing contributions from
- *       • race-or-house RHF flags (counted once even if both set)
+ *       • race-or-character RHF flags (counted once even if both set)
  *       • active curses  (each curse can add its own +1 / –1)
  *  Affinity = +1, Penalty = –1, Mastery/Grand Penalty = ±2.
  * ------------------------------------------------------------------ */
@@ -504,8 +504,8 @@ static int combined_level(int skill)
     };
 
     /* masks --------------------------------------------------------- */
-    u32b rhf  = p_info[p_ptr->prace].flags |      /* race OR house      */
-                c_info[p_ptr->phouse].flags;
+    u32b rhf  = p_info[p_ptr->prace].flags |      /* race OR character      */
+                c_info[p_ptr->pcharacter].flags;
     u32b cur  = curse_flag_mask();                /* all active curses  */
 
     /* tally --------------------------------------------------------- */
@@ -546,15 +546,15 @@ static const char *skill_tag(int s)
 void dbg_show_active_flags(void)
 {
     player_race  *rp_ptr = &p_info[p_ptr->prace];
-    player_house *hp_ptr = &c_info[p_ptr->phouse];
+    character_profile *current_character_profile = &c_info[p_ptr->pcharacter];
 
     /* live masks --------------------------------------------------- */
-    u32b rhf_bits  = rp_ptr->flags | hp_ptr->flags;  /* race OR house  */
-    u32b unq_bits  = hp_ptr->flags_u;                /* house-unique   */
+    u32b rhf_bits  = rp_ptr->flags | current_character_profile->flags;  /* race OR character  */
+    u32b unq_bits  = current_character_profile->flags_u;                /* character-unique   */
 
     struct { int set; u32b bits; cptr tag; byte clr; } grp[] = {
-        { RHF, rhf_bits, "RHF (Race/House flags)",   TERM_L_GREEN },
-        { UNQ, unq_bits, "UNQ (Unique-house flags)", TERM_L_BLUE  },
+        { RHF, rhf_bits, "RHF (Race/Character flags)",   TERM_L_GREEN },
+        { UNQ, unq_bits, "UNQ (Unique-character flags)", TERM_L_BLUE  },
         { CUR, 0,        "CUR (Curse flags)",        TERM_L_RED   },
     };
 
@@ -3723,7 +3723,7 @@ errr parse_r_info(char* buf, header* head)
  * Grab one flag in a player_race from a textual string
  *
  * Sil:  these used to be the TR1, TR2 and TR3 flags,
- *       but we now use the race/house flags (RHF).
+ *       but we now use the race/character flags (RHF).
  */
 static errr grab_one_race_flag(player_race* ptr, cptr what)
 {
@@ -3734,29 +3734,29 @@ static errr grab_one_race_flag(player_race* ptr, cptr what)
 }
 
 /*
- * Grab one flag in a player_house from a textual string
+ * Grab one flag in a character_profile from a textual string
  *
  * Sil:  these used to be the TR1, TR2 and TR3 flags,
- *       but we now use the race/house flags (RHF).
+ *       but we now use the race/character flags (RHF).
  */
-static errr grab_one_house_flag(player_house *ptr, cptr what)
+static errr grab_one_character_flag(character_profile *ptr, cptr what)
 {
     u32b *f[MAX_FLAG_SETS];
     memset(f, 0, sizeof(f));
 
     f[RHF] = &(ptr->flags);
 
-    return grab_one_flag(f, "player house", what);
+    return grab_one_flag(f, "player character", what);
 }
 
-static errr grab_one_house_uflag(player_house *ptr, cptr what)
+static errr grab_one_character_uflag(character_profile *ptr, cptr what)
 {
     u32b *f[MAX_FLAG_SETS];
     memset(f, 0, sizeof(f));
 
     f[UNQ] = &(ptr->flags_u);      /* NEW: accept unique-flag word */
 
-    return grab_one_flag(f, "player house", what);
+    return grab_one_flag(f, "player character", what);
 }
 
 /*
@@ -3967,7 +3967,7 @@ errr parse_p_info(char* buf, header* head)
             return (PARSE_ERROR_GENERIC);
     }
 
-    /* Hack -- Process 'C' for house choices */
+    /* Hack -- Process 'C' for character choices */
     else if (buf[0] == 'C')
     {
         /* There better be a current pr_ptr */
@@ -4039,9 +4039,9 @@ errr parse_p_info(char* buf, header* head)
 //     char *s, *t;
 
 //     /* Current entry */
-//     static player_house* ph_ptr = NULL;
+//     static character_profile* ph_ptr = NULL;
 
-//     log_debug("Parsing houses");
+//     log_debug("Parsing characters");
 
 //     /* Process 'N' for "New/Number/Name" */
 //     if (buf[0] == 'N')
@@ -4064,23 +4064,23 @@ errr parse_p_info(char* buf, header* head)
 //         error_idx = idx;
 
 //         /* Point at this slot */
-//         ph_ptr = (player_house*)head->info_ptr + idx;
+//         ph_ptr = (character_profile*)head->info_ptr + idx;
 
 //         /* Store the name offset */
 //         if (!(ph_ptr->name = add_name(head, s)))
 //             return (PARSE_ERROR_OUT_OF_MEMORY);
 
-//         /* Debug: announce new house and its name */
-//         log_debug("New house #%d: \"%s\"", idx,
+//         /* Debug: announce new character and its name */
+//         log_debug("New character #%d: \"%s\"", idx,
 //                 head->name_ptr + ph_ptr->name);
 
 //         /* Sentinel‐initialize all ability slots to “empty” */
-//         for (j = 0; j < HOUSE_ABILITY_MAX; j++)
+//         for (j = 0; j < CHARACTER_ABILITY_MAX; j++)
 //         {
 //             ph_ptr->a_adj[j][0] = -1;
 //             ph_ptr->a_adj[j][1] = -1;
 //         }
-//         log_debug("  a_adj slots 0..%d set to -1", HOUSE_ABILITY_MAX - 1);
+//         log_debug("  a_adj slots 0..%d set to -1", CHARACTER_ABILITY_MAX - 1);
 //     }
 
 //     /* Process 'A' for "Alternate Name" */
@@ -4186,7 +4186,7 @@ errr parse_p_info(char* buf, header* head)
 //             }
 
 //             /* Parse this entry */
-//             if (0 != grab_one_house_flag(ph_ptr, s))
+//             if (0 != grab_one_character_flag(ph_ptr, s))
 //                 return (PARSE_ERROR_INVALID_FLAG);
 
 //             /* Start the next entry */
@@ -4211,7 +4211,7 @@ errr parse_p_info(char* buf, header* head)
 //                 while ((*t == ' ') || (*t == '|')) t++;
 //             }
 
-//             if (grab_one_house_uflag(ph_ptr, s))
+//             if (grab_one_character_uflag(ph_ptr, s))
 //                 return PARSE_ERROR_INVALID_FLAG;
 
 //             s = t;
@@ -4268,7 +4268,7 @@ errr parse_p_info(char* buf, header* head)
 //         if (!add_text(&(ph_ptr->text), head, s))
 //             return (PARSE_ERROR_OUT_OF_MEMORY);
 //     }
-//     /* Process 'C' for house ability entries */
+//     /* Process 'C' for character ability entries */
 //     else if (buf[0] == 'C')
 //     {
 //         char *t = buf + 1;
@@ -4276,12 +4276,12 @@ errr parse_p_info(char* buf, header* head)
 
 //         if (!ph_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-//         /* Debug: which house we’re parsing into */
-//         log_debug("Parsing abilities for house \"%s\"…",
+//         /* Debug: which character we’re parsing into */
+//         log_debug("Parsing abilities for character \"%s\"…",
 //                 head->name_ptr + ph_ptr->name);
 
-//         /* Read up to HOUSE_ABILITY_MAX of “:stat:ability” pairs */
-//         while (pair < HOUSE_ABILITY_MAX)
+//         /* Read up to CHARACTER_ABILITY_MAX of “:stat:ability” pairs */
+//         while (pair < CHARACTER_ABILITY_MAX)
 //         {
 //             /* stat */
 //             t = strchr(t, ':');
@@ -4324,7 +4324,7 @@ errr parse_c_info(char* buf, header* head)
     char *s, *t;
 
     /* Current entry */
-    static player_house* ph_ptr = NULL;
+    static character_profile* ph_ptr = NULL;
 
     log_trace("Parsing characters");
 
@@ -4349,9 +4349,9 @@ errr parse_c_info(char* buf, header* head)
         error_idx = idx;
 
         /* Point at this slot */
-        ph_ptr = (player_house*)head->info_ptr + idx;
+        ph_ptr = (character_profile*)head->info_ptr + idx;
 
-        /* RESET equipment counter for new house */
+        /* RESET equipment counter for new character */
         cur_equip = 0;
 
         /* Initialize power to default value 1 (average) */
@@ -4361,17 +4361,17 @@ errr parse_c_info(char* buf, header* head)
         if (!(ph_ptr->name = add_name(head, s)))
             return (PARSE_ERROR_OUT_OF_MEMORY);
 
-        /* Debug: announce new house and its name */
+        /* Debug: announce new character and its name */
         log_trace("New character #%d: \"%s\"", idx,
                 head->name_ptr + ph_ptr->name);
 
         /* Sentinel‐initialize all ability slots to "empty" */
-        for (j = 0; j < HOUSE_ABILITY_MAX; j++)
+        for (j = 0; j < CHARACTER_ABILITY_MAX; j++)
         {
             ph_ptr->a_adj[j][0] = -1;
             ph_ptr->a_adj[j][1] = -1;
         }
-        log_trace("  a_adj slots 0..%d set to -1", HOUSE_ABILITY_MAX - 1);
+        log_trace("  a_adj slots 0..%d set to -1", CHARACTER_ABILITY_MAX - 1);
 
         /* Initialize starting items array */
         for (j = 0; j < MAX_START_ITEMS; j++)
@@ -4487,7 +4487,7 @@ errr parse_c_info(char* buf, header* head)
             }
 
             /* Parse this entry */
-            if (0 != grab_one_house_flag(ph_ptr, s))
+            if (0 != grab_one_character_flag(ph_ptr, s))
                 return (PARSE_ERROR_INVALID_FLAG);
 
             /* Start the next entry */
@@ -4512,7 +4512,7 @@ errr parse_c_info(char* buf, header* head)
                 while ((*t == ' ') || (*t == '|')) t++;
             }
 
-            if (grab_one_house_uflag(ph_ptr, s))
+            if (grab_one_character_uflag(ph_ptr, s))
                 return PARSE_ERROR_INVALID_FLAG;
 
             s = t;
@@ -4533,7 +4533,7 @@ errr parse_c_info(char* buf, header* head)
         /* Check if we've exceeded the maximum number of items */
         if (cur_equip >= MAX_START_ITEMS)
         {
-            log_debug("Warning: Too many starting items for house (max %d), ignoring", MAX_START_ITEMS);
+            log_debug("Warning: Too many starting items for character (max %d), ignoring", MAX_START_ITEMS);
             return (PARSE_ERROR_GENERIC);
         }
 
@@ -4576,7 +4576,7 @@ errr parse_c_info(char* buf, header* head)
         if (!add_text(&(ph_ptr->text), head, s))
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
-    /* Process 'C' for house ability entries */
+    /* Process 'C' for character ability entries */
     else if (buf[0] == 'C')
     {
         char *t = buf + 2; /* Skip 'C:' */
@@ -4585,12 +4585,12 @@ errr parse_c_info(char* buf, header* head)
 
         if (!ph_ptr) return (PARSE_ERROR_MISSING_RECORD_HEADER);
 
-        /* Debug: which house we're parsing into */
-        log_debug("Parsing abilities for house \"%s\" from line: %s",
+        /* Debug: which character we're parsing into */
+        log_debug("Parsing abilities for character \"%s\" from line: %s",
                 head->name_ptr + ph_ptr->name, buf);
 
-        /* Read up to HOUSE_ABILITY_MAX of ":stat:ability" pairs */
-        while (pair < HOUSE_ABILITY_MAX && t && *t)
+        /* Read up to CHARACTER_ABILITY_MAX of ":stat:ability" pairs */
+        while (pair < CHARACTER_ABILITY_MAX && t && *t)
         {
             /* Find first colon for stat */
             if (*t == ':') t++; /* Skip leading colon if present */
@@ -4692,7 +4692,7 @@ errr parse_h_info(char* buf, header* head)
         h_ptr->chart = prv;
         h_ptr->next = nxt;
         h_ptr->roll = prc;
-        h_ptr->house = hou;
+        h_ptr->character = hou;
     }
 
     /* Process 'D' for "Description" */
@@ -5968,6 +5968,13 @@ errr parse_oath_info(char* buf, header* head)
 #else /* ALLOW_TEMPLATES */
 
 #endif /* ALLOW_TEMPLATES */
+
+
+
+
+
+
+
 
 
 

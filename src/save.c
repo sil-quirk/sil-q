@@ -47,7 +47,7 @@ void updatecharinfoS(void)
     const char* race_str = p_name + p_info[p_ptr->prace].name;
     fprintf(oFile, "race: \"%s\",\n", race_str);
 
-    const char* class_str = c_name + c_info[p_ptr->phouse].name;
+    const char* class_str = c_name + c_info[p_ptr->pcharacter].name;
     fprintf(oFile, "class: \"%s\",\n", class_str);
 
     fprintf(oFile, "mDepth: \"%i\",\n", curDepth);
@@ -969,9 +969,9 @@ static void wr_extra(void)
 
     wr_string(p_ptr->history);
 
-    /* Race/House/Sex */
+    /* Race/Character/Sex */
     wr_byte(p_ptr->prace);
-    wr_byte (p_ptr->phouse);
+    wr_byte (p_ptr->pcharacter);
     wr_byte(p_ptr->unused1);
 
     wr_s16b(p_ptr->game_type);
@@ -2082,6 +2082,8 @@ bool save_player(void)
     }
     return (result);
 }
+
+
 
 
 

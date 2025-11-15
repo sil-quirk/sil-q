@@ -75,7 +75,7 @@ typedef struct alloc_entry alloc_entry;
 typedef struct owner_type owner_type;
 typedef struct store_type store_type;
 typedef struct player_race player_race;
-typedef struct player_character player_house;
+typedef struct character_profile character_profile;
 typedef struct hist_type hist_type;
 typedef struct story_type story_type;
 typedef struct curse_type curse_type;
@@ -727,7 +727,7 @@ struct player_race
     byte b_wt; /* base weight */
     byte m_wt; /* mod weight */
 
-    u32b choice[FLAG_WORDS]; /* Legal house choices */
+    u32b choice[FLAG_WORDS]; /* Legal character choices */
 
     start_item start_items[MAX_START_ITEMS]; /* The starting inventory */
 
@@ -737,23 +737,22 @@ struct player_race
 };
 
 /*
- * Player house info
+ * Character template info
  */
-struct player_character
+struct character_profile
 {
-    u32b name; /* Name (offset)           eg 'House of Feanor' */
-    u32b alt_name; /* Alternate Name (offset) eg 'Feanor's House'  */
-    u32b start_string; /* Short Name (offset)     eg 'Feanor'          */
-    u32b text; /* Descrption (offset) */
+    u32b name;         /* Name (offset) eg 'Feanor' */
+    u32b alt_name;     /* Alternate Name (offset) eg 'Character of Feanor' */
+    u32b start_string; /* Short Name (offset) */
+    u32b text;         /* Description (offset) */
 
-    s16b h_adj[A_MAX]; /* House stat bonuses */
-    /** Up to N “stat:ability” pairs. */
-    s16b  a_adj[HOUSE_ABILITY_MAX][2]; /* [i][0]=stat, [i][1]=ability] */
+    s16b h_adj[A_MAX];                         /* Character stat bonuses */
+    s16b a_adj[CHARACTER_ABILITY_MAX][2];      /* Ability slots: [i][0]=stat, [i][1]=ability */
 
-    u32b flags; /* House Flags (ie RHF flags) */
-    u32b flags_u; /* House Flags (ie RHF flags) */
-    byte power; /* Power rating: 0=weak, 1=average, 2=powerful, 3=very powerful */
-    start_item start_items[MAX_START_ITEMS];       /* NEW: bonus kit */
+    u32b flags;   /* Character flags (RHF set) */
+    u32b flags_u; /* Character unique flags */
+    byte power;   /* Power rating: 0=weak ... 3=very powerful */
+    start_item start_items[MAX_START_ITEMS]; /* Bonus kit */
 };
 
 /*
@@ -765,8 +764,8 @@ struct hist_type
 
     byte roll; /* Frequency of this entry */
     byte chart; /* Chart index */
-    byte next; /* Next chart index */
-    byte house; /* House to associate with */
+    byte next;  /* Next chart index */
+    byte character; /* Character template to associate with */
 };
 
 // Storylines
@@ -968,7 +967,7 @@ struct player_type
     s16b px; /* Player location */
 
     byte prace; /* Race index */
-    byte phouse; /* House index */
+    byte pcharacter; /* Character template index */
 
     s16b game_type; /* Whether this is a normal game (=0), tutorial (<0), puzzle
                        (>0) */
@@ -1256,7 +1255,7 @@ struct player_type
 
     bool killed_enemy_with_arrow;
 
-    byte unused1; /* was sex - so unused byte race/house player info */
+    byte unused1; /* was sex - so unused byte race/character player info */
 
     byte oath_type; /* which oath the player has chosen to keep */
     byte oaths_broken; /* which possible oaths the player has broken */
@@ -1350,7 +1349,7 @@ struct high_score
     char uid[8];         /* Player UID (number) */
     char unused[2];      /* Was sex */
     char p_r[3];         /* Player Race (number) */
-    char p_h[3];         /* Player House (number) */
+    char p_h[3];         /* Player Character (number) */
     char cur_lev[4];     /* Unique monsters killed (number) */
     char cur_dun[4];     /* Current Dungeon Level (number) */
     char max_dun[4];     /* Max Dungeon Level (number) */
@@ -1507,3 +1506,6 @@ struct flag_name
     int set; /* The set into which the flag is to be sent. */
     u32b flag; /* The flag being set. */
 };
+
+
+

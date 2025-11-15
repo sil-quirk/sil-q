@@ -41,8 +41,8 @@ extern void wipe_screen_from(int col);
 
 static void grant_starting_artifact(void);
 
-/* House ability names */
-static const char *house_ability_names[S_MAX][ABILITIES_MAX] =
+/* Character ability names */
+static const char *character_ability_names[S_MAX][ABILITIES_MAX] =
 {
     [S_MEL] = {
         [MEL_POWER]            = "Power",
@@ -252,7 +252,7 @@ static void get_extra(void)
     p_ptr->song_duel_pad = 0;
     p_ptr->song_contest_last_turn = 0;
     
-    /* Clear the abilities and add house abilities - but preserve oath abilities */
+    /* Clear the abilities and add character abilities - but preserve oath abilities */
     for (i = 0; i < S_MAX; i++)
     {
         for (j = 0; j < ABILITIES_MAX; j++)
@@ -268,20 +268,20 @@ static void get_extra(void)
         }
     }
     
-    /* Grant all parsed house abilities */
-    for (int slot = 0; slot < HOUSE_ABILITY_MAX; slot++)
+    /* Grant all parsed character abilities */
+    for (int slot = 0; slot < CHARACTER_ABILITY_MAX; slot++)
     {
-        int stat = c_info[p_ptr->phouse].a_adj[slot][0];
+        int stat = c_info[p_ptr->pcharacter].a_adj[slot][0];
         /* sentinel: no more entries */
         if (stat < 0) break;
 
-        int ab = c_info[p_ptr->phouse].a_adj[slot][1];
+        int ab = c_info[p_ptr->pcharacter].a_adj[slot][1];
         /* sanity-check bounds */
         if (stat < S_MAX && ab < ABILITIES_MAX)
         {
             p_ptr->innate_ability[stat][ab] = true;
             p_ptr->active_ability[stat][ab] = true;
-            log_debug("Assigned house ability: stat=%d, ability=%d", stat, ab);
+            log_debug("Assigned character ability: stat=%d, ability=%d", stat, ab);
         }
     }
 }
@@ -306,7 +306,7 @@ void player_wipe(void)
     /* Backup the player choices */
     // Initialized to soothe compilation warnings
     byte prace = 0;
-    byte phouse = 0;
+    byte pcharacter = 0;
     int age = 0;
     int height = 0;
     int weight = 0;
@@ -317,7 +317,7 @@ void player_wipe(void)
         log_debug("Restoring previous character choices from dead character");
         /* Backup the player choices */
         prace = p_ptr->prace;
-        phouse = p_ptr->phouse;
+        pcharacter = p_ptr->pcharacter;
         age = p_ptr->age;
         height = p_ptr->ht;
         weight = p_ptr->wt;
@@ -327,7 +327,7 @@ void player_wipe(void)
         {
             if (!(p_ptr->noscore & 0x0008))
                 stat[i] = p_ptr->stat_base[i]
-                    - (rp_ptr->r_adj[i] + hp_ptr->h_adj[i]);
+                    - (rp_ptr->r_adj[i] + current_character_profile->h_adj[i]);
             else
                 stat[i] = 0;
         }
@@ -343,7 +343,7 @@ void player_wipe(void)
     {
         /* Restore the choices */
         p_ptr->prace = prace;
-        p_ptr->phouse = phouse;
+        p_ptr->pcharacter = pcharacter;
         p_ptr->game_type = 0;
         p_ptr->age = age;
         p_ptr->ht = height;
@@ -358,7 +358,7 @@ void player_wipe(void)
     {
         /* Reset */
         p_ptr->prace = 0;
-        p_ptr->phouse = 0;
+        p_ptr->pcharacter = 0;
         p_ptr->game_type = 0;
         p_ptr->age = 0;
         p_ptr->ht = 0;
@@ -511,7 +511,7 @@ void player_wipe(void)
 }
 
 /* ------------------------------------------------------------------
- * Hand out one start-item list (race or house).
+ * Hand out one start-item list (race or character template).
  * ------------------------------------------------------------------ */
 static void give_start_items(const start_item *list)
 {
@@ -642,13 +642,13 @@ static void player_outfit(void)
 
     /* ---------- pointers into info arrays ---------- */
     player_race  *rp_ptr = &p_info[p_ptr->prace];
-    player_house *hp_ptr = &c_info[p_ptr->phouse];
+    character_profile *current_character_profile = &c_info[p_ptr->pcharacter];
 
     /* ---------- hand out gear ---------- */
     log_debug("Giving starting items for race: %s", p_name + rp_ptr->name);
     give_start_items(rp_ptr->start_items);   /* race first  */
-    log_debug("Giving starting items for house: %s", c_name + hp_ptr->name);
-    give_start_items(hp_ptr->start_items);   /* house next  */
+    log_debug("Giving starting items for character: %s", c_name + current_character_profile->name);
+    give_start_items(current_character_profile->start_items);   /* character kit */
 
     if (metarun_has_major_blessing_effect(METARUN_MAJOR_EFFECT_START_ARTIFACT)) {
         grant_starting_artifact();
@@ -804,7 +804,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
         /* Make a choice */
         if ((c == '\n') || (c == '\r') || (c == ' ') || (c == '6')) {
             if (choices[cur].ghost)
-                bell("Your race cannot choose that house.");
+                bell("Your race cannot choose that character.");
             else
                 return (cur);
         }
@@ -863,7 +863,7 @@ static int get_player_choice(birth_menu* choices, int num, int def, int col,
                 }
         else if ((choice > -1) && (choice < num) && choices[choice].ghost)
                 {
-                    bell("Your race cannot choose that house.");
+                    bell("Your race cannot choose that character.");
                 }
                 else
                 {
@@ -1003,11 +1003,11 @@ int curse_flag_delta_cur(u32b cur_flag)
 
 
 /*
- * Show race/house flags in priority order.
+ * Show race/character flags in priority order.
  * Masteries first, then single-side affinities, then penalties,
  * and finally any “headline / unique” flags.
  */
-static void print_rh_flags(int race, int house, int col, int row)
+static void print_rh_flags(int race, int character, int col, int row)
 {
     int flags_left  = 0;
     int flags_right = 0;
@@ -1049,11 +1049,11 @@ static void print_rh_flags(int race, int house, int col, int row)
     do {                                                                    \
         int score = 0;                                                      \
                                                                             \
-        /* race + house bits */                                             \
+        /* race + character bits */                                             \
         if (p_info[race].flags  & (AFF_FLAG)) score++;                      \
-        if (c_info[house].flags & (AFF_FLAG)) score++;                      \
+        if (c_info[character].flags & (AFF_FLAG)) score++;                      \
         if (p_info[race].flags  & (PEN_FLAG)) score--;                      \
-        if (c_info[house].flags & (PEN_FLAG)) score--;                      \
+        if (c_info[character].flags & (PEN_FLAG)) score--;                      \
                                                                             \
         /* every copy of the same *RHF* curse flag */                       \
         score += curse_flag_count_rhf(AFF_FLAG);                            \
@@ -1082,9 +1082,9 @@ static void print_rh_flags(int race, int house, int col, int row)
 // New: (label, FLAG, COLOR, SIDE) where SIDE = 0 (left) or 1 (right)
 #define HANDLE_UNIQUE(label, FLAG, COLOR, SIDE)                             \
     do {                                                                    \
-        int race_has  = p_info[race].flags  & (FLAG);                       \
-        int house_has = c_info[house].flags & (FLAG);                       \
-        if (race_has || house_has) {                                        \
+        int race_has     = p_info[race].flags & (FLAG);                     \
+        int character_has = c_info[character].flags & (FLAG);               \
+        if (race_has || character_has) {                                    \
             unique_buf[unique_n].txt  = label;                              \
             unique_buf[unique_n].col  = (COLOR);                            \
             unique_buf[unique_n++].side = (SIDE);                           \
@@ -1094,8 +1094,8 @@ static void print_rh_flags(int race, int house, int col, int row)
 // New: (label, FLAG, COLOR, SIDE) where SIDE = 0 (left) or 1 (right)
 #define HANDLE_UNIQUE_U(label, FLAG, COLOR, SIDE)                             \
     do {                                                                    \
-        int house_has = c_info[house].flags_u & (FLAG);                       \
-        if (house_has) {                                                    \
+        int character_has = c_info[character].flags_u & (FLAG);             \
+        if (character_has) {                                                \
             unique_buf[unique_n].txt  = label;                              \
             unique_buf[unique_n].col  = (COLOR);                            \
             unique_buf[unique_n++].side = (SIDE);                           \
@@ -1166,30 +1166,30 @@ Term_erase(col +7, row - 5, 30);
 
 
 /* Display starting abilities */
-if (house && !(c_info[house].flags_u & UNQ_MIM))
+if (character && !(c_info[character].flags_u & UNQ_MIM))
 {
     const int x     = col + 7;
     const int y0    = row - 5;
     const int width = 30;   /* how many cols to clear */
 
     /* 1) clear out every possible line first */
-    for (int i = 0; i < HOUSE_ABILITY_MAX - 3; i++)
+    for (int i = 0; i < CHARACTER_ABILITY_MAX - 3; i++)
     {
         Term_erase(x, y0 + i, width);
     }
 
     /* 2) now draw the actual list */
     int y = y0;
-    for (int slot = 0; slot < HOUSE_ABILITY_MAX; slot++)
+    for (int slot = 0; slot < CHARACTER_ABILITY_MAX; slot++)
     {
-        int stat = c_info[house].a_adj[slot][0];
-        int abil = c_info[house].a_adj[slot][1];
+        int stat = c_info[character].a_adj[slot][0];
+        int abil = c_info[character].a_adj[slot][1];
 
         if (stat < 0) break;
 
         if (stat < S_MAX && abil < ABILITIES_MAX)
         {
-            const char *name = house_ability_names[stat][abil];
+            const char *name = character_ability_names[stat][abil];
             if (name)
                 Term_putstr(x, y++, -1, TERM_YELLOW, name);
         }
@@ -1251,7 +1251,7 @@ static void race_aux_hook(birth_menu r_str)
     Term_putstr(RACE_AUX_COL, TABLE_ROW + A_MAX + 4, -1, TERM_WHITE,
         "                        ");
 
-    /* Clear the TOTAL_AUX_COL area (where house info was displayed) */
+    /* Clear the TOTAL_AUX_COL area (where character info was displayed) */
     Term_putstr(TOTAL_AUX_COL, HEADER_ROW, -1, TERM_WHITE,
         "                                         ");
     Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1, -1, TERM_WHITE,
@@ -1324,7 +1324,7 @@ static bool get_player_race(void)
     return (true);
 }
 
-// Check house flags
+// Check character flags
 static int is_set(int bit) {
     if (bit < 0 || bit >= FLAG_COUNT) return 0;  // Out of bounds
     int word = bit / 32;
@@ -1333,23 +1333,23 @@ static int is_set(int bit) {
 }
 
 /*
- * Display additional information about each house during the selection.
+ * Display additional information about each character during the selection.
  */
 
-static void house_aux_hook(birth_menu c_str)
+static void character_aux_hook(birth_menu c_str)
 {
-    int house_idx, i, adj;
+    int character_idx, i, adj;
     char s[128];
     byte attr;
 
-    /* Extract the proper house index from the string. */
-    for (house_idx = 0; house_idx < z_info->c_max; house_idx++)
+    /* Extract the proper character index from the string. */
+    for (character_idx = 0; character_idx < z_info->c_max; character_idx++)
     {
-        if (!strcmp(c_str.name, c_name + c_info[house_idx].name))
+        if (!strcmp(c_str.name, c_name + c_info[character_idx].name))
             break;
     }
 
-    if (house_idx == z_info->c_max)
+    if (character_idx == z_info->c_max)
         return;
 
     /* Clear the entire TOTAL_AUX_COL area FIRST before displaying new info */
@@ -1376,7 +1376,7 @@ static void house_aux_hook(birth_menu c_str)
         strnfmt(s, sizeof(s), "%s", stat_names[i]);
         Term_putstr(TOTAL_AUX_COL, TABLE_ROW + i, -1, TERM_WHITE, s);
 
-        adj = c_info[house_idx].h_adj[i] + rp_ptr->r_adj[i] + curses_stat_adj(i);
+        adj = c_info[character_idx].h_adj[i] + rp_ptr->r_adj[i] + curses_stat_adj(i);
         strnfmt(s, sizeof(s), "%+d", adj);
 
         if (adj < 0)
@@ -1398,12 +1398,12 @@ static void house_aux_hook(birth_menu c_str)
     // else Term_putstr(TOTAL_AUX_COL, TABLE_ROW + A_MAX +7, -1, TERM_L_BLUE,
     //     "Alive");
     char pretty_name[40];
-    strnfmt(pretty_name, sizeof(pretty_name), "%s%s", c_name + c_info[house_idx].name, c_name + c_info[house_idx].alt_name); 
+    strnfmt(pretty_name, sizeof(pretty_name), "%s%s", c_name + c_info[character_idx].name, c_name + c_info[character_idx].alt_name); 
     
     /* Add power stars to the character name */
     char power_stars[16];
     byte star_attr;
-    byte power = c_info[house_idx].power;
+    byte power = c_info[character_idx].power;
     switch (power)
     {
         case 0: 
@@ -1433,7 +1433,7 @@ static void house_aux_hook(birth_menu c_str)
     Term_putstr(TOTAL_AUX_COL + strlen(pretty_name), HEADER_ROW, -1, star_attr, power_stars);
     
     print_rh_flags(
-        p_ptr->prace, house_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
+        p_ptr->prace, character_idx, TOTAL_AUX_COL, TABLE_ROW + A_MAX + 1);
     
     /* Display power rating legend on left side at row 10 with alive counts */
     int legend_col = 2;  /* Left side */
@@ -1475,34 +1475,34 @@ static void house_aux_hook(birth_menu c_str)
     Term_putstr(legend_col + 4, legend_row + 3, -1, TERM_WHITE, s);
 }
 /*
- * Player house
+ * Player character template selection
  */
-static bool get_player_house(void)
+static bool get_character_profile(void)
 {
     int i;
-    int house = 0;
-    int house_choice;
-    int old_house_choice = 0;
-    birth_menu* houses;
+    int character = 0;
+    int character_choice;
+    int previous_choice = 0;
+    birth_menu* character_menu;
 
-    int housless=1;
-    for (int i = 0; i < FLAG_WORDS; ++i) {
-        if (rp_ptr->choice[i] != 0) {
-            housless=0;
+    int no_character_flags = 1;
+    for (int idx = 0; idx < FLAG_WORDS; ++idx) {
+        if (rp_ptr->choice[idx] != 0) {
+            no_character_flags = 0;
             break;  // At least one flag is set
         }
     }
-    // select 'houseless' automatically if there are no available houses
-    if (housless)
+    // default to the baseline character automatically if no choices are available
+    if (no_character_flags)
     {
-        p_ptr->phouse = 0;
-        hp_ptr = &c_info[p_ptr->phouse];
+        p_ptr->pcharacter = 0;
+        current_character_profile = &c_info[p_ptr->pcharacter];
         return (true);
     }
 
-    houses = mem_alloc_array(z_info->c_max, birth_menu);
+    character_menu = mem_alloc_array(z_info->c_max, birth_menu);
 
-    /* Tabulate houses */
+    /* Tabulate characters */
 
     for (i = 0; i < z_info->c_max; i++)
     {
@@ -1510,37 +1510,37 @@ static bool get_player_house(void)
         /* Analyze */
         if (is_set(i))
         {
-            if (highscore_dead(c_name + c_info[i].name)) houses[house].ghost = true;
-            else houses[house].ghost = false;
+            if (highscore_dead(c_name + c_info[i].name)) character_menu[character].ghost = true;
+            else character_menu[character].ghost = false;
 
-            houses[house].name = c_name + c_info[i].name;
-            houses[house].text = c_text + c_info[i].text;
-            if (p_ptr->phouse == i)
-                old_house_choice = house;
-            house++;
+            character_menu[character].name = c_name + c_info[i].name;
+            character_menu[character].text = c_text + c_info[i].text;
+            if (p_ptr->pcharacter == i)
+                previous_choice = character;
+            character++;
         }
     }
 
-    house_choice = get_player_choice(
-        houses, house, old_house_choice, CLASS_COL, 22, house_aux_hook);
+    character_choice = get_player_choice(
+        character_menu, character, previous_choice, CLASS_COL, 22, character_aux_hook);
 
     /* No selection? */
-    if (house_choice == INVALID_CHOICE)
+    if (character_choice == INVALID_CHOICE)
     {
         return (false);
     }
 
-    /* Get house from choice number */
-    house = 0;
+    /* Get character from choice number */
+    character = 0;
     for (i = 0; i < z_info->c_max; i++)
     {
         if (is_set(i))
         {
-            if (house_choice == house)
+            if (character_choice == character)
             {
-                // if different house to last time, then wipe the history, age,
+                // if different character to last time, then wipe the history, age,
                 // height, weight
-                if (i != p_ptr->phouse)
+                if (i != p_ptr->pcharacter)
                 {
                     int j;
 
@@ -1553,16 +1553,16 @@ static bool get_player_house(void)
                         p_ptr->stat_base[j] = 0;
                     }
                 }
-                p_ptr->phouse = i;
+                p_ptr->pcharacter = i;
             }
-            house++;
+            character++;
         }
     }
 
-    /* Set house */
-    hp_ptr = &c_info[p_ptr->phouse];
+    /* Cache the selected character template */
+    current_character_profile = &c_info[p_ptr->pcharacter];
 
-    houses = mem_free(houses);
+    character_menu = mem_free(character_menu);
 
     return (true);
 }
@@ -1570,7 +1570,7 @@ static bool get_player_house(void)
 /*
  * Helper function for 'player_birth()'.
  *
- * This function allows the player to select a race, and house, and
+ * This function allows the player to select a race and character template, and
  * modify options (including the birth options).
  */
 NavResult character_creation(void)
@@ -1611,11 +1611,11 @@ NavResult character_creation(void)
 
         if (phase == 2)
         {
-            /* Choose the player's house */
-            if (!get_player_house())
+            /* Choose the player's character template */
+            if (!get_character_profile())
             {
                 phase = 1;          /* Esc here → go back to race */
-                /* Clear the house display area when going back to race selection */
+                /* Clear the character display area when going back to race selection */
                 for (i = HEADER_ROW; i <= TABLE_ROW + A_MAX + 10; i++)
                 {
                     Term_erase(TOTAL_AUX_COL, i, 255);
@@ -1644,14 +1644,14 @@ NavResult character_creation(void)
         }
     }
     // Bonus abilities
-    /* grant *all* parsed house abilities */
-    for (int slot = 0; slot < HOUSE_ABILITY_MAX; slot++)
+    /* grant *all* parsed character abilities */
+    for (int slot = 0; slot < CHARACTER_ABILITY_MAX; slot++)
     {
-        int stat = c_info[p_ptr->phouse].a_adj[slot][0];
+        int stat = c_info[p_ptr->pcharacter].a_adj[slot][0];
         /* sentinel: no more entries */
         if (stat < 0) break;
 
-        int ab = c_info[p_ptr->phouse].a_adj[slot][1];
+        int ab = c_info[p_ptr->pcharacter].a_adj[slot][1];
         /* sanity-check bounds */
         if (stat < S_MAX && ab < ABILITIES_MAX)
         {
@@ -1708,7 +1708,7 @@ NavResult character_creation(void)
     /* Clear */
     Term_clear();
 
-    log_debug("Character creation step completed: %s %s", p_name + p_info[p_ptr->prace].name, c_name + c_info[p_ptr->phouse].name);
+    log_debug("Character creation step completed: %s %s", p_name + p_info[p_ptr->prace].name, c_name + c_info[p_ptr->pcharacter].name);
 
     /* Done */
     return NAV_OK;
@@ -2110,10 +2110,10 @@ static NavResult player_birth_aux_2(void)
         /* Initialize character stats for display - same as first iteration of stats loop */
         for (i = 0; i < A_MAX; i++)
         {
-            /* Obtain bonuses for race/house */
-            int bonus = rp_ptr->r_adj[i] + hp_ptr->h_adj[i] + curses_stat_adj(i);
+            /* Obtain bonuses for race/character */
+            int bonus = rp_ptr->r_adj[i] + current_character_profile->h_adj[i] + curses_stat_adj(i);
             
-            /* Set base stats (0 + racial/house bonuses) */
+            /* Set base stats (0 + racial/character bonuses) */
             p_ptr->stat_base[i] = stats[i] + bonus;
             p_ptr->stat_drain[i] = 0;
         }
@@ -2150,7 +2150,7 @@ static NavResult player_birth_aux_2(void)
         for (i = 0; i < A_MAX; i++)
         {
             /* Obtain a "bonus" for "race" */
-            int bonus = rp_ptr->r_adj[i] + hp_ptr->h_adj[i] + curses_stat_adj(i);
+            int bonus = rp_ptr->r_adj[i] + current_character_profile->h_adj[i] + curses_stat_adj(i);
 
             /* Apply the racial bonuses */
             p_ptr->stat_base[i] = stats[i] + bonus;
@@ -2581,12 +2581,12 @@ static NavResult player_birth_aux(void)
 
     log_debug("Initializing character data and history");
 
-    SDL_strlcpy(op_ptr->full_name, c_name + c_info[p_ptr->phouse].name, sizeof(op_ptr->full_name));
+    SDL_strlcpy(op_ptr->full_name, c_name + c_info[p_ptr->pcharacter].name, sizeof(op_ptr->full_name));
     process_player_name(true);  /* CRITICAL: Must pass true to update savefile path! */
     /* Clear the previous history strings */
     p_ptr->history[0] = '\0';
     SDL_strlcat(
-                p_ptr->history, (c_text + c_info[p_ptr->phouse].text), sizeof(p_ptr->history));
+                p_ptr->history, (c_text + c_info[p_ptr->pcharacter].text), sizeof(p_ptr->history));
 
     p_ptr->wt = 0;
     p_ptr->ht = 0;
@@ -2704,5 +2704,18 @@ NavResult player_birth()
 
     return NAV_OK;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

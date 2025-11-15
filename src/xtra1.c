@@ -146,8 +146,8 @@ extern bool two_handed_melee(void)
         return (true);
     }
     
-    /* For Maedhros house, hand-and-a-half weapons count as two-handed for ability purposes */
-    if ((c_info[p_ptr->phouse].flags_u & UNQ_MEL_MAEDHROS)
+    /* For Maedhros character, hand-and-a-half weapons count as two-handed for ability purposes */
+    if ((c_info[p_ptr->pcharacter].flags_u & UNQ_MEL_MAEDHROS)
         && (k_info[o_ptr->k_idx].flags3 & (TR3_HAND_AND_A_HALF))
         && (&inventory[INVEN_WIELD] == o_ptr) && (!inventory[INVEN_ARM].k_idx))
     {
@@ -166,8 +166,8 @@ extern int hand_and_a_half_bonus(const object_type* o_ptr) //XXX Hand and a half
     if ((k_info[o_ptr->k_idx].flags3 & (TR3_HAND_AND_A_HALF))
         && (&inventory[INVEN_WIELD] == o_ptr) && (!inventory[INVEN_ARM].k_idx))
     {
-        /* Maedhros house gets double the hand-and-a-half bonus */
-        if (c_info[p_ptr->phouse].flags_u & UNQ_MEL_MAEDHROS)
+        /* Maedhros character gets double the hand-and-a-half bonus */
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_MEL_MAEDHROS)
         {
             return (3);
         }
@@ -177,7 +177,7 @@ extern int hand_and_a_half_bonus(const object_type* o_ptr) //XXX Hand and a half
 }
 
 /*
- * Bonus for certain races/houses (elves) using bows
+ * Bonus for certain race/character blends (elves) using bows
  */
 int bow_bonus(const object_type* o_ptr)
 {
@@ -187,7 +187,7 @@ int bow_bonus(const object_type* o_ptr)
     {
         bonus += 1;
     }
-    if ((hp_ptr->flags & RHF_BOW_PROFICIENCY) && (o_ptr->tval == TV_BOW))
+    if ((current_character_profile->flags & RHF_BOW_PROFICIENCY) && (o_ptr->tval == TV_BOW))
     {
         bonus += 1;
     }
@@ -196,7 +196,7 @@ int bow_bonus(const object_type* o_ptr)
 }
 
 /*
- * Bonus for certain races/houses (dwarves) using axes
+ * Bonus for certain race/character blends (dwarves) using axes
  */
 int axe_bonus(const object_type* o_ptr)
 {
@@ -211,7 +211,7 @@ int axe_bonus(const object_type* o_ptr)
     {
         bonus += 1;
     }
-    if ((hp_ptr->flags & RHF_AXE_PROFICIENCY) && (f3 & (TR3_AXE)))
+    if ((current_character_profile->flags & RHF_AXE_PROFICIENCY) && (f3 & (TR3_AXE)))
     {
         bonus += 1;
     }
@@ -2329,11 +2329,11 @@ int affinity_level(int skilltype)
         default:    return 0;
     }
 
-    /* race + house */
+    /* race + character */
     if (rp_ptr->flags & affinity_flag) level++;
-    if (hp_ptr->flags & affinity_flag) level++;
+    if (current_character_profile->flags & affinity_flag) level++;
     if (rp_ptr->flags & penalty_flag)  level--;
-    if (hp_ptr->flags & penalty_flag)  level--;
+    if (current_character_profile->flags & penalty_flag)  level--;
 
     /* every copy of the same curse flag */
     level += curse_flag_count_rhf(affinity_flag);
@@ -2343,7 +2343,7 @@ int affinity_level(int skilltype)
     if (level >  2) level =  2;
     if (level < -2) level = -2;
 
-    if ((skilltype == S_WIL) && (hp_ptr->flags_u & UNQ_EARENDIL)) level = 3;
+    if ((skilltype == S_WIL) && (current_character_profile->flags_u & UNQ_EARENDIL)) level = 3;
 
     return level;
 }
@@ -2358,7 +2358,7 @@ int minstrel_level(void)
     int level = 0;
 
     /* Check for MINSTREL unique flag */
-    if (hp_ptr->flags_u & UNQ_MINSTREL) level++;
+    if (current_character_profile->flags_u & UNQ_MINSTREL) level++;
 
     /* Include curse flags (similar to affinity) */
     level += curse_flag_count_rhf(RHF_SNG_AFFINITY);
@@ -2434,7 +2434,7 @@ int ability_bonus(int skilltype, int abilitynum)
         // UNLESS the character has the WOVEN_MASTER flag (Daeron)
         if ((p_ptr->song2 == abilitynum) && (p_ptr->song1 != abilitynum))
         {
-            if (!(c_info[p_ptr->phouse].flags_u & UNQ_WOVEN_MASTER))
+            if (!(c_info[p_ptr->pcharacter].flags_u & UNQ_WOVEN_MASTER))
                 skill /= 2;
         }
 
@@ -2513,12 +2513,12 @@ int ability_bonus(int skilltype, int abilitynum)
         }
         case SNG_STAYING:
         {
-            bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_FIN) ? 2 : 1) * skill; 
+            bonus = ((c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_FIN) ? 2 : 1) * skill; 
             break;
         }
         case SNG_SLAYING:
         {
-            bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_HURIN) ? 2 : 1) * skill * 2;
+            bonus = ((c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_HURIN) ? 2 : 1) * skill * 2;
             break;
         }
         case SNG_LORIEN:
@@ -2528,7 +2528,7 @@ int ability_bonus(int skilltype, int abilitynum)
         }
         case SNG_MASTERY:
         {
-            bonus = ((c_info[p_ptr->phouse].flags_u & UNQ_SNG_THINGOL) ? 2 : 1) * skill;
+            bonus = ((c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_THINGOL) ? 2 : 1) * skill;
             break;
         }
         case SNG_SHATTERING:
@@ -2656,7 +2656,7 @@ void calc_stats(void)
 
 /*
  * Calculate the player's current "state", taking into account
- * not only race/house intrinsics, but also objects being worn
+ * not only race/character intrinsics, but also objects being worn
  * and temporary spell effects.
  *
  * See also calc_voice() and calc_hitpoints().
@@ -2826,7 +2826,7 @@ static void calc_bonuses(void)
         }
     }
 
-    /*** Extract race/house info ***/
+    /*** Extract race/character info ***/
 
     // Recalculate total weight
     p_ptr->total_weight = 0;
@@ -3461,7 +3461,7 @@ static void calc_bonuses(void)
         p_ptr->skill_misc_mod[S_STL] -= song_noise;
     }
 
-    /* Race/House skill flags */
+    /* Race/Character skill flags */
     p_ptr->skill_misc_mod[S_MEL] += affinity_level(S_MEL);
     p_ptr->skill_misc_mod[S_ARC] += affinity_level(S_ARC);
     p_ptr->skill_misc_mod[S_EVN] += affinity_level(S_EVN);
@@ -3510,7 +3510,7 @@ static void calc_bonuses(void)
     }
     if (singing(SNG_STAYING))
     {
-        if (c_info[p_ptr->phouse].flags_u & UNQ_SNG_FIN) p_ptr->skill_misc_mod[S_WIL] += ability_bonus(S_SNG, SNG_STAYING);
+        if (c_info[p_ptr->pcharacter].flags_u & UNQ_SNG_FIN) p_ptr->skill_misc_mod[S_WIL] += ability_bonus(S_SNG, SNG_STAYING);
         else p_ptr->skill_misc_mod[S_WIL] += ability_bonus(S_SNG, SNG_STAYING) / 2;
     }
     if (singing(SNG_FREEDOM))
@@ -3751,7 +3751,7 @@ static void calc_bonuses(void)
         p_ptr->old_p_max = new_p_max;
     }
 
-    if (c_info[p_ptr->phouse].flags & RHF_MOR_CURSE) p_ptr->danger += 1;
+    if (c_info[p_ptr->pcharacter].flags & RHF_MOR_CURSE) p_ptr->danger += 1;
 
     /* Hack -- handle "xtra" mode */
     if (character_xtra)
@@ -4394,5 +4394,8 @@ void handle_stuff(void)
 
     log_trace("handle_stuff: completed");
 }
+
+
+
 
 

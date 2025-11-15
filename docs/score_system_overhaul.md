@@ -21,7 +21,7 @@ characters, and monster analytics.
 | ---- | ------- | ----- |
 | `meta.raw` | Metarun campaign state | Remains fixed-size per metarun; new fields reference the statistics DB via IDs. |
 | `runs.db` (replacement for `scores.raw`) | Run statistics database (scoreboard) | Contains a header plus `score_record_v1` entries (see `src/score/score_format.h`). Acts as the canonical run history for scoring, autoload, and analytics. |
-| `characters.db` | Character identity rollup | Each hero (name + GUID) has cumulative stats: best score, total silmarils, deaths, escapes, last race/house, etc. |
+| `characters.db` | Character identity rollup | Each hero (name + GUID) has cumulative stats: best score, total silmarils, deaths, escapes, last race/character, etc. |
 | `monsters.db` | Monster analytics | Tracks “seen”, “killed”, and “killed by” counts using stable GUIDs exported from `monster.txt`. |
 
 ### Identifier Strategy & GUID Generation
@@ -29,7 +29,7 @@ characters, and monster analytics.
 - **Runs:** Every `score_record_v1` carries a `record_id` (monotonic integer) plus the owning `metarun_id`. Records stay stable even if files are compacted.
 - **Characters:** Characters are keyed by their *normalized name* (trimmed, lowercase, collapsed whitespace). We derive `character_id` via a 64-bit FNV-1a hash of the normalized name and persist that alongside the raw string. If the player reuses the same name, new runs automatically roll up into the same `characters.db` entry. If we ever need to split two heroes with the same spelling, we can seed the hash with the generation timestamp or expose a “rename” tool that rewrites the ID.
 - **Monsters:** Today, saves reference monsters by `r_idx` (see `save.c:570-640` for `wr_monster()` and the matching loader). The new analytics layer needs stability even when the `r_info` array changes, so every monster in `lib/edit/monster.txt` will receive an explicit `# guid:` line. GUIDs should be 16 hex characters (64 bits). Tooling can generate them automatically, but data authors can also copy one from the helper script output. When adding a monster: 1) run `tools/make_guid.py` (to be added) or any UUID generator, 2) paste it into the monster definition, 3) rebuild – the GUID becomes the authoritative ID for saves/analytics while `r_idx` stays a transient array index.
-- **Races/Houses/Quests:** Follow the same pattern as monsters. Each entry gets a GUID tag in its `lib/edit/*.txt` definition; `score_record_v1` stores the numeric index for compatibility plus the GUID via lookup tables, so remapping data later won’t orphan historical stats.
+- **Races/character templates/Quests:** Follow the same pattern as monsters. Each entry gets a GUID tag in its `lib/edit/*.txt` definition; `score_record_v1` stores the numeric index for compatibility plus the GUID via lookup tables, so remapping data later won’t orphan historical stats.
 
 This scheme keeps developer ergonomics straightforward: if you add new data, assign a GUID once and never change it. The loaders will fall back to the stored name if a GUID is missing, but CI will start warning as soon as we wire the validator.
 
@@ -48,9 +48,9 @@ Stored as `score_record_v1` entries featuring:
 ### Character Database
 - Primary key is the normalized character name hash described above; the record
   also stores the canonical spelling so UI code can present it exactly as the
-  player typed it. Optional future fields can track per-house variants if we
-  decide to let the same name exist in multiple houses intentionally.
-- Stores ancestry (latest race/house descriptor), run counters, total/best
+  player typed it. Optional future fields can track per-character variants if we
+  decide to let the same name exist in multiple character templates intentionally.
+- Stores ancestry (latest race/character descriptor), run counters, total/best
   score, turn totals, depth milestones, silmarils, blessing points, etc., so we
   can show “lifetime with this hero” stats every time a run ends.
 
@@ -69,7 +69,7 @@ Stored as `score_record_v1` entries featuring:
    (see `src/score/score_format.h`). These represent the typed binary layout.
 2. **Legacy audit:** Document the invariants of `scores.raw`/`meta.raw` (done in
    `session_notes.md`) so we know which code paths require parity.
-3. **GUID plumbing:** Assign persistent GUIDs to monsters, races, houses, and
+3. **GUID plumbing:** Assign persistent GUIDs to monsters, races, character templates, and
    characters; the record structs already provide slots for these IDs.
 4. **Migration plan:** Design a converter that reads `scores.raw`, produces
    typed run records, and writes `runs.db` atomically while archiving the source.
@@ -133,3 +133,4 @@ Stored as `score_record_v1` entries featuring:
 - Should the monster stats table record per-metarun counters or only lifetime
   totals? (Plan: track lifetime totals globally, with optional per-metarun
   overlays stored alongside the metarun entry.)
+

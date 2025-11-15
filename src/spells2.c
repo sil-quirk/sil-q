@@ -165,7 +165,7 @@ bool do_dec_stat(int stat, monster_type* m_ptr)
 {
     bool resistance = false; // default to soothe compiler warnings
 
-    /* Turin house resistance check first */
+    /* Turin character resistance check first */
     if (turin_resist_bad_effect())
         return (true);
 
@@ -455,9 +455,9 @@ void self_knowledge(void)
         if (CURSE_GET(id) > 0) active_ids[n_active++] = id;
     }
     
-    // Add race/house trait information
-    u32b rhf_bits = p_info[p_ptr->prace].flags | c_info[p_ptr->phouse].flags;
-    u32b unq_bits = c_info[p_ptr->phouse].flags_u;
+    // Add race/character trait information
+    u32b rhf_bits = p_info[p_ptr->prace].flags | c_info[p_ptr->pcharacter].flags;
+    u32b unq_bits = c_info[p_ptr->pcharacter].flags_u;
     int cand[64], n = 0;
     
     for (size_t idx = 0; idx < info_flags_desc_n && n < 64; idx++) {
@@ -3411,5 +3411,7 @@ int do_ident_item(int item, object_type* o_ptr)
 
     return (squelch);
 }
+
+
 
 

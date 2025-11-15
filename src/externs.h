@@ -171,7 +171,7 @@ extern byte tval_to_attr[128];
 extern char macro_buffer[1024];
 extern cptr keymap_act[KEYMAP_MODES][256];
 extern const player_race* rp_ptr;
-extern player_house* hp_ptr;
+extern character_profile* current_character_profile;
 extern player_other* op_ptr;
 extern player_type* p_ptr;
 extern vault_type* v_info;
@@ -199,7 +199,7 @@ extern char* r_text;
 extern player_race* p_info;
 extern char* p_name;
 extern char* p_text;
-extern player_house* c_info;
+extern character_profile* c_info;
 extern char* c_name;
 extern char* c_text;
 extern hist_type* h_info;
@@ -1413,4 +1413,6 @@ extern void story_print_text(int row, int col, int max_cols, byte attr, cptr tex
 extern void story_print_text_grid(int row, int col, int max_cols, byte attr, cptr text);
 extern void story_print_mono(int row, int col, byte attr, cptr text);
 extern void story_fill_rect(int row, int col, int width_cols, byte attr);
+
+
 
