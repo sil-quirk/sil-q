@@ -5823,3 +5823,13 @@ Remove support for obsolete system pref files, keeping only SDL support for mode
 ## Rename houses → characters
 - Retired the legacy “house” naming in favour of “character template” across the codebase: `p_ptr->phouse` → `pcharacter`, `player_house` → `character_profile`, and associated helpers/macros/comments updated. Score structs now store `persona_id` (hashed hero) plus `character_id`/`character_power`.
 - Updated every module that referenced house data (`birth.c`, `cmd*`, `files.c`, `init*`, `metarun.c`, `spells*`, `score_*`, `xtra*`, etc.) so UI strings, logs, and logic describe characters/templates consistently. Documentation (`docs/score_system_overhaul.md`) now matches the new vocabulary.
+
+## 2025-11-17: Score UI extraction
+- Created `src/score/score_ui.c`/`.h` to host the scoreboard and run-history UI (`display_single_score*`, `show_scores*`, `do_cmd_run_history`, `build_live_preview_score`).
+- `files.c` now includes the new header and only handles score persistence and helpers; UI code consumes the exported APIs and no longer manipulates the score-file context directly.
+- Added local comparators/dedup helpers so the UI can sort/insert preview entries without the `highscore_fd` singleton, and centralized the run-history rendering helpers there.
+- Wired the new compilation unit into `CMakeLists.txt` and removed legacy prototypes from `externs.h` (the header provides the declarations).
+- Ran `build-cmake.bat` to verify SDL3 build still succeeds (existing warnings only).
+
+    - Fixed follow-up build issues by returning `build_live_preview_score()` to `files.c` (so it can see the static `death_time`) and moving `compare_run_records_desc()` into the new module; cleaned a stray `score_view_order` token and reran `build-cmake.bat` to confirm both SDL3 builds succeed.
+

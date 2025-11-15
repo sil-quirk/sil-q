@@ -17,6 +17,7 @@
  * Automatically generated "variable" declarations
  */
 #include "h-basic.h"
+#include "score/score_ui.h"
 // extern FILE *log_file;
 extern int max_macrotrigger;
 extern cptr macro_template;
@@ -571,7 +572,6 @@ extern void create_smithing_item(void);
 extern void do_cmd_main_menu(void);
 extern void do_cmd_message_one(void);
 extern void do_cmd_messages(void);
-extern void do_cmd_run_history(void);
 extern void do_cmd_options_aux(int page, cptr info);
 extern void do_cmd_options(void);
 extern void do_cmd_pane_settings(void);
@@ -643,17 +643,10 @@ extern void do_cmd_escape(int);
 extern void do_cmd_morgoth_victory(void);
 extern void do_cmd_suicide(void);
 extern void do_cmd_save_game(void);
-extern void show_scores(bool);
-extern void show_scores_interactive(bool);
-extern void show_scores_interactive_highlight(bool, const high_score*);
 extern void comma_number(char* output, int number);
 extern void atomonth(int number, char* output);
-extern void display_single_score(
-    byte attr, int row, int col, int place, int fake, high_score* the_score);
 extern int highscore_dead(char* name);
 extern bool highscore_is_empty();
-extern void display_scores(int from, int to);
-extern void display_scores_short(int from, int to);
 extern int collect_high_scores(high_score* out, int capacity, bool sort_by_score);
 extern void close_game(void);
 extern void exit_game_panic(void);

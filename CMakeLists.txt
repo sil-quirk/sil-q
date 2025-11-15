@@ -54,6 +54,7 @@ add_executable(sil-more
     src/score/score_guid.c
     src/score/score_artefact.c
     src/score/score_runs.c
+    src/score/score_ui.c
     src/sdl-config.c
     src/fs/io_sdl.c
     src/fs/path.c
