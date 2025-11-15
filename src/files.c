@@ -1,4 +1,4 @@
-/* File: files.c */
+﻿/* File: files.c */
 
 /*
  * Copyright (c) 1997 Ben Harrison, James E. Wilson, Robert A. Koeneke
@@ -25,8 +25,12 @@
 #include <windows.h>
 #include <direct.h>  /* For _mkdir */
 #else
+#define _DEFAULT_SOURCE  /* For DT_DIR and other POSIX extensions */
+#define _BSD_SOURCE      /* For setregid on older systems */
 #include <sys/stat.h>  /* For mkdir */
 #include <dirent.h>    /* For directory operations */
+#include <unistd.h>    /* For setregid, getgid, etc. */
+#include <signal.h>    /* For kill, SIGSTOP */
 #endif
 
 // These are copied from birth.c and needed for displaying the character sheet
