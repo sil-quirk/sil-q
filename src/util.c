@@ -4332,62 +4332,6 @@ int color_char_to_attr(char c)
     return (-1);
 }
 
-#if 0
-
-/*
- * Replace the first instance of "target" in "buf" with "insert"
- * If "insert" is NULL, just remove the first instance of "target"
- * In either case, return true if "target" is found.
- *
- * Could be made more efficient, especially in the case where "insert"
- * is smaller than "target".
- */
-static bool insert_str(char *buf, cptr target, cptr insert)
-{
-	int i, len;
-	int b_len, t_len, i_len;
-
-	/* Attempt to find the target (modify "buf") */
-	buf = strstr(buf, target);
-
-	/* No target found */
-	if (!buf) return (false);
-
-	/* Be sure we have an insertion string */
-	if (!insert) insert = "";
-
-	/* Extract some lengths */
-	t_len = strlen(target);
-	i_len = strlen(insert);
-	b_len = strlen(buf);
-
-	/* How much "movement" do we need? */
-	len = i_len - t_len;
-
-	/* We need less space (for insert) */
-	if (len < 0)
-	{
-		for (i = t_len; i < b_len; ++i) buf[i+len] = buf[i];
-	}
-
-	/* We need more space (for insert) */
-	else if (len > 0)
-	{
-		for (i = b_len-1; i >= t_len; --i) buf[i+len] = buf[i];
-	}
-
-	/* If movement occured, we need a new terminator */
-	if (len) buf[b_len+len] = '\0';
-
-	/* Now copy the insertion string */
-	for (i = 0; i < i_len; ++i) buf[i] = insert[i];
-
-	/* Successful operation */
-	return (true);
-}
-
-#endif
-
 #ifdef ALLOW_REPEAT
 
 #define REPEAT_MAX 20

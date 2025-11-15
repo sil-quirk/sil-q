@@ -9377,7 +9377,7 @@ static void describe_action_bindings(int mode, const struct keybind_entry* entry
 
     if (!entry->action)
     {
-        my_strcpy(buf, "(none)", buflen);
+        SDL_strlcpy(buf, "(none)", buflen);
         return;
     }
 
@@ -9385,7 +9385,7 @@ static void describe_action_bindings(int mode, const struct keybind_entry* entry
     {
         char key_label[16];
         describe_keycode(entry->key_code, key_label, sizeof(key_label));
-        my_strcpy(buf, key_label, buflen);
+        SDL_strlcpy(buf, key_label, buflen);
         current_len = strlen(buf);
         found = true;
     }
@@ -9403,7 +9403,7 @@ static void describe_action_bindings(int mode, const struct keybind_entry* entry
                     strnfcat(buf, buflen, &current_len, ", %s", key_label);
                 else
                 {
-                    my_strcpy(buf, key_label, buflen);
+                    SDL_strlcpy(buf, key_label, buflen);
                     current_len = strlen(buf);
                     found = true;
                 }
@@ -9429,7 +9429,7 @@ static void describe_action_bindings(int mode, const struct keybind_entry* entry
                 strnfcat(buf, buflen, &current_len, ", %s", key_label);
             else
             {
-                my_strcpy(buf, key_label, buflen);
+                SDL_strlcpy(buf, key_label, buflen);
                 current_len = strlen(buf);
                 found = true;
             }
@@ -9437,7 +9437,7 @@ static void describe_action_bindings(int mode, const struct keybind_entry* entry
     }
 
     if (!found)
-        my_strcpy(buf, "(none)", buflen);
+        SDL_strlcpy(buf, "(none)", buflen);
 }
 
 /*
@@ -9454,8 +9454,7 @@ static void unbind_action(int mode, cptr action)
     {
         if (keymap_act[mode][key] && streq(keymap_act[mode][key], action))
         {
-            string_free(keymap_act[mode][key]);
-            keymap_act[mode][key] = NULL;
+            keymap_act[mode][key] = str_free(keymap_act[mode][key]);
         }
     }
 }
@@ -9752,8 +9751,8 @@ void do_cmd_keybinds(void)
                 byte new_key = (byte)bind_key;
                 
                 /* Clear any existing action on the chosen key */
-                string_free(keymap_act[mode][new_key]);
-                keymap_act[mode][new_key] = string_make(action);
+                keymap_act[mode][new_key] = str_free(keymap_act[mode][new_key]);
+                keymap_act[mode][new_key] = str_dup(action);
                 dirty = true;
                 
                 describe_keycode(new_key, key_label, sizeof(key_label));
@@ -9772,11 +9771,10 @@ void do_cmd_keybinds(void)
             unbind_action(mode, action);
             
             /* Restore default action */
-            string_free(keymap_act[mode][target_key]);
+            keymap_act[mode][target_key] = str_free(keymap_act[mode][target_key]);
             if (keybinds[highlight].requires_keymap)
-                keymap_act[mode][target_key] = string_make(action);
-            else
-                keymap_act[mode][target_key] = NULL;
+                keymap_act[mode][target_key] = str_dup(action);
+            
             dirty = true;
             
             describe_keycode(target_key, key_label, sizeof(key_label));
@@ -12221,7 +12219,7 @@ void ghost_challenge(void)
 }
 
 /*display the notes file*/
-void do_cmd_knowledge_notes(void) { show_buffer(notes_buffer, "Notes", 0); }
+void do_cmd_knowledge_notes(void) { show_buffer(notes_buffer, 0); }
 
 /*
  * Display oath status information

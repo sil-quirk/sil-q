@@ -2790,7 +2790,7 @@ static void string_lower(char* buf)
  * Show the contents of a char buffer on the screen and allow scrolling.
  * Based on show_file.
  */
-bool show_buffer(cptr main_buffer, cptr what, int line)
+bool show_buffer(cptr main_buffer, int line)
 {
     int i, j, k;
 
@@ -4609,37 +4609,6 @@ static void show_info(void)
     do_cmd_knowledge_notes();
 }
 
-/*
- * Special version of 'do_cmd_examine'
- */
-static void death_examine(void)
-{
-    int item;
-
-    object_type* o_ptr;
-
-    cptr q, s;
-
-    /* Start out in "display" mode */
-    p_ptr->command_see = true;
-
-    /* Get an item */
-    q = "Examine which item? ";
-    s = "You have nothing to examine.";
-
-    while (true)
-    {
-        if (!get_item(&item, q, s, (USE_INVEN | USE_EQUIP)))
-            return;
-
-        /* Get the item */
-        o_ptr = &inventory[item];
-
-        /* Describe */
-        object_info_screen(o_ptr);
-    }
-}
-
 
 #define highscore_fd (score_file_active_ctx()->fd)
 #define scores_file_entry_count (score_file_active_ctx()->entry_count)
@@ -5129,13 +5098,6 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
 
     /* If a file handle already exists, save it and try to reuse it.
      * Opening the same file twice can fail on Windows. */
-    SDL_IOStream* saved_fd = highscore_fd;
-    byte saved_major = scores_file_version_major;
-    byte saved_minor = scores_file_version_minor;
-    byte saved_patch = scores_file_version_patch;
-    byte saved_extra = scores_file_version_extra;
-    u32b saved_count = scores_file_entry_count;
-
     bool opened_new = false;
     
     /* If no file handle exists, open one */
@@ -6872,9 +6834,7 @@ void print_story(int last_parts, bool fade_in)
     /* Flush any queued keypresses that accumulated during the story */
     Term_flush();
     
-#ifdef USE_SDL
     sdl_story_font_disable();  // Disable after story display
-    
     screen_load();
     /* Restore previous cursor visibility and hide_cursor flag */
     (void)Term_set_cursor(_saved_cursor_state);
@@ -7808,7 +7768,7 @@ errr file_character(cptr name, bool full)
     }
 
     /* Open the non-existing file */
-    if (fd < 0)
+    if (!fd)
         fff = sdl_fopen(buf, "w");
 
     /* Invalid file */
@@ -8539,7 +8499,7 @@ void close_game(void)
         /* Update the live character entry in the scores file so that
            scores.raw acts as a database of current running characters.
            We record an entry with how == "(alive and well)". */
-        if (highscore_fd >= 0) {
+        if (highscore_fd) {
             char saved_how[sizeof(p_ptr->died_from)];
             SDL_strlcpy(saved_how, p_ptr->died_from, sizeof(saved_how));
             SDL_strlcpy(p_ptr->died_from, "(alive and well)", sizeof(p_ptr->died_from));

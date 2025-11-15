@@ -634,7 +634,7 @@ extern void display_player_xtra_info(int mode);
 extern void display_player(int mode);
 extern void display_character_tutorial(void);
 extern errr file_character(cptr name, bool full);
-extern bool show_buffer(cptr name, cptr what, int line);
+extern bool show_buffer(cptr name, int line);
 extern bool show_file(cptr name, cptr what, int line);
 extern void do_cmd_help(void);
 extern void process_player_name(bool sf);

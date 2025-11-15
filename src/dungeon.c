@@ -3427,12 +3427,10 @@ static void print_story_intro(void)
     /* Flush any queued keypresses that accumulated during the intro */
     Term_flush();
 
-#ifdef USE_SDL
-    goto cleanup_intro;
-
 cleanup_intro:
     if (story_intro_story_font)
         sdl_story_font_reset();
+    
     return;
 }
 
