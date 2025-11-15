@@ -2619,7 +2619,14 @@ N:332:Orome, Lord of Forests
 Q:149cdbdfb191a42f
 W:30:40
 G:V:v1
-F:UNIQUE | MALE
+I:2:26d4:0
+A:0:0:0:19
+P:[+0]
+F:MALE | NEVER_MOVE | SMART | PEACEFUL | UNIQUE | NEVER_BLOW | SPECIAL_GEN
+D:Orome the Great appears before you, Lord of Forests and Hunter of Morgoth's
+D: servants. His presence radiates power and purpose. The sound of his great
+D: horn Valaroma echoes in your mind, and you sense he has a task for those
+D: who would hunt the enemies of all that is good.
 
 
 N:333:Vana, the Ever Young

@@ -1,5 +1,71 @@
 # Session Notes
 
+## 2025-11-16: Key Handling Audit
+
+- Reviewed the macro/keymap infrastructure in `src/util.c` (macro tables, `inkey_aux()`, `request_command()`), plus loading/editing paths in `src/files.c` and `src/cmd4.c` to understand how prefixes, repeat counts, and mode switching work.
+- Captured findings and modernization ideas in `docs/key_handling_report.md`, covering the Term queue, macro detector timing, keymap modes, pref tokens, and SDL limitations.
+- Highlighted specific technical debt (ASCII-only queue, 500 ms busy wait, control-code sentinels, context-free keymaps) and outlined actionable modernization steps (structured key events, declarative bindings, context layers, better UX).
+- Rebuilt the movement keybinding menu in `src/cmd4.c:9300` by adding helpers that list every key currently mapped to each `;`+direction action, binding arbitrary keys directly to those sequences, and restoring default numpad behavior without clearing the macro; verified via `build-cmake.bat`.
+- Promoted the keybind menu to the top of `options_menu`/`do_cmd_options`, added exclusive rebind + reset logic (`unbind_action`) so resets actually revert to the default key, and tracked keymap edits so unsaved changes trigger a prompt to write `user.prf` (also the default filename for manual saves).
+- Updated the rebind flow so it no longer clears existing bindings for that direction, allowing multiple keys (e.g., WASD + arrows) to trigger the same movement while still using reset to return to the pure numpad default.
+- Expanded the keybind UI into primary vs. supplementary tabs (TAB to switch, scrollable lists) with corrected labels (`s` Sing, `X` exchange places, `-` Fletchery, `{` Inscribe, `a` Activate, `p` horn, `q` quaff, `u` use, `M` map, `L` pan) and added entries for every remaining usable command while banning edits to `;`.
+- Removed direct command handlers for `Q` suicide, `!`, `$`, `&`, `)` screenshot, and `V` version info (plus corresponding spectator allowances) per new UX policy; these features are still reachable via menus where appropriate.
+- Hooked the wait/hold command to the main group (default `z`, with numpad 5 as just another binding), added safety checks that refuse to exit the keybind menu if any primary action lacks a binding, and make the key list grow/shrink with the terminal height so more entries fit on tall layouts.
+
+## 2025-11-14: Fixed Button Queue Issue During Story Intro Sequences
+
+### Issue
+When showing intro sequences with typewriter effects (`print_story_intro` and `print_story`), button presses were being queued during the animation. After the intro finished, all queued keypresses would execute at once, causing unintended menu navigation or game actions.
+
+### Root Cause
+During `TERM_XTRA_DELAY` (used for typewriter animation delays), the SDL event loop processes all pending events to keep the application responsive. These events include keypresses, which get added to the terminal's key queue via `Term_keypress()`. When the intro finishes, these queued keys are processed by the game, causing rapid-fire unintended actions.
+
+### Solution
+Implemented a comprehensive fix that prevents key queuing during animations:
+
+1. **Immediate Key Consumption**: Any keypress during typewriter/fade effects is immediately consumed and skips the animation
+2. **No Key Queuing**: Keys pressed during animations are never added to the queue for later processing
+3. **Key Queue Flushing**: Added `Term_flush()` calls after sequences complete as additional safety
+
+### Implementation Details
+
+**Modified `src/dungeon.c` - `print_story_intro()`:**
+- Added non-blocking key check during character-by-character rendering
+- **Any keypress** (not just ESC) immediately consumes the key and skips to end of text
+- Remaining text prints instantly without delays
+- Added `Term_flush()` after intro completes for additional safety
+
+**Modified `src/files.c` - `print_paragraph_fade()`:**
+- Changed return type from `bool` to `int` (0=normal, 1=other key, 2=ESC)
+- Checks for keypresses during fade-in animation steps
+- **ESC key**: Returns 2, consumed and signals fast-forward mode
+- **Other keys**: Returns 1, consumed and completes current paragraph fade instantly
+- Also checks during final delay period
+
+**Modified `src/files.c` - `print_story()`:**
+- Handles return value from `print_paragraph_fade`:
+  - Return 0: Normal completion, continue with fade animations
+  - Return 1: Other key pressed, paragraph shown instantly, continue normally to next
+  - Return 2: ESC pressed, enables fast-forward mode (no more fades/delays)
+- ESC at pagination prompts also enables fast-forward mode (intentional)
+
+**Modified `src/xtra2.c` - `quest_typewriter_menu()`:**
+- Added keypress detection during quest dialog typewriter effect
+- Any key press consumed immediately and jumps to end via `skip_typewriter` label
+- Added `Term_flush()` after completion
+
+### Technical Notes
+- Key checking uses non-blocking `Term_inkey(&ch, false, false)` to avoid interrupting animation flow
+- When **any** key detected: immediately consumed with `Term_inkey(&ch, false, true)` before skipping
+- This prevents Enter, Space, or any other key from queuing during animation
+- `Term_flush()` provides additional safety by clearing queue after sequences complete
+- No keys are ever queued for later processing - they all trigger immediate skip behavior
+
+### Testing
+Build completed successfully with only pre-existing warnings. Changes completely eliminate key queue accumulation during intro sequences.
+
+---
+
 ## 2025-11-11: User Folder Backwards Compatibility Fixes (FINAL)
 
 ### Issues Fixed

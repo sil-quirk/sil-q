@@ -7218,6 +7218,20 @@ static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byt
             
             /* Print the word character by character with typewriter effect */
             for (int j = word_start; j < word_start + word_len; j++) {
+                /* Check for any key press to skip typewriter effect */
+                char check_key;
+                if (Term_inkey(&check_key, false, false) == 0) {
+                    /* Consume the key - any key press skips the typewriter */
+                    Term_inkey(&check_key, false, true);
+                    /* Print rest of current word */
+                    for (int k = j; k < word_start + word_len; k++) {
+                        Term_putch(indent + col, row, text_color, s[k]);
+                        col++;
+                    }
+                    /* Skip to end of entire text */
+                    goto skip_typewriter;
+                }
+                
                 Term_putch(indent + col, row, text_color, s[j]);
                 Term_fresh();
                 col++;
@@ -7264,9 +7278,13 @@ static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byt
         Term_xtra(TERM_XTRA_DELAY, 400);
     }
     
+skip_typewriter:
     /* Final prompt */
     Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to continue)");
     inkey();
+    
+    /* Flush any queued keypresses that accumulated during the typewriter effect */
+    Term_flush();
     
     Term_clear();
     screen_load();

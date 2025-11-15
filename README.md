@@ -17,7 +17,7 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 1. Install MSYS2 and open the MINGW64 terminal.
 2. Install required packages:
    ```bash
-   pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-SDL3 make
+   pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-SDL3 mingw-w64-x86_64-SDL3_image mingw-w64-x86_64-SDL3_ttf make
    ```
 3. Navigate to the Sil-More source directory.
 4. Run the build script:
@@ -43,15 +43,15 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 1. Install dependencies:
    - **Debian/Ubuntu:**
      ```bash
-     sudo apt install build-essential cmake libsdl3-dev
+     sudo apt install build-essential cmake libsdl3-dev libsdl3-image-dev libsdl3-ttf-dev
      ```
    - **Fedora:**
      ```bash
-     sudo dnf install gcc cmake SDL3-devel
+     sudo dnf install gcc cmake SDL3-devel SDL3-image-devel SDL3-ttf-devel
      ```
    - **Arch:**
      ```bash
-     sudo pacman -S base-devel cmake sdl3
+     sudo pacman -S base-devel cmake sdl3 sdl3-image sdl3-ttf
      ```
 
 2. Navigate to the Sil-More source directory.
@@ -81,7 +81,7 @@ Secondly, it uses a system of metaruns, where consequtive runs are connected int
 2. Install Homebrew if not already installed (see https://brew.sh/).
 3. Install dependencies:
    ```bash
-   brew install cmake sdl3
+   brew install cmake sdl3 sdl3-image sdl3-ttf
    ```
 4. Navigate to the Sil-More source directory.
 5. Configure and build:
