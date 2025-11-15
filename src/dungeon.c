@@ -1246,13 +1246,6 @@ static void process_command(void)
 
     /*** System Commands ***/
 
-    /* Hack -- User interface */
-    case '!':
-    {
-        (void)Term_user(0);
-        break;
-    }
-
     /* Single line from a pref file */
     // case '"':
     //{
@@ -1260,26 +1253,12 @@ static void process_command(void)
     //	break;
     //}
 
-    /* Interact with macros */
-    case '$':
-    {
-        do_cmd_macros();
-        break;
-    }
-
     /* Interact with visuals */
     // case '%':
     //{
     //	do_cmd_visuals();
     //	break;
     //}
-
-    /* Interact with colors */
-    case '&':
-    {
-        do_cmd_colors();
-        break;
-    }
 
     /* Interact with options */
     case 'O':
@@ -1295,13 +1274,6 @@ static void process_command(void)
     case ':':
     {
         do_cmd_note("", p_ptr->depth);
-        break;
-    }
-
-    /* Version info */
-    case 'V':
-    {
-        do_cmd_version();
         break;
     }
 
@@ -1349,13 +1321,6 @@ static void process_command(void)
         break;
     }
 
-    /* Quit (commit suicide) */
-    case 'Q':
-    {
-        do_cmd_suicide();
-        break;
-    }
-
     /* Supplies overview */
     case 'j':
     {
@@ -1367,13 +1332,6 @@ static void process_command(void)
     case '~':
     {
         do_cmd_knowledge();
-        break;
-    }
-
-    /* Save "screen shot" */
-    case ')':
-    {
-        do_cmd_save_screen();
         break;
     }
 
@@ -1426,16 +1384,11 @@ static bool death_spectator_command_allowed(int command)
     case 'l':
     case 'm':
     case 'O':
-    case '!':
-    case '$':
-    case '&':
     case ':':
-    case 'V':
     case 'j':
     case '~':
     case '[':
     case ']':
-    case ')':
     case KTRL('E'):
     case KTRL('O'):
     case KTRL('P'):

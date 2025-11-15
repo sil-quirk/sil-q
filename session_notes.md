@@ -8,6 +8,9 @@
 - Rebuilt the movement keybinding menu in `src/cmd4.c:9300` by adding helpers that list every key currently mapped to each `;`+direction action, binding arbitrary keys directly to those sequences, and restoring default numpad behavior without clearing the macro; verified via `build-cmake.bat`.
 - Promoted the keybind menu to the top of `options_menu`/`do_cmd_options`, added exclusive rebind + reset logic (`unbind_action`) so resets actually revert to the default key, and tracked keymap edits so unsaved changes trigger a prompt to write `user.prf` (also the default filename for manual saves).
 - Updated the rebind flow so it no longer clears existing bindings for that direction, allowing multiple keys (e.g., WASD + arrows) to trigger the same movement while still using reset to return to the pure numpad default.
+- Expanded the keybind UI into primary vs. supplementary tabs (TAB to switch, scrollable lists) with corrected labels (`s` Sing, `X` exchange places, `-` Fletchery, `{` Inscribe, `a` Activate, `p` horn, `q` quaff, `u` use, `M` map, `L` pan) and added entries for every remaining usable command while banning edits to `;`.
+- Removed direct command handlers for `Q` suicide, `!`, `$`, `&`, `)` screenshot, and `V` version info (plus corresponding spectator allowances) per new UX policy; these features are still reachable via menus where appropriate.
+- Hooked the wait/hold command to the main group (default `z`, with numpad 5 as just another binding), added safety checks that refuse to exit the keybind menu if any primary action lacks a binding, and make the key list grow/shrink with the terminal height so more entries fit on tall layouts.
 
 ## 2025-11-14: Fixed Button Queue Issue During Story Intro Sequences
 
