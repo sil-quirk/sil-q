@@ -5833,3 +5833,4 @@ Remove support for obsolete system pref files, keeping only SDL support for mode
 
     - Fixed follow-up build issues by returning `build_live_preview_score()` to `files.c` (so it can see the static `death_time`) and moving `compare_run_records_desc()` into the new module; cleaned a stray `score_view_order` token and reran `build-cmake.bat` to confirm both SDL3 builds succeed.
 
+    - Refactored collect_high_scores() into score/score_io.c with self-contained sorting/dedupe helpers so callers no longer depend on files.c

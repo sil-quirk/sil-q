@@ -1,4 +1,4 @@
-# Score / Statistics Database Overhaul
+﻿# Score / Statistics Database Overhaul
 
 This document tracks the binary redesign for Sil-QH's end-of-run data. It
 supersedes the ad-hoc `scores.raw` text-within-binary file by introducing a
@@ -85,17 +85,11 @@ Stored as `score_record_v1` entries featuring:
    attacking monster/trap GUID via the player killer context, and custom smithing
    artefacts receive GUIDs plus entries in `lib/apex/artefacts.db` for future reuse.
 
-### Phase 2 – Module Split (in progress)
-1. **Score I/O module:** Move the score-file context and low-level helpers out
-   of `src/files.c`. `score/score_io.c` now owns the singleton plumbing; future
-   steps will relocate `open_scores_file_versioned`, header parsing, and backup
-   logic into this module.
-2. **Logic module:** Extract scoring math (`score_breakdown`, `score_points`,
-   sort helpers) into `score/score_logic.c` (planned). Callers will link against
-   a dedicated `score.h` instead of reaching into `files.c`.
-3. **UI/API split:** The UI (`show_scores`, `show_scores_interactive`) will sit
-   in `score/score_ui.c`, consuming the public API rather than touching file
-   descriptors directly.
+### Phase 2 - Module Split (in progress)
+1. **Score I/O module:** `score/score_io.c` now owns the singleton plumbing and `score_file_open()` handles header parsing, upgrades, and reconciliation so `files.c` no longer needs to poke SDL streams directly.
+2. **Logic module:** `score/score_logic.c` exposes `score_points()`/`score_compare()`, keeping the scoring math isolated from the UI layer and ready for unit coverage.
+3. **UI/API split:** `score/score_ui.c`/`.h` contain `show_scores*`, `display_single_score*`, and the run-history browser (`do_cmd_run_history`), consuming only the public score APIs so other front-ends can reuse the logic without touching persistence code.
+
 
 ### Phase 3 – Dual Format Support
 - Add serializers/deserializers for `score_record_v1`.
@@ -133,4 +127,11 @@ Stored as `score_record_v1` entries featuring:
 - Should the monster stats table record per-metarun counters or only lifetime
   totals? (Plan: track lifetime totals globally, with optional per-metarun
   overlays stored alongside the metarun entry.)
+
+## Next Steps
+1. **Finish Phase 2 cleanup:** Move the remaining score helpers (`collect_high_scores`, dedupe utilities, legacy upgrade paths) into the score modules so `files.c` can focus purely on save/load orchestration.
+2. **Kick off Phase 3 dual-write:** Emit both `scores.raw` and `runs.db` when saving/dying, then diff the derived stats after each write to catch regressions immediately.
+3. **Stand up `characters.db` / `monsters.db`:** Use the GUID plumbing to aggregate lifetime stats per persona and monster so metarun summaries and dashboards can surface richer data.
+4. **Tooling + migration:** Provide CLI or in-game commands to back up, convert, and integrity-check the new databases before the legacy ASCII layout is removed in Phase 5.
+
 

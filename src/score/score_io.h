@@ -13,6 +13,8 @@ typedef struct score_file_ctx {
     u32b entry_count;
 } score_file_ctx;
 
+struct high_score;
+
 /* Swap the active score-file context; returns the previous context pointer. */
 score_file_ctx* score_file_set_active_ctx(score_file_ctx* ctx);
 
@@ -30,5 +32,7 @@ SDL_IOStream* score_file_open(const char *filepath, int mode);
 
 /* Convenience helper for zeroing a context before use. */
 void score_file_reset_ctx(score_file_ctx* ctx);
+
+int collect_high_scores(struct high_score* out, int capacity, bool sort_by_score);
 
 #endif /* INCLUDED_SCORE_IO_H */

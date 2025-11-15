@@ -17,6 +17,7 @@
  * Automatically generated "variable" declarations
  */
 #include "h-basic.h"
+#include "score/score_io.h"
 #include "score/score_ui.h"
 // extern FILE *log_file;
 extern int max_macrotrigger;
@@ -647,7 +648,6 @@ extern void comma_number(char* output, int number);
 extern void atomonth(int number, char* output);
 extern int highscore_dead(char* name);
 extern bool highscore_is_empty();
-extern int collect_high_scores(high_score* out, int capacity, bool sort_by_score);
 extern void close_game(void);
 extern void exit_game_panic(void);
 extern errr create_score(high_score* the_score);

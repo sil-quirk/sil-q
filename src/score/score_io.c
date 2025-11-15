@@ -1,8 +1,12 @@
 #include "score/score_io.h"
 
 #include "angband.h"
+#include "externs.h"
+#include "fs/path.h"
 #include "log/log.h"
+#include "score/score_logic.h"
 
+#include <limits.h>
 #include <string.h>
 
 static score_file_ctx global_score_ctx;
@@ -236,6 +240,167 @@ SDL_IOStream* score_file_open(const char *filepath, int mode)
     }
 
     return file;
+}
+
+static int collect_scores_load(SDL_IOStream* file, high_score* entries, int limit)
+{
+    if (!file || !entries || limit <= 0)
+        return 0;
+
+    int count = 0;
+    while (count < limit) {
+        high_score temp;
+        if (SDL_ReadIO(file, &temp, sizeof(temp)) != sizeof(temp))
+            break;
+        if (temp.who[0] == '\0')
+            break;
+        entries[count++] = temp;
+    }
+    return count;
+}
+
+static int collect_scores_unique(high_score* entries, int count)
+{
+    if (count <= 1)
+        return count;
+
+    high_score unique[MAX_HISCORES + 1];
+    int unique_scores[MAX_HISCORES + 1];
+    int unique_count = 0;
+
+    for (int i = 0; i < count; i++) {
+        int pts = score_points(&entries[i]);
+        bool merged = false;
+        for (int j = 0; j < unique_count; j++) {
+            if (!streq(entries[i].who, unique[j].who))
+                continue;
+
+            if (pts > unique_scores[j] ||
+                (pts == unique_scores[j] && strcmp(entries[i].day, unique[j].day) > 0) ||
+                (pts == unique_scores[j] && streq(entries[i].day, unique[j].day) &&
+                 strcmp(entries[i].how, unique[j].how) > 0)) {
+                unique[j] = entries[i];
+                unique_scores[j] = pts;
+            }
+            merged = true;
+            break;
+        }
+
+        if (!merged) {
+            unique[unique_count] = entries[i];
+            unique_scores[unique_count] = pts;
+            unique_count++;
+        }
+    }
+
+    for (int i = 0; i < unique_count; i++)
+        entries[i] = unique[i];
+
+    return unique_count;
+}
+
+static int compare_scores_qsort(const void* va, const void* vb)
+{
+    const high_score* a = (const high_score*)va;
+    const high_score* b = (const high_score*)vb;
+    return score_compare(a, b);
+}
+
+static long score_day_key(const high_score* entry)
+{
+    if (!entry)
+        return LONG_MIN;
+
+    if (streq(entry->how, "(alive and well)"))
+        return LONG_MAX;
+
+    if (entry->day[0] != '@')
+        return LONG_MIN + 1;
+
+    char buf[32];
+    SDL_strlcpy(buf, entry->day + 1, sizeof(buf));
+    char* end = NULL;
+    long value = strtol(buf, &end, 10);
+    if (value <= 0 || !end || *end != '\0')
+        return LONG_MIN + 1;
+
+    return value;
+}
+
+static int compare_scores_chronological(const void* va, const void* vb)
+{
+    const high_score* a = (const high_score*)va;
+    const high_score* b = (const high_score*)vb;
+
+    long day_a = score_day_key(a);
+    long day_b = score_day_key(b);
+    if (day_a != day_b)
+        return (day_a > day_b) ? -1 : 1;
+
+    int cmp = strcmp(a->who, b->who);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = strcmp(a->how, b->how);
+    if (cmp != 0)
+        return cmp;
+
+    return score_compare(a, b);
+}
+
+int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
+{
+    if (!out || capacity <= 0)
+        return 0;
+
+    char score_path[1024];
+    path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw");
+
+    score_file_ctx* ctx = score_file_active_ctx();
+    SDL_IOStream* file = ctx ? ctx->fd : NULL;
+    bool opened_new = false;
+    Sint64 restore_pos = 0;
+
+    if (!file) {
+        safe_setuid_grab();
+        file = score_file_open(score_path, O_RDONLY);
+        safe_setuid_drop();
+        if (!file)
+            return 0;
+        opened_new = true;
+    } else {
+        restore_pos = SDL_TellIO(file);
+    }
+
+    if (SDL_SeekIO(file, sizeof(score_file_header), SDL_IO_SEEK_SET) < 0) {
+        if (opened_new)
+            SDL_CloseIO(file);
+        else
+            SDL_SeekIO(file, restore_pos, SDL_IO_SEEK_SET);
+        return 0;
+    }
+
+    int limit = (capacity > MAX_HISCORES) ? MAX_HISCORES : capacity;
+    int count = collect_scores_load(file, out, limit);
+
+    if (opened_new)
+        SDL_CloseIO(file);
+    else
+        SDL_SeekIO(file, restore_pos, SDL_IO_SEEK_SET);
+
+    if (count <= 0)
+        return 0;
+
+    if (sort_by_score)
+        qsort(out, count, sizeof(high_score), compare_scores_qsort);
+    else
+        qsort(out, count, sizeof(high_score), compare_scores_chronological);
+
+    count = collect_scores_unique(out, count);
+    if (count > MAX_HISCORES)
+        count = MAX_HISCORES;
+
+    return count;
 }
 
 static const char* file_mode_from_flags(int mode)
