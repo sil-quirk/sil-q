@@ -60,6 +60,8 @@ typedef struct score_record_v1 {
     byte run_flags;              /* SCORE_RUN_FLAG_* bits */
     byte race_id;                /* race index at run end */
     byte character_id;           /* character template index at run end */
+    score_guid64 race_guid;      /* persistent race GUID */
+    score_guid64 character_guid; /* persistent character template GUID */
 
     u16b max_depth;          /* deepest dungeon level reached */
     u16b exit_depth;         /* depth where the run ended */
@@ -87,6 +89,34 @@ typedef struct score_record_v1 {
     char savefile_hint[32];     /* savefile stem for recovery */
     char player_name[32];       /* canonical player name (repurposed from reserved) */
 } score_record_v1;
+
+typedef struct score_run_detail_header_v1 {
+    u16b version;            /* payload format version */
+    u16b artefact_count;     /* populated artefact slots */
+    u16b artefact_capacity;  /* artefact slots serialized */
+    u16b monster_count;      /* populated monster slots */
+    u16b monster_capacity;   /* monster slots serialized */
+    u16b reserved;           /* alignment */
+    u32b reserved2[2];
+} score_run_detail_header_v1;
+
+typedef struct score_run_artefact_v1 {
+    score_guid64 guid;       /* artefact GUID */
+    u16b a_idx;              /* fallback index into a_info */
+    byte tval;
+    byte sval;
+    byte forged;             /* smith-made flag */
+    byte reserved[3];
+} score_run_artefact_v1;
+
+typedef struct score_run_monster_v1 {
+    score_guid64 guid;       /* monster GUID */
+    u16b r_idx;              /* fallback index */
+    u16b seen;               /* sightings this run */
+    u16b killed;             /* kills by the player */
+    u16b deaths;             /* player deaths to this monster */
+    u16b reserved;
+} score_run_monster_v1;
 
 /*
  * Persona database entry: cumulative data for a hero across all runs.

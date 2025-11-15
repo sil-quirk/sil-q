@@ -1,5 +1,13 @@
 # Session Notes
 
+## 2025-11-15: Score GUID plumbing
+
+- Added `guid64` fields to `player_race`/`character_profile` (src/types.h) plus new `Q:` parsing branches in `parse_p_info` and `parse_c_info` so race/character templates keep stable IDs alongside the existing monster and artefact GUID plumbing.
+- Documented the new `Q:` directive in `lib/edit/artefact.txt`, `race.txt`, and `character.txt`, then wrote `tools/make_guid.py` to insert missing GUIDs across monster/artefact/race/character data files; the helper also dedupes GUIDs across files and supports `--dry-run`.
+- Ran `py -3 tools/make_guid.py` from the repo root to seed every entry and verified `build-cmake.bat` still completes (SDL3 desktop build, existing wizard2.c fallthrough warnings only).
+- Added automatic run snapshots: the game now writes an initial `runs.db` entry as soon as `character_generated` flips true (`dungeon.c`) and refreshes the entry every time the run history UI opens (`score/score_ui.c`). `score_runs_open_db()` truncates legacy files when the format version bumps so stale layouts don't cause empty history panes.
+- Extended `runs.db` writer/reader to store race/character GUIDs plus a detail payload per run (fixed-capacity artefact + monster slots keyed by GUID). Added `score_runs_load_details()` API and upgraded the run history UI so players can inspect artefact collections and per-monster seen/kill counts directly from the detail view.
+
 ## 2025-11-16: Key Handling Audit
 
 - Reviewed the macro/keymap infrastructure in `src/util.c` (macro tables, `inkey_aux()`, `request_command()`), plus loading/editing paths in `src/files.c` and `src/cmd4.c` to understand how prefixes, repeat counts, and mode switching work.

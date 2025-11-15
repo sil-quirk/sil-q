@@ -7,14 +7,17 @@
 #include "metarun.h"
 #include "player/killer.h"
 #include "score/score_guid.h"
+#include "score/score_runs.h"
 
 #include <SDL3/SDL.h>
 #include <ctype.h>
 #include <limits.h>
 #include <string.h>
 
-#define SCORE_RUNS_DB_VERSION 0x00010000u
-#define SCORE_RUNS_DB_FILENAME "runs.db"
+#define SCORE_RUNS_DB_VERSION 0x00020000u
+#define SCORE_RUN_DETAIL_VERSION 1u
+#define SCORE_RUN_ARTEFACT_CAP_MAX 512
+#define SCORE_RUN_MONSTER_CAP_MAX 1024
 
 static void score_runs_init_header(score_db_header* header)
 {
@@ -51,6 +54,145 @@ static bool score_runs_write_header(SDL_IOStream* file, const score_db_header* h
     return SDL_WriteIO(file, header, sizeof(*header)) == sizeof(*header);
 }
 
+static u16b score_runs_choose_artefact_capacity(void)
+{
+    if (!z_info)
+        return 0;
+    u32b cap = z_info->art_max;
+    if (cap > SCORE_RUN_ARTEFACT_CAP_MAX)
+        cap = SCORE_RUN_ARTEFACT_CAP_MAX;
+    if (cap > UINT16_MAX)
+        cap = UINT16_MAX;
+    return (u16b)cap;
+}
+
+static u16b score_runs_choose_monster_capacity(void)
+{
+    if (!z_info)
+        return 0;
+    u32b cap = z_info->r_max;
+    if (cap > SCORE_RUN_MONSTER_CAP_MAX)
+        cap = SCORE_RUN_MONSTER_CAP_MAX;
+    if (cap > UINT16_MAX)
+        cap = UINT16_MAX;
+    return (u16b)cap;
+}
+
+static bool score_runs_alloc_detail_block(score_run_detail_block* block,
+                                          u16b artefact_cap,
+                                          u16b monster_cap)
+{
+    if (!block)
+        return false;
+
+    memset(block, 0, sizeof(*block));
+    block->header.version = SCORE_RUN_DETAIL_VERSION;
+    block->header.artefact_capacity = artefact_cap;
+    block->header.monster_capacity = monster_cap;
+
+    if (artefact_cap > 0) {
+        block->artefacts = mem_alloc_array(artefact_cap, score_run_artefact_v1);
+        if (!block->artefacts)
+            return false;
+        memset(block->artefacts, 0,
+            artefact_cap * sizeof(score_run_artefact_v1));
+    }
+
+    if (monster_cap > 0) {
+        block->monsters = mem_alloc_array(monster_cap, score_run_monster_v1);
+        if (!block->monsters) {
+            mem_free(block->artefacts);
+            block->artefacts = NULL;
+            return false;
+        }
+        memset(block->monsters, 0,
+            monster_cap * sizeof(score_run_monster_v1));
+    }
+
+    return true;
+}
+
+static void score_runs_release_detail_block(score_run_detail_block* block)
+{
+    if (!block)
+        return;
+    mem_free(block->artefacts);
+    mem_free(block->monsters);
+    memset(block, 0, sizeof(*block));
+}
+
+static bool score_runs_read_detail_header(SDL_IOStream* file,
+                                          score_run_detail_header_v1* header)
+{
+    if (!file || !header)
+        return false;
+    return SDL_ReadIO(file, header, sizeof(*header)) == sizeof(*header);
+}
+
+static bool score_runs_skip_detail_payload(SDL_IOStream* file,
+                                           const score_run_detail_header_v1* header)
+{
+    if (!file || !header)
+        return false;
+    Sint64 skip = 0;
+    skip += (Sint64)header->artefact_capacity
+        * (Sint64)sizeof(score_run_artefact_v1);
+    skip += (Sint64)header->monster_capacity
+        * (Sint64)sizeof(score_run_monster_v1);
+    if (skip < 0)
+        return false;
+    return SDL_SeekIO(file, skip, SDL_IO_SEEK_CUR) >= 0;
+}
+
+static bool score_runs_read_detail_header_at(SDL_IOStream* file, Sint64 record_offset,
+                                             score_run_detail_header_v1* header)
+{
+    if (!file || !header)
+        return false;
+    if (SDL_SeekIO(file,
+                   record_offset + (Sint64)sizeof(score_record_v1),
+                   SDL_IO_SEEK_SET) < 0)
+        return false;
+    return score_runs_read_detail_header(file, header);
+}
+
+static bool score_runs_write_record(SDL_IOStream* file,
+                                    const score_record_v1* record,
+                                    const score_run_detail_block* details)
+{
+    if (!file || !record || !details)
+        return false;
+
+    if (SDL_WriteIO(file, record, sizeof(*record)) != sizeof(*record))
+        return false;
+
+    if (SDL_WriteIO(file, &details->header, sizeof(details->header))
+        != sizeof(details->header))
+        return false;
+
+    size_t artefact_bytes = (size_t)details->header.artefact_capacity
+        * sizeof(score_run_artefact_v1);
+    if (artefact_bytes > 0 && details->artefacts) {
+        if (SDL_WriteIO(file, details->artefacts, artefact_bytes)
+            != (Sint64)artefact_bytes)
+            return false;
+    } else if (artefact_bytes > 0) {
+        return false;
+    }
+
+    size_t monster_bytes = (size_t)details->header.monster_capacity
+        * sizeof(score_run_monster_v1);
+    if (monster_bytes > 0 && details->monsters) {
+        if (SDL_WriteIO(file, details->monsters, monster_bytes)
+            != (Sint64)monster_bytes)
+            return false;
+    } else if (monster_bytes > 0) {
+        return false;
+    }
+
+    return true;
+}
+
 static SDL_IOStream* score_runs_open_db(const char* path, score_db_header* header,
                                         bool* created)
 {
@@ -72,10 +214,22 @@ static SDL_IOStream* score_runs_open_db(const char* path, score_db_header* heade
         return file;
     }
 
-    if (!score_runs_read_header(file, header)) {
-        log_warn("score_runs: invalid header in %s, recreating", path);
+    bool need_reset = false;
+    if (!score_runs_read_header(file, header) ||
+        header->version != SCORE_RUNS_DB_VERSION) {
+        log_warn("score_runs: invalid or legacy header in %s, recreating", path);
+        need_reset = true;
+    }
+
+    if (need_reset) {
+        SDL_CloseIO(file);
+        file = SDL_IOFromFile(path, "w+b");
+        if (!file)
+            return NULL;
+        if (created)
+            *created = true;
         score_runs_init_header(header);
-        if (!score_runs_write_header(file, header)) {
+        if (SDL_WriteIO(file, header, sizeof(*header)) != sizeof(*header)) {
             SDL_CloseIO(file);
             return NULL;
         }
@@ -97,6 +251,7 @@ static bool score_runs_find_existing(SDL_IOStream* file, u32b metarun_id,
         return false;
 
     score_record_v1 temp;
+    score_run_detail_header_v1 detail;
     Sint64 pos = SDL_TellIO(file);
     while (SDL_ReadIO(file, &temp, sizeof(temp)) == sizeof(temp)) {
         if (temp.metarun_id == metarun_id &&
@@ -108,6 +263,10 @@ static bool score_runs_find_existing(SDL_IOStream* file, u32b metarun_id,
                 *offset = pos;
             SDL_SeekIO(file, 0, SDL_IO_SEEK_END);
             return true;
+        }
+        if (!score_runs_read_detail_header(file, &detail) ||
+            !score_runs_skip_detail_payload(file, &detail)) {
+            break;
         }
         pos = SDL_TellIO(file);
     }
@@ -125,10 +284,15 @@ static int score_runs_count_for_metarun(SDL_IOStream* file, u32b metarun_id)
         return 0;
 
     score_record_v1 temp;
+    score_run_detail_header_v1 detail;
     int count = 0;
     while (SDL_ReadIO(file, &temp, sizeof(temp)) == sizeof(temp)) {
         if (temp.metarun_id == metarun_id)
             count++;
+        if (!score_runs_read_detail_header(file, &detail) ||
+            !score_runs_skip_detail_payload(file, &detail)) {
+            break;
+        }
     }
 
     SDL_SeekIO(file, 0, SDL_IO_SEEK_END);
@@ -287,6 +451,79 @@ store:
         *kills_seen = seen;
 }
 
+static u16b score_runs_collect_artefact_entries(score_run_artefact_v1* entries,
+                                                u16b capacity)
+{
+    if (!entries || capacity == 0 || !a_info || !z_info)
+        return 0;
+
+    u16b count = 0;
+    for (int i = 0; i < z_info->art_max && count < capacity; i++) {
+        artefact_type* art = &a_info[i];
+        if (!art)
+            continue;
+        if (art->cur_num <= 0)
+            continue;
+        if (art->flags3 & TR3_INSTA_ART)
+            continue;
+
+        score_run_artefact_v1* slot = &entries[count++];
+        slot->guid = art->guid;
+        slot->a_idx = (u16b)i;
+        slot->tval = art->tval;
+        slot->sval = art->sval;
+        slot->forged = (i >= z_info->art_rand_max) ? 1 : 0;
+    }
+
+    return count;
+}
+
+static u16b score_runs_collect_monster_entries(score_run_monster_v1* entries,
+                                               u16b capacity)
+{
+    if (!entries || capacity == 0 || !l_list || !r_info || !z_info)
+        return 0;
+
+    u16b count = 0;
+    for (int i = 1; i < z_info->r_max && count < capacity; i++) {
+        monster_lore* lore = &l_list[i];
+        if (!lore)
+            continue;
+        int seen = MAX(lore->psights, 0);
+        int killed = MAX(lore->pkills, 0);
+        int deaths = MAX(lore->deaths, 0);
+        if (seen == 0 && killed == 0 && deaths == 0)
+            continue;
+
+        monster_race* race = &r_info[i];
+        score_run_monster_v1* slot = &entries[count++];
+        if (race)
+            slot->guid = score_guid_from_u64(race->guid);
+        else
+            score_guid_clear(&slot->guid);
+        slot->r_idx = (u16b)i;
+        slot->seen = (seen > UINT16_MAX) ? UINT16_MAX : (u16b)seen;
+        slot->killed = (killed > UINT16_MAX) ? UINT16_MAX : (u16b)killed;
+        slot->deaths = (deaths > UINT16_MAX) ? UINT16_MAX : (u16b)deaths;
+    }
+
+    return count;
+}
+
+static bool score_runs_build_details(score_run_detail_block* block,
+                                     u16b artefact_cap,
+                                     u16b monster_cap)
+{
+    if (!score_runs_alloc_detail_block(block, artefact_cap, monster_cap))
+        return false;
+
+    block->header.artefact_count = score_runs_collect_artefact_entries(
+        block->artefacts, block->header.artefact_capacity);
+    block->header.monster_count = score_runs_collect_monster_entries(
+        block->monsters, block->header.monster_capacity);
+    return true;
+}
+
 static s16b score_runs_character_power(void)
 {
     int power = 3;
@@ -395,6 +632,16 @@ static void score_runs_build_record(score_record_v1* rec,
     rec->run_flags = score_runs_run_flags();
     rec->race_id = (byte)(p_ptr->prace & 0xFF);
     rec->character_id = (byte)(p_ptr->pcharacter & 0xFF);
+    if (z_info && p_ptr->prace >= 0 && p_ptr->prace < z_info->p_max) {
+        rec->race_guid = p_info[p_ptr->prace].guid;
+    } else {
+        score_guid_clear(&rec->race_guid);
+    }
+    if (z_info && p_ptr->pcharacter >= 0 && p_ptr->pcharacter < z_info->c_max) {
+        rec->character_guid = c_info[p_ptr->pcharacter].guid;
+    } else {
+        score_guid_clear(&rec->character_guid);
+    }
     rec->max_depth = (u16b)MAX(p_ptr->max_depth, 0);
     rec->exit_depth = (u16b)MAX(p_ptr->depth, 0);
     rec->silmarils = score_runs_silmarils();
@@ -456,6 +703,10 @@ bool score_runs_record_current_run(const struct high_score* legacy_score,
 
     score_record_v1 record;
     score_runs_build_record(&record, legacy_score, snapshot_time, status);
+    u16b default_art_cap = score_runs_choose_artefact_capacity();
+    u16b default_mon_cap = score_runs_choose_monster_capacity();
+    score_run_detail_block details;
+    memset(&details, 0, sizeof(details));
 
     safe_setuid_grab();
 
@@ -473,20 +724,51 @@ bool score_runs_record_current_run(const struct high_score* legacy_score,
     bool found = score_runs_find_existing(db, record.metarun_id,
                                           record.persona_id, &existing, &offset);
 
+    score_run_detail_header_v1 existing_detail;
+    bool details_ready = false;
+    if (found) {
+        if (!score_runs_read_detail_header_at(db, offset, &existing_detail)) {
+            log_warn("score_runs: detail header missing for record_id=%u, appending new entry",
+                existing.record_id);
+            found = false;
+        } else if (!score_runs_build_details(&details,
+                                             existing_detail.artefact_capacity,
+                                             existing_detail.monster_capacity)) {
+            log_warn("score_runs: unable to rebuild detail payload for record_id=%u",
+                existing.record_id);
+            SDL_CloseIO(db);
+            safe_setuid_drop();
+            return false;
+        } else {
+            details_ready = true;
+        }
+    }
+
+    if (!details_ready) {
+        if (!score_runs_build_details(&details, default_art_cap, default_mon_cap)) {
+            log_warn("score_runs: unable to gather run detail payload");
+            SDL_CloseIO(db);
+            safe_setuid_drop();
+            return false;
+        }
+        details_ready = true;
+    }
+
     bool success = false;
     if (found) {
         record.record_id = existing.record_id;
         record.chronological_idx = existing.chronological_idx;
         if (SDL_SeekIO(db, offset, SDL_IO_SEEK_SET) >= 0 &&
-            SDL_WriteIO(db, &record, sizeof(record)) == sizeof(record)) {
+            score_runs_write_record(db, &record, &details)) {
             success = true;
         } else {
             log_warn("score_runs: failed to update record_id=%u", record.record_id);
         }
+        SDL_SeekIO(db, 0, SDL_IO_SEEK_END);
     } else {
         record.record_id = header.record_count;
         record.chronological_idx = (u32b)score_runs_count_for_metarun(db, record.metarun_id);
-        if (SDL_WriteIO(db, &record, sizeof(record)) == sizeof(record)) {
+        if (score_runs_write_record(db, &record, &details)) {
             header.record_count++;
             if (score_runs_write_header(db, &header)) {
                 success = true;
@@ -499,6 +781,7 @@ bool score_runs_record_current_run(const struct high_score* legacy_score,
         }
     }
 
+    score_runs_release_detail_block(&details);
     SDL_CloseIO(db);
     safe_setuid_drop();
 
@@ -509,6 +792,75 @@ bool score_runs_record_current_run(const struct high_score* legacy_score,
     }
 
     return success;
+}
+
+bool score_runs_load_details(s64b detail_offset, score_run_detail_block* out)
+{
+    if (!out || detail_offset < 0)
+        return false;
+
+    memset(out, 0, sizeof(*out));
+
+    char path[1024];
+    if (!path_build(path, sizeof(path), ANGBAND_DIR_APEX, SCORE_RUNS_DB_FILENAME))
+        return false;
+
+    safe_setuid_grab();
+    SDL_IOStream* file = SDL_IOFromFile(path, "rb");
+    safe_setuid_drop();
+    if (!file)
+        return false;
+
+    bool ok = false;
+    if (SDL_SeekIO(file, (Sint64)detail_offset, SDL_IO_SEEK_SET) < 0)
+        goto done;
+
+    score_run_detail_header_v1 header;
+    if (!score_runs_read_detail_header(file, &header))
+        goto done;
+
+    if (!score_runs_alloc_detail_block(out,
+            header.artefact_capacity, header.monster_capacity))
+        goto done;
+    out->header = header;
+
+    size_t artefact_bytes = (size_t)header.artefact_capacity
+        * sizeof(score_run_artefact_v1);
+    if (artefact_bytes > 0) {
+        if (SDL_ReadIO(file, out->artefacts, artefact_bytes)
+            != (Sint64)artefact_bytes)
+            goto done;
+    }
+
+    size_t monster_bytes = (size_t)header.monster_capacity
+        * sizeof(score_run_monster_v1);
+    if (monster_bytes > 0) {
+        if (SDL_ReadIO(file, out->monsters, monster_bytes)
+            != (Sint64)monster_bytes)
+            goto done;
+    }
+
+    ok = true;
+
+done:
+    if (!ok)
+        score_runs_release_detail_block(out);
+    SDL_CloseIO(file);
+    return ok;
+}
+
+void score_runs_free_details(score_run_detail_block* details)
+{
+    score_runs_release_detail_block(details);
+}
+
+bool score_runs_snapshot_details(score_run_detail_block* out)
+{
+    if (!out)
+        return false;
+    u16b art_cap = score_runs_choose_artefact_capacity();
+    u16b mon_cap = score_runs_choose_monster_capacity();
+    return score_runs_build_details(out, art_cap, mon_cap);
 }
 
 

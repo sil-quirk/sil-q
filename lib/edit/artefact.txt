@@ -10,6 +10,7 @@
 # === Understanding artefact.txt ===
 #
 # N: serial number : item name
+# Q: 16-digit (or longer) hexadecimal GUID identifying the artefact (optional)
 # G: char : attr
 # I: tval : sval : pval
 # B: skilltype / abilitynum : ...
@@ -20,6 +21,8 @@
 #
 # 'N' indicates the beginning of an entry. The serial number must
 #     increase for each new item.
+#
+# 'Q' is for the stable GUID used by the score/analytics subsystems.
 #
 # 'G' is for graphics overrides, if any. The char is the symbol 
 #     and the attr the colour. (See object.txt)
@@ -178,6 +181,7 @@ V:0.9.1
 ## (ability 7/3 is Song of Staunching)
 
 N:1:of Barahir
+Q:efacae2cc817eff9
 I:45:32:0
 W:10:20:1:5000
 P:0:0d0:0:1d1
@@ -195,6 +199,7 @@ D: faithfulness.
 ## (ability 5/1 is Channeling)
 
 N:2:of Melian
+Q:f380c9eec37c3007
 I:45:30:7
 W:14:30:1:50000
 P:0:0d0:0:0d0
@@ -211,6 +216,7 @@ D: Above all else, she is famed for her insight.
 ## (ability 7/9 is Woven Themes)
 
 N:3:of Tinfang Gelion
+Q:561368162725be61
 I:40:10:2
 W:12:20:1:5000
 P:0:0d0:0:0d0
@@ -226,6 +232,7 @@ D: great heroes and a desire to sing of their deeds.
 ## 1st age
 
 N:4:'Nimphelos'
+Q:f4a9bee9fc977959
 I:40:13:2
 W:12:20:1:5000
 P:0:0d0:0:0d0
@@ -241,6 +248,7 @@ D: by Thingol Greycloak, King of Doriath.
 ## (ability 5/2 is Strength in Adversity)
 
 N:5:'Elessar'
+Q:9efe653a53f97ef7
 I:40:16:1
 W:14:20:1:7000
 P:0:0d0:0:0d0
@@ -256,6 +264,7 @@ D: can see the withered and old as if they were young and supple once more.
 ## 1st age
 
 N:6:of the Dwarves
+Q:aa0b792d54a72992
 I:40:12:1
 W:16:30:1:10000
 P:0:0d0:0:0d0
@@ -268,6 +277,7 @@ D: of Valinor. It was made by the dwarves of Ered Luin for Finrod Felagund.
 ## (ability 3/5 is Vanish)
 
 N:7:of Mairon
+Q:d5699c25b01bbadc
 I:45:31:3
 W:12:18:1:10000
 P:0:0d0:0:0d0
@@ -283,6 +293,7 @@ D: its surface, and it is deathly cold.
 ## 1st age
 
 N:8:of Daeron
+Q:d62b22a1d37ec972
 G:]:g
 I:33:11:4
 W:14:30:5:600000
@@ -298,6 +309,7 @@ D: music for breaking of the heart.'
 ## (ability 6/6 is Masterpiece)
 
 N:9:of Feanor
+Q:9c8638ee3bc2e0cd
 I:33:11:3
 W:20:20:35:300000
 P:0:0d0:0:1d1
@@ -316,6 +328,7 @@ D: well-bought.  For the price could be no other."
 ## (ability 5/9 is Majesty)
 
 N:10:of Maedhros
+Q:4dca93d7e5f9681f
 I:33:11:3
 W:8:20:30:30000
 P:0:0d0:0:1d1
@@ -341,6 +354,7 @@ D: for thirty years.
 ## 1st age
 
 N:20:of Andreth
+Q:61f2dc4d9b137f8d
 I:36:2:2
 W:4:10:30:25000
 P:0:0d0:2:1d0
@@ -353,6 +367,7 @@ D: It is a deep rich green and patterned with golden thread.
 ## 1st age
 
 N:21:of Aredhel
+Q:69dffd266c3288b7
 G:(:w
 I:36:2:0
 W:6:10:30:25000
@@ -366,6 +381,7 @@ D: finest white cloth and hemmed with silver thread.
 ## 1st age namesake
 
 N:22:of Idril Celebrindal
+Q:e1ce1abd314a6676
 I:36:2:0
 W:18:30:30:25000
 P:0:0d0:0:1d0
@@ -380,6 +396,7 @@ D: you with thoughts of the swift eagles of Manwe.
 ## (ability 3/3 is Exchange Places)
 
 N:24:of Gorlim
+Q:0c356c916543f02e
 I:36:4:0
 W:3:15:70:45000
 P:0:0d0:0:1d5
@@ -395,6 +412,7 @@ D: promises about his dead wife.
 ## 1st age namesake
 
 N:25:of Haldad
+Q:7559ace339e7a494
 I:36:4:1
 W:6:10:40:45000
 P:0:0d0:-1:1d4
@@ -408,6 +426,7 @@ D: into his last battle where he fell fighting besieging orcs.
 ## (ability 4/2 is Keen Senses)
 
 N:26:'Catskin'
+Q:3db8dce4573c9d47
 I:36:4:0
 W:10:12:50:45000
 P:0:0d0:0:1d4
@@ -421,6 +440,7 @@ D: don it it fits perfectly. You feel a desire to hunt.
 ## (ability 5/4 is Inner Light)
 
 N:28:of Beor
+Q:0407dffb49b4a27d
 I:36:7:0
 W:8:20:120:35000
 P:0:0d0:-1:1d6
@@ -437,6 +457,7 @@ D: the heart in the dark places of the world.
 ## (ability 4/3 is Concentration)
 
 N:29:of Aegnor
+Q:dcae44eb6f2391eb
 I:36:7:1
 W:4:10:100:35000
 P:1:0d0:-2:1d6
@@ -451,6 +472,7 @@ D: It lends its wearer determination and sureness of heart.
 ## (automatic drop -- don't move)
 
 N:32:of Maeglin
+Q:809256172b50901d
 I:36:11:1
 W:15:1:70:45000
 P:0:0d0:1:1d8
@@ -470,6 +492,7 @@ D: and given as a gift to his son, Maeglin.
 ## 1st age namesake
 
 N:34:of Fingon
+Q:f07e8758fb5bdc60
 I:37:4:1
 W:8:25:260:105000
 P:0:0d0:-3:2d4
@@ -481,6 +504,7 @@ D:A bright mail corslet worn by Fingon, the eldest son of Fingolfin.
 ## 1st age namesake
 
 N:35:of Durin
+Q:882df4c55a64c16e
 I:37:4:0
 W:13:30:280:105000
 P:-1:0d0:-3:3d3
@@ -494,6 +518,7 @@ D: exquisite suits of mail, armour to protect a King.
 ## 1st age namesake
 
 N:36:of Maedhros
+Q:5003ac23ea4cf5ae
 I:37:6:0
 W:13:12:330:105000
 P:-2:0d0:-3:2d6
@@ -508,6 +533,7 @@ D: stripped from him and stored in Morgoth's iron vaults.
 ## 1st age namesake
 
 N:37:of Amon Rudh
+Q:baf073f28de85cee
 I:37:6:3
 W:13:10:300:25000
 P:-1:0d0:-3:2d6
@@ -521,6 +547,7 @@ D: Rudh, and hard is the armour they wear.
 ## (ability 2/3 is Crowd Fighting)
 
 N:39:of Gundor
+Q:e69bba03f7491ec1
 I:37:4:1
 W:5:30:350:25000
 P:-1:0d0:-1:2d4
@@ -534,6 +561,7 @@ D: strength to walk among a host of foes.
 ## 1st age (Vinyamar set)
 
 N:40:of Nevrast
+Q:70695395df6f28ec
 I:37:6:0
 W:11:18:500:25000
 P:-2:0d0:-4:2d8
@@ -548,6 +576,7 @@ D: many a blow that might cleave through a lesser suit.
 ## (ability 7/0 is Song of Elbereth)
 
 N:41:'Starlight'
+Q:7124e9ac2a2ee593
 I:37:20:1
 W:16:10:120:50000
 P:0:0d0:-1:2d4
@@ -565,6 +594,7 @@ D: as the stars of Varda twinkle in the night sky.
 ## The Round Shield of the Bloody Hand
 
 N:42:of the Bloody Hand
+Q:95a76b3c41240652
 I:34:3:1
 W:6:8:60:25000
 P:0:0d0:1:1d4
@@ -578,6 +608,7 @@ D: emblem of a white hand dripping blood.
 ## (ability 0/4 is Charge)
 
 N:43:of Glorfindel
+Q:0458ebd0894d3b4e
 I:34:3:0
 W:8:20:60:25000
 P:0:0d0:1:1d4
@@ -592,6 +623,7 @@ D: elves to take swift vengeance upon their foes.
 ## (ability 5/0 is Curse Breaking)
 
 N:44:'Thandrach'
+Q:482251606c98fd7a
 I:34:3:2
 W:3:20:40:15000
 P:1:0d0:0:1d3
@@ -607,6 +639,7 @@ D: with a wicked point.
 ## 1st age namesake
 
 N:45:of Hador
+Q:e9bb5583356475c3
 G:):r
 I:34:5:0
 W:8:12:90:25000
@@ -620,6 +653,7 @@ D: leader of the folk of Marach, and lord of Dor-lomin.
 ## 1st age
 
 N:46:of Fingolfin
+Q:4f697a66b227588e
 G:):b1
 I:34:5:1
 W:13:15:70:25000
@@ -633,6 +667,7 @@ D: Fingolfin, high-king of the Noldor.
 ## 1st age namesake
 
 N:47:of Valinor
+Q:24fd840a203880d2
 G:):w
 I:34:10:1
 W:18:12:30:25000
@@ -646,6 +681,7 @@ D: the Blessed Realm. It gladdens your heart.
 ## 1st age (Vinyamar set)
 
 N:48:of the Swan
+Q:23b24536a89160b3
 G:):b
 I:34:5:4
 W:10:15:70:25000
@@ -663,6 +699,7 @@ D: it conveys the same powers of endurance to its bearer.
 ## 1st age
 
 N:52:of Nargil
+Q:e1168ee12ae06dd3
 I:23:4:0
 W:7:20:5:50000
 P:5:1d5:0:0d0
@@ -674,6 +711,7 @@ D:'...the knife of the north, in Nogrod smithied.'
 ## The Dagger 'Thorn'
 
 N:53:'Thorn'
+Q:9e3a620a7a6e9e64
 I:23:4:2
 W:0:20:5:5000
 P:0:1d6:0:0d0
@@ -687,6 +725,7 @@ D: remains not on that blade; it would seem that the hilt drinks it.
 ## 1st age
 
 N:54:'Angrist'
+Q:ff06d6f02950e2c8
 I:23:4:0
 W:14:4:5:100000
 P:0:1d5:0:0d0
@@ -702,6 +741,7 @@ D: name: 'Iron Cleaver'.
 # - added since there were no artefact curved blades
 #
 N:55:'Nakh'
+Q:7c59e46da39e038e
 I:23:7:2
 W:4:10:60:30000
 P:-1:2d5:1:0d0
@@ -715,6 +755,7 @@ D: to Beleriand.
 # - Sindarin "blood-cutlass"
 #
 N:56:'Agarlhang'
+Q:f743ec132ef30bd5
 I:23:7:-2
 W:8:10:60:30000
 P:-1:2d5:1:0d0
@@ -726,6 +767,7 @@ D: wielder's senses and causes strange hungers to waken in them.
 ## 1st age namesake
 
 N:58:of Amrod
+Q:70239c6076a16a6c
 I:23:10:2
 W:8:10:15:15000
 P:1:1d7:1:0d0
@@ -739,6 +781,7 @@ D: reduced to a whisper and his senses sharpen.
 ## 1st age
 
 N:59:'Dagmor'
+Q:ccc03f8fe91d16f5
 I:23:10:1
 W:12:10:20:15000
 P:2:1d8:1:0d0
@@ -751,6 +794,7 @@ D:The 'dark-slayer'; a short blade borne by Beren, son of Barahir.
 ## (ability 2/8 is Riposte)
 
 N:60:of Galadriel
+Q:bdbfd7ba293cb847
 I:23:10:0
 W:9:30:20:30000
 P:0:1d8:3:0d0
@@ -766,6 +810,7 @@ D: at far-off Alqualonde.
 ## 1st age
 
 N:64:'Orcrist'
+Q:5ee28c5262c0629d
 I:23:17:2
 W:10:20:30:40000
 P:2:2d5:2:0d0
@@ -778,6 +823,7 @@ D: "Biter" by orcs who came to know its power all too well.
 ## 1st age
 
 N:65:'Glamdring'
+Q:ace66e723fa1853c
 I:23:17:2
 W:14:20:30:40000
 P:2:2d5:2:0d0
@@ -791,6 +837,7 @@ D: is the bane of many of Morgoth's servants.
 ## 1st age
 
 N:66:'Narsil'
+Q:d318979631de5c94
 I:23:17:0
 W:12:20:25:80000
 P:0:2d6:2:0d0
@@ -805,6 +852,7 @@ D: a great part to play in future events.
 ## 1st age
 
 N:67:'Aranruth'
+Q:84c03beca3481e17
 I:23:17:3
 W:20:20:40:50000
 P:3:2d7:1:0d0
@@ -818,6 +866,7 @@ D: filled with unshakeable confidence when you clasp its jeweled hilt.
 ## 1st age
 
 N:71:'Anguirel'
+Q:561e97194377c828
 G:|:D
 I:23:21:0
 W:15:15:50:100000
@@ -830,6 +879,7 @@ D: in secret made of metal from a star.
 ## The Bastard Sword 'Luinmegil'
 ## Sindarin: blue sword
 N:72:'Luinmegil'
+Q:17e64b10c6cadabb
 G:|:b
 I:23:21:0
 W:11:30:40:10000
@@ -844,6 +894,7 @@ D: murky blue like an overcast sea and its hilt chalk white.
 ## (automatic drop -- don't move)
 
 N:74:'Glend'
+Q:7ca60848c56a1766
 I:23:25:1
 W:12:1:120:100000
 P:-1:3d6:1:0d0
@@ -856,6 +907,7 @@ D:The long deadly blade of Nan, the Giant.
 ## 1st age
 
 N:75:of Saithnar
+Q:45bcfed71908e92d
 I:23:25:0
 W:17:15:70:100000
 P:0:3d5:1:0d0
@@ -868,6 +920,7 @@ D:A shining greatsword, inlaid with runes of silver.
 ## and one of the most interesting artefacts in (the game) Angband
 
 N:76:'Calris'
+Q:beae903f6ce4c39a
 G:|:r
 I:23:25:1
 W:15:15:110:100000
@@ -883,6 +936,7 @@ D: the hosts of Morgoth.
 ## 1st age
 
 N:80:'Celeg Aithorn'
+Q:1bc2e7bebb53ce64
 I:23:28:0
 W:20:20:20:50000
 P:1:2d5:1:0d0
@@ -896,6 +950,7 @@ D: even Celeg Aithorn that shall cleave the world.'
 ## 1st age
 
 N:81:'Ringil'
+Q:60481d9734ec7f44
 I:23:28:1
 W:20:7:20:300000
 P:3:2d5:3:0d0
@@ -911,6 +966,7 @@ D: might should he face it again.
 ## - added because we lacked any artefact mithril greatswords
 ##
 N:83:'Ungoliant's Lament'
+Q:42620c8e830db082
 I:23:30:0
 W:12:20:40:30000
 P:-2:3d7:2:0d0
@@ -927,6 +983,7 @@ D: the arrival of the Noldor in Beleriand.
 ##
 
 N:85:'Dugrakh'
+Q:1df2f87f537baa23
 I:22:1:-1
 W:6:15:25:50000
 P:1:1d11:0:0d0
@@ -942,6 +999,7 @@ D: Black-hafted, with a bronze head, it throws no shadow.
 ## (automatic drop -- don't move)
 
 N:86:of Boldog
+Q:7c7e9467ef42e721
 G:/:s
 I:22:1:0
 W:8:1:50:30000
@@ -956,6 +1014,7 @@ D:The iron spear of Boldog, a fierce captain of the orcs.
 ## 1st or 2nd age (not mentioned before 2nd age)
 
 N:87:'Aeglos'
+Q:5593da7115696f45
 I:22:1:0
 W:14:15:30:140000
 P:1:1d9:0:0d0
@@ -969,6 +1028,7 @@ D: Elves.
 ## 1st age
 
 N:89:of Ogbar
+Q:54acb59fd73799c0
 I:22:2:0
 W:12:20:50:60000
 P:2:1d14:2:0d0
@@ -980,6 +1040,7 @@ D:A long spear, with a point like a sharp thorn of steel.
 ## 1st age
 
 N:90:of Melkor
+Q:029f16601ad85d6e
 G:/:D
 I:22:2:-1
 W:15:20:80:100000
@@ -995,6 +1056,7 @@ D: the Two Trees with wounds that would not heal.
 ## Khuzdul - 'without name'. Haladin misunderstanding.
 
 N:92:'Binahkram'
+Q:a629c29b94ad02eb
 I:22:11:1
 W:6:20:10:1000
 P:0:4d3:0:0d0
@@ -1007,6 +1069,7 @@ D: Lord of the Men of Brethil, by the dwarves of the Blue Mountains.
 ## 1st age
 
 N:93:'Dramborleg'
+Q:4e03187e2cfedeeb
 I:22:12:0
 W:12:15:50:21000
 P:-2:3d6:0:0d0
@@ -1020,6 +1083,7 @@ D: but cuts like a sword.
 ## 1st age
 
 N:94:of Mothers' Woe
+Q:230ed3b186a485d6
 I:22:12:1
 W:15:12:60:90000
 P:-3:3d5:0:0d0
@@ -1033,6 +1097,7 @@ D: and foul it feels to the hand.
 ## 1st age namesake
 
 N:95:of Dolmed
+Q:804941f50768ee1b
 I:22:13:1
 W:18:15:110:150000
 P:-4:4d5:0:0d0
@@ -1048,6 +1113,7 @@ D: fight some of Morgoth's foulest servants.
 ## (ability 5/8 is Vengeance)
 
 N:96:'Mazarbulbark'
+Q:5840dd2b984f8860
 I:22:13:3
 W:14:20:90:10000
 P:-3:4d4:0:0d0
@@ -1063,6 +1129,7 @@ D: Belegost.
 ## 1st age
 
 N:99:of Gaurin
+Q:1f1d480a59061d97
 I:22:4:3
 W:12:30:80:50000
 P:-1:2d9:1:0d0
@@ -1077,6 +1144,7 @@ D: did rive the rocks of Rodrim's hall.'
 ## (ability 0/10 is Zone of Control)
 
 N:100:of the Sirion
+Q:c91ab059ea160d1a
 I:22:4:3
 W:10:20:70:50000
 P:0:2d10:1:0d0
@@ -1090,6 +1158,7 @@ D: every opening, no matter how brief.
 ## original to Sil
 
 N:101:'Celebrist'
+Q:3c148901d441f0ac
 I:22:4:1
 W:8:12:50:22000
 P:0:2d10:2:0d0
@@ -1107,6 +1176,7 @@ D: in your hands, its point guiding itself to where it is needed.
 ## (ability 7/2 is Song of Freedom)
 
 N:104:of Halmir
+Q:12c70b837b72dc6c
 I:21:3:3
 W:2:10:40:250000
 P:0:2d4:3:0d0
@@ -1121,6 +1191,7 @@ D: and resolute always against the power of Morgoth.
 ## (ability 6/5 is Artifice)
 
 N:107:of Telchar
+Q:6dcfc128b65b235a
 I:21:8:0
 W:11:20:45:250000
 P:0:4d2:0:0d0
@@ -1133,6 +1204,7 @@ D: Its hard steel rung against both dwarf-forge and orc-shield.
 ## The War Hammer of Aule's Wrath
 
 N:108:of Aule's Wrath
+Q:64071707c6c71002
 I:21:8:1
 W:20:20:70:250000
 P:0:4d2:0:0d0
@@ -1149,6 +1221,7 @@ D: black iron banded about with red gold.
 ## original to Sil
 
 N:114:'Burkfelek'
+Q:0e925d2e4ebc303e
 I:20:3:3
 W:20:8:110:30000
 P:-4:6d2:0:0d0
@@ -1163,6 +1236,7 @@ D: and enchanted for both battle and mine.
 ## The Helm of Angrod
 
 N:117:of Angrod
+Q:e5b985e791d87213
 I:32:5:0
 W:8:12:45:4500
 P:0:0d0:0:1d3
@@ -1175,6 +1249,7 @@ D: the Dagor Bragollach.
 ## (ability 4/7 is Listen)
 
 N:118:of Curufin
+Q:da59d9a9973c610b
 I:32:5:2
 W:15:10:45:45000
 P:0:0d0:-1:1d2
@@ -1187,6 +1262,7 @@ D: snared many in Beleriand.
 ## (ability 5/8 is Vengeance)
 
 N:119:of the Oathbreaker
+Q:fef42b5664300761
 I:32:5:0
 W:8:12:15:45000
 P:0:0d0:0:1d3
@@ -1199,6 +1275,7 @@ D: orc who once raised his blade against his master.
 ## 1st age
 
 N:120:of Dor-Lomin
+Q:78709ce76f94ccd0
 I:32:6:1
 W:20:15:90:300000
 P:0:0d0:-2:1d4
@@ -1211,6 +1288,7 @@ D: servants of Morgoth.
 ## age of the lamps namesake
 
 N:121:of Utumno
+Q:934b7cc796cf8d65
 G:]:D
 I:32:6:2
 W:20:20:100:10000
@@ -1227,6 +1305,7 @@ D: wears it to its own dark purposes.
 ## (ability 5/2 is Strength in Adversity)
 
 N:122:of the Dwarrowdelf
+Q:44b1c756d39a54ba
 I:32:7:2
 W:16:10:70:6000
 P:0:0d0:-2:1d3
@@ -1243,6 +1322,7 @@ D: to fight on, no matter the circumstances.
 ## (ability 7/12 is Song of Staying)
 
 N:123:of Ecthelion
+Q:799e45f6a345a4eb
 G:]:w
 I:32:8:2
 W:16:12:40:25000
@@ -1260,6 +1340,7 @@ D: It rises gracefully to a tall point as sharp as any spear.
 ## (ability 7/7 is Song of the Trees)
 
 N:131:of Maglor
+Q:9f001e6ddf8f0db2
 G:(:b
 I:35:1:2
 W:13:10:20:35000
@@ -1273,6 +1354,7 @@ D:A cloak worn by Maglor, the mighty singer, and gentlest of Feanor's sons.
 ## 1st age
 
 N:132:of Thingol
+Q:f223c5778091737b
 G:(:s
 I:35:1:1
 W:20:20:15:35000
@@ -1287,6 +1369,7 @@ D: to the hoards of Angband, you cannot say.
 ## (ability 7/14 is Song of Lorien)
 
 N:134:of Luthien
+Q:c3b8dbdc3f360c7d
 I:35:6:4
 W:13:10:10:45000
 P:0:0d0:4:0d0
@@ -1303,6 +1386,7 @@ D: beautiful being who ever knew death.
 ## (ability 3/0 is Disguise)
 
 N:137:of Draugluin
+Q:08bf3f716e6bae68
 I:35:20:2
 W:20:1:130:500000
 P:-3:0d0:-3:1d4
@@ -1319,6 +1403,7 @@ D: over yourself you may deceive some of the enemy's servants.
 ## (ability 3/0 is Disguise)
 
 N:138:of Thuringwethil
+Q:f807c25435fc4111
 I:35:21:2
 W:23:1:50:500000
 P:-1:0d0:+2:0d0
@@ -1335,6 +1420,7 @@ D: let you pass as a messenger journeying to Morgoth?
 ## (ability 1/3 is Ambush)
 
 N:142:of Celegorm
+Q:c0f5aa949a70ac3b
 I:19:12:-1
 W:7:10:20:9000
 P:1:1d9:0:0d0
@@ -1349,6 +1435,7 @@ D: who in days of old hunted with Orome himself.
 ## (ability 1/6 is Crippling Shot)
 
 N:143:'Death's Sting'
+Q:a5a2e301a3a95bc8
 I:19:12:0
 W:10:15:10:9000
 P:1:1d8:0:0d0
@@ -1362,6 +1449,7 @@ D: vulnerable places in your foe's armour.
 ## 1st age
 
 N:145:'Belthronding'
+Q:792beedcd8af6104
 G:}:D
 I:19:13:2
 W:14:10:40:35000
@@ -1376,6 +1464,7 @@ D: elven hair that faintly shimmers a pale clear gold.
 ## Original to Sil
 
 N:146:'Tawarcun'
+Q:aad12cd72387f68d
 I:19:13:0
 W:10:10:20:3500
 P:2:2d5:0:0d0
@@ -1389,6 +1478,7 @@ D: to the touch and easy on the draw.
 ## Avernien was where Earendil was equipped (after the events of Sil)
 
 N:148:of Avernien
+Q:4a5fc05927236048
 I:19:14:0
 W:20:10:50:35000
 P:1:4d3:0:0d0
@@ -1404,6 +1494,7 @@ D: dragon. Many are the blessings of the Eldar laid over it.
 ## 1st age
 
 N:150:'Dailir'
+Q:e8840ae097bbec79
 G:-:u
 I:17:1:0
 W:7:40:1:20000
@@ -1416,6 +1507,7 @@ D:The unerring arrow of Beleg Cuthalion.
 ## The Pair of Boots of Finrod
 
 N:154:of Finrod
+Q:22a000d1c9cd4749
 I:30:1:0
 W:15:20:20:40000
 P:0:0d0:3:1d1
@@ -1430,6 +1522,7 @@ D: the ground, letting you pass through combat as a dance.
 ## (ability 4/8 is Master Hunter)
 
 N:155:of Taur-nu-Fuin
+Q:5117e067a79503a3
 I:30:1:2
 W:12:15:20:25000
 P:0:0d0:1:1d1
@@ -1444,6 +1537,7 @@ D: dread forest of Taur-nu-Fuin.
 ## (ability 3/5 is Vanish)
 
 N:156:of the Mole
+Q:d16df76845463ad1
 I:30:1:0
 W:5:10:15:25000
 P:0:0d0:0:1d2
@@ -1455,6 +1549,7 @@ D: uncannily clean.
 ## The Pair of Greaves of Orodreth
 
 N:158:of Orodreth
+Q:b652ae5e70d86207
 I:30:2:1
 W:10:20:70:12000
 P:0:0d0:-1:1d2
@@ -1467,6 +1562,7 @@ D: years of the Wars of Beleriand.
 ## The Pair of Greaves of the Helcaraxe
 
 N:159:of the Helcaraxe
+Q:3e6e5a5754c18458
 I:30:2:0
 W:14:20:80:12000
 P:0:0d0:0:1d3
@@ -1483,6 +1579,7 @@ D: of the ice of the Helcaraxe.
 ## (ability 1/1 is Fletchery)
 
 N:161:of the Swallow
+Q:b24231154ce8a61a
 I:31:1:2
 W:8:12:5:36000
 P:0:0d0:0:1d1
@@ -1498,6 +1595,7 @@ D: who defend Gondolin from harm with their mighty bows.
 ## (ability 6/4 is Expertise)
 
 N:162:of Celebrimbor
+Q:3647fb472c02b95f
 I:31:1:0
 W:10:12:5:36000
 P:0:0d0:0:1d1
@@ -1511,6 +1609,7 @@ D: who would one day forge the rings of power.
 ## (ability 0/8 is Subtlety)
 
 N:163:of Rumil
+Q:5260771238db2cd0
 I:31:1:1
 W:8:25:5:36000
 P:0:0d0:0:1d0
@@ -1524,6 +1623,7 @@ D: They lend you subtlety of hand and mind.
 
 
 N:165:'Azdulag'
+Q:a744f49476fcf856
 I:31:2:1
 W:14:20:50:60000
 P:0:0d0:-1:2d1
@@ -1536,6 +1636,7 @@ D: who perished along with many of Morgoth's host at Dagor-nuin-Giliath.
 ## The Set of Gauntlets of Bregolas
 
 N:166:of Bregolas
+Q:3495ef72dbe6115a
 I:31:2:0
 W:12:8:60:40000
 P:2:0d0:0:1d2
@@ -1549,6 +1650,7 @@ D: Bragollach.
 ## (ability 6/2 is Jeweller)
 
 N:167:'Silverhand'
+Q:5ecfd5fa6ea58cc3
 I:31:3:1
 W:15:10:10:20000
 P:0:0d0:0:1d2
@@ -1565,6 +1667,7 @@ D: can move more delicately and swiftly than if bare.
 ## 1st age namesake
 
 N:170:of Finwe
+Q:81f61a429522d178
 G:*:o
 I:39:2:2
 W:4:5:1:10000
@@ -1583,6 +1686,7 @@ D: lost to the Unlight, but this one shines yet pure.
 ## (automatic drop -- don't move)
 
 N:175:of Morgoth
+Q:f38047100d805844
 I:33:50:0
 W:20:1:4000:10000000
 P:0:0d0:0:0d0:0
@@ -1597,6 +1701,7 @@ D: holes where should be stars.
 ## (automatic drop -- don't move)
 
 N:176:of Morgoth
+Q:77a2f22dc8899b5f
 I:33:50:4
 W:20:1:4000:10000000
 P:0:0d0:0:0d0:0
@@ -1611,6 +1716,7 @@ D: Silmaril, greatest treasure of Middle-Earth.
 ## (automatic drop -- don't move)
 
 N:177:of Morgoth
+Q:2b7dccf70bd0d34b
 I:33:50:5
 W:20:1:4000:10000000
 P:0:0d0:0:0d0:0
@@ -1625,6 +1731,7 @@ D: Silmarils, greatest treasures of Middle-Earth.
 ## (automatic drop -- don't move)
 
 N:178:of Morgoth
+Q:f6312da20fddf8bf
 I:33:50:6
 W:20:1:4000:10000000
 P:0:0d0:0:0d0:0
@@ -1640,6 +1747,7 @@ D: a Silmaril from the crown, stand over it and press (k).
 ## (automatic drop -- don't move)
 
 N:179:'Grond'
+Q:6005d4f5148dcefc
 I:21:50:3
 W:20:1:1000:500000
 P:-9:6d5:0:0d0
@@ -1662,6 +1770,7 @@ D: in his hand.
 ## The Ultimate TV_SWORD
 
 N:182:'Ultimate'
+Q:f62da5bbdb33bdf5
 I:23:0:0
 F:STR | DEX | CON | GRA | NEG_STR | NEG_DEX | NEG_CON | NEG_GRA
 F:STEALTH | PERCEPTION | WILL | SONG
@@ -1681,6 +1790,7 @@ F:INSTA_ART
 ## The Ultimate TV_POLEARM
 
 N:183:'Ultimate'
+Q:161163949b2716f9
 I:22:0:0
 F:STR | DEX | CON | GRA | NEG_STR | NEG_DEX | NEG_CON | NEG_GRA
 F:STEALTH | PERCEPTION | WILL | SONG
@@ -1700,6 +1810,7 @@ F:INSTA_ART
 ## The Ultimate TV_HAFTED
 
 N:184:'Ultimate'
+Q:010867bedf90dde1
 I:21:0:0
 F:STR | DEX | CON | GRA | NEG_STR | NEG_DEX | NEG_CON | NEG_GRA
 F:STEALTH | PERCEPTION | WILL | SONG | CHEAT_DEATH | ACCURATE
@@ -1719,6 +1830,7 @@ F:INSTA_ART
 ## The Ultimate TV_DIGGING
 
 N:185:'Ultimate'
+Q:a54634529f6c172d
 I:20:0:0
 F:STR | DEX | CON | NEG_STR | NEG_DEX | NEG_CON
 F:WILL
@@ -1738,6 +1850,7 @@ F:INSTA_ART
 ## The Ultimate TV_BOW
 
 N:186:'Ultimate'
+Q:6c05d9620d62d923
 I:19:0:0
 F:RES_COLD | RES_POIS | RES_HALLU | RES_STUN | RES_CONFU | RES_BLEED
 F:RADIANCE | RES_FEAR | RES_BLIND | SEE_INVIS | SUST_DEX
@@ -1750,6 +1863,7 @@ F:INSTA_ART | ACCURATE
 ## The Ultimate TV_ARROW
 
 N:187:'Ultimate'
+Q:baed0d90d5fe5d15
 I:17:0:0
 F:SHARPNESS
 F:SLAY_ORC | SLAY_TROLL | SLAY_WOLF | SLAY_SPIDER
@@ -1762,6 +1876,7 @@ F:INSTA_ART
 ## The Ultimate TV_RING
 
 N:188:'Ultimate'
+Q:6aac0dc3bc425596
 I:45:0:0
 F:STR | DEX | NEG_STR | NEG_DEX
 F:ARCHERY | STEALTH | PERCEPTION
@@ -1777,6 +1892,7 @@ F:INSTA_ART
 ## The Ultimate TV_AMULET
 
 N:189:'Ultimate'
+Q:ce2bbdd80f19c198
 I:40:0:0
 F:CON | GRA | NEG_CON | NEG_GRA
 F:STEALTH | PERCEPTION | WILL | SONG
@@ -1791,6 +1907,7 @@ F:INSTA_ART
 ## The Ultimate TV_LIGHT
 
 N:190:'Ultimate'
+Q:2fcb6584c6b60cf1
 I:39:0:0
 F:GRA | NEG_GRA
 F:PERCEPTION | WILL
@@ -1805,6 +1922,7 @@ F:INSTA_ART
 ## The Ultimate TV_SOFT_ARMOR
 
 N:191:'Ultimate'
+Q:1850efe417b78e26
 I:36:0:0
 F:STR | DEX | CON | GRA | NEG_STR | NEG_DEX | NEG_CON | NEG_GRA
 F:STEALTH | PERCEPTION | WILL | SONG
@@ -1820,6 +1938,7 @@ F:INSTA_ART
 ## The Ultimate TV_MAIL
 
 N:192:'Ultimate'
+Q:da4478fd700a4522
 I:37:0:0
 F:STR | DEX | CON | GRA | NEG_STR | NEG_DEX | NEG_CON | NEG_GRA
 F:STEALTH | PERCEPTION | WILL | SONG | STAND_FAST
@@ -1835,6 +1954,7 @@ F:INSTA_ART
 ## The Ultimate TV_CLOAK
 
 N:193:'Ultimate'
+Q:5508cb45201af226
 I:35:0:0
 F:DEX | CON | NEG_DEX | NEG_CON
 F:STEALTH | SONG
@@ -1850,6 +1970,7 @@ F:INSTA_ART
 ## The Ultimate TV_SHIELD
 
 N:194:'Ultimate'
+Q:fb6ebfe58e3acf3e
 I:34:0:0
 F:STR | CON | NEG_STR | NEG_CON
 F:WILL | CHEAT_DEATH | DAMAGE_SIDES
@@ -1865,6 +1986,7 @@ F:INSTA_ART
 ## The Ultimate TV_HELM
 
 N:195:'Ultimate'
+Q:df212551f6ebd502
 I:32:0:0
 F:STR | CON | GRA | NEG_STR | NEG_CON | NEG_GRA
 F:PERCEPTION | WILL | SONG
@@ -1880,6 +2002,7 @@ F:INSTA_ART
 ## The Ultimate TV_CROWN
 
 N:196:'Ultimate'
+Q:7a45be761058560b
 I:33:0:0
 F:GRA | NEG_GRA
 F:PERCEPTION | WILL | SONG
@@ -1895,6 +2018,7 @@ F:INSTA_ART
 ## The Ultimate TV_GLOVES
 
 N:197:'Ultimate'
+Q:79af1ff34a9d427e
 I:31:0:0
 F:STR | DEX | NEG_STR | NEG_DEX
 F:ARCHERY | MEDIC
@@ -1909,6 +2033,7 @@ F:INSTA_ART
 ## The Ultimate TV_BOOTS
 
 N:198:'Ultimate'
+Q:133e457e40aad502
 I:30:0:0
 F:DEX | NEG_DEX
 F:STEALTH | STAND_FAST

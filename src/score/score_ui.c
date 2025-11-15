@@ -7,6 +7,7 @@
 #include "score/score_io.h"
 #include "score/score_logic.h"
 #include "score/score_runs.h"
+#include "metarun.h"
 
 #include <SDL3/SDL.h>
 #include <ctype.h>
@@ -17,6 +18,44 @@
 
 #define RUN_HISTORY_MAX       256
 #define RUN_HISTORY_ROWS       15
+
+typedef struct run_history_entry {
+    score_record_v1 record;
+    s64b detail_offset;
+} run_history_entry;
+
+static void run_history_show_detail(const run_history_entry* entry);
+static void run_history_show_artefact_list(const score_run_detail_block* details);
+static void run_history_show_monster_list(const score_run_detail_block* details);
+
+static void run_history_refresh_active_run(void)
+{
+    if (!character_generated || !p_ptr || p_ptr->is_dead)
+        return;
+
+    high_score preview;
+    if (!build_live_preview_score(&preview))
+        return;
+
+    time_t now = time(NULL);
+    if (now == (time_t)-1)
+        now = 0;
+
+    if (!score_runs_record_current_run(&preview, now, SCORE_RECORD_ALIVE)) {
+        log_warn("run_history: unable to refresh live snapshot before viewing");
+    }
+}
+
+static bool run_history_is_current(const run_history_entry* entry)
+{
+    if (!entry)
+        return false;
+    if (!character_generated || !p_ptr || p_ptr->is_dead)
+        return false;
+    if (entry->record.status != SCORE_RECORD_ALIVE)
+        return false;
+    return (entry->record.metarun_id == metar.id);
+}
 
 static high_score forced_highlight_entry;
 static bool forced_highlight_active = false;
@@ -1003,6 +1042,30 @@ static const char* score_run_status_label(score_record_status status)
     default: return "Unknown";
     }
 }
+
+static bool run_history_skip_details(SDL_IOStream* file, s64b* detail_offset)
+{
+    if (!file)
+        return false;
+
+    Sint64 header_pos = SDL_TellIO(file);
+    score_run_detail_header_v1 header;
+    if (SDL_ReadIO(file, &header, sizeof(header)) != sizeof(header))
+        return false;
+
+    if (detail_offset)
+        *detail_offset = (s64b)header_pos;
+
+    Sint64 skip = 0;
+    skip += (Sint64)header.artefact_capacity
+        * (Sint64)sizeof(score_run_artefact_v1);
+    skip += (Sint64)header.monster_capacity
+        * (Sint64)sizeof(score_run_monster_v1);
+    if (SDL_SeekIO(file, skip, SDL_IO_SEEK_CUR) < 0)
+        return false;
+
+    return true;
+}
 static const char* run_history_race_name(byte idx)
 {
     if (!p_info || !p_name || !z_info || idx >= z_info->p_max)
@@ -1084,121 +1147,13 @@ static void run_history_format_guid(const score_guid64* guid,
     strnfmt(out, out_len, "%08X-%08X",
             (unsigned int)guid->hi, (unsigned int)guid->lo);
 }
-static void run_history_show_detail(const score_record_v1* rec)
-{
-    if (!rec)
-        return;
-
-    screen_save();
-    Term_clear();
-
-    char player[33];
-    if (rec->player_name[0]) {
-        SDL_strlcpy(player, rec->player_name, sizeof(player));
-    } else if (rec->savefile_hint[0]) {
-        SDL_strlcpy(player, rec->savefile_hint, sizeof(player));
-    } else {
-        SDL_strlcpy(player, "<unknown>", sizeof(player));
-    }
-
-    char created[32], completed[32];
-    run_history_format_timestamp(rec->created_utc, true, created, sizeof(created));
-    run_history_format_timestamp(rec->completed_utc, true, completed, sizeof(completed));
-
-    char flags[80];
-    run_history_format_flags(rec->run_flags, flags, sizeof(flags));
-
-    char killer_guid[32];
-    run_history_format_guid(&rec->killer_guid, killer_guid, sizeof(killer_guid));
-
-    const char* status = score_run_status_label(rec->status);
-    const char* race_name = run_history_race_name(rec->race_id);
-    const char* char_name = run_history_character_name(rec->character_id);
-    const char* killer_kind = score_run_killer_kind_label(rec->killer_kind);
-    const char* killer_race = run_history_monster_name(rec->killer_race_index);
-
-    int row = 0;
-    char line[160];
-
-    strnfmt(line, sizeof(line), "Run #%u detail", rec->record_id);
-    c_prt(TERM_L_BLUE, line, row++, 0);
-    row++;
-
-    strnfmt(line, sizeof(line),
-            "Metarun %u  Chronological #%u  Character ID 0x%08X",
-            rec->metarun_id, rec->chronological_idx, rec->character_id);
-    c_prt(TERM_L_WHITE, line, row++, 0);
-
-    strnfmt(line, sizeof(line), "Status: %s  Flags: %s", status, flags);
-    c_prt(TERM_L_WHITE, line, row++, 0);
-
-    strnfmt(line, sizeof(line), "Player: %s  Save hint: %s",
-            player,
-            rec->savefile_hint[0] ? rec->savefile_hint : "<none>");
-    c_prt(TERM_L_WHITE, line, row++, 0);
-
-    strnfmt(line, sizeof(line), "Race: %s (%u)  Character: %s (%u)  Power: %d",
-            race_name, rec->race_id, char_name, rec->character_id, rec->character_power);
-    c_prt(TERM_L_WHITE, line, row++, 0);
-
-    strnfmt(line, sizeof(line), "Started: %s  Completed: %s", created, completed);
-    c_prt(TERM_L_WHITE, line, row++, 0);
-
-    strnfmt(line, sizeof(line),
-            "Depth reached: %u'  Exit depth: %u'  Silmarils: %u",
-            (unsigned)rec->max_depth, (unsigned)rec->exit_depth,
-            (unsigned)rec->silmarils);
-    c_prt(TERM_L_WHITE, line, row++, 0);
-
-    strnfmt(line, sizeof(line),
-            "Quests: %u  Uniques defeated: %u  Artefacts: %u",
-            (unsigned)rec->quests_completed,
-            (unsigned)rec->uniques_killed,
-            (unsigned)rec->artefacts_found);
-    c_prt(TERM_L_WHITE, line, row++, 0);
-
-    strnfmt(line, sizeof(line),
-            "Skills learned: %u  Abilities learned: %u  Net curses: %d",
-            (unsigned)rec->skills_learned,
-            (unsigned)rec->abilities_learned,
-            rec->net_curses);
-    c_prt(TERM_L_WHITE, line, row++, 0);
-
-    strnfmt(line, sizeof(line),
-            "Turns: %lu  XP: %lu  Kills: %lu  Seen: %lu",
-            (unsigned long)rec->turns_spent,
-            (unsigned long)rec->xp_earned,
-            (unsigned long)rec->kills_total,
-            (unsigned long)rec->kills_seen);
-    c_prt(TERM_L_WHITE, line, row++, 0);
-
-    row++;
-
-    strnfmt(line, sizeof(line), "Killer: %s (%s)", rec->killer_name, killer_kind);
-    c_prt(TERM_L_WHITE, line, row++, 0);
-
-    strnfmt(line, sizeof(line), "Killer race: %s (%u)", killer_race, rec->killer_race_index);
-    c_prt(TERM_L_WHITE, line, row++, 0);
-
-    strnfmt(line, sizeof(line), "Cause: %s",
-            rec->cause_of_death[0] ? rec->cause_of_death : "(unknown)");
-    c_prt(TERM_L_WHITE, line, row++, 0);
-
-    strnfmt(line, sizeof(line), "Killer GUID: %s", killer_guid);
-    c_prt(TERM_L_DARK, line, row++, 0);
-
-    row++;
-    c_prt(TERM_L_WHITE, "Press any key to return", row++, 0);
-    Term_fresh();
-    (void)inkey();
-
-    screen_load();
-}
 
 static int compare_run_records_desc(const void* a, const void* b)
 {
-    const score_record_v1* ra = (const score_record_v1*)a;
-    const score_record_v1* rb = (const score_record_v1*)b;
+    const run_history_entry* ea = (const run_history_entry*)a;
+    const run_history_entry* eb = (const run_history_entry*)b;
+    const score_record_v1* ra = &ea->record;
+    const score_record_v1* rb = &eb->record;
     if (ra->record_id > rb->record_id)
         return -1;
     if (ra->record_id < rb->record_id)
@@ -1210,7 +1165,7 @@ static int compare_run_records_desc(const void* a, const void* b)
     return 0;
 }
 
-static int collect_run_history(score_record_v1* out, int capacity)
+static int collect_run_history(run_history_entry* out, int capacity)
 {
     if (capacity <= 0 || !out)
         return 0;
@@ -1233,7 +1188,7 @@ static int collect_run_history(score_record_v1* out, int capacity)
         return 0;
     }
 
-    score_record_v1* ring = mem_alloc_array(capacity, score_record_v1);
+    run_history_entry* ring = mem_alloc_array(capacity, run_history_entry);
     if (!ring) {
         SDL_CloseIO(file);
         return 0;
@@ -1242,7 +1197,12 @@ static int collect_run_history(score_record_v1* out, int capacity)
     int stored = 0;
     score_record_v1 temp;
     while (SDL_ReadIO(file, &temp, sizeof(temp)) == sizeof(temp)) {
-        ring[stored % capacity] = temp;
+        s64b detail_offset = (s64b)SDL_TellIO(file);
+        if (!run_history_skip_details(file, &detail_offset))
+            break;
+        run_history_entry* slot = &ring[stored % capacity];
+        slot->record = temp;
+        slot->detail_offset = detail_offset;
         stored++;
     }
 
@@ -1267,7 +1227,9 @@ static int collect_run_history(score_record_v1* out, int capacity)
 }
 void do_cmd_run_history(void)
 {
-    score_record_v1 entries[RUN_HISTORY_MAX];
+    run_history_refresh_active_run();
+
+    run_history_entry entries[RUN_HISTORY_MAX];
     int count = collect_run_history(entries, RUN_HISTORY_MAX);
     if (count <= 0) {
         msg_print("No run history is available.");
@@ -1306,7 +1268,7 @@ void do_cmd_run_history(void)
             if (idx >= count)
                 break;
 
-            const score_record_v1* rec = &entries[idx];
+            const score_record_v1* rec = &entries[idx].record;
 
             char date[16];
             run_history_format_timestamp(rec->completed_utc, false, date, sizeof(date));
@@ -1419,4 +1381,390 @@ void do_cmd_run_history(void)
             break;
         }
     }
+}
+static void run_history_show_artefact_list(const score_run_detail_block* details)
+{
+    if (!details || !details->artefacts
+        || details->header.artefact_count == 0) {
+        msg_print("No artefacts were recorded for this run.");
+        return;
+    }
+
+    int total = details->header.artefact_count;
+    if (total > details->header.artefact_capacity)
+        total = details->header.artefact_capacity;
+    int rows = (Term && Term->hgt > 8) ? (Term->hgt - 8) : RUN_HISTORY_ROWS;
+    if (rows < 4)
+        rows = 4;
+
+    int top = 0;
+    bool done = false;
+    while (!done) {
+        if (top < 0)
+            top = 0;
+        if (top > total - rows)
+            top = MAX(total - rows, 0);
+
+        screen_save();
+        Term_clear();
+
+        c_prt(TERM_L_BLUE,
+              format("Artefacts recovered (%d)", total),
+              0, 0);
+        c_prt(TERM_L_UMBER,
+              " #   Name                         Tv/Sv  GUID",
+              2, 0);
+
+        for (int row = 0; row < rows; row++) {
+            int idx = top + row;
+            if (idx >= total)
+                break;
+            const score_run_artefact_v1* entry = &details->artefacts[idx];
+            const char* name = "<unknown>";
+            if (z_info && entry->a_idx < z_info->art_max) {
+                artefact_type* art = &a_info[entry->a_idx];
+                name = art->name;
+            }
+            char guid[32];
+            run_history_format_guid(&entry->guid, guid, sizeof(guid));
+            char line[160];
+            strnfmt(line, sizeof(line),
+                    "%3d %-28.28s %3u/%-3u %s",
+                    idx + 1, name,
+                    (unsigned)entry->tval,
+                    (unsigned)entry->sval,
+                    guid);
+            c_prt(TERM_WHITE, line, 3 + row, 0);
+        }
+
+        c_prt(TERM_L_DARK,
+              "[Esc] return  [Space] next page  [-] prev page  [2/j] down  [8/k] up",
+              4 + rows, 0);
+
+        Term_fresh();
+        int ch = inkey();
+        screen_load();
+
+        switch (ch) {
+        case ESCAPE:
+        case 'q':
+        case 'Q':
+            done = true;
+            break;
+
+        case ' ':
+        case '6':
+        case '3':
+        case 'n':
+        case 'N':
+            top += rows;
+            break;
+
+        case '-':
+        case '4':
+        case '7':
+        case 'p':
+        case 'P':
+            top -= rows;
+            break;
+
+        case '2':
+        case 'j':
+        case 'J':
+            if (top + rows < total)
+                top++;
+            break;
+
+        case '8':
+        case 'k':
+        case 'K':
+            if (top > 0)
+                top--;
+            break;
+
+        default:
+            bell("Unknown command.");
+            break;
+        }
+    }
+}
+
+static void run_history_show_monster_list(const score_run_detail_block* details)
+{
+    if (!details || !details->monsters
+        || details->header.monster_count == 0) {
+        msg_print("No monster encounters were tracked for this run.");
+        return;
+    }
+
+    int total = details->header.monster_count;
+    if (total > details->header.monster_capacity)
+        total = details->header.monster_capacity;
+    int rows = (Term && Term->hgt > 8) ? (Term->hgt - 8) : RUN_HISTORY_ROWS;
+    if (rows < 4)
+        rows = 4;
+
+    int top = 0;
+    bool done = false;
+    while (!done) {
+        if (top < 0)
+            top = 0;
+        if (top > total - rows)
+            top = MAX(total - rows, 0);
+
+        screen_save();
+        Term_clear();
+
+        c_prt(TERM_L_BLUE,
+              format("Monster encounters (%d)", total),
+              0, 0);
+        c_prt(TERM_L_UMBER,
+              " #   Monster                      Seen  Slain  Deaths  GUID",
+              2, 0);
+
+        for (int row = 0; row < rows; row++) {
+            int idx = top + row;
+            if (idx >= total)
+                break;
+            const score_run_monster_v1* entry = &details->monsters[idx];
+            const char* name = run_history_monster_name(entry->r_idx);
+            char guid[32];
+            run_history_format_guid(&entry->guid, guid, sizeof(guid));
+            char line[160];
+            strnfmt(line, sizeof(line),
+                    "%3d %-26.26s %5u %6u %6u  %s",
+                    idx + 1, name,
+                    (unsigned)entry->seen,
+                    (unsigned)entry->killed,
+                    (unsigned)entry->deaths,
+                    guid);
+            c_prt(TERM_WHITE, line, 3 + row, 0);
+        }
+
+        c_prt(TERM_L_DARK,
+              "[Esc] return  [Space] next page  [-] prev page  [2/j] down  [8/k] up",
+              4 + rows, 0);
+
+        Term_fresh();
+        int ch = inkey();
+        screen_load();
+
+        switch (ch) {
+        case ESCAPE:
+        case 'q':
+        case 'Q':
+            done = true;
+            break;
+
+        case ' ':
+        case '6':
+        case '3':
+        case 'n':
+        case 'N':
+            top += rows;
+            break;
+
+        case '-':
+        case '4':
+        case '7':
+        case 'p':
+        case 'P':
+            top -= rows;
+            break;
+
+        case '2':
+        case 'j':
+        case 'J':
+            if (top + rows < total)
+                top++;
+            break;
+
+        case '8':
+        case 'k':
+        case 'K':
+            if (top > 0)
+                top--;
+            break;
+
+        default:
+            bell("Unknown command.");
+            break;
+        }
+    }
+}
+
+static void run_history_show_detail(const run_history_entry* entry)
+{
+    if (!entry)
+        return;
+
+    const score_record_v1* rec = &entry->record;
+    score_run_detail_block details;
+    memset(&details, 0, sizeof(details));
+    bool have_details = (entry->detail_offset >= 0)
+        && score_runs_load_details(entry->detail_offset, &details);
+
+    bool current_run = run_history_is_current(entry);
+    if ((!have_details || details.header.monster_count == 0
+            || details.header.artefact_count == 0)
+        && current_run) {
+        score_runs_free_details(&details);
+        memset(&details, 0, sizeof(details));
+        have_details = score_runs_snapshot_details(&details);
+        if (!have_details)
+            log_warn("run_history: unable to hydrate live detail payload");
+    }
+
+    char player[33];
+    if (rec->player_name[0]) {
+        SDL_strlcpy(player, rec->player_name, sizeof(player));
+    } else if (rec->savefile_hint[0]) {
+        SDL_strlcpy(player, rec->savefile_hint, sizeof(player));
+    } else {
+        SDL_strlcpy(player, "<unknown>", sizeof(player));
+    }
+
+    char created[32], completed[32];
+    run_history_format_timestamp(rec->created_utc, true, created, sizeof(created));
+    run_history_format_timestamp(rec->completed_utc, true, completed, sizeof(completed));
+
+    char flags[80];
+    run_history_format_flags(rec->run_flags, flags, sizeof(flags));
+
+    char killer_guid[32];
+    char race_guid[32];
+    char char_guid[32];
+    run_history_format_guid(&rec->killer_guid, killer_guid, sizeof(killer_guid));
+    run_history_format_guid(&rec->race_guid, race_guid, sizeof(race_guid));
+    run_history_format_guid(&rec->character_guid, char_guid, sizeof(char_guid));
+
+    const char* status = score_run_status_label(rec->status);
+    const char* race_name = run_history_race_name(rec->race_id);
+    const char* char_name = run_history_character_name(rec->character_id);
+    const char* killer_kind = score_run_killer_kind_label(rec->killer_kind);
+    const char* killer_race = run_history_monster_name(rec->killer_race_index);
+
+    bool done = false;
+    while (!done) {
+        screen_save();
+        Term_clear();
+
+        int row = 0;
+        char line[160];
+
+        strnfmt(line, sizeof(line), "Run #%u detail", rec->record_id);
+        c_prt(TERM_L_BLUE, line, row++, 0);
+        row++;
+
+        strnfmt(line, sizeof(line),
+                "Metarun %u  Chronological #%u  Character ID 0x%08X",
+                rec->metarun_id, rec->chronological_idx, rec->character_id);
+        c_prt(TERM_L_WHITE, line, row++, 0);
+
+        strnfmt(line, sizeof(line), "Status: %s  Flags: %s", status, flags);
+        c_prt(TERM_L_WHITE, line, row++, 0);
+
+        strnfmt(line, sizeof(line), "Player: %s  Save hint: %s",
+                player,
+                rec->savefile_hint[0] ? rec->savefile_hint : "<none>");
+        c_prt(TERM_L_WHITE, line, row++, 0);
+
+        strnfmt(line, sizeof(line), "Race: %s (%u)  Character: %s (%u)  Power: %d",
+                race_name, rec->race_id, char_name, rec->character_id, rec->character_power);
+        c_prt(TERM_L_WHITE, line, row++, 0);
+
+        strnfmt(line, sizeof(line), "Race GUID: %s  Character GUID: %s",
+                race_guid, char_guid);
+        c_prt(TERM_L_WHITE, line, row++, 0);
+
+        strnfmt(line, sizeof(line), "Started: %s  Completed: %s", created, completed);
+        c_prt(TERM_L_WHITE, line, row++, 0);
+
+        strnfmt(line, sizeof(line),
+                "Depth reached: %u'  Exit depth: %u'  Silmarils: %u",
+                (unsigned)rec->max_depth, (unsigned)rec->exit_depth,
+                (unsigned)rec->silmarils);
+        c_prt(TERM_L_WHITE, line, row++, 0);
+
+        strnfmt(line, sizeof(line),
+                "Quests: %u  Uniques defeated: %u  Artefacts: %u",
+                (unsigned)rec->quests_completed,
+                (unsigned)rec->uniques_killed,
+                (unsigned)rec->artefacts_found);
+        c_prt(TERM_L_WHITE, line, row++, 0);
+
+        strnfmt(line, sizeof(line),
+                "Skills learned: %u  Abilities learned: %u  Net curses: %d",
+                (unsigned)rec->skills_learned,
+                (unsigned)rec->abilities_learned,
+                rec->net_curses);
+        c_prt(TERM_L_WHITE, line, row++, 0);
+
+        strnfmt(line, sizeof(line),
+                "Turns: %lu  XP: %lu  Kills: %lu  Seen: %lu",
+                (unsigned long)rec->turns_spent,
+                (unsigned long)rec->xp_earned,
+                (unsigned long)rec->kills_total,
+                (unsigned long)rec->kills_seen);
+        c_prt(TERM_L_WHITE, line, row++, 0);
+
+        strnfmt(line, sizeof(line),
+                "Cause: %s (%s)  Killer race: %s  Killer GUID: %s",
+                rec->cause_of_death,
+                killer_kind,
+                killer_race,
+                killer_guid);
+        c_prt(TERM_L_WHITE, line, row++, 0);
+
+        if (have_details) {
+            strnfmt(line, sizeof(line),
+                    "Artefacts recorded: %u  Monsters tracked: %u",
+                    (unsigned)details.header.artefact_count,
+                    (unsigned)details.header.monster_count);
+        } else {
+            SDL_strlcpy(line, "Detail payload unavailable for this entry.", sizeof(line));
+        }
+        c_prt(TERM_L_WHITE, line, row++, 0);
+
+        c_prt(TERM_L_DARK,
+              "[Esc] back  [A] artefacts  [M] monsters",
+              row + 1, 0);
+
+        Term_fresh();
+        int ch = inkey();
+        screen_load();
+
+        switch (ch) {
+        case ESCAPE:
+        case 'q':
+        case 'Q':
+            done = true;
+            break;
+
+        case 'a':
+        case 'A':
+            if (have_details && details.header.artefact_count > 0) {
+                run_history_show_artefact_list(&details);
+            } else {
+                bell("No artefact data available.");
+            }
+            break;
+
+        case 'm':
+        case 'M':
+            if (have_details && details.header.monster_count > 0) {
+                run_history_show_monster_list(&details);
+            } else {
+                bell("No monster data available.");
+            }
+            break;
+
+        default:
+            bell("Unknown command.");
+            break;
+        }
+    }
+
+    if (have_details)
+        score_runs_free_details(&details);
 }

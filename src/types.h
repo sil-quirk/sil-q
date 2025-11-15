@@ -716,6 +716,7 @@ struct player_race
 {
     u32b name; /* Name (offset) */
     u32b text; /* Description (offset) */
+    guid64 guid; /* Stable identifier */
 
     s16b r_adj[A_MAX]; /* Racial stat bonuses */
 
@@ -745,6 +746,7 @@ struct character_profile
     u32b alt_name;     /* Alternate Name (offset) eg 'Character of Feanor' */
     u32b start_string; /* Short Name (offset) */
     u32b text;         /* Description (offset) */
+    guid64 guid;       /* Stable identifier for score plumbing */
 
     s16b h_adj[A_MAX];                         /* Character stat bonuses */
     s16b a_adj[CHARACTER_ABILITY_MAX][2];      /* Ability slots: [i][0]=stat, [i][1]=ability */

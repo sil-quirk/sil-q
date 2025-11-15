@@ -10,6 +10,7 @@
 # === Understanding race.txt ===
 #
 # N: race number : race name
+# Q: 16-digit (or longer) hexadecimal GUID identifying the race (optional)
 # S: str : dex : con : gra
 # I: history : agebase : agemax
 # H: hgt : modhgt
@@ -19,6 +20,11 @@
 #
 # 'N' indicates the beginning of an entry. The serial number must
 #     increase for each new race.
+#
+# 'Q' assigns a persistent GUID to the race so score files can keep
+#     referencing it even if indices shift. Leave blank only for
+#     transitional content; tooling will warn and auto-fill missing
+#     fields.
 #
 # 'S' is for the stat modifiers - strength, dexterity, constitution, grace.
 #
@@ -42,6 +48,7 @@
 V:0.9.1
 
 N:0:Feanorians
+Q:2444d18db905ccd7
 S:0:1:2:2
 I:1:20:4865
 H:78:3
@@ -60,6 +67,7 @@ D:foretold to fade in flame and ruin beneath desperate quest's end,
 D:leaving memory of greatness marred forever by tragic pride. 
 
 N:1:Fingolfinrim
+Q:d6dd47e11aee44f3
 S:0:1:2:2
 I:1:20:4865
 H:78:3
@@ -78,6 +86,7 @@ D:their legacy marked by noble defiance, sacrifice beyond despair,
 D:forever remembered as flames of valor beneath gathering shadow. 
 
 N:2:Finarfinrim
+Q:16aae878b299fc03
 S:0:1:2:2
 I:1:20:4865
 H:78:3
@@ -96,6 +105,7 @@ D:their line foretells redemption distant, beauty flowering from loss -
 D:bridging sorrowful exile and final healing in days yet unseen. 
 
 N:3:Sindar
+Q:15f625b4050caea4
 S:0:1:0:1
 I:4:20:4865
 H:76:3
@@ -114,6 +124,7 @@ D:amid ruin their wisdom blossoms quietly, awaiting renewal and peace
 D:beyond sorrowful days when forests burn and stars alone remember. 
 
 N:4:Naugrim
+Q:d64e250a46b743b9
 S:2:-1:2:-1
 I:16:35:180
 H:54:2
@@ -132,6 +143,7 @@ D:forging swords and armor destined to echo peril yet unseen,
 D:allies steadfast and perilous, whose fate is carved in stone. 
 
 N:5:Edain
+Q:d28645bb6bf8409d
 S:0:0:0:0
 I:21:15:45
 H:70:4

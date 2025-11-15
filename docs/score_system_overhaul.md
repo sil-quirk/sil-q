@@ -28,7 +28,7 @@ characters, and monster analytics.
 
 - **Runs:** Every `score_record_v1` carries a `record_id` (monotonic integer) plus the owning `metarun_id`. Records stay stable even if files are compacted.
 - **Characters:** Characters are keyed by their *normalized name* (trimmed, lowercase, collapsed whitespace). We derive `character_id` via a 64-bit FNV-1a hash of the normalized name and persist that alongside the raw string. If the player reuses the same name, new runs automatically roll up into the same `characters.db` entry. If we ever need to split two heroes with the same spelling, we can seed the hash with the generation timestamp or expose a “rename” tool that rewrites the ID.
-- **Monsters:** Today, saves reference monsters by `r_idx` (see `save.c:570-640` for `wr_monster()` and the matching loader). The new analytics layer needs stability even when the `r_info` array changes, so every monster in `lib/edit/monster.txt` will receive an explicit `# guid:` line. GUIDs should be 16 hex characters (64 bits). Tooling can generate them automatically, but data authors can also copy one from the helper script output. When adding a monster: 1) run `tools/make_guid.py` (to be added) or any UUID generator, 2) paste it into the monster definition, 3) rebuild – the GUID becomes the authoritative ID for saves/analytics while `r_idx` stays a transient array index.
+- **Monsters:** Today, saves reference monsters by `r_idx` (see `save.c:570-640` for `wr_monster()` and the matching loader). The new analytics layer needs stability even when the `r_info` array changes, so every monster in `lib/edit/monster.txt` will receive an explicit `# guid:` line. GUIDs should be 16 hex characters (64 bits). The `tools/make_guid.py` helper now patches `monster.txt`, `artefact.txt`, `race.txt`, and `character.txt` in one pass, so adding a monster boils down to: 1) run `py -3 tools/make_guid.py` (or provide specific files), 2) paste the generated GUID into the entry if the script did not already insert one, 3) rebuild - the GUID becomes the authoritative ID for saves/analytics while `r_idx` stays a transient array index.
 - **Races/character templates/Quests:** Follow the same pattern as monsters. Each entry gets a GUID tag in its `lib/edit/*.txt` definition; `score_record_v1` stores the numeric index for compatibility plus the GUID via lookup tables, so remapping data later won’t orphan historical stats.
 
 This scheme keeps developer ergonomics straightforward: if you add new data, assign a GUID once and never change it. The loaders will fall back to the stored name if a GUID is missing, but CI will start warning as soon as we wire the validator.
@@ -40,6 +40,11 @@ Stored as `score_record_v1` entries featuring:
 - Gameplay snapshot: silmarils, depth reached/left, unique kills, quests,
   skills/abilities purchased, curses, XP, kill/seen totals, artifacts obtained,
   and the canonical player name for display.
+- Each record serializes a detail payload keyed by GUID: a fixed-width slot per
+  artefact (filled with the artefacts found or forged during the run) plus
+  per-monster tallies for sightings, kills, and player deaths. These payloads
+  are versioned so the UI and future analytics code can hydrate artefact and
+  monster histories without re-reading savefiles.
 - Outcome markers: alive/dead/escaped, run flags (Morgoth slain, noscore, cheat).
 - Killer metadata: kind (monster, trap, fall, self, other), stable GUID, race
   fallback, textual display strings, and cause codes.

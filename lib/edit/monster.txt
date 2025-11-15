@@ -294,26 +294,32 @@ V:0.9.1
 
 # Feanorians
 N:0:<player>
+Q:1aead53eb5309c89
 G:@:w
 
 # Fingolfinrim
 N:1:<player>
+Q:79f0650ce08019e5
 G:@:w
 
 # Finarfinrim
 N:2:<player>
+Q:cea57c1120996aff
 G:@:w
 
 # Sindar
 N:3:<player>
+Q:cf01ee14a5d9b415
 G:@:w
 
 # Naugrim
 N:4:<player>
+Q:52720c1b72cb58a3
 G:@:w
 
 # Edain
 N:5:<player>
+Q:52f4c98622df395d
 G:@:w
 
 # Niena quest giver - Mercy quest on maximum-size levels
@@ -339,6 +345,7 @@ D: full of both sorrow and hope, as if she has a task requiring mercy.
 ##### 1 #####
 
 N:11:Wolf
+Q:d589b743f32151d3
 W:1:1
 G:C:u
 I:3:6d4:0
@@ -350,6 +357,7 @@ D:This ragged wolf is part of the orcish packs.
 
 
 N:12:Tanglethorn
+Q:7b4df3bcb689c212
 W:1:1
 G:&:s
 I:2:4d4:0
@@ -403,6 +411,7 @@ D: Clad in tattered leather, he wields a cudgel and a whip.
 
 # Can't move from idx 16 for dungeon generation reasons
 N:16:Alert human thrall
+Q:e3686753f2daff39
 W:1:0
 G:@:G
 I:2:8d4:0
@@ -414,6 +423,7 @@ D: His head is raised and he takes in his surroundings alertly.
 
 # Can't move from idx 17 for dungeon generation reasons
 N:17:Alert elven thrall
+Q:d69f1ff7b5fb7cba
 W:1:0
 G:@:G
 I:2:10d4:0
@@ -465,6 +475,7 @@ D: that transpires in the halls of waiting. He seems to have a task for you.
 ##### 2 #####
 
 N:21:Orc skirmisher
+Q:aebc036dc91edf62
 W:2:1
 G:o:u
 I:2:7d4:0
@@ -479,6 +490,7 @@ D: He has little armour but carries a cruel blade.
 
 
 N:22:Grimhawk
+Q:e05375fdc831beaa
 W:2:2
 G:b:u
 I:4:1d4:0
@@ -490,6 +502,7 @@ D:A hunting bird, beloved of the orcs, with iron barbs on its talons.
 
 
 N:23:Mewlip
+Q:315d21268dcdd817
 W:2:1
 G:H:u
 I:3:5d4:0
@@ -507,6 +520,7 @@ D: of those who draw near.
 ##### 3 #####
 
 N:31:Orc scout
+Q:3db7e18811837249
 W:3:1
 G:o:D
 I:2:6d4:0
@@ -525,6 +539,7 @@ D: attract attention. It has a crude spear.
 
 # Can't move from idx 32, used by monster ability HATCH_SPIDER
 N:32:Spider hatchling
+Q:ddbfaed0110335da
 W:3:2
 G:m:U
 I:2:1d4:0
@@ -538,6 +553,7 @@ D: venom in their bite...
 
 
 N:33:Blue serpent
+Q:857b7d44bce3788d
 W:3:2
 G:s:b
 I:2:2d4:0
@@ -555,6 +571,7 @@ D: There is a chill in the air around it.
 ##### 4 #####
 
 N:41:Orc soldier
+Q:b7a6509ba8b8b7e9
 W:4:1
 G:o:s
 I:2:8d4:0
@@ -570,6 +587,7 @@ D: shield: a soldier in the dark hosts of Bauglir.
 
 
 N:42:Madthorn
+Q:21ab339e3dd1af9d
 W:4:1
 G:&:y
 I:2:8d4:0
@@ -584,6 +602,7 @@ D: for the poison on its thorns can bring madness.
 
 
 N:43:Gorcrow
+Q:913ee5f18d8f3786
 W:4:2
 G:b:D
 I:4:1d4:0
@@ -596,6 +615,7 @@ D: especially the face and eyes.
 
 
 N:44:Brood spider
+Q:940b46dbe98fba40
 W:4:3
 G:M:U
 I:1:14d4:0
@@ -613,6 +633,7 @@ D: Its hairy mandibles are wet with a dark fluid.
 
 
 N:51:Orc archer
+Q:12288708ac66ebf8
 W:5:3
 G:o:U
 I:2:7d4:0
@@ -629,6 +650,7 @@ D: He carries a crude sword and bow.
 
 
 N:52:White wolf
+Q:d880813f941186df
 W:5:1
 G:C:w
 I:3:8d4:0
@@ -640,6 +662,7 @@ D:A large and fierce wolf from the northern wastes.
 
 
 N:53:Red serpent
+Q:4aa1413e91b55a04
 W:5:2
 G:s:r
 I:2:2d4:0
@@ -655,6 +678,7 @@ D: The air around it shimmers with heat.
 
 
 N:54:Gorgol, the Butcher
+Q:333546bf2a893575
 W:5:10
 G:o:G
 I:2:14d4:0
@@ -673,6 +697,7 @@ D: order with displays of violence.
 
 
 N:61:Orc warrior
+Q:ef3c140d0bce7a2b
 W:6:1
 G:o:W
 I:2:9d4:0
@@ -688,6 +713,7 @@ D: He wears hardened leathers and runs towards you with axe in hand.
 
 
 N:62:Sword spider
+Q:48b96d75487ee896
 W:6:2
 G:M:s
 I:3:12d4:0
@@ -700,6 +726,7 @@ D: It skitters back and forth.
 
 
 N:63:Crebain
+Q:3d83c70cae11e8a1
 W:6:2
 G:b:s
 I:4:1d4:0
@@ -713,6 +740,7 @@ D:A type of crow, specially bred by the forces of evil as spies.
 
 
 N:64:Phantom
+Q:dc3a9fec7f8b557a
 W:6:3
 G:w:s
 I:1:2d4:0
@@ -732,6 +760,7 @@ D: but is now an insubstantial thing of necromancy and shadow.
 
 
 N:71:Attercop
+Q:8087b3f084f094c2
 W:7:1
 G:m:D
 I:3:3d4:0
@@ -745,6 +774,7 @@ D: reflecting off its pale bulbous eyes.
 
 
 N:72:Nightthorn
+Q:7783062d13500802
 W:7:1
 G:&:D
 I:2:8d4:-2
@@ -757,6 +787,7 @@ D:This twisted plant drinks in the light from the air around.
 
 
 N:73:Green serpent
+Q:77d0502d2be65e2d
 W:7:2
 G:s:g
 I:2:2d4:0
@@ -771,6 +802,7 @@ D: It smells of decay.
 
 
 N:74:Mountain troll
+Q:949bb8a5ee1ce58f
 W:7:1
 G:T:W
 I:2:14d4:0
@@ -784,6 +816,7 @@ D:A tall troll from the mountains of the north.
 
 
 N:75:Tattered wight
+Q:8632cc4215700e14
 W:7:2
 G:W:D1
 I:1:4d4:0
@@ -801,6 +834,7 @@ D: its treasure long since been plundered.
 
 
 N:76:Boldog, the Merciless
+Q:d41e3b6bfafb596f
 W:7:20
 G:o:y
 I:2:15d4:0
@@ -839,6 +873,7 @@ D: wields a battle axe.
 
 
 N:82:Easterling warrior
+Q:0e401610ae33a21f
 W:8:2
 G:@:W
 I:2:10d4:1
@@ -856,6 +891,7 @@ D: Morgoth's sway.
 
 
 N:83:Hummerhorn
+Q:b1f2cd42cff835c8
 W:8:3
 G:I:y
 I:4:2d4:0
@@ -867,6 +903,7 @@ D:A giant buzzing wasp, its stinger drips venom.
 
 
 N:84:Balcmeg, the Relentless
+Q:bf68d49c92c9d98c
 W:8:20
 G:o:o
 I:2:17d4:0
@@ -881,6 +918,7 @@ D: scarred of face and his eyes are small and baleful.
 
 
 N:85:Lug, the Grotesque
+Q:f30bbaa9d32572af
 W:8:20
 G:o:v
 I:2:10d4:0
@@ -916,6 +954,7 @@ D: has many notches along its edge.
 
 
 N:92:Warg
+Q:03bc4a090682d59e
 W:9:1
 G:C:s
 I:3:10d4:0
@@ -927,6 +966,7 @@ D:It is a great wolf with eyes full of cunning.
 
 
 N:93:Grave wight
+Q:0b47bc4372b11e08
 W:9:2
 G:W:U
 I:2:4d4:0
@@ -944,6 +984,7 @@ D: It protects that with which is was buried.
 
 
 N:94:Dark serpent
+Q:6f0eb2fb7f702de2
 W:9:2
 G:s:v1
 I:2:2d4:0
@@ -958,6 +999,7 @@ D: reflect no light.
 
 
 N:95:Orcobal, Champion of the Orcs
+Q:8a1995b8587aa0a2
 W:9:15
 G:o:B
 I:2:17d4:0
@@ -976,6 +1018,7 @@ D:The chief champion of the orcs of Morgoth.
 
 
 N:101:Whispering shadow
+Q:ccff426ff2ef0318
 W:10:1
 G:w:D
 I:1:6d4:-1
@@ -991,6 +1034,7 @@ D: yearning, beckoning.
 
 
 N:102:Distended spider
+Q:3e116a9ee6cfa9d7
 W:10:1
 G:M:u
 I:2:20d4:0
@@ -1002,6 +1046,7 @@ D:It is a vast spider whose bulbous body is bloated with poison.
 
 
 N:103:Easterling archer
+Q:7ed54d5976d25b3e
 W:10:3
 G:@:u
 I:2:9d4:1
@@ -1020,6 +1065,7 @@ D: Morgoth's sway.
 
 
 N:104:Twisted bat
+Q:594347e07e1d29ca
 W:10:4
 G:b:r
 I:4:2d4:0
@@ -1033,6 +1079,7 @@ D: fangs hanging from its mouth.
 
 
 N:105:Othrod, the Orc Lord
+Q:78d6c2d78e85ea3d
 W:10:10
 G:o:R
 I:2:18d4:0
@@ -1056,6 +1103,7 @@ D: of the black enemy for many years.
 
 
 N:111:Snow troll
+Q:cb874b1cadd2c23b
 W:11:1
 G:T:w
 I:2:16d4:0
@@ -1091,6 +1139,7 @@ D: chamber, unable to find release.
 
 
 N:113:Lurking horror
+Q:d2d2f0b7edcf4cf6
 W:11:5
 G:H:D
 I:2:10d4:-2
@@ -1105,6 +1154,7 @@ D: It seems to be made entirely of claws and of teeth.
 
 
 N:114:Giant
+Q:a6ab3acc59fc624a
 W:11:1
 G:G:U
 I:2:30d4:2
@@ -1120,6 +1170,7 @@ D: armed with a great club.
 
 
 N:115:Uldor, the Accursed
+Q:e7c39145ef0dc35d
 W:11:10
 G:@:U1
 I:2:14d4:1
@@ -1183,6 +1234,7 @@ D: Morgoth's sway.
 
 
 N:122:Shadow bat
+Q:49c20a164b23e753
 W:12:4
 G:b:D1
 I:4:2d4:-2
@@ -1194,6 +1246,7 @@ D:A screeching flutter of darkness.
 
 
 N:123:Sulrauko
+Q:1c6330b77b8028c2
 W:12:2
 G:R:W
 I:2:5d4:0
@@ -1207,6 +1260,7 @@ D:A wind spirit, bent to Morgoth's will.
 
 
 N:124:Fire-drake hatchling
+Q:d633995ddac90132
 W:12:6
 G:d:R
 I:2:10d4:0
@@ -1223,6 +1277,7 @@ D: its fearsome breath.
 
 
 N:125:Ulfang the Black
+Q:66eda88da3bb69b9
 W:12:10
 G:@:s
 I:2:18d4:1
@@ -1243,6 +1298,7 @@ D: to the High Elves, but were secretly in the pay of Morgoth.
 # (Duruin = red flame of the night)
 
 N:126:Duruin, Least of the Balrogs
+Q:9c44dec3f9d6d14c
 W:12:30
 G:R:o
 I:2:32d4:-3
@@ -1267,6 +1323,7 @@ D: and shadow. He wields fiery sword and whip.
 
 
 N:131:Werewolf
+Q:6853902a5ac58c5e
 W:13:1
 G:C:U
 I:3:12d4:0
@@ -1281,6 +1338,7 @@ D: those glowing eyes.
 
 
 N:132:Shadow spider
+Q:d5e4892102e9b48a
 W:13:1
 G:M:D
 I:3:14d4:-2
@@ -1293,6 +1351,7 @@ D:It is a great black spider wreathed in shadow.
 
 
 N:133:Shadow
+Q:6c92b6a7a9e4a63e
 W:13:3
 G:W:d
 I:2:3d4:0
@@ -1307,6 +1366,7 @@ D: the room, and yet it stalks you.
 
 
 N:134:Sapphire serpent
+Q:3ac6d80740b499ee
 W:13:3
 G:s:B
 I:2:8d4:0
@@ -1322,6 +1382,7 @@ D: An icy chill surrounds it.
 
 
 N:135:Gilim, the Giant of Eruman
+Q:57efe839cfc78085
 W:13:10
 G:G:w
 I:2:40d4:2
@@ -1344,6 +1405,7 @@ D: he is tall even among giants, and his name is cursed in many lands.
 
 
 N:141:Ruby serpent
+Q:dbd1952f883c9d41
 W:14:3
 G:s:R
 I:2:8d4:0
@@ -1359,6 +1421,7 @@ D: An intense heat radiates from it.
 
 
 N:142:Creeping horror
+Q:54981cf971e538fc
 W:14:4
 G:H:g
 I:1:14d4:-2
@@ -1373,6 +1436,7 @@ D: The thought of it catching you tears at your mind.
 
 
 N:143:Ringrauko
+Q:0d9a80e3fa33a2f2
 W:14:1
 G:R:B
 I:2:10d4:0
@@ -1388,6 +1452,7 @@ D: almost that of a person. A cold gleaming blade is in its hand.
 # (Delthaur = abominable horror)
 
 N:145:Delthaur, Balrog of Terror
+Q:04a01f92e1cf1e4c
 W:14:20
 G:R:g
 I:2:36d4:-3
@@ -1408,6 +1473,7 @@ D: is filled with menace.
 
 
 N:146:Nan, the Giant
+Q:3de81cfd79cf3740
 W:14:30
 G:G:G
 I:2:45d4:2
@@ -1428,6 +1494,7 @@ D: sword you have ever beheld.
 ##### 15 #####
 
 N:151:Cave troll
+Q:53efd5c081c139df
 W:15:1
 G:T:u
 I:2:18d4:0
@@ -1443,6 +1510,7 @@ D: from the depths of the very earth.
 
 
 N:152:Emerald serpent
+Q:faca1dc7148f7d0b
 W:15:3
 G:s:G
 I:2:8d4:0
@@ -1459,6 +1527,7 @@ D: Noxious vapours surround it.
 
 # Can't move from idx 153, used by monster Song of Oaths
 N:153:Oathwraith
+Q:f119b039c564429b
 W:15:6
 G:W:D
 I:2:12d4:0
@@ -1498,6 +1567,7 @@ D: speed and agility.
 
 
 N:161:Amethyst serpent
+Q:15602c41302cc72c
 W:16:3
 G:s:v
 I:2:8d4:-2
@@ -1513,6 +1583,7 @@ D: Shadows darken as it approaches.
 
 
 N:162:Kemenrauko
+Q:6d237eb553034a0a
 W:16:2
 G:R:s
 I:2:10d4:0
@@ -1527,6 +1598,7 @@ D: now opposes you.
 
 
 N:163:Grotesque
+Q:41cd00dfc66f5220
 W:16:5
 G:H:W
 I:4:10d4:0
@@ -1568,6 +1640,7 @@ D: teeth, and the mesmerising eyes...
 
 
 N:165:Umuiyan, the Doorkeeper
+Q:8a374a2b19facb77
 W:16:15
 G:f:y
 I:3:14d4:0
@@ -1585,6 +1658,7 @@ D: He has long guarded the entrance to the fortress of Tevildo.
 # (Belegwath = mighty shadow)
 
 N:166:Belegwath, Balrog of Shadow
+Q:bba0d000d9578563
 W:16:20
 G:R:v
 I:2:36d4:-6
@@ -1603,6 +1677,7 @@ D: final vision.
 
 
 N:167:Spectre
+Q:689e64a1f84df282
 W:16:6
 G:w:w
 I:2:8d4:0
@@ -1623,6 +1698,7 @@ D: Its eyes form two dark pits in a ruined face.
 
 
 N:171:Spider of Gorgoroth
+Q:bb6a0afb90bf789d
 W:17:1
 G:M:r
 I:2:18d4:-1
@@ -1638,6 +1714,7 @@ D: to the very darkest parts of the stronghold.
 
 
 N:172:Greater werewolf
+Q:18a465a8fded0273
 W:17:1
 G:C:D1
 I:3:14d4:0
@@ -1651,6 +1728,7 @@ D:It is a huge wolf with eyes that glow with manly intelligence.
 
 
 N:173:Adamant serpent
+Q:90409048a6b0dee0
 W:17:3
 G:s:w
 I:2:8d4:0
@@ -1666,6 +1744,7 @@ D: It sparkles with prismatic hues.
 
 
 N:174:Lesser vampire
+Q:41d90b9e0df3798c
 W:17:1
 G:v:s
 I:3:8d4:0
@@ -1699,6 +1778,7 @@ D: to discern even as it fires its cruel bow.
 
 
 N:176:Scatha the Worm
+Q:25d89441afca341a
 W:17:30
 G:d:B
 I:2:38d4:0
@@ -1719,6 +1799,7 @@ D: treachery his hoard is large for a young worm.
 # only ever appears in the escort of Tevildo
 
 N:177:Oikeroi, Guard of Tevildo
+Q:dd75751a350323a0
 W:17:15
 G:f:o
 I:3:20d4:0
@@ -1760,6 +1841,7 @@ D: his bones were ashes in the hot mire.
 
 
 N:182:Darting horror
+Q:2d4cdde8b5b64d56
 W:18:5
 G:H:r
 I:4:6d4:0
@@ -1776,6 +1858,7 @@ D: You would prefer not to see it any closer.
 
 
 N:183:Wraith
+Q:6607c32f97be3bc2
 W:18:4
 G:W:s
 I:2:14d4:0
@@ -1793,6 +1876,7 @@ D: it scents the air, turning this way and that.
 
 
 N:184:Ururauko
+Q:0a03a1d09883f949
 W:18:1
 G:R:R
 I:2:4d4:3
@@ -1810,6 +1894,7 @@ D: yet young.
 
 
 N:185:Tevildo, Prince of Cats
+Q:fad36da2cdb9a6ef
 W:18:10
 G:f:u
 I:3:16d4:0
@@ -1827,6 +1912,7 @@ D: warrior is royalty?
 # (Turkano = powerful commander)
 
 N:186:Turkano, Balrog of the Hosts
+Q:5dbb205e018a3e6a
 W:18:20
 G:R:b
 I:2:44d4:-3
@@ -1851,6 +1937,7 @@ D: glory after glory for his fell master.
 # natively before Morgoth's throne room and are seen much more
 
 N:191:Ancient sapphire serpent
+Q:a38ae09ae4e13831
 W:19:6
 G:S:B
 I:2:10d4:0
@@ -1885,6 +1972,7 @@ D: for war and given dark armour and great vicious weapons.
 
 
 N:193:Vampire
+Q:a6dd7747bfd8b38d
 W:19:1
 G:v:W
 I:3:10d4:0
@@ -1898,6 +1986,7 @@ D:A nightmarish bat-like form, the size of a man.
 
 
 N:194:Nameless thing
+Q:ac318c9b872cf01b
 W:19:1
 G:N:s
 I:1:70d4:0
@@ -1912,6 +2001,7 @@ D: eating its way through the roots of the earth.
 
 
 N:195:Smaug the Golden
+Q:0eb5a6c19e20c8c4
 W:19:30
 G:d:y1
 I:3:35d4:0
@@ -1931,6 +2021,7 @@ D: this one flies through the dark halls on great wings.
 
 
 N:196:Maeglin, Betrayer of Gondolin
+Q:707ee98ab7f93af6
 W:19:100
 G:@:D1
 I:2:18d4:2
@@ -1954,6 +2045,7 @@ D: to that dark king's deep halls?
 
 
 N:201:Ancient ruby serpent
+Q:662810867056dc21
 W:20:3
 G:S:R
 I:2:10d4:0
@@ -1970,6 +2062,7 @@ D: extreme heat surrounding it makes you gasp for breath.
 
 
 N:202:Great cold-drake
+Q:2c31b6feba73a132
 W:20:6
 G:D:W
 I:2:50d4:0
@@ -2012,6 +2105,7 @@ D: or his escape.
 
 
 N:204:Gwathrauko
+Q:7aea95599424e3b6
 W:20:4
 G:R:D
 I:2:8d4:-3
@@ -2025,6 +2119,7 @@ D: side when his black banner was raised in defiance of Iluvatar.
 
 
 N:205:Draugluin, Sire of Werewolves
+Q:fc2ac65daee47c7a
 W:20:15
 G:C:W
 I:3:25d4:0
@@ -2043,6 +2138,7 @@ D: kind.
 # (Vallach = Powerful leaping flame)
 
 N:206:Vallach, Balrog of Sudden Flame
+Q:f960b4324c03fa54
 W:20:20
 G:R:y
 I:3:44d4:-3
@@ -2064,6 +2160,7 @@ D: such a being.
 
 
 N:211:Ancient spider
+Q:ccaa5a00f768feca
 W:21:3
 G:M:g
 I:2:20d4:0
@@ -2077,6 +2174,7 @@ D: drips with venom.
 
 
 N:212:Ancient emerald serpent
+Q:24762f636f8568b1
 W:21:3
 G:S:G
 I:2:10d4:0
@@ -2092,6 +2190,7 @@ D: It is enveloped in clouds of poisonous vapour.
 
 
 N:213:Vampire lord
+Q:356607a1d590333b
 W:21:2
 G:v:v1
 I:3:12d4:0
@@ -2107,6 +2206,7 @@ D: everything around it as prey.
 
 
 N:214:Dagorhir, the Elfbane
+Q:5ebdcd9da7ef3d73
 W:21:15
 G:T:r
 I:2:35d4:0
@@ -2122,6 +2222,7 @@ D: He leads a patrol of the feared Troll Guard.
 
 
 N:215:Gostir, the Dread Glance
+Q:85e8d31f214e8586
 W:21:30
 G:D:B
 I:2:60d4:0
@@ -2142,6 +2243,7 @@ D: has he fire?
 
 
 N:221:Ancient amethyst serpent
+Q:b4202acc055a8b04
 W:22:3
 G:S:v
 I:2:10d4:-3
@@ -2157,6 +2259,7 @@ D: It is wreathed in shadow.
 
 
 N:222:Great fire-drake
+Q:0f141e8db8cbc8f6
 W:22:6
 G:D:r
 I:2:50d4:0
@@ -2176,6 +2279,7 @@ D: them, who could ever compare with the flames of a Dragon?
 
 
 N:223:Hithrauko
+Q:2f73bb8e0f78b92e
 W:22:2
 G:R:B1
 I:3:4d4:0
@@ -2191,6 +2295,7 @@ D: do they move with such active malice...
 
 
 N:224:Shelob, Spider of Darkness
+Q:5fb5b208d8946775
 W:22:30
 G:M:D1
 I:2:25d4:-4
@@ -2208,6 +2313,7 @@ D: of its light, that she takes to weave her deadly webs.
 # The master of the guard in Angband
 
 N:225:Lungorthin, Lord of Balrogs
+Q:dd9a5db3ba5bb028
 W:22:20
 G:R:w
 I:2:52d4:-3
@@ -2231,6 +2337,7 @@ D: scorched by the heat of his body.
 
 
 N:231:Ancient adamant serpent
+Q:a0102bf9689a132a
 W:23:3
 G:S:w
 I:2:10d4:0
@@ -2246,6 +2353,7 @@ D: Prismatic colours gleam in its scales. Few live to see another.
 
 
 N:232:Unrelenting horror
+Q:5244d72f7ce563a7
 W:23:2
 G:H:G1
 I:1:100d4:0
@@ -2263,6 +2371,7 @@ D: clear how one could ever slay such a thing.
 
 
 N:233:Ancalagon the Black
+Q:4da7998251196a35
 W:23:6
 G:d:D
 I:3:40d4:0
@@ -2284,6 +2393,7 @@ D: with great thunder, and lightning, and a tempest of fire.
 
 
 N:234:Thuringwethil, the Vampire Messenger
+Q:de682ee6b4e6d275
 W:23:3
 G:v:r
 I:4:18d4:0
@@ -2474,6 +2584,7 @@ D: seeking from Angband to escape.
 
 # Niena quest giver - Mercy quest on maximum-size levels
 N:260:Niena, Lady of Pity  
+Q:ed55d06b16e56a79
 W:30:200
 G:V:v1
 I:2:26d4:0
@@ -2491,125 +2602,146 @@ D: full of both sorrow and hope, as if she has a task requiring mercy.
 
 
 N:301:Feanor, High King of the Noldor
+Q:41c24a29269bd07d
 W:30:5
 G:@:b1
 F:UNIQUE | MALE
 
 
 N:302:Luthien Tinuviel
+Q:3ee15c4b2037e8bd
 W:30:5
 G:@:b
 F:UNIQUE | FEMALE
 
 
 N:303:Thingol, the Hidden King
+Q:9d35e7d65960ccc7
 W:30:5
 G:@:s
 F:UNIQUE | MALE
 
 
 N:304:Beren, Son of Barahir
+Q:f7585bb1d0a074c4
 W:30:5
 G:@:u
 F:UNIQUE | MALE
 
 
 N:305:Huan, Hound of Valinor
+Q:e33f8bcec5f30a15
 W:30:5
 G:C:y1
 F:UNIQUE | MALE
 
 
 N:306:Eagle of Manwe
+Q:eb1533adca491b39
 W:30:5
 G:b:y
 
 
 N:307:Thorondor, King of Eagles
+Q:a30cb352d12ee09c
 W:30:10
 G:b:w
 F:UNIQUE | MALE
 
 
 N:308:Ent
+Q:3bb69eec340f762b
 W:30:10
 G:T:g
 F:MALE
 
 
 N:309:Ent-wife
+Q:76a1761f194b3173
 W:30:10
 G:T:g
 F:FEMALE
 
 
 N:320:Manwe, Lord of the Breath of Arda
+Q:fc2a4a94f736d78d
 W:30:10
 G:V:v
 F:UNIQUE | MALE
 
 
 N:321:Varda, Lady of the Stars
+Q:ec9302c493986510
 W:30:10
 G:V:w
 F:UNIQUE | FEMALE
 
 
 N:322:Ulmo, Lord of Waters
+Q:045023249116633b
 W:30:20
 G:V:b
 F:UNIQUE | MALE
 
 
 N:323:Aule, the Smith
+Q:f9f0cfcfe57d8c11
 W:30:20
 G:V:r
 F:UNIQUE | MALE
 
 
 N:324:Yavanna, the Giver of Fruits
+Q:1a5c2e4faddd1d12
 W:30:30
 G:V:G
 F:UNIQUE | FEMALE
 
 
 N:325:Mandos, Doomsman of the Valar
+Q:ee2075ab9e9c60d5
 W:30:10
 G:V:D
 F:UNIQUE | MALE
 
 
 N:326:Vaire, the Weaver
+Q:39e8eb043bd23cba
 W:30:40
 G:V:y
 F:UNIQUE | FEMALE
 
 
 N:327:Lorien, Master of Dreams
+Q:aa454299f8645f26
 W:30:40
 G:V:r
 F:UNIQUE | MALE
 
 
 N:328:Este, the Healer
+Q:8f666d01fd4b0153
 W:30:40
 G:V:s
 F:UNIQUE | FEMALE
 
 
 N:329:Nienna, Lady of Mourning
+Q:2852f9b97cd0e31f
 W:30:40
 G:V:v1
 F:UNIQUE | FEMALE
 
 
 N:330:Tulkas, the Valiant
+Q:38b433315d2b8f05
 W:30:10
 G:V:o
 F:UNIQUE | MALE
 
 
 N:331:Nessa, the Dancer
+Q:bf33772ded8aa1f1
 W:30:40
 G:V:B
 F:UNIQUE | FEMALE
@@ -2630,6 +2762,7 @@ D: who would hunt the enemies of all that is good.
 
 
 N:333:Vana, the Ever Young
+Q:a7aae65c73d7b551
 W:30:40
 G:V:W
 F:UNIQUE | FEMALE
@@ -2650,6 +2783,7 @@ F:UNIQUE | FEMALE
 
 
 N:401:Melkor, Rightful Lord of Arda
+Q:d9c0fd3f58a53cec
 W:40:0
 G:V:w
 F:UNIQUE | MALE

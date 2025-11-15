@@ -12,14 +12,37 @@
 #include "externs.h"
 #include "log/log.h"
 #include "player/killer.h"
-/* Countdown for forcing a redraw after showing the per-style banner */
-int g_banner_force_redraw_remaining = 0;
 #include "metarun.h"
+#include "score/score_runs.h"
+#include "score/score_ui.h"
 #include "z-term.h"
 #include <time.h>
 #include <string.h>
 #include <stddef.h>
 #include <stdlib.h>
+
+/* Countdown for forcing a redraw after showing the per-style banner */
+int g_banner_force_redraw_remaining = 0;
+
+static void snapshot_run_history(const char* reason)
+{
+    if (!character_generated || !p_ptr || p_ptr->is_dead)
+        return;
+
+    high_score preview;
+    if (!build_live_preview_score(&preview))
+        return;
+
+    time_t now = time(NULL);
+    if (now == (time_t)-1)
+        now = 0;
+
+    if (!score_runs_record_current_run(&preview, now, SCORE_RECORD_ALIVE)) {
+        log_warn("run snapshot failed (%s)", reason ? reason : "unspecified");
+    } else if (reason) {
+        log_trace("run snapshot recorded (%s)", reason);
+    }
+}
 
 /* True while the post-mortem spectator viewport is active. */
 static bool death_spectator_mode = false;
@@ -3707,6 +3730,7 @@ PlayResult play_game(void)
     /* Character is now "complete" */
     character_generated = true;
     log_debug("play_game: character_generated set to true - character creation complete");
+    snapshot_run_history("character start");
 
     /* If Tulkas quest was auto-completed on load, spawn Tulkas and show messages */
     if (p_ptr->tulkas_quest == TULKAS_QUEST_COMPLETE && p_ptr->tulkas_quest_complete == 1)

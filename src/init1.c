@@ -3813,6 +3813,19 @@ errr parse_p_info(char* buf, header* head)
         cur_equip = 0;
     }
 
+    /* Process 'Q' for stable GUID */
+    else if (buf[0] == 'Q')
+    {
+        if (!pr_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        u64b guid = 0;
+        if (!parse_u64b_hex(buf + 2, &guid))
+            return (PARSE_ERROR_GENERIC);
+
+        pr_ptr->guid = score_guid_from_u64(guid);
+    }
+
     /* Process 'S' for "Stats" (one line only) */
     else if (buf[0] == 'S')
     {
@@ -4382,6 +4395,19 @@ errr parse_c_info(char* buf, header* head)
             ph_ptr->start_items[j].max = 0;
         }
         log_debug("  start_items array initialized");
+    }
+
+    /* Process 'Q' for stable GUID */
+    else if (buf[0] == 'Q')
+    {
+        if (!ph_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        u64b guid = 0;
+        if (!parse_u64b_hex(buf + 2, &guid))
+            return (PARSE_ERROR_GENERIC);
+
+        ph_ptr->guid = score_guid_from_u64(guid);
     }
 
     /* Process 'A' for "Alternate Name" */
