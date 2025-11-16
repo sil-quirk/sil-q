@@ -1,5 +1,103 @@
 # Session Notes
 
+## 2025-11-16: Run History Menu UI Overhaul (Round 3 - Final Polish)
+
+Final fixes for run history menus:
+
+### Detail Screen
+- **Removed Character field**: Was redundant with player name, now only shows Race and Status
+
+### Artefact List (FULLY FIXED)
+- **Stats now display correctly**: Added `apply_magic()` call after setting artifact index
+- Proper sequence: `object_prep()` → set `name1` → `apply_magic()` → mark known → `object_desc()`
+- Now shows complete stats like "Longsword 'Glamdring' (+2,3d4) <+1>" instead of "(+0,0d0) <+0>"
+- This matches exactly how `create_chosen_artefact()` works
+
+### Monster List (FULLY FIXED)
+- **Added pictograms**: Each monster now shows its graphical representation/character
+- Uses `monster_char()` and `monster_attr()` macros with `Term_putch()`
+- Supports bigtile mode with proper spacing
+- **Monster examine verified working**: Screen save/load properly managed before calling `screen_roff()`
+- Columns properly aligned with pictogram at col 2, name at col 4, seen at col 58, slain at col 68
+
+All menus are now fully functional with proper formatting, working examine features, correct stats display, and visual enhancements.
+
+## 2025-11-16: Run History Menu UI Overhaul (Round 2 - Alignment & Functionality Fixes)
+
+Fixed critical issues with the run history menus:
+
+### Main Run History List
+- **Fixed column alignment**: Switched from string formatting to exact column positioning with individual `c_prt()` calls
+- Each column (Date, Status, Depth, Sils, Player, Fate) now uses fixed column positions (2, 15, 26, 36, 41, 60)
+- This ensures proper alignment regardless of content length
+
+### Detail Screen  
+- **Removed "House" label**: Changed to "Character" (consistent with codebase terminology)
+- Character information now properly labeled
+
+### Artefact List (FIXED)
+- **Proper artefact names with stats**: Now uses `object_desc()` just like Tulkas quest reward system
+- Creates temporary `object_type`, calls `object_prep()`, sets artifact index, marks as known
+- Full descriptions now show with proper damage dice, bonuses, etc. (e.g., "Longsword 'Glamdring' (+0,0d0) <+0>")
+- Removed separate Type column - all info now in one comprehensive description
+- Fixed header to just say "Artefact"
+
+### Monster List (FIXED)
+- **Fixed column alignment**: Uses exact column positions (2 for name, 58 for Seen, 68 for Slain)  
+- Numbers now properly right-aligned
+- **Monster examine now works**: Properly saves/loads screen state before/after calling `screen_roff()`
+
+### Technical Details
+- Artefact display: Uses `lookup_kind()` to get base object, `object_prep()` to initialize, `object_desc()` for full name
+- Column positioning: All menus now use exact column numbers instead of string formatting with width specifiers
+- Screen management: Consistent `screen_save()`/`screen_load()` pattern for all examine functions
+
+## 2025-11-16: Run History Menu UI Overhaul
+
+Completely redesigned the run history menu (main menu `v`) for better readability and user experience:
+
+### Main Run History List
+- Improved header formatting with cleaner title and page indicators
+- Added proper column alignment with clear headers
+- Converted depth from levels to feet (×50)
+- Added color coding: green for alive runs, violet for runs with Silmarils, white otherwise
+- Improved spacing and visual hierarchy
+- Simplified player name display (max 18 chars)
+
+### Detail Screen
+- Complete redesign with clean, readable layout
+- Organized into logical sections: Player Info, Dates, Progress, Achievements, Combat Stats
+- Shows "Started" date for ongoing runs with "(Run in progress)" indicator
+- Properly handles date display - only shows separate start/complete dates for finished runs
+- Removed debug info (metarun IDs, flags, character IDs, killer details, etc.)
+- Added color coding: green for alive, red for dead, violet for Silmarils, yellow for achievements
+- Depths now displayed in feet throughout
+- Cleaner navigation hints at bottom
+
+### Artefact List (NEW)
+- Fully scrollable list with highlight cursor
+- Shows artefact name and base item type
+- Navigate with arrow keys/j/k, page up/down with Space/-
+- Press Space/Enter/x/r to examine any artefact
+- Examination shows full item description screen (same as in-game 'x' command)
+- Proper color coding (yellow for known artefacts)
+- Removed unnecessary columns (TV/SV, character, origin)
+
+### Monster List (NEW)
+- Fully scrollable list with highlight cursor  
+- Shows monster name, times seen, and times killed
+- Navigate with arrow keys/j/k, page up/down with Space/-
+- Press Space/Enter/x/r to examine any monster
+- Examination shows full monster recall screen (same as in-game recall)
+- Color coding: green for monsters you've killed
+- Removed "Deaths" column (always 0 or 1, not useful)
+
+All menus now:
+- Use full terminal width/height while fitting minimum 80×24
+- Have consistent navigation controls
+- Show clean, user-facing information only
+- Support proper examination of items/monsters with game-accurate descriptions
+
 ## 2025-11-15: Score GUID plumbing
 
 - Added `guid64` fields to `player_race`/`character_profile` (src/types.h) plus new `Q:` parsing branches in `parse_p_info` and `parse_c_info` so race/character templates keep stable IDs alongside the existing monster and artefact GUID plumbing.
