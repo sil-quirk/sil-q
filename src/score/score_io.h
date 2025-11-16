@@ -34,5 +34,14 @@ SDL_IOStream* score_file_open(const char *filepath, int mode);
 void score_file_reset_ctx(score_file_ctx* ctx);
 
 int collect_high_scores(struct high_score* out, int capacity, bool sort_by_score);
+int highscore_seek(int index);
+errr highscore_read(struct high_score* out);
+int highscore_write(const struct high_score* entry);
+errr backup_scores_file(const char *filepath);
+int score_count_alive_entries(void);
+u32b score_sum_dead_points(void);
+int highscore_add(struct high_score* score);
+void upsert_live_score_on_save(void);
+int highscore_dead(char* name);
 
 #endif /* INCLUDED_SCORE_IO_H */

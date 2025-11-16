@@ -16,6 +16,8 @@ typedef struct score_run_detail_block {
     score_run_monster_v1* monsters;
 } score_run_detail_block;
 
+#define SCORE_RUNS_METARUN_UNKNOWN 0xFFFFFFFFu
+
 bool score_runs_record_current_run(const struct high_score* legacy_score,
                                    time_t timestamp,
                                    score_record_status status);

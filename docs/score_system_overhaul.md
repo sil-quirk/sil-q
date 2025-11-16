@@ -94,6 +94,7 @@ Stored as `score_record_v1` entries featuring:
 1. **Score I/O module:** `score/score_io.c` now owns the singleton plumbing and `score_file_open()` handles header parsing, upgrades, and reconciliation so `files.c` no longer needs to poke SDL streams directly.
 2. **Logic module:** `score/score_logic.c` exposes `score_points()`/`score_compare()`, keeping the scoring math isolated from the UI layer and ready for unit coverage.
 3. **UI/API split:** `score/score_ui.c`/`.h` contain `show_scores*`, `display_single_score*`, and the run-history browser (`do_cmd_run_history`), consuming only the public score APIs so other front-ends can reuse the logic without touching persistence code.
+4. **Legacy transfer:** `score_runs_record_current_run()` now triggers a one-time import from `scores.raw` into `runs.db`, so historical runs are preserved automatically the first time the modern pipeline writes to the database.
 
 
 ### Phase 3 – Dual Format Support

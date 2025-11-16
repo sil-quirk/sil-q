@@ -6,8 +6,10 @@
 #include "log/log.h"
 #include "metarun.h"
 #include "player/killer.h"
+#include "score/score_io.h"
 #include "score/score_guid.h"
 #include "score/score_runs.h"
+#include "score/score_logic.h"
 
 #include <SDL3/SDL.h>
 #include <ctype.h>
@@ -18,6 +20,288 @@
 #define SCORE_RUN_DETAIL_VERSION 1u
 #define SCORE_RUN_ARTEFACT_CAP_MAX 512
 #define SCORE_RUN_MONSTER_CAP_MAX 1024
+
+static void score_runs_fill_guid(score_guid64* guid, u64b value);
+static score_killer_kind score_runs_killer_kind_from_string(const char* how);
+static void score_runs_normalize_name(const char* name, char* out, size_t out_len);
+static u32b score_runs_hash_persona(const char* normalized);
+static SDL_IOStream* score_runs_open_db(const char* path, score_db_header* header,
+                                        bool* created);
+static bool score_runs_write_record(SDL_IOStream* file,
+                                    const score_record_v1* record,
+                                    const score_run_detail_block* details);
+static bool score_runs_write_header(SDL_IOStream* file,
+                                    const score_db_header* header);
+
+static bool score_runs_legacy_checked = false;
+
+static s32b score_runs_parse_int_field(const char* field, size_t len)
+{
+    char buf[32];
+    parse_score_string(field, len, buf, sizeof(buf));
+    if (!buf[0])
+        return 0;
+    char* end = NULL;
+    long value = strtol(buf, &end, 10);
+    if (!end || *end != '\0')
+        return 0;
+    return (s32b)value;
+}
+
+static u32b score_runs_parse_u32_field(const char* field, size_t len)
+{
+    char buf[32];
+    parse_score_string(field, len, buf, sizeof(buf));
+    if (!buf[0])
+        return 0;
+    char* end = NULL;
+    unsigned long value = strtoul(buf, &end, 10);
+    if (!end || *end != '\0')
+        return 0;
+    if (value > 0xFFFFFFFFUL)
+        return 0xFFFFFFFFUL;
+    return (u32b)value;
+}
+
+static u32b score_runs_parse_day_stamp(const char* field, size_t len)
+{
+    char buf[16];
+    parse_score_string(field, len, buf, sizeof(buf));
+    if (!buf[0])
+        return 0;
+    const char* cursor = buf;
+    if (*cursor == '@')
+        cursor++;
+    if (strlen(cursor) < 8)
+        return 0;
+    char year_buf[5] = {0};
+    char month_buf[3] = {0};
+    char day_buf[3] = {0};
+    memcpy(year_buf, cursor, 4);
+    memcpy(month_buf, cursor + 4, 2);
+    memcpy(day_buf, cursor + 6, 2);
+    int year = atoi(year_buf);
+    int month = atoi(month_buf);
+    int day = atoi(day_buf);
+    if (year <= 0 || month < 1 || month > 12 || day < 1 || day > 31)
+        return 0;
+
+    struct tm when;
+    memset(&when, 0, sizeof(when));
+    when.tm_year = year - 1900;
+    when.tm_mon = month - 1;
+    when.tm_mday = day;
+    when.tm_hour = 12;
+    when.tm_isdst = -1;
+    time_t stamp = mktime(&when);
+    if (stamp == (time_t)-1)
+        return 0;
+    return (u32b)stamp;
+}
+
+static score_record_status score_runs_status_from_legacy(const char* how_field,
+                                                         size_t how_len,
+                                                         const char* escaped_field)
+{
+    char how_buf[64];
+    parse_score_string(how_field, how_len, how_buf, sizeof(how_buf));
+    if (streq(how_buf, "(alive and well)"))
+        return SCORE_RECORD_ALIVE;
+    if (escaped_field && tolower((unsigned char)escaped_field[0]) == 't')
+        return SCORE_RECORD_ESCAPED;
+    return SCORE_RECORD_DEAD;
+}
+
+static void score_runs_build_record_from_legacy(score_record_v1* rec,
+                                                const high_score* legacy)
+{
+    memset(rec, 0, sizeof(*rec));
+    rec->metarun_id = SCORE_RUNS_METARUN_UNKNOWN;
+
+    char death_text[64];
+    parse_score_string(legacy->how, sizeof(legacy->how), death_text, sizeof(death_text));
+    if (!death_text[0])
+        SDL_strlcpy(death_text, "(unknown)", sizeof(death_text));
+
+    rec->status = score_runs_status_from_legacy(legacy->how,
+                                                sizeof(legacy->how),
+                                                legacy->escaped);
+    rec->run_flags = 0;
+    if (tolower((unsigned char)legacy->morgoth_slain[0]) == 't')
+        rec->run_flags |= SCORE_RUN_FLAG_MORGOTH_SLAIN;
+    if (tolower((unsigned char)legacy->escaped[0]) == 't')
+        rec->run_flags |= SCORE_RUN_FLAG_ANGBAND_ESCAPED;
+
+    int race_idx = score_runs_parse_int_field(legacy->p_r, sizeof(legacy->p_r));
+    int char_idx = score_runs_parse_int_field(legacy->p_h, sizeof(legacy->p_h));
+    if (race_idx < 0) race_idx = 0;
+    if (char_idx < 0) char_idx = 0;
+    rec->race_id = (byte)(race_idx & 0xFF);
+    rec->character_id = (byte)(char_idx & 0xFF);
+    if (z_info && race_idx >= 0 && race_idx < z_info->p_max) {
+        rec->race_guid = p_info[race_idx].guid;
+    } else {
+        score_guid_clear(&rec->race_guid);
+    }
+    if (z_info && char_idx >= 0 && char_idx < z_info->c_max) {
+        rec->character_guid = c_info[char_idx].guid;
+    } else {
+        score_guid_clear(&rec->character_guid);
+    }
+
+    rec->max_depth = (u16b)MAX(0, score_runs_parse_int_field(legacy->max_dun,
+        sizeof(legacy->max_dun)));
+    rec->exit_depth = (u16b)MAX(0, score_runs_parse_int_field(legacy->cur_dun,
+        sizeof(legacy->cur_dun)));
+    rec->silmarils = (u16b)MAX(0, score_runs_parse_int_field(legacy->silmarils,
+        sizeof(legacy->silmarils)));
+    rec->uniques_killed = (u16b)MAX(0, score_runs_parse_int_field(legacy->cur_lev,
+        sizeof(legacy->cur_lev)));
+    rec->quests_completed = 0;
+    rec->skills_learned = 0;
+    rec->abilities_learned = 0;
+    rec->artefacts_found = 0;
+    rec->net_curses = (s16b)score_runs_parse_int_field(legacy->pts,
+        sizeof(legacy->pts));
+    rec->character_power = 0;
+    rec->turns_spent = score_runs_parse_u32_field(legacy->turns,
+        sizeof(legacy->turns));
+    rec->xp_earned = 0;
+    rec->kills_total = 0;
+    rec->kills_seen = 0;
+
+    score_runs_fill_guid(&rec->killer_guid, 0);
+    rec->killer_kind = score_runs_killer_kind_from_string(death_text);
+    rec->killer_race_index = 0;
+    rec->cause_code = 0;
+    SDL_strlcpy(rec->killer_name, death_text, sizeof(rec->killer_name));
+    SDL_strlcpy(rec->cause_of_death, death_text, sizeof(rec->cause_of_death));
+
+    rec->created_utc = score_runs_parse_day_stamp(legacy->day, sizeof(legacy->day));
+    rec->completed_utc = rec->created_utc;
+
+    char player_name[sizeof(legacy->who) + 1];
+    parse_score_string(legacy->who, sizeof(legacy->who),
+                       player_name, sizeof(player_name));
+    if (!player_name[0])
+        SDL_strlcpy(player_name, "(unknown)", sizeof(player_name));
+    SDL_strlcpy(rec->player_name, player_name, sizeof(rec->player_name));
+
+    char normalized[64];
+    score_runs_normalize_name(player_name, normalized, sizeof(normalized));
+    rec->persona_id = score_runs_hash_persona(normalized);
+
+    SDL_strlcpy(rec->savefile_hint, "", sizeof(rec->savefile_hint));
+}
+
+static void score_runs_import_legacy_scores(void)
+{
+    if (score_runs_legacy_checked)
+        return;
+    score_runs_legacy_checked = true;
+
+    char score_path[1024];
+    if (!path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw"))
+        return;
+
+    score_file_ctx snapshot;
+    score_file_reset_ctx(&snapshot);
+    score_file_ctx* previous_ctx = score_file_set_active_ctx(&snapshot);
+    safe_setuid_grab();
+    SDL_IOStream* source = score_file_open(score_path, O_RDONLY);
+    safe_setuid_drop();
+    score_file_set_active_ctx(previous_ctx);
+    if (!source)
+        return;
+
+    score_file_ctx* active = score_file_set_active_ctx(&snapshot);
+    if (highscore_seek(0) != 0) {
+        score_file_set_active_ctx(active);
+        SDL_CloseIO(source);
+        return;
+    }
+
+    high_score* legacy = mem_alloc_array(MAX_HISCORES, high_score);
+    if (!legacy) {
+        score_file_set_active_ctx(active);
+        SDL_CloseIO(source);
+        return;
+    }
+
+    u32b legacy_entries = 0;
+    while (legacy_entries < MAX_HISCORES) {
+        high_score temp;
+        if (highscore_read(&temp))
+            break;
+        if (temp.who[0] == '\0')
+            break;
+        legacy[legacy_entries++] = temp;
+    }
+
+    score_file_set_active_ctx(active);
+    SDL_CloseIO(source);
+
+    if (legacy_entries == 0) {
+        mem_free(legacy);
+        return;
+    }
+
+    char runs_path[1024];
+    if (!path_build(runs_path, sizeof(runs_path), ANGBAND_DIR_APEX,
+            SCORE_RUNS_DB_FILENAME)) {
+        mem_free(legacy);
+        return;
+    }
+
+    score_db_header header;
+    bool created = false;
+    SDL_IOStream* runs_db = score_runs_open_db(runs_path, &header, &created);
+    if (!runs_db) {
+        mem_free(legacy);
+        return;
+    }
+
+    if (header.record_count >= legacy_entries) {
+        mem_free(legacy);
+        SDL_CloseIO(runs_db);
+        return;
+    }
+
+    score_run_detail_block details;
+    memset(&details, 0, sizeof(details));
+    details.header.version = SCORE_RUN_DETAIL_VERSION;
+    details.header.artefact_capacity = 0;
+    details.header.monster_capacity = 0;
+    details.header.artefact_count = 0;
+    details.header.monster_count = 0;
+
+    SDL_SeekIO(runs_db, 0, SDL_IO_SEEK_END);
+
+    u32b imported = 0;
+    for (u32b i = header.record_count; i < legacy_entries; ++i) {
+        score_record_v1 record;
+        score_runs_build_record_from_legacy(&record, &legacy[i]);
+        record.record_id = header.record_count + imported;
+        record.chronological_idx = record.record_id;
+        if (!score_runs_write_record(runs_db, &record, &details)) {
+            log_warn("score_runs: failed to import legacy score index %u", i);
+            break;
+        }
+        imported++;
+    }
+
+    if (imported > 0) {
+        header.record_count += imported;
+        if (!score_runs_write_header(runs_db, &header)) {
+            log_warn("score_runs: unable to update header after legacy import");
+        } else {
+            log_info("score_runs: imported %u legacy entries into runs.db", imported);
+        }
+    }
+
+    mem_free(legacy);
+    SDL_CloseIO(runs_db);
+}
 
 static void score_runs_init_header(score_db_header* header)
 {
@@ -694,6 +978,8 @@ bool score_runs_record_current_run(const struct high_score* legacy_score,
         log_warn("score_runs: skipping record (no legacy score snapshot)");
         return false;
     }
+
+    score_runs_import_legacy_scores();
 
     char path[1024];
     if (!path_build(path, sizeof(path), ANGBAND_DIR_APEX, SCORE_RUNS_DB_FILENAME)) {
