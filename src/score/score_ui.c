@@ -27,6 +27,8 @@ typedef struct run_history_entry {
 static void run_history_show_detail(const run_history_entry* entry);
 static void run_history_show_artefact_list(const score_run_detail_block* details);
 static void run_history_show_monster_list(const score_run_detail_block* details);
+static bool run_history_prepare_artefact_object(
+    const score_run_artefact_v1* entry, object_type* out);
 
 static void run_history_refresh_active_run(void)
 {
@@ -1382,6 +1384,56 @@ void do_cmd_run_history(void)
         }
     }
 }
+static bool run_history_prepare_artefact_object(
+    const score_run_artefact_v1* entry, object_type* out)
+{
+    if (!entry || !out || !z_info)
+        return false;
+    if (entry->a_idx <= 0 || entry->a_idx >= z_info->art_max)
+        return false;
+
+    object_wipe(out);
+
+#ifdef ALLOW_SPOILERS
+    if (make_fake_artefact(out, (byte)entry->a_idx))
+        goto prepared;
+#endif
+
+    artefact_type* art = &a_info[entry->a_idx];
+    if (!art || (art->tval == 0 && art->sval == 0))
+        return false;
+
+    s16b k_idx = lookup_kind(art->tval, art->sval);
+    if (k_idx <= 0)
+        return false;
+
+    object_prep(out, k_idx);
+    out->name1 = (byte)entry->a_idx;
+    out->pval = art->pval;
+    out->att = art->att;
+    out->dd = art->dd;
+    out->ds = art->ds;
+    out->evn = art->evn;
+    out->pd = art->pd;
+    out->ps = art->ps;
+    out->weight = art->weight;
+
+    for (int i = 0; i < art->abilities; i++)
+    {
+        out->skilltype[i + out->abilities] = art->skilltype[i];
+        out->abilitynum[i + out->abilities] = art->abilitynum[i];
+    }
+    out->abilities += art->abilities;
+
+    if (art->flags3 & (TR3_LIGHT_CURSE))
+        out->ident |= IDENT_CURSED;
+
+prepared:
+    out->ident |= IDENT_KNOWN | IDENT_SENSE;
+    object_known(out);
+    return true;
+}
+
 static void run_history_show_artefact_list(const score_run_detail_block* details)
 {
     if (!details || !details->artefacts
@@ -1435,33 +1487,15 @@ static void run_history_show_artefact_list(const score_run_detail_block* details
             const score_run_artefact_v1* entry = &details->artefacts[idx];
             char full_desc[120] = "<unknown artefact>";
             byte color = TERM_WHITE;
-            
-            if (z_info && entry->a_idx > 0 && entry->a_idx < z_info->art_max) {
-                artefact_type* art = &a_info[entry->a_idx];
+
+            object_type temp_obj;
+            if (run_history_prepare_artefact_object(entry, &temp_obj)) {
                 color = TERM_YELLOW;
-                
-                /* Create a temporary object to get proper description */
-                object_type temp_obj;
-                object_wipe(&temp_obj);
-                
-                /* Set up the object as the artifact */
-                s16b k_idx = lookup_kind(art->tval, art->sval);
-                if (k_idx > 0) {
-                    object_prep(&temp_obj, k_idx);
-                    temp_obj.name1 = entry->a_idx;
-                    
-                    /* Apply artifact magic to get proper stats */
-                    apply_magic(&temp_obj, -1, true, true, true, true);
-                    
-                    /* Mark as known */
-                    temp_obj.ident |= IDENT_KNOWN;
-                    object_known(&temp_obj);
-                    
-                    /* Get the full artifact description with stats */
-                    object_desc(full_desc, sizeof(full_desc), &temp_obj, true, 0);
-                } else {
+                object_desc(full_desc, sizeof(full_desc), &temp_obj, true, 0);
+            } else if (z_info && entry->a_idx > 0 && entry->a_idx < z_info->art_max) {
+                artefact_type* art = &a_info[entry->a_idx];
+                if (art && art->name[0])
                     SDL_strlcpy(full_desc, art->name, sizeof(full_desc));
-                }
             }
             
             bool selected = (idx == highlight);
@@ -1494,35 +1528,9 @@ static void run_history_show_artefact_list(const score_run_detail_block* details
             /* Examine the selected artefact */
             if (highlight >= 0 && highlight < total) {
                 const score_run_artefact_v1* entry = &details->artefacts[highlight];
-                if (z_info && entry->a_idx < z_info->art_max) {
-                    artefact_type* art = &a_info[entry->a_idx];
-                    
-                    /* Create a fake object to display */
-                    object_type fake_obj;
-                    object_wipe(&fake_obj);
-                    fake_obj.name1 = entry->a_idx;
-                    fake_obj.tval = art->tval;
-                    fake_obj.sval = art->sval;
-                    fake_obj.k_idx = 0;
-                    
-                    /* Find matching k_idx */
-                    for (int k = 1; k < z_info->k_max; k++) {
-                        if (k_info[k].tval == art->tval && k_info[k].sval == art->sval) {
-                            fake_obj.k_idx = k;
-                            break;
-                        }
-                    }
-                    
-                    if (fake_obj.k_idx) {
-                        /* Mark as identified and known */
-                        fake_obj.ident |= IDENT_KNOWN;
-                        fake_obj.ident |= IDENT_SENSE;
-                        object_known(&fake_obj);
-                        
-                        object_info_screen(&fake_obj);
-                    } else {
-                        bell("Cannot display artefact details.");
-                    }
+                object_type fake_obj;
+                if (run_history_prepare_artefact_object(entry, &fake_obj)) {
+                    object_info_screen(&fake_obj);
                 } else {
                     bell("Artefact information not available.");
                 }
@@ -1653,12 +1661,12 @@ static void run_history_show_monster_list(const score_run_detail_block* details)
 
         Term_fresh();
         int ch = inkey();
+        screen_load();
 
         switch (ch) {
         case ESCAPE:
         case 'q':
         case 'Q':
-            screen_load();
             done = true;
             break;
 
@@ -1673,14 +1681,13 @@ static void run_history_show_monster_list(const score_run_detail_block* details)
             if (highlight >= 0 && highlight < total) {
                 const score_run_monster_v1* entry = &details->monsters[highlight];
                 if (z_info && entry->r_idx > 0 && entry->r_idx < z_info->r_max) {
-                    screen_load();
+                    screen_save();
                     screen_roff(entry->r_idx, NULL);
-                } else {
+                    (void)inkey();
                     screen_load();
+                } else {
                     bell("Monster information not available.");
                 }
-            } else {
-                screen_load();
             }
             break;
 
@@ -1688,7 +1695,6 @@ static void run_history_show_monster_list(const score_run_detail_block* details)
         case '3':
         case 'n':
         case 'N':
-            screen_load();
             top += rows;
             highlight += rows;
             break;
@@ -1698,7 +1704,6 @@ static void run_history_show_monster_list(const score_run_detail_block* details)
         case '7':
         case 'p':
         case 'P':
-            screen_load();
             top -= rows;
             highlight -= rows;
             break;
@@ -1706,19 +1711,16 @@ static void run_history_show_monster_list(const score_run_detail_block* details)
         case '2':
         case 'j':
         case 'J':
-            screen_load();
             highlight++;
             break;
 
         case '8':
         case 'k':
         case 'K':
-            screen_load();
             highlight--;
             break;
 
         default:
-            screen_load();
             break;
         }
     }
