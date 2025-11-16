@@ -200,6 +200,8 @@ static void score_runs_import_legacy_scores(void)
         return;
     score_runs_legacy_checked = true;
 
+    log_debug("score_runs: starting legacy import");
+
     char score_path[1024];
     if (!path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw"))
         return;
@@ -207,48 +209,73 @@ static void score_runs_import_legacy_scores(void)
     score_file_ctx snapshot;
     score_file_reset_ctx(&snapshot);
     score_file_ctx* previous_ctx = score_file_set_active_ctx(&snapshot);
+
+    log_debug("score_runs: opening legacy file %s", score_path);
     safe_setuid_grab();
     SDL_IOStream* source = score_file_open(score_path, O_RDONLY);
     safe_setuid_drop();
-    score_file_set_active_ctx(previous_ctx);
-    if (!source)
+    if (!source) {
+        log_debug("score_runs: scores.raw missing, import skipped");
+        score_file_set_active_ctx(previous_ctx);
         return;
+    }
+    snapshot.fd = source;
 
-    score_file_ctx* active = score_file_set_active_ctx(&snapshot);
     if (highscore_seek(0) != 0) {
-        score_file_set_active_ctx(active);
         SDL_CloseIO(source);
+        snapshot.fd = NULL;
+        log_debug("score_runs: highscore_seek() failed");
+        score_file_set_active_ctx(previous_ctx);
         return;
     }
 
-    high_score* legacy = mem_alloc_array(MAX_HISCORES, high_score);
-    if (!legacy) {
-        score_file_set_active_ctx(active);
+    u32b header_entries = snapshot.entry_count;
+    log_debug("score_runs: header entry_count=%u", header_entries);
+    if (header_entries > MAX_HISCORES)
+        header_entries = MAX_HISCORES;
+    if (header_entries == 0) {
         SDL_CloseIO(source);
+        snapshot.fd = NULL;
+        score_file_set_active_ctx(previous_ctx);
+        return;
+    }
+
+    high_score* legacy = mem_alloc_array(header_entries, high_score);
+    if (!legacy) {
+        log_debug("score_runs: unable to alloc %u legacy slots", header_entries);
+        SDL_CloseIO(source);
+        snapshot.fd = NULL;
+        score_file_set_active_ctx(previous_ctx);
         return;
     }
 
     u32b legacy_entries = 0;
-    while (legacy_entries < MAX_HISCORES) {
-        high_score temp;
-        if (highscore_read(&temp))
+    while (legacy_entries < header_entries) {
+        if (highscore_read(&legacy[legacy_entries])) {
+            log_debug("score_runs: highscore_read() stopped at %u", legacy_entries);
             break;
-        if (temp.who[0] == '\0')
-            break;
-        legacy[legacy_entries++] = temp;
+        }
+        legacy_entries++;
     }
 
-    score_file_set_active_ctx(active);
     SDL_CloseIO(source);
+    snapshot.fd = NULL;
 
     if (legacy_entries == 0) {
+        log_debug("score_runs: no legacy entries loaded");
         mem_free(legacy);
+        score_file_set_active_ctx(previous_ctx);
         return;
     }
+
+    log_debug("score_runs: loaded %u entries (header=%u)", legacy_entries, header_entries);
+
+    score_file_set_active_ctx(previous_ctx);
 
     char runs_path[1024];
     if (!path_build(runs_path, sizeof(runs_path), ANGBAND_DIR_APEX,
             SCORE_RUNS_DB_FILENAME)) {
+        log_debug("score_runs: unable to build path for runs.db");
         mem_free(legacy);
         return;
     }
@@ -257,11 +284,14 @@ static void score_runs_import_legacy_scores(void)
     bool created = false;
     SDL_IOStream* runs_db = score_runs_open_db(runs_path, &header, &created);
     if (!runs_db) {
+        log_debug("score_runs: unable to open runs.db for import");
         mem_free(legacy);
         return;
     }
 
     if (header.record_count >= legacy_entries) {
+        log_debug("score_runs: runs.db already has %u entries (legacy=%u)",
+            header.record_count, legacy_entries);
         mem_free(legacy);
         SDL_CloseIO(runs_db);
         return;
@@ -281,8 +311,17 @@ static void score_runs_import_legacy_scores(void)
     for (u32b i = header.record_count; i < legacy_entries; ++i) {
         score_record_v1 record;
         score_runs_build_record_from_legacy(&record, &legacy[i]);
+
+        if (record.status == SCORE_RECORD_ALIVE) {
+            log_debug("score_runs: skipping legacy[%u] '%s' (alive snapshot)", i, record.player_name);
+            continue;
+        }
+
         record.record_id = header.record_count + imported;
         record.chronological_idx = record.record_id;
+        log_debug("score_runs: importing legacy[%u] player='%s' day=%u status=%d depth=%u sil=%u",
+            i, record.player_name, record.created_utc, record.status,
+            record.max_depth, record.silmarils);
         if (!score_runs_write_record(runs_db, &record, &details)) {
             log_warn("score_runs: failed to import legacy score index %u", i);
             break;
@@ -297,6 +336,13 @@ static void score_runs_import_legacy_scores(void)
         } else {
             log_info("score_runs: imported %u legacy entries into runs.db", imported);
         }
+    } else {
+        log_debug("score_runs: no new records imported (already up to date) legacy=%u", legacy_entries);
+    }
+
+    if (imported != legacy_entries) {
+        log_debug("score_runs: import mismatch legacy=%u imported=%u",
+            legacy_entries, imported);
     }
 
     mem_free(legacy);

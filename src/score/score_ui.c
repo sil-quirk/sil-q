@@ -22,6 +22,7 @@
 typedef struct run_history_entry {
     score_record_v1 record;
     s64b detail_offset;
+    int rating;
 } run_history_entry;
 
 static void run_history_show_detail(const run_history_entry* entry);
@@ -69,6 +70,65 @@ typedef enum
     SCORE_VIEW_ORDER_SCORE = 0,
     SCORE_VIEW_ORDER_CHRONOLOGY = 1
 } score_view_order;
+
+typedef enum
+{
+    RUN_HISTORY_SORT_DATE = 0,
+    RUN_HISTORY_SORT_RATING = 1
+} run_history_sort_order;
+
+static const char* run_history_sort_label(run_history_sort_order order)
+{
+    return (order == RUN_HISTORY_SORT_RATING) ? "Rating" : "Date";
+}
+
+static void run_history_build_high_score(const score_record_v1* rec, high_score* out)
+{
+    if (!out) return;
+    memset(out, 0, sizeof(*out));
+    if (!rec)
+        return;
+
+    strnfmt(out->what, sizeof(out->what), "%s", VERSION_STRING);
+    strnfmt(out->pts, sizeof(out->pts), "%4d", rec->net_curses);
+    strnfmt(out->turns, sizeof(out->turns), "%9lu", (unsigned long)rec->turns_spent);
+
+    if (rec->completed_utc) {
+        time_t ts = (time_t)rec->completed_utc;
+        struct tm* tm_info = localtime(&ts);
+        if (tm_info)
+            strftime(out->day, sizeof(out->day), "@%Y%m%d", tm_info);
+    }
+
+    const char* who = rec->player_name[0] ? rec->player_name :
+        (rec->savefile_hint[0] ? rec->savefile_hint : "<unknown>");
+    strnfmt(out->who, sizeof(out->who), "%-.15s", who);
+
+    strnfmt(out->p_r, sizeof(out->p_r), "%02u", (unsigned)rec->race_id);
+    strnfmt(out->p_h, sizeof(out->p_h), "%02u", (unsigned)rec->character_id);
+    strnfmt(out->cur_dun, sizeof(out->cur_dun), "%3u", (unsigned)rec->exit_depth);
+    strnfmt(out->max_dun, sizeof(out->max_dun), "%3u", (unsigned)rec->max_depth);
+    strnfmt(out->cur_lev, sizeof(out->cur_lev), "%3u", (unsigned)rec->uniques_killed);
+
+    const char* how = (rec->status == SCORE_RECORD_ALIVE)
+        ? "(alive and well)"
+        : (rec->cause_of_death[0] ? rec->cause_of_death : "(unknown)");
+    strnfmt(out->how, sizeof(out->how), "%-.49s", how);
+
+    int sils = (rec->silmarils > 9) ? 9 : (int)rec->silmarils;
+    strnfmt(out->silmarils, sizeof(out->silmarils), "%1d", sils);
+    out->morgoth_slain[0] = (rec->run_flags & SCORE_RUN_FLAG_MORGOTH_SLAIN) ? 't' : 'f';
+    out->escaped[0] = (rec->run_flags & SCORE_RUN_FLAG_ANGBAND_ESCAPED) ? 't' : 'f';
+}
+
+static int run_history_compute_rating(const score_record_v1* rec)
+{
+    if (!rec)
+        return 0;
+    high_score temp;
+    run_history_build_high_score(rec, &temp);
+    return score_points(&temp);
+}
 
 static int compare_scores_qsort(const void* va, const void* vb)
 {
@@ -1139,21 +1199,54 @@ static void run_history_format_flags(byte run_flags, char* out, size_t out_len)
         SDL_strlcpy(out, "(none)", out_len);
 }
 
-static int compare_run_records_desc(const void* a, const void* b)
+static int run_history_compare_date_desc(const void* a, const void* b)
 {
     const run_history_entry* ea = (const run_history_entry*)a;
     const run_history_entry* eb = (const run_history_entry*)b;
     const score_record_v1* ra = &ea->record;
     const score_record_v1* rb = &eb->record;
-    if (ra->record_id > rb->record_id)
-        return -1;
-    if (ra->record_id < rb->record_id)
-        return 1;
+
     if (ra->completed_utc > rb->completed_utc)
         return -1;
     if (ra->completed_utc < rb->completed_utc)
         return 1;
+
+    if (ra->record_id > rb->record_id)
+        return -1;
+    if (ra->record_id < rb->record_id)
+        return 1;
+
+    if (ra->created_utc > rb->created_utc)
+        return -1;
+    if (ra->created_utc < rb->created_utc)
+        return 1;
+
     return 0;
+}
+
+static int run_history_compare_rating_desc(const void* a, const void* b)
+{
+    const run_history_entry* ea = (const run_history_entry*)a;
+    const run_history_entry* eb = (const run_history_entry*)b;
+    if (ea->rating > eb->rating)
+        return -1;
+    if (ea->rating < eb->rating)
+        return 1;
+    return run_history_compare_date_desc(a, b);
+}
+
+static void run_history_sort_entries(run_history_entry* entries,
+                                     int count,
+                                     run_history_sort_order order)
+{
+    if (!entries || count <= 1)
+        return;
+    if (order == RUN_HISTORY_SORT_RATING)
+        qsort(entries, count, sizeof(run_history_entry),
+              run_history_compare_rating_desc);
+    else
+        qsort(entries, count, sizeof(run_history_entry),
+              run_history_compare_date_desc);
 }
 
 static int collect_run_history(run_history_entry* out, int capacity)
@@ -1194,6 +1287,7 @@ static int collect_run_history(run_history_entry* out, int capacity)
         run_history_entry* slot = &ring[stored % capacity];
         slot->record = temp;
         slot->detail_offset = detail_offset;
+        slot->rating = run_history_compute_rating(&temp);
         stored++;
     }
 
@@ -1212,8 +1306,6 @@ static int collect_run_history(run_history_entry* out, int capacity)
     }
 
     mem_free(ring);
-
-    qsort(out, count, sizeof(score_record_v1), compare_run_records_desc);
     return count;
 }
 void do_cmd_run_history(void)
@@ -1226,6 +1318,8 @@ void do_cmd_run_history(void)
         msg_print("No run history is available.");
         return;
     }
+    run_history_sort_order sort_order = RUN_HISTORY_SORT_DATE;
+    run_history_sort_entries(entries, count, sort_order);
 
     int term_hgt = (Term && Term->hgt > 8) ? Term->hgt : 24;
     int rows = term_hgt - 6;
@@ -1256,9 +1350,13 @@ void do_cmd_run_history(void)
         c_prt(TERM_L_UMBER, "Date", 2, 2);
         c_prt(TERM_L_UMBER, "Status", 2, 15);
         c_prt(TERM_L_UMBER, "Depth", 2, 26);
-        c_prt(TERM_L_UMBER, "Sils", 2, 35);
-        c_prt(TERM_L_UMBER, "Player", 2, 41);
-        c_prt(TERM_L_UMBER, "Fate", 2, 60);
+        c_prt(TERM_L_UMBER, "Score", 2, 35);
+        c_prt(TERM_L_UMBER, "Sils", 2, 46);
+        c_prt(TERM_L_UMBER, "Player", 2, 52);
+        c_prt(TERM_L_UMBER, "Fate", 2, 68);
+        c_prt(TERM_SLATE,
+              format("Sort: %s (press [R] to toggle)", run_history_sort_label(sort_order)),
+              1, 2);
 
         for (int i = 0; i < rows; i++) {
             int idx = page_offset + i;
@@ -1271,8 +1369,8 @@ void do_cmd_run_history(void)
             char date[16];
             run_history_format_timestamp(rec->completed_utc, false, date, sizeof(date));
 
-            char cause[64];
-            truncate_preserving_tail(rec->cause_of_death, cause, sizeof(cause), 18);
+            char cause[32];
+            truncate_preserving_tail(rec->cause_of_death, cause, sizeof(cause), 12);
 
             char player[21];
             if (rec->player_name[0]) {
@@ -1296,13 +1394,14 @@ void do_cmd_run_history(void)
             c_prt(row_color, date, row_y, 2);
             c_prt(row_color, score_run_status_label(rec->status), row_y, 15);
             c_prt(row_color, format("%6d'", depth_ft), row_y, 26);
-            c_prt(row_color, format("%2u", (unsigned)rec->silmarils), row_y, 36);
-            c_prt(row_color, format("%-17.17s", player), row_y, 41);
-            c_prt(row_color, cause, row_y, 60);
+            c_prt(row_color, format("%7d", entries[idx].rating), row_y, 35);
+            c_prt(row_color, format("%3u", (unsigned)rec->silmarils), row_y, 46);
+            c_prt(row_color, format("%-15.15s", player), row_y, 52);
+            c_prt(row_color, cause, row_y, 68);
         }
 
         c_prt(TERM_L_DARK,
-              "[Esc] exit  [Up/Down] move  [Space/Right] next  [Left/-] prev  [Y/Enter] show details",
+              "[Esc] exit  [Up/Down] move  [Space/Right] next  [Left/-] prev  [Y/Enter] details  [R] sort",
               4 + rows, 0);
 
         Term_fresh();
@@ -1313,6 +1412,15 @@ void do_cmd_run_history(void)
         case ESCAPE:
         case 'q':
             done = true;
+            break;
+
+        case 'r':
+        case 'R':
+            sort_order = (sort_order == RUN_HISTORY_SORT_DATE)
+                ? RUN_HISTORY_SORT_RATING : RUN_HISTORY_SORT_DATE;
+            run_history_sort_entries(entries, count, sort_order);
+            page_offset = 0;
+            highlight = 0;
             break;
 
         case 'y':
@@ -1792,6 +1900,8 @@ static void run_history_show_detail(const run_history_entry* entry)
         
         strnfmt(line, sizeof(line), "Status:      %s", status);
         c_prt(status_color, line, row++, 0);
+        strnfmt(line, sizeof(line), "Rating:      %d points", entry->rating);
+        c_prt(TERM_SLATE, line, row++, 0);
         row++;
 
         /* Dates - only show if different for completed runs */
