@@ -4320,6 +4320,9 @@ void do_cmd_fire(int quiver)
 
     /* Sound */
     sound(MSG_SHOOT);
+    if (use_sound) {
+        Term_xtra(TERM_XTRA_DELAY, 350);
+    }
 
     /* Describe the object */
     object_desc(o_name, sizeof(o_name), i_ptr, false, 3);

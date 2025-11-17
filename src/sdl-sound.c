@@ -13,6 +13,7 @@
 #define SDL_SOUND_MAX_VARIANTS 16
 #define SDL_SOUND_NAME_LEN 64
 #define SDL_SOUND_MAX_PATHS 12
+#define SDL_SOUND_MAX_ACTIVE_STREAMS 16
 
 typedef enum {
     SOUND_SECTION_NONE,
@@ -32,12 +33,12 @@ typedef struct {
 
 static struct {
     SDL_AudioDeviceID device;
-    SDL_AudioStream* stream;
     SDL_AudioSpec device_spec;
     sdl_sound_settings settings;
     char sound_files[MSG_MAX][SDL_SOUND_MAX_VARIANTS][SDL_SOUND_NAME_LEN];
     int sound_counts[MSG_MAX];
     bool bank_loaded;
+    SDL_AudioStream* active_streams[SDL_SOUND_MAX_ACTIVE_STREAMS];
 } sound_state;
 
 static void sdl_sound_reset_settings(void);
@@ -51,6 +52,10 @@ static int sdl_sound_lookup_event(const char* name);
 static bool sdl_sound_is_absolute_path(const char* path);
 static void sdl_sound_build_directory(const char* base_path, char* dst, size_t dst_len);
 static void sdl_sound_build_sample_path(const char* base_path, const char* sample, char* dst, size_t dst_len);
+static void sdl_sound_prune_streams(void);
+static void sdl_sound_clear_streams(void);
+static bool sdl_sound_track_stream(SDL_AudioStream* stream);
+static void sdl_sound_destroy_stream(SDL_AudioStream** stream);
 
 static void sdl_sound_reset_settings(void)
 {
@@ -86,6 +91,56 @@ static void sdl_sound_add_search_path(const char* path)
                 path,
                 sizeof(sound_state.settings.search_paths[0]));
     sound_state.settings.search_path_count++;
+}
+
+static void sdl_sound_destroy_stream(SDL_AudioStream** stream_ptr)
+{
+    if (!stream_ptr || !*stream_ptr) {
+        return;
+    }
+    SDL_AudioStream* stream = *stream_ptr;
+    SDL_UnbindAudioStream(stream);
+    SDL_DestroyAudioStream(stream);
+    *stream_ptr = NULL;
+}
+
+static void sdl_sound_clear_streams(void)
+{
+    for (int i = 0; i < SDL_SOUND_MAX_ACTIVE_STREAMS; i++) {
+        sdl_sound_destroy_stream(&sound_state.active_streams[i]);
+    }
+}
+
+static void sdl_sound_prune_streams(void)
+{
+    for (int i = 0; i < SDL_SOUND_MAX_ACTIVE_STREAMS; i++) {
+        SDL_AudioStream* stream = sound_state.active_streams[i];
+        if (!stream) continue;
+        int available = SDL_GetAudioStreamAvailable(stream);
+        int queued = SDL_GetAudioStreamQueued(stream);
+        if (available == 0 && queued == 0) {
+            sdl_sound_destroy_stream(&sound_state.active_streams[i]);
+        }
+    }
+}
+
+static bool sdl_sound_track_stream(SDL_AudioStream* stream)
+{
+    if (!stream) {
+        return false;
+    }
+    for (int i = 0; i < SDL_SOUND_MAX_ACTIVE_STREAMS; i++) {
+        if (!sound_state.active_streams[i]) {
+            sound_state.active_streams[i] = stream;
+            return true;
+        }
+    }
+
+    /* No free slot: drop the oldest (slot 0) */
+    sdl_sound_destroy_stream(&sound_state.active_streams[0]);
+    sound_state.active_streams[0] = stream;
+    log_warn("Sound mixer saturated; dropping oldest playing sound");
+    return true;
 }
 
 static char* sdl_sound_trim(char* text)
@@ -347,15 +402,7 @@ bool sdl_sound_initialize(void)
     }
 
     sound_state.device_spec = desired;
-    sound_state.stream = SDL_CreateAudioStream(&desired, &desired);
-    if (!sound_state.stream) {
-        log_warn("Failed to create audio stream: %s", SDL_GetError());
-        SDL_CloseAudioDevice(sound_state.device);
-        sound_state.device = 0;
-        return false;
-    }
-
-    SDL_BindAudioStream(sound_state.device, sound_state.stream);
+    SDL_zero(sound_state.active_streams);
     SDL_ResumeAudioDevice(sound_state.device);
     log_info("Audio device opened (freq=%d, channels=%d, format=0x%x)",
              sound_state.device_spec.freq,
@@ -366,6 +413,7 @@ bool sdl_sound_initialize(void)
 
 void sdl_sound_reload(void)
 {
+    sdl_sound_clear_streams();
     sdl_sound_reset_settings();
     sdl_sound_reset_bank();
     sound_state.bank_loaded = sdl_sound_parse_config();
@@ -373,10 +421,7 @@ void sdl_sound_reload(void)
 
 void sdl_sound_shutdown(void)
 {
-    if (sound_state.stream) {
-        SDL_DestroyAudioStream(sound_state.stream);
-        sound_state.stream = NULL;
-    }
+    sdl_sound_clear_streams();
     if (sound_state.device) {
         SDL_CloseAudioDevice(sound_state.device);
         sound_state.device = 0;
@@ -388,9 +433,11 @@ void sdl_sound_handle(int sound_idx)
     if (sound_idx < 0 || sound_idx >= MSG_MAX) {
         return;
     }
-    if (!sound_state.device || !sound_state.stream) {
+    if (!sound_state.device) {
         return;
     }
+
+    sdl_sound_prune_streams();
 
     int sample_count = sound_state.sound_counts[sound_idx];
     if (sample_count <= 0) {
@@ -434,25 +481,30 @@ void sdl_sound_handle(int sound_idx)
         return;
     }
 
-    SDL_AudioStream* convert_stream = SDL_CreateAudioStream(&wav_spec, &sound_state.device_spec);
-    if (convert_stream) {
-        if (SDL_PutAudioStreamData(convert_stream, wav_buffer, wav_length) &&
-            SDL_FlushAudioStream(convert_stream)) {
-            int available = SDL_GetAudioStreamAvailable(convert_stream);
-            if (available > 0) {
-                Uint8* converted = SDL_malloc(available);
-                if (converted) {
-                    int got = SDL_GetAudioStreamData(convert_stream, converted, available);
-                    if (got > 0) {
-                        SDL_PutAudioStreamData(sound_state.stream, converted, got);
-                    }
-                    SDL_free(converted);
-                }
-            }
-        }
-        SDL_DestroyAudioStream(convert_stream);
+    SDL_AudioStream* playback_stream = SDL_CreateAudioStream(&wav_spec, &sound_state.device_spec);
+    if (!playback_stream) {
+        log_warn("Failed to create playback stream: %s", SDL_GetError());
+        SDL_free(wav_buffer);
+        return;
     }
+
+    bool success = SDL_PutAudioStreamData(playback_stream, wav_buffer, wav_length) &&
+                   SDL_FlushAudioStream(playback_stream);
     SDL_free(wav_buffer);
+
+    if (!success) {
+        log_warn("Failed to queue sound data: %s", SDL_GetError());
+        SDL_DestroyAudioStream(playback_stream);
+        return;
+    }
+
+    if (!SDL_BindAudioStream(sound_state.device, playback_stream)) {
+        log_warn("Failed to bind sound stream: %s", SDL_GetError());
+        SDL_DestroyAudioStream(playback_stream);
+        return;
+    }
+
+    sdl_sound_track_stream(playback_stream);
 }
 
 void sdl_init_sounds(void)
