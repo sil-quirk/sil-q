@@ -1,5 +1,52 @@
 # Session Notes
 
+## 2025-01-17: Sound System Enhancement
+
+### Changes Made
+1. **Removed Windows-specific code**: The `main-win.c` file was already deleted from the repository
+2. **Added sound.cfg parsing to SDL3**: Implemented full support for the original sound configuration system
+3. **Implemented multi-variant sound selection**: Sounds now randomly select from configured variants
+
+### Implementation Details
+
+**Structure Changes** (`main-sdl.c`):
+- Added `MAX_SOUND_SAMPLES = 16` constant for maximum sound variants per event
+- Extended `sdl_state` structure with:
+  - `sound_files[MSG_MAX][MAX_SOUND_SAMPLES][32]`: Array storing sound filenames (without path or extension)
+  - `sound_counts[MSG_MAX]`: Number of available samples per sound event
+
+**Sound Configuration Loader** (`sdl_load_sound_config()`):
+- Parses `lib/xtra/sound/sound.cfg` at startup
+- Reads `[Sound]` section with `event_name = file1.wav file2.wav ...` format
+- Stores filenames without `.wav` extension for efficient lookup
+- Maps event names to indices using `angband_sound_name[]` array
+- Logs successful configuration loading and variant counts
+
+**Sound Playback** (`TERM_XTRA_SOUND` handler):
+- Uses `Rand_div(sample_count)` for unbiased random variant selection
+- Builds full path: `ANGBAND_DIR_XTRA/sound/<filename>.wav`
+- Loads selected WAV file and converts to device format
+- Feeds audio data to persistent stream for mixing
+- Falls back silently if no samples configured for event
+
+**Initialization** (`init_sdl()`):
+- Calls `sdl_load_sound_config()` after audio device initialization
+- Only loads sounds if audio device successfully opened
+
+### Key Features
+- **No global variables**: All sound data lives in `sdl_state` structure
+- **No hardcoded values**: Reads from `sound.cfg`, uses defined constants
+- **Backward compatible**: Supports empty sound entries (graceful degradation)
+- **Audio variety**: Random selection prevents listener fatigue
+- **Clean integration**: Follows existing SDL3 architecture patterns
+
+### Testing
+- Build successful with no errors (warnings unchanged from baseline)
+- Both standard and local builds deploy correctly
+- Sound system ready for runtime testing
+
+---
+
 ## 2025-11-20 - Run DB detail snapshots & panel navigation
 - Added an ability timeline to `player_type` (count + skill/ability/turn/depth arrays) plus helper APIs.
   - Birth/respec clears the timeline, ability purchases/quest rewards log entries, and save/load round-trip the data (bumped `VERSION_EXTRA` to 1).
@@ -5988,3 +6035,7 @@ un_history_entry records instead of corrupting them with the wrong element size;
 ## 2025-11-21 - Global state localization plan
 - Reviewed src/externs.h + src/variable.c to map the current global-state surface and traced usages for the input flags (`inkey_*`, `hide_cursor`), mini-screenshot buffers, projectile-ignore toggles, CLI argument flags, and the background-color toggle across util.c, files.c, melee2.c, cave.c, main.c, main-sdl.c, and dungeon.c.
 - Captured the resulting refactor strategy (what to encapsulate, where to move it, and how to validate each change) in the new root-level document global_state_localization_plan.md for stakeholder review.
+## 2025-11-21 - Mini screenshot buffer containment
+- Removed the `mini_screenshot_char/attr` globals from src/variable.c + externs.h and reintroduced them as static buffers in src/files.c so only the screenshot helpers own that scratch state; this keeps the renderer-specific data out of the global namespace while preserving the existing APIs (`mini_screenshot`, `prt_mini_screenshot`).
+## 2025-11-21 - HTML screenshot focuses on gameplay
+- Updated the options menu shortcut (src/cmd4.c case 11) to briefly `screen_load()` the saved dungeon view, invoke `html_screenshot()`, then `screen_save()` again so the final dump captures the in-game screen instead of the options overlay.

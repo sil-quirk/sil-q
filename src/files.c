@@ -42,6 +42,10 @@
 #define INSTRUCT_ROW 21
 #define QUESTION_COL 2
 
+/* Mini screenshot buffers (local to this module) */
+static char mini_screenshot_char[7][7];
+static byte mini_screenshot_attr[7][7];
+
 static bool parse_visual_component(const char* token, bool expect_row, byte* value)
 {
     if (!token || !*token || !value)

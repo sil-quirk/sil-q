@@ -9312,8 +9312,11 @@ void do_cmd_options(void)
             /* Create default filename */
             sprintf(tmp_val, "%s.html", op_ptr->base_name);
 
-            /* Take HTML screenshot */
+            /* Restore the game view, capture it, then re-save the menu buffer */
+            screen_load();
             html_screenshot(tmp_val);
+            screen_save();
+
             msg_print("HTML screenshot saved.");
             Term_clear();
             break;

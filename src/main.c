@@ -474,6 +474,9 @@ int main(int argc, char* argv[])
     /* Initialize */
     init_angband();
 
+    /* Initialize sound system (requires ANGBAND_DIR_XTRA to be set) */
+    sdl_init_sounds();
+
     /* Hack -- If requested, display scores and quit */
     if (show_score > 0)
         display_scores(0, show_score);

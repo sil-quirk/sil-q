@@ -133,9 +133,6 @@ bool save_game_quietly = false; // whether we are currently trying to save the
 bool stop_stealth_mode = false; // whether there has been a signal that we need
                                 // to abort stealth mode
 
-char mini_screenshot_char[7][7]; // Characters in a mini-screenshot array
-byte mini_screenshot_attr[7][7]; // Colours in a mini-screenshot array
-
 bool use_background_colors = false;
 
 /*

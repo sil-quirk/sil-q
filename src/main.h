@@ -14,6 +14,7 @@
 #include "angband.h"
 
 extern errr init_sdl(int argc, char** argv);
+extern void sdl_init_sounds(void);
 
 extern const char help_sdl[];
 
