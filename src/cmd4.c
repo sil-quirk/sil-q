@@ -18,6 +18,8 @@
 #include "metarun.h"
 #include "score/score_artefact.h"
 #include "score/score_guid.h"
+#include "sdl-config.h"
+#include "pane.h"
 
 /* String used to show a color sample */
 #define COLOR_SAMPLE "###"
@@ -8316,6 +8318,15 @@ extern void do_cmd_options_aux(int page, cptr info)
     char buf[80];
 
     int dir;
+    
+    /* Externals for sound page */
+    extern struct sdl_config config;
+    extern void sdl_config_save(const char* filename, const struct sdl_config* config,
+                                const struct pane_config* pane_configs, int pane_count);
+    extern char config_file_path[1024];
+    extern struct pane_config pane_config[];
+    extern int pane_config_count;
+    bool is_sound_page = (page == SOUND_PAGE);
 
     /* Scan the options */
     for (i = 0; i < OPT_PAGE_PER; i++)
@@ -8325,6 +8336,12 @@ extern void do_cmd_options_aux(int page, cptr info)
         {
             opt[n++] = option_page[page][i];
         }
+    }
+    
+    /* Special case: Sound page with no standard options - add custom display */
+    if (is_sound_page && n == 0)
+    {
+        n = 1; /* We have one "virtual" option */
     }
 
     /* Clear screen */
@@ -8347,7 +8364,14 @@ extern void do_cmd_options_aux(int page, cptr info)
                 a = TERM_L_BLUE;
 
             /* Display the option text */
-            if (opt[i] == OPT_delay_factor)
+            if (is_sound_page && i == 0)
+            {
+                /* Special sound option display */
+                strnfmt(buf, sizeof(buf), "%-48s: %s",
+                    "Enable game sounds",
+                    config.sound_enabled ? "yes" : "no ");
+            }
+            else if (opt[i] == OPT_delay_factor)
             {
                 strnfmt(buf, sizeof(buf), "%-48s: %d",
                     "Delay factor for animation (0 to 9)",
@@ -8422,6 +8446,12 @@ extern void do_cmd_options_aux(int page, cptr info)
         case '\n':
         case '\r':
         {
+            /* Save sound settings if on sound page */
+            if (is_sound_page)
+            {
+                sdl_config_save(config_file_path, &config, pane_config, pane_config_count);
+            }
+            
             /* Hack -- Notice use of any "cheat" options */
             for (i = OPT_CHEAT; i < OPT_ADULT; i++)
             {
@@ -8457,7 +8487,16 @@ extern void do_cmd_options_aux(int page, cptr info)
         {
             if ((page != CHALLENGE_PAGE) || (playerturn == 0))
             {
-                op_ptr->opt[opt[k]] = !op_ptr->opt[opt[k]];
+                if (is_sound_page && k == 0)
+                {
+                    /* Toggle sound */
+                    config.sound_enabled = !config.sound_enabled;
+                    use_sound = config.sound_enabled;
+                }
+                else
+                {
+                    op_ptr->opt[opt[k]] = !op_ptr->opt[opt[k]];
+                }
             }
             break;
         }
@@ -8467,7 +8506,13 @@ extern void do_cmd_options_aux(int page, cptr info)
         {
             if ((page != CHALLENGE_PAGE) || (playerturn == 0))
             {
-                if (opt[k] == OPT_delay_factor)
+                if (is_sound_page && k == 0)
+                {
+                    /* Enable sound */
+                    config.sound_enabled = true;
+                    use_sound = true;
+                }
+                else if (opt[k] == OPT_delay_factor)
                 {
                     op_ptr->delay_factor = (op_ptr->delay_factor < 9)
                         ? op_ptr->delay_factor + 1
@@ -8503,7 +8548,13 @@ extern void do_cmd_options_aux(int page, cptr info)
         {
             if ((page != CHALLENGE_PAGE) || (playerturn == 0))
             {
-                if (opt[k] == OPT_delay_factor)
+                if (is_sound_page && k == 0)
+                {
+                    /* Disable sound */
+                    config.sound_enabled = false;
+                    use_sound = false;
+                }
+                else if (opt[k] == OPT_delay_factor)
                 {
                     op_ptr->delay_factor = (op_ptr->delay_factor > 0)
                         ? op_ptr->delay_factor - 1
@@ -8970,9 +9021,9 @@ void do_cmd_pane_settings(void)
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 11; /* added keybinds option */
+    int options = 12; /* added sound option */
     #ifdef DEBUG_CURSES
-    options = 14;
+    options = 15;
     #endif
     if (p_ptr->noscore)    
         options++;
@@ -8988,24 +9039,26 @@ int options_menu(int* highlight)
     Term_putstr(2, 6, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
         "d) Visual Options");
     Term_putstr(2, 7, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Load a 'Pref' File");
+        "e) Sound Options");
     Term_putstr(2, 8, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Append Options to a 'Pref' File");
+        "f) Load a 'Pref' File");
     Term_putstr(2, 9, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Set Macros");
+        "g) Append Options to a 'Pref' File");
     Term_putstr(2, 10, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Set Colours");
+        "h) Set Macros");
     Term_putstr(2, 11, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Write a note");
+        "i) Set Colours");
     Term_putstr(2, 12, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "j) Take HTML screenshot");
+        "j) Write a note");
     Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "k) Return to Game");
+        "k) Take HTML screenshot");
+    Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
+        "l) Return to Game");
 
     if (p_ptr->noscore)
     {
-        Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-            "l) Debugging Options");
+        Term_putstr(2, 15, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
+            "m) Debugging Options");
     }
 
     /* Show product name and version on the bottom of the menu */
@@ -9086,18 +9139,24 @@ int options_menu(int* highlight)
         return (10);
     }
 
-    if ((ch == 'k') || (ch == 'K') || (ch == ESCAPE) || (ch == 'q'))
+    if ((ch == 'k') || (ch == 'K'))
     {
-        /* Return to game (now letter 'k') */
         *highlight = 11;
         return (11);
     }
 
-    if ((ch == 'l') || (ch == 'L'))
+    if ((ch == 'l') || (ch == 'L') || (ch == ESCAPE) || (ch == 'q'))
     {
-        /* Debugging options (now letter 'l' if shown) */
+        /* Return to game (now letter 'l') */
         *highlight = 12;
         return (12);
+    }
+
+    if ((ch == 'm') || (ch == 'M'))
+    {
+        /* Debugging options (now letter 'm' if shown) */
+        *highlight = 13;
+        return (13);
     }
 
     /* Choose current  */
@@ -9182,12 +9241,18 @@ void do_cmd_options(void)
         }
         case 5:
         {
+            do_cmd_options_aux(SOUND_PAGE, "Sound Options");
+            Term_clear();
+            break;
+        }
+        case 6:
+        {
             /* Ask for and load a user pref file */
             do_cmd_pref_file_hack(12);
             Term_clear();
             break;
         }
-        case 6:
+        case 7:
         {
             /* Prompt */
             Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
@@ -9220,25 +9285,25 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 7:
+        case 8:
         {
             do_cmd_macros();
             Term_clear();
             break;
         }
-        case 8:
+        case 9:
         {
             do_cmd_colors();
             Term_clear();
             break;
         }
-        case 9:
+        case 10:
         {
             do_cmd_note("", p_ptr->depth);
             Term_clear();
             break;
         }
-        case 10:
+        case 11:
         {
             char tmp_val[80];
             /* Prompt */
@@ -9253,14 +9318,14 @@ void do_cmd_options(void)
             Term_clear();
             break;
         }
-        case 11:
+        case 12:
         {
             /* Return to Game */
             return_to_game = true;
             Term_clear();
             break;
         }
-        case 12:
+        case 13:
         {
             /* Debugging Options (only reachable when p_ptr->noscore) */
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");

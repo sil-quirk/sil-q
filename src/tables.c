@@ -984,7 +984,13 @@ const byte option_page[OPT_PAGE_MAX][OPT_PAGE_PER] = {
         OPT_cheat_know, OPT_cheat_live, OPT_cheat_monsters, OPT_cheat_noise,
         OPT_cheat_scent, OPT_cheat_light, OPT_cheat_skill_rolls,
         OPT_cheat_timestop, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
-        OPT_NONE, OPT_NONE, OPT_NONE }
+        OPT_NONE, OPT_NONE, OPT_NONE },
+
+    /*** Sound ***/
+
+    { OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE,
+        OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE, OPT_NONE }
 };
 
 cptr inscrip_text[MAX_INSCRIP] = { NULL,

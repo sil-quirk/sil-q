@@ -2838,7 +2838,7 @@
 /*
  * Information for "do_cmd_options()".
  */
-#define OPT_PAGE_MAX 7
+#define OPT_PAGE_MAX 8
 #define OPT_PAGE_PER 20
 
 /*
@@ -2846,6 +2846,7 @@
  */
 #define INTERFACE_PAGE 0
 #define VISUAL_PAGE 4
+#define SOUND_PAGE 7
 #define CHALLENGE_PAGE 5
 #define DEBUG_PAGE 6
 

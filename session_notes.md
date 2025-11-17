@@ -5985,3 +5985,6 @@ un_history_entry records instead of corrupting them with the wrong element size;
 ## 2025-11-21 - Character sheet alignment follow-up
 - Updated put_pair20_right() in src/files.c to clear the block and right-align the combined `cur/ rhs` string rather than padding each field separately; the slash now hugs the digits while the whole block stays anchored to the 20-column edge, eliminating the extra gap in the numbers column.
 - put_single20_right() now trims/offsets its value text the same way so single-field rows (Turn/Light/Melee/Bows/Armor) right-align to the 20-column edge instead of leaving a padded gap.
+## 2025-11-21 - Global state localization plan
+- Reviewed src/externs.h + src/variable.c to map the current global-state surface and traced usages for the input flags (`inkey_*`, `hide_cursor`), mini-screenshot buffers, projectile-ignore toggles, CLI argument flags, and the background-color toggle across util.c, files.c, melee2.c, cave.c, main.c, main-sdl.c, and dungeon.c.
+- Captured the resulting refactor strategy (what to encapsulate, where to move it, and how to validate each change) in the new root-level document global_state_localization_plan.md for stakeholder review.

@@ -24,7 +24,7 @@ enum {
 struct sdl_config config;
 
 // Configuration file path (needed for saving on exit)
-static char config_file_path[1024];
+char config_file_path[1024];
 
 // Default pane configuration
 static const struct pane_config default_pane_config[] = {
@@ -56,6 +56,11 @@ typedef struct sdl_state {
     TTF_Font* story_font;      // Non-monospace font for story/narrative text
     int story_font_depth;      // Nesting counter for story font enable/disable
     bool story_font_grid;      // Whether queued story text should snap to cell grid
+    
+    // Audio system
+    SDL_AudioDeviceID audio_device;
+    SDL_AudioSpec audio_spec;
+    SDL_AudioStream* audio_stream;  // Reusable stream for all sounds
 } sdl_state;
 
 typedef struct sdl_view {
@@ -438,6 +443,52 @@ static errr callback_sdl_xtra(int n, int v)
         /* Reload colors from angband_color_table (may have been changed by .prf files) */
         sdl_sync_palette();
         reset_visuals(true);
+        return 0;
+    case TERM_XTRA_SOUND:
+        /* Play a sound */
+        if (v >= 0 && v < SOUND_MAX) {
+            extern const cptr angband_sound_name[];
+            const char* sound_name = angband_sound_name[v];
+            
+            if (g_state.audio_device && g_state.audio_stream && sound_name && sound_name[0]) {
+                /* Build path to sound file */
+                char sound_path[1024];
+                strnfmt(sound_path, sizeof(sound_path), "lib/xtra/sound/%s.wav", sound_name);
+                
+                /* Load the WAV file */
+                SDL_AudioSpec wav_spec;
+                Uint8* wav_buffer;
+                Uint32 wav_length;
+                
+                if (SDL_LoadWAV(sound_path, &wav_spec, &wav_buffer, &wav_length)) {
+                    /* Create temporary stream for format conversion if needed */
+                    SDL_AudioStream* convert_stream = SDL_CreateAudioStream(&wav_spec, &g_state.audio_spec);
+                    if (convert_stream) {
+                        /* Put WAV data into conversion stream */
+                        if (SDL_PutAudioStreamData(convert_stream, wav_buffer, wav_length) &&
+                            SDL_FlushAudioStream(convert_stream)) {
+                            
+                            /* Get converted audio and put into playback stream */
+                            int available = SDL_GetAudioStreamAvailable(convert_stream);
+                            if (available > 0) {
+                                Uint8* converted = SDL_malloc(available);
+                                if (converted) {
+                                    int got = SDL_GetAudioStreamData(convert_stream, converted, available);
+                                    if (got > 0) {
+                                        SDL_PutAudioStreamData(g_state.audio_stream, converted, got);
+                                    }
+                                    SDL_free(converted);
+                                }
+                            }
+                        }
+                        SDL_DestroyAudioStream(convert_stream);
+                    }
+                    SDL_free(wav_buffer);
+                } else {
+                    log_warn("Failed to load sound %s: %s", sound_path, SDL_GetError());
+                }
+            }
+        }
         return 0;
     default:
         return 0;
@@ -1222,7 +1273,7 @@ errr init_sdl(int argc, char **argv)
     log_debug("init_sdl starting");
     
     // Initialize SDL first to get display information
-    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_AUDIO)) {
         log_error("SDL_Init failed: %s", SDL_GetError());
         quit("could not init SDL");
     }
@@ -1297,9 +1348,13 @@ errr init_sdl(int argc, char **argv)
         }
         
         sdl_config_load(config_file_path, &config, pane_config, &pane_config_count, MAX_PANE_CONFIGS);
-        log_debug("After loading JSON: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d",
+        
+        // Apply sound setting to global variable
+        use_sound = config.sound_enabled;
+        
+        log_debug("After loading JSON: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d, sound=%d",
                   config.main_view_scale, config.aux_view_font_size, config.margin,
-                  config.fullscreen, config.tiles);
+                  config.fullscreen, config.tiles, config.sound_enabled);
     } else {
         // Config file doesn't exist - use resolution-based defaults
         log_debug("Config file not found, using resolution-based defaults");
@@ -1349,6 +1404,33 @@ errr init_sdl(int argc, char **argv)
 
     // Initialize palette from angband_color_table (supports .prf file customization)
     sdl_sync_palette();
+    
+    // Initialize audio device for sound playback
+    SDL_AudioSpec desired_spec;
+    SDL_zero(desired_spec);
+    desired_spec.freq = 22050;
+    desired_spec.format = SDL_AUDIO_S16;
+    desired_spec.channels = 2;
+    
+    g_state.audio_device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired_spec);
+    if (g_state.audio_device) {
+        g_state.audio_spec = desired_spec;
+        
+        /* Create a persistent audio stream bound to the device */
+        g_state.audio_stream = SDL_CreateAudioStream(&desired_spec, &desired_spec);
+        if (g_state.audio_stream) {
+            SDL_BindAudioStream(g_state.audio_device, g_state.audio_stream);
+            log_info("Audio stream created and bound");
+        }
+        
+        SDL_ResumeAudioDevice(g_state.audio_device);  // Unpause device for immediate playback
+        log_info("Audio device opened successfully (freq=%d, channels=%d)", 
+                 desired_spec.freq, desired_spec.channels);
+    } else {
+        log_warn("Failed to open audio device: %s", SDL_GetError());
+        g_state.audio_device = 0;
+        g_state.audio_stream = NULL;
+    }
 
     // Use full display size for fullscreen, reasonable default for windowed mode
     int window_width, window_height;

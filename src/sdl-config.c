@@ -572,6 +572,13 @@ void sdl_config_load(const char* filename, struct sdl_config* config,
             config->story_outline = item->valueint;
             log_debug("Loaded storyOutline: %d", config->story_outline);
         }
+        
+        // Sound settings
+        item = cJSON_GetObjectItemCaseSensitive(sdl, "soundEnabled");
+        if (cJSON_IsBool(item)) {
+            config->sound_enabled = cJSON_IsTrue(item);
+            log_debug("Loaded soundEnabled: %s", config->sound_enabled ? "true" : "false");
+        }
     } else {
         log_warn("'sdl' object not found in JSON");
     }
@@ -686,6 +693,9 @@ void sdl_config_save(const char* filename, const struct sdl_config* config,
     cJSON_AddBoolToObject(sdl, "storyKerning", config->story_kerning);
     cJSON_AddNumberToObject(sdl, "storyOutline", config->story_outline);
     
+    // Save sound settings
+    cJSON_AddBoolToObject(sdl, "soundEnabled", config->sound_enabled);
+    
     cJSON_AddItemToObject(root, "sdl", sdl);
     
     // Create panes array
@@ -783,6 +793,9 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->story_hinting = 0;  // TTF_HINTING_NORMAL
     config->story_kerning = true;
     config->story_outline = 0;
+    
+    // Default sound settings (off by default)
+    config->sound_enabled = false;
 }
 
 void sdl_config_set_defaults_for_resolution(struct sdl_config* config, 

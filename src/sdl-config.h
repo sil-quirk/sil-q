@@ -38,6 +38,9 @@ struct sdl_config {
     int story_hinting;         // TTF hinting mode: 0=normal, 1=light, 2=mono, 3=none, 4=light_subpixel
     bool story_kerning;        // Enable kerning (default: true)
     int story_outline;         // Outline width in pixels (0=none)
+    
+    // Sound settings
+    bool sound_enabled;        // Enable/disable game sounds (default: false)
 };
 
 // Load SDL configuration from JSON file
