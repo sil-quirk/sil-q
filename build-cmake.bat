@@ -72,6 +72,10 @@ REM Always update lib/edit folder to ensure latest data files
 if exist sil-more-windows-sdl3\lib\edit rmdir /S /Q sil-more-windows-sdl3\lib\edit
 xcopy /E /I /Y lib\edit sil-more-windows-sdl3\lib\edit
 
+REM Always update lib/xtra/sound folder to ensure latest sound configuration
+if exist sil-more-windows-sdl3\lib\xtra\sound rmdir /S /Q sil-more-windows-sdl3\lib\xtra\sound
+xcopy /E /I /Y lib\xtra\sound sil-more-windows-sdl3\lib\xtra\sound
+
 echo.
 echo Standard version complete: sil-more-windows-sdl3\sil-more.exe
 echo.
@@ -141,6 +145,10 @@ if not exist sil-more-windows-sdl3-portable\lib xcopy /E /I /Y lib sil-more-wind
 REM Always update lib/edit folder to ensure latest data files
 if exist sil-more-windows-sdl3-portable\lib\edit rmdir /S /Q sil-more-windows-sdl3-portable\lib\edit
 xcopy /E /I /Y lib\edit sil-more-windows-sdl3-portable\lib\edit
+
+REM Always update lib/xtra/sound folder to ensure latest sound configuration
+if exist sil-more-windows-sdl3-portable\lib\xtra\sound rmdir /S /Q sil-more-windows-sdl3-portable\lib\xtra\sound
+xcopy /E /I /Y lib\xtra\sound sil-more-windows-sdl3-portable\lib\xtra\sound
 
 echo.
 echo Local version complete: sil-more-windows-sdl3-portable\sil-more.exe

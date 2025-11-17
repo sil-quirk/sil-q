@@ -12,6 +12,7 @@
 #include "externs.h"
 #include "fs/path.h"
 #include "log/log.h"
+#include "sdl-sound.h"
 #include <SDL3/SDL.h>
 
 /* Fallback no_light() implementation if missing elsewhere */
@@ -1426,8 +1427,8 @@ void sound(int val)
     if (!use_sound)
         return;
 
-    /* Make a sound (if allowed) */
-    Term_xtra(TERM_XTRA_SOUND, val);
+    /* Route directly to SDL sound backend */
+    sdl_sound_handle(val);
 }
 
 /*

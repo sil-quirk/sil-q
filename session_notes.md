@@ -7,6 +7,7 @@
 - Expanded `lib/xtra/sound/sound.cfg` with an `[Audio]` section (base path, extension, sample rate, channels, format) and dropped hard-coded `.wav` suffixes; filenames can still supply explicit extensions.
 - Retired the legacy `SOUND_*` macros by switching `spells1.c` to `MSG_*` constants and sizing `angband_sound_name` with `MSG_MAX`.
 - Build: `build-cmake.bat` succeeds for the SDL3 target (warnings unchanged from baseline).
+- Routed gameplay audio through `sdl_sound_handle()` directly (no `Term_xtra` dependency) and taught the loader to search multiple folders so we can mix in `Minifantasy_Weapons_SFX` samples declared via the new `[AudioPaths]` section.
 
 ## 2025-01-17: Sound System Enhancement
 

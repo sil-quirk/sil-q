@@ -442,9 +442,6 @@ static errr callback_sdl_xtra(int n, int v)
         sdl_sync_palette();
         reset_visuals(true);
         return 0;
-    case TERM_XTRA_SOUND:
-        sdl_sound_handle(v);
-        return 0;
     default:
         return 0;
     }

@@ -12,15 +12,18 @@
 
 #define SDL_SOUND_MAX_VARIANTS 16
 #define SDL_SOUND_NAME_LEN 64
+#define SDL_SOUND_MAX_PATHS 12
 
 typedef enum {
     SOUND_SECTION_NONE,
     SOUND_SECTION_AUDIO,
+    SOUND_SECTION_AUDIO_PATHS,
     SOUND_SECTION_SOUND,
 } sound_section;
 
 typedef struct {
-    char base_path[128];
+    char search_paths[SDL_SOUND_MAX_PATHS][128];
+    int search_path_count;
     char extension[16];
     int sample_rate;
     int channels;
@@ -42,15 +45,18 @@ static void sdl_sound_reset_bank(void);
 static bool sdl_sound_parse_config(void);
 static void sdl_sound_process_audio_entry(const char* key, const char* value);
 static void sdl_sound_process_sound_entry(const char* key, char* value);
+static void sdl_sound_add_search_path(const char* path);
 static char* sdl_sound_trim(char* text);
 static int sdl_sound_lookup_event(const char* name);
 static bool sdl_sound_is_absolute_path(const char* path);
-static void sdl_sound_build_directory(char* dst, size_t dst_len);
-static void sdl_sound_build_sample_path(const char* sample, char* dst, size_t dst_len);
+static void sdl_sound_build_directory(const char* base_path, char* dst, size_t dst_len);
+static void sdl_sound_build_sample_path(const char* base_path, const char* sample, char* dst, size_t dst_len);
 
 static void sdl_sound_reset_settings(void)
 {
-    SDL_strlcpy(sound_state.settings.base_path, "sound", sizeof(sound_state.settings.base_path));
+    sound_state.settings.search_path_count = 1;
+    SDL_zero(sound_state.settings.search_paths);
+    SDL_strlcpy(sound_state.settings.search_paths[0], "sound", sizeof(sound_state.settings.search_paths[0]));
     SDL_strlcpy(sound_state.settings.extension, "wav", sizeof(sound_state.settings.extension));
     sound_state.settings.sample_rate = 22050;
     sound_state.settings.channels = 2;
@@ -65,6 +71,21 @@ static void sdl_sound_reset_bank(void)
             sound_state.sound_files[i][j][0] = '\0';
         }
     }
+}
+
+static void sdl_sound_add_search_path(const char* path)
+{
+    if (!path || !path[0]) {
+        return;
+    }
+    if (sound_state.settings.search_path_count >= SDL_SOUND_MAX_PATHS) {
+        log_warn("Too many sound search paths configured (max=%d)", SDL_SOUND_MAX_PATHS);
+        return;
+    }
+    SDL_strlcpy(sound_state.settings.search_paths[sound_state.settings.search_path_count],
+                path,
+                sizeof(sound_state.settings.search_paths[0]));
+    sound_state.settings.search_path_count++;
 }
 
 static char* sdl_sound_trim(char* text)
@@ -103,10 +124,10 @@ static bool sdl_sound_is_absolute_path(const char* path)
     return path[0] == '/' || path[0] == '\\';
 }
 
-static void sdl_sound_build_directory(char* dst, size_t dst_len)
+static void sdl_sound_build_directory(const char* base_path, char* dst, size_t dst_len)
 {
-    if (sdl_sound_is_absolute_path(sound_state.settings.base_path)) {
-        SDL_strlcpy(dst, sound_state.settings.base_path, dst_len);
+    if (base_path && sdl_sound_is_absolute_path(base_path)) {
+        SDL_strlcpy(dst, base_path, dst_len);
         return;
     }
 
@@ -116,21 +137,36 @@ static void sdl_sound_build_directory(char* dst, size_t dst_len)
         return;
     }
 
-    const char* rel = sound_state.settings.base_path[0] ? sound_state.settings.base_path : "sound";
+    const char* rel = (base_path && base_path[0]) ? base_path : "sound";
     path_build(dst, dst_len, anchor, rel);
 }
 
-static void sdl_sound_build_sample_path(const char* sample, char* dst, size_t dst_len)
+static void sdl_sound_build_sample_path(const char* base_path, const char* sample, char* dst, size_t dst_len)
 {
+    if (!sample || !sample[0]) {
+        dst[0] = '\0';
+        return;
+    }
+
+    bool has_ext = (strchr(sample, '.') != NULL);
+
+    if (sdl_sound_is_absolute_path(sample)) {
+        if (has_ext || !sound_state.settings.extension[0]) {
+            SDL_strlcpy(dst, sample, dst_len);
+        } else {
+            strnfmt(dst, dst_len, "%s.%s", sample, sound_state.settings.extension);
+        }
+        return;
+    }
+
     char directory[1024];
-    sdl_sound_build_directory(directory, sizeof(directory));
+    sdl_sound_build_directory(base_path, directory, sizeof(directory));
 
     if (!directory[0]) {
         dst[0] = '\0';
         return;
     }
 
-    bool has_ext = (strchr(sample, '.') != NULL);
     if (has_ext || !sound_state.settings.extension[0]) {
         strnfmt(dst, dst_len, "%s/%s", directory, sample);
     } else {
@@ -141,7 +177,33 @@ static void sdl_sound_build_sample_path(const char* sample, char* dst, size_t ds
 static void sdl_sound_process_audio_entry(const char* key, const char* value)
 {
     if (SDL_strcasecmp(key, "base_path") == 0) {
-        SDL_strlcpy(sound_state.settings.base_path, value, sizeof(sound_state.settings.base_path));
+        if (value && value[0]) {
+            sound_state.settings.search_path_count = 1;
+            SDL_strlcpy(sound_state.settings.search_paths[0], value,
+                        sizeof(sound_state.settings.search_paths[0]));
+        }
+    } else if (SDL_strcasecmp(key, "path") == 0) {
+        sdl_sound_add_search_path(value);
+    } else if (SDL_strcasecmp(key, "paths") == 0) {
+        if (value && value[0]) {
+            char buffer[256];
+            SDL_strlcpy(buffer, value, sizeof(buffer));
+            char* token = buffer;
+            while (*token) {
+                char* segment = token;
+                while (*token && *token != ',' && *token != ';') token++;
+                char saved = *token;
+                *token = '\0';
+                char* trimmed = sdl_sound_trim(segment);
+                if (*trimmed) {
+                    sdl_sound_add_search_path(trimmed);
+                }
+                if (!saved) {
+                    break;
+                }
+                token++;
+            }
+        }
     } else if (SDL_strcasecmp(key, "extension") == 0) {
         const char* v = value;
         if (v[0] == '.') v++;
@@ -231,6 +293,8 @@ static bool sdl_sound_parse_config(void)
         if (*trimmed == '[') {
             if (strstr(trimmed, "[Audio]")) {
                 section = SOUND_SECTION_AUDIO;
+            } else if (strstr(trimmed, "[AudioPaths]")) {
+                section = SOUND_SECTION_AUDIO_PATHS;
             } else if (strstr(trimmed, "[Sound]")) {
                 section = SOUND_SECTION_SOUND;
             } else {
@@ -250,6 +314,8 @@ static bool sdl_sound_parse_config(void)
 
         if (section == SOUND_SECTION_AUDIO) {
             sdl_sound_process_audio_entry(key, value);
+        } else if (section == SOUND_SECTION_AUDIO_PATHS) {
+            sdl_sound_add_search_path(value);
         } else if (section == SOUND_SECTION_SOUND) {
             sdl_sound_process_sound_entry(key, value);
         }
@@ -337,17 +403,34 @@ void sdl_sound_handle(int sound_idx)
         return;
     }
 
+    SDL_AudioSpec wav_spec;
+    Uint8* wav_buffer = NULL;
+    Uint32 wav_length = 0;
+    bool loaded = false;
     char sample_path[1024];
-    sdl_sound_build_sample_path(sample, sample_path, sizeof(sample_path));
-    if (!sample_path[0]) {
-        return;
+
+    if (sdl_sound_is_absolute_path(sample)) {
+        sdl_sound_build_sample_path(NULL, sample, sample_path, sizeof(sample_path));
+        if (sample_path[0] && SDL_LoadWAV(sample_path, &wav_spec, &wav_buffer, &wav_length)) {
+            loaded = true;
+        }
+    } else {
+        int path_count = sound_state.settings.search_path_count;
+        if (path_count <= 0) path_count = 1;
+        for (int i = 0; i < path_count && !loaded; i++) {
+            const char* base_path = (i < sound_state.settings.search_path_count) ?
+                sound_state.settings.search_paths[i] : "sound";
+            sdl_sound_build_sample_path(base_path, sample, sample_path, sizeof(sample_path));
+            if (!sample_path[0]) continue;
+            if (SDL_LoadWAV(sample_path, &wav_spec, &wav_buffer, &wav_length)) {
+                loaded = true;
+                break;
+            }
+        }
     }
 
-    SDL_AudioSpec wav_spec;
-    Uint8* wav_buffer;
-    Uint32 wav_length;
-    if (!SDL_LoadWAV(sample_path, &wav_spec, &wav_buffer, &wav_length)) {
-        log_debug("Failed to load sound '%s': %s", sample_path, SDL_GetError());
+    if (!loaded) {
+        log_debug("Failed to load sound sample '%s' from configured paths", sample);
         return;
     }
 

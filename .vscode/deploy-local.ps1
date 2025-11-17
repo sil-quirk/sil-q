@@ -31,6 +31,13 @@ if (-not (Test-Path sil-more-windows-sdl3-portable/lib)) {
         Remove-Item -Recurse -Force sil-more-windows-sdl3-portable/lib/pref
     }
     Copy-Item -Recurse lib/pref sil-more-windows-sdl3-portable/lib/pref -Force
+    
+    # Always update lib/xtra/sound folder to ensure latest sound configuration
+    Write-Host "Updating lib/xtra/sound folder..." -ForegroundColor Yellow
+    if (Test-Path sil-more-windows-sdl3-portable/lib/xtra/sound) {
+        Remove-Item -Recurse -Force sil-more-windows-sdl3-portable/lib/xtra/sound
+    }
+    Copy-Item -Recurse lib/xtra/sound sil-more-windows-sdl3-portable/lib/xtra/sound -Force
 }
 
 # Copy JSON config file if it doesn't exist
