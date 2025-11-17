@@ -34,6 +34,21 @@ static bool polearm_is_axe(const object_type* weapon)
     }
 }
 
+static bool sword_is_great(const object_type* weapon)
+{
+    if (!weapon || weapon->tval != TV_SWORD)
+        return false;
+
+    switch (weapon->sval)
+    {
+    case SV_GREAT_SWORD:
+    case SV_MITHRIL_GREAT_SWORD:
+        return true;
+    default:
+        return false;
+    }
+}
+
 static u16b weapon_sound_message_type(const object_type* weapon, bool hit)
 {
     u16b fallback = hit ? MSG_HIT : MSG_MISS;
@@ -47,9 +62,9 @@ static u16b weapon_sound_message_type(const object_type* weapon, bool hit)
     switch (weapon->tval)
     {
     case TV_SWORD:
-        return MSG_WEAPON_SLASH;
+        return sword_is_great(weapon) ? MSG_WEAPON_SLASH_HEAVY : MSG_WEAPON_SLASH_LIGHT;
     case TV_POLEARM:
-        return polearm_is_axe(weapon) ? MSG_WEAPON_SLASH : MSG_WEAPON_THRUST;
+        return polearm_is_axe(weapon) ? MSG_WEAPON_SLASH_HEAVY : MSG_WEAPON_THRUST;
     case TV_HAFTED:
     case TV_DIGGING:
     case TV_STAFF:
