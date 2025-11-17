@@ -5950,15 +5950,38 @@ Remove support for obsolete system pref files, keeping only SDL support for mode
     - Refactored collect_high_scores() into score/score_io.c with self-contained sorting/dedupe helpers so callers no longer depend on files.c
 
 ## 2025-11-18 - Run history polish
-- Added un_history_prepare_artefact_object() in src/score/score_ui.c to rebuild artefact objects from _info (or make_fake_artefact when available) so descriptions pull real stats instead of zero-filled shells.
-- un_history_show_artefact_list() now relies on that helper for both the list entries and the examine command, eliminating the ad-hoc lookup_kind/pply_magic path that never populated bonuses.
-- Normalized un_history_show_monster_list() to restore the saved screen once per loop, wrap screen_roff() in its own save/load, and block on inkey() so the recall screen actually appears when pressing Space/Enter.
+- Added 
+un_history_prepare_artefact_object() in src/score/score_ui.c to rebuild artefact objects from _info (or make_fake_artefact when available) so descriptions pull real stats instead of zero-filled shells.
+- 
+un_history_show_artefact_list() now relies on that helper for both the list entries and the examine command, eliminating the ad-hoc lookup_kind/pply_magic path that never populated bonuses.
+- Normalized 
+un_history_show_monster_list() to restore the saved screen once per loop, wrap screen_roff() in its own save/load, and block on inkey() so the recall screen actually appears when pressing Space/Enter.
 
 \n## 2025-11-19 - Score helper consolidation & legacy import\n- Moved the remaining highscore helpers (seek/read/write, dedupe/backup, alive/dead scans, add, and live-entry upserts) out of files.c into score/score_io.c so the score module owns the singleton context and header reconciliation while files.c just orchestrates persistence.\n- Wired every scoreboard call site to the shared APIs and dropped the duplicated comparator/dedupe code paths, keeping the legacy macros in files.c only for direct consumers such as the Kinslayer hooks.\n- Added a one-time migration pass in score_runs_record_current_run(): before recording a run we import any missing entries from scores.raw, sanitize them into score_record_v1 snapshots (metarun_id=SCORE_RUNS_METARUN_UNKNOWN, timestamps from @YYYYMMDD, killer/status metadata preserved), append them to runs.db, and log the import count.
 - Updated the legacy score importer (score_runs_import_legacy_scores) to reuse the existing score-file reader rather than manual SDL reads, so conversions now leverage highscore_read() and keep the byte layout consistent with the UI/parsers.
-- Fixed the run-history sorter (collect_run_history) to qsort the actual un_history_entry records instead of corrupting them with the wrong element size; run history now shows every imported run rather than only the last entry.
+- Fixed the run-history sorter (collect_run_history) to qsort the actual 
+un_history_entry records instead of corrupting them with the wrong element size; run history now shows every imported run rather than only the last entry.
 - Added verbose logging throughout score_runs_import_legacy_scores() so we can diagnose legacy conversion issues (entry counts, read failures, and per-record data now show up in the log).
 - Keeping the legacy score context active during import fixed the failed highscore_seek() (we were restoring the previous score-file context too early).
 - Updated the importer to keep the snapshot score-file context active (and its .fd populated) while reading scores.raw, preventing the highscore_seek() failures we saw in the logs.
 - Skipped importing legacy entries marked '(alive and well)' so only completed runs migrate; the new run writer handles the current character.
 - Run history now tracks a per-entry rating (using the existing score formula) and the UI can toggle between sorting by completion date or rating via the [R] key; the table also displays the score column.
+## 2025-11-20 - Stage S7/S9 roadmap audit
+- Audited cmd4.c:8568-8688, wizard1.c:143-230, metarun.c:835-1282, and squelch.c:236-340 to confirm every bool-returning path helper now logs failures and aborts before writing partial dumps; updated the plan to reflect the completed work.
+- Verified dumping/spoiler/metarun modules include fs/io_sdl.h and fs/path.h directly and captured the outstanding story-font block in src/util.c:2553-2974 that still needs a dedicated ui/story_font.c.
+- Confirmed score_file_ctx + score_file_active_ctx() drive the score helpers (src/files.c:4610-5710 and src/score/score_io.c:13-210) and that the legacy z-virt*/z-util* files are gone, so Stage S9 can focus on header hygiene and terminal cleanup.
+- Revised proprietary_utility_retirement_plan.md with the new statuses plus next steps (story-font split, header hygiene, regression evidence logging).
+## 2025-11-20 - Story font extraction
+- Moved count_wrapped_lines_story(), story_* toggles, text_out_to_screen_story(), and the story printing helpers out of src/util.c into the new module src/ui/story_font.c with a dedicated header so util.c only owns generic text helpers.
+- Wired externs.h to include ui/story_font.h, updated CMakeLists.txt to compile the new source, and kept text_out_to_screen() delegating to the extracted code.
+- Ran build-cmake.bat to confirm the SDL3 build still succeeds (existing warnings in birth/cmd2/cmd4 remain unchanged).
+- Restored the proportional wrapping logic inside text_out_to_screen_story() (src/ui/story_font.c) so it prints one word at a time, preserving spaces and pixel wrapping; this fixes the duplicated inventory entries and misaligned character sheet introduced after the extraction.\r\n
+- Updated the 20-column stat helpers in src/files.c so both labels and values render through story_c_put_str_grid(), meaning we can keep the story font active while still aligning columns (Exp/Burden/etc. now match the previous layout). Built via build-cmake.bat to confirm only the longstanding warnings remain.
+- Reverted the stat-row helpers to the pre-split behavior: labels still render through story_c_put_str_grid with the story font temporarily enabled, but the numeric columns now go through Term_putstr so they stay monospace/aligned. This restores the character sheet layout shown in the screenshots.
+- Reinstated the original mixed-font behavior on the stat screen: labels temporarily enable the story font via put_pair20_right()/put_single20_right(), then numbers are printed with the story font disabled so they stay aligned; labels no longer run through story_c_put_str_grid which had broken the serif look. Rebuilt with build-cmake.bat (existing warnings only).
+- Restored the original pre-extraction stat helpers: put_pair20_right()/put_single20_right() now mirror the historic implementation (story font toggled only while printing the label, numbers formatted via format("%*s", ...) so they stay right-aligned). Verified with build-cmake.bat (same known warnings).
+- Fixed the lingering misalignment by changing put_single20_right() to clear the numeric field (Term_erase) and left-align the value string instead of padding it to the right edge. That matches the original look for single-value fields like Turn/Light/Melee/Bows/Armor. Rebuilt via build-cmake.bat (same known warnings).
+- Character sheet tweaks: restored right-aligned numeric fields by erasing the value block inside put_single20_right() before writing the padded string, so Turn/Melee/Bows/Armor and other single-value rows align with the 20-column layout even when values shrink.
+## 2025-11-21 - Character sheet alignment follow-up
+- Updated put_pair20_right() in src/files.c to clear the block and right-align the combined `cur/ rhs` string rather than padding each field separately; the slash now hugs the digits while the whole block stays anchored to the 20-column edge, eliminating the extra gap in the numbers column.
+- put_single20_right() now trims/offsets its value text the same way so single-field rows (Turn/Light/Melee/Bows/Armor) right-align to the 20-column edge instead of leaving a padded gap.

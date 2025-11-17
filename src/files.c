@@ -1253,19 +1253,28 @@ static void display_skill(int skill, int row, int col)
 }
 
 
+/* ----- story-font aware helpers ---------------------------------------- */
+
+static void story_c_put_str_grid(byte attr, cptr text, int row, int col, int width)
+{
+    if (sdl_is_story_font_enabled())
+        story_print_text_grid(row, col, width, attr, text);
+    else
+        c_put_str(attr, text, row, col);
+}
+
 /* ===== 20-column, right-anchored stat lines ============================= */
 
 #define LINEW20 20
 
-static void put_label_fit(int x, int y, const char *label, int start)
-/* Print label left-justified in [x, start). Fully pads with spaces to clear. */
+static void put_label_fit(int x, int y, const char* label, int start)
 {
     int maxw = start - x;
-    if (maxw <= 0) return;
+    if (maxw <= 0)
+        return;
+
     char buf[64];
     strnfmt(buf, sizeof(buf), "%-*.*s", maxw, maxw, label);
-    
-    /* Labels use story font */
     Term_putstr(x, y, -1, TERM_WHITE, buf);
 }
 
@@ -1280,21 +1289,52 @@ static void put_pair20_right(int x, int y,
     int blk_w = cur_w + 1 + rhs_w;
     int start = end - blk_w;
 
-    /* Labels in story font (if enabled) */
-    if (story_character_enabled()) {
+    if (story_character_enabled())
         sdl_story_font_enable();
-    }
 
     put_label_fit(x, y, label, start);
-    
-    /* Numbers in monospace (always) */
-    if (story_character_enabled()) {
+
+    if (story_character_enabled())
         sdl_story_font_disable();
+
+    /* Clear the numeric block so shorter values don't leave artifacts */
+    Term_erase(start, y, blk_w);
+
+    /* Trim both strings to their allotted widths */
+    const char *cur_text = cur ? cur : "";
+    int cur_len = (int)strlen(cur_text);
+    if (cur_len > cur_w)
+    {
+        cur_text += cur_len - cur_w;
+        cur_len = cur_w;
     }
-    
-    Term_putstr(start, y, -1, col_cur, format("%*s", cur_w, cur));
-    { char s[2] = { sep, '\0' }; Term_putstr(start + cur_w, y, -1, TERM_WHITE, s); }
-    Term_putstr(start + cur_w + 1, y, -1, col_rhs, format("%*s", rhs_w, rhs));
+
+    const char *rhs_text = rhs ? rhs : "";
+    int rhs_len = (int)strlen(rhs_text);
+    if (rhs_len > rhs_w)
+    {
+        rhs_text += rhs_len - rhs_w;
+        rhs_len = rhs_w;
+    }
+
+    /* Right-align the combined "cur<sep>rhs" block as a whole so the slash
+     * always hugs the digits while the entire string stays anchored to the
+     * column edge. */
+    int total_len = cur_len + 1 + rhs_len;
+    if (total_len > blk_w)
+        total_len = blk_w;
+    int text_start = end - total_len;
+    if (text_start < start)
+        text_start = start;
+
+    if (cur_len > 0)
+        Term_putstr(text_start, y, cur_len, col_cur, cur_text);
+
+    char s[2] = { sep, '\0' };
+    Term_putstr(text_start + cur_len, y, 1, TERM_WHITE, s);
+
+    if (rhs_len > 0)
+        Term_putstr(text_start + cur_len + 1, y, rhs_len, col_rhs, rhs_text);
 }
 
 /* Single value: value block ends at x + LINEW20. */
@@ -1304,28 +1344,31 @@ static void put_single20_right(int x, int y,
 {
     int end   = x + LINEW20;
     int start = end - val_w;
-    
-    /* Labels in story font (if enabled) */
-    if (story_character_enabled()) {
-        sdl_story_font_enable();
-    }
-    
-    put_label_fit(x, y, label, start);
-    
-    /* Numbers in monospace (always) */
-    if (story_character_enabled()) {
-        sdl_story_font_disable();
-    }
-    
-    Term_putstr(start, y, -1, col_val, format("%*s", val_w, val));
-}
 
-static void story_c_put_str_grid(byte attr, cptr text, int row, int col, int width)
-{
-    if (sdl_is_story_font_enabled())
-        story_print_text_grid(row, col, width, attr, text);
-    else
-        c_put_str(attr, text, row, col);
+    if (story_character_enabled())
+        sdl_story_font_enable();
+
+    put_label_fit(x, y, label, start);
+
+    if (story_character_enabled())
+        sdl_story_font_disable();
+
+    Term_erase(start, y, val_w);
+    const char *val_text = val ? val : "";
+    int val_len = (int)strlen(val_text);
+    if (val_len > val_w)
+    {
+        val_text += val_len - val_w;
+        val_len = val_w;
+    }
+
+    if (val_len > 0)
+    {
+        int text_start = end - val_len;
+        if (text_start < start)
+            text_start = start;
+        Term_putstr(text_start, y, val_len, col_val, val_text);
+    }
 }
 /* ======================================================================= */
 
@@ -1392,19 +1435,19 @@ void display_player_xtra_info(int mode)
     /* Light */
     strnfmt(val, sizeof(val), "%d", p_ptr->cur_light);
     put_single20_right(col_stats, row_stats++,
-                       "Light", val, 12, TERM_L_GREEN);
+                       "Light", val, 2, TERM_L_GREEN);
 
     /* Melee main-hand - keep () */
     strnfmt(val, sizeof(val), "(%+d,%dd%d)",
             p_ptr->skill_use[S_MEL], p_ptr->mdd, p_ptr->mds);
     put_single20_right(col_stats, row_stats++,
-                       "Melee", val, 14, TERM_L_BLUE);
+                       "Melee", val, 12, TERM_L_BLUE);
 
     if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
     {
         attacks++;
         put_single20_right(col_stats, row_stats++,
-                           "Melee x2", val, 14, TERM_L_BLUE);
+                           "Melee x2", val, 12, TERM_L_BLUE);
     }
 
     /* Offhand if present */
@@ -1415,20 +1458,20 @@ void display_player_xtra_info(int mode)
                 p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod,
                 p_ptr->mdd2, p_ptr->mds2);
         put_single20_right(col_stats, row_stats++,
-                           "Offhand", val, 14, TERM_L_BLUE);
+                           "Offhand", val, 12, TERM_L_BLUE);
     }
 
     /* Bows */
     strnfmt(val, sizeof(val), "(%+d,%dd%d)",
             p_ptr->skill_use[S_ARC], p_ptr->add, p_ptr->ads);
     put_single20_right(col_stats, row_stats++,
-                       "Bows", val, 14, TERM_L_BLUE);
+                       "Bows", val, 12, TERM_L_BLUE);
 
     /* Armor - keep [] */
     strnfmt(val, sizeof(val), "[%+d,%d-%d]",
             p_ptr->skill_use[S_EVN], p_min(GF_HURT, true), p_max(GF_HURT, true));
     put_single20_right(col_stats, row_stats++,
-                       "Armor", val, 14, TERM_L_BLUE);
+                       "Armor", val, 12, TERM_L_BLUE);
 
     /* Health: 3/3, clamp to 999 */
     {

@@ -59,6 +59,7 @@ add_executable(sil-more
     src/fs/io_sdl.c
     src/fs/path.c
     src/ui/colors.c
+    src/ui/story_font.c
     src/log/bootstrap.c
     src/log/fatal.c
     src/spells1.c
