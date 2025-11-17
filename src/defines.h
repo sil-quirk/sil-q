@@ -3325,7 +3325,11 @@
 #define MSG_LOCKPICK_FAIL 27
 #define MSG_STAIRS 28
 #define MSG_HITPOINT_WARN 29
-#define MSG_MAX 30
+#define MSG_WEAPON_SLASH 30
+#define MSG_WEAPON_THRUST 31
+#define MSG_WEAPON_BLUNT 32
+#define MSG_WEAPON_UNARMED 33
+#define MSG_MAX 34
 
 /*
  * Maximum number of macro trigger names

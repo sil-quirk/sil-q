@@ -15,6 +15,54 @@
 #include "metarun.h"
 #include <math.h>
 
+static bool polearm_is_axe(const object_type* weapon)
+{
+    if (!weapon)
+        return false;
+
+    if (weapon->tval != TV_POLEARM)
+        return false;
+
+    switch (weapon->sval)
+    {
+    case SV_HAND_AXE:
+    case SV_BATTLE_AXE:
+    case SV_GREAT_AXE:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static u16b weapon_sound_message_type(const object_type* weapon, bool hit)
+{
+    u16b fallback = hit ? MSG_HIT : MSG_MISS;
+
+    if (!weapon || weapon->k_idx == 0)
+        return MSG_WEAPON_UNARMED;
+
+    if (weapon->weight == 0)
+        return MSG_WEAPON_UNARMED;
+
+    switch (weapon->tval)
+    {
+    case TV_SWORD:
+        return MSG_WEAPON_SLASH;
+    case TV_POLEARM:
+        return polearm_is_axe(weapon) ? MSG_WEAPON_SLASH : MSG_WEAPON_THRUST;
+    case TV_HAFTED:
+    case TV_DIGGING:
+    case TV_STAFF:
+    case TV_LIGHT:
+    case TV_HORN:
+        return MSG_WEAPON_BLUNT;
+    default:
+        break;
+    }
+
+    return fallback;
+}
+
 bool graphics_are_ascii()
 {
     return use_graphics == GRAPHICS_NONE || use_graphics == GRAPHICS_PSEUDO;
@@ -4689,6 +4737,8 @@ void py_attack_aux(int y, int x, int attack_type)
 
     /* Get the weapon */
     o_ptr = &inventory[INVEN_WIELD];
+    u16b hit_msg_type = weapon_sound_message_type(o_ptr, true);
+    u16b miss_msg_type = weapon_sound_message_type(o_ptr, false);
 
     /* Handle player fear */
     if (p_ptr->afraid)
@@ -4978,7 +5028,7 @@ void py_attack_aux(int y, int x, int attack_type)
             /* Special message for visible unalert creatures */
             if (stealth_bonus)
             {
-                message_format(MSG_HIT, m_ptr->r_idx,
+                message_format(hit_msg_type, m_ptr->r_idx,
                     "You stealthily attack %s%s", m_name, punctuation);
             }
             else
@@ -4986,22 +5036,22 @@ void py_attack_aux(int y, int x, int attack_type)
                 /* Message */
                 if (charge)
                 {
-                    message_format(MSG_HIT, m_ptr->r_idx, "You charge %s%s",
+                    message_format(hit_msg_type, m_ptr->r_idx, "You charge %s%s",
                         m_name, punctuation);
                 }
                 else if (smite)
                 {
-                    message_format(MSG_HIT, m_ptr->r_idx, "You smite %s%s",
+                    message_format(hit_msg_type, m_ptr->r_idx, "You smite %s%s",
                         m_name, punctuation);
                 }
                 else if (attack_type == ATT_IMPALE)
                 {
-                    message_format(MSG_HIT, m_ptr->r_idx, "You impale %s%s",
+                    message_format(hit_msg_type, m_ptr->r_idx, "You impale %s%s",
                         m_name, punctuation);
                 }
                 else
                 {
-                    message_format(MSG_HIT, m_ptr->r_idx, "You hit %s%s",
+                    message_format(hit_msg_type, m_ptr->r_idx, "You hit %s%s",
                         m_name, punctuation);
                 }
             }
@@ -5190,7 +5240,7 @@ void py_attack_aux(int y, int x, int attack_type)
         else
         {
             /* Message */
-            message_format(MSG_MISS, m_ptr->r_idx, "You miss %s.", m_name);
+            message_format(miss_msg_type, m_ptr->r_idx, "You miss %s.", m_name);
 
             // Occasional warning about fighting from within a pit
             if (cave_pit_bold(p_ptr->py, p_ptr->px) && one_in_(3))

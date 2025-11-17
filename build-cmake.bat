@@ -16,13 +16,13 @@ echo [1/2] Building standard version (user folder mode)...
 echo.
 
 REM Run CMake configuration and build
-cmake -G "MinGW Makefiles" -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/msys64/mingw64 -DSIL_USE_LOCAL_DATA=OFF
+cmake -G "MinGW Makefiles" -B build-standard -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/msys64/mingw64 -DSIL_USE_LOCAL_DATA=OFF
 if errorlevel 1 (
     echo CMake configuration failed for standard build!
     exit /b 1
 )
 
-cmake --build build --parallel
+cmake --build build-standard --parallel
 if errorlevel 1 (
     echo CMake build failed for standard build!
     exit /b 1
@@ -37,7 +37,7 @@ REM Create deployment directory
 if not exist sil-more-windows-sdl3 mkdir sil-more-windows-sdl3
 
 REM Copy executable
-copy /Y build\sil-more.exe sil-more-windows-sdl3\
+copy /Y build-standard\sil-more.exe sil-more-windows-sdl3\
 
 REM Copy SDL DLLs
 copy /Y C:\msys64\mingw64\bin\SDL3.dll sil-more-windows-sdl3\
@@ -86,17 +86,14 @@ REM ========================================
 echo [2/2] Building local version (SIL_USE_LOCAL_DATA mode)...
 echo.
 
-REM Clean previous build to avoid conflicts
-if exist build rmdir /S /Q build
-
 REM Run CMake configuration and build with local data flag
-cmake -G "MinGW Makefiles" -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/msys64/mingw64 -DSIL_USE_LOCAL_DATA=ON
+cmake -G "MinGW Makefiles" -B build-portable -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/msys64/mingw64 -DSIL_USE_LOCAL_DATA=ON
 if errorlevel 1 (
     echo CMake configuration failed for local build!
     exit /b 1
 )
 
-cmake --build build --parallel
+cmake --build build-portable --parallel
 if errorlevel 1 (
     echo CMake build failed for local build!
     exit /b 1
@@ -111,7 +108,7 @@ REM Create local deployment directory
 if not exist sil-more-windows-sdl3-portable mkdir sil-more-windows-sdl3-portable
 
 REM Copy executable
-copy /Y build\sil-more.exe sil-more-windows-sdl3-portable\
+copy /Y build-portable\sil-more.exe sil-more-windows-sdl3-portable\
 
 REM Copy SDL DLLs
 copy /Y C:\msys64\mingw64\bin\SDL3.dll sil-more-windows-sdl3-portable\

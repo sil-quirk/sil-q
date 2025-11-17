@@ -308,6 +308,10 @@ const cptr angband_sound_name[MSG_MAX] = {
     "lockpick_fail",
     "stairs",
     "hitpoint_warn",
+    "weapon_slash",
+    "weapon_thrust",
+    "weapon_blunt",
+    "weapon_unarmed",
 };
 
 /*

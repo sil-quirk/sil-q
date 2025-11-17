@@ -8,6 +8,7 @@
 - Retired the legacy `SOUND_*` macros by switching `spells1.c` to `MSG_*` constants and sizing `angband_sound_name` with `MSG_MAX`.
 - Build: `build-cmake.bat` succeeds for the SDL3 target (warnings unchanged from baseline).
 - Routed gameplay audio through `sdl_sound_handle()` directly (no `Term_xtra` dependency) and taught the loader to search multiple folders so we can mix in `Minifantasy_Weapons_SFX` samples declared via the new `[AudioPaths]` section.
+- Added weapon-category message types (`weapon_slash/thrust/blunt/unarmed`) so melee messages drive sample selection via `sound.cfg`, using Minifantasy variants based on the wielded weapon's `tval`/`sval`.
 
 ## 2025-01-17: Sound System Enhancement
 
