@@ -1012,26 +1012,52 @@ static size_t score_runs_trim_copy(const char* src, size_t len,
 
 static bool score_runs_is_milestone_header(const char* line, size_t len)
 {
-    if (len < 9)
+    if (len < 5)
         return false;
-    if (line[7] != ' ' || line[8] != ' ')
+
+    size_t i = 0;
+    while (i < len && line[i] == ' ')
+        i++;
+
+    bool has_digit = false;
+    while (i < len && (isdigit((unsigned char)line[i]) || line[i] == ',')) {
+        has_digit = true;
+        i++;
+    }
+    if (!has_digit)
         return false;
-    for (int i = 0; i < 7 && i < (int)len; i++) {
-        if (isdigit((unsigned char)line[i]))
+
+    size_t spaces = 0;
+    while (i < len && line[i] == ' ') {
+        spaces++;
+        i++;
+    }
+    if (spaces < 2)
+        return false;
+
+    for (size_t j = i; j + 2 < len; j++) {
+        if (line[j] == ' ' && line[j + 1] == ' ' && line[j + 2] == ' ')
             return true;
     }
+
     return false;
 }
 
 static u32b score_runs_parse_turn_field(const char* line, size_t len)
 {
-    char digits[16];
+    char digits[32];
     size_t pos = 0;
-    for (int i = 0; i < 7 && i < (int)len; i++) {
-        if (isdigit((unsigned char)line[i]) && pos + 1 < sizeof(digits)) {
+    size_t i = 0;
+
+    while (i < len && line[i] == ' ')
+        i++;
+
+    while (i < len && (isdigit((unsigned char)line[i]) || line[i] == ',')) {
+        if (isdigit((unsigned char)line[i]) && pos + 1 < sizeof(digits))
             digits[pos++] = line[i];
-        }
+        i++;
     }
+
     digits[pos] = '\0';
     if (pos == 0)
         return 0;
@@ -1088,9 +1114,22 @@ static void score_runs_parse_milestone_header(const char* line, size_t len,
     memset(entry, 0, sizeof(*entry));
     entry->player_turn = score_runs_parse_turn_field(line, len);
 
-    size_t depth_start = 9;
+    size_t depth_start = 0;
     size_t depth_end = len;
-    for (size_t i = depth_start; i + 2 < len; i++) {
+    size_t i = 0;
+
+    while (i < len && line[i] == ' ')
+        i++;
+    while (i < len && (isdigit((unsigned char)line[i]) || line[i] == ','))
+        i++;
+    size_t spacer = 0;
+    while (i < len && line[i] == ' ' && spacer < 2) {
+        i++;
+        spacer++;
+    }
+    depth_start = i;
+
+    for (; i + 2 < len; i++) {
         if (line[i] == ' ' && line[i + 1] == ' ' && line[i + 2] == ' ') {
             depth_end = i;
             size_t text_start = i + 3;
@@ -1099,6 +1138,8 @@ static void score_runs_parse_milestone_header(const char* line, size_t len,
             break;
         }
     }
+    if (depth_end < depth_start)
+        depth_end = depth_start;
     score_runs_extract_depth(line, depth_start, depth_end, entry);
 }
 

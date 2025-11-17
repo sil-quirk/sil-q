@@ -6,6 +6,7 @@
   - `score_run_detail_v1` version 2 now serializes the stat/skill snapshot, ordered ability list, and milestone log alongside the existing artefact/monster payloads.
 - Runs DB writer/reader upgraded to build and hydrate the new sections (stats/skills/abilities/milestones) and `score_runs_skip_detail_payload()` handles the variable-length blocks.
 - Run history UI replaced the modal artefact/monster popups with a multi-panel viewer: Left/Right cycle `General`, `Stats`, `Abilities`, `Milestones`, `Artefacts`, `Monsters`; Up/Down scroll list panels and Space examines artefacts/monsters.
+- Follow-up polish: stats/skills columns now use fixed positions, milestone parsing copes with comma-formatted turns, artefact lists show their glyphs, and the monster panel gained a `[S]` sort toggle (first-met vs depth with uniques first) plus pictogram-friendly alignment.
 
 ## 2025-11-16: Run History Menu UI Overhaul (Round 3 - Final Polish)
 
