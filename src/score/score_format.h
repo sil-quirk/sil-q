@@ -118,6 +118,39 @@ typedef struct score_run_monster_v1 {
     u16b reserved;
 } score_run_monster_v1;
 
+typedef struct score_run_stat_v1 {
+    byte stat_index;         /* A_STR, etc. */
+    byte reserved;
+    s16b base;               /* Base stat */
+    s16b drain;              /* Drain applied */
+    s16b current;            /* Effective stat (stat_use) */
+} score_run_stat_v1;
+
+typedef struct score_run_skill_v1 {
+    byte skill_index;        /* S_MEL, etc. */
+    byte reserved;
+    s16b base;               /* Skill base value */
+    s16b current;            /* Skill use (after modifiers) */
+    s16b stat_bonus;         /* Contribution from stats */
+    s16b item_bonus;         /* Combined equipment/misc bonuses */
+} score_run_skill_v1;
+
+typedef struct score_run_ability_v1 {
+    byte skill_index;        /* Owning skill */
+    byte ability_index;      /* Ability number within the skill */
+    u16b order;              /* Acquisition order (1-based) */
+    u32b player_turn;        /* Turn when recorded */
+    s16b depth;              /* Dungeon depth (levels) */
+    s16b reserved;
+} score_run_ability_v1;
+
+typedef struct score_run_milestone_v1 {
+    u32b player_turn;        /* Turn logged */
+    s16b depth;              /* Dungeon depth (levels) */
+    char depth_label[12];    /* Display label (e.g., "Gates") */
+    char note[96];           /* Note text */
+} score_run_milestone_v1;
+
 /*
  * Persona database entry: cumulative data for a hero across all runs.
  */

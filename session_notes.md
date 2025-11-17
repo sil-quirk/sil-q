@@ -1,5 +1,12 @@
 # Session Notes
 
+## 2025-11-20 - Run DB detail snapshots & panel navigation
+- Added an ability timeline to `player_type` (count + skill/ability/turn/depth arrays) plus helper APIs.
+  - Birth/respec clears the timeline, ability purchases/quest rewards log entries, and save/load round-trip the data (bumped `VERSION_EXTRA` to 1).
+  - `score_run_detail_v1` version 2 now serializes the stat/skill snapshot, ordered ability list, and milestone log alongside the existing artefact/monster payloads.
+- Runs DB writer/reader upgraded to build and hydrate the new sections (stats/skills/abilities/milestones) and `score_runs_skip_detail_payload()` handles the variable-length blocks.
+- Run history UI replaced the modal artefact/monster popups with a multi-panel viewer: Left/Right cycle `General`, `Stats`, `Abilities`, `Milestones`, `Artefacts`, `Monsters`; Up/Down scroll list panels and Space examines artefacts/monsters.
+
 ## 2025-11-16: Run History Menu UI Overhaul (Round 3 - Final Polish)
 
 Final fixes for run history menus:

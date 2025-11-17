@@ -1008,6 +1008,18 @@ static void wr_extra(void)
         }
     }
 
+    ability_log_sync_missing();
+    u16b ability_events = p_ptr->ability_timeline_count;
+    if (ability_events > ABILITY_TIMELINE_MAX)
+        ability_events = ABILITY_TIMELINE_MAX;
+    wr_u16b(ability_events);
+    for (u16b idx = 0; idx < ability_events; idx++) {
+        wr_byte(p_ptr->ability_timeline_skill[idx]);
+        wr_byte(p_ptr->ability_timeline_ability[idx]);
+        wr_u32b(p_ptr->ability_timeline_turn[idx]);
+        wr_s16b(p_ptr->ability_timeline_depth[idx]);
+    }
+
     wr_s16b(p_ptr->last_attack_m_idx);
     wr_s16b(p_ptr->consecutive_attacks);
     wr_s16b(p_ptr->bane_type);

@@ -1117,6 +1117,11 @@ struct player_type
     byte have_ability[S_MAX]
                      [ABILITIES_MAX]; /* Whether or not you have each
                                          ability (including from items) */
+    u16b ability_timeline_count; /* Ordered log of learned abilities */
+    byte ability_timeline_skill[ABILITY_TIMELINE_MAX];
+    byte ability_timeline_ability[ABILITY_TIMELINE_MAX];
+    u32b ability_timeline_turn[ABILITY_TIMELINE_MAX];
+    s16b ability_timeline_depth[ABILITY_TIMELINE_MAX]; /* Dungeon depth (levels) */
 
     bool playing; /* true if player is playing the game */
     bool restoring; /* true if player is restoring a game */

@@ -60,9 +60,9 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 1
-#define VERSION_EXTRA 0   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 1   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
-#define MIN_VERSION_EXTRA VERSION_EXTRA
+#define MIN_VERSION_EXTRA 0
 
 #define METAR_CURSE_SLOTS 64  /* Maximum number of distinct metarun curses supported */
 
@@ -750,6 +750,7 @@
  * Total number of abilties per skill (not to be confused with A_MAX)
  */
 #define ABILITIES_MAX 20
+#define ABILITY_TIMELINE_MAX (S_MAX * ABILITIES_MAX)
 
 /*** Screen Locations ***/
 

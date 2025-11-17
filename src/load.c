@@ -81,6 +81,7 @@ static u32b load_byte_offset = 0;
 static bool savefile_has_runtime_overrides = false;
 static bool savefile_has_monster_shatter = false;
 static bool savefile_has_song_duels = false;
+static bool savefile_has_ability_timeline = false;
 
 /* Version comparison helpers: update these when bumping savefile semantics. */
 static int savefile_version_compare(byte major, byte minor, byte patch, byte extra)
@@ -1089,6 +1090,41 @@ static errr rd_extra(void)
         }
     }
 
+    p_ptr->ability_timeline_count = 0;
+    if (savefile_has_ability_timeline)
+    {
+        u16b ability_events = 0;
+        rd_u16b(&ability_events);
+        if (ability_events > ABILITY_TIMELINE_MAX)
+            ability_events = ABILITY_TIMELINE_MAX;
+
+        for (u16b idx = 0; idx < ability_events; idx++)
+        {
+            byte skill = 0;
+            byte abil = 0;
+            u32b turn = 0;
+            s16b depth = 0;
+
+            rd_byte(&skill);
+            rd_byte(&abil);
+            rd_u32b(&turn);
+            rd_s16b(&depth);
+
+            if (idx < ABILITY_TIMELINE_MAX)
+            {
+                p_ptr->ability_timeline_skill[idx] = skill;
+                p_ptr->ability_timeline_ability[idx] = abil;
+                p_ptr->ability_timeline_turn[idx] = turn;
+                p_ptr->ability_timeline_depth[idx] = depth;
+                p_ptr->ability_timeline_count = idx + 1;
+            }
+        }
+    }
+    else
+    {
+        ability_log_reset();
+    }
+
     rd_s16b(&p_ptr->last_attack_m_idx);
     rd_s16b(&p_ptr->consecutive_attacks);
     rd_s16b(&p_ptr->bane_type);
@@ -1357,6 +1393,8 @@ static errr rd_extra(void)
 
     /* Quest states loaded from save should remain as-is for this character */
     /* Metarun completion is checked separately via metarun_is_quest_completed() */
+
+    ability_log_sync_missing();
 
     return (0);
 }
@@ -2224,6 +2262,7 @@ static errr rd_savefile_new_aux(void)
     savefile_has_runtime_overrides = savefile_version_at_least(0, 9, 0, 3);
     savefile_has_monster_shatter = savefile_version_at_least(0, 9, 0, 4);
     savefile_has_song_duels = savefile_version_at_least(0, 9, 0, 5);
+    savefile_has_ability_timeline = savefile_version_at_least(0, 9, 1, 1);
 
     /* Reset load byte offset counter */
     load_byte_offset = 0;
@@ -2667,6 +2706,7 @@ bool load_player(void)
             savefile_has_runtime_overrides = savefile_version_at_least(0, 9, 0, 3);
             savefile_has_monster_shatter = savefile_version_at_least(0, 9, 0, 4);
             savefile_has_song_duels = savefile_version_at_least(0, 9, 0, 5);
+            savefile_has_ability_timeline = savefile_version_at_least(0, 9, 1, 1);
         }
 
         load_byte_offset = 0; /* reset counter before decoding stream */

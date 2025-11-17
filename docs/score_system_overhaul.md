@@ -44,11 +44,27 @@ Stored as `score_record_v1` entries featuring:
   artefact (filled with the artefacts found or forged during the run) plus
   per-monster tallies for sightings, kills, and player deaths. These payloads
   are versioned so the UI and future analytics code can hydrate artefact and
-  monster histories without re-reading savefiles.
+  monster histories without re-reading savefiles. The detail blob now also
+  snapshots every stat/skill column from the character sheet, the ordered
+  ability timeline (including quest rewards), and the milestone log captured
+  in `notes_buffer`, so we can reconstruct the full journey without digging
+  through the death dump.
 - Outcome markers: alive/dead/escaped, run flags (Morgoth slain, noscore, cheat).
 - Killer metadata: kind (monster, trap, fall, self, other), stable GUID, race
   fallback, textual display strings, and cause codes.
 - Savefile hint plus reserved bytes for future per-run blobs (e.g., map seeds).
+
+## Status – 2025-11-20
+- `score_run_detail_v1` has been bumped to version 2 so every record now carries
+  a stat/skill snapshot, an ordered ability acquisition log (sourced from the
+  new `ability_timeline_*` fields on `player_type`), and the milestone table
+  lifted directly from the character notes. These arrays live alongside the
+  existing artefact/monster payloads, so historical runs can be replayed without
+  touching the savefile.
+- The run history UI exposes each data set through left/right navigation:
+  General, Stats, Abilities, Milestones, Artefacts, and Monsters are individual
+  panels; Up/Down scroll the lists and Space examines the selected artefact or
+  monster.
 
 ### Character Database
 - Primary key is the normalized character name hash described above; the record

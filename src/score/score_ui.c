@@ -25,9 +25,29 @@ typedef struct run_history_entry {
     int rating;
 } run_history_entry;
 
+typedef enum run_detail_panel {
+    RUN_PANEL_GENERAL = 0,
+    RUN_PANEL_STATS,
+    RUN_PANEL_ABILITIES,
+    RUN_PANEL_MILESTONES,
+    RUN_PANEL_ARTEFACTS,
+    RUN_PANEL_MONSTERS,
+    RUN_PANEL_COUNT
+} run_detail_panel;
+
+typedef struct run_detail_list_state {
+    int top;
+    int highlight;
+} run_detail_list_state;
+
+typedef struct run_detail_view_state {
+    run_detail_list_state abilities;
+    run_detail_list_state milestones;
+    run_detail_list_state artefacts;
+    run_detail_list_state monsters;
+} run_detail_view_state;
+
 static void run_history_show_detail(const run_history_entry* entry);
-static void run_history_show_artefact_list(const score_run_detail_block* details);
-static void run_history_show_monster_list(const score_run_detail_block* details);
 static bool run_history_prepare_artefact_object(
     const score_run_artefact_v1* entry, object_type* out);
 
@@ -1542,296 +1562,452 @@ prepared:
     return true;
 }
 
-static void run_history_show_artefact_list(const score_run_detail_block* details)
+
+static const char* run_detail_panel_names[RUN_PANEL_COUNT] = {
+    "General", "Stats", "Abilities", "Milestones", "Artefacts", "Monsters"
+};
+
+static void run_history_draw_panel_tabs(run_detail_panel active,
+                                        const bool available[RUN_PANEL_COUNT])
 {
-    if (!details || !details->artefacts
-        || details->header.artefact_count == 0) {
-        msg_print("No artefacts were recorded for this run.");
-        return;
+    int col = 0;
+    for (int i = 0; i < RUN_PANEL_COUNT; i++) {
+        char buffer[32];
+        strnfmt(buffer, sizeof(buffer), "%s%s%s",
+            (i == active) ? "[" : " ",
+            run_detail_panel_names[i],
+            (i == active) ? "]" : " ");
+        byte color = available[i] ? TERM_L_WHITE : TERM_SLATE;
+        if (i == active)
+            color = available[i] ? TERM_WHITE : TERM_SLATE;
+        c_prt(color, buffer, 0, col);
+        col += (int)strlen(buffer) + 1;
+    }
+    c_prt(TERM_L_DARK, "Use Left/Right to change views", 1, 0);
+}
+
+static void run_history_draw_general_panel(const score_record_v1* rec,
+                                           const run_history_entry* entry,
+                                           const char* player,
+                                           const char* race_name,
+                                           const char* status_label,
+                                           const char* created,
+                                           const char* completed,
+                                           bool current_run)
+{
+    int row = 3;
+    char line[160];
+
+    byte status_color = (rec->status == SCORE_RECORD_ALIVE) ? TERM_L_GREEN :
+                        (rec->status == SCORE_RECORD_DEAD) ? TERM_L_RED : TERM_ORANGE;
+
+    strnfmt(line, sizeof(line), "Player:      %s", player);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Race:        %s", race_name);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Status:      %s", status_label);
+    c_prt(status_color, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Rating:      %d points", entry->rating);
+    c_prt(TERM_SLATE, line, row++, 0);
+    row++;
+
+    if (!current_run) {
+        strnfmt(line, sizeof(line), "Started:     %s", created);
+        c_prt(TERM_L_DARK, line, row++, 0);
+        strnfmt(line, sizeof(line), "Completed:   %s", completed);
+        c_prt(TERM_L_DARK, line, row++, 0);
+    } else {
+        strnfmt(line, sizeof(line), "Started:     %s  (Run in progress)", created);
+        c_prt(TERM_L_GREEN, line, row++, 0);
+    }
+    row++;
+
+    strnfmt(line, sizeof(line), "Max depth:      %d ft", rec->max_depth * 50);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Current depth:  %d ft", rec->exit_depth * 50);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    byte sil_color = (rec->silmarils > 0) ? TERM_VIOLET : TERM_L_DARK;
+    strnfmt(line, sizeof(line), "Silmarils:      %u", (unsigned)rec->silmarils);
+    c_prt(sil_color, line, row++, 0);
+    row++;
+
+    strnfmt(line, sizeof(line), "Quests completed:     %u", (unsigned)rec->quests_completed);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    byte unique_color = (rec->uniques_killed > 0) ? TERM_YELLOW : TERM_L_DARK;
+    strnfmt(line, sizeof(line), "Uniques defeated:     %u", (unsigned)rec->uniques_killed);
+    c_prt(unique_color, line, row++, 0);
+
+    byte art_color = (rec->artefacts_found > 0) ? TERM_YELLOW : TERM_L_DARK;
+    strnfmt(line, sizeof(line), "Artefacts found:      %u", (unsigned)rec->artefacts_found);
+    c_prt(art_color, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Skills learned:       %u", (unsigned)rec->skills_learned);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Abilities learned:    %u", (unsigned)rec->abilities_learned);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+    row++;
+
+    strnfmt(line, sizeof(line), "Monsters seen:        %lu", (unsigned long)rec->kills_seen);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Monsters killed:      %lu", (unsigned long)rec->kills_total);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Experience gained:    %lu", (unsigned long)rec->xp_earned);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    strnfmt(line, sizeof(line), "Turns spent:          %lu", (unsigned long)rec->turns_spent);
+    c_prt(TERM_L_WHITE, line, row++, 0);
+
+    if (rec->status == SCORE_RECORD_DEAD) {
+        row++;
+        strnfmt(line, sizeof(line), "Cause of death:  %s", rec->cause_of_death);
+        c_prt(TERM_L_RED, line, row++, 0);
+    }
+}
+
+static void run_history_draw_stats_panel(const score_run_detail_block* details)
+{
+    int row = 3;
+    if (!details->stats || details->stats_count == 0) {
+        c_prt(TERM_L_DARK, "No stat data recorded for this run.", row, 0);
+        row += 2;
+    } else {
+        c_prt(TERM_L_BLUE, "=== Stats ===", row++, 0);
+        c_prt(TERM_L_UMBER, "Stat        Base  Drain  Current", row++, 0);
+        for (u16b i = 0; i < details->stats_count; i++) {
+            const score_run_stat_v1* entry = &details->stats[i];
+            const char* label = (entry->stat_index < A_MAX)
+                ? stat_names_full[entry->stat_index] : "<unknown>";
+            c_prt(TERM_L_WHITE,
+                format("%-10s %5d %5d %7d", label,
+                    entry->base, entry->drain, entry->current),
+                row++, 0);
+        }
+        row += 2;
     }
 
-    int total = details->header.artefact_count;
-    if (total > details->header.artefact_capacity)
-        total = details->header.artefact_capacity;
-    int term_hgt = (Term && Term->hgt > 8) ? Term->hgt : 24;
-    int rows = term_hgt - 6;
-    if (rows < 4)
-        rows = 4;
-
-    int top = 0;
-    int highlight = 0;
-    bool done = false;
-    
-    while (!done) {
-        if (top < 0)
-            top = 0;
-        if (highlight < 0)
-            highlight = 0;
-        if (highlight >= total)
-            highlight = total - 1;
-        
-        /* Ensure highlight is visible */
-        if (highlight < top)
-            top = highlight;
-        if (highlight >= top + rows)
-            top = highlight - rows + 1;
-        if (top > total - rows)
-            top = MAX(total - rows, 0);
-
-        screen_save();
-        Term_clear();
-
-        c_prt(TERM_L_BLUE,
-              format("=== Artefacts Recovered (%d total) ===", total),
-              0, 0);
-        c_prt(TERM_L_UMBER,
-              "Artefact",
-              2, 2);
-
-        for (int row = 0; row < rows; row++) {
-            int idx = top + row;
-            if (idx >= total)
-                break;
-            const score_run_artefact_v1* entry = &details->artefacts[idx];
-            char full_desc[120] = "<unknown artefact>";
-            byte color = TERM_WHITE;
-
-            object_type temp_obj;
-            if (run_history_prepare_artefact_object(entry, &temp_obj)) {
-                color = TERM_YELLOW;
-                object_desc(full_desc, sizeof(full_desc), &temp_obj, true, 0);
-            } else if (z_info && entry->a_idx > 0 && entry->a_idx < z_info->art_max) {
-                artefact_type* art = &a_info[entry->a_idx];
-                if (art && art->name[0])
-                    SDL_strlcpy(full_desc, art->name, sizeof(full_desc));
-            }
-            
-            bool selected = (idx == highlight);
-            c_prt(selected ? TERM_L_GREEN : color, selected ? ">" : " ", 3 + row, 0);
-            c_prt(selected ? TERM_L_GREEN : color, format("%-77.77s", full_desc), 3 + row, 2);
-        }
-
-        c_prt(TERM_L_DARK,
-              "[Esc] back  [Up/Down/j/k] navigate  [Space/Enter/x/r] examine artefact",
-              4 + rows, 0);
-
-        Term_fresh();
-        int ch = inkey();
-        screen_load();
-
-        switch (ch) {
-        case ESCAPE:
-        case 'q':
-        case 'Q':
-            done = true;
-            break;
-
-        case ' ':
-        case '\r':
-        case '\n':
-        case 'x':
-        case 'X':
-        case 'r':
-        case 'R':
-            /* Examine the selected artefact */
-            if (highlight >= 0 && highlight < total) {
-                const score_run_artefact_v1* entry = &details->artefacts[highlight];
-                object_type fake_obj;
-                if (run_history_prepare_artefact_object(entry, &fake_obj)) {
-                    object_info_screen(&fake_obj);
-                } else {
-                    bell("Artefact information not available.");
-                }
-            }
-            break;
-
-        case '6':
-        case '3':
-        case 'n':
-        case 'N':
-            top += rows;
-            highlight += rows;
-            break;
-
-        case '-':
-        case '4':
-        case '7':
-        case 'p':
-        case 'P':
-            top -= rows;
-            highlight -= rows;
-            break;
-
-        case '2':
-        case 'j':
-        case 'J':
-            highlight++;
-            break;
-
-        case '8':
-        case 'k':
-        case 'K':
-            highlight--;
-            break;
-
-        default:
-            break;
+    if (!details->skills || details->skills_count == 0) {
+        c_prt(TERM_L_DARK, "No skill data recorded for this run.", row, 0);
+    } else {
+        c_prt(TERM_L_BLUE, "=== Skills ===", row++, 0);
+        c_prt(TERM_L_UMBER, "Skill             Base  Current  Stat  Other", row++, 0);
+        for (u16b i = 0; i < details->skills_count; i++) {
+            const score_run_skill_v1* entry = &details->skills[i];
+            const char* label = (entry->skill_index < S_MAX)
+                ? skill_names_full[entry->skill_index] : "<unknown>";
+            c_prt(TERM_L_WHITE,
+                format("%-16s %5d %7d %5d %5d", label,
+                    entry->base, entry->current,
+                    entry->stat_bonus, entry->item_bonus),
+                row++, 0);
         }
     }
 }
 
-static void run_history_show_monster_list(const score_run_detail_block* details)
+static void run_history_clamp_list_state(run_detail_list_state* state,
+                                         int rows, int total)
 {
-    if (!details || !details->monsters
-        || details->header.monster_count == 0) {
-        msg_print("No monster encounters were tracked for this run.");
+    if (total <= 0) {
+        state->top = 0;
+        state->highlight = 0;
         return;
     }
+    if (rows < 1)
+        rows = 1;
+    if (state->highlight < 0)
+        state->highlight = 0;
+    if (state->highlight >= total)
+        state->highlight = total - 1;
+    if (state->top < 0)
+        state->top = 0;
+    if (state->top > total - rows)
+        state->top = MAX(total - rows, 0);
+    if (state->highlight < state->top)
+        state->top = state->highlight;
+    if (state->highlight >= state->top + rows)
+        state->top = state->highlight - rows + 1;
+}
 
-    int total = details->header.monster_count;
-    if (total > details->header.monster_capacity)
-        total = details->header.monster_capacity;
-    int term_hgt = (Term && Term->hgt > 8) ? Term->hgt : 24;
+static bool run_history_handle_list_key(run_detail_list_state* state,
+                                        int ch, int rows, int total)
+{
+    if (total <= 0)
+        return false;
+
+    switch (ch) {
+    case '2':
+    case 'j':
+    case 'J':
+        state->highlight++;
+        break;
+    case '8':
+    case 'k':
+    case 'K':
+        state->highlight--;
+        break;
+    case '3':
+    case 'n':
+    case 'N':
+        state->highlight += rows;
+        break;
+    case '-':
+    case '7':
+    case 'p':
+    case 'P':
+        state->highlight -= rows;
+        break;
+    default:
+        return false;
+    }
+
+    run_history_clamp_list_state(state, rows, total);
+    return true;
+}
+
+static const char* run_history_format_depth_label(const score_run_milestone_v1* entry,
+                                                  char* buffer, size_t len)
+{
+    if (entry->depth_label[0]) {
+        SDL_strlcpy(buffer, entry->depth_label, len);
+        return buffer;
+    }
+    int feet = entry->depth * 50;
+    if (feet <= 0) {
+        SDL_strlcpy(buffer, "-", len);
+        return buffer;
+    }
+    strnfmt(buffer, len, "%5d ft", feet);
+    return buffer;
+}
+
+static int run_history_draw_abilities_panel(const score_run_detail_block* details,
+                                            run_detail_list_state* state,
+                                            int term_hgt)
+{
+    int total = details->ability_count;
     int rows = term_hgt - 6;
     if (rows < 4)
         rows = 4;
 
-    int top = 0;
-    int highlight = 0;
-    bool done = false;
-    
-    while (!done) {
-        if (top < 0)
-            top = 0;
-        if (highlight < 0)
-            highlight = 0;
-        if (highlight >= total)
-            highlight = total - 1;
-        
-        /* Ensure highlight is visible */
-        if (highlight < top)
-            top = highlight;
-        if (highlight >= top + rows)
-            top = highlight - rows + 1;
-        if (top > total - rows)
-            top = MAX(total - rows, 0);
-
-        screen_save();
-        Term_clear();
-
-        c_prt(TERM_L_BLUE,
-              format("=== Monster Encounters (%d total) ===", total),
-              0, 0);
-        c_prt(TERM_L_UMBER, "Monster", 2, 2);
-        c_prt(TERM_L_UMBER, "Seen", 2, 58);
-        c_prt(TERM_L_UMBER, "Slain", 2, 68);
-
-        for (int row = 0; row < rows; row++) {
-            int idx = top + row;
-            if (idx >= total)
-                break;
-            const score_run_monster_v1* entry = &details->monsters[idx];
-            const char* name = run_history_monster_name(entry->r_idx);
-            
-            /* Get monster char and color for pictogram */
-            byte pic_color = TERM_WHITE;
-            char pic_char = '?';
-            if (z_info && entry->r_idx > 0 && entry->r_idx < z_info->r_max) {
-                monster_race* r_ptr = &r_info[entry->r_idx];
-                pic_char = monster_char(r_ptr);
-                pic_color = monster_attr(r_ptr);
-            }
-            
-            byte color = TERM_WHITE;
-            if (entry->killed > 0) {
-                color = TERM_L_GREEN;
-            }
-            
-            bool selected = (idx == highlight);
-            byte display_color = selected ? TERM_YELLOW : color;
-            int row_y = 3 + row;
-            
-            /* Print each column at exact positions */
-            c_prt(display_color, selected ? ">" : " ", row_y, 0);
-            /* Show pictogram */
-            Term_putch(2, row_y, pic_color, pic_char);
-            if (use_bigtile) {
-                Term_putch(3, row_y, 255, -1);
-            }
-            c_prt(display_color, format("%-52.52s", name), row_y, 4);
-            c_prt(display_color, format("%5u", (unsigned)entry->seen), row_y, 58);
-            c_prt(display_color, format("%5u", (unsigned)entry->killed), row_y, 68);
-        }
-
-        c_prt(TERM_L_DARK,
-              "[Esc] back  [Up/Down/j/k] navigate  [Space/Enter/x/r] examine monster",
-              4 + rows, 0);
-
-        Term_fresh();
-        int ch = inkey();
-        screen_load();
-
-        switch (ch) {
-        case ESCAPE:
-        case 'q':
-        case 'Q':
-            done = true;
-            break;
-
-        case ' ':
-        case '\r':
-        case '\n':
-        case 'x':
-        case 'X':
-        case 'r':
-        case 'R':
-            /* Examine the selected monster */
-            if (highlight >= 0 && highlight < total) {
-                const score_run_monster_v1* entry = &details->monsters[highlight];
-                if (z_info && entry->r_idx > 0 && entry->r_idx < z_info->r_max) {
-                    screen_save();
-                    screen_roff(entry->r_idx, NULL);
-                    (void)inkey();
-                    screen_load();
-                } else {
-                    bell("Monster information not available.");
-                }
-            }
-            break;
-
-        case '6':
-        case '3':
-        case 'n':
-        case 'N':
-            top += rows;
-            highlight += rows;
-            break;
-
-        case '-':
-        case '4':
-        case '7':
-        case 'p':
-        case 'P':
-            top -= rows;
-            highlight -= rows;
-            break;
-
-        case '2':
-        case 'j':
-        case 'J':
-            highlight++;
-            break;
-
-        case '8':
-        case 'k':
-        case 'K':
-            highlight--;
-            break;
-
-        default:
-            break;
-        }
+    if (total <= 0) {
+        c_prt(TERM_L_DARK, "No ability timeline recorded for this run.", 3, 0);
+        return rows;
     }
+
+    run_history_clamp_list_state(state, rows, total);
+
+    c_prt(TERM_L_BLUE, format("=== Abilities Acquired (%d total) ===", total), 2, 0);
+    c_prt(TERM_L_UMBER, "Seq  Turn     Depth    Ability", 4, 0);
+
+    for (int row = 0; row < rows; row++) {
+        int idx = state->top + row;
+        if (idx >= total)
+            break;
+        const score_run_ability_v1* entry = &details->abilities[idx];
+        const char* skill = (entry->skill_index < S_MAX)
+            ? skill_names_full[entry->skill_index] : "<unknown skill>";
+        const char* ability_name = "<unknown ability>";
+        if (entry->skill_index < S_MAX && entry->ability_index < ABILITIES_MAX) {
+            ability_type* b_ptr = &b_info[ability_index(entry->skill_index, entry->ability_index)];
+            if (b_ptr && b_ptr->name && b_name)
+                ability_name = b_name + b_ptr->name;
+        }
+        byte color = (idx == state->highlight) ? TERM_L_GREEN : TERM_L_WHITE;
+        char depth_buf[16];
+        strnfmt(depth_buf, sizeof(depth_buf), "%5d ft", entry->depth * 50);
+        c_prt(color,
+            format("%3u  %7lu  %-7s  %s - %s",
+                entry->order,
+                (unsigned long)entry->player_turn,
+                depth_buf,
+                skill,
+                ability_name),
+            5 + row, 0);
+    }
+
+    return rows;
+}
+
+static int run_history_draw_milestones_panel(const score_run_detail_block* details,
+                                             run_detail_list_state* state,
+                                             int term_hgt)
+{
+    int total = details->milestone_count;
+    int rows = term_hgt - 6;
+    if (rows < 4)
+        rows = 4;
+
+    if (total <= 0 || !details->milestones) {
+        c_prt(TERM_L_DARK, "No milestone log recorded for this run.", 3, 0);
+        return rows;
+    }
+
+    run_history_clamp_list_state(state, rows, total);
+    c_prt(TERM_L_BLUE, "=== Milestones ===", 2, 0);
+    c_prt(TERM_L_UMBER, "Turn      Depth    Note", 4, 0);
+
+    for (int row = 0; row < rows; row++) {
+        int idx = state->top + row;
+        if (idx >= total)
+            break;
+        const score_run_milestone_v1* entry = &details->milestones[idx];
+        char depth_buf[16];
+        const char* depth = run_history_format_depth_label(entry, depth_buf, sizeof(depth_buf));
+        byte color = (idx == state->highlight) ? TERM_L_GREEN : TERM_L_WHITE;
+        c_prt(color,
+            format("%7lu  %-8s  %-60.60s",
+                (unsigned long)entry->player_turn,
+                depth,
+                entry->note[0] ? entry->note : "(no note)"),
+            5 + row, 0);
+    }
+
+    return rows;
+}
+
+static void run_history_examine_artefact(const score_run_detail_block* details,
+                                         const run_detail_list_state* state)
+{
+    int total = details->header.artefact_count;
+    if (total > details->header.artefact_capacity)
+        total = details->header.artefact_capacity;
+    int idx = state->highlight;
+    if (idx < 0 || idx >= total)
+        return;
+    const score_run_artefact_v1* entry = &details->artefacts[idx];
+    object_type fake_obj;
+    if (run_history_prepare_artefact_object(entry, &fake_obj)) {
+        object_info_screen(&fake_obj);
+    } else {
+        bell("Artefact information not available.");
+    }
+}
+
+static void run_history_examine_monster(const score_run_detail_block* details,
+                                        const run_detail_list_state* state)
+{
+    int total = details->header.monster_count;
+    if (total > details->header.monster_capacity)
+        total = details->header.monster_capacity;
+    int idx = state->highlight;
+    if (idx < 0 || idx >= total)
+        return;
+    const score_run_monster_v1* entry = &details->monsters[idx];
+    if (z_info && entry->r_idx > 0 && entry->r_idx < z_info->r_max) {
+        screen_save();
+        screen_roff(entry->r_idx, NULL);
+        (void)inkey();
+        screen_load();
+    } else {
+        bell("Monster information not available.");
+    }
+}
+
+static int run_history_draw_artefact_panel(const score_run_detail_block* details,
+                                           run_detail_list_state* state,
+                                           int term_hgt)
+{
+    int total = details->header.artefact_count;
+    if (total > details->header.artefact_capacity)
+        total = details->header.artefact_capacity;
+    int rows = term_hgt - 6;
+    if (rows < 4)
+        rows = 4;
+
+    if (total <= 0 || !details->artefacts) {
+        c_prt(TERM_L_DARK, "No artefact data recorded for this run.", 3, 0);
+        return rows;
+    }
+
+    run_history_clamp_list_state(state, rows, total);
+    c_prt(TERM_L_BLUE, format("=== Artefacts Recovered (%d total) ===", total), 2, 0);
+    c_prt(TERM_L_UMBER, "Artefact", 4, 2);
+
+    for (int row = 0; row < rows; row++) {
+        int idx = state->top + row;
+        if (idx >= total)
+            break;
+        const score_run_artefact_v1* entry = &details->artefacts[idx];
+        char full_desc[120] = "<unknown artefact>";
+        byte color = TERM_WHITE;
+
+        object_type temp_obj;
+        if (run_history_prepare_artefact_object(entry, &temp_obj)) {
+            color = TERM_YELLOW;
+            object_desc(full_desc, sizeof(full_desc), &temp_obj, true, 0);
+        } else if (z_info && entry->a_idx > 0 && entry->a_idx < z_info->art_max) {
+            artefact_type* art = &a_info[entry->a_idx];
+            if (art && art->name[0])
+                SDL_strlcpy(full_desc, art->name, sizeof(full_desc));
+        }
+
+        bool selected = (idx == state->highlight);
+        c_prt(selected ? TERM_L_GREEN : color, selected ? ">" : " ", 5 + row, 0);
+        c_prt(selected ? TERM_L_GREEN : color,
+            format("%-77.77s", full_desc), 5 + row, 2);
+    }
+
+    return rows;
+}
+
+static int run_history_draw_monster_panel(const score_run_detail_block* details,
+                                          run_detail_list_state* state,
+                                          int term_hgt)
+{
+    int total = details->header.monster_count;
+    if (total > details->header.monster_capacity)
+        total = details->header.monster_capacity;
+    int rows = term_hgt - 6;
+    if (rows < 4)
+        rows = 4;
+
+    if (total <= 0 || !details->monsters) {
+        c_prt(TERM_L_DARK, "No monster encounters were tracked for this run.", 3, 0);
+        return rows;
+    }
+
+    run_history_clamp_list_state(state, rows, total);
+    c_prt(TERM_L_BLUE, format("=== Monster Encounters (%d total) ===", total), 2, 0);
+    c_prt(TERM_L_UMBER, "Monster", 4, 2);
+    c_prt(TERM_L_UMBER, "Seen", 4, 58);
+    c_prt(TERM_L_UMBER, "Slain", 4, 68);
+
+    for (int row = 0; row < rows; row++) {
+        int idx = state->top + row;
+        if (idx >= total)
+            break;
+        const score_run_monster_v1* entry = &details->monsters[idx];
+        const char* name = run_history_monster_name(entry->r_idx);
+        byte pic_color = TERM_WHITE;
+        char pic_char = '?';
+        if (z_info && entry->r_idx > 0 && entry->r_idx < z_info->r_max) {
+            monster_race* r_ptr = &r_info[entry->r_idx];
+            pic_char = monster_char(r_ptr);
+            pic_color = monster_attr(r_ptr);
+        }
+
+        byte color = (entry->killed > 0) ? TERM_L_GREEN : TERM_L_WHITE;
+        byte display_color = (idx == state->highlight) ? TERM_YELLOW : color;
+        int y = 5 + row;
+        c_prt(display_color, (idx == state->highlight) ? ">" : " ", y, 0);
+        Term_putch(2, y, pic_color, pic_char);
+        if (use_bigtile) {
+            Term_putch(3, y, 255, -1);
+        }
+        c_prt(display_color, format("%-52.52s", name), y, 4);
+        c_prt(display_color, format("%5u", (unsigned)entry->seen), y, 58);
+        c_prt(display_color, format("%5u", (unsigned)entry->killed), y, 68);
+    }
+
+    return rows;
 }
 
 static void run_history_show_detail(const run_history_entry* entry)
@@ -1871,118 +2047,65 @@ static void run_history_show_detail(const run_history_entry* entry)
 
     const char* status = score_run_status_label(rec->status);
     const char* race_name = run_history_race_name(rec->race_id);
-    
-    /* Convert depths to feet */
-    int max_depth_ft = rec->max_depth * 50;
-    int exit_depth_ft = rec->exit_depth * 50;
 
+    bool panel_has_data[RUN_PANEL_COUNT];
+    panel_has_data[RUN_PANEL_GENERAL] = true;
+    panel_has_data[RUN_PANEL_STATS] = true;
+    panel_has_data[RUN_PANEL_ABILITIES] = have_details && details.ability_count > 0;
+    panel_has_data[RUN_PANEL_MILESTONES] = have_details && details.milestone_count > 0;
+    panel_has_data[RUN_PANEL_ARTEFACTS] = have_details && details.header.artefact_count > 0;
+    panel_has_data[RUN_PANEL_MONSTERS] = have_details && details.header.monster_count > 0;
+
+    run_detail_panel panel = RUN_PANEL_GENERAL;
+    run_detail_view_state view = {0};
     bool done = false;
+    int term_hgt = (Term && Term->hgt > 8) ? Term->hgt : 24;
+
     while (!done) {
         screen_save();
         Term_clear();
 
-        int row = 0;
-        char line[160];
+        run_history_draw_panel_tabs(panel, panel_has_data);
 
-        /* Title */
-        strnfmt(line, sizeof(line), "=== Run #%u Details ===", rec->record_id);
-        c_prt(TERM_L_BLUE, line, row++, 0);
-        row++;
+        const char* footer = "[Left/Right] change view  [Esc] back";
+        int artefact_rows = 0;
+        int monster_rows = 0;
+        int ability_rows = 0;
+        int milestone_rows = 0;
 
-        /* Player and status */
-        byte status_color = (rec->status == SCORE_RECORD_ALIVE) ? TERM_L_GREEN :
-                           (rec->status == SCORE_RECORD_DEAD) ? TERM_L_RED : TERM_ORANGE;
-        strnfmt(line, sizeof(line), "Player:      %s", player);
-        c_prt(TERM_L_WHITE, line, row++, 0);
-        
-        strnfmt(line, sizeof(line), "Race:        %s", race_name);
-        c_prt(TERM_L_WHITE, line, row++, 0);
-        
-        strnfmt(line, sizeof(line), "Status:      %s", status);
-        c_prt(status_color, line, row++, 0);
-        strnfmt(line, sizeof(line), "Rating:      %d points", entry->rating);
-        c_prt(TERM_SLATE, line, row++, 0);
-        row++;
-
-        /* Dates - only show if different for completed runs */
-        if (rec->status != SCORE_RECORD_ALIVE) {
-            strnfmt(line, sizeof(line), "Started:     %s", created);
-            c_prt(TERM_L_DARK, line, row++, 0);
-            strnfmt(line, sizeof(line), "Completed:   %s", completed);
-            c_prt(TERM_L_DARK, line, row++, 0);
-        } else {
-            strnfmt(line, sizeof(line), "Started:     %s  (Run in progress)", created);
-            c_prt(TERM_L_GREEN, line, row++, 0);
-        }
-        row++;
-
-        /* Depths and progress */
-        strnfmt(line, sizeof(line), "Max depth:      %d ft", max_depth_ft);
-        c_prt(TERM_L_WHITE, line, row++, 0);
-        
-        strnfmt(line, sizeof(line), "Current depth:  %d ft", exit_depth_ft);
-        c_prt(TERM_L_WHITE, line, row++, 0);
-        
-        byte sil_color = (rec->silmarils > 0) ? TERM_VIOLET : TERM_L_DARK;
-        strnfmt(line, sizeof(line), "Silmarils:   %u", (unsigned)rec->silmarils);
-        c_prt(sil_color, line, row++, 0);
-        row++;
-
-        /* Achievements */
-        strnfmt(line, sizeof(line), "Quests completed:     %u", (unsigned)rec->quests_completed);
-        c_prt(TERM_L_WHITE, line, row++, 0);
-        
-        byte unique_color = (rec->uniques_killed > 0) ? TERM_YELLOW : TERM_L_DARK;
-        strnfmt(line, sizeof(line), "Uniques defeated:     %u", (unsigned)rec->uniques_killed);
-        c_prt(unique_color, line, row++, 0);
-        
-        byte art_color = (rec->artefacts_found > 0) ? TERM_YELLOW : TERM_L_DARK;
-        strnfmt(line, sizeof(line), "Artefacts found:      %u", (unsigned)rec->artefacts_found);
-        c_prt(art_color, line, row++, 0);
-        
-        strnfmt(line, sizeof(line), "Skills learned:       %u", (unsigned)rec->skills_learned);
-        c_prt(TERM_L_WHITE, line, row++, 0);
-        
-        strnfmt(line, sizeof(line), "Abilities learned:    %u", (unsigned)rec->abilities_learned);
-        c_prt(TERM_L_WHITE, line, row++, 0);
-        row++;
-
-        /* Combat stats */
-        strnfmt(line, sizeof(line), "Monsters seen:        %lu", (unsigned long)rec->kills_seen);
-        c_prt(TERM_L_WHITE, line, row++, 0);
-        
-        strnfmt(line, sizeof(line), "Monsters killed:      %lu", (unsigned long)rec->kills_total);
-        c_prt(TERM_L_WHITE, line, row++, 0);
-        
-        strnfmt(line, sizeof(line), "Experience gained:    %lu", (unsigned long)rec->xp_earned);
-        c_prt(TERM_L_WHITE, line, row++, 0);
-        
-        strnfmt(line, sizeof(line), "Turns spent:          %lu", (unsigned long)rec->turns_spent);
-        c_prt(TERM_L_WHITE, line, row++, 0);
-        row++;
-
-        /* Death cause (only for dead characters) */
-        if (rec->status == SCORE_RECORD_DEAD) {
-            strnfmt(line, sizeof(line), "Cause of death:  %s", rec->cause_of_death);
-            c_prt(TERM_L_RED, line, row++, 0);
-            row++;
+        switch (panel) {
+        case RUN_PANEL_GENERAL:
+            c_prt(TERM_L_BLUE, format("=== Run #%u Details ===", rec->record_id), 2, 0);
+            run_history_draw_general_panel(rec, entry, player, race_name,
+                                           status, created, completed, current_run);
+            break;
+        case RUN_PANEL_STATS:
+            c_prt(TERM_L_BLUE, format("=== Run #%u Details ===", rec->record_id), 2, 0);
+            run_history_draw_stats_panel(&details);
+            break;
+        case RUN_PANEL_ABILITIES:
+            ability_rows = run_history_draw_abilities_panel(&details, &view.abilities, term_hgt);
+            footer = "[Up/Down] navigate  [Left/Right] change view  [Esc] back";
+            break;
+        case RUN_PANEL_MILESTONES:
+            milestone_rows = run_history_draw_milestones_panel(&details, &view.milestones, term_hgt);
+            footer = "[Up/Down] navigate  [Left/Right] change view  [Esc] back";
+            break;
+        case RUN_PANEL_ARTEFACTS:
+            artefact_rows = run_history_draw_artefact_panel(&details, &view.artefacts, term_hgt);
+            footer = "[Up/Down] navigate  [Space] examine  [Left/Right] change view  [Esc] back";
+            break;
+        case RUN_PANEL_MONSTERS:
+            monster_rows = run_history_draw_monster_panel(&details, &view.monsters, term_hgt);
+            footer = "[Up/Down] navigate  [Space] examine  [Left/Right] change view  [Esc] back";
+            break;
+        default:
+            break;
         }
 
-        /* Navigation hints */
-        if (have_details) {
-            if (details.header.artefact_count > 0 || details.header.monster_count > 0) {
-                c_prt(TERM_L_DARK, "Press [A] to view artefacts, [M] to view monsters, [Esc] to return",
-                      row + 1, 0);
-            } else {
-                c_prt(TERM_L_DARK, "[Esc] return to run list",
-                      row + 1, 0);
-            }
-        } else {
-            c_prt(TERM_L_DARK, "[Esc] return to run list",
-                  row + 1, 0);
-        }
-
+        c_prt(TERM_L_DARK, footer, term_hgt - 2, 0);
         Term_fresh();
+
         int ch = inkey();
         screen_load();
 
@@ -1992,28 +2115,61 @@ static void run_history_show_detail(const run_history_entry* entry)
         case 'Q':
             done = true;
             break;
-
-        case 'a':
-        case 'A':
-            if (have_details && details.header.artefact_count > 0) {
-                run_history_show_artefact_list(&details);
-            } else {
-                bell("No artefact data available.");
+        case '4':
+        case 'h':
+        case 'H':
+            panel = (run_detail_panel)((panel + RUN_PANEL_COUNT - 1) % RUN_PANEL_COUNT);
+            break;
+        case '6':
+        case 'l':
+        case 'L':
+            panel = (run_detail_panel)((panel + 1) % RUN_PANEL_COUNT);
+            break;
+        default: {
+            bool handled = false;
+            switch (panel) {
+            case RUN_PANEL_ABILITIES:
+                handled = run_history_handle_list_key(&view.abilities, ch,
+                    ability_rows, details.ability_count);
+                break;
+            case RUN_PANEL_MILESTONES:
+                handled = run_history_handle_list_key(&view.milestones, ch,
+                    milestone_rows, details.milestone_count);
+                break;
+            case RUN_PANEL_ARTEFACTS:
+                if (ch == ' ' || ch == '\r' || ch == '\n' ||
+                    ch == 'x' || ch == 'X' || ch == 'r' || ch == 'R') {
+                    run_history_examine_artefact(&details, &view.artefacts);
+                    handled = true;
+                } else {
+                    int total = details.header.artefact_count;
+                    if (total > details.header.artefact_capacity)
+                        total = details.header.artefact_capacity;
+                    handled = run_history_handle_list_key(&view.artefacts, ch,
+                        artefact_rows, total);
+                }
+                break;
+            case RUN_PANEL_MONSTERS:
+                if (ch == ' ' || ch == '\r' || ch == '\n' ||
+                    ch == 'x' || ch == 'X' || ch == 'r' || ch == 'R') {
+                    run_history_examine_monster(&details, &view.monsters);
+                    handled = true;
+                } else {
+                    int total = details.header.monster_count;
+                    if (total > details.header.monster_capacity)
+                        total = details.header.monster_capacity;
+                    handled = run_history_handle_list_key(&view.monsters, ch,
+                        monster_rows, total);
+                }
+                break;
+            default:
+                handled = false;
+                break;
             }
+            if (!handled)
+                bell("Unknown command.");
             break;
-
-        case 'm':
-        case 'M':
-            if (have_details && details.header.monster_count > 0) {
-                run_history_show_monster_list(&details);
-            } else {
-                bell("No monster data available.");
-            }
-            break;
-
-        default:
-            bell("Unknown command.");
-            break;
+        }
         }
     }
 

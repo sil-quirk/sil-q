@@ -5952,6 +5952,7 @@ void apply_quest_rewards(int quest_idx)
                 p_ptr->have_ability[S_SPC][q_ptr->ability_id] = true;
                 p_ptr->innate_ability[S_SPC][q_ptr->ability_id] = true;
                 p_ptr->active_ability[S_SPC][q_ptr->ability_id] = true;
+                ability_log_record_gain(S_SPC, q_ptr->ability_id);
                 
                 /* Get the ability name for the message */
                 ability_type* b_ptr = &b_info[ability_index(S_SPC, q_ptr->ability_id)];

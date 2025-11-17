@@ -3730,6 +3730,7 @@ PlayResult play_game(void)
     /* Character is now "complete" */
     character_generated = true;
     log_debug("play_game: character_generated set to true - character creation complete");
+    ability_log_sync_missing();
     snapshot_run_history("character start");
 
     /* If Tulkas quest was auto-completed on load, spawn Tulkas and show messages */

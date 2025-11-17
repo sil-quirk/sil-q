@@ -2714,6 +2714,7 @@ void do_cmd_ability_screen(void)
                                         p_ptr->active_ability[skilltype]
                                                              [abilitynum]
                                             = true;
+                                        ability_log_record_gain(skilltype, abilitynum);
                                         Term_putstr(0, 0, -1, TERM_WHITE,
                                             "Ability gained.");
                                         p_ptr->new_exp -= exp_cost;
@@ -8291,6 +8292,8 @@ void clear_skills_and_abilities()
             p_ptr->active_ability[i][j] = false;
         }
     }
+
+    ability_log_reset();
 
     /* Calculate the bonuses */
     p_ptr->update |= (PU_BONUS);

@@ -17,9 +17,11 @@
 #include <string.h>
 
 #define SCORE_RUNS_DB_VERSION 0x00020000u
-#define SCORE_RUN_DETAIL_VERSION 1u
+#define SCORE_RUN_DETAIL_VERSION 2u
 #define SCORE_RUN_ARTEFACT_CAP_MAX 512
 #define SCORE_RUN_MONSTER_CAP_MAX 1024
+#define SCORE_RUN_MILESTONE_CAP_MAX 512
+#define SCORE_RUN_MILESTONE_TEXT_MAX 96
 
 static void score_runs_fill_guid(score_guid64* guid, u64b value);
 static score_killer_kind score_runs_killer_kind_from_string(const char* how);
@@ -446,6 +448,10 @@ static void score_runs_release_detail_block(score_run_detail_block* block)
 {
     if (!block)
         return;
+    mem_free(block->stats);
+    mem_free(block->skills);
+    mem_free(block->abilities);
+    mem_free(block->milestones);
     mem_free(block->artefacts);
     mem_free(block->monsters);
     memset(block, 0, sizeof(*block));
@@ -459,11 +465,49 @@ static bool score_runs_read_detail_header(SDL_IOStream* file,
     return SDL_ReadIO(file, header, sizeof(*header)) == sizeof(*header);
 }
 
-static bool score_runs_skip_detail_payload(SDL_IOStream* file,
-                                           const score_run_detail_header_v1* header)
+bool score_runs_skip_detail_payload(SDL_IOStream* file,
+                                    const score_run_detail_header_v1* header)
 {
     if (!file || !header)
         return false;
+
+    if (header->version >= 2) {
+        u16b stats_count = 0;
+        u16b skills_count = 0;
+        u16b ability_count = 0;
+        u16b milestone_count = 0;
+
+        if (SDL_ReadIO(file, &stats_count, sizeof(stats_count)) != sizeof(stats_count))
+            return false;
+        if (SDL_SeekIO(file,
+                       (Sint64)stats_count * (Sint64)sizeof(score_run_stat_v1),
+                       SDL_IO_SEEK_CUR) < 0)
+            return false;
+
+        if (SDL_ReadIO(file, &skills_count, sizeof(skills_count)) != sizeof(skills_count))
+            return false;
+        if (SDL_SeekIO(file,
+                       (Sint64)skills_count * (Sint64)sizeof(score_run_skill_v1),
+                       SDL_IO_SEEK_CUR) < 0)
+            return false;
+
+        if (SDL_ReadIO(file, &ability_count, sizeof(ability_count)) != sizeof(ability_count))
+            return false;
+        if (SDL_SeekIO(file,
+                       (Sint64)ability_count * (Sint64)sizeof(score_run_ability_v1),
+                       SDL_IO_SEEK_CUR) < 0)
+            return false;
+
+        if (SDL_ReadIO(file, &milestone_count, sizeof(milestone_count)) != sizeof(milestone_count))
+            return false;
+        if (SDL_SeekIO(file,
+                       (Sint64)milestone_count * (Sint64)sizeof(score_run_milestone_v1),
+                       SDL_IO_SEEK_CUR) < 0)
+            return false;
+    } else {
+        /* Older detail payloads have no extra sections to skip */
+    }
+
     Sint64 skip = 0;
     skip += (Sint64)header->artefact_capacity
         * (Sint64)sizeof(score_run_artefact_v1);
@@ -499,6 +543,49 @@ static bool score_runs_write_record(SDL_IOStream* file,
     if (SDL_WriteIO(file, &details->header, sizeof(details->header))
         != sizeof(details->header))
         return false;
+
+    if (details->header.version >= 2) {
+        u16b stats_count = details->stats_count;
+        u16b skills_count = details->skills_count;
+        u16b ability_count = details->ability_count;
+        u16b milestone_count = details->milestone_count;
+
+        if (SDL_WriteIO(file, &stats_count, sizeof(stats_count)) != sizeof(stats_count))
+            return false;
+        if (stats_count > 0) {
+            size_t bytes = (size_t)stats_count * sizeof(score_run_stat_v1);
+            if (!details->stats ||
+                SDL_WriteIO(file, details->stats, bytes) != (Sint64)bytes)
+                return false;
+        }
+
+        if (SDL_WriteIO(file, &skills_count, sizeof(skills_count)) != sizeof(skills_count))
+            return false;
+        if (skills_count > 0) {
+            size_t bytes = (size_t)skills_count * sizeof(score_run_skill_v1);
+            if (!details->skills ||
+                SDL_WriteIO(file, details->skills, bytes) != (Sint64)bytes)
+                return false;
+        }
+
+        if (SDL_WriteIO(file, &ability_count, sizeof(ability_count)) != sizeof(ability_count))
+            return false;
+        if (ability_count > 0) {
+            size_t bytes = (size_t)ability_count * sizeof(score_run_ability_v1);
+            if (!details->abilities ||
+                SDL_WriteIO(file, details->abilities, bytes) != (Sint64)bytes)
+                return false;
+        }
+
+        if (SDL_WriteIO(file, &milestone_count, sizeof(milestone_count)) != sizeof(milestone_count))
+            return false;
+        if (milestone_count > 0) {
+            size_t bytes = (size_t)milestone_count * sizeof(score_run_milestone_v1);
+            if (!details->milestones ||
+                SDL_WriteIO(file, details->milestones, bytes) != (Sint64)bytes)
+                return false;
+        }
+    }
 
     size_t artefact_bytes = (size_t)details->header.artefact_capacity
         * sizeof(score_run_artefact_v1);
@@ -840,6 +927,228 @@ static u16b score_runs_collect_monster_entries(score_run_monster_v1* entries,
     return count;
 }
 
+static u16b score_runs_collect_stat_entries(score_run_stat_v1* entries,
+                                            u16b capacity)
+{
+    if (!entries || capacity == 0 || !p_ptr)
+        return 0;
+
+    u16b count = 0;
+    for (int stat = 0; stat < A_MAX && count < capacity; stat++) {
+        score_run_stat_v1* slot = &entries[count++];
+        slot->stat_index = (byte)stat;
+        slot->reserved = 0;
+        slot->base = p_ptr->stat_base[stat];
+        slot->drain = p_ptr->stat_drain[stat];
+        slot->current = p_ptr->stat_use[stat];
+    }
+    return count;
+}
+
+static u16b score_runs_collect_skill_entries(score_run_skill_v1* entries,
+                                             u16b capacity)
+{
+    if (!entries || capacity == 0 || !p_ptr)
+        return 0;
+
+    u16b count = 0;
+    for (int skill = 0; skill < S_MAX && count < capacity; skill++) {
+        score_run_skill_v1* slot = &entries[count++];
+        slot->skill_index = (byte)skill;
+        slot->reserved = 0;
+        slot->base = p_ptr->skill_base[skill];
+        slot->current = p_ptr->skill_use[skill];
+        slot->stat_bonus = p_ptr->skill_stat_mod[skill];
+        int bonus = p_ptr->skill_equip_mod[skill] + p_ptr->skill_misc_mod[skill];
+        if (bonus > INT16_MAX)
+            slot->item_bonus = INT16_MAX;
+        else if (bonus < INT16_MIN)
+            slot->item_bonus = INT16_MIN;
+        else
+            slot->item_bonus = (s16b)bonus;
+    }
+    return count;
+}
+
+static u16b score_runs_collect_ability_entries(score_run_ability_v1* entries,
+                                               u16b capacity)
+{
+    if (!entries || capacity == 0 || !p_ptr)
+        return 0;
+
+    u16b total = p_ptr->ability_timeline_count;
+    if (total > capacity)
+        total = capacity;
+
+    for (u16b i = 0; i < total; i++) {
+        score_run_ability_v1* slot = &entries[i];
+        slot->skill_index = p_ptr->ability_timeline_skill[i];
+        slot->ability_index = p_ptr->ability_timeline_ability[i];
+        slot->order = (u16b)(i + 1);
+        slot->player_turn = p_ptr->ability_timeline_turn[i];
+        slot->depth = p_ptr->ability_timeline_depth[i];
+        slot->reserved = 0;
+    }
+    return total;
+}
+
+static size_t score_runs_trim_copy(const char* src, size_t len,
+                                   char* dst, size_t dst_len)
+{
+    while (len > 0 && isspace((unsigned char)*src)) {
+        src++;
+        len--;
+    }
+    while (len > 0 && isspace((unsigned char)src[len - 1]))
+        len--;
+    if (!dst || dst_len == 0)
+        return len;
+    size_t copy = (len < dst_len - 1) ? len : dst_len - 1;
+    if (copy > 0)
+        memcpy(dst, src, copy);
+    dst[copy] = '\0';
+    return copy;
+}
+
+static bool score_runs_is_milestone_header(const char* line, size_t len)
+{
+    if (len < 9)
+        return false;
+    if (line[7] != ' ' || line[8] != ' ')
+        return false;
+    for (int i = 0; i < 7 && i < (int)len; i++) {
+        if (isdigit((unsigned char)line[i]))
+            return true;
+    }
+    return false;
+}
+
+static u32b score_runs_parse_turn_field(const char* line, size_t len)
+{
+    char digits[16];
+    size_t pos = 0;
+    for (int i = 0; i < 7 && i < (int)len; i++) {
+        if (isdigit((unsigned char)line[i]) && pos + 1 < sizeof(digits)) {
+            digits[pos++] = line[i];
+        }
+    }
+    digits[pos] = '\0';
+    if (pos == 0)
+        return 0;
+    return (u32b)strtoul(digits, NULL, 10);
+}
+
+static void score_runs_extract_depth(const char* line, size_t start,
+                                     size_t end, score_run_milestone_v1* entry)
+{
+    if (!entry || end <= start)
+        return;
+    score_runs_trim_copy(line + start, end - start,
+        entry->depth_label, sizeof(entry->depth_label));
+
+    char digits[16];
+    size_t pos = 0;
+    for (size_t i = 0; entry->depth_label[i] && pos + 1 < sizeof(digits); i++) {
+        if (isdigit((unsigned char)entry->depth_label[i]))
+            digits[pos++] = entry->depth_label[i];
+    }
+    digits[pos] = '\0';
+    if (pos == 0) {
+        entry->depth = 0;
+        return;
+    }
+    long feet = strtol(digits, NULL, 10);
+    if (feet < 0)
+        feet = 0;
+    entry->depth = (s16b)(feet / 50);
+}
+
+static void score_runs_append_milestone_text(score_run_milestone_v1* entry,
+                                             const char* line, size_t len)
+{
+    if (!entry || len == 0)
+        return;
+    char buffer[SCORE_RUN_MILESTONE_TEXT_MAX];
+    size_t copy = score_runs_trim_copy(line, len, buffer, sizeof(buffer));
+    if (copy == 0)
+        return;
+    size_t cur = strlen(entry->note);
+    if (cur > 0 && cur + 1 < sizeof(entry->note)) {
+        entry->note[cur++] = ' ';
+        entry->note[cur] = '\0';
+    }
+    SDL_strlcat(entry->note, buffer, sizeof(entry->note));
+}
+
+static void score_runs_parse_milestone_header(const char* line, size_t len,
+                                              score_run_milestone_v1* entry)
+{
+    if (!entry)
+        return;
+    memset(entry, 0, sizeof(*entry));
+    entry->player_turn = score_runs_parse_turn_field(line, len);
+
+    size_t depth_start = 9;
+    size_t depth_end = len;
+    for (size_t i = depth_start; i + 2 < len; i++) {
+        if (line[i] == ' ' && line[i + 1] == ' ' && line[i + 2] == ' ') {
+            depth_end = i;
+            size_t text_start = i + 3;
+            if (text_start < len)
+                score_runs_append_milestone_text(entry, line + text_start, len - text_start);
+            break;
+        }
+    }
+    score_runs_extract_depth(line, depth_start, depth_end, entry);
+}
+
+static u16b score_runs_collect_milestones(score_run_milestone_v1* entries,
+                                          u16b capacity)
+{
+    if (capacity == 0 || !notes_buffer[0])
+        return 0;
+
+    u16b stored = 0;
+    score_run_milestone_v1 current;
+    bool have_current = false;
+    const char* cursor = notes_buffer;
+
+    while (*cursor) {
+        size_t len = 0;
+        while (cursor[len] && cursor[len] != '\n')
+            len++;
+        bool header = score_runs_is_milestone_header(cursor, len);
+        if (header) {
+            if (have_current && stored < capacity) {
+                if (entries)
+                    entries[stored] = current;
+                stored++;
+            }
+            have_current = true;
+            score_runs_parse_milestone_header(cursor, len, &current);
+        } else if (have_current) {
+            score_runs_append_milestone_text(&current, cursor, len);
+        }
+
+        if (!cursor[len])
+            break;
+        cursor += len + 1;
+
+        if (!entries && stored >= capacity)
+            break;
+    }
+
+    if (have_current && stored < capacity) {
+        if (entries)
+            entries[stored] = current;
+        stored++;
+    }
+
+    if (stored > capacity)
+        stored = capacity;
+
+    return stored;
+}
 static bool score_runs_build_details(score_run_detail_block* block,
                                      u16b artefact_cap,
                                      u16b monster_cap)
@@ -847,11 +1156,52 @@ static bool score_runs_build_details(score_run_detail_block* block,
     if (!score_runs_alloc_detail_block(block, artefact_cap, monster_cap))
         return false;
 
+    if (p_ptr) {
+        block->stats = mem_alloc_array(A_MAX, score_run_stat_v1);
+        if (!block->stats)
+            goto fail;
+        block->stats_count = score_runs_collect_stat_entries(
+            block->stats, (u16b)A_MAX);
+
+        block->skills = mem_alloc_array(S_MAX, score_run_skill_v1);
+        if (!block->skills)
+            goto fail;
+        block->skills_count = score_runs_collect_skill_entries(
+            block->skills, (u16b)S_MAX);
+
+        ability_log_sync_missing();
+        u16b ability_cap = p_ptr->ability_timeline_count;
+        if (ability_cap > ABILITY_TIMELINE_MAX)
+            ability_cap = ABILITY_TIMELINE_MAX;
+        if (ability_cap > 0) {
+            block->abilities = mem_alloc_array(ability_cap, score_run_ability_v1);
+            if (!block->abilities)
+                goto fail;
+        }
+        block->ability_count = score_runs_collect_ability_entries(
+            block->abilities, ability_cap);
+    }
+
+    u16b milestone_cap = score_runs_collect_milestones(
+        NULL, SCORE_RUN_MILESTONE_CAP_MAX);
+    if (milestone_cap > 0) {
+        block->milestones = mem_alloc_array(milestone_cap,
+            score_run_milestone_v1);
+        if (!block->milestones)
+            goto fail;
+        block->milestone_count = score_runs_collect_milestones(
+            block->milestones, milestone_cap);
+    }
+
     block->header.artefact_count = score_runs_collect_artefact_entries(
         block->artefacts, block->header.artefact_capacity);
     block->header.monster_count = score_runs_collect_monster_entries(
         block->monsters, block->header.monster_capacity);
     return true;
+
+fail:
+    score_runs_release_detail_block(block);
+    return false;
 }
 
 static s16b score_runs_character_power(void)
@@ -1063,6 +1413,12 @@ bool score_runs_record_current_run(const struct high_score* legacy_score,
             log_warn("score_runs: detail header missing for record_id=%u, appending new entry",
                 existing.record_id);
             found = false;
+        } else if (existing_detail.version != SCORE_RUN_DETAIL_VERSION) {
+            log_warn("score_runs: detail payload version mismatch for record_id=%u "
+                "(stored=%u, expected=%u) - rebuilding with defaults",
+                existing.record_id, (unsigned)existing_detail.version,
+                (unsigned)SCORE_RUN_DETAIL_VERSION);
+            details_ready = false;
         } else if (!score_runs_build_details(&details,
                                              existing_detail.artefact_capacity,
                                              existing_detail.monster_capacity)) {
@@ -1155,6 +1511,61 @@ bool score_runs_load_details(s64b detail_offset, score_run_detail_block* out)
             header.artefact_capacity, header.monster_capacity))
         goto done;
     out->header = header;
+
+    if (header.version >= 2) {
+        u16b stats_count = 0;
+        u16b skills_count = 0;
+        u16b ability_count = 0;
+        u16b milestone_count = 0;
+
+        if (SDL_ReadIO(file, &stats_count, sizeof(stats_count)) != sizeof(stats_count))
+            goto done;
+        out->stats_count = stats_count;
+        if (stats_count > 0) {
+            out->stats = mem_alloc_array(stats_count, score_run_stat_v1);
+            if (!out->stats)
+                goto done;
+            size_t bytes = (size_t)stats_count * sizeof(score_run_stat_v1);
+            if (SDL_ReadIO(file, out->stats, bytes) != (Sint64)bytes)
+                goto done;
+        }
+
+        if (SDL_ReadIO(file, &skills_count, sizeof(skills_count)) != sizeof(skills_count))
+            goto done;
+        out->skills_count = skills_count;
+        if (skills_count > 0) {
+            out->skills = mem_alloc_array(skills_count, score_run_skill_v1);
+            if (!out->skills)
+                goto done;
+            size_t bytes = (size_t)skills_count * sizeof(score_run_skill_v1);
+            if (SDL_ReadIO(file, out->skills, bytes) != (Sint64)bytes)
+                goto done;
+        }
+
+        if (SDL_ReadIO(file, &ability_count, sizeof(ability_count)) != sizeof(ability_count))
+            goto done;
+        out->ability_count = ability_count;
+        if (ability_count > 0) {
+            out->abilities = mem_alloc_array(ability_count, score_run_ability_v1);
+            if (!out->abilities)
+                goto done;
+            size_t bytes = (size_t)ability_count * sizeof(score_run_ability_v1);
+            if (SDL_ReadIO(file, out->abilities, bytes) != (Sint64)bytes)
+                goto done;
+        }
+
+        if (SDL_ReadIO(file, &milestone_count, sizeof(milestone_count)) != sizeof(milestone_count))
+            goto done;
+        out->milestone_count = milestone_count;
+        if (milestone_count > 0) {
+            out->milestones = mem_alloc_array(milestone_count, score_run_milestone_v1);
+            if (!out->milestones)
+                goto done;
+            size_t bytes = (size_t)milestone_count * sizeof(score_run_milestone_v1);
+            if (SDL_ReadIO(file, out->milestones, bytes) != (Sint64)bytes)
+                goto done;
+        }
+    }
 
     size_t artefact_bytes = (size_t)header.artefact_capacity
         * sizeof(score_run_artefact_v1);
