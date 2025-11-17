@@ -594,7 +594,6 @@ extern bool do_cmd_knowledge_supplies(const supply_menu_request* request);
 extern void do_cmd_knowledge_objects(void);
 extern void do_cmd_knowledge_kills(void);
 extern void ghost_challenge(void);
-extern void do_cmd_save_screen(void);
 extern void desc_art_fake(int a_idx);
 extern void apply_magic_fake(object_type* o_ptr);
 extern void do_cmd_knowledge(void);
@@ -624,7 +623,6 @@ extern void death_spectator_view(void);
 extern bool death_spectator_active(void);
 
 /* files.c */
-extern void html_screenshot(cptr name);
 extern void safe_setuid_drop(void);
 extern void safe_setuid_grab(void);
 extern s16b tokenize(char* buf, s16b num, char** tokens);

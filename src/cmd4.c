@@ -7814,7 +7814,6 @@ void do_cmd_main_menu(void)
     int actiontype = -1;
     int highlight = 1;
     bool leave_menu = false;
-    bool take_screen_shot = false;
 
     /* Clear any active banner before opening main menu */
     extern int g_banner_force_redraw_remaining;
@@ -7977,10 +7976,6 @@ void do_cmd_main_menu(void)
     /* Load screen */
     screen_load();
 
-    if (take_screen_shot)
-    {
-        do_cmd_save_screen();
-    }
 }
 
 /*
@@ -9021,10 +9016,10 @@ void do_cmd_pane_settings(void)
 int options_menu(int* highlight)
 {
     int ch;
-    int options = 12; /* added sound option */
-    #ifdef DEBUG_CURSES
+int options = 11; /* added sound option */
+#ifdef DEBUG_CURSES
     options = 15;
-    #endif
+#endif
     if (p_ptr->noscore)    
         options++;
 
@@ -9051,14 +9046,12 @@ int options_menu(int* highlight)
     Term_putstr(2, 12, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
         "j) Write a note");
     Term_putstr(2, 13, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "k) Take HTML screenshot");
-    Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-        "l) Return to Game");
+        "k) Return to Game");
 
     if (p_ptr->noscore)
     {
-        Term_putstr(2, 15, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
-            "m) Debugging Options");
+        Term_putstr(2, 14, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
+            "l) Debugging Options");
     }
 
     /* Show product name and version on the bottom of the menu */
@@ -9139,24 +9132,18 @@ int options_menu(int* highlight)
         return (10);
     }
 
-    if ((ch == 'k') || (ch == 'K'))
+    if ((ch == 'k') || (ch == 'K') || (ch == ESCAPE) || (ch == 'q'))
     {
+        /* Return to game (now letter 'k') */
         *highlight = 11;
         return (11);
     }
 
-    if ((ch == 'l') || (ch == 'L') || (ch == ESCAPE) || (ch == 'q'))
+    if (p_ptr->noscore && ((ch == 'l') || (ch == 'L')))
     {
-        /* Return to game (now letter 'l') */
+        /* Debugging options */
         *highlight = 12;
         return (12);
-    }
-
-    if ((ch == 'm') || (ch == 'M'))
-    {
-        /* Debugging options (now letter 'm' if shown) */
-        *highlight = 13;
-        return (13);
     }
 
     /* Choose current  */
@@ -9305,30 +9292,12 @@ void do_cmd_options(void)
         }
         case 11:
         {
-            char tmp_val[80];
-            /* Prompt */
-            Term_putstr(2, 14, -1, TERM_SLATE, "(Escape to cancel)");
-
-            /* Create default filename */
-            sprintf(tmp_val, "%s.html", op_ptr->base_name);
-
-            /* Restore the game view, capture it, then re-save the menu buffer */
-            screen_load();
-            html_screenshot(tmp_val);
-            screen_save();
-
-            msg_print("HTML screenshot saved.");
-            Term_clear();
-            break;
-        }
-        case 12:
-        {
             /* Return to Game */
             return_to_game = true;
             Term_clear();
             break;
         }
-        case 13:
+        case 12:
         {
             /* Debugging Options (only reachable when p_ptr->noscore) */
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");
@@ -12418,22 +12387,6 @@ void do_cmd_knowledge_oaths(void)
 
     /* Remove the file */
     fd_kill(file_name);
-}
-
-/*
- * Hack -- save a screen dump to a file
- */
-void do_cmd_save_screen(void)
-{
-    char tmp_val[256];
-
-    /* Ask for a file */
-    sprintf(tmp_val, "%s.html", op_ptr->base_name);
-    if (!term_get_string("File: ", tmp_val, sizeof(tmp_val)))
-        return;
-
-    html_screenshot(tmp_val);
-    msg_print("HTML screenshot saved.");
 }
 
 /*

@@ -6037,5 +6037,5 @@ un_history_entry records instead of corrupting them with the wrong element size;
 - Captured the resulting refactor strategy (what to encapsulate, where to move it, and how to validate each change) in the new root-level document global_state_localization_plan.md for stakeholder review.
 ## 2025-11-21 - Mini screenshot buffer containment
 - Removed the `mini_screenshot_char/attr` globals from src/variable.c + externs.h and reintroduced them as static buffers in src/files.c so only the screenshot helpers own that scratch state; this keeps the renderer-specific data out of the global namespace while preserving the existing APIs (`mini_screenshot`, `prt_mini_screenshot`).
-## 2025-11-21 - HTML screenshot focuses on gameplay
-- Updated the options menu shortcut (src/cmd4.c case 11) to briefly `screen_load()` the saved dungeon view, invoke `html_screenshot()`, then `screen_save()` again so the final dump captures the in-game screen instead of the options overlay.
+## 2025-11-21 - Retired HTML screen dumps
+- Removed the legacy HTML screen-dump command entirely: excised the `html_screenshot()` implementation from src/files.c, deleted the associated menu option and command handler in src/cmd4.c, and dropped the do_cmd_save_screen() helper plus all documentation strings so the remaining screenshot features only cover the textual dumps and mini view.
