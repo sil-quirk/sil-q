@@ -7,6 +7,7 @@
 #include "z-term.h"
 #include "pane.h"
 #include "sdl-config.h"
+#include "sdl-sound.h"
 #include <string.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_filesystem.h>
@@ -19,7 +20,6 @@ enum {
     TILE_SIZE = 16,
     MAX_TERM_DATA = 8,
     MAX_PANE_CONFIGS = 8,
-    MAX_SOUND_SAMPLES = 16,  // Maximum number of sound file variants per sound event
 };
 
 // SDL configuration (loaded from INI file)
@@ -59,15 +59,6 @@ typedef struct sdl_state {
     int story_font_depth;      // Nesting counter for story font enable/disable
     bool story_font_grid;      // Whether queued story text should snap to cell grid
     
-    // Audio system
-    SDL_AudioDeviceID audio_device;
-    SDL_AudioSpec audio_spec;
-    SDL_AudioStream* audio_stream;  // Reusable stream for all sounds
-    
-    // Sound file configuration (loaded from sound.cfg)
-    // sound_files[event_index][sample_index] = filename (without path or .wav extension)
-    char sound_files[MSG_MAX][MAX_SOUND_SAMPLES][32];
-    int sound_counts[MSG_MAX];  // Number of samples available for each sound event
 } sdl_state;
 
 typedef struct sdl_view {
@@ -116,9 +107,6 @@ static void sdl_window_set_position(int x, int y);
 static void sdl_view_create(sdl_view* d, SDL_Rect rect, const char* font_path, int font_size, int scale, int margin);
 static void sdl_load_story_fonts(void);
 static TTF_Font* sdl_load_font_with_fallback(const char* font_path, int font_size, const char* fallback_path);
-static void sdl_load_sound_config(void);
-
-void sdl_init_sounds(void);
 
 static sdl_view* sdl_view_from_term(term* t)
 {
@@ -136,152 +124,6 @@ static void sdl_sync_palette(void)
         g_state.palette[i].g = angband_color_table[i][2];
         g_state.palette[i].b = angband_color_table[i][3];
         g_state.palette[i].a = 255;
-    }
-}
-
-/*
- * Load sound configuration from lib/xtra/sound/sound.cfg
- * Parses the config file to map sound event names to their WAV file variants.
- * Supports multiple sound files per event for variety (randomly selected during playback).
- */
-static void sdl_load_sound_config(void)
-{
-    char path[1024];
-    char line[256];
-    SDL_IOStream* file;
-    bool in_sound_section = false;
-    extern const cptr angband_sound_name[];
-    
-    /* Initialize sound arrays to zero */
-    for (int i = 0; i < MSG_MAX; i++) {
-        g_state.sound_counts[i] = 0;
-        for (int j = 0; j < MAX_SOUND_SAMPLES; j++) {
-            g_state.sound_files[i][j][0] = '\0';
-        }
-    }
-    
-    /* Build path to sound.cfg: lib/xtra/sound/sound.cfg */
-    char sound_dir[1024];
-    path_build(sound_dir, sizeof(sound_dir), ANGBAND_DIR_XTRA, "sound");
-    path_build(path, sizeof(path), sound_dir, "sound.cfg");
-    
-    /* Open the configuration file */
-    file = sdl_fopen(path, "r");
-    if (!file) {
-        log_warn("Could not open sound config file: %s", path);
-        return;
-    }
-    
-    log_debug("Loading sound configuration from %s", path);
-    
-    /* Parse the configuration file line by line */
-    while (sdl_fgets(file, line, sizeof(line)) == 0) {
-        char* p = line;
-        
-        /* Skip leading whitespace */
-        while (*p && (*p == ' ' || *p == '\t')) p++;
-        
-        /* Skip empty lines and comments */
-        if (*p == '\0' || *p == '#') continue;
-        
-        /* Check for [Sound] section header */
-        if (*p == '[') {
-            in_sound_section = (strstr(p, "[Sound]") != NULL);
-            continue;
-        }
-        
-        /* Only process lines within [Sound] section */
-        if (!in_sound_section) continue;
-        
-        /* Look for event_name = file1.wav file2.wav ... format */
-        char* equals = strchr(p, '=');
-        if (!equals) continue;
-        
-        /* Extract event name (left side of '=') */
-        char event_name[32];
-        size_t name_len = equals - p;
-        while (name_len > 0 && (p[name_len-1] == ' ' || p[name_len-1] == '\t')) {
-            name_len--;
-        }
-        if (name_len == 0 || name_len >= sizeof(event_name)) continue;
-        
-        memcpy(event_name, p, name_len);
-        event_name[name_len] = '\0';
-        
-        /* Find matching sound event index */
-        int event_idx = -1;
-        for (int i = 0; i < MSG_MAX; i++) {
-            if (angband_sound_name[i] && strcmp(angband_sound_name[i], event_name) == 0) {
-                event_idx = i;
-                break;
-            }
-        }
-        
-        if (event_idx < 0) {
-            log_debug("Unknown sound event: %s", event_name);
-            continue;
-        }
-        
-        /* Parse sound file names (right side of '=') */
-        char* files_start = equals + 1;
-        int sample_count = 0;
-        
-        /* Tokenize space-separated filenames */
-        while (*files_start && sample_count < MAX_SOUND_SAMPLES) {
-            /* Skip leading whitespace */
-            while (*files_start && (*files_start == ' ' || *files_start == '\t')) {
-                files_start++;
-            }
-            
-            if (*files_start == '\0') break;
-            
-            /* Find end of current filename */
-            char* file_end = files_start;
-            while (*file_end && *file_end != ' ' && *file_end != '\t' && *file_end != '\n' && *file_end != '\r') {
-                file_end++;
-            }
-            
-            if (file_end == files_start) break;
-            
-            /* Extract filename and remove .wav extension if present */
-            size_t file_len = file_end - files_start;
-            if (file_len >= sizeof(g_state.sound_files[0][0])) {
-                file_len = sizeof(g_state.sound_files[0][0]) - 1;
-            }
-            
-            memcpy(g_state.sound_files[event_idx][sample_count], files_start, file_len);
-            g_state.sound_files[event_idx][sample_count][file_len] = '\0';
-            
-            /* Remove .wav extension if present */
-            char* wav_ext = strstr(g_state.sound_files[event_idx][sample_count], ".wav");
-            if (wav_ext) {
-                *wav_ext = '\0';
-            }
-            
-            sample_count++;
-            files_start = file_end;
-        }
-        
-        g_state.sound_counts[event_idx] = sample_count;
-        
-        if (sample_count > 0) {
-            log_debug("Sound event '%s' (idx=%d): %d variant(s)", 
-                     event_name, event_idx, sample_count);
-        }
-    }
-    
-    sdl_fclose(file);
-    log_info("Sound configuration loaded successfully");
-}
-
-/*
- * Public function to initialize sounds after game directories are set up.
- * Must be called after init_angband() so ANGBAND_DIR_XTRA is available.
- */
-void sdl_init_sounds(void)
-{
-    if (g_state.audio_device && g_state.audio_stream) {
-        sdl_load_sound_config();
     }
 }
 
@@ -601,61 +443,7 @@ static errr callback_sdl_xtra(int n, int v)
         reset_visuals(true);
         return 0;
     case TERM_XTRA_SOUND:
-        /* Play a sound with random variant selection */
-        if (v >= 0 && v < MSG_MAX && g_state.audio_device && g_state.audio_stream) {
-            /* Check if we have any sound files configured for this event */
-            int sample_count = g_state.sound_counts[v];
-            if (sample_count <= 0) {
-                return 0; /* No sounds configured for this event */
-            }
-            
-            /* Randomly select one of the available sound variants */
-            int sample_idx = Rand_div(sample_count);
-            const char* sound_file = g_state.sound_files[v][sample_idx];
-            
-            if (sound_file[0] == '\0') {
-                return 0; /* Empty filename */
-            }
-            
-            /* Build full path to the selected sound file */
-            char sound_path[1024];
-            char sound_dir[1024];
-            path_build(sound_dir, sizeof(sound_dir), ANGBAND_DIR_XTRA, "sound");
-            strnfmt(sound_path, sizeof(sound_path), "%s/%s.wav", sound_dir, sound_file);
-            
-            /* Load the WAV file */
-            SDL_AudioSpec wav_spec;
-            Uint8* wav_buffer;
-            Uint32 wav_length;
-            
-            if (SDL_LoadWAV(sound_path, &wav_spec, &wav_buffer, &wav_length)) {
-                /* Create temporary stream for format conversion if needed */
-                SDL_AudioStream* convert_stream = SDL_CreateAudioStream(&wav_spec, &g_state.audio_spec);
-                if (convert_stream) {
-                    /* Put WAV data into conversion stream */
-                    if (SDL_PutAudioStreamData(convert_stream, wav_buffer, wav_length) &&
-                        SDL_FlushAudioStream(convert_stream)) {
-                        
-                        /* Get converted audio and put into playback stream */
-                        int available = SDL_GetAudioStreamAvailable(convert_stream);
-                        if (available > 0) {
-                            Uint8* converted = SDL_malloc(available);
-                            if (converted) {
-                                int got = SDL_GetAudioStreamData(convert_stream, converted, available);
-                                if (got > 0) {
-                                    SDL_PutAudioStreamData(g_state.audio_stream, converted, got);
-                                }
-                                SDL_free(converted);
-                            }
-                        }
-                    }
-                    SDL_DestroyAudioStream(convert_stream);
-                }
-                SDL_free(wav_buffer);
-            } else {
-                log_debug("Failed to load sound %s: %s", sound_path, SDL_GetError());
-            }
-        }
+        sdl_sound_handle(v);
         return 0;
     default:
         return 0;
@@ -1413,6 +1201,9 @@ static void sdl_quit_hook(cptr str)
 {
     (void)str; // Unused parameter
     
+    // Shut down audio before tearing down SDL
+    sdl_sound_shutdown();
+    
     // Clean up story font
     if (g_state.story_font) {
         TTF_CloseFont(g_state.story_font);
@@ -1571,32 +1362,11 @@ errr init_sdl(int argc, char **argv)
 
     // Initialize palette from angband_color_table (supports .prf file customization)
     sdl_sync_palette();
-    
-    // Initialize audio device for sound playback
-    SDL_AudioSpec desired_spec;
-    SDL_zero(desired_spec);
-    desired_spec.freq = 22050;
-    desired_spec.format = SDL_AUDIO_S16;
-    desired_spec.channels = 2;
-    
-    g_state.audio_device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired_spec);
-    if (g_state.audio_device) {
-        g_state.audio_spec = desired_spec;
-        
-        /* Create a persistent audio stream bound to the device */
-        g_state.audio_stream = SDL_CreateAudioStream(&desired_spec, &desired_spec);
-        if (g_state.audio_stream) {
-            SDL_BindAudioStream(g_state.audio_device, g_state.audio_stream);
-            log_info("Audio stream created and bound");
-        }
-        
-        SDL_ResumeAudioDevice(g_state.audio_device);  // Unpause device for immediate playback
-        log_info("Audio device opened successfully (freq=%d, channels=%d)", 
-                 desired_spec.freq, desired_spec.channels);
-    } else {
-        log_warn("Failed to open audio device: %s", SDL_GetError());
-        g_state.audio_device = 0;
-        g_state.audio_stream = NULL;
+
+    // Prepare sound registry and audio playback
+    sdl_sound_reload();
+    if (!sdl_sound_initialize()) {
+        log_info("Sound subsystem not initialized; continuing without audio output");
     }
 
     // Use full display size for fullscreen, reasonable default for windowed mode

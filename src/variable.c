@@ -277,7 +277,7 @@ byte angband_color_table[256][4] = {
 /*
  * Standard sound (and message) names
  */
-const cptr angband_sound_name[SOUND_MAX] = {
+const cptr angband_sound_name[MSG_MAX] = {
     "",
     "hit",
     "miss",

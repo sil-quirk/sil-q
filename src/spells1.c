@@ -1113,7 +1113,7 @@ void teleport_towards(int oy, int ox, int ny, int nx)
     }
 
     /* Sound (assumes monster is moving) */
-    sound(SOUND_TPOTHER);
+    sound(MSG_TPOTHER);
 
     /* Move monster */
     monster_swap(oy, ox, y, x);

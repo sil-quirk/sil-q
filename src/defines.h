@@ -3327,45 +3327,6 @@
 #define MSG_HITPOINT_WARN 29
 #define MSG_MAX 30
 
-/*** Sound constants ***/
-
-/*
- * Mega-Hack -- some primitive sound support (see "main-win.c")
- *
- * Some "sound" constants for "Term_xtra(TERM_XTRA_SOUND, val)"
- */
-#define SOUND_HIT 1
-#define SOUND_MISS 2
-#define SOUND_FLEE 3
-#define SOUND_DROP 4
-#define SOUND_KILL 5
-#define SOUND_LEVEL 6
-#define SOUND_DEATH 7
-/* xxx old study sound  */
-#define SOUND_TELEPORT 9
-#define SOUND_SHOOT 10
-#define SOUND_QUAFF 11
-#define SOUND_ZAP 12
-#define SOUND_WALK 13
-#define SOUND_TPOTHER 14
-#define SOUND_HITWALL 15
-#define SOUND_EAT 16
-/* xxx old store sound  */
-/* xxx old store sound  */
-/* xxx old store sound  */
-/* xxx old store sound  */
-#define SOUND_DIG 21
-#define SOUND_OPENDOOR 22
-#define SOUND_SHUTDOOR 23
-#define SOUND_TPLEVEL 24
-
-/*
- * Mega-Hack -- maximum known sounds
- *
- * Should be the same as MSG_MAX for compatibility reasons.
- */
-#define SOUND_MAX MSG_MAX
-
 /*
  * Maximum number of macro trigger names
  */

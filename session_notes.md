@@ -1,5 +1,13 @@
 # Session Notes
 
+## 2025-11-17: SDL Sound Modularization
+
+- Added `src/sdl-sound.c`/`.h` to encapsulate all SDL audio handling (config parsing, device/stream lifetime, playback helper).
+- `main-sdl.c` now delegates sound init/teardown and TERM_XTRA_SOUND events to the new module and no longer stores audio state.
+- Expanded `lib/xtra/sound/sound.cfg` with an `[Audio]` section (base path, extension, sample rate, channels, format) and dropped hard-coded `.wav` suffixes; filenames can still supply explicit extensions.
+- Retired the legacy `SOUND_*` macros by switching `spells1.c` to `MSG_*` constants and sizing `angband_sound_name` with `MSG_MAX`.
+- Build: `build-cmake.bat` succeeds for the SDL3 target (warnings unchanged from baseline).
+
 ## 2025-01-17: Sound System Enhancement
 
 ### Changes Made
