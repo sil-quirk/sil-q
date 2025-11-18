@@ -72,6 +72,10 @@ REM Always update lib/edit folder to ensure latest data files
 if exist sil-more-windows-sdl3\lib\edit rmdir /S /Q sil-more-windows-sdl3\lib\edit
 xcopy /E /I /Y lib\edit sil-more-windows-sdl3\lib\edit
 
+REM Always update lib/pref folder to ensure latest preference files
+if exist sil-more-windows-sdl3\lib\pref rmdir /S /Q sil-more-windows-sdl3\lib\pref
+xcopy /E /I /Y lib\pref sil-more-windows-sdl3\lib\pref
+
 REM Always update lib/xtra/sound folder to ensure latest sound configuration
 if exist sil-more-windows-sdl3\lib\xtra\sound rmdir /S /Q sil-more-windows-sdl3\lib\xtra\sound
 xcopy /E /I /Y lib\xtra\sound sil-more-windows-sdl3\lib\xtra\sound
@@ -143,6 +147,9 @@ REM Always update lib/edit folder to ensure latest data files
 if exist sil-more-windows-sdl3-portable\lib\edit rmdir /S /Q sil-more-windows-sdl3-portable\lib\edit
 xcopy /E /I /Y lib\edit sil-more-windows-sdl3-portable\lib\edit
 
+REM Always update lib/pref folder to ensure latest preference files
+if exist sil-more-windows-sdl3-portable\lib\pref rmdir /S /Q sil-more-windows-sdl3-portable\lib\pref
+xcopy /E /I /Y lib\pref sil-more-windows-sdl3-portable\lib\pref
 REM Always update lib/xtra/sound folder to ensure latest sound configuration
 if exist sil-more-windows-sdl3-portable\lib\xtra\sound rmdir /S /Q sil-more-windows-sdl3-portable\lib\xtra\sound
 xcopy /E /I /Y lib\xtra\sound sil-more-windows-sdl3-portable\lib\xtra\sound

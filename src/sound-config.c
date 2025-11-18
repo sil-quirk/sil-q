@@ -17,7 +17,7 @@ void sound_config_set_defaults(struct sound_config* config)
     SDL_strlcpy(config->format, "s16", sizeof(config->format));
     
     // Clear all sound event folders
-    for (int i = 0; i < 37; i++) {
+    for (int i = 0; i < MSG_MAX; i++) {
         config->events[i][0] = '\0';
     }
 }
@@ -35,7 +35,9 @@ void sound_config_load(const char* filename, struct sound_config* config)
     // Read file
     FILE* f = fopen(filename, "r");
     if (!f) {
-        log_info("Sound config file not found: %s (using defaults)", filename);
+        log_info("Sound config file not found: %s (creating with defaults)", filename);
+        // Auto-create sound.json with defaults
+        sound_config_save(filename, config);
         return;
     }
     
@@ -101,7 +103,7 @@ void sound_config_load(const char* filename, struct sound_config* config)
             if (!event_name || !cJSON_IsString(event)) continue;
             
             // Find the event index
-            for (int i = 0; i < 37; i++) {
+            for (int i = 0; i < MSG_MAX; i++) {
                 if (angband_sound_name[i] && streq(angband_sound_name[i], event_name)) {
                     SDL_strlcpy(config->events[i], event->valuestring, sizeof(config->events[i]));
                     log_debug("Loaded sound event '%s' -> folder '%s'", event_name, event->valuestring);
@@ -138,7 +140,7 @@ void sound_config_save(const char* filename, const struct sound_config* config)
     cJSON* events = cJSON_CreateObject();
     if (events) {
         extern const cptr angband_sound_name[];
-        for (int i = 0; i < 37; i++) {
+        for (int i = 0; i < MSG_MAX; i++) {
             if (config->events[i][0] && angband_sound_name[i] && angband_sound_name[i][0]) {
                 cJSON_AddStringToObject(events, angband_sound_name[i], config->events[i]);
             }

@@ -104,6 +104,24 @@ static u16b weapon_sound_message_type(const object_type* weapon, bool hit)
     return fallback;
 }
 
+static int weapon_animation_delay(u16b weapon_sound_type)
+{
+    switch (weapon_sound_type)
+    {
+    case MSG_WEAPON_SLASH_LIGHT:
+    case MSG_WEAPON_UNARMED:
+        return 300;
+    case MSG_WEAPON_SLASH_MEDIUM:
+    case MSG_WEAPON_THRUST:
+        return 350;
+    case MSG_WEAPON_SLASH_HEAVY:
+    case MSG_WEAPON_BLUNT:
+        return 400;
+    default:
+        return 350; // fallback to medium
+    }
+}
+
 bool graphics_are_ascii()
 {
     return use_graphics == GRAPHICS_NONE || use_graphics == GRAPHICS_PSEUDO;
@@ -4778,8 +4796,6 @@ void py_attack_aux(int y, int x, int attack_type)
 
     /* Get the weapon */
     o_ptr = &inventory[INVEN_WIELD];
-    u16b hit_msg_type = weapon_sound_message_type(o_ptr, true);
-    u16b miss_msg_type = weapon_sound_message_type(o_ptr, false);
 
     /* Handle player fear */
     if (p_ptr->afraid)
@@ -5067,8 +5083,8 @@ void py_attack_aux(int y, int x, int attack_type)
             u16b weapon_swing_type = weapon_sound_message_type(o_ptr, false);
             sound(weapon_swing_type);
 
-            // Delay before result sound
-            SDL_Delay(350);
+            // Delay before result sound (varies by weapon type)
+            SDL_Delay(weapon_animation_delay(weapon_swing_type));
 
             // Determine result sound: armor blocked, hit, or nothing
             u16b result_sound = MSG_ARMOR; // default to armor
@@ -5296,8 +5312,8 @@ void py_attack_aux(int y, int x, int attack_type)
             u16b weapon_swing_type = weapon_sound_message_type(o_ptr, false);
             sound(weapon_swing_type);
 
-            // Delay before message
-            SDL_Delay(100);
+            // Delay before message (shorter for misses, still weapon-aware)
+            SDL_Delay(weapon_animation_delay(weapon_swing_type) - 200);
 
             /* Message - no additional sound for miss */
             msg_format("You miss %s.", m_name);

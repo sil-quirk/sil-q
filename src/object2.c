@@ -4450,8 +4450,32 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
 
     update_stuff();
 
-    /* Sound */
-    sound(MSG_DROP);
+    /* Sound - weight-based drop sound */
+    {
+        int drop_sound = MSG_DROP; /* fallback */
+        int weight = j_ptr->weight * j_ptr->number;
+        
+        /* Light items: rings, amulets, arrows, potions, food, herbs, flasks, gems, small items */
+        if (j_ptr->tval == TV_RING || j_ptr->tval == TV_AMULET || 
+            j_ptr->tval == TV_ARROW || j_ptr->tval == TV_POTION || 
+            j_ptr->tval == TV_FOOD || j_ptr->tval == TV_EASTER ||
+            j_ptr->tval == TV_FLASK || j_ptr->tval == TV_GEM ||
+            weight < 30) {
+            drop_sound = MSG_DROP_LIGHT;
+        }
+        /* Heavy items: heavy armor, shields, heavy weapons */
+        else if (j_ptr->tval == TV_MAIL || j_ptr->tval == TV_SHIELD ||
+                 (j_ptr->tval == TV_POLEARM) || (j_ptr->tval == TV_DIGGING) ||
+                 weight >= 150) {
+            drop_sound = MSG_DROP_HEAVY;
+        }
+        /* Medium items: everything else */
+        else {
+            drop_sound = MSG_DROP_MEDIUM;
+        }
+        
+        sound(drop_sound);
+    }
 
     /* Mega-Hack -- no message if "dropped" by player */
     /* Message when an object falls under the player */

@@ -315,6 +315,23 @@ const cptr angband_sound_name[MSG_MAX] = {
     "weapon_unarmed",
     "armor",
     "weapon_slash_medium",
+    "equip_sword",
+    "equip_bow",
+    "equip_weapon",
+    "equip_mail",
+    "equip_leather",
+    "equip_armor",
+    "equip_jewelry",
+    "unequip_sword",
+    "unequip_bow",
+    "unequip_weapon",
+    "unequip_mail",
+    "unequip_leather",
+    "unequip_armor",
+    "unequip_jewelry",
+    "drop_light",
+    "drop_medium",
+    "drop_heavy",
 };
 
 /*

@@ -1,5 +1,119 @@
 # Session Notes
 
+## 2025-11-18: Drop Sound Weight Categories
+
+### Overview
+Split the drop sound into three weight-based categories: light, medium, and heavy, with intelligent classification based on item type and weight.
+
+### Changes Made
+
+#### 1. New MSG Constants (`src/defines.h`)
+- Added 3 new drop sound constants (51-53):
+  - `MSG_DROP_LIGHT` - For light items
+  - `MSG_DROP_MEDIUM` - For medium items  
+  - `MSG_DROP_HEAVY` - For heavy items
+- Updated `MSG_MAX` from 51 to 54
+
+#### 2. Sound Event Names (`src/variable.c`)
+- Added `drop_light`, `drop_medium`, `drop_heavy` to `angband_sound_name[]` array
+
+#### 3. Weight-Based Drop Logic (`src/object2.c`)
+- Replaced single `sound(MSG_DROP)` with intelligent classification
+- **Light items** (< 30 weight units):
+  - Rings, amulets, arrows
+  - Potions, food, herbs (easter eggs), flasks, gems
+- **Heavy items** (≥ 150 weight units):
+  - Chain armor (TV_MAIL)
+  - Shields
+  - Polearms, digging tools
+- **Medium items**: Everything else
+  - Swords, bows, hafted weapons
+  - Leather armor, cloaks, helms, crowns, gloves, boots
+  - Staffs, horns, lights
+
+#### 4. Sound Configuration
+- Updated `struct sound_config` array from `[51]` to `[54]`
+- Added new event mappings to both `sound.json` files:
+  - `drop_light` → `sound/drop_light`
+  - `drop_medium` → `sound/drop_medium`
+  - `drop_heavy` → `sound/drop_heavy`
+
+### Build Status
+✅ Compilation successful with no errors  
+✅ Both builds complete and deployed
+
+### OGG Support Confirmed
+Yes, the sound system supports both WAV and OGG files. The file check in `sdl_sound_is_audio_file()` explicitly looks for both `.wav` and `.ogg` extensions (line 66 in sdl-sound.c).
+
+---
+
+## 2025-11-18: Equipment Sound System Implementation
+
+### Overview
+Added comprehensive sound support for equipment and unequip actions with 7 distinct item categories.
+
+### Changes Made
+
+#### 1. Message Constants (`src/defines.h`)
+- Added 14 new MSG constants (37-50):
+  - **Equip sounds**: `MSG_EQUIP_SWORD`, `MSG_EQUIP_BOW`, `MSG_EQUIP_WEAPON`, `MSG_EQUIP_MAIL`, `MSG_EQUIP_LEATHER`, `MSG_EQUIP_ARMOR`, `MSG_EQUIP_JEWELRY`
+  - **Unequip sounds**: `MSG_UNEQUIP_SWORD`, `MSG_UNEQUIP_BOW`, `MSG_UNEQUIP_WEAPON`, `MSG_UNEQUIP_MAIL`, `MSG_UNEQUIP_LEATHER`, `MSG_UNEQUIP_ARMOR`, `MSG_UNEQUIP_JEWELRY`
+- Updated `MSG_MAX` from 37 to 51
+
+#### 2. Sound Event Names (`src/variable.c`)
+- Extended `angband_sound_name[]` array with new event names matching the MSG constants
+
+#### 3. Helper Functions (`src/cmd3.c`)
+- Added `get_equip_sound()`: Determines appropriate equip sound based on item tval
+- Added `get_unequip_sound()`: Determines appropriate unequip sound based on item tval
+- Item classification:
+  - **Swords**: TV_SWORD
+  - **Bows/Arrows**: TV_BOW, TV_ARROW
+  - **Other Weapons**: TV_POLEARM, TV_HAFTED, TV_DIGGING
+  - **Chain Armor**: TV_MAIL
+  - **Leather Armor**: TV_SOFT_ARMOR
+  - **Other Armor**: TV_SHIELD, TV_CLOAK, TV_HELM, TV_CROWN, TV_GLOVES, TV_BOOTS
+  - **Jewelry**: TV_RING, TV_AMULET
+
+#### 4. Sound Integration (`src/cmd3.c`)
+- **`do_cmd_wield()`**: Added sound call after equipment message, plays appropriate equip sound
+- **`do_cmd_takeoff()`**: Added sound call after takeoff, plays appropriate unequip sound (captured before inven_takeoff modifies object)
+
+#### 5. Sound Configuration Files
+- Updated `lib/pref/sound.json` with new event mappings
+- Updated `sil-more-windows-sdl3/lib/pref/sound.json` (deployment copy)
+- All new events map to `sound/equip_*` and `sound/unequip_*` folders
+
+#### 6. Sound Config Structure (`src/sound-config.h` & `src/sound-config.c`)
+- Updated `struct sound_config` events array size from `[37]` to `[51]`
+- Updated all loops in sound-config.c from hardcoded `37` to `MSG_MAX`
+
+### Build Status
+✅ Build successful - no compilation errors
+✅ Both standard and local builds completed
+✅ All files deployed to distribution folders
+
+### Next Steps
+To complete the implementation, sound files need to be added to these folders:
+- `lib/xtra/sound/equip_sword/`
+- `lib/xtra/sound/equip_bow/`
+- `lib/xtra/sound/equip_weapon/`
+- `lib/xtra/sound/equip_mail/`
+- `lib/xtra/sound/equip_leather/`
+- `lib/xtra/sound/equip_armor/`
+- `lib/xtra/sound/equip_jewelry/`
+- `lib/xtra/sound/unequip_sword/`
+- `lib/xtra/sound/unequip_bow/`
+- `lib/xtra/sound/unequip_weapon/`
+- `lib/xtra/sound/unequip_mail/`
+- `lib/xtra/sound/unequip_leather/`
+- `lib/xtra/sound/unequip_armor/`
+- `lib/xtra/sound/unequip_jewelry/`
+
+The system will work without sound files (silently) until WAV/OGG files are added to these folders.
+
+---
+
 ## 2025-11-18: Sound Configuration Separation
 
 ### Major Changes

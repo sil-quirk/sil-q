@@ -3,7 +3,7 @@
 
 param(
     [string]$OutputFolder = "sil-more-release",
-    [string]$Version = "0.9",
+    [string]$Version = "0.9.1",
     [switch]$IncludeCoverArt = $false
 )
 
@@ -59,11 +59,11 @@ Write-Host "Created release folder: $OutputFolder" -ForegroundColor Green
 # Copy executable
 Write-Host ""
 Write-Host "Copying executable..." -ForegroundColor Yellow
-if (Test-Path "build/sil-more.exe") {
-    Copy-Item "build/sil-more.exe" "$OutputFolder/" -Force
+if (Test-Path "build-standard/sil-more.exe") {
+    Copy-Item "build-standard/sil-more.exe" "$OutputFolder/" -Force
     Write-Host "  [OK] sil-more.exe"
 } else {
-    Write-Host "  [ERROR] sil-more.exe not found in build/" -ForegroundColor Red
+    Write-Host "  [ERROR] sil-more.exe not found in build-standard/" -ForegroundColor Red
     exit 1
 }
 

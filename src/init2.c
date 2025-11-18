@@ -382,6 +382,53 @@ static void seed_user_saves_from_install(const char* user_save_dir)
     SDL_free(entries);
 }
 
+static void seed_sound_config(const char* user_dir)
+{
+    if (!user_dir || !*user_dir || !ANGBAND_DIR || !*ANGBAND_DIR)
+        return;
+
+    char user_sound_path[1024];
+    if (!path_build(user_sound_path, sizeof(user_sound_path), user_dir, "sound.json"))
+        return;
+
+    /* Check if sound.json already exists in user folder */
+    if (SDL_GetPathInfo(user_sound_path, NULL))
+    {
+        log_debug("init_file_paths: sound.json already exists in user folder");
+        return;
+    }
+
+    /* Copy sound.json from lib/pref to user folder */
+    char pref_sound_path[1024];
+    
+    /* ANGBAND_DIR_PREF already points to lib/pref */
+    if (!ANGBAND_DIR_PREF || !*ANGBAND_DIR_PREF)
+    {
+        log_warn("init_file_paths: ANGBAND_DIR_PREF not set, cannot seed sound.json");
+        return;
+    }
+    
+    /* Build path to lib/pref/sound.json */
+    if (!path_build(pref_sound_path, sizeof(pref_sound_path), ANGBAND_DIR_PREF, "sound.json"))
+        return;
+
+    SDL_PathInfo info;
+    if (!SDL_GetPathInfo(pref_sound_path, &info) || info.type != SDL_PATHTYPE_FILE)
+    {
+        log_warn("init_file_paths: sound.json not found at '%s'", pref_sound_path);
+        return;
+    }
+
+    if (SDL_CopyFile(pref_sound_path, user_sound_path))
+    {
+        log_info("init_file_paths: copied sound.json from lib/pref to user folder");
+    }
+    else
+    {
+        log_warn("init_file_paths: failed to copy sound.json: %s", SDL_GetError());
+    }
+}
+
 static void migrate_legacy_metarun_layout(const char* meta_root, const char* metarun_dir)
 {
     if (!meta_root || !*meta_root || !metarun_dir || !*metarun_dir)
@@ -670,6 +717,7 @@ void init_file_paths(char* path)
     seed_user_data_from_install(ANGBAND_DIR_DATA);
     seed_user_meta_from_install(ANGBAND_DIR_APEX, ANGBAND_DIR_METARUN);
     seed_user_saves_from_install(ANGBAND_DIR_SAVE);
+    seed_sound_config(user_root);
 #endif /* SIL_USE_LOCAL_DATA */
 
     strcpy(tail, "xtra");

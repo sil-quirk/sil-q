@@ -13,6 +13,82 @@
 #include "log/log.h"
 
 /*
+ * Helper function to determine the equip sound based on item type
+ */
+static int get_equip_sound(const object_type* o_ptr)
+{
+    /* Swords */
+    if (o_ptr->tval == TV_SWORD)
+        return MSG_EQUIP_SWORD;
+    
+    /* Bows and arrows */
+    if (o_ptr->tval == TV_BOW || o_ptr->tval == TV_ARROW)
+        return MSG_EQUIP_BOW;
+    
+    /* Other weapons */
+    if (o_ptr->tval == TV_POLEARM || o_ptr->tval == TV_HAFTED || o_ptr->tval == TV_DIGGING)
+        return MSG_EQUIP_WEAPON;
+    
+    /* Chain armor (mail) */
+    if (o_ptr->tval == TV_MAIL)
+        return MSG_EQUIP_MAIL;
+    
+    /* Leather armor (soft armor) */
+    if (o_ptr->tval == TV_SOFT_ARMOR)
+        return MSG_EQUIP_LEATHER;
+    
+    /* All other types of armor */
+    if (o_ptr->tval == TV_SHIELD || o_ptr->tval == TV_CLOAK || o_ptr->tval == TV_HELM || 
+        o_ptr->tval == TV_CROWN || o_ptr->tval == TV_GLOVES || o_ptr->tval == TV_BOOTS)
+        return MSG_EQUIP_ARMOR;
+    
+    /* Rings and amulets */
+    if (o_ptr->tval == TV_RING || o_ptr->tval == TV_AMULET)
+        return MSG_EQUIP_JEWELRY;
+    
+    /* Default - no sound */
+    return -1;
+}
+
+/*
+ * Helper function to determine the unequip sound based on item type
+ */
+static int get_unequip_sound(const object_type* o_ptr)
+{
+    /* Swords */
+    if (o_ptr->tval == TV_SWORD)
+        return MSG_UNEQUIP_SWORD;
+    
+    /* Bows and arrows */
+    if (o_ptr->tval == TV_BOW || o_ptr->tval == TV_ARROW)
+        return MSG_UNEQUIP_BOW;
+    
+    /* Other weapons */
+    if (o_ptr->tval == TV_POLEARM || o_ptr->tval == TV_HAFTED || o_ptr->tval == TV_DIGGING)
+        return MSG_UNEQUIP_WEAPON;
+    
+    /* Chain armor (mail) */
+    if (o_ptr->tval == TV_MAIL)
+        return MSG_UNEQUIP_MAIL;
+    
+    /* Leather armor (soft armor) */
+    if (o_ptr->tval == TV_SOFT_ARMOR)
+        return MSG_UNEQUIP_LEATHER;
+    
+    /* All other types of armor */
+    if (o_ptr->tval == TV_SHIELD || o_ptr->tval == TV_CLOAK || o_ptr->tval == TV_HELM || 
+        o_ptr->tval == TV_CROWN || o_ptr->tval == TV_GLOVES || o_ptr->tval == TV_BOOTS)
+        return MSG_UNEQUIP_ARMOR;
+    
+    /* Rings and amulets */
+    if (o_ptr->tval == TV_RING || o_ptr->tval == TV_AMULET)
+        return MSG_UNEQUIP_JEWELRY;
+    
+    /* Default - no sound */
+    return -1;
+}
+
+/*
  * The "wearable" tester
  */
 static bool item_tester_hook_wear(const object_type* o_ptr)
@@ -1446,6 +1522,13 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Message */
     msg_format("%s %s (%c).", act, o_name, index_to_label(slot));
 
+    /* Play equip sound */
+    {
+        int equip_sound = get_equip_sound(o_ptr);
+        if (equip_sound >= 0)
+            sound(equip_sound);
+    }
+
     // Deal with wielding from the floor
     if (item < 0)
     {
@@ -1585,8 +1668,15 @@ void do_cmd_takeoff(object_type* default_o_ptr, int default_item)
     // store the action type
     p_ptr->previous_action[0] = ACTION_MISC;
 
+    /* Get unequip sound before taking off (since o_ptr may be modified) */
+    int unequip_sound = get_unequip_sound(o_ptr);
+
     /* Take off the item */
     (void)inven_takeoff(item, 255);
+
+    /* Play unequip sound */
+    if (unequip_sound >= 0)
+        sound(unequip_sound);
 
     /* Deal with wielding of shield when already wielding a hand and a half
      * weapon
