@@ -57,6 +57,7 @@ add_executable(sil-more
     src/score/score_ui.c
     src/sdl-config.c
     src/sdl-sound.c
+    src/sound-config.c
     src/fs/io_sdl.c
     src/fs/path.c
     src/ui/colors.c

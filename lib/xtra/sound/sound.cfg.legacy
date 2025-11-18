@@ -1,0 +1,67 @@
+# sound.cfg
+#
+# Configuration file for the SDL sound system.
+# Each sound event listed under [Sound] can have multiple samples separated by spaces.
+# Samples inherit the default extension declared under [Audio] unless they explicitly
+# include their own extension (e.g., "teleport.ogg").
+#
+# Audio settings (optional, defaults shown):
+[Audio]
+base_path = sound
+extension = wav
+sample_rate = 22050
+channels = 2
+format = s16
+
+[AudioPaths]
+path = sound/Minifantasy_Weapons_SFX/Hits
+path = sound/Minifantasy_Weapons_SFX/Slash_Attacks
+path = sound/Minifantasy_Weapons_SFX/Swing_Attacks
+path = sound/Minifantasy_Weapons_SFX/Ranged_Attacks
+path = sound/Minifantasy_Weapons_SFX/Thrust_Attacks
+path = sound/Minifantasy_Weapons_SFX/Guard
+path = sound/Minifantasy_Weapons_SFX/Charged_Attacks
+path = sound/SFX/Attacks/Sword_Attacks_Hits_and_Blocks
+path = sound/SFX/Attacks/Bow_Attacks_Hits_and_Blocks
+path = sound/SFX/Doors_Gates_and_Chests
+path = sound/SFX/Chopping_and_Mining
+path = sound/SFX/Spells
+path = sound/SFX/Footsteps/Stone
+path = sound/SFX/Torch
+path = sound/RPG Sound Pack/inventory
+path = sound/RPG Sound Pack/battle
+path = sound/eat
+
+# Event mappings. Event names match the values in angband_sound_name[].
+[Sound]
+hit = Hit_Metal_on_leather Hit_Metal_on_flash Hit_Metal_on_wood_heavy Hit_Wood_on_flesh Sword_Impact_Hit_1 Sword_Impact_Hit_2 Sword_Impact_Hit_3
+miss = 
+flee = flee
+drop = Hit_Wood_on_stone Hit_Wood_on_leather
+kill = 
+level = level
+death = death
+study =
+teleport =
+shoot = bow-shot1 bow-shot2 Bow Attack 1 Bow Attack 2
+quaff = bottle bobble bobble2 bobble3
+zap = Charge_1 Charge_2 Special_Attack_1 Special_Attack_2
+walk = Stone_Walk_1 Stone_Walk_2 Stone_Walk_3 Stone_Walk_4 Stone_Walk_5
+tpother =
+hitwall = Hit_Metal_on_stone Hit_Metal_on_metal 
+eat = crunch_1 crunch_2 crunch_3 crunch_4 crunch_5 crunch_6 crunch_7
+store1 =
+store2 =
+store3 =
+store4 =
+dig = thump Hit_Metal_on_stone Hit_Wood_on_stone Thrust_1 Thrust_2
+opendoor = opendoor Door_Open_1 Door_Open_2
+shutdoor = shutdoor Door_Close_1 Door_Close_2
+tplevel = teleport
+weapon_slash_light = Slash_Attack_Light_1 Slash_Attack_Light_2 Slash_Attack_Light_3 miss miss1 swing swing2 swing3
+weapon_slash_medium = Slash_Attack_Sword_1 Slash_Attack_Sword_2 Slash_Attack_Sword_3 Sword_Attack_1 Sword_Attack_2 Sword_Attack_3
+weapon_slash_heavy = Slash_Attack_Heavy_1 Slash_Attack_Heavy_2 Slash_Attack_Heavy_3
+weapon_thrust = Hit_Wood_on_leather Hit_Metal_on_leather Hit_Wood_on_flesh mine_1 mine_2 mine_3 mine_4 mine_5
+weapon_blunt = Hit_Metal_on_wood Hit_Metal_on_wood_heavy Hit_Metal_on_metal Hit_Wood_on_wood Wooden_Shield_Light Wooden_Shield_Heavy Iron_shield_1 Iron_shield_2
+weapon_unarmed = Hit_Wood_on_flesh Hit_Wood_on_leather Hit_Wood_on_metal Hit_Wood_on_stone
+armor = Wooden_Shield_Light Wooden_Shield_Heavy Iron_shield_1 Iron_shield_2 Hit_Metal_on_metal

@@ -8,6 +8,7 @@
 #include "pane.h"
 #include "sdl-config.h"
 #include "sdl-sound.h"
+#include "sound-config.h"
 #include <string.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_filesystem.h>
@@ -24,6 +25,9 @@ enum {
 
 // SDL configuration (loaded from INI file)
 struct sdl_config config;
+
+// Sound configuration (loaded from sound.json)
+struct sound_config g_sound_config;
 
 // Configuration file path (needed for saving on exit)
 char config_file_path[1024];
@@ -1304,12 +1308,20 @@ errr init_sdl(int argc, char **argv)
         
         sdl_config_load(config_file_path, &config, pane_config, &pane_config_count, MAX_PANE_CONFIGS);
         
+        // Load sound configuration from sound.json
+        char sound_config_path[1024];
+        if (ANGBAND_DIR_USER && ANGBAND_DIR_USER[0])
+            path_build(sound_config_path, sizeof(sound_config_path), ANGBAND_DIR_USER, "sound.json");
+        else
+            SDL_strlcpy(sound_config_path, "sound.json", sizeof(sound_config_path));
+        sound_config_load(sound_config_path, &g_sound_config);
+        
         // Apply sound setting to global variable
-        use_sound = config.sound_enabled;
+        use_sound = g_sound_config.enabled;
         
         log_debug("After loading JSON: scale=%d, font=%d, margin=%d, fullscreen=%d, tiles=%d, sound=%d",
                   config.main_view_scale, config.aux_view_font_size, config.margin,
-                  config.fullscreen, config.tiles, config.sound_enabled);
+                  config.fullscreen, config.tiles, g_sound_config.enabled);
     } else {
         // Config file doesn't exist - use resolution-based defaults
         log_debug("Config file not found, using resolution-based defaults");

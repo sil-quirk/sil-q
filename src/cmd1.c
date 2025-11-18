@@ -5068,7 +5068,7 @@ void py_attack_aux(int y, int x, int attack_type)
             sound(weapon_swing_type);
 
             // Delay before result sound
-            SDL_Delay(400);
+            SDL_Delay(350);
 
             // Determine result sound: armor blocked, hit, or nothing
             u16b result_sound = MSG_ARMOR; // default to armor

@@ -5,92 +5,190 @@
 #include "fs/io_sdl.h"
 #include "fs/path.h"
 #include "log/log.h"
+#include "sound-config.h"
 #include <SDL3/SDL.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define SDL_SOUND_MAX_VARIANTS 16
-#define SDL_SOUND_NAME_LEN 64
-#define SDL_SOUND_MAX_PATHS 16
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dirent.h>
+#include <sys/stat.h>
+#endif
+
+#define SDL_SOUND_MAX_VARIANTS 64
+#define SDL_SOUND_NAME_LEN 256
 #define SDL_SOUND_MAX_ACTIVE_STREAMS 16
 
-typedef enum {
-    SOUND_SECTION_NONE,
-    SOUND_SECTION_AUDIO,
-    SOUND_SECTION_AUDIO_PATHS,
-    SOUND_SECTION_SOUND,
-} sound_section;
-
 typedef struct {
-    char search_paths[SDL_SOUND_MAX_PATHS][128];
-    int search_path_count;
-    char extension[16];
-    int sample_rate;
-    int channels;
-    SDL_AudioFormat format;
-} sdl_sound_settings;
+    char sound_files[MSG_MAX][SDL_SOUND_MAX_VARIANTS][SDL_SOUND_NAME_LEN];
+    int sound_counts[MSG_MAX];
+} sound_bank;
 
 static struct {
     SDL_AudioDeviceID device;
     SDL_AudioSpec device_spec;
-    sdl_sound_settings settings;
-    char sound_files[MSG_MAX][SDL_SOUND_MAX_VARIANTS][SDL_SOUND_NAME_LEN];
-    int sound_counts[MSG_MAX];
+    sound_bank bank;
     bool bank_loaded;
     SDL_AudioStream* active_streams[SDL_SOUND_MAX_ACTIVE_STREAMS];
 } sound_state;
 
-static void sdl_sound_reset_settings(void);
 static void sdl_sound_reset_bank(void);
-static bool sdl_sound_parse_config(void);
-static void sdl_sound_process_audio_entry(const char* key, const char* value);
-static void sdl_sound_process_sound_entry(const char* key, char* value);
-static void sdl_sound_add_search_path(const char* path);
+static bool sdl_sound_load_from_config(const struct sound_config* config);
+static bool sdl_sound_scan_folder(const char* folder_path, char files[][SDL_SOUND_NAME_LEN], int* file_count, int max_files);
 static char* sdl_sound_trim(char* text);
-static int sdl_sound_lookup_event(const char* name);
-static bool sdl_sound_is_absolute_path(const char* path);
-static void sdl_sound_build_directory(const char* base_path, char* dst, size_t dst_len);
-static void sdl_sound_build_sample_path(const char* base_path, const char* sample, char* dst, size_t dst_len);
-static void sdl_sound_prune_streams(void);
+static bool sdl_sound_is_audio_file(const char* filename);
+static void sdl_sound_build_path(const char* base_path, char* dst, size_t dst_len);
 static void sdl_sound_clear_streams(void);
 static bool sdl_sound_track_stream(SDL_AudioStream* stream);
 static void sdl_sound_destroy_stream(SDL_AudioStream** stream);
 
-static void sdl_sound_reset_settings(void)
-{
-    sound_state.settings.search_path_count = 1;
-    SDL_zero(sound_state.settings.search_paths);
-    SDL_strlcpy(sound_state.settings.search_paths[0], "sound", sizeof(sound_state.settings.search_paths[0]));
-    SDL_strlcpy(sound_state.settings.extension, "wav", sizeof(sound_state.settings.extension));
-    sound_state.settings.sample_rate = 22050;
-    sound_state.settings.channels = 2;
-    sound_state.settings.format = SDL_AUDIO_S16;
-}
-
 static void sdl_sound_reset_bank(void)
 {
     for (int i = 0; i < MSG_MAX; i++) {
-        sound_state.sound_counts[i] = 0;
+        sound_state.bank.sound_counts[i] = 0;
         for (int j = 0; j < SDL_SOUND_MAX_VARIANTS; j++) {
-            sound_state.sound_files[i][j][0] = '\0';
+            sound_state.bank.sound_files[i][j][0] = '\0';
         }
     }
 }
 
-static void sdl_sound_add_search_path(const char* path)
+static bool sdl_sound_is_audio_file(const char* filename)
 {
-    if (!path || !path[0]) {
+    if (!filename || !filename[0]) return false;
+    
+    size_t len = strlen(filename);
+    if (len < 5) return false;
+    
+    const char* ext = filename + len - 4;
+    return (SDL_strcasecmp(ext, ".wav") == 0 || SDL_strcasecmp(ext, ".ogg") == 0);
+}
+
+static void sdl_sound_build_path(const char* base_path, char* dst, size_t dst_len)
+{
+    if (!base_path || !base_path[0]) {
+        dst[0] = '\0';
         return;
     }
-    if (sound_state.settings.search_path_count >= SDL_SOUND_MAX_PATHS) {
-        log_warn("Too many sound search paths configured (max=%d)", SDL_SOUND_MAX_PATHS);
-        return;
+    
+    // Check if it's an absolute path
+    bool is_absolute = false;
+#ifdef _WIN32
+    if (((base_path[0] >= 'A' && base_path[0] <= 'Z') || 
+         (base_path[0] >= 'a' && base_path[0] <= 'z')) && 
+        base_path[1] == ':') {
+        is_absolute = true;
     }
-    SDL_strlcpy(sound_state.settings.search_paths[sound_state.settings.search_path_count],
-                path,
-                sizeof(sound_state.settings.search_paths[0]));
-    sound_state.settings.search_path_count++;
+#endif
+    if (base_path[0] == '/' || base_path[0] == '\\') {
+        is_absolute = true;
+    }
+    
+    if (is_absolute) {
+        SDL_strlcpy(dst, base_path, dst_len);
+    } else {
+        const char* anchor = ANGBAND_DIR_XTRA;
+        if (!anchor || !anchor[0]) {
+            dst[0] = '\0';
+            return;
+        }
+        path_build(dst, dst_len, anchor, base_path);
+    }
+}
+
+static bool sdl_sound_scan_folder(const char* folder_path, char files[][SDL_SOUND_NAME_LEN], int* file_count, int max_files)
+{
+    *file_count = 0;
+    
+    if (!folder_path || !folder_path[0]) {
+        return false;
+    }
+    
+#ifdef _WIN32
+    char search_path[1024];
+    strnfmt(search_path, sizeof(search_path), "%s\\*", folder_path);
+    
+    WIN32_FIND_DATAA find_data;
+    HANDLE h_find = FindFirstFileA(search_path, &find_data);
+    
+    if (h_find == INVALID_HANDLE_VALUE) {
+        log_debug("Cannot open sound folder: %s", folder_path);
+        return false;
+    }
+    
+    do {
+        if (!(find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+            if (sdl_sound_is_audio_file(find_data.cFileName) && *file_count < max_files) {
+                strnfmt(files[*file_count], SDL_SOUND_NAME_LEN, "%s\\%s", folder_path, find_data.cFileName);
+                (*file_count)++;
+            }
+        }
+    } while (FindNextFileA(h_find, &find_data) != 0);
+    
+    FindClose(h_find);
+#else
+    DIR* dir = opendir(folder_path);
+    if (!dir) {
+        log_debug("Cannot open sound folder: %s", folder_path);
+        return false;
+    }
+    
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != NULL && *file_count < max_files) {
+        if (entry->d_type == DT_REG || entry->d_type == DT_UNKNOWN) {
+            if (sdl_sound_is_audio_file(entry->d_name)) {
+                strnfmt(files[*file_count], SDL_SOUND_NAME_LEN, "%s/%s", folder_path, entry->d_name);
+                (*file_count)++;
+            }
+        }
+    }
+    
+    closedir(dir);
+#endif
+    
+    log_debug("Scanned folder '%s': found %d audio file(s)", folder_path, *file_count);
+    return *file_count > 0;
+}
+
+static bool sdl_sound_load_from_config(const struct sound_config* config)
+{
+    if (!config) {
+        return false;
+    }
+    
+    sdl_sound_reset_bank();
+    
+    extern const cptr angband_sound_name[];
+    int loaded_events = 0;
+    
+    for (int i = 0; i < MSG_MAX; i++) {
+        if (!config->events[i][0]) {
+            continue; // No folder configured for this event
+        }
+        
+        char folder_path[1024];
+        sdl_sound_build_path(config->events[i], folder_path, sizeof(folder_path));
+        
+        if (!folder_path[0]) {
+            log_debug("Invalid path for sound event %d ('%s')", i, 
+                      angband_sound_name[i] ? angband_sound_name[i] : "unknown");
+            continue;
+        }
+        
+        int count = 0;
+        if (sdl_sound_scan_folder(folder_path, sound_state.bank.sound_files[i], &count, SDL_SOUND_MAX_VARIANTS)) {
+            sound_state.bank.sound_counts[i] = count;
+            loaded_events++;
+            log_debug("Sound event '%s' (idx=%d): loaded %d file(s) from '%s'", 
+                      angband_sound_name[i] ? angband_sound_name[i] : "unknown",
+                      i, count, folder_path);
+        }
+    }
+    
+    log_info("Loaded sound events: %d/%d", loaded_events, MSG_MAX);
+    return loaded_events > 0;
 }
 
 static void sdl_sound_destroy_stream(SDL_AudioStream** stream_ptr)
@@ -111,24 +209,13 @@ static void sdl_sound_clear_streams(void)
     }
 }
 
-static void sdl_sound_prune_streams(void)
-{
-    for (int i = 0; i < SDL_SOUND_MAX_ACTIVE_STREAMS; i++) {
-        SDL_AudioStream* stream = sound_state.active_streams[i];
-        if (!stream) continue;
-        int available = SDL_GetAudioStreamAvailable(stream);
-        int queued = SDL_GetAudioStreamQueued(stream);
-        if (available == 0 && queued == 0) {
-            sdl_sound_destroy_stream(&sound_state.active_streams[i]);
-        }
-    }
-}
-
 static bool sdl_sound_track_stream(SDL_AudioStream* stream)
 {
     if (!stream) {
         return false;
     }
+    
+    /* First, try to find a free slot without destroying anything */
     for (int i = 0; i < SDL_SOUND_MAX_ACTIVE_STREAMS; i++) {
         if (!sound_state.active_streams[i]) {
             sound_state.active_streams[i] = stream;
@@ -136,7 +223,23 @@ static bool sdl_sound_track_stream(SDL_AudioStream* stream)
         }
     }
 
-    /* No free slot: drop the oldest (slot 0) */
+    /* No free slots - prune finished streams and try again */
+    for (int i = 0; i < SDL_SOUND_MAX_ACTIVE_STREAMS; i++) {
+        SDL_AudioStream* existing = sound_state.active_streams[i];
+        if (!existing) continue;
+        
+        int available = SDL_GetAudioStreamAvailable(existing);
+        int queued = SDL_GetAudioStreamQueued(existing);
+        
+        /* Only destroy if truly empty - both input and output are drained */
+        if (available <= 0 && queued <= 0) {
+            sdl_sound_destroy_stream(&sound_state.active_streams[i]);
+            sound_state.active_streams[i] = stream;
+            return true;
+        }
+    }
+
+    /* Still no space: drop the oldest (slot 0) as last resort */
     sdl_sound_destroy_stream(&sound_state.active_streams[0]);
     sound_state.active_streams[0] = stream;
     log_warn("Sound mixer saturated; dropping oldest playing sound");
@@ -155,268 +258,70 @@ static char* sdl_sound_trim(char* text)
     return start;
 }
 
-static int sdl_sound_lookup_event(const char* name)
+static SDL_AudioFormat sdl_sound_parse_format(const char* format_str)
 {
-    extern const cptr angband_sound_name[];
-    for (int i = 0; i < MSG_MAX; i++) {
-        if (angband_sound_name[i] && streq(angband_sound_name[i], name)) {
-            return i;
-        }
+    if (!format_str || !format_str[0]) {
+        return SDL_AUDIO_S16;
     }
-    return -1;
-}
-
-static bool sdl_sound_is_absolute_path(const char* path)
-{
-    if (!path || !path[0]) {
-        return false;
-    }
-#ifdef _WIN32
-    if (((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z')) && path[1] == ':') {
-        return true;
-    }
-#endif
-    return path[0] == '/' || path[0] == '\\';
-}
-
-static void sdl_sound_build_directory(const char* base_path, char* dst, size_t dst_len)
-{
-    if (base_path && sdl_sound_is_absolute_path(base_path)) {
-        SDL_strlcpy(dst, base_path, dst_len);
-        return;
-    }
-
-    const char* anchor = ANGBAND_DIR_XTRA;
-    if (!anchor || !anchor[0]) {
-        dst[0] = '\0';
-        return;
-    }
-
-    const char* rel = (base_path && base_path[0]) ? base_path : "sound";
-    path_build(dst, dst_len, anchor, rel);
-}
-
-static void sdl_sound_build_sample_path(const char* base_path, const char* sample, char* dst, size_t dst_len)
-{
-    if (!sample || !sample[0]) {
-        dst[0] = '\0';
-        return;
-    }
-
-    bool has_ext = (strchr(sample, '.') != NULL);
-
-    if (sdl_sound_is_absolute_path(sample)) {
-        if (has_ext || !sound_state.settings.extension[0]) {
-            SDL_strlcpy(dst, sample, dst_len);
-        } else {
-            strnfmt(dst, dst_len, "%s.%s", sample, sound_state.settings.extension);
-        }
-        return;
-    }
-
-    char directory[1024];
-    sdl_sound_build_directory(base_path, directory, sizeof(directory));
-
-    if (!directory[0]) {
-        dst[0] = '\0';
-        return;
-    }
-
-    if (has_ext || !sound_state.settings.extension[0]) {
-        strnfmt(dst, dst_len, "%s/%s", directory, sample);
-    } else {
-        strnfmt(dst, dst_len, "%s/%s.%s", directory, sample, sound_state.settings.extension);
-    }
-}
-
-static void sdl_sound_process_audio_entry(const char* key, const char* value)
-{
-    if (SDL_strcasecmp(key, "base_path") == 0) {
-        if (value && value[0]) {
-            sound_state.settings.search_path_count = 1;
-            SDL_strlcpy(sound_state.settings.search_paths[0], value,
-                        sizeof(sound_state.settings.search_paths[0]));
-        }
-    } else if (SDL_strcasecmp(key, "path") == 0) {
-        sdl_sound_add_search_path(value);
-    } else if (SDL_strcasecmp(key, "paths") == 0) {
-        if (value && value[0]) {
-            char buffer[256];
-            SDL_strlcpy(buffer, value, sizeof(buffer));
-            char* token = buffer;
-            while (*token) {
-                char* segment = token;
-                while (*token && *token != ',' && *token != ';') token++;
-                char saved = *token;
-                *token = '\0';
-                char* trimmed = sdl_sound_trim(segment);
-                if (*trimmed) {
-                    sdl_sound_add_search_path(trimmed);
-                }
-                if (!saved) {
-                    break;
-                }
-                token++;
-            }
-        }
-    } else if (SDL_strcasecmp(key, "extension") == 0) {
-        const char* v = value;
-        if (v[0] == '.') v++;
-        SDL_strlcpy(sound_state.settings.extension, v, sizeof(sound_state.settings.extension));
-    } else if (SDL_strcasecmp(key, "sample_rate") == 0) {
-        long rate = strtol(value, NULL, 10);
-        if (rate > 0 && rate < 192001) {
-            sound_state.settings.sample_rate = (int)rate;
-        }
-    } else if (SDL_strcasecmp(key, "channels") == 0) {
-        long channels = strtol(value, NULL, 10);
-        if (channels == 1 || channels == 2) {
-            sound_state.settings.channels = (int)channels;
-        }
-    } else if (SDL_strcasecmp(key, "format") == 0) {
-        char lowered[16];
-        SDL_strlcpy(lowered, value, sizeof(lowered));
-        for (char* p = lowered; *p; p++) *p = (char)tolower((unsigned char)*p);
-        if (streq(lowered, "s8")) sound_state.settings.format = SDL_AUDIO_S8;
-        else if (streq(lowered, "u8")) sound_state.settings.format = SDL_AUDIO_U8;
-        else if (streq(lowered, "s16")) sound_state.settings.format = SDL_AUDIO_S16;
-        else if (streq(lowered, "s32")) sound_state.settings.format = SDL_AUDIO_S32;
-        else if (streq(lowered, "f32")) sound_state.settings.format = SDL_AUDIO_F32;
-    }
-}
-
-static void sdl_sound_process_sound_entry(const char* key, char* value)
-{
-    int idx = sdl_sound_lookup_event(key);
-    if (idx < 0) {
-        log_debug("Unknown sound event '%s' in sound.cfg", key);
-        return;
-    }
-
-    int count = 0;
-    char* cursor = value;
-    while (*cursor && count < SDL_SOUND_MAX_VARIANTS) {
-        while (*cursor && isspace((unsigned char)*cursor)) cursor++;
-        if (!*cursor) break;
-        char* token_end = cursor;
-        while (*token_end && !isspace((unsigned char)*token_end)) token_end++;
-        char save = *token_end;
-        *token_end = '\0';
-        SDL_strlcpy(sound_state.sound_files[idx][count], cursor, SDL_SOUND_NAME_LEN);
-        count++;
-        *token_end = save;
-        cursor = token_end;
-    }
-
-    if (*cursor && count >= SDL_SOUND_MAX_VARIANTS) {
-        log_warn("Sound event '%s' truncated to %d variants", key, SDL_SOUND_MAX_VARIANTS);
-    }
-
-    sound_state.sound_counts[idx] = count;
-    if (count > 0) {
-        log_debug("Sound event '%s' (idx=%d): %d variant(s)", key, idx, count);
-    }
-}
-
-static bool sdl_sound_parse_config(void)
-{
-    if (!ANGBAND_DIR_XTRA || !ANGBAND_DIR_XTRA[0]) {
-        log_warn("ANGBAND_DIR_XTRA is not configured; skipping sound.cfg");
-        return false;
-    }
-
-    char sound_dir[1024];
-    char cfg_path[1024];
-    path_build(sound_dir, sizeof(sound_dir), ANGBAND_DIR_XTRA, "sound");
-    path_build(cfg_path, sizeof(cfg_path), sound_dir, "sound.cfg");
-
-    SDL_IOStream* file = sdl_fopen(cfg_path, "r");
-    if (!file) {
-        log_warn("Could not open sound config file: %s", cfg_path);
-        return false;
-    }
-
-    char line[256];
-    sound_section section = SOUND_SECTION_NONE;
-
-    while (sdl_fgets(file, line, sizeof(line)) == 0) {
-        char* trimmed = sdl_sound_trim(line);
-        if (*trimmed == '\0' || *trimmed == '#') {
-            continue;
-        }
-
-        if (*trimmed == '[') {
-            if (strstr(trimmed, "[Audio]")) {
-                section = SOUND_SECTION_AUDIO;
-            } else if (strstr(trimmed, "[AudioPaths]")) {
-                section = SOUND_SECTION_AUDIO_PATHS;
-            } else if (strstr(trimmed, "[Sound]")) {
-                section = SOUND_SECTION_SOUND;
-            } else {
-                section = SOUND_SECTION_NONE;
-            }
-            continue;
-        }
-
-        char* equals = strchr(trimmed, '=');
-        if (!equals) {
-            continue;
-        }
-
-        *equals = '\0';
-        char* key = sdl_sound_trim(trimmed);
-        char* value = sdl_sound_trim(equals + 1);
-
-        if (section == SOUND_SECTION_AUDIO) {
-            sdl_sound_process_audio_entry(key, value);
-        } else if (section == SOUND_SECTION_AUDIO_PATHS) {
-            sdl_sound_add_search_path(value);
-        } else if (section == SOUND_SECTION_SOUND) {
-            sdl_sound_process_sound_entry(key, value);
-        }
-    }
-
-    sdl_fclose(file);
-    log_info("Sound configuration loaded from %s", cfg_path);
-    return true;
+    
+    char lowered[16];
+    SDL_strlcpy(lowered, format_str, sizeof(lowered));
+    for (char* p = lowered; *p; p++) *p = (char)tolower((unsigned char)*p);
+    
+    if (streq(lowered, "s8")) return SDL_AUDIO_S8;
+    if (streq(lowered, "u8")) return SDL_AUDIO_U8;
+    if (streq(lowered, "s16")) return SDL_AUDIO_S16;
+    if (streq(lowered, "s32")) return SDL_AUDIO_S32;
+    if (streq(lowered, "f32")) return SDL_AUDIO_F32;
+    
+    return SDL_AUDIO_S16; // Default
 }
 
 bool sdl_sound_initialize(void)
 {
-    if (!sound_state.bank_loaded) {
-        sdl_sound_reset_settings();
-        sdl_sound_reset_bank();
-        sound_state.bank_loaded = sdl_sound_parse_config();
-    }
-
-    SDL_AudioSpec desired;
-    SDL_zero(desired);
-    desired.freq = sound_state.settings.sample_rate;
-    desired.format = sound_state.settings.format;
-    desired.channels = sound_state.settings.channels;
-
-    sound_state.device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired);
-    if (!sound_state.device) {
-        log_warn("Failed to open audio device: %s", SDL_GetError());
-        return false;
-    }
-
-    sound_state.device_spec = desired;
-    SDL_zero(sound_state.active_streams);
-    SDL_ResumeAudioDevice(sound_state.device);
-    log_info("Audio device opened (freq=%d, channels=%d, format=0x%x)",
-             sound_state.device_spec.freq,
-             sound_state.device_spec.channels,
-             sound_state.device_spec.format);
-    return true;
+    return true; // Defer actual initialization until sdl_sound_reload()
 }
 
 void sdl_sound_reload(void)
 {
     sdl_sound_clear_streams();
-    sdl_sound_reset_settings();
     sdl_sound_reset_bank();
-    sound_state.bank_loaded = sdl_sound_parse_config();
+    
+    // Load sound configuration from sound.json
+    static struct sound_config sound_cfg;
+    
+    char sound_config_path[1024];
+    if (ANGBAND_DIR_USER && ANGBAND_DIR_USER[0]) {
+        path_build(sound_config_path, sizeof(sound_config_path), ANGBAND_DIR_USER, "sound.json");
+    } else {
+        SDL_strlcpy(sound_config_path, "sound.json", sizeof(sound_config_path));
+    }
+    
+    sound_config_load(sound_config_path, &sound_cfg);
+    sound_state.bank_loaded = sdl_sound_load_from_config(&sound_cfg);
+    
+    // Open audio device if not already open and sound is enabled
+    if (sound_cfg.enabled && !sound_state.device) {
+        SDL_AudioSpec desired;
+        SDL_zero(desired);
+        desired.freq = sound_cfg.sample_rate;
+        desired.format = sdl_sound_parse_format(sound_cfg.format);
+        desired.channels = sound_cfg.channels;
+
+        sound_state.device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired);
+        if (!sound_state.device) {
+            log_warn("Failed to open audio device: %s", SDL_GetError());
+            return;
+        }
+
+        sound_state.device_spec = desired;
+        SDL_zero(sound_state.active_streams);
+        SDL_ResumeAudioDevice(sound_state.device);
+        log_info("Audio device opened (freq=%d, channels=%d, format=0x%x)",
+                 sound_state.device_spec.freq,
+                 sound_state.device_spec.channels,
+                 sound_state.device_spec.format);
+    }
 }
 
 void sdl_sound_shutdown(void)
@@ -437,49 +342,25 @@ void sdl_sound_handle(int sound_idx)
         return;
     }
 
-    sdl_sound_prune_streams();
-
     log_debug("sdl_sound_handle: Playing sound idx=%d", sound_idx);
 
-    int sample_count = sound_state.sound_counts[sound_idx];
+    int sample_count = sound_state.bank.sound_counts[sound_idx];
     if (sample_count <= 0) {
         return;
     }
 
     int sample_idx = (sample_count > 1) ? Rand_div(sample_count) : 0;
-    const char* sample = sound_state.sound_files[sound_idx][sample_idx];
-    if (!sample[0]) {
+    const char* sample_path = sound_state.bank.sound_files[sound_idx][sample_idx];
+    if (!sample_path[0]) {
         return;
     }
 
     SDL_AudioSpec wav_spec;
     Uint8* wav_buffer = NULL;
     Uint32 wav_length = 0;
-    bool loaded = false;
-    char sample_path[1024];
 
-    if (sdl_sound_is_absolute_path(sample)) {
-        sdl_sound_build_sample_path(NULL, sample, sample_path, sizeof(sample_path));
-        if (sample_path[0] && SDL_LoadWAV(sample_path, &wav_spec, &wav_buffer, &wav_length)) {
-            loaded = true;
-        }
-    } else {
-        int path_count = sound_state.settings.search_path_count;
-        if (path_count <= 0) path_count = 1;
-        for (int i = 0; i < path_count && !loaded; i++) {
-            const char* base_path = (i < sound_state.settings.search_path_count) ?
-                sound_state.settings.search_paths[i] : "sound";
-            sdl_sound_build_sample_path(base_path, sample, sample_path, sizeof(sample_path));
-            if (!sample_path[0]) continue;
-            if (SDL_LoadWAV(sample_path, &wav_spec, &wav_buffer, &wav_length)) {
-                loaded = true;
-                break;
-            }
-        }
-    }
-
-    if (!loaded) {
-        log_debug("Failed to load sound sample '%s' from configured paths", sample);
+    if (!SDL_LoadWAV(sample_path, &wav_spec, &wav_buffer, &wav_length)) {
+        log_debug("Failed to load sound sample '%s': %s", sample_path, SDL_GetError());
         return;
     }
 

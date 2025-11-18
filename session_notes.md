@@ -1,5 +1,118 @@
 # Session Notes
 
+## 2025-11-18: Sound Configuration Separation
+
+### Major Changes
+- **Separated sound settings into `sound.json`**: Sound configuration is now completely independent from SDL display settings
+- **New sound-config module**: Created `src/sound-config.c`/`.h` to handle sound configuration separately
+- **Global sound_config**: Added `g_sound_config` global variable accessible from both `main-sdl.c` and `cmd4.c`
+- **Simplified configuration**: Sound settings no longer clutter `sil_sdl.json`
+
+### Implementation Details
+
+**New Files**:
+- `src/sound-config.h` - Sound configuration structure and functions
+- `src/sound-config.c` - JSON load/save for sound settings
+- `sound.json` - Example sound configuration (replaces `sound_config_example.json`)
+
+**sound.json Structure**:
+```json
+{
+  "enabled": true,
+  "sampleRate": 22050,
+  "channels": 2,
+  "format": "s16",
+  "events": {
+    "hit": "sound/SFX/Attacks/Sword_Attacks_Hits_and_Blocks",
+    "walk": "sound/SFX/Footsteps/Stone"
+  }
+}
+```
+
+**Configuration Flow**:
+1. `main-sdl.c` loads `sound.json` at startup into `g_sound_config`
+2. `cmd4.c` (options menu) reads/writes `g_sound_config` for sound toggle
+3. `sdl-sound.c` loads `sound.json` on demand when sounds are played
+4. Changes in options menu immediately save to `sound.json`
+
+**Benefits**:
+1. **Clean separation**: Display config (`sil_sdl.json`) vs sound config (`sound.json`)
+2. **Easier to share**: Users can share sound configs without exposing display settings
+3. **Modular design**: Sound system is fully independent
+4. **Better organization**: Each config file has a clear, single purpose
+
+### Files Modified
+- `src/sdl-config.h` - Removed all sound fields
+- `src/sdl-config.c` - Removed sound load/save code
+- `src/sdl-sound.c` - Updated to load `sound.json` instead of using `sdl_config`
+- `src/cmd4.c` - Updated options menu to use `g_sound_config`
+- `src/main-sdl.c` - Added `sound.json` loading at startup
+- `CMakeLists.txt` - Added `sound-config.c` to build
+- `SOUND_SYSTEM.md` - Updated documentation
+- `SOUND_MIGRATION.md` - Updated migration guide
+
+## 2025-11-18: Sound System Restructure - Folder-Based Configuration
+
+### Major Changes
+- **Moved all sound configuration to `sil_sdl.json`**: No longer using `lib/xtra/sound/sound.cfg`
+- **Folder-based sound selection**: Each sound event maps to a folder; game randomly selects from all `.wav`/`.ogg` files in that folder
+- **Extended `struct sdl_config`**: Added `sound_sample_rate`, `sound_channels`, `sound_format`, and `sound_events[37][256]` array
+- **Simplified sound loading**: Removed complex config parser; now just scans folders for audio files
+- **Platform-agnostic folder scanning**: Uses `FindFirstFile`/`FindNextFile` (Windows) or `opendir`/`readdir` (Unix)
+
+### Implementation Details
+
+**Configuration Structure** (`sdl-config.h`):
+```c
+struct sdl_config {
+    // ... existing fields ...
+    bool sound_enabled;
+    int sound_sample_rate;     // default: 22050
+    int sound_channels;        // default: 2 (stereo)
+    char sound_format[16];     // default: "s16"
+    char sound_events[37][256]; // folder paths for each MSG_* event
+};
+```
+
+**JSON Format** (`sil_sdl.json`):
+```json
+{
+  "sdl": {
+    "soundEnabled": true,
+    "soundSampleRate": 22050,
+    "soundChannels": 2,
+    "soundFormat": "s16",
+    "soundEvents": {
+      "hit": "sound/SFX/Attacks/Sword_Attacks_Hits_and_Blocks",
+      "walk": "sound/SFX/Footsteps/Stone"
+    }
+  }
+}
+```
+
+**Sound Loading** (`sdl-sound.c`):
+- `sdl_sound_scan_folder()`: Scans a directory and collects all audio files
+- `sdl_sound_load_from_config()`: Iterates through `config->sound_events[]` and populates `sound_state.bank`
+- `sdl_sound_handle()`: Randomly selects from available files using `Rand_div()`
+- Audio device opens on-demand when `soundEnabled` is true
+
+**Folder Path Resolution**:
+- Relative paths (e.g., `"sound/SFX/Footsteps"`) resolved relative to `ANGBAND_DIR_XTRA`
+- Absolute paths supported (e.g., `"C:/sounds/custom"`)
+- Searches for both `.wav` and `.ogg` files
+
+### Benefits
+1. **Easier to organize**: Group related sounds in folders instead of listing individual files
+2. **More flexible**: Add/remove sounds without editing config files
+3. **Better variety**: Game can use all available sounds in a folder without manual configuration
+4. **Cleaner config**: All settings in one JSON file instead of multiple config formats
+5. **User-friendly**: Simple to understand and modify
+
+### Migration
+- Legacy `sound.cfg` renamed to `sound.cfg.legacy` (no longer used)
+- Created `SOUND_SYSTEM.md` documentation
+- Created `sound_config_example.json` template
+
 ## 2025-11-17: SDL Sound Modularization
 
 - Added `src/sdl-sound.c`/`.h` to encapsulate all SDL audio handling (config parsing, device/stream lifetime, playback helper).

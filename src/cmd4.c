@@ -9,6 +9,9 @@
  */
 
 #include "angband.h"
+#include "sound-config.h"
+
+extern struct sound_config g_sound_config;
 #include "externs.h"
 #include "fs/io_sdl.h"
 #include "fs/path.h"
@@ -8314,13 +8317,6 @@ extern void do_cmd_options_aux(int page, cptr info)
 
     int dir;
     
-    /* Externals for sound page */
-    extern struct sdl_config config;
-    extern void sdl_config_save(const char* filename, const struct sdl_config* config,
-                                const struct pane_config* pane_configs, int pane_count);
-    extern char config_file_path[1024];
-    extern struct pane_config pane_config[];
-    extern int pane_config_count;
     bool is_sound_page = (page == SOUND_PAGE);
 
     /* Scan the options */
@@ -8364,7 +8360,7 @@ extern void do_cmd_options_aux(int page, cptr info)
                 /* Special sound option display */
                 strnfmt(buf, sizeof(buf), "%-48s: %s",
                     "Enable game sounds",
-                    config.sound_enabled ? "yes" : "no ");
+                    g_sound_config.enabled ? "yes" : "no ");
             }
             else if (opt[i] == OPT_delay_factor)
             {
@@ -8444,7 +8440,12 @@ extern void do_cmd_options_aux(int page, cptr info)
             /* Save sound settings if on sound page */
             if (is_sound_page)
             {
-                sdl_config_save(config_file_path, &config, pane_config, pane_config_count);
+                char sound_config_path[1024];
+                if (ANGBAND_DIR_USER && ANGBAND_DIR_USER[0])
+                    path_build(sound_config_path, sizeof(sound_config_path), ANGBAND_DIR_USER, "sound.json");
+                else
+                    SDL_strlcpy(sound_config_path, "sound.json", sizeof(sound_config_path));
+                sound_config_save(sound_config_path, &g_sound_config);
             }
             
             /* Hack -- Notice use of any "cheat" options */
@@ -8485,8 +8486,8 @@ extern void do_cmd_options_aux(int page, cptr info)
                 if (is_sound_page && k == 0)
                 {
                     /* Toggle sound */
-                    config.sound_enabled = !config.sound_enabled;
-                    use_sound = config.sound_enabled;
+                    g_sound_config.enabled = !g_sound_config.enabled;
+                    use_sound = g_sound_config.enabled;
                 }
                 else
                 {
@@ -8504,7 +8505,7 @@ extern void do_cmd_options_aux(int page, cptr info)
                 if (is_sound_page && k == 0)
                 {
                     /* Enable sound */
-                    config.sound_enabled = true;
+                    g_sound_config.enabled = true;
                     use_sound = true;
                 }
                 else if (opt[k] == OPT_delay_factor)
@@ -8546,7 +8547,7 @@ extern void do_cmd_options_aux(int page, cptr info)
                 if (is_sound_page && k == 0)
                 {
                     /* Disable sound */
-                    config.sound_enabled = false;
+                    g_sound_config.enabled = false;
                     use_sound = false;
                 }
                 else if (opt[k] == OPT_delay_factor)
