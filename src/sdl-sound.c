@@ -12,7 +12,7 @@
 
 #define SDL_SOUND_MAX_VARIANTS 16
 #define SDL_SOUND_NAME_LEN 64
-#define SDL_SOUND_MAX_PATHS 12
+#define SDL_SOUND_MAX_PATHS 16
 #define SDL_SOUND_MAX_ACTIVE_STREAMS 16
 
 typedef enum {
@@ -438,6 +438,8 @@ void sdl_sound_handle(int sound_idx)
     }
 
     sdl_sound_prune_streams();
+
+    log_debug("sdl_sound_handle: Playing sound idx=%d", sound_idx);
 
     int sample_count = sound_state.sound_counts[sound_idx];
     if (sample_count <= 0) {

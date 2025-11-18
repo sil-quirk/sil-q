@@ -3330,7 +3330,9 @@
 #define MSG_WEAPON_THRUST 32
 #define MSG_WEAPON_BLUNT 33
 #define MSG_WEAPON_UNARMED 34
-#define MSG_MAX 35
+#define MSG_ARMOR 35
+#define MSG_WEAPON_SLASH_MEDIUM 36
+#define MSG_MAX 37
 
 /*
  * Maximum number of macro trigger names

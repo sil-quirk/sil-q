@@ -313,6 +313,8 @@ const cptr angband_sound_name[MSG_MAX] = {
     "weapon_thrust",
     "weapon_blunt",
     "weapon_unarmed",
+    "armor",
+    "weapon_slash_medium",
 };
 
 /*

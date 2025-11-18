@@ -3698,7 +3698,7 @@ bool do_cmd_walk_test(int y, int x)
         if (cave_feat[y][x] == FEAT_RUBBLE)
         {
             /* Message */
-            msg_print("There is a pile of rubble in the way!");
+            message(MSG_HITWALL, 0, "There is a pile of rubble in the way!");
 
             // store the action type
             p_ptr->previous_action[0] = ACTION_MISC;
@@ -3715,7 +3715,7 @@ bool do_cmd_walk_test(int y, int x)
         else
         {
             /* Message */
-            msg_print("There is a wall in the way!");
+            message(MSG_HITWALL, 0, "There is a wall in the way!");
 
             // store the action type
             p_ptr->previous_action[0] = ACTION_MISC;

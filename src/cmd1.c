@@ -25,9 +25,23 @@ static bool polearm_is_axe(const object_type* weapon)
 
     switch (weapon->sval)
     {
-    case SV_HAND_AXE:
     case SV_BATTLE_AXE:
     case SV_GREAT_AXE:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool sword_is_medium(const object_type* weapon)
+{
+    if (!weapon || weapon->tval != TV_SWORD)
+        return false;
+
+    switch (weapon->sval)
+    {
+    case SV_LONG_SWORD:
+    case SV_BASTARD_SWORD:
         return true;
     default:
         return false;
@@ -62,9 +76,21 @@ static u16b weapon_sound_message_type(const object_type* weapon, bool hit)
     switch (weapon->tval)
     {
     case TV_SWORD:
-        return sword_is_great(weapon) ? MSG_WEAPON_SLASH_HEAVY : MSG_WEAPON_SLASH_LIGHT;
+        if (sword_is_great(weapon))
+            return MSG_WEAPON_SLASH_HEAVY;
+        else if (sword_is_medium(weapon))
+            return MSG_WEAPON_SLASH_MEDIUM;
+        else
+            return MSG_WEAPON_SLASH_LIGHT;
     case TV_POLEARM:
-        return polearm_is_axe(weapon) ? MSG_WEAPON_SLASH_HEAVY : MSG_WEAPON_THRUST;
+        if (weapon->sval == SV_HAND_AXE)
+            return MSG_WEAPON_SLASH_LIGHT;
+        else if (weapon->sval == SV_BATTLE_AXE)
+            return MSG_WEAPON_SLASH_MEDIUM;
+        else if (polearm_is_axe(weapon))
+            return MSG_WEAPON_SLASH_HEAVY;
+        else
+            return MSG_WEAPON_THRUST;
     case TV_HAFTED:
     case TV_DIGGING:
     case TV_STAFF:
@@ -5037,37 +5063,49 @@ void py_attack_aux(int y, int x, int attack_type)
             break_mercy_oath(m_ptr, net_dam);
             break_valorous_oath(m_ptr, net_dam, attack_type, -1);  // -1 indicates player damage
 
+            // Play weapon swing sound first (layered sound system)
+            u16b weapon_swing_type = weapon_sound_message_type(o_ptr, false);
+            sound(weapon_swing_type);
+
+            // Delay before result sound
+            SDL_Delay(400);
+
+            // Determine result sound: armor blocked, hit, or nothing
+            u16b result_sound = MSG_ARMOR; // default to armor
+            if (net_dam > 0)
+            {
+                result_sound = MSG_HIT;
+            }
+
+            // Play result sound
+            sound(result_sound);
+
             // determine the punctuation for the attack ("...", ".", "!" etc)
             attack_punctuation(punctuation, net_dam, crit_bonus_dice);
 
             /* Special message for visible unalert creatures */
             if (stealth_bonus)
             {
-                message_format(hit_msg_type, m_ptr->r_idx,
-                    "You stealthily attack %s%s", m_name, punctuation);
+                msg_format("You stealthily attack %s%s", m_name, punctuation);
             }
             else
             {
                 /* Message */
                 if (charge)
                 {
-                    message_format(hit_msg_type, m_ptr->r_idx, "You charge %s%s",
-                        m_name, punctuation);
+                    msg_format("You charge %s%s", m_name, punctuation);
                 }
                 else if (smite)
                 {
-                    message_format(hit_msg_type, m_ptr->r_idx, "You smite %s%s",
-                        m_name, punctuation);
+                    msg_format("You smite %s%s", m_name, punctuation);
                 }
                 else if (attack_type == ATT_IMPALE)
                 {
-                    message_format(hit_msg_type, m_ptr->r_idx, "You impale %s%s",
-                        m_name, punctuation);
+                    msg_format("You impale %s%s", m_name, punctuation);
                 }
                 else
                 {
-                    message_format(hit_msg_type, m_ptr->r_idx, "You hit %s%s",
-                        m_name, punctuation);
+                    msg_format("You hit %s%s", m_name, punctuation);
                 }
             }
 
@@ -5254,8 +5292,15 @@ void py_attack_aux(int y, int x, int attack_type)
         /* Player misses */
         else
         {
-            /* Message */
-            message_format(miss_msg_type, m_ptr->r_idx, "You miss %s.", m_name);
+            // Play weapon swing sound first (layered sound system)
+            u16b weapon_swing_type = weapon_sound_message_type(o_ptr, false);
+            sound(weapon_swing_type);
+
+            // Delay before message
+            SDL_Delay(100);
+
+            /* Message - no additional sound for miss */
+            msg_format("You miss %s.", m_name);
 
             // Occasional warning about fighting from within a pit
             if (cave_pit_bold(p_ptr->py, p_ptr->px) && one_in_(3))
@@ -5624,6 +5669,7 @@ void move_player(int dir)
     /* Player can not walk through "walls", but can go through traps */
     else if (!cave_floor_bold(y, x))
     {
+        log_debug("cmd_walk: Hit wall at (%d, %d)", y, x);
         /* Disturb the player */
         disturb(0, 0);
 
@@ -5946,8 +5992,8 @@ void move_player(int dir)
                 return;
         }
 
-        /* Sound XXX XXX XXX */
-        /* sound(MSG_WALK); */
+        /* Sound */
+        sound(MSG_WALK);
 
         // do flanking or controlled retreat attack if any
         flanking_or_retreat(y, x);
