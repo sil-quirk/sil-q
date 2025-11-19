@@ -4450,30 +4450,54 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
 
     update_stuff();
 
-    /* Sound - weight-based drop sound */
+    /* Sound - material-based drop sound (strictly matches design table) */
     {
-        int drop_sound = MSG_DROP; /* fallback */
-        int weight = j_ptr->weight * j_ptr->number;
-        
-        /* Light items: rings, amulets, arrows, potions, food, herbs, flasks, gems, small items */
-        if (j_ptr->tval == TV_RING || j_ptr->tval == TV_AMULET || 
-            j_ptr->tval == TV_ARROW || j_ptr->tval == TV_POTION || 
-            j_ptr->tval == TV_FOOD || j_ptr->tval == TV_EASTER ||
-            j_ptr->tval == TV_FLASK || j_ptr->tval == TV_GEM ||
-            weight < 30) {
-            drop_sound = MSG_DROP_LIGHT;
+        int drop_sound = MSG_DROP_GENERIC;
+        const bool is_boots = (j_ptr->tval == TV_BOOTS);
+        const bool is_gloves = (j_ptr->tval == TV_GLOVES);
+        const bool is_greaves = is_boots &&
+            (j_ptr->sval == SV_PAIR_OF_STEEL_GREAVES || j_ptr->sval == SV_PAIR_OF_MITHRIL_GREAVES);
+        const bool is_gauntlets = is_gloves && (j_ptr->sval == SV_SET_OF_GAUNTLETS);
+
+        if (j_ptr->tval == TV_POTION || j_ptr->tval == TV_FLASK || j_ptr->tval == TV_GEM ||
+            (j_ptr->tval == TV_LIGHT && j_ptr->sval == SV_LIGHT_SILMARIL)) {
+            drop_sound = MSG_DROP_GLASS;
         }
-        /* Heavy items: heavy armor, shields, heavy weapons */
+        else if (j_ptr->tval == TV_RING || j_ptr->tval == TV_AMULET ||
+                 (j_ptr->tval == TV_LIGHT && (j_ptr->sval == SV_LIGHT_FEANORIAN ||
+                                               j_ptr->sval == SV_LIGHT_LESSER_JEWEL))) {
+            drop_sound = MSG_DROP_SMALL_METAL;
+        }
+        else if ((j_ptr->tval == TV_SOFT_ARMOR && j_ptr->sval == SV_ROBE) ||
+                 j_ptr->tval == TV_FOOD || j_ptr->tval == TV_EASTER || j_ptr->tval == TV_NOTE) {
+            drop_sound = MSG_DROP_CLOTH;
+        }
+        else if ((is_boots && !is_greaves) || (is_gloves && !is_gauntlets) ||
+                 (j_ptr->tval == TV_SOFT_ARMOR &&
+                  (j_ptr->sval == SV_LEATHER_ARMOR || j_ptr->sval == SV_STUDDED_LEATHER))) {
+            drop_sound = MSG_DROP_LEATHER;
+        }
         else if (j_ptr->tval == TV_MAIL || j_ptr->tval == TV_SHIELD ||
-                 (j_ptr->tval == TV_POLEARM) || (j_ptr->tval == TV_DIGGING) ||
-                 weight >= 150) {
-            drop_sound = MSG_DROP_HEAVY;
+                 j_ptr->tval == TV_CHEST || j_ptr->tval == TV_METAL || j_ptr->tval == TV_DIGGING ||
+                 (j_ptr->tval == TV_HELM && (j_ptr->sval == SV_GREAT_HELM || j_ptr->sval == SV_DWARF_MASK))) {
+            drop_sound = MSG_DROP_BIG_METAL;
         }
-        /* Medium items: everything else */
+        else if (j_ptr->tval == TV_SWORD || j_ptr->tval == TV_POLEARM || j_ptr->tval == TV_CROWN ||
+                 (j_ptr->tval == TV_HELM && j_ptr->sval != SV_GREAT_HELM && j_ptr->sval != SV_DWARF_MASK) ||
+                 (j_ptr->tval == TV_LIGHT && j_ptr->sval == SV_LIGHT_LANTERN) ||
+                 is_greaves || is_gauntlets) {
+            drop_sound = MSG_DROP_METAL_MEDIUM;
+        }
+        else if (j_ptr->tval == TV_HAFTED || j_ptr->tval == TV_STAFF || j_ptr->tval == TV_HORN ||
+                 j_ptr->tval == TV_ARROW ||
+                 (j_ptr->tval == TV_LIGHT && (j_ptr->sval == SV_LIGHT_TORCH ||
+                                               j_ptr->sval == SV_LIGHT_MALLORN))) {
+            drop_sound = MSG_DROP_WOOD;
+        }
         else {
-            drop_sound = MSG_DROP_MEDIUM;
+            drop_sound = MSG_DROP_GENERIC;
         }
-        
+
         sound(drop_sound);
     }
 

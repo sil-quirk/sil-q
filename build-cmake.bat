@@ -80,6 +80,10 @@ REM Always update lib/xtra/sound folder to ensure latest sound configuration
 if exist sil-more-windows-sdl3\lib\xtra\sound rmdir /S /Q sil-more-windows-sdl3\lib\xtra\sound
 xcopy /E /I /Y lib\xtra\sound sil-more-windows-sdl3\lib\xtra\sound
 
+REM Copy tileset graphic
+if not exist sil-more-windows-sdl3\lib\xtra\graf mkdir sil-more-windows-sdl3\lib\xtra\graf
+copy /Y lib\xtra\graf\16x16.png sil-more-windows-sdl3\lib\xtra\graf\
+
 echo.
 echo Standard version complete: sil-more-windows-sdl3\sil-more.exe
 echo.
@@ -153,6 +157,10 @@ xcopy /E /I /Y lib\pref sil-more-windows-sdl3-portable\lib\pref
 REM Always update lib/xtra/sound folder to ensure latest sound configuration
 if exist sil-more-windows-sdl3-portable\lib\xtra\sound rmdir /S /Q sil-more-windows-sdl3-portable\lib\xtra\sound
 xcopy /E /I /Y lib\xtra\sound sil-more-windows-sdl3-portable\lib\xtra\sound
+
+REM Copy tileset graphic
+if not exist sil-more-windows-sdl3-portable\lib\xtra\graf mkdir sil-more-windows-sdl3-portable\lib\xtra\graf
+copy /Y lib\xtra\graf\16x16.png sil-more-windows-sdl3-portable\lib\xtra\graf\
 
 echo.
 echo Local version complete: sil-more-windows-sdl3-portable\sil-more.exe

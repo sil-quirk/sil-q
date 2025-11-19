@@ -70,7 +70,7 @@ Folder paths can be:
 1. **Relative to lib/xtra**: `"sound/SFX/Footsteps/Stone"`
 2. **Absolute paths**: `"C:/sounds/custom/footsteps"` (Windows) or `"/home/user/sounds/footsteps"` (Unix)
 
-The game will scan the folder and randomly select from all `.wav` and `.ogg` files found.
+The game will scan the folder and randomly select from all `.wav` files found.
 
 ## Example Configuration
 

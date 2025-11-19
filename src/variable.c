@@ -302,6 +302,8 @@ const cptr angband_sound_name[MSG_MAX] = {
     "dig",
     "opendoor",
     "shutdoor",
+    "bashdoor",
+    "pick",
     "tplevel",
     "bell",
     "nothing_to_open",
@@ -329,9 +331,16 @@ const cptr angband_sound_name[MSG_MAX] = {
     "unequip_leather",
     "unequip_armor",
     "unequip_jewelry",
-    "drop_light",
-    "drop_medium",
-    "drop_heavy",
+    "drop_glass",
+    "drop_small_metal",
+    "drop_cloth",
+    "drop_leather",
+    "drop_big_metal",
+    "drop_metal_medium",
+    "drop_wood",
+    "drop_generic",
+    "use_gem",
+    "activate",
 };
 
 /*

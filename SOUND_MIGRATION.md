@@ -98,7 +98,6 @@ Common events:
 ## Supported Audio Formats
 
 - `.wav` - Wave audio files
-- `.ogg` - Ogg Vorbis files
 
 ## Troubleshooting
 

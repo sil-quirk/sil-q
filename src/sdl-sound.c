@@ -63,7 +63,10 @@ static bool sdl_sound_is_audio_file(const char* filename)
     if (len < 5) return false;
     
     const char* ext = filename + len - 4;
-    return (SDL_strcasecmp(ext, ".wav") == 0 || SDL_strcasecmp(ext, ".ogg") == 0);
+    /* Only WAV files are playable via SDL_LoadWAV; omit OGG here to avoid
+     * false-positive matches that would later fail at load time.
+     */
+    return (SDL_strcasecmp(ext, ".wav") == 0);
 }
 
 static void sdl_sound_build_path(const char* base_path, char* dst, size_t dst_len)

@@ -11,6 +11,8 @@
 		"dig":	"sound/dig",
 		"opendoor":	"sound/opendoor",
 		"shutdoor":	"sound/shutdoor",
+		"bashdoor":	"sound/bashdoor",
+		"pick":	"sound/pick",
 		"weapon_slash_light":	"sound/slash_light",
 		"weapon_slash_medium":	"sound/slash_medium",
 		"weapon_slash_heavy":	"sound/slash_heavy",
@@ -35,8 +37,15 @@
 		"unequip_leather":	"sound/unequip_leather",
 		"unequip_armor":	"sound/unequip_armor",
 		"unequip_jewelry":	"sound/unequip_jewelry",
-		"drop_light":	"sound/drop_light",
-		"drop_medium":	"sound/drop_medium",
-		"drop_heavy":	"sound/drop_heavy"
+		"drop_glass":	"sound/drop_glass",
+		"drop_small_metal":	"sound/drop_small_metal",
+		"drop_cloth":	"sound/drop_cloth",
+		"drop_leather":	"sound/drop_leather",
+		"drop_big_metal":	"sound/drop_big_metal",
+		"drop_metal_medium":	"sound/drop_metal_medium",
+		"drop_wood":	"sound/drop_wood",
+		"drop_generic":	"sound/drop_generic",
+		"use_gem":	"sound/gem",
+		"zap":	"sound/stuff"
 	}
 }

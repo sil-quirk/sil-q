@@ -146,11 +146,15 @@ void give_player_item(object_type * o_ptr)
         if (!label)
             label = 'a';
         msg_format("You add %s to your supplies (%c).", o_name, label);
+        sound(MSG_PICK);
         return;
     }
 
     if (slot < 0)
         return;
+    
+    /* Play pickup sound */
+    sound(MSG_PICK);
 
     /* reset the pointer to the new location to pick up the count of the item
        in the inventory */

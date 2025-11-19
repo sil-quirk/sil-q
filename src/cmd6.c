@@ -523,7 +523,10 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     }
 
     /* Sound */
-    sound(MSG_ZAP);
+    if (o_ptr->tval == TV_GEM)
+        sound(MSG_USE_GEM);
+    else
+        sound(MSG_ZAP);
 
     /* Use the staff/gem */
     use_charge = use_object(o_ptr, &ident);
@@ -668,6 +671,9 @@ void do_cmd_activate(void)
         msg_print("You could not draw upon its powers.");
         return;
     }
+
+    /* Sound */
+    sound(MSG_ACTIVATE);
 
     /* Activate the object */
     (void)use_object(o_ptr, &ident);

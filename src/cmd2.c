@@ -3303,12 +3303,12 @@ static bool do_cmd_bash_aux(int y, int x)
                 {
                     /* Message */
                     message(
-                        MSG_OPENDOOR, 0, "A door opens with a muffled crash!");
+                        MSG_BASHDOOR, 0, "A door opens with a muffled crash!");
                 }
                 else
                 {
                     /* Message */
-                    message(MSG_OPENDOOR, 0, "A door crashes open!");
+                    message(MSG_BASHDOOR, 0, "A door crashes open!");
                 }
             }
             else
@@ -3316,13 +3316,13 @@ static bool do_cmd_bash_aux(int y, int x)
                 if (singing(SNG_SILENCE))
                 {
                     /* Message */
-                    message(MSG_OPENDOOR, 0,
+                    message(MSG_BASHDOOR, 0,
                         "The door opens with a muffled crash!");
                 }
                 else
                 {
                     /* Message */
-                    message(MSG_OPENDOOR, 0, "The door crashes open!");
+                    message(MSG_BASHDOOR, 0, "The door crashes open!");
                 }
             }
 

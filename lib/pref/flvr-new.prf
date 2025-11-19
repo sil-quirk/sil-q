@@ -182,7 +182,9 @@ L:86:0x85/0x81
 
 #Gems
 
-# Diamond gem (removed from flavor ranges)
+# Diamond gem
+# Use tile flag for the character (column) so SDL draws the tile (R19/C4)
+L:87:0x93/0x84
 
 # Ruby gem
 L:88:0x81/0x96

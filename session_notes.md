@@ -42,8 +42,8 @@ Split the drop sound into three weight-based categories: light, medium, and heav
 ✅ Compilation successful with no errors  
 ✅ Both builds complete and deployed
 
-### OGG Support Confirmed
-Yes, the sound system supports both WAV and OGG files. The file check in `sdl_sound_is_audio_file()` explicitly looks for both `.wav` and `.ogg` extensions (line 66 in sdl-sound.c).
+### OGG Support
+OGG files are present in some sound packs but are not playable by the current SDL loader; the system only plays `.wav` files.
 
 ---
 
@@ -110,7 +110,7 @@ To complete the implementation, sound files need to be added to these folders:
 - `lib/xtra/sound/unequip_armor/`
 - `lib/xtra/sound/unequip_jewelry/`
 
-The system will work without sound files (silently) until WAV/OGG files are added to these folders.
+The system will work without sound files (silently) until WAV files are added to these folders.
 
 ---
 
@@ -169,7 +169,7 @@ The system will work without sound files (silently) until WAV/OGG files are adde
 
 ### Major Changes
 - **Moved all sound configuration to `sil_sdl.json`**: No longer using `lib/xtra/sound/sound.cfg`
-- **Folder-based sound selection**: Each sound event maps to a folder; game randomly selects from all `.wav`/`.ogg` files in that folder
+- **Folder-based sound selection**: Each sound event maps to a folder; the game randomly selects from all `.wav` files in that folder
 - **Extended `struct sdl_config`**: Added `sound_sample_rate`, `sound_channels`, `sound_format`, and `sound_events[37][256]` array
 - **Simplified sound loading**: Removed complex config parser; now just scans folders for audio files
 - **Platform-agnostic folder scanning**: Uses `FindFirstFile`/`FindNextFile` (Windows) or `opendir`/`readdir` (Unix)
@@ -213,7 +213,7 @@ struct sdl_config {
 **Folder Path Resolution**:
 - Relative paths (e.g., `"sound/SFX/Footsteps"`) resolved relative to `ANGBAND_DIR_XTRA`
 - Absolute paths supported (e.g., `"C:/sounds/custom"`)
-- Searches for both `.wav` and `.ogg` files
+  - Searches for `.wav` files
 
 ### Benefits
 1. **Easier to organize**: Group related sounds in folders instead of listing individual files
