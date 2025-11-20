@@ -81,6 +81,11 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
                 do_xtra = true;
                 s++;
             }
+            else if (*s == '%')
+            {
+                aux[q++] = *s++;
+                break;
+            }
             else
             {
                 aux[q++] = *s++;

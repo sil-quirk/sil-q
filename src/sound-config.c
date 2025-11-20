@@ -16,6 +16,7 @@ void sound_config_set_defaults(struct sound_config* config)
     config->enable_inventory = true;
     config->enable_walk = true;
     config->enable_doors = true;
+    config->volume_master = 1.0f;
     config->volume_combat = 1.0f;
     config->volume_inventory = 1.0f;
     config->volume_walk = 1.0f;
@@ -110,6 +111,12 @@ void sound_config_load(const char* filename, struct sound_config* config)
     }
 
     // Load volume settings
+    cJSON* volume_master = cJSON_GetObjectItemCaseSensitive(root, "volumeMaster");
+    if (cJSON_IsNumber(volume_master)) {
+        config->volume_master = (float)volume_master->valuedouble;
+        log_debug("Loaded master volume: %.2f", config->volume_master);
+    }
+
     cJSON* volume_combat = cJSON_GetObjectItemCaseSensitive(root, "volumeCombat");
     if (cJSON_IsNumber(volume_combat)) {
         config->volume_combat = (float)volume_combat->valuedouble;
@@ -204,6 +211,7 @@ void sound_config_save(const char* filename, const struct sound_config* config)
     cJSON_AddBoolToObject(root, "enableInventory", config->enable_inventory);
     cJSON_AddBoolToObject(root, "enableWalk", config->enable_walk);
     cJSON_AddBoolToObject(root, "enableDoors", config->enable_doors);
+    cJSON_AddNumberToObject(root, "volumeMaster", config->volume_master);
     cJSON_AddNumberToObject(root, "volumeCombat", config->volume_combat);
     cJSON_AddNumberToObject(root, "volumeInventory", config->volume_inventory);
     cJSON_AddNumberToObject(root, "volumeWalk", config->volume_walk);

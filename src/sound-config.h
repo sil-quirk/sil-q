@@ -9,6 +9,7 @@ struct sound_config {
     bool enable_inventory;     // Enable inventory sounds
     bool enable_walk;          // Enable walk sounds
     bool enable_doors;         // Enable door sounds
+    float volume_master;       // Master volume (0.0-1.0, default: 1.0)
     float volume_combat;       // Combat sounds volume (0.0-1.0, default: 1.0)
     float volume_inventory;    // Inventory sounds volume (0.0-1.0, default: 1.0)
     float volume_walk;         // Walk sounds volume (0.0-1.0, default: 1.0)
