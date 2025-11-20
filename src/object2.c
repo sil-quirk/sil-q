@@ -4498,7 +4498,10 @@ void drop_near(object_type* j_ptr, int chance, int y, int x)
             drop_sound = MSG_DROP_GENERIC;
         }
 
-        sound(drop_sound);
+        /* Only play drop sound if character is fully generated (not during level gen) */
+        if (character_generated) {
+            sound(drop_sound);
+        }
     }
 
     /* Mega-Hack -- no message if "dropped" by player */

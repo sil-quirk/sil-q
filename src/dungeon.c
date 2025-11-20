@@ -2764,8 +2764,15 @@ static void dungeon(void)
     monster_type* m_ptr;
     int i;
     static int last_music_depth = -999; /* Track last depth for music changes */
+    static bool first_entry = true; /* Track first entry to skip level sound */
 
     log_debug("Entering dungeon level %d", p_ptr->depth);
+    
+    /* Play level transition sound (but not on first entry) */
+    if (!first_entry) {
+        sound(MSG_LEVEL);
+    }
+    first_entry = false;
     
     /* Handle music transitions based on depth changes */
     bool was_in_dungeon = (last_music_depth > 0);

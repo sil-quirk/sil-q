@@ -8391,33 +8391,39 @@ extern void do_cmd_options_aux(int page, cptr info)
                 }
                 else if (i == 5)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %.1f%%",
+                    strnfmt(buf, sizeof(buf), "%-48s: %.0f%%",
                         "Combat sounds volume",
                         sound_cfg->volume_combat * 100.0f);
                 }
                 else if (i == 6)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %.1f%%",
+                    strnfmt(buf, sizeof(buf), "%-48s: %.0f%%",
                         "Inventory sounds volume",
                         sound_cfg->volume_inventory * 100.0f);
                 }
                 else if (i == 7)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %.1f%%",
+                    strnfmt(buf, sizeof(buf), "%-48s: %.0f%%",
                         "Walk sounds volume",
                         sound_cfg->volume_walk * 100.0f);
                 }
                 else if (i == 8)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %.1f%%",
+                    strnfmt(buf, sizeof(buf), "%-48s: %.0f%%",
                         "Door sounds volume",
                         sound_cfg->volume_doors * 100.0f);
                 }
                 else if (i == 9)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %.1f%%",
+                    strnfmt(buf, sizeof(buf), "%-48s: %.0f%%",
                         "Other sounds volume",
                         sound_cfg->volume_other * 100.0f);
+                }
+                else if (i == 10)
+                {
+                    strnfmt(buf, sizeof(buf), "%-48s: %s",
+                        "Enable main menu music",
+                        sound_cfg->music_main_enabled ? "yes" : "no ");
                 }
                 else if (i == 10)
                 {
@@ -8433,13 +8439,13 @@ extern void do_cmd_options_aux(int page, cptr info)
                 }
                 else if (i == 12)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %.1f%%",
+                    strnfmt(buf, sizeof(buf), "%-48s: %.0f%%",
                         "Main menu music volume",
                         sound_cfg->music_main_volume * 100.0f);
                 }
                 else if (i == 13)
                 {
-                    strnfmt(buf, sizeof(buf), "%-48s: %.1f%%",
+                    strnfmt(buf, sizeof(buf), "%-48s: %.0f%%",
                         "Ambient music volume",
                         sound_cfg->music_ambient_volume * 100.0f);
                 }

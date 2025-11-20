@@ -131,7 +131,7 @@ static float get_sound_volume(int sound_idx)
         return sound_state.volume_doors;
     }
     
-    return sound_state.volume_other; // Default volume for other sounds
+    return sound_state.volume_other; // Default volume for other sounds (includes MSG_LEVEL)
 }
 
 static void sdl_sound_reset_bank(void)
