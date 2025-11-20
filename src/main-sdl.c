@@ -358,11 +358,14 @@ static errr callback_sdl_xtra(int n, int v)
     case TERM_XTRA_EVENT: {
         SDL_Event ev;
         if (v) {
+            sdl_music_update(); /* Update music before waiting */
             if (SDL_WaitEvent(&ev))
                 sdl_handle_event(&g_state, &ev);
+            sdl_music_update(); /* Update music after handling event */
         } else {
             /* Non-blocking scan so animation loops (intro fades, etc.) keep running */
             bool handled = false;
+            sdl_music_update(); /* Update music streams */
             while (SDL_PollEvent(&ev)) {
                 handled = true;
                 sdl_handle_event(&g_state, &ev);
@@ -429,6 +432,9 @@ static errr callback_sdl_xtra(int n, int v)
             Uint32 this_delay = (total_delay < chunk) ? total_delay : chunk;
             SDL_Delay(this_delay);
             total_delay -= this_delay;
+            
+            /* Update music streams */
+            sdl_music_update();
             
             /* Process pending events to prevent "Not Responding" status */
             SDL_Event ev;

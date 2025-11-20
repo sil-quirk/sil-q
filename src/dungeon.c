@@ -15,6 +15,7 @@
 #include "metarun.h"
 #include "score/score_runs.h"
 #include "score/score_ui.h"
+#include "sdl-sound.h"
 #include "z-term.h"
 #include <time.h>
 #include <string.h>
@@ -2762,8 +2763,27 @@ static void dungeon(void)
 {
     monster_type* m_ptr;
     int i;
+    static int last_music_depth = -999; /* Track last depth for music changes */
 
     log_debug("Entering dungeon level %d", p_ptr->depth);
+    
+    /* Handle music transitions based on depth changes */
+    bool was_in_dungeon = (last_music_depth > 0);
+    bool now_in_dungeon = (p_ptr->depth > 0);
+    
+    if (now_in_dungeon && !was_in_dungeon) {
+        /* Entering dungeon from surface - switch to ambient */
+        log_debug("Switching to ambient music (entering dungeon)");
+        sdl_music_stop_main();
+        sdl_music_play_ambient();
+    } else if (!now_in_dungeon && was_in_dungeon) {
+        /* Returning to surface from dungeon - switch to main */
+        log_debug("Switching to main music (returning to surface)");
+        sdl_music_stop_ambient();
+        sdl_music_play_main();
+    }
+    
+    last_music_depth = p_ptr->depth;
 
     /* Hack -- enforce illegal panel */
     p_ptr->wy = p_ptr->cur_map_hgt;
@@ -3833,6 +3853,11 @@ PlayResult play_game(void)
         if (!p_ptr->playing && !p_ptr->is_dead)
         {
             log_info("Player quit and saved - exiting game loop");
+            
+            /* Return to main menu music when quitting */
+            sdl_music_stop_ambient();
+            sdl_music_play_main();
+            
             break;
         }
 
@@ -3906,6 +3931,11 @@ PlayResult play_game(void)
         if (p_ptr->is_dead)
         {
             log_debug("Character dead - taking screenshot and revealing map");
+            
+            /* Stop ambient music and restart main menu music */
+            sdl_music_stop_ambient();
+            sdl_music_play_main();
+            
             death_knowledge();
 
             do_cmd_wiz_unhide(255);

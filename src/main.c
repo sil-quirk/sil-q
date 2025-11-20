@@ -19,6 +19,7 @@
 
 #include "main.h"
 #include "log/log.h"
+#include "sdl-sound.h"
 
 /*
  * Sil-y: game in progress
@@ -476,6 +477,7 @@ int main(int argc, char* argv[])
 
     /* Initialize sound system (requires ANGBAND_DIR_XTRA to be set) */
     sdl_init_sounds();
+    sdl_music_play_main();
 
     /* Hack -- If requested, display scores and quit */
     if (show_score > 0)

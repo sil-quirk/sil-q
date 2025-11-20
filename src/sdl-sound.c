@@ -42,7 +42,24 @@ static struct {
     float volume_walk;
     float volume_doors;
     float volume_other;
+    SDL_AudioStream* music_main_stream;
+    SDL_AudioStream* music_ambient_stream;
+    char music_main_path[1024];
+    char music_ambient_path[1024];
+    float music_main_volume;
+    float music_ambient_volume;
+    bool music_main_enabled;
+    bool music_ambient_enabled;
+    Uint8* music_main_buffer;
+    Uint32 music_main_length;
+    SDL_AudioSpec music_main_spec;
+    Uint8* music_ambient_buffer;
+    Uint32 music_ambient_length;
+    SDL_AudioSpec music_ambient_spec;
 } sound_state;
+
+static struct sound_config g_sound_config; /* Global config for UI access */
+static char g_sound_config_path[1024]; /* Path to sound.json */
 
 static void sdl_sound_reset_bank(void);
 static bool sdl_sound_load_from_config(const struct sound_config* config);
@@ -53,6 +70,7 @@ static void sdl_sound_build_path(const char* base_path, char* dst, size_t dst_le
 static void sdl_sound_clear_streams(void);
 static bool sdl_sound_track_stream(SDL_AudioStream* stream);
 static void sdl_sound_destroy_stream(SDL_AudioStream** stream);
+static void sdl_music_stop(SDL_AudioStream** stream_ptr);
 
 static bool is_sound_enabled(int sound_idx)
 {
@@ -162,6 +180,7 @@ static void sdl_sound_build_path(const char* base_path, char* dst, size_t dst_le
     
     if (is_absolute) {
         SDL_strlcpy(dst, base_path, dst_len);
+        log_debug("Music path (absolute): '%s'", dst);
     } else {
         const char* anchor = ANGBAND_DIR_XTRA;
         if (!anchor || !anchor[0]) {
@@ -169,6 +188,7 @@ static void sdl_sound_build_path(const char* base_path, char* dst, size_t dst_le
             return;
         }
         path_build(dst, dst_len, anchor, base_path);
+        log_debug("Music path built: anchor='%s' + base='%s' => '%s'", anchor, base_path, dst);
     }
 }
 
@@ -361,47 +381,53 @@ void sdl_sound_reload(void)
     sdl_sound_clear_streams();
     sdl_sound_reset_bank();
     
-    // Load sound configuration from sound.json
-    // For local builds: read from lib/pref (ANGBAND_DIR_PREF)
-    // For standard builds: read from user folder (ANGBAND_DIR_USER)
-    static struct sound_config sound_cfg;
-    
-    char sound_config_path[1024];
+    // Build path to sound.json
 #ifdef SIL_USE_LOCAL_DATA
     if (ANGBAND_DIR_PREF && ANGBAND_DIR_PREF[0]) {
-        path_build(sound_config_path, sizeof(sound_config_path), ANGBAND_DIR_PREF, "sound.json");
+        path_build(g_sound_config_path, sizeof(g_sound_config_path), ANGBAND_DIR_PREF, "sound.json");
     } else {
-        SDL_strlcpy(sound_config_path, "sound.json", sizeof(sound_config_path));
+        SDL_strlcpy(g_sound_config_path, "sound.json", sizeof(g_sound_config_path));
     }
 #else
     if (ANGBAND_DIR_USER && ANGBAND_DIR_USER[0]) {
-        path_build(sound_config_path, sizeof(sound_config_path), ANGBAND_DIR_USER, "sound.json");
+        path_build(g_sound_config_path, sizeof(g_sound_config_path), ANGBAND_DIR_USER, "sound.json");
     } else {
-        SDL_strlcpy(sound_config_path, "sound.json", sizeof(sound_config_path));
+        SDL_strlcpy(g_sound_config_path, "sound.json", sizeof(g_sound_config_path));
     }
 #endif
     
-    sound_config_load(sound_config_path, &sound_cfg);
-    sound_state.bank_loaded = sdl_sound_load_from_config(&sound_cfg);
+    // Load sound configuration from sound.json
+    sound_config_load(g_sound_config_path, &g_sound_config);
+    sound_state.bank_loaded = sdl_sound_load_from_config(&g_sound_config);
     
-    // Copy group flags and volumes
-    sound_state.enable_combat = sound_cfg.enable_combat;
-    sound_state.enable_inventory = sound_cfg.enable_inventory;
-    sound_state.enable_walk = sound_cfg.enable_walk;
-    sound_state.enable_doors = sound_cfg.enable_doors;
-    sound_state.volume_combat = sound_cfg.volume_combat;
-    sound_state.volume_inventory = sound_cfg.volume_inventory;
-    sound_state.volume_walk = sound_cfg.volume_walk;
-    sound_state.volume_doors = sound_cfg.volume_doors;
-    sound_state.volume_other = sound_cfg.volume_other;
+    // Copy group flags and volumes to sound_state
+    sound_state.enable_combat = g_sound_config.enable_combat;
+    sound_state.enable_inventory = g_sound_config.enable_inventory;
+    sound_state.enable_walk = g_sound_config.enable_walk;
+    sound_state.enable_doors = g_sound_config.enable_doors;
+    sound_state.volume_combat = g_sound_config.volume_combat;
+    sound_state.volume_inventory = g_sound_config.volume_inventory;
+    sound_state.volume_walk = g_sound_config.volume_walk;
+    sound_state.volume_doors = g_sound_config.volume_doors;
+    sound_state.volume_other = g_sound_config.volume_other;
+    sound_state.music_main_enabled = g_sound_config.music_main_enabled;
+    sound_state.music_ambient_enabled = g_sound_config.music_ambient_enabled;
+    sound_state.music_main_volume = g_sound_config.music_main_volume;
+    sound_state.music_ambient_volume = g_sound_config.music_ambient_volume;
+    sdl_sound_build_path(g_sound_config.music_main_path, sound_state.music_main_path, sizeof(sound_state.music_main_path));
+    sdl_sound_build_path(g_sound_config.music_ambient_path, sound_state.music_ambient_path, sizeof(sound_state.music_ambient_path));
+
+    log_debug("Sound config: enabled=%d, device=%u", g_sound_config.enabled, sound_state.device);
+    log_debug("Music paths: main='%s', ambient='%s'", sound_state.music_main_path, sound_state.music_ambient_path);
 
     // Open audio device if not already open and sound is enabled
-    if (sound_cfg.enabled && !sound_state.device) {
+    if (g_sound_config.enabled && !sound_state.device) {
+        log_debug("Opening audio device...");
         SDL_AudioSpec desired;
         SDL_zero(desired);
-        desired.freq = sound_cfg.sample_rate;
-        desired.format = sdl_sound_parse_format(sound_cfg.format);
-        desired.channels = sound_cfg.channels;
+        desired.freq = g_sound_config.sample_rate;
+        desired.format = sdl_sound_parse_format(g_sound_config.format);
+        desired.channels = g_sound_config.channels;
 
         sound_state.device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired);
         if (!sound_state.device) {
@@ -409,22 +435,218 @@ void sdl_sound_reload(void)
             return;
         }
 
-        sound_state.device_spec = desired;
+        // Get the actual device spec (SDL3 might adjust it)
+        if (!SDL_GetAudioDeviceFormat(sound_state.device, &sound_state.device_spec, NULL)) {
+            log_warn("Failed to get audio device format, using desired spec");
+            sound_state.device_spec = desired;
+        }
+        
         SDL_zero(sound_state.active_streams);
+        sound_state.music_main_buffer = NULL;
+        sound_state.music_main_length = 0;
+        sound_state.music_ambient_buffer = NULL;
+        sound_state.music_ambient_length = 0;
+        
         SDL_ResumeAudioDevice(sound_state.device);
         log_info("Audio device opened (freq=%d, channels=%d, format=0x%x)",
                  sound_state.device_spec.freq,
                  sound_state.device_spec.channels,
                  sound_state.device_spec.format);
+    } else {
+        log_debug("Skipping audio device init: enabled=%d, device=%u", g_sound_config.enabled, sound_state.device);
     }
 }
 
 void sdl_sound_shutdown(void)
 {
+    sdl_music_stop_main();
+    sdl_music_stop_ambient();
+    
+    if (sound_state.music_main_buffer) {
+        SDL_free(sound_state.music_main_buffer);
+        sound_state.music_main_buffer = NULL;
+    }
+    if (sound_state.music_ambient_buffer) {
+        SDL_free(sound_state.music_ambient_buffer);
+        sound_state.music_ambient_buffer = NULL;
+    }
+    
     sdl_sound_clear_streams();
     if (sound_state.device) {
         SDL_CloseAudioDevice(sound_state.device);
         sound_state.device = 0;
+    }
+}
+
+static void sdl_music_play(const char* path, SDL_AudioStream** stream_ptr, float volume, bool loop,
+                           Uint8** buffer_ptr, Uint32* length_ptr, SDL_AudioSpec* spec_ptr)
+{
+    if (!path || !path[0] || !stream_ptr) {
+        return;
+    }
+
+    if (*stream_ptr) {
+        sdl_music_stop(stream_ptr);
+    }
+
+    // Free old buffer if exists
+    if (buffer_ptr && *buffer_ptr) {
+        SDL_free(*buffer_ptr);
+        *buffer_ptr = NULL;
+        if (length_ptr) *length_ptr = 0;
+    }
+
+    SDL_AudioSpec wav_spec;
+    Uint8* wav_buffer = NULL;
+    Uint32 wav_length = 0;
+
+    if (!SDL_LoadWAV(path, &wav_spec, &wav_buffer, &wav_length)) {
+        log_debug("Failed to load music file '%s': %s", path, SDL_GetError());
+        return;
+    }
+
+    // Store the WAV data for looping
+    if (loop && buffer_ptr && length_ptr && spec_ptr) {
+        *buffer_ptr = wav_buffer;
+        *length_ptr = wav_length;
+        *spec_ptr = wav_spec;
+        log_debug("Stored music buffer for looping: %d bytes", wav_length);
+    }
+
+    SDL_AudioStream* playback_stream = SDL_CreateAudioStream(&wav_spec, &sound_state.device_spec);
+    if (!playback_stream) {
+        log_warn("Failed to create music stream: %s", SDL_GetError());
+        if (!loop || !buffer_ptr) SDL_free(wav_buffer);
+        return;
+    }
+
+    bool success = SDL_PutAudioStreamData(playback_stream, wav_buffer, wav_length) &&
+                   SDL_FlushAudioStream(playback_stream);
+    
+    if (!loop) {
+        SDL_free(wav_buffer);
+    }
+
+    if (!success) {
+        log_warn("Failed to queue music data: %s", SDL_GetError());
+        SDL_DestroyAudioStream(playback_stream);
+        if (loop && buffer_ptr && *buffer_ptr) {
+            SDL_free(*buffer_ptr);
+            *buffer_ptr = NULL;
+        }
+        return;
+    }
+
+    if (!SDL_SetAudioStreamGain(playback_stream, volume)) {
+        log_warn("Failed to set music stream gain: %s", SDL_GetError());
+    }
+
+    if (!SDL_BindAudioStream(sound_state.device, playback_stream)) {
+        log_warn("Failed to bind music stream: %s", SDL_GetError());
+        SDL_DestroyAudioStream(playback_stream);
+        if (loop && buffer_ptr && *buffer_ptr) {
+            SDL_free(*buffer_ptr);
+            *buffer_ptr = NULL;
+        }
+        return;
+    }
+
+    *stream_ptr = playback_stream;
+    log_debug("Music stream created and bound successfully");
+}
+
+void sdl_music_stop(SDL_AudioStream** stream_ptr)
+{
+    if (stream_ptr && *stream_ptr) {
+        SDL_UnbindAudioStream(*stream_ptr);
+        SDL_DestroyAudioStream(*stream_ptr);
+        *stream_ptr = NULL;
+    }
+}
+
+void sdl_music_play_main(void)
+{
+    if (sound_state.music_main_enabled) {
+        log_debug("Starting main menu music: %s", sound_state.music_main_path);
+        sdl_music_play(sound_state.music_main_path, &sound_state.music_main_stream, 
+                      sound_state.music_main_volume, true,
+                      &sound_state.music_main_buffer, &sound_state.music_main_length,
+                      &sound_state.music_main_spec);
+    }
+}
+
+void sdl_music_play_ambient(void)
+{
+    if (sound_state.music_ambient_enabled) {
+        log_debug("Starting ambient music: %s", sound_state.music_ambient_path);
+        sdl_music_play(sound_state.music_ambient_path, &sound_state.music_ambient_stream, 
+                      sound_state.music_ambient_volume, true,
+                      &sound_state.music_ambient_buffer, &sound_state.music_ambient_length,
+                      &sound_state.music_ambient_spec);
+    }
+}
+
+void sdl_music_stop_main(void)
+{
+    sdl_music_stop(&sound_state.music_main_stream);
+}
+
+void sdl_music_stop_ambient(void)
+{
+    sdl_music_stop(&sound_state.music_ambient_stream);
+}
+
+void sdl_music_update(void)
+{
+    if (!sound_state.device) {
+        return;
+    }
+
+    // Check and refill main music stream if needed
+    if (sound_state.music_main_stream && sound_state.music_main_buffer) {
+        int queued = SDL_GetAudioStreamQueued(sound_state.music_main_stream);
+        int available = SDL_GetAudioStreamAvailable(sound_state.music_main_stream);
+        
+        // Refill if stream is getting low (less than 0.5 seconds of audio)
+        if (queued < (sound_state.device_spec.freq * sound_state.device_spec.channels * 2)) {
+            if (!SDL_PutAudioStreamData(sound_state.music_main_stream, 
+                                       sound_state.music_main_buffer, 
+                                       sound_state.music_main_length)) {
+                log_debug("Failed to refill main music stream: %s", SDL_GetError());
+            }
+        }
+    }
+
+    // Check and refill ambient music stream if needed
+    if (sound_state.music_ambient_stream && sound_state.music_ambient_buffer) {
+        int queued = SDL_GetAudioStreamQueued(sound_state.music_ambient_stream);
+        int available = SDL_GetAudioStreamAvailable(sound_state.music_ambient_stream);
+        
+        // Refill if stream is getting low (less than 0.5 seconds of audio)
+        if (queued < (sound_state.device_spec.freq * sound_state.device_spec.channels * 2)) {
+            if (!SDL_PutAudioStreamData(sound_state.music_ambient_stream, 
+                                       sound_state.music_ambient_buffer, 
+                                       sound_state.music_ambient_length)) {
+                log_debug("Failed to refill ambient music stream: %s", SDL_GetError());
+            }
+        }
+    }
+}
+
+void sdl_music_update_volumes(void)
+{
+    /* Update volume for currently playing main music */
+    if (sound_state.music_main_stream) {
+        if (!SDL_SetAudioStreamGain(sound_state.music_main_stream, sound_state.music_main_volume)) {
+            log_debug("Failed to update main music volume: %s", SDL_GetError());
+        }
+    }
+    
+    /* Update volume for currently playing ambient music */
+    if (sound_state.music_ambient_stream) {
+        if (!SDL_SetAudioStreamGain(sound_state.music_ambient_stream, sound_state.music_ambient_volume)) {
+            log_debug("Failed to update ambient music volume: %s", SDL_GetError());
+        }
     }
 }
 
@@ -499,4 +721,34 @@ void sdl_sound_handle(int sound_idx)
 void sdl_init_sounds(void)
 {
     sdl_sound_reload();
+}
+
+struct sound_config* sdl_sound_get_config(void)
+{
+    return &g_sound_config;
+}
+
+void sdl_sound_save_config(void)
+{
+    /* Update sound_state from global config */
+    sound_state.enable_combat = g_sound_config.enable_combat;
+    sound_state.enable_inventory = g_sound_config.enable_inventory;
+    sound_state.enable_walk = g_sound_config.enable_walk;
+    sound_state.enable_doors = g_sound_config.enable_doors;
+    sound_state.volume_combat = g_sound_config.volume_combat;
+    sound_state.volume_inventory = g_sound_config.volume_inventory;
+    sound_state.volume_walk = g_sound_config.volume_walk;
+    sound_state.volume_doors = g_sound_config.volume_doors;
+    sound_state.volume_other = g_sound_config.volume_other;
+    sound_state.music_main_enabled = g_sound_config.music_main_enabled;
+    sound_state.music_ambient_enabled = g_sound_config.music_ambient_enabled;
+    sound_state.music_main_volume = g_sound_config.music_main_volume;
+    sound_state.music_ambient_volume = g_sound_config.music_ambient_volume;
+    
+    /* Apply volume changes to currently playing music */
+    sdl_music_update_volumes();
+    
+    /* Save to disk */
+    sound_config_save(g_sound_config_path, &g_sound_config);
+    log_debug("Sound configuration saved to %s", g_sound_config_path);
 }

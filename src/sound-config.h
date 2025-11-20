@@ -15,6 +15,12 @@ struct sound_config {
     float volume_walk;         // Walk sounds volume (0.0-1.0, default: 1.0)
     float volume_doors;        // Door sounds volume (0.0-1.0, default: 1.0)
     float volume_other;        // Other sounds volume (0.0-1.0, default: 1.0)
+    bool music_main_enabled;
+    bool music_ambient_enabled;
+    float music_main_volume;
+    float music_ambient_volume;
+    char music_main_path[256];
+    char music_ambient_path[256];
     int sample_rate;           // Audio sample rate (default: 22050)
     int channels;              // Audio channels: 1=mono, 2=stereo (default: 2)
     char format[16];           // Audio format: "s8", "u8", "s16", "s32", "f32" (default: "s16")

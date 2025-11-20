@@ -22,6 +22,12 @@ void sound_config_set_defaults(struct sound_config* config)
     config->volume_walk = 1.0f;
     config->volume_doors = 1.0f;
     config->volume_other = 1.0f;
+    config->music_main_enabled = true;
+    config->music_ambient_enabled = true;
+    config->music_main_volume = 1.0f;
+    config->music_ambient_volume = 1.0f;
+    config->music_main_path[0] = '\0';
+    config->music_ambient_path[0] = '\0';
     config->sample_rate = 22050;
     config->channels = 2;
     SDL_strlcpy(config->format, "s16", sizeof(config->format));
@@ -146,6 +152,36 @@ void sound_config_load(const char* filename, struct sound_config* config)
         config->volume_other = (float)volume_other->valuedouble;
         log_debug("Loaded other volume: %.2f", config->volume_other);
     }
+
+    cJSON* music_main_enabled = cJSON_GetObjectItemCaseSensitive(root, "music_main_enabled");
+    if (cJSON_IsBool(music_main_enabled)) {
+        config->music_main_enabled = cJSON_IsTrue(music_main_enabled);
+    }
+
+    cJSON* music_ambient_enabled = cJSON_GetObjectItemCaseSensitive(root, "music_ambient_enabled");
+    if (cJSON_IsBool(music_ambient_enabled)) {
+        config->music_ambient_enabled = cJSON_IsTrue(music_ambient_enabled);
+    }
+
+    cJSON* music_main_volume = cJSON_GetObjectItemCaseSensitive(root, "music_main_volume");
+    if (cJSON_IsNumber(music_main_volume)) {
+        config->music_main_volume = (float)music_main_volume->valuedouble;
+    }
+
+    cJSON* music_ambient_volume = cJSON_GetObjectItemCaseSensitive(root, "music_ambient_volume");
+    if (cJSON_IsNumber(music_ambient_volume)) {
+        config->music_ambient_volume = (float)music_ambient_volume->valuedouble;
+    }
+
+    cJSON* music_main_path = cJSON_GetObjectItemCaseSensitive(root, "music_main_path");
+    if (cJSON_IsString(music_main_path) && music_main_path->valuestring) {
+        SDL_strlcpy(config->music_main_path, music_main_path->valuestring, sizeof(config->music_main_path));
+    }
+
+    cJSON* music_ambient_path = cJSON_GetObjectItemCaseSensitive(root, "music_ambient_path");
+    if (cJSON_IsString(music_ambient_path) && music_ambient_path->valuestring) {
+        SDL_strlcpy(config->music_ambient_path, music_ambient_path->valuestring, sizeof(config->music_ambient_path));
+    }
     
     // Load sample rate
     cJSON* sample_rate = cJSON_GetObjectItemCaseSensitive(root, "sampleRate");
@@ -217,6 +253,12 @@ void sound_config_save(const char* filename, const struct sound_config* config)
     cJSON_AddNumberToObject(root, "volumeWalk", config->volume_walk);
     cJSON_AddNumberToObject(root, "volumeDoors", config->volume_doors);
     cJSON_AddNumberToObject(root, "volumeOther", config->volume_other);
+    cJSON_AddBoolToObject(root, "music_main_enabled", config->music_main_enabled);
+    cJSON_AddBoolToObject(root, "music_ambient_enabled", config->music_ambient_enabled);
+    cJSON_AddNumberToObject(root, "music_main_volume", config->music_main_volume);
+    cJSON_AddNumberToObject(root, "music_ambient_volume", config->music_ambient_volume);
+    cJSON_AddStringToObject(root, "music_main_path", config->music_main_path);
+    cJSON_AddStringToObject(root, "music_ambient_path", config->music_ambient_path);
     cJSON_AddNumberToObject(root, "sampleRate", config->sample_rate);
     cJSON_AddNumberToObject(root, "channels", config->channels);
     cJSON_AddStringToObject(root, "format", config->format);

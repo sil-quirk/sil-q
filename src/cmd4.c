@@ -8319,6 +8319,7 @@ extern void do_cmd_options_aux(int page, cptr info)
     int dir;
     
     bool is_sound_page = (page == SOUND_PAGE);
+    struct sound_config* sound_cfg = sdl_sound_get_config();
 
     /* Scan the options */
     for (i = 0; i < OPT_PAGE_PER; i++)
@@ -8333,7 +8334,7 @@ extern void do_cmd_options_aux(int page, cptr info)
     /* Special case: Sound page uses custom display instead of standard options */
     if (is_sound_page)
     {
-        n = 10; /* We have 10 "virtual" options: 5 enable flags + 5 volume controls */
+        n = 14; /* 5 enable flags + 5 volume controls + 2 music enable + 2 music volume */
     }
 
     /* Clear screen */
@@ -8362,61 +8363,85 @@ extern void do_cmd_options_aux(int page, cptr info)
                 {
                     strnfmt(buf, sizeof(buf), "%-48s: %s",
                         "Enable game sounds",
-                        g_sound_config.enabled ? "yes" : "no ");
+                        sound_cfg->enabled ? "yes" : "no ");
                 }
                 else if (i == 1)
                 {
                     strnfmt(buf, sizeof(buf), "%-48s: %s",
                         "Enable combat sounds",
-                        g_sound_config.enable_combat ? "yes" : "no ");
+                        sound_cfg->enable_combat ? "yes" : "no ");
                 }
                 else if (i == 2)
                 {
                     strnfmt(buf, sizeof(buf), "%-48s: %s",
                         "Enable inventory sounds",
-                        g_sound_config.enable_inventory ? "yes" : "no ");
+                        sound_cfg->enable_inventory ? "yes" : "no ");
                 }
                 else if (i == 3)
                 {
                     strnfmt(buf, sizeof(buf), "%-48s: %s",
                         "Enable walk sounds",
-                        g_sound_config.enable_walk ? "yes" : "no ");
+                        sound_cfg->enable_walk ? "yes" : "no ");
                 }
                 else if (i == 4)
                 {
                     strnfmt(buf, sizeof(buf), "%-48s: %s",
                         "Enable door sounds",
-                        g_sound_config.enable_doors ? "yes" : "no ");
+                        sound_cfg->enable_doors ? "yes" : "no ");
                 }
                 else if (i == 5)
                 {
                     strnfmt(buf, sizeof(buf), "%-48s: %.1f%%",
                         "Combat sounds volume",
-                        g_sound_config.volume_combat * 100.0f);
+                        sound_cfg->volume_combat * 100.0f);
                 }
                 else if (i == 6)
                 {
                     strnfmt(buf, sizeof(buf), "%-48s: %.1f%%",
                         "Inventory sounds volume",
-                        g_sound_config.volume_inventory * 100.0f);
+                        sound_cfg->volume_inventory * 100.0f);
                 }
                 else if (i == 7)
                 {
                     strnfmt(buf, sizeof(buf), "%-48s: %.1f%%",
                         "Walk sounds volume",
-                        g_sound_config.volume_walk * 100.0f);
+                        sound_cfg->volume_walk * 100.0f);
                 }
                 else if (i == 8)
                 {
                     strnfmt(buf, sizeof(buf), "%-48s: %.1f%%",
                         "Door sounds volume",
-                        g_sound_config.volume_doors * 100.0f);
+                        sound_cfg->volume_doors * 100.0f);
                 }
                 else if (i == 9)
                 {
                     strnfmt(buf, sizeof(buf), "%-48s: %.1f%%",
                         "Other sounds volume",
-                        g_sound_config.volume_other * 100.0f);
+                        sound_cfg->volume_other * 100.0f);
+                }
+                else if (i == 10)
+                {
+                    strnfmt(buf, sizeof(buf), "%-48s: %s",
+                        "Enable main menu music",
+                        sound_cfg->music_main_enabled ? "yes" : "no ");
+                }
+                else if (i == 11)
+                {
+                    strnfmt(buf, sizeof(buf), "%-48s: %s",
+                        "Enable ambient dungeon music",
+                        sound_cfg->music_ambient_enabled ? "yes" : "no ");
+                }
+                else if (i == 12)
+                {
+                    strnfmt(buf, sizeof(buf), "%-48s: %.1f%%",
+                        "Main menu music volume",
+                        sound_cfg->music_main_volume * 100.0f);
+                }
+                else if (i == 13)
+                {
+                    strnfmt(buf, sizeof(buf), "%-48s: %.1f%%",
+                        "Ambient music volume",
+                        sound_cfg->music_ambient_volume * 100.0f);
                 }
             }
             else if (opt[i] == OPT_delay_factor)
@@ -8497,13 +8522,7 @@ extern void do_cmd_options_aux(int page, cptr info)
             /* Save sound settings if on sound page */
             if (is_sound_page)
             {
-                char sound_config_path[1024];
-                if (ANGBAND_DIR_USER && ANGBAND_DIR_USER[0])
-                    path_build(sound_config_path, sizeof(sound_config_path), ANGBAND_DIR_USER, "sound.json");
-                else
-                    SDL_strlcpy(sound_config_path, "sound.json", sizeof(sound_config_path));
-                sound_config_save(sound_config_path, &g_sound_config);
-                
+                sdl_sound_save_config();
                 /* Reload sound system to apply changes */
                 sdl_sound_reload();
             }
@@ -8547,14 +8566,16 @@ extern void do_cmd_options_aux(int page, cptr info)
                 {
                     if (k == 0)
                     {
-                        g_sound_config.enabled = !g_sound_config.enabled;
-                        use_sound = g_sound_config.enabled;
+                        sound_cfg->enabled = !sound_cfg->enabled;
+                        use_sound = sound_cfg->enabled;
                     }
-                    else if (k == 1) g_sound_config.enable_combat = !g_sound_config.enable_combat;
-                    else if (k == 2) g_sound_config.enable_inventory = !g_sound_config.enable_inventory;
-                    else if (k == 3) g_sound_config.enable_walk = !g_sound_config.enable_walk;
-                    else if (k == 4) g_sound_config.enable_doors = !g_sound_config.enable_doors;
-                    /* Volume controls (5-9) don't toggle */
+                    else if (k == 1) sound_cfg->enable_combat = !sound_cfg->enable_combat;
+                    else if (k == 2) sound_cfg->enable_inventory = !sound_cfg->enable_inventory;
+                    else if (k == 3) sound_cfg->enable_walk = !sound_cfg->enable_walk;
+                    else if (k == 4) sound_cfg->enable_doors = !sound_cfg->enable_doors;
+                    else if (k == 10) sound_cfg->music_main_enabled = !sound_cfg->music_main_enabled;
+                    else if (k == 11) sound_cfg->music_ambient_enabled = !sound_cfg->music_ambient_enabled;
+                    /* Volume controls (5-9, 12-13) don't toggle */
                 }
                 else
                 {
@@ -8573,18 +8594,28 @@ extern void do_cmd_options_aux(int page, cptr info)
                 {
                     if (k == 0)
                     {
-                        g_sound_config.enabled = true;
+                        sound_cfg->enabled = true;
                         use_sound = true;
                     }
-                    else if (k == 1) g_sound_config.enable_combat = true;
-                    else if (k == 2) g_sound_config.enable_inventory = true;
-                    else if (k == 3) g_sound_config.enable_walk = true;
-                    else if (k == 4) g_sound_config.enable_doors = true;
-                    else if (k == 5) g_sound_config.volume_combat = (g_sound_config.volume_combat < 1.0f) ? g_sound_config.volume_combat + 0.1f : 1.0f;
-                    else if (k == 6) g_sound_config.volume_inventory = (g_sound_config.volume_inventory < 1.0f) ? g_sound_config.volume_inventory + 0.1f : 1.0f;
-                    else if (k == 7) g_sound_config.volume_walk = (g_sound_config.volume_walk < 1.0f) ? g_sound_config.volume_walk + 0.1f : 1.0f;
-                    else if (k == 8) g_sound_config.volume_doors = (g_sound_config.volume_doors < 1.0f) ? g_sound_config.volume_doors + 0.1f : 1.0f;
-                    else if (k == 9) g_sound_config.volume_other = (g_sound_config.volume_other < 1.0f) ? g_sound_config.volume_other + 0.1f : 1.0f;
+                    else if (k == 1) sound_cfg->enable_combat = true;
+                    else if (k == 2) sound_cfg->enable_inventory = true;
+                    else if (k == 3) sound_cfg->enable_walk = true;
+                    else if (k == 4) sound_cfg->enable_doors = true;
+                    else if (k == 5) sound_cfg->volume_combat = (sound_cfg->volume_combat < 1.0f) ? sound_cfg->volume_combat + 0.1f : 1.0f;
+                    else if (k == 6) sound_cfg->volume_inventory = (sound_cfg->volume_inventory < 1.0f) ? sound_cfg->volume_inventory + 0.1f : 1.0f;
+                    else if (k == 7) sound_cfg->volume_walk = (sound_cfg->volume_walk < 1.0f) ? sound_cfg->volume_walk + 0.1f : 1.0f;
+                    else if (k == 8) sound_cfg->volume_doors = (sound_cfg->volume_doors < 1.0f) ? sound_cfg->volume_doors + 0.1f : 1.0f;
+                    else if (k == 9) sound_cfg->volume_other = (sound_cfg->volume_other < 1.0f) ? sound_cfg->volume_other + 0.1f : 1.0f;
+                    else if (k == 10) sound_cfg->music_main_enabled = true;
+                    else if (k == 11) sound_cfg->music_ambient_enabled = true;
+                    else if (k == 12) {
+                        sound_cfg->music_main_volume = (sound_cfg->music_main_volume < 1.0f) ? sound_cfg->music_main_volume + 0.1f : 1.0f;
+                        sdl_sound_save_config(); /* Apply volume change immediately */
+                    }
+                    else if (k == 13) {
+                        sound_cfg->music_ambient_volume = (sound_cfg->music_ambient_volume < 1.0f) ? sound_cfg->music_ambient_volume + 0.1f : 1.0f;
+                        sdl_sound_save_config(); /* Apply volume change immediately */
+                    }
                 }
                 else if (opt[k] == OPT_delay_factor)
                 {
@@ -8626,18 +8657,28 @@ extern void do_cmd_options_aux(int page, cptr info)
                 {
                     if (k == 0)
                     {
-                        g_sound_config.enabled = false;
+                        sound_cfg->enabled = false;
                         use_sound = false;
                     }
-                    else if (k == 1) g_sound_config.enable_combat = false;
-                    else if (k == 2) g_sound_config.enable_inventory = false;
-                    else if (k == 3) g_sound_config.enable_walk = false;
-                    else if (k == 4) g_sound_config.enable_doors = false;
-                    else if (k == 5) g_sound_config.volume_combat = (g_sound_config.volume_combat > 0.0f) ? g_sound_config.volume_combat - 0.1f : 0.0f;
-                    else if (k == 6) g_sound_config.volume_inventory = (g_sound_config.volume_inventory > 0.0f) ? g_sound_config.volume_inventory - 0.1f : 0.0f;
-                    else if (k == 7) g_sound_config.volume_walk = (g_sound_config.volume_walk > 0.0f) ? g_sound_config.volume_walk - 0.1f : 0.0f;
-                    else if (k == 8) g_sound_config.volume_doors = (g_sound_config.volume_doors > 0.0f) ? g_sound_config.volume_doors - 0.1f : 0.0f;
-                    else if (k == 9) g_sound_config.volume_other = (g_sound_config.volume_other > 0.0f) ? g_sound_config.volume_other - 0.1f : 0.0f;
+                    else if (k == 1) sound_cfg->enable_combat = false;
+                    else if (k == 2) sound_cfg->enable_inventory = false;
+                    else if (k == 3) sound_cfg->enable_walk = false;
+                    else if (k == 4) sound_cfg->enable_doors = false;
+                    else if (k == 5) sound_cfg->volume_combat = (sound_cfg->volume_combat > 0.0f) ? sound_cfg->volume_combat - 0.1f : 0.0f;
+                    else if (k == 6) sound_cfg->volume_inventory = (sound_cfg->volume_inventory > 0.0f) ? sound_cfg->volume_inventory - 0.1f : 0.0f;
+                    else if (k == 7) sound_cfg->volume_walk = (sound_cfg->volume_walk > 0.0f) ? sound_cfg->volume_walk - 0.1f : 0.0f;
+                    else if (k == 8) sound_cfg->volume_doors = (sound_cfg->volume_doors > 0.0f) ? sound_cfg->volume_doors - 0.1f : 0.0f;
+                    else if (k == 9) sound_cfg->volume_other = (sound_cfg->volume_other > 0.0f) ? sound_cfg->volume_other - 0.1f : 0.0f;
+                    else if (k == 10) sound_cfg->music_main_enabled = false;
+                    else if (k == 11) sound_cfg->music_ambient_enabled = false;
+                    else if (k == 12) {
+                        sound_cfg->music_main_volume = (sound_cfg->music_main_volume > 0.0f) ? sound_cfg->music_main_volume - 0.1f : 0.0f;
+                        sdl_sound_save_config(); /* Apply volume change immediately */
+                    }
+                    else if (k == 13) {
+                        sound_cfg->music_ambient_volume = (sound_cfg->music_ambient_volume > 0.0f) ? sound_cfg->music_ambient_volume - 0.1f : 0.0f;
+                        sdl_sound_save_config(); /* Apply volume change immediately */
+                    }
                 }
                 else if (opt[k] == OPT_delay_factor)
                 {
