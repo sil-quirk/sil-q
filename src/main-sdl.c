@@ -1309,11 +1309,20 @@ errr init_sdl(int argc, char **argv)
         sdl_config_load(config_file_path, &config, pane_config, &pane_config_count, MAX_PANE_CONFIGS);
         
         // Load sound configuration from sound.json
+        // For local builds: read from lib/pref (ANGBAND_DIR_PREF)
+        // For standard builds: read from user folder (ANGBAND_DIR_USER)
         char sound_config_path[1024];
+#ifdef SIL_USE_LOCAL_DATA
+        if (ANGBAND_DIR_PREF && ANGBAND_DIR_PREF[0])
+            path_build(sound_config_path, sizeof(sound_config_path), ANGBAND_DIR_PREF, "sound.json");
+        else
+            SDL_strlcpy(sound_config_path, "sound.json", sizeof(sound_config_path));
+#else
         if (ANGBAND_DIR_USER && ANGBAND_DIR_USER[0])
             path_build(sound_config_path, sizeof(sound_config_path), ANGBAND_DIR_USER, "sound.json");
         else
             SDL_strlcpy(sound_config_path, "sound.json", sizeof(sound_config_path));
+#endif
         sound_config_load(sound_config_path, &g_sound_config);
         
         // Apply sound setting to global variable

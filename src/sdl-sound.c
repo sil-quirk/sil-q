@@ -37,6 +37,11 @@ static struct {
     bool enable_inventory;
     bool enable_walk;
     bool enable_doors;
+    float volume_combat;
+    float volume_inventory;
+    float volume_walk;
+    float volume_doors;
+    float volume_other;
 } sound_state;
 
 static void sdl_sound_reset_bank(void);
@@ -78,6 +83,37 @@ static bool is_sound_enabled(int sound_idx)
     }
     
     return true; // Default enabled for other sounds
+}
+
+static float get_sound_volume(int sound_idx)
+{
+    // Combat
+    if (sound_idx == MSG_HIT || sound_idx == MSG_SHOOT || sound_idx == MSG_DIG ||
+        (sound_idx >= MSG_WEAPON_SLASH_LIGHT && sound_idx <= MSG_WEAPON_UNARMED) ||
+        sound_idx == MSG_WEAPON_SLASH_MEDIUM || sound_idx == MSG_MISS || sound_idx == MSG_KILL) {
+        return sound_state.volume_combat;
+    }
+    
+    // Inventory
+    if (sound_idx == MSG_DROP || sound_idx == MSG_QUAFF || sound_idx == MSG_ZAP ||
+        sound_idx == MSG_EAT || sound_idx == MSG_PICK || sound_idx == MSG_ARMOR ||
+        (sound_idx >= MSG_EQUIP_SWORD && sound_idx <= MSG_UNEQUIP_JEWELRY) ||
+        (sound_idx >= MSG_DROP_GLASS && sound_idx <= MSG_ACTIVATE)) {
+        return sound_state.volume_inventory;
+    }
+    
+    // Walk
+    if (sound_idx == MSG_WALK) {
+        return sound_state.volume_walk;
+    }
+    
+    // Doors
+    if (sound_idx == MSG_OPENDOOR || sound_idx == MSG_SHUTDOOR || sound_idx == MSG_BASHDOOR ||
+        sound_idx == MSG_HITWALL || sound_idx == MSG_NOTHING_TO_OPEN || sound_idx == MSG_LOCKPICK_FAIL) {
+        return sound_state.volume_doors;
+    }
+    
+    return sound_state.volume_other; // Default volume for other sounds
 }
 
 static void sdl_sound_reset_bank(void)
@@ -326,23 +362,38 @@ void sdl_sound_reload(void)
     sdl_sound_reset_bank();
     
     // Load sound configuration from sound.json
+    // For local builds: read from lib/pref (ANGBAND_DIR_PREF)
+    // For standard builds: read from user folder (ANGBAND_DIR_USER)
     static struct sound_config sound_cfg;
     
     char sound_config_path[1024];
+#ifdef SIL_USE_LOCAL_DATA
+    if (ANGBAND_DIR_PREF && ANGBAND_DIR_PREF[0]) {
+        path_build(sound_config_path, sizeof(sound_config_path), ANGBAND_DIR_PREF, "sound.json");
+    } else {
+        SDL_strlcpy(sound_config_path, "sound.json", sizeof(sound_config_path));
+    }
+#else
     if (ANGBAND_DIR_USER && ANGBAND_DIR_USER[0]) {
         path_build(sound_config_path, sizeof(sound_config_path), ANGBAND_DIR_USER, "sound.json");
     } else {
         SDL_strlcpy(sound_config_path, "sound.json", sizeof(sound_config_path));
     }
+#endif
     
     sound_config_load(sound_config_path, &sound_cfg);
     sound_state.bank_loaded = sdl_sound_load_from_config(&sound_cfg);
     
-    // Copy group flags
+    // Copy group flags and volumes
     sound_state.enable_combat = sound_cfg.enable_combat;
     sound_state.enable_inventory = sound_cfg.enable_inventory;
     sound_state.enable_walk = sound_cfg.enable_walk;
     sound_state.enable_doors = sound_cfg.enable_doors;
+    sound_state.volume_combat = sound_cfg.volume_combat;
+    sound_state.volume_inventory = sound_cfg.volume_inventory;
+    sound_state.volume_walk = sound_cfg.volume_walk;
+    sound_state.volume_doors = sound_cfg.volume_doors;
+    sound_state.volume_other = sound_cfg.volume_other;
 
     // Open audio device if not already open and sound is enabled
     if (sound_cfg.enabled && !sound_state.device) {
@@ -428,6 +479,12 @@ void sdl_sound_handle(int sound_idx)
         log_warn("Failed to queue sound data: %s", SDL_GetError());
         SDL_DestroyAudioStream(playback_stream);
         return;
+    }
+
+    // Apply volume based on sound category
+    float volume = get_sound_volume(sound_idx);
+    if (!SDL_SetAudioStreamGain(playback_stream, volume)) {
+        log_warn("Failed to set stream gain: %s", SDL_GetError());
     }
 
     if (!SDL_BindAudioStream(sound_state.device, playback_stream)) {

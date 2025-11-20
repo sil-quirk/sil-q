@@ -16,6 +16,11 @@ void sound_config_set_defaults(struct sound_config* config)
     config->enable_inventory = true;
     config->enable_walk = true;
     config->enable_doors = true;
+    config->volume_combat = 1.0f;
+    config->volume_inventory = 1.0f;
+    config->volume_walk = 1.0f;
+    config->volume_doors = 1.0f;
+    config->volume_other = 1.0f;
     config->sample_rate = 22050;
     config->channels = 2;
     SDL_strlcpy(config->format, "s16", sizeof(config->format));
@@ -103,6 +108,37 @@ void sound_config_load(const char* filename, struct sound_config* config)
         config->enable_doors = cJSON_IsTrue(enable_doors);
         log_debug("Loaded sound enable_doors: %s", config->enable_doors ? "true" : "false");
     }
+
+    // Load volume settings
+    cJSON* volume_combat = cJSON_GetObjectItemCaseSensitive(root, "volumeCombat");
+    if (cJSON_IsNumber(volume_combat)) {
+        config->volume_combat = (float)volume_combat->valuedouble;
+        log_debug("Loaded combat volume: %.2f", config->volume_combat);
+    }
+
+    cJSON* volume_inventory = cJSON_GetObjectItemCaseSensitive(root, "volumeInventory");
+    if (cJSON_IsNumber(volume_inventory)) {
+        config->volume_inventory = (float)volume_inventory->valuedouble;
+        log_debug("Loaded inventory volume: %.2f", config->volume_inventory);
+    }
+
+    cJSON* volume_walk = cJSON_GetObjectItemCaseSensitive(root, "volumeWalk");
+    if (cJSON_IsNumber(volume_walk)) {
+        config->volume_walk = (float)volume_walk->valuedouble;
+        log_debug("Loaded walk volume: %.2f", config->volume_walk);
+    }
+
+    cJSON* volume_doors = cJSON_GetObjectItemCaseSensitive(root, "volumeDoors");
+    if (cJSON_IsNumber(volume_doors)) {
+        config->volume_doors = (float)volume_doors->valuedouble;
+        log_debug("Loaded doors volume: %.2f", config->volume_doors);
+    }
+
+    cJSON* volume_other = cJSON_GetObjectItemCaseSensitive(root, "volumeOther");
+    if (cJSON_IsNumber(volume_other)) {
+        config->volume_other = (float)volume_other->valuedouble;
+        log_debug("Loaded other volume: %.2f", config->volume_other);
+    }
     
     // Load sample rate
     cJSON* sample_rate = cJSON_GetObjectItemCaseSensitive(root, "sampleRate");
@@ -168,6 +204,11 @@ void sound_config_save(const char* filename, const struct sound_config* config)
     cJSON_AddBoolToObject(root, "enableInventory", config->enable_inventory);
     cJSON_AddBoolToObject(root, "enableWalk", config->enable_walk);
     cJSON_AddBoolToObject(root, "enableDoors", config->enable_doors);
+    cJSON_AddNumberToObject(root, "volumeCombat", config->volume_combat);
+    cJSON_AddNumberToObject(root, "volumeInventory", config->volume_inventory);
+    cJSON_AddNumberToObject(root, "volumeWalk", config->volume_walk);
+    cJSON_AddNumberToObject(root, "volumeDoors", config->volume_doors);
+    cJSON_AddNumberToObject(root, "volumeOther", config->volume_other);
     cJSON_AddNumberToObject(root, "sampleRate", config->sample_rate);
     cJSON_AddNumberToObject(root, "channels", config->channels);
     cJSON_AddStringToObject(root, "format", config->format);

@@ -400,6 +400,10 @@ static void prt_stat(int stat)
     char tmp[32];
     char trimmed_label[32];
     const char* stat_label;
+    int len;
+
+    /* Clear the line */
+    put_str("             ", ROW_STAT + stat, 0);
 
     /* Get the stat name */
     if (p_ptr->stat_drain[stat] < 0)
@@ -413,7 +417,7 @@ static void prt_stat(int stat)
     
     /* Trim trailing spaces for story font rendering */
     SDL_strlcpy(trimmed_label, stat_label, sizeof(trimmed_label));
-    int len = strlen(trimmed_label);
+    len = strlen(trimmed_label);
     while (len > 0 && trimmed_label[len-1] == ' ') {
         trimmed_label[--len] = '\0';
     }
@@ -435,18 +439,18 @@ static void prt_stat(int stat)
 
     /* Display stat value with monospace font */
     cnv_stat(p_ptr->stat_use[stat], tmp);
-    log_trace("prt_stat: Calling c_put_str('%s', %d, %d) for stat value", tmp, ROW_STAT + stat, COL_STAT + 10);
+    len = strlen(tmp);
+    log_trace("prt_stat: Calling c_put_str('%s', %d, %d) for stat value", tmp, ROW_STAT + stat, COL_STAT + 12 - len);
     if (p_ptr->stat_drain[stat] < 0)
     {
-        c_put_str(TERM_YELLOW, tmp, ROW_STAT + stat, COL_STAT + 10);
+        c_put_str(TERM_YELLOW, tmp, ROW_STAT + stat, COL_STAT + 12 - len);
     }
     else
     {
-        c_put_str(TERM_L_GREEN, tmp, ROW_STAT + stat, COL_STAT + 10);
+        c_put_str(TERM_L_GREEN, tmp, ROW_STAT + stat, COL_STAT + 12 - len);
     }
 
     /* Indicate temporary modifiers - clear first, then conditionally display */
-    put_str(" ", ROW_STAT + stat, 3);  /* Clear the position */
     if ((stat == A_STR) && p_ptr->tmp_str)
         put_str("*", ROW_STAT + stat, 3);
     else if ((stat == A_DEX) && p_ptr->tmp_dex)
@@ -464,19 +468,21 @@ static void prt_exp(void)
 {
     char out_val[32];
     byte attr;
+    int len;
 
     attr = TERM_L_GREEN;
 
     sdl_story_font_enable();
 
     /*Print experience label*/
-    put_str("Exp ", ROW_EXP, 0);
+    put_str("Exp", ROW_EXP, 0);
 
     sdl_story_font_disable();
 
     comma_number(out_val, p_ptr->new_exp);
+    len = strlen(out_val);
 
-    c_put_str(attr, format("%8s", out_val), ROW_EXP, COL_EXP + 4);
+    c_put_str(attr, out_val, ROW_EXP, COL_EXP + 12 - len);
 }
 
 /*
@@ -496,11 +502,11 @@ static void prt_mel(void)
         = p_ptr->active_ability[S_MEL][MEL_SMITE] ? TERM_L_RED : TERM_L_WHITE;
     strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", p_ptr->skill_use[S_MEL],
         p_ptr->mdd, p_ptr->mds);
-    Term_putstr(COL_MEL, ROW_MEL + mod, -1, meleeColour, format("%12s", buf));
+    c_put_str(meleeColour, buf, ROW_MEL + mod, COL_MEL + 12 - strlen(buf));
 
     if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
     {
-        Term_putstr(COL_MEL, ROW_MEL + mod, -1, TERM_WHITE, "2x");
+        c_put_str(TERM_WHITE, "2x", ROW_MEL + mod, COL_MEL);
     }
 
     if (mod == -1)
@@ -508,12 +514,12 @@ static void prt_mel(void)
         strnfmt(buf, sizeof(buf), "(%+d,%dd%d)",
             p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod, p_ptr->mdd2,
             p_ptr->mds2);
-        Term_putstr(COL_MEL, ROW_MEL, -1, TERM_L_WHITE, format("%12s", buf));
+        c_put_str(TERM_L_WHITE, buf, ROW_MEL, COL_MEL + 12 - strlen(buf));
     }
     else
     {
         strnfmt(buf, sizeof(buf), "            ");
-        Term_putstr(COL_MEL, ROW_MEL - 1, -1, TERM_L_BLUE, format("%12s", buf));
+        c_put_str(TERM_L_BLUE, buf, ROW_MEL - 1, 0);
     }
 }
 
@@ -531,28 +537,26 @@ static void prt_arc(void)
             && p_ptr->killed_enemy_with_arrow)
         {
             strnfmt(buf, sizeof(buf), ")");
-            Term_putstr(COL_ARC, ROW_ARC, -1, TERM_UMBER, format("%12s", buf));
+            c_put_str(TERM_UMBER, buf, ROW_ARC, COL_ARC + 12 - strlen(buf));
             strnfmt(buf, sizeof(buf), "%dd%d", 2 * p_ptr->add, p_ptr->ads);
-            Term_putstr(COL_ARC, ROW_ARC, -1, TERM_RED, format("%11s", buf));
+            c_put_str(TERM_RED, buf, ROW_ARC, COL_ARC + 11 - strlen(buf));
             strnfmt(buf, sizeof(buf), "(%+d,", p_ptr->skill_use[S_ARC]);
             if (p_ptr->ads > 9)
-                Term_putstr(
-                    COL_ARC, ROW_ARC, -1, TERM_UMBER, format("%7s", buf));
+                c_put_str(TERM_UMBER, buf, ROW_ARC, COL_ARC + 7 - strlen(buf));
             else
-                Term_putstr(
-                    COL_ARC, ROW_ARC, -1, TERM_UMBER, format("%8s", buf));
+                c_put_str(TERM_UMBER, buf, ROW_ARC, COL_ARC + 8 - strlen(buf));
         }
         else
         {
             strnfmt(buf, sizeof(buf), "(%+d,%dd%d)", p_ptr->skill_use[S_ARC],
                 p_ptr->add, p_ptr->ads);
-            Term_putstr(COL_ARC, ROW_ARC, -1, TERM_UMBER, format("%12s", buf));
+            c_put_str(TERM_UMBER, buf, ROW_ARC, COL_ARC + 12 - strlen(buf));
         }
     }
     else
     {
         strnfmt(buf, sizeof(buf), "            ");
-        Term_putstr(COL_ARC, ROW_ARC, -1, TERM_L_BLUE, format("%12s", buf));
+        c_put_str(TERM_L_BLUE, buf, ROW_ARC, 0);
     }
 }
 
@@ -717,7 +721,7 @@ static void prt_evn(void)
     /* Total Armor */
     strnfmt(buf, sizeof(buf), "[%+d,%d-%d]", p_ptr->skill_use[S_EVN],
         p_min(GF_HURT, true), p_max(GF_HURT, true));
-    Term_putstr(COL_EVN, ROW_EVN, -1, TERM_SLATE, format("%12s", buf));
+    c_put_str(TERM_SLATE, buf, ROW_EVN, COL_EVN + 12 - strlen(buf));
     p_ptr->active_ability[S_EVN][EVN_BLOCKING] = block;
 }
 
@@ -729,15 +733,18 @@ static void prt_hp(void)
     char tmp[32];
     byte color;
 
+    /* Clear the line */
+    put_str("             ", ROW_HP, COL_HP);
+
     sdl_story_font_enable();
 
     if (p_ptr->mhp >= 100)
     {
-        put_str("Hth        ", ROW_HP, COL_HP);
+        put_str("Hth", ROW_HP, COL_HP);
     }
     else
     {
-        put_str("Health      ", ROW_HP, COL_HP);
+        put_str("Health", ROW_HP, COL_HP);
     }
 
     sdl_story_font_disable();
@@ -875,9 +882,7 @@ static void prt_light(void)
         strnfmt(buf, sizeof(buf), "%ld", fuel);
     }
 
-    char aligned[16];
-    strnfmt(aligned, sizeof(aligned), "%9s", buf);
-    Term_putstr(icon_col + 3, ROW_LIGHT, 9, fuel_attr, aligned);
+    c_put_str(fuel_attr, buf, ROW_LIGHT, icon_col + 12 - strlen(buf));
 }
 
 /*
@@ -889,12 +894,15 @@ static void prt_sp(void)
     byte color;
     int len;
 
+    /* Clear the line */
+    put_str("             ", ROW_SP, COL_SP);
+
     sdl_story_font_enable();
 
     if (p_ptr->msp >= 100)
-        put_str("Vce         ", ROW_SP, COL_SP);
+        put_str("Vce", ROW_SP, COL_SP);
     else
-        put_str("Voice       ", ROW_SP, COL_SP);
+        put_str("Voice", ROW_SP, COL_SP);
 
     sdl_story_font_disable();
 
