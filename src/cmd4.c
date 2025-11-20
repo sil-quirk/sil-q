@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "sound-config.h"
+#include "sdl-sound.h"
 
 extern struct sound_config g_sound_config;
 #include "externs.h"
@@ -8332,7 +8333,7 @@ extern void do_cmd_options_aux(int page, cptr info)
     /* Special case: Sound page with no standard options - add custom display */
     if (is_sound_page && n == 0)
     {
-        n = 1; /* We have one "virtual" option */
+        n = 5; /* We have 5 "virtual" options */
     }
 
     /* Clear screen */
@@ -8355,12 +8356,38 @@ extern void do_cmd_options_aux(int page, cptr info)
                 a = TERM_L_BLUE;
 
             /* Display the option text */
-            if (is_sound_page && i == 0)
+            if (is_sound_page)
             {
-                /* Special sound option display */
-                strnfmt(buf, sizeof(buf), "%-48s: %s",
-                    "Enable game sounds",
-                    g_sound_config.enabled ? "yes" : "no ");
+                if (i == 0)
+                {
+                    strnfmt(buf, sizeof(buf), "%-48s: %s",
+                        "Enable game sounds",
+                        g_sound_config.enabled ? "yes" : "no ");
+                }
+                else if (i == 1)
+                {
+                    strnfmt(buf, sizeof(buf), "%-48s: %s",
+                        "Enable combat sounds",
+                        g_sound_config.enable_combat ? "yes" : "no ");
+                }
+                else if (i == 2)
+                {
+                    strnfmt(buf, sizeof(buf), "%-48s: %s",
+                        "Enable inventory sounds",
+                        g_sound_config.enable_inventory ? "yes" : "no ");
+                }
+                else if (i == 3)
+                {
+                    strnfmt(buf, sizeof(buf), "%-48s: %s",
+                        "Enable walk sounds",
+                        g_sound_config.enable_walk ? "yes" : "no ");
+                }
+                else if (i == 4)
+                {
+                    strnfmt(buf, sizeof(buf), "%-48s: %s",
+                        "Enable door sounds",
+                        g_sound_config.enable_doors ? "yes" : "no ");
+                }
             }
             else if (opt[i] == OPT_delay_factor)
             {
@@ -8446,6 +8473,9 @@ extern void do_cmd_options_aux(int page, cptr info)
                 else
                     SDL_strlcpy(sound_config_path, "sound.json", sizeof(sound_config_path));
                 sound_config_save(sound_config_path, &g_sound_config);
+                
+                /* Reload sound system to apply changes */
+                sdl_sound_reload();
             }
             
             /* Hack -- Notice use of any "cheat" options */
@@ -8483,11 +8513,17 @@ extern void do_cmd_options_aux(int page, cptr info)
         {
             if ((page != CHALLENGE_PAGE) || (playerturn == 0))
             {
-                if (is_sound_page && k == 0)
+                if (is_sound_page)
                 {
-                    /* Toggle sound */
-                    g_sound_config.enabled = !g_sound_config.enabled;
-                    use_sound = g_sound_config.enabled;
+                    if (k == 0)
+                    {
+                        g_sound_config.enabled = !g_sound_config.enabled;
+                        use_sound = g_sound_config.enabled;
+                    }
+                    else if (k == 1) g_sound_config.enable_combat = !g_sound_config.enable_combat;
+                    else if (k == 2) g_sound_config.enable_inventory = !g_sound_config.enable_inventory;
+                    else if (k == 3) g_sound_config.enable_walk = !g_sound_config.enable_walk;
+                    else if (k == 4) g_sound_config.enable_doors = !g_sound_config.enable_doors;
                 }
                 else
                 {
@@ -8502,11 +8538,17 @@ extern void do_cmd_options_aux(int page, cptr info)
         {
             if ((page != CHALLENGE_PAGE) || (playerturn == 0))
             {
-                if (is_sound_page && k == 0)
+                if (is_sound_page)
                 {
-                    /* Enable sound */
-                    g_sound_config.enabled = true;
-                    use_sound = true;
+                    if (k == 0)
+                    {
+                        g_sound_config.enabled = true;
+                        use_sound = true;
+                    }
+                    else if (k == 1) g_sound_config.enable_combat = true;
+                    else if (k == 2) g_sound_config.enable_inventory = true;
+                    else if (k == 3) g_sound_config.enable_walk = true;
+                    else if (k == 4) g_sound_config.enable_doors = true;
                 }
                 else if (opt[k] == OPT_delay_factor)
                 {
@@ -8544,11 +8586,17 @@ extern void do_cmd_options_aux(int page, cptr info)
         {
             if ((page != CHALLENGE_PAGE) || (playerturn == 0))
             {
-                if (is_sound_page && k == 0)
+                if (is_sound_page)
                 {
-                    /* Disable sound */
-                    g_sound_config.enabled = false;
-                    use_sound = false;
+                    if (k == 0)
+                    {
+                        g_sound_config.enabled = false;
+                        use_sound = false;
+                    }
+                    else if (k == 1) g_sound_config.enable_combat = false;
+                    else if (k == 2) g_sound_config.enable_inventory = false;
+                    else if (k == 3) g_sound_config.enable_walk = false;
+                    else if (k == 4) g_sound_config.enable_doors = false;
                 }
                 else if (opt[k] == OPT_delay_factor)
                 {

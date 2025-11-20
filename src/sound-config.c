@@ -12,6 +12,10 @@
 void sound_config_set_defaults(struct sound_config* config)
 {
     config->enabled = false;
+    config->enable_combat = true;
+    config->enable_inventory = true;
+    config->enable_walk = true;
+    config->enable_doors = true;
     config->sample_rate = 22050;
     config->channels = 2;
     SDL_strlcpy(config->format, "s16", sizeof(config->format));
@@ -70,6 +74,34 @@ void sound_config_load(const char* filename, struct sound_config* config)
     if (cJSON_IsBool(enabled)) {
         config->enabled = cJSON_IsTrue(enabled);
         log_debug("Loaded sound enabled: %s", config->enabled ? "true" : "false");
+    }
+
+    // Load combat sounds flag
+    cJSON* enable_combat = cJSON_GetObjectItemCaseSensitive(root, "enableCombat");
+    if (cJSON_IsBool(enable_combat)) {
+        config->enable_combat = cJSON_IsTrue(enable_combat);
+        log_debug("Loaded sound enable_combat: %s", config->enable_combat ? "true" : "false");
+    }
+
+    // Load inventory sounds flag
+    cJSON* enable_inventory = cJSON_GetObjectItemCaseSensitive(root, "enableInventory");
+    if (cJSON_IsBool(enable_inventory)) {
+        config->enable_inventory = cJSON_IsTrue(enable_inventory);
+        log_debug("Loaded sound enable_inventory: %s", config->enable_inventory ? "true" : "false");
+    }
+
+    // Load walk sounds flag
+    cJSON* enable_walk = cJSON_GetObjectItemCaseSensitive(root, "enableWalk");
+    if (cJSON_IsBool(enable_walk)) {
+        config->enable_walk = cJSON_IsTrue(enable_walk);
+        log_debug("Loaded sound enable_walk: %s", config->enable_walk ? "true" : "false");
+    }
+
+    // Load door sounds flag
+    cJSON* enable_doors = cJSON_GetObjectItemCaseSensitive(root, "enableDoors");
+    if (cJSON_IsBool(enable_doors)) {
+        config->enable_doors = cJSON_IsTrue(enable_doors);
+        log_debug("Loaded sound enable_doors: %s", config->enable_doors ? "true" : "false");
     }
     
     // Load sample rate
@@ -132,6 +164,10 @@ void sound_config_save(const char* filename, const struct sound_config* config)
     
     // Save basic settings
     cJSON_AddBoolToObject(root, "enabled", config->enabled);
+    cJSON_AddBoolToObject(root, "enableCombat", config->enable_combat);
+    cJSON_AddBoolToObject(root, "enableInventory", config->enable_inventory);
+    cJSON_AddBoolToObject(root, "enableWalk", config->enable_walk);
+    cJSON_AddBoolToObject(root, "enableDoors", config->enable_doors);
     cJSON_AddNumberToObject(root, "sampleRate", config->sample_rate);
     cJSON_AddNumberToObject(root, "channels", config->channels);
     cJSON_AddStringToObject(root, "format", config->format);

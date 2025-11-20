@@ -5,6 +5,10 @@
 // Sound configuration structure
 struct sound_config {
     bool enabled;              // Enable/disable game sounds (default: false)
+    bool enable_combat;        // Enable combat sounds
+    bool enable_inventory;     // Enable inventory sounds
+    bool enable_walk;          // Enable walk sounds
+    bool enable_doors;         // Enable door sounds
     int sample_rate;           // Audio sample rate (default: 22050)
     int channels;              // Audio channels: 1=mono, 2=stereo (default: 2)
     char format[16];           // Audio format: "s8", "u8", "s16", "s32", "f32" (default: "s16")

@@ -5670,10 +5670,16 @@ void show_inven_enhanced(void)
                     goto default_case;
 #endif
                 } else {
-                    /* Direct access (i/e pressed): E/I switch menus */
+                    /* Direct access (i/e pressed) */
+#ifdef STEAMDECK_SUPPORT
+                    /* STEAMDECK: E/I switch menus */
                     enhanced_menu_action = ENHANCED_ACTION_SWITCH;
                     log_trace("show_inven_enhanced: Direct access E key - switching to equipment (action=1)");
                     done = true;
+#else
+                    /* Non-STEAMDECK: E/I are just letters */
+                    goto default_case;
+#endif
                 }
             }
             break;
@@ -5757,28 +5763,21 @@ void show_inven_enhanced(void)
             }
             break;
             
-        default:
-        default_case:
+            default:
+            default_case:
             /* Handle item selection by letter or dash */
             if ((which >= 'a' && which <= 'z') || (which >= 'A' && which <= 'Z') || which == '-') {
                 extern char current_menu_command;
                 bool allow_letters = false;
                 
                 /* Determine if letter selection is allowed based on access mode and STEAMDECK support */
-                if (current_menu_command != 0) {
-                    /* Command access (u/x pressed) */
 #ifdef STEAMDECK_SUPPORT
-                    /* STEAMDECK: Letters disabled */
-                    allow_letters = false;
+                /* STEAMDECK: Letters disabled */
+                allow_letters = false;
 #else
-                    /* Non-STEAMDECK: Letters enabled */
-                    allow_letters = true;
+                /* Non-STEAMDECK: Letters enabled */
+                allow_letters = true;
 #endif
-                } else {
-                    /* Direct access (i/e pressed): Letters disabled */
-                    allow_letters = false;
-                }
-                
                 if (!allow_letters) {
                     bell("Use arrow keys and Space to select items in this mode");
                     break;
@@ -6204,10 +6203,16 @@ void show_equip_enhanced(void)
                     goto equip_default_case;
 #endif
                 } else {
-                    /* Direct access (i/e pressed): E/I switch menus */
+                    /* Direct access (i/e pressed) */
+#ifdef STEAMDECK_SUPPORT
+                    /* STEAMDECK: E/I switch menus */
                     enhanced_equip_action = ENHANCED_ACTION_SWITCH;
                     log_trace("show_equip_enhanced: Direct access I key - switching to inventory (action=1)");
                     done = true;
+#else
+                    /* Non-STEAMDECK: E/I are just letters */
+                    goto equip_default_case;
+#endif
                 }
             }
             break;
@@ -6294,19 +6299,13 @@ void show_equip_enhanced(void)
                 bool allow_letters = false;
                 
                 /* Determine if letter selection is allowed based on access mode and STEAMDECK support */
-                if (current_menu_command != 0) {
-                    /* Command access (u/x pressed) */
 #ifdef STEAMDECK_SUPPORT
-                    /* STEAMDECK: Letters disabled */
-                    allow_letters = false;
+                /* STEAMDECK: Letters disabled */
+                allow_letters = false;
 #else
-                    /* Non-STEAMDECK: Letters enabled */
-                    allow_letters = true;
+                /* Non-STEAMDECK: Letters enabled */
+                allow_letters = true;
 #endif
-                } else {
-                    /* Direct access (i/e pressed): Letters disabled */
-                    allow_letters = false;
-                }
                 
                 if (!allow_letters) {
                     bell("Use arrow keys and Space to select items in this mode");

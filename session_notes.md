@@ -6278,3 +6278,53 @@ un_history_entry records instead of corrupting them with the wrong element size;
 - Removed the `mini_screenshot_char/attr` globals from src/variable.c + externs.h and reintroduced them as static buffers in src/files.c so only the screenshot helpers own that scratch state; this keeps the renderer-specific data out of the global namespace while preserving the existing APIs (`mini_screenshot`, `prt_mini_screenshot`).
 ## 2025-11-21 - Retired HTML screen dumps
 - Removed the legacy HTML screen-dump command entirely: excised the `html_screenshot()` implementation from src/files.c, deleted the associated menu option and command handler in src/cmd4.c, and dropped the do_cmd_save_screen() helper plus all documentation strings so the remaining screenshot features only cover the textual dumps and mini view.
+
+# Session Notes - Inventory Letter Selection Fix (2025-11-20)
+
+## Issue
+User reported that inventory letter selection was disabled (behaving like Steam Deck build) even though \STEAMDECK_SUPPORT\ was not defined.
+
+## Investigation
+- Found that \show_inven_enhanced\ and \show_equip_enhanced\ in \src/object1.c\ had logic that explicitly disabled letter selection for 'Direct access' (opening menu via 'i' or 'e' instead of 'u'/'x' command cycling).
+- This logic was:
+  \\\c
+  } else {
+      /* Direct access (i/e pressed): Letters disabled */
+      allow_letters = false;
+  }
+  \\\
+- This unconditionally disabled letters for direct access, regardless of \STEAMDECK_SUPPORT\.
+
+## Fix
+- Modified \src/object1.c\ in both \show_inven_enhanced\ and \show_equip_enhanced\.
+- Changed the logic to respect \STEAMDECK_SUPPORT\ for direct access as well.
+- New logic:
+  \\\c
+  #ifdef STEAMDECK_SUPPORT
+      /* STEAMDECK: Letters disabled */
+      allow_letters = false;
+  #else
+      /* Non-STEAMDECK: Letters enabled */
+      allow_letters = true;
+  #endif
+  \\\
+- This ensures that letter selection is enabled for standard builds, restoring expected behavior.
+
+## Verification
+- Built the project successfully with \cmake --build build --parallel\.
+
+
+# Session Notes - Inventory Letter Selection Fix Part 2 (2025-11-20)
+
+## Issue
+User reported that while letters were enabled, the 'i' and 'e' keys were still switching menus in non-SteamDeck builds, which conflicted with selecting items labeled 'i' or 'e'.
+
+## Fix
+- Modified \src/object1.c\ in \show_inven_enhanced\ and \show_equip_enhanced\.
+- Updated the \case 'e'\ (in inventory) and \case 'i'\ (in equipment) blocks.
+- Wrapped the menu switching logic in \#ifdef STEAMDECK_SUPPORT\ for the 'Direct access' path as well.
+- If \STEAMDECK_SUPPORT\ is NOT defined, these cases now fall through to \default_case\ (inventory) or \equip_default_case\ (equipment), allowing 'i' and 'e' to be treated as standard item selection letters.
+
+## Verification
+- Built the project successfully with \cmake --build build --parallel\.
+

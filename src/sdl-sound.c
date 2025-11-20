@@ -33,6 +33,10 @@ static struct {
     sound_bank bank;
     bool bank_loaded;
     SDL_AudioStream* active_streams[SDL_SOUND_MAX_ACTIVE_STREAMS];
+    bool enable_combat;
+    bool enable_inventory;
+    bool enable_walk;
+    bool enable_doors;
 } sound_state;
 
 static void sdl_sound_reset_bank(void);
@@ -44,6 +48,37 @@ static void sdl_sound_build_path(const char* base_path, char* dst, size_t dst_le
 static void sdl_sound_clear_streams(void);
 static bool sdl_sound_track_stream(SDL_AudioStream* stream);
 static void sdl_sound_destroy_stream(SDL_AudioStream** stream);
+
+static bool is_sound_enabled(int sound_idx)
+{
+    // Combat
+    if (sound_idx == MSG_HIT || sound_idx == MSG_SHOOT || sound_idx == MSG_DIG ||
+        (sound_idx >= MSG_WEAPON_SLASH_LIGHT && sound_idx <= MSG_WEAPON_UNARMED) ||
+        sound_idx == MSG_WEAPON_SLASH_MEDIUM || sound_idx == MSG_MISS || sound_idx == MSG_KILL) {
+        return sound_state.enable_combat;
+    }
+    
+    // Inventory
+    if (sound_idx == MSG_DROP || sound_idx == MSG_QUAFF || sound_idx == MSG_ZAP ||
+        sound_idx == MSG_EAT || sound_idx == MSG_PICK || sound_idx == MSG_ARMOR ||
+        (sound_idx >= MSG_EQUIP_SWORD && sound_idx <= MSG_UNEQUIP_JEWELRY) ||
+        (sound_idx >= MSG_DROP_GLASS && sound_idx <= MSG_ACTIVATE)) {
+        return sound_state.enable_inventory;
+    }
+    
+    // Walk
+    if (sound_idx == MSG_WALK) {
+        return sound_state.enable_walk;
+    }
+    
+    // Doors
+    if (sound_idx == MSG_OPENDOOR || sound_idx == MSG_SHUTDOOR || sound_idx == MSG_BASHDOOR ||
+        sound_idx == MSG_HITWALL || sound_idx == MSG_NOTHING_TO_OPEN || sound_idx == MSG_LOCKPICK_FAIL) {
+        return sound_state.enable_doors;
+    }
+    
+    return true; // Default enabled for other sounds
+}
 
 static void sdl_sound_reset_bank(void)
 {
@@ -303,6 +338,12 @@ void sdl_sound_reload(void)
     sound_config_load(sound_config_path, &sound_cfg);
     sound_state.bank_loaded = sdl_sound_load_from_config(&sound_cfg);
     
+    // Copy group flags
+    sound_state.enable_combat = sound_cfg.enable_combat;
+    sound_state.enable_inventory = sound_cfg.enable_inventory;
+    sound_state.enable_walk = sound_cfg.enable_walk;
+    sound_state.enable_doors = sound_cfg.enable_doors;
+
     // Open audio device if not already open and sound is enabled
     if (sound_cfg.enabled && !sound_state.device) {
         SDL_AudioSpec desired;
@@ -342,6 +383,11 @@ void sdl_sound_handle(int sound_idx)
         return;
     }
     if (!sound_state.device) {
+        return;
+    }
+
+    // Check if sound group is enabled
+    if (!is_sound_enabled(sound_idx)) {
         return;
     }
 

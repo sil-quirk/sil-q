@@ -1,5 +1,9 @@
 {
 	"enabled":	true,
+	"enableCombat":	true,
+	"enableInventory":	true,
+	"enableWalk":	true,
+	"enableDoors":	true,
 	"sampleRate":	44100,
 	"channels":	2,
 	"format":	"s16",
