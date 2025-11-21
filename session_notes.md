@@ -1,5 +1,96 @@
 # Session Notes
 
+## 2025-11-21: Lantern/Torch Duplication Bug - Found the Issue!
+
+### Problem - Reproduced Successfully
+User reproduced the bug with lanterns:
+1. Had multiple Brass Lanterns in inventory, including one Brass Lantern of True Sight (2649 turns)
+2. Equipped a Brass Lantern (3000 turns)
+3. Refueled it to 5995 turns using another lantern
+4. Unequipped the refueled lantern (5995 turns)
+5. **BUG**: The Brass Lantern of True Sight (name2 != 0) vanished!
+6. Message: "You have no more Brass Lanterns of true Sight (2649 turns)"
+
+### Log Analysis - The Smoking Gun
+
+**At 02:49:46** - Taking off the refueled lantern:
+```
+inven_takeoff: Taking off copy - k_idx=129, name2=0, number=1
+inven_takeoff: Calling inven_carry with k_idx=129, name2=0  
+inven_carry returned slot=7
+```
+
+The taken-off normal lantern (5995 turns, name2=0) was placed at slot 7.
+
+**The Bug**: After this, the True Sight lantern (name2 != 0) at slot 8 disappeared! The only explanation is that `inven_carry` found it "similar" to the True Sight lantern and **incorrectly absorbed it**.
+
+### Root Cause Theory
+
+`object_similar` at line 1712 checks:
+```c
+if (o_ptr->name2 != j_ptr->name2)
+    return (false);
+```
+
+This SHOULD prevent a normal lantern (name2=0) from combining with a True Sight lantern (name2 != 0). But somehow it's not working!
+
+Possible causes:
+1. `object_similar` is being bypassed somehow
+2. The `name2` check happens AFTER the light timeout check, and something is causing an early return
+3. One of the lanterns has corrupted `name2` data
+4. There's a different code path that doesn't call `object_similar`
+
+### Changes Made
+Added extensive logging:
+1. **`object_similar`**: Log name2 values and timeout values for lights, with explicit logging when returning false
+2. **`do_cmd_refuel_torch`**: Log timeout values before/after refueling
+3. **`inven_takeoff`**: Log object properties being taken off and where they're placed
+
+### Next Steps
+User needs to reproduce the bug with the new logging to see:
+- Whether `object_similar` is being called for the True Sight lantern
+- What name2 values are being compared
+- Whether the check is passing or failing
+- If there's a different code path causing the absorption
+
+---
+
+## 2025-11-21: Fixed L-View Item Name Display Issues
+
+### Problem
+Item names in the unified look command (l-view) sidebar were displaying as stats-only with no item name visible (e.g., showing `(-2,3d4) [+1] (-2,3d4) [+1] 3.0` instead of a proper item name).
+
+### Root Cause - strnfmt Not Respecting %.*s Precision Specifier
+The actual bug was discovered through logging: `strnfmt(base, sizeof(base), "%.*s", (int)stats_idx, source)` was **not respecting the precision specifier** and was copying the entire source string instead of just the first `stats_idx` characters.
+
+**Example from logs:**
+```
+Input: 'Bastard Sword (-2,3d3) [+1]' (27 chars)
+stats_idx=14 (should copy only 'Bastard Sword ')
+strnfmt result: 'Bastard Sword (-2,3d3) [+1]' (copied ALL 27 chars!)
+```
+
+This caused the "base" to contain the stats portion, which then got extracted as a "word" during mode 4's aggressive shortening, leaving only stats in the final output.
+
+### Solution
+**Replaced all `strnfmt` calls with `%.*s` format with direct `memcpy`:**
+- Base/stats split in line 793
+- First word fallback extraction in line 830
+- Trailing suffix extraction in line 866
+- 'of' pattern first_part extraction in line 917
+- Last word (short_first) extraction in line 970
+- Token extraction in cleaned_second processing in line 993
+
+`memcpy` correctly honors the length parameter, unlike `strnfmt` which was ignoring the precision specifier.
+
+### Files Changed
+- `src/object1.c`: Replaced 6 instances of `strnfmt` with `%.*s` with direct `memcpy` + null termination
+
+### Testing
+Build completed successfully. The fix ensures mode 4 shortening correctly splits item names from stats before processing.
+
+---
+
 ## 2025-11-18: Drop Sound Weight Categories
 
 ### Overview

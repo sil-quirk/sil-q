@@ -1697,15 +1697,27 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
         if (o_ptr->name1 != j_ptr->name1)
             return (false);
 
+        log_debug("object_similar: checking lights - o_ptr name2=%d, j_ptr name2=%d",
+                  o_ptr->name2, j_ptr->name2);
+
         /* Require identical "special item" names */
         if (o_ptr->name2 != j_ptr->name2)
+        {
+            log_debug("object_similar: DIFFERENT name2, returning false");
             return (false);
+        }
+
+        log_debug("object_similar: checking timeout - o_ptr=%d, j_ptr=%d",
+                  o_ptr->timeout, j_ptr->timeout);
 
         /* Mega-Hack -- Handle lights */
         if (fuelable_light_p(o_ptr))
         {
             if (o_ptr->timeout != j_ptr->timeout)
+            {
+                log_debug("object_similar: DIFFERENT timeout, returning false");
                 return (false);
+            }
         }
 
         /* Hack -- Never stack recharging items */
@@ -5870,11 +5882,18 @@ s16b inven_takeoff(int item, int amt)
     }
 
     /* Modify, Optimize */
+    log_debug("inven_takeoff: Before decrease - item=%d (k_idx=%d, name2=%d, number=%d)",
+              item, o_ptr->k_idx, o_ptr->name2, o_ptr->number);
+    log_debug("inven_takeoff: Taking off copy - k_idx=%d, name2=%d, number=%d",
+              i_ptr->k_idx, i_ptr->name2, i_ptr->number);
     inven_item_increase(item, -amt);
     inven_item_optimize(item);
 
     /* Carry the object */
+    log_debug("inven_takeoff: Calling inven_carry with k_idx=%d, name2=%d", 
+              i_ptr->k_idx, i_ptr->name2);
     slot = inven_carry(i_ptr, false);
+    log_debug("inven_takeoff: inven_carry returned slot=%d", slot);
 
     if (slot == SUPPLIES_INDEX)
     {

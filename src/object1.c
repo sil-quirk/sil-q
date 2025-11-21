@@ -733,6 +733,8 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
 {
     if (!buf) return;
 
+    log_debug("mode4_shorten: INPUT buf='%s' max=%zu apply_rules=%d", buf, max, apply_rules);
+
     char source[256];
     size_t src_idx = 0;
     bool insert_space = false;
@@ -757,11 +759,16 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
     }
     source[src_idx] = '\0';
 
+    log_debug("mode4_shorten: after cleanup source='%s'", source);
+
     SDL_strlcpy(buf, source, max);
 
     size_t len = strlen(source);
     if (!len)
+    {
+        log_debug("mode4_shorten: empty source, returning");
         return;
+    }
 
     size_t stats_idx = len;
     for (size_t i = 0; i < len; ++i)
@@ -774,6 +781,8 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
         }
     }
 
+    log_debug("mode4_shorten: stats_idx=%zu len=%zu", stats_idx, len);
+
     char base[256];
     char stats[256];
     base[0] = '\0';
@@ -781,21 +790,56 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
 
     if (stats_idx < len)
     {
-        strnfmt(base, sizeof(base), "%.*s", (int)stats_idx, source);
+        /* Copy only the characters before stats_idx - strnfmt was not respecting %.*s */
+        if (stats_idx > 0 && stats_idx < sizeof(base))
+        {
+            memcpy(base, source, stats_idx);
+            base[stats_idx] = '\0';
+        }
         SDL_strlcpy(stats, source + stats_idx, sizeof(stats));
+        log_debug("mode4_shorten: split - base='%s' stats='%s'", base, stats);
     }
     else
     {
         SDL_strlcpy(base, source, sizeof(base));
+        log_debug("mode4_shorten: no stats found - base='%s'", base);
     }
 
     object_desc_trim_spaces(base);
     object_desc_trim_spaces(stats);
+    
+    log_debug("mode4_shorten: after trim - base='%s' stats='%s'", base, stats);
 
+    /* If base name is empty after processing, use the original source instead of stats-only */
     if (!base[0])
     {
-        SDL_strlcpy(buf, stats, max);
-        return;
+        log_debug("mode4_shorten: base is empty! source='%s'", source);
+        
+        /* Try to extract at least something from the original - fallback to first word */
+        const char* first_word_end = source;
+        while (*first_word_end && !isspace((unsigned char)*first_word_end) 
+               && *first_word_end != '(' && *first_word_end != '[' 
+               && *first_word_end != '<' && *first_word_end != '{')
+            first_word_end++;
+        
+        size_t first_word_len = first_word_end - source;
+        log_debug("mode4_shorten: first_word_len=%zu", first_word_len);
+        
+        if (first_word_len > 0 && first_word_len < sizeof(base))
+        {
+            memcpy(base, source, first_word_len);
+            base[first_word_len] = '\0';
+            object_desc_trim_spaces(base);
+            log_debug("mode4_shorten: extracted first word base='%s'", base);
+        }
+        
+        /* If still nothing, just use the whole source unchanged */
+        if (!base[0])
+        {
+            log_debug("mode4_shorten: still empty, returning source unchanged");
+            SDL_strlcpy(buf, source, max);
+            return;
+        }
     }
 
     char trailing_suffix[64];
@@ -803,6 +847,8 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
 
     if (apply_rules)
     {
+        log_debug("mode4_shorten: applying rules to base='%s'", base);
+        
         size_t base_len_tmp = strlen(base);
         size_t idx = base_len_tmp;
 
@@ -818,11 +864,17 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
             size_t copy_len = idx - digit_start;
             if (copy_len < sizeof(trailing_suffix))
             {
-                strnfmt(trailing_suffix, sizeof(trailing_suffix), "%.*s", (int)copy_len, base + digit_start);
+                memcpy(trailing_suffix, base + digit_start, copy_len);
+                trailing_suffix[copy_len] = '\0';
                 base[digit_start] = '\0';
                 object_desc_trim_spaces(base);
+                log_debug("mode4_shorten: extracted trailing_suffix='%s' base_after='%s'", trailing_suffix, base);
             }
         }
+    }
+    else
+    {
+        log_debug("mode4_shorten: skipping rules (artifact)");
     }
 
     if (!apply_rules)
@@ -837,44 +889,67 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
             SDL_strlcat(rebuilt_basic, stats, sizeof(rebuilt_basic));
         }
         object_desc_trim_spaces(rebuilt_basic);
+        log_debug("mode4_shorten: no rules, OUTPUT='%s'", rebuilt_basic);
         SDL_strlcpy(buf, rebuilt_basic, max);
         return;
     }
 
+    log_debug("mode4_shorten: processing 'of' pattern in base='%s'", base);
+
+    /* Determine if this item has an ego enchantment (e.g., "of Speed", "of Gondolin") */
+    bool has_ego = (o_ptr && o_ptr->name2);
+    
     char lower[256];
     size_t base_len = strlen(base);
     for (size_t i = 0; i < base_len && i < sizeof(lower) - 1; ++i)
         lower[i] = (char)tolower((unsigned char)base[i]);
     lower[base_len] = '\0';
 
-    char* last = NULL;
-    for (char* search = lower; (search = strstr(search, " of ")) != NULL; ++search)
-        last = search;
+    log_debug("mode4_shorten: lower='%s' has_ego=%d", lower, has_ego);
+
+    /* Only split on " of " if there's an ego enchantment */
+    char* split_point = NULL;
+    if (has_ego)
+    {
+        /* Find the LAST " of " - this should be the ego enchantment */
+        for (char* search = lower; (search = strstr(search, " of ")) != NULL; ++search)
+            split_point = search;
+    }
 
     char first_part[256];
     char second_part[256];
     first_part[0] = '\0';
     second_part[0] = '\0';
 
-    if (last)
+    if (split_point)
     {
-        size_t index = (size_t)(last - lower);
-        strnfmt(first_part, sizeof(first_part), "%.*s", (int)index, base);
+        size_t index = (size_t)(split_point - lower);
+        if (index < sizeof(first_part))
+        {
+            memcpy(first_part, base, index);
+            first_part[index] = '\0';
+        }
         SDL_strlcpy(second_part, base + index + 4, sizeof(second_part));
+        log_debug("mode4_shorten: found ego 'of' at %zu - first='%s' second='%s'", index, first_part, second_part);
     }
     else
     {
         SDL_strlcpy(first_part, base, sizeof(first_part));
+        log_debug("mode4_shorten: no ego split - first='%s'", first_part);
     }
 
     object_desc_trim_spaces(first_part);
     object_desc_trim_spaces(second_part);
+    
+    log_debug("mode4_shorten: after trim - first='%s' second='%s'", first_part, second_part);
 
     char short_first[128];
     short_first[0] = '\0';
 
     if (first_part[0])
     {
+        log_debug("mode4_shorten: extracting last word from first_part='%s'", first_part);
+        
         char* cursor = first_part;
         char* chosen = first_part;
         size_t chosen_len = strlen(first_part);
@@ -900,11 +975,16 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
             {
                 chosen = word_start;
                 chosen_len = word_len;
+                log_debug("mode4_shorten: found word at offset %td len=%zu", word_start - first_part, word_len);
             }
         }
 
-        if (chosen_len > 0)
-            strnfmt(short_first, sizeof(short_first), "%.*s", (int)chosen_len, chosen);
+        if (chosen_len > 0 && chosen_len < sizeof(short_first))
+        {
+            memcpy(short_first, chosen, chosen_len);
+            short_first[chosen_len] = '\0';
+            log_debug("mode4_shorten: short_first='%s'", short_first);
+        }
     }
 
     char cleaned_second[256];
@@ -925,7 +1005,15 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
             continue;
 
         char token[64];
-        strnfmt(token, sizeof(token), "%.*s", (int)token_len, token_start);
+        if (token_len < sizeof(token))
+        {
+            memcpy(token, token_start, token_len);
+            token[token_len] = '\0';
+        }
+        else
+        {
+            continue;
+        }
 
         char token_lower[64];
         size_t tok_len = strlen(token);
@@ -943,27 +1031,40 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
 
     char name_part[256];
     name_part[0] = '\0';
+    
+    /* Build name from shortened first part (base item name) */
     if (short_first[0])
+    {
         SDL_strlcpy(name_part, short_first, sizeof(name_part));
-
+        log_debug("mode4_shorten: name_part from short_first='%s'", name_part);
+    }
+    
+    /* Add enchantment qualifier if present (e.g., "of Speed") */
     if (cleaned_second[0])
     {
         if (name_part[0])
             SDL_strlcat(name_part, " ", sizeof(name_part));
         SDL_strlcat(name_part, cleaned_second, sizeof(name_part));
+        log_debug("mode4_shorten: name_part after adding cleaned_second='%s'", name_part);
     }
-
+    
+    /* Fallback if nothing was extracted */
     if (!name_part[0])
+    {
         SDL_strlcpy(name_part, base, sizeof(name_part));
+        log_debug("mode4_shorten: name_part fallback to base='%s'", name_part);
+    }
 
     if (trailing_suffix[0])
     {
         if (name_part[0])
             SDL_strlcat(name_part, " ", sizeof(name_part));
         SDL_strlcat(name_part, trailing_suffix, sizeof(name_part));
+        log_debug("mode4_shorten: name_part after suffix='%s'", name_part);
     }
 
     object_desc_trim_spaces(name_part);
+    log_debug("mode4_shorten: final name_part='%s'", name_part);
 
     char rebuilt[256];
     rebuilt[0] = '\0';
@@ -976,6 +1077,7 @@ static void object_desc_mode4_shorten(char* buf, size_t max, const object_type* 
     }
 
     object_desc_trim_spaces(rebuilt);
+    log_debug("mode4_shorten: FINAL OUTPUT='%s'", rebuilt);
     SDL_strlcpy(buf, rebuilt, max);
 }
 void object_desc(

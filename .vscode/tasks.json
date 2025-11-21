@@ -2,77 +2,26 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "CMake: Configure",
+            "label": "Build and Deploy",
             "type": "shell",
-            "command": "cmake",
-            "args": [
-                "-G", "MinGW Makefiles",
-                "-B", "build",
-                "-DCMAKE_BUILD_TYPE=Release",
-                "-DCMAKE_PREFIX_PATH=C:/msys64/mingw64",
-                "-DUSE_SDL=ON",
-                "-DUSE_GCU=OFF"
-            ],
+            "command": "${workspaceFolder}/build-cmake.bat",
             "options": {
-                "cwd": "${workspaceFolder}",
-                "env": {
-                    "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
-                }
+                "cwd": "${workspaceFolder}"
             },
-            "problemMatcher": [],
-            "detail": "Configure CMake project with MinGW and SDL3"
-        },
-        {
-            "label": "CMake: Build",
-            "type": "shell",
-            "command": "cmake",
-            "args": [
-                "--build", "build",
-                "--parallel"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}",
-                "env": {
-                    "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
-                }
-            },
-            "dependsOn": ["CMake: Configure"],
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
             "problemMatcher": ["$gcc"],
-            "detail": "Build using CMake"
-        },
-        {
-            "label": "CMake: Deploy",
-            "type": "shell",
-            "command": "powershell",
-            "args": [
-                "-NoProfile",
-                "-ExecutionPolicy", "Bypass",
-                "-File",
-                "${workspaceFolder}/.vscode/deploy.ps1"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}",
-                "env": {
-                    "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
-                }
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false
             },
-            "dependsOn": ["CMake: Build"],
-            "problemMatcher": [],
-            "detail": "Deploy executable, DLLs, and game data to sil-more-windows-sdl3"
+            "detail": "Build and deploy using build-cmake.bat"
         },
         {
-            "label": "Build and Deploy",
-            "dependsOn": ["CMake: Deploy"],
-            "dependsOrder": "sequence",
-            "problemMatcher": [],
-            "detail": "Full build workflow: configure, build, and deploy (matches build-cmake.bat)"
-        },
-        {
-            "label": "Run Game",
+            "label": "Run",
             "type": "shell",
             "command": ".\\sil-more.exe",
             "options": {
@@ -84,88 +33,10 @@
                 "focus": true,
                 "panel": "dedicated"
             },
-            "detail": "Run the SDL3 build (sil-more.exe)"
+            "detail": "Run from deployment folder"
         },
         {
-            "label": "Build and Run",
-            "dependsOn": ["Build and Deploy", "Run Game"],
-            "dependsOrder": "sequence",
-            "group": {
-                "kind": "test",
-                "isDefault": true
-            },
-            "problemMatcher": [],
-            "detail": "Build, deploy, and run the game"
-        },
-        {
-            "label": "CMake: Configure (Local)",
-            "type": "shell",
-            "command": "cmake",
-            "args": [
-                "-G", "MinGW Makefiles",
-                "-B", "build",
-                "-DCMAKE_BUILD_TYPE=Release",
-                "-DCMAKE_PREFIX_PATH=C:/msys64/mingw64",
-                "-DUSE_SDL=ON",
-                "-DUSE_GCU=OFF",
-                "-DSIL_USE_LOCAL_DATA=ON"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}",
-                "env": {
-                    "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
-                }
-            },
-            "problemMatcher": [],
-            "detail": "Configure CMake project with Local Data mode (SIL_USE_LOCAL_DATA=ON)"
-        },
-        {
-            "label": "CMake: Build (Local)",
-            "type": "shell",
-            "command": "cmake",
-            "args": [
-                "--build", "build",
-                "--parallel"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}",
-                "env": {
-                    "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
-                }
-            },
-            "dependsOn": ["CMake: Configure (Local)"],
-            "problemMatcher": ["$gcc"],
-            "detail": "Build Local Data version using CMake"
-        },
-        {
-            "label": "CMake: Deploy (Local)",
-            "type": "shell",
-            "command": "powershell",
-            "args": [
-                "-NoProfile",
-                "-ExecutionPolicy", "Bypass",
-                "-File",
-                "${workspaceFolder}/.vscode/deploy-local.ps1"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}",
-                "env": {
-                    "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
-                }
-            },
-            "dependsOn": ["CMake: Build (Local)"],
-            "problemMatcher": [],
-            "detail": "Deploy Local Data version to sil-more-windows-sdl3-portable"
-        },
-        {
-            "label": "Build and Deploy (Local)",
-            "dependsOn": ["CMake: Deploy (Local)"],
-            "dependsOrder": "sequence",
-            "problemMatcher": [],
-            "detail": "Full local build workflow: configure, build, and deploy to sil-more-windows-sdl3-portable"
-        },
-        {
-            "label": "Run Game (Local)",
+            "label": "Run Portable",
             "type": "shell",
             "command": ".\\sil-more.exe",
             "options": {
@@ -177,14 +48,7 @@
                 "focus": true,
                 "panel": "dedicated"
             },
-            "detail": "Run the Local Data version (sil-more.exe)"
-        },
-        {
-            "label": "Build and Run (Local)",
-            "dependsOn": ["Build and Deploy (Local)", "Run Game (Local)"],
-            "dependsOrder": "sequence",
-            "problemMatcher": [],
-            "detail": "Build, deploy, and run the Local Data version"
+            "detail": "Run from portable folder"
         }
     ]
 }

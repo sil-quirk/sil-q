@@ -15393,13 +15393,45 @@ static void sidebar_trim_spaces(char* s)
 static int sidebar_find_stats_pos(const char* s)
 {
     if (!s) return -1;
+    
+    /* Stats section typically appears after the item name, preceded by a space.
+     * Format: "Item Name (dice) [bonus] <pval> {inscription}"
+     * We search for the first space-delimited bracket that looks like stats.
+     */
+    
+    int first_stats_pos = -1;
+    
+    /* Look for the first bracket that follows a space or starts the string */
     for (int i = 0; s[i]; ++i)
     {
         char c = s[i];
+        
+        /* Found a potential stats delimiter */
         if (c == '(' || c == '[' || c == '<' || c == '{')
-            return i;
+        {
+            /* Check if this is preceded by a space (or is at start) */
+            if (i == 0 || s[i-1] == ' ')
+            {
+                /* This looks like the start of stats section */
+                first_stats_pos = i;
+                break;
+            }
+            /* If preceded by a letter/digit, it might be part of the name */
+            /* Keep searching */
+        }
     }
-    return -1;
+    
+    /* If we found stats position at start (i==0), that means NO base name!
+     * This shouldn't happen with properly formatted object_desc output.
+     * If it does, we should treat the whole thing as base name, not stats.
+     */
+    if (first_stats_pos == 0)
+    {
+        log_debug("sidebar_find_stats_pos: stats at position 0 for '%s' - treating as name", s);
+        return -1;
+    }
+    
+    return first_stats_pos;
 }
 
 static void sidebar_compact_name(const char* src, int max_len, char* dest, size_t dest_sz)
@@ -15435,12 +15467,40 @@ static void sidebar_compact_name(const char* src, int max_len, char* dest, size_
     }
 
     int stats_len = src_len - stats_pos;
+    
+    /* If stats are very long and would fill the whole space,
+     * prioritize showing at least SOME of the base name rather than stats-only.
+     */
     if (stats_len >= max_len)
     {
-        const char* stats_start = src + (src_len - max_len);
-        strnfmt(dest, dest_sz, "%.*s", max_len, stats_start);
+        /* Try to show at least a portion of the base name, even if truncated */
+        int base_space = max_len / 2; /* Give half space to name */
+        if (base_space < 3) base_space = 3; /* Minimum name chars */
+        if (base_space > stats_pos) base_space = stats_pos; /* Don't exceed available name */
+        
+        int stats_space = max_len - base_space;
+        if (stats_space < 3) stats_space = 3; /* Minimum stats chars */
+        
+        /* Extract truncated base name */
+        char base_truncated[64];
+        strnfmt(base_truncated, sizeof(base_truncated), "%.*s", base_space, src);
+        sidebar_trim_spaces(base_truncated);
+        
+        /* Extract beginning of stats */
+        char stats_truncated[64];
+        strnfmt(stats_truncated, sizeof(stats_truncated), "%.*s", stats_space, src + stats_pos);
+        
+        /* Combine them */
+        if (base_truncated[0])
+        {
+            strnfmt(dest, dest_sz, "%s %s", base_truncated, stats_truncated);
+        }
+        else
+        {
+            strnfmt(dest, dest_sz, "%s", stats_truncated);
+        }
         sidebar_trim_spaces(dest);
-        log_debug("sidebar_compact_name: stats only result='%s'", dest);
+        log_debug("sidebar_compact_name: long stats, showing truncated name+stats result='%s'", dest);
         return;
     }
 
@@ -15962,7 +16022,10 @@ void show_unified_sidebar(unified_look_state* state)
 
             group_display_counts[entry->group]++;
 
-            /* Generate object name with stats but without articles (mode 4) */
+            /* Generate object name with stats but without articles (mode 4) 
+             * Mode 4 applies shortening logic that sidebar_compact_name expects.
+             * Fixed mode 4 to never produce stats-only output.
+             */
             object_desc(o_name, sizeof(o_name), o_ptr, false, 4);
 
             SDL_strlcpy(name_source, o_name, sizeof(name_source));

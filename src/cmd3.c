@@ -1437,8 +1437,12 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Decrease the item (from the pack) */
     if (item >= 0)
     {
+        log_debug("do_cmd_wield: Before decrease - item=%d, k_idx=%d, name2=%d, number=%d", 
+                  item, inventory[item].k_idx, inventory[item].name2, inventory[item].number);
         inven_item_increase(item, -quantity);
         inven_item_optimize(item);
+        log_debug("do_cmd_wield: After optimize - item=%d, k_idx=%d", 
+                  item, inventory[item].k_idx);
     }
 
     /* Decrease the item (from the floor) */
@@ -1450,12 +1454,22 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
 
     /* Get the wield slot */
     o_ptr = &inventory[slot];
+    
+    log_debug("do_cmd_wield: Wield slot %d - has k_idx=%d, name2=%d", 
+              slot, o_ptr->k_idx, o_ptr->name2);
 
     /* Take off existing item */
     if (o_ptr->k_idx && !combine)
     {
+        log_debug("do_cmd_wield: Taking off existing item from slot %d - k_idx=%d, name2=%d", 
+                  slot, o_ptr->k_idx, o_ptr->name2);
         /* Take off existing item */
         (void)inven_takeoff(slot, 255);
+        
+        /* Refresh pointer after takeoff */
+        o_ptr = &inventory[slot];
+        log_debug("do_cmd_wield: After takeoff, slot %d now has k_idx=%d", 
+                  slot, o_ptr->k_idx);
     }
 
     /* Deal with wielding of two-handed weapons when already using a shield */
@@ -1479,6 +1493,8 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Combine the new stuff into the equipment */
     if (combine)
     {
+        log_debug("do_cmd_wield: Combining - slot %d has k_idx=%d name2=%d, adding k_idx=%d name2=%d",
+                  slot, o_ptr->k_idx, o_ptr->name2, i_ptr->k_idx, i_ptr->name2);
         msg_print(
             "You combine them with some that are already in your quiver.");
         object_absorb(o_ptr, i_ptr);
@@ -1486,7 +1502,11 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
     /* Wear the new stuff */
     else
     {
+        log_debug("do_cmd_wield: Copying to slot %d - source k_idx=%d name2=%d",
+                  slot, i_ptr->k_idx, i_ptr->name2);
         object_copy(o_ptr, i_ptr);
+        log_debug("do_cmd_wield: After copy, slot %d now has k_idx=%d name2=%d",
+                  slot, o_ptr->k_idx, o_ptr->name2);
     }
 
     /* Increment the equip counter by hand */
@@ -3029,9 +3049,16 @@ void do_cmd_refuel_torch(
 
     /* Get the primary torch */
     j_ptr = &inventory[INVEN_LITE];
+    
+    log_debug("do_cmd_refuel_torch: BEFORE refuel - j_ptr (INVEN_LITE) k_idx=%d timeout=%d",
+              j_ptr->k_idx, j_ptr->timeout);
+    log_debug("do_cmd_refuel_torch: BEFORE refuel - o_ptr (item=%d) k_idx=%d timeout=%d",
+              item, o_ptr->k_idx, o_ptr->timeout);
 
     /* Refuel */
     j_ptr->timeout += o_ptr->timeout + 5;
+    
+    log_debug("do_cmd_refuel_torch: AFTER refuel - j_ptr timeout=%d", j_ptr->timeout);
 
     /* Message */
     msg_print("You combine the torches.");

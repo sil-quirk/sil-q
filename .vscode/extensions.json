@@ -1,7 +1,8 @@
 {
     "recommendations": [
         "llvm-vs-code-extensions.vscode-clangd",
-        "ms-vscode.cmake-tools"
+        "ms-vscode.cmake-tools",
+        "googlecloudtools.cloudcode"
     ],
     "unwantedRecommendations": [
         "ms-vscode.cpptools"
