@@ -190,6 +190,36 @@ static bool generic_probability_roll(int depth, int quest_id);
 /* Parametric formula calculation */
 static float calculate_parametric_probability(quest_type* q_ptr, int depth);
 
+/* Determine if metarun history blocks a quest (unless oath override applies) */
+static bool quest_metarun_blocked(int quest_id, u32b metarun_flag)
+{
+    if (!metarun_flag) return false;
+
+    int completion_count = metarun_quest_completion_count(metarun_flag);
+    quest_type* q_ptr = (quest_id > 0 && quest_id < z_info->quest_max) ? &quest_info[quest_id] : NULL;
+    byte oath_id = q_ptr ? q_ptr->oath_id : 0;
+    bool oath_override = false;
+
+    if (oath_id > 0 && p_ptr && p_ptr->oath_type == oath_id && !oath_invalid(oath_id)) {
+        oath_override = true;
+    }
+
+    if (completion_count >= METARUN_QUEST_COMPLETION_CAP) {
+        log_trace("Quest %d blocked by metarun cap (%d/%d)", quest_id, completion_count, METARUN_QUEST_COMPLETION_CAP);
+        return true;
+    }
+
+    if (completion_count > 0 && !oath_override) {
+        log_trace("Quest %d blocked by prior completion (%d) without oath override", quest_id, completion_count);
+        return true;
+    }
+    if (completion_count > 0 && oath_override) {
+        log_trace("Quest %d eligible again: %d prior completion(s) but oath %d is active", quest_id, completion_count, oath_id);
+    }
+
+    return false;
+}
+
 /* Roulette quest registry - initialized dynamically based on Y:1 field */
 static roulette_quest_entry roulette_quests[8];  /* Max 8 quests from limits.txt */
 static int roulette_quest_count = 0;
@@ -588,9 +618,9 @@ static void run_quest_lottery(void) {
             continue;
         }
         
-        /* Check if quest already completed in metarun */
-        if (metarun_is_quest_completed(entry->metarun_quest_id)) {
-            log_trace("Quest lottery: Quest %d not eligible (metarun completed)", entry->quest_id);
+        /* Check metarun history (respect oath overrides and completion cap) */
+        if (quest_metarun_blocked(entry->quest_id, entry->metarun_quest_id)) {
+            log_trace("Quest lottery: Quest %d not eligible due to metarun history", entry->quest_id);
             continue;
         }
         
@@ -4272,7 +4302,7 @@ static void process_quest_vault_area(int y0, int x0, vault_type *qv) {
     for (int ry = y1; ry <= y2; ++ry) for (int rx = x1; rx <= x2; ++rx) cave_info[ry][rx] |= (CAVE_MARK|CAVE_SEEN|CAVE_GLOW);
 #endif
     if (has_forge && has_aule && p_ptr->aule_quest == AULE_QUEST_NOT_STARTED && 
-        !metarun_is_quest_completed(METARUN_QUEST_AULE) && !p_ptr->quest_reserved[0]) {
+        !quest_metarun_blocked(QUEST_ID_AULE, METARUN_QUEST_AULE) && !p_ptr->quest_reserved[0]) {
         /* Immediately reserve quest slot to prevent other quests from spawning */
         p_ptr->quest_reserved[0] = 1;
         /* Record pending quest state change instead of applying immediately */
@@ -4283,7 +4313,7 @@ static void process_quest_vault_area(int y0, int x0, vault_type *qv) {
         log_trace("Aule quest: FORGE_PRESENT change DEFERRED (quest vault) at %d,%d depth=%d, quest_reserved[0] set to 1", p_ptr->aule_forge_y, p_ptr->aule_forge_x, p_ptr->depth);
     }
     if (has_mandos && p_ptr->mandos_quest == MANDOS_QUEST_NOT_STARTED && 
-        !metarun_is_quest_completed(METARUN_QUEST_MANDOS) && !p_ptr->quest_reserved[0]) {
+        !quest_metarun_blocked(QUEST_ID_MANDOS, METARUN_QUEST_MANDOS) && !p_ptr->quest_reserved[0]) {
         /* Immediately reserve quest slot to prevent other quests from spawning */
         p_ptr->quest_reserved[0] = 1;
         /* Record pending quest state change instead of applying immediately */
@@ -4693,8 +4723,8 @@ static bool try_quest_vault_type(int v_type)
             }
             log_trace("Quest vault: Aule eligibility check PASSED");
             
-            if (metarun_is_quest_completed(METARUN_QUEST_AULE)) {
-                log_trace("Quest vault: Aule vault skipped (quest completed in metarun)");
+            if (quest_metarun_blocked(QUEST_ID_AULE, METARUN_QUEST_AULE)) {
+                log_trace("Quest vault: Aule vault skipped (quest blocked by metarun)");
                 continue;
             }
             if (p_ptr->quest_reserved[0]) {
@@ -4713,8 +4743,8 @@ static bool try_quest_vault_type(int v_type)
                          p_ptr->mandos_quest);
                 continue;
             }
-            if (metarun_is_quest_completed(METARUN_QUEST_MANDOS)) {
-                log_trace("Quest vault: Mandos vault skipped (quest completed in metarun)");
+            if (quest_metarun_blocked(QUEST_ID_MANDOS, METARUN_QUEST_MANDOS)) {
+                log_trace("Quest vault: Mandos vault skipped (quest blocked by metarun)");
                 continue;
             }
             if (p_ptr->quest_reserved[0]) {
@@ -5321,10 +5351,9 @@ static bool cave_gen(void)
     }
 
     /* Check for Tulkas quest spawning - only if it won the lottery */
-    log_trace("Tulkas spawn check: quest=%d, depth=%d, metarun_completed=%s, lottery_winner=%d", 
-             p_ptr->tulkas_quest, p_ptr->depth, 
-             metarun_is_quest_completed(METARUN_QUEST_TULKAS) ? "true" : "false",
-             quest_lottery_winner);
+    int tulkas_completions = metarun_quest_completion_count(METARUN_QUEST_TULKAS);
+    log_trace("Tulkas spawn check: quest=%d, depth=%d, metarun_completions=%d, lottery_winner=%d", 
+             p_ptr->tulkas_quest, p_ptr->depth, tulkas_completions, quest_lottery_winner);
              
     /* Only attempt Tulkas spawning if it won the lottery */
     if (quest_lottery_winner == 1) { /* Tulkas is quest ID 1 */
@@ -5421,10 +5450,9 @@ static bool cave_gen(void)
     }
 
     /* Check for Niena room-based spawning - LOTTERY SYSTEM */
-    log_trace("Niena spawn check: quest=%d, depth=%d, level_size_l=%d, metarun_completed=%s, lottery_winner=%d", 
-             p_ptr->niena_quest, p_ptr->depth, l,
-             metarun_is_quest_completed(METARUN_QUEST_NIENA) ? "true" : "false",
-             quest_lottery_winner);
+    int niena_completions = metarun_quest_completion_count(METARUN_QUEST_NIENA);
+    log_trace("Niena spawn check: quest=%d, depth=%d, level_size_l=%d, metarun_completions=%d, lottery_winner=%d", 
+             p_ptr->niena_quest, p_ptr->depth, l, niena_completions, quest_lottery_winner);
              
     /* Only attempt Niena spawning if it won the lottery */
     if (quest_lottery_winner == 4) { /* Niena is quest ID 4 */
@@ -5556,13 +5584,19 @@ static bool cave_gen(void)
     }
 
     /* Check for Oromë quest spawning - only if it won the lottery */
-    log_trace("Oromë spawn check: quest=%d, depth=%d, metarun_completed=%s, lottery_winner=%d", 
+    int orome_completions = metarun_quest_completion_count(METARUN_QUEST_OROME);
+    bool orome_blocked = quest_metarun_blocked(QUEST_ID_OROME, METARUN_QUEST_OROME);
+    log_trace("Oromë spawn check: quest=%d, depth=%d, metarun_completions=%d, lottery_winner=%d, blocked=%s", 
              p_ptr->orome_quest, p_ptr->depth, 
-             metarun_is_quest_completed(METARUN_QUEST_OROME) ? "true" : "false",
-             quest_lottery_winner);
+             orome_completions,
+             quest_lottery_winner,
+             orome_blocked ? "yes" : "no");
              
-    /* Only attempt Oromë spawning if it won the lottery */
-    if (quest_lottery_winner == 5) { /* Oromë is quest ID 5 */
+    /* Only attempt Oromë spawning if it won the lottery and isn't blocked by metarun history */
+    if (orome_blocked) {
+        log_trace("Oromë spawn: blocked by metarun state (requires active oath or under cap)");
+        quest_lottery_winner = 0; /* Treat level as quest-free if history blocks this quest */
+    } else if (quest_lottery_winner == 5) { /* Oromë is quest ID 5 */
         log_trace("Oromë spawn: Oromë WON the lottery - attempting spawn");
         
         /* Try to find a room to spawn Oromë in */
@@ -6248,8 +6282,3 @@ if (playerturn == 0) {
 
     // Valar quest doesn't provide map rewards like the old thrall quest
 }
-
-
-
-
-

@@ -493,7 +493,7 @@ void player_wipe(void)
     /* Quest states should always start at NOT_STARTED for new characters */
     /* Metarun completion is checked separately via metarun_is_quest_completed() */
     log_trace("Birth: All quest states initialized to NOT_STARTED for new character");
-    for (i = 0; i < 15; i++) p_ptr->quest_reserved[i] = 0; /* quest_reserved[0] = any quest spawned flag */
+    for (i = 0; i < 15; i++) p_ptr->quest_reserved[i] = 0; /* quest_reserved[0] = any quest spawned flag; quest_reserved[1..5] = per-run quest completion markers */
 
     /*re-set the thefts counter*/
     recent_failed_thefts = 0;

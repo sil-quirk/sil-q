@@ -31,6 +31,8 @@
 #define METARUN_QUEST_MANDOS   (1UL << 2)   /* Mandos quest completed */
 #define METARUN_QUEST_NIENA    (1UL << 3)   /* Niena quest completed  */
 #define METARUN_QUEST_OROME    (1UL << 4)   /* Oromë quest completed  */
+#define METARUN_QUEST_SLOT_MAX 8            /* Max quest slots tracked in metarun */
+#define METARUN_QUEST_COMPLETION_CAP 7      /* Max times a quest counts per metarun */
 /* Additional quests can be added as (1UL << 5), (1UL << 6), etc.   */
 
 /* ------------------------------------------------------------------ */
@@ -47,8 +49,8 @@
  * numbers below when compatibility changes.
  *   0.9.0.0 - Initial versioned format (quest support)
  *   0.9.0.1 - Persistent blessing choices added
- *   0.9.0.2 - Progressive scoring system, increased reserved_runtime[1..32]
- *   0.9.0.3 - User-folder migration (meta.raw relocated out of metaruns/)
+ *   0.9.0.2 - Per-quest completion counters (capped) stored alongside bitmask
+ *   0.9.1.2 - Current meta-file version (matches game release)
  */
 #define METARUN_FILE_VERSION_MAJOR VERSION_MAJOR
 #define METARUN_FILE_VERSION_MINOR VERSION_MINOR
@@ -78,8 +80,8 @@ typedef struct meta_file_header
 {
     byte version_major;  /* Major version (0) */
     byte version_minor;  /* Minor version (9) */
-    byte version_patch;  /* Patch version (0) */
-    byte version_extra;  /* Extra version (3) */
+    byte version_patch;  /* Patch version (1) */
+    byte version_extra;  /* Extra version (0) */
     u32b entry_count;    /* Number of metarun entries in file */
 } meta_file_header;
 
@@ -107,6 +109,7 @@ typedef struct metarun
 
     /* ----- quest completion tracking --------------------------- */
     u32b completed_quests;      /* Bitmask of completed quests (bit 0=Tulkas, bit 1=Aule, etc.) */
+    byte quest_completion_counts[METARUN_QUEST_SLOT_MAX]; /* Times each quest has been completed this metarun (capped) */
     
     /* ----- oath system tracking -------------------------------- */
     byte unlocked_oaths;        /* Bitmask of oaths unlocked this metarun (1=Mercy, 2=Silence, 4=Iron) */
@@ -162,6 +165,7 @@ void list_metaruns(void);                        /* Full meta-run history   */
 /*  Quest completion tracking                                         */
 /* ------------------------------------------------------------------ */
 bool metarun_is_quest_completed(u32b quest_flag);   /* Check if quest is completed */
+int metarun_quest_completion_count(u32b quest_flag); /* How many times quest completed (capped) */
 void metarun_mark_quest_completed(u32b quest_flag); /* Mark quest as completed */
 void metarun_check_and_update_quests(void);         /* Check current character quests and update metarun */
 void metarun_restore_quest_states(void);            /* Restore quest states from metarun after character load */

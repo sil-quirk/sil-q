@@ -1304,7 +1304,7 @@ struct player_type
     s16b orome_vampires_killed; /* Total vampires killed (any type) */
     /* Generic quest/vault tracking */
     byte quest_vault_used;     /* Has a quest-designated vault generated this game */
-    byte quest_reserved[15];   /* quest_reserved[0] = any quest spawned flag (run-wide); rest reserved */
+    byte quest_reserved[15];   /* quest_reserved[0] = any quest spawned flag (run-wide); quest_reserved[1..5] mark quest completions recorded this run */
 };
 
 /* scores.raw header version == core game version (no independent bumping) */

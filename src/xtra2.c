@@ -6022,12 +6022,26 @@ bool check_quest_eligibility(int quest_idx, int depth)
     }
     
     /* Check standard requirements that apply to all quests */
-    /* 1. Quest not already completed in current metarun */
+    /* 1. Quest not already completed in current metarun unless oath override applies */
     u32b metarun_flag = get_metarun_quest_flag(quest_idx);
+    int metarun_count = metarun_flag ? metarun_quest_completion_count(metarun_flag) : 0;
+    bool oath_override = false;
+    if (q_ptr->oath_id > 0 && p_ptr && p_ptr->oath_type == q_ptr->oath_id && !oath_invalid(q_ptr->oath_id)) {
+        oath_override = true;
+    }
     
-    if (metarun_flag && metarun_is_quest_completed(metarun_flag)) {
-        log_trace("Quest %d eligibility: METARUN_COMPLETED = FAIL", quest_idx);
-        return false;
+    if (metarun_flag) {
+        if (metarun_count >= METARUN_QUEST_COMPLETION_CAP) {
+            log_trace("Quest %d eligibility: METARUN_CAP (%d/%d) = FAIL", quest_idx, metarun_count, METARUN_QUEST_COMPLETION_CAP);
+            return false;
+        }
+        if (metarun_count > 0 && !oath_override) {
+            log_trace("Quest %d eligibility: METARUN_COMPLETED (count=%d) without oath override = FAIL", quest_idx, metarun_count);
+            return false;
+        }
+        if (metarun_count > 0 && oath_override) {
+            log_trace("Quest %d eligibility: metarun completion count=%d overridden by active oath %d", quest_idx, metarun_count, q_ptr->oath_id);
+        }
     }
     
     /* 2. Check quest-specific state (must not be started for roulette quests) */
@@ -6250,6 +6264,44 @@ cptr* extract_quest_completion_texts(int quest_idx, int* count)
     
     *count = text_count;
     return texts;
+}
+
+/* Forward declarations for quest text helpers used before their definitions */
+static cptr get_quest_title(int quest_idx);
+static cptr get_oath_name_from_id(byte oath_id);
+
+/* Prepend a repeat-attempt context line when returning to a Valar quest under an oath */
+static cptr* prepend_repeat_context(int quest_idx, cptr* texts, int* count, bool is_completion)
+{
+    if (!texts || !count || quest_idx <= 0 || quest_idx >= z_info->quest_max) return texts;
+
+    quest_type* q_ptr = &quest_info[quest_idx];
+    if (!q_ptr || q_ptr->oath_id <= 0) return texts;
+    if (!p_ptr || p_ptr->oath_type != q_ptr->oath_id || oath_invalid(q_ptr->oath_id)) return texts;
+
+    u32b metarun_flag = get_metarun_quest_flag(quest_idx);
+    int previous = metarun_flag ? metarun_quest_completion_count(metarun_flag) : 0;
+    if (previous <= 0) return texts; /* First attempt - no alternate text */
+
+    cptr quest_title = get_quest_title(quest_idx);
+    cptr oath_name = get_oath_name_from_id(q_ptr->oath_id);
+
+    char repeat_line[180];
+    strnfmt(repeat_line, sizeof(repeat_line),
+            is_completion
+                ? "%s honors your %s oath after %d earlier success%s."
+                : "%s returns under your %s oath; you have succeeded %d time%s before.",
+            quest_title ? quest_title : "This quest",
+            oath_name ? oath_name : "oath",
+            previous,
+            (previous == 1 ? "" : "s"));
+
+    cptr* new_texts = mem_alloc_array(*count + 1, cptr);
+    new_texts[0] = str_dup(repeat_line);
+    for (int i = 0; i < *count; i++) new_texts[i + 1] = texts[i];
+    mem_free_null(texts); /* free only the array container; strings move to new_texts */
+    (*count)++;
+    return new_texts;
 }
 
 /*
@@ -7039,7 +7091,8 @@ void do_cmd_quest_status(void)
 
     /* Show previous metarun completions */
     bool has_previous_completions = false;
-    if (metarun_is_quest_completed(METARUN_QUEST_TULKAS) && p_ptr->tulkas_quest != TULKAS_QUEST_REWARDED) {
+    int tulkas_completed = metarun_quest_completion_count(METARUN_QUEST_TULKAS);
+    if (tulkas_completed > 0 && p_ptr->tulkas_quest != TULKAS_QUEST_REWARDED) {
         if (!has_previous_completions) {
             Term_putstr(col, row++, -1, TERM_L_DARK, "Previously Completed in Metarun:");
             has_previous_completions = true;
@@ -7047,10 +7100,11 @@ void do_cmd_quest_status(void)
         cptr quest_title = get_quest_title(QUEST_ID_TULKAS);
         cptr oath_name = get_oath_name_from_id(quest_info[1].oath_id);
         char status_text[150];
-        strnfmt(status_text, sizeof(status_text), "%s - %s", quest_title, oath_name);
+        strnfmt(status_text, sizeof(status_text), "%s - %s (metarun x%d)", quest_title, oath_name, tulkas_completed);
         display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
     }
-    if (metarun_is_quest_completed(METARUN_QUEST_AULE) && p_ptr->aule_quest != AULE_QUEST_REWARDED) {
+    int aule_completed = metarun_quest_completion_count(METARUN_QUEST_AULE);
+    if (aule_completed > 0 && p_ptr->aule_quest != AULE_QUEST_REWARDED) {
         if (!has_previous_completions) {
             Term_putstr(col, row++, -1, TERM_L_DARK, "Previously Completed in Metarun:");
             has_previous_completions = true;
@@ -7058,10 +7112,11 @@ void do_cmd_quest_status(void)
         cptr quest_title = get_quest_title(QUEST_ID_AULE);
         cptr oath_name = get_oath_name_from_id(quest_info[2].oath_id);
         char status_text[150];
-        strnfmt(status_text, sizeof(status_text), "%s - %s", quest_title, oath_name);
+        strnfmt(status_text, sizeof(status_text), "%s - %s (metarun x%d)", quest_title, oath_name, aule_completed);
         display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
     }
-    if (metarun_is_quest_completed(METARUN_QUEST_MANDOS) && p_ptr->mandos_quest != MANDOS_QUEST_REWARDED) {
+    int mandos_completed = metarun_quest_completion_count(METARUN_QUEST_MANDOS);
+    if (mandos_completed > 0 && p_ptr->mandos_quest != MANDOS_QUEST_REWARDED) {
         if (!has_previous_completions) {
             Term_putstr(col, row++, -1, TERM_L_DARK, "Previously Completed in Metarun:");
             has_previous_completions = true;
@@ -7069,10 +7124,11 @@ void do_cmd_quest_status(void)
         cptr quest_title = get_quest_title(QUEST_ID_MANDOS);
         cptr oath_name = get_oath_name_from_id(quest_info[3].oath_id);
         char status_text[150];
-        strnfmt(status_text, sizeof(status_text), "%s - %s", quest_title, oath_name);
+        strnfmt(status_text, sizeof(status_text), "%s - %s (metarun x%d)", quest_title, oath_name, mandos_completed);
         display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
     }
-    if (metarun_is_quest_completed(METARUN_QUEST_NIENA) && p_ptr->niena_quest != NIENA_QUEST_REWARDED) {
+    int niena_completed = metarun_quest_completion_count(METARUN_QUEST_NIENA);
+    if (niena_completed > 0 && p_ptr->niena_quest != NIENA_QUEST_REWARDED) {
         if (!has_previous_completions) {
             Term_putstr(col, row++, -1, TERM_L_DARK, "Previously Completed in Metarun:");
             has_previous_completions = true;
@@ -7080,10 +7136,11 @@ void do_cmd_quest_status(void)
         cptr quest_title = get_quest_title(QUEST_ID_NIENA);
         cptr oath_name = get_oath_name_from_id(quest_info[4].oath_id);
         char status_text[150];
-        strnfmt(status_text, sizeof(status_text), "%s - %s", quest_title, oath_name);
+        strnfmt(status_text, sizeof(status_text), "%s - %s (metarun x%d)", quest_title, oath_name, niena_completed);
         display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
     }
-    if (metarun_is_quest_completed(METARUN_QUEST_OROME) && p_ptr->orome_quest != OROME_QUEST_REWARDED) {
+    int orome_completed = metarun_quest_completion_count(METARUN_QUEST_OROME);
+    if (orome_completed > 0 && p_ptr->orome_quest != OROME_QUEST_REWARDED) {
         if (!has_previous_completions) {
             Term_putstr(col, row++, -1, TERM_L_DARK, "Previously Completed in Metarun:");
             has_previous_completions = true;
@@ -7091,7 +7148,7 @@ void do_cmd_quest_status(void)
         cptr quest_title = get_quest_title(QUEST_ID_OROME);
         cptr oath_name = get_oath_name_from_id(quest_info[5].oath_id);
         char status_text[150];
-        strnfmt(status_text, sizeof(status_text), "%s - %s", quest_title, oath_name);
+        strnfmt(status_text, sizeof(status_text), "%s - %s (metarun x%d)", quest_title, oath_name, orome_completed);
         display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
     }
     
@@ -7472,6 +7529,7 @@ void tulkas_quest_interaction(void)
         /* Extract initialization texts from quest data */
         int text_count = 0;
         cptr* init_texts = extract_quest_init_texts(1, &text_count); /* Tulkas is quest index 1 */
+        init_texts = prepend_repeat_context(QUEST_ID_TULKAS, init_texts, &text_count, false);
         
         if (init_texts && text_count > 0) {
             /* Substitute [monster name] and [artifact name] in the texts */
@@ -7583,6 +7641,7 @@ void tulkas_quest_interaction(void)
         /* Extract completion texts from quest data */
         int completion_count = 0;
         cptr* completion_texts = extract_quest_completion_texts(1, &completion_count); /* Tulkas is quest index 1 */
+        completion_texts = prepend_repeat_context(QUEST_ID_TULKAS, completion_texts, &completion_count, true);
         
         if (completion_texts && completion_count > 0) {
             /* Display typewriter completion dialog */
@@ -7596,6 +7655,8 @@ void tulkas_quest_interaction(void)
             };
             quest_typewriter_menu("Quest Complete: Tulkas Rewards Your Valor", fallback_texts, 2, TERM_L_GREEN, TERM_WHITE);
         }
+
+        metarun_mark_quest_completed(METARUN_QUEST_TULKAS);
         
         /* Remove the quest giver after giving reward */
         remove_quest_giver(R_IDX_TULKAS);
@@ -7865,6 +7926,7 @@ void aule_quest_interaction(void)
         /* Extract initialization texts from quest data */
         int text_count = 0;
         cptr* init_texts = extract_quest_init_texts(2, &text_count); /* Aule is quest index 2 */
+        init_texts = prepend_repeat_context(QUEST_ID_AULE, init_texts, &text_count, false);
         
         if (init_texts && text_count > 0) {
             quest_typewriter_menu("Aule the Smith", init_texts, text_count, TERM_YELLOW, TERM_WHITE);
@@ -7891,6 +7953,7 @@ void aule_quest_interaction(void)
         /* Extract completion texts from quest data */
         int completion_count = 0;
         cptr* completion_texts = extract_quest_completion_texts(2, &completion_count); /* Aule is quest index 2 */
+        completion_texts = prepend_repeat_context(QUEST_ID_AULE, completion_texts, &completion_count, true);
         
         if (completion_texts && completion_count > 0) {
             quest_typewriter_menu("Quest Complete!", completion_texts, completion_count, TERM_L_GREEN, TERM_WHITE);
@@ -7993,6 +8056,7 @@ void mandos_quest_interaction(void)
         /* Extract initialization texts from quest data */
         int text_count = 0;
         cptr* init_texts = extract_quest_init_texts(3, &text_count); /* Mandos is quest index 3 */
+        init_texts = prepend_repeat_context(QUEST_ID_MANDOS, init_texts, &text_count, false);
         
         if (init_texts && text_count > 0) {
             quest_typewriter_menu("Mandos the Doomsman", init_texts, text_count, TERM_L_DARK, TERM_WHITE);
@@ -8018,6 +8082,7 @@ void mandos_quest_interaction(void)
             /* Extract completion texts from quest data */
             int completion_count = 0;
             cptr* completion_texts = extract_quest_completion_texts(3, &completion_count); /* Mandos is quest index 3 */
+            completion_texts = prepend_repeat_context(QUEST_ID_MANDOS, completion_texts, &completion_count, true);
             
             if (completion_texts && completion_count > 0) {
                 quest_typewriter_menu("Justice Served", completion_texts, completion_count, TERM_L_GREEN, TERM_WHITE);
@@ -8050,6 +8115,7 @@ void mandos_quest_interaction(void)
         /* We'll show the same completion texts again since this is the reward phase */
         int completion_count = 0;
         cptr* completion_texts = extract_quest_completion_texts(3, &completion_count); /* Mandos is quest index 3 */
+        completion_texts = prepend_repeat_context(QUEST_ID_MANDOS, completion_texts, &completion_count, true);
         
         if (completion_texts && completion_count > 0) {
             quest_typewriter_menu("Quest Reward", completion_texts, completion_count, TERM_L_GREEN, TERM_WHITE);
@@ -8244,6 +8310,7 @@ void niena_quest_interaction(void)
         /* Extract initialization texts from quest data */
         int text_count = 0;
         cptr* init_texts = extract_quest_init_texts(4, &text_count); /* Nienna is quest index 4 */
+        init_texts = prepend_repeat_context(QUEST_ID_NIENA, init_texts, &text_count, false);
         
         if (init_texts && text_count > 0) {
             quest_typewriter_menu("Niena, Lady of Pity", init_texts, text_count, TERM_L_BLUE, TERM_WHITE);
@@ -8305,6 +8372,7 @@ void niena_quest_interaction(void)
             /* Extract completion texts from quest data */
             int completion_count = 0;
             cptr* completion_texts = extract_quest_completion_texts(4, &completion_count); /* Nienna is quest index 4 */
+            completion_texts = prepend_repeat_context(QUEST_ID_NIENA, completion_texts, &completion_count, true);
             
             if (completion_texts && completion_count > 0) {
                 quest_typewriter_menu("Niena, Lady of Pity", completion_texts, completion_count, TERM_L_BLUE, TERM_WHITE);
@@ -8326,6 +8394,7 @@ void niena_quest_interaction(void)
             /* Extract completion texts from quest data */
             int completion_count = 0;
             cptr* completion_texts = extract_quest_completion_texts(4, &completion_count); /* Nienna is quest index 4 */
+            completion_texts = prepend_repeat_context(QUEST_ID_NIENA, completion_texts, &completion_count, true);
             
             if (completion_texts && completion_count > 1) {
                 /* Use alternate completion text if available */
@@ -8499,6 +8568,7 @@ void orome_quest_interaction(void)
         /* Extract initialization texts from quest data */
         int text_count = 0;
         cptr* init_texts = extract_quest_init_texts(5, &text_count); /* Oromë is quest index 5 */
+        init_texts = prepend_repeat_context(QUEST_ID_OROME, init_texts, &text_count, false);
         
         if (init_texts && text_count > 0) {
             quest_typewriter_menu("Oromë the Huntsman", init_texts, text_count, TERM_GREEN, TERM_WHITE);
@@ -8557,6 +8627,7 @@ void orome_quest_interaction(void)
         /* Extract completion texts from quest data */
         int completion_count = 0;
         cptr* completion_texts = extract_quest_completion_texts(5, &completion_count); /* Oromë is quest index 5 */
+        completion_texts = prepend_repeat_context(QUEST_ID_OROME, completion_texts, &completion_count, true);
         
         if (completion_texts && completion_count > 0) {
             quest_typewriter_menu("Oromë the Huntsman", completion_texts, completion_count, TERM_GREEN, TERM_WHITE);
