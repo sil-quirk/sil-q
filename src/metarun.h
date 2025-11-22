@@ -160,6 +160,13 @@ void metarun_gain_silmarils(byte n);             /* Shortcut: +n Silmarils  */
 
 void print_metarun_stats(void);                  /* Pretty single-run view  */
 void list_metaruns(void);                        /* Full meta-run history   */
+void refresh_current_metar_score(void);          /* Recompute cached score for active run */
+const metarun *metarun_current(void);            /* Read-only pointer to current metarun */
+metarun *metarun_current_mutable(void);          /* Mutable pointer to current metarun */
+const metarun *metarun_entry_const(s16b idx);    /* Bounds-checked read-only access */
+metarun *metarun_entry_mutable(s16b idx);        /* Bounds-checked mutable access */
+s16b metarun_current_index(void);                /* Current metarun index or -1 */
+s16b metarun_entry_count(void);                  /* Total metarun entries loaded */
 
 /* ------------------------------------------------------------------ */
 /*  Quest completion tracking                                         */
@@ -169,6 +176,9 @@ int metarun_quest_completion_count(u32b quest_flag); /* How many times quest com
 void metarun_mark_quest_completed(u32b quest_flag); /* Mark quest as completed */
 void metarun_check_and_update_quests(void);         /* Check current character quests and update metarun */
 void metarun_restore_quest_states(void);            /* Restore quest states from metarun after character load */
+void metarun_seed_quest_counts_from_mask(metarun *m, u32b mask); /* Expand quest mask into counters */
+void metarun_clamp_and_sync_quests(metarun *m);     /* Clamp counters and sync mask */
+int metarun_total_quest_completions(const metarun *m); /* Aggregate quest completion total */
 
 /* ------------------------------------------------------------------ */
 /*  Oath system tracking                                              */
@@ -267,6 +277,8 @@ u32b curse_flag_mask(void);            /* bitmask of active flags      */
 int  curse_flag_count_rhf(u32b rhf_flag);  /* #curses with RHF bit  */
 int  curse_flag_count_cur(u32b cur_flag);  /* #curses with CUR bit  */
 int  any_curse_flag_active(u32b flag);     /* CUR-only helper      */
+void metarun_clear_blessing_runtime_fields(metarun *m); /* Reset runtime blessing fields */
+void metarun_sanitize_blessing_economy(metarun *m);     /* Clamp blessing totals */
+void metarun_sanitize_major_blessing_bits(metarun *m);  /* Trim major blessing mask */
 
 #endif /* METARUN_H */
-

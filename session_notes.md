@@ -6419,3 +6419,30 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 ## Verification
 - Built the project successfully with \cmake --build build --parallel\.
 
+# Session Notes - Metarun Quest Split (2025-11-22)
+
+## Issue
+- Quest completion tracking lived in \src/metarun.c\, making the TU hard to navigate and reuse.
+
+## Fix
+- Added \src/quest.c\ containing quest flag/slot mapping, clamping, completion/restore logic, and mask seeding helpers (reuses exported metarun state).
+- Exposed metarun state and quest helper prototypes in \src/metarun.h\ and made \refresh_current_metar_score\ public for quest updates.
+- Updated \src/metarun.c\ to call the new helpers, dropped the inlined quest code, and registered \src/quest.c\ in \CMakeLists.txt\.
+
+## Verification
+- Not run (logic-only refactor). 
+
+# Session Notes - Metarun Accessors & Legacy Trim (2025-11-22)
+
+## Issue
+- metarun globals were exposed for quest tracking, and legacy loaders still supported pre-0.9.0 records cluttering \src/metarun.c\.
+
+## Fix
+- Added accessor helpers in \src/metarun.h\ (\metarun_current/_mutable, entry getters, counts) and hid raw globals inside \src/metarun.c\; updated \src/quest.c\ to rely on accessors instead of globals.
+- Moved legacy format structs/converters into \src/metarun_legacy.h\ / \src/metarun_legacy.c\ and dropped v7/v6/v5 (pre-0.9.0) support; version check now only accepts current, v10, v9, v8.
+- Promoted blessing runtime sanitizers/clearers to shared helpers for reuse by legacy conversion and main logic.
+- Wired new source into CMake and reran \build-cmake.bat\ successfully (standard + portable).
+
+## Verification
+- \build-cmake.bat\ (passes with existing warnings). 
+

@@ -39,6 +39,8 @@ add_executable(sil-more
     src/melee1.c
     src/melee2.c
     src/metarun.c
+    src/metarun_legacy.c
+    src/quest.c
     src/monster1.c
     src/monster2.c
     src/obj-info.c

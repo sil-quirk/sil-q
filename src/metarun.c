@@ -13,6 +13,7 @@
 #include "fs/path.h"
 #include "log/log.h"
 #include "metarun.h"
+#include "metarun_legacy.h"
 #include "h-define.h"
 #include "platform.h"    /* MKDIR helper                      */
 #include "supplies.h"
@@ -22,185 +23,6 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <ctype.h>
-
-/* Version structures for backward compatibility
- * Current (0.9.1.2) uses struct metarun in metarun.h
- *  - quest completion counts per quest (capped) stored explicitly
- * Legacy layouts:
- *  v10 = 0.9.0.1 (expanded curse capacity, 64-bit known mask)
- *  v9  = 0.9.0.1 (persistent blessing choices, reserved_runtime[1])
- *  v8  = 0.9.0.0 (initial versioned, no blessing persistence)
- *  v7  = pre-0.9.0 (curse_lo/hi instead of curse_stacks, score/best_run_score)
- *  v6  = older (curse_lo/hi, no score fields)
- */
-
-typedef struct metarun_v10 {
-    u32b id;
-    byte type;
-    byte deaths;
-    byte silmarils;
-    u32b last_played;
-    u32b score;
-    u32b best_run_score;
-    int8_t curse_stacks[METAR_CURSE_SLOTS];
-    u64b curses_seen;
-    u32b persistent_options[8];
-    byte persistent_delay_factor;
-    byte persistent_hitpoint_warn;
-    u32b persistent_window_flags[ANGBAND_TERM_MAX];
-    byte persistent_options_initialized;
-    u32b completed_quests;
-    byte unlocked_oaths;
-    byte banned_oaths;
-    byte max_difficulty_reached;
-    byte quest_reserved[12];
-    u32b fallen_score_total;
-    u32b fallen_score_pool;
-    s16b blessing_points;
-    u16b blessing_points_spent;
-    u16b major_blessings;
-    byte alive_characters;
-    byte pending_blessing_choices[3];
-    byte pending_blessing_count;
-    byte blessing_threshold_mode;
-    byte reserved_runtime[31];
-} metarun_v10;
-
-typedef struct metarun_v9 {
-    u32b id;
-    byte type;
-    byte deaths;
-    byte silmarils;
-    u32b last_played;
-    u32b score;
-    u32b best_run_score;
-    int8_t curse_stacks[32];
-    u32b curses_seen;
-    u32b persistent_options[8];
-    byte persistent_delay_factor;
-    byte persistent_hitpoint_warn;
-    u32b persistent_window_flags[ANGBAND_TERM_MAX];
-    byte persistent_options_initialized;
-    u32b completed_quests;
-    byte unlocked_oaths;
-    byte banned_oaths;
-    byte max_difficulty_reached;
-    byte quest_reserved[12];
-    u32b fallen_score_total;
-    u32b fallen_score_pool;
-    s16b blessing_points;
-    u16b blessing_points_spent;
-    u16b major_blessings;
-    byte alive_characters;
-    byte pending_blessing_choices[3];
-    byte pending_blessing_count;
-    byte blessing_threshold_mode;
-    byte reserved_runtime[31];
-} metarun_v9;
-
-typedef struct metarun_v8 {
-    u32b id;
-    byte type;
-    byte deaths;
-    byte silmarils;
-    u32b last_played;
-    u32b score;
-    u32b best_run_score;
-    int8_t curse_stacks[32];
-    u32b curses_seen;
-    u32b persistent_options[8];
-    byte persistent_delay_factor;
-    byte persistent_hitpoint_warn;
-    u32b persistent_window_flags[ANGBAND_TERM_MAX];
-    byte persistent_options_initialized;
-    u32b completed_quests;
-    byte unlocked_oaths;
-    byte banned_oaths;
-    byte max_difficulty_reached;
-    byte quest_reserved[12];
-    u32b fallen_score_total;
-    u32b fallen_score_pool;
-    s16b blessing_points;
-    u16b blessing_points_spent;
-    u16b major_blessings;
-    byte alive_characters;
-    byte pending_blessing_choices[3];
-    byte pending_blessing_count;
-    byte reserved_runtime[1];
-} metarun_v8;
-
-typedef struct metarun_v7 {
-    u32b id;
-    byte type;
-    byte deaths;
-    byte silmarils;
-    u32b last_played;
-    u32b score;
-    u32b best_run_score;
-    int8_t curse_stacks[32];
-    u32b curses_seen;
-    u32b persistent_options[8];
-    byte persistent_delay_factor;
-    byte persistent_hitpoint_warn;
-    u32b persistent_window_flags[ANGBAND_TERM_MAX];
-    byte persistent_options_initialized;
-    u32b completed_quests;
-    byte unlocked_oaths;
-    byte banned_oaths;
-    byte max_difficulty_reached;
-    byte quest_reserved[12];
-} metarun_v7;
-
-typedef struct metarun_v6 {
-    u32b id;
-    byte type;
-    byte deaths;
-    byte silmarils;
-    u32b last_played;
-    u32b score;
-    u32b best_run_score;
-    u32b curses_lo;
-    u32b curses_hi;
-    u32b curses_seen;
-    u32b persistent_options[8];
-    byte persistent_delay_factor;
-    byte persistent_hitpoint_warn;
-    u32b persistent_window_flags[ANGBAND_TERM_MAX];
-    byte persistent_options_initialized;
-    u32b completed_quests;
-    byte unlocked_oaths;
-    byte banned_oaths;
-    byte max_difficulty_reached;
-    byte quest_reserved[12];
-} metarun_v6;
-
-typedef struct metarun_v5 {
-    u32b id;
-    byte type;
-    byte deaths;
-    byte silmarils;
-    u32b last_played;
-    u32b curses_lo;
-    u32b curses_hi;
-    u32b curses_seen;
-    u32b persistent_options[8];
-    byte persistent_delay_factor;
-    byte persistent_hitpoint_warn;
-    u32b persistent_window_flags[ANGBAND_TERM_MAX];
-    byte persistent_options_initialized;
-    u32b completed_quests;
-    byte unlocked_oaths;
-    byte banned_oaths;
-    byte max_difficulty_reached;
-    byte quest_reserved[12];
-} metarun_v5;
-
-#define METARUN_V10_SIZE (sizeof(metarun_v10))
-#define METARUN_V9_SIZE (sizeof(metarun_v9))
-#define METARUN_V8_SIZE (sizeof(metarun_v8))
-#define METARUN_V7_SIZE (sizeof(metarun_v7))
-#define METARUN_V6_SIZE (sizeof(metarun_v6))
-#define METARUN_V5_SIZE (sizeof(metarun_v5))
 
 #ifdef WINDOWS
 #include <windows.h>
@@ -233,6 +55,47 @@ static int popcount32(u32b value)
         count++;
     }
     return count;
+}
+
+/* ----------------------- accessors --------------------------- */
+const metarun *metarun_current(void)
+{
+    if (!metaruns) return NULL;
+    if (current_run < 0 || current_run >= metarun_max) return NULL;
+    return &metaruns[current_run];
+}
+
+metarun *metarun_current_mutable(void)
+{
+    if (!metaruns) return NULL;
+    if (current_run < 0 || current_run >= metarun_max) return NULL;
+    return &metaruns[current_run];
+}
+
+const metarun *metarun_entry_const(s16b idx)
+{
+    if (!metaruns) return NULL;
+    if (idx < 0 || idx >= metarun_max) return NULL;
+    return &metaruns[idx];
+}
+
+metarun *metarun_entry_mutable(s16b idx)
+{
+    if (!metaruns) return NULL;
+    if (idx < 0 || idx >= metarun_max) return NULL;
+    return &metaruns[idx];
+}
+
+s16b metarun_current_index(void)
+{
+    if (!metaruns) return -1;
+    if (current_run < 0 || current_run >= metarun_max) return -1;
+    return current_run;
+}
+
+s16b metarun_entry_count(void)
+{
+    return metarun_max;
 }
 
 static int parse_character_file(SDL_IOStream *fp)
@@ -323,7 +186,7 @@ static void update_blessing_ledger(metarun *m)
 }
 
 /* Keep blessing values consistent and non-negative after ledger recompute */
-static void sanitize_blessing_economy(metarun *m)
+void metarun_sanitize_blessing_economy(metarun *m)
 {
     if (!m) return;
 
@@ -338,7 +201,7 @@ static void sanitize_blessing_economy(metarun *m)
     }
 }
 
-static void clear_blessing_runtime_fields(metarun *m)
+void metarun_clear_blessing_runtime_fields(metarun *m)
 {
     if (!m) return;
 
@@ -376,7 +239,7 @@ static u16b major_blessing_mask(void)
     return (u16b)((1u << cap) - 1u);
 }
 
-static void sanitize_major_blessing_bits(metarun *m)
+void metarun_sanitize_major_blessing_bits(metarun *m)
 {
     if (!m) return;
     u16b mask = major_blessing_mask();
@@ -546,366 +409,6 @@ static const char *threshold_mode_name(metarun_blessing_threshold_mode mode)
     }
 }
 
-static void decode_legacy_curse_words(u32b lo, u32b hi, int8_t stacks[METAR_CURSE_SLOTS])
-{
-    if (!stacks) return;
-    for (int id = 0; id < METAR_CURSE_SLOTS; ++id) stacks[id] = 0;
-    for (int id = 0; id < 32; ++id) {
-        u32b cnt = (id < 16)
-                 ? ((lo >> (id * 2)) & 0x3U)
-                 : ((hi >> ((id - 16) * 2)) & 0x3U);
-        stacks[id] = (int8_t)cnt;
-    }
-}
-
-static const u32b metarun_known_quest_flags[] = {
-    METARUN_QUEST_TULKAS,
-    METARUN_QUEST_AULE,
-    METARUN_QUEST_MANDOS,
-    METARUN_QUEST_NIENA,
-    METARUN_QUEST_OROME
-};
-
-#define METARUN_KNOWN_QUEST_MASK (METARUN_QUEST_TULKAS | METARUN_QUEST_AULE | METARUN_QUEST_MANDOS | METARUN_QUEST_NIENA | METARUN_QUEST_OROME)
-
-static int quest_slot_from_flag(u32b quest_flag)
-{
-    for (size_t i = 0; i < N_ELEMENTS(metarun_known_quest_flags) && i < METARUN_QUEST_SLOT_MAX; i++) {
-        if (quest_flag == metarun_known_quest_flags[i]) return (int)i;
-    }
-    return -1;
-}
-
-static void seed_quest_counts_from_mask(metarun* m, u32b mask)
-{
-    if (!m) return;
-    for (size_t i = 0; i < N_ELEMENTS(metarun_known_quest_flags) && i < METARUN_QUEST_SLOT_MAX; i++) {
-        m->quest_completion_counts[i] = (mask & metarun_known_quest_flags[i]) ? 1 : 0;
-    }
-    for (size_t i = N_ELEMENTS(metarun_known_quest_flags); i < METARUN_QUEST_SLOT_MAX; i++) {
-        m->quest_completion_counts[i] = 0;
-    }
-}
-
-static void clamp_and_sync_quest_tracking(metarun* m)
-{
-    if (!m) return;
-
-    u32b mask = m->completed_quests & ~((u32b)METARUN_KNOWN_QUEST_MASK);
-
-    for (size_t i = 0; i < METARUN_QUEST_SLOT_MAX; i++) {
-        byte count = m->quest_completion_counts[i];
-        if (count > METARUN_QUEST_COMPLETION_CAP) {
-            count = METARUN_QUEST_COMPLETION_CAP;
-        }
-
-        if (i < N_ELEMENTS(metarun_known_quest_flags)) {
-            if (count > 0) {
-                mask |= metarun_known_quest_flags[i];
-            }
-        } else {
-            count = 0;
-        }
-
-        m->quest_completion_counts[i] = count;
-    }
-
-    m->completed_quests = mask;
-}
-
-static void metarun_from_v10(metarun *dst, const metarun_v10 *src)
-{
-    if (!dst || !src) return;
-
-    memset(dst, 0, sizeof(*dst));
-    clear_blessing_runtime_fields(dst);
-
-    dst->id = src->id;
-    dst->type = src->type;
-    dst->deaths = src->deaths;
-    dst->silmarils = src->silmarils;
-    dst->last_played = src->last_played;
-    dst->score = src->score;
-    dst->best_run_score = src->best_run_score;
-
-    size_t stack_copy = MIN(sizeof(dst->curse_stacks), sizeof(src->curse_stacks));
-    memcpy(dst->curse_stacks, src->curse_stacks, stack_copy);
-    if (stack_copy < sizeof(dst->curse_stacks)) {
-        memset(dst->curse_stacks + stack_copy, 0, sizeof(dst->curse_stacks) - stack_copy);
-    }
-    dst->curses_seen = src->curses_seen;
-
-    memcpy(dst->persistent_options, src->persistent_options, 8 * sizeof(u32b));
-    dst->persistent_delay_factor = src->persistent_delay_factor;
-    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    memcpy(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX * sizeof(u32b));
-    dst->persistent_options_initialized = src->persistent_options_initialized;
-
-    dst->completed_quests = src->completed_quests;
-    seed_quest_counts_from_mask(dst, src->completed_quests);
-    dst->unlocked_oaths = src->unlocked_oaths;
-    dst->banned_oaths = src->banned_oaths;
-    dst->max_difficulty_reached = src->max_difficulty_reached;
-
-    memcpy(dst->quest_reserved, src->quest_reserved, 12 * sizeof(byte));
-
-    dst->fallen_score_total = src->fallen_score_total;
-    dst->fallen_score_pool = src->fallen_score_pool;
-    dst->blessing_points = src->blessing_points;
-    dst->blessing_points_spent = src->blessing_points_spent;
-    dst->major_blessings = src->major_blessings;
-    dst->alive_characters = src->alive_characters;
-
-    memcpy(dst->pending_blessing_choices, src->pending_blessing_choices, 3 * sizeof(byte));
-    dst->pending_blessing_count = src->pending_blessing_count;
-    dst->blessing_threshold_mode = src->blessing_threshold_mode;
-
-    size_t runtime_copy = MIN(sizeof(dst->reserved_runtime), sizeof(src->reserved_runtime));
-    if (runtime_copy > 0) {
-        memcpy(dst->reserved_runtime, src->reserved_runtime, runtime_copy);
-    }
-    if (runtime_copy < sizeof(dst->reserved_runtime)) {
-        memset(dst->reserved_runtime + runtime_copy, 0, sizeof(dst->reserved_runtime) - runtime_copy);
-    }
-
-    clamp_and_sync_quest_tracking(dst);
-    sanitize_blessing_economy(dst);
-}
-
-static void metarun_from_v9(metarun *dst, const metarun_v9 *src)
-{
-    if (!dst || !src) return;
-
-    memset(dst, 0, sizeof(*dst));
-    clear_blessing_runtime_fields(dst);
-
-    dst->id = src->id;
-    dst->type = src->type;
-    dst->deaths = src->deaths;
-    dst->silmarils = src->silmarils;
-    dst->last_played = src->last_played;
-    dst->score = src->score;
-    dst->best_run_score = src->best_run_score;
-
-    size_t stack_copy = MIN(sizeof(dst->curse_stacks), sizeof(src->curse_stacks));
-    memcpy(dst->curse_stacks, src->curse_stacks, stack_copy);
-    if (stack_copy < sizeof(dst->curse_stacks)) {
-        memset(dst->curse_stacks + stack_copy, 0, sizeof(dst->curse_stacks) - stack_copy);
-    }
-    dst->curses_seen = (u64b)src->curses_seen;
-
-    memcpy(dst->persistent_options, src->persistent_options, 8 * sizeof(u32b));
-    dst->persistent_delay_factor = src->persistent_delay_factor;
-    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    memcpy(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX * sizeof(u32b));
-    dst->persistent_options_initialized = src->persistent_options_initialized;
-
-    dst->completed_quests = src->completed_quests;
-    seed_quest_counts_from_mask(dst, src->completed_quests);
-    dst->unlocked_oaths = src->unlocked_oaths;
-    dst->banned_oaths = src->banned_oaths;
-    dst->max_difficulty_reached = src->max_difficulty_reached;
-
-    memcpy(dst->quest_reserved, src->quest_reserved, 12 * sizeof(byte));
-
-    dst->fallen_score_total = src->fallen_score_total;
-    dst->fallen_score_pool = src->fallen_score_pool;
-    dst->blessing_points = src->blessing_points;
-    dst->blessing_points_spent = src->blessing_points_spent;
-    dst->major_blessings = src->major_blessings;
-    dst->alive_characters = src->alive_characters;
-
-    memcpy(dst->pending_blessing_choices, src->pending_blessing_choices, 3 * sizeof(byte));
-    dst->pending_blessing_count = src->pending_blessing_count;
-    dst->blessing_threshold_mode = src->blessing_threshold_mode;
-
-    size_t runtime_copy = MIN(sizeof(dst->reserved_runtime), sizeof(src->reserved_runtime));
-    if (runtime_copy > 0) {
-        memcpy(dst->reserved_runtime, src->reserved_runtime, runtime_copy);
-    }
-    if (runtime_copy < sizeof(dst->reserved_runtime)) {
-        memset(dst->reserved_runtime + runtime_copy, 0, sizeof(dst->reserved_runtime) - runtime_copy);
-    }
-
-    clamp_and_sync_quest_tracking(dst);
-    sanitize_blessing_economy(dst);
-}
-
-static void metarun_from_v8(metarun *dst, const metarun_v8 *src)
-{
-    if (!dst || !src) return;
-
-    memset(dst, 0, sizeof(*dst));
-    clear_blessing_runtime_fields(dst);
-
-    dst->id = src->id;
-    dst->type = src->type;
-    dst->deaths = src->deaths;
-    dst->silmarils = src->silmarils;
-    dst->last_played = src->last_played;
-    dst->score = src->score;
-    dst->best_run_score = src->best_run_score;
-
-    size_t stack_copy = MIN(sizeof(dst->curse_stacks), sizeof(src->curse_stacks));
-    memcpy(dst->curse_stacks, src->curse_stacks, stack_copy);
-    if (stack_copy < sizeof(dst->curse_stacks)) {
-        memset(dst->curse_stacks + stack_copy, 0, sizeof(dst->curse_stacks) - stack_copy);
-    }
-    dst->curses_seen = (u64b)src->curses_seen;
-
-    memcpy(dst->persistent_options, src->persistent_options, 8 * sizeof(u32b));
-    dst->persistent_delay_factor = src->persistent_delay_factor;
-    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    memcpy(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX * sizeof(u32b));
-    dst->persistent_options_initialized = src->persistent_options_initialized;
-
-    dst->completed_quests = src->completed_quests;
-    seed_quest_counts_from_mask(dst, src->completed_quests);
-    dst->unlocked_oaths = src->unlocked_oaths;
-    dst->banned_oaths = src->banned_oaths;
-    dst->max_difficulty_reached = src->max_difficulty_reached;
-    
-    /* Copy all quest_reserved bytes */
-    memcpy(dst->quest_reserved, src->quest_reserved, 12 * sizeof(byte));
-    
-    dst->fallen_score_total = src->fallen_score_total;
-    dst->blessing_points_spent = src->blessing_points_spent;
-    dst->major_blessings = src->major_blessings;
-    dst->alive_characters = src->alive_characters;
-    
-    /* Copy persistent blessing choices (new in v8/0.9.0.1) */
-    memcpy(dst->pending_blessing_choices, src->pending_blessing_choices, 3 * sizeof(byte));
-    dst->pending_blessing_count = src->pending_blessing_count;
-
-    /* Copy reserved_runtime */
-    size_t runtime_copy = MIN(sizeof(dst->reserved_runtime), sizeof(src->reserved_runtime));
-    if (runtime_copy > 0) {
-        memcpy(dst->reserved_runtime, src->reserved_runtime, runtime_copy);
-    }
-    if (runtime_copy < sizeof(dst->reserved_runtime)) {
-        memset(dst->reserved_runtime + runtime_copy, 0, sizeof(dst->reserved_runtime) - runtime_copy);
-    }
-
-    clamp_and_sync_quest_tracking(dst);
-    sanitize_blessing_economy(dst);
-}
-
-static void metarun_from_v7(metarun *dst, const metarun_v7 *src)
-{
-    if (!dst || !src) return;
-
-    memset(dst, 0, sizeof(*dst));
-    clear_blessing_runtime_fields(dst);
-
-    dst->id = src->id;
-    dst->type = src->type;
-    dst->deaths = src->deaths;
-    dst->silmarils = src->silmarils;
-    dst->last_played = src->last_played;
-    dst->score = src->score;
-    dst->best_run_score = src->best_run_score;
-
-    size_t stack_copy = MIN(sizeof(dst->curse_stacks), sizeof(src->curse_stacks));
-    memcpy(dst->curse_stacks, src->curse_stacks, stack_copy);
-    if (stack_copy < sizeof(dst->curse_stacks)) {
-        memset(dst->curse_stacks + stack_copy, 0, sizeof(dst->curse_stacks) - stack_copy);
-    }
-    dst->curses_seen = (u64b)src->curses_seen;
-
-    memcpy(dst->persistent_options, src->persistent_options, 8 * sizeof(u32b));
-    dst->persistent_delay_factor = src->persistent_delay_factor;
-    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    memcpy(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX * sizeof(u32b));
-    dst->persistent_options_initialized = src->persistent_options_initialized;
-
-    dst->completed_quests = src->completed_quests;
-    seed_quest_counts_from_mask(dst, src->completed_quests);
-    dst->unlocked_oaths = src->unlocked_oaths;
-    dst->banned_oaths = src->banned_oaths;
-    dst->max_difficulty_reached = src->max_difficulty_reached;
-    
-    /* Copy all quest_reserved bytes */
-    memcpy(dst->quest_reserved, src->quest_reserved, 12 * sizeof(byte));
-
-    clamp_and_sync_quest_tracking(dst);
-    sanitize_blessing_economy(dst);
-}
-
-static void metarun_from_v6(metarun *dst, const metarun_v6 *src)
-{
-    if (!dst || !src) return;
-
-    memset(dst, 0, sizeof(*dst));
-    clear_blessing_runtime_fields(dst);
-
-    dst->id = src->id;
-    dst->type = src->type;
-    dst->deaths = src->deaths;
-    dst->silmarils = src->silmarils;
-    dst->last_played = src->last_played;
-    dst->score = src->score;
-    dst->best_run_score = src->best_run_score;
-
-    decode_legacy_curse_words(src->curses_lo, src->curses_hi, dst->curse_stacks);
-    dst->curses_seen = (u64b)src->curses_seen;
-
-    memcpy(dst->persistent_options, src->persistent_options, 8 * sizeof(u32b));
-    dst->persistent_delay_factor = src->persistent_delay_factor;
-    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    memcpy(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX * sizeof(u32b));
-    dst->persistent_options_initialized = src->persistent_options_initialized;
-
-    dst->completed_quests = src->completed_quests;
-    seed_quest_counts_from_mask(dst, src->completed_quests);
-    dst->unlocked_oaths = src->unlocked_oaths;
-    dst->banned_oaths = src->banned_oaths;
-    dst->max_difficulty_reached = src->max_difficulty_reached;
-    
-    /* Copy all quest_reserved bytes */
-    memcpy(dst->quest_reserved, src->quest_reserved, 12 * sizeof(byte));
-
-    clamp_and_sync_quest_tracking(dst);
-    sanitize_blessing_economy(dst);
-}
-
-static void metarun_from_v5(metarun *dst, const metarun_v5 *src)
-{
-    if (!dst || !src) return;
-
-    memset(dst, 0, sizeof(*dst));
-    clear_blessing_runtime_fields(dst);
-
-    dst->id = src->id;
-    dst->type = src->type;
-    dst->deaths = src->deaths;
-    dst->silmarils = src->silmarils;
-    dst->last_played = src->last_played;
-
-    decode_legacy_curse_words(src->curses_lo, src->curses_hi, dst->curse_stacks);
-    dst->curses_seen = (u64b)src->curses_seen;
-
-    memcpy(dst->persistent_options, src->persistent_options, 8 * sizeof(u32b));
-    dst->persistent_delay_factor = src->persistent_delay_factor;
-    dst->persistent_hitpoint_warn = src->persistent_hitpoint_warn;
-    memcpy(dst->persistent_window_flags, src->persistent_window_flags, ANGBAND_TERM_MAX * sizeof(u32b));
-    dst->persistent_options_initialized = src->persistent_options_initialized;
-
-    dst->completed_quests = src->completed_quests;
-    seed_quest_counts_from_mask(dst, src->completed_quests);
-    dst->unlocked_oaths = src->unlocked_oaths;
-    dst->banned_oaths = src->banned_oaths;
-    dst->max_difficulty_reached = src->max_difficulty_reached;
-    
-    /* Copy all quest_reserved bytes */
-    memcpy(dst->quest_reserved, src->quest_reserved, 12 * sizeof(byte));
-
-    clamp_and_sync_quest_tracking(dst);
-    sanitize_blessing_economy(dst);
-}
-
-/* Calculate best run score from the high score table
- * All scores in the score file belong to the current metarun
- * This is kept for display purposes and historical tracking */
 static u32b get_best_run_score_from_highscores(void)
 {
     #define MAX_SCORES 100
@@ -957,22 +460,6 @@ static u32b compute_progressive_character_score(void)
     return (u32b)total;
 }
 
-static int total_quest_completions(const metarun *m)
-{
-    if (!m) return 0;
-
-    int total = 0;
-    for (size_t i = 0; i < METARUN_QUEST_SLOT_MAX && i < N_ELEMENTS(metarun_known_quest_flags); i++) {
-        total += m->quest_completion_counts[i];
-    }
-
-    /* Preserve completions for unknown future quests represented only by the bitmask */
-    u32b unknown_mask = m->completed_quests & ~((u32b)METARUN_KNOWN_QUEST_MASK);
-    total += popcount32(unknown_mask);
-
-    return total;
-}
-
 static u32b compute_metarun_score(const metarun *m)
 {
     if (!m) return 0;
@@ -980,7 +467,7 @@ static u32b compute_metarun_score(const metarun *m)
     /* Use progressive scoring across all character runs (v0.9.0.2+) */
     u32b progressive_score = compute_progressive_character_score();
     
-    int quest_count = total_quest_completions(m);
+    int quest_count = metarun_total_quest_completions(m);
     
     s32b total = (s32b)progressive_score;
     total += (s32b)m->silmarils * 120;
@@ -996,7 +483,7 @@ static u32b compute_metarun_score(const metarun *m)
     return (u32b)total;
 }
 
-static void refresh_current_metar_score(void)
+void refresh_current_metar_score(void)
 {
     if (!metaruns) return;
     if (current_run < 0 || current_run >= metarun_max) return;
@@ -1058,7 +545,7 @@ static void reset_defaults(metarun *m)
 {
     log_info("Initializing new metarun with default values");
     memset(m, 0, sizeof(*m));
-    clear_blessing_runtime_fields(m);
+    metarun_clear_blessing_runtime_fields(m);
     m->id          = 1;
     m->last_played = (u32b)time(NULL);
     memset(m->curse_stacks, 0, sizeof(m->curse_stacks));
@@ -1082,7 +569,7 @@ static void reset_defaults(metarun *m)
     for (int i = 0; i < METARUN_QUEST_SLOT_MAX; i++) {
         m->quest_completion_counts[i] = 0;
     }
-    clamp_and_sync_quest_tracking(m);
+    metarun_clamp_and_sync_quests(m);
     
     /* Initialize oath system tracking */
     m->unlocked_oaths = 0;               /* No oaths unlocked initially */
@@ -1182,7 +669,7 @@ static bool sync_current_metarun_slot(bool stamp_time)
         metar.last_played = (u32b)time(NULL);
     }
 
-    clamp_and_sync_quest_tracking(&metar);
+    metarun_clamp_and_sync_quests(&metar);
     metaruns[current_run] = metar;
     return true;
 }
@@ -1219,10 +706,7 @@ static bool is_versioned_meta_file(SDL_IOStream* fd, int file_size)
             sizeof(metarun),
             METARUN_V10_SIZE,
             METARUN_V9_SIZE,
-            METARUN_V8_SIZE,
-            METARUN_V7_SIZE,
-            METARUN_V6_SIZE,
-            METARUN_V5_SIZE
+            METARUN_V8_SIZE
         };
         bool supported = false;
         for (size_t i = 0; i < N_ELEMENTS(accepted); i++) {
@@ -1573,16 +1057,16 @@ errr load_metaruns(bool create_if_missing)
                         }
                         log_debug("Cleared pending blessing choices for metarun %d (loaded from v0.9.0.0)", i);
                     }
-                    clamp_and_sync_quest_tracking(&metaruns[i]);
-                    sanitize_blessing_economy(&metaruns[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
+                    metarun_clamp_and_sync_quests(&metaruns[i]);
+                    metarun_sanitize_blessing_economy(&metaruns[i]);
+                    metarun_sanitize_major_blessing_bits(&metaruns[i]);
                 }
             } else if (entry_size == METARUN_V10_SIZE) {
                 metarun_v10 *legacy = mem_alloc_array(metarun_max, metarun_v10);
                 sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v10));
                 for (s16b i = 0; i < metarun_max; i++) {
                     metarun_from_v10(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
+                    metarun_sanitize_major_blessing_bits(&metaruns[i]);
                 }
                 legacy = mem_free(legacy);
             } else if (entry_size == METARUN_V9_SIZE) {
@@ -1590,7 +1074,7 @@ errr load_metaruns(bool create_if_missing)
                 sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v9));
                 for (s16b i = 0; i < metarun_max; i++) {
                     metarun_from_v9(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
+                    metarun_sanitize_major_blessing_bits(&metaruns[i]);
                 }
                 legacy = mem_free(legacy);
             } else if (entry_size == METARUN_V8_SIZE) {
@@ -1598,36 +1082,12 @@ errr load_metaruns(bool create_if_missing)
                 sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v8));
                 for (s16b i = 0; i < metarun_max; i++) {
                     metarun_from_v8(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
-                }
-                legacy = mem_free(legacy);
-            } else if (entry_size == METARUN_V7_SIZE) {
-                metarun_v7 *legacy = mem_alloc_array(metarun_max, metarun_v7);
-                sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v7));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metarun_from_v7(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
-                }
-                legacy = mem_free(legacy);
-            } else if (entry_size == METARUN_V6_SIZE) {
-                metarun_v6 *legacy = mem_alloc_array(metarun_max, metarun_v6);
-                sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v6));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metarun_from_v6(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
-                }
-                legacy = mem_free(legacy);
-            } else if (entry_size == METARUN_V5_SIZE) {
-                metarun_v5 *legacy = mem_alloc_array(metarun_max, metarun_v5);
-                sdl_read(fd, (char*)legacy, metarun_max * sizeof(metarun_v5));
-                for (s16b i = 0; i < metarun_max; i++) {
-                    metarun_from_v5(&metaruns[i], &legacy[i]);
-                    sanitize_major_blessing_bits(&metaruns[i]);
+                    metarun_sanitize_major_blessing_bits(&metaruns[i]);
                 }
                 legacy = mem_free(legacy);
             } else {
-                recovery_reason = "versioned meta.raw had unexpected entry size";
-                log_warn("Unsupported metarun entry size %zu in versioned file", entry_size);
+                recovery_reason = "versioned meta.raw had unsupported entry size (requires v0.9.0+)";
+                log_warn("Unsupported metarun entry size %zu in versioned file; dropping pre-0.9.0 legacy support", entry_size);
                 mem_free_null(metaruns);
                 metaruns = NULL;
                 metarun_max = 0;
@@ -1700,12 +1160,12 @@ errr load_metaruns(bool create_if_missing)
     }
 
     metar = metaruns[current_run];
-    clamp_and_sync_quest_tracking(&metar);
+    metarun_clamp_and_sync_quests(&metar);
     metaruns[current_run].completed_quests = metar.completed_quests;
     memcpy(metaruns[current_run].quest_completion_counts,
            metar.quest_completion_counts,
            sizeof(metar.quest_completion_counts));
-    sanitize_blessing_economy(&metar);
+    metarun_sanitize_blessing_economy(&metar);
     metaruns[current_run].fallen_score_pool = metar.fallen_score_pool;
     metaruns[current_run].blessing_points = metar.blessing_points;
     metaruns[current_run].blessing_points_spent = metar.blessing_points_spent;
@@ -1895,7 +1355,7 @@ errr save_metaruns(void)
     log_debug("Before save: current_run=%d, metar: id=%u, deaths=%u, silmarils=%u, score=%u", 
               current_run, metar.id, metar.deaths, metar.silmarils, metar.score);
               
-    clamp_and_sync_quest_tracking(&metar);
+    metarun_clamp_and_sync_quests(&metar);
     metar.last_played      = current_time;
     metaruns[current_run] = metar;            /* safe: array is valid */
     
@@ -1948,7 +1408,7 @@ u32b compute_blessing_pool(void)
     u32b total = score_sum_dead_points();
     metar.fallen_score_total = total;
     update_blessing_ledger(&metar);
-    sanitize_major_blessing_bits(&metar);
+    metarun_sanitize_major_blessing_bits(&metar);
     refresh_alive_cache();
 
     if (!sync_current_metarun_slot(false)) {
@@ -2016,7 +1476,7 @@ void metarun_gain_silmarils(byte n)
 
 void metarun_apply_runtime_effects(void)
 {
-    sanitize_major_blessing_bits(&metar);
+    metarun_sanitize_major_blessing_bits(&metar);
 
     int weight_cap = SUPPLIES_MAX_WEIGHT_DEFAULT;
     if (metarun_has_major_blessing_effect(METARUN_MAJOR_EFFECT_SUPPLY_LIMIT)) {
@@ -2032,7 +1492,7 @@ int metarun_major_blessing_count(void)
 
 bool metarun_has_major_blessing_index(int idx)
 {
-    sanitize_major_blessing_bits(&metar);
+    metarun_sanitize_major_blessing_bits(&metar);
     if (idx < 0) return false;
     int cap = major_blessing_capacity();
     if (idx >= cap) return false;
@@ -2042,7 +1502,7 @@ bool metarun_has_major_blessing_index(int idx)
 bool metarun_has_major_blessing_effect(metarun_major_effect effect)
 {
     if (effect == METARUN_MAJOR_EFFECT_NONE) return false;
-    sanitize_major_blessing_bits(&metar);
+    metarun_sanitize_major_blessing_bits(&metar);
     int cap = major_blessing_capacity();
     for (int i = 0; i < cap; i++) {
         if (!metarun_has_major_blessing_index(i)) continue;
@@ -3970,7 +3430,7 @@ static bool blessing_gain_minor(char *result_msg, size_t msg_size, byte *result_
 
 static bool blessing_unlock_major(char *result_msg, size_t msg_size, byte *result_attr)
 {
-    sanitize_major_blessing_bits(&metar);
+    metarun_sanitize_major_blessing_bits(&metar);
 
     int cap = major_blessing_capacity();
     if (cap <= 0 || !mb_info) {
@@ -4548,7 +4008,7 @@ void print_metarun_stats(void)
     }
 
     compute_blessing_pool();
-    sanitize_major_blessing_bits(&metar);
+    metarun_sanitize_major_blessing_bits(&metar);
 
     const char *diff_name = "Unknown";
     int win_goal = WINCON_SILMARILS;
@@ -5274,212 +4734,6 @@ void show_known_curses_menu(void)
 void choose_difficulty_level(void)
 {
     choose_difficulty_menu();
-}
-
-/* ================================================================== */
-/*  Quest completion tracking functions                               */
-/* ================================================================== */
-
-#define QUEST_RESERVED_RECORD_BASE 1
-
-static bool quest_completion_recorded_for_run(u32b quest_flag)
-{
-    if (!p_ptr) return false;
-    int slot = quest_slot_from_flag(quest_flag);
-    if (slot < 0) return false;
-
-    int idx = QUEST_RESERVED_RECORD_BASE + slot;
-    if (idx >= (int)N_ELEMENTS(p_ptr->quest_reserved)) return true; /* fail safe: assume recorded */
-
-    return p_ptr->quest_reserved[idx] != 0;
-}
-
-static void mark_quest_completion_recorded_for_run(u32b quest_flag)
-{
-    if (!p_ptr) return;
-    int slot = quest_slot_from_flag(quest_flag);
-    if (slot < 0) return;
-
-    int idx = QUEST_RESERVED_RECORD_BASE + slot;
-    if (idx >= (int)N_ELEMENTS(p_ptr->quest_reserved)) return;
-
-    p_ptr->quest_reserved[idx] = 1;
-}
-
-int metarun_quest_completion_count(u32b quest_flag)
-{
-    if (current_run < 0 || current_run >= metarun_max) return 0;
-
-    int slot = quest_slot_from_flag(quest_flag);
-    if (slot >= 0 && slot < METARUN_QUEST_SLOT_MAX) {
-        return metar.quest_completion_counts[slot];
-    }
-
-    /* Unknown flags fall back to the bitmask so legacy callers still work */
-    return (metar.completed_quests & quest_flag) ? 1 : 0;
-}
-
-/* Check if a specific quest is completed in the CURRENT metarun */
-bool metarun_is_quest_completed(u32b quest_flag)
-{
-    /* Only check the current metarun, not all metaruns */
-    if (current_run < 0 || current_run >= metarun_max) {
-        log_trace("Metarun quest check: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
-        return false;
-    }
-
-    int count = metarun_quest_completion_count(quest_flag);
-    if (count > 0) {
-        log_trace("Metarun quest check: Quest 0x%x completed %d time(s) in metarun[%d] (id=%d)",
-                  quest_flag, count, current_run, metaruns[current_run].id);
-        return true;
-    }
-
-    log_trace("Metarun quest check: Quest 0x%x not completed in current metarun[%d] (id=%d)",
-              quest_flag, current_run, metaruns[current_run].id);
-    return false;
-}
-
-/* Mark a quest as completed in the current metarun */
-void metarun_mark_quest_completed(u32b quest_flag)
-{
-    if (current_run < 0 || current_run >= metarun_max) return;
-    if (!quest_flag) return;
-
-    int slot = quest_slot_from_flag(quest_flag);
-    bool changed = false;
-
-    if (slot >= 0 && slot < METARUN_QUEST_SLOT_MAX) {
-        byte current = metar.quest_completion_counts[slot];
-        if (current < METARUN_QUEST_COMPLETION_CAP) {
-            metar.quest_completion_counts[slot] = current + 1;
-            changed = true;
-        }
-        /* Always sync the per-run marker so we don't double-count this character */
-        mark_quest_completion_recorded_for_run(quest_flag);
-    } else if (!(metar.completed_quests & quest_flag)) {
-        /* Unknown quest flag - preserve legacy behavior */
-        metar.completed_quests |= quest_flag;
-        changed = true;
-    }
-
-    clamp_and_sync_quest_tracking(&metar);
-    metaruns[current_run].completed_quests = metar.completed_quests;
-    memcpy(metaruns[current_run].quest_completion_counts,
-           metar.quest_completion_counts,
-           sizeof(metar.quest_completion_counts));
-
-    if (changed) {
-        int new_count = metarun_quest_completion_count(quest_flag);
-        log_trace("Metarun: Quest 0x%x completion recorded (count=%d, mask=0x%08X)",
-                  quest_flag, new_count, metar.completed_quests);
-        refresh_current_metar_score();
-        save_metaruns();
-    } else {
-        log_trace("Metarun: Quest 0x%x completion ignored (already at cap or recorded); mask=0x%08X",
-                  quest_flag, metar.completed_quests);
-    }
-}
-
-/* Check and update quest completion status based on player state */
-void metarun_check_and_update_quests(void)
-{
-    log_trace("Metarun quest check: Entry - current_run=%d, metarun_max=%d", current_run, metarun_max);
-    
-    if (current_run < 0 || current_run >= metarun_max || !p_ptr) {
-        log_trace("Metarun quest check: Early return - current_run=%d, metarun_max=%d", current_run, metarun_max);
-        return;
-    }
-    
-    log_trace("Metarun quest check: current_run=%d, tulkas=%d, aule=%d, mandos=%d, niena=%d, orome=%d", 
-              current_run, p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->niena_quest, p_ptr->orome_quest);
-
-    /* Only record once per character; completion handlers also call metarun_mark_quest_completed */
-    if (p_ptr->tulkas_quest == TULKAS_QUEST_REWARDED && !quest_completion_recorded_for_run(METARUN_QUEST_TULKAS)) {
-        log_trace("Metarun: Marking Tulkas quest as completed (rewarded, was %d)", p_ptr->tulkas_quest);
-        metarun_mark_quest_completed(METARUN_QUEST_TULKAS);
-    }
-    
-    if (p_ptr->aule_quest == AULE_QUEST_REWARDED && !quest_completion_recorded_for_run(METARUN_QUEST_AULE)) {
-        log_trace("Metarun: Marking Aule quest as completed (rewarded)");
-        metarun_mark_quest_completed(METARUN_QUEST_AULE);
-    }
-
-    if (p_ptr->mandos_quest == MANDOS_QUEST_REWARDED && !quest_completion_recorded_for_run(METARUN_QUEST_MANDOS)) {
-        log_trace("Metarun: Marking Mandos quest as completed (rewarded)");
-        metarun_mark_quest_completed(METARUN_QUEST_MANDOS);
-    }
-
-    if (p_ptr->niena_quest == NIENA_QUEST_REWARDED && !quest_completion_recorded_for_run(METARUN_QUEST_NIENA)) {
-        log_trace("Metarun: Marking Nienna quest as completed (rewarded)");
-        metarun_mark_quest_completed(METARUN_QUEST_NIENA);
-    }
-
-    if (p_ptr->orome_quest == OROME_QUEST_REWARDED && !quest_completion_recorded_for_run(METARUN_QUEST_OROME)) {
-        log_trace("Metarun: Marking Oromë quest as completed (rewarded)");
-        metarun_mark_quest_completed(METARUN_QUEST_OROME);
-    }
-}
-
-/* Restore quest states from metarun data after character loading */
-void metarun_restore_quest_states(void)
-{
-    if (current_run < 0 || current_run >= metarun_max) {
-        log_trace("Metarun restore: Invalid current_run=%d, metarun_max=%d", current_run, metarun_max);
-        return;
-    }
-    
-    log_trace("Metarun restore: Restoring quest states from metarun[%d], completed_quests=0x%08X", 
-              current_run, metaruns[current_run].completed_quests);
-    
-    /* Restore Tulkas quest state */
-    if (metarun_quest_completion_count(METARUN_QUEST_TULKAS) > 0) {
-        if (p_ptr->tulkas_quest < TULKAS_QUEST_REWARDED) {
-            p_ptr->tulkas_quest = TULKAS_QUEST_REWARDED;
-            log_trace("Metarun restore: Tulkas quest set to REWARDED (%d)", TULKAS_QUEST_REWARDED);
-        }
-        mark_quest_completion_recorded_for_run(METARUN_QUEST_TULKAS);
-    }
-    
-    /* Restore Aule quest state */
-    if (metarun_quest_completion_count(METARUN_QUEST_AULE) > 0) {
-        if (p_ptr->aule_quest < AULE_QUEST_REWARDED) {
-            p_ptr->aule_quest = AULE_QUEST_REWARDED;
-            log_trace("Metarun restore: Aule quest set to REWARDED (%d)", AULE_QUEST_REWARDED);
-        }
-        mark_quest_completion_recorded_for_run(METARUN_QUEST_AULE);
-    }
-    
-    /* Restore Mandos quest state */
-    if (metarun_quest_completion_count(METARUN_QUEST_MANDOS) > 0) {
-        if (p_ptr->mandos_quest < MANDOS_QUEST_REWARDED) {
-            p_ptr->mandos_quest = MANDOS_QUEST_REWARDED;
-            log_trace("Metarun restore: Mandos quest set to REWARDED (%d)", MANDOS_QUEST_REWARDED);
-        }
-        mark_quest_completion_recorded_for_run(METARUN_QUEST_MANDOS);
-    }
-    
-    /* Restore Niena quest state */
-    if (metarun_quest_completion_count(METARUN_QUEST_NIENA) > 0) {
-        if (p_ptr->niena_quest < NIENA_QUEST_REWARDED) {
-            p_ptr->niena_quest = NIENA_QUEST_REWARDED;
-            p_ptr->niena_level = 0; /* Clear depth for previous run attribution */
-            log_trace("Metarun restore: Niena quest set to REWARDED (%d)", NIENA_QUEST_REWARDED);
-        }
-        mark_quest_completion_recorded_for_run(METARUN_QUEST_NIENA);
-    }
-    
-    /* Restore Orome quest state */
-    if (metarun_quest_completion_count(METARUN_QUEST_OROME) > 0) {
-        if (p_ptr->orome_quest < OROME_QUEST_REWARDED) {
-            p_ptr->orome_quest = OROME_QUEST_REWARDED;
-            log_trace("Metarun restore: Orome quest set to REWARDED (%d)", OROME_QUEST_REWARDED);
-        }
-        mark_quest_completion_recorded_for_run(METARUN_QUEST_OROME);
-    }
-    
-    log_trace("Metarun restore: Final quest states - Tulkas: %d, Aule: %d, Mandos: %d, Niena: %d, Orome: %d",
-              p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->niena_quest, p_ptr->orome_quest);
 }
 
 /* ------------------------------------------------------------------ */
