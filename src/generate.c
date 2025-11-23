@@ -1010,6 +1010,12 @@ static int layout_anchor_count = 0;
 static layout_anchor_kind_t room_anchor_kind[CENT_MAX];
 static bool room_anchor_requires_neighbor[CENT_MAX];
 
+typedef enum quadrant_mode {
+    QUAD_MODE_ROOMY = 0,
+    QUAD_MODE_CAVEY,
+    QUAD_MODE_RUINED
+} quadrant_mode_t;
+
 static bool room_kind_is_vault(byte kind)
 {
     return (kind >= ROOM_KIND_INTERESTING);
@@ -1099,8 +1105,11 @@ static void layout_anchor_capture_existing_rooms(void)
 static bool build_type6(int y0, int x0, bool force_forge);
 static bool build_type7(int y0, int x0);
 static bool build_type8(int y0, int x0);
+static bool build_type2(int y0, int x0);
+static bool build_type1(int y0, int x0);
 static void seed_ca_blob_anchors(void);
 static void seed_bsp_slice_anchors(void);
+static void apply_quadrant_generation_modes(void);
 
 /* Attempt to place a prefab vault/room as a generation anchor */
 static bool place_prefab_anchor_of_type(int typ, bool require_neighbor)
@@ -1184,9 +1193,9 @@ static bool carve_ca_blob_anchor(void)
     if (dun->cent_n >= DUN_ROOMS - 1)
         return false;
 
-    /* Pick blob dimensions */
-    int h = rand_range(8, 16);
-    int w = rand_range(10, 18);
+    /* Pick blob dimensions (smaller footprint to leave space for rooms) */
+    int h = rand_range(6, 12);
+    int w = rand_range(8, 14);
     int y1 = rand_range(3, p_ptr->cur_map_hgt - h - 3);
     int x1 = rand_range(3, p_ptr->cur_map_wid - w - 3);
     int y2 = y1 + h - 1;
@@ -1210,13 +1219,14 @@ static bool carve_ca_blob_anchor(void)
     if (h > 24 || w > 24)
         return false;
 
-    /* Seed noise */
+    /* Seed noise with a bias to produce irregular shapes */
     for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x)
-            grid[y][x] = one_in_(2);
+            grid[y][x] = (rand_int(100) < 45); /* 45% initial fill */
 
-    /* Run a few steps */
-    for (int step = 0; step < 3; ++step)
+    /* Run several smoothing steps to create rounded blobs */
+    int steps = 3;
+    for (int step = 0; step < steps; ++step)
     {
         bool next[24][24];
         for (int y = 0; y < h; ++y)
@@ -1238,7 +1248,7 @@ static bool carve_ca_blob_anchor(void)
                             neighbors++;
                     }
                 }
-                /* Standard cave CA: birth>=5 survive>=4 */
+                /* Slightly denser survival/birth to keep blobs cohesive */
                 if (grid[y][x])
                     next[y][x] = (neighbors >= 4);
                 else
@@ -1253,6 +1263,12 @@ static bool carve_ca_blob_anchor(void)
     /* Apply to dungeon */
     int floor_count = 0;
     int min_y = y2, max_y = y1, min_x = x2, max_x = x1;
+    /* Clear box to raw granite to avoid rectangular outlines */
+    for (int gy = y1 - 1; gy <= y2 + 1; ++gy)
+        for (int gx = x1 - 1; gx <= x2 + 1; ++gx)
+            if (in_bounds_fully(gy, gx))
+                cave_set_feat(gy, gx, FEAT_WALL_EXTRA);
+
     for (int y = 0; y < h; ++y)
     {
         for (int x = 0; x < w; ++x)
@@ -1275,7 +1291,35 @@ static bool carve_ca_blob_anchor(void)
         }
     }
 
-    if (floor_count < 10)
+    /* Ragged edge expansion to break rectangular silhouette */
+    for (int pass = 0; pass < 2; ++pass)
+    {
+        for (int gy = y1 - 1; gy <= y2 + 1; ++gy)
+        {
+            for (int gx = x1 - 1; gx <= x2 + 1; ++gx)
+            {
+                if (cave_floor_bold(gy, gx))
+                    continue;
+                int adj = 0;
+                for (int dy = -1; dy <= 1; ++dy)
+                    for (int dx = -1; dx <= 1; ++dx)
+                        if (dy || dx)
+                        {
+                            int ny = gy + dy, nx = gx + dx;
+                            if (in_bounds_fully(ny, nx) && cave_floor_bold(ny, nx))
+                                adj++;
+                        }
+                if (adj >= 3 && one_in_(2 + pass))
+                {
+                    cave_set_feat(gy, gx, FEAT_FLOOR);
+                    cave_info[gy][gx] |= CAVE_ROOM;
+                    floor_count++;
+                }
+            }
+        }
+    }
+
+    if (floor_count < 8)
         return false;
 
     /* Pick a center on a floor tile */
@@ -1308,21 +1352,157 @@ static bool carve_ca_blob_anchor(void)
     return true;
 }
 
+/* Bounded version for quadrants */
+static bool carve_ca_blob_anchor_bounds(int y_min, int y_max, int x_min, int x_max)
+{
+    int old_h = p_ptr->cur_map_hgt;
+    int old_w = p_ptr->cur_map_wid;
+    /* Temporarily clamp selection by picking starting coordinates inside bounds */
+    if (y_max - y_min < 8 || x_max - x_min < 8)
+        return false;
+    int h = rand_range(6, MIN(12, y_max - y_min));
+    int w = rand_range(8, MIN(14, x_max - x_min));
+    int y1 = rand_range(y_min + 1, y_max - h);
+    int x1 = rand_range(x_min + 1, x_max - w);
+    int y2 = y1 + h - 1;
+    int x2 = x1 + w - 1;
+
+    if (y1 < 1 || x1 < 1 || y2 >= old_h - 1 || x2 >= old_w - 1)
+        return false;
+    for (int y = y1 - 1; y <= y2 + 1; ++y)
+        for (int x = x1 - 1; x <= x2 + 1; ++x)
+            if (cave_floor_bold(y, x))
+                return false;
+
+    /* Simple CA grid stored on stack */
+    bool grid[24][24];
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+            grid[y][x] = (rand_int(100) < 45);
+
+    int steps = 3;
+    for (int step = 0; step < steps; ++step)
+    {
+        bool next[24][24];
+        for (int y = 0; y < h; ++y)
+        {
+            for (int x = 0; x < w; ++x)
+            {
+                int neighbors = 0;
+                for (int dy = -1; dy <= 1; ++dy)
+                {
+                    for (int dx = -1; dx <= 1; ++dx)
+                    {
+                        if (dy == 0 && dx == 0) continue;
+                        int ny = y + dy, nx = x + dx;
+                        if (ny < 0 || nx < 0 || ny >= h || nx >= w)
+                            neighbors++;
+                        else if (grid[ny][nx])
+                            neighbors++;
+                    }
+                }
+                next[y][x] = grid[y][x] ? (neighbors >= 4) : (neighbors >= 5);
+            }
+        }
+        for (int y = 0; y < h; ++y)
+            for (int x = 0; x < w; ++x)
+                grid[y][x] = next[y][x];
+    }
+
+    int min_y = y2, max_y = y1, min_x = x2, max_x = x1;
+    int floor_count = 0;
+    /* Clear box to raw granite to avoid rectangular outlines */
+    for (int gy = y1 - 1; gy <= y2 + 1; ++gy)
+        for (int gx = x1 - 1; gx <= x2 + 1; ++gx)
+            if (in_bounds_fully(gy, gx))
+                cave_set_feat(gy, gx, FEAT_WALL_EXTRA);
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            if (!grid[y][x]) continue;
+            int gy = y1 + y;
+            int gx = x1 + x;
+            cave_set_feat(gy, gx, FEAT_FLOOR);
+            cave_info[gy][gx] |= CAVE_ROOM;
+            floor_count++;
+            if (gy < min_y) min_y = gy;
+            if (gy > max_y) max_y = gy;
+            if (gx < min_x) min_x = gx;
+            if (gx > max_x) max_x = gx;
+        }
+    }
+    if (floor_count < 8)
+        return false;
+
+    /* Ragged edge expansion to break rectangular silhouette */
+    for (int pass = 0; pass < 2; ++pass)
+    {
+        for (int gy = y1 - 1; gy <= y2 + 1; ++gy)
+        {
+            for (int gx = x1 - 1; gx <= x2 + 1; ++gx)
+            {
+                if (cave_floor_bold(gy, gx))
+                    continue;
+                int adj = 0;
+                for (int dy = -1; dy <= 1; ++dy)
+                    for (int dx = -1; dx <= 1; ++dx)
+                        if (dy || dx)
+                        {
+                            int ny = gy + dy, nx = gx + dx;
+                            if (in_bounds_fully(ny, nx) && cave_floor_bold(ny, nx))
+                                adj++;
+                        }
+                if (adj >= 3 && one_in_(2 + pass))
+                {
+                    cave_set_feat(gy, gx, FEAT_FLOOR);
+                    cave_info[gy][gx] |= CAVE_ROOM;
+                    floor_count++;
+                }
+            }
+        }
+    }
+
+    int cy = min_y, cx = min_x;
+    for (int tries = 0; tries < 200; ++tries)
+    {
+        int ty = rand_range(min_y, max_y);
+        int tx = rand_range(min_x, max_x);
+        if (cave_floor_bold(ty, tx))
+        {
+            cy = ty; cx = tx; break;
+        }
+    }
+
+    int idx = dun->cent_n++;
+    dun->cent[idx].y = cy;
+    dun->cent[idx].x = cx;
+    dun->corner[idx].y1 = min_y;
+    dun->corner[idx].x1 = min_x;
+    dun->corner[idx].y2 = max_y;
+    dun->corner[idx].x2 = max_x;
+    dun->kind[idx] = ROOM_KIND_CLASSIC;
+    dun->is_quest[idx] = false;
+    mark_room_anchor_meta(idx, LAYOUT_ANCHOR_CA_BLOB, one_in_(4));
+    log_trace("CA blob (bounded) anchor: bounds=(%d,%d)-(%d,%d) center=(%d,%d) floors=%d", min_y, min_x, max_y, max_x, cy, cx, floor_count);
+    return true;
+}
+
 /* Try to seed a few CA blob anchors in unused granite */
 static void seed_ca_blob_anchors(void)
 {
-    int target = 2;
+    int target = 1;
     if (p_ptr->depth >= 10)
-        target = 3;
+        target = 2;
     if (p_ptr->depth >= 25)
-        target = 4;
+        target = 3;
     int placed = 0;
-    for (int attempt = 0; attempt < 36 && placed < target; ++attempt)
+    for (int attempt = 0; attempt < 20 && placed < target; ++attempt)
     {
         if (carve_ca_blob_anchor())
             placed++;
     }
-    log_trace("CA blob seeding complete: placed=%d target=%d attempts=%d", placed, target, 36);
+    log_trace("CA blob seeding complete: placed=%d target=%d attempts=%d", placed, target, 20);
 }
 
 /* Carve a BSP-style sliced region into rooms-like rectangles and register anchor */
@@ -1437,6 +1617,108 @@ static bool carve_bsp_slice_anchor(void)
     return true;
 }
 
+static bool carve_bsp_slice_anchor_bounds(int y_min, int y_max, int x_min, int x_max)
+{
+    if (dun->cent_n >= DUN_ROOMS - 1)
+        return false;
+    if (y_max - y_min < 8 || x_max - x_min < 10)
+        return false;
+
+    int h = rand_range(8, MIN(16, y_max - y_min));
+    int w = rand_range(10, MIN(20, x_max - x_min));
+    int y1 = rand_range(y_min + 1, y_max - h);
+    int x1 = rand_range(x_min + 1, x_max - w);
+    int y2 = y1 + h - 1;
+    int x2 = x1 + w - 1;
+
+    if (!area_is_basic_granite(y1 - 1, x1 - 1, y2 + 1, x2 + 1))
+        return false;
+
+    typedef struct { int y1, x1, y2, x2; } slice_rect;
+    slice_rect rects[10];
+    int rect_count = 1;
+    rects[0] = (slice_rect){y1, x1, y2, x2};
+
+    int splits = rand_range(1, 3);
+    for (int s = 0; s < splits && rect_count < 10; ++s)
+    {
+        int pick = rand_int(rect_count);
+        slice_rect r = rects[pick];
+        int rw = r.x2 - r.x1 + 1;
+        int rh = r.y2 - r.y1 + 1;
+        bool vertical = (rw > rh) ? true : (rh > rw ? false : one_in_(2));
+        if (vertical && rw > 8)
+        {
+            int cut = rand_range(r.x1 + rw / 3, r.x2 - rw / 3);
+            slice_rect a = {r.y1, r.x1, r.y2, cut};
+            slice_rect b = {r.y1, cut + 1, r.y2, r.x2};
+            if ((a.x2 - a.x1) >= 4 && (b.x2 - b.x1) >= 4)
+            {
+                rects[pick] = a;
+                rects[rect_count++] = b;
+            }
+        }
+        else if (!vertical && rh > 6)
+        {
+            int cut = rand_range(r.y1 + rh / 3, r.y2 - rh / 3);
+            slice_rect a = {r.y1, r.x1, cut, r.x2};
+            slice_rect b = {cut + 1, r.x1, r.y2, r.x2};
+            if ((a.y2 - a.y1) >= 3 && (b.y2 - b.y1) >= 3)
+            {
+                rects[pick] = a;
+                rects[rect_count++] = b;
+            }
+        }
+    }
+
+    int min_y = y2, max_y = y1, min_x = x2, max_x = x1;
+    int floor_count = 0;
+    for (int i = 0; i < rect_count; ++i)
+    {
+        slice_rect *r = &rects[i];
+        for (int y = r->y1 + 1; y < r->y2; ++y)
+        {
+            for (int x = r->x1 + 1; x < r->x2; ++x)
+            {
+                cave_set_feat(y, x, FEAT_FLOOR);
+                cave_info[y][x] |= CAVE_ROOM;
+                floor_count++;
+                if (y < min_y) min_y = y;
+                if (y > max_y) max_y = y;
+                if (x < min_x) min_x = x;
+                if (x > max_x) max_x = x;
+            }
+        }
+    }
+    if (floor_count < 15)
+        return false;
+
+    int cy = min_y, cx = min_x;
+    for (int tries = 0; tries < 200; ++tries)
+    {
+        int ty = rand_range(min_y, max_y);
+        int tx = rand_range(min_x, max_x);
+        if (cave_floor_bold(ty, tx))
+        {
+            cy = ty; cx = tx; break;
+        }
+    }
+
+    int idx = dun->cent_n++;
+    dun->cent[idx].y = cy;
+    dun->cent[idx].x = cx;
+    dun->corner[idx].y1 = min_y;
+    dun->corner[idx].x1 = min_x;
+    dun->corner[idx].y2 = max_y;
+    dun->corner[idx].x2 = max_x;
+    dun->kind[idx] = ROOM_KIND_CLASSIC;
+    dun->is_quest[idx] = false;
+    mark_room_anchor_meta(idx, LAYOUT_ANCHOR_BSP_SLICE, one_in_(5));
+    log_trace("BSP slice (bounded) anchor: bounds=(%d,%d)-(%d,%d) center=(%d,%d) floor=%d rects=%d",
+        min_y, min_x, max_y, max_x, cy, cx, floor_count, rect_count);
+    return true;
+}
+
 /* Try to seed BSP-sliced anchors in spare granite */
 static void seed_bsp_slice_anchors(void)
 {
@@ -1450,6 +1732,79 @@ static void seed_bsp_slice_anchors(void)
             placed++;
     }
     log_trace("BSP slice seeding complete: placed=%d target=%d", placed, target);
+}
+
+/* Build a room within explicit bounds */
+static bool room_build_in_bounds(int typ, int y1, int y2, int x1, int x2)
+{
+    if (dun->cent_n >= CENT_MAX)
+        return false;
+    if (y2 - y1 < 6 || x2 - x1 < 8)
+        return false;
+
+    int y = rand_range(MAX(5, y1 + 3), MIN(p_ptr->cur_map_hgt - 5, y2 - 3));
+    int x = rand_range(MAX(5, x1 + 3), MIN(p_ptr->cur_map_wid - 5, x2 - 3));
+
+    switch (typ)
+    {
+    case 8: return build_type8(y, x);
+    case 7: return build_type7(y, x);
+    case 6: return build_type6(y, x, false);
+    case 2: return build_type2(y, x);
+    case 1: return build_type1(y, x);
+    default: return false;
+    }
+}
+
+/* Quadrant-based generation mix */
+static void apply_quadrant_generation_modes(void)
+{
+    int mid_y = p_ptr->cur_map_hgt / 2;
+    int mid_x = p_ptr->cur_map_wid / 2;
+    quadrant_mode_t modes[4] = {QUAD_MODE_ROOMY, QUAD_MODE_ROOMY, QUAD_MODE_ROOMY, QUAD_MODE_ROOMY};
+
+    /* Pick at least one cavey quadrant */
+    int cave_idx = rand_int(4);
+    modes[cave_idx] = QUAD_MODE_CAVEY;
+    /* Maybe one ruined quadrant */
+    if (one_in_(2))
+    {
+        int ruined_idx = rand_int(4);
+        if (ruined_idx == cave_idx)
+            ruined_idx = (ruined_idx + 1) % 4;
+        modes[ruined_idx] = QUAD_MODE_RUINED;
+    }
+
+    for (int qi = 0; qi < 4; ++qi)
+    {
+        int y1 = (qi < 2) ? 1 : mid_y;
+        int y2 = (qi < 2) ? mid_y - 1 : p_ptr->cur_map_hgt - 2;
+        int x1 = (qi % 2 == 0) ? 1 : mid_x;
+        int x2 = (qi % 2 == 0) ? mid_x - 1 : p_ptr->cur_map_wid - 2;
+        quadrant_mode_t mode = modes[qi];
+
+        switch (mode)
+        {
+        case QUAD_MODE_CAVEY:
+            for (int b = 0; b < 2; ++b)
+                carve_ca_blob_anchor_bounds(y1, y2, x1, x2);
+            room_build_in_bounds(6, y1, y2, x1, x2); /* interesting */
+            room_build_in_bounds(7, y1, y2, x1, x2); /* lesser vault */
+            break;
+        case QUAD_MODE_RUINED:
+            carve_bsp_slice_anchor_bounds(y1, y2, x1, x2);
+            room_build_in_bounds(7, y1, y2, x1, x2);
+            room_build_in_bounds(2, y1, y2, x1, x2);
+            break;
+        case QUAD_MODE_ROOMY:
+        default:
+            room_build_in_bounds(1, y1, y2, x1, x2);
+            room_build_in_bounds(1, y1, y2, x1, x2);
+            room_build_in_bounds(6, y1, y2, x1, x2);
+            room_build_in_bounds(7, y1, y2, x1, x2);
+            break;
+        }
+    }
 }
 
 static bool feature_is_any_door(int feat)
@@ -6463,7 +6818,8 @@ static bool cave_gen(void)
     p_ptr->cur_map_hgt = l * (PANEL_HGT);
     p_ptr->cur_map_wid = l * (PANEL_WID_FIXED);
 
-    room_attempts = l * l * l * l;
+    /* Fewer room attempts to reduce long regen loops; vault bias handled later */
+    room_attempts = l * l * l * 2;
     log_trace("cave_gen: map size set to %dx%d (l=%d) room_attempts=%d", p_ptr->cur_map_wid, p_ptr->cur_map_hgt, l, room_attempts);
 
     /* Initialize level style weights and start with basic granite */
@@ -6663,8 +7019,11 @@ static bool cave_gen(void)
 
     /* Seed a handful of prefab anchors up front to diversify layout */
     seed_prefab_anchors();
+    /* Apply quadrant generation modes before the global room loop */
+    apply_quadrant_generation_modes();
 
     /* Build some rooms */
+    int failed_in_row = 0;
     for (i = 0; i < room_attempts; i++)
     {
         int r = dieroll(p_ptr->depth + 5);
@@ -6677,41 +7036,63 @@ static bool cave_gen(void)
             log_trace("Room generation: bonus roll (+%d) = %d total", bonus, r);
         }
 
-        // choose a room type based on the level
-        if ((r < 5) || one_in_(2))
+        // choose a room type based on the level (bias toward vaults)
+        if ((r < 4) || one_in_(3))
         {
             // standard room
             log_trace("Room generation: Building standard room (r=%d)", r);
-            room_build(1);
+            if (!room_build(1))
+                failed_in_row++;
+            else
+                failed_in_row = 0;
         }
-        else if (r < 8)
+        else if (r < 7)
         {
             // cross room
             log_trace("Room generation: Building cross room (r=%d)", r);
-            room_build(2);
+            if (!room_build(2))
+                failed_in_row++;
+            else
+                failed_in_row = 0;
         }
-        else if ((r < 13) || one_in_(2))
+        else if ((r < 14) || one_in_(2))
         {
             // interesting room
             log_trace("Room generation: Building interesting room (r=%d)", r);
-            room_build(6);
+            if (!room_build(6))
+                failed_in_row++;
+            else
+                failed_in_row = 0;
         }
-        else if (r < 18)
+        else if (r < 19)
         {
             // lesser vault
             log_trace("Room generation: Building lesser vault (r=%d)", r);
-            room_build(7);
+            if (!room_build(7))
+                failed_in_row++;
+            else
+                failed_in_row = 0;
         }
         else
         {
             // greater vault
             log_trace("Room generation: Building greater vault (r=%d)", r);
-            room_build(8);
+            if (!room_build(8))
+                failed_in_row++;
+            else
+                failed_in_row = 0;
         }
 
         // stop if there are too many rooms
         if (dun->cent_n == DUN_ROOMS - 1)
             break;
+
+        // bail out if we are not making progress to avoid infinite loops
+        if (failed_in_row > 200)
+        {
+            log_trace("Room generation: aborting after %d consecutive failures (cent_n=%d)", failed_in_row, dun->cent_n);
+            break;
+        }
     }
 
     /*set the permanent walls*/
