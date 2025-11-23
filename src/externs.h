@@ -1391,6 +1391,12 @@ extern void set_sdl_fullscreen(bool value);
 extern bool get_sdl_tiles(void);
 extern void set_sdl_tiles(bool value);
 extern int get_pane_config_count(void);
+extern bool get_sdl_enable_right_panes(void);
+extern void set_sdl_enable_right_panes(bool value);
+extern bool get_sdl_enable_bottom_panes(void);
+extern void set_sdl_enable_bottom_panes(bool value);
+extern int get_sdl_max_scale(void);
+extern void sdl_apply_config(void);
 
 /* SDL story font control (main-sdl.c) */
 extern void sdl_story_font_enable(void);

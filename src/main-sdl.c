@@ -85,7 +85,7 @@ sdl_view g_views[MAX_TERM_DATA];
 
 static sdl_view* sdl_view_from_term(term* t);
 static void sdl_view_destroy(sdl_view* d);
-static void resize(const SDL_Rect* screen);
+void resize(const SDL_Rect* screen);
 static void sdl_handle_event(sdl_state* st, const SDL_Event* ev);
 static void sdl_quit_hook(cptr str);
 static errr callback_sdl_xtra(int n, int v);
@@ -143,7 +143,7 @@ static void sdl_view_destroy(sdl_view* d)
     }
 }
 
-static void resize(const SDL_Rect* screen)
+void resize(const SDL_Rect* screen)
 {
     log_warn("resize enter");
     SDL_Rect panes[MAX_TERM_DATA] = {0};
@@ -157,7 +157,8 @@ static void resize(const SDL_Rect* screen)
     }
 
     // Check whether after splitting the window the main view is larger than
-    // 80x25. If it isn't, remove panes along the corresponding axis (or axes).
+    // 80x24. If it isn't, remove panes along the corresponding axis (or axes).
+    // Also remove panes if user has disabled them via settings.
     {
         int cell_w = config.main_view_scale * TILE_SIZE / 2;
         int cell_h = config.main_view_scale * TILE_SIZE;
@@ -165,10 +166,14 @@ static void resize(const SDL_Rect* screen)
         // panes are already in window coordinate space, no need to multiply by system_scale
         int cols = panes[PANE_MAIN].w / cell_w;
         int rows = panes[PANE_MAIN].h / cell_h;
-        log_debug("Main view: %dx%d pixels = %dx%d cells (minimum required: 80x25)", 
+        log_debug("Main view: %dx%d pixels = %dx%d cells (minimum required: 80x24)", 
                   panes[PANE_MAIN].w, panes[PANE_MAIN].h, cols, rows);
-        if (cols < 80) {
-            log_warn("main view too small, %d cols < 80 — removing right panes", cols);
+        if (cols < 80 || !config.enable_right_panes) {
+            if (cols < 80) {
+                log_warn("main view too small, %d cols < 80 — removing right panes", cols);
+            } else {
+                log_info("right panes disabled by user setting");
+            }
             log_debug("Before removing right panes: main view width = %d", panes[PANE_MAIN].w);
             for (int i = 0; i < pane_config_count; i++) {
                 if (pane_config[i].where == PLACE_RIGHT) {
@@ -180,8 +185,12 @@ static void resize(const SDL_Rect* screen)
             log_debug("After removing right panes: main view width = %d, cols = %d", 
                       panes[PANE_MAIN].w, panes[PANE_MAIN].w / cell_w);
         }
-        if (rows < 25) {
-            log_warn("main view too small, %d rows < 25 — removing bottom panes", rows);
+        if (rows < 24 || !config.enable_bottom_panes) {
+            if (rows < 24) {
+                log_warn("main view too small, %d rows < 24 — removing bottom panes", rows);
+            } else {
+                log_info("bottom panes disabled by user setting");
+            }
             log_debug("Before removing bottom panes: main view height = %d", panes[PANE_MAIN].h);
             for (int i = 0; i < pane_config_count; i++) {
                 if (pane_config[i].where == PLACE_BOTTOM) {
@@ -233,6 +242,59 @@ static void sdl_handle_event(sdl_state* st, const SDL_Event* ev)
             key == SDLK_LGUI || key == SDLK_RGUI)
         {
             return;
+        }
+
+        // Handle Alt key combinations for pane settings directly
+        bool alt = ev->key.mod & SDL_KMOD_ALT;
+        if (alt && !character_dungeon) {
+            // Only allow these in the dungeon, not in menus
+            return;
+        }
+        
+        if (alt) {
+            bool handled = false;
+            
+            // Alt++ or Alt+= : Increase main view scale
+            if (key == '+' || key == '=') {
+                int current_scale = get_sdl_main_view_scale();
+                int max_scale = get_sdl_max_scale();
+                if (current_scale < max_scale) {
+                    set_sdl_main_view_scale(current_scale + 1);
+                    sdl_apply_config();
+                    Term_keypress(KTRL('R')); // Trigger redraw
+                }
+                handled = true;
+            }
+            // Alt+- : Decrease main view scale
+            else if (key == '-') {
+                int current_scale = get_sdl_main_view_scale();
+                if (current_scale > 1) {
+                    set_sdl_main_view_scale(current_scale - 1);
+                    sdl_apply_config();
+                    Term_keypress(KTRL('R')); // Trigger redraw
+                }
+                handled = true;
+            }
+            // Alt+I : Toggle right panes
+            else if (key == 'i' || key == 'I') {
+                bool enabled = get_sdl_enable_right_panes();
+                set_sdl_enable_right_panes(!enabled);
+                sdl_apply_config();
+                Term_keypress(KTRL('R')); // Trigger redraw
+                handled = true;
+            }
+            // Alt+L : Toggle bottom panes
+            else if (key == 'l' || key == 'L') {
+                bool enabled = get_sdl_enable_bottom_panes();
+                set_sdl_enable_bottom_panes(!enabled);
+                sdl_apply_config();
+                Term_keypress(KTRL('R')); // Trigger redraw
+                handled = true;
+            }
+            
+            if (handled) {
+                return;
+            }
         }
 
         if (SDL_isprint(ev->key.key)) {
@@ -1522,7 +1584,8 @@ int get_sdl_main_view_scale(void)
 
 void set_sdl_main_view_scale(int value)
 {
-    if (value > 0 && value <= 10)
+    int max_scale = get_sdl_max_scale();
+    if (value > 0 && value <= max_scale)
         config.main_view_scale = value;
 }
 
@@ -1571,6 +1634,77 @@ void set_sdl_tiles(bool value)
 int get_pane_config_count(void)
 {
     return pane_config_count;
+}
+
+bool get_sdl_enable_right_panes(void)
+{
+    return config.enable_right_panes;
+}
+
+void set_sdl_enable_right_panes(bool value)
+{
+    config.enable_right_panes = value;
+}
+
+bool get_sdl_enable_bottom_panes(void)
+{
+    return config.enable_bottom_panes;
+}
+
+void set_sdl_enable_bottom_panes(bool value)
+{
+    config.enable_bottom_panes = value;
+}
+
+/*
+ * Calculate the maximum scale that allows 80x24 main view.
+ * Returns the maximum scale value that should be allowed.
+ */
+int get_sdl_max_scale(void)
+{
+    if (!g_state.window) {
+        return 10; // fallback if window not initialized
+    }
+    
+    int w, h;
+    SDL_GetWindowSize(g_state.window, &w, &h);
+    
+    // Calculate max scale based on 80 columns and 24 rows minimum
+    // cell_w = scale * TILE_SIZE / 2, so scale = cell_w * 2 / TILE_SIZE
+    // cell_h = scale * TILE_SIZE, so scale = cell_h / TILE_SIZE
+    int max_scale_w = (w / 80) * 2 / TILE_SIZE;
+    int max_scale_h = h / 24 / TILE_SIZE;
+    
+    int max_scale = (max_scale_w < max_scale_h) ? max_scale_w : max_scale_h;
+    
+    // Ensure at least 1, and cap at a reasonable maximum
+    if (max_scale < 1) max_scale = 1;
+    if (max_scale > 20) max_scale = 20;
+    
+    log_debug("get_sdl_max_scale: window=%dx%d, max_scale_w=%d, max_scale_h=%d, max_scale=%d",
+              w, h, max_scale_w, max_scale_h, max_scale);
+    
+    return max_scale;
+}
+
+/*
+ * Apply current SDL configuration by triggering a resize.
+ * This makes changes to scale, font size, margin, etc. take effect immediately.
+ */
+void sdl_apply_config(void)
+{
+    if (!g_state.window) {
+        log_warn("sdl_apply_config: no window, skipping");
+        return;
+    }
+    
+    int w, h;
+    SDL_GetWindowSize(g_state.window, &w, &h);
+    SDL_Rect screen = { 0, 0, w, h };
+    resize(&screen);
+    
+    // Redraw the screen to prevent black empty spaces
+    Term_redraw();
 }
 
 

@@ -10,6 +10,8 @@ struct sdl_config {
     int margin;
     bool fullscreen;
     bool tiles;
+    bool enable_right_panes;
+    bool enable_bottom_panes;
     
     // Window position and size for windowed mode
     int window_x;

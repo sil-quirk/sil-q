@@ -755,6 +755,8 @@ void sdl_config_set_defaults(struct sdl_config* config)
     config->margin = 4;
     config->fullscreen = true;
     config->tiles = true;
+    config->enable_right_panes = true;
+    config->enable_bottom_panes = true;
     
     // Default window position and size (will be overridden by actual screen size)
     config->window_x = -1;  // -1 means centered

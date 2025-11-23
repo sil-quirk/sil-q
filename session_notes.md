@@ -1,5 +1,11 @@
 # Session Notes
 
+## 2025-11-24: Corridor variety + width treatments
+- Added a tunnel profile picker (width 1/2/3 + treatment) gated by depth and style group; wide halls only roll past mid-depth (depth >= 10) with rarer odds otherwise.
+- Fixed tunnel thickening to widen perpendicular to travel (vertical tunnels carve x±1, horizontals carve y±1) so wide corridors now actually expand.
+- Wide connectors can apply side-niche carving (staggered alcoves beyond the carved width) or pillar lines down the center lane; short runs suppress treatments to avoid doorway clutter.
+- Default corridor hookups (room-to-corridor bridges) use the narrow profile to keep intersections clean.
+
 ## 2025-11-23: Level-gen stability + double-door cleanup
 - Clamped dungeon panel size to max 5x5 in `cave_gen()` (was occasionally hitting 6 and crashing before connection init); logged map size + connection init rows to verify.
 - Zeroed `dun` struct on entry and added per-row connection init logs plus early sanity breadcrumbs.

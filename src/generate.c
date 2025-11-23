@@ -2138,9 +2138,186 @@ static bool v_tunnel_ok(
     }
 }
 
-static void build_v_tunnel(int r1, int r2, int y1, int y2, int x, int width)
+typedef enum {
+    TUNNEL_TREAT_NONE = 0,
+    TUNNEL_TREAT_NICHES,
+    TUNNEL_TREAT_PILLARS
+} tunnel_treatment;
+
+typedef struct tunnel_profile {
+    byte width;          /* 1 = normal, 2 = offset double, 3 = grand hall */
+    int side_bias;       /* -1/0/1: which side to favour when width == 2 */
+    tunnel_treatment treatment;
+} tunnel_profile;
+
+static const tunnel_profile TUNNEL_PROFILE_NORMAL = {1, 0, TUNNEL_TREAT_NONE};
+
+static tunnel_profile choose_tunnel_profile(bool tentative)
+{
+    tunnel_profile profile = TUNNEL_PROFILE_NORMAL;
+
+    /* Keep early levels tight and readable */
+    if (p_ptr->depth < 7)
+        return profile;
+
+    /* On shallow branches, fall back to narrow connectors */
+    if (tentative)
+        ; /* allow style variation even on tentative digs */
+
+    int depth = p_ptr->depth;
+    int sidx = styles_get_level_primary_style();
+    byte style_group = (sidx >= 0 && style_info) ? style_info[sidx].group : 0;
+    bool style_grand = (style_group >= 4); /* warmer/darker palettes get a bump */
+
+    /* Medium halls show up occasionally once the dungeon opens up */
+    int medium_rarity = style_grand ? 9 : 13;    /* lower is more common */
+    int grand_rarity = style_grand ? 14 : 20;
+    if (depth >= 20)
+    {
+        medium_rarity = style_grand ? 6 : 9;
+        grand_rarity = style_grand ? 9 : 14;
+    }
+    else if (depth >= 12)
+    {
+        medium_rarity = style_grand ? 8 : 12;
+        grand_rarity = style_grand ? 13 : 20;
+    }
+
+    if ((depth >= 12) && one_in_(grand_rarity))
+    {
+        profile.width = 3;
+        profile.treatment = one_in_(3) ? TUNNEL_TREAT_PILLARS : TUNNEL_TREAT_NICHES;
+    }
+    else if ((depth >= 10) && one_in_(medium_rarity))
+    {
+        profile.width = one_in_(4) ? 3 : 2;
+        profile.side_bias = one_in_(2) ? 1 : -1;
+        profile.treatment = one_in_(3) ? TUNNEL_TREAT_NICHES : TUNNEL_TREAT_NONE;
+    }
+
+    return profile;
+}
+
+static void apply_v_tunnel_treatment(
+    int r1, int r2, int y_lo, int y_hi, int x, bool widen_west, bool widen_east,
+    const tunnel_profile* profile)
+{
+    if (!profile)
+        return;
+
+    /* Side niches sit just outside the carved width */
+    if (profile->treatment == TUNNEL_TREAT_NICHES)
+    {
+        int offset = (profile->width >= 3) ? 2 : 1;
+        int side = 0;
+        if (widen_west && widen_east)
+            side = one_in_(2) ? -offset : offset;
+        else if (widen_west)
+            side = -offset;
+        else if (widen_east)
+            side = offset;
+        else
+            side = one_in_(2) ? -offset : offset;
+
+        int y = y_lo + 2 + rand_int(3);
+        while (y < y_hi - 1)
+        {
+            int nx = x + side;
+            if (in_bounds_fully(y, nx) && cave_feat[y][nx] == FEAT_WALL_EXTRA
+                && !(cave_info[y][nx] & (CAVE_ROOM | CAVE_ICKY)))
+            {
+                cave_set_feat(y, nx, FEAT_FLOOR);
+                cave_corridor1[y][nx] = r1;
+                cave_corridor2[y][nx] = r2;
+            }
+            y += 3 + rand_int(3);
+            side = -side; /* alternate sides */
+        }
+    }
+
+    /* Pillar lines break up wide halls without blocking flow */
+    if (profile->treatment == TUNNEL_TREAT_PILLARS && profile->width >= 3)
+    {
+        int y = y_lo + 2 + rand_int(2);
+        while (y <= y_hi - 2)
+        {
+            if (cave_feat[y][x] == FEAT_FLOOR)
+            {
+                cave_set_feat(y, x, FEAT_WALL_EXTRA);
+                cave_corridor1[y][x] = -1;
+                cave_corridor2[y][x] = -1;
+            }
+            y += 3 + rand_int(2);
+        }
+    }
+}
+
+static void apply_h_tunnel_treatment(
+    int r1, int r2, int x_lo, int x_hi, int y, bool widen_north, bool widen_south,
+    const tunnel_profile* profile)
+{
+    if (!profile)
+        return;
+
+    if (profile->treatment == TUNNEL_TREAT_NICHES)
+    {
+        int offset = (profile->width >= 3) ? 2 : 1;
+        int side = 0;
+        if (widen_north && widen_south)
+            side = one_in_(2) ? -offset : offset;
+        else if (widen_north)
+            side = -offset;
+        else if (widen_south)
+            side = offset;
+        else
+            side = one_in_(2) ? -offset : offset;
+
+        int x = x_lo + 2 + rand_int(3);
+        while (x < x_hi - 1)
+        {
+            int ny = y + side;
+            if (in_bounds_fully(ny, x) && cave_feat[ny][x] == FEAT_WALL_EXTRA
+                && !(cave_info[ny][x] & (CAVE_ROOM | CAVE_ICKY)))
+            {
+                cave_set_feat(ny, x, FEAT_FLOOR);
+                cave_corridor1[ny][x] = r1;
+                cave_corridor2[ny][x] = r2;
+            }
+            x += 3 + rand_int(3);
+            side = -side;
+        }
+    }
+
+    if (profile->treatment == TUNNEL_TREAT_PILLARS && profile->width >= 3)
+    {
+        int x = x_lo + 2 + rand_int(2);
+        while (x <= x_hi - 2)
+        {
+            if (cave_feat[y][x] == FEAT_FLOOR)
+            {
+                cave_set_feat(y, x, FEAT_WALL_EXTRA);
+                cave_corridor1[y][x] = -1;
+                cave_corridor2[y][x] = -1;
+            }
+            x += 3 + rand_int(2);
+        }
+    }
+}
+
+static void build_v_tunnel(
+    int r1, int r2, int y1, int y2, int x, const tunnel_profile* profile)
 {
     int y, y_lo, y_hi;
+    tunnel_profile local = profile ? *profile : TUNNEL_PROFILE_NORMAL;
+    int width = MAX(1, MIN(local.width, 3));
+    bool short_span = (ABS(y2 - y1) < 4);
+    if (short_span)
+        local.treatment = TUNNEL_TREAT_NONE;
+    if (short_span && width > 2)
+        width = 2;
+
+    bool widen_west = (width >= 3) || (width == 2 && local.side_bias < 0);
+    bool widen_east = (width >= 3) || (width == 2 && local.side_bias > 0);
 
     y_lo = MIN(y1, y2);
     y_hi = MAX(y1, y2);
@@ -2162,29 +2339,44 @@ static void build_v_tunnel(int r1, int r2, int y1, int y2, int x, int width)
         /* thicken corridors when requested by carving adjacent granite only */
         if (width > 1)
         {
-            if (y + 1 < MAX_DUNGEON_HGT && cave_feat[y + 1][x] == FEAT_WALL_EXTRA
-                && in_bounds_fully(y + 1, x)
-                && !(cave_info[y + 1][x] & (CAVE_ROOM)))
+            if (widen_east && x + 1 < MAX_DUNGEON_WID
+                && cave_feat[y][x + 1] == FEAT_WALL_EXTRA
+                && in_bounds_fully(y, x + 1)
+                && !(cave_info[y][x + 1] & (CAVE_ROOM)))
             {
-                cave_set_feat(y + 1, x, FEAT_FLOOR);
-                cave_corridor1[y + 1][x] = r1;
-                cave_corridor2[y + 1][x] = r2;
+                cave_set_feat(y, x + 1, FEAT_FLOOR);
+                cave_corridor1[y][x + 1] = r1;
+                cave_corridor2[y][x + 1] = r2;
             }
-            if (y - 1 > 0 && cave_feat[y - 1][x] == FEAT_WALL_EXTRA
-                && in_bounds_fully(y - 1, x)
-                && !(cave_info[y - 1][x] & (CAVE_ROOM)))
+            if (widen_west && x - 1 > 0 && cave_feat[y][x - 1] == FEAT_WALL_EXTRA
+                && in_bounds_fully(y, x - 1)
+                && !(cave_info[y][x - 1] & (CAVE_ROOM)))
             {
-                cave_set_feat(y - 1, x, FEAT_FLOOR);
-                cave_corridor1[y - 1][x] = r1;
-                cave_corridor2[y - 1][x] = r2;
+                cave_set_feat(y, x - 1, FEAT_FLOOR);
+                cave_corridor1[y][x - 1] = r1;
+                cave_corridor2[y][x - 1] = r2;
             }
         }
     }
+
+    apply_v_tunnel_treatment(r1, r2, y_lo, y_hi, x, widen_west, widen_east,
+        &local);
 }
 
-static void build_h_tunnel(int r1, int r2, int x1, int x2, int y, int width)
+static void build_h_tunnel(
+    int r1, int r2, int x1, int x2, int y, const tunnel_profile* profile)
 {
     int x, x_lo, x_hi;
+    tunnel_profile local = profile ? *profile : TUNNEL_PROFILE_NORMAL;
+    int width = MAX(1, MIN(local.width, 3));
+    bool short_span = (ABS(x2 - x1) < 4);
+    if (short_span)
+        local.treatment = TUNNEL_TREAT_NONE;
+    if (short_span && width > 2)
+        width = 2;
+
+    bool widen_south = (width >= 3) || (width == 2 && local.side_bias > 0);
+    bool widen_north = (width >= 3) || (width == 2 && local.side_bias < 0);
 
     x_lo = MIN(x1, x2);
     x_hi = MAX(x1, x2);
@@ -2206,36 +2398,34 @@ static void build_h_tunnel(int r1, int r2, int x1, int x2, int y, int width)
         /* thicken corridors when requested by carving adjacent granite only */
         if (width > 1)
         {
-            if (x + 1 < MAX_DUNGEON_WID && cave_feat[y][x + 1] == FEAT_WALL_EXTRA
-                && in_bounds_fully(y, x + 1)
-                && !(cave_info[y][x + 1] & (CAVE_ROOM)))
+            if (widen_south && y + 1 < MAX_DUNGEON_HGT
+                && cave_feat[y + 1][x] == FEAT_WALL_EXTRA
+                && in_bounds_fully(y + 1, x)
+                && !(cave_info[y + 1][x] & (CAVE_ROOM)))
             {
-                cave_set_feat(y, x + 1, FEAT_FLOOR);
-                cave_corridor1[y][x + 1] = r1;
-                cave_corridor2[y][x + 1] = r2;
+                cave_set_feat(y + 1, x, FEAT_FLOOR);
+                cave_corridor1[y + 1][x] = r1;
+                cave_corridor2[y + 1][x] = r2;
             }
-            if (x - 1 > 0 && cave_feat[y][x - 1] == FEAT_WALL_EXTRA
-                && in_bounds_fully(y, x - 1)
-                && !(cave_info[y][x - 1] & (CAVE_ROOM)))
+            if (widen_north && y - 1 > 0 && cave_feat[y - 1][x] == FEAT_WALL_EXTRA
+                && in_bounds_fully(y - 1, x)
+                && !(cave_info[y - 1][x] & (CAVE_ROOM)))
             {
-                cave_set_feat(y, x - 1, FEAT_FLOOR);
-                cave_corridor1[y][x - 1] = r1;
-                cave_corridor2[y][x - 1] = r2;
+                cave_set_feat(y - 1, x, FEAT_FLOOR);
+                cave_corridor1[y - 1][x] = r1;
+                cave_corridor2[y - 1][x] = r2;
             }
         }
     }
-}
 
-static int choose_tunnel_width(void)
-{
-    /* Disable wide corridors for now to avoid double-door seams */
-    return 1;
+    apply_h_tunnel_treatment(r1, r2, x_lo, x_hi, y, widen_north, widen_south,
+        &local);
 }
 
 static bool build_tunnel(
     int r1, int r2, int y1, int x1, int y2, int x2, bool tentative)
 {
-    int width = tentative ? 1 : choose_tunnel_width();
+    tunnel_profile profile = choose_tunnel_profile(tentative);
 
     /* build a vertical tunnel */
     if (x1 == x2)
@@ -2244,7 +2434,7 @@ static bool build_tunnel(
         {
             return (false);
         }
-        build_v_tunnel(r1, r2, y1, y2, x1, width);
+        build_v_tunnel(r1, r2, y1, y2, x1, &profile);
     }
 
     /* build a horizontal tunnel */
@@ -2254,7 +2444,7 @@ static bool build_tunnel(
         {
             return (false);
         }
-        build_h_tunnel(r1, r2, x1, x2, y1, width);
+        build_h_tunnel(r1, r2, x1, x2, y1, &profile);
     }
 
     /* build an L-shaped tunnel */
@@ -2268,8 +2458,8 @@ static bool build_tunnel(
             {
                 return (false);
             }
-            build_h_tunnel(r1, r2, x1, x2, y1, width);
-            build_v_tunnel(r1, r2, y1, y2, x2, width);
+            build_h_tunnel(r1, r2, x1, x2, y1, &profile);
+            build_v_tunnel(r1, r2, y1, y2, x2, &profile);
         }
 
         /* build a v-h tunnel */
@@ -2280,8 +2470,8 @@ static bool build_tunnel(
             {
                 return (false);
             }
-            build_v_tunnel(r1, r2, y1, y2, x1, width);
-            build_h_tunnel(r1, r2, x1, x2, y2, width);
+            build_v_tunnel(r1, r2, y1, y2, x1, &profile);
+            build_h_tunnel(r1, r2, x1, x2, y2, &profile);
         }
     }
 
@@ -2444,7 +2634,7 @@ static bool connect_room_to_corridor(int r)
                 {
                     if (v_tunnel_ok(ry, y - (delta * 2), x, true, 1))
                     {
-                        build_v_tunnel(r, r1, ry, y, x, 1);
+                        build_v_tunnel(r, r1, ry, y, x, &TUNNEL_PROFILE_NORMAL);
 
                         // mark the new room connections
                         dun->connection[r][r1] = true;
@@ -2489,7 +2679,7 @@ static bool connect_room_to_corridor(int r)
                 {
                     if (h_tunnel_ok(rx, x - (delta * 2), y, true, 1))
                     {
-                        build_h_tunnel(r, r1, rx, x, y, 1);
+                        build_h_tunnel(r, r1, rx, x, y, &TUNNEL_PROFILE_NORMAL);
 
                         // mark the new room connections
                         dun->connection[r][r1] = true;

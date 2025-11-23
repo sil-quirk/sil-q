@@ -8888,7 +8888,7 @@ static errr option_dump(cptr fname)
 void do_cmd_pane_settings(void)
 {
     int k = 0;
-    int n = 7; /* Total number of options (not including save/quit) */
+    int n = 9; /* Total number of options (not including save/quit) */
     bool done = false;
     bool settings_changed = false;
     int dir;
@@ -8913,7 +8913,7 @@ void do_cmd_pane_settings(void)
         
         /* Option 0: Main View Scale */
         a = (k == 0) ? TERM_L_BLUE : TERM_WHITE;
-        strnfmt(buf, sizeof(buf), "%-48s: %d", "Main View Scale (1-10)", get_sdl_main_view_scale());
+        strnfmt(buf, sizeof(buf), "%-48s: %d", "Main View Scale (1-max) [Alt++/-]", get_sdl_main_view_scale());
         c_prt(a, buf, y++, 2);
         
         /* Option 1: Aux View Font Size */
@@ -8936,9 +8936,19 @@ void do_cmd_pane_settings(void)
         strnfmt(buf, sizeof(buf), "%-48s: %s", "Tiles", get_sdl_tiles() ? "yes" : "no ");
         c_prt(a, buf, y++, 2);
         
+        /* Option 5: Enable Right Panes */
+        a = (k == 5) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(buf, sizeof(buf), "%-48s: %s", "Enable Right Panes [Alt+I]", get_sdl_enable_right_panes() ? "yes" : "no ");
+        c_prt(a, buf, y++, 2);
+        
+        /* Option 6: Enable Bottom Panes */
+        a = (k == 6) ? TERM_L_BLUE : TERM_WHITE;
+        strnfmt(buf, sizeof(buf), "%-48s: %s", "Enable Bottom Panes [Alt+L]", get_sdl_enable_bottom_panes() ? "yes" : "no ");
+        c_prt(a, buf, y++, 2);
+        
         y++; /* Blank line */
         
-        /* Option 5: View Pane Configuration */
+        /* Option 7: View Pane Configuration */
         a = (k == 5) ? TERM_L_BLUE : TERM_WHITE;
         strnfmt(buf, sizeof(buf), "View Pane Configuration (%d panes)", get_pane_config_count());
         c_prt(a, buf, y++, 2);
@@ -8960,8 +8970,8 @@ void do_cmd_pane_settings(void)
         y = Term->hgt - 3;
         if (settings_changed)
         {
-            Term_putstr(2, y++, -1, TERM_YELLOW, "Settings changed - they will be saved to your SDL config file.");
-            Term_putstr(2, y++, -1, TERM_YELLOW, "Restart the game for changes to take effect.");
+            Term_putstr(2, y++, -1, TERM_YELLOW, "Settings changed - changes take effect immediately.");
+            Term_putstr(2, y++, -1, TERM_YELLOW, "Will be saved to your SDL config file on exit.");
         }
         Term_putstr(2, y++, -1, TERM_SLATE, "(direction keys to set, Return/Escape to accept)");
         
@@ -8991,7 +9001,6 @@ void do_cmd_pane_settings(void)
                 if (save_pane_config_to_json())
                 {
                     msg_format("Settings saved to %s", config_label);
-                    msg_print("Restart the game for changes to take effect.");
                 }
             }
             done = true;
@@ -9028,7 +9037,19 @@ void do_cmd_pane_settings(void)
                 set_sdl_tiles(!get_sdl_tiles());
                 settings_changed = true;
             }
-            else if (k == 5) /* View Pane Configuration */
+            else if (k == 5) /* Enable Right Panes */
+            {
+                set_sdl_enable_right_panes(!get_sdl_enable_right_panes());
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == 6) /* Enable Bottom Panes */
+            {
+                set_sdl_enable_bottom_panes(!get_sdl_enable_bottom_panes());
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == 7) /* View Pane Configuration */
             {
                 char pane_info[8192];
                 get_sdl_config_info(pane_info, sizeof(pane_info));
@@ -9057,14 +9078,13 @@ void do_cmd_pane_settings(void)
                 (void)inkey();
                 screen_load();
             }
-            else if (k == 6) /* Save/Return */
+            else if (k == 8) /* Save/Return */
             {
                 if (settings_changed)
                 {
                     if (save_pane_config_to_json())
                     {
                         msg_format("Settings saved to %s", config_label);
-                        msg_print("Restart the game for changes to take effect.");
                     }
                 }
                 done = true;
@@ -9081,10 +9101,12 @@ void do_cmd_pane_settings(void)
             if (k == 0) /* Main View Scale */
             {
                 val = get_sdl_main_view_scale();
-                if (val < 10)
+                int max_scale = get_sdl_max_scale();
+                if (val < max_scale)
                 {
                     set_sdl_main_view_scale(val + 1);
                     settings_changed = true;
+                    sdl_apply_config();
                 }
             }
             else if (k == 1) /* Aux View Font Size */
@@ -9094,6 +9116,7 @@ void do_cmd_pane_settings(void)
                 {
                     set_sdl_aux_view_font_size(val + 1);
                     settings_changed = true;
+                    sdl_apply_config();
                 }
             }
             else if (k == 2) /* Margin */
@@ -9103,6 +9126,7 @@ void do_cmd_pane_settings(void)
                 {
                     set_sdl_margin(val + 1);
                     settings_changed = true;
+                    sdl_apply_config();
                 }
             }
             else if (k == 3) /* Fullscreen */
@@ -9114,6 +9138,18 @@ void do_cmd_pane_settings(void)
             {
                 set_sdl_tiles(true);
                 settings_changed = true;
+            }
+            else if (k == 5) /* Enable Right Panes */
+            {
+                set_sdl_enable_right_panes(true);
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == 6) /* Enable Bottom Panes */
+            {
+                set_sdl_enable_bottom_panes(true);
+                settings_changed = true;
+                sdl_apply_config();
             }
             break;
         }
@@ -9131,6 +9167,7 @@ void do_cmd_pane_settings(void)
                 {
                     set_sdl_main_view_scale(val - 1);
                     settings_changed = true;
+                    sdl_apply_config();
                 }
             }
             else if (k == 1) /* Aux View Font Size */
@@ -9140,6 +9177,7 @@ void do_cmd_pane_settings(void)
                 {
                     set_sdl_aux_view_font_size(val - 1);
                     settings_changed = true;
+                    sdl_apply_config();
                 }
             }
             else if (k == 2) /* Margin */
@@ -9149,6 +9187,7 @@ void do_cmd_pane_settings(void)
                 {
                     set_sdl_margin(val - 1);
                     settings_changed = true;
+                    sdl_apply_config();
                 }
             }
             else if (k == 3) /* Fullscreen */
@@ -9160,6 +9199,18 @@ void do_cmd_pane_settings(void)
             {
                 set_sdl_tiles(false);
                 settings_changed = true;
+            }
+            else if (k == 5) /* Enable Right Panes */
+            {
+                set_sdl_enable_right_panes(false);
+                settings_changed = true;
+                sdl_apply_config();
+            }
+            else if (k == 6) /* Enable Bottom Panes */
+            {
+                set_sdl_enable_bottom_panes(false);
+                settings_changed = true;
+                sdl_apply_config();
             }
             break;
         }
