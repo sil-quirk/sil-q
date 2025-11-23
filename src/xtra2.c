@@ -7990,28 +7990,97 @@ static void describe_varda_choice(int a_idx, char* buf, size_t buf_len)
     }
 }
 
-static int prompt_varda_reward_choice(const int* choices, int count)
+/*
+ * Display Varda's reward selection in a scrollable menu integrated with quest completion text.
+ * Returns the selected artefact index, or 0 if cancelled.
+ */
+static int prompt_varda_reward_choice_menu(const int* choices, int choice_count, cptr* completion_texts, int text_count)
 {
-    char ch;
-    char desc[120];
-
-    msg_print("Varda sets starlit gifts before you:");
-    for (int i = 0; i < count; i++) {
-        describe_varda_choice(choices[i], desc, sizeof(desc));
-        msg_format("  %c) %s", 'a' + i, desc);
-    }
-
-    while (true) {
-        if (!get_com("Choose your gift (ESC to wait): ", &ch)) {
-            return 0;
+    int wid, hgt;
+    Term_get_size(&wid, &hgt);
+    
+    int selection = 0;
+    bool done = false;
+    int selected_artifact = 0;
+    
+    while (!done) {
+        /* Save and clear screen */
+        screen_save();
+        Term_clear();
+        
+        /* Display title */
+        int row = 1;
+        cptr title = "Starlight Triumph";
+        Term_putstr((wid - strlen(title)) / 2, row, -1, TERM_L_GREEN, title);
+        row += 2;
+        
+        /* Display completion text */
+        for (int i = 0; i < text_count && row < hgt - 10; i++) {
+            if (completion_texts[i] && completion_texts[i][0] != '\0') {
+                Term_putstr(2, row++, -1, TERM_WHITE, completion_texts[i]);
+            } else {
+                row++; /* Empty line for paragraph break */
+            }
         }
-        if (ch >= 'a' && ch < 'a' + count) return choices[ch - 'a'];
-        if (ch >= 'A' && ch < 'A' + count) return choices[ch - 'A'];
-        bell("Please choose one of the offered lights.");
+        
+        row++;
+        Term_putstr(2, row++, -1, TERM_L_BLUE, "Choose your radiant gift:");
+        row++;
+        
+        /* Display reward choices with highlighting */
+        char desc[120];
+        for (int i = 0; i < choice_count && row < hgt - 3; i++) {
+            describe_varda_choice(choices[i], desc, sizeof(desc));
+            
+            byte attr = (i == selection) ? TERM_YELLOW : TERM_L_WHITE;
+            char marker = (i == selection) ? '>' : ' ';
+            
+            char line_buf[140];
+            strnfmt(line_buf, sizeof(line_buf), "%c %c) %s", marker, 'a' + i, desc);
+            Term_putstr(2, row++, -1, attr, line_buf);
+        }
+        
+        /* Display controls */
+        row = hgt - 2;
+        Term_putstr(2, row, -1, TERM_L_DARK, "Arrows navigate   Space/Enter accept   Letter select   ESC wait");
+        
+        /* Position cursor at selection */
+        Term_gotoxy(2, 6 + text_count + 2 + selection);
+        Term_fresh();
+        
+        /* Get input */
+        char key = inkey();
+        
+        /* Handle input */
+        if (key == ESCAPE) {
+            screen_load();
+            return 0; /* Cancel */
+        } else if (key == '\r' || key == '\n' || key == ' ' || key == '6') {
+            /* Accept current selection */
+            selected_artifact = choices[selection];
+            done = true;
+        } else if (key == '8' || key == 'k' || key == '-') {
+            /* Move up */
+            selection = (selection + choice_count - 1) % choice_count;
+        } else if (key == '2' || key == 'j' || key == '+') {
+            /* Move down */
+            selection = (selection + 1) % choice_count;
+        } else if (key >= 'a' && key < 'a' + choice_count) {
+            /* Letter selection */
+            selected_artifact = choices[key - 'a'];
+            done = true;
+        } else if (key >= 'A' && key < 'A' + choice_count) {
+            /* Capital letter selection */
+            selected_artifact = choices[key - 'A'];
+            done = true;
+        }
     }
+    
+    screen_load();
+    return selected_artifact;
 }
 
-static bool grant_varda_reward(void)
+static bool grant_varda_reward(cptr* completion_texts, int completion_count)
 {
     int choices[3] = {0};
     int available = build_varda_reward_options(choices, (int)N_ELEMENTS(choices));
@@ -8021,7 +8090,8 @@ static bool grant_varda_reward(void)
         return false;
     }
 
-    int selected = prompt_varda_reward_choice(choices, available);
+    /* Use the integrated scrollable menu with completion text */
+    int selected = prompt_varda_reward_choice_menu(choices, available, completion_texts, completion_count);
     if (selected <= 0) {
         msg_print("The starlight gifts wait until you are ready to choose.");
         return false;
@@ -8046,7 +8116,10 @@ static void try_place_varda_near_player(void)
     /* Avoid double-spawning */
     for (int i = 1; i < mon_max; i++) {
         monster_type* m_ptr = &mon_list[i];
-        if (m_ptr->r_idx == R_IDX_VARDA) return;
+        if (m_ptr->r_idx == R_IDX_VARDA) {
+            log_trace("Varda reward: quest giver already exists on level");
+            return;
+        }
     }
 
     for (int y = p_ptr->py - 2; y <= p_ptr->py + 2; y++) {
@@ -8067,7 +8140,9 @@ static void try_place_varda_near_player(void)
         }
     }
 
-    log_trace("Varda reward: failed to place quest giver near player");
+    /* Mark this depth as attempted even if placement failed, to avoid infinite spawn loops */
+    p_ptr->varda_level = p_ptr->depth;
+    log_trace("Varda reward: failed to place quest giver near player (no valid space), will retry on new depth");
 }
 
 void check_varda_quest_completion(int r_idx)
@@ -8124,18 +8199,22 @@ void varda_quest_interaction(void)
         int completion_count = 0;
         cptr* completion_texts = extract_quest_completion_texts(QUEST_ID_VARDA, &completion_count);
         completion_texts = prepend_repeat_context(QUEST_ID_VARDA, completion_texts, &completion_count, true);
-        if (completion_texts && completion_count > 0) {
-            quest_typewriter_menu("Starlight Triumph", completion_texts, completion_count, TERM_L_GREEN, TERM_WHITE);
+        
+        /* Fallback texts if quest data not available */
+        cptr fallback[] = {
+            "Varda inclines her head in silent approval:",
+            "\"The stolen light is free. Choose your blessing.\""
+        };
+        cptr* texts_to_use = (completion_texts && completion_count > 0) ? completion_texts : fallback;
+        int text_count = (completion_texts && completion_count > 0) ? completion_count : 2;
+        
+        /* Display quest completion and reward selection in one integrated menu */
+        bool rewarded = grant_varda_reward(texts_to_use, text_count);
+        
+        if (completion_texts) {
             free_quest_texts(completion_texts);
-        } else {
-            cptr fallback[] = {
-                "Varda inclines her head in silent approval:",
-                "\"The stolen light is free. Choose your blessing.\""
-            };
-            quest_typewriter_menu("Starlight Triumph", fallback, 2, TERM_L_GREEN, TERM_WHITE);
         }
-
-        bool rewarded = grant_varda_reward();
+        
         if (rewarded) {
             remove_quest_giver(R_IDX_VARDA);
         }
@@ -8171,7 +8250,8 @@ void check_varda_quest_interaction(void)
     }
 
     /* If Varda should be present for a reward but isn't adjacent, try to place her */
-    if (p_ptr->varda_quest == VARDA_QUEST_SUCCESS) {
+    /* Only attempt placement once per depth to avoid infinite spawn loops */
+    if (p_ptr->varda_quest == VARDA_QUEST_SUCCESS && p_ptr->varda_level != p_ptr->depth) {
         log_trace("Varda quest: success state without nearby quest giver - attempting to place Varda");
         try_place_varda_near_player();
     }
