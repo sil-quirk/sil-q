@@ -67,6 +67,7 @@ static style_weight_list g_vault_styles;
 static style_weight_list* g_active_styles = &g_level_styles;
 static int g_level_primary_style = -1;
 static int g_vault_primary_style = -1;
+static int g_vault_avoid_style = -1;
 
 /* Level rules table (indexed by exact depth 0..31) */
 static style_weight_list g_level_rule[32];
@@ -119,6 +120,7 @@ void reset_depth_color_cache(void)
     g_active_styles = &g_level_styles;
     g_level_primary_style = -1;
     g_vault_primary_style = -1;
+    g_vault_avoid_style = -1;
     log_info("reset_depth_color_cache: cleared style lists and selections");
 }
 
@@ -213,6 +215,7 @@ void styles_end_vault(void)
 {
     g_active_styles = &g_level_styles;
     g_vault_primary_style = -1;
+    g_vault_avoid_style = -1;
 }
 
 /* Helpers to get current variant choice for a style index (vault if active) */
@@ -402,16 +405,23 @@ void styles_select_vault_primary(void)
         log_info("styles_select_vault_primary: no vault list, defaulting to level primary=%d", g_level_primary_style);
         return;
     }
-    int total = g_vault_styles.total_weight;
+    int total = 0;
+    for (int i = 0; i < g_vault_styles.count; ++i) {
+        if (g_vault_styles.sidx[i] == g_vault_avoid_style) continue;
+        total += g_vault_styles.weight[i];
+    }
+    if (total <= 0) total = g_vault_styles.total_weight; /* fallback: nothing to avoid */
+
     int r = rand_int(total);
     int pick = g_vault_styles.sidx[0];
     for (int i = 0; i < g_vault_styles.count; ++i) {
+        if (g_vault_styles.sidx[i] == g_vault_avoid_style && total != g_vault_styles.total_weight) continue;
         if (r < g_vault_styles.weight[i]) { pick = g_vault_styles.sidx[i]; break; }
         r -= g_vault_styles.weight[i];
     }
     g_vault_primary_style = pick;
-    log_info("styles_select_vault_primary: selected vault primary=%d from %d entries (total=%d)",
-        g_vault_primary_style, g_vault_styles.count, g_vault_styles.total_weight);
+    log_info("styles_select_vault_primary: selected vault primary=%d from %d entries (total=%d, avoid=%d)",
+        g_vault_primary_style, g_vault_styles.count, g_vault_styles.total_weight, g_vault_avoid_style);
     styles_log_list("styles_select_vault_primary list", &g_vault_styles);
 }
 
@@ -429,6 +439,26 @@ int styles_pick_random_from_level(void)
         r -= g_level_styles.weight[i];
     }
     return pick;
+}
+
+void styles_set_vault_avoid_style(int sidx)
+{
+    g_vault_avoid_style = sidx;
+}
+
+int styles_decode_color_style(byte color_value)
+{
+    int bases[2] = { COLOR_STYLE_BASE, COLOR_STYLE_BASE + COLOR_STYLE_FLAG_FIRSTVAR };
+    for (int bi = 0; bi < 2; ++bi) {
+        int base = bases[bi];
+        if (color_value >= base) {
+            int slot = color_value - base;
+            if (slot >= COLOR_STYLE_FLAG_FIRSTVAR) slot -= COLOR_STYLE_FLAG_FIRSTVAR;
+            slot &= (COLOR_STYLE_SLOT_MAX - 1);
+            return slot;
+        }
+    }
+    return -1;
 }
 
 /*

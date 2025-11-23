@@ -934,6 +934,16 @@ struct rectangle
     byte x2;
 };
 
+typedef enum room_kind
+{
+    ROOM_KIND_NONE = 0,
+    ROOM_KIND_CLASSIC = 1,
+    ROOM_KIND_CROSS = 2,
+    ROOM_KIND_INTERESTING = 6,
+    ROOM_KIND_LESSER_VAULT = 7,
+    ROOM_KIND_GREATER_VAULT = 8
+} room_kind_t;
+
 /*
  * Structure to hold all "dungeon generation" data
  */
@@ -942,6 +952,10 @@ typedef struct dun_data dun_data;
 
 struct dun_data
 {
+    /* Classifies each room slot by the builder that created it (1,2,6,7,8) */
+    byte kind[CENT_MAX];
+    bool is_quest[CENT_MAX];
+
     /* Array of centers of rooms */
     int cent_n;
     coord cent[CENT_MAX];
@@ -967,6 +981,25 @@ static dun_data* dun;
  */
 int cave_corridor1[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
 int cave_corridor2[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
+
+static bool room_kind_is_vault(byte kind)
+{
+    return (kind >= ROOM_KIND_INTERESTING);
+}
+
+/* Decode a style index from the color encoding at (y,x); returns -1 if none */
+static int style_at_color(int y, int x)
+{
+    if (y < 0 || x < 0 || y >= MAX_DUNGEON_HGT || x >= MAX_DUNGEON_WID)
+        return -1;
+    return styles_decode_color_style(cave_color[y][x]);
+}
+
+static bool feature_is_any_door(int feat)
+{
+    return (feat == FEAT_SECRET) || (feat == FEAT_OPEN) || (feat == FEAT_BROKEN)
+        || ((feat >= FEAT_DOOR_HEAD) && (feat <= FEAT_DOOR_TAIL));
+}
 
 /* determines whether the player can pass through a given feature */
 /* icky locations (inside vaults) are all considered passable.    */
@@ -2071,30 +2104,7 @@ static bool v_tunnel_ok(
     }
 }
 
-static void build_h_tunnel(int r1, int r2, int x1, int x2, int y)
-{
-    int x, x_lo, x_hi;
-
-    x_lo = MIN(x1, x2);
-    x_hi = MAX(x1, x2);
-
-    for (x = x_lo; x <= x_hi; x++)
-    {
-        if (cave_feat[y][x] == FEAT_WALL_OUTER)
-        {
-            /* all doors get randomised later */
-            cave_set_feat(y, x, FEAT_DOOR_HEAD);
-        }
-        else if (cave_feat[y][x] == FEAT_WALL_EXTRA)
-        {
-            cave_set_feat(y, x, FEAT_FLOOR);
-            cave_corridor1[y][x] = r1;
-            cave_corridor2[y][x] = r2;
-        }
-    }
-}
-
-static void build_v_tunnel(int r1, int r2, int y1, int y2, int x)
+static void build_v_tunnel(int r1, int r2, int y1, int y2, int x, int width)
 {
     int y, y_lo, y_hi;
 
@@ -2114,12 +2124,85 @@ static void build_v_tunnel(int r1, int r2, int y1, int y2, int x)
             cave_corridor1[y][x] = r1;
             cave_corridor2[y][x] = r2;
         }
+
+        /* thicken corridors when requested by carving adjacent granite only */
+        if (width > 1)
+        {
+            if (y + 1 < MAX_DUNGEON_HGT && cave_feat[y + 1][x] == FEAT_WALL_EXTRA
+                && in_bounds_fully(y + 1, x)
+                && !(cave_info[y + 1][x] & (CAVE_ROOM)))
+            {
+                cave_set_feat(y + 1, x, FEAT_FLOOR);
+                cave_corridor1[y + 1][x] = r1;
+                cave_corridor2[y + 1][x] = r2;
+            }
+            if (y - 1 > 0 && cave_feat[y - 1][x] == FEAT_WALL_EXTRA
+                && in_bounds_fully(y - 1, x)
+                && !(cave_info[y - 1][x] & (CAVE_ROOM)))
+            {
+                cave_set_feat(y - 1, x, FEAT_FLOOR);
+                cave_corridor1[y - 1][x] = r1;
+                cave_corridor2[y - 1][x] = r2;
+            }
+        }
     }
+}
+
+static void build_h_tunnel(int r1, int r2, int x1, int x2, int y, int width)
+{
+    int x, x_lo, x_hi;
+
+    x_lo = MIN(x1, x2);
+    x_hi = MAX(x1, x2);
+
+    for (x = x_lo; x <= x_hi; x++)
+    {
+        if (cave_feat[y][x] == FEAT_WALL_OUTER)
+        {
+            /* all doors get randomised later */
+            cave_set_feat(y, x, FEAT_DOOR_HEAD);
+        }
+        else if (cave_feat[y][x] == FEAT_WALL_EXTRA)
+        {
+            cave_set_feat(y, x, FEAT_FLOOR);
+            cave_corridor1[y][x] = r1;
+            cave_corridor2[y][x] = r2;
+        }
+
+        /* thicken corridors when requested by carving adjacent granite only */
+        if (width > 1)
+        {
+            if (x + 1 < MAX_DUNGEON_WID && cave_feat[y][x + 1] == FEAT_WALL_EXTRA
+                && in_bounds_fully(y, x + 1)
+                && !(cave_info[y][x + 1] & (CAVE_ROOM)))
+            {
+                cave_set_feat(y, x + 1, FEAT_FLOOR);
+                cave_corridor1[y][x + 1] = r1;
+                cave_corridor2[y][x + 1] = r2;
+            }
+            if (x - 1 > 0 && cave_feat[y][x - 1] == FEAT_WALL_EXTRA
+                && in_bounds_fully(y, x - 1)
+                && !(cave_info[y][x - 1] & (CAVE_ROOM)))
+            {
+                cave_set_feat(y, x - 1, FEAT_FLOOR);
+                cave_corridor1[y][x - 1] = r1;
+                cave_corridor2[y][x - 1] = r2;
+            }
+        }
+    }
+}
+
+static int choose_tunnel_width(void)
+{
+    /* Disable wide corridors for now to avoid double-door seams */
+    return 1;
 }
 
 static bool build_tunnel(
     int r1, int r2, int y1, int x1, int y2, int x2, bool tentative)
 {
+    int width = tentative ? 1 : choose_tunnel_width();
+
     /* build a vertical tunnel */
     if (x1 == x2)
     {
@@ -2127,7 +2210,7 @@ static bool build_tunnel(
         {
             return (false);
         }
-        build_v_tunnel(r1, r2, y1, y2, x1);
+        build_v_tunnel(r1, r2, y1, y2, x1, width);
     }
 
     /* build a horizontal tunnel */
@@ -2137,7 +2220,7 @@ static bool build_tunnel(
         {
             return (false);
         }
-        build_h_tunnel(r1, r2, x1, x2, y1);
+        build_h_tunnel(r1, r2, x1, x2, y1, width);
     }
 
     /* build an L-shaped tunnel */
@@ -2151,8 +2234,8 @@ static bool build_tunnel(
             {
                 return (false);
             }
-            build_h_tunnel(r1, r2, x1, x2, y1);
-            build_v_tunnel(r1, r2, y1, y2, x2);
+            build_h_tunnel(r1, r2, x1, x2, y1, width);
+            build_v_tunnel(r1, r2, y1, y2, x2, width);
         }
 
         /* build a v-h tunnel */
@@ -2163,8 +2246,8 @@ static bool build_tunnel(
             {
                 return (false);
             }
-            build_v_tunnel(r1, r2, y1, y2, x1);
-            build_h_tunnel(r1, r2, x1, x2, y2);
+            build_v_tunnel(r1, r2, y1, y2, x1, width);
+            build_h_tunnel(r1, r2, x1, x2, y2, width);
         }
     }
 
@@ -2327,7 +2410,7 @@ static bool connect_room_to_corridor(int r)
                 {
                     if (v_tunnel_ok(ry, y - (delta * 2), x, true, 1))
                     {
-                        build_v_tunnel(r, r1, ry, y, x);
+                        build_v_tunnel(r, r1, ry, y, x, 1);
 
                         // mark the new room connections
                         dun->connection[r][r1] = true;
@@ -2372,7 +2455,7 @@ static bool connect_room_to_corridor(int r)
                 {
                     if (h_tunnel_ok(rx, x - (delta * 2), y, true, 1))
                     {
-                        build_h_tunnel(r, r1, rx, x, y);
+                        build_h_tunnel(r, r1, rx, x, y, 1);
 
                         // mark the new room connections
                         dun->connection[r][r1] = true;
@@ -2971,6 +3054,8 @@ static bool build_type1(int y0, int x0)
     /* Save the room location */
     dun->cent[dun->cent_n].y = y0;
     dun->cent[dun->cent_n].x = x0;
+    dun->kind[dun->cent_n] = ROOM_KIND_CLASSIC;
+    dun->is_quest[dun->cent_n] = false;
     dun->cent_n++;
 
     /* Generate new room */
@@ -3077,6 +3162,8 @@ static bool build_type2(int y0, int x0)
     /* Save the room location */
     dun->cent[dun->cent_n].y = y0;
     dun->cent[dun->cent_n].x = x0;
+    dun->kind[dun->cent_n] = ROOM_KIND_CROSS;
+    dun->is_quest[dun->cent_n] = false;
     dun->cent_n++;
 
     /* Generate new room */
@@ -4113,6 +4200,8 @@ static bool place_room_forced(int y0, int x0, vault_type* v_ptr)
     /* Save the room location */
     dun->cent[dun->cent_n].y = y0;
     dun->cent[dun->cent_n].x = x0;
+    dun->kind[dun->cent_n] = (byte)v_ptr->typ;
+    dun->is_quest[dun->cent_n] = (v_ptr->flags & VLT_QUEST) ? true : false;
     dun->cent_n++;
 
     /* Cause a special feeling */
@@ -4235,12 +4324,345 @@ static bool place_room(int y0, int x0, vault_type* v_ptr)
     /* Save the room location */
     dun->cent[dun->cent_n].y = y0;
     dun->cent[dun->cent_n].x = x0;
+    dun->kind[dun->cent_n] = (byte)v_ptr->typ;
+    dun->is_quest[dun->cent_n] = (v_ptr->flags & VLT_QUEST) ? true : false;
     dun->cent_n++;
 
     /* Cause a special feeling */
     good_item_flag = true;
 
     return (true);
+}
+
+typedef enum vault_dock_dir
+{
+    VAULT_DOCK_NORTH = 0,
+    VAULT_DOCK_EAST = 1,
+    VAULT_DOCK_SOUTH = 2,
+    VAULT_DOCK_WEST = 3
+} vault_dock_dir_t;
+
+/* Ensure we have clear granite around a prospective docked vault, allowing
+ * the contact edge to abut an existing vault wall. */
+static bool area_clear_for_vault_dock(
+    int y1, int x1, int y2, int x2, vault_dock_dir_t dir)
+{
+    int y_lo = y1 - 1;
+    int y_hi = y2 + 1;
+    int x_lo = x1 - 1;
+    int x_hi = x2 + 1;
+
+    if ((y_lo < 1) || (x_lo < 1) || (y_hi >= p_ptr->cur_map_hgt - 1)
+        || (x_hi >= p_ptr->cur_map_wid - 1))
+    {
+        return false;
+    }
+
+    for (int y = y_lo; y <= y_hi; ++y)
+    {
+        for (int x = x_lo; x <= x_hi; ++x)
+        {
+            bool on_contact = false;
+            switch (dir)
+            {
+            case VAULT_DOCK_EAST:
+                on_contact = (x == x1 - 1);
+                break;
+            case VAULT_DOCK_WEST:
+                on_contact = (x == x2 + 1);
+                break;
+            case VAULT_DOCK_NORTH:
+                on_contact = (y == y2 + 1);
+                break;
+            case VAULT_DOCK_SOUTH:
+                on_contact = (y == y1 - 1);
+                break;
+            }
+
+            if (on_contact)
+            {
+                /* Allow touching an existing vault wall, but not overlapping
+                 * known open space such as corridors. */
+                if ((cave_feat[y][x] == FEAT_FLOOR)
+                    && !(cave_info[y][x] & (CAVE_ICKY)))
+                {
+                    return false;
+                }
+                continue;
+            }
+
+            if (cave_info[y][x] & (CAVE_ROOM | CAVE_ICKY))
+            {
+                return false;
+            }
+
+            if (cave_feat[y][x] != FEAT_WALL_EXTRA)
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+/* Pick a contact point along one edge of an existing vault, preferring doors
+ * but falling back to plain walls. */
+static bool choose_vault_contact(
+    int base_idx, vault_dock_dir_t dir, int* y_out, int* x_out)
+{
+    int y1 = dun->corner[base_idx].y1 - 1;
+    int y2 = dun->corner[base_idx].y2 + 1;
+    int x1 = dun->corner[base_idx].x1 - 1;
+    int x2 = dun->corner[base_idx].x2 + 1;
+
+    int door_seen = 0, wall_seen = 0;
+    int door_y = 0, door_x = 0, wall_y = 0, wall_x = 0;
+
+    if (dir == VAULT_DOCK_EAST || dir == VAULT_DOCK_WEST)
+    {
+        int x = (dir == VAULT_DOCK_EAST) ? x2 : x1;
+        for (int y = y1 + 1; y <= y2 - 1; ++y)
+        {
+            if (!(cave_info[y][x] & (CAVE_ICKY)))
+                continue;
+            int feat = cave_feat[y][x];
+            if (feature_is_any_door(feat))
+            {
+                door_seen++;
+                if (one_in_(door_seen))
+                {
+                    door_y = y;
+                    door_x = x;
+                }
+            }
+            else if ((feat >= FEAT_WALL_HEAD) && (feat <= FEAT_WALL_TAIL))
+            {
+                wall_seen++;
+                if (one_in_(wall_seen))
+                {
+                    wall_y = y;
+                    wall_x = x;
+                }
+            }
+        }
+    }
+    else
+    {
+        int y = (dir == VAULT_DOCK_NORTH) ? y1 : y2;
+        for (int x = x1 + 1; x <= x2 - 1; ++x)
+        {
+            if (!(cave_info[y][x] & (CAVE_ICKY)))
+                continue;
+            int feat = cave_feat[y][x];
+            if (feature_is_any_door(feat))
+            {
+                door_seen++;
+                if (one_in_(door_seen))
+                {
+                    door_y = y;
+                    door_x = x;
+                }
+            }
+            else if ((feat >= FEAT_WALL_HEAD) && (feat <= FEAT_WALL_TAIL))
+            {
+                wall_seen++;
+                if (one_in_(wall_seen))
+                {
+                    wall_y = y;
+                    wall_x = x;
+                }
+            }
+        }
+    }
+
+    if (door_seen > 0)
+    {
+        *y_out = door_y;
+        *x_out = door_x;
+        return true;
+    }
+    if (wall_seen > 0)
+    {
+        *y_out = wall_y;
+        *x_out = wall_x;
+        return true;
+    }
+    return false;
+}
+
+/* Attempt to place a vault flush against an existing vault so that a single
+ * door separates them. Returns the placed centre if successful. */
+static bool try_place_docked_vault(
+    vault_type* v_ptr, int* out_y0, int* out_x0)
+{
+    if (!room_kind_is_vault((byte)v_ptr->typ))
+    {
+        return false;
+    }
+
+    if (v_ptr->flags & (VLT_QUEST))
+    {
+        return false;
+    }
+
+    if (dun->cent_n >= CENT_MAX)
+    {
+        return false;
+    }
+
+    /* Collect existing vault indices to target */
+    int vault_indices[CENT_MAX];
+    int vault_count = 0;
+    for (int i = 0; i < dun->cent_n; ++i)
+    {
+        if (room_kind_is_vault(dun->kind[i]) && !dun->is_quest[i])
+        {
+            vault_indices[vault_count++] = i;
+        }
+    }
+    if (vault_count == 0)
+    {
+        return false;
+    }
+
+    /* Try a handful of random attachment attempts */
+    for (int attempt = 0; attempt < 40; ++attempt)
+    {
+        styles_set_vault_avoid_style(-1);
+        int base_idx = vault_indices[rand_int(vault_count)];
+        int base_y1 = dun->corner[base_idx].y1 - 1;
+        int base_y2 = dun->corner[base_idx].y2 + 1;
+        int base_x1 = dun->corner[base_idx].x1 - 1;
+        int base_x2 = dun->corner[base_idx].x2 + 1;
+
+        vault_dock_dir_t dir_order[4] = {VAULT_DOCK_NORTH, VAULT_DOCK_EAST,
+            VAULT_DOCK_SOUTH, VAULT_DOCK_WEST};
+        for (int s = 0; s < 4; ++s)
+        {
+            int swap_idx = rand_int(4);
+            vault_dock_dir_t tmp = dir_order[s];
+            dir_order[s] = dir_order[swap_idx];
+            dir_order[swap_idx] = tmp;
+        }
+
+        for (int di = 0; di < 4; ++di)
+        {
+            vault_dock_dir_t dir = dir_order[di];
+            int contact_y = 0, contact_x = 0;
+            if (!choose_vault_contact(base_idx, dir, &contact_y, &contact_x))
+            {
+                continue;
+            }
+
+            /* Prefer a different primary style than the contacted vault */
+            int avoid_style = style_at_color(contact_y, contact_x);
+            styles_set_vault_avoid_style(avoid_style);
+
+            bool flip_d = (!(v_ptr->flags & (VLT_NO_ROTATION)) && one_in_(3));
+            int h = flip_d ? v_ptr->wid : v_ptr->hgt;
+            int w = flip_d ? v_ptr->hgt : v_ptr->wid;
+
+            int y0 = 0, x0 = 0, y1 = 0, x1 = 0, y2 = 0, x2 = 0;
+
+            switch (dir)
+            {
+            case VAULT_DOCK_EAST:
+                x1 = base_x2 + 1;
+                x2 = x1 + w - 1;
+                x0 = x1 + w / 2;
+                y0 = contact_y;
+                y1 = y0 - h / 2;
+                y2 = y1 + h - 1;
+                break;
+            case VAULT_DOCK_WEST:
+                x2 = base_x1 - 1;
+                x1 = x2 - w + 1;
+                x0 = x1 + w / 2;
+                y0 = contact_y;
+                y1 = y0 - h / 2;
+                y2 = y1 + h - 1;
+                break;
+            case VAULT_DOCK_NORTH:
+                y2 = base_y1 - 1;
+                y1 = y2 - h + 1;
+                y0 = y1 + h / 2;
+                x0 = contact_x;
+                x1 = x0 - w / 2;
+                x2 = x1 + w - 1;
+                break;
+            case VAULT_DOCK_SOUTH:
+                y1 = base_y2 + 1;
+                y2 = y1 + h - 1;
+                y0 = y1 + h / 2;
+                x0 = contact_x;
+                x1 = x0 - w / 2;
+                x2 = x1 + w - 1;
+                break;
+            }
+
+            if ((y1 <= 3) || (x1 <= 3) || (y2 >= p_ptr->cur_map_hgt - 3)
+                || (x2 >= p_ptr->cur_map_wid - 3))
+            {
+                continue;
+            }
+
+            if (!area_clear_for_vault_dock(y1, x1, y2, x2, dir))
+            {
+                continue;
+            }
+
+            if (!build_vault(y0, x0, v_ptr, flip_d))
+            {
+                styles_set_vault_avoid_style(-1);
+                continue;
+            }
+
+            dun->corner[dun->cent_n].y1 = y1 + 1;
+            dun->corner[dun->cent_n].x1 = x1 + 1;
+            dun->corner[dun->cent_n].y2 = y2 - 1;
+            dun->corner[dun->cent_n].x2 = x2 - 1;
+            dun->cent[dun->cent_n].y = y0;
+            dun->cent[dun->cent_n].x = x0;
+            dun->kind[dun->cent_n] = (byte)v_ptr->typ;
+            dun->is_quest[dun->cent_n] = false;
+            int new_idx = dun->cent_n;
+            dun->cent_n++;
+
+            dun->connection[base_idx][new_idx] = true;
+            dun->connection[new_idx][base_idx] = true;
+
+            int new_y = contact_y;
+            int new_x = contact_x;
+            if (dir == VAULT_DOCK_EAST)
+                new_x = contact_x + 1;
+            else if (dir == VAULT_DOCK_WEST)
+                new_x = contact_x - 1;
+            else if (dir == VAULT_DOCK_SOUTH)
+                new_y = contact_y + 1;
+            else
+                new_y = contact_y - 1;
+
+            if (!feature_is_any_door(cave_feat[contact_y][contact_x]))
+            {
+                place_closed_door(contact_y, contact_x);
+            }
+            cave_set_feat(new_y, new_x, FEAT_FLOOR);
+
+            good_item_flag = true;
+
+            if (out_y0)
+                *out_y0 = y0;
+            if (out_x0)
+                *out_x0 = x0;
+
+            styles_set_vault_avoid_style(-1);
+            return true;
+        }
+    }
+
+    styles_set_vault_avoid_style(-1);
+    return false;
 }
 
 /*
@@ -4484,6 +4906,14 @@ static bool build_type6(int y0, int x0, bool force_forge)
         }
     }
 
+    if (!force_forge && one_in_(4))
+    {
+        if (try_place_docked_vault(v_ptr, NULL, NULL))
+        {
+            return true;
+        }
+    }
+
     return place_room(y0, x0, v_ptr);
 }
 
@@ -4520,7 +4950,19 @@ static bool build_type7(int y0, int x0)
         }
     }
 
-    if (!place_room(y0, x0, v_ptr))
+    bool placed = false;
+    int placed_y = y0, placed_x = x0;
+
+    if (one_in_(4) && try_place_docked_vault(v_ptr, &placed_y, &placed_x))
+    {
+        placed = true;
+    }
+    else if (place_room(y0, x0, v_ptr))
+    {
+        placed = true;
+    }
+
+    if (!placed)
         return false;
     /* Message */
     if (cheat_room)
@@ -4611,7 +5053,18 @@ static bool build_type8(int y0, int x0)
         }
     }
 
-    if (!place_room(y0, x0, v_ptr))
+    bool placed = false;
+    int placed_y = y0, placed_x = x0;
+    if (one_in_(2) && try_place_docked_vault(v_ptr, &placed_y, &placed_x))
+    {
+        placed = true;
+    }
+    else if (place_room(y0, x0, v_ptr))
+    {
+        placed = true;
+    }
+
+    if (!placed)
         return false;
 
     // Remember this greater vault
@@ -4629,7 +5082,7 @@ static bool build_type8(int y0, int x0)
         msg_format("GV (%s).", v_name + v_ptr->name);
 
     /* Hack -- Mark vault grids with the CAVE_G_VAULT flag */
-    if (mark_g_vault(y0, x0, v_ptr->hgt, v_ptr->wid))
+    if (mark_g_vault(placed_y, placed_x, v_ptr->hgt, v_ptr->wid))
     {
         SDL_strlcpy(g_vault_name, v_name + v_ptr->name, sizeof(g_vault_name));
     }
@@ -5280,30 +5733,44 @@ static bool cave_gen(void)
     /* Sil - determine the dungeon size */
     /* note: Panel height and width is 1/6 of max height/width*/
 
-    // between 4x4 and 5x5
+    // between 4x4 and 5x5 (cap strictly at 5 to avoid oversize levels)
     l = 4 + ((p_ptr->depth + dieroll(5)) / 10);
+    if (l > 5) l = 5;
 
     p_ptr->cur_map_hgt = l * (PANEL_HGT);
     p_ptr->cur_map_wid = l * (PANEL_WID_FIXED);
 
     room_attempts = l * l * l * l;
+    log_trace("cave_gen: map size set to %dx%d (l=%d) room_attempts=%d", p_ptr->cur_map_wid, p_ptr->cur_map_hgt, l, room_attempts);
 
     /* Initialize level style weights and start with basic granite */
     styles_init_for_level();
     /*start with basic granite*/
     basic_granite();
+    log_trace("cave_gen: after styles_init/basic_granite");
 
+    log_trace("cave_gen: before connection table init (DUN_ROOMS=%d, conn_size=%zu)", DUN_ROOMS, sizeof(dun->connection));
     /* Initialize the connection table */
     for (y = 0; y < DUN_ROOMS; y++)
     {
+        if (y == 0 || y == DUN_ROOMS - 1)
+            log_trace("cave_gen: init conn row %d start", y);
         for (x = 0; x < DUN_ROOMS; x++)
         {
             dun->connection[y][x] = false;
         }
+        log_trace("cave_gen: connection init row=%d done", y);
     }
+    log_trace("cave_gen: after connection table init");
 
     /* No rooms yet */
     dun->cent_n = 0;
+    log_trace("cave_gen: cent_n reset to 0");
+
+    /* Verify dun struct sanity */
+    log_trace("cave_gen: sanity check dun ptr=%p cent capacity=%d connection[0][0]=%d piece[0]=%d corner[0]=(y1=%d,x1=%d,y2=%d,x2=%d)",
+        (void*)dun, DUN_ROOMS, dun->connection[0][0], dun->piece[0],
+        dun->corner[0].y1, dun->corner[0].x1, dun->corner[0].y2, dun->corner[0].x2);
 
     if (cheat_room)
         msg_format("Forge count is %d.", p_ptr->forge_count);
@@ -5322,15 +5789,18 @@ static bool cave_gen(void)
         msg_format("Guaranteed forge: %s.",
             is_guaranteed_forge_level ? "true" : "false");
 
+    log_trace("cave_gen: before guaranteed forge handling");
     if (is_guaranteed_forge_level)
     {
         int y = rand_range(5, p_ptr->cur_map_hgt - 5);
         int x = rand_range(5, p_ptr->cur_map_wid - 5);
+        log_trace("cave_gen: attempting guaranteed forge at (%d,%d)", y, x);
 
         if (cheat_room)
             msg_format("Trying to force a forge:");
         p_ptr->force_forge = true;
         p_ptr->fixed_forge_count++;
+        log_trace("cave_gen: force_forge=true, fixed_forge_count=%d", p_ptr->fixed_forge_count);
 
         if (!build_type6(y, x, true))
         {
@@ -5344,6 +5814,8 @@ static bool cave_gen(void)
         if (cheat_room)
             msg_format("succeeded.");
     }
+    log_trace("cave_gen: post guaranteed-forge path cent_n=%d", dun->cent_n);
+    log_trace("cave_gen: post guaranteed-forge path cent_n=%d", dun->cent_n);
 
     /* Quest vault determination - Allow re-placement during level regeneration */
     log_trace("Quest vault: ENTERING quest vault logic check (quest_vault_used=%s, force_forge=%s, qv_placed_this_level=%s)", 

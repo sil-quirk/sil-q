@@ -6456,3 +6456,17 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 - **Music & Typewriter fixes (Nov 23)**: Fixed ambient music not restarting when creating new character after death (now stops main theme and starts ambient if p_ptr->depth > 0). Typewriter effect now only responds to ESC/Enter keys for skipping - all other keys are consumed but ignored (no queueing).
 - **Typewriter skip fix (Nov 23 #2)**: Fixed typewriter skip to display ALL remaining text instantly when ESC/Enter pressed, instead of just stopping. Added skipped flag that disables all delays and continues printing all paragraphs without animation.
 - **Raw file regeneration diagnostics (Nov 23)**: Added comprehensive logging to modification time checks and init_info flow. System should auto-regenerate .raw files when .txt files are newer. If issues persist, users can delete the .raw file from lib/data/ to force regeneration. Logs will show: txt/raw timestamps, whether regeneration was triggered, and any file access issues.
+
+# Session Notes - Vault Docking & Variety Prep (2025-11-23)
+
+## Issue
+- Vault entrances always flowed into corridors; vaults could not adjoin directly, making layouts predictable when opening exterior doors.
+
+## Fix
+- Added dungeon-piece metadata for room kind and quest status (`dun->kind`, `dun->is_quest`) to gate special handling.
+- Introduced a docked-vault placer that snaps non-quest vaults to an existing vault edge, verifies adjacent granite, links them with a single door + open entry (no corridor), and pre-marks the connection graph.
+- Hooked type6/7/8 builders to try docking (skipping forced forge/quest vaults) before normal placement; greater-vault bookkeeping now uses the docked centre for marking.
+- Docked vaults now pick a primary style different from the contacted vault (via style decoding + avoid list); docking chance for type6/7 reduced to 1-in-4, and we’ve started varying corridor widths (occasional 2-wide tunnels carving only into granite).
+
+## Verification
+- Not run (logic-only change).

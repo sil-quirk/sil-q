@@ -354,6 +354,7 @@ extern void styles_add_level_weight(int sidx, int weight);
 extern void styles_reset_vault_weights(void);
 extern void styles_add_vault_weight(int sidx, int weight);
 extern void styles_add_vault_from_level(int factor);
+extern void styles_set_vault_avoid_style(int sidx);
 extern void styles_default_vault_clear(void);
 extern void styles_default_vault_add(int sidx_or_star, int weight);
 extern void styles_apply_vault_list(const int* sidx, const int* weight, int count);
@@ -364,6 +365,7 @@ extern int styles_get_level_primary_style(void);
 extern int styles_get_vault_primary_style(void);
 extern void styles_select_vault_primary(void);
 extern int styles_pick_random_from_level(void);
+extern int styles_decode_color_style(byte color_value);
 extern void styles_rules_clear(void);
 extern void styles_add_level_rule(int min_depth, int max_depth, const int* sidx, const int* weight, int count);
 /* Banner strings: from style.txt (per-style via M: lines only) */
