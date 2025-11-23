@@ -1314,6 +1314,53 @@ static bool carve_ca_blob_anchor(void)
                     cave_set_feat(gy, gx, FEAT_FLOOR);
                     cave_info[gy][gx] |= CAVE_ROOM;
                     floor_count++;
+                    if (gy < min_y)
+                        min_y = gy;
+                    if (gy > max_y)
+                        max_y = gy;
+                    if (gx < min_x)
+                        min_x = gx;
+                    if (gx > max_x)
+                        max_x = gx;
+                }
+            }
+        }
+    }
+
+    /* Bleed outward a little to break boxy outlines */
+    const int bleed_dirs[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    for (int gy = y1 - 1; gy <= y2 + 1; ++gy)
+    {
+        for (int gx = x1 - 1; gx <= x2 + 1; ++gx)
+        {
+            if (!cave_floor_bold(gy, gx))
+                continue;
+            bool on_edge = (gy == y1 - 1) || (gy == y2 + 1) || (gx == x1 - 1) || (gx == x2 + 1);
+            if (!on_edge)
+                continue;
+            for (int d = 0; d < 4; ++d)
+            {
+                int ny = gy + bleed_dirs[d][0];
+                int nx = gx + bleed_dirs[d][1];
+                if (!in_bounds_fully(ny, nx))
+                    continue;
+                if (cave_floor_bold(ny, nx))
+                    continue;
+                if (cave_feat[ny][nx] != FEAT_WALL_EXTRA)
+                    continue;
+                if (one_in_(4))
+                {
+                    cave_set_feat(ny, nx, FEAT_FLOOR);
+                    cave_info[ny][nx] |= CAVE_ROOM;
+                    floor_count++;
+                    if (ny < min_y)
+                        min_y = ny;
+                    if (ny > max_y)
+                        max_y = ny;
+                    if (nx < min_x)
+                        min_x = nx;
+                    if (nx > max_x)
+                        max_x = nx;
                 }
             }
         }
@@ -1458,6 +1505,53 @@ static bool carve_ca_blob_anchor_bounds(int y_min, int y_max, int x_min, int x_m
                     cave_set_feat(gy, gx, FEAT_FLOOR);
                     cave_info[gy][gx] |= CAVE_ROOM;
                     floor_count++;
+                    if (gy < min_y)
+                        min_y = gy;
+                    if (gy > max_y)
+                        max_y = gy;
+                    if (gx < min_x)
+                        min_x = gx;
+                    if (gx > max_x)
+                        max_x = gx;
+                }
+            }
+        }
+    }
+
+    /* Bleed outward along the edge to soften rectangles */
+    const int bleed_dirs[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    for (int gy = y1 - 1; gy <= y2 + 1; ++gy)
+    {
+        for (int gx = x1 - 1; gx <= x2 + 1; ++gx)
+        {
+            if (!cave_floor_bold(gy, gx))
+                continue;
+            bool on_edge = (gy == y1 - 1) || (gy == y2 + 1) || (gx == x1 - 1) || (gx == x2 + 1);
+            if (!on_edge)
+                continue;
+            for (int d = 0; d < 4; ++d)
+            {
+                int ny = gy + bleed_dirs[d][0];
+                int nx = gx + bleed_dirs[d][1];
+                if (!in_bounds_fully(ny, nx))
+                    continue;
+                if (cave_floor_bold(ny, nx))
+                    continue;
+                if (cave_feat[ny][nx] != FEAT_WALL_EXTRA)
+                    continue;
+                if (one_in_(4))
+                {
+                    cave_set_feat(ny, nx, FEAT_FLOOR);
+                    cave_info[ny][nx] |= CAVE_ROOM;
+                    floor_count++;
+                    if (ny < min_y)
+                        min_y = ny;
+                    if (ny > max_y)
+                        max_y = ny;
+                    if (nx < min_x)
+                        min_x = nx;
+                    if (nx > max_x)
+                        max_x = nx;
                 }
             }
         }
