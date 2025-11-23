@@ -21,10 +21,11 @@ static const u32b metarun_known_quest_flags[] = {
     METARUN_QUEST_AULE,
     METARUN_QUEST_MANDOS,
     METARUN_QUEST_NIENA,
-    METARUN_QUEST_OROME
+    METARUN_QUEST_OROME,
+    METARUN_QUEST_VARDA
 };
 
-#define METARUN_KNOWN_QUEST_MASK (METARUN_QUEST_TULKAS | METARUN_QUEST_AULE | METARUN_QUEST_MANDOS | METARUN_QUEST_NIENA | METARUN_QUEST_OROME)
+#define METARUN_KNOWN_QUEST_MASK (METARUN_QUEST_TULKAS | METARUN_QUEST_AULE | METARUN_QUEST_MANDOS | METARUN_QUEST_NIENA | METARUN_QUEST_OROME | METARUN_QUEST_VARDA)
 
 static int quest_slot_from_flag(u32b quest_flag)
 {
@@ -197,8 +198,8 @@ void metarun_check_and_update_quests(void)
         return;
     }
     
-    log_trace("Metarun quest check: current_run=%d, tulkas=%d, aule=%d, mandos=%d, niena=%d, orome=%d", 
-              current_idx, p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->niena_quest, p_ptr->orome_quest);
+    log_trace("Metarun quest check: current_run=%d, tulkas=%d, aule=%d, mandos=%d, niena=%d, orome=%d, varda=%d", 
+              current_idx, p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->niena_quest, p_ptr->orome_quest, p_ptr->varda_quest);
 
     /* Only record once per character; completion handlers also call metarun_mark_quest_completed */
     if (p_ptr->tulkas_quest == TULKAS_QUEST_REWARDED && !quest_completion_recorded_for_run(METARUN_QUEST_TULKAS)) {
@@ -224,6 +225,11 @@ void metarun_check_and_update_quests(void)
     if (p_ptr->orome_quest == OROME_QUEST_REWARDED && !quest_completion_recorded_for_run(METARUN_QUEST_OROME)) {
         log_trace("Metarun: Marking Orome quest as completed (rewarded)");
         metarun_mark_quest_completed(METARUN_QUEST_OROME);
+    }
+    
+    if (p_ptr->varda_quest == VARDA_QUEST_REWARDED && !quest_completion_recorded_for_run(METARUN_QUEST_VARDA)) {
+        log_trace("Metarun: Marking Varda quest as completed (rewarded)");
+        metarun_mark_quest_completed(METARUN_QUEST_VARDA);
     }
 }
 
@@ -285,6 +291,15 @@ void metarun_restore_quest_states(void)
         mark_quest_completion_recorded_for_run(METARUN_QUEST_OROME);
     }
     
-    log_trace("Metarun restore: Final quest states - Tulkas: %d, Aule: %d, Mandos: %d, Niena: %d, Orome: %d",
-              p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->niena_quest, p_ptr->orome_quest);
+    /* Restore Varda quest state */
+    if (metarun_quest_completion_count(METARUN_QUEST_VARDA) > 0) {
+        if (p_ptr->varda_quest < VARDA_QUEST_REWARDED) {
+            p_ptr->varda_quest = VARDA_QUEST_REWARDED;
+            log_trace("Metarun restore: Varda quest set to REWARDED (%d)", VARDA_QUEST_REWARDED);
+        }
+        mark_quest_completion_recorded_for_run(METARUN_QUEST_VARDA);
+    }
+    
+    log_trace("Metarun restore: Final quest states - Tulkas: %d, Aule: %d, Mandos: %d, Niena: %d, Orome: %d, Varda: %d",
+              p_ptr->tulkas_quest, p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->niena_quest, p_ptr->orome_quest, p_ptr->varda_quest);
 }

@@ -889,7 +889,7 @@ struct quest_type
     u32b metarun_quest_id; /* Metarun quest ID (M: field) (offset) */
     
     /* Parametric Formula System (P: field) */
-    byte formula_type; /* 0=hardcoded, 1=linear_decay, 2=scaled_range, 3=fixed_percent */
+    byte formula_type; /* 0=hardcoded, 1=linear_decay, 2=scaled_range, 3=fixed_percent, 4=linear_interpolate, 5=exponential */
     float formula_params[4]; /* Parameters for formula calculation */
     byte depth_min; /* Minimum depth for formula */
     byte depth_max; /* Maximum depth for formula */
@@ -1302,9 +1302,15 @@ struct player_type
     s16b orome_spiders_killed; /* Total spiders killed (any type) */
     s16b orome_serpents_killed; /* Total serpents killed (any type) */
     s16b orome_vampires_killed; /* Total vampires killed (any type) */
+    /* Varda quest tracking */
+    byte varda_quest;          /* Varda quest state (VARDA_QUEST_*) */
+    byte varda_vault_ready;    /* Flag: should force Duruin Bastion on this level */
+    byte varda_vault_placed;   /* Flag: bastion successfully placed this run */
+    byte varda_reserved;       /* padding */
+    s16b varda_level;          /* Depth where bastion was placed (for regen) */
     /* Generic quest/vault tracking */
     byte quest_vault_used;     /* Has a quest-designated vault generated this game */
-    byte quest_reserved[15];   /* quest_reserved[0] = any quest spawned flag (run-wide); quest_reserved[1..5] mark quest completions recorded this run */
+    byte quest_reserved[15];   /* quest_reserved[0] = any quest spawned flag (run-wide); quest_reserved[1..6] mark quest completions recorded this run */
 };
 
 /* scores.raw header version == core game version (no independent bumping) */

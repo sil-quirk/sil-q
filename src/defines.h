@@ -52,15 +52,15 @@
 // #define STEAMDECK_SUPPORT
 
 /* Formalized new fork versioning (canonical source for all modules) */
-#define VERSION_STRING "0.9.1.2"
+#define VERSION_STRING "0.9.1.3"
 /*
- * Version components (0.9.1.2).  All on-disk formats (saves, scores, metaruns)
+ * Version components (0.9.1.3).  All on-disk formats (saves, scores, metaruns)
  * MUST match these values; never bump individual subsystems independently.
  */
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 #define VERSION_PATCH 1
-#define VERSION_EXTRA 2   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
+#define VERSION_EXTRA 3   /* Increment when compatibility changes without MAJOR/MINOR/PATCH bump */
 /* Update MIN_VERSION_EXTRA whenever the savefile format changes. */
 #define MIN_VERSION_EXTRA 0  /* Accept earlier 0.9.1.x saves */
 
@@ -244,6 +244,8 @@
 #define R_IDX_MANDOS 20
 #define R_IDX_NIENA 6
 #define R_IDX_OROME 332
+#define R_IDX_DURUIN 126
+#define R_IDX_VARDA 321
 #define R_IDX_SPIDER_HATCHLING 32
 #define R_IDX_ORC_ARCHER 51
 #define R_IDX_ORC_CHAMPION 81
@@ -626,6 +628,7 @@
 #define SPC_OATH_SMITH 6
 #define SPC_OATH_VALOROUS 7  /* Oath of the Valorous Heart */
 #define SPC_UNIQUE_BANE 8  /* Enhanced effectiveness against unique monsters */
+#define SPC_OATH_LIGHT 9   /* Oath of Light */
 
 /*
  * Attack Types
@@ -3558,6 +3561,7 @@
 #define OATH_IRON_FLAG 4
 #define OATH_SMITH_FLAG 8
 #define OATH_VALOROUS_FLAG 16
+#define OATH_LIGHT_FLAG 32
 
 /*
  * Order of Oath skill
@@ -3567,6 +3571,7 @@
 #define OATH_IRON 3
 #define OATH_SMITH 4
 #define OATH_VALOROUS 5
+#define OATH_LIGHT 6
 
 /*
  * States for the Tulkas quest
@@ -3615,6 +3620,13 @@
 #define OROME_TARGET_SERPENT 3
 #define OROME_TARGET_VAMPIRE 4
 
+/* Varda quest states */
+#define VARDA_QUEST_NOT_STARTED 0
+#define VARDA_QUEST_GIVER_PRESENT 1  /* Varda spawned on sunlit early level */
+#define VARDA_QUEST_ACTIVE 2         /* Accepted quest: hunt Duruin's bastion */
+#define VARDA_QUEST_SUCCESS 3        /* Duruin slain */
+#define VARDA_QUEST_REWARDED 4       /* Reward given, quest complete */
+
 /*
  * Quest Parametric Formula Types (P: field)
  */
@@ -3642,6 +3654,7 @@ typedef struct quest_mapping {
 #define QUEST_ID_MANDOS  3  /* Mandos quest in quest.txt */
 #define QUEST_ID_NIENA   4  /* Niena quest in quest.txt */
 #define QUEST_ID_OROME   5  /* Orome quest in quest.txt */
+#define QUEST_ID_VARDA   6  /* Varda quest in quest.txt */
 
 /* Quest mapping table - used by extract_quest_init_texts() and related functions */
 static const quest_mapping quest_id_map[] = {
@@ -3649,7 +3662,8 @@ static const quest_mapping quest_id_map[] = {
     { QUEST_ID_AULE,   "Aule the Smith" },
     { QUEST_ID_MANDOS, "Mandos the Doomsman" },
     { QUEST_ID_NIENA,  "Niena, Lady of Pity" },
-    { QUEST_ID_OROME,  "Orome the Hunter" }
+    { QUEST_ID_OROME,  "Orome the Hunter" },
+    { QUEST_ID_VARDA,  "Varda, Lady of the Stars" }
 };
 
 #define QUEST_COUNT (sizeof(quest_id_map) / sizeof(quest_id_map[0]))

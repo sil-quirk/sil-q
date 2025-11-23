@@ -139,3 +139,23 @@ W:
 W:"For this service, I grant you the Hunter's Insight. Henceforth, with every unique and mighty foe you overcome, your understanding of their fell nature shall deepen. Their strengths will reveal their flaws to your eyes, and your arm will strike ever truer against their kind. The more you kill, the greater your mastery shall become."
 W:
 W:"You have shown a focused purpose, a will that lets deeds speak louder than words. Such resolve makes you worthy to swear an oath of silence, should you choose such a path in a life to come."
+
+# Quest of Varda, Lady of the Stars
+Q:6:Varda, Lady of the Stars
+T:The Star-kindler bids you cleanse the shadows
+C:Find and slay Duruin, least of the balrogs, within his Bastion of shadow
+O:6
+E:DEPTH_RANGE:1:3
+Y:1
+R:varda_quest
+M:METARUN_QUEST_VARDA
+P:LINEAR_INTERPOLATE:1.00:0.15:0:0
+S:0:0:0:0
+I:Starlight pierces the gloom, pooling into a calm presence before you. Varda the Kindler regards you with clear, patient eyes.
+I:
+I:"Child of the darkened Halls, a shard of my light still dwells below, smothered by a petty balrog named Duruin."
+I:"He has raised a bastion of shadow far beneath the Sun, and the whispering shades flock to him."
+I:"Seek out that stronghold. Break his hold on the stolen light and cast his followers down."
+I:"Do this, and I will lay a choice of bright gifts before you, and teach you the oath that keeps the flame within."
+W:A hush falls as the last shadow fades. A voice like distant starlight speaks: "Well done. The stolen light is free, and the Bastion is empty of whispers."
+W:"Choose now one lamp of blessing, and bear it through the night. If you would keep its radiance, swear the Oath of Light and shun all shadowed gear."

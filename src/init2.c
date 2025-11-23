@@ -690,11 +690,17 @@ void init_file_paths(char* path)
         ANGBAND_DIR_SAVE = str_dup(user_root);
     }
 
+    /* Set ANGBAND_DIR_APEX to the actual apex directory in game folder */
+    if (path_build(buf, sizeof(buf), ANGBAND_DIR, "apex"))
+        ANGBAND_DIR_APEX = str_dup(buf);
+    else
+        ANGBAND_DIR_APEX = str_dup(ANGBAND_DIR);
+
+    /* Set up meta directory for scores.raw and metarun data */
     char meta_root[1024];
     if (path_build(meta_root, sizeof(meta_root), user_root, SIL_USER_META_DIR))
     {
         ensure_directory_exists(meta_root, "meta");
-        ANGBAND_DIR_APEX = str_dup(meta_root);
 
         char metarun_dir[1024];
         if (path_build(metarun_dir, sizeof(metarun_dir), meta_root, SIL_USER_META_RUNS))
@@ -709,13 +715,12 @@ void init_file_paths(char* path)
     }
     else
     {
-        ANGBAND_DIR_APEX = str_dup(user_root);
         ANGBAND_DIR_METARUN = str_dup(user_root);
     }
 
-    migrate_legacy_metarun_layout(ANGBAND_DIR_APEX, ANGBAND_DIR_METARUN);
+    migrate_legacy_metarun_layout(meta_root, ANGBAND_DIR_METARUN);
     seed_user_data_from_install(ANGBAND_DIR_DATA);
-    seed_user_meta_from_install(ANGBAND_DIR_APEX, ANGBAND_DIR_METARUN);
+    seed_user_meta_from_install(meta_root, ANGBAND_DIR_METARUN);
     seed_user_saves_from_install(ANGBAND_DIR_SAVE);
     seed_sound_config(user_root);
 #endif /* SIL_USE_LOCAL_DATA */
@@ -958,13 +963,20 @@ static errr init_info(cptr filename, header* head)
     if (fd)
     {
 #ifdef CHECK_MODIFICATION_TIME
-        /* TODO: Need to update check_modification_date to work with SDL_IOStream */
-        /* err = check_modification_date(fd, format("%s.txt", filename)); */
-        err = 0;  /* Skip modification check for now */
+        /* Check if text file is newer than raw file */
+        char txt_path[1024];
+        path_build(txt_path, sizeof(txt_path), ANGBAND_DIR_EDIT, format("%s.txt", filename));
+        err = check_modification_date_sdl(buf, txt_path);
+        if (err)
+        {
+            /* Text file is newer - close raw and regenerate */
+            sdl_fclose(fd);
+            fd = NULL;
+        }
 #endif /* CHECK_MODIFICATION_TIME */
 
         /* Attempt to parse the "raw" file */
-        if (!err)
+        if (fd && !err)
             err = init_info_raw(fd, head);
 
         /* Close it */
@@ -2388,7 +2400,20 @@ void init_angband(void)
     /*** Verify (or create) the "high score" file ***/
 
     /* Build the filename */
+#ifdef SIL_USE_LOCAL_DATA
     path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+#else
+    /* Normal build: scores.raw in meta directory */
+    if (ANGBAND_DIR_METARUN && *ANGBAND_DIR_METARUN) {
+        char meta_dir[1024];
+        SDL_strlcpy(meta_dir, ANGBAND_DIR_METARUN, sizeof(meta_dir));
+        char* last_sep = strrchr(meta_dir, PATH_SEP[0]);
+        if (last_sep) *last_sep = '\0';
+        path_build(buf, sizeof(buf), meta_dir, "scores.raw");
+    } else {
+        path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+    }
+#endif
 
     /* Attempt to open the high score file */
     fd = sdl_fopen(buf, "rb");
@@ -2596,6 +2621,7 @@ void init_angband(void)
 /* --- UPDATED MAIN-MENU HANDLER ---------------------------------------- */
 extern NavResult initial_menu(bool *start_new)
 {
+    log_info("initial_menu: ENTERED - showing main menu");
     int ch;
     NavResult result = NAV_BACK;
     bool intro_story_font = true;
@@ -2639,6 +2665,7 @@ extern NavResult initial_menu(bool *start_new)
     /* enter : CONTINUE  */
     if (ch == '\n' || ch == '\r' || ch == ' ')
     {
+        log_info("initial_menu: User pressed space/enter - starting game");
         *start_new = true;
         result = NAV_OK;   /* start new game */
         goto menu_done;
@@ -2653,6 +2680,7 @@ extern NavResult initial_menu(bool *start_new)
     }
 
 menu_done:
+    log_info("initial_menu: EXITING with result=%d", result);
     if (intro_story_font)
         sdl_story_font_reset();
     return result;

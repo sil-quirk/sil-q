@@ -1476,9 +1476,9 @@ int bane_menu(int* highlight)
     return (0);
 }
 
-#define OATH_TYPES 5
+#define OATH_TYPES 6
 
-static u32b oath_flag[] = { 0L, OATH_MERCY_FLAG, OATH_SILENCE_FLAG, OATH_IRON_FLAG, OATH_SMITH_FLAG, OATH_VALOROUS_FLAG };
+static u32b oath_flag[] = { 0L, OATH_MERCY_FLAG, OATH_SILENCE_FLAG, OATH_IRON_FLAG, OATH_SMITH_FLAG, OATH_VALOROUS_FLAG, OATH_LIGHT_FLAG };
 
 char* oath_name[] = {
     "Nothing",
@@ -1487,6 +1487,7 @@ char* oath_name[] = {
     "Iron",
     "Smith",
     "Valorous Heart",
+    "Light",
 };
 
 char* oath_desc1[] = {
@@ -1496,6 +1497,7 @@ char* oath_desc1[] = {
     "that none will daunt you from facing Morgoth forthwith",
     "to craft all blades and armour by thine own hand",
     "to face your enemy while it has the heart to fight",
+    "to bear the light of the stars and refuse all shadowed gear",
 };
 
 char* oath_desc2[] = {
@@ -1505,6 +1507,7 @@ char* oath_desc2[] = {
     "go up stairs without a Silmaril",
     "pick up weapons or armour from the ground",
     "attack or deal damage to enemies that are fleeing in terror",
+    "wear items that dim or shroud your light",
 };
 
 char* oath_reward[] = {
@@ -1514,6 +1517,7 @@ char* oath_reward[] = {
     "+2 Constitution",
     "+5 Smithing",
     "+1 Dexterity",
+    "+2 Light Radius",
 };
 
 bool oath_invalid(int i) { return ((p_ptr->oaths_broken & oath_flag[i]) > 0); }
@@ -1611,7 +1615,9 @@ int oath_menu(int* highlight)
         "\"Let no blood of the Children stain thy blade in these halls of sorrow\"",
         "\"In silence came I, and in silence shall I depart, as befits the wise\"", 
         "\"Though darkness gather and Balrogs rise, I shall not yield nor turn aside\"",
-        "\"By mine own hand shall all blades be wrought, and no other's craft shall I bear\""
+        "\"By mine own hand shall all blades be wrought, and no other's craft shall I bear\"",
+        "\"Valor guards the fallen foe; the honorable blade stays when terror takes them\"",
+        "\"I will carry unsullied starlight, shunning the shadowed tools that would dim it\""
     };
 
     // Clear the abilities and description area (following abilities_menu2 pattern)
@@ -1678,7 +1684,7 @@ int oath_menu(int* highlight)
             // Tolkien-themed quote
             Term_putstr(COL_DESCRIPTION, 4, -1, TERM_YELLOW, "Quote:");
             // Split long quotes across multiple lines
-            char* quote = oath_tolkien_desc[oath_idx];
+            char* quote = (oath_idx < (int)N_ELEMENTS(oath_tolkien_desc)) ? oath_tolkien_desc[oath_idx] : "";
             if (strlen(quote) > 35) // Description column width is ~38 chars
             {
                 char line1[40], line2[40];
@@ -2092,7 +2098,8 @@ int abilities_menu2(int skilltype, int* highlight)
                      b_ptr->abilitynum == SPC_OATH_SILENCE || 
                      b_ptr->abilitynum == SPC_OATH_IRON ||
                      b_ptr->abilitynum == SPC_OATH_SMITH ||
-                     b_ptr->abilitynum == SPC_OATH_VALOROUS))
+                     b_ptr->abilitynum == SPC_OATH_VALOROUS ||
+                     b_ptr->abilitynum == SPC_OATH_LIGHT))
                 {
                     /* Check if this oath is broken */
                     int oath_id = 0;
@@ -2101,6 +2108,7 @@ int abilities_menu2(int skilltype, int* highlight)
                     else if (b_ptr->abilitynum == SPC_OATH_IRON) oath_id = OATH_IRON;
                     else if (b_ptr->abilitynum == SPC_OATH_SMITH) oath_id = OATH_SMITH;
                     else if (b_ptr->abilitynum == SPC_OATH_VALOROUS) oath_id = OATH_VALOROUS;
+                    else if (b_ptr->abilitynum == SPC_OATH_LIGHT) oath_id = OATH_LIGHT;
                     
                     if (oath_id > 0 && oath_invalid(oath_id))
                     {
@@ -2757,6 +2765,23 @@ void do_cmd_ability_screen(void)
                                         {
                                             // set the new bane type
                                             p_ptr->oath_type = oathchoice;
+                                            
+                                            /* Activate the matching oath ability */
+                                            int oath_special = -1;
+                                            switch (oathchoice) {
+                                                case OATH_MERCY: oath_special = SPC_OATH_MERCY; break;
+                                                case OATH_SILENCE: oath_special = SPC_OATH_SILENCE; break;
+                                                case OATH_IRON: oath_special = SPC_OATH_IRON; break;
+                                                case OATH_SMITH: oath_special = SPC_OATH_SMITH; break;
+                                                case OATH_VALOROUS: oath_special = SPC_OATH_VALOROUS; break;
+                                                case OATH_LIGHT: oath_special = SPC_OATH_LIGHT; break;
+                                            }
+                                            if (oath_special >= 0) {
+                                                p_ptr->have_ability[S_SPC][oath_special] = true;
+                                                p_ptr->innate_ability[S_SPC][oath_special] = true;
+                                                p_ptr->active_ability[S_SPC][oath_special] = true;
+                                                ability_log_record_gain(S_SPC, oath_special);
+                                            }
 
                                             // and make a note in the notes file
                                             do_cmd_note(
@@ -2797,7 +2822,8 @@ void do_cmd_ability_screen(void)
                                                    abilitynum == SPC_OATH_SILENCE || 
                                                    abilitynum == SPC_OATH_IRON ||
                                                    abilitynum == SPC_OATH_SMITH ||
-                                                   abilitynum == SPC_OATH_VALOROUS))
+                                                   abilitynum == SPC_OATH_VALOROUS ||
+                                                   abilitynum == SPC_OATH_LIGHT))
                         {
                             /* Check if oath is broken */
                             bool oath_broken = false;
@@ -2806,6 +2832,7 @@ void do_cmd_ability_screen(void)
                             if (abilitynum == SPC_OATH_IRON && oath_invalid(OATH_IRON)) oath_broken = true;
                             if (abilitynum == SPC_OATH_SMITH && oath_invalid(OATH_SMITH)) oath_broken = true;
                             if (abilitynum == SPC_OATH_VALOROUS && oath_invalid(OATH_VALOROUS)) oath_broken = true;
+                            if (abilitynum == SPC_OATH_LIGHT && oath_invalid(OATH_LIGHT)) oath_broken = true;
                             
                             if (p_ptr->active_ability[skilltype][abilitynum])
                             {

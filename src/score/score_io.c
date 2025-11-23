@@ -7,8 +7,29 @@
 #include "log/log.h"
 #include "score/score_logic.h"
 
+#include <errno.h>
 #include <limits.h>
 #include <string.h>
+
+/* Helper to build score file path correctly for both portable and normal builds */
+static bool build_score_path(char* buf, size_t len, const char* filename)
+{
+#ifdef SIL_USE_LOCAL_DATA
+    /* Portable build: scores in apex directory */
+    return path_build(buf, len, ANGBAND_DIR_APEX, filename);
+#else
+    /* Normal build: scores in meta directory (parent of metaruns) */
+    if (ANGBAND_DIR_METARUN && *ANGBAND_DIR_METARUN) {
+        char meta_dir[1024];
+        SDL_strlcpy(meta_dir, ANGBAND_DIR_METARUN, sizeof(meta_dir));
+        char* last_sep = strrchr(meta_dir, PATH_SEP[0]);
+        if (last_sep) *last_sep = '\0';
+        return path_build(buf, len, meta_dir, filename);
+    } else {
+        return path_build(buf, len, ANGBAND_DIR_APEX, filename);
+    }
+#endif
+}
 
 #define highscore_fd (score_file_active_ctx()->fd)
 #define scores_file_entry_count (score_file_active_ctx()->entry_count)
@@ -205,7 +226,30 @@ static bool score_file_upgrade_to_curses(score_file_ctx* ctx, const char *filepa
 SDL_IOStream* score_file_open(const char *filepath, int mode)
 {
     score_file_ctx* ctx = score_file_active_ctx();
+    score_file_reset_ctx(ctx);
     bool exists = score_file_load_header(ctx, filepath);
+
+    /* If file doesn't exist and caller allows creation, bootstrap header */
+    if (!exists && (mode & O_CREAT)) {
+        score_file_header header;
+        header.version_major = SCORE_FILE_VERSION_MAJOR;
+        header.version_minor = SCORE_FILE_VERSION_MINOR;
+        header.version_patch = SCORE_FILE_VERSION_PATCH;
+        header.version_extra = SCORE_FILE_VERSION_EXTRA;
+        header.entry_count  = 0;
+
+        log_debug("score_file_open: file doesn't exist, creating with header at '%s'", filepath);
+        FILE* new_file = fopen(filepath, "wb");
+        if (new_file) {
+            fwrite(&header, sizeof(header), 1, new_file);
+            fclose(new_file);
+            exists = score_file_load_header(ctx, filepath);
+            log_info("score_file_open: initialized new scores file header at %s", filepath);
+        } else {
+            log_error("score_file_open: failed to create scores file header at %s (errno=%d: %s)", 
+                      filepath, errno, strerror(errno));
+        }
+    }
 
     if (exists && (mode & (O_RDWR | O_WRONLY))) {
         score_file_upgrade_to_curses(ctx, filepath);
@@ -362,7 +406,7 @@ int collect_high_scores(high_score* out, int capacity, bool sort_by_score)
         return 0;
 
     char score_path[1024];
-    path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw");
+    build_score_path(score_path, sizeof(score_path), "scores.raw");
 
     score_file_ctx* ctx = score_file_active_ctx();
     SDL_IOStream* file = ctx ? ctx->fd : NULL;
@@ -574,7 +618,7 @@ errr backup_scores_file(const char *filepath)
 int score_count_alive_entries(void)
 {
     char score_path[1024];
-    path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
+    build_score_path(score_path, sizeof(score_path), "scores.raw");
 
     SDL_IOStream* saved_fd = highscore_fd;
     byte saved_major = scores_file_version_major;
@@ -622,7 +666,7 @@ int score_count_alive_entries(void)
 u32b score_sum_dead_points(void)
 {
     char score_path[1024];
-    path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
+    build_score_path(score_path, sizeof(score_path), "scores.raw");
 
     SDL_IOStream* saved_fd = highscore_fd;
     byte saved_major = scores_file_version_major;
@@ -866,7 +910,8 @@ int highscore_add(high_score* score)
 void upsert_live_score_on_save(void)
 {
     char score_path[1024];
-    path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw");
+    build_score_path(score_path, sizeof(score_path), "scores.raw");
+    log_info("upsert_live_score_on_save: Score path: %s", score_path);
 
     safe_setuid_grab();
     SDL_IOStream* live_fd = score_file_open(score_path, O_RDWR | O_CREAT);
@@ -955,7 +1000,7 @@ int highscore_dead(char* name)
 
     if (!highscore_fd) {
         char buf[1024];
-        path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+        build_score_path(buf, sizeof(buf), "scores.raw");
         highscore_fd = score_file_open(buf, O_RDONLY);
         if (!highscore_fd) return 0;
         opened_here = true;

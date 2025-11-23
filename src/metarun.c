@@ -518,7 +518,21 @@ static bool build_meta_path(char *buf, size_t len,
 
     if (!m)
     {
+#ifdef SIL_USE_LOCAL_DATA
+        /* Portable build: use ANGBAND_DIR_APEX */
         if (!path_build(buf, len, ANGBAND_DIR_APEX, name))
+#else
+        /* Normal build: use parent of ANGBAND_DIR_METARUN (the meta directory) */
+        char meta_dir[1024];
+        if (ANGBAND_DIR_METARUN && *ANGBAND_DIR_METARUN) {
+            SDL_strlcpy(meta_dir, ANGBAND_DIR_METARUN, sizeof(meta_dir));
+            char* last_sep = strrchr(meta_dir, PATH_SEP[0]);
+            if (last_sep) *last_sep = '\0';
+        } else {
+            SDL_strlcpy(meta_dir, ANGBAND_DIR_APEX, sizeof(meta_dir));
+        }
+        if (!path_build(buf, len, meta_dir, name))
+#endif
         {
             log_error("build_meta_path: failed for apex/%s", name);
             return false;
@@ -533,7 +547,12 @@ static bool build_meta_path(char *buf, size_t len,
     else
         strnfmt(sub, sizeof sub, "%s/%08u",
             META_SUBDIR, (unsigned)m->id);
+#ifdef SIL_USE_LOCAL_DATA
     if (!path_build(buf, len, ANGBAND_DIR_APEX, sub))
+#else
+    /* For metarun subdirectories, use ANGBAND_DIR_METARUN */
+    if (!path_build(buf, len, ANGBAND_DIR_METARUN, sub))
+#endif
     {
         log_error("build_meta_path: failed for %s", sub);
         return false;
@@ -4778,7 +4797,7 @@ void metarun_unlock_oath(int oath_id)
         return;
     }
     
-    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-4 to bits 1,2,4,8 */
+    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-based oath_id to bitmask */
     
     /* Update both the global metar and the metaruns array */
     metar.unlocked_oaths |= oath_bit;
@@ -4805,7 +4824,7 @@ void metarun_ban_oath(int oath_id)
         return;
     }
     
-    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-5 to bits 1,2,4,8,16 */
+    byte oath_bit = (1 << (oath_id - 1)); /* Convert 1-based oath_id to bitmask */
     
     /* Update both the global metar and the metaruns array */
     metar.banned_oaths |= oath_bit;

@@ -11,6 +11,7 @@
 #include "angband.h"
 #include "externs.h"
 #include "log/log.h"
+#include "metarun.h"
 
 /*
  * Helper function to determine the equip sound based on item type
@@ -1395,6 +1396,31 @@ void do_cmd_wield(object_type* default_o_ptr, int default_item)
         && (!inventory[INVEN_ARM].k_idx))
     {
         weapon_less_effective = true;
+    }
+    
+    /* Oath of Light: warn before equipping shadowed items */
+    if (chosen_oath(OATH_LIGHT) && !oath_invalid(OATH_LIGHT))
+    {
+        object_flags(o_ptr, &f1, &f2, &f3);
+        if ((f2 & TR2_DARKNESS) || (f3 & TR3_LIGHT_CURSE))
+        {
+            char* prompt = oath_confirmation_prompt(OATH_LIGHT);
+            if (!prompt || !prompt[0]) {
+                prompt = "This item will dim your light. Break the Oath of Light?";
+            }
+            
+            if (!get_check_oath_multiline(prompt))
+            {
+                log_trace("do_cmd_wield: Player declined to break Oath of Light for item (tval=%d, sval=%d)", o_ptr->tval, o_ptr->sval);
+                return;
+            }
+            
+            p_ptr->oaths_broken |= OATH_LIGHT_FLAG;
+            p_ptr->active_ability[S_SPC][SPC_OATH_LIGHT] = false;
+            apply_oath_breaking_curse(OATH_LIGHT);
+            metarun_ban_oath(OATH_LIGHT);
+            log_trace("do_cmd_wield: Oath of Light broken by equipping shadowed item");
+        }
     }
 
     /* Take a turn */

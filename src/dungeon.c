@@ -530,6 +530,9 @@ static void process_world(void)
     /* Check for Oromë quest interaction every turn */
     check_orome_quest_interaction();
 
+    /* Check for Varda quest interaction every turn */
+    check_varda_quest_interaction();
+
     /* Stop now unless the turn count is divisible by 10 */
     if (turn % 10)
         return;
@@ -3514,6 +3517,8 @@ cleanup_intro:
 PlayResult play_game(void)
 {
     bool new_game = false;
+
+    log_info("play_game: FUNCTION ENTERED");
 
     /* Safety: Fix character_icky imbalance from previous game sessions */
     if (character_icky != 0)

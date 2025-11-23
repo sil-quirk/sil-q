@@ -444,8 +444,12 @@ int main(int argc, char* argv[])
         argv[1] = NULL;
     }
 
-    /* Process the player name */
-    process_player_name(true);
+    /* Note: process_player_name() is NOT called here anymore.
+     * It will be called later when we actually know which character we're playing:
+     * - By autoload_alive_from_scores() when loading from scorefile
+     * - By character creation when creating a new character
+     * - After load_player() succeeds
+     */
 
     /* Install "quit" hook */
     log_register_quit_hook(quit_hook);

@@ -113,3 +113,20 @@ M:As your weapon strikes the fleeing foe, the glory of the battle turns to shame
 E:You have chosen a brute's work over a warrior's honor. Your Oath of the Valorous Heart is forever broken, a testament to the valor you have discarded in this age.
 Q:You passed from the world, and your tale is a tainted one. You will be remembered as a warrior who lacked honor, striking down the terrified who fled your might.
 Z:OATH OF THE VALOROUS HEART SUNDERED - Thy blade is stained by a coward's stroke. The noble spirit of honorable combat has fled from thee. No glory shall be found in a victory won over a foe whose heart has failed in this age of the world. Marked forever as one who preyed upon the broken.
+
+# Oath of Light
+O:6:Oath of Light
+T:To bear starlight unsullied
+D:A vow to keep the Kindler's radiance clear, shunning any gear that drinks the light and clouds the path. You carry the stars within, refusing the tools of shadow.
+P:I swear to wear no shadowed gear that dims my light, and to keep the clear radiance of the stars upon my path.
+F:Wield or wear items that dim or curse your light
+R:+2 Light radius - Blessing of Varda's starlight
+A:8:9
+S:0:0:0:0
+B:Cannot equip items that bear DARKNESS or reduce light radius
+U:Complete the Quest of Varda, Lady of the Stars
+C:Your hand closes on a shadowed thing. To take it is to smother the light you swore to bear. Are you certain you wish to break your Oath of Light?
+M:The light within you gutters as you take up shadowed gear. The stars withdraw, leaving your path dim.
+E:The flame you vowed to guard is smothered. Your Oath of Light is broken in this age.
+Q:You passed from the world with your light quenched by shadow. You will be remembered as one who foreswore the stars.
+Z:OATH OF LIGHT EXTINGUISHED - Thy hand has chosen shadow over starlight. No blessing of the Kindler shall rest upon thee in this age. Marked forever as one who broke the light.

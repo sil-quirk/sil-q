@@ -16,6 +16,26 @@
 #include <limits.h>
 #include <string.h>
 
+/* Helper to build score/meta file path correctly for both portable and normal builds */
+static bool build_meta_path(char* buf, size_t len, const char* filename)
+{
+#ifdef SIL_USE_LOCAL_DATA
+    /* Portable build: in apex directory */
+    return path_build(buf, len, ANGBAND_DIR_APEX, filename);
+#else
+    /* Normal build: in meta directory (parent of metaruns) */
+    if (ANGBAND_DIR_METARUN && *ANGBAND_DIR_METARUN) {
+        char meta_dir[1024];
+        SDL_strlcpy(meta_dir, ANGBAND_DIR_METARUN, sizeof(meta_dir));
+        char* last_sep = strrchr(meta_dir, PATH_SEP[0]);
+        if (last_sep) *last_sep = '\0';
+        return path_build(buf, len, meta_dir, filename);
+    } else {
+        return path_build(buf, len, ANGBAND_DIR_APEX, filename);
+    }
+#endif
+}
+
 #define SCORE_RUNS_DB_VERSION 0x00020000u
 #define SCORE_RUN_DETAIL_VERSION 2u
 #define SCORE_RUN_ARTEFACT_CAP_MAX 512
@@ -205,7 +225,7 @@ static void score_runs_import_legacy_scores(void)
     log_debug("score_runs: starting legacy import");
 
     char score_path[1024];
-    if (!path_build(score_path, sizeof(score_path), ANGBAND_DIR_APEX, "scores.raw"))
+    if (!build_meta_path(score_path, sizeof(score_path), "scores.raw"))
         return;
 
     score_file_ctx snapshot;
@@ -275,7 +295,7 @@ static void score_runs_import_legacy_scores(void)
     score_file_set_active_ctx(previous_ctx);
 
     char runs_path[1024];
-    if (!path_build(runs_path, sizeof(runs_path), ANGBAND_DIR_APEX,
+    if (!build_meta_path(runs_path, sizeof(runs_path),
             SCORE_RUNS_DB_FILENAME)) {
         log_debug("score_runs: unable to build path for runs.db");
         mem_free(legacy);
@@ -785,6 +805,8 @@ static u16b score_runs_completed_quests(void)
     if (p_ptr->niena_quest >= NIENA_QUEST_SUCCESS)
         count++;
     if (p_ptr->orome_quest >= OROME_QUEST_SUCCESS)
+        count++;
+    if (p_ptr->varda_quest >= VARDA_QUEST_SUCCESS)
         count++;
     return count;
 }
@@ -1419,7 +1441,7 @@ bool score_runs_record_current_run(const struct high_score* legacy_score,
     score_runs_import_legacy_scores();
 
     char path[1024];
-    if (!path_build(path, sizeof(path), ANGBAND_DIR_APEX, SCORE_RUNS_DB_FILENAME)) {
+    if (!build_meta_path(path, sizeof(path), SCORE_RUNS_DB_FILENAME)) {
         log_warn("score_runs: unable to build path for runs database");
         return false;
     }
@@ -1531,7 +1553,7 @@ bool score_runs_load_details(s64b detail_offset, score_run_detail_block* out)
     memset(out, 0, sizeof(*out));
 
     char path[1024];
-    if (!path_build(path, sizeof(path), ANGBAND_DIR_APEX, SCORE_RUNS_DB_FILENAME))
+    if (!build_meta_path(path, sizeof(path), SCORE_RUNS_DB_FILENAME))
         return false;
 
     safe_setuid_grab();

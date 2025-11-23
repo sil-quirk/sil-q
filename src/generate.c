@@ -109,6 +109,11 @@ static vault_monster_spec vault_monster_table[] = {
     {'U', "c2485b83ba33934d", 0, false, true, true},
     {'G', "7b038638b2981d20", 0, false, true, true},
     {'V', "58d8cf770bfcbe6f", 0, false, true, true},
+    {'B', "9c44dec3f9d6d14c", 0, false, false, true}, /* Duruin, Least of the Balrogs */
+    {'q', "ccff426ff2ef0318", 0, false, true, true},  /* Whispering shadow */
+    {'j', "d5e4892102e9b48a", 0, false, true, true},  /* Shadow spider */
+    {'k', "d2d2f0b7edcf4cf6", 0, false, true, true},  /* Lurking horror */
+    {'n', "7783062d13500802", 0, false, true, true},  /* Nightthorn */
 };
 
 static bool place_vault_monster_token(char symbol, int y, int x)
@@ -154,10 +159,13 @@ static bool place_vault_monster_token(char symbol, int y, int x)
 typedef struct {
     bool has_aule_change;
     bool has_mandos_change;
+    bool has_varda_change;
     int aule_level;
     int mandos_level;
+    int varda_level;
     int aule_forge_y, aule_forge_x;
     int mandos_vault_y, mandos_vault_x;
+    int varda_vault_y, varda_vault_x;
 } pending_quest_states_t;
 
 /* Global variable to track pending quest state changes */
@@ -342,17 +350,19 @@ static bool generic_probability_roll(int depth, int quest_id) {
         return false;
     }
     
-    /* Convert probability to one_in_() parameter */
-    int chance = (int)(1.0f / probability + 0.5f);  /* round to nearest int */
-    int dice_roll = rand_int(chance);  /* Get the actual roll value */
-    bool won = (dice_roll == 0);  /* one_in_(N) succeeds when rand_int(N) == 0 */
+    /* Roll using a 0-9999 scale to preserve fractional probabilities */
+    int threshold = (int)(probability * 10000.0f + 0.5f);
+    if (threshold < 1) threshold = 1;
+    if (threshold > 10000) threshold = 10000;
+    int dice_roll = rand_int(10000);
+    bool won = (dice_roll < threshold);
     
     if (won) {
-        log_trace("Quest lottery: Quest %d WINS! (rolled %d, needed 0, chance was 1/%d = %.1f%%, formula_type=%d)", 
-                 quest_id, dice_roll, chance, probability * 100.0f, q_ptr->formula_type);
+        log_trace("Quest lottery: Quest %d WINS! (rolled %d < %d, chance was %.2f%%, formula_type=%d)", 
+                 quest_id, dice_roll, threshold, probability * 100.0f, q_ptr->formula_type);
     } else {
-        log_trace("Quest lottery: Quest %d roll failed (rolled %d, needed 0, chance was 1/%d = %.1f%%, formula_type=%d)", 
-                 quest_id, dice_roll, chance, probability * 100.0f, q_ptr->formula_type);
+        log_trace("Quest lottery: Quest %d roll failed (rolled %d >= %d, chance was %.2f%%, formula_type=%d)", 
+                 quest_id, dice_roll, threshold, probability * 100.0f, q_ptr->formula_type);
     }
     
     return won;
@@ -375,6 +385,8 @@ static byte* get_quest_state_ptr(u32b var_name_offset) {
         return &p_ptr->niena_quest;
     } else if (SDL_strcasecmp(actual_name, "orome_quest") == 0) {
         return &p_ptr->orome_quest;
+    } else if (SDL_strcasecmp(actual_name, "varda_quest") == 0) {
+        return &p_ptr->varda_quest;
     }
     
     return NULL; /* Unknown quest state variable */
@@ -397,6 +409,8 @@ static int get_metarun_quest_id(u32b id_name_offset) {
         return METARUN_QUEST_NIENA;
     } else if (SDL_strcasecmp(actual_id, "METARUN_QUEST_OROME") == 0) {
         return METARUN_QUEST_OROME;
+    } else if (SDL_strcasecmp(actual_id, "METARUN_QUEST_VARDA") == 0) {
+        return METARUN_QUEST_VARDA;
     }
     
     return 0; /* Unknown metarun quest ID */
@@ -532,8 +546,18 @@ int debug_get_quest_lottery_winner(void) {
 }
 
 static void run_quest_lottery(void) {
+    log_trace("Quest lottery: === LOTTERY START === (depth=%d, quest_reserved[0]=%d)", p_ptr->depth, p_ptr->quest_reserved[0]);
+    
     if (quest_lottery_resolved) {
         log_trace("Quest lottery: Already resolved for this level (winner=%d)", quest_lottery_winner);
+        return;
+    }
+    
+    /* If Varda quest is active/successful, suppress other roulette quests entirely */
+    if (p_ptr->varda_quest >= VARDA_QUEST_ACTIVE) {
+        log_trace("Quest lottery: SKIPPED - Varda quest in progress (state=%d)", p_ptr->varda_quest);
+        quest_lottery_winner = 0;
+        quest_lottery_resolved = true;
         return;
     }
     
@@ -552,18 +576,27 @@ static void run_quest_lottery(void) {
     
     /* CRITICAL: Do not run lottery if any quest is already started on this character */
     log_trace("Quest lottery: Checking current quest states before lottery");
-    log_trace("Quest lottery: tulkas=%d, niena=%d, orome=%d, aule=%d, mandos=%d", 
-              p_ptr->tulkas_quest, p_ptr->niena_quest, p_ptr->orome_quest, p_ptr->aule_quest, p_ptr->mandos_quest);
-    log_trace("Quest lottery: quest_reserved[0]=%d (any quest spawned flag)", p_ptr->quest_reserved[0]);
+    log_trace("Quest lottery: tulkas=%d, niena=%d, orome=%d, aule=%d, mandos=%d, varda=%d", 
+              p_ptr->tulkas_quest, p_ptr->niena_quest, p_ptr->orome_quest, p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->varda_quest);
+    log_trace("Quest lottery: quest_reserved[0]=%d (any quest spawned flag - should block all quests if set)", p_ptr->quest_reserved[0]);
+    
+    /* Check if any quest slot is already reserved */
+    if (p_ptr->quest_reserved[0]) {
+        log_trace("Quest lottery: BLOCKED - quest slot already reserved (quest_reserved[0]=1), one-quest-per-run enforced");
+        quest_lottery_winner = 0;
+        quest_lottery_resolved = true;
+        return;
+    }
     
     if (p_ptr->tulkas_quest > TULKAS_QUEST_NOT_STARTED || 
         p_ptr->niena_quest > NIENA_QUEST_NOT_STARTED ||
         p_ptr->orome_quest > OROME_QUEST_NOT_STARTED ||
         p_ptr->aule_quest > AULE_QUEST_NOT_STARTED ||
-        p_ptr->mandos_quest > MANDOS_QUEST_NOT_STARTED) {
+        p_ptr->mandos_quest > MANDOS_QUEST_NOT_STARTED ||
+        p_ptr->varda_quest > VARDA_QUEST_NOT_STARTED) {
         
-        log_trace("Quest lottery: SKIPPED - quest already started on this character (tulkas=%d, niena=%d, orome=%d, aule=%d, mandos=%d)", 
-                  p_ptr->tulkas_quest, p_ptr->niena_quest, p_ptr->orome_quest, p_ptr->aule_quest, p_ptr->mandos_quest);
+        log_trace("Quest lottery: SKIPPED - quest already started on this character (tulkas=%d, niena=%d, orome=%d, aule=%d, mandos=%d, varda=%d)", 
+                  p_ptr->tulkas_quest, p_ptr->niena_quest, p_ptr->orome_quest, p_ptr->aule_quest, p_ptr->mandos_quest, p_ptr->varda_quest);
         quest_lottery_winner = 0;
         quest_lottery_resolved = true;
         return;
@@ -594,10 +627,15 @@ static void run_quest_lottery(void) {
     log_trace("Quest lottery: Random evaluation order generated for %d quests", roulette_quest_count);
     for (int i = 0; i < roulette_quest_count; i++) {
         roulette_quest_entry* entry = &roulette_quests[quest_order[i]];
+        const char* quest_name = "Unknown";
+        if (entry->quest_id > 0 && entry->quest_id < z_info->quest_max) {
+            quest_type* q_ptr = &quest_info[entry->quest_id];
+            if (q_ptr->name && quest_name_text) {
+                quest_name = quest_name_text + q_ptr->name;
+            }
+        }
         log_trace("Quest lottery: Order position %d -> Quest %d (%s)", 
-                  i, entry->quest_id, 
-                  entry->quest_id == 1 ? "Tulkas" : 
-                  entry->quest_id == 4 ? "Niena" : "Unknown");
+                  i, entry->quest_id, quest_name);
     }
     
     /* Evaluate quests in random order */
@@ -647,13 +685,17 @@ static void run_quest_lottery(void) {
     }
     
     /* No quest won the lottery */
-    log_trace("Quest lottery: No quest won - level remains quest-free");
+    log_trace("Quest lottery: === LOTTERY END === No quest won - level remains quest-free");
 }
 
 /* Function to reset pending quest state changes */
 static void reset_pending_quest_states(void) {
     pending_quest_states.has_aule_change = false;
     pending_quest_states.has_mandos_change = false;
+    pending_quest_states.has_varda_change = false;
+    pending_quest_states.varda_level = 0;
+    pending_quest_states.varda_vault_y = 0;
+    pending_quest_states.varda_vault_x = 0;
     
     /* Reset quest lottery for new level */
     quest_lottery_winner = 0;
@@ -705,30 +747,36 @@ static void reset_quest_vault_states(void) {
         p_ptr->niena_monsters_seen = 0;
         p_ptr->niena_monsters_killed = 0;
     }
+
+    /* Reset entrance-based quests (Varda) - spawns during generation on early depths */
+    if (p_ptr->varda_quest == VARDA_QUEST_GIVER_PRESENT && p_ptr->varda_level == p_ptr->depth) {
+        log_trace("Quest vault regeneration: Resetting Varda quest from GIVER_PRESENT to NOT_STARTED (level %d)", p_ptr->depth);
+        p_ptr->varda_quest = VARDA_QUEST_NOT_STARTED;
+        p_ptr->varda_level = 0;
+    }
     
     /* CRITICAL: Preserve quest lottery result during regeneration */
     /* The lottery determines which quest (if any) owns this level and should persist */
     /* across all regeneration attempts until the quest succeeds or we abandon the level */
     
     /* Reset quest states to allow fresh placement attempts, but preserve reservation */
-    if (quest_lottery_winner == 1) { /* Tulkas won the lottery */
-        /* Keep quest_reserved[0] = 1 since Tulkas owns this level */
+    bool quest_active = (quest_lottery_winner > 0) ||
+                        (p_ptr->tulkas_quest > TULKAS_QUEST_NOT_STARTED) ||
+                        (p_ptr->niena_quest > NIENA_QUEST_NOT_STARTED) ||
+                        (p_ptr->orome_quest > OROME_QUEST_NOT_STARTED) ||
+                        (p_ptr->aule_quest > AULE_QUEST_NOT_STARTED) ||
+                        (p_ptr->mandos_quest > MANDOS_QUEST_NOT_STARTED) ||
+                        (p_ptr->varda_quest > VARDA_QUEST_NOT_STARTED);
+    
+    if (quest_active) {
+        /* Keep quest_reserved[0] = 1 since a quest owns this level/run */
         if (!p_ptr->quest_reserved[0]) {
             p_ptr->quest_reserved[0] = 1;
-            log_trace("Quest vault regeneration: Tulkas owns this level - ensuring quest_reserved[0] = 1");
+            log_trace("Quest vault regeneration: Quest context active (lottery=%d) - ensuring quest_reserved[0] = 1", quest_lottery_winner);
         }
-    } else if (quest_lottery_winner == 4) { /* Niena won the lottery (quest ID 4) */
-        /* Keep quest_reserved[0] = 1 since Niena owns this level */
-        if (!p_ptr->quest_reserved[0]) {
-            p_ptr->quest_reserved[0] = 1;
-            log_trace("Quest vault regeneration: Niena owns this level - ensuring quest_reserved[0] = 1");
-        }
-    } else {
-        /* No quest won the lottery - safe to reset everything */
-        if (p_ptr->quest_reserved[0]) {
-            log_trace("Quest vault regeneration: No quest owns this level - resetting quest_reserved[0] from 1 to 0");
-            p_ptr->quest_reserved[0] = 0;
-        }
+    } else if (p_ptr->quest_reserved[0]) {
+        log_trace("Quest vault regeneration: No quest owns this level - resetting quest_reserved[0] from 1 to 0");
+        p_ptr->quest_reserved[0] = 0;
     }
     
     log_trace("Quest vault regeneration: END - quest_reserved[0]=%d, lottery_winner=%d", 
@@ -750,6 +798,14 @@ static void apply_pending_quest_states(void) {
         p_ptr->quest_reserved[0] = 1; /* Mark that a quest has spawned this run */
         log_trace("Mandos quest: GIVER_PRESENT APPLIED (deferred from quest vault) at %d,%d depth=%d", 
                   pending_quest_states.mandos_vault_y, pending_quest_states.mandos_vault_x, pending_quest_states.mandos_level);
+    }
+    if (pending_quest_states.has_varda_change) {
+        p_ptr->varda_level = pending_quest_states.varda_level;
+        p_ptr->varda_vault_placed = 1;
+        p_ptr->varda_vault_ready = 0;
+        p_ptr->quest_reserved[0] = 1; /* Mark that a quest has spawned this run */
+        log_trace("Varda quest: Bastion placement APPLIED (deferred) at %d,%d depth=%d", 
+                  pending_quest_states.varda_vault_y, pending_quest_states.varda_vault_x, pending_quest_states.varda_level);
     }
     
     /* Reset pending changes after applying them */
@@ -3852,6 +3908,41 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 place_vault_monster_token('V', y, x);
                 break;
             }
+            
+            /* Duruin (Least of the Balrogs) */
+            case 'B':
+            {
+                place_vault_monster_token('B', y, x);
+                break;
+            }
+            
+            /* Whispering shadow */
+            case 'q':
+            {
+                place_vault_monster_token('q', y, x);
+                break;
+            }
+            
+            /* Shadow spider */
+            case 'j':
+            {
+                place_vault_monster_token('j', y, x);
+                break;
+            }
+            
+            /* Lurking horror */
+            case 'k':
+            {
+                place_vault_monster_token('k', y, x);
+                break;
+            }
+            
+            /* Nightthorn */
+            case 'n':
+            {
+                place_vault_monster_token('n', y, x);
+                break;
+            }
             }
         }
     }
@@ -4174,6 +4265,13 @@ static bool vault_template_has_mandos(vault_type *v) {
         s += strlen(s) + 1; /* advance to next stored line (null-terminated) */
     }
     return false;
+}
+
+static bool vault_template_has_duruin(vault_type *v) {
+    if (!v) return false;
+    /* Check vault name directly - Duruin Bastion is vault ID 461 */
+    const char *name = v_name + v->name;
+    return (strstr(name, "Duruin") != NULL || strstr(name, "Bastion") != NULL);
 }
 
 /* Global variables to store quest vault coordinates for monitoring */
@@ -4688,6 +4786,76 @@ static bool room_build(int typ)
  * Try to place a quest vault of specified type using forced placement strategy
  * Returns true if successfully placed, false otherwise
  */
+static bool place_duruin_bastion(void)
+{
+    vault_type* qv_ptr;
+    int y, x;
+    
+    log_trace("Varda quest: Attempting to force-place Duruin Bastion at depth %d", p_ptr->depth);
+    
+    for (int i = 0; i < z_info->v_max; i++)
+    {
+        qv_ptr = &v_info[i];
+        if (!(qv_ptr->flags & VLT_QUEST)) continue;
+        if (!vault_template_has_duruin(qv_ptr)) continue;
+        if (qv_ptr->depth > p_ptr->depth) continue;
+        
+        /* Found Duruin Bastion - attempt placement and return result */
+        log_trace("Varda quest: Found Duruin Bastion vault at index %d: '%s', attempting placement", i, v_name + qv_ptr->name);
+        log_trace("Varda quest: Vault details - typ=%d, hgt=%d, wid=%d, depth=%d, flags=0x%x", 
+                  qv_ptr->typ, qv_ptr->hgt, qv_ptr->wid, qv_ptr->depth, qv_ptr->flags);
+        
+        /* Reserve quest slot immediately to prevent other quest spawning during placement */
+        p_ptr->quest_reserved[0] = 1;
+        
+        int center_y = p_ptr->cur_map_hgt / 2;
+        int center_x = p_ptr->cur_map_wid / 2;
+        
+        /* Attempt primary placement near center */
+        y = center_y + rand_range(-p_ptr->cur_map_hgt/6, p_ptr->cur_map_hgt/6);
+        x = center_x + rand_range(-p_ptr->cur_map_wid/6, p_ptr->cur_map_wid/6);
+        y = MAX(qv_ptr->hgt/2 + 3, MIN(y, p_ptr->cur_map_hgt - qv_ptr->hgt/2 - 3));
+        x = MAX(qv_ptr->wid/2 + 3, MIN(x, p_ptr->cur_map_wid - qv_ptr->wid/2 - 3));
+        
+        if (place_room_forced(y, x, qv_ptr)) {
+            qv_placed_this_level = true;
+            process_quest_vault_area(y, x, qv_ptr);
+            pending_quest_states.has_varda_change = true;
+            pending_quest_states.varda_level = p_ptr->depth;
+            pending_quest_states.varda_vault_y = y;
+            pending_quest_states.varda_vault_x = x;
+            log_trace("Varda quest: Duruin Bastion placed at (%d,%d)", y, x);
+            return true;
+        }
+        
+        /* Fallback attempts with wider variance */
+        for (int attempts = 0; attempts < 10; attempts++) {
+            y = center_y + rand_range(-p_ptr->cur_map_hgt/4, p_ptr->cur_map_hgt/4);
+            x = center_x + rand_range(-p_ptr->cur_map_wid/4, p_ptr->cur_map_wid/4);
+            y = MAX(qv_ptr->hgt/2 + 3, MIN(y, p_ptr->cur_map_hgt - qv_ptr->hgt/2 - 3));
+            x = MAX(qv_ptr->wid/2 + 3, MIN(x, p_ptr->cur_map_wid - qv_ptr->wid/2 - 3));
+            
+            if (place_room_forced(y, x, qv_ptr)) {
+                qv_placed_this_level = true;
+                process_quest_vault_area(y, x, qv_ptr);
+                pending_quest_states.has_varda_change = true;
+                pending_quest_states.varda_level = p_ptr->depth;
+                pending_quest_states.varda_vault_y = y;
+                pending_quest_states.varda_vault_x = x;
+                log_trace("Varda quest: Duruin Bastion placed on fallback attempt %d at (%d,%d)", attempts + 1, y, x);
+                return true;
+            }
+        }
+        
+        /* If we reach here, Duruin placement failed - return immediately without trying other vaults */
+        log_trace("Varda quest: Duruin Bastion placement failed after all attempts, returning false");
+        return false;
+    }
+    
+    log_trace("Varda quest: Failed to find Duruin Bastion vault template at depth %d", p_ptr->depth);
+    return false;
+}
+
 static bool try_quest_vault_type(int v_type)
 {
     int i;
@@ -4702,6 +4870,10 @@ static bool try_quest_vault_type(int v_type)
         if (qv_ptr->typ != v_type) continue;
         if (!(qv_ptr->flags & VLT_QUEST)) continue;
         if (qv_ptr->depth > p_ptr->depth) continue;
+        if (vault_template_has_duruin(qv_ptr)) {
+            log_trace("Quest vault: Skipping Duruin Bastion in generic placement path (quest-only)");
+            continue;
+        }
         
         log_trace("Quest vault: Checking vault %d '%s' (rarity=%d)", i, v_name + qv_ptr->name, qv_ptr->rarity);
         
@@ -4712,7 +4884,8 @@ static bool try_quest_vault_type(int v_type)
         
         /* Check Aule requirements */
         if (vault_template_has_aule(qv_ptr)) {
-            log_trace("Quest vault: Aule vault detected - checking eligibility (depth=%d)", p_ptr->depth);
+            log_trace("Quest vault: === AULE VAULT DETECTED === Checking eligibility (depth=%d)", p_ptr->depth);
+            log_trace("Quest vault: CRITICAL CHECK - quest_reserved[0]=%d (MUST be 0 to proceed)", p_ptr->quest_reserved[0]);
             log_trace("  Player SMT skill_base = %d", p_ptr->skill_base[S_SMT]);
             log_trace("  Player SMT skill_use = %d", p_ptr->skill_use[S_SMT]);
             
@@ -4728,10 +4901,10 @@ static bool try_quest_vault_type(int v_type)
                 continue;
             }
             if (p_ptr->quest_reserved[0]) {
-                log_trace("Quest vault: Aule vault skipped (another quest already spawned this run)");
+                log_trace("Quest vault: === AULE BLOCKED === Another quest already spawned (quest_reserved[0]=1)");
                 continue;
             }
-            log_trace("Quest vault: Aule vault APPROVED for generation");
+            log_trace("Quest vault: === AULE APPROVED === All checks passed, proceeding with generation");
         }
         
         /* Check Mandos requirements */
@@ -5010,6 +5183,48 @@ void make_patches_of_sunlight()
     }
 }
 
+static void ensure_sunlight_for_varda(void)
+{
+    /* Only relevant for the first few levels */
+    if (p_ptr->depth > 3) return;
+    
+    /* Check for valid sunlight spawn locations (sunlight on floor tiles) */
+    bool has_valid_sunlight = false;
+    for (int y = 1; y < p_ptr->cur_map_hgt - 1 && !has_valid_sunlight; y++) {
+        for (int x = 1; x < p_ptr->cur_map_wid - 1; x++) {
+            if (cave_feat[y][x] == FEAT_SUNLIGHT && 
+                cave_floor_bold(y, x) && 
+                !(cave_info[y][x] & CAVE_ICKY)) {
+                has_valid_sunlight = true;
+                break;
+            }
+        }
+    }
+    
+    if (!has_valid_sunlight) {
+        log_trace("Varda spawn: No valid sunlight spawn locations detected, seeding patches");
+        make_patches_of_sunlight();
+        
+        /* Verify at least one valid location exists after patching */
+        bool verified = false;
+        for (int y = 1; y < p_ptr->cur_map_hgt - 1 && !verified; y++) {
+            for (int x = 1; x < p_ptr->cur_map_wid - 1; x++) {
+                if (cave_feat[y][x] == FEAT_SUNLIGHT && 
+                    cave_floor_bold(y, x) && 
+                    !(cave_info[y][x] & CAVE_ICKY)) {
+                    verified = true;
+                    log_trace("Varda spawn: Verified valid sunlight location at (%d,%d)", y, x);
+                    break;
+                }
+            }
+        }
+        
+        if (!verified) {
+            log_trace("Varda spawn: WARNING - No valid sunlight locations after patching!");
+        }
+    }
+}
+
 /*
  * Generate a new dungeon level
  *
@@ -5026,6 +5241,7 @@ static bool cave_gen(void)
     int room_attempts = 0;
 
     int is_guaranteed_forge_level = false;
+    bool duruin_bastion_forced = false;
     
     /* Reset quest vault monitoring variables for this level */
     qv_placed_this_level = false;
@@ -5037,6 +5253,23 @@ static bool cave_gen(void)
     /* Debug: Log entry into cave_gen */
     log_trace("cave_gen: Starting level generation (quest_vault_used=%s, lottery_winner=%d)", 
               p_ptr->quest_vault_used ? "true" : "false", quest_lottery_winner);
+    
+    /* Varda quest reserves the run to avoid other quest content until complete */
+    if (p_ptr->varda_quest >= VARDA_QUEST_ACTIVE && !p_ptr->quest_reserved[0]) {
+        p_ptr->quest_reserved[0] = 1;
+        log_trace("Varda quest: === QUEST SLOT RESERVED === Active Varda quest reserves slot (state=%d)", p_ptr->varda_quest);
+    }
+    
+    log_trace("cave_gen: Quest status at level start - quest_reserved[0]=%d, varda_quest=%d, lottery_winner=%d",
+              p_ptr->quest_reserved[0], p_ptr->varda_quest, quest_lottery_winner);
+    
+    /* Varda quest: flag forced bastion placement on first level deeper than 500ft */
+    if (p_ptr->varda_quest == VARDA_QUEST_ACTIVE && !p_ptr->varda_vault_placed && p_ptr->depth > 10) {
+        if (!p_ptr->varda_vault_ready) {
+            log_trace("Varda quest: Crossing 500ft, setting bastion_ready at depth %d", p_ptr->depth);
+        }
+        p_ptr->varda_vault_ready = 1;
+    }
     s16b mon_gen, obj_room_gen;
 
     dun_data dun_body;
@@ -5047,8 +5280,8 @@ static bool cave_gen(void)
     /* Sil - determine the dungeon size */
     /* note: Panel height and width is 1/6 of max height/width*/
 
-    // between 3x3 and 5x5
-    l = 3 + ((p_ptr->depth + dieroll(5)) / 10);
+    // between 4x4 and 5x5
+    l = 4 + ((p_ptr->depth + dieroll(5)) / 10);
 
     p_ptr->cur_map_hgt = l * (PANEL_HGT);
     p_ptr->cur_map_wid = l * (PANEL_WID_FIXED);
@@ -5120,23 +5353,47 @@ static bool cave_gen(void)
     log_trace("Quest vault: Starting quest vault check (quest_vault_used=%s, force_forge=%s)", 
               p_ptr->quest_vault_used ? "true" : "false", 
               p_ptr->force_forge ? "true" : "false");
+    
+    /* If Varda's quest is active and the bastion is due, force its placement first */
+    log_trace("Quest vault check: varda_vault_ready=%d, varda_quest=%d (ACTIVE=%d), varda_vault_placed=%d",
+              p_ptr->varda_vault_ready, p_ptr->varda_quest, VARDA_QUEST_ACTIVE, p_ptr->varda_vault_placed);
+    
+    if (p_ptr->varda_vault_ready && p_ptr->varda_quest == VARDA_QUEST_ACTIVE && !p_ptr->varda_vault_placed) {
+        log_trace("Quest vault: === DURUIN BASTION FORCE PLACEMENT === Starting at depth %d", p_ptr->depth);
+        if (!place_duruin_bastion()) {
+            log_trace("Quest vault: === DURUIN BASTION FAILED === Regenerating level");
+            return false;
+        }
+        log_trace("Quest vault: === DURUIN BASTION SUCCESS === Placed successfully");
+        duruin_bastion_forced = true;
+    } else if (p_ptr->varda_quest == VARDA_QUEST_ACTIVE) {
+        log_trace("Quest vault: Varda quest ACTIVE but bastion not ready (vault_ready=%d, vault_placed=%d)",
+                  p_ptr->varda_vault_ready, p_ptr->varda_vault_placed);
+    }
               
     /* QUEST VAULT REGENERATION FIX: Allow quest vault re-placement during regeneration */
     /* Quest vaults can be placed if: */
     /* 1. quest_vault_used is false (haven't successfully completed a quest vault this run), OR */
     /* 2. We're in a regeneration scenario (quest vault was placed before but level failed) */
-    if (!p_ptr->quest_vault_used)
+    if (!p_ptr->quest_vault_used && !duruin_bastion_forced)
     {
         /* QUEST VAULT REGENERATION FIX: Remove the quest_vault_attempted_this_level check */
         /* to allow quest vault re-placement during level regeneration */
         
-        /* Check if any quest is already active */
+        /* Check if any quest is already active - ONE QUEST PER RUN ENFORCEMENT */
+        log_trace("Quest vault: Checking one-quest-per-run enforcement:");
+        log_trace("Quest vault:   quest_reserved[0]=%d (should block if 1)", p_ptr->quest_reserved[0]);
+        log_trace("Quest vault:   tulkas=%d, mandos=%d, aule=%d, varda=%d",
+                  p_ptr->tulkas_quest, p_ptr->mandos_quest, p_ptr->aule_quest, p_ptr->varda_quest);
+        
         if (p_ptr->quest_reserved[0] || 
             p_ptr->tulkas_quest != TULKAS_QUEST_NOT_STARTED ||
             p_ptr->mandos_quest != MANDOS_QUEST_NOT_STARTED ||
-            p_ptr->aule_quest != AULE_QUEST_NOT_STARTED) {
-            log_trace("Quest vault: Skipping - quest already active (tulkas=%d, mandos=%d, aule=%d, reserved=%d)", 
-                     p_ptr->tulkas_quest, p_ptr->mandos_quest, p_ptr->aule_quest, p_ptr->quest_reserved[0]);
+            p_ptr->aule_quest != AULE_QUEST_NOT_STARTED ||
+            p_ptr->varda_quest != VARDA_QUEST_NOT_STARTED) {
+            log_trace("Quest vault: === BLOCKED === Quest already active - one quest per run enforced (tulkas=%d, mandos=%d, aule=%d, varda=%d, reserved=%d)", 
+                     p_ptr->tulkas_quest, p_ptr->mandos_quest, p_ptr->aule_quest, p_ptr->varda_quest, p_ptr->quest_reserved[0]);
+            /* Don't place any quest vaults - skip to end */
         } else {
             int quest_vault_roll = dieroll(p_ptr->depth + 5);
             log_trace("Quest vault: Level determination roll = %d", quest_vault_roll);
@@ -5154,16 +5411,31 @@ static bool cave_gen(void)
             {
                 log_trace("Quest vault: Hit greater vault threshold (%d >= 18), trying quest vaults 8->7->6", quest_vault_roll);
                 quest_vault_placed = try_quest_vault_type(8) || try_quest_vault_type(7) || try_quest_vault_type(6);
+                
+                if (!quest_vault_placed) {
+                    log_trace("Quest vault: === FAILED TO PLACE REQUIRED QUEST VAULT === Regenerating level");
+                    return false; /* Force regeneration to guarantee quest vault spawns */
+                }
             }
             else if (quest_vault_roll >= 13)
             {
                 log_trace("Quest vault: Hit lesser vault threshold (%d >= 13), trying quest vaults 7->6", quest_vault_roll);
                 quest_vault_placed = try_quest_vault_type(7) || try_quest_vault_type(6);
+                
+                if (!quest_vault_placed) {
+                    log_trace("Quest vault: === FAILED TO PLACE REQUIRED QUEST VAULT === Regenerating level");
+                    return false; /* Force regeneration to guarantee quest vault spawns */
+                }
             }
             else if (quest_vault_roll >= 8)
             {
                 log_trace("Quest vault: Hit interesting room threshold (%d >= 8), trying quest vault 6", quest_vault_roll);
                 quest_vault_placed = try_quest_vault_type(6);
+                
+                if (!quest_vault_placed) {
+                    log_trace("Quest vault: === FAILED TO PLACE REQUIRED QUEST VAULT === Regenerating level");
+                    return false; /* Force regeneration to guarantee quest vault spawns */
+                }
             }
             else
             {
@@ -5179,6 +5451,14 @@ static bool cave_gen(void)
                 log_trace("Quest vault: No quest vault placed this level");
             }
         }
+    }
+    else if (p_ptr->varda_quest >= VARDA_QUEST_ACTIVE)
+    {
+        log_trace("Quest vault: === VARDA QUEST BLOCKS === No other quest vaults allowed while Varda quest active (state=%d)", p_ptr->varda_quest);
+    }
+    else if (duruin_bastion_forced)
+    {
+        log_trace("Quest vault: Bastion already placed for Varda quest, skipping other quest vault attempts this level");
     }
     else
     {
@@ -5205,7 +5485,7 @@ static bool cave_gen(void)
             log_trace("Room generation: Building standard room (r=%d)", r);
             room_build(1);
         }
-        else if ((r < 8) || p_ptr->depth == 1)
+        else if (r < 8)
         {
             // cross room
             log_trace("Room generation: Building cross room (r=%d)", r);
@@ -5348,6 +5628,96 @@ static bool cave_gen(void)
     for (i = mon_gen; i > 0; i--)
     {
         (void)alloc_monster(false, false);
+    }
+    
+    /* Check for Varda quest spawning - lottery-based */
+    log_trace("Varda spawn check: lottery_winner=%d (QUEST_ID_VARDA=%d), depth=%d, varda_quest=%d", 
+              quest_lottery_winner, QUEST_ID_VARDA, p_ptr->depth, p_ptr->varda_quest);
+    
+    if (quest_lottery_winner == QUEST_ID_VARDA) { /* Varda is quest ID 6 */
+        log_trace("Varda spawn: === VARDA WON LOTTERY === Attempting spawn at depth %d", p_ptr->depth);
+        log_trace("Varda spawn: Current state - varda_quest=%d, quest_reserved[0]=%d", 
+                  p_ptr->varda_quest, p_ptr->quest_reserved[0]);
+        
+        /* Safety: enforce early-depth requirement even if data is misconfigured */
+        if (p_ptr->depth > 3) {
+            log_trace("Varda spawn: FAILED - depth %d exceeds allowed range 1-3", p_ptr->depth);
+            return false; /* Force regeneration until early depth is honored */
+        }
+        
+        /* Ensure there is at least some sunlight on the level */
+        log_trace("Varda spawn: Ensuring sunlight exists on level");
+        ensure_sunlight_for_varda();
+        log_trace("Varda spawn: Sunlight check complete");
+        
+        /* Check if Varda already exists on this level */
+        log_trace("Varda spawn: Checking if Varda already exists on this level (mon_max=%d)", mon_max);
+        bool varda_exists = false;
+        for (int j = 1; j < mon_max; j++)
+        {
+            monster_type *m_ptr = &mon_list[j];
+            if (m_ptr->r_idx == R_IDX_VARDA)
+            {
+                varda_exists = true;
+                log_trace("Varda spawn: Found existing Varda at monster index %d", j);
+                break;
+            }
+        }
+        
+        if (!varda_exists)
+        {
+            log_trace("Varda spawn: No existing Varda found, attempting placement");
+            bool varda_spawned = false;
+            int valid_attempts = 0;
+            int invalid_no_sunlight = 0;
+            int invalid_not_floor = 0;
+            int invalid_has_monster = 0;
+            int invalid_icky = 0;
+            
+            /* Prefer to spawn near the player start on a sunlit tile */
+            log_trace("Varda spawn: Starting placement attempts (max 120)");
+            for (int attempts = 0; attempts < 120 && !varda_spawned; attempts++)
+            {
+                int try_y = rand_int(p_ptr->cur_map_hgt);
+                int try_x = rand_int(p_ptr->cur_map_wid);
+                
+                if (try_y <= 0 || try_y >= p_ptr->cur_map_hgt - 1 ||
+                    try_x <= 0 || try_x >= p_ptr->cur_map_wid - 1)
+                    continue;
+                
+                if (cave_feat[try_y][try_x] != FEAT_SUNLIGHT) { invalid_no_sunlight++; continue; }
+                if (!cave_floor_bold(try_y, try_x)) { invalid_not_floor++; continue; }
+                if (cave_m_idx[try_y][try_x] != 0) { invalid_has_monster++; continue; }
+                if (cave_info[try_y][try_x] & CAVE_ICKY) { invalid_icky++; continue; }
+                
+                valid_attempts++;
+                
+                if (place_monster_one(try_y, try_x, R_IDX_VARDA, true, true, NULL))
+                {
+                    p_ptr->varda_quest = VARDA_QUEST_GIVER_PRESENT;
+                    p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
+                    p_ptr->varda_level = p_ptr->depth;
+                    varda_spawned = true;
+                    log_trace("Varda spawn: === SUCCESS === Placed at (%d,%d) on sunlight tile", try_y, try_x);
+                    log_trace("Varda spawn: Quest state set to GIVER_PRESENT (%d), quest_reserved[0]=1", p_ptr->varda_quest);
+                }
+            }
+            
+            log_trace("Varda spawn: Placement attempts complete - valid=%d, no_sunlight=%d, not_floor=%d, has_monster=%d, icky=%d",
+                      valid_attempts, invalid_no_sunlight, invalid_not_floor, invalid_has_monster, invalid_icky);
+            
+            if (!varda_spawned)
+            {
+                log_trace("Varda spawn: === FAILED === Could not find valid sunlight tile after 120 attempts - REGENERATING LEVEL");
+                return false; /* Force regeneration to honor 100% spawn guarantee */
+            }
+        }
+        else
+        {
+            log_trace("Varda spawn: Varda already present on level, skipping placement");
+        }
+    } else {
+        log_trace("Varda spawn: SKIPPED - did not win lottery (winner=%d)", quest_lottery_winner);
     }
 
     /* Check for Tulkas quest spawning - only if it won the lottery */
@@ -6129,7 +6499,7 @@ if (playerturn == 0) {
                     quest_vault_placed_this_attempt = true;
                 }
                 /* Also check if we have pending quest state changes that indicate a quest vault was placed */
-                if (pending_quest_states.has_aule_change || pending_quest_states.has_mandos_change) {
+                if (pending_quest_states.has_aule_change || pending_quest_states.has_mandos_change || pending_quest_states.has_varda_change) {
                     quest_vault_placed_this_attempt = true;
                 }
             }

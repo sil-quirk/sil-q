@@ -732,3 +732,7 @@ N:168:Unique Bane
 I:8:8:0
 D:Possessing Unique Bane, knowledge to exploit weaknesses as Beren learned the vulnerabilities of Carcharoth, this grants +3 attack and evasion when fighting unique monsters. Awarded by quest; cannot be purchased.
 
+N:169:Oath of Light
+I:8:9:0
+D:Swearing the Oath of Light, as those who keep Varda's stars burning in the depths, you refuse any gear that dims your glow. While the oath holds, your inner light shines two steps brighter.
+

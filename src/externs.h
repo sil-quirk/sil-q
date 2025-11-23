@@ -1088,6 +1088,7 @@ extern Sint64 sdl_size(SDL_IOStream* stream);
 
 /* Legacy - still used by some systems */
 extern errr check_modification_date(int fd, cptr template_file);
+extern errr check_modification_date_sdl(cptr raw_path, cptr txt_path);
 
 extern void text_to_ascii(char* buf, size_t len, cptr str);
 extern void ascii_to_text(char* buf, size_t len, cptr str);
@@ -1263,6 +1264,9 @@ extern bool is_quest_giver_present(int quest_giver_r_idx);
 extern bool spawn_quest_giver_near_player(int quest_giver_r_idx);
 extern void aule_quest_interaction(void);
 extern void check_aule_quest_interaction(void);
+extern void varda_quest_interaction(void);
+extern void check_varda_quest_interaction(void);
+extern void check_varda_quest_completion(int r_idx);
 extern void mandos_quest_interaction(void);
 extern void check_mandos_quest_interaction(void);
 extern void check_mandos_quest_completion(int r_idx);

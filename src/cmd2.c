@@ -435,6 +435,23 @@ void do_cmd_go_up(void)
         p_ptr->mandos_quest = MANDOS_QUEST_NOT_STARTED;
     }
 
+    /* Reset Varda quest if she was waiting on the previous level */
+    if (p_ptr->varda_quest == VARDA_QUEST_GIVER_PRESENT)
+    {
+        p_ptr->varda_quest = VARDA_QUEST_NOT_STARTED;
+        p_ptr->varda_level = 0;
+        if (p_ptr->quest_reserved[0] &&
+            p_ptr->tulkas_quest == TULKAS_QUEST_NOT_STARTED &&
+            p_ptr->niena_quest == NIENA_QUEST_NOT_STARTED &&
+            p_ptr->orome_quest == OROME_QUEST_NOT_STARTED &&
+            p_ptr->aule_quest == AULE_QUEST_NOT_STARTED &&
+            p_ptr->mandos_quest == MANDOS_QUEST_NOT_STARTED &&
+            p_ptr->varda_quest == VARDA_QUEST_NOT_STARTED)
+        {
+            p_ptr->quest_reserved[0] = 0;
+        }
+    }
+
     // another staircase has been used...
     p_ptr->stairs_taken++;
     p_ptr->staircasiness += 1000;
@@ -620,6 +637,23 @@ void do_cmd_go_down(void)
     if (p_ptr->tulkas_quest == TULKAS_QUEST_GIVER_PRESENT)
     {
         p_ptr->tulkas_quest = TULKAS_QUEST_NOT_STARTED;
+    }
+
+    /* Reset Varda quest if she was waiting on the previous level */
+    if (p_ptr->varda_quest == VARDA_QUEST_GIVER_PRESENT)
+    {
+        p_ptr->varda_quest = VARDA_QUEST_NOT_STARTED;
+        p_ptr->varda_level = 0;
+        if (p_ptr->quest_reserved[0] &&
+            p_ptr->tulkas_quest == TULKAS_QUEST_NOT_STARTED &&
+            p_ptr->niena_quest == NIENA_QUEST_NOT_STARTED &&
+            p_ptr->orome_quest == OROME_QUEST_NOT_STARTED &&
+            p_ptr->aule_quest == AULE_QUEST_NOT_STARTED &&
+            p_ptr->mandos_quest == MANDOS_QUEST_NOT_STARTED &&
+            p_ptr->varda_quest == VARDA_QUEST_NOT_STARTED)
+        {
+            p_ptr->quest_reserved[0] = 0;
+        }
     }
 
     /* Reset aule quest if active */

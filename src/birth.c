@@ -161,6 +161,7 @@ static const char *character_ability_names[S_MAX][ABILITIES_MAX] =
         [SPC_OATH_SMITH] = "Oath of the Smith",
         [SPC_OATH_VALOROUS] = "Oath of the Valorous Heart",
         [SPC_UNIQUE_BANE] = "Unique Bane", /* Enhanced effectiveness against unique monsters */
+        [SPC_OATH_LIGHT] = "Oath of Light",
     },
 };
 
@@ -257,8 +258,8 @@ static void get_extra(void)
     {
         for (j = 0; j < ABILITIES_MAX; j++)
         {
-            /* Preserve oath abilities (SPC_OATH_MERCY, SPC_OATH_SILENCE, SPC_OATH_IRON, SPC_OATH_SMITH, SPC_OATH_VALOROUS) */
-            if (i == S_SPC && (j == SPC_OATH_MERCY || j == SPC_OATH_SILENCE || j == SPC_OATH_IRON || j == SPC_OATH_SMITH || j == SPC_OATH_VALOROUS))
+            /* Preserve oath abilities (SPC_OATH_MERCY, SPC_OATH_SILENCE, SPC_OATH_IRON, SPC_OATH_SMITH, SPC_OATH_VALOROUS, SPC_OATH_LIGHT) */
+            if (i == S_SPC && (j == SPC_OATH_MERCY || j == SPC_OATH_SILENCE || j == SPC_OATH_IRON || j == SPC_OATH_SMITH || j == SPC_OATH_VALOROUS || j == SPC_OATH_LIGHT))
             {
                 /* Keep existing oath abilities intact */
                 continue;
@@ -487,13 +488,19 @@ void player_wipe(void)
     p_ptr->orome_killed_count = 0;
     p_ptr->orome_target_type = 0;
     p_ptr->orome_target_count = 0;
+    /* Varda quest init */
+    p_ptr->varda_quest = VARDA_QUEST_NOT_STARTED;
+    p_ptr->varda_vault_ready = 0;
+    p_ptr->varda_vault_placed = 0;
+    p_ptr->varda_reserved = 0;
+    p_ptr->varda_level = 0;
     
     p_ptr->quest_vault_used = 0;
     
     /* Quest states should always start at NOT_STARTED for new characters */
     /* Metarun completion is checked separately via metarun_is_quest_completed() */
     log_trace("Birth: All quest states initialized to NOT_STARTED for new character");
-    for (i = 0; i < 15; i++) p_ptr->quest_reserved[i] = 0; /* quest_reserved[0] = any quest spawned flag; quest_reserved[1..5] = per-run quest completion markers */
+    for (i = 0; i < 15; i++) p_ptr->quest_reserved[i] = 0; /* quest_reserved[0] = any quest spawned flag; quest_reserved[1..6] = per-run quest completion markers */
 
     /*re-set the thefts counter*/
     recent_failed_thefts = 0;

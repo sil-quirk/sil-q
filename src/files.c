@@ -38,6 +38,26 @@
 #include <dirent.h>    /* For directory operations */
 #endif
 
+/* Helper to build score/meta file path correctly for both portable and normal builds */
+static bool build_meta_path(char* buf, size_t len, const char* filename)
+{
+#ifdef SIL_USE_LOCAL_DATA
+    /* Portable build: in apex directory */
+    return path_build(buf, len, ANGBAND_DIR_APEX, filename);
+#else
+    /* Normal build: in meta directory (parent of metaruns) */
+    if (ANGBAND_DIR_METARUN && *ANGBAND_DIR_METARUN) {
+        char meta_dir[1024];
+        SDL_strlcpy(meta_dir, ANGBAND_DIR_METARUN, sizeof(meta_dir));
+        char* last_sep = strrchr(meta_dir, PATH_SEP[0]);
+        if (last_sep) *last_sep = '\0';
+        return path_build(buf, len, meta_dir, filename);
+    } else {
+        return path_build(buf, len, ANGBAND_DIR_APEX, filename);
+    }
+#endif
+}
+
 // These are copied from birth.c and needed for displaying the character sheet
 #define INSTRUCT_ROW 21
 #define QUESTION_COL 2
@@ -4541,7 +4561,9 @@ void do_cmd_save_game(void)
             prt("Saving game... done.", 0, 0);
         }
 
-    upsert_live_score_on_save();
+        /* Note: upsert_live_score_on_save() is called from close_game() 
+         * when quitting, not here. This avoids opening the scores file 
+         * multiple times. */
 
         high_score live_score;
         if (build_live_preview_score(&live_score)) {
@@ -4676,7 +4698,7 @@ extern bool highscore_is_empty()
     /* Open the file on-demand (read-only) */
     if (!highscore_fd) {
         char buf[1024];
-        path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+        build_meta_path(buf, sizeof(buf), "scores.raw");
         safe_setuid_grab();
         highscore_fd = score_file_open(buf, O_RDONLY);
         safe_setuid_drop();
@@ -5471,9 +5493,13 @@ errr create_score(high_score* the_score)
     strftime(the_score->day, sizeof(the_score->day), "@%Y%m%d",
         localtime(&death_time));
 
-    /* Save the player name (15 chars) */
-    strnfmt(
-        the_score->who, sizeof(the_score->who), "%-.15s", op_ptr->full_name);
+    /* Save the player name (15 chars) - fall back to base_name to avoid empty live entries */
+    const char* score_name = op_ptr->full_name;
+    if (!score_name || !score_name[0]) {
+        score_name = op_ptr->base_name[0] ? op_ptr->base_name : "nameless";
+        log_warn("create_score: full_name empty, using fallback '%s' for score entry", score_name);
+    }
+    strnfmt(the_score->who, sizeof(the_score->who), "%-.15s", score_name);
 
     /* Save the player info XXX XXX XXX */
     strnfmt(the_score->uid, sizeof(the_score->uid), "%7u", player_uid);
@@ -5716,7 +5742,7 @@ const char *kinslayer_try_kill(uint8_t n_sils, bool do_roll)
 
     /* 2) Build path to scores.raw */
     char score_path[1024];
-    path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
+    build_meta_path(score_path, sizeof(score_path), "scores.raw");
 
     /* 3) Open global highscore_fd (version-aware) if not already open */
     if (!highscore_fd) {
@@ -6626,7 +6652,7 @@ void close_game(void)
     log_debug("files.c: character_icky incremented to %d (opening scores file)", character_icky);
 
     /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_APEX, "scores.raw");
+    build_meta_path(buf, sizeof(buf), "scores.raw");
 
     log_debug("Opening scores file for read/write: %s", buf);
 
@@ -7311,7 +7337,7 @@ bool autoload_alive_from_scores(void)
 {
     log_info("===== autoload_alive_from_scores: FUNCTION CALLED =====");
     char score_path[1024];
-    path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
+    build_meta_path(score_path, sizeof(score_path), "scores.raw");
 
     /* Preserve global scorefile state */
     SDL_IOStream* saved_fd = highscore_fd;
@@ -7370,6 +7396,14 @@ bool autoload_alive_from_scores(void)
         char who_buf[sizeof entry.who + 1];
         memset(who_buf, 0, sizeof who_buf);
         SDL_strlcpy(who_buf, entry.who, sizeof(who_buf));
+        /* Trim trailing spaces */
+        for (int t = (int)strlen(who_buf) - 1; t >= 0; --t) {
+            if (who_buf[t] == ' ' || who_buf[t] == '\t') who_buf[t] = '\0'; else break;
+        }
+        if (!who_buf[0]) {
+            log_warn("autoload: alive entry at index %d has empty name, skipping", i);
+            continue;
+        }
         log_info("autoload: found alive entry '%s' (index %d) - attempting load", who_buf, i);
 
         SDL_strlcpy(op_ptr->full_name, who_buf, sizeof(op_ptr->full_name));
@@ -7452,7 +7486,7 @@ void clear_scorefile(void)
     bool was_open = (highscore_fd != NULL);
 
     /* Full path to "scores.raw" */
-    path_build(cur_path, sizeof cur_path, ANGBAND_DIR_APEX, "scores.raw");
+    build_meta_path(cur_path, sizeof(cur_path), "scores.raw");
 
     /* Close existing descriptor if open */
     if (was_open) {
@@ -7530,7 +7564,7 @@ void metarun_finalize_scores_and_saves(void)
              p_ptr ? (unsigned)p_ptr->noscore : 0,
              savefile);
     char score_path[1024];
-    path_build(score_path, sizeof score_path, ANGBAND_DIR_APEX, "scores.raw");
+    build_meta_path(score_path, sizeof(score_path), "scores.raw");
 
     /* Open for read/write so we can patch entries */
     int fd_local;

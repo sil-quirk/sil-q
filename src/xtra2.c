@@ -2547,7 +2547,10 @@ void monster_death(int m_idx)
     /* Check for Mandos quest completion */
     check_mandos_quest_completion(m_ptr->r_idx);
     
-    /* Check for Oromë quest completion */
+    /* Check for Varda quest completion */
+    check_varda_quest_completion(m_ptr->r_idx);
+    
+    /* Check for Orome quest completion */
     check_orome_quest_completion();
 
     /* Give some experience for the kill */
@@ -5893,6 +5896,7 @@ static u32b get_metarun_quest_flag(int quest_idx)
     if (streq(metarun_id, "METARUN_QUEST_MANDOS")) return METARUN_QUEST_MANDOS;
     if (streq(metarun_id, "METARUN_QUEST_NIENA")) return METARUN_QUEST_NIENA;
     if (streq(metarun_id, "METARUN_QUEST_OROME")) return METARUN_QUEST_OROME;
+    if (streq(metarun_id, "METARUN_QUEST_VARDA")) return METARUN_QUEST_VARDA;
     
     /* Unknown or future quest */
     log_debug("get_metarun_quest_flag: Unknown metarun_quest_id '%s' for quest_idx %d", metarun_id, quest_idx);
@@ -6656,6 +6660,12 @@ static cptr get_quest_reward_text(int quest_idx)
         }
     }
     
+    /* Varda reward description */
+    if (quest_idx == QUEST_ID_VARDA) {
+        SDL_strlcpy(reward_buf, "Choose one radiant artefact and unlock the Oath of Light (+2 light radius)", sizeof(reward_buf));
+        return reward_buf;
+    }
+    
     /* Build reward description from quest data */
     bool has_rewards = false;
     
@@ -7089,6 +7099,58 @@ void do_cmd_quest_status(void)
         row++;
     }
 
+    /* Check Varda quest */
+    if (p_ptr->varda_quest > VARDA_QUEST_NOT_STARTED) {
+        any_quests = true;
+        cptr varda_status;
+        byte color;
+
+        cptr quest_title = get_quest_title(QUEST_ID_VARDA);
+        cptr quest_challenge = get_quest_challenge(QUEST_ID_VARDA);
+        if (!quest_title) quest_title = "Varda Quest";
+        if (!quest_challenge) quest_challenge = "Unknown challenge";
+
+        Term_putstr(col, row++, -1, TERM_YELLOW, quest_title);
+
+        switch (p_ptr->varda_quest) {
+            case VARDA_QUEST_GIVER_PRESENT:
+                varda_status = "Available - Varda waits in sunlight";
+                color = TERM_L_BLUE;
+                Term_putstr(col + 2, row++, -1, color, varda_status);
+                display_wrapped_text(col, &row, quest_challenge, TERM_SLATE, wid);
+                strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_VARDA));
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
+                break;
+            case VARDA_QUEST_ACTIVE:
+                varda_status = "Active - Seek Duruin's bastion";
+                color = TERM_WHITE;
+                Term_putstr(col + 2, row++, -1, color, varda_status);
+                display_wrapped_text(col, &row, quest_challenge, TERM_SLATE, wid);
+                strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_VARDA));
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
+                break;
+            case VARDA_QUEST_SUCCESS:
+                varda_status = "Complete - Claim Varda's blessing";
+                color = TERM_L_GREEN;
+                Term_putstr(col + 2, row++, -1, color, varda_status);
+                strnfmt(buf, sizeof(buf), "Reward: %s", get_quest_reward_text(QUEST_ID_VARDA));
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
+                break;
+            case VARDA_QUEST_REWARDED:
+                varda_status = "Completed by this character";
+                color = TERM_L_GREEN;
+                Term_putstr(col + 2, row++, -1, color, varda_status);
+                strnfmt(buf, sizeof(buf), "Reward: %s received", get_quest_reward_text(QUEST_ID_VARDA));
+                display_wrapped_text(col, &row, buf, TERM_SLATE, wid);
+                break;
+            default:
+                varda_status = "Unknown status";
+                color = TERM_SLATE;
+                Term_putstr(col + 2, row++, -1, color, varda_status);
+        }
+        row++;
+    }
+
     /* Show previous metarun completions */
     bool has_previous_completions = false;
     int tulkas_completed = metarun_quest_completion_count(METARUN_QUEST_TULKAS);
@@ -7149,6 +7211,18 @@ void do_cmd_quest_status(void)
         cptr oath_name = get_oath_name_from_id(quest_info[5].oath_id);
         char status_text[150];
         strnfmt(status_text, sizeof(status_text), "%s - %s (metarun x%d)", quest_title, oath_name, orome_completed);
+        display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
+    }
+    int varda_completed = metarun_quest_completion_count(METARUN_QUEST_VARDA);
+    if (varda_completed > 0 && p_ptr->varda_quest != VARDA_QUEST_REWARDED) {
+        if (!has_previous_completions) {
+            Term_putstr(col, row++, -1, TERM_L_DARK, "Previously Completed in Metarun:");
+            has_previous_completions = true;
+        }
+        cptr quest_title = get_quest_title(QUEST_ID_VARDA);
+        cptr oath_name = get_oath_name_from_id(quest_info[6].oath_id);
+        char status_text[150];
+        strnfmt(status_text, sizeof(status_text), "%s - %s (metarun x%d)", quest_title, oath_name, varda_completed);
         display_wrapped_text(col, &row, status_text, TERM_SLATE, wid);
     }
     
@@ -7797,6 +7871,292 @@ void validate_tulkas_quest_on_load(void)
     {
         log_trace("validate_tulkas_quest_on_load: Target unique %d (%s) is still alive (max_num=%d)",
                  p_ptr->tulkas_target_r_idx, r_name + r_ptr->name, r_ptr->max_num);
+    }
+}
+
+/* -----------------------------
+ * Varda quest helpers and flow
+ * ----------------------------- */
+static bool artefact_is_radiant_candidate(artefact_type* a_ptr)
+{
+    if (!a_ptr) return false;
+    if (!(a_ptr->flags2 & (TR2_LIGHT | TR2_RADIANCE))) return false;
+    if (a_ptr->flags2 & TR2_DARKNESS) return false;
+    if (a_ptr->flags3 & TR3_LIGHT_CURSE) return false;
+    return true;
+}
+
+static int build_varda_reward_options(int* choices, int max_choices)
+{
+    if (!choices || max_choices <= 0 || !z_info) return 0;
+
+    /* Ensure reservation table exists so we can filter reserved artefacts */
+    if (!valar_reserved_artifacts && z_info && z_info->art_max > 0) {
+        valar_reserved_artifacts = mem_alloc_array(z_info->art_max, bool);
+        for (int j = 0; j < z_info->art_max; j++) {
+            valar_reserved_artifacts[j] = false;
+        }
+        log_trace("Varda reward: initialized valar_reserved_artifacts for %d artefacts", z_info->art_max);
+    }
+
+    int candidates[256];
+    int candidate_count = 0;
+
+    /* Early-light reward: bias toward items not far above current depth */
+    int depth_cap = 25;
+    if (p_ptr) {
+        depth_cap = MIN(p_ptr->depth + 6, depth_cap);
+    }
+    depth_cap = MAX(depth_cap, 15); /* keep at least mid-depth options */
+
+    for (int i = 1; i < z_info->art_max && candidate_count < (int)N_ELEMENTS(candidates); i++) {
+        artefact_type* a_ptr = &a_info[i];
+
+        if (!a_ptr || a_ptr->tval == 0) continue;
+        if (a_ptr->name[0] == '\0') continue;
+        if (!artefact_is_radiant_candidate(a_ptr)) continue;
+        if (a_ptr->cur_num != 0) continue; /* already created */
+        if (valar_reserved_artifacts && valar_reserved_artifacts[i]) continue;
+        if (a_ptr->level > depth_cap) continue;
+
+        candidates[candidate_count++] = i;
+    }
+
+    /* Relax depth cap if we still need more options */
+    if (candidate_count < max_choices) {
+        for (int i = 1; i < z_info->art_max && candidate_count < (int)N_ELEMENTS(candidates); i++) {
+            artefact_type* a_ptr = &a_info[i];
+
+            if (!a_ptr || a_ptr->tval == 0) continue;
+            if (a_ptr->name[0] == '\0') continue;
+            if (!artefact_is_radiant_candidate(a_ptr)) continue;
+            if (a_ptr->cur_num != 0) continue;
+            if (valar_reserved_artifacts && valar_reserved_artifacts[i]) continue;
+
+            candidates[candidate_count++] = i;
+        }
+    }
+
+    if (candidate_count == 0) return 0;
+
+    /* Shuffle candidates */
+    for (int i = candidate_count - 1; i > 0; i--) {
+        int swap_idx = rand_int(i + 1);
+        int tmp = candidates[i];
+        candidates[i] = candidates[swap_idx];
+        candidates[swap_idx] = tmp;
+    }
+
+    int final_count = MIN(max_choices, candidate_count);
+    for (int i = 0; i < final_count; i++) {
+        choices[i] = candidates[i];
+    }
+    return final_count;
+}
+
+static void describe_varda_choice(int a_idx, char* buf, size_t buf_len)
+{
+    artefact_type* a_ptr = &a_info[a_idx];
+    object_type temp_obj;
+    object_wipe(&temp_obj);
+
+    s16b k_idx = lookup_kind(a_ptr->tval, a_ptr->sval);
+    if (k_idx > 0) {
+        object_prep(&temp_obj, k_idx);
+        temp_obj.name1 = a_idx;
+        temp_obj.ident |= IDENT_KNOWN;
+        object_desc(buf, buf_len, &temp_obj, true, 0);
+    } else if (a_ptr->name[0] != '\0') {
+        SDL_strlcpy(buf, a_ptr->name, buf_len);
+    } else {
+        SDL_strlcpy(buf, "a radiant artefact", buf_len);
+    }
+}
+
+static int prompt_varda_reward_choice(const int* choices, int count)
+{
+    char ch;
+    char desc[120];
+
+    msg_print("Varda sets starlit gifts before you:");
+    for (int i = 0; i < count; i++) {
+        describe_varda_choice(choices[i], desc, sizeof(desc));
+        msg_format("  %c) %s", 'a' + i, desc);
+    }
+
+    while (true) {
+        if (!get_com("Choose your gift (ESC to wait): ", &ch)) {
+            return 0;
+        }
+        if (ch >= 'a' && ch < 'a' + count) return choices[ch - 'a'];
+        if (ch >= 'A' && ch < 'A' + count) return choices[ch - 'A'];
+        bell("Please choose one of the offered lights.");
+    }
+}
+
+static bool grant_varda_reward(void)
+{
+    int choices[3] = {0};
+    int available = build_varda_reward_options(choices, (int)N_ELEMENTS(choices));
+    if (available <= 0) {
+        msg_print("Varda has no radiant artefacts left to offer.");
+        log_trace("Varda reward: no available radiant artefacts");
+        return false;
+    }
+
+    int selected = prompt_varda_reward_choice(choices, available);
+    if (selected <= 0) {
+        msg_print("The starlight gifts wait until you are ready to choose.");
+        return false;
+    }
+
+    create_chosen_artefact(selected, p_ptr->py, p_ptr->px, true);
+    msg_print("Starlight gathers at your feet, coalescing into a shining relic.");
+    p_ptr->varda_quest = VARDA_QUEST_REWARDED;
+    p_ptr->quest_reserved[0] = 1;
+    p_ptr->varda_vault_ready = 0;
+    p_ptr->varda_vault_placed = 1;
+
+    metarun_mark_quest_completed(METARUN_QUEST_VARDA);
+    metarun_unlock_oath(OATH_LIGHT);
+    do_cmd_note("Varda blessed me with a radiant artefact and the Oath of Light.", p_ptr->depth);
+
+    return true;
+}
+
+static void try_place_varda_near_player(void)
+{
+    /* Avoid double-spawning */
+    for (int i = 1; i < mon_max; i++) {
+        monster_type* m_ptr = &mon_list[i];
+        if (m_ptr->r_idx == R_IDX_VARDA) return;
+    }
+
+    for (int y = p_ptr->py - 2; y <= p_ptr->py + 2; y++) {
+        for (int x = p_ptr->px - 2; x <= p_ptr->px + 2; x++) {
+            if (!in_bounds(y, x)) continue;
+            if (y == p_ptr->py && x == p_ptr->px) continue;
+            if (!cave_floor_bold(y, x)) continue;
+            if (cave_m_idx[y][x] != 0) continue;
+
+            if (place_monster_one(y, x, R_IDX_VARDA, true, true, NULL)) {
+                if (cave_feat[y][x] == FEAT_FLOOR) {
+                    cave_set_feat(y, x, FEAT_SUNLIGHT);
+                }
+                p_ptr->varda_level = p_ptr->depth;
+                log_trace("Varda reward: placed quest giver at (%d,%d)", y, x);
+                return;
+            }
+        }
+    }
+
+    log_trace("Varda reward: failed to place quest giver near player");
+}
+
+void check_varda_quest_completion(int r_idx)
+{
+    if (p_ptr->varda_quest == VARDA_QUEST_ACTIVE && r_idx == R_IDX_DURUIN) {
+        p_ptr->varda_quest = VARDA_QUEST_SUCCESS;
+        p_ptr->varda_vault_ready = 0;
+        p_ptr->varda_level = p_ptr->depth;
+        msg_print("Duruin falls. The Bastion's shadows unravel under starlight!");
+        try_place_varda_near_player();
+    }
+}
+
+void varda_quest_interaction(void)
+{
+    static s32b last_interaction_turn = -1;
+    if (last_interaction_turn == turn) return;
+    last_interaction_turn = turn;
+
+    if (p_ptr->varda_quest == VARDA_QUEST_GIVER_PRESENT) {
+        log_trace("Varda quest: accepting quest");
+        p_ptr->varda_quest = VARDA_QUEST_ACTIVE;
+        p_ptr->quest_reserved[0] = 1;
+        p_ptr->varda_level = p_ptr->depth;
+
+        /* Remove quest giver for roulette quests */
+        remove_quest_giver(R_IDX_VARDA);
+
+        int text_count = 0;
+        cptr* init_texts = extract_quest_init_texts(QUEST_ID_VARDA, &text_count);
+        init_texts = prepend_repeat_context(QUEST_ID_VARDA, init_texts, &text_count, false);
+        if (init_texts && text_count > 0) {
+            quest_typewriter_menu("Varda, Lady of the Stars", init_texts, text_count, TERM_WHITE, TERM_L_BLUE);
+            free_quest_texts(init_texts);
+        } else {
+            cptr fallback[] = {
+                "Varda's voice is clear as starlight:",
+                "\"Seek Duruin's bastion of shadow and break it open to the Sun.\""
+            };
+            quest_typewriter_menu("Varda, Lady of the Stars", fallback, 2, TERM_WHITE, TERM_L_BLUE);
+        }
+
+        do_cmd_note("Varda sent me to destroy Duruin and cleanse his bastion.", p_ptr->depth);
+        return;
+    }
+
+    if (p_ptr->varda_quest == VARDA_QUEST_ACTIVE) {
+        msg_print("Varda's whisper: \"Find Duruin's bastion beyond five hundred feet.\"");
+        return;
+    }
+
+    if (p_ptr->varda_quest == VARDA_QUEST_SUCCESS) {
+        log_trace("Varda quest: delivering reward");
+        int completion_count = 0;
+        cptr* completion_texts = extract_quest_completion_texts(QUEST_ID_VARDA, &completion_count);
+        completion_texts = prepend_repeat_context(QUEST_ID_VARDA, completion_texts, &completion_count, true);
+        if (completion_texts && completion_count > 0) {
+            quest_typewriter_menu("Starlight Triumph", completion_texts, completion_count, TERM_L_GREEN, TERM_WHITE);
+            free_quest_texts(completion_texts);
+        } else {
+            cptr fallback[] = {
+                "Varda inclines her head in silent approval:",
+                "\"The stolen light is free. Choose your blessing.\""
+            };
+            quest_typewriter_menu("Starlight Triumph", fallback, 2, TERM_L_GREEN, TERM_WHITE);
+        }
+
+        bool rewarded = grant_varda_reward();
+        if (rewarded) {
+            remove_quest_giver(R_IDX_VARDA);
+        }
+        return;
+    }
+
+    if (p_ptr->varda_quest == VARDA_QUEST_REWARDED) {
+        msg_print("Varda's blessing still follows the path you walk.");
+    }
+}
+
+void check_varda_quest_interaction(void)
+{
+    int i, y, x;
+
+    if (p_ptr->varda_quest < VARDA_QUEST_GIVER_PRESENT || p_ptr->varda_quest > VARDA_QUEST_SUCCESS) return;
+
+    for (i = 1; i < 9; i++) {
+        y = p_ptr->py + ddy[i];
+        x = p_ptr->px + ddx[i];
+
+        if (!in_bounds(y, x)) continue;
+        if (cave_m_idx[y][x] <= 0) continue;
+
+        int m_idx = cave_m_idx[y][x];
+        if (m_idx >= mon_max) continue;
+
+        monster_type* m_ptr = &mon_list[m_idx];
+        if (m_ptr->r_idx == R_IDX_VARDA) {
+            varda_quest_interaction();
+            return;
+        }
+    }
+
+    /* If Varda should be present for a reward but isn't adjacent, try to place her */
+    if (p_ptr->varda_quest == VARDA_QUEST_SUCCESS) {
+        log_trace("Varda quest: success state without nearby quest giver - attempting to place Varda");
+        try_place_varda_near_player();
     }
 }
 

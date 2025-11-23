@@ -31,6 +31,7 @@
 #define METARUN_QUEST_MANDOS   (1UL << 2)   /* Mandos quest completed */
 #define METARUN_QUEST_NIENA    (1UL << 3)   /* Niena quest completed  */
 #define METARUN_QUEST_OROME    (1UL << 4)   /* Oromë quest completed  */
+#define METARUN_QUEST_VARDA    (1UL << 5)   /* Varda quest completed  */
 #define METARUN_QUEST_SLOT_MAX 8            /* Max quest slots tracked in metarun */
 #define METARUN_QUEST_COMPLETION_CAP 7      /* Max times a quest counts per metarun */
 /* Additional quests can be added as (1UL << 5), (1UL << 6), etc.   */
@@ -50,7 +51,7 @@
  *   0.9.0.0 - Initial versioned format (quest support)
  *   0.9.0.1 - Persistent blessing choices added
  *   0.9.0.2 - Per-quest completion counters (capped) stored alongside bitmask
- *   0.9.1.2 - Current meta-file version (matches game release)
+ *   0.9.1.3 - Current meta-file version (matches game release)
  */
 #define METARUN_FILE_VERSION_MAJOR VERSION_MAJOR
 #define METARUN_FILE_VERSION_MINOR VERSION_MINOR
@@ -112,7 +113,7 @@ typedef struct metarun
     byte quest_completion_counts[METARUN_QUEST_SLOT_MAX]; /* Times each quest has been completed this metarun (capped) */
     
     /* ----- oath system tracking -------------------------------- */
-    byte unlocked_oaths;        /* Bitmask of oaths unlocked this metarun (1=Mercy, 2=Silence, 4=Iron) */
+    byte unlocked_oaths;        /* Bitmask of oaths unlocked this metarun (OATH_*_FLAG bits: Mercy, Silence, Iron, Smith, Valorous, Light) */
     byte banned_oaths;          /* Bitmask of oaths broken/banned this metarun (cannot select again) */
     byte max_difficulty_reached; /* Maximum difficulty level reached this metarun (cannot go back) */
     

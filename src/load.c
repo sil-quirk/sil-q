@@ -82,6 +82,7 @@ static bool savefile_has_runtime_overrides = false;
 static bool savefile_has_monster_shatter = false;
 static bool savefile_has_song_duels = false;
 static bool savefile_has_ability_timeline = false;
+static bool savefile_has_varda_quest = false;
 
 /* Version comparison helpers: update these when bumping savefile semantics. */
 static int savefile_version_compare(byte major, byte minor, byte patch, byte extra)
@@ -1384,8 +1385,33 @@ static errr rd_extra(void)
     rd_s16b(&p_ptr->orome_spiders_killed);
     rd_s16b(&p_ptr->orome_serpents_killed);
     rd_s16b(&p_ptr->orome_vampires_killed);
+    if (savefile_has_varda_quest) {
+        rd_byte(&p_ptr->varda_quest);
+        rd_byte(&p_ptr->varda_vault_ready);
+        rd_byte(&p_ptr->varda_vault_placed);
+        rd_byte(&p_ptr->varda_reserved);
+        rd_s16b(&p_ptr->varda_level);
+    } else {
+        p_ptr->varda_quest = VARDA_QUEST_NOT_STARTED;
+        p_ptr->varda_vault_ready = 0;
+        p_ptr->varda_vault_placed = 0;
+        p_ptr->varda_reserved = 0;
+        p_ptr->varda_level = 0;
+    }
     rd_byte(&p_ptr->quest_vault_used);
-    for (int qi = 0; qi < 15; qi++) rd_byte(&p_ptr->quest_reserved[qi]);
+    /* quest_reserved array grew in 0.9.1.3; read available bytes safely */
+    int quest_reserved_len = savefile_version_at_least(0, 9, 1, 3) ? 15 : 12;
+    for (int qi = 0; qi < quest_reserved_len && qi < (int)N_ELEMENTS(p_ptr->quest_reserved); qi++) {
+        rd_byte(&p_ptr->quest_reserved[qi]);
+    }
+    for (int qi = quest_reserved_len; qi < (int)N_ELEMENTS(p_ptr->quest_reserved); qi++) {
+        p_ptr->quest_reserved[qi] = 0;
+    }
+
+    /* If Varda quest was active/successful in the save, ensure reservation persists after load */
+    if (p_ptr->varda_quest >= VARDA_QUEST_ACTIVE) {
+        p_ptr->quest_reserved[0] = 1;
+    }
 
     /* Min depth counter */
     rd_s32b(&min_depth_counter);
@@ -2707,6 +2733,7 @@ bool load_player(void)
             savefile_has_monster_shatter = savefile_version_at_least(0, 9, 0, 4);
             savefile_has_song_duels = savefile_version_at_least(0, 9, 0, 5);
             savefile_has_ability_timeline = savefile_version_at_least(0, 9, 1, 1);
+            savefile_has_varda_quest = savefile_version_at_least(0, 9, 1, 3);
         }
 
         load_byte_offset = 0; /* reset counter before decoding stream */
@@ -2837,6 +2864,11 @@ bool load_player(void)
         // count the artefacts seen for the player
         p_ptr->artefacts = artefact_count();
         log_debug("Character has seen %d artefacts", p_ptr->artefacts);
+
+        /* Process player name to update base_name and savefile path */
+        process_player_name(true);
+        log_debug("Processed player name after load: base_name='%s', savefile='%s'", 
+                 op_ptr->base_name, savefile);
 
         /* Reapply Morgoth's anger state to the r_info template */
         if (p_ptr->morgoth_state > 0)

@@ -6446,3 +6446,8 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 ## Verification
 - \build-cmake.bat\ (passes with existing warnings). 
 
+- Added the Varda roulette quest (depth 1-3) with data-driven probability (35%->15%), quest text, and quest giver mapping. Forced Duruin Bastion quest vault after 500ft when active; new vault template (B/q/j/k/n tokens) and monster flag updates for Varda ensure peaceful, static generation.
+- Introduced Oath of Light content: oath.txt entry (unlocked by Varda quest), ability.txt entry for SPC_OATH_LIGHT, UI description updates, and oath activation wiring in the oath selection flow. Wearing DARKNESS gear now immediately breaks the oath during bonus calculation; wielding shadow gear prompts a break confirmation.
+- Implemented Varda quest flow: sunlight spawn on early levels, adjacency interaction to accept quest, success trigger on Duruin death (auto-spawns Varda nearby), reward menu offering one radiant artefact, metarun completion tracking/unlock, quest status UI block, and quest reset handling when leaving levels.
+- Improved generic quest probability roll to use a 0-9999 float threshold (better fidelity for fractional chances).
+- Locked Duruin Bastion to quest-only placement (no roulette placement), flagged Duruin as SPECIAL_GEN, aligned bastion depth to the first level past 500ft, and ensured Oath of Light breaks on light-cursing gear while marking the vow as broken before applying penalties.

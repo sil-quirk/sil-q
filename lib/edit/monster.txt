@@ -1309,7 +1309,7 @@ B:WHIP:DISARM:(+14,3d6)
 F:UNIQUE | MALE | SMART | GLOW
 F:DROP_1D2 | DROP_100 | DROP_GREAT
 F:HAS_WEAPON | HAS_ARMOUR
-F:NO_FEAR | BASH_DOOR
+F:NO_FEAR | BASH_DOOR | SPECIAL_GEN
 F:RAUKO | RES_FIRE | HURT_COLD
 D:The Valaraukar, demons of power, are among the mightiest
 D: of Morgoth's servants and widely feared. Before you stands
@@ -2674,7 +2674,8 @@ N:321:Varda, Lady of the Stars
 Q:ec9302c493986510
 W:30:10
 G:V:w
-F:UNIQUE | FEMALE
+F:UNIQUE | FEMALE | NEVER_MOVE | SMART | PEACEFUL | NEVER_BLOW | SPECIAL_GEN
+D:Starlight gathers around the Lady of the Stars. Her gaze is patient and clear, weighing your worth before she speaks.
 
 
 N:322:Ulmo, Lord of Waters

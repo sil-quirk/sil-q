@@ -4599,10 +4599,10 @@ void apply_oath_breaking_curse(int oath_id)
     if (oath_id < 1 || !z_info || oath_id >= z_info->oath_max) return;
     
     /* Get oath name for logging - use static fallback names to avoid dangling pointer */
-    static const char* fallback_oath_names[] = {"", "Mercy", "Silence", "Iron", "Smith", "Valorous"};
+    static const char* fallback_oath_names[] = {"", "Mercy", "Silence", "Iron", "Smith", "Valorous", "Light"};
     if (oath_id <= z_info->oath_max && oath_info[oath_id].name) {
         oath_name = oath_name_text + oath_info[oath_id].name;
-    } else if (oath_id < 6) {
+    } else if (oath_id < 7) {
         oath_name = fallback_oath_names[oath_id];
     } else {
         oath_name = "Unknown";
@@ -4625,6 +4625,9 @@ void apply_oath_breaking_curse(int oath_id)
     }
     else if (oath_id == OATH_VALOROUS) {
         p_ptr->active_ability[S_SPC][SPC_OATH_VALOROUS] = false;
+    }
+    else if (oath_id == OATH_LIGHT) {
+        p_ptr->active_ability[S_SPC][SPC_OATH_LIGHT] = false;
     }
     
     /* Remove oath bonuses by recalculating */

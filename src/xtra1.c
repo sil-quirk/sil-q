@@ -2388,6 +2388,12 @@ void calc_torch(void)
         p_ptr->cur_light += ability_bonus(S_SNG, SNG_TREES);
     }
 
+    /* Oath of Light reward */
+    if (p_ptr->active_ability[S_SPC][SPC_OATH_LIGHT] && !oath_invalid(OATH_LIGHT))
+    {
+        p_ptr->cur_light += 2;
+    }
+
     /* Update the visuals */
     p_ptr->update |= (PU_UPDATE_VIEW);
     p_ptr->update |= (PU_MONSTERS);
@@ -3189,6 +3195,26 @@ static void calc_bonuses(void)
         }
     }
 
+    /* Oath of Light: wearing shadowed gear immediately breaks the vow */
+    if (p_ptr->oath_type == OATH_LIGHT && !oath_invalid(OATH_LIGHT))
+    {
+        for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+        {
+            object_type* o_ptr = &inventory[i];
+            if (!o_ptr->k_idx) continue;
+            
+            u32b f1, f2, f3;
+            object_flags(o_ptr, &f1, &f2, &f3);
+            if ((f2 & TR2_DARKNESS) || (f3 & TR3_LIGHT_CURSE))
+            {
+                p_ptr->oaths_broken |= OATH_LIGHT_FLAG;
+                p_ptr->active_ability[S_SPC][SPC_OATH_LIGHT] = false;
+                apply_oath_breaking_curse(OATH_LIGHT);
+                break;
+            }
+        }
+    }
+
     /* Oath bonuses (granted by special oath abilities, disabled if oath is broken) */
     /* Apply dynamic oath bonuses based on oath.txt data */
     for (int oath_idx = 0; oath_idx < z_info->oath_max; oath_idx++)
@@ -3196,7 +3222,7 @@ static void calc_bonuses(void)
         oath_type *oath_ptr = &oath_info[oath_idx];
         
         /* Check if player has this oath and it's not broken */
-        if (oath_ptr->oath_num >= OATH_MERCY && oath_ptr->oath_num <= OATH_VALOROUS)
+        if (oath_ptr->oath_num >= OATH_MERCY && oath_ptr->oath_num <= OATH_LIGHT)
         {
             int special_ability = -1;
             
@@ -3208,6 +3234,7 @@ static void calc_bonuses(void)
                 case OATH_MERCY: special_ability = SPC_OATH_MERCY; break;
                 case OATH_SMITH: special_ability = SPC_OATH_SMITH; break;
                 case OATH_VALOROUS: special_ability = SPC_OATH_VALOROUS; break;
+                case OATH_LIGHT: special_ability = SPC_OATH_LIGHT; break;
             }
             
             /* Apply bonuses if player has oath and it's not broken */

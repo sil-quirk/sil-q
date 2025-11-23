@@ -142,38 +142,33 @@ void user_name(char* buf, size_t len, int id)
 #endif /* SET_UID */
 
 #ifdef CHECK_MODIFICATION_TIME
-#include <sys/types.h>
-#include <sys/stat.h>
 
-errr check_modification_date(int fd, cptr template_file)
+/* SDL3-compatible modification time check */
+errr check_modification_date_sdl(cptr raw_path, cptr txt_path)
 {
-    char buf[1024];
-
-    struct stat txt_stat, raw_stat;
-
-    /* Build the filename */
-    path_build(buf, sizeof(buf), ANGBAND_DIR_EDIT, template_file);
-
-    /* Access stats on text file */
-    if (stat(buf, &txt_stat))
+    SDL_PathInfo txt_info, raw_info;
+    
+    /* Get info for text file */
+    if (!SDL_GetPathInfo(txt_path, &txt_info))
     {
-        /* No text file - continue */
+        /* No text file or error - continue with raw */
+        return (0);
     }
-
-    /* Access stats on raw file */
-    else if (fstat(fd, &raw_stat))
+    
+    /* Get info for raw file */
+    if (!SDL_GetPathInfo(raw_path, &raw_info))
     {
-        /* Error */
+        /* No raw file - need to regenerate */
         return (-1);
     }
-
+    
     /* Ensure text file is not newer than raw file */
-    else if (txt_stat.st_mtime > raw_stat.st_mtime)
+    if (txt_info.modify_time > raw_info.modify_time)
     {
-        /* Reprocess text file */
+        /* Text file is newer - reprocess */
         return (-1);
     }
-
+    
     return (0);
 }
 
