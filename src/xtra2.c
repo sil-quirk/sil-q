@@ -7252,6 +7252,7 @@ static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byt
 {
     int wid, h;
     const int indent = 2;
+    bool skipped = false;
     
     /* Get terminal size */
     Term_get_size(&wid, &h);
@@ -7349,27 +7350,41 @@ static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byt
             }
             
             /* Print the word character by character with typewriter effect */
-            for (int j = word_start; j < word_start + word_len; j++) {
-                /* Check for any key press to skip typewriter effect */
-                char check_key;
-                if (Term_inkey(&check_key, false, false) == 0) {
-                    /* Consume the key - any key press skips the typewriter */
-                    Term_inkey(&check_key, false, true);
-                    /* Print rest of current word */
-                    for (int k = j; k < word_start + word_len; k++) {
-                        Term_putch(indent + col, row, text_color, s[k]);
-                        col++;
-                    }
-                    /* Skip to end of entire text */
-                    goto skip_typewriter;
+            if (skipped) {
+                /* Skip mode: print entire word instantly */
+                for (int j = word_start; j < word_start + word_len; j++) {
+                    Term_putch(indent + col, row, text_color, s[j]);
+                    col++;
                 }
-                
-                Term_putch(indent + col, row, text_color, s[j]);
-                Term_fresh();
-                col++;
-                
-                /* Delay 25 ms after each character for typewriter effect */
-                Term_xtra(TERM_XTRA_DELAY, 25);
+            }
+            else {
+                /* Normal mode: typewriter effect with character-by-character */
+                for (int j = word_start; j < word_start + word_len; j++) {
+                    /* Check for ESC or Enter key press to skip typewriter effect */
+                    char check_key;
+                    if (Term_inkey(&check_key, false, false) == 0) {
+                        /* Only respond to ESC or Enter - consume and check */
+                        Term_inkey(&check_key, false, true);
+                        if (check_key == ESCAPE || check_key == '\n' || check_key == '\r') {
+                            skipped = true;
+                            /* Print rest of current word instantly */
+                            for (int k = j; k < word_start + word_len; k++) {
+                                Term_putch(indent + col, row, text_color, s[k]);
+                                col++;
+                            }
+                            break; /* Exit to continue with rest of text in skip mode */
+                        }
+                        /* Other keys are ignored (already consumed) */
+                    }
+                    
+                    /* Print character with typewriter effect */
+                    Term_putch(indent + col, row, text_color, s[j]);
+                    Term_fresh();
+                    col++;
+                    
+                    /* Delay 25 ms after each character for typewriter effect */
+                    Term_xtra(TERM_XTRA_DELAY, 25);
+                }
             }
             
             /* Handle the space/whitespace after the word */
@@ -7378,11 +7393,11 @@ static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byt
                     /* Only print space if we're not at the end of a line */
                     if (col < wrap_width) {
                         Term_putch(indent + col, row, text_color, ' ');
-                        Term_fresh();
+                        if (!skipped) Term_fresh();
                         col++;
                         
-                        /* Delay for space too */
-                        Term_xtra(TERM_XTRA_DELAY, 25);
+                        /* Delay for space too (unless skipped) */
+                        if (!skipped) Term_xtra(TERM_XTRA_DELAY, 25);
                     }
                     i++; /* Skip the space */
                 }
@@ -7391,11 +7406,11 @@ static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byt
                     int tab_spaces = 4 - (col % 4);
                     for (int t = 0; t < tab_spaces && col < wrap_width; t++) {
                         Term_putch(indent + col, row, text_color, ' ');
-                        Term_fresh();
+                        if (!skipped) Term_fresh();
                         col++;
                         
-                        /* Delay for tab spaces */
-                        Term_xtra(TERM_XTRA_DELAY, 25);
+                        /* Delay for tab spaces (unless skipped) */
+                        if (!skipped) Term_xtra(TERM_XTRA_DELAY, 25);
                     }
                     i++; /* Skip the tab */
                 }
@@ -7406,11 +7421,13 @@ static void quest_typewriter_menu(cptr title, cptr texts[], int total_texts, byt
         row++;
         col = 0;
         
-        /* 400ms pause after each line of text */
-        Term_xtra(TERM_XTRA_DELAY, 400);
+        /* 400ms pause after each line of text (unless skipped) */
+        if (!skipped) Term_xtra(TERM_XTRA_DELAY, 400);
     }
     
-skip_typewriter:
+    /* Refresh screen to show all text if skipped */
+    if (skipped) Term_fresh();
+    
     /* Final prompt */
     Term_putstr(15, h - 1, -1, TERM_L_WHITE, "(press any key to continue)");
     inkey();

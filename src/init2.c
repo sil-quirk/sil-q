@@ -966,12 +966,18 @@ static errr init_info(cptr filename, header* head)
         /* Check if text file is newer than raw file */
         char txt_path[1024];
         path_build(txt_path, sizeof(txt_path), ANGBAND_DIR_EDIT, format("%s.txt", filename));
+        log_debug("Checking modification times: raw='%s' vs txt='%s'", buf, txt_path);
         err = check_modification_date_sdl(buf, txt_path);
         if (err)
         {
             /* Text file is newer - close raw and regenerate */
+            log_info("Text file '%s.txt' is newer than raw file - regenerating", filename);
             sdl_fclose(fd);
             fd = NULL;
+        }
+        else
+        {
+            log_debug("Raw file '%s.raw' is up to date", filename);
         }
 #endif /* CHECK_MODIFICATION_TIME */
 

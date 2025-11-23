@@ -152,6 +152,7 @@ errr check_modification_date_sdl(cptr raw_path, cptr txt_path)
     if (!SDL_GetPathInfo(txt_path, &txt_info))
     {
         /* No text file or error - continue with raw */
+        log_debug("check_modification_date: Cannot get info for txt file '%s'", txt_path);
         return (0);
     }
     
@@ -159,6 +160,7 @@ errr check_modification_date_sdl(cptr raw_path, cptr txt_path)
     if (!SDL_GetPathInfo(raw_path, &raw_info))
     {
         /* No raw file - need to regenerate */
+        log_debug("check_modification_date: No raw file '%s' - regenerating", raw_path);
         return (-1);
     }
     
@@ -166,9 +168,13 @@ errr check_modification_date_sdl(cptr raw_path, cptr txt_path)
     if (txt_info.modify_time > raw_info.modify_time)
     {
         /* Text file is newer - reprocess */
+        log_info("check_modification_date: txt file newer (txt=%lld, raw=%lld) - regenerating '%s'", 
+                 (long long)txt_info.modify_time, (long long)raw_info.modify_time, txt_path);
         return (-1);
     }
     
+    log_debug("check_modification_date: raw file is up to date (txt=%lld, raw=%lld) for '%s'",
+              (long long)txt_info.modify_time, (long long)raw_info.modify_time, txt_path);
     return (0);
 }
 

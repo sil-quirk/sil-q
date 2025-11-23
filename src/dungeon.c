@@ -3409,25 +3409,28 @@ static void print_story_intro(void)
         /* Print this string, character by character */
         bool skipped = false;
         for (size_t i = 0; s[i]; i++) {
-            /* Check for any key press to skip typewriter effect */
+            /* Check for ESC or Enter key press to skip typewriter effect */
             char check_key;
             if (Term_inkey(&check_key, false, false) == 0) {
-                /* Consume the key - any key press skips the typewriter */
+                /* Only respond to ESC or Enter - consume and check */
                 Term_inkey(&check_key, false, true);
-                skipped = true;
-                /* Print remaining text instantly */
-                for (size_t j = i; s[j]; j++) {
-                    char ch = s[j];
-                    if (ch == '\n' || col >= wrap_width) {
-                        row++;
-                        col = 0;
-                        if (ch == '\n') continue;
+                if (check_key == ESCAPE || check_key == '\n' || check_key == '\r') {
+                    skipped = true;
+                    /* Print remaining text instantly */
+                    for (size_t j = i; s[j]; j++) {
+                        char ch = s[j];
+                        if (ch == '\n' || col >= wrap_width) {
+                            row++;
+                            col = 0;
+                            if (ch == '\n') continue;
+                        }
+                        Term_putch(indent + col, row, TERM_WHITE, ch);
+                        col++;
                     }
-                    Term_putch(indent + col, row, TERM_WHITE, ch);
-                    col++;
+                    Term_fresh();
+                    break;
                 }
-                Term_fresh();
-                break;
+                /* Other keys are ignored (already consumed) */
             }
             
             char ch = s[i];
@@ -3806,6 +3809,15 @@ PlayResult play_game(void)
     metarun_created = false;
 
     log_info("Game session started - entering play mode");
+    
+    /* Music: Stop main menu music and start ambient if we're in the dungeon */
+    if (p_ptr->depth > 0) {
+        log_debug("Starting new game in dungeon (depth=%d) - switching to ambient music", p_ptr->depth);
+        sdl_music_stop_main();
+        sdl_music_play_ambient();
+    } else {
+        log_debug("Starting new game on surface - keeping main menu music");
+    }
 
     /* Hack -- Enforce "delayed death" */
     if (p_ptr->chp <= 0)
