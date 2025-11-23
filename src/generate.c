@@ -1001,6 +1001,40 @@ static bool feature_is_any_door(int feat)
         || ((feat >= FEAT_DOOR_HEAD) && (feat <= FEAT_DOOR_TAIL));
 }
 
+/* Collapse adjacent doors outside vaults to avoid double-door seams */
+static int squash_double_doors(void)
+{
+    int removed = 0;
+    for (int y = 1; y < p_ptr->cur_map_hgt - 1; ++y)
+    {
+        for (int x = 1; x < p_ptr->cur_map_wid - 1; ++x)
+        {
+            if (!feature_is_any_door(cave_feat[y][x])) continue;
+            if (cave_info[y][x] & (CAVE_ICKY)) continue;
+
+            /* Only clear east/south neighbors to keep at most one door */
+            int ny = y, nx = x + 1;
+            if ((nx < p_ptr->cur_map_wid - 1) &&
+                !(cave_info[ny][nx] & (CAVE_ICKY)) &&
+                feature_is_any_door(cave_feat[ny][nx]))
+            {
+                cave_set_feat(ny, nx, FEAT_FLOOR);
+                removed++;
+            }
+            ny = y + 1; nx = x;
+            if ((ny < p_ptr->cur_map_hgt - 1) &&
+                !(cave_info[ny][nx] & (CAVE_ICKY)) &&
+                feature_is_any_door(cave_feat[ny][nx]))
+            {
+                cave_set_feat(ny, nx, FEAT_FLOOR);
+                removed++;
+            }
+        }
+    }
+    log_trace("squash_double_doors: converted %d adjacent doors to floor", removed);
+    return removed;
+}
+
 /* determines whether the player can pass through a given feature */
 /* icky locations (inside vaults) are all considered passable.    */
 bool player_passable(int y, int x, bool ignore_rubble_and_chasms)
@@ -6038,6 +6072,7 @@ static bool cave_gen(void)
                     place_random_door(y, x);
             }
         }
+    squash_double_doors();
 
     /* DEBUGGING: Check if quest vault still exists after door randomization */
     check_quest_vault_integrity("AFTER_DOOR_RANDOMIZATION");

@@ -1,5 +1,10 @@
 # Session Notes
 
+## 2025-11-23: Level-gen stability + double-door cleanup
+- Clamped dungeon panel size to max 5x5 in `cave_gen()` (was occasionally hitting 6 and crashing before connection init); logged map size + connection init rows to verify.
+- Zeroed `dun` struct on entry and added per-row connection init logs plus early sanity breadcrumbs.
+- Disabled wide corridors (`choose_tunnel_width` returns 1) to avoid thick tunnels and double-door seams; added `squash_double_doors()` pass after door randomization to collapse adjacent non-quest doors into single tiles.
+- Docked vaults still honor 1-in-4 chance for type6/7, avoid matching neighbor style via `styles_set_vault_avoid_style`, and open one extra interior floor to prevent sealed entries.
 ## 2025-11-21: Lantern/Torch Duplication Bug - Found the Issue!
 
 ### Problem - Reproduced Successfully
