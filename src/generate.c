@@ -1193,8 +1193,17 @@ static bool carve_ca_blob_anchor(void)
     int x2 = x1 + w - 1;
 
     /* Ensure we are carving into untouched granite */
-    if (!area_is_basic_granite(y1 - 1, x1 - 1, y2 + 1, x2 + 1))
+    /* Allow slight overlap with walls but not existing floors */
+    if (y1 < 1 || x1 < 1 || y2 >= p_ptr->cur_map_hgt - 1 || x2 >= p_ptr->cur_map_wid - 1)
         return false;
+    for (int y = y1 - 1; y <= y2 + 1; ++y)
+    {
+        for (int x = x1 - 1; x <= x2 + 1; ++x)
+        {
+            if (cave_floor_bold(y, x))
+                return false;
+        }
+    }
 
     /* Simple CA grid stored on stack (max ~20x20) */
     bool grid[24][24];
@@ -1266,7 +1275,7 @@ static bool carve_ca_blob_anchor(void)
         }
     }
 
-    if (floor_count < 12)
+    if (floor_count < 10)
         return false;
 
     /* Pick a center on a floor tile */
@@ -1302,16 +1311,18 @@ static bool carve_ca_blob_anchor(void)
 /* Try to seed a few CA blob anchors in unused granite */
 static void seed_ca_blob_anchors(void)
 {
-    int target = (p_ptr->depth >= 10) ? 2 : 1;
+    int target = 2;
+    if (p_ptr->depth >= 10)
+        target = 3;
     if (p_ptr->depth >= 25)
-        target++;
+        target = 4;
     int placed = 0;
-    for (int attempt = 0; attempt < 12 && placed < target; ++attempt)
+    for (int attempt = 0; attempt < 36 && placed < target; ++attempt)
     {
         if (carve_ca_blob_anchor())
             placed++;
     }
-    log_trace("CA blob seeding complete: placed=%d target=%d", placed, target);
+    log_trace("CA blob seeding complete: placed=%d target=%d attempts=%d", placed, target, 36);
 }
 
 /* Carve a BSP-style sliced region into rooms-like rectangles and register anchor */
@@ -1433,7 +1444,7 @@ static void seed_bsp_slice_anchors(void)
     if (p_ptr->depth >= 20)
         target++;
     int placed = 0;
-    for (int attempt = 0; attempt < 10 && placed < target; ++attempt)
+    for (int attempt = 0; attempt < 16 && placed < target; ++attempt)
     {
         if (carve_bsp_slice_anchor())
             placed++;
@@ -3480,6 +3491,48 @@ static bool connect_rooms_stairs(void)
     int initial_down = FEAT_MORE;
 
     bool joined;
+    bool anchor_linked_any = false;
+
+    /* Pre-pass: ensure neighbor-required anchors get at least one connection */
+    for (int a = 0; a < layout_anchor_count; ++a)
+    {
+        layout_anchor_t *anchor = &layout_anchors[a];
+        if (anchor->room_slot < 0 || anchor->room_slot >= dun->cent_n)
+            continue;
+        if (!anchor->requires_neighbor)
+            continue;
+
+        int best_idx = -1;
+        int best_dist = 9999;
+        for (int b = 0; b < layout_anchor_count; ++b)
+        {
+            if (a == b)
+                continue;
+            layout_anchor_t *other = &layout_anchors[b];
+            if (other->room_slot < 0 || other->room_slot >= dun->cent_n)
+                continue;
+            int dist = distance(anchor->center.y, anchor->center.x, other->center.y, other->center.x);
+            if (dist < best_dist)
+            {
+                best_dist = dist;
+                best_idx = other->room_slot;
+            }
+        }
+
+        if (best_idx >= 0 && !dun->connection[anchor->room_slot][best_idx])
+        {
+            if (connect_two_rooms(anchor->room_slot, best_idx, true, true))
+            {
+                anchor->neighbor_linked = true;
+                anchor_linked_any = true;
+            }
+        }
+    }
+
+    if (anchor_linked_any)
+    {
+        log_trace("Anchor pre-pass: connected neighbor-required anchors where needed");
+    }
 
     // Phase 1:
     // connect each room to the closest room (if not already connected)

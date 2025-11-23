@@ -6508,9 +6508,9 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 - Added helper `place_prefab_anchor_of_type()` to reuse existing type6/7/8 builders and mark anchor metadata on success; no corridor changes yet.
 
 ## Progress (Nov 23 - gap fill anchors)
-- Added cellular-automata blob carving (`seed_ca_blob_anchors()` + `carve_ca_blob_anchor()`), digging organic pockets into untouched granite after room placement and tagging them as `LAYOUT_ANCHOR_CA_BLOB` with optional neighbor requirement.
+- Added cellular-automata blob carving (`seed_ca_blob_anchors()` + `carve_ca_blob_anchor()`), digging organic pockets into untouched granite after room placement and tagging them as `LAYOUT_ANCHOR_CA_BLOB` with optional neighbor requirement. Increased targets/attempts and relaxed placement to raise blob frequency.
 - Added BSP slice carving (`seed_bsp_slice_anchors()` + `carve_bsp_slice_anchor()`), splitting a granite patch into a handful of offset rectangles and marking them as `LAYOUT_ANCHOR_BSP_SLICE`.
-- Anchor capture now records these fillers so corridor logic can treat them like rooms in later passes; still need corridor biasing/setpiece adjacency hooks.
+- Anchor capture now records these fillers so corridor logic can treat them like rooms; corridor pre-pass now connects neighbor-required anchors to their nearest mate, ahead of the standard corridor phases. Setpiece adjacency hooks still pending.
 
 
 
