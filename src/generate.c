@@ -1,4 +1,4 @@
-/* File: generate.c */
+﻿/* File: generate.c */
 
 /*
  * Copyright (c) 1997 Ben Harrison, James E. Wilson, Robert A. Koeneke
@@ -982,9 +982,53 @@ static dun_data* dun;
 int cave_corridor1[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
 int cave_corridor2[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
 
+#define LAYOUT_ANCHOR_MAX CENT_MAX
+
+typedef enum layout_anchor_kind {
+    LAYOUT_ANCHOR_NONE = 0,
+    LAYOUT_ANCHOR_ROOM,
+    LAYOUT_ANCHOR_PREFAB, /* seeded prefab anchor (vault/room) */
+    LAYOUT_ANCHOR_CA_BLOB,
+    LAYOUT_ANCHOR_BSP_SLICE,
+    LAYOUT_ANCHOR_SETPIECE
+} layout_anchor_kind_t;
+
+typedef struct layout_anchor {
+    layout_anchor_kind_t kind;
+    rectangle bounds;
+    coord center;
+    byte room_kind;
+    bool is_quest;
+    bool requires_neighbor;
+    bool neighbor_linked;
+    int style_primary;
+    int room_slot;
+} layout_anchor_t;
+
+static layout_anchor_t layout_anchors[LAYOUT_ANCHOR_MAX];
+static int layout_anchor_count = 0;
+static layout_anchor_kind_t room_anchor_kind[CENT_MAX];
+static bool room_anchor_requires_neighbor[CENT_MAX];
+
 static bool room_kind_is_vault(byte kind)
 {
     return (kind >= ROOM_KIND_INTERESTING);
+}
+
+static bool area_is_basic_granite(int y1, int x1, int y2, int x2)
+{
+    if (x2 >= MAX_DUNGEON_WID || y2 >= MAX_DUNGEON_HGT || y1 < 0 || x1 < 0)
+        return false;
+
+    for (int y = y1; y <= y2; ++y)
+    {
+        for (int x = x1; x <= x2; ++x)
+        {
+            if (cave_feat[y][x] != FEAT_WALL_EXTRA)
+                return false;
+        }
+    }
+    return true;
 }
 
 /* Decode a style index from the color encoding at (y,x); returns -1 if none */
@@ -993,6 +1037,408 @@ static int style_at_color(int y, int x)
     if (y < 0 || x < 0 || y >= MAX_DUNGEON_HGT || x >= MAX_DUNGEON_WID)
         return -1;
     return styles_decode_color_style(cave_color[y][x]);
+}
+
+static void layout_anchor_reset(void)
+{
+    layout_anchor_count = 0;
+    for (int i = 0; i < LAYOUT_ANCHOR_MAX; ++i)
+    {
+        layout_anchors[i].kind = LAYOUT_ANCHOR_NONE;
+        layout_anchors[i].style_primary = -1;
+        layout_anchors[i].room_slot = -1;
+        layout_anchors[i].requires_neighbor = false;
+        layout_anchors[i].neighbor_linked = false;
+    }
+    for (int i = 0; i < CENT_MAX; ++i)
+    {
+        room_anchor_kind[i] = LAYOUT_ANCHOR_NONE;
+        room_anchor_requires_neighbor[i] = false;
+    }
+}
+
+static void mark_room_anchor_meta(int room_idx, layout_anchor_kind_t kind, bool requires_neighbor)
+{
+    if (room_idx < 0 || room_idx >= CENT_MAX)
+        return;
+    room_anchor_kind[room_idx] = kind;
+    room_anchor_requires_neighbor[room_idx] = requires_neighbor;
+}
+
+static void layout_anchor_capture_room(int room_idx)
+{
+    if (layout_anchor_count >= LAYOUT_ANCHOR_MAX)
+    {
+        return;
+    }
+
+    layout_anchor_t* a = &layout_anchors[layout_anchor_count++];
+    layout_anchor_kind_t kind = room_anchor_kind[room_idx];
+    if (kind == LAYOUT_ANCHOR_NONE)
+        kind = LAYOUT_ANCHOR_ROOM;
+    a->kind = kind;
+    a->bounds = dun->corner[room_idx];
+    a->center = dun->cent[room_idx];
+    a->room_kind = dun->kind[room_idx];
+    a->is_quest = dun->is_quest[room_idx];
+    a->style_primary = style_at_color(a->center.y, a->center.x);
+    a->requires_neighbor = room_anchor_requires_neighbor[room_idx];
+    a->neighbor_linked = false;
+    a->room_slot = room_idx;
+}
+
+static void layout_anchor_capture_existing_rooms(void)
+{
+    for (int i = 0; i < dun->cent_n; ++i)
+    {
+        layout_anchor_capture_room(i);
+    }
+}
+
+/* Forward declarations for prefab/vault builders used by anchor seeding */
+static bool build_type6(int y0, int x0, bool force_forge);
+static bool build_type7(int y0, int x0);
+static bool build_type8(int y0, int x0);
+static void seed_ca_blob_anchors(void);
+static void seed_bsp_slice_anchors(void);
+
+/* Attempt to place a prefab vault/room as a generation anchor */
+static bool place_prefab_anchor_of_type(int typ, bool require_neighbor)
+{
+    if (dun->cent_n >= DUN_ROOMS - 1)
+    {
+        return false;
+    }
+
+    int y = rand_range(5, p_ptr->cur_map_hgt - 5);
+    int x = rand_range(5, p_ptr->cur_map_wid - 5);
+    int before = dun->cent_n;
+    bool ok = false;
+
+    switch (typ)
+    {
+    case 8:
+        ok = build_type8(y, x);
+        break;
+    case 7:
+        ok = build_type7(y, x);
+        break;
+    case 6:
+    default:
+        ok = build_type6(y, x, false);
+        break;
+    }
+
+    if (!ok || dun->cent_n <= before)
+    {
+        return false;
+    }
+
+    int slot = dun->cent_n - 1;
+    mark_room_anchor_meta(slot, LAYOUT_ANCHOR_PREFAB, require_neighbor);
+    return true;
+}
+
+/* Seed a small number of prefab anchors up-front to diversify layouts */
+static void seed_prefab_anchors(void)
+{
+    int target = 1;
+    if (p_ptr->depth >= 15)
+        target++;
+    if (p_ptr->depth >= 30 && one_in_(2))
+        target++;
+
+    int placed = 0;
+    int attempts = 0;
+    int max_attempts = target * 6;
+
+    while (placed < target && attempts < max_attempts)
+    {
+        attempts++;
+        /* Bias deeper levels toward larger prefabs, shallow toward type6 */
+        int roll = rand_int(100);
+        int typ = 6;
+        if (roll > 85 && p_ptr->depth > 25)
+            typ = 8;
+        else if (roll > 60 && p_ptr->depth > 10)
+            typ = 7;
+
+        /* Reserve some anchors for future adjacency setpieces */
+        bool require_neighbor = one_in_(3);
+
+        if (place_prefab_anchor_of_type(typ, require_neighbor))
+        {
+            placed++;
+            log_trace("Prefab anchor: placed type %d (require_neighbor=%s) [placed=%d target=%d attempts=%d]",
+                typ, require_neighbor ? "true" : "false", placed, target, attempts);
+        }
+    }
+
+    log_trace("Prefab anchor seeding complete: placed=%d target=%d attempts=%d depth=%d",
+        placed, target, attempts, p_ptr->depth);
+}
+
+/* Carve a small cellular-automata style blob and register it as an anchor */
+static bool carve_ca_blob_anchor(void)
+{
+    if (dun->cent_n >= DUN_ROOMS - 1)
+        return false;
+
+    /* Pick blob dimensions */
+    int h = rand_range(8, 16);
+    int w = rand_range(10, 18);
+    int y1 = rand_range(3, p_ptr->cur_map_hgt - h - 3);
+    int x1 = rand_range(3, p_ptr->cur_map_wid - w - 3);
+    int y2 = y1 + h - 1;
+    int x2 = x1 + w - 1;
+
+    /* Ensure we are carving into untouched granite */
+    if (!area_is_basic_granite(y1 - 1, x1 - 1, y2 + 1, x2 + 1))
+        return false;
+
+    /* Simple CA grid stored on stack (max ~20x20) */
+    bool grid[24][24];
+    if (h > 24 || w > 24)
+        return false;
+
+    /* Seed noise */
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+            grid[y][x] = one_in_(2);
+
+    /* Run a few steps */
+    for (int step = 0; step < 3; ++step)
+    {
+        bool next[24][24];
+        for (int y = 0; y < h; ++y)
+        {
+            for (int x = 0; x < w; ++x)
+            {
+                int neighbors = 0;
+                for (int dy = -1; dy <= 1; ++dy)
+                {
+                    for (int dx = -1; dx <= 1; ++dx)
+                    {
+                        if (dy == 0 && dx == 0)
+                            continue;
+                        int ny = y + dy;
+                        int nx = x + dx;
+                        if (ny < 0 || nx < 0 || ny >= h || nx >= w)
+                            neighbors++;
+                        else if (grid[ny][nx])
+                            neighbors++;
+                    }
+                }
+                /* Standard cave CA: birth>=5 survive>=4 */
+                if (grid[y][x])
+                    next[y][x] = (neighbors >= 4);
+                else
+                    next[y][x] = (neighbors >= 5);
+            }
+        }
+        for (int y = 0; y < h; ++y)
+            for (int x = 0; x < w; ++x)
+                grid[y][x] = next[y][x];
+    }
+
+    /* Apply to dungeon */
+    int floor_count = 0;
+    int min_y = y2, max_y = y1, min_x = x2, max_x = x1;
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            if (!grid[y][x])
+                continue;
+            int gy = y1 + y;
+            int gx = x1 + x;
+            cave_set_feat(gy, gx, FEAT_FLOOR);
+            cave_info[gy][gx] |= CAVE_ROOM;
+            floor_count++;
+            if (gy < min_y)
+                min_y = gy;
+            if (gy > max_y)
+                max_y = gy;
+            if (gx < min_x)
+                min_x = gx;
+            if (gx > max_x)
+                max_x = gx;
+        }
+    }
+
+    if (floor_count < 12)
+        return false;
+
+    /* Pick a center on a floor tile */
+    int cy = min_y, cx = min_x;
+    for (int tries = 0; tries < 200; ++tries)
+    {
+        int ty = rand_range(min_y, max_y);
+        int tx = rand_range(min_x, max_x);
+        if (cave_floor_bold(ty, tx))
+        {
+            cy = ty;
+            cx = tx;
+            break;
+        }
+    }
+
+    int idx = dun->cent_n++;
+    dun->cent[idx].y = cy;
+    dun->cent[idx].x = cx;
+    dun->corner[idx].y1 = min_y;
+    dun->corner[idx].x1 = min_x;
+    dun->corner[idx].y2 = max_y;
+    dun->corner[idx].x2 = max_x;
+    dun->kind[idx] = ROOM_KIND_CLASSIC;
+    dun->is_quest[idx] = false;
+    mark_room_anchor_meta(idx, LAYOUT_ANCHOR_CA_BLOB, one_in_(3));
+
+    log_trace("CA blob anchor: carved floor_count=%d bounds=(%d,%d)-(%d,%d) center=(%d,%d)",
+        floor_count, min_y, min_x, max_y, max_x, cy, cx);
+    return true;
+}
+
+/* Try to seed a few CA blob anchors in unused granite */
+static void seed_ca_blob_anchors(void)
+{
+    int target = (p_ptr->depth >= 10) ? 2 : 1;
+    if (p_ptr->depth >= 25)
+        target++;
+    int placed = 0;
+    for (int attempt = 0; attempt < 12 && placed < target; ++attempt)
+    {
+        if (carve_ca_blob_anchor())
+            placed++;
+    }
+    log_trace("CA blob seeding complete: placed=%d target=%d", placed, target);
+}
+
+/* Carve a BSP-style sliced region into rooms-like rectangles and register anchor */
+static bool carve_bsp_slice_anchor(void)
+{
+    if (dun->cent_n >= DUN_ROOMS - 1)
+        return false;
+
+    int h = rand_range(10, 18);
+    int w = rand_range(12, 24);
+    int y1 = rand_range(3, p_ptr->cur_map_hgt - h - 3);
+    int x1 = rand_range(3, p_ptr->cur_map_wid - w - 3);
+    int y2 = y1 + h - 1;
+    int x2 = x1 + w - 1;
+
+    if (!area_is_basic_granite(y1 - 1, x1 - 1, y2 + 1, x2 + 1))
+        return false;
+
+    typedef struct {
+        int y1, x1, y2, x2;
+    } slice_rect;
+
+    slice_rect rects[12];
+    int rect_count = 1;
+    rects[0].y1 = y1;
+    rects[0].x1 = x1;
+    rects[0].y2 = y2;
+    rects[0].x2 = x2;
+
+    int splits = rand_range(2, 4);
+    for (int s = 0; s < splits && rect_count < 12; ++s)
+    {
+        int pick = rand_int(rect_count);
+        slice_rect r = rects[pick];
+        int rw = r.x2 - r.x1 + 1;
+        int rh = r.y2 - r.y1 + 1;
+        bool vertical = (rw > rh) ? true : (rh > rw ? false : one_in_(2));
+
+        if (vertical && rw > 10)
+        {
+            int cut = rand_range(r.x1 + rw / 3, r.x2 - rw / 3);
+            slice_rect a = {r.y1, r.x1, r.y2, cut};
+            slice_rect b = {r.y1, cut + 1, r.y2, r.x2};
+            if ((a.x2 - a.x1) >= 5 && (b.x2 - b.x1) >= 5)
+            {
+                rects[pick] = a;
+                rects[rect_count++] = b;
+            }
+        }
+        else if (!vertical && rh > 8)
+        {
+            int cut = rand_range(r.y1 + rh / 3, r.y2 - rh / 3);
+            slice_rect a = {r.y1, r.x1, cut, r.x2};
+            slice_rect b = {cut + 1, r.x1, r.y2, r.x2};
+            if ((a.y2 - a.y1) >= 4 && (b.y2 - b.y1) >= 4)
+            {
+                rects[pick] = a;
+                rects[rect_count++] = b;
+            }
+        }
+    }
+
+    int min_y = y2, max_y = y1, min_x = x2, max_x = x1;
+    int floor_count = 0;
+    for (int i = 0; i < rect_count; ++i)
+    {
+        slice_rect *r = &rects[i];
+        for (int y = r->y1 + 1; y < r->y2; ++y)
+        {
+            for (int x = r->x1 + 1; x < r->x2; ++x)
+            {
+                cave_set_feat(y, x, FEAT_FLOOR);
+                cave_info[y][x] |= CAVE_ROOM;
+                floor_count++;
+                if (y < min_y) min_y = y;
+                if (y > max_y) max_y = y;
+                if (x < min_x) min_x = x;
+                if (x > max_x) max_x = x;
+            }
+        }
+    }
+
+    if (floor_count < 20)
+        return false;
+
+    int cy = min_y, cx = min_x;
+    for (int tries = 0; tries < 200; ++tries)
+    {
+        int ty = rand_range(min_y, max_y);
+        int tx = rand_range(min_x, max_x);
+        if (cave_floor_bold(ty, tx))
+        {
+            cy = ty;
+            cx = tx;
+            break;
+        }
+    }
+
+    int idx = dun->cent_n++;
+    dun->cent[idx].y = cy;
+    dun->cent[idx].x = cx;
+    dun->corner[idx].y1 = min_y;
+    dun->corner[idx].x1 = min_x;
+    dun->corner[idx].y2 = max_y;
+    dun->corner[idx].x2 = max_x;
+    dun->kind[idx] = ROOM_KIND_CLASSIC;
+    dun->is_quest[idx] = false;
+    mark_room_anchor_meta(idx, LAYOUT_ANCHOR_BSP_SLICE, one_in_(4));
+
+    log_trace("BSP slice anchor: carved floor_count=%d bounds=(%d,%d)-(%d,%d) center=(%d,%d) rects=%d",
+        floor_count, min_y, min_x, max_y, max_x, cy, cx, rect_count);
+    return true;
+}
+
+/* Try to seed BSP-sliced anchors in spare granite */
+static void seed_bsp_slice_anchors(void)
+{
+    int target = (p_ptr->depth >= 8) ? 1 : 0;
+    if (p_ptr->depth >= 20)
+        target++;
+    int placed = 0;
+    for (int attempt = 0; attempt < 10 && placed < target; ++attempt)
+    {
+        if (carve_bsp_slice_anchor())
+            placed++;
+    }
+    log_trace("BSP slice seeding complete: placed=%d target=%d", placed, target);
 }
 
 static bool feature_is_any_door(int feat)
@@ -1364,7 +1810,7 @@ void place_item_randomly(int tval, int sval, bool close)
         int stacks = curse_flag_count_cur(CUR_FINDCURSE);
         if (stacks && wearable_p(i_ptr))
         {
-            int chance = 20 >> stacks;         /* base 1-in-20 → 1-in-10 → 1-in-5 */
+            int chance = 20 >> stacks;         /* base 1-in-20 ÔåÆ 1-in-10 ÔåÆ 1-in-5 */
             if (!chance || one_in_(chance))
                 add_random_curse(i_ptr);
         }
@@ -2837,7 +3283,7 @@ static int trap_placement_chance(int y, int x)
     /* extra traps from CUR_TRAPS */
     int bonus_traps = curse_flag_count_cur(CUR_TRAPS);
     if (bonus_traps)
-        chance += 10 * bonus_traps;   /* +10/20/30 … on top of normal */
+        chance += 10 * bonus_traps;   /* +10/20/30 ÔÇª on top of normal */
 
     // extra chance of having a trap for certain squares inside rooms
     if (cave_clean_bold(y, x) && (cave_info[y][x] & (CAVE_ROOM)))
@@ -3623,7 +4069,7 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
             }
         }
     } else {
-        /* No S: provided — choose a random style from the depth-available list */
+        /* No S: provided ÔÇö choose a random style from the depth-available list */
         int rs = styles_pick_random_from_level();
         if (rs >= 0) styles_add_vault_weight(rs, 1);
     }
@@ -5990,6 +6436,7 @@ static bool cave_gen(void)
     /* No rooms yet */
     dun->cent_n = 0;
     log_trace("cave_gen: cent_n reset to 0");
+    layout_anchor_reset();
 
     /* Verify dun struct sanity */
     log_trace("cave_gen: sanity check dun ptr=%p cent capacity=%d connection[0][0]=%d piece[0]=%d corner[0]=(y1=%d,x1=%d,y2=%d,x2=%d)",
@@ -6161,6 +6608,9 @@ static bool cave_gen(void)
         log_trace("Quest vault: Already used this run, skipping quest vault check (quest_vault_used=1)");
     }
 
+    /* Seed a handful of prefab anchors up front to diversify layout */
+    seed_prefab_anchors();
+
     /* Build some rooms */
     for (i = 0; i < room_attempts; i++)
     {
@@ -6213,6 +6663,13 @@ static bool cave_gen(void)
 
     /*set the permanent walls*/
     set_perm_boundry();
+
+    /* Carve CA blob anchors into remaining granite */
+    seed_ca_blob_anchors();
+    /* Add BSP-slice anchors for rectangular-but-offset caverns */
+    seed_bsp_slice_anchors();
+
+    layout_anchor_capture_existing_rooms();
 
     /* Log final room count for debugging */
     log_trace("Room generation completed: %d rooms generated (quest_vault_placed=%s)", 
@@ -6650,29 +7107,29 @@ static bool cave_gen(void)
         log_trace("Niena spawn: SKIPPED - did not win lottery (winner=%d)", quest_lottery_winner);
     }
 
-    /* Check for Oromë quest spawning - only if it won the lottery */
+    /* Check for Orom├½ quest spawning - only if it won the lottery */
     int orome_completions = metarun_quest_completion_count(METARUN_QUEST_OROME);
     bool orome_blocked = quest_metarun_blocked(QUEST_ID_OROME, METARUN_QUEST_OROME);
-    log_trace("Oromë spawn check: quest=%d, depth=%d, metarun_completions=%d, lottery_winner=%d, blocked=%s", 
+    log_trace("Orom├½ spawn check: quest=%d, depth=%d, metarun_completions=%d, lottery_winner=%d, blocked=%s", 
              p_ptr->orome_quest, p_ptr->depth, 
              orome_completions,
              quest_lottery_winner,
              orome_blocked ? "yes" : "no");
              
-    /* Only attempt Oromë spawning if it won the lottery and isn't blocked by metarun history */
+    /* Only attempt Orom├½ spawning if it won the lottery and isn't blocked by metarun history */
     if (orome_blocked) {
-        log_trace("Oromë spawn: blocked by metarun state (requires active oath or under cap)");
+        log_trace("Orom├½ spawn: blocked by metarun state (requires active oath or under cap)");
         quest_lottery_winner = 0; /* Treat level as quest-free if history blocks this quest */
-    } else if (quest_lottery_winner == 5) { /* Oromë is quest ID 5 */
-        log_trace("Oromë spawn: Oromë WON the lottery - attempting spawn");
+    } else if (quest_lottery_winner == 5) { /* Orom├½ is quest ID 5 */
+        log_trace("Orom├½ spawn: Orom├½ WON the lottery - attempting spawn");
         
-        /* Try to find a room to spawn Oromë in */
+        /* Try to find a room to spawn Orom├½ in */
         int attempts;
         bool orome_spawned = false;
         
-        log_trace("Oromë spawn: Lottery winner attempting placement at depth %d", p_ptr->depth);
+        log_trace("Orom├½ spawn: Lottery winner attempting placement at depth %d", p_ptr->depth);
         
-        /* Check if Oromë already exists on this level */
+        /* Check if Orom├½ already exists on this level */
         bool orome_exists = false;
         int j;
         for (j = 1; j < mon_max; j++)
@@ -6687,7 +7144,7 @@ static bool cave_gen(void)
         
         if (!orome_exists)
         {
-            /* Try to spawn Oromë near the player's starting room */
+            /* Try to spawn Orom├½ near the player's starting room */
             int player_y = p_ptr->py;
             int player_x = p_ptr->px;
             
@@ -6713,7 +7170,7 @@ static bool cave_gen(void)
                         p_ptr->orome_quest = OROME_QUEST_GIVER_PRESENT;
                         p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
                         orome_spawned = true;
-                        log_trace("Oromë spawned near player at (%d, %d), player at (%d, %d), quest state: %d", 
+                        log_trace("Orom├½ spawned near player at (%d, %d), player at (%d, %d), quest state: %d", 
                                  try_y, try_x, player_y, player_x, p_ptr->orome_quest);
                     }
                 }
@@ -6738,7 +7195,7 @@ static bool cave_gen(void)
                             p_ptr->orome_quest = OROME_QUEST_GIVER_PRESENT;
                             p_ptr->quest_reserved[0] = 1; /* Mark any quest spawned */
                             orome_spawned = true;
-                            log_trace("Oromë spawned in fallback room at (%d, %d), quest state: %d", 
+                            log_trace("Orom├½ spawned in fallback room at (%d, %d), quest state: %d", 
                                      room_y, room_x, p_ptr->orome_quest);
                         }
                     }
@@ -6747,16 +7204,16 @@ static bool cave_gen(void)
             
             if (!orome_spawned)
             {
-                log_trace("Oromë spawn: FAILED - could not place monster after 150 attempts");
+                log_trace("Orom├½ spawn: FAILED - could not place monster after 150 attempts");
                 return false; /* Force regeneration */
             }
         }
         else
         {
-            log_trace("Oromë already exists on level, skipping room spawn");
+            log_trace("Orom├½ already exists on level, skipping room spawn");
         }
     } else {
-        log_trace("Oromë spawn: SKIPPED - did not win lottery (winner=%d)", quest_lottery_winner);
+        log_trace("Orom├½ spawn: SKIPPED - did not win lottery (winner=%d)", quest_lottery_winner);
     }
 
     // place Morgoth if on the run
@@ -7349,3 +7806,4 @@ if (playerturn == 0) {
 
     // Valar quest doesn't provide map rewards like the old thrall quest
 }
+

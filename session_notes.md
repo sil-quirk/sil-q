@@ -6481,3 +6481,39 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 
 ## Verification
 - Not run (logic-only change).
+
+# Session Notes - Multi-pass Layout Scaffolding (2025-11-23)
+
+## Observations on current generator
+- `cave_gen()` seeds map size from depth (l * PANEL sizes), resets styles, fills with granite, zeroes the connection matrix, and builds rooms via `room_build()` (types 1/2/6/7/8) after quest/forced vault steps.
+- Corridors run through `connect_two_rooms()` / `connect_room_to_corridor()` and mark `dun->connection` plus `cave_corridor1/2`; connectivity check follows `connect_rooms_stairs()` (stairs + streamers).
+- Room metadata already captured in `dun` (kind/is_quest/corners/centers); docked vaults reuse it to snap vaults together before corridors.
+- Post-room steps: `set_perm_boundry()`, door randomization, rubble/player placement, monster/object allocation, quest spawn checks.
+
+## Plan for multi-pass generation
+- Anchor layer: represent placed spaces (prefabs/blobs/slices/setpieces) with bounds, centers, style hints, adjacency flags; keep count separate from `dun` while mirroring `dun->kind/is_quest`.
+- Prefab seeding pass: choose a small set of anchor prefabs (weighted by depth/style), allow docked/forced placements, and mark reserved anchors requiring neighbors for combo setpieces.
+- Gap filling: carve remaining space into CA blobs or BSP rectangles, registering each carve as an anchor and tagging traversal masks for corridor linking.
+- Corridor stitching: adapt corridor planner to treat anchors as nodes (including irregular blobs), biasing connectors toward anchors marked as unlinked; keep stair/streamer placement contract.
+- Adjacency setpieces: when reserved anchors touch/overlap neighborhoods, place small bridge setpieces between/inside them and record neighbor links to avoid repeats.
+- Balancing/diagnostics: depth-based weights, quest/forge exclusions, toggle to fall back to classic generator, logging to trace anchor selection and carving.
+
+## Progress this session
+- Added layout anchor scaffolding (`LAYOUT_ANCHOR_*` types + capture helpers) to `generate.c`; anchors mirror existing room bounds/centers, kind, quest flag, and style hint via `style_at_color`.
+- `cave_gen()` now resets anchors before placement and snapshots rooms after `set_perm_boundry()`; no functional change yet - foundation for upcoming multi-pass passes.
+
+## Progress (Nov 23 - prefab seeding)
+- Introduced prefab anchor seeding: `seed_prefab_anchors()` runs before the main room loop, tries a small depth-scaled count of vault-prefabs (types 6/7/8), and tags them as `LAYOUT_ANCHOR_PREFAB`, optionally marked `requires_neighbor` for future adjacency setpieces.
+- Anchor metadata now mirrors room slots: per-room anchor kind + neighbor requirement recorded in `room_anchor_kind/room_anchor_requires_neighbor`, captured into `layout_anchors` alongside bounds/centers/styles.
+- Added helper `place_prefab_anchor_of_type()` to reuse existing type6/7/8 builders and mark anchor metadata on success; no corridor changes yet.
+
+## Progress (Nov 23 - gap fill anchors)
+- Added cellular-automata blob carving (`seed_ca_blob_anchors()` + `carve_ca_blob_anchor()`), digging organic pockets into untouched granite after room placement and tagging them as `LAYOUT_ANCHOR_CA_BLOB` with optional neighbor requirement.
+- Added BSP slice carving (`seed_bsp_slice_anchors()` + `carve_bsp_slice_anchor()`), splitting a granite patch into a handful of offset rectangles and marking them as `LAYOUT_ANCHOR_BSP_SLICE`.
+- Anchor capture now records these fillers so corridor logic can treat them like rooms in later passes; still need corridor biasing/setpiece adjacency hooks.
+
+
+
+
+
+
