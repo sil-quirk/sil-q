@@ -3084,8 +3084,29 @@ void apply_magic(object_type* o_ptr, int lev, bool okay, bool good, bool great,
     {
         artefact_type* a_ptr = &a_info[o_ptr->name1];
 
-        /* Hack -- Mark the artefact as "created" */
-        a_ptr->cur_num = 1;
+        /* Artifact tracking based on generation context:
+         * - Monsters: Mark as created (INSTA_ARTs are monster-specific, won't spawn elsewhere)
+         * - Chests: Mark as created+seen immediately (prevents chest scumming)
+         * - Ground: Mark as created but NOT seen (check visibility later)
+         */
+        if (object_generation_mode == OB_GEN_MODE_CHEST)
+        {
+            /* Chest artifacts: mark as created and seen immediately */
+            a_ptr->cur_num = 1;
+            o_ptr->ident |= IDENT_ARTIFACT_SEEN;
+        }
+        else if (object_generation_mode == OB_GEN_MODE_NORMAL)
+        {
+            /* Ground artifacts: mark as created but not yet seen */
+            a_ptr->cur_num = 1;
+            /* Don't set IDENT_ARTIFACT_SEEN yet - wait for player visibility */
+        }
+        else
+        {
+            /* Monster/special artifacts: mark as created (INSTA_ART are unique to monsters) */
+            a_ptr->cur_num = 1;
+            /* Don't mark as seen - player may not encounter the monster */
+        }
 
         object_into_artefact(o_ptr, a_ptr);
 
@@ -6263,4 +6284,89 @@ void reorder_pack(bool display_message)
         msg_print("You reorder some items in your pack.");
 }
 
+/*
+ * Check ground artifacts within 33-cell radius of player and mark as seen
+ * Only checks changed positions (tracked via lastpx/lastpy) for efficiency
+ */
+void check_artifact_visibility(void)
+{
+    int x, y;
+    int px = p_ptr->px;
+    int py = p_ptr->py;
+    static int last_px = -1;
+    static int last_py = -1;
+    
+    /* First call - mark everything in radius */
+    if (last_px < 0 || last_py < 0)
+    {
+        for (y = py - 33; y <= py + 33; y++)
+        {
+            for (x = px - 33; x <= px + 33; x++)
+            {
+                if (!in_bounds(y, x)) continue;
+                
+                /* Check objects at this location */
+                s16b this_o_idx = cave_o_idx[y][x];
+                while (this_o_idx)
+                {
+                    object_type* o_ptr = &o_list[this_o_idx];
+                    
+                    /* If artifact and not already seen */
+                    if (o_ptr->name1 && !(o_ptr->ident & IDENT_ARTIFACT_SEEN))
+                    {
+                        /* Mark as seen */
+                        o_ptr->ident |= IDENT_ARTIFACT_SEEN;
+                        log_trace("Artifact %d marked as seen at (%d,%d)", o_ptr->name1, y, x);
+                    }
+                    
+                    this_o_idx = o_ptr->next_o_idx;
+                }
+            }
+        }
+        last_px = px;
+        last_py = py;
+        return;
+    }
+    
+    /* Player moved - check only new cells that entered the radius */
+    int dx = px - last_px;
+    int dy = py - last_py;
+    
+    if (dx == 0 && dy == 0) return; /* No movement */
+    
+    /* Check cells that entered the 66x66 radius */
+    for (y = py - 33; y <= py + 33; y++)
+    {
+        for (x = px - 33; x <= px + 33; x++)
+        {
+            if (!in_bounds(y, x)) continue;
+            
+            /* Only check if this cell wasn't in the old radius */
+            int old_dx = x - last_px;
+            int old_dy = y - last_py;
+            if (old_dx >= -33 && old_dx <= 33 && old_dy >= -33 && old_dy <= 33)
+                continue; /* Was already checked */
+            
+            /* Check objects at this new location */
+            s16b this_o_idx = cave_o_idx[y][x];
+            while (this_o_idx)
+            {
+                object_type* o_ptr = &o_list[this_o_idx];
+                
+                /* If artifact and not already seen */
+                if (o_ptr->name1 && !(o_ptr->ident & IDENT_ARTIFACT_SEEN))
+                {
+                    /* Mark as seen */
+                    o_ptr->ident |= IDENT_ARTIFACT_SEEN;
+                    log_trace("Artifact %d marked as seen at (%d,%d)", o_ptr->name1, y, x);
+                }
+                
+                this_o_idx = o_ptr->next_o_idx;
+            }
+        }
+    }
+    
+    last_px = px;
+    last_py = py;
+}
 

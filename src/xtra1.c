@@ -4160,6 +4160,9 @@ void update_stuff(void)
         p_ptr->update &= ~(PU_UPDATE_VIEW);
         log_debug("update_stuff: updating view");
         update_view();
+        
+        /* Check artifact visibility after view update */
+        check_artifact_visibility();
     }
 
     if (p_ptr->update & (PU_DISTANCE))

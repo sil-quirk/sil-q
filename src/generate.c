@@ -3862,13 +3862,8 @@ static bool alloc_stairs(int feat, int num)
 {
     int x;
 
-    /*smaller levels don't need that many stairs, but there are a minimum of 4
-     * rooms*/
-    if (dun->cent_n == 4)
-        num = 1;
-    else if (num > (dun->cent_n / 2))
-        num = dun->cent_n / 2;
-
+    /* Stairs can be placed anywhere on the map - rooms or corridors */
+    
     /* Place "num" stairs */
     for (x = 0; x < num; x++)
     {
@@ -3876,14 +3871,13 @@ static bool alloc_stairs(int feat, int num)
 
         int yy, xx;
 
-        for (i = 0; i <= 1000; i++)
+        for (i = 0; i < 1000; i++)
         {
             yy = rand_int(p_ptr->cur_map_hgt);
             xx = rand_int(p_ptr->cur_map_wid);
 
-            /* make sure the square is empty, in a room and has no adjacent
-             * doors*/
-            if (cave_naked_bold(yy, xx) && (cave_info[yy][xx] & (CAVE_ROOM)))
+            /* make sure the square is empty (floor) and has no adjacent doors */
+            if (cave_naked_bold(yy, xx) && cave_floor_bold(yy, xx))
                 if ((cave_feat[yy - 1][xx] != FEAT_DOOR_HEAD)
                     && (cave_feat[yy][xx - 1] != FEAT_DOOR_HEAD)
                     && (cave_feat[yy + 1][xx] != FEAT_DOOR_HEAD)
@@ -3891,10 +3885,13 @@ static bool alloc_stairs(int feat, int num)
                 {
                     break;
                 }
-            if (i == 1000)
-            {
-                return (false);
-            }
+        }
+        
+        /* Failed to find valid location after 1000 attempts */
+        if (i == 1000)
+        {
+            log_trace("alloc_stairs: Failed to find valid location for stair %d/%d after 1000 attempts", x+1, num);
+            return (false);
         }
 
         /* Surface -- must go down */
@@ -4447,60 +4444,122 @@ static bool connect_rooms_stairs(void)
 
     // label_rooms();
 
-    /* Place down stairs */
-    width = (p_ptr->cur_map_wid / PANEL_WID_FIXED);
+    /* Calculate number of stairs based on map size: 4 for 66x66, 15 for 165x165 */
+    /* Linear interpolation: stairs = 4 + (size - 66) * (15 - 4) / (165 - 66) */
+    int map_size = (p_ptr->cur_map_hgt + p_ptr->cur_map_wid) / 2;  /* Average dimension */
+    stairs = 4 + ((map_size - 66) * 11) / 99;  /* 11 = (15-4), 99 = (165-66) */
+    if (stairs < 4) stairs = 4;   /* Minimum 4 */
+    if (stairs > 15) stairs = 15;  /* Maximum 15 */
+    
+    log_trace("Map size %d leads to %d stairs each direction", map_size, stairs);
 
-    if (width <= 3)
-        stairs = 1;
-    else if (width == 4)
-        stairs = 2;
-    else
-        stairs = 4;
+    /* Determine partition count for guaranteed stair placement */
+    int partition_count = (map_size <= 80) ? 4 : 9;
 
+    /* Place guaranteed stairs: at least one up and one down per partition */
+    int down_placed = 0;
+    int up_placed = 0;
+    
+    /* First pass: place one of each type per partition */
+    for (int pi = 0; pi < partition_count; ++pi)
+    {
+        int grid_size = (partition_count == 4) ? 2 : 3;
+        int row = pi / grid_size;
+        int col = pi % grid_size;
+        
+        int y1 = 1 + (row * p_ptr->cur_map_hgt / grid_size);
+        int y2 = ((row + 1) * p_ptr->cur_map_hgt / grid_size) - 1;
+        int x1 = 1 + (col * p_ptr->cur_map_wid / grid_size);
+        int x2 = ((col + 1) * p_ptr->cur_map_wid / grid_size) - 1;
+        
+        /* Clamp boundaries */
+        if (y2 >= p_ptr->cur_map_hgt - 1) y2 = p_ptr->cur_map_hgt - 2;
+        if (x2 >= p_ptr->cur_map_wid - 1) x2 = p_ptr->cur_map_wid - 2;
+        
+        /* Place one down stair in this partition */
+        for (int attempt = 0; attempt < 100; ++attempt)
+        {
+            int yy = rand_range(y1, y2);
+            int xx = rand_range(x1, x2);
+            
+            if (cave_naked_bold(yy, xx) && cave_floor_bold(yy, xx) &&
+                cave_feat[yy - 1][xx] != FEAT_DOOR_HEAD &&
+                cave_feat[yy][xx - 1] != FEAT_DOOR_HEAD &&
+                cave_feat[yy + 1][xx] != FEAT_DOOR_HEAD &&
+                cave_feat[yy][xx + 1] != FEAT_DOOR_HEAD)
+            {
+                int feat = (p_ptr->on_the_run) ? FEAT_MORE_SHAFT : 
+                          (down_placed == 0 || p_ptr->depth >= MORGOTH_DEPTH) ? FEAT_MORE : 
+                          choose_down_stairs();
+                cave_set_feat(yy, xx, feat);
+                down_placed++;
+                break;
+            }
+        }
+        
+        /* Place one up stair in this partition */
+        for (int attempt = 0; attempt < 100; ++attempt)
+        {
+            int yy = rand_range(y1, y2);
+            int xx = rand_range(x1, x2);
+            
+            if (cave_naked_bold(yy, xx) && cave_floor_bold(yy, xx) &&
+                cave_feat[yy - 1][xx] != FEAT_DOOR_HEAD &&
+                cave_feat[yy][xx - 1] != FEAT_DOOR_HEAD &&
+                cave_feat[yy + 1][xx] != FEAT_DOOR_HEAD &&
+                cave_feat[yy][xx + 1] != FEAT_DOOR_HEAD)
+            {
+                int feat = (p_ptr->on_the_run && p_ptr->depth >= 2) ? FEAT_LESS_SHAFT :
+                          (up_placed == 0 || !p_ptr->depth) ? FEAT_LESS :
+                          choose_up_stairs();
+                cave_set_feat(yy, xx, feat);
+                up_placed++;
+                break;
+            }
+        }
+    }
+    
+    log_trace("Guaranteed partition stairs: %d down, %d up placed", down_placed, up_placed);
+
+    /* Second pass: place remaining stairs randomly across the map */
+    int down_remaining = stairs - down_placed;
+    int up_remaining = stairs - up_placed;
+    
+    /* Place remaining down stairs */
+    int down_stairs = down_remaining;
     if (p_ptr->on_the_run)
-    {
-        initial_down = FEAT_MORE_SHAFT;
-        stairs *= 2;
-    }
-
-    if ((p_ptr->create_stair == FEAT_MORE)
-        || (p_ptr->create_stair == FEAT_MORE_SHAFT))
-        stairs--;
+        down_stairs *= 2;
+    if ((p_ptr->create_stair == FEAT_MORE) || (p_ptr->create_stair == FEAT_MORE_SHAFT))
+        down_stairs--;
     
-    if (!(alloc_stairs(initial_down, stairs)))
+    initial_down = p_ptr->on_the_run ? FEAT_MORE_SHAFT : FEAT_MORE;
+    
+    if (down_stairs > 0 && !(alloc_stairs(initial_down, down_stairs)))
     {
         if (cheat_room)
-            msg_format("Failed to place down stairs.");
-        log_trace("connect_rooms_stairs failed: Could not place %d down stairs", stairs);
+            msg_format("Failed to place remaining down stairs.");
+        log_trace("connect_rooms_stairs failed: Could not place %d remaining down stairs", down_stairs);
         return (false);
     }
 
-    /* Place up stairs */
-
-    if (width <= 3)
-        stairs = 1;
-    else if (width == 4)
-        stairs = 2;
-    else
-        stairs = 4;
-
+    /* Place remaining up stairs */
+    int up_stairs = up_remaining;
     if (p_ptr->on_the_run && p_ptr->depth >= 2)
-    {
-        initial_up = FEAT_LESS_SHAFT;
-        stairs *= 2;
-    }
-
-    if ((p_ptr->create_stair == FEAT_LESS)
-        || (p_ptr->create_stair == FEAT_LESS_SHAFT))
-        stairs--;
+        up_stairs *= 2;
+    if ((p_ptr->create_stair == FEAT_LESS) || (p_ptr->create_stair == FEAT_LESS_SHAFT))
+        up_stairs--;
     
-    if (!(alloc_stairs(initial_up, stairs)))
+    initial_up = (p_ptr->on_the_run && p_ptr->depth >= 2) ? FEAT_LESS_SHAFT : FEAT_LESS;
+    
+    if (up_stairs > 0 && !(alloc_stairs(initial_up, up_stairs)))
     {
         if (cheat_room)
-            msg_format("Failed to place up stairs.");
-        log_trace("connect_rooms_stairs failed: Could not place %d up stairs", stairs);
+            msg_format("Failed to place remaining up stairs.");
+        log_trace("connect_rooms_stairs failed: Could not place %d remaining up stairs", up_stairs);
         return (false);
     }
+    
+    log_trace("Total stairs placed: %d down, %d up", down_placed + down_stairs, up_placed + up_stairs);
 
     /* Hack -- Add some quartz streamers */
     for (i = 0; i < DUN_STR_QUA; i++)

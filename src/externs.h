@@ -868,6 +868,7 @@ extern void object_copy(object_type* o_ptr, const object_type* j_ptr);
 extern void object_prep(object_type* o_ptr, int k_idx);
 extern void object_into_artefact(object_type* o_ptr, artefact_type* a_ptr);
 extern void object_into_special(object_type* o_ptr, int lev, bool smithing);
+extern void check_artifact_visibility(void);
 extern void apply_magic(object_type* o_ptr, int lev, bool okay, bool good,
     bool great, bool allow_insta);
 extern bool make_object(

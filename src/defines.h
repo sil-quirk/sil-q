@@ -1760,7 +1760,7 @@
 #define IDENT_KNOWN 0x00000008 /* Item abilities are known */
 #define IDENT_SPOIL                                                            \
     0x00000010 /* Item is being listed in the object knowledge */
-#define IDENT_UNUSED_XXXXXX2X 0x00000020 /* Unused */
+#define IDENT_ARTIFACT_SEEN 0x00000020 /* Artifact seen by player (prevents regeneration) */
 #define IDENT_CURSED 0x00000040 /* Item is temporarily cursed */
 #define IDENT_BROKEN 0x00000080 /* Item is permanently worthless */
 #define IDENT_UNUSED_XXXXX1XX 0x00000100 /* Unused */
