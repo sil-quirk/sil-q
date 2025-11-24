@@ -2575,6 +2575,8 @@ void display_map(int* cy, int* cx)
     int row, col;
 
     int x, y;
+    int min_x, max_x, min_y, max_y;
+    int explored_wid, explored_hgt;
 
     byte ta;
     char tc;
@@ -2586,15 +2588,51 @@ void display_map(int* cy, int* cx)
 
     monster_race* r_ptr = &r_info[0];
 
+    /* Find the bounding box of explored areas */
+    min_x = p_ptr->cur_map_wid;
+    max_x = 0;
+    min_y = p_ptr->cur_map_hgt;
+    max_y = 0;
+
+    for (y = 0; y < p_ptr->cur_map_hgt; y++)
+    {
+        for (x = 0; x < p_ptr->cur_map_wid; x++)
+        {
+            /* Check if this grid has been seen */
+            if (cave_info[y][x] & (CAVE_MARK))
+            {
+                if (x < min_x) min_x = x;
+                if (x > max_x) max_x = x;
+                if (y < min_y) min_y = y;
+                if (y > max_y) max_y = y;
+            }
+        }
+    }
+
+    /* Calculate explored dimensions */
+    explored_wid = (max_x - min_x + 1);
+    explored_hgt = (max_y - min_y + 1);
+
+    /* If nothing explored, fall back to full map */
+    if (explored_wid < 1 || explored_hgt < 1)
+    {
+        min_x = 0;
+        max_x = p_ptr->cur_map_wid - 1;
+        min_y = 0;
+        max_y = p_ptr->cur_map_hgt - 1;
+        explored_wid = p_ptr->cur_map_wid;
+        explored_hgt = p_ptr->cur_map_hgt;
+    }
+
     /* Desired map height */
     map_hgt = Term->hgt - 2;
     map_wid = Term->wid - 2;
 
     /* Prevent accidents */
-    if (map_hgt > p_ptr->cur_map_hgt)
-        map_hgt = p_ptr->cur_map_hgt;
-    if (map_wid > p_ptr->cur_map_wid)
-        map_wid = p_ptr->cur_map_wid;
+    if (map_hgt > explored_hgt)
+        map_hgt = explored_hgt;
+    if (map_wid > explored_wid)
+        map_wid = explored_wid;
 
     /* Prevent accidents */
     if ((map_wid < 1) || (map_hgt < 1))
@@ -2641,13 +2679,14 @@ void display_map(int* cy, int* cx)
         Term_putch(x, y, ta, '|');
     }
 
-    /* Analyze the actual map */
-    for (y = 0; y < p_ptr->cur_map_hgt; y++)
+    /* Analyze the actual map (only explored area) */
+    for (y = min_y; y <= max_y; y++)
     {
-        for (x = 0; x < p_ptr->cur_map_wid; x++)
+        for (x = min_x; x <= max_x; x++)
         {
-            row = (y * map_hgt / p_ptr->cur_map_hgt);
-            col = (x * map_wid / p_ptr->cur_map_wid);
+            /* Scale based on explored area */
+            row = ((y - min_y) * map_hgt / explored_hgt);
+            col = ((x - min_x) * map_wid / explored_wid);
 
             if (use_bigtile)
                 col = col & ~1;
@@ -2693,9 +2732,9 @@ void display_map(int* cy, int* cx)
         }
     }
 
-    /* Player location */
-    row = (p_ptr->py * map_hgt / p_ptr->cur_map_hgt);
-    col = (p_ptr->px * map_wid / p_ptr->cur_map_wid);
+    /* Player location (scaled relative to explored area) */
+    row = ((p_ptr->py - min_y) * map_hgt / explored_hgt);
+    col = ((p_ptr->px - min_x) * map_wid / explored_wid);
 
     if (use_bigtile)
         col = col & ~1;

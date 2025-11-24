@@ -3188,6 +3188,38 @@ void do_cmd_target(void)
 }
 
 /*
+ * Calculate the bounding box of explored areas
+ * Returns true if any explored area found, false otherwise
+ */
+static bool get_explored_bounds(int* min_y, int* max_y, int* min_x, int* max_x)
+{
+    int y, x;
+    
+    *min_x = p_ptr->cur_map_wid;
+    *max_x = 0;
+    *min_y = p_ptr->cur_map_hgt;
+    *max_y = 0;
+
+    for (y = 0; y < p_ptr->cur_map_hgt; y++)
+    {
+        for (x = 0; x < p_ptr->cur_map_wid; x++)
+        {
+            /* Check if this grid has been seen */
+            if (cave_info[y][x] & (CAVE_MARK))
+            {
+                if (x < *min_x) *min_x = x;
+                if (x > *max_x) *max_x = x;
+                if (y < *min_y) *min_y = y;
+                if (y > *max_y) *max_y = y;
+            }
+        }
+    }
+
+    /* Check if any explored area was found */
+    return (*min_x <= *max_x && *min_y <= *max_y);
+}
+
+/*
  * Look command
  */
 void do_cmd_look(void)
@@ -3862,14 +3894,32 @@ void do_cmd_unified_look(void)
                     int dir = target_dir(query);
                     if (dir)
                     {
-                        state.cursor_y += ddy[dir];
-                        state.cursor_x += ddx[dir];
+                        int new_cursor_y = state.cursor_y + ddy[dir];
+                        int new_cursor_x = state.cursor_x + ddx[dir];
                         
-                        /* Keep in bounds - use actual map size */
-                        if (state.cursor_y < 0) state.cursor_y = 0;
-                        if (state.cursor_y >= p_ptr->cur_map_hgt) state.cursor_y = p_ptr->cur_map_hgt - 1;
-                        if (state.cursor_x < 0) state.cursor_x = 0;
-                        if (state.cursor_x >= p_ptr->cur_map_wid) state.cursor_x = p_ptr->cur_map_wid - 1;
+                        /* Calculate explored bounds */
+                        int min_y, max_y, min_x, max_x;
+                        bool has_explored = get_explored_bounds(&min_y, &max_y, &min_x, &max_x);
+                        
+                        if (has_explored)
+                        {
+                            /* Constrain cursor to explored area */
+                            if (new_cursor_y < min_y) new_cursor_y = min_y;
+                            if (new_cursor_y > max_y) new_cursor_y = max_y;
+                            if (new_cursor_x < min_x) new_cursor_x = min_x;
+                            if (new_cursor_x > max_x) new_cursor_x = max_x;
+                        }
+                        else
+                        {
+                            /* No explored area, constrain to full map */
+                            if (new_cursor_y < 0) new_cursor_y = 0;
+                            if (new_cursor_y >= p_ptr->cur_map_hgt) new_cursor_y = p_ptr->cur_map_hgt - 1;
+                            if (new_cursor_x < 0) new_cursor_x = 0;
+                            if (new_cursor_x >= p_ptr->cur_map_wid) new_cursor_x = p_ptr->cur_map_wid - 1;
+                        }
+                        
+                        state.cursor_y = new_cursor_y;
+                        state.cursor_x = new_cursor_x;
                         
                         /* Handle viewport scrolling when cursor reaches screen edge */
                         if (!panel_contains(state.cursor_y, state.cursor_x))
@@ -3881,6 +3931,24 @@ void do_cmd_unified_look(void)
                             /* Center the viewport on the cursor */
                             int new_wy = state.cursor_y - SCREEN_HGT / 2;
                             int new_wx = state.cursor_x - SCREEN_WID / 2;
+                            
+                            /* Constrain viewport to explored bounds if available */
+                            if (has_explored)
+                            {
+                                int explored_min_wy = min_y;
+                                int explored_max_wy = max_y - SCREEN_HGT + 1;
+                                int explored_min_wx = min_x;
+                                int explored_max_wx = max_x - SCREEN_WID + 1;
+                                
+                                /* Ensure min <= max */
+                                if (explored_max_wy < explored_min_wy) explored_max_wy = explored_min_wy;
+                                if (explored_max_wx < explored_min_wx) explored_max_wx = explored_min_wx;
+                                
+                                if (new_wy < explored_min_wy) new_wy = explored_min_wy;
+                                if (new_wy > explored_max_wy) new_wy = explored_max_wy;
+                                if (new_wx < explored_min_wx) new_wx = explored_min_wx;
+                                if (new_wx > explored_max_wx) new_wx = explored_max_wx;
+                            }
                             
                             /* Use proper panel management function */
                             if (modify_panel(new_wy, new_wx))
@@ -3942,11 +4010,37 @@ void do_cmd_unified_look(void)
                         int new_wy = p_ptr->wy + (ddy[dir] * PANEL_HGT);
                         int new_wx = p_ptr->wx + (ddx[dir] * PANEL_WID);
                         
-                        /* Constrain viewport to map boundaries */
-                        if (new_wy < 0) new_wy = 0;
-                        if (new_wx < 0) new_wx = 0;
-                        if (new_wy > p_ptr->cur_map_hgt - SCREEN_HGT) new_wy = p_ptr->cur_map_hgt - SCREEN_HGT;
-                        if (new_wx > p_ptr->cur_map_wid - SCREEN_WID) new_wx = p_ptr->cur_map_wid - SCREEN_WID;
+                        /* Calculate explored bounds for viewport constraint */
+                        int min_y, max_y, min_x, max_x;
+                        int explored_min_wy, explored_max_wy;
+                        int explored_min_wx, explored_max_wx;
+                        
+                        if (get_explored_bounds(&min_y, &max_y, &min_x, &max_x))
+                        {
+                            /* Calculate viewport bounds based on explored area */
+                            explored_min_wy = min_y;
+                            explored_max_wy = max_y - SCREEN_HGT + 1;
+                            explored_min_wx = min_x;
+                            explored_max_wx = max_x - SCREEN_WID + 1;
+                            
+                            /* Ensure min <= max */
+                            if (explored_max_wy < explored_min_wy) explored_max_wy = explored_min_wy;
+                            if (explored_max_wx < explored_min_wx) explored_max_wx = explored_min_wx;
+                        }
+                        else
+                        {
+                            /* No explored area, use full map */
+                            explored_min_wy = 0;
+                            explored_max_wy = p_ptr->cur_map_hgt - SCREEN_HGT;
+                            explored_min_wx = 0;
+                            explored_max_wx = p_ptr->cur_map_wid - SCREEN_WID;
+                        }
+                        
+                        /* Constrain viewport to explored boundaries */
+                        if (new_wy < explored_min_wy) new_wy = explored_min_wy;
+                        if (new_wx < explored_min_wx) new_wx = explored_min_wx;
+                        if (new_wy > explored_max_wy) new_wy = explored_max_wy;
+                        if (new_wx > explored_max_wx) new_wx = explored_max_wx;
                         
                         /* Additional safety checks */
                         if (new_wy < 0) new_wy = 0;
@@ -4579,12 +4673,37 @@ void highlight_entity_on_map_type(int y, int x, bool highlight, int entity_type)
 void do_cmd_locate(void)
 {
     int dir, y1, x1, y2, x2;
+    int min_y, max_y, min_x, max_x;
+    int explored_min_wy, explored_max_wy;
+    int explored_min_wx, explored_max_wx;
 
     /* Clear entry level banner when using L command */
     if (g_banner_force_redraw_remaining > 0)
     {
         g_banner_force_redraw_remaining = 0;
         do_cmd_redraw();
+    }
+
+    /* Calculate explored bounds */
+    if (get_explored_bounds(&min_y, &max_y, &min_x, &max_x))
+    {
+        /* Calculate viewport bounds based on explored area */
+        explored_min_wy = min_y;
+        explored_max_wy = max_y - SCREEN_HGT + 1;
+        explored_min_wx = min_x;
+        explored_max_wx = max_x - SCREEN_WID + 1;
+        
+        /* Ensure min <= max */
+        if (explored_max_wy < explored_min_wy) explored_max_wy = explored_min_wy;
+        if (explored_max_wx < explored_min_wx) explored_max_wx = explored_min_wx;
+    }
+    else
+    {
+        /* No explored area, use full map */
+        explored_min_wy = 0;
+        explored_max_wy = p_ptr->cur_map_hgt - SCREEN_HGT;
+        explored_min_wx = 0;
+        explored_max_wx = p_ptr->cur_map_wid - SCREEN_WID;
     }
 
     /* Start at current panel */
@@ -4622,17 +4741,16 @@ void do_cmd_locate(void)
         y2 += (ddy[dir] * PANEL_HGT);
         x2 += (ddx[dir] * PANEL_WID);
 
-        /* Verify the row */
-        if (y2 > p_ptr->cur_map_hgt - SCREEN_HGT)
-            y2 = p_ptr->cur_map_hgt - SCREEN_HGT;
-        if (y2 < 0)
-            y2 = 0;
+        /* Constrain to explored bounds */
+        if (y2 > explored_max_wy)
+            y2 = explored_max_wy;
+        if (y2 < explored_min_wy)
+            y2 = explored_min_wy;
 
-        /* Verify the col */
-        if (x2 > p_ptr->cur_map_wid - SCREEN_WID)
-            x2 = p_ptr->cur_map_wid - SCREEN_WID;
-        if (x2 < 0)
-            x2 = 0;
+        if (x2 > explored_max_wx)
+            x2 = explored_max_wx;
+        if (x2 < explored_min_wx)
+            x2 = explored_min_wx;
 
         /* Handle "changes" */
         if ((p_ptr->wy != y2) || (p_ptr->wx != x2))
