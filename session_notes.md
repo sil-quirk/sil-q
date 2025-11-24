@@ -6512,6 +6512,20 @@ User reported that while letters were enabled, the 'i' and 'e' keys were still s
 - Added BSP slice carving (`seed_bsp_slice_anchors()` + `carve_bsp_slice_anchor()`), splitting a granite patch into a handful of offset rectangles and marking them as `LAYOUT_ANCHOR_BSP_SLICE`.
 - Anchor capture now records these fillers so corridor logic can treat them like rooms; corridor pre-pass now connects neighbor-required anchors to their nearest mate, ahead of the standard corridor phases. Setpiece adjacency hooks still pending.
 
+## Progress (Nov 24 - large map stability)
+- Raised `DUN_ROOMS` to 150 so the connection table can safely track all `CENT_MAX` rooms on the new 6-15 block square maps.
+- Scaled corridor reach in `connect_two_rooms()` off the current map size (base 15/10, but up to ~33/20 on 165x165 levels) so distant partitions still connect before we declare failure.
+- Added `ensure_minimum_rooms()` fallback: after anchor seeding, we force a few simple rooms if `cent_n` < `ROOM_MIN`, cutting off regen loops that were exiting with 0–1 rooms.
+
+## Progress (Nov 24 - capacity guards)
+- Made room storage arrays track the connection matrix by tying `CENT_MAX` to `DUN_ROOMS`.
+- Added a shared `room_capacity_limit()` helper and applied it to all room/anchor builders (including bounded CA/BSP anchors and prefab docking) to prevent overruns on large 15-block layouts.
+- Quadrant generation now stops when capacity is reached, avoiding buffer corruption that previously zeroed out `cent_n` and led to connectivity failures and regen loops.
+
+## Progress (Nov 24 - connectivity spans)
+- Increased corridor distance limits in `connect_two_rooms()` to scale with the new 15x15 block maps (now ~110-grid span on 165x165 levels, with extra headroom when desperate) so far-apart partitions can be linked.
+- Added debug logging in `check_connectivity()` that reports unreachable passable tiles to pinpoint stranded regions during generation failures.
+
 
 
 

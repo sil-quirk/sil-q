@@ -125,20 +125,23 @@
  * Number of grids in each dungeon (horizontally)
  * Must be a multiple of SCREEN_HGT
  * Must be less or equal to 256
+ * Note: Now supports square levels up to 15*11 = 165
  */
-#define MAX_DUNGEON_HGT (5 * 11)
+#define MAX_DUNGEON_HGT (15 * 11)
 
 /*
  * Number of grids in each dungeon (vertically)
  * Must be a multiple of SCREEN_WID
  * Must be less or equal to 256
+ * Note: Now supports square levels up to 15*11 = 165
  */
-#define MAX_DUNGEON_WID (5 * 33)
+#define MAX_DUNGEON_WID (15 * 11)
 
 /*
  * Max number of rooms in dungeon.
  */
-#define DUN_ROOMS 50
+/* Maximum rooms tracked per level; keep at or above CENT_MAX to avoid truncating large layouts */
+#define DUN_ROOMS 150
 
 /*
  * Maximum amount of Angband windows.
@@ -292,7 +295,7 @@
  * The maximum number of monsters that fit on one level.
  * Used to be in limits.txt but was needed for array indexing.
  */
-#define MAX_MONSTERS 300
+#define MAX_MONSTERS 500
 
 /*
  * The maximum number of independent groups of wandering monsters on one level.
