@@ -1026,6 +1026,12 @@ typedef enum quadrant_mode {
     QUAD_MODE_CHASM       /* Large open areas with pillars and bridges */
 } quadrant_mode_t;
 
+typedef enum density_level {
+    DENSITY_SPARSE = 0,   /* Fewer rooms/carvings */
+    DENSITY_NORMAL,       /* Standard amount */
+    DENSITY_DENSE         /* More rooms/carvings */
+} density_level_t;
+
 static bool room_kind_is_vault(byte kind)
 {
     return (kind >= ROOM_KIND_INTERESTING);
@@ -1885,9 +1891,10 @@ static void apply_quadrant_generation_modes(void)
         log_trace("Level size %d blocks: using 3x3 partition grid (9 zones)", blocks);
     }
     
-    /* Allocate mode and style arrays */
+    /* Allocate mode, style, and density arrays */
     quadrant_mode_t modes[9];  /* Max 9 partitions */
     int partition_styles[9];
+    density_level_t densities[9];  /* Density variation per partition */
     
     /* Initialize all partitions to ROOMY */
     for (int i = 0; i < partition_count; ++i)
@@ -1927,18 +1934,19 @@ static void apply_quadrant_generation_modes(void)
     }
     else  /* partition_count == 9 */
     {
-        /* Large levels (9 partitions): Guaranteed ROOMY + CAVEY, others random */
+        /* Large levels (9 partitions): Guaranteed 2x ROOMY + CAVEY, others random */
         
-        /* First two partitions: ROOMY and CAVEY (guaranteed) */
+        /* First three partitions: 2x ROOMY and CAVEY (guaranteed) */
         modes[0] = QUAD_MODE_ROOMY;
-        modes[1] = QUAD_MODE_CAVEY;
+        modes[1] = QUAD_MODE_ROOMY;
+        modes[2] = QUAD_MODE_CAVEY;
         
-        /* Remaining 7 partitions: mix of modes with variety */
+        /* Remaining 6 partitions: mix of modes with variety */
         int mode_pool[] = {QUAD_MODE_ROOMY, QUAD_MODE_CAVEY, QUAD_MODE_RUINED, 
                           QUAD_MODE_LABYRINTH, QUAD_MODE_CHASM};
         int pool_size = 5;
         
-        for (int i = 2; i < partition_count; ++i)
+        for (int i = 3; i < partition_count; ++i)
         {
             /* Weighted selection: favor variety but allow repeats */
             int pick = rand_int(pool_size);
@@ -1954,14 +1962,24 @@ static void apply_quadrant_generation_modes(void)
             modes[j] = temp;
         }
         
-        log_trace("9-partition level: ROOMY + CAVEY guaranteed, others randomized");
+        log_trace("9-partition level: 2x ROOMY + CAVEY guaranteed, others randomized");
     }
     
-    /* Pick a random visual style for each partition */
+    /* Pick a random visual style and density for each partition */
     for (int i = 0; i < partition_count; ++i)
     {
         partition_styles[i] = styles_pick_random_from_level();
-        log_trace("Partition %d: mode=%d style=%d", i, modes[i], partition_styles[i]);
+        
+        /* Randomly assign density with weighted distribution */
+        int density_roll = rand_int(100);
+        if (density_roll < 25)
+            densities[i] = DENSITY_SPARSE;   /* 25% chance */
+        else if (density_roll < 75)
+            densities[i] = DENSITY_NORMAL;   /* 50% chance */
+        else
+            densities[i] = DENSITY_DENSE;    /* 25% chance */
+        
+        log_trace("Partition %d: mode=%d style=%d density=%d", i, modes[i], partition_styles[i], densities[i]);
     }
     
     /* Apply modes to each partition */
@@ -1983,6 +2001,7 @@ static void apply_quadrant_generation_modes(void)
         int x2 = ((col + 1) * p_ptr->cur_map_wid / grid_size) - 1;
         quadrant_mode_t mode = modes[pi];
         int style_idx = partition_styles[pi];
+        density_level_t density = densities[pi];
         
         /* Clamp boundaries to valid range */
         if (y2 >= p_ptr->cur_map_hgt - 1) y2 = p_ptr->cur_map_hgt - 2;
@@ -2006,40 +2025,96 @@ static void apply_quadrant_generation_modes(void)
         switch (mode)
         {
         case QUAD_MODE_CAVEY:
-            for (int b = 0; b < 2; ++b)
-                carve_ca_blob_anchor_bounds(y1, y2, x1, x2);
-            room_build_in_bounds(6, y1, y2, x1, x2); /* interesting */
-            room_build_in_bounds(7, y1, y2, x1, x2); /* lesser vault */
+            {
+                int blob_count = (density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 3 : 2;
+                for (int b = 0; b < blob_count; ++b)
+                    carve_ca_blob_anchor_bounds(y1, y2, x1, x2);
+                room_build_in_bounds(6, y1, y2, x1, x2); /* interesting */
+                if (density != DENSITY_SPARSE)
+                    room_build_in_bounds(7, y1, y2, x1, x2); /* lesser vault */
+            }
             break;
         case QUAD_MODE_RUINED:
-            carve_bsp_slice_anchor_bounds(y1, y2, x1, x2);
-            room_build_in_bounds(7, y1, y2, x1, x2);
-            room_build_in_bounds(2, y1, y2, x1, x2);
+            {
+                int carve_count = (density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 2 : 1;
+                for (int b = 0; b < carve_count; ++b)
+                    carve_bsp_slice_anchor_bounds(y1, y2, x1, x2);
+                if (density != DENSITY_SPARSE)
+                    room_build_in_bounds(7, y1, y2, x1, x2);
+                room_build_in_bounds(2, y1, y2, x1, x2);
+                if (density == DENSITY_DENSE)
+                    room_build_in_bounds(1, y1, y2, x1, x2);
+            }
             break;
         case QUAD_MODE_LABYRINTH:
-            /* Dense maze of twisting corridors */
-            for (int b = 0; b < 3; ++b)
-                carve_bsp_slice_anchor_bounds(y1, y2, x1, x2);
-            /* Add small chambers scattered throughout */
-            room_build_in_bounds(1, y1, y2, x1, x2);
-            room_build_in_bounds(1, y1, y2, x1, x2);
-            room_build_in_bounds(6, y1, y2, x1, x2);
+            {
+                /* Dense maze of twisting corridors */
+                int maze_count = (density == DENSITY_SPARSE) ? 2 : (density == DENSITY_DENSE) ? 4 : 3;
+                for (int b = 0; b < maze_count; ++b)
+                    carve_bsp_slice_anchor_bounds(y1, y2, x1, x2);
+                /* Add small chambers scattered throughout */
+                int room_count = (density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 3 : 2;
+                for (int r = 0; r < room_count; ++r)
+                    room_build_in_bounds(1, y1, y2, x1, x2);
+                if (density != DENSITY_SPARSE)
+                    room_build_in_bounds(6, y1, y2, x1, x2);
+            }
             break;
         case QUAD_MODE_CHASM:
-            /* Large open cavern with pillars */
-            carve_ca_blob_anchor_bounds(y1, y2, x1, x2);
-            carve_ca_blob_anchor_bounds(y1, y2, x1, x2);
-            /* Add pillared rooms for structure */
-            room_build_in_bounds(1, y1, y2, x1, x2);  /* May create pillars */
-            room_build_in_bounds(2, y1, y2, x1, x2);  /* Cross-shaped */
+            {
+                /* Large open cavern with pillars */
+                int blob_count = (density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 3 : 2;
+                for (int b = 0; b < blob_count; ++b)
+                    carve_ca_blob_anchor_bounds(y1, y2, x1, x2);
+                /* Add pillared rooms for structure */
+                room_build_in_bounds(1, y1, y2, x1, x2);  /* May create pillars */
+                if (density != DENSITY_SPARSE)
+                    room_build_in_bounds(2, y1, y2, x1, x2);  /* Cross-shaped */
+                if (density == DENSITY_DENSE)
+                    room_build_in_bounds(1, y1, y2, x1, x2);  /* Additional structure */
+            }
             break;
         case QUAD_MODE_ROOMY:
         default:
-            room_build_in_bounds(1, y1, y2, x1, x2);
-            room_build_in_bounds(1, y1, y2, x1, x2);
-            room_build_in_bounds(6, y1, y2, x1, x2);
-            room_build_in_bounds(7, y1, y2, x1, x2);
+            {
+                int basic_count = (density == DENSITY_SPARSE) ? 1 : (density == DENSITY_DENSE) ? 3 : 2;
+                for (int r = 0; r < basic_count; ++r)
+                    room_build_in_bounds(1, y1, y2, x1, x2);
+                if (density != DENSITY_SPARSE)
+                    room_build_in_bounds(6, y1, y2, x1, x2);
+                if (density == DENSITY_DENSE)
+                    room_build_in_bounds(7, y1, y2, x1, x2);
+            }
             break;
+        }
+    }
+    
+    /* Log partition generation summary */
+    {
+        const char *mode_str[] = {"ROOMY", "CAVEY", "RUINED", "LABYRINTH", "CHASM"};
+        const char *density_str[] = {"SPARSE", "NORMAL", "DENSE"};
+        
+        if (partition_count == 4)
+        {
+            log_debug("Partition generation (2x2): [0]=%s/%s [1]=%s/%s [2]=%s/%s [3]=%s/%s",
+                     mode_str[modes[0]], density_str[densities[0]],
+                     mode_str[modes[1]], density_str[densities[1]],
+                     mode_str[modes[2]], density_str[densities[2]],
+                     mode_str[modes[3]], density_str[densities[3]]);
+        }
+        else if (partition_count == 9)
+        {
+            log_debug("Partition generation (3x3): [0]=%s/%s [1]=%s/%s [2]=%s/%s [3]=%s/%s [4]=%s/%s "
+                     "[5]=%s/%s [6]=%s/%s [7]=%s/%s [8]=%s/%s",
+                     mode_str[modes[0]], density_str[densities[0]],
+                     mode_str[modes[1]], density_str[densities[1]],
+                     mode_str[modes[2]], density_str[densities[2]],
+                     mode_str[modes[3]], density_str[densities[3]],
+                     mode_str[modes[4]], density_str[densities[4]],
+                     mode_str[modes[5]], density_str[densities[5]],
+                     mode_str[modes[6]], density_str[densities[6]],
+                     mode_str[modes[7]], density_str[densities[7]],
+                     mode_str[modes[8]], density_str[densities[8]]);
         }
     }
 }
@@ -7194,14 +7269,14 @@ static bool cave_gen(void)
     dun = &dun_body;
 
     /* Sil - determine the dungeon size */
-    /* Generate square levels: 6*11 to 15*11 (66x66 to 165x165) */
+    /* Generate square levels: 4*11 to 15*11 (44x44 to 165x165) */
     /* Probability increases with depth, larger sizes more probable */
     
-    // Base size: 6 blocks minimum
+    // Base size: 4 blocks minimum
     // Size increases with depth, with bias toward larger sizes
     // Formula: Use multiple dice rolls and take the maximum (biases upward)
     // At depth 19: average ~13 blocks, size 15 achievable (~15% chance)
-    int base_size = 6;
+    int base_size = 3;
     int depth_factor = p_ptr->depth + dieroll(15);  // Higher ceiling (1-15)
     int bonus1 = depth_factor / 3;  // First roll
     int bonus2 = (p_ptr->depth + dieroll(12)) / 3;  // Second roll
@@ -7607,6 +7682,14 @@ static bool cave_gen(void)
     {
         // currently ignoring the above...
         alloc_object(ALLOC_SET_ROOM, ALLOC_TYP_OBJECT, obj_room_gen, false);
+    }
+
+    /* Put some objects in corridors (especially for labyrinth/maze levels) */
+    int obj_corr_gen = mon_gen / 3;  /* ~33% of monster count */
+    if (obj_corr_gen > 0)
+    {
+        alloc_object(ALLOC_SET_CORR, ALLOC_TYP_OBJECT, obj_corr_gen, false);
+        log_trace("Corridor objects: placed %d objects in corridors", obj_corr_gen);
     }
 
     // place the traps
